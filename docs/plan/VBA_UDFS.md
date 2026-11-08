@@ -2,10 +2,10 @@
 
 `dc-snz.3` value calls are closed; `dc-snz.5` remains in progress (2026-10-31).
 Only `calc-vba` depends on the OxVba embedding API, pinned to
-`a4bf979239e1cb67326d13b760c04ecd13bbf55f`. Native builds prefer JIT;
+`18d061393d2376eb3e5c1b89c7012d8188318203`. Native builds prefer JIT;
 browser builds omit JIT and use the interpreter. A native admission decline can select
 the interpreter before any code runs. Runtime errors and exhausted budgets never retry.
-The OxVba/CalcVba rename is deferred; OneCalc stays free of calc-engine/calc-doc/calc-host.
+The OxVba/CalcVba rename is deferred; OneCalc stays free of calc-engine and calc-host (it reads files through calc-doc).
 
 Load a standard module in **VBA functions**, enter 40 in A1 and `=Module1.Add2(A1,2)` in the
 formula field to obtain 42. Load again to replace registrations and start fresh module
@@ -190,3 +190,41 @@ the prior project; successful reload replaces it and starts new module state. So
 not yet persisted. The interpreter-only browser path remains the OneCalc route as well.
 The cache pin currently copies the workbook's cache map per user formula and the reference
 view copies live handles; large-workbook cost and handle reclamation remain unmeasured.
+
+## Office projects from the file (OneCalc milestone 5, dc-0f1k.4, 2026-11-08)
+
+The layering follows the owner's ruling (theory 5a). calc-doc does all file work: it reads the
+`vbaProject.bin` part as an opaque blob (`LoadedWorkbook::vba_project`, `read_vba_file` for an
+.xlam), and a session saves it back with its relationship, content type and the document code names
+(`SessionFile::vba`, an .xlsm). calc-doc's own MS-OVBA parser is gone. CalcVBA's `calcvba-office`,
+built without its `files` feature, reads everything inside the blob (compound storage,
+decompression, the `dir` and `PROJECT` streams, code page, references, modules) and writes an edited
+module back (`Project::put_module`, `to_bin`). calc-vba's `office` module is the glue's view of
+that project; `events::load_office_project` compiles it with its references and the workbook's own
+events, and registers the public procedures in the `CallableTable`. DNA Calc's file projects
+(calc-host-vba) take the same blob route.
+
+References: VBA's own library is the compiler's; the Excel library is bound to DNA's objects (the
+spreadsheet projection); every other type library reference (stdole, Office, Scripting, ...) is
+resolved through CalcVBA's catalogue, which reads the registry's type libraries on Windows (a
+registry read only), and early-bound calls on those objects go through CalcVBA's Windows COM host,
+interpreter and JIT alike. DNA's own objects never reach platform COM, and a `DnaCalc.*` object DNA
+does not model stays a typed refusal. Browsers have no registry: there the project compiles
+without those references, so code that uses their types does not compile. A reference to another VBA
+project is refused (one project is compiled at a time).
+
+What a UDF sees: Excel forbids a worksheet function to write a cell; a write to a Range (`Value`,
+`Value2`, `Formula`) raises the trappable VBA error 1004, and unhandled it gives `#VALUE!`, both
+measured in Excel with DnaExamples.xlam. `Range.Value` and `Formula` reads are declared (so add-in
+code compiles) and are typed refusals: their date and currency forms need the cell's format.
+`ThisWorkbook.Name` is the project's file name. `ActiveSheet` and `Selection` are not modelled
+(typed refusals that `On Error` cannot hide).
+
+Events: an add-in or session project compiles with the workbook's own events (`Workbook_Open`,
+`Workbook_AddinInstall`, `Workbook_BeforeSave`) and the full UDF signature surface; sheet events and
+other workbook events are listed as not delivered. OneCalc raises `Workbook_Open` when an .xlsm
+session or an .xlam opens, and `Workbook_AddinInstall` after it when the person loads an .xlam (as
+Excel's Add-ins dialog installs one); an .xlam loaded from a session's list is only opened. Excel's
+measured route opened the add-in with `Workbooks.Open`; installing an add-in in Excel writes its
+add-in list, which these runs do not change, so the AddinInstall order is not measured. Cell reads
+from a workbook event are not modelled in OneCalc.

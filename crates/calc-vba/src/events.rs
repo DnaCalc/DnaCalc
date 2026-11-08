@@ -51,12 +51,72 @@ impl LoadedProject {
     }
 }
 
+/// Which document events a project's handlers receive.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum DocumentEvents {
+    /// None: the project's worksheet functions only (the full UDF signature surface).
+    None,
+    /// The workbook's own events (`Workbook_Open`, `Workbook_AddinInstall`,
+    /// `Workbook_BeforeSave`) beside the full UDF signature surface: an add-in's case.
+    Workbook,
+    /// Every automatic document event (DNA Calc's file projects), with the narrower UDF
+    /// signatures that event projects admit (dc-hsa5.12).
+    All,
+}
+
+/// The type-library references a project compiles against beside DNA's own objects.
+#[derive(Clone, Debug, Default)]
+pub struct ProjectReferences {
+    pub(crate) compiler: Vec<oxvba_symbol::manifest::ProjectReference>,
+    /// The reference names the platform's registered type libraries resolve.
+    pub(crate) libraries: Vec<String>,
+    /// Whether calls reach platform COM objects (a native Windows build only).
+    pub(crate) com: bool,
+}
+impl ProjectReferences {
+    pub fn none() -> Self {
+        Self::default()
+    }
+    /// The references of an Office project read from its blob. Only a native Windows build
+    /// reads the platform's registered type libraries; elsewhere (the browsers) the project
+    /// compiles without them, so code that uses one of their types is a compile error.
+    pub fn of(project: &crate::office::OfficeProject) -> Result<Self, String> {
+        if !cfg!(all(windows, not(target_arch = "wasm32"))) {
+            // A reference to another VBA project is refused on every platform.
+            project.compiler_references()?;
+            return Ok(Self::none());
+        }
+        let compiler = project.compiler_references()?;
+        let libraries: Vec<String> = project
+            .references()
+            .iter()
+            .filter(|reference| {
+                reference.guid().as_deref() != Some(crate::office::VBA_LIBRARY)
+                    && reference.guid().as_deref() != Some(crate::office::EXCEL_LIBRARY)
+            })
+            .map(|reference| reference.name().to_owned())
+            .collect();
+        Ok(Self {
+            compiler,
+            libraries,
+            com: !project.com_references().is_empty(),
+        })
+    }
+}
+
 pub fn load_project(
     modules: &[ProjectModule],
     max_steps: u64,
     backend: Option<Backend>,
 ) -> Result<LoadedProject, String> {
-    load_project_impl(modules, max_steps, backend, false, true)
+    load_project_impl(
+        modules,
+        &ProjectReferences::none(),
+        max_steps,
+        backend,
+        false,
+        DocumentEvents::All,
+    )
 }
 
 /// An opened workbook's worksheet lookup also admits its private standard-module
@@ -75,15 +135,38 @@ pub fn load_file_project_with_events(
     backend: Option<Backend>,
     automatic_events: bool,
 ) -> Result<LoadedProject, String> {
-    load_project_impl(modules, max_steps, backend, true, automatic_events)
+    load_file_project_with(
+        modules,
+        &ProjectReferences::none(),
+        max_steps,
+        backend,
+        if automatic_events {
+            DocumentEvents::All
+        } else {
+            DocumentEvents::None
+        },
+    )
+}
+
+/// A file's project with its type-library references and the document events its handlers
+/// receive.
+pub fn load_file_project_with(
+    modules: &[ProjectModule],
+    references: &ProjectReferences,
+    max_steps: u64,
+    backend: Option<Backend>,
+    events: DocumentEvents,
+) -> Result<LoadedProject, String> {
+    load_project_impl(modules, references, max_steps, backend, true, events)
 }
 
 fn load_project_impl(
     modules: &[ProjectModule],
+    references: &ProjectReferences,
     max_steps: u64,
     backend: Option<Backend>,
     private_worksheet_lookup: bool,
-    automatic_events: bool,
+    events: DocumentEvents,
 ) -> Result<LoadedProject, String> {
     if modules.is_empty()
         || modules.len() > 1024
@@ -92,8 +175,129 @@ fn load_project_impl(
     {
         return Err("VBA project exceeds its source/module limits (dc-hsa5.12)".into());
     }
-    let module = Module::load_event_project(modules, private_worksheet_lookup, automatic_events)
+    let module = Module::load_event_project(modules, references, private_worksheet_lookup, events)
         .map_err(|e| format!("document project (dc-hsa5.12): {e}"))?;
     crate::prepare_project(module, max_steps, backend)
         .map_err(|e| format!("document project (dc-hsa5.12): {e}"))
+}
+
+/// An Office project compiled for an application that has the project's workbook (an add-in or
+/// a session file) but no workbook engine: its worksheet functions, and the workbook document
+/// whose own events the application raises (theory 5a, dc-0f1k.4).
+pub struct OfficeLoad {
+    pub project: LoadedProject,
+    /// The workbook document (`ThisWorkbook`), attached, when the project has one.
+    pub workbook: Option<EventSource>,
+    /// Document event handlers the project declares that this route does not deliver (sheet
+    /// events, workbook events other than Open, AddinInstall and BeforeSave), by name.
+    pub undelivered: Vec<String>,
+}
+
+const DELIVERED_WORKBOOK_EVENTS: [&str; 3] = ["Open", "AddinInstall", "BeforeSave"];
+
+/// Compiles `project` with its type-library references, as the file named `workbook_name`
+/// (what `ThisWorkbook.Name` gives). Document modules bind by their kind; a designer
+/// (UserForm) or chart module with code is refused, since neither is modelled. Nothing runs:
+/// the caller raises `Workbook_Open` (and `Workbook_AddinInstall`) through [`OfficeLoad::workbook`].
+pub fn load_office_project(
+    project: &crate::office::OfficeProject,
+    workbook_name: &str,
+    max_steps: u64,
+    backend: Option<Backend>,
+) -> Result<OfficeLoad, String> {
+    use crate::office::OfficeModuleKind as K;
+    let references = ProjectReferences::of(project)?;
+    let mut modules = Vec::new();
+    let mut undelivered = Vec::new();
+    let mut workbook_module = None;
+    for module in project.modules() {
+        let kind = match (module.kind, module.document.as_deref()) {
+            (K::Standard, _) => ModuleKind::Standard,
+            (K::Class, _) => ModuleKind::Class,
+            (K::Document, Some("Excel.Workbook")) if workbook_module.is_none() => {
+                workbook_module = Some(module.name.clone());
+                ModuleKind::Workbook
+            }
+            (K::Document, Some("Excel.Worksheet")) => ModuleKind::Worksheet,
+            _ if !has_code(&module.source) => continue,
+            _ => {
+                return Err(format!(
+                    "the module {} ({}) is not modelled: OneCalc runs standard, class, workbook and worksheet modules (dc-0f1k.4)",
+                    module.name,
+                    module.document.as_deref().unwrap_or("UserForm")
+                ));
+            }
+        };
+        if module.kind == K::Document {
+            let prefix = if kind == ModuleKind::Workbook { "Workbook_" } else { "Worksheet_" };
+            for handler in event_handlers(&module.source, prefix) {
+                let delivered = kind == ModuleKind::Workbook
+                    && DELIVERED_WORKBOOK_EVENTS
+                        .iter()
+                        .any(|event| handler.eq_ignore_ascii_case(event));
+                if !delivered {
+                    undelivered.push(format!("{}.{prefix}{handler}", module.name));
+                }
+            }
+        }
+        modules.push(ProjectModule {
+            name: module.name.clone(),
+            source: module.source.clone(),
+            kind,
+        });
+    }
+    let loaded = load_project_impl(
+        &modules,
+        &references,
+        max_steps,
+        backend,
+        true,
+        DocumentEvents::Workbook,
+    )?;
+    let workbook = match workbook_module {
+        Some(module) => {
+            let source = EventSource::workbook(workbook_name);
+            loaded.attach_document(&module, &source)?;
+            Some(source)
+        }
+        None => None,
+    };
+    Ok(OfficeLoad {
+        project: loaded,
+        workbook,
+        undelivered,
+    })
+}
+
+/// Whether a module's source holds more than `Attribute` lines, `Option` statements, comments
+/// and blank lines.
+fn has_code(source: &str) -> bool {
+    source.lines().map(str::trim).any(|line| {
+        let lower = line.to_ascii_lowercase();
+        !(line.is_empty()
+            || line.starts_with('\'')
+            || lower.starts_with("attribute ")
+            || lower.starts_with("option ")
+            || lower.starts_with("rem "))
+    })
+}
+
+/// The event names of the `Sub <prefix><Event>` procedures a document module declares.
+fn event_handlers(source: &str, prefix: &str) -> Vec<String> {
+    source
+        .lines()
+        .filter_map(|line| {
+            let mut words = line.split_whitespace();
+            let mut word = words.next()?;
+            if word.eq_ignore_ascii_case("Private") || word.eq_ignore_ascii_case("Public") {
+                word = words.next()?;
+            }
+            if !word.eq_ignore_ascii_case("Sub") {
+                return None;
+            }
+            let name = words.next()?.split('(').next()?;
+            (name.len() > prefix.len() && name[..prefix.len()].eq_ignore_ascii_case(prefix))
+                .then(|| name[prefix.len()..].to_owned())
+        })
+        .collect()
 }

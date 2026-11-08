@@ -90,6 +90,50 @@ fn event(
 }
 pub(crate) struct EventTypes {
     pub(crate) automatic_events: bool,
+    /// Only the workbook document's own events (Open, AddinInstall, BeforeSave), with every
+    /// other type as a worksheet function sees it: what an add-in's UDFs and its open-time
+    /// set-up need, without the sheet events' Range objects.
+    pub(crate) workbook_events: bool,
+}
+
+/// Whether `iid` is one of the document interfaces (a workbook or a worksheet).
+pub(crate) fn is_document_interface(iid: &[u8; 16]) -> bool {
+    *iid == BOOK || *iid == SHEET
+}
+
+/// A project's own types first; then, for the names of its type-library references, the
+/// platform's registered type libraries through CalcVBA's catalogue (a registry read only).
+pub(crate) struct WithReferences<'a> {
+    pub(crate) own: &'a dyn TypeLibResolver,
+    /// The reference names (as code qualifies types with them) the catalogue resolves.
+    pub(crate) libraries: &'a [String],
+}
+impl WithReferences<'_> {
+    fn library(&self, request: &TypeLibResolveRequest) -> bool {
+        self.libraries
+            .iter()
+            .any(|name| name.eq_ignore_ascii_case(&request.reference_name))
+    }
+}
+impl TypeLibResolver for WithReferences<'_> {
+    fn interface_iid(
+        &self,
+        request: &TypeLibResolveRequest,
+        blob: &TypeLibMetadataBlob,
+    ) -> Option<ComInterfaceIid> {
+        if self.library(request) {
+            oxvba_symbol::CatalogTypeLibResolver.interface_iid(request, blob)
+        } else {
+            self.own.interface_iid(request, blob)
+        }
+    }
+    fn resolve(&self, request: &TypeLibResolveRequest) -> Option<TypeLibMetadataBlob> {
+        if self.library(request) {
+            oxvba_symbol::CatalogTypeLibResolver.resolve(request)
+        } else {
+            self.own.resolve(request)
+        }
+    }
 }
 
 // These descriptors allow complete original source to compile. No implementation
@@ -239,6 +283,13 @@ impl TypeLibResolver for EventTypes {
             "workbook" => (
                 vec![member("Name", 0, T::String, BOOK, 1)],
                 vec![event("Open", 2, "Workbook", BOOK_EVENTS, vec![], vec![]), event(
+                    "AddinInstall",
+                    3,
+                    "Workbook",
+                    BOOK_EVENTS,
+                    vec![],
+                    vec![],
+                ), event(
                     "BeforeSave",
                     1,
                     "Workbook",
@@ -252,7 +303,10 @@ impl TypeLibResolver for EventTypes {
         if self.automatic_events && class.eq_ignore_ascii_case("Application") {
             members = application_members(members);
         }
-        if !self.automatic_events && !class.eq_ignore_ascii_case("Application") {
+        if !self.automatic_events
+            && !class.eq_ignore_ascii_case("Application")
+            && !(self.workbook_events && class.eq_ignore_ascii_case("Workbook"))
+        {
             events.clear();
         }
         match class.to_ascii_lowercase().as_str() {
@@ -476,6 +530,7 @@ impl TypeLibResolver for EventTypes {
                 .into_iter()
                 .map(str::to_owned)
                 .collect(),
+            coclass_prog_ids: vec![],
         })
     }
 }

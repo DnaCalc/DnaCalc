@@ -22,7 +22,7 @@ compile_error!("calc-addin-host is native-only");
 #[cfg(windows)]
 mod host;
 #[cfg(windows)]
-pub use host::{AddinHost, Document};
+pub use host::{AddinHost, Document, VbaAddinLoad};
 
 #[cfg(windows)]
 pub use calc_com_host::{Projection, RtdClient, RtdInput};

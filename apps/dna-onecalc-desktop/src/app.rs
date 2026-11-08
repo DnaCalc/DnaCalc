@@ -38,6 +38,10 @@ struct Options {
     sheet: String,
     debug_port: Option<u16>,
     size: (i32, i32),
+    /// Save sessions here, each in a new numbered folder under the name the session suggests,
+    /// instead of asking in the save dialog: an acceptance run drives the page's Save without a
+    /// person (the dialog's own code is not exercised then).
+    save_dir: Option<PathBuf>,
 }
 
 fn options(args: &[String]) -> Result<Options, String> {
@@ -48,6 +52,7 @@ fn options(args: &[String]) -> Result<Options, String> {
         sheet: "Sheet1".to_owned(),
         debug_port: None,
         size: (1280, 900),
+        save_dir: None,
     };
     let mut args = args.iter();
     while let Some(arg) = args.next() {
@@ -58,6 +63,7 @@ fn options(args: &[String]) -> Result<Options, String> {
             "--assets" => o.assets = Some(PathBuf::from(value()?)),
             "--xll" => o.xlls.push(PathBuf::from(value()?)),
             "--sheet" => o.sheet = value()?,
+            "--save-dir" => o.save_dir = Some(PathBuf::from(value()?)),
             "--debug-port" => {
                 o.debug_port = Some(value()?.parse().map_err(|_| "--debug-port needs a port")?)
             }
@@ -88,12 +94,31 @@ const TICK_ID: usize = 0x4f4e43;
 /// The native file dialogs, owned by the window.
 struct Dialogs {
     owner: *mut std::ffi::c_void,
+    /// `--save-dir`: where saves go without the dialog, and how many there have been.
+    save_dir: Option<(PathBuf, usize)>,
+    /// The Mark of the Web zone of the file last chosen to open.
+    zone: Option<u32>,
+}
+
+/// The zone in a file's `Zone.Identifier` alternate data stream (`ZoneId=3`), when it has one.
+fn mark_of_the_web(path: &std::path::Path) -> Option<u32> {
+    let mut stream = path.as_os_str().to_owned();
+    stream.push(":Zone.Identifier");
+    let text = std::fs::read_to_string(std::path::PathBuf::from(stream)).ok()?;
+    zone_of(&text)
+}
+
+/// `ZoneId=<n>` in the text of a `Zone.Identifier` stream.
+pub(crate) fn zone_of(text: &str) -> Option<u32> {
+    text.lines()
+        .filter_map(|line| line.trim().strip_prefix("ZoneId="))
+        .find_map(|zone| zone.trim().parse().ok())
 }
 
 const SESSION_FILES: [FileFilter<'static>; 2] = [
     FileFilter {
-        name: "OneCalc sessions (*.xlsx)",
-        patterns: "*.xlsx",
+        name: "OneCalc sessions (*.xlsx; *.xlsm)",
+        patterns: "*.xlsx;*.xlsm",
     },
     FileFilter {
         name: "All files",
@@ -108,6 +133,7 @@ impl Files for Dialogs {
             return Ok(None);
         };
         let bytes = std::fs::read(&path).map_err(|e| format!("{}: {e}", path.display()))?;
+        self.zone = mark_of_the_web(&path);
         let name = path
             .file_name()
             .map(|n| n.to_string_lossy().into_owned())
@@ -115,9 +141,23 @@ impl Files for Dialogs {
         Ok(Some((name, bytes)))
     }
 
-    fn choose_save(&mut self, _suggested: &str, bytes: &[u8]) -> Result<Option<String>, String> {
+    fn opened_zone(&self) -> Option<u32> {
+        self.zone
+    }
+
+    fn choose_save(&mut self, suggested: &str, bytes: &[u8]) -> Result<Option<String>, String> {
+        if let Some((directory, count)) = &mut self.save_dir {
+            *count += 1;
+            let folder = directory.join(count.to_string());
+            std::fs::create_dir_all(&folder).map_err(|e| format!("{}: {e}", folder.display()))?;
+            let path = folder.join(suggested);
+            std::fs::write(&path, bytes).map_err(|e| format!("{}: {e}", path.display()))?;
+            return Ok(Some(path.display().to_string()));
+        }
+        // A session with a VBA project is an .xlsm.
+        let extension = if suggested.ends_with(".xlsm") { "xlsm" } else { "xlsx" };
         let Some(path) =
-            dialogs::save_file(self.owner.cast(), "Save the session", &SESSION_FILES, "xlsx")?
+            dialogs::save_file(self.owner.cast(), "Save the session", &SESSION_FILES, extension)?
         else {
             return Ok(None);
         };
@@ -132,8 +172,8 @@ impl Files for Dialogs {
 
 const ADDIN_FILES: [FileFilter<'static>; 2] = [
     FileFilter {
-        name: "Excel add-ins (*.xll)",
-        patterns: "*.xll",
+        name: "Excel add-ins (*.xll; *.xlam)",
+        patterns: "*.xll;*.xlam",
     },
     FileFilter {
         name: "All files",
@@ -242,6 +282,28 @@ impl Libraries for Addins {
                 (path.clone(), own.iter().map(|r| r.name.clone()).collect())
             })
             .collect()
+    }
+
+    fn load_xlam(
+        &mut self,
+        path: &Path,
+        project: &calc_vba::OfficeProject,
+        install: bool,
+    ) -> Result<Vec<String>, String> {
+        let load = self.set.borrow_mut().load_vba_addin(path, project, install)?;
+        Ok(load.notes)
+    }
+
+    fn unload_xlam(&mut self, path: &Path) -> Result<(), String> {
+        if self.set.borrow_mut().unload_vba_addin(path) {
+            Ok(())
+        } else {
+            Err(format!("{} is not loaded", path.display()))
+        }
+    }
+
+    fn loaded_xlam(&self) -> Vec<(PathBuf, Vec<String>)> {
+        self.set.borrow().vba_addins()
     }
 
     fn load_vba(&mut self, name: &str, source: &str) -> Result<(), String> {
@@ -431,7 +493,7 @@ pub fn run(args: &[String]) -> Result<(), String> {
         arrived: BTreeMap::new(),
         since: Instant::now(),
     })));
-    let mut host = Host::new(session, Dialogs { owner: frame.cast() }, Addins::new(set.clone()));
+    let mut host = Host::new(session, Dialogs { owner: frame.cast(), save_dir: o.save_dir.clone().map(|d| (d, 0)), zone: None }, Addins::new(set.clone()));
     for xll in &o.xlls {
         match host.handle(Request::LoadAddin {
             path: xll.display().to_string(),
@@ -501,5 +563,34 @@ mod tests {
         assert_eq!((o.size, o.xlls.len()), ((800, 600), 1));
         assert!(options(&args(&["--app", "--url", "http://127.0.0.1:1/"])).is_ok());
         assert!(options(&args(&["--app", "--bogus"])).is_err());
+    }
+}
+
+#[cfg(test)]
+mod zone_tests {
+    use super::zone_of;
+
+    /// The `Zone.Identifier` stream of a downloaded file (Windows writes `ZoneId` under `[ZoneTransfer]`).
+    #[test]
+    fn the_zone_is_read_from_the_stream_text() {
+        assert_eq!(zone_of("[ZoneTransfer]\r\nZoneId=3\r\nReferrerUrl=https://example.test/\r\n"), Some(3));
+        assert_eq!(zone_of("[ZoneTransfer]\nZoneId=4"), Some(4));
+        assert_eq!(zone_of("[ZoneTransfer]\r\nZoneId=x\r\n"), None);
+        assert_eq!(zone_of(""), None);
+    }
+
+    /// A file with a real `Zone.Identifier` alternate data stream is read through its path.
+    #[test]
+    fn a_file_with_an_alternate_stream_reports_its_zone() {
+        let dir = std::env::temp_dir().join(format!("onecalc-zone-{}", std::process::id()));
+        std::fs::create_dir_all(&dir).unwrap();
+        let file = dir.join("marked.xlsm");
+        std::fs::write(&file, b"x").unwrap();
+        assert_eq!(super::mark_of_the_web(&file), None);
+        let mut stream = file.as_os_str().to_owned();
+        stream.push(":Zone.Identifier");
+        std::fs::write(std::path::PathBuf::from(stream), "[ZoneTransfer]\r\nZoneId=3\r\n").unwrap();
+        assert_eq!(super::mark_of_the_web(&file), Some(3));
+        std::fs::remove_dir_all(&dir).unwrap();
     }
 }

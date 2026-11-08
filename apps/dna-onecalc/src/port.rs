@@ -17,7 +17,7 @@
 
 use crate::display;
 use crate::grid;
-use crate::session::{AddinRef, InputValue, Session};
+use crate::session::{AddinRef, InputValue, ProjectReport, Session};
 use crate::shown::{Authored, Shown};
 use calc_fml::{CalcEnvironment, DateSystem, FormatProfile, FormulaForm};
 use serde::{Deserialize, Serialize};
@@ -122,7 +122,14 @@ pub enum Request {
         name: String,
         #[serde(with = "bytes_as_base64")]
         bytes: Vec<u8>,
+        /// The URL security zone of the file's Mark of the Web (its `Zone.Identifier` stream)
+        /// when the host could read one: 3 (internet) and 4 (restricted) never run a VBA project.
+        #[serde(default)]
+        zone: Option<u32>,
     },
+    /// Lets the open file's VBA project run (the person enabled macros for this file); answers
+    /// with the file as opened, now with its project compiled and `Workbook_Open` raised.
+    EnableMacros,
     /// Opens a workbook through the native host's file dialog (a host with no dialog refuses).
     OpenNative,
     /// The session saved as a workbook, the bytes in the reply.
@@ -156,6 +163,9 @@ pub struct LoadedAddin {
     pub hash: String,
     /// The worksheet functions it registered, in registration order.
     pub functions: Vec<String>,
+    /// What its load reported: workbook events that failed or are not delivered.
+    #[serde(default)]
+    pub notes: Vec<String>,
 }
 
 /// The registered functions a surface completes and documents, as of one version of the table.
@@ -179,6 +189,44 @@ pub struct Opened {
     pub addins: Vec<AddinRef>,
     /// The paths of the add-ins the host has loaded, when it has any.
     pub loaded: Vec<String>,
+    /// The file's VBA project, when it carries one (an .xlsm session): what compiling it gave,
+    /// or why it did not compile.
+    #[serde(default)]
+    pub project: Option<ProjectView>,
+}
+
+/// A session's VBA project as the surface lists it.
+#[derive(Clone, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
+pub struct ProjectView {
+    /// The project's worksheet functions; empty when it did not compile.
+    pub functions: Vec<String>,
+    /// Workbook events not delivered or that failed, and why the project did not compile or run.
+    pub notes: Vec<String>,
+    /// Whether the project may run.
+    #[serde(default)]
+    pub macros: MacrosView,
+}
+
+/// Whether the file's VBA project may run (Excel's default: not until the person enables it).
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
+pub enum MacrosView {
+    /// The project was let run.
+    #[default]
+    Enabled,
+    /// Held but not run; the person can enable macros for this file.
+    Disabled,
+    /// Held but not run, and not to be enabled: the file carries the Mark of the Web.
+    Blocked,
+}
+
+impl From<crate::MacroState> for MacrosView {
+    fn from(state: crate::MacroState) -> Self {
+        match state {
+            crate::MacroState::Enabled => Self::Enabled,
+            crate::MacroState::Disabled => Self::Disabled,
+            crate::MacroState::Blocked(_) => Self::Blocked,
+        }
+    }
 }
 
 /// What a calculation gave, as text for people.
@@ -308,7 +356,7 @@ pub(crate) fn environment(culture: &str, now: Option<f64>, date_1904: bool) -> C
 /// session it was loaded into.
 fn carry_functions(old: &mut Session, new: &mut Session) {
     if !old.has_vba_module() {
-        new.set_user_functions(old.user_functions().clone());
+        new.set_user_functions(old.published_functions().clone());
     }
     // The owner of asynchronous returns belongs to the add-ins, not to the session it served.
     new.set_external_returns(old.take_external_returns());
@@ -316,6 +364,25 @@ fn carry_functions(old: &mut Session, new: &mut Session) {
 
 /// The reply for a session that has just been opened or made: what to show for it.
 pub fn opened(session: &mut Session, name: String, loaded: Vec<String>) -> Reply {
+    opened_with(session, name, loaded, None)
+}
+
+/// A session's project as the surface lists it, with what `report` gave.
+pub fn project_view(session: &Session, report: ProjectReport) -> ProjectView {
+    ProjectView {
+        functions: report.functions,
+        notes: report.notes,
+        macros: session.project().map_or(MacrosView::Enabled, |p| p.macros.into()),
+    }
+}
+
+/// [`opened`] for a file whose VBA project compiled (or did not).
+pub fn opened_with(
+    session: &mut Session,
+    name: String,
+    loaded: Vec<String>,
+    project: Option<ProjectView>,
+) -> Reply {
     let authored = crate::shown::authored_of(session);
     let shown = crate::shown::evaluate(session, &authored);
     Reply::Opened(Box::new(Opened {
@@ -324,6 +391,7 @@ pub fn opened(session: &mut Session, name: String, loaded: Vec<String>) -> Reply
         shown,
         addins: session.addins().to_vec(),
         loaded,
+        project,
     }))
 }
 
@@ -413,6 +481,14 @@ impl SessionPort for LocalPort {
                 session.set_environment(Some(environment(&culture, now, session.options().date_1904)));
                 Reply::Accepted
             }
+            // With a VBA project (an .xlsm session) the module is the project's: its code changes
+            // and the project part saved next is the changed one.
+            Request::LoadVba { name, source } if session.project().is_some_and(|p| !p.modules().is_empty()) => {
+                match session.edit_project_module(&name, &source) {
+                    Ok(report) => Reply::Functions { names: report.functions },
+                    Err(message) => refused(message),
+                }
+            }
             Request::LoadVba { name, source } => {
                 match session.load_vba_module(&name, &source, calc_vba::DEFAULT_STEP_BUDGET) {
                     Ok(names) => Reply::Functions { names },
@@ -450,22 +526,48 @@ impl SessionPort for LocalPort {
                 *session = fresh;
                 opened(session, String::new(), Vec::new())
             }
-            Request::Open { name, bytes } => match crate::file::open(&bytes) {
-                Ok(mut next) => {
+            Request::Open { name, bytes, zone } => match crate::file::open(&bytes) {
+                Ok((mut next, vba)) => {
                     carry_functions(session, &mut next);
                     *session = next;
-                    opened(session, name, Vec::new())
+                    // Excel's default for a macro file: it opens with macros disabled (nothing
+                    // compiles, nothing runs); with the Mark of the Web it can not be enabled.
+                    let project = vba.map(|vba| match session.open_project(vba, &name, zone) {
+                        Ok(report) => project_view(session, report),
+                        Err(why) => project_view(session, ProjectReport { functions: Vec::new(), notes: vec![why] }),
+                    });
+                    opened_with(session, name, Vec::new(), project)
                 }
                 Err(refusal) => Reply::NotASession {
                     reason: refusal.reason,
                     offer: crate::file::OFFER.to_owned(),
                 },
             },
-            Request::Save => match crate::file::save(session) {
+            // A session with a VBA project is saved as an .xlsm under the name of the file it came
+            // from, which its ThisWorkbook.Name gives; any other as onecalc-session.xlsx.
+            Request::Save => match session.raise_before_save() {
+                Ok(true) => refused("Workbook_BeforeSave set Cancel: the session was not saved"),
+                Err(message) => refused(message),
+                Ok(false) => match crate::file::save(session) {
                 Ok(bytes) => Reply::File {
-                    name: "onecalc-session.xlsx".to_owned(),
+                    name: session
+                        .project()
+                        .map(|project| {
+                            let stem = project.file_name.rsplit_once('.').map_or(project.file_name.as_str(), |(stem, _)| stem);
+                            format!("{}.xlsm", if stem.is_empty() { "onecalc-session" } else { stem })
+                        })
+                        .unwrap_or_else(|| "onecalc-session.xlsx".to_owned()),
                     bytes,
                 },
+                Err(message) => refused(message),
+                },
+            },
+            Request::EnableMacros => match session.enable_macros() {
+                Ok(report) => {
+                    let name = session.project().map(|p| p.file_name.clone()).unwrap_or_default();
+                    let project = Some(project_view(session, report));
+                    opened_with(session, name, Vec::new(), project)
+                }
                 Err(message) => refused(message),
             },
             Request::OpenNative | Request::SaveNative => {

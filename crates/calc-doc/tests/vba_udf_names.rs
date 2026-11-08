@@ -19,6 +19,20 @@ fn xml_fragment<'a>(xml: &'a str, tag: &str) -> &'a str {
     &xml[start..end]
 }
 
+/// Windows-1252 text of a committed source file, as the project's code page stores it.
+fn code_page_1252(bytes: &[u8]) -> String {
+    const HIGH: [char; 32] = [
+        '\u{20ac}', '\u{81}', '\u{201a}', '\u{192}', '\u{201e}', '\u{2026}', '\u{2020}', '\u{2021}',
+        '\u{2c6}', '\u{2030}', '\u{160}', '\u{2039}', '\u{152}', '\u{8d}', '\u{17d}', '\u{8f}',
+        '\u{90}', '\u{2018}', '\u{2019}', '\u{201c}', '\u{201d}', '\u{2022}', '\u{2013}', '\u{2014}',
+        '\u{2dc}', '\u{2122}', '\u{161}', '\u{203a}', '\u{153}', '\u{9d}', '\u{17e}', '\u{178}',
+    ];
+    bytes
+        .iter()
+        .map(|&b| if (0x80..0xa0).contains(&b) { HIGH[usize::from(b - 0x80)] } else { char::from(b) })
+        .collect()
+}
+
 fn source_part(package: &[u8], name: &str) -> Vec<u8> {
     let archive = cdoc_m1_1_support::parse_zip(package);
     let entry = archive.entry(name);
@@ -782,24 +796,24 @@ fn dc_snz_15__read_measured_project_sources_without_executing_macros() {
         include_bytes!("fixtures/vba_udf_names/disabled-resaved.xlsm").as_slice(),
     ] {
         let loaded = load(source);
-        let project = loaded
-            .read_vba_project(&Default::default())
-            .unwrap()
-            .unwrap();
-        assert_eq!(project.part, "xl/vbaProject.bin");
-        assert_eq!(project.code_page, 1252);
-        assert_eq!(project.modules.len(), 4);
+        // calc-doc hands over the part as it is; CalcVBA reads what is inside it.
+        let held = loaded.vba_project(&Default::default()).unwrap().unwrap();
+        assert_eq!(held.part, "xl/vbaProject.bin");
+        assert_eq!(held.bytes, source_part(source, "xl/vbaProject.bin"));
+        let project = calc_vba::read_office_project(&held.bytes).unwrap();
+        assert_eq!(project.code_page(), 1252);
+        assert_eq!(project.modules().len(), 4);
         let module = project
-            .modules
+            .modules()
             .iter()
             .find(|m| m.name == "Module1")
             .unwrap();
         assert_eq!(module.stream_name, "Module1");
-        assert_eq!(module.kind, calc_doc::VbaModuleKind::Procedural);
+        assert_eq!(module.kind, calc_vba::OfficeModuleKind::Standard);
         assert!(!module.private);
         assert_eq!(
-            module.source_bytes,
-            include_bytes!("fixtures/vba_udf_names/Module1.bas")
+            module.source,
+            code_page_1252(include_bytes!("fixtures/vba_udf_names/Module1.bas"))
         );
         assert!(module.source.contains("Public Function Caf\u{e9}("));
         assert!(
@@ -809,20 +823,20 @@ fn dc_snz_15__read_measured_project_sources_without_executing_macros() {
         );
         assert!(module.source.contains("Private Function SecretFunc("));
         let private = project
-            .modules
+            .modules()
             .iter()
             .find(|m| m.name == "PrivateModule")
             .unwrap();
         assert!(private.private);
         assert_eq!(
-            private.source_bytes,
-            include_bytes!("fixtures/vba_udf_names/PrivateModule.bas")
+            private.source,
+            code_page_1252(include_bytes!("fixtures/vba_udf_names/PrivateModule.bas"))
         );
         assert_eq!(
             project
-                .modules
+                .modules()
                 .iter()
-                .filter(|m| m.kind == calc_doc::VbaModuleKind::DocumentClassOrDesigner)
+                .filter(|m| m.kind == calc_vba::OfficeModuleKind::Document)
                 .count(),
             2
         );
@@ -841,50 +855,37 @@ fn dc_snz_15__project_attributes_and_read_limits() {
     let loaded = load(include_bytes!(
         "fixtures/vba_udf_names/metadata-custom-vba.xlsb"
     ));
-    let project = loaded
-        .read_vba_project(&Default::default())
-        .unwrap()
-        .unwrap();
+    let part = loaded.vba_project(&Default::default()).unwrap().unwrap();
+    let project = calc_vba::read_office_project(&part.bytes).unwrap();
     let module = project
-        .modules
+        .modules()
         .iter()
         .find(|m| m.name == "Module1")
         .unwrap();
     assert_eq!(
-        module.source_bytes,
-        include_bytes!("fixtures/vba_udf_names/Metadata-custom-vba.bas")
+        module.source,
+        code_page_1252(include_bytes!("fixtures/vba_udf_names/Metadata-custom-vba.bas"))
     );
     assert!(module.source.contains("Attribute MetaFunc.VB_Description"));
-    for policy in [
-        calc_doc::VbaReadPolicy {
-            max_project_bytes: 1,
-            ..Default::default()
-        },
-        calc_doc::VbaReadPolicy {
-            max_directory_bytes: 1,
-            ..Default::default()
-        },
-        calc_doc::VbaReadPolicy {
-            max_modules: 1,
-            ..Default::default()
-        },
-        calc_doc::VbaReadPolicy {
-            max_module_source_bytes: 1,
-            ..Default::default()
-        },
-        calc_doc::VbaReadPolicy {
-            max_total_source_bytes: 1,
-            ..Default::default()
-        },
+    // The part's size is calc-doc's limit; what is inside it is CalcVBA's.
+    assert!(matches!(
+        loaded.vba_project(&calc_doc::VbaReadPolicy { max_project_bytes: 1 }),
+        Err(calc_doc::VbaReadError::Limit(_))
+    ));
+    let defaults = calc_vba::OfficeReadLimits::default;
+    for limits in [
+        calc_vba::OfficeReadLimits { project_bytes: 1, ..defaults() },
+        calc_vba::OfficeReadLimits { directory_bytes: 1, ..defaults() },
+        calc_vba::OfficeReadLimits { modules: 1, ..defaults() },
+        calc_vba::OfficeReadLimits { module_bytes: 1, ..defaults() },
+        calc_vba::OfficeReadLimits { total_source_bytes: 1, ..defaults() },
     ] {
-        assert!(matches!(
-            loaded.read_vba_project(&policy),
-            Err(calc_doc::VbaReadError::Limit(_))
-        ));
+        let refused = calc_vba::read_office_project_with(&part.bytes, &limits).unwrap_err();
+        assert!(refused.contains("limit"), "{refused}");
     }
     assert!(
         load(include_bytes!("fixtures/vba_udf_names/stripped.xlsx"))
-            .read_vba_project(&Default::default())
+            .vba_project(&Default::default())
             .unwrap()
             .is_none()
     );

@@ -16,8 +16,14 @@
 //!
 //! The file lists add-ins and never loads one: a reopen shows the list, and loading is the
 //! person's choice. A file outside the constraints is refused with an [`OpenRefusal`], which
-//! says why and offers the same file in DNA Calc. A session with a VBA module saves as .xlsm once
-//! CalcVBA's blob path lands (dc-0f1k.4); until then [`save`] refuses it, naming that bead.
+//! says why and offers the same file in DNA Calc.
+//!
+//! A session file can carry a VBA project: it is then an .xlsm (theory 5a, dc-0f1k.4). calc-doc
+//! reads and writes the `vbaProject.bin` part as an opaque blob; [`open`] hands it over with the
+//! session, [`crate::Session::open_project`] has CalcVBA compile it, and [`save`] puts the part
+//! back as the session holds it: unchanged, or changed when a module was edited. A module typed
+//! into a session without a project has no project part to go into, so such a session is not
+//! saved until the module is unloaded.
 
 use crate::grid;
 use crate::session::{AddinRef, InputValue, Session, SessionOptions};
@@ -34,7 +40,7 @@ pub const NAMESPACE: &str = "urn:dnacalc:onecalc-session";
 /// The version of the item this module reads and writes.
 pub const VERSION: &str = "1";
 
-/// The bead that lands the .xlsm save of a session with a VBA module.
+/// The bead that owns the .xlsm save of a session with VBA.
 pub const VBA_BEAD: &str = "dc-0f1k.4";
 
 /// What a refused file says it can do instead.
@@ -75,8 +81,9 @@ pub(crate) fn a1(row: u32, column: u32) -> String {
     format!("{}{row}", letters.into_iter().collect::<String>())
 }
 
-/// The session a file holds.
-pub fn open(bytes: &[u8]) -> Result<Session, OpenRefusal> {
+/// The session a file holds, and its VBA project part when it carries one (for
+/// [`crate::Session::open_project`], which compiles it).
+pub fn open(bytes: &[u8]) -> Result<(Session, Option<calc_doc::SessionVba>), OpenRefusal> {
     let file = read_session(bytes.to_vec(), NAMESPACE).map_err(outside)?;
     let mut session = Session::new(&file.sheet).map_err(|error| {
         outside(format!(
@@ -143,7 +150,16 @@ pub fn open(bytes: &[u8]) -> Result<Session, OpenRefusal> {
     options.date_1904 = file.date_1904;
     session.set_options(options);
     session.set_addins(addins);
-    Ok(session)
+    Ok((session, file.vba))
+}
+
+/// The VBA project of an add-in file (an .xlam), as CalcVBA reads its project part (calc-doc
+/// reads only the package). An add-in without a VBA project is refused.
+pub fn read_vba_addin(bytes: &[u8]) -> Result<calc_vba::OfficeProject, String> {
+    let vba = calc_doc::read_vba_file(bytes.to_vec())
+        .map_err(|refusal| refusal.to_string())?
+        .ok_or("the add-in has no VBA project")?;
+    calc_vba::read_office_project(&vba.project)
 }
 
 /// The bytes of the file `session` is saved as, with its calculated result as the formula's cached
@@ -151,7 +167,7 @@ pub fn open(bytes: &[u8]) -> Result<Session, OpenRefusal> {
 pub fn save(session: &mut Session) -> Result<Vec<u8>, String> {
     if session.has_vba_module() {
         return Err(format!(
-            "A session with a VBA module saves as .xlsm once the CalcVBA blob path lands ({VBA_BEAD}); unload the module to save the session as .xlsx."
+            "A VBA module typed into a session without a VBA project has no project to be saved in ({VBA_BEAD}): open an .xlsm session to keep modules in its project, or unload the module to save the session as .xlsx."
         ));
     }
     let (_, sheet) = session.sheets().next().expect("a session has its sheet");
@@ -202,6 +218,7 @@ pub fn save(session: &mut Session) -> Result<Vec<u8>, String> {
         }),
         date_1904: session.options().date_1904,
         cached,
+        vba: session.project().map(|project| project.vba.clone()),
     };
     write_session(&file).map_err(|refusal| refusal.to_string())
 }
@@ -359,7 +376,7 @@ mod tests {
     fn a_session_saves_as_a_workbook_and_reopens_the_same() {
         let mut original = session();
         let bytes = save(&mut original).expect("saved");
-        let reopened = open(&bytes).expect("reopened");
+        let reopened = open(&bytes).expect("reopened").0;
         assert_eq!(reopened.formula(), original.formula());
         assert_eq!(reopened.formula_cell(), original.formula_cell());
         assert_eq!(reopened.options(), original.options());
@@ -380,7 +397,7 @@ mod tests {
         let mut original = session();
         original.set_formula("=A1:A2*2");
         original.set_form(FormulaForm::Legacy);
-        let reopened = open(&save(&mut original).unwrap()).unwrap();
+        let reopened = open(&save(&mut original).unwrap()).unwrap().0;
         assert_eq!(reopened.form(), FormulaForm::Legacy);
         assert_eq!(reopened.formula(), "=A1:A2*2");
     }
@@ -405,8 +422,9 @@ mod tests {
             custom: None,
             date_1904: false,
             cached: None,
+            vba: None,
         };
-        let mut plain = open(&write_session(&file).unwrap()).unwrap();
+        let mut plain = open(&write_session(&file).unwrap()).unwrap().0;
         assert_eq!(plain.form(), FormulaForm::Legacy);
         assert!(plain.is_plain());
         // H1 is on the rows of A1:A2: implicit intersection takes A1, and the dynamic form spills.
@@ -414,7 +432,7 @@ mod tests {
         assert_eq!(value.core(), &CoreValue::Number(6.0));
         let state = crate::shown::authored_of(&plain);
         assert!(state.legacy && state.plain);
-        let again = open(&save(&mut plain).unwrap()).unwrap();
+        let again = open(&save(&mut plain).unwrap()).unwrap().0;
         assert!(again.is_plain(), "saved as a plain formula");
         // Entering it as an array formula, or as the dynamic form, leaves the plain form.
         plain.set_form(FormulaForm::Legacy);
@@ -449,6 +467,7 @@ mod tests {
             custom: None,
             date_1904: false,
             cached: None,
+            vba: None,
         };
         let refusal = open(&write_session(&file).unwrap()).unwrap_err();
         assert!(refusal.reason.contains("Z99"), "{refusal}");

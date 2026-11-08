@@ -1,0 +1,9 @@
+Option Explicit
+
+Private Sub Workbook_Open()
+    DnaOpened = DnaOpened + 1
+End Sub
+
+Private Sub Workbook_AddinInstall()
+    DnaInstalled = True
+End Sub

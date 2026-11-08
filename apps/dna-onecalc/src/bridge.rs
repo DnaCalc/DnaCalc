@@ -149,7 +149,7 @@ mod tests {
     fn calls_and_answers_round_trip_through_the_wire_text() {
         let calls = vec![
             Call { id: 1, request: Request::Evaluate(Authored::example_sum()) },
-            Call { id: 2, request: Request::Open { name: "a.xlsx".into(), bytes: (0u8..=255).collect() } },
+            Call { id: 2, request: Request::Open { name: "a.xlsx".into(), bytes: (0u8..=255).collect(), zone: Some(3) } },
             Call { id: 3, request: Request::SaveNative },
         ];
         for call in calls {
@@ -162,7 +162,7 @@ mod tests {
             Request::Evaluate(Authored::example_sum()),
             Request::Save,
             Request::New,
-            Request::Open { name: "x".into(), bytes: b"not a workbook".to_vec() },
+            Request::Open { name: "x".into(), bytes: b"not a workbook".to_vec(), zone: None },
         ] {
             let answer = Answer { id: 7, reply: port.send(request) };
             let text = serde_json::to_string(&answer).unwrap();

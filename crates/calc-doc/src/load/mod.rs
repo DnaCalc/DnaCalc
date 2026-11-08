@@ -82,7 +82,7 @@ pub const FORMULA_MAX_UTF16_CODE_UNITS: usize = 8_192;
 pub(crate) const MAIN_NAMESPACE: &str = "http://schemas.openxmlformats.org/spreadsheetml/2006/main";
 const RELATIONSHIP_ATTRIBUTES: &str =
     "http://schemas.openxmlformats.org/officeDocument/2006/relationships";
-const OFFICE_DOCUMENT: &str =
+pub(crate) const OFFICE_DOCUMENT: &str =
     "http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument";
 const WORKSHEET: &str =
     "http://schemas.openxmlformats.org/officeDocument/2006/relationships/worksheet";
@@ -736,12 +736,13 @@ impl LoadedWorkbook {
         &self.workbook_part
     }
 
-    /// Explicitly read project source without compiling, registering or executing VBA.
-    /// Normal workbook loading and saving preserve the project without calling this reader.
-    pub fn read_vba_project(
+    /// The workbook's VBA project part, as an opaque blob for CalcVBA to read (`calc-vba`):
+    /// nothing is decoded, compiled or executed. Normal workbook loading and saving preserve
+    /// the part without calling this.
+    pub fn vba_project(
         &self,
         policy: &crate::VbaReadPolicy,
-    ) -> Result<Option<crate::VbaProjectSource>, crate::VbaReadError> {
+    ) -> Result<Option<crate::VbaProjectPart>, crate::VbaReadError> {
         crate::vba::read(&self.package, &self.workbook_part, policy)
     }
 
@@ -764,7 +765,7 @@ impl LoadedWorkbook {
             let xml = self.package.read_xml(part).map_err(crate::VbaReadError::Part)?;
             let mut reader = xml.reader();
             while let Some(event) = reader.next_event().map_err(|e| {
-                crate::VbaReadError::InvalidProject(format!("document code name: {e}"))
+                crate::VbaReadError::CodeName(e.to_string())
             })? {
                 if let crate::xml::XmlEvent::Start(e) = event
                     && e.name.is(MAIN_NAMESPACE, element)

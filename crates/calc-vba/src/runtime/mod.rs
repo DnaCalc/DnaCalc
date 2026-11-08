@@ -9,6 +9,7 @@ use oxvba_runtime::{
 use oxvba_symbol::manifest as sym;
 use std::sync::Arc;
 mod cache;
+mod late_binding;
 pub(crate) mod spreadsheet;
 mod worksheet;
 pub use cache::{CodeCache, OwnedSession};
@@ -89,6 +90,10 @@ pub struct Module {
     worksheet_refusals: Vec<worksheet::Refusal>,
     spreadsheet: Option<Arc<spreadsheet::SpreadsheetHost>>,
     event_project: bool,
+    /// Whether the project reaches platform COM objects through its references.
+    com: bool,
+    /// The ProgIDs the project's source activates late-bound.
+    late: late_binding::LateBinding,
 }
 impl Module {
     pub fn load_spreadsheet(module_name: &str, source: &str) -> Result<Self, Error> {
@@ -106,17 +111,22 @@ impl Module {
                 attributes: sym::ModuleAttributes::named(module_name),
                 source: source.into(),
             }],
+            &crate::events::ProjectReferences::none(),
             spreadsheet_objects,
             false,
             false,
             true,
+            false,
         )
     }
     pub(crate) fn load_event_project(
         modules: &[crate::events::ProjectModule],
+        references: &crate::events::ProjectReferences,
         private_worksheet_lookup: bool,
-        automatic_events: bool,
+        events: crate::events::DocumentEvents,
     ) -> Result<Self, Error> {
+        let automatic_events = events == crate::events::DocumentEvents::All;
+        let workbook_events = events == crate::events::DocumentEvents::Workbook;
         let modules = modules
             .iter()
             .map(|module| {
@@ -145,18 +155,23 @@ impl Module {
             .collect();
         Self::load_modules(
             modules,
+            references,
             true,
             true,
             private_worksheet_lookup,
             automatic_events,
+            workbook_events,
         )
     }
+    #[allow(clippy::too_many_arguments)]
     fn load_modules(
         modules: Vec<sym::ModuleUnit>,
+        references: &crate::events::ProjectReferences,
         spreadsheet_objects: bool,
         events: bool,
         private_worksheet_lookup: bool,
         automatic_events: bool,
+        workbook_events: bool,
     ) -> Result<Self, Error> {
         let procedural: std::collections::HashSet<_> = modules
             .iter()
@@ -204,21 +219,32 @@ impl Module {
                         import_lib: None,
                     },
                 ]
+                .into_iter()
+                .chain(references.compiler.iter().cloned())
+                .collect()
             } else {
-                vec![]
+                references.compiler.clone()
             },
             reference_projects: vec![],
             conditional_constants: Default::default(),
             conditional_compilation_target: Default::default(),
         };
-        let event_types = crate::events::types::EventTypes { automatic_events };
-        let resolver: &dyn oxvba_symbol::TypeLibResolver = if events {
+        let event_types = crate::events::types::EventTypes {
+            automatic_events,
+            workbook_events,
+        };
+        let own: &dyn oxvba_symbol::TypeLibResolver = if events {
             &event_types
         } else if spreadsheet_objects {
             &spreadsheet::SpreadsheetTypes
         } else {
             &oxvba_symbol::CatalogTypeLibResolver
         };
+        let chained = crate::events::types::WithReferences {
+            own,
+            libraries: &references.libraries,
+        };
+        let resolver: &dyn oxvba_symbol::TypeLibResolver = &chained;
         if events {
             validate_project_modules(&manifest, resolver, automatic_events)?;
         }
@@ -327,8 +353,10 @@ impl Module {
         {
             return Err(Error::UnsupportedSignature("worksheet UDF signature outside the document project's owning value carriers (dc-hsa5.12)".into()));
         }
-        let spreadsheet =
-            spreadsheet_objects.then(|| Arc::new(if events && automatic_events { spreadsheet::SpreadsheetHost::for_events() } else { spreadsheet::SpreadsheetHost::new() }));
+        let late = late_binding::LateBinding::of(manifest.modules.iter().map(|m| m.source.as_str()));
+        let spreadsheet = spreadsheet_objects.then(|| {
+            Arc::new(spreadsheet::SpreadsheetHost::new(events && automatic_events, references.com, late.clone()))
+        });
         let engine = if let Some(host) = &spreadsheet {
             engine.with_host(host.clone())
         } else {
@@ -340,6 +368,8 @@ impl Module {
             worksheet_refusals: entries.refusals,
             spreadsheet,
             event_project: events && automatic_events,
+            com: references.com,
+            late,
         })
     }
     pub fn functions(&self) -> impl ExactSizeIterator<Item = &Function> {

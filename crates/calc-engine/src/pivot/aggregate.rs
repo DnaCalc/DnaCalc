@@ -5,6 +5,7 @@ pub(super) struct Total {
     sum: f64,
     squares: f64,
     product: f64,
+    product_overflowed: bool,
     unsafe_moment: bool,
     unsafe_integer_product: bool,
     has_zero: bool,
@@ -22,6 +23,7 @@ impl Total {
                 self.sum += n;
                 self.squares += n * n;
                 self.product = if self.numbers == 0 { n } else { self.product * n };
+                self.product_overflowed |= !self.product.is_finite();
                 self.has_zero |= n == 0.0;
                 self.unsafe_integer_product |= n.fract() != 0.0 || !self.product.is_finite()
                     || self.product.abs() > 9_007_199_254_740_992.0;
@@ -46,6 +48,7 @@ impl Total {
         if !matches!(kind, "product" | "stdDev" | "stdDevp" | "var" | "varp") || self.error.is_some() {
             return true;
         }
+        if kind == "product" && self.product_overflowed { return true; }
         if self.numbers == 0 || self.unsafe_moment { return false; }
         if kind == "product" {
             return self.product.is_finite() && (self.product != 0.0 || self.has_zero);
@@ -59,6 +62,10 @@ impl Total {
             n * self.squares - square_total
         };
         numerator.is_finite() && numerator >= 0.0
+    }
+    /// The captured calculated-item inputs are quarter units in this bounded range.
+    pub(super) fn supports_calculated_inputs(&self) -> bool {
+        !self.unsafe_moment
     }
     pub(super) fn source_error(&self) -> Option<WorksheetErrorCode> {
         self.error

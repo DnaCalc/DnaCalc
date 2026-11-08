@@ -221,9 +221,9 @@ pub(super) fn field_groups(
             group.total.push(resolve(cache, record, measure)?)?;
         }
     }
-    // Grouped dates retain boundary and empty-period items for their saved axis indexes.
-    // The walk emits only paths with source records.
-    if cache.fields[row].group.as_ref().is_some_and(|group| group.range.is_some()) {
+    // Grouped fields retain boundary items, and calculated items have no source records.
+    let grouped = cache.fields[row].group.as_ref().is_some_and(|group| group.range.is_some());
+    if grouped || !cache.fields[row].formula_items.is_empty() {
         let mut extras = Vec::new();
         let mut indexes = std::collections::BTreeSet::new();
         for item in field.items.iter().filter(|item| item.kind == "data") {
@@ -237,7 +237,7 @@ pub(super) fn field_groups(
                 Ordering::Equal
             })).is_ok();
             if unknown || compare(key, key).is_none() { return Err(bad("Grouped items cannot be compared")); }
-            if !found {
+            if !found && (grouped || cache.fields[row].formula_items.contains(&shared)) {
                 extras.push(Group { key: key.clone(), shared, first: usize::MAX,
                     total: Total::default(), old: usize::MAX, hidden: false, excluded: false });
             }
@@ -391,6 +391,7 @@ pub(super) fn page_field_items(
                 kind: "data".into(),
                 hidden: false,
                 missing: false,
+                calculated: false,
             })
             .collect::<Vec<_>>();
         items.push(PivotFieldItem {
@@ -398,6 +399,7 @@ pub(super) fn page_field_items(
             kind: "default".into(),
             hidden: false,
             missing: false,
+            calculated: false,
         });
         next.fields[page].items = items;
     }

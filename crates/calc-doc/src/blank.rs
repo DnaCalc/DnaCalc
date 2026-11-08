@@ -82,32 +82,102 @@ pub fn blank_package_named(sheet: &str) -> Vec<u8> {
 /// [`blank_package_named`] counting serial dates from 1904 (`workbookPr date1904="1"`) when
 /// `date_1904`, as Excel's date system option writes it.
 pub fn blank_package_named_in(sheet: &str, date_1904: bool) -> Vec<u8> {
-    let mut name = String::new();
-    for c in sheet.chars() {
+    blank_package_with(sheet, date_1904, None)
+}
+
+/// A VBA project a new workbook carries: its `vbaProject.bin` part, and the code names the
+/// workbook and its sheet are given so the project's document modules bind to them.
+pub(crate) struct Project<'a> {
+    pub part: &'a [u8],
+    pub workbook_code_name: Option<&'a str>,
+    pub sheet_code_name: Option<&'a str>,
+}
+
+fn escaped(text: &str) -> String {
+    let mut out = String::new();
+    for c in text.chars() {
         match c {
-            '&' => name.push_str("&amp;"),
-            '<' => name.push_str("&lt;"),
-            '>' => name.push_str("&gt;"),
-            '"' => name.push_str("&quot;"),
-            c => name.push(c),
+            '&' => out.push_str("&amp;"),
+            '<' => out.push_str("&lt;"),
+            '>' => out.push_str("&gt;"),
+            '"' => out.push_str("&quot;"),
+            c => out.push(c),
         }
     }
+    out
+}
+
+/// [`blank_package_named_in`], as an .xlsm carrying `project` when there is one: the macro-enabled
+/// workbook content type, the project part with its content type and its relationship from the
+/// workbook part, and the code names.
+pub(crate) fn blank_package_with(sheet: &str, date_1904: bool, project: Option<Project<'_>>) -> Vec<u8> {
+    let name = escaped(sheet);
+    let workbook_code_name = project
+        .as_ref()
+        .and_then(|p| p.workbook_code_name)
+        .map(|n| format!(r#" codeName="{}""#, escaped(n)))
+        .unwrap_or_default();
+    let date = if date_1904 { r#" date1904="1""# } else { "" };
+    let workbook_pr = if workbook_code_name.is_empty() && date.is_empty() {
+        String::new()
+    } else {
+        format!("<workbookPr{date}{workbook_code_name}/>")
+    };
     let workbook = WORKBOOK
         .replace(r#"name="Sheet1""#, &format!(r#"name="{name}""#))
-        .replace("<DATEPR/>", if date_1904 { r#"<workbookPr date1904="1"/>"# } else { "" });
+        .replace("<DATEPR/>", &workbook_pr);
+    let Some(project) = project else {
+        return crate::save::new_archive(&[
+            ("[Content_Types].xml", CONTENT_TYPES.as_bytes()),
+            ("_rels/.rels", PACKAGE_RELATIONSHIPS.as_bytes()),
+            ("xl/workbook.xml", workbook.as_bytes()),
+            (
+                "xl/_rels/workbook.xml.rels",
+                WORKBOOK_RELATIONSHIPS.as_bytes(),
+            ),
+            ("xl/worksheets/sheet1.xml", WORKSHEET.as_bytes()),
+            ("xl/styles.xml", STYLES.as_bytes()),
+            ("xl/sharedStrings.xml", SHARED_STRINGS.as_bytes()),
+        ])
+        .expect("seven small parts fit a ZIP archive");
+    };
+    let content_types = CONTENT_TYPES
+        .replace(
+            crate::SpreadsheetFormat::Xlsx.content_type(),
+            crate::SpreadsheetFormat::Xlsm.content_type(),
+        )
+        .replace(
+            "</Types>",
+            &format!(
+                r#"<Override PartName="/xl/vbaProject.bin" ContentType="{}"/></Types>"#,
+                crate::VBA_PROJECT_CONTENT_TYPE
+            ),
+        );
+    let relationships = WORKBOOK_RELATIONSHIPS.replace(
+        "</Relationships>",
+        &format!(
+            r#"<Relationship Id="rId4" Type="{}" Target="vbaProject.bin"/></Relationships>"#,
+            crate::vba::VBA_PROJECT
+        ),
+    );
+    let worksheet = match project.sheet_code_name {
+        Some(code_name) => WORKSHEET.replace(
+            "<sheetData/>",
+            &format!(r#"<sheetPr codeName="{}"/><sheetData/>"#, escaped(code_name)),
+        ),
+        None => WORKSHEET.to_owned(),
+    };
     crate::save::new_archive(&[
-        ("[Content_Types].xml", CONTENT_TYPES.as_bytes()),
+        ("[Content_Types].xml", content_types.as_bytes()),
         ("_rels/.rels", PACKAGE_RELATIONSHIPS.as_bytes()),
         ("xl/workbook.xml", workbook.as_bytes()),
-        (
-            "xl/_rels/workbook.xml.rels",
-            WORKBOOK_RELATIONSHIPS.as_bytes(),
-        ),
-        ("xl/worksheets/sheet1.xml", WORKSHEET.as_bytes()),
+        ("xl/_rels/workbook.xml.rels", relationships.as_bytes()),
+        ("xl/worksheets/sheet1.xml", worksheet.as_bytes()),
         ("xl/styles.xml", STYLES.as_bytes()),
         ("xl/sharedStrings.xml", SHARED_STRINGS.as_bytes()),
+        ("xl/vbaProject.bin", project.part),
     ])
-    .expect("seven small parts fit a ZIP archive")
+    .expect("eight parts fit a ZIP archive")
 }
 
 #[cfg(test)]

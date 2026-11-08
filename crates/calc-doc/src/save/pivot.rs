@@ -43,7 +43,7 @@ fn attrs(values: &BTreeMap<String, String>, out: &mut Vec<u8>) {
         attr(k, v, out);
     }
 }
-fn item(item: &PivotItem, unused: bool, out: &mut Vec<u8>) -> Result<(), SaveRefusal> {
+fn item(item: &PivotItem, unused: bool, calculated: bool, out: &mut Vec<u8>) -> Result<(), SaveRefusal> {
     let (kind, value) = match item {
         PivotItem::Missing => ("m", None),
         PivotItem::Number(v) => ("n", Some(v.clone())),
@@ -69,6 +69,7 @@ fn item(item: &PivotItem, unused: bool, out: &mut Vec<u8>) -> Result<(), SaveRef
         }
     }
     if unused { attr("u", "1", out); }
+    if calculated { attr("f", "1", out); }
     out.extend_from_slice(b"/>");
     Ok(())
 }
@@ -94,7 +95,7 @@ fn cache_group(field: &PivotCacheField, out: &mut Vec<u8>) -> Result<(), SaveRef
         out.extend_from_slice(b"<groupItems");
         attr("count", &items.len().to_string(), out);
         out.push(b'>');
-        for value in items { item(value, false, out)?; }
+        for value in items { item(value, false, false, out)?; }
         out.extend_from_slice(b"</groupItems></fieldGroup>");
     } else {
         out.extend_from_slice(b"/>");
@@ -228,7 +229,7 @@ fn cache_fields(cache: &PivotCache) -> Result<Vec<u8>, SaveRefusal> {
         }
         out.push(b'>');
         for (index, value) in field.items.iter().enumerate() {
-            item(value, field.unused_items.contains(&(index as u32)), &mut out)?;
+            item(value, field.unused_items.contains(&(index as u32)), field.formula_items.contains(&(index as u32)), &mut out)?;
         }
         out.extend_from_slice(b"</sharedItems>");
         cache_group(field, &mut out)?;
@@ -285,6 +286,9 @@ fn fields(table: &PivotTable) -> Vec<u8> {
             }
             if item.missing {
                 attr("m", "1", &mut out);
+            }
+            if item.calculated {
+                attr("f", "1", &mut out);
             }
             out.extend_from_slice(b"/>");
         }
@@ -460,10 +464,10 @@ fn preflight(xml: &XmlPart, containers: &[&str]) -> Result<(), SaveRefusal> {
                             "groupItems" | "discretePr" => a.name.local.as_str() == "count",
                             "ext" => a.name.local.as_str() == "uri" && a.value == FILL_DOWN_URI,
                             "extLst" => false,
-                            "item" => matches!(a.name.local.as_str(), "x" | "t" | "h" | "m"),
+                            "item" => matches!(a.name.local.as_str(), "x" | "t" | "h" | "m" | "f"),
                             "i" => matches!(a.name.local.as_str(), "t" | "r" | "i"),
                             "x" | "n" | "s" | "b" | "e" | "d" => a.name.local.as_str() == "v"
-                                || (parent == "sharedItems" && a.name.local.as_str() == "u"),
+                                || (parent == "sharedItems" && matches!(a.name.local.as_str(), "u" | "f")),
                             _ => false,
                         };
                         if !allowed || a.name.namespace.is_some() {
@@ -555,7 +559,7 @@ fn records(xml: &XmlPart, cache: &PivotCache) -> Result<Vec<u8>, SaveRefusal> {
         for (i, value) in row.iter().enumerate() {
             let field = cache.fields.get(i).ok_or_else(|| bad(&cache.part, "A record has an invalid field count"))?;
             if !matches!(field.attributes.get("databaseField").map(String::as_str), Some("0" | "false")) {
-                item(value, false, &mut body)?;
+                item(value, false, false, &mut body)?;
             }
         }
         body.extend_from_slice(b"</r>");
@@ -741,6 +745,15 @@ pub(super) fn finish<S:Borrow<crate::load::LoadedSheet>>(
         retained.record_count = old.record_count;
         retained.fields = old.fields.clone();
         retained.snapshot = old.snapshot.clone();
+        if retained.attributes.get("missingItemsLimit") != old.attributes.get("missingItemsLimit") {
+            if retained.attributes.get("missingItemsLimit").map(String::as_str) != Some("0") {
+                return Err(bad(&cache.part, "This item retention setting is not modelled"));
+            }
+            match old.attributes.get("missingItemsLimit") {
+                Some(value) => { retained.attributes.insert("missingItemsLimit".into(), value.clone()); }
+                None => { retained.attributes.remove("missingItemsLimit"); }
+            }
+        }
         if &retained != old.as_ref() {
             return Err(bad(
                 &cache.part,
@@ -756,6 +769,7 @@ pub(super) fn finish<S:Borrow<crate::load::LoadedSheet>>(
             "pivotCacheDefinition",
             &[
                 ("recordCount", Some(&count)),
+                ("missingItemsLimit", cache.attributes.get("missingItemsLimit").map(String::as_str)),
                 ("refreshOnLoad", Some("0")),
                 ("invalid", Some("0")),
                 ("refreshedBy", None),
@@ -857,6 +871,7 @@ mod date_flags {
             shared_items: None,
             group: None,
             unused_items: Vec::new(),
+            formula_items: Vec::new(),
             items: vec![
                 PivotItem::Date("2024-02-15T00:00:00".into()),
                 PivotItem::Date("2024-01-15T00:00:00".into()),
@@ -873,6 +888,7 @@ mod date_flags {
             source_range: None,
             source_name: None,
             fields: vec![field],
+            calculated_items: Vec::new(),
             attributes: BTreeMap::new(),
             unsupported: Vec::new(),
             snapshot: None,

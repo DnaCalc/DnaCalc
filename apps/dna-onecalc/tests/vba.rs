@@ -353,3 +353,280 @@ End Function
         );
     }
 }
+
+/// dc-0f1k.4: owner rule, early-bound COM through imported type libraries first, never late
+/// binding as a start. `CreateObject` with a ProgID is a typed refusal that no `On Error` hides and
+/// no project reference turns on (late-bound calls on COM objects take the same refusal in the
+/// runtime; only a project that references a type library can hold such an object).
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn late_bound_com_is_a_typed_refusal() {
+    let mut s = session();
+    let source = r#"Public Function MakeDictionary()
+ On Error Resume Next
+ Dim d As Object
+ Set d = CreateObject("Scripting.Dictionary")
+ MakeDictionary = 7
+End Function
+"#;
+    s.load_vba_module("Late", source, 1000).unwrap();
+    s.set_formula("=IFERROR(MakeDictionary(),9)");
+    let outcome = s.calculate();
+    let diagnostics = format!("{:?}", outcome.diagnostics);
+    assert!(outcome.result.is_none(), "{outcome:?}");
+    assert!(diagnostics.contains("NotModelled"), "{diagnostics}");
+    assert!(diagnostics.contains("CreateObject"), "{diagnostics}");
+}
+
+/// dc-0f1k.4: Excel's default for macro files. An .xlsm with the Mark of the Web (zone 3 or 4)
+/// never runs its project here and cannot be enabled; any other opens disabled and can be
+/// enabled for that file. Either way the project part is held and a save writes it back.
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn a_macro_file_opens_disabled_and_the_mark_of_the_web_blocks_it() {
+    use dna_onecalc::port::{LocalPort, MacrosView, Reply, Request, SessionPort};
+    for (zone, expected) in [
+        (Some(3), MacrosView::Blocked),
+        (Some(4), MacrosView::Blocked),
+        (Some(2), MacrosView::Disabled),
+        (Some(0), MacrosView::Disabled),
+        (None, MacrosView::Disabled),
+    ] {
+        let mut port = LocalPort::new(Session::new("Sheet1").unwrap());
+        let Reply::Opened(opened) = port.send(Request::Open {
+            name: "DnaExamples.xlsm".into(),
+            bytes: EXAMPLES_XLSM.to_vec(),
+            zone,
+        }) else {
+            panic!("opened")
+        };
+        let view = opened.project.expect("the file's project");
+        assert_eq!(view.macros, expected, "{zone:?}");
+        assert!(view.functions.is_empty() && !view.notes.is_empty(), "{view:?}");
+        assert_eq!(port.session().project().map(|p| p.is_running()), Some(false));
+        let reply = port.send(Request::EnableMacros);
+        if expected == MacrosView::Blocked {
+            assert!(matches!(&reply, Reply::Refused { message } if message.contains("Mark of the Web")), "{reply:?}");
+            assert_eq!(port.session().project().map(|p| p.macros), Some(dna_onecalc::MacroState::Blocked(zone.unwrap())));
+        } else {
+            assert!(matches!(reply, Reply::Opened(_)), "{zone:?}: {reply:?}");
+        }
+        // The project part is the file's either way: a save writes it back.
+        let Reply::File { bytes, .. } = port.send(Request::Save) else {
+            panic!("saved")
+        };
+        let saved = calc_doc::read_session(bytes, dna_onecalc::file::NAMESPACE).unwrap();
+        let original = calc_doc::read_vba_file(EXAMPLES_XLSM.to_vec()).unwrap().unwrap();
+        assert_eq!(saved.vba.map(|v| v.project), Some(original.project));
+    }
+}
+
+// dc-0f1k.4: an .xlsm session's own VBA project, through the port the page uses. The project is
+// DNA Calc's example add-in project as Excel saved it; its cases hold Excel's answers
+// (crates/calc-xll-reference/fixture/vba, measured in an owned Excel session).
+const EXAMPLES_XLSM: &[u8] =
+    include_bytes!("../../../crates/calc-xll-reference/fixture/vba/DnaExamples.xlsm");
+const EXAMPLE_CASES: &str =
+    include_str!("../../../crates/calc-xll-reference/fixture/vba/x9-vba-cases.json");
+
+fn opened_examples() -> (dna_onecalc::port::LocalPort, dna_onecalc::port::Opened) {
+    use dna_onecalc::port::{LocalPort, Reply, Request, SessionPort};
+    let mut port = LocalPort::new(Session::new("Sheet1").unwrap());
+    let reply = port.send(Request::Open {
+        name: "DnaExamples.xlsm".into(),
+        bytes: EXAMPLES_XLSM.to_vec(),
+        zone: None,
+    });
+    let Reply::Opened(opened) = reply else {
+        panic!("{reply:?}")
+    };
+    (port, *opened)
+}
+
+/// What the page shows for `formula` in H1: its value text, or why there is none.
+fn shown(port: &mut dna_onecalc::port::LocalPort, formula: &str) -> String {
+    use dna_onecalc::port::{Reply, Request, SessionPort};
+    port.send(Request::SetFormulaCell { address: "H1".into() });
+    port.send(Request::SetFormula { text: formula.into() });
+    match port.send(Request::Calculate) {
+        Reply::Calculated(view) => view
+            .value
+            .unwrap_or_else(|| format!("not calculated: {}", view.diagnostics.join(" | "))),
+        other => panic!("{formula}: {other:?}"),
+    }
+}
+
+/// Excel's answer for a case in the typed form the session's view gives (`number 42`,
+/// `text "a"`, `logical TRUE`, `error #N/A`).
+fn excel_text(value: &serde_json::Value) -> String {
+    match value {
+        serde_json::Value::Number(n) => format!("number {}", n.as_f64().unwrap()),
+        serde_json::Value::String(s) => format!("text \"{}\"", s.replace('"', "\"\"")),
+        serde_json::Value::Bool(b) => if *b { "logical TRUE" } else { "logical FALSE" }.into(),
+        serde_json::Value::Object(o) => format!("error {}", o["error"].as_str().unwrap()),
+        other => panic!("{other}"),
+    }
+}
+
+/// Native-only: the project references the Microsoft Scripting Runtime, which only a Windows
+/// build reads from the registry and runs through COM.
+#[cfg(windows)]
+#[test]
+fn an_xlsm_session_compiles_its_project_and_answers_its_cases_as_excel_did() {
+    use dna_onecalc::port::{MacrosView, Reply, Request, SessionPort};
+    let (mut port, opened) = opened_examples();
+    // Excel's default: a macro file opens with macros disabled, nothing compiled or run.
+    let held = opened.project.expect("the file's project");
+    assert_eq!(held.macros, MacrosView::Disabled);
+    assert!(held.functions.is_empty(), "{held:?}");
+    assert_ne!(shown(&mut port, "=DnaAdd(40,2)"), "number 42");
+    let Reply::Opened(enabled) = port.send(Request::EnableMacros) else {
+        panic!("enabling macros answers the file as opened")
+    };
+    let project = enabled.project.expect("the file's project");
+    assert_eq!(project.macros, MacrosView::Enabled);
+    assert!(project.functions.iter().any(|f| f.eq_ignore_ascii_case("DnaDistinct")), "{project:?}");
+    assert!(project.notes.is_empty(), "{project:?}");
+    let cases: Vec<serde_json::Value> = serde_json::from_str(EXAMPLE_CASES).unwrap();
+    let mut differences = Vec::new();
+    for case in &cases {
+        let formula = case["formula"].as_str().unwrap();
+        // Excel answered with the add-in open; here the project is the .xlsm session's own, and
+        // ThisWorkbook.Name is the name of the file opened.
+        let excel = if formula == "=DnaBook()" {
+            "text \"DnaExamples.xlsm\"".to_owned()
+        } else {
+            excel_text(&case["value"])
+        };
+        let ours = shown(&mut port, formula);
+        if ours != excel {
+            differences.push(format!("{formula}: OneCalc {ours:?}, Excel {excel:?}"));
+        }
+    }
+    // What OneCalc does not model yet (Excel allows it): ActiveSheet and Selection are typed
+    // refusals, counted here as the acceptance counts them.
+    let expected_refusals = ["=DnaTryWrite()", "=DnaWrite()", "=DnaSelection()"];
+    for difference in &differences {
+        assert!(
+            expected_refusals.iter().any(|f| difference.starts_with(&format!("{f}:")))
+                && difference.contains("not calculated"),
+            "{differences:#?}"
+        );
+    }
+    assert_eq!(differences.len(), expected_refusals.len(), "{differences:#?}");
+}
+
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn an_xlsm_session_saves_its_project_part_unchanged_and_an_edit_changes_it() {
+    use dna_onecalc::port::{Reply, Request, SessionPort};
+    let (mut port, opened) = opened_examples();
+    // Disabled macros still save the project part unchanged; editing needs them enabled.
+    let held = opened.project.expect("the file's project");
+    assert_eq!(held.macros, dna_onecalc::port::MacrosView::Disabled);
+    let Reply::Opened(enabled_view) = port.send(Request::EnableMacros) else {
+        panic!("enabled")
+    };
+    let opened = *enabled_view;
+    let original = calc_doc::read_vba_file(EXAMPLES_XLSM.to_vec()).unwrap().unwrap();
+    port.send(Request::SetFormula { text: "=1+1".into() });
+    let Reply::File { name, bytes } = port.send(Request::Save) else {
+        panic!("saved")
+    };
+    assert_eq!(name, "DnaExamples.xlsm");
+    let saved = calc_doc::read_session(bytes, dna_onecalc::file::NAMESPACE).unwrap();
+    assert_eq!(saved.vba.as_ref().map(|v| &v.project), Some(&original.project));
+    assert_eq!(saved.vba.as_ref().and_then(|v| v.sheet_code_name.as_deref()), Some("Sheet1"));
+    if opened.project.is_some_and(|p| !p.functions.is_empty()) {
+        // Where the project compiles (the Windows build), editing a module through the VBA panel
+        // changes the project and the part a save writes.
+        let reply = port.send(Request::LoadVba {
+            name: "Extra".into(),
+            source: "Public Function DnaTwice(ByVal x As Double) As Double\r\n    DnaTwice = 2 * x\r\nEnd Function\r\n".into(),
+        });
+        assert!(matches!(&reply, Reply::Functions { names } if names.iter().any(|n| n.eq_ignore_ascii_case("DnaTwice"))), "{reply:?}");
+        assert_eq!(shown(&mut port, "=DnaTwice(21)"), "number 42");
+        assert_eq!(shown(&mut port, "=DnaAdd(40,2)"), "number 42");
+        let Reply::File { bytes, .. } = port.send(Request::Save) else {
+            panic!("saved")
+        };
+        let edited = calc_doc::read_session(bytes, dna_onecalc::file::NAMESPACE).unwrap();
+        let blob = edited.vba.unwrap().project;
+        assert_ne!(blob, original.project);
+        let project = calc_vba::read_office_project(&blob).unwrap();
+        assert!(project.modules().iter().any(|m| m.name == "Extra" && m.source.contains("DnaTwice = 2 * x")));
+        assert_eq!(project.modules().len(), 5);
+    }
+}
+
+/// Native-only: the project references the Microsoft Scripting Runtime, so activation reaches
+/// platform COM. `New Scripting.Dictionary` (early bound, an imported class) works; an explicit
+/// `CreateObject` of another class of that library is late binding and stays a typed refusal (owner rule).
+#[cfg(windows)]
+#[test]
+fn with_a_com_reference_new_works_and_createobject_is_refused() {
+    use dna_onecalc::port::{Reply, Request, SessionPort};
+    let (mut port, _) = opened_examples();
+    port.send(Request::EnableMacros);
+    let reply = port.send(Request::LoadVba {
+        name: "Late".into(),
+        source: "Public Function EarlyCount() As Long\r\n    Dim d As New Scripting.Dictionary\r\n    d.Add \"a\", 1\r\n    EarlyCount = d.Count\r\nEnd Function\r\nPublic Function LateCount()\r\n    Dim d As Object\r\n    Set d = CreateObject(\"Scripting.FileSystemObject\")\r\n    LateCount = 1\r\nEnd Function\r\n".into(),
+    });
+    assert!(matches!(&reply, Reply::Functions { .. }), "{reply:?}");
+    assert_eq!(shown(&mut port, "=EarlyCount()"), "number 1");
+    let late = shown(&mut port, "=LateCount()");
+    assert!(late.starts_with("not calculated") && late.contains("CreateObject"), "{late}");
+}
+
+/// dc-0f1k.4: inside a worksheet function a cell write is Excel's trappable error 1004 (measured).
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn a_cell_write_in_a_worksheet_function_raises_1004() {
+    let mut s = session();
+    s.load_vba_module(
+        "Writes",
+        "Public Function TryWrite(r As Range)\n On Error Resume Next\n r.Value = 1\n TryWrite = Err.Number\nEnd Function\n",
+        1000,
+    )
+    .unwrap();
+    assert_eq!(result(&mut s, "=Writes.TryWrite(A1)"), CalcValue::number(1004.0));
+}
+
+/// dc-0f1k.4: after an edit, a module's reported source offset is the one the written blob has.
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn an_edited_project_reports_the_source_offsets_it_writes() {
+    let part = calc_doc::read_vba_file(EXAMPLES_XLSM.to_vec()).unwrap().unwrap();
+    let read = calc_vba::read_office_project(&part.project).unwrap();
+    assert!(read.modules().iter().any(|m| m.source_offset > 0), "the fixture keeps its compiled cache");
+    let kind = read.modules()[0].kind;
+    let name = read.modules()[0].name.clone();
+    let edited = read.with_module(&name, kind, "Public Function Edited()\r\nEnd Function\r\n").unwrap();
+    let written = calc_vba::read_office_project(&edited.to_blob().unwrap()).unwrap();
+    let reported: Vec<_> = edited.modules().iter().map(|m| (&m.name, m.source_offset)).collect();
+    let on_disk: Vec<_> = written.modules().iter().map(|m| (&m.name, m.source_offset)).collect();
+    assert_eq!(reported, on_disk);
+}
+
+/// Native-only (the project compiles on Windows): `Workbook_BeforeSave` runs before anything is
+/// written, and `Cancel` stops the save.
+#[cfg(windows)]
+#[test]
+fn workbook_before_save_runs_first_and_cancel_stops_the_save() {
+    use dna_onecalc::port::{Reply, Request, SessionPort};
+    let (mut port, _) = opened_examples();
+    port.send(Request::EnableMacros);
+    let load = |port: &mut dna_onecalc::port::LocalPort, cancel: &str| {
+        port.send(Request::LoadVba {
+            name: "ThisWorkbook".into(),
+            source: format!("Private Sub Workbook_BeforeSave(ByVal SaveAsUI As Boolean, Cancel As Boolean)\r\n    Cancel = {cancel}\r\nEnd Sub\r\n"),
+        })
+    };
+    let reply = load(&mut port, "True");
+    assert!(matches!(reply, Reply::Functions { .. }), "{reply:?}");
+    let reply = port.send(Request::Save);
+    assert!(matches!(&reply, Reply::Refused { message } if message.contains("Cancel")), "{reply:?}");
+    let reply = load(&mut port, "False");
+    assert!(matches!(reply, Reply::Functions { .. }), "{reply:?}");
+    assert!(matches!(port.send(Request::Save), Reply::File { .. }));
+}

@@ -40,6 +40,7 @@ pub struct PivotCache {
     pub source_range: Option<String>,
     pub source_name: Option<String>,
     pub fields: Vec<PivotCacheField>,
+    pub calculated_items: Vec<PivotCalculatedItem>,
     pub attributes: BTreeMap<String, String>,
     pub unsupported: Vec<String>,
     /// Source readings taken by an explicit refresh, never aggregated answers.
@@ -59,7 +60,15 @@ pub struct PivotCacheField {
     pub items: Vec<PivotItem>,
     /// Shared-item indexes retained without any current source record.
     pub unused_items: Vec<u32>,
+    pub formula_items: Vec<u32>,
     pub attributes: BTreeMap<String, String>,
+}
+/// A calculated item and its saved source field and shared-item index.
+#[derive(Clone, Debug, PartialEq, Eq, Hash)]
+pub struct PivotCalculatedItem {
+    pub formula: String,
+    pub field: u32,
+    pub item: u32,
 }
 /// Grouping metadata retained from a cache field. Virtual date fields use their group items
 /// as labels; source fields can carry a parent reference without a range.
@@ -127,6 +136,7 @@ pub struct PivotFieldItem {
     pub hidden: bool,
     /// A retained item that no longer occurs in the source records.
     pub missing: bool,
+    pub calculated: bool,
 }
 #[derive(Clone, Debug, Default, PartialEq, Eq, Hash)]
 pub struct PivotAxisItem {

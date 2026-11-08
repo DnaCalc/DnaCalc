@@ -526,17 +526,18 @@ fn original_recalculation_probe_project_is_admitted_without_source_removal() {
         let original = session
             .host()
             .loaded()
-            .read_vba_project(&Default::default())
+            .vba_project(&Default::default())
             .unwrap()
             .unwrap();
         assert_eq!(
-            original
-                .modules
+            calc_vba::read_office_project(&original.bytes)
+                .unwrap()
+                .modules()
                 .iter()
                 .find(|m| m.name == "ProbeEvents")
                 .unwrap()
                 .kind,
-            calc_host::VbaModuleKind::Class
+            calc_vba::OfficeModuleKind::Class
         );
         let project = calc_host_vba::prepare_file_project_with_events(
             session.host(),
@@ -555,8 +556,9 @@ fn original_recalculation_probe_project_is_admitted_without_source_removal() {
         full(&mut session);
         // The retained workbook's unarmed SizeUdf body assigns v = 2.
         assert!(
-            original
-                .modules
+            calc_vba::read_office_project(&original.bytes)
+                .unwrap()
+                .modules()
                 .iter()
                 .find(|m| m.name == "OracleProbe")
                 .unwrap()
@@ -572,7 +574,7 @@ fn original_recalculation_probe_project_is_admitted_without_source_removal() {
         let retained = reopened
             .host()
             .loaded()
-            .read_vba_project(&Default::default())
+            .vba_project(&Default::default())
             .unwrap()
             .unwrap();
         assert_eq!(
@@ -608,7 +610,6 @@ fn file_classes_share_one_session_and_declared_unsupported_members_stay_refused(
         "Application.ExecuteExcel4Macro(\"1+1\")",
         "ThisWorkbook.Date1904",
         "Sheet1.Range(\"A1\")",
-        "ThisWorkbook.Name",
         "ActiveWorkbook.Name",
         "UnsupportedSave()",
     ];
@@ -617,6 +618,8 @@ fn file_classes_share_one_session_and_declared_unsupported_members_stay_refused(
         module.push_str(&format!("Public Function Unsupported{index}() As Variant\n On Error Resume Next\n Unsupported{index} = {expression}\n Unsupported{index} = 999\nEnd Function\n"));
     }
     module.push_str("Public Function UnsupportedSave() As Long\n On Error Resume Next\n ThisWorkbook.Save\n UnsupportedSave = 999\nEnd Function\n");
+    // The workbook document's Name is honoured (dc-0f1k.4): the file's own name, as in Excel.
+    module.push_str("Public Function BookName() As Variant\n BookName = ThisWorkbook.Name\nEnd Function\n");
     let bytes = vba_project::replace_sources(
         original,
         &[
@@ -640,6 +643,12 @@ fn file_classes_share_one_session_and_declared_unsupported_members_stay_refused(
         assert_eq!(value(&session, 1, 4).as_number(), Some(1.));
         full(&mut session);
         assert_eq!(value(&session, 1, 4).as_number(), Some(2.));
+        enter(&mut session, 1, 6, "=BookName()");
+        full(&mut session);
+        assert_eq!(
+            value(&session, 1, 6).as_text().map(|t| t.to_string_lossy()),
+            Some("class.xlsm".to_owned())
+        );
         for index in 0..expressions.len() {
             enter(
                 &mut session,
@@ -819,7 +828,13 @@ fn events_off_admission_checks_each_source_identity_including_class_and_name_swa
         )
         .err()
         .expect("source identities must match their individual directory modules");
-        assert!(error.to_string().contains("directory identity"), "{error}");
+        // CalcVBA's reader refuses a module whose VB_Name differs from its directory entry
+        // before the compiler's own identity check sees it.
+        let error = error.to_string();
+        assert!(
+            error.contains("directory identity") || error.contains("VB_Name differs from directory"),
+            "{error}"
+        );
     }
 }
 
@@ -907,7 +922,7 @@ fn original_p01_p10_projects_keep_all_source_after_admission_and_save() {
         session.dispatch(SkinIntent::SetCalcMode(calc_host::CalcMode::Manual));
         session.set_workbook_events_enabled(false);
         let original = session.host().loaded()
-            .read_vba_project(&Default::default()).unwrap().unwrap();
+            .vba_project(&Default::default()).unwrap().unwrap();
         let owner = calc_host_vba::prepare_file_project_with_events(
             session.host(),
             "probe.xlsm",
@@ -922,7 +937,7 @@ fn original_p01_p10_projects_keep_all_source_after_admission_and_save() {
         session.save(&Default::default(), &mut saved).unwrap();
         let reopened = opened(&saved, "probe.xlsm");
         assert_eq!(original, reopened.host().loaded()
-            .read_vba_project(&Default::default()).unwrap().unwrap());
+            .vba_project(&Default::default()).unwrap().unwrap());
     }
 }
 
@@ -967,7 +982,7 @@ fn original_p02_fresh_logger_raises_error_nine_and_keeps_its_source() {
         session.dispatch(SkinIntent::SetCalcMode(calc_host::CalcMode::Manual));
         session.set_workbook_events_enabled(false);
         let original = session.host().loaded()
-            .read_vba_project(&Default::default()).unwrap().unwrap();
+            .vba_project(&Default::default()).unwrap().unwrap();
         let owner = calc_host_vba::prepare_file_project_with_events(
             session.host(), "probe.xlsm", 100_000, backend, false,
         ).unwrap().unwrap();
@@ -988,7 +1003,7 @@ fn original_p02_fresh_logger_raises_error_nine_and_keeps_its_source() {
         session.save(&Default::default(), &mut saved).unwrap();
         let reopened = opened(&saved, "probe.xlsm");
         assert_eq!(original, reopened.host().loaded()
-            .read_vba_project(&Default::default()).unwrap().unwrap());
+            .vba_project(&Default::default()).unwrap().unwrap());
     }
 }
 
@@ -1003,8 +1018,9 @@ fn original_p08_fresh_observers_raise_error_ninety_one_without_invented_setup() 
         let mut session = opened(bytes, "probe.xlsm");
         session.dispatch(SkinIntent::SetCalcMode(calc_host::CalcMode::Manual));
         session.set_workbook_events_enabled(false);
-        let original = session.host().loaded().read_vba_project(&Default::default()).unwrap().unwrap();
-        let source = &original.modules.iter().find(|m| m.name == "OracleProbe").unwrap().source;
+        let original = session.host().loaded().vba_project(&Default::default()).unwrap().unwrap();
+        let read = calc_vba::read_office_project(&original.bytes).unwrap();
+        let source = &read.modules().iter().find(|m| m.name == "OracleProbe").unwrap().source;
         assert!(source.contains("Private observedSheet As Worksheet"));
         assert!(source.contains("Set observedSheet = ThisWorkbook.Worksheets(1)"));
         let owner = calc_host_vba::prepare_file_project_with_events(
@@ -1028,7 +1044,7 @@ fn original_p08_fresh_observers_raise_error_ninety_one_without_invented_setup() 
         let mut saved = Vec::new();
         session.save(&Default::default(), &mut saved).unwrap();
         let reopened = opened(&saved, "probe.xlsm");
-        assert_eq!(original, reopened.host().loaded().read_vba_project(&Default::default()).unwrap().unwrap());
+        assert_eq!(original, reopened.host().loaded().vba_project(&Default::default()).unwrap().unwrap());
     }
 }
 
@@ -1117,7 +1133,7 @@ fn file_project_sources_compile_with_their_exported_attributes() {
             let before = session
                 .host()
                 .loaded()
-                .read_vba_project(&Default::default())
+                .vba_project(&Default::default())
                 .unwrap()
                 .unwrap();
             let mut saved = Vec::new();
@@ -1126,11 +1142,15 @@ fn file_project_sources_compile_with_their_exported_attributes() {
             let after = reopened
                 .host()
                 .loaded()
-                .read_vba_project(&Default::default())
+                .vba_project(&Default::default())
                 .unwrap()
                 .unwrap();
-            assert_eq!(before.modules.len(), after.modules.len());
-            for (before, after) in before.modules.iter().zip(&after.modules) {
+            let (before, after) = (
+                calc_vba::read_office_project(&before.bytes).unwrap(),
+                calc_vba::read_office_project(&after.bytes).unwrap(),
+            );
+            assert_eq!(before.modules().len(), after.modules().len());
+            for (before, after) in before.modules().iter().zip(after.modules()) {
                 assert_eq!(
                     before.source, after.source,
                     "internal worksheet entries must not alter saved VBA"

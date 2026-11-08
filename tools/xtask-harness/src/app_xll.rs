@@ -18,6 +18,18 @@
 //! failures, and the pass rate is over all cases. Finally the page unloads the add-in again and the
 //! report records what it said.
 //!
+//! A set whose `xll` is an `.xlam` loads a VBA add-in the same way (milestone 5, dc-0f1k.4); its
+//! Excel answers come from `crates/calc-xll-reference/fixture/vba/vba-job.ps1 -Action cases`.
+//!
+//! A set with `session` (an .xlsm session file, milestone 5) opens that file through the page's
+//! file input, so its own VBA project loads; enters each case formula in `cell` and reads the
+//! page's result; saves the session through the page's Save (the exe runs with `--save-dir`, so
+//! each save lands in a numbered folder under the file's own name without the dialog); then has
+//! Excel reopen every saved file in the owned hidden session (`vba-job.ps1 -Action reopen`, through
+//! the session host already running for this run) and compares the page's answer with what Excel
+//! calculates in the reopened file, and records whether Excel repaired it (a "[Repaired]" name or a
+//! new `error*.xml` repair log).
+//!
 //! Exit code: 0 when every case of every selected set matched, 1 otherwise, 2 for a usage error.
 
 use super::*;
@@ -303,8 +315,9 @@ fn reopen_offer(session: &Session, xll: &Path, name: &str, out: &Path) -> Result
     let escape = |t: &str| t.replace('&', "&amp;").replace('<', "&lt;").replace('"', "&quot;");
     let content = format!(
         "<?xml version=\"1.0\" encoding=\"UTF-8\" standalone=\"yes\"?>
-<onecalc xmlns=\"urn:dnacalc:onecalc-session\" version=\"1\"><options locale=\"en-US\" numberFormat=\"General\"/><addins><addin kind=\"xll\" path=\"{p}\" hash=\"{wrong}\"/><addin kind=\"xll\" path=\"{p}\" hash=\"{hash}\"/></addins></onecalc>",
-        p = escape(&path_text)
+<onecalc xmlns=\"urn:dnacalc:onecalc-session\" version=\"1\"><options locale=\"en-US\" numberFormat=\"General\"/><addins><addin kind=\"{k}\" path=\"{p}\" hash=\"{wrong}\"/><addin kind=\"{k}\" path=\"{p}\" hash=\"{hash}\"/></addins></onecalc>",
+        p = escape(&path_text),
+        k = xll.extension().map(|e| e.to_string_lossy().to_ascii_lowercase()).unwrap_or_default()
     );
     let file = calc_doc::SessionFile {
         sheet: "Sheet1".to_owned(),
@@ -321,6 +334,7 @@ fn reopen_offer(session: &Session, xll: &Path, name: &str, out: &Path) -> Result
         }),
         date_1904: false,
         cached: None,
+        vba: None,
     };
     let session_bytes = calc_doc::write_session(&file).map_err(|e| e.to_string())?;
     let directory = out.join("reopen");
@@ -369,6 +383,239 @@ fn reopen_offer(session: &Session, xll: &Path, name: &str, out: &Path) -> Result
     }))
 }
 
+/// The desktop exe (`--app`, its WebView2 on a DevTools port, the first sheet named `sheet`, and
+/// `extra` arguments), with chromedriver attached to that WebView2 as the smoke test attaches it.
+fn start_page(
+    exe: &Path,
+    bundle: &Path,
+    sheet: &str,
+    name: &str,
+    out: &Path,
+    extra: &[String],
+) -> Result<(DriverProcess, DriverProcess, Session), String> {
+    let upstream = free_port()?;
+    let child = Command::new(exe)
+        .args([
+            "--app",
+            "--assets",
+            &bundle.display().to_string(),
+            "--sheet",
+            sheet,
+            "--debug-port",
+            &upstream.to_string(),
+            "--size",
+            "1280x1000",
+        ])
+        .args(extra)
+        .env("DNACALC_WEBVIEW2_DATA", out.join(format!("webview2-{name}")))
+        .stdin(Stdio::null())
+        .spawn()
+        .map_err(|e| format!("cannot start {}: {e}", exe.display()))?;
+    let app = DriverProcess { child, port: upstream };
+    let started = Instant::now();
+    while TcpStream::connect(("127.0.0.1", upstream)).is_err() {
+        if started.elapsed() > Duration::from_secs(60) {
+            return Err("the desktop exe did not open its DevTools port".to_owned());
+        }
+        thread::sleep(Duration::from_millis(200));
+    }
+    let browser = &BROWSERS[0];
+    let version = variable_file(browser.variable)
+        .or_else(|| find_on_path(browser.program))
+        .and_then(|driver| cargo::output(Command::new(driver).arg("--version")).ok())
+        .map(|out| cargo::text(&out.stdout))
+        .and_then(|text| text.split_whitespace().nth(1).map(str::to_owned))
+        .unwrap_or_default();
+    let proxy = paint::devtools_proxy(upstream, format!("Chrome/{version}"))?;
+    let (driver, session) = open_attached(browser, &out.join("downloads"), None, Some(&format!("127.0.0.1:{proxy}")))?;
+    Ok((app, driver, session))
+}
+
+/// Opens the workbook at `path` through the page's file input, answering the page's question about
+/// unsaved changes, and waits for the page to say it opened it.
+fn open_through_page(session: &Session, path: &Path) -> Result<(), String> {
+    let element = session.element("[data-onecalc=\"file-input\"]")?;
+    let text = path.canonicalize().map_err(|e| e.to_string())?.display().to_string();
+    let text = text.strip_prefix(r"\\?\").unwrap_or(&text).to_owned();
+    session.post(&format!("/element/{element}/value"), json!({"text": text}))?;
+    thread::sleep(Duration::from_millis(300));
+    if text_of(session, "file-dialog").contains("Replace unsaved changes") {
+        let visible = session.script("return document.querySelector('[data-onecalc=\"file-dialog\"]').open;").ok().and_then(|v| v.as_bool());
+        if visible == Some(true) {
+            click(session, "file-replace")?;
+        }
+    }
+    let file = path.file_name().map(|n| n.to_string_lossy().into_owned()).unwrap_or_default();
+    if !wait_until(PAGE_WAIT, || text_of(session, "file-status").contains(&format!("Opened {file}"))) {
+        return Err(format!("the page did not open {file}: {}", text_of(session, "file-status")));
+    }
+    Ok(())
+}
+
+/// A session set (see the module comment): open the .xlsm through the page, evaluate and save each
+/// case, have Excel reopen the saved files, compare.
+fn run_session_set(
+    exe: &Path,
+    bundle: &Path,
+    set: &Value,
+    vars: &BTreeMap<String, String>,
+    fixture_dir: &Path,
+    out: &Path,
+) -> Result<Value, String> {
+    let name = set["name"].as_str().ok_or("a set needs a name")?;
+    let file = PathBuf::from(expand(set["session"].as_str().ok_or("a session set needs a session")?, vars));
+    let sheet = set["sheet"].as_str().unwrap_or("Sheet1");
+    let cell = set["cell"].as_str().unwrap_or("H1");
+    let cases_path = {
+        let text = expand(set["cases"].as_str().ok_or("a set needs cases")?, vars);
+        let path = PathBuf::from(&text);
+        if path.is_absolute() { path } else { fixture_dir.join(path) }
+    };
+    let job = PathBuf::from(expand(set["excel_job"].as_str().ok_or("a session set needs excel_job")?, vars));
+    let cases = read_json(&cases_path)?;
+    let cases = cases.as_array().ok_or("cases are an array")?;
+    let saved_dir = out.join(format!("saved-{name}"));
+    if saved_dir.exists() {
+        return Err(format!("{} exists; earlier evidence is never overwritten", saved_dir.display()));
+    }
+    let file_hash = calc_verdict::sha256_hex(&fs::read(&file).map_err(|e| format!("{}: {e}", file.display()))?);
+    let (_app, _driver, session) =
+        start_page(exe, bundle, sheet, name, out, &["--save-dir".to_owned(), saved_dir.display().to_string()])?;
+    let page = (|| -> Result<(Value, Vec<(String, Result<(String, Vec<String>, Option<Shown>), String>, Option<String>)>), String> {
+        if !wait_until(PAGE_WAIT, || !text_of(&session, "addin-count").is_empty()) {
+            return Err("the page did not mount".to_owned());
+        }
+        open_through_page(&session, &file)?;
+        // A macro file opens with macros disabled, as in Excel: the person enables them for it.
+        click(&session, "macros-enable")?;
+        if !wait_until(PAGE_WAIT, || {
+            let status = text_of(&session, "vba-status");
+            !status.is_empty() && !status.starts_with("Macros are disabled")
+        }) {
+            return Err("the page did not enable the file's macros".to_owned());
+        }
+        let project = text_of(&session, "vba-status");
+        set_text_input(&session, "formula-cell", cell)?;
+        // The Save button is in the session-file panel, which a person opens first.
+        session.script("var d = document.querySelector('[data-onecalc=\"file-controls\"]'); if (!d.open) { d.querySelector('summary').click(); } return d.open;")?;
+        let mut rows = Vec::new();
+        for case in cases {
+            let formula = case["formula"].as_str().ok_or("a case needs a formula")?.to_owned();
+            let answer = evaluate(&session, &formula);
+            let before = text_of(&session, "file-status");
+            click(&session, "file-save")?;
+            let saved = wait_until(CASE_WAIT, || {
+                let status = text_of(&session, "file-status");
+                status != before && status.starts_with("Saved ")
+            })
+            .then(|| text_of(&session, "file-status"))
+            .and_then(|s| s.strip_prefix("Saved ").map(|p| p.trim_end_matches('.').to_owned()));
+            rows.push((formula, answer, saved));
+        }
+        // An edit of the project through the VBA panel (its module goes into the file's project),
+        // then its formula, evaluated and saved like a case: Excel reopens the changed project.
+        let mut edit_status = Value::Null;
+        if let Some(edit) = set.get("edit") {
+            session.script("var d = document.querySelector('.oc-vba-panel'); if (!d.open) { d.querySelector('summary').click(); } return d.open;")?;
+            set_text_input(&session, "vba-source", edit["source"].as_str().ok_or("an edit needs source")?)?;
+            click(&session, "vba-load")?;
+            wait_until(CASE_WAIT, || text_of(&session, "vba-status").starts_with("Loaded:") || text_of(&session, "vba-status").starts_with("Module not loaded"));
+            edit_status = json!(text_of(&session, "vba-status"));
+            let formula = edit["formula"].as_str().ok_or("an edit needs a formula")?.to_owned();
+            let answer = evaluate(&session, &formula);
+            let before = text_of(&session, "file-status");
+            click(&session, "file-save")?;
+            let saved = wait_until(CASE_WAIT, || {
+                let status = text_of(&session, "file-status");
+                status != before && status.starts_with("Saved ")
+            })
+            .then(|| text_of(&session, "file-status"))
+            .and_then(|s| s.strip_prefix("Saved ").map(|p| p.trim_end_matches('.').to_owned()));
+            rows.push((formula, answer, saved));
+        }
+        Ok((json!({"project": project, "edit": edit_status}), rows))
+    })();
+    session.end();
+    let (opened, rows) = page?;
+    // Excel reopens every saved file in the owned hidden session.
+    let files: Vec<String> = rows.iter().filter_map(|(_, _, saved)| saved.clone()).collect();
+    let excel_dir = out.join(format!("excel-{name}"));
+    let mut command = Command::new("pwsh");
+    command.args(["-NoProfile", "-Sta", "-File"]).arg(&job).args(["-Action", "reopen", "-OutDirectory"]).arg(&excel_dir).args(["-FormulaCell", cell, "-Files"]);
+    command.arg(files.join(","));
+    let status = cargo::output(&mut command).map(|o| cargo::text(&o.stdout)).unwrap_or_else(|e| e);
+    let reopened = read_json(&excel_dir.join("reopen.json")).unwrap_or(Value::Null);
+    let by_file: BTreeMap<String, &Value> = reopened["rows"]
+        .as_array()
+        .map(|rows| rows.iter().filter_map(|r| Some((r["file"].as_str()?.to_owned(), r))).collect())
+        .unwrap_or_default();
+    let mut results = Vec::new();
+    let (mut matched, mut mismatched, mut refused, mut missing, mut repaired) = (0, 0, 0, 0, 0);
+    for (formula, answer, saved) in &rows {
+        let excel = saved.as_ref().and_then(|f| by_file.get(f));
+        let theirs = excel.and_then(|r| excel_value(&r["excel"]));
+        let repair = excel.is_some_and(|r| {
+            r["repaired"].as_bool() == Some(true) || r["repair_logs"].as_array().is_some_and(|l| !l.is_empty())
+        });
+        if repair {
+            repaired += 1;
+        }
+        let (verdict, detail) = match (answer, &theirs) {
+            (Err(why), _) => ("refused", why.clone()),
+            (Ok((result, diagnostics, _)), _) if result == "not calculated" => {
+                ("refused", format!("not calculated: {}", diagnostics.join(" | ")))
+            }
+            (Ok(_), None) => ("missing", format!("Excel gave no answer for the saved file {saved:?}")),
+            (Ok((result, diagnostics, shown)), Some(excel_value)) => match shown {
+                Some(shown) if shown.same(excel_value) => ("matched", result.clone()),
+                _ => ("mismatched", format!("{result}; Excel {}; {}", excel_value.describe(), diagnostics.join(" | "))),
+            },
+        };
+        match verdict {
+            "matched" => matched += 1,
+            "mismatched" => mismatched += 1,
+            "refused" => refused += 1,
+            _ => missing += 1,
+        }
+        results.push(json!({
+            "formula": formula, "verdict": verdict, "detail": detail, "saved": saved,
+            "excel": theirs.as_ref().map(Shown::describe), "excel_formula": excel.map(|r| r["formula"].clone()),
+            "repaired": repair, "excel_name": excel.map(|r| r["name"].clone()),
+        }));
+    }
+    Ok(json!({
+        "name": name, "session": file.display().to_string(), "session_sha256": file_hash,
+        "cases_file": cases_path.display().to_string(), "excel_record": excel_dir.join("reopen.json").display().to_string(),
+        "excel_job_output": status,
+        "outcome": {
+            "loaded": true, "opened": opened, "count": rows.len(), "matched": matched, "mismatched": mismatched,
+            "refused": refused, "missing": missing, "repaired": repaired, "saved": files.len(), "results": results,
+            "unload": {"unloaded": null}, "reopen": {"loaded_after_right_hash": null},
+        },
+    }))
+}
+
+/// A value `vba-job.ps1` recorded (`{value, type}`, `{error_code}` or `{blank}`) as the page shows it.
+fn excel_value(value: &Value) -> Option<Shown> {
+    if value["blank"].as_bool() == Some(true) {
+        return Some(Shown::Blank);
+    }
+    if let Some(code) = value["error_code"].as_i64() {
+        let name = match code {
+            -2146826288 => "#NULL!",
+            -2146826281 => "#DIV/0!",
+            -2146826273 => "#VALUE!",
+            -2146826265 => "#REF!",
+            -2146826259 => "#NAME?",
+            -2146826252 => "#NUM!",
+            -2146826246 => "#N/A",
+            _ => return None,
+        };
+        return Some(Shown::Error(name.to_owned()));
+    }
+    Shown::of_json(&value["value"])
+}
+
 fn run_set(
     exe: &Path,
     bundle: &Path,
@@ -392,42 +639,7 @@ fn run_set(
     let excel = excel_answers(&excel_path)?;
     let xll_bytes = fs::read(&xll).map_err(|e| format!("{}: {e}", xll.display()))?;
     let xll_hash = calc_verdict::sha256_hex(&xll_bytes);
-
-    // The desktop exe, its WebView2 on a DevTools port, chromedriver attached through the proxy.
-    let upstream = free_port()?;
-    let child = Command::new(exe)
-        .args([
-            "--app",
-            "--assets",
-            &bundle.display().to_string(),
-            "--sheet",
-            sheet,
-            "--debug-port",
-            &upstream.to_string(),
-            "--size",
-            "1280x1000",
-        ])
-        .env("DNACALC_WEBVIEW2_DATA", out.join(format!("webview2-{name}")))
-        .stdin(Stdio::null())
-        .spawn()
-        .map_err(|e| format!("cannot start {}: {e}", exe.display()))?;
-    let _app = DriverProcess { child, port: upstream };
-    let started = Instant::now();
-    while TcpStream::connect(("127.0.0.1", upstream)).is_err() {
-        if started.elapsed() > Duration::from_secs(60) {
-            return Err("the desktop exe did not open its DevTools port".to_owned());
-        }
-        thread::sleep(Duration::from_millis(200));
-    }
-    let browser = &BROWSERS[0];
-    let version = variable_file(browser.variable)
-        .or_else(|| find_on_path(browser.program))
-        .and_then(|driver| cargo::output(Command::new(driver).arg("--version")).ok())
-        .map(|out| cargo::text(&out.stdout))
-        .and_then(|text| text.split_whitespace().nth(1).map(str::to_owned))
-        .unwrap_or_default();
-    let proxy = paint::devtools_proxy(upstream, format!("Chrome/{version}"))?;
-    let (_driver, session) = open_attached(browser, &out.join("downloads"), None, Some(&format!("127.0.0.1:{proxy}")))?;
+    let (_app, _driver, session) = start_page(exe, bundle, sheet, name, out, &[])?;
     let outcome = (|| -> Result<Value, String> {
         if !wait_until(PAGE_WAIT, || text_of(&session, "addin-count").ends_with("loaded")) {
             return Err("the page did not mount its add-in panel".to_owned());
@@ -452,7 +664,7 @@ fn run_set(
             let came = wait_until(LOAD_WAIT, || {
                 items_of(&session, "addins-loaded").len() > before || {
                     let status = text_of(&session, "addin-status");
-                    ["refused", "not the file", "already loaded", "cannot", "rollback", "not an .xll", "failed", "dc-snz"]
+                    ["refused", "not the file", "already loaded", "cannot", "rollback", "not an .xll", "failed", "dc-snz", "dc-0f1k", "compile", "VBA project"]
                         .iter()
                         .any(|word| status.contains(word))
                 }
@@ -608,7 +820,8 @@ pub fn run(ws: &Workspace, raw: &[String]) -> ExitCode {
         let (mut total, mut matched) = (0u64, 0u64);
         let mut clean = true;
         for set in sets {
-            let report = match run_set(&exe, &bundle, set, &vars, &fixture_dir, &out) {
+            let run = if set.get("session").is_some() { run_session_set } else { run_set };
+            let report = match run(&exe, &bundle, set, &vars, &fixture_dir, &out) {
                 Ok(report) => report,
                 Err(why) => json!({"name": set["name"], "error": why, "outcome": {"loaded": false}}),
             };

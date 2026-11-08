@@ -211,9 +211,13 @@ pub struct Session {
     plain: bool,
     options: SessionOptions,
     addins: Vec<AddinRef>,
-    /// Whether a VBA standard module is loaded (its source is not kept: the session file holds no
-    /// VBA project until dc-0f1k.4).
+    /// Whether a VBA standard module typed into the session is loaded (beside any project).
     vba_loaded: bool,
+    /// The VBA project the session's file carries (an .xlsm session), compiled.
+    project: Option<SessionProject>,
+    /// The table of functions the session's owner published (add-ins, typed modules); the
+    /// session's callable table is this one with the project's functions added.
+    published: calc_fml::CallableTable,
     /// The owner that delivers asynchronous returns; with one, evaluation runs as a continuation.
     returns: Option<Box<dyn ExternalReturns>>,
     /// Changes whenever the table of registered functions is replaced (a counter shared by all
@@ -258,6 +262,8 @@ impl Session {
             options: SessionOptions::default(),
             addins: Vec::new(),
             vba_loaded: false,
+            project: None,
+            published: calc_fml::CallableTable::new(),
             returns: None,
             functions_version: next_functions_version(),
         })
@@ -462,10 +468,207 @@ impl Session {
             .map(|(cell, value)| (*cell, value))
     }
 
-    /// Publish a complete replacement. Plans retain no engine objects or old registrations.
+    /// Publish a complete replacement. Plans retain no engine objects or old registrations. The
+    /// functions of the session's own VBA project stay callable beside them.
     pub fn set_user_functions(&mut self, functions: calc_fml::CallableTable) {
-        self.functions.replace(functions);
+        self.published = functions;
+        self.republish();
+    }
+
+    /// The table the owner published, without the session's project: what a session that
+    /// replaces this one takes over.
+    pub fn published_functions(&self) -> &calc_fml::CallableTable {
+        &self.published
+    }
+
+    fn republish(&mut self) {
+        let mut table = self.published.clone();
+        if let Some(load) = self.project.as_ref().and_then(|p| p.load.as_ref()) {
+            let functions = load.project.functions();
+            for (provider, name) in functions.registrations() {
+                if let Some(function) = functions
+                    .bind(provider, name)
+                    .and_then(|handle| functions.resolve(handle))
+                {
+                    // A name the owner's add-ins registered first keeps their function.
+                    let _ = table.register_for(provider, name, std::rc::Rc::clone(function));
+                }
+            }
+        }
+        self.functions.replace(table);
         self.functions_version = next_functions_version();
+    }
+
+    /// Takes the VBA project of the session's file (`vba`, as calc-doc read it) as the file named
+    /// `file_name` (what `ThisWorkbook.Name` gives): CalcVBA reads and compiles it, its public
+    /// functions are published beside the owner's, and `Workbook_Open` is raised. The project part
+    /// stays with the session whatever happens, so a save writes it back: a project that does
+    /// not read or compile (here) is still the file's, and the error says why it is not running.
+    /// A failing `Workbook_Open` is reported in the result and the project stays loaded, as Excel
+    /// keeps a workbook whose open handler failed.
+    pub fn open_project(
+        &mut self,
+        vba: calc_doc::SessionVba,
+        file_name: &str,
+        zone: Option<u32>,
+    ) -> Result<ProjectReport, String> {
+        let parsed = calc_vba::read_office_project(&vba.project);
+        let macros = match zone {
+            Some(zone @ (3 | 4)) => MacroState::Blocked(zone),
+            _ => MacroState::Disabled,
+        };
+        self.project = Some(SessionProject {
+            vba,
+            parsed: parsed.as_ref().ok().cloned(),
+            file_name: file_name.to_owned(),
+            load: None,
+            macros,
+        });
+        self.republish();
+        Ok(ProjectReport {
+            functions: Vec::new(),
+            notes: vec![match macros {
+                MacroState::Blocked(zone) => format!(
+                    "This file carries the Mark of the Web (zone {zone}: it came from the internet or another computer), so its VBA project is not run. Save a copy you trust and open that"
+                ),
+                _ => "Macros are disabled for this file: its VBA project is held and saved with it, but nothing in it runs until you enable macros".to_owned(),
+            }],
+        })
+    }
+
+    /// Lets the held project run (the person enabled macros for this file): it is compiled and
+    /// `Workbook_Open` is raised. A file with the Mark of the Web cannot be enabled.
+    pub fn enable_macros(&mut self) -> Result<ProjectReport, String> {
+        let Some(held) = self.project.as_mut() else {
+            return Err("the session has no VBA project".to_owned());
+        };
+        match held.macros {
+            MacroState::Blocked(zone) => {
+                return Err(format!(
+                    "the file carries the Mark of the Web (zone {zone}); its VBA project is not run"
+                ));
+            }
+            MacroState::Enabled => return Ok(ProjectReport::default()),
+            MacroState::Disabled => {}
+        }
+        held.macros = MacroState::Enabled;
+        let Some(project) = held.parsed.clone() else {
+            let blob = &held.vba.project;
+            return Err(calc_vba::read_office_project(blob)
+                .err()
+                .unwrap_or_else(|| "the project did not read".to_owned()));
+        };
+        let report = self.compile_project(&project)?;
+        let notes = self.raise_open();
+        Ok(ProjectReport { notes: [report.notes, notes].concat(), ..report })
+    }
+
+    /// Compiles `project` as the session's held project (its part and name stay as they are).
+    fn compile_project(&mut self, project: &calc_vba::OfficeProject) -> Result<ProjectReport, String> {
+        let held = self.project.as_mut().expect("a held project part");
+        let load = calc_vba::events::load_office_project(
+            project,
+            &held.file_name,
+            calc_vba::DEFAULT_STEP_BUDGET,
+            None,
+        )?;
+        let functions = load
+            .project
+            .functions()
+            .registrations()
+            .filter(|(provider, name)| provider.is_none() && !name.contains('.'))
+            .map(|(_, name)| name.to_owned())
+            .collect();
+        let notes = load
+            .undelivered
+            .iter()
+            .map(|handler| format!("{handler} is not delivered"))
+            .collect();
+        held.parsed = Some(project.clone());
+        held.load = Some(std::rc::Rc::new(load));
+        self.republish();
+        Ok(ProjectReport { functions, notes })
+    }
+
+    fn raise_open(&mut self) -> Vec<String> {
+        let Some(workbook) = self
+            .project
+            .as_ref()
+            .and_then(|p| p.load.as_ref())
+            .and_then(|load| load.workbook.as_ref())
+        else {
+            return Vec::new();
+        };
+        match workbook.open(&NoWorkbookReads, calc_vba::DEFAULT_STEP_BUDGET) {
+            Ok(()) => Vec::new(),
+            Err(why) => vec![format!("Workbook_Open: {why}")],
+        }
+    }
+
+    /// Raises `Workbook_BeforeSave` of the project (macros enabled), before anything is written, as
+    /// Excel does: `Ok(true)` when the handler set `Cancel`. A session saves by naming a file, so
+    /// `SaveAsUI` is true. A handler that fails is an error (what Excel does with the save after
+    /// an unhandled error in the handler is not measured, so nothing is written).
+    pub fn raise_before_save(&mut self) -> Result<bool, String> {
+        let Some(workbook) = self
+            .project
+            .as_ref()
+            .filter(|p| p.macros == MacroState::Enabled)
+            .and_then(|p| p.load.as_ref())
+            .and_then(|load| load.workbook.as_ref())
+        else {
+            return Ok(false);
+        };
+        workbook
+            .before_save(true, &NoWorkbookReads, calc_vba::DEFAULT_STEP_BUDGET)
+            .map_err(|why| format!("Workbook_BeforeSave: {why}"))
+    }
+
+    /// Sets the code of a module of the session's project (`name`, a standard module unless the
+    /// project has a module of that name), recompiling the project. The project part saved
+    /// next is the changed one. Module state starts again, as after an edit in the VBE;
+    /// `Workbook_Open` is not raised again. A change that does not compile changes nothing.
+    pub fn edit_project_module(&mut self, name: &str, code: &str) -> Result<ProjectReport, String> {
+        if self.project.as_ref().is_some_and(|p| p.macros != MacroState::Enabled) {
+            return Err("macros are not enabled for this file, so its project is not edited".to_owned());
+        }
+        let Some(parsed) = self.project.as_ref().and_then(|p| p.parsed.as_ref()) else {
+            return Err("the session has no VBA project CalcVBA could read".to_owned());
+        };
+        let kind = parsed
+            .modules()
+            .iter()
+            .find(|m| m.name.eq_ignore_ascii_case(name))
+            .map_or(calc_vba::OfficeModuleKind::Standard, |m| m.kind);
+        let changed = parsed.with_module(name, kind, code)?;
+        let blob = changed.to_blob()?;
+        let previous = self.project.as_ref().map(|p| (p.parsed.clone(), p.load.clone()));
+        match self.compile_project(&changed) {
+            Ok(report) => {
+                self.project.as_mut().expect("held").vba.project = blob;
+                Ok(report)
+            }
+            Err(why) => {
+                let held = self.project.as_mut().expect("held");
+                if let Some((parsed, load)) = previous {
+                    held.parsed = parsed;
+                    held.load = load;
+                }
+                self.republish();
+                Err(why)
+            }
+        }
+    }
+
+    /// The session's VBA project, when its file carries one.
+    pub fn project(&self) -> Option<&SessionProject> {
+        self.project.as_ref()
+    }
+
+    /// Removes the session's VBA project and its functions; the file is then saved as .xlsx.
+    pub fn remove_project(&mut self) {
+        self.project = None;
+        self.republish();
     }
 
     /// The version of the table of registered functions, which changes when it is replaced.
@@ -506,6 +709,76 @@ impl Session {
         self.vba_loaded = false;
         self.set_user_functions(calc_fml::CallableTable::new());
     }
+}
+
+/// The VBA project a session's file carries: the project part as the file held it (or as an edit
+/// changed it), which a save puts back, the project as CalcVBA read it, and the compiled project
+/// its functions and workbook events run in (none when it did not read or compile here).
+pub struct SessionProject {
+    /// The part and code names a save writes back.
+    pub vba: calc_doc::SessionVba,
+    parsed: Option<calc_vba::OfficeProject>,
+    /// The file name `ThisWorkbook.Name` gives.
+    pub file_name: String,
+    load: Option<std::rc::Rc<calc_vba::events::OfficeLoad>>,
+    /// Whether the person (or the way the file was loaded) has let the project run.
+    pub macros: MacroState,
+}
+
+/// Whether a session file's VBA project may run, as in Excel's default: a file from the internet
+/// or another computer (Mark of the Web, zone 3 or 4) never runs its project here; any other file
+/// opens with macros disabled until the person enables them for that file.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum MacroState {
+    /// The project compiled (or tried to) and its events run.
+    Enabled,
+    /// Held, not compiled, not run; [`Session::enable_macros`] lets it run.
+    Disabled,
+    /// Held, not run, and not to be enabled: the file carries the Mark of the Web (the zone).
+    Blocked(u32),
+}
+
+impl std::fmt::Debug for SessionProject {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("SessionProject")
+            .field("file_name", &self.file_name)
+            .field("bytes", &self.vba.project.len())
+            .finish()
+    }
+}
+
+impl SessionProject {
+    /// The project's modules as CalcVBA read them (none when it could not read them).
+    pub fn modules(&self) -> &[calc_vba::OfficeModule] {
+        self.parsed.as_ref().map_or(&[], |p| p.modules())
+    }
+    /// Whether the project compiled and its functions are callable.
+    pub fn is_running(&self) -> bool {
+        self.load.is_some()
+    }
+}
+
+/// What compiling a session's project gave: its worksheet functions (bare names), and what of its
+/// events was not delivered or failed.
+#[derive(Clone, Debug, Default, PartialEq, Eq)]
+pub struct ProjectReport {
+    pub functions: Vec<String>,
+    pub notes: Vec<String>,
+}
+
+/// The reads a project's workbook events get in OneCalc: none are modelled yet, so a read is a
+/// refusal the event reports.
+struct NoWorkbookReads;
+impl calc_vba::events::EventReadContext for NoWorkbookReads {
+    fn read_reference(
+        &self,
+        _: &calc_func::value::ReferenceLike,
+    ) -> Result<CalcValue, String> {
+        Err("cell reads from a workbook event are not modelled in OneCalc (dc-0f1k.4)".into())
+    }
+}
+
+impl Session {
 
     /// Calculates the formula: parse, compile (the session's plan cache shares one plan per
     /// normal form), place at the formula cell, and evaluate over the session's inputs, recording

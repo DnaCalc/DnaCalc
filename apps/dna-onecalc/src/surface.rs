@@ -32,7 +32,7 @@
 //! onecalc`) sees it.
 
 use crate::grid;
-use crate::port::{Link, LoadedAddin, LocalLink, LocalPort, Opened, Reply, Request};
+use crate::port::{Link, LoadedAddin, LocalLink, LocalPort, MacrosView, Opened, Reply, Request};
 use crate::session::{AddinRef, Session, SessionOptions};
 use crate::shown::{Authored, Shown, ViewWire};
 use calc_fml::syntax::TextSpan;
@@ -179,6 +179,8 @@ fn surface(link: Rc<dyn Link>) -> impl IntoView {
     let vba_source = RwSignal::new(calc_vba::EXAMPLE_MODULE.to_owned());
     let vba_status = RwSignal::new("No VBA module loaded.".to_owned());
     let vba_generation = RwSignal::new(0u64);
+    // Whether the file's VBA project may run: Excel's default is not until the person enables it.
+    let macros_view = RwSignal::new(MacrosView::Enabled);
     let load_vba = move |_| {
         let source = vba_source.get_untracked();
         call(
@@ -288,6 +290,7 @@ fn surface(link: Rc<dyn Link>) -> impl IntoView {
             shown: answer,
             addins: listed,
             loaded: running,
+            project,
         } = opened;
         batch(move || {
             baseline.set(Some(state.clone()));
@@ -304,7 +307,29 @@ fn surface(link: Rc<dyn Link>) -> impl IntoView {
                         .to_owned(),
                 );
             }
-            vba_status.set("No VBA module loaded.".to_owned());
+            // A session file's VBA project (an .xlsm) is compiled when it opens; its modules are
+            // edited through the VBA panel, and Save writes the project back.
+            macros_view.set(project.as_ref().map_or(MacrosView::Enabled, |view| view.macros));
+            vba_status.set(match &project {
+                None => "No VBA module loaded.".to_owned(),
+                Some(view) if view.macros != MacrosView::Enabled => view.notes.join("; "),
+                Some(view) if view.functions.is_empty() => {
+                    format!("The file's VBA project did not load: {}", view.notes.join("; "))
+                }
+                Some(view) => {
+                    let mut status = format!(
+                        "The file's VBA project is loaded: {} function(s): {}.",
+                        view.functions.len(),
+                        view.functions.join(", ")
+                    );
+                    for note in &view.notes {
+                        status.push(' ');
+                        status.push_str(note);
+                        status.push('.');
+                    }
+                    status
+                }
+            });
             vba_generation.update(|generation| *generation += 1);
             file_status.set(if name.is_empty() {
                 "New session.".to_owned()
@@ -400,7 +425,7 @@ fn surface(link: Rc<dyn Link>) -> impl IntoView {
     let run_pending = move |what: Pending| match what {
         Pending::New => call(Request::New, Box::new(move |reply| on_reply.run(reply))),
         Pending::Open { name, bytes } => call(
-            Request::Open { name, bytes },
+            Request::Open { name, bytes, zone: None },
             Box::new(move |reply| on_reply.run(reply)),
         ),
         Pending::OpenNative => call(Request::OpenNative, Box::new(move |reply| on_reply.run(reply))),
@@ -750,20 +775,21 @@ fn surface(link: Rc<dyn Link>) -> impl IntoView {
                 "One Excel formula, with the inputs it needs."
             </p>
             <details class="oc-fixtures" data-onecalc="addin-controls" prop:open=move || addins_open.get() on:toggle=move |ev| addins_open.set(event_target::<web_sys::HtmlElement>(&ev).has_attribute("open"))><summary data-onecalc="addin-tools">"Add-ins · "<span data-onecalc="addin-count">{move || loaded_addins.with(|list| format!("{} loaded", list.len()))}</span></summary>
-                <p>"Excel add-ins (.xll) register worksheet functions the formula can call, with the argument names and help they carry. A saved session lists the add-ins loaded, with the hash of each file; reopening it offers to load them again, and loads nothing by itself."</p>
+                <p>"Excel add-ins (.xll, and VBA add-ins in .xlam files) register worksheet functions the formula can call, with the argument names and help they carry. Loading an .xlam installs it, as Excel's Add-ins dialog does: its Workbook_Open and Workbook_AddinInstall run. A saved session lists the add-ins loaded, with the hash of each file; reopening it offers to load them again (an .xlam is then opened, not installed), and loads nothing by itself."</p>
                 <p data-onecalc="addin-browser-note" hidden=native>"Add-ins load in the desktop app; this page runs without a host that can load them."</p>
                 <div class="oc-session-actions" hidden=!native>
                     <button data-onecalc="addin-load" on:click=load_addin_native>"Load add-in…"</button>
-                    <input data-onecalc="addin-path" type="text" size="40" placeholder="Path of an .xll file" aria-label="Path of an add-in" prop:value=move || addin_path.get() on:input=move |ev| addin_path.set(event_target_value(&ev))/>
+                    <input data-onecalc="addin-path" type="text" size="40" placeholder="Path of an .xll or .xlam file" aria-label="Path of an add-in" prop:value=move || addin_path.get() on:input=move |ev| addin_path.set(event_target_value(&ev))/>
                     <button data-onecalc="addin-load-path" on:click=load_addin_path>"Load path"</button>
                 </div>
                 <p role="status" data-onecalc="addin-status">{move || addin_status.get()}</p>
                 <ul data-onecalc="addins-loaded">{move || loaded_addins.with(|list| list.iter().map(|addin| {
                     let path = addin.path.clone();
                     let functions = if addin.functions.is_empty() { "no worksheet functions".to_owned() } else { addin.functions.join(", ") };
+                    let notes = if addin.notes.is_empty() { String::new() } else { format!(" ({})", addin.notes.join("; ")) };
                     view! {
                         <li data-onecalc="addin-loaded" data-path=addin.path.clone()>
-                            <strong>{addin.kind.clone()}</strong>" "{addin.path.clone()}" ("{addin.hash.clone()}") - "{functions}" "
+                            <strong>{addin.kind.clone()}</strong>" "{addin.path.clone()}" ("{addin.hash.clone()}") - "{functions}{notes}" "
                             <button data-onecalc="addin-unload" on:click=move |_| unload_addin.run(path.clone())>"Unload"</button>
                         </li>
                     }
@@ -783,13 +809,13 @@ fn surface(link: Rc<dyn Link>) -> impl IntoView {
                 }}</ul>
             </details>
             <details class="oc-fixtures" data-onecalc="file-controls"><summary data-onecalc="file-tools">"Session file · "<span data-onecalc="file-state">{move ||if dirty(){"Unsaved changes"}else{"Unchanged since opened or saved"}}</span></summary>
-                <p>"A session is an Excel workbook (.xlsx) with one sheet, the formula in its cell and the grid's constants. Open one, drop one on this page, or save the session as one; Excel opens it as it is."</p>
+                <p>"A session is an Excel workbook (.xlsx) with one sheet, the formula in its cell and the grid's constants; with a VBA project it is an .xlsm, whose project loads when it opens and is saved back with it. Open one, drop one on this page, or save the session as one; Excel opens it as it is."</p>
                 <div class="oc-session-actions">
                     <button data-onecalc="file-new" on:click=move |_| request.run(Pending::New)>"New session"</button>
                     <button data-onecalc="file-open" on:click=open_file>"Open…"</button>
                     <button data-onecalc="file-save" on:click=save_file>"Save…"</button>
                 </div>
-                <input node_ref=file_input data-onecalc="file-input" type="file" accept=".xlsx,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" hidden aria-label="Open a session workbook" on:change=move |ev| {
+                <input node_ref=file_input data-onecalc="file-input" type="file" accept=".xlsx,.xlsm,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet,application/vnd.ms-excel.sheet.macroEnabled.12" hidden aria-label="Open a session workbook" on:change=move |ev| {
                     let input = event_target::<web_sys::HtmlInputElement>(&ev);
                     if let Some(file) = input.files().and_then(|files| files.get(0)) {
                         read_file(file);
@@ -797,6 +823,19 @@ fn surface(link: Rc<dyn Link>) -> impl IntoView {
                     input.set_value("");
                 }/>
                 <p role="status" data-onecalc="file-status">{move || file_status.get()}</p>
+                <Show when=move || macros_view.get() != MacrosView::Enabled>
+                    <p role="alert" data-onecalc="macros-bar">
+                        {move || if macros_view.get() == MacrosView::Blocked {
+                            "Macros are blocked: this file came from the internet or another computer, so its VBA project is not run."
+                        } else {
+                            "Macros are disabled for this file: its VBA project is kept and saved, but nothing in it runs."
+                        }}
+                        " "
+                        <Show when=move || macros_view.get() == MacrosView::Disabled>
+                            <button data-onecalc="macros-enable" type="button" on:click=move |_| call(Request::EnableMacros, Box::new(move |reply| on_reply.run(reply)))>"Enable macros"</button>
+                        </Show>
+                    </p>
+                </Show>
                 <p data-onecalc="file-name">{move || file_name.get()}</p>
                 <ul data-onecalc="file-addins">{addin_list}</ul>
                 <div class="oc-examples"><strong>"Examples"</strong><button data-onecalc="example-sum" on:click=move |_| request.run(Pending::Example(Box::new(Authored::example_sum())))>"SUM & blank input"</button><button data-onecalc="example-array" on:click=move |_| request.run(Pending::Example(Box::new(Authored { formula: "=SEQUENCE(3,2)".to_owned(), ..Authored::default() })))>"Array"</button><button data-onecalc="example-lambda" on:click=move |_| request.run(Pending::Example(Box::new(Authored { formula: "=LAMBDA(x,x*2)(21)".to_owned(), ..Authored::default() })))>"LAMBDA"</button><button data-onecalc="example-missing" on:click=move |_| request.run(Pending::Example(Box::new(Authored { formula: "=Z99+1".to_owned(), ..Authored::default() })))>"Missing input"</button></div>
@@ -917,7 +956,7 @@ fn surface(link: Rc<dyn Link>) -> impl IntoView {
                         " "
                         <button data-onecalc="vba-clear" type="button" on:click=clear_vba>"Unload module"</button>
                         <p data-onecalc="vba-status">{move || vba_status.get()}</p>
-                        <p class="oc-prov">"Load the example, enter 40 in A1, then try =Module1.Add2(A1,2). Module state lasts until reload or unload. Each call stops at its execution budget. References can supply values, arrays or read-only Excel Range arguments; writes and calculation commands remain unsupported. A session with a VBA module cannot be saved yet (dc-0f1k.4)."</p>
+                        <p class="oc-prov">"Load the example, enter 40 in A1, then try =Module1.Add2(A1,2). Module state lasts until reload or unload. Each call stops at its execution budget. References can supply values, arrays or read-only Excel Range arguments; a write to a cell raises VBA error 1004, as in Excel, and calculation commands remain unsupported. In an .xlsm session the module goes into the file's VBA project and is saved with it; a module typed into a session without a project cannot be saved (dc-0f1k.4)."</p>
                     </details>
                     <div class="oc-panel oc-catalogue" data-onecalc="catalogue-panel">
                         <h2>"Functions"</h2>

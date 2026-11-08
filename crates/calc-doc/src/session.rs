@@ -16,11 +16,15 @@
 //!   writes (`_xlfn.`); [`write_session`] adds them to a formula given as entered;
 //! - constants: numbers, text, logicals and error values, one per cell;
 //! - optionally one custom XML item of the application's own namespace for what the format has
-//!   no place for (the application's options, its add-in list), kept opaque.
+//!   no place for (the application's options, its add-in list), kept opaque;
+//! - optionally a VBA project ([`SessionVba`]): the file is then an .xlsm. The project part is an
+//!   opaque blob here (theory 5a): CalcVBA reads what is inside it, and a save puts it back as the
+//!   session holds it, with its relationship, its content type and the document code names its
+//!   document modules bind by.
 //!
 //! A workbook outside that is refused with a typed [`SessionRefusal`] before anything is read
 //! into a session: more sheets, formulas or array areas than the content allows, defined names,
-//! tables, charts, pivot tables, validations, conditional formats, merged cells, or a VBA project.
+//! tables, charts, pivot tables, validations, conditional formats or merged cells.
 //! Nothing is dropped silently except what carries no calculation: styles, the document's
 //! properties and a cached result (a reopen calculates the formula again, so a file's cached result
 //! is never read as a value).
@@ -111,6 +115,19 @@ pub struct SessionFile {
     /// The calculated result to store as the formula's cached result, which no reader takes as a
     /// value; only a number, text, logical or error. [`read_session`] leaves it `None`.
     pub cached: Option<SessionValue>,
+    /// The workbook's VBA project, when it carries one (an .xlsm).
+    pub vba: Option<SessionVba>,
+}
+
+/// A session's VBA project: the `vbaProject.bin` part as bytes, and the code names that bind the
+/// project's document modules to the workbook and its sheet.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct SessionVba {
+    pub project: Vec<u8>,
+    /// The workbook's code name (`workbookPr codeName`, `ThisWorkbook` in English Excel).
+    pub workbook_code_name: Option<String>,
+    /// The sheet's code name (`sheetPr codeName`, `Sheet1`).
+    pub sheet_code_name: Option<String>,
 }
 
 /// Why a workbook is not a session file, or why a session could not be written.
@@ -127,8 +144,8 @@ pub enum SessionRefusal {
     /// A defined name, table, chart, pivot table, validation, conditional format or merged area:
     /// content this file does not hold.
     Content { what: &'static str },
-    /// The workbook carries a VBA project.
-    VbaProject,
+    /// The workbook's VBA project part could not be read.
+    VbaProject { detail: String },
     /// A cell holds something a constant cannot be here, or text too long.
     Cell { row: u32, column: u32, detail: String },
     /// The session could not be written.
@@ -149,7 +166,7 @@ impl fmt::Display for SessionRefusal {
                 "the formula is an array formula over {rows} x {columns} cells; a session's formula fills one cell"
             ),
             Self::Content { what } => write!(f, "the workbook has {what}, which a session does not hold"),
-            Self::VbaProject => f.write_str("the workbook carries a VBA project"),
+            Self::VbaProject { detail } => write!(f, "the VBA project: {detail}"),
             Self::Cell { row, column, detail } => {
                 write!(f, "the cell at row {row}, column {column}: {detail}")
             }
@@ -181,9 +198,7 @@ fn text_of(text: &ExcelText) -> String {
 /// `namespace` names the application's custom XML item, which is returned when the file holds one.
 pub fn read_session(bytes: Vec<u8>, namespace: &str) -> Result<SessionFile, SessionRefusal> {
     let loaded = open_bytes(bytes)?;
-    if loaded.has_vba_project() {
-        return Err(SessionRefusal::VbaProject);
-    }
+    let vba = read_vba(&loaded)?;
     let model = loaded.model();
     let sheets = model.sheets();
     let [entry] = sheets else {
@@ -303,7 +318,74 @@ pub fn read_session(bytes: Vec<u8>, namespace: &str) -> Result<SessionFile, Sess
         custom,
         date_1904: loaded.date_system() == crate::DateSystem::Date1904,
         cached: None,
+        vba,
     })
+}
+
+fn read_vba(loaded: &LoadedWorkbook) -> Result<Option<SessionVba>, SessionRefusal> {
+    let refused = |error: crate::VbaReadError| SessionRefusal::VbaProject {
+        detail: error.to_string(),
+    };
+    let Some(part) = loaded.vba_project(&Default::default()).map_err(refused)? else {
+        return Ok(None);
+    };
+    let mut vba = SessionVba {
+        project: part.bytes,
+        workbook_code_name: None,
+        sheet_code_name: None,
+    };
+    for (name, sheet) in loaded.vba_document_names().map_err(refused)? {
+        match sheet {
+            None => vba.workbook_code_name = Some(name),
+            Some(_) => vba.sheet_code_name = Some(name),
+        }
+    }
+    Ok(Some(vba))
+}
+
+/// The VBA project of an add-in or workbook file (an .xlam, .xlsm or .xlsb) that is not a
+/// session: the project part as bytes and the workbook's code name, for an application that loads
+/// the file's worksheet functions. Only the package is read (the workbook part's relationships
+/// and its `workbookPr`), never the workbook's cells. `None` when the file has no project.
+pub fn read_vba_file(bytes: Vec<u8>) -> Result<Option<SessionVba>, SessionRefusal> {
+    let unreadable = |detail: String| SessionRefusal::Unreadable { detail };
+    let source: Arc<dyn PackageRead> = Arc::new(MemorySource::new(bytes));
+    let document = open(source, &OpenPolicy::default()).map_err(|e| unreadable(e.to_string()))?;
+    let package = document.package();
+    let workbook = package
+        .relationships_of(None)
+        .into_iter()
+        .flat_map(|r| r.items())
+        .find(|r| r.kind == crate::load::OFFICE_DOCUMENT)
+        .and_then(|r| r.resolved.clone())
+        .ok_or_else(|| unreadable("the package names no workbook part".to_owned()))?;
+    let refused = |error: crate::VbaReadError| SessionRefusal::VbaProject {
+        detail: error.to_string(),
+    };
+    let Some(part) = crate::vba::read(package, &workbook, &Default::default()).map_err(refused)?
+    else {
+        return Ok(None);
+    };
+    let xml = package
+        .read_xml(&workbook)
+        .map_err(|e| refused(crate::VbaReadError::Part(e)))?;
+    let mut reader = xml.reader();
+    let mut workbook_code_name = None;
+    while let Some(event) = reader
+        .next_event()
+        .map_err(|e| refused(crate::VbaReadError::CodeName(e.to_string())))?
+    {
+        if let crate::xml::XmlEvent::Start(element) = event
+            && element.name.is(crate::load::MAIN_NAMESPACE, "workbookPr")
+        {
+            workbook_code_name = element.attribute("codeName").map(str::to_owned);
+        }
+    }
+    Ok(Some(SessionVba {
+        project: part.bytes,
+        workbook_code_name,
+        sheet_code_name: None,
+    }))
 }
 
 fn cell_input(value: &SessionValue, row: u32, column: u32) -> Result<CellInput, SessionRefusal> {
@@ -331,7 +413,15 @@ pub fn write_session(session: &SessionFile) -> Result<Vec<u8>, SessionRefusal> {
     // The sheet name is checked as the model checks it before it goes into the new package.
     SheetName::new(ExcelText::from_utf16_code_units(session.sheet.encode_utf16().collect()))
         .map_err(|error| write_refused(format!("the sheet name: {error:?}")))?;
-    let loaded = open_bytes(crate::blank::blank_package_named_in(&session.sheet, session.date_1904))?;
+    let loaded = open_bytes(crate::blank::blank_package_with(
+        &session.sheet,
+        session.date_1904,
+        session.vba.as_ref().map(|vba| crate::blank::Project {
+            part: &vba.project,
+            workbook_code_name: vba.workbook_code_name.as_deref(),
+            sheet_code_name: vba.sheet_code_name.as_deref(),
+        }),
+    ))?;
     let model = loaded.model();
     let sheet = model.sheets()[0].id();
     let cell = |row: u32, column: u32| {
@@ -454,6 +544,7 @@ mod tests {
             custom: custom("<locale>de-DE</locale>"),
             date_1904: false,
             cached: None,
+            vba: None,
         }
     }
 
@@ -545,6 +636,7 @@ mod tests {
             custom: None,
             date_1904: false,
             cached: None,
+            vba: None,
         };
         assert_eq!(read_session(write_session(&empty).unwrap(), NAMESPACE).unwrap(), empty);
     }

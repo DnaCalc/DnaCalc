@@ -153,7 +153,8 @@ struct Hub {
     next: Cell<u64>,
     callbacks: RefCell<BTreeMap<u64, (EventDescriptor, EventCallback)>>,
 }
-struct Services(Rc<Hub>);
+/// A document's events, and its `Name` (the one member a worksheet function reads of it).
+struct Services(Rc<Hub>, Rc<RefCell<String>>);
 struct Subscription {
     hub: Weak<Hub>,
     id: u64,
@@ -166,6 +167,26 @@ impl Drop for Subscription {
     }
 }
 impl HostObjectServices for Services {
+    fn invoke_dynamic(
+        &self,
+        call: &api::object::DynamicMemberCall,
+        arguments: &mut [api::Variant],
+        _: &mut api::TypedContext,
+    ) -> Result<api::Variant, api::TypedFault> {
+        if matches!(call.kind, api::object::DynamicMemberKind::Get)
+            && arguments.is_empty()
+            && call.name.as_deref().is_some_and(|name| name.eq_ignore_ascii_case("Name"))
+        {
+            return Ok(api::Variant::from_string(self.1.borrow().clone()));
+        }
+        Err(api::TypedFault {
+            number: 438,
+            description: "a document member outside Name is not modelled".into(),
+            source: None,
+            help_file: None,
+            help_context: None,
+        })
+    }
     fn subscribe_event(
         &self,
         descriptor: &EventDescriptor,
@@ -190,6 +211,7 @@ impl HostObjectServices for Services {
                     1 => descriptor.name.eq_ignore_ascii_case("BeforeSave")
                         && descriptor.parameters == [EventParameter::Boolean, EventParameter::BooleanByRef],
                     2 => descriptor.name.eq_ignore_ascii_case("Open") && descriptor.parameters.is_empty(),
+                    3 => descriptor.name.eq_ignore_ascii_case("AddinInstall") && descriptor.parameters.is_empty(),
                     _ => false,
                 }
         } else {
@@ -226,6 +248,10 @@ impl EventSource {
     pub fn open(&self, read: &dyn EventReadContext, max_steps: u64) -> Result<(), String> {
         self.raise("Open", &mut [], read, max_steps, next_lease())
     }
+    /// `Workbook_AddinInstall`: the workbook was installed as an add-in.
+    pub fn addin_install(&self, read: &dyn EventReadContext, max_steps: u64) -> Result<(), String> {
+        self.raise("AddinInstall", &mut [], read, max_steps, next_lease())
+    }
     fn new(iid: [u8; 16], name: &str) -> Self {
         let hub = Rc::new(Hub {
             iid,
@@ -246,7 +272,7 @@ impl EventSource {
                 vec![slot],
                 hub.clone(),
                 Rc::as_ptr(&hub).cast(),
-                Rc::new(Services(hub.clone())),
+                Rc::new(Services(hub.clone(), name.clone())),
             )
         };
         Self { hub, object, name }
