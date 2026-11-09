@@ -344,7 +344,11 @@ pub fn hypergeom_dist_kernel(sample_s: f64, number_sample: f64, population_s: f6
     if !cumulative {
         return finite(hypergeom_mass(s, n, k, big_n));
     }
-    if s >= n.min(k) {
+    // From the largest possible count the cumulative is 1 without a sum, except when that count is
+    // 0: the cumulative is then its one mass, which Excel 16.0.20527 gives as 0.9999999999999999
+    // for (0,1,0,2) and (0,12,0,13), like the mass (and 1 for (0,5,0,10) and (0,7,0,13), whose
+    // mass is 1). Beyond that count it is 1 for every probe: (1,1,0,2), (5,1,0,2), (3,2,1,5).
+    if s > n.min(k) || (s == n.min(k) && s > 0.0) {
         return Ok(1.0);
     }
     let mut sum = 0.0;

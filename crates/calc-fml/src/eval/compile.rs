@@ -2252,10 +2252,20 @@ fn number(node: &SyntaxNode) -> Result<Literal, CompileError> {
     } else {
         text
     };
-    let value: f64 = text.parse().map_err(|_| refused.clone())?;
-    if !value.is_finite() || value.is_subnormal() || (value == 0.0 && nonzero) {
+    let parsed: f64 = text.parse().map_err(|_| refused.clone())?;
+    let value = if !parsed.is_finite() || (parsed == 0.0 && nonzero) {
         return Err(refused);
-    }
+    } else if parsed.is_subnormal() {
+        // Excel holds no subnormal: a literal below the normal range that it accepts is 0
+        // (`=1E-308+1E-308` is 0, and `=1E-308` is stored as `=0`); one it does not accept
+        // (`=1E-310`) is refused.
+        if !calc_func::number_literal_scale_is_readable(text) {
+            return Err(refused);
+        }
+        0.0
+    } else {
+        parsed
+    };
     Ok(Literal::Number(
         if value == 0.0 { 0.0f64 } else { value }.to_bits(),
     ))
@@ -2569,6 +2579,30 @@ mod tests {
                 "{literal}"
             );
         }
+    }
+
+    /// A literal below the normal range that Excel accepts is 0 (read through COM on Excel
+    /// 16.0.20527: `=1E-308`, `=1E-309`, `=0.1E-307` and `=2.2250738585072014E-308` are stored as
+    /// `=0`; the jnt rows `=1E-308+1E-308`, `=+1E-309` and `=2E-308-1E-308` read 0), while the
+    /// normal range's lower end (`=2.3E-308`) is kept and a literal Excel does not accept
+    /// (`=1E-310`) stays refused.
+    #[cfg_attr(not(target_arch = "wasm32"), test)]
+    #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+    fn a_literal_below_the_normal_range_is_zero() {
+        for literal in [
+            "=1E-308",
+            "=1E-309",
+            "=0.1E-307",
+            "=2.2250738585072014E-308",
+            "=1E-308+1E-308",
+            "=-1E-309",
+            "=2E-308-1E-308",
+        ] {
+            assert!(compiled(literal).is_ok(), "{literal}");
+        }
+        assert!(compiled("=2.3E-308").is_ok());
+        assert!(compiled("=1E-310").is_err());
+        assert_eq!(compiled("=1E-308").unwrap(), compiled("=0").unwrap());
     }
 
     /// A leading `_xlfn.`, and a `_xlws.` right after it, come off a spelling in any ASCII case;

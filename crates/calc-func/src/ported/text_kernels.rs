@@ -57,9 +57,12 @@ pub(crate) fn nonnegative_count(n: f64, tolerant: bool) -> Result<usize, Workshe
     Ok(truncated as usize)
 }
 
-/// MID's one-based start.
+/// MID's one-based start. Excel reads a start up to 2147483648.9999995 (truncated, at most 2^31),
+/// one beyond the signed 32-bit bound the count has, and gives #VALUE! from 2147483649.0 (bisected
+/// on Excel 16.0.20527 through the question service; the jnt_w111_text_dates rows hold 2147483648.5
+/// as empty text and 4294967294.5 as #VALUE!).
 pub(crate) fn mid_start(n: f64) -> Result<usize, WorksheetErrorCode> {
-    if !n.is_finite() || n >= 2147483648.0 {
+    if !n.is_finite() || n >= 2147483649.0 {
         return Err(WorksheetErrorCode::Value);
     }
     let truncated = n.trunc();
