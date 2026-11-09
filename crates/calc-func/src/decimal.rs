@@ -444,11 +444,11 @@ impl ExactDecimal {
     /// and down for ROUND. So ROUND(1594628480062905,14) is 1594628480062900 and
     /// ROUNDDOWN(283025097725723.5,0) is 283025097725724, as Excel gives them, and
     /// ROUNDDOWN(53311.02038735315,10), whose 10^10 multiple lies 0.2 * 2^-64 below a half,
-    /// reads the half. For |n| > 27 the power is a 64-bit constant, the nearest to 10^|n|, and the
-    /// product or quotient is rounded once. The low bit of that constant is not read: of 1,082
-    /// bank numbers next to a half at those scales this takes 879, and ROUND's rows lose nothing,
-    /// but some constants stand a unit from the nearest. The two tie rules hold there too: 824
-    /// directed rows on a tie go up on 726, 70 ROUND rows go down on 68.
+    /// reads the half. For |n| > 27 the scaling is the nibble chain of design/fable-2-last-bit.md section 2: low
+    /// chunk of |n| first, each factor the 64-bit RN64(10^+-c), each product rounded to 64 bits, a
+    /// multiplication for n < 0 as well, for the directed functions; ROUND keeps its one 64-bit
+    /// constant, the nearest to 10^|n|, and one rounded product or quotient. The two tie rules
+    /// are unchanged.
     pub(crate) fn fifteen_x87(x: f64, ties_up: bool) -> Option<ExactDecimal> {
         let shift = 14 - ExactDecimal::binary(x).magnitude();
         let bits = x.abs().to_bits();
@@ -469,7 +469,10 @@ impl ExactDecimal {
         // The scaled value rounded to 64 bits: kept * 2^power.
         let (kept, power) = if shift.abs() <= 27 {
             round_to_64_bits(&numerator, exponent, &denominator)
-        } else {
+        } else if !ties_up {
+            // ROUND keeps the one-constant construction: the chain moves ROUND-00970
+            // (0x02d6c92600015d5b, 309 digits) away from Excel, and the note proved only the
+            // directed functions.
             let one = Natural::from_u64(1);
             let (scale, scale_power) = round_to_64_bits(&Natural::pow10(shift.unsigned_abs()), 0, &one);
             let scale = Natural::from_u128(scale);
@@ -479,6 +482,28 @@ impl ExactDecimal {
             } else {
                 round_to_64_bits(&start, exponent - scale_power, &scale)
             }
+        } else {
+            // |n| > 27 (design/fable-2-last-bit.md section 2, Claude Fable 5.1): the nibble chain,
+            // low chunk first, V = RN64(V * RN64(10^+-c)) for each non-zero part c of |n| (a
+            // multiplication for n < 0 too), starting from x's exact binary value.
+            let one = Natural::from_u64(1);
+            let mut kept = u128::from(mantissa);
+            let mut power = exponent;
+            let mut magnitude = shift.unsigned_abs();
+            let mut place = 0;
+            while magnitude != 0 {
+                let part = (magnitude & 15) << place;
+                if part != 0 {
+                    let part = i32::try_from(part).expect("a decimal exponent");
+                    let (factor, factor_power) =
+                        Self::unit(if shift < 0 { -part } else { part }).pc64_parts();
+                    (kept, power) = round_to_64_bits(
+                        &Natural::from_u128(kept * factor), power + factor_power, &one);
+                }
+                magnitude >>= 4;
+                place += 4;
+            }
+            (kept, power)
         };
         let whole = if power >= 0 {
             let mut whole = Natural::from_u128(kept);
