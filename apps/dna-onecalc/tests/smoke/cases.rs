@@ -1,6 +1,9 @@
 //! Browser smoke definitions consumed by xtask; not a standalone test target.
 use super::*;
 
+/// WebDriver's code for F1.
+const F1: &str = "\u{E031}";
+
 /// DNA OneCalc's original case order; ONECALC_GROUPS marks fresh-page boundaries.
 /// The formulas group starts with A1 = 1.5, A2 = 2, B1 = hello, B2 = TRUE, A3 blank.
 pub(crate) const ONECALC_CASES: &[Case] = &[
@@ -913,6 +916,286 @@ pub(crate) const ONECALC_CASES: &[Case] = &[
         actions: &[],
         checks: &[Check::StackMargin("__onecalcMemory", 8_000_000)],
     },
+    // dc-0f1k (onecalc-web-1): the Inputs area, the array result that scrolls, the completion pop-up
+    // at the caret, and the Formatting and Conditional Formatting panels.
+    Case {
+        name: "inputs: the scratch grid is a compact Inputs area, closed, with a one-line explanation",
+        actions: &[],
+        checks: &[
+            Check::Rendered("grid", false),
+            Check::Text("inputs-count", "no values entered"),
+            Check::TextContains("inputs-note", "Type constants here, then refer to them, for example =SUM(A1:A3)"),
+        ],
+    },
+    Case {
+        name: "inputs: a formula that reads cells opens the Inputs area",
+        actions: &[Action::Formula("=A1+1")],
+        checks: &[Check::Rendered("grid", true), Check::Text("result", "number 1")],
+    },
+    Case {
+        name: "inputs: a click closes it",
+        actions: &[Action::Click("inputs-tools")],
+        checks: &[Check::Rendered("grid", false)],
+    },
+    Case {
+        name: "inputs: a click opens it again, a value typed there is counted and the formula reads it",
+        actions: &[Action::Click("inputs-tools"), Action::Grid("A1", "41")],
+        checks: &[
+            Check::Rendered("grid", true),
+            Check::Text("inputs-count", "1 cell(s) with values"),
+            Check::Text("result-value", "42"),
+        ],
+    },
+    Case {
+        name: "inputs: closed by hand, an edit that still reads cells leaves it closed",
+        actions: &[Action::Click("inputs-tools"), Action::Keys("formula", "+1")],
+        checks: &[Check::Rendered("grid", false), Check::Text("result-value", "43")],
+    },
+    Case {
+        name: "inputs: point mode opens it when the formula takes a reference",
+        actions: &[Action::Formula("=")],
+        checks: &[Check::Rendered("grid", false)],
+    },
+    Case {
+        name: "inputs: an arrow key in the formula field puts a reference in and opens the Inputs area",
+        actions: &[Action::Keys("formula", "\u{E012}")],
+        checks: &[Check::Value("formula", "=G1"), Check::Rendered("grid", true)],
+    },
+    Case {
+        name: "array result: a long spill draws only the rows in view, under fixed headers",
+        actions: &[Action::Formula("=SEQUENCE(5000,3)")],
+        checks: &[
+            Check::Starts("result-shape", "5000 x 3 array"),
+            Check::Bounded("[data-onecalc=result-array] tbody tr", 90),
+            Check::Computed("[data-onecalc=result-array] thead th", "position:sticky"),
+            Check::Computed("[data-onecalc=result-array] tbody th", "position:sticky"),
+            Check::Text("[data-onecalc=result-array] tbody th", "1"),
+            Check::Js("the panel is a scroll region of its own, no taller than 360px", "(function(){var p=document.querySelector('[data-onecalc=\"result-scroll\"]');var s=getComputedStyle(p);return p.clientHeight<=361&&(s.overflowY==='auto'||s.overflowY==='scroll')&&s.overscrollBehaviorY==='contain';})()"),
+        ],
+    },
+    Case {
+        name: "array result: scrolling to row 2,500 draws those rows, keeps the headers in view and does not move the page",
+        actions: &[Action::ScrollTo("result-scroll", 60_000, 0)],
+        checks: &[
+            Check::Text("[data-onecalc=result-array] tbody tr:not([aria-hidden=true]) th", "2489"),
+            Check::Bounded("[data-onecalc=result-array] tbody tr", 90),
+            Check::ScrollTop("body", 0),
+            Check::Js("the column headers stay at the top of the panel", "(function(){var p=document.querySelector('[data-onecalc=\"result-scroll\"]').getBoundingClientRect(),h=document.querySelector('[data-onecalc=\"result-array\"] thead th:nth-child(2)').getBoundingClientRect();return h.top>=p.top-1&&h.top<=p.top+2;})()"),
+            Check::Js("rows near 2,500 are drawn at the scroll position", "(function(){var p=document.querySelector('[data-onecalc=\"result-scroll\"]').getBoundingClientRect(),r=Array.from(document.querySelectorAll('[data-onecalc=\"result-array\"] tbody th')).find(function(t){return t.textContent==='2501';});if(!r)return false;var b=r.getBoundingClientRect();return b.top>=p.top&&b.bottom<=p.bottom+1;})()"),
+        ],
+    },
+    Case {
+        name: "array result: editing the formula keeps the place in the result",
+        actions: &[Action::Keys("formula", "+0")],
+        checks: &[
+            Check::Value("formula", "=SEQUENCE(5000,3)+0"),
+            Check::Text("[data-onecalc=result-array] tbody tr:not([aria-hidden=true]) th", "2489"),
+            Check::ScrollTop("result-scroll", 60_000),
+        ],
+    },
+    Case {
+        name: "array result: a wide result scrolls sideways with the row numbers fixed at the left",
+        actions: &[Action::Formula("=SEQUENCE(4,60)"), Action::ScrollTo("result-scroll", 0, 500)],
+        checks: &[
+            Check::Fits,
+            Check::Js("the row numbers stay at the left edge of the panel", "(function(){var p=document.querySelector('[data-onecalc=\"result-scroll\"]').getBoundingClientRect(),h=document.querySelector('[data-onecalc=\"result-array\"] tbody th').getBoundingClientRect();return Math.abs(h.left-p.left)<=2;})()"),
+            Check::Js("the panel scrolled sideways, not the page", "document.querySelector('[data-onecalc=\"result-scroll\"]').scrollLeft>=400&&document.documentElement.scrollWidth<=innerWidth+1"),
+        ],
+    },
+    Case {
+        name: "array result: on a phone the result panel still scrolls inside the page",
+        actions: &[Action::Window(390, 844), Action::ScrollTo("result-scroll", 0, 300)],
+        checks: &[
+            Check::Narrow(390),
+            Check::Fits,
+            Check::Js("the result panel fits the phone's width and scrolled by itself", "(function(){var p=document.querySelector('[data-onecalc=\"result-scroll\"]'),r=p.getBoundingClientRect();return r.right<=innerWidth+1&&p.scrollLeft>=250;})()"),
+        ],
+    },
+    Case {
+        name: "array result: restore desktop after the phone case",
+        actions: &[Action::Window(1280, 1000)],
+        checks: &[Check::Fits],
+    },
+    Case {
+        name: "pop-up: the completion list opens under the caret inside the formula field, not as a panel beside it",
+        actions: &[Action::Formula("=1+1+1+1+1+SUM")],
+        checks: &[
+            Check::Text("completion-label", "SUM"),
+            Check::Count("[data-onecalc=\"caret-overlay\"] [data-onecalc=\"completions\"]", 1),
+            Check::Count("[data-onecalc=\"completions\"]", 1),
+            Check::Js("the list is anchored at the caret: right of the field's left edge, within its bottom", "(function(){var p=document.querySelector('[data-onecalc=\"completions\"]').getBoundingClientRect(),e=document.querySelector('.oc-editor').getBoundingClientRect();return p.left>e.left+60&&p.top>=e.top+10&&p.top<=e.bottom+8;})()"),
+        ],
+    },
+    Case {
+        name: "pop-up: Down chooses the next proposal and Enter accepts it with its parenthesis",
+        actions: &[Action::Formula("=SUM"), Action::Keys("formula", "\u{E015}"), Action::Keys("formula", "\u{E007}")],
+        checks: &[
+            Check::Absent("completions"),
+            Check::Value("formula", "=SUMIF("),
+        ],
+    },
+    Case {
+        name: "pop-up: Tab accepts the first proposal and the signature help is a pop-up at the caret",
+        actions: &[Action::Formula("=SUM"), Action::Keys("formula", TAB)],
+        checks: &[
+            Check::Value("formula", "=SUM("),
+            Check::Count("[data-onecalc=\"caret-overlay\"] [data-onecalc=\"signature\"]", 1),
+            Check::Text("active-parameter", "number1"),
+            Check::Js("the signature sits just above the caret line of the field", "(function(){var s=document.querySelector('[data-onecalc=\"signature\"]').getBoundingClientRect(),e=document.querySelector('.oc-editor').getBoundingClientRect();return s.bottom<=e.top+40&&s.left>=e.left;})()"),
+        ],
+    },
+    Case {
+        name: "pop-up: Escape closes the list and the text stays",
+        actions: &[Action::Formula("=SU"), Action::Keys("formula", ESCAPE)],
+        checks: &[Check::Absent("completions"), Check::Value("formula", "=SU")],
+    },
+    Case {
+        name: "pop-up: function help is closed until asked for",
+        actions: &[Action::Formula("=ROUND(A1,")],
+        checks: &[Check::Rendered("help-name", false), Check::Text("help-name", "ROUND")],
+    },
+    Case {
+        name: "pop-up: F1 opens the function help panel",
+        actions: &[Action::Keys("formula", F1)],
+        checks: &[Check::Rendered("help-name", true), Check::Text("help-name", "ROUND")],
+    },
+    Case {
+        name: "pop-up: on a phone the list fits the screen",
+        actions: &[Action::Window(390, 844), Action::Formula("=SU")],
+        checks: &[
+            Check::Fits,
+            Check::Js("the list is inside the phone's width", "(function(){var p=document.querySelector('[data-onecalc=\"completions\"]').getBoundingClientRect();return p.left>=0&&p.right<=innerWidth+1;})()"),
+        ],
+    },
+    Case {
+        name: "pop-up: restore desktop after the phone case",
+        actions: &[Action::Window(1280, 1000)],
+        checks: &[Check::Fits],
+    },
+    Case {
+        name: "formatting: the Formatting panel draws the result, and the effective display says how",
+        actions: &[
+            Action::Formula("=1234.5"),
+            Action::OpenDetails("formatting-panel"),
+            Action::Into("style-fill", "#ffeb9c"),
+            Action::Click("style-bold"),
+            Action::Choose("style-align", "right"),
+            Action::OpenDetails("effective-controls"),
+        ],
+        checks: &[
+            Check::Value("style-align", "right"),
+            Check::Style("result-value", "background-color:#ffeb9c;font-weight:700;text-align:right"),
+            Check::Contains("effective-display", "Fill: #ffeb9c"),
+            Check::Contains("effective-display", "Font: bold"),
+            Check::Contains("effective-display", "Alignment: right"),
+            Check::Contains("effective-display", "Number format: General"),
+        ],
+    },
+    Case {
+        name: "formatting: the number format's colour token is the result's text colour",
+        actions: &[
+            Action::Formula("=-5"),
+            Action::OpenDetails("format-controls"),
+            Action::Into("number-format", "0;[Red]-0"),
+        ],
+        checks: &[Check::Text("result-value", "-5"), Check::Attr("result-value", "data-color", "#ff0000")],
+    },
+    Case {
+        name: "conditional formatting: a Cell value rule colours the result cell as Excel's preset does",
+        actions: &[
+            Action::Formula("=1234.5"),
+            Action::Into("number-format", "General"),
+            Action::OpenDetails("cf-panel"),
+            Action::Choose("cf-new-kind", "cellIs"),
+            Action::Click("cf-add"),
+            Action::Into("cf-operand1", "1000"),
+        ],
+        checks: &[
+            Check::Text("cf-count", "1 rule(s)"),
+            Check::Attr("result-value", "data-fill", "#ffc7ce"),
+            Check::Attr("result-value", "data-color", "#9c0006"),
+            Check::Contains("effective-display", "1. Cell value > 1000: holds for 1 of 1 cell(s)"),
+        ],
+    },
+    Case {
+        name: "conditional formatting: a rule that does not hold leaves the result as it is",
+        actions: &[Action::Into("cf-operand1", "5000")],
+        checks: &[
+            Check::Attr("result-value", "data-fill", ""),
+            Check::Contains("effective-display", "1. Cell value > 5000: holds for 0 of 1 cell(s)"),
+        ],
+    },
+    Case {
+        name: "conditional formatting: over an array result the rule is tested at each cell",
+        actions: &[Action::Formula("=SEQUENCE(3,2)"), Action::Into("cf-operand1", "3")],
+        checks: &[
+            Check::Array(&[&["1", "2"], &["3", "4"], &["5", "6"]]),
+            Check::Js("exactly the cells 4, 5 and 6 are filled light red", "Array.from(document.querySelectorAll('[data-onecalc=\"result-array\"] td[data-fill=\"#ffc7ce\"]')).map(function(c){return c.textContent;}).join()==='4,5,6'"),
+            Check::Contains("effective-display", "1. Cell value > 3: holds for 3 of 6 cell(s)"),
+        ],
+    },
+    Case {
+        name: "conditional formatting: a rule's number format shows the cell's text",
+        actions: &[Action::Into("cf-operand1", "4"), Action::Into("cf-number-format", "0.0%")],
+        checks: &[Check::Array(&[&["1", "2"], &["3", "4"], &["500.0%", "600.0%"]])],
+    },
+    Case {
+        name: "conditional formatting: a formula rule reads the cell and its row, as Excel's formula rules do",
+        actions: &[
+            Action::Click("cf-clear"),
+            Action::Choose("cf-new-kind", "expression"),
+            Action::Click("cf-add"),
+            Action::Into("cf-operand1", "MOD(ROW(),2)=0"),
+        ],
+        checks: &[Check::Js("the cells of row 2 only are filled", "Array.from(document.querySelectorAll('[data-onecalc=\"result-array\"] td[data-fill=\"#ffc7ce\"]')).map(function(c){return c.textContent;}).join()==='3,4'")],
+    },
+    Case {
+        name: "conditional formatting: a colour scale colours the array from its lowest to its highest value",
+        actions: &[Action::Click("cf-clear"), Action::Choose("cf-new-kind", "colorScale"), Action::Click("cf-add")],
+        checks: &[Check::Js("the first cell is Excel's red, the last its green", "(function(){var c=document.querySelectorAll('[data-onecalc=\"result-array\"] td');return c[0].getAttribute('data-fill')==='#f8696b'&&c[5].getAttribute('data-fill')==='#63be7b';})()")],
+    },
+    Case {
+        name: "conditional formatting: a data bar fills each cell by its share of the range",
+        actions: &[Action::Click("cf-clear"), Action::Choose("cf-new-kind", "dataBar"), Action::Click("cf-add")],
+        checks: &[Check::Js("the lowest cell has no bar and the highest a whole one", "(function(){var c=document.querySelectorAll('[data-onecalc=\"result-array\"] td');return c[0].getAttribute('data-bar')==='0'&&c[5].getAttribute('data-bar')==='100'&&c[5].style.backgroundImage.indexOf('linear-gradient')===0;})()")],
+    },
+    Case {
+        name: "conditional formatting: an icon set puts an icon in each cell",
+        actions: &[Action::Click("cf-clear"), Action::Choose("cf-new-kind", "iconSet"), Action::Click("cf-add")],
+        checks: &[
+            Check::Count("[data-onecalc=\"result-array\"] td[data-icon]", 6),
+            Check::Js("the lowest cell has the first icon of the set and the highest the third", "(function(){var c=document.querySelectorAll('[data-onecalc=\"result-array\"] td');return c[0].getAttribute('data-icon')==='3Arrows:1'&&c[5].getAttribute('data-icon')==='3Arrows:3';})()"),
+        ],
+    },
+    Case {
+        name: "conditional formatting: a Dates rule reads the page's clock",
+        actions: &[Action::Click("cf-clear"), Action::Formula("=TODAY()"), Action::Choose("cf-new-kind", "dates"), Action::Click("cf-add")],
+        checks: &[Check::Attr("result-value", "data-fill", "#ffc7ce")],
+    },
+    Case {
+        name: "conditional formatting: a rule missing its value is named and not applied",
+        actions: &[Action::Click("cf-clear"), Action::Formula("=7"), Action::Choose("cf-new-kind", "cellIs"), Action::Click("cf-add")],
+        checks: &[
+            Check::Text("result-value", "7"),
+            Check::TextContains("effective-display", "needs a value"),
+            Check::Attr("result-value", "data-fill", ""),
+        ],
+    },
+    Case {
+        name: "conditional formatting: the rule list removes a rule",
+        actions: &[Action::Click("cf-remove")],
+        checks: &[Check::Count("[data-onecalc=\"cf-rule\"]", 0), Check::Text("cf-count", "0 rule(s)")],
+    },
+    Case {
+        name: "conditional formatting: on a phone the panels fit the screen",
+        actions: &[Action::Window(390, 844), Action::Choose("cf-new-kind", "cellIs"), Action::Click("cf-add")],
+        checks: &[Check::Fits, Check::Reachable("cf-tools")],
+    },
+    Case {
+        name: "conditional formatting: restore desktop after the phone case",
+        actions: &[Action::Window(1280, 1000)],
+        checks: &[Check::Fits],
+    },
 ];
 
 /// Groups whose name ends in `-browser` need the browser's own download (Save writes a file the
@@ -998,4 +1281,8 @@ pub(crate) const ONECALC_GROUPS: &[CaseGroup] = &[
         core: 1,
         setup: &[],
     },
+    CaseGroup {name:"inputs-area",start:85,end:92,core:0,setup:&[]},
+    CaseGroup {name:"array-scroll",start:92,end:98,core:0,setup:&[]},
+    CaseGroup {name:"caret-popup",start:98,end:106,core:0,setup:&[]},
+    CaseGroup {name:"formatting-panels",start:106,end:121,core:0,setup:&[]},
 ];
