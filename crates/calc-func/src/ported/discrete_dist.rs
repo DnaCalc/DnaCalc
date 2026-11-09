@@ -217,6 +217,14 @@ fn binom_cumulative(k: f64, n: f64, p: f64, q: f64) -> f64 {
         1.0
     } else if k == 0.0 {
         binom_mass(k, n, p, q)
+    } else if n - k == 1.0 && q < 0.1 {
+        // One short of n with q below 0.1: -expm1(n * log1p(-q)) with the product stored in
+        // binary64, not BETA.DIST's x87 chain at a = 1 (R43: Excel's BETA.DIST(q, 1, n) and
+        // BINOM.DIST(n - 1, n, p, TRUE) differ on 91 of 500 fresh calls; this matches 499 of
+        // the binomial's). Which EXPM1 graph runs is undetermined: none of the asked
+        // arguments separates the internal and spilled ones.
+        use crate::ported::excel_numeric::{excel_expm1_internal, excel_log1p};
+        -excel_expm1_internal(n * excel_log1p(-q))
     } else {
         crate::ported::special_math_common::regularized_beta(q, n - k, k + 1.0)
     }
@@ -408,6 +416,26 @@ mod tests {
     fn poisson_tail_keeps_the_truncated_fraction() {
         let mean = (128159288.0 * 67108864.0 + 59652325.0) / 70368744177664.0;
         assert_eq!(poisson_dist_kernel(100.0, mean, true).unwrap().to_bits(), 0x3f96_a06a_3c48_3193);
+    }
+
+    /// BINOM.DIST(n - 1, n, p, TRUE) with 1 - p below 0.1 is -expm1(n * log1p(p - 1)) with a
+    /// binary64 product, not BETA.DIST(1 - p, 1, n): at n = 10, p = 0.99 the two Excel answers
+    /// differ by five units. Excel 16.0 build 20527, the question service, 2026-11-09 (R43).
+    #[cfg_attr(not(target_arch = "wasm32"), test)]
+    #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+    fn binomial_cdf_one_short_of_n_matches_excel() {
+        let rows: [(f64, f64, f64, u64); 6] = [
+            (19.0, 20.0, 0.95, 0x3fe4874887e5b9b4),
+            (99.0, 100.0, 0.999, 0x3fb85f8ab6781056),
+            (9.0, 10.0, 0.99, 0x3fb87a6a94bfa208),
+            (49.0, 50.0, 0.97, 0x3fe9059bc30fc602),
+            (4.0, 5.0, 0.93, 0x3fd379d77d69880c),
+            (29.0, 30.0, 0.995, 0x3fc1deee48dd912d),
+        ];
+        for (k, n, p, expected) in rows {
+            let got = binom_dist_kernel(k, n, p, true).unwrap();
+            assert_eq!(got.to_bits(), expected, "BINOM.DIST({k},{n},{p},TRUE)");
+        }
     }
 
     #[cfg_attr(not(target_arch = "wasm32"), test)]
