@@ -331,8 +331,8 @@ fn formula_cells(xml: &str) -> u64 {
         let end = cell.find("</c>").unwrap_or(cell.len());
         let body = &cell[tag_end..end];
         if let Some(formula_tag) = start_tags(body, "f").first() {
-            let legacy_array = attribute(formula_tag, "t") == Some("array")
-                && attribute(tag, "cm").is_none();
+            let legacy_array =
+                attribute(formula_tag, "t") == Some("array") && attribute(tag, "cm").is_none();
             let area = legacy_array
                 .then(|| attribute(formula_tag, "ref"))
                 .flatten()
@@ -390,10 +390,9 @@ fn styles_text(styles: Option<&str>, indices: &BTreeSet<usize>) -> String {
         text.push_str(&format!("xf {index} {xf}\n"));
         let tag = xf.trim_start_matches("<xf");
         if let Some(id) = attribute(tag, "numFmtId") {
-            if let Some(format) = number_formats
-                .iter()
-                .find(|format| attribute(format.trim_start_matches("<numFmt"), "numFmtId") == Some(id))
-            {
+            if let Some(format) = number_formats.iter().find(|format| {
+                attribute(format.trim_start_matches("<numFmt"), "numFmtId") == Some(id)
+            }) {
                 text.push_str(&format!("  numFmt {format}\n"));
             }
         }
@@ -409,7 +408,11 @@ fn styles_text(styles: Option<&str>, indices: &BTreeSet<usize>) -> String {
 fn workbook_without_sheets(workbook: &str) -> String {
     match (workbook.find("<sheets"), workbook.find("</sheets>")) {
         (Some(start), Some(end)) if end > start => {
-            format!("{}{}", &workbook[..start], &workbook[end + "</sheets>".len()..])
+            format!(
+                "{}{}",
+                &workbook[..start],
+                &workbook[end + "</sheets>".len()..]
+            )
         }
         _ => match workbook.find("<sheets") {
             Some(start) => {
@@ -478,7 +481,9 @@ pub fn workbook_sections(
         let mut frontier = vec![index];
         while let Some(at) = frontier.pop() {
             for (other, other_name) in names.iter().enumerate() {
-                if other != index && !reads.contains(&other) && names_sheet(sheets[at].2, other_name)
+                if other != index
+                    && !reads.contains(&other)
+                    && names_sheet(sheets[at].2, other_name)
                 {
                     reads.insert(other);
                     frontier.push(other);
@@ -487,7 +492,10 @@ pub fn workbook_sections(
         }
         let mut text = format!("{KEY_TEXT_VERSION}\nsheet {name}\n{xml}\n");
         if let Some(rels) = parts.get(&rels_name(part)) {
-            text.push_str(&format!("sheet relationships\n{}\n", String::from_utf8_lossy(rels)));
+            text.push_str(&format!(
+                "sheet relationships\n{}\n",
+                String::from_utf8_lossy(rels)
+            ));
         }
         let mut indices = style_indices(xml);
         for &other in &reads {
@@ -533,8 +541,12 @@ pub fn section_record(record: &CaptureRecord, sheet: &str, case: &str, key: &str
                 .as_ref()
                 .is_none_or(|cell| on_sheet(cell.sheet()))
         });
-        session.shared_ranges.retain(|range| on_sheet(range.sheet()));
-        session.saved.retain(|observed| on_sheet(observed.cell.sheet()));
+        session
+            .shared_ranges
+            .retain(|range| on_sheet(range.sheet()));
+        session
+            .saved
+            .retain(|observed| on_sheet(observed.cell.sheet()));
         session
             .reopened
             .retain(|observed| on_sheet(observed.cell.sheet()));
@@ -570,7 +582,11 @@ pub fn section_record(record: &CaptureRecord, sheet: &str, case: &str, key: &str
 /// environment), for judging them together against the workbook whose content hash is `source`:
 /// the environment and session of the first, the sheets, inventories and observations of all, and
 /// the failures of no cell once. `None` when `records` is empty.
-pub fn merged_record(records: &[&CaptureRecord], case: &str, source: &str) -> Option<CaptureRecord> {
+pub fn merged_record(
+    records: &[&CaptureRecord],
+    case: &str,
+    source: &str,
+) -> Option<CaptureRecord> {
     let (first, rest) = records.split_first()?;
     let mut merged = (*first).clone();
     merged.case = case.to_owned();
@@ -584,7 +600,8 @@ pub fn merged_record(records: &[&CaptureRecord], case: &str, source: &str) -> Op
         if let (Some(into), Some(from)) = (&mut merged.session, &record.session) {
             into.failures
                 .extend(from.failures.iter().filter(|f| f.cell.is_some()).cloned());
-            into.shared_ranges.extend(from.shared_ranges.iter().cloned());
+            into.shared_ranges
+                .extend(from.shared_ranges.iter().cloned());
             into.saved.extend(from.saved.iter().cloned());
             into.reopened.extend(from.reopened.iter().cloned());
         }
@@ -646,7 +663,9 @@ mod tests {
         let mut parts: Vec<(String, String)> = Vec::new();
         for (i, (name, data)) in sheets.iter().enumerate() {
             let n = i + 1;
-            entries.push_str(&format!(r#"<sheet name="{name}" sheetId="{n}" r:id="rId{n}"/>"#));
+            entries.push_str(&format!(
+                r#"<sheet name="{name}" sheetId="{n}" r:id="rId{n}"/>"#
+            ));
             rels.push_str(&format!(
                 r#"<Relationship Id="rId{n}" Type="http://x/worksheet" Target="worksheets/sheet{n}.xml"/>"#
             ));
@@ -665,7 +684,9 @@ mod tests {
         ));
         parts.push((
             "xl/workbook.xml".to_owned(),
-            format!(r#"<workbook><sheets>{entries}</sheets><calcPr fullCalcOnLoad="1"/></workbook>"#),
+            format!(
+                r#"<workbook><sheets>{entries}</sheets><calcPr fullCalcOnLoad="1"/></workbook>"#
+            ),
         ));
         parts.push((
             "xl/_rels/workbook.xml.rels".to_owned(),
@@ -689,7 +710,8 @@ mod tests {
 
     const DATA: &str = r#"<row r="1"><c r="A1"><v>1</v></c></row>"#;
     const ADD: &str = r#"<row r="1"><c r="D1"><f>Data!A1+1</f></c></row>"#;
-    const POWER: &str = r#"<row r="1"><c r="D1"><f>2^3</f></c><c r="D2" s="1"><f>2^4</f></c></row>"#;
+    const POWER: &str =
+        r#"<row r="1"><c r="D1"><f>2^3</f></c><c r="D2" s="1"><f>2^4</f></c></row>"#;
 
     #[cfg_attr(not(target_arch = "wasm32"), test)]
     #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
@@ -707,7 +729,11 @@ mod tests {
                 ("power", 2, vec![])
             ]
         );
-        assert!(sections.iter().all(|s| s.key.starts_with(SECTION_KEY_PREFIX)));
+        assert!(
+            sections
+                .iter()
+                .all(|s| s.key.starts_with(SECTION_KEY_PREFIX))
+        );
         let before = keys(&base);
 
         // A sheet added after them, and a row added to another sheet: no key changes but that
@@ -716,7 +742,10 @@ mod tests {
             &[
                 ("Data", DATA),
                 ("add", ADD),
-                ("power", r#"<row r="1"><c r="D1"><f>2^3</f></c><c r="D2" s="1"><f>2^4</f></c></row><row r="2"><c r="D3"><f>1</f></c></row>"#),
+                (
+                    "power",
+                    r#"<row r="1"><c r="D1"><f>2^3</f></c><c r="D2" s="1"><f>2^4</f></c></row><row r="2"><c r="D3"><f>1</f></c></row>"#,
+                ),
                 ("new", POWER),
             ],
             STYLES,
@@ -728,7 +757,11 @@ mod tests {
 
         // What a sheet reads decides its key: a changed input changes the reader's.
         let input = workbook(
-            &[("Data", r#"<row r="1"><c r="A1"><v>2</v></c></row>"#), ("add", ADD), ("power", POWER)],
+            &[
+                ("Data", r#"<row r="1"><c r="A1"><v>2</v></c></row>"#),
+                ("add", ADD),
+                ("power", POWER),
+            ],
             STYLES,
         );
         let changed = keys(&input);
@@ -745,7 +778,10 @@ mod tests {
         assert_eq!(restyled["add"], before["add"]);
         let unused = workbook(
             &[("Data", DATA), ("add", ADD), ("power", POWER)],
-            &STYLES.replace(r#"<xf numFmtId="14" fontId="0"/>"#, r#"<xf numFmtId="15" fontId="0"/>"#),
+            &STYLES.replace(
+                r#"<xf numFmtId="14" fontId="0"/>"#,
+                r#"<xf numFmtId="15" fontId="0"/>"#,
+            ),
         );
         assert_eq!(keys(&unused), before);
     }
@@ -753,20 +789,36 @@ mod tests {
     #[cfg_attr(not(target_arch = "wasm32"), test)]
     #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
     fn a_sheet_that_reads_the_workbook_s_shape_is_keyed_by_it() {
-        let shape = r#"<row r="1"><c r="D1"><f>SHEETS()</f></c><c r="D2"><f>INFO("numfile")</f></c></row>"#;
-        let base = keys(&workbook(&[("Data", DATA), ("shape", shape), ("power", POWER)], STYLES));
+        let shape =
+            r#"<row r="1"><c r="D1"><f>SHEETS()</f></c><c r="D2"><f>INFO("numfile")</f></c></row>"#;
+        let base = keys(&workbook(
+            &[("Data", DATA), ("shape", shape), ("power", POWER)],
+            STYLES,
+        ));
         let more = keys(&workbook(
-            &[("Data", DATA), ("shape", shape), ("power", POWER), ("new", POWER)],
+            &[
+                ("Data", DATA),
+                ("shape", shape),
+                ("power", POWER),
+                ("new", POWER),
+            ],
             STYLES,
         ));
         assert_ne!(base["shape"], more["shape"]);
         assert_eq!(base["power"], more["power"]);
         // SHEET of a reference depends on the position alone; SHEETS of a reference on neither.
-        let position = r#"<row r="1"><c r="D1"><f>SHEET()</f></c><c r="D2"><f>SHEETS(Data!A1)</f></c></row>"#;
+        let position =
+            r#"<row r="1"><c r="D1"><f>SHEET()</f></c><c r="D2"><f>SHEETS(Data!A1)</f></c></row>"#;
         let base = keys(&workbook(&[("Data", DATA), ("p", position)], STYLES));
-        let more = keys(&workbook(&[("Data", DATA), ("p", position), ("new", POWER)], STYLES));
+        let more = keys(&workbook(
+            &[("Data", DATA), ("p", position), ("new", POWER)],
+            STYLES,
+        ));
         assert_eq!(base["p"], more["p"]);
-        let moved = keys(&workbook(&[("Data", DATA), ("new", POWER), ("p", position)], STYLES));
+        let moved = keys(&workbook(
+            &[("Data", DATA), ("new", POWER), ("p", position)],
+            STYLES,
+        ));
         assert_ne!(base["p"], moved["p"]);
     }
 
@@ -816,7 +868,10 @@ mod tests {
         .unwrap();
         let a = section_record(&record, "A", "c__A", "section:sha256:aa");
         let b = section_record(&record, "B", "c__B", "section:sha256:bb");
-        assert_eq!((a.source.as_str(), a.formulas.len(), a.observations.len()), ("section:sha256:aa", 1, 1));
+        assert_eq!(
+            (a.source.as_str(), a.formulas.len(), a.observations.len()),
+            ("section:sha256:aa", 1, 1)
+        );
         assert_eq!(a.session.as_ref().unwrap().failures.len(), 1);
         assert_eq!(b.session.as_ref().unwrap().failures.len(), 2);
         assert!(CaptureRecord::decode(a.encode().unwrap().as_bytes()).is_ok());

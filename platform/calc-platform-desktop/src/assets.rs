@@ -15,7 +15,12 @@ const MAGIC: &[u8; 8] = b"DNAPAGE1";
 /// The block holding `files` (name, bytes), in the order given.
 pub fn pack(files: &[(String, Vec<u8>)]) -> Vec<u8> {
     let mut out = Vec::with_capacity(
-        MAGIC.len() + 4 + files.iter().map(|(n, b)| n.len() + b.len() + 10).sum::<usize>(),
+        MAGIC.len()
+            + 4
+            + files
+                .iter()
+                .map(|(n, b)| n.len() + b.len() + 10)
+                .sum::<usize>(),
     );
     out.extend_from_slice(MAGIC);
     out.extend_from_slice(&(files.len() as u32).to_le_bytes());
@@ -55,7 +60,9 @@ impl Assets {
                 u64::from_le_bytes(block.get(at..at + 8).ok_or_else(bad)?.try_into().unwrap())
                     as usize;
             at += 8;
-            block.get(at..at.checked_add(size).ok_or_else(bad)?).ok_or_else(bad)?;
+            block
+                .get(at..at.checked_add(size).ok_or_else(bad)?)
+                .ok_or_else(bad)?;
             files.insert(name, (at, size));
             at += size;
         }
@@ -117,7 +124,10 @@ mod tests {
     fn a_packed_page_reads_back_and_a_damaged_one_is_refused() {
         let files = vec![
             ("index.html".to_owned(), b"<html></html>".to_vec()),
-            ("app.wasm".to_owned(), (0u32..70_000).map(|i| (i % 251) as u8).collect()),
+            (
+                "app.wasm".to_owned(),
+                (0u32..70_000).map(|i| (i % 251) as u8).collect(),
+            ),
             ("empty.txt".to_owned(), Vec::new()),
         ];
         let block = pack(&files);
@@ -139,8 +149,14 @@ mod tests {
     #[test]
     fn request_paths_become_flat_names() {
         assert_eq!(requested_name("/").as_deref(), Some("index.html"));
-        assert_eq!(requested_name("/index.html?x=1").as_deref(), Some("index.html"));
-        assert_eq!(requested_name("/dna-onecalc-web_bg.wasm#a").as_deref(), Some("dna-onecalc-web_bg.wasm"));
+        assert_eq!(
+            requested_name("/index.html?x=1").as_deref(),
+            Some("index.html")
+        );
+        assert_eq!(
+            requested_name("/dna-onecalc-web_bg.wasm#a").as_deref(),
+            Some("dna-onecalc-web_bg.wasm")
+        );
         assert_eq!(requested_name("/a/b.js"), None);
         assert_eq!(requested_name("/../x"), None);
         assert_eq!(requested_name("/a\\b"), None);

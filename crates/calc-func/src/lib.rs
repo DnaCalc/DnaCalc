@@ -18,9 +18,10 @@ pub use calc_value as value;
 mod call;
 mod udf;
 pub use udf::{
-    ReferenceHandleError, ReferenceHandles, StoredReference, UserCallableIdentity,
-    RTD_CONNECT_FAILED, RTD_PROVIDER, RtdConnection, RtdConnector, RtdCut, RtdEntry, RtdLease, RtdRead, RtdTopicRead, TopicKey, UserFunction, UserFunctionContext, UserFunctionInvocation, UserView,
-    UserFunctionStep, UserInvocationFrame, UserReevaluationReason,
+    RTD_CONNECT_FAILED, RTD_PROVIDER, ReferenceHandleError, ReferenceHandles, RtdConnection,
+    RtdConnector, RtdCut, RtdEntry, RtdLease, RtdRead, RtdTopicRead, StoredReference, TopicKey,
+    UserCallableIdentity, UserFunction, UserFunctionContext, UserFunctionInvocation,
+    UserFunctionStep, UserInvocationFrame, UserReevaluationReason, UserView,
 };
 mod catalogue;
 mod coerce;
@@ -31,26 +32,30 @@ mod file_prefix;
 mod format;
 /// One-line function descriptions for signature help and function help.
 pub mod help;
+mod import;
 mod kernel;
 pub mod locale;
 mod number_text;
 mod number_words;
 mod ported;
 mod value_text;
-mod import;
 
 pub use call::{
     ApplicationFacts, CalculationMode, CallAbandoned, CallableInvoker, CellFormatFacts, CellReader,
-    ColumnWidth, EvalServices, FunctionCallScratch, FunctionFault, HorizontalAlignment, HostFacts, PivotLookup,
-    PreparedArguments, RandomSource, ReferenceText, SubtotalExclusions, TextReference, Unreadable,
-    WorkbookFacts, WorkbookFile, invoke, invoke_slice,
+    ColumnWidth, EvalServices, FunctionCallScratch, FunctionFault, HorizontalAlignment, HostFacts,
+    PivotLookup, PreparedArguments, RandomSource, ReferenceText, SubtotalExclusions, TextReference,
+    Unreadable, WorkbookFacts, WorkbookFile, invoke, invoke_slice,
 };
 pub use catalogue::{
-    ArgumentDemand, ArgumentGroups, Availability, BindingForm, Catalogue, Deferral, EntryClass, EntryKind, EntryRule, EntryTraits, FunctionCallTarget, HostRouteKind, Implementation,
-    FunctionId, HelpParameter, LegacyPlace, Notation, OperandForm, PairedResult, ParameterClass, RegistrationError,
-    ResultForm, SignatureHelp, ThreeDPlace, WholeResultPolicy, catalogue,
+    ArgumentDemand, ArgumentGroups, Availability, BindingForm, Catalogue, Deferral, EntryClass,
+    EntryKind, EntryRule, EntryTraits, FunctionCallTarget, FunctionId, HelpParameter,
+    HostRouteKind, Implementation, LegacyPlace, Notation, OperandForm, PairedResult,
+    ParameterClass, RegistrationError, ResultForm, SignatureHelp, ThreeDPlace, WholeResultPolicy,
+    catalogue,
 };
-pub use cube::{CubeColumn, CubeFailure, CubeLookup, CubeMeasure, CubeMember, CubeModel, CubeTable};
+pub use cube::{
+    CubeColumn, CubeFailure, CubeLookup, CubeMeasure, CubeMember, CubeModel, CubeTable,
+};
 pub use fetch::{
     FETCH_FUNCTIONS, FETCH_PROVIDER, FetchFunction, FetchKind, FetchReply, FetchRequest,
     FetchRoute, REDIRECT_LIMIT, RawResponse, decode_body, fetch_following, resolve_location,
@@ -99,4 +104,6 @@ pub fn read_number_text(
 pub use format::general as general_format;
 
 /// A cell's value as the cell shows it under a number format code, by TEXT's renderer (dc-09v).
-pub use format::{CellFormatError, DEFAULT_PALETTE, FormatColor, cell_color, cell_text, cell_text_localized};
+pub use format::{
+    CellFormatError, DEFAULT_PALETTE, FormatColor, cell_color, cell_text, cell_text_localized,
+};

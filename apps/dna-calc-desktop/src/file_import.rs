@@ -23,14 +23,26 @@ mod tests {
         let folder = std::env::temp_dir().join(format!("dnacalc-import-{}", std::process::id()));
         std::fs::create_dir_all(&folder).unwrap();
         let file = folder.join("a.csv");
-        std::fs::write(&file, b"a,b
+        std::fs::write(
+            &file,
+            b"a,b
 1,2
-").unwrap();
-        assert_eq!(LocalFiles.read(file.to_str().unwrap()).as_deref(), Some(&b"a,b
+",
+        )
+        .unwrap();
+        assert_eq!(
+            LocalFiles.read(file.to_str().unwrap()).as_deref(),
+            Some(
+                &b"a,b
 1,2
-"[..]));
+"[..]
+            )
+        );
         assert_eq!(LocalFiles.read(folder.to_str().unwrap()), None);
-        assert_eq!(LocalFiles.read(folder.join("missing.csv").to_str().unwrap()), None);
+        assert_eq!(
+            LocalFiles.read(folder.join("missing.csv").to_str().unwrap()),
+            None
+        );
         std::fs::remove_dir_all(&folder).unwrap();
     }
 }

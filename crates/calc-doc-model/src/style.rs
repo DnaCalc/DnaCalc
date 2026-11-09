@@ -180,7 +180,11 @@ impl StyleTable {
 
     /// Resolve undeclared built-ins in the host's regional context. A format explicitly
     /// declared in the workbook always wins, including one with a built-in ID.
-    pub fn number_format_code_with<'a>(&'a self, style:u32, builtin:impl FnOnce(u32)->Option<&'a str>)->Option<&'a str> {
+    pub fn number_format_code_with<'a>(
+        &'a self,
+        style: u32,
+        builtin: impl FnOnce(u32) -> Option<&'a str>,
+    ) -> Option<&'a str> {
         let id = self
             .cell_formats
             .get(usize::try_from(style).ok()?)?
@@ -268,7 +272,9 @@ impl StyleRuns {
         let mut strips: Vec<(u32, u32, u32, u32)> = Vec::new();
         for (row, column, format) in cells {
             match strips.last_mut() {
-                Some(last) if last.0 == format && last.1 == row && last.3 + 1 == column => last.3 = column,
+                Some(last) if last.0 == format && last.1 == row && last.3 + 1 == column => {
+                    last.3 = column
+                }
                 _ => strips.push((format, row, column, column)),
             }
         }
@@ -277,7 +283,9 @@ impl StyleRuns {
         let mut blocks: Vec<(u32, u32, u32, u32, u32)> = Vec::new();
         for (format, row, first, last) in strips {
             match blocks.last_mut() {
-                Some(b) if b.0 == format && b.1 == first && b.2 == last && b.4 + 1 == row => b.4 = row,
+                Some(b) if b.0 == format && b.1 == first && b.2 == last && b.4 + 1 == row => {
+                    b.4 = row
+                }
                 _ => blocks.push((format, first, last, row, row)),
             }
         }
@@ -553,16 +561,31 @@ mod run_tests {
         assert_eq!(
             runs,
             vec![
-                StyleRun { area: area(s, 10, 4, 20010, 5), format: 7 },
-                StyleRun { area: area(s, 10, 7, 10, 7), format: 7 },
-                StyleRun { area: area(s, 11, 8, 11, 8), format: 7 },
-                StyleRun { area: area(s, 12, 6, 12, 6), format: 8 },
+                StyleRun {
+                    area: area(s, 10, 4, 20010, 5),
+                    format: 7
+                },
+                StyleRun {
+                    area: area(s, 10, 7, 10, 7),
+                    format: 7
+                },
+                StyleRun {
+                    area: area(s, 11, 8, 11, 8),
+                    format: 7
+                },
+                StyleRun {
+                    area: area(s, 12, 6, 12, 6),
+                    format: 8
+                },
             ]
         );
         // Whatever the joining, every position keeps its format and no other gains one.
         let layers = StyleRuns::from_layers(runs);
         for (row, column, format) in &cells {
-            assert_eq!(layers.get(CellKey::new(s, *row, *column).unwrap()), Some(*format));
+            assert_eq!(
+                layers.get(CellKey::new(s, *row, *column).unwrap()),
+                Some(*format)
+            );
         }
         assert_eq!(layers.get(CellKey::new(s, 10, 6).unwrap()), None);
         assert_eq!(layers.get(CellKey::new(s, 20011, 4).unwrap()), None);

@@ -6,8 +6,13 @@ use crate::value::WorksheetErrorCode;
 pub fn permutationa_kernel(n: f64, k: f64) -> Result<f64, WorksheetErrorCode> {
     // W111 distinguishes raw-base admission from exponent truncation:
     // a negative fractional base is invalid, but -1 < k < 0 truncates to zero.
-    if !n.is_finite() || !k.is_finite() || n < 0.0 || n >= 2147483647.0
-        || k >= 2147483647.0 || k.trunc() < 0.0 {
+    if !n.is_finite()
+        || !k.is_finite()
+        || n < 0.0
+        || n >= 2147483647.0
+        || k >= 2147483647.0
+        || k.trunc() < 0.0
+    {
         return Err(WorksheetErrorCode::Num);
     }
     let n = n.trunc();
@@ -16,15 +21,22 @@ pub fn permutationa_kernel(n: f64, k: f64) -> Result<f64, WorksheetErrorCode> {
     // from repeated squaring at 10^99, 10^100 and later powers. Fresh validation
     // covers the full finite decimal exponent range before any parity promotion.
     let result = if n == 10.0 {
-        if k > 308 { f64::INFINITY }
-        else { crate::ported::power_fn::ten_to(k as i32) }
+        if k > 308 {
+            f64::INFINITY
+        } else {
+            crate::ported::power_fn::ten_to(k as i32)
+        }
     } else {
         let mut result = 1.0;
         let mut base = n;
         while k > 0 {
-            if k & 1 != 0 { result = crate::ported::excel_numeric::excel_x87_mul(result, base); }
+            if k & 1 != 0 {
+                result = crate::ported::excel_numeric::excel_x87_mul(result, base);
+            }
             k >>= 1;
-            if k > 0 { base = crate::ported::excel_numeric::excel_x87_mul(base, base); }
+            if k > 0 {
+                base = crate::ported::excel_numeric::excel_x87_mul(base, base);
+            }
         }
         result
     };

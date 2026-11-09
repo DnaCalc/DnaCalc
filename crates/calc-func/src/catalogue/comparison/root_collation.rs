@@ -15,10 +15,7 @@
 // primary and for each primary, the count of non-common root secondaries and each.
 // NEW is the Han code units assigned after Unicode 6.0.
 
-pub(super) const NEW: [(u16, u16); 2] = [
-    (0x4DB6, 0x4DBF),
-    (0x9FCC, 0x9FFF),
-];
+pub(super) const NEW: [(u16, u16); 2] = [(0x4DB6, 0x4DBF), (0x9FCC, 0x9FFF)];
 
 pub(super) const UNITS: &str = concat!(
     "AQAAAAEAAAABAAAAAQAAAAEAAAABAAAAAQAAAAEAAAABAAGEBgAAAQABhgYAAAEAAYgGAAABAAGKBgAAAQABjAYAAAEAAAAB",

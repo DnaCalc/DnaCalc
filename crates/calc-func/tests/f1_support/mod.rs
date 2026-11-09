@@ -239,7 +239,11 @@ pub fn close(result: Result<CalcValue, FunctionFault>, expected: f64, rel: f64) 
 #[track_caller]
 pub fn exact(result: Result<CalcValue, FunctionFault>, expected: f64) {
     let got = number(result);
-    assert_eq!(got.to_bits(), expected.to_bits(), "got {got:e}, expected {expected:e}");
+    assert_eq!(
+        got.to_bits(),
+        expected.to_bits(),
+        "got {got:e}, expected {expected:e}"
+    );
 }
 
 /// Pin a calculation while retaining the recorded Excel answer as a separate fact.
@@ -247,9 +251,12 @@ pub fn exact(result: Result<CalcValue, FunctionFault>, expected: f64) {
 #[track_caller]
 pub fn recorded_calculation(result: Result<CalcValue, FunctionFault>, excel: f64, calculated: f64) {
     let got = number(result);
-    assert_eq!(got.to_bits(), calculated.to_bits(),
+    assert_eq!(
+        got.to_bits(),
+        calculated.to_bits(),
         "calculated {got:e}; pinned calculation {calculated:e}; recorded Excel {excel:e} ({:#018x})",
-        excel.to_bits());
+        excel.to_bits()
+    );
 }
 
 /// Asserts the call computed this worksheet error.

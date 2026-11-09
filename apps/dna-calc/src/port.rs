@@ -350,8 +350,13 @@ fn start_worker() -> Result<WorkerLink, String> {
     let url = web_sys::Url::new_with_base("worker.js", &assets)
         .map_err(|e| format!("no worker URL: {e:?}"))?;
     // Regional overrides belong to the workbook worker as well as its page.
-    url.set_search(&leptos::prelude::window().location().search().unwrap_or_default());
-    let url=url.href();
+    url.set_search(
+        &leptos::prelude::window()
+            .location()
+            .search()
+            .unwrap_or_default(),
+    );
+    let url = url.href();
     let options = web_sys::WorkerOptions::new();
     options.set_type(web_sys::WorkerType::Module);
     let worker = web_sys::Worker::new_with_options(&url, &options)
@@ -368,7 +373,9 @@ fn start_worker() -> Result<WorkerLink, String> {
             .ok()
             .and_then(|value| value.as_string())
             .filter(|text| !text.is_empty())
-            .unwrap_or_else(|| "the worker script did not load or run (the browser gave no message)".to_owned());
+            .unwrap_or_else(|| {
+                "the worker script did not load or run (the browser gave no message)".to_owned()
+            });
         fail(message);
     });
     worker.set_onerror(Some(on_error.as_ref().unchecked_ref()));

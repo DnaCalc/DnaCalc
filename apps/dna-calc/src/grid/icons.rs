@@ -66,7 +66,9 @@ fn quarters(filled: usize) -> String {
 fn star(fill: f64) -> String {
     let width = (14.0 * fill).round();
     svg(&format!(
-        "<defs><clipPath id=\"s\"><rect width=\"{width}\" height=\"16\" x=\"1\"/></clipPath></defs><path d=\"M8 1.5l2 4.2 4.6.6-3.3 3.2.8 4.6L8 11.9 3.9 14.1l.8-4.6L1.4 6.3 6 5.7z\" fill=\"#fff\" stroke=\"#e0a800\"/><path clip-path=\"url(#s)\" d=\"M8 1.5l2 4.2 4.6.6-3.3 3.2.8 4.6L8 11.9 3.9 14.1l.8-4.6L1.4 6.3 6 5.7z\" fill=\"#ffc000\"/>"
+        "<defs><clipPath id=\"s\"><rect width=\"{width}\" height=\"16\" x=\"1\"/></clipPath></defs>\
+        <path d=\"M8 1.5l2 4.2 4.6.6-3.3 3.2.8 4.6L8 11.9 3.9 14.1l.8-4.6L1.4 6.3 6 5.7z\" fill=\"#fff\" stroke=\"#e0a800\"/>\
+        <path clip-path=\"url(#s)\" d=\"M8 1.5l2 4.2 4.6.6-3.3 3.2.8 4.6L8 11.9 3.9 14.1l.8-4.6L1.4 6.3 6 5.7z\" fill=\"#ffc000\"/>"
     ))
 }
 

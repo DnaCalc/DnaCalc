@@ -146,7 +146,10 @@ pub enum ApplyError {
     /// which [`ModelRoot::apply`] does not apply: [`ModelRoot::apply_structural`] does.
     SheetEdit { operation: usize },
     /// A pivot output or source would need a structural transform.
-    PivotStructural { operation: usize, reason: &'static str },
+    PivotStructural {
+        operation: usize,
+        reason: &'static str,
+    },
     /// The skin layout edit at this index is refused, against the layout the batch's earlier
     /// operations leave.
     Layout {
@@ -191,7 +194,9 @@ impl fmt::Display for ApplyError {
                 f,
                 "operation {operation} edits the workbook's sheets, which the model root does not apply"
             ),
-            ApplyError::PivotStructural { operation, reason } => write!(f, "operation {operation}: {reason}"),
+            ApplyError::PivotStructural { operation, reason } => {
+                write!(f, "operation {operation}: {reason}")
+            }
             ApplyError::Layout { operation, error } => {
                 write!(f, "operation {operation} edits the skin layout: {error}")
             }
@@ -281,9 +286,19 @@ impl ModelRoot {
 
     /// The same authored revision after a successful Save As. File identity is session
     /// context: it invalidates bindings in the host and is never undone with cell edits.
-    pub fn with_file_identity(&self,name:&str,macro_enabled:bool)->Arc<Self> {
-        Arc::new(Self {revision:self.revision,sheets:self.sheets.clone(),cells:self.cells.clone(),layout:self.layout.clone(),
-            definitions:Arc::new(Definitions::clone(&self.definitions).with_workbook_name(Some(name.to_owned())).with_macro_enabled(macro_enabled)),lineage:self.lineage})
+    pub fn with_file_identity(&self, name: &str, macro_enabled: bool) -> Arc<Self> {
+        Arc::new(Self {
+            revision: self.revision,
+            sheets: self.sheets.clone(),
+            cells: self.cells.clone(),
+            layout: self.layout.clone(),
+            definitions: Arc::new(
+                Definitions::clone(&self.definitions)
+                    .with_workbook_name(Some(name.to_owned()))
+                    .with_macro_enabled(macro_enabled),
+            ),
+            lineage: self.lineage,
+        })
     }
 
     /// Physical source records at this root. Extent totals use wide arithmetic and never
@@ -524,7 +539,8 @@ impl ModelRoot {
     /// Install the initial model snapshot without changing the imported revision.
     pub fn with_initial_data_model(&self, model: crate::DataModel) -> Arc<Self> {
         let mut root = self.clone();
-        root.definitions = Arc::new(Definitions::clone(&self.definitions).with_data_model(Some(model)));
+        root.definitions =
+            Arc::new(Definitions::clone(&self.definitions).with_data_model(Some(model)));
         Arc::new(root)
     }
 
@@ -557,11 +573,14 @@ impl ModelRoot {
             cells: earlier.cells.clone(),
             layout: Arc::clone(&earlier.layout),
             definitions: Arc::new(
-                Definitions::clone(&earlier.definitions).with_name_table(
-                    self.definitions
-                        .name_table()
-                        .restored_from(earlier.definitions.name_table()),
-                ).with_workbook_name(self.definitions.workbook_name().map(str::to_owned)).with_macro_enabled(self.definitions.macro_enabled()),
+                Definitions::clone(&earlier.definitions)
+                    .with_name_table(
+                        self.definitions
+                            .name_table()
+                            .restored_from(earlier.definitions.name_table()),
+                    )
+                    .with_workbook_name(self.definitions.workbook_name().map(str::to_owned))
+                    .with_macro_enabled(self.definitions.macro_enabled()),
             ),
             lineage: earlier.lineage,
         }))
@@ -569,18 +588,30 @@ impl ModelRoot {
 
     /// An imported package's worksheets appended to this root, retaining its lineage and
     /// existing cell pages. The caller has reloaded the package using these live sheet IDs.
-    pub fn with_imported_worksheets(&self, imported:&ModelRoot)->Result<Arc<Self>,ApplyError> {
-        if imported.sheets.len() <= self.sheets.len() || imported.sheets[..self.sheets.len()] != self.sheets[..] {
+    pub fn with_imported_worksheets(&self, imported: &ModelRoot) -> Result<Arc<Self>, ApplyError> {
+        if imported.sheets.len() <= self.sheets.len()
+            || imported.sheets[..self.sheets.len()] != self.sheets[..]
+        {
             return Err(ApplyError::ForeignRoot);
         }
-        let mut cells=self.cells.clone();
+        let mut cells = self.cells.clone();
         cells.extend_from_slice(&imported.cells[self.cells.len()..]);
-        let definitions=Definitions::clone(&imported.definitions)
-            .with_name_table(self.definitions.name_table().restored_from(imported.definitions.name_table()))
+        let definitions = Definitions::clone(&imported.definitions)
+            .with_name_table(
+                self.definitions
+                    .name_table()
+                    .restored_from(imported.definitions.name_table()),
+            )
             .with_workbook_name(self.definitions.workbook_name().map(str::to_owned))
             .with_macro_enabled(self.definitions.macro_enabled());
-        Ok(Arc::new(Self{revision:self.revision,sheets:imported.sheets.clone(),cells,
-            layout:self.layout.clone(),definitions:Arc::new(definitions),lineage:self.lineage}))
+        Ok(Arc::new(Self {
+            revision: self.revision,
+            sheets: imported.sheets.clone(),
+            cells,
+            layout: self.layout.clone(),
+            definitions: Arc::new(definitions),
+            lineage: self.lineage,
+        }))
     }
 
     /// The sheets in workbook order.
@@ -781,20 +812,49 @@ impl ModelRoot {
         let mut iteration: Option<crate::definitions::IterationSettings> = None;
         for (operation, op) in batch.operations.iter().enumerate() {
             match op {
-                WorkbookOp::SetPageSetup {sheet, setup} => { self.position_of(operation, *sheet)?; if setup.validate().is_err() { return Err(ApplyError::AxisEdit {operation}); } page_setups.push((*sheet,setup.clone())); }
-                WorkbookOp::SetDataModel(value)=>{data_model=Some(value.clone());},
-                WorkbookOp::SetPivots(value)=>{for table in value.tables(){self.position_of(operation,table.area.sheet())?;}pivots=Some(value.clone());},
-                WorkbookOp::SetCharts {sheet,charts:values}=>{self.position_of(operation,*sheet)?;charts.push((*sheet,values.clone()));}
+                WorkbookOp::SetPageSetup { sheet, setup } => {
+                    self.position_of(operation, *sheet)?;
+                    if setup.validate().is_err() {
+                        return Err(ApplyError::AxisEdit { operation });
+                    }
+                    page_setups.push((*sheet, setup.clone()));
+                }
+                WorkbookOp::SetDataModel(value) => {
+                    data_model = Some(value.clone());
+                }
+                WorkbookOp::SetPivots(value) => {
+                    for table in value.tables() {
+                        self.position_of(operation, table.area.sheet())?;
+                    }
+                    pivots = Some(value.clone());
+                }
+                WorkbookOp::SetCharts {
+                    sheet,
+                    charts: values,
+                } => {
+                    self.position_of(operation, *sheet)?;
+                    charts.push((*sheet, values.clone()));
+                }
                 WorkbookOp::SetStyles(value) => styles = Some(Arc::clone(value)),
-                WorkbookOp::SetTables(value)=>{for t in value{self.position_of(operation,t.sheet)?;}tables=Some(value.clone());},
+                WorkbookOp::SetTables(value) => {
+                    for t in value {
+                        self.position_of(operation, t.sheet)?;
+                    }
+                    tables = Some(value.clone());
+                }
                 WorkbookOp::SetValidations { sheet, rules } => {
                     self.position_of(operation, *sheet)?;
                     validations.push((*sheet, rules.clone()));
                 }
-                WorkbookOp::SetReviewLinks { sheet, links:values } => {
-                    self.position_of(operation,*sheet)?;
-                    if values.iter().any(|l|l.area.sheet()!=*sheet){return Err(ApplyError::AxisEdit{operation});}
-                    links.push((*sheet,values.clone()));
+                WorkbookOp::SetReviewLinks {
+                    sheet,
+                    links: values,
+                } => {
+                    self.position_of(operation, *sheet)?;
+                    if values.iter().any(|l| l.area.sheet() != *sheet) {
+                        return Err(ApplyError::AxisEdit { operation });
+                    }
+                    links.push((*sheet, values.clone()));
                 }
                 WorkbookOp::SetReviewNotes { sheet, notes } => {
                     self.position_of(operation, *sheet)?;
@@ -895,10 +955,13 @@ impl ModelRoot {
                 WorkbookOp::SetIteration(settings) => iteration = Some(*settings),
                 WorkbookOp::SetAutoFilter { sheet, filter } => {
                     self.position_of(operation, *sheet)?;
-                    if filter.as_ref().is_some_and(|f| f.area.sheet()!=*sheet || !f.valid()) {
+                    if filter
+                        .as_ref()
+                        .is_some_and(|f| f.area.sheet() != *sheet || !f.valid())
+                    {
                         return Err(ApplyError::AxisEdit { operation });
                     }
-                    filters.push((*sheet,filter.clone()));
+                    filters.push((*sheet, filter.clone()));
                 }
                 WorkbookOp::SetAxisFormat(edit) => {
                     self.position_of(operation, edit.sheet())?;
@@ -911,7 +974,10 @@ impl ModelRoot {
                     self.position_of(operation, *sheet)?;
                     panes.push((*sheet, value.map(crate::PaneLayout::Frozen)));
                 }
-                WorkbookOp::SetPaneLayout {sheet,layout}=>{self.position_of(operation,*sheet)?;panes.push((*sheet,*layout));}
+                WorkbookOp::SetPaneLayout { sheet, layout } => {
+                    self.position_of(operation, *sheet)?;
+                    panes.push((*sheet, *layout));
+                }
                 WorkbookOp::EditAxis(_) => return Err(ApplyError::AxisEdit { operation }),
                 WorkbookOp::EditSheet(_) => return Err(ApplyError::SheetEdit { operation }),
                 WorkbookOp::EditSkinLayout(edit) => {
@@ -950,7 +1016,10 @@ impl ModelRoot {
             Some(definitions) => Arc::new(definitions),
             None => Arc::clone(&self.definitions),
         };
-        if tables.is_some() || pivots.is_some() || data_model.is_some() || styles.is_some()
+        if tables.is_some()
+            || pivots.is_some()
+            || data_model.is_some()
+            || styles.is_some()
             || !conditional.is_empty()
             || !review.is_empty()
             || !links.is_empty()
@@ -965,20 +1034,36 @@ impl ModelRoot {
             || iteration.is_some_and(|settings| settings != definitions.iteration())
         {
             let mut next = Definitions::clone(&definitions);
-            if let Some(model)=data_model {next=next.with_shared_data_model(model);}
-            if let Some(pivots)=pivots {next=next.with_pivots(pivots);}
-            if let Some(tables)=tables {next=next.with_tables(tables);}
-        if let Some(styles) = styles {
+            if let Some(model) = data_model {
+                next = next.with_shared_data_model(model);
+            }
+            if let Some(pivots) = pivots {
+                next = next.with_pivots(pivots);
+            }
+            if let Some(tables) = tables {
+                next = next.with_tables(tables);
+            }
+            if let Some(styles) = styles {
                 next = next.with_styles(styles);
             }
-            for (sheet, filter) in filters { next = next.with_auto_filter(sheet, filter);
+            for (sheet, filter) in filters {
+                next = next.with_auto_filter(sheet, filter);
             }
-            for (sheet, rules) in validations { next = next.with_validations(sheet, rules); }
-            for (sheet, setup) in page_setups { next = next.with_page_setup(sheet,setup); }
-            for (sheet, values) in charts {next=next.with_charts(sheet,values);}
-            for (sheet, values) in links {next=next.with_review_links(sheet,values);}
+            for (sheet, rules) in validations {
+                next = next.with_validations(sheet, rules);
+            }
+            for (sheet, setup) in page_setups {
+                next = next.with_page_setup(sheet, setup);
+            }
+            for (sheet, values) in charts {
+                next = next.with_charts(sheet, values);
+            }
+            for (sheet, values) in links {
+                next = next.with_review_links(sheet, values);
+            }
             for (sheet, notes) in review {
-                next = next.with_review_notes(sheet, notes); }
+                next = next.with_review_notes(sheet, notes);
+            }
             for (sheet, rules) in conditional {
                 next = next.with_conditional_rules(sheet, rules);
             }

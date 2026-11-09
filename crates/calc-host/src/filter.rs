@@ -44,15 +44,23 @@ fn label(at: CellKey) -> String {
 fn literal(s: &str) -> String {
     s.replace('~', "~~").replace('*', "~*").replace('?', "~?")
 }
-fn validate_area(host: &HostState, area: GridArea,table:Option<&str>) -> Result<(), String> {
-    if host.model().sheet_by_id(area.sheet()).is_none()||host.loaded().sheet(area.sheet()).is_some_and(|s|s.protected()||s.is_macro_sheet()){return Err(refusal("requires an editable worksheet"));}
+fn validate_area(host: &HostState, area: GridArea, table: Option<&str>) -> Result<(), String> {
+    if host.model().sheet_by_id(area.sheet()).is_none()
+        || host
+            .loaded()
+            .sheet(area.sheet())
+            .is_some_and(|s| s.protected() || s.is_macro_sheet())
+    {
+        return Err(refusal("requires an editable worksheet"));
+    }
     if area.row_count() < 2 || area.row_count() > 32769 || area.column_count() > 256 {
         return Err(refusal(
             "supports a header and 1–32768 data rows in at most 256 columns",
         ));
     }
     if host.model().definitions().tables().iter().any(|t| {
-        table.is_none() && t.sheet == area.sheet()
+        table.is_none()
+            && t.sheet == area.sheet()
             && t.area.first().row() <= area.last().row()
             && t.area.last().row() > area.first().row()
     }) {
@@ -74,9 +82,15 @@ pub(crate) fn prepare(
     revision: u64,
     change: FilterChange,
 ) -> Result<Vec<CellEdit>, String> {
-    prepare_for(host,sheet,revision,None,change)
+    prepare_for(host, sheet, revision, None, change)
 }
-pub(crate) fn prepare_for(host:&HostState,sheet:SheetId,revision:u64,table:Option<&str>,change:FilterChange)->Result<Vec<CellEdit>,String>{
+pub(crate) fn prepare_for(
+    host: &HostState,
+    sheet: SheetId,
+    revision: u64,
+    table: Option<&str>,
+    change: FilterChange,
+) -> Result<Vec<CellEdit>, String> {
     if revision != host.revision().get() {
         return Err("The workbook changed; reopen the filter and try again".into());
     }
@@ -125,10 +139,25 @@ pub(crate) fn prepare_for(host:&HostState,sheet:SheetId,revision:u64,table:Optio
         }
         change => change,
     };
-    let target=if let Some(part)=table{Some(host.model().definitions().tables().iter().find(|t|t.part==part&&t.sheet==sheet).ok_or("The table no longer exists")?)}else{None};
-    let old=target.map_or_else(||host.model().definitions().auto_filter(sheet),|t|t.filter.as_ref());
+    let target = if let Some(part) = table {
+        Some(
+            host.model()
+                .definitions()
+                .tables()
+                .iter()
+                .find(|t| t.part == part && t.sheet == sheet)
+                .ok_or("The table no longer exists")?,
+        )
+    } else {
+        None
+    };
+    let old = target.map_or_else(
+        || host.model().definitions().auto_filter(sheet),
+        |t| t.filter.as_ref(),
+    );
     if let Some(filter) = old
-        && table.is_none() && host.model().definitions().tables().iter().any(|t| {
+        && table.is_none()
+        && host.model().definitions().tables().iter().any(|t| {
             t.sheet == sheet
                 && t.area.first().row() <= filter.area.last().row()
                 && t.area.last().row() > filter.area.first().row()
@@ -153,15 +182,22 @@ pub(crate) fn prepare_for(host:&HostState,sheet:SheetId,revision:u64,table:Optio
                     "already exists; remove it before choosing another range",
                 ));
             }
-            validate_area(host, area,table)?;
-            if target.is_some_and(|t|t.header_rows==0||t.area.first()!=area.first()||t.area.last().column()!=area.last().column()||t.area.last().row()-t.totals_rows!=area.last().row()){return Err(refusal("range must be the table header and data rows"));}
+            validate_area(host, area, table)?;
+            if target.is_some_and(|t| {
+                t.header_rows == 0
+                    || t.area.first() != area.first()
+                    || t.area.last().column() != area.last().column()
+                    || t.area.last().row() - t.totals_rows != area.last().row()
+            }) {
+                return Err(refusal("range must be the table header and data rows"));
+            }
             Some(AutoFilter::new(area))
         }
         change => {
             let mut f = old
                 .cloned()
                 .ok_or("Select a range and enable AutoFilter first")?;
-            validate_area(host, f.area,table)?;
+            validate_area(host, f.area, table)?;
             if f.unsupported {
                 return Err(refusal(
                     "has imported criteria or metadata whose editing is not modelled; the original XML is retained",
@@ -207,7 +243,16 @@ pub(crate) fn prepare_for(host:&HostState,sheet:SheetId,revision:u64,table:Optio
     let mut edits = if next.as_ref() == old {
         Vec::new()
     } else {
-        if let Some(part)=table{let mut tables=host.model().definitions().tables().to_vec();tables.iter_mut().find(|t|t.part==part).unwrap().filter=next;vec![CellEdit::Tables(tables)]}else{vec![CellEdit::AutoFilter {sheet,filter:next}]}
+        if let Some(part) = table {
+            let mut tables = host.model().definitions().tables().to_vec();
+            tables.iter_mut().find(|t| t.part == part).unwrap().filter = next;
+            vec![CellEdit::Tables(tables)]
+        } else {
+            vec![CellEdit::AutoFilter {
+                sheet,
+                filter: next,
+            }]
+        }
     };
     if let Some(styles) = staged_styles.filter(|s| s != host.styles().as_ref()) {
         edits.insert(0, CellEdit::Styles(std::sync::Arc::new(styles)));
@@ -246,9 +291,13 @@ pub(crate) fn apply(
                 .map(move |row| CellKey::new(filter.area.sheet(), row, *col).unwrap())
         })
         .collect();
-    let context = DetachedEvaluationContext::new_with_numeric_mode(&host.engine, host.model(),
-        DetachedReadPolicy::CurrentValues, &host.options.numeric)
-        .map_err(refusal)?;
+    let context = DetachedEvaluationContext::new_with_numeric_mode(
+        &host.engine,
+        host.model(),
+        DetachedReadPolicy::CurrentValues,
+        &host.options.numeric,
+    )
+    .map_err(refusal)?;
     if cells.into_iter().any(|at| context.read_cell(at).is_err()) {
         return Err(refusal(
             "needs current calculated values; calculate the range before applying criteria",
@@ -266,14 +315,24 @@ pub(crate) fn apply(
             )
             .unwrap();
             if host.model().definitions().tables().iter().any(|table| {
-                table.area.intersection(area).is_some() && table.style.name.as_ref().is_some_and(|s| !s.is_empty())
+                table.area.intersection(area).is_some()
+                    && table.style.name.as_ref().is_some_and(|s| !s.is_empty())
             }) {
-                return Err(refusal("colour filtering on styled tables needs the table's effective colours and is not modelled"));
+                return Err(refusal(
+                    "colour filtering on styled tables needs the table's effective colours and is not modelled",
+                ));
             }
             if host.loaded().sheet(area.sheet()).is_some_and(|sheet| {
-                (sheet.review().conditional_extensions && sheet.review().conditional_extension_areas.as_ref().is_none_or(|areas| {
-                    host.current_areas(area.sheet(), areas).iter().any(|a| a.intersection(area).is_some())
-                }))
+                (sheet.review().conditional_extensions
+                    && sheet
+                        .review()
+                        .conditional_extension_areas
+                        .as_ref()
+                        .is_none_or(|areas| {
+                            host.current_areas(area.sheet(), areas)
+                                .iter()
+                                .any(|a| a.intersection(area).is_some())
+                        }))
                     || sheet.conditional_formats().iter().any(|block| {
                         block.unread_container
                             && (block.areas.is_empty()
@@ -287,48 +346,75 @@ pub(crate) fn apply(
                     "colour filtering with unread conditional formatting or conditional extensions is not modelled",
                 ));
             }
-            for source in host.model().definitions().conditional_rules(area.sheet())
-                .iter().filter(|rule| rule.areas.iter().any(|a| a.intersection(area).is_some()))
+            for source in host
+                .model()
+                .definitions()
+                .conditional_rules(area.sheet())
+                .iter()
+                .filter(|rule| rule.areas.iter().any(|a| a.intersection(area).is_some()))
             {
                 // Detached painting may inspect a held manual-mode observation. Authoring new
                 // visibility needs current values; until per-rule read certificates are exposed,
                 // require the workbook's published formula results to be current.
                 if !conditional_current {
                     if context.all_formula_values_current() != Some(true) {
-                        return Err(refusal("needs current calculated conditional-format values; calculate the workbook first"));
+                        return Err(refusal(
+                            "needs current calculated conditional-format values; calculate the workbook first",
+                        ));
                     }
                     conditional_current = true;
                 }
                 work = work.saturating_add(1);
                 if work.saturating_mul(filter.area.row_count() as usize) > 2_000_000 {
-                    return Err(refusal("conditional colour criteria need more than 2000000 row comparisons"));
+                    return Err(refusal(
+                        "conditional colour criteria need more than 2000000 row comparisons",
+                    ));
                 }
                 let rule = calc_doc::conditional_rule(source)
                     .map_err(|_| refusal("a conditional colour rule cannot be interpreted"))?;
                 // Additional stored predicates share the bounded source validation used by
                 // row movement. Existing cellIs/expression admission stays unchanged.
                 let supported = matches!(rule.kind.as_str(), "cellIs" | "expression")
-                    || *additional_pointwise.get_or_insert_with(||
-                        crate::copy_metadata::conditional_sort_supported(host, area.sheet()));
+                    || *additional_pointwise.get_or_insert_with(|| {
+                        crate::copy_metadata::conditional_sort_supported(host, area.sheet())
+                    });
                 if rule.unread || !supported {
-                    return Err(refusal("colour filtering with this conditional rule is not modelled"));
+                    return Err(refusal(
+                        "colour filtering with this conditional rule is not modelled",
+                    ));
                 }
                 if let Some(id) = rule.dxf {
-                    let dxf = host.styles().differential_formats.get(id as usize)
+                    let dxf = host
+                        .styles()
+                        .differential_formats
+                        .get(id as usize)
                         .ok_or_else(|| refusal("a conditional colour format is unavailable"))?;
                     // The shared conditional look represents explicit solid colours. Patterned
                     // fills, automatic colours and fill removal need a richer look before filtering.
                     let color = if *cell_color {
                         if let Some(fill) = &dxf.fill {
-                            if fill.gradient.is_some() || !fill.other_children.is_empty()
+                            if fill.gradient.is_some()
+                                || !fill.other_children.is_empty()
                                 || !matches!(fill.pattern_type.as_deref(), None | Some("solid"))
                             {
-                                return Err(refusal("colour filtering on conditional pattern fills is not modelled"));
+                                return Err(refusal(
+                                    "colour filtering on conditional pattern fills is not modelled",
+                                ));
                             }
-                            Some(fill.fg_color.as_ref().or(fill.bg_color.as_ref())
-                                .ok_or_else(|| refusal("a conditional fill colour is unavailable"))?)
-                        } else { None }
-                    } else { dxf.font.as_ref().and_then(|font| font.color.as_ref()) };
+                            Some(
+                                fill.fg_color
+                                    .as_ref()
+                                    .or(fill.bg_color.as_ref())
+                                    .ok_or_else(|| {
+                                        refusal("a conditional fill colour is unavailable")
+                                    })?,
+                            )
+                        } else {
+                            None
+                        }
+                    } else {
+                        dxf.font.as_ref().and_then(|font| font.color.as_ref())
+                    };
                     if let Some(color) = color {
                         if color.auto || crate::conditional::resolve(host, color).is_none() {
                             return Err(refusal("a conditional colour cannot be resolved"));
@@ -346,7 +432,12 @@ pub(crate) fn apply(
             } else {
                 font_color(host, dxf.font.as_ref())?
             };
-            colors.push((*col, *cell_color, color, host.conditional_formats_for(area, &context)));
+            colors.push((
+                *col,
+                *cell_color,
+                color,
+                host.conditional_formats_for(area, &context),
+            ));
             continue;
         }
         let origin = CellKey::new(filter.area.sheet(), first, *col).unwrap();
@@ -429,7 +520,8 @@ pub(crate) fn apply(
                     "IF(COUNT({range})=0,0,_xlfn.AGGREGATE({},6,{range},MIN(COUNT({range}),MAX(1,{k}))))",
                     if *top { 14 } else { 15 }
                 );
-                let cutoff_value = context.compile(&cutoff, origin, calc_fml::FormulaForm::Legacy)
+                let cutoff_value = context
+                    .compile(&cutoff, origin, calc_fml::FormulaForm::Legacy)
                     .map_err(|e| refusal(e))?
                     .evaluate_in(&context, origin)
                     .map_err(|e| refusal(e))?;
@@ -451,7 +543,8 @@ pub(crate) fn apply(
                 format!("{}({})", if *and { "AND" } else { "OR" }, terms.join(","))
             }
         };
-        let plan = context.compile(&formula, origin, calc_fml::FormulaForm::Legacy)
+        let plan = context
+            .compile(&formula, origin, calc_fml::FormulaForm::Legacy)
             .map_err(|e| refusal(format!("could not compile its criteria: {e}")))?;
         plans.push((*col, plan));
     }
@@ -517,14 +610,28 @@ pub(crate) fn apply(
                     let refused = formats.refused();
                     let look = formats.look_in(host, at, &context).unwrap_or_default();
                     if formats.refused() != refused {
-                        return Err(refusal("the conditional-format formula or its current inputs are unavailable"));
+                        return Err(refusal(
+                            "the conditional-format formula or its current inputs are unavailable",
+                        ));
                     }
-                    if let Some(color) = if *cell_color { look.fill } else { look.font_color } {
+                    if let Some(color) = if *cell_color {
+                        look.fill
+                    } else {
+                        look.font_color
+                    } {
                         actual = Some(match color {
                             crate::LookColor::Rgb(rgb) => rgb,
-                            crate::LookColor::Indexed(index) => color_value(host,
-                                Some(&calc_doc_model::StyleColor { indexed: Some(index.to_string()), ..Default::default() }), None)?
-                                .ok_or_else(|| refusal("a conditional indexed colour cannot be resolved"))?,
+                            crate::LookColor::Indexed(index) => color_value(
+                                host,
+                                Some(&calc_doc_model::StyleColor {
+                                    indexed: Some(index.to_string()),
+                                    ..Default::default()
+                                }),
+                                None,
+                            )?
+                            .ok_or_else(|| {
+                                refusal("a conditional indexed colour cannot be resolved")
+                            })?,
                         });
                     }
                 }
@@ -544,11 +651,26 @@ pub fn filter_values(
     sheet: SheetId,
     column: u32,
 ) -> Result<(Vec<(String, bool)>, bool), String> {
-    filter_values_for(host,sheet,None,column)
+    filter_values_for(host, sheet, None, column)
 }
-pub fn filter_values_for(host:&HostState,sheet:SheetId,table:Option<&str>,column:u32)->Result<(Vec<(String,bool)>,bool),String>{
-    let f=if let Some(part)=table{host.model().definitions().tables().iter().find(|t|t.sheet==sheet&&t.part==part).and_then(|t|t.filter.as_ref())}else{host.model().definitions().auto_filter(sheet)}.ok_or("Enable AutoFilter first")?;
-    validate_area(host, f.area,table)?;
+pub fn filter_values_for(
+    host: &HostState,
+    sheet: SheetId,
+    table: Option<&str>,
+    column: u32,
+) -> Result<(Vec<(String, bool)>, bool), String> {
+    let f = if let Some(part) = table {
+        host.model()
+            .definitions()
+            .tables()
+            .iter()
+            .find(|t| t.sheet == sheet && t.part == part)
+            .and_then(|t| t.filter.as_ref())
+    } else {
+        host.model().definitions().auto_filter(sheet)
+    }
+    .ok_or("Enable AutoFilter first")?;
+    validate_area(host, f.area, table)?;
     if !(f.area.first().column()..=f.area.last().column()).contains(&column) {
         return Err(refusal("column is outside its range"));
     }

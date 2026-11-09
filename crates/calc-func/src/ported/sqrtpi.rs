@@ -1,5 +1,5 @@
-use crate::value::WorksheetErrorCode;
 use crate::ported::excel_numeric::crt_pow;
+use crate::value::WorksheetErrorCode;
 
 pub fn sqrtpi_kernel(n: f64) -> Result<f64, WorksheetErrorCode> {
     if n < 0.0 {

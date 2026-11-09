@@ -34,9 +34,9 @@ pub const NEW_WORKBOOK_NAME: &str = "Book1.xlsx";
 /// An unsupported browser locale retains the en-US fallback; native callers keep that default.
 pub fn host_options() -> HostOptions {
     #[cfg(target_arch = "wasm32")]
-    let locale=browser_profile().or_else(||FormatProfile::for_culture(LOCALE));
+    let locale = browser_profile().or_else(|| FormatProfile::for_culture(LOCALE));
     #[cfg(not(target_arch = "wasm32"))]
-    let locale=FormatProfile::for_culture(LOCALE);
+    let locale = FormatProfile::for_culture(LOCALE);
     HostOptions {
         locale,
         ..HostOptions::default()
@@ -44,35 +44,50 @@ pub fn host_options() -> HostOptions {
 }
 
 #[cfg(target_arch = "wasm32")]
-fn browser_profile()->Option<FormatProfile> {
-    use wasm_bindgen::{JsCast,JsValue};
-    let get=|value:&JsValue,key:&str|js_sys::Reflect::get(value,&JsValue::from_str(key)).ok();
-    let location=get(&js_sys::global(),"location")?;
-    let url=web_sys::Url::new(&get(&location,"href")?.as_string()?).ok()?;
-    let settings=url.search_params();
-    let navigator=get(&js_sys::global(),"navigator")?;
-    let language=settings.get("locale").or_else(||get(&navigator,"language")?.as_string())?;
-    let profile=FormatProfile::for_culture(&language)?;
-    let intl=get(&js_sys::global(),"Intl")?;
-    let constructor=get(&intl,"NumberFormat")?.dyn_into::<js_sys::Function>().ok()?;
-    let formatter=js_sys::Reflect::construct(&constructor,&js_sys::Array::of1(&JsValue::from_str(&language))).ok()?;
-    let parts=get(&formatter,"formatToParts")?.dyn_into::<js_sys::Function>().ok()?.call1(&formatter,&JsValue::from_f64(12345.6)).ok()?;
-    let mut decimal=None;let mut group=None;
+fn browser_profile() -> Option<FormatProfile> {
+    use wasm_bindgen::{JsCast, JsValue};
+    let get =
+        |value: &JsValue, key: &str| js_sys::Reflect::get(value, &JsValue::from_str(key)).ok();
+    let location = get(&js_sys::global(), "location")?;
+    let url = web_sys::Url::new(&get(&location, "href")?.as_string()?).ok()?;
+    let settings = url.search_params();
+    let navigator = get(&js_sys::global(), "navigator")?;
+    let language = settings
+        .get("locale")
+        .or_else(|| get(&navigator, "language")?.as_string())?;
+    let profile = FormatProfile::for_culture(&language)?;
+    let intl = get(&js_sys::global(), "Intl")?;
+    let constructor = get(&intl, "NumberFormat")?
+        .dyn_into::<js_sys::Function>()
+        .ok()?;
+    let formatter = js_sys::Reflect::construct(
+        &constructor,
+        &js_sys::Array::of1(&JsValue::from_str(&language)),
+    )
+    .ok()?;
+    let parts = get(&formatter, "formatToParts")?
+        .dyn_into::<js_sys::Function>()
+        .ok()?
+        .call1(&formatter, &JsValue::from_f64(12345.6))
+        .ok()?;
+    let mut decimal = None;
+    let mut group = None;
     for part in js_sys::Array::from(&parts).iter() {
-        match get(&part,"type")?.as_string()?.as_str() {
-            "decimal"=>decimal=get(&part,"value")?.as_string(),
-            "group"=>group=get(&part,"value")?.as_string(),
-            _=>{},
+        match get(&part, "type")?.as_string()?.as_str() {
+            "decimal" => decimal = get(&part, "value")?.as_string(),
+            "group" => group = get(&part, "value")?.as_string(),
+            _ => {}
         }
     }
-    let decimal=decimal?;let mut group=group?;
+    let decimal = decimal?;
+    let mut group = group?;
     // Excel's measured en-ZA number-format codes use ordinary-space grouping.
-    if profile.id==calc_func::locale::LocaleId::EnZa && group.chars().all(char::is_whitespace) {
-        group=" ".into();
+    if profile.id == calc_func::locale::LocaleId::EnZa && group.chars().all(char::is_whitespace) {
+        group = " ".into();
     }
-    let decimal=settings.get("decimal-separator").unwrap_or(decimal);
-    let group=settings.get("thousands-separator").unwrap_or(group);
-    profile.with_separators(&decimal,&group)
+    let decimal = settings.get("decimal-separator").unwrap_or(decimal);
+    let group = settings.get("thousands-separator").unwrap_or(group);
+    profile.with_separators(&decimal, &group)
 }
 
 // A stable clock snapshot belongs to opening or Calculate Now. Sampling during
@@ -144,14 +159,20 @@ pub enum OpenRefused {
 }
 impl std::fmt::Display for OpenRefused {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        match self { Self::Package(error) => error.fmt(f), Self::Vba(error) => error.fmt(f) }
+        match self {
+            Self::Package(error) => error.fmt(f),
+            Self::Vba(error) => error.fmt(f),
+        }
     }
 }
 impl std::error::Error for OpenRefused {}
 
 /// A caller can preserve a file's project without compiling or executing it.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub enum VbaOpenPolicy { Run, Preserve }
+pub enum VbaOpenPolicy {
+    Run,
+    Preserve,
+}
 
 pub use dna_calc_model::projection::SheetTab;
 
@@ -217,27 +238,66 @@ impl Workbook {
         Self::open_with_template_mode(name, bytes, budget, vba, false)
     }
 
-    pub fn open_with_template_mode(name:&str, bytes:Vec<u8>, budget:calc_host::WorkBudget, vba:VbaOpenPolicy, edit_template:bool) -> Result<Workbook,OpenRefused> {
-        Self::open_with_template_counter(name,bytes,budget,vba,edit_template,1)
+    pub fn open_with_template_mode(
+        name: &str,
+        bytes: Vec<u8>,
+        budget: calc_host::WorkBudget,
+        vba: VbaOpenPolicy,
+        edit_template: bool,
+    ) -> Result<Workbook, OpenRefused> {
+        Self::open_with_template_counter(name, bytes, budget, vba, edit_template, 1)
     }
 
-    pub(crate) fn open_with_template_counter(name:&str, bytes:Vec<u8>, budget:calc_host::WorkBudget, vba:VbaOpenPolicy, edit_template:bool, template_counter:u64) -> Result<Workbook,OpenRefused> {
-        let memory=MemorySource::new(bytes);
+    pub(crate) fn open_with_template_counter(
+        name: &str,
+        bytes: Vec<u8>,
+        budget: calc_host::WorkBudget,
+        vba: VbaOpenPolicy,
+        edit_template: bool,
+        template_counter: u64,
+    ) -> Result<Workbook, OpenRefused> {
+        let memory = MemorySource::new(bytes);
         let source: Arc<dyn PackageRead> = Arc::new(memory.clone().named(name));
         let mut session = HostSession::open(source, &OpenPolicy::default(), host_options())
             .map_err(OpenRefused::Package)?;
-        let input_format=session.host().loaded().spreadsheet_format();
-        let unsaved=input_format.is_template() && !edit_template;
-        let output_format=if unsaved {if input_format.macro_enabled(){calc_host::SpreadsheetFormat::Xlsm}else{calc_host::SpreadsheetFormat::Xlsx}}else{input_format};
-        let name=if unsaved {format!("{}{template_counter}.{}",template_basename(name),output_format.extension())}else{name.to_owned()};
+        let input_format = session.host().loaded().spreadsheet_format();
+        let unsaved = input_format.is_template() && !edit_template;
+        let output_format = if unsaved {
+            if input_format.macro_enabled() {
+                calc_host::SpreadsheetFormat::Xlsm
+            } else {
+                calc_host::SpreadsheetFormat::Xlsx
+            }
+        } else {
+            input_format
+        };
+        let name = if unsaved {
+            format!(
+                "{}{template_counter}.{}",
+                template_basename(name),
+                output_format.extension()
+            )
+        } else {
+            name.to_owned()
+        };
         if unsaved {
-            session=HostSession::open(Arc::new(memory.named(name.as_str())), &OpenPolicy::default(), host_options()).map_err(OpenRefused::Package)?;
+            session = HostSession::open(
+                Arc::new(memory.named(name.as_str())),
+                &OpenPolicy::default(),
+                host_options(),
+            )
+            .map_err(OpenRefused::Package)?;
         }
         sample_browser_clock(&mut session);
         session.set_calculation_budget(budget);
         if vba == VbaOpenPolicy::Run {
-            calc_host_vba::activate_file_project(&mut session, &name, calc_vba::DEFAULT_STEP_BUDGET, None)
-                .map_err(OpenRefused::Vba)?;
+            calc_host_vba::activate_file_project(
+                &mut session,
+                &name,
+                calc_vba::DEFAULT_STEP_BUDGET,
+                None,
+            )
+            .map_err(OpenRefused::Vba)?;
         }
         let mut workbook = Workbook {
             session,
@@ -282,18 +342,36 @@ impl Workbook {
     /// which is saved as SpreadsheetML (dc-5sr), with `.xlsm` when it is macro-enabled and
     /// `.xlsx` otherwise.
     pub fn save_name(&self) -> String {
-        let stem=self.name.rsplit_once('.').map_or(self.name.as_str(), |(stem,_)|stem);
-        format!("{stem}.{}",self.output_format.extension())
+        let stem = self
+            .name
+            .rsplit_once('.')
+            .map_or(self.name.as_str(), |(stem, _)| stem);
+        format!("{stem}.{}", self.output_format.extension())
     }
-    pub fn unsaved(&self)->bool {self.unsaved}
-    pub fn output_format(&self)->calc_host::SpreadsheetFormat {self.output_format}
-    pub fn saved_as(&mut self,name:String,format:calc_host::SpreadsheetFormat) {
-        self.session.set_file_identity(&name,format.macro_enabled());
-        self.name=name;self.output_format=format;self.unsaved=false;
-        self.conditional.borrow_mut().clear();self.display_metrics.borrow_mut().clear();
-        if self.session.calc_mode()!=CalcMode::Manual {self.session.dispatch(SkinIntent::Recalculate);}
+    pub fn unsaved(&self) -> bool {
+        self.unsaved
     }
-    pub fn save_policy(&self)->SavePolicy {SavePolicy{format:calc_host::SaveFormat::Spreadsheet(self.output_format),..Default::default()}}
+    pub fn output_format(&self) -> calc_host::SpreadsheetFormat {
+        self.output_format
+    }
+    pub fn saved_as(&mut self, name: String, format: calc_host::SpreadsheetFormat) {
+        self.session
+            .set_file_identity(&name, format.macro_enabled());
+        self.name = name;
+        self.output_format = format;
+        self.unsaved = false;
+        self.conditional.borrow_mut().clear();
+        self.display_metrics.borrow_mut().clear();
+        if self.session.calc_mode() != CalcMode::Manual {
+            self.session.dispatch(SkinIntent::Recalculate);
+        }
+    }
+    pub fn save_policy(&self) -> SavePolicy {
+        SavePolicy {
+            format: calc_host::SaveFormat::Spreadsheet(self.output_format),
+            ..Default::default()
+        }
+    }
 
     /// Whether an edit committed since the workbook was opened or last saved.
     pub fn changed(&self) -> bool {
@@ -308,12 +386,19 @@ impl Workbook {
         &self.session
     }
 
-    pub(crate) fn begin_name_calculation(&mut self, id: calc_host::value::NameId,
-        version: u64, caller: CellKey) -> Result<calc_host::NameCalculation, String> {
+    pub(crate) fn begin_name_calculation(
+        &mut self,
+        id: calc_host::value::NameId,
+        version: u64,
+        caller: CellKey,
+    ) -> Result<calc_host::NameCalculation, String> {
         self.session.begin_name_calculation(id, version, caller)
     }
-    pub(crate) fn advance_name_calculation(&mut self, work: &mut calc_host::NameCalculation,
-        quantum: usize) -> calc_host::NameCalculationProgress {
+    pub(crate) fn advance_name_calculation(
+        &mut self,
+        work: &mut calc_host::NameCalculation,
+        quantum: usize,
+    ) -> calc_host::NameCalculationProgress {
         work.advance(&mut self.session, quantum)
     }
 
@@ -332,8 +417,7 @@ impl Workbook {
         sequence: u64,
         value: calc_host::value::CalcValue,
     ) -> calc_host::RtdDisposition {
-        self.session
-            .update_rtd(topic, lease, sequence, value)
+        self.session.update_rtd(topic, lease, sequence, value)
     }
     pub fn set_fetch_route(&mut self, route: std::rc::Rc<dyn calc_func::FetchRoute>) {
         self.session.set_fetch_route(route);
@@ -364,20 +448,40 @@ impl Workbook {
         self.session.set_workbook_event_handler(None);
         Ok(())
     }
-    pub fn load_vba_project(&mut self, modules: &[crate::wire::VbaModule], max_steps: u64) -> Result<(), String> {
+    pub fn load_vba_project(
+        &mut self,
+        modules: &[crate::wire::VbaModule],
+        max_steps: u64,
+    ) -> Result<(), String> {
         self.load_vba_project_with_backend(modules, max_steps, None)
     }
-    pub fn load_vba_project_with_backend(&mut self, modules: &[crate::wire::VbaModule], max_steps: u64, backend: Option<calc_vba::Backend>) -> Result<(), String> {
-        let modules = modules.iter().map(|module| calc_host_vba::ModuleSource {
-            name: module.name.clone(),
-            source: module.source.clone(),
-            target: match module.target {
-                crate::wire::VbaModuleTarget::Standard => calc_host_vba::ModuleTarget::Standard,
-                crate::wire::VbaModuleTarget::Workbook => calc_host_vba::ModuleTarget::Workbook,
-                crate::wire::VbaModuleTarget::Worksheet(sheet) => calc_host_vba::ModuleTarget::Worksheet(sheet.id()),
-            },
-        }).collect::<Vec<_>>();
-        let owner = calc_host_vba::prepare(self.session.host(), &self.name, &modules, max_steps, backend)?;
+    pub fn load_vba_project_with_backend(
+        &mut self,
+        modules: &[crate::wire::VbaModule],
+        max_steps: u64,
+        backend: Option<calc_vba::Backend>,
+    ) -> Result<(), String> {
+        let modules = modules
+            .iter()
+            .map(|module| calc_host_vba::ModuleSource {
+                name: module.name.clone(),
+                source: module.source.clone(),
+                target: match module.target {
+                    crate::wire::VbaModuleTarget::Standard => calc_host_vba::ModuleTarget::Standard,
+                    crate::wire::VbaModuleTarget::Workbook => calc_host_vba::ModuleTarget::Workbook,
+                    crate::wire::VbaModuleTarget::Worksheet(sheet) => {
+                        calc_host_vba::ModuleTarget::Worksheet(sheet.id())
+                    }
+                },
+            })
+            .collect::<Vec<_>>();
+        let owner = calc_host_vba::prepare(
+            self.session.host(),
+            &self.name,
+            &modules,
+            max_steps,
+            backend,
+        )?;
         owner.install(&mut self.session);
         Ok(())
     }
@@ -638,9 +742,14 @@ impl Workbook {
         calculate_before_save: bool,
         policy: &SavePolicy,
     ) -> Result<calc_host::OrdinarySave, String> {
-        self.begin_ordinary_save_operation(calculate_before_save,policy,false)
+        self.begin_ordinary_save_operation(calculate_before_save, policy, false)
     }
-    pub fn begin_ordinary_save_operation(&mut self,calculate_before_save:bool,policy:&SavePolicy,save_as:bool)->Result<calc_host::OrdinarySave,String> {
+    pub fn begin_ordinary_save_operation(
+        &mut self,
+        calculate_before_save: bool,
+        policy: &SavePolicy,
+        save_as: bool,
+    ) -> Result<calc_host::OrdinarySave, String> {
         let active_sheet = self
             .session
             .selection()
@@ -652,7 +761,11 @@ impl Workbook {
             .begin_save_with_context(
                 policy,
                 calc_host::ExcelSaveContext {
-                    operation: if save_as {calc_host::SaveOperation::SaveAsDialog}else{calc_host::SaveOperation::Save},
+                    operation: if save_as {
+                        calc_host::SaveOperation::SaveAsDialog
+                    } else {
+                        calc_host::SaveOperation::Save
+                    },
                     calculate_before_save,
                     active_sheet,
                     disabled_sheets: &[],
@@ -717,7 +830,7 @@ impl Workbook {
     /// Saves the current revision as a package's bytes; the workbook is unchanged since.
     pub fn save(&mut self) -> Result<(Vec<u8>, SaveReceipt), String> {
         let mut bytes = Vec::new();
-        let policy=self.save_policy();
+        let policy = self.save_policy();
         let receipt = self
             .session
             .save(&policy, &mut bytes)
@@ -836,45 +949,113 @@ pub use dna_calc_model::projection::{Census, SheetCensus};
 #[cfg(test)]
 mod template_tests {
     use super::*;
-    fn convert(bytes:&[u8],kind:calc_host::SpreadsheetFormat)->Vec<u8> {
-        let doc=calc_doc::open(Arc::new(MemorySource::new(bytes.to_vec())),&Default::default()).unwrap();
-        let mut output=Vec::new();
-        calc_doc::write(calc_doc::prepare_save(&doc.snapshot(),&SavePolicy{format:calc_host::SaveFormat::Spreadsheet(kind),..Default::default()}).unwrap(),&mut output).unwrap();output
+    fn convert(bytes: &[u8], kind: calc_host::SpreadsheetFormat) -> Vec<u8> {
+        let doc = calc_doc::open(
+            Arc::new(MemorySource::new(bytes.to_vec())),
+            &Default::default(),
+        )
+        .unwrap();
+        let mut output = Vec::new();
+        calc_doc::write(
+            calc_doc::prepare_save(
+                &doc.snapshot(),
+                &SavePolicy {
+                    format: calc_host::SaveFormat::Spreadsheet(kind),
+                    ..Default::default()
+                },
+            )
+            .unwrap(),
+            &mut output,
+        )
+        .unwrap();
+        output
     }
-    #[cfg_attr(not(target_arch="wasm32"),test)]
-    #[cfg_attr(target_arch="wasm32",wasm_bindgen_test::wasm_bindgen_test)]
+    #[cfg_attr(not(target_arch = "wasm32"), test)]
+    #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
     fn dc_bctq__opening_template_creates_unsaved_workbook_while_editing_preserves_file_kind() {
         use calc_host::SpreadsheetFormat as F;
-        let template=convert(include_bytes!("../../../crates/calc-doc/tests/fixtures/dc_5sr/features.xlsx"),F::Xltx);
-        let mut created=Workbook::open("personal.xltx",template.clone()).unwrap();
-        assert_eq!(created.name(),"personal1.xlsx");assert!(created.unsaved());assert_eq!(created.save_name(),"personal1.xlsx");
-        assert_eq!(created.host().model().definitions().workbook_name(),Some("personal1.xlsx"));
+        let template = convert(
+            include_bytes!("../../../crates/calc-doc/tests/fixtures/dc_5sr/features.xlsx"),
+            F::Xltx,
+        );
+        let mut created = Workbook::open("personal.xltx", template.clone()).unwrap();
+        assert_eq!(created.name(), "personal1.xlsx");
+        assert!(created.unsaved());
+        assert_eq!(created.save_name(), "personal1.xlsx");
+        assert_eq!(
+            created.host().model().definitions().workbook_name(),
+            Some("personal1.xlsx")
+        );
         assert!(created.calculated_on_open().is_some());
-        let (output,_)=created.save().unwrap();assert!(!created.unsaved());
-        let reopened=Workbook::open("personal1.xlsx",output).unwrap();assert_eq!(reopened.host().loaded().spreadsheet_format(),F::Xlsx);
-        assert_eq!(reopened.sheets().len(),created.sheets().len());
-        let mut editing=Workbook::open_with_template_mode("personal.xltx",template,calc_host::WorkBudget::UNLIMITED,VbaOpenPolicy::Preserve,true).unwrap();
-        assert_eq!(editing.name(),"personal.xltx");assert!(!editing.unsaved());assert_eq!(editing.output_format(),F::Xltx);
-        let (saved,_)=editing.save().unwrap();assert_eq!(Workbook::open("personal.xltx",saved).unwrap().output_format(),F::Xlsx);
+        let (output, _) = created.save().unwrap();
+        assert!(!created.unsaved());
+        let reopened = Workbook::open("personal1.xlsx", output).unwrap();
+        assert_eq!(reopened.host().loaded().spreadsheet_format(), F::Xlsx);
+        assert_eq!(reopened.sheets().len(), created.sheets().len());
+        let mut editing = Workbook::open_with_template_mode(
+            "personal.xltx",
+            template,
+            calc_host::WorkBudget::UNLIMITED,
+            VbaOpenPolicy::Preserve,
+            true,
+        )
+        .unwrap();
+        assert_eq!(editing.name(), "personal.xltx");
+        assert!(!editing.unsaved());
+        assert_eq!(editing.output_format(), F::Xltx);
+        let (saved, _) = editing.save().unwrap();
+        assert_eq!(
+            Workbook::open("personal.xltx", saved)
+                .unwrap()
+                .output_format(),
+            F::Xlsx
+        );
     }
-    #[cfg_attr(not(target_arch="wasm32"),test)]
-    #[cfg_attr(target_arch="wasm32",wasm_bindgen_test::wasm_bindgen_test)]
+    #[cfg_attr(not(target_arch = "wasm32"), test)]
+    #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
     fn dc_bctq__macro_template_retains_actual_vba_and_rejects_macro_free_output() {
         use calc_host::SpreadsheetFormat as F;
-        let original=include_bytes!("../../../crates/calc-doc/tests/fixtures/vba_udf_names/local.xlsm");
-        let template=convert(original,F::Xltm);
-        let mut book=Workbook::open("macro.xltm",template).unwrap();
-        assert_eq!(book.name(),"macro1.xlsm");assert!(book.unsaved());
-        let source=calc_doc::open(Arc::new(MemorySource::new(original.to_vec())),&Default::default()).unwrap();
-        let (saved,_)=book.save().unwrap();
-        let output=calc_doc::open(Arc::new(MemorySource::new(saved)),&Default::default()).unwrap();
-        for part in source.package().parts().iter().filter(|p|p.name().ends_with(".bin")) {
-            assert_eq!(source.package().read_part(part.name()).unwrap(),output.package().read_part(part.name()).unwrap());
+        let original =
+            include_bytes!("../../../crates/calc-doc/tests/fixtures/vba_udf_names/local.xlsm");
+        let template = convert(original, F::Xltm);
+        let mut book = Workbook::open("macro.xltm", template).unwrap();
+        assert_eq!(book.name(), "macro1.xlsm");
+        assert!(book.unsaved());
+        let source = calc_doc::open(
+            Arc::new(MemorySource::new(original.to_vec())),
+            &Default::default(),
+        )
+        .unwrap();
+        let (saved, _) = book.save().unwrap();
+        let output =
+            calc_doc::open(Arc::new(MemorySource::new(saved)), &Default::default()).unwrap();
+        for part in source
+            .package()
+            .parts()
+            .iter()
+            .filter(|p| p.name().ends_with(".bin"))
+        {
+            assert_eq!(
+                source.package().read_part(part.name()).unwrap(),
+                output.package().read_part(part.name()).unwrap()
+            );
         }
-        for kind in [F::Xlsx,F::Xltx] {
-            let save=book.begin_ordinary_save(false,&SavePolicy {format:calc_host::SaveFormat::Spreadsheet(kind),..Default::default()}).unwrap();
-            assert_eq!(save.progress(),calc_host::CalculatedSaveProgress::Failed);
-            assert!(book.finish_ordinary_save(save).unwrap_err().contains("would be lost"));
+        for kind in [F::Xlsx, F::Xltx] {
+            let save = book
+                .begin_ordinary_save(
+                    false,
+                    &SavePolicy {
+                        format: calc_host::SaveFormat::Spreadsheet(kind),
+                        ..Default::default()
+                    },
+                )
+                .unwrap();
+            assert_eq!(save.progress(), calc_host::CalculatedSaveProgress::Failed);
+            assert!(
+                book.finish_ordinary_save(save)
+                    .unwrap_err()
+                    .contains("would be lost")
+            );
         }
     }
 }
@@ -888,22 +1069,40 @@ mod existing_clock_fixture_kit;
 #[cfg_attr(not(target_arch = "wasm32"), test)]
 #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
 fn browser_clock_open_and_explicit_calculate_preserve_manual_file_caches() {
-    use existing_clock_fixture_kit::{RawEntry, build_zip, parse_zip};
     use calc_host::ProjectedValue;
+    use existing_clock_fixture_kit::{RawEntry, build_zip, parse_zip};
     let original = calc_host::blank_package();
     let archive = parse_zip(&original);
     let value = |book: &Workbook, row| {
         let at = CellKey::new(book.host().sheets()[0].id(), row, 1).unwrap();
-        calc_host::project(book.host(), &ProjectionRequest { cells: vec![at] }).unwrap().cells()[0].value().clone()
+        calc_host::project(book.host(), &ProjectionRequest { cells: vec![at] })
+            .unwrap()
+            .cells()[0]
+            .value()
+            .clone()
     };
     let check_calculated = |book: &Workbook, first: Option<f64>, last: Option<f64>| {
-        let offset = if book.host().declared_date1904() { 1462.0 } else { 0.0 };
-        let ProjectedValue::Calculated { value: now, .. } = value(book, 1) else { panic!("NOW must be calculated: {:?}", value(book, 1)); };
-        let ProjectedValue::Calculated { value: today, .. } = value(book, 2) else { panic!("TODAY must be calculated: {:?}", value(book, 2)); };
+        let offset = if book.host().declared_date1904() {
+            1462.0
+        } else {
+            0.0
+        };
+        let ProjectedValue::Calculated { value: now, .. } = value(book, 1) else {
+            panic!("NOW must be calculated: {:?}", value(book, 1));
+        };
+        let ProjectedValue::Calculated { value: today, .. } = value(book, 2) else {
+            panic!("TODAY must be calculated: {:?}", value(book, 2));
+        };
         let now = now.as_number().expect("NOW produces a numeric clock value");
         assert_eq!(today.as_number(), Some(now.floor()));
-        if let (Some(first), Some(last)) = (first, last) { assert!((first.min(last)..=first.max(last)).contains(&(now + offset)), "{first} <= {now} + {offset} <= {last}"); }
-        else { assert_eq!(now, 45000.25 - offset); }
+        if let (Some(first), Some(last)) = (first, last) {
+            assert!(
+                (first.min(last)..=first.max(last)).contains(&(now + offset)),
+                "{first} <= {now} + {offset} <= {last}"
+            );
+        } else {
+            assert_eq!(now, 45000.25 - offset);
+        }
     };
     for date1904 in [false, true] {
         for manual in [false, true] {
@@ -923,14 +1122,21 @@ fn browser_clock_open_and_explicit_calculate_preserve_manual_file_caches() {
             let last = dna_formula_ui::web::serial_clock();
             assert_eq!(book.host().declared_date1904(), date1904);
             if manual {
-                assert!(matches!(value(&book, 1), ProjectedValue::FileCached(cache) if cache.value().to_value().as_number() == Some(1.25)));
+                assert!(
+                    matches!(value(&book, 1), ProjectedValue::FileCached(cache) if cache.value().to_value().as_number() == Some(1.25))
+                );
                 let clock = book.host().entry_environment().now;
                 let (saved, _) = book.save().unwrap();
                 assert_eq!(book.host().entry_environment().now, clock);
                 let reopened = Workbook::open("clock.xlsx", saved).unwrap();
-                assert!(matches!(value(&reopened, 1), ProjectedValue::FileCached(cache) if cache.value().to_value().as_number() == Some(1.25)));
-            } else if first.is_some() { check_calculated(&book, first, last); }
-            else { assert!(matches!(value(&book, 1), ProjectedValue::NotModeled { .. })); }
+                assert!(
+                    matches!(value(&reopened, 1), ProjectedValue::FileCached(cache) if cache.value().to_value().as_number() == Some(1.25))
+                );
+            } else if first.is_some() {
+                check_calculated(&book, first, last);
+            } else {
+                assert!(matches!(value(&book, 1), ProjectedValue::NotModeled { .. }));
+            }
             book.session.set_clock(Some(45000.25));
             let first = dna_formula_ui::web::serial_clock();
             assert!(book.dispatch(SkinIntent::Recalculate).accepted());
@@ -938,7 +1144,10 @@ fn browser_clock_open_and_explicit_calculate_preserve_manual_file_caches() {
             check_calculated(&book, first, last);
             let clock = book.host().entry_environment().now;
             let before = value(&book, 1);
-            let refused = book.dispatch(SkinIntent::Calculate { scope: calc_host::CalcScope::Workbook, selection: calc_host::EvalSelection::FormulaEntry });
+            let refused = book.dispatch(SkinIntent::Calculate {
+                scope: calc_host::CalcScope::Workbook,
+                selection: calc_host::EvalSelection::FormulaEntry,
+            });
             assert!(!refused.accepted());
             assert_eq!(book.host().entry_environment().now, clock);
             assert_eq!(value(&book, 1), before);

@@ -42,7 +42,9 @@
 //! in the witness and corpus reports.
 //!
 
-use crate::ported::excel_numeric::{excel_exp, excel_log, excel_x87_add, excel_x87_div, excel_x87_mul, excel_x87_sub};
+use crate::ported::excel_numeric::{
+    excel_exp, excel_log, excel_x87_add, excel_x87_div, excel_x87_mul, excel_x87_sub,
+};
 use crate::value::WorksheetErrorCode;
 use core::ops::{Add, Div, Mul, Neg, Sub};
 
@@ -53,7 +55,11 @@ struct D<const STORED_PC64: bool = false>(f64);
 
 impl<const STORED_PC64: bool> D<STORED_PC64> {
     fn new(v: f64) -> Self {
-        if v.is_subnormal() { D(0.0f64.copysign(v)) } else { D(v) }
+        if v.is_subnormal() {
+            D(0.0f64.copysign(v))
+        } else {
+            D(v)
+        }
     }
     fn abs(self) -> Self {
         D(self.0.abs())
@@ -108,20 +114,70 @@ type R = Result<D, WorksheetErrorCode>;
 
 // --- I0, I1, K0, K1: A&S 9.8.1 to 9.8.8 -------------------------------------------------------
 
-const I0_SMALL: [f64; 7] = [1.0, 3.5156229, 3.0899424, 1.2067492, 0.2659732, 0.0360768, 0.0045813];
+const I0_SMALL: [f64; 7] = [
+    1.0, 3.5156229, 3.0899424, 1.2067492, 0.2659732, 0.0360768, 0.0045813,
+];
 const I0_LARGE: [f64; 9] = [
-    0.39894228, 0.01328592, 0.00225319, -0.00157565, 0.00916281, -0.02057706, 0.02635537, -0.01647633,
+    0.39894228,
+    0.01328592,
+    0.00225319,
+    -0.00157565,
+    0.00916281,
+    -0.02057706,
+    0.02635537,
+    -0.01647633,
     0.00392377,
 ];
-const I1_SMALL: [f64; 7] = [0.5, 0.87890594, 0.51498869, 0.15084934, 0.02658733, 0.00301532, 0.00032411];
+const I1_SMALL: [f64; 7] = [
+    0.5, 0.87890594, 0.51498869, 0.15084934, 0.02658733, 0.00301532, 0.00032411,
+];
 const I1_LARGE: [f64; 9] = [
-    0.39894228, -0.03988024, -0.00362018, 0.00163801, -0.01031555, 0.02282967, -0.02895312, 0.01787654,
+    0.39894228,
+    -0.03988024,
+    -0.00362018,
+    0.00163801,
+    -0.01031555,
+    0.02282967,
+    -0.02895312,
+    0.01787654,
     -0.00420059,
 ];
-const K0_SMALL: [f64; 7] = [-0.57721566, 0.42278420, 0.23069756, 0.03488590, 0.00262698, 0.00010750, 0.00000740];
-const K0_LARGE: [f64; 7] = [1.25331414, -0.07832358, 0.02189568, -0.01062446, 0.00587872, -0.00251540, 0.00053208];
-const K1_SMALL: [f64; 7] = [1.0, 0.15443144, -0.67278579, -0.18156897, -0.01919402, -0.00110404, -0.00004686];
-const K1_LARGE: [f64; 7] = [1.25331414, 0.23498619, -0.03655620, 0.01504268, -0.00780353, 0.00325614, -0.00068245];
+const K0_SMALL: [f64; 7] = [
+    -0.57721566,
+    0.42278420,
+    0.23069756,
+    0.03488590,
+    0.00262698,
+    0.00010750,
+    0.00000740,
+];
+const K0_LARGE: [f64; 7] = [
+    1.25331414,
+    -0.07832358,
+    0.02189568,
+    -0.01062446,
+    0.00587872,
+    -0.00251540,
+    0.00053208,
+];
+const K1_SMALL: [f64; 7] = [
+    1.0,
+    0.15443144,
+    -0.67278579,
+    -0.18156897,
+    -0.01919402,
+    -0.00110404,
+    -0.00004686,
+];
+const K1_LARGE: [f64; 7] = [
+    1.25331414,
+    0.23498619,
+    -0.03655620,
+    0.01504268,
+    -0.00780353,
+    0.00325614,
+    -0.00068245,
+];
 
 fn i0<const S: bool>(x: D<S>) -> D<S> {
     let ax = x.abs();
@@ -181,44 +237,78 @@ fn j0(x: D) -> R {
     admit_phase(x, 0.785398164)?;
     if x.0.abs() < 8.0 {
         let value = super::bessel_rational::j0(x.0);
-        return if value.is_finite() { Ok(D::new(value)) } else { Err(WorksheetErrorCode::Num) };
+        return if value.is_finite() {
+            Ok(D::new(value))
+        } else {
+            Err(WorksheetErrorCode::Num)
+        };
     }
     let value = super::bessel_rational::j0_large(x.0);
-    if value.is_finite() { Ok(D::new(value)) } else { Err(WorksheetErrorCode::Num) }
+    if value.is_finite() {
+        Ok(D::new(value))
+    } else {
+        Err(WorksheetErrorCode::Num)
+    }
 }
 fn j1(x: D) -> R {
     admit_phase(x, 2.356194491)?;
     if x.0.abs() < 8.0 {
         let value = super::bessel_rational::j1(x.0);
-        return if value.is_finite() { Ok(D::new(value)) } else { Err(WorksheetErrorCode::Num) };
+        return if value.is_finite() {
+            Ok(D::new(value))
+        } else {
+            Err(WorksheetErrorCode::Num)
+        };
     }
     let value = super::bessel_rational::j1_large(x.0);
-    if value.is_finite() { Ok(D::new(value)) } else { Err(WorksheetErrorCode::Num) }
+    if value.is_finite() {
+        Ok(D::new(value))
+    } else {
+        Err(WorksheetErrorCode::Num)
+    }
 }
 fn y0(x: D) -> R {
     admit_phase(x, 0.785398164)?;
     if x.0 >= 8.0 {
         let value = super::bessel_rational::y0_large(x.0);
-        return if value.is_finite() { Ok(D::new(value)) } else { Err(WorksheetErrorCode::Num) };
+        return if value.is_finite() {
+            Ok(D::new(value))
+        } else {
+            Err(WorksheetErrorCode::Num)
+        };
     }
 
     if x.0 > 0.0 && x.0 < 8.0 {
         let value = super::bessel_rational::y0(x.0);
-        return if value.is_finite() { Ok(D::new(value)) } else { Err(WorksheetErrorCode::Num) };
+        return if value.is_finite() {
+            Ok(D::new(value))
+        } else {
+            Err(WorksheetErrorCode::Num)
+        };
     }
- Ok(D::new(libm::y0(x.0))) }
+    Ok(D::new(libm::y0(x.0)))
+}
 fn y1(x: D) -> R {
     admit_phase(x, 2.356194491)?;
     if x.0 >= 8.0 {
         let value = super::bessel_rational::y1_large(x.0);
-        return if value.is_finite() { Ok(D::new(value)) } else { Err(WorksheetErrorCode::Num) };
+        return if value.is_finite() {
+            Ok(D::new(value))
+        } else {
+            Err(WorksheetErrorCode::Num)
+        };
     }
 
     if x.0 > 0.0 && x.0 < 8.0 {
         let value = super::bessel_rational::y1(x.0);
-        return if value.is_finite() { Ok(D::new(value)) } else { Err(WorksheetErrorCode::Num) };
+        return if value.is_finite() {
+            Ok(D::new(value))
+        } else {
+            Err(WorksheetErrorCode::Num)
+        };
     }
- Ok(D::new(libm::y1(x.0))) }
+    Ok(D::new(libm::y1(x.0)))
+}
 
 // --- orders two and up --------------------------------------------------------------------------
 
@@ -254,7 +344,9 @@ fn forward<const S: bool>(x: D<S>, n: u32, c0: D<S>, c1: D<S>, plus: bool) -> D<
 #[cfg(test)]
 fn i_series(x: D, n: u32) -> D {
     let half = x.abs().0 / 2.0;
-    if half == 0.0 { return D(0.0); }
+    if half == 0.0 {
+        return D(0.0);
+    }
     let leading_log = (n as f64) * libm::log(half) - libm::lgamma(n as f64 + 1.0);
     let maximum_log = libm::log(f64::MAX);
     if leading_log > maximum_log {
@@ -280,14 +372,18 @@ fn i_series(x: D, n: u32) -> D {
             log_scale += std::f64::consts::LN_2;
         }
         let next = sum + term;
-        if !next.is_finite() { return D(next); }
+        if !next.is_finite() {
+            return D(next);
+        }
         // Every term is positive: an overflowing partial result proves that
         // the complete sum overflows. Rescaling alone would keep iterating
         // long after the represented Bessel value has exceeded binary64.
         if leading_log + log_scale + libm::log(next) > maximum_log {
             return D(f64::INFINITY);
         }
-        if next == sum { break; }
+        if next == sum {
+            break;
+        }
         sum = next;
     }
     D::new(libm::exp(leading_log + log_scale + libm::log(sum)))
@@ -299,12 +395,18 @@ fn odd_sign(x: D, n: u32, v: D) -> D {
 
 fn finish(v: R) -> Result<f64, WorksheetErrorCode> {
     let v = v?.0;
-    if v.is_finite() { Ok(v) } else { Err(WorksheetErrorCode::Num) }
+    if v.is_finite() {
+        Ok(v)
+    } else {
+        Err(WorksheetErrorCode::Num)
+    }
 }
 
 /// `BESSELJ(x, n)`.
 pub fn besselj_kernel(x: f64, n: f64) -> Result<f64, WorksheetErrorCode> {
-    if !x.is_finite() { return Err(WorksheetErrorCode::Num); }
+    if !x.is_finite() {
+        return Err(WorksheetErrorCode::Num);
+    }
     let n = order(n)?;
     let x = D::new(x);
     finish(match n {
@@ -313,7 +415,11 @@ pub fn besselj_kernel(x: f64, n: f64) -> Result<f64, WorksheetErrorCode> {
         _ if x.0 == 0.0 => Ok(D(0.0)),
         _ => {
             let ax = x.abs();
-            let v = if ax.0 > n as f64 { forward(ax, n, j0(ax)?, j1(ax)?, false) } else { D::new(super::bessel_rational::jn(n as i32, ax.0)) };
+            let v = if ax.0 > n as f64 {
+                forward(ax, n, j0(ax)?, j1(ax)?, false)
+            } else {
+                D::new(super::bessel_rational::jn(n as i32, ax.0))
+            };
             Ok(odd_sign(x, n, v))
         }
     })
@@ -321,7 +427,9 @@ pub fn besselj_kernel(x: f64, n: f64) -> Result<f64, WorksheetErrorCode> {
 
 /// `BESSELY(x, n)`.
 pub fn bessely_kernel(x: f64, n: f64) -> Result<f64, WorksheetErrorCode> {
-    if !x.is_finite() { return Err(WorksheetErrorCode::Num); }
+    if !x.is_finite() {
+        return Err(WorksheetErrorCode::Num);
+    }
     let n = order(n)?;
     let x = D::new(x);
     if !(x.0 > 0.0) {
@@ -340,7 +448,9 @@ pub fn besseli_kernel(x: f64, n: f64) -> Result<f64, WorksheetErrorCode> {
     // measurements at orders 0, 1, 2, 3, 10 and 100. Higher orders still need
     // Excel measurements; a representable series value alone cannot settle
     // their admission. EXP itself admits larger x.
-    if !x.is_finite() || x.abs() > 709.7 { return Err(WorksheetErrorCode::Num); }
+    if !x.is_finite() || x.abs() > 709.7 {
+        return Err(WorksheetErrorCode::Num);
+    }
     let n = order(n)?;
     let x = D::new(x);
     finish(Ok(match n {
@@ -350,14 +460,20 @@ pub fn besseli_kernel(x: f64, n: f64) -> Result<f64, WorksheetErrorCode> {
         _ => {
             let ax = x.abs();
             let normalizer = super::bessel_rational::i0(ax.0, &I0_SMALL, &I0_LARGE);
-            odd_sign(x, n, D::new(super::bessel_rational::in_(n, ax.0, normalizer)))
-        },
+            odd_sign(
+                x,
+                n,
+                D::new(super::bessel_rational::in_(n, ax.0, normalizer)),
+            )
+        }
     }))
 }
 
 /// `BESSELK(x, n)`.
 pub fn besselk_kernel(x: f64, n: f64) -> Result<f64, WorksheetErrorCode> {
-    if !x.is_finite() { return Err(WorksheetErrorCode::Num); }
+    if !x.is_finite() {
+        return Err(WorksheetErrorCode::Num);
+    }
     let n = order(n)?;
     let x: D<true> = D::new(x);
     if !(x.0 > 0.0) {
@@ -394,8 +510,10 @@ mod tests {
             (7000.0, 10000.0, 9.241488714987718e284),
         ] {
             let got = i_series(D(x), n as u32).0;
-            assert!((got - expected).abs() <= expected.abs() * 2e-11,
-                "I_{n}({x}): {got:e}, mathematical {expected:e}");
+            assert!(
+                (got - expected).abs() <= expected.abs() * 2e-11,
+                "I_{n}({x}): {got:e}, mathematical {expected:e}"
+            );
         }
         assert_eq!(besseli_kernel(f64::NAN, 2.0), Err(WorksheetErrorCode::Num));
         // The positive partial sum already exceeds MAX at term 14. This must
@@ -406,13 +524,33 @@ mod tests {
     #[cfg_attr(not(target_arch = "wasm32"), test)]
     #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
     fn spot_values_record_exact_controls_and_known_gaps() {
-        assert_eq!(besselj_kernel(1.9, 2.0).unwrap().to_bits(), 0x3fd51d81390f83eb, "recorded Excel excel(0x3fd51d81390f83eb)");
+        assert_eq!(
+            besselj_kernel(1.9, 2.0).unwrap().to_bits(),
+            0x3fd51d81390f83eb,
+            "recorded Excel excel(0x3fd51d81390f83eb)"
+        );
         assert_eq!(besseli_kernel(1.5, 1.0), Ok(excel(0x3fef69cfb6bc3907)));
         assert_eq!(besselk_kernel(1.5, 1.0), Ok(excel(0x3fd1c0b8c63a3a82)));
-        assert_eq!(bessely_kernel(100.0, 1.0).unwrap().to_bits(), 0xbf94dc7ab5ff838f, "recorded Excel -0.020372311933786909");
-        assert_eq!(bessely_kernel(0.5, 0.0).unwrap().to_bits(), 0xbfdc72feb3fe171f, "recorded Excel -0.44451873376270784");
-        assert_eq!(besselj_kernel(0.0, 0.0).unwrap().to_bits(), 0x3ff0000000c292b1, "recorded Excel 1.00000000283141");
-        assert_eq!(besselj_kernel(-2.5, 1.0).unwrap().to_bits(), 0xbfdfd063c8529f24, "recorded Excel -0.49709410250442176");
+        assert_eq!(
+            bessely_kernel(100.0, 1.0).unwrap().to_bits(),
+            0xbf94dc7ab5ff838f,
+            "recorded Excel -0.020372311933786909"
+        );
+        assert_eq!(
+            bessely_kernel(0.5, 0.0).unwrap().to_bits(),
+            0xbfdc72feb3fe171f,
+            "recorded Excel -0.44451873376270784"
+        );
+        assert_eq!(
+            besselj_kernel(0.0, 0.0).unwrap().to_bits(),
+            0x3ff0000000c292b1,
+            "recorded Excel 1.00000000283141"
+        );
+        assert_eq!(
+            besselj_kernel(-2.5, 1.0).unwrap().to_bits(),
+            0xbfdfd063c8529f24,
+            "recorded Excel -0.49709410250442176"
+        );
         assert_eq!(besseli_kernel(-2.5, 1.0), Ok(-2.5167162420253608));
         assert_eq!(besselk_kernel(700.0, 2.0), besselk_kernel(700.0, 0.0));
         assert_eq!(besselk_kernel(706.0, 0.0), Ok(0.0));
@@ -428,9 +566,16 @@ mod tests {
         assert_eq!(besselj_kernel(5.0, 10_000_000.5), Ok(0.0));
         assert_eq!(bessely_kernel(0.0, 1.0), Err(Num));
         assert_eq!(besselk_kernel(-1.0, 1.0), Err(Num));
-        assert_eq!(besselj_kernel(134217728.0, 0.0), Err(Num), "original recorded Excel NUM");
-        assert_eq!(besselj_kernel(134217727.5, 0.0).unwrap().to_bits(), 0xbf03e23978ae0497,
-            "original Excel20527 reading r16-besselj-015 at the admitted phase boundary");
+        assert_eq!(
+            besselj_kernel(134217728.0, 0.0),
+            Err(Num),
+            "original recorded Excel NUM"
+        );
+        assert_eq!(
+            besselj_kernel(134217727.5, 0.0).unwrap().to_bits(),
+            0xbf03e23978ae0497,
+            "original Excel20527 reading r16-besselj-015 at the admitted phase boundary"
+        );
         assert_eq!(besseli_kernel(709.78, 0.0), Err(Num));
         // Original Excel NUM reading; the published backward program agrees.
         assert_eq!(besselj_kernel(1e-300, 2.0), Err(Num));

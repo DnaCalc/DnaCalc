@@ -39,7 +39,9 @@ use crate::kernel::{Exit, Site, Step};
 use crate::value::{CalcValue, CoreRef};
 use std::cmp::Ordering;
 
-use calc_catalogue::operators::comparison::{CODE, ENTRIES as DECLARATIONS, EQUAL, NOT_EQUAL, LESS, LESS_OR_EQUAL, GREATER, GREATER_OR_EQUAL};
+use calc_catalogue::operators::comparison::{
+    CODE, ENTRIES as DECLARATIONS, EQUAL, GREATER, GREATER_OR_EQUAL, LESS, LESS_OR_EQUAL, NOT_EQUAL,
+};
 
 attach_eager_family! {
     code: CODE; declarations: DECLARATIONS;

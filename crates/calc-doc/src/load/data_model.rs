@@ -34,43 +34,69 @@ pub(crate) fn read(package: &Package, workbook: &str) -> Result<Option<DataModel
     while let Some(event) = events.next()? {
         match event {
             XmlEvent::Start(element) => {
-                if path.len() == 1 && path[0].is(super::MAIN_NAMESPACE, "connections")
-                    && element.name.is(super::MAIN_NAMESPACE, "connection") {
-                    current_connection_id = element.attribute("id").and_then(|id| id.parse::<u32>().ok()).filter(|id| *id != 0);
+                if path.len() == 1
+                    && path[0].is(super::MAIN_NAMESPACE, "connections")
+                    && element.name.is(super::MAIN_NAMESPACE, "connection")
+                {
+                    current_connection_id = element
+                        .attribute("id")
+                        .and_then(|id| id.parse::<u32>().ok())
+                        .filter(|id| *id != 0);
                     current_is_model_type = element.attribute("type") == Some("5");
-                    if let Some(id) = current_connection_id { *connection_ids.entry(id).or_default() += 1; }
+                    if let Some(id) = current_connection_id {
+                        *connection_ids.entry(id).or_default() += 1;
+                    }
                 }
-                if path.len() == 3 && path[0].is(super::MAIN_NAMESPACE, "connections")
-                    && path[1].is(super::MAIN_NAMESPACE, "connection") && path[2].is(super::MAIN_NAMESPACE, "extLst")
-                    && element.name.is(super::MAIN_NAMESPACE, "ext") {
+                if path.len() == 3
+                    && path[0].is(super::MAIN_NAMESPACE, "connections")
+                    && path[1].is(super::MAIN_NAMESPACE, "connection")
+                    && path[2].is(super::MAIN_NAMESPACE, "extLst")
+                    && element.name.is(super::MAIN_NAMESPACE, "ext")
+                {
                     model_extension_uri = element.attribute("uri") == Some(MODEL_EXTENSION);
                 }
                 if element.name.local == "connection" {
                     if element.attribute("model") == Some("1") {
                         model_connections += 1;
-                        let model_extension = path.len() == 4 && path[0].is(super::MAIN_NAMESPACE, "connections")
+                        let model_extension = path.len() == 4
+                            && path[0].is(super::MAIN_NAMESPACE, "connections")
                             && path[1].is(super::MAIN_NAMESPACE, "connection")
-                            && path[2].is(super::MAIN_NAMESPACE, "extLst") && path[3].is(super::MAIN_NAMESPACE, "ext");
-                        model.model_connection_id = if model_extension && model_extension_uri && current_is_model_type && !from_worksheet
-                            && element.attribute("name").is_none() && element.name.is(X15, "connection") {
+                            && path[2].is(super::MAIN_NAMESPACE, "extLst")
+                            && path[3].is(super::MAIN_NAMESPACE, "ext");
+                        model.model_connection_id = if model_extension
+                            && model_extension_uri
+                            && current_is_model_type
+                            && !from_worksheet
+                            && element.attribute("name").is_none()
+                            && element.name.is(X15, "connection")
+                        {
                             current_connection_id
-                        } else { None };
+                        } else {
+                            None
+                        };
                     }
                     if let Some(name) = element.attribute("name") {
                         model.connections.push(name.to_owned());
-                        connection_types.push((name.to_owned(), element.attribute("type").map(str::to_owned)));
+                        connection_types.push((
+                            name.to_owned(),
+                            element.attribute("type").map(str::to_owned),
+                        ));
                         // A worksheet table feeding the model: `x15:connection id` names it.
                         from_worksheet = element.attribute("type") == Some("102");
                     } else if from_worksheet && let Some(id) = element.attribute("id") {
                         model.tables.push(id.to_owned());
-                    } else if element.attribute("model") == Some("1") && let Some(last) = model.connections.last() {
+                    } else if element.attribute("model") == Some("1")
+                        && let Some(last) = model.connections.last()
+                    {
                         model.model_connection = Some(last.clone());
                     }
                 }
                 path.push(element.name);
             }
             XmlEvent::End(name) => {
-                if path.len() == 4 && name.is(super::MAIN_NAMESPACE, "ext") { model_extension_uri = false; }
+                if path.len() == 4 && name.is(super::MAIN_NAMESPACE, "ext") {
+                    model_extension_uri = false;
+                }
                 if path.len() == 2 && name.is(super::MAIN_NAMESPACE, "connection") {
                     current_connection_id = None;
                     current_is_model_type = false;
@@ -80,12 +106,23 @@ pub(crate) fn read(package: &Package, workbook: &str) -> Result<Option<DataModel
             XmlEvent::Text(_) => {}
         }
     }
-    if model_connections != 1 || model.model_connection_id.is_none_or(|id| connection_ids.get(&id) != Some(&1)) {
+    if model_connections != 1
+        || model
+            .model_connection_id
+            .is_none_or(|id| connection_ids.get(&id) != Some(&1))
+    {
         model.model_connection_id = None;
     }
-    model.other_connections = connection_types.into_iter().filter(|(name, kind)| {
-        kind.as_deref() != Some("102") && model.model_connection.as_ref().is_none_or(|model_name| !calc_doc_model::value::workbook_names_equal(name, model_name))
-    }).map(|(name, _)| name).collect();
+    model.other_connections = connection_types
+        .into_iter()
+        .filter(|(name, kind)| {
+            kind.as_deref() != Some("102")
+                && model.model_connection.as_ref().is_none_or(|model_name| {
+                    !calc_doc_model::value::workbook_names_equal(name, model_name)
+                })
+        })
+        .map(|(name, _)| name)
+        .collect();
     if model.model_connection.is_some()
         && let Some(part) = super::metadata::related(package, workbook, "/powerPivotData")
         && let Ok(bytes) = package.read_part(&part)
@@ -231,9 +268,8 @@ fn lz77(block: &[u8], plain: usize, out: &mut Vec<u8>) -> Option<()> {
                 length = usize::from(*block.get(at)?);
                 at += 1;
                 if length == 255 {
-                    length = usize::from(u16::from_le_bytes(
-                        block.get(at..at + 2)?.try_into().ok()?,
-                    ));
+                    length =
+                        usize::from(u16::from_le_bytes(block.get(at..at + 2)?.try_into().ok()?));
                     at += 2;
                     if length == 0 {
                         length = usize::try_from(u32::from_le_bytes(

@@ -10,10 +10,10 @@
 // Case names are fixed identities of the form `<bead>__<case>`.
 #![allow(non_snake_case)]
 
-#[allow(dead_code)]
-mod chost_m1_1_support;
 #[path = "../../calc-engine/tests/fixtures/seven_cell_async.rs"]
 mod async_provider;
+#[allow(dead_code)]
+mod chost_m1_1_support;
 
 use calc_host::value::{CellKey, CoreRef, WorksheetErrorCode};
 use calc_host::{
@@ -710,17 +710,43 @@ fn dc_ylr__transitive_workbooks_refresh_and_disconnect_without_reusing_old_proof
             .value(),
         ProjectedValue::Calculated { .. }
     ));
-    let save = domain.begin_save(target, &calc_host::SavePolicy::default(), calc_host::ExcelSaveContext {
-        operation:calc_host::SaveOperation::Save, calculate_before_save:true, active_sheet:at.sheet(),
-        disabled_sheets:&[], before_save:None,
-    }).unwrap();
+    let save = domain
+        .begin_save(
+            target,
+            &calc_host::SavePolicy::default(),
+            calc_host::ExcelSaveContext {
+                operation: calc_host::SaveOperation::Save,
+                calculate_before_save: true,
+                active_sheet: at.sheet(),
+                disabled_sheets: &[],
+                before_save: None,
+            },
+        )
+        .unwrap();
     drain_domain(&mut domain, WorkBudget::evaluations(1));
     assert_eq!(shown_value(domain.host(target).unwrap(), at), "17");
-    let image=domain.take_save(save).unwrap();
-    let mut bytes=Vec::new();image.write(&mut bytes).unwrap();
-    let reopened=HostState::open(Arc::new(MemorySource::new(bytes)),&OpenPolicy::default(),HostOptions { calc_mode:Some(CalcMode::Manual),..Default::default() }).unwrap();
-    let page=project(&reopened,&ProjectionRequest { cells:vec![CellKey::new(reopened.sheets()[0].id(),1,1).unwrap()] }).unwrap();
-    assert!(matches!(page.cells()[0].value(),ProjectedValue::FileCached(cache) if cache.value().to_value().as_number()==Some(17.0)));
+    let image = domain.take_save(save).unwrap();
+    let mut bytes = Vec::new();
+    image.write(&mut bytes).unwrap();
+    let reopened = HostState::open(
+        Arc::new(MemorySource::new(bytes)),
+        &OpenPolicy::default(),
+        HostOptions {
+            calc_mode: Some(CalcMode::Manual),
+            ..Default::default()
+        },
+    )
+    .unwrap();
+    let page = project(
+        &reopened,
+        &ProjectionRequest {
+            cells: vec![CellKey::new(reopened.sheets()[0].id(), 1, 1).unwrap()],
+        },
+    )
+    .unwrap();
+    assert!(
+        matches!(page.cells()[0].value(),ProjectedValue::FileCached(cache) if cache.value().to_value().as_number()==Some(17.0))
+    );
     domain.request_rebuild(&[target]).unwrap();
     drain_domain(&mut domain, WorkBudget::evaluations(1));
     assert_eq!(shown_value(domain.host(target).unwrap(), at), "17");
@@ -790,64 +816,135 @@ fn contract_p06_save_false_does_not_invalidate_unchanged_linked_consumers() {
 #[cfg_attr(not(target_arch = "wasm32"), test)]
 #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
 fn contract_p06_domain_save_refuses_a_changed_cut_without_reentering_a_live_async_prefix() {
-    use std::{cell::RefCell,rc::Rc};
-    let mut source=source_sheet(r#"<c r="A1"><f>NOW()</f></c>"#);
-    source.set_clock(Some(1.0));calc_host::calculate(&mut source);
-    while matches!(step(&mut source,WorkBudget::UNLIMITED,&mut Unobserved),HostProgress::Calculating {..}|HostProgress::Published(_)) {}
-    let target=source_sheet(r#"<c r="A1"><f>AsyncEcho(1)+[1]Sheet1!A1</f></c>"#);
-    let mut domain=calc_host::CalculationDomain::new();
-    let source=domain.insert(source).unwrap();let target=domain.insert(target).unwrap();
-    domain.connect(target,1,source).unwrap();
-    let pin=domain.host(source).unwrap().linked_snapshot();
-    let counts=Rc::new(RefCell::new(async_provider::Counts::default()));
-    let host=domain.host_mut(target).unwrap();
-    let mut functions=calc_fml::CallableTable::new();
-    functions.register("AsyncEcho",Rc::new(async_provider::Echo(counts.clone()))).unwrap();
-    host.set_user_functions(functions);host.set_linked_workbook(1,Some(pin)).unwrap();
+    use std::{cell::RefCell, rc::Rc};
+    let mut source = source_sheet(r#"<c r="A1"><f>NOW()</f></c>"#);
+    source.set_clock(Some(1.0));
+    calc_host::calculate(&mut source);
+    while matches!(
+        step(&mut source, WorkBudget::UNLIMITED, &mut Unobserved),
+        HostProgress::Calculating { .. } | HostProgress::Published(_)
+    ) {}
+    let target = source_sheet(r#"<c r="A1"><f>AsyncEcho(1)+[1]Sheet1!A1</f></c>"#);
+    let mut domain = calc_host::CalculationDomain::new();
+    let source = domain.insert(source).unwrap();
+    let target = domain.insert(target).unwrap();
+    domain.connect(target, 1, source).unwrap();
+    let pin = domain.host(source).unwrap().linked_snapshot();
+    let counts = Rc::new(RefCell::new(async_provider::Counts::default()));
+    let host = domain.host_mut(target).unwrap();
+    let mut functions = calc_fml::CallableTable::new();
+    functions
+        .register("AsyncEcho", Rc::new(async_provider::Echo(counts.clone())))
+        .unwrap();
+    host.set_user_functions(functions);
+    host.set_linked_workbook(1, Some(pin)).unwrap();
     calc_host::calculate(host);
     for _ in 0..1000 {
-        step(host,WorkBudget::evaluations(1),&mut Unobserved);
-        if !host.pending_async().is_empty() {break;}
-    }
-    let token=host.pending_async()[0].clone();let s=host.sheets()[0].id();
-    assert_eq!(counts.borrow().prefix,1);
-    let save=domain.begin_save(target,&calc_host::SavePolicy::default(),calc_host::ExcelSaveContext { operation:calc_host::SaveOperation::Save,calculate_before_save:true,active_sheet:s,disabled_sheets:&[],before_save:None }).unwrap();
-    let mut failed=false;
-    for _ in 0..1000 {
-        match domain.advance(WorkBudget::evaluations(1)) {
-            calc_host::DomainProgress::Failed {..} => {failed=true;break;},
-            calc_host::DomainProgress::Complete | calc_host::DomainProgress::Waiting {..} => break,
-            _=>{},
+        step(host, WorkBudget::evaluations(1), &mut Unobserved);
+        if !host.pending_async().is_empty() {
+            break;
         }
     }
-    assert!(failed,"a changed producing source command cannot retarget the parked invocation");
+    let token = host.pending_async()[0].clone();
+    let s = host.sheets()[0].id();
+    assert_eq!(counts.borrow().prefix, 1);
+    let save = domain
+        .begin_save(
+            target,
+            &calc_host::SavePolicy::default(),
+            calc_host::ExcelSaveContext {
+                operation: calc_host::SaveOperation::Save,
+                calculate_before_save: true,
+                active_sheet: s,
+                disabled_sheets: &[],
+                before_save: None,
+            },
+        )
+        .unwrap();
+    let mut failed = false;
+    for _ in 0..1000 {
+        match domain.advance(WorkBudget::evaluations(1)) {
+            calc_host::DomainProgress::Failed { .. } => {
+                failed = true;
+                break;
+            }
+            calc_host::DomainProgress::Complete | calc_host::DomainProgress::Waiting { .. } => {
+                break;
+            }
+            _ => {}
+        }
+    }
+    assert!(
+        failed,
+        "a changed producing source command cannot retarget the parked invocation"
+    );
     assert!(domain.take_save(save).is_err());
-    assert!(matches!(domain.complete_async(target,&token,calc_host::value::CalcValue::number(40.0)).unwrap(),calc_host::AsyncDisposition::Rejected(_)));
-    assert_eq!((counts.borrow().prefix,counts.borrow().suffix),(1,0));
+    assert!(matches!(
+        domain
+            .complete_async(target, &token, calc_host::value::CalcValue::number(40.0))
+            .unwrap(),
+        calc_host::AsyncDisposition::Rejected(_)
+    ));
+    assert_eq!((counts.borrow().prefix, counts.borrow().suffix), (1, 0));
 }
 
 #[cfg_attr(not(target_arch = "wasm32"), test)]
 #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
 fn dc_hsa5_6__name_diagnostics_never_promote_external_cache_values() {
-    use calc_host::{CellEdit, HostCommand, dispatch};
     use calc_host::value::NameScope;
+    use calc_host::{CellEdit, HostCommand, dispatch};
     let mut host = recalculated(&package());
     let sheet = host.sheets()[0].id();
     let anchor = CellKey::new(sheet, 4, 5).unwrap();
-    let names = [("CacheScalar", "SUM([1]Sheet1!A1)"),
-        ("CacheTransitive", "$A$1+1"), ("CacheReference", "[1]Sheet1!A1")];
+    let names = [
+        ("CacheScalar", "SUM([1]Sheet1!A1)"),
+        ("CacheTransitive", "$A$1+1"),
+        ("CacheReference", "[1]Sheet1!A1"),
+    ];
     let base = host.revision();
-    dispatch(&mut host, HostCommand { base, edits: names.iter().map(|(name, formula)| CellEdit::SetName {
-        name: (*name).into(), scope: NameScope::Workbook, formula: Some((*formula).into()),
-    }).collect() }).unwrap();
+    dispatch(
+        &mut host,
+        HostCommand {
+            base,
+            edits: names
+                .iter()
+                .map(|(name, formula)| CellEdit::SetName {
+                    name: (*name).into(),
+                    scope: NameScope::Workbook,
+                    formula: Some((*formula).into()),
+                })
+                .collect(),
+        },
+    )
+    .unwrap();
     for (name, _) in names {
-        let node = host.model().definitions().name_table().lookup(NameScope::Workbook, name).unwrap();
-        let diagnostic = host.evaluate_name_with_evidence(node.id(), node.binding_version(), anchor).unwrap();
+        let node = host
+            .model()
+            .definitions()
+            .name_table()
+            .lookup(NameScope::Workbook, name)
+            .unwrap();
+        let diagnostic = host
+            .evaluate_name_with_evidence(node.id(), node.binding_version(), anchor)
+            .unwrap();
         if name == "CacheReference" {
-            assert!(diagnostic.evaluation.outcome.unwrap().as_reference().is_some());
-            assert!(matches!(diagnostic.evaluation.invocations[0].result, calc_fml::NameResultKind::Reference { .. }));
+            assert!(
+                diagnostic
+                    .evaluation
+                    .outcome
+                    .unwrap()
+                    .as_reference()
+                    .is_some()
+            );
+            assert!(matches!(
+                diagnostic.evaluation.invocations[0].result,
+                calc_fml::NameResultKind::Reference { .. }
+            ));
         } else {
-            assert!(diagnostic.evaluation.outcome.is_err(), "{name}: cache cannot become an unqualified diagnostic value");
+            assert!(
+                diagnostic.evaluation.outcome.is_err(),
+                "{name}: cache cannot become an unqualified diagnostic value"
+            );
         }
     }
 }
@@ -861,10 +958,18 @@ fn dc_hsa5_6__validation_audits_refuse_cached_subjects_and_criteria() {
     let host = recalculated(&package_with_sheet(&sheet_xml));
     let sheet = host.sheets()[0].id();
     for column in [1, 2, 9, 10] {
-        assert!(matches!(host.validation_status(CellKey::new(sheet, 1, column).unwrap()),
-            Some(ValidationStatus::Unavailable { .. })), "column {column}");
+        assert!(
+            matches!(
+                host.validation_status(CellKey::new(sheet, 1, column).unwrap()),
+                Some(ValidationStatus::Unavailable { .. })
+            ),
+            "column {column}"
+        );
     }
-    assert_eq!(host.validation_status(CellKey::new(sheet, 1, 8).unwrap()), Some(ValidationStatus::Valid));
+    assert_eq!(
+        host.validation_status(CellKey::new(sheet, 1, 8).unwrap()),
+        Some(ValidationStatus::Valid)
+    );
     let scan = host.scan_validation(sheet);
     assert_eq!((scan.checked, scan.valid, scan.unavailable), (5, 1, 4));
     assert!(scan.invalid.is_empty());
@@ -873,34 +978,76 @@ fn dc_hsa5_6__validation_audits_refuse_cached_subjects_and_criteria() {
 #[cfg_attr(not(target_arch = "wasm32"), test)]
 #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
 fn dc_hsa5_6__conditional_colour_filter_refuses_external_cache_decisions_atomically() {
-    use calc_host::{ConditionalChange, FilterChange, HostSession, SkinIntent, WorkbookCommand};
     use calc_host::value::GridArea;
-    let sheet_xml = format!(r#"<worksheet xmlns="{MAIN}"><sheetData><row r="1"><c r="A1"><f>[1]Sheet1!A1</f></c><c r="H1" t="inlineStr"><is><t>Key</t></is></c></row><row r="2"><c r="H2"><v>1</v></c></row><row r="3"><c r="H3"><v>2</v></c></row></sheetData></worksheet>"#);
-    let mut book = HostSession::open(Arc::new(MemorySource::new(package_with_sheet(&sheet_xml))),
-        &OpenPolicy::default(), HostOptions::default()).unwrap();
+    use calc_host::{ConditionalChange, FilterChange, HostSession, SkinIntent, WorkbookCommand};
+    let sheet_xml = format!(
+        r#"<worksheet xmlns="{MAIN}"><sheetData><row r="1"><c r="A1"><f>[1]Sheet1!A1</f></c><c r="H1" t="inlineStr"><is><t>Key</t></is></c></row><row r="2"><c r="H2"><v>1</v></c></row><row r="3"><c r="H3"><v>2</v></c></row></sheetData></worksheet>"#
+    );
+    let mut book = HostSession::open(
+        Arc::new(MemorySource::new(package_with_sheet(&sheet_xml))),
+        &OpenPolicy::default(),
+        HostOptions::default(),
+    )
+    .unwrap();
     assert!(book.dispatch(SkinIntent::Recalculate).accepted());
     let sheet = book.host().sheets()[0].id();
-    let condition = WorkbookCommand::Conditional { sheet, revision: book.host().revision().get(), index: None,
-        change: ConditionalChange::Condition { kind: "expression".into(), applies: "H2:H3".into(),
-            color: "#ff0000".into(), formulas: vec!["$A$1>0".into()], operator: String::new(),
-            rank: 10, percent: false, stop: false } };
+    let condition = WorkbookCommand::Conditional {
+        sheet,
+        revision: book.host().revision().get(),
+        index: None,
+        change: ConditionalChange::Condition {
+            kind: "expression".into(),
+            applies: "H2:H3".into(),
+            color: "#ff0000".into(),
+            formulas: vec!["$A$1>0".into()],
+            operator: String::new(),
+            rank: 10,
+            percent: false,
+            stop: false,
+        },
+    };
     assert!(book.dispatch(SkinIntent::Command(condition)).accepted());
     let first = CellKey::new(sheet, 1, 8).unwrap();
     let last = CellKey::new(sheet, 3, 8).unwrap();
-    let enable = WorkbookCommand::AutoFilter { sheet, revision: book.host().revision().get(),
-        change: FilterChange::Enable { area: GridArea::new(first, last).unwrap() } };
+    let enable = WorkbookCommand::AutoFilter {
+        sheet,
+        revision: book.host().revision().get(),
+        change: FilterChange::Enable {
+            area: GridArea::new(first, last).unwrap(),
+        },
+    };
     assert!(book.dispatch(SkinIntent::Command(enable)).accepted());
-    assert!(book.host().conditional_formats(sheet).look(book.host(), last).is_some(),
-        "historical painting keeps its explicit display policy");
+    assert!(
+        book.host()
+            .conditional_formats(sheet)
+            .look(book.host(), last)
+            .is_some(),
+        "historical painting keeps its explicit display policy"
+    );
     let revision = book.host().revision();
     let history = book.history_depth();
     let styles = book.host().styles().clone();
-    let filter = book.host().model().definitions().auto_filter(sheet).cloned();
-    let receipt = book.dispatch(SkinIntent::Command(WorkbookCommand::AutoFilter { sheet,
-        revision: revision.get(), change: FilterChange::Color { column: 8, cell_color: true, color: "#ff0000".into() } }));
+    let filter = book
+        .host()
+        .model()
+        .definitions()
+        .auto_filter(sheet)
+        .cloned();
+    let receipt = book.dispatch(SkinIntent::Command(WorkbookCommand::AutoFilter {
+        sheet,
+        revision: revision.get(),
+        change: FilterChange::Color {
+            column: 8,
+            cell_color: true,
+            color: "#ff0000".into(),
+        },
+    }));
     assert!(!receipt.accepted(), "{receipt:?}");
     assert_eq!(book.host().revision(), revision);
     assert_eq!(book.history_depth(), history);
     assert_eq!(book.host().styles(), &styles);
-    assert_eq!(book.host().model().definitions().auto_filter(sheet), filter.as_ref());
+    assert_eq!(
+        book.host().model().definitions().auto_filter(sheet),
+        filter.as_ref()
+    );
 }

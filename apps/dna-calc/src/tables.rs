@@ -129,18 +129,30 @@ pub fn controls(controller: Controller) -> AnyView {
     });
     let selected_column = Memo::new(move |_| {
         let index = column.get().parse::<usize>().ok()?.checked_sub(1)?;
-        current(controller).map(|t| (controller.generation.get(), t.part, t.columns.get(index).cloned(), t.column_formulas.get(index).cloned().flatten()))
+        current(controller).map(|t| {
+            (
+                controller.generation.get(),
+                t.part,
+                t.columns.get(index).cloned(),
+                t.column_formulas.get(index).cloned().flatten(),
+            )
+        })
     });
     Effect::new(move |_| {
         let value = selected_column.get();
-        column_name.set(value.as_ref().and_then(|v|v.2.clone()).unwrap_or_default());
-        formula.set(value.and_then(|v|v.3).map(|s|format!("={s}")).unwrap_or_default());
+        column_name.set(value.as_ref().and_then(|v| v.2.clone()).unwrap_or_default());
+        formula.set(
+            value
+                .and_then(|v| v.3)
+                .map(|s| format!("={s}"))
+                .unwrap_or_default(),
+        );
     });
     let selected = move || {
         let t = current(controller)?;
         let area = t.area.area()?;
         let index = column.get_untracked().parse::<u32>().ok()?.checked_sub(1)?;
-        (index < area.column_count()).then_some((t, area.first().column()+index))
+        (index < area.column_count()).then_some((t, area.first().column() + index))
     };
     let create = move || {
         let areas = controller.areas.get_untracked();
@@ -198,34 +210,332 @@ pub fn controls(controller: Controller) -> AnyView {
             },
         );
     };
-    view!{
+    view! {
         <details class="dc-clipboard-tools" name="worksheet-tools" data-dnacalc="table-tools">
             <summary>"Excel table"</summary>
-            <p class="dc-note" data-dnacalc="table-summary">{move ||current(controller).map(|t|format!("{} · {}{}",t.name,t.area.area().map(|a|controller.area_label(a)).unwrap_or_default(),if t.opaque{" · size, headers and totals are read-only"}else{""})).unwrap_or_else(||"Select a rectangle including its header and data rows.".into())}</p>
-            <div class="dc-command-row"><label>"New table name "<input data-dnacalc="table-name" prop:value=move ||name.get() on:input=move |ev|name.set(event_target_value(&ev))/></label><button type="button" data-dnacalc="table-create" on:click=move |_|create()>"Create from selection"</button></div>
-            <Show when=move ||current(controller).is_some()>
-                <div class="dc-command-row"><label>"Rows including header and totals "<input data-dnacalc="table-rows" inputmode="numeric" prop:value=move ||rows.get() placeholder=move ||current(controller).and_then(|t|t.area.area()).map(|a|a.row_count().to_string()).unwrap_or_default() on:input=move |ev|rows.set(event_target_value(&ev))/></label><label>"Columns "<input data-dnacalc="table-columns" inputmode="numeric" prop:value=move ||columns.get() placeholder=move ||current(controller).map(|t|t.columns.len().to_string()).unwrap_or_default() on:input=move |ev|columns.set(event_target_value(&ev))/></label><button data-dnacalc="table-resize" on:click=move |_|resize()>"Resize table"</button></div>
+            <p class="dc-note" data-dnacalc="table-summary">
+                {move || {
+                    current(controller)
+                        .map(|t| {
+                            format!(
+                                "{} · {}{}",
+                                t.name,
+                                t.area.area().map(|a| controller.area_label(a)).unwrap_or_default(),
+                                if t.opaque {
+                                    " · size, headers and totals are read-only"
+                                } else {
+                                    ""
+                                },
+                            )
+                        })
+                        .unwrap_or_else(|| {
+                            "Select a rectangle including its header and data rows.".into()
+                        })
+                }}
+            </p>
+            <div class="dc-command-row">
+                <label>
+                    "New table name "
+                    <input
+                        data-dnacalc="table-name"
+                        prop:value=move || name.get()
+                        on:input=move |ev| name.set(event_target_value(&ev))
+                    />
+                </label>
+                <button type="button" data-dnacalc="table-create" on:click=move |_| create()>
+                    "Create from selection"
+                </button>
+            </div>
+            <Show when=move || current(controller).is_some()>
                 <div class="dc-command-row">
-                    <label><input type="checkbox" data-dnacalc="table-headers" prop:checked=move ||current(controller).is_some_and(|t|t.headers) on:change=move |_|options(controller,"headers",String::new())/>"Header row"</label>
-                    <label><input type="checkbox" data-dnacalc="table-totals" prop:checked=move ||current(controller).is_some_and(|t|t.totals) on:change=move |_|options(controller,"totals",String::new())/>"Total row"</label>
-                    <label><input type="checkbox" data-dnacalc="table-bands" prop:checked=move ||current(controller).is_some_and(|t|t.row_stripes) on:change=move |_|options(controller,"rows",String::new())/>"Banded rows"</label>
-                    <label><input type="checkbox" data-dnacalc="table-column-bands" prop:checked=move ||current(controller).is_some_and(|t|t.column_stripes) on:change=move |_|options(controller,"columns",String::new())/>"Banded columns"</label>
-                    <label><input type="checkbox" data-dnacalc="table-first" prop:checked=move ||current(controller).is_some_and(|t|t.first_column) on:change=move |_|options(controller,"first",String::new())/>"First column"</label>
-                    <label><input type="checkbox" data-dnacalc="table-last" prop:checked=move ||current(controller).is_some_and(|t|t.last_column) on:change=move |_|options(controller,"last",String::new())/>"Last column"</label>
-                    <label>"Style "<select data-dnacalc="table-style" prop:value=move ||current(controller).map(|t|t.style).unwrap_or_default() on:change=move |ev|options(controller,"style",event_target_value(&ev))><option value="">"None"</option>{(2..=7).map(|i|view!{<option value=format!("TableStyleMedium{i}")>{format!("Accent {} · medium {i}",i-1)}</option>}).collect_view()}{move ||current(controller).filter(|t|!t.style.is_empty()&&!(2..=7).any(|i|t.style==format!("TableStyleMedium{i}"))).map(|t|view!{<option value=t.style.clone()>{format!("{} (preserved)",t.style)}</option>})}</select></label>
+                    <label>
+                        "Rows including header and totals "
+                        <input
+                            data-dnacalc="table-rows"
+                            inputmode="numeric"
+                            prop:value=move || rows.get()
+                            placeholder=move || {
+                                current(controller)
+                                    .and_then(|t| t.area.area())
+                                    .map(|a| a.row_count().to_string())
+                                    .unwrap_or_default()
+                            }
+                            on:input=move |ev| rows.set(event_target_value(&ev))
+                        />
+                    </label>
+                    <label>
+                        "Columns "
+                        <input
+                            data-dnacalc="table-columns"
+                            inputmode="numeric"
+                            prop:value=move || columns.get()
+                            placeholder=move || {
+                                current(controller)
+                                    .map(|t| t.columns.len().to_string())
+                                    .unwrap_or_default()
+                            }
+                            on:input=move |ev| columns.set(event_target_value(&ev))
+                        />
+                    </label>
+                    <button data-dnacalc="table-resize" on:click=move |_| resize()>
+                        "Resize table"
+                    </button>
                 </div>
                 <div class="dc-command-row">
-                    <label>"Column "<select data-dnacalc="table-column" prop:value=move ||column.get() on:change=move |ev|column.set(event_target_value(&ev))>{move ||current(controller).map(|t|t.columns.into_iter().enumerate().map(|(i,name)|view!{<option value=(i+1).to_string()>{name}</option>}).collect_view())}</select></label>
-                    <label>"Column name "<input data-dnacalc="table-column-name" prop:value=move ||column_name.get() on:input=move |ev|column_name.set(event_target_value(&ev))/></label>
-                    <button data-dnacalc="table-column-rename" on:click=move |_|{if let Some((t,column))=selected(){submit(controller,wire::TableChange::RenameColumn{part:t.part,column,name:column_name.get_untracked()});}}>"Rename column"</button>
+                    <label>
+                        <input
+                            type="checkbox"
+                            data-dnacalc="table-headers"
+                            prop:checked=move || current(controller).is_some_and(|t| t.headers)
+                            on:change=move |_| options(controller, "headers", String::new())
+                        />
+                        "Header row"
+                    </label>
+                    <label>
+                        <input
+                            type="checkbox"
+                            data-dnacalc="table-totals"
+                            prop:checked=move || current(controller).is_some_and(|t| t.totals)
+                            on:change=move |_| options(controller, "totals", String::new())
+                        />
+                        "Total row"
+                    </label>
+                    <label>
+                        <input
+                            type="checkbox"
+                            data-dnacalc="table-bands"
+                            prop:checked=move || current(controller).is_some_and(|t| t.row_stripes)
+                            on:change=move |_| options(controller, "rows", String::new())
+                        />
+                        "Banded rows"
+                    </label>
+                    <label>
+                        <input
+                            type="checkbox"
+                            data-dnacalc="table-column-bands"
+                            prop:checked=move || {
+                                current(controller).is_some_and(|t| t.column_stripes)
+                            }
+                            on:change=move |_| options(controller, "columns", String::new())
+                        />
+                        "Banded columns"
+                    </label>
+                    <label>
+                        <input
+                            type="checkbox"
+                            data-dnacalc="table-first"
+                            prop:checked=move || current(controller).is_some_and(|t| t.first_column)
+                            on:change=move |_| options(controller, "first", String::new())
+                        />
+                        "First column"
+                    </label>
+                    <label>
+                        <input
+                            type="checkbox"
+                            data-dnacalc="table-last"
+                            prop:checked=move || current(controller).is_some_and(|t| t.last_column)
+                            on:change=move |_| options(controller, "last", String::new())
+                        />
+                        "Last column"
+                    </label>
+                    <label>
+                        "Style "
+                        <select
+                            data-dnacalc="table-style"
+                            prop:value=move || {
+                                current(controller).map(|t| t.style).unwrap_or_default()
+                            }
+                            on:change=move |ev| options(
+                                controller,
+                                "style",
+                                event_target_value(&ev),
+                            )
+                        >
+                            <option value="">"None"</option>
+                            {(2..=7)
+                                .map(|i| {
+                                    view! {
+                                        <option value=format!(
+                                            "TableStyleMedium{i}",
+                                        )>{format!("Accent {} · medium {i}", i - 1)}</option>
+                                    }
+                                })
+                                .collect_view()}
+                            {move || {
+                                current(controller)
+                                    .filter(|t| {
+                                        !t.style.is_empty()
+                                            && !(2..=7)
+                                                .any(|i| t.style == format!("TableStyleMedium{i}"))
+                                    })
+                                    .map(|t| {
+                                        view! {
+                                            <option value=t
+                                                .style
+                                                .clone()>{format!("{} (preserved)", t.style)}</option>
+                                        }
+                                    })
+                            }}
+                        </select>
+                    </label>
                 </div>
-                <p class="dc-note" id="table-formula-note">"Formula for the first data cell; filling replaces this column's data. Undo restores it. Removing the rule keeps the cells."</p>
                 <div class="dc-command-row">
-                    <label>"Calculated-column formula "<input data-dnacalc="table-formula" aria-describedby="table-formula-note" spellcheck="false" prop:value=move ||formula.get() on:input=move |ev|formula.set(event_target_value(&ev))/></label>
-                    <button data-dnacalc="table-formula-apply" on:click=move |_|{if let Some((t,column))=selected(){submit(controller,wire::TableChange::CalculatedColumn{part:t.part,column,formula:Some(formula.get_untracked())});}}>"Fill calculated column"</button>
-                    <button data-dnacalc="table-formula-remove" on:click=move |_|{if let Some((t,column))=selected(){submit(controller,wire::TableChange::CalculatedColumn{part:t.part,column,formula:None});}}>"Remove formula rule"</button>
+                    <label>
+                        "Column "
+                        <select
+                            data-dnacalc="table-column"
+                            prop:value=move || column.get()
+                            on:change=move |ev| column.set(event_target_value(&ev))
+                        >
+                            {move || {
+                                current(controller)
+                                    .map(|t| {
+                                        t.columns
+                                            .into_iter()
+                                            .enumerate()
+                                            .map(|(i, name)| {
+                                                view! { <option value=(i + 1).to_string()>{name}</option> }
+                                            })
+                                            .collect_view()
+                                    })
+                            }}
+                        </select>
+                    </label>
+                    <label>
+                        "Column name "
+                        <input
+                            data-dnacalc="table-column-name"
+                            prop:value=move || column_name.get()
+                            on:input=move |ev| column_name.set(event_target_value(&ev))
+                        />
+                    </label>
+                    <button
+                        data-dnacalc="table-column-rename"
+                        on:click=move |_| {
+                            if let Some((t, column)) = selected() {
+                                submit(
+                                    controller,
+                                    wire::TableChange::RenameColumn {
+                                        part: t.part,
+                                        column,
+                                        name: column_name.get_untracked(),
+                                    },
+                                );
+                            }
+                        }
+                    >
+                        "Rename column"
+                    </button>
                 </div>
-                <Show when=move ||current(controller).is_some_and(|t|t.totals)><div class="dc-command-row"><label>"Total column within table "<input data-dnacalc="table-total-column" inputmode="numeric" prop:value=move ||total_column.get() on:input=move |ev|total_column.set(event_target_value(&ev))/></label><label>"Function "<select data-dnacalc="table-total-function" prop:value=move ||function.get() on:change=move |ev|function.set(event_target_value(&ev))><option value="sum">"Sum"</option><option value="average">"Average"</option><option value="count">"Count"</option><option value="countNums">"Count numbers"</option><option value="min">"Minimum"</option><option value="max">"Maximum"</option><option value="stdDev">"Standard deviation"</option><option value="var">"Variance"</option><option value="">"Clear total"</option></select></label><button data-dnacalc="table-total-apply" on:click=move |_|{let Some(t)=current(controller)else{return;};let Some(a)=t.area.area()else{return;};let Some(c)=total_column.get_untracked().parse::<u32>().ok().filter(|c|*c>0&&*c<=a.column_count())else{controller.say("Choose a column within the table",true);return;};submit(controller,wire::TableChange::Total{part:t.part,column:a.first().column()+c-1,function:function.get_untracked()});}>"Set total"</button></div></Show>
+                <p class="dc-note" id="table-formula-note">
+                    "Formula for the first data cell; filling replaces this column's data. Undo restores it. Removing the rule keeps the cells."
+                </p>
+                <div class="dc-command-row">
+                    <label>
+                        "Calculated-column formula "
+                        <input
+                            data-dnacalc="table-formula"
+                            aria-describedby="table-formula-note"
+                            spellcheck="false"
+                            prop:value=move || formula.get()
+                            on:input=move |ev| formula.set(event_target_value(&ev))
+                        />
+                    </label>
+                    <button
+                        data-dnacalc="table-formula-apply"
+                        on:click=move |_| {
+                            if let Some((t, column)) = selected() {
+                                submit(
+                                    controller,
+                                    wire::TableChange::CalculatedColumn {
+                                        part: t.part,
+                                        column,
+                                        formula: Some(formula.get_untracked()),
+                                    },
+                                );
+                            }
+                        }
+                    >
+                        "Fill calculated column"
+                    </button>
+                    <button
+                        data-dnacalc="table-formula-remove"
+                        on:click=move |_| {
+                            if let Some((t, column)) = selected() {
+                                submit(
+                                    controller,
+                                    wire::TableChange::CalculatedColumn {
+                                        part: t.part,
+                                        column,
+                                        formula: None,
+                                    },
+                                );
+                            }
+                        }
+                    >
+                        "Remove formula rule"
+                    </button>
+                </div>
+                <Show when=move || current(controller).is_some_and(|t| t.totals)>
+                    <div class="dc-command-row">
+                        <label>
+                            "Total column within table "
+                            <input
+                                data-dnacalc="table-total-column"
+                                inputmode="numeric"
+                                prop:value=move || total_column.get()
+                                on:input=move |ev| total_column.set(event_target_value(&ev))
+                            />
+                        </label>
+                        <label>
+                            "Function "
+                            <select
+                                data-dnacalc="table-total-function"
+                                prop:value=move || function.get()
+                                on:change=move |ev| function.set(event_target_value(&ev))
+                            >
+                                <option value="sum">"Sum"</option>
+                                <option value="average">"Average"</option>
+                                <option value="count">"Count"</option>
+                                <option value="countNums">"Count numbers"</option>
+                                <option value="min">"Minimum"</option>
+                                <option value="max">"Maximum"</option>
+                                <option value="stdDev">"Standard deviation"</option>
+                                <option value="var">"Variance"</option>
+                                <option value="">"Clear total"</option>
+                            </select>
+                        </label>
+                        <button
+                            data-dnacalc="table-total-apply"
+                            on:click=move |_| {
+                                let Some(t) = current(controller) else {
+                                    return;
+                                };
+                                let Some(a) = t.area.area() else {
+                                    return;
+                                };
+                                let Some(c) = total_column
+                                    .get_untracked()
+                                    .parse::<u32>()
+                                    .ok()
+                                    .filter(|c| *c > 0 && *c <= a.column_count()) else {
+                                    controller.say("Choose a column within the table", true);
+                                    return;
+                                };
+                                submit(
+                                    controller,
+                                    wire::TableChange::Total {
+                                        part: t.part,
+                                        column: a.first().column() + c - 1,
+                                        function: function.get_untracked(),
+                                    },
+                                );
+                            }
+                        >
+                            "Set total"
+                        </button>
+                    </div>
+                </Show>
             </Show>
         </details>
     }.into_any()

@@ -334,10 +334,7 @@ const fn short_date_pattern(id: LocaleId) -> &'static str {
         LocaleId::FiFi => "d.M.yyyy",
         LocaleId::PlPl => "d.MM.yyyy",
         LocaleId::SkSk => "d. M. yyyy",
-        LocaleId::FrFr
-        | LocaleId::PtPt
-        | LocaleId::ItIt
-        | LocaleId::PtBr => "dd/MM/yyyy",
+        LocaleId::FrFr | LocaleId::PtPt | LocaleId::ItIt | LocaleId::PtBr => "dd/MM/yyyy",
         LocaleId::NlNl => "dd-MM-yyyy",
         LocaleId::JaJp => "yyyy/MM/dd",
         LocaleId::KoKr => "yyyy. M. d.",
@@ -987,7 +984,6 @@ pub const fn format_profile(id: LocaleId) -> FormatProfile {
     }
 }
 
-
 fn days_from_civil(year: i64, month: i64, day: i64) -> i64 {
     let year = year - i64::from(month <= 2);
     let era = if year >= 0 { year } else { year - 399 } / 400;
@@ -1042,10 +1038,7 @@ pub fn excel_serial_from_ymd(
     }
 }
 
-pub fn ymd_from_excel_serial(
-    date_system: DateSystem,
-    serial: f64,
-) -> Option<(i64, i64, i64)> {
+pub fn ymd_from_excel_serial(date_system: DateSystem, serial: f64) -> Option<(i64, i64, i64)> {
     let whole = serial.trunc() as i64;
     match date_system {
         DateSystem::System1900 => {
@@ -1065,7 +1058,6 @@ pub fn ymd_from_excel_serial(
         }
     }
 }
-
 
 impl FormatProfile {
     /// The profile of the culture named by a BCP 47 tag such as `en-ZA`, when OxFunc's table

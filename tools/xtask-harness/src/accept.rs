@@ -371,15 +371,14 @@ fn cargo_test(ws: &Workspace, entry: &BeadEntry, extra: &[&str], libtest: &[&str
         .map(|target| target.required_features.clone())
         .unwrap_or_default();
     let mut command = Command::new(cargo::cargo_program());
-    command
-        .args([
-            "test",
-            "-p",
-            &entry.package,
-            "--test",
-            &entry.test,
-            "--locked",
-        ]);
+    command.args([
+        "test",
+        "-p",
+        &entry.package,
+        "--test",
+        &entry.test,
+        "--locked",
+    ]);
     if !required.is_empty() {
         command.args(["--features", &required.join(",")]);
     }
@@ -924,9 +923,7 @@ fn run_commands(
                 argv[0].clone().into()
             };
             let mut command = Command::new(program);
-            command
-                .args(&argv[1..])
-                .current_dir(&ws.root);
+            command.args(&argv[1..]).current_dir(&ws.root);
             println!("ACCEPT running command {}", argv.join(" "));
             let log = out_dir.join(format!("command-{}.log", index + 1));
             match run_logged(ws, command, &log) {
@@ -1558,10 +1555,7 @@ mod tests {
             ],
         };
         let sep = if cfg!(windows) { r"\" } else { "/" };
-        assert_eq!(
-            redactor.apply(&format!("{root}{sep}target")),
-            "target"
-        );
+        assert_eq!(redactor.apply(&format!("{root}{sep}target")), "target");
         assert_eq!(
             redactor.apply(&format!(
                 "{home}{sep}.rustup{sep}toolchains{sep}stable{sep}bin{sep}cargo"

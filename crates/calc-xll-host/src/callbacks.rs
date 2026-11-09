@@ -1078,7 +1078,9 @@ fn register(frame: &mut Frame<'_>, values: &[CalcValue]) -> Result<CalcValue, (i
 mod tests {
     use super::*;
     fn text_value(text: &str) -> CalcValue {
-        CalcValue::text(ExcelText::from_utf16_code_units(text.encode_utf16().collect::<Vec<_>>()))
+        CalcValue::text(ExcelText::from_utf16_code_units(
+            text.encode_utf16().collect::<Vec<_>>(),
+        ))
     }
 
     /// Native-only (shares the module's native tests): the documentation arguments of xlfRegister
@@ -1102,10 +1104,16 @@ mod tests {
         ];
         let docs = registration_docs(&values);
         assert_eq!(docs.argument_names, ["first", "second"]);
-        assert_eq!((docs.category.as_str(), docs.shortcut.as_str()), ("My math", ""));
+        assert_eq!(
+            (docs.category.as_str(), docs.shortcut.as_str()),
+            ("My math", "")
+        );
         assert_eq!(docs.help_topic, "help.chm!1");
         assert_eq!(docs.function_help, "Adds two numbers.");
-        assert_eq!(docs.argument_help, ["The first number.", "The second number."]);
+        assert_eq!(
+            docs.argument_help,
+            ["The first number.", "The second number."]
+        );
         let info = |docs| RegistrationInfo {
             id: 1,
             name: "MyAdd".into(),
@@ -1122,18 +1130,29 @@ mod tests {
         let descriptor = info(docs).descriptor();
         assert_eq!(descriptor.signature(), "MyAdd(first, second)");
         assert_eq!(descriptor.parameters[1].description, "The second number.");
-        assert_eq!((descriptor.origin.as_str(), descriptor.category.as_str()), ("xll Add.xll", "My math"));
+        assert_eq!(
+            (descriptor.origin.as_str(), descriptor.category.as_str()),
+            ("xll Add.xll", "My math")
+        );
         assert!(descriptor.thread_safe && !descriptor.volatile && !descriptor.asynchronous);
         // Left out, or only the names: the other fields are empty and unnamed arguments are numbered.
         let bare = info(registration_docs(&values[..4])).descriptor();
         assert_eq!(bare.signature(), "MyAdd(arg1, arg2)");
-        assert_eq!((bare.description.as_str(), bare.category.as_str()), ("", ""));
+        assert_eq!(
+            (bare.description.as_str(), bare.category.as_str()),
+            ("", "")
+        );
         let partial = info(registration_docs(&values[..5])).descriptor();
         assert_eq!(partial.signature(), "MyAdd(first, second)");
         // A category given as a number is kept as written.
         let numbered = registration_docs(&[
-            text_value("m"), text_value("p"), text_value("B"), text_value("f"),
-            CalcValue::missing(), CalcValue::number(1.), CalcValue::number(14.),
+            text_value("m"),
+            text_value("p"),
+            text_value("B"),
+            text_value("f"),
+            CalcValue::missing(),
+            CalcValue::number(1.),
+            CalcValue::number(14.),
         ]);
         assert_eq!(numbered.category, "14");
     }

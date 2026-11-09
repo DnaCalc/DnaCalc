@@ -10,15 +10,18 @@
 //! kernels are the distributions' own.
 
 use super::aggregate::Held;
-use super::kit::{fail, flag, given, grid, num, num_with_subnormal, numbers, out, out_with_subnormal, reject_logical};
+use super::kit::{
+    fail, flag, given, grid, num, num_with_subnormal, numbers, out, out_with_subnormal,
+    reject_logical,
+};
 use crate::call::EvalServices;
 use crate::kernel::{Site, Step};
+use crate::ported::{self as k};
 use crate::ported::{
     beta_gamma_stats_family as bg, chi_f_t_family as cft, confidence_test_family as ct,
     discrete_dist as dd, normal_log_family as nl, special_dist_family as sd,
     statistical_tests_family as st,
 };
-use crate::ported::{self as k};
 use crate::value::{CalcValue, CoreRef, WorksheetErrorCode};
 
 use calc_catalogue::ported::distributions::{CODE, ENTRIES as DECLARATIONS};
@@ -33,7 +36,12 @@ fn nums<const N: usize>(site: &Site<'_>, a: &[CalcValue]) -> Step<[f64; N]> {
 }
 
 /// Argument `index`'s numbers by the aggregate rule.
-fn sample(site: &Site<'_>, a: &[CalcValue], index: usize, sv: &mut EvalServices<'_>) -> Step<Vec<f64>> {
+fn sample(
+    site: &Site<'_>,
+    a: &[CalcValue],
+    index: usize,
+    sv: &mut EvalServices<'_>,
+) -> Step<Vec<f64>> {
     numbers(site, a, index, index + 1, sv, Held::Numbers)
 }
 
@@ -416,6 +424,10 @@ fn t_test_of(site: &Site<'_>, a: &[CalcValue], sv: &mut EvalServices<'_>) -> Ste
 fn z_test_of(site: &Site<'_>, a: &[CalcValue], sv: &mut EvalServices<'_>) -> Step<CalcValue> {
     let values = sample(site, a, 0, sv)?;
     let x = num(site, a, 1)?;
-    let sigma = if given(a, 2) { Some(num(site, a, 2)?) } else { None };
+    let sigma = if given(a, 2) {
+        Some(num(site, a, 2)?)
+    } else {
+        None
+    };
     out(site, ct::z_test_kernel(&values, x, sigma))
 }

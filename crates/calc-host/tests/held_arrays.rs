@@ -192,6 +192,10 @@ fn dc_h9u__a_groupby_cell_holds_its_lambdas_array() {
         (17, 1, "7"),
         (18, 1, "30"),
     ] {
-        assert_eq!(shown(&session, at(row, column)), expected, "row {row}, column {column}");
+        assert_eq!(
+            shown(&session, at(row, column)),
+            expected,
+            "row {row}, column {column}"
+        );
     }
 }

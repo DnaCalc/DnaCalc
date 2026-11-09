@@ -76,8 +76,7 @@ use crate::cargo::Workspace;
 use crate::legacy::legacy_root;
 use calc_func::value::CalcValue;
 use calc_verdict::{
-    ReadingSource, Severity, WitnessRow, WitnessSet, decode_argument, decode_result,
-    encode_result,
+    ReadingSource, Severity, WitnessRow, WitnessSet, decode_argument, decode_result, encode_result,
 };
 use serde_json::Value;
 use std::collections::{BTreeMap, BTreeSet};
@@ -152,7 +151,11 @@ fn parse_args(raw: &[String]) -> Result<Request, String> {
     let mut request = Request {
         verb,
         function: None,
-        bank: if matches!(verb, Verb::Pin | Verb::Export) { Bank::Full } else { Bank::Pinned },
+        bank: if matches!(verb, Verb::Pin | Verb::Export) {
+            Bank::Full
+        } else {
+            Bank::Pinned
+        },
         rows: 120,
         timeout: 600,
         trace: None,
@@ -171,16 +174,24 @@ fn parse_args(raw: &[String]) -> Result<Request, String> {
     while let Some(arg) = it.next() {
         let mut value = || it.next().cloned().ok_or(format!("{arg} needs a value"));
         match arg.as_str() {
-            "--func" if verb != Verb::Compare => request.function = Some(value()?.to_ascii_uppercase()),
+            "--func" if verb != Verb::Compare => {
+                request.function = Some(value()?.to_ascii_uppercase())
+            }
             "--before" if verb == Verb::Compare => request.before = Some(PathBuf::from(value()?)),
             "--after" if verb == Verb::Compare => request.after = Some(PathBuf::from(value()?)),
             "--inputs" if verb == Verb::Read => request.inputs = Some(PathBuf::from(value()?)),
             "--new-only" if verb == Verb::Read => request.new_only = true,
             "--repeat-calls" if verb == Verb::Read => request.repeat_calls = true,
             "--context" if verb == Verb::Refresh => request.refresh_context = true,
-            "--classified-losses" if verb == Verb::Refresh => request.classified_losses = Some(PathBuf::from(value()?)),
-            "--report" if matches!(verb, Verb::Judge | Verb::Export) => request.report = Some(PathBuf::from(value()?)),
-            "--release" if verb == Verb::Judge && request.profile.is_none() => request.profile = Some("release".into()),
+            "--classified-losses" if verb == Verb::Refresh => {
+                request.classified_losses = Some(PathBuf::from(value()?))
+            }
+            "--report" if matches!(verb, Verb::Judge | Verb::Export) => {
+                request.report = Some(PathBuf::from(value()?))
+            }
+            "--release" if verb == Verb::Judge && request.profile.is_none() => {
+                request.profile = Some("release".into())
+            }
             "--profile" if verb == Verb::Judge && request.profile.is_none() => {
                 let profile = value()?;
                 if !matches!(profile.as_str(), "dev" | "release" | "perf") {
@@ -219,10 +230,19 @@ fn parse_args(raw: &[String]) -> Result<Request, String> {
     if verb == Verb::Compare && (request.before.is_none() || request.after.is_none()) {
         return Err("compare needs --before and --after".to_owned());
     }
-    if request.verb == Verb::Read && request.function.as_deref().is_some_and(|names| {
-        names.split(',').any(|name| name.is_empty() || !name.bytes().all(|b| b.is_ascii_alphanumeric() || b == b'.' || b == b'_'))
-    }) {
-        return Err("--func needs worksheet function names (letters, digits, dots or underscores)".into());
+    if request.verb == Verb::Read
+        && request.function.as_deref().is_some_and(|names| {
+            names.split(',').any(|name| {
+                name.is_empty()
+                    || !name
+                        .bytes()
+                        .all(|b| b.is_ascii_alphanumeric() || b == b'.' || b == b'_')
+            })
+        })
+    {
+        return Err(
+            "--func needs worksheet function names (letters, digits, dots or underscores)".into(),
+        );
     }
     if request.new_only && request.inputs.is_none() {
         return Err("--new-only requires --inputs".into());
@@ -251,9 +271,17 @@ fn reading_key(function: &str, args: &[Value], index: Option<(usize, usize)>) ->
     format!("{function}|{}{index}", Value::Array(args.to_vec()))
 }
 
-fn contextual_key(function: &str, args: &[Value], index: Option<(usize, usize)>, context: Option<&calc_verdict::WitnessInvocation>) -> String {
+fn contextual_key(
+    function: &str,
+    args: &[Value],
+    index: Option<(usize, usize)>,
+    context: Option<&calc_verdict::WitnessInvocation>,
+) -> String {
     let key = reading_key(function, args, index);
-    context.map_or_else(|| key.clone(), |context| format!("{key}|{}", context.to_json()))
+    context.map_or_else(
+        || key.clone(),
+        |context| format!("{key}|{}", context.to_json()),
+    )
 }
 
 /// A bank file and the environment its capture recorded.
@@ -278,10 +306,14 @@ fn record_unread_rows(
     unread: &mut Vec<String>,
 ) -> Result<(), String> {
     if let Some(recorded) = doc.get("unread") {
-        let rows = recorded.as_array()
+        let rows = recorded
+            .as_array()
             .ok_or_else(|| format!("{source}: unread must be an array of recorded failures"))?;
         for (i, row) in rows.iter().enumerate() {
-            let detail = row.as_str().map(str::to_owned).unwrap_or_else(|| row.to_string());
+            let detail = row
+                .as_str()
+                .map(str::to_owned)
+                .unwrap_or_else(|| row.to_string());
             unread.push(format!("{source}: unread row {i}: {detail}"));
             *banks.unread_rows.entry(function.to_owned()).or_default() += 1;
         }
@@ -293,17 +325,26 @@ fn record_unread_rows(
 /// typed-argument semantic witnesses when their labels would be discarded.
 fn record_transport_audits(doc: &Value, source: &str, banks: &mut Banks) -> Result<(), String> {
     if let Some(recorded) = doc.get("transport_audit_readings") {
-        let rows = recorded.as_array().ok_or_else(|| format!("{source}: transport_audit_readings must be an array"))?;
+        let rows = recorded
+            .as_array()
+            .ok_or_else(|| format!("{source}: transport_audit_readings must be an array"))?;
         for row in rows {
             if row["input_transport"] != "formula_literals_with_cell_echo"
-                || row["semantic_witness"] != false || !row["id"].is_string()
-                || !row["args"].is_array() || !row["observed_raw"].is_object()
-                || row.get("reading_failure").is_none_or(|v| !v.is_null() && !v.is_string())
+                || row["semantic_witness"] != false
+                || !row["id"].is_string()
+                || !row["args"].is_array()
+                || !row["observed_raw"].is_object()
+                || row
+                    .get("reading_failure")
+                    .is_none_or(|v| !v.is_null() && !v.is_string())
             {
                 return Err(format!("{source}: malformed transport audit observation"));
             }
         }
-        let failures = rows.iter().filter(|r| !r["reading_failure"].is_null()).count();
+        let failures = rows
+            .iter()
+            .filter(|r| !r["reading_failure"].is_null())
+            .count();
         banks.import_notes.push(format!("{source}: {} transport audit observations, {failures} failed audit obligations; retained separately from typed-argument semantic witnesses", rows.len()));
     }
     Ok(())
@@ -334,7 +375,11 @@ fn blob_bytes(checkout: &Path, rel: &str) -> Result<Vec<u8>, String> {
 fn blob_head(checkout: &Path, rel: &str) -> Result<Vec<u8>, String> {
     use std::io::Read;
     let single = checkout.join(format!("{rel}.gz"));
-    let path = if single.is_file() { single } else { checkout.join(format!("{rel}.gz.part000")) };
+    let path = if single.is_file() {
+        single
+    } else {
+        checkout.join(format!("{rel}.gz.part000"))
+    };
     let mut head = Vec::new();
     fs::File::open(&path)
         .and_then(|f| f.take(64 * 1024).read_to_end(&mut head))
@@ -366,7 +411,8 @@ fn deflate_body(gz: &[u8]) -> Result<&[u8], String> {
     if flags & 2 != 0 {
         at += 2;
     }
-    gz.get(at..gz.len() - 8).ok_or_else(|| "a truncated gzip stream".to_owned())
+    gz.get(at..gz.len() - 8)
+        .ok_or_else(|| "a truncated gzip stream".to_owned())
 }
 
 fn gunzip(gz: &[u8], limit: Option<usize>) -> Result<Vec<u8>, String> {
@@ -405,7 +451,13 @@ fn text_of(value: &Value) -> Option<String> {
 /// The environment a WitnessSet's `capture_provenance` or an oracle record's `environment` names.
 /// Every OxFunc capture went through Excel's COM interface on Windows, so the platform is Windows
 /// whether or not the capture wrote it down.
-fn environment(id: String, source: String, env: Option<&Value>, fallback: Option<&Value>, settings: Option<&Value>) -> ReadingSource {
+fn environment(
+    id: String,
+    source: String,
+    env: Option<&Value>,
+    fallback: Option<&Value>,
+    settings: Option<&Value>,
+) -> ReadingSource {
     let field = |name: &str| {
         env.and_then(|e| e.get(name))
             .and_then(text_of)
@@ -418,18 +470,27 @@ fn environment(id: String, source: String, env: Option<&Value>, fallback: Option
         locale: field("locale_profile"),
         decimal_separator: setting("DecimalSeparator").or_else(|| field("decimal_separator")),
         thousands_separator: setting("ThousandsSeparator").or_else(|| field("thousands_separator")),
-        date_system: settings.and_then(|v| v.get("Date1904")).and_then(Value::as_bool)
+        date_system: settings
+            .and_then(|v| v.get("Date1904"))
+            .and_then(Value::as_bool)
             .map(|v| if v { "1904" } else { "1900" }.to_owned())
-            .or_else(|| field("workbook_date_system")).or_else(|| field("date_system")),
-        compatibility_version: setting("CompatibilityVersion").or_else(|| field("workbook_compatibility_version")).or_else(|| field("workbook_compatibility")),
+            .or_else(|| field("workbook_date_system"))
+            .or_else(|| field("date_system")),
+        compatibility_version: setting("CompatibilityVersion")
+            .or_else(|| field("workbook_compatibility_version"))
+            .or_else(|| field("workbook_compatibility")),
     };
     // dc-1943: all 989 FIXED calls in this particular bank were replayed on the same
     // en-ZA host, with identical results. The captured replay is retained under
     // migration/evidence/dc-1943-fixed-replay.json.gz. Other banks keep their own context.
     if source == format!("{CHECKOUT} cache/oracle-20430/build-20430/FIXED.jsonl") {
         invocation.locale.get_or_insert_with(|| "en-ZA".to_owned());
-        invocation.decimal_separator.get_or_insert_with(|| ".".to_owned());
-        invocation.thousands_separator.get_or_insert_with(|| " ".to_owned());
+        invocation
+            .decimal_separator
+            .get_or_insert_with(|| ".".to_owned());
+        invocation
+            .thousands_separator
+            .get_or_insert_with(|| " ".to_owned());
     }
     ReadingSource {
         id,
@@ -445,14 +506,19 @@ fn environment(id: String, source: String, env: Option<&Value>, fallback: Option
 // A row's audit is authoritative over a file's default transport. Verify its exact
 // requested, submitted and read-back scalar values, rather than trusting a repeated id.
 fn audited_transport(doc: &Value, row: &Value) -> Option<String> {
-    let mut matching = doc["input_audits"].as_array()?.iter().filter(|audit| audit["id"] == row["id"]);
+    let mut matching = doc["input_audits"]
+        .as_array()?
+        .iter()
+        .filter(|audit| audit["id"] == row["id"]);
     let audit = matching.next()?;
-    if matching.next().is_some() || !audit["reading_failure"].is_null() { return None; }
+    if matching.next().is_some() || !audit["reading_failure"].is_null() {
+        return None;
+    }
     let args = row["args"].as_array()?;
     let mut requested = Vec::new();
     let mut read_back = Vec::new();
     for (i, arg) in args.iter().enumerate() {
-        let value = decode_argument(arg, &format!("args[{i}]" )).ok()?;
+        let value = decode_argument(arg, &format!("args[{i}]")).ok()?;
         let (request, read) = match value.core_ref() {
             calc_func::value::CoreRef::Number(number) => {
                 let encoded = serde_json::json!({"number": format!("{:016x}", number.to_bits())});
@@ -475,35 +541,63 @@ fn audited_transport(doc: &Value, row: &Value) -> Option<String> {
     if audit["requested"] != Value::Array(requested)
         || audit["submitted_value2"] != Value::Array(read_back.clone())
         || audit["read_back"] != Value::Array(read_back)
-    { return None; }
+    {
+        return None;
+    }
     audit["transport"].as_str().map(str::to_owned)
 }
 
 fn row_environment(mut source: ReadingSource, doc: &Value, row: &Value) -> ReadingSource {
     if doc.get("input_audits").is_some() {
-        source.invocation.get_or_insert_with(Default::default).input_transport = audited_transport(doc, row);
+        source
+            .invocation
+            .get_or_insert_with(Default::default)
+            .input_transport = audited_transport(doc, row);
     }
     // The named legacy runner and this exact modern worker create their own blank,
     // visible, unfiltered worksheet and write constants into the argument cells.
     // A transport label alone does not establish any of those workbook facts.
     static MODERN_WORKER: std::sync::OnceLock<String> = std::sync::OnceLock::new();
-    let modern = MODERN_WORKER.get_or_init(|| format!("witness worker sha256:{}", calc_oracle_excel::sha256_hex(calc_oracle_excel::WITNESS_SCRIPT.as_bytes())));
+    let modern = MODERN_WORKER.get_or_init(|| {
+        format!(
+            "witness worker sha256:{}",
+            calc_oracle_excel::sha256_hex(calc_oracle_excel::WITNESS_SCRIPT.as_bytes())
+        )
+    });
     let provenance = &doc["capture_provenance"];
     let known_worker = provenance["runner"]["name"] == "Run-W109BulkBatch.ps1"
         && provenance["runner"]["version"] == "w109-bulk-batch-v2"
-        || provenance["reader"].as_str().is_some_and(|reader| reader.contains(modern.as_str()));
-    if known_worker && let Some(context) = source.invocation.as_mut()
-        && context.input_transport.as_deref() == Some("cell_value2_bulk") {
+        || provenance["reader"]
+            .as_str()
+            .is_some_and(|reader| reader.contains(modern.as_str()));
+    if known_worker
+        && let Some(context) = source.invocation.as_mut()
+        && context.input_transport.as_deref() == Some("cell_value2_bulk")
+    {
         context.input_sheet_state = Some("visible-constant-inputs".to_owned());
     }
-    if source.invocation.as_ref().is_some_and(|c| c.is_empty()) { source.invocation = None; }
+    if source.invocation.as_ref().is_some_and(|c| c.is_empty()) {
+        source.invocation = None;
+    }
     source
 }
 
-fn retain_source(banks: &mut Banks, by_context: &mut BTreeMap<String, usize>, path: &str, env: ReadingSource) -> usize {
-    let key = format!("{}|{}", env.environment(), env.invocation.as_ref().map_or(Value::Null, |c| c.to_json()));
+fn retain_source(
+    banks: &mut Banks,
+    by_context: &mut BTreeMap<String, usize>,
+    path: &str,
+    env: ReadingSource,
+) -> usize {
+    let key = format!(
+        "{}|{}",
+        env.environment(),
+        env.invocation.as_ref().map_or(Value::Null, |c| c.to_json())
+    );
     *by_context.entry(key).or_insert_with(|| {
-        banks.sources.push(Source { path: path.to_owned(), env });
+        banks.sources.push(Source {
+            path: path.to_owned(),
+            env,
+        });
         banks.sources.len() - 1
     })
 }
@@ -527,7 +621,9 @@ fn oracle_argument(node: &Value) -> Option<Value> {
                 return None;
             }
             Some(Value::Array(
-                flat.chunks(cols).map(|row| Value::Array(row.to_vec())).collect(),
+                flat.chunks(cols)
+                    .map(|row| Value::Array(row.to_vec()))
+                    .collect(),
             ))
         }
         _ => None,
@@ -555,8 +651,12 @@ fn oracle_outcome(node: &Value) -> Option<String> {
             Some(format!("error:{variant}"))
         }
         "logical" | "boolean" => Some(
-            if node.get("value")?.as_bool()? { "logical:True" } else { "logical:False" }
-                .to_owned(),
+            if node.get("value")?.as_bool()? {
+                "logical:True"
+            } else {
+                "logical:False"
+            }
+            .to_owned(),
         ),
         "text" | "string" => Some(format!("text:{}", node.get("value")?.as_str()?)),
         _ => None,
@@ -602,21 +702,28 @@ fn derived_graph_companion(checkout: &Path, rel: &str, doc: &Value) -> Option<(S
     if original.get("function") != doc.get("function") || doc.get("function").is_none() {
         return None;
     }
-    graph_rows_linked(doc, &original).then(|| (companion, doc["witnesses"].as_array().unwrap().len()))
+    graph_rows_linked(doc, &original)
+        .then(|| (companion, doc["witnesses"].as_array().unwrap().len()))
 }
 
 fn graph_rows_linked(derived: &Value, original: &Value) -> bool {
-    let (Some(rows), Some(calls)) = (derived["witnesses"].as_array(), original["witnesses"].as_array()) else {
+    let (Some(rows), Some(calls)) = (
+        derived["witnesses"].as_array(),
+        original["witnesses"].as_array(),
+    ) else {
         return false;
     };
-    let readings: BTreeMap<&str, &Value> = calls.iter().filter_map(|r| {
-        Some((r["id"].as_str()?, r.get("expected_bits")?))
-    }).collect();
-    !rows.is_empty() && rows.iter().all(|r| {
-        r["id"].as_str().and_then(|id| readings.get(id)).is_some_and(|expected| {
-            r.get("expected_bits") == Some(*expected)
+    let readings: BTreeMap<&str, &Value> = calls
+        .iter()
+        .filter_map(|r| Some((r["id"].as_str()?, r.get("expected_bits")?)))
+        .collect();
+    !rows.is_empty()
+        && rows.iter().all(|r| {
+            r["id"]
+                .as_str()
+                .and_then(|id| readings.get(id))
+                .is_some_and(|expected| r.get("expected_bits") == Some(*expected))
         })
-    })
 }
 
 /// Bulk answer files sometimes omit `result_index`, but their batch's probe records it.
@@ -628,20 +735,30 @@ fn batch_path(rel: &str) -> Option<String> {
 }
 
 fn batch_selections(checkout: &Path, rel: &str) -> Vec<Value> {
-    let Some(batch) = batch_path(rel) else { return Vec::new() };
-    let parsed = blob_bytes(checkout, &batch).and_then(|b| gunzip(&b, None))
+    let Some(batch) = batch_path(rel) else {
+        return Vec::new();
+    };
+    let parsed = blob_bytes(checkout, &batch)
+        .and_then(|b| gunzip(&b, None))
         .and_then(|b| bank_json(&b));
     let Ok(doc) = parsed else { return Vec::new() };
-    doc["probes"].as_array().into_iter().flatten().map(|p| {
-        p.get("probe").unwrap_or(p).clone()
-    }).filter(|p| p.get("result_index").is_some()).collect()
+    doc["probes"]
+        .as_array()
+        .into_iter()
+        .flatten()
+        .map(|p| p.get("probe").unwrap_or(p).clone())
+        .filter(|p| p.get("result_index").is_some())
+        .collect()
 }
 
 fn recovered_selection(row: &Value, probes: &[Value]) -> Option<(usize, usize)> {
     let id = row["id"].as_str()?;
     let args = row.get("args")?;
     let mut selected = None;
-    for probe in probes.iter().filter(|p| p["id"].as_str() == Some(id) && p.get("args") == Some(args)) {
+    for probe in probes
+        .iter()
+        .filter(|p| p["id"].as_str() == Some(id) && p.get("args") == Some(args))
+    {
         let index = calc_verdict::result_index(probe.as_object()?)?;
         if selected.is_some_and(|previous| previous != index) {
             return None;
@@ -660,72 +777,129 @@ fn prediction_column_inputs(function: &str, probes: &[Value]) -> BTreeSet<String
     }
     let mut layouts: BTreeMap<String, (bool, bool)> = BTreeMap::new();
     for probe in probes {
-        let Some(args) = probe["args"].as_array() else { continue };
-        let flat = |i: usize| args.get(i).and_then(Value::as_array)
-            .filter(|cells| !cells.is_empty() && cells.iter().all(|v| !v.is_array()));
-        let (Some(y), Some(x), Some(new_x)) = (flat(0), flat(1), flat(2)) else { continue };
+        let Some(args) = probe["args"].as_array() else {
+            continue;
+        };
+        let flat = |i: usize| {
+            args.get(i)
+                .and_then(Value::as_array)
+                .filter(|cells| !cells.is_empty() && cells.iter().all(|v| !v.is_array()))
+        };
+        let (Some(y), Some(x), Some(new_x)) = (flat(0), flat(1), flat(2)) else {
+            continue;
+        };
         if y.len() < 2 || y.len() != x.len() || new_x.len() < 2 {
             continue;
         }
-        let Some((row, col)) = probe.as_object().and_then(calc_verdict::result_index) else { continue };
-        let flags = layouts.entry(Value::Array(args.clone()).to_string()).or_default();
+        let Some((row, col)) = probe.as_object().and_then(calc_verdict::result_index) else {
+            continue;
+        };
+        let flags = layouts
+            .entry(Value::Array(args.clone()).to_string())
+            .or_default();
         flags.0 |= row > 1 && row <= new_x.len() && col == 1;
         flags.1 |= col != 1 || row == 0 || row > new_x.len();
     }
-    layouts.into_iter().filter_map(|(args, (column, conflict))| {
-        (column && !conflict).then_some(args)
-    }).collect()
+    layouts
+        .into_iter()
+        .filter_map(|(args, (column, conflict))| (column && !conflict).then_some(args))
+        .collect()
 }
 
 fn restore_prediction_column(args: &mut Value, columns: &BTreeSet<String>) -> bool {
     if !columns.contains(&args.to_string()) {
         return false;
     }
-    let Some(cells) = args[2].as_array() else { return false };
-    args[2] = Value::Array(cells.iter().map(|cell| Value::Array(vec![cell.clone()])).collect());
+    let Some(cells) = args[2].as_array() else {
+        return false;
+    };
+    args[2] = Value::Array(
+        cells
+            .iter()
+            .map(|cell| Value::Array(vec![cell.clone()]))
+            .collect(),
+    );
     true
 }
 
 fn array_replay_args(case: &Value, function: &str) -> Result<Vec<Value>, String> {
     let id = case["id"].as_str().ok_or("array replay has no id")?;
-    let inputs = case["inputs"].as_array().ok_or("array replay has no input readback")?;
+    let inputs = case["inputs"]
+        .as_array()
+        .ok_or("array replay has no input readback")?;
     let expected_inputs = if function == "TEXTSPLIT" { 2 } else { 16 };
-    if inputs.len() < expected_inputs { return Err(format!("{id}: insufficient input readbacks")); }
+    if inputs.len() < expected_inputs {
+        return Err(format!("{id}: insufficient input readbacks"));
+    }
     let mut input = Vec::new();
     for (i, cell) in inputs[..expected_inputs].iter().enumerate() {
-        let address = if function == "TEXTSPLIT" { format!("A{}", i + 1) }
-            else { format!("{}{}", (b'A' + (i % 4) as u8) as char, i / 4 + 1) };
-        if cell["a"] != address { return Err(format!("{id}: unexpected input address")); }
+        let address = if function == "TEXTSPLIT" {
+            format!("A{}", i + 1)
+        } else {
+            format!("{}{}", (b'A' + (i % 4) as u8) as char, i / 4 + 1)
+        };
+        if cell["a"] != address {
+            return Err(format!("{id}: unexpected input address"));
+        }
         let value = &cell["read_back"];
         input.push(match value["type"].as_str() {
-            Some("text") => Value::String(value["text"].as_str().ok_or("text readback")?.to_owned()),
-            Some("number") => Value::String(format!("0x{}", value["bits"].as_str().ok_or("number readback")?)),
+            Some("text") => {
+                Value::String(value["text"].as_str().ok_or("text readback")?.to_owned())
+            }
+            Some("number") => Value::String(format!(
+                "0x{}",
+                value["bits"].as_str().ok_or("number readback")?
+            )),
             _ => return Err(format!("{id}: unsupported input readback")),
         });
     }
-    Ok(if function == "TEXTSPLIT" { input } else {
-        vec![Value::Array(input.chunks(4).map(|row| Value::Array(row.to_vec())).collect())]
+    Ok(if function == "TEXTSPLIT" {
+        input
+    } else {
+        vec![Value::Array(
+            input
+                .chunks(4)
+                .map(|row| Value::Array(row.to_vec()))
+                .collect(),
+        )]
     })
 }
 
 /// The free-layout replays retain full arrays. Add each observed cell through the same
 /// result-selection path as other witnesses, with layout in the source identity.
-fn add_array_replay(banks: &mut Banks, function: &str, path: &str, doc: &Value) -> Result<(), String> {
+fn add_array_replay(
+    banks: &mut Banks,
+    function: &str,
+    path: &str,
+    doc: &Value,
+) -> Result<(), String> {
     let cases = doc["cases"].as_array().ok_or("array replay has no cases")?;
-    let selected: Vec<_> = cases.iter().filter(|case| {
-        function == "TEXTSPLIT" || case["id"].as_str().is_some_and(|id| id.starts_with("MINVERSE|m4x4:"))
-    }).collect();
+    let selected: Vec<_> = cases
+        .iter()
+        .filter(|case| {
+            function == "TEXTSPLIT"
+                || case["id"]
+                    .as_str()
+                    .is_some_and(|id| id.starts_with("MINVERSE|m4x4:"))
+        })
+        .collect();
     let expected_cases = if function == "TEXTSPLIT" { 2 } else { 28 };
-    if selected.len() != expected_cases { return Err(format!("{path}: expected {expected_cases} cases")); }
+    if selected.len() != expected_cases {
+        return Err(format!("{path}: expected {expected_cases} cases"));
+    }
     let source = banks.sources.len();
     banks.sources.push(Source {
         path: path.to_owned(),
         env: ReadingSource {
-            id: String::new(), source: format!("DnaCalc {path}"),
-            excel_build: Some("20527".into()), platform: Some("Windows".into()), bitness: None,
+            id: String::new(),
+            source: format!("DnaCalc {path}"),
+            excel_build: Some("20527".into()),
+            platform: Some("Windows".into()),
+            bitness: None,
             cpu: doc["cpu"].as_str().map(str::to_owned),
             invocation: Some(calc_verdict::WitnessInvocation {
-                input_transport: Some("recaptured_free_layout".into()), ..Default::default()
+                input_transport: Some("recaptured_free_layout".into()),
+                ..Default::default()
             }),
         },
     });
@@ -733,37 +907,71 @@ fn add_array_replay(banks: &mut Banks, function: &str, path: &str, doc: &Value) 
     for case in selected {
         let id = case["id"].as_str().ok_or("array replay has no id")?;
         let args = array_replay_args(case, function)?;
-        let formula = case["formulas"].as_array().and_then(|f| f.first()).ok_or("array replay has no formula")?;
-        let (height, width) = if function == "TEXTSPLIT" { (1, 3) } else { (4, 4) };
+        let formula = case["formulas"]
+            .as_array()
+            .and_then(|f| f.first())
+            .ok_or("array replay has no formula")?;
+        let (height, width) = if function == "TEXTSPLIT" {
+            (1, 3)
+        } else {
+            (4, 4)
+        };
         if formula["rows"].as_u64() != Some(height) || formula["cols"].as_u64() != Some(width) {
             return Err(format!("{id}: unexpected array shape"));
         }
-        let cells = formula["cells"].as_array().ok_or("array replay has no cells")?;
-        if cells.len() != (height * width) as usize { return Err(format!("{id}: incomplete array")); }
+        let cells = formula["cells"]
+            .as_array()
+            .ok_or("array replay has no cells")?;
+        if cells.len() != (height * width) as usize {
+            return Err(format!("{id}: incomplete array"));
+        }
         let mut positions = BTreeSet::new();
         for cell in cells {
             let r = cell["r"].as_u64().ok_or("array cell row")? as usize;
             let c = cell["c"].as_u64().ok_or("array cell column")? as usize;
-            if r == 0 || r > height as usize || c == 0 || c > width as usize { return Err(format!("{id}: invalid cell")); }
-            if !positions.insert((r, c)) { return Err(format!("{id}: repeated cell")); }
+            if r == 0 || r > height as usize || c == 0 || c > width as usize {
+                return Err(format!("{id}: invalid cell"));
+            }
+            if !positions.insert((r, c)) {
+                return Err(format!("{id}: repeated cell"));
+            }
             let expected = match cell["type"].as_str() {
                 Some("text") => format!("text:{}", cell["text"].as_str().ok_or("array text")?),
                 Some("number") => format!("0x{}", cell["bits"].as_str().ok_or("array number")?),
                 _ => return Err(format!("{id}: unsupported array cell")),
             };
-            banks.readings.push(Reading { function: function.to_owned(), id: format!("{id}@{r},{c}"),
-                args: args.clone(), index: Some((r, c)), expected, source });
+            banks.readings.push(Reading {
+                function: function.to_owned(),
+                id: format!("{id}@{r},{c}"),
+                args: args.clone(),
+                index: Some((r, c)),
+                expected,
+                source,
+            });
         }
     }
     Ok(())
 }
 
-fn recovered_minverse_spill(function: &str, path: &str, record: &Value, inputs: &BTreeMap<&str, Value>) -> bool {
-    let Some((matrix, _)) = record["key"].as_str().and_then(|key| key.rsplit_once("|@")) else { return false; };
-    function == "MINVERSE" && path == "cache/oracle/build-20131/MINVERSE.jsonl"
+fn recovered_minverse_spill(
+    function: &str,
+    path: &str,
+    record: &Value,
+    inputs: &BTreeMap<&str, Value>,
+) -> bool {
+    let Some((matrix, _)) = record["key"].as_str().and_then(|key| key.rsplit_once("|@")) else {
+        return false;
+    };
+    function == "MINVERSE"
+        && path == "cache/oracle/build-20131/MINVERSE.jsonl"
         && inputs.get(matrix).is_some_and(|expected| {
-            record["args"][0][0].as_object().and_then(|_| oracle_argument(&record["args"][0][0])).as_ref() == Some(expected)
-        }) && record["outcome"]["code"] == "ExcelErrorType9"
+            record["args"][0][0]
+                .as_object()
+                .and_then(|_| oracle_argument(&record["args"][0][0]))
+                .as_ref()
+                == Some(expected)
+        })
+        && record["outcome"]["code"] == "ExcelErrorType9"
         && record["result_index"][0].as_u64().is_some_and(|r| r < 4)
         && record["result_index"][1] == 0
 }
@@ -775,38 +983,67 @@ fn add_binomial_replay(banks: &mut Banks, function: &str, doc: &Value) -> Result
     banks.sources.push(Source {
         path: BINOM_REPLAY.to_owned(),
         env: ReadingSource {
-            id: String::new(), source: format!("DnaCalc {BINOM_REPLAY}"),
-            excel_build: Some("20527".into()), platform: Some("Windows".into()), bitness: None,
+            id: String::new(),
+            source: format!("DnaCalc {BINOM_REPLAY}"),
+            excel_build: Some("20527".into()),
+            platform: Some("Windows".into()),
+            bitness: None,
             cpu: doc["cpu"].as_str().map(str::to_owned),
             invocation: Some(calc_verdict::WitnessInvocation {
-                input_transport: Some("cell_value2_bulk".into()), ..Default::default()
+                input_transport: Some("cell_value2_bulk".into()),
+                ..Default::default()
             }),
         },
     });
     banks.files_read += 1;
     for (section, count) in [("alpha_neighbours", 54), ("ulp_scan_plus_minus_4", 135)] {
-        let rows = doc[section].as_array().ok_or("binomial replay has no section")?;
-        if rows.len() != count { return Err(format!("{section}: expected {count} calls")); }
+        let rows = doc[section]
+            .as_array()
+            .ok_or("binomial replay has no section")?;
+        if rows.len() != count {
+            return Err(format!("{section}: expected {count} calls"));
+        }
         for (i, row) in rows.iter().enumerate() {
             let n = row["n"].as_f64().ok_or("binomial trials")?;
             let p = row["p"].as_f64().ok_or("binomial probability")?;
             let alpha = row["alpha_bits"].as_str().ok_or("binomial alpha bits")?;
-            if alpha.len() != 16 || u64::from_str_radix(alpha, 16).is_err() { return Err("invalid alpha bits".into()); }
-            let args = vec![serde_json::json!(format!("0x{:016x}", n.to_bits())),
-                serde_json::json!(format!("0x{:016x}", p.to_bits())), serde_json::json!(format!("0x{alpha}"))];
+            if alpha.len() != 16 || u64::from_str_radix(alpha, 16).is_err() {
+                return Err("invalid alpha bits".into());
+            }
+            let args = vec![
+                serde_json::json!(format!("0x{:016x}", n.to_bits())),
+                serde_json::json!(format!("0x{:016x}", p.to_bits())),
+                serde_json::json!(format!("0x{alpha}")),
+            ];
             if let Some(readback) = row.get("input_bits_read_back") {
-                let expected = serde_json::json!([format!("{:016x}", n.to_bits()), format!("{:016x}", p.to_bits()), alpha]);
-                if readback != &expected { return Err(format!("{section} {i}: input readback differs")); }
+                let expected = serde_json::json!([
+                    format!("{:016x}", n.to_bits()),
+                    format!("{:016x}", p.to_bits()),
+                    alpha
+                ]);
+                if readback != &expected {
+                    return Err(format!("{section} {i}: input readback differs"));
+                }
             }
             let result = |name: &str| -> Option<u64> {
                 let value = &row[name];
-                value.as_str().and_then(|s| u64::from_str_radix(s, 16).ok())
+                value
+                    .as_str()
+                    .and_then(|s| u64::from_str_radix(s, 16).ok())
                     .or_else(|| value.as_f64().map(f64::to_bits))
             };
             let answer = result(function).ok_or("binomial replay has no numeric answer")?;
-            if result("BINOM.INV") != result("CRITBINOM") { return Err(format!("{section} {i}: functions disagree")); }
-            banks.readings.push(Reading { function: function.to_owned(), id: format!("q6-{section}-{i:03}"),
-                args, index: None, expected: format!("0x{answer:016x}"), source });
+            if result("BINOM.INV") != result("CRITBINOM") {
+                return Err(format!("{section} {i}: functions disagree"));
+            }
+            banks.readings.push(Reading {
+                function: function.to_owned(),
+                id: format!("q6-{section}-{i:03}"),
+                args,
+                index: None,
+                expected: format!("0x{answer:016x}"),
+                source,
+            });
         }
     }
     Ok(())
@@ -821,16 +1058,33 @@ fn load_full(checkout: &Path, only: Option<&str>) -> Result<(Banks, Vec<String>)
         unread_rows: BTreeMap::new(),
     };
     let inverse_replay = if only.is_none_or(|f| f == "MINVERSE") {
-        Some(bank_json(&gunzip(include_bytes!("../../../migration/evidence/dc-1943-minverse-replay.json.gz"), None)?)?)
-    } else { None };
+        Some(bank_json(&gunzip(
+            include_bytes!("../../../migration/evidence/dc-1943-minverse-replay.json.gz"),
+            None,
+        )?)?)
+    } else {
+        None
+    };
     let mut inverse_inputs = BTreeMap::new();
     if let Some(doc) = &inverse_replay {
-        for case in doc["cases"].as_array().ok_or("MINVERSE replay has no cases")? {
-            let Some(id) = case["id"].as_str().filter(|id| id.starts_with("MINVERSE|m4x4:")) else { continue; };
+        for case in doc["cases"]
+            .as_array()
+            .ok_or("MINVERSE replay has no cases")?
+        {
+            let Some(id) = case["id"]
+                .as_str()
+                .filter(|id| id.starts_with("MINVERSE|m4x4:"))
+            else {
+                continue;
+            };
             let args = array_replay_args(case, "MINVERSE")?;
-            if inverse_inputs.insert(id, args[0].clone()).is_some() { return Err(format!("{id}: repeated matrix")); }
+            if inverse_inputs.insert(id, args[0].clone()).is_some() {
+                return Err(format!("{id}: repeated matrix"));
+            }
         }
-        if inverse_inputs.len() != 28 { return Err("MINVERSE replay must hold 28 matrices".to_owned()); }
+        if inverse_inputs.len() != 28 {
+            return Err("MINVERSE replay must hold 28 matrices".to_owned());
+        }
     }
     let mut unread = Vec::new();
     let mut oracle_env: BTreeMap<String, Value> = BTreeMap::new();
@@ -849,7 +1103,8 @@ fn load_full(checkout: &Path, only: Option<&str>) -> Result<(Banks, Vec<String>)
     }
     for rel in &paths {
         let name = rel.rsplit('/').next().unwrap_or(rel);
-        let oracle = rel.starts_with("cache/oracle") && rel.contains("/build-") && name.ends_with(".jsonl");
+        let oracle =
+            rel.starts_with("cache/oracle") && rel.contains("/build-") && name.ends_with(".jsonl");
         if oracle {
             let function = name.trim_end_matches(".jsonl");
             if only.is_some_and(|f| f != function) {
@@ -869,26 +1124,54 @@ fn load_full(checkout: &Path, only: Option<&str>) -> Result<(Banks, Vec<String>)
                 }
                 let Ok(record) = bank_json(line) else {
                     unread.push(format!("{rel}:{}: not JSON", line_no + 1));
-                    *banks.unread_rows.entry(function.to_ascii_uppercase()).or_default() += 1;
+                    *banks
+                        .unread_rows
+                        .entry(function.to_ascii_uppercase())
+                        .or_default() += 1;
                     continue;
                 };
-                let call = record["args"].as_array().and_then(|a| a.first()).and_then(Value::as_array);
-                let args: Option<Vec<Value>> = call.map(|c| c.iter().map(oracle_argument).collect()).flatten();
-                let expected = oracle_outcome(&record["outcome"]).or_else(||
-                    recovered_minverse_spill(function, rel, &record, &inverse_inputs).then(|| "error:Spill".to_owned()));
+                let call = record["args"]
+                    .as_array()
+                    .and_then(|a| a.first())
+                    .and_then(Value::as_array);
+                let args: Option<Vec<Value>> = call
+                    .map(|c| c.iter().map(oracle_argument).collect())
+                    .flatten();
+                let expected = oracle_outcome(&record["outcome"]).or_else(|| {
+                    recovered_minverse_spill(function, rel, &record, &inverse_inputs)
+                        .then(|| "error:Spill".to_owned())
+                });
                 let (Some(args), Some(expected)) = (args, expected) else {
-                    unread.push(format!("{rel}:{}: an argument or outcome kind with no witness form", line_no + 1));
-                    *banks.unread_rows.entry(function.to_ascii_uppercase()).or_default() += 1;
+                    unread.push(format!(
+                        "{rel}:{}: an argument or outcome kind with no witness form",
+                        line_no + 1
+                    ));
+                    *banks
+                        .unread_rows
+                        .entry(function.to_ascii_uppercase())
+                        .or_default() += 1;
                     continue;
                 };
                 let env = record.get("environment");
-                let source = retain_source(&mut banks, &mut source_of, rel,
-                    environment(String::new(), format!("{CHECKOUT} {rel}"), env, fallback.as_ref(), record.get("calculation_settings")));
-                let index = record["result_index"].as_array().and_then(|p| match p.as_slice() {
-                    [r, c] => Some((r.as_u64()? as usize, c.as_u64()? as usize)),
-                    _ => None,
-                });
-            banks.readings.push(Reading {
+                let source = retain_source(
+                    &mut banks,
+                    &mut source_of,
+                    rel,
+                    environment(
+                        String::new(),
+                        format!("{CHECKOUT} {rel}"),
+                        env,
+                        fallback.as_ref(),
+                        record.get("calculation_settings"),
+                    ),
+                );
+                let index = record["result_index"]
+                    .as_array()
+                    .and_then(|p| match p.as_slice() {
+                        [r, c] => Some((r.as_u64()? as usize, c.as_u64()? as usize)),
+                        _ => None,
+                    });
+                banks.readings.push(Reading {
                     function: function.to_ascii_uppercase(),
                     id: format!("oc{}", line_no + 1),
                     args,
@@ -920,11 +1203,16 @@ fn load_full(checkout: &Path, only: Option<&str>) -> Result<(Banks, Vec<String>)
             unread.push(format!("{rel}: not JSON"));
             continue;
         };
-        let (Some(function), Some(rows)) = (doc["function"].as_str(), doc["witnesses"].as_array()) else {
+        let (Some(function), Some(rows)) = (doc["function"].as_str(), doc["witnesses"].as_array())
+        else {
             continue;
         };
         let function = function.to_ascii_uppercase();
-        if only.is_some_and(|f| f != function) || rows.first().is_none_or(|r| r.get("expected_bits").is_none()) {
+        if only.is_some_and(|f| f != function)
+            || rows
+                .first()
+                .is_none_or(|r| r.get("expected_bits").is_none())
+        {
             continue;
         }
         if let Some((companion, count)) = derived_graph_companion(checkout, rel, &doc) {
@@ -935,22 +1223,35 @@ fn load_full(checkout: &Path, only: Option<&str>) -> Result<(Banks, Vec<String>)
         let columns = prediction_column_inputs(&function, &probes);
         let (mut selections, mut hex_repairs, mut column_repairs) = (0, 0, 0);
         banks.files_read += 1;
-        let env = doc.get("capture_provenance").and_then(|p| p.get("environment"));
-        let captured = environment(String::new(), format!("{CHECKOUT} {rel}"), env, None,
-            doc.get("capture_provenance").and_then(|p| p.get("calculation_settings")));
+        let env = doc
+            .get("capture_provenance")
+            .and_then(|p| p.get("environment"));
+        let captured = environment(
+            String::new(),
+            format!("{CHECKOUT} {rel}"),
+            env,
+            None,
+            doc.get("capture_provenance")
+                .and_then(|p| p.get("calculation_settings")),
+        );
         let mut source_of = BTreeMap::new();
         record_unread_rows(&doc, &rel, &function, &mut banks, &mut unread)?;
         for (i, row) in rows.iter().enumerate() {
-            let (Some(args), Some(expected)) = (row["args"].as_array(), row["expected_bits"].as_str()) else {
+            let (Some(args), Some(expected)) =
+                (row["args"].as_array(), row["expected_bits"].as_str())
+            else {
                 unread.push(format!("{rel}: row {i} has no args or expected_bits"));
                 *banks.unread_rows.entry(function.clone()).or_default() += 1;
                 continue;
             };
-            let index = row.as_object().and_then(calc_verdict::result_index).or_else(|| {
-                let selected = recovered_selection(row, &probes);
-                selections += usize::from(selected.is_some());
-                selected
-            });
+            let index = row
+                .as_object()
+                .and_then(calc_verdict::result_index)
+                .or_else(|| {
+                    let selected = recovered_selection(row, &probes);
+                    selections += usize::from(selected.is_some());
+                    selected
+                });
             let mut args = Value::Array(args.clone());
             column_repairs += usize::from(restore_prediction_column(&mut args, &columns));
             normalize_bank_hex(&mut args);
@@ -958,11 +1259,20 @@ fn load_full(checkout: &Path, only: Option<&str>) -> Result<(Banks, Vec<String>)
             normalize_bank_hex(&mut normalized_expected);
             let mut original_args = row["args"].clone();
             normalize_bank_hex(&mut original_args);
-            hex_repairs += usize::from(original_args != row["args"] || normalized_expected != row["expected_bits"]);
-            let source = retain_source(&mut banks, &mut source_of, &rel, row_environment(captured.clone(), &doc, row));
+            hex_repairs += usize::from(
+                original_args != row["args"] || normalized_expected != row["expected_bits"],
+            );
+            let source = retain_source(
+                &mut banks,
+                &mut source_of,
+                &rel,
+                row_environment(captured.clone(), &doc, row),
+            );
             banks.readings.push(Reading {
                 function: function.clone(),
-                id: row["id"].as_str().map_or_else(|| format!("row{i}"), str::to_owned),
+                id: row["id"]
+                    .as_str()
+                    .map_or_else(|| format!("row{i}"), str::to_owned),
                 args: args.as_array().unwrap().clone(),
                 index,
                 expected: normalized_expected.as_str().unwrap().to_owned(),
@@ -975,7 +1285,8 @@ fn load_full(checkout: &Path, only: Option<&str>) -> Result<(Banks, Vec<String>)
         if selections > 0 || column_repairs > 0 {
             for source in source_of.values() {
                 banks.sources[*source].env.source.push_str(&format!(
-                    "; result selection/layout: {CHECKOUT} {}", batch_path(rel).unwrap()
+                    "; result selection/layout: {CHECKOUT} {}",
+                    batch_path(rel).unwrap()
                 ));
             }
         }
@@ -993,7 +1304,8 @@ fn load_full(checkout: &Path, only: Option<&str>) -> Result<(Banks, Vec<String>)
             unread.push(format!("{rel}: not JSON"));
             continue;
         };
-        let (Some(function), Some(rows)) = (doc["function"].as_str(), doc["witnesses"].as_array()) else {
+        let (Some(function), Some(rows)) = (doc["function"].as_str(), doc["witnesses"].as_array())
+        else {
             continue;
         };
         let function = function.to_ascii_uppercase();
@@ -1001,22 +1313,39 @@ fn load_full(checkout: &Path, only: Option<&str>) -> Result<(Banks, Vec<String>)
             continue;
         }
         banks.files_read += 1;
-        let env = doc.get("capture_provenance").and_then(|p| p.get("environment"));
-        let captured = environment(String::new(), format!("{CHECKOUT} {rel}"), env, None,
-            doc.get("capture_provenance").and_then(|p| p.get("calculation_settings")));
+        let env = doc
+            .get("capture_provenance")
+            .and_then(|p| p.get("environment"));
+        let captured = environment(
+            String::new(),
+            format!("{CHECKOUT} {rel}"),
+            env,
+            None,
+            doc.get("capture_provenance")
+                .and_then(|p| p.get("calculation_settings")),
+        );
         let mut source_of = BTreeMap::new();
         record_unread_rows(&doc, &rel, &function, &mut banks, &mut unread)?;
         record_transport_audits(&doc, &rel, &mut banks)?;
         for (i, row) in rows.iter().enumerate() {
-            let (Some(args), Some(expected)) = (row["args"].as_array(), row["expected_bits"].as_str()) else {
+            let (Some(args), Some(expected)) =
+                (row["args"].as_array(), row["expected_bits"].as_str())
+            else {
                 unread.push(format!("{rel}: row {i} has no args or expected_bits"));
                 *banks.unread_rows.entry(function.clone()).or_default() += 1;
                 continue;
             };
-            let source = retain_source(&mut banks, &mut source_of, &rel, row_environment(captured.clone(), &doc, row));
+            let source = retain_source(
+                &mut banks,
+                &mut source_of,
+                &rel,
+                row_environment(captured.clone(), &doc, row),
+            );
             banks.readings.push(Reading {
                 function: function.clone(),
-                id: row["id"].as_str().map_or_else(|| format!("row{i}"), str::to_owned),
+                id: row["id"]
+                    .as_str()
+                    .map_or_else(|| format!("row{i}"), str::to_owned),
                 args: args.clone(),
                 index: row.as_object().and_then(calc_verdict::result_index),
                 expected: expected.to_owned(),
@@ -1025,13 +1354,21 @@ fn load_full(checkout: &Path, only: Option<&str>) -> Result<(Banks, Vec<String>)
         }
     }
     if only.is_none_or(|f| f == "TEXTSPLIT") {
-        let doc = bank_json(&gunzip(include_bytes!("../../../migration/evidence/dc-1943-textsplit-replay.json.gz"), None)?)?;
+        let doc = bank_json(&gunzip(
+            include_bytes!("../../../migration/evidence/dc-1943-textsplit-replay.json.gz"),
+            None,
+        )?)?;
         add_array_replay(&mut banks, "TEXTSPLIT", TEXTSPLIT_REPLAY, &doc)?;
     }
-    if let Some(doc) = &inverse_replay { add_array_replay(&mut banks, "MINVERSE", MINVERSE_REPLAY, doc)?; }
+    if let Some(doc) = &inverse_replay {
+        add_array_replay(&mut banks, "MINVERSE", MINVERSE_REPLAY, doc)?;
+    }
     for function in ["BINOM.INV", "CRITBINOM"] {
         if only.is_none_or(|f| f == function) {
-            let doc = bank_json(&gunzip(include_bytes!("../../../migration/evidence/dc-1943-binom-replay.json.gz"), None)?)?;
+            let doc = bank_json(&gunzip(
+                include_bytes!("../../../migration/evidence/dc-1943-binom-replay.json.gz"),
+                None,
+            )?)?;
             add_binomial_replay(&mut banks, function, &doc)?;
         }
     }
@@ -1043,7 +1380,9 @@ fn plain_readings(dir: &Path) -> Vec<PathBuf> {
     let mut out = Vec::new();
     let mut stack = vec![dir.to_path_buf()];
     while let Some(d) = stack.pop() {
-        let Ok(entries) = fs::read_dir(&d) else { continue };
+        let Ok(entries) = fs::read_dir(&d) else {
+            continue;
+        };
         for e in entries.flatten() {
             let p = e.path();
             if p.is_dir() {
@@ -1063,9 +1402,17 @@ fn plain_readings(dir: &Path) -> Vec<PathBuf> {
 #[path = "../../../crates/calc-func/tests/witnesses/call.rs"]
 mod witness_call;
 
-fn calculate_with_context(function: &str, args: &[Value], index: Option<(usize, usize)>, context: Option<&calc_verdict::WitnessInvocation>, apply: bool) -> String {
-    catch_unwind(AssertUnwindSafe(|| witness_call::calculate(function, args, index, context, apply)))
-        .unwrap_or_else(|_| "fault:Panic".to_owned())
+fn calculate_with_context(
+    function: &str,
+    args: &[Value],
+    index: Option<(usize, usize)>,
+    context: Option<&calc_verdict::WitnessInvocation>,
+    apply: bool,
+) -> String {
+    catch_unwind(AssertUnwindSafe(|| {
+        witness_call::calculate(function, args, index, context, apply)
+    }))
+    .unwrap_or_else(|_| "fault:Panic".to_owned())
 }
 
 /// How long one row may calculate before it is given up as `fault:Timeout`.
@@ -1078,7 +1425,15 @@ const SLOW: &str = "slow:";
 /// [`calculate`] for every job, on a worker thread: a row that gives no result within
 /// [`ROW_SECONDS`] is `fault:Timeout`, its thread is left behind, and the rows after it go on in a
 /// new thread (calc-func's IRR calculates without end on some inputs).
-fn calculate_all(function: &str, jobs: &[(Vec<Value>, Option<(usize, usize)>, Option<std::sync::Arc<calc_verdict::WitnessInvocation>>)], apply_context: bool) -> Vec<String> {
+fn calculate_all(
+    function: &str,
+    jobs: &[(
+        Vec<Value>,
+        Option<(usize, usize)>,
+        Option<std::sync::Arc<calc_verdict::WitnessInvocation>>,
+    )],
+    apply_context: bool,
+) -> Vec<String> {
     use std::sync::mpsc::{RecvTimeoutError, channel};
     let mut out = Vec::with_capacity(jobs.len());
     while out.len() < jobs.len() {
@@ -1088,7 +1443,8 @@ fn calculate_all(function: &str, jobs: &[(Vec<Value>, Option<(usize, usize)>, Op
         std::thread::spawn(move || {
             for (args, index, context) in todo {
                 let started = std::time::Instant::now();
-                let result = calculate_with_context(&name, &args, index, context.as_deref(), apply_context);
+                let result =
+                    calculate_with_context(&name, &args, index, context.as_deref(), apply_context);
                 let result = if started.elapsed() > std::time::Duration::from_millis(SLOW_MILLIS) {
                     format!("{SLOW}{result}")
                 } else {
@@ -1176,7 +1532,9 @@ fn write_trace_row(writer: &mut impl Write, row: &Row<'_>, source: &Source) -> R
         value["exclusion"] = serde_json::json!({"reason": reason, "evidence": evidence});
     }
     serde_json::to_writer(&mut *writer, &value).map_err(|e| format!("witness trace: {e}"))?;
-    writer.write_all(b"\n").map_err(|e| format!("witness trace: {e}"))
+    writer
+        .write_all(b"\n")
+        .map_err(|e| format!("witness trace: {e}"))
 }
 
 struct Difference {
@@ -1194,30 +1552,53 @@ fn build_order(build: &Option<String>) -> u64 {
 /// The bank does not retain that evaluation order, so a single recorded value cannot
 /// judge a stateless invocation. Keep the row in the failure denominator and report it.
 fn order_dependent_weeknum(reading: &Reading) -> bool {
-    if reading.function != "WEEKNUM" { return false; }
-    let Some(value) = reading.args.get(1)
+    if reading.function != "WEEKNUM" {
+        return false;
+    }
+    let Some(value) = reading
+        .args
+        .get(1)
         .and_then(|arg| decode_argument(arg, "return_type").ok())
-        .and_then(|arg| arg.as_number()) else { return false; };
-    if !value.is_finite() { return false; }
+        .and_then(|arg| arg.as_number())
+    else {
+        return false;
+    };
+    if !value.is_finite() {
+        return false;
+    }
     let upper = value.ceil();
     let tolerance = if upper > 0.0 {
         2.0_f64.powi(-22) + 2.0_f64.powi(-33)
     } else {
         2.0_f64.powi(-23) + 2.0_f64.powi(-34)
     };
-    let kind = if upper - value <= tolerance { upper } else { value.floor() };
+    let kind = if upper - value <= tolerance {
+        upper
+    } else {
+        value.floor()
+    };
     !(0.0..22.0).contains(&kind)
 }
 
 fn exclusion_reason(reading: &Reading, source: &Source) -> Option<&'static str> {
-    if order_dependent_weeknum(reading) { return Some("order-dependent"); }
-    if reading.function == "TEXTSPLIT" && source.path == "readings/excel-20527/TEXTSPLIT.json"
-        && matches!(reading.id.as_str(), "fn1-textsplit-004" | "fn1-textsplit-005")
-        && reading.expected == "error:Spill" {
+    if order_dependent_weeknum(reading) {
+        return Some("order-dependent");
+    }
+    if reading.function == "TEXTSPLIT"
+        && source.path == "readings/excel-20527/TEXTSPLIT.json"
+        && matches!(
+            reading.id.as_str(),
+            "fn1-textsplit-004" | "fn1-textsplit-005"
+        )
+        && reading.expected == "error:Spill"
+    {
         return Some("spill-layout");
     }
-    if reading.function == "MINVERSE" && source.path == "cache/oracle/build-20131/MINVERSE.jsonl"
-        && reading.expected == "error:Spill" && reading.index.is_some_and(|(_, c)| c == 0) {
+    if reading.function == "MINVERSE"
+        && source.path == "cache/oracle/build-20131/MINVERSE.jsonl"
+        && reading.expected == "error:Spill"
+        && reading.index.is_some_and(|(_, c)| c == 0)
+    {
         return Some("spill-layout");
     }
     None
@@ -1227,7 +1608,17 @@ fn group<'a>(banks: &'a Banks) -> (BTreeMap<String, Vec<Vec<&'a Reading>>>, Vec<
     // function -> key -> readings
     let mut by_key: BTreeMap<String, BTreeMap<String, Vec<&Reading>>> = BTreeMap::new();
     for r in &banks.readings {
-        by_key.entry(r.function.clone()).or_default().entry(contextual_key(&r.function, &r.args, r.index, banks.sources[r.source].env.invocation.as_ref())).or_default().push(r);
+        by_key
+            .entry(r.function.clone())
+            .or_default()
+            .entry(contextual_key(
+                &r.function,
+                &r.args,
+                r.index,
+                banks.sources[r.source].env.invocation.as_ref(),
+            ))
+            .or_default()
+            .push(r);
     }
     let mut differences = Vec::new();
     let mut out = BTreeMap::new();
@@ -1239,7 +1630,12 @@ fn group<'a>(banks: &'a Banks) -> (BTreeMap<String, Vec<Vec<&'a Reading>>>, Vec<
                 let mut seen = BTreeSet::new();
                 let listed: Vec<(String, String, String)> = readings
                     .iter()
-                    .filter(|r| seen.insert((r.expected.clone(), banks.sources[r.source].env.environment())))
+                    .filter(|r| {
+                        seen.insert((
+                            r.expected.clone(),
+                            banks.sources[r.source].env.environment(),
+                        ))
+                    })
                     .map(|r| {
                         let s = &banks.sources[r.source];
                         (r.expected.clone(), s.env.environment(), s.path.clone())
@@ -1262,32 +1658,61 @@ fn group<'a>(banks: &'a Banks) -> (BTreeMap<String, Vec<Vec<&'a Reading>>>, Vec<
 
 /// Preserve cross-context replay observations as explicit pairs. They do not enter the
 /// selection groups: the replay recorded a new workbook context, not the original one.
-fn replay_difference(record: &Value, original: &Reading, source: &Source) -> Result<Difference, String> {
+fn replay_difference(
+    record: &Value,
+    original: &Reading,
+    source: &Source,
+) -> Result<Difference, String> {
     let bank = &record["bank"];
     let fail = || format!("invalid replay pair for {} {}", source.path, original.id);
-    if record["category"] != "different" || bank["function"] != original.function
-        || bank["source"] != source.path || bank["id"] != original.id
+    if record["category"] != "different"
+        || bank["function"] != original.function
+        || bank["source"] != source.path
+        || bank["id"] != original.id
         || bank["args"] != Value::Array(original.args.clone())
-        || bank["expected"] != original.expected || !bank["result_index"].is_null()
-        || original.index.is_some() || bank["build"].as_str() != source.env.excel_build.as_deref()
+        || bank["expected"] != original.expected
+        || !bank["result_index"].is_null()
+        || original.index.is_some()
+        || bank["build"].as_str() != source.env.excel_build.as_deref()
         || bank["cpu"].as_str() != source.env.cpu.as_deref()
-        || bank["invocation"] != source.env.invocation.as_ref().map_or(Value::Null, |v| v.to_json())
-        || !bank["exclusion"].is_null() {
+        || bank["invocation"]
+            != source
+                .env
+                .invocation
+                .as_ref()
+                .map_or(Value::Null, |v| v.to_json())
+        || !bank["exclusion"].is_null()
+    {
         return Err(fail());
     }
     let inputs = record["inputs"].as_array().ok_or_else(fail)?;
-    if inputs.len() != original.args.len() || inputs.iter().zip(&original.args).any(|(seen, requested)| {
-        seen["type"] != "number" || seen["bits"].as_str().zip(requested.as_str())
-            .is_none_or(|(bits, request)| request.strip_prefix("0x") != Some(bits))
-    }) { return Err(fail()); }
+    if inputs.len() != original.args.len()
+        || inputs.iter().zip(&original.args).any(|(seen, requested)| {
+            seen["type"] != "number"
+                || seen["bits"]
+                    .as_str()
+                    .zip(requested.as_str())
+                    .is_none_or(|(bits, request)| request.strip_prefix("0x") != Some(bits))
+        })
+    {
+        return Err(fail());
+    }
     let observed = &record["observed"];
     let result = oracle_outcome(&serde_json::json!({"kind": observed["type"], "code": observed["code"], "bits_hex": observed["bits"]}))
         .ok_or_else(fail)?;
     let env = &record["environment"];
-    if result == original.expected || env["engine"] != "excel" || env["build"] != "20527"
-        || !env["os"].as_str().is_some_and(|s| s.starts_with("Microsoft Windows"))
-        || env["cpu"].as_str().is_none() || env["date1904"].as_bool().is_none()
-        || env["compatibility_version"].as_u64().is_none() { return Err(fail()); }
+    if result == original.expected
+        || env["engine"] != "excel"
+        || env["build"] != "20527"
+        || !env["os"]
+            .as_str()
+            .is_some_and(|s| s.starts_with("Microsoft Windows"))
+        || env["cpu"].as_str().is_none()
+        || env["date1904"].as_bool().is_none()
+        || env["compatibility_version"].as_u64().is_none()
+    {
+        return Err(fail());
+    }
     let current_context = serde_json::json!({
         "input_transport": "cell_value2_bulk", "date1904": env["date1904"],
         "compatibility_version": env["compatibility_version"],
@@ -1295,11 +1720,29 @@ fn replay_difference(record: &Value, original: &Reading, source: &Source) -> Res
     });
     Ok(Difference {
         function: original.function.clone(),
-        key: contextual_key(&original.function, &original.args, original.index, source.env.invocation.as_ref()),
+        key: contextual_key(
+            &original.function,
+            &original.args,
+            original.index,
+            source.env.invocation.as_ref(),
+        ),
         readings: vec![
-            (original.expected.clone(), source.env.environment(), format!("{}#{}", source.path, original.id)),
-            (result, format!("20527/Windows/?/{} context={current_context}", env["cpu"].as_str().unwrap()),
-                format!("migration/evidence/dc-ymjf3-20527-date-differences.jsonl.gz#{}:{}", source.path, original.id)),
+            (
+                original.expected.clone(),
+                source.env.environment(),
+                format!("{}#{}", source.path, original.id),
+            ),
+            (
+                result,
+                format!(
+                    "20527/Windows/?/{} context={current_context}",
+                    env["cpu"].as_str().unwrap()
+                ),
+                format!(
+                    "migration/evidence/dc-ymjf3-20527-date-differences.jsonl.gz#{}:{}",
+                    source.path, original.id
+                ),
+            ),
         ],
         across_environments: true,
     })
@@ -1311,7 +1754,9 @@ fn coalesce_replay_differences(pairs: Vec<Difference>) -> Vec<Difference> {
     let mut by_key: BTreeMap<String, Difference> = BTreeMap::new();
     for mut pair in pairs {
         match by_key.entry(pair.key.clone()) {
-            std::collections::btree_map::Entry::Vacant(slot) => { slot.insert(pair); }
+            std::collections::btree_map::Entry::Vacant(slot) => {
+                slot.insert(pair);
+            }
             std::collections::btree_map::Entry::Occupied(mut slot) => {
                 slot.get_mut().readings.append(&mut pair.readings);
             }
@@ -1321,23 +1766,42 @@ fn coalesce_replay_differences(pairs: Vec<Difference>) -> Vec<Difference> {
 }
 
 fn replay_differences(banks: &Banks) -> Result<Vec<Difference>, String> {
-    let bytes = gunzip(include_bytes!("../../../migration/evidence/dc-ymjf3-20527-date-differences.jsonl.gz"), None)?;
+    let bytes = gunzip(
+        include_bytes!("../../../migration/evidence/dc-ymjf3-20527-date-differences.jsonl.gz"),
+        None,
+    )?;
     let mut originals = BTreeMap::new();
     for reading in banks.readings.iter().filter(|r| r.function == "DATE") {
         let source = &banks.sources[reading.source];
-        if originals.insert((source.path.as_str(), reading.id.as_str()), reading).is_some() {
-            return Err(format!("duplicate original reading {} {}", source.path, reading.id));
+        if originals
+            .insert((source.path.as_str(), reading.id.as_str()), reading)
+            .is_some()
+        {
+            return Err(format!(
+                "duplicate original reading {} {}",
+                source.path, reading.id
+            ));
         }
     }
     let mut seen = BTreeSet::new();
     let mut out = Vec::new();
     for line in bytes.split(|b| *b == b'\n').filter(|line| !line.is_empty()) {
         let row = bank_json(line)?;
-        let source = row["bank"]["source"].as_str().ok_or("replay source missing")?;
+        let source = row["bank"]["source"]
+            .as_str()
+            .ok_or("replay source missing")?;
         let id = row["bank"]["id"].as_str().ok_or("replay ID missing")?;
-        if !seen.insert((source.to_owned(), id.to_owned())) { return Err(format!("duplicate replay {source} {id}")); }
-        let original = originals.get(&(source, id)).ok_or_else(|| format!("replay original missing: {source} {id}"))?;
-        out.push(replay_difference(&row, original, &banks.sources[original.source])?);
+        if !seen.insert((source.to_owned(), id.to_owned())) {
+            return Err(format!("duplicate replay {source} {id}"));
+        }
+        let original = originals
+            .get(&(source, id))
+            .ok_or_else(|| format!("replay original missing: {source} {id}"))?;
+        out.push(replay_difference(
+            &row,
+            original,
+            &banks.sources[original.source],
+        )?);
     }
     Ok(coalesce_replay_differences(out))
 }
@@ -1353,11 +1817,23 @@ fn calc_func_commit(root: &Path) -> String {
             .unwrap_or_default()
     };
     let head = git(&["rev-parse", "--short=10", "HEAD"]);
-    let dirty = !git(&["status", "--porcelain", "--", "crates/calc-func", "crates/calc-value"]).is_empty();
-    if dirty { format!("{head}+changes") } else { head }
+    let dirty = !git(&[
+        "status",
+        "--porcelain",
+        "--",
+        "crates/calc-func",
+        "crates/calc-value",
+    ])
+    .is_empty();
+    if dirty {
+        format!("{head}+changes")
+    } else {
+        head
+    }
 }
 
-const STATUS_HEADER: &str = "function\tbank\texcel_builds\trows\tmatched\tworst_ulp\tclass\tcalc_func_commit\texcluded";
+const STATUS_HEADER: &str =
+    "function\tbank\texcel_builds\trows\tmatched\tworst_ulp\tclass\tcalc_func_commit\texcluded";
 
 struct Status {
     function: String,
@@ -1386,24 +1862,45 @@ fn status_of(function: &str, rows: &[Row]) -> Status {
         function: function.to_owned(),
         builds: builds.into_iter().collect::<Vec<_>>().join(","),
         rows: rows.len(),
-        matched: rows.iter().filter(|r| r.severity == Severity::Exact).count(),
-        excluded: rows.iter().filter(|r| r.actual.starts_with("excluded:")).count(),
+        matched: rows
+            .iter()
+            .filter(|r| r.severity == Severity::Exact)
+            .count(),
+        excluded: rows
+            .iter()
+            .filter(|r| r.actual.starts_with("excluded:"))
+            .count(),
         worst_ulp: rows.iter().filter_map(|r| r.ulp).max(),
-        class: rows.iter().map(|r| r.severity).max().unwrap_or(Severity::Exact),
+        class: rows
+            .iter()
+            .map(|r| r.severity)
+            .max()
+            .unwrap_or(Severity::Exact),
     }
 }
 
-fn write_status(root: &Path, bank: &str, statuses: &[Status], only: Option<&str>) -> Result<(), String> {
+fn write_status(
+    root: &Path,
+    bank: &str,
+    statuses: &[Status],
+    only: Option<&str>,
+) -> Result<(), String> {
     let path = root.join(STATUS);
     let commit = calc_func_commit(root);
     let mut lines: BTreeMap<(String, String), String> = BTreeMap::new();
     if let Ok(text) = fs::read_to_string(&path) {
         for line in text.lines().skip(1) {
             let mut cols = line.split('\t');
-            let (Some(f), Some(b)) = (cols.next(), cols.next()) else { continue };
+            let (Some(f), Some(b)) = (cols.next(), cols.next()) else {
+                continue;
+            };
             let replaced = b == bank && only.is_none_or(|o| o == f);
             if !replaced {
-                let line = if line.split('\t').count() == 8 { format!("{line}\t0") } else { line.to_owned() };
+                let line = if line.split('\t').count() == 8 {
+                    format!("{line}\t0")
+                } else {
+                    line.to_owned()
+                };
                 lines.insert((f.to_owned(), b.to_owned()), line);
             }
         }
@@ -1430,18 +1927,35 @@ fn write_status(root: &Path, bank: &str, statuses: &[Status], only: Option<&str>
     fs::write(&path, text).map_err(|e| format!("{}: {e}", path.display()))
 }
 
-fn write_differences(root: &Path, differences: &[Difference], only: Option<&str>) -> Result<(), String> {
+fn write_differences(
+    root: &Path,
+    differences: &[Difference],
+    only: Option<&str>,
+) -> Result<(), String> {
     let path = root.join(DIFFERENCES);
     let mut kept: Vec<String> = Vec::new();
     if let (Some(only), Ok(text)) = (only, fs::read_to_string(&path)) {
-        kept.extend(text.lines().skip(1).filter(|l| !l.starts_with(&format!("{only}\t"))).map(str::to_owned));
+        kept.extend(
+            text.lines()
+                .skip(1)
+                .filter(|l| !l.starts_with(&format!("{only}\t")))
+                .map(str::to_owned),
+        );
     }
     for d in differences {
-        let readings: Vec<String> = d.readings.iter().map(|(e, env, src)| format!("{e} on {env} ({src})")).collect();
+        let readings: Vec<String> = d
+            .readings
+            .iter()
+            .map(|(e, env, src)| format!("{e} on {env} ({src})"))
+            .collect();
         kept.push(format!(
             "{}\t{}\t{}\t{}",
             d.function,
-            if d.across_environments { "version_or_platform" } else { "same_environment" },
+            if d.across_environments {
+                "version_or_platform"
+            } else {
+                "same_environment"
+            },
             d.key,
             readings.join(" | ")
         ));
@@ -1512,7 +2026,8 @@ fn holds_marker(text: &str, markers: &[String]) -> bool {
         text.match_indices(m.as_str()).any(|(at, _)| {
             let before = text[..at].chars().next_back();
             let after = text[at + m.len()..].chars().next();
-            !before.is_some_and(|c| c.is_ascii_alphanumeric()) && !after.is_some_and(|c| c.is_ascii_alphanumeric())
+            !before.is_some_and(|c| c.is_ascii_alphanumeric())
+                && !after.is_some_and(|c| c.is_ascii_alphanumeric())
         })
     })
 }
@@ -1539,12 +2054,19 @@ fn select<'a>(rows: &'a [Row<'a>], budget: usize) -> Vec<&'a Row<'a>> {
     }
     if chosen.len() > budget {
         let stride = chosen.len() as f64 / budget as f64;
-        chosen = (0..budget).map(|i| chosen[(i as f64 * stride) as usize]).collect();
+        chosen = (0..budget)
+            .map(|i| chosen[(i as f64 * stride) as usize])
+            .collect();
     }
     chosen
 }
 
-fn write_pinned(root: &Path, banks: &Banks, judged: &BTreeMap<String, Vec<Row>>, budget: usize) -> Result<(usize, Vec<String>), String> {
+fn write_pinned(
+    root: &Path,
+    banks: &Banks,
+    judged: &BTreeMap<String, Vec<Row>>,
+    budget: usize,
+) -> Result<(usize, Vec<String>), String> {
     let dir = root.join(PINNED_DIR);
     fs::create_dir_all(&dir).map_err(|e| format!("{}: {e}", dir.display()))?;
     let markers = markers(root);
@@ -1555,7 +2077,10 @@ fn write_pinned(root: &Path, banks: &Banks, judged: &BTreeMap<String, Vec<Row>>,
             .iter()
             .filter(|r| {
                 if r.actual == "fault:Panic" || r.actual == "fault:Timeout" || r.slow {
-                    panics.push(format!("{function} {}", Value::Array(r.reading.args.clone())));
+                    panics.push(format!(
+                        "{function} {}",
+                        Value::Array(r.reading.args.clone())
+                    ));
                     false
                 } else {
                     true
@@ -1578,7 +2103,11 @@ fn write_pinned(root: &Path, banks: &Banks, judged: &BTreeMap<String, Vec<Row>>,
         let mut witnesses = Vec::new();
         for (i, r) in chosen.iter().enumerate() {
             let source = &banks.sources[r.reading.source];
-            let id = match readings.iter().position(|s| s.source == source.env.source && s.environment() == source.env.environment() && s.invocation == source.env.invocation) {
+            let id = match readings.iter().position(|s| {
+                s.source == source.env.source
+                    && s.environment() == source.env.environment()
+                    && s.invocation == source.env.invocation
+            }) {
                 Some(at) => readings[at].id.clone(),
                 None => {
                     let mut env = source.env.clone();
@@ -1587,7 +2116,11 @@ fn write_pinned(root: &Path, banks: &Banks, judged: &BTreeMap<String, Vec<Row>>,
                     readings.last().map(|e| e.id.clone()).unwrap_or_default()
                 }
             };
-            let row_id = if holds_marker(&r.reading.id, &markers) { format!("row-{i}") } else { r.reading.id.clone() };
+            let row_id = if holds_marker(&r.reading.id, &markers) {
+                format!("row-{i}")
+            } else {
+                r.reading.id.clone()
+            };
             witnesses.push(WitnessRow {
                 id: row_id,
                 args: r.reading.args.clone(),
@@ -1636,7 +2169,10 @@ fn write_pinned(root: &Path, banks: &Banks, judged: &BTreeMap<String, Vec<Row>>,
 
 /// Restore only facts attested by the pinned row's original source. Neither the
 /// sample nor its Excel answers is selected again. A conflicting source is an error.
-fn restore_pinned_context(sets: &mut [(PathBuf, WitnessSet)], banks: &Banks) -> Result<usize, String> {
+fn restore_pinned_context(
+    sets: &mut [(PathBuf, WitnessSet)],
+    banks: &Banks,
+) -> Result<usize, String> {
     // The public archive rename keeps the same source paths and recorded answers.
     // Compare that one alias without rewriting immutable witness provenance.
     let source_path = |source: &str| {
@@ -1645,18 +2181,37 @@ fn restore_pinned_context(sets: &mut [(PathBuf, WitnessSet)], banks: &Banks) -> 
             .map_or_else(|| path.to_owned(), |rest| format!("{CHECKOUT} {rest}"))
     };
     let key = |function: &str, source: &str, args: &[Value], index| {
-        format!("{}|{}", source_path(source), reading_key(function, args, index))
+        format!(
+            "{}|{}",
+            source_path(source),
+            reading_key(function, args, index)
+        )
     };
     let mut candidates: BTreeMap<String, Vec<&Reading>> = BTreeMap::new();
     for (_, set) in sets.iter() {
         for row in &set.witnesses {
-            let source = set.readings.iter().find(|s| s.id == row.reading).ok_or("pin has no reading source")?;
-            candidates.entry(key(&set.function, &source.source, &row.args, row.result_index)).or_default();
+            let source = set
+                .readings
+                .iter()
+                .find(|s| s.id == row.reading)
+                .ok_or("pin has no reading source")?;
+            candidates
+                .entry(key(
+                    &set.function,
+                    &source.source,
+                    &row.args,
+                    row.result_index,
+                ))
+                .or_default();
         }
     }
     for row in &banks.readings {
         let source = &banks.sources[row.source].env;
-        if let Some(list) = candidates.get_mut(&key(&row.function, &source.source, &row.args, row.index)) { list.push(row); }
+        if let Some(list) =
+            candidates.get_mut(&key(&row.function, &source.source, &row.args, row.index))
+        {
+            list.push(row);
+        }
     }
     let mut restored = 0;
     for (_, set) in sets.iter_mut() {
@@ -1664,21 +2219,57 @@ fn restore_pinned_context(sets: &mut [(PathBuf, WitnessSet)], banks: &Banks) -> 
         let mut assigned: BTreeMap<(String, String), String> = BTreeMap::new();
         let mut used = BTreeSet::new();
         for row in &mut set.witnesses {
-            let source = original.iter().find(|s| s.id == row.reading).ok_or("pin has no original source")?;
-            let list = candidates.get(&key(&set.function, &source.source, &row.args, row.result_index)).ok_or("pin is not in its source bank")?;
-            let same_id = list.iter().any(|r| r.id == row.id && banks.sources[r.source].env.environment() == source.environment());
+            let source = original
+                .iter()
+                .find(|s| s.id == row.reading)
+                .ok_or("pin has no original source")?;
+            let list = candidates
+                .get(&key(
+                    &set.function,
+                    &source.source,
+                    &row.args,
+                    row.result_index,
+                ))
+                .ok_or("pin is not in its source bank")?;
+            let same_id = list.iter().any(|r| {
+                r.id == row.id && banks.sources[r.source].env.environment() == source.environment()
+            });
             let mut contexts = BTreeMap::new();
             for candidate in list.iter().filter(|r| !same_id || r.id == row.id) {
                 let recorded = &banks.sources[candidate.source].env;
-                if recorded.environment() != source.environment() { continue; }
-                if candidate.expected != row.expected { return Err(format!("{} {}: original source answer differs from pin", set.function, row.id)); }
-                contexts.insert(recorded.invocation.as_ref().map_or(Value::Null, |c| c.to_json()).to_string(), recorded.invocation.clone());
+                if recorded.environment() != source.environment() {
+                    continue;
+                }
+                if candidate.expected != row.expected {
+                    return Err(format!(
+                        "{} {}: original source answer differs from pin",
+                        set.function, row.id
+                    ));
+                }
+                contexts.insert(
+                    recorded
+                        .invocation
+                        .as_ref()
+                        .map_or(Value::Null, |c| c.to_json())
+                        .to_string(),
+                    recorded.invocation.clone(),
+                );
             }
-            if contexts.len() != 1 { return Err(format!("{} {}: {} possible source contexts", set.function, row.id, contexts.len())); }
+            if contexts.len() != 1 {
+                return Err(format!(
+                    "{} {}: {} possible source contexts",
+                    set.function,
+                    row.id,
+                    contexts.len()
+                ));
+            }
             let (encoded, context) = contexts.into_iter().next().unwrap();
             restored += usize::from(context != source.invocation);
             let assigned_key = (source.id.clone(), encoded);
-            if let Some(id) = assigned.get(&assigned_key) { row.reading = id.clone(); continue; }
+            if let Some(id) = assigned.get(&assigned_key) {
+                row.reading = id.clone();
+                continue;
+            }
             let mut updated = source.clone();
             updated.invocation = context;
             if used.insert(source.id.clone()) {
@@ -1687,7 +2278,9 @@ fn restore_pinned_context(sets: &mut [(PathBuf, WitnessSet)], banks: &Banks) -> 
                 let mut suffix = 1;
                 loop {
                     updated.id = format!("{}-context-{suffix}", source.id);
-                    if !set.readings.iter().any(|s| s.id == updated.id) { break; }
+                    if !set.readings.iter().any(|s| s.id == updated.id) {
+                        break;
+                    }
                     suffix += 1;
                 }
                 set.readings.push(updated.clone());
@@ -1708,14 +2301,22 @@ fn without_context_and_prediction(mut value: Value) -> Result<Value, String> {
     for reading in readings {
         let mut source = reading.clone();
         let object = source.as_object_mut().ok_or("reading is not an object")?;
-        let id = object.remove("id").and_then(|v| v.as_str().map(str::to_owned)).ok_or("missing reading id")?;
+        let id = object
+            .remove("id")
+            .and_then(|v| v.as_str().map(str::to_owned))
+            .ok_or("missing reading id")?;
         object.remove("invocation");
         sources.insert(id, source.clone());
         distinct.insert(source.to_string(), source);
     }
     value["readings"] = Value::Array(distinct.into_values().collect());
-    for row in value["witnesses"].as_array_mut().ok_or("missing witnesses")? {
-        row.as_object_mut().ok_or("witness is not an object")?.remove("calc_func");
+    for row in value["witnesses"]
+        .as_array_mut()
+        .ok_or("missing witnesses")?
+    {
+        row.as_object_mut()
+            .ok_or("witness is not an object")?
+            .remove("calc_func");
         let id = row["reading"].as_str().ok_or("missing row reading")?;
         row["reading"] = sources.get(id).ok_or("unknown row reading")?.clone();
     }
@@ -1726,7 +2327,11 @@ fn without_context_and_prediction(mut value: Value) -> Result<Value, String> {
 /// classified loss (owner ruling 2026-11-04: a structurally shown step lands with its losses
 /// classified, each class a named next target). A listed row that is not such a loss is refused,
 /// so the list cannot grow stale silently.
-fn refresh_prediction(row: &mut WitnessRow, actual: &str, loss_class: Option<&str>) -> Result<bool, String> {
+fn refresh_prediction(
+    row: &mut WitnessRow,
+    actual: &str,
+    loss_class: Option<&str>,
+) -> Result<bool, String> {
     if matches!(actual, "fault:Panic" | "fault:Timeout") {
         return Err(format!("cannot refresh {}: {actual}", row.id));
     }
@@ -1734,8 +2339,18 @@ fn refresh_prediction(row: &mut WitnessRow, actual: &str, loss_class: Option<&st
     let old = row.calc_func.as_deref().unwrap_or(&row.expected);
     let lost = judge(&row.expected, old).0 == Severity::Exact && !new_match;
     match (lost, loss_class) {
-        (true, None) => return Err(format!("cannot refresh {}: a previously matched pin now fails", row.id)),
-        (false, Some(class)) => return Err(format!("{} is listed as a classified loss ({class}) but is not one", row.id)),
+        (true, None) => {
+            return Err(format!(
+                "cannot refresh {}: a previously matched pin now fails",
+                row.id
+            ));
+        }
+        (false, Some(class)) => {
+            return Err(format!(
+                "{} is listed as a classified loss ({class}) but is not one",
+                row.id
+            ));
+        }
         (true, Some(class)) => println!("xtask witness: classified loss {}: {class}", row.id),
         (false, None) => {}
     }
@@ -1745,18 +2360,47 @@ fn refresh_prediction(row: &mut WitnessRow, actual: &str, loss_class: Option<&st
     Ok(changed)
 }
 
-fn refresh_pinned(sets: Vec<(PathBuf, WitnessSet)>, banks: &Banks, judged: &BTreeMap<String, Vec<Row>>, context_refresh: bool, losses: &BTreeMap<(String, String), String>) -> Result<(), String> {
+fn refresh_pinned(
+    sets: Vec<(PathBuf, WitnessSet)>,
+    banks: &Banks,
+    judged: &BTreeMap<String, Vec<Row>>,
+    context_refresh: bool,
+    losses: &BTreeMap<(String, String), String>,
+) -> Result<(), String> {
     let mut updates = Vec::new();
     let mut changed = 0;
     for (path, mut set) in sets {
-        let rows = judged.get(&set.function).ok_or(format!("{} was not judged", set.function))?;
-        let actuals: BTreeMap<_, _> = rows.iter().map(|r| (contextual_key(&r.reading.function, &r.reading.args, r.reading.index, banks.sources[r.reading.source].env.invocation.as_ref()), r.actual.as_str())).collect();
+        let rows = judged
+            .get(&set.function)
+            .ok_or(format!("{} was not judged", set.function))?;
+        let actuals: BTreeMap<_, _> = rows
+            .iter()
+            .map(|r| {
+                (
+                    contextual_key(
+                        &r.reading.function,
+                        &r.reading.args,
+                        r.reading.index,
+                        banks.sources[r.reading.source].env.invocation.as_ref(),
+                    ),
+                    r.actual.as_str(),
+                )
+            })
+            .collect();
         let mut count = 0;
         for row in &mut set.witnesses {
-            let context = set.readings.iter().find(|r| r.id == row.reading).and_then(|r| r.invocation.as_ref());
+            let context = set
+                .readings
+                .iter()
+                .find(|r| r.id == row.reading)
+                .and_then(|r| r.invocation.as_ref());
             let key = contextual_key(&set.function, &row.args, row.result_index, context);
-            let actual = actuals.get(&key).ok_or(format!("no calculation for {} {}", set.function, row.id))?;
-            let class = losses.get(&(set.function.clone(), row.id.clone())).map(String::as_str);
+            let actual = actuals
+                .get(&key)
+                .ok_or(format!("no calculation for {} {}", set.function, row.id))?;
+            let class = losses
+                .get(&(set.function.clone(), row.id.clone()))
+                .map(String::as_str);
             count += usize::from(refresh_prediction(row, actual, class)?);
         }
         let text = set.encode();
@@ -1769,13 +2413,25 @@ fn refresh_pinned(sets: Vec<(PathBuf, WitnessSet)>, banks: &Banks, judged: &BTre
             after = without_context_and_prediction(after)?;
         } else {
             for value in [&mut before, &mut after] {
-                for row in value["witnesses"].as_array_mut().ok_or("missing witnesses")? {
-                    row.as_object_mut().ok_or("a witness is not an object")?.remove("calc_func");
+                for row in value["witnesses"]
+                    .as_array_mut()
+                    .ok_or("missing witnesses")?
+                {
+                    row.as_object_mut()
+                        .ok_or("a witness is not an object")?
+                        .remove("calc_func");
                 }
             }
         }
-        if before != after { return Err(format!("{}: refresh would change recorded data or the original sample", path.display())); }
-        if original == text.as_bytes() { continue; }
+        if before != after {
+            return Err(format!(
+                "{}: refresh would change recorded data or the original sample",
+                path.display()
+            ));
+        }
+        if original == text.as_bytes() {
+            continue;
+        }
         changed += count;
         updates.push((path, text));
     }
@@ -1783,12 +2439,17 @@ fn refresh_pinned(sets: Vec<(PathBuf, WitnessSet)>, banks: &Banks, judged: &BTre
     for (path, text) in &updates {
         fs::write(path, text).map_err(|e| format!("{}: {e}", path.display()))?;
     }
-    println!("xtask witness: refreshed {changed} calculated predictions in {} original pinned sets; recorded inputs, Excel answers and sample unchanged; context restoration {context_refresh}", updates.len());
+    println!(
+        "xtask witness: refreshed {changed} calculated predictions in {} original pinned sets; recorded inputs, Excel answers and sample unchanged; context restoration {context_refresh}",
+        updates.len()
+    );
     Ok(())
 }
 
 /// `--classified-losses`: tab-separated `function`, `id`, `class` lines (`#` starts a comment).
-fn read_classified_losses(path: Option<&Path>) -> Result<BTreeMap<(String, String), String>, String> {
+fn read_classified_losses(
+    path: Option<&Path>,
+) -> Result<BTreeMap<(String, String), String>, String> {
     let mut out = BTreeMap::new();
     let Some(path) = path else { return Ok(out) };
     let text = fs::read_to_string(path).map_err(|e| format!("{}: {e}", path.display()))?;
@@ -1797,13 +2458,25 @@ fn read_classified_losses(path: Option<&Path>) -> Result<BTreeMap<(String, Strin
             continue;
         }
         let mut fields = line.splitn(3, '\t');
-        let (Some(function), Some(id), Some(class)) = (fields.next(), fields.next(), fields.next()) else {
-            return Err(format!("{} line {}: needs function, id and class", path.display(), i + 1));
+        let (Some(function), Some(id), Some(class)) = (fields.next(), fields.next(), fields.next())
+        else {
+            return Err(format!(
+                "{} line {}: needs function, id and class",
+                path.display(),
+                i + 1
+            ));
         };
         if class.trim().is_empty() {
-            return Err(format!("{} line {}: a loss needs its class", path.display(), i + 1));
+            return Err(format!(
+                "{} line {}: a loss needs its class",
+                path.display(),
+                i + 1
+            ));
         }
-        out.insert((function.to_ascii_uppercase(), id.to_owned()), class.trim().to_owned());
+        out.insert(
+            (function.to_ascii_uppercase(), id.to_owned()),
+            class.trim().to_owned(),
+        );
     }
     Ok(out)
 }
@@ -1852,12 +2525,24 @@ fn compare_with_ledger(checkout: &Path, root: &Path, statuses: &[Status]) -> Res
             continue;
         }
         let name = f[fid].trim_start_matches("FUNC.").to_ascii_uppercase();
-        ledger.insert(name, (f[st].clone(), f[sev].clone(), f[rj].clone(), f[ra].clone(), f[wu].clone()));
+        ledger.insert(
+            name,
+            (
+                f[st].clone(),
+                f[sev].clone(),
+                f[rj].clone(),
+                f[ra].clone(),
+                f[wu].clone(),
+            ),
+        );
     }
-    let mut out = String::from("function\tdnacalc_rows\tdnacalc_matched\tdnacalc_rate\tdnacalc_class\tdnacalc_worst_ulp\toxfunc_status\toxfunc_severity\toxfunc_rows\toxfunc_agree\toxfunc_rate\toxfunc_worst_ulp\tworse\n");
+    let mut out = String::from(
+        "function\tdnacalc_rows\tdnacalc_matched\tdnacalc_rate\tdnacalc_class\tdnacalc_worst_ulp\toxfunc_status\toxfunc_severity\toxfunc_rows\toxfunc_agree\toxfunc_rate\toxfunc_worst_ulp\tworse\n",
+    );
     for s in statuses {
         let rate = s.matched as f64 / s.rows.max(1) as f64;
-        let (status, severity, rows, agree, worst) = ledger.get(&s.function).cloned().unwrap_or_default();
+        let (status, severity, rows, agree, worst) =
+            ledger.get(&s.function).cloned().unwrap_or_default();
         let ox_rate = match (rows.parse::<f64>(), agree.parse::<f64>()) {
             (Ok(r), Ok(a)) if r > 0.0 => Some(a / r),
             _ => None,
@@ -1913,17 +2598,21 @@ pub fn run(raw: &[String]) -> ExitCode {
             while let Some(arg) = args.next() {
                 match arg.as_str() {
                     "--release" => (),
-                    "--profile" => { args.next(); },
+                    "--profile" => {
+                        args.next();
+                    }
                     _ => {
                         child.arg(arg);
                         if matches!(arg.as_str(), "--func" | "--bank" | "--trace" | "--report") {
                             child.arg(args.next().ok_or("missing validated argument value")?);
                         }
-                    },
+                    }
                 }
             }
             let status = child.status().map_err(|e| e.to_string());
-            Ok(ExitCode::from(status?.code().unwrap_or(1).try_into().unwrap_or(1)))
+            Ok(ExitCode::from(
+                status?.code().unwrap_or(1).try_into().unwrap_or(1),
+            ))
         })()
     } else {
         run_request(&request)
@@ -1977,30 +2666,37 @@ fn compare_traces(
             (Some(a), Some(b)) => (a, b),
             _ => return Err(format!("trace lengths differ at row {line}")),
         };
-        let read = |text: std::io::Result<String>| -> Result<serde_json::Map<String, Value>, String> {
-            let text = text.map_err(|e| format!("trace row {line}: {e}"))?;
-            let Value::Object(value) = serde_json::from_str(&text)
-                .map_err(|e| format!("trace row {line}: {e}"))? else {
-                return Err(format!("trace row {line} is not an object"));
-            };
-            for field in ["function", "id", "expected", "actual", "source"] {
-                if !value.get(field).is_some_and(Value::is_string) {
-                    return Err(format!("trace row {line} needs string {field}"));
+        let read =
+            |text: std::io::Result<String>| -> Result<serde_json::Map<String, Value>, String> {
+                let text = text.map_err(|e| format!("trace row {line}: {e}"))?;
+                let Value::Object(value) =
+                    serde_json::from_str(&text).map_err(|e| format!("trace row {line}: {e}"))?
+                else {
+                    return Err(format!("trace row {line} is not an object"));
+                };
+                for field in ["function", "id", "expected", "actual", "source"] {
+                    if !value.get(field).is_some_and(Value::is_string) {
+                        return Err(format!("trace row {line} needs string {field}"));
+                    }
                 }
-            }
-            if !value.get("args").is_some_and(Value::is_array)
-                || !value.get("reading").is_some_and(Value::is_object)
-                || !value.contains_key("result_index") {
-                return Err(format!("trace row {line} lacks input, selection or environment"));
-            }
-            Ok(value)
-        };
+                if !value.get("args").is_some_and(Value::is_array)
+                    || !value.get("reading").is_some_and(Value::is_object)
+                    || !value.contains_key("result_index")
+                {
+                    return Err(format!(
+                        "trace row {line} lacks input, selection or environment"
+                    ));
+                }
+                Ok(value)
+            };
         let mut old = read(pair.0)?;
         let mut new = read(pair.1)?;
         let old_actual = old.remove("actual").unwrap();
         let new_actual = new.remove("actual").unwrap();
         if old != new {
-            return Err(format!("reading identity or recorded answer differs at row {line}"));
+            return Err(format!(
+                "reading identity or recorded answer differs at row {line}"
+            ));
         }
         let function = old["function"].as_str().unwrap();
         counts.entry(function.to_owned()).or_default().record(
@@ -2018,14 +2714,18 @@ fn compare_traces(
 fn run_trace_comparison(request: &Request) -> Result<ExitCode, String> {
     let open = |path: &Option<PathBuf>| {
         let path = path.as_ref().ok_or("missing trace path".to_owned())?;
-        fs::File::open(path).map(BufReader::new).map_err(|e| format!("{}: {e}", path.display()))
+        fs::File::open(path)
+            .map(BufReader::new)
+            .map_err(|e| format!("{}: {e}", path.display()))
     };
     let counts = compare_traces(open(&request.before)?, open(&request.after)?)?;
     let mut total = TraceCounts::default();
     for (function, c) in &counts {
         if c.changed != 0 {
-            println!("xtask witness compare: {function}: {} -> {} matched / {}, +{} / -{}, {} actuals changed",
-                c.before, c.after, c.rows, c.gained, c.lost, c.changed);
+            println!(
+                "xtask witness compare: {function}: {} -> {} matched / {}, +{} / -{}, {} actuals changed",
+                c.before, c.after, c.rows, c.gained, c.lost, c.changed
+            );
         }
         total.rows += c.rows;
         total.before += c.before;
@@ -2034,10 +2734,19 @@ fn run_trace_comparison(request: &Request) -> Result<ExitCode, String> {
         total.lost += c.lost;
         total.changed += c.changed;
     }
-    println!("xtask witness compare: {} decoded rows; all input/selection/answer/source/environment fields unchanged", total.rows);
-    println!("xtask witness compare: {} -> {} matched, +{} / -{}; {} actuals changed; unread failures are only in judge summaries",
-        total.before, total.after, total.gained, total.lost, total.changed);
-    Ok(if total.lost == 0 { ExitCode::SUCCESS } else { ExitCode::FAILURE })
+    println!(
+        "xtask witness compare: {} decoded rows; all input/selection/answer/source/environment fields unchanged",
+        total.rows
+    );
+    println!(
+        "xtask witness compare: {} -> {} matched, +{} / -{}; {} actuals changed; unread failures are only in judge summaries",
+        total.before, total.after, total.gained, total.lost, total.changed
+    );
+    Ok(if total.lost == 0 {
+        ExitCode::SUCCESS
+    } else {
+        ExitCode::FAILURE
+    })
 }
 
 fn run_request(request: &Request) -> Result<ExitCode, String> {
@@ -2047,9 +2756,15 @@ fn run_request(request: &Request) -> Result<ExitCode, String> {
     let cwd = std::env::current_dir().map_err(|e| e.to_string())?;
     let ws = Workspace::load(&cwd)?;
     let only = request.function.as_deref();
-    let mut trace = request.trace.as_ref().map(|path| {
-        fs::File::create(path).map(BufWriter::new).map_err(|e| format!("{}: {e}", path.display()))
-    }).transpose()?;
+    let mut trace = request
+        .trace
+        .as_ref()
+        .map(|path| {
+            fs::File::create(path)
+                .map(BufWriter::new)
+                .map_err(|e| format!("{}: {e}", path.display()))
+        })
+        .transpose()?;
     let checkout = legacy_root(&ws.root).path.join(CHECKOUT);
     if request.verb == Verb::Read {
         return run_read(&ws.root, &checkout, request);
@@ -2068,22 +2783,38 @@ fn run_request(request: &Request) -> Result<ExitCode, String> {
             load_full(&checkout, only)?
         }
         Bank::Pinned => {
-            let mut banks = Banks { sources: Vec::new(), readings: Vec::new(), files_read: 0, import_notes: Vec::new(), unread_rows: BTreeMap::new() };
+            let mut banks = Banks {
+                sources: Vec::new(),
+                readings: Vec::new(),
+                files_read: 0,
+                import_notes: Vec::new(),
+                unread_rows: BTreeMap::new(),
+            };
             let mut sets = pinned_sets(&ws.root, only)?;
             if request.refresh_context {
                 let (full, _) = load_full(&checkout, only)?;
                 let restored = restore_pinned_context(&mut sets, &full)?;
-                println!("xtask witness: restored source-attested invocation facts for {restored} original pinned rows");
+                println!(
+                    "xtask witness: restored source-attested invocation facts for {restored} original pinned rows"
+                );
             }
             original_pins = Some(sets.clone());
             for (_, set) in sets {
                 banks.files_read += 1;
                 let first = banks.sources.len();
                 for r in &set.readings {
-                    banks.sources.push(Source { path: r.source.clone(), env: r.clone() });
+                    banks.sources.push(Source {
+                        path: r.source.clone(),
+                        env: r.clone(),
+                    });
                 }
                 for w in set.witnesses {
-                    let source = first + set.readings.iter().position(|r| r.id == w.reading).unwrap_or(0);
+                    let source = first
+                        + set
+                            .readings
+                            .iter()
+                            .position(|r| r.id == w.reading)
+                            .unwrap_or(0);
                     banks.readings.push(Reading {
                         function: set.function.clone(),
                         id: w.id,
@@ -2099,7 +2830,8 @@ fn run_request(request: &Request) -> Result<ExitCode, String> {
     };
     if request.verb == Verb::Export {
         let path = request.report.as_ref().expect("validated export path");
-        let mut out = BufWriter::new(fs::File::create(path).map_err(|e| format!("{}: {e}", path.display()))?);
+        let mut out =
+            BufWriter::new(fs::File::create(path).map_err(|e| format!("{}: {e}", path.display()))?);
         for r in &banks.readings {
             let source = &banks.sources[r.source];
             let value = serde_json::json!({
@@ -2113,8 +2845,16 @@ fn run_request(request: &Request) -> Result<ExitCode, String> {
             out.write_all(b"\n").map_err(|e| e.to_string())?;
         }
         out.flush().map_err(|e| e.to_string())?;
-        println!("xtask witness export: {} readings, {} unread records, {} files; {}", banks.readings.len(), unread.len(), banks.files_read, path.display());
-        for line in &unread { eprintln!("xtask witness export: unread: {line}"); }
+        println!(
+            "xtask witness export: {} readings, {} unread records, {} files; {}",
+            banks.readings.len(),
+            unread.len(),
+            banks.files_read,
+            path.display()
+        );
+        for line in &unread {
+            eprintln!("xtask witness export: unread: {line}");
+        }
         return Ok(ExitCode::SUCCESS);
     }
     println!(
@@ -2135,11 +2875,26 @@ fn run_request(request: &Request) -> Result<ExitCode, String> {
     let unread_rows: usize = banks.unread_rows.values().sum();
     let unread_files = unread.len().saturating_sub(unread_rows);
     if unread_files > 0 {
-        println!("xtask witness: {unread_files} bank files could not be decoded; their row counts are unknown and are additional to the counted failures");
+        println!(
+            "xtask witness: {unread_files} bank files could not be decoded; their row counts are unknown and are additional to the counted failures"
+        );
     }
-    if request.values_only { println!("xtask witness: diagnostic values-only invocation; source context remains in identities and trace"); }
-    if !request.values_only && banks.sources.iter().any(|s| s.env.invocation.as_ref().is_some_and(|c| c.compatibility_version.is_some())) {
-        println!("xtask witness: CompatibilityVersion is retained in source identity and applied by the context-aware caller");
+    if request.values_only {
+        println!(
+            "xtask witness: diagnostic values-only invocation; source context remains in identities and trace"
+        );
+    }
+    if !request.values_only
+        && banks.sources.iter().any(|s| {
+            s.env
+                .invocation
+                .as_ref()
+                .is_some_and(|c| c.compatibility_version.is_some())
+        })
+    {
+        println!(
+            "xtask witness: CompatibilityVersion is retained in source identity and applied by the context-aware caller"
+        );
     }
     let (mut grouped, mut differences) = group(&banks);
     if request.bank == Bank::Full && only.is_none_or(|name| name == "DATE") {
@@ -2162,32 +2917,65 @@ fn run_request(request: &Request) -> Result<ExitCode, String> {
                     .unwrap_or(readings[0])
             })
             .collect();
-        let contexts: Vec<_> = banks.sources.iter().map(|s| s.env.invocation.clone().map(std::sync::Arc::new)).collect();
-        let excluded = |r: &Reading| if request.verb == Verb::Judge {
-            exclusion_reason(r, &banks.sources[r.source])
-        } else { None };
-        let jobs: Vec<_> = chosen.iter().filter(|r| excluded(r).is_none())
-            .map(|r| (r.args.clone(), r.index, contexts[r.source].clone())).collect();
+        let contexts: Vec<_> = banks
+            .sources
+            .iter()
+            .map(|s| s.env.invocation.clone().map(std::sync::Arc::new))
+            .collect();
+        let excluded = |r: &Reading| {
+            if request.verb == Verb::Judge {
+                exclusion_reason(r, &banks.sources[r.source])
+            } else {
+                None
+            }
+        };
+        let jobs: Vec<_> = chosen
+            .iter()
+            .filter(|r| excluded(r).is_none())
+            .map(|r| (r.args.clone(), r.index, contexts[r.source].clone()))
+            .collect();
         let mut actuals = calculate_all(function, &jobs, !request.values_only).into_iter();
         let mut rows = Vec::new();
         for (readings, reading) in keys.iter().zip(chosen) {
             let reason = excluded(reading);
-            let actual = if let Some(reason) = reason { format!("excluded:{reason}") }
-                else { actuals.next().expect("one result per judged job") };
+            let actual = if let Some(reason) = reason {
+                format!("excluded:{reason}")
+            } else {
+                actuals.next().expect("one result per judged job")
+            };
             let (slow, actual) = match actual.strip_prefix(SLOW) {
                 Some(rest) => (true, rest.to_owned()),
                 None => (false, actual),
             };
             let builds: BTreeSet<String> = readings
                 .iter()
-                .map(|r| banks.sources[r.source].env.excel_build.clone().unwrap_or_else(|| "?".to_owned()))
+                .map(|r| {
+                    banks.sources[r.source]
+                        .env
+                        .excel_build
+                        .clone()
+                        .unwrap_or_else(|| "?".to_owned())
+                })
                 .collect();
             if actual == "fault:Timeout" {
-                println!("xtask witness: {function}: no result within {ROW_SECONDS} s on {}", Value::Array(reading.args.clone()));
+                println!(
+                    "xtask witness: {function}: no result within {ROW_SECONDS} s on {}",
+                    Value::Array(reading.args.clone())
+                );
             }
-            let (severity, ulp) = if reason.is_some() { (Severity::Structural, None) }
-                else { judge(&reading.expected, &actual) };
-            let row = Row { reading, builds, actual, severity, ulp, slow };
+            let (severity, ulp) = if reason.is_some() {
+                (Severity::Structural, None)
+            } else {
+                judge(&reading.expected, &actual)
+            };
+            let row = Row {
+                reading,
+                builds,
+                actual,
+                severity,
+                ulp,
+                slow,
+            };
             if let Some(writer) = trace.as_mut() {
                 write_trace_row(writer, &row, &banks.sources[reading.source])?;
             }
@@ -2201,7 +2989,10 @@ fn run_request(request: &Request) -> Result<ExitCode, String> {
             println!("xtask witness: {function}: {unread} unread recorded rows count as failures");
         }
         if status.excluded > 0 {
-            println!("xtask witness: {function}: {} rows excluded from judgment, retained as failures; the trace names their evidence", status.excluded);
+            println!(
+                "xtask witness: {function}: {} rows excluded from judgment, retained as failures; the trace names their evidence",
+                status.excluded
+            );
         }
         println!(
             "xtask witness: {:<22} {:>8} rows {:>8} matched  worst {:>6} ULP  {}",
@@ -2214,7 +3005,10 @@ fn run_request(request: &Request) -> Result<ExitCode, String> {
         statuses.push(status);
         judged.insert(function.clone(), rows);
     }
-    let exact = statuses.iter().filter(|s| s.class == Severity::Exact).count();
+    let exact = statuses
+        .iter()
+        .filter(|s| s.class == Severity::Exact)
+        .count();
     if let Some(writer) = trace.as_mut() {
         writer.flush().map_err(|e| format!("witness trace: {e}"))?;
     }
@@ -2236,14 +3030,25 @@ fn run_request(request: &Request) -> Result<ExitCode, String> {
     if request.verb == Verb::Pin {
         let (bytes, panics) = write_pinned(&ws.root, &banks, &judged, request.rows)?;
         println!("xtask witness: wrote pinned sets, {bytes} bytes, under {PINNED_DIR}");
-        println!("xtask witness: {} rows left out of the pinned sets", panics.len());
+        println!(
+            "xtask witness: {} rows left out of the pinned sets",
+            panics.len()
+        );
         for p in panics.iter().take(30) {
-            println!("xtask witness: left out, calc-func panics, takes over {SLOW_MILLIS} ms or does not finish: {p}");
+            println!(
+                "xtask witness: left out, calc-func panics, takes over {SLOW_MILLIS} ms or does not finish: {p}"
+            );
         }
     }
     if request.verb == Verb::Refresh {
         let losses = read_classified_losses(request.classified_losses.as_deref())?;
-        refresh_pinned(original_pins.ok_or("refresh requires the original pins")?, &banks, &judged, request.refresh_context, &losses)?;
+        refresh_pinned(
+            original_pins.ok_or("refresh requires the original pins")?,
+            &banks,
+            &judged,
+            request.refresh_context,
+            &losses,
+        )?;
     }
     let bank = match request.bank {
         Bank::Pinned => "pinned",
@@ -2310,7 +3115,11 @@ fn input_key(args: &[Value]) -> String {
     Value::Array(args.iter().map(canonical).collect()).to_string()
 }
 
-fn supplied_inputs(bytes: &[u8], function: &str, repeat_calls: bool) -> Result<(Value, Vec<WitnessRow>), String> {
+fn supplied_inputs(
+    bytes: &[u8],
+    function: &str,
+    repeat_calls: bool,
+) -> Result<(Value, Vec<WitnessRow>), String> {
     let doc: Value = serde_json::from_slice(bytes).map_err(|e| e.to_string())?;
     if doc["function"]
         .as_str()
@@ -2347,11 +3156,19 @@ fn supplied_inputs(bytes: &[u8], function: &str, repeat_calls: bool) -> Result<(
             return Err(format!("{id}: result_index needs two positive integers"));
         }
         let literal_transport = match row.get("input_transport").and_then(Value::as_str) {
-            None | Some("cell_value2_bulk") if row.get("input_transport").is_none_or(|v| v.is_string()) => false,
+            None | Some("cell_value2_bulk")
+                if row.get("input_transport").is_none_or(|v| v.is_string()) =>
+            {
+                false
+            }
             Some("formula_literals") => true,
             _ => return Err(format!("{id}: unknown input_transport")),
         };
-        if literal_transport && args.iter().any(|a| decode_argument(a, id).unwrap().as_number().is_none()) {
+        if literal_transport
+            && args
+                .iter()
+                .any(|a| decode_argument(a, id).unwrap().as_number().is_none())
+        {
             return Err(format!("{id}: formula_literals requires finite numbers"));
         }
         if !calls.insert((input_key(&args), index, literal_transport)) && !repeat_calls {
@@ -2383,7 +3200,9 @@ fn predict_inputs(
     let (doc, mut rows) = supplied_inputs(&bytes, function, repeat_calls)?;
     let novelty = if new_only {
         let (banks, unread_files) = load_full(checkout, Some(function))?;
-        if !unread_files.is_empty() { return Err("cannot establish novelty: some bank records could not be read".into()); }
+        if !unread_files.is_empty() {
+            return Err("cannot establish novelty: some bank records could not be read".into());
+        }
         let unread = banks.unread_rows.get(function).copied().unwrap_or(0);
         if unread > 0 {
             return Err(format!(
@@ -2496,7 +3315,17 @@ fn run_read(root: &Path, checkout: &Path, request: &Request) -> Result<ExitCode,
     let mut failed = false;
     for function in functions {
         let (set, prediction) = match &request.inputs {
-            Some(path) => { let (set, metadata) = predict_inputs(root, checkout, &function, path, request.new_only, request.repeat_calls)?; (set, Some(metadata)) },
+            Some(path) => {
+                let (set, metadata) = predict_inputs(
+                    root,
+                    checkout,
+                    &function,
+                    path,
+                    request.new_only,
+                    request.repeat_calls,
+                )?;
+                (set, Some(metadata))
+            }
             None => {
                 let sets = pinned_sets(root, Some(&function))?;
                 let Some((_, set)) = sets.into_iter().next() else {
@@ -2522,8 +3351,9 @@ fn run_read(root: &Path, checkout: &Path, request: &Request) -> Result<ExitCode,
                         args,
                         result_index: w.result_index,
                         formula_literals: prediction.as_ref().is_some_and(|p| {
-                            p["formula_literal_ids"].as_array().is_some_and(|ids|
-                                ids.iter().any(|id| id.as_str() == Some(&w.id)))
+                            p["formula_literal_ids"]
+                                .as_array()
+                                .is_some_and(|ids| ids.iter().any(|id| id.as_str() == Some(&w.id)))
                         }),
                     });
                     rows.push(w);
@@ -2619,7 +3449,10 @@ fn run_read(root: &Path, checkout: &Path, request: &Request) -> Result<ExitCode,
                 node.insert("result_index".into(), serde_json::json!([r, c]));
             }
             if prediction.is_some() {
-                node.insert("calc_func_prediction".into(), Value::String(row.expected.clone()));
+                node.insert(
+                    "calc_func_prediction".into(),
+                    Value::String(row.expected.clone()),
+                );
             }
             node.insert("expected_bits".into(), Value::String(value));
             witnesses.push(Value::Object(node));
@@ -2671,8 +3504,15 @@ fn run_read(root: &Path, checkout: &Path, request: &Request) -> Result<ExitCode,
         }
         let text = serde_json::to_string_pretty(&doc).map_err(|e| e.to_string())? + "\n";
         fs::write(&path, text).map_err(|e| format!("{}: {e}", path.display()))?;
-        let comparison = if request.inputs.is_some() { "frozen model prediction" } else { "banked reading" };
-        let audit_failures = transport_audits.iter().filter(|r| !r["reading_failure"].is_null()).count();
+        let comparison = if request.inputs.is_some() {
+            "frozen model prediction"
+        } else {
+            "banked reading"
+        };
+        let audit_failures = transport_audits
+            .iter()
+            .filter(|r| !r["reading_failure"].is_null())
+            .count();
         failed |= !unread.is_empty() || skipped > 0 || audit_failures > 0;
         println!(
             "xtask witness: {function}: read {} rows on Excel {} build {build} ({}, {}, {}): {agree} equal the {comparison}, {} differ, {} unread; {} transport audit observations ({audit_failures} failed audit obligations); {skipped} not asked (array arguments); wrote {}",
@@ -2705,9 +3545,12 @@ mod tests {
     #[test]
     fn repeated_replay_observations_keep_each_source_on_one_input() {
         let pair = |source: &str| super::Difference {
-            function: "DATE".into(), key: "same input and invocation".into(),
-            readings: vec![("old".into(), "old environment".into(), source.into()),
-                ("new".into(), "new environment".into(), source.into())],
+            function: "DATE".into(),
+            key: "same input and invocation".into(),
+            readings: vec![
+                ("old".into(), "old environment".into(), source.into()),
+                ("new".into(), "new environment".into(), source.into()),
+            ],
             across_environments: true,
         };
         let groups = super::coalesce_replay_differences(vec![pair("first"), pair("second")]);
@@ -2719,23 +3562,35 @@ mod tests {
 
     #[test]
     fn replay_pairs_require_original_identity_and_exact_input_readback() {
-        let bytes = super::gunzip(include_bytes!("../../../migration/evidence/dc-ymjf3-20527-date-differences.jsonl.gz"), None).unwrap();
+        let bytes = super::gunzip(
+            include_bytes!("../../../migration/evidence/dc-ymjf3-20527-date-differences.jsonl.gz"),
+            None,
+        )
+        .unwrap();
         let record = super::bank_json(bytes.split(|b| *b == b'\n').next().unwrap()).unwrap();
         let bank = &record["bank"];
         let source = super::Source {
             path: bank["source"].as_str().unwrap().into(),
             env: super::ReadingSource {
-                id: String::new(), source: String::new(),
+                id: String::new(),
+                source: String::new(),
                 excel_build: bank["build"].as_str().map(str::to_owned),
-                platform: Some("Windows".into()), bitness: None,
+                platform: Some("Windows".into()),
+                bitness: None,
                 cpu: bank["cpu"].as_str().map(str::to_owned),
-                invocation: Some(calc_verdict::WitnessInvocation::decode(&bank["invocation"], "invocation").unwrap()),
+                invocation: Some(
+                    calc_verdict::WitnessInvocation::decode(&bank["invocation"], "invocation")
+                        .unwrap(),
+                ),
             },
         };
         let original = super::Reading {
-            function: bank["function"].as_str().unwrap().into(), id: bank["id"].as_str().unwrap().into(),
-            args: bank["args"].as_array().unwrap().clone(), index: None,
-            expected: bank["expected"].as_str().unwrap().into(), source: 0,
+            function: bank["function"].as_str().unwrap().into(),
+            id: bank["id"].as_str().unwrap().into(),
+            args: bank["args"].as_array().unwrap().clone(),
+            index: None,
+            expected: bank["expected"].as_str().unwrap().into(),
+            source: 0,
         };
         let difference = super::replay_difference(&record, &original, &source).unwrap();
         assert_eq!(difference.readings.len(), 2);
@@ -2754,10 +3609,24 @@ mod tests {
 
     #[test]
     fn binomial_replay_retains_every_call_and_its_exact_inputs() {
-        let doc = bank_json(&gunzip(include_bytes!("../../../migration/evidence/dc-1943-binom-replay.json.gz"), None).unwrap()).unwrap();
-        let mut banks = Banks { sources: Vec::new(), readings: Vec::new(), files_read: 0,
-            import_notes: Vec::new(), unread_rows: BTreeMap::new() };
-        for function in ["BINOM.INV", "CRITBINOM"] { add_binomial_replay(&mut banks, function, &doc).unwrap(); }
+        let doc = bank_json(
+            &gunzip(
+                include_bytes!("../../../migration/evidence/dc-1943-binom-replay.json.gz"),
+                None,
+            )
+            .unwrap(),
+        )
+        .unwrap();
+        let mut banks = Banks {
+            sources: Vec::new(),
+            readings: Vec::new(),
+            files_read: 0,
+            import_notes: Vec::new(),
+            unread_rows: BTreeMap::new(),
+        };
+        for function in ["BINOM.INV", "CRITBINOM"] {
+            add_binomial_replay(&mut banks, function, &doc).unwrap();
+        }
         assert_eq!(banks.readings.len(), 378);
         let (grouped, differences) = group(&banks);
         assert!(differences.is_empty());
@@ -2767,11 +3636,26 @@ mod tests {
 
     #[test]
     fn free_layout_replays_compare_every_observed_array_cell() {
-        let mut banks = Banks { sources: Vec::new(), readings: Vec::new(), files_read: 0,
-            import_notes: Vec::new(), unread_rows: BTreeMap::new() };
+        let mut banks = Banks {
+            sources: Vec::new(),
+            readings: Vec::new(),
+            files_read: 0,
+            import_notes: Vec::new(),
+            unread_rows: BTreeMap::new(),
+        };
         for (function, path, bytes, count) in [
-            ("TEXTSPLIT", TEXTSPLIT_REPLAY, &include_bytes!("../../../migration/evidence/dc-1943-textsplit-replay.json.gz")[..], 6),
-            ("MINVERSE", MINVERSE_REPLAY, &include_bytes!("../../../migration/evidence/dc-1943-minverse-replay.json.gz")[..], 448),
+            (
+                "TEXTSPLIT",
+                TEXTSPLIT_REPLAY,
+                &include_bytes!("../../../migration/evidence/dc-1943-textsplit-replay.json.gz")[..],
+                6,
+            ),
+            (
+                "MINVERSE",
+                MINVERSE_REPLAY,
+                &include_bytes!("../../../migration/evidence/dc-1943-minverse-replay.json.gz")[..],
+                448,
+            ),
         ] {
             let doc = bank_json(&gunzip(bytes, None).unwrap()).unwrap();
             let start = banks.readings.len();
@@ -2780,37 +3664,99 @@ mod tests {
         }
         for reading in &banks.readings {
             let context = banks.sources[reading.source].env.invocation.as_ref();
-            assert_eq!(calculate_with_context(&reading.function, &reading.args, reading.index, context, true), reading.expected, "{}", reading.id);
+            assert_eq!(
+                calculate_with_context(
+                    &reading.function,
+                    &reading.args,
+                    reading.index,
+                    context,
+                    true
+                ),
+                reading.expected,
+                "{}",
+                reading.id
+            );
             if reading.index == Some((1, 1)) {
-                let (height, width) = if reading.function == "TEXTSPLIT" { (1, 3) } else { (4, 4) };
+                let (height, width) = if reading.function == "TEXTSPLIT" {
+                    (1, 3)
+                } else {
+                    (4, 4)
+                };
                 for index in [(height + 1, 1), (1, width + 1)] {
-                    assert_eq!(calculate_with_context(&reading.function, &reading.args, Some(index), context, true), "fault:ResultShape", "{} {index:?}", reading.id);
+                    assert_eq!(
+                        calculate_with_context(
+                            &reading.function,
+                            &reading.args,
+                            Some(index),
+                            context,
+                            true
+                        ),
+                        "fault:ResultShape",
+                        "{} {index:?}",
+                        reading.id
+                    );
                 }
             }
         }
-        let doc = bank_json(&gunzip(include_bytes!("../../../migration/evidence/dc-1943-minverse-replay.json.gz"), None).unwrap()).unwrap();
+        let doc = bank_json(
+            &gunzip(
+                include_bytes!("../../../migration/evidence/dc-1943-minverse-replay.json.gz"),
+                None,
+            )
+            .unwrap(),
+        )
+        .unwrap();
         let args = array_replay_args(&doc["cases"][0], "MINVERSE").unwrap();
         let inputs = BTreeMap::from([("MINVERSE|m4x4:28c4018eb542fe5f", args[0].clone())]);
         let mut record = serde_json::json!({"key":"MINVERSE|m4x4:28c4018eb542fe5f|@1,0",
             "args":[[{"kind":"matrix","cols":4,"bits_hex_row_major":args[0]}]],
             "outcome":{"code":"ExcelErrorType9"},"result_index":[1,0]});
-        assert!(recovered_minverse_spill("MINVERSE", "cache/oracle/build-20131/MINVERSE.jsonl", &record, &inputs));
+        assert!(recovered_minverse_spill(
+            "MINVERSE",
+            "cache/oracle/build-20131/MINVERSE.jsonl",
+            &record,
+            &inputs
+        ));
         record["args"][0][0]["bits_hex_row_major"][0][0] = serde_json::json!("0x0000000000000000");
-        assert!(!recovered_minverse_spill("MINVERSE", "cache/oracle/build-20131/MINVERSE.jsonl", &record, &inputs));
+        assert!(!recovered_minverse_spill(
+            "MINVERSE",
+            "cache/oracle/build-20131/MINVERSE.jsonl",
+            &record,
+            &inputs
+        ));
         record["args"][0][0]["bits_hex_row_major"] = args[0].clone();
-        record["result_index"] = serde_json::json!([1,1]);
-        assert!(!recovered_minverse_spill("MINVERSE", "cache/oracle/build-20131/MINVERSE.jsonl", &record, &inputs));
+        record["result_index"] = serde_json::json!([1, 1]);
+        assert!(!recovered_minverse_spill(
+            "MINVERSE",
+            "cache/oracle/build-20131/MINVERSE.jsonl",
+            &record,
+            &inputs
+        ));
     }
 
     #[test]
     fn weeknum_order_dependent_rows_remain_counted_and_carry_evidence() {
-        let metadata: Value = serde_json::from_str(include_str!("../../../migration/evidence/dc-1943-weeknum.json")).unwrap();
+        let metadata: Value = serde_json::from_str(include_str!(
+            "../../../migration/evidence/dc-1943-weeknum.json"
+        ))
+        .unwrap();
         assert_eq!(metadata["paired_calls"], 2000);
-        assert!(metadata["evidence"].as_str().unwrap().ends_with("/Q3-WEEKNUM.json"));
+        assert!(
+            metadata["evidence"]
+                .as_str()
+                .unwrap()
+                .ends_with("/Q3-WEEKNUM.json")
+        );
         let reading = |kind: f64| Reading {
-            function: "WEEKNUM".into(), id: "row".into(),
-            args: vec![serde_json::json!("0x40e5676000000000"), serde_json::json!(format!("0x{:016x}", kind.to_bits()))],
-            index: None, expected: "error:Num".into(), source: 0,
+            function: "WEEKNUM".into(),
+            id: "row".into(),
+            args: vec![
+                serde_json::json!("0x40e5676000000000"),
+                serde_json::json!(format!("0x{:016x}", kind.to_bits())),
+            ],
+            index: None,
+            expected: "error:Num".into(),
+            source: 0,
         };
         for kind in [0.0, 3.0, 10.0, 18.0, 20.0, 21.0, 11.0 - 2.3e-7] {
             assert!(!order_dependent_weeknum(&reading(kind)), "{kind}");
@@ -2819,10 +3765,19 @@ mod tests {
             assert!(order_dependent_weeknum(&reading(kind)), "{kind}");
         }
         let r = reading(22.0);
-        let row = Row { reading: &r, slow: false, builds: BTreeSet::new(),
-            actual: "excluded:order-dependent".into(), severity: Severity::Structural, ulp: None };
+        let row = Row {
+            reading: &r,
+            slow: false,
+            builds: BTreeSet::new(),
+            actual: "excluded:order-dependent".into(),
+            severity: Severity::Structural,
+            ulp: None,
+        };
         let mut trace = Vec::new();
-        let source = Source { path: "bank".into(), env: environment("r0".into(), "bank".into(), None, None, None) };
+        let source = Source {
+            path: "bank".into(),
+            env: environment("r0".into(), "bank".into(), None, None, None),
+        };
         write_trace_row(&mut trace, &row, &source).unwrap();
         let trace: Value = serde_json::from_slice(&trace).unwrap();
         assert_eq!(trace["exclusion"]["evidence"], WEEKNUM_EXCLUSION);
@@ -2836,18 +3791,29 @@ mod tests {
         let bytes = include_bytes!("../../../migration/evidence/dc-1943-fixed-replay.json.gz");
         let replay: Value = serde_json::from_slice(&gunzip(bytes, None).unwrap()).unwrap();
         assert_eq!(replay["excel_build"], "20527");
-        let rows: Vec<_> = replay["rows"].as_array().unwrap().iter()
-            .filter(|row| row["tag"] == "bank").collect();
+        let rows: Vec<_> = replay["rows"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .filter(|row| row["tag"] == "bank")
+            .collect();
         assert_eq!(rows.len(), 989);
-        assert!(rows.iter().all(|row| row["same"] == true && row["input_kept"] == true
+        assert!(rows.iter().all(|row| row["same"] == true
+            && row["input_kept"] == true
             && row["input_bits"][2] == "3ff0000000000000"
             && row["excel_text"] == row["bank_text"]));
         let source = format!("{CHECKOUT} cache/oracle-20430/build-20430/FIXED.jsonl");
-        let context = environment("r0".into(), source, None, None, None).invocation.unwrap();
+        let context = environment("r0".into(), source, None, None, None)
+            .invocation
+            .unwrap();
         assert_eq!(context.locale.as_deref(), Some("en-ZA"));
         assert_eq!(context.decimal_separator.as_deref(), Some("."));
         assert_eq!(context.thousands_separator.as_deref(), Some(" "));
-        assert!(environment("r0".into(), "another bank".into(), None, None, None).invocation.is_none());
+        assert!(
+            environment("r0".into(), "another bank".into(), None, None, None)
+                .invocation
+                .is_none()
+        );
     }
 
     /// W111 broad ISREF writes each scalar into a cell and calls through that reference.
@@ -2855,10 +3821,12 @@ mod tests {
     fn captured_origin_row_audits_override_file_defaults_and_keys_retain_context() {
         let env = serde_json::json!({"excel_input_plumbing": "cell_value2_bulk"});
         let base = environment("r0".into(), "bank".into(), Some(&env), None, None);
-        let audit = |transport: &str| serde_json::json!({
-            "transport":transport, "requested":[{"number":"0000000000000000"}],
-            "submitted_value2":[{"number":"0000000000000000"}], "read_back":[{"number":"0000000000000000"}]
-        });
+        let audit = |transport: &str| {
+            serde_json::json!({
+                "transport":transport, "requested":[{"number":"0000000000000000"}],
+                "submitted_value2":[{"number":"0000000000000000"}], "read_back":[{"number":"0000000000000000"}]
+            })
+        };
         let mut doc = serde_json::json!({"input_audits": [
             {"id": "literal", "reading_failure": null, "audit": audit("formula_literals_with_cell_echo")},
             {"id": "cell", "reading_failure": null, "audit": audit("cell_value2_bulk")},
@@ -2867,19 +3835,49 @@ mod tests {
         let row = |id: &str| serde_json::json!({"id":id,"args":["0x0000000000000000"]});
         let cell = row_environment(base.clone(), &doc, &row("cell"));
         let literal = row_environment(base.clone(), &doc, &row("literal"));
-        assert_ne!(contextual_key("ISREF", &[serde_json::json!(0)], None, cell.invocation.as_ref()), contextual_key("ISREF", &[serde_json::json!(0)], None, literal.invocation.as_ref()));
+        assert_ne!(
+            contextual_key(
+                "ISREF",
+                &[serde_json::json!(0)],
+                None,
+                cell.invocation.as_ref()
+            ),
+            contextual_key(
+                "ISREF",
+                &[serde_json::json!(0)],
+                None,
+                literal.invocation.as_ref()
+            )
+        );
         for id in ["absent", "failed"] {
             let source = row_environment(base.clone(), &doc, &row(id));
             assert!(source.invocation.is_none());
         }
         let duplicate = doc["input_audits"][1].clone();
         doc["input_audits"].as_array_mut().unwrap().push(duplicate);
-        assert!(row_environment(base.clone(), &doc, &row("cell")).invocation.is_none());
+        assert!(
+            row_environment(base.clone(), &doc, &row("cell"))
+                .invocation
+                .is_none()
+        );
         doc["input_audits"].as_array_mut().unwrap().pop();
-        doc["input_audits"][1]["audit"]["read_back"][0]["number"] = serde_json::json!("0000000000000001");
-        assert!(row_environment(base.clone(), &doc, &row("cell")).invocation.is_none());
+        doc["input_audits"][1]["audit"]["read_back"][0]["number"] =
+            serde_json::json!("0000000000000001");
+        assert!(
+            row_environment(base.clone(), &doc, &row("cell"))
+                .invocation
+                .is_none()
+        );
         let settings = serde_json::json!({"Date1904":true,"CompatibilityVersion":2,"DecimalSeparator":",","ThousandsSeparator":"."});
-        let context = environment("r0".into(), "bank".into(), Some(&env), None, Some(&settings)).invocation.unwrap();
+        let context = environment(
+            "r0".into(),
+            "bank".into(),
+            Some(&env),
+            None,
+            Some(&settings),
+        )
+        .invocation
+        .unwrap();
         assert!(context.locale.is_none());
         assert_eq!(context.compatibility_version.as_deref(), Some("2"));
         assert_eq!(context.date_system.as_deref(), Some("1904"));
@@ -2888,18 +3886,42 @@ mod tests {
     #[test]
     fn captured_origin_isref_retains_the_scalar_cell_reference() {
         let context = calc_verdict::WitnessInvocation {
-            input_transport: Some("cell_value2_bulk".into()), ..Default::default()
+            input_transport: Some("cell_value2_bulk".into()),
+            ..Default::default()
         };
-        assert_eq!(calculate_with_context("ISREF", &[serde_json::json!("0x0000000000000000")], None, Some(&context), true), "logical:True");
+        assert_eq!(
+            calculate_with_context(
+                "ISREF",
+                &[serde_json::json!("0x0000000000000000")],
+                None,
+                Some(&context),
+                true
+            ),
+            "logical:True"
+        );
     }
 
     /// Fn1 MATCH input_audits retain Formula2R1C1 references and exact typed read-back.
     #[test]
     fn captured_origin_match_searches_the_held_scalar_cell() {
         let context = calc_verdict::WitnessInvocation {
-            input_transport: Some("cell_value2_bulk".into()), ..Default::default()
+            input_transport: Some("cell_value2_bulk".into()),
+            ..Default::default()
         };
-        assert_eq!(calculate_with_context("MATCH", &[serde_json::json!("é*"), serde_json::json!("Élan"), serde_json::json!("0x0000000000000000")], None, Some(&context), true), "0x3ff0000000000000");
+        assert_eq!(
+            calculate_with_context(
+                "MATCH",
+                &[
+                    serde_json::json!("é*"),
+                    serde_json::json!("Élan"),
+                    serde_json::json!("0x0000000000000000")
+                ],
+                None,
+                Some(&context),
+                true
+            ),
+            "0x3ff0000000000000"
+        );
     }
 
     use serde_json::json;
@@ -2914,10 +3936,17 @@ mod tests {
         assert!(r.verb == Verb::Judge && r.bank == Bank::Pinned && r.function.is_none());
         let r = parse_args(&args("judge --bank full --func pmt")).unwrap();
         assert!(r.bank == Bank::Full && r.function.as_deref() == Some("PMT"));
-        let reported = parse_args(&args("judge --bank full --release --report counts.json")).unwrap();
+        let reported =
+            parse_args(&args("judge --bank full --release --report counts.json")).unwrap();
         assert_eq!(reported.profile.as_deref(), Some("release"));
         assert_eq!(reported.report, Some(PathBuf::from("counts.json")));
-        assert_eq!(parse_args(&args("judge --profile perf")).unwrap().profile.as_deref(), Some("perf"));
+        assert_eq!(
+            parse_args(&args("judge --profile perf"))
+                .unwrap()
+                .profile
+                .as_deref(),
+            Some("perf")
+        );
         assert!(parse_args(&args("judge --release --profile perf")).is_err());
         assert!(parse_args(&args("judge --profile unknown")).is_err());
         assert!(parse_args(&args("pin --report counts.json")).is_err());
@@ -2926,7 +3955,9 @@ mod tests {
         let r = parse_args(&args("pin --rows 100")).unwrap();
         assert!(r.verb == Verb::Pin && r.bank == Bank::Full && r.rows == 100);
         let r = parse_args(&args("read --func gammaln --timeout 60")).unwrap();
-        assert!(r.verb == Verb::Read && r.function.as_deref() == Some("GAMMALN") && r.timeout == 60);
+        assert!(
+            r.verb == Verb::Read && r.function.as_deref() == Some("GAMMALN") && r.timeout == 60
+        );
         assert!(parse_args(&args("read")).is_err());
         assert!(parse_args(&args("pin --bank pinned")).is_err());
         assert!(parse_args(&args("judge --rows 3")).is_err());
@@ -2954,40 +3985,90 @@ mod tests {
     fn context_refresh_preserves_the_sample_and_splits_same_argument_transports() {
         let args = vec![json!("0x0000000000000000")];
         let base = environment("r0".into(), "OxFunc-Evidence bank".into(), None, None, None);
-        let mut banks = Banks { sources: vec![], readings: vec![], files_read: 1, import_notes: vec![], unread_rows: BTreeMap::new() };
+        let mut banks = Banks {
+            sources: vec![],
+            readings: vec![],
+            files_read: 1,
+            import_notes: vec![],
+            unread_rows: BTreeMap::new(),
+        };
         let mut witnesses = Vec::new();
-        for (id, transport, expected) in [("cell", "cell_value2_bulk", "logical:True"), ("literal", "formula_literals_with_cell_echo", "logical:False")] {
+        for (id, transport, expected) in [
+            ("cell", "cell_value2_bulk", "logical:True"),
+            (
+                "literal",
+                "formula_literals_with_cell_echo",
+                "logical:False",
+            ),
+        ] {
             let mut env = base.clone();
             env.source = format!("{CHECKOUT} bank");
-            env.invocation = Some(calc_verdict::WitnessInvocation { input_transport: Some(transport.into()), ..Default::default() });
+            env.invocation = Some(calc_verdict::WitnessInvocation {
+                input_transport: Some(transport.into()),
+                ..Default::default()
+            });
             let source = banks.sources.len();
-            banks.sources.push(Source { path: "bank".into(), env });
-            banks.readings.push(Reading { function: "ISREF".into(), id: id.into(), args: args.clone(), index: None, expected: expected.into(), source });
-            witnesses.push(WitnessRow { id: id.into(), args: args.clone(), result_index: None, expected: expected.into(), reading: "r0".into(), calc_func: None });
+            banks.sources.push(Source {
+                path: "bank".into(),
+                env,
+            });
+            banks.readings.push(Reading {
+                function: "ISREF".into(),
+                id: id.into(),
+                args: args.clone(),
+                index: None,
+                expected: expected.into(),
+                source,
+            });
+            witnesses.push(WitnessRow {
+                id: id.into(),
+                args: args.clone(),
+                result_index: None,
+                expected: expected.into(),
+                reading: "r0".into(),
+                calc_func: None,
+            });
         }
-        let set = WitnessSet { function: "ISREF".into(), selection: "original sample".into(), readings: vec![base], witnesses };
+        let set = WitnessSet {
+            function: "ISREF".into(),
+            selection: "original sample".into(),
+            readings: vec![base],
+            witnesses,
+        };
         let original: Value = serde_json::from_str(&set.encode()).unwrap();
         let mut sets = vec![(PathBuf::from("ISREF.json"), set)];
         assert_eq!(restore_pinned_context(&mut sets, &banks).unwrap(), 2);
         let updated = &sets[0].1;
         assert_ne!(updated.witnesses[0].reading, updated.witnesses[1].reading);
         let enriched: Value = serde_json::from_str(&updated.encode()).unwrap();
-        assert_eq!(without_context_and_prediction(original.clone()).unwrap(), without_context_and_prediction(enriched.clone()).unwrap());
+        assert_eq!(
+            without_context_and_prediction(original.clone()).unwrap(),
+            without_context_and_prediction(enriched.clone()).unwrap()
+        );
         let mut changed_answer = enriched.clone();
         changed_answer["witnesses"][0]["expected_bits"] = json!("logical:False");
-        assert_ne!(without_context_and_prediction(original.clone()).unwrap(), without_context_and_prediction(changed_answer).unwrap());
+        assert_ne!(
+            without_context_and_prediction(original.clone()).unwrap(),
+            without_context_and_prediction(changed_answer).unwrap()
+        );
         let mut changed_source = enriched;
         changed_source["readings"][0]["source"] = json!("another bank");
-        assert_ne!(without_context_and_prediction(original).unwrap(), without_context_and_prediction(changed_source).unwrap());
+        assert_ne!(
+            without_context_and_prediction(original).unwrap(),
+            without_context_and_prediction(changed_source).unwrap()
+        );
         assert_eq!(restore_pinned_context(&mut sets, &banks).unwrap(), 0);
     }
 
     #[test]
     fn refresh_updates_only_predictions_and_refuses_new_pinned_losses() {
         let mut row = WitnessRow {
-            id: "original".into(), args: vec![serde_json::json!("0x8000000000000000")],
-            result_index: Some((1, 2)), expected: "0x3ff0000000000000".into(),
-            reading: "r0".into(), calc_func: Some("0x3ff0000000000003".into()),
+            id: "original".into(),
+            args: vec![serde_json::json!("0x8000000000000000")],
+            result_index: Some((1, 2)),
+            expected: "0x3ff0000000000000".into(),
+            reading: "r0".into(),
+            calc_func: Some("0x3ff0000000000003".into()),
         };
         let original = row.clone();
         assert!(refresh_prediction(&mut row, "0x3ff0000000000002", None).unwrap());
@@ -3004,9 +4085,13 @@ mod tests {
         assert_eq!(row, matched);
         // A classified loss is accepted and keeps the calculation as the prediction; a listed
         // row that did not lose its match is refused.
-        assert!(refresh_prediction(&mut row, "0x3ff0000000000001", Some("compensating error")).unwrap());
+        assert!(
+            refresh_prediction(&mut row, "0x3ff0000000000001", Some("compensating error")).unwrap()
+        );
         assert_eq!(row.calc_func.as_deref(), Some("0x3ff0000000000001"));
-        assert!(refresh_prediction(&mut row, "0x3ff0000000000002", Some("compensating error")).is_err());
+        assert!(
+            refresh_prediction(&mut row, "0x3ff0000000000002", Some("compensating error")).is_err()
+        );
     }
 
     fn comparison_row(id: usize, expected: &str, actual: &str) -> Value {
@@ -3037,9 +4122,17 @@ mod tests {
             comparison_row(3, "error:Num", "error:Num"),
         ]);
         let counts = compare_traces(old.as_bytes(), new.as_bytes()).unwrap();
-        assert_eq!(counts["GAMMA"], TraceCounts {
-            rows: 4, before: 2, after: 2, gained: 1, lost: 1, changed: 3,
-        });
+        assert_eq!(
+            counts["GAMMA"],
+            TraceCounts {
+                rows: 4,
+                before: 2,
+                after: 2,
+                gained: 1,
+                lost: 1,
+                changed: 3,
+            }
+        );
     }
 
     #[test]
@@ -3053,11 +4146,17 @@ mod tests {
             ("source", serde_json::json!("other-bank")),
             ("reading", serde_json::json!({"excel_build": "20131"})),
             ("result_index", serde_json::json!([1, 0])),
-            ("future_metadata", serde_json::json!("must also remain fixed")),
+            (
+                "future_metadata",
+                serde_json::json!("must also remain fixed"),
+            ),
         ] {
             let mut changed = row.clone();
             changed[field] = value;
-            assert!(compare_traces(old.as_bytes(), trace_text(&[changed]).as_bytes()).is_err(), "{field}");
+            assert!(
+                compare_traces(old.as_bytes(), trace_text(&[changed]).as_bytes()).is_err(),
+                "{field}"
+            );
         }
         assert!(compare_traces(old.as_bytes(), b"".as_slice()).is_err());
         assert!(compare_traces(b"".as_slice(), old.as_bytes()).is_err());
@@ -3068,51 +4167,113 @@ mod tests {
 
     #[test]
     fn supplied_inputs_are_explicit_and_novelty_uses_argument_bits() {
-        let r = parse_args(&args("read --func erf.precise --inputs fresh.json --new-only")).unwrap();
+        let r = parse_args(&args(
+            "read --func erf.precise --inputs fresh.json --new-only",
+        ))
+        .unwrap();
         assert!(r.new_only && r.inputs == Some(PathBuf::from("fresh.json")));
         assert!(parse_args(&args("read --func GAMMA --new-only")).is_err());
         assert!(parse_args(&args("read --func ../outside --inputs fresh.json")).is_err());
         assert!(parse_args(&args("judge --inputs fresh.json")).is_err());
         assert!(parse_args(&args("read --func GAMMA,ERF --inputs fresh.json")).is_err());
-        assert_eq!(input_key(&[json!("0x3FF0000000000000")]), input_key(&[json!("0x3ff0000000000000")]));
-        assert_ne!(input_key(&[json!("0x0000000000000000")]), input_key(&[json!("0x8000000000000000")]));
-        let mut doc = json!({"function":"GAMMA", "witnesses":[{"id":"a", "args":["0x3ff0000000000000"]}]});
-        assert_eq!(supplied_inputs(&serde_json::to_vec(&doc).unwrap(), "GAMMA", false).unwrap().1.len(), 1);
+        assert_eq!(
+            input_key(&[json!("0x3FF0000000000000")]),
+            input_key(&[json!("0x3ff0000000000000")])
+        );
+        assert_ne!(
+            input_key(&[json!("0x0000000000000000")]),
+            input_key(&[json!("0x8000000000000000")])
+        );
+        let mut doc =
+            json!({"function":"GAMMA", "witnesses":[{"id":"a", "args":["0x3ff0000000000000"]}]});
+        assert_eq!(
+            supplied_inputs(&serde_json::to_vec(&doc).unwrap(), "GAMMA", false)
+                .unwrap()
+                .1
+                .len(),
+            1
+        );
         assert!(supplied_inputs(&serde_json::to_vec(&doc).unwrap(), "ERF.PRECISE", false).is_err());
         doc["witnesses"][0]["args"][0] = json!("0x7ff0000000000000");
         assert!(supplied_inputs(&serde_json::to_vec(&doc).unwrap(), "GAMMA", false).is_err());
         doc["witnesses"][0]["args"][0] = json!("0x3ff0000000000000");
         doc["witnesses"][0]["result_index"] = json!([0, 1]);
         assert!(supplied_inputs(&serde_json::to_vec(&doc).unwrap(), "GAMMA", false).is_err());
-        doc["witnesses"][0].as_object_mut().unwrap().remove("result_index");
+        doc["witnesses"][0]
+            .as_object_mut()
+            .unwrap()
+            .remove("result_index");
         let duplicate = doc["witnesses"][0].clone();
         doc["witnesses"].as_array_mut().unwrap().push(duplicate);
-        assert!(supplied_inputs(&serde_json::to_vec(&doc).unwrap(), "GAMMA", false).unwrap_err().contains("duplicate input id"));
+        assert!(
+            supplied_inputs(&serde_json::to_vec(&doc).unwrap(), "GAMMA", false)
+                .unwrap_err()
+                .contains("duplicate input id")
+        );
         doc["witnesses"][1]["id"] = json!("b");
-        assert!(supplied_inputs(&serde_json::to_vec(&doc).unwrap(), "GAMMA", false).unwrap_err().contains("duplicate input call"));
-        let repeated = supplied_inputs(&serde_json::to_vec(&doc).unwrap(), "GAMMA", true).unwrap().1;
-        assert_eq!(repeated.iter().map(|r| r.id.as_str()).collect::<Vec<_>>(), ["a", "b"]);
+        assert!(
+            supplied_inputs(&serde_json::to_vec(&doc).unwrap(), "GAMMA", false)
+                .unwrap_err()
+                .contains("duplicate input call")
+        );
+        let repeated = supplied_inputs(&serde_json::to_vec(&doc).unwrap(), "GAMMA", true)
+            .unwrap()
+            .1;
+        assert_eq!(
+            repeated.iter().map(|r| r.id.as_str()).collect::<Vec<_>>(),
+            ["a", "b"]
+        );
         assert_eq!(repeated[0].args, repeated[1].args);
-        assert!(parse_args(&args("read --func GAMMA --inputs repeated.json --repeat-calls")).unwrap().repeat_calls);
+        assert!(
+            parse_args(&args(
+                "read --func GAMMA --inputs repeated.json --repeat-calls"
+            ))
+            .unwrap()
+            .repeat_calls
+        );
         assert!(parse_args(&args("read --func GAMMA --repeat-calls")).is_err());
         doc["witnesses"][1]["input_transport"] = json!("formula_literals");
-        assert_eq!(supplied_inputs(&serde_json::to_vec(&doc).unwrap(), "GAMMA", false).unwrap().1.len(), 2);
+        assert_eq!(
+            supplied_inputs(&serde_json::to_vec(&doc).unwrap(), "GAMMA", false)
+                .unwrap()
+                .1
+                .len(),
+            2
+        );
         doc["witnesses"][1]["args"][0] = json!(true);
-        assert!(supplied_inputs(&serde_json::to_vec(&doc).unwrap(), "GAMMA", false).unwrap_err().contains("requires finite numbers"));
+        assert!(
+            supplied_inputs(&serde_json::to_vec(&doc).unwrap(), "GAMMA", false)
+                .unwrap_err()
+                .contains("requires finite numbers")
+        );
         doc["witnesses"][1]["input_transport"] = json!("unknown");
-        assert!(supplied_inputs(&serde_json::to_vec(&doc).unwrap(), "GAMMA", false).unwrap_err().contains("unknown input_transport"));
+        assert!(
+            supplied_inputs(&serde_json::to_vec(&doc).unwrap(), "GAMMA", false)
+                .unwrap_err()
+                .contains("unknown input_transport")
+        );
     }
 
     #[test]
     fn trace_preserves_bits_selection_and_refusal_without_changing_the_reading() {
         let r = Reading {
-            function: "MINVERSE".into(), id: "recorded\nrow".into(),
-            args: vec![serde_json::json!(["0x8000000000000000", "0x0000000000000001"])],
-            index: Some((1, 0)), expected: "0x3ff0000000000000".into(), source: 0,
+            function: "MINVERSE".into(),
+            id: "recorded\nrow".into(),
+            args: vec![serde_json::json!([
+                "0x8000000000000000",
+                "0x0000000000000001"
+            ])],
+            index: Some((1, 0)),
+            expected: "0x3ff0000000000000".into(),
+            source: 0,
         };
         let row = Row {
-            reading: &r, slow: false, builds: BTreeSet::new(),
-            actual: "fault:ResultShape".into(), severity: Severity::Structural, ulp: None,
+            reading: &r,
+            slow: false,
+            builds: BTreeSet::new(),
+            actual: "fault:ResultShape".into(),
+            severity: Severity::Structural,
+            ulp: None,
         };
         let source = Source {
             path: "recorded/bank".into(),
@@ -3134,7 +4295,8 @@ mod tests {
     #[test]
     fn a_gzip_member_inflates_with_or_without_a_limit() {
         let text = b"hello hello hello hello
-".repeat(400);
+"
+        .repeat(400);
         let mut gz = vec![0x1f, 0x8b, 8, 0, 0, 0, 0, 0, 0, 3];
         gz.extend(miniz_oxide::deflate::compress_to_vec(&text, 6));
         gz.extend([0u8; 8]);
@@ -3145,15 +4307,25 @@ mod tests {
 
     #[test]
     fn oracle_records_take_the_witness_encoding() {
-        let n: Value = serde_json::json!({"kind": "number", "value": 1.0, "bits_hex": "0x3ff0000000000000"});
-        assert_eq!(oracle_argument(&n), Some(Value::String("0x3ff0000000000000".into())));
+        let n: Value =
+            serde_json::json!({"kind": "number", "value": 1.0, "bits_hex": "0x3ff0000000000000"});
+        assert_eq!(
+            oracle_argument(&n),
+            Some(Value::String("0x3ff0000000000000".into()))
+        );
         let m: Value = serde_json::json!({"kind": "matrix", "rows": 2, "cols": 2, "bits_hex_row_major": [["0x1", "0x2", "0x3", "0x4"]]});
         assert_eq!(
             oracle_argument(&m),
             Some(serde_json::json!([["0x1", "0x2"], ["0x3", "0x4"]]))
         );
-        assert_eq!(oracle_outcome(&serde_json::json!({"kind": "number", "bits_hex": "0x0"})).as_deref(), Some("0x0"));
-        assert_eq!(oracle_outcome(&serde_json::json!({"kind": "error", "code": "#NUM!"})).as_deref(), Some("error:Num"));
+        assert_eq!(
+            oracle_outcome(&serde_json::json!({"kind": "number", "bits_hex": "0x0"})).as_deref(),
+            Some("0x0")
+        );
+        assert_eq!(
+            oracle_outcome(&serde_json::json!({"kind": "error", "code": "#NUM!"})).as_deref(),
+            Some("error:Num")
+        );
     }
 
     #[test]
@@ -3178,7 +4350,10 @@ mod tests {
         assert_eq!(recovered_selection(&row, &[probe.clone()]), Some((4, 2)));
         let mut conflicting = probe.clone();
         conflicting["result_index"] = serde_json::json!([3, 2]);
-        assert_eq!(recovered_selection(&row, &[probe.clone(), conflicting]), None);
+        assert_eq!(
+            recovered_selection(&row, &[probe.clone(), conflicting]),
+            None
+        );
         row["args"][0][0][0] = serde_json::json!("0x4000000000000000");
         assert_eq!(recovered_selection(&row, &[probe]), None);
     }
@@ -3191,7 +4366,10 @@ mod tests {
         let columns = prediction_column_inputs("GROWTH", &[first.clone(), second.clone()]);
         let mut restored = args.clone();
         assert!(restore_prediction_column(&mut restored, &columns));
-        assert_eq!(restored, serde_json::json!([["y1", "y2"], ["x1", "x2"], [["n1"], ["n2"]], true]));
+        assert_eq!(
+            restored,
+            serde_json::json!([["y1", "y2"], ["x1", "x2"], [["n1"], ["n2"]], true])
+        );
         let mut other = args.clone();
         other[2][0] = serde_json::json!("other input");
         assert!(!restore_prediction_column(&mut other, &columns));
@@ -3204,9 +4382,20 @@ mod tests {
 
     #[test]
     fn duplicated_hex_prefixes_keep_the_recorded_bits() {
-        let mut row = serde_json::json!(["0x0x3e22024955d1ccf5", ["0x0x8000000000000000"], "0x0xnot-a-number"]);
+        let mut row = serde_json::json!([
+            "0x0x3e22024955d1ccf5",
+            ["0x0x8000000000000000"],
+            "0x0xnot-a-number"
+        ]);
         normalize_bank_hex(&mut row);
-        assert_eq!(row, serde_json::json!(["0x3e22024955d1ccf5", ["0x8000000000000000"], "0x0xnot-a-number"]));
+        assert_eq!(
+            row,
+            serde_json::json!([
+                "0x3e22024955d1ccf5",
+                ["0x8000000000000000"],
+                "0x0xnot-a-number"
+            ])
+        );
     }
 
     #[test]
@@ -3219,7 +4408,8 @@ mod tests {
 
     #[test]
     fn full_bank_keeps_explicit_unread_capture_rows_as_failures() {
-        let root = std::env::temp_dir().join(format!("xtask-witness-unread-{}", std::process::id()));
+        let root =
+            std::env::temp_dir().join(format!("xtask-witness-unread-{}", std::process::id()));
         let dir = root.join("readings/excel-20527");
         fs::create_dir_all(&dir).unwrap();
         for manifest in MANIFESTS {
@@ -3245,21 +4435,41 @@ mod tests {
         assert_eq!(banks.files_read, 1);
         assert_eq!(banks.readings.len(), 1);
         assert_eq!(banks.unread_rows.get("POISSON.DIST"), Some(&2));
-        assert_eq!(banks.readings.len() + banks.unread_rows.values().sum::<usize>(), 3);
+        assert_eq!(
+            banks.readings.len() + banks.unread_rows.values().sum::<usize>(),
+            3
+        );
         assert_eq!(unread.len(), 2);
         assert!(unread[0].contains("changed-input"));
-        assert!(banks.import_notes.iter().any(|n| n.contains("2 transport audit observations, 1 failed audit obligations")));
-        assert!(!banks.readings.iter().any(|r| r.id == "literal" || r.id == "changed-literal"));
+        assert!(
+            banks
+                .import_notes
+                .iter()
+                .any(|n| n.contains("2 transport audit observations, 1 failed audit obligations"))
+        );
+        assert!(
+            !banks
+                .readings
+                .iter()
+                .any(|r| r.id == "literal" || r.id == "changed-literal")
+        );
         let (other, _) = load_full(&root, Some("GAMMA")).unwrap();
         assert!(other.readings.is_empty() && other.unread_rows.is_empty());
         doc["unread"] = json!("unrecognized capture summary");
         fs::write(&path, serde_json::to_vec(&doc).unwrap()).unwrap();
-        let Err(error) = load_full(&root, Some("POISSON.DIST")) else { panic!("malformed unread count accepted") };
+        let Err(error) = load_full(&root, Some("POISSON.DIST")) else {
+            panic!("malformed unread count accepted")
+        };
         assert!(error.contains("unread must be an array"));
         doc["unread"] = json!([]);
         doc["transport_audit_readings"][0]["semantic_witness"] = json!(true);
         fs::write(&path, serde_json::to_vec(&doc).unwrap()).unwrap();
-        assert!(load_full(&root, Some("POISSON.DIST")).err().unwrap().contains("malformed transport audit"));
+        assert!(
+            load_full(&root, Some("POISSON.DIST"))
+                .err()
+                .unwrap()
+                .contains("malformed transport audit")
+        );
         fs::remove_dir_all(root).unwrap();
     }
 

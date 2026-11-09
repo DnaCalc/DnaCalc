@@ -25,14 +25,14 @@
 //! directly or held in an array; an array or a reference held inside an array; and a number that
 //! is no worksheet value (NaN, an infinity or a subnormal).
 
-use super::aggregate::{read_reference, reader};
 use super::FunctionId;
+use super::aggregate::{read_reference, reader};
 use crate::call::{EvalServices, FunctionFault, LazyArguments};
 use crate::coerce;
 use crate::kernel::{Exit, Site, Step};
 use crate::value::{CalcValue, CoreRef, WorksheetErrorCode};
 
-use calc_catalogue::logical::{CODE, ENTRIES as DECLARATIONS, IF, AND, OR, XOR, NOT, TRUE, FALSE};
+use calc_catalogue::logical::{AND, CODE, ENTRIES as DECLARATIONS, FALSE, IF, NOT, OR, TRUE, XOR};
 
 attach_family! {
     code: CODE; declarations: DECLARATIONS;
@@ -209,7 +209,10 @@ fn not(
         site.scalar_operands(arguments)
             .and_then(|()| not_callable(&site, 0, &arguments[0]))
             .and_then(|()| {
-                if let Some(n) = arguments[0].as_number() && n.is_subnormal() && n.is_sign_negative() {
+                if let Some(n) = arguments[0].as_number()
+                    && n.is_subnormal()
+                    && n.is_sign_negative()
+                {
                     return Ok(CalcValue::logical(false));
                 }
                 let logical = site.argument(0, coerce::logical(&arguments[0]))?;

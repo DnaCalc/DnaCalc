@@ -34,7 +34,11 @@ impl LateBinding {
 
     /// Whether the activation of `prog_id` is a late-bound one.
     pub(crate) fn refuses(&self, prog_id: &str) -> bool {
-        self.refuse_all || self.prog_ids.iter().any(|p| p.eq_ignore_ascii_case(prog_id))
+        self.refuse_all
+            || self
+                .prog_ids
+                .iter()
+                .any(|p| p.eq_ignore_ascii_case(prog_id))
     }
 
     fn scan(&mut self, line: &[Token]) {
@@ -70,7 +74,9 @@ impl LateBinding {
                 arguments.last_mut().expect("an argument").push(token);
             }
             match arguments.get(class_argument).map(Vec::as_slice) {
-                Some([Token::Text(class)]) if !class.is_empty() => self.prog_ids.push(class.clone()),
+                Some([Token::Text(class)]) if !class.is_empty() => {
+                    self.prog_ids.push(class.clone())
+                }
                 _ => self.refuse_all = true,
             }
         }
@@ -135,7 +141,9 @@ mod tests {
         assert!(!found.refuse_all, "{found:?}");
         assert!(found.refuses("scripting.filesystemobject") && found.refuses("Excel.Application"));
         assert!(!found.refuses("Scripting.Dictionary"));
-        assert!(!found.refuses("No.Comment") && !found.refuses("Not.Code") && !found.refuses("Not.Vba"));
+        assert!(
+            !found.refuses("No.Comment") && !found.refuses("Not.Code") && !found.refuses("Not.Vba")
+        );
         // A ProgID that is not a literal could be any class: every activation is refused.
         let any = LateBinding::of(["Set x = CreateObject(name)\n"]);
         assert!(any.refuses("Scripting.Dictionary"));

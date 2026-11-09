@@ -13,11 +13,12 @@
 
 use crate::call::{EagerKernel, LazyKernel, StartKernel};
 use crate::value::{CalcValue, CallableArityShape, NumericMode};
-use std::cmp::Ordering;
-pub use calc_catalogue::{ArgumentDemand, Availability, BindingForm, Deferral, EntryTraits,
-    FunctionId, Implementation, LegacyPlace, Notation, PairedResult, ParameterClass,
-    ThreeDPlace, WholeResultPolicy};
 pub(crate) use calc_catalogue::Parameter;
+pub use calc_catalogue::{
+    ArgumentDemand, Availability, BindingForm, Deferral, EntryTraits, FunctionId, Implementation,
+    LegacyPlace, Notation, PairedResult, ParameterClass, ThreeDPlace, WholeResultPolicy,
+};
+use std::cmp::Ordering;
 
 #[macro_use]
 mod kit;
@@ -39,11 +40,11 @@ pub use entry::{ArgumentGroups, EntryClass, EntryRule, OperandForm, ResultForm};
 mod error_fallback;
 mod euro_tools;
 mod fetching;
-mod importing;
 mod financial;
 mod group_pivot;
 mod grouping;
 mod host_facts;
+mod importing;
 mod information;
 mod lambda_helpers;
 mod logical;
@@ -159,30 +160,44 @@ pub(crate) enum Kernel {
     /// Asks for the arguments it selects, so an argument it does not select is never evaluated.
     Lazy(LazyKernel),
     Binding,
-    NotHeld { owner: &'static str },
-    Deferred { class: Deferral },
+    NotHeld {
+        owner: &'static str,
+    },
+    Deferred {
+        class: Deferral,
+    },
 }
 
 // Every data declaration needs one attached kernel, binding, or explicit refusal. This
 // runs during constant evaluation, before the generated dispatch table can be built.
 const fn attachment_matches(entry: &CatalogueEntry) -> bool {
-    let Some(data) = calc_catalogue::declaration(entry.id) else { return false; };
-    matches!((data.implementation(), entry.kernel),
-        (Implementation::Held, Kernel::Eager(_) | Kernel::Resumable { .. } | Kernel::Lazy(_))
-        | (Implementation::Binding, Kernel::Binding)
-        | (Implementation::NotHeld { .. }, Kernel::NotHeld { .. })
-        | (Implementation::Deferred { .. }, Kernel::Deferred { .. }))
+    let Some(data) = calc_catalogue::declaration(entry.id) else {
+        return false;
+    };
+    matches!(
+        (data.implementation(), entry.kernel),
+        (
+            Implementation::Held,
+            Kernel::Eager(_) | Kernel::Resumable { .. } | Kernel::Lazy(_)
+        ) | (Implementation::Binding, Kernel::Binding)
+            | (Implementation::NotHeld { .. }, Kernel::NotHeld { .. })
+            | (Implementation::Deferred { .. }, Kernel::Deferred { .. })
+    )
 }
 
 const fn check_attachments(families: &[&Family]) {
-    assert!(entry_count(families) == calc_catalogue::DECLARATION_COUNT,
-        "a catalogue declaration has no attachment");
+    assert!(
+        entry_count(families) == calc_catalogue::DECLARATION_COUNT,
+        "a catalogue declaration has no attachment"
+    );
     let mut f = 0;
     while f < families.len() {
         let mut i = 0;
         while i < families[f].entries.len() {
-            assert!(attachment_matches(&families[f].entries[i]),
-                "a catalogue attachment has no matching declaration or implementation");
+            assert!(
+                attachment_matches(&families[f].entries[i]),
+                "a catalogue attachment has no matching declaration or implementation"
+            );
             i += 1;
         }
         f += 1;
@@ -359,8 +374,12 @@ const fn check_declaration(family: u16, entry: &CatalogueEntry) {
         Kernel::Lazy(_) if !entry.demand.is_lazy() => {
             panic!("an eager entry has a lazy kernel, against its declared argument demand")
         }
-        Kernel::Eager(_) | Kernel::Resumable { .. } | Kernel::Lazy(_) |
-        Kernel::Binding | Kernel::NotHeld { .. } | Kernel::Deferred { .. } => {}
+        Kernel::Eager(_)
+        | Kernel::Resumable { .. }
+        | Kernel::Lazy(_)
+        | Kernel::Binding
+        | Kernel::NotHeld { .. }
+        | Kernel::Deferred { .. } => {}
     }
 }
 
@@ -491,12 +510,18 @@ impl Catalogue {
 
     /// Resolve a file-form operator name without its file prefix.
     pub fn resolve_operator_alias(&self, name: &str) -> Option<FunctionCallTarget<'_>> {
-        self.by_id.iter().find(|entry| {
-            match entry.kind {
-                EntryKind::Operator { file_spelling: Some(file) } => file.rsplit('.').next().is_some_and(|alias| alias.eq_ignore_ascii_case(name)),
+        self.by_id
+            .iter()
+            .find(|entry| match entry.kind {
+                EntryKind::Operator {
+                    file_spelling: Some(file),
+                } => file
+                    .rsplit('.')
+                    .next()
+                    .is_some_and(|alias| alias.eq_ignore_ascii_case(name)),
                 _ => false,
-            }
-        }).map(|entry| FunctionCallTarget { entry })
+            })
+            .map(|entry| FunctionCallTarget { entry })
     }
 
     /// Every worksheet entry of the dispatch table, in ID order: all but the add-in's and the
@@ -504,7 +529,14 @@ impl Catalogue {
     pub fn targets(&self) -> impl Iterator<Item = FunctionCallTarget<'_>> + '_ {
         self.by_id
             .iter()
-            .filter(|entry| entry.spelling != euro_tools::SURFACE && entry.availability != Availability::AbsentOnWindows && matches!(entry.kernel, Kernel::Eager(_) | Kernel::Resumable { .. } | Kernel::Lazy(_)))
+            .filter(|entry| {
+                entry.spelling != euro_tools::SURFACE
+                    && entry.availability != Availability::AbsentOnWindows
+                    && matches!(
+                        entry.kernel,
+                        Kernel::Eager(_) | Kernel::Resumable { .. } | Kernel::Lazy(_)
+                    )
+            })
             .map(|entry| FunctionCallTarget { entry })
     }
 
@@ -514,13 +546,22 @@ impl Catalogue {
     pub fn surfaces(&self) -> impl Iterator<Item = FunctionCallTarget<'_>> + '_ {
         self.by_surface
             .iter()
-            .filter(|entry| entry.spelling != euro_tools::SURFACE && entry.availability != Availability::AbsentOnWindows && matches!(entry.kernel, Kernel::Eager(_) | Kernel::Resumable { .. } | Kernel::Lazy(_)))
+            .filter(|entry| {
+                entry.spelling != euro_tools::SURFACE
+                    && entry.availability != Availability::AbsentOnWindows
+                    && matches!(
+                        entry.kernel,
+                        Kernel::Eager(_) | Kernel::Resumable { .. } | Kernel::Lazy(_)
+                    )
+            })
             .map(|entry| FunctionCallTarget { entry })
     }
 
     /// All catalogue entries, including binding forms and entries without a held kernel.
     pub fn entries(&self) -> impl Iterator<Item = FunctionCallTarget<'_>> + '_ {
-        self.by_surface.iter().map(|entry| FunctionCallTarget { entry })
+        self.by_surface
+            .iter()
+            .map(|entry| FunctionCallTarget { entry })
     }
 }
 
@@ -598,7 +639,10 @@ impl<'c> FunctionCallTarget<'c> {
 
     /// The class of argument `index`, or `None` when it is unmeasured or not admitted.
     pub fn parameter_class(self, index: usize) -> Option<ParameterClass> {
-        if matches!(self.entry.kernel, Kernel::NotHeld { .. } | Kernel::Deferred { .. }) {
+        if matches!(
+            self.entry.kernel,
+            Kernel::NotHeld { .. } | Kernel::Deferred { .. }
+        ) {
             return None;
         }
         (index < self.entry.arity.max).then(|| self.entry.parameter_class(index))
@@ -606,7 +650,10 @@ impl<'c> FunctionCallTarget<'c> {
 
     /// The measured legacy rule for a parameter, including repeated parameters.
     pub fn legacy_place(self, index: usize) -> Option<LegacyPlace> {
-        if matches!(self.entry.kernel, Kernel::NotHeld { .. } | Kernel::Deferred { .. }) {
+        if matches!(
+            self.entry.kernel,
+            Kernel::NotHeld { .. } | Kernel::Deferred { .. }
+        ) {
             return None;
         }
         if index >= self.entry.arity.max || self.entry.parameters.is_empty() {
@@ -614,8 +661,17 @@ impl<'c> FunctionCallTarget<'c> {
         }
         let last = self.entry.parameters.len() - 1;
         let legacy = self.entry.parameters[index.min(last)].legacy;
-        if index > last && !matches!(legacy, LegacyPlace::ArrayAlwaysRepeated | LegacyPlace::ArrayAlwaysLiftReferencesRepeated | LegacyPlace::ArrayAtRootRepeated | LegacyPlace::AggregateAtRootRepeated | LegacyPlace::AggregateUnderArrayRepeated)
-            && !(index == last + 1 && legacy == LegacyPlace::AggregateAtRootTwice) {
+        if index > last
+            && !matches!(
+                legacy,
+                LegacyPlace::ArrayAlwaysRepeated
+                    | LegacyPlace::ArrayAlwaysLiftReferencesRepeated
+                    | LegacyPlace::ArrayAtRootRepeated
+                    | LegacyPlace::AggregateAtRootRepeated
+                    | LegacyPlace::AggregateUnderArrayRepeated
+            )
+            && !(index == last + 1 && legacy == LegacyPlace::AggregateAtRootTwice)
+        {
             return Some(LegacyPlace::Default);
         }
         Some(legacy)
@@ -623,9 +679,15 @@ impl<'c> FunctionCallTarget<'c> {
 
     /// Whether a legacy call runs once for each reference in an array of references.
     pub fn legacy_lifts_over_references(self) -> bool {
-        self.entry.parameters.iter().any(|parameter| matches!(parameter.legacy,
-            LegacyPlace::ArrayAlwaysLiftReferences | LegacyPlace::ArrayAlwaysLiftReferencesRepeated |
-            LegacyPlace::AggregateRootArrayNestedLiftReferences | LegacyPlace::LiftReferences))
+        self.entry.parameters.iter().any(|parameter| {
+            matches!(
+                parameter.legacy,
+                LegacyPlace::ArrayAlwaysLiftReferences
+                    | LegacyPlace::ArrayAlwaysLiftReferencesRepeated
+                    | LegacyPlace::AggregateRootArrayNestedLiftReferences
+                    | LegacyPlace::LiftReferences
+            )
+        })
     }
 
     pub fn argument_demand(self) -> ArgumentDemand {
@@ -658,7 +720,11 @@ impl<'c> FunctionCallTarget<'c> {
     /// This inspects values only; it neither invokes a kernel nor evaluates an argument.
     pub fn selects_whole_result(self, arguments: &[CalcValue], numeric: &NumericMode) -> bool {
         self.entry.arity.accepts(arguments.len())
-            && logical_more::selects_whole_result(self.entry.traits.whole_result_policy, arguments, numeric)
+            && logical_more::selects_whole_result(
+                self.entry.traits.whole_result_policy,
+                arguments,
+                numeric,
+            )
     }
 
     pub fn signature_help(self) -> SignatureHelp {
@@ -749,12 +815,25 @@ mod shared_declaration_equivalence {
         entries.sort_by_key(|entry| entry.id().raw());
         let mut actual = String::new();
         for entry in entries {
-            actual.push_str(&format!("{}\t{}\t{:?}\t{:?}\t{:?}\t{:?}\t{:?}\t{:?}\t{:?}\t{:?}\t{:?}\n",
-                entry.id().raw(), entry.spelling(), entry.notation(), entry.kind(), entry.availability(),
-                entry.implementation(), entry.arity(), entry.result_form(), entry.argument_demand(),
-                entry.traits(), entry.signature_help()));
+            actual.push_str(&format!(
+                "{}\t{}\t{:?}\t{:?}\t{:?}\t{:?}\t{:?}\t{:?}\t{:?}\t{:?}\t{:?}\n",
+                entry.id().raw(),
+                entry.spelling(),
+                entry.notation(),
+                entry.kind(),
+                entry.availability(),
+                entry.implementation(),
+                entry.arity(),
+                entry.result_form(),
+                entry.argument_demand(),
+                entry.traits(),
+                entry.signature_help()
+            ));
         }
-        assert_eq!(actual, include_str!("../../calc-catalogue/tests/fixtures/catalogue-before-ported.tsv"));
+        assert_eq!(
+            actual,
+            include_str!("../../calc-catalogue/tests/fixtures/catalogue-before-ported.tsv")
+        );
     }
 
     #[cfg_attr(not(target_arch = "wasm32"), test)]
@@ -776,7 +855,10 @@ mod shared_declaration_equivalence {
             assert_eq!(data.result(), target.result_form());
             assert_eq!(data.demand(), target.argument_demand());
             assert_eq!(data.traits(), target.traits());
-            assert_eq!(calc_catalogue::declaration(data.id()).unwrap().spelling(), target.spelling());
+            assert_eq!(
+                calc_catalogue::declaration(data.id()).unwrap().spelling(),
+                target.spelling()
+            );
         }
         assert_eq!(entries.len(), super::catalogue().entries().count());
     }
@@ -799,18 +881,33 @@ mod shared_declaration_equivalence {
     #[cfg_attr(not(target_arch = "wasm32"), test)]
     #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
     fn original_parameter_rules_equal_shared_declarations() {
-        let expected = include_str!("../../calc-catalogue/tests/fixtures/ported-parameters-before.tsv");
+        let expected =
+            include_str!("../../calc-catalogue/tests/fixtures/ported-parameters-before.tsv");
         let mut actual = String::new();
         for line in expected.lines() {
             let id: u32 = line.split('\t').next().unwrap().parse().unwrap();
-            let entry = super::catalogue().resolve(super::FunctionId::from_raw(id)).unwrap();
+            let entry = super::catalogue()
+                .resolve(super::FunctionId::from_raw(id))
+                .unwrap();
             let count = entry.signature_help().parameters.len() + 4;
-            let positions: Vec<_> = (0..count).chain(std::iter::once(254))
-                .map(|i| (i, entry.parameter_class(i), entry.entry_class(i), entry.legacy_place(i)))
+            let positions: Vec<_> = (0..count)
+                .chain(std::iter::once(254))
+                .map(|i| {
+                    (
+                        i,
+                        entry.parameter_class(i),
+                        entry.entry_class(i),
+                        entry.legacy_place(i),
+                    )
+                })
                 .collect();
-            actual.push_str(&format!("{}\t{:?}\t{:?}\n", id, entry.argument_groups(), positions));
+            actual.push_str(&format!(
+                "{}\t{:?}\t{:?}\n",
+                id,
+                entry.argument_groups(),
+                positions
+            ));
         }
         assert_eq!(actual, expected);
     }
-
 }

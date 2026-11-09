@@ -296,12 +296,7 @@ fn parse_web_images(package: &Package, part: &str) -> Result<Vec<Option<WebImage
         }
     }
     let relationships = package.relationships_of(Some(part));
-    let find = |id: &str| {
-        relationships?
-            .items()
-            .iter()
-            .find(|item| item.id == id)
-    };
+    let find = |id: &str| relationships?.items().iter().find(|item| item.id == id);
     Ok(ids
         .into_iter()
         .map(|(address, blip)| {
@@ -318,7 +313,11 @@ fn parse_web_images(package: &Package, part: &str) -> Result<Vec<Option<WebImage
 }
 
 /// A `_webimage` rich value as the picture it names.
-fn web_image(value: &RichValue, structure: &Structure, images: Option<&[Option<WebImage>]>) -> ValueMeta {
+fn web_image(
+    value: &RichValue,
+    structure: &Structure,
+    images: Option<&[Option<WebImage>]>,
+) -> ValueMeta {
     let unresolved = |reason: &str| ValueMeta::Unresolved {
         reason: reason.to_owned(),
     };

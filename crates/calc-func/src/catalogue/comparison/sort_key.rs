@@ -373,7 +373,13 @@ fn build() -> Table {
         } else if let Some(&(primary, case)) = compat.get(&code) {
             // A compatibility jamo is one primary among the Hangul syllables' and the conjoining
             // jamo's (measured, hangul_collation.rs), with its own case weight.
-            weighted(&mut table, &[HANGUL | u64::from(primary)], &[2], &[case], None)
+            weighted(
+                &mut table,
+                &[HANGUL | u64::from(primary)],
+                &[2],
+                &[case],
+                None,
+            )
         } else if !covered {
             Weight::Refused
         } else if let Some(exception) = exceptions.get(&code) {
@@ -429,7 +435,13 @@ fn build() -> Table {
             Weight::Special(*w)
         } else if (0xAC00..=0xD7A3).contains(&code) {
             let index = point - 0xAC00;
-            weighted(&mut table, &[HANGUL | u64::from(syllable_primary(index))], &[2], &[2], None)
+            weighted(
+                &mut table,
+                &[HANGUL | u64::from(syllable_primary(index))],
+                &[2],
+                &[2],
+                None,
+            )
         } else if let Some(base) = han_base(code) {
             if in_ranges(code, &NEW) {
                 Weight::Ignorable
@@ -580,7 +592,9 @@ fn jamo_class(code: u16) -> Option<JamoClass> {
 /// The measured weights of a conjoining jamo: primary and the leading, vowel and trailing
 /// extension bytes of its key.
 fn jamo_entry(code: u16) -> (u16, u8, u8, u8) {
-    let at = JAMO.binary_search_by_key(&code, |e| e.0).expect("a measured jamo");
+    let at = JAMO
+        .binary_search_by_key(&code, |e| e.0)
+        .expect("a measured jamo");
     let (_, p, l, v, t) = JAMO[at];
     (p, l, v, t)
 }
@@ -643,7 +657,9 @@ fn jamo_cluster(units: &[u16]) -> (Triple, usize) {
     let mut filled = false;
     let mut trailing_open = !matches!(class, TrailModern | TrailArchaic);
     while let Some(&next) = units.get(used) {
-        let Some(next_class) = jamo_class(next) else { break };
+        let Some(next_class) = jamo_class(next) else {
+            break;
+        };
         let (_, _, nv, nt) = jamo_entry(next);
         let leading = matches!(class, LeadModern | LeadArchaic | LeadFiller);
         match next_class {
@@ -651,17 +667,32 @@ fn jamo_cluster(units: &[u16]) -> (Triple, usize) {
             VowelFiller | VowelModern | VowelArchaic if filled => break,
             VowelModern | VowelArchaic if class == LeadFiller => {
                 let (np, nl, nv, nt) = jamo_entry(next);
-                triple = Triple { p: np, l: nl, v: nv, t: nt };
+                triple = Triple {
+                    p: np,
+                    l: nl,
+                    v: nv,
+                    t: nt,
+                };
                 class = next_class;
             }
             VowelArchaic if class == LeadModern => {
                 let syllable = lead_index * 588 + vowel_rank(nv) * 28 + 27;
-                triple = Triple { p: syllable_primary(syllable), l: triple.l - 0x80, v: nv, t: 2 };
+                triple = Triple {
+                    p: syllable_primary(syllable),
+                    l: triple.l - 0x80,
+                    v: nv,
+                    t: 2,
+                };
                 class = TrailModern;
                 trailing_open = true;
             }
             VowelModern | VowelArchaic if class == LeadArchaic => {
-                triple = Triple { p: triple.p + 1, l: triple.l - 0x80, v: nv, t: 2 };
+                triple = Triple {
+                    p: triple.p + 1,
+                    l: triple.l - 0x80,
+                    v: nv,
+                    t: 2,
+                };
                 class = TrailModern;
                 trailing_open = true;
             }
@@ -671,7 +702,12 @@ fn jamo_cluster(units: &[u16]) -> (Triple, usize) {
             {
                 let (_, _, _, t3) = jamo_entry(units[used + 1]);
                 let syllable = lead_index * 588 + vowel_rank(nv) * 28 + trailing_rank(t3);
-                triple = Triple { p: syllable_primary(syllable), l: triple.l - 0x80, v: nv, t: t3 };
+                triple = Triple {
+                    p: syllable_primary(syllable),
+                    l: triple.l - 0x80,
+                    v: nv,
+                    t: t3,
+                };
                 used += 2;
                 break;
             }
@@ -834,13 +870,14 @@ impl Gathered {
             self.primary.len() / PRIMARY_BYTES,
             [triple.l, triple.v, triple.t],
         ));
-        self.primary
-            .extend_from_slice(&hangul_slot(triple.p));
+        self.primary.extend_from_slice(&hangul_slot(triple.p));
         // Windows' key holds the primary and six extension bytes.
         self.windows_length += 8;
         self.steps.push(Step::Base(2));
         self.case.push(2);
-        let at = ITERATION.binary_search_by_key(&last, |e| e.0).expect("a measured jamo");
+        let at = ITERATION
+            .binary_search_by_key(&last, |e| e.0)
+            .expect("a measured jamo");
         *before = Before::Jamo(ITERATION[at].1);
     }
 
@@ -853,7 +890,10 @@ impl Gathered {
 
     /// Adds one code unit; `None` when it is refused.
     fn unit(&mut self, table: &Table, code: u16, before: &mut Before) -> Option<()> {
-        if matches!(table.weights[usize::from(code)], Weight::Ignorable | Weight::Mark(_)) {
+        if matches!(
+            table.weights[usize::from(code)],
+            Weight::Ignorable | Weight::Mark(_)
+        ) {
             before.separate_special();
         }
         match table.weights[usize::from(code)] {
@@ -906,7 +946,8 @@ impl Gathered {
                         // 06 followed by the punctuation's first special byte.
                         // This is before every ordinary primary group. Keep the
                         // position-dependent special itself in the final level.
-                        if !adjacent || !matches!(code, 0x3005 | 0x309D | 0x30FC)
+                        if !adjacent
+                            || !matches!(code, 0x3005 | 0x309D | 0x30FC)
                             || !matches!(punctuation, 0x0027 | 0x002D | 0x2010 | 0x2212)
                         {
                             return None;
@@ -1332,10 +1373,7 @@ mod tests {
         ] {
             assert_eq!(order(a, b), Some(expected), "{a:?} against {b:?}");
         }
-        assert!(
-            parts(&units("\u{1100}\u{1161}")).is_ok(),
-            "conjoining jamo"
-        );
+        assert!(parts(&units("\u{1100}\u{1161}")).is_ok(), "conjoining jamo");
         assert!(parts(&units("\u{30a0}")).is_err(), "the double hyphen");
         // Excel fn1 D2, unlike a repetition of the Han character's own primary.
         assert_eq!(order("時々", "時時"), Some(Ordering::Less));

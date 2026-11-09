@@ -1,7 +1,7 @@
-use crate::value::WorksheetErrorCode;
 use crate::ported::excel_numeric::{
     excel_atan_reduced, excel_sqrt_staged, excel_x87_div, excel_x87_mul, excel_x87_sub,
 };
+use crate::value::WorksheetErrorCode;
 
 /// ASIN; #NUM! outside -1..1.
 pub fn asin_kernel(n: f64) -> Result<f64, WorksheetErrorCode> {

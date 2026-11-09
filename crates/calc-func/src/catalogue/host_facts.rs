@@ -20,11 +20,11 @@
 
 use super::kit::{fail, grid, num, text_arg};
 use crate::call::EvalServices;
+use crate::call::{CalculationMode, CellFormatFacts, HorizontalAlignment, WorkbookFacts};
 use crate::coerce;
+use crate::format::cell_info;
 use crate::kernel::{Exit, Site, Step};
 use crate::ported::address;
-use crate::call::{CalculationMode, CellFormatFacts, HorizontalAlignment, WorkbookFacts};
-use crate::format::cell_info;
 use crate::value::{
     CalcArray, CalcValue, CellKey, CoreRef, ExcelText, ReferenceLike, SheetId, WorksheetErrorCode,
 };
@@ -41,7 +41,12 @@ fn first_cell(site: &Site<'_>, a: &[CalcValue], index: usize) -> Step<CellKey> {
 }
 
 /// The value of one cell, read through the services' cell reader.
-fn cell_value(site: &Site<'_>, cell: CellKey, index: usize, sv: &mut EvalServices<'_>) -> Step<CalcValue> {
+fn cell_value(
+    site: &Site<'_>,
+    cell: CellKey,
+    index: usize,
+    sv: &mut EvalServices<'_>,
+) -> Step<CalcValue> {
     let one = [CalcValue::reference(ReferenceLike::cell(cell))];
     let g = grid(site, &one, 0, sv).map_err(|exit| match exit {
         Exit::Fault(crate::call::FunctionFault::ReferenceUnreadable { id, .. }) => {
@@ -114,8 +119,18 @@ fn qualified_sheet(
 fn cell(site: &Site<'_>, a: &[CalcValue], sv: &mut EvalServices<'_>) -> Step<CalcValue> {
     let info = text_arg(site, a, 0)?.to_string_lossy().to_ascii_lowercase();
     let known = [
-        "address", "row", "col", "contents", "type", "filename", "format", "color",
-        "parentheses", "prefix", "protect", "width",
+        "address",
+        "row",
+        "col",
+        "contents",
+        "type",
+        "filename",
+        "format",
+        "color",
+        "parentheses",
+        "prefix",
+        "protect",
+        "width",
     ];
     if !known.contains(&info.as_str()) {
         return fail(WorksheetErrorCode::Value);
@@ -127,7 +142,10 @@ fn cell(site: &Site<'_>, a: &[CalcValue], sv: &mut EvalServices<'_>) -> Step<Cal
     } else {
         let at = first_cell(site, a, 1)?;
         // dc-ylr: Excel gives CELL of a reference to a closed workbook #N/A.
-        if sv.host().is_some_and(|host| host.is_external_sheet(at.sheet())) {
+        if sv
+            .host()
+            .is_some_and(|host| host.is_external_sheet(at.sheet()))
+        {
             return fail(WorksheetErrorCode::NA);
         }
         at
@@ -143,7 +161,11 @@ fn cell(site: &Site<'_>, a: &[CalcValue], sv: &mut EvalServices<'_>) -> Step<Cal
             .environment()
             .and_then(|environment| environment.profile)
             .ok_or_else(|| site.not_modelled(Some(1)))?;
-        Ok(cell_info::classify(&facts.number_format, facts.builtin, &profile))
+        Ok(cell_info::classify(
+            &facts.number_format,
+            facts.builtin,
+            &profile,
+        ))
     };
     let text = crate::catalogue::kit::text_value;
     match info.as_str() {
@@ -186,7 +208,14 @@ fn cell(site: &Site<'_>, a: &[CalcValue], sv: &mut EvalServices<'_>) -> Step<Cal
         }
         "format" => Ok(text(&class(site, sv)?.code)),
         "color" => s_number(site, if class(site, sv)?.color { 1.0 } else { 0.0 }),
-        "parentheses" => s_number(site, if class(site, sv)?.parentheses { 1.0 } else { 0.0 }),
+        "parentheses" => s_number(
+            site,
+            if class(site, sv)?.parentheses {
+                1.0
+            } else {
+                0.0
+            },
+        ),
         "protect" => s_number(site, if format(site, sv)?.locked { 1.0 } else { 0.0 }),
         "prefix" => {
             let formula = sv
@@ -300,7 +329,9 @@ fn fieldvalue(site: &Site<'_>, a: &[CalcValue]) -> Step<CalcValue> {
 
 fn sheet(site: &Site<'_>, a: &[CalcValue], sv: &mut EvalServices<'_>) -> Step<CalcValue> {
     let sheet = if a.is_empty() || a[0].is_missing() {
-        sv.host().and_then(|host| host.caller()).map(|cell| cell.sheet())
+        sv.host()
+            .and_then(|host| host.caller())
+            .map(|cell| cell.sheet())
     } else {
         match a[0].core_ref() {
             CoreRef::Reference(reference) => Some(reference.sheet()),
@@ -310,7 +341,9 @@ fn sheet(site: &Site<'_>, a: &[CalcValue], sv: &mut EvalServices<'_>) -> Step<Ca
                 match sv.host() {
                     Some(host) => match host.sheet_named(&name) {
                         Some(sheet) => Some(sheet),
-                        None if host.sheet_count().is_some() => return fail(WorksheetErrorCode::NA),
+                        None if host.sheet_count().is_some() => {
+                            return fail(WorksheetErrorCode::NA);
+                        }
                         None => None,
                     },
                     None => None,
@@ -353,7 +386,10 @@ fn sheets(site: &Site<'_>, a: &[CalcValue], sv: &mut EvalServices<'_>) -> Step<C
 fn formulatext(site: &Site<'_>, a: &[CalcValue], sv: &mut EvalServices<'_>) -> Step<CalcValue> {
     let at = first_cell(site, a, 0)?;
     // dc-ylr: Excel gives FORMULATEXT of a reference to a closed workbook #N/A.
-    if sv.host().is_some_and(|host| host.is_external_sheet(at.sheet())) {
+    if sv
+        .host()
+        .is_some_and(|host| host.is_external_sheet(at.sheet()))
+    {
         return fail(WorksheetErrorCode::NA);
     }
     match sv.host().and_then(|host| host.formula_text(at)) {
@@ -444,18 +480,39 @@ fn transpose(site: &Site<'_>, a: &[CalcValue], sv: &mut EvalServices<'_>) -> Ste
 
 // Excel documents visible pivot cells, caption or base field names and #REF for absent data:
 // https://support.microsoft.com/en-us/excel/functions/getpivotdata-function
-fn getpivotdata(site:&Site<'_>,a:&[CalcValue],sv:&mut EvalServices<'_>)->Step<CalcValue>{
-    if a.len()%2!=0{return Err(Exit::Error(WorksheetErrorCode::Ref));}
-    if matches!(a[0].core_ref(), CoreRef::Reference(_)){return Err(Exit::Error(WorksheetErrorCode::NA));}
-    let name=String::from_utf16(text_arg(site,a,0)?.utf16_code_units()).map_err(|_|site.not_modelled(Some(0)))?;
-    let reference=match a[1].core_ref(){CoreRef::Reference(r)=>r,CoreRef::Error(e)=>return Err(Exit::Error(e)),_=>return Err(Exit::Error(WorksheetErrorCode::Ref))};
-    let mut filters=Vec::new();
-    for index in (2..a.len()).step_by(2){let field=String::from_utf16(text_arg(site,a,index)?.utf16_code_units()).map_err(|_|site.not_modelled(Some(index)))?;filters.push((field,a[index+1].clone()));}
-    let lookup=sv.host().ok_or_else(||site.not_modelled(None))?.pivot_data_cell(&name,reference.areas(),&filters);
+fn getpivotdata(site: &Site<'_>, a: &[CalcValue], sv: &mut EvalServices<'_>) -> Step<CalcValue> {
+    if a.len() % 2 != 0 {
+        return Err(Exit::Error(WorksheetErrorCode::Ref));
+    }
+    if matches!(a[0].core_ref(), CoreRef::Reference(_)) {
+        return Err(Exit::Error(WorksheetErrorCode::NA));
+    }
+    let name = String::from_utf16(text_arg(site, a, 0)?.utf16_code_units())
+        .map_err(|_| site.not_modelled(Some(0)))?;
+    let reference = match a[1].core_ref() {
+        CoreRef::Reference(r) => r,
+        CoreRef::Error(e) => return Err(Exit::Error(e)),
+        _ => return Err(Exit::Error(WorksheetErrorCode::Ref)),
+    };
+    let mut filters = Vec::new();
+    for index in (2..a.len()).step_by(2) {
+        let field = String::from_utf16(text_arg(site, a, index)?.utf16_code_units())
+            .map_err(|_| site.not_modelled(Some(index)))?;
+        filters.push((field, a[index + 1].clone()));
+    }
+    let lookup = sv
+        .host()
+        .ok_or_else(|| site.not_modelled(None))?
+        .pivot_data_cell(&name, reference.areas(), &filters);
     match lookup {
-        crate::PivotLookup::Cell(at)=>cell_value(site,at,1,sv),
-        crate::PivotLookup::Error(e)=>Err(Exit::Error(e)),
-        crate::PivotLookup::NotModelled=>Err(Exit::Fault(crate::FunctionFault::ReferenceUnreadable{id:site.id(),index:1})),
+        crate::PivotLookup::Cell(at) => cell_value(site, at, 1, sv),
+        crate::PivotLookup::Error(e) => Err(Exit::Error(e)),
+        crate::PivotLookup::NotModelled => {
+            Err(Exit::Fault(crate::FunctionFault::ReferenceUnreadable {
+                id: site.id(),
+                index: 1,
+            }))
+        }
     }
 }
 

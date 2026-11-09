@@ -741,7 +741,10 @@ fn span_nodes_at(
         && state.cached_arrays.is_empty()
         && progress.footprints.is_empty()
     {
-        return state.node_at(region.first()).into_iter().chain(BTreeSet::new());
+        return state
+            .node_at(region.first())
+            .into_iter()
+            .chain(BTreeSet::new());
     }
     let mut nodes: BTreeSet<_> = state
         .by_anchor
@@ -943,8 +946,9 @@ pub(crate) fn producer_pending_in(
             // is called with an empty Progress and the original requirement cut.
             // As in span_versions_at, only a stamp for that required version
             // discharges it; an imported or older result still remains pending.
-            if result.and_then(FormulaResult::stamp).is_some_and(|stamp|
-                stamp.certification.required == current.required)
+            if result
+                .and_then(FormulaResult::stamp)
+                .is_some_and(|stamp| stamp.certification.required == current.required)
             {
                 current.satisfied = current.required;
             }
@@ -1274,7 +1278,11 @@ pub(crate) fn potential_blank(
             .cells(area)
             .is_some_and(|mut cells| !cells.any(|(at, _)| at != anchor))
             && inputs.definitions().unloaded_in(area).next().is_none()
-            && !inputs.definitions().pivots().tables().any(|table|table.area.intersection(area).is_some())
+            && !inputs
+                .definitions()
+                .pivots()
+                .tables()
+                .any(|table| table.area.intersection(area).is_some())
     };
     if free(first) {
         return Some(first);
@@ -1388,7 +1396,10 @@ mod read_details_tests {
         used.udf_volatility = None;
         assert!(used.details.0.is_some());
         assert_eq!(empty, used);
-        assert_eq!(retained.udf_volatility, Some(calc_fml::UdfVolatility::Set(false)));
+        assert_eq!(
+            retained.udf_volatility,
+            Some(calc_fml::UdfVolatility::Set(false))
+        );
         let hash = |value: &ReadCertificate| {
             let mut state = std::collections::hash_map::DefaultHasher::new();
             value.hash(&mut state);
@@ -1417,20 +1428,23 @@ mod generation_cut_tests {
             let replacement = state.generation(new);
             assert!(replacement > generation);
             assert_eq!(
-                state.generation(old), 1,
+                state.generation(old),
+                1,
                 "a stale handle cannot read its replacement"
             );
             assert_eq!(pinned.generation(old), generation);
             assert_eq!(pinned.generation(new), 1);
             state.retire(old);
             assert_eq!(
-                state.generation(new), replacement,
+                state.generation(new),
+                replacement,
                 "stale retirement cannot erase a live target"
             );
             state.retire(new);
             assert_eq!(state.generation(new), 1);
             assert_eq!(
-                pinned.generation(old), generation,
+                pinned.generation(old),
+                generation,
                 "retirement leaves the pinned save intact"
             );
         }

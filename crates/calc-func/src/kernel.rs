@@ -8,8 +8,8 @@ use crate::coerce::{self, Numeric, Stop};
 use crate::decimal::ExactDecimal;
 use crate::locale::CalcEnvironment;
 use crate::ported::excel_numeric;
-use crate::value_text;
 use crate::value::{CalcValue, CoreRef, NumericMode, WorksheetErrorCode};
+use crate::value_text;
 
 /// Why a kernel stopped before its value.
 #[derive(Debug)]

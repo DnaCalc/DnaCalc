@@ -122,9 +122,9 @@ mod compare;
 #[cfg(not(target_arch = "wasm32"))]
 mod compare_inventory;
 #[cfg(not(target_arch = "wasm32"))]
-mod compare_saved;
-#[cfg(not(target_arch = "wasm32"))]
 mod compare_minimize;
+#[cfg(not(target_arch = "wasm32"))]
+mod compare_saved;
 #[cfg(not(target_arch = "wasm32"))]
 mod compare_triage;
 #[cfg(not(target_arch = "wasm32"))]
@@ -250,7 +250,11 @@ fn main() {}
 
 #[cfg(windows)]
 #[unsafe(no_mangle)]
-pub unsafe extern "system" fn MdCallBack12(function: i32, count: i32,
-    args: *const *mut calc_xll_abi::XlOper12, result: *mut calc_xll_abi::XlOper12) -> i32 {
+pub unsafe extern "system" fn MdCallBack12(
+    function: i32,
+    count: i32,
+    args: *const *mut calc_xll_abi::XlOper12,
+    result: *mut calc_xll_abi::XlOper12,
+) -> i32 {
     unsafe { calc_xll_host::dispatch(function, count, args, result) }
 }

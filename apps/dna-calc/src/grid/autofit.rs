@@ -60,13 +60,22 @@ pub(crate) fn decoration_css(underline: bool, strike: bool) -> &'static str {
         (false, false) => "",
     }
 }
-pub(crate) fn double_underline(style: &TextStyle, conditional: Option<&crate::cells::ConditionalShown>) -> bool {
-    style.underline && style.underline_style.as_deref()==Some("double")
-        && !conditional.is_some_and(|c|c.underline)
+pub(crate) fn double_underline(
+    style: &TextStyle,
+    conditional: Option<&crate::cells::ConditionalShown>,
+) -> bool {
+    style.underline
+        && style.underline_style.as_deref() == Some("double")
+        && !conditional.is_some_and(|c| c.underline)
 }
-pub(super) fn underline_width(pixels:f64,zoom:f64)->f64 { zoom.min(pixels*zoom/5.) }
-pub(crate) fn double_underline_css(pixels:f64,zoom:f64)->String {
-    format!(";text-decoration-line:underline;text-decoration-style:double;text-decoration-skip-ink:none;text-decoration-thickness:{}px",underline_width(pixels,zoom))
+pub(super) fn underline_width(pixels: f64, zoom: f64) -> f64 {
+    zoom.min(pixels * zoom / 5.)
+}
+pub(crate) fn double_underline_css(pixels: f64, zoom: f64) -> String {
+    format!(
+        ";text-decoration-line:underline;text-decoration-style:double;text-decoration-skip-ink:none;text-decoration-thickness:{}px",
+        underline_width(pixels, zoom)
+    )
 }
 /// One font declaration for rendering, measurement, and the font-presence probes.
 pub fn font_css(
@@ -127,8 +136,11 @@ impl FontMeasures {
         use leptos::prelude::*;
         use wasm_bindgen::JsCast;
         if self.context.is_none() {
-            let canvas = document().create_element("canvas").ok()?
-                .dyn_into::<web_sys::HtmlCanvasElement>().ok()?;
+            let canvas = document()
+                .create_element("canvas")
+                .ok()?
+                .dyn_into::<web_sys::HtmlCanvasElement>()
+                .ok()?;
             canvas.set_width(0);
             canvas.set_height(0);
             self.context = canvas.get_context("2d").ok()??.dyn_into().ok();
@@ -174,10 +186,27 @@ pub(super) fn plan_advance(
         let mut width: f64 = 0.0;
         for line in text.split('\n') {
             let advance = if integer {
-                super::alignment::graphemes(line).into_iter().try_fold(0., |sum, part| {
-                    context.measure_text(&part).ok().map(|m| sum + integer_advance(&shown.style, shown.conditional.as_ref(), matches!(shown.provenance, crate::cells::Provenance::FileCache | crate::cells::Provenance::Refused), zoom, &part, m.width()))
-                })?
-            } else { context.measure_text(line).ok()?.width() };
+                super::alignment::graphemes(line)
+                    .into_iter()
+                    .try_fold(0., |sum, part| {
+                        context.measure_text(&part).ok().map(|m| {
+                            sum + integer_advance(
+                                &shown.style,
+                                shown.conditional.as_ref(),
+                                matches!(
+                                    shown.provenance,
+                                    crate::cells::Provenance::FileCache
+                                        | crate::cells::Provenance::Refused
+                                ),
+                                zoom,
+                                &part,
+                                m.width(),
+                            )
+                        })
+                    })?
+            } else {
+                context.measure_text(line).ok()?.width()
+            };
             width = width.max(advance);
         }
         if !width.is_finite() {
@@ -198,65 +227,150 @@ pub(super) fn plan_advance(
 }
 /// One grapheme's whole-pixel advance: GDI's where its table has an answer, else the
 /// browser's measurement rounded the same way.
-pub(super) fn integer_advance(style: &TextStyle, conditional: Option<&crate::cells::ConditionalShown>, italic: bool, zoom: f64, glyph: &str, measured: f64) -> f64 {
+pub(super) fn integer_advance(
+    style: &TextStyle,
+    conditional: Option<&crate::cells::ConditionalShown>,
+    italic: bool,
+    zoom: f64,
+    glyph: &str,
+    measured: f64,
+) -> f64 {
     super::gdi_advances::advance(
         style.family.as_deref(),
         style.bold || conditional.is_some_and(|c| c.bold),
         style.italic || italic || conditional.is_some_and(|c| c.italic),
         style.pixels * zoom,
         glyph,
-    ).unwrap_or_else(|| measured.round())
+    )
+    .unwrap_or_else(|| measured.round())
 }
 /// Captured unwrapped Western text advances in integral display pixels. Keep complex
 /// scripts, shrinking, rotation and wrapping on their shaped text route.
 pub(super) fn integer_text(shown: &crate::cells::CellShown, text: &str) -> bool {
     matches!(shown.kind, "number" | "text" | "logical" | "error")
-        && !shown.style.shrink && !shown.style.wrap && shown.style.rotation == 0
-        && !matches!(shown.style.horizontal.as_deref(), Some("fill" | "justify" | "distributed" | "centerContinuous"))
-        && text.is_ascii() && !text.bytes().any(|c| c.is_ascii_control())
+        && !shown.style.shrink
+        && !shown.style.wrap
+        && shown.style.rotation == 0
+        && !matches!(
+            shown.style.horizontal.as_deref(),
+            Some("fill" | "justify" | "distributed" | "centerContinuous")
+        )
+        && text.is_ascii()
+        && !text.bytes().any(|c| c.is_ascii_control())
 }
-pub(super) fn text_advances(shown: &crate::cells::CellShown, text: &str, zoom: f64) -> Option<Vec<f64>> {
-    if !integer_text(shown, text) { return None; }
-    let font = canvas_font(&shown.style, shown.conditional.as_ref(), matches!(shown.provenance,crate::cells::Provenance::FileCache | crate::cells::Provenance::Refused), zoom);
+pub(super) fn text_advances(
+    shown: &crate::cells::CellShown,
+    text: &str,
+    zoom: f64,
+) -> Option<Vec<f64>> {
+    if !integer_text(shown, text) {
+        return None;
+    }
+    let font = canvas_font(
+        &shown.style,
+        shown.conditional.as_ref(),
+        matches!(
+            shown.provenance,
+            crate::cells::Provenance::FileCache | crate::cells::Provenance::Refused
+        ),
+        zoom,
+    );
     FONT_MEASURES.with(|cache| {
         let mut cache = cache.borrow_mut();
         let context = cache.context()?;
         context.set_font(&font);
-        super::alignment::graphemes(text).into_iter().map(|part|context.measure_text(&part).ok().map(|m|integer_advance(&shown.style, shown.conditional.as_ref(), matches!(shown.provenance, crate::cells::Provenance::FileCache | crate::cells::Provenance::Refused), zoom, &part, m.width()))).collect()
+        super::alignment::graphemes(text)
+            .into_iter()
+            .map(|part| {
+                context.measure_text(&part).ok().map(|m| {
+                    integer_advance(
+                        &shown.style,
+                        shown.conditional.as_ref(),
+                        matches!(
+                            shown.provenance,
+                            crate::cells::Provenance::FileCache | crate::cells::Provenance::Refused
+                        ),
+                        zoom,
+                        &part,
+                        m.width(),
+                    )
+                })
+            })
+            .collect()
     })
 }
 /// A segmented line is one atomic inline box, so the cell's text-decoration never reaches its
 /// glyphs. These backgrounds draw the lines the Canvas painter strokes at the same offsets.
-pub(super) fn segmented_decoration(style: &TextStyle, conditional: &crate::cells::ConditionalShown, italic: bool, zoom: f64) -> String {
-    let (underline, strike) = (style.underline || conditional.underline, style.strike || conditional.strike);
+pub(super) fn segmented_decoration(
+    style: &TextStyle,
+    conditional: &crate::cells::ConditionalShown,
+    italic: bool,
+    zoom: f64,
+) -> String {
+    let (underline, strike) = (
+        style.underline || conditional.underline,
+        style.strike || conditional.strike,
+    );
     if !underline && !strike {
         return String::new();
     }
     let line_height = style.pixels * zoom;
-    let (ascent, descent) = font_box(style, Some(conditional), italic, zoom).unwrap_or((line_height * 0.8, line_height * 0.2));
+    let (ascent, descent) = font_box(style, Some(conditional), italic, zoom)
+        .unwrap_or((line_height * 0.8, line_height * 0.2));
     let baseline = (line_height - ascent - descent) / 2. + ascent;
     let double = double_underline(style, Some(conditional));
-    let stroke = if double { underline_width(style.pixels, zoom) } else { zoom };
+    let stroke = if double {
+        underline_width(style.pixels, zoom)
+    } else {
+        zoom
+    };
     let under = baseline + stroke;
-    let lines: Vec<String> = [underline.then_some(under), double.then_some(under + 2. * stroke), strike.then_some(line_height / 2.)]
-        .into_iter().flatten()
-        .map(|offset| format!("linear-gradient(currentColor,currentColor) 0 {}px/100% {stroke}px no-repeat", offset - stroke / 2.))
-        .collect();
+    let lines: Vec<String> = [
+        underline.then_some(under),
+        double.then_some(under + 2. * stroke),
+        strike.then_some(line_height / 2.),
+    ]
+    .into_iter()
+    .flatten()
+    .map(|offset| {
+        format!(
+            "linear-gradient(currentColor,currentColor) 0 {}px/100% {stroke}px no-repeat",
+            offset - stroke / 2.
+        )
+    })
+    .collect();
     let spare = 4. * stroke;
-    format!(";background:{};padding-bottom:{spare}px;margin-bottom:-{spare}px", lines.join(","))
+    format!(
+        ";background:{};padding-bottom:{spare}px;margin-bottom:-{spare}px",
+        lines.join(",")
+    )
 }
 /// Reuse the advance probe and its font-load invalidation for baseline placement.
-pub(super) fn font_box(style: &TextStyle, conditional: Option<&crate::cells::ConditionalShown>, italic: bool, zoom: f64) -> Option<(f64, f64)> {
+pub(super) fn font_box(
+    style: &TextStyle,
+    conditional: Option<&crate::cells::ConditionalShown>,
+    italic: bool,
+    zoom: f64,
+) -> Option<(f64, f64)> {
     let font = canvas_font(style, conditional, italic, zoom);
     FONT_MEASURES.with(|cache| {
         let mut cache = cache.borrow_mut();
-        if let Some(bounds) = cache.boxes.get(&font) { return Some(*bounds); }
+        if let Some(bounds) = cache.boxes.get(&font) {
+            return Some(*bounds);
+        }
         let context = cache.context()?;
         context.set_font(&font);
         let metrics = context.measure_text("Mg").ok()?;
-        let bounds = (metrics.font_bounding_box_ascent(), metrics.font_bounding_box_descent());
-        if !bounds.0.is_finite() || !bounds.1.is_finite() || bounds.0 + bounds.1 <= 0. { return None; }
-        if cache.boxes.len() >= 256 { cache.boxes.clear(); }
+        let bounds = (
+            metrics.font_bounding_box_ascent(),
+            metrics.font_bounding_box_descent(),
+        );
+        if !bounds.0.is_finite() || !bounds.1.is_finite() || bounds.0 + bounds.1 <= 0. {
+            return None;
+        }
+        if cache.boxes.len() >= 256 {
+            cache.boxes.clear();
+        }
         cache.boxes.insert(font, bounds);
         Some(bounds)
     })
@@ -270,22 +384,46 @@ pub(super) fn align_row_baselines(
     zoom: f64,
 ) {
     let eligible = |cell: &crate::cells::CellShown| {
-        !cell.text.is_empty() && !cell.text.contains('\n')
-            && !cell.style.wrap && !cell.style.shrink && cell.style.rotation == 0
+        !cell.text.is_empty()
+            && !cell.text.contains('\n')
+            && !cell.style.wrap
+            && !cell.style.shrink
+            && cell.style.rotation == 0
             && matches!(cell.style.vertical.as_deref(), None | Some("bottom"))
-            && !geometry.is_some_and(|g|g.merges.iter().any(|a|a.0.2 != a.1.2 && cell.at.row() >= a.0.2 && cell.at.row() <= a.1.2 && cell.at.column() >= a.0.3 && cell.at.column() <= a.1.3))
+            && !geometry.is_some_and(|g| {
+                g.merges.iter().any(|a| {
+                    a.0.2 != a.1.2
+                        && cell.at.row() >= a.0.2
+                        && cell.at.row() <= a.1.2
+                        && cell.at.column() >= a.0.3
+                        && cell.at.column() <= a.1.3
+                })
+            })
     };
-    let descent = |cell: &crate::cells::CellShown| font_box(&cell.style, cell.conditional.as_ref(), matches!(cell.provenance,crate::cells::Provenance::FileCache | crate::cells::Provenance::Refused), zoom).map(|(_,d)|d);
-    let mut rows = BTreeMap::<u32,f64>::new();
-    for cell in shown.iter().filter(|c|eligible(c)) {
+    let descent = |cell: &crate::cells::CellShown| {
+        font_box(
+            &cell.style,
+            cell.conditional.as_ref(),
+            matches!(
+                cell.provenance,
+                crate::cells::Provenance::FileCache | crate::cells::Provenance::Refused
+            ),
+            zoom,
+        )
+        .map(|(_, d)| d)
+    };
+    let mut rows = BTreeMap::<u32, f64>::new();
+    for cell in shown.iter().filter(|c| eligible(c)) {
         if let Some(d) = descent(cell) {
-            rows.entry(cell.at.row()).and_modify(|n|*n=n.max(d)).or_insert(d);
+            rows.entry(cell.at.row())
+                .and_modify(|n| *n = n.max(d))
+                .or_insert(d);
         }
     }
     for cell in &mut plan.cells {
         if eligible(&cell.shown) && cell.row_span == 1 {
-            if let (Some(row),Some(own)) = (rows.get(&cell.row),descent(&cell.shown)) {
-                cell.baseline_inset = (row-own).max(0.);
+            if let (Some(row), Some(own)) = (rows.get(&cell.row), descent(&cell.shown)) {
+                cell.baseline_inset = (row - own).max(0.);
             }
         }
     }
@@ -427,28 +565,39 @@ pub fn measure(rows: bool, cells: &[wire::Cell]) -> Result<Vec<(u32, u64)>, Stri
         probe.set_text_content(None);
         if cell.style.rotation == 255 {
             for cluster in super::alignment::graphemes(text) {
-                let line = document().create_element("span")
+                let line = document()
+                    .create_element("span")
                     .map_err(|_| "Stacked text measurement is unavailable")?;
                 crate::style::css(line.clone(), super::alignment::STACKED_LINE_CSS.into());
                 line.set_text_content(Some(&cluster));
-                probe.append_child(&line)
+                probe
+                    .append_child(&line)
                     .map_err(|_| "Stacked text measurement is unavailable")?;
             }
         } else {
             probe.set_text_content(Some(text));
         }
         let r = probe.get_bounding_client_rect();
-        let (w, h) = if cell.style.rotation==255 { (r.width(),r.height()) }
-            else { rotated_size(r.width(), r.height(), cell.style.rotation) };
+        let (w, h) = if cell.style.rotation == 255 {
+            (r.width(), r.height())
+        } else {
+            rotated_size(r.width(), r.height(), cell.style.rotation)
+        };
         // Text the Grid places with whole-pixel advances is fitted with the same advances: a
         // browser that reports fractional outline advances (Linux) would otherwise fit a column
         // a few pixels narrower than the text the Grid paints.
-        let w = if rows { w } else {
+        let w = if rows {
+            w
+        } else {
             cell.shown()
                 .and_then(|shown| text_advances(&shown, text, 1.))
                 .map_or(w, |advances| advances.iter().sum())
         };
-        let pixels = if rows { h + 4. } else { w + padding + indent + icon };
+        let pixels = if rows {
+            h + 4.
+        } else {
+            w + padding + indent + icon
+        };
         samples.push((if rows { cell.at.2 } else { cell.at.3 }, pixels));
     }
     probe.remove();

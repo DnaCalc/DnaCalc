@@ -44,7 +44,9 @@ pub fn apply_data_css_soon(root: web_sys::Element) {
 
 /// A column's name: A to Z, then AA.
 fn column_name(column: u32) -> String {
-    calc_doc::look::a1(1, column).trim_end_matches(char::is_numeric).to_owned()
+    calc_doc::look::a1(1, column)
+        .trim_end_matches(char::is_numeric)
+        .to_owned()
 }
 
 /// The height of a result row, in CSS pixels. The scroll panel positions rows by it.
@@ -63,8 +65,12 @@ fn look_attributes(look: &Option<LookWire>) -> (String, String, String, String) 
         Some(look) => (
             look.fill.clone(),
             look.color.clone(),
-            look.bar.map(|b| format!("{:.0}", b * 100.0)).unwrap_or_default(),
-            look.icon_index.map(|i| format!("{}:{}", look.icon_set, i + 1)).unwrap_or_default(),
+            look.bar
+                .map(|b| format!("{:.0}", b * 100.0))
+                .unwrap_or_default(),
+            look.icon_index
+                .map(|i| format!("{}:{}", look.icon_set, i + 1))
+                .unwrap_or_default(),
         ),
     }
 }
@@ -74,10 +80,17 @@ fn cell_content(text: String, look: &Option<LookWire>) -> impl IntoView {
     let icon = look.as_ref().and_then(|look| {
         look.icon_index.map(|_| {
             let style = format!("color:{}", look.icon_color);
-            view! { <span class="oc-icon" data-onecalc="cell-icon" aria-hidden="true" data-css=style>{look.icon_glyph.clone()}</span> }
+            view! {
+                <span class="oc-icon" data-onecalc="cell-icon" aria-hidden="true" data-css=style>
+                    {look.icon_glyph.clone()}
+                </span>
+            }
         })
     });
-    view! { {icon} {text} }
+    view! {
+        {icon}
+        {text}
+    }
 }
 
 /// The array result: a panel that scrolls both ways inside the result panel, its column and row
@@ -125,7 +138,12 @@ pub fn array_panel(shown: RwSignal<Shown>, kept: RwSignal<(i32, i32)>) -> impl I
     });
     let caption = move || {
         shown.with(|shown| match &shown.view {
-            ViewWire::Array { total_rows, total_cols, truncated, cells } => format!(
+            ViewWire::Array {
+                total_rows,
+                total_cols,
+                truncated,
+                cells,
+            } => format!(
                 "{total_rows} x {total_cols} array{}",
                 if *truncated {
                     format!(
@@ -164,7 +182,11 @@ pub fn array_panel(shown: RwSignal<Shown>, kept: RwSignal<(i32, i32)>) -> impl I
             let spacer = |rows: usize| {
                 (rows > 0).then(|| {
                     view! {
-                        <tr class="oc-spacer" aria-hidden="true" data-css=format!("height:{}px", rows as f64 * ROW_PX)>
+                        <tr
+                            class="oc-spacer"
+                            aria-hidden="true"
+                            data-css=format!("height:{}px", rows as f64 * ROW_PX)
+                        >
                             <td colspan=(cols + 1).to_string()></td>
                         </tr>
                     }
@@ -182,14 +204,26 @@ pub fn array_panel(shown: RwSignal<Shown>, kept: RwSignal<(i32, i32)>) -> impl I
                                 cell.look.as_ref().map(LookWire::css).unwrap_or_default()
                             );
                             view! {
-                                <td data-kind=cell.kind.clone() title=cell.kind.clone() data-css=style
-                                    data-fill=fill data-color=color data-bar=bar data-icon=icon>
+                                <td
+                                    data-kind=cell.kind.clone()
+                                    title=cell.kind.clone()
+                                    data-css=style
+                                    data-fill=fill
+                                    data-color=color
+                                    data-bar=bar
+                                    data-icon=icon
+                                >
                                     {cell_content(cell.text.clone(), &cell.look)}
                                 </td>
                             }
                         })
                         .collect_view();
-                    view! { <tr><th scope="row">{r + 1}</th>{tds}</tr> }
+                    view! {
+                        <tr>
+                            <th scope="row">{r + 1}</th>
+                            {tds}
+                        </tr>
+                    }
                 })
                 .collect_view();
             view! {
@@ -202,12 +236,26 @@ pub fn array_panel(shown: RwSignal<Shown>, kept: RwSignal<(i32, i32)>) -> impl I
     };
     view! {
         <div>
-            <span class="oc-kind" data-onecalc="result-type">"array"</span>
+            <span class="oc-kind" data-onecalc="result-type">
+                "array"
+            </span>
             <span data-onecalc="result-shape">{caption}</span>
-            <div class="oc-array-scroll" data-onecalc="result-scroll" node_ref=scroller on:scroll=on_scroll tabindex="0"
-                role="region" aria-label="Array result, scrolls">
+            <div
+                class="oc-array-scroll"
+                data-onecalc="result-scroll"
+                node_ref=scroller
+                on:scroll=on_scroll
+                tabindex="0"
+                role="region"
+                aria-label="Array result, scrolls"
+            >
                 <table class="oc-array" data-onecalc="result-array" role="grid">
-                    <thead><tr><th class="oc-corner" scope="col"></th>{head}</tr></thead>
+                    <thead>
+                        <tr>
+                            <th class="oc-corner" scope="col"></th>
+                            {head}
+                        </tr>
+                    </thead>
                     <tbody>{body}</tbody>
                 </table>
             </div>
@@ -221,7 +269,13 @@ pub fn effective_panel(shown: RwSignal<Shown>) -> impl IntoView {
         <details class="oc-effective" data-onecalc="effective-controls">
             <summary data-onecalc="effective-tools">"Effective display"</summary>
             <ul data-onecalc="effective-display">
-                {move || shown.with(|s| s.effective.clone()).into_iter().map(|line| view! { <li>{line}</li> }).collect_view()}
+                {move || {
+                    shown
+                        .with(|s| s.effective.clone())
+                        .into_iter()
+                        .map(|line| view! { <li>{line}</li> })
+                        .collect_view()
+                }}
             </ul>
         </details>
     }
@@ -236,9 +290,17 @@ fn text_input(
     write: impl Fn(String) + Send + Sync + 'static,
 ) -> impl IntoView {
     view! {
-        <label>{label}
-            <input type="text" data-onecalc=role placeholder=placeholder list=list autocomplete="off"
-                prop:value=read on:input=move |ev| write(event_target_value(&ev))/>
+        <label>
+            {label}
+            <input
+                type="text"
+                data-onecalc=role
+                placeholder=placeholder
+                list=list
+                autocomplete="off"
+                prop:value=read
+                on:input=move |ev| write(event_target_value(&ev))
+            />
         </label>
     }
 }
@@ -250,10 +312,19 @@ fn number_input(
     write: impl Fn(u32) + Send + Sync + 'static,
 ) -> impl IntoView {
     view! {
-        <label>{label}
-            <input type="number" min="0" max="1000" data-onecalc=role
-                prop:value=move || { let n = read(); if n == 0 { String::new() } else { n.to_string() } }
-                on:input=move |ev| write(event_target_value(&ev).trim().parse().unwrap_or(0))/>
+        <label>
+            {label}
+            <input
+                type="number"
+                min="0"
+                max="1000"
+                data-onecalc=role
+                prop:value=move || {
+                    let n = read();
+                    if n == 0 { String::new() } else { n.to_string() }
+                }
+                on:input=move |ev| write(event_target_value(&ev).trim().parse().unwrap_or(0))
+            />
         </label>
     }
 }
@@ -266,7 +337,12 @@ fn check_input(
 ) -> impl IntoView {
     view! {
         <label class="oc-check">
-            <input type="checkbox" data-onecalc=role prop:checked=read on:change=move |ev| write(event_target_checked(&ev))/>
+            <input
+                type="checkbox"
+                data-onecalc=role
+                prop:checked=read
+                on:change=move |ev| write(event_target_checked(&ev))
+            />
             {label}
         </label>
     }
@@ -284,8 +360,15 @@ fn select_input(
         .map(|(value, text)| view! { <option value=*value>{*text}</option> })
         .collect_view();
     view! {
-        <label>{label}
-            <select data-onecalc=role prop:value=read on:change=move |ev| write(event_target_value(&ev))>{items}</select>
+        <label>
+            {label}
+            <select
+                data-onecalc=role
+                prop:value=read
+                on:change=move |ev| write(event_target_value(&ev))
+            >
+                {items}
+            </select>
         </label>
     }
 }
@@ -313,12 +396,18 @@ pub fn colour_list() -> impl IntoView {
 pub fn formatting_panel(style: RwSignal<CellStyle>) -> impl IntoView {
     macro_rules! text {
         ($field:ident) => {
-            (move || style.with(|s| s.$field.clone()), move |v: String| style.update(|s| s.$field = v))
+            (
+                move || style.with(|s| s.$field.clone()),
+                move |v: String| style.update(|s| s.$field = v),
+            )
         };
     }
     macro_rules! flag {
         ($field:ident) => {
-            (move || style.with(|s| s.$field), move |v: bool| style.update(|s| s.$field = v))
+            (
+                move || style.with(|s| s.$field),
+                move |v: bool| style.update(|s| s.$field = v),
+            )
         };
     }
     let (family, set_family) = text!(font_family);
@@ -337,30 +426,65 @@ pub fn formatting_panel(style: RwSignal<CellStyle>) -> impl IntoView {
     view! {
         <details class="oc-format-controls oc-formatting" data-onecalc="formatting-panel">
             <summary data-onecalc="formatting-tools">"Formatting"</summary>
-            <p class="oc-prov">"How the result is drawn: font, fill, borders and alignment, as the result's effective display. The number format is under Format & locale."</p>
+            <p class="oc-prov">
+                "How the result is drawn: font, fill, borders and alignment, as the result's effective display. The number format is under Format & locale."
+            </p>
             <div class="oc-fields">
                 {text_input("style-font", "Font", "default", "oc-fonts", family, set_family)}
-                {number_input("style-size", "Size (pt)", move || style.with(|s| s.font_size), move |n| style.update(|s| s.font_size = n))}
-                {check_input("style-bold", "Bold", bold, set_bold)}
+                {number_input(
+                    "style-size",
+                    "Size (pt)",
+                    move || style.with(|s| s.font_size),
+                    move |n| style.update(|s| s.font_size = n),
+                )} {check_input("style-bold", "Bold", bold, set_bold)}
                 {check_input("style-italic", "Italic", italic, set_italic)}
                 {check_input("style-underline", "Underline", underline, set_underline)}
                 {check_input("style-strike", "Strikethrough", strike, set_strike)}
-                {text_input("style-color", "Text colour", "#rrggbb", COLOURS, text_color, set_text_color)}
-                {text_input("style-fill", "Fill", "#rrggbb", COLOURS, fill, set_fill)}
-                {select_input("style-align", "Alignment", &[("", "General"), ("left", "Left"), ("center", "Centre"), ("right", "Right")],
-                    move || style.with(|s| s.horizontal.clone()), move |v| style.update(|s| s.horizontal = v))}
-                {check_input("style-wrap", "Wrap text", wrap, set_wrap)}
+                {text_input(
+                    "style-color",
+                    "Text colour",
+                    "#rrggbb",
+                    COLOURS,
+                    text_color,
+                    set_text_color,
+                )} {text_input("style-fill", "Fill", "#rrggbb", COLOURS, fill, set_fill)}
+                {select_input(
+                    "style-align",
+                    "Alignment",
+                    &[("", "General"), ("left", "Left"), ("center", "Centre"), ("right", "Right")],
+                    move || style.with(|s| s.horizontal.clone()),
+                    move |v| style.update(|s| s.horizontal = v),
+                )} {check_input("style-wrap", "Wrap text", wrap, set_wrap)}
                 {check_input("style-border-top", "Border top", top, set_top)}
                 {check_input("style-border-bottom", "Border bottom", bottom, set_bottom)}
                 {check_input("style-border-left", "Border left", left, set_left)}
                 {check_input("style-border-right", "Border right", right, set_right)}
-                {text_input("style-border-color", "Border colour", "#000000", COLOURS, border_color, set_border_color)}
+                {text_input(
+                    "style-border-color",
+                    "Border colour",
+                    "#000000",
+                    COLOURS,
+                    border_color,
+                    set_border_color,
+                )}
             </div>
             <datalist id="oc-fonts">
-                <option value="Arial"/><option value="Calibri"/><option value="Cambria"/><option value="Consolas"/>
-                <option value="Courier New"/><option value="Georgia"/><option value="Times New Roman"/><option value="Verdana"/>
+                <option value="Arial" />
+                <option value="Calibri" />
+                <option value="Cambria" />
+                <option value="Consolas" />
+                <option value="Courier New" />
+                <option value="Georgia" />
+                <option value="Times New Roman" />
+                <option value="Verdana" />
             </datalist>
-            <button type="button" data-onecalc="style-reset" on:click=move |_| style.set(CellStyle::default())>"Reset formatting"</button>
+            <button
+                type="button"
+                data-onecalc="style-reset"
+                on:click=move |_| style.set(CellStyle::default())
+            >
+                "Reset formatting"
+            </button>
         </details>
     }
 }
@@ -439,19 +563,41 @@ pub fn cf_panel(rules: RwSignal<Vec<CfRuleSpec>>) -> impl IntoView {
     let indexes = move || (0..count()).collect::<Vec<_>>();
     view! {
         <details class="oc-format-controls oc-cf" data-onecalc="cf-panel">
-            <summary data-onecalc="cf-tools">"Conditional formatting · "<span data-onecalc="cf-count">{move || format!("{} rule(s)", count())}</span></summary>
-            <p class="oc-prov">"Rules are applied to the result as Excel applies them to a selected range: a single value is a range of one cell, an array result a range of its own cells, so colour scales, data bars, icon sets, top and bottom, average and duplicate rules read the whole array. Earlier rules win; Stop if true ends the rules for a cell. The rules are calc-doc's, the code DNA Calc paints a sheet with."</p>
+            <summary data-onecalc="cf-tools">
+                "Conditional formatting · "
+                <span data-onecalc="cf-count">{move || format!("{} rule(s)", count())}</span>
+            </summary>
+            <p class="oc-prov">
+                "Rules are applied to the result as Excel applies them to a selected range: a single value is a range of one cell, an array result a range of its own cells, so colour scales, data bars, icon sets, top and bottom, average and duplicate rules read the whole array. Earlier rules win; Stop if true ends the rules for a cell. The rules are calc-doc's, the code DNA Calc paints a sheet with."
+            </p>
             <div class="oc-cf-add">
-                <label>"New rule"
-                    <select data-onecalc="cf-new-kind" on:change=move |ev| adding.set(event_target_value(&ev))>
-                        {KINDS.iter().map(|(value, text)| view! { <option value=*value>{*text}</option> }).collect_view()}
+                <label>
+                    "New rule"
+                    <select
+                        data-onecalc="cf-new-kind"
+                        on:change=move |ev| adding.set(event_target_value(&ev))
+                    >
+                        {KINDS
+                            .iter()
+                            .map(|(value, text)| view! { <option value=*value>{*text}</option> })
+                            .collect_view()}
                     </select>
                 </label>
-                <button type="button" data-onecalc="cf-add" on:click=add>"Add rule"</button>
-                <button type="button" data-onecalc="cf-clear" on:click=move |_| rules.set(Vec::new())>"Clear rules"</button>
+                <button type="button" data-onecalc="cf-add" on:click=add>
+                    "Add rule"
+                </button>
+                <button
+                    type="button"
+                    data-onecalc="cf-clear"
+                    on:click=move |_| rules.set(Vec::new())
+                >
+                    "Clear rules"
+                </button>
             </div>
             <ol class="oc-cf-rules" data-onecalc="cf-rules">
-                <For each=indexes key=|i| *i let:i>{cf_rule(rules, i)}</For>
+                <For each=indexes key=|i| *i let:i>
+                    {cf_rule(rules, i)}
+                </For>
             </ol>
         </details>
     }
@@ -486,9 +632,18 @@ fn cf_rule(rules: RwSignal<Vec<CfRuleSpec>>, i: usize) -> impl IntoView {
             )
         };
     }
-    let kind = Memo::new(move |_| rules.with(|r| r.get(i).map(|x| x.kind.clone()).unwrap_or_default()));
-    let operator = Memo::new(move |_| rules.with(|r| r.get(i).map(|x| x.operator.clone()).unwrap_or_default()));
-    let title = move || rules.with(|r| r.get(i).map(|x| format!("{}. {}", i + 1, x.title())).unwrap_or_default());
+    let kind =
+        Memo::new(move |_| rules.with(|r| r.get(i).map(|x| x.kind.clone()).unwrap_or_default()));
+    let operator = Memo::new(move |_| {
+        rules.with(|r| r.get(i).map(|x| x.operator.clone()).unwrap_or_default())
+    });
+    let title = move || {
+        rules.with(|r| {
+            r.get(i)
+                .map(|x| format!("{}. {}", i + 1, x.title()))
+                .unwrap_or_default()
+        })
+    };
     let change_kind = move |value: String| {
         rules.update(|r| {
             if let Some(x) = r.get_mut(i) {
@@ -529,7 +684,8 @@ fn cf_rule(rules: RwSignal<Vec<CfRuleSpec>>, i: usize) -> impl IntoView {
         })
     };
     let operator_value = move || operator.get();
-    let icon_value = move || rules.with(|r| r.get(i).map(|x| x.icon_set.clone()).unwrap_or_default());
+    let icon_value =
+        move || rules.with(|r| r.get(i).map(|x| x.icon_set.clone()).unwrap_or_default());
     let move_rule = move |by: isize| {
         rules.update(|r| {
             let to = i as isize + by;
@@ -557,9 +713,24 @@ fn cf_rule(rules: RwSignal<Vec<CfRuleSpec>>, i: usize) -> impl IntoView {
         let kind = kind.get();
         let fields = match kind.as_str() {
             "cellIs" => view! {
-                {select_input("cf-operator", "Cell value is", COMPARISONS, operator_value, set_operator)}
-                {text_input("cf-operand1", "Value or formula", "e.g. 5, \"text\" or A1", "", operand1, set_operand1)}
-                <div hidden=move || !matches!(operator.get().as_str(), "between" | "notBetween")>
+                {select_input(
+                    "cf-operator",
+                    "Cell value is",
+                    COMPARISONS,
+                    operator_value,
+                    set_operator,
+                )}
+                {text_input(
+                    "cf-operand1",
+                    "Value or formula",
+                    "e.g. 5, \"text\" or A1",
+                    "",
+                    operand1,
+                    set_operand1,
+                )}
+                <div hidden=move || {
+                    !matches!(operator.get().as_str(), "between" | "notBetween")
+                }>
                     {text_input("cf-operand2", "and", "second value", "", operand2, set_operand2)}
                 </div>
             }
@@ -569,29 +740,84 @@ fn cf_rule(rules: RwSignal<Vec<CfRuleSpec>>, i: usize) -> impl IntoView {
                 {text_input("cf-operand1", "Text", "text to look for", "", operand1, set_operand1)}
             }
             .into_any(),
-            "blanks" => select_input("cf-operator", "Cell", &[("blanks", "is blank"), ("noBlanks", "is not blank")], operator_value, set_operator).into_any(),
-            "errors" => select_input("cf-operator", "Cell", &[("errors", "has an error"), ("noErrors", "has no error")], operator_value, set_operator).into_any(),
-            "dates" => select_input("cf-operator", "Date is", PERIODS, operator_value, set_operator).into_any(),
-            "expression" => text_input("cf-operand1", "Formula for the cell (A1 is the cell itself)", "e.g. A1>5", "", operand1, set_operand1).into_any(),
+            "blanks" => select_input(
+                "cf-operator",
+                "Cell",
+                &[("blanks", "is blank"), ("noBlanks", "is not blank")],
+                operator_value,
+                set_operator,
+            )
+            .into_any(),
+            "errors" => select_input(
+                "cf-operator",
+                "Cell",
+                &[("errors", "has an error"), ("noErrors", "has no error")],
+                operator_value,
+                set_operator,
+            )
+            .into_any(),
+            "dates" => select_input(
+                "cf-operator",
+                "Date is",
+                PERIODS,
+                operator_value,
+                set_operator,
+            )
+            .into_any(),
+            "expression" => text_input(
+                "cf-operand1",
+                "Formula for the cell (A1 is the cell itself)",
+                "e.g. A1>5",
+                "",
+                operand1,
+                set_operand1,
+            )
+            .into_any(),
             "rank" => view! {
-                {select_input("cf-operator", "Show", &[("top", "top"), ("bottom", "bottom")], operator_value, set_operator)}
+                {select_input(
+                    "cf-operator",
+                    "Show",
+                    &[("top", "top"), ("bottom", "bottom")],
+                    operator_value,
+                    set_operator,
+                )}
                 {number_input("cf-rank", "Count", rank, set_rank)}
                 {check_input("cf-percent", "Percent", percent, set_percent)}
             }
             .into_any(),
             "average" => view! {
-                {select_input("cf-operator", "Values", &[("above", "above average"), ("below", "below average")], operator_value, set_operator)}
+                {select_input(
+                    "cf-operator",
+                    "Values",
+                    &[("above", "above average"), ("below", "below average")],
+                    operator_value,
+                    set_operator,
+                )}
                 {check_input("cf-equal", "Or equal", equal, set_equal)}
             }
             .into_any(),
             "colorScale" => view! {
                 {text_input("cf-low", "Lowest value colour", "#rrggbb", COLOURS, low, set_low)}
-                {text_input("cf-mid", "Middle colour (empty: two-colour)", "#rrggbb", COLOURS, mid, set_mid)}
+                {text_input(
+                    "cf-mid",
+                    "Middle colour (empty: two-colour)",
+                    "#rrggbb",
+                    COLOURS,
+                    mid,
+                    set_mid,
+                )}
                 {text_input("cf-high", "Highest value colour", "#rrggbb", COLOURS, high, set_high)}
             }
             .into_any(),
             "dataBar" => view! {
-                {text_input("cf-bar-color", "Bar colour", "#rrggbb", COLOURS, bar_color, set_bar_color)}
+                {text_input(
+                    "cf-bar-color",
+                    "Bar colour",
+                    "#rrggbb",
+                    COLOURS,
+                    bar_color,
+                    set_bar_color,
+                )}
                 {check_input("cf-gradient", "Gradient fill", gradient, set_gradient)}
             }
             .into_any(),
@@ -602,29 +828,67 @@ fn cf_rule(rules: RwSignal<Vec<CfRuleSpec>>, i: usize) -> impl IntoView {
             .into_any(),
             _ => ().into_any(),
         };
-        let appearance = (!matches!(kind.as_str(), "colorScale" | "dataBar" | "iconSet")).then(|| {
-            view! {
-                <div class="oc-fields">
-                    {text_input("cf-fill", "Fill", "#rrggbb", COLOURS, fill, set_fill)}
-                    {text_input("cf-font-color", "Text colour", "#rrggbb", COLOURS, font_color, set_font_color)}
-                    {check_input("cf-bold", "Bold", bold, set_bold)}
-                    {check_input("cf-italic", "Italic", italic, set_italic)}
-                    {check_input("cf-underline", "Underline", underline, set_underline)}
-                    {check_input("cf-strike", "Strikethrough", strike, set_strike)}
-                    {text_input("cf-number-format", "Number format", "e.g. 0.0%", "", number_format, set_number_format)}
-                </div>
-            }
-        });
-        view! { <div class="oc-fields">{fields}</div>{appearance} }
+        let appearance =
+            (!matches!(kind.as_str(), "colorScale" | "dataBar" | "iconSet")).then(|| {
+                view! {
+                    <div class="oc-fields">
+                        {text_input("cf-fill", "Fill", "#rrggbb", COLOURS, fill, set_fill)}
+                        {text_input(
+                            "cf-font-color",
+                            "Text colour",
+                            "#rrggbb",
+                            COLOURS,
+                            font_color,
+                            set_font_color,
+                        )} {check_input("cf-bold", "Bold", bold, set_bold)}
+                        {check_input("cf-italic", "Italic", italic, set_italic)}
+                        {check_input("cf-underline", "Underline", underline, set_underline)}
+                        {check_input("cf-strike", "Strikethrough", strike, set_strike)}
+                        {text_input(
+                            "cf-number-format",
+                            "Number format",
+                            "e.g. 0.0%",
+                            "",
+                            number_format,
+                            set_number_format,
+                        )}
+                    </div>
+                }
+            });
+        view! {
+            <div class="oc-fields">{fields}</div>
+            {appearance}
+        }
     };
     view! {
         <li class="oc-cf-rule" data-onecalc="cf-rule">
             <header>
                 <strong data-onecalc="cf-rule-title">{title}</strong>
                 <span>
-                    <button type="button" data-onecalc="cf-up" aria-label="Move rule up" on:click=move |_| move_rule(-1)>"Up"</button>
-                    <button type="button" data-onecalc="cf-down" aria-label="Move rule down" on:click=move |_| move_rule(1)>"Down"</button>
-                    <button type="button" data-onecalc="cf-remove" aria-label="Remove rule" on:click=remove>"Remove"</button>
+                    <button
+                        type="button"
+                        data-onecalc="cf-up"
+                        aria-label="Move rule up"
+                        on:click=move |_| move_rule(-1)
+                    >
+                        "Up"
+                    </button>
+                    <button
+                        type="button"
+                        data-onecalc="cf-down"
+                        aria-label="Move rule down"
+                        on:click=move |_| move_rule(1)
+                    >
+                        "Down"
+                    </button>
+                    <button
+                        type="button"
+                        data-onecalc="cf-remove"
+                        aria-label="Remove rule"
+                        on:click=remove
+                    >
+                        "Remove"
+                    </button>
                 </span>
             </header>
             {select_input("cf-kind", "Rule type", KINDS, move || kind.get(), change_kind)}

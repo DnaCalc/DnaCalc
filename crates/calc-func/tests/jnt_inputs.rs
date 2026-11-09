@@ -18,37 +18,109 @@ const WORKBOOK: &[u8] = include_bytes!("fixtures/jnt/oracle.xlsx");
 
 /// The section captures (`captures/jnt/sections`), whose environment `jnt_import.py environment` sets.
 const CAPTURES: &[(&str, &str)] = &[
-    ("jnt_dates_random", include_str!("captures/jnt/sections/jnt_dates_random.capture.json")),
-    ("jnt_operators", include_str!("captures/jnt/sections/jnt_operators.capture.json")),
-    ("jnt_parity_complex", include_str!("captures/jnt/sections/jnt_parity_complex.capture.json")),
-    ("jnt_logical_info", include_str!("captures/jnt/sections/jnt_logical_info.capture.json")),
-    ("jnt_lookup", include_str!("captures/jnt/sections/jnt_lookup.capture.json")),
-    ("jnt_text_formats", include_str!("captures/jnt/sections/jnt_text_formats.capture.json")),
-    ("jnt_aggregate_arrays", include_str!("captures/jnt/sections/jnt_aggregate_arrays.capture.json")),
-    ("jnt_evaluator_callables", include_str!("captures/jnt/sections/jnt_evaluator_callables.capture.json")),
-    ("jnt_parse_bind", include_str!("captures/jnt/sections/jnt_parse_bind.capture.json")),
-    ("jnt_w111_elementary", include_str!("captures/jnt/sections/jnt_w111_elementary.capture.json")),
-    ("jnt_w111_rounding", include_str!("captures/jnt/sections/jnt_w111_rounding.capture.json")),
-    ("jnt_w111_text_dates", include_str!("captures/jnt/sections/jnt_w111_text_dates.capture.json")),
+    (
+        "jnt_dates_random",
+        include_str!("captures/jnt/sections/jnt_dates_random.capture.json"),
+    ),
+    (
+        "jnt_operators",
+        include_str!("captures/jnt/sections/jnt_operators.capture.json"),
+    ),
+    (
+        "jnt_parity_complex",
+        include_str!("captures/jnt/sections/jnt_parity_complex.capture.json"),
+    ),
+    (
+        "jnt_logical_info",
+        include_str!("captures/jnt/sections/jnt_logical_info.capture.json"),
+    ),
+    (
+        "jnt_lookup",
+        include_str!("captures/jnt/sections/jnt_lookup.capture.json"),
+    ),
+    (
+        "jnt_text_formats",
+        include_str!("captures/jnt/sections/jnt_text_formats.capture.json"),
+    ),
+    (
+        "jnt_aggregate_arrays",
+        include_str!("captures/jnt/sections/jnt_aggregate_arrays.capture.json"),
+    ),
+    (
+        "jnt_evaluator_callables",
+        include_str!("captures/jnt/sections/jnt_evaluator_callables.capture.json"),
+    ),
+    (
+        "jnt_parse_bind",
+        include_str!("captures/jnt/sections/jnt_parse_bind.capture.json"),
+    ),
+    (
+        "jnt_w111_elementary",
+        include_str!("captures/jnt/sections/jnt_w111_elementary.capture.json"),
+    ),
+    (
+        "jnt_w111_rounding",
+        include_str!("captures/jnt/sections/jnt_w111_rounding.capture.json"),
+    ),
+    (
+        "jnt_w111_text_dates",
+        include_str!("captures/jnt/sections/jnt_w111_text_dates.capture.json"),
+    ),
 ];
 
 /// The sheets whose section files carry typed inputs, each with its section file.
 const SECTIONS: &[(&str, &str)] = &[
-    ("jnt_w111_elementary", include_str!("fixtures/jnt/sheet-jnt_w111_elementary.txt")),
-    ("jnt_w111_text_dates", include_str!("fixtures/jnt/sheet-jnt_w111_text_dates.txt")),
-    ("jnt_dates_random", include_str!("fixtures/jnt/sheet-jnt_dates_random.txt")),
-    ("jnt_operators", include_str!("fixtures/jnt/sheet-jnt_operators.txt")),
-    ("jnt_parity_complex", include_str!("fixtures/jnt/sheet-jnt_parity_complex.txt")),
-    ("jnt_logical_info", include_str!("fixtures/jnt/sheet-jnt_logical_info.txt")),
-    ("jnt_lookup", include_str!("fixtures/jnt/sheet-jnt_lookup.txt")),
-    ("jnt_text_formats", include_str!("fixtures/jnt/sheet-jnt_text_formats.txt")),
-    ("jnt_aggregate_arrays", include_str!("fixtures/jnt/sheet-jnt_aggregate_arrays.txt")),
-    ("jnt_evaluator_callables", include_str!("fixtures/jnt/sheet-jnt_evaluator_callables.txt")),
-    ("jnt_parse_bind", include_str!("fixtures/jnt/sheet-jnt_parse_bind.txt")),
+    (
+        "jnt_w111_elementary",
+        include_str!("fixtures/jnt/sheet-jnt_w111_elementary.txt"),
+    ),
+    (
+        "jnt_w111_text_dates",
+        include_str!("fixtures/jnt/sheet-jnt_w111_text_dates.txt"),
+    ),
+    (
+        "jnt_dates_random",
+        include_str!("fixtures/jnt/sheet-jnt_dates_random.txt"),
+    ),
+    (
+        "jnt_operators",
+        include_str!("fixtures/jnt/sheet-jnt_operators.txt"),
+    ),
+    (
+        "jnt_parity_complex",
+        include_str!("fixtures/jnt/sheet-jnt_parity_complex.txt"),
+    ),
+    (
+        "jnt_logical_info",
+        include_str!("fixtures/jnt/sheet-jnt_logical_info.txt"),
+    ),
+    (
+        "jnt_lookup",
+        include_str!("fixtures/jnt/sheet-jnt_lookup.txt"),
+    ),
+    (
+        "jnt_text_formats",
+        include_str!("fixtures/jnt/sheet-jnt_text_formats.txt"),
+    ),
+    (
+        "jnt_aggregate_arrays",
+        include_str!("fixtures/jnt/sheet-jnt_aggregate_arrays.txt"),
+    ),
+    (
+        "jnt_evaluator_callables",
+        include_str!("fixtures/jnt/sheet-jnt_evaluator_callables.txt"),
+    ),
+    (
+        "jnt_parse_bind",
+        include_str!("fixtures/jnt/sheet-jnt_parse_bind.txt"),
+    ),
 ];
 
 fn unescape(text: &str) -> String {
-    text.replace("&lt;", "<").replace("&gt;", ">").replace("&quot;", "\"").replace("&amp;", "&")
+    text.replace("&lt;", "<")
+        .replace("&gt;", ">")
+        .replace("&quot;", "\"")
+        .replace("&amp;", "&")
 }
 
 /// The cells of a worksheet part: reference to (formula text, constant number text, constant text).
@@ -97,7 +169,9 @@ fn sheet_part(name: &str) -> String {
     let parts = calc_verdict::stored_package_parts(WORKBOOK).expect("a stored package");
     let workbook = std::str::from_utf8(&parts["xl/workbook.xml"]).unwrap();
     let marker = format!("<sheet name=\"{name}\" sheetId=\"");
-    let at = workbook.find(&marker).unwrap_or_else(|| panic!("the workbook has no sheet {name}"));
+    let at = workbook
+        .find(&marker)
+        .unwrap_or_else(|| panic!("the workbook has no sheet {name}"));
     let id: &str = &workbook[at + marker.len()..];
     let id = &id[..id.find('"').unwrap()];
     String::from_utf8(parts[&format!("xl/worksheets/sheet{id}.xml")].clone()).unwrap()
@@ -108,7 +182,10 @@ fn sheet_part(name: &str) -> String {
 fn typed_input_rows_reach_the_workbook_exactly() {
     for (name, section) in SECTIONS {
         let cells = cells_of(&sheet_part(name));
-        let lines: Vec<&str> = section.lines().filter(|l| !l.is_empty() && !l.starts_with('#')).collect();
+        let lines: Vec<&str> = section
+            .lines()
+            .filter(|l| !l.is_empty() && !l.starts_with('#'))
+            .collect();
         assert!(!lines.is_empty(), "{name} has no rows");
         for (index, line) in lines.iter().enumerate() {
             let row = index + 1;
@@ -117,8 +194,14 @@ fn typed_input_rows_reach_the_workbook_exactly() {
             for column in COLUMNS {
                 formula = formula.replace(&format!("{{{column}}}"), &format!("{column}{row}"));
             }
-            let written = cells.get(&format!("D{row}")).and_then(|c| c.formula.clone());
-            assert_eq!(written.as_deref(), Some(formula.as_str()), "{name} row {row}");
+            let written = cells
+                .get(&format!("D{row}"))
+                .and_then(|c| c.formula.clone());
+            assert_eq!(
+                written.as_deref(),
+                Some(formula.as_str()),
+                "{name} row {row}"
+            );
             for (k, column) in COLUMNS.iter().enumerate() {
                 let cell = cells.get(&format!("{column}{row}"));
                 let Some(token) = fields.get(k + 1) else {
@@ -130,17 +213,30 @@ fn typed_input_rows_reach_the_workbook_exactly() {
                     (("-", ""), cell) => assert!(cell.is_none(), "{here}"),
                     (("n:", hex), Some(cell)) => {
                         let want = u64::from_str_radix(hex, 16).unwrap();
-                        let text = cell.number.as_deref().unwrap_or_else(|| panic!("{here}: no number"));
+                        let text = cell
+                            .number
+                            .as_deref()
+                            .unwrap_or_else(|| panic!("{here}: no number"));
                         let got: f64 = text.parse().unwrap();
                         // -0 is not written (the importer leaves it out): a zero is +0.
                         assert_eq!(got.to_bits(), want, "{here}: <v>{text}</v>");
                     }
-                    (("s:", text), Some(cell)) => assert_eq!(cell.text.as_deref(), Some(text), "{here}"),
-                    (("b:", flag), Some(cell)) => {
-                        assert_eq!(cell.logical.as_deref(), Some(if flag == "TRUE" { "1" } else { "0" }), "{here}")
+                    (("s:", text), Some(cell)) => {
+                        assert_eq!(cell.text.as_deref(), Some(text), "{here}")
                     }
-                    (("e:", literal), Some(cell)) => assert_eq!(cell.error.as_deref(), Some(literal), "{here}"),
-                    (("f:", formula), Some(cell)) => assert_eq!(cell.formula.as_deref(), Some(formula), "{here}"),
+                    (("b:", flag), Some(cell)) => {
+                        assert_eq!(
+                            cell.logical.as_deref(),
+                            Some(if flag == "TRUE" { "1" } else { "0" }),
+                            "{here}"
+                        )
+                    }
+                    (("e:", literal), Some(cell)) => {
+                        assert_eq!(cell.error.as_deref(), Some(literal), "{here}")
+                    }
+                    (("f:", formula), Some(cell)) => {
+                        assert_eq!(cell.formula.as_deref(), Some(formula), "{here}")
+                    }
                     _ => panic!("{here}: the cell does not match the input"),
                 }
             }
@@ -155,9 +251,20 @@ fn typed_input_rows_reach_the_workbook_exactly() {
 #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
 fn section_captures_record_the_locale_of_their_excel() {
     for (name, capture) in CAPTURES {
-        assert!(!capture.contains("\"environment\": null"), "{name} has no environment");
-        for setting in ["user_culture\": \"en-ZA", "decimal_separator\": \".", "thousands_separator\": \" ", "calculation_clock"] {
-            assert!(capture.contains(setting), "{name} lacks the setting {setting}");
+        assert!(
+            !capture.contains("\"environment\": null"),
+            "{name} has no environment"
+        );
+        for setting in [
+            "user_culture\": \"en-ZA",
+            "decimal_separator\": \".",
+            "thousands_separator\": \" ",
+            "calculation_clock",
+        ] {
+            assert!(
+                capture.contains(setting),
+                "{name} lacks the setting {setting}"
+            );
         }
     }
 }

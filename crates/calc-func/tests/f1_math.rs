@@ -21,7 +21,17 @@ fn binomial_inverse_advances_on_measured_equal_boundaries() {
         }
     }
     // The W111 control near probability one remains in the lower count.
-    exact(call("BINOM.INV", vec![n(2.0), n(f64::from_bits(0x3fef_ffff_ffff_ffff)), n(f64::from_bits(0x3cb0_0000_0000_0000))]), 1.0);
+    exact(
+        call(
+            "BINOM.INV",
+            vec![
+                n(2.0),
+                n(f64::from_bits(0x3fef_ffff_ffff_ffff)),
+                n(f64::from_bits(0x3cb0_0000_0000_0000)),
+            ],
+        ),
+        1.0,
+    );
 }
 
 /// Excel20527: the directed unit at10^126 rounds through PC64, then binary64.
@@ -29,8 +39,10 @@ fn binomial_inverse_advances_on_measured_equal_boundaries() {
 #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
 fn roundup_publishes_its_power_of_ten_unit_from_pc64() {
     for sign in [1.0, -1.0] {
-        exact(call("ROUNDUP", vec![n(sign), n(-126.0)]),
-            sign * f64::from_bits(0x5a17_a2ec_c414_a040));
+        exact(
+            call("ROUNDUP", vec![n(sign), n(-126.0)]),
+            sign * f64::from_bits(0x5a17_a2ec_c414_a040),
+        );
         exact(call("ROUNDUP", vec![n(sign), n(-125.0)]), sign * 1e125);
         exact(call("ROUNDUP", vec![n(sign), n(-127.0)]), sign * 1e127);
     }
@@ -47,8 +59,10 @@ fn rounding_publishes_normalized_decimal_coefficients_in_radix16_steps() {
             (0x123f_0cf4_0240_a183, 0x123f_0cf4_0240_a182),
             (0x80cf_63b0_3545_19d2, 0x80cf_63b0_3545_19d1),
         ] {
-            exact(call(function, vec![n(f64::from_bits(input)), n(32000.0)]),
-                f64::from_bits(expected));
+            exact(
+                call(function, vec![n(f64::from_bits(input)), n(32000.0)]),
+                f64::from_bits(expected),
+            );
         }
     }
 }
@@ -62,7 +76,10 @@ fn asinh_stores_each_identity_operation_from_pc64() {
         (0x3ed0_51e2_e324_9a58, 0x3ed0_51e2_e326_b736),
         (0xbeb0_32f7_6bce_6f24, 0xbeb0_32f7_6bdb_73b3),
     ] {
-        exact(call("ASINH", vec![n(f64::from_bits(input))]), f64::from_bits(expected));
+        exact(
+            call("ASINH", vec![n(f64::from_bits(input))]),
+            f64::from_bits(expected),
+        );
     }
 }
 
@@ -71,8 +88,12 @@ fn asinh_stores_each_identity_operation_from_pc64() {
 #[cfg_attr(not(target_arch = "wasm32"), test)]
 #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
 fn asinh_admits_subnormal_inputs_whose_identity_is_exact_zero() {
-    for input in [0x0000_0000_0000_0001, 0x8000_0000_0000_0001,
-                  0x000f_ffff_ffff_ffff, 0x800f_ffff_ffff_ffff] {
+    for input in [
+        0x0000_0000_0000_0001,
+        0x8000_0000_0000_0001,
+        0x000f_ffff_ffff_ffff,
+        0x800f_ffff_ffff_ffff,
+    ] {
         exact(call("ASINH", vec![n(f64::from_bits(input))]), 0.0);
     }
 }
@@ -86,7 +107,11 @@ fn circular_functions() {
     // Excel's circular functions give #NUM! from 2^27 on.
     error(call("SIN", vec![n(134_217_728.0)]), Num);
     error(call("COS", vec![n(-134_217_728.0)]), Num);
-    close(call("SIN", vec![n(134_217_727.0)]), (134_217_727.0f64).sin(), 1e-9);
+    close(
+        call("SIN", vec![n(134_217_727.0)]),
+        (134_217_727.0f64).sin(),
+        1e-9,
+    );
     close(call("COT", vec![n(1.0)]), 1.0 / 1.0f64.tan(), 1e-15);
     error(call("COT", vec![n(0.0)]), Div0);
     close(call("SEC", vec![n(1.0)]), 1.0 / 1.0f64.cos(), 1e-15);
@@ -178,7 +203,10 @@ fn power_shares_the_operator_rule() {
     error(call("POWER", vec![n(-8.0), n(0.5)]), Num);
     // The powers that need a power algorithm, `^` and POWER compute by OxFunc's power kernel.
     exact(call("POWER", vec![n(2.0), n(3.0)]), 8.0);
-    exact(call("POWER", vec![n(2.0), n(0.5)]), std::f64::consts::SQRT_2);
+    exact(
+        call("POWER", vec![n(2.0), n(0.5)]),
+        std::f64::consts::SQRT_2,
+    );
     exact(call("POWER", vec![n(-8.0), n(3.0)]), -512.0);
     exact(call("POWER", vec![n(10.0), n(-2.0)]), 0.01);
 }
@@ -197,7 +225,10 @@ fn factorials_and_combinatorics() {
     exact(call("PERMUT", vec![n(10.0), n(3.0)]), 720.0);
     exact(call("PERMUTATIONA", vec![n(3.0), n(2.0)]), 9.0);
     // Excel's own result, as OxFunc's machine witness rows pin it.
-    exact(call("MULTINOMIAL", vec![n(2.0), n(3.0), n(4.0)]), 1_259.999_999_999_999);
+    exact(
+        call("MULTINOMIAL", vec![n(2.0), n(3.0), n(4.0)]),
+        1_259.999_999_999_999,
+    );
     error(call("MULTINOMIAL", vec![n(-1.0)]), Num);
 }
 
@@ -239,7 +270,10 @@ fn numeral_systems() {
 #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
 fn series_and_paired_sums() {
     exact(
-        call("SERIESSUM", vec![n(2.0), n(0.0), n(1.0), arr(vec![vec![1.0, 2.0, 3.0]])]),
+        call(
+            "SERIESSUM",
+            vec![n(2.0), n(0.0), n(1.0), arr(vec![vec![1.0, 2.0, 3.0]])],
+        ),
         17.0,
     );
     let x = arr(vec![vec![2.0, 3.0]]);
@@ -253,19 +287,38 @@ fn series_and_paired_sums() {
 #[cfg_attr(not(target_arch = "wasm32"), test)]
 #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
 fn matrix_functions() {
-    close(call("MDETERM", vec![arr(vec![vec![1.0, 2.0], vec![3.0, 4.0]])]), -2.0, 1e-15);
-    let (rows, cols, cells) = array(call("MINVERSE", vec![arr(vec![vec![4.0, 7.0], vec![2.0, 6.0]])]));
+    close(
+        call("MDETERM", vec![arr(vec![vec![1.0, 2.0], vec![3.0, 4.0]])]),
+        -2.0,
+        1e-15,
+    );
+    let (rows, cols, cells) = array(call(
+        "MINVERSE",
+        vec![arr(vec![vec![4.0, 7.0], vec![2.0, 6.0]])],
+    ));
     assert_eq!((rows, cols), (2, 2));
     for (got, want) in cells.iter().zip([0.6, -0.7, -0.2, 0.4]) {
         assert!((got - want).abs() < 1e-15, "{got} vs {want}");
     }
-    error(call("MINVERSE", vec![arr(vec![vec![1.0, 2.0], vec![2.0, 4.0]])]), Num);
+    error(
+        call("MINVERSE", vec![arr(vec![vec![1.0, 2.0], vec![2.0, 4.0]])]),
+        Num,
+    );
     let (rows, cols, cells) = array(call(
         "MMULT",
-        vec![arr(vec![vec![1.0, 2.0], vec![3.0, 4.0]]), arr(vec![vec![5.0], vec![6.0]])],
+        vec![
+            arr(vec![vec![1.0, 2.0], vec![3.0, 4.0]]),
+            arr(vec![vec![5.0], vec![6.0]]),
+        ],
     ));
     assert_eq!((rows, cols, cells), (2, 1, vec![17.0, 39.0]));
-    error(call("MMULT", vec![arr(vec![vec![1.0, 2.0]]), arr(vec![vec![1.0, 2.0]])]), Value);
+    error(
+        call(
+            "MMULT",
+            vec![arr(vec![vec![1.0, 2.0]]), arr(vec![vec![1.0, 2.0]])],
+        ),
+        Value,
+    );
     let (rows, cols, cells) = array(call("MUNIT", vec![n(2.0)]));
     assert_eq!((rows, cols, cells), (2, 2, vec![1.0, 0.0, 0.0, 1.0]));
     error(call("MUNIT", vec![n(0.0)]), Value);
@@ -286,8 +339,17 @@ fn arguments_are_read_by_worksheet_coercion() {
 #[cfg_attr(not(target_arch = "wasm32"), test)]
 #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
 fn fn1_ecma_ceiling_matches_the_recorded_controls() {
-    for (value, significance, expected) in [(1.0, 1.0, 1.0), (-4.3, 2.0, -4.0), (-4.3, -2.0, -6.0), (4.3, 0.0, 0.0), (0.0, 2.0, 0.0)] {
-        exact(call("ECMA.CEILING", vec![n(value), n(significance)]), expected);
+    for (value, significance, expected) in [
+        (1.0, 1.0, 1.0),
+        (-4.3, 2.0, -4.0),
+        (-4.3, -2.0, -6.0),
+        (4.3, 0.0, 0.0),
+        (0.0, 2.0, 0.0),
+    ] {
+        exact(
+            call("ECMA.CEILING", vec![n(value), n(significance)]),
+            expected,
+        );
     }
     error(call("ECMA.CEILING", vec![n(4.3), n(-2.0)]), Num);
 }
@@ -359,9 +421,17 @@ fn rounding_family_matches_recorded_bank_rows() {
         ("ROUND", -f64::MAX, -308.0, 0xfff1_ccf3_85eb_c8a0),
         ("ROUND", f64::MAX, -307.0, 0x7ff0_0541_9221_015d),
         ("ROUND", f64::MAX, 0.0, 0x7ff0_0000_0000_000a),
-        ("TRUNC", f64::from_bits(0x7fef_ffff_ffff_fffc), 0.0, 0x7ff0_0000_0000_000a),
+        (
+            "TRUNC",
+            f64::from_bits(0x7fef_ffff_ffff_fffc),
+            0.0,
+            0x7ff0_0000_0000_000a,
+        ),
     ] {
-        exact(call(function, vec![n(number), n(digits)]), f64::from_bits(bits));
+        exact(
+            call(function, vec![n(number), n(digits)]),
+            f64::from_bits(bits),
+        );
     }
     error(call("ROUNDUP", vec![n(f64::MAX), n(-308.0)]), Num);
     exact(call("ROUNDUP", vec![n(1.5), n(1e300)]), 1.5);

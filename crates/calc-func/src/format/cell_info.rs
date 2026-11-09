@@ -54,7 +54,9 @@ enum Token {
     Condition,
     Elapsed,
     /// `[$...]`: with a locale ID (`[$-409]`) or not (`[$R]`).
-    Locale { with_id: bool },
+    Locale {
+        with_id: bool,
+    },
     General,
     Placeholder,
     Point,
@@ -255,9 +257,10 @@ fn is_date_time(token: &Token) -> bool {
 
 /// The class of a date or time section: `None` for `G`.
 fn date_time_class(tokens: &[Token]) -> Option<u8> {
-    if tokens.iter().any(|t| {
-        matches!(t, Token::Era | Token::Elapsed) || matches!(t, Token::Day(n) if *n >= 3)
-    }) {
+    if tokens
+        .iter()
+        .any(|t| matches!(t, Token::Era | Token::Elapsed) || matches!(t, Token::Day(n) if *n >= 3))
+    {
         return None;
     }
     let tagged = tokens
@@ -283,7 +286,9 @@ fn date_time_class(tokens: &[Token]) -> Option<u8> {
                 return None;
             }
             let seconds = parts.iter().any(|t| matches!(t, Token::Second));
-            let am_pm = tokens.iter().any(|t| matches!(t, Token::AmPm | Token::AmPmShort));
+            let am_pm = tokens
+                .iter()
+                .any(|t| matches!(t, Token::AmPm | Token::AmPmShort));
             Some(match (seconds, am_pm) {
                 (true, true) => 6,
                 (true, false) => 8,
@@ -364,8 +369,14 @@ fn number_class(tokens: &[Token], profile: &FormatProfile) -> String {
         return "G".to_owned();
     }
     if tokens.iter().any(|t| *t == Token::Placeholder) {
-        let grouped = tokens.windows(2).any(|w| w == [Token::Placeholder, Token::Group]);
-        return if grouped { format!(",{n}") } else { format!("F{n}") };
+        let grouped = tokens
+            .windows(2)
+            .any(|w| w == [Token::Placeholder, Token::Group]);
+        return if grouped {
+            format!(",{n}")
+        } else {
+            format!("F{n}")
+        };
     }
     "G".to_owned()
 }

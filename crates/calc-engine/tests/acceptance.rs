@@ -2129,10 +2129,7 @@ fn ceng_m1_2__wrong_cache_not_pass() {
             set(c(2, 1), formula("A1+Data!A1")),
             set(c(3, 1), formula("IF(A2>10,\"big\",\"small\")")),
             // Unary minus on a computed subnormal remains unmodelled.
-            set(
-                c(4, 1),
-                formula("-EXP(-745)"),
-            ),
+            set(c(4, 1), formula("-EXP(-745)")),
             set(c(5, 1), formula("A4+1")),
             // A reference to another workbook (L3 binds 3-D references, which this row held
             // before; external references stay refused).
@@ -2144,10 +2141,7 @@ fn ceng_m1_2__wrong_cache_not_pass() {
             // Excel refuses to enter, since COUNTIFS's range takes only a reference (dc-mx3x);
             // XLOOKUP's lookup array and CHISQ.TEST's ranges, before that, were measured by L3
             // and dc-10y and lift.)
-            set(
-                c(9, 1),
-                formula("Data!A1*Data!A2*0+-EXP(-745)"),
-            ),
+            set(c(9, 1), formula("Data!A1*Data!A2*0+-EXP(-745)")),
             set(c(1, 3), formula("A2*2")),
         ],
     );
@@ -4047,7 +4041,15 @@ fn dc_m3u__tables_and_3d_through_the_engine() {
         (at(tab, 2, 3), formula("Sales[[#This Row],[Qty]]*10")),
         (at(tab, 3, 3), formula("Sales[[#This Row],[Qty]]*10")),
     ];
-    let table = calc_doc_model::Table {id:1,style:Default::default(),filter:None,totals_functions:vec![],totals_labels:vec![],opaque:false,axis_opaque:false,column_formulas:vec![],
+    let table = calc_doc_model::Table {
+        id: 1,
+        style: Default::default(),
+        filter: None,
+        totals_functions: vec![],
+        totals_labels: vec![],
+        opaque: false,
+        axis_opaque: false,
+        column_formulas: vec![],
         name: "Sales".to_owned(),
         display_name: "Sales".to_owned(),
         part: "xl/tables/table1.xml".to_owned(),
@@ -4999,9 +5001,11 @@ fn compatibility_version_invalidates_nonvolatile_text_results() {
     let sheet = ids.issue().unwrap();
     let first = CellKey::new(sheet, 1, 1).unwrap();
     let reader = CellKey::new(sheet, 1, 2).unwrap();
-    let root = l3_root(&[(sheet, "Text")], vec![
-        (first, formula("LEN(\"A😀B\")")), (reader, formula("A1+1")),
-    ], Definitions::new(vec![], vec![], vec![], []));
+    let root = l3_root(
+        &[(sheet, "Text")],
+        vec![(first, formula("LEN(\"A😀B\")")), (reader, formula("A1+1"))],
+        Definitions::new(vec![], vec![], vec![], []),
+    );
     let mut state = EngineState::new(&root);
     let mut environment = CalcEnvironment::dates(DateSystem::System1900);
     state.set_environment(Some(environment));

@@ -44,7 +44,8 @@ fn created(kind: &str) -> String {
     assert!(receipt.accepted(), "{kind}: {receipt:?}");
     let part = book.host().charts(sheet).0.pop().unwrap().part;
     let mut saved = Vec::new();
-    book.save(&SavePolicy::default(), &mut saved).expect("it saves");
+    book.save(&SavePolicy::default(), &mut saved)
+        .expect("it saves");
     if let Ok(dir) = std::env::var("DNACALC_UI30_CHARTS") {
         std::fs::write(format!("{dir}/{kind}.xlsx"), &saved).unwrap();
     }
@@ -169,8 +170,10 @@ fn excel_plot_order(skeleton: &str) -> String {
 #[test]
 /// Native-only: the report prints every kind; the matching kinds are asserted.
 fn ui28__created_combination_charts_against_excel() {
-    let excel: std::collections::BTreeMap<_, _> =
-        EXCEL.lines().filter_map(|l| l.split_once(char::from(9u8))).collect();
+    let excel: std::collections::BTreeMap<_, _> = EXCEL
+        .lines()
+        .filter_map(|l| l.split_once(char::from(9u8)))
+        .collect();
     let (mut exact, mut reordered) = (Vec::new(), Vec::new());
     for (kind, name) in KINDS {
         let want = excel[name];
@@ -179,9 +182,11 @@ fn ui28__created_combination_charts_against_excel() {
             println!("{xml}");
         }
         let got = skeleton(&xml);
-        println!("{kind}
+        println!(
+            "{kind}
   excel {want}
-  dna   {got}");
+  dna   {got}"
+        );
         if got == want {
             exact.push(*kind);
         } else if excel_plot_order(&got) == want {
@@ -191,7 +196,16 @@ fn ui28__created_combination_charts_against_excel() {
     println!("exact {exact:?}, plot order only {reordered:?}");
     // Plots, axes, groupings, overlap and axis ids are Excel's for all five kinds: Excel writes the
     // plots as area, bar, line (UI30 P9) and so does DNA Calc.
-    assert_eq!(exact, ["combo", "combo-line-column", "combo-area-line", "combo-column-area", "combo-area-column"]);
+    assert_eq!(
+        exact,
+        [
+            "combo",
+            "combo-line-column",
+            "combo-area-line",
+            "combo-column-area",
+            "combo-area-column"
+        ]
+    );
     assert!(reordered.is_empty(), "{reordered:?}");
 }
 
@@ -203,8 +217,16 @@ fn ui28__created_combination_charts_against_excel() {
 /// Native-only: builds charts through the host, one session each.
 fn ui30__percent_stacked_charts_against_excel() {
     const EXCEL_CHARTS: &[u8] = include_bytes!("fixtures/ui30/charts-ui30-excel.xlsx");
-    for (index, kind) in [(1, "column-percent"), (2, "bar-percent"), (3, "line-percent"), (4, "area-percent")] {
-        let want = skeleton(&part_text(EXCEL_CHARTS, &format!("xl/charts/chart{index}.xml")));
+    for (index, kind) in [
+        (1, "column-percent"),
+        (2, "bar-percent"),
+        (3, "line-percent"),
+        (4, "area-percent"),
+    ] {
+        let want = skeleton(&part_text(
+            EXCEL_CHARTS,
+            &format!("xl/charts/chart{index}.xml"),
+        ));
         let xml = created(kind);
         let got = skeleton(&xml);
         assert_eq!(got, want, "{kind}");

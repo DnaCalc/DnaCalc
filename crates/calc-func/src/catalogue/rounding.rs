@@ -51,7 +51,10 @@ use crate::decimal::{self, Direction, ExactDecimal};
 use crate::kernel::{Exit, Site, Step};
 use crate::value::{CalcValue, CoreRef, WorksheetErrorCode};
 
-use calc_catalogue::rounding::{CODE, ENTRIES as DECLARATIONS, ABS, SIGN, INT, TRUNC, ROUND, ROUNDUP, ROUNDDOWN, MROUND, CEILING, FLOOR, MOD, QUOTIENT, EVEN, ODD, ECMA_CEILING};
+use calc_catalogue::rounding::{
+    ABS, CEILING, CODE, ECMA_CEILING, ENTRIES as DECLARATIONS, EVEN, FLOOR, INT, MOD, MROUND, ODD,
+    QUOTIENT, ROUND, ROUNDDOWN, ROUNDUP, SIGN, TRUNC,
+};
 
 attach_eager_family! {
     code: CODE; declarations: DECLARATIONS;
@@ -80,7 +83,10 @@ fn numeric(
     compute: fn(&Site<'_>, &[f64]) -> Step<f64>,
 ) -> Result<CalcValue, FunctionFault> {
     let site = Site::new(id, services);
-    let traits = super::catalogue().resolve(id).expect("declared rounding entry").traits();
+    let traits = super::catalogue()
+        .resolve(id)
+        .expect("declared rounding entry")
+        .traits();
     Site::finish(numbers(&site, arguments, traits, id).and_then(|read| {
         let result = compute(&site, &read)?;
         // Only `stored` makes a NaN here: Excel's own bit pattern for a result past DBL_MAX,
@@ -98,7 +104,12 @@ fn numeric(
 
 /// The arguments as numbers: an array argument is refused first, then each argument is read in
 /// order, so the first one's error is the result.
-fn numbers(site: &Site<'_>, arguments: &[CalcValue], traits: super::EntryTraits, id: FunctionId) -> Step<Vec<f64>> {
+fn numbers(
+    site: &Site<'_>,
+    arguments: &[CalcValue],
+    traits: super::EntryTraits,
+    id: FunctionId,
+) -> Step<Vec<f64>> {
     site.scalar_operands(arguments)?;
     arguments
         .iter()
@@ -113,10 +124,14 @@ fn numbers(site: &Site<'_>, arguments: &[CalcValue], traits: super::EntryTraits,
                     _ => {}
                 }
             }
-            if (matches!(id, ABS | EVEN | ODD) || index == 0 && matches!(id, CEILING | FLOOR | QUOTIENT))
-                && argument.as_number().is_some_and(f64::is_subnormal) {
+            if (matches!(id, ABS | EVEN | ODD)
+                || index == 0 && matches!(id, CEILING | FLOOR | QUOTIENT))
+                && argument.as_number().is_some_and(f64::is_subnormal)
+            {
                 Ok(argument.as_number().expect("number checked"))
-            } else if traits.flush_subnormal_inputs && argument.as_number().is_some_and(f64::is_subnormal) {
+            } else if traits.flush_subnormal_inputs
+                && argument.as_number().is_some_and(f64::is_subnormal)
+            {
                 Ok(0.0)
             } else {
                 site.number_argument(index, argument)
@@ -131,8 +146,12 @@ fn abs(
     services: &mut EvalServices<'_>,
 ) -> Result<CalcValue, FunctionFault> {
     if arguments[0].is_excel_overflow() {
-        let magnitude = arguments[0].as_number().expect("qualified overflow number").abs();
-        return Ok(CalcValue::excel_overflow_number(magnitude).expect("sign removal retains overflow encoding"));
+        let magnitude = arguments[0]
+            .as_number()
+            .expect("qualified overflow number")
+            .abs();
+        return Ok(CalcValue::excel_overflow_number(magnitude)
+            .expect("sign removal retains overflow encoding"));
     }
     numeric(ABS, arguments, services, |_, n| Ok(n[0].abs()))
 }
@@ -142,7 +161,10 @@ fn sign(
     arguments: &[CalcValue],
     services: &mut EvalServices<'_>,
 ) -> Result<CalcValue, FunctionFault> {
-    if let Some(n) = arguments[0].as_number() && n.is_subnormal() && n.is_sign_negative() {
+    if let Some(n) = arguments[0].as_number()
+        && n.is_subnormal()
+        && n.is_sign_negative()
+    {
         return Ok(CalcValue::number(-1.0));
     }
     numeric(SIGN, arguments, services, |_, n| {
@@ -166,7 +188,10 @@ fn int(
     arguments: &[CalcValue],
     services: &mut EvalServices<'_>,
 ) -> Result<CalcValue, FunctionFault> {
-    if let Some(n) = arguments[0].as_number() && n.is_subnormal() && n.is_sign_positive() {
+    if let Some(n) = arguments[0].as_number()
+        && n.is_subnormal()
+        && n.is_sign_positive()
+    {
         return Ok(CalcValue::number(0.0));
     }
     numeric(INT, arguments, services, |site, n| {
@@ -271,7 +296,9 @@ pub(super) fn nearest_digits_exact(site: &Site<'_>, number: f64, places: f64) ->
 }
 
 fn nearest_digits_with(
-    site: &Site<'_>, number: f64, places: f64,
+    site: &Site<'_>,
+    number: f64,
+    places: f64,
     publish: fn(&Site<'_>, &ExactDecimal) -> Step<f64>,
 ) -> Step<f64> {
     if number == 0.0 {
@@ -301,7 +328,9 @@ fn whole_reading(site: &Site<'_>, number: f64, reading: &ExactDecimal) -> Step<f
 }
 
 fn whole_reading_with(
-    site: &Site<'_>, number: f64, reading: &ExactDecimal,
+    site: &Site<'_>,
+    number: f64,
+    reading: &ExactDecimal,
     publish: fn(&Site<'_>, &ExactDecimal) -> Step<f64>,
 ) -> Step<f64> {
     if reading.is_value_of(number) {
@@ -579,7 +608,11 @@ fn floor(
 /// as #NUM!.
 fn to_multiple(site: &Site<'_>, number: f64, significance: f64, toward: Toward) -> Step<f64> {
     let quotient = site.divide(number, significance)?;
-    let quotient = if quotient.is_subnormal() { 0.0 } else { quotient };
+    let quotient = if quotient.is_subnormal() {
+        0.0
+    } else {
+        quotient
+    };
     // Counted from the quotient rounded to 15 significant digits, as Excel counts (dc-j9k; see
     // ceiling_floor_family::excel_quotient).
     let quotient = if quotient.is_finite() && quotient != 0.0 {

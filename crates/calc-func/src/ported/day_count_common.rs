@@ -1,4 +1,6 @@
-use crate::locale::{DateSystem as WorkbookDateSystem, excel_serial_from_ymd, ymd_from_excel_serial};
+use crate::locale::{
+    DateSystem as WorkbookDateSystem, excel_serial_from_ymd, ymd_from_excel_serial,
+};
 use crate::value::WorksheetErrorCode;
 
 fn days_in_month(year: i64, month: i64) -> i64 {
@@ -50,10 +52,10 @@ pub fn us_30_360(start: i64, end: i64) -> Result<f64, WorksheetErrorCode> {
 
 #[cfg(test)]
 mod tests {
-    #[allow(unused_imports)]
-    use crate::value::{CalcArray, CalcValue, CoreValue, ExcelText};
     use super::*;
     use crate::locale::excel_serial_from_ymd;
+    #[allow(unused_imports)]
+    use crate::value::{CalcArray, CalcValue, CoreValue, ExcelText};
 
     fn serial(year: i64, month: i64, day: i64) -> i64 {
         excel_serial_from_ymd(WorkbookDateSystem::System1900, year, month, day).unwrap() as i64

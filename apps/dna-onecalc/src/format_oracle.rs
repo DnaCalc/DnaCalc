@@ -16,10 +16,10 @@
 
 use crate::session::Session;
 use crate::shown::{Authored, ViewWire, evaluate};
+use calc_fml::FormatProfile;
+use calc_func::CellFormatError;
 use calc_func::locale::DateSystem;
 use calc_func::value::{CalcValue, ExcelText};
-use calc_func::CellFormatError;
-use calc_fml::FormatProfile;
 
 const CASES: &str = include_str!("../tests/fixtures/formats/cases.tsv");
 const ANSWERS: &str = include_str!("../tests/fixtures/formats/excel-formats.tsv");
@@ -29,7 +29,9 @@ fn separator(text: &str) -> String {
     let mut out = String::new();
     let mut rest = text;
     while let Some(at) = rest.find("U+") {
-        let hex = rest.get(at + 2..at + 6).and_then(|hex| u32::from_str_radix(hex, 16).ok());
+        let hex = rest
+            .get(at + 2..at + 6)
+            .and_then(|hex| u32::from_str_radix(hex, 16).ok());
         match hex.and_then(char::from_u32) {
             Some(c) => {
                 out.push_str(&rest[..at]);
@@ -100,19 +102,30 @@ pub(crate) fn replay() -> Replay {
             result.unanswered += 1;
             continue;
         }
-        let (culture, decimal, thousands, lcid, system, kind, value) =
-            (q[1], separator(q[2]), separator(q[3]), q[4], q[5], q[6], q[7]);
+        let (culture, decimal, thousands, lcid, system, kind, value) = (
+            q[1],
+            separator(q[2]),
+            separator(q[3]),
+            q[4],
+            q[5],
+            q[6],
+            q[7],
+        );
         let code = separator(q[8]);
         let profile = FormatProfile::for_culture(culture)
             .and_then(|p| p.with_separators(&decimal, &thousands))
-            .unwrap_or_else(|| panic!("{culture}: a profile with separators {decimal:?} {thousands:?}"));
+            .unwrap_or_else(|| {
+                panic!("{culture}: a profile with separators {decimal:?} {thousands:?}")
+            });
         let date_system = if system == "1904" {
             DateSystem::System1904
         } else {
             DateSystem::System1900
         };
         let value = if kind == "text" {
-            CalcValue::text(ExcelText::from_utf16_code_units(value.encode_utf16().collect()))
+            CalcValue::text(ExcelText::from_utf16_code_units(
+                value.encode_utf16().collect(),
+            ))
         } else {
             CalcValue::number(value.parse::<f64>().expect("a number"))
         };
@@ -123,7 +136,10 @@ pub(crate) fn replay() -> Replay {
         };
         let mut expected = unescape(a[9]);
         let differ = |how: String, expected: &str| Difference {
-            line: format!("{} {culture} {system} {kind} {:?} {code:?}: Excel {expected:?}, {how}", q[0], q[7]),
+            line: format!(
+                "{} {culture} {system} {kind} {:?} {code:?}: Excel {expected:?}, {how}",
+                q[0], q[7]
+            ),
             culture: culture.to_owned(),
             code: code.clone(),
         };
@@ -149,7 +165,9 @@ pub(crate) fn replay() -> Replay {
             if text == expected {
                 result.matched += 1;
             } else {
-                result.mismatched.push(differ(format!("here {text:?}"), &expected));
+                result
+                    .mismatched
+                    .push(differ(format!("here {text:?}"), &expected));
             }
             continue;
         }
@@ -161,8 +179,12 @@ pub(crate) fn replay() -> Replay {
             {
                 result.matched += 1
             }
-            Ok(text) => result.mismatched.push(differ(format!("here {text:?}"), &expected)),
-            Err(error) => result.refused.push(differ(format!("here {error:?}"), &expected)),
+            Ok(text) => result
+                .mismatched
+                .push(differ(format!("here {text:?}"), &expected)),
+            Err(error) => result
+                .refused
+                .push(differ(format!("here {error:?}"), &expected)),
         }
     }
     result
@@ -188,7 +210,8 @@ mod tests {
                 || d.code.contains('\u{202f}')
                 || (d.culture == "de-DE" && d.code.contains('/'))
         };
-        let (limits, real): (Vec<_>, Vec<_>) = replay.mismatched.iter().partition(|d| instance_limit(d));
+        let (limits, real): (Vec<_>, Vec<_>) =
+            replay.mismatched.iter().partition(|d| instance_limit(d));
         let (fractions, other_refused): (Vec<_>, Vec<_>) =
             replay.refused.iter().partition(|d| d.code.contains('/'));
         eprintln!(
@@ -204,10 +227,23 @@ mod tests {
         for d in real.iter().chain(&other_refused) {
             eprintln!("  {}", d.line);
         }
-        assert!(real.is_empty(), "{} rows differ for no known cause", real.len());
-        assert!(other_refused.is_empty(), "{} rows are refused for no known cause", other_refused.len());
+        assert!(
+            real.is_empty(),
+            "{} rows differ for no known cause",
+            real.len()
+        );
+        assert!(
+            other_refused.is_empty(),
+            "{} rows are refused for no known cause",
+            other_refused.len()
+        );
         assert_eq!(
-            (replay.matched, limits.len(), fractions.len(), replay.unanswered),
+            (
+                replay.matched,
+                limits.len(),
+                fractions.len(),
+                replay.unanswered
+            ),
             EXPECTED,
             "the measured counts moved: update EXPECTED with the improvement or fix the regression"
         );

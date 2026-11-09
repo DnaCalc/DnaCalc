@@ -210,9 +210,9 @@ impl CalcArray {
 
     /// Whether a cell of this array holds an array (dc-h9u).
     pub fn holds_arrays(&self) -> bool {
-        self.cells
-            .iter()
-            .any(|cell| matches!(cell.core_ref(), CoreRef::Array(_)) && cell.callable_value().is_none())
+        self.cells.iter().any(|cell| {
+            matches!(cell.core_ref(), CoreRef::Array(_)) && cell.callable_value().is_none()
+        })
     }
 
     pub fn cell_count(&self) -> usize {
@@ -598,7 +598,8 @@ enum ValueMetadata {
 impl fmt::Debug for CalcValue {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         let mut out = f.debug_struct("CalcValue");
-        out.field("core", &self.core).field("callable", &self.callable_value());
+        out.field("core", &self.core)
+            .field("callable", &self.callable_value());
         if let Some(image) = self.image_value() {
             out.field("image", image);
         }
@@ -842,15 +843,20 @@ impl CalcValue {
     /// shape and exposure whose cells are representation-equal in turn.
     pub fn representation_eq(&self, other: &Self) -> bool {
         let same_qualification = match (self.metadata.as_deref(), other.metadata.as_deref()) {
-            (None, None) | (Some(ValueMetadata::ExcelOverflow), Some(ValueMetadata::ExcelOverflow)) => true,
-            (Some(ValueMetadata::Callable(_)), Some(ValueMetadata::Callable(_))) => self.same_callable(other),
+            (None, None)
+            | (Some(ValueMetadata::ExcelOverflow), Some(ValueMetadata::ExcelOverflow)) => true,
+            (Some(ValueMetadata::Callable(_)), Some(ValueMetadata::Callable(_))) => {
+                self.same_callable(other)
+            }
             (Some(ValueMetadata::Image(left)), Some(ValueMetadata::Image(right))) => left == right,
             (Some(ValueMetadata::Cube(left)), Some(ValueMetadata::Cube(right))) => left == right,
             _ => false,
         };
         same_qualification
             && match (self.core_ref(), other.core_ref()) {
-                (CoreRef::Number(left), CoreRef::Number(right)) => left.to_bits() == right.to_bits(),
+                (CoreRef::Number(left), CoreRef::Number(right)) => {
+                    left.to_bits() == right.to_bits()
+                }
                 (CoreRef::Array(left), CoreRef::Array(right)) => left.representation_eq(right),
                 (left, right) => left == right,
             }
@@ -1153,7 +1159,10 @@ mod tests {
         assert_ne!(a, set);
         // The same holds inside an array and under representation equality.
         let one = |value: CalcValue| CalcArray::from_scalar(value);
-        assert_ne!(CalcValue::array(one(a.clone())), CalcValue::array(one(b.clone())));
+        assert_ne!(
+            CalcValue::array(one(a.clone())),
+            CalcValue::array(one(b.clone()))
+        );
         assert!(!a.representation_eq(&b));
         assert!(!a.representation_eq(&text));
         assert!(a.representation_eq(&member("[Geo].[Region].&[1]")));
@@ -1179,13 +1188,20 @@ mod tests {
         // Callables: the same handle is the same callable, an equal-looking handle is not.
         let handle: Arc<dyn OpaqueCallable> = Arc::new(TestCallable);
         let make = |handle: &Arc<dyn OpaqueCallable>| {
-            CalcValue::callable(CallableValue::new(CallableArityShape::exact(1), "LAMBDA(x, x)", handle.clone()))
+            CalcValue::callable(CallableValue::new(
+                CallableArityShape::exact(1),
+                "LAMBDA(x, x)",
+                handle.clone(),
+            ))
         };
         let (one, same) = (make(&handle), make(&handle));
         let other = make(&(Arc::new(TestCallable) as Arc<dyn OpaqueCallable>));
         assert!(one.same_callable(&same) && one.representation_eq(&same));
         assert!(!one.same_callable(&other) && !one.representation_eq(&other));
-        assert!(!CalcValue::error(WorksheetErrorCode::Calc).same_callable(&CalcValue::error(WorksheetErrorCode::Calc)));
+        assert!(
+            !CalcValue::error(WorksheetErrorCode::Calc)
+                .same_callable(&CalcValue::error(WorksheetErrorCode::Calc))
+        );
         assert!(!one.representation_eq(&CalcValue::error(WorksheetErrorCode::Calc)));
         // Arrays: shape, exposure and every cell count.
         let cells = || vec![CalcValue::number(1.0), CalcValue::number(0.0)];
@@ -1193,16 +1209,23 @@ mod tests {
         let column = CalcArray::new(ArrayShape { rows: 2, cols: 1 }, cells()).expect("a column");
         assert!(CalcValue::array(row.clone()).representation_eq(&CalcValue::array(row.clone())));
         assert!(!CalcValue::array(row.clone()).representation_eq(&CalcValue::array(column)));
-        assert!(!CalcValue::array(row.clone()).representation_eq(&CalcValue::array(row.clone().boxed())));
+        assert!(
+            !CalcValue::array(row.clone())
+                .representation_eq(&CalcValue::array(row.clone().boxed()))
+        );
         let negated = CalcArray::new(
             ArrayShape { rows: 1, cols: 2 },
             vec![CalcValue::number(1.0), CalcValue::number(-0.0)],
         )
         .expect("a row");
-        assert_eq!(CalcValue::array(row.clone()), CalcValue::array(negated.clone()));
+        assert_eq!(
+            CalcValue::array(row.clone()),
+            CalcValue::array(negated.clone())
+        );
         assert!(!CalcValue::array(row).representation_eq(&CalcValue::array(negated)));
         // A picture is a value with its own qualification.
-        let picture = |bytes: &[u8]| CalcValue::image(ImageValue::picture(ImageFormat::Png, bytes.into()));
+        let picture =
+            |bytes: &[u8]| CalcValue::image(ImageValue::picture(ImageFormat::Png, bytes.into()));
         assert!(picture(b"a").representation_eq(&picture(b"a")));
         assert!(!picture(b"a").representation_eq(&picture(b"b")));
         assert!(!picture(b"a").representation_eq(&CalcValue::error(WorksheetErrorCode::Value)));

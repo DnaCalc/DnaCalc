@@ -1048,7 +1048,12 @@ mod references {
         );
         assert_eq!(book.dynamic("=SUM(OFFSET(A1,{0;1},0))"), n(302.0));
         assert_eq!(
-            book.eval_in(FormulaForm::Dynamic, "=AGGREGATE(9,0,OFFSET(A1,{0;1},0,2))", "Z100").unwrap(),
+            book.eval_in(
+                FormulaForm::Dynamic,
+                "=AGGREGATE(9,0,OFFSET(A1,{0;1},0,2))",
+                "Z100"
+            )
+            .unwrap(),
             Err(EvalFault::NotModelled {
                 construct: "an array of references given to a function whose handling of one is not measured",
                 owner: "dc-b1l",
@@ -1122,7 +1127,10 @@ mod names {
         // A call of a name no defined name holds could be a VBA or add-in function: refused.
         assert!(matches!(
             book.eval_in(FormulaForm::Dynamic, "=ISERROR(NoSuchFunction(1))", "Z100"),
-            Err(CompileError::NotModelled { gap: calc_fml::Gap::UnknownFunction { .. }, .. })
+            Err(CompileError::NotModelled {
+                gap: calc_fml::Gap::UnknownFunction { .. },
+                ..
+            })
         ));
         // A catalogue that does not carry names: every name is refused, naming L3.
         book.catalog.names = None;
@@ -1135,7 +1143,10 @@ mod names {
         }
         assert!(matches!(
             book.eval_in(FormulaForm::Dynamic, "=NoSuchFunction(1)", "Z100"),
-            Err(CompileError::NotModelled { gap: calc_fml::Gap::UnknownFunction { .. }, .. })
+            Err(CompileError::NotModelled {
+                gap: calc_fml::Gap::UnknownFunction { .. },
+                ..
+            })
         ));
     }
 
@@ -1362,7 +1373,10 @@ mod lambda {
                 "=LET(F,LAMBDA(n,IF(n<=0,0,1+F(n-1))),F(5))",
                 "Z100"
             ),
-            Err(CompileError::NotModelled { gap: calc_fml::Gap::UnknownFunction { .. }, .. })
+            Err(CompileError::NotModelled {
+                gap: calc_fml::Gap::UnknownFunction { .. },
+                ..
+            })
         ));
         assert_eq!(
             book.dynamic("=LET(f,LAMBDA(self,n,IF(n<=0,0,1+self(self,n-1))),f(f,3))"),
@@ -1423,26 +1437,58 @@ impl Book {
 fn bare_function_names_are_function_values() {
     let mut book = Book::new();
     book.name("Tri", "=LAMBDA(x,x*3)");
-    assert_eq!(book.dynamic("=MAP({1,2,3},SUM)"), numbers(&[&[1.0, 2.0, 3.0]]));
-    assert_eq!(book.dynamic("=MAP({1,2,3},sum)"), numbers(&[&[1.0, 2.0, 3.0]]));
-    assert_eq!(book.dynamic("=BYROW({1,2;3,4},SUM)"), numbers(&[&[3.0], &[7.0]]));
-    assert_eq!(book.dynamic("=BYCOL({1,2;3,4},MAX)"), numbers(&[&[3.0, 4.0]]));
+    assert_eq!(
+        book.dynamic("=MAP({1,2,3},SUM)"),
+        numbers(&[&[1.0, 2.0, 3.0]])
+    );
+    assert_eq!(
+        book.dynamic("=MAP({1,2,3},sum)"),
+        numbers(&[&[1.0, 2.0, 3.0]])
+    );
+    assert_eq!(
+        book.dynamic("=BYROW({1,2;3,4},SUM)"),
+        numbers(&[&[3.0], &[7.0]])
+    );
+    assert_eq!(
+        book.dynamic("=BYCOL({1,2;3,4},MAX)"),
+        numbers(&[&[3.0, 4.0]])
+    );
     assert_eq!(book.dynamic("=REDUCE(0,{1,2,3},SUM)"), n(6.0));
     // The cell holds #CALC! (the value also carries the function it would call).
     assert!(matches!(
         book.dynamic("=SUM").core_ref(),
         calc_func::value::CoreRef::Error(W::Calc)
     ));
-    assert_eq!(book.dynamic("=MAP({2,10,20},Tri)"), numbers(&[&[6.0, 30.0, 60.0]]));
+    assert_eq!(
+        book.dynamic("=MAP({2,10,20},Tri)"),
+        numbers(&[&[6.0, 30.0, 60.0]])
+    );
     assert_eq!(book.dynamic("=MAP({1,2},Nope)"), e(W::Value));
     let mut functions = calc_fml::CallableTable::new();
     for name in ["MyFunc", "SUM"] {
-        functions.register(name, std::rc::Rc::new(Identity)).unwrap();
+        functions
+            .register(name, std::rc::Rc::new(Identity))
+            .unwrap();
     }
-    assert_eq!(book.with_functions("=MAP({1,2},MyFunc)", &functions), e(W::Value));
-    assert_eq!(book.with_functions("=MAP({1,2},MyFunc())", &functions), e(W::Value));
-    assert_eq!(book.with_functions("=MAP({1,2},Module1.MyFunc)", &functions), e(W::Value));
-    assert_eq!(book.with_functions("=MAP({1,2,3},SUM)", &functions), e(W::Value));
+    assert_eq!(
+        book.with_functions("=MAP({1,2},MyFunc)", &functions),
+        e(W::Value)
+    );
+    assert_eq!(
+        book.with_functions("=MAP({1,2},MyFunc())", &functions),
+        e(W::Value)
+    );
+    assert_eq!(
+        book.with_functions("=MAP({1,2},Module1.MyFunc)", &functions),
+        e(W::Value)
+    );
+    assert_eq!(
+        book.with_functions("=MAP({1,2,3},SUM)", &functions),
+        e(W::Value)
+    );
     // A VBA function does not change a built-in of another name.
-    assert_eq!(book.with_functions("=MAP({1,2,3},MAX)", &functions), numbers(&[&[1.0, 2.0, 3.0]]));
+    assert_eq!(
+        book.with_functions("=MAP({1,2,3},MAX)", &functions),
+        numbers(&[&[1.0, 2.0, 3.0]])
+    );
 }

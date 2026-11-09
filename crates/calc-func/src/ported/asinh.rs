@@ -1,5 +1,5 @@
-use crate::value::WorksheetErrorCode;
 use crate::ported::excel_numeric::{excel_sqrt_staged, excel_x87_add, excel_x87_mul};
+use crate::value::WorksheetErrorCode;
 
 pub fn asinh_kernel(n: f64) -> Result<f64, WorksheetErrorCode> {
     // Excel computes `ln(x + sqrt(x² + 1))` and overflows when the `x²` intermediate
@@ -39,7 +39,8 @@ mod tests {
     fn asinh_kernel_matches_worksheet_ln_identity() {
         for x in [0.0_f64, 1e-10, 0.5, 1.0, -1.0, 2.0, 10.0] {
             let a = x.abs();
-            let expect = x.signum() * crate::ported::excel_numeric::excel_log(a + (a * a + 1.0).sqrt());
+            let expect =
+                x.signum() * crate::ported::excel_numeric::excel_log(a + (a * a + 1.0).sqrt());
             assert_eq!(
                 asinh_kernel(x).unwrap().to_bits(),
                 expect.to_bits(),

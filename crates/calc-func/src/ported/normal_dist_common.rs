@@ -54,7 +54,11 @@ fn stored_horner(coefficients: &[u64], t: f64) -> f64 {
     let mut value = 0.0;
     for (i, &bits) in coefficients.iter().enumerate().rev() {
         let c = f64::from_bits(bits);
-        value = if i + 1 == coefficients.len() { c } else { excel_x87_add(excel_x87_mul(value, t), c) };
+        value = if i + 1 == coefficients.len() {
+            c
+        } else {
+            excel_x87_add(excel_x87_mul(value, t), c)
+        };
     }
     value
 }
@@ -200,7 +204,11 @@ pub fn erfc_upper(x: f64) -> f64 {
 /// NSWC's erfc1 with `ind = 1`, which Morris's Temme expansion calls.
 pub fn erfc_scaled(x: f64) -> f64 {
     use crate::ported::excel_numeric::excel_x87_div;
-    let (n, d): (&[u64], &[u64]) = if x > 4.0 { (&ERFC_TAIL_N, &ERFC_TAIL_D) } else { (&ERFC_MID_N, &ERFC_MID_D) };
+    let (n, d): (&[u64], &[u64]) = if x > 4.0 {
+        (&ERFC_TAIL_N, &ERFC_TAIL_D)
+    } else {
+        (&ERFC_MID_N, &ERFC_MID_D)
+    };
     excel_x87_div(stored_horner(n, x), stored_horner(d, x))
 }
 
@@ -285,7 +293,10 @@ mod tests {
     fn erf_rational_reproduces_recorded_excel_answers() {
         for (x, excel) in ERF_TINY_RECORDED {
             let actual = erf_approx(f64::from_bits(x)).to_bits();
-            assert_eq!(actual, excel, "ERF.PRECISE({x:#018x}): calculated {actual:#018x}, Excel {excel:#018x}");
+            assert_eq!(
+                actual, excel,
+                "ERF.PRECISE({x:#018x}): calculated {actual:#018x}, Excel {excel:#018x}"
+            );
         }
     }
 
@@ -336,7 +347,10 @@ mod tests {
     fn erfc_tail_reproduces_recorded_excel_answers() {
         for (x, excel) in ERFC_TAIL_RECORDED {
             let actual = erfc_upper(f64::from_bits(x)).to_bits();
-            assert_eq!(actual, excel, "ERFC.PRECISE({x:#018x}): calculated {actual:#018x}, Excel {excel:#018x}");
+            assert_eq!(
+                actual, excel,
+                "ERFC.PRECISE({x:#018x}): calculated {actual:#018x}, Excel {excel:#018x}"
+            );
         }
     }
 

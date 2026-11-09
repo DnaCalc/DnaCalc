@@ -84,7 +84,12 @@ pub trait Files {
 
     /// Opens a file OneCalc refused in DNA Calc: the file at `path` when it has one, otherwise
     /// `bytes` (a file the page read) written to a place of its own first.
-    fn open_in_dna_calc(&mut self, path: Option<&Path>, name: &str, bytes: &[u8]) -> Result<(), String> {
+    fn open_in_dna_calc(
+        &mut self,
+        path: Option<&Path>,
+        name: &str,
+        bytes: &[u8],
+    ) -> Result<(), String> {
         let _ = (path, name, bytes);
         Err("DNA Calc cannot be started from here".to_owned())
     }
@@ -232,8 +237,16 @@ impl<F: Files, L: Libraries> Host<F, L> {
     }
 
     fn loaded_view(&self) -> Vec<LoadedAddin> {
-        let xlls = self.libs.loaded().into_iter().map(|(path, functions)| ("xll", path, functions));
-        let xlams = self.libs.loaded_xlam().into_iter().map(|(path, functions)| ("xlam", path, functions));
+        let xlls = self
+            .libs
+            .loaded()
+            .into_iter()
+            .map(|(path, functions)| ("xll", path, functions));
+        let xlams = self
+            .libs
+            .loaded_xlam()
+            .into_iter()
+            .map(|(path, functions)| ("xlam", path, functions));
         xlls.chain(xlams)
             .map(|(kind, path, functions)| LoadedAddin {
                 kind: kind.to_owned(),
@@ -286,7 +299,11 @@ impl<F: Files, L: Libraries> Host<F, L> {
                 let _ = self.publish();
                 self.release_rtd();
                 opened.shown.functions_version = self.port.session().functions_version();
-                opened.loaded = self.loaded_paths().iter().map(|p| p.display().to_string()).collect();
+                opened.loaded = self
+                    .loaded_paths()
+                    .iter()
+                    .map(|p| p.display().to_string())
+                    .collect();
                 Reply::Opened(opened)
             }
             other => other,
@@ -350,7 +367,12 @@ impl<F: Files, L: Libraries> Host<F, L> {
             .into_iter()
             .find(|held| held == wanted)
             .unwrap_or_else(|| wanted.to_owned());
-        let unloaded = if self.libs.loaded_xlam().iter().any(|(held, _)| *held == path) {
+        let unloaded = if self
+            .libs
+            .loaded_xlam()
+            .iter()
+            .any(|(held, _)| *held == path)
+        {
             self.xlam_notes.retain(|(held, _)| *held != path);
             self.libs.unload_xlam(&path)
         } else {
@@ -380,7 +402,11 @@ impl<F: Files, L: Libraries> Host<F, L> {
         let zone = self.files.opened_zone();
         let path = self.files.opened_path();
         let kept = bytes.clone();
-        let reply = self.port.send(Request::Open { name: name.clone(), bytes, zone });
+        let reply = self.port.send(Request::Open {
+            name: name.clone(),
+            bytes,
+            zone,
+        });
         let opened = matches!(reply, Reply::Opened(_));
         self.note_refusal(&reply, path.clone(), Some(name), Some(kept));
         if opened {
@@ -393,7 +419,13 @@ impl<F: Files, L: Libraries> Host<F, L> {
     }
 
     /// Keeps a refused file for Open in DNA Calc, and forgets the last one when a file opens.
-    fn note_refusal(&mut self, reply: &Reply, path: Option<PathBuf>, name: Option<String>, bytes: Option<Vec<u8>>) {
+    fn note_refusal(
+        &mut self,
+        reply: &Reply,
+        path: Option<PathBuf>,
+        name: Option<String>,
+        bytes: Option<Vec<u8>>,
+    ) {
         match (reply, name, bytes) {
             (Reply::NotASession { .. }, Some(name), Some(bytes)) => {
                 self.refused = Some(Refused { path, name, bytes });
@@ -444,7 +476,11 @@ impl<F: Files, L: Libraries> Host<F, L> {
         if !self.dirty {
             return true;
         }
-        let name = if self.state_name.is_empty() { "Untitled".to_owned() } else { self.state_name.clone() };
+        let name = if self.state_name.is_empty() {
+            "Untitled".to_owned()
+        } else {
+            self.state_name.clone()
+        };
         match self.files.confirm_close(&name) {
             CloseChoice::Discard => true,
             CloseChoice::Cancel => false,
@@ -483,7 +519,11 @@ impl<F: Files, L: Libraries> Host<F, L> {
         let (providers, at) = (self.rtd_providers(), self.port.session().formula_cell());
         let invocations = self.port.session().rtd_invocations().clone();
         if trace() {
-            eprintln!("onecalc-trace: settle: {} invocation(s), {} read(s)", invocations.len(), self.port.session().rtd_reads().len());
+            eprintln!(
+                "onecalc-trace: settle: {} invocation(s), {} read(s)",
+                invocations.len(),
+                self.port.session().rtd_reads().len()
+            );
         }
         for result in [
             rtd.finish_replacement(&providers, at),
@@ -517,13 +557,27 @@ impl<F: Files, L: Libraries> Host<F, L> {
         let evaluating = std::mem::take(&mut self.after_evaluation);
         let inputs = self.libs.poll_rtd(evaluating);
         if trace() && (!inputs.is_empty() || evaluating) {
-            eprintln!("onecalc-trace: poll (after evaluation {evaluating}) gave {} input(s)", inputs.len());
+            eprintln!(
+                "onecalc-trace: poll (after evaluation {evaluating}) gave {} input(s)",
+                inputs.len()
+            );
         }
         for input in inputs {
             let session = self.port.session_mut();
-            let disposition = session.update_rtd(input.topic.clone(), input.lease, input.sequence, input.value);
+            let disposition = session.update_rtd(
+                input.topic.clone(),
+                input.lease,
+                input.sequence,
+                input.value,
+            );
             if trace() {
-                eprintln!("onecalc-trace: update {:?} lease {:?} sequence {} admitted as {disposition:?}, read {}", input.topic, input.lease, input.sequence, session.reads_rtd(&input.topic, input.lease));
+                eprintln!(
+                    "onecalc-trace: update {:?} lease {:?} sequence {} admitted as {disposition:?}, read {}",
+                    input.topic,
+                    input.lease,
+                    input.sequence,
+                    session.reads_rtd(&input.topic, input.lease)
+                );
             }
             // The session already admitted the connection's own first value as it was returned.
             if disposition == calc_fml::rtd::RtdDisposition::Accepted
@@ -558,12 +612,18 @@ impl<F: Files, L: Libraries> Host<F, L> {
             }
             Request::OpenInDnaCalc => match &self.refused {
                 None => Reply::Refused {
-                    message: "No file was refused, so there is nothing to open in DNA Calc.".to_owned(),
+                    message: "No file was refused, so there is nothing to open in DNA Calc."
+                        .to_owned(),
                 },
-                Some(file) => match self.files.open_in_dna_calc(file.path.as_deref(), &file.name, &file.bytes) {
-                    Ok(()) => Reply::Accepted,
-                    Err(message) => Reply::Refused { message },
-                },
+                Some(file) => {
+                    match self
+                        .files
+                        .open_in_dna_calc(file.path.as_deref(), &file.name, &file.bytes)
+                    {
+                        Ok(()) => Reply::Accepted,
+                        Err(message) => Reply::Refused { message },
+                    }
+                }
             },
             // The person enabled macros for this file: the project compiles and `Workbook_Open`
             // runs; the add-ins the host loaded stay loaded (this is not a new file).
@@ -571,7 +631,11 @@ impl<F: Files, L: Libraries> Host<F, L> {
                 Reply::Opened(mut opened) => {
                     let _ = self.publish();
                     opened.shown.functions_version = self.port.session().functions_version();
-                    opened.loaded = self.loaded_paths().iter().map(|p| p.display().to_string()).collect();
+                    opened.loaded = self
+                        .loaded_paths()
+                        .iter()
+                        .map(|p| p.display().to_string())
+                        .collect();
                     Reply::Opened(opened)
                 }
                 other => other,
@@ -650,7 +714,9 @@ impl<F: Files, L: Libraries> Host<F, L> {
                     .iter()
                     .enumerate()
                     .filter(|(index, entry)| {
-                        self.last_grid.get(*index).map_or(!entry.is_empty(), |last| last != *entry)
+                        self.last_grid
+                            .get(*index)
+                            .map_or(!entry.is_empty(), |last| last != *entry)
                     })
                     .map(|(index, _)| ((index / columns) as u32 + 1, (index % columns) as u32 + 1))
                     .collect();
@@ -658,7 +724,10 @@ impl<F: Files, L: Libraries> Host<F, L> {
                 // A replaced formula lets go of the real-time topics it read; the topics the new
                 // one reads connect first and the old ones disconnect after (as Excel does).
                 let key = (authored.formula.clone(), authored.formula_cell.clone());
-                let replaced = self.last_formula.replace(key.clone()).is_some_and(|last| last != key);
+                let replaced = self
+                    .last_formula
+                    .replace(key.clone())
+                    .is_some_and(|last| last != key);
                 if replaced {
                     self.retire_rtd();
                 }
@@ -752,7 +821,9 @@ mod tests {
 
         fn read_recent(&mut self, path: &Path) -> Result<(String, Vec<u8>), String> {
             self.path = Some(path.to_owned());
-            self.open.take().ok_or_else(|| format!("{} is gone", path.display()))
+            self.open
+                .take()
+                .ok_or_else(|| format!("{} is gone", path.display()))
         }
 
         fn recent(&self) -> Vec<String> {
@@ -765,7 +836,8 @@ mod tests {
 
         fn write_in_place(&mut self, path: &str, bytes: &[u8]) -> Result<bool, String> {
             if self.in_place {
-                self.in_place_written.push((path.to_owned(), bytes.to_vec()));
+                self.in_place_written
+                    .push((path.to_owned(), bytes.to_vec()));
             }
             Ok(self.in_place)
         }
@@ -775,11 +847,17 @@ mod tests {
             self.close.expect("the test scripts the answer")
         }
 
-        fn open_in_dna_calc(&mut self, path: Option<&Path>, name: &str, bytes: &[u8]) -> Result<(), String> {
+        fn open_in_dna_calc(
+            &mut self,
+            path: Option<&Path>,
+            name: &str,
+            bytes: &[u8],
+        ) -> Result<(), String> {
             if let Some(message) = &self.dna_calc {
                 return Err(message.clone());
             }
-            self.launched.push((path.map(Path::to_owned), name.to_owned(), bytes.len()));
+            self.launched
+                .push((path.map(Path::to_owned), name.to_owned(), bytes.len()));
             Ok(())
         }
     }
@@ -790,7 +868,11 @@ mod tests {
     impl UserFunction for Double {
         fn call(&self, arguments: &[CalcValue]) -> Result<CalcValue, String> {
             Ok(CalcValue::number(
-                arguments.first().and_then(CalcValue::as_number).unwrap_or(0.) * 2.,
+                arguments
+                    .first()
+                    .and_then(CalcValue::as_number)
+                    .unwrap_or(0.)
+                    * 2.,
             ))
         }
     }
@@ -842,7 +924,8 @@ mod tests {
             project: &calc_vba::OfficeProject,
             install: bool,
         ) -> Result<Vec<String>, String> {
-            self.xlams.push((path.to_owned(), project.modules().len(), install));
+            self.xlams
+                .push((path.to_owned(), project.modules().len(), install));
             self.generation += 1;
             Ok(vec![format!("{} module(s)", project.modules().len())])
         }
@@ -854,7 +937,10 @@ mod tests {
         }
 
         fn loaded_xlam(&self) -> Vec<(PathBuf, Vec<String>)> {
-            self.xlams.iter().map(|(path, _, _)| (path.clone(), vec!["DnaAdd".to_owned()])).collect()
+            self.xlams
+                .iter()
+                .map(|(path, _, _)| (path.clone(), vec!["DnaAdd".to_owned()]))
+                .collect()
         }
 
         fn load_vba(&mut self, name: &str, source: &str) -> Result<(), String> {
@@ -967,10 +1053,18 @@ mod tests {
         let mut authored = Authored::example_sum();
         authored.locale = "de-DE".into();
         authored.number_format = "0,00".into();
-        assert_eq!(shown(first.handle(Request::Evaluate(authored.clone()))).result, "number 3.5");
+        assert_eq!(
+            shown(first.handle(Request::Evaluate(authored.clone()))).result,
+            "number 3.5"
+        );
         first.files.save_to = Some("C:\\work\\session.xlsx".into());
         let saved = first.handle(Request::SaveNative);
-        assert_eq!(saved, Reply::Saved { path: "C:\\work\\session.xlsx".into() });
+        assert_eq!(
+            saved,
+            Reply::Saved {
+                path: "C:\\work\\session.xlsx".into()
+            }
+        );
         let (_, bytes) = first.files.written.remove(0);
 
         let mut second = host();
@@ -998,7 +1092,10 @@ mod tests {
         let mut maker = host();
         maker.handle(Request::Evaluate(formula(text)));
         maker.files.save_to = Some("C:\\made\\made.xlsx".into());
-        assert!(matches!(maker.handle(Request::SaveNative), Reply::Saved { .. }));
+        assert!(matches!(
+            maker.handle(Request::SaveNative),
+            Reply::Saved { .. }
+        ));
         maker.files.written.remove(0).1
     }
 
@@ -1014,16 +1111,34 @@ mod tests {
         assert_eq!(host.files.recent, ["C:\\work\\one.xlsx"]);
         host.handle(Request::Evaluate(formula("=2+2")));
         // Save: in place, no dialog (a dialog here would answer Cancelled: nothing is scripted).
-        assert_eq!(host.handle(Request::SaveNative), Reply::Saved { path: "C:\\work\\one.xlsx".into() });
+        assert_eq!(
+            host.handle(Request::SaveNative),
+            Reply::Saved {
+                path: "C:\\work\\one.xlsx".into()
+            }
+        );
         assert_eq!(host.files.in_place_written.len(), 1);
         assert!(host.files.written.is_empty());
         // Save as asks, takes the new path, and Save then goes there.
         host.files.save_to = Some("C:\\work\\two.xlsx".into());
-        assert_eq!(host.handle(Request::SaveAsNative), Reply::Saved { path: "C:\\work\\two.xlsx".into() });
+        assert_eq!(
+            host.handle(Request::SaveAsNative),
+            Reply::Saved {
+                path: "C:\\work\\two.xlsx".into()
+            }
+        );
         assert_eq!(host.files.written.len(), 1);
-        assert_eq!(host.handle(Request::SaveNative), Reply::Saved { path: "C:\\work\\two.xlsx".into() });
+        assert_eq!(
+            host.handle(Request::SaveNative),
+            Reply::Saved {
+                path: "C:\\work\\two.xlsx".into()
+            }
+        );
         assert_eq!(host.files.in_place_written[1].0, "C:\\work\\two.xlsx");
-        assert_eq!(host.handle(Request::Recent), Reply::Recent(host.files.recent.clone()));
+        assert_eq!(
+            host.handle(Request::Recent),
+            Reply::Recent(host.files.recent.clone())
+        );
         assert_eq!(host.files.recent[0], "C:\\work\\two.xlsx");
         // A new session has no file: Save asks.
         host.handle(Request::New);
@@ -1039,16 +1154,23 @@ mod tests {
     fn a_recent_file_opens_by_path() {
         let mut host = host();
         host.handle(Request::Evaluate(formula("=SUM(1,2)")));
-        match host.handle(Request::OpenRecent { path: "C:\\gone.xlsx".into() }) {
+        match host.handle(Request::OpenRecent {
+            path: "C:\\gone.xlsx".into(),
+        }) {
             Reply::Refused { message } => assert!(message.contains("gone.xlsx"), "{message}"),
             other => panic!("{other:?}"),
         }
         assert_eq!(host.session().formula(), "=SUM(1,2)");
         host.files.open = Some(("seven.xlsx".into(), session_bytes("=3+4")));
-        let Reply::Opened(opened) = host.handle(Request::OpenRecent { path: "C:\\work\\seven.xlsx".into() }) else {
+        let Reply::Opened(opened) = host.handle(Request::OpenRecent {
+            path: "C:\\work\\seven.xlsx".into(),
+        }) else {
             panic!("not opened");
         };
-        assert_eq!((opened.name.as_str(), opened.shown.result.as_str()), ("seven.xlsx", "number 7"));
+        assert_eq!(
+            (opened.name.as_str(), opened.shown.result.as_str()),
+            ("seven.xlsx", "number 7")
+        );
         assert_eq!(host.files.recent, ["C:\\work\\seven.xlsx"]);
     }
 
@@ -1061,19 +1183,31 @@ mod tests {
         assert!(host.close_requested());
         assert!(host.files.asked.is_empty());
         host.handle(Request::Evaluate(formula("=1+1")));
-        host.handle(Request::SessionState { dirty: false, name: String::new() });
+        host.handle(Request::SessionState {
+            dirty: false,
+            name: String::new(),
+        });
         assert!(host.close_requested());
-        host.handle(Request::SessionState { dirty: true, name: String::new() });
+        host.handle(Request::SessionState {
+            dirty: true,
+            name: String::new(),
+        });
         host.files.close = Some(CloseChoice::Cancel);
         assert!(!host.close_requested());
         assert_eq!(host.files.asked, ["Untitled"]);
         host.files.close = Some(CloseChoice::Discard);
         assert!(host.close_requested());
         // Save with no file: the dialog is asked; cancelling it keeps the window open.
-        host.handle(Request::SessionState { dirty: true, name: "calc.xlsx".into() });
+        host.handle(Request::SessionState {
+            dirty: true,
+            name: "calc.xlsx".into(),
+        });
         host.files.close = Some(CloseChoice::Save);
         assert!(!host.close_requested());
-        assert_eq!(host.files.asked.last().map(String::as_str), Some("calc.xlsx"));
+        assert_eq!(
+            host.files.asked.last().map(String::as_str),
+            Some("calc.xlsx")
+        );
         host.files.save_to = Some("C:\\work\\calc.xlsx".into());
         assert!(host.close_requested());
         assert_eq!(host.files.written.len(), 1);
@@ -1095,11 +1229,25 @@ mod tests {
         }
         host.files.open = Some(("big.xlsx".into(), b"not a workbook".to_vec()));
         host.files.path = Some("C:\\work\\big.xlsx".into());
-        assert!(matches!(host.handle(Request::OpenNative), Reply::NotASession { .. }));
+        assert!(matches!(
+            host.handle(Request::OpenNative),
+            Reply::NotASession { .. }
+        ));
         assert_eq!(host.handle(Request::OpenInDnaCalc), Reply::Accepted);
-        assert_eq!(host.files.launched, [(Some(PathBuf::from("C:\\work\\big.xlsx")), "big.xlsx".to_owned(), 14)]);
+        assert_eq!(
+            host.files.launched,
+            [(
+                Some(PathBuf::from("C:\\work\\big.xlsx")),
+                "big.xlsx".to_owned(),
+                14
+            )]
+        );
         // The page read this one (a drop): no path.
-        host.handle(Request::Open { name: "drop.xlsx".into(), bytes: b"zip?".to_vec(), zone: None });
+        host.handle(Request::Open {
+            name: "drop.xlsx".into(),
+            bytes: b"zip?".to_vec(),
+            zone: None,
+        });
         assert_eq!(host.handle(Request::OpenInDnaCalc), Reply::Accepted);
         assert_eq!(host.files.launched[1], (None, "drop.xlsx".to_owned(), 4));
         host.files.dna_calc = Some("DNA Calc is not in the folder".into());
@@ -1163,7 +1311,10 @@ mod tests {
     fn an_add_in_loads_calculates_is_listed_and_unloads() {
         let path = file_named("Fake.xll", b"MZ fake");
         let mut host = host();
-        assert_eq!(shown(host.handle(Request::Evaluate(formula("=Double(21)")))).result, "error #NAME?");
+        assert_eq!(
+            shown(host.handle(Request::Evaluate(formula("=Double(21)")))).result,
+            "error #NAME?"
+        );
         host.files.addin = Some(path.clone());
         let loaded = addins(host.handle(Request::LoadAddinNative));
         assert_eq!(loaded.len(), 1);
@@ -1196,20 +1347,38 @@ mod tests {
         assert_eq!(listed.len(), 1);
         assert_eq!(listed[0].hash, loaded[0].hash);
         // Loading it again is refused; so is a file that is not an .xll or an .xlam.
-        match host.handle(Request::LoadAddin { path: loaded[0].path.clone(), expected_hash: None }) {
+        match host.handle(Request::LoadAddin {
+            path: loaded[0].path.clone(),
+            expected_hash: None,
+        }) {
             Reply::Refused { message } => assert!(message.contains("already loaded"), "{message}"),
             other => panic!("{other:?}"),
         }
-        match host.handle(Request::LoadAddin { path: "C:\\libs\\Add.dll".into(), expected_hash: None }) {
-            Reply::Refused { message } => assert!(message.contains("not an .xll or .xlam add-in"), "{message}"),
+        match host.handle(Request::LoadAddin {
+            path: "C:\\libs\\Add.dll".into(),
+            expected_hash: None,
+        }) {
+            Reply::Refused { message } => {
+                assert!(message.contains("not an .xll or .xlam add-in"), "{message}")
+            }
             other => panic!("{other:?}"),
         }
         // Unloading removes the function and the listing.
-        assert!(addins(host.handle(Request::UnloadAddin { path: loaded[0].path.clone() })).is_empty());
-        assert_eq!(shown(host.handle(Request::Evaluate(formula("=Double(21)")))).result, "error #NAME?");
+        assert!(
+            addins(host.handle(Request::UnloadAddin {
+                path: loaded[0].path.clone()
+            }))
+            .is_empty()
+        );
+        assert_eq!(
+            shown(host.handle(Request::Evaluate(formula("=Double(21)")))).result,
+            "error #NAME?"
+        );
         assert!(host.session().addins().is_empty());
         assert!(matches!(
-            host.handle(Request::UnloadAddin { path: loaded[0].path.clone() }),
+            host.handle(Request::UnloadAddin {
+                path: loaded[0].path.clone()
+            }),
             Reply::Refused { .. }
         ));
     }
@@ -1220,7 +1389,10 @@ mod tests {
     fn a_failed_load_and_a_changed_file_load_nothing() {
         let broken = file_named("broken.xll", b"MZ broken");
         let mut host = host();
-        match host.handle(Request::LoadAddin { path: broken.display().to_string(), expected_hash: None }) {
+        match host.handle(Request::LoadAddin {
+            path: broken.display().to_string(),
+            expected_hash: None,
+        }) {
             Reply::Refused { message } => assert!(message.contains("rollback"), "{message}"),
             other => panic!("{other:?}"),
         }
@@ -1233,7 +1405,10 @@ mod tests {
             expected_hash: Some(listed.clone()),
         }) {
             Reply::Refused { message } => {
-                assert!(message.contains("not the file the session listed"), "{message}")
+                assert!(
+                    message.contains("not the file the session listed"),
+                    "{message}"
+                )
             }
             other => panic!("{other:?}"),
         }
@@ -1256,7 +1431,10 @@ mod tests {
     fn vba_modules_and_late_registrations_share_the_one_table() {
         let path = file_named("Late.xll", b"MZ late");
         let mut host = host();
-        host.handle(Request::LoadAddin { path: path.display().to_string(), expected_hash: None });
+        host.handle(Request::LoadAddin {
+            path: path.display().to_string(),
+            expected_hash: None,
+        });
         match host.handle(Request::LoadVba {
             name: "Module1".into(),
             source: "Public Function Add2(a, b)\n Add2 = a + b\nEnd Function\n".into(),
@@ -1264,24 +1442,41 @@ mod tests {
             Reply::Functions { names } => assert_eq!(names, ["MODULE1.ADD2"]),
             other => panic!("{other:?}"),
         }
-        assert_eq!(shown(host.handle(Request::Evaluate(formula("=Double(4)")))).result, "number 8");
+        assert_eq!(
+            shown(host.handle(Request::Evaluate(formula("=Double(4)")))).result,
+            "number 8"
+        );
         assert!(host.session().has_vba_module());
         assert!(matches!(
-            host.handle(Request::LoadVba { name: "Broken".into(), source: "Function (".into() }),
+            host.handle(Request::LoadVba {
+                name: "Broken".into(),
+                source: "Function (".into()
+            }),
             Reply::Refused { .. }
         ));
-        assert_eq!(shown(host.handle(Request::Evaluate(formula("=Double(4)")))).result, "number 8");
+        assert_eq!(
+            shown(host.handle(Request::Evaluate(formula("=Double(4)")))).result,
+            "number 8"
+        );
         // Opening a new session ends the module, not the add-in.
-        let Reply::Opened(opened) = host.handle(Request::New) else { panic!("not opened") };
+        let Reply::Opened(opened) = host.handle(Request::New) else {
+            panic!("not opened")
+        };
         let Reply::FunctionDocs(docs) = host.handle(Request::FunctionDocs) else {
             panic!("no function docs");
         };
-        assert_eq!((docs.names, docs.version), (vec!["DOUBLE".to_owned()], opened.shown.functions_version));
+        assert_eq!(
+            (docs.names, docs.version),
+            (vec!["DOUBLE".to_owned()], opened.shown.functions_version)
+        );
         assert!(!host.session().has_vba_module() && host.libs.vba.is_empty());
         // A registration after the open routine: the next request publishes it.
         host.libs.xlls.clear();
         host.libs.generation += 1;
-        assert_eq!(shown(host.handle(Request::Evaluate(formula("=Double(4)")))).result, "error #NAME?");
+        assert_eq!(
+            shown(host.handle(Request::Evaluate(formula("=Double(4)")))).result,
+            "error #NAME?"
+        );
     }
 
     /// Native-only: a VBA add-in (.xlam) loads by path: CalcVBA reads the project calc-doc found
@@ -1294,7 +1489,10 @@ mod tests {
             include_bytes!("../../../crates/calc-xll-reference/fixture/vba/DnaExamples.xlam"),
         );
         let mut host = host();
-        let loaded = addins(host.handle(Request::LoadAddin { path: path.display().to_string(), expected_hash: None }));
+        let loaded = addins(host.handle(Request::LoadAddin {
+            path: path.display().to_string(),
+            expected_hash: None,
+        }));
         assert_eq!(loaded.len(), 1);
         assert_eq!(loaded[0].kind, "xlam");
         assert_eq!(loaded[0].functions, ["DnaAdd"]);
@@ -1303,16 +1501,32 @@ mod tests {
         assert_eq!(host.session().addins().len(), 1);
         assert_eq!(host.session().addins()[0].kind, "xlam");
         // Loading it twice is refused.
-        assert!(matches!(host.handle(Request::LoadAddin { path: path.display().to_string(), expected_hash: None }), Reply::Refused { .. }));
+        assert!(matches!(
+            host.handle(Request::LoadAddin {
+                path: path.display().to_string(),
+                expected_hash: None
+            }),
+            Reply::Refused { .. }
+        ));
         // Unloaded, then loaded from the session's list (a reopen): opened, not installed.
         let hash = loaded[0].hash.clone();
-        assert!(addins(host.handle(Request::UnloadAddin { path: path.display().to_string() })).is_empty());
+        assert!(
+            addins(host.handle(Request::UnloadAddin {
+                path: path.display().to_string()
+            }))
+            .is_empty()
+        );
         assert!(host.libs.xlams.is_empty());
-        host.handle(Request::LoadAddin { path: path.display().to_string(), expected_hash: Some(hash) });
+        host.handle(Request::LoadAddin {
+            path: path.display().to_string(),
+            expected_hash: Some(hash),
+        });
         assert_eq!(host.libs.xlams, [(path.clone(), 4, false)]);
         // A file without a VBA project is refused, naming it.
         let empty = file_named("Empty.xlam", b"not a workbook");
-        assert!(matches!(host.handle(Request::LoadAddin { path: empty.display().to_string(), expected_hash: None }), Reply::Refused { message } if message.contains("Empty.xlam")));
+        assert!(
+            matches!(host.handle(Request::LoadAddin { path: empty.display().to_string(), expected_hash: None }), Reply::Refused { message } if message.contains("Empty.xlam"))
+        );
     }
 
     /// Native-only: an .xlsm session opened through the dialog compiles its project; a module the
@@ -1320,7 +1534,8 @@ mod tests {
     /// project as an .xlsm under the file's name.
     #[test]
     fn an_xlsm_session_keeps_panel_modules_in_its_project_and_saves_it() {
-        let xlsm = include_bytes!("../../../crates/calc-xll-reference/fixture/vba/DnaExamples.xlsm");
+        let xlsm =
+            include_bytes!("../../../crates/calc-xll-reference/fixture/vba/DnaExamples.xlsm");
         let mut host = host();
         host.files.open = Some(("DnaExamples.xlsm".into(), xlsm.to_vec()));
         let Reply::Opened(opened) = host.handle(Request::OpenNative) else {
@@ -1330,19 +1545,33 @@ mod tests {
         let view = opened.project.expect("the file's project");
         assert!(view.functions.is_empty(), "{view:?}");
         assert_eq!(view.macros, dna_onecalc::port::MacrosView::Disabled);
-        let refused = host.handle(Request::LoadVba { name: "Module1".into(), source: "Public Function X()\r\nEnd Function\r\n".into() });
+        let refused = host.handle(Request::LoadVba {
+            name: "Module1".into(),
+            source: "Public Function X()\r\nEnd Function\r\n".into(),
+        });
         assert!(matches!(refused, Reply::Refused { .. }), "{refused:?}");
         let Reply::Opened(enabled) = host.handle(Request::EnableMacros) else {
             panic!("enabled")
         };
-        assert!(enabled.project.is_some_and(|p| !p.functions.is_empty() && p.notes.is_empty() && p.macros == dna_onecalc::port::MacrosView::Enabled));
+        assert!(enabled.project.is_some_and(|p| !p.functions.is_empty()
+            && p.notes.is_empty()
+            && p.macros == dna_onecalc::port::MacrosView::Enabled));
         let reply = host.handle(Request::LoadVba {
             name: "Module1".into(),
             source: "Public Function DnaTwice(ByVal x As Double) As Double\r\n    DnaTwice = 2 * x\r\nEnd Function\r\n".into(),
         });
-        assert!(matches!(&reply, Reply::Functions { names } if names.iter().any(|n| n == "DNATWICE")), "{reply:?}");
-        assert!(host.libs.vba.is_empty(), "the module went into the project, not beside the add-ins");
-        assert_eq!(shown(host.handle(Request::Evaluate(formula("=DnaTwice(21)")))).result, "number 42");
+        assert!(
+            matches!(&reply, Reply::Functions { names } if names.iter().any(|n| n == "DNATWICE")),
+            "{reply:?}"
+        );
+        assert!(
+            host.libs.vba.is_empty(),
+            "the module went into the project, not beside the add-ins"
+        );
+        assert_eq!(
+            shown(host.handle(Request::Evaluate(formula("=DnaTwice(21)")))).result,
+            "number 42"
+        );
         let Reply::File { name, bytes } = host.handle(Request::Save) else {
             panic!("saved")
         };
@@ -1355,8 +1584,14 @@ mod tests {
     /// the person cannot enable it; zone 2 or no mark opens disabled and can be enabled.
     #[test]
     fn a_file_with_the_mark_of_the_web_never_runs_its_project() {
-        let xlsm = include_bytes!("../../../crates/calc-xll-reference/fixture/vba/DnaExamples.xlsm");
-        for (zone, blocked) in [(Some(3), true), (Some(4), true), (Some(2), false), (None, false)] {
+        let xlsm =
+            include_bytes!("../../../crates/calc-xll-reference/fixture/vba/DnaExamples.xlsm");
+        for (zone, blocked) in [
+            (Some(3), true),
+            (Some(4), true),
+            (Some(2), false),
+            (None, false),
+        ] {
             let mut host = host();
             host.files.open = Some(("DnaExamples.xlsm".into(), xlsm.to_vec()));
             host.files.zone = zone;
@@ -1364,12 +1599,18 @@ mod tests {
                 panic!("opened")
             };
             let view = opened.project.expect("the file's project");
-            assert!(view.functions.is_empty() && !view.notes.is_empty(), "{view:?}");
+            assert!(
+                view.functions.is_empty() && !view.notes.is_empty(),
+                "{view:?}"
+            );
             let reply = host.handle(Request::EnableMacros);
             if blocked {
                 assert_eq!(view.macros, dna_onecalc::port::MacrosView::Blocked);
                 assert!(view.notes.join(" ").contains("Mark of the Web"), "{view:?}");
-                assert!(matches!(reply, Reply::Refused { .. }), "{zone:?}: {reply:?}");
+                assert!(
+                    matches!(reply, Reply::Refused { .. }),
+                    "{zone:?}: {reply:?}"
+                );
                 // The project is still the file's: a save writes it back.
                 assert!(matches!(host.handle(Request::Save), Reply::File { .. }));
             } else {
@@ -1384,6 +1625,12 @@ mod tests {
         let (session, vba) = dna_onecalc::file::open(bytes).unwrap();
         drop(session);
         let project = calc_vba::read_office_project(&vba.unwrap().project).unwrap();
-        project.modules().iter().find(|m| m.name == "Module1").unwrap().source.clone()
+        project
+            .modules()
+            .iter()
+            .find(|m| m.name == "Module1")
+            .unwrap()
+            .source
+            .clone()
     }
 }

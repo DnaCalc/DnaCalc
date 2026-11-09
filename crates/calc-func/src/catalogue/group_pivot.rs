@@ -52,13 +52,13 @@ fn percentof(
 /// A refusal or fault naming argument 0 of a one-argument read, renamed to argument `index`.
 fn reindex(exit: Exit, index: usize) -> Exit {
     match exit {
-        Exit::Fault(FunctionFault::NotImplemented { id, argument: Some(0) }) => {
-            Exit::Fault(FunctionFault::NotImplemented {
-                id,
-                argument: Some(index),
-            })
-        }
+        Exit::Fault(FunctionFault::NotImplemented {
+            id,
+            argument: Some(0),
+        }) => Exit::Fault(FunctionFault::NotImplemented {
+            id,
+            argument: Some(index),
+        }),
         other => other,
     }
 }
-

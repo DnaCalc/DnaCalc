@@ -281,27 +281,130 @@ pub enum Interest {
 /// What the page asks the session to do: calc-host's skin intents as the page sends them.
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub enum Intent {
-    RefreshAll { revision: u64 },
-    PivotCreate {revision:u64,source:Area,destination:String,row:u32,value:u32,subtotal:String},
-    PivotRefresh {sheet:Sheet,revision:u64,part:String},
+    RefreshAll {
+        revision: u64,
+    },
+    PivotCreate {
+        revision: u64,
+        source: Area,
+        destination: String,
+        row: u32,
+        value: u32,
+        subtotal: String,
+    },
+    PivotRefresh {
+        sheet: Sheet,
+        revision: u64,
+        part: String,
+    },
     PageSetup {
         sheet: Sheet,
         revision: u64,
         change: crate::printing::PageSetupChange,
     },
-    ChartCreate {revision:u64,area:Area,kind:String,rows:bool,headers:bool,categories:bool},
-    ChartSeriesStyle {sheet:Sheet,revision:u64,part:String,plot:u32,series:u32,fill:Option<String>},
-    ChartElementTextStyle{sheet:Sheet,revision:u64,part:String,target:String,style:ChartTextStyle},
-    ChartTextStyle{sheet:Sheet,revision:u64,part:String,style:ChartTextStyle},
-    ChartType {sheet:Sheet,revision:u64,part:String,plot:u32,kind:String,stacked:bool},
-    ChartLegend {sheet:Sheet,revision:u64,part:String,position:String},
-    ChartLogAxis {sheet:Sheet,revision:u64,part:String,axis:u32,base:Option<String>},
-    ChartAxis {sheet:Sheet,revision:u64,part:String,axis:u32,minimum:Option<String>,maximum:Option<String>,major_unit:Option<String>,reversed:bool},
-    ChartSeries {sheet:Sheet,revision:u64,part:String,plot:u32,series:Option<u32>,name:Option<String>,categories:Option<String>,values:Option<String>,remove:bool},
-    ChartProperties {sheet:Sheet,revision:u64,part:String,title:Option<String>,set_title:bool,legend:Option<bool>},
-    CreateReview {at:Key,revision:u64,parent:Option<u32>,threaded:bool,author:String,text:String,timestamp:String},
-    FormatReview {at:Key,revision:u64,index:u32,text:String,start:u32,end:u32,patch:ReviewFormat},
-    ResolveReview {at:Key,revision:u64,index:u32,resolved:bool},
+    ChartCreate {
+        revision: u64,
+        area: Area,
+        kind: String,
+        rows: bool,
+        headers: bool,
+        categories: bool,
+    },
+    ChartSeriesStyle {
+        sheet: Sheet,
+        revision: u64,
+        part: String,
+        plot: u32,
+        series: u32,
+        fill: Option<String>,
+    },
+    ChartElementTextStyle {
+        sheet: Sheet,
+        revision: u64,
+        part: String,
+        target: String,
+        style: ChartTextStyle,
+    },
+    ChartTextStyle {
+        sheet: Sheet,
+        revision: u64,
+        part: String,
+        style: ChartTextStyle,
+    },
+    ChartType {
+        sheet: Sheet,
+        revision: u64,
+        part: String,
+        plot: u32,
+        kind: String,
+        stacked: bool,
+    },
+    ChartLegend {
+        sheet: Sheet,
+        revision: u64,
+        part: String,
+        position: String,
+    },
+    ChartLogAxis {
+        sheet: Sheet,
+        revision: u64,
+        part: String,
+        axis: u32,
+        base: Option<String>,
+    },
+    ChartAxis {
+        sheet: Sheet,
+        revision: u64,
+        part: String,
+        axis: u32,
+        minimum: Option<String>,
+        maximum: Option<String>,
+        major_unit: Option<String>,
+        reversed: bool,
+    },
+    ChartSeries {
+        sheet: Sheet,
+        revision: u64,
+        part: String,
+        plot: u32,
+        series: Option<u32>,
+        name: Option<String>,
+        categories: Option<String>,
+        values: Option<String>,
+        remove: bool,
+    },
+    ChartProperties {
+        sheet: Sheet,
+        revision: u64,
+        part: String,
+        title: Option<String>,
+        set_title: bool,
+        legend: Option<bool>,
+    },
+    CreateReview {
+        at: Key,
+        revision: u64,
+        parent: Option<u32>,
+        threaded: bool,
+        author: String,
+        text: String,
+        timestamp: String,
+    },
+    FormatReview {
+        at: Key,
+        revision: u64,
+        index: u32,
+        text: String,
+        start: u32,
+        end: u32,
+        patch: ReviewFormat,
+    },
+    ResolveReview {
+        at: Key,
+        revision: u64,
+        index: u32,
+        resolved: bool,
+    },
     EditReview {
         at: Key,
         revision: u64,
@@ -360,7 +463,12 @@ pub enum Intent {
         revision: u64,
         sizes: Vec<(u32, u64)>,
     },
-    Outline { sheet: Sheet, rows: bool, revision: u64, change: OutlineChange },
+    Outline {
+        sheet: Sheet,
+        rows: bool,
+        revision: u64,
+        change: OutlineChange,
+    },
     AxisFormat {
         sheet: Sheet,
         rows: bool,
@@ -369,15 +477,37 @@ pub enum Intent {
         size_bits: Option<u64>,
         hidden: Option<bool>,
     },
-    SplitPanes { sheet:Sheet, revision:u64, x:u64, y:u64, row:u32, column:u32 },
+    SplitPanes {
+        sheet: Sheet,
+        revision: u64,
+        x: u64,
+        y: u64,
+        row: u32,
+        column: u32,
+    },
     FreezePanes {
         sheet: Sheet,
         rows: u32,
         columns: u32,
     },
-    Table {revision:u64,change:TableChange},
-    AutoFilter { sheet:Sheet, revision:u64, table:Option<String>, change:FilterChange },
-    SortRowsWithOptions {area:Area,keys:Vec<(u32,bool)>,header:bool,revision:u64,case_sensitive:bool,custom_order:Vec<String>},
+    Table {
+        revision: u64,
+        change: TableChange,
+    },
+    AutoFilter {
+        sheet: Sheet,
+        revision: u64,
+        table: Option<String>,
+        change: FilterChange,
+    },
+    SortRowsWithOptions {
+        area: Area,
+        keys: Vec<(u32, bool)>,
+        header: bool,
+        revision: u64,
+        case_sensitive: bool,
+        custom_order: Vec<String>,
+    },
     SortRows {
         area: Area,
         keys: Vec<(u32, bool)>,
@@ -474,7 +604,7 @@ pub enum ConditionalChange {
 }
 #[derive(Clone, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
 pub struct Review {
-    pub next_index:u32,
+    pub next_index: u32,
     pub at: Option<Key>,
     pub revision: u64,
     pub rules: Vec<Rule>,
@@ -485,7 +615,7 @@ pub struct Review {
 }
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub struct ReviewItem {
-    pub runs:Vec<ReviewRun>,
+    pub runs: Vec<ReviewRun>,
     pub index: u32,
     pub author: String,
     pub text: String,
@@ -550,24 +680,108 @@ pub struct ToServer {
 /// Commands carry neutral criteria; the host validates and owns their authored representation.
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub enum FilterChange {
-    Enable(Area), Values { column:u32, values:Vec<String>, blank:bool },
-    Custom { column:u32, and:bool, predicates:Vec<(String,String)> },
-    Dates { column:u32, groups:Vec<Vec<u16>>, values:Vec<String>, blank:bool },
-    Top { column:u32, top:bool, percent:bool, value:String },
-    Color { column:u32, cell_color:bool, color:String },
-    ColorReference { column:u32, dxf_id:u32, cell_color:bool },
-    ClearColumn(u32), Clear, Remove, Reapply,
+    Enable(Area),
+    Values {
+        column: u32,
+        values: Vec<String>,
+        blank: bool,
+    },
+    Custom {
+        column: u32,
+        and: bool,
+        predicates: Vec<(String, String)>,
+    },
+    Dates {
+        column: u32,
+        groups: Vec<Vec<u16>>,
+        values: Vec<String>,
+        blank: bool,
+    },
+    Top {
+        column: u32,
+        top: bool,
+        percent: bool,
+        value: String,
+    },
+    Color {
+        column: u32,
+        cell_color: bool,
+        color: String,
+    },
+    ColorReference {
+        column: u32,
+        dxf_id: u32,
+        cell_color: bool,
+    },
+    ClearColumn(u32),
+    Clear,
+    Remove,
+    Reapply,
 }
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub struct FilterView {
-    #[serde(default)] pub table:Option<String>,
-    pub area:Area, pub columns:Vec<u32>, pub filtered:u32, pub unsupported:bool,
+    #[serde(default)]
+    pub table: Option<String>,
+    pub area: Area,
+    pub columns: Vec<u32>,
+    pub filtered: u32,
+    pub unsupported: bool,
 }
 
-#[derive(Clone,Debug,PartialEq,Eq,Serialize,Deserialize)]
-pub struct TableView {pub part:String,pub name:String,pub area:Area,pub columns:Vec<String>,#[serde(default)]pub column_formulas:Vec<Option<String>>,pub headers:bool,pub totals:bool,pub style:String,pub row_stripes:bool,pub column_stripes:bool,pub first_column:bool,pub last_column:bool,pub opaque:bool,pub filter:Option<FilterView>}
-#[derive(Clone,Debug,PartialEq,Eq,Serialize,Deserialize)]
-pub enum TableChange {Create{area:Area,name:String},Resize{part:String,area:Area},Options{part:String,headers:bool,totals:bool,style:String,row_stripes:bool,column_stripes:bool,first_column:bool,last_column:bool},Total{part:String,column:u32,function:String},RenameColumn{part:String,column:u32,name:String},CalculatedColumn{part:String,column:u32,formula:Option<String>}}
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+pub struct TableView {
+    pub part: String,
+    pub name: String,
+    pub area: Area,
+    pub columns: Vec<String>,
+    #[serde(default)]
+    pub column_formulas: Vec<Option<String>>,
+    pub headers: bool,
+    pub totals: bool,
+    pub style: String,
+    pub row_stripes: bool,
+    pub column_stripes: bool,
+    pub first_column: bool,
+    pub last_column: bool,
+    pub opaque: bool,
+    pub filter: Option<FilterView>,
+}
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+pub enum TableChange {
+    Create {
+        area: Area,
+        name: String,
+    },
+    Resize {
+        part: String,
+        area: Area,
+    },
+    Options {
+        part: String,
+        headers: bool,
+        totals: bool,
+        style: String,
+        row_stripes: bool,
+        column_stripes: bool,
+        first_column: bool,
+        last_column: bool,
+    },
+    Total {
+        part: String,
+        column: u32,
+        function: String,
+    },
+    RenameColumn {
+        part: String,
+        column: u32,
+        name: String,
+    },
+    CalculatedColumn {
+        part: String,
+        column: u32,
+        formula: Option<String>,
+    },
+}
 
 /// What a painter needs of a picture in a cell, beside its bytes.
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
@@ -585,16 +799,27 @@ pub struct CellImage {
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 pub enum Request {
     /// The picture a cell holds: [`Reply::CellImage`], with its bytes beside the reply.
-    CellImage { at: Key },
+    CellImage {
+        at: Key,
+    },
     PageSetup(Sheet),
     PrintPreview {
         sheet: Sheet,
         revision: u64,
     },
     InspectTemplate,
-    OpenTemplate {name:String},
-    InsertTemplate {name:Option<String>,revision:u64},
-    FilterValues { sheet:Sheet, table:Option<String>, column:u32 },
+    OpenTemplate {
+        name: String,
+    },
+    InsertTemplate {
+        name: Option<String>,
+        revision: u64,
+    },
+    FilterValues {
+        sheet: Sheet,
+        table: Option<String>,
+        column: u32,
+    },
     Names {
         query: String,
         page: u64,
@@ -613,13 +838,24 @@ pub enum Request {
         len: usize,
     },
     /// The evaluation trace of the formula being edited at `anchor`: every part with its value.
-    TraceFormula { formula: String, anchor: Key },
+    TraceFormula {
+        formula: String,
+        anchor: Key,
+    },
     /// The registered functions the workbook can call (add-in registrations and VBA), for the
     /// formula field's completion.
     UserFunctions,
-    CalculateName { id: (u32, u32), version: u64, anchor: Key },
-    PollNameCalculation { token: u64 },
-    CancelNameCalculation { token: u64 },
+    CalculateName {
+        id: (u32, u32),
+        version: u64,
+        anchor: Key,
+    },
+    PollNameCalculation {
+        token: u64,
+    },
+    CancelNameCalculation {
+        token: u64,
+    },
     FormatSelection(Vec<Area>),
     PreviewFormat {
         at: Key,
@@ -654,7 +890,9 @@ pub enum Request {
         name: String,
     },
     /// Opens the template file itself instead of creating an unsaved workbook.
-    OpenForEditing { name: String },
+    OpenForEditing {
+        name: String,
+    },
     /// Prepare and replace the workbook's live VBA procedures. Source is not persisted here.
     LoadVbaModule {
         name: String,
@@ -662,8 +900,13 @@ pub enum Request {
         max_steps: u64,
     },
     /// Explicit source module kinds and document identities for automatic VBA events.
-    LoadVbaProject { modules: Vec<VbaModule>, max_steps: u64 },
-    SetVbaEventsEnabled { enabled: bool },
+    LoadVbaProject {
+        modules: Vec<VbaModule>,
+        max_steps: u64,
+    },
+    SetVbaEventsEnabled {
+        enabled: bool,
+    },
     /// Saves the workbook: its bytes travel back beside the reply.
     Save,
     /// Ordinary live save with Excel's CalculateBeforeSave setting.
@@ -673,7 +916,11 @@ pub enum Request {
         views: Option<SaveWindow>,
     },
     /// Uses the ordinary pinned save, with an explicit format and file name.
-    SaveAs { name: String, format: FileFormat, views: Option<SaveWindow> },
+    SaveAs {
+        name: String,
+        format: FileFormat,
+        views: Option<SaveWindow>,
+    },
     Intent(Intent),
     /// Registers subscription `id` (the page's number for it); its cells come as events.
     Subscribe {
@@ -709,7 +956,10 @@ pub enum Request {
     /// The sheet's charts, drawn.
     Charts(Sheet),
     PivotTables(Sheet),
-    PivotSourceFields{area:Area,revision:u64},
+    PivotSourceFields {
+        area: Area,
+        revision: u64,
+    },
     /// The cell's data validation: its rule and, for a list, its items.
     Validation(Key),
     ValidationInvalid(Sheet),
@@ -840,10 +1090,21 @@ pub struct Summary {
 
 impl Summary {
     /// Every known worksheet in workbook order, including Hidden and VeryHidden scopes.
-    pub fn all_sheets(&self)->Vec<SheetTab>{
-        let mut seen=std::collections::BTreeSet::new();let mut rows=Vec::new();
-        for id in self.sheet_order.iter().map(|s|s.id()).chain(self.sheets.iter().map(|(s,_)|s.id())).chain(self.hidden_sheets.iter().map(|(s,_,_)|s.id())){
-            if seen.insert(id){if let Some(name)=crate::address::SheetNames::sheet_name_of(self,id){rows.push(SheetTab{id,name});}}
+    pub fn all_sheets(&self) -> Vec<SheetTab> {
+        let mut seen = std::collections::BTreeSet::new();
+        let mut rows = Vec::new();
+        for id in self
+            .sheet_order
+            .iter()
+            .map(|s| s.id())
+            .chain(self.sheets.iter().map(|(s, _)| s.id()))
+            .chain(self.hidden_sheets.iter().map(|(s, _, _)| s.id()))
+        {
+            if seen.insert(id) {
+                if let Some(name) = crate::address::SheetNames::sheet_name_of(self, id) {
+                    rows.push(SheetTab { id, name });
+                }
+            }
         }
         rows
     }
@@ -851,9 +1112,21 @@ impl Summary {
 
 /// Supported authored SpreadsheetML file kinds.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
-pub enum FileFormat { Xlsx, Xlsm, Xltx, Xltm }
+pub enum FileFormat {
+    Xlsx,
+    Xlsm,
+    Xltx,
+    Xltm,
+}
 impl FileFormat {
-    pub fn extension(self) -> &'static str {match self {Self::Xlsx=>"xlsx",Self::Xlsm=>"xlsm",Self::Xltx=>"xltx",Self::Xltm=>"xltm"}}
+    pub fn extension(self) -> &'static str {
+        match self {
+            Self::Xlsx => "xlsx",
+            Self::Xlsm => "xlsm",
+            Self::Xltx => "xltx",
+            Self::Xltm => "xltm",
+        }
+    }
 }
 
 /// What an intent (or an open, a new workbook, a save) did.
@@ -905,14 +1178,32 @@ pub struct PaneWindow {
 /// A sheet's sizes as the file states them (calc-host's sheet geometry).
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub enum OutlineChange {
-    Group { first:u32, last:u32 },
-    Ungroup { first:u32, last:u32 },
-    Detail { first:u32, last:u32, level:Option<u8>, show:bool },
+    Group {
+        first: u32,
+        last: u32,
+    },
+    Ungroup {
+        first: u32,
+        last: u32,
+    },
+    Detail {
+        first: u32,
+        last: u32,
+        level: Option<u8>,
+        show: bool,
+    },
     ShowLevel(u8),
     SummaryAfter(bool),
 }
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
-pub struct OutlineGroup { pub rows:bool, pub first:u32, pub last:u32, pub level:u8, pub summary:u32, pub collapsed:bool }
+pub struct OutlineGroup {
+    pub rows: bool,
+    pub first: u32,
+    pub last: u32,
+    pub level: u8,
+    pub summary: u32,
+    pub collapsed: bool,
+}
 #[derive(Clone, Debug, Default, PartialEq, Serialize, Deserialize)]
 pub struct Geometry {
     #[serde(default)]
@@ -923,7 +1214,8 @@ pub struct Geometry {
     pub summary_right: bool,
     #[serde(default)]
     pub auto_filter: Option<FilterView>,
-    #[serde(default)] pub tables:Vec<TableView>,
+    #[serde(default)]
+    pub tables: Vec<TableView>,
     /// Areas whose absent cells are known empty in this committed subscription root.
     #[serde(default)]
     pub coverage: Vec<Area>,
@@ -952,7 +1244,9 @@ pub struct Geometry {
     pub rows: Vec<(u32, Option<f64>, bool)>,
 }
 
-fn outline_after()->bool {true}
+fn outline_after() -> bool {
+    true
+}
 
 impl Geometry {
     pub fn merge_at(&self, at: CellKey) -> Option<GridArea> {
@@ -975,14 +1269,22 @@ impl Geometry {
 /// its position and size, and its drawing.
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 pub struct Chart {
-    #[serde(default)] pub text_style:ChartTextStyle,
-    #[serde(default)] pub text_elements:Vec<ChartTextElement>,
-    #[serde(default)] pub plots:Vec<ChartPlotSource>,
-    #[serde(default)] pub axes:Vec<ChartAxisSource>,
-    #[serde(default)] pub part:String,
-    #[serde(default)] pub title:Option<String>,
-    #[serde(default)] pub legend:Option<String>,
-    #[serde(default)] pub title_linked:bool,
+    #[serde(default)]
+    pub text_style: ChartTextStyle,
+    #[serde(default)]
+    pub text_elements: Vec<ChartTextElement>,
+    #[serde(default)]
+    pub plots: Vec<ChartPlotSource>,
+    #[serde(default)]
+    pub axes: Vec<ChartAxisSource>,
+    #[serde(default)]
+    pub part: String,
+    #[serde(default)]
+    pub title: Option<String>,
+    #[serde(default)]
+    pub legend: Option<String>,
+    #[serde(default)]
+    pub title_linked: bool,
     pub name: String,
     pub kind: String,
     pub place: ChartPlace,
@@ -992,24 +1294,35 @@ pub struct Chart {
 
 #[derive(Clone, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
 pub struct ChartAxisSource {
-    pub id:u32,pub position:String,pub minimum:Option<String>,pub maximum:Option<String>,pub major_unit:Option<String>,pub reversed:bool,pub logarithmic:bool,#[serde(default)] pub log_base:Option<String>,
+    pub id: u32,
+    pub position: String,
+    pub minimum: Option<String>,
+    pub maximum: Option<String>,
+    pub major_unit: Option<String>,
+    pub reversed: bool,
+    pub logarithmic: bool,
+    #[serde(default)]
+    pub log_base: Option<String>,
 }
 #[derive(Clone, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
 pub struct ChartPlotSource {
-    pub kind:String,
-    #[serde(default)] pub bar_direction:Option<String>,
-    #[serde(default)] pub grouping:Option<String>,
-    pub series:Vec<ChartSeriesSource>,
+    pub kind: String,
+    #[serde(default)]
+    pub bar_direction: Option<String>,
+    #[serde(default)]
+    pub grouping: Option<String>,
+    pub series: Vec<ChartSeriesSource>,
 }
 #[derive(Clone, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
 pub struct ChartSeriesSource {
-    #[serde(default)] pub fill:Option<String>,
-    pub index:u32,
-    pub label:String,
+    #[serde(default)]
+    pub fill: Option<String>,
+    pub index: u32,
+    pub label: String,
     /// A literal name, or a cell reference prefixed by '='.
-    pub name:String,
-    pub categories:Option<String>,
-    pub values:Option<String>,
+    pub name: String,
+    pub categories: Option<String>,
+    pub values: Option<String>,
 }
 
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
@@ -1099,7 +1412,8 @@ pub struct Clipboard {
 
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub struct PastePreview {
-    #[serde(default)] pub samples:Vec<String>,
+    #[serde(default)]
+    pub samples: Vec<String>,
     pub id: u64,
     pub area: Area,
     pub replaces: u64,
@@ -1111,7 +1425,11 @@ pub enum Reply {
     PageSetup(Result<crate::printing::PageSetupState, String>),
     PrintPreview(Result<crate::printing::PrintDocument, String>),
     TemplateFormat(FileFormat),
-    FilterValues { revision:u64, values:Result<(Vec<(String,bool)>,bool),String>, criteria:Option<FilterChange> },
+    FilterValues {
+        revision: u64,
+        values: Result<(Vec<(String, bool)>, bool), String>,
+        criteria: Option<FilterChange>,
+    },
     Names(crate::names::NamePage),
     NameEvaluation(crate::names::NameEvaluation),
     Part(Result<crate::parts::PartValue, String>),
@@ -1150,8 +1468,11 @@ pub enum Reply {
     UsedArea(Option<Area>),
     ResolvedReference(Result<Area, String>),
     Charts(Vec<Chart>),
-    PivotTables{tables:Vec<SavedPivot>,issues:Vec<String>},
-    PivotSourceFields(Result<Vec<String>,String>),
+    PivotTables {
+        tables: Vec<SavedPivot>,
+        issues: Vec<String>,
+    },
+    PivotSourceFields(Result<Vec<String>, String>),
     Validation(Option<Validation>),
     ValidationInvalid(ValidationScan),
     Atlas(Atlas),
@@ -1358,7 +1679,13 @@ impl Cell {
 /// use the binary codec on worker transports.
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 pub enum Event {
-    WorkbookEventFailed { workbook: u64, sequence: u64, event: String, reason: String, omitted: u64 },
+    WorkbookEventFailed {
+        workbook: u64,
+        sequence: u64,
+        event: String,
+        reason: String,
+        omitted: u64,
+    },
     SaveReady {
         workbook: u64,
         token: u64,
@@ -1622,16 +1949,49 @@ pub enum FillShown {
 }
 
 #[derive(Clone, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
-pub struct ReviewFormat {pub bold:Option<bool>,pub italic:Option<bool>,pub underline:Option<bool>,pub color:Option<String>,pub clear:bool}
+pub struct ReviewFormat {
+    pub bold: Option<bool>,
+    pub italic: Option<bool>,
+    pub underline: Option<bool>,
+    pub color: Option<String>,
+    pub clear: bool,
+}
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
-pub struct ReviewRun {pub text:String,pub bold:bool,pub italic:bool,pub underline:bool,pub strike:bool,pub color:Option<String>,pub size:Option<String>}
+pub struct ReviewRun {
+    pub text: String,
+    pub bold: bool,
+    pub italic: bool,
+    pub underline: bool,
+    pub strike: bool,
+    pub color: Option<String>,
+    pub size: Option<String>,
+}
 
-#[derive(Clone,Debug,Default,PartialEq,Eq,Serialize,Deserialize)]
-pub struct ChartTextStyle{pub family:Option<String>,pub size:Option<u32>,pub bold:Option<bool>,pub italic:Option<bool>,pub color:Option<String>}
+#[derive(Clone, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
+pub struct ChartTextStyle {
+    pub family: Option<String>,
+    pub size: Option<u32>,
+    pub bold: Option<bool>,
+    pub italic: Option<bool>,
+    pub color: Option<String>,
+}
 
 /// Metadata for a saved pivot; its cells are presented through the normal worksheet route.
-#[derive(Clone,Debug,PartialEq,Eq,Serialize,Deserialize)]
-pub struct SavedPivot {pub refreshed_revision:Option<u64>,pub name:String,pub part:String,pub area:Area,pub location:String,pub source:String,pub fields:String,pub cache:String}
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+pub struct SavedPivot {
+    pub refreshed_revision: Option<u64>,
+    pub name: String,
+    pub part: String,
+    pub area: Area,
+    pub location: String,
+    pub source: String,
+    pub fields: String,
+    pub cache: String,
+}
 
-#[derive(Clone,Debug,Default,PartialEq,Eq,Serialize,Deserialize)]
-pub struct ChartTextElement{pub target:String,pub label:String,pub style:ChartTextStyle}
+#[derive(Clone, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
+pub struct ChartTextElement {
+    pub target: String,
+    pub label: String,
+    pub style: ChartTextStyle,
+}

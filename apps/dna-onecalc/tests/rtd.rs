@@ -2,9 +2,9 @@
 //! server. The same rules calc-fml defines for every host: ConnectData's value shows at once and is
 //! certified once the session admits it, a later update advances the input and the owner
 //! calculates again, and a formula that stops reading a topic leaves its lease to be disconnected.
-use calc_func::value::{CalcValue, CellKey};
 use calc_fml::rtd::RtdDisposition;
 use calc_fml::{RtdConnection, RtdConnector, RtdLease, TopicKey};
+use calc_func::value::{CalcValue, CellKey};
 use dna_onecalc::Session;
 use std::cell::RefCell;
 use std::rc::Rc;
@@ -16,14 +16,25 @@ struct Server {
 }
 
 impl RtdConnector for Server {
-    fn connect(&self, topic: &TopicKey, _caller: CellKey, _declared: bool) -> Result<RtdConnection, String> {
+    fn connect(
+        &self,
+        topic: &TopicKey,
+        _caller: CellKey,
+        _declared: bool,
+    ) -> Result<RtdConnection, String> {
         let mut connected = self.connected.borrow_mut();
         if let Some((_, lease)) = connected.iter().find(|(held, _)| held == topic) {
-            return Ok(RtdConnection { lease: RtdLease(*lease), provisional: None });
+            return Ok(RtdConnection {
+                lease: RtdLease(*lease),
+                provisional: None,
+            });
         }
         let lease = connected.len() as u64 + 1;
         connected.push((topic.clone(), lease));
-        Ok(RtdConnection { lease: RtdLease(lease), provisional: Some((1, CalcValue::number(1.0))) })
+        Ok(RtdConnection {
+            lease: RtdLease(lease),
+            provisional: Some((1, CalcValue::number(1.0))),
+        })
     }
 }
 
@@ -41,7 +52,9 @@ fn number(session: &mut Session, formula: &str) -> f64 {
     let value = calculation
         .result
         .unwrap_or_else(|| panic!("{formula}: {:?}", calculation.diagnostics));
-    value.as_number().unwrap_or_else(|| panic!("{formula}: {value:?}"))
+    value
+        .as_number()
+        .unwrap_or_else(|| panic!("{formula}: {value:?}"))
 }
 
 #[cfg_attr(not(target_arch = "wasm32"), test)]
@@ -56,17 +69,32 @@ fn a_connection_shows_its_first_value_and_an_update_makes_the_owner_calculate_ag
     // The session admitted the connection's value as sequence 1 when the evaluation ended.
     let admitted = session.take_rtd_admissions();
     assert_eq!(admitted.len(), 1);
-    assert_eq!((admitted[0].sequence, admitted[0].value.clone()), (1, CalcValue::number(1.0)));
+    assert_eq!(
+        (admitted[0].sequence, admitted[0].value.clone()),
+        (1, CalcValue::number(1.0))
+    );
     // A RefreshData: sequence 2 with 42. The formula read that topic, so the owner calculates again.
     let topic = reads[0].topic.clone();
-    assert_eq!(session.update_rtd(topic.clone(), RtdLease(1), 2, CalcValue::number(42.0)), RtdDisposition::Accepted);
+    assert_eq!(
+        session.update_rtd(topic.clone(), RtdLease(1), 2, CalcValue::number(42.0)),
+        RtdDisposition::Accepted
+    );
     assert!(session.reads_rtd(&topic, RtdLease(1)));
     assert_eq!(number(&mut session, "=10+RTD(\"P.Server\",,\"a\")+3"), 55.0);
     assert_eq!(session.rtd_reads()[0].sequence, 2);
     // The same update again, an older one and one for another incarnation are not admitted.
-    assert_eq!(session.update_rtd(topic.clone(), RtdLease(1), 2, CalcValue::number(42.0)), RtdDisposition::Duplicate);
-    assert_eq!(session.update_rtd(topic.clone(), RtdLease(1), 1, CalcValue::number(1.0)), RtdDisposition::StaleSequence);
-    assert_eq!(session.update_rtd(topic, RtdLease(1), 0, CalcValue::number(1.0)), RtdDisposition::InvalidValue);
+    assert_eq!(
+        session.update_rtd(topic.clone(), RtdLease(1), 2, CalcValue::number(42.0)),
+        RtdDisposition::Duplicate
+    );
+    assert_eq!(
+        session.update_rtd(topic.clone(), RtdLease(1), 1, CalcValue::number(1.0)),
+        RtdDisposition::StaleSequence
+    );
+    assert_eq!(
+        session.update_rtd(topic, RtdLease(1), 0, CalcValue::number(1.0)),
+        RtdDisposition::InvalidValue
+    );
 }
 
 #[cfg_attr(not(target_arch = "wasm32"), test)]
@@ -79,9 +107,15 @@ fn a_formula_that_stops_reading_a_topic_leaves_its_lease_to_be_disconnected() {
     assert_eq!(number(&mut session, "=RTD(\"P.Server\",,\"b\")"), 1.0);
     let unread = session.take_unread_rtd();
     assert_eq!(unread, vec![(topic.clone(), RtdLease(1))]);
-    assert_eq!(session.retire_rtd(topic.clone(), RtdLease(1)), RtdDisposition::Accepted);
+    assert_eq!(
+        session.retire_rtd(topic.clone(), RtdLease(1)),
+        RtdDisposition::Accepted
+    );
     // A retired connection admits nothing more.
-    assert_eq!(session.update_rtd(topic, RtdLease(1), 3, CalcValue::number(9.0)), RtdDisposition::Retired);
+    assert_eq!(
+        session.update_rtd(topic, RtdLease(1), 3, CalcValue::number(9.0)),
+        RtdDisposition::Retired
+    );
     // The topic still read is not touched.
     assert_eq!(session.rtd_reads().len(), 1);
     assert!(session.take_unread_rtd().is_empty());

@@ -29,7 +29,7 @@
 
 use crate::state::HostState;
 use crate::{ProjectedValue, ProjectionRequest, project};
-use calc_doc::look::{self, Applied, Appearance, RuleStats};
+use calc_doc::look::{self, Appearance, Applied, RuleStats};
 use calc_doc::{ConditionalRule, Threshold};
 use calc_doc_model::StyleColor;
 use calc_doc_model::value::{CalcValue, CellKey, GridArea, SheetId};
@@ -146,16 +146,16 @@ impl ConditionalFormats {
                 } else if stopped {
                     "Skipped after Stop if true".to_owned()
                 } else if p.condition.is_none()
-                        && !matches!(
-                            p.rule.kind.as_str(),
-                            "colorScale"
-                                | "dataBar"
-                                | "iconSet"
-                                | "top10"
-                                | "aboveAverage"
-                                | "duplicateValues"
-                                | "uniqueValues"
-                        )
+                    && !matches!(
+                        p.rule.kind.as_str(),
+                        "colorScale"
+                            | "dataBar"
+                            | "iconSet"
+                            | "top10"
+                            | "aboveAverage"
+                            | "duplicateValues"
+                            | "uniqueValues"
+                    )
                 {
                     "Rule evaluation is unavailable (dc-971p.8)".to_owned()
                 } else {
@@ -305,7 +305,9 @@ impl HostState {
             .conditional_rules(sheet)
             .iter()
             .enumerate()
-            .filter(|(_, source)| area.is_none_or(|a| source.areas.iter().any(|b| a.intersection(*b).is_some())))
+            .filter(|(_, source)| {
+                area.is_none_or(|a| source.areas.iter().any(|b| a.intersection(*b).is_some()))
+            })
         {
             if let (Ok(rule), Some(origin)) = (calc_doc::conditional_rule(source), source.origin())
             {
@@ -380,10 +382,13 @@ impl HostState {
         origin: CellKey,
         context: Option<&calc_engine::DetachedEvaluationContext<'_>>,
     ) -> Prepared {
-        let compile = |text: &str| match context {
-            Some(context) => context.compile(text, origin, calc_fml::FormulaForm::Legacy),
-            None => DetachedFormula::compile(&self.model, text, origin),
-        }.map_err(|_| ());
+        let compile = |text: &str| {
+            match context {
+                Some(context) => context.compile(text, origin, calc_fml::FormulaForm::Legacy),
+                None => DetachedFormula::compile(&self.model, text, origin),
+            }
+            .map_err(|_| ())
+        };
         let condition = match rule.kind.as_str() {
             "cellIs" => Some(match cell_is_formula(rule, origin) {
                 Some(text) => compile(&text),
@@ -413,11 +418,19 @@ impl HostState {
             })
             .collect();
         let average = (rule.kind == "aboveAverage").then(|| {
-            let absolute = |at| {let text=a1(at);let split=text.find(|c:char|c.is_ascii_digit()).unwrap();format!("${}${}",&text[..split],&text[split..])};
-            let ranges=areas.iter().map(|a|format!("{}:{}",absolute(a.first()),absolute(a.last()))).collect::<Vec<_>>().join(",");
-            let bound=look::average_formula(rule,&ranges);
-            let formula=compile(&bound)?;
-            let value=evaluate_formula(self,&formula,origin,context).map_err(|_|())?;
+            let absolute = |at| {
+                let text = a1(at);
+                let split = text.find(|c: char| c.is_ascii_digit()).unwrap();
+                format!("${}${}", &text[..split], &text[split..])
+            };
+            let ranges = areas
+                .iter()
+                .map(|a| format!("{}:{}", absolute(a.first()), absolute(a.last())))
+                .collect::<Vec<_>>()
+                .join(",");
+            let bound = look::average_formula(rule, &ranges);
+            let formula = compile(&bound)?;
+            let value = evaluate_formula(self, &formula, origin, context).map_err(|_| ())?;
             look::number_of(&value).ok_or(())
         });
         let stats = (condition.is_none() && average.is_none()).then(|| self.stats(areas));
@@ -474,10 +487,15 @@ impl HostState {
         // Live spill members need not have authored cell inputs. Read their published values
         // through the same projection as occupied cells, and count overlaps only once.
         for spill in self.engine.spills() {
-            for area in areas.iter().filter_map(|area| area.intersection(spill.area())) {
+            for area in areas
+                .iter()
+                .filter_map(|area| area.intersection(spill.area()))
+            {
                 for row in area.first().row()..=area.last().row() {
                     for column in area.first().column()..=area.last().column() {
-                        cells.push(CellKey::new(area.sheet(), row, column).expect("valid spill area"));
+                        cells.push(
+                            CellKey::new(area.sheet(), row, column).expect("valid spill area"),
+                        );
                     }
                 }
             }

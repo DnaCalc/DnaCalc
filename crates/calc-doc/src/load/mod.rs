@@ -26,20 +26,20 @@
 //! give a save any revision of its model together with the records the save rewrites from.
 
 pub(crate) mod address;
-mod data_model;
 mod chart;
-pub mod pivot;
-pub(crate) mod page_setup;
 pub(crate) mod conditional;
+mod data_model;
 mod error;
 mod external;
 pub(crate) mod filter;
+pub(crate) mod page_setup;
+pub mod pivot;
 pub(crate) mod review;
 pub use review::{ReviewLink, ReviewNote, SheetReview};
 pub(crate) mod geometry;
-pub(crate) mod outline;
 pub(crate) mod manifest;
 pub(crate) mod metadata;
+pub(crate) mod outline;
 pub(crate) mod sheet;
 mod shift;
 pub(crate) mod strings;
@@ -124,7 +124,7 @@ pub struct LoadedSheet {
     merged_areas: Vec<GridArea>,
     validations: Arc<[Validation]>,
     charts: Arc<SheetCharts>,
-    pivots:Arc<pivot::SheetPivots>,
+    pivots: Arc<pivot::SheetPivots>,
     page_setup: calc_doc_model::PageSetup,
     review: Arc<SheetReview>,
 }
@@ -149,7 +149,7 @@ impl LoadedSheet {
             merged_areas: Vec::new(),
             validations: Arc::from([]),
             charts: Arc::new(SheetCharts::default()),
-            pivots:Arc::new(pivot::SheetPivots::default()),
+            pivots: Arc::new(pivot::SheetPivots::default()),
             page_setup: Default::default(),
             review: Arc::new(SheetReview::default()),
         }
@@ -182,7 +182,9 @@ impl LoadedSheet {
     }
 
     /// Saved source definitions; they do not represent a refresh.
-    pub fn pivots(&self)->&pivot::SheetPivots{&self.pivots}
+    pub fn pivots(&self) -> &pivot::SheetPivots {
+        &self.pivots
+    }
 
     pub fn charts(&self) -> &SheetCharts {
         &self.charts
@@ -383,7 +385,7 @@ pub struct LoadedWorkbook {
     model: Arc<ModelRoot>,
     workbook_part: String,
     sheets: Arc<[LoadedSheet]>,
-    pivot_caches:Arc<pivot::PivotCaches>,
+    pivot_caches: Arc<pivot::PivotCaches>,
     cell_formats: u32,
     styles: Arc<StyleTable>,
     theme_colors: Arc<[String]>,
@@ -400,93 +402,239 @@ pub struct LoadedWorkbook {
 }
 
 impl LoadedWorkbook {
-    pub fn check_pivot_state(&self,state:&calc_doc_model::pivot::PivotState)->Result<(),crate::SaveRefusal>{crate::save::pivot::check(&self.package,self.model.definitions().pivots(),state,&self.workbook_part,&self.sheets)}
+    pub fn check_pivot_state(
+        &self,
+        state: &calc_doc_model::pivot::PivotState,
+    ) -> Result<(), crate::SaveRefusal> {
+        crate::save::pivot::check(
+            &self.package,
+            self.model.definitions().pivots(),
+            state,
+            &self.workbook_part,
+            &self.sheets,
+        )
+    }
 
-    pub fn pivot_caches(&self)->&pivot::PivotCaches{&self.pivot_caches}
+    pub fn pivot_caches(&self) -> &pivot::PivotCaches {
+        &self.pivot_caches
+    }
     /// Inspect at most 100,000 saved records and 1,000,000 items, never calculated results.
-    pub fn pivot_records(&self,id:u32,max_records:usize)->Result<pivot::PivotRecords,pivot::PivotIssue>{
-        let cache=self.pivot_caches.caches.get(&id).ok_or_else(||pivot::PivotIssue{part:self.workbook_part.clone(),detail:format!("Pivot cache {id} was not read"),owner:"dc-8wp"})?;
-        pivot::read_records(&self.package,cache,max_records)
+    pub fn pivot_records(
+        &self,
+        id: u32,
+        max_records: usize,
+    ) -> Result<pivot::PivotRecords, pivot::PivotIssue> {
+        let cache = self
+            .pivot_caches
+            .caches
+            .get(&id)
+            .ok_or_else(|| pivot::PivotIssue {
+                part: self.workbook_part.clone(),
+                detail: format!("Pivot cache {id} was not read"),
+                owner: "dc-8wp",
+            })?;
+        pivot::read_records(&self.package, cache, max_records)
     }
 
     /// Preflight the same print-element writer used by Save.
-    pub fn check_page_setup(&self, sheet: SheetId, old:&calc_doc_model::PageSetup, new:&calc_doc_model::PageSetup)->Result<(),crate::SaveRefusal> {
-        let name=self.sheet(sheet).map(|s|s.part().name()).unwrap_or("new-worksheet.xml");
-        if self.sheets.iter().any(|s|s.id()!=sheet&&s.part().name()==name) {return Err(crate::SaveRefusal::SharedSheetPart{part:name.into()});}
-        let xml=crate::save::sheets::read_sheet(&self.package,name)?;
-        crate::save::page_setup::rewrite(&xml,old,new).map(|_|())
+    pub fn check_page_setup(
+        &self,
+        sheet: SheetId,
+        old: &calc_doc_model::PageSetup,
+        new: &calc_doc_model::PageSetup,
+    ) -> Result<(), crate::SaveRefusal> {
+        let name = self
+            .sheet(sheet)
+            .map(|s| s.part().name())
+            .unwrap_or("new-worksheet.xml");
+        if self
+            .sheets
+            .iter()
+            .any(|s| s.id() != sheet && s.part().name() == name)
+        {
+            return Err(crate::SaveRefusal::SharedSheetPart { part: name.into() });
+        }
+        let xml = crate::save::sheets::read_sheet(&self.package, name)?;
+        crate::save::page_setup::rewrite(&xml, old, new).map(|_| ())
     }
 
     /// Preflight the retained chart writer used by authored Save.
-    pub fn check_chart_properties(&self,sheet:SheetId,chart:&calc_doc_model::Chart)->Result<(),crate::SaveRefusal> {
-        if let Some(original)=self.model.definitions().charts(sheet).iter().find(|old|old.part==chart.part) {
-            crate::save::chart::source(&self.package,&self.model,original,chart).map(|_|())
-        }else{
-            crate::save::chart::render_new(chart).map(|_|())
+    pub fn check_chart_properties(
+        &self,
+        sheet: SheetId,
+        chart: &calc_doc_model::Chart,
+    ) -> Result<(), crate::SaveRefusal> {
+        if let Some(original) = self
+            .model
+            .definitions()
+            .charts(sheet)
+            .iter()
+            .find(|old| old.part == chart.part)
+        {
+            crate::save::chart::source(&self.package, &self.model, original, chart).map(|_| ())
+        } else {
+            crate::save::chart::render_new(chart).map(|_| ())
         }
     }
 
     /// Validate the complete chart set through the same fresh-frame writer as Save.
-    pub fn check_chart_set(&self,sheet:SheetId,charts:&[calc_doc_model::Chart])->Result<(),crate::SaveRefusal>{
-        let fail=|detail:&str|crate::SaveRefusal::ChartNotModelled{part:"charts".into(),detail:detail.into(),owner:"dc-971p.49"};
-        let original=self.model.definitions().charts(sheet);
-        if charts.len()<original.len() || charts.iter().zip(original).any(|(a,b)|a.part!=b.part){return Err(fail("Removing or reordering imported chart frames is not modelled"));}
-        for (old,new) in original.iter().zip(charts).filter(|(old,new)|old!=new){crate::save::chart::source(&self.package,&self.model,old,new)?;}
-        let new=&charts[original.len()..];
-        if !new.is_empty(){
-            let source=self.sheet(sheet).ok_or_else(||fail("Save and reopen the new worksheet before creating a chart"))?;
-            crate::save::chart::check_new_frames(&self.package,source,new)?;
+    pub fn check_chart_set(
+        &self,
+        sheet: SheetId,
+        charts: &[calc_doc_model::Chart],
+    ) -> Result<(), crate::SaveRefusal> {
+        let fail = |detail: &str| crate::SaveRefusal::ChartNotModelled {
+            part: "charts".into(),
+            detail: detail.into(),
+            owner: "dc-971p.49",
+        };
+        let original = self.model.definitions().charts(sheet);
+        if charts.len() < original.len()
+            || charts.iter().zip(original).any(|(a, b)| a.part != b.part)
+        {
+            return Err(fail(
+                "Removing or reordering imported chart frames is not modelled",
+            ));
+        }
+        for (old, new) in original.iter().zip(charts).filter(|(old, new)| old != new) {
+            crate::save::chart::source(&self.package, &self.model, old, new)?;
+        }
+        let new = &charts[original.len()..];
+        if !new.is_empty() {
+            let source = self
+                .sheet(sheet)
+                .ok_or_else(|| fail("Save and reopen the new worksheet before creating a chart"))?;
+            crate::save::chart::check_new_frames(&self.package, source, new)?;
         }
         Ok(())
     }
 
     /// Preflight the same retained-element rewrite used by a sorted hyperlink save.
-    pub fn check_sorted_links(&self,sheet:SheetId,links:&[calc_doc_model::ReviewLink])->Result<(),crate::SaveRefusal>{
-        let Some(source)=self.sheet(sheet)else{
-            return if links.is_empty(){Ok(())}else{Err(crate::SaveRefusal::InvalidPart{part:"worksheet".into(),detail:"Hyperlinks have no original worksheet (dc-971p.38)".into()})};
+    pub fn check_sorted_links(
+        &self,
+        sheet: SheetId,
+        links: &[calc_doc_model::ReviewLink],
+    ) -> Result<(), crate::SaveRefusal> {
+        let Some(source) = self.sheet(sheet) else {
+            return if links.is_empty() {
+                Ok(())
+            } else {
+                Err(crate::SaveRefusal::InvalidPart {
+                    part: "worksheet".into(),
+                    detail: "Hyperlinks have no original worksheet (dc-971p.38)".into(),
+                })
+            };
         };
-        let xml=self.package.read_xml(source.part().name()).map_err(|e|crate::SaveRefusal::InvalidPart{part:source.part().name().into(),detail:e.to_string()})?;
-        crate::save::review::sorted_links(&xml,&xml,&source.review().links,links).map(|_|())
+        let xml = self.package.read_xml(source.part().name()).map_err(|e| {
+            crate::SaveRefusal::InvalidPart {
+                part: source.part().name().into(),
+                detail: e.to_string(),
+            }
+        })?;
+        crate::save::review::sorted_links(&xml, &xml, &source.review().links, links).map(|_| ())
     }
     /// Adopt a validated package extension into the existing authored lineage.
-    pub fn adopt_template_lineage(&mut self, previous:&ModelRoot) -> Result<(),calc_doc_model::ApplyError> {
+    pub fn adopt_template_lineage(
+        &mut self,
+        previous: &ModelRoot,
+    ) -> Result<(), calc_doc_model::ApplyError> {
         self.model = previous.with_imported_worksheets(&self.model)?;
         Ok(())
     }
-    pub fn review_drawing_shared(&self,sheet:SheetId)->bool {
-        let Some(sheet)=self.sheet(sheet)else{return false;};
-        let target=self.package.relationships_of(Some(sheet.part().name())).and_then(|r|r.items().iter().find(|r|r.kind.ends_with("/vmlDrawing")&&r.mode==crate::opc::TargetMode::Internal)).and_then(|r|r.resolved.as_ref());
-        target.is_some_and(|target|self.sheets().iter().filter(|s|self.package.relationships_of(Some(s.part().name())).is_some_and(|r|r.items().iter().any(|r|r.kind.ends_with("/vmlDrawing")&&r.resolved.as_ref()==Some(target)))).count()>1)
+    pub fn review_drawing_shared(&self, sheet: SheetId) -> bool {
+        let Some(sheet) = self.sheet(sheet) else {
+            return false;
+        };
+        let target = self
+            .package
+            .relationships_of(Some(sheet.part().name()))
+            .and_then(|r| {
+                r.items().iter().find(|r| {
+                    r.kind.ends_with("/vmlDrawing") && r.mode == crate::opc::TargetMode::Internal
+                })
+            })
+            .and_then(|r| r.resolved.as_ref());
+        target.is_some_and(|target| {
+            self.sheets()
+                .iter()
+                .filter(|s| {
+                    self.package
+                        .relationships_of(Some(s.part().name()))
+                        .is_some_and(|r| {
+                            r.items().iter().any(|r| {
+                                r.kind.ends_with("/vmlDrawing")
+                                    && r.resolved.as_ref() == Some(target)
+                            })
+                        })
+                })
+                .count()
+                > 1
+        })
     }
-    pub fn review_people(&self)->std::collections::BTreeMap<String,String>{review::persons(&self.package)}
-    pub fn has_part(&self,name:&str)->bool{self.package.part(name).is_some()}
-    pub fn available_part_name(&self,stem:&str,extension:&str,reserved:&[String])->String{crate::save::available_part_name(&self.package,&self.workbook_part,stem,extension,reserved)}
-    pub fn review_part(&self,sheet:SheetId,threaded:bool)->Option<String>{
-        let sheet=self.sheet(sheet)?;let suffix=if threaded {"/threadedComment"}else{"/comments"};
-        self.package.relationships_of(Some(sheet.part().name()))?.items().iter().find(|r|r.kind.ends_with(suffix)&&r.mode==crate::opc::TargetMode::Internal)?.resolved.clone()
+    pub fn review_people(&self) -> std::collections::BTreeMap<String, String> {
+        review::persons(&self.package)
+    }
+    pub fn has_part(&self, name: &str) -> bool {
+        self.package.part(name).is_some()
+    }
+    pub fn available_part_name(&self, stem: &str, extension: &str, reserved: &[String]) -> String {
+        crate::save::available_part_name(
+            &self.package,
+            &self.workbook_part,
+            stem,
+            extension,
+            reserved,
+        )
+    }
+    pub fn review_part(&self, sheet: SheetId, threaded: bool) -> Option<String> {
+        let sheet = self.sheet(sheet)?;
+        let suffix = if threaded {
+            "/threadedComment"
+        } else {
+            "/comments"
+        };
+        self.package
+            .relationships_of(Some(sheet.part().name()))?
+            .items()
+            .iter()
+            .find(|r| r.kind.ends_with(suffix) && r.mode == crate::opc::TargetMode::Internal)?
+            .resolved
+            .clone()
     }
 
     /// Whether a rectangular shift can preserve this sheet's position metadata today.
     pub fn cell_shift_metadata_supported(&self, sheet: SheetId) -> bool {
-        self.cell_position_metadata_supported(sheet,false)
+        self.cell_position_metadata_supported(sheet, false)
     }
 
-    fn cell_position_metadata_supported(&self, sheet:SheetId, sorting:bool)->bool {
-        let review_supported=sorting && self.check_sorted_note_shapes(sheet,self.model().definitions().review_notes(sheet)).is_ok();
+    fn cell_position_metadata_supported(&self, sheet: SheetId, sorting: bool) -> bool {
+        let review_supported = sorting
+            && self
+                .check_sorted_note_shapes(sheet, self.model().definitions().review_notes(sheet))
+                .is_ok();
         let Some(sheet) = self.sheet(sheet) else {
             return true;
         };
-        let tables_supported = sorting && tables::sorting_supported(&self.package,sheet.part().name(),sheet.id(),self.model().definitions().tables());
+        let tables_supported = sorting
+            && tables::sorting_supported(
+                &self.package,
+                sheet.part().name(),
+                sheet.id(),
+                self.model().definitions().tables(),
+            );
         if self
             .package
             .relationships_of(Some(sheet.part().name()))
             .is_some_and(|rels| {
                 rels.items().iter().any(|r| {
-                    !(review_supported && ["comments","threadedComment","vmlDrawing"].iter().any(|kind|r.kind.ends_with(&format!("/{kind}"))))
-                    && !(tables_supported && r.kind == tables::TABLE)
-                    && !["printerSettings", "image", "customProperty", "hyperlink"]
-                        .iter()
-                        .any(|kind| r.kind.ends_with(&format!("/{kind}")))
+                    !(review_supported
+                        && ["comments", "threadedComment", "vmlDrawing"]
+                            .iter()
+                            .any(|kind| r.kind.ends_with(&format!("/{kind}"))))
+                        && !(tables_supported && r.kind == tables::TABLE)
+                        && !["printerSettings", "image", "customProperty", "hyperlink"]
+                            .iter()
+                            .any(|kind| r.kind.ends_with(&format!("/{kind}")))
                 })
             })
         {
@@ -521,8 +669,18 @@ impl LoadedWorkbook {
                 {
                     return false;
                 }
-                Ok(Some(crate::xml::XmlEvent::Start(e))) if e.name.local == "hyperlinks" && (!sorting || !e.name.is(MAIN_NAMESPACE,"hyperlinks")) => return false,
-                Ok(Some(crate::xml::XmlEvent::Start(e))) if e.name.local == "legacyDrawing" && (!review_supported || !e.name.is(MAIN_NAMESPACE,"legacyDrawing")) => return false,
+                Ok(Some(crate::xml::XmlEvent::Start(e)))
+                    if e.name.local == "hyperlinks"
+                        && (!sorting || !e.name.is(MAIN_NAMESPACE, "hyperlinks")) =>
+                {
+                    return false;
+                }
+                Ok(Some(crate::xml::XmlEvent::Start(e)))
+                    if e.name.local == "legacyDrawing"
+                        && (!review_supported || !e.name.is(MAIN_NAMESPACE, "legacyDrawing")) =>
+                {
+                    return false;
+                }
                 Ok(None) => return true,
                 Err(_) => return false,
                 _ => {}
@@ -535,7 +693,7 @@ impl LoadedWorkbook {
     /// positional objects, decorated strings anywhere in its workbook, or source-only cell
     /// attributes remains unchanged until those records can follow the cells.
     pub fn cell_sort_metadata_supported(&self, sheet: SheetId) -> bool {
-        if !self.cell_position_metadata_supported(sheet,true) {
+        if !self.cell_position_metadata_supported(sheet, true) {
             return false;
         }
         let Some(sheet) = self.sheet(sheet) else {
@@ -610,15 +768,26 @@ impl LoadedWorkbook {
                                     // Shared groups are modelled formula storage; the copy route
                                     // materialises each member before relocation. Other source
                                     // formula attributes must remain at their source.
-                                    "f" => parent == Some("c") && e.attributes.iter().all(|a| {
-                                        a.name.namespace.is_none() && match (e.attribute("t"), a.name.local.as_str()) {
-                                            (Some("shared"), "t") => true,
-                                            (Some("shared"), "si") => a.value.parse::<u32>().is_ok(),
-                                            (Some("shared"), "ref") => address::area(&a.value).is_some(),
-                                            (Some("normal"), "t") => true,
-                                            _ => false,
-                                        }
-                                    }),
+                                    "f" => {
+                                        parent == Some("c")
+                                            && e.attributes.iter().all(|a| {
+                                                a.name.namespace.is_none()
+                                                    && match (
+                                                        e.attribute("t"),
+                                                        a.name.local.as_str(),
+                                                    ) {
+                                                        (Some("shared"), "t") => true,
+                                                        (Some("shared"), "si") => {
+                                                            a.value.parse::<u32>().is_ok()
+                                                        }
+                                                        (Some("shared"), "ref") => {
+                                                            address::area(&a.value).is_some()
+                                                        }
+                                                        (Some("normal"), "t") => true,
+                                                        _ => false,
+                                                    }
+                                            })
+                                    }
                                     _ => false,
                                 };
                             if !allowed {
@@ -727,8 +896,12 @@ impl LoadedWorkbook {
     /// The file kind declared by the workbook part, independent of its file name.
     pub fn spreadsheet_format(&self) -> crate::SpreadsheetFormat {
         crate::SpreadsheetFormat::from_content_type(
-            self.package.part(&self.workbook_part).and_then(|p| p.content_type()).unwrap_or("")
-        ).expect("load checked the workbook content type")
+            self.package
+                .part(&self.workbook_part)
+                .and_then(|p| p.content_type())
+                .unwrap_or(""),
+        )
+        .expect("load checked the workbook content type")
     }
 
     /// The workbook part the package's relationships name.
@@ -757,16 +930,22 @@ impl LoadedWorkbook {
         &self,
     ) -> Result<Vec<(String, Option<SheetId>)>, crate::VbaReadError> {
         let mut names = Vec::new();
-        for (part, element, sheet) in std::iter::once((
-            self.workbook_part.as_str(), "workbookPr", None,
-        )).chain(self.sheets.iter().map(|sheet| (
-            sheet.part().name(), "sheetPr", Some(sheet.id()),
-        ))) {
-            let xml = self.package.read_xml(part).map_err(crate::VbaReadError::Part)?;
+        for (part, element, sheet) in
+            std::iter::once((self.workbook_part.as_str(), "workbookPr", None)).chain(
+                self.sheets
+                    .iter()
+                    .map(|sheet| (sheet.part().name(), "sheetPr", Some(sheet.id()))),
+            )
+        {
+            let xml = self
+                .package
+                .read_xml(part)
+                .map_err(crate::VbaReadError::Part)?;
             let mut reader = xml.reader();
-            while let Some(event) = reader.next_event().map_err(|e| {
-                crate::VbaReadError::CodeName(e.to_string())
-            })? {
+            while let Some(event) = reader
+                .next_event()
+                .map_err(|e| crate::VbaReadError::CodeName(e.to_string()))?
+            {
                 if let crate::xml::XmlEvent::Start(e) = event
                     && e.name.is(MAIN_NAMESPACE, element)
                     && let Some(name) = e.attribute("codeName")
@@ -853,7 +1032,10 @@ impl LoadedWorkbook {
     /// The custom XML items of the package whose document element is in `namespace`: each item
     /// part's name and its bytes, in the order the package's relationships list them. An
     /// application reads its own settings from such an item ([`crate::CustomXmlItem`]).
-    pub fn custom_xml(&self, namespace: &str) -> Result<Vec<(String, Vec<u8>)>, crate::PartReadError> {
+    pub fn custom_xml(
+        &self,
+        namespace: &str,
+    ) -> Result<Vec<(String, Vec<u8>)>, crate::PartReadError> {
         crate::custom_xml::parts_in(&self.package, namespace)
             .into_iter()
             .map(|part| self.package.read_part(&part).map(|bytes| (part, bytes)))
@@ -1480,7 +1662,7 @@ pub fn load(
 pub fn load_preserving_sheet_ids(
     document: &OpenedDocument,
     sheet_ids: &mut IdAllocator<SheetId>,
-    existing: &std::collections::BTreeMap<SheetKey,SheetId>,
+    existing: &std::collections::BTreeMap<SheetKey, SheetId>,
 ) -> Result<LoadedWorkbook, LoadError> {
     let package = document.package();
     let workbook = {
@@ -1562,13 +1744,18 @@ pub fn load_preserving_sheet_ids(
         if let Some(&id) = existing.get(&declared.key) {
             if !sheet_ids.is_live(id) || issued.contains(&id) {
                 release(sheet_ids, &newly_issued);
-                return Err(LoadError::Workbook { detail: "a retained worksheet identity is unavailable or repeated" });
+                return Err(LoadError::Workbook {
+                    detail: "a retained worksheet identity is unavailable or repeated",
+                });
             }
             issued.push(id);
             continue;
         }
         match sheet_ids.issue() {
-            Ok(id) => {issued.push(id);newly_issued.push(id);},
+            Ok(id) => {
+                issued.push(id);
+                newly_issued.push(id);
+            }
             Err(error) => {
                 release(sheet_ids, &newly_issued);
                 return Err(LoadError::SheetIds(error));
@@ -1584,7 +1771,7 @@ pub fn load_preserving_sheet_ids(
     let mut sheets = Vec::with_capacity(declared.len());
     let (mut arrays, mut unloaded, mut tables) = (Vec::new(), Vec::new(), Vec::new());
     let mut auto_filters = Vec::new();
-    let mut table_visibility=Vec::new();
+    let mut table_visibility = Vec::new();
     let mut conditional_sources = Vec::new();
     let mut data_tables = Vec::new();
     let mut hidden_rows: Vec<(SheetId, u32, Option<(u32, u32, u32, u32)>)> = Vec::new();
@@ -1605,13 +1792,19 @@ pub fn load_preserving_sheet_ids(
                         .iter()
                         .map(|row| (id, *row, loaded.auto_filter)),
                 );
-                if let Some(mut filter)=loaded.filter {
+                if let Some(mut filter) = loaded.filter {
                     filter.unsupported |= filter.columns.values().any(|c|matches!(c,calc_doc_model::FilterCriteria::Color{dxf_id,..} if styles.differential_formats.get(*dxf_id as usize).is_none()));
-                    let manual=loaded.filter_manual;
-                    auto_filters.push((id,filter,manual));
+                    let manual = loaded.filter_manual;
+                    auto_filters.push((id, filter, manual));
                 }
                 unloaded.extend(loaded.unloaded);
-                for (mut table,manual) in sheet_tables {if let Some(f)=&mut table.filter{f.unsupported|=f.columns.values().any(|c|matches!(c,calc_doc_model::FilterCriteria::Color{dxf_id,..}if styles.differential_formats.get(*dxf_id as usize).is_none()));table_visibility.push((id,f.clone(),manual));}tables.push(table);}
+                for (mut table, manual) in sheet_tables {
+                    if let Some(f) = &mut table.filter {
+                        f.unsupported|=f.columns.values().any(|c|matches!(c,calc_doc_model::FilterCriteria::Color{dxf_id,..}if styles.differential_formats.get(*dxf_id as usize).is_none()));
+                        table_visibility.push((id, f.clone(), manual));
+                    }
+                    tables.push(table);
+                }
                 sheets.push(LoadedSheet {
                     id,
                     relationship: declared.relationship.clone(),
@@ -1629,7 +1822,7 @@ pub fn load_preserving_sheet_ids(
                     merged_areas: loaded.merged_areas,
                     validations: loaded.validations.into(),
                     charts: Arc::new(chart::read_charts(package, &declared.part)),
-                    pivots:Arc::new(loaded.pivots),
+                    pivots: Arc::new(loaded.pivots),
                     page_setup: loaded.page_setup,
                     review: Arc::new(loaded.review),
                 });
@@ -1688,18 +1881,49 @@ pub fn load_preserving_sheet_ids(
         .collect();
     // Each authored filter owns its excluded rows; side-by-side tables share physical hiding.
     for sheet in &sheets {
-        let physical=hidden_rows.iter().filter(|(id,_,_)|*id==sheet.id).map(|(_,row,_)|*row).collect::<Vec<_>>();
-        let peers=auto_filters.iter().chain(table_visibility.iter()).filter(|(id,_,_)|*id==sheet.id).flat_map(|(_,f,_)|f.filtered_rows.iter().copied()).collect::<std::collections::BTreeSet<_>>();
-        for (table,(id,f,manual)) in auto_filters.iter_mut().map(|v|(false,v)).chain(table_visibility.iter_mut().map(|v|(true,v))).filter(|(_, (id,_,_))|*id==sheet.id){let _=id;*manual=filter::visibility(f,manual.take(),&physical,&sheet.geometry,&peers,table);}
+        let physical = hidden_rows
+            .iter()
+            .filter(|(id, _, _)| *id == sheet.id)
+            .map(|(_, row, _)| *row)
+            .collect::<Vec<_>>();
+        let peers = auto_filters
+            .iter()
+            .chain(table_visibility.iter())
+            .filter(|(id, _, _)| *id == sheet.id)
+            .flat_map(|(_, f, _)| f.filtered_rows.iter().copied())
+            .collect::<std::collections::BTreeSet<_>>();
+        for (table, (id, f, manual)) in auto_filters
+            .iter_mut()
+            .map(|v| (false, v))
+            .chain(table_visibility.iter_mut().map(|v| (true, v)))
+            .filter(|(_, (id, _, _))| *id == sheet.id)
+        {
+            let _ = id;
+            *manual =
+                filter::visibility(f, manual.take(), &physical, &sheet.geometry, &peers, table);
+        }
     }
-    for table in &mut tables {if let Some(filter)=&mut table.filter {if let Some((_,normalized,_))=table_visibility.iter().find(|(sheet,f,_)|*sheet==table.sheet&&f.area==filter.area){*filter=normalized.clone();}}}
+    for table in &mut tables {
+        if let Some(filter) = &mut table.filter {
+            if let Some((_, normalized, _)) = table_visibility
+                .iter()
+                .find(|(sheet, f, _)| *sheet == table.sheet && f.area == filter.area)
+            {
+                *filter = normalized.clone();
+            }
+        }
+    }
     // A hidden row below the header of the sheet's filter range or of a table's (whose filter the
     // table part holds) is taken as hidden by the filter; any other hidden row as hidden by hand.
     let hidden_rows: Vec<(SheetId, u32, RowHidden)> = hidden_rows
         .into_iter()
         .map(|(sheet, row, auto_filter)| {
-            let _=auto_filter;
-            let in_filter=auto_filters.iter().chain(table_visibility.iter()).filter(|(s,_,_)|*s==sheet).any(|(_,f,_)|f.filtered_rows.contains(&row));
+            let _ = auto_filter;
+            let in_filter = auto_filters
+                .iter()
+                .chain(table_visibility.iter())
+                .filter(|(s, _, _)| *s == sheet)
+                .any(|(_, f, _)| f.filtered_rows.contains(&row));
             let why = if in_filter {
                 RowHidden::Filtered
             } else {
@@ -1714,36 +1938,76 @@ pub fn load_preserving_sheet_ids(
     }
     // Remove filter visibility from the manual axis flags. Ordinary imports cannot distinguish
     // both causes; DNA's validated extension restores them independently when it is present.
-    for (sheet,filter,manual) in auto_filters.iter().chain(table_visibility.iter()) {
-        for row in filter.filtered_rows.iter().chain(manual.iter().flat_map(|m|m.iter())).copied().collect::<std::collections::BTreeSet<_>>() {
-            if filter.filtered_rows.contains(&row) || manual.as_ref().is_some_and(|m|m.contains(&row)) {
-                let f=axis_layouts.get(*sheet,calc_doc_model::Axis::Rows,row).with_hidden(manual.as_ref().is_some_and(|m|m.contains(&row)));
-                axis_layouts.set(calc_doc_model::AxisFormatEdit::new(*sheet,calc_doc_model::Axis::Rows,row,f).unwrap());
+    for (sheet, filter, manual) in auto_filters.iter().chain(table_visibility.iter()) {
+        for row in filter
+            .filtered_rows
+            .iter()
+            .chain(manual.iter().flat_map(|m| m.iter()))
+            .copied()
+            .collect::<std::collections::BTreeSet<_>>()
+        {
+            if filter.filtered_rows.contains(&row)
+                || manual.as_ref().is_some_and(|m| m.contains(&row))
+            {
+                let f = axis_layouts
+                    .get(*sheet, calc_doc_model::Axis::Rows, row)
+                    .with_hidden(manual.as_ref().is_some_and(|m| m.contains(&row)));
+                axis_layouts.set(
+                    calc_doc_model::AxisFormatEdit::new(*sheet, calc_doc_model::Axis::Rows, row, f)
+                        .unwrap(),
+                );
             }
         }
     }
-    let pivot_caches=Arc::new(pivot::read_caches(package,&workbook));
-    let pivot_state=Arc::new(calc_doc_model::pivot::PivotState {caches:(*pivot_caches).clone(),sheets:sheets.iter().filter(|s|!s.pivots.tables.is_empty()||!s.pivots.issues.is_empty()).map(|s|(s.id,(*s.pivots).clone())).collect()});
+    let pivot_caches = Arc::new(pivot::read_caches(package, &workbook));
+    let pivot_state = Arc::new(calc_doc_model::pivot::PivotState {
+        caches: (*pivot_caches).clone(),
+        sheets: sheets
+            .iter()
+            .filter(|s| !s.pivots.tables.is_empty() || !s.pivots.issues.is_empty())
+            .map(|s| (s.id, (*s.pivots).clone()))
+            .collect(),
+    });
     let styles = Arc::new(styles);
     let mut definitions = Definitions::new(arrays, names, tables, unloaded)
         .with_pivots(pivot_state)
         .with_data_model(data_model)
         .with_styles(Arc::clone(&styles))
         .with_axis_layouts(axis_layouts)
-        .with_pane_layouts(sheets.iter().filter_map(|s|s.view.pane_layout().map(|p|(s.id,p))))
+        .with_pane_layouts(
+            sheets
+                .iter()
+                .filter_map(|s| s.view.pane_layout().map(|p| (s.id, p))),
+        )
         .with_hidden_rows(hidden_rows)
         .with_macro_enabled(macro_enabled)
         .with_iteration(iteration)
         .with_data_tables(data_tables)
         .with_workbook_name(package.source_name().map(str::to_owned))
         .with_external_books(external_books);
-    for (sheet,filter,_) in auto_filters { definitions=definitions.with_auto_filter(sheet,Some(filter)); }
-    let outline_edits:Vec<_>=sheets.iter().flat_map(|sheet|definitions.axis_layouts().bands(sheet.id,calc_doc_model::Axis::Rows).map(move |(i,f)|calc_doc_model::AxisFormatEdit::new(sheet.id,calc_doc_model::Axis::Rows,i,f).unwrap())).collect();
-    definitions=definitions.with_axis_formats(outline_edits);
+    for (sheet, filter, _) in auto_filters {
+        definitions = definitions.with_auto_filter(sheet, Some(filter));
+    }
+    let outline_edits: Vec<_> = sheets
+        .iter()
+        .flat_map(|sheet| {
+            definitions
+                .axis_layouts()
+                .bands(sheet.id, calc_doc_model::Axis::Rows)
+                .map(move |(i, f)| {
+                    calc_doc_model::AxisFormatEdit::new(sheet.id, calc_doc_model::Axis::Rows, i, f)
+                        .unwrap()
+                })
+        })
+        .collect();
+    definitions = definitions.with_axis_formats(outline_edits);
     for sheet in &sheets {
-        definitions = definitions.with_review_links(sheet.id,sheet.review.links.clone()).with_review_notes(sheet.id, sheet.review.notes.clone())
+        definitions = definitions
+            .with_review_links(sheet.id, sheet.review.links.clone())
+            .with_review_notes(sheet.id, sheet.review.notes.clone())
             .with_page_setup(sheet.id, sheet.page_setup.clone())
-            .with_validations(sheet.id, sheet.validations.to_vec()).with_charts(sheet.id,sheet.charts.charts.clone());
+            .with_validations(sheet.id, sheet.validations.to_vec())
+            .with_charts(sheet.id, sheet.charts.charts.clone());
     }
     for (sheet, rules) in conditional_sources {
         definitions = definitions.with_conditional_rules(sheet, rules);

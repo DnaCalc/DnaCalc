@@ -14,7 +14,10 @@ pub(crate) const VBA_PROJECT: &str =
 pub const VBA_PROJECT_CONTENT_TYPE: &str = "application/vnd.ms-office.vbaProject";
 
 pub(crate) fn has_project(package: &Package, workbook: &str) -> bool {
-    package.relationships_of(Some(workbook)).into_iter().flat_map(|r| r.items())
+    package
+        .relationships_of(Some(workbook))
+        .into_iter()
+        .flat_map(|r| r.items())
         .any(|r| r.kind == VBA_PROJECT)
 }
 

@@ -447,41 +447,230 @@ pub fn controls(controller: Controller) -> AnyView {
     view! {
         <details class="dc-clipboard-tools" data-dnacalc="clipboard-tools" name="worksheet-tools">
             <summary title="Paste Special (Ctrl+Alt+V)">"Clipboard & fill"</summary>
-            <p class="dc-note">"External tables paste contents. Cell formats apply to copies within this workbook. Merged HTML tables are unavailable."</p>
+            <p class="dc-note">
+                "External tables paste contents. Cell formats apply to copies within this workbook. Merged HTML tables are unavailable."
+            </p>
             <div class="dc-command-row">
-                <button data-dnacalc="copy" disabled=move ||controller.editing.get().is_some() on:click=move |_|controller.copy()>"Copy"</button>
-                <button data-dnacalc="cut" disabled=move ||controller.editing.get().is_some() on:click=move |_|controller.cut()>"Cut"</button>
-                <button data-dnacalc="paste" disabled=move ||controller.editing.get().is_some() on:click=move |_|controller.paste_system()>"Paste"</button>
-                <button data-dnacalc="paste-snapshot" disabled=move ||(controller.copied.get().is_none() && !controller.copy_requested()) || controller.editing.get().is_some() on:click=move |_|controller.paste()>"Paste copied cells"</button>
-                <label>"Paste Special "<select data-dnacalc="paste-mode" prop:value=move ||controller.paste_mode.get() on:change=move |ev|controller.paste_mode.set(event_target_value(&ev))>
-                    <option value="all">"Contents and cell formats"</option><option value="values">"Values"</option><option value="formulas">"Formulas"</option><option value="formats">"Cell formats"</option>
-                </select></label>
-                <label><input type="checkbox" data-dnacalc="paste-transpose" prop:checked=move ||transpose.get() on:change=move |ev|transpose.set(event_target_checked(&ev))/><span>"Transpose rows and columns"</span></label>
-                <button data-dnacalc="paste-fallback" disabled=move ||controller.editing.get().is_some() on:click=move |_|controller.clipboard_fallback.set(Some(false))>"Paste text…"</button>
-                <button data-dnacalc="copy-fallback" disabled=move ||controller.editing.get().is_some() on:click=move |_|controller.clipboard_fallback.set(Some(true))>"Copy text…"</button>
-                <button data-dnacalc="flash-fill" disabled=move ||controller.command_availability(dna_calc_model::CommandId::FlashFill).is_err() title="Flash Fill (Ctrl+E): select an output column with two text examples and blanks; source text is immediately to its left" aria-describedby="dc-flash-fill-help" on:click=move |_|controller.command(dna_calc_model::Command::FlashFill)>"Flash Fill"</button>
-                <p class="dc-sr-only" id="dc-flash-fill-help">"Flash Fill (Ctrl+E): select one output column with two text examples and blanks. Source text goes immediately to its left; preview supports first/last words and delimiter parts."</p>
-                <button data-dnacalc="fill-down" disabled=move ||controller.editing.get().is_some() on:click=move |_|controller.fill(true)>"Fill down"</button>
-                <button data-dnacalc="fill-right" disabled=move ||controller.editing.get().is_some() on:click=move |_|controller.fill(false)>"Fill right"</button>
-                <label>"Fill mode "<select data-dnacalc="fill-mode" prop:value=move ||controller.fill_series.get() on:change=move |ev|controller.fill_series.set(event_target_value(&ev))><option value="series">"Series from seeds / formulas"</option><option value="copy">"Copy cells"</option></select></label>
-                <label>"Fill through "<input data-dnacalc="fill-through" aria-label="Fill through cell" placeholder="End cell, e.g. A10" disabled=move ||controller.editing.get().is_some() prop:value=move ||fill_end.get() on:input=move |ev|fill_end.set(event_target_value(&ev)) on:keydown=move |ev: web_sys::KeyboardEvent|if ev.key()=="Enter"{ev.prevent_default();controller.fill_through(fill_end.get_untracked());}/></label>
-                <button data-dnacalc="fill-through-preview" disabled=move ||controller.editing.get().is_some() on:click=move |_|controller.fill_through(fill_end.get_untracked())>"Preview fill"</button>
+                <button
+                    data-dnacalc="copy"
+                    disabled=move || controller.editing.get().is_some()
+                    on:click=move |_| controller.copy()
+                >
+                    "Copy"
+                </button>
+                <button
+                    data-dnacalc="cut"
+                    disabled=move || controller.editing.get().is_some()
+                    on:click=move |_| controller.cut()
+                >
+                    "Cut"
+                </button>
+                <button
+                    data-dnacalc="paste"
+                    disabled=move || controller.editing.get().is_some()
+                    on:click=move |_| controller.paste_system()
+                >
+                    "Paste"
+                </button>
+                <button
+                    data-dnacalc="paste-snapshot"
+                    disabled=move || {
+                        (controller.copied.get().is_none() && !controller.copy_requested())
+                            || controller.editing.get().is_some()
+                    }
+                    on:click=move |_| controller.paste()
+                >
+                    "Paste copied cells"
+                </button>
+                <label>
+                    "Paste Special "
+                    <select
+                        data-dnacalc="paste-mode"
+                        prop:value=move || controller.paste_mode.get()
+                        on:change=move |ev| controller.paste_mode.set(event_target_value(&ev))
+                    >
+                        <option value="all">"Contents and cell formats"</option>
+                        <option value="values">"Values"</option>
+                        <option value="formulas">"Formulas"</option>
+                        <option value="formats">"Cell formats"</option>
+                    </select>
+                </label>
+                <label>
+                    <input
+                        type="checkbox"
+                        data-dnacalc="paste-transpose"
+                        prop:checked=move || transpose.get()
+                        on:change=move |ev| transpose.set(event_target_checked(&ev))
+                    />
+                    <span>"Transpose rows and columns"</span>
+                </label>
+                <button
+                    data-dnacalc="paste-fallback"
+                    disabled=move || controller.editing.get().is_some()
+                    on:click=move |_| controller.clipboard_fallback.set(Some(false))
+                >
+                    "Paste text…"
+                </button>
+                <button
+                    data-dnacalc="copy-fallback"
+                    disabled=move || controller.editing.get().is_some()
+                    on:click=move |_| controller.clipboard_fallback.set(Some(true))
+                >
+                    "Copy text…"
+                </button>
+                <button
+                    data-dnacalc="flash-fill"
+                    disabled=move || {
+                        controller
+                            .command_availability(dna_calc_model::CommandId::FlashFill)
+                            .is_err()
+                    }
+                    title="Flash Fill (Ctrl+E): select an output column with two text examples and blanks; source text is immediately to its left"
+                    aria-describedby="dc-flash-fill-help"
+                    on:click=move |_| controller.command(dna_calc_model::Command::FlashFill)
+                >
+                    "Flash Fill"
+                </button>
+                <p class="dc-sr-only" id="dc-flash-fill-help">
+                    "Flash Fill (Ctrl+E): select one output column with two text examples and blanks. "
+                    "Source text goes immediately to its left; preview supports first/last words and delimiter parts."
+                </p>
+                <button
+                    data-dnacalc="fill-down"
+                    disabled=move || controller.editing.get().is_some()
+                    on:click=move |_| controller.fill(true)
+                >
+                    "Fill down"
+                </button>
+                <button
+                    data-dnacalc="fill-right"
+                    disabled=move || controller.editing.get().is_some()
+                    on:click=move |_| controller.fill(false)
+                >
+                    "Fill right"
+                </button>
+                <label>
+                    "Fill mode "
+                    <select
+                        data-dnacalc="fill-mode"
+                        prop:value=move || controller.fill_series.get()
+                        on:change=move |ev| controller.fill_series.set(event_target_value(&ev))
+                    >
+                        <option value="series">"Series from seeds / formulas"</option>
+                        <option value="copy">"Copy cells"</option>
+                    </select>
+                </label>
+                <label>
+                    "Fill through "
+                    <input
+                        data-dnacalc="fill-through"
+                        aria-label="Fill through cell"
+                        placeholder="End cell, e.g. A10"
+                        disabled=move || controller.editing.get().is_some()
+                        prop:value=move || fill_end.get()
+                        on:input=move |ev| fill_end.set(event_target_value(&ev))
+                        on:keydown=move |ev: web_sys::KeyboardEvent| {
+                            if ev.key() == "Enter" {
+                                ev.prevent_default();
+                                controller.fill_through(fill_end.get_untracked());
+                            }
+                        }
+                    />
+                </label>
+                <button
+                    data-dnacalc="fill-through-preview"
+                    disabled=move || controller.editing.get().is_some()
+                    on:click=move |_| controller.fill_through(fill_end.get_untracked())
+                >
+                    "Preview fill"
+                </button>
             </div>
         </details>
-        <dialog class="dc-clipboard-dialog" data-dnacalc="clipboard-dialog" node_ref=dialog on:cancel=move |ev: web_sys::Event|{ev.prevent_default();cancel();}>
-            {move ||controller.paste_preview.get().map(|p|view! {
-                <h2>"Review paste, move or fill"</h2>
-                <p data-dnacalc="paste-preview">{format!("{} cells at {}. {} existing inputs will be replaced. One Undo restores the operation.",p.area.area().unwrap().cell_count(),controller.area_label(p.area.area().unwrap()),p.replaces)}</p>
-                {(!p.samples.is_empty()).then(||view!{<div data-dnacalc="paste-samples"><p>"First generated text values:"</p><ul>{p.samples.iter().map(|sample|view!{<li>{sample.clone()}</li>}).collect_view()}</ul></div>})}
-                <button data-dnacalc="paste-confirm" on:click=move |_|controller.apply_paste(p.id)>"Apply"</button>
-            })}
-            {move ||controller.clipboard_fallback.get().map(|copy|view! {
-                <h2>{if copy {"Copy table text"} else {"Paste table text"}}</h2>
-                <p>{if copy {"Select the text and press Ctrl+C (or Command+C). The workbook snapshot remains available through Paste copied cells."} else {"Paste with Ctrl+V (or Command+V), then choose Paste text. Tabs separate columns; new lines separate rows."}}</p>
-                <textarea data-dnacalc="clipboard-text" aria-label="Clipboard table text" prop:value=move ||fallback_text.get() on:input=move |ev|fallback_text.set(event_target_value(&ev))></textarea>
-                <button data-dnacalc="paste-text" disabled=copy on:click=move |_|{let text=fallback_text.get_untracked();controller.clipboard_fallback.set(None);controller.paste_external(text,String::new());}>"Paste text"</button>
-            })}
-            <button data-dnacalc="paste-cancel" on:click=move |_|cancel()>"Cancel"</button>
+        <dialog
+            class="dc-clipboard-dialog"
+            data-dnacalc="clipboard-dialog"
+            node_ref=dialog
+            on:cancel=move |ev: web_sys::Event| {
+                ev.prevent_default();
+                cancel();
+            }
+        >
+            {move || {
+                controller
+                    .paste_preview
+                    .get()
+                    .map(|p| {
+                        view! {
+                            <h2>"Review paste, move or fill"</h2>
+                            <p data-dnacalc="paste-preview">
+                                {format!(
+                                    "{} cells at {}. {} existing inputs will be replaced. One Undo restores the operation.",
+                                    p.area.area().unwrap().cell_count(),
+                                    controller.area_label(p.area.area().unwrap()),
+                                    p.replaces,
+                                )}
+                            </p>
+                            {(!p.samples.is_empty())
+                                .then(|| {
+                                    view! {
+                                        <div data-dnacalc="paste-samples">
+                                            <p>"First generated text values:"</p>
+                                            <ul>
+                                                {p
+                                                    .samples
+                                                    .iter()
+                                                    .map(|sample| view! { <li>{sample.clone()}</li> })
+                                                    .collect_view()}
+                                            </ul>
+                                        </div>
+                                    }
+                                })}
+                            <button
+                                data-dnacalc="paste-confirm"
+                                on:click=move |_| controller.apply_paste(p.id)
+                            >
+                                "Apply"
+                            </button>
+                        }
+                    })
+            }}
+            {move || {
+                controller
+                    .clipboard_fallback
+                    .get()
+                    .map(|copy| {
+                        view! {
+                            <h2>{if copy { "Copy table text" } else { "Paste table text" }}</h2>
+                            <p>
+                                {if copy {
+                                    "Select the text and press Ctrl+C (or Command+C). The workbook snapshot remains available through Paste copied cells."
+                                } else {
+                                    "Paste with Ctrl+V (or Command+V), then choose Paste text. Tabs separate columns; new lines separate rows."
+                                }}
+                            </p>
+                            <textarea
+                                data-dnacalc="clipboard-text"
+                                aria-label="Clipboard table text"
+                                prop:value=move || fallback_text.get()
+                                on:input=move |ev| fallback_text.set(event_target_value(&ev))
+                            ></textarea>
+                            <button
+                                data-dnacalc="paste-text"
+                                disabled=copy
+                                on:click=move |_| {
+                                    let text = fallback_text.get_untracked();
+                                    controller.clipboard_fallback.set(None);
+                                    controller.paste_external(text, String::new());
+                                }
+                            >
+                                "Paste text"
+                            </button>
+                        }
+                    })
+            }}
+            <button data-dnacalc="paste-cancel" on:click=move |_| cancel()>
+                "Cancel"
+            </button>
         </dialog>
     }.into_any()
 }
@@ -493,9 +682,11 @@ mod tests {
     #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
     fn clipboard_markup_has_no_active_tags_or_inline_styles() {
         assert_eq!(
-            table_markup(
-                "<html><style>bad</style><script>bad</script><body><table style='color:red' onclick='bad'><tr><td style='x:y' colspan=2>one &amp; two<br/>three<img src='https://invalid.example/x'></td></tr></table></body></html>"
-            ),
+            table_markup(concat!(
+                "<html><style>bad</style><script>bad</script><body>",
+                "<table style='color:red' onclick='bad'><tr><td style='x:y' colspan=2>one &amp; two<br/>",
+                "three<img src='https://invalid.example/x'></td></tr></table></body></html>"
+            )),
             "<table><tr><td colspan=\"2\">one &amp; two<br>three</td></tr></table>"
         );
         assert_eq!(
@@ -574,11 +765,24 @@ mod tests {
 }
 
 /// The shell shortcut opens the same retained controls used by pointer users.
-pub fn open_paste_special(){
-    #[cfg(target_arch="wasm32")]{
-        if let Some(details)=document().query_selector("[data-dnacalc=clipboard-tools]").ok().flatten().and_then(|e|e.dyn_into::<web_sys::HtmlDetailsElement>().ok()){
+pub fn open_paste_special() {
+    #[cfg(target_arch = "wasm32")]
+    {
+        if let Some(details) = document()
+            .query_selector("[data-dnacalc=clipboard-tools]")
+            .ok()
+            .flatten()
+            .and_then(|e| e.dyn_into::<web_sys::HtmlDetailsElement>().ok())
+        {
             details.set_open(true);
-            if let Some(field)=document().query_selector("[data-dnacalc=paste-mode]").ok().flatten().and_then(|e|e.dyn_into::<web_sys::HtmlElement>().ok()){let _=field.focus();}
+            if let Some(field) = document()
+                .query_selector("[data-dnacalc=paste-mode]")
+                .ok()
+                .flatten()
+                .and_then(|e| e.dyn_into::<web_sys::HtmlElement>().ok())
+            {
+                let _ = field.focus();
+            }
         }
     }
 }

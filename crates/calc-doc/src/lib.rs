@@ -113,14 +113,14 @@ pub use save::file_form::{
     FileForm, FileFormError, file_form, file_form_with_links, file_form_with_lookup,
 };
 pub use save::{
-    merge_template_sheets, rename_template_sheet,
-    DocumentSnapshot, SaveFormat, SavePlan, SavePolicy, SaveViews, SaveReceipt, SaveRefusal, StructuralEdits,
-    WriteError, SpreadsheetFormat, conditional_rule, new_condition_rule, new_conditional_rule, prepare_save, write,
+    DocumentSnapshot, SaveFormat, SavePlan, SavePolicy, SaveReceipt, SaveRefusal, SaveViews,
+    SpreadsheetFormat, StructuralEdits, WriteError, conditional_rule, merge_template_sheets,
+    new_condition_rule, new_conditional_rule, prepare_save, rename_template_sheet, write,
 };
 pub use session::{
-    SessionArray, SessionConstant, SessionDxf, SessionFile, SessionFormat, SessionFormula, SessionLook,
-    SessionRefusal, SessionRule, SessionValue,
-    SessionVba, plain_formula_needs_legacy, read_session, read_vba_file, write_session,
+    SessionArray, SessionConstant, SessionDxf, SessionFile, SessionFormat, SessionFormula,
+    SessionLook, SessionRefusal, SessionRule, SessionValue, SessionVba, plain_formula_needs_legacy,
+    read_session, read_vba_file, write_session,
 };
 pub use source::{MemorySource, PackageRead, PackageWrite, SinkError, SourceError};
 pub use vba::{VBA_PROJECT_CONTENT_TYPE, VbaProjectPart, VbaReadError, VbaReadPolicy};
@@ -185,6 +185,6 @@ pub fn convert_binary_workbook(
     }
 }
 
-pub use save::{copied_validation_source,copied_conditional_source,conditional_with_dxf};
+pub use save::{conditional_with_dxf, copied_conditional_source, copied_validation_source};
 
 pub use load::validation::movement_supported as validation_movement_supported;

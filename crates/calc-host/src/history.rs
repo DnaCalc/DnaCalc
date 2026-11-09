@@ -113,10 +113,11 @@ fn touched(edits: &[CellEdit]) -> Vec<GridArea> {
             | CellEdit::DataModel(_)
             | CellEdit::Tables(_)
             | CellEdit::Styles(_)
-            | CellEdit::Charts {..}
-            | CellEdit::PageSetup {..}
+            | CellEdit::Charts { .. }
+            | CellEdit::PageSetup { .. }
             | CellEdit::Layout(_)
-            | CellEdit::ReviewLinks { .. } | CellEdit::ReviewNotes { .. }
+            | CellEdit::ReviewLinks { .. }
+            | CellEdit::ReviewNotes { .. }
             | CellEdit::Validations { .. }
             | CellEdit::ConditionalRules { .. }
             | CellEdit::Axis(_)
@@ -228,29 +229,70 @@ pub(crate) fn inverse(
             }
         }
     }
-    if edits.iter().any(|e|matches!(e,CellEdit::DataModel(_))) { if let Some(model)=definitions.data_model() { inverse.push(CellEdit::DataModel(model.clone())); } }
-    if edits.iter().any(|e|matches!(e,CellEdit::Pivots(_))){inverse.push(CellEdit::Pivots(definitions.pivots().clone()));}
-    if edits.iter().any(|e|matches!(e,CellEdit::Tables(_))){inverse.push(CellEdit::Tables(definitions.tables().to_vec()));}
+    if edits.iter().any(|e| matches!(e, CellEdit::DataModel(_))) {
+        if let Some(model) = definitions.data_model() {
+            inverse.push(CellEdit::DataModel(model.clone()));
+        }
+    }
+    if edits.iter().any(|e| matches!(e, CellEdit::Pivots(_))) {
+        inverse.push(CellEdit::Pivots(definitions.pivots().clone()));
+    }
+    if edits.iter().any(|e| matches!(e, CellEdit::Tables(_))) {
+        inverse.push(CellEdit::Tables(definitions.tables().to_vec()));
+    }
     let mut filters = BTreeSet::new();
     for edit in edits {
-        if let CellEdit::AutoFilter { sheet, .. } = edit && filters.insert(*sheet) {
-            inverse.push(CellEdit::AutoFilter { sheet:*sheet, filter:definitions.auto_filter(*sheet).cloned() });
+        if let CellEdit::AutoFilter { sheet, .. } = edit
+            && filters.insert(*sheet)
+        {
+            inverse.push(CellEdit::AutoFilter {
+                sheet: *sheet,
+                filter: definitions.auto_filter(*sheet).cloned(),
+            });
         }
     }
     let mut validations = BTreeSet::new();
     for edit in edits {
-        if let CellEdit::Validations { sheet, .. } = edit && validations.insert(*sheet) {
-            inverse.push(CellEdit::Validations { sheet: *sheet, rules: definitions.validations(*sheet).to_vec() });
+        if let CellEdit::Validations { sheet, .. } = edit
+            && validations.insert(*sheet)
+        {
+            inverse.push(CellEdit::Validations {
+                sheet: *sheet,
+                rules: definitions.validations(*sheet).to_vec(),
+            });
         }
     }
-    let mut page_sheets=BTreeSet::new();
-    for edit in edits {if let CellEdit::PageSetup {sheet,..}=edit && page_sheets.insert(*sheet){inverse.push(CellEdit::PageSetup {sheet:*sheet,setup:definitions.page_setup(*sheet)});}}
-    let mut chart_sheets=BTreeSet::new();
-    for edit in edits {if let CellEdit::Charts {sheet,..}=edit && chart_sheets.insert(*sheet){inverse.push(CellEdit::Charts {sheet:*sheet,charts:definitions.charts(*sheet).to_vec()});}}
+    let mut page_sheets = BTreeSet::new();
+    for edit in edits {
+        if let CellEdit::PageSetup { sheet, .. } = edit
+            && page_sheets.insert(*sheet)
+        {
+            inverse.push(CellEdit::PageSetup {
+                sheet: *sheet,
+                setup: definitions.page_setup(*sheet),
+            });
+        }
+    }
+    let mut chart_sheets = BTreeSet::new();
+    for edit in edits {
+        if let CellEdit::Charts { sheet, .. } = edit
+            && chart_sheets.insert(*sheet)
+        {
+            inverse.push(CellEdit::Charts {
+                sheet: *sheet,
+                charts: definitions.charts(*sheet).to_vec(),
+            });
+        }
+    }
     let mut link_sheets = BTreeSet::new();
     for edit in edits {
-        if let CellEdit::ReviewLinks{sheet,..}=edit && link_sheets.insert(*sheet){
-            inverse.push(CellEdit::ReviewLinks{sheet:*sheet,links:definitions.review_links(*sheet).to_vec()});
+        if let CellEdit::ReviewLinks { sheet, .. } = edit
+            && link_sheets.insert(*sheet)
+        {
+            inverse.push(CellEdit::ReviewLinks {
+                sheet: *sheet,
+                links: definitions.review_links(*sheet).to_vec(),
+            });
         }
     }
     let mut reviews = BTreeSet::new();
@@ -292,12 +334,26 @@ pub(crate) fn inverse(
             let old = definitions
                 .axis_layouts()
                 .get(edit.sheet(), edit.axis(), edit.index());
-            inverse.push(CellEdit::AxisFormat(
-                { let inverse = calc_doc_model::AxisFormatEdit::new(edit.sheet(), edit.axis(), edit.index(), old).expect("a validated band");
-                  if edit.summary_after().is_some() { inverse.with_summary_after(definitions.axis_layouts().summary_after(edit.sheet(),edit.axis())) } else { inverse } },
-            ));
+            inverse.push(CellEdit::AxisFormat({
+                let inverse = calc_doc_model::AxisFormatEdit::new(
+                    edit.sheet(),
+                    edit.axis(),
+                    edit.index(),
+                    old,
+                )
+                .expect("a validated band");
+                if edit.summary_after().is_some() {
+                    inverse.with_summary_after(
+                        definitions
+                            .axis_layouts()
+                            .summary_after(edit.sheet(), edit.axis()),
+                    )
+                } else {
+                    inverse
+                }
+            }));
         }
-        if let CellEdit::FrozenPanes { sheet, .. } | CellEdit::PaneLayout {sheet,..} = edit
+        if let CellEdit::FrozenPanes { sheet, .. } | CellEdit::PaneLayout { sheet, .. } = edit
             && panes.insert(*sheet)
         {
             inverse.push(CellEdit::PaneLayout {

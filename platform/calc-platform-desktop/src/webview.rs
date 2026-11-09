@@ -247,9 +247,11 @@ impl WebView {
                             None => (404, "Not Found", "text/plain", b"not found"),
                         };
                         let stream = windows::Win32::UI::Shell::SHCreateMemStream(Some(bytes));
-                        let headers = format!("Content-Type: {kind}
+                        let headers = format!(
+                            "Content-Type: {kind}
 Cache-Control: no-store
-");
+"
+                        );
                         let headers = CoTaskMemPWSTR::from(headers.as_str());
                         let reason = CoTaskMemPWSTR::from(reason);
                         let response = environment.CreateWebResourceResponse(
@@ -324,7 +326,10 @@ Cache-Control: no-store
     /// without asking: the save path of a run that has no person to choose a file (the smoke
     /// suite's `--save-dir`). A file of the same name is replaced.
     pub fn save_downloads_to(&self, folder: &Path) -> Result<(), String> {
-        let view = self.view.cast::<ICoreWebView2_4>().map_err(|e| e.to_string())?;
+        let view = self
+            .view
+            .cast::<ICoreWebView2_4>()
+            .map_err(|e| e.to_string())?;
         // WebView2 wants a full backslash path, not a canonical verbatim one.
         let folder = folder.canonicalize().map_err(|e| e.to_string())?;
         let text = folder.to_string_lossy();
@@ -342,8 +347,12 @@ Cache-Control: no-store
                                 let target = folder.join(name);
                                 let _ = std::fs::remove_file(&target);
                                 let wide = CoTaskMemPWSTR::from(target.to_string_lossy().as_ref());
-                                if let Err(why) = args.SetResultFilePath(*wide.as_ref().as_pcwstr()) {
-                                    eprintln!("dna-calc-desktop: cannot save to {}: {why}", target.display());
+                                if let Err(why) = args.SetResultFilePath(*wide.as_ref().as_pcwstr())
+                                {
+                                    eprintln!(
+                                        "dna-calc-desktop: cannot save to {}: {why}",
+                                        target.display()
+                                    );
                                 }
                                 let _ = args.SetHandled(true);
                             }
@@ -412,7 +421,13 @@ fn proposed_name(proposed: &Path) -> Option<std::ffi::OsString> {
 fn is_clash_stamp(text: &str) -> bool {
     let shape = b"dddd-dd-ddTdddddd.ddd";
     text.len() == shape.len()
-        && text.bytes().zip(shape).all(|(b, &p)| if p == b'd' { b.is_ascii_digit() } else { b == p })
+        && text.bytes().zip(shape).all(|(b, &p)| {
+            if p == b'd' {
+                b.is_ascii_digit()
+            } else {
+                b == p
+            }
+        })
 }
 
 /// Makes the process render at each display's real scale. Call before the first window.
@@ -463,7 +478,10 @@ pub enum ThreadMessage {
 /// Runs the calling thread's message loop until `stop` says so (checked before each wait) or the
 /// loop ends. Messages for a window are dispatched; a message posted to the thread itself goes to
 /// `on_thread_message`.
-pub fn run_message_loop(mut stop: impl FnMut() -> bool, mut on_thread_message: impl FnMut(ThreadMessage)) {
+pub fn run_message_loop(
+    mut stop: impl FnMut() -> bool,
+    mut on_thread_message: impl FnMut(ThreadMessage),
+) {
     let mut message: MSG = unsafe { std::mem::zeroed() };
     while !stop() && unsafe { GetMessageW(&mut message, std::ptr::null_mut(), 0, 0) } > 0 {
         if message.hwnd.is_null() {
@@ -494,8 +512,16 @@ mod tests {
     /// Native-only: a name WebView2 made unique is given back as the page named it.
     #[test]
     fn dc_0f1k_11_2__a_numbered_or_stamped_download_name_is_the_pages_own() {
-        let name = |p: &str| proposed_name(Path::new(p)).unwrap().to_string_lossy().into_owned();
-        assert_eq!(name(r"C:\d\Book1 - 2026-11-09T011151.319.xlsx"), "Book1.xlsx");
+        let name = |p: &str| {
+            proposed_name(Path::new(p))
+                .unwrap()
+                .to_string_lossy()
+                .into_owned()
+        };
+        assert_eq!(
+            name(r"C:\d\Book1 - 2026-11-09T011151.319.xlsx"),
+            "Book1.xlsx"
+        );
         assert_eq!(name(r"C:\d\Book1.xlsx"), "Book1.xlsx");
         assert_eq!(name(r"C:\d\a - b.xlsx"), "a - b.xlsx");
         assert_eq!(name(r"C:\d\Book (1).xlsx"), "Book (1).xlsx");
@@ -507,7 +533,11 @@ mod tests {
         for length in [0usize, 1, 2, 3, 4, 5, 255, 256, 1000] {
             let bytes: Vec<u8> = (0..length).map(|i| (i * 7 + 3) as u8).collect();
             let text = base64(&bytes);
-            assert_eq!(unbase64(&text).as_deref(), Some(bytes.as_slice()), "{length}");
+            assert_eq!(
+                unbase64(&text).as_deref(),
+                Some(bytes.as_slice()),
+                "{length}"
+            );
         }
         assert_eq!(base64(b"Man"), "TWFu");
         assert_eq!(base64(b"Ma"), "TWE=");

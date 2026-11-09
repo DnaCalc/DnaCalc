@@ -1,13 +1,31 @@
 //! Operator declaration fragments moved from the existing CalcFunc catalogue.
-use crate::{ArgumentDemand, Availability, EntryKind, EntryTraits, FunctionId, Notation, Parameter, ResultForm, WorksheetDeclaration};
+use crate::{
+    ArgumentDemand, Availability, EntryKind, EntryTraits, FunctionId, Notation, Parameter,
+    ResultForm, WorksheetDeclaration,
+};
 
-const fn operator(id: FunctionId, spelling: &'static str, notation: Notation, parameters: &'static [Parameter]) -> WorksheetDeclaration {
+const fn operator(
+    id: FunctionId,
+    spelling: &'static str,
+    notation: Notation,
+    parameters: &'static [Parameter],
+) -> WorksheetDeclaration {
     WorksheetDeclaration {
         localized_names: None,
         context_facilities: None,
-        id, spelling, notation, parameters, kind: EntryKind::Operator { file_spelling: None },
-        availability: Availability::Unspecified, arity: calc_value::CallableArityShape::exact(parameters.len()),
-        groups: None, result: ResultForm::Value, demand: ArgumentDemand::Eager, traits: EntryTraits::NONE,
+        id,
+        spelling,
+        notation,
+        parameters,
+        kind: EntryKind::Operator {
+            file_spelling: None,
+        },
+        availability: Availability::Unspecified,
+        arity: calc_value::CallableArityShape::exact(parameters.len()),
+        groups: None,
+        result: ResultForm::Value,
+        demand: ArgumentDemand::Eager,
+        traits: EntryTraits::NONE,
     }
 }
 
@@ -61,7 +79,6 @@ pub mod text {
     pub const CODE: u16 = 3;
     pub const CONCATENATE: FunctionId = FunctionId::new(CODE, 1);
     const TEXTS: &[Parameter] = &[Parameter::value("text1"), Parameter::value("text2")];
-    pub const ENTRIES: &[WorksheetDeclaration] = &[
-        operator(CONCATENATE, "&", Notation::Infix, TEXTS),
-    ];
+    pub const ENTRIES: &[WorksheetDeclaration] =
+        &[operator(CONCATENATE, "&", Notation::Infix, TEXTS)];
 }

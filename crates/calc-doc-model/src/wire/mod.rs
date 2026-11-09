@@ -219,14 +219,24 @@ impl std::error::Error for DecodeError {}
 /// Why [`encode_batch`] refused a batch.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum EncodeError {
-    PageSetup {operation:usize},
-    Charts {operation:usize},
-    Pivots {operation:usize},
+    PageSetup {
+        operation: usize,
+    },
+    Charts {
+        operation: usize,
+    },
+    Pivots {
+        operation: usize,
+    },
     ReviewNotes {
         operation: usize,
     },
-    AutoFilter { operation: usize },
-    Tables {operation:usize},
+    AutoFilter {
+        operation: usize,
+    },
+    Tables {
+        operation: usize,
+    },
     ConditionalRules {
         operation: usize,
     },
@@ -270,15 +280,30 @@ pub enum EncodeError {
 impl fmt::Display for EncodeError {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
-            EncodeError::PageSetup {operation}=>write!(f,"page setup changes in operation {operation} are not modelled by wire version 1 (dc-971p.56)"),
-            EncodeError::Pivots {operation}=>write!(f,"pivot changes in operation {operation} are not modelled by this wire version (dc-8wp)"),
-            EncodeError::Charts {operation}=>write!(f,"chart changes in operation {operation} are not modelled by this wire version (dc-e5z5)"),
+            EncodeError::PageSetup { operation } => write!(
+                f,
+                "page setup changes in operation {operation} are not modelled by wire version 1 (dc-971p.56)"
+            ),
+            EncodeError::Pivots { operation } => write!(
+                f,
+                "pivot changes in operation {operation} are not modelled by this wire version (dc-8wp)"
+            ),
+            EncodeError::Charts { operation } => write!(
+                f,
+                "chart changes in operation {operation} are not modelled by this wire version (dc-e5z5)"
+            ),
             EncodeError::ReviewNotes { operation } => write!(
                 f,
                 "operation {operation} changes review notes, which wire version 1 does not encode"
             ),
-            EncodeError::Tables {operation}=>write!(f,"operation {operation} changes tables, which wire version 1 does not encode"),
-            EncodeError::AutoFilter { operation } => write!(f, "operation {operation} changes AutoFilter, which wire version 1 does not encode"),
+            EncodeError::Tables { operation } => write!(
+                f,
+                "operation {operation} changes tables, which wire version 1 does not encode"
+            ),
+            EncodeError::AutoFilter { operation } => write!(
+                f,
+                "operation {operation} changes AutoFilter, which wire version 1 does not encode"
+            ),
             EncodeError::ConditionalRules { operation } => write!(
                 f,
                 "operation {operation} changes conditional rules, which wire version 1 does not encode"
@@ -347,21 +372,42 @@ pub fn encode_batch(batch: &OpBatch, root: &ModelRoot) -> Result<Vec<u8>, Encode
         if matches!(operation, WorkbookOp::SetIteration(_)) {
             return Err(EncodeError::Iteration { operation: index });
         }
-        if matches!(operation, WorkbookOp::SetPageSetup {..}) {return Err(EncodeError::PageSetup {operation:index});}
-        if matches!(operation, WorkbookOp::SetPivots(_) | WorkbookOp::SetDataModel(_)) {return Err(EncodeError::Pivots {operation:index});}
-        if matches!(operation, WorkbookOp::SetCharts {..}) {return Err(EncodeError::Charts {operation:index});}
-        if matches!(operation, WorkbookOp::SetTables(_)) {return Err(EncodeError::Tables{operation:index});}
-        if matches!(operation, WorkbookOp::SetAutoFilter { .. }) { return Err(EncodeError::AutoFilter { operation:index }); }
+        if matches!(operation, WorkbookOp::SetPageSetup { .. }) {
+            return Err(EncodeError::PageSetup { operation: index });
+        }
+        if matches!(
+            operation,
+            WorkbookOp::SetPivots(_) | WorkbookOp::SetDataModel(_)
+        ) {
+            return Err(EncodeError::Pivots { operation: index });
+        }
+        if matches!(operation, WorkbookOp::SetCharts { .. }) {
+            return Err(EncodeError::Charts { operation: index });
+        }
+        if matches!(operation, WorkbookOp::SetTables(_)) {
+            return Err(EncodeError::Tables { operation: index });
+        }
+        if matches!(operation, WorkbookOp::SetAutoFilter { .. }) {
+            return Err(EncodeError::AutoFilter { operation: index });
+        }
         if matches!(operation, WorkbookOp::SetAxisFormat(_)) {
             return Err(EncodeError::AxisFormat { operation: index });
         }
-        if matches!(operation, WorkbookOp::SetReviewLinks { .. } | WorkbookOp::SetReviewNotes { .. } | WorkbookOp::SetValidations { .. }) {
+        if matches!(
+            operation,
+            WorkbookOp::SetReviewLinks { .. }
+                | WorkbookOp::SetReviewNotes { .. }
+                | WorkbookOp::SetValidations { .. }
+        ) {
             return Err(EncodeError::ReviewNotes { operation: index });
         }
         if matches!(operation, WorkbookOp::SetConditionalRules { .. }) {
             return Err(EncodeError::ConditionalRules { operation: index });
         }
-        if matches!(operation, WorkbookOp::SetFrozenPanes { .. } | WorkbookOp::SetPaneLayout { .. }) {
+        if matches!(
+            operation,
+            WorkbookOp::SetFrozenPanes { .. } | WorkbookOp::SetPaneLayout { .. }
+        ) {
             return Err(EncodeError::FrozenPanes { operation: index });
         }
         operations.push(WireOp::from_op(operation, root, &mut claimed)?);

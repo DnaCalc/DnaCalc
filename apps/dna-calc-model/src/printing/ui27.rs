@@ -96,7 +96,13 @@ fn automatic_page_boundaries_match_the_excel_ui27_pdfs() {
             }
         }
     }
-    assert!(wrong.is_empty(), "{} of {} cases differ:\n{}", wrong.len(), CASES.len(), wrong.join("\n"));
+    assert!(
+        wrong.is_empty(),
+        "{} of {} cases differ:\n{}",
+        wrong.len(),
+        CASES.len(),
+        wrong.join("\n")
+    );
 }
 
 /// The header and footer strings of UI27 q7-headers (Excel 16.0.20527), six pages numbered from
@@ -141,7 +147,10 @@ fn headers_and_footers_print_what_excel_printed_in_q7() {
         };
         let text = |footer: bool, section: usize| {
             let runs = header_runs(page_header(&s, index, number, footer), &context).unwrap();
-            runs[section].iter().map(|r| r.text.as_str()).collect::<String>()
+            runs[section]
+                .iter()
+                .map(|r| r.text.as_str())
+                .collect::<String>()
         };
         assert_eq!(text(false, 0), *left, "page {}", index + 1);
         assert_eq!(text(false, 1), *centre, "page {}", index + 1);
@@ -171,8 +180,19 @@ fn column_and_row_sizes_print_as_excel_printed_them_in_ui30() {
         assert_eq!(column_device(px).round(), device, "{px} px");
     }
     // Row heights of 8, 12, 12.75, 15, 20 and 30 pt.
-    for (points, device) in [(8., 68.), (12., 101.), (12.75, 108.), (15., 127.), (20., 169.), (30., 254.)] {
-        assert_eq!((points * ROW_DEVICE_PER_POINT).round(), device, "{points} pt");
+    for (points, device) in [
+        (8., 68.),
+        (12., 101.),
+        (12.75, 108.),
+        (15., 127.),
+        (20., 169.),
+        (30., 254.),
+    ] {
+        assert_eq!(
+            (points * ROW_DEVICE_PER_POINT).round(),
+            device,
+            "{points} pt"
+        );
     }
 }
 
@@ -180,7 +200,14 @@ fn column_and_row_sizes_print_as_excel_printed_them_in_ui30() {
 #[cfg_attr(not(target_arch = "wasm32"), test)]
 #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
 fn heading_strip_widths_follow_the_row_number_digits_in_ui30() {
-    for (last_row, device) in [(9, 173.), (99, 173.), (999, 173.), (9_999, 220.), (99_999, 267.), (999_999, 314.)] {
+    for (last_row, device) in [
+        (9, 173.),
+        (99, 173.),
+        (999, 173.),
+        (9_999, 220.),
+        (99_999, 267.),
+        (999_999, 314.),
+    ] {
         assert_eq!(heading_width_device(last_row), device, "row {last_row}");
     }
 }
@@ -191,7 +218,12 @@ fn heading_strip_widths_follow_the_row_number_digits_in_ui30() {
 fn fit_with_title_columns_is_still_an_open_difference_from_excel() {
     for c in super::ui27_cases::UNMATCHED {
         let got = plan(c).map(|p| p.pages.iter().map(spans).collect::<Vec<_>>());
-        assert_ne!(got.as_ref().ok(), Some(&c.pages.to_vec()), "{}: fixed, move it to CASES", c.id);
+        assert_ne!(
+            got.as_ref().ok(),
+            Some(&c.pages.to_vec()),
+            "{}: fixed, move it to CASES",
+            c.id
+        );
     }
 }
 
@@ -220,6 +252,10 @@ fn exactly_filled_column_pages_do_not_fit_in_ui30() {
         }
         let plan = paginate(&s, &g, &[area((1, 1, 3, 24))], None, None).unwrap();
         let got: Vec<_> = plan.pages.iter().map(spans).collect();
-        assert_eq!(got, [(1, 3, 1, 18), (1, 3, 19, 24)], "wide first {wide_first}");
+        assert_eq!(
+            got,
+            [(1, 3, 1, 18), (1, 3, 19, 24)],
+            "wide first {wide_first}"
+        );
     }
 }

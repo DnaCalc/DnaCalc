@@ -188,18 +188,48 @@ const VALUE: WorksheetErrorCode = WorksheetErrorCode::Value;
 #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
 fn dc_fetch_f0tp__webservice_gives_excels_results_for_each_reply() {
     let cases: [(&str, CalcValue); 12] = [
-        (r#"_xlfn.WEBSERVICE("http://mock/hello")"#, text("hello from mock")),
+        (
+            r#"_xlfn.WEBSERVICE("http://mock/hello")"#,
+            text("hello from mock"),
+        ),
         (r#"_xlfn.WEBSERVICE("http://mock/num")"#, text("42")),
         (r#"_xlfn.WEBSERVICE("http://mock/empty")"#, text("")),
-        (r#"_xlfn.WEBSERVICE("http://mock/utf8")"#, text("h\u{e9}llo \u{20ac}")),
-        (r#"_xlfn.WEBSERVICE("http://mock/latin1")"#, text("h\u{9b2c}o")),
-        (r#"_xlfn.WEBSERVICE("http://mock/utf16")"#, CalcValue::error(VALUE)),
-        (r#"_xlfn.WEBSERVICE("http://mock/404")"#, CalcValue::error(VALUE)),
-        (r#"_xlfn.WEBSERVICE("http://mock/500")"#, CalcValue::error(VALUE)),
-        (r#"_xlfn.WEBSERVICE("http://mock/toolong")"#, CalcValue::error(VALUE)),
-        (r#"_xlfn.WEBSERVICE("http://mock/refused")"#, CalcValue::error(VALUE)),
-        (r#"_xlfn.WEBSERVICE("http://mock/num")+1"#, CalcValue::number(43.0)),
-        (r#"LEN(_xlfn.WEBSERVICE("http://mock/long"))"#, CalcValue::number(32767.0)),
+        (
+            r#"_xlfn.WEBSERVICE("http://mock/utf8")"#,
+            text("h\u{e9}llo \u{20ac}"),
+        ),
+        (
+            r#"_xlfn.WEBSERVICE("http://mock/latin1")"#,
+            text("h\u{9b2c}o"),
+        ),
+        (
+            r#"_xlfn.WEBSERVICE("http://mock/utf16")"#,
+            CalcValue::error(VALUE),
+        ),
+        (
+            r#"_xlfn.WEBSERVICE("http://mock/404")"#,
+            CalcValue::error(VALUE),
+        ),
+        (
+            r#"_xlfn.WEBSERVICE("http://mock/500")"#,
+            CalcValue::error(VALUE),
+        ),
+        (
+            r#"_xlfn.WEBSERVICE("http://mock/toolong")"#,
+            CalcValue::error(VALUE),
+        ),
+        (
+            r#"_xlfn.WEBSERVICE("http://mock/refused")"#,
+            CalcValue::error(VALUE),
+        ),
+        (
+            r#"_xlfn.WEBSERVICE("http://mock/num")+1"#,
+            CalcValue::number(43.0),
+        ),
+        (
+            r#"LEN(_xlfn.WEBSERVICE("http://mock/long"))"#,
+            CalcValue::number(32767.0),
+        ),
     ];
     let formulas: Vec<&str> = cases.iter().map(|(formula, _)| *formula).collect();
     let (got, route) = results(&formulas, &[]);
@@ -219,13 +249,31 @@ fn dc_fetch_f0tp__webservice_refuses_without_a_request() {
         ("_xlfn.WEBSERVICE(TRUE)", CalcValue::error(VALUE)),
         ("_xlfn.WEBSERVICE(E9)", CalcValue::error(VALUE)),
         (r#"_xlfn.WEBSERVICE("")"#, CalcValue::error(VALUE)),
-        (r#"_xlfn.WEBSERVICE("ftp://mock/x")"#, CalcValue::error(VALUE)),
-        (r#"_xlfn.WEBSERVICE("file:///C:/x.txt")"#, CalcValue::error(VALUE)),
-        (r#"_xlfn.WEBSERVICE("example.org/x")"#, CalcValue::error(VALUE)),
+        (
+            r#"_xlfn.WEBSERVICE("ftp://mock/x")"#,
+            CalcValue::error(VALUE),
+        ),
+        (
+            r#"_xlfn.WEBSERVICE("file:///C:/x.txt")"#,
+            CalcValue::error(VALUE),
+        ),
+        (
+            r#"_xlfn.WEBSERVICE("example.org/x")"#,
+            CalcValue::error(VALUE),
+        ),
         (r#"_xlfn.WEBSERVICE("//mock:1/x")"#, CalcValue::error(VALUE)),
-        (r#"_xlfn.WEBSERVICE("http:mock:1/x")"#, CalcValue::error(VALUE)),
-        (r#"_xlfn.WEBSERVICE("about:blank")"#, CalcValue::error(VALUE)),
-        ("_xlfn.WEBSERVICE(NA())", CalcValue::error(WorksheetErrorCode::NA)),
+        (
+            r#"_xlfn.WEBSERVICE("http:mock:1/x")"#,
+            CalcValue::error(VALUE),
+        ),
+        (
+            r#"_xlfn.WEBSERVICE("about:blank")"#,
+            CalcValue::error(VALUE),
+        ),
+        (
+            "_xlfn.WEBSERVICE(NA())",
+            CalcValue::error(WorksheetErrorCode::NA),
+        ),
         ("_xlfn.WEBSERVICE(C1)", CalcValue::error(VALUE)),
     ];
     let formulas: Vec<&str> = cases.iter().map(|(formula, _)| *formula).collect();
@@ -295,7 +343,11 @@ fn dc_fetch_f0tp__webservice_is_volatile() {
     assert_eq!(route.seen.borrow().len(), 1);
     calculate(&mut host);
     settle(&mut host, &route);
-    assert_eq!(route.seen.borrow().len(), 2, "a plain Calculate fetches again");
+    assert_eq!(
+        route.seen.borrow().len(),
+        2,
+        "a plain Calculate fetches again"
+    );
     assert_eq!(values(&host, 1)[0], text("hello from mock"));
 }
 
@@ -343,7 +395,10 @@ fn dc_fetch_f0tp__image_is_a_picture_value_that_reads_as_excel_reads_it() {
     let image = got[0].image_value().expect("a picture");
     assert_eq!(image.source, "https://mock/png");
     assert_eq!(image.alt_text.as_deref(), Some("alt text"));
-    assert_eq!((image.sizing, image.height, image.width), (3, Some(20.0), Some(30.0)));
+    assert_eq!(
+        (image.sizing, image.height, image.width),
+        (3, Some(20.0), Some(30.0))
+    );
     assert_eq!(image.format, ImageFormat::Png);
     let (sizes, _) = results(
         &[
@@ -358,12 +413,21 @@ fn dc_fetch_f0tp__image_is_a_picture_value_that_reads_as_excel_reads_it() {
     assert_eq!((sized(0).height, sized(0).width), (Some(20.0), None));
     assert_eq!((sized(1).height, sized(1).width), (Some(0.0), Some(20.0)));
     assert_eq!((sized(2).alt_text.as_deref(), sized(2).sizing), (None, 1));
-    assert_eq!((sized(3).alt_text.as_deref(), sized(3).sizing), (Some("TRUE"), 2));
+    assert_eq!(
+        (sized(3).alt_text.as_deref(), sized(3).sizing),
+        (Some("TRUE"), 2)
+    );
     assert_eq!(&*image.bytes, PNG);
     assert!(matches!(got[0].core_ref(), CoreRef::Error(VALUE)));
     assert_eq!(got[1], CalcValue::number(128.0));
     assert_eq!(got[2], CalcValue::logical(false));
-    assert!(route.seen.borrow().iter().all(|r| r.kind == FetchKind::Picture));
+    assert!(
+        route
+            .seen
+            .borrow()
+            .iter()
+            .all(|r| r.kind == FetchKind::Picture)
+    );
 }
 
 #[cfg_attr(not(target_arch = "wasm32"), test)]
@@ -375,7 +439,10 @@ fn dc_fetch_f0tp__image_errors_are_excels() {
         (r#"_xlfn.IMAGE("https://mock/500")"#, VALUE),
         (r#"_xlfn.IMAGE("https://mock/refused")"#, VALUE),
         (r#"_xlfn.IMAGE("https://mock/page")"#, VALUE),
-        (r#"_xlfn.IMAGE("http://mock/png")"#, WorksheetErrorCode::Blocked),
+        (
+            r#"_xlfn.IMAGE("http://mock/png")"#,
+            WorksheetErrorCode::Blocked,
+        ),
         (r#"_xlfn.IMAGE("ftp://mock/png")"#, VALUE),
         (r#"_xlfn.IMAGE("")"#, VALUE),
         ("_xlfn.IMAGE(123)", VALUE),
@@ -457,7 +524,9 @@ fn dc_fetch_f0tp__a_picture_flows_and_reads_as_excel_measured() {
     ];
     let (got, _) = results(&formulas, &[]);
     for row in 3..=7 {
-        let image = got[row].image_value().unwrap_or_else(|| panic!("{}", formulas[row]));
+        let image = got[row]
+            .image_value()
+            .unwrap_or_else(|| panic!("{}", formulas[row]));
         assert_eq!(image.alt_text.as_deref(), Some("one"), "{}", formulas[row]);
     }
     let logical = CalcValue::logical;
@@ -541,7 +610,11 @@ fn dc_fetch_f0tp__a_picture_saves_and_reopens() {
     calc_host::save(&reopened, &calc_host::SavePolicy::default(), &mut again).expect("saved");
     let third = open(again);
     let cells = vec![CellKey::new(third.sheets()[0].id(), 1, 1).expect("in the grid")];
-    match project(&third, &ProjectionRequest { cells }).expect("projected").cells()[0].value() {
+    match project(&third, &ProjectionRequest { cells })
+        .expect("projected")
+        .cells()[0]
+        .value()
+    {
         ProjectedValue::FileCached(file) => {
             assert_eq!(file.value().to_value().image_value(), Some(first));
         }

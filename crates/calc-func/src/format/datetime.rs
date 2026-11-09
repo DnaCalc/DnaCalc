@@ -3,7 +3,9 @@
 //! minutes beside an hour or a second. AM/PM in either case writes the locale's designators
 //! (Excel on this machine, Windows locale en-ZA, wrote `pm` for `hh:mm AM/PM`).
 
-use crate::locale::{DateSystem as WorkbookDateSystem, FormatProfile, LocaleId, ymd_from_excel_serial};
+use crate::locale::{
+    DateSystem as WorkbookDateSystem, FormatProfile, LocaleId, ymd_from_excel_serial,
+};
 
 use super::names::{month_name, weekday_name};
 
@@ -38,9 +40,16 @@ enum DateTimePart {
 }
 
 pub(crate) fn has_invalid_exponent(section: &str) -> bool {
-    section.contains('E') && tokenize_datetime_format(section, None).iter().any(|part| {
-        matches!(part, DateTimePart::Token { kind: DateTimeTokenKind::UpperExponent, .. })
-    })
+    section.contains('E')
+        && tokenize_datetime_format(section, None).iter().any(|part| {
+            matches!(
+                part,
+                DateTimePart::Token {
+                    kind: DateTimeTokenKind::UpperExponent,
+                    ..
+                }
+            )
+        })
 }
 
 pub(crate) fn looks_like_datetime_format(section: &str, decimal: char) -> bool {
@@ -104,8 +113,12 @@ pub(crate) fn render_with_datetime_tokens(
         matches!(
             part,
             DateTimePart::Token {
-                kind: DateTimeTokenKind::Year | DateTimeTokenKind::Month | DateTimeTokenKind::Day
-                    | DateTimeTokenKind::Era | DateTimeTokenKind::EraYear | DateTimeTokenKind::UpperExponent,
+                kind: DateTimeTokenKind::Year
+                    | DateTimeTokenKind::Month
+                    | DateTimeTokenKind::Day
+                    | DateTimeTokenKind::Era
+                    | DateTimeTokenKind::EraYear
+                    | DateTimeTokenKind::UpperExponent,
                 ..
             }
         )
@@ -161,7 +174,10 @@ pub(crate) fn render_with_datetime_tokens(
     });
     // A locale tag selects names, while separators and other formatting fields remain those
     // of the workbook profile. Fn1 measured German, French, Japanese and Russian names.
-    let names_profile = FormatProfile { id: name_locale.unwrap_or(profile.id), ..*profile };
+    let names_profile = FormatProfile {
+        id: name_locale.unwrap_or(profile.id),
+        ..*profile
+    };
 
     let mut rendered = String::new();
     for part in parts {
@@ -207,8 +223,18 @@ pub(crate) fn render_with_datetime_tokens(
                         match width {
                             1 => day.to_string(),
                             2 => format!("{day:02}"),
-                            3 => weekday_name(&names_profile, weekday_index?, true, name_locale.is_some()),
-                            _ => weekday_name(&names_profile, weekday_index?, false, name_locale.is_some()),
+                            3 => weekday_name(
+                                &names_profile,
+                                weekday_index?,
+                                true,
+                                name_locale.is_some(),
+                            ),
+                            _ => weekday_name(
+                                &names_profile,
+                                weekday_index?,
+                                false,
+                                name_locale.is_some(),
+                            ),
                         }
                     }
                     DateTimeTokenKind::Hour => {
@@ -249,13 +275,18 @@ pub(crate) fn render_with_datetime_tokens(
                     DateTimeTokenKind::AmPmLower => {
                         super::designator(profile, time.hour < 12).to_string()
                     }
-                    DateTimeTokenKind::Era | DateTimeTokenKind::EraYear | DateTimeTokenKind::UpperExponent => {
+                    DateTimeTokenKind::Era
+                    | DateTimeTokenKind::EraYear
+                    | DateTimeTokenKind::UpperExponent => {
                         let (year, month, day) = date?;
                         // Fn5 zero section and fn8 width/era-boundary controls:
                         // an untagged e is Gregorian; g contributes no era name.
                         if untagged_locale && super::measured_host(profile) {
                             match kind {
-                                DateTimeTokenKind::EraYear => { rendered.push_str(&year.to_string()); continue; }
+                                DateTimeTokenKind::EraYear => {
+                                    rendered.push_str(&year.to_string());
+                                    continue;
+                                }
                                 DateTimeTokenKind::Era => continue,
                                 _ => return None,
                             }
@@ -263,8 +294,11 @@ pub(crate) fn render_with_datetime_tokens(
                         // Fn3 measures g/gg/ggg and e/ee on both sides of the
                         // Heisei/Reiwa transition. Calendar start dates are public facts:
                         // https://www.npb.go.jp/en/products/gazette/books/kanpo_history.html
-                        if name_locale != Some(LocaleId::JaJp) { return None; }
-                        let (base_year, latin, short, long) = if (year, month, day) >= (2019, 5, 1) {
+                        if name_locale != Some(LocaleId::JaJp) {
+                            return None;
+                        }
+                        let (base_year, latin, short, long) = if (year, month, day) >= (2019, 5, 1)
+                        {
                             (2018, "R", "令", "令和")
                         } else if (year, month, day) >= (1989, 1, 8) {
                             (1988, "H", "平", "平成")
@@ -275,8 +309,12 @@ pub(crate) fn render_with_datetime_tokens(
                             (DateTimeTokenKind::Era, 1) => latin.to_owned(),
                             (DateTimeTokenKind::Era, 2) => short.to_owned(),
                             (DateTimeTokenKind::Era, 3) => long.to_owned(),
-                            (DateTimeTokenKind::EraYear | DateTimeTokenKind::UpperExponent, 1) => (year - base_year).to_string(),
-                            (DateTimeTokenKind::EraYear | DateTimeTokenKind::UpperExponent, 2) => format!("{:02}", year - base_year),
+                            (DateTimeTokenKind::EraYear | DateTimeTokenKind::UpperExponent, 1) => {
+                                (year - base_year).to_string()
+                            }
+                            (DateTimeTokenKind::EraYear | DateTimeTokenKind::UpperExponent, 2) => {
+                                format!("{:02}", year - base_year)
+                            }
                             _ => return None,
                         }
                     }
@@ -306,8 +344,12 @@ fn tokenize_datetime_format(section: &str, profile: Option<&FormatProfile>) -> V
         let ch = chars[index];
         if ch == '"' {
             if in_quotes {
-                literal.push_str(if quoted_escape { &quoted_literal } else {
-                    profile.map_or(quoted_literal.as_str(), |p| super::currency_literal(p, &quoted_literal))
+                literal.push_str(if quoted_escape {
+                    &quoted_literal
+                } else {
+                    profile.map_or(quoted_literal.as_str(), |p| {
+                        super::currency_literal(p, &quoted_literal)
+                    })
                 });
                 quoted_escape = false;
                 quoted_literal.clear();
@@ -318,7 +360,12 @@ fn tokenize_datetime_format(section: &str, profile: Option<&FormatProfile>) -> V
         }
         if ch == '\\' {
             if let Some(next) = chars.get(index + 1) {
-                if in_quotes { quoted_literal.push(*next); quoted_escape = true; } else { literal.push(*next); }
+                if in_quotes {
+                    quoted_literal.push(*next);
+                    quoted_escape = true;
+                } else {
+                    literal.push(*next);
+                }
                 index += 2;
             } else {
                 index += 1;
@@ -379,7 +426,9 @@ fn tokenize_datetime_format(section: &str, profile: Option<&FormatProfile>) -> V
             'h' => Some(DateTimeTokenKind::Hour),
             's' => Some(DateTimeTokenKind::Second),
             'g' => Some(DateTimeTokenKind::Era),
-            'e' if ch == 'E' && !matches!(chars.get(index + 1), Some('+' | '-')) => Some(DateTimeTokenKind::UpperExponent),
+            'e' if ch == 'E' && !matches!(chars.get(index + 1), Some('+' | '-')) => {
+                Some(DateTimeTokenKind::UpperExponent)
+            }
             'e' => Some(DateTimeTokenKind::EraYear),
             _ => None,
         };
@@ -391,10 +440,14 @@ fn tokenize_datetime_format(section: &str, profile: Option<&FormatProfile>) -> V
                 .count();
             // Mixed e/E runs are invalid in untagged host formats too.
             // Tagged Japanese rendering keeps its prior case-insensitive width.
-            let kind = if lower == 'e' && chars[index..index + width].contains(&'E')
-                && (width > 1 || !matches!(chars.get(index + width), Some('+' | '-'))) {
+            let kind = if lower == 'e'
+                && chars[index..index + width].contains(&'E')
+                && (width > 1 || !matches!(chars.get(index + width), Some('+' | '-')))
+            {
                 DateTimeTokenKind::UpperExponent
-            } else { kind };
+            } else {
+                kind
+            };
             push_literal(&mut parts, &mut literal);
             parts.push(DateTimePart::Token { kind, width });
             index += width;

@@ -1,4 +1,6 @@
-use crate::locale::{DateSystem as WorkbookDateSystem, excel_serial_from_ymd, ymd_from_excel_serial};
+use crate::locale::{
+    DateSystem as WorkbookDateSystem, excel_serial_from_ymd, ymd_from_excel_serial,
+};
 use crate::ported::excel_numeric::{excel_x87_div, excel_x87_mul, excel_x87_sub};
 use crate::value::CalcValue;
 use crate::value::WorksheetErrorCode;
@@ -421,9 +423,9 @@ pub fn map_discount_bill_yearfrac_error_to_ws(
 
 #[cfg(test)]
 mod tests {
+    use super::*;
     #[allow(unused_imports)]
     use crate::value::{CalcArray, CalcValue, CoreValue, ExcelText};
-    use super::*;
 
     fn serial(year: i64, month: i64, day: i64) -> f64 {
         excel_serial_from_ymd(WorkbookDateSystem::System1900, year, month, day).unwrap()
@@ -476,7 +478,10 @@ mod tests {
     #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
     fn yearfrac_basis_one_follows_excel_actual_actual() {
         // within a year, span ends on a Feb 29: 314 / 366
-        assert_eq!(yearfrac_kernel(71335.0, 71649.0, Some(1.0)).unwrap(), 314.0 / 366.0);
+        assert_eq!(
+            yearfrac_kernel(71335.0, 71649.0, Some(1.0)).unwrap(),
+            314.0 / 366.0
+        );
         // reversed dates over more than a year: 707 / ((366 + 365 + 365) / 3)
         assert_eq!(
             yearfrac_kernel(14184.0, 13477.0, Some(1.0)).unwrap(),
@@ -490,7 +495,9 @@ mod tests {
         );
         assert!(matches!(
             yearfrac_kernel(213.0, -1784.0, Some(1.0)),
-            Err(DiscountBillYearfracEvalError::Domain(WorksheetErrorCode::Num))
+            Err(DiscountBillYearfracEvalError::Domain(
+                WorksheetErrorCode::Num
+            ))
         ));
     }
 
@@ -606,12 +613,21 @@ mod tests {
     fn tbill_long_bills_and_one_year_limit_match_excel() {
         let b = f64::from_bits;
         // 365-day bill, long-bill quadratic
-        let v = tbilleq_kernel(b(0x40e7_fa00_0000_0000), b(0x40e8_27a0_0000_0000), b(0x3fda_d9e2_b7ff_ac42));
+        let v = tbilleq_kernel(
+            b(0x40e7_fa00_0000_0000),
+            b(0x40e8_27a0_0000_0000),
+            b(0x3fda_d9e2_b7ff_ac42),
+        );
         assert_eq!(v.unwrap().to_bits(), 0x3fe4_6da4_7a35_0f90);
         // 366-day bill across a Feb 29: t = 366/366
-        let v = tbilleq_kernel(b(0x40ea_4fc0_0000_0000), b(0x40ea_7d80_0000_0000), b(0x3fdc_f1bb_1a5c_75f4));
+        let v = tbilleq_kernel(
+            b(0x40ea_4fc0_0000_0000),
+            b(0x40ea_7d80_0000_0000),
+            b(0x3fdc_f1bb_1a5c_75f4),
+        );
         assert_eq!(v.unwrap().to_bits(), 0x3fe7_137f_fe33_28bc);
-        let serial = |y, m, d| excel_serial_from_ymd(WorkbookDateSystem::System1900, y, m, d).unwrap();
+        let serial =
+            |y, m, d| excel_serial_from_ymd(WorkbookDateSystem::System1900, y, m, d).unwrap();
         // from 2044-02-29 the limit rolls over to 2045-03-01; from 1991-02-28 it is 1992-02-28
         assert!(tbillprice_kernel(serial(2044, 2, 29), serial(2045, 3, 1), 0.1).is_ok());
         assert!(tbillprice_kernel(serial(1991, 2, 28), serial(1992, 2, 29), 0.1).is_err());

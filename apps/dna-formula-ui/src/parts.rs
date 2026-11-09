@@ -14,11 +14,11 @@
 
 use crate::display;
 use crate::result;
+use calc_fml::FormatProfile;
 use calc_fml::assist::{LocalBinding, local_bindings_at};
 use calc_fml::parse_formula;
 use calc_fml::syntax::{SyntaxChild, SyntaxKind, SyntaxNode, SyntaxTree, TokenKind, lex};
 use calc_func::value::CalcValue;
-use calc_fml::FormatProfile;
 
 pub use dna_calc_model::parts::{MAX_TRACE_STEPS, PartValue, Trace, TraceStep};
 
@@ -47,7 +47,12 @@ fn evaluable(formula: &str, tree: &SyntaxTree, start: usize, text: &str) -> Resu
         .map(|token| token.text().to_ascii_lowercase())
         .collect();
     // The last binding of a name is the one in scope for the part.
-    let in_scope = |name: &str| bindings.iter().rev().find(|b| b.name.eq_ignore_ascii_case(name));
+    let in_scope = |name: &str| {
+        bindings
+            .iter()
+            .rev()
+            .find(|b| b.name.eq_ignore_ascii_case(name))
+    };
     for name in &used {
         if let Some(binding) = in_scope(name)
             && binding.value.is_none()
@@ -151,7 +156,9 @@ fn operands(node: &SyntaxNode) -> Vec<&SyntaxNode> {
             let total = 1 + arguments
                 .children()
                 .iter()
-                .filter(|child| matches!(child, SyntaxChild::Token(t) if t.kind() == TokenKind::Comma))
+                .filter(
+                    |child| matches!(child, SyntaxChild::Token(t) if t.kind() == TokenKind::Comma),
+                )
                 .count();
             let mut index = 0;
             let mut found = Vec::new();
@@ -159,7 +166,8 @@ fn operands(node: &SyntaxNode) -> Vec<&SyntaxNode> {
                 match child {
                     SyntaxChild::Token(token) if token.kind() == TokenKind::Comma => index += 1,
                     SyntaxChild::Node(argument) => {
-                        let name_slot = declares && index + 1 < total && (!is_let || index % 2 == 0);
+                        let name_slot =
+                            declares && index + 1 < total && (!is_let || index % 2 == 0);
                         if !name_slot {
                             found.push(argument);
                         }
@@ -256,7 +264,10 @@ pub fn trace(evaluator: &mut dyn PartEvaluator, formula: &str) -> Trace {
     result
 }
 
-fn value_for_step(evaluator: &mut dyn PartEvaluator, text: &str) -> Result<(String, String), String> {
+fn value_for_step(
+    evaluator: &mut dyn PartEvaluator,
+    text: &str,
+) -> Result<(String, String), String> {
     let value = evaluator.calculate(text)?;
     let profile = evaluator.profile();
     let kind = match value.core() {

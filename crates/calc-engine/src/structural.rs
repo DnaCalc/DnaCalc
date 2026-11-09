@@ -66,8 +66,14 @@ fn fml_edit(root: &ModelRoot, change: &StructuralChange) -> StructuralEdit {
 }
 
 impl FormulaRewriter for ReferenceRewriter {
-    fn relocate(&self, root: &ModelRoot, formula: &FormulaText, from: CellKey, to: CellKey) -> Option<FormulaText> {
-        relocate_formula(root,formula,from,to)
+    fn relocate(
+        &self,
+        root: &ModelRoot,
+        formula: &FormulaText,
+        from: CellKey,
+        to: CellKey,
+    ) -> Option<FormulaText> {
+        relocate_formula(root, formula, from, to)
     }
 
     fn formula(

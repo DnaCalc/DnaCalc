@@ -1,5 +1,8 @@
 //! Declaration data for the existing rounding worksheet functions.
-use super::{ArgumentDemand, Availability, EntryKind, FunctionId, Notation, Parameter, ResultForm, WorksheetDeclaration};
+use super::{
+    ArgumentDemand, Availability, EntryKind, FunctionId, Notation, Parameter, ResultForm,
+    WorksheetDeclaration,
+};
 use calc_value::CallableArityShape;
 pub const CODE: u16 = 6;
 
@@ -35,7 +38,7 @@ const fn call(
     spelling: &'static str,
     min: usize,
     parameters: &'static [Parameter],
-    ) -> WorksheetDeclaration {
+) -> WorksheetDeclaration {
     WorksheetDeclaration {
         localized_names: None,
         context_facilities: None,
@@ -55,20 +58,66 @@ const fn call(
 
 // 3-D positions: dc-10y, Excel 16.0.20430, 2026-10-25; catalogue oracle ThreeD sheet.
 pub const ENTRIES: &[WorksheetDeclaration] = &[
-        call(ABS, "ABS", 1, NUMBER).with_three_d(super::ThreeD::new(None, None, Some(&[]))),
-        call(SIGN, "SIGN", 1, NUMBER).with_three_d(super::ThreeD::new(None, None, Some(&[]))),
-        call(INT, "INT", 1, NUMBER).with_three_d(super::ThreeD::new(None, None, Some(&[]))),
-        call(TRUNC, "TRUNC", 1, DIGITS).with_three_d(super::ThreeD::new(None, None, Some(&[]))).with_traits(super::EntryTraits::NONE.flush_subnormal_inputs().retain_overflow_number().retain_subnormal_output()),
-        call(ROUND, "ROUND", 2, DIGITS).with_three_d(super::ThreeD::new(None, None, Some(&[]))).with_traits(super::EntryTraits::NONE.flush_subnormal_inputs().retain_overflow_number()),
-        // W111 directed-rounding padding and multi-cell reference controls.
-        call(ROUNDUP, "ROUNDUP", 2, DIGITS).with_three_d(super::ThreeD::new(None, None, Some(&[]))).with_traits(super::EntryTraits::NONE.padding_precedes_call().flush_subnormal_inputs().retain_subnormal_output()),
-        call(ROUNDDOWN, "ROUNDDOWN", 2, DIGITS).with_three_d(super::ThreeD::new(None, None, Some(&[]))).with_traits(super::EntryTraits::NONE.padding_precedes_call().flush_subnormal_inputs().retain_overflow_number().retain_subnormal_output()),
-        call(MROUND, "MROUND", 2, MULTIPLE).with_three_d(super::ThreeD::new(None, Some(&[]), None)).with_traits(super::EntryTraits::NONE.reject_multi_cell_reference().strict_number_arguments()),
-        call(CEILING, "CEILING", 2, SIGNIFICANCE).with_three_d(super::ThreeD::new(None, None, Some(&[]))),
-        call(FLOOR, "FLOOR", 2, SIGNIFICANCE).with_three_d(super::ThreeD::new(None, None, Some(&[]))),
-        call(MOD, "MOD", 2, DIVISOR).with_three_d(super::ThreeD::new(None, None, Some(&[]))).with_traits(super::EntryTraits::NONE.flush_subnormal_inputs()),
-        call(QUOTIENT, "QUOTIENT", 2, FRACTION).with_three_d(super::ThreeD::new(None, Some(&[]), None)).with_traits(super::EntryTraits::NONE.reject_multi_cell_reference().strict_number_arguments()),
-        call(EVEN, "EVEN", 1, NUMBER).with_three_d(super::ThreeD::new(None, None, Some(&[]))),
-        call(ODD, "ODD", 1, NUMBER).with_three_d(super::ThreeD::new(None, None, Some(&[]))),
-        call(ECMA_CEILING, "ECMA.CEILING", 2, SIGNIFICANCE),
+    call(ABS, "ABS", 1, NUMBER).with_three_d(super::ThreeD::new(None, None, Some(&[]))),
+    call(SIGN, "SIGN", 1, NUMBER).with_three_d(super::ThreeD::new(None, None, Some(&[]))),
+    call(INT, "INT", 1, NUMBER).with_three_d(super::ThreeD::new(None, None, Some(&[]))),
+    call(TRUNC, "TRUNC", 1, DIGITS)
+        .with_three_d(super::ThreeD::new(None, None, Some(&[])))
+        .with_traits(
+            super::EntryTraits::NONE
+                .flush_subnormal_inputs()
+                .retain_overflow_number()
+                .retain_subnormal_output(),
+        ),
+    call(ROUND, "ROUND", 2, DIGITS)
+        .with_three_d(super::ThreeD::new(None, None, Some(&[])))
+        .with_traits(
+            super::EntryTraits::NONE
+                .flush_subnormal_inputs()
+                .retain_overflow_number(),
+        ),
+    // W111 directed-rounding padding and multi-cell reference controls.
+    call(ROUNDUP, "ROUNDUP", 2, DIGITS)
+        .with_three_d(super::ThreeD::new(None, None, Some(&[])))
+        .with_traits(
+            super::EntryTraits::NONE
+                .padding_precedes_call()
+                .flush_subnormal_inputs()
+                .retain_subnormal_output(),
+        ),
+    call(ROUNDDOWN, "ROUNDDOWN", 2, DIGITS)
+        .with_three_d(super::ThreeD::new(None, None, Some(&[])))
+        .with_traits(
+            super::EntryTraits::NONE
+                .padding_precedes_call()
+                .flush_subnormal_inputs()
+                .retain_overflow_number()
+                .retain_subnormal_output(),
+        ),
+    call(MROUND, "MROUND", 2, MULTIPLE)
+        .with_three_d(super::ThreeD::new(None, Some(&[]), None))
+        .with_traits(
+            super::EntryTraits::NONE
+                .reject_multi_cell_reference()
+                .strict_number_arguments(),
+        ),
+    call(CEILING, "CEILING", 2, SIGNIFICANCE).with_three_d(super::ThreeD::new(
+        None,
+        None,
+        Some(&[]),
+    )),
+    call(FLOOR, "FLOOR", 2, SIGNIFICANCE).with_three_d(super::ThreeD::new(None, None, Some(&[]))),
+    call(MOD, "MOD", 2, DIVISOR)
+        .with_three_d(super::ThreeD::new(None, None, Some(&[])))
+        .with_traits(super::EntryTraits::NONE.flush_subnormal_inputs()),
+    call(QUOTIENT, "QUOTIENT", 2, FRACTION)
+        .with_three_d(super::ThreeD::new(None, Some(&[]), None))
+        .with_traits(
+            super::EntryTraits::NONE
+                .reject_multi_cell_reference()
+                .strict_number_arguments(),
+        ),
+    call(EVEN, "EVEN", 1, NUMBER).with_three_d(super::ThreeD::new(None, None, Some(&[]))),
+    call(ODD, "ODD", 1, NUMBER).with_three_d(super::ThreeD::new(None, None, Some(&[]))),
+    call(ECMA_CEILING, "ECMA.CEILING", 2, SIGNIFICANCE),
 ];

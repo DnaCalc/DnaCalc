@@ -33,13 +33,15 @@
 //! cell's, the document's properties and a cached result (a reopen calculates the formula again, so a file's cached result
 //! is never read as a value).
 
-use crate::session_look::{look_operations, read_dxf, read_format};
 pub use crate::session_look::{SessionDxf, SessionFormat, SessionLook, SessionRule};
+use crate::session_look::{look_operations, read_dxf, read_format};
 use crate::{
-    CustomXmlItem, LoadedWorkbook, MemorySource, OpenPolicy, PackageRead, SavePolicy,
-    load, open, prepare_edit, prepare_save, write,
+    CustomXmlItem, LoadedWorkbook, MemorySource, OpenPolicy, PackageRead, SavePolicy, load, open,
+    prepare_edit, prepare_save, write,
 };
-use calc_doc_model::value::{CellKey, ExcelText, GridArea, IdAllocator, SheetId, WorksheetErrorCode};
+use calc_doc_model::value::{
+    CellKey, ExcelText, GridArea, IdAllocator, SheetId, WorksheetErrorCode,
+};
 use calc_doc_model::{
     ArrayFormula, ArrayKind, CachedValue, CellInput, CellText, FiniteNumber, FormulaForm,
     FormulaText, OpBatch, SheetName, WorkbookOp,
@@ -156,7 +158,11 @@ pub enum SessionRefusal {
     /// The workbook's VBA project part could not be read.
     VbaProject { detail: String },
     /// A cell holds something a constant cannot be here, or text too long.
-    Cell { row: u32, column: u32, detail: String },
+    Cell {
+        row: u32,
+        column: u32,
+        detail: String,
+    },
     /// The session could not be written.
     Write { detail: String },
 }
@@ -164,9 +170,13 @@ pub enum SessionRefusal {
 impl fmt::Display for SessionRefusal {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
-            Self::Unreadable { detail } => write!(f, "the file cannot be read as a workbook: {detail}"),
+            Self::Unreadable { detail } => {
+                write!(f, "the file cannot be read as a workbook: {detail}")
+            }
             Self::Sheets { count: 0 } => f.write_str("the workbook has no sheet"),
-            Self::Sheets { count } => write!(f, "the workbook has {count} sheets; a session has one"),
+            Self::Sheets { count } => {
+                write!(f, "the workbook has {count} sheets; a session has one")
+            }
             Self::Formulas { count } => {
                 write!(f, "the sheet has {count} formulas; a session has one")
             }
@@ -174,9 +184,15 @@ impl fmt::Display for SessionRefusal {
                 f,
                 "the formula is an array formula over {rows} x {columns} cells; a session's formula fills one cell"
             ),
-            Self::Content { what } => write!(f, "the workbook has {what}, which a session does not hold"),
+            Self::Content { what } => {
+                write!(f, "the workbook has {what}, which a session does not hold")
+            }
             Self::VbaProject { detail } => write!(f, "the VBA project: {detail}"),
-            Self::Cell { row, column, detail } => {
+            Self::Cell {
+                row,
+                column,
+                detail,
+            } => {
                 write!(f, "the cell at row {row}, column {column}: {detail}")
             }
             Self::Write { detail } => write!(f, "the session could not be written: {detail}"),
@@ -211,25 +227,35 @@ pub fn read_session(bytes: Vec<u8>, namespace: &str) -> Result<SessionFile, Sess
     let model = loaded.model();
     let sheets = model.sheets();
     let [entry] = sheets else {
-        return Err(SessionRefusal::Sheets { count: sheets.len() });
+        return Err(SessionRefusal::Sheets {
+            count: sheets.len(),
+        });
     };
     let sheet = entry.id();
     let definitions = model.definitions();
     if !definitions.names().is_empty() || loaded.defined_names_not_loaded() > 0 {
-        return Err(SessionRefusal::Content { what: "defined names" });
+        return Err(SessionRefusal::Content {
+            what: "defined names",
+        });
     }
     if !definitions.tables().is_empty() {
         return Err(SessionRefusal::Content { what: "tables" });
     }
     if definitions.pivots().tables().next().is_some() {
-        return Err(SessionRefusal::Content { what: "pivot tables" });
+        return Err(SessionRefusal::Content {
+            what: "pivot tables",
+        });
     }
     if let Some(loaded_sheet) = loaded.sheet(sheet) {
         if !loaded_sheet.merged_areas().is_empty() {
-            return Err(SessionRefusal::Content { what: "merged cells" });
+            return Err(SessionRefusal::Content {
+                what: "merged cells",
+            });
         }
         if !loaded_sheet.validations().is_empty() {
-            return Err(SessionRefusal::Content { what: "data validation" });
+            return Err(SessionRefusal::Content {
+                what: "data validation",
+            });
         }
         if !loaded_sheet.charts().charts.is_empty() || loaded_sheet.charts().unread > 0 {
             return Err(SessionRefusal::Content { what: "charts" });
@@ -311,7 +337,12 @@ pub fn read_session(bytes: Vec<u8>, namespace: &str) -> Result<SessionFile, Sess
         })
     });
     let look = read_look(&loaded, sheet, formula.as_ref(), &constants)?;
-    let custom = match loaded.custom_xml(namespace).map_err(unreadable)?.into_iter().next() {
+    let custom = match loaded
+        .custom_xml(namespace)
+        .map_err(unreadable)?
+        .into_iter()
+        .next()
+    {
         Some((_, content)) => Some(CustomXmlItem {
             namespace: namespace.to_owned(),
             content,
@@ -346,28 +377,41 @@ fn read_look(
     let mut area: Option<(u32, u32, u32, u32)> = None;
     for block in loaded_sheet.conditional_formats() {
         if block.unread_container {
-            return Err(SessionRefusal::Content { what: "conditional formats with extensions" });
+            return Err(SessionRefusal::Content {
+                what: "conditional formats with extensions",
+            });
         }
         let [one] = block.areas.as_slice() else {
-            return Err(SessionRefusal::Content { what: "conditional formats over several ranges" });
+            return Err(SessionRefusal::Content {
+                what: "conditional formats over several ranges",
+            });
         };
         if *area.get_or_insert(*one) != *one {
-            return Err(SessionRefusal::Content { what: "conditional formats over different ranges" });
+            return Err(SessionRefusal::Content {
+                what: "conditional formats over different ranges",
+            });
         }
         for rule in &block.rules {
             // A data bar Excel 2010 or later saved names its extension (`x14:id`), which the loader
             // counts as unread; the extension's lengths and gradient are applied to the bar.
-            let extension_only = rule.kind == "dataBar" && rule.extension_id.is_some() && rule.data_bar.is_some();
+            let extension_only =
+                rule.kind == "dataBar" && rule.extension_id.is_some() && rule.data_bar.is_some();
             if rule.unread && !extension_only {
-                return Err(SessionRefusal::Content { what: "conditional formats this version does not read" });
+                return Err(SessionRefusal::Content {
+                    what: "conditional formats this version does not read",
+                });
             }
             let dxf = match rule.dxf {
                 Some(index) => {
                     let Some(d) = styles.differential_formats.get(index as usize) else {
-                        return Err(SessionRefusal::Content { what: "a conditional format with a missing differential format" });
+                        return Err(SessionRefusal::Content {
+                            what: "a conditional format with a missing differential format",
+                        });
                     };
                     if d.border.is_some() || d.alignment.is_some() || d.protection.is_some() {
-                        return Err(SessionRefusal::Content { what: "conditional formats with borders or alignment" });
+                        return Err(SessionRefusal::Content {
+                            what: "conditional formats with borders or alignment",
+                        });
                     }
                     read_dxf(&styles, index)
                 }
@@ -380,7 +424,8 @@ fn read_look(
     }
     look.rules.sort_by_key(|r| r.rule.priority);
     if let Some((top, left, bottom, right)) = area {
-        (look.row, look.column, look.rows, look.columns) = (top, left, bottom - top + 1, right - left + 1);
+        (look.row, look.column, look.rows, look.columns) =
+            (top, left, bottom - top + 1, right - left + 1);
     }
     // The format is the formula cell's own; a session without a formula keeps it on the first
     // formatted cell.
@@ -405,7 +450,9 @@ fn read_look(
             // carry the same format (a result that spilled).
             let (mut rows, mut columns) = (1u32, 1u32);
             let same = |r: u32, c: u32| {
-                loaded_sheet.explicit_styles().any(|(r2, c2, s)| (r2, c2, s) == (r, c, style))
+                loaded_sheet
+                    .explicit_styles()
+                    .any(|(r2, c2, s)| (r2, c2, s) == (r, c, style))
             };
             while same(row + rows, column) {
                 rows += 1;
@@ -496,8 +543,10 @@ fn cell_input(value: &SessionValue, row: u32, column: u32) -> Result<CellInput, 
             FiniteNumber::new(*number).ok_or_else(|| refused("a number a cell cannot hold"))?,
         ),
         SessionValue::Text(text) => CellInput::Text(
-            CellText::new(ExcelText::from_utf16_code_units(text.encode_utf16().collect()))
-                .ok_or_else(|| refused("text longer than a cell holds"))?,
+            CellText::new(ExcelText::from_utf16_code_units(
+                text.encode_utf16().collect(),
+            ))
+            .ok_or_else(|| refused("text longer than a cell holds"))?,
         ),
         SessionValue::Logical(value) => CellInput::Logical(*value),
         SessionValue::Error(code) => CellInput::Error(*code),
@@ -508,8 +557,10 @@ fn cell_input(value: &SessionValue, row: u32, column: u32) -> Result<CellInput, 
 pub fn write_session(session: &SessionFile) -> Result<Vec<u8>, SessionRefusal> {
     let write_refused = |detail: String| SessionRefusal::Write { detail };
     // The sheet name is checked as the model checks it before it goes into the new package.
-    SheetName::new(ExcelText::from_utf16_code_units(session.sheet.encode_utf16().collect()))
-        .map_err(|error| write_refused(format!("the sheet name: {error:?}")))?;
+    SheetName::new(ExcelText::from_utf16_code_units(
+        session.sheet.encode_utf16().collect(),
+    ))
+    .map_err(|error| write_refused(format!("the sheet name: {error:?}")))?;
     let loaded = open_bytes(crate::blank::blank_package_with(
         &session.sheet,
         session.date_1904,
@@ -636,11 +687,31 @@ mod tests {
                 array: SessionArray::Plain,
             }),
             constants: vec![
-                SessionConstant { row: 1, column: 1, value: SessionValue::Number(1.5) },
-                SessionConstant { row: 1, column: 2, value: SessionValue::Text("é & < >".to_owned()) },
-                SessionConstant { row: 2, column: 1, value: SessionValue::Number(2.0) },
-                SessionConstant { row: 2, column: 2, value: SessionValue::Logical(true) },
-                SessionConstant { row: 3, column: 2, value: SessionValue::Error(WorksheetErrorCode::NA) },
+                SessionConstant {
+                    row: 1,
+                    column: 1,
+                    value: SessionValue::Number(1.5),
+                },
+                SessionConstant {
+                    row: 1,
+                    column: 2,
+                    value: SessionValue::Text("é & < >".to_owned()),
+                },
+                SessionConstant {
+                    row: 2,
+                    column: 1,
+                    value: SessionValue::Number(2.0),
+                },
+                SessionConstant {
+                    row: 2,
+                    column: 2,
+                    value: SessionValue::Logical(true),
+                },
+                SessionConstant {
+                    row: 3,
+                    column: 2,
+                    value: SessionValue::Error(WorksheetErrorCode::NA),
+                },
             ],
             custom: custom("<locale>de-DE</locale>"),
             date_1904: false,
@@ -686,7 +757,10 @@ mod tests {
         });
         let read = read_session(write_session(&original).unwrap(), NAMESPACE).unwrap();
         let formula = read.formula.unwrap();
-        assert_eq!((formula.text.as_str(), formula.array), ("A1:A2*2", SessionArray::Legacy));
+        assert_eq!(
+            (formula.text.as_str(), formula.array),
+            ("A1:A2*2", SessionArray::Legacy)
+        );
     }
 
     #[cfg_attr(not(target_arch = "wasm32"), test)]
@@ -695,13 +769,22 @@ mod tests {
         let mut original = session();
         original.cached = Some(SessionValue::Number(5.0));
         let bytes = write_session(&original).expect("written");
-        let document = crate::open(Arc::new(MemorySource::new(bytes.clone())), &OpenPolicy::default())
-            .expect("opens");
+        let document = crate::open(
+            Arc::new(MemorySource::new(bytes.clone())),
+            &OpenPolicy::default(),
+        )
+        .expect("opens");
         let sheet = String::from_utf8(
-            document.package().read_part("xl/worksheets/sheet1.xml").expect("the sheet part"),
+            document
+                .package()
+                .read_part("xl/worksheets/sheet1.xml")
+                .expect("the sheet part"),
         )
         .expect("UTF-8");
-        assert!(sheet.contains("<f>SUM(A1:A3)+LEN(B1)</f><v>5</v>"), "{sheet}");
+        assert!(
+            sheet.contains("<f>SUM(A1:A3)+LEN(B1)</f><v>5</v>"),
+            "{sheet}"
+        );
         let read = read_session(bytes, NAMESPACE).expect("read back");
         assert_eq!(read.cached, None);
     }
@@ -715,11 +798,20 @@ mod tests {
         let mut again = session();
         again.custom = custom("<locale>fr-FR</locale>");
         let read = read_session(write_session(&again).unwrap(), NAMESPACE).unwrap();
-        assert!(String::from_utf8(read.custom.unwrap().content).unwrap().contains("fr-FR"));
+        assert!(
+            String::from_utf8(read.custom.unwrap().content)
+                .unwrap()
+                .contains("fr-FR")
+        );
         // A file without the item reads without one.
         let mut bare = session();
         bare.custom = None;
-        assert!(read_session(write_session(&bare).unwrap(), NAMESPACE).unwrap().custom.is_none());
+        assert!(
+            read_session(write_session(&bare).unwrap(), NAMESPACE)
+                .unwrap()
+                .custom
+                .is_none()
+        );
     }
 
     #[cfg_attr(not(target_arch = "wasm32"), test)]
@@ -741,7 +833,10 @@ mod tests {
             vba: None,
             look: None,
         };
-        assert_eq!(read_session(write_session(&empty).unwrap(), NAMESPACE).unwrap(), empty);
+        assert_eq!(
+            read_session(write_session(&empty).unwrap(), NAMESPACE).unwrap(),
+            empty
+        );
     }
 
     fn rule(kind: &str, priority: i64) -> ConditionalRule {
@@ -769,11 +864,18 @@ mod tests {
     }
 
     fn rgb(hex: &str) -> calc_doc_model::StyleColor {
-        calc_doc_model::StyleColor { rgb: Some(format!("FF{hex}")), ..Default::default() }
+        calc_doc_model::StyleColor {
+            rgb: Some(format!("FF{hex}")),
+            ..Default::default()
+        }
     }
 
     fn threshold(kind: &str, value: Option<&str>) -> crate::Threshold {
-        crate::Threshold { kind: kind.to_owned(), value: value.map(str::to_owned), gte: true }
+        crate::Threshold {
+            kind: kind.to_owned(),
+            value: value.map(str::to_owned),
+            gte: true,
+        }
     }
 
     /// Native-only: reads the package parts it wrote.
@@ -796,7 +898,11 @@ mod tests {
         average.equal_average = true;
         let mut scale = rule("colorScale", 5);
         scale.color_scale = Some(crate::ColorScale {
-            thresholds: vec![threshold("min", None), threshold("percentile", Some("50")), threshold("max", None)],
+            thresholds: vec![
+                threshold("min", None),
+                threshold("percentile", Some("50")),
+                threshold("max", None),
+            ],
             colors: vec![rgb("F8696B"), rgb("FFEB84"), rgb("63BE7B")],
         });
         let mut bar = rule("dataBar", 6);
@@ -811,7 +917,11 @@ mod tests {
         let mut icons = rule("iconSet", 7);
         icons.icon_set = Some(crate::IconSet {
             name: "3Arrows".to_owned(),
-            thresholds: vec![threshold("percent", Some("0")), threshold("percent", Some("33")), threshold("percent", Some("67"))],
+            thresholds: vec![
+                threshold("percent", Some("0")),
+                threshold("percent", Some("33")),
+                threshold("percent", Some("67")),
+            ],
             reverse: true,
             show_value: true,
         });
@@ -847,13 +957,37 @@ mod tests {
                 border_color: "#112233".to_owned(),
             }),
             rules: vec![
-                SessionRule { rule: cell_is, dxf: Some(dxf.clone()) },
-                SessionRule { rule: text, dxf: Some(SessionDxf { bold: true, ..SessionDxf::default() }) },
-                SessionRule { rule: top, dxf: Some(dxf) },
-                SessionRule { rule: average, dxf: None },
-                SessionRule { rule: scale, dxf: None },
-                SessionRule { rule: bar, dxf: None },
-                SessionRule { rule: icons, dxf: None },
+                SessionRule {
+                    rule: cell_is,
+                    dxf: Some(dxf.clone()),
+                },
+                SessionRule {
+                    rule: text,
+                    dxf: Some(SessionDxf {
+                        bold: true,
+                        ..SessionDxf::default()
+                    }),
+                },
+                SessionRule {
+                    rule: top,
+                    dxf: Some(dxf),
+                },
+                SessionRule {
+                    rule: average,
+                    dxf: None,
+                },
+                SessionRule {
+                    rule: scale,
+                    dxf: None,
+                },
+                SessionRule {
+                    rule: bar,
+                    dxf: None,
+                },
+                SessionRule {
+                    rule: icons,
+                    dxf: None,
+                },
             ],
         });
         let bytes = write_session(&original).expect("written");
@@ -861,12 +995,25 @@ mod tests {
         assert_eq!(read, original);
         // Ordinary parts: the formats are cell formats (`s`) on the cells of the area, the rules
         // are `cfRule` elements over the same range, and no custom XML holds them.
-        let document = crate::open(Arc::new(MemorySource::new(bytes)), &OpenPolicy::default()).expect("opens");
-        let sheet = String::from_utf8(document.package().read_part("xl/worksheets/sheet1.xml").unwrap()).unwrap();
-        assert!(sheet.contains("<conditionalFormatting sqref=\"H1:I3\""), "{sheet}");
+        let document =
+            crate::open(Arc::new(MemorySource::new(bytes)), &OpenPolicy::default()).expect("opens");
+        let sheet = String::from_utf8(
+            document
+                .package()
+                .read_part("xl/worksheets/sheet1.xml")
+                .unwrap(),
+        )
+        .unwrap();
+        assert!(
+            sheet.contains("<conditionalFormatting sqref=\"H1:I3\""),
+            "{sheet}"
+        );
         assert!(sheet.contains("type=\"cellIs\""), "{sheet}");
         for cell in ["H1", "I1", "H2", "I2", "H3", "I3"] {
-            assert!(sheet.contains(&format!("<c r=\"{cell}\" s=\"1\"")), "{cell}: {sheet}");
+            assert!(
+                sheet.contains(&format!("<c r=\"{cell}\" s=\"1\"")),
+                "{cell}: {sheet}"
+            );
         }
     }
 
@@ -889,7 +1036,10 @@ mod tests {
             rows: 1,
             columns: 1,
             format: None,
-            rules: vec![SessionRule { rule: bar, dxf: None }],
+            rules: vec![SessionRule {
+                rule: bar,
+                dxf: None,
+            }],
         });
         let refusal = write_session(&original).expect_err("refused");
         assert!(refusal.to_string().contains("gradient"), "{refusal}");
@@ -905,6 +1055,10 @@ mod tests {
         assert!(read.date_1904);
         assert_eq!(read, original);
         original.date_1904 = false;
-        assert!(!read_session(write_session(&original).unwrap(), NAMESPACE).unwrap().date_1904);
+        assert!(
+            !read_session(write_session(&original).unwrap(), NAMESPACE)
+                .unwrap()
+                .date_1904
+        );
     }
 }

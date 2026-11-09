@@ -69,7 +69,13 @@ pub(crate) fn prepare(
                         ..
                     }) if threaded => {
                         let root = root_id(&notes, id)?;
-                        if *resolved||notes.iter().any(|n|matches!(&n.source,Some(ReviewSource::Thread{id,resolved:true,..})if id==&root)){return Err("Reopen the resolved thread before replying".into());}
+                        if *resolved
+                            || notes.iter().any(|n| {
+                                matches!(&n.source, Some(ReviewSource::Thread { id, resolved: true, .. }) if id == &root)
+                            })
+                        {
+                            return Err("Reopen the resolved thread before replying".into());
+                        }
                         Some(root)
                     }
                     _ => return Err("Replies need a threaded comment".into()),
@@ -123,7 +129,8 @@ pub(crate) fn prepare(
                         timestamp: Some(timestamp),
                         resolved: false,
                     }),
-                    editable: true,annotated:false,
+                    editable: true,
+                    annotated: false,
                     compatibility: false,
                 });
                 if root {
@@ -150,7 +157,8 @@ pub(crate) fn prepare(
                             part,
                             id: fallback_id,
                         }),
-                        editable: false,annotated:false,
+                        editable: false,
+                        annotated: false,
                         compatibility: true,
                     });
                 }
@@ -162,7 +170,8 @@ pub(crate) fn prepare(
                     spans: Vec::new(),
                     source_xml: None,
                     source: Some(ReviewSource::NewNote { part, id }),
-                    editable: true,annotated:false,
+                    editable: true,
+                    annotated: false,
                     compatibility: false,
                 });
             }
@@ -278,7 +287,12 @@ pub(crate) fn fresh_guid(host: &HostState, extra: &[&str]) -> String {
         .keys()
         .map(|id| id.to_ascii_uppercase())
         .collect();
-    for (_, notes) in host.model().definitions().all_review_notes().chain(host.loaded().model().definitions().all_review_notes()) {
+    for (_, notes) in host
+        .model()
+        .definitions()
+        .all_review_notes()
+        .chain(host.loaded().model().definitions().all_review_notes())
+    {
         for note in notes {
             match &note.source {
                 Some(ReviewSource::Thread { id, person, .. }) => {
@@ -374,7 +388,13 @@ pub(crate) fn validate(
         .definitions()
         .all_review_notes()
         .flat_map(|(_, n)| n)
-        .chain(host.loaded().model().definitions().all_review_notes().flat_map(|(_,n)|n))
+        .chain(
+            host.loaded()
+                .model()
+                .definitions()
+                .all_review_notes()
+                .flat_map(|(_, n)| n),
+        )
         .collect();
     let spatial = |n: &[ReviewNote]| {
         n.iter()
@@ -387,7 +407,7 @@ pub(crate) fn validate(
     {
         return Err("Moving review markers in a shared drawing is unavailable (dc-971p.40)".into());
     }
-    let loaded_people=host.loaded().review_people();
+    let loaded_people = host.loaded().review_people();
     for (index, note) in notes.iter().enumerate() {
         check_text(&note.text)?;
         if note.at.sheet() != sheet || !note.valid_spans() {
@@ -441,7 +461,21 @@ pub(crate) fn validate(
         if threaded && note.compatibility {
             return Err("Threaded comments cannot be compatibility notes".into());
         }
-        if note.compatibility && (note.editable || !note.author.strip_prefix("tc=").is_some_and(|root|notes.iter().any(|n|n.at==note.at&&matches!(&n.source,Some(ReviewSource::Thread{id,parent:None,..})if id.eq_ignore_ascii_case(root))))) {return Err("A compatibility note needs its root comment identity".into());}
+        if note.compatibility
+            && (note.editable
+                || !note.author.strip_prefix("tc=").is_some_and(|root| {
+                    notes.iter().any(|n| {
+                        n.at == note.at
+                            && matches!(
+                                &n.source,
+                                Some(ReviewSource::Thread { id, parent: None, .. })
+                                    if id.eq_ignore_ascii_case(root)
+                            )
+                    })
+                }))
+        {
+            return Err("A compatibility note needs its root comment identity".into());
+        }
 
         let approved = host.loaded().review_part(sheet, threaded);
         if host.loaded().has_part(source.part()) {
@@ -518,7 +552,13 @@ pub(crate) fn validate(
                 return Err("Review edits must retain source identities, authors and unsupported annotations (dc-971p.40)".into());
             }
         } else {
-            if note.source_xml.is_none() && (note.annotated || threaded && !note.editable || !threaded && !note.compatibility && !note.editable){return Err("New review text must have editable plain content".into());}
+            if note.source_xml.is_none()
+                && (note.annotated
+                    || threaded && !note.editable
+                    || !threaded && !note.compatibility && !note.editable)
+            {
+                return Err("New review text must have editable plain content".into());
+            }
             let id = match source {
                 ReviewSource::Thread {
                     id,
@@ -553,7 +593,8 @@ pub(crate) fn validate(
                     n.source_xml.as_ref() == Some(xml)
                         && n.source.as_ref().is_some_and(|s| s.threaded() == threaded)
                         && n.editable == note.editable
-                        && n.compatibility == note.compatibility && n.annotated==note.annotated
+                        && n.compatibility == note.compatibility
+                        && n.annotated == note.annotated
                         && (!threaded || n.editable)
                 })
             {
@@ -561,8 +602,19 @@ pub(crate) fn validate(
             }
         }
         if let ReviewSource::Thread { person, .. } = source {
-            if loaded_people.get(&person.to_ascii_lowercase()).is_some_and(|author|author!=&note.author)
-                || notes.iter().any(|n|matches!(&n.source,Some(ReviewSource::Thread{person:p,..})if p.eq_ignore_ascii_case(person))&&n.author!=note.author) {return Err("A person identity must retain its author".into());}
+            if loaded_people
+                .get(&person.to_ascii_lowercase())
+                .is_some_and(|author| author != &note.author)
+                || notes.iter().any(|n| {
+                    matches!(
+                        &n.source,
+                        Some(ReviewSource::Thread { person: p, .. })
+                            if p.eq_ignore_ascii_case(person)
+                    ) && n.author != note.author
+                })
+            {
+                return Err("A person identity must retain its author".into());
+            }
         }
         if let ReviewSource::Thread {
             parent: Some(parent),
@@ -571,7 +623,16 @@ pub(crate) fn validate(
         } = source
         {
             let root = root_id(notes, parent)?;
-            if !notes.iter().any(|n|n.at==note.at&&matches!(&n.source,Some(ReviewSource::Thread{id,parent:None,..})if id.eq_ignore_ascii_case(&root))){return Err("A reply needs a root comment on the same cell".into());}
+            if !notes.iter().any(|n| {
+                n.at == note.at
+                    && matches!(
+                        &n.source,
+                        Some(ReviewSource::Thread { id, parent: None, .. })
+                            if id.eq_ignore_ascii_case(&root)
+                    )
+            }) {
+                return Err("A reply needs a root comment on the same cell".into());
+            }
             if previous.iter().any(|n| {
                 matches!(&n.source,Some(ReviewSource::Thread{person:p,..})if p==person)
                     && n.author != note.author

@@ -299,11 +299,19 @@ impl Panes {
     ) -> Option<CellRect> {
         let mut rect = cell.rect;
         if cell.shown.style.rotation == 0
-            && cell.shown.conditional.as_ref().is_none_or(|c| c.icon.is_none())
+            && cell
+                .shown
+                .conditional
+                .as_ref()
+                .is_none_or(|c| c.icon.is_none())
         {
             rect.w = (rect.w - 1.).max(0.);
         }
-        intersection(rect, cell.clip.unwrap_or_else(|| self.bounds(m, v, cell.row, cell.col)))
+        intersection(
+            rect,
+            cell.clip
+                .unwrap_or_else(|| self.bounds(m, v, cell.row, cell.col)),
+        )
     }
     pub fn text_clip_style(
         self,

@@ -1,6 +1,8 @@
+use super::excel_numeric::{
+    excel_sqrt_staged, excel_x87_add as add, excel_x87_div as div, excel_x87_mul as mul,
+    excel_x87_sub as sub,
+};
 use crate::value::WorksheetErrorCode;
-use super::excel_numeric::{excel_x87_add as add, excel_x87_sub as sub,
-    excel_x87_mul as mul, excel_x87_div as div, excel_sqrt_staged};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum VarianceInclusionPolicy {

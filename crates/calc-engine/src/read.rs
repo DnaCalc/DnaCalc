@@ -33,20 +33,54 @@ mod provider_tests {
     #[cfg_attr(not(target_arch = "wasm32"), test)]
     #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
     fn refused_scalar_shape_keeps_external_provenance_and_denies_its_value() {
-        use calc_doc_model::{AuthoredRevision, CellInput, FormulaText, SheetEntry, SheetKey, SheetName, SheetVisibility};
+        use calc_doc_model::{
+            AuthoredRevision, CellInput, FormulaText, SheetEntry, SheetKey, SheetName,
+            SheetVisibility,
+        };
         use calc_value::ExcelText;
         let sheet = SheetId::from_parts(0, 0);
         let at = CellKey::new(sheet, 1, 1).unwrap();
-        let root = ModelRoot::with_cells(AuthoredRevision::new(0), vec![SheetEntry::new(
-            sheet, SheetKey::new(1), SheetName::new(ExcelText::from_utf16_code_units("Sheet1".encode_utf16().collect())).unwrap(), SheetVisibility::Visible,
-        )], [(at, CellInput::Formula(FormulaText::new(ExcelText::from_utf16_code_units("A1+1".encode_utf16().collect())).unwrap()))]).unwrap();
+        let root = ModelRoot::with_cells(
+            AuthoredRevision::new(0),
+            vec![SheetEntry::new(
+                sheet,
+                SheetKey::new(1),
+                SheetName::new(ExcelText::from_utf16_code_units(
+                    "Sheet1".encode_utf16().collect(),
+                ))
+                .unwrap(),
+                SheetVisibility::Visible,
+            )],
+            [(
+                at,
+                CellInput::Formula(
+                    FormulaText::new(ExcelText::from_utf16_code_units(
+                        "A1+1".encode_utf16().collect(),
+                    ))
+                    .unwrap(),
+                ),
+            )],
+        )
+        .unwrap();
         let state = EngineState::new(&root);
         let node = state.node_at(at).unwrap();
         let pin = BoundarySnapshot {
             view: state.result_view(),
-            entries: BTreeMap::from([(at, BoundaryValue { node, value: CalcValue::number(77.), dirty: true,
-                imported: false, external: true, source: None, extent: None })]),
-            spills: SpillIndex::default(), empty: CalcValue::empty(), refused: BTreeSet::new(),
+            entries: BTreeMap::from([(
+                at,
+                BoundaryValue {
+                    node,
+                    value: CalcValue::number(77.),
+                    dirty: true,
+                    imported: false,
+                    external: true,
+                    source: None,
+                    extent: None,
+                },
+            )]),
+            spills: SpillIndex::default(),
+            empty: CalcValue::empty(),
+            refused: BTreeSet::new(),
         };
         let progress = Progress::new(1);
         let spills = SpillIndex::default();
@@ -55,13 +89,29 @@ mod provider_tests {
         let denial = Cell::new(None);
         let used = Cell::new(false);
         let uncomputed = Cell::new(None);
-        let mut reader = WorkbookReader::new(RecalcView {
-            linked_workbooks: &state.linked_workbooks, cached_observation: false, caller: None,
-            scope: Some(&scope), range_refused: Some(&refused), boundary: Some(&denial),
-            boundary_caches: Some(&pin), boundary_used: Some(&used), workbook_facts: None,
-            inputs: &root, state: &state, progress: &progress, spills: &spills, iterates: None, kept: None,
-        }, &uncomputed);
-        assert!(matches!(reader.spill_extent(at), SpillExtent::Area(area) if area == GridArea::cell(at)));
+        let mut reader = WorkbookReader::new(
+            RecalcView {
+                linked_workbooks: &state.linked_workbooks,
+                cached_observation: false,
+                caller: None,
+                scope: Some(&scope),
+                range_refused: Some(&refused),
+                boundary: Some(&denial),
+                boundary_caches: Some(&pin),
+                boundary_used: Some(&used),
+                workbook_facts: None,
+                inputs: &root,
+                state: &state,
+                progress: &progress,
+                spills: &spills,
+                iterates: None,
+                kept: None,
+            },
+            &uncomputed,
+        );
+        assert!(
+            matches!(reader.spill_extent(at), SpillExtent::Area(area) if area == GridArea::cell(at))
+        );
         assert!(used.get() && reader.read_external_links());
         assert!(matches!(reader.formula_lookup(at), Ok(None)));
         assert_eq!(denial.get(), Some(iterative_range_denial()));
@@ -564,19 +614,26 @@ impl BoundarySnapshot {
         let mut spills = SpillIndex::default();
         // A workbook command has no out-of-scope cache. Do not visit every formula merely
         // to discover that, particularly for an edit whose dirty closure has three cells.
-        let outside_limit = if matches!(scope, crate::CalcScope::Workbook) { 0 } else { usize::MAX };
+        let outside_limit = if matches!(scope, crate::CalcScope::Workbook) {
+            0
+        } else {
+            usize::MAX
+        };
         for node in state.nodes().take(outside_limit) {
             let at = node.anchor();
             let selected = scope.contains(at);
             if (selected && !selected_refused.contains(&node.id()))
-                || !matches!(inputs.cell(at), Some(CellInput::Formula(_))) {
+                || !matches!(inputs.cell(at), Some(CellInput::Formula(_)))
+            {
                 continue;
             }
             // Selected cyclic targets may lend only an actual scalar cache's
             // shape, never its value. Fixed/held array images stay unmeasured.
-            if selected && (inputs.definitions().array(at).is_some()
-                || state.spills.get(at).is_some()
-                || state.cached_arrays.contains_key(&node.id())) {
+            if selected
+                && (inputs.definitions().array(at).is_some()
+                    || state.spills.get(at).is_some()
+                    || state.cached_arrays.contains_key(&node.id()))
+            {
                 continue;
             }
             let Some(result) = state.permitted_cache(at) else {
@@ -1105,7 +1162,13 @@ impl<'a> WorkbookReader<'a> {
                 return;
             }
             covered = index + 1;
-            if let Some((value,_))=self.view.state.pivot_results.cells.get(&at){batch.push(value.clone());if batch.len()>=BATCH&&flush(batch,sink).is_break(){return;}continue;}
+            if let Some((value, _)) = self.view.state.pivot_results.cells.get(&at) {
+                batch.push(value.clone());
+                if batch.len() >= BATCH && flush(batch, sink).is_break() {
+                    return;
+                }
+                continue;
+            }
             let flow = match literal_value(input) {
                 Some(value) => {
                     batch.push(value);
@@ -1288,8 +1351,16 @@ impl<'a> WorkbookReader<'a> {
     fn overlay(&mut self, at: CellKey) -> Overlay<'a> {
         let view = self.view;
         let definitions = view.inputs.definitions();
-        if let Some((value,_))=view.state.pivot_results.cells.get(&at){return Overlay::Value(value);}
-        if !view.state.pivot_results.issues.is_empty() && definitions.pivots().contains(at){self.denial.set(Some(calc_fml::ReadDenial{construct:"pivot refresh",owner:"dc-8wp"}));return Overlay::Missing;}
+        if let Some((value, _)) = view.state.pivot_results.cells.get(&at) {
+            return Overlay::Value(value);
+        }
+        if !view.state.pivot_results.issues.is_empty() && definitions.pivots().contains(at) {
+            self.denial.set(Some(calc_fml::ReadDenial {
+                construct: "pivot refresh",
+                owner: "dc-8wp",
+            }));
+            return Overlay::Missing;
+        }
         // L3 (dc-m3u): a data table's cell reads as its node's result.
         if definitions.data_table_containing(at).is_some() && view.state.node_at(at).is_some() {
             return match self.formula_value(at) {
@@ -1355,7 +1426,9 @@ impl<'a> WorkbookReader<'a> {
         let view = self.view;
         let inputs = view.inputs;
         let definitions = inputs.definitions();
-        if view.state.pivot_results.cells.is_empty() && view.state.pivot_results.issues.is_empty() && view.spills.is_empty()
+        if view.state.pivot_results.cells.is_empty()
+            && view.state.pivot_results.issues.is_empty()
+            && view.spills.is_empty()
             && view.state.spills.is_empty()
             && view.boundary_caches.is_none_or(|pin| pin.spills.is_empty())
             && definitions.arrays_meeting(area).next().is_none()
@@ -1415,7 +1488,14 @@ impl<'a> WorkbookReader<'a> {
                 }
             }
         }
-        candidates.extend(view.state.pivot_results.cells.range(area.first()..=area.last()).filter(|(at,_)|area.contains(**at)).map(|(at,_)|*at));
+        candidates.extend(
+            view.state
+                .pivot_results
+                .cells
+                .range(area.first()..=area.last())
+                .filter(|(at, _)| area.contains(**at))
+                .map(|(at, _)| *at),
+        );
         let mut out = BTreeMap::new();
         for at in candidates {
             if inputs.cell(at).is_some() {
@@ -1447,8 +1527,18 @@ impl<'a> WorkbookReader<'a> {
     /// give it, the cell of a what-if table's node included; `None` for an empty cell, which an
     /// overlay may fill and the walk reads.
     fn single(&mut self, at: CellKey) -> Option<Single<'a>> {
-        if let Some((value,_))=self.view.state.pivot_results.cells.get(&at){return Some(Single::Formula(value));}
-        if !self.view.state.pivot_results.issues.is_empty() && self.view.inputs.definitions().pivots().contains(at){self.denial.set(Some(calc_fml::ReadDenial{construct:"pivot refresh",owner:"dc-8wp"}));return Some(Single::Missing);}
+        if let Some((value, _)) = self.view.state.pivot_results.cells.get(&at) {
+            return Some(Single::Formula(value));
+        }
+        if !self.view.state.pivot_results.issues.is_empty()
+            && self.view.inputs.definitions().pivots().contains(at)
+        {
+            self.denial.set(Some(calc_fml::ReadDenial {
+                construct: "pivot refresh",
+                owner: "dc-8wp",
+            }));
+            return Some(Single::Missing);
+        }
 
         if let Some(node) = self.view.state.node_at(at) {
             return Some(match self.node_value(node, at) {
@@ -1701,19 +1791,35 @@ impl ReferenceReader for WorkbookReader<'_> {
                     .spill_iter()
                     .map(|(&node, binding)| (node, Some(binding)))
                     .chain(
-                        self.view.state.nodes()
-                            .take(if request.policy == calc_fml::ReadPolicy::DiagnosticSnapshot
-                                && self.view.progress.scheduled() > 0 { usize::MAX } else { 0 })
-                            .filter(|record| self.view.progress.is_scheduled(record.id())
-                                && matches!(self.view.state.bindings.get(&record.id()),
-                                    None | Some(crate::state::Binding::Refused(_))))
+                        self.view
+                            .state
+                            .nodes()
+                            .take(
+                                if request.policy == calc_fml::ReadPolicy::DiagnosticSnapshot
+                                    && self.view.progress.scheduled() > 0
+                                {
+                                    usize::MAX
+                                } else {
+                                    0
+                                },
+                            )
+                            .filter(|record| {
+                                self.view.progress.is_scheduled(record.id())
+                                    && matches!(
+                                        self.view.state.bindings.get(&record.id()),
+                                        None | Some(crate::state::Binding::Refused(_))
+                                    )
+                            })
                             .map(|record| (record.id(), None)),
                     )
                     .filter_map(|(node, binding)| {
                         if Some(node) == self.view.caller
                             || !matches!(
                                 binding,
-                                Some(crate::state::Binding::Placed(_, crate::state::ArrayRole::Spill)) | None
+                                Some(crate::state::Binding::Placed(
+                                    _,
+                                    crate::state::ArrayRole::Spill
+                                )) | None
                             )
                         {
                             return None;
@@ -1734,7 +1840,8 @@ impl ReferenceReader for WorkbookReader<'_> {
                         // circular dependency from a merely possible southeast footprint.
                         // Excluded producers use the admission-time cached absence. The
                         // certificate records that qualification and their unmet requirements.
-                        let diagnostic_pending = request.policy == calc_fml::ReadPolicy::DiagnosticSnapshot
+                        let diagnostic_pending = request.policy
+                            == calc_fml::ReadPolicy::DiagnosticSnapshot
                             && self.view.progress.is_scheduled(node)
                             && !self.view.progress.is_evaluated(node);
                         let unresolved = (unknown || diagnostic_pending) && !outside;
@@ -1855,8 +1962,12 @@ impl ReferenceReader for WorkbookReader<'_> {
                 && view.state.node_at(anchor) == Some(value.node)
                 && value.extent.is_none()
             {
-                if let Some(used) = view.boundary_used { used.set(true); }
-                if value.external { self.external.set(true); }
+                if let Some(used) = view.boundary_used {
+                    used.set(true);
+                }
+                if value.external {
+                    self.external.set(true);
+                }
                 return SpillExtent::Area(GridArea::cell(anchor));
             }
             self.denial.set(Some(iterative_range_denial()));
@@ -1923,12 +2034,24 @@ impl ReferenceReader for WorkbookReader<'_> {
 /// The workbook's facts an evaluation may ask about (calc-func's HostFacts): which cells hold
 /// formulas and their text, and the sheets. The formula being evaluated is the caller's to say.
 impl HostFacts for WorkbookReader<'_> {
-    fn pivot_data_cell(&mut self,data_field:&str,reference:&[GridArea],fields:&[(String,CalcValue)])->calc_fml::PivotLookup {
+    fn pivot_data_cell(
+        &mut self,
+        data_field: &str,
+        reference: &[GridArea],
+        fields: &[(String, CalcValue)],
+    ) -> calc_fml::PivotLookup {
         let definitions = self.view.inputs.definitions();
-        if let Some(result) = crate::pivot::model_data_cell(definitions.pivots(), data_field, reference, fields) {
+        if let Some(result) =
+            crate::pivot::model_data_cell(definitions.pivots(), data_field, reference, fields)
+        {
             return match result {
-                calc_fml::PivotLookup::Cell(at) if self.view.state.pivot_results.cells.get(&at)
-                    .is_some_and(|(value, _)| !matches!(value.core_ref(), calc_value::CoreRef::Empty)) => result,
+                calc_fml::PivotLookup::Cell(at)
+                    if self.view.state.pivot_results.cells.get(&at).is_some_and(
+                        |(value, _)| !matches!(value.core_ref(), calc_value::CoreRef::Empty),
+                    ) =>
+                {
+                    result
+                }
                 calc_fml::PivotLookup::Cell(_) => calc_fml::PivotLookup::NotModelled,
                 _ => result,
             };
@@ -1936,10 +2059,18 @@ impl HostFacts for WorkbookReader<'_> {
         if let (Some(data), Some(facts)) = (definitions.data_model(), self.view.workbook_facts)
             && let Some(connection) = data.model_connection.as_deref()
             && let calc_fml::CubeLookup::Model(model) = facts.cube_model(connection)
-            && let Some(result) = crate::pivot::invalid_model_request(definitions.pivots(), data, &model, data_field, reference, fields) {
+            && let Some(result) = crate::pivot::invalid_model_request(
+                definitions.pivots(),
+                data,
+                &model,
+                data_field,
+                reference,
+                fields,
+            )
+        {
             return result;
         }
-        crate::pivot::data_cell(definitions.pivots(),data_field,reference,fields)
+        crate::pivot::data_cell(definitions.pivots(), data_field, reference, fields)
     }
 
     fn caller(&mut self) -> Option<CellKey> {
@@ -1964,9 +2095,13 @@ impl HostFacts for WorkbookReader<'_> {
             Some(CellInput::Formula(text)) => {
                 let text = String::from_utf16(text.text().utf16_code_units()).ok()?;
                 let lower = text.to_ascii_lowercase();
-                if [calc_catalogue::FUTURE_FUNCTION_PREFIX, calc_catalogue::WORKSHEET_FUNCTION_PREFIX, calc_catalogue::USER_DEFINED_FUNCTION_PREFIX]
-                    .iter()
-                    .any(|p| lower.contains(p))
+                if [
+                    calc_catalogue::FUTURE_FUNCTION_PREFIX,
+                    calc_catalogue::WORKSHEET_FUNCTION_PREFIX,
+                    calc_catalogue::USER_DEFINED_FUNCTION_PREFIX,
+                ]
+                .iter()
+                .any(|p| lower.contains(p))
                 {
                     return None;
                 }
@@ -2014,7 +2149,11 @@ impl HostFacts for WorkbookReader<'_> {
     }
 
     fn workbook_name(&mut self) -> Option<String> {
-        self.view.inputs.definitions().workbook_name().map(str::to_owned)
+        self.view
+            .inputs
+            .definitions()
+            .workbook_name()
+            .map(str::to_owned)
     }
 
     fn sheet_count(&mut self) -> Option<u32> {
@@ -2128,8 +2267,12 @@ impl CachedReadLease {
                 |n| n.checked_add(1),
             )
             .expect("observation view identity exhausted");
-        let mut cache =
-            BoundarySnapshot::capture(state, inputs, &crate::CalcScope::Range(Vec::new()), &BTreeSet::new());
+        let mut cache = BoundarySnapshot::capture(
+            state,
+            inputs,
+            &crate::CalcScope::Range(Vec::new()),
+            &BTreeSet::new(),
+        );
         let mut refused: BTreeSet<_> = state
             .nodes()
             .filter_map(|node| {
@@ -2144,12 +2287,25 @@ impl CachedReadLease {
         // An iterative callback observes the current sweep's scalar values,
         // including its own seed before its first evaluation.
         for (&node, value) in iterates.into_iter().flatten() {
-            let Some(record) = state.node(node) else { continue; };
+            let Some(record) = state.node(node) else {
+                continue;
+            };
             let at = record.anchor();
-            let nonscalar = value.as_ref().is_some_and(|value| value.as_array().is_some())
-                || inputs.definitions().array(at).is_some_and(|array| array.area().cell_count() > 1)
-                || state.spills.get(at).is_some_and(|spill| spill.area().cell_count() > 1)
-                || state.cached_arrays.get(&node).is_some_and(|spill| spill.area().cell_count() > 1);
+            let nonscalar = value
+                .as_ref()
+                .is_some_and(|value| value.as_array().is_some())
+                || inputs
+                    .definitions()
+                    .array(at)
+                    .is_some_and(|array| array.area().cell_count() > 1)
+                || state
+                    .spills
+                    .get(at)
+                    .is_some_and(|spill| spill.area().cell_count() > 1)
+                || state
+                    .cached_arrays
+                    .get(&node)
+                    .is_some_and(|spill| spill.area().cell_count() > 1);
             if nonscalar {
                 cache.entries.remove(&at);
                 cache.spills.remove(at);
@@ -2165,10 +2321,18 @@ impl CachedReadLease {
                 entry.value = value.clone();
                 entry.dirty = false;
             } else {
-                cache.entries.insert(at, BoundaryValue {
-                    node, value: value.clone(), dirty: false, imported: false,
-                    external: false, source: None, extent: None,
-                });
+                cache.entries.insert(
+                    at,
+                    BoundaryValue {
+                        node,
+                        value: value.clone(),
+                        dirty: false,
+                        imported: false,
+                        external: false,
+                        source: None,
+                        extent: None,
+                    },
+                );
             }
         }
         for (node, result) in progress.staged_results() {

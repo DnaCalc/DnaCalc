@@ -73,7 +73,10 @@ fn formatted(
 ) -> (String, FormatShown) {
     // Until the painter draws the picture, a cell shows its alt text, never the #VALUE! it reads as.
     if let Some(image) = value.image_value() {
-        return (image.alt_text.clone().unwrap_or_default(), FormatShown::General);
+        return (
+            image.alt_text.clone().unwrap_or_default(),
+            FormatShown::General,
+        );
     }
     let general = || result::shown(value, profile);
     let (Some(CellFormat { code, date1904, .. }), Some(profile)) = (format, profile) else {
@@ -285,5 +288,9 @@ mod tests {
 }
 
 /// The same indexed-colour resolution for stored and conditional styles.
-pub fn indexed_color(host: &HostState, index: u32) -> Option<String> {host.indexed_color(index)}
-pub fn style_color(host: &HostState, color: &calc_host::StyleColor) -> Option<String> {host.resolved_style_color(color)}
+pub fn indexed_color(host: &HostState, index: u32) -> Option<String> {
+    host.indexed_color(index)
+}
+pub fn style_color(host: &HostState, color: &calc_host::StyleColor) -> Option<String> {
+    host.resolved_style_color(color)
+}

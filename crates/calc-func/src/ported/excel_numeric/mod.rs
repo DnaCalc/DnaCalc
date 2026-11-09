@@ -79,9 +79,10 @@ mod soft87;
 /// describe: written clean-room under dc-96l.3 from Intel's documented instruction set.
 mod x87_chains;
 pub(crate) use x87_chains::{
-    excel_exp_of_sum,
-    excel_deviance_series, excel_exp, excel_exp_compensated, excel_exp_running, excel_exp_rz, excel_gamma_fraction, excel_log, excel_log10, excel_log1p_times, excel_stirling_step, excel_deviance_in_series,
-    excel_pow_x87_direct, excel_root_x87, excel_stirling_series,
+    excel_deviance_in_series, excel_deviance_series, excel_exp, excel_exp_compensated,
+    excel_exp_of_sum, excel_exp_running, excel_exp_rz, excel_gamma_fraction, excel_log,
+    excel_log1p_times, excel_log10, excel_pow_x87_direct, excel_root_x87, excel_stirling_series,
+    excel_stirling_step,
 };
 
 /// The Microsoft runtime's `pow` in portable Rust (dc-sbo).
@@ -227,7 +228,11 @@ fn tan_with<F: Fpu>(x: f64) -> f64 {
     let pi_half = F::scale(&ext_pi(), &minus_one, CW);
     let (r, q) = F::prem1_quo(&load(x), &pi_half, CW);
     let t = F::tan(&r, CW);
-    let v = if q & 1 == 0 { t } else { ext_chs(&F::div(&ext_one(), &t, CW), CW) };
+    let v = if q & 1 == 0 {
+        t
+    } else {
+        ext_chs(&F::div(&ext_one(), &t, CW), CW)
+    };
     F::store(&v, CW)
 }
 
@@ -236,7 +241,6 @@ fn tan_with<F: Fpu>(x: f64) -> f64 {
 /// surfaces route here.
 mod gammaln;
 pub(crate) use gammaln::{gamma_excel, gammaln_excel};
-
 
 const EXP_TABLE_BITS: u32 = 7;
 const N_EXP: u64 = 1 << EXP_TABLE_BITS; // 128
@@ -342,7 +346,11 @@ fn expm1_internal_graph(t: f64, spilled: bool) -> f64 {
         return t;
     }
     let u = excel_exp(t);
-    let difference = if spilled { excel_x87_sub(u, 1.0) } else { u - 1.0 };
+    let difference = if spilled {
+        excel_x87_sub(u, 1.0)
+    } else {
+        u - 1.0
+    };
     if t.abs() < 1.0 {
         if spilled {
             excel_x87_div(excel_x87_mul(difference, t), excel_log(u))
@@ -537,9 +545,18 @@ pub(crate) fn excel_x87_mul_add(a: f64, b: f64, c: f64) -> f64 {
 /// Temme's `c * (w +/- coefficient * t / rta)`, retaining each PC64 result
 /// until the final binary64 store. The complement starts from that stored result.
 pub(crate) fn excel_x87_temme_finish(
-    c: f64, w: f64, coefficient: f64, t: f64, rta: f64, subtract: bool,
+    c: f64,
+    w: f64,
+    coefficient: f64,
+    t: f64,
+    rta: f64,
+    subtract: bool,
 ) -> (f64, f64) {
-    let correction = Native::div(&Native::mul(&load(coefficient), &load(t), CW), &load(rta), CW);
+    let correction = Native::div(
+        &Native::mul(&load(coefficient), &load(t), CW),
+        &load(rta),
+        CW,
+    );
     let inner = if subtract {
         Native::sub(&load(w), &correction, CW)
     } else {
@@ -547,7 +564,10 @@ pub(crate) fn excel_x87_temme_finish(
     };
     let answer = Native::store(&Native::mul(&load(c), &inner, CW), CW);
     let half = load(0.5);
-    let complement = Native::store(&Native::add(&half, &Native::sub(&half, &load(answer), CW), CW), CW);
+    let complement = Native::store(
+        &Native::add(&half, &Native::sub(&half, &load(answer), CW), CW),
+        CW,
+    );
     (answer, complement)
 }
 
@@ -924,16 +944,32 @@ mod test_support {
 /// difference the owner accepted on 2026-10-30; the remaining sequence detail is dc-j9k's).
 #[cfg(test)]
 const EXP_WITNESSES_THE_CLEAN_ROOM_CHAIN_ROUNDS_THE_OTHER_WAY: [u64; 4] = [
-    0x3fe4a631cec5f8da, 0x3ff1f4e8c801c7ce, 0x400381fcca4a56ce, 0xbff5a2abdfff61bf,
+    0x3fe4a631cec5f8da,
+    0x3ff1f4e8c801c7ce,
+    0x400381fcca4a56ce,
+    0xbff5a2abdfff61bf,
 ];
 
 #[cfg(test)]
 const LN_WITNESSES_THE_SOFTWARE_X87_ROUNDS_THE_OTHER_WAY: [u64; 18] = [
-    0x0d45fbbe4b0e7d55, 0x0dbe4e3a44304ad6, 0x11f544676cf1bf2f, 0x1eb393c13e56f40a,
-    0x23a4108745e19fab, 0x2d152de2df4ff1e8, 0x2d20badbb5556728, 0x2d3693905c941f14,
-    0x2e68258fb8991289, 0x420be30a078fed72, 0x4574658f6970c8b6, 0x461d6906690fdadb,
-    0x4d7d2f67e7585ef8, 0x4fb4742155e8cc52, 0x501baf60a3904e63, 0x559d2eada7837182,
-    0x603a2ee36db86f49, 0x6fffb3b90594a629,
+    0x0d45fbbe4b0e7d55,
+    0x0dbe4e3a44304ad6,
+    0x11f544676cf1bf2f,
+    0x1eb393c13e56f40a,
+    0x23a4108745e19fab,
+    0x2d152de2df4ff1e8,
+    0x2d20badbb5556728,
+    0x2d3693905c941f14,
+    0x2e68258fb8991289,
+    0x420be30a078fed72,
+    0x4574658f6970c8b6,
+    0x461d6906690fdadb,
+    0x4d7d2f67e7585ef8,
+    0x4fb4742155e8cc52,
+    0x501baf60a3904e63,
+    0x559d2eada7837182,
+    0x603a2ee36db86f49,
+    0x6fffb3b90594a629,
 ];
 
 #[cfg(test)]
@@ -967,16 +1003,27 @@ mod tests {
                 (x87::sub(a, b), binary_with::<Soft>(Soft::sub, a, b), a - b),
                 (x87::mul(a, b), binary_with::<Soft>(Soft::mul, a, b), a * b),
                 (x87::div(a, b), binary_with::<Soft>(Soft::div, a, b), a / b),
-                (x87::recip(b), binary_with::<Soft>(Soft::div, 1.0, b), 1.0 / b),
+                (
+                    x87::recip(b),
+                    binary_with::<Soft>(Soft::div, 1.0, b),
+                    1.0 / b,
+                ),
             ];
             for (op, (hardware, software, single)) in cases.into_iter().enumerate() {
-                assert_eq!(hardware.to_bits(), software.to_bits(), "op {op} a={a:e} b={b:e}");
+                assert_eq!(
+                    hardware.to_bits(),
+                    software.to_bits(),
+                    "op {op} a={a:e} b={b:e}"
+                );
                 if hardware.to_bits() != single.to_bits() {
                     moved[op] += 1;
                 }
             }
         }
-        assert!(moved.iter().all(|&n| n > 20), "too few near-midpoint cases: {moved:?}");
+        assert!(
+            moved.iter().all(|&n| n > 20),
+            "too few near-midpoint cases: {moved:?}"
+        );
     }
 
     /// dc-8dg: the ATAN chains over [`Fpu`] on the hardware backend give the bits of the x87
@@ -988,7 +1035,11 @@ mod tests {
         let mut rng = Rng(0x2545_f491_4f6c_dd1d);
         for _ in 0..20_000 {
             let x = rng.signed(-30, 40);
-            assert_eq!(atan_with::<Hard>(x).to_bits(), x87::atan(x).to_bits(), "atan {x:e}");
+            assert_eq!(
+                atan_with::<Hard>(x).to_bits(),
+                x87::atan(x).to_bits(),
+                "atan {x:e}"
+            );
             assert_eq!(
                 atan_reduced_with::<Hard>(x).to_bits(),
                 x87::atan_reduced(x).to_bits(),
@@ -1005,15 +1056,24 @@ mod tests {
     #[test]
     #[ignore]
     fn software_chains_against_the_hardware() {
-        let n: usize = std::env::var("SOFT87_N").ok().and_then(|v| v.parse().ok()).unwrap_or(100_000);
+        let n: usize = std::env::var("SOFT87_N")
+            .ok()
+            .and_then(|v| v.parse().ok())
+            .unwrap_or(100_000);
         let run = |name: &str, seed: u64, f: &dyn Fn(&mut Rng) -> (f64, f64, String)| {
             let mut rng = Rng(seed);
             let mut differ = 0usize;
             for _ in 0..n {
                 let (hardware, software, what) = f(&mut rng);
-                if hardware.to_bits() != software.to_bits() && !(hardware.is_nan() && software.is_nan()) {
+                if hardware.to_bits() != software.to_bits()
+                    && !(hardware.is_nan() && software.is_nan())
+                {
                     if differ < 3 {
-                        eprintln!("  {name} {what}: hardware {:016x} software {:016x}", hardware.to_bits(), software.to_bits());
+                        eprintln!(
+                            "  {name} {what}: hardware {:016x} software {:016x}",
+                            hardware.to_bits(),
+                            software.to_bits()
+                        );
                     }
                     differ += 1;
                 }
@@ -1026,7 +1086,11 @@ mod tests {
         });
         run("ATAN reduced", 7, &|r| {
             let x = r.signed(-30, 60);
-            (excel_atan_reduced(x), atan_reduced_with::<Soft>(x), format!("{x:e}"))
+            (
+                excel_atan_reduced(x),
+                atan_reduced_with::<Soft>(x),
+                format!("{x:e}"),
+            )
         });
         run("SIN", 8, &|r| {
             let x = r.signed(-20, 47);
@@ -1042,10 +1106,13 @@ mod tests {
         });
         run("SQRT staged", 14, &|r| {
             let x = r.positive(-1022, 2046);
-            (excel_sqrt_staged(x), Soft::store(&Soft::sqrt(&load(x), CW), CW), format!("{x:e}"))
+            (
+                excel_sqrt_staged(x),
+                Soft::store(&Soft::sqrt(&load(x), CW), CW),
+                format!("{x:e}"),
+            )
         });
     }
-
 
     /// Excel's EXP and LN through the interface the rest of the crate calls
     /// ([`excel_exp`], [`excel_log`]) against every witness harvested from live Excel
@@ -1064,7 +1131,11 @@ mod tests {
         let software = cfg!(not(all(target_arch = "x86_64", not(feature = "soft-x87"))));
         let (mut exp_rows, mut ln_rows, mut ln_differ) = (0u32, 0u32, Vec::new());
         let mut exp_differ = Vec::new();
-        for line in GROUND_TRUTH.lines().map(str::trim).filter(|l| !l.is_empty()) {
+        for line in GROUND_TRUTH
+            .lines()
+            .map(str::trim)
+            .filter(|l| !l.is_empty())
+        {
             let mut it = line.split('\t');
             let func = it.next().unwrap();
             let x = f64::from_bits(u64::from_str_radix(it.next().unwrap(), 16).unwrap());
@@ -1074,7 +1145,11 @@ mod tests {
                     exp_rows += 1;
                     let got = excel_exp(x).to_bits();
                     let want = if let Some(row) = x87_cpu::find("EXP", x.to_bits()) {
-                        assert_eq!(want, row.for_vendor("AuthenticAMD").bits, "original Excel reading");
+                        assert_eq!(
+                            want,
+                            row.for_vendor("AuthenticAMD").bits,
+                            "original Excel reading"
+                        );
                         let expected = row.expected_bits();
                         assert_eq!(got, expected, "vendor-scoped EXP x={:016x}", x.to_bits());
                         expected
@@ -1090,9 +1165,18 @@ mod tests {
                     ln_rows += 1;
                     let got = excel_log(x).to_bits();
                     let want = if let Some(row) = x87_cpu::find("LN", x.to_bits()) {
-                        assert_eq!(want, row.for_vendor("AuthenticAMD").bits, "original Excel reading");
+                        assert_eq!(
+                            want,
+                            row.for_vendor("AuthenticAMD").bits,
+                            "original Excel reading"
+                        );
                         if software {
-                            assert_eq!(got, row.software_bits, "software LN x={:016x}", x.to_bits());
+                            assert_eq!(
+                                got,
+                                row.software_bits,
+                                "software LN x={:016x}",
+                                x.to_bits()
+                            );
                             want // Preserve the software backend's own difference list below.
                         } else {
                             row.expected_bits()
@@ -1101,7 +1185,11 @@ mod tests {
                         want
                     };
                     if got != want {
-                        assert!(software, "LN x={:016x}: got {got:016x} want {want:016x}", x.to_bits());
+                        assert!(
+                            software,
+                            "LN x={:016x}: got {got:016x} want {want:016x}",
+                            x.to_bits()
+                        );
                         assert_eq!(got.abs_diff(want), 1, "LN x={:016x}", x.to_bits());
                         ln_differ.push(x.to_bits());
                     }
@@ -1110,9 +1198,15 @@ mod tests {
             }
         }
         assert_eq!((exp_rows, ln_rows), (136, 113));
-        assert_eq!(exp_differ, EXP_WITNESSES_THE_CLEAN_ROOM_CHAIN_ROUNDS_THE_OTHER_WAY);
+        assert_eq!(
+            exp_differ,
+            EXP_WITNESSES_THE_CLEAN_ROOM_CHAIN_ROUNDS_THE_OTHER_WAY
+        );
         if software {
-            assert_eq!(ln_differ, LN_WITNESSES_THE_SOFTWARE_X87_ROUNDS_THE_OTHER_WAY);
+            assert_eq!(
+                ln_differ,
+                LN_WITNESSES_THE_SOFTWARE_X87_ROUNDS_THE_OTHER_WAY
+            );
         }
         #[cfg(target_arch = "x86_64")]
         for bits in LN_WITNESSES_THE_SOFTWARE_X87_ROUNDS_THE_OTHER_WAY {
@@ -1121,8 +1215,16 @@ mod tests {
             let soft = Soft::fyl2x(&ext_ln2(), &x, CW);
             if let Some(row) = x87_cpu::find("LN", bits) {
                 let expected = row.hardware_bits();
-                assert_eq!(Hard::store(&hard, CW).to_bits(), expected, "hardware FYL2X {bits:016x}");
-                assert_eq!(Soft::store(&soft, CW).to_bits(), row.software_bits, "software FYL2X {bits:016x}");
+                assert_eq!(
+                    Hard::store(&hard, CW).to_bits(),
+                    expected,
+                    "hardware FYL2X {bits:016x}"
+                );
+                assert_eq!(
+                    Soft::store(&soft, CW).to_bits(),
+                    row.software_bits,
+                    "software FYL2X {bits:016x}"
+                );
             } else {
                 assert_ne!(hard, soft, "{bits:016x}");
             }
@@ -1229,17 +1331,30 @@ mod tests {
         let mut bad = Vec::new();
         let mut check = |name: &str, got: f64, want: u64| {
             if got.to_bits() != want {
-                bad.push(format!("{name}: got {:016x} want {want:016x}", got.to_bits()));
+                bad.push(format!(
+                    "{name}: got {:016x} want {want:016x}",
+                    got.to_bits()
+                ));
             }
         };
-        let cos = |x: f64| if x.abs() < f64::from_bits(0x3E50000000000000) { 1.0 } else { cos_with::<F>(x) };
+        let cos = |x: f64| {
+            if x.abs() < f64::from_bits(0x3E50000000000000) {
+                1.0
+            } else {
+                cos_with::<F>(x)
+            }
+        };
         let sin_rows: &[(u64, u64)] = &[
             (0x419ffffffc000000, 0xbfee977f5248babf), // SIN(134217727), old 5664-ULP row
             (0x40f86a0000000000, 0x3fa24daa9c527f7c), // SIN(100000)
             (0xc0f86a0000000000, 0xbfa24daa9c527f7c), // SIN(-100000)
         ];
         for &(xb, want) in sin_rows {
-            check(&format!("SIN {xb:016x}"), sin_with::<F>(f64::from_bits(xb)), want);
+            check(
+                &format!("SIN {xb:016x}"),
+                sin_with::<F>(f64::from_bits(xb)),
+                want,
+            );
         }
         let cos_rows: &[(u64, u64)] = &[
             (0x40489b7812ada40a, 0x3fdfcbaf84b75409), // COS(49.214601836), old 1-ULP row
@@ -1258,15 +1373,27 @@ mod tests {
         // COS small-argument shortcut: strictly below 2^-26 -> exactly 1.0;
         // 2^-26 itself takes the FCOS chain (1 - ulp).
         let t = f64::from_bits(0x3E50000000000000);
-        check("COS below 2^-26", cos(f64::from_bits(t.to_bits() - 1)), 1.0f64.to_bits());
-        check("COS above -2^-26", cos(-f64::from_bits(t.to_bits() - 1)), 1.0f64.to_bits());
+        check(
+            "COS below 2^-26",
+            cos(f64::from_bits(t.to_bits() - 1)),
+            1.0f64.to_bits(),
+        );
+        check(
+            "COS above -2^-26",
+            cos(-f64::from_bits(t.to_bits() - 1)),
+            1.0f64.to_bits(),
+        );
         check("COS 2^-26", cos(t), 0x3fefffffffffffff);
         let tan_rows: &[(u64, u64)] = &[
             (0x4128574328f5c28f, 0x4023ebd3414768f1), // TAN(797601.58), old 719-ULP row
             (0x40f86a0000000000, 0xbfa250a9d5033223), // TAN(100000)
         ];
         for &(xb, want) in tan_rows {
-            check(&format!("TAN {xb:016x}"), tan_with::<F>(f64::from_bits(xb)), want);
+            check(
+                &format!("TAN {xb:016x}"),
+                tan_with::<F>(f64::from_bits(xb)),
+                want,
+            );
         }
         // Reciprocal family at 100000 (old 351-ULP rows): double-rounded recip
         // of the published primaries.
@@ -1287,11 +1414,23 @@ mod tests {
     fn trig_matches_live_excel_pinned_witnesses() {
         let native = trig_pin_mismatches::<Native>();
         let software = trig_pin_mismatches::<Soft>();
-        assert!(native.is_empty() && software.is_empty(), "native {native:?} software {software:?}");
+        assert!(
+            native.is_empty() && software.is_empty(),
+            "native {native:?} software {software:?}"
+        );
         // The entry points add the non-finite and small-COS guards to the same chains.
-        assert_eq!(excel_sin(f64::from_bits(0x40f86a0000000000)).to_bits(), 0x3fa24daa9c527f7c);
-        assert_eq!(excel_cos(f64::from_bits(0x3E50000000000000)).to_bits(), 0x3fefffffffffffff);
-        assert_eq!(excel_tan(f64::from_bits(0x40f86a0000000000)).to_bits(), 0xbfa250a9d5033223);
+        assert_eq!(
+            excel_sin(f64::from_bits(0x40f86a0000000000)).to_bits(),
+            0x3fa24daa9c527f7c
+        );
+        assert_eq!(
+            excel_cos(f64::from_bits(0x3E50000000000000)).to_bits(),
+            0x3fefffffffffffff
+        );
+        assert_eq!(
+            excel_tan(f64::from_bits(0x40f86a0000000000)).to_bits(),
+            0xbfa250a9d5033223
+        );
     }
 
     #[cfg_attr(not(target_arch = "wasm32"), test)]

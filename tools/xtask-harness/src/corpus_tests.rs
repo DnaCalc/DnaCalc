@@ -9,13 +9,22 @@ fn independent_question_mappings_keep_separate_comparison_groups() {
     let original = section_group(&first);
     assert_eq!(original.3, None);
     first.session = None;
-    first.acquisition = Acquisition::FunctionQuestions { entry: "mapping-A;sha256:first".into() };
+    first.acquisition = Acquisition::FunctionQuestions {
+        entry: "mapping-A;sha256:first".into(),
+    };
     let mut second = first.clone();
-    second.acquisition = Acquisition::FunctionQuestions { entry: "mapping-B;sha256:second".into() };
+    second.acquisition = Acquisition::FunctionQuestions {
+        entry: "mapping-B;sha256:second".into(),
+    };
     assert_ne!(section_group(&first), section_group(&second));
     assert_ne!(section_group(&first), original);
     let mut groups = BTreeMap::new();
-    for record in [&first, &second] { groups.entry(section_group(record)).or_insert_with(Vec::new).push(record); }
+    for record in [&first, &second] {
+        groups
+            .entry(section_group(record))
+            .or_insert_with(Vec::new)
+            .push(record);
+    }
     assert_eq!(groups.len(), 2);
     for records in groups.values() {
         let merged = merged_record(records, "merged", "source").unwrap();
@@ -28,29 +37,73 @@ fn independent_question_mappings_keep_separate_comparison_groups() {
 fn changed_saved_provenance_is_refused_before_comparison_starts() {
     let root = scratch("changed-saved-provenance");
     let path = root.join("case.xlsx");
-    fs::write(&path,b"fixture").unwrap();
-    let (entries,_) = crate::corpus_batch::select(folder_workbooks(&root).unwrap(),None);
+    fs::write(&path, b"fixture").unwrap();
+    let (entries, _) = crate::corpus_batch::select(folder_workbooks(&root).unwrap(), None);
     let provenance = root.join("provenance.json");
-    fs::write(&provenance,b"admitted").unwrap();
+    fs::write(&provenance, b"admitted").unwrap();
     let digest = crate::corpus_batch::file_digest(&provenance).unwrap();
-    let args = parse_args(&[root.to_string_lossy().into_owned(),"--dna-only".into(),"--saved-excel".into(),provenance.to_string_lossy().into_owned()]).unwrap();
-    fs::write(&provenance,b"changed").unwrap();
-    let (result,_) = compare_one(&root.join("no-executable"),&entries[0],None,&root.join("out"),&args,"binary",&calc_verdict::sha256_hex(b"fixture"),Some(&digest),None);
-    assert!(result.unwrap_err().reason.contains("provenance changed after corpus admission"));
+    let args = parse_args(&[
+        root.to_string_lossy().into_owned(),
+        "--dna-only".into(),
+        "--saved-excel".into(),
+        provenance.to_string_lossy().into_owned(),
+    ])
+    .unwrap();
+    fs::write(&provenance, b"changed").unwrap();
+    let (result, _) = compare_one(
+        &root.join("no-executable"),
+        &entries[0],
+        None,
+        &root.join("out"),
+        &args,
+        "binary",
+        &calc_verdict::sha256_hex(b"fixture"),
+        Some(&digest),
+        None,
+    );
+    assert!(
+        result
+            .unwrap_err()
+            .reason
+            .contains("provenance changed after corpus admission")
+    );
     assert!(!root.join("out/attempt-1.log").exists());
 }
 
 #[test]
 fn changed_trusted_manifest_is_refused_before_comparison_starts() {
     let root = scratch("changed-trusted-manifest");
-    let path = root.join("case.xlsx"); fs::write(&path,b"fixture").unwrap();
-    let (entries,_) = crate::corpus_batch::select(folder_workbooks(&root).unwrap(),None);
-    let manifest = root.join("trusted.json"); fs::write(&manifest,b"admitted").unwrap();
+    let path = root.join("case.xlsx");
+    fs::write(&path, b"fixture").unwrap();
+    let (entries, _) = crate::corpus_batch::select(folder_workbooks(&root).unwrap(), None);
+    let manifest = root.join("trusted.json");
+    fs::write(&manifest, b"admitted").unwrap();
     let digest = crate::corpus_batch::file_digest(&manifest).unwrap();
-    let args = parse_args(&[root.to_string_lossy().into_owned(),"--dna-only".into(),"--trusted-code".into(),manifest.to_string_lossy().into_owned()]).unwrap();
-    fs::write(&manifest,b"changed").unwrap();
-    let (result,_) = compare_one(&root.join("no-executable"),&entries[0],None,&root.join("out"),&args,"binary",&calc_verdict::sha256_hex(b"fixture"),None,Some(&digest));
-    assert!(result.unwrap_err().reason.contains("trusted-code manifest changed after corpus admission"));
+    let args = parse_args(&[
+        root.to_string_lossy().into_owned(),
+        "--dna-only".into(),
+        "--trusted-code".into(),
+        manifest.to_string_lossy().into_owned(),
+    ])
+    .unwrap();
+    fs::write(&manifest, b"changed").unwrap();
+    let (result, _) = compare_one(
+        &root.join("no-executable"),
+        &entries[0],
+        None,
+        &root.join("out"),
+        &args,
+        "binary",
+        &calc_verdict::sha256_hex(b"fixture"),
+        None,
+        Some(&digest),
+    );
+    assert!(
+        result
+            .unwrap_err()
+            .reason
+            .contains("trusted-code manifest changed after corpus admission")
+    );
     assert!(!root.join("out/attempt-1.log").exists());
 }
 
@@ -238,8 +291,20 @@ fn arguments_have_their_defaults_and_refusals() {
         [PathBuf::from("a.json"), PathBuf::from("b.json")]
     );
     assert_eq!(parsed.timeout, Duration::from_secs(60));
-    assert_eq!(parse_args(&args("--oracle --release")).unwrap().profile.as_deref(), Some("release"));
-    assert_eq!(parse_args(&args("--oracle --profile dev")).unwrap().profile.as_deref(), Some("dev"));
+    assert_eq!(
+        parse_args(&args("--oracle --release"))
+            .unwrap()
+            .profile
+            .as_deref(),
+        Some("release")
+    );
+    assert_eq!(
+        parse_args(&args("--oracle --profile dev"))
+            .unwrap()
+            .profile
+            .as_deref(),
+        Some("dev")
+    );
     assert!(parse_args(&args("--oracle --release --profile dev")).is_err());
     assert!(parse_args(&args("--oracle --profile unknown")).is_err());
     assert!(crate::sweep::corpus_counts(&serde_json::Value::Null).is_err());
@@ -247,9 +312,15 @@ fn arguments_have_their_defaults_and_refusals() {
         "workbooks":[{"name":"one","counts":{"formula_cells":2,"pass":1,"fail":1}}]});
     let mut other = report.clone();
     other["totals"]["wall_time_s"] = json!(99);
-    assert_eq!(crate::sweep::corpus_counts(&report).unwrap(), crate::sweep::corpus_counts(&other).unwrap());
+    assert_eq!(
+        crate::sweep::corpus_counts(&report).unwrap(),
+        crate::sweep::corpus_counts(&other).unwrap()
+    );
     other["workbooks"][0]["counts"]["pass"] = json!(2);
-    assert_ne!(crate::sweep::corpus_counts(&report).unwrap(), crate::sweep::corpus_counts(&other).unwrap());
+    assert_ne!(
+        crate::sweep::corpus_counts(&report).unwrap(),
+        crate::sweep::corpus_counts(&other).unwrap()
+    );
     for (bad, refusal) in [
         ("", "give a workbook folder, --oracle or --import"),
         ("--out o", "give a workbook folder"),

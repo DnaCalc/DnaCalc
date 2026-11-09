@@ -93,10 +93,13 @@ type SplitModule = (
     bool,
 );
 fn split_module(module: Module) -> SplitModule {
-    let spreadsheet = module
-        .spreadsheet
-        .as_ref()
-        .map(|_| Arc::new(spreadsheet::SpreadsheetHost::new(module.event_project, module.com, module.late.clone())));
+    let spreadsheet = module.spreadsheet.as_ref().map(|_| {
+        Arc::new(spreadsheet::SpreadsheetHost::new(
+            module.event_project,
+            module.com,
+            module.late.clone(),
+        ))
+    });
     let engine = if let Some(host) = &spreadsheet {
         module.engine.with_host(host.clone())
     } else {
@@ -124,9 +127,11 @@ impl CodeCache {
         // initialization or user code; default admission can select the VM.
         if backend == Backend::Jit
             && !module.event_project
-            && module.engine.event_routes().iter().any(|route| {
-                route.document_class.is_none() && route.native.is_some()
-            })
+            && module
+                .engine
+                .event_routes()
+                .iter()
+                .any(|route| route.document_class.is_none() && route.native.is_some())
         {
             return Err(Error::UnsupportedBackend(
                 "dynamic native WithEvents binding requires the interpreter (dc-snz.15)".into(),
@@ -201,12 +206,16 @@ impl OwnedSession {
             })
             .collect::<Result<Vec<_>, _>>()?;
         let handle = neutral::handle(&self.bound[index]).map_err(neutral::adapter_error)?;
-        let call = |context: &mut api::TypedContext| self.inner.call_values(handle, &slots, context);
+        let call =
+            |context: &mut api::TypedContext| self.inner.call_values(handle, &slots, context);
         let returned = if crate::events::callback_active() {
             api::with_native_callback_context(call).map_err(neutral::adapter_error)?
         } else {
-            call(&mut api::TypedContext { remaining_blocks: max_steps })
-        }.map_err(engine_error)?;
+            call(&mut api::TypedContext {
+                remaining_blocks: max_steps,
+            })
+        }
+        .map_err(engine_error)?;
         Ok(match returned {
             api::Value::Long(v) => Variant::from_i32(v),
             api::Value::Double(v) => Variant::from_f64(v),

@@ -75,26 +75,40 @@ pub mod bytes_as_base64 {
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 pub enum Request {
     /// The formula text, with or without its leading `=`.
-    SetFormula { text: String },
+    SetFormula {
+        text: String,
+    },
     /// The cell the formula is entered in.
-    SetFormulaCell { address: String },
+    SetFormulaCell {
+        address: String,
+    },
     /// Dynamic-array entry (`false`, as Excel 365) or legacy entry (`true`).
-    SetForm { legacy: bool },
+    SetForm {
+        legacy: bool,
+    },
     /// One input: the cell, the kind of entry and the entry text.
     SetInput {
         address: String,
         kind: String,
         entry: String,
     },
-    RemoveInput { address: String },
+    RemoveInput {
+        address: String,
+    },
     ClearInputs,
     /// The locale profile (a culture name) and the clock (a serial date number) the date, time and
     /// number-format functions read. The clock comes from the owner of the page: a session has none,
     /// and without one those functions are refused.
-    SetEnvironment { culture: String, now: Option<f64> },
+    SetEnvironment {
+        culture: String,
+        now: Option<f64>,
+    },
     /// Compiles a VBA standard module and publishes its functions, replacing the session's
     /// callable table; a module that does not compile changes nothing.
-    LoadVba { name: String, source: String },
+    LoadVba {
+        name: String,
+        source: String,
+    },
     /// The user functions the session can call, by name.
     Functions,
     /// The registered functions with what their providers documented, and the version of the
@@ -114,7 +128,9 @@ pub enum Request {
         len: usize,
     },
     /// The authored formula's evaluation, part by part.
-    Trace { authored: Authored },
+    Trace {
+        authored: Authored,
+    },
     /// A new, blank session; add-ins and their functions stay as they are.
     New,
     /// Opens the workbook `bytes` hold as the session (`name` is its file name).
@@ -143,10 +159,15 @@ pub enum Request {
     /// them; any other answers none).
     Recent,
     /// Opens a file from [`Request::Recent`] by its path.
-    OpenRecent { path: String },
+    OpenRecent {
+        path: String,
+    },
     /// What the surface holds, so the window can say it and the host can ask before closing: the
     /// session's name and whether it has changes the file does not.
-    SessionState { dirty: bool, name: String },
+    SessionState {
+        dirty: bool,
+        name: String,
+    },
     /// Opens in DNA Calc the file last refused with [`Reply::NotASession`].
     OpenInDnaCalc,
     /// Loads an add-in the person picks in the native host's file dialog (a host that cannot load
@@ -160,7 +181,9 @@ pub enum Request {
         expected_hash: Option<String>,
     },
     /// Unloads the add-in loaded from `path`, running its close routine and removing its functions.
-    UnloadAddin { path: String },
+    UnloadAddin {
+        path: String,
+    },
     /// The add-ins the host has loaded.
     Addins,
 }
@@ -261,13 +284,19 @@ pub enum Reply {
     /// The request changed the session and has nothing to report.
     Accepted,
     /// The cell a request named, as the session spells it (`Sheet1!B3`).
-    Cell { address: String },
+    Cell {
+        address: String,
+    },
     Calculated(CalculationView),
     /// The names of the functions a VBA module published, or all user functions.
-    Functions { names: Vec<String> },
+    Functions {
+        names: Vec<String>,
+    },
     /// The registered functions of one version of the table ([`Request::FunctionDocs`]).
     FunctionDocs(FunctionDocs),
-    Refused { message: String },
+    Refused {
+        message: String,
+    },
     /// What the surface shows for an authored state ([`Request::Evaluate`]).
     Shown(Box<Shown>),
     /// The value of a part of the formula ([`Request::EvaluatePart`]).
@@ -277,7 +306,10 @@ pub enum Reply {
     /// A file or a new session replaced the session.
     Opened(Box<Opened>),
     /// A file outside what a session holds: why, and the offer to open it in DNA Calc.
-    NotASession { reason: String, offer: String },
+    NotASession {
+        reason: String,
+        offer: String,
+    },
     /// The session as a workbook ([`Request::Save`]).
     File {
         name: String,
@@ -285,7 +317,9 @@ pub enum Reply {
         bytes: Vec<u8>,
     },
     /// The session was written to this path by the native host.
-    Saved { path: String },
+    Saved {
+        path: String,
+    },
     /// The person closed the native file dialog; nothing changed.
     Cancelled,
     /// The add-ins the host has loaded (answers every add-in request that succeeds).
@@ -392,7 +426,9 @@ pub fn project_view(session: &Session, report: ProjectReport) -> ProjectView {
     ProjectView {
         functions: report.functions,
         notes: report.notes,
-        macros: session.project().map_or(MacrosView::Enabled, |p| p.macros.into()),
+        macros: session
+            .project()
+            .map_or(MacrosView::Enabled, |p| p.macros.into()),
     }
 }
 
@@ -502,14 +538,22 @@ impl SessionPort for LocalPort {
                 Reply::Accepted
             }
             Request::SetEnvironment { culture, now } => {
-                session.set_environment(Some(environment(&culture, now, session.options().date_1904)));
+                session.set_environment(Some(environment(
+                    &culture,
+                    now,
+                    session.options().date_1904,
+                )));
                 Reply::Accepted
             }
             // With a VBA project (an .xlsm session) the module is the project's: its code changes
             // and the project part saved next is the changed one.
-            Request::LoadVba { name, source } if session.project().is_some_and(|p| !p.modules().is_empty()) => {
+            Request::LoadVba { name, source }
+                if session.project().is_some_and(|p| !p.modules().is_empty()) =>
+            {
                 match session.edit_project_module(&name, &source) {
-                    Ok(report) => Reply::Functions { names: report.functions },
+                    Ok(report) => Reply::Functions {
+                        names: report.functions,
+                    },
                     Err(message) => refused(message),
                 }
             }
@@ -558,7 +602,13 @@ impl SessionPort for LocalPort {
                     // compiles, nothing runs); with the Mark of the Web it can not be enabled.
                     let project = vba.map(|vba| match session.open_project(vba, &name, zone) {
                         Ok(report) => project_view(session, report),
-                        Err(why) => project_view(session, ProjectReport { functions: Vec::new(), notes: vec![why] }),
+                        Err(why) => project_view(
+                            session,
+                            ProjectReport {
+                                functions: Vec::new(),
+                                notes: vec![why],
+                            },
+                        ),
                     });
                     opened_with(session, name, Vec::new(), project)
                 }
@@ -573,22 +623,35 @@ impl SessionPort for LocalPort {
                 Ok(true) => refused("Workbook_BeforeSave set Cancel: the session was not saved"),
                 Err(message) => refused(message),
                 Ok(false) => match crate::file::save(session) {
-                Ok(bytes) => Reply::File {
-                    name: session
-                        .project()
-                        .map(|project| {
-                            let stem = project.file_name.rsplit_once('.').map_or(project.file_name.as_str(), |(stem, _)| stem);
-                            format!("{}.xlsm", if stem.is_empty() { "onecalc-session" } else { stem })
-                        })
-                        .unwrap_or_else(|| "onecalc-session.xlsx".to_owned()),
-                    bytes,
-                },
-                Err(message) => refused(message),
+                    Ok(bytes) => Reply::File {
+                        name: session
+                            .project()
+                            .map(|project| {
+                                let stem = project
+                                    .file_name
+                                    .rsplit_once('.')
+                                    .map_or(project.file_name.as_str(), |(stem, _)| stem);
+                                format!(
+                                    "{}.xlsm",
+                                    if stem.is_empty() {
+                                        "onecalc-session"
+                                    } else {
+                                        stem
+                                    }
+                                )
+                            })
+                            .unwrap_or_else(|| "onecalc-session.xlsx".to_owned()),
+                        bytes,
+                    },
+                    Err(message) => refused(message),
                 },
             },
             Request::EnableMacros => match session.enable_macros() {
                 Ok(report) => {
-                    let name = session.project().map(|p| p.file_name.clone()).unwrap_or_default();
+                    let name = session
+                        .project()
+                        .map(|p| p.file_name.clone())
+                        .unwrap_or_default();
                     let project = Some(project_view(session, report));
                     opened_with(session, name, Vec::new(), project)
                 }
@@ -764,7 +827,10 @@ mod tests {
             text: "=Math.Add2(40,2)".into(),
         });
         let view = calculated(port.send(Request::Calculate));
-        assert!(view.value.as_deref().is_some_and(|v| v.contains("42")), "{view:?}");
+        assert!(
+            view.value.as_deref().is_some_and(|v| v.contains("42")),
+            "{view:?}"
+        );
         assert!(matches!(
             port.send(Request::LoadVba {
                 name: "Broken".into(),
@@ -797,7 +863,9 @@ mod tests {
             assert_eq!(serde_json::from_str::<Request>(&text).unwrap(), request);
         }
         let mut port = port();
-        port.send(Request::SetFormula { text: "=1/0".into() });
+        port.send(Request::SetFormula {
+            text: "=1/0".into(),
+        });
         let reply = port.send(Request::Calculate);
         let text = serde_json::to_string(&reply).unwrap();
         assert_eq!(serde_json::from_str::<Reply>(&text).unwrap(), reply);

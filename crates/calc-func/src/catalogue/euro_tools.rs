@@ -33,8 +33,8 @@ use crate::call::{EvalServices, FunctionFault};
 use crate::kernel::{Exit, Site, Step};
 use crate::value::{CalcValue, CoreRef, WorksheetErrorCode};
 
-use calc_catalogue::euro_tools::{CODE, ENTRIES as DECLARATIONS, EUROCONVERT};
 pub(super) use calc_catalogue::euro_tools::SURFACE;
+use calc_catalogue::euro_tools::{CODE, ENTRIES as DECLARATIONS, EUROCONVERT};
 
 attach_family! {
     code: CODE; declarations: DECLARATIONS;
@@ -88,7 +88,11 @@ fn single(
     if held.rows != 1 || held.cols != 1 {
         return value_error();
     }
-    let value = held.cells.into_iter().next().unwrap_or_else(CalcValue::empty);
+    let value = held
+        .cells
+        .into_iter()
+        .next()
+        .unwrap_or_else(CalcValue::empty);
     if matches!(value.core_ref(), CoreRef::Error(_)) {
         return value_error();
     }
@@ -121,7 +125,9 @@ fn read_number(text: &str) -> Option<f64> {
             'o' | 'O' => (8, &body[1..]),
             _ => return None,
         };
-        return u64::from_str_radix(digits, radix).ok().map(|value| value as f64);
+        return u64::from_str_radix(digits, radix)
+            .ok()
+            .map(|value| value as f64);
     }
     let (negated, body) = match text.strip_prefix('(').and_then(|t| t.strip_suffix(')')) {
         Some(inner) => (true, inner.trim_matches(' ')),
@@ -150,11 +156,16 @@ fn read_number(text: &str) -> Option<f64> {
         byte == b' '
             && at > 0
             && mantissa.as_bytes()[at - 1].is_ascii_digit()
-            && mantissa.as_bytes().get(at + 1).is_some_and(u8::is_ascii_digit)
+            && mantissa
+                .as_bytes()
+                .get(at + 1)
+                .is_some_and(u8::is_ascii_digit)
     };
-    if !mantissa.bytes().enumerate().all(|(at, byte)| {
-        byte.is_ascii_digit() || byte == b'.' || grouped(at, byte)
-    }) {
+    if !mantissa
+        .bytes()
+        .enumerate()
+        .all(|(at, byte)| byte.is_ascii_digit() || byte == b'.' || grouped(at, byte))
+    {
         return None;
     }
     let mut decimal: String = mantissa.chars().filter(|c| *c != ' ').collect();

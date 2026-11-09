@@ -434,7 +434,10 @@ fn relative_names_unknown_calls_and_indirect_names() {
     book.catalog.no_macros = false;
     assert!(matches!(
         book.refusal("=FOO(1)", "F1"),
-        CompileError::NotModelled { gap: calc_fml::Gap::UnknownFunction { .. }, .. }
+        CompileError::NotModelled {
+            gap: calc_fml::Gap::UnknownFunction { .. },
+            ..
+        }
     ));
 }
 

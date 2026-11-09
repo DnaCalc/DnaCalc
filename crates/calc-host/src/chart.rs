@@ -17,9 +17,9 @@
 //! formats, trendlines, error bars, data labels, and the darker and
 //! lighter accents Excel uses past the sixth series.
 
-pub use calc_doc_model::ChartTextStyle;
 use crate::state::HostState;
 use calc_doc::{ChartAnchor, ChartData, DrawingPoint};
+pub use calc_doc_model::ChartTextStyle;
 use calc_doc_model::value::{CalcValue, CellKey, CoreRef, SheetId};
 
 /// EMU to a pixel at 96 dots per inch.
@@ -103,17 +103,17 @@ pub struct PlotView {
 pub struct ChartView {
     /// The frame's name (`Chart 1`).
     pub name: String,
-    pub part:String,
+    pub part: String,
     pub place: ChartPlace,
     pub title: Option<String>,
     /// The legend's position (`r`, `l`, `t`, `b`, `tr`), `None` without a legend.
     pub legend: Option<String>,
     pub plots: Vec<PlotView>,
-    pub axes:Vec<calc_doc_model::ChartAxis>,
+    pub axes: Vec<calc_doc_model::ChartAxis>,
     /// The theme's accent colours, accent1 to accent6, `RRGGBB`: a varied plot's point colours.
     pub palette: Vec<String>,
-    pub text_style:calc_doc_model::ChartTextStyle,
-    pub element_text:std::collections::BTreeMap<String,calc_doc_model::ChartTextStyle>,
+    pub text_style: calc_doc_model::ChartTextStyle,
+    pub element_text: std::collections::BTreeMap<String, calc_doc_model::ChartTextStyle>,
 }
 
 /// Excel's 2013 theme accents, for a workbook whose theme gives none.
@@ -123,7 +123,14 @@ impl HostState {
     /// The workbook's accent1–accent6, with the same Office fallback for charts and tables.
     pub fn theme_accent(&self, index: usize) -> Option<String> {
         let fallback = OFFICE_ACCENTS.get(index)?;
-        Some(self.loaded.theme_colors().get(4+index).filter(|c|c.len()==6).cloned().unwrap_or_else(||(*fallback).to_owned()))
+        Some(
+            self.loaded
+                .theme_colors()
+                .get(4 + index)
+                .filter(|c| c.len() == 6)
+                .cloned()
+                .unwrap_or_else(|| (*fallback).to_owned()),
+        )
     }
     /// The charts on `sheet`, in the drawing's order, with their series as the workbook holds
     /// them now; and how many charts the file holds that could not be read.
@@ -134,9 +141,7 @@ impl HostState {
         let read = loaded.charts();
         let theme = self.loaded.theme_colors();
         let palette: Vec<String> = (0..6)
-            .map(|i| {
-                self.theme_accent(i).expect("six theme accents")
-            })
+            .map(|i| self.theme_accent(i).expect("six theme accents"))
             .collect();
         let scheme = |name: &str| -> Option<String> {
             let slot = match name {
@@ -164,9 +169,7 @@ impl HostState {
                 .iter()
                 .map(|plot| {
                     let kind = match plot.kind.as_str() {
-                        "barChart"
-                            if plot.bar_direction.as_deref() == Some("bar") =>
-                        {
+                        "barChart" if plot.bar_direction.as_deref() == Some("bar") => {
                             ChartKind::Bar
                         }
                         "barChart" => ChartKind::Column,
@@ -179,7 +182,7 @@ impl HostState {
                     };
                     let grouping = plot.grouping.as_deref().unwrap_or_default();
                     PlotView {
-                        axis_ids:plot.axis_ids.clone(),
+                        axis_ids: plot.axis_ids.clone(),
                         kind,
                         stacked: matches!(grouping, "stacked" | "percentStacked"),
                         percent: grouping == "percentStacked",
@@ -190,10 +193,23 @@ impl HostState {
                             .map(|series| {
                                 let (values, cached) =
                                     self.series_values(series.values.as_ref(), origin);
-                                let (categories,category_cached)=series.categories.as_ref().map(|data|self.data_values(data,origin)).unwrap_or_default();
-                                let (names,name_cached)=series.name.as_ref().map(|data|self.data_values(data,origin)).unwrap_or_default();
-                                let name=names.into_iter().flatten().next().map(|value|text_of(&value)).unwrap_or_else(||format!("Series{}",series.index+1));
-                                let cached=cached||category_cached||name_cached;
+                                let (categories, category_cached) = series
+                                    .categories
+                                    .as_ref()
+                                    .map(|data| self.data_values(data, origin))
+                                    .unwrap_or_default();
+                                let (names, name_cached) = series
+                                    .name
+                                    .as_ref()
+                                    .map(|data| self.data_values(data, origin))
+                                    .unwrap_or_default();
+                                let name = names
+                                    .into_iter()
+                                    .flatten()
+                                    .next()
+                                    .map(|value| text_of(&value))
+                                    .unwrap_or_else(|| format!("Series{}", series.index + 1));
+                                let cached = cached || category_cached || name_cached;
                                 let color = series
                                     .fill
                                     .as_deref()
@@ -212,7 +228,7 @@ impl HostState {
                                     categories,
                                     values,
                                     color,
-                                    explicit_color:series.fill.is_some(),
+                                    explicit_color: series.fill.is_some(),
                                     cached,
                                 }
                             })
@@ -235,15 +251,39 @@ impl HostState {
             });
             views.push(ChartView {
                 name: chart.name.clone(),
-                part:chart.part.clone(),
+                part: chart.part.clone(),
                 place,
                 title,
                 legend: chart.legend.clone(),
                 plots,
                 palette: palette.clone(),
-                element_text:chart.element_text.iter().map(|(key,font)|{let mut font=font.clone();font.color=font.color.as_ref().and_then(|c|if c.len()==6&&c.bytes().all(|b|b.is_ascii_hexdigit()){Some(c.clone())}else{scheme(c)});(key.clone(),font)}).collect(),
-                text_style:{let mut style=chart.text_style.clone();style.color=style.color.as_ref().and_then(|c|if c.len()==6&&c.bytes().all(|b|b.is_ascii_hexdigit()){Some(c.clone())}else{scheme(c)});style},
-                axes:chart.axes.clone(),
+                element_text: chart
+                    .element_text
+                    .iter()
+                    .map(|(key, font)| {
+                        let mut font = font.clone();
+                        font.color = font.color.as_ref().and_then(|c| {
+                            if c.len() == 6 && c.bytes().all(|b| b.is_ascii_hexdigit()) {
+                                Some(c.clone())
+                            } else {
+                                scheme(c)
+                            }
+                        });
+                        (key.clone(), font)
+                    })
+                    .collect(),
+                text_style: {
+                    let mut style = chart.text_style.clone();
+                    style.color = style.color.as_ref().and_then(|c| {
+                        if c.len() == 6 && c.bytes().all(|b| b.is_ascii_hexdigit()) {
+                            Some(c.clone())
+                        } else {
+                            scheme(c)
+                        }
+                    });
+                    style
+                },
+                axes: chart.axes.clone(),
             });
         }
         (views, unread)
@@ -296,18 +336,21 @@ impl HostState {
     /// A series' data as the workbook holds it now (its formula evaluated), else as the file
     /// cached it; and whether it is the cache.
     fn data_values(&self, data: &ChartData, origin: CellKey) -> (Vec<Option<CalcValue>>, bool) {
-        if let Some(values) = data
-            .formula
-            .as_deref()
-             .and_then(|formula| {
-                use calc_doc_model::{FormulaRewriter,NameScope,StructuralChange};
-                let mut current=formula.to_owned();
-                for edit in &self.axis_edits {
-                    if let Some(next)=calc_engine::ReferenceRewriter.name(self.loaded.model(),&current,NameScope::Sheet(origin.sheet()),&StructuralChange::Axis(*edit)) {current=next;}
+        if let Some(values) = data.formula.as_deref().and_then(|formula| {
+            use calc_doc_model::{FormulaRewriter, NameScope, StructuralChange};
+            let mut current = formula.to_owned();
+            for edit in &self.axis_edits {
+                if let Some(next) = calc_engine::ReferenceRewriter.name(
+                    self.loaded.model(),
+                    &current,
+                    NameScope::Sheet(origin.sheet()),
+                    &StructuralChange::Axis(*edit),
+                ) {
+                    current = next;
                 }
-                self.formula_values(&current, origin, origin)
-            })
-        {
+            }
+            self.formula_values(&current, origin, origin)
+        }) {
             return (values, false);
         }
         let cached = data
@@ -379,8 +422,7 @@ pub(crate) fn prepare_properties(
         .ok_or("The chart worksheet no longer exists")?;
     if source.protected() || source.is_macro_sheet() {
         return Err(
-            "Editing charts on this protected or macro worksheet is not modelled (dc-e5z5)"
-                .into(),
+            "Editing charts on this protected or macro worksheet is not modelled (dc-e5z5)".into(),
         );
     }
     if host.loaded().workbook_part().ends_with(".bin") {
@@ -407,7 +449,12 @@ pub(crate) fn prepare_properties(
             None
         };
     }
-    if changed.title.is_none()&&changed.title_formula.is_none(){changed.element_text.remove("title");}if changed.legend.is_none(){changed.element_text.remove("legend");}
+    if changed.title.is_none() && changed.title_formula.is_none() {
+        changed.element_text.remove("title");
+    }
+    if changed.legend.is_none() {
+        changed.element_text.remove("legend");
+    }
     if changed == original {
         return Ok(Vec::new());
     }
@@ -421,48 +468,136 @@ pub(crate) fn prepare_properties(
 /// Edit one series through the retained chart writer. A missing index adds a series.
 #[allow(clippy::too_many_arguments)]
 pub(crate) fn prepare_series(
-    host: &HostState, sheet:SheetId, revision:u64, part:&str, plot:u32,
-    series:Option<u32>, name:Option<String>, categories:Option<String>,
-    values:Option<String>, remove:bool,
-) -> Result<Vec<crate::CellEdit>,String> {
+    host: &HostState,
+    sheet: SheetId,
+    revision: u64,
+    part: &str,
+    plot: u32,
+    series: Option<u32>,
+    name: Option<String>,
+    categories: Option<String>,
+    values: Option<String>,
+    remove: bool,
+) -> Result<Vec<crate::CellEdit>, String> {
     // Reuse the chart target, protection, format and revision checks.
-    prepare_properties(host,sheet,revision,part,None,false,None)?;
+    prepare_properties(host, sheet, revision, part, None, false, None)?;
     if !host.axis_edits.is_empty() {
         return Err("Save and reopen before editing chart sources after inserting or deleting rows or columns (dc-971p.46)".into());
     }
-    let mut charts=host.model().definitions().charts(sheet).to_vec();
-    let chart=charts.iter_mut().find(|c|c.part==part).ok_or("The chart is unavailable")?;
-    let next=chart.plots.iter().flat_map(|p|&p.series).map(|s|s.index)
-        .chain(host.loaded().model().definitions().charts(sheet).iter().filter(|c|c.part==part).flat_map(|c|&c.plots).flat_map(|p|&p.series).map(|s|s.index))
-        .max().unwrap_or(0).checked_add(1).ok_or("The series index limit was reached")?;
-    let total=chart.plots.iter().map(|p|p.series.len()).sum::<usize>();
-    let p=chart.plots.get_mut(plot as usize).ok_or("The chart plot is unavailable")?;
-    if !matches!(p.kind.as_str(),"barChart"|"lineChart"|"areaChart"|"pieChart"|"doughnutChart"|"scatterChart") {
+    let mut charts = host.model().definitions().charts(sheet).to_vec();
+    let chart = charts
+        .iter_mut()
+        .find(|c| c.part == part)
+        .ok_or("The chart is unavailable")?;
+    let next = chart
+        .plots
+        .iter()
+        .flat_map(|p| &p.series)
+        .map(|s| s.index)
+        .chain(
+            host.loaded()
+                .model()
+                .definitions()
+                .charts(sheet)
+                .iter()
+                .filter(|c| c.part == part)
+                .flat_map(|c| &c.plots)
+                .flat_map(|p| &p.series)
+                .map(|s| s.index),
+        )
+        .max()
+        .unwrap_or(0)
+        .checked_add(1)
+        .ok_or("The series index limit was reached")?;
+    let total = chart.plots.iter().map(|p| p.series.len()).sum::<usize>();
+    let p = chart
+        .plots
+        .get_mut(plot as usize)
+        .ok_or("The chart plot is unavailable")?;
+    if !matches!(
+        p.kind.as_str(),
+        "barChart" | "lineChart" | "areaChart" | "pieChart" | "doughnutChart" | "scatterChart"
+    ) {
         return Err("Editing series of this chart type is not modelled (dc-971p.46)".into());
     }
-    let position=series.map(|index|p.series.iter().position(|s|s.index==index).ok_or("The series changed; reopen its controls")).transpose()?;
+    let position = series
+        .map(|index| {
+            p.series
+                .iter()
+                .position(|s| s.index == index)
+                .ok_or("The series changed; reopen its controls")
+        })
+        .transpose()?;
     if remove {
-        let i=position.ok_or("Select a series to remove")?;
-        if p.series.len()==1 {return Err("Keep at least one series in a chart plot (dc-971p.46)".into());}
+        let i = position.ok_or("Select a series to remove")?;
+        if p.series.len() == 1 {
+            return Err("Keep at least one series in a chart plot (dc-971p.46)".into());
+        }
         p.series.remove(i);
     } else {
-        if position.is_none() && total>=255 {return Err("A chart can have at most 255 series (dc-971p.46)".into());}
-        if position.is_none() && matches!(p.kind.as_str(),"pieChart"|"doughnutChart"){return Err("Adding pie or doughnut series is not modelled; edit the existing series (dc-971p.46)".into());}
-        let mut changed=position.map(|i|p.series[i].clone()).unwrap_or_else(||calc_doc_model::ChartSeries{index:next,..Default::default()});
-        let origin=CellKey::new(sheet,1,1).unwrap();
-        let range=|text:&str,numeric:bool,single:bool|range_data(host,origin,text,numeric,single);
-        if let Some(text)=name {
-            if text.encode_utf16().count()>32767 || text.chars().any(|c|(c<' ' && !matches!(c,'\t'|'\n'|'\r')) || matches!(c,'\u{fffe}'|'\u{ffff}')) {return Err("The series name contains unsupported text or exceeds 32,767 UTF-16 units (dc-971p.46)".into());}
-            changed.name=if text.is_empty(){None}else if text.starts_with('='){Some(range(&text,false,true)?)}else{Some(ChartData{cache:vec![Some(text)],..Default::default()})};
+        if position.is_none() && total >= 255 {
+            return Err("A chart can have at most 255 series (dc-971p.46)".into());
         }
-        if let Some(text)=categories {changed.categories=if text.trim().is_empty(){None}else{Some(range(&text,p.kind=="scatterChart",false)?)};}
-        if let Some(text)=values {changed.values=Some(range(&text,true,false)?);}
-        if changed.values.is_none(){return Err("Choose a values range for the new series (dc-971p.46)".into());}
-        if let Some(i)=position {p.series[i]=changed;} else {p.series.push(changed);}
+        if position.is_none() && matches!(p.kind.as_str(), "pieChart" | "doughnutChart") {
+            return Err("Adding pie or doughnut series is not modelled; edit the existing series (dc-971p.46)".into());
+        }
+        let mut changed =
+            position
+                .map(|i| p.series[i].clone())
+                .unwrap_or_else(|| calc_doc_model::ChartSeries {
+                    index: next,
+                    ..Default::default()
+                });
+        let origin = CellKey::new(sheet, 1, 1).unwrap();
+        let range = |text: &str, numeric: bool, single: bool| {
+            range_data(host, origin, text, numeric, single)
+        };
+        if let Some(text) = name {
+            if text.encode_utf16().count() > 32767
+                || text.chars().any(|c| {
+                    (c < ' ' && !matches!(c, '\t' | '\n' | '\r'))
+                        || matches!(c, '\u{fffe}' | '\u{ffff}')
+                })
+            {
+                return Err("The series name contains unsupported text or exceeds 32,767 UTF-16 units (dc-971p.46)".into());
+            }
+            changed.name = if text.is_empty() {
+                None
+            } else if text.starts_with('=') {
+                Some(range(&text, false, true)?)
+            } else {
+                Some(ChartData {
+                    cache: vec![Some(text)],
+                    ..Default::default()
+                })
+            };
+        }
+        if let Some(text) = categories {
+            changed.categories = if text.trim().is_empty() {
+                None
+            } else {
+                Some(range(&text, p.kind == "scatterChart", false)?)
+            };
+        }
+        if let Some(text) = values {
+            changed.values = Some(range(&text, true, false)?);
+        }
+        if changed.values.is_none() {
+            return Err("Choose a values range for the new series (dc-971p.46)".into());
+        }
+        if let Some(i) = position {
+            p.series[i] = changed;
+        } else {
+            p.series.push(changed);
+        }
     }
-    host.loaded().check_chart_properties(sheet,chart).map_err(|e|e.to_string())?;
-    if charts==host.model().definitions().charts(sheet){return Ok(Vec::new());}
-    Ok(vec![crate::CellEdit::Charts{sheet,charts}])
+    host.loaded()
+        .check_chart_properties(sheet, chart)
+        .map_err(|e| e.to_string())?;
+    if charts == host.model().definitions().charts(sheet) {
+        return Ok(Vec::new());
+    }
+    Ok(vec![crate::CellEdit::Charts { sheet, charts }])
 }
 
 pub fn axis(low: f64, high: f64) -> (f64, f64, f64) {
@@ -492,372 +627,1248 @@ pub fn axis(low: f64, high: f64) -> (f64, f64, f64) {
     (min, max, step)
 }
 
-
 /// A validated value scale shared by command validation and chart drawing.
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub struct ChartScale {
-    pub minimum:f64,
-    pub maximum:f64,
-    pub step:f64,
-    pub reversed:bool,
-    pub log_base:Option<f64>,
+    pub minimum: f64,
+    pub maximum: f64,
+    pub step: f64,
+    pub reversed: bool,
+    pub log_base: Option<f64>,
 }
 
-pub fn chart_scale(low:f64,high:f64,properties:Option<&calc_doc_model::ChartAxis>)->Result<ChartScale,String> {
-    if let Some(axis)=properties.filter(|a|a.log_base.is_some()){return logarithmic_scale(low,high,axis);}
-    if !low.is_finite() || !high.is_finite() || !(high.max(0.)-low.min(0.)).is_finite() {
+pub fn chart_scale(
+    low: f64,
+    high: f64,
+    properties: Option<&calc_doc_model::ChartAxis>,
+) -> Result<ChartScale, String> {
+    if let Some(axis) = properties.filter(|a| a.log_base.is_some()) {
+        return logarithmic_scale(low, high, axis);
+    }
+    if !low.is_finite() || !high.is_finite() || !(high.max(0.) - low.min(0.)).is_finite() {
         return Err("This chart's values exceed the supported linear axis range".into());
     }
-    let (automatic_min,automatic_max,automatic_step)=axis(low,high);
-    let read=|value:Option<&str>|->Result<Option<f64>,String>{
-        value.map(|s|s.parse::<f64>().ok().filter(|n|n.is_finite()).ok_or_else(||"Use finite numbers for axis bounds and units".into())).transpose()
+    let (automatic_min, automatic_max, automatic_step) = axis(low, high);
+    let read = |value: Option<&str>| -> Result<Option<f64>, String> {
+        value
+            .map(|s| {
+                s.parse::<f64>()
+                    .ok()
+                    .filter(|n| n.is_finite())
+                    .ok_or_else(|| "Use finite numbers for axis bounds and units".into())
+            })
+            .transpose()
     };
-    let minimum=read(properties.and_then(|a|a.minimum.as_deref()))?;
-    let maximum=read(properties.and_then(|a|a.maximum.as_deref()))?;
-    let unit=read(properties.and_then(|a|a.major_unit.as_deref()))?;
-    let mut min=minimum.unwrap_or(automatic_min);let mut max=maximum.unwrap_or(automatic_max);
-    let automatic_span=automatic_max-automatic_min;
-    if minimum.is_none() && min>=max {min=max-automatic_span;}
-    if maximum.is_none() && max<=min {max=min+automatic_span;}
-    let span=max-min;
-    if !span.is_finite() || span<=0. {return Err("The axis maximum must be greater than its minimum".into());}
-    if [low,high,0.].into_iter().any(|v|!(((v-min)/span)*1_000_000.).is_finite()){return Err("The fixed bounds are too narrow for this chart's values".into());}
-    let step=if let Some(unit)=unit {unit} else if minimum.is_none() && maximum.is_none(){automatic_step}else{
-        let raw=span/8.;let power=10f64.powf(raw.log10().floor());
-        [1.,2.,5.,10.].into_iter().map(|m|m*power).find(|s|*s>=raw).unwrap_or(10.*power)
+    let minimum = read(properties.and_then(|a| a.minimum.as_deref()))?;
+    let maximum = read(properties.and_then(|a| a.maximum.as_deref()))?;
+    let unit = read(properties.and_then(|a| a.major_unit.as_deref()))?;
+    let mut min = minimum.unwrap_or(automatic_min);
+    let mut max = maximum.unwrap_or(automatic_max);
+    let automatic_span = automatic_max - automatic_min;
+    if minimum.is_none() && min >= max {
+        min = max - automatic_span;
+    }
+    if maximum.is_none() && max <= min {
+        max = min + automatic_span;
+    }
+    let span = max - min;
+    if !span.is_finite() || span <= 0. {
+        return Err("The axis maximum must be greater than its minimum".into());
+    }
+    if [low, high, 0.]
+        .into_iter()
+        .any(|v| !(((v - min) / span) * 1_000_000.).is_finite())
+    {
+        return Err("The fixed bounds are too narrow for this chart's values".into());
+    }
+    let step = if let Some(unit) = unit {
+        unit
+    } else if minimum.is_none() && maximum.is_none() {
+        automatic_step
+    } else {
+        let raw = span / 8.;
+        let power = 10f64.powf(raw.log10().floor());
+        [1., 2., 5., 10.]
+            .into_iter()
+            .map(|m| m * power)
+            .find(|s| *s >= raw)
+            .unwrap_or(10. * power)
     };
-    if !step.is_finite() || step<=0. || span/step>1000. {return Err("Use a positive major unit that produces at most 1,000 intervals".into());}
-    Ok(ChartScale{minimum:min,maximum:max,step,reversed:properties.is_some_and(|a|a.reversed),log_base:None})
+    if !step.is_finite() || step <= 0. || span / step > 1000. {
+        return Err("Use a positive major unit that produces at most 1,000 intervals".into());
+    }
+    Ok(ChartScale {
+        minimum: min,
+        maximum: max,
+        step,
+        reversed: properties.is_some_and(|a| a.reversed),
+        log_base: None,
+    })
 }
 
 impl ChartScale {
     /// Normalized axis coordinate, with nonpositive logarithmic values omitted.
-    pub fn position(self,value:f64)->Option<f64>{
-        let (v,min,max)=if self.log_base.is_some(){
-            if value<=0. || !value.is_finite(){return None;}
-            (value.ln(),self.minimum.ln(),self.maximum.ln())
-        }else{(value,self.minimum,self.maximum)};
-        let t=(v-min)/(max-min);
-        t.is_finite().then_some(if self.reversed{1.-t}else{t})
+    pub fn position(self, value: f64) -> Option<f64> {
+        let (v, min, max) = if self.log_base.is_some() {
+            if value <= 0. || !value.is_finite() {
+                return None;
+            }
+            (value.ln(), self.minimum.ln(), self.maximum.ln())
+        } else {
+            (value, self.minimum, self.maximum)
+        };
+        let t = (v - min) / (max - min);
+        t.is_finite()
+            .then_some(if self.reversed { 1. - t } else { t })
     }
-    pub fn ticks(self)->Vec<f64>{
-        if let Some(base)=self.log_base {
-            let log=base.ln();let first=(self.minimum.ln()/log-1e-12).ceil() as i32;let last=(self.maximum.ln()/log+1e-12).floor() as i32;
-            let values=(first..=last).take(1001).map(|k|base.powi(k)).filter(|v|v.is_finite()&&*v>0.&&*v>=self.minimum*(1.-1e-12)&&*v<=self.maximum*(1.+1e-12)).collect::<Vec<_>>();
-            if values.is_empty(){vec![self.minimum,self.maximum]}else{values}
-        }else{
-            (0..=(((self.maximum-self.minimum)/self.step+1e-9).floor() as usize).min(1000)).map(|k|self.minimum+k as f64*self.step).collect()
+    pub fn ticks(self) -> Vec<f64> {
+        if let Some(base) = self.log_base {
+            let log = base.ln();
+            let first = (self.minimum.ln() / log - 1e-12).ceil() as i32;
+            let last = (self.maximum.ln() / log + 1e-12).floor() as i32;
+            let values = (first..=last)
+                .take(1001)
+                .map(|k| base.powi(k))
+                .filter(|v| {
+                    v.is_finite()
+                        && *v > 0.
+                        && *v >= self.minimum * (1. - 1e-12)
+                        && *v <= self.maximum * (1. + 1e-12)
+                })
+                .collect::<Vec<_>>();
+            if values.is_empty() {
+                vec![self.minimum, self.maximum]
+            } else {
+                values
+            }
+        } else {
+            (0..=(((self.maximum - self.minimum) / self.step + 1e-9).floor() as usize).min(1000))
+                .map(|k| self.minimum + k as f64 * self.step)
+                .collect()
         }
     }
 }
 
-fn logarithmic_scale(low:f64,high:f64,axis:&calc_doc_model::ChartAxis)->Result<ChartScale,String>{
-    let base=axis.log_base.as_deref().and_then(|v|v.parse::<f64>().ok()).filter(|v|v.is_finite()&&(2. ..=1000.).contains(v)).ok_or("Use a logarithmic base from 2 to 1,000")?;
-    if low<=0. || !low.is_finite() || !high.is_finite() || high<low{return Err("A logarithmic axis needs positive data values".into());}
-    let bound=|v:Option<&str>|->Result<Option<f64>,String>{v.map(|v|v.parse::<f64>().ok().filter(|v|v.is_finite()&&*v>0.).ok_or_else(||"Logarithmic bounds must be positive finite numbers".into())).transpose()};
-    let minimum=bound(axis.minimum.as_deref())?;let maximum=bound(axis.maximum.as_deref())?;
-    let log=base.ln();let auto_min=base.powf((low.ln()/log).floor());let auto_max=base.powf((high.ln()/log).ceil());
-    let mut min=minimum.unwrap_or(if auto_min>0.&&auto_min.is_finite(){auto_min}else{low});
-    let mut max=maximum.unwrap_or(if auto_max>0.&&auto_max.is_finite(){auto_max}else{high});
-    if maximum.is_none() && max<=min {max=(min*base).min(f64::MAX);}
-    if minimum.is_none() && min>=max {min=max/base;}
-    let intervals=(max.ln()-min.ln())/log;
-    if !min.is_finite() || min<=0. || !max.is_finite() || max<=min || !intervals.is_finite() || intervals<=0. || intervals>1000. {return Err("Use positive logarithmic bounds with at most 1,000 intervals".into());}
-    Ok(ChartScale{minimum:min,maximum:max,step:base,reversed:axis.reversed,log_base:Some(base)})
+fn logarithmic_scale(
+    low: f64,
+    high: f64,
+    axis: &calc_doc_model::ChartAxis,
+) -> Result<ChartScale, String> {
+    let base = axis
+        .log_base
+        .as_deref()
+        .and_then(|v| v.parse::<f64>().ok())
+        .filter(|v| v.is_finite() && (2. ..=1000.).contains(v))
+        .ok_or("Use a logarithmic base from 2 to 1,000")?;
+    if low <= 0. || !low.is_finite() || !high.is_finite() || high < low {
+        return Err("A logarithmic axis needs positive data values".into());
+    }
+    let bound = |v: Option<&str>| -> Result<Option<f64>, String> {
+        v.map(|v| {
+            v.parse::<f64>()
+                .ok()
+                .filter(|v| v.is_finite() && *v > 0.)
+                .ok_or_else(|| "Logarithmic bounds must be positive finite numbers".into())
+        })
+        .transpose()
+    };
+    let minimum = bound(axis.minimum.as_deref())?;
+    let maximum = bound(axis.maximum.as_deref())?;
+    let log = base.ln();
+    let auto_min = base.powf((low.ln() / log).floor());
+    let auto_max = base.powf((high.ln() / log).ceil());
+    let mut min = minimum.unwrap_or(if auto_min > 0. && auto_min.is_finite() {
+        auto_min
+    } else {
+        low
+    });
+    let mut max = maximum.unwrap_or(if auto_max > 0. && auto_max.is_finite() {
+        auto_max
+    } else {
+        high
+    });
+    if maximum.is_none() && max <= min {
+        max = (min * base).min(f64::MAX);
+    }
+    if minimum.is_none() && min >= max {
+        min = max / base;
+    }
+    let intervals = (max.ln() - min.ln()) / log;
+    if !min.is_finite()
+        || min <= 0.
+        || !max.is_finite()
+        || max <= min
+        || !intervals.is_finite()
+        || intervals <= 0.
+        || intervals > 1000.
+    {
+        return Err("Use positive logarithmic bounds with at most 1,000 intervals".into());
+    }
+    Ok(ChartScale {
+        minimum: min,
+        maximum: max,
+        step: base,
+        reversed: axis.reversed,
+        log_base: Some(base),
+    })
 }
 
 /// The value extent of a category plot, including separate positive/negative stacks.
-pub fn plot_value_range(plot:&PlotView)->(f64,f64) {
-    let (mut low,mut high)=(0f64,0f64);
+pub fn plot_value_range(plot: &PlotView) -> (f64, f64) {
+    let (mut low, mut high) = (0f64, 0f64);
     if plot.stacked {
-        let count=plot.series.iter().map(|s|s.values.len()).max().unwrap_or(0);
+        let count = plot
+            .series
+            .iter()
+            .map(|s| s.values.len())
+            .max()
+            .unwrap_or(0);
         for j in 0..count {
-            let (mut up,mut down)=(0.,0.);
-            for s in &plot.series {let v=s.values.get(j).copied().flatten().unwrap_or(0.);if v>=0.{up+=v}else{down+=v}}
-            low=low.min(down);high=high.max(up);
+            let (mut up, mut down) = (0., 0.);
+            for s in &plot.series {
+                let v = s.values.get(j).copied().flatten().unwrap_or(0.);
+                if v >= 0. { up += v } else { down += v }
+            }
+            low = low.min(down);
+            high = high.max(up);
         }
-    }else{for v in plot.series.iter().flat_map(|s|s.values.iter().flatten()){low=low.min(*v);high=high.max(*v);}}
-    (low,high)
+    } else {
+        for v in plot.series.iter().flat_map(|s| s.values.iter().flatten()) {
+            low = low.min(*v);
+            high = high.max(*v);
+        }
+    }
+    (low, high)
 }
 
 #[allow(clippy::too_many_arguments)]
-pub(crate) fn prepare_axis(host:&HostState,sheet:SheetId,revision:u64,part:&str,id:u32,minimum:Option<String>,maximum:Option<String>,major_unit:Option<String>,reversed:bool)->Result<Vec<crate::CellEdit>,String>{
-    prepare_properties(host,sheet,revision,part,None,false,None)?;
-    let mut charts=host.model().definitions().charts(sheet).to_vec();
-    let chart=charts.iter_mut().find(|c|c.part==part).ok_or("The chart is unavailable")?;
-    check_axes_for_edit(host,sheet,part)?;
-    if chart.axes.iter().filter(|a|a.id==id).count()!=1 {return Err("The axis identity changed; reopen its controls (dc-971p.46)".into());}
-    value_axes(&chart.axes,&chart.plots[0].axis_ids,chart.plots[0].kind=="scatterChart").map_err(|e|format!("{e} (dc-971p.46)"))?;
-    let axis=chart.axes.iter_mut().find(|a|a.id==id && a.kind=="valAx").ok_or("Choose a value axis (dc-971p.46)")?;
-    let canonical=|value:Option<String>|->Result<Option<String>,String>{
-        value.filter(|s|!s.trim().is_empty()).map(|s|s.trim().parse::<f64>().ok().filter(|n|n.is_finite()).map(|n|n.to_string()).ok_or_else(||"Use finite numeric axis bounds and units (dc-971p.46)".into())).transpose()
+pub(crate) fn prepare_axis(
+    host: &HostState,
+    sheet: SheetId,
+    revision: u64,
+    part: &str,
+    id: u32,
+    minimum: Option<String>,
+    maximum: Option<String>,
+    major_unit: Option<String>,
+    reversed: bool,
+) -> Result<Vec<crate::CellEdit>, String> {
+    prepare_properties(host, sheet, revision, part, None, false, None)?;
+    let mut charts = host.model().definitions().charts(sheet).to_vec();
+    let chart = charts
+        .iter_mut()
+        .find(|c| c.part == part)
+        .ok_or("The chart is unavailable")?;
+    check_axes_for_edit(host, sheet, part)?;
+    if chart.axes.iter().filter(|a| a.id == id).count() != 1 {
+        return Err("The axis identity changed; reopen its controls (dc-971p.46)".into());
+    }
+    value_axes(
+        &chart.axes,
+        &chart.plots[0].axis_ids,
+        chart.plots[0].kind == "scatterChart",
+    )
+    .map_err(|e| format!("{e} (dc-971p.46)"))?;
+    let axis = chart
+        .axes
+        .iter_mut()
+        .find(|a| a.id == id && a.kind == "valAx")
+        .ok_or("Choose a value axis (dc-971p.46)")?;
+    let canonical = |value: Option<String>| -> Result<Option<String>, String> {
+        value
+            .filter(|s| !s.trim().is_empty())
+            .map(|s| {
+                s.trim()
+                    .parse::<f64>()
+                    .ok()
+                    .filter(|n| n.is_finite())
+                    .map(|n| n.to_string())
+                    .ok_or_else(|| "Use finite numeric axis bounds and units (dc-971p.46)".into())
+            })
+            .transpose()
     };
-    axis.minimum=canonical(minimum)?;axis.maximum=canonical(maximum)?;axis.major_unit=canonical(major_unit)?;axis.reversed=reversed;
-    validate_axis_view(host,sheet,part,axis).map_err(|e|format!("{e} (dc-971p.50)"))?;
-    host.loaded().check_chart_properties(sheet,chart).map_err(|e|e.to_string())?;
-    if charts==host.model().definitions().charts(sheet){return Ok(Vec::new());}
-    Ok(vec![crate::CellEdit::Charts{sheet,charts}])
+    axis.minimum = canonical(minimum)?;
+    axis.maximum = canonical(maximum)?;
+    axis.major_unit = canonical(major_unit)?;
+    axis.reversed = reversed;
+    validate_axis_view(host, sheet, part, axis).map_err(|e| format!("{e} (dc-971p.50)"))?;
+    host.loaded()
+        .check_chart_properties(sheet, chart)
+        .map_err(|e| e.to_string())?;
+    if charts == host.model().definitions().charts(sheet) {
+        return Ok(Vec::new());
+    }
+    Ok(vec![crate::CellEdit::Charts { sheet, charts }])
 }
 
 /// Category combinations use one primary pair and an optional secondary pair.
-pub fn axes_associated(chart:&ChartView)->bool{
-    let actual=chart.axes.iter().map(|a|a.id).collect::<std::collections::BTreeSet<_>>();
-    let used=chart.plots.iter().flat_map(|p|p.axis_ids.iter().copied()).collect::<std::collections::BTreeSet<_>>();
-    actual.len()==chart.axes.len()&&actual==used
+pub fn axes_associated(chart: &ChartView) -> bool {
+    let actual = chart
+        .axes
+        .iter()
+        .map(|a| a.id)
+        .collect::<std::collections::BTreeSet<_>>();
+    let used = chart
+        .plots
+        .iter()
+        .flat_map(|p| p.axis_ids.iter().copied())
+        .collect::<std::collections::BTreeSet<_>>();
+    actual.len() == chart.axes.len() && actual == used
 }
-fn check_axes_for_edit(host:&HostState,sheet:SheetId,part:&str)->Result<(),String>{
-    let view=host.charts(sheet).0.into_iter().find(|c|c.part==part).ok_or("The chart is unavailable")?;
-    if !axes_associated(&view)||(view.plots.len()!=1&&!combination_supported(&view)){return Err("Editing unassociated axes or this combination is not modelled (dc-971p.51)".into());}Ok(())
+fn check_axes_for_edit(host: &HostState, sheet: SheetId, part: &str) -> Result<(), String> {
+    let view = host
+        .charts(sheet)
+        .0
+        .into_iter()
+        .find(|c| c.part == part)
+        .ok_or("The chart is unavailable")?;
+    if !axes_associated(&view) || (view.plots.len() != 1 && !combination_supported(&view)) {
+        return Err(
+            "Editing unassociated axes or this combination is not modelled (dc-971p.51)".into(),
+        );
+    }
+    Ok(())
 }
-pub fn combination_supported(chart:&ChartView)->bool{
-    if !axes_associated(chart){return false;}
-    if !(2..=3).contains(&chart.plots.len())||chart.plots.iter().enumerate().any(|(i,p)|chart.plots[..i].iter().any(|before|before.kind==p.kind))||chart.plots.iter().any(|p|!matches!(p.kind,ChartKind::Column|ChartKind::Line|ChartKind::Area)||p.percent||p.series.is_empty()){return false;}
-    if !matches!(chart.axes.len(),2|4){return false;}
-    let Ok(pairs)=chart.plots.iter().map(|p|value_axes(&chart.axes,&p.axis_ids,false)).collect::<Result<Vec<_>,_>>()else{return false;};
+pub fn combination_supported(chart: &ChartView) -> bool {
+    if !axes_associated(chart) {
+        return false;
+    }
+    if !(2..=3).contains(&chart.plots.len())
+        || chart
+            .plots
+            .iter()
+            .enumerate()
+            .any(|(i, p)| chart.plots[..i].iter().any(|before| before.kind == p.kind))
+        || chart.plots.iter().any(|p| {
+            !matches!(
+                p.kind,
+                ChartKind::Column | ChartKind::Line | ChartKind::Area
+            ) || p.percent
+                || p.series.is_empty()
+        })
+    {
+        return false;
+    }
+    if !matches!(chart.axes.len(), 2 | 4) {
+        return false;
+    }
+    let Ok(pairs) = chart
+        .plots
+        .iter()
+        .map(|p| value_axes(&chart.axes, &p.axis_ids, false))
+        .collect::<Result<Vec<_>, _>>()
+    else {
+        return false;
+    };
     // Excel writes a combination as area, bar, line, so the plot on the primary axes is not always first.
-    if !pairs.iter().any(|pair|pair[0].position.as_deref()==Some("l")){return false;}
-    let mut sides=std::collections::BTreeMap::new();
-    for pair in pairs {let Some(side @ ("l"|"r"))=pair[0].position.as_deref()else{return false;};if sides.insert(side,pair[0].id).is_some_and(|id|id!=pair[0].id){return false;}}
-    sides.len()==chart.axes.len()/2
-
+    if !pairs
+        .iter()
+        .any(|pair| pair[0].position.as_deref() == Some("l"))
+    {
+        return false;
+    }
+    let mut sides = std::collections::BTreeMap::new();
+    for pair in pairs {
+        let Some(side @ ("l" | "r")) = pair[0].position.as_deref() else {
+            return false;
+        };
+        if sides
+            .insert(side, pair[0].id)
+            .is_some_and(|id| id != pair[0].id)
+        {
+            return false;
+        }
+    }
+    sides.len() == chart.axes.len() / 2
 }
 /// Plots sharing a value axis share its data extent as well as its authored properties.
-pub fn category_scale(chart:&ChartView,plot:&PlotView)->Result<ChartScale,String>{
-    if !axes_associated(chart){return Err("Unassociated chart axes are preserved but not drawn here (dc-971p.51)".into());}
-    let axes=value_axes(&chart.axes,&plot.axis_ids,false)?;let axis=axes[0];let log=axis.log_base.is_some();let mut extent:Option<(f64,f64)>=None;
-    for p in chart.plots.iter().filter(|p|p.axis_ids.contains(&axis.id)){
-        let (low,high)=plot_scale_range(p,log)?;
-        if log&&low<=0.{continue;}
-        extent=Some(extent.map_or((low,high),|(a,b)|(a.min(low),b.max(high))));
+pub fn category_scale(chart: &ChartView, plot: &PlotView) -> Result<ChartScale, String> {
+    if !axes_associated(chart) {
+        return Err("Unassociated chart axes are preserved but not drawn here (dc-971p.51)".into());
     }
-    let (low,high)=extent.unwrap_or((0.,0.));chart_scale(low,high,Some(axis))
+    let axes = value_axes(&chart.axes, &plot.axis_ids, false)?;
+    let axis = axes[0];
+    let log = axis.log_base.is_some();
+    let mut extent: Option<(f64, f64)> = None;
+    for p in chart.plots.iter().filter(|p| p.axis_ids.contains(&axis.id)) {
+        let (low, high) = plot_scale_range(p, log)?;
+        if log && low <= 0. {
+            continue;
+        }
+        extent = Some(extent.map_or((low, high), |(a, b)| (a.min(low), b.max(high))));
+    }
+    let (low, high) = extent.unwrap_or((0., 0.));
+    chart_scale(low, high, Some(axis))
 }
 
 /// Positive extents exclude values that cannot be represented on a logarithmic axis.
-pub fn plot_scale_range(plot:&PlotView,log:bool)->Result<(f64,f64),String>{
-    if !log{return Ok(plot_value_range(plot));}
-    if plot.stacked{return Err("Logarithmic stacked plots are preserved but not drawn or edited here (dc-971p.50)".into());}
-    Ok(positive_range(plot.series.iter().flat_map(|s|s.values.iter().flatten().copied())))
+pub fn plot_scale_range(plot: &PlotView, log: bool) -> Result<(f64, f64), String> {
+    if !log {
+        return Ok(plot_value_range(plot));
+    }
+    if plot.stacked {
+        return Err(
+            "Logarithmic stacked plots are preserved but not drawn or edited here (dc-971p.50)"
+                .into(),
+        );
+    }
+    Ok(positive_range(
+        plot.series
+            .iter()
+            .flat_map(|s| s.values.iter().flatten().copied()),
+    ))
 }
-fn positive_range(values:impl Iterator<Item=f64>)->(f64,f64){
-    let mut range:Option<(f64,f64)>=None;
-    for v in values.filter(|v|v.is_finite()&&*v>0.){range=Some(range.map_or((v,v),|(a,b)|(a.min(v),b.max(v))));}
-    range.unwrap_or((0.,0.))
+fn positive_range(values: impl Iterator<Item = f64>) -> (f64, f64) {
+    let mut range: Option<(f64, f64)> = None;
+    for v in values.filter(|v| v.is_finite() && *v > 0.) {
+        range = Some(range.map_or((v, v), |(a, b)| (a.min(v), b.max(v))));
+    }
+    range.unwrap_or((0., 0.))
 }
-pub fn scatter_scale_ranges(plot:&PlotView,xlog:bool,ylog:bool)->((f64,f64),(f64,f64)){
-    if !xlog&&!ylog{return scatter_ranges(plot);}
-    let points=plot.series.iter().flat_map(|s|scatter_x_values(s).into_iter().zip(&s.values).filter_map(|(x,y)|x.zip(*y))).filter(|(x,y)|(!xlog||*x>0.)&&(!ylog||*y>0.)).collect::<Vec<_>>();
-    let extent=|x:bool,log:bool|{let values=points.iter().map(|(a,b)|if x{*a}else{*b});if log{positive_range(values)}else{values.fold((0f64,0f64),|(a,b),v|(a.min(v),b.max(v)))}};
-    (extent(true,xlog),extent(false,ylog))
+pub fn scatter_scale_ranges(plot: &PlotView, xlog: bool, ylog: bool) -> ((f64, f64), (f64, f64)) {
+    if !xlog && !ylog {
+        return scatter_ranges(plot);
+    }
+    let points = plot
+        .series
+        .iter()
+        .flat_map(|s| {
+            scatter_x_values(s)
+                .into_iter()
+                .zip(&s.values)
+                .filter_map(|(x, y)| x.zip(*y))
+        })
+        .filter(|(x, y)| (!xlog || *x > 0.) && (!ylog || *y > 0.))
+        .collect::<Vec<_>>();
+    let extent = |x: bool, log: bool| {
+        let values = points.iter().map(|(a, b)| if x { *a } else { *b });
+        if log {
+            positive_range(values)
+        } else {
+            values.fold((0f64, 0f64), |(a, b), v| (a.min(v), b.max(v)))
+        }
+    };
+    (extent(true, xlog), extent(false, ylog))
 }
-fn validate_axis_view(host:&HostState,sheet:SheetId,part:&str,axis:&calc_doc_model::ChartAxis)->Result<(),String>{
-    let mut view=host.charts(sheet).0.into_iter().find(|v|v.part==part).ok_or("The chart cannot be read")?;
-    *view.axes.iter_mut().find(|a|a.id==axis.id).ok_or("The axis is unavailable")?=axis.clone();
-    let plot=view.plots.iter().find(|p|p.axis_ids.contains(&axis.id)).ok_or("The axis is not associated with a plot (dc-971p.50)")?;
-    let (low,high)=if plot.kind==ChartKind::Scatter{
-        let axes=value_axes(&view.axes,&plot.axis_ids,true)?;
-        let x=if axes[0].id==axis.id{axis}else{axes[0]};let y=if axes[1].id==axis.id{axis}else{axes[1]};
-        let (xr,yr)=scatter_scale_ranges(plot,x.log_base.is_some(),y.log_base.is_some());if x.id==axis.id{xr}else{yr}
-    }else if matches!(plot.kind,ChartKind::Column|ChartKind::Bar|ChartKind::Line|ChartKind::Area){return category_scale(&view,plot).map(|_|());}else{return Err("This plot has no editable value axis (dc-971p.50)".into());};
-    chart_scale(low,high,Some(axis)).map(|_|())
+fn validate_axis_view(
+    host: &HostState,
+    sheet: SheetId,
+    part: &str,
+    axis: &calc_doc_model::ChartAxis,
+) -> Result<(), String> {
+    let mut view = host
+        .charts(sheet)
+        .0
+        .into_iter()
+        .find(|v| v.part == part)
+        .ok_or("The chart cannot be read")?;
+    *view
+        .axes
+        .iter_mut()
+        .find(|a| a.id == axis.id)
+        .ok_or("The axis is unavailable")? = axis.clone();
+    let plot = view
+        .plots
+        .iter()
+        .find(|p| p.axis_ids.contains(&axis.id))
+        .ok_or("The axis is not associated with a plot (dc-971p.50)")?;
+    let (low, high) = if plot.kind == ChartKind::Scatter {
+        let axes = value_axes(&view.axes, &plot.axis_ids, true)?;
+        let x = if axes[0].id == axis.id { axis } else { axes[0] };
+        let y = if axes[1].id == axis.id { axis } else { axes[1] };
+        let (xr, yr) = scatter_scale_ranges(plot, x.log_base.is_some(), y.log_base.is_some());
+        if x.id == axis.id { xr } else { yr }
+    } else if matches!(
+        plot.kind,
+        ChartKind::Column | ChartKind::Bar | ChartKind::Line | ChartKind::Area
+    ) {
+        return category_scale(&view, plot).map(|_| ());
+    } else {
+        return Err("This plot has no editable value axis (dc-971p.50)".into());
+    };
+    chart_scale(low, high, Some(axis)).map(|_| ())
 }
-pub(crate) fn prepare_log_axis(host:&HostState,sheet:SheetId,revision:u64,part:&str,id:u32,base:Option<String>)->Result<Vec<crate::CellEdit>,String>{
-    prepare_properties(host,sheet,revision,part,None,false,None)?;
-    let mut charts=host.model().definitions().charts(sheet).to_vec();let chart=charts.iter_mut().find(|c|c.part==part).ok_or("The chart is unavailable")?;
-    check_axes_for_edit(host,sheet,part)?;
-    value_axes(&chart.axes,&chart.plots[0].axis_ids,chart.plots[0].kind=="scatterChart")?;
-    let axis=chart.axes.iter_mut().find(|a|a.id==id&&a.kind=="valAx").ok_or("Choose a value axis (dc-971p.50)")?;
-    axis.log_base=base.map(|v|v.trim().parse::<f64>().ok().filter(|n|n.is_finite()&&(2. ..=1000.).contains(n)).map(|n|n.to_string()).ok_or_else(||"Use a logarithmic base from 2 to 1,000 (dc-971p.50)".to_string())).transpose()?;
-    validate_axis_view(host,sheet,part,axis).map_err(|e|format!("{e} (dc-971p.50)"))?;
-    host.loaded().check_chart_properties(sheet,chart).map_err(|e|e.to_string())?;
-    if charts==host.model().definitions().charts(sheet){return Ok(Vec::new());}Ok(vec![crate::CellEdit::Charts{sheet,charts}])
+pub(crate) fn prepare_log_axis(
+    host: &HostState,
+    sheet: SheetId,
+    revision: u64,
+    part: &str,
+    id: u32,
+    base: Option<String>,
+) -> Result<Vec<crate::CellEdit>, String> {
+    prepare_properties(host, sheet, revision, part, None, false, None)?;
+    let mut charts = host.model().definitions().charts(sheet).to_vec();
+    let chart = charts
+        .iter_mut()
+        .find(|c| c.part == part)
+        .ok_or("The chart is unavailable")?;
+    check_axes_for_edit(host, sheet, part)?;
+    value_axes(
+        &chart.axes,
+        &chart.plots[0].axis_ids,
+        chart.plots[0].kind == "scatterChart",
+    )?;
+    let axis = chart
+        .axes
+        .iter_mut()
+        .find(|a| a.id == id && a.kind == "valAx")
+        .ok_or("Choose a value axis (dc-971p.50)")?;
+    axis.log_base = base
+        .map(|v| {
+            v.trim()
+                .parse::<f64>()
+                .ok()
+                .filter(|n| n.is_finite() && (2. ..=1000.).contains(n))
+                .map(|n| n.to_string())
+                .ok_or_else(|| "Use a logarithmic base from 2 to 1,000 (dc-971p.50)".to_string())
+        })
+        .transpose()?;
+    validate_axis_view(host, sheet, part, axis).map_err(|e| format!("{e} (dc-971p.50)"))?;
+    host.loaded()
+        .check_chart_properties(sheet, chart)
+        .map_err(|e| e.to_string())?;
+    if charts == host.model().definitions().charts(sheet) {
+        return Ok(Vec::new());
+    }
+    Ok(vec![crate::CellEdit::Charts { sheet, charts }])
 }
 
 /// Associated primary/secondary axis pairs cross each other. Scatter returns X then Y.
-pub fn value_axes<'a>(axes:&'a [calc_doc_model::ChartAxis],ids:&[u32],scatter:bool)->Result<Vec<&'a calc_doc_model::ChartAxis>,String>{
-    let invalid=||"Unassociated chart axes are preserved but not drawn or edited here".to_owned();
-    if !matches!(axes.len(),2|4) || ids.len()!=2 || ids[0]==ids[1] || axes.iter().map(|a|a.id).collect::<std::collections::BTreeSet<_>>().len()!=axes.len(){return Err(invalid());}
-    let a=axes.iter().find(|a|a.id==ids[0]).ok_or_else(invalid)?;
-    let b=axes.iter().find(|a|a.id==ids[1]).ok_or_else(invalid)?;
-    if a.cross_axis!=Some(b.id) || b.cross_axis!=Some(a.id){return Err(invalid());}
-    let horizontal=|a:&calc_doc_model::ChartAxis|matches!(a.position.as_deref(),Some("b"|"t"));
-    let vertical=|a:&calc_doc_model::ChartAxis|matches!(a.position.as_deref(),Some("l"|"r"));
-    if !((horizontal(a)&&vertical(b))||(horizontal(b)&&vertical(a))){return Err(invalid());}
+pub fn value_axes<'a>(
+    axes: &'a [calc_doc_model::ChartAxis],
+    ids: &[u32],
+    scatter: bool,
+) -> Result<Vec<&'a calc_doc_model::ChartAxis>, String> {
+    let invalid =
+        || "Unassociated chart axes are preserved but not drawn or edited here".to_owned();
+    if !matches!(axes.len(), 2 | 4)
+        || ids.len() != 2
+        || ids[0] == ids[1]
+        || axes
+            .iter()
+            .map(|a| a.id)
+            .collect::<std::collections::BTreeSet<_>>()
+            .len()
+            != axes.len()
+    {
+        return Err(invalid());
+    }
+    let a = axes.iter().find(|a| a.id == ids[0]).ok_or_else(invalid)?;
+    let b = axes.iter().find(|a| a.id == ids[1]).ok_or_else(invalid)?;
+    if a.cross_axis != Some(b.id) || b.cross_axis != Some(a.id) {
+        return Err(invalid());
+    }
+    let horizontal =
+        |a: &calc_doc_model::ChartAxis| matches!(a.position.as_deref(), Some("b" | "t"));
+    let vertical = |a: &calc_doc_model::ChartAxis| matches!(a.position.as_deref(), Some("l" | "r"));
+    if !((horizontal(a) && vertical(b)) || (horizontal(b) && vertical(a))) {
+        return Err(invalid());
+    }
     if scatter {
-        if a.kind!="valAx" || b.kind!="valAx" {return Err(invalid());}
-        Ok(if horizontal(a){vec![a,b]}else{vec![b,a]})
-    }else{
-        let (value,category)=if a.kind=="valAx"{(a,b)}else{(b,a)};
-        if value.kind!="valAx" || !matches!(category.kind.as_str(),"catAx"|"dateAx"){return Err(invalid());}
+        if a.kind != "valAx" || b.kind != "valAx" {
+            return Err(invalid());
+        }
+        Ok(if horizontal(a) {
+            vec![a, b]
+        } else {
+            vec![b, a]
+        })
+    } else {
+        let (value, category) = if a.kind == "valAx" { (a, b) } else { (b, a) };
+        if value.kind != "valAx" || !matches!(category.kind.as_str(), "catAx" | "dateAx") {
+            return Err(invalid());
+        }
         Ok(vec![value])
     }
 }
 /// Scatter X fallback is shared by drawing and axis-command validation.
-pub fn scatter_x_values(series:&SeriesView)->Vec<Option<f64>> {
-    let xs=series.categories.iter().map(|v|v.as_ref().and_then(|v|v.as_number())).collect::<Vec<_>>();
-    if xs.is_empty() || xs.iter().any(Option::is_none){(1..=series.values.len()).map(|n|Some(n as f64)).collect()}else{xs}
+pub fn scatter_x_values(series: &SeriesView) -> Vec<Option<f64>> {
+    let xs = series
+        .categories
+        .iter()
+        .map(|v| v.as_ref().and_then(|v| v.as_number()))
+        .collect::<Vec<_>>();
+    if xs.is_empty() || xs.iter().any(Option::is_none) {
+        (1..=series.values.len()).map(|n| Some(n as f64)).collect()
+    } else {
+        xs
+    }
 }
-pub fn scatter_ranges(plot:&PlotView)->((f64,f64),(f64,f64)) {
-    let (mut xl,mut xh,mut yl,mut yh)=(0f64,0f64,0f64,0f64);
-    for series in &plot.series {for (x,y) in scatter_x_values(series).iter().zip(&series.values) {if let (Some(x),Some(y))=(x,y){xl=xl.min(*x);xh=xh.max(*x);yl=yl.min(*y);yh=yh.max(*y);}}}
-    ((xl,xh),(yl,yh))
+pub fn scatter_ranges(plot: &PlotView) -> ((f64, f64), (f64, f64)) {
+    let (mut xl, mut xh, mut yl, mut yh) = (0f64, 0f64, 0f64, 0f64);
+    for series in &plot.series {
+        for (x, y) in scatter_x_values(series).iter().zip(&series.values) {
+            if let (Some(x), Some(y)) = (x, y) {
+                xl = xl.min(*x);
+                xh = xh.max(*x);
+                yl = yl.min(*y);
+                yh = yh.max(*y);
+            }
+        }
+    }
+    ((xl, xh), (yl, yh))
 }
 
 /// Convert supported 2-D plots without replacing their series identities or source references.
-pub(crate) fn prepare_type(host:&HostState,sheet:SheetId,revision:u64,part:&str,plot:u32,kind:&str,stacked:bool)->Result<Vec<crate::CellEdit>,String>{
-    prepare_properties(host,sheet,revision,part,None,false,None)?;
-    let mut charts=host.model().definitions().charts(sheet).to_vec();
-    let chart=charts.iter_mut().find(|c|c.part==part).ok_or("The chart is unavailable")?;
-    check_axes_for_edit(host,sheet,part)?;
-    if chart.plots.len()>3||plot as usize>=chart.plots.len(){return Err("Choose a plot in a single chart or a category combination of up to three plots (dc-971p.59)".into());}
-    let combo=chart.plots.len()>1;
-    if combo&&kind=="bar"{return Err("Combination type changes use vertical plots (dc-971p.59)".into());}
-    if combo&&stacked&&chart.axes.iter().any(|a|a.kind=="valAx"&&a.position.as_deref()==Some("r")&&chart.plots[plot as usize].axis_ids.contains(&a.id)){return Err("Changing secondary-axis combination plots to stacked grouping is not modelled (dc-971p.60)".into());}
-    if stacked && chart.axes.iter().any(|a|a.log_base.is_some()&&chart.plots[plot as usize].axis_ids.contains(&a.id)){return Err("Stacked logarithmic plots are not modelled (dc-971p.50)".into());}
-    let p=&mut chart.plots[plot as usize];
-    let category=|kind:&str|matches!(kind,"barChart"|"lineChart"|"areaChart");
-    let pie=|kind:&str|matches!(kind,"pieChart"|"doughnutChart");
-    let (next,direction)=match kind {"column"=>("barChart",Some("col")),"bar"=>("barChart",Some("bar")),"line"=>("lineChart",None),"area"=>("areaChart",None),"pie"=>("pieChart",None),"doughnut"=>("doughnutChart",None),_=>return Err("Choose a supported two-dimensional chart type (dc-971p.46)".into())};
-    if category(&p.kind)&&category(next) {
-        value_axes(&chart.axes,&p.axis_ids,false).map_err(|e|format!("{e} (dc-971p.46)"))?;
-        let horizontal=p.kind=="barChart" && p.bar_direction.as_deref()==Some("bar");
-        if !combo && horizontal!=(kind=="bar") {for axis in &mut chart.axes {axis.position=axis.position.as_deref().map(|pos|match pos {"b"=>"l","t"=>"r","l"=>"b","r"=>"t",other=>other}.to_owned());}}
-    }else if !(pie(&p.kind)&&pie(next)) {return Err("Convert within column/bar/line/area, or between pie and doughnut; scatter and cross-family conversions are not modelled (dc-971p.46)".into());}
-    if pie(next)&&p.series.len()!=1{return Err("Changing multi-series pie or doughnut charts is not modelled (dc-971p.46)".into());}
-    if pie(next)&&stacked{return Err("Pie and doughnut charts do not have stacked grouping".into());}
-    p.kind=next.into();p.bar_direction=direction.map(str::to_owned);
-    p.grouping=category(next).then(||if stacked{"stacked"}else if next=="barChart"{"clustered"}else{"standard"}.into());
-    host.loaded().check_chart_properties(sheet,chart).map_err(|e|e.to_string())?;
-    if charts==host.model().definitions().charts(sheet){return Ok(Vec::new());}
-    Ok(vec![crate::CellEdit::Charts{sheet,charts}])
+pub(crate) fn prepare_type(
+    host: &HostState,
+    sheet: SheetId,
+    revision: u64,
+    part: &str,
+    plot: u32,
+    kind: &str,
+    stacked: bool,
+) -> Result<Vec<crate::CellEdit>, String> {
+    prepare_properties(host, sheet, revision, part, None, false, None)?;
+    let mut charts = host.model().definitions().charts(sheet).to_vec();
+    let chart = charts
+        .iter_mut()
+        .find(|c| c.part == part)
+        .ok_or("The chart is unavailable")?;
+    check_axes_for_edit(host, sheet, part)?;
+    if chart.plots.len() > 3 || plot as usize >= chart.plots.len() {
+        return Err("Choose a plot in a single chart or a category combination of up to three plots (dc-971p.59)".into());
+    }
+    let combo = chart.plots.len() > 1;
+    if combo && kind == "bar" {
+        return Err("Combination type changes use vertical plots (dc-971p.59)".into());
+    }
+    if combo
+        && stacked
+        && chart.axes.iter().any(|a| {
+            a.kind == "valAx"
+                && a.position.as_deref() == Some("r")
+                && chart.plots[plot as usize].axis_ids.contains(&a.id)
+        })
+    {
+        return Err("Changing secondary-axis combination plots to stacked grouping is not modelled (dc-971p.60)".into());
+    }
+    if stacked
+        && chart
+            .axes
+            .iter()
+            .any(|a| a.log_base.is_some() && chart.plots[plot as usize].axis_ids.contains(&a.id))
+    {
+        return Err("Stacked logarithmic plots are not modelled (dc-971p.50)".into());
+    }
+    let p = &mut chart.plots[plot as usize];
+    let category = |kind: &str| matches!(kind, "barChart" | "lineChart" | "areaChart");
+    let pie = |kind: &str| matches!(kind, "pieChart" | "doughnutChart");
+    let (next, direction) = match kind {
+        "column" => ("barChart", Some("col")),
+        "bar" => ("barChart", Some("bar")),
+        "line" => ("lineChart", None),
+        "area" => ("areaChart", None),
+        "pie" => ("pieChart", None),
+        "doughnut" => ("doughnutChart", None),
+        _ => return Err("Choose a supported two-dimensional chart type (dc-971p.46)".into()),
+    };
+    if category(&p.kind) && category(next) {
+        value_axes(&chart.axes, &p.axis_ids, false).map_err(|e| format!("{e} (dc-971p.46)"))?;
+        let horizontal = p.kind == "barChart" && p.bar_direction.as_deref() == Some("bar");
+        if !combo && horizontal != (kind == "bar") {
+            for axis in &mut chart.axes {
+                axis.position = axis.position.as_deref().map(|pos| {
+                    match pos {
+                        "b" => "l",
+                        "t" => "r",
+                        "l" => "b",
+                        "r" => "t",
+                        other => other,
+                    }
+                    .to_owned()
+                });
+            }
+        }
+    } else if !(pie(&p.kind) && pie(next)) {
+        return Err(
+            "Convert within column/bar/line/area, or between pie and doughnut; scatter and cross-family conversions are not modelled (dc-971p.46)".into(),
+        );
+    }
+    if pie(next) && p.series.len() != 1 {
+        return Err(
+            "Changing multi-series pie or doughnut charts is not modelled (dc-971p.46)".into(),
+        );
+    }
+    if pie(next) && stacked {
+        return Err("Pie and doughnut charts do not have stacked grouping".into());
+    }
+    p.kind = next.into();
+    p.bar_direction = direction.map(str::to_owned);
+    p.grouping = category(next).then(|| {
+        if stacked {
+            "stacked"
+        } else if next == "barChart" {
+            "clustered"
+        } else {
+            "standard"
+        }
+        .into()
+    });
+    host.loaded()
+        .check_chart_properties(sheet, chart)
+        .map_err(|e| e.to_string())?;
+    if charts == host.model().definitions().charts(sheet) {
+        return Ok(Vec::new());
+    }
+    Ok(vec![crate::CellEdit::Charts { sheet, charts }])
 }
 
-pub(crate) fn cell_a1(at:CellKey)->String {
-    let mut n=at.column();let mut letters=String::new();while n>0{n-=1;letters.insert(0,(b'A'+(n%26) as u8)as char);n/=26;}format!("{letters}{}",at.row())
+pub(crate) fn cell_a1(at: CellKey) -> String {
+    let mut n = at.column();
+    let mut letters = String::new();
+    while n > 0 {
+        n -= 1;
+        letters.insert(0, (b'A' + (n % 26) as u8) as char);
+        n /= 26;
+    }
+    format!("{letters}{}", at.row())
 }
-fn range_data(host:&HostState,origin:CellKey,text:&str,numeric:bool,single:bool)->Result<ChartData,String>{
-            let text=text.trim().trim_start_matches('=').trim();
-            let crate::ReferenceTarget::Area(area)=host.resolve_reference_text(origin,text) else {
-                return Err("Use a single worksheet cell or a one-row or one-column A1 range (dc-971p.46)".into());
-            };
-            let count=u64::from(area.row_count())*u64::from(area.column_count());
-            if count>crate::validation::LIST_LIMIT as u64 || (area.row_count()>1 && area.column_count()>1) || (single && count!=1) {
-                return Err("Chart ranges must be one row or column with at most 32,767 cells; a name reference must be one cell (dc-971p.46)".into());
+fn range_data(
+    host: &HostState,
+    origin: CellKey,
+    text: &str,
+    numeric: bool,
+    single: bool,
+) -> Result<ChartData, String> {
+    let text = text.trim().trim_start_matches('=').trim();
+    let crate::ReferenceTarget::Area(area) = host.resolve_reference_text(origin, text) else {
+        return Err(
+            "Use a single worksheet cell or a one-row or one-column A1 range (dc-971p.46)".into(),
+        );
+    };
+    let count = u64::from(area.row_count()) * u64::from(area.column_count());
+    if count > crate::validation::LIST_LIMIT as u64
+        || (area.row_count() > 1 && area.column_count() > 1)
+        || (single && count != 1)
+    {
+        return Err("Chart ranges must be one row or column with at most 32,767 cells; a name reference must be one cell (dc-971p.46)".into());
+    }
+    // Canonical absolute references keep edits independent of the selected cell.
+    let sheet_name = host
+        .model()
+        .sheet_by_id(area.sheet())
+        .ok_or("The source worksheet is unavailable")?
+        .name()
+        .text()
+        .to_string_lossy()
+        .replace('\'', "''");
+    let a1 = |at: CellKey| {
+        let mut n = at.column();
+        let mut letters = String::new();
+        while n > 0 {
+            n -= 1;
+            letters.insert(0, (b'A' + (n % 26) as u8) as char);
+            n /= 26;
+        }
+        format!("${letters}${}", at.row())
+    };
+    let first = a1(area.first());
+    let last = a1(area.last());
+    Ok(ChartData {
+        formula: Some(format!(
+            "'{sheet_name}'!{first}{}",
+            if first == last {
+                String::new()
+            } else {
+                format!(":{last}")
             }
-            // Canonical absolute references keep edits independent of the selected cell.
-            let sheet_name=host.model().sheet_by_id(area.sheet()).ok_or("The source worksheet is unavailable")?.name().text().to_string_lossy().replace('\'',"''");
-            let a1=|at:CellKey|{let mut n=at.column();let mut letters=String::new();while n>0 {n-=1;letters.insert(0,(b'A'+(n%26) as u8)as char);n/=26;}format!("${letters}${}",at.row())};
-            let first=a1(area.first());let last=a1(area.last());
-            Ok(ChartData{formula:Some(format!("'{sheet_name}'!{first}{}",if first==last {String::new()}else{format!(":{last}")})),cache:Vec::new(),numeric})
+        )),
+        cache: Vec::new(),
+        numeric,
+    })
 }
 /// Build column- or row-oriented series from one selection, with explicit header/category choices.
-pub(crate) fn prepare_create(host:&HostState,revision:u64,area:calc_value::GridArea,kind:&str,rows:bool,headers:bool,categories:bool)->Result<Vec<crate::CellEdit>,String>{
-    use calc_doc_model::{Chart,ChartAxis,ChartPlot,ChartSeries};
-    let fail=|s:&str|format!("{s} (dc-971p.49)");
+pub(crate) fn prepare_create(
+    host: &HostState,
+    revision: u64,
+    area: calc_value::GridArea,
+    kind: &str,
+    rows: bool,
+    headers: bool,
+    categories: bool,
+) -> Result<Vec<crate::CellEdit>, String> {
+    use calc_doc_model::{Chart, ChartAxis, ChartPlot, ChartSeries};
+    let fail = |s: &str| format!("{s} (dc-971p.49)");
     // UI30 P10: `column-percent`, `bar-percent`, `line-percent` and `area-percent` are the
     // 100% stacked plots (grouping percentStacked) of the same kinds.
-    let (kind,percent)=match kind.strip_suffix("-percent"){Some(base@("column"|"bar"|"line"|"area"))=>(base,true),_=>(kind,false)};
-    if revision!=host.revision().get(){return Err(fail("The workbook changed; select the chart data again"));}
-    let sheet=area.sheet();
-    let source=host.loaded().sheet(sheet).ok_or_else(||fail("Save and reopen the new worksheet before creating a chart"))?;
-    if source.protected() || source.is_macro_sheet(){return Err(fail("Creating charts requires an editable worksheet"));}
-    if host.loaded().workbook_part().ends_with(".bin"){return Err(fail("Save as XLSX and reopen before creating charts"));}
-    if !host.axis_edits.is_empty(){return Err(fail("Save and reopen before creating charts after row or column insertion or deletion"));}
-    let (length,width)=if rows{(area.column_count(),area.row_count())}else{(area.row_count(),area.column_count())};
-    let points=length.checked_sub(u32::from(headers)).filter(|n|*n>0).ok_or_else(||fail("Select at least one data point after the series names"))?;
-    let count=width.checked_sub(u32::from(categories)).filter(|n|*n>0).ok_or_else(||fail("Select at least one values series after the categories"))?;
-    if count>255 || points>32767 || u64::from(points)*u64::from(count)>262144 {return Err(fail("Use at most 255 series, 32,767 points per series and 262,144 points in total"));}
-    let (plot_kind,dir)=match kind{"column"|"combo"|"combo-three"|"combo-column-area"=>("barChart",Some("col")),"combo-line-column"|"combo-line-area"=>("lineChart",None),"combo-area-line"|"combo-area-column"=>("areaChart",None),"bar"=>("barChart",Some("bar")),"line"=>("lineChart",None),"area"=>("areaChart",None),"pie"=>("pieChart",None),"doughnut"=>("doughnutChart",None),"scatter"=>("scatterChart",None),_=>return Err(fail("Choose a supported two-dimensional chart type"))};
-    let combo=matches!(kind,"combo"|"combo-three"|"combo-column-area"|"combo-line-column"|"combo-line-area"|"combo-area-line"|"combo-area-column");
-    if combo && count<2{return Err(fail("Select at least two values series for a category combination (dc-971p.51)"));}
-    if kind=="combo-three"&&count<3{return Err(fail("Select at least three values series for column, line and area plots"));}
-    let pie=matches!(kind,"pie"|"doughnut");
-    if pie && count!=1{return Err(fail("Select one values series for a pie or doughnut"));}
-    if kind=="scatter" && !categories{return Err(fail("Use the first column or row as X values for a scatter chart"));}
-    let cell=|major:u32,minor:u32|CellKey::new(sheet,area.first().row()+if rows{minor}else{major},area.first().column()+if rows{major}else{minor}).unwrap();
-    let data=|first:CellKey,last:CellKey,numeric:bool|range_data(host,area.first(),&format!("{}:{}",cell_a1(first),cell_a1(last)),numeric,false);
-    let cats=if categories{Some(data(cell(u32::from(headers),0),cell(length-1,0),kind=="scatter")?)}else{None};
-    let mut series=Vec::new();
-    for i in 0..count {
-        let minor=i+u32::from(categories);
-        let name=if headers{Some(data(cell(0,minor),cell(0,minor),false)?)}else{None};
-        series.push(ChartSeries{index:i,name,categories:cats.clone(),values:Some(data(cell(u32::from(headers),minor),cell(length-1,minor),true)?),fill:None});
+    let (kind, percent) = match kind.strip_suffix("-percent") {
+        Some(base @ ("column" | "bar" | "line" | "area")) => (base, true),
+        _ => (kind, false),
+    };
+    if revision != host.revision().get() {
+        return Err(fail("The workbook changed; select the chart data again"));
     }
-    let mut axes=if pie{Vec::new()}else{vec![
-        ChartAxis{id:1,cross_axis:Some(2),kind:if kind=="scatter"{"valAx"}else{"catAx"}.into(),position:Some(if kind=="bar"{"l"}else{"b"}.into()),..Default::default()},
-        ChartAxis{id:2,cross_axis:Some(1),kind:"valAx".into(),position:Some(if kind=="bar"{"b"}else{"l"}.into()),cross_between:Some(if kind=="area"{"midCat"}else{"between"}.into()),..Default::default()},
-    ]};
-    if kind=="scatter"{axes[0].cross_between=Some("between".into());}
-    if combo{
+    let sheet = area.sheet();
+    let source = host
+        .loaded()
+        .sheet(sheet)
+        .ok_or_else(|| fail("Save and reopen the new worksheet before creating a chart"))?;
+    if source.protected() || source.is_macro_sheet() {
+        return Err(fail("Creating charts requires an editable worksheet"));
+    }
+    if host.loaded().workbook_part().ends_with(".bin") {
+        return Err(fail("Save as XLSX and reopen before creating charts"));
+    }
+    if !host.axis_edits.is_empty() {
+        return Err(fail(
+            "Save and reopen before creating charts after row or column insertion or deletion",
+        ));
+    }
+    let (length, width) = if rows {
+        (area.column_count(), area.row_count())
+    } else {
+        (area.row_count(), area.column_count())
+    };
+    let points = length
+        .checked_sub(u32::from(headers))
+        .filter(|n| *n > 0)
+        .ok_or_else(|| fail("Select at least one data point after the series names"))?;
+    let count = width
+        .checked_sub(u32::from(categories))
+        .filter(|n| *n > 0)
+        .ok_or_else(|| fail("Select at least one values series after the categories"))?;
+    if count > 255 || points > 32767 || u64::from(points) * u64::from(count) > 262144 {
+        return Err(fail(
+            "Use at most 255 series, 32,767 points per series and 262,144 points in total",
+        ));
+    }
+    let (plot_kind, dir) = match kind {
+        "column" | "combo" | "combo-three" | "combo-column-area" => ("barChart", Some("col")),
+        "combo-line-column" | "combo-line-area" => ("lineChart", None),
+        "combo-area-line" | "combo-area-column" => ("areaChart", None),
+        "bar" => ("barChart", Some("bar")),
+        "line" => ("lineChart", None),
+        "area" => ("areaChart", None),
+        "pie" => ("pieChart", None),
+        "doughnut" => ("doughnutChart", None),
+        "scatter" => ("scatterChart", None),
+        _ => return Err(fail("Choose a supported two-dimensional chart type")),
+    };
+    let combo = matches!(
+        kind,
+        "combo"
+            | "combo-three"
+            | "combo-column-area"
+            | "combo-line-column"
+            | "combo-line-area"
+            | "combo-area-line"
+            | "combo-area-column"
+    );
+    if combo && count < 2 {
+        return Err(fail(
+            "Select at least two values series for a category combination (dc-971p.51)",
+        ));
+    }
+    if kind == "combo-three" && count < 3 {
+        return Err(fail(
+            "Select at least three values series for column, line and area plots",
+        ));
+    }
+    let pie = matches!(kind, "pie" | "doughnut");
+    if pie && count != 1 {
+        return Err(fail("Select one values series for a pie or doughnut"));
+    }
+    if kind == "scatter" && !categories {
+        return Err(fail(
+            "Use the first column or row as X values for a scatter chart",
+        ));
+    }
+    let cell = |major: u32, minor: u32| {
+        CellKey::new(
+            sheet,
+            area.first().row() + if rows { minor } else { major },
+            area.first().column() + if rows { major } else { minor },
+        )
+        .unwrap()
+    };
+    let data = |first: CellKey, last: CellKey, numeric: bool| {
+        range_data(
+            host,
+            area.first(),
+            &format!("{}:{}", cell_a1(first), cell_a1(last)),
+            numeric,
+            false,
+        )
+    };
+    let cats = if categories {
+        Some(data(
+            cell(u32::from(headers), 0),
+            cell(length - 1, 0),
+            kind == "scatter",
+        )?)
+    } else {
+        None
+    };
+    let mut series = Vec::new();
+    for i in 0..count {
+        let minor = i + u32::from(categories);
+        let name = if headers {
+            Some(data(cell(0, minor), cell(0, minor), false)?)
+        } else {
+            None
+        };
+        series.push(ChartSeries {
+            index: i,
+            name,
+            categories: cats.clone(),
+            values: Some(data(
+                cell(u32::from(headers), minor),
+                cell(length - 1, minor),
+                true,
+            )?),
+            fill: None,
+        });
+    }
+    let mut axes = if pie {
+        Vec::new()
+    } else {
+        vec![
+            ChartAxis {
+                id: 1,
+                cross_axis: Some(2),
+                kind: if kind == "scatter" { "valAx" } else { "catAx" }.into(),
+                position: Some(if kind == "bar" { "l" } else { "b" }.into()),
+                ..Default::default()
+            },
+            ChartAxis {
+                id: 2,
+                cross_axis: Some(1),
+                kind: "valAx".into(),
+                position: Some(if kind == "bar" { "b" } else { "l" }.into()),
+                cross_between: Some(if kind == "area" { "midCat" } else { "between" }.into()),
+                ..Default::default()
+            },
+        ]
+    };
+    if kind == "scatter" {
+        axes[0].cross_between = Some("between".into());
+    }
+    if combo {
         // Excel (UI28 combos-created.xlsx): the secondary value axis, then the deleted secondary
         // category axis at the bottom.
-        axes.push(ChartAxis{id:4,cross_axis:Some(3),kind:"valAx".into(),position:Some("r".into()),cross_between:Some("between".into()),..Default::default()});
-        axes.push(ChartAxis{id:3,cross_axis:Some(4),kind:"catAx".into(),position:Some("b".into()),..Default::default()});
+        axes.push(ChartAxis {
+            id: 4,
+            cross_axis: Some(3),
+            kind: "valAx".into(),
+            position: Some("r".into()),
+            cross_between: Some("between".into()),
+            ..Default::default()
+        });
+        axes.push(ChartAxis {
+            id: 3,
+            cross_axis: Some(4),
+            kind: "catAx".into(),
+            position: Some("b".into()),
+            ..Default::default()
+        });
     }
-    let mut plots=vec![ChartPlot{kind:plot_kind.into(),bar_direction:dir.map(str::to_owned),grouping:(!pie&&kind!="scatter").then(||if percent{"percentStacked"}else if plot_kind=="barChart"{"clustered"}else{"standard"}.into()),vary_colors:pie,series,axis_ids:if pie{Vec::new()}else{vec![1,2]}}];
-    if kind=="combo-three"{
-        let area=plots[0].series.pop().unwrap();let line=plots[0].series.pop().unwrap();
-        for (kind,series,axis_ids)in [("lineChart",line,vec![3,4]),("areaChart",area,vec![1,2])]{plots.push(ChartPlot{kind:kind.into(),grouping:Some("standard".into()),series:vec![series],axis_ids,..Default::default()});}
-    }else if combo{let last=plots[0].series.pop().unwrap();let second=match kind{"combo-column-area"|"combo-line-area"=>"areaChart","combo-line-column"|"combo-area-column"=>"barChart",_=>"lineChart"};plots.push(ChartPlot{kind:second.into(),bar_direction:(second=="barChart").then(||"col".into()),grouping:Some(if second=="barChart"{"clustered"}else{"standard"}.into()),series:vec![last],axis_ids:vec![3,4],..Default::default()});}
+    let mut plots = vec![ChartPlot {
+        kind: plot_kind.into(),
+        bar_direction: dir.map(str::to_owned),
+        grouping: (!pie && kind != "scatter").then(|| {
+            if percent {
+                "percentStacked"
+            } else if plot_kind == "barChart" {
+                "clustered"
+            } else {
+                "standard"
+            }
+            .into()
+        }),
+        vary_colors: pie,
+        series,
+        axis_ids: if pie { Vec::new() } else { vec![1, 2] },
+    }];
+    if kind == "combo-three" {
+        let area = plots[0].series.pop().unwrap();
+        let line = plots[0].series.pop().unwrap();
+        for (kind, series, axis_ids) in [
+            ("lineChart", line, vec![3, 4]),
+            ("areaChart", area, vec![1, 2]),
+        ] {
+            plots.push(ChartPlot {
+                kind: kind.into(),
+                grouping: Some("standard".into()),
+                series: vec![series],
+                axis_ids,
+                ..Default::default()
+            });
+        }
+    } else if combo {
+        let last = plots[0].series.pop().unwrap();
+        let second = match kind {
+            "combo-column-area" | "combo-line-area" => "areaChart",
+            "combo-line-column" | "combo-area-column" => "barChart",
+            _ => "lineChart",
+        };
+        plots.push(ChartPlot {
+            kind: second.into(),
+            bar_direction: (second == "barChart").then(|| "col".into()),
+            grouping: Some(
+                if second == "barChart" {
+                    "clustered"
+                } else {
+                    "standard"
+                }
+                .into(),
+            ),
+            series: vec![last],
+            axis_ids: vec![3, 4],
+            ..Default::default()
+        });
+    }
     // Excel writes the plots of a two-plot combination as area, bar, line whatever the order they
     // were made in (UI30 P9, UI28 combos); each series keeps its own index and order. The three-plot
     // combination is unmeasured and keeps the order it is made in.
-    if plots.len()==2{plots.sort_by_key(|p|match p.kind.as_str(){"areaChart"=>0,"barChart"=>1,"lineChart"=>2,_=>3});}
-    let mut charts=host.model().definitions().charts(sheet).to_vec();
-    let reserved=host.model().definitions().all_charts().flat_map(|(_,cs)|cs.iter().map(|c|c.part.clone())).collect::<Vec<_>>();
-    let part=host.loaded().available_part_name("charts/dnaChart","xml",&reserved);
-    let names=charts.iter().map(|c|c.name.as_str()).collect::<std::collections::BTreeSet<_>>();
-    let name=(1u32..).map(|i|format!("Chart {i}")).find(|n|!names.contains(n.as_str())).unwrap();
-    charts.push(Chart{part,name,anchor:ChartAnchor::OneCell{from:DrawingPoint{column:area.last().column().saturating_add(1).min(16383),row:area.first().row()-1,..Default::default()},width:640*9525,height:360*9525},title:None,title_formula:None,auto_title_deleted:true,legend:Some("r".into()),plots,axes,text_style:Default::default(),element_text:Default::default(),element_text_complex:Default::default()});
-    host.loaded().check_chart_set(sheet,&charts).map_err(|e|e.to_string())?;
-    Ok(vec![crate::CellEdit::Charts{sheet,charts}])
+    if plots.len() == 2 {
+        plots.sort_by_key(|p| match p.kind.as_str() {
+            "areaChart" => 0,
+            "barChart" => 1,
+            "lineChart" => 2,
+            _ => 3,
+        });
+    }
+    let mut charts = host.model().definitions().charts(sheet).to_vec();
+    let reserved = host
+        .model()
+        .definitions()
+        .all_charts()
+        .flat_map(|(_, cs)| cs.iter().map(|c| c.part.clone()))
+        .collect::<Vec<_>>();
+    let part = host
+        .loaded()
+        .available_part_name("charts/dnaChart", "xml", &reserved);
+    let names = charts
+        .iter()
+        .map(|c| c.name.as_str())
+        .collect::<std::collections::BTreeSet<_>>();
+    let name = (1u32..)
+        .map(|i| format!("Chart {i}"))
+        .find(|n| !names.contains(n.as_str()))
+        .unwrap();
+    charts.push(Chart {
+        part,
+        name,
+        anchor: ChartAnchor::OneCell {
+            from: DrawingPoint {
+                column: area.last().column().saturating_add(1).min(16383),
+                row: area.first().row() - 1,
+                ..Default::default()
+            },
+            width: 640 * 9525,
+            height: 360 * 9525,
+        },
+        title: None,
+        title_formula: None,
+        auto_title_deleted: true,
+        legend: Some("r".into()),
+        plots,
+        axes,
+        text_style: Default::default(),
+        element_text: Default::default(),
+        element_text_complex: Default::default(),
+    });
+    host.loaded()
+        .check_chart_set(sheet, &charts)
+        .map_err(|e| e.to_string())?;
+    Ok(vec![crate::CellEdit::Charts { sheet, charts }])
 }
 
 /// Legend placement is an authored property, validated and saved through the retained chart route.
-pub(crate) fn prepare_legend(host:&HostState,sheet:SheetId,revision:u64,part:&str,position:&str)->Result<Vec<crate::CellEdit>,String>{
-    prepare_properties(host,sheet,revision,part,None,false,None)?;
-    if !matches!(position,"l"|"r"|"t"|"b"|"tr"){return Err("Choose Left, Right, Top, Bottom or Top right (dc-971p.52)".into());}
-    let mut charts=host.model().definitions().charts(sheet).to_vec();let chart=charts.iter_mut().find(|c|c.part==part).ok_or("The chart is unavailable (dc-971p.52)")?;chart.legend=Some(position.into());
-    host.loaded().check_chart_properties(sheet,chart).map_err(|e|e.to_string())?;
-    if charts==host.model().definitions().charts(sheet){return Ok(Vec::new());}Ok(vec![crate::CellEdit::Charts{sheet,charts}])
+pub(crate) fn prepare_legend(
+    host: &HostState,
+    sheet: SheetId,
+    revision: u64,
+    part: &str,
+    position: &str,
+) -> Result<Vec<crate::CellEdit>, String> {
+    prepare_properties(host, sheet, revision, part, None, false, None)?;
+    if !matches!(position, "l" | "r" | "t" | "b" | "tr") {
+        return Err("Choose Left, Right, Top, Bottom or Top right (dc-971p.52)".into());
+    }
+    let mut charts = host.model().definitions().charts(sheet).to_vec();
+    let chart = charts
+        .iter_mut()
+        .find(|c| c.part == part)
+        .ok_or("The chart is unavailable (dc-971p.52)")?;
+    chart.legend = Some(position.into());
+    host.loaded()
+        .check_chart_properties(sheet, chart)
+        .map_err(|e| e.to_string())?;
+    if charts == host.model().definitions().charts(sheet) {
+        return Ok(Vec::new());
+    }
+    Ok(vec![crate::CellEdit::Charts { sheet, charts }])
 }
 
 /// Series colour editing uses the retained DrawingML writer; an empty colour restores inheritance.
 #[allow(clippy::too_many_arguments)]
-pub(crate) fn prepare_series_style(host:&HostState,sheet:SheetId,revision:u64,part:&str,plot:u32,series:u32,fill:Option<String>)->Result<Vec<crate::CellEdit>,String>{
-    prepare_properties(host,sheet,revision,part,None,false,None)?;
-    let fill=fill.map(|s|s.trim().to_owned()).filter(|s|!s.is_empty()&&!s.eq_ignore_ascii_case("automatic")).map(|s|s.strip_prefix('#').unwrap_or(&s).to_ascii_uppercase());
-    if fill.as_ref().is_some_and(|s|s.len()!=6||!s.bytes().all(|b|b.is_ascii_hexdigit())){return Err("Use a six-digit RGB colour, or Automatic (dc-971p.58)".into());}
-    let mut charts=host.model().definitions().charts(sheet).to_vec();
-    let chart=charts.iter_mut().find(|c|c.part==part).ok_or("The chart is unavailable")?;
-    let plot=chart.plots.get_mut(plot as usize).ok_or("The plot is unavailable")?;
-    if !matches!(plot.kind.as_str(),"barChart"|"lineChart"|"areaChart"|"pieChart"|"doughnutChart"|"scatterChart"){return Err("Series colours for this chart type are not modelled (dc-971p.58)".into());}
-    let series=plot.series.iter_mut().find(|s|s.index==series).ok_or("The series is unavailable")?;
-    if series.fill==fill{return Ok(Vec::new());}series.fill=fill;
-    host.loaded().check_chart_properties(sheet,chart).map_err(|e|e.to_string())?;
-    Ok(vec![crate::CellEdit::Charts{sheet,charts}])
+pub(crate) fn prepare_series_style(
+    host: &HostState,
+    sheet: SheetId,
+    revision: u64,
+    part: &str,
+    plot: u32,
+    series: u32,
+    fill: Option<String>,
+) -> Result<Vec<crate::CellEdit>, String> {
+    prepare_properties(host, sheet, revision, part, None, false, None)?;
+    let fill = fill
+        .map(|s| s.trim().to_owned())
+        .filter(|s| !s.is_empty() && !s.eq_ignore_ascii_case("automatic"))
+        .map(|s| s.strip_prefix('#').unwrap_or(&s).to_ascii_uppercase());
+    if fill
+        .as_ref()
+        .is_some_and(|s| s.len() != 6 || !s.bytes().all(|b| b.is_ascii_hexdigit()))
+    {
+        return Err("Use a six-digit RGB colour, or Automatic (dc-971p.58)".into());
+    }
+    let mut charts = host.model().definitions().charts(sheet).to_vec();
+    let chart = charts
+        .iter_mut()
+        .find(|c| c.part == part)
+        .ok_or("The chart is unavailable")?;
+    let plot = chart
+        .plots
+        .get_mut(plot as usize)
+        .ok_or("The plot is unavailable")?;
+    if !matches!(
+        plot.kind.as_str(),
+        "barChart" | "lineChart" | "areaChart" | "pieChart" | "doughnutChart" | "scatterChart"
+    ) {
+        return Err("Series colours for this chart type are not modelled (dc-971p.58)".into());
+    }
+    let series = plot
+        .series
+        .iter_mut()
+        .find(|s| s.index == series)
+        .ok_or("The series is unavailable")?;
+    if series.fill == fill {
+        return Ok(Vec::new());
+    }
+    series.fill = fill;
+    host.loaded()
+        .check_chart_properties(sheet, chart)
+        .map_err(|e| e.to_string())?;
+    Ok(vec![crate::CellEdit::Charts { sheet, charts }])
 }
 
-pub(crate) fn prepare_text_style(host:&HostState,sheet:SheetId,revision:u64,part:&str,mut style:calc_doc_model::ChartTextStyle)->Result<Vec<crate::CellEdit>,String>{
-    prepare_properties(host,sheet,revision,part,None,false,None)?;
-    style.color=style.color.map(|s|s.trim().to_owned()).filter(|s|!s.is_empty()&&!s.eq_ignore_ascii_case("automatic"));
-    style.family=style.family.filter(|s|!s.eq_ignore_ascii_case("automatic"));
-    let mut charts=host.model().definitions().charts(sheet).to_vec();let chart=charts.iter_mut().find(|c|c.part==part).ok_or("The chart is unavailable")?;
-    if style.color.as_ref().zip(chart.text_style.color.as_ref()).is_some_and(|(new,old)|new.strip_prefix('#').unwrap_or(new).eq_ignore_ascii_case(old)){style.color=chart.text_style.color.clone();}else if style.color!=chart.text_style.color{style.color=style.color.map(|s|s.strip_prefix('#').unwrap_or(&s).to_ascii_uppercase());}
-    if chart.text_style==style{return Ok(Vec::new());}chart.text_style=style;
-    host.loaded().check_chart_properties(sheet,chart).map_err(|e|e.to_string())?;
-    Ok(vec![crate::CellEdit::Charts{sheet,charts}])
+pub(crate) fn prepare_text_style(
+    host: &HostState,
+    sheet: SheetId,
+    revision: u64,
+    part: &str,
+    mut style: calc_doc_model::ChartTextStyle,
+) -> Result<Vec<crate::CellEdit>, String> {
+    prepare_properties(host, sheet, revision, part, None, false, None)?;
+    style.color = style
+        .color
+        .map(|s| s.trim().to_owned())
+        .filter(|s| !s.is_empty() && !s.eq_ignore_ascii_case("automatic"));
+    style.family = style
+        .family
+        .filter(|s| !s.eq_ignore_ascii_case("automatic"));
+    let mut charts = host.model().definitions().charts(sheet).to_vec();
+    let chart = charts
+        .iter_mut()
+        .find(|c| c.part == part)
+        .ok_or("The chart is unavailable")?;
+    if style
+        .color
+        .as_ref()
+        .zip(chart.text_style.color.as_ref())
+        .is_some_and(|(new, old)| {
+            new.strip_prefix('#')
+                .unwrap_or(new)
+                .eq_ignore_ascii_case(old)
+        })
+    {
+        style.color = chart.text_style.color.clone();
+    } else if style.color != chart.text_style.color {
+        style.color = style
+            .color
+            .map(|s| s.strip_prefix('#').unwrap_or(&s).to_ascii_uppercase());
+    }
+    if chart.text_style == style {
+        return Ok(Vec::new());
+    }
+    chart.text_style = style;
+    host.loaded()
+        .check_chart_properties(sheet, chart)
+        .map_err(|e| e.to_string())?;
+    Ok(vec![crate::CellEdit::Charts { sheet, charts }])
 }
 
-pub(crate) fn prepare_element_text_style(host:&HostState,sheet:SheetId,revision:u64,part:&str,target:&str,mut style:calc_doc_model::ChartTextStyle)->Result<Vec<crate::CellEdit>,String>{
-    prepare_properties(host,sheet,revision,part,None,false,None)?;
-    let mut charts=host.model().definitions().charts(sheet).to_vec();let chart=charts.iter_mut().find(|c|c.part==part).ok_or("The chart is unavailable")?;
-    let valid=match target{"title"=>chart.title.is_some()||chart.title_formula.is_some(),"legend"=>chart.legend.is_some(),_=>target.strip_prefix("axis:").and_then(|s|s.parse::<u32>().ok()).is_some_and(|id|target==format!("axis:{id}")&&chart.axes.iter().filter(|a|a.id==id).count()==1)};
-    if chart.element_text_complex.contains(target){return Err("Editing chart text with several runs or paragraphs is not modelled (dc-971p.61)".into());}
-    if !valid{return Err("Choose an existing title, legend or axis (dc-971p.61)".into());}
-    style.color=style.color.map(|s|s.trim().to_owned()).filter(|s|!s.is_empty()&&!s.eq_ignore_ascii_case("automatic"));style.family=style.family.filter(|s|!s.eq_ignore_ascii_case("automatic"));
-    let empty=calc_doc_model::ChartTextStyle::default();let before=chart.element_text.get(target).unwrap_or(&empty);
-    if style.color.as_ref().zip(before.color.as_ref()).is_some_and(|(new,old)|new.strip_prefix('#').unwrap_or(new).eq_ignore_ascii_case(old)){style.color=before.color.clone();}else if style.color!=before.color{style.color=style.color.map(|s|s.strip_prefix('#').unwrap_or(&s).to_ascii_uppercase());}
-    if *before==style{return Ok(Vec::new());}if style==empty{chart.element_text.remove(target);}else{chart.element_text.insert(target.into(),style);}
-    host.loaded().check_chart_properties(sheet,chart).map_err(|e|e.to_string())?;Ok(vec![crate::CellEdit::Charts{sheet,charts}])
+pub(crate) fn prepare_element_text_style(
+    host: &HostState,
+    sheet: SheetId,
+    revision: u64,
+    part: &str,
+    target: &str,
+    mut style: calc_doc_model::ChartTextStyle,
+) -> Result<Vec<crate::CellEdit>, String> {
+    prepare_properties(host, sheet, revision, part, None, false, None)?;
+    let mut charts = host.model().definitions().charts(sheet).to_vec();
+    let chart = charts
+        .iter_mut()
+        .find(|c| c.part == part)
+        .ok_or("The chart is unavailable")?;
+    let valid = match target {
+        "title" => chart.title.is_some() || chart.title_formula.is_some(),
+        "legend" => chart.legend.is_some(),
+        _ => target
+            .strip_prefix("axis:")
+            .and_then(|s| s.parse::<u32>().ok())
+            .is_some_and(|id| {
+                target == format!("axis:{id}")
+                    && chart.axes.iter().filter(|a| a.id == id).count() == 1
+            }),
+    };
+    if chart.element_text_complex.contains(target) {
+        return Err(
+            "Editing chart text with several runs or paragraphs is not modelled (dc-971p.61)"
+                .into(),
+        );
+    }
+    if !valid {
+        return Err("Choose an existing title, legend or axis (dc-971p.61)".into());
+    }
+    style.color = style
+        .color
+        .map(|s| s.trim().to_owned())
+        .filter(|s| !s.is_empty() && !s.eq_ignore_ascii_case("automatic"));
+    style.family = style
+        .family
+        .filter(|s| !s.eq_ignore_ascii_case("automatic"));
+    let empty = calc_doc_model::ChartTextStyle::default();
+    let before = chart.element_text.get(target).unwrap_or(&empty);
+    if style
+        .color
+        .as_ref()
+        .zip(before.color.as_ref())
+        .is_some_and(|(new, old)| {
+            new.strip_prefix('#')
+                .unwrap_or(new)
+                .eq_ignore_ascii_case(old)
+        })
+    {
+        style.color = before.color.clone();
+    } else if style.color != before.color {
+        style.color = style
+            .color
+            .map(|s| s.strip_prefix('#').unwrap_or(&s).to_ascii_uppercase());
+    }
+    if *before == style {
+        return Ok(Vec::new());
+    }
+    if style == empty {
+        chart.element_text.remove(target);
+    } else {
+        chart.element_text.insert(target.into(), style);
+    }
+    host.loaded()
+        .check_chart_properties(sheet, chart)
+        .map_err(|e| e.to_string())?;
+    Ok(vec![crate::CellEdit::Charts { sheet, charts }])
 }

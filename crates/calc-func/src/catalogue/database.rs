@@ -19,7 +19,7 @@
 //! record order, each addition an arithmetic site.
 
 use super::conditional::{Criterion, Match, database_criterion};
-use super::kit::{fail, grid, Grid};
+use super::kit::{Grid, fail, grid};
 use crate::call::EvalServices;
 use crate::kernel::{Exit, Site, Step};
 use crate::ported::variance_common::{VarianceDivisor, stdev_from_values, variance_from_values};
@@ -51,7 +51,8 @@ fn label(site: &Site<'_>, index: usize, value: &CalcValue) -> Step<Option<Vec<u1
         CoreRef::Empty | CoreRef::Missing => Ok(None),
         CoreRef::Error(code) => fail(code),
         _ => Ok(Some(
-            site.argument(index, crate::coerce::text(value))?.into_owned(),
+            site.argument(index, crate::coerce::text(value))?
+                .into_owned(),
         )),
     }
 }
@@ -62,7 +63,12 @@ fn same_label(a: &[u16], b: &[u16]) -> bool {
 }
 
 /// The database's column for a field argument.
-fn field(site: &Site<'_>, a: &[CalcValue], headers: &[Option<Vec<u16>>], optional: bool) -> Step<Option<usize>> {
+fn field(
+    site: &Site<'_>,
+    a: &[CalcValue],
+    headers: &[Option<Vec<u16>>],
+    optional: bool,
+) -> Step<Option<usize>> {
     let value = &a[1];
     match value.core_ref() {
         CoreRef::Missing | CoreRef::Empty if optional => Ok(None),
@@ -87,7 +93,12 @@ fn field(site: &Site<'_>, a: &[CalcValue], headers: &[Option<Vec<u16>>], optiona
 }
 
 /// The records that meet the criteria, by row index below the label row.
-fn matching(site: &Site<'_>, database: &Grid, headers: &[Option<Vec<u16>>], criteria: &Grid) -> Step<Vec<usize>> {
+fn matching(
+    site: &Site<'_>,
+    database: &Grid,
+    headers: &[Option<Vec<u16>>],
+    criteria: &Grid,
+) -> Step<Vec<usize>> {
     let records = database.rows.saturating_sub(1);
     if criteria.rows < 2 {
         return Ok((0..records).collect());
@@ -151,7 +162,12 @@ fn criterion_verdict(site: &Site<'_>, criterion: &Criterion, cell: &CalcValue) -
     criterion.verdict(site, 0, cell)
 }
 
-fn database(site: &Site<'_>, a: &[CalcValue], sv: &mut EvalServices<'_>, kind: Kind) -> Step<CalcValue> {
+fn database(
+    site: &Site<'_>,
+    a: &[CalcValue],
+    sv: &mut EvalServices<'_>,
+    kind: Kind,
+) -> Step<CalcValue> {
     if !matches!(a[0].core_ref(), CoreRef::Reference(_) | CoreRef::Array(_)) {
         return match a[0].core_ref() {
             CoreRef::Error(code) => fail(code),
@@ -244,9 +260,18 @@ fn database(site: &Site<'_>, a: &[CalcValue], sv: &mut EvalServices<'_>, kind: K
             site.number(product)
         }
         Kind::Stdev => published(site, stdev_from_values(&numbers, VarianceDivisor::Sample)),
-        Kind::StdevP => published(site, stdev_from_values(&numbers, VarianceDivisor::Population)),
-        Kind::Var => published(site, variance_from_values(&numbers, VarianceDivisor::Sample)),
-        Kind::VarP => published(site, variance_from_values(&numbers, VarianceDivisor::Population)),
+        Kind::StdevP => published(
+            site,
+            stdev_from_values(&numbers, VarianceDivisor::Population),
+        ),
+        Kind::Var => published(
+            site,
+            variance_from_values(&numbers, VarianceDivisor::Sample),
+        ),
+        Kind::VarP => published(
+            site,
+            variance_from_values(&numbers, VarianceDivisor::Population),
+        ),
         Kind::Get | Kind::CountA => unreachable!("handled above"),
     }
 }

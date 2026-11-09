@@ -151,42 +151,178 @@ fn atlas_view(controller: Controller) -> impl IntoView {
     });
     let jump = move |at, skin| controller.reveal(at, skin);
     let sheets = move || {
-        census.with(|c|c.sheets.iter().map(|s| {
-        let at=s.identity.and_then(|s|calc_value::CellKey::new(s.id(),1,1).ok());
-        let hidden=s.identity.is_some_and(|id|controller.summary.with(|v|v.hidden_sheets.iter().any(|(s,_,_)|*s==id)));
-        view!{<tr data-dnacalc="atlas-sheet" data-sheet=s.name.clone()>
-            <td><button data-dnacalc="atlas-sheet-jump" disabled=hidden on:click=move |_|if let Some(at)=at{jump(at, SkinId::Grid);}>{s.name.clone()}</button>{hidden.then_some(" (hidden; unhide in Sheet tools)")}</td>
-            <td>{s.used.clone().unwrap_or_else(||"empty".into())}</td><td>{s.inputs}</td><td>{s.formulas}</td><td>{s.calculated}</td><td>{s.refused}</td><td>{s.file_cached}</td><td>{s.stale}</td><td>{s.pending()}</td>
-        </tr>}
-    }).collect_view())
+        census.with(|c| {
+            c.sheets
+                .iter()
+                .map(|s| {
+                    let at = s
+                        .identity
+                        .and_then(|s| calc_value::CellKey::new(s.id(), 1, 1).ok());
+                    let hidden = s.identity.is_some_and(|id| {
+                        controller
+                            .summary
+                            .with(|v| v.hidden_sheets.iter().any(|(s, _, _)| *s == id))
+                    });
+                    view! {
+                        <tr data-dnacalc="atlas-sheet" data-sheet=s.name.clone()>
+                            <td>
+                                <button
+                                    data-dnacalc="atlas-sheet-jump"
+                                    disabled=hidden
+                                    on:click=move |_| {
+                                        if let Some(at) = at {
+                                            jump(at, SkinId::Grid);
+                                        }
+                                    }
+                                >
+                                    {s.name.clone()}
+                                </button>
+                                {hidden.then_some(" (hidden; unhide in Sheet tools)")}
+                            </td>
+                            <td>{s.used.clone().unwrap_or_else(|| "empty".into())}</td>
+                            <td>{s.inputs}</td>
+                            <td>{s.formulas}</td>
+                            <td>{s.calculated}</td>
+                            <td>{s.refused}</td>
+                            <td>{s.file_cached}</td>
+                            <td>{s.stale}</td>
+                            <td>{s.pending()}</td>
+                        </tr>
+                    }
+                })
+                .collect_view()
+        })
     };
     let totals = move || {
         if atlas.with(Option::is_none) {
             return "Counting the workbook's cells".into();
         }
         census.with(|c| {
-            let f=c.formulas();let n=c.calculated();
-            let rate=if f==0 {"no formula cells".into()}else{format!("{:.2}% calculated",100.0*n as f64/f as f64)};
-            format!("{f} formula cells: {n} calculated, {} refused, {} file cache, {} stale, {} pending; {rate}",c.refused(),c.file_cached(),c.stale(),c.pending())
+            let f = c.formulas();
+            let n = c.calculated();
+            let rate = if f == 0 {
+                "no formula cells".into()
+            } else {
+                format!("{:.2}% calculated", 100.0 * n as f64 / f as f64)
+            };
+            format!(
+                "{f} formula cells: {n} calculated, {} refused, {} file cache, {} stale, {} pending; {rate}",
+                c.refused(),
+                c.file_cached(),
+                c.stale(),
+                c.pending()
+            )
         })
     };
     let reasons = move || {
         reason_rows(&census.get(),reason_page.get()).into_iter().map(|(reason,n)| {
         let select_reason=reason.clone();let detail_reason=reason.clone();let pressed_reason=reason.clone();
-        view!{<li data-dnacalc="atlas-refusal">
-            <button data-dnacalc="atlas-reason" data-reason=reason.clone() aria-expanded=move ||(selected.get().as_ref()==Some(&pressed_reason)).to_string() on:click=move |_|batch(||{selected.set(Some(select_reason.clone()));cell_page.set(0);})>{format!("{n} {} — {reason}",if n==1{"cell"}else{"cells"})}</button>
-            {move ||(selected.get().as_ref()==Some(&detail_reason)).then(|| {
-                let found=affected.get();
-                let total=found.as_ref().map_or(0,|p|p.total);
-                let cells=found.map(|p|p.cells.into_iter().map(|(key,label)| {
-                    let at=key.cell();
-                    let hidden=at.is_some_and(|at|controller.summary.with(|v|v.hidden_sheets.iter().any(|(s,_,_)|s.id()==at.sheet())));
-                    let label=if hidden{format!("{label} (hidden; unhide in Sheet tools)")}else{label};
-                    view!{<li data-dnacalc="atlas-affected-cell"><span class="dc-mono">{label}</span><button data-dnacalc="atlas-open-grid" disabled=hidden on:click=move |_|if let Some(at)=at{jump(at, SkinId::Grid);}>"Open in Grid"</button></li>}
-                }).collect_view());
-                view!{<div class="dc-atlas-affected"><p role="status" data-dnacalc="atlas-affected-count">{if affected.with(Option::is_none){"Loading affected cells…".into()}else{format!("{total} affected {} · page {} of {}",if total==1{"cell"}else{"cells"},cell_page.get()+1,total.div_ceil(50).max(1))}}</p><p role="status">{move ||affected_error.get()}</p><ul>{cells}</ul><div class="dc-atlas-pages"><button data-dnacalc="atlas-cells-previous" disabled=move ||cell_page.get()==0 on:click=move |_|cell_page.update(|p|*p=p.saturating_sub(1))>"Previous cells"</button><button data-dnacalc="atlas-cells-next" disabled=move ||affected.with(|p|p.as_ref().is_none_or(|p|(cell_page.get()+1).saturating_mul(50)>=p.total)) on:click=move |_|cell_page.update(|p|*p+=1)>"Next cells"</button></div></div>}
-            })}
-        </li>}
+        view! {
+            <li data-dnacalc="atlas-refusal">
+                <button
+                    data-dnacalc="atlas-reason"
+                    data-reason=reason.clone()
+                    aria-expanded=move || {
+                        (selected.get().as_ref() == Some(&pressed_reason)).to_string()
+                    }
+                    on:click=move |_| batch(|| {
+                        selected.set(Some(select_reason.clone()));
+                        cell_page.set(0);
+                    })
+                >
+                    {format!("{n} {} — {reason}", if n == 1 { "cell" } else { "cells" })}
+                </button>
+                {move || {
+                    (selected.get().as_ref() == Some(&detail_reason))
+                        .then(|| {
+                            let found = affected.get();
+                            let total = found.as_ref().map_or(0, |p| p.total);
+                            let cells = found
+                                .map(|p| {
+                                    p.cells
+                                        .into_iter()
+                                        .map(|(key, label)| {
+                                            let at = key.cell();
+                                            let hidden = at
+                                                .is_some_and(|at| {
+                                                    controller
+                                                        .summary
+                                                        .with(|v| {
+                                                            v.hidden_sheets.iter().any(|(s, _, _)| s.id() == at.sheet())
+                                                        })
+                                                });
+                                            let label = if hidden {
+                                                format!("{label} (hidden; unhide in Sheet tools)")
+                                            } else {
+                                                label
+                                            };
+                                            view! {
+                                                <li data-dnacalc="atlas-affected-cell">
+                                                    <span class="dc-mono">{label}</span>
+                                                    <button
+                                                        data-dnacalc="atlas-open-grid"
+                                                        disabled=hidden
+                                                        on:click=move |_| {
+                                                            if let Some(at) = at {
+                                                                jump(at, SkinId::Grid);
+                                                            }
+                                                        }
+                                                    >
+                                                        "Open in Grid"
+                                                    </button>
+                                                </li>
+                                            }
+                                        })
+                                        .collect_view()
+                                });
+                            view! {
+                                <div class="dc-atlas-affected">
+                                    <p role="status" data-dnacalc="atlas-affected-count">
+                                        {if affected.with(Option::is_none) {
+                                            "Loading affected cells…".into()
+                                        } else {
+                                            format!(
+                                                "{total} affected {} · page {} of {}",
+                                                if total == 1 { "cell" } else { "cells" },
+                                                cell_page.get() + 1,
+                                                total.div_ceil(50).max(1),
+                                            )
+                                        }}
+                                    </p>
+                                    <p role="status">{move || affected_error.get()}</p>
+                                    <ul>{cells}</ul>
+                                    <div class="dc-atlas-pages">
+                                        <button
+                                            data-dnacalc="atlas-cells-previous"
+                                            disabled=move || cell_page.get() == 0
+                                            on:click=move |_| {
+                                                cell_page.update(|p| *p = p.saturating_sub(1))
+                                            }
+                                        >
+                                            "Previous cells"
+                                        </button>
+                                        <button
+                                            data-dnacalc="atlas-cells-next"
+                                            disabled=move || {
+                                                affected
+                                                    .with(|p| {
+                                                        p.as_ref()
+                                                            .is_none_or(|p| {
+                                                                (cell_page.get() + 1).saturating_mul(50) >= p.total
+                                                            })
+                                                    })
+                                            }
+                                            on:click=move |_| cell_page.update(|p| *p += 1)
+                                        >
+                                            "Next cells"
+                                        </button>
+                                    </div>
+                                </div>
+                            }
+                        })
+                }}
+            </li>
+        }
     }).collect_view()
     };
     let hud = move || {
@@ -207,15 +343,40 @@ fn atlas_view(controller: Controller) -> impl IntoView {
         };
         view! {
             <ul data-dnacalc="atlas-hud">
-                <li>{format!("Workbook {name}{}", if changed { ", changed since opened or saved" } else { "" })}</li>
+                <li>
+                    {format!(
+                        "Workbook {name}{}",
+                        if changed { ", changed since opened or saved" } else { "" },
+                    )}
+                </li>
                 <li data-dnacalc="atlas-mode">{format!("Calculation: {mode}")}</li>
-                <li>{format!("Authored revision {revision}; {undo} steps to undo, {redo} to redo; {intents} intents logged")}</li>
-                <li data-dnacalc="atlas-memory">{match (memory, crate::controller::memory_bytes()) {
-                    (Some(worker), Some(page)) if crate::port::in_worker() => format!("Memory: {:.0} MB of wasm linear memory in the calculation worker, {:.0} MB on the page", worker / 1_048_576.0, page / 1_048_576.0),
-                    (_, Some(page)) => format!("Memory: {:.0} MB of wasm linear memory", page / 1_048_576.0),
-                    _ => "Memory: not in a browser".to_owned(),
-                }}</li>
-                <li data-dnacalc="atlas-timings">{format!("Open and first calculation: {}; last intent (an edit, undo, selection or recalculation): {}", ms(timings.open_ms), ms(timings.last_intent_ms))}</li>
+                <li>
+                    {format!(
+                        "Authored revision {revision}; {undo} steps to undo, {redo} to redo; {intents} intents logged",
+                    )}
+                </li>
+                <li data-dnacalc="atlas-memory">
+                    {match (memory, crate::controller::memory_bytes()) {
+                        (Some(worker), Some(page)) if crate::port::in_worker() => {
+                            format!(
+                                "Memory: {:.0} MB of wasm linear memory in the calculation worker, {:.0} MB on the page",
+                                worker / 1_048_576.0,
+                                page / 1_048_576.0,
+                            )
+                        }
+                        (_, Some(page)) => {
+                            format!("Memory: {:.0} MB of wasm linear memory", page / 1_048_576.0)
+                        }
+                        _ => "Memory: not in a browser".to_owned(),
+                    }}
+                </li>
+                <li data-dnacalc="atlas-timings">
+                    {format!(
+                        "Open and first calculation: {}; last intent (an edit, undo, selection or recalculation): {}",
+                        ms(timings.open_ms),
+                        ms(timings.last_intent_ms),
+                    )}
+                </li>
             </ul>
         }
     };
@@ -223,18 +384,101 @@ fn atlas_view(controller: Controller) -> impl IntoView {
     view! {
         <section class="dc-atlas" data-skin="atlas" aria-label="Workbook overview">
             <h2>"Workbook overview"</h2>
-            <p role="status" data-dnacalc="atlas-totals">{totals}</p>
-            <p class="dc-atlas-agreement" data-dnacalc="atlas-agreement">"Calculated coverage counts formulas DNA Calc evaluated. Agreement with Excel has not been measured in this view."</p>
-            <p role="status">{move ||failure.get()}</p>
-            {move ||(atlas.with(Option::is_some)&&census.with(|c|c.formulas()==0)).then(||view!{<p data-dnacalc="atlas-empty">"No formulas yet. Open a workbook, or choose a sheet and enter a formula in Grid."</p>})}
+            <p role="status" data-dnacalc="atlas-totals">
+                {totals}
+            </p>
+            <p class="dc-atlas-agreement" data-dnacalc="atlas-agreement">
+                "Calculated coverage counts formulas DNA Calc evaluated. Agreement with Excel has not been measured in this view."
+            </p>
+            <p role="status">{move || failure.get()}</p>
+            {move || {
+                (atlas.with(Option::is_some) && census.with(|c| c.formulas() == 0))
+                    .then(|| {
+                        view! {
+                            <p data-dnacalc="atlas-empty">
+                                "No formulas yet. Open a workbook, or choose a sheet and enter a formula in Grid."
+                            </p>
+                        }
+                    })
+            }}
             <h2>"Sheets"</h2>
-            <div class="dc-atlas-table" tabindex="0" role="region" aria-label="Sheet calculation counts; scroll horizontally for all columns"><table><thead><tr><th>"Sheet"</th><th>"Used area"</th><th>"Inputs"</th><th>"Formulas"</th><th>"Calculated"</th><th>"Refused"</th><th>"File cache"</th><th>"Stale"</th><th>"Pending"</th></tr></thead><tbody>{sheets}</tbody></table></div>
-            <h2>"What needs attention"</h2><p>"Choose a refusal reason, then open an affected cell to inspect or edit its source. Cached and stale values need Calculate. Pending formulas have no published value."</p>
-            <p data-dnacalc="atlas-reason-count">{move ||census.with(|c|{if atlas.with(Option::is_none){return "Counting refusal reasons…".into();}let total=c.refusals.len();if total==0 {"0 refusal reasons".into()}else{format!("Reasons {}–{} of {total} · up to 30 per page; most affected first",reason_page.get()*REASON_PAGE+1,((reason_page.get()+1)*REASON_PAGE).min(total))}})}</p>
+            <div
+                class="dc-atlas-table"
+                tabindex="0"
+                role="region"
+                aria-label="Sheet calculation counts; scroll horizontally for all columns"
+            >
+                <table>
+                    <thead>
+                        <tr>
+                            <th>"Sheet"</th>
+                            <th>"Used area"</th>
+                            <th>"Inputs"</th>
+                            <th>"Formulas"</th>
+                            <th>"Calculated"</th>
+                            <th>"Refused"</th>
+                            <th>"File cache"</th>
+                            <th>"Stale"</th>
+                            <th>"Pending"</th>
+                        </tr>
+                    </thead>
+                    <tbody>{sheets}</tbody>
+                </table>
+            </div>
+            <h2>"What needs attention"</h2>
+            <p>
+                "Choose a refusal reason, then open an affected cell to inspect or edit its source. "
+                "Cached and stale values need Calculate. Pending formulas have no published value."
+            </p>
+            <p data-dnacalc="atlas-reason-count">
+                {move || {
+                    census
+                        .with(|c| {
+                            if atlas.with(Option::is_none) {
+                                return "Counting refusal reasons…".into();
+                            }
+                            let total = c.refusals.len();
+                            if total == 0 {
+                                "0 refusal reasons".into()
+                            } else {
+                                format!(
+                                    "Reasons {}–{} of {total} · up to 30 per page; most affected first",
+                                    reason_page.get() * REASON_PAGE + 1,
+                                    ((reason_page.get() + 1) * REASON_PAGE).min(total),
+                                )
+                            }
+                        })
+                }}
+            </p>
             <ul class="dc-refusals">{reasons}</ul>
-            <div class="dc-atlas-pages"><button data-dnacalc="atlas-reasons-previous" disabled=move ||reason_page.get()==0 on:click=move |_|reason_page.update(|p|*p=p.saturating_sub(1))>"Previous reasons"</button><button data-dnacalc="atlas-reasons-next" disabled=move ||census.with(|c|(reason_page.get()+1)*REASON_PAGE>=c.refusals.len()) on:click=move |_|reason_page.update(|p|*p+=1)>"Next reasons"</button></div>
-            {move ||(atlas.with(Option::is_some)&&census.with(|c|c.refusals.is_empty())).then(||view!{<p data-dnacalc="atlas-no-refusals">"No formula is refused."</p>})}
-            <details data-dnacalc="atlas-diagnostics"><summary>"Calculation diagnostics"</summary>{hud}</details>
+            <div class="dc-atlas-pages">
+                <button
+                    data-dnacalc="atlas-reasons-previous"
+                    disabled=move || reason_page.get() == 0
+                    on:click=move |_| reason_page.update(|p| *p = p.saturating_sub(1))
+                >
+                    "Previous reasons"
+                </button>
+                <button
+                    data-dnacalc="atlas-reasons-next"
+                    disabled=move || {
+                        census.with(|c| (reason_page.get() + 1) * REASON_PAGE >= c.refusals.len())
+                    }
+                    on:click=move |_| reason_page.update(|p| *p += 1)
+                >
+                    "Next reasons"
+                </button>
+            </div>
+            {move || {
+                (atlas.with(Option::is_some) && census.with(|c| c.refusals.is_empty()))
+                    .then(|| {
+                        view! { <p data-dnacalc="atlas-no-refusals">"No formula is refused."</p> }
+                    })
+            }}
+            <details data-dnacalc="atlas-diagnostics">
+                <summary>"Calculation diagnostics"</summary>
+                {hud}
+            </details>
         </section>
     }
 }

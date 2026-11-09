@@ -509,10 +509,11 @@ fn present(
             _ => None,
         };
         let format_code = rules.number_format.as_deref().unwrap_or(code);
-        let format_color = (!format_code.is_empty() && !format_code.eq_ignore_ascii_case("General"))
-            .then(|| calc_func::cell_color(format_code, cell))
-            .flatten()
-            .map(|color| color.rgb());
+        let format_color = (!format_code.is_empty()
+            && !format_code.eq_ignore_ascii_case("General"))
+        .then(|| calc_func::cell_color(format_code, cell))
+        .flatten()
+        .map(|color| color.rgb());
         LookWire::of(&rules, format_color, text)
     };
     match &mut wire {
@@ -613,7 +614,10 @@ mod tests {
     #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
     fn the_grid_supplies_cells_and_shows_the_formula_cell() {
         let mut session = Session::new("Sheet1").expect("a session");
-        let shown = evaluate(&mut session, &authored("=SUM(A1:A4)*2", &[(0, "1.5"), (8, "2")]));
+        let shown = evaluate(
+            &mut session,
+            &authored("=SUM(A1:A4)*2", &[(0, "1.5"), (8, "2")]),
+        );
         assert_eq!(shown.result, "number 7");
         assert_eq!(
             shown.view,
@@ -685,7 +689,13 @@ mod tests {
         assert_eq!(shown.state, "Calculated");
         assert_eq!(shown.result, "number 3.5");
         assert!(matches!(&shown.view, ViewWire::Value { text, .. } if text == "3,50"));
-        let missing = evaluate(&mut reopened, &Authored { formula: "=Z99+1".into(), ..state.clone() });
+        let missing = evaluate(
+            &mut reopened,
+            &Authored {
+                formula: "=Z99+1".into(),
+                ..state.clone()
+            },
+        );
         assert_eq!(missing.state, "Missing input");
         let unknown = evaluate(
             &mut reopened,
@@ -711,11 +721,21 @@ mod tests {
         assert_eq!(shown.formula_cell, "Sheet1!C7");
         state.formula_cell = "invalid!".to_owned();
         let shown = evaluate(&mut session, &state);
-        assert!(shown.formula_cell.contains("the formula stays in Sheet1!C7"), "{shown:?}");
+        assert!(
+            shown
+                .formula_cell
+                .contains("the formula stays in Sheet1!C7"),
+            "{shown:?}"
+        );
         assert_eq!(shown.result, "number 5");
-        let reopened = crate::file::open(&crate::file::save(&mut session).unwrap()).unwrap().0;
+        let reopened = crate::file::open(&crate::file::save(&mut session).unwrap())
+            .unwrap()
+            .0;
         assert_eq!(authored_of(&reopened).formula_cell, "C7");
-        assert_eq!(display::cell(&reopened, reopened.formula_cell()), "Sheet1!C7");
+        assert_eq!(
+            display::cell(&reopened, reopened.formula_cell()),
+            "Sheet1!C7"
+        );
     }
 
     /// Excel's answers to 3,822 formula entries (dc-mx3x), through the route the page runs:
@@ -742,12 +762,20 @@ mod tests {
                     || diagnostic.starts_with("syntax at")
             });
             if refused != (answer == "0") {
-                wrong.push(format!("{formula}: Excel {answer}, page {:?}", shown.diagnostics));
+                wrong.push(format!(
+                    "{formula}: Excel {answer}, page {:?}",
+                    shown.diagnostics
+                ));
             }
             count += 1;
         }
         assert_eq!(count, 3822);
-        assert!(wrong.is_empty(), "{} differ:\n{}", wrong.len(), wrong.join("\n"));
+        assert!(
+            wrong.is_empty(),
+            "{} differ:\n{}",
+            wrong.len(),
+            wrong.join("\n")
+        );
     }
 
     #[cfg_attr(not(target_arch = "wasm32"), test)]
@@ -765,9 +793,14 @@ mod tests {
         state.date_1904 = true;
         let shown = evaluate(&mut session, &state);
         assert_eq!(shown.result, "number 43860");
-        assert!(matches!(&shown.view, ViewWire::Value { text, .. } if text == "2024-01-31"), "{shown:?}");
+        assert!(
+            matches!(&shown.view, ViewWire::Value { text, .. } if text == "2024-01-31"),
+            "{shown:?}"
+        );
         // The date system is the workbook's own: it goes into the file and comes back.
-        let reopened = crate::file::open(&crate::file::save(&mut session).unwrap()).unwrap().0;
+        let reopened = crate::file::open(&crate::file::save(&mut session).unwrap())
+            .unwrap()
+            .0;
         assert!(reopened.options().date_1904);
         assert!(authored_of(&reopened).date_1904);
     }

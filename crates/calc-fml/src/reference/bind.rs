@@ -27,10 +27,7 @@ use calc_func::value::{CellKey, SheetId, WorksheetErrorCode};
 
 /// Whether an unqualified call token spells a cell after built-in precedence.
 /// Binding, plan templates and shared-formula movement use this same classification.
-pub fn is_cell_callee(
-    text: &str,
-    notation: ReferenceNotation,
-) -> bool {
+pub fn is_cell_callee(text: &str, notation: ReferenceNotation) -> bool {
     if crate::eval::is_builtin(text) {
         return false;
     }
@@ -425,11 +422,13 @@ impl Binder<'_> {
                             return false;
                         };
                         self.catalog.sheet_named(&sheet).is_some_and(|sheet| {
-                            matches!(self.catalog.defined_name(name.text(), NameScope::Sheet(sheet)),
-                                NameDefinition::Formula(_))
+                            matches!(
+                                self.catalog
+                                    .defined_name(name.text(), NameScope::Sheet(sheet)),
+                                NameDefinition::Formula(_)
+                            )
                         })
-                    })
-                        || qualified_call(node).is_some_and(|(book, _)| match &book {
+                    }) || qualified_call(node).is_some_and(|(book, _)| match &book {
                         ExternalBookRef::Number(_) => true,
                         ExternalBookRef::File(name) => {
                             self.catalog.workbook_name().is_some_and(|held| {
@@ -467,14 +466,17 @@ impl Binder<'_> {
                         && is_cell_callee(name.text(), self.notation)
                         && let Some(Spelled::Cell(cell)) = self.spell(name)
                     {
-                        self.push(name.span(), if self.in_array_constant {
-                            Err(BindError::InArrayConstant)
-                        } else {
-                            Ok(ReferenceOperand {
-                                sheet: SheetTarget::Anchor,
-                                shape: ReferenceShape::Cell(cell),
-                            })
-                        });
+                        self.push(
+                            name.span(),
+                            if self.in_array_constant {
+                                Err(BindError::InArrayConstant)
+                            } else {
+                                Ok(ReferenceOperand {
+                                    sheet: SheetTarget::Anchor,
+                                    shape: ReferenceShape::Cell(cell),
+                                })
+                            },
+                        );
                     }
                     visit_children(node, &mut pending);
                     continue;

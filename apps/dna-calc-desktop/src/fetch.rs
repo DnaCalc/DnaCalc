@@ -98,7 +98,9 @@ mod tests {
         )
         .unwrap();
         match page.cells()[0].value() {
-            calc_host::ProjectedValue::Calculated { value, .. } => calc_addin_host::value_json(value).to_string(),
+            calc_host::ProjectedValue::Calculated { value, .. } => {
+                calc_addin_host::value_json(value).to_string()
+            }
             other => format!("{other:?}"),
         }
     }
@@ -112,7 +114,9 @@ mod tests {
         let route = Rc::new(ThreadedFetch::new());
         server.set_fetch_route(route.clone());
         let sheet = server.book().host().sheets()[0].id();
-        let cells: Vec<_> = (1..=4).map(|row| calc_value::CellKey::new(sheet, row, 2).unwrap()).collect();
+        let cells: Vec<_> = (1..=4)
+            .map(|row| calc_value::CellKey::new(sheet, row, 2).unwrap())
+            .collect();
         let urls = ["text", "redir", "gone", "nowhere-204"];
         for (cell, url) in cells.iter().zip(urls) {
             server
@@ -148,8 +152,20 @@ mod tests {
         }
         assert!(answered >= 4, "every fetch replied");
         assert_eq!(text_of(&server, cells[0]), "\"caf\u{e9} ok\"");
-        assert_eq!(text_of(&server, cells[1]), "\"caf\u{e9} ok\"", "a 302 is followed");
-        assert_eq!(text_of(&server, cells[2]), "{\"error\":\"#VALUE!\"}", "status 404 is #VALUE!");
-        assert_eq!(text_of(&server, cells[3]), "\"\"", "status 204 is empty text");
+        assert_eq!(
+            text_of(&server, cells[1]),
+            "\"caf\u{e9} ok\"",
+            "a 302 is followed"
+        );
+        assert_eq!(
+            text_of(&server, cells[2]),
+            "{\"error\":\"#VALUE!\"}",
+            "status 404 is #VALUE!"
+        );
+        assert_eq!(
+            text_of(&server, cells[3]),
+            "\"\"",
+            "status 204 is empty text"
+        );
     }
 }

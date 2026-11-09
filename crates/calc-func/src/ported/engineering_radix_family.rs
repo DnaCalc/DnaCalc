@@ -1,5 +1,5 @@
-use crate::value::ExcelText;
 use crate::ported::base_fn::base_kernel;
+use crate::value::ExcelText;
 use crate::value::WorksheetErrorCode;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]

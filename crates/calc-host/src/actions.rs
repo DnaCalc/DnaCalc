@@ -12,8 +12,11 @@ pub struct SortKey {
 }
 
 /// Optional first-key custom order or bounded case-sensitive text keys.
-#[derive(Clone,Debug,Default,PartialEq,Eq)]
-pub struct SortOptions {pub case_sensitive:bool,pub custom_order:Vec<String>}
+#[derive(Clone, Debug, Default, PartialEq, Eq)]
+pub struct SortOptions {
+    pub case_sensitive: bool,
+    pub custom_order: Vec<String>,
+}
 
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub enum SheetChange {
@@ -56,28 +59,147 @@ pub enum ConditionalChange {
 /// Authored workbook commands. The session is the sole dispatch route for all clients.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub enum WorkbookCommand {
-    RefreshAll { revision: u64 },
-    RefreshConnection { revision: u64, name: String },
-    PivotCreate {revision:u64,source:GridArea,destination:String,row:u32,value:u32,subtotal:String},
-    PivotCreateLayout {revision:u64,source:GridArea,destination:String,rows:Vec<u32>,columns:Vec<u32>,values:Vec<(u32,String)>},
-    PivotRefresh {sheet:SheetId,revision:u64,part:String},
-    PivotSetLayout {sheet:SheetId,revision:u64,part:String,rows:Vec<i32>,columns:Vec<i32>},
-    PivotForgetMissingItems {sheet:SheetId,revision:u64,part:String},
-    PivotSetMissingItemsLimit {sheet:SheetId,revision:u64,part:String,limit:Option<u32>},
-    PageSetup {sheet:SheetId,revision:u64,change:crate::PageSetupChange},
-    ChartCreate {revision:u64,area:GridArea,kind:String,rows:bool,headers:bool,categories:bool},
-    ChartSeriesStyle {sheet:SheetId,revision:u64,part:String,plot:u32,series:u32,fill:Option<String>},
-    ChartElementTextStyle{sheet:SheetId,revision:u64,part:String,target:String,style:calc_doc_model::ChartTextStyle},
-    ChartTextStyle{sheet:SheetId,revision:u64,part:String,style:calc_doc_model::ChartTextStyle},
-    ChartType {sheet:SheetId,revision:u64,part:String,plot:u32,kind:String,stacked:bool},
-    ChartLegend {sheet:SheetId,revision:u64,part:String,position:String},
-    ChartLogAxis {sheet:SheetId,revision:u64,part:String,axis:u32,base:Option<String>},
-    ChartAxis {sheet:SheetId,revision:u64,part:String,axis:u32,minimum:Option<String>,maximum:Option<String>,major_unit:Option<String>,reversed:bool},
-    ChartSeries {sheet:SheetId,revision:u64,part:String,plot:u32,series:Option<u32>,name:Option<String>,categories:Option<String>,values:Option<String>,remove:bool},
-    ChartProperties {sheet:SheetId,revision:u64,part:String,title:Option<String>,set_title:bool,legend:Option<bool>},
+    RefreshAll {
+        revision: u64,
+    },
+    RefreshConnection {
+        revision: u64,
+        name: String,
+    },
+    PivotCreate {
+        revision: u64,
+        source: GridArea,
+        destination: String,
+        row: u32,
+        value: u32,
+        subtotal: String,
+    },
+    PivotCreateLayout {
+        revision: u64,
+        source: GridArea,
+        destination: String,
+        rows: Vec<u32>,
+        columns: Vec<u32>,
+        values: Vec<(u32, String)>,
+    },
+    PivotRefresh {
+        sheet: SheetId,
+        revision: u64,
+        part: String,
+    },
+    PivotSetLayout {
+        sheet: SheetId,
+        revision: u64,
+        part: String,
+        rows: Vec<i32>,
+        columns: Vec<i32>,
+    },
+    PivotForgetMissingItems {
+        sheet: SheetId,
+        revision: u64,
+        part: String,
+    },
+    PivotSetMissingItemsLimit {
+        sheet: SheetId,
+        revision: u64,
+        part: String,
+        limit: Option<u32>,
+    },
+    PageSetup {
+        sheet: SheetId,
+        revision: u64,
+        change: crate::PageSetupChange,
+    },
+    ChartCreate {
+        revision: u64,
+        area: GridArea,
+        kind: String,
+        rows: bool,
+        headers: bool,
+        categories: bool,
+    },
+    ChartSeriesStyle {
+        sheet: SheetId,
+        revision: u64,
+        part: String,
+        plot: u32,
+        series: u32,
+        fill: Option<String>,
+    },
+    ChartElementTextStyle {
+        sheet: SheetId,
+        revision: u64,
+        part: String,
+        target: String,
+        style: calc_doc_model::ChartTextStyle,
+    },
+    ChartTextStyle {
+        sheet: SheetId,
+        revision: u64,
+        part: String,
+        style: calc_doc_model::ChartTextStyle,
+    },
+    ChartType {
+        sheet: SheetId,
+        revision: u64,
+        part: String,
+        plot: u32,
+        kind: String,
+        stacked: bool,
+    },
+    ChartLegend {
+        sheet: SheetId,
+        revision: u64,
+        part: String,
+        position: String,
+    },
+    ChartLogAxis {
+        sheet: SheetId,
+        revision: u64,
+        part: String,
+        axis: u32,
+        base: Option<String>,
+    },
+    ChartAxis {
+        sheet: SheetId,
+        revision: u64,
+        part: String,
+        axis: u32,
+        minimum: Option<String>,
+        maximum: Option<String>,
+        major_unit: Option<String>,
+        reversed: bool,
+    },
+    ChartSeries {
+        sheet: SheetId,
+        revision: u64,
+        part: String,
+        plot: u32,
+        series: Option<u32>,
+        name: Option<String>,
+        categories: Option<String>,
+        values: Option<String>,
+        remove: bool,
+    },
+    ChartProperties {
+        sheet: SheetId,
+        revision: u64,
+        part: String,
+        title: Option<String>,
+        set_title: bool,
+        legend: Option<bool>,
+    },
     /// Append the worksheets of an OOXML template as one undoable transaction.
-    InsertTemplate { bytes: std::sync::Arc<[u8]>, name:Option<String>, revision:u64 },
-    ReviewAction{at:CellKey,revision:u64,action:crate::ReviewAction},
+    InsertTemplate {
+        bytes: std::sync::Arc<[u8]>,
+        name: Option<String>,
+        revision: u64,
+    },
+    ReviewAction {
+        at: CellKey,
+        revision: u64,
+        action: crate::ReviewAction,
+    },
     Review {
         at: CellKey,
         revision: u64,
@@ -85,9 +207,21 @@ pub enum WorkbookCommand {
         text: String,
     },
     Name(crate::NameEdit),
-    TableFilter {sheet:SheetId,revision:u64,part:String,change:crate::FilterChange},
-    Table {revision:u64,change:crate::TableChange},
-    AutoFilter { sheet:SheetId, revision:u64, change:crate::FilterChange },
+    TableFilter {
+        sheet: SheetId,
+        revision: u64,
+        part: String,
+        change: crate::FilterChange,
+    },
+    Table {
+        revision: u64,
+        change: crate::TableChange,
+    },
+    AutoFilter {
+        sheet: SheetId,
+        revision: u64,
+        change: crate::FilterChange,
+    },
     FormatCells {
         areas: Vec<GridArea>,
         patch: crate::FormatPatch,
@@ -96,7 +230,12 @@ pub enum WorkbookCommand {
         sheet: Option<SheetId>,
         change: SheetChange,
     },
-    Outline { sheet: SheetId, rows: bool, revision: u64, change: crate::OutlineChange },
+    Outline {
+        sheet: SheetId,
+        rows: bool,
+        revision: u64,
+        change: crate::OutlineChange,
+    },
     AxisFormat {
         sheet: SheetId,
         rows: bool,
@@ -116,7 +255,14 @@ pub enum WorkbookCommand {
         rows: u32,
         columns: u32,
     },
-    SplitPanes { sheet:SheetId, revision:u64, x:u64, y:u64, row:u32, column:u32 },
+    SplitPanes {
+        sheet: SheetId,
+        revision: u64,
+        x: u64,
+        y: u64,
+        row: u32,
+        column: u32,
+    },
     Conditional {
         sheet: SheetId,
         revision: u64,
@@ -129,7 +275,13 @@ pub enum WorkbookCommand {
         revision: u64,
         only: Option<CellKey>,
     },
-    SortRowsWithOptions {area:GridArea,keys:Vec<SortKey>,header:bool,revision:u64,options:SortOptions},
+    SortRowsWithOptions {
+        area: GridArea,
+        keys: Vec<SortKey>,
+        header: bool,
+        revision: u64,
+        options: SortOptions,
+    },
     SortRows {
         area: GridArea,
         keys: Vec<SortKey>,
@@ -151,55 +303,261 @@ pub(crate) fn prepare(
 ) -> Result<Vec<CellEdit>, String> {
     match command {
         WorkbookCommand::RefreshConnection { revision, name } => {
-            if revision != host.revision().get() { return Err("The workbook changed before refreshing the connection (dc-8wp.18)".into()); }
-            let model = host.model().definitions().data_model().ok_or("The workbook has no data model (dc-8wp.18)")?;
-            if model.model_connection.as_ref().is_none_or(|held| !calc_value::workbook_names_equal(held, &name)) {
+            if revision != host.revision().get() {
+                return Err(
+                    "The workbook changed before refreshing the connection (dc-8wp.18)".into(),
+                );
+            }
+            let model = host
+                .model()
+                .definitions()
+                .data_model()
+                .ok_or("The workbook has no data model (dc-8wp.18)")?;
+            if model
+                .model_connection
+                .as_ref()
+                .is_none_or(|held| !calc_value::workbook_names_equal(held, &name))
+            {
                 return Err("Refreshing this connection is not modelled (dc-8wp.21)".into());
             }
             // Excel's model-connection refresh leaves the snapshot unchanged; Refresh All updates it.
             Ok(Vec::new())
         }
-        WorkbookCommand::RefreshAll {revision}=>crate::facts::prepare_model_refresh(host,revision),
-        WorkbookCommand::PivotCreate {revision,source,destination,row,value,subtotal}=>crate::pivot::prepare_create(host,revision,source,&destination,row,value,&subtotal),
-        WorkbookCommand::PivotCreateLayout {revision,source,destination,rows,columns,values}=>crate::pivot::prepare_create_layout(host,revision,source,&destination,rows,columns,values),
-        WorkbookCommand::PivotRefresh {sheet,revision,part}=>crate::pivot::prepare_refresh(host,sheet,revision,&part),
-        WorkbookCommand::PivotSetLayout {sheet,revision,part,rows,columns}=>crate::pivot::prepare_set_layout(host,sheet,revision,&part,rows,columns),
-        WorkbookCommand::PivotForgetMissingItems {sheet,revision,part}=>crate::pivot::prepare_forget_missing_items(host,sheet,revision,&part),
-        WorkbookCommand::PivotSetMissingItemsLimit {sheet,revision,part,limit}=>crate::pivot::prepare_missing_items_limit(host,sheet,revision,&part,limit),
-        WorkbookCommand::PageSetup {sheet,revision,change}=>crate::page_setup::prepare(host,sheet,revision,change),
-        WorkbookCommand::ChartCreate{revision,area,kind,rows,headers,categories}=>crate::chart::prepare_create(host,revision,area,&kind,rows,headers,categories),
-        WorkbookCommand::ChartSeriesStyle{sheet,revision,part,plot,series,fill}=>crate::chart::prepare_series_style(host,sheet,revision,&part,plot,series,fill),
-        WorkbookCommand::ChartElementTextStyle{sheet,revision,part,target,style}=>crate::chart::prepare_element_text_style(host,sheet,revision,&part,&target,style),
-        WorkbookCommand::ChartTextStyle{sheet,revision,part,style}=>crate::chart::prepare_text_style(host,sheet,revision,&part,style),
-        WorkbookCommand::ChartType{sheet,revision,part,plot,kind,stacked}=>crate::chart::prepare_type(host,sheet,revision,&part,plot,&kind,stacked),
-        WorkbookCommand::ChartLegend{sheet,revision,part,position}=>crate::chart::prepare_legend(host,sheet,revision,&part,&position),
-        WorkbookCommand::ChartLogAxis{sheet,revision,part,axis,base}=>crate::chart::prepare_log_axis(host,sheet,revision,&part,axis,base),
-        WorkbookCommand::ChartAxis{sheet,revision,part,axis,minimum,maximum,major_unit,reversed}=>crate::chart::prepare_axis(host,sheet,revision,&part,axis,minimum,maximum,major_unit,reversed),
-        WorkbookCommand::ChartSeries {sheet,revision,part,plot,series,name,categories,values,remove}=>crate::chart::prepare_series(host,sheet,revision,&part,plot,series,name,categories,values,remove),
-        WorkbookCommand::ChartProperties {sheet,revision,part,title,set_title,legend}=>crate::chart::prepare_properties(host,sheet,revision,&part,title,set_title,legend),
-        WorkbookCommand::InsertTemplate{..}=>Err("Template insertion must use the session transaction (dc-bctq)".into()),
-        WorkbookCommand::ReviewAction{at,revision,action}=>crate::review::prepare(host,at,revision,action),
-        WorkbookCommand::Review{at,revision,index,text}=>crate::review::prepare(host,at,revision,crate::ReviewAction::Edit{index,text}),
-
-        WorkbookCommand::Outline {sheet,rows,revision,change} => crate::outline::prepare(host,sheet,rows,revision,change),
-        WorkbookCommand::SplitPanes {sheet,revision,x,y,row,column}=>{
-            if revision!=host.revision().get() {return Err("The workbook changed before splitting (dc-971p.16)".into());}
-            if host.model().sheet_by_id(sheet).is_none() {return Err("The worksheet no longer exists".into());}
-            let (x,y)=(f64::from_bits(x),f64::from_bits(y));
-            if x==0. && y==0. && !matches!(host.model().definitions().pane_layout(sheet),Some(calc_doc_model::PaneLayout::Split(_))) {return Ok(Vec::new());}
-            let layout=if x==0. && y==0. {None}else{Some(calc_doc_model::PaneLayout::Split(calc_doc_model::SplitPanes::new(x,y,row,column).ok_or("Invalid split position (dc-971p.16)")?))};
-            Ok(vec![CellEdit::PaneLayout{sheet,layout}])
+        WorkbookCommand::RefreshAll { revision } => {
+            crate::facts::prepare_model_refresh(host, revision)
         }
-        WorkbookCommand::TableFilter{sheet,revision,part,change}=>crate::filter::prepare_for(host,sheet,revision,Some(&part),change),
-        WorkbookCommand::Table {revision,change}=>crate::tables::prepare(host,revision,change),
-        WorkbookCommand::AutoFilter { sheet,revision,change }=>crate::filter::prepare(host,sheet,revision,change),
-        WorkbookCommand::SortRowsWithOptions{area,keys,header,revision,options}=>sort_rows(host,area,&keys,header,revision,&options),
+        WorkbookCommand::PivotCreate {
+            revision,
+            source,
+            destination,
+            row,
+            value,
+            subtotal,
+        } => crate::pivot::prepare_create(
+            host,
+            revision,
+            source,
+            &destination,
+            row,
+            value,
+            &subtotal,
+        ),
+        WorkbookCommand::PivotCreateLayout {
+            revision,
+            source,
+            destination,
+            rows,
+            columns,
+            values,
+        } => crate::pivot::prepare_create_layout(
+            host,
+            revision,
+            source,
+            &destination,
+            rows,
+            columns,
+            values,
+        ),
+        WorkbookCommand::PivotRefresh {
+            sheet,
+            revision,
+            part,
+        } => crate::pivot::prepare_refresh(host, sheet, revision, &part),
+        WorkbookCommand::PivotSetLayout {
+            sheet,
+            revision,
+            part,
+            rows,
+            columns,
+        } => crate::pivot::prepare_set_layout(host, sheet, revision, &part, rows, columns),
+        WorkbookCommand::PivotForgetMissingItems {
+            sheet,
+            revision,
+            part,
+        } => crate::pivot::prepare_forget_missing_items(host, sheet, revision, &part),
+        WorkbookCommand::PivotSetMissingItemsLimit {
+            sheet,
+            revision,
+            part,
+            limit,
+        } => crate::pivot::prepare_missing_items_limit(host, sheet, revision, &part, limit),
+        WorkbookCommand::PageSetup {
+            sheet,
+            revision,
+            change,
+        } => crate::page_setup::prepare(host, sheet, revision, change),
+        WorkbookCommand::ChartCreate {
+            revision,
+            area,
+            kind,
+            rows,
+            headers,
+            categories,
+        } => crate::chart::prepare_create(host, revision, area, &kind, rows, headers, categories),
+        WorkbookCommand::ChartSeriesStyle {
+            sheet,
+            revision,
+            part,
+            plot,
+            series,
+            fill,
+        } => crate::chart::prepare_series_style(host, sheet, revision, &part, plot, series, fill),
+        WorkbookCommand::ChartElementTextStyle {
+            sheet,
+            revision,
+            part,
+            target,
+            style,
+        } => crate::chart::prepare_element_text_style(host, sheet, revision, &part, &target, style),
+        WorkbookCommand::ChartTextStyle {
+            sheet,
+            revision,
+            part,
+            style,
+        } => crate::chart::prepare_text_style(host, sheet, revision, &part, style),
+        WorkbookCommand::ChartType {
+            sheet,
+            revision,
+            part,
+            plot,
+            kind,
+            stacked,
+        } => crate::chart::prepare_type(host, sheet, revision, &part, plot, &kind, stacked),
+        WorkbookCommand::ChartLegend {
+            sheet,
+            revision,
+            part,
+            position,
+        } => crate::chart::prepare_legend(host, sheet, revision, &part, &position),
+        WorkbookCommand::ChartLogAxis {
+            sheet,
+            revision,
+            part,
+            axis,
+            base,
+        } => crate::chart::prepare_log_axis(host, sheet, revision, &part, axis, base),
+        WorkbookCommand::ChartAxis {
+            sheet,
+            revision,
+            part,
+            axis,
+            minimum,
+            maximum,
+            major_unit,
+            reversed,
+        } => crate::chart::prepare_axis(
+            host, sheet, revision, &part, axis, minimum, maximum, major_unit, reversed,
+        ),
+        WorkbookCommand::ChartSeries {
+            sheet,
+            revision,
+            part,
+            plot,
+            series,
+            name,
+            categories,
+            values,
+            remove,
+        } => crate::chart::prepare_series(
+            host, sheet, revision, &part, plot, series, name, categories, values, remove,
+        ),
+        WorkbookCommand::ChartProperties {
+            sheet,
+            revision,
+            part,
+            title,
+            set_title,
+            legend,
+        } => {
+            crate::chart::prepare_properties(host, sheet, revision, &part, title, set_title, legend)
+        }
+        WorkbookCommand::InsertTemplate { .. } => {
+            Err("Template insertion must use the session transaction (dc-bctq)".into())
+        }
+        WorkbookCommand::ReviewAction {
+            at,
+            revision,
+            action,
+        } => crate::review::prepare(host, at, revision, action),
+        WorkbookCommand::Review {
+            at,
+            revision,
+            index,
+            text,
+        } => crate::review::prepare(
+            host,
+            at,
+            revision,
+            crate::ReviewAction::Edit { index, text },
+        ),
+
+        WorkbookCommand::Outline {
+            sheet,
+            rows,
+            revision,
+            change,
+        } => crate::outline::prepare(host, sheet, rows, revision, change),
+        WorkbookCommand::SplitPanes {
+            sheet,
+            revision,
+            x,
+            y,
+            row,
+            column,
+        } => {
+            if revision != host.revision().get() {
+                return Err("The workbook changed before splitting (dc-971p.16)".into());
+            }
+            if host.model().sheet_by_id(sheet).is_none() {
+                return Err("The worksheet no longer exists".into());
+            }
+            let (x, y) = (f64::from_bits(x), f64::from_bits(y));
+            if x == 0.
+                && y == 0.
+                && !matches!(
+                    host.model().definitions().pane_layout(sheet),
+                    Some(calc_doc_model::PaneLayout::Split(_))
+                )
+            {
+                return Ok(Vec::new());
+            }
+            let layout = if x == 0. && y == 0. {
+                None
+            } else {
+                Some(calc_doc_model::PaneLayout::Split(
+                    calc_doc_model::SplitPanes::new(x, y, row, column)
+                        .ok_or("Invalid split position (dc-971p.16)")?,
+                ))
+            };
+            Ok(vec![CellEdit::PaneLayout { sheet, layout }])
+        }
+        WorkbookCommand::TableFilter {
+            sheet,
+            revision,
+            part,
+            change,
+        } => crate::filter::prepare_for(host, sheet, revision, Some(&part), change),
+        WorkbookCommand::Table { revision, change } => {
+            crate::tables::prepare(host, revision, change)
+        }
+        WorkbookCommand::AutoFilter {
+            sheet,
+            revision,
+            change,
+        } => crate::filter::prepare(host, sheet, revision, change),
+        WorkbookCommand::SortRowsWithOptions {
+            area,
+            keys,
+            header,
+            revision,
+            options,
+        } => sort_rows(host, area, &keys, header, revision, &options),
         WorkbookCommand::SortRows {
             area,
             keys,
             header,
             revision,
-        } => sort_rows(host, area, &keys, header, revision,&SortOptions::default()),
+        } => sort_rows(host, area, &keys, header, revision, &SortOptions::default()),
         WorkbookCommand::Name(edit) => crate::names::prepare(host, edit),
         WorkbookCommand::FormatCells { areas, patch } => {
             crate::format::prepare(host, &areas, &patch)
@@ -380,7 +738,9 @@ pub(crate) fn axis_format_edits(
         .loaded()
         .sheet(sheet)
         .ok_or("The sheet is unavailable")?;
-    if loaded.geometry().outline_unsupported {return Err("Imported outline metadata is not modelled for dimension edits (dc-971p.39); nothing changed".into());}
+    if loaded.geometry().outline_unsupported {
+        return Err("Imported outline metadata is not modelled for dimension edits (dc-971p.39); nothing changed".into());
+    }
     if loaded.protected() {
         return Err("Dimensions on a protected sheet are not available here".to_owned());
     }
@@ -397,12 +757,41 @@ pub(crate) fn axis_format_edits(
     if count > 16_384 {
         return Err("Change at most 16384 rows or columns at once".to_owned());
     }
-    if rows && (hidden.is_some() || size_bits.is_some()) && host.model().definitions().auto_filter(sheet).is_some_and(|f|f.unsupported && first<=f.area.last().row() && last>f.area.first().row()) {
+    if rows
+        && (hidden.is_some() || size_bits.is_some())
+        && host
+            .model()
+            .definitions()
+            .auto_filter(sheet)
+            .is_some_and(|f| {
+                f.unsupported && first <= f.area.last().row() && last > f.area.first().row()
+            })
+    {
         return Err("Row visibility for imported filter metadata is not modelled (dc-971p.37); nothing changed".into());
     }
-    if rows && host.model().definitions().hidden_rows(sheet,first,last).any(|(row,why)|
-        why==crate::RowHidden::Filtered && (!host.model().definitions().auto_filter(sheet).is_some_and(|f|f.filtered_rows.contains(&row)) || host.model().definitions().tables().iter().any(|t|t.sheet==sheet && row>t.area.first().row() && row<=t.area.last().row()))) {
-        return Err("Rows hidden by an imported table filter cannot be resized or shown here (dc-971p.37)".into());
+    if rows
+        && host
+            .model()
+            .definitions()
+            .hidden_rows(sheet, first, last)
+            .any(|(row, why)| {
+                why == crate::RowHidden::Filtered
+                    && (!host
+                        .model()
+                        .definitions()
+                        .auto_filter(sheet)
+                        .is_some_and(|f| f.filtered_rows.contains(&row))
+                        || host.model().definitions().tables().iter().any(|t| {
+                            t.sheet == sheet
+                                && row > t.area.first().row()
+                                && row <= t.area.last().row()
+                        }))
+            })
+    {
+        return Err(
+            "Rows hidden by an imported table filter cannot be resized or shown here (dc-971p.37)"
+                .into(),
+        );
     }
     let size = size_bits
         .map(|b| stored_axis_size(rows, f64::from_bits(b)))
@@ -419,12 +808,17 @@ pub(crate) fn axis_format_edits(
         if let Some(size) = size {
             new = match size {
                 None => old.with_hidden(true),
-                Some(n) => old.with_size(Some(n), !rows).expect("a checked size").with_hidden(false),
+                Some(n) => old
+                    .with_size(Some(n), !rows)
+                    .expect("a checked size")
+                    .with_hidden(false),
             };
         }
         if let Some(hidden) = hidden {
             new = if !hidden && new.size() == Some(0.0) {
-                new.with_size(None,false).expect("default size").with_hidden(false)
+                new.with_size(None, false)
+                    .expect("default size")
+                    .with_hidden(false)
             } else {
                 new.with_hidden(hidden)
             };
@@ -477,28 +871,83 @@ pub(crate) fn conditional_edits(
     };
     let mut staged_styles = None;
     let added = match &change {
-        ConditionalChange::Add {kind,applies,color} => Some(crate::new_conditional_rule(ranges(applies)?,kind,color.trim_start_matches('#'))?),
-        ConditionalChange::Condition {kind,applies,color,formulas,operator,rank,percent,stop} => {
-            let areas=ranges(applies)?;
-            let color=crate::format::color(color)?.ok_or("Choose a fill colour")?;
-            let dxf=calc_doc_model::DifferentialFormat {fill:Some(calc_doc_model::Fill {pattern_type:Some("solid".into()),fg_color:Some(color),..Default::default()}),..Default::default()};
-            let mut styles=(**host.styles()).clone();
-            let id=styles.differential_formats.iter().position(|old|old==&dxf).unwrap_or_else(||{let id=styles.differential_formats.len();styles.differential_formats.push(dxf);id});
-            let mut converted=Vec::new();
+        ConditionalChange::Add {
+            kind,
+            applies,
+            color,
+        } => Some(crate::new_conditional_rule(
+            ranges(applies)?,
+            kind,
+            color.trim_start_matches('#'),
+        )?),
+        ConditionalChange::Condition {
+            kind,
+            applies,
+            color,
+            formulas,
+            operator,
+            rank,
+            percent,
+            stop,
+        } => {
+            let areas = ranges(applies)?;
+            let color = crate::format::color(color)?.ok_or("Choose a fill colour")?;
+            let dxf = calc_doc_model::DifferentialFormat {
+                fill: Some(calc_doc_model::Fill {
+                    pattern_type: Some("solid".into()),
+                    fg_color: Some(color),
+                    ..Default::default()
+                }),
+                ..Default::default()
+            };
+            let mut styles = (**host.styles()).clone();
+            let id = styles
+                .differential_formats
+                .iter()
+                .position(|old| old == &dxf)
+                .unwrap_or_else(|| {
+                    let id = styles.differential_formats.len();
+                    styles.differential_formats.push(dxf);
+                    id
+                });
+            let mut converted = Vec::new();
             for formula in formulas {
-                let text=crate::FormulaText::new(crate::value::ExcelText::from_utf16_code_units(formula.trim().trim_start_matches('=').encode_utf16().collect())).map_err(|e|e.to_string())?;
-                let form=crate::file_form_with_links(&text,host.model().definitions().names(),&host.model().definitions().external_file_names()).map_err(|e|format!("Conditional formula is unavailable: {e:?}"))?;
-                converted.push(String::from_utf16_lossy(&form.text).trim_start_matches('=').to_owned());
+                let text = crate::FormulaText::new(crate::value::ExcelText::from_utf16_code_units(
+                    formula
+                        .trim()
+                        .trim_start_matches('=')
+                        .encode_utf16()
+                        .collect(),
+                ))
+                .map_err(|e| e.to_string())?;
+                let form = crate::file_form_with_links(
+                    &text,
+                    host.model().definitions().names(),
+                    &host.model().definitions().external_file_names(),
+                )
+                .map_err(|e| format!("Conditional formula is unavailable: {e:?}"))?;
+                converted.push(
+                    String::from_utf16_lossy(&form.text)
+                        .trim_start_matches('=')
+                        .to_owned(),
+                );
             }
-            let mut source=calc_doc::new_condition_rule(areas,kind,operator,converted,*rank,*percent,id as u32)?;
-            source.stop=*stop;
-            staged_styles=Some(styles);
+            let mut source = calc_doc::new_condition_rule(
+                areas, kind, operator, converted, *rank, *percent, id as u32,
+            )?;
+            source.stop = *stop;
+            staged_styles = Some(styles);
             Some(source)
         }
-        _=>None,
+        _ => None,
     };
-    if let Some(mut source)=added {
-        source.priority=rules.iter().map(|r|r.priority).max().unwrap_or(0).saturating_add(1);
+    if let Some(mut source) = added {
+        source.priority = rules
+            .iter()
+            .map(|r| r.priority)
+            .max()
+            .unwrap_or(0)
+            .saturating_add(1);
         rules.push(source);
     } else {
         let i = index
@@ -580,8 +1029,12 @@ pub(crate) fn conditional_edits(
     for (rank, index) in order.into_iter().enumerate() {
         rules[index].priority = rank as i64 + 1;
     }
-    let mut edits=vec![CellEdit::ConditionalRules {sheet,rules}];
-    if let Some(styles)=staged_styles && &styles!=host.styles().as_ref() {edits.insert(0,CellEdit::Styles(std::sync::Arc::new(styles)));}
+    let mut edits = vec![CellEdit::ConditionalRules { sheet, rules }];
+    if let Some(styles) = staged_styles
+        && &styles != host.styles().as_ref()
+    {
+        edits.insert(0, CellEdit::Styles(std::sync::Arc::new(styles)));
+    }
     Ok(edits)
 }
 
@@ -595,7 +1048,7 @@ fn sort_rows(
     keys: &[SortKey],
     header: bool,
     revision: u64,
-    options:&SortOptions,
+    options: &SortOptions,
 ) -> Result<Vec<CellEdit>, String> {
     let unavailable = |detail: &str| {
         format!("Sorting {detail} is not modelled (dc-971p.38); nothing was changed")
@@ -632,16 +1085,47 @@ fn sort_rows(
     {
         return Err(unavailable("merged cells"));
     }
-    for table in host.model().definitions().tables().iter().filter(|t|t.area.intersection(data).is_some()) {
-        let top=table.area.first().row().checked_add(table.header_rows).ok_or_else(||unavailable("invalid table boundaries"))?;
-        let bottom=table.area.last().row().checked_sub(table.totals_rows).ok_or_else(||unavailable("invalid table boundaries"))?;
-        let complete = table.header_rows<=1 && table.totals_rows<=1 && top<=bottom
-            && data.first().row()==top && data.last().row()==bottom
-            && data.first().column()==table.area.first().column() && data.last().column()==table.area.last().column();
-        if !complete {return Err(unavailable("a partial table or its header/total cells; select the complete data body"));}
-        if table.opaque || table.axis_opaque || table.column_formulas.iter().any(Option::is_some)
-            || table.filter.as_ref().is_some_and(|f|f.unsupported||!f.columns.is_empty()||!f.filtered_rows.is_empty()) {
-            return Err(unavailable("filtered tables or unread/calculated table metadata"));
+    for table in host
+        .model()
+        .definitions()
+        .tables()
+        .iter()
+        .filter(|t| t.area.intersection(data).is_some())
+    {
+        let top = table
+            .area
+            .first()
+            .row()
+            .checked_add(table.header_rows)
+            .ok_or_else(|| unavailable("invalid table boundaries"))?;
+        let bottom = table
+            .area
+            .last()
+            .row()
+            .checked_sub(table.totals_rows)
+            .ok_or_else(|| unavailable("invalid table boundaries"))?;
+        let complete = table.header_rows <= 1
+            && table.totals_rows <= 1
+            && top <= bottom
+            && data.first().row() == top
+            && data.last().row() == bottom
+            && data.first().column() == table.area.first().column()
+            && data.last().column() == table.area.last().column();
+        if !complete {
+            return Err(unavailable(
+                "a partial table or its header/total cells; select the complete data body",
+            ));
+        }
+        if table.opaque
+            || table.axis_opaque
+            || table.column_formulas.iter().any(Option::is_some)
+            || table.filter.as_ref().is_some_and(|f| {
+                f.unsupported || !f.columns.is_empty() || !f.filtered_rows.is_empty()
+            })
+        {
+            return Err(unavailable(
+                "filtered tables or unread/calculated table metadata",
+            ));
         }
     }
     if host
@@ -658,11 +1142,17 @@ fn sort_rows(
             "array formulas; paste their Values into an ordinary range first",
         ));
     }
-    if host.model().definitions().axis_layouts()
-        .outline_groups(area.sheet(), Axis::Rows).iter().any(|group| {
+    if host
+        .model()
+        .definitions()
+        .axis_layouts()
+        .outline_groups(area.sheet(), Axis::Rows)
+        .iter()
+        .any(|group| {
             group.first.min(group.summary) <= data.last().row()
                 && group.last.max(group.summary) >= data.first().row()
-        }) {
+        })
+    {
         return Err(unavailable("outline groups or their summary rows"));
     }
     if host.sheet_geometry(area.sheet()).is_some_and(|g| {
@@ -681,29 +1171,65 @@ fn sort_rows(
     {
         return Err(unavailable("unloaded cell content"));
     }
-    if host.model().definitions().auto_filter(area.sheet()).is_some_and(|filter| filter.area.intersection(data).is_some()) {
+    if host
+        .model()
+        .definitions()
+        .auto_filter(area.sheet())
+        .is_some_and(|filter| filter.area.intersection(data).is_some())
+    {
         return Err(unavailable("AutoFilter ranges; remove the filter first"));
     }
     if !host.loaded.cell_sort_metadata_supported(area.sheet()) {
         return Err(unavailable("source cell decorations or worksheet objects"));
     }
-    if host.axis_edits.iter().any(|e|e.sheet()==area.sheet())
-        && host.model().definitions().review_notes(area.sheet()).iter().any(|n|
-            data.contains(n.at) && matches!(n.source.as_ref(),Some(calc_doc_model::ReviewSource::Note{..}))) {
-        return Err(unavailable("notes after row or column edits; save and reopen first"));
+    if host.axis_edits.iter().any(|e| e.sheet() == area.sheet())
+        && host
+            .model()
+            .definitions()
+            .review_notes(area.sheet())
+            .iter()
+            .any(|n| {
+                data.contains(n.at)
+                    && matches!(
+                        n.source.as_ref(),
+                        Some(calc_doc_model::ReviewSource::Note { .. })
+                    )
+            })
+    {
+        return Err(unavailable(
+            "notes after row or column edits; save and reopen first",
+        ));
     }
-    if host.axis_edits.iter().any(|e|e.sheet()==area.sheet()) && !host.model().definitions().conditional_rules(area.sheet()).is_empty(){return Err(unavailable("conditional formatting after row or column edits; save and reopen first"));}
+    if host.axis_edits.iter().any(|e| e.sheet() == area.sheet())
+        && !host
+            .model()
+            .definitions()
+            .conditional_rules(area.sheet())
+            .is_empty()
+    {
+        return Err(unavailable(
+            "conditional formatting after row or column edits; save and reopen first",
+        ));
+    }
     let review = host.sheet_review(area.sheet());
-    if !review.unsupported.is_empty() || host.loaded.check_sorted_links(area.sheet(),&review.links).is_err() {
+    if !review.unsupported.is_empty()
+        || host
+            .loaded
+            .check_sorted_links(area.sheet(), &review.links)
+            .is_err()
+    {
         return Err(unavailable("cells with unread review fields or hyperlinks"));
     }
     // Pointwise rules follow the same row permutation below; unread and population-based
     // rules retain their refusal. No formula value is inferred from a saved cache.
     if review.conditional_extensions
         || host.loaded.sheet(area.sheet()).is_some_and(|sheet| {
-            sheet.conditional_formats().iter().any(|block| block.unread_container)
+            sheet
+                .conditional_formats()
+                .iter()
+                .any(|block| block.unread_container)
         })
-        || !crate::copy_metadata::conditional_sort_supported(host,area.sheet())
+        || !crate::copy_metadata::conditional_sort_supported(host, area.sheet())
     {
         return Err(unavailable("a sheet with conditional formatting"));
     }
@@ -717,42 +1243,84 @@ fn sort_rows(
             }
         }
     }
-    let cells = (first..=data.last().row()).flat_map(|row| keys.iter().map(move |key|
-        CellKey::new(area.sheet(), row, key.column).unwrap())).collect();
-    let page = crate::project(host, &crate::ProjectionRequest { cells }).map_err(|e| e.to_string())?;
-    if page.cells().iter().any(|cell| !matches!(cell.value(),
-        crate::ProjectedValue::Empty | crate::ProjectedValue::Literal(_) | crate::ProjectedValue::Calculated { .. })) {
-        return Err(unavailable("keys without current calculated values; calculate the range first"));
+    let cells = (first..=data.last().row())
+        .flat_map(|row| {
+            keys.iter()
+                .map(move |key| CellKey::new(area.sheet(), row, key.column).unwrap())
+        })
+        .collect();
+    let page =
+        crate::project(host, &crate::ProjectionRequest { cells }).map_err(|e| e.to_string())?;
+    if page.cells().iter().any(|cell| {
+        !matches!(
+            cell.value(),
+            crate::ProjectedValue::Empty
+                | crate::ProjectedValue::Literal(_)
+                | crate::ProjectedValue::Calculated { .. }
+        )
+    }) {
+        return Err(unavailable(
+            "keys without current calculated values; calculate the range first",
+        ));
     }
-    if data.row_count()<2{return Ok(Vec::new());}
-    let (case_widths,custom)=sort_option_keys(host,data,keys,&page,options)?;
+    if data.row_count() < 2 {
+        return Ok(Vec::new());
+    }
+    let (case_widths, custom) = sort_option_keys(host, data, keys, &page, options)?;
     let count = data.row_count();
     if count < 2 {
         return Ok(Vec::new());
     }
-    let label=sort_label;
+    let label = sort_label;
     // Empty keys stay last in both directions. Original row index is an explicit tie key.
     // Grid sorting treats all errors as equal. Normalise their codes through the evaluator,
     // whose SORTBY otherwise orders different error codes. No host comparator is introduced.
     let mut formula = format!("_xlfn.SORTBY(_xlfn.SEQUENCE({count})");
-    let mut sort_arguments=3usize; // row indexes plus the final tie key/direction
-    for (index,key) in keys.iter().enumerate() {
-        let range=format!("{}:{}",label(key.column,first),label(key.column,data.last().row()));
-        let direction=if key.descending{-1}else{1};
-        formula.push_str(&format!(",ISBLANK({range}),1"));sort_arguments+=2;
-        if case_widths[index]>0 {
-            formula.push_str(&format!(",IF(ISTEXT({range}),1,IF(ISNUMBER({range}),0,IF(ISLOGICAL({range}),2,3))),{direction},IF(ISTEXT({range}),0,IFERROR({range},NA())),{direction}"));sort_arguments+=4;
+    let mut sort_arguments = 3usize; // row indexes plus the final tie key/direction
+    for (index, key) in keys.iter().enumerate() {
+        let range = format!(
+            "{}:{}",
+            label(key.column, first),
+            label(key.column, data.last().row())
+        );
+        let direction = if key.descending { -1 } else { 1 };
+        formula.push_str(&format!(",ISBLANK({range}),1"));
+        sort_arguments += 2;
+        if case_widths[index] > 0 {
+            formula.push_str(&format!(
+                ",IF(ISTEXT({range}),1,IF(ISNUMBER({range}),0,IF(ISLOGICAL({range}),2,3))),{direction},\
+                IF(ISTEXT({range}),0,IFERROR({range},NA())),{direction}"
+            ));
+            sort_arguments += 4;
             for position in 1..=case_widths[index] {
-                formula.push_str(&format!(",IF(ISTEXT({range}),IFERROR(CODE(LOWER(MID({range},{position},1))),0),0),{direction},IF(ISTEXT({range}),IFERROR(CODE(MID({range},{position},1))<91,FALSE),FALSE),{direction}"));sort_arguments+=4;
+                formula.push_str(&format!(
+                    ",IF(ISTEXT({range}),IFERROR(CODE(LOWER(MID({range},{position},1))),0),0),{direction},\
+                    IF(ISTEXT({range}),IFERROR(CODE(MID({range},{position},1))<91,FALSE),FALSE),{direction}"
+                ));
+                sort_arguments += 4;
             }
-        }else{
-            let value=if index==0 {custom.as_ref().map(|list|format!("IF(ISBLANK({range}),0,_xlfn.XMATCH({range},{list},0))"))}else{None}.unwrap_or_else(||format!("IFERROR({range},NA())"));
-            formula.push_str(&format!(",{value},{direction}"));sort_arguments+=2;
+        } else {
+            let value = if index == 0 {
+                custom
+                    .as_ref()
+                    .map(|list| format!("IF(ISBLANK({range}),0,_xlfn.XMATCH({range},{list},0))"))
+            } else {
+                None
+            }
+            .unwrap_or_else(|| format!("IFERROR({range},NA())"));
+            formula.push_str(&format!(",{value},{direction}"));
+            sort_arguments += 2;
         }
     }
-    if sort_arguments>255{return Err(unavailable("case-sensitive keys beyond 255 sort arguments"));}
+    if sort_arguments > 255 {
+        return Err(unavailable("case-sensitive keys beyond 255 sort arguments"));
+    }
     formula.push_str(&format!(",_xlfn.SEQUENCE({count}),1)"));
-    if formula.encode_utf16().count()>8192{return Err(unavailable("case-sensitive keys beyond the formula-length limit"));}
+    if formula.encode_utf16().count() > 8192 {
+        return Err(unavailable(
+            "case-sensitive keys beyond the formula-length limit",
+        ));
+    }
     let value = calc_engine::DetachedFormula::compile_dynamic(host.model(), &formula, data.first())
         .and_then(|f| f.evaluate(&host.engine, host.model(), data.first()))
         .map_err(|e| format!("Sort could not calculate the row order (dc-971p.38): {e}"))?;
@@ -786,7 +1354,7 @@ fn sort_rows(
         }
         let source_row = first + number as u32 - 1;
         let target_row = first + index;
-        rows.insert(source_row,target_row);
+        rows.insert(source_row, target_row);
         if source_row == target_row {
             continue;
         }
@@ -804,7 +1372,7 @@ fn sort_rows(
                 .map_err(|e| e.to_string())?,
         );
     }
-    crate::copy_metadata::permute_rows(host,data,&rows,&mut edits).map_err(|e|e.to_string())?;
+    crate::copy_metadata::permute_rows(host, data, &rows, &mut edits).map_err(|e| e.to_string())?;
     Ok(edits)
 }
 
@@ -844,7 +1412,9 @@ pub(crate) fn sort_formula_references_supported(
             | SyntaxKind::UnionExpr
             | SyntaxKind::PostfixExpr => reference_operator = true,
             SyntaxKind::QualifiedReferenceExpr => {
-                if reference_operator { return false; }
+                if reference_operator {
+                    return false;
+                }
                 let Some((_, target)) = calc_fml::reference::qualified_name(node) else {
                     return false;
                 };
@@ -888,55 +1458,140 @@ pub(crate) fn sort_formula_references_supported(
     true
 }
 
-fn sort_label(column:u32,row:u32)->String {
-        let mut col = column;
-        let mut chars = Vec::new();
-        while col > 0 {
-            chars.push(char::from(b'A' + ((col - 1) % 26) as u8));
-            col = (col - 1) / 26;
-        }
-        format!("{}{}", chars.into_iter().rev().collect::<String>(), row)
+fn sort_label(column: u32, row: u32) -> String {
+    let mut col = column;
+    let mut chars = Vec::new();
+    while col > 0 {
+        chars.push(char::from(b'A' + ((col - 1) % 26) as u8));
+        col = (col - 1) / 26;
     }
+    format!("{}{}", chars.into_iter().rev().collect::<String>(), row)
+}
 
 /// Additional keys use ordinary worksheet functions in the same detached evaluation as Sort.
 /// Case-sensitive ASCII order follows Microsoft's character-by-character a,A,b,B sequence:
 /// https://support.microsoft.com/en-us/excel/sort-data-in-a-range-or-table-in-excel
-fn sort_option_keys(host:&HostState,data:GridArea,keys:&[SortKey],page:&crate::ProjectionPage,options:&SortOptions)->Result<(Vec<usize>,Option<String>),String>{
-    let unavailable=|detail:&str|format!("Sorting {detail} is not modelled (dc-971p.38); nothing changed");
-    if options.case_sensitive && !options.custom_order.is_empty(){return Err(unavailable("case-sensitive custom lists"));}
-    let mut widths=vec![0;keys.len()];
+fn sort_option_keys(
+    host: &HostState,
+    data: GridArea,
+    keys: &[SortKey],
+    page: &crate::ProjectionPage,
+    options: &SortOptions,
+) -> Result<(Vec<usize>, Option<String>), String> {
+    let unavailable =
+        |detail: &str| format!("Sorting {detail} is not modelled (dc-971p.38); nothing changed");
+    if options.case_sensitive && !options.custom_order.is_empty() {
+        return Err(unavailable("case-sensitive custom lists"));
+    }
+    let mut widths = vec![0; keys.len()];
     if options.case_sensitive {
-        for cell in page.cells(){
-            let value=match cell.value(){crate::ProjectedValue::Literal(v)|crate::ProjectedValue::Calculated{value:v,..}=>Some(v),_=>None};
-            if let Some(text)=value.and_then(|v|v.as_text()){
-                let units=text.utf16_code_units();
-                if units.len()>52 || units.iter().any(|u|!u8::try_from(*u).is_ok_and(|c|c.is_ascii_alphanumeric())) {return Err(unavailable("case-sensitive labels outside 52 ASCII letters or digits"));}
-                let index=keys.iter().position(|k|k.column==cell.at().column()).expect("projected sort key");widths[index]=widths[index].max(units.len());
+        for cell in page.cells() {
+            let value = match cell.value() {
+                crate::ProjectedValue::Literal(v)
+                | crate::ProjectedValue::Calculated { value: v, .. } => Some(v),
+                _ => None,
+            };
+            if let Some(text) = value.and_then(|v| v.as_text()) {
+                let units = text.utf16_code_units();
+                if units.len() > 52
+                    || units
+                        .iter()
+                        .any(|u| !u8::try_from(*u).is_ok_and(|c| c.is_ascii_alphanumeric()))
+                {
+                    return Err(unavailable(
+                        "case-sensitive labels outside 52 ASCII letters or digits",
+                    ));
+                }
+                let index = keys
+                    .iter()
+                    .position(|k| k.column == cell.at().column())
+                    .expect("projected sort key");
+                widths[index] = widths[index].max(units.len());
             }
         }
     }
-    let order=&options.custom_order;
-    if order.is_empty(){return Ok((widths,None));}
-    if keys[0].descending {return Err("Reverse the custom list entries to reverse their order (dc-971p.38); nothing changed".into());}
-    if order.len()>32 || order.iter().any(String::is_empty) || order.join("\n").encode_utf16().count()>255 {return Err("Enter 1 to 32 nonempty custom entries, at most 255 characters in total (dc-971p.38)".into());}
-    let list=format!("{{{}}}",order.iter().map(|s|format!("\"{}\"",s.replace('"',"\"\""))).collect::<Vec<_>>().join(";"));
-    let evaluate=|text:&str|calc_engine::DetachedFormula::compile_dynamic(host.model(),text,data.first()).and_then(|f|f.evaluate(&host.engine,host.model(),data.first())).map_err(|e|format!("Custom order could not be calculated (dc-971p.38): {e}"));
-    let unique=evaluate(&format!("_xlfn.XMATCH({list},{list},0)"))?;
-    let distinct=match unique.core_ref(){
-        calc_value::CoreRef::Array(positions)=>positions.shape().rows==order.len() && positions.shape().cols==1 && positions.iter_row_major().enumerate().all(|(i,v)|matches!(v.core_ref(),calc_value::CoreRef::Number(n)if n==(i+1)as f64)),
-        calc_value::CoreRef::Number(n)=>order.len()==1 && n==1.,
-        _=>false,
-    };
-    if !distinct{return Err("Every custom entry must be distinct, ignoring case (dc-971p.38); nothing changed".into());}
-    let range=format!("{}:{}",sort_label(keys[0].column,data.first().row()),sort_label(keys[0].column,data.last().row()));
-    let ranks=evaluate(&format!("_xlfn.XMATCH({range},{list},0)"))?;
-    let calc_value::CoreRef::Array(ranks)=ranks.core_ref()else{return Err("The custom key did not return row positions (dc-971p.38)".into());};
-    if ranks.shape().rows!=data.row_count()as usize || ranks.shape().cols!=1{return Err("The custom key returned an unexpected row count (dc-971p.38)".into());}
-    for cell in page.cells().iter().filter(|c|c.at().column()==keys[0].column){
-        if matches!(cell.value(),crate::ProjectedValue::Empty){continue;}
-        let value=match cell.value(){crate::ProjectedValue::Literal(v)|crate::ProjectedValue::Calculated{value:v,..}=>v,_=>return Err(unavailable("custom keys without current values"))};
-        let rank=ranks.get((cell.at().row()-data.first().row())as usize,0);
-        if value.as_text().is_none() || !rank.is_some_and(|v|matches!(v.core_ref(),calc_value::CoreRef::Number(n)if n>=1.&&n<=order.len()as f64)) {return Err("Every nonblank first-key value must be text included in the custom list (dc-971p.38); nothing changed".into());}
+    let order = &options.custom_order;
+    if order.is_empty() {
+        return Ok((widths, None));
     }
-    Ok((widths,Some(list)))
+    if keys[0].descending {
+        return Err(
+            "Reverse the custom list entries to reverse their order (dc-971p.38); nothing changed"
+                .into(),
+        );
+    }
+    if order.len() > 32
+        || order.iter().any(String::is_empty)
+        || order.join("\n").encode_utf16().count() > 255
+    {
+        return Err(
+            "Enter 1 to 32 nonempty custom entries, at most 255 characters in total (dc-971p.38)"
+                .into(),
+        );
+    }
+    let list = format!(
+        "{{{}}}",
+        order
+            .iter()
+            .map(|s| format!("\"{}\"", s.replace('"', "\"\"")))
+            .collect::<Vec<_>>()
+            .join(";")
+    );
+    let evaluate = |text: &str| {
+        calc_engine::DetachedFormula::compile_dynamic(host.model(), text, data.first())
+            .and_then(|f| f.evaluate(&host.engine, host.model(), data.first()))
+            .map_err(|e| format!("Custom order could not be calculated (dc-971p.38): {e}"))
+    };
+    let unique = evaluate(&format!("_xlfn.XMATCH({list},{list},0)"))?;
+    let distinct =
+        match unique.core_ref() {
+            calc_value::CoreRef::Array(positions) => positions.shape().rows == order.len()
+                && positions.shape().cols == 1
+                && positions.iter_row_major().enumerate().all(
+                    |(i, v)| matches!(v.core_ref(),calc_value::CoreRef::Number(n)if n==(i+1)as f64),
+                ),
+            calc_value::CoreRef::Number(n) => order.len() == 1 && n == 1.,
+            _ => false,
+        };
+    if !distinct {
+        return Err(
+            "Every custom entry must be distinct, ignoring case (dc-971p.38); nothing changed"
+                .into(),
+        );
+    }
+    let range = format!(
+        "{}:{}",
+        sort_label(keys[0].column, data.first().row()),
+        sort_label(keys[0].column, data.last().row())
+    );
+    let ranks = evaluate(&format!("_xlfn.XMATCH({range},{list},0)"))?;
+    let calc_value::CoreRef::Array(ranks) = ranks.core_ref() else {
+        return Err("The custom key did not return row positions (dc-971p.38)".into());
+    };
+    if ranks.shape().rows != data.row_count() as usize || ranks.shape().cols != 1 {
+        return Err("The custom key returned an unexpected row count (dc-971p.38)".into());
+    }
+    for cell in page
+        .cells()
+        .iter()
+        .filter(|c| c.at().column() == keys[0].column)
+    {
+        if matches!(cell.value(), crate::ProjectedValue::Empty) {
+            continue;
+        }
+        let value = match cell.value() {
+            crate::ProjectedValue::Literal(v)
+            | crate::ProjectedValue::Calculated { value: v, .. } => v,
+            _ => return Err(unavailable("custom keys without current values")),
+        };
+        let rank = ranks.get((cell.at().row() - data.first().row()) as usize, 0);
+        if value.as_text().is_none()
+            || !rank.is_some_and(|v| {
+                matches!(v.core_ref(), calc_value::CoreRef::Number(n) if n >= 1.0 && n <= order.len() as f64)
+            })
+        {
+            return Err("Every nonblank first-key value must be text included in the custom list (dc-971p.38); nothing changed".into());
+        }
+    }
+    Ok((widths, Some(list)))
 }

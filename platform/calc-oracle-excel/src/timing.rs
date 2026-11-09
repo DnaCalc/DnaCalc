@@ -71,8 +71,12 @@ pub fn time_workbook(request: &TimingRequest) -> Result<TimingOutcome, CaptureEr
         .fixture
         .file_name()
         .ok_or_else(|| setup(format!("{} has no file name", request.fixture.display())))?;
-    let work = std::path::absolute(&request.work_dir)
-        .map_err(|e| setup(format!("cannot resolve {}: {e}", request.work_dir.display())))?;
+    let work = std::path::absolute(&request.work_dir).map_err(|e| {
+        setup(format!(
+            "cannot resolve {}: {e}",
+            request.work_dir.display()
+        ))
+    })?;
     if work.exists()
         && fs::read_dir(&work)
             .map(|mut entries| entries.next().is_some())
@@ -94,7 +98,8 @@ pub fn time_workbook(request: &TimingRequest) -> Result<TimingOutcome, CaptureEr
         (work.join("capture-worker.ps1"), WORKER_SCRIPT),
         (script.clone(), TIMING_SCRIPT),
     ] {
-        fs::write(&path, text).map_err(|e| setup(format!("cannot write {}: {e}", path.display())))?;
+        fs::write(&path, text)
+            .map_err(|e| setup(format!("cannot write {}: {e}", path.display())))?;
     }
     let request_file = work.join("request.json");
     let result_file = work.join("result.json");

@@ -142,13 +142,18 @@ fn check_tables(
 /// checked here. Only the changed cells are checked; every other formula is written as the file
 /// held it, or, for a member of a shared group written as an individual formula, as the loader
 /// moved it from the group's text.
-fn check_formulas(sheet_part: &str, changes: &SheetChanges, pivot_outputs: &BTreeSet<(u32, u32)>) -> Result<(), SaveRefusal> {
+fn check_formulas(
+    sheet_part: &str,
+    changes: &SheetChanges,
+    pivot_outputs: &BTreeSet<(u32, u32)>,
+) -> Result<(), SaveRefusal> {
     for (&(row, column), input) in changes {
         // A pivot output cell holds #SPILL! when the pivot took one cell for lack of room; Excel's file
         // for it is `#VALUE!` with value metadata, which the cell writer gives it.
         if let Some(CellInput::Error(code)) = input
             && !crate::edit::error_constant_writable(*code)
-            && !(pivot_outputs.contains(&(row, column)) && array_metadata::rich_error_type(*code).is_some())
+            && !(pivot_outputs.contains(&(row, column))
+                && array_metadata::rich_error_type(*code).is_some())
         {
             return Err(SaveRefusal::ErrorConstant {
                 part: sheet_part.to_owned(),
@@ -217,12 +222,21 @@ pub(super) fn new_part_name(
     workbook_part: &str,
     stem: &str,
 ) -> (String, String) {
-    let name=available_part_name(package,workbook_part,stem,"xml",&[]);
-    let parent=workbook_part.rsplit_once('/').map(|(p,_)|p);
-    let target=parent.and_then(|p|name.strip_prefix(&format!("{p}/"))).unwrap_or(&name).to_owned();
-    (name,target)
+    let name = available_part_name(package, workbook_part, stem, "xml", &[]);
+    let parent = workbook_part.rsplit_once('/').map(|(p, _)| p);
+    let target = parent
+        .and_then(|p| name.strip_prefix(&format!("{p}/")))
+        .unwrap_or(&name)
+        .to_owned();
+    (name, target)
 }
-pub(crate) fn available_part_name(package:&Package,workbook_part:&str,stem:&str,extension:&str,reserved:&[String])->String {
+pub(crate) fn available_part_name(
+    package: &Package,
+    workbook_part: &str,
+    stem: &str,
+    extension: &str,
+    reserved: &[String],
+) -> String {
     let folder = workbook_part.rsplit_once('/').map(|(folder, _)| folder);
     let mut suffix = String::new();
     for n in 1u32.. {
@@ -235,7 +249,10 @@ pub(crate) fn available_part_name(package:&Package,workbook_part:&str,stem:&str,
             part.strip_prefix('/')
                 .is_some_and(|part| part.eq_ignore_ascii_case(&name))
         });
-        if package.part(&name).is_none() && !overridden && !reserved.iter().any(|n|n.eq_ignore_ascii_case(&name)) {
+        if package.part(&name).is_none()
+            && !overridden
+            && !reserved.iter().any(|n| n.eq_ignore_ascii_case(&name))
+        {
             return name;
         }
         suffix = (n + 1).to_string();
@@ -339,7 +356,11 @@ pub(super) fn relative_target(from: &str, to: &str) -> String {
 
 /// The changes an authored save makes to the package for `edit`; none when the edited model's
 /// cells and skin layout are the loaded ones and no cache-state write was requested.
-pub(super) fn plan(package: &Package, edit: &Edited, views:Option<&super::SaveViews>) -> Result<Changes, SaveRefusal> {
+pub(super) fn plan(
+    package: &Package,
+    edit: &Edited,
+    views: Option<&super::SaveViews>,
+) -> Result<Changes, SaveRefusal> {
     let Edited {
         workbook_part,
         sheets,
@@ -354,7 +375,9 @@ pub(super) fn plan(package: &Package, edit: &Edited, views:Option<&super::SaveVi
     if !model.same_lineage(base) {
         return Err(SaveRefusal::ForeignModel);
     }
-    if let Some(views)=views {super::panes::validate(views,model)?;}
+    if let Some(views) = views {
+        super::panes::validate(views, model)?;
+    }
     let sheets_changed = model.sheets() != base.sheets();
     let original_sheets = sheets;
     let expanded = super::sheets::expanded(package, workbook_part, sheets, model);
@@ -396,20 +419,62 @@ pub(super) fn plan(package: &Package, edit: &Edited, views:Option<&super::SaveVi
         .collect();
     // Fresh pivot outputs come from the engine's pinned result view, never model cell inputs.
     let mut pivot_output_cells: Vec<BTreeSet<(u32, u32)>> = vec![BTreeSet::new(); sheets.len()];
-    for (at,value) in edit.pivot_outputs.iter(){
-        let index=sheets.iter().position(|sheet|sheet.id()==at.sheet()).ok_or_else(||super::pivot::missing_output("The output worksheet is unavailable"))?;
-        let input=match value.core_ref(){
-            calc_doc_model::value::CoreRef::Number(n)=>Some(CellInput::Number(calc_doc_model::FiniteNumber::new(n).ok_or_else(||super::pivot::missing_output("A pivot number is not finite"))?)),
-            calc_doc_model::value::CoreRef::Text(t)=>Some(CellInput::Text(calc_doc_model::CellText::new(t.clone()).ok_or_else(||super::pivot::missing_output("A pivot label exceeds the cell text limit"))?)),
-            calc_doc_model::value::CoreRef::Logical(b)=>Some(CellInput::Logical(b)),calc_doc_model::value::CoreRef::Error(e)=>Some(CellInput::Error(e)),
-            calc_doc_model::value::CoreRef::Empty=>None,_=>return Err(super::pivot::missing_output("A pivot output is not a scalar cell value")),
-        };changes[index].insert((at.row(),at.column()),input);
+    for (at, value) in edit.pivot_outputs.iter() {
+        let index = sheets
+            .iter()
+            .position(|sheet| sheet.id() == at.sheet())
+            .ok_or_else(|| super::pivot::missing_output("The output worksheet is unavailable"))?;
+        let input = match value.core_ref() {
+            calc_doc_model::value::CoreRef::Number(n) => Some(CellInput::Number(
+                calc_doc_model::FiniteNumber::new(n)
+                    .ok_or_else(|| super::pivot::missing_output("A pivot number is not finite"))?,
+            )),
+            calc_doc_model::value::CoreRef::Text(t) => Some(CellInput::Text(
+                calc_doc_model::CellText::new(t.clone()).ok_or_else(|| {
+                    super::pivot::missing_output("A pivot label exceeds the cell text limit")
+                })?,
+            )),
+            calc_doc_model::value::CoreRef::Logical(b) => Some(CellInput::Logical(b)),
+            calc_doc_model::value::CoreRef::Error(e) => Some(CellInput::Error(e)),
+            calc_doc_model::value::CoreRef::Empty => None,
+            _ => {
+                return Err(super::pivot::missing_output(
+                    "A pivot output is not a scalar cell value",
+                ));
+            }
+        };
+        changes[index].insert((at.row(), at.column()), input);
         pivot_output_cells[index].insert((at.row(), at.column()));
     }
     // (The empty pivot, a frame with no field, has no output.)
-    for table in model.definitions().pivots().tables().filter(|t|!(t.row_fields.is_empty()&&t.column_fields.is_empty()&&t.page_fields.is_empty()&&t.data_fields.is_empty())){if model.definitions().pivots().caches.caches.get(&table.cache_id).is_some_and(|c|c.snapshot.is_some()){
-        if (table.area.first().row()..=table.area.last().row()).any(|row|(table.area.first().column()..=table.area.last().column()).any(|column|!edit.pivot_outputs.contains_key(&calc_doc_model::value::CellKey::new(table.area.sheet(),row,column).expect("pivot bounds")))){return Err(super::pivot::missing_output("Refreshed pivot output is missing from the pinned engine view"));}
-    }}
+    for table in model.definitions().pivots().tables().filter(|t| {
+        !(t.row_fields.is_empty()
+            && t.column_fields.is_empty()
+            && t.page_fields.is_empty()
+            && t.data_fields.is_empty())
+    }) {
+        if model
+            .definitions()
+            .pivots()
+            .caches
+            .caches
+            .get(&table.cache_id)
+            .is_some_and(|c| c.snapshot.is_some())
+        {
+            if (table.area.first().row()..=table.area.last().row()).any(|row| {
+                (table.area.first().column()..=table.area.last().column()).any(|column| {
+                    !edit.pivot_outputs.contains_key(
+                        &calc_doc_model::value::CellKey::new(table.area.sheet(), row, column)
+                            .expect("pivot bounds"),
+                    )
+                })
+            }) {
+                return Err(super::pivot::missing_output(
+                    "Refreshed pivot output is missing from the pinned engine view",
+                ));
+            }
+        }
+    }
     // The cell formats edits gave each sheet's cells (dc-09v), by (row, column).
     let formats: Vec<BTreeMap<(u32, u32), u32>> = sheets
         .iter()
@@ -431,11 +496,23 @@ pub(super) fn plan(package: &Package, edit: &Edited, views:Option<&super::SaveVi
     let mut out = Changes::default();
     // A defined name's formula an edit changed (rows or columns inserted or deleted, cells moved).
     let names_changed = base.definitions().names() != model.definitions().names();
-    let validation_changed = base.definitions().all_validations().ne(model.definitions().all_validations());
-    let page_setup_changed=base.definitions().page_setups().ne(model.definitions().page_setups());
-    let charts_changed=base.definitions().all_charts().ne(model.definitions().all_charts());
-    let pivots_changed=base.definitions().pivots()!=model.definitions().pivots();
-    let links_changed=base.definitions().all_review_links().ne(model.definitions().all_review_links());
+    let validation_changed = base
+        .definitions()
+        .all_validations()
+        .ne(model.definitions().all_validations());
+    let page_setup_changed = base
+        .definitions()
+        .page_setups()
+        .ne(model.definitions().page_setups());
+    let charts_changed = base
+        .definitions()
+        .all_charts()
+        .ne(model.definitions().all_charts());
+    let pivots_changed = base.definitions().pivots() != model.definitions().pivots();
+    let links_changed = base
+        .definitions()
+        .all_review_links()
+        .ne(model.definitions().all_review_links());
     let review_changed = base
         .definitions()
         .all_review_notes()
@@ -444,10 +521,19 @@ pub(super) fn plan(package: &Package, edit: &Edited, views:Option<&super::SaveVi
         .definitions()
         .all_conditional_rules()
         .ne(model.definitions().all_conditional_rules());
-    let tables_changed=base.definitions().tables()!=model.definitions().tables();
-    let filters_changed = base.definitions().auto_filters().ne(model.definitions().auto_filters());
-    let visibility_changed = base.definitions().hidden_rows_all().ne(model.definitions().hidden_rows_all());
-    let panes_changed = base.definitions().pane_layouts().ne(model.definitions().pane_layouts());
+    let tables_changed = base.definitions().tables() != model.definitions().tables();
+    let filters_changed = base
+        .definitions()
+        .auto_filters()
+        .ne(model.definitions().auto_filters());
+    let visibility_changed = base
+        .definitions()
+        .hidden_rows_all()
+        .ne(model.definitions().hidden_rows_all());
+    let panes_changed = base
+        .definitions()
+        .pane_layouts()
+        .ne(model.definitions().pane_layouts());
     let dimensions_changed =
         base.definitions().axis_layouts() != model.definitions().axis_layouts();
     // The iterative-calculation settings an edit changed (dc-y2o.2), written to the `calcPr`.
@@ -484,10 +570,14 @@ pub(super) fn plan(package: &Package, edit: &Edited, views:Option<&super::SaveVi
     let mut array_without_value = false;
     if cells_changed {
         let mut forms = Vec::with_capacity(sheets.len());
-        for (index, ((sheet, changes), moves)) in sheets.iter().zip(&changes).zip(&moves).enumerate() {
+        for (index, ((sheet, changes), moves)) in
+            sheets.iter().zip(&changes).zip(&moves).enumerate()
+        {
             if !changes.is_empty() {
                 check_formulas(sheet.part().name(), changes, &pivot_output_cells[index])?;
-                if !tables_changed {check_tables(package, sheet.part().name(), changes, moves.as_ref())?;}
+                if !tables_changed {
+                    check_tables(package, sheet.part().name(), changes, moves.as_ref())?;
+                }
             }
             forms.push(file_forms(
                 sheet.part().name(),
@@ -1036,7 +1126,10 @@ pub(super) fn plan(package: &Package, edit: &Edited, views:Option<&super::SaveVi
         })
         .collect();
     for item in &edit.custom_xml {
-        if let Some(part) = crate::custom_xml::parts_in(package, &item.namespace).into_iter().next() {
+        if let Some(part) = crate::custom_xml::parts_in(package, &item.namespace)
+            .into_iter()
+            .next()
+        {
             out.rewritten.insert(part, item.content.clone());
             continue;
         }
@@ -1116,14 +1209,21 @@ pub(super) fn plan(package: &Package, edit: &Edited, views:Option<&super::SaveVi
     {
         out.removed.push(chain);
     }
-    if dimensions_changed || visibility_changed || model.definitions().styles().runs.iter().next().is_some() {
+    if dimensions_changed
+        || visibility_changed
+        || model.definitions().styles().runs.iter().next().is_some()
+    {
         for sheet in sheets.iter() {
-            let changed = base.definitions().hidden_rows(sheet.id(),1,1048576).ne(model.definitions().hidden_rows(sheet.id(),1,1048576)) || model
+            let changed = base
                 .definitions()
-                .styles()
-                .runs
-                .iter()
-                .any(|r| r.area.sheet() == sheet.id())
+                .hidden_rows(sheet.id(), 1, 1048576)
+                .ne(model.definitions().hidden_rows(sheet.id(), 1, 1048576))
+                || model
+                    .definitions()
+                    .styles()
+                    .runs
+                    .iter()
+                    .any(|r| r.area.sheet() == sheet.id())
                 || [calc_doc_model::Axis::Rows, calc_doc_model::Axis::Columns]
                     .into_iter()
                     .any(|axis| {
@@ -1132,11 +1232,27 @@ pub(super) fn plan(package: &Package, edit: &Edited, views:Option<&super::SaveVi
                             .bands(sheet.id(), axis)
                             .ne(model.definitions().axis_layouts().bands(sheet.id(), axis))
                     });
-            let outline_settings_changed=[calc_doc_model::Axis::Rows,calc_doc_model::Axis::Columns].into_iter().any(|axis|base.definitions().axis_layouts().summary_after(sheet.id(),axis)!=model.definitions().axis_layouts().summary_after(sheet.id(),axis));
+            let outline_settings_changed =
+                [calc_doc_model::Axis::Rows, calc_doc_model::Axis::Columns]
+                    .into_iter()
+                    .any(|axis| {
+                        base.definitions()
+                            .axis_layouts()
+                            .summary_after(sheet.id(), axis)
+                            != model
+                                .definitions()
+                                .axis_layouts()
+                                .summary_after(sheet.id(), axis)
+                    });
             if !changed && !outline_settings_changed {
                 continue;
             }
-            if sheet.geometry().outline_unsupported {return Err(SaveRefusal::OutlineNotModelled{part:sheet.part().name().to_owned(),owner:"dc-971p.39"});}
+            if sheet.geometry().outline_unsupported {
+                return Err(SaveRefusal::OutlineNotModelled {
+                    part: sheet.part().name().to_owned(),
+                    owner: "dc-971p.39",
+                });
+            }
             if sheets.iter().any(|other| {
                 other.id() != sheet.id()
                     && other
@@ -1167,48 +1283,112 @@ pub(super) fn plan(package: &Package, edit: &Edited, views:Option<&super::SaveVi
                 &model.definitions().visible_axis_layouts(),
                 style_plan.as_ref(),
             )?;
-            let bytes=super::outline::rewrite(&xml.with_bytes(bytes),sheet.id(),model.definitions().axis_layouts())?;
+            let bytes = super::outline::rewrite(
+                &xml.with_bytes(bytes),
+                sheet.id(),
+                model.definitions().axis_layouts(),
+            )?;
             out.rewritten.insert(sheet.part().name().to_owned(), bytes);
         }
     }
     if filters_changed || dimensions_changed {
-        for sheet in sheets.iter().filter(|s| !model.definitions().auto_filter(s.id()).is_some_and(|f|f.unsupported) && (base.definitions().auto_filter(s.id()) != model.definitions().auto_filter(s.id()) || (model.definitions().auto_filter(s.id()).is_some() && base.definitions().axis_layouts()!=model.definitions().axis_layouts()))) {
-            let original=super::sheets::read_sheet(package,sheet.part().name())?;
-            let current=out.rewritten.remove(sheet.part().name()).map(|bytes|original.with_bytes(bytes));
-            let xml=current.as_ref().unwrap_or(&original);
-            let bytes=super::filter::rewrite(xml,model.definitions().auto_filter(sheet.id()),model.definitions())?;
-            out.rewritten.insert(sheet.part().name().to_owned(),bytes);
+        for sheet in sheets.iter().filter(|s| {
+            !model
+                .definitions()
+                .auto_filter(s.id())
+                .is_some_and(|f| f.unsupported)
+                && (base.definitions().auto_filter(s.id())
+                    != model.definitions().auto_filter(s.id())
+                    || (model.definitions().auto_filter(s.id()).is_some()
+                        && base.definitions().axis_layouts() != model.definitions().axis_layouts()))
+        }) {
+            let original = super::sheets::read_sheet(package, sheet.part().name())?;
+            let current = out
+                .rewritten
+                .remove(sheet.part().name())
+                .map(|bytes| original.with_bytes(bytes));
+            let xml = current.as_ref().unwrap_or(&original);
+            let bytes = super::filter::rewrite(
+                xml,
+                model.definitions().auto_filter(sheet.id()),
+                model.definitions(),
+            )?;
+            out.rewritten.insert(sheet.part().name().to_owned(), bytes);
         }
     }
     if panes_changed || views.is_some() {
-        for sheet in sheets.iter().filter(|s| model.sheet_by_id(s.id()).is_some()) {
-            let changed=base.definitions().pane_layout(sheet.id())!=model.definitions().pane_layout(sheet.id());
-            let override_view=views.and_then(|v|v.sheets.get(&sheet.id())).copied();
-            let selected=views.and_then(|v|v.active_sheet).map(|active|active==sheet.id());
-            if !changed && override_view.is_none() && selected.is_none() {continue;}
-            if sheet.is_macro_sheet() && !changed && override_view.is_none(){continue;}
-            if sheets.iter().any(|other| other.id()!=sheet.id() && other.part().name().eq_ignore_ascii_case(sheet.part().name())) {
-                return Err(SaveRefusal::SharedSheetPart{part:sheet.part().name().to_owned()});
+        for sheet in sheets
+            .iter()
+            .filter(|s| model.sheet_by_id(s.id()).is_some())
+        {
+            let changed = base.definitions().pane_layout(sheet.id())
+                != model.definitions().pane_layout(sheet.id());
+            let override_view = views.and_then(|v| v.sheets.get(&sheet.id())).copied();
+            let selected = views
+                .and_then(|v| v.active_sheet)
+                .map(|active| active == sheet.id());
+            if !changed && override_view.is_none() && selected.is_none() {
+                continue;
             }
-            if sheet.is_macro_sheet(){return Err(SaveRefusal::MacroSheetChanged{part:sheet.part().name().to_owned()});}
+            if sheet.is_macro_sheet() && !changed && override_view.is_none() {
+                continue;
+            }
+            if sheets.iter().any(|other| {
+                other.id() != sheet.id()
+                    && other
+                        .part()
+                        .name()
+                        .eq_ignore_ascii_case(sheet.part().name())
+            }) {
+                return Err(SaveRefusal::SharedSheetPart {
+                    part: sheet.part().name().to_owned(),
+                });
+            }
+            if sheet.is_macro_sheet() {
+                return Err(SaveRefusal::MacroSheetChanged {
+                    part: sheet.part().name().to_owned(),
+                });
+            }
 
-            let original=super::sheets::read_sheet(package,sheet.part().name())?;
-            let current=out.rewritten.remove(sheet.part().name()).map(|bytes|original.with_bytes(bytes));
-            let xml=current.as_ref().unwrap_or(&original);
-            let view = if let Some(view) = override_view {Some(view)} else if changed {
-                Some(crate::load::sheet::view_from_xml(xml)
-                    .map_err(|e| SaveRefusal::WindowView {detail:e.to_string(),owner:"dc-971p.16"})?
-                    .with_pane_layout(model.definitions().pane_layout(sheet.id())))
-            } else {None};
-            let bytes=super::panes::rewrite(xml,view,selected)?;
-            out.rewritten.insert(sheet.part().name().to_owned(),bytes);
+            let original = super::sheets::read_sheet(package, sheet.part().name())?;
+            let current = out
+                .rewritten
+                .remove(sheet.part().name())
+                .map(|bytes| original.with_bytes(bytes));
+            let xml = current.as_ref().unwrap_or(&original);
+            let view = if let Some(view) = override_view {
+                Some(view)
+            } else if changed {
+                Some(
+                    crate::load::sheet::view_from_xml(xml)
+                        .map_err(|e| SaveRefusal::WindowView {
+                            detail: e.to_string(),
+                            owner: "dc-971p.16",
+                        })?
+                        .with_pane_layout(model.definitions().pane_layout(sheet.id())),
+                )
+            } else {
+                None
+            };
+            let bytes = super::panes::rewrite(xml, view, selected)?;
+            out.rewritten.insert(sheet.part().name().to_owned(), bytes);
         }
-        if let Some(active)=views.and_then(|v|v.active_sheet) {
-            let original=super::strings::read_part(package,workbook_part)?;
-            let current=out.rewritten.remove(workbook_part).map(|bytes|original.with_bytes(bytes));
-            let xml=current.as_ref().unwrap_or(&original);
-            let index=model.sheets().iter().position(|s|s.id()==active).expect("validated sheet");
-            out.rewritten.insert(workbook_part.to_owned(),super::panes::workbook(xml,index)?);
+        if let Some(active) = views.and_then(|v| v.active_sheet) {
+            let original = super::strings::read_part(package, workbook_part)?;
+            let current = out
+                .rewritten
+                .remove(workbook_part)
+                .map(|bytes| original.with_bytes(bytes));
+            let xml = current.as_ref().unwrap_or(&original);
+            let index = model
+                .sheets()
+                .iter()
+                .position(|s| s.id() == active)
+                .expect("validated sheet");
+            out.rewritten.insert(
+                workbook_part.to_owned(),
+                super::panes::workbook(xml, index)?,
+            );
         }
     }
     if conditional_changed {
@@ -1229,43 +1409,118 @@ pub(super) fn plan(package: &Package, edit: &Edited, views:Option<&super::SaveVi
         }
     }
     if validation_changed {
-        for sheet in sheets.iter().filter(|s|base.definitions().validations(s.id())!=model.definitions().validations(s.id())) {
-            let original=super::sheets::read_sheet(package,sheet.part().name())?;
-            let current=out.rewritten.remove(sheet.part().name()).map(|b|original.with_bytes(b));
-            let bytes=super::validation::rewrite(current.as_ref().unwrap_or(&original),model.definitions().validations(sheet.id()))?;
-            out.rewritten.insert(sheet.part().name().to_owned(),bytes);
+        for sheet in sheets.iter().filter(|s| {
+            base.definitions().validations(s.id()) != model.definitions().validations(s.id())
+        }) {
+            let original = super::sheets::read_sheet(package, sheet.part().name())?;
+            let current = out
+                .rewritten
+                .remove(sheet.part().name())
+                .map(|b| original.with_bytes(b));
+            let bytes = super::validation::rewrite(
+                current.as_ref().unwrap_or(&original),
+                model.definitions().validations(sheet.id()),
+            )?;
+            out.rewritten.insert(sheet.part().name().to_owned(), bytes);
         }
     }
-    if tables_changed || dimensions_changed {super::tables::finish(package,workbook_part,&sheets,base,model,&mut out)?;}
+    if tables_changed || dimensions_changed {
+        super::tables::finish(package, workbook_part, &sheets, base, model, &mut out)?;
+    }
     if links_changed || structural.is_some() {
         for sheet in sheets.iter() {
             // Pure physical axis movement already preserves every original tag through the
             // structural writer. Only a different authored placement needs the sort rewrite.
-            let mut natural=base.definitions().review_links(sheet.id()).to_vec();
-            for edit in structural.iter().flat_map(|s|s.edits()){natural=natural.into_iter().filter_map(|mut l|{l.area=calc_doc_model::moved_area(*edit,l.area)?;Some(l)}).collect();}
-            if natural==model.definitions().review_links(sheet.id()){continue;}
-            let original=super::sheets::read_sheet(package,sheet.part().name())?;
-            let current=out.rewritten.remove(sheet.part().name()).map(|b|original.with_bytes(b));
-            let bytes=super::review::sorted_links(&original,current.as_ref().unwrap_or(&original),base.definitions().review_links(sheet.id()),model.definitions().review_links(sheet.id()))?;
-            out.rewritten.insert(sheet.part().name().to_owned(),bytes);
+            let mut natural = base.definitions().review_links(sheet.id()).to_vec();
+            for edit in structural.iter().flat_map(|s| s.edits()) {
+                natural = natural
+                    .into_iter()
+                    .filter_map(|mut l| {
+                        l.area = calc_doc_model::moved_area(*edit, l.area)?;
+                        Some(l)
+                    })
+                    .collect();
+            }
+            if natural == model.definitions().review_links(sheet.id()) {
+                continue;
+            }
+            let original = super::sheets::read_sheet(package, sheet.part().name())?;
+            let current = out
+                .rewritten
+                .remove(sheet.part().name())
+                .map(|b| original.with_bytes(b));
+            let bytes = super::review::sorted_links(
+                &original,
+                current.as_ref().unwrap_or(&original),
+                base.definitions().review_links(sheet.id()),
+                model.definitions().review_links(sheet.id()),
+            )?;
+            out.rewritten.insert(sheet.part().name().to_owned(), bytes);
         }
     }
     if page_setup_changed {
-        for sheet in sheets.iter().filter(|s|model.sheet_by_id(s.id()).is_some()) {
-            let before=base.definitions().page_setup(sheet.id()); let after=model.definitions().page_setup(sheet.id());
-            if before==after {continue;}
-            if sheet.is_macro_sheet(){return Err(SaveRefusal::MacroSheetChanged{part:sheet.part().name().into()});}
-            if sheets.iter().any(|s|s.id()!=sheet.id()&&s.part().name().eq_ignore_ascii_case(sheet.part().name())){return Err(SaveRefusal::SharedSheetPart{part:sheet.part().name().into()});}
-            let original=super::sheets::read_sheet(package,sheet.part().name())?;
-            let current=out.rewritten.remove(sheet.part().name()).map(|b|original.with_bytes(b));
-            let current=current.as_ref().unwrap_or(&original);
-            let natural=crate::load::page_setup::read(current).map_err(|e|SaveRefusal::InvalidPart{part:sheet.part().name().into(),detail:e.to_string()})?;
-            out.rewritten.insert(sheet.part().name().into(),super::page_setup::rewrite(current,&natural,&after)?);
+        for sheet in sheets
+            .iter()
+            .filter(|s| model.sheet_by_id(s.id()).is_some())
+        {
+            let before = base.definitions().page_setup(sheet.id());
+            let after = model.definitions().page_setup(sheet.id());
+            if before == after {
+                continue;
+            }
+            if sheet.is_macro_sheet() {
+                return Err(SaveRefusal::MacroSheetChanged {
+                    part: sheet.part().name().into(),
+                });
+            }
+            if sheets.iter().any(|s| {
+                s.id() != sheet.id() && s.part().name().eq_ignore_ascii_case(sheet.part().name())
+            }) {
+                return Err(SaveRefusal::SharedSheetPart {
+                    part: sheet.part().name().into(),
+                });
+            }
+            let original = super::sheets::read_sheet(package, sheet.part().name())?;
+            let current = out
+                .rewritten
+                .remove(sheet.part().name())
+                .map(|b| original.with_bytes(b));
+            let current = current.as_ref().unwrap_or(&original);
+            let natural =
+                crate::load::page_setup::read(current).map_err(|e| SaveRefusal::InvalidPart {
+                    part: sheet.part().name().into(),
+                    detail: e.to_string(),
+                })?;
+            out.rewritten.insert(
+                sheet.part().name().into(),
+                super::page_setup::rewrite(current, &natural, &after)?,
+            );
         }
     }
-    if pivots_changed {super::pivot::finish(package,base.definitions().pivots(),model.definitions().pivots(),&mut out,workbook_part,sheets)?;}
-    if charts_changed {super::chart::finish(package,base,model,&mut out,&sheets,structural.as_ref())?;}
-    if review_changed {super::review::finish(package,workbook_part,&sheets,base,model,&moves,&mut out)?;}
+    if pivots_changed {
+        super::pivot::finish(
+            package,
+            base.definitions().pivots(),
+            model.definitions().pivots(),
+            &mut out,
+            workbook_part,
+            sheets,
+        )?;
+    }
+    if charts_changed {
+        super::chart::finish(package, base, model, &mut out, &sheets, structural.as_ref())?;
+    }
+    if review_changed {
+        super::review::finish(
+            package,
+            workbook_part,
+            &sheets,
+            base,
+            model,
+            &moves,
+            &mut out,
+        )?;
+    }
     if sheets_changed {
         super::sheets::finish(package, workbook_part, base, model, sheets, &mut out)?;
     }

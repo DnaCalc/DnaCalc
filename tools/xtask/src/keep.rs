@@ -215,21 +215,12 @@ fn update_health_drift_bead(ws: &Workspace, report: &Value) -> Result<bool, Stri
     let table = report["table"].as_str().unwrap_or("");
     let body = format!("Code health drift detected during weekly review:\n\n{table}");
     let existing = list(&ws.root, "code-health")?;
-    let found = check::issues(&existing).into_iter().find(|i| {
-        own(i) && i["title"].as_str() == Some("Code health drift")
-    });
+    let found = check::issues(&existing)
+        .into_iter()
+        .find(|i| own(i) && i["title"].as_str() == Some("Code health drift"));
     if let Some(issue) = found {
         let id = issue["id"].as_str().ok_or("bead has no id")?;
-        check::br(
-            &ws.root,
-            &[
-                "update",
-                id,
-                "--description",
-                &body,
-                "--force",
-            ],
-        )?;
+        check::br(&ws.root, &["update", id, "--description", &body, "--force"])?;
         Ok(true)
     } else {
         check::br(

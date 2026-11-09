@@ -32,7 +32,10 @@ pub fn line(edge: &BorderShown, _scale: f64) -> Line {
 }
 pub fn css(cell: &dna_calc_model::render_plan::PlannedCell, scale: f64) -> String {
     let mut css = String::new();
-    for (side, edge) in ["left", "right", "top", "bottom"].into_iter().zip(&cell.borders) {
+    for (side, edge) in ["left", "right", "top", "bottom"]
+        .into_iter()
+        .zip(&cell.borders)
+    {
         if let Some(edge) = edge {
             let line = line(edge, scale);
             if cell.row_span == 1 && cell.col_span == 1 && !line.dash.is_empty() {
@@ -50,16 +53,24 @@ pub fn css(cell: &dna_calc_model::render_plan::PlannedCell, scale: f64) -> Strin
 }
 /// Thin/medium pens end at the boundary. Thick and double pens straddle its last pixel.
 /// Keep the original anchor for text, hit testing and merged fragment clipping.
-pub fn border_rect(cell: &dna_calc_model::render_plan::PlannedCell, scale: f64) -> dna_calc_model::geometry::CellRect {
+pub fn border_rect(
+    cell: &dna_calc_model::render_plan::PlannedCell,
+    scale: f64,
+) -> dna_calc_model::geometry::CellRect {
     let mut rect = cell.anchor;
     if cell.row_span == 1 && cell.col_span == 1 {
-        let widths = cell.borders.each_ref().map(|e|e.as_ref().map_or(0.,|e|line(e,scale).width));
-        let leading = |width:f64| if width == 3. {2.}else{width};
-        let trailing = |width:f64| if width == 3. {1.}else{0.};
+        let widths = cell
+            .borders
+            .each_ref()
+            .map(|e| e.as_ref().map_or(0., |e| line(e, scale).width));
+        let leading = |width: f64| if width == 3. { 2. } else { width };
+        let trailing = |width: f64| if width == 3. { 1. } else { 0. };
         let left = leading(widths[0]);
         let top = leading(widths[2]);
-        rect.x -= left; rect.w += left;
-        rect.y -= top; rect.h += top;
+        rect.x -= left;
+        rect.w += left;
+        rect.y -= top;
+        rect.h += top;
         rect.w += trailing(widths[1]);
         rect.h += trailing(widths[3]);
     }
@@ -68,19 +79,54 @@ pub fn border_rect(cell: &dna_calc_model::render_plan::PlannedCell, scale: f64) 
 
 /// Selection pens are two display pixels at every zoom: outside the leading edges,
 /// and across the final grid pixel on the trailing edges.
-pub fn selection_rect(mut rect:dna_calc_model::geometry::CellRect)->dna_calc_model::geometry::CellRect {
-    rect.x-=2.;rect.y-=2.;rect.w+=3.;rect.h+=3.;rect
+pub fn selection_rect(
+    mut rect: dna_calc_model::geometry::CellRect,
+) -> dna_calc_model::geometry::CellRect {
+    rect.x -= 2.;
+    rect.y -= 2.;
+    rect.w += 3.;
+    rect.h += 3.;
+    rect
 }
 
 /// Shade a selected pane fragment without tinting its active cell or its text.
-pub fn selection_shades(rect:dna_calc_model::geometry::CellRect, active:dna_calc_model::geometry::CellRect)->Vec<dna_calc_model::geometry::CellRect> {
+pub fn selection_shades(
+    rect: dna_calc_model::geometry::CellRect,
+    active: dna_calc_model::geometry::CellRect,
+) -> Vec<dna_calc_model::geometry::CellRect> {
     use dna_calc_model::geometry::CellRect;
-    let Some(hole)=super::panes::intersection(rect,active)else{return vec![rect]};
-    [CellRect{x:rect.x,y:rect.y,w:rect.w,h:hole.y-rect.y},
-     CellRect{x:rect.x,y:hole.y+hole.h,w:rect.w,h:rect.y+rect.h-hole.y-hole.h},
-     CellRect{x:rect.x,y:hole.y,w:hole.x-rect.x,h:hole.h},
-     CellRect{x:hole.x+hole.w,y:hole.y,w:rect.x+rect.w-hole.x-hole.w,h:hole.h}]
-        .into_iter().filter(|r|r.w>0.&&r.h>0.).collect()
+    let Some(hole) = super::panes::intersection(rect, active) else {
+        return vec![rect];
+    };
+    [
+        CellRect {
+            x: rect.x,
+            y: rect.y,
+            w: rect.w,
+            h: hole.y - rect.y,
+        },
+        CellRect {
+            x: rect.x,
+            y: hole.y + hole.h,
+            w: rect.w,
+            h: rect.y + rect.h - hole.y - hole.h,
+        },
+        CellRect {
+            x: rect.x,
+            y: hole.y,
+            w: hole.x - rect.x,
+            h: hole.h,
+        },
+        CellRect {
+            x: hole.x + hole.w,
+            y: hole.y,
+            w: rect.x + rect.w - hole.x - hole.w,
+            h: hole.h,
+        },
+    ]
+    .into_iter()
+    .filter(|r| r.w > 0. && r.h > 0.)
+    .collect()
 }
 
 use dna_calc_model::projection::FillShown;
@@ -306,49 +352,185 @@ mod brush_tests {
     #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
     fn selection_shading_excludes_the_active_cell_in_each_fragment() {
         use dna_calc_model::geometry::CellRect;
-        let rect=CellRect{x:10.,y:20.,w:100.,h:80.};
-        for active in [CellRect{x:30.,y:40.,w:20.,h:15.},CellRect{x:0.,y:0.,w:20.,h:30.},CellRect{x:200.,y:200.,w:20.,h:20.}] {
-            let shades=selection_shades(rect,active);
-            let hole=super::super::panes::intersection(rect,active).map_or(0.,|r|r.w*r.h);
-            assert_eq!(shades.iter().map(|r|r.w*r.h).sum::<f64>(),rect.w*rect.h-hole);
-            for (i,r) in shades.iter().enumerate() {
-                assert!(super::super::panes::intersection(*r,active).is_none());
-                for other in &shades[i+1..] {assert!(super::super::panes::intersection(*r,*other).is_none());}
+        let rect = CellRect {
+            x: 10.,
+            y: 20.,
+            w: 100.,
+            h: 80.,
+        };
+        for active in [
+            CellRect {
+                x: 30.,
+                y: 40.,
+                w: 20.,
+                h: 15.,
+            },
+            CellRect {
+                x: 0.,
+                y: 0.,
+                w: 20.,
+                h: 30.,
+            },
+            CellRect {
+                x: 200.,
+                y: 200.,
+                w: 20.,
+                h: 20.,
+            },
+        ] {
+            let shades = selection_shades(rect, active);
+            let hole = super::super::panes::intersection(rect, active).map_or(0., |r| r.w * r.h);
+            assert_eq!(
+                shades.iter().map(|r| r.w * r.h).sum::<f64>(),
+                rect.w * rect.h - hole
+            );
+            for (i, r) in shades.iter().enumerate() {
+                assert!(super::super::panes::intersection(*r, active).is_none());
+                for other in &shades[i + 1..] {
+                    assert!(super::super::panes::intersection(*r, *other).is_none());
+                }
             }
         }
     }
     #[cfg_attr(not(target_arch = "wasm32"), test)]
     #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
     fn captured_pen_extents_keep_their_physical_width_at_each_zoom() {
-        use dna_calc_model::{geometry::{CellRect,GridMetrics,Viewport},projection::{CellShown,FormatShown,Provenance},render_plan::build_render_plan};
-        let mut ids=calc_value::IdAllocator::<calc_value::SheetId>::new();
-        let shown=CellShown{at:calc_value::CellKey::new(ids.issue().unwrap(),1,1).unwrap(),style:Default::default(),text:String::new(),kind:"",provenance:Provenance::Empty,formula:false,format:FormatShown::General,color:None,conditional:None};
-        let mut cell=build_render_plan(&[shown],&GridMetrics::default(),&Viewport{scroll_x:0.,scroll_y:0.,width:500.,height:300.},10,10).cells.remove(0);
-        cell.anchor=CellRect{x:30.,y:40.,w:100.,h:30.};
-        for scale in [0.75,1.,1.5] {
-            for (style,low,high,width) in [("thin",-1.,0.,1.),("medium",-2.,0.,2.),("thick",-2.,1.,3.),("double",-2.,1.,2.)] {
-                cell.borders=[Some(BorderShown{style:style.into(),color:Some("#154c94".into())}),None,None,None];
-                let strokes=edges(&cell,scale,(0.,0.));
-                let lo=strokes.iter().map(|s|s.x1-s.width/2.).fold(f64::INFINITY,f64::min);
-                let hi=strokes.iter().map(|s|s.x1+s.width/2.).fold(f64::NEG_INFINITY,f64::max);
-                assert_eq!((lo,hi,strokes.iter().map(|s|s.width).sum::<f64>()),(low,high,width),"{style} at {scale}");
+        use dna_calc_model::{
+            geometry::{CellRect, GridMetrics, Viewport},
+            projection::{CellShown, FormatShown, Provenance},
+            render_plan::build_render_plan,
+        };
+        let mut ids = calc_value::IdAllocator::<calc_value::SheetId>::new();
+        let shown = CellShown {
+            at: calc_value::CellKey::new(ids.issue().unwrap(), 1, 1).unwrap(),
+            style: Default::default(),
+            text: String::new(),
+            kind: "",
+            provenance: Provenance::Empty,
+            formula: false,
+            format: FormatShown::General,
+            color: None,
+            conditional: None,
+        };
+        let mut cell = build_render_plan(
+            &[shown],
+            &GridMetrics::default(),
+            &Viewport {
+                scroll_x: 0.,
+                scroll_y: 0.,
+                width: 500.,
+                height: 300.,
+            },
+            10,
+            10,
+        )
+        .cells
+        .remove(0);
+        cell.anchor = CellRect {
+            x: 30.,
+            y: 40.,
+            w: 100.,
+            h: 30.,
+        };
+        for scale in [0.75, 1., 1.5] {
+            for (style, low, high, width) in [
+                ("thin", -1., 0., 1.),
+                ("medium", -2., 0., 2.),
+                ("thick", -2., 1., 3.),
+                ("double", -2., 1., 2.),
+            ] {
+                cell.borders = [
+                    Some(BorderShown {
+                        style: style.into(),
+                        color: Some("#154c94".into()),
+                    }),
+                    None,
+                    None,
+                    None,
+                ];
+                let strokes = edges(&cell, scale, (0., 0.));
+                let lo = strokes
+                    .iter()
+                    .map(|s| s.x1 - s.width / 2.)
+                    .fold(f64::INFINITY, f64::min);
+                let hi = strokes
+                    .iter()
+                    .map(|s| s.x1 + s.width / 2.)
+                    .fold(f64::NEG_INFINITY, f64::max);
+                assert_eq!(
+                    (lo, hi, strokes.iter().map(|s| s.width).sum::<f64>()),
+                    (low, high, width),
+                    "{style} at {scale}"
+                );
             }
         }
     }
     #[cfg_attr(not(target_arch = "wasm32"), test)]
     #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
     fn dashes_run_from_excels_grid_corner_and_slants_stagger_their_cuts() {
-        use dna_calc_model::{geometry::{CellRect,GridMetrics,Viewport},projection::{CellShown,FormatShown,Provenance},render_plan::build_render_plan};
-        let metrics=GridMetrics::default();
-        assert_eq!(dash_shift(&metrics),(26.-metrics.header_w,20.-metrics.header_h));
-        assert_eq!(dash_shift(&metrics.scaled(1.5)),(40.-metrics.header_w*1.5,29.-metrics.header_h*1.5));
-        let mut ids=calc_value::IdAllocator::<calc_value::SheetId>::new();
-        let shown=CellShown{at:calc_value::CellKey::new(ids.issue().unwrap(),1,1).unwrap(),style:Default::default(),text:String::new(),kind:"",provenance:Provenance::Empty,formula:false,format:FormatShown::General,color:None,conditional:None};
-        let mut cell=build_render_plan(&[shown],&metrics,&Viewport{scroll_x:0.,scroll_y:0.,width:500.,height:300.},10,10).cells.remove(0);
-        cell.anchor=CellRect{x:30.,y:40.,w:100.,h:30.};
-        cell.borders=[Some(BorderShown{style:"slantDashDot".into(),color:None}),None,None,None];
-        let strokes=edges(&cell,1.,(-2.,-3.));
-        assert_eq!(strokes.iter().map(|s|s.phase).collect::<Vec<_>>(),vec![cell.anchor.y-3.+strokes[1].y1-1.,cell.anchor.y-3.+strokes[1].y1]);
+        use dna_calc_model::{
+            geometry::{CellRect, GridMetrics, Viewport},
+            projection::{CellShown, FormatShown, Provenance},
+            render_plan::build_render_plan,
+        };
+        let metrics = GridMetrics::default();
+        assert_eq!(
+            dash_shift(&metrics),
+            (26. - metrics.header_w, 20. - metrics.header_h)
+        );
+        assert_eq!(
+            dash_shift(&metrics.scaled(1.5)),
+            (40. - metrics.header_w * 1.5, 29. - metrics.header_h * 1.5)
+        );
+        let mut ids = calc_value::IdAllocator::<calc_value::SheetId>::new();
+        let shown = CellShown {
+            at: calc_value::CellKey::new(ids.issue().unwrap(), 1, 1).unwrap(),
+            style: Default::default(),
+            text: String::new(),
+            kind: "",
+            provenance: Provenance::Empty,
+            formula: false,
+            format: FormatShown::General,
+            color: None,
+            conditional: None,
+        };
+        let mut cell = build_render_plan(
+            &[shown],
+            &metrics,
+            &Viewport {
+                scroll_x: 0.,
+                scroll_y: 0.,
+                width: 500.,
+                height: 300.,
+            },
+            10,
+            10,
+        )
+        .cells
+        .remove(0);
+        cell.anchor = CellRect {
+            x: 30.,
+            y: 40.,
+            w: 100.,
+            h: 30.,
+        };
+        cell.borders = [
+            Some(BorderShown {
+                style: "slantDashDot".into(),
+                color: None,
+            }),
+            None,
+            None,
+            None,
+        ];
+        let strokes = edges(&cell, 1., (-2., -3.));
+        assert_eq!(
+            strokes.iter().map(|s| s.phase).collect::<Vec<_>>(),
+            vec![
+                cell.anchor.y - 3. + strokes[1].y1 - 1.,
+                cell.anchor.y - 3. + strokes[1].y1
+            ]
+        );
     }
     #[cfg_attr(not(target_arch = "wasm32"), test)]
     #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
@@ -444,44 +626,98 @@ pub fn dash_shift(m: &dna_calc_model::geometry::GridMetrics) -> (f64, f64) {
 }
 /// Axis-aligned edges in cell-local coordinates. Shared sides use the same dash phase
 /// even when the neighbouring cell's perpendicular pens extend a different distance.
-pub fn edges(cell: &dna_calc_model::render_plan::PlannedCell, scale: f64, shift: (f64, f64)) -> Vec<Stroke> {
+pub fn edges(
+    cell: &dna_calc_model::render_plan::PlannedCell,
+    scale: f64,
+    shift: (f64, f64),
+) -> Vec<Stroke> {
     let mut out = Vec::new();
     let unmerged = cell.row_span == 1 && cell.col_span == 1;
-    let rect = border_rect(cell,scale);
-    let (left,top,right,bottom)=(rect.x-cell.anchor.x,rect.y-cell.anchor.y,
-        rect.x+rect.w-cell.anchor.x,rect.y+rect.h-cell.anchor.y);
-    for (side,edge) in cell.borders.iter().enumerate() {
-        let Some(edge)=edge else {continue};
-        let pen=line(edge,scale);
+    let rect = border_rect(cell, scale);
+    let (left, top, right, bottom) = (
+        rect.x - cell.anchor.x,
+        rect.y - cell.anchor.y,
+        rect.x + rect.w - cell.anchor.x,
+        rect.y + rect.h - cell.anchor.y,
+    );
+    for (side, edge) in cell.borders.iter().enumerate() {
+        let Some(edge) = edge else { continue };
+        let pen = line(edge, scale);
         let offsets = if unmerged {
-            if pen.double {vec![-1.5,0.5]} else {vec![if pen.width==3. {-0.5}else{-pen.width/2.}]}
-        } else if pen.double {vec![0.5,2.5]}else{vec![pen.width/2.]};
+            if pen.double {
+                vec![-1.5, 0.5]
+            } else {
+                vec![if pen.width == 3. {
+                    -0.5
+                } else {
+                    -pen.width / 2.
+                }]
+            }
+        } else if pen.double {
+            vec![0.5, 2.5]
+        } else {
+            vec![pen.width / 2.]
+        };
         for offset in offsets {
-            let (x1,y1,x2,y2)=match side {
-                0 => (offset,top,offset,bottom),
-                1 => {let x=cell.anchor.w+if unmerged {offset}else{-offset};(x,top,x,bottom)},
-                2 => (left,offset,right,offset),
-                _ => {let y=cell.anchor.h+if unmerged {offset}else{-offset};(left,y,right,y)},
+            let (x1, y1, x2, y2) = match side {
+                0 => (offset, top, offset, bottom),
+                1 => {
+                    let x = cell.anchor.w + if unmerged { offset } else { -offset };
+                    (x, top, x, bottom)
+                }
+                2 => (left, offset, right, offset),
+                _ => {
+                    let y = cell.anchor.h + if unmerged { offset } else { -offset };
+                    (left, y, right, y)
+                }
             };
-            let phase=if side<2 {cell.anchor.y+y1+shift.1}else{cell.anchor.x+x1+shift.0};
-            if edge.style=="slantDashDot" && unmerged {
+            let phase = if side < 2 {
+                cell.anchor.y + y1 + shift.1
+            } else {
+                cell.anchor.x + x1 + shift.0
+            };
+            if edge.style == "slantDashDot" && unmerged {
                 // The captured medium slant has staggered cuts across two one-pixel lanes.
                 // Their union has no empty gap; a two-pixel dashed stroke loses that shape.
                 // Each outer cut starts one pixel past the end of the inner lane's cut.
-                for (lane,dash,cut) in [(-0.5,vec![11.,1.,5.,1.,5.,1.],-1.),(0.5,vec![10.,2.,4.,2.,4.,2.],0.)] {
-                    let (dx,dy)=if side<2 {(lane,0.)}else{(0.,lane)};
-                    out.push(Stroke{x1:x1+dx,y1:y1+dy,x2:x2+dx,y2:y2+dy,width:1.,color:edge.color.clone().unwrap_or_else(||"#000000".into()),dash,phase:phase+cut});
+                for (lane, dash, cut) in [
+                    (-0.5, vec![11., 1., 5., 1., 5., 1.], -1.),
+                    (0.5, vec![10., 2., 4., 2., 4., 2.], 0.),
+                ] {
+                    let (dx, dy) = if side < 2 { (lane, 0.) } else { (0., lane) };
+                    out.push(Stroke {
+                        x1: x1 + dx,
+                        y1: y1 + dy,
+                        x2: x2 + dx,
+                        y2: y2 + dy,
+                        width: 1.,
+                        color: edge.color.clone().unwrap_or_else(|| "#000000".into()),
+                        dash,
+                        phase: phase + cut,
+                    });
                 }
             } else {
-                out.push(Stroke{x1,y1,x2,y2,width:if pen.double {1.}else{pen.width},
-                    color:edge.color.clone().unwrap_or_else(||"#000000".into()),dash:pen.dash.to_vec(),phase});
+                out.push(Stroke {
+                    x1,
+                    y1,
+                    x2,
+                    y2,
+                    width: if pen.double { 1. } else { pen.width },
+                    color: edge.color.clone().unwrap_or_else(|| "#000000".into()),
+                    dash: pen.dash.to_vec(),
+                    phase,
+                });
             }
         }
     }
     out
 }
 /// Extra strokes use cell-local coordinates, so frozen-pane fragments share identical geometry.
-pub fn strokes(cell: &dna_calc_model::render_plan::PlannedCell, scale: f64, shift: (f64, f64)) -> Vec<Stroke> {
+pub fn strokes(
+    cell: &dna_calc_model::render_plan::PlannedCell,
+    scale: f64,
+    shift: (f64, f64),
+) -> Vec<Stroke> {
     let mut out = Vec::new();
     for segment in &cell.boundary {
         let line = line(&segment.edge, scale);
@@ -508,7 +744,11 @@ pub fn strokes(cell: &dna_calc_model::render_plan::PlannedCell, scale: f64, shif
                     .clone()
                     .unwrap_or_else(|| "#000000".into()),
                 dash: line.dash.to_vec(),
-                phase: if segment.side<2 {cell.anchor.y+segment.y1+shift.1}else{cell.anchor.x+segment.x1+shift.0},
+                phase: if segment.side < 2 {
+                    cell.anchor.y + segment.y1 + shift.1
+                } else {
+                    cell.anchor.x + segment.x1 + shift.0
+                },
             });
         }
     }
@@ -525,11 +765,7 @@ pub fn strokes(cell: &dna_calc_model::render_plan::PlannedCell, scale: f64, shif
         let length = (cell.anchor.w * cell.anchor.w + cell.anchor.h * cell.anchor.h)
             .sqrt()
             .max(1.);
-        for offset in if line.double {
-            vec![-1., 1.]
-        } else {
-            vec![0.]
-        } {
+        for offset in if line.double { vec![-1., 1.] } else { vec![0.] } {
             let (dx, dy) = (-(y2 - y1) / length * offset, (x2 - x1) / length * offset);
             out.push(Stroke {
                 x1: x1 + dx,

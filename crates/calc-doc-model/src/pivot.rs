@@ -51,9 +51,13 @@ pub struct PivotCache {
 #[derive(Clone, Debug, PartialEq, Eq, Hash)]
 pub enum PivotSnapshotOrigin {
     SourceRead,
-    FileRecords { part: String },
+    FileRecords {
+        part: String,
+    },
     /// The immutable data-model snapshot used to calculate an OLAP pivot.
-    DataModel { model: Arc<crate::DataModel> },
+    DataModel {
+        model: Arc<crate::DataModel>,
+    },
 }
 #[derive(Clone, Debug, PartialEq, Eq, Hash)]
 pub struct PivotSnapshot {

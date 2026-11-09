@@ -54,17 +54,23 @@
 mod axis_layout;
 mod cache;
 mod chart;
-pub use chart::{DrawingPoint,ChartAnchor,ChartData,ChartSeries,ChartPlot,ChartAxis,Chart,SheetCharts,ChartTextStyle};
+pub use chart::{
+    Chart, ChartAnchor, ChartAxis, ChartData, ChartPlot, ChartSeries, ChartTextStyle, DrawingPoint,
+    SheetCharts,
+};
 mod cells;
 mod validation;
 pub use validation::Validation;
 mod review;
-pub use review::{ReviewLink, ReviewNote, ReviewSource, review_thread_text, NoteStyle, NoteSpan, NoteStylePatch, note_segments};
+pub use review::{
+    NoteSpan, NoteStyle, NoteStylePatch, ReviewLink, ReviewNote, ReviewSource, note_segments,
+    review_thread_text,
+};
 mod conditional;
 mod definitions;
 mod filter;
-pub use filter::{AutoFilter, FilterCriteria, FilterOperator, FilterPredicate};
 pub use conditional::ConditionalRuleSource;
+pub use filter::{AutoFilter, FilterCriteria, FilterOperator, FilterPredicate};
 mod formula_block;
 mod input;
 pub use calc_syntax::{FormulaForm, SemanticTemplateKey, TemplatePlacement};
@@ -90,9 +96,10 @@ pub use cache::{CachedValue, FileCached, SourcePart};
 pub use calc_value as value;
 pub use cells::{CellPage, OccupiedCells, PAGE_COLUMNS, PAGE_ROWS};
 pub use definitions::{
-    ArrayFormula, ArrayKind, DataModel, ModelSnapshot, ModelSnapshotProvenance, ModelSnapshotTable, DataTable, DataTableInputs, DefinedName, Definitions,
-    ExternalBook, ExternalSheet, IterationSettings, ModelMeasure, NameScope, RowHidden, Table,
-    TableStyle, UnloadedCell,
+    ArrayFormula, ArrayKind, DataModel, DataTable, DataTableInputs, DefinedName, Definitions,
+    ExternalBook, ExternalSheet, IterationSettings, ModelMeasure, ModelSnapshot,
+    ModelSnapshotProvenance, ModelSnapshotTable, NameScope, RowHidden, Table, TableStyle,
+    UnloadedCell,
 };
 pub use input::{CellInput, CellText, FiniteNumber, FormulaText, FormulaTextError};
 pub use layout::{
@@ -100,8 +107,8 @@ pub use layout::{
     SkinLayout, SkinLayoutEdit, Spot, ViewKind,
 };
 pub use op::{
-    Axis, AxisChange, AxisEdit, AxisEditError, FrozenPanes, PaneLayout, SplitPanes, NameRestoration, OpBatch, RetainedName,
-    SheetEdit, WorkbookOp,
+    Axis, AxisChange, AxisEdit, AxisEditError, FrozenPanes, NameRestoration, OpBatch, PaneLayout,
+    RetainedName, SheetEdit, SplitPanes, WorkbookOp,
 };
 pub use revision::AuthoredRevision;
 pub use root::{ApplyError, ModelRoot, ModelRootError, SheetEntry};
@@ -124,6 +131,6 @@ pub use wire::{
 };
 
 mod page_setup;
-pub use page_setup::{PageSetup, PageBreak, PAGE_SECTIONS, HEADER_FIELDS};
+pub use page_setup::{HEADER_FIELDS, PAGE_SECTIONS, PageBreak, PageSetup};
 
 pub mod pivot;

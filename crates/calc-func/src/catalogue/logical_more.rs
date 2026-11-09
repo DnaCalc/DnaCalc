@@ -11,9 +11,9 @@
 //! value is the result, then the default, and #N/A when there is none. An omitted selected value
 //! is 0, as IF's is.
 
+use super::FunctionId;
 use super::comparison::{Want, order};
 use super::kit::{fail, flag};
-use super::FunctionId;
 use crate::call::{EvalServices, FunctionFault};
 use crate::kernel::{Exit, Site, Step};
 use crate::value::{CalcValue, CoreRef, NumericMode, WorksheetErrorCode};
@@ -36,7 +36,9 @@ pub(super) fn selects_whole_result(
             .all(|value| value.callable_value().is_none() && crate::coerce::logical(value).is_ok()),
         // Fn2 root208: once a scalar condition selects a result, later condition
         // arrays do not enlarge it. Invalid conditions still take the lifted route.
-        super::WholeResultPolicy::Conditions => ifs_index(&Site::new(IFS, &EvalServices::new(numeric)), arguments).is_ok(),
+        super::WholeResultPolicy::Conditions => {
+            ifs_index(&Site::new(IFS, &EvalServices::new(numeric)), arguments).is_ok()
+        }
         super::WholeResultPolicy::Selector => {
             // Fn2 root022: a formed scalar expression error is one result, even
             // when an unused case result is an array. Callable cores stay distinct.

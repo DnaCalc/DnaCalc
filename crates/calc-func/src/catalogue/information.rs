@@ -33,17 +33,17 @@
 //! ([`crate::HostFacts::is_formula`]); a call whose services hold no host, or whose host cannot
 //! say, is refused as not modelled.
 
-use super::aggregate::{read_reference, reader};
 use super::FunctionId;
+use super::aggregate::{read_reference, reader};
 use crate::call::{EvalServices, FunctionFault};
 use crate::coerce;
 use crate::kernel::{Exit, Site, Step};
-use crate::value::{
-    CalcArray, CalcValue, CoreRef, GridArea, ReferenceLike,
-    WorksheetErrorCode,
-};
+use crate::value::{CalcArray, CalcValue, CoreRef, GridArea, ReferenceLike, WorksheetErrorCode};
 
-use calc_catalogue::information::{CODE, ENTRIES as DECLARATIONS, ISBLANK, ISERR, ISERROR, ISNA, ISNUMBER, ISTEXT, ISNONTEXT, ISLOGICAL, ISEVEN, ISODD, ISREF, ISFORMULA, TYPE, N, NA, ERROR_TYPE};
+use calc_catalogue::information::{
+    CODE, ENTRIES as DECLARATIONS, ERROR_TYPE, ISBLANK, ISERR, ISERROR, ISEVEN, ISFORMULA,
+    ISLOGICAL, ISNA, ISNONTEXT, ISNUMBER, ISODD, ISREF, ISTEXT, N, NA, TYPE,
+};
 
 attach_eager_family! {
     code: CODE; declarations: DECLARATIONS;
@@ -75,7 +75,9 @@ fn scalar<'v>(site: &Site<'_>, value: &'v CalcValue) -> Step<CoreRef<'v>> {
         // ISNONTEXT (ISERROR measured; see crate::fetch).
         _ if value.image_value().is_some() => Ok(CoreRef::Missing),
         CoreRef::Missing | CoreRef::Array(_) => Err(site.not_modelled(Some(0))),
-        CoreRef::Number(n) if !n.is_finite() && !value.is_excel_overflow() => Err(site.not_modelled(Some(0))),
+        CoreRef::Number(n) if !n.is_finite() && !value.is_excel_overflow() => {
+            Err(site.not_modelled(Some(0)))
+        }
         core => Ok(core),
     }
 }
@@ -238,9 +240,12 @@ fn iseven(
     services: &mut EvalServices<'_>,
 ) -> Result<CalcValue, FunctionFault> {
     let site = Site::new(ISEVEN, services);
-    Site::finish(each(&site, &arguments[0], services, |site, value, services| {
-        odd(site, value, services).map(|odd| CalcValue::logical(!odd))
-    }))
+    Site::finish(each(
+        &site,
+        &arguments[0],
+        services,
+        |site, value, services| odd(site, value, services).map(|odd| CalcValue::logical(!odd)),
+    ))
 }
 
 /// ISODD: whether the number, truncated toward zero, is odd.
@@ -249,9 +254,12 @@ fn isodd(
     services: &mut EvalServices<'_>,
 ) -> Result<CalcValue, FunctionFault> {
     let site = Site::new(ISODD, services);
-    Site::finish(each(&site, &arguments[0], services, |site, value, services| {
-        odd(site, value, services).map(CalcValue::logical)
-    }))
+    Site::finish(each(
+        &site,
+        &arguments[0],
+        services,
+        |site, value, services| odd(site, value, services).map(CalcValue::logical),
+    ))
 }
 
 /// `apply` to the argument, or to each element of an array argument, giving the array of the
@@ -331,10 +339,9 @@ fn type_of(
     let step = match argument.core_ref() {
         // A boxed array (dc-h9u) is typed by its first element: Excel 16.0.20527 gives
         // TYPE(INDEX(GROUPBY(k,v,LAMBDA(x,x)),1,2)) 1.
-        CoreRef::Array(array) if array.is_boxed() => type_code(
-            &site,
-            array.get(0, 0).expect("a non-empty array"),
-        ),
+        CoreRef::Array(array) if array.is_boxed() => {
+            type_code(&site, array.get(0, 0).expect("a non-empty array"))
+        }
         CoreRef::Array(_) => Ok(64.0),
         CoreRef::Reference(reference) if reference.area_count() > 1 => Ok(16.0),
         CoreRef::Reference(reference) => match one_cell(reference) {

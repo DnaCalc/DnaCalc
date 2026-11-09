@@ -1,4 +1,6 @@
-use crate::ported::excel_numeric::{excel_x87_add as add, excel_x87_div as div, excel_x87_mul as mul, excel_x87_sub as sub};
+use crate::ported::excel_numeric::{
+    excel_x87_add as add, excel_x87_div as div, excel_x87_mul as mul, excel_x87_sub as sub,
+};
 use crate::value::WorksheetErrorCode;
 
 fn mean(values: &[f64]) -> f64 {
@@ -7,7 +9,10 @@ fn mean(values: &[f64]) -> f64 {
 
 /// The stored mean and the stored two-pass sum of squared deviations.
 fn stored_moments(values: &[f64]) -> (f64, f64) {
-    let avg = div(values.iter().fold(0.0, |sum, &value| add(sum, value)), values.len() as f64);
+    let avg = div(
+        values.iter().fold(0.0, |sum, &value| add(sum, value)),
+        values.len() as f64,
+    );
     let sumsq = values.iter().fold(0.0, |sum, &value| {
         let delta = sub(value, avg);
         add(sum, mul(delta, delta))

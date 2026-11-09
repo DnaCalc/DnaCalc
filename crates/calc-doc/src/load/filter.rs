@@ -61,7 +61,13 @@ pub(super) fn read(
     )
     .unwrap();
     let mut filter = AutoFilter::new(area);
-    filter.unsupported = !root.attributes.iter().all(|a|(a.name.namespace.is_none()&&a.name.local.as_str()=="ref")||a.name.is("http://schemas.microsoft.com/office/spreadsheetml/2014/revision","uid"));
+    filter.unsupported = !root.attributes.iter().all(|a| {
+        (a.name.namespace.is_none() && a.name.local.as_str() == "ref")
+            || a.name.is(
+                "http://schemas.microsoft.com/office/spreadsheetml/2014/revision",
+                "uid",
+            )
+    });
     let mut manual = None;
     loop {
         match events.next()? {
@@ -341,11 +347,49 @@ pub(super) fn read(
 }
 
 /// Restore authored manual hiding separately from the rows a filter excludes.
-pub(super) fn visibility(filter:&mut AutoFilter,manual:Option<BTreeSet<u32>>,hidden:&[u32],geometry:&super::SheetGeometry,peer_rows:&BTreeSet<u32>,table:bool)->Option<BTreeSet<u32>>{
-    let physically_hidden=hidden.iter().copied().filter(|r|*r>filter.area.first().row()&&*r<=filter.area.last().row()).collect::<BTreeSet<_>>();
-    let mut layout=calc_doc_model::AxisLayouts::default();geometry.add_to_model(filter.area.sheet(),&mut layout);
-    let outlined=layout.outline_groups(filter.area.sheet(),calc_doc_model::Axis::Rows).into_iter().filter(|g|g.collapsed).flat_map(|g|g.first..=g.last).filter(|r|*r>filter.area.first().row()&&*r<=filter.area.last().row()).collect::<BTreeSet<_>>();
-    let manual=manual.filter(|m|m.union(&filter.filtered_rows).copied().chain(peer_rows.iter().copied().filter(|r|*r>filter.area.first().row()&&*r<=filter.area.last().row())).chain(outlined.iter().copied()).collect::<BTreeSet<_>>()==physically_hidden&&m.iter().all(|r|*r>filter.area.first().row()&&*r<=filter.area.last().row()));
-    if manual.is_none(){filter.filtered_rows=if filter.columns.is_empty()&&!filter.unsupported&&!table{Default::default()}else{physically_hidden};}
+pub(super) fn visibility(
+    filter: &mut AutoFilter,
+    manual: Option<BTreeSet<u32>>,
+    hidden: &[u32],
+    geometry: &super::SheetGeometry,
+    peer_rows: &BTreeSet<u32>,
+    table: bool,
+) -> Option<BTreeSet<u32>> {
+    let physically_hidden = hidden
+        .iter()
+        .copied()
+        .filter(|r| *r > filter.area.first().row() && *r <= filter.area.last().row())
+        .collect::<BTreeSet<_>>();
+    let mut layout = calc_doc_model::AxisLayouts::default();
+    geometry.add_to_model(filter.area.sheet(), &mut layout);
+    let outlined = layout
+        .outline_groups(filter.area.sheet(), calc_doc_model::Axis::Rows)
+        .into_iter()
+        .filter(|g| g.collapsed)
+        .flat_map(|g| g.first..=g.last)
+        .filter(|r| *r > filter.area.first().row() && *r <= filter.area.last().row())
+        .collect::<BTreeSet<_>>();
+    let manual = manual.filter(|m| {
+        m.union(&filter.filtered_rows)
+            .copied()
+            .chain(
+                peer_rows
+                    .iter()
+                    .copied()
+                    .filter(|r| *r > filter.area.first().row() && *r <= filter.area.last().row()),
+            )
+            .chain(outlined.iter().copied())
+            .collect::<BTreeSet<_>>()
+            == physically_hidden
+            && m.iter()
+                .all(|r| *r > filter.area.first().row() && *r <= filter.area.last().row())
+    });
+    if manual.is_none() {
+        filter.filtered_rows = if filter.columns.is_empty() && !filter.unsupported && !table {
+            Default::default()
+        } else {
+            physically_hidden
+        };
+    }
     manual
 }

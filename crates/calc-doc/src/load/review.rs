@@ -18,10 +18,10 @@ pub struct SheetReview {
     pub links: Vec<ReviewLink>,
     pub unsupported: Vec<String>,
 }
-pub use calc_doc_model::ReviewNote ;
+pub use calc_doc_model::ReviewNote;
 use calc_doc_model::ReviewSource;
 
-pub (crate) const THREAD_NAMESPACE: &str =
+pub(crate) const THREAD_NAMESPACE: &str =
     "http://schemas.microsoft.com/office/spreadsheetml/2018/threadedcomments";
 
 pub use calc_doc_model::ReviewLink;
@@ -51,7 +51,8 @@ pub(crate) fn read(package: &Package, part: &str, sheet: SheetId) -> SheetReview
                 {
                     Ok(notes) => review.notes.extend(notes),
                     Err(error) => review
-                        .unsupported.push(format!("Threaded comments could not be read: {error}")),
+                        .unsupported
+                        .push(format!("Threaded comments could not be read: {error}")),
                 }
             }
         }
@@ -75,22 +76,76 @@ pub(crate) fn read(package: &Package, part: &str, sheet: SheetId) -> SheetReview
             note.editable = false;
         }
     }
-    let parts=review.notes.iter().filter_map(|n|n.source.as_ref().map(|s|s.part().to_owned())).collect::<std::collections::BTreeSet<_>>();
+    let parts = review
+        .notes
+        .iter()
+        .filter_map(|n| n.source.as_ref().map(|s| s.part().to_owned()))
+        .collect::<std::collections::BTreeSet<_>>();
     for part in parts {
-        let captured=read_xml(package,&part).map_err(|e|e.to_string()).and_then(|xml|crate::save::review::sources(&xml).map_err(|e|e.to_string()));
+        let captured = read_xml(package, &part)
+            .map_err(|e| e.to_string())
+            .and_then(|xml| crate::save::review::sources(&xml).map_err(|e| e.to_string()));
         match captured {
-            Ok(sources)=>for note in review.notes.iter_mut().filter(|n|n.source.as_ref().is_some_and(|s|s.part()==part)) {
-                let key=match &note.source {Some(ReviewSource::Thread{id,..})=>id.clone(),_=>crate::save::text::a1(note.at.row(),note.at.column())};
-                if let Some(source)=sources.get(&key) {
-                    note.source_xml=Some(source.clone());
-                    if !note.source.as_ref().is_some_and(ReviewSource::threaded) {
-                        let xml=crate::xml::XmlPart::new(part.clone(),source.to_vec(),crate::xml::XmlLimits::default());
-                        match crate::save::review::rich_spans(&xml) {Ok(spans)=>{note.spans=spans;if !note.valid_spans(){note.spans.clear();note.editable=false;review.unsupported.push("A note has invalid rich text offsets; its source is retained".into());}},Err(error)=>{note.editable=false;note.annotated=true;review.unsupported.push(error.to_string());}}
-                        let mut events=Events::new(&xml);while let Ok(Some(event))=events.next(){if matches!(event,XmlEvent::Start(e)if e.name.is(MAIN_NAMESPACE,"rPh")||e.name.is(MAIN_NAMESPACE,"phoneticPr")){note.editable=false;note.annotated=true;}}
+            Ok(sources) => {
+                for note in review
+                    .notes
+                    .iter_mut()
+                    .filter(|n| n.source.as_ref().is_some_and(|s| s.part() == part))
+                {
+                    let key = match &note.source {
+                        Some(ReviewSource::Thread { id, .. }) => id.clone(),
+                        _ => crate::save::text::a1(note.at.row(), note.at.column()),
+                    };
+                    if let Some(source) = sources.get(&key) {
+                        note.source_xml = Some(source.clone());
+                        if !note.source.as_ref().is_some_and(ReviewSource::threaded) {
+                            let xml = crate::xml::XmlPart::new(
+                                part.clone(),
+                                source.to_vec(),
+                                crate::xml::XmlLimits::default(),
+                            );
+                            match crate::save::review::rich_spans(&xml) {
+                                Ok(spans) => {
+                                    note.spans = spans;
+                                    if !note.valid_spans() {
+                                        note.spans.clear();
+                                        note.editable = false;
+                                        review.unsupported.push("A note has invalid rich text offsets; its source is retained".into());
+                                    }
+                                }
+                                Err(error) => {
+                                    note.editable = false;
+                                    note.annotated = true;
+                                    review.unsupported.push(error.to_string());
+                                }
+                            }
+                            let mut events = Events::new(&xml);
+                            while let Ok(Some(event)) = events.next() {
+                                if matches!(event,XmlEvent::Start(e)if e.name.is(MAIN_NAMESPACE,"rPh")||e.name.is(MAIN_NAMESPACE,"phoneticPr"))
+                                {
+                                    note.editable = false;
+                                    note.annotated = true;
+                                }
+                            }
+                        }
+                    } else {
+                        note.editable = false;
+                        review
+                            .unsupported
+                            .push("A review source identity is unavailable".into());
                     }
-                }else{note.editable=false;review.unsupported.push("A review source identity is unavailable".into());}
-            },
-            Err(error)=>{for note in review.notes.iter_mut().filter(|n|n.source.as_ref().is_some_and(|s|s.part()==part)){note.editable=false;}review.unsupported.push(error);}
+                }
+            }
+            Err(error) => {
+                for note in review
+                    .notes
+                    .iter_mut()
+                    .filter(|n| n.source.as_ref().is_some_and(|s| s.part() == part))
+                {
+                    note.editable = false;
+                }
+                review.unsupported.push(error);
+            }
         }
     }
     review
@@ -109,7 +164,16 @@ fn notes(package: &Package, part: &str, sheet: SheetId) -> Result<Vec<ReviewNote
                     .attribute("ref")
                     .and_then(address::cell)
                     .and_then(|(r, c)| CellKey::new(sheet, r, c).ok());
-                let uid=e.attributes.iter().find(|a|a.name.is("http://schemas.microsoft.com/office/spreadsheetml/2014/revision","uid")).map(|a|a.value.to_string());
+                let uid = e
+                    .attributes
+                    .iter()
+                    .find(|a| {
+                        a.name.is(
+                            "http://schemas.microsoft.com/office/spreadsheetml/2014/revision",
+                            "uid",
+                        )
+                    })
+                    .map(|a| a.value.to_string());
                 let author = e
                     .attribute("authorId")
                     .and_then(|s| s.parse::<usize>().ok());
@@ -125,26 +189,29 @@ fn notes(package: &Package, part: &str, sheet: SheetId) -> Result<Vec<ReviewNote
                     }
                 }
                 if let Some(at) = at {
-                    held.push((at, author, String::from_utf16_lossy(&text),uid));
+                    held.push((at, author, String::from_utf16_lossy(&text), uid));
                 }
             }
         }
     }
     Ok(held
         .into_iter()
-        .map(|(at, author, text,uid)| ReviewNote {
+        .map(|(at, author, text, uid)| ReviewNote {
             at,
             author: author
                 .and_then(|a| authors.get(a))
                 .cloned()
                 .unwrap_or_else(|| "Unknown author".into()),
             text,
-            spans:Vec::new(),source_xml:None,
-        source: Some(ReviewSource::Note {
+            spans: Vec::new(),
+            source_xml: None,
+            source: Some(ReviewSource::Note {
                 part: part.to_owned(),
-                origin: at,uid,
+                origin: at,
+                uid,
             }),
-            editable: true,annotated:false,
+            editable: true,
+            annotated: false,
             compatibility: false,
         })
         .collect())
@@ -234,7 +301,8 @@ fn threaded(package: &Package, part: &str, sheet: SheetId) -> Result<Vec<ReviewN
                     at: at.unwrap_or_else(|| CellKey::new(sheet, 1, 1).unwrap()),
                     author,
                     text,
-                    spans:Vec::new(),source_xml:None,
+                    spans: Vec::new(),
+                    source_xml: None,
                     source: Some(ReviewSource::Thread {
                         part: part.into(),
                         id,
@@ -243,7 +311,8 @@ fn threaded(package: &Package, part: &str, sheet: SheetId) -> Result<Vec<ReviewN
                         timestamp,
                         resolved,
                     }),
-                    editable,annotated:!editable,
+                    editable,
+                    annotated: !editable,
                     compatibility: false,
                 },
             ));
@@ -291,8 +360,7 @@ fn threaded(package: &Package, part: &str, sheet: SheetId) -> Result<Vec<ReviewN
             return Err(events.invalid("threaded comment ids are duplicated"));
         }
     }
-    Ok(held.into_iter().map(|(_, n)| n)
-        .collect())
+    Ok(held.into_iter().map(|(_, n)| n).collect())
 }
 pub(super) fn links(
     events: &mut Events<'_>,
@@ -329,7 +397,8 @@ pub(super) fn links(
                     .map(|r| r.target.clone());
                 if let Some(area) = area {
                     links.push(ReviewLink {
-                        area, source,
+                        area,
+                        source,
                         target,
                         location: e
                             .attribute("location")
@@ -342,7 +411,9 @@ pub(super) fn links(
                             .map(|s| String::from_utf16_lossy(&strings::decode(s))),
                     });
                 }
-                source = source.checked_add(1).ok_or_else(|| events.invalid("Too many hyperlinks"))?;
+                source = source
+                    .checked_add(1)
+                    .ok_or_else(|| events.invalid("Too many hyperlinks"))?;
                 events.skip()?;
             }
             XmlEvent::Start(_) => events.skip()?,

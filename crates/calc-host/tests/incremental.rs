@@ -19,9 +19,9 @@
 
 use calc_host::value::{CellKey, GridArea, SheetId};
 use calc_host::{
-    ArrayFormula, ArrayKind, CalcMode, CellEdit, CellInput, HostCommand, HostOptions,
-    HostProgress, HostState, MemorySource, OpenPolicy, PackageRead, ProjectedValue,
-    ProjectionRequest, Unobserved, WorkBudget, dispatch, interpret_entry, project, step,
+    ArrayFormula, ArrayKind, CalcMode, CellEdit, CellInput, HostCommand, HostOptions, HostProgress,
+    HostState, MemorySource, OpenPolicy, PackageRead, ProjectedValue, ProjectionRequest,
+    Unobserved, WorkBudget, dispatch, interpret_entry, project, step,
 };
 use std::sync::Arc;
 
@@ -244,7 +244,10 @@ fn differential(bytes: &[u8], name: &str, spill: bool, threads: usize) {
         ));
         setup.push(set(at(r, 'M'), &format!("=C{r}+E{r}+K{r}+J{r}")));
         if spill {
-            setup.push(set(at(r, 'O'), &format!("=SUM(_xlfn.ANCHORARRAY(H{R0}))+M{r}")));
+            setup.push(set(
+                at(r, 'O'),
+                &format!("=SUM(_xlfn.ANCHORARRAY(H{R0}))+M{r}"),
+            ));
         } else {
             setup.push(set(at(r, 'H'), &format!("{}", (r - R0) * 10)));
             setup.push(set(at(r, 'O'), &format!("=SUM(H{R0}:H{last})+M{r}")));
@@ -353,6 +356,9 @@ fn differential(bytes: &[u8], name: &str, spill: bool, threads: usize) {
         }
     }
     // Circular references were made and broken, and the hosts were compared throughout.
-    assert!(with_cycle > 0 && with_cycle < STEPS, "{with_cycle} steps with a cycle");
+    assert!(
+        with_cycle > 0 && with_cycle < STEPS,
+        "{with_cycle} steps with a cycle"
+    );
     assert!(compared >= STEPS / EVERY / 3, "{compared} comparisons");
 }

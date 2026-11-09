@@ -21,7 +21,9 @@ fn customs(package: &[u8]) -> Vec<u8> {
 #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
 fn excel_read_the_saved_session_as_the_same_formula_and_constants() {
     let reading: serde_json::Value = serde_json::from_str(EXCEL_READING).unwrap();
-    let mut session = file::open(ONECALC_SAVED).expect("OneCalc reads its own file").0;
+    let mut session = file::open(ONECALC_SAVED)
+        .expect("OneCalc reads its own file")
+        .0;
     assert_eq!(reading["formula2"], session.formula().to_owned());
     assert_eq!(reading["sheets"], 1);
     assert_eq!(reading["has_array"], false);
@@ -46,7 +48,9 @@ fn excel_read_the_saved_session_as_the_same_formula_and_constants() {
 #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
 fn the_file_excel_saved_reopens_with_the_same_session_and_the_custom_part() {
     let mut original = file::open(ONECALC_SAVED).unwrap().0;
-    let mut reopened = file::open(EXCEL_SAVED).expect("Excel's file reopens in OneCalc").0;
+    let mut reopened = file::open(EXCEL_SAVED)
+        .expect("Excel's file reopens in OneCalc")
+        .0;
     assert_eq!(reopened.formula(), original.formula());
     assert_eq!(reopened.formula_cell(), original.formula_cell());
     assert_eq!(reopened.options(), original.options());
@@ -58,8 +62,15 @@ fn the_file_excel_saved_reopens_with_the_same_session_and_the_custom_part() {
         evaluate(&mut original, &state_b).result
     );
     let (kept, written) = (customs(EXCEL_SAVED), customs(ONECALC_SAVED));
-    assert_eq!(file::read_item(&kept).unwrap(), file::read_item(&written).unwrap());
-    let strip = |bytes: &[u8]| String::from_utf8(bytes.to_vec()).unwrap().replace([chr_cr(), chr_lf()], "");
+    assert_eq!(
+        file::read_item(&kept).unwrap(),
+        file::read_item(&written).unwrap()
+    );
+    let strip = |bytes: &[u8]| {
+        String::from_utf8(bytes.to_vec())
+            .unwrap()
+            .replace([chr_cr(), chr_lf()], "")
+    };
     assert_eq!(strip(&kept), strip(&written));
 }
 
@@ -87,7 +98,11 @@ fn excel_shows_the_saved_formatting_and_rules_it_was_given() {
     let reading: serde_json::Value = serde_json::from_str(LOOK_EXCEL_READING).unwrap();
     let row = &reading["rows"][0];
     assert_eq!(row["errors"].as_array().unwrap().len(), 0);
-    assert_eq!(row["new_error_logs"].as_array().unwrap().len(), 0, "Excel repaired the file");
+    assert_eq!(
+        row["new_error_logs"].as_array().unwrap().len(),
+        0,
+        "Excel repaired the file"
+    );
     assert_eq!(row["range"], "K4:M7");
     let (style, rules) = {
         let session = file::open(LOOK_SAVED).unwrap().0;
@@ -105,7 +120,10 @@ fn excel_shows_the_saved_formatting_and_rules_it_was_given() {
         let font = &cell["font"];
         assert_eq!(font["name"], style.font_family);
         assert_eq!(font["size"], f64::from(style.font_size));
-        assert_eq!((&font["bold"], &font["italic"], &font["strike"]), (&true.into(), &true.into(), &true.into()));
+        assert_eq!(
+            (&font["bold"], &font["italic"], &font["strike"]),
+            (&true.into(), &true.into(), &true.into())
+        );
         assert_eq!(font["underline"], 2);
         assert_eq!(font["color"], bgr(&style.text_color));
         assert_eq!(cell["interior"]["color"], bgr(&style.fill));
@@ -117,13 +135,19 @@ fn excel_shows_the_saved_formatting_and_rules_it_was_given() {
     let first = &cells[0];
     assert_eq!(first["borders"]["top"]["color"], bgr(&style.border_color));
     assert_eq!(first["borders"]["left"]["style"], -4142);
-    assert_eq!(cells[2]["borders"]["right"]["color"], bgr(&style.border_color));
+    assert_eq!(
+        cells[2]["borders"]["right"]["color"],
+        bgr(&style.border_color)
+    );
     assert_eq!(cells[11]["borders"]["bottom"]["style"], 1);
     // The rules, in order: Excel's rule types (xlCellValue 1, expression 2, colour scale 3, data bar
     // 4, top 10 5, icon set 6, unique/duplicate values 8, text 9, time period 11, above/below
     // average 12, no blanks 13, errors 16) with the formulas stored for K4.
     let conditions = row["conditions"].as_array().unwrap();
-    let types: Vec<i64> = conditions.iter().map(|c| c["Type"].as_i64().unwrap()).collect();
+    let types: Vec<i64> = conditions
+        .iter()
+        .map(|c| c["Type"].as_i64().unwrap())
+        .collect();
     assert_eq!(types, [1, 9, 13, 16, 11, 2, 5, 12, 8, 8, 3, 3, 4, 6]);
     assert_eq!(conditions.len(), rules.len());
     for condition in conditions {
@@ -134,7 +158,10 @@ fn excel_shows_the_saved_formatting_and_rules_it_was_given() {
     assert_eq!(conditions[0]["StopIfTrue"], true);
     assert_eq!(conditions[0]["NumberFormat"], "0.00\"x\"");
     assert_eq!(conditions[5]["Formula1"], "=AND(K4>2,L4<$C$3)");
-    assert_eq!((conditions[6]["Rank"].as_i64(), &conditions[6]["Percent"]), (Some(25), &true.into()));
+    assert_eq!(
+        (conditions[6]["Rank"].as_i64(), &conditions[6]["Percent"]),
+        (Some(25), &true.into())
+    );
     assert_eq!(conditions[7]["AboveBelow"], 3);
     assert_eq!(conditions[12]["bar"]["color"], 255);
     assert_eq!(conditions[13]["icons"]["id"], 13);
@@ -150,7 +177,9 @@ fn excel_shows_the_saved_formatting_and_rules_it_was_given() {
 #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
 fn the_file_excel_saved_reopens_with_the_same_formatting_and_rules() {
     let original = file::open(LOOK_SAVED).unwrap().0;
-    let reopened = file::open(LOOK_EXCEL_SAVED).expect("Excel's file reopens in OneCalc").0;
+    let reopened = file::open(LOOK_EXCEL_SAVED)
+        .expect("Excel's file reopens in OneCalc")
+        .0;
     assert_eq!(reopened.look().0, original.look().0);
     assert_eq!(reopened.look().1, original.look().1);
     assert_eq!(reopened.formula(), original.formula());

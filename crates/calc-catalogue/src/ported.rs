@@ -1,5 +1,8 @@
 //! Function declaration fragments moved from CalcFunc. The executable kernels stay there.
-use crate::{ArgumentDemand, ArgumentGroups, Availability, EntryClass, EntryTraits, FunctionId, LegacyPlace, Notation, Parameter, ParameterClass, ResultForm, ThreeD, WorksheetDeclaration};
+use crate::{
+    ArgumentDemand, ArgumentGroups, Availability, EntryClass, EntryTraits, FunctionId, LegacyPlace,
+    Notation, Parameter, ParameterClass, ResultForm, ThreeD, WorksheetDeclaration,
+};
 
 macro_rules! data_family {
     (code: $code:expr; $(
@@ -37,10 +40,15 @@ macro_rules! data_family {
     (@class F) => { ParameterClass::Reference };
 }
 
-pub const fn find(entries: &'static [WorksheetDeclaration], id: FunctionId) -> WorksheetDeclaration {
+pub const fn find(
+    entries: &'static [WorksheetDeclaration],
+    id: FunctionId,
+) -> WorksheetDeclaration {
     let mut i = 0;
     while i < entries.len() {
-        if entries[i].id.raw() == id.raw() { return entries[i]; }
+        if entries[i].id.raw() == id.raw() {
+            return entries[i];
+        }
         i += 1;
     }
     panic!("kernel has no declaration")

@@ -684,7 +684,10 @@ mod tests {
         assert_eq!(holds(r#"target_arch = "x86_64""#), Some(false));
         assert_eq!(holds(r#"target_env = "msvc""#), Some(false));
         assert_eq!(holds("windows"), Some(false));
-        assert_eq!(holds(r#"all(test, not(target_arch = "wasm32"))"#), Some(false));
+        assert_eq!(
+            holds(r#"all(test, not(target_arch = "wasm32"))"#),
+            Some(false)
+        );
         assert_eq!(holds(r#"all(windows, feature = "x")"#), Some(false));
         assert_eq!(holds(r#"any(test, windows)"#), Some(true));
         assert_eq!(holds(r#"feature = "x""#), None);

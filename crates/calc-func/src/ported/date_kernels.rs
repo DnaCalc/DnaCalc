@@ -92,7 +92,12 @@ pub(crate) fn days_in_month(year: i64, month: i64) -> i64 {
 
 /// DATE in the 1900 system: the year capped and read as Excel's signed 16-bit year, years below
 /// 1900 offset by 1900, the month normalized into the year, and the day running on.
-pub(crate) fn date(raw_year: f64, raw_month: f64, raw_day: f64, system: DateSystem) -> Result<f64, W> {
+pub(crate) fn date(
+    raw_year: f64,
+    raw_month: f64,
+    raw_day: f64,
+    system: DateSystem,
+) -> Result<f64, W> {
     if !raw_year.is_finite() || !raw_month.is_finite() || !raw_day.is_finite() {
         return Err(W::Num);
     }
@@ -238,8 +243,13 @@ pub(crate) fn eomonth(serial: f64, months: f64) -> Result<f64, W> {
     if !(1900..=9999).contains(&year) {
         return Err(W::Num);
     }
-    excel_serial_from_ymd(DateSystem::System1900, year, month, days_in_month(year, month))
-        .ok_or(W::Num)
+    excel_serial_from_ymd(
+        DateSystem::System1900,
+        year,
+        month,
+        days_in_month(year, month),
+    )
+    .ok_or(W::Num)
 }
 
 fn weekday_sunday_one_based(serial: i64) -> i64 {
@@ -651,8 +661,14 @@ mod tests {
         assert_eq!(date(1900.0, 1.0, 1.0, DateSystem::System1900), Ok(1.0));
         assert_eq!(date(1900.0, 2.0, 29.0, DateSystem::System1900), Ok(60.0));
         assert_eq!(date(2024.0, 13.0, 1.0, DateSystem::System1900), Ok(45658.0));
-        assert_eq!(date(2024.0, 1.0, 15.0, DateSystem::System1904), Ok(45306.0 - 1462.0));
-        assert_eq!(date(1903.0, 12.0, 31.0, DateSystem::System1904), Err(W::Num));
+        assert_eq!(
+            date(2024.0, 1.0, 15.0, DateSystem::System1904),
+            Ok(45306.0 - 1462.0)
+        );
+        assert_eq!(
+            date(1903.0, 12.0, 31.0, DateSystem::System1904),
+            Err(W::Num)
+        );
     }
 
     #[cfg_attr(not(target_arch = "wasm32"), test)]
@@ -661,7 +677,12 @@ mod tests {
         let holidays: BTreeSet<i64> = [45005, 45006, 45100].into_iter().collect();
         for weekend in [1, 2, 7, 11, 17] {
             let mask = WeekendMask::from_number(weekend).unwrap();
-            for (s, e) in [(45000, 45030), (45030, 45000), (45001, 45001), (45000, 45200)] {
+            for (s, e) in [
+                (45000, 45030),
+                (45030, 45000),
+                (45001, 45001),
+                (45000, 45200),
+            ] {
                 let (lo, hi) = (s.min(e), s.max(e));
                 let walked = (lo..=hi)
                     .filter(|&d| is_business_day(d, mask, &holidays))

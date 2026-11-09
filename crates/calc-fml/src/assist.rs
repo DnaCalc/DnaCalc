@@ -19,8 +19,16 @@ use calc_func::{FunctionCallTarget, Notation, catalogue};
 /// Incomplete or unsupported syntax stays exactly as authored.
 pub fn display_formula(text: &str) -> String {
     let bytes = text.as_bytes();
-    let has = |prefix: &[u8]| bytes.windows(prefix.len()).any(|v| v.eq_ignore_ascii_case(prefix));
-    if !text.trim_start().starts_with('=') || !(has(calc_catalogue::FUTURE_FUNCTION_PREFIX.as_bytes()) || has(b"_xlpm.") || has(calc_catalogue::WORKSHEET_FUNCTION_PREFIX.as_bytes())) {
+    let has = |prefix: &[u8]| {
+        bytes
+            .windows(prefix.len())
+            .any(|v| v.eq_ignore_ascii_case(prefix))
+    };
+    if !text.trim_start().starts_with('=')
+        || !(has(calc_catalogue::FUTURE_FUNCTION_PREFIX.as_bytes())
+            || has(b"_xlpm.")
+            || has(calc_catalogue::WORKSHEET_FUNCTION_PREFIX.as_bytes()))
+    {
         return text.to_owned();
     }
     let tree = crate::parse_formula(text);
@@ -36,7 +44,9 @@ pub fn display_formula(text: &str) -> String {
             let spelling = token.text();
             // `_xlws.` can also stand alone before a worksheet function the file stores with it.
             let named = crate::eval::file_unprefixed(spelling);
-            let friendly = crate::eval::without_prefix(named, calc_catalogue::WORKSHEET_FUNCTION_PREFIX).unwrap_or(named);
+            let friendly =
+                crate::eval::without_prefix(named, calc_catalogue::WORKSHEET_FUNCTION_PREFIX)
+                    .unwrap_or(named);
             if friendly != spelling
                 && (function_named(friendly).is_some()
                     || crate::eval::binding_call(friendly).is_some())
@@ -91,15 +101,18 @@ mod formula_display_tests {
                 "=_xlfn.LET(_xlpm.x,2,_xlpm.x+_xlfn.SEQUENCE(2))",
                 "=LET(x,2,x+SEQUENCE(2))",
             ),
-            (
-                "=_xlfn.LAMBDA(_xlpm.x,_xlpm.x+1)(2)",
-                "=LAMBDA(x,x+1)(2)",
-            ),
+            ("=_xlfn.LAMBDA(_xlpm.x,_xlpm.x+1)(2)", "=LAMBDA(x,x+1)(2)"),
             ("=LET(_xlpm.x,2,_XLPM.X+1)", "=LET(x,2,X+1)"),
-            ("=_xlws.SORT(A1:A3)+'_xlpm.x'!A1", "=SORT(A1:A3)+'_xlpm.x'!A1"),
+            (
+                "=_xlws.SORT(A1:A3)+'_xlpm.x'!A1",
+                "=SORT(A1:A3)+'_xlpm.x'!A1",
+            ),
             ("=_xlws.NOSUCH(1)", "=_xlws.NOSUCH(1)"),
             ("=_xlfn.SUM+_xlfn.SEQUENCE", "=_xlfn.SUM+_xlfn.SEQUENCE"),
-            ("=SUM(_xlfn.Table[_xlfn.SEQUENCE])", "=SUM(_xlfn.Table[_xlfn.SEQUENCE])"),
+            (
+                "=SUM(_xlfn.Table[_xlfn.SEQUENCE])",
+                "=SUM(_xlfn.Table[_xlfn.SEQUENCE])",
+            ),
             ("=_xlfn.UNKNOWN(1)", "=_xlfn.UNKNOWN(1)"),
             ("=_xlfn.SEQUENCE(", "=_xlfn.SEQUENCE("),
             ("_xlfn.SEQUENCE(3)", "_xlfn.SEQUENCE(3)"),
@@ -331,10 +344,17 @@ impl Completion {
             })
             .map_or(self.replace.end(), |token| token.span().end())
             .min(units.len());
-        let spaces = units[end..].iter().take_while(|u| matches!(**u, 9 | 10 | 12 | 13 | 32)).count();
+        let spaces = units[end..]
+            .iter()
+            .take_while(|u| matches!(**u, 9 | 10 | 12 | 13 | 32))
+            .count();
         let has_open = units.get(end + spaces) == Some(&(b'(' as u16));
         let reuse = has_open && proposal.is_call();
-        let insert = if reuse || !proposal.is_call() { proposal.label().to_owned() } else { proposal.insert_text() };
+        let insert = if reuse || !proposal.is_call() {
+            proposal.label().to_owned()
+        } else {
+            proposal.insert_text()
+        };
         let mut out: Vec<u16> = units[..start].to_vec();
         out.extend(insert.encode_utf16());
         let caret = out.len() + if reuse { spaces + 1 } else { 0 };
@@ -403,7 +423,10 @@ pub fn complete_in(text: &str, caret: usize, scope: &Scope) -> Option<Completion
                 .then(|| scope.descriptor(name).cloned())
                 .flatten();
             // The provider's own spelling, where it documented the function (the table folds names).
-            let label = descriptor.as_ref().map_or(name, |d| d.name.as_str()).to_owned();
+            let label = descriptor
+                .as_ref()
+                .map_or(name, |d| d.name.as_str())
+                .to_owned();
             proposals.push(Proposal {
                 kind,
                 target: None,
@@ -447,7 +470,10 @@ pub struct LocalBinding {
 pub fn locals_at(tree: &SyntaxTree, text: &str, caret: usize) -> Vec<String> {
     let mut found: Vec<String> = Vec::new();
     for binding in local_bindings_at(tree, text, caret).into_iter().rev() {
-        if !found.iter().any(|have| have.eq_ignore_ascii_case(&binding.name)) {
+        if !found
+            .iter()
+            .any(|have| have.eq_ignore_ascii_case(&binding.name))
+        {
             found.push(binding.name);
         }
     }
@@ -530,24 +556,42 @@ pub fn local_bindings_at(tree: &SyntaxTree, text: &str, caret: usize) -> Vec<Loc
         };
         let name_of = |index: usize| -> Option<String> {
             let raw = slice(index)?;
-            let raw = raw.trim().trim_start_matches('[').trim_end_matches(']').trim();
+            let raw = raw
+                .trim()
+                .trim_start_matches('[')
+                .trim_end_matches(']')
+                .trim();
             let raw = crate::eval::without_prefix(raw, "_xlpm.")
                 .or_else(|| crate::eval::without_prefix(raw, "_xlop."))
                 .unwrap_or(raw);
-            let valid = raw.chars().next().is_some_and(|c| c.is_alphabetic() || c == '_')
-                && raw.chars().all(|c| c.is_alphanumeric() || c == '_' || c == '.');
+            let valid = raw
+                .chars()
+                .next()
+                .is_some_and(|c| c.is_alphabetic() || c == '_')
+                && raw
+                    .chars()
+                    .all(|c| c.is_alphanumeric() || c == '_' || c == '.');
             valid.then(|| raw.to_owned())
         };
         if is_let {
-            for name in (0..count).step_by(2).filter(|name| name + 1 < active && name + 1 < count) {
+            for name in (0..count)
+                .step_by(2)
+                .filter(|name| name + 1 < active && name + 1 < count)
+            {
                 if let (Some(n), Some(value)) = (name_of(name), slice(name + 1)) {
-                    found.push(LocalBinding { name: n, value: Some(value.trim().to_owned()) });
+                    found.push(LocalBinding {
+                        name: n,
+                        value: Some(value.trim().to_owned()),
+                    });
                 }
             }
         } else if active + 1 == count && active >= 1 {
             for index in 0..active {
                 if let Some(n) = name_of(index) {
-                    found.push(LocalBinding { name: n, value: None });
+                    found.push(LocalBinding {
+                        name: n,
+                        value: None,
+                    });
                 }
             }
         }
@@ -739,11 +783,20 @@ mod tests {
     #[cfg_attr(not(target_arch = "wasm32"), test)]
     #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
     fn completion_includes_every_resolvable_catalogue_call() {
-        for target in catalogue().entries().filter(|t| t.notation() == Notation::Call) {
-            if function_named(target.spelling()).is_none() { continue; }
+        for target in catalogue()
+            .entries()
+            .filter(|t| t.notation() == Notation::Call)
+        {
+            if function_named(target.spelling()).is_none() {
+                continue;
+            }
             let text = format!("={}", target.spelling());
             let found = complete(&text, text.encode_utf16().count()).unwrap();
-            assert!(found.proposals.iter().any(|p| p.target == Some(target)), "{}", target.spelling());
+            assert!(
+                found.proposals.iter().any(|p| p.target == Some(target)),
+                "{}",
+                target.spelling()
+            );
         }
     }
 
@@ -769,11 +822,25 @@ mod tests {
             ("=SUMX + 2", 4, "=SUM( + 2", 5),
             ("=SUMX  (1,2)", 4, "=SUM  (1,2)", 7),
             ("=SUMX\u{c}(1,2)", 4, "=SUM\u{c}(1,2)", 6),
-            ("=IF(TRUE,\"😀\",SUMX(1,2))", 17, "=IF(TRUE,\"😀\",SUM(1,2))", 18),
+            (
+                "=IF(TRUE,\"😀\",SUMX(1,2))",
+                17,
+                "=IF(TRUE,\"😀\",SUM(1,2))",
+                18,
+            ),
         ] {
             let completion = complete(text, caret).expect(text);
-            let sum = completion.proposals.iter().cloned().find(|p| p.label() == "SUM").unwrap();
-            assert_eq!(completion.apply(text, &sum), (expected.to_owned(), after), "{text}");
+            let sum = completion
+                .proposals
+                .iter()
+                .cloned()
+                .find(|p| p.label() == "SUM")
+                .unwrap();
+            assert_eq!(
+                completion.apply(text, &sum),
+                (expected.to_owned(), after),
+                "{text}"
+            );
         }
     }
 
@@ -815,13 +882,24 @@ mod tests {
             "the list is in name order"
         );
         let text = "=LET(aa,1,MAP({1},LAMBDA(ab,a)))";
-        assert_eq!(locals_at(&parse_formula(text), text, 29), ["ab", "aa"], "innermost first");
+        assert_eq!(
+            locals_at(&parse_formula(text), text, 29),
+            ["ab", "aa"],
+            "innermost first"
+        );
         assert_eq!(local("=LET(aa,1,aa)+a", 15), Vec::<String>::new());
         // A local accepted keeps no parenthesis.
         let completion = complete("=LET(alpha,1,al", 15).unwrap();
-        let alpha = completion.proposals.iter().find(|p| p.label() == "alpha").unwrap();
+        let alpha = completion
+            .proposals
+            .iter()
+            .find(|p| p.label() == "alpha")
+            .unwrap();
         assert_eq!(alpha.insert_text(), "alpha");
-        assert_eq!(completion.apply("=LET(alpha,1,al", alpha), ("=LET(alpha,1,alpha".to_owned(), 18));
+        assert_eq!(
+            completion.apply("=LET(alpha,1,al", alpha),
+            ("=LET(alpha,1,alpha".to_owned(), 18)
+        );
     }
 
     #[cfg_attr(not(target_arch = "wasm32"), test)]
@@ -833,24 +911,47 @@ mod tests {
             ..Scope::default()
         };
         let completion = complete_in("=SUM+Sal", 8, &scope).unwrap();
-        assert_eq!(labels_of(&completion), [("Sales".to_owned(), ProposalKind::Name)]);
+        assert_eq!(
+            labels_of(&completion),
+            [("Sales".to_owned(), ProposalKind::Name)]
+        );
         let completion = complete_in("=SUM", 4, &scope).unwrap();
         let found = labels_of(&completion);
         assert!(found.contains(&("SUM".to_owned(), ProposalKind::Function)));
         assert!(found.contains(&("SumRange".to_owned(), ProposalKind::Name)));
         assert!(found.contains(&("SUMTHING".to_owned(), ProposalKind::Registered)));
-        let mut sorted: Vec<String> = found.iter().map(|(label, _)| label.to_ascii_uppercase()).collect();
+        let mut sorted: Vec<String> = found
+            .iter()
+            .map(|(label, _)| label.to_ascii_uppercase())
+            .collect();
         let before = sorted.clone();
         sorted.sort();
         assert_eq!(before, sorted, "name order across kinds");
-        let thing = completion.proposals.iter().find(|p| p.label() == "SUMTHING").unwrap();
-        assert_eq!(completion.apply("=SUM", thing), ("=SUMTHING(".to_owned(), 10));
-        let name = completion.proposals.iter().find(|p| p.label() == "SumRange").unwrap();
+        let thing = completion
+            .proposals
+            .iter()
+            .find(|p| p.label() == "SUMTHING")
+            .unwrap();
+        assert_eq!(
+            completion.apply("=SUM", thing),
+            ("=SUMTHING(".to_owned(), 10)
+        );
+        let name = completion
+            .proposals
+            .iter()
+            .find(|p| p.label() == "SumRange")
+            .unwrap();
         assert_eq!(completion.apply("=SUM", name), ("=SumRange".to_owned(), 9));
         let completion = complete_in("=Mod", 4, &scope).unwrap();
-        assert!(labels_of(&completion).contains(&("Module1.Add2".to_owned(), ProposalKind::Registered)));
+        assert!(
+            labels_of(&completion).contains(&("Module1.Add2".to_owned(), ProposalKind::Registered))
+        );
         let completion = complete_in("=Module1.A", 10, &scope);
-        assert!(completion.is_none_or(|c| c.proposals.iter().all(|p| p.label().starts_with("Module1.A"))));
+        assert!(completion.is_none_or(|c| {
+            c.proposals
+                .iter()
+                .all(|p| p.label().starts_with("Module1.A"))
+        }));
     }
 
     /// A registered function whose provider documented it completes under its own spelling, carries
@@ -865,8 +966,14 @@ mod tests {
             category: "My add-in".into(),
             description: "Adds two numbers.".into(),
             parameters: vec![
-                crate::CallableParameter { name: "first".into(), description: "The first number.".into() },
-                crate::CallableParameter { name: "second".into(), description: String::new() },
+                crate::CallableParameter {
+                    name: "first".into(),
+                    description: "The first number.".into(),
+                },
+                crate::CallableParameter {
+                    name: "second".into(),
+                    description: String::new(),
+                },
             ],
             ..crate::CallableDescriptor::default()
         };
@@ -876,13 +983,21 @@ mod tests {
             ..Scope::default()
         };
         let completion = complete_in("=MyA", 4, &scope).unwrap();
-        let proposal = completion.proposals.iter().find(|p| p.kind == ProposalKind::Registered).unwrap();
+        let proposal = completion
+            .proposals
+            .iter()
+            .find(|p| p.kind == ProposalKind::Registered)
+            .unwrap();
         assert_eq!(proposal.label(), "MyAdd");
         assert_eq!(proposal.descriptor.as_ref(), Some(&descriptor));
         assert_eq!(descriptor.signature(), "MyAdd(first, second)");
         assert_eq!(
             descriptor.signature_pieces(1),
-            ("MyAdd(first, ".to_owned(), "second".to_owned(), ")".to_owned())
+            (
+                "MyAdd(first, ".to_owned(),
+                "second".to_owned(),
+                ")".to_owned()
+            )
         );
         let text = "=MyAdd(1,";
         let tree = parse_formula(text);

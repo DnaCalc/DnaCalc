@@ -1802,7 +1802,10 @@ fn cfml_m1_2__provider_reads() {
     }
     // The qualified call checked Sheet2 for a defined-name callee; the run of sheets
     // asked for its two sheets. No argument or inner qualifier added a sheet request.
-    assert_eq!(&catalog.requests.borrow()[asked..], ["Sheet2", "Sheet1", "Sheet3"]);
+    assert_eq!(
+        &catalog.requests.borrow()[asked..],
+        ["Sheet2", "Sheet1", "Sheet3"]
+    );
     let asked = asked + 3;
     // An array constant holds constants only: each reference inside one is refused, a qualified
     // one without asking the catalogue, and the constants and the name give no site.
@@ -2645,8 +2648,7 @@ fn cfml_m1_3__reuse_plan() {
                     calc_fml::Rejection::Grammar(calc_fml::GrammarRule::BindingArguments)
                     | calc_fml::Rejection::Function {
                         rule:
-                            calc_fml::EntryRule::TooFewArguments
-                            | calc_fml::EntryRule::TooManyArguments,
+                            calc_fml::EntryRule::TooFewArguments | calc_fml::EntryRule::TooManyArguments,
                         ..
                     },
                 ..
@@ -4376,7 +4378,10 @@ fn dc_ibp2__error_fallback() {
         vec![],
         "a refused value: the fallback is not read"
     );
-    assert_eq!(refused.log.calls, ["Prefix -", "Call EXP", "Prefix -", "Call IFERROR"]);
+    assert_eq!(
+        refused.log.calls,
+        ["Prefix -", "Call EXP", "Prefix -", "Call IFERROR"]
+    );
     // A legacy formula intersects a range at IFERROR's and IFNA's value parameters with its own
     // row, 100 here, which the ranges do not reach: #VALUE!, which IFERROR catches and IFNA
     // passes on. Excel 16.0 writes these as `=IFERROR(@A1:A2,0)` and `=SUM(IFERROR(@A1:A3,0))`

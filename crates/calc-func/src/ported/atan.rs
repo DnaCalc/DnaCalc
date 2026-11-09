@@ -24,7 +24,13 @@ mod tests {
     #[cfg_attr(not(target_arch = "wasm32"), test)]
     #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
     fn atan_retains_extended_inverse_angle_and_pi() {
-        assert_eq!(atan_kernel(f64::from_bits(0xc0000d685e592174)).to_bits(), 0xbff1bc3aef431d2a);
-        assert_eq!(atan_kernel(f64::from_bits(0x40001dc1079c3c90)).to_bits(), 0x3ff1c2b6c60d2617);
+        assert_eq!(
+            atan_kernel(f64::from_bits(0xc0000d685e592174)).to_bits(),
+            0xbff1bc3aef431d2a
+        );
+        assert_eq!(
+            atan_kernel(f64::from_bits(0x40001dc1079c3c90)).to_bits(),
+            0x3ff1c2b6c60d2617
+        );
     }
 }

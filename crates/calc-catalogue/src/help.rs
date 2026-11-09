@@ -43,8 +43,12 @@ impl FunctionHelp {
 
 // Two published help labels differ from the corresponding declaration's surface spelling.
 const fn help_spelling(id: crate::FunctionId) -> &'static str {
-    if id.raw() == crate::euro_tools::EUROCONVERT.raw() { return crate::file_spelling(id); }
-    if id.raw() == crate::unheld::IMPLICIT_INTERSECTION_ID.raw() { return "OP_IMPLICIT_INTERSECTION"; }
+    if id.raw() == crate::euro_tools::EUROCONVERT.raw() {
+        return crate::file_spelling(id);
+    }
+    if id.raw() == crate::unheld::IMPLICIT_INTERSECTION_ID.raw() {
+        return "OP_IMPLICIT_INTERSECTION";
+    }
     match crate::declaration(id) {
         Some(entry) => entry.spelling(),
         None => panic!("help names an undeclared function ID"),
@@ -53,8 +57,10 @@ const fn help_spelling(id: crate::FunctionId) -> &'static str {
 
 /// The help for a stable declaration ID.
 pub fn help_of_id(id: crate::FunctionId) -> Option<&'static FunctionHelp> {
-    HELP_BY_ID.binary_search_by_key(&id.raw(), |index| HELP[*index].id.raw())
-        .ok().map(|at| &HELP[HELP_BY_ID[at]])
+    HELP_BY_ID
+        .binary_search_by_key(&id.raw(), |index| HELP[*index].id.raw())
+        .ok()
+        .map(|at| &HELP[HELP_BY_ID[at]])
 }
 
 /// The description for a stable declaration ID.
@@ -5011,10 +5017,18 @@ mod identity_equivalence {
         let mut actual = String::new();
         for help in super::HELP {
             let mut hash = 0xcbf29ce484222325u64;
-            for value in [Some(help.spelling), help.microsoft, help.source, Some(help.own)] {
+            for value in [
+                Some(help.spelling),
+                help.microsoft,
+                help.source,
+                Some(help.own),
+            ] {
                 let text = value.unwrap_or("");
-                for byte in [u8::from(value.is_some())].into_iter()
-                    .chain((text.len() as u64).to_le_bytes()).chain(text.bytes()) {
+                for byte in [u8::from(value.is_some())]
+                    .into_iter()
+                    .chain((text.len() as u64).to_le_bytes())
+                    .chain(text.bytes())
+                {
                     hash = (hash ^ u64::from(byte)).wrapping_mul(0x100000001b3);
                 }
             }

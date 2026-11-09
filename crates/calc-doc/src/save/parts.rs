@@ -733,7 +733,19 @@ pub(super) fn ensure_relationship(
     kind: &str,
     to: &str,
 ) -> Result<String, SaveRefusal> {
-    if let Some(id)=package.relationships_of(Some(from)).and_then(|r|r.items().iter().find(|r|r.kind==kind&&r.mode==crate::opc::TargetMode::Internal&&r.resolved.as_deref()==Some(to))).map(|r|r.id.clone()){return Ok(id);}
+    if let Some(id) = package
+        .relationships_of(Some(from))
+        .and_then(|r| {
+            r.items().iter().find(|r| {
+                r.kind == kind
+                    && r.mode == crate::opc::TargetMode::Internal
+                    && r.resolved.as_deref() == Some(to)
+            })
+        })
+        .map(|r| r.id.clone())
+    {
+        return Ok(id);
+    }
     let (parent, file) = from.rsplit_once('/').map_or(("", from), |(p, f)| (p, f));
     let name = if parent.is_empty() {
         format!("_rels/{file}.rels")
@@ -789,7 +801,12 @@ pub(super) fn ensure_content_type(
             crate::xml::XmlLimits::default(),
         )
     } else {
-        package.content_types_xml().map_err(|error|SaveRefusal::Part{part:crate::opc::CONTENT_TYPES_ENTRY.into(),error})?
+        package
+            .content_types_xml()
+            .map_err(|error| SaveRefusal::Part {
+                part: crate::opc::CONTENT_TYPES_ENTRY.into(),
+                error,
+            })?
     };
     let part = format!("/{name}");
     let mut reader = Reader::new(&xml);
@@ -870,9 +887,15 @@ pub(super) fn worksheet_child(
     body: &[u8],
     before: &[&str],
 ) -> Result<Vec<u8>, SaveRefusal> {
-    root_child(xml,"worksheet",local,body,before)
+    root_child(xml, "worksheet", local, body, before)
 }
-pub(super) fn root_child(xml:&XmlPart,root_name:&str,local:&str,body:&[u8],before:&[&str])->Result<Vec<u8>,SaveRefusal>{
+pub(super) fn root_child(
+    xml: &XmlPart,
+    root_name: &str,
+    local: &str,
+    body: &[u8],
+    before: &[&str],
+) -> Result<Vec<u8>, SaveRefusal> {
     let mut reader = Reader::new(xml);
     let (_, root) = reader.root(root_name)?;
     let tag = RawTag::parse(&xml.bytes()[root.0..root.1]);

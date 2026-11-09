@@ -36,7 +36,10 @@ pub(crate) fn parts_in(package: &Package, namespace: &str) -> Vec<String> {
             let Some(part) = item.resolved.as_deref().and_then(|name| package.part(name)) else {
                 continue;
             };
-            if found.iter().any(|name| name.eq_ignore_ascii_case(part.name())) {
+            if found
+                .iter()
+                .any(|name| name.eq_ignore_ascii_case(part.name()))
+            {
                 continue;
             }
             let Ok(xml) = package.read_xml(part.name()) else {

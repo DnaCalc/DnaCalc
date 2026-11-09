@@ -62,10 +62,9 @@
 use crate::corpus::{Cache, DEFAULT_CACHE, Entry, compare_program, excel_build, folder_workbooks};
 use calc_host::value::{CellKey, SheetId};
 use calc_host::{
-    CalcMode, CellEdit, CellInput, FiniteNumber, HostCommand, HostOptions, HostProgress, HostState,
-    HostSession, SkinIntent,
-    MemorySource, OpenPolicy, PackageRead, ProjectedValue, ProjectionRequest, Unobserved,
-    WorkBudget, calculate_full, dispatch, project, step,
+    CalcMode, CellEdit, CellInput, FiniteNumber, HostCommand, HostOptions, HostProgress,
+    HostSession, HostState, MemorySource, OpenPolicy, PackageRead, ProjectedValue,
+    ProjectionRequest, SkinIntent, Unobserved, WorkBudget, calculate_full, dispatch, project, step,
 };
 use calc_oracle_excel::{TimedEdit, TimingRequest, time_workbook, windows_powershell};
 use calc_verdict::{CaptureRecord, sha256_hex};
@@ -399,7 +398,11 @@ fn warm_rebuild(session: &mut HostSession) -> Result<Phases, String> {
     }
     let evaluate = clock.stop();
     match progress {
-        HostProgress::Published(delta) => Ok(Phases { order, evaluate, published: delta.changes().len() }),
+        HostProgress::Published(delta) => Ok(Phases {
+            order,
+            evaluate,
+            published: delta.changes().len(),
+        }),
         other => Err(format!("warm Rebuild did not publish: {other:?}")),
     }
 }
@@ -973,12 +976,14 @@ fn markdown(run: &Value, workbooks: &[Value]) -> String {
     for workbook in workbooks {
         let m = &workbook["stats"]["dna"];
         let get = |k: &str| -> Option<Value> { m.get(k).cloned().filter(|v| !v.is_null()) };
-        out.push_str(&format!("| {} | {} | {} | {} | {} |\n",
+        out.push_str(&format!(
+            "| {} | {} | {} | {} | {} |\n",
             workbook["name"].as_str().unwrap_or("?"),
             cell(&get("warm_rebuild_order_s"), 1.0, 3),
             cell(&get("warm_rebuild_evaluate_s"), 1.0, 3),
             cell(&get("warm_rebuild_s"), 1.0, 3),
-            cell(&get("warm_project_s"), 1.0, 3)));
+            cell(&get("warm_project_s"), 1.0, 3)
+        ));
     }
     out.push_str("\n## DNA Calc thread cycles (billions; QueryThreadCycleTime, less sensitive to other load than wall time)\n\n| Workbook | Open | Rebuild | Full | Full: order | Full: evaluate | One-cell edit |\n|---|---|---|---|---|---|---|\n");
     for workbook in workbooks {
@@ -1068,7 +1073,9 @@ fn run_bench(args: &Args) -> u8 {
     } else {
         (PathBuf::new(), "none run".to_owned())
     };
-    let _copy = args.dna.then(|| xtask::harness::CopyCleanup(program.clone()));
+    let _copy = args
+        .dna
+        .then(|| xtask::harness::CopyCleanup(program.clone()));
     let cache = Cache {
         root: args.cache.clone(),
     };

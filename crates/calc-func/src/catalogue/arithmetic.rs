@@ -19,7 +19,9 @@ use crate::coerce;
 use crate::kernel::{Exit, Site, Step};
 use crate::value::{CalcValue, CoreRef, WorksheetErrorCode};
 
-use calc_catalogue::operators::arithmetic::{CODE, ENTRIES as DECLARATIONS, PLUS, MINUS, TIMES, DIVIDE, POWER, NEGATE, UNARY_PLUS, PERCENT};
+use calc_catalogue::operators::arithmetic::{
+    CODE, DIVIDE, ENTRIES as DECLARATIONS, MINUS, NEGATE, PERCENT, PLUS, POWER, TIMES, UNARY_PLUS,
+};
 
 attach_eager_family! {
     code: CODE; declarations: DECLARATIONS;
@@ -51,14 +53,18 @@ fn times(
     arguments: &[CalcValue],
     services: &mut EvalServices<'_>,
 ) -> Result<CalcValue, FunctionFault> {
-    binary(TIMES, arguments, services, |site, a, b| Ok(flushed(site.multiply(a, b)?)))
+    binary(TIMES, arguments, services, |site, a, b| {
+        Ok(flushed(site.multiply(a, b)?))
+    })
 }
 
 fn divide(
     arguments: &[CalcValue],
     services: &mut EvalServices<'_>,
 ) -> Result<CalcValue, FunctionFault> {
-    binary(DIVIDE, arguments, services, |site, a, b| Ok(flushed(site.divide(a, b)?)))
+    binary(DIVIDE, arguments, services, |site, a, b| {
+        Ok(flushed(site.divide(a, b)?))
+    })
 }
 
 /// A product or quotient as Excel publishes it: +0 below the normal range (see the module

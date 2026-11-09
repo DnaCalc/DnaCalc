@@ -93,7 +93,11 @@ impl AsyncReturns {
             None => D::Rejected(R::UnknownToken),
             Some(record) if record.token != *token => D::Rejected(R::IdentityMismatch),
             Some(record) if record.returned.is_some() => {
-                if record.returned.as_ref().is_some_and(|held| same_return(held, &value)) {
+                if record
+                    .returned
+                    .as_ref()
+                    .is_some_and(|held| same_return(held, &value))
+                {
                     D::Duplicate
                 } else {
                     D::Rejected(R::ConflictingDuplicate)
@@ -136,13 +140,26 @@ mod tests {
         let member = |unique: &str| {
             CalcValue::cube(
                 ExcelText::from_interop_assignment("Europe"),
-                CubeValue { connection: "Model".into(), tuples: vec![vec![unique.into()]], set: false },
+                CubeValue {
+                    connection: "Model".into(),
+                    tuples: vec![vec![unique.into()]],
+                    set: false,
+                },
             )
         };
         assert!(same_return(&member("[Geo].&[1]"), &member("[Geo].&[1]")));
         assert!(!same_return(&member("[Geo].&[1]"), &member("[Geo].&[2]")));
-        assert!(!same_return(&member("[Geo].&[1]"), &CalcValue::text(ExcelText::from_interop_assignment("Europe"))));
-        assert!(same_return(&CalcValue::number(2.0), &CalcValue::number(2.0)));
-        assert!(!same_return(&CalcValue::number(0.0), &CalcValue::number(-0.0)));
+        assert!(!same_return(
+            &member("[Geo].&[1]"),
+            &CalcValue::text(ExcelText::from_interop_assignment("Europe"))
+        ));
+        assert!(same_return(
+            &CalcValue::number(2.0),
+            &CalcValue::number(2.0)
+        ));
+        assert!(!same_return(
+            &CalcValue::number(0.0),
+            &CalcValue::number(-0.0)
+        ));
     }
 }

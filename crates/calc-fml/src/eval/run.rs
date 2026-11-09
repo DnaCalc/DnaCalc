@@ -1409,10 +1409,7 @@ impl Run<'_, '_> {
                 calc_func::PairedResult::EvenAfterSelector => index >= 2 && index % 2 == 0,
                 calc_func::PairedResult::None => false,
             };
-            if paired_result
-                && value.callable_value().is_none()
-                && value.is_empty()
-            {
+            if paired_result && value.callable_value().is_none() && value.is_empty() {
                 computed_blank_results.push(index);
             }
             let admitted = self.admit(target, index, value, admission)?;
@@ -1876,11 +1873,11 @@ impl Run<'_, '_> {
                         if !self.would_wait(&fault)
                             && (index == 0
                                 || !is_lifted(
-                                target,
-                                self.instance.plan.form,
-                                0,
-                                call.values[0].as_ref().expect("first argument"),
-                            ))
+                                    target,
+                                    self.instance.plan.form,
+                                    0,
+                                    call.values[0].as_ref().expect("first argument"),
+                                ))
                         {
                             self.show_call(target, false);
                         }
@@ -2093,7 +2090,9 @@ impl Run<'_, '_> {
         let definition = target.binding?;
         let effects = self.user_function_effects.as_deref_mut()?;
         let ordinal = effects.next_name;
-        effects.next_name = ordinal.checked_add(1).expect("name invocation ordinal exhausted");
+        effects.next_name = ordinal
+            .checked_add(1)
+            .expect("name invocation ordinal exhausted");
         Some(Arc::new(ActiveName {
             ordinal,
             parent: self.current_name.as_ref().map(|name| name.ordinal),
@@ -3322,7 +3321,9 @@ mod tests {
             compile(
                 &parse_formula("=COUNTIFS(A1:A2+1,1)"),
                 ReferenceNotation::A1,
-                FormulaAnchor::new(CellKey::new(IdAllocator::<SheetId>::new().issue().unwrap(), 5, 5).unwrap()),
+                FormulaAnchor::new(
+                    CellKey::new(IdAllocator::<SheetId>::new().issue().unwrap(), 5, 5).unwrap()
+                ),
                 &NoSheets,
                 &mut PlanCache::new(),
             ),
@@ -3505,10 +3506,7 @@ mod tests {
         );
         // Unary minus on a computed subnormal remains unmodelled.
         assert!(matches!(
-            evaluated(
-                "=-EXP(-745)",
-                CalcValue::empty()
-            ),
+            evaluated("=-EXP(-745)", CalcValue::empty()),
             Err(EvalFault::Function(FunctionFault::NotImplemented { .. }))
         ));
     }
@@ -4200,7 +4198,9 @@ impl calc_func::UserFunctionContext for UserCallContext<'_, '_, '_> {
     }
     fn sheet_name(&mut self, sheet: calc_func::value::SheetId) -> Result<String, String> {
         use calc_func::HostFacts;
-        let mut host = ReaderHost { shared: self.run.reader };
+        let mut host = ReaderHost {
+            shared: self.run.reader,
+        };
         match host.sheet_name(sheet) {
             Some(name) => Ok(name),
             None => Err(self.refuse("sheet names without an admitted metadata view")),
@@ -4210,13 +4210,17 @@ impl calc_func::UserFunctionContext for UserCallContext<'_, '_, '_> {
         use calc_func::HostFacts;
         // Cache observations pin values separately. Names use the command's pinned model
         // and OnChange metadata receipts, so a clean F9 does not repeat this UDF.
-        let mut host = ReaderHost { shared: self.run.reader };
+        let mut host = ReaderHost {
+            shared: self.run.reader,
+        };
         if host.is_external_sheet(sheet) {
             return Err(self.refuse("external workbook reference names"));
         }
         let names = host.sheet_name(sheet).zip(host.workbook_name());
         match names {
-            Some((sheet, book)) => Ok(crate::reference::format_workbook_sheet_qualifier(&book, &sheet)),
+            Some((sheet, book)) => Ok(crate::reference::format_workbook_sheet_qualifier(
+                &book, &sheet,
+            )),
             None => Err(self.refuse("reference names without an admitted metadata view")),
         }
     }

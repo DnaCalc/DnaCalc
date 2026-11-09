@@ -665,7 +665,10 @@ fn infra_m1_2__capture_replays() {
         );
         return;
     }
-    note!("ACCEPT-NOTE: {CASE}: the capture was taken by {}", session.tool);
+    note!(
+        "ACCEPT-NOTE: {CASE}: the capture was taken by {}",
+        session.tool
+    );
 
     // The replay on this platform, through the library route `cargo xtask capture --verdict` took
     // on Windows when it wrote the verdict record: identical bytes.

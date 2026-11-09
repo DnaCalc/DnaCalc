@@ -2804,41 +2804,127 @@ fn contract_vba_load_is_wire_deduplicated_and_failed_load_preserves_the_project(
         wire::VbaModule { name: "Sheet1".into(), target: wire::VbaModuleTarget::Worksheet(wire::Sheet::of(sheet)),
             source: "Private Sub Worksheet_Change(ByVal Target As Excel.Range)\n If Target.Column = 1 Then\n  Changes = Changes + 1\n  Last = Target.Value2\n End If\nEnd Sub\nPrivate Sub Worksheet_Calculate()\n Calcs = Calcs + 1\nEnd Sub\n".into() },
     ];
-    let load_events = server.envelope(Request::LoadVbaProject { modules: modules.clone(), max_steps: 100_000 });
-    assert!(matches!(exchange(&mut server, load_events.clone()), FromServer::Reply { reply: Reply::Done { outcome, .. }, .. } if outcome.accepted));
+    let load_events = server.envelope(Request::LoadVbaProject {
+        modules: modules.clone(),
+        max_steps: 100_000,
+    });
+    assert!(
+        matches!(exchange(&mut server, load_events.clone()), FromServer::Reply { reply: Reply::Done { outcome, .. }, .. } if outcome.accepted)
+    );
     let report_cell = CellKey::new(sheet, 1, 5).unwrap();
-    send(&mut server, Request::Intent(Intent::EnterCell { at: Key::of(report_cell), text: "=Probe()".into() }));
+    send(
+        &mut server,
+        Request::Intent(Intent::EnterCell {
+            at: Key::of(report_cell),
+            text: "=Probe()".into(),
+        }),
+    );
     let report = |server: &mut Server| {
-        send(server, Request::Intent(Intent::CalculateRange { areas: vec![Area::of(GridArea::cell(report_cell))] }));
-        while server.has_pending_calculation() { server.advance_calculation(); }
+        send(
+            server,
+            Request::Intent(Intent::CalculateRange {
+                areas: vec![Area::of(GridArea::cell(report_cell))],
+            }),
+        );
+        while server.has_pending_calculation() {
+            server.advance_calculation();
+        }
         shown(server.book(), report_cell).text
     };
-    send(&mut server, Request::Intent(Intent::EnterCell { at: Key::of(at), text: "10".into() }));
-    assert_eq!(report(&mut server), "1:0:10", "Calculate runs after the formula observes its state");
+    send(
+        &mut server,
+        Request::Intent(Intent::EnterCell {
+            at: Key::of(at),
+            text: "10".into(),
+        }),
+    );
+    assert_eq!(
+        report(&mut server),
+        "1:0:10",
+        "Calculate runs after the formula observes its state"
+    );
     exchange(&mut server, load_events);
-    send(&mut server, Request::Intent(Intent::EnterCell { at: Key::of(at), text: "10".into() }));
-    assert_eq!(report(&mut server), "2:1:10", "retried load keeps state; same-value writes raise Change");
+    send(
+        &mut server,
+        Request::Intent(Intent::EnterCell {
+            at: Key::of(at),
+            text: "10".into(),
+        }),
+    );
+    assert_eq!(
+        report(&mut server),
+        "2:1:10",
+        "retried load keeps state; same-value writes raise Change"
+    );
     send(&mut server, Request::SetVbaEventsEnabled { enabled: false });
-    send(&mut server, Request::Intent(Intent::EnterCell { at: Key::of(at), text: "12".into() }));
+    send(
+        &mut server,
+        Request::Intent(Intent::EnterCell {
+            at: Key::of(at),
+            text: "12".into(),
+        }),
+    );
     assert_eq!(report(&mut server), "2:2:10");
     send(&mut server, Request::SetVbaEventsEnabled { enabled: true });
     let before_save = send(&mut server, Request::LoadVbaProject { modules: vec![wire::VbaModule {
         name: "ThisWorkbook".into(), target: wire::VbaModuleTarget::Workbook,
         source: "Private Sub Workbook_BeforeSave(ByVal SaveAsUI As Double, Cancel As Boolean)\n Cancel = True\nEnd Sub\n".into(),
     }], max_steps: 1000 });
-    assert!(matches!(before_save, FromServer::Failed { message, .. } if message.contains("event handler") && message.contains("signature does not match") && message.contains("BeforeSave") && message.contains("dc-hsa5.12")));
-    send(&mut server, Request::Intent(Intent::EnterCell { at: Key::of(at), text: "13".into() }));
-    assert_eq!(report(&mut server), "3:2:13", "failed preparation preserves the whole prior project");
-    send(&mut server, Request::LoadVbaProject { modules: modules.clone(), max_steps: 100_000 });
-    send(&mut server, Request::Intent(Intent::EnterCell { at: Key::of(at), text: "14".into() }));
-    assert_eq!(report(&mut server), "1:0:14", "an intentional replacement has fresh state and one subscription lineage");
+    assert!(
+        matches!(before_save, FromServer::Failed { message, .. } if message.contains("event handler") && message.contains("signature does not match") && message.contains("BeforeSave") && message.contains("dc-hsa5.12"))
+    );
+    send(
+        &mut server,
+        Request::Intent(Intent::EnterCell {
+            at: Key::of(at),
+            text: "13".into(),
+        }),
+    );
+    assert_eq!(
+        report(&mut server),
+        "3:2:13",
+        "failed preparation preserves the whole prior project"
+    );
+    send(
+        &mut server,
+        Request::LoadVbaProject {
+            modules: modules.clone(),
+            max_steps: 100_000,
+        },
+    );
+    send(
+        &mut server,
+        Request::Intent(Intent::EnterCell {
+            at: Key::of(at),
+            text: "14".into(),
+        }),
+    );
+    assert_eq!(
+        report(&mut server),
+        "1:0:14",
+        "an intentional replacement has fresh state and one subscription lineage"
+    );
 
     let mut failing = modules;
     failing[1].source = "Private Sub Worksheet_Change(ByVal Target As Excel.Range)\n Changes = Changes + 1\n Err.Raise 5\nEnd Sub\n".into();
-    send(&mut server, Request::LoadVbaProject { modules: failing, max_steps: 100_000 });
+    send(
+        &mut server,
+        Request::LoadVbaProject {
+            modules: failing,
+            max_steps: 100_000,
+        },
+    );
     server.take_events();
-    let edit = send(&mut server, Request::Intent(Intent::EnterCell { at: Key::of(at), text: "15".into() }));
-    assert!(matches!(edit, FromServer::Reply { reply: Reply::Done { outcome, .. }, .. } if outcome.accepted && outcome.committed));
+    let edit = send(
+        &mut server,
+        Request::Intent(Intent::EnterCell {
+            at: Key::of(at),
+            text: "15".into(),
+        }),
+    );
+    assert!(
+        matches!(edit, FromServer::Reply { reply: Reply::Done { outcome, .. }, .. } if outcome.accepted && outcome.committed)
+    );
     assert_eq!(shown(server.book(), at).text, "15");
     let events = server.take_events();
     assert_eq!(events.iter().filter(|event| matches!(event, wire::Event::WorkbookEventFailed { event, .. } if event == "Worksheet_Change")).count(), 1, "handler failure is delivered once and does not undo the authored edit");
@@ -2853,39 +2939,83 @@ fn contract_vba_load_is_wire_deduplicated_and_failed_load_preserves_the_project(
             source: "Private Sub Workbook_BeforeSave(ByVal SaveAsUI As Boolean, Cancel As Boolean)\n Saves = Saves + 1\n LastSaveAsUI = SaveAsUI\n Cancel = (Saves = 1)\nEnd Sub\n".into(),
         },
     ];
-    let loaded = send(&mut server, Request::LoadVbaProject { modules: save_modules.clone(), max_steps: 100_000 });
-    assert!(matches!(loaded, FromServer::Reply { reply: Reply::Done { outcome, .. }, .. } if outcome.accepted));
+    let loaded = send(
+        &mut server,
+        Request::LoadVbaProject {
+            modules: save_modules.clone(),
+            max_steps: 100_000,
+        },
+    );
+    assert!(
+        matches!(loaded, FromServer::Reply { reply: Reply::Done { outcome, .. }, .. } if outcome.accepted)
+    );
     server.take_events();
     let revision = server.book().host().revision();
     let cancelled_request = server.envelope(Request::Save);
     let cancelled = exchange_full(&mut server, cancelled_request.clone());
-    assert!(matches!(&cancelled.0, FromServer::Failed { message, .. } if message == "the BeforeSave handler cancelled the save"), "{cancelled:?}");
-    assert!(cancelled.1.is_none(), "a cancelled save emits no workbook bytes");
+    assert!(
+        matches!(&cancelled.0, FromServer::Failed { message, .. } if message == "the BeforeSave handler cancelled the save"),
+        "{cancelled:?}"
+    );
+    assert!(
+        cancelled.1.is_none(),
+        "a cancelled save emits no workbook bytes"
+    );
     let retry = exchange_full(&mut server, cancelled_request);
     assert_eq!(wire::encode(&cancelled.0), wire::encode(&retry.0));
     assert_eq!(cancelled.1, retry.1);
     assert_eq!(server.book().host().revision(), revision);
-    assert!(!server.take_events().iter().any(|event| matches!(event, wire::Event::WorkbookEventFailed { .. })), "cancellation is not a handler failure");
+    assert!(
+        !server
+            .take_events()
+            .iter()
+            .any(|event| matches!(event, wire::Event::WorkbookEventFailed { .. })),
+        "cancellation is not a handler failure"
+    );
 
     let allowed_request = server.envelope(Request::Save);
     let allowed = exchange_full(&mut server, allowed_request.clone());
-    assert!(matches!(&allowed.0, FromServer::Reply { reply: Reply::Done { outcome, saved: Some(_), .. }, .. } if outcome.accepted), "{allowed:?}");
-    assert!(allowed.1.as_ref().is_some_and(|bytes| bytes.starts_with(b"PK")));
+    assert!(
+        matches!(&allowed.0, FromServer::Reply { reply: Reply::Done { outcome, saved: Some(_), .. }, .. } if outcome.accepted),
+        "{allowed:?}"
+    );
+    assert!(
+        allowed
+            .1
+            .as_ref()
+            .is_some_and(|bytes| bytes.starts_with(b"PK"))
+    );
     let retry = exchange_full(&mut server, allowed_request);
     assert_eq!(wire::encode(&allowed.0), wire::encode(&retry.0));
     assert_eq!(allowed.1, retry.1);
-    assert_eq!(report(&mut server), "2:False", "both save retries preserve the automatic handler's shared state");
+    assert_eq!(
+        report(&mut server),
+        "2:False",
+        "both save retries preserve the automatic handler's shared state"
+    );
 
     send(&mut server, Request::SetVbaEventsEnabled { enabled: false });
     let disabled = server.envelope(Request::Save);
     assert!(exchange_full(&mut server, disabled).1.is_some());
-    assert_eq!(report(&mut server), "2:False", "disabled events also suppress BeforeSave");
+    assert_eq!(
+        report(&mut server),
+        "2:False",
+        "disabled events also suppress BeforeSave"
+    );
     send(&mut server, Request::SetVbaEventsEnabled { enabled: true });
 
     let mut fail_once = save_modules;
     fail_once[1].source = "Private Sub Workbook_BeforeSave(ByVal SaveAsUI As Boolean, Cancel As Boolean)\n Saves = Saves + 1\n LastSaveAsUI = SaveAsUI\n If Saves = 1 Then\n  Err.Raise 5\n End If\nEnd Sub\n".into();
-    let loaded = send(&mut server, Request::LoadVbaProject { modules: fail_once, max_steps: 100_000 });
-    assert!(matches!(loaded, FromServer::Reply { reply: Reply::Done { outcome, .. }, .. } if outcome.accepted));
+    let loaded = send(
+        &mut server,
+        Request::LoadVbaProject {
+            modules: fail_once,
+            max_steps: 100_000,
+        },
+    );
+    assert!(
+        matches!(loaded, FromServer::Reply { reply: Reply::Done { outcome, .. }, .. } if outcome.accepted)
+    );
     server.take_events();
     // No UDF probe/reset may hide a sticky native event fault between these saves.
     let mut outcomes = Vec::new();
@@ -2893,41 +3023,214 @@ fn contract_vba_load_is_wire_deduplicated_and_failed_load_preserves_the_project(
         let request = server.envelope(Request::Save);
         outcomes.push(exchange_full(&mut server, request));
     }
-    assert!(matches!(&outcomes[0].0, FromServer::Failed { message, .. } if message.contains("BeforeSave") && message.contains("(5:")), "{:?}", outcomes[0]);
+    assert!(
+        matches!(&outcomes[0].0, FromServer::Failed { message, .. } if message.contains("BeforeSave") && message.contains("(5:")),
+        "{:?}",
+        outcomes[0]
+    );
     assert!(outcomes[0].1.is_none());
-    assert!(matches!(&outcomes[1].0, FromServer::Reply { reply: Reply::Done { outcome, saved: Some(_), .. }, .. } if outcome.accepted), "{:?}", outcomes[1]);
-    assert!(outcomes[1].1.as_ref().is_some_and(|bytes| bytes.starts_with(b"PK")));
+    assert!(
+        matches!(&outcomes[1].0, FromServer::Reply { reply: Reply::Done { outcome, saved: Some(_), .. }, .. } if outcome.accepted),
+        "{:?}",
+        outcomes[1]
+    );
+    assert!(
+        outcomes[1]
+            .1
+            .as_ref()
+            .is_some_and(|bytes| bytes.starts_with(b"PK"))
+    );
     let failures = server.take_events();
     assert_eq!(failures.iter().filter(|event| matches!(event, wire::Event::WorkbookEventFailed { event, reason, .. } if event == "Workbook_BeforeSave" && reason.contains("(5:"))).count(), 1);
     assert_eq!(report(&mut server), "2:False");
 }
 
-#[cfg_attr(not(target_arch="wasm32"),test)]
-#[cfg_attr(target_arch="wasm32",wasm_bindgen_test::wasm_bindgen_test)]
-fn dc_8wp_1__saved_pivots_cross_the_page_wire_without_refresh_claims(){
- use dna_calc_worker::{server::{Server,answer_text},wire::{self,Request,Reply,ToServer,FromServer,Sheet}};
- let mut server=Server::new();let opened=server.execute_current(Request::Open{name:"pivot-saved.xlsx".into()},Some(include_bytes!("../../../crates/calc-doc/tests/fixtures/cdoc_m1_1/pivot-saved.xlsx").to_vec()));assert!(matches!(opened.reply,Ok(Reply::Done{outcome:wire::Outcome{accepted:true,..},..})),"{:?}",opened.reply);
- let sheet=server.book().sheets()[0].id;let request=ToServer{id:71,request:Request::PivotTables(Sheet::of(sheet))};let (text,bytes)=answer_text(&mut server,&wire::encode(&request),None);assert!(bytes.is_none());let response:FromServer=wire::decode(&text).unwrap();let tables=match response{FromServer::Reply{id:71,reply:Reply::PivotTables{tables,issues},..}=>{assert!(issues.is_empty(),"{issues:?}");tables},other=>panic!("{other:?}")};assert_eq!(tables.len(),2);assert_eq!(tables[0].name,"Summary");assert_eq!(tables[0].location,"D3:E6");assert_eq!(tables[0].source,"Source: Data!A1:B4");assert!(tables[0].fields.contains("Rows: Region")&&tables[0].fields.contains("Sum of Amount (sum)"));assert!(tables[0].cache.contains("Saved cache 7")&&tables[1].cache.contains("Saved cache 7"));assert_eq!(shown(server.book(),CellKey::new(sheet,6,5).unwrap()).text,"24");
- let save=server.execute_current(Request::Save,None);assert!(save.reply.is_ok(),"{:?}",save.reply);let opened=server.execute_current(Request::Open{name:"pivot-saved.xlsx".into()},save.bytes);assert!(opened.reply.is_ok());let sheet=server.book().sheets()[0].id;let reply=server.execute_current(Request::PivotTables(Sheet::of(sheet)),None);assert!(matches!(reply.reply,Ok(Reply::PivotTables{tables:ref again,ref issues})if *again==tables&&issues.is_empty()),"{:?}",reply.reply);
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn dc_8wp_1__saved_pivots_cross_the_page_wire_without_refresh_claims() {
+    use dna_calc_worker::{
+        server::{Server, answer_text},
+        wire::{self, FromServer, Reply, Request, Sheet, ToServer},
+    };
+    let mut server = Server::new();
+    let opened = server.execute_current(
+        Request::Open {
+            name: "pivot-saved.xlsx".into(),
+        },
+        Some(
+            include_bytes!("../../../crates/calc-doc/tests/fixtures/cdoc_m1_1/pivot-saved.xlsx")
+                .to_vec(),
+        ),
+    );
+    assert!(
+        matches!(
+            opened.reply,
+            Ok(Reply::Done {
+                outcome: wire::Outcome { accepted: true, .. },
+                ..
+            })
+        ),
+        "{:?}",
+        opened.reply
+    );
+    let sheet = server.book().sheets()[0].id;
+    let request = ToServer {
+        id: 71,
+        request: Request::PivotTables(Sheet::of(sheet)),
+    };
+    let (text, bytes) = answer_text(&mut server, &wire::encode(&request), None);
+    assert!(bytes.is_none());
+    let response: FromServer = wire::decode(&text).unwrap();
+    let tables = match response {
+        FromServer::Reply {
+            id: 71,
+            reply: Reply::PivotTables { tables, issues },
+            ..
+        } => {
+            assert!(issues.is_empty(), "{issues:?}");
+            tables
+        }
+        other => panic!("{other:?}"),
+    };
+    assert_eq!(tables.len(), 2);
+    assert_eq!(tables[0].name, "Summary");
+    assert_eq!(tables[0].location, "D3:E6");
+    assert_eq!(tables[0].source, "Source: Data!A1:B4");
+    assert!(
+        tables[0].fields.contains("Rows: Region")
+            && tables[0].fields.contains("Sum of Amount (sum)")
+    );
+    assert!(tables[0].cache.contains("Saved cache 7") && tables[1].cache.contains("Saved cache 7"));
+    assert_eq!(
+        shown(server.book(), CellKey::new(sheet, 6, 5).unwrap()).text,
+        "24"
+    );
+    let save = server.execute_current(Request::Save, None);
+    assert!(save.reply.is_ok(), "{:?}", save.reply);
+    let opened = server.execute_current(
+        Request::Open {
+            name: "pivot-saved.xlsx".into(),
+        },
+        save.bytes,
+    );
+    assert!(opened.reply.is_ok());
+    let sheet = server.book().sheets()[0].id;
+    let reply = server.execute_current(Request::PivotTables(Sheet::of(sheet)), None);
+    assert!(
+        matches!(reply.reply,Ok(Reply::PivotTables{tables:ref again,ref issues})if *again==tables&&issues.is_empty()),
+        "{:?}",
+        reply.reply
+    );
 }
 
-#[cfg_attr(not(target_arch="wasm32"),test)]
-#[cfg_attr(target_arch="wasm32",wasm_bindgen_test::wasm_bindgen_test)]
-fn dc_8wp_2__refresh_crosses_the_actual_wire_and_retry_does_not_refresh_twice(){
-    use dna_calc_worker::{server::{Server,answer_text},wire::{self,Request,Reply,ToServer,FromServer,Sheet,Intent,Key}};
-    let mut server=Server::new();assert!(server.execute_current(Request::Open{name:"pivot-saved.xlsx".into()},Some(include_bytes!("../../../crates/calc-doc/tests/fixtures/cdoc_m1_1/pivot-saved.xlsx").to_vec())).reply.is_ok());
-    let sheet=server.book().sheets()[0].id;let cell=|row,col|CellKey::new(sheet,row,col).unwrap();
-    assert!(server.execute_current(Request::Intent(Intent::EnterCell{at:Key::of(cell(2,2)),text:"100".into()}),None).reply.is_ok());
-    let request=server.envelope(Request::Intent(Intent::PivotRefresh{sheet:Sheet::of(sheet),revision:server.book().host().revision().get(),part:"xl/pivotTables/summary.xml".into()}));
-    let request=wire::encode(&ToServer{id:729,request});let (response,bytes)=answer_text(&mut server,&request,None);assert!(bytes.is_none());let result:FromServer=wire::decode(&response).unwrap();assert!(matches!(result,FromServer::Reply{reply:Reply::Done{outcome:wire::Outcome{accepted:true,..},..},..}),"{result:?}");
-    let projected=server.book_mut().sheet_cells(sheet);for row in [6,13]{let at=cell(row,5);let cell=projected.iter().find(|c|c.at()==at).expect("Sheet subscription must publish engine-owned pivot output");assert!(matches!(cell.value(),calc_host::ProjectedValue::Calculated{value,..}if value.as_number()==Some(112.)));}
-    let revision=server.book().host().revision();let depth=server.book().session().history_depth();let (retry,_)=answer_text(&mut server,&request,None);assert_eq!(retry,response);assert_eq!(server.book().host().revision(),revision);assert_eq!(server.book().session().history_depth(),depth);
-    assert_eq!(shown(server.book(),cell(6,5)).text,"112");assert_eq!(shown(server.book(),cell(13,5)).text,"112");
-    let reply=server.execute_current(Request::PivotTables(Sheet::of(sheet)),None);assert!(matches!(reply.reply,Ok(Reply::PivotTables{ref tables,ref issues})if tables.len()==2&&tables.iter().all(|t|t.refreshed_revision.is_some())&&issues.is_empty()));
-    let save=server.execute_current(Request::Save,None);assert!(save.reply.is_ok(),"{:?}",save.reply);let bytes=save.bytes.unwrap();assert!(server.execute_current(Request::Open{name:"pivot-saved.xlsx".into()},Some(bytes)).reply.is_ok());let sheet=server.book().sheets()[0].id;assert_eq!(shown(server.book(),CellKey::new(sheet,6,5).unwrap()).text,"112");
-    let reply=server.execute_current(Request::PivotTables(Sheet::of(sheet)),None);assert!(matches!(reply.reply,Ok(Reply::PivotTables{ref tables,ref issues})if tables.len()==2&&tables.iter().all(|t|t.refreshed_revision.is_none())&&issues.is_empty()),"Reopened saved output must not claim to have refreshed");
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn dc_8wp_2__refresh_crosses_the_actual_wire_and_retry_does_not_refresh_twice() {
+    use dna_calc_worker::{
+        server::{Server, answer_text},
+        wire::{self, FromServer, Intent, Key, Reply, Request, Sheet, ToServer},
+    };
+    let mut server = Server::new();
+    assert!(
+        server
+            .execute_current(
+                Request::Open {
+                    name: "pivot-saved.xlsx".into()
+                },
+                Some(
+                    include_bytes!(
+                        "../../../crates/calc-doc/tests/fixtures/cdoc_m1_1/pivot-saved.xlsx"
+                    )
+                    .to_vec()
+                )
+            )
+            .reply
+            .is_ok()
+    );
+    let sheet = server.book().sheets()[0].id;
+    let cell = |row, col| CellKey::new(sheet, row, col).unwrap();
+    assert!(
+        server
+            .execute_current(
+                Request::Intent(Intent::EnterCell {
+                    at: Key::of(cell(2, 2)),
+                    text: "100".into()
+                }),
+                None
+            )
+            .reply
+            .is_ok()
+    );
+    let request = server.envelope(Request::Intent(Intent::PivotRefresh {
+        sheet: Sheet::of(sheet),
+        revision: server.book().host().revision().get(),
+        part: "xl/pivotTables/summary.xml".into(),
+    }));
+    let request = wire::encode(&ToServer { id: 729, request });
+    let (response, bytes) = answer_text(&mut server, &request, None);
+    assert!(bytes.is_none());
+    let result: FromServer = wire::decode(&response).unwrap();
+    assert!(
+        matches!(
+            result,
+            FromServer::Reply {
+                reply: Reply::Done {
+                    outcome: wire::Outcome { accepted: true, .. },
+                    ..
+                },
+                ..
+            }
+        ),
+        "{result:?}"
+    );
+    let projected = server.book_mut().sheet_cells(sheet);
+    for row in [6, 13] {
+        let at = cell(row, 5);
+        let cell = projected
+            .iter()
+            .find(|c| c.at() == at)
+            .expect("Sheet subscription must publish engine-owned pivot output");
+        assert!(
+            matches!(cell.value(),calc_host::ProjectedValue::Calculated{value,..}if value.as_number()==Some(112.))
+        );
+    }
+    let revision = server.book().host().revision();
+    let depth = server.book().session().history_depth();
+    let (retry, _) = answer_text(&mut server, &request, None);
+    assert_eq!(retry, response);
+    assert_eq!(server.book().host().revision(), revision);
+    assert_eq!(server.book().session().history_depth(), depth);
+    assert_eq!(shown(server.book(), cell(6, 5)).text, "112");
+    assert_eq!(shown(server.book(), cell(13, 5)).text, "112");
+    let reply = server.execute_current(Request::PivotTables(Sheet::of(sheet)), None);
+    assert!(
+        matches!(reply.reply,Ok(Reply::PivotTables{ref tables,ref issues})if tables.len()==2&&tables.iter().all(|t|t.refreshed_revision.is_some())&&issues.is_empty())
+    );
+    let save = server.execute_current(Request::Save, None);
+    assert!(save.reply.is_ok(), "{:?}", save.reply);
+    let bytes = save.bytes.unwrap();
+    assert!(
+        server
+            .execute_current(
+                Request::Open {
+                    name: "pivot-saved.xlsx".into()
+                },
+                Some(bytes)
+            )
+            .reply
+            .is_ok()
+    );
+    let sheet = server.book().sheets()[0].id;
+    assert_eq!(
+        shown(server.book(), CellKey::new(sheet, 6, 5).unwrap()).text,
+        "112"
+    );
+    let reply = server.execute_current(Request::PivotTables(Sheet::of(sheet)), None);
+    assert!(
+        matches!(reply.reply,Ok(Reply::PivotTables{ref tables,ref issues})if tables.len()==2&&tables.iter().all(|t|t.refreshed_revision.is_none())&&issues.is_empty()),
+        "Reopened saved output must not claim to have refreshed"
+    );
 }
-
 
 /// dc-0f1k.7: the formula bar's evaluation trace and completion of registered functions, through
 /// the controller and the worker's message route. (F9 on a selection needs a DOM selection; the
@@ -2959,7 +3262,9 @@ fn dc_0f1k_7__the_formula_bar_traces_the_edit_and_completes_registered_functions
         };
         transport.with_server(|server| {
             let mut functions = calc_host::CallableTable::new();
-            functions.register("Double", std::rc::Rc::new(Double)).unwrap();
+            functions
+                .register("Double", std::rc::Rc::new(Double))
+                .unwrap();
             server.set_user_functions(functions);
         });
         controller.select(1, 1);
@@ -2971,12 +3276,18 @@ fn dc_0f1k_7__the_formula_bar_traces_the_edit_and_completes_registered_functions
         // Starting an edit offers the registered functions to the formula field's completion.
         controller.select(1, 3);
         controller.begin_edit(EditOrigin::Bar, Some("=SUM(A1:A2)*2".to_owned()));
-        assert_eq!(controller.assist.scope().get_untracked().functions, ["DOUBLE"]);
+        assert_eq!(
+            controller.assist.scope().get_untracked().functions,
+            ["DOUBLE"]
+        );
         // The trace asks the worker, which evaluates each part of the edit over the cells.
         let traced = std::rc::Rc::new(std::cell::RefCell::new(None));
         let into = traced.clone();
         controller.trace_formula(Box::new(move |trace| *into.borrow_mut() = Some(trace)));
-        let trace = traced.borrow_mut().take().expect("the worker traced the edit");
+        let trace = traced
+            .borrow_mut()
+            .take()
+            .expect("the worker traced the edit");
         let steps: Vec<(&str, &str)> = trace
             .steps
             .iter()
@@ -2984,7 +3295,11 @@ fn dc_0f1k_7__the_formula_bar_traces_the_edit_and_completes_registered_functions
             .collect();
         assert_eq!(
             steps,
-            [("A1:A2", "{1.5;2}"), ("SUM(A1:A2)", "3.5"), ("SUM(A1:A2)*2", "7")]
+            [
+                ("A1:A2", "{1.5;2}"),
+                ("SUM(A1:A2)", "3.5"),
+                ("SUM(A1:A2)*2", "7")
+            ]
         );
         controller.cancel_edit();
     });

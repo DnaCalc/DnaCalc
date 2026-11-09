@@ -40,9 +40,19 @@ impl PastePlan {
         })
     }
     /// A bounded sample from the actual literal text edits prepared by this plan.
-    pub fn text_preview(&self)->Vec<(CellKey,String)>{self.edits.iter().filter_map(|e|match e{
-        CellEdit::Set{at,input:crate::CellInput::Text(t)}=>Some((*at,String::from_utf16_lossy(t.text().utf16_code_units()))),_=>None
-    }).take(8).collect()}
+    pub fn text_preview(&self) -> Vec<(CellKey, String)> {
+        self.edits
+            .iter()
+            .filter_map(|e| match e {
+                CellEdit::Set {
+                    at,
+                    input: crate::CellInput::Text(t),
+                } => Some((*at, String::from_utf16_lossy(t.text().utf16_code_units()))),
+                _ => None,
+            })
+            .take(8)
+            .collect()
+    }
     pub fn target(&self) -> GridArea {
         self.target
     }
@@ -85,14 +95,14 @@ pub fn prepare_paste_oriented(
     mode: PasteMode,
     transpose: bool,
 ) -> Result<PastePlan, String> {
-    let flash=matches!(&source,PasteSource::FlashFill);
-    let mode=if flash{PasteMode::Values}else{mode};
-    if transpose && matches!(&source, PasteSource::Fill { .. }|PasteSource::FlashFill) {
+    let flash = matches!(&source, PasteSource::FlashFill);
+    let mode = if flash { PasteMode::Values } else { mode };
+    if transpose && matches!(&source, PasteSource::Fill { .. } | PasteSource::FlashFill) {
         return Err(crate::CopyRefusal::TransposeFill.to_string());
     }
     // Excel entry alerts apply to direct/Values entry; whole-cell copy and fill can introduce
     // invalid values which Circle Invalid Data then audits against the copied rules.
-    let validate_entries=matches!(&source,PasteSource::External(_))||mode==PasteMode::Values;
+    let validate_entries = matches!(&source, PasteSource::External(_)) || mode == PasteMode::Values;
     let coordinates = match &source {
         PasteSource::Snapshot {
             snapshot,
@@ -126,7 +136,7 @@ pub fn prepare_paste_oriented(
                 .map_err(|e| e.to_string())?;
             (edits, to)
         }
-        PasteSource::FlashFill=>(crate::flash_fill::prepare(host,to)?,to),
+        PasteSource::FlashFill => (crate::flash_fill::prepare(host, to)?, to),
         PasteSource::External(rows) => {
             let rows = if transpose {
                 let (height, width) = matrix_shape(&rows)?;
@@ -194,10 +204,17 @@ pub fn prepare_paste_oriented(
             (edits, target)
         }
     };
-    if transpose && host.model().definitions().tables().iter().any(|t| t.area.intersection(target).is_some()) {
+    if transpose
+        && host
+            .model()
+            .definitions()
+            .tables()
+            .iter()
+            .any(|t| t.area.intersection(target).is_some())
+    {
         return Err(crate::CopyRefusal::TransposeTable.to_string());
     }
-    for edit in edits.iter().filter(|_|validate_entries) {
+    for edit in edits.iter().filter(|_| validate_entries) {
         if let CellEdit::Set { at, input } = edit {
             if let Err(failure) = host.check_entry(*at, Some(input)) {
                 return Err(failure.to_string());

@@ -200,8 +200,7 @@ pub(crate) fn format_address_body(
     // admitted escaped name can make the prefix itself 259 UTF-16 units long.
     let mut address = AddressBuffer(prefix);
     if a1_style {
-        let col_part = column_label_from_index(col as usize)
-            .ok_or(WorksheetErrorCode::Value)?;
+        let col_part = column_label_from_index(col as usize).ok_or(WorksheetErrorCode::Value)?;
         if matches!(abs_num, 1 | 3) {
             address.literal("$");
         }
@@ -226,4 +225,3 @@ pub(crate) fn format_address_body(
     }
     Ok(ExcelText::from_utf16_code_units(address.0))
 }
-

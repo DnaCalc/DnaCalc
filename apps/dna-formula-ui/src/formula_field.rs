@@ -303,9 +303,8 @@ impl FormulaAssist {
         let scope = RwSignal::new(assist::Scope::default());
         let call = Memo::new(move |_| {
             let caret = caret.get();
-            scope.with(|scope| {
-                text.with(|text| assist::call_in(&parse_formula(text), caret, scope))
-            })
+            scope
+                .with(|scope| text.with(|text| assist::call_in(&parse_formula(text), caret, scope)))
         });
         FormulaAssist {
             text,
@@ -562,7 +561,15 @@ impl FormulaAssist {
         cell_role: Option<&'static str>,
         label: String,
     ) -> impl IntoView {
-        self.field_inner(diagnostics, on_key, rows, placeholder, cell_role, label, false)
+        self.field_inner(
+            diagnostics,
+            on_key,
+            rows,
+            placeholder,
+            cell_role,
+            label,
+            false,
+        )
     }
 
     /// The same field with the completion list and the signature help drawn as a pop-up anchored
@@ -576,7 +583,15 @@ impl FormulaAssist {
         rows: u32,
         placeholder: &'static str,
     ) -> impl IntoView {
-        self.field_inner(diagnostics, on_key, rows, placeholder, None, "Formula".into(), true)
+        self.field_inner(
+            diagnostics,
+            on_key,
+            rows,
+            placeholder,
+            None,
+            "Formula".into(),
+            true,
+        )
     }
 
     /// An invisible copy of the text up to the caret, laid out exactly as the field lays out its
@@ -643,7 +658,11 @@ impl FormulaAssist {
                         }
                         let role = role_name(run.role);
                         let text = run.text.clone();
-                        view! { <span class=classes data-role=role>{text}</span> }
+                        view! {
+                            <span class=classes data-role=role>
+                                {text}
+                            </span>
+                        }
                     })
                     .collect_view()
             })
@@ -651,7 +670,10 @@ impl FormulaAssist {
         let text = self.text;
         view! {
             <div class="oc-editor">
-                <pre data-onecalc="highlight" aria-hidden="true">{highlight}"\n"</pre>
+                <pre data-onecalc="highlight" aria-hidden="true">
+                    {highlight}
+                    "\n"
+                </pre>
                 <textarea
                     data-onecalc="formula"
                     data-dnacalc=cell_role
@@ -678,18 +700,18 @@ impl FormulaAssist {
                             ev.stop_propagation();
                             return;
                         }
-                        if self.composing.get_untracked() || ev.is_composing() || ev.key_code() == 229 {
+                        if self.composing.get_untracked() || ev.is_composing()
+                            || ev.key_code() == 229
+                        {
                             ev.stop_propagation();
                             return;
                         }
-                        // A key that types or moves the caret by more than an arrow ends point
-                        // mode; a modifier, or a key the browser does not name (Firefox sends
-                        // "Unidentified" when a driver releases the modifiers), does not.
                         let key = ev.key();
                         if key.chars().count() == 1
                             || matches!(
                                 key.as_str(),
-                                "Backspace" | "Delete" | "Enter" | "Home" | "End" | "PageUp" | "PageDown" | "Tab" | "Insert"
+                                "Backspace" | "Delete" | "Enter" | "Home" | "End" | "PageUp"
+                                | "PageDown" | "Tab" | "Insert"
                             )
                         {
                             self.pointing().set(None);
@@ -706,18 +728,16 @@ impl FormulaAssist {
                             return;
                         }
                         let ctrl = ev.ctrl_key() || ev.meta_key();
-                        if ctrl && !ev.alt_key() && matches!(ev.key().to_ascii_lowercase().as_str(), "z" | "y") {
+                        if ctrl && !ev.alt_key()
+                            && matches!(ev.key().to_ascii_lowercase().as_str(), "z" | "y")
+                        {
                             ev.prevent_default();
                             ev.stop_propagation();
                             let redo = ev.key().eq_ignore_ascii_case("y") || ev.shift_key();
                             self.undo(redo);
                             return;
                         }
-                        // The anchored pop-up (DNA OneCalc) takes Enter too, as it takes Tab: the
-                        // field there has no worksheet Enter to commit. A modified Enter is the
-                        // owner's (Ctrl+Shift+Enter enters an array formula).
-                        if anchored
-                            && ev.key() == "Enter"
+                        if anchored && ev.key() == "Enter"
                             && !(ev.ctrl_key() || ev.meta_key() || ev.alt_key() || ev.shift_key())
                             && self.popup.with_untracked(Popup::is_open)
                         {
@@ -731,7 +751,8 @@ impl FormulaAssist {
                         } else {
                             if matches!(
                                 ev.key().as_str(),
-                                "ArrowUp" | "ArrowDown" | "ArrowLeft" | "ArrowRight" | "Home" | "End" | "PageUp" | "PageDown"
+                                "ArrowUp" | "ArrowDown" | "ArrowLeft" | "ArrowRight" | "Home"
+                                | "End" | "PageUp" | "PageDown"
                             ) {
                                 self.point_armed().set(false);
                             }
@@ -741,7 +762,10 @@ impl FormulaAssist {
                         }
                     }
                     on:keyup=move |ev: leptos::ev::KeyboardEvent| {
-                        if !matches!(ev.key().as_str(), "ArrowDown" | "ArrowUp" | "Enter" | "Tab" | "Escape") {
+                        if !matches!(
+                            ev.key().as_str(),
+                            "ArrowDown" | "ArrowUp" | "Enter" | "Tab" | "Escape"
+                        ) {
                             self.sync_from_field(false)
                         }
                     }
@@ -844,7 +868,12 @@ impl FormulaAssist {
 
     /// Lets arrow keys and clicks on the owner's grid insert and replace references at the caret.
     /// The grid is `rows` by `columns`; `origin` gives the cell a first arrow key moves from.
-    pub fn enable_point_mode(self, rows: u32, columns: u32, origin: impl Fn() -> (u32, u32) + 'static) {
+    pub fn enable_point_mode(
+        self,
+        rows: u32,
+        columns: u32,
+        origin: impl Fn() -> (u32, u32) + 'static,
+    ) {
         self.point().set_value(Some(PointConfig {
             rows,
             columns,
@@ -1009,7 +1038,11 @@ impl FormulaAssist {
                             }
                         })
                         .collect_view();
-                    Some(view! { <ul class="oc-pop" data-onecalc="completions" role="listbox">{items}</ul> })
+                    Some(view! {
+                        <ul class="oc-pop" data-onecalc="completions" role="listbox">
+                            {items}
+                        </ul>
+                    })
                 }
             })
         }
@@ -1034,7 +1067,8 @@ impl FormulaAssist {
                 }
                 None => match &site.registered {
                     Some(descriptor) => {
-                        let (before, current, after) = descriptor.signature_pieces(site.active_argument);
+                        let (before, current, after) =
+                            descriptor.signature_pieces(site.active_argument);
                         view! {
                             <div class="oc-sig" data-onecalc="signature">
                                 {before}
@@ -1211,7 +1245,11 @@ pub fn registered_help_view(descriptor: calc_fml::CallableDescriptor) -> impl In
     if descriptor.asynchronous {
         traits.push("asynchronous");
     }
-    let traits = if traits.is_empty() { String::new() } else { format!("; {}", traits.join(", ")) };
+    let traits = if traits.is_empty() {
+        String::new()
+    } else {
+        format!("; {}", traits.join(", "))
+    };
     let parameters = descriptor
         .parameters
         .iter()
@@ -1230,7 +1268,9 @@ pub fn registered_help_view(descriptor: calc_fml::CallableDescriptor) -> impl In
             <code data-onecalc="help-signature">{signature}</code>
             <p data-onecalc="help-description">{description}</p>
             <ul data-onecalc="help-parameters">{parameters}</ul>
-            <p data-onecalc="help-status">{format!("Registered function from {}; {category}{traits}.", descriptor.origin)}</p>
+            <p data-onecalc="help-status">
+                {format!("Registered function from {}; {category}{traits}.", descriptor.origin)}
+            </p>
         </aside>
     }
 }
@@ -1242,13 +1282,21 @@ pub fn help_view(target: FunctionCallTarget<'static>) -> impl IntoView {
         calc_func::Implementation::Held => "Held".to_owned(),
         calc_func::Implementation::Binding => "Formula binding".to_owned(),
         calc_func::Implementation::NotHeld { owner } => format!("Not held; owned by {owner}"),
-        calc_func::Implementation::Deferred { class } => format!("Deferred ({class:?}); owned by {}", class.owner()),
+        calc_func::Implementation::Deferred { class } => {
+            format!("Deferred ({class:?}); owned by {}", class.owner())
+        }
     };
     let availability = match target.availability() {
         calc_func::Availability::Unspecified => "Availability not established",
-        calc_func::Availability::ListsInCellsBeta => "Insider Beta; workbook compatibility version 3",
-        calc_func::Availability::AbsentOnWindows => "Not in Excel for Windows (the name gives #NAME?)",
-        calc_func::Availability::MacroSheetOnly => "Macro sheets only (refused in a worksheet formula)",
+        calc_func::Availability::ListsInCellsBeta => {
+            "Insider Beta; workbook compatibility version 3"
+        }
+        calc_func::Availability::AbsentOnWindows => {
+            "Not in Excel for Windows (the name gives #NAME?)"
+        }
+        calc_func::Availability::MacroSheetOnly => {
+            "Macro sheets only (refused in a worksheet formula)"
+        }
     };
     let description = help::description(target)
         .unwrap_or("No description in calc-func's help text.")
@@ -1261,7 +1309,9 @@ pub fn help_view(target: FunctionCallTarget<'static>) -> impl IntoView {
             view! {
                 <p class="oc-help-source" data-onecalc="help-source">
                     "Source: "
-                    <a href=url target="_blank" rel="noopener noreferrer">"Microsoft"</a>
+                    <a href=url target="_blank" rel="noopener noreferrer">
+                        "Microsoft"
+                    </a>
                 </p>
             }
         });
