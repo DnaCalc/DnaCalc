@@ -246,6 +246,10 @@ const SETTLE_SECONDS: u64 = 8;
 /// build (the calculation crates unoptimised), where the browsers run an optimised wasm module.
 static DESKTOP_SETTLE: std::sync::atomic::AtomicBool = std::sync::atomic::AtomicBool::new(false);
 fn settle() -> Duration {
+    // `DNACALC_SETTLE_SECONDS` lengthens every wait, to tell a slow page from a stuck one.
+    if let Some(seconds) = std::env::var("DNACALC_SETTLE_SECONDS").ok().and_then(|v| v.parse().ok()) {
+        return Duration::from_secs(seconds);
+    }
     Duration::from_secs(if DESKTOP_SETTLE.load(std::sync::atomic::Ordering::Relaxed) { 4 * SETTLE_SECONDS } else { SETTLE_SECONDS })
 }
 
@@ -3203,6 +3207,12 @@ fn run_browser(
                     );
                     for failure in failures {
                         println!("    {failure}");
+                    }
+                    // An open dialog usually says why a command was refused.
+                    if let Ok(dialogs)=session.script("return Array.from(document.querySelectorAll('dialog[open]')).map(d=>(d.getAttribute('data-dnacalc')||'dialog')+': '+d.textContent.replace(/ +/g,' ').slice(0,400));") {
+                        if dialogs.as_array().is_some_and(|d|!d.is_empty()) {
+                            println!("{} OPEN DIALOGS AT FAILURE: {dialogs}",app.label);
+                        }
                     }
                     if case.actions.iter().any(|action|matches!(action,Action::ResizeHeader(..))) {
                         if let Ok(context)=session.script(r#"return {resize:window.__dcResizeTrace,active:document.querySelector('[data-dnacalc=name-box]')?.value,status:document.querySelector('[data-dnacalc=status]')?.textContent,focus:document.activeElement?.getAttribute('data-dnacalc'),zoom:document.querySelector('[data-dnacalc=zoom]')?.textContent};"#) {

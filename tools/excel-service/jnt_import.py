@@ -86,6 +86,14 @@ def dirsrc(path):
 
 
 BATCHES = {
+    "J11": dict(
+        bead="dc-jnt.15",
+        sheet="jnt_operators",
+        hand=True,
+        title="Operators: arithmetic, unary plus and minus, comparison and concatenation over numbers, numeric text, logicals and blanks",
+        tests=["op_add.rs", "operator_arithmetic_family.rs", "operator_compare_concat_family.rs"],
+        families=[],
+    ),
     "J10": dict(
         bead="dc-jnt.14",
         sheet="jnt_dates_random",
@@ -750,6 +758,16 @@ def hand_rows(batch, repo, work):
     wire_of_literal = {v: k for k, v in ERROR_LITERAL_WIRE.items()}
     lines, cases, contradicted, builds, envs = [], [], [], set(), set()
     for function, args, legacy, source in jnt_hand.CASES[batch["id"]]:
+        if function.startswith("="):
+            # An operator formula: the question service takes function calls only, so the answer is
+            # live Excel's read-back of the sheet (capture mode, --live).
+            line = function[1:]
+            hypothesis = None
+            if legacy is not None:
+                hypothesis = ("number", "%016x" % struct.unpack(">Q", struct.pack(">d", legacy[1]))[0]) if legacy[0] == "number" else legacy
+            lines.append(line)
+            cases.append(dict(family="operators", id=source, source=source, expected=None, legacy=hypothesis, line=line, extras={}))
+            continue
         tokens, parts, asked = [], [], []
         for arg in args:
             kind = arg[0]
@@ -802,12 +820,24 @@ def hand_rows(batch, repo, work):
                 contradicted.append(dict(formula=line.split("\t")[0], inputs=line.split("\t")[1:], source=source,
                                          legacy=list(legacy), excel=list(expected), excel_build=sorted(builds)[0],
                                          reason="the legacy unit-test expectation differs from Excel's answer"))
-    entry = "OxFunc@05196c39:crates/oxfunc_core/src/functions unit tests (hypotheses); answers: question service touchstone/1, Excel 16.0.%s, env %s;sha256:%s" % (
-        "/".join(sorted(builds)), "/".join(sorted(envs)), hashlib.sha256("\n".join(lines).encode()).hexdigest())
+    if builds:
+        entry = "OxFunc@05196c39:crates/oxfunc_core/src/functions unit tests (hypotheses); answers: question service touchstone/1, Excel 16.0.%s, env %s;sha256:%s" % (
+            "/".join(sorted(builds)), "/".join(sorted(envs)), hashlib.sha256("\n".join(lines).encode()).hexdigest())
+    else:
+        entry = "OxFunc@05196c39:crates/oxfunc_core/src/functions unit tests (hypotheses); answers: live Excel read-back of the sheet;sha256:%s" % (
+            hashlib.sha256("\n".join(lines).encode()).hexdigest())
     return lines, cases, contradicted, entry
 
 
 def hand_header(batch):
+    if batch["id"] == "J11":
+        return [
+            "# %s %s: %s." % (batch["bead"], batch["id"], batch["title"]),
+            "# Ported from OxFunc@05196c39:crates/oxfunc_core/src/functions/{%s} (unit tests)." % ",".join(batch["tests"]),
+            "# Each row is an operator formula a legacy unit test asserts. The legacy expectation is a hypothesis: the",
+            "# answer in the section capture is live Excel's read-back of the row (the question service takes function",
+            "# calls only); a difference is listed in contradicted-%s.json." % batch["sheet"],
+        ]
     return [
         "# %s %s: %s." % (batch["bead"], batch["id"], batch["title"]),
         "# Ported from OxFunc@05196c39:crates/oxfunc_core/src/functions/{%s} (unit tests)." % ",".join(batch["tests"]),
@@ -951,6 +981,8 @@ def main():
     formulas, observations, contradicted = [], [], []
     live = None
     if arguments.live:
+        if any(c["expected"] is None for c in saved):
+            entry += "; operator rows answered by live Excel build " + (arguments.build or "unknown")
         live = [line.rstrip("\n").split("\t") for line in open(arguments.live, encoding="utf-8")]
         if any(c.get("extras") for c in saved):
             entry += "; input formulas read back by live Excel build " + (arguments.build or "unknown")
@@ -958,6 +990,19 @@ def main():
         formula_text = case["line"].split("\t")[0]
         formulas.append({"sheet": sheet, "row": index, "column": 4, "kind": "ordinary",
                          "formula": stored_formula(formula_text, index)})
+        if case["expected"] is None:
+            if live is None:
+                sys.exit("row %d is answered by live Excel: give --live and --build" % index)
+            seen = live[index - 1][1 + 3]
+            expected = expected_of_token(seen)
+            hypothesis = case.get("legacy")
+            if hypothesis is not None and token_of(tuple(hypothesis)) != seen:
+                contradicted.append({"row": index, "formula": case["line"], "legacy": token_of(tuple(hypothesis)), "live": seen,
+                                     "source": case["source"], "legacy_build": "none (unit-test hypothesis)",
+                                     "live_build": arguments.build or "unknown",
+                                     "reason": "the legacy unit-test expectation differs from Excel's answer"})
+            observations.append(observation(sheet, index, expected))
+            continue
         expected = tuple(case["expected"])
         if live is not None:
             # Excel is the oracle: where live Excel reads another answer than the legacy reading, the row
