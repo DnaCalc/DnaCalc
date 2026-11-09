@@ -25,7 +25,7 @@ const fn attach(data: UnheldEntry) -> CatalogueEntry {
         kind,
         availability: data.availability,
         arity: data.arity,
-        groups: None,
+        groups: data.groups,
         parameters: data.parameters,
         result: data.result,
         demand: data.demand,

@@ -17,86 +17,38 @@
 //! refuses one. OFFSET's result is a reference that the formula's own references do not name:
 //! the caller learns what it read from the evaluator, as for INDIRECT.
 
-use super::{ArgumentDemand, CatalogueEntry, Family, FunctionId, Kernel, Notation, Parameter};
+use super::{CatalogueEntry, Family, Kernel};
+#[cfg(test)]
+use super::FunctionId;
 use crate::call::{EvalServices, FunctionFault};
 use crate::kernel::{Exit, Site, Step};
 use crate::value::{
-    CalcArray, CalcValue, CallableArityShape, CellKey, CoreRef, GridArea, MAX_COLUMNS, MAX_ROWS,
+    CalcArray, CalcValue, CellKey, CoreRef, GridArea, MAX_COLUMNS, MAX_ROWS,
     ReferenceLike, WorksheetErrorCode,
 };
 use std::ops::ControlFlow;
 
-const CODE: u16 = 40;
+use calc_catalogue::offset::{CODE, ENTRIES as DECLARATIONS, ISOMITTED, OFFSET, TRIMRANGE};
+use calc_catalogue::WorksheetDeclaration;
 
-const OFFSET: FunctionId = FunctionId::new(CODE, 1);
-const ISOMITTED: FunctionId = FunctionId::new(CODE, 2);
-const TRIMRANGE: FunctionId = FunctionId::new(CODE, 3);
+const fn attach(data: WorksheetDeclaration) -> CatalogueEntry {
+    let kernel = match data.id.raw() {
+        x if x == OFFSET.raw() => Kernel::Eager(offset),
+        x if x == ISOMITTED.raw() => Kernel::Eager(isomitted),
+        x if x == TRIMRANGE.raw() => Kernel::Eager(trimrange),
+        _ => panic!("a worksheet declaration has no attached kernel or refusal"),
+    };
+    CatalogueEntry {
+        id: data.id, spelling: data.spelling, notation: data.notation,
+        kind: super::EntryKind::Worksheet, availability: data.availability,
+        arity: data.arity, groups: data.groups, parameters: data.parameters,
+        result: data.result, demand: data.demand, traits: data.traits, kernel,
+    }
+}
 
-// 3-D positions: dc-10y, Excel 16.0.20430, 2026-10-25; catalogue oracle ThreeD sheet.
-pub(super) const FAMILY: Family = Family {
-    code: CODE,
-    entries: &[
-        // Formula entry (dc-mx3x, Excel 16.0.20527, 2026-11-07, Formula2 and Formula alike): the
-        // reference takes only an operand that may give one (`=OFFSET(2,0,0)`, `=OFFSET({1,2},0,0)`,
-        // `=OFFSET(1+1,0,0)` and `=OFFSET(,0,0)` are refused, `=OFFSET(B1:B3,0,0)` and
-        // `=OFFSET(INDEX(B1:B3,0),0,0)` enter), and a call may give a reference:
-        // `=COUNTBLANK(OFFSET(A1,0,0))` enters, and so does `=OFFSET(A1,0,0)(3)` (#REF!).
-        CatalogueEntry {
-            id: OFFSET,
-            spelling: "OFFSET",
-            notation: Notation::Call,
-            kind: super::EntryKind::Worksheet,
-            availability: super::Availability::Unspecified,
-            arity: CallableArityShape::range(3, 5),
-            groups: None,
-            parameters: &[
-                Parameter::reference("reference").entry(super::EntryClass::Reference),
-                Parameter::value("rows"),
-                Parameter::value("cols"),
-                Parameter::value("height"),
-                Parameter::value("width"),
-            ],
-            result: super::ResultForm::MayBeReference,
-            demand: ArgumentDemand::Eager,
-            traits: super::EntryTraits::NONE.volatile(),
-            kernel: Kernel::Eager(offset),
-        }.with_three_d(super::ThreeD::new(None, Some(&[0]), Some(&[1, usize::MAX]))),
-        CatalogueEntry {
-            id: ISOMITTED,
-            spelling: "ISOMITTED",
-            notation: Notation::Call,
-            kind: super::EntryKind::Worksheet,
-            availability: super::Availability::Unspecified,
-            arity: CallableArityShape::exact(1),
-            groups: None,
-            parameters: &[Parameter::value_or_reference("argument")],
-            result: super::ResultForm::Value,
-            demand: ArgumentDemand::Eager,
-            traits: super::EntryTraits::NONE,
-            kernel: Kernel::Eager(isomitted),
-        }.with_three_d(super::ThreeD::new(None, None, Some(&[]))),
-        // A call may give a reference (dc-mx3x): `=COUNTBLANK(TRIMRANGE(B1))` and
-        // `=TRIMRANGE(B1)(3)` enter. Its range takes any operand: `=TRIMRANGE(2)` enters.
-        CatalogueEntry {
-            id: TRIMRANGE,
-            spelling: "TRIMRANGE",
-            notation: Notation::Call,
-            kind: super::EntryKind::Worksheet,
-            availability: super::Availability::Unspecified,
-            arity: CallableArityShape::range(1, 3),
-            groups: None,
-            parameters: &[
-                Parameter::value_or_reference("range"),
-                Parameter::value("trim_rows"),
-                Parameter::value("trim_cols"),
-            ],
-            result: super::ResultForm::MayBeReference,
-            demand: ArgumentDemand::Eager,
-            traits: super::EntryTraits::NONE,
-            kernel: Kernel::Eager(trimrange),
-        },
-    ],
-};
+const ENTRIES: [CatalogueEntry; 3] = [attach(DECLARATIONS[0]), attach(DECLARATIONS[1]), attach(DECLARATIONS[2])];
+const _: () = assert!(DECLARATIONS.len() == ENTRIES.len());
+pub(super) const FAMILY: Family = Family { code: CODE, entries: &ENTRIES };
 
 fn offset(
     arguments: &[CalcValue],
@@ -414,5 +366,24 @@ mod tests {
             call(ISOMITTED, vec![CalcValue::number(1.0)]),
             Ok(CalcValue::logical(false))
         );
+    }
+}
+
+#[cfg(test)]
+mod declaration_equivalence {
+    use crate::{FunctionId, catalogue};
+
+    // Snapshot of the preceding declarations, whose source was unchanged since f0be6d14.
+    #[cfg_attr(not(target_arch = "wasm32"), test)]
+    #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+    fn original_entries_equal_shared_declarations() {
+        let mut actual = String::new();
+        for member in 1..=3 {
+            let t = catalogue().resolve(FunctionId::from_raw((40 << 16) | member)).unwrap();
+            actual.push_str(&format!("{}\t{}\t{:?}\t{:?}\t{:?}\t{:?}\t{:?}\t{:?}\t{:?}\t{:?}\t{:?}\n",
+                t.id().raw(), t.spelling(), t.notation(), t.kind(), t.availability(), t.implementation(),
+                t.arity(), t.result_form(), t.argument_demand(), t.traits(), t.signature_help()));
+        }
+        assert_eq!(actual, include_str!("../../../calc-catalogue/tests/fixtures/offset-before.tsv"));
     }
 }

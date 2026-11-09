@@ -189,6 +189,7 @@
   "allowed": {}
  },
  "files": [
+  {"path": "crates/calc-catalogue/src/offset.rs", "class": "own-work", "reason": "Worksheet declaration data moved from the existing DnaCalc reference-offset family."},
   {"path": "crates/calc-catalogue/src/unheld.rs", "class": "own-work", "reason": "Catalogue declarations moved from the existing DnaCalc owner rulings and tracker."},
   {"path": "crates/calc-func/src/catalogue/unheld.rs", "class": "own-work", "reason": "Adapter attaches the shared declarations to binding and refusal implementations."},
   {"path": "crates/calc-func/tests/fixtures/dcj9k_r25_bessel/oracle.xlsx", "class": "own-work", "reason": "dc-j9k R27: original MIT-authored R25 question workbook/section or unchanged live Excel capture. Original packet, worker values, formulas and operand echoes verified by DnaCalc-Research/evidence/round27/r25-intake.json; no prediction counted as an answer."},

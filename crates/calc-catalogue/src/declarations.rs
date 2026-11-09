@@ -427,3 +427,25 @@ impl ArgumentGroups {
         }
     }
 }
+
+/// Data for a worksheet function whose executable kernel is attached by the caller.
+#[derive(Clone, Copy, Debug)]
+pub struct WorksheetDeclaration {
+    pub id: FunctionId,
+    pub spelling: &'static str,
+    pub notation: Notation,
+    pub availability: Availability,
+    pub arity: calc_value::CallableArityShape,
+    pub groups: Option<ArgumentGroups>,
+    pub parameters: &'static [Parameter],
+    pub result: ResultForm,
+    pub demand: ArgumentDemand,
+    pub traits: EntryTraits,
+}
+
+impl WorksheetDeclaration {
+    pub const fn with_three_d(mut self, three_d: ThreeD) -> Self {
+        self.traits.three_d = three_d;
+        self
+    }
+}
