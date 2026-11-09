@@ -522,18 +522,30 @@ pub fn npv(periodic_rate: f64, cashflows: &[f64]) -> Result<f64, FinancialError>
     if cashflows.is_empty() {
         return Err(FinancialError::Value);
     }
-    let base = 1.0 + periodic_rate;
+    // Excel's loop (design/fable52-last-bit.md section 1, Claude Fable 5.2): every operation is
+    // an x87 store; the flows are discounted as if the first were at time 0 and the sum is
+    // divided by 1 + rate once at the end.
+    let base = excel_x87_add(1.0, periodic_rate);
     if base == 0.0 {
         return Err(FinancialError::Div0);
     }
+    let mut power: f64 = 1.0;
     let mut total = 0.0;
-    let mut discount = 1.0;
     for cashflow in cashflows {
-        discount *= base;
-        total += *cashflow / discount;
+        // An infinite or zero power when it is used, or a non-finite term, is #DIV/0!.
+        if !power.is_finite() || power == 0.0 {
+            return Err(FinancialError::Div0);
+        }
+        let term = excel_x87_div(*cashflow, power);
+        if !term.is_finite() {
+            return Err(FinancialError::Div0);
+        }
+        total = excel_x87_add(total, term);
+        power = excel_x87_mul(power, base);
     }
-    if total.is_finite() {
-        Ok(total)
+    let result = excel_x87_div(total, base);
+    if result.is_finite() {
+        Ok(result)
     } else {
         Err(FinancialError::Num)
     }
@@ -1833,6 +1845,49 @@ mod tests {
         )
         .expect("rate with default 0.1 guess");
         assert_close(default_guess, expected_rate, 1e-12);
+    }
+
+    #[cfg_attr(not(target_arch = "wasm32"), test)]
+    #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+    fn npv_reproduces_recorded_excel_answers() {
+        // 1,320 calls answered by Excel 16.0.20527 (design/fable52-last-bit.md section 1:
+        // n1 discovery, n6 proof, n9/n10 designed rounding calls, n7 overflow edges).
+        let text = include_str!("../../tests/npv_excel_answers.txt");
+        let mut rows = 0;
+        let mut wrong = Vec::new();
+        for line in text.lines().filter(|l| !l.starts_with('#') && !l.is_empty()) {
+            let mut parts = line.split('|');
+            let (set, args, want) = (parts.next().unwrap(), parts.next().unwrap(), parts.next().unwrap());
+            let values: Vec<f64> = args
+                .split(',')
+                .map(|h| f64::from_bits(u64::from_str_radix(h, 16).expect("hex bits")))
+                .collect();
+            let got = match npv(values[0], &values[1..]) {
+                Ok(v) => format!("{:016x}", v.to_bits()),
+                Err(FinancialError::Div0) => "#DIV/0!".to_owned(),
+                Err(FinancialError::Num) => "#NUM!".to_owned(),
+                Err(other) => format!("{other:?}"),
+            };
+            rows += 1;
+            if got != want {
+                wrong.push(format!("{set} {args}: Excel {want}, calculated {got}"));
+            }
+        }
+        assert_eq!(rows, 1320);
+        assert!(wrong.is_empty(), "{} NPV rows differ:
+{}", wrong.len(), wrong.join("
+"));
+    }
+
+    #[cfg_attr(not(target_arch = "wasm32"), test)]
+    #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+    fn npv_tiny_base_error_rules_match_the_measured_calls() {
+        // design/fable52-last-bit.md section 1, b = 2^-30: 35 flows of 1 overflow only the
+        // final division (#NUM!); 36 overflow a term (#DIV/0!); 37 flows of 0 meet 0 / 0.
+        let rate = 2.0f64.powi(-30) - 1.0;
+        assert_eq!(npv(rate, &[1.0; 35]), Err(FinancialError::Num));
+        assert_eq!(npv(rate, &[1.0; 36]), Err(FinancialError::Div0));
+        assert_eq!(npv(rate, &[0.0; 37]), Err(FinancialError::Div0));
     }
 
     #[cfg_attr(not(target_arch = "wasm32"), test)]

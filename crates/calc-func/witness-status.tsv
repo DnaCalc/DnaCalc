@@ -401,8 +401,8 @@ NOT	full	20430	1227	1227	-	exact	9fd77961e5	0
 NOT	pinned	20430	120	119	-	structural	919dd43269+changes	0
 NPER	full	20131,20430,20527,?	2509	2509	-	exact	9fd77961e5	0
 NPER	pinned	20131,20430	120	120	-	exact	919dd43269+changes	0
-NPV	full	20131,?	284	190	2	last_bit	9fd77961e5	0
-NPV	pinned	20131,?	120	84	2	last_bit	919dd43269+changes	0
+NPV	full	20131,?	284	284	-	exact	9fd77961e5	0
+NPV	pinned	20131,?	120	120	-	exact	919dd43269+changes	0
 NUMBERVALUE	pinned	20527	366	311	1	structural	919dd43269+changes	0
 OCT2BIN	full	20430	1201	1201	-	exact	9fd77961e5	0
 OCT2BIN	pinned	20430	120	120	-	exact	919dd43269+changes	0
