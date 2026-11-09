@@ -1,0 +1,61 @@
+# dc-jnt.16 J12: Parse, bind and entry facts: file-form prefixes, A1 dollar fidelity, entry literals, structured shape facts, diagnostic boundaries.
+# Ported from OxFml@15daac5:crates/oxfml_core/tests/{parse_bind_fixture_tests.rs,structured_reference_tests.rs,sheet_span_3d_reference_tests.rs,reference_a1_dollar_fidelity_tests.rs,w079_entry_time_diagnostic_tests.rs,w079_non_ascii_identifier_tests.rs,w079_authoring_surface_non_ascii_tests.rs,w079_excel_file_form_prefix_tests.rs,ms_oe376_review_tests.rs,ftc_0288_separator_context_tests.rs,binding/mod.rs,binding/excel_prefix.rs,syntax/combining_marks.rs,authored_input_tests.rs} (unit tests).
+# Each row is a call a legacy unit test asserts. The legacy expectation is a hypothesis: the answer in the
+# section capture is Excel's, asked through the question service (tools/excel-service) with the build
+# recorded in the capture entry; a difference is listed in contradicted-jnt_parse_bind.json.
+# Numbers are exact cells (typed inputs); text arguments stay literals in the formula.
+_xlfn.XLOOKUP({A},{1,2,3},{10,20,30})	n:4000000000000000
+_xlfn.XLOOKUP({A},{1,2,3},{10,20,30},-1.0)	n:4014000000000000
+_xlfn.IFNA({A},2.0)	n:3ff0000000000000
+_xlfn.IFS({A},10.0,{B},20.0)	b:TRUE	b:FALSE
+_xlfn.IFS({A},10.0,{B},20.0)	b:FALSE	b:TRUE
+_xlfn.SWITCH({A},1.0,10.0,2.0,20.0,30.0)	n:4000000000000000
+_xlfn.SWITCH({A},1.0,10.0,2.0,20.0,30.0)	n:4022000000000000
+_xlfn.CONCAT("a","b","c")
+_xlfn.CONCAT("","x")
+_xlfn.TEXTJOIN(",",{A},"a","b")	b:TRUE
+_xlfn.TEXTJOIN("-",{A},"1","2","3")	b:TRUE
+_xlfn.STDEV.P({A},{B},{C})	n:3ff0000000000000	n:4000000000000000	n:4008000000000000
+_xlfn.SEQUENCE(1.0,1.0,10.0,1.0)
+SINGLE({A})	n:4045000000000000
+ISREF({A})	n:4024000000000000
+ISREF({A})	-
+ISREF("A1")
+ISBLANK({A})	-
+ISBLANK({A})	n:0000000000000000
+ISBLANK("")
+N({A})	n:4045000000000000
+N({A})	s:hello
+N({A})	b:TRUE
+N({A})	b:FALSE
+N({A})	-
+T({A})	s:hello
+T({A})	n:4045000000000000
+T({A})	b:TRUE
+T({A})	-
+TYPE(123.4)
+TYPE("123.4")
+TYPE({A})	b:TRUE
+TYPE({1,2})
+VALUE("123.4")
+VALUE("0123")
+VALUE("  45.6  ")
+VALUE("1e2")
+COLUMNS({1,2,3})
+COLUMNS({1;2;3})
+COLUMNS({1,2;3,4})
+ROWS({1,2,3})
+ROWS({1;2;3})
+ROWS({1,2;3,4})
+INDEX({10,20;30,40},1.0,2.0)
+INDEX({10,20;30,40},2.0,1.0)
+INDEX({10,20;30,40},2.0,2.0)
+IF({A},,20.0)	b:TRUE
+IF({A},10.0,)	b:FALSE
+IF({A},"",20.0)	b:TRUE
+PRODUCT({A},5.0)	-
+SUM({A},5.0)	-
+SUM({A},2.0)	n:3ff0000000000000
+AVERAGE({A},20.0)	n:4024000000000000
+COUNT({A},{B},{C},20.0)	n:4024000000000000	s:x	-
+COUNTA({A},{B},{C},20.0)	n:4024000000000000	s:x	-

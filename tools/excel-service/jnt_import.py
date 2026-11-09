@@ -87,6 +87,51 @@ def dirsrc(path):
 
 
 BATCHES = {
+    "J12": dict(
+        bead="dc-jnt.16",
+        sheet="jnt_parse_bind",
+        hand=True,
+        title="Parse, bind and entry facts: file-form prefixes, A1 dollar fidelity, entry literals, structured shape facts, diagnostic boundaries",
+        tests=[
+            "parse_bind_fixture_tests.rs",
+            "structured_reference_tests.rs",
+            "sheet_span_3d_reference_tests.rs",
+            "reference_a1_dollar_fidelity_tests.rs",
+            "w079_entry_time_diagnostic_tests.rs",
+            "w079_non_ascii_identifier_tests.rs",
+            "w079_authoring_surface_non_ascii_tests.rs",
+            "w079_excel_file_form_prefix_tests.rs",
+            "ms_oe376_review_tests.rs",
+            "ftc_0288_separator_context_tests.rs",
+            "binding/mod.rs",
+            "binding/excel_prefix.rs",
+            "syntax/combining_marks.rs",
+            "authored_input_tests.rs",
+        ],
+        families=[],
+    ),
+    "J5": dict(
+        bead="dc-jnt.9",
+        sheet="jnt_evaluator_callables",
+        hand=True,
+        title="Evaluator and callables: subnormal boundary, logical branching, CHOOSE, IFS, SWITCH, ISOMITTED, TAKE/DROP empty carriers, ROW/COLUMN scalar rejection",
+        tests=[
+            "evaluator_tests.rs",
+            "callable_portable_result_tests.rs",
+            "callable_typed_value_tests.rs",
+            "callable_calls_callable_tests.rs",
+            "higher_order_callable_tests.rs",
+            "ftc_0999_callable_parameter_map_tests.rs",
+            "ftc_0999_lambda_array_publication_tests.rs",
+            "ftc_1043_hstack_empty_carrier_tests.rs",
+            "ftc_0176_if_array_condition_tests.rs",
+            "ftc_0630_subnormal_boundary_tests.rs",
+            "ftc_builtin_callable_collision_boundary_tests.rs",
+            "ftc_parser_authoring_runtime_tests.rs",
+            "eval/mod.rs",
+        ],
+        families=[],
+    ),
     "J4": dict(
         bead="dc-jnt.8",
         sheet="jnt_parity_complex",
@@ -960,6 +1005,15 @@ def hand_rows(batch, repo, work):
 
 
 def hand_header(batch):
+    if batch["id"] in ("J5", "J12"):
+        return [
+            "# %s %s: %s." % (batch["bead"], batch["id"], batch["title"]),
+            "# Ported from OxFml@15daac5:crates/oxfml_core/tests/{%s} (unit tests)." % ",".join(batch["tests"]),
+            "# Each row is a call a legacy unit test asserts. The legacy expectation is a hypothesis: the answer in the",
+            "# section capture is Excel's, asked through the question service (tools/excel-service) with the build",
+            "# recorded in the capture entry; a difference is listed in contradicted-%s.json." % batch["sheet"],
+            "# Numbers are exact cells (typed inputs); text arguments stay literals in the formula.",
+        ]
     if batch["id"] == "J11":
         return [
             "# %s %s: %s." % (batch["bead"], batch["id"], batch["title"]),

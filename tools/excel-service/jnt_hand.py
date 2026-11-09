@@ -1102,7 +1102,152 @@ J9 = [
     ("DPRODUCT", [arr_num([[1, 2], [3, 4]]), lit(1), arr_num([[1]])], err("value"), "database_family.rs dproduct_array_ref_check"),
 ]
 
-CASES = {"J10": J10, "J11": J11, "J4": J4, "J6": J6, "J7": J7, "J8": J8, "J9": J9}
+J5 = [
+    # POWER subnormal boundaries & exponentiation facts
+    ("POWER", [n(2), n(-1023)], num(0), "ftc_0630_subnormal_boundary_tests.rs eval_power_underflow"),
+    ("POWER", [n(2), n(-1022)], num(2.2250738585072014e-308), "ftc_0630_subnormal_boundary_tests.rs eval_power_min_normal"),
+    ("POWER", [n(2), n(-1024)], num(0), "ftc_0630_subnormal_boundary_tests.rs eval_power_underflow_past_min"),
+    ("POWER", [n(-1), n(0.5)], err("num"), "evaluator_tests.rs eval_negative_fractional_power"),
+    ("POWER", [n(2), n(3)], num(8), "evaluator_tests.rs eval_power_2_3"),
+    ("POWER", [n(2), n(6)], num(64), "evaluator_tests.rs eval_power_2_6"),
+    ("POWER", [n(2), n(9)], num(512), "evaluator_tests.rs eval_power_2_9"),
+    ("POWER", [n(-2), n(2)], num(4), "evaluator_tests.rs eval_power_neg_base_even_power"),
+    ("POWER", [n(2), n(-1)], num(0.5), "evaluator_tests.rs eval_power_neg_power"),
+
+    # SIGN
+    ("SIGN", [n(-5)], num(-1), "evaluator_tests.rs eval_sign_negative"),
+    ("SIGN", [n(0)], num(0), "evaluator_tests.rs eval_sign_zero"),
+    ("SIGN", [n(5)], num(1), "evaluator_tests.rs eval_sign_positive"),
+
+    # IF
+    ("IF", [b(True), n(10), n(20)], num(10), "evaluator_tests.rs eval_if_true"),
+    ("IF", [b(False), n(10), n(20)], num(20), "evaluator_tests.rs eval_if_false"),
+    ("IF", [n(1), n(10), n(20)], num(10), "evaluator_tests.rs eval_if_num_1"),
+    ("IF", [n(0), n(10), n(20)], num(20), "evaluator_tests.rs eval_if_num_0"),
+    ("IF", [cell_s("TRUE"), n(10), n(20)], num(10), "ftc_0176_if_array_condition_tests.rs eval_if_text_true"),
+    ("IF", [cell_s("FALSE"), n(10), n(20)], num(20), "ftc_0176_if_array_condition_tests.rs eval_if_text_false"),
+    ("IF", [cell_s("x"), n(10), n(20)], err("value"), "ftc_0176_if_array_condition_tests.rs eval_if_text_non_boolean"),
+    ("IF", [EMPTY, n(10), n(20)], num(20), "evaluator_tests.rs eval_if_blank_condition"),
+    ("IF", [b(True), n(10)], num(10), "evaluator_tests.rs eval_if_true_omitted_false"),
+    ("IF", [b(False), n(10)], F_, "evaluator_tests.rs eval_if_false_omitted_false"),
+    ("IF", [b(True), s("")], txt(""), "evaluator_tests.rs eval_if_empty_text_true"),
+    ("IF", [b(False), n(10), s("")], txt(""), "evaluator_tests.rs eval_if_empty_text_false"),
+
+    # IFS
+    ("IFS", [b(True), lit(10), b(False), lit(20)], num(10), "evaluator_tests.rs eval_ifs_first_true"),
+    ("IFS", [b(False), lit(10), b(True), lit(20), b(True), lit(30)], num(20), "evaluator_tests.rs eval_ifs_second_true"),
+    ("IFS", [b(False), lit(10), b(False), lit(20), b(True), lit(30)], num(30), "evaluator_tests.rs eval_ifs_third_true"),
+    ("IFS", [b(False), lit(10), b(False), lit(20)], err("na"), "evaluator_tests.rs eval_ifs_none_true"),
+    ("IFS", [n(1), lit(10), n(0), lit(20)], num(10), "evaluator_tests.rs eval_ifs_num_1_cond"),
+    ("IFS", [n(0), lit(10), n(1), lit(20)], num(20), "evaluator_tests.rs eval_ifs_num_0_cond"),
+    ("IFS", [cell_s("TRUE"), lit(10), n(0), lit(20)], num(10), "evaluator_tests.rs eval_ifs_text_true_cond"),
+    ("IFS", [cell_s("x"), lit(10), n(1), lit(20)], err("value"), "evaluator_tests.rs eval_ifs_text_non_boolean"),
+
+    # CHOOSE
+    ("CHOOSE", [n(1), lit(10), lit(20), lit(30)], num(10), "evaluator_tests.rs eval_choose_1"),
+    ("CHOOSE", [n(2), lit(10), lit(20), lit(30)], num(20), "evaluator_tests.rs eval_choose_2"),
+    ("CHOOSE", [n(3), lit(10), lit(20), lit(30)], num(30), "evaluator_tests.rs eval_choose_3"),
+    ("CHOOSE", [n(2.9), lit(10), lit(20), lit(30)], num(20), "evaluator_tests.rs eval_choose_2_9"),
+    ("CHOOSE", [n(1.1), lit(10), lit(20), lit(30)], num(10), "evaluator_tests.rs eval_choose_1_1"),
+    ("CHOOSE", [n(0), lit(10), lit(20), lit(30)], err("value"), "evaluator_tests.rs eval_choose_0_underflow"),
+    ("CHOOSE", [n(4), lit(10), lit(20), lit(30)], err("value"), "evaluator_tests.rs eval_choose_4_overflow"),
+    ("CHOOSE", [n(-1), lit(10), lit(20), lit(30)], err("value"), "evaluator_tests.rs eval_choose_negative"),
+    ("CHOOSE", [cell_s("1"), lit(10), lit(20), lit(30)], num(10), "evaluator_tests.rs eval_choose_text_digit"),
+    ("CHOOSE", [cell_s("x"), lit(10), lit(20), lit(30)], err("value"), "evaluator_tests.rs eval_choose_text_non_num"),
+
+    # SWITCH
+    ("SWITCH", [n(2), lit(1), lit(10), lit(2), lit(20), lit(3), lit(30), lit(40)], num(20), "evaluator_tests.rs eval_switch_match_2"),
+    ("SWITCH", [n(1), lit(1), lit(10), lit(2), lit(20), lit(3), lit(30), lit(40)], num(10), "evaluator_tests.rs eval_switch_match_1"),
+    ("SWITCH", [n(3), lit(1), lit(10), lit(2), lit(20), lit(3), lit(30), lit(40)], num(30), "evaluator_tests.rs eval_switch_match_3"),
+    ("SWITCH", [n(99), lit(1), lit(10), lit(2), lit(20), lit(3), lit(30), lit(40)], num(40), "evaluator_tests.rs eval_switch_default"),
+    ("SWITCH", [n(99), lit(1), lit(10), lit(2), lit(20)], err("na"), "evaluator_tests.rs eval_switch_no_default_na"),
+    ("SWITCH", [cell_s("b"), s("a"), lit(10), s("b"), lit(20), lit(30)], num(20), "evaluator_tests.rs eval_switch_text_match"),
+    ("SWITCH", [cell_s("B"), s("a"), lit(10), s("b"), lit(20), lit(30)], num(20), "evaluator_tests.rs eval_switch_case_insensitive"),
+
+    # ISOMITTED
+    ("ISOMITTED", [n(1)], F_, "evaluator_tests.rs eval_isomitted_1"),
+    ("ISOMITTED", [cell_s("a")], F_, "evaluator_tests.rs eval_isomitted_text"),
+    ("ISOMITTED", [b(True)], F_, "evaluator_tests.rs eval_isomitted_bool"),
+    ("ISOMITTED", [EMPTY], F_, "evaluator_tests.rs eval_isomitted_empty"),
+
+    # TAKE / DROP (empty carrier boundaries)
+    ("TAKE", [arr_num([[5, 3, 8, 1, 9, 2]]), omitted(), lit(0)], err("calc"), "ftc_1043_hstack_empty_carrier_tests.rs eval_take_zero_cols"),
+    ("TAKE", [arr_num([[5, 3, 8, 1, 9, 2]]), lit(0), omitted()], err("calc"), "ftc_1043_hstack_empty_carrier_tests.rs eval_take_zero_rows"),
+    ("DROP", [arr_num([[5, 3, 8, 1, 9, 2]]), omitted(), lit(6)], err("calc"), "ftc_1043_hstack_empty_carrier_tests.rs eval_drop_all_cols"),
+
+    # ROW / COLUMN boundary
+    ("ROW", [n(7)], err("value"), "ftc_builtin_callable_collision_boundary_tests.rs eval_row_rejects_scalar"),
+    ("COLUMN", [n(7)], err("value"), "ftc_builtin_callable_collision_boundary_tests.rs eval_column_rejects_scalar"),
+]
+
+J12 = [
+    # --- Group 1: Modern file-form prefix functions ---
+    ("XLOOKUP", [n(2), arr_num([[1, 2, 3]]), arr_num([[10, 20, 30]])], num(20.0), "w079_excel_file_form_prefix_tests.rs xlookup_match"),
+    ("XLOOKUP", [n(5), arr_num([[1, 2, 3]]), arr_num([[10, 20, 30]]), lit(-1)], num(-1.0), "w079_excel_file_form_prefix_tests.rs xlookup_default"),
+    ("IFNA", [n(1), lit(2)], num(1.0), "w079_excel_file_form_prefix_tests.rs ifna_val"),
+    ("IFS", [b(True), lit(10), b(False), lit(20)], num(10.0), "w079_excel_file_form_prefix_tests.rs ifs_true"),
+    ("IFS", [b(False), lit(10), b(True), lit(20)], num(20.0), "w079_excel_file_form_prefix_tests.rs ifs_second"),
+    ("SWITCH", [n(2), lit(1), lit(10), lit(2), lit(20), lit(30)], num(20.0), "w079_excel_file_form_prefix_tests.rs switch_2"),
+    ("SWITCH", [n(9), lit(1), lit(10), lit(2), lit(20), lit(30)], num(30.0), "w079_excel_file_form_prefix_tests.rs switch_default"),
+    ("CONCAT", [s("a"), s("b"), s("c")], txt("abc"), "w079_excel_file_form_prefix_tests.rs concat_abc"),
+    ("CONCAT", [s(""), s("x")], txt("x"), "w079_excel_file_form_prefix_tests.rs concat_empty"),
+    ("TEXTJOIN", [s(","), b(True), s("a"), s("b")], txt("a,b"), "w079_excel_file_form_prefix_tests.rs textjoin_comma"),
+    ("TEXTJOIN", [s("-"), b(True), s("1"), s("2"), s("3")], txt("1-2-3"), "w079_excel_file_form_prefix_tests.rs textjoin_dash"),
+    ("STDEV.P", [n(1), n(2), n(3)], num(0.816496580927726), "w079_excel_file_form_prefix_tests.rs stdev_p"),
+    ("SEQUENCE", [lit(1), lit(1), lit(10), lit(1)], num(10.0), "w079_excel_file_form_prefix_tests.rs sequence_scalar"),
+    ("SINGLE", [n(42)], num(42.0), "w079_excel_file_form_prefix_tests.rs single_val"),
+
+    # --- Group 2: Reference inspection & A1 dollar fidelity ---
+    ("ISREF", [n(10)], T_, "reference_a1_dollar_fidelity_tests.rs isref_cell"),
+    ("ISREF", [EMPTY], T_, "reference_a1_dollar_fidelity_tests.rs isref_empty_cell"),
+    ("ISREF", [s("A1")], F_, "reference_a1_dollar_fidelity_tests.rs isref_text_literal"),
+    ("ISBLANK", [EMPTY], T_, "reference_a1_dollar_fidelity_tests.rs isblank_empty"),
+    ("ISBLANK", [n(0)], F_, "reference_a1_dollar_fidelity_tests.rs isblank_zero"),
+    ("ISBLANK", [s("")], F_, "reference_a1_dollar_fidelity_tests.rs isblank_empty_str"),
+    ("N", [n(42)], num(42.0), "parse_bind_fixture_tests.rs n_number"),
+    ("N", [cell_s("hello")], num(0.0), "parse_bind_fixture_tests.rs n_text"),
+    ("N", [b(True)], num(1.0), "parse_bind_fixture_tests.rs n_true"),
+    ("N", [b(False)], num(0.0), "parse_bind_fixture_tests.rs n_false"),
+    ("N", [EMPTY], num(0.0), "parse_bind_fixture_tests.rs n_empty"),
+    ("T", [cell_s("hello")], txt("hello"), "parse_bind_fixture_tests.rs t_text"),
+    ("T", [n(42)], txt(""), "parse_bind_fixture_tests.rs t_number"),
+    ("T", [b(True)], txt(""), "parse_bind_fixture_tests.rs t_boolean"),
+    ("T", [EMPTY], txt(""), "parse_bind_fixture_tests.rs t_empty"),
+
+    # --- Group 3: Cell entry literals (authored_input) ---
+    ("TYPE", [lit(123.4)], num(1.0), "authored_input_tests.rs type_number"),
+    ("TYPE", [s("123.4")], num(2.0), "authored_input_tests.rs type_text"),
+    ("TYPE", [b(True)], num(4.0), "authored_input_tests.rs type_boolean"),
+    ("TYPE", [arr_num([[1, 2]])], num(64.0), "authored_input_tests.rs type_array"),
+    ("VALUE", [s("123.4")], num(123.4), "authored_input_tests.rs value_num_text"),
+    ("VALUE", [s("0123")], num(123.0), "authored_input_tests.rs value_leading_zero"),
+    ("VALUE", [s("  45.6  ")], num(45.6), "authored_input_tests.rs value_whitespace"),
+    ("VALUE", [s("1e2")], num(100.0), "authored_input_tests.rs value_scientific"),
+
+    # --- Group 4: Array dimensions and structured shape facts ---
+    ("COLUMNS", [arr_num([[1, 2, 3]])], num(3.0), "structured_reference_tests.rs cols_1x3"),
+    ("COLUMNS", [arr_num([[1], [2], [3]])], num(1.0), "structured_reference_tests.rs cols_3x1"),
+    ("COLUMNS", [arr_num([[1, 2], [3, 4]])], num(2.0), "structured_reference_tests.rs cols_2x2"),
+    ("ROWS", [arr_num([[1, 2, 3]])], num(1.0), "structured_reference_tests.rs rows_1x3"),
+    ("ROWS", [arr_num([[1], [2], [3]])], num(3.0), "structured_reference_tests.rs rows_3x1"),
+    ("ROWS", [arr_num([[1, 2], [3, 4]])], num(2.0), "structured_reference_tests.rs rows_2x2"),
+    ("INDEX", [arr_num([[10, 20], [30, 40]]), lit(1), lit(2)], num(20.0), "structured_reference_tests.rs index_1_2"),
+    ("INDEX", [arr_num([[10, 20], [30, 40]]), lit(2), lit(1)], num(30.0), "structured_reference_tests.rs index_2_1"),
+    ("INDEX", [arr_num([[10, 20], [30, 40]]), lit(2), lit(2)], num(40.0), "structured_reference_tests.rs index_2_2"),
+
+    # --- Group 5: Diagnostic and boundary cases ---
+    ("IF", [b(True), omitted(), lit(20)], num(0.0), "w079_entry_time_diagnostic_tests.rs if_omitted_true"),
+    ("IF", [b(False), lit(10), omitted()], num(0.0), "w079_entry_time_diagnostic_tests.rs if_omitted_false"),
+    ("IF", [b(True), s(""), lit(20)], txt(""), "w079_entry_time_diagnostic_tests.rs if_empty_str_true"),
+    ("PRODUCT", [EMPTY, lit(5)], num(5.0), "parse_bind_fixture_tests.rs product_empty_cell"),
+    ("SUM", [EMPTY, lit(5)], num(5.0), "parse_bind_fixture_tests.rs sum_empty_cell"),
+    ("SUM", [n(1), lit(2)], num(3.0), "parse_bind_fixture_tests.rs sum_a1_2"),
+    ("AVERAGE", [n(10), lit(20)], num(15.0), "parse_bind_fixture_tests.rs average_a1_20"),
+    ("COUNT", [n(10), cell_s("x"), EMPTY, lit(20)], num(2.0), "parse_bind_fixture_tests.rs count_mixed"),
+    ("COUNTA", [n(10), cell_s("x"), EMPTY, lit(20)], num(3.0), "parse_bind_fixture_tests.rs counta_mixed"),
+]
+
+CASES = {"J10": J10, "J11": J11, "J12": J12, "J4": J4, "J5": J5, "J6": J6, "J7": J7, "J8": J8, "J9": J9}
 
 
 

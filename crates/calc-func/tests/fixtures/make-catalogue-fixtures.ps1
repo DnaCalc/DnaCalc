@@ -603,6 +603,8 @@ $JntSheets += 'jnt_logical_info'
 $JntSheets += 'jnt_lookup'
 $JntSheets += 'jnt_text_formats'
 $JntSheets += 'jnt_aggregate_arrays'
+$JntSheets += 'jnt_evaluator_callables'
+$JntSheets += 'jnt_parse_bind'
 $jnt = @()
 foreach ($name in $JntSheets) {
     $expanded = Expand-SectionLines (Get-SectionLines ('sheet-' + $name + '.txt') 'jnt')
