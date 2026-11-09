@@ -872,6 +872,24 @@ impl Session {
     /// [`Session::calculate`] for `formula` in place of the session's own: the same inputs, form,
     /// environment and functions. A part of a formula is evaluated this way (F9, the trace).
     pub fn calculate_text(&mut self, formula: &str) -> Calculation {
+        self.calculate_text_from(formula, self.formula_cell)
+    }
+
+    /// [`Session::calculate_text`] for a formula written for the cell `origin` (an A1 address) and
+    /// placed at the formula cell, as Excel places a conditional format's formula, written for the
+    /// first cell of its range, at each cell of the range: a relative reference moves with it.
+    pub fn calculate_relative(&mut self, formula: &str, origin: &str) -> Calculation {
+        match self.cell(origin) {
+            Ok(origin) => self.calculate_text_from(formula, origin),
+            Err(_) => Calculation {
+                result: None,
+                diagnostics: Vec::new(),
+                reads: Vec::new(),
+            },
+        }
+    }
+
+    fn calculate_text_from(&mut self, formula: &str, origin: CellKey) -> Calculation {
         let tree = parse_formula(formula);
         let syntax: Vec<Diagnostic> = tree
             .diagnostics()
@@ -886,7 +904,7 @@ impl Session {
                 reads: Vec::new(),
             };
         }
-        let anchor = FormulaAnchor::new(self.formula_cell);
+        let anchor = FormulaAnchor::new(origin);
         let plan = match compile_with_functions(
             &tree,
             ReferenceNotation::A1,
@@ -905,7 +923,7 @@ impl Session {
                 };
             }
         };
-        let instance = instantiate(&plan, anchor);
+        let instance = instantiate(&plan, FormulaAnchor::new(self.formula_cell));
         let mut reader = TracingReader::new(&self.fixture, self.formula_cell);
         let mut facts = SessionFacts::new(&self.fixture, self.formula_cell);
         // The session's sheets are the workbook context INDIRECT's text is bound in.
