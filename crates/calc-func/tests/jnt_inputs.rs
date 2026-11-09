@@ -24,6 +24,7 @@ const CAPTURES: &[(&str, &str)] = &[
     ("jnt_logical_info", include_str!("captures/jnt/sections/jnt_logical_info.capture.json")),
     ("jnt_lookup", include_str!("captures/jnt/sections/jnt_lookup.capture.json")),
     ("jnt_text_formats", include_str!("captures/jnt/sections/jnt_text_formats.capture.json")),
+    ("jnt_aggregate_arrays", include_str!("captures/jnt/sections/jnt_aggregate_arrays.capture.json")),
     ("jnt_w111_elementary", include_str!("captures/jnt/sections/jnt_w111_elementary.capture.json")),
     ("jnt_w111_rounding", include_str!("captures/jnt/sections/jnt_w111_rounding.capture.json")),
     ("jnt_w111_text_dates", include_str!("captures/jnt/sections/jnt_w111_text_dates.capture.json")),
@@ -39,6 +40,7 @@ const SECTIONS: &[(&str, &str)] = &[
     ("jnt_logical_info", include_str!("fixtures/jnt/sheet-jnt_logical_info.txt")),
     ("jnt_lookup", include_str!("fixtures/jnt/sheet-jnt_lookup.txt")),
     ("jnt_text_formats", include_str!("fixtures/jnt/sheet-jnt_text_formats.txt")),
+    ("jnt_aggregate_arrays", include_str!("fixtures/jnt/sheet-jnt_aggregate_arrays.txt")),
 ];
 
 fn unescape(text: &str) -> String {

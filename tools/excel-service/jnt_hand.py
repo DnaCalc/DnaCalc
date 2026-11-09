@@ -960,7 +960,149 @@ J8 = [
     ("TEXT", [lit(1234), s("00000")], txt("01234"), "locale_format_expansion_tests.rs text_leading_zeros"),
 ]
 
-CASES = {"J10": J10, "J11": J11, "J4": J4, "J6": J6, "J7": J7, "J8": J8}
+J9 = [
+    # sum.rs (17 tests)
+    ("SUM", [lit(1), lit(2), lit(3)], num(6), "sum.rs eval_sum_on_numbers"),
+    ("SUM", [arr_num([[1, 2], [3, 4]])], num(10), "sum.rs eval_sum_direct_array_literal"),
+    ("SUM", [arr_num([[1, 2, 3]])], num(6), "sum.rs eval_sum_single_row_array"),
+    ("SUM", [lit(10), lit(-5), lit(2.5)], num(7.5), "sum.rs eval_sum_negative_and_float"),
+    ("SUM", [lit_b(True), lit_b(False)], num(1), "sum.rs eval_sum_coerces_direct_logical"),
+    ("SUM", [lit(1), s("2"), lit(3)], num(6), "sum.rs eval_sum_coerces_direct_numeric_text"),
+    ("SUM", [lit(1), s("abc")], err("value"), "sum.rs eval_sum_rejects_direct_non_numeric_text"),
+    ("SUM", [omitted()], num(0), "sum.rs eval_sum_treats_missing_as_zero"),
+    ("SUM", [e("#REF!")], err("ref"), "sum.rs eval_sum_propagates_direct_scalar_error"),
+
+    # product.rs (5 tests)
+    ("PRODUCT", [lit(2), lit(3), lit(4)], num(24), "product.rs eval_product_multiplies_direct_numbers"),
+    ("PRODUCT", [arr_num([[2, 3], [4, 5]])], num(120), "product.rs eval_product_array_numbers"),
+    ("PRODUCT", [lit(2), s("3"), lit(4)], num(24), "product.rs eval_product_counts_direct_numeric_text"),
+    ("PRODUCT", [lit(2), s("abc")], err("value"), "product.rs eval_product_rejects_direct_non_numeric_text"),
+    ("PRODUCT", [e("#DIV/0!")], err("div0"), "product.rs eval_product_propagates_direct_error"),
+
+    # sumsq.rs (5 tests)
+    ("SUMSQ", [lit(1), lit(2), lit(3)], num(14), "sumsq.rs eval_sumsq_accumulates_direct_numbers"),
+    ("SUMSQ", [arr_num([[1, 2], [3, 4]])], num(30), "sumsq.rs eval_sumsq_array_numbers"),
+    ("SUMSQ", [lit(2), s("3")], num(13), "sumsq.rs eval_sumsq_counts_direct_numeric_text"),
+    ("SUMSQ", [lit(2), s("abc")], err("value"), "sumsq.rs eval_sumsq_rejects_direct_non_numeric_text"),
+    ("SUMSQ", [e("#NUM!")], err("num"), "sumsq.rs eval_sumsq_propagates_direct_error"),
+
+    # sumproduct_family.rs (13 tests)
+    ("SUMPRODUCT", [arr_num([[1, 2]]), arr_num([[3, 4]])], num(11), "sumproduct_family.rs sumproduct_1x2"),
+    ("SUMPRODUCT", [arr_num([[1], [2]]), arr_num([[3], [4]])], num(11), "sumproduct_family.rs sumproduct_2x1"),
+    ("SUMPRODUCT", [arr_num([[1, 2], [3, 4]]), arr_num([[5, 6], [7, 8]])], num(70), "sumproduct_family.rs sumproduct_2x2"),
+    ("SUMPRODUCT", [arr_num([[1, 2, 3]])], num(6), "sumproduct_family.rs sumproduct_single_array"),
+    ("SUMPRODUCT", [arr_num([[1, 2]]), arr_num([[3, 4, 5]])], err("value"), "sumproduct_family.rs sumproduct_rejects_shape_mismatch"),
+    ("SUMPRODUCT", [arr_num([[1, 2]]), arr_num([[1], [2]])], err("value"), "sumproduct_family.rs sumproduct_rejects_dimension_mismatch"),
+    ("SUMPRODUCT", [arr_num([[1, 2]]), arr_num([[3, 4]]), arr_num([[5, 6]])], num(63), "sumproduct_family.rs sumproduct_three_arrays"),
+    ("SERIESSUM", [lit(2), lit(0), lit(1), arr_num([[1, 2, 3]])], num(17), "sumproduct_family.rs seriessum_matches_excel_seed_rows"),
+
+    # average.rs & averagea_fn.rs (8 tests)
+    ("AVERAGE", [lit(10), lit(20), lit(30)], num(20), "average.rs eval_average_on_numbers"),
+    ("AVERAGE", [arr_num([[10, 20], [30, 40]])], num(25), "average.rs eval_average_direct_array"),
+    ("AVERAGE", [lit(10), s("20"), lit(30)], num(20), "average.rs eval_average_counts_direct_numeric_text"),
+    ("AVERAGE", [s("abc")], err("value"), "average.rs eval_average_rejects_non_numeric_text"),
+    ("AVERAGE", [e("#VALUE!")], err("value"), "average.rs eval_average_propagates_error"),
+    ("AVERAGEA", [lit(10), lit_b(True), lit(19)], num(10), "averagea_fn.rs eval_averagea_counts_direct_logical_true"),
+    ("AVERAGEA", [lit(10), lit_b(False), lit(20)], num(10), "averagea_fn.rs eval_averagea_counts_direct_logical_false"),
+    ("AVERAGEA", [lit(10), s("text"), lit(20)], num(10), "averagea_fn.rs eval_averagea_counts_direct_text_as_zero"),
+
+    # count.rs, counta.rs, countblank_fn.rs (18 tests)
+    ("COUNT", [lit(1), lit(2), lit(3)], num(3), "count.rs eval_count_numbers"),
+    ("COUNT", [arr_num([[1, 2], [3, 4]])], num(4), "count.rs eval_count_array_numbers"),
+    ("COUNT", [lit(1), s("2"), lit_b(True), s("abc")], num(2), "count.rs eval_count_counts_direct_numeric_text"),
+    ("COUNT", [e("#VALUE!"), lit(1)], num(1), "count.rs eval_count_ignores_error_values"),
+    ("COUNTA", [lit(1), s("2"), lit_b(True), s("abc")], num(4), "counta.rs eval_counta_counts_non_empty_values"),
+    ("COUNTA", [arr_num([[1, 2], [3, 4]])], num(4), "counta.rs eval_counta_array_numbers"),
+    ("COUNTA", [s(""), lit(1)], num(2), "counta.rs eval_counta_counts_empty_string"),
+    ("COUNTA", [e("#VALUE!"), lit(1)], num(2), "counta.rs eval_counta_counts_errors"),
+    ("COUNTBLANK", [EMPTY], num(1), "countblank_fn.rs countblank_empty_cell"),
+    ("COUNTBLANK", [cell_s("")], num(1), "countblank_fn.rs countblank_empty_string"),
+    ("COUNTBLANK", [cell_s("x")], num(0), "countblank_fn.rs countblank_non_empty_string"),
+
+    # min_fn.rs, mina_fn.rs, max_fn.rs, maxa_fn.rs (8 tests)
+    ("MIN", [lit(10), lit(5), lit(20)], num(5), "min_fn.rs eval_min_accumulates_direct_numbers"),
+    ("MIN", [arr_num([[10, 5], [20, 2]])], num(2), "min_fn.rs eval_min_array_numbers"),
+    ("MIN", [lit(10), s("2"), lit(20)], num(2), "min_fn.rs eval_min_counts_direct_numeric_text"),
+    ("MIN", [lit(10), s("abc")], err("value"), "min_fn.rs eval_min_rejects_non_numeric_text"),
+    ("MINA", [lit(10), lit_b(True), lit(20)], num(1), "mina_fn.rs eval_mina_counts_logical_true"),
+    ("MINA", [lit(10), lit_b(False), lit(20)], num(0), "mina_fn.rs eval_mina_counts_logical_false"),
+    ("MINA", [lit(10), s("text"), lit(20)], num(0), "mina_fn.rs eval_mina_counts_text_as_zero"),
+    ("MAX", [lit(10), lit(5), lit(20)], num(20), "max_fn.rs eval_max_accumulates_direct_numbers"),
+    ("MAX", [arr_num([[10, 50], [20, 2]])], num(50), "max_fn.rs eval_max_array_numbers"),
+    ("MAX", [lit(10), s("30"), lit(20)], num(30), "max_fn.rs eval_max_counts_direct_numeric_text"),
+    ("MAX", [lit(10), s("abc")], err("value"), "max_fn.rs eval_max_rejects_non_numeric_text"),
+    ("MAXA", [lit(-5), lit_b(True), lit(-10)], num(1), "maxa_fn.rs eval_maxa_counts_logical_true"),
+    ("MAXA", [lit(-5), lit_b(False), lit(-10)], num(0), "maxa_fn.rs eval_maxa_counts_logical_false"),
+    ("MAXA", [lit(-5), s("text"), lit(-10)], num(0), "maxa_fn.rs eval_maxa_counts_text_as_zero"),
+
+    # subtotal_aggregate_family.rs (4 tests)
+    ("SUBTOTAL", [lit(9), lit(1), lit(2), lit(3), lit(4)], num(10), "subtotal_aggregate_family.rs subtotal_sum_scalars"),
+    ("SUBTOTAL", [lit(1), lit(10), lit(20), lit(30)], num(20), "subtotal_aggregate_family.rs subtotal_average_scalars"),
+    ("SUBTOTAL", [lit(2), lit(1), lit(2), lit(3)], num(3), "subtotal_aggregate_family.rs subtotal_count_scalars"),
+    ("SUBTOTAL", [lit(4), lit(10), lit(50), lit(20)], num(50), "subtotal_aggregate_family.rs subtotal_max_scalars"),
+    ("SUBTOTAL", [lit(5), lit(10), lit(50), lit(20)], num(10), "subtotal_aggregate_family.rs subtotal_min_scalars"),
+    ("SUBTOTAL", [lit(6), lit(2), lit(3), lit(4)], num(24), "subtotal_aggregate_family.rs subtotal_product_scalars"),
+    ("AGGREGATE", [lit(9), lit(4), lit(1), lit(2), lit(3), lit(4)], num(10), "subtotal_aggregate_family.rs aggregate_sum_scalars"),
+    ("AGGREGATE", [lit(1), lit(4), lit(10), lit(20), lit(30)], num(20), "subtotal_aggregate_family.rs aggregate_average_scalars"),
+    ("AGGREGATE", [lit(4), lit(4), lit(10), lit(50), lit(20)], num(50), "subtotal_aggregate_family.rs aggregate_max_scalars"),
+    ("AGGREGATE", [lit(5), lit(4), lit(10), lit(50), lit(20)], num(10), "subtotal_aggregate_family.rs aggregate_min_scalars"),
+    ("AGGREGATE", [lit(6), lit(4), lit(2), lit(3), lit(4)], num(24), "subtotal_aggregate_family.rs aggregate_product_scalars"),
+
+    # sequence.rs (7 tests)
+    ("SEQUENCE", [lit(1), lit(1), lit(42)], num(42), "sequence.rs eval_sequence_1x1_start"),
+    ("SEQUENCE", [lit(1), lit(1), lit(10), lit(5)], num(10), "sequence.rs eval_sequence_1x1_start_step"),
+    ("SEQUENCE", [lit(0)], err("calc"), "sequence.rs map_sequence_zero_dimension_to_calc"),
+    ("SEQUENCE", [lit(-1)], err("value"), "sequence.rs eval_sequence_rejects_negative_dimension"),
+    ("SEQUENCE", [lit(1), lit(0)], err("calc"), "sequence.rs eval_sequence_zero_cols_calc"),
+    ("SEQUENCE", [lit(1), lit(-1)], err("value"), "sequence.rs eval_sequence_negative_cols_value"),
+    ("SEQUENCE", [s("1"), s("1"), s("5")], num(5), "sequence.rs eval_sequence_numeric_text_dimension"),
+
+    # dynamic_array_reshape_family.rs & hstack.rs (16 tests)
+    ("CHOOSEROWS", [arr_num([[42]]), lit(1)], num(42), "dynamic_array_reshape_family.rs choosecols_and_chooserows_single"),
+    ("CHOOSEROWS", [arr_num([[10], [20], [30]]), lit(-1)], num(30), "dynamic_array_reshape_family.rs chooserows_negative_index"),
+    ("CHOOSEROWS", [arr_num([[10], [20], [30]]), lit(2)], num(20), "dynamic_array_reshape_family.rs chooserows_positive_index"),
+    ("CHOOSECOLS", [arr_num([[10, 20, 30]]), lit(2)], num(20), "dynamic_array_reshape_family.rs choosecols_positive_index"),
+    ("CHOOSECOLS", [arr_num([[10, 20, 30]]), lit(-1)], num(30), "dynamic_array_reshape_family.rs choosecols_negative_index"),
+    ("CHOOSEROWS", [arr_num([[10], [20]]), lit(0)], err("value"), "dynamic_array_reshape_family.rs chooserows_zero_index_value"),
+    ("CHOOSECOLS", [arr_num([[10, 20]]), lit(0)], err("value"), "dynamic_array_reshape_family.rs choosecols_zero_index_value"),
+    ("CHOOSEROWS", [arr_num([[10], [20]]), lit(5)], err("value"), "dynamic_array_reshape_family.rs chooserows_out_of_bounds_value"),
+    ("CHOOSECOLS", [arr_num([[10, 20]]), lit(5)], err("value"), "dynamic_array_reshape_family.rs choosecols_out_of_bounds_value"),
+    ("DROP", [arr_num([[10], [20]]), lit(1)], num(20), "dynamic_array_reshape_family.rs drop_first_row"),
+    ("DROP", [arr_num([[10], [20]]), lit(-1)], num(10), "dynamic_array_reshape_family.rs drop_last_row"),
+    ("DROP", [arr_num([[10, 20]]), lit(0), lit(1)], num(20), "dynamic_array_reshape_family.rs drop_first_col"),
+    ("DROP", [arr_num([[10, 20]]), lit(0), lit(-1)], num(10), "dynamic_array_reshape_family.rs drop_last_col"),
+    ("DROP", [arr_num([[10], [20]]), lit(2)], err("calc"), "dynamic_array_reshape_family.rs drop_all_rows_calc"),
+    ("TAKE", [arr_num([[10], [20]]), lit(1)], num(10), "dynamic_array_reshape_family.rs take_first_row"),
+    ("TAKE", [arr_num([[10], [20]]), lit(-1)], num(20), "dynamic_array_reshape_family.rs take_last_row"),
+    ("TAKE", [arr_num([[10, 20]]), lit(1), lit(1)], num(10), "dynamic_array_reshape_family.rs take_1x1"),
+    ("TAKE", [arr_num([[10], [20]]), lit(0)], err("calc"), "dynamic_array_reshape_family.rs take_zero_rows_calc"),
+    ("EXPAND", [arr_num([[42]]), lit(1), lit(1), lit(0)], num(42), "dynamic_array_reshape_family.rs expand_1x1"),
+    ("EXPAND", [arr_num([[10], [20]]), lit(1), lit(1)], err("value"), "dynamic_array_reshape_family.rs expand_smaller_target_value"),
+    ("TOCOL", [arr_num([[42]])], num(42), "dynamic_array_reshape_family.rs tocol_1x1"),
+    ("TOROW", [arr_num([[42]])], num(42), "dynamic_array_reshape_family.rs torow_1x1"),
+    ("WRAPROWS", [arr_num([[42]]), lit(1)], num(42), "dynamic_array_reshape_family.rs wraprows_1x1"),
+    ("WRAPCOLS", [arr_num([[42]]), lit(1)], num(42), "dynamic_array_reshape_family.rs wrapcols_1x1"),
+
+    # callable_helpers.rs (29 tests)
+    ("MAP", [arr_num([[1, 2]]), lit(1)], err("value"), "callable_helpers.rs map_non_lambda_last_arg"),
+    ("REDUCE", [lit(0), arr_num([[1, 2]]), lit(1)], err("value"), "callable_helpers.rs reduce_non_lambda_last_arg"),
+    ("SCAN", [lit(0), arr_num([[1, 2]]), lit(1)], err("value"), "callable_helpers.rs scan_non_lambda_last_arg"),
+    ("BYROW", [arr_num([[1, 2]]), lit(1)], err("value"), "callable_helpers.rs byrow_non_lambda_last_arg"),
+    ("BYCOL", [arr_num([[1, 2]]), lit(1)], err("value"), "callable_helpers.rs bycol_non_lambda_last_arg"),
+    ("MAKEARRAY", [lit(1), lit(1), lit(1)], err("value"), "callable_helpers.rs makearray_non_lambda_last_arg"),
+    ("MAKEARRAY", [lit(0), lit(1), lit(1)], err("value"), "callable_helpers.rs makearray_zero_rows_value"),
+    ("MAKEARRAY", [lit(-1), lit(1), lit(1)], err("value"), "callable_helpers.rs makearray_negative_rows_value"),
+
+    # database_family.rs & criteria_family.rs (22 tests)
+    ("DSUM", [arr_num([[1, 2], [3, 4]]), lit(1), arr_num([[1]])], err("value"), "database_family.rs dsum_array_ref_check"),
+    ("DCOUNT", [arr_num([[1, 2], [3, 4]]), lit(1), arr_num([[1]])], err("value"), "database_family.rs dcount_array_ref_check"),
+    ("DAVERAGE", [arr_num([[1, 2], [3, 4]]), lit(1), arr_num([[1]])], err("value"), "database_family.rs daverage_array_ref_check"),
+    ("DMIN", [arr_num([[1, 2], [3, 4]]), lit(1), arr_num([[1]])], err("value"), "database_family.rs dmin_array_ref_check"),
+    ("DMAX", [arr_num([[1, 2], [3, 4]]), lit(1), arr_num([[1]])], err("value"), "database_family.rs dmax_array_ref_check"),
+    ("DPRODUCT", [arr_num([[1, 2], [3, 4]]), lit(1), arr_num([[1]])], err("value"), "database_family.rs dproduct_array_ref_check"),
+]
+
+CASES = {"J10": J10, "J11": J11, "J4": J4, "J6": J6, "J7": J7, "J8": J8, "J9": J9}
 
 
 

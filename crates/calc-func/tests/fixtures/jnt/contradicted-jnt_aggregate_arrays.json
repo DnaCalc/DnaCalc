@@ -1,0 +1,152 @@
+[
+{
+"formula": "AVERAGEA(10.0,\"text\",20.0)",
+"inputs": [],
+"source": "averagea_fn.rs eval_averagea_counts_direct_text_as_zero",
+"legacy": [
+"number",
+10.0
+],
+"excel": [
+"error",
+"value"
+],
+"excel_build": "20527",
+"reason": "the legacy unit-test expectation differs from Excel's answer"
+},
+{
+"formula": "COUNT(1.0,\"2\",TRUE,\"abc\")",
+"inputs": [],
+"source": "count.rs eval_count_counts_direct_numeric_text",
+"legacy": [
+"number",
+2.0
+],
+"excel": [
+"number",
+"4008000000000000"
+],
+"excel_build": "20527",
+"reason": "the legacy unit-test expectation differs from Excel's answer"
+},
+{
+"formula": "MINA(10.0,\"text\",20.0)",
+"inputs": [],
+"source": "mina_fn.rs eval_mina_counts_text_as_zero",
+"legacy": [
+"number",
+0.0
+],
+"excel": [
+"error",
+"value"
+],
+"excel_build": "20527",
+"reason": "the legacy unit-test expectation differs from Excel's answer"
+},
+{
+"formula": "MAXA(-5.0,\"text\",-10.0)",
+"inputs": [],
+"source": "maxa_fn.rs eval_maxa_counts_text_as_zero",
+"legacy": [
+"number",
+0.0
+],
+"excel": [
+"error",
+"value"
+],
+"excel_build": "20527",
+"reason": "the legacy unit-test expectation differs from Excel's answer"
+},
+{
+"formula": "DSUM({1,2;3,4},1.0,{1})",
+"inputs": [],
+"source": "database_family.rs dsum_array_ref_check",
+"legacy": [
+"error",
+"value"
+],
+"excel": [
+"error",
+"spill"
+],
+"excel_build": "20527",
+"reason": "the legacy unit-test expectation differs from Excel's answer"
+},
+{
+"formula": "DCOUNT({1,2;3,4},1.0,{1})",
+"inputs": [],
+"source": "database_family.rs dcount_array_ref_check",
+"legacy": [
+"error",
+"value"
+],
+"excel": [
+"error",
+"spill"
+],
+"excel_build": "20527",
+"reason": "the legacy unit-test expectation differs from Excel's answer"
+},
+{
+"formula": "DAVERAGE({1,2;3,4},1.0,{1})",
+"inputs": [],
+"source": "database_family.rs daverage_array_ref_check",
+"legacy": [
+"error",
+"value"
+],
+"excel": [
+"error",
+"spill"
+],
+"excel_build": "20527",
+"reason": "the legacy unit-test expectation differs from Excel's answer"
+},
+{
+"formula": "DMIN({1,2;3,4},1.0,{1})",
+"inputs": [],
+"source": "database_family.rs dmin_array_ref_check",
+"legacy": [
+"error",
+"value"
+],
+"excel": [
+"error",
+"spill"
+],
+"excel_build": "20527",
+"reason": "the legacy unit-test expectation differs from Excel's answer"
+},
+{
+"formula": "DMAX({1,2;3,4},1.0,{1})",
+"inputs": [],
+"source": "database_family.rs dmax_array_ref_check",
+"legacy": [
+"error",
+"value"
+],
+"excel": [
+"error",
+"spill"
+],
+"excel_build": "20527",
+"reason": "the legacy unit-test expectation differs from Excel's answer"
+},
+{
+"formula": "DPRODUCT({1,2;3,4},1.0,{1})",
+"inputs": [],
+"source": "database_family.rs dproduct_array_ref_check",
+"legacy": [
+"error",
+"value"
+],
+"excel": [
+"error",
+"spill"
+],
+"excel_build": "20527",
+"reason": "the legacy unit-test expectation differs from Excel's answer"
+}
+]

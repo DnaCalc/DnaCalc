@@ -173,6 +173,19 @@ BATCHES = {
         ],
         families=[],
     ),
+    "J9": dict(
+        bead="dc-jnt.13",
+        sheet="jnt_aggregate_arrays",
+        hand=True,
+        title="Aggregates, criteria, database, dynamic arrays, and LAMBDA helpers: SUM, PRODUCT, SUMSQ, SUMPRODUCT, SERIESSUM, AVERAGE, AVERAGEA, COUNT, COUNTA, COUNTBLANK, MIN, MINA, MAX, MAXA, SUBTOTAL, AGGREGATE, SEQUENCE, CHOOSEROWS, CHOOSECOLS, DROP, TAKE, EXPAND, TOCOL, TOROW, WRAPROWS, WRAPCOLS, MAP, REDUCE, SCAN, BYROW, BYCOL, MAKEARRAY, DSUM, DCOUNT, DAVERAGE, DMIN, DMAX, DPRODUCT",
+        tests=[
+            "sum.rs", "product.rs", "sumsq.rs", "sumproduct_family.rs", "average.rs", "averagea_fn.rs",
+            "count.rs", "counta.rs", "countblank_fn.rs", "min_fn.rs", "mina_fn.rs", "max_fn.rs", "maxa_fn.rs",
+            "subtotal_aggregate_family.rs", "sequence.rs", "dynamic_array_reshape_family.rs", "hstack.rs",
+            "callable_helpers.rs", "database_family.rs", "criteria_family.rs",
+        ],
+        families=[],
+    ),
     "J11": dict(
         bead="dc-jnt.15",
         sheet="jnt_operators",
@@ -846,6 +859,7 @@ def hand_rows(batch, repo, work):
     from client import Client, number, text, boolean, blank, error, number_array
     client = Client()
     wire_of_literal = {v: k for k, v in ERROR_LITERAL_WIRE.items()}
+    wire_of_literal.update({"#CODE2050": "calc", "#CODE2046": "calc", "#CODE2045": "spill"})
     lines, cases, contradicted, builds, envs = [], [], [], set(), set()
     for function, args, legacy, source in jnt_hand.CASES[batch["id"]]:
         if function.startswith("="):
