@@ -10,7 +10,7 @@
 //! reads any formula of a SpreadsheetML package.
 
 use super::commands::COMMANDS;
-use calc_fml::EXCEL_FUNCTION_IDS as FUNCTIONS;
+use calc_catalogue::EXCEL_FUNCTION_IDS as FUNCTIONS;
 use super::records::{Cursor, Malformed, Read, text};
 use crate::save::file_form::function_file_name;
 use std::collections::BTreeMap;

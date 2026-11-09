@@ -354,10 +354,10 @@ incurred by, or claims asserted against, such Contributor by reason
 of your accepting any such warranty or additional liability.
 
 ==============================================================================
-Microsoft's official Excel function descriptions (calc-func, help.rs)
+Microsoft's official Excel function descriptions (calc-catalogue, help.rs)
 ==============================================================================
 
-The one-line function descriptions that calc-func's help table gives as each function's
+The one-line function descriptions that the shared catalogue's help table gives as each function's
 metadata (its `microsoft` field) are Microsoft's text, copyright Microsoft Corporation, as
 published on Microsoft's support site in "Excel functions (by category)"
 (https://support.microsoft.com/en-us/office/excel-functions-by-category-5f91f4e9-7b42-46d2-9bd1-63f26a86c0eb)

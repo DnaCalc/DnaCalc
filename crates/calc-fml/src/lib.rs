@@ -33,10 +33,9 @@
 
 pub mod assist;
 pub mod eval;
-mod file_function_ids;
 pub mod reference;
 pub mod syntax;
-pub use file_function_ids::EXCEL_FUNCTION_IDS;
+pub use calc_catalogue::EXCEL_FUNCTION_IDS;
 
 pub use calc_func::{EntryRule, OperandForm};
 pub use eval::{
