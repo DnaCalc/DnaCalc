@@ -50,6 +50,30 @@ def answer(value):
     return None
 
 
+def select_spill(value, index):
+    """Apply the witness selection to a whole-array answer, including zero axes."""
+    if not isinstance(index, (list, tuple)) or len(index) != 2:
+        return None
+    if any(not isinstance(i, int) or isinstance(i, bool) or i < 0 for i in index):
+        return None
+    r, c = (max(i, 1) - 1 for i in index)
+    if value.get("type") != "array":
+        return value if (r, c) == (0, 0) else None
+    rows = value.get("values")
+    if not isinstance(rows, list) or len(rows) != value.get("rows"):
+        return None
+    if any(not isinstance(row, list) or len(row) != value.get("cols") for row in rows):
+        return None
+    if r >= len(rows) or c >= len(rows[r]):
+        return None
+    return rows[r][c]
+
+
+def use_whole_array(row, enabled):
+    index = row.get("result_index")
+    return bool(enabled and row.get("function") == "MINVERSE" and index
+                and len(index) == 2 and 0 in index)
+
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("export", type=pathlib.Path)
@@ -57,6 +81,8 @@ def main():
     parser.add_argument("--batch", type=int, default=5000)
     parser.add_argument("--inflight", type=int, default=4)
     parser.add_argument("--priority", choices=("bulk", "interactive"), default="bulk")
+    parser.add_argument("--whole-array-zero-axis", action="store_true",
+                        help="read a whole MINVERSE spill for a selection with a zero axis")
     opts = parser.parse_args()
     if not 1 <= opts.batch < 20000 or not 1 <= opts.inflight <= 16:
         parser.error("batch must be 1..19999, inflight 1..16")
@@ -105,11 +131,16 @@ def main():
                 elif observed.get("type") == "unread" or without_mode(readback) != without_mode(requested):
                     record(row, "input_changed", observed=observed, inputs=readback, environment=env)
                 else:
-                    actual = answer(observed)
+                    whole = use_whole_array(row, opts.whole_array_zero_axis)
+                    selected = select_spill(observed, row["result_index"]) if whole else observed
+                    actual = answer(selected) if selected is not None else None
+                    evidence = {"observed": selected, "inputs": readback, "environment": env}
+                    if whole:
+                        evidence["whole_array"] = observed
                     if actual is None:
-                        record(row, "unrecognised_answer", observed=observed, inputs=readback, environment=env)
+                        record(row, "unrecognised_answer", **evidence)
                     elif actual != row["expected"]:
-                        record(row, "different", observed=observed, inputs=readback, environment=env)
+                        record(row, "different", **evidence)
                     else:
                         stats[row["function"]]["agree"] += 1
 
@@ -117,8 +148,9 @@ def main():
             nonlocal calls
             rows = buckets.pop(key)
             try:
-                pending = conn.submit_rows(key[0], [r[1] for r in rows], result_index=key[1],
-                                           priority=opts.priority, echo=True)
+                pending = conn.submit_rows(key[0], [r[1] for r in rows],
+                                           result_index=None if key[2] else key[1],
+                                           priority=opts.priority, echo=True, spill=key[2])
             except (ValueError, TypeError) as exc:
                 for row, _ in rows: record(row, "unsupported_request", detail=str(exc))
                 return
@@ -141,7 +173,7 @@ def main():
                     record(row, "unsupported_input", detail=str(exc))
                     continue
                 index = tuple(row["result_index"]) if row["result_index"] is not None else None
-                key = (row["function"], index)
+                key = (row["function"], index, use_whole_array(row, opts.whole_array_zero_axis))
                 buckets[key].append((row, requested))
                 if len(buckets[key]) == opts.batch:
                     submit(key)

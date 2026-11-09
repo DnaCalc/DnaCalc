@@ -1295,14 +1295,29 @@ fn replay_difference(record: &Value, original: &Reading, source: &Source) -> Res
     });
     Ok(Difference {
         function: original.function.clone(),
-        key: format!("{}|original={}:{}", contextual_key(&original.function, &original.args, original.index, source.env.invocation.as_ref()), source.path, original.id),
+        key: contextual_key(&original.function, &original.args, original.index, source.env.invocation.as_ref()),
         readings: vec![
-            (original.expected.clone(), source.env.environment(), source.path.clone()),
+            (original.expected.clone(), source.env.environment(), format!("{}#{}", source.path, original.id)),
             (result, format!("20527/Windows/?/{} context={current_context}", env["cpu"].as_str().unwrap()),
                 format!("migration/evidence/dc-ymjf3-20527-date-differences.jsonl.gz#{}:{}", source.path, original.id)),
         ],
         across_environments: true,
     })
+}
+
+// A bank can retain several observations of one input and invocation. Keep each source
+// while reporting that input once in the existing difference index.
+fn coalesce_replay_differences(pairs: Vec<Difference>) -> Vec<Difference> {
+    let mut by_key: BTreeMap<String, Difference> = BTreeMap::new();
+    for mut pair in pairs {
+        match by_key.entry(pair.key.clone()) {
+            std::collections::btree_map::Entry::Vacant(slot) => { slot.insert(pair); }
+            std::collections::btree_map::Entry::Occupied(mut slot) => {
+                slot.get_mut().readings.append(&mut pair.readings);
+            }
+        }
+    }
+    by_key.into_values().collect()
 }
 
 fn replay_differences(banks: &Banks) -> Result<Vec<Difference>, String> {
@@ -1324,7 +1339,7 @@ fn replay_differences(banks: &Banks) -> Result<Vec<Difference>, String> {
         let original = originals.get(&(source, id)).ok_or_else(|| format!("replay original missing: {source} {id}"))?;
         out.push(replay_difference(&row, original, &banks.sources[original.source])?);
     }
-    Ok(out)
+    Ok(coalesce_replay_differences(out))
 }
 
 fn calc_func_commit(root: &Path) -> String {
@@ -2687,6 +2702,21 @@ fn run_read(root: &Path, checkout: &Path, request: &Request) -> Result<ExitCode,
 
 #[cfg(test)]
 mod tests {
+    #[test]
+    fn repeated_replay_observations_keep_each_source_on_one_input() {
+        let pair = |source: &str| super::Difference {
+            function: "DATE".into(), key: "same input and invocation".into(),
+            readings: vec![("old".into(), "old environment".into(), source.into()),
+                ("new".into(), "new environment".into(), source.into())],
+            across_environments: true,
+        };
+        let groups = super::coalesce_replay_differences(vec![pair("first"), pair("second")]);
+        assert_eq!(groups.len(), 1);
+        assert_eq!(groups[0].readings.len(), 4);
+        assert_eq!(groups[0].readings[0].2, "first");
+        assert_eq!(groups[0].readings[2].2, "second");
+    }
+
     #[test]
     fn replay_pairs_require_original_identity_and_exact_input_readback() {
         let bytes = super::gunzip(include_bytes!("../../../migration/evidence/dc-ymjf3-20527-date-differences.jsonl.gz"), None).unwrap();

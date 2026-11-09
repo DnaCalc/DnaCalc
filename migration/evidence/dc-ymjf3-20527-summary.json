@@ -14,6 +14,7 @@
   },
   "different_records": "version-observations.jsonl.gz in the cited R2 evidence prefix",
   "different_records_sha256": "ad9b76300d6be2e8dd7c13a66ca2a9c81352e9fa4e3672445f50636eac777d18",
+  "different_unique_input_contexts": 5042,
   "elapsed_wall_seconds_approx_including_service_pauses": 4489,
   "environment_batch_counts": {
     "61204adffdb6": 458,
@@ -120,6 +121,8 @@
       "version": "16.0"
     }
   },
+  "evidence_bytes": 2467927613,
+  "evidence_files": 50,
   "evidence_r2": "dnacalc-evidence/excel/20261109-drift1-0034z/",
   "exported_observations": 6068315,
   "format": "dnacalc-excel-build-comparison/1",
@@ -5108,6 +5111,7 @@
   "interpretation": "Agreement requires matching typed input readback and bit-exact answer. Differences are paired observations, not a claim that build alone caused them. Changed inputs, exclusions, unread source records and service failures are not confirmations. Zero-axis MINVERSE selections require a whole-array replay; scalar scratch layout can produce a spill error or an accidental match.",
   "source": "CalcFunc-Evidence via cargo xtask witness export",
   "spill_layout_pending": "minverse-zero.jsonl in the cited R2 evidence prefix",
+  "spill_layout_retry": "spill-retry/ in the cited R2 evidence prefix; all 84 returned worker-down",
   "stages": [
     {
       "calls": 5352000,
@@ -5138,6 +5142,13 @@
       "calls_per_second": 0.31722700376773794,
       "name": "drift1-nine-retry",
       "seconds": 28.370850820094347
+    },
+    {
+      "answered": 0,
+      "calls": 84,
+      "calls_per_second": 118.83243937729362,
+      "name": "drift1-spill-retry (whole-array; worker unavailable)",
+      "seconds": 0.706877687945962
     }
   ],
   "status": "partial: nine service failures and 84 spill-layout selections remain unconfirmed",
@@ -5348,7 +5359,9 @@
     "drift1-final-retry": 9,
     "drift1-live-small": 41,
     "drift1-nine-retry": 2,
-    "drift1-normal-result": 0
+    "drift1-normal-result": 0,
+    "drift1-spill-retry": 0
   },
-  "wait_reporting": "each completed service request over three seconds was sent to report_wait; interrupted and control waits were also reported"
+  "wait_reporting": "each completed service request over three seconds was sent to report_wait; interrupted and control waits were also reported",
+  "wall_time_note": "The approximate 4,489-second comparison window ends with the nine-call retry. The whole-array retry was a later, separate 0.707-second request; no Excel worker accepted it."
 }
