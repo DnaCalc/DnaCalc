@@ -8591,7 +8591,7 @@ Case {
         Action::Choose("chart-type","column"),Action::Choose("chart-grouping","normal"),Action::Click("chart-type-apply"),Action::Wait(Check::Attr("[data-chart=\"Chart 1\"]","data-kind","column")),Action::ClearDownloads,Action::Click("save"),Action::UploadDownload("charts.xlsx"),Action::DiscardReplacement,Action::OpenDetails("chart-tools")],checks:&[
         Check::Value("chart-type","column"),Check::Value("chart-grouping","normal"),Check::TextContains("chart-axis","Left (Y)"),Check::Count("[data-dnacalc=chart]",6),Check::Attr("[data-chart=\"Chart 2\"]","data-kind","bar"),Check::Attr("[data-chart=\"Chart 6\"] [data-series=\"0\"][data-point=\"0\"]","data-x","12")]},
     Case {name:"chart types: a phone can convert pie to doughnut and reopen it",actions:&[
-        Action::Window(390,844),Action::Choose("chart-choice","xl/charts/chart5.xml"),Action::Wait(Check::Value("chart-type","pie")),Action::Choose("chart-type","doughnut"),Action::Click("chart-type-apply"),Action::Wait(Check::Attr("[data-chart=\"Chart 5\"]","data-kind","doughnut")),Action::ClearDownloads,Action::Click("save"),Action::UploadDownload("charts.xlsx"),Action::DiscardReplacement,Action::OpenDetails("chart-tools"),Action::Choose("chart-choice","xl/charts/chart5.xml")],checks:&[
+        Action::Window(390,844),Action::Choose("chart-choice","xl/charts/chart5.xml"),Action::Wait(Check::Value("chart-type","pie")),Action::Choose("chart-type","doughnut"),Action::Click("chart-type-apply"),Action::Wait(Check::Attr("[data-chart=\"Chart 5\"]","data-kind","doughnut")),Action::ClearDownloads,Action::Click("save"),Action::UploadDownload("charts.xlsx"),Action::DiscardReplacement,Action::Wait(Check::Absent("[data-dnacalc=app][inert]")),Action::Wait(Check::PlanReady),Action::OpenDetails("chart-tools"),Action::Choose("chart-choice","xl/charts/chart5.xml")],checks:&[
         Check::Value("chart-type","doughnut"),Check::Count("[data-dnacalc=chart][data-chart=\"Chart 5\"]",1),Check::Count("[data-chart=\"Chart 5\"] path[data-dnacalc=chart-mark]",6),Check::Attr("[data-chart=\"Chart 5\"] [data-series=\"0\"][data-point=\"0\"]","data-value","12"),Check::Fits]},
     Case {name:"chart types: source edits and a type change share the retained save route",actions:&[
         Action::Window(1600,1800),Action::Upload("open-file","crates/calc-host/tests/fixtures/dc_6yw/charts.xlsx"),Action::DiscardReplacement,Action::OpenDetails("chart-tools"),Action::Wait(Check::Value("chart-type","column")),Action::Into("chart-series-values","Data!C2:C7"),Action::Click("chart-series-apply"),Action::Wait(Check::Attr("[data-chart=\"Chart 1\"] [data-series=\"0\"][data-point=\"0\"]","data-value","8")),Action::Choose("chart-type","line"),Action::Click("chart-type-apply"),Action::Wait(Check::Attr("[data-chart=\"Chart 1\"]","data-kind","line")),Action::ClearDownloads,Action::Click("save"),Action::UploadDownload("charts.xlsx"),Action::DiscardReplacement,Action::OpenDetails("chart-tools")],checks:&[
@@ -9625,11 +9625,15 @@ pub(crate) const CALC_LATENCY_CASES: &[Case] = &[
             Action::Click("note-edit"),
             Action::Wait(Check::Focused("note-text")),
             Action::Into("note-text", "First text"),
+            // Hold the save reply so the typing and the caret move provably come before it,
+            // then release it and wait for the saved text it carries: no fixed pause.
+            Action::HoldWorkerReplies(true),
             Action::Click("note-save"),
             Action::Keys("note-text", " later"),
             // Position the caret after returning to the textarea, before the save reply.
             Action::Keys("note-text", "\u{E011}\u{E014}\u{E014}\u{E014}\u{E014}\u{E014}"),
-            Action::PauseMillis(1200),
+            Action::HoldWorkerReplies(false),
+            Action::Wait(Check::TextContains("review-note", "First text")),
             Action::Keys("note-text", "!"),
         ],
         checks: &[
@@ -9657,11 +9661,14 @@ pub(crate) const CALC_LATENCY_CASES: &[Case] = &[
             Action::Click("note-edit"),
             Action::Wait(Check::Focused("note-text")),
             Action::Into("note-text", "Submitted text"),
+            Action::HoldWorkerReplies(true),
             Action::Click("note-save"),
             Action::Click("note-cancel"),
             Action::Click("note-edit"),
             Action::Into("note-text", "Submitted text"),
-            Action::PauseMillis(1200),
+            // The save reply arrives after the new edit began; the saved text is its mark.
+            Action::HoldWorkerReplies(false),
+            Action::Wait(Check::TextContains("review-note", "Submitted text")),
         ],
         checks: &[
             Check::Value("note-text", "Submitted text"),

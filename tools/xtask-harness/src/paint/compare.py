@@ -817,15 +817,28 @@ def compare(out, report=None):
     # canonical Windows paths may carry the Win32 extended path prefix.
     refdir = Path(browser["reference"])
     refs = json.loads((refdir / "excel.json").read_text(encoding="utf-8-sig"))
-    refs = [calibrate(ref, Image.open(refdir / (ref["prefix"] + ".png")).convert("RGB")) for ref in refs]
+    # A reference whose grid cannot be calibrated (for instance 200% zoom pushing the last
+    # columns out of Excel's window) is listed and left out; it is never counted as a pass.
+    calibrated_refs, uncalibrated = [], []
+    for ref in refs:
+        try:
+            calibrated_refs.append(calibrate(ref, Image.open(refdir / (ref["prefix"] + ".png")).convert("RGB")))
+        except ValueError as error:
+            uncalibrated.append({"prefix": ref["prefix"], "sheet": ref["sheet"], "zoom": ref["zoom"], "reason": str(error)})
+            print(f"PAINT not compared {ref['prefix']}: {error}")
+    refs = calibrated_refs
     (report / "calibrated-excel.json").write_text(json.dumps(refs, indent=2), encoding="utf-8")
     request = json.loads((out / "request.json").read_text(encoding="utf-8-sig"))
     book_by_hash = {book["sha256"]: Path(book["path"]) for book in request["books"]}
     sources = {}
     results = []
+    uncompared = []
     for capture in browser["captures"]:
-        ref = next(r for r in refs if (r["sha256"], r["sheet"], r["zoom"]) ==
-                   (capture["sha256"], capture["sheet"], capture["zoom"]))
+        ref = next((r for r in refs if (r["sha256"], r["sheet"], r["zoom"]) ==
+                    (capture["sha256"], capture["sheet"], capture["zoom"])), None)
+        if ref is None:
+            uncompared.append({"prefix": capture["prefix"], "zoom": capture["zoom"], "sheet": capture["sheet"], "reason": "its Excel reference could not be calibrated"})
+            continue
         prefix = capture["prefix"]
         png = out / (prefix + ".png")
         encoded_png = out / (prefix + ".png.base64")
@@ -964,6 +977,7 @@ def compare(out, report=None):
         print(f"PAINT {prefix}: {cs['status']}; {cs['measured']} measured, {cs['passed']} pass, {cs['failed']} fail, {cs['unmeasured']} lack required measurements; {len(skipped)} outside measured area")
     data = {"schema": "dnacalc-paint/2", "results": results,
         "desktop": browser["desktop"],
+        "uncalibrated_references": uncalibrated, "uncompared_captures": uncompared,
         "parity_summary": parity_summary([c for r in results for c in r["cells"]]),
         "cell_summary": cell_summary([c for r in results for c in r["cells"]]),
         "source": {"browser_json_sha256": hashlib.sha256((out/"browser.json").read_bytes()).hexdigest(),

@@ -251,6 +251,50 @@ impl StyleRuns {
             runs: runs.into_iter().collect(),
         }
     }
+    /// Rectangles covering the given distinct cells, one uniform format each: horizontal runs of
+    /// one format in a row, then runs of equal column span in consecutive rows. A reopened
+    /// workbook holds a formatted rectangle as one record per cell; this restores the rectangle
+    /// in a sort and two passes, so a later region search sees one source, not a source per
+    /// cell (dc-0f1k.11.3). The cells must not repeat; the result is as good a layer as the
+    /// cells were, whatever their order.
+    pub fn coalesced_cells(
+        sheet: calc_value::SheetId,
+        cells: impl IntoIterator<Item = (u32, u32, u32)>,
+    ) -> Vec<StyleRun> {
+        let mut cells: Vec<(u32, u32, u32)> = cells.into_iter().collect();
+        // (format, row, column)
+        cells.sort_unstable_by_key(|&(row, column, format)| (format, row, column));
+        // (format, row, first column, last column)
+        let mut strips: Vec<(u32, u32, u32, u32)> = Vec::new();
+        for (row, column, format) in cells {
+            match strips.last_mut() {
+                Some(last) if last.0 == format && last.1 == row && last.3 + 1 == column => last.3 = column,
+                _ => strips.push((format, row, column, column)),
+            }
+        }
+        // (format, first column, last column, first row, last row)
+        strips.sort_unstable_by_key(|&(format, row, first, last)| (format, first, last, row));
+        let mut blocks: Vec<(u32, u32, u32, u32, u32)> = Vec::new();
+        for (format, row, first, last) in strips {
+            match blocks.last_mut() {
+                Some(b) if b.0 == format && b.1 == first && b.2 == last && b.4 + 1 == row => b.4 = row,
+                _ => blocks.push((format, first, last, row, row)),
+            }
+        }
+        blocks
+            .into_iter()
+            .filter_map(|(format, first, last, top, bottom)| {
+                Some(StyleRun {
+                    area: calc_value::GridArea::new(
+                        calc_value::CellKey::new(sheet, top, first).ok()?,
+                        calc_value::CellKey::new(sheet, bottom, last).ok()?,
+                    )
+                    .ok()?,
+                    format,
+                })
+            })
+            .collect()
+    }
     pub fn iter(&self) -> impl Iterator<Item = StyleRun> + '_ {
         self.runs.iter().copied()
     }
@@ -487,6 +531,41 @@ mod run_tests {
             CellKey::new(s, c, d).unwrap(),
         )
         .unwrap()
+    }
+    #[cfg_attr(not(target_arch = "wasm32"), test)]
+    #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+    fn per_cell_records_join_into_rectangles_without_bridging_gaps_or_formats() {
+        let s = SheetId::from_parts(0, 0);
+        // A 2 x 20001 rectangle in format 7 (the large-format smoke case), a lone cell in
+        // format 7 beside a gap, a neighbour in format 8 and a cell of the rectangle's rows
+        // in another column span.
+        let mut cells = Vec::new();
+        for row in 10..=20010 {
+            for column in 4..=5 {
+                cells.push((row, column, 7));
+            }
+        }
+        cells.push((10, 7, 7));
+        cells.push((11, 8, 7));
+        cells.push((12, 4 + 2, 8));
+        let mut runs = StyleRuns::coalesced_cells(s, cells.iter().rev().copied());
+        runs.sort_by_key(|r| (r.format, r.area.first().row(), r.area.first().column()));
+        assert_eq!(
+            runs,
+            vec![
+                StyleRun { area: area(s, 10, 4, 20010, 5), format: 7 },
+                StyleRun { area: area(s, 10, 7, 10, 7), format: 7 },
+                StyleRun { area: area(s, 11, 8, 11, 8), format: 7 },
+                StyleRun { area: area(s, 12, 6, 12, 6), format: 8 },
+            ]
+        );
+        // Whatever the joining, every position keeps its format and no other gains one.
+        let layers = StyleRuns::from_layers(runs);
+        for (row, column, format) in &cells {
+            assert_eq!(layers.get(CellKey::new(s, *row, *column).unwrap()), Some(*format));
+        }
+        assert_eq!(layers.get(CellKey::new(s, 10, 6).unwrap()), None);
+        assert_eq!(layers.get(CellKey::new(s, 20011, 4).unwrap()), None);
     }
     #[cfg_attr(not(target_arch = "wasm32"), test)]
     #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]

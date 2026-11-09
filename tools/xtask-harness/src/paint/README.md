@@ -14,7 +14,11 @@ space. The command checks the actual CSS viewport and sheet height. Original ref
 still determine which cells can be compared; the requested height is recorded with the inputs.
 Python with Pillow and NumPy, ChromeDriver and installed Excel are required. Nothing is installed.
 `DNACALC_PAINT_PYTHON` selects an installed interpreter; the default is `python` on PATH.
-No workbook with merged cells is authored. An existing workbook can supply merged-cell input.
+The fifth authored input, `everyday`, holds merged blocks (horizontal, vertical, numeric), numbers in
+narrow columns (`####`, General narrowed to the column), wrapped text without a stored row height, left, right and
+centred overflow, and a stored range selection. `--zooms` takes 25 to 200 in any order; a reference whose grid
+cannot be calibrated (a zoom that pushes the last column out of Excel's window) is listed under
+`uncalibrated_references` and `uncompared_captures` in `comparison.json` and never counted as a pass.
 
 `--reference DIR` reuses Excel images without launching Excel. Workbook hashes, sheets, zooms
 and device scales must match. `py tools/xtask-harness/src/paint/compare.py SOURCE --out REPORT`

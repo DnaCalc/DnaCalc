@@ -68,6 +68,34 @@ pub(crate) fn paint_with_normal(kind: &str, family: &str, points: f64) -> Result
             view=String::from(r#"<pane xSplit="2" ySplit="2" topLeftCell="C3" activePane="bottomRight" state="frozen"/><selection pane="bottomRight" activeCell="D4" sqref="D4:F6"/>"#);
             for row in 1..=18{for col in 1..=10{add(row,Some(20.),text(&format!("{}{row}",char::from(b'A'+col-1)),0,&format!("R{row}C{col}")));}}
         }
+        "everyday" => {
+            // Narrow columns for ####, merged blocks, wrapped and overflowing text, a range selection.
+            for (index,width) in [10.,10.,4.,6.,14.,10.,10.,10.,10.,10.].iter().enumerate(){columns.push_str(&format!("<col min=\"{0}\" max=\"{0}\" width=\"{width}\" customWidth=\"1\"/>",index+1));}
+            add(1,None,text("A1",0,"Numbers in narrow columns show ####"));
+            // C is 4 wide, D is 6 wide: a fixed-decimal number and a date no longer fit.
+            add(2,None,number("C2",number_first+1,123456.789));
+            add(2,None,number("D2",number_first+4,45234.567));
+            add(2,None,number("E2",number_first+1,123456.789));
+            add(3,None,number("C3",0,12345.678));
+            add(3,None,number("D3",0,0.000012345));
+            add(3,None,number("E3",number_first+8,-1234.567));
+            // Merged blocks: horizontal, vertical, and a numeric one.
+            add(5,None,text("B5",alignment_first+1,"Merged block"));
+            add(5,None,text("F5",alignment_first+4,"Tall"));
+            add(5,None,number("H5",number_first+1,3.14159));
+            add(7,None,text("B7",alignment_first+1,"Below the merge"));
+            // Wrapped text in a ten wide column, left to automatic row height.
+            add(10,None,text("A10",alignment_first+5,"wrap words wrap words wrap words"));
+            add(10,None,text("C10",alignment_first+5,"Tight wrapped text in a narrow column"));
+            // Overflow: left text runs right, right text runs left, centred text both ways, blocked by a neighbour.
+            add(12,None,text("A12",0,"Left aligned text that overflows into blank neighbours"));
+            add(13,None,text("H13",alignment_first+2,"Right aligned text that overflows to the left"));
+            add(14,None,text("F14",alignment_first+1,"Centred text overflowing on both sides"));
+            add(15,None,text("A15",0,"Blocked by the next cell"));add(15,None,text("C15",0,"STOP"));
+            add(16,None,number("A16",number_first+1,1234567.891));
+            tail.push_str(r#"<mergeCells count="3"><mergeCell ref="B5:D6"/><mergeCell ref="F5:F8"/><mergeCell ref="H5:I5"/></mergeCells>"#);
+            view=String::from(r#"<selection activeCell="C2" sqref="C2:E4"/>"#);
+        }
         _ => return Err(format!("unknown paint input {kind}")),
     }
     let rows=rows.into_iter().map(|(row,(height,cells))|format!("<row r=\"{row}\"{}>{cells}</row>",height.map_or(String::new(),|h|format!(" ht=\"{h}\" customHeight=\"1\"")))).collect::<String>();

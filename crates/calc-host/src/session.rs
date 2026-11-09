@@ -1659,15 +1659,26 @@ impl HostSession {
                     .filter_map(|(at, style)| (area.contains(at) && style != 0).then_some(at)),
             );
             if let Some(sheet) = self.host.loaded.sheet(area.sheet()) {
-                cells.extend(sheet.styled_cells().filter_map(|(row, col, _)| {
-                    let at = CellKey::new(area.sheet(), row, col).ok()?;
-                    let at = self
-                        .host
-                        .axis_edits
-                        .iter()
-                        .try_fold(at, |at, edit| calc_doc_model::moved_cell(*edit, at))?;
-                    (area.contains(at) && self.host.cell_style(at) != 0).then_some(at)
-                }));
+                let styled: Vec<CellKey> = sheet
+                    .styled_cells()
+                    .filter_map(|(row, col, _)| {
+                        let at = CellKey::new(area.sheet(), row, col).ok()?;
+                        let at = self
+                            .host
+                            .axis_edits
+                            .iter()
+                            .try_fold(at, |at, edit| calc_doc_model::moved_cell(*edit, at))?;
+                        (area.contains(at) && self.host.cell_style(at) != 0).then_some(at)
+                    })
+                    .collect();
+                // A file holds a formatted rectangle as one record per cell. Like the style runs
+                // above, a sheet-wide or large-selection observer receives only small authored
+                // style-only regions: publishing 40,000 blank styled cells for a large selection
+                // streams them tile by tile, and every later reply waits behind that stream
+                // (dc-0f1k.11.3). Bounded viewport subscriptions still receive every one.
+                if bounded || styled.len() <= 32768 {
+                    cells.extend(styled);
+                }
             }
         }
         let page = project(

@@ -169,7 +169,7 @@ fn execute(ws: &Workspace, app: &App, raw: &[String]) -> Result<(), String> {
         vec![path.canonicalize().map_err(|e| e.to_string())?]
     } else {
         let mut books = Vec::new();
-        for kind in ["geometry", "text", "borders", "panes"] {
+        for kind in ["geometry", "text", "borders", "panes", "everyday"] {
             let path = out.join(format!("paint-{kind}.xlsx"));
             let bytes=if let Some((family,points))=&normal_font {calc_cases::fixtures::paint_with_normal(kind,family,*points)?}else{calc_cases::fixtures::paint(kind)?};
             fs::write(&path,bytes).map_err(|e| e.to_string())?;

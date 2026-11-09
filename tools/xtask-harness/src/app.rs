@@ -2666,13 +2666,37 @@ fn wait_for(app: &App, session: &Session, check: &Check, settle: Duration) -> Op
     }
 }
 
+/// A step that took over a second is named, so a slow late-run case shows which step is slow
+/// (dc-0f1k.11.3) rather than only that its wait ran out.
+fn note_slow_step(app: &App, session: &Session, case: &Case, kind: &str, number: usize, started: Instant) {
+    let elapsed = started.elapsed();
+    if elapsed >= Duration::from_secs(1) {
+        // The page's own diagnostics line separates the worker's time from the browser's:
+        // "last operation" is the worker's measured time for the last intent.
+        let worker = session
+            .script("const p=[...document.querySelectorAll('p')].find(p=>p.textContent.includes('last operation'));return p?p.textContent:null;")
+            .ok()
+            .and_then(|v| v.as_str().map(str::to_owned))
+            .unwrap_or_default();
+        let stalls = session
+            .script(&"const s=window.__dcStalls||[];const w=window.__dcWork||[];const now=performance.now();const out=JSON.stringify({stalls:s.slice(-12),worker:w.filter(e=>e[1]>now-ELAPSED-100).slice(-24)});s.length=0;w.length=0;return out;".replace("ELAPSED", &format!("{:.0}", elapsed.as_secs_f64() * 1000.)))
+            .ok()
+            .and_then(|v| v.as_str().map(str::to_owned))
+            .unwrap_or_default();
+        println!("{} SLOW {kind} {number} of \"{}\": {:.0} ms; main-thread stalls [start ms, length ms] {stalls}; {worker}", app.label, case.name, elapsed.as_secs_f64() * 1000.);
+    }
+}
+
 /// Runs one case: its actions, then each check until it holds or [`settle()`] passes, then the fault
 /// record. Returns the failures.
 fn run_case(ws: &Workspace, app: &App, session: &Session, case: &Case) -> Vec<String> {
     let mut failures = Vec::new();
     let mut rendered_state_recorded = false;
     for (index, action) in case.actions.iter().enumerate() {
-        if let Err(e) = act(ws, app, session, action) {
+        let step_started = Instant::now();
+        let acted = act(ws, app, session, action);
+        note_slow_step(app, session, case, "action", index + 1, step_started);
+        if let Err(e) = acted {
             failures.push(format!("action {} failed: {e}", index + 1));
             if matches!(action, Action::Keys(..) | Action::Wait(Check::Focused(_))) {
                 if let Ok(state) = session.script(r#"return {focus:document.activeElement?.getAttribute('data-dnacalc'),tag:document.activeElement?.tagName,dialogs:Array.from(document.querySelectorAll('dialog[open]')).map(e=>e.getAttribute('data-dnacalc')),grids:Array.from(document.querySelectorAll('[data-dnacalc=grid]')).map(e=>({active:e.dataset.gridActive,inert:e.inert,tabindex:e.tabIndex,rect:e.getBoundingClientRect().toJSON()})),status:document.querySelector('[data-dnacalc=status]')?.textContent};"#) {
@@ -2683,8 +2707,11 @@ fn run_case(ws: &Workspace, app: &App, session: &Session, case: &Case) -> Vec<St
             return failures;
         }
     }
-    for check in case.checks {
-        if let Some(failure) = wait_for(app, session, check, settle()) {
+    for (index, check) in case.checks.iter().enumerate() {
+        let step_started = Instant::now();
+        let checked = wait_for(app, session, check, settle());
+        note_slow_step(app, session, case, "check", index + 1, step_started);
+        if let Some(failure) = checked {
             failures.push(failure);
             if !rendered_state_recorded && matches!(check, Check::PlanCell(..) | Check::PlanAbsent(_)) {
                 rendered_state_recorded = true;
@@ -3099,6 +3126,9 @@ fn start_group(app: &App, session: &Session, page: &str) -> Result<(), String> {
                 .as_str()
                 == Some("ready");
         if ready.as_str() == Some("true") && worker_ready {
+            // A heartbeat records every stretch the page's main thread was blocked, so a slow
+            // step can say whether the page or the worker was busy (see `note_slow_step`).
+            session.script("if(!window.__dcStalls){window.__dcStalls=[];let last=performance.now();setInterval(()=>{const now=performance.now();if(now-last>250)window.__dcStalls.push([Math.round(last),Math.round(now-last)]);last=now;},50);window.__dcWork=[];const note=(kind,data)=>{const text=typeof data==='string'?data:(Array.isArray(data)&&typeof data[0]==='string'?data[0]:'');window.__dcWork.push([kind,Math.round(performance.now()),text.slice(0,48)]);};const send=Worker.prototype.postMessage;Worker.prototype.postMessage=function(message,...rest){if(!this.__dcTraced){this.__dcTraced=true;this.addEventListener('message',e=>note('reply',e.data));}note('send',message);return send.call(this,message,...rest);};}return true;")?;
             return Ok(());
         }
         if started.elapsed() > Duration::from_secs(30) {
@@ -3179,6 +3209,7 @@ fn run_browser(
             for index in group.start..=last {
                 let case = &app.cases[index];
                 let requested = selected.contains(&index);
+                let case_started = Instant::now();
                 let failures = run_case(ws, app, &session, case);
                 if !requested {
                     prerequisites += 1;
@@ -3189,11 +3220,12 @@ fn run_browser(
                         gp += 1;
                     }
                     println!(
-                        "{} SMOKE {} {}passed: {}",
+                        "{} SMOKE {} {}passed: {} ({:.0} ms)",
                         app.label,
                         browser.name,
                         if requested { "" } else { "prerequisite " },
-                        case.name
+                        case.name,
+                        case_started.elapsed().as_secs_f64() * 1000.
                     );
                 } else {
                     failed += 1;

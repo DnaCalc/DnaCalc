@@ -17539,3 +17539,52 @@ fn dc_8wp_10__percent_of_next_item_refuses() {
     assert!(!receipt.accepted(), "{receipt:?}");
     assert_eq!(book.host().revision(), before);
 }
+
+/// dc-0f1k.11.3: a reopened workbook holds a formatted rectangle as one record per cell. The
+/// Format Cells dialog (format_samples) and its Apply (format_regions) must see one region, not
+/// a source per cell, or they take seconds in the browser's worker.
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn dc_0f1k_11_3__reopened_large_rectangle_format_is_one_region() {
+    use calc_host::{FormatPatch, WorkbookCommand};
+    let options = || HostOptions { locale: calc_host::FormatProfile::for_culture("en-US"), ..Default::default() };
+    let mut book = HostSession::open(Arc::new(MemorySource::new(calc_host::blank_package())), &OpenPolicy::default(), options()).unwrap();
+    let s = book.host().sheets()[0].id();
+    let rectangle = GridArea::new(at(s, "D10"), at(s, "E20010")).unwrap();
+    let format = |book: &mut HostSession, area: GridArea, patch: FormatPatch| {
+        let receipt = book.dispatch(SkinIntent::Command(WorkbookCommand::FormatCells { areas: vec![area], patch }));
+        assert!(receipt.accepted(), "{:?}", receipt.error);
+    };
+    format(&mut book, rectangle, FormatPatch { fill: Some("#00ff00".into()), ..Default::default() });
+    let mut saved = Vec::new();
+    book.save(&SavePolicy::default(), &mut saved).unwrap();
+    let mut reopened = HostSession::open(Arc::new(MemorySource::new(saved)), &OpenPolicy::default(), options()).unwrap();
+    let r = reopened.host().sheets()[0].id();
+    let rectangle = GridArea::new(at(r, "D10"), at(r, "E20010")).unwrap();
+    assert_eq!(reopened.host().loaded().sheet(r).unwrap().explicit_styles().count(), 40002, "one record per cell");
+    let regions = calc_host::format_regions(reopened.host(), rectangle).unwrap();
+    assert_eq!(regions.len(), 1, "{regions:?}");
+    assert_eq!(regions[0].area, rectangle);
+    assert_eq!(calc_host::format_samples(reopened.host(), &[rectangle]).unwrap().len(), 1);
+    // A large selection observer must not be sent 40,002 blank styled cells (they stream through
+    // the tile pipeline and every later worker reply waits behind them); a viewport still gets
+    // every styled cell it can show.
+    let (_, selected) = subscribe(&mut reopened, Interest::Selection);
+    let receipt = reopened.dispatch(SkinIntent::Select(Selection {
+        active: Some(at(r, "D10")),
+        areas: vec![rectangle],
+    }));
+    assert!(receipt.accepted());
+    let moved = selected.borrow().last().unwrap().cells.len();
+    assert!(moved <= 1, "the selection interest received {moved} cells");
+    let viewport = GridArea::new(at(r, "D10"), at(r, "E40")).unwrap();
+    let (_, seen) = subscribe(&mut reopened, Interest::Area(viewport));
+    assert_eq!(seen.borrow()[0].cells.len(), 62, "the viewport shows its 31 x 2 styled cells");
+    let before = reopened.host().cell_style(at(r, "D10"));
+    format(&mut reopened, rectangle, FormatPatch { italic: Some(true), ..Default::default() });
+    let after = reopened.host().cell_style(at(r, "D10"));
+    assert_ne!(before, after);
+    assert_eq!(reopened.host().cell_style(at(r, "E20010")), after);
+    assert_eq!(reopened.host().cell_style(at(r, "C10")), 0);
+    assert_eq!(reopened.host().cell_style(at(r, "D20011")), 0);
+}

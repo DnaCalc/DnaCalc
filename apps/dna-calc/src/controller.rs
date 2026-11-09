@@ -2817,6 +2817,7 @@ impl Controller {
                         scope.functions = functions;
                         scope.described = described;
                     });
+                    controller.refresh_completions();
                 }
             },
         );
@@ -2832,8 +2833,18 @@ impl Controller {
                         scope.functions = functions;
                     }
                 });
+                controller.refresh_completions();
             }
         });
+    }
+
+    /// The workbook's names and functions arrive from the worker after it opens. A completion
+    /// list computed from the scope before they arrived would otherwise stay as it was until
+    /// the next key (dc-0f1k.11.3: a formula typed just after Open missed the file's function).
+    fn refresh_completions(&self) {
+        if self.editing.get_untracked().is_some() {
+            self.assist.sync_from_field(false);
+        }
     }
 
     pub fn activate_editor(&self, origin: EditOrigin, assist: FormulaAssist) {

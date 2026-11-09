@@ -518,20 +518,16 @@ pub fn format_regions(
     let mut layers = Vec::new();
     if let Some(sheet) = host.loaded().sheet(area.sheet()) {
         layers.extend(sheet.default_styles());
-        for (r, c, format) in sheet.explicit_styles() {
-            if format == sheet.default_style(r, c) {
-                continue;
-            }
-            if host.axis_edits.is_empty()
-                && !area.contains(CellKey::new(area.sheet(), r, c).unwrap())
-            {
-                continue;
-            }
-            layers.push(StyleRun {
-                area: GridArea::cell(CellKey::new(area.sheet(), r, c).unwrap()),
-                format,
-            });
-        }
+        // One record per cell is how a file holds a formatted rectangle: join them into
+        // rectangles before the region search, whose cost grows with its sources (dc-0f1k.11.3).
+        layers.extend(StyleRuns::coalesced_cells(
+            area.sheet(),
+            sheet.explicit_styles().filter(|&(r, c, format)| {
+                format != sheet.default_style(r, c)
+                    && (!host.axis_edits.is_empty()
+                        || area.contains(CellKey::new(area.sheet(), r, c).unwrap()))
+            }),
+        ));
     }
     let mut imported = StyleRuns::from_layers(layers);
     for edit in &host.axis_edits {

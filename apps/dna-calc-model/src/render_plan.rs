@@ -328,10 +328,59 @@ pub fn text_width(text: &str, m: &GridMetrics) -> f64 {
     text.chars().count() as f64 * 7.0 * scale + left + right
 }
 
+/// General's number text narrowed to `available` pixels the way Excel's cell does: rounded to
+/// fewer decimals (never to zero), then in scientific notation with fewer mantissa digits.
+/// `None` when no form fits (Excel shows `#`) or the text is not a plain number.
+fn narrow_general(text: &str, available: f64, width_of: &dyn Fn(&str) -> f64) -> Option<String> {
+    let value: f64 = text.parse().ok().filter(|v: &f64| v.is_finite())?;
+    if width_of(text) <= available {
+        return Some(text.to_owned());
+    }
+    let trimmed = |digits: String| -> String {
+        if digits.contains('.') {
+            digits.trim_end_matches('0').trim_end_matches('.').to_owned()
+        } else {
+            digits
+        }
+    };
+    let decimals = text.split_once('.').map_or(0, |(_, fraction)| fraction.split(['e', 'E']).next().map_or(0, str::len));
+    if !text.contains(['e', 'E']) {
+        for places in (0..decimals).rev() {
+            let candidate = trimmed(format!("{value:.places$}"));
+            let rounded: f64 = candidate.parse().ok()?;
+            if rounded == 0.0 && value != 0.0 {
+                break;
+            }
+            if width_of(&candidate) <= available {
+                return Some(candidate);
+            }
+        }
+    }
+    for places in (0..=5).rev() {
+        let formatted = format!("{value:.places$E}");
+        let (mantissa, exponent) = formatted.split_once('E')?;
+        let exponent: i32 = exponent.parse().ok()?;
+        let candidate = format!(
+            "{}E{}{:02}",
+            trimmed(mantissa.to_owned()),
+            if exponent < 0 { '-' } else { '+' },
+            exponent.abs()
+        );
+        if width_of(&candidate) <= available {
+            return Some(candidate);
+        }
+    }
+    // A small fraction that no form but a bare 0 fits shows as 0 (Excel at 50% and 75%).
+    if value.abs() < 0.5 && width_of("0") <= available {
+        return Some("0".to_owned());
+    }
+    None
+}
+
 /// Fits a planned cell's text to its column, as Excel's grid does: a number shown under a
 /// format that is wider than its column shows as a row of `#` filling it, and a text wider than
 /// its column overflows into the empty cells in its alignment direction (`occupied`: the cells that show
-/// something). A number in General, which Excel narrows to fewer digits, is clipped here.
+/// something). A number in General is narrowed to the column ([`narrow_general`]).
 fn fit(
     cell: &mut PlannedCell,
     m: &GridMetrics,
@@ -474,6 +523,32 @@ fn fit(
         return;
     }
     match cell.shown.kind {
+        // Excel narrows a number in General to the column: fewer decimals, then scientific
+        // notation, then a row of `#` (grid-parity-1, measured against Excel's own cell).
+        "number" if cell.shown.format == crate::projection::FormatShown::General => {
+            let available = cell.rect.w - insets;
+            let width_of = |text: &str| -> f64 {
+                options
+                    .measure
+                    .and_then(|f| f(&cell.shown, text))
+                    .filter(|w| w.is_finite() && *w >= 0.0)
+                    .unwrap_or_else(|| {
+                        let (left, right) = text_insets(scale);
+                        text_width(text, m) - left - right
+                    })
+            };
+            if let Some(narrowed) = narrow_general(&cell.shown.text, available, &width_of) {
+                cell.shown.text = narrowed;
+            } else if cell.shown.text.parse::<f64>().is_ok() {
+                let hash = options
+                    .measure
+                    .and_then(|f| f(&cell.shown, "#"))
+                    .filter(|w| w.is_finite() && *w > 0.0)
+                    .unwrap_or(7.0 * scale);
+                let count = ((available) / hash).floor().max(1.0) as usize;
+                cell.shown.text = "#".repeat(count);
+            }
+        }
         "number" if matches!(cell.shown.format, crate::projection::FormatShown::Applied | crate::projection::FormatShown::Unshowable) => {
             let hash = options
                 .measure
@@ -900,10 +975,25 @@ mod tests {
         let plan = build_render_plan(&[number.clone()], &narrow, &v, 10, 10);
         // 33 pixels hold four digits: Excel shows #### in a column 4 characters wide.
         assert_eq!(plan.cells[0].shown.text, "####");
-        // In General the number is not replaced (Excel narrows it instead; clipped here).
+        // In General the number is narrowed as Excel does: no form of 123456.79 fits four
+        // characters (not even 1E+05), so # fills the cell; wider columns round it, then use E.
+        // (The estimate is 7 pixels a character and 5 pixels of insets.)
         number.format = crate::projection::FormatShown::General;
-        let plan = build_render_plan(&[number], &narrow, &v, 10, 10);
-        assert_eq!(plan.cells[0].shown.text, "123456.79");
+        let plan = build_render_plan(&[number.clone()], &narrow, &v, 10, 10);
+        assert_eq!(plan.cells[0].shown.text, "####");
+        for (width, expected) in [(80.0, "123456.79"), (67.0, "123456.8"), (54.0, "123457"), (45.0, "1E+05")] {
+            let metrics = GridMetrics { cols: crate::geometry::Sizes::new(80.0, [(1, width)]), ..m.clone() };
+            let plan = build_render_plan(&[number.clone()], &metrics, &v, 10, 10);
+            assert_eq!(plan.cells[0].shown.text, expected, "{width}");
+        }
+        // A small fraction: scientific when it fits, a bare 0 when only that fits, else #.
+        let mut small = cell(s, 1, 1, "0.000012345");
+        small.format = crate::projection::FormatShown::General;
+        for (width, expected) in [(90.0, "0.000012345"), (45.0, "1E-05"), (38.0, "0"), (11.0, "#")] {
+            let metrics = GridMetrics { cols: crate::geometry::Sizes::new(80.0, [(1, width)]), ..m.clone() };
+            let plan = build_render_plan(&[small.clone()], &metrics, &v, 10, 10);
+            assert_eq!(plan.cells[0].shown.text, expected, "small {width}");
+        }
         // A text overflows over B and C while they are empty, and stops at a cell that is not.
         let mut long = cell(s, 1, 1, "a text of thirty characters...");
         long.kind = "text";
