@@ -550,20 +550,27 @@ pub(super) fn evaluate(site: &Site<'_>, args: &[CalcValue], sv: &mut EvalService
     if output == Output::Seasonality && series.values.len() <= 4 {
         return site.number(0.0);
     }
-    if season == 1.0 {
+    // R47 paired questions identify the nonseasonal fit before five prepared
+    // observations, including explicit period two at length four. Admit its
+    // proved zero-innovation region. Rounded short initialization and nonzero
+    // confidence/statistic differences still keep the other short fits open.
+    let short_affine = series.values.len() <= 4 && exact_trend(&series.values).is_some();
+    let nonseasonal_mode = season == 0.0 || short_affine
+        || season > (series.values.len() / 2) as f64;
+    if season == 1.0 && !nonseasonal_mode {
         match exact_seasonal(site, &series.values, 2, output, statistic, horizon, true) {
             Ok(value) => return Ok(value),
             Err(Exit::Fault(FunctionFault::NotHeld { .. })) => {}
             Err(why) => return Err(why),
         }
     }
-    if season > 1.0 && season <= (series.values.len() / 2) as f64 {
+    if season > 1.0 && !nonseasonal_mode {
         return exact_seasonal(site, &series.values, season as usize, output, statistic, horizon, false);
     }
     let trend = match exact_trend(&series.values) {
         Some(trend) => trend,
         None => {
-            if season == 0.0 || season > (series.values.len() / 2) as f64 {
+            if nonseasonal_mode {
                 return nonseasonal(site, &series.values, output, statistic, horizon, confidence);
             }
             return Err(unfinished(site));

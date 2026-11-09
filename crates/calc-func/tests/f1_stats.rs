@@ -1267,6 +1267,29 @@ fn ets_short_seasonality_reports_zero_before_the_first_candidate_lag() {
         Err(calc_func::FunctionFault::NotHeld { owner: "dc-j9k", .. })));
 }
 
+/// Excel20527 R47: the explicit two-period request at four observations uses
+/// the nonseasonal fit, including its reported smoothing parameters.
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn ets_short_period_requests_use_the_nonseasonal_fit() {
+    let times = arr(vec![vec![1.0, 2.0, 3.0, 4.0]]);
+    for values in [vec![5.0; 4], vec![2.0, 5.0, 8.0, 11.0]] {
+        let expected = values[3] + 2.0 * (values[1] - values[0]);
+        let y = arr(vec![values]);
+        for season in [0.0, 1.0, 2.0] {
+            exact(call("FORECAST.ETS", vec![n(6.0), y.clone(), times.clone(), n(season)]), expected);
+            exact(call("FORECAST.ETS.CONFINT", vec![n(6.0), y.clone(), times.clone(), n(0.95), n(season)]), 0.0);
+            for (statistic, expected) in [(1.0, 0.9), (2.0, 0.001), (3.0, f64::EPSILON), (7.0, 0.0)] {
+                exact(call("FORECAST.ETS.STAT", vec![y.clone(), times.clone(), n(statistic), n(season)]), expected);
+            }
+        }
+    }
+    // Routing does not supply the still unidentified rounded initializer.
+    assert!(matches!(call("FORECAST.ETS", vec![n(5.0),
+        arr(vec![vec![2.0, 7.0, -1.0, 4.0]]), times, n(2.0)]),
+        Err(calc_func::FunctionFault::NotHeld { owner: "dc-j9k", .. })));
+}
+
 /// R40 fresh Excel20527 selections. The short initializer extends the first
 /// two phases to seven before search, while forecasting the original history.
 /// The final five-point row separates PC64 seasonal publication by one ULP.
