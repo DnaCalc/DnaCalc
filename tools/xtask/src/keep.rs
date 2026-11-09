@@ -726,6 +726,9 @@ fn once(ws: &Workspace) -> Result<bool, String> {
         push_pending(&ws.root)?;
     }
     cargo::git(&ws.root, &["pull", "--ff-only"])?;
+    // Bring br's database up to the pulled tracker; otherwise a later flush of a keeper bead is
+    // refused ("Refusing to export stale database: JSONL contains issues absent from the database").
+    check::br(&ws.root, &["sync", "--import-only"])?;
     let updated_ws = Workspace::load(&ws.root).unwrap_or_else(|_| Workspace {
         root: ws.root.clone(),
         members: Vec::new(),

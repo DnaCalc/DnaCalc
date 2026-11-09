@@ -253,10 +253,13 @@ pub fn platform() -> &'static str {
 }
 
 pub fn br(root: &Path, args: &[&str]) -> Result<String, String> {
-    let out = Command::new("br")
-        .current_dir(root)
-        .args(args)
-        .output()
+    let mut command = Command::new("br");
+    command.current_dir(root).args(args);
+    // br sync overflows the default main-thread stack on Windows (AGENTS.md).
+    if std::env::var_os("RUST_MIN_STACK").is_none() {
+        command.env("RUST_MIN_STACK", "67108864");
+    }
+    let out = command.output()
         .map_err(|e| e.to_string())?;
     if out.status.success() {
         Ok(cargo::text(&out.stdout))
