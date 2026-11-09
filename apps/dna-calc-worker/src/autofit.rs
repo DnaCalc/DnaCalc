@@ -7,8 +7,12 @@ pub fn text_style(
     width: f64,
 ) -> TextStyle {
     let mut shown = text_style_for(host, at, width, host.styles(), host.cell_style(at));
-    if let Some(pivot) = host.pivot_style_look(at) {
+    shown.display_number_format = host.pivot_display_number_format(at);
+    if host.model().definitions().pivots().sheet(at.sheet()).is_some_and(|sheet|
+        sheet.tables.iter().any(|table| table.area.contains(at) && (table.style.is_some() || !table.formats.is_empty()))) {
         shown.unsupported.get_or_insert_with(|| "Some pivot style effects are not painted (dc-8wp.12)".into());
+    }
+    if let Some(pivot) = host.pivot_style_look(at) {
         if let Some(bold) = pivot.bold { shown.bold = bold; }
         if let Some(color) = pivot.font_color.as_ref().and_then(|color| crate::cells::style_color(host, color)) {
             shown.font_color = Some(color);
@@ -325,6 +329,24 @@ fn table_style(
 #[cfg(test)]
 mod tests {
     use super::*;
+    /// The grid carries Excel's reported number code without changing the code that renders text.
+    #[cfg_attr(not(target_arch = "wasm32"), test)]
+    #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+    fn dc_8wp_12__pivot_display_number_code_reaches_the_grid() {
+        use calc_host::value::CellKey;
+        let workbook = crate::workbook::Workbook::open("w2.xlsx", include_bytes!("../../../crates/calc-host/tests/fixtures/pivot/m2-formatting/built.xlsx").to_vec()).unwrap();
+        let table = workbook.host().model().definitions().pivots().tables().find(|table| table.name == "pvt_numfmt_percent").unwrap();
+        let at = CellKey::new(table.area.first().sheet(), 11, 2).unwrap();
+        let cell = workbook.cell(at).unwrap();
+        let shown = workbook.shown(&cell);
+        let capture = include_str!("../../../crates/calc-host/tests/fixtures/pivot/m2-formatting/formats.tsv").lines()
+            .map(|line| line.split('\t').collect::<Vec<_>>()).find(|fields| fields[0] == "numfmt-percent" && fields[1] == "B11").unwrap();
+        assert_eq!(shown.style.display_number_format.as_deref(), Some(capture[4]));
+        assert_eq!(shown.text, capture[5]);
+        assert_ne!(workbook.host().number_format(at), Some(capture[4]));
+        let wire = crate::wire::cell_of(&shown, String::new(), String::new(), &cell);
+        assert_eq!(wire.style.display_number_format.as_deref(), Some(capture[4]));
+    }
     /// The grid consumes the same pivot style layer as the W2 property comparison, and an
     /// explicit data-cell fill remains above it.
     #[cfg_attr(not(target_arch = "wasm32"), test)]
@@ -345,6 +367,41 @@ mod tests {
         assert!(medium_header.bold);
         assert_eq!(medium_header.font_color.as_deref(), Some("#ffffff"));
         assert_eq!(medium_header.fill.as_deref(), Some("#156082"));
+        for (name, fill) in [
+            ("pvt_style_rows_PivotStyleLight1", None),
+            ("pvt_style_rows_PivotStyleLight8", Some("#d9d9d9")),
+            ("pvt_style_rows_PivotStyleLight16", None),
+            ("pvt_style_rows_PivotStyleLight21", None),
+            ("pvt_style_rows_PivotStyleMedium9", Some("#c0e6f5")),
+            ("pvt_style_rows_PivotStyleMedium14", Some("#daf2d0")),
+        ] {
+            let sheet = book.host().model().definitions().pivots().tables().find(|table| table.name == name).unwrap().area.first().sheet();
+            let subtotal = text_style(book.host(), CellKey::new(sheet, 4, 2).unwrap(), 64.);
+            assert!(subtotal.bold, "{name}");
+            assert_eq!(subtotal.fill.as_deref(), fill, "{name}");
+            assert!(!text_style(book.host(), CellKey::new(sheet, 5, 2).unwrap(), 64.).bold, "{name}");
+        }
+        let dark = book.host().model().definitions().pivots().tables().find(|table| table.name == "pvt_style_rows_PivotStyleDark1").unwrap().area.first().sheet();
+        let dark11 = book.host().model().definitions().pivots().tables().find(|table| table.name == "pvt_style_rows_PivotStyleDark11").unwrap();
+        assert!(book.host().pivot_style_look(dark11.area.first()).is_none(), "the Dark11 tint is not modelled");
+        assert!(text_style(book.host(), dark11.area.first(), 64.).unsupported.as_deref().is_some_and(|note| note.contains("dc-8wp.12")));
+        let dark_header = text_style(book.host(), CellKey::new(dark, 3, 1).unwrap(), 64.);
+        assert_eq!(dark_header.font_color.as_deref(), Some("#ffffff"));
+        assert_eq!(dark_header.fill.as_deref(), Some("#808080"));
+        let dark_subtotal = text_style(book.host(), CellKey::new(dark, 4, 2).unwrap(), 64.);
+        assert!(dark_subtotal.bold);
+        assert_eq!(dark_subtotal.fill.as_deref(), Some("#d9d9d9"));
+        let dark_body = text_style(book.host(), CellKey::new(dark, 5, 2).unwrap(), 64.);
+        assert!(!dark_body.bold);
+        assert_eq!(dark_body.fill.as_deref(), Some("#bfbfbf"));
+        for (name, fill) in [("pvt_style_rows_PivotStyleMedium1", Some("#a6a6a6")), ("pvt_style_rows_PivotStyleMedium2", None)] {
+            let sheet = book.host().model().definitions().pivots().tables().find(|table| table.name == name).unwrap().area.first().sheet();
+            let subtotal = text_style(book.host(), CellKey::new(sheet, 4, 2).unwrap(), 64.);
+            assert!(!subtotal.bold, "{name}");
+            if fill.is_some() { assert_eq!(subtotal.font_color.as_deref(), Some("#ffffff"), "{name}"); }
+            else { assert_ne!(subtotal.font_color.as_deref(), Some("#ffffff"), "{name}"); }
+            assert_eq!(subtotal.fill.as_deref(), fill, "{name}");
+        }
         let at = |row, column| CellKey::new(sheet, row, column).unwrap();
         let header = text_style(book.host(), at(3, 1), 64.);
         assert!(header.bold);

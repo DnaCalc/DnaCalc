@@ -1286,6 +1286,30 @@ fn ets_exact_short_initialization_and_final_seasonal_addition() {
         arr(vec![vec![1.0,2.0,3.0]]),n(0.95),n(0.0)]),f64::from_bits(0x407652d81eb07e92));
 }
 
+/// R40 independent exact-period questions cover the three-cycle boundary.
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn ets_exact_seasonal_nonbinary_periods_and_six_observations() {
+    for (period, forecast) in [(2,10.0),(3,14.0),(5,22.0),(6,26.0),(7,30.0)] {
+        let count = 3 * period;
+        let values: Vec<_> = (0..count).map(|j| (2+j+if j%period==0 { period } else { 0 }) as f64).collect();
+        let y = arr(vec![values]);
+        let times = arr(vec![(1..=count).map(|i| i as f64).collect()]);
+        exact(call("FORECAST.ETS",vec![n(count as f64+1.0),y.clone(),times.clone(),n(period as f64)]),forecast);
+        for (statistic,expected) in [(1.0,0.751),(2.0,0.001),(3.0,0.001),(7.0,0.0)] {
+            exact(call("FORECAST.ETS.STAT",vec![y.clone(),times.clone(),n(statistic),n(period as f64)]),expected);
+        }
+        exact(call("FORECAST.ETS.CONFINT",vec![n(count as f64+1.0),y,times,n(0.95),n(period as f64)]),0.0);
+    }
+    // The two-cycle odd-period initializer and six-value automatic detector
+    // have separate unproved decisions, even for these simple histories.
+    for (period,values) in [(3,vec![5.0,3.0,4.0,8.0,6.0,7.0]),(1,vec![4.0,3.0,6.0,5.0,8.0,7.0])] {
+        assert!(matches!(call("FORECAST.ETS",vec![n(7.0),arr(vec![values]),
+            arr(vec![vec![1.0,2.0,3.0,4.0,5.0,6.0]]),n(period as f64)]),
+            Err(calc_func::FunctionFault::NotHeld { owner: "dc-j9k", .. })));
+    }
+}
+
 /// Fresh R39 explicit periods: one shared state loop retains zero innovations.
 #[cfg_attr(not(target_arch = "wasm32"), test)]
 #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]

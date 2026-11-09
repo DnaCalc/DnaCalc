@@ -349,8 +349,13 @@ impl Model {
 /// The zero objective retains the measured starting parameters; a nonzero
 /// innovation needs the still unidentified seasonal initialisation/search.
 fn exact_seasonal(site: &Site<'_>, y: &[f64], period: usize, output: Output, statistic: f64, horizon: f64, automatic: bool) -> Step<CalcValue> {
-    if !(8..=32).contains(&y.len()) || ![2, 4, 8].contains(&period)
+    if !(6..=32).contains(&y.len()) || !(2..=8).contains(&period)
         || y.len() % period != 0 || y.len() < 2 * period
+        // Three cycles give every phase a measured initial mean. R39 also
+        // proved the shorter power-of-two histories starting at eight values.
+        || (y.len() < 3 * period && (!period.is_power_of_two() || y.len() < 8))
+        // The new explicit-period proof does not identify a shorter detector.
+        || (automatic && y.len() < 8)
         || y.iter().any(|&v| v != 0.0 && !(2.0_f64.powi(-400)..=2.0_f64.powi(400)).contains(&v.abs())) {
         return Err(unfinished(site));
     }

@@ -45,6 +45,8 @@ struct Options {
     /// Answer the page's print requests without the native print dialog, which blocks the page
     /// until a person closes it (a headless browser's `print()` also returns at once).
     no_print_ui: bool,
+    /// A workbook file to open as the page starts (`--open FILE`, or a path as the first argument).
+    open: Option<PathBuf>,
 }
 
 fn options(args: &[String]) -> Result<Options, String> {
@@ -59,10 +61,11 @@ fn options(args: &[String]) -> Result<Options, String> {
         hidden: false,
         save_dir: None,
         no_print_ui: false,
+        open: None,
     };
-    let mut args = args.iter();
-    while let Some(arg) = args.next() {
-        let mut value = || args.next().cloned().ok_or(format!("{arg} needs a value"));
+    let mut args = args.iter().enumerate();
+    while let Some((position, arg)) = args.next() {
+        let mut value = || args.next().map(|(_, v)| v.clone()).ok_or(format!("{arg} needs a value"));
         match arg.as_str() {
             "--app" => {}
             "--url" => o.url = Some(value()?),
@@ -76,6 +79,7 @@ fn options(args: &[String]) -> Result<Options, String> {
             "--hidden" => o.hidden = true,
             "--no-print-ui" => o.no_print_ui = true,
             "--save-dir" => o.save_dir = Some(PathBuf::from(value()?)),
+            "--open" => o.open = Some(PathBuf::from(value()?)),
             "--size" => {
                 let text = value()?;
                 let (w, h) = text.split_once('x').ok_or("--size needs WIDTHxHEIGHT")?;
@@ -84,11 +88,20 @@ fn options(args: &[String]) -> Result<Options, String> {
                     h.parse().map_err(|_| "--size height")?,
                 );
             }
+            // A file path as the first argument, as a double-click or a shell association passes it.
+            other if position == 0 && !other.starts_with("--") => o.open = Some(PathBuf::from(other)),
             other => return Err(format!("unknown app argument: {other}")),
         }
     }
+    if o.assets.is_none() && o.url.is_none() && o.probe.is_none() {
+        // The packaged folder keeps the built page in `page` beside the executable.
+        o.assets = std::env::current_exe()
+            .ok()
+            .and_then(|exe| exe.parent().map(|folder| folder.join("page")))
+            .filter(|folder| folder.join("index.html").is_file());
+    }
     if o.probe.is_none() && o.url.is_none() && o.assets.is_none() {
-        return Err("app mode needs --assets DIR (the built page) or --url URL".into());
+        return Err("app mode needs --assets DIR (the built page; or a `page` folder beside the executable) or --url URL".into());
     }
     Ok(o)
 }
@@ -116,6 +129,8 @@ struct App {
     /// starts one, as a browser page may): each its own server, as each browser worker is its own
     /// module instance. They carry no add-ins, fetch route or RTD. Keyed by the bridge's channel.
     extras: RefCell<std::collections::BTreeMap<u32, Server>>,
+    /// The file named on the command line, given to the first worker the page starts.
+    opening: RefCell<Option<(String, Vec<u8>)>>,
 }
 
 /// The bridge prefixes every message of a worker other than the page's first with `@N` and U+0002
@@ -128,6 +143,34 @@ fn channel_of(message: &str) -> (u32, &str) {
         .and_then(|rest| rest.split_once(CHANNEL_MARK))
         .and_then(|(channel, rest)| Some((channel.parse().ok()?, rest)))
         .unwrap_or((0, message))
+}
+
+
+/// The page starts by asking for an empty workbook (`New`, or `OpenTemplate` with a stored
+/// default). When a file was named on the command line, that first request becomes the Open of the
+/// file, in the page's own command envelope, so the page installs it as it installs any opened
+/// workbook. Returns the request to answer instead, or `None` when `text` is anything else.
+fn startup_open(text: &str, opening: &(String, Vec<u8>)) -> Option<String> {
+    use dna_calc_worker::wire::{Request, ToServer};
+    let mut message = wire::decode::<ToServer>(text).ok()?;
+    let Request::Command(envelope) = &mut message.request else {
+        return None;
+    };
+    if !matches!(*envelope.request, Request::New | Request::OpenTemplate { .. }) {
+        return None;
+    }
+    *envelope.request = Request::Open { name: opening.0.clone() };
+    Some(wire::encode(&message))
+}
+
+/// The file `--open` names: its file name and bytes, read before any window shows.
+fn read_open_file(path: &std::path::Path) -> Result<(String, Vec<u8>), String> {
+    let bytes = std::fs::read(path).map_err(|e| format!("{}: {e}", path.display()))?;
+    let name = path
+        .file_name()
+        .map(|n| n.to_string_lossy().into_owned())
+        .ok_or_else(|| format!("{}: not a file", path.display()))?;
+    Ok((name, bytes))
 }
 
 impl App {
@@ -246,6 +289,19 @@ impl App {
             return;
         }
         let (text, bytes) = split_message(message);
+        let mut text = text.to_owned();
+        let mut bytes = bytes;
+        let substitute = self
+            .opening
+            .borrow()
+            .as_ref()
+            .and_then(|opening| startup_open(&text, opening).map(|open| (open, opening.1.clone())));
+        if let Some((open, package)) = substitute {
+            self.opening.borrow_mut().take();
+            text = open;
+            bytes = Some(package);
+        }
+        let text = text.as_str();
         let (reply, out, events) = {
             let mut server = self.server.borrow_mut();
             let (reply, out) = server::answer_text(&mut server, text, bytes);
@@ -329,6 +385,7 @@ impl App {
 
 pub fn run(args: &[String]) -> Result<(), String> {
     let o = options(args)?;
+    let opening = o.open.as_deref().map(read_open_file).transpose()?;
     // Per-monitor awareness: the page renders at the display's real scale.
     per_monitor_dpi_aware();
     let shell = Shell::new("DNA Calc")?;
@@ -410,6 +467,7 @@ pub fn run(args: &[String]) -> Result<(), String> {
         quit: Cell::new(false),
         functions: RefCell::new(functions),
         extras: RefCell::new(Default::default()),
+        opening: RefCell::new(opening),
     });
     {
         // The page's messages must not keep the app alive: a weak handle lets it drop at exit.
@@ -466,5 +524,76 @@ mod tests {
         assert_eq!((o.size, o.xlls.len()), ((800, 600), 1));
         assert!(options(&args(&["--app", "--probe", "p.json"])).is_ok());
         assert!(options(&args(&["--app", "--bogus"])).is_err());
+    }
+
+    /// Native-only: `--open FILE` and a file path as the first argument both name the workbook
+    /// to open; a path anywhere else is still an unknown argument, and `--open` needs a value.
+    #[test]
+    fn open_is_a_flag_or_the_first_argument() {
+        let args = |list: &[&str]| list.iter().map(|s| s.to_string()).collect::<Vec<_>>();
+        let flag = options(&args(&["--open", "a.xlsx", "--assets", "dist"])).unwrap();
+        assert_eq!(flag.open.as_deref(), Some(std::path::Path::new("a.xlsx")));
+        let first = options(&args(&["b.xlsx", "--assets", "dist"])).unwrap();
+        assert_eq!(first.open.as_deref(), Some(std::path::Path::new("b.xlsx")));
+        let after_app = options(&args(&["--app", "--assets", "dist", "c.xlsx"]));
+        assert!(after_app.is_err(), "a later bare argument is not a file to open");
+        assert!(options(&args(&["--open"])).is_err());
+        assert!(options(&args(&["--assets", "dist"])).unwrap().open.is_none());
+    }
+
+    /// Native-only: the page's first request for an empty workbook (New, or the stored default
+    /// template) becomes the Open of the file named on the command line, in the page's own command
+    /// envelope; the server answers it as an open, and no other request is touched.
+    #[test]
+    fn the_pages_startup_request_opens_the_named_file() {
+        use dna_calc_worker::wire::{Request, ToServer};
+        let bytes = include_bytes!("../../../crates/calc-host/tests/fixtures/dc_gf0/cut-base.xlsx");
+        let folder = std::env::temp_dir().join(format!("dnacalc-open-{}", std::process::id()));
+        std::fs::create_dir_all(&folder).unwrap();
+        let file = folder.join("named.xlsx");
+        std::fs::write(&file, bytes).unwrap();
+        let opening = read_open_file(&file).unwrap();
+        assert_eq!((opening.0.as_str(), opening.1.len()), ("named.xlsx", bytes.len()));
+        assert!(read_open_file(&folder.join("missing.xlsx")).is_err());
+        std::fs::remove_dir_all(&folder).unwrap();
+
+        let mut server = Server::new();
+        let blank = server.workbook_id();
+        let page = |server: &Server, request: Request| {
+            wire::encode(&ToServer { id: 1, request: server.envelope(request) })
+        };
+        // A request that is not the startup one is left alone.
+        assert!(startup_open(&wire::encode(&ToServer { id: 2, request: Request::Summary }), &opening).is_none());
+        assert!(startup_open(&page(&server, Request::OpenForEditing { name: "t.xltx".into() }), &opening).is_none());
+        assert!(startup_open("not json", &opening).is_none());
+        for startup in [Request::New, Request::OpenTemplate { name: "Book.xltx".into() }] {
+            let text = startup_open(&page(&server, startup), &opening).expect("substituted");
+            let decoded: ToServer = wire::decode(&text).unwrap();
+            match decoded.request {
+                Request::Command(envelope) => {
+                    assert_eq!(*envelope.request, Request::Open { name: "named.xlsx".into() });
+                    assert_eq!(envelope.id, 1, "the page's own command identity is kept");
+                }
+                other => panic!("not a command: {other:?}"),
+            }
+        }
+        let text = startup_open(&page(&server, Request::New), &opening).unwrap();
+        let (reply, _) = server::answer_text(&mut server, &text, Some(opening.1.clone()));
+        let reply: FromServer = wire::decode(&reply).unwrap();
+        match reply {
+            FromServer::Reply { reply: wire::Reply::Done { outcome, opened, .. }, .. } => {
+                assert_eq!(outcome.error, None);
+                assert!(opened.is_some(), "an open, not a new workbook");
+            }
+            other => panic!("not an open: {other:?}"),
+        }
+        assert_ne!(server.workbook_id(), blank, "the file replaced the blank workbook");
+        let reference = {
+            let mut other = Server::new();
+            let answer = other.execute_current(Request::Open { name: "x.xlsx".into() }, Some(bytes.to_vec()));
+            assert!(answer.reply.is_ok());
+            other.book().host().sheets().len()
+        };
+        assert_eq!(server.book().host().sheets().len(), reference);
     }
 }

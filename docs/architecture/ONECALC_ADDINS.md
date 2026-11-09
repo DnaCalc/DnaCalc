@@ -222,3 +222,39 @@ Unequal ordered client traffic stays a failure. The original and delayed rows di
 when `DisconnectData` and `UpdateNotify` fall relative to each other for the formulas that finish at
 once; Excel's own samples differ between runs. Native call traffic (`xlAsyncReturn` and the managed
 callbacks) is not matched in either host. Remote servers and array topics are refused as before.
+
+## Milestone 7: the packaged folder (dc-0f1k.13)
+
+`cargo xtask package onecalc` builds one folder, `DNA-OneCalc/`, and a zip of it, and records every
+file's size and SHA-256 in `package-manifest.json`:
+
+- `dna-onecalc-desktop.exe` carries OneCalc's page inside it (the bundle's five files packed into one
+  block, `calc_platform_desktop::assets`, embedded by `build.rs` from `DNACALC_ONECALC_PAGE`; the
+  WebView2 host answers the page's requests from memory at `https://dnacalc.app/`). It has an icon
+  (`icon/make-icon.py` draws it) and a version resource, is a window program (no console), and is built
+  in the release profile with the C runtime linked statically, so the folder needs no Visual C++
+  redistributable; the command fails if the exe or the companion imports a `vcruntime`/`msvcp` DLL.
+- `XLCALL32.DLL` (the `calc-xll-shim` companion) beside it, for .xll add-ins.
+- WebView2 Evergreen is detected at start. When it is absent the app says what is missing and gives
+  the download page (a box for a person; stderr, `--message-file` and a non-zero exit under a test flag).
+- Started with no arguments it is the app. Test flags (`--debug-port`, `--data-dir`, `--save-dir`,
+  `--close-answer save|discard|cancel`, `--message-file`) make it report on stderr and by exit code,
+  never in a box that waits for a click.
+- "Open in DNA Calc" appears for a file OneCalc refuses. The host launches `dna-calc-desktop.exe
+  --open <file>` when that exe is in the folder, otherwise says plainly that it is not. DNA Calc does
+  not accept `--open` yet (dc-0f1k.14).
+
+Desktop polish: the window title is the session name with `*` for unsaved changes (the page sets
+`document.title`, the host follows it); the window comes back where it was left (`settings.json`
+beside the WebView2 profile under `%LOCALAPPDATA%\DNA OneCalc`, or `--data-dir`); recent files (eight,
+newest first); Ctrl+O, Ctrl+S (writes the opened or last saved file in place) and Ctrl+Shift+S; closing
+a window with unsaved changes asks Save, Don't save or Cancel. RTD now runs in the app: the host polls
+the add-ins' RTD client on its timer and tells the page (`{"event":"rtd"}`) to evaluate again. A thread
+timer's id is mapped back to the id its owner asked for (Windows gives a window-less timer its own).
+
+Proof: `cargo xtask package onecalc-clean-run` (`app_clean.rs`) copies the folder to an empty directory
+outside the repository and runs it from there with a fresh data folder, a minimal environment (checked
+not to name the repository) and no `--assets`, driven through chromedriver on the app's WebView2 plus
+the app's own window (title, place, WM_CLOSE). The run and the guard of
+`tools/excel-session/on-private-desktop.ps1` (now `-ProcessNames`) kept every window off the owner's
+desktop. The native file dialogs need a person and were not driven.

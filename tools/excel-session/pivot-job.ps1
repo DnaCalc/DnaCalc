@@ -791,6 +791,324 @@ try{
         Read-Cube 'cube-after-table-deleted-refresh'
         Save 'm4-model-only.xlsx'
      }
+     'm5' {
+        # M5 structural and layout edits (bead dc-8wp, plan package M5): rows and columns inserted or deleted around a
+        # pivot output and around worksheet-range and table sources, table growth, overlap, layout changes on an
+        # unrefreshed pivot. One workbook per scenario (Src + Out), alerts off (every Excel default answer is
+        # retained as what happened; no dialog is answered). `scenario` selects scenario ids by -like pattern.
+        $excel.Calculation=-4105
+        $filter=if($req.scenario){[string]$req.scenario}else{'*'}
+        function ColL([int]$n){$s='';while($n -gt 0){$s=[string][char](65+(($n-1)%26))+$s;$n=[int][math]::Floor(($n-1)/26)};return $s}
+        function Dump5($ws,[string]$addr){
+            $l=[Collections.Generic.List[object]]::new()
+            try{
+                $r=$ws.Range($addr);$v=$r.Value2;$rows=$r.Rows.Count;$cols=$r.Columns.Count;$r0=$r.Row;$c0=$r.Column
+                for($i=1;$i -le $rows;$i++){for($j=1;$j -le $cols;$j++){$x=$v[$i,$j];if($null -ne $x){$l.Add(@{a=((ColL ($c0+$j-1))+($r0+$i-1));v=(Enc $x)})}}}
+            }catch{$l.Add(@{unread=$_.Exception.Message})}
+            return ,$l.ToArray()
+        }
+        function Extra5(){
+            $e=[ordered]@{}
+            foreach($n in 'Src','Out'){
+                try{$ws=$script:book.Worksheets.Item($n);$e[$n]=@{cells=(Dump5 $ws 'A1:P40');tables=@(foreach($lo in (Items (Call $ws 'ListObjects'))){@{name=[string]$lo.Name;range=[string]$lo.Range.Address($false,$false);header=$(try{[string]$lo.HeaderRowRange.Address($false,$false)}catch{$null});data=$(try{[string]$lo.DataBodyRange.Address($false,$false)}catch{$null})}});pivots=@(foreach($pp in (Items (Call $ws 'PivotTables'))){[string]$pp.Name})}}
+                catch{$e[$n]=@{missing=$_.Exception.Message}}
+            }
+            try{$e.sheets=@(foreach($ws in $script:book.Worksheets){[string]$ws.Name})}catch{}
+            return $e
+        }
+        function Stage5([string]$Name){$script:lightCells=$true;try{Pivots-Read $Name { Extra5 }}finally{$script:lightCells=$false}}
+        function Pv5(){$o=$script:book.Worksheets.Item('Out');return ($o.PivotTables('pvt_m5'))}
+        function Setup5([string]$Mode){
+            $far=$Mode.EndsWith('clean');$Mode=$Mode -replace 'clean$',''
+            $wb=$excel.Workbooks.Add(-4167);$script:book=$wb
+            $s=$wb.Worksheets.Item(1);$s.Name='Src';$o=$wb.Worksheets.Add([Type]::Missing,$s);$o.Name='Out'
+            $h=[object[,]]::new(13,4);$hn='Region','Product','Amount','Units';for($j=0;$j -lt 4;$j++){$h[0,$j]=$hn[$j]}
+            $reg='North','South','East';$prd='Alpha','Beta','Gamma','Delta'
+            for($i=0;$i -lt 12;$i++){$h[($i+1),0]=$reg[$i%3];$h[($i+1),1]=$prd[$i%4];$h[($i+1),2]=[double](5+$i*10);$h[($i+1),3]=[double](1+$i%5)}
+            $s.Range('B2:E14').Value2=$h
+            $s.Range('A1').Value2='src-note';$s.Range('H2').Value2='src-far-right';$s.Range('B18').Value2='src-below-marker'
+            $src='Src!R2C2:R14C5'
+            if($Mode -eq 'table'){$lo=$s.ListObjects.Add(1,$s.Range('B2:E14'),$null,1);$lo.Name='TblSrc';$src='TblSrc'}
+            $cache=$wb.PivotCaches().Create(1,$src,8)
+            $p=$cache.CreatePivotTable($o.Range('C4'),'pvt_m5',$true,8)
+            Row $p 'Region';Col $p 'Product';Add-Data $p 'Amount' 'Sum Amount' -4157
+            if($far){$o.Range('A1').Value2='m-a1';$o.Range('A60').Value2='m-far-below';$o.Range('Z5').Value2='m-far-right'}
+            else{$o.Range('A1').Value2='m-a1';$o.Range('C2').Value2='m-above';$o.Range('B5').Value2='m-left';$o.Range('C12').Value2='m-below';$o.Range('J5').Value2='m-right'}
+            return @{s=$s;o=$o;p=$p;wb=$wb}
+        }
+        function Scn5([string]$Id,[string]$Mode,[scriptblock]$Act){
+            if($Id -notlike $filter){return}
+            if($filter -eq '*' -and ($Id -like 'dlg-*' -or $Id -like 'blk-*')){return}
+            [void](Try-Step "m5-$Id" {
+                $ctx=Setup5 $Mode
+                Stage5 "$Id/0-built"
+                $ok=Try-Step "$Id/act" { $null = & $Act $ctx.s $ctx.o $ctx.p $ctx.wb }
+                Stage5 "$Id/1-after-edit"
+                [void](Try-Step "$Id/refresh" { [void](Pv5).RefreshTable() })
+                Stage5 "$Id/2-after-refresh"
+                $path=Join-Path $dir ("m5-"+$Id+".xlsx")
+                $saved=Try-Step "$Id/save" { [void]$script:book.SaveAs($path,51) }
+                try{$script:book.Close($false)}catch{}
+                $script:book=$null
+                if($saved){
+                    [void](Try-Step "$Id/reopen" {
+                        $script:book=$excel.Workbooks.Open($path,0)
+                        Stage5 "$Id/3-reopened"
+                        [void](Try-Step "$Id/refresh-reopened" { [void](Pv5).RefreshTable() })
+                        Stage5 "$Id/4-reopened-refreshed"
+                        $script:book.Close($false);$script:book=$null
+                    })
+                }
+            })
+            if($script:book){try{$script:book.Close($false)}catch{};$script:book=$null}
+        }
+
+        if($req.watch){
+            # Reads, never answers, the text of a dialog Excel raises in the owned process: a thread of this job lists the
+            # dialogs (class #32770) of the owned Excel process on this private desktop, with every child text, into
+            # dialog.txt. The scenario then runs the one action that raises it and blocks there; the session host's job
+            # deadline ends the owned process. Use a short -TimeoutSeconds and one `dlg-` scenario per job.
+            Add-Type -TypeDefinition @'
+using System;
+using System.Collections.Generic;
+using System.IO;
+using System.Runtime.InteropServices;
+using System.Text;
+using System.Threading;
+public static class DialogWatch {
+  delegate bool EnumProc(IntPtr h, IntPtr l);
+  [DllImport("user32.dll")] static extern bool EnumWindows(EnumProc p, IntPtr l);
+  [DllImport("user32.dll")] static extern bool EnumChildWindows(IntPtr h, EnumProc p, IntPtr l);
+  [DllImport("user32.dll")] static extern uint GetWindowThreadProcessId(IntPtr h, out uint pid);
+  [DllImport("user32.dll", CharSet=CharSet.Unicode)] static extern int GetWindowText(IntPtr h, StringBuilder s, int n);
+  [DllImport("user32.dll", CharSet=CharSet.Unicode)] static extern int GetClassName(IntPtr h, StringBuilder s, int n);
+  [DllImport("user32.dll")] static extern bool IsWindowVisible(IntPtr h);
+  public static void Start(IntPtr excelWindow, string path) {
+    uint pid; GetWindowThreadProcessId(excelWindow, out pid);
+    var t = new Thread(() => {
+      var seen = new List<string>();
+      for (int i = 0; i < 2400; i++) {
+        var lines = new List<string>();
+        EnumWindows((h, l) => {
+          uint p; GetWindowThreadProcessId(h, out p);
+          if (p != pid) return true;
+          var cls = new StringBuilder(256); GetClassName(h, cls, 256);
+          if (cls.ToString() != "#32770") return true;
+          var title = new StringBuilder(512); GetWindowText(h, title, 512);
+          var children = new List<string>();
+          EnumChildWindows(h, (c, l2) => { var cc = new StringBuilder(128); GetClassName(c, cc, 128); var tx = new StringBuilder(4096); GetWindowText(c, tx, 4096); children.Add(cc + ": " + tx.ToString().Replace("\r", " ").Replace("\n", " | ")); return true; }, IntPtr.Zero);
+          lines.Add("dialog visible=" + IsWindowVisible(h) + " title=" + title + " :: " + string.Join(" // ", children));
+          return true;
+        }, IntPtr.Zero);
+        bool changed = false;
+        foreach (var line in lines) if (!seen.Contains(line)) { seen.Add(line); changed = true; }
+        if (changed) File.WriteAllLines(path, seen);
+        Thread.Sleep(50);
+      }
+    });
+    t.IsBackground = true; t.Start();
+  }
+}
+'@
+            [DialogWatch]::Start([IntPtr]$excel.Hwnd,(Join-Path $dir 'dialog.txt'))
+        }
+        $holder=$book
+        $R='range';$T='table';$RC='rangeclean'
+        Scn5 'base-range' $R { param($s,$o,$p,$wb) }
+        Scn5 'base-table' $T { param($s,$o,$p,$wb) }
+        # Rows and columns around the pivot output (Out!C4:H9).
+        Scn5 'out-ins-row-above' $R { param($s,$o,$p,$wb) $o.Range('2:2').Insert() | Out-Null }
+        Scn5 'out-ins-row-first' $R { param($s,$o,$p,$wb) $o.Range('4:4').Insert() | Out-Null }
+        Scn5 'out-ins-row-inside' $R { param($s,$o,$p,$wb) $o.Range('7:7').Insert() | Out-Null }
+        Scn5 'out-ins-row-last' $R { param($s,$o,$p,$wb) $o.Range('9:9').Insert() | Out-Null }
+        Scn5 'out-ins-row-after' $R { param($s,$o,$p,$wb) $o.Range('10:10').Insert() | Out-Null }
+        Scn5 'out-ins-rows-three-inside' $R { param($s,$o,$p,$wb) $o.Range('6:8').Insert() | Out-Null }
+        Scn5 'out-ins-cells-partial-down' $R { param($s,$o,$p,$wb) $o.Range('C7:D7').Insert(-4121) | Out-Null }
+        Scn5 'out-ins-cells-beside-down' $R { param($s,$o,$p,$wb) $o.Range('I6:J6').Insert(-4121) | Out-Null }
+        Scn5 'out-del-row-above' $R { param($s,$o,$p,$wb) $o.Range('1:1').Delete() | Out-Null }
+        Scn5 'out-del-row-first' $R { param($s,$o,$p,$wb) $o.Range('4:4').Delete() | Out-Null }
+        Scn5 'out-del-row-header2' $R { param($s,$o,$p,$wb) $o.Range('5:5').Delete() | Out-Null }
+        Scn5 'out-del-row-inside' $R { param($s,$o,$p,$wb) $o.Range('7:7').Delete() | Out-Null }
+        Scn5 'out-del-row-last' $R { param($s,$o,$p,$wb) $o.Range('9:9').Delete() | Out-Null }
+        Scn5 'out-del-rows-across-top' $R { param($s,$o,$p,$wb) $o.Range('2:5').Delete() | Out-Null }
+        Scn5 'out-del-rows-across-bottom' $R { param($s,$o,$p,$wb) $o.Range('8:11').Delete() | Out-Null }
+        Scn5 'out-del-rows-all' $R { param($s,$o,$p,$wb) $o.Range('4:9').Delete() | Out-Null }
+        Scn5 'out-del-cells-partial-up' $R { param($s,$o,$p,$wb) $o.Range('C7:D7').Delete(-4162) | Out-Null }
+        Scn5 'out-ins-col-before' $R { param($s,$o,$p,$wb) $o.Range('A:A').Insert() | Out-Null }
+        Scn5 'out-ins-col-first' $R { param($s,$o,$p,$wb) $o.Range('C:C').Insert() | Out-Null }
+        Scn5 'out-ins-col-inside' $R { param($s,$o,$p,$wb) $o.Range('E:E').Insert() | Out-Null }
+        Scn5 'out-ins-col-last' $R { param($s,$o,$p,$wb) $o.Range('H:H').Insert() | Out-Null }
+        Scn5 'out-ins-col-after' $R { param($s,$o,$p,$wb) $o.Range('I:I').Insert() | Out-Null }
+        Scn5 'blk-ins-cells-partial-right' $R { param($s,$o,$p,$wb) $o.Range('E6:E7').Insert(-4161) | Out-Null }
+        Scn5 'out-del-col-before' $R { param($s,$o,$p,$wb) $o.Range('A:A').Delete() | Out-Null }
+        Scn5 'out-del-col-first' $R { param($s,$o,$p,$wb) $o.Range('C:C').Delete() | Out-Null }
+        Scn5 'out-del-col-inside' $R { param($s,$o,$p,$wb) $o.Range('E:E').Delete() | Out-Null }
+        Scn5 'out-del-col-last' $R { param($s,$o,$p,$wb) $o.Range('H:H').Delete() | Out-Null }
+        Scn5 'out-del-cols-across-left' $R { param($s,$o,$p,$wb) $o.Range('B:D').Delete() | Out-Null }
+        Scn5 'out-del-cols-across-right' $R { param($s,$o,$p,$wb) $o.Range('G:J').Delete() | Out-Null }
+        Scn5 'out-del-cols-all' $R { param($s,$o,$p,$wb) $o.Range('C:H').Delete() | Out-Null }
+        Scn5 'blk-del-cells-partial-left' $R { param($s,$o,$p,$wb) $o.Range('E6:E7').Delete(-4159) | Out-Null }
+        Scn5 'out-set-data-cell' $R { param($s,$o,$p,$wb) $o.Range('D7').Value2=[double]1 }
+        Scn5 'out-set-label-cell' $R { param($s,$o,$p,$wb) $o.Range('C7').Value2='Renamed' }
+        Scn5 'out-clear-all' $R { param($s,$o,$p,$wb) $o.Range('C4:H9').Clear() | Out-Null }
+        Scn5 'out-clear-pivot-table' $R { param($s,$o,$p,$wb) $p.TableRange2.Clear() | Out-Null }
+        # Worksheet-range source Src!B2:E14 (header row 2, last row 14, fields in B:E, note column A).
+        Scn5 'src-ins-row-above' $R { param($s,$o,$p,$wb) $s.Range('1:1').Insert() | Out-Null }
+        Scn5 'src-ins-row-header' $R { param($s,$o,$p,$wb) $s.Range('2:2').Insert() | Out-Null }
+        Scn5 'src-ins-row-first-data' $R { param($s,$o,$p,$wb) $s.Range('3:3').Insert() | Out-Null }
+        Scn5 'src-ins-row-inside' $R { param($s,$o,$p,$wb) $s.Range('8:8').Insert() | Out-Null }
+        Scn5 'src-ins-row-last' $R { param($s,$o,$p,$wb) $s.Range('14:14').Insert() | Out-Null }
+        Scn5 'src-ins-row-after' $R { param($s,$o,$p,$wb) $s.Range('15:15').Insert() | Out-Null }
+        Scn5 'src-ins-cells-partial-down' $R { param($s,$o,$p,$wb) $s.Range('C8:D8').Insert(-4121) | Out-Null }
+        Scn5 'src-del-row-above' $R { param($s,$o,$p,$wb) $s.Range('1:1').Delete() | Out-Null }
+        Scn5 'src-del-row-header' $R { param($s,$o,$p,$wb) $s.Range('2:2').Delete() | Out-Null }
+        Scn5 'src-del-row-first-data' $R { param($s,$o,$p,$wb) $s.Range('3:3').Delete() | Out-Null }
+        Scn5 'src-del-row-inside' $R { param($s,$o,$p,$wb) $s.Range('8:8').Delete() | Out-Null }
+        Scn5 'src-del-row-last' $R { param($s,$o,$p,$wb) $s.Range('14:14').Delete() | Out-Null }
+        Scn5 'src-del-row-after' $R { param($s,$o,$p,$wb) $s.Range('15:15').Delete() | Out-Null }
+        Scn5 'src-del-rows-all-data' $R { param($s,$o,$p,$wb) $s.Range('3:14').Delete() | Out-Null }
+        Scn5 'src-del-rows-across-end' $R { param($s,$o,$p,$wb) $s.Range('12:16').Delete() | Out-Null }
+        Scn5 'src-del-cells-partial-up' $R { param($s,$o,$p,$wb) $s.Range('C8:D8').Delete(-4162) | Out-Null }
+        Scn5 'src-ins-col-before' $R { param($s,$o,$p,$wb) $s.Range('A:A').Insert() | Out-Null }
+        Scn5 'src-ins-col-first' $R { param($s,$o,$p,$wb) $s.Range('B:B').Insert() | Out-Null }
+        Scn5 'src-ins-col-inside' $R { param($s,$o,$p,$wb) $s.Range('D:D').Insert() | Out-Null }
+        Scn5 'src-ins-col-last' $R { param($s,$o,$p,$wb) $s.Range('E:E').Insert() | Out-Null }
+        Scn5 'src-ins-col-after' $R { param($s,$o,$p,$wb) $s.Range('F:F').Insert() | Out-Null }
+        Scn5 'src-del-col-before' $R { param($s,$o,$p,$wb) $s.Range('A:A').Delete() | Out-Null }
+        Scn5 'src-del-col-first' $R { param($s,$o,$p,$wb) $s.Range('B:B').Delete() | Out-Null }
+        Scn5 'src-del-col-inside-used' $R { param($s,$o,$p,$wb) $s.Range('C:C').Delete() | Out-Null }
+        Scn5 'src-del-col-inside-unused' $R { param($s,$o,$p,$wb) $s.Range('E:E').Delete() | Out-Null }
+        Scn5 'src-del-col-after' $R { param($s,$o,$p,$wb) $s.Range('F:F').Delete() | Out-Null }
+        Scn5 'src-del-cols-all' $R { param($s,$o,$p,$wb) $s.Range('B:E').Delete() | Out-Null }
+        Scn5 'src-clear-all' $R { param($s,$o,$p,$wb) $s.Range('B2:E14').Clear() | Out-Null }
+        Scn5 'src-edit-header' $R { param($s,$o,$p,$wb) $s.Range('C2').Value2='Item' }
+        Scn5 'src-edit-value-then-refresh' $R { param($s,$o,$p,$wb) $s.Range('E3').Value2=[double]1000; $s.Range('D4').Value2='East' }
+        # Table source TblSrc (Src!B2:E14).
+        Scn5 'tbl-ins-row-header' $T { param($s,$o,$p,$wb) $s.Range('2:2').Insert() | Out-Null }
+        Scn5 'tbl-ins-row-first-data' $T { param($s,$o,$p,$wb) $s.Range('3:3').Insert() | Out-Null }
+        Scn5 'tbl-ins-row-inside' $T { param($s,$o,$p,$wb) $s.Range('8:8').Insert() | Out-Null }
+        Scn5 'tbl-ins-row-last' $T { param($s,$o,$p,$wb) $s.Range('14:14').Insert() | Out-Null }
+        Scn5 'tbl-ins-row-after' $T { param($s,$o,$p,$wb) $s.Range('15:15').Insert() | Out-Null }
+        Scn5 'tbl-del-row-header' $T { param($s,$o,$p,$wb) $s.Range('2:2').Delete() | Out-Null }
+        Scn5 'tbl-del-row-first-data' $T { param($s,$o,$p,$wb) $s.Range('3:3').Delete() | Out-Null }
+        Scn5 'tbl-del-row-inside' $T { param($s,$o,$p,$wb) $s.Range('8:8').Delete() | Out-Null }
+        Scn5 'tbl-del-row-last' $T { param($s,$o,$p,$wb) $s.Range('14:14').Delete() | Out-Null }
+        Scn5 'tbl-del-row-after' $T { param($s,$o,$p,$wb) $s.Range('15:15').Delete() | Out-Null }
+        Scn5 'tbl-del-listrow' $T { param($s,$o,$p,$wb) $s.ListObjects.Item('TblSrc').ListRows.Item(5).Delete() | Out-Null }
+        Scn5 'tbl-ins-col-before' $T { param($s,$o,$p,$wb) $s.Range('A:A').Insert() | Out-Null }
+        Scn5 'tbl-ins-col-first' $T { param($s,$o,$p,$wb) $s.Range('B:B').Insert() | Out-Null }
+        Scn5 'tbl-ins-col-inside' $T { param($s,$o,$p,$wb) $s.Range('D:D').Insert() | Out-Null }
+        Scn5 'tbl-ins-col-last' $T { param($s,$o,$p,$wb) $s.Range('E:E').Insert() | Out-Null }
+        Scn5 'tbl-ins-col-after' $T { param($s,$o,$p,$wb) $s.Range('F:F').Insert() | Out-Null }
+        Scn5 'tbl-del-col-first' $T { param($s,$o,$p,$wb) $s.Range('B:B').Delete() | Out-Null }
+        Scn5 'tbl-del-col-inside-used' $T { param($s,$o,$p,$wb) $s.Range('C:C').Delete() | Out-Null }
+        Scn5 'tbl-del-col-unused' $T { param($s,$o,$p,$wb) $s.Range('E:E').Delete() | Out-Null }
+        Scn5 'tbl-del-listcolumn-used' $T { param($s,$o,$p,$wb) $s.ListObjects.Item('TblSrc').ListColumns.Item(2).Delete() | Out-Null }
+        Scn5 'tbl-rename-header' $T { param($s,$o,$p,$wb) $s.Range('C2').Value2='Item' }
+        # Table growth.
+        Scn5 'tbl-add-listrow' $T { param($s,$o,$p,$wb) $lo=$s.ListObjects.Item('TblSrc');$r=$lo.ListRows.Add();$s.Range('B15').Value2='West';$s.Range('C15').Value2='Alpha';$s.Range('D15').Value2=[double]500;$s.Range('E15').Value2=[double]9 }
+        Scn5 'tbl-add-listrow-existing-keys' $T { param($s,$o,$p,$wb) $lo=$s.ListObjects.Item('TblSrc');$r=$lo.ListRows.Add();$s.Range('B15').Value2='North';$s.Range('C15').Value2='Alpha';$s.Range('D15').Value2=[double]500;$s.Range('E15').Value2=[double]9 }
+        Scn5 'tbl-type-below' $T { param($s,$o,$p,$wb) $s.Range('B15').Value2='West';$s.Range('C15').Value2='Alpha';$s.Range('D15').Value2=[double]500;$s.Range('E15').Value2=[double]9 }
+        Scn5 'tbl-type-below-existing-keys' $T { param($s,$o,$p,$wb) $s.Range('B15').Value2='North';$s.Range('C15').Value2='Alpha';$s.Range('D15').Value2=[double]500;$s.Range('E15').Value2=[double]9 }
+        Scn5 'tbl-resize-grow' $T { param($s,$o,$p,$wb) $s.Range('B15').Value2='West';$s.Range('C15').Value2='Alpha';$s.Range('D15').Value2=[double]500;$s.Range('E15').Value2=[double]9;$s.ListObjects.Item('TblSrc').Resize($s.Range('B2:E15')) }
+        Scn5 'tbl-resize-shrink' $T { param($s,$o,$p,$wb) $s.ListObjects.Item('TblSrc').Resize($s.Range('B2:E10')) }
+        Scn5 'tbl-add-listcolumn' $T { param($s,$o,$p,$wb) $lo=$s.ListObjects.Item('TblSrc');$c=$lo.ListColumns.Add() }
+        Scn5 'tbl-type-right-header' $T { param($s,$o,$p,$wb) $s.Range('F2').Value2='Extra';$s.Range('F3').Value2=[double]1 }
+        Scn5 'tbl-grow-new-product' $T { param($s,$o,$p,$wb) $s.Range('B15').Value2='West';$s.Range('C15').Value2='Epsilon';$s.Range('D15').Value2=[double]500;$s.Range('E15').Value2=[double]9 }
+        Scn5 'rng-add-row-below' $R { param($s,$o,$p,$wb) $s.Range('B15').Value2='West';$s.Range('C15').Value2='Alpha';$s.Range('D15').Value2=[double]500;$s.Range('E15').Value2=[double]9 }
+        # Overlap on refresh (the output grows into cells): nonblank cells, another pivot, the source.
+        Scn5 'ovl-nonblank-right' $R { param($s,$o,$p,$wb) $o.Range('I5').Value2='blocker-I5'; $s.Range('C14').Value2='Epsilon' }
+        Scn5 'ovl-nonblank-below' $R { param($s,$o,$p,$wb) $o.Range('C10').Value2='blocker-C10'; $s.Range('B14').Value2='West' }
+        Scn5 'ovl-nonblank-below-two' $R { param($s,$o,$p,$wb) $o.Range('C11').Value2='blocker-C11'; $s.Range('B14').Value2='West'; $s.Range('B13').Value2='Far' }
+        Scn5 'ovl-nonblank-formula' $R { param($s,$o,$p,$wb) $o.Range('I5').Formula='=1+1'; $s.Range('C14').Value2='Epsilon' }
+        Scn5 'ovl-other-pivot-right' $R { param($s,$o,$p,$wb)
+            $c2=$wb.PivotCaches().Create(1,'Src!R2C2:R14C5',8);$p2=$c2.CreatePivotTable($o.Range('I4'),'pvt_other',$true,8);Row $p2 'Region';Add-Data $p2 'Units' 'Sum Units' -4157
+            $s.Range('C14').Value2='Epsilon' }
+        Scn5 'ovl-other-pivot-below' $R { param($s,$o,$p,$wb)
+            $c2=$wb.PivotCaches().Create(1,'Src!R2C2:R14C5',8);$p2=$c2.CreatePivotTable($o.Range('C11'),'pvt_other',$true,8);Row $p2 'Region';Add-Data $p2 'Units' 'Sum Units' -4157
+            $s.Range('B14').Value2='West' }
+        Scn5 'ovl-source-right' $R { param($s,$o,$p,$wb)
+            $o.Range('I4:L10').Value2='src';$o.Range('I4').Value2='Region';$o.Range('J4').Value2='Amount'
+            $c2=$wb.PivotCaches().Create(1,'Out!R4C9:R10C10',8);$p2=$c2.CreatePivotTable($o.Range('C20'),'pvt_ovsrc',$true,8);Row $p2 'Region';Add-Data $p2 'Amount' 'Count Amount' -4112 }
+        Scn5 'ovl-layout-two-rows-into-nonblank' $R { param($s,$o,$p,$wb) $o.Range('C14').Value2='blocker-C14'; Row $p 'Product' 2 }
+        Scn5 'ovl-layout-into-nonblank-right' $R { param($s,$o,$p,$wb) $o.Range('K5').Value2='blocker-K5'; Row $p 'Product' 2; Col $p 'Units' 1 }
+        Scn5 'ovl-move-location-onto-nonblank' $R { param($s,$o,$p,$wb) $o.Range('M5').Value2='blocker-M5'; $p.Location='Out!$M$4' }
+        Scn5 'ovl-move-location-onto-pivot' $R { param($s,$o,$p,$wb)
+            $c2=$wb.PivotCaches().Create(1,'Src!R2C2:R14C5',8);$p2=$c2.CreatePivotTable($o.Range('M4'),'pvt_other',$true,8);Row $p2 'Region';Add-Data $p2 'Units' 'Sum Units' -4157
+            $p.Location='Out!$M$4' }
+        Scn5 'ovl-move-location-free' $R { param($s,$o,$p,$wb) $p.Location='Out!$M$20' }
+        Scn5 'ovl-create-onto-nonblank' $R { param($s,$o,$p,$wb) $o.Range('E22').Value2='blocker-E22'; $c2=$wb.PivotCaches().Create(1,'Src!R2C2:R14C5',8);$p2=$c2.CreatePivotTable($o.Range('C21'),'pvt_other',$true,8);Row $p2 'Region';Col $p2 'Product';Add-Data $p2 'Units' 'Sum Units' -4157 }
+        Scn5 'ovl-create-onto-pivot' $R { param($s,$o,$p,$wb) $c2=$wb.PivotCaches().Create(1,'Src!R2C2:R14C5',8);$p2=$c2.CreatePivotTable($o.Range('E6'),'pvt_other',$true,8) }
+        # Layout changes on an unrefreshed pivot (the source was edited first, no refresh).
+        Scn5 'dlg-refresh-overlap-right' $R { param($s,$o,$p,$wb) $o.Range('I5').Value2='blocker-I5'; $s.Range('C14').Value2='Epsilon'; $excel.DisplayAlerts=$true; [void](Pv5).RefreshTable() }
+        Scn5 'dlg-refresh-overlap-below' $R { param($s,$o,$p,$wb) $o.Range('C10').Value2='blocker-C10'; $s.Range('B14').Value2='West'; $excel.DisplayAlerts=$true; [void](Pv5).RefreshTable() }
+        Scn5 'dlg-layout-overlap' $R { param($s,$o,$p,$wb) $o.Range('C14').Value2='blocker-C14'; $excel.DisplayAlerts=$true; Row $p 'Product' 2 }
+        Scn5 'dlg-move-onto-nonblank' $R { param($s,$o,$p,$wb) $o.Range('M5').Value2='blocker-M5'; $excel.DisplayAlerts=$true; $p.Location='Out!$M$4' }
+        Scn5 'dlg-move-onto-pivot' $R { param($s,$o,$p,$wb) $c2=$wb.PivotCaches().Create(1,'Src!R2C2:R14C5',8);$p2=$c2.CreatePivotTable($o.Range('M4'),'pvt_other',$true,8);Row $p2 'Region';Add-Data $p2 'Units' 'Sum Units' -4157; $excel.DisplayAlerts=$true; $p.Location='Out!$M$4' }
+        Scn5 'dlg-create-onto-nonblank' $R { param($s,$o,$p,$wb) $o.Range('E22').Value2='blocker-E22'; $excel.DisplayAlerts=$true; $c2=$wb.PivotCaches().Create(1,'Src!R2C2:R14C5',8);$p2=$c2.CreatePivotTable($o.Range('C21'),'pvt_other',$true,8);Row $p2 'Region';Col $p2 'Product';Add-Data $p2 'Units' 'Sum Units' -4157 }
+        Scn5 'dlg-ins-row-inside' $R { param($s,$o,$p,$wb) $excel.DisplayAlerts=$true; $o.Range('7:7').Insert() | Out-Null }
+        Scn5 'dlg-del-row-inside' $R { param($s,$o,$p,$wb) $excel.DisplayAlerts=$true; $o.Range('7:7').Delete() | Out-Null }
+        Scn5 'dlg-set-data-cell' $R { param($s,$o,$p,$wb) $excel.DisplayAlerts=$true; $o.Range('D7').Value2=[double]1 }
+        Scn5 'dlg-clear-all' $R { param($s,$o,$p,$wb) $excel.DisplayAlerts=$true; $o.Range('C4:H9').Clear() | Out-Null }
+        Scn5 'dlg-blk-ins-cells-partial-right' $R { param($s,$o,$p,$wb) $o.Range('E6:E7').Insert(-4161) | Out-Null }
+        Scn5 'dlg-blk-del-cells-partial-left' $R { param($s,$o,$p,$wb) $o.Range('E6:E7').Delete(-4159) | Out-Null }
+        Scn5 'dlg-source-del-header' $R { param($s,$o,$p,$wb) $excel.DisplayAlerts=$true; $s.Range('2:2').Delete() | Out-Null; [void](Pv5).RefreshTable() }
+        Scn5 'dlg-tbl-del-header' $T { param($s,$o,$p,$wb) $excel.DisplayAlerts=$true; $s.Range('2:2').Delete() | Out-Null }
+        Scn5 'lay-swap-axes-clean' $RC { param($s,$o,$p,$wb) $p.PivotFields('Region').Orientation=2; $p.PivotFields('Product').Orientation=1 }
+        Scn5 'lay-swap-axes-after-source-edit' $RC { param($s,$o,$p,$wb) $s.Range('D3').Value2=[double]99999; $s.Range('C4').Value2='Zeta'; $p.PivotFields('Region').Orientation=2; $p.PivotFields('Product').Orientation=1 }
+        Scn5 'lay-add-data-after-source-edit' $RC { param($s,$o,$p,$wb) $s.Range('D3').Value2=[double]99999; Add-Data $p 'Units' 'Sum Units' -4157 }
+        Scn5 'lay-move-position-after-source-edit' $RC { param($s,$o,$p,$wb) $s.Range('D3').Value2=[double]99999; $f=$p.PivotFields('Product');$f.Orientation=1;$f.Position=1; $p.PivotFields('Region').Position=2 }
+        Scn5 'lay-hide-column-after-source-edit' $RC { param($s,$o,$p,$wb) $s.Range('D3').Value2=[double]99999; $p.PivotFields('Product').Orientation=0 }
+        Scn5 'lay-page-field-after-source-edit' $RC { param($s,$o,$p,$wb) $s.Range('D3').Value2=[double]99999; $p.PivotFields('Product').Orientation=3 }
+        Scn5 'lay-source-column-added' $RC { param($s,$o,$p,$wb) $s.Range('F2').Value2='Extra';$s.Range('F3').Value2=[double]1; [void]$p.PivotFields('Extra') }
+        Scn5 'lay-data-to-row-after-source-edit' $RC { param($s,$o,$p,$wb) $s.Range('D3').Value2=[double]99999; Add-Data $p 'Units' 'Sum Units' -4157; $p.DataPivotField.Orientation=1 }
+        Scn5 'lay-new-item-visible-after-source-edit' $RC { param($s,$o,$p,$wb) $s.Range('B3').Value2='West'; Row $p 'Product' 2 }
+        Scn5 'lay-clean-add-data' $RC { param($s,$o,$p,$wb) Add-Data $p 'Units' 'Sum Units' -4157 }
+        Scn5 'lay-clean-two-rows' $RC { param($s,$o,$p,$wb) Row $p 'Product' 2 }
+        Scn5 'lay-clean-products-to-rows-regions-to-cols' $RC { param($s,$o,$p,$wb) $p.PivotFields('Product').Orientation=1;$p.PivotFields('Region').Orientation=2 }
+        Scn5 'lay-clean-page-product' $RC { param($s,$o,$p,$wb) $p.PivotFields('Product').Orientation=3 }
+        Scn5 'lay-clean-hide-product' $RC { param($s,$o,$p,$wb) $p.PivotFields('Product').Orientation=0 }
+        Scn5 'lay-clean-hide-region' $RC { param($s,$o,$p,$wb) $p.PivotFields('Region').Orientation=0 }
+        Scn5 'lay-clean-add-units-column' $RC { param($s,$o,$p,$wb) Col $p 'Units' 2 }
+        Scn5 'lay-clean-source-edit-then-two-rows' $RC { param($s,$o,$p,$wb) $s.Range('E3').Value2=[double]1000; $s.Range('D4').Value2='West'; Row $p 'Product' 2 }
+        $book=$holder
+     }
+     'open' {
+        # Replay of workbooks DNA Calc saved (request `files`, a list of paths): opened read-only in the owned Excel,
+        # recording whether Excel repaired the package (new error*.xml logs in %TEMP%, the workbook name),
+        # every pivot's cells, every cell of A1:N80 on each sheet, then a refresh of every pivot and the same reads.
+        $holder2=$book
+        $excel.Calculation=-4105
+        function ColL2([int]$n){$s='';while($n -gt 0){$s=[string][char](65+(($n-1)%26))+$s;$n=[int][math]::Floor(($n-1)/26)};return $s}
+        function Dump2($ws){
+            $l=[Collections.Generic.List[object]]::new()
+            $r=$ws.Range('A1:N80');$v=$r.Value2
+            for($i=1;$i -le 80;$i++){for($j=1;$j -le 14;$j++){$x=$v[$i,$j];if($null -ne $x){$l.Add(@{sheet=[string]$ws.Name;a=((ColL2 $j)+$i);v=(Enc $x)})}}}
+            return ,$l.ToArray()
+        }
+        $temp=[IO.Path]::GetTempPath()
+        foreach($file in @($req.files)){
+            $name=[IO.Path]::GetFileNameWithoutExtension([string]$file)
+            [void](Try-Step "open-$name" {
+                $before=@(Get-ChildItem -LiteralPath $temp -Filter 'error*.xml' -ErrorAction SilentlyContinue|ForEach-Object{$_.FullName})
+                $wb=$null
+                try{ $wb=$excel.Workbooks.Open([string]$file,0,$true) }
+                finally{
+                    $after=@(Get-ChildItem -LiteralPath $temp -Filter 'error*.xml' -ErrorAction SilentlyContinue|Where-Object{$before -notcontains $_.FullName})
+                    $logs=@(foreach($f in $after){@{file=$f.Name;text=(Get-Content -LiteralPath $f.FullName -Raw)}})
+                    $obs.Add(@{stage="$name/open-logs";new_error_logs=$logs;workbook_name=$(if($wb){[string]$wb.Name}else{$null})})
+                }
+                $script:book=$wb
+                $script:lightCells=$true
+                Pivots-Read "$name/0-opened" { @{sheets=@(foreach($ws in $wb.Worksheets){@{name=[string]$ws.Name;cells=(Dump2 $ws)}})} }
+                foreach($ws in $wb.Worksheets){foreach($p in (Items (Call $ws 'PivotTables'))){[void](Try-Step "$name/refresh-$($p.Name)" {[void]$p.RefreshTable()})}}
+                Pivots-Read "$name/1-refreshed" { @{sheets=@(foreach($ws in $wb.Worksheets){@{name=[string]$ws.Name;cells=(Dump2 $ws)}})} }
+                $script:lightCells=$false
+                $wb.Close($false);$script:book=$null
+            })
+        }
+        $book=$holder2
+     }
      default {throw "unknown kind $($req.kind)"}
     }
     Assert-HiddenExcel 'after-work'

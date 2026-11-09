@@ -37,13 +37,13 @@ use std::collections::BTreeMap;
 
 pub const USAGE: &str = "usage: cargo xtask app xll-accept onecalc --exe <dna-onecalc-desktop.exe> --bundle <dir> --plan <plan.json> --out <dir> [--var NAME=VALUE]... [--set <name>]... [--allow-unmatched]";
 
-const PAGE_WAIT: Duration = Duration::from_secs(60);
-const LOAD_WAIT: Duration = Duration::from_secs(240);
-const CASE_WAIT: Duration = Duration::from_secs(60);
+pub(super) const PAGE_WAIT: Duration = Duration::from_secs(60);
+pub(super) const LOAD_WAIT: Duration = Duration::from_secs(240);
+pub(super) const CASE_WAIT: Duration = Duration::from_secs(60);
 
 /// What a value is, for comparing the page's text with Excel's number.
 #[derive(Clone, Debug, PartialEq)]
-enum Shown {
+pub(super) enum Shown {
     Number(f64),
     Text(String),
     Logical(bool),
@@ -52,7 +52,7 @@ enum Shown {
 }
 
 impl Shown {
-    fn describe(&self) -> String {
+    pub(super) fn describe(&self) -> String {
         match self {
             Shown::Number(n) => format!("number {n}"),
             Shown::Text(t) => format!("text {t:?}"),
@@ -64,7 +64,7 @@ impl Shown {
 
     /// An Excel answer as the controller records it: a JSON number, string, boolean, null or
     /// `{"error": "#N/A"}`.
-    fn of_json(value: &Value) -> Option<Shown> {
+    pub(super) fn of_json(value: &Value) -> Option<Shown> {
         Some(match value {
             Value::Number(n) => Shown::Number(n.as_f64()?),
             Value::String(s) => Shown::Text(s.clone()),
@@ -76,7 +76,7 @@ impl Shown {
     }
 
     /// The page's `result` text: `number 42`, `text "a"`, `logical TRUE`, `error #N/A`, `blank`.
-    fn of_page(text: &str) -> Option<Shown> {
+    pub(super) fn of_page(text: &str) -> Option<Shown> {
         if let Some(n) = text.strip_prefix("number ") {
             return n.parse().ok().map(Shown::Number);
         }
@@ -93,7 +93,7 @@ impl Shown {
     }
 
     /// An element of an array result as the table shows it.
-    fn of_cell(text: &str) -> Shown {
+    pub(super) fn of_cell(text: &str) -> Shown {
         if let Ok(n) = text.parse::<f64>() {
             return Shown::Number(n);
         }
@@ -107,7 +107,7 @@ impl Shown {
 
     /// Process-dependent numbers inside a text are not compared: Excel's own sheet handle in a
     /// reference description (`sheet=2494755788000`) is a different number in every process.
-    fn normalized(&self) -> Shown {
+    pub(super) fn normalized(&self) -> Shown {
         match self {
             Shown::Text(t) => {
                 let mut out = String::new();
@@ -128,7 +128,7 @@ impl Shown {
         }
     }
 
-    fn same(&self, other: &Shown) -> bool {
+    pub(super) fn same(&self, other: &Shown) -> bool {
         match (&self.normalized(), &other.normalized()) {
             // A blank result is the number 0 in a cell (Excel shows 0).
             (Shown::Blank, Shown::Number(n)) | (Shown::Number(n), Shown::Blank) => *n == 0.0,
@@ -146,7 +146,7 @@ fn expand(text: &str, vars: &BTreeMap<String, String>) -> String {
     out
 }
 
-fn read_json(path: &Path) -> Result<Value, String> {
+pub(super) fn read_json(path: &Path) -> Result<Value, String> {
     let bytes = fs::read(path).map_err(|e| format!("{}: {e}", path.display()))?;
     let text = String::from_utf8_lossy(&bytes);
     serde_json::from_str(text.trim_start_matches('\u{feff}')).map_err(|e| format!("{}: {e}", path.display()))
@@ -167,7 +167,7 @@ fn excel_answers(path: &Path) -> Result<BTreeMap<String, Value>, String> {
     Ok(answers)
 }
 
-fn text_of(session: &Session, role: &str) -> String {
+pub(super) fn text_of(session: &Session, role: &str) -> String {
     let script = format!(
         "var e = document.querySelector('[data-onecalc=\"{role}\"]'); return e ? e.textContent : null;"
     );
@@ -177,7 +177,7 @@ fn text_of(session: &Session, role: &str) -> String {
     }
 }
 
-fn items_of(session: &Session, role: &str) -> Vec<String> {
+pub(super) fn items_of(session: &Session, role: &str) -> Vec<String> {
     let script = format!(
         "return Array.from(document.querySelectorAll('[data-onecalc=\"{role}\"] li')).map(function(e){{return e.textContent;}});"
     );
@@ -188,7 +188,7 @@ fn items_of(session: &Session, role: &str) -> Vec<String> {
 }
 
 /// Sets the formula field's text as typing would leave it and tells the page (one input event).
-fn enter_formula(session: &Session, formula: &str) -> Result<(), String> {
+pub(super) fn enter_formula(session: &Session, formula: &str) -> Result<(), String> {
     let quoted = serde_json::to_string(formula).map_err(|e| e.to_string())?;
     session
         .script(&format!(
@@ -197,7 +197,7 @@ fn enter_formula(session: &Session, formula: &str) -> Result<(), String> {
         .map(|_| ())
 }
 
-fn set_text_input(session: &Session, role: &str, text: &str) -> Result<(), String> {
+pub(super) fn set_text_input(session: &Session, role: &str, text: &str) -> Result<(), String> {
     let quoted = serde_json::to_string(text).map_err(|e| e.to_string())?;
     session
         .script(&format!(
@@ -206,12 +206,12 @@ fn set_text_input(session: &Session, role: &str, text: &str) -> Result<(), Strin
         .map(|_| ())
 }
 
-fn click(session: &Session, role: &str) -> Result<(), String> {
+pub(super) fn click(session: &Session, role: &str) -> Result<(), String> {
     let element = session.element(&format!("[data-onecalc=\"{role}\"]"))?;
     session.post(&format!("/element/{element}/click"), json!({})).map(|_| ())
 }
 
-fn wait_until(limit: Duration, mut done: impl FnMut() -> bool) -> bool {
+pub(super) fn wait_until(limit: Duration, mut done: impl FnMut() -> bool) -> bool {
     let started = Instant::now();
     loop {
         if done() {
@@ -226,7 +226,7 @@ fn wait_until(limit: Duration, mut done: impl FnMut() -> bool) -> bool {
 
 /// The settled result of the formula in the field: the page first shows "no formula" for an empty
 /// field, so each case is entered after an empty one and waits for the answer to change.
-fn evaluate(session: &Session, formula: &str) -> Result<(String, Vec<String>, Option<Shown>), String> {
+pub(super) fn evaluate(session: &Session, formula: &str) -> Result<(String, Vec<String>, Option<Shown>), String> {
     enter_formula(session, "")?;
     if !wait_until(PAGE_WAIT, || text_of(session, "result") == "no formula") {
         return Err("the page did not return to an empty formula".to_owned());
@@ -296,7 +296,7 @@ fn describe_functions(session: &Session, listed: &[String]) -> Value {
     json!(shown)
 }
 
-fn items_of_role(session: &Session, role: &str) -> Vec<String> {
+pub(super) fn items_of_role(session: &Session, role: &str) -> Vec<String> {
     let script = format!(
         "return Array.from(document.querySelectorAll('[data-onecalc=\"{role}\"]')).map(function(e){{return e.textContent;}});"
     );
@@ -419,6 +419,13 @@ fn start_page(
         }
         thread::sleep(Duration::from_millis(200));
     }
+    let (driver, session) = attach_page(upstream, out)?;
+    Ok((app, driver, session))
+}
+
+/// chromedriver attached to the WebView2 whose DevTools port is `upstream`, as the smoke test
+/// attaches it (through a proxy that gives the browser's product version).
+pub(super) fn attach_page(upstream: u16, out: &Path) -> Result<(DriverProcess, Session), String> {
     let browser = &BROWSERS[0];
     let version = variable_file(browser.variable)
         .or_else(|| find_on_path(browser.program))
@@ -427,13 +434,12 @@ fn start_page(
         .and_then(|text| text.split_whitespace().nth(1).map(str::to_owned))
         .unwrap_or_default();
     let proxy = paint::devtools_proxy(upstream, format!("Chrome/{version}"))?;
-    let (driver, session) = open_attached(browser, &out.join("downloads"), None, Some(&format!("127.0.0.1:{proxy}")), None)?;
-    Ok((app, driver, session))
+    open_attached(browser, &out.join("downloads"), None, Some(&format!("127.0.0.1:{proxy}")), None)
 }
 
 /// Opens the workbook at `path` through the page's file input, answering the page's question about
 /// unsaved changes, and waits for the page to say it opened it.
-fn open_through_page(session: &Session, path: &Path) -> Result<(), String> {
+pub(super) fn open_through_page(session: &Session, path: &Path) -> Result<(), String> {
     let element = session.element("[data-onecalc=\"file-input\"]")?;
     let text = path.canonicalize().map_err(|e| e.to_string())?.display().to_string();
     let text = text.strip_prefix(r"\\?\").unwrap_or(&text).to_owned();

@@ -5,6 +5,7 @@
   py -3 tools/excel-session/pivot-fixtures.py stages RESULT.json OUT.tsv [--prefix P] [--formats]
   py -3 tools/excel-session/pivot-fixtures.py gpd RESULT.json OUT.tsv      (m3: id, formula, kind, value, text; entry refusals)
   py -3 tools/excel-session/pivot-fixtures.py cube RESULT.json OUT.tsv     (m4: every stage of CUBE rows, converted and model pivot cells)
+  py -3 tools/excel-session/pivot-fixtures.py m5 OUT_DIR RESULT.json [RESULT.json ...]   (m5: scenarios.tsv and cells.tsv; a later result replaces a scenario of an earlier one)
   py -3 tools/excel-session/pivot-fixtures.py compare A.tsv B.tsv
 
 `formats` and `--formats` add: number_format, text, font_name, font_size, bold, italic, font_color,
@@ -167,6 +168,67 @@ def write_cube(result_path, out):
     print(f"{out}: {len(lines)} lines")
 
 
+def write_m5(out_dir, results):
+    """scenarios.tsv: one line per scenario; cells.tsv: every non-empty cell of Out and Src per stage."""
+    import os
+    scenarios = {}
+    for path in results:
+        data = load(path)
+        seen = {}
+        for item in data["observations"]:
+            if "stage" in item and "/" in item["stage"]:
+                name, stage = item["stage"].split("/", 1)
+                seen.setdefault(name, {"stages": {}, "steps": {}})["stages"][stage[0]] = item
+            elif "step" in item and "/" in item["step"] and not item["step"].startswith("m5-"):
+                name, step = item["step"].split("/", 1)
+                seen.setdefault(name, {"stages": {}, "steps": {}})["steps"][step] = item
+        scenarios.update(seen)
+
+    def flat(text):
+        return " ".join(str(text).split())
+
+    def pivots(item):
+        return ";".join(f"{p['name'].removeprefix('pvt_')}@{str(p['table_range2']).replace('$', '')}@{p['source']}" for p in item["pivots"]) or "-"
+
+    def tables(item):
+        found = []
+        for sheet in ("Src", "Out"):
+            for table in item["extra"].get(sheet, {}).get("tables", []):
+                found.append(f"{table['name']}={table['range']}")
+        return ";".join(found) or "-"
+
+    os.makedirs(out_dir, exist_ok=True)
+    rows, cells = [], []
+    for name in sorted(scenarios):
+        entry = scenarios[name]
+        if "1" not in entry["stages"] or "0" not in entry["stages"]:
+            continue
+
+        def step(key):
+            item = entry["steps"].get(key)
+            return "ok" if item is None or item.get("success") else flat(item.get("message", "failed"))
+
+        stages = [entry["stages"].get(str(n)) for n in range(5)]
+        rows.append("\t".join([name, step("act"), step("refresh"), step("refresh-reopened"), step("save")]
+                              + [pivots(s) if s else "-" for s in stages] + [tables(s) if s else "-" for s in stages]))
+        for number in (0, 1, 2):
+            item = entry["stages"].get(str(number))
+            if not item or (number == 0 and not name.startswith("base-")):
+                continue
+            for sheet in ("Out", "Src"):
+                for cell in item["extra"].get(sheet, {}).get("cells", []):
+                    decoded = cell_value(cell["v"])
+                    if decoded:
+                        cells.append("\t".join([name, str(number), sheet, cell["a"], decoded[0], decoded[1]]))
+    header = "\t".join(["id", "act", "refresh", "refresh_reopened", "save", "pivots0", "pivots1", "pivots2", "pivots3", "pivots4",
+                        "tables0", "tables1", "tables2", "tables3", "tables4"])
+    with open(os.path.join(out_dir, "scenarios.tsv"), "w", encoding="utf-8", newline="\n") as handle:
+        handle.write(header + "\n" + "\n".join(rows) + "\n")
+    with open(os.path.join(out_dir, "cells.tsv"), "w", encoding="utf-8", newline="\n") as handle:
+        handle.write("scenario\tstage\tsheet\taddress\tkind\tvalue\n" + "\n".join(cells) + "\n")
+    print(f"{out_dir}: {len(rows)} scenarios, {len(cells)} cells")
+
+
 def main(argv):
     if argv and argv[0] in ("cells", "formats") and len(argv) >= 4:
         sheets = None
@@ -180,6 +242,8 @@ def main(argv):
     elif argv and argv[0] == "stages" and len(argv) >= 3:
         prefix = argv[argv.index("--prefix") + 1] if "--prefix" in argv else ""
         write_stages(argv[1], argv[2], prefix, "--formats" in argv)
+    elif argv and argv[0] == "m5" and len(argv) >= 3:
+        write_m5(argv[1], argv[2:])
     elif argv and argv[0] == "compare" and len(argv) == 3:
         a = open(argv[1], encoding="utf-8").read().splitlines()
         b = open(argv[2], encoding="utf-8").read().splitlines()

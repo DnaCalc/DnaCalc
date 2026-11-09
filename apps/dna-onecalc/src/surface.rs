@@ -89,6 +89,8 @@ enum Pending {
     New,
     Open { name: String, bytes: Vec<u8> },
     OpenNative,
+    /// A file from the recent list, by its path.
+    OpenRecent(String),
     /// An example's authored state.
     Example(Box<Authored>),
 }
@@ -179,6 +181,14 @@ fn surface(link: Rc<dyn Link>) -> impl IntoView {
     let vba_source = RwSignal::new(calc_vba::EXAMPLE_MODULE.to_owned());
     let vba_status = RwSignal::new("No VBA module loaded.".to_owned());
     let vba_generation = RwSignal::new(0u64);
+    // The host tells the page when a real-time value arrived for the formula: it is evaluated again.
+    link.with_value(|link| {
+        link.on_event(Rc::new(move |event| {
+            if event == "rtd" {
+                vba_generation.update(|generation| *generation += 1);
+            }
+        }))
+    });
     // Whether the file's VBA project may run: Excel's default is not until the person enables it.
     let macros_view = RwSignal::new(MacrosView::Enabled);
     let load_vba = move |_| {
@@ -268,6 +278,40 @@ fn surface(link: Rc<dyn Link>) -> impl IntoView {
     let file_dialog = NodeRef::<leptos::html::Dialog>::new();
     let file_input = NodeRef::<leptos::html::Input>::new();
     let dirty = move || baseline.get().as_ref() != Some(&authored.get());
+    // The recent files the host keeps (the desktop app), and whether the last file opened was
+    // refused (it can then be opened in DNA Calc).
+    let recent = RwSignal::new(Vec::<String>::new());
+    let refused_file = RwSignal::new(false);
+    let refresh_recent = move || {
+        if native {
+            call(
+                Request::Recent,
+                Box::new(move |reply| {
+                    if let Reply::Recent(list) = reply {
+                        recent.set(list);
+                    }
+                }),
+            );
+        }
+    };
+    refresh_recent();
+    // The window says the session's name and whether it has unsaved changes; the host is told too,
+    // so that closing the window can ask first.
+    Effect::new(move |_| {
+        let name = file_name.get();
+        let changed = dirty();
+        let shown_name = if name.is_empty() { "Untitled".to_owned() } else { name.clone() };
+        let title = format!("{shown_name}{} - DNA OneCalc", if changed { "*" } else { "" });
+        if let Some(document) = web_sys::window().and_then(|window| window.document()) {
+            document.set_title(&title);
+        }
+        if native {
+            call(
+                Request::SessionState { dirty: changed, name },
+                Box::new(|_| {}),
+            );
+        }
+    });
 
     // Gives the surface's fields an authored state, as an opened file or an example does.
     let apply = move |state: Authored| {
@@ -414,10 +458,17 @@ fn surface(link: Rc<dyn Link>) -> impl IntoView {
         );
     });
     let on_reply = Callback::new(move |reply: Reply| match reply {
-        Reply::Opened(opened) => apply_opened(*opened),
-        Reply::NotASession { reason, offer } => file_status.set(format!(
-            "This file is outside what a OneCalc session holds: {reason}. {offer}."
-        )),
+        Reply::Opened(opened) => {
+            refused_file.set(false);
+            apply_opened(*opened);
+            refresh_recent();
+        }
+        Reply::NotASession { reason, offer } => {
+            refused_file.set(true);
+            file_status.set(format!(
+                "This file is outside what a OneCalc session holds: {reason}. {offer}."
+            ))
+        }
         Reply::Cancelled => {}
         Reply::Refused { message } => file_status.set(message),
         other => file_status.set(format!("Unexpected answer: {other:?}")),
@@ -429,6 +480,10 @@ fn surface(link: Rc<dyn Link>) -> impl IntoView {
             Box::new(move |reply| on_reply.run(reply)),
         ),
         Pending::OpenNative => call(Request::OpenNative, Box::new(move |reply| on_reply.run(reply))),
+        Pending::OpenRecent(path) => call(
+            Request::OpenRecent { path },
+            Box::new(move |reply| on_reply.run(reply)),
+        ),
         Pending::Example(state) => apply(*state),
     };
     // Unsaved changes are never replaced without asking.
@@ -485,13 +540,8 @@ fn surface(link: Rc<dyn Link>) -> impl IntoView {
             Err(message) => file_status.set(message),
         });
     };
-    let save_file = move |_| {
+    let save_with = move |request: Request| {
         let saved = authored.get_untracked();
-        let request = if native {
-            Request::SaveNative
-        } else {
-            Request::Save
-        };
         call(
             request,
             Box::new(move |reply| match reply {
@@ -508,9 +558,45 @@ fn surface(link: Rc<dyn Link>) -> impl IntoView {
                 }
                 Reply::Saved { path } => {
                     baseline.set(Some(saved));
+                    if let Some(name) = path.rsplit(['\\', '/']).next().filter(|n| !n.is_empty()) {
+                        file_name.set(name.to_owned());
+                    }
                     file_status.set(format!("Saved {path}."));
+                    refresh_recent();
                 }
                 Reply::Cancelled => {}
+                Reply::Refused { message } => file_status.set(message),
+                other => file_status.set(format!("Unexpected answer: {other:?}")),
+            }),
+        );
+    };
+    let save_file = move |_| save_with(if native { Request::SaveNative } else { Request::Save });
+    let save_file_as = move |_| save_with(Request::SaveAsNative);
+    // The desktop app's keys: Ctrl+O opens, Ctrl+S saves, Ctrl+Shift+S saves as.
+    if native {
+        let shortcut = window_event_listener(leptos::ev::keydown, move |ev| {
+            if !(ev.ctrl_key() || ev.meta_key()) || ev.alt_key() {
+                return;
+            }
+            match ev.key().to_ascii_lowercase().as_str() {
+                "o" if !ev.shift_key() => {
+                    ev.prevent_default();
+                    request.run(Pending::OpenNative);
+                }
+                "s" => {
+                    ev.prevent_default();
+                    save_with(if ev.shift_key() { Request::SaveAsNative } else { Request::SaveNative });
+                }
+                _ => {}
+            }
+        });
+        std::mem::forget(shortcut);
+    }
+    let open_in_dna_calc = move |_| {
+        call(
+            Request::OpenInDnaCalc,
+            Box::new(move |reply| match reply {
+                Reply::Accepted => file_status.set("Opened the file in DNA Calc.".to_owned()),
                 Reply::Refused { message } => file_status.set(message),
                 other => file_status.set(format!("Unexpected answer: {other:?}")),
             }),
@@ -814,6 +900,15 @@ fn surface(link: Rc<dyn Link>) -> impl IntoView {
                     <button data-onecalc="file-new" on:click=move |_| request.run(Pending::New)>"New session"</button>
                     <button data-onecalc="file-open" on:click=open_file>"Open…"</button>
                     <button data-onecalc="file-save" on:click=save_file>"Save…"</button>
+                    <button data-onecalc="file-save-as" hidden=!native on:click=save_file_as>"Save as…"</button>
+                    <button data-onecalc="open-in-dna-calc" hidden=move || !(native && refused_file.get()) on:click=open_in_dna_calc>"Open in DNA Calc"</button>
+                </div>
+                <div hidden=move || !native || recent.with(Vec::is_empty)><strong>"Recent files"</strong>
+                    <ul data-onecalc="recent-files">{move || recent.with(|list| list.iter().map(|path| {
+                        let path = path.clone();
+                        let label = path.clone();
+                        view! { <li><button data-onecalc="recent-open" data-path=path.clone() on:click=move |_| request.run(Pending::OpenRecent(path.clone()))>{label}</button></li> }
+                    }).collect_view())}</ul>
                 </div>
                 <input node_ref=file_input data-onecalc="file-input" type="file" accept=".xlsx,.xlsm,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet,application/vnd.ms-excel.sheet.macroEnabled.12" hidden aria-label="Open a session workbook" on:change=move |ev| {
                     let input = event_target::<web_sys::HtmlInputElement>(&ev);

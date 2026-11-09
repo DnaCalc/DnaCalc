@@ -17,6 +17,7 @@ compile_error!(
     "calc-platform-desktop is native-only and must not be built for wasm32; portable and browser builds exclude it"
 );
 
+pub mod assets;
 #[cfg(windows)]
 mod background;
 #[cfg(windows)]
@@ -31,9 +32,13 @@ pub mod winhttp;
 #[cfg(windows)]
 pub use background::{Background, WM_BACKGROUND};
 #[cfg(windows)]
-pub use shell::{ObjectHandler, Shell, client_size, pump_pending};
+pub use shell::{
+    CloseHandler, ObjectHandler, Placement, Shell, client_size, placement_of, pump_pending,
+    set_window_title,
+};
 #[cfg(windows)]
 pub use webview::{
+    RUNTIME_DOWNLOAD, runtime_version,
     SEPARATOR, ThreadMessage, ThreadTimer, WebView, WebViewOptions, base64, per_monitor_dpi_aware,
     run_message_loop, split_message, unbase64,
 };

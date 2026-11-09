@@ -7,10 +7,11 @@
 //! The window chain, the WebView2 host and its string bridge are `calc-platform-desktop`'s, the
 //! add-in set `calc-addin-host`'s, and the file dialogs `calc-platform-desktop`'s: nothing here is
 //! OneCalc-only beyond wiring them to the host.
-use crate::host::{Files, Host, Libraries};
-use calc_addin_host::{AddinHost, Document};
+use crate::host::{CloseChoice, Files, Host, Libraries};
+use crate::settings::Settings;
+use calc_addin_host::{AddinHost, Document, RtdClient, RtdInput};
 use calc_fml::CallableTable;
-use calc_platform_desktop::dialogs::{self, FileFilter};
+use calc_platform_desktop::dialogs::{self, Buttons, FileFilter, Pressed};
 use calc_platform_desktop::{
     Shell, ThreadMessage, ThreadTimer, WebView, WebViewOptions, per_monitor_dpi_aware,
     pump_pending, run_message_loop,
@@ -30,14 +31,25 @@ use std::{
 struct Options {
     /// Navigate here (the harness's bundle server), instead of mapping `assets`.
     url: Option<String>,
-    /// The built page (`cargo xtask app bundle onecalc`), mapped as `https://dnacalc.app/`.
+    /// The built page (`cargo xtask app bundle onecalc`), mapped as `https://dnacalc.app/`. A
+    /// packaged executable carries its page and needs neither this nor `url`.
     assets: Option<PathBuf>,
     xlls: Vec<PathBuf>,
     /// The first sheet's name, which add-ins see (the comparisons with Excel name it as the
     /// Excel workbook they ran in did).
     sheet: String,
     debug_port: Option<u16>,
-    size: (i32, i32),
+    /// The first client size; without one the window comes back where it was, else 1280 by 900.
+    size: Option<(i32, i32)>,
+    /// The folder for the app's data (settings, the WebView2 profile); without one,
+    /// `%LOCALAPPDATA%\DNA OneCalc`.
+    data_dir: Option<PathBuf>,
+    /// Answers the question asked when a window with unsaved changes closes, instead of asking
+    /// (an acceptance run closes the window without a person): `save`, `discard` or `cancel`.
+    close_answer: Option<CloseChoice>,
+    /// Writes the app's own messages (a missing WebView2, a file DNA Calc cannot be started for)
+    /// to this file instead of showing them in a box.
+    message_file: Option<PathBuf>,
     /// Save sessions here, each in a new numbered folder under the name the session suggests,
     /// instead of asking in the save dialog: an acceptance run drives the page's Save without a
     /// person (the dialog's own code is not exercised then).
@@ -51,7 +63,10 @@ fn options(args: &[String]) -> Result<Options, String> {
         xlls: Vec::new(),
         sheet: "Sheet1".to_owned(),
         debug_port: None,
-        size: (1280, 900),
+        size: None,
+        data_dir: None,
+        close_answer: None,
+        message_file: None,
         save_dir: None,
     };
     let mut args = args.iter();
@@ -64,24 +79,42 @@ fn options(args: &[String]) -> Result<Options, String> {
             "--xll" => o.xlls.push(PathBuf::from(value()?)),
             "--sheet" => o.sheet = value()?,
             "--save-dir" => o.save_dir = Some(PathBuf::from(value()?)),
+            "--data-dir" => o.data_dir = Some(PathBuf::from(value()?)),
+            "--message-file" => o.message_file = Some(PathBuf::from(value()?)),
+            "--close-answer" => {
+                o.close_answer = Some(match value()?.as_str() {
+                    "save" => CloseChoice::Save,
+                    "discard" => CloseChoice::Discard,
+                    "cancel" => CloseChoice::Cancel,
+                    other => return Err(format!("--close-answer is save, discard or cancel, not {other}")),
+                })
+            }
             "--debug-port" => {
                 o.debug_port = Some(value()?.parse().map_err(|_| "--debug-port needs a port")?)
             }
             "--size" => {
                 let text = value()?;
                 let (w, h) = text.split_once('x').ok_or("--size needs WIDTHxHEIGHT")?;
-                o.size = (
+                o.size = Some((
                     w.parse().map_err(|_| "--size width")?,
                     h.parse().map_err(|_| "--size height")?,
-                );
+                ));
             }
             other => return Err(format!("unknown app argument: {other}")),
         }
     }
-    if o.url.is_none() && o.assets.is_none() {
-        return Err("app mode needs --assets DIR (the built page) or --url URL".into());
+    if o.url.is_none() && o.assets.is_none() && !crate::embedded::has_page() {
+        return Err("app mode needs --assets DIR (the built page) or --url URL: this build carries no page".into());
     }
     Ok(o)
+}
+
+impl Options {
+    /// Whether a test flag is present: such a run reports on stderr and by its exit code, and
+    /// shows no box that waits for a click.
+    fn scripted(&self) -> bool {
+        self.debug_port.is_some() || self.close_answer.is_some() || self.data_dir.is_some() || self.save_dir.is_some() || self.message_file.is_some()
+    }
 }
 
 /// The workbook name the add-ins see.
@@ -98,6 +131,39 @@ struct Dialogs {
     save_dir: Option<(PathBuf, usize)>,
     /// The Mark of the Web zone of the file last chosen to open.
     zone: Option<u32>,
+    /// The path of the file last chosen to open.
+    path: Option<PathBuf>,
+    /// The remembered window place and recent files.
+    settings: Rc<RefCell<Settings>>,
+    /// `--close-answer`: what a close with unsaved changes does without asking.
+    close_answer: Option<CloseChoice>,
+    /// `--message-file`: where the app's messages go instead of a box.
+    message_file: Option<PathBuf>,
+    /// DNA Calc's executable when it is in the folder with this one.
+    dna_calc: Option<PathBuf>,
+    /// A test flag is present: nothing here waits for a click.
+    scripted: bool,
+}
+
+/// What the app says to the person: in a box, or in the file `--message-file` names.
+fn say(owner: *mut std::ffi::c_void, message_file: Option<&Path>, scripted: bool, text: &str) {
+    match message_file {
+        Some(file) => {
+            let _ = std::fs::write(file, text);
+        }
+        // A scripted run never waits for a click.
+        None if scripted => eprintln!("dna-onecalc-desktop: {text}"),
+        None => {
+            dialogs::message(owner.cast(), "DNA OneCalc", text, Buttons::Ok, true);
+        }
+    }
+}
+
+/// Where DNA Calc's executable would be: beside this one.
+fn dna_calc_beside_us() -> Option<PathBuf> {
+    let folder = std::env::current_exe().ok()?.parent()?.to_owned();
+    let exe = folder.join("dna-calc-desktop.exe");
+    exe.is_file().then_some(exe)
 }
 
 /// The zone in a file's `Zone.Identifier` alternate data stream (`ZoneId=3`), when it has one.
@@ -132,13 +198,87 @@ impl Files for Dialogs {
         else {
             return Ok(None);
         };
-        let bytes = std::fs::read(&path).map_err(|e| format!("{}: {e}", path.display()))?;
-        self.zone = mark_of_the_web(&path);
+        self.read_recent(&path).map(Some)
+    }
+
+    fn read_recent(&mut self, path: &Path) -> Result<(String, Vec<u8>), String> {
+        let bytes = std::fs::read(path).map_err(|e| format!("{}: {e}", path.display()))?;
+        self.zone = mark_of_the_web(path);
+        self.path = Some(path.to_owned());
         let name = path
             .file_name()
             .map(|n| n.to_string_lossy().into_owned())
             .unwrap_or_default();
-        Ok(Some((name, bytes)))
+        Ok((name, bytes))
+    }
+
+    fn opened_path(&self) -> Option<PathBuf> {
+        self.path.clone()
+    }
+
+    fn recent(&self) -> Vec<String> {
+        self.settings.borrow().recent.clone()
+    }
+
+    fn remember(&mut self, path: &str) {
+        let mut settings = self.settings.borrow_mut();
+        settings.push_recent(path);
+        settings.save();
+    }
+
+    fn write_in_place(&mut self, path: &str, bytes: &[u8]) -> Result<bool, String> {
+        // A run that saves into numbered folders never overwrites the file it opened.
+        if self.save_dir.is_some() {
+            return Ok(false);
+        }
+        std::fs::write(path, bytes).map_err(|e| format!("{path}: {e}"))?;
+        Ok(true)
+    }
+
+    fn confirm_close(&mut self, name: &str) -> CloseChoice {
+        if let Some(answer) = self.close_answer {
+            return answer;
+        }
+        if self.scripted {
+            eprintln!("dna-onecalc-desktop: unsaved changes in {name}; no --close-answer given, the window stays open");
+            return CloseChoice::Cancel;
+        }
+        match dialogs::message(
+            self.owner.cast(),
+            "DNA OneCalc",
+            &format!("Save changes to {name}?"),
+            Buttons::YesNoCancel,
+            false,
+        ) {
+            Pressed::Yes => CloseChoice::Save,
+            Pressed::No => CloseChoice::Discard,
+            _ => CloseChoice::Cancel,
+        }
+    }
+
+    fn open_in_dna_calc(&mut self, path: Option<&Path>, name: &str, bytes: &[u8]) -> Result<(), String> {
+        let Some(exe) = &self.dna_calc else {
+            let text = "OneCalc cannot open this file, and DNA Calc (dna-calc-desktop.exe) is not in the folder with OneCalc. Put it there to open such files in DNA Calc from here, or open the file in DNA Calc yourself.".to_owned();
+            say(self.owner, self.message_file.as_deref(), self.scripted, &text);
+            return Err(text);
+        };
+        // A file the page read has no path: a copy goes in the app's data folder.
+        let file = match path {
+            Some(path) => path.to_owned(),
+            None => {
+                let folder = self.settings.borrow().folder().join("refused");
+                std::fs::create_dir_all(&folder).map_err(|e| format!("{}: {e}", folder.display()))?;
+                let copy = folder.join(name);
+                std::fs::write(&copy, bytes).map_err(|e| format!("{}: {e}", copy.display()))?;
+                copy
+            }
+        };
+        std::process::Command::new(exe)
+            .arg("--open")
+            .arg(&file)
+            .spawn()
+            .map(|_| ())
+            .map_err(|e| format!("DNA Calc did not start ({}): {e}", exe.display()))
     }
 
     fn opened_zone(&self) -> Option<u32> {
@@ -341,6 +481,24 @@ impl Libraries for Addins {
             eprintln!("dna-onecalc-desktop: add-in events: {why}");
         }
     }
+
+    fn rtd(&self) -> Option<Rc<RtdClient>> {
+        self.set.borrow().rtd().cloned()
+    }
+
+    fn registration_names(&self) -> Vec<String> {
+        self.set.borrow().registrations().iter().map(|r| r.name.clone()).collect()
+    }
+
+    fn poll_rtd(&mut self, evaluating: bool) -> Vec<RtdInput> {
+        match self.set.borrow().poll_rtd(evaluating) {
+            Ok(inputs) => inputs,
+            Err(why) => {
+                eprintln!("dna-onecalc-desktop: RTD: {why}");
+                Vec::new()
+            }
+        }
+    }
 }
 
 /// Where an evaluation waits for an add-in's asynchronous return: it takes the returns the add-in
@@ -402,6 +560,9 @@ struct App {
     host: RefCell<Host<Dialogs, Addins>>,
     web: WebView,
     frame: *mut std::ffi::c_void,
+    /// The outermost window (as `Shell::hwnd` gives it), for its place.
+    root: usize,
+    settings: Rc<RefCell<Settings>>,
     bounds: Cell<(i32, i32)>,
     /// Requests that arrived while one was being answered (an evaluation that waits for an add-in
     /// runs the message loop, which delivers the page's next message): answered in order after it.
@@ -434,8 +595,44 @@ impl App {
         self.busy.set(false);
     }
 
+    /// The window is closing: asks about unsaved changes, and keeps the window's place for the next
+    /// run. `false` keeps the window open.
+    fn close_requested(&self) -> bool {
+        // A request being answered (an add-in call that pumps messages) is in the way: not now.
+        let Ok(mut host) = self.host.try_borrow_mut() else {
+            return false;
+        };
+        let allowed = host.close_requested();
+        drop(host);
+        if allowed {
+            if let Some(place) = calc_platform_desktop::placement_of(self.root) {
+                let mut settings = self.settings.borrow_mut();
+                settings.window = Some(place);
+                settings.save();
+            }
+        }
+        allowed
+    }
+
+    /// Real-time values the add-ins' servers sent: the page evaluates its formula again.
+    fn poll_rtd(&self) {
+        if self.busy.get() {
+            return;
+        }
+        let changed = match self.host.try_borrow_mut() {
+            Ok(mut host) => host.poll_rtd(),
+            Err(_) => false,
+        };
+        if changed {
+            if let Err(why) = self.web.post(r#"{"event":"rtd"}"#, None) {
+                eprintln!("dna-onecalc-desktop: {why}");
+            }
+        }
+    }
+
     /// The window's size, once per tick.
     fn tick(&self) {
+        self.poll_rtd();
         if let Some((width, height)) = calc_platform_desktop::client_size(self.frame.cast()) {
             if (width, height) != self.bounds.get() && width > 0 && height > 0 {
                 self.bounds.set((width, height));
@@ -447,13 +644,39 @@ impl App {
 
 pub fn run(args: &[String]) -> Result<(), String> {
     let o = options(args)?;
+    // WebView2 is the app's window: say clearly what is missing and where to get it.
+    if calc_platform_desktop::runtime_version().is_none() {
+        let text = crate::embedded::missing_runtime_message();
+        say(std::ptr::null_mut(), o.message_file.as_deref(), o.scripted(), &text);
+        if !o.scripted()
+            && dialogs::message(
+                std::ptr::null_mut(),
+                "DNA OneCalc",
+                "Open the download page now?",
+                Buttons::YesNo,
+                false,
+            ) == Pressed::Yes
+        {
+            dialogs::open_url(calc_platform_desktop::RUNTIME_DOWNLOAD);
+        }
+        return Err(text);
+    }
     per_monitor_dpi_aware();
+    let data_dir = o.data_dir.clone().unwrap_or_else(crate::settings::default_folder);
+    let settings = Rc::new(RefCell::new(Settings::load(&data_dir)));
     let shell = Shell::new("DNA OneCalc")?;
     let frame = shell.workbook_hwnd();
-    shell.show(o.size.0, o.size.1);
+    let size = o.size.unwrap_or((1280, 900));
+    match (o.size, settings.borrow().window) {
+        // Where the window was, when that is still on a display.
+        (None, Some(place)) if place.is_on_screen() => {
+            shell.show_placement(&place);
+        }
+        _ => shell.show(size.0, size.1),
+    }
     let user_data = std::env::var_os("DNACALC_WEBVIEW2_DATA")
         .map(PathBuf::from)
-        .unwrap_or_else(|| std::env::temp_dir().join("dnacalc-onecalc-webview2"));
+        .unwrap_or_else(|| data_dir.join("WebView2"));
     let mut browser_args = String::new();
     if let Some(port) = o.debug_port {
         browser_args.push_str(&format!(
@@ -465,7 +688,7 @@ pub fn run(args: &[String]) -> Result<(), String> {
         &WebViewOptions {
             user_data: &user_data,
             browser_args,
-            size: o.size,
+            size,
         },
     )?;
 
@@ -493,7 +716,21 @@ pub fn run(args: &[String]) -> Result<(), String> {
         arrived: BTreeMap::new(),
         since: Instant::now(),
     })));
-    let mut host = Host::new(session, Dialogs { owner: frame.cast(), save_dir: o.save_dir.clone().map(|d| (d, 0)), zone: None }, Addins::new(set.clone()));
+    // The add-ins' real-time servers reach the formula: the session joins and starts their topics.
+    let rtd = set.borrow_mut().enable_rtd()?;
+    session.set_rtd_connector(rtd);
+    let dialogs = Dialogs {
+        owner: frame.cast(),
+        save_dir: o.save_dir.clone().map(|d| (d, 0)),
+        zone: None,
+        path: None,
+        settings: settings.clone(),
+        close_answer: o.close_answer,
+        message_file: o.message_file.clone(),
+        dna_calc: dna_calc_beside_us(),
+        scripted: o.scripted(),
+    };
+    let mut host = Host::new(session, dialogs, Addins::new(set.clone()));
     for xll in &o.xlls {
         match host.handle(Request::LoadAddin {
             path: xll.display().to_string(),
@@ -509,7 +746,9 @@ pub fn run(args: &[String]) -> Result<(), String> {
         host: RefCell::new(host),
         web,
         frame: frame.cast(),
-        bounds: Cell::new(o.size),
+        root: shell.hwnd(),
+        settings: settings.clone(),
+        bounds: Cell::new(size),
         waiting: RefCell::new(VecDeque::new()),
         busy: Cell::new(false),
     });
@@ -522,11 +761,23 @@ pub fn run(args: &[String]) -> Result<(), String> {
             }
         })?;
     }
+    // The window's title follows the page's: the session's name and a mark for unsaved changes.
+    let root = shell.hwnd();
+    app.web.on_title_changed(move |title| calc_platform_desktop::set_window_title(root, &title))?;
+    {
+        let weak = Rc::downgrade(&app);
+        shell.set_close_handler(Some(Rc::new(move || {
+            weak.upgrade().is_none_or(|app| app.close_requested())
+        })));
+    }
     let target = if let Some(url) = &o.url {
         url.clone()
-    } else {
-        let assets = o.assets.as_ref().ok_or("no assets")?;
+    } else if let Some(assets) = &o.assets {
         app.web.map_folder("dnacalc.app", assets)?;
+        "https://dnacalc.app/index.html".to_owned()
+    } else {
+        let page = crate::embedded::page()?;
+        app.web.serve_assets("dnacalc.app", Rc::new(page))?;
         "https://dnacalc.app/index.html".to_owned()
     };
     app.web.navigate(&target)?;
@@ -555,12 +806,19 @@ mod tests {
     #[test]
     fn app_options_need_a_page() {
         let args = |list: &[&str]| list.iter().map(|s| s.to_string()).collect::<Vec<_>>();
-        assert!(options(&args(&["--app"])).is_err());
+        assert_eq!(options(&args(&["--app"])).is_err(), !crate::embedded::has_page());
         let o = options(&args(&[
             "--app", "--assets", "dist", "--size", "800x600", "--xll", "a.xll",
         ]))
         .unwrap();
-        assert_eq!((o.size, o.xlls.len()), ((800, 600), 1));
+        assert_eq!((o.size, o.xlls.len()), (Some((800, 600)), 1));
+        let o = options(&args(&[
+            "--app", "--url", "http://x/", "--data-dir", "d", "--close-answer", "save", "--message-file", "m.txt",
+        ]))
+        .unwrap();
+        assert_eq!(o.close_answer, Some(CloseChoice::Save));
+        assert_eq!((o.data_dir, o.message_file), (Some("d".into()), Some("m.txt".into())));
+        assert!(options(&args(&["--app", "--url", "http://x/", "--close-answer", "maybe"])).is_err());
         assert!(options(&args(&["--app", "--url", "http://127.0.0.1:1/"])).is_ok());
         assert!(options(&args(&["--app", "--bogus"])).is_err());
     }
