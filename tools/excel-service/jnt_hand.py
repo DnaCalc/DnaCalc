@@ -174,4 +174,59 @@ J10 = [
      WORK + " intl_weekend_numbers_and_masks_are_honored (one of its two holidays)"),
 ]
 
-CASES = {"J10": J10}
+OPA = "op_add.rs"
+OAF = "operator_arithmetic_family.rs"
+OCC = "operator_compare_concat_family.rs"
+
+
+def f(text, legacy, source):
+    return ("=" + text, [], legacy, source)
+
+
+T_ = ("logical", True)
+F_ = ("logical", False)
+
+J11 = [
+    f("2+3", num(5), OPA + " eval_op_add_two_numbers"),
+    f("1E-308+1E-308", num(0), OPA + " eval_op_add_flushes_excel_denormalized_results"),
+    f('"2"+TRUE', num(3), OPA + " eval_op_add_numeric_text_and_logical"),
+    f('"abc"+1', err("value"), OPA + " eval_op_add_non_numeric_text_fails"),
+    f('-"2"', num(-2), OAF + " negate_follows_numeric_coercion"),
+    f("-TRUE", num(-1), OAF + " negate_follows_numeric_coercion"),
+    f('+"2"', None, OAF + " unary_plus_is_type_preserving_identity"),
+    f("+TRUE", T_, OAF + " unary_plus_is_type_preserving_identity"),
+    f("+2", num(2), OAF + " unary_plus_is_type_preserving_identity"),
+    f("+#N/A", err("na"), OAF + " unary_plus_is_type_preserving_identity"),
+    f("+Z1", num(0), OAF + " unary_plus_is_type_preserving_identity (empty cell)"),
+    f("5%", None, OAF + " percent_lifts_arrays_elementwise"),
+    f("5-2", num(3), OAF + " subtract_multiply_divide_and_power_cover_seed_numeric_lanes"),
+    f("5*2", num(10), OAF + " subtract_multiply_divide_and_power_cover_seed_numeric_lanes"),
+    f("5/2", num(2.5), OAF + " subtract_multiply_divide_and_power_cover_seed_numeric_lanes"),
+    f("2^3", num(8), OAF + " subtract_multiply_divide_and_power_cover_seed_numeric_lanes"),
+    f("1/0", err("div0"), OAF + " divide_by_zero_maps_domain_error"),
+    f("+1E-309", num(0), OAF + " arithmetic_kernels_flush_excel_denormalized_results_to_zero"),
+    f("-1E-309", num(0), OAF + " arithmetic_kernels_flush_excel_denormalized_results_to_zero"),
+    f("1E-307%", num(0), OAF + " arithmetic_kernels_flush_excel_denormalized_results_to_zero"),
+    f("2E-308-1E-308", num(0), OAF + " arithmetic_kernels_flush_excel_denormalized_results_to_zero"),
+    f("1E-307*0.01", num(0), OAF + " arithmetic_kernels_flush_excel_denormalized_results_to_zero"),
+    f("2.3E-308/2", num(0), OAF + " arithmetic_kernels_flush_excel_denormalized_results_to_zero"),
+    f("5E-308/2", num(2.5e-308), OAF + " arithmetic_kernels_flush_excel_denormalized_results_to_zero"),
+    f('"a"&1', None, OCC + " concat_matches_seed_scalar_lanes"),
+    f("1&TRUE", None, OCC + " concat_matches_seed_scalar_lanes"),
+    f('1="1"', F_, OCC + " comparisons_match_case_mixed_and_type_ordering_lanes"),
+    f('"10">2', T_, OCC + " comparisons_match_case_mixed_and_type_ordering_lanes"),
+    f('"a"="A"', None, OCC + " comparisons_match_case_mixed_and_type_ordering_lanes"),
+    f('"a">1', None, OCC + " comparisons_match_case_mixed_and_type_ordering_lanes"),
+    f("TRUE>1", None, OCC + " comparisons_match_case_mixed_and_type_ordering_lanes"),
+    f("Z1=0", T_, OCC + " comparisons_handle_blank_against_number_text_and_logical"),
+    f('Z1=""', T_, OCC + " comparisons_handle_blank_against_number_text_and_logical"),
+    f("Z1=FALSE", T_, OCC + " comparisons_handle_blank_against_number_text_and_logical"),
+    f("Z1<1", T_, OCC + " comparisons_handle_blank_against_number_text_and_logical"),
+    f("1=#N/A", err("na"), OCC + " comparison_error_operand_propagates"),
+    f("0.1+0.2=0.3", T_, OCC + " comparisons_use_excel_near_equal_numeric_ordering"),
+    f("1+1E-14=1", None, OCC + " comparisons_use_excel_near_equal_numeric_ordering"),
+    f("(0.1+0.2)>0.3", None, OCC + " comparisons_use_excel_near_equal_numeric_ordering"),
+    f("(0.1+0.2)<0.3", None, OCC + " comparisons_use_excel_near_equal_numeric_ordering"),
+]
+
+CASES = {"J10": J10, "J11": J11}
