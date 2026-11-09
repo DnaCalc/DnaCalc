@@ -484,11 +484,13 @@ fn prediction_input_from_optional(
 /// without a constant; the catalogue oracle's sheet dcj9k_regression holds them):
 ///
 /// 1. With a constant, each predictor column and `y` are centred on their means (each mean the
-///    forward sum divided by the count), and a column of ones leads the matrix; without one, the
-///    raw columns are the matrix.
+///    forward sum divided by the count), and a column of ones is stored after the predictors and
+///    swapped to the front, so the first predictor moves to the last place (R43); without one,
+///    the raw columns are the matrix.
 /// 2. Householder QR. Before each predictor column's step, the predictor column with the largest
-///    running remainder (5 below) comes next; on an exact tie the later column wins with a
-///    constant and the earlier one without (R42). The ones column always goes first. At step
+///    running remainder (5 below, a negative one read as zero) is swapped in; on an exact tie the
+///    earlier column in the current order wins (R43: with a constant this is the later one in
+///    the given order, which R42 read as a constant-dependent tie). At step
 ///    `j`, with `x0` the diagonal entry, `rest` the sum of squares below it and `s` the sum of
 ///    squares from it down (each a forward sum from 0): `alpha = -sqrt(s)` when `x0 > 0` and
 ///    `+sqrt(s)` otherwise (an exactly zero entry reflects as a negative one, R42),
@@ -503,8 +505,9 @@ fn prediction_input_from_optional(
 ///    above the diagonal (a forward running difference), and the column is left out of the fit
 ///    (coefficient 0, standard error 0, not counted in the degrees of freedom) when that remainder
 ///    is below 2^-41 times its sum of squares before the steps, or its entries from the diagonal
-///    down are all zero. The decomposition then stops: every column not yet stepped is left out
-///    with it (R42). A column that was zero before the steps and is stepped before that is kept
+///    down are all zero. While other columns are still to come the test reads the reflector's
+///    `vv` in place of that remainder (R43). The decomposition then stops: every column not yet
+///    stepped is left out with it (R42). A column that was zero before the steps and is stepped before that is kept
 ///    with a zero coefficient and counts in the degrees of freedom.
 ///    Identified on the degrees of freedom of 1,121 fits: the 1,025 captured ones and 96 fits
 ///    asked of Excel 16.0.20527 on 2026-11-07 (dc-j9k.14, n = 3, 4, 8 and 16, with and without a
@@ -516,8 +519,13 @@ fn prediction_input_from_optional(
 /// R42 (Excel 16.0.20527, 2026-11-09): the retained R41 cohort (15,150 LINEST and 12,140 LOGEST
 /// selections) and R38's 216 rank-deficient designs gain 937/876 and 264/258 selections with
 /// none lost; a fresh set of 1,344 selections per function, frozen before asking, then matched
-/// 1,303 for each (the previous program 903 and 932). Some zero-column layouts beside a
-/// collinear pair still differ. Private QR and residual arithmetic remain incomplete.
+/// 1,303 for each (the previous program 903 and 932).
+/// R43 (Excel 16.0.20527, 2026-11-09): the ones column's place, the clipped tie-to-the-earlier
+/// pivot and the `vv` test, found on the zero-column layouts R42 left open and on threshold maps
+/// (n = 4 to 32: the switch is 2^-41 of the remainder for the last column and 2^-41 of `vv`
+/// when a zero or tiny column is still to come). A fresh set frozen before asking (2,439
+/// selections per function, 2,414 answered) matched 2,413 and 2,414 of the answered (the
+/// previous program 2,225 and 2,255). Private QR and residual arithmetic remain incomplete.
 /// The collinearity test's bound on a column's remaining over its initial sum of squares (5 above).
 const COLLINEAR_REMAINDER: f64 = 1.0 / (1u64 << 41) as f64;
 
@@ -532,9 +540,6 @@ fn least_squares(
     let y_mean = if use_const { mean(y) } else { 0.0 };
     // The matrix's columns, each with the predictor it holds (None for the ones column).
     let mut matrix: Vec<(Option<usize>, Vec<f64>)> = Vec::with_capacity(columns.len() + 1);
-    if use_const {
-        matrix.push((None, vec![1.0; n]));
-    }
     for (index, column) in columns.iter().enumerate() {
         let values = if use_const {
             column.iter().map(|v| v - means[index]).collect()
@@ -542,6 +547,14 @@ fn least_squares(
             column.clone()
         };
         matrix.push((Some(index), values));
+    }
+    if use_const {
+        // The ones column is stored after the predictors and swapped to the front, so the
+        // first predictor moves to the last place (R43: zero-column layouts beside a
+        // collinear pair, and the exact ties R42 read as "the later column wins").
+        matrix.push((None, vec![1.0; n]));
+        let last = matrix.len() - 1;
+        matrix.swap(0, last);
     }
     let mut target: Vec<f64> = if use_const {
         y.iter().map(|v| v - y_mean).collect()
@@ -592,15 +605,18 @@ fn least_squares(
             // competes with a collinear column's remainder). An exact tie goes to the later
             // column with a constant and to the earlier one without.
             let remainder = |k: usize| {
-                matrix[k].1[..j].iter().fold(scale[k].1, |rest, r| {
-                    excel_numeric::excel_x87_sub(rest, excel_numeric::excel_x87_mul(*r, *r))
-                })
+                matrix[k].1[..j]
+                    .iter()
+                    .fold(scale[k].1, |rest, r| {
+                        excel_numeric::excel_x87_sub(rest, excel_numeric::excel_x87_mul(*r, *r))
+                    })
+                    .max(0.0)
             };
             let mut best = j;
             let mut best_remainder = remainder(j);
             for k in (j + 1)..matrix.len() {
                 let candidate = remainder(k);
-                if candidate > best_remainder || (use_const && candidate == best_remainder) {
+                if candidate > best_remainder {
                     best_remainder = candidate;
                     best = k;
                 }
@@ -613,8 +629,20 @@ fn least_squares(
         let squares = squares_from(&matrix[j].1, j);
         let collinear = scale[j].1 > 0.0 && matrix[j].0.is_some() && {
             let before = scale[j].1;
-            let remainder = matrix[j].1[..j].iter().fold(before, |rest, r| rest - r * r);
-            remainder < before * COLLINEAR_REMAINDER
+            if j + 1 == matrix.len() {
+                let remainder = matrix[j].1[..j].iter().fold(before, |rest, r| rest - r * r);
+                remainder < before * COLLINEAR_REMAINDER
+            } else {
+                // With columns still to come the test reads the reflector's normaliser
+                // `vv = rest + (x0 - alpha)^2` (R43: near-collinear pairs beside a zero or tiny
+                // third column switch at vv = 2^-41 times the initial sum of squares, n = 4 to
+                // 32, with and without a constant; the last column switches on its remainder).
+                let norm = squares.sqrt();
+                let alpha = if x0 > 0.0 { -norm } else { norm };
+                let v0 = excel_numeric::excel_x87_sub(x0, alpha);
+                let vv = excel_numeric::excel_x87_add(rest, excel_numeric::excel_x87_mul(v0, v0));
+                vv < before * COLLINEAR_REMAINDER
+            }
         };
         if scale[j].1 > 0.0 && matrix[j].0.is_some() && (squares == 0.0 || collinear) {
             // Rank-revealing stop: the pivot is the largest remaining column, so once it fails
@@ -1751,6 +1779,59 @@ mod tests {
         assert_eq!(cells[2], Ok(0)); // a, collinear
         assert_eq!(cells[3 * 4 + 1], Ok(4.0f64.to_bits())); // degrees of freedom
         assert_eq!(cells[4 * 4 + 1], Ok(0x4062ff64db601692)); // residual sum of squares
+    }
+
+    /// dc-j9k.14 (R43): with a constant the ones column is stored after the predictors and
+    /// swapped to the front, and a pivot tie goes to the earlier column of that order. For
+    /// known_x {0, x, -x} the pivot is x, -x is collinear and the zero column is left out with
+    /// it. Excel 16.0.20527, 2026-11-09 (R42 pivot set 3, DnaCalc-Research evidence/round42).
+    #[cfg_attr(not(target_arch = "wasm32"), test)]
+    #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+    fn ones_column_swapped_in_decides_a_mirrored_tie() {
+        let x = [21.0, -23.0, 2.0, -24.0, -5.0, 9.0, 3.0, 15.0];
+        let rows: Vec<Vec<f64>> = x.iter().map(|v| vec![0.0, *v, -*v]).collect();
+        let rows: Vec<&[f64]> = rows.iter().map(|r| r.as_slice()).collect();
+        let y = col(&[19.0, 6.0, 7.0, 12.0, -6.0, 3.0, 6.0, 7.0]);
+        let cells = block(
+            eval_linest_surface(&[y, matrix(&rows), bool_arg(true), bool_arg(true)]).unwrap(),
+        );
+        assert_eq!(cells[0], Ok(0)); // -x, collinear
+        assert_eq!(cells[1], Ok(0x3fb874848140d471)); // x
+        assert_eq!(cells[2], Ok(0)); // the zero column, left out with -x
+        assert_eq!(cells[3 * 4 + 1], Ok(6.0f64.to_bits())); // degrees of freedom
+        assert_eq!(cells[4 * 4 + 1], Ok(0x4075241d892ddca4)); // residual sum of squares
+        assert_eq!(cells[2 * 4 + 1], Ok(0x401e089c4d08d0b2)); // standard error of y
+    }
+
+    /// dc-j9k.14 (R43): while a column is still to come the collinearity test reads the
+    /// reflector's vv. Here the second column is the third halved with 2.5 * 2^-18 added to its last
+    /// entry: its remainder is below 2^-41 of its sum of squares but vv is not, so all three
+    /// predictors are kept over zero degrees of freedom. Excel 16.0.20527, 2026-11-09, a fresh
+    /// question frozen before asking (R43 proof set, DnaCalc-Research evidence/round43).
+    #[cfg_attr(not(target_arch = "wasm32"), test)]
+    #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+    fn collinearity_test_reads_vv_while_columns_remain() {
+        let rows: [[u64; 3]; 4] = [
+            [0x0000000000000000, 0x4029000000000000, 0x4039000000000000],
+            [0x0000000000000000, 0xc016000000000000, 0xc026000000000000],
+            [0x0000000000000000, 0x4022000000000000, 0x4032000000000000],
+            [0x0000000000000000, 0x4014000280000000, 0x4024000000000000],
+        ];
+        let x = CalcValue::array(
+            CalcArray::from_rows(
+                rows.iter()
+                    .map(|r| r.iter().map(|b| CalcValue::number(f64::from_bits(*b))).collect())
+                    .collect(),
+            )
+            .unwrap(),
+        );
+        let y = col(&[7.0, -14.0, 12.0, 11.0]);
+        let cells = block(eval_linest_surface(&[y, x, bool_arg(true), bool_arg(true)]).unwrap());
+        assert_eq!(cells[0], Ok(0xc11f4e5bd4c16924));
+        assert_eq!(cells[1], Ok(0x412f4e5e87b2a7ab));
+        assert_eq!(cells[2], Ok(0)); // the zero column, kept
+        assert_eq!(cells[3], Ok(0xc0161f629af00000)); // intercept
+        assert_eq!(cells[3 * 4 + 1], Ok(0)); // degrees of freedom
     }
 
     /// dc-j9k.14: with the larger column of a near-collinear pair kept and the other left out,
