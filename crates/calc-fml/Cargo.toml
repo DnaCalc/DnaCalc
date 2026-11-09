@@ -10,6 +10,7 @@ description = "The package for CalcFml: the Excel formula language, reference bi
 portability = "portable"
 
 [dependencies]
+calc-catalogue = { path = "../calc-catalogue" }
 calc-syntax = { path = "../calc-syntax" }
 calc-func = { path = "../calc-func" }
 # The descriptors of registered functions cross OneCalc's session port and the DNA Calc worker wire.

@@ -14,6 +14,7 @@ portability = "portable"
 # MODEL); calc-fml compiles, places and evaluates every formula (plan 2.1: ENG to FML). Never
 # calc-doc, the package codec (plan 1.3).
 [dependencies]
+calc-catalogue = { path = "../calc-catalogue" }
 calc-value = { path = "../calc-value" }
 calc-doc-model = { path = "../calc-doc-model" }
 calc-fml = { path = "../calc-fml" }

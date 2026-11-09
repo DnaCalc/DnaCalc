@@ -1,4 +1,4 @@
-# Writes crates/calc-doc/src/save/file_form_table.rs from the two Excel measurements beside this
+# Writes crates/calc-catalogue/src/file_form_table.rs from the two Excel measurements beside this
 # script (excel-prefixes.json, excel-array-positions.json):
 #
 #   python make-file-form-table.py
@@ -46,17 +46,17 @@ out = [
     '//! measured with Excel 16.0 build 20430; the test',
     '//! d1_file_form__table_matches_the_measurements compares every row with them.',
     '',
-    'use super::{FunctionFileForm, Prefix};',
+    'use super::FunctionFileForm;',
     '',
     f'pub(super) const FUNCTIONS: [FunctionFileForm; {len(rows)}] = [',
 ]
 for name, prefix, first, bases, flags in rows:
     out.append(
-        f'    FunctionFileForm {{ name: "{name}", prefix: Prefix::{prefix}, first_count: {first}, '
+        f'    FunctionFileForm {{ name: "{name}", first_count: {first}, '
         f'bases: &{flags_text(bases)}, positions: &{flags_text(flags)} }},'
     )
 out.append('];')
-target = os.path.join(here, '..', '..', '..', 'src', 'save', 'file_form_table.rs')
+target = os.path.join(here, '..', '..', '..', '..', 'calc-catalogue', 'src', 'file_form_table.rs')
 with open(target, 'w', encoding='utf-8', newline='\n') as f:
     f.write('\n'.join(out) + '\n')
 print(len(rows))

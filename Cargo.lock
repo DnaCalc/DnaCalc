@@ -206,6 +206,15 @@ dependencies = [
 ]
 
 [[package]]
+name = "calc-catalogue"
+version = "0.1.0"
+dependencies = [
+ "calc-value",
+ "wasm-bindgen",
+ "wasm-bindgen-test",
+]
+
+[[package]]
 name = "calc-com-host"
 version = "0.1.0"
 dependencies = [
@@ -218,6 +227,7 @@ dependencies = [
 name = "calc-doc"
 version = "0.1.0"
 dependencies = [
+ "calc-catalogue",
  "calc-doc-model",
  "calc-fml",
  "calc-func",
@@ -245,6 +255,7 @@ dependencies = [
 name = "calc-engine"
 version = "0.1.0"
 dependencies = [
+ "calc-catalogue",
  "calc-doc-model",
  "calc-fml",
  "calc-value",
@@ -257,6 +268,7 @@ dependencies = [
 name = "calc-fml"
 version = "0.1.0"
 dependencies = [
+ "calc-catalogue",
  "calc-func",
  "calc-syntax",
  "calc-verdict",
@@ -270,6 +282,7 @@ dependencies = [
 name = "calc-func"
 version = "0.1.0"
 dependencies = [
+ "calc-catalogue",
  "calc-value",
  "calc-verdict",
  "libm",
