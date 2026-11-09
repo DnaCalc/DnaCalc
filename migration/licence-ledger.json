@@ -5208,6 +5208,9 @@
     {"path": "crates/calc-func/tests/captures/dcj9k_r39_ets/sections/dcj9k_r39_ets.capture.json", "class": "own-work", "reason": "Original MIT R39 ETS numeric questions and audited Excel question-service observations, using the existing generator and capture codec; dc-j9k."},
     {"path": "crates/calc-func/tests/fixtures/dcj9k_r39_seasonal/oracle.xlsx", "class": "own-work", "reason": "Original MIT R39 exact seasonal affine questions, using the existing generator and audited Excel question-service capture route; dc-j9k."},
     {"path": "crates/calc-func/tests/fixtures/dcj9k_r39_seasonal/sheet-dcj9k_r39_seasonal.txt", "class": "own-work", "reason": "Original MIT R39 exact seasonal affine questions, using the existing generator and audited Excel question-service capture route; dc-j9k."},
-    {"path": "crates/calc-func/tests/captures/dcj9k_r39_seasonal/sections/dcj9k_r39_seasonal.capture.json", "class": "own-work", "reason": "Original MIT R39 exact seasonal affine questions, using the existing generator and audited Excel question-service capture route; dc-j9k."}
+    {"path": "crates/calc-func/tests/captures/dcj9k_r39_seasonal/sections/dcj9k_r39_seasonal.capture.json", "class": "own-work", "reason": "Original MIT R39 exact seasonal affine questions, using the existing generator and audited Excel question-service capture route; dc-j9k."},
+    {"path": "crates/calc-func/tests/fixtures/jnt/sheet-jnt_w111_elementary.txt", "class": "own-work", "reason": "dc-jnt test migration: rows of legacy OxFunc Excel readings (OxFunc, MIT, DNA Kode) as formula and typed-input lines; written by tools/excel-service/jnt_import.py, no answers computed here."},
+    {"path": "crates/calc-func/tests/captures/jnt/sections/jnt_w111_elementary.capture.json", "class": "own-work", "reason": "dc-jnt test migration: the legacy OxFunc Excel readings (build 20430) as the answers of the rows of the sheet, imported as function questions by tools/excel-service/jnt_import.py; measurement."},
+    {"path": "crates/calc-func/tests/jnt_inputs.rs", "class": "own-work", "reason": "dc-jnt test migration: own test of the typed-input rows of the catalogue oracle."}
   ]
 }
