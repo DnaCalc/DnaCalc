@@ -2238,8 +2238,25 @@ fn act(ws: &Workspace, app: &App, session: &Session, action: &Action) -> Result<
             fs::write(session.downloads.join(name), bytes).map_err(|e| e.to_string())
         }
         Action::UploadDownload(name) | Action::UploadDownloadTo(name, _) => {
-            let path = session.downloads.join(name);
-            downloaded_bytes(&path)?;
+            // On failure say what the page and the folder show: a file that exists but is not a
+            // package means the save had not finished (or never started), not a bad package.
+            let path = saved_download(&session.downloads, name).map_err(|error| {
+                let status = session
+                    .script("return document.querySelector('[data-dnacalc=status]')?.textContent??null;")
+                    .ok()
+                    .and_then(|v| v.as_str().map(str::to_owned))
+                    .unwrap_or_default();
+                let folder = fs::read_dir(&session.downloads)
+                    .map(|entries| {
+                        entries
+                            .flatten()
+                            .map(|e| format!("{} ({} bytes)", e.file_name().to_string_lossy(), e.metadata().map_or(0, |m| m.len())))
+                            .collect::<Vec<_>>()
+                            .join(", ")
+                    })
+                    .unwrap_or_default();
+                format!("{error}; page status \"{status}\"; downloads folder: [{folder}]")
+            })?;
             upload(
                 app,
                 session,
@@ -2629,20 +2646,68 @@ fn session_field(bytes: &[u8], field: &str) -> Result<String, String> {
     })
 }
 
+/// The file's bytes if they are a whole file of their kind (a package that opens, JSON that parses,
+/// anything else non-empty).
+fn read_download_once(path: &Path) -> Result<Vec<u8>, String> {
+    fs::read(path).map_err(|e| e.to_string()).and_then(|bytes| {
+        let ext = path.extension().and_then(|s| s.to_str()).unwrap_or("");
+        if matches!(ext, "xlsx" | "xlsm" | "xltx" | "xltm" | "xlsb") {
+            crate::oracle_cases::package_parts(&bytes)?;
+        } else if ext == "json" {
+            serde_json::from_slice::<Value>(&bytes).map_err(|e| e.to_string())?;
+        } else if bytes.is_empty() {
+            return Err("download is empty".into());
+        }
+        Ok(bytes)
+    })
+}
+
+/// The file the browser saved for a download named `name`. Firefox reserves the name with an empty
+/// file and writes `name(1).ext` when the name is taken: a 0 byte `name` that a late earlier
+/// download left behind made the next save land beside it and the case read the empty one
+/// (dc-0f1k.11.3). The newest whole file among `name` and `stem(N).ext` is the save.
+fn saved_download(dir: &Path, name: &str) -> Result<PathBuf, String> {
+    let path = Path::new(name);
+    let stem = path.file_stem().and_then(|s| s.to_str()).unwrap_or(name);
+    let ext = path.extension().and_then(|s| s.to_str()).map(|e| format!(".{e}")).unwrap_or_default();
+    let started = Instant::now();
+    loop {
+        let mut candidates: Vec<(std::time::SystemTime, PathBuf)> = fs::read_dir(dir)
+            .map(|entries| {
+                entries
+                    .flatten()
+                    .filter(|e| {
+                        let file = e.file_name().to_string_lossy().into_owned();
+                        file == name
+                            || file
+                                .strip_prefix(stem)
+                                .and_then(|rest| rest.strip_suffix(&ext))
+                                .and_then(|rest| rest.strip_prefix('(')?.strip_suffix(')'))
+                                .is_some_and(|n| !n.is_empty() && n.bytes().all(|b| b.is_ascii_digit()))
+                    })
+                    .map(|e| (e.metadata().and_then(|m| m.modified()).unwrap_or(std::time::UNIX_EPOCH), e.path()))
+                    .collect()
+            })
+            .unwrap_or_default();
+        candidates.sort_by(|a, b| b.0.cmp(&a.0));
+        let mut last_error = format!("no file named {name} was saved");
+        for (_, candidate) in &candidates {
+            match read_download_once(candidate) {
+                Ok(_) => return Ok(candidate.clone()),
+                Err(error) => last_error = format!("{}: {error}", candidate.display()),
+            }
+        }
+        if started.elapsed() >= settle() {
+            return Err(format!("download {name} is incomplete: {last_error}"));
+        }
+        thread::sleep(Duration::from_millis(50));
+    }
+}
+
 fn downloaded_bytes(path: &Path) -> Result<Vec<u8>, String> {
     let started = Instant::now();
     loop {
-        let result = fs::read(path).map_err(|e| e.to_string()).and_then(|bytes| {
-            let ext = path.extension().and_then(|s| s.to_str()).unwrap_or("");
-            if matches!(ext, "xlsx" | "xlsm" | "xltx" | "xltm" | "xlsb") {
-                crate::oracle_cases::package_parts(&bytes)?;
-            } else if ext == "json" {
-                serde_json::from_slice::<Value>(&bytes).map_err(|e| e.to_string())?;
-            } else if bytes.is_empty() {
-                return Err("download is empty".into());
-            }
-            Ok(bytes)
-        });
+        let result = read_download_once(path);
         match result {
             Ok(bytes) => return Ok(bytes),
             Err(error) if started.elapsed() >= settle() => return Err(format!("download {} is incomplete: {error}", path.display())),
