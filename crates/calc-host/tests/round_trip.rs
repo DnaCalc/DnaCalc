@@ -9370,10 +9370,10 @@ mod async_contract {
         }
     }
     #[derive(Debug)]
-    struct HiddenPoolRead(CellKey);
+    struct HiddenPoolRead(CellKey, usize);
     impl UserFunction for HiddenPoolRead {
         fn max_parallel_calls(&self) -> usize {
-            2
+            self.1
         }
         fn call(&self, _: &[CalcValue]) -> Result<CalcValue, String> {
             panic!("context required")
@@ -9398,7 +9398,7 @@ mod async_contract {
         }));
         let mut functions = calc_fml::CallableTable::new();
         functions
-            .register("HiddenPoolRead", Rc::new(HiddenPoolRead(at(s, "D1"))))
+            .register("HiddenPoolRead", Rc::new(HiddenPoolRead(at(s, "D1"), 2)))
             .unwrap();
         functions
             .register(
@@ -9454,6 +9454,82 @@ mod async_contract {
             Some(CalcValue::number(3.))
         );
         assert_eq!(state.borrow().entered, vec![3.]);
+    }
+    /// dc-hsa5.19 (Fable D5): whether a user function's hidden read of a cell this recalculation
+    /// has yet to calculate is a refusal must not depend on the pool that runs scalar callbacks.
+    /// With a pool of two (the test above) and with none (a function that admits one call at a
+    /// time) the formulas are refused alike and the cell the function read is calculated.
+    #[cfg_attr(not(target_arch = "wasm32"), test)]
+    #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+    fn a_callback_hidden_read_is_refused_with_or_without_a_scalar_pool() {
+        for limit in [1, 2, 8] {
+            let mut book = session(&calc_host::blank_package());
+            let s = book.host().sheets()[0].id();
+            book.dispatch(SkinIntent::SetCalcMode(CalcMode::Manual));
+            let state = Rc::new(RefCell::new(PoolProbeState {
+                release: true,
+                ..Default::default()
+            }));
+            let mut functions = calc_fml::CallableTable::new();
+            functions
+                .register("HiddenPoolRead", Rc::new(HiddenPoolRead(at(s, "D1"), limit)))
+                .unwrap();
+            functions
+                .register(
+                    "PoolProbe",
+                    Rc::new(PoolProbe {
+                        state: state.clone(),
+                        limit,
+                        serialized: false,
+                    }),
+                )
+                .unwrap();
+            book.set_user_functions(functions);
+            for (address, formula) in [
+                ("B1", "HiddenPoolRead()"),
+                ("C1", "HiddenPoolRead()"),
+                ("D1", "PoolProbe(3)"),
+            ] {
+                assert!(
+                    book.dispatch(SkinIntent::Edit {
+                        edits: vec![CellEdit::Set {
+                            at: at(s, address),
+                            input: CellInput::Formula(
+                                calc_host::FormulaText::with_form(
+                                    calc_host::value::ExcelText::from_utf16_code_units(
+                                        formula.encode_utf16().collect()
+                                    ),
+                                    calc_doc_model::FormulaForm::Legacy
+                                )
+                                .unwrap()
+                            )
+                        }]
+                    })
+                    .accepted()
+                );
+            }
+            book.set_calculation_budget(WorkBudget::evaluations(1));
+            book.dispatch(SkinIntent::Recalculate);
+            drain(&mut book);
+            for address in ["B1", "C1"] {
+                let result = value(book.host(), at(s, address));
+                let ProjectedValue::NotModeled { refusal, calculation } = result else {
+                    panic!("limit {limit}: {address}: {result:?}");
+                };
+                assert!(!calculation.held_by_circular_rule(), "limit {limit}: {address}");
+                // The outcome is a typed refusal for every pool; only the construct it names
+                // differs (an observation fence, or a concurrent scalar callback).
+                assert!(
+                    ["dc-hsa5.4", "dc-snz.23"].iter().any(|owner| format!("{refusal:?}").contains(owner)),
+                    "limit {limit}: {address}: {refusal:?}"
+                );
+            }
+            assert_eq!(
+                calculated(book.host(), at(s, "D1")),
+                Some(CalcValue::number(3.)),
+                "limit {limit}"
+            );
+        }
     }
     #[cfg_attr(not(target_arch = "wasm32"), test)]
     #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]

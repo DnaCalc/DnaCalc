@@ -6,9 +6,12 @@
 //! calc-func parses no reference text itself. Without a resolution the call is refused as not
 //! modelled.
 //!
-//! The catalogue declares no volatility, so this entry does not mark INDIRECT volatile, although
-//! Microsoft's documentation of recalculation lists it among the volatile functions: a caller
-//! learns what an evaluation resolved from the evaluator, not from this entry.
+//! The catalogue declares INDIRECT volatile (`EntryTraits::NONE.volatile()`, in calc-catalogue's
+//! `reference_text.rs`), as Microsoft's documentation of recalculation lists it among the
+//! volatile functions: a plan holding one is volatile (`CompiledPlan::volatile`), and the engine
+//! evaluates its formula on every recalculation. What an evaluation resolved from the text is a
+//! separate matter, which a caller learns from the evaluator (the observer's `resolved`), and the
+//! engine files as the formula's dynamic prerequisites.
 
 #[cfg(test)]
 use super::Notation;

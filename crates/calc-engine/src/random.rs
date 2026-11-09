@@ -4,8 +4,13 @@
 //! (`WorkbookVolatileRandomProvider`, `splitmix64`, `fnv1a64`) at commit 1bd514ef. Each formula's
 //! draws are a `splitmix64` stream whose start mixes the state's seed, the recalculation's tick
 //! and the formula's cell, so the values a formula draws do not depend on the order formulas are
-//! evaluated in, a formula evaluated again in the same recalculation (after waiting for a cell it
-//! read) draws the same values, and the next recalculation draws new ones.
+//! evaluated in, and the next recalculation draws new ones.
+//!
+//! A formula that waits for a cell it read keeps its stream with its retained evaluation, which
+//! resumes at the waiting instruction (docs/architecture/EVALUATOR_SUSPENSION.md): every draw
+//! happens once and none is repeated. A formula the engine evaluates again from its start (the
+//! fallback, when a wait cannot be taken in place and no user function has run) starts a new
+//! stream of the same key, and so draws the same values again; nothing it drew before is kept.
 
 use calc_fml::RandomSource;
 use calc_value::CellKey;

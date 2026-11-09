@@ -301,7 +301,7 @@ impl NameCalculationWork {
                 &observation_uncomputed,
             )
         });
-        let footprint = RefCell::new(Vec::new());
+        let footprint = RefCell::new(crate::recalc::Footprint::default());
         let facts = RefCell::new(std::mem::take(&mut self.facts));
         let value_reads = RefCell::new(std::mem::take(&mut self.value_reads));
         let blanks = RefCell::new(Vec::new());

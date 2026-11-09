@@ -103,7 +103,7 @@ use calc_fml::{
 use calc_value::{CalcValue, CellKey, GridArea, NodeId, NumericMode, SheetId};
 use std::cell::{Cell, RefCell};
 use std::cmp::Reverse;
-use std::collections::{BTreeMap, BTreeSet, BinaryHeap, VecDeque};
+use std::collections::{BTreeMap, BTreeSet, BinaryHeap, HashSet, VecDeque};
 use std::fmt;
 use std::ops::ControlFlow;
 use std::sync::Arc;
@@ -527,7 +527,7 @@ pub(crate) struct EvalLocal {
     quantum: usize,
     read_stamps: Vec<ReadSpan>,
     name_reads: Vec<calc_fml::reference::NameBindingProof>,
-    footprint: Vec<GridArea>,
+    footprint: Footprint,
     fact_reads: Vec<calc_fml::FactRead>,
     value_reads: Vec<(calc_fml::ReadRequest, GridArea)>,
     blank_reads: Vec<(GridArea, BlankRun)>,
@@ -4865,7 +4865,7 @@ pub(crate) struct Observed<'l, 'o> {
     pub(crate) silent: bool,
     pub(crate) formula: CellKey,
     pub(crate) cells: &'l mut dyn ReferenceReader,
-    pub(crate) footprint: &'l RefCell<Vec<GridArea>>,
+    pub(crate) footprint: &'l RefCell<Footprint>,
     pub(crate) facts: &'l RefCell<Vec<calc_fml::FactRead>>,
     pub(crate) value_reads: &'l RefCell<Vec<(calc_fml::ReadRequest, GridArea)>>,
     pub(crate) blanks: &'l RefCell<Vec<(GridArea, BlankRun)>>,
@@ -5030,7 +5030,7 @@ struct Instrument<'l, 'o> {
     silent: bool,
     formula: CellKey,
     calculation: &'l Calculation,
-    footprint: &'l RefCell<Vec<GridArea>>,
+    footprint: &'l RefCell<Footprint>,
     uncomputed: &'l Cell<Option<(CellKey, NodeId)>>,
     kept_read: &'l Cell<bool>,
 }
@@ -5700,7 +5700,7 @@ fn evaluate_unstamped(
     let invocation = local.invocation.clone();
     let mut user_effects = std::mem::take(&mut local.effects);
     let observation_reads = RefCell::new(std::mem::take(&mut local.observation_reads));
-    let observation_footprint = RefCell::new(Vec::new());
+    let observation_footprint = RefCell::new(Footprint::default());
     let observation_facts = RefCell::new(Vec::new());
     let observation_blanks = RefCell::new(Vec::new());
     let observation_uncomputed = Cell::new(None);
@@ -5950,7 +5950,7 @@ fn evaluate_unstamped(
         }
     };
     let mut areas = footprint.into_inner();
-    let dynamic = dynamic_prerequisites(state, node, instance, &areas);
+    let dynamic = dynamic_prerequisites(state, node, instance, areas.areas());
     areas.clear();
     local.footprint = areas;
     let value = match outcome {
@@ -6107,6 +6107,35 @@ fn place_value(
     }))
 }
 
+/// The areas an evaluation read, each once, in the order they were first read (dc-hsa5.19, D6).
+///
+/// A user function that reads cell by cell, a loop that reads one cell again and again, and an
+/// evaluation that waits and runs a kernel again all read the same areas many times over. The
+/// footprint keeps one entry per distinct area, so its size is bounded by the areas read rather
+/// than the number of reads, and turning it into prerequisites takes time linear in that size.
+#[derive(Debug, Default)]
+pub(crate) struct Footprint {
+    areas: Vec<GridArea>,
+    seen: HashSet<GridArea>,
+}
+
+impl Footprint {
+    pub(crate) fn push(&mut self, area: GridArea) {
+        if self.seen.insert(area) {
+            self.areas.push(area);
+        }
+    }
+
+    pub(crate) fn areas(&self) -> &[GridArea] {
+        &self.areas
+    }
+
+    pub(crate) fn clear(&mut self) {
+        self.areas.clear();
+        self.seen.clear();
+    }
+}
+
 /// The areas an evaluation read that none of the formula's placed references holds, each once,
 /// as prerequisites.
 fn dynamic_prerequisites(
@@ -6120,6 +6149,7 @@ fn dynamic_prerequisites(
         .and_then(|record| record.prerequisites())
         .unwrap_or(&[]);
     let mut out: Vec<Prerequisite> = Vec::new();
+    let mut found: HashSet<Prerequisite> = HashSet::new();
     for &area in footprint {
         // Most reads are of a placed reference's own area, found first (dc-dxm).
         let held = instance.areas().iter().any(|placed| *placed == Ok(area))
@@ -6132,7 +6162,7 @@ fn dynamic_prerequisites(
                 })
             });
         let prerequisite = area_prerequisite(area);
-        if !held && !out.contains(&prerequisite) {
+        if !held && found.insert(prerequisite) {
             out.push(prerequisite);
         }
     }
@@ -6389,5 +6419,37 @@ impl RecalcWork {
         self.async_resumed.insert(node);
         self.ready.push_front(node);
         Ok(())
+    }
+}
+
+#[cfg(test)]
+mod footprint_tests {
+    use super::*;
+    use calc_value::IdAllocator;
+
+    /// dc-hsa5.19 (Fable D6): reading cells one by one, again and again, files each distinct area
+    /// once and in the order it was first read, so the footprint is bounded by the areas read and
+    /// not by the number of reads.
+    #[cfg_attr(not(target_arch = "wasm32"), test)]
+    #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+    fn a_footprint_keeps_each_distinct_area_once_in_first_read_order() {
+        let mut sheets: IdAllocator<SheetId> = IdAllocator::new();
+        let sheet = sheets.issue().unwrap();
+        let cell = |row| GridArea::cell(CellKey::new(sheet, row, 1).unwrap());
+        let column = GridArea::new(CellKey::new(sheet, 1, 1).unwrap(), CellKey::new(sheet, 3, 1).unwrap()).unwrap();
+        let mut footprint = Footprint::default();
+        for round in 0..100_000u32 {
+            for row in [3, 1, 2] {
+                footprint.push(cell(row));
+            }
+            if round % 1000 == 0 {
+                footprint.push(column);
+            }
+        }
+        assert_eq!(footprint.areas(), [cell(3), cell(1), cell(2), column]);
+        footprint.clear();
+        assert!(footprint.areas().is_empty());
+        footprint.push(cell(2));
+        assert_eq!(footprint.areas(), [cell(2)], "a cleared footprint files an area again");
     }
 }

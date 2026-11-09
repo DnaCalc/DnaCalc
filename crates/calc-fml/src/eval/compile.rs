@@ -44,7 +44,7 @@ use crate::reference::{
 use crate::syntax::{SyntaxChild, SyntaxKind, SyntaxNode, SyntaxTree, TextSpan, Token, TokenKind};
 use calc_func::value::{CellKey, ExcelText, SheetId, WorksheetErrorCode};
 use calc_catalogue::{FIELD_ACCESS_FILE_NAME as FIELD_ACCESS, FilePrefix};
-use calc_func::{ArgumentDemand, Notation, ParameterClass, catalogue};
+use calc_func::{Notation, ParameterClass, catalogue};
 use std::collections::HashMap;
 use std::sync::Arc;
 
@@ -501,8 +501,11 @@ enum Task<'t> {
     /// Append to block `block` the instructions that push the value of `node`, which holds the
     /// place `place` of a legacy formula. `tail` says whether that value is the formula's result
     /// for the check of a final `+` or `-`: the root expression only. Parentheses, a prefix sign,
-    /// IF's, IFS's and CHOOSE's arguments and LET's result end it (dc-b1l, measured: see
-    /// [`carries_final_sum`]).
+    /// the arguments of every call (IF's, IFS's, CHOOSE's and IFERROR's included) and LET's result
+    /// end it. Excel adjusts only the formula's root operation (dc-b1l, measured in Excel
+    /// 16.0.20430 through COM on 2026-10-25, `Range.Formula2`): `=IF(TRUE,(1+7*POWER(2,-52))-1)`,
+    /// `=IFS(TRUE,...)` and `=CHOOSE(1,...)` are 7*2^-52, as `=IFERROR(0.5-0.4-0.1,1)` is
+    /// -2.7755575615628914e-17 (bead dc-ibp2's capture).
     Lower {
         node: &'t SyntaxNode,
         tail: bool,
@@ -1257,7 +1260,7 @@ impl<'c> Lowering<'c> {
             }
             tasks.push(Task::Lower {
                 node: argument,
-                tail: tail && carries_final_sum(demand, index),
+                tail: false,
                 block: first_block + index,
                 place: place.argument(spelled, index, target.0.parameter_class(index), true),
             });
@@ -2071,16 +2074,6 @@ fn array_element(node: &SyntaxNode) -> Result<Literal, CompileError> {
         },
         _ => Err(syntax(span)),
     }
-}
-
-/// Whether the check of the formula's final `+` or `-` follows argument `index` of a call with
-/// demand `demand` at the formula's tail: never. Excel adjusts only the formula's root operation
-/// (dc-b1l, measured in Excel 16.0.20430 through COM on 2026-10-25, `Range.Formula2`):
-/// `=IF(TRUE,(1+7*POWER(2,-52))-1)`, `=IFS(TRUE,...)` and `=CHOOSE(1,...)` are 7*2^-52, as
-/// `=IFERROR(0.5-0.4-0.1,1)` is -2.7755575615628914e-17 (bead dc-ibp2's capture).
-fn carries_final_sum(demand: ArgumentDemand, index: usize) -> bool {
-    let _ = (demand, index);
-    false
 }
 
 fn unsupported(span: TextSpan, construct: &'static str, owner: &'static str) -> CompileError {
