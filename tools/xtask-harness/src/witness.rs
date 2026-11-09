@@ -1260,6 +1260,73 @@ fn group<'a>(banks: &'a Banks) -> (BTreeMap<String, Vec<Vec<&'a Reading>>>, Vec<
     (out, differences)
 }
 
+/// Preserve cross-context replay observations as explicit pairs. They do not enter the
+/// selection groups: the replay recorded a new workbook context, not the original one.
+fn replay_difference(record: &Value, original: &Reading, source: &Source) -> Result<Difference, String> {
+    let bank = &record["bank"];
+    let fail = || format!("invalid replay pair for {} {}", source.path, original.id);
+    if record["category"] != "different" || bank["function"] != original.function
+        || bank["source"] != source.path || bank["id"] != original.id
+        || bank["args"] != Value::Array(original.args.clone())
+        || bank["expected"] != original.expected || !bank["result_index"].is_null()
+        || original.index.is_some() || bank["build"].as_str() != source.env.excel_build.as_deref()
+        || bank["cpu"].as_str() != source.env.cpu.as_deref()
+        || bank["invocation"] != source.env.invocation.as_ref().map_or(Value::Null, |v| v.to_json())
+        || !bank["exclusion"].is_null() {
+        return Err(fail());
+    }
+    let inputs = record["inputs"].as_array().ok_or_else(fail)?;
+    if inputs.len() != original.args.len() || inputs.iter().zip(&original.args).any(|(seen, requested)| {
+        seen["type"] != "number" || seen["bits"].as_str().zip(requested.as_str())
+            .is_none_or(|(bits, request)| request.strip_prefix("0x") != Some(bits))
+    }) { return Err(fail()); }
+    let observed = &record["observed"];
+    let result = oracle_outcome(&serde_json::json!({"kind": observed["type"], "code": observed["code"], "bits_hex": observed["bits"]}))
+        .ok_or_else(fail)?;
+    let env = &record["environment"];
+    if result == original.expected || env["engine"] != "excel" || env["build"] != "20527"
+        || !env["os"].as_str().is_some_and(|s| s.starts_with("Microsoft Windows"))
+        || env["cpu"].as_str().is_none() || env["date1904"].as_bool().is_none()
+        || env["compatibility_version"].as_u64().is_none() { return Err(fail()); }
+    let current_context = serde_json::json!({
+        "input_transport": "cell_value2_bulk", "date1904": env["date1904"],
+        "compatibility_version": env["compatibility_version"],
+        "decimal_separator": env["decimal_separator"], "thousands_separator": env["thousands_separator"],
+    });
+    Ok(Difference {
+        function: original.function.clone(),
+        key: format!("{}|original={}:{}", contextual_key(&original.function, &original.args, original.index, source.env.invocation.as_ref()), source.path, original.id),
+        readings: vec![
+            (original.expected.clone(), source.env.environment(), source.path.clone()),
+            (result, format!("20527/Windows/?/{} context={current_context}", env["cpu"].as_str().unwrap()),
+                format!("migration/evidence/dc-ymjf3-20527-date-differences.jsonl.gz#{}:{}", source.path, original.id)),
+        ],
+        across_environments: true,
+    })
+}
+
+fn replay_differences(banks: &Banks) -> Result<Vec<Difference>, String> {
+    let bytes = gunzip(include_bytes!("../../../migration/evidence/dc-ymjf3-20527-date-differences.jsonl.gz"), None)?;
+    let mut originals = BTreeMap::new();
+    for reading in banks.readings.iter().filter(|r| r.function == "DATE") {
+        let source = &banks.sources[reading.source];
+        if originals.insert((source.path.as_str(), reading.id.as_str()), reading).is_some() {
+            return Err(format!("duplicate original reading {} {}", source.path, reading.id));
+        }
+    }
+    let mut seen = BTreeSet::new();
+    let mut out = Vec::new();
+    for line in bytes.split(|b| *b == b'\n').filter(|line| !line.is_empty()) {
+        let row = bank_json(line)?;
+        let source = row["bank"]["source"].as_str().ok_or("replay source missing")?;
+        let id = row["bank"]["id"].as_str().ok_or("replay ID missing")?;
+        if !seen.insert((source.to_owned(), id.to_owned())) { return Err(format!("duplicate replay {source} {id}")); }
+        let original = originals.get(&(source, id)).ok_or_else(|| format!("replay original missing: {source} {id}"))?;
+        out.push(replay_difference(&row, original, &banks.sources[original.source])?);
+    }
+    Ok(out)
+}
+
 fn calc_func_commit(root: &Path) -> String {
     let git = |args: &[&str]| {
         Command::new("git")
@@ -2059,7 +2126,10 @@ fn run_request(request: &Request) -> Result<ExitCode, String> {
     if !request.values_only && banks.sources.iter().any(|s| s.env.invocation.as_ref().is_some_and(|c| c.compatibility_version.is_some())) {
         println!("xtask witness: CompatibilityVersion is retained in source identity and applied by the context-aware caller");
     }
-    let (mut grouped, differences) = group(&banks);
+    let (mut grouped, mut differences) = group(&banks);
+    if request.bank == Bank::Full && only.is_none_or(|name| name == "DATE") {
+        differences.extend(replay_differences(&banks)?);
+    }
     for function in banks.unread_rows.keys() {
         grouped.entry(function.clone()).or_default();
     }
@@ -2617,6 +2687,39 @@ fn run_read(root: &Path, checkout: &Path, request: &Request) -> Result<ExitCode,
 
 #[cfg(test)]
 mod tests {
+    #[test]
+    fn replay_pairs_require_original_identity_and_exact_input_readback() {
+        let bytes = super::gunzip(include_bytes!("../../../migration/evidence/dc-ymjf3-20527-date-differences.jsonl.gz"), None).unwrap();
+        let record = super::bank_json(bytes.split(|b| *b == b'\n').next().unwrap()).unwrap();
+        let bank = &record["bank"];
+        let source = super::Source {
+            path: bank["source"].as_str().unwrap().into(),
+            env: super::ReadingSource {
+                id: String::new(), source: String::new(),
+                excel_build: bank["build"].as_str().map(str::to_owned),
+                platform: Some("Windows".into()), bitness: None,
+                cpu: bank["cpu"].as_str().map(str::to_owned),
+                invocation: Some(calc_verdict::WitnessInvocation::decode(&bank["invocation"], "invocation").unwrap()),
+            },
+        };
+        let original = super::Reading {
+            function: bank["function"].as_str().unwrap().into(), id: bank["id"].as_str().unwrap().into(),
+            args: bank["args"].as_array().unwrap().clone(), index: None,
+            expected: bank["expected"].as_str().unwrap().into(), source: 0,
+        };
+        let difference = super::replay_difference(&record, &original, &source).unwrap();
+        assert_eq!(difference.readings.len(), 2);
+        assert_ne!(difference.readings[0].0, difference.readings[1].0);
+        let mut changed = record.clone();
+        changed["inputs"][0]["bits"] = serde_json::json!("0000000000000000");
+        assert!(super::replay_difference(&changed, &original, &source).is_err());
+        changed = record.clone();
+        changed["bank"]["expected"] = serde_json::json!("error:Num");
+        assert!(super::replay_difference(&changed, &original, &source).is_err());
+        changed = record;
+        changed["environment"]["build"] = serde_json::json!("20430");
+        assert!(super::replay_difference(&changed, &original, &source).is_err());
+    }
     use super::*;
 
     #[test]
