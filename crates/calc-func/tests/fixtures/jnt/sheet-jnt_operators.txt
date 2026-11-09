@@ -1,0 +1,45 @@
+# dc-jnt.15 J11: Operators: arithmetic, unary plus and minus, comparison and concatenation over numbers, numeric text, logicals and blanks.
+# Ported from OxFunc@05196c39:crates/oxfunc_core/src/functions/{op_add.rs,operator_arithmetic_family.rs,operator_compare_concat_family.rs} (unit tests).
+# Each row is an operator formula a legacy unit test asserts. The legacy expectation is a hypothesis: the
+# answer in the section capture is live Excel's read-back of the row (the question service takes function
+# calls only); a difference is listed in contradicted-jnt_operators.json.
+2+3
+1E-308+1E-308
+"2"+TRUE
+"abc"+1
+-"2"
+-TRUE
++"2"
++TRUE
++2
++#N/A
++Z1
+5%
+5-2
+5*2
+5/2
+2^3
+1/0
++1E-309
+-1E-309
+1E-307%
+2E-308-1E-308
+1E-307*0.01
+2.3E-308/2
+5E-308/2
+"a"&1
+1&TRUE
+1="1"
+"10">2
+"a"="A"
+"a">1
+TRUE>1
+Z1=0
+Z1=""
+Z1=FALSE
+Z1<1
+1=#N/A
+0.1+0.2=0.3
+1+1E-14=1
+(0.1+0.2)>0.3
+(0.1+0.2)<0.3
