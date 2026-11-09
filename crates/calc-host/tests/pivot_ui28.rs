@@ -1175,7 +1175,7 @@ fn captured_properties(host: &calc_host::HostState, at: CellKey) -> Vec<Option<S
         (((pixels - 5.0) / 7.0 * 100.0 + 0.5).trunc() / 100.0).max(0.0).to_string()
     });
     let height = geometry.as_ref().and_then(|g| g.row(at.row()).and_then(|r| r.height).or(g.default_row_height)).map(|x| x.to_string());
-    let mut properties = vec![host.number_format(at).map(str::to_owned), font.and_then(|f| f.name.clone()), font.and_then(|f| f.size.clone()),
+    let mut properties = vec![host.pivot_display_number_format(at).or_else(|| host.number_format(at).map(str::to_owned)), font.and_then(|f| f.name.clone()), font.and_then(|f| f.size.clone()),
         font.map(|f| f.bold.to_string()), font.map(|f| f.italic.to_string()), font.and_then(|f| captured_color(host, f.color.as_ref()?)),
         fill_color, pattern,
         edges.as_ref().and_then(|e| e[0].clone()), edges.as_ref().and_then(|e| e[1].clone()),
@@ -1278,9 +1278,10 @@ fn dc_8wp_12__all_captured_stages_report_number_format_codes() {
             } else { value_unavailable += 1; text_unavailable += 1; }
             let address = fields[1];
             let expected = fields[4];
-            let actual = book.host().number_format(at(sheet, address));
-            if actual == Some(expected) { stage_matches += 1; }
-            else { *differences.entry((expected.to_owned(), actual.unwrap_or("<unavailable>").to_owned())).or_default() += 1; }
+            let actual = book.host().pivot_display_number_format(at(sheet, address))
+                .or_else(|| book.host().number_format(at(sheet, address)).map(str::to_owned));
+            if actual.as_deref() == Some(expected) { stage_matches += 1; }
+            else { *differences.entry((expected.to_owned(), actual.unwrap_or_else(|| "<unavailable>".into()))).or_default() += 1; }
             let edges: Vec<_> = fields[13].split('|').collect();
             assert_eq!(edges.len(), 4);
             let expected = [fields[4], fields[6], fields[7], fields[8], fields[9], fields[10], fields[11], fields[12], edges[0], edges[1], edges[2], edges[3], fields[14], fields[15], fields[16], fields[17]];
@@ -1339,6 +1340,7 @@ fn dc_8wp_12__all_captured_stages_report_number_format_codes() {
     let mismatches = 3330 - matches - refused_cells;
     let failed = mismatches + refused_cells;
     println!("Captured number-format codes: {matches}/3330 match ({:.2}%); {failed} fail ({mismatches} mismatches, {refused_cells} refused) across 76 stages", 100.0 * matches as f64 / 3330.0);
+    assert_eq!(matches, 3330, "the displayed code or its cell-format fallback differs from Excel");
     println!("value: {value_matches}/3330 match; {} fail ({value_unavailable} unavailable, {refused_cells} refresh refusals)", 3330 - value_matches);
     println!("display text: {text_matches}/3330 match; {} fail ({text_unavailable} unavailable, {refused_cells} refresh refusals)", 3330 - text_matches);
     for (i, name) in names.iter().enumerate() {
@@ -1370,6 +1372,44 @@ fn dc_8wp_12__unmeasured_neutral_themes_do_not_reuse_office_pivot_colors() {
         let table = book.host().model().definitions().pivots().tables().find(|table| table.name == "pvt_style_rows_PivotStyleDark1").unwrap();
         assert!(book.host().pivot_style_look(table.area.first()).is_none());
     }
+}
+
+/// Excel can report General through DisplayFormat while the cell's own format draws a date or
+/// percentage. An authored cell-format override makes this narrow projection unavailable.
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn dc_8wp_12__display_number_code_keeps_the_cell_format_for_text() {
+    use calc_host::WorkbookCommand;
+    let source: Arc<dyn PackageRead> = Arc::new(MemorySource::new(include_bytes!("fixtures/pivot/m2-formatting/built.xlsx").to_vec()));
+    let mut book = HostSession::open(source, &OpenPolicy::default(), HostOptions {
+        locale: calc_host::FormatProfile::for_culture("en-US"), ..Default::default()
+    }).unwrap();
+    let cases = [("numfmt-date-like", "B6"), ("numfmt-percent", "B11"), ("option-medium9-all-stripes", "B4")];
+    for (stage, address) in cases {
+        let name = format!("pvt_{}", stage.replace('-', "_"));
+        let table = book.host().model().definitions().pivots().tables().find(|table| table.name == name).unwrap();
+        let at = at(table.area.first().sheet(), address);
+        let captured = include_str!("fixtures/pivot/m2-formatting/formats.tsv").lines().map(|line| line.split('\t').collect::<Vec<_>>())
+            .find(|fields| fields[0] == stage && fields[1] == address).unwrap();
+        assert_eq!(book.host().pivot_display_number_format(at).as_deref(), Some(captured[4]), "{stage} {address}");
+        let page = project(book.host(), &ProjectionRequest { cells: vec![at] }).unwrap();
+        let value = match page.cells()[0].value() {
+            ProjectedValue::Literal(value) | ProjectedValue::Calculated { value, .. } => value,
+            other => panic!("{stage} {address}: {other:?}"),
+        };
+        let system = if book.host().declared_date1904() { calc_func::locale::DateSystem::System1904 } else { calc_func::locale::DateSystem::System1900 };
+        let text = calc_func::cell_text(book.host().options().locale.as_ref().unwrap(), system, value, book.host().number_format(at).unwrap()).unwrap();
+        assert_eq!(text, captured[5], "{stage} {address}");
+    }
+    let table = book.host().model().definitions().pivots().tables().find(|table| table.name == "pvt_numfmt_date_like").unwrap();
+    let target = at(table.area.first().sheet(), "B6");
+    let receipt = book.dispatch(SkinIntent::Command(WorkbookCommand::FormatCells {
+        areas: vec![calc_host::value::GridArea::cell(target)],
+        patch: calc_host::FormatPatch { number_format: Some("0.00".into()), ..Default::default() },
+    }));
+    assert!(receipt.accepted(), "{receipt:?}");
+    assert_eq!(book.host().pivot_display_number_format(target), None);
+    assert_eq!(book.host().number_format(target), Some("0.00"));
 }
 
 #[cfg_attr(not(target_arch = "wasm32"), test)]

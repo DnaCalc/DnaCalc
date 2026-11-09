@@ -7,6 +7,7 @@ pub fn text_style(
     width: f64,
 ) -> TextStyle {
     let mut shown = text_style_for(host, at, width, host.styles(), host.cell_style(at));
+    shown.display_number_format = host.pivot_display_number_format(at);
     if host.model().definitions().pivots().sheet(at.sheet()).is_some_and(|sheet|
         sheet.tables.iter().any(|table| table.area.contains(at) && (table.style.is_some() || !table.formats.is_empty()))) {
         shown.unsupported.get_or_insert_with(|| "Some pivot style effects are not painted (dc-8wp.12)".into());
@@ -328,6 +329,24 @@ fn table_style(
 #[cfg(test)]
 mod tests {
     use super::*;
+    /// The grid carries Excel's reported number code without changing the code that renders text.
+    #[cfg_attr(not(target_arch = "wasm32"), test)]
+    #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+    fn dc_8wp_12__pivot_display_number_code_reaches_the_grid() {
+        use calc_host::value::CellKey;
+        let workbook = crate::workbook::Workbook::open("w2.xlsx", include_bytes!("../../../crates/calc-host/tests/fixtures/pivot/m2-formatting/built.xlsx").to_vec()).unwrap();
+        let table = workbook.host().model().definitions().pivots().tables().find(|table| table.name == "pvt_numfmt_percent").unwrap();
+        let at = CellKey::new(table.area.first().sheet(), 11, 2).unwrap();
+        let cell = workbook.cell(at).unwrap();
+        let shown = workbook.shown(&cell);
+        let capture = include_str!("../../../crates/calc-host/tests/fixtures/pivot/m2-formatting/formats.tsv").lines()
+            .map(|line| line.split('\t').collect::<Vec<_>>()).find(|fields| fields[0] == "numfmt-percent" && fields[1] == "B11").unwrap();
+        assert_eq!(shown.style.display_number_format.as_deref(), Some(capture[4]));
+        assert_eq!(shown.text, capture[5]);
+        assert_ne!(workbook.host().number_format(at), Some(capture[4]));
+        let wire = crate::wire::cell_of(&shown, String::new(), String::new(), &cell);
+        assert_eq!(wire.style.display_number_format.as_deref(), Some(capture[4]));
+    }
     /// The grid consumes the same pivot style layer as the W2 property comparison, and an
     /// explicit data-cell fill remains above it.
     #[cfg_attr(not(target_arch = "wasm32"), test)]

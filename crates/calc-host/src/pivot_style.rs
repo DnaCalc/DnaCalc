@@ -34,7 +34,128 @@ fn flag(style: &calc_doc_model::pivot::PivotStyle, name: &str) -> Option<bool> {
     }
 }
 
+// Excel's displayed format spelling omits escapes for these captured literal characters.
+// Escaped dollars and commas remain; unmeasured escape and padding syntax is refused.
+fn display_number_code(code: &str) -> Option<(String, bool)> {
+    let mut result = String::new();
+    let mut chars = code.chars();
+    let mut quoted = false;
+    let mut bracketed = false;
+    let mut changed = false;
+    while let Some(ch) = chars.next() {
+        if ch == '\\' {
+            let next = chars.next()?;
+            if quoted || bracketed { return None; }
+            match next {
+                '-' | '(' | ')' | ' ' => changed = true,
+                '$' | ',' => result.push('\\'),
+                _ => return None,
+            }
+            result.push(next);
+        } else {
+            if !quoted && !bracketed && matches!(ch, '_' | '*') { return None; }
+            if ch == '"' && !bracketed { quoted = !quoted; }
+            if !quoted && ch == '[' { if bracketed { return None; } bracketed = true; }
+            else if !quoted && ch == ']' { if !bracketed { return None; } bracketed = false; }
+            result.push(ch);
+        }
+    }
+    (!quoted && !bracketed).then_some((result, changed))
+}
+
 impl HostState {
+    /// A measured DisplayFormat number code for the captured value-field layouts. This is
+    /// separate from the cell format used to render text: Excel reports General on these grand
+    /// total cells even when their displayed text uses the value-field format.
+    pub fn pivot_display_number_format(&self, at: CellKey) -> Option<String> {
+        let definitions = self.model().definitions();
+        if definitions.cell_format(at).is_some() || !definitions.conditional_rules(at.sheet()).is_empty() { return None; }
+        let state = definitions.pivots();
+        let sheet = state.sheet(at.sheet())?;
+        if !state.caches.issues.is_empty() || !sheet.issues.is_empty() { return None; }
+        let mut tables = sheet.tables.iter().filter(|table| table.area.contains(at));
+        let table = tables.next()?;
+        if tables.next().is_some() || table.row_fields.iter().any(|field| *field < 0)
+            || !table.page_fields.is_empty() || !table.filters.is_empty() || !table.formats.is_empty() || !table.unsupported.is_empty() { return None; }
+        let cache = state.caches.caches.get(&table.cache_id)?;
+        if cache.source_type != "worksheet" || !cache.unsupported.is_empty() || !cache.calculated_items.is_empty()
+            || cache.fields.iter().any(|field| field.group.is_some() || !field.formula_items.is_empty()) { return None; }
+        let first = table.area.first();
+        let header: u32 = table.location.get("firstHeaderRow")?.parse().ok()?;
+        let row_offset: u32 = table.location.get("firstDataRow")?.parse().ok()?;
+        let col_offset: u32 = table.location.get("firstDataCol")?.parse().ok()?;
+        let styles = self.styles();
+        let xf = styles.cell_formats.get(self.cell_style(at) as usize)?;
+        let parent = xf.xf_id.and_then(|id| styles.cell_style_formats.get(id as usize));
+        let cell_id = xf.number_format_id.or_else(|| parent.and_then(|p| p.number_format_id)).unwrap_or(0);
+        // In the captured date-axis layout Excel reports General for the header's
+        // DisplayFormat while retaining the date format for its visible label text.
+        if table.row_fields.len() == 2 && table.row_fields[0] != table.row_fields[1]
+            && table.column_fields.len() == 1 && table.column_fields[0] >= 0
+            && !table.row_fields.contains(&table.column_fields[0])
+            && table.data_fields.len() == 1 && header == 1 && row_offset == 2 && col_offset == 1
+            && at.row() == first.row().checked_add(1)? {
+            let style = table.style.as_ref()?;
+            if style.attributes.get("name")?.as_str() != "PivotStyleMedium9"
+                || !flag(style, "showRowHeaders")? || !flag(style, "showColHeaders")?
+                || !flag(style, "showRowStripes")? || !flag(style, "showColStripes")? { return None; }
+            let field = cache.fields.get(table.column_fields[0] as usize)?;
+            if field.group.is_some() || !field.formula_items.is_empty() || field.items.is_empty()
+                || field.items.iter().any(|item| !matches!(item, calc_doc_model::pivot::PivotItem::Date(_))) { return None; }
+            let id: u32 = field.attributes.get("numFmtId")?.parse().ok()?;
+            if id != cell_id { return None; }
+            display_number_code(self.number_format(at)?)?;
+            let columns = table.area.last().column().checked_sub(first.column().checked_add(col_offset)?)?.checked_add(1)?;
+            if table.col_items.len() != columns as usize || table.col_items.last().is_none_or(|item| item.kind != "grand")
+                || table.col_items[..table.col_items.len() - 1].iter().any(|item| item.kind != "data") { return None; }
+            let col = at.column().checked_sub(first.column().checked_add(col_offset)?)? as usize;
+            let item = table.col_items.get(col)?;
+            if !matches!(item.kind.as_str(), "data" | "grand") { return None; }
+            return Some("General".into());
+        }
+        if table.row_fields.len() != 1 { return None; }
+        let style = table.style.as_ref()?;
+        if style.attributes.get("name")?.as_str() != "PivotStyleLight16"
+            || !flag(style, "showRowHeaders")? || !flag(style, "showColHeaders")?
+            || flag(style, "showRowStripes")? || flag(style, "showColStripes")? { return None; }
+        let data_fields = table.data_fields.len();
+        let shape = match data_fields {
+            1 => table.column_fields.len() == 1 && table.column_fields[0] >= 0 && table.column_fields[0] != table.row_fields[0],
+            2 => table.column_fields.len() == 2 && table.column_fields[0] >= 0 && table.column_fields[0] != table.row_fields[0] && table.column_fields[1] == -2,
+            _ => false,
+        };
+        if !shape { return None; }
+        if header != 1 || row_offset != data_fields as u32 + 1 || col_offset != 1 { return None; }
+        let row = at.row().checked_sub(first.row().checked_add(row_offset)?)? as usize;
+        let col = at.column().checked_sub(first.column().checked_add(col_offset)?)? as usize;
+        let row_count = table.area.last().row().checked_sub(first.row().checked_add(row_offset)?)?.checked_add(1)?;
+        let col_count = table.area.last().column().checked_sub(first.column().checked_add(col_offset)?)?.checked_add(1)?;
+        if table.row_items.len() != row_count as usize || table.col_items.len() != col_count as usize
+            || table.row_items.last().is_none_or(|item| item.kind != "grand")
+            || table.row_items[..table.row_items.len() - 1].iter().any(|item| item.kind != "data") { return None; }
+        if data_fields == 1 {
+            if table.col_items.last().is_none_or(|item| item.kind != "grand")
+                || table.col_items[..table.col_items.len() - 1].iter().any(|item| item.kind != "data" || item.data_index != 0) { return None; }
+        } else {
+            if table.col_items.len() < 2 || table.col_items.len() % 2 != 0 { return None; }
+            let pairs = table.col_items.len() / 2;
+            if table.col_items.chunks_exact(2).enumerate().any(|(index, pair)| {
+                let kind = if index + 1 == pairs { "grand" } else { "data" };
+                pair[0].kind != kind || pair[1].kind != kind || pair[0].data_index != 0 || pair[1].data_index != 1
+            }) { return None; }
+        }
+        let row_item = table.row_items.get(row)?;
+        if !matches!(row_item.kind.as_str(), "data" | "grand") { return None; }
+        let column = table.col_items.get(col)?;
+        if !matches!(column.kind.as_str(), "data" | "grand") { return None; }
+        let field = table.data_fields.get(column.data_index as usize)?;
+        let id: u32 = field.attributes.get("numFmtId")?.parse().ok()?;
+        if cell_id != id { return None; }
+        let (code, changed) = display_number_code(self.number_format(at)?)?;
+        if row_item.kind == "grand" { Some("General".into()) }
+        else { changed.then_some(code) }
+    }
+
     /// The supported preset's style layer for this cell. Unsupported shapes and area formats
     /// leave the stored appearance alone until their precedence is modelled.
     pub fn pivot_style_look(&self, at: CellKey) -> Option<PivotStyleLook> {
@@ -148,5 +269,19 @@ impl HostState {
             }
         }
         Some(look)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::display_number_code;
+
+    /// Format constructs without captured spelling evidence must not acquire an inferred override.
+    #[cfg_attr(not(target_arch = "wasm32"), test)]
+    #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+    fn dc_8wp_12__unmeasured_number_code_syntax_is_refused() {
+        for code in [r"0*\-", r"0_)", r"0\a", "0\\", "[Red", "\"unfinished"] {
+            assert!(display_number_code(code).is_none(), "{code}");
+        }
     }
 }
