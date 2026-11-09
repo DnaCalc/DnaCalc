@@ -10,12 +10,12 @@
       "tar_sha256": "6ea4fb3ef3d89b491a026f5661434f9703512d7682d88f472740f01153c83d36"
     },
     "onecalc": {
-      "build_json_sha256": "38c36ab0a9bc6974a5fb8412f76a39123a51ee8c6aff08846a1b4056b4e3dfe5",
-      "commit": "4b08ed65aad7da1d388892d57c9b439fb5083598",
+      "build_json_sha256": "0a9c8c0bddf6721401fa78a81aeb2b54116c66716cc8f881868986c2f4b27859",
+      "commit": "c27d1c615516898b9ad835de933bc220c0d48d5e",
       "host": "onecalc.dnacalc.com",
-      "published_utc": "2026-11-09T01:17:09Z",
-      "release": "20261109T011200Z-4b08ed65aad7",
-      "tar_sha256": "ee2682361c5af98ef242f640c8d2e6f3ad37f0926111440edf02c4646967bb26"
+      "published_utc": "2026-11-09T05:36:47Z",
+      "release": "20261109T052737Z-c27d1c615516",
+      "tar_sha256": "50c8073f98fa08e840fb55ba2c490dc014ccfe889f3a1398977233911c8fa526"
     }
   }
 }
