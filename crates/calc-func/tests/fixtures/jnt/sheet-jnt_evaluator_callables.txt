@@ -1,0 +1,64 @@
+# dc-jnt.9 J5: Evaluator and callables: subnormal boundary, logical branching, CHOOSE, IFS, SWITCH, ISOMITTED, TAKE/DROP empty carriers, ROW/COLUMN scalar rejection.
+# Ported from OxFml@15daac5:crates/oxfml_core/tests/{evaluator_tests.rs,callable_portable_result_tests.rs,callable_typed_value_tests.rs,callable_calls_callable_tests.rs,higher_order_callable_tests.rs,ftc_0999_callable_parameter_map_tests.rs,ftc_0999_lambda_array_publication_tests.rs,ftc_1043_hstack_empty_carrier_tests.rs,ftc_0176_if_array_condition_tests.rs,ftc_0630_subnormal_boundary_tests.rs,ftc_builtin_callable_collision_boundary_tests.rs,ftc_parser_authoring_runtime_tests.rs,eval/mod.rs} (unit tests).
+# Each row is a call a legacy unit test asserts. The legacy expectation is a hypothesis: the answer in the
+# section capture is Excel's, asked through the question service (tools/excel-service) with the build
+# recorded in the capture entry; a difference is listed in contradicted-jnt_evaluator_callables.json.
+# Numbers are exact cells (typed inputs); text arguments stay literals in the formula.
+POWER({A},{B})	n:4000000000000000	n:c08ff80000000000
+POWER({A},{B})	n:4000000000000000	n:c08ff00000000000
+POWER({A},{B})	n:4000000000000000	n:c090000000000000
+POWER({A},{B})	n:bff0000000000000	n:3fe0000000000000
+POWER({A},{B})	n:4000000000000000	n:4008000000000000
+POWER({A},{B})	n:4000000000000000	n:4018000000000000
+POWER({A},{B})	n:4000000000000000	n:4022000000000000
+POWER({A},{B})	n:c000000000000000	n:4000000000000000
+POWER({A},{B})	n:4000000000000000	n:bff0000000000000
+SIGN({A})	n:c014000000000000
+SIGN({A})	n:0000000000000000
+SIGN({A})	n:4014000000000000
+IF({A},{B},{C})	b:TRUE	n:4024000000000000	n:4034000000000000
+IF({A},{B},{C})	b:FALSE	n:4024000000000000	n:4034000000000000
+IF({A},{B},{C})	n:3ff0000000000000	n:4024000000000000	n:4034000000000000
+IF({A},{B},{C})	n:0000000000000000	n:4024000000000000	n:4034000000000000
+IF({A},{B},{C})	s:TRUE	n:4024000000000000	n:4034000000000000
+IF({A},{B},{C})	s:FALSE	n:4024000000000000	n:4034000000000000
+IF({A},{B},{C})	s:x	n:4024000000000000	n:4034000000000000
+IF({A},{B},{C})	-	n:4024000000000000	n:4034000000000000
+IF({A},{B})	b:TRUE	n:4024000000000000
+IF({A},{B})	b:FALSE	n:4024000000000000
+IF({A},"")	b:TRUE
+IF({A},{B},"")	b:FALSE	n:4024000000000000
+_xlfn.IFS({A},10.0,{B},20.0)	b:TRUE	b:FALSE
+_xlfn.IFS({A},10.0,{B},20.0,{C},30.0)	b:FALSE	b:TRUE	b:TRUE
+_xlfn.IFS({A},10.0,{B},20.0,{C},30.0)	b:FALSE	b:FALSE	b:TRUE
+_xlfn.IFS({A},10.0,{B},20.0)	b:FALSE	b:FALSE
+_xlfn.IFS({A},10.0,{B},20.0)	n:3ff0000000000000	n:0000000000000000
+_xlfn.IFS({A},10.0,{B},20.0)	n:0000000000000000	n:3ff0000000000000
+_xlfn.IFS({A},10.0,{B},20.0)	s:TRUE	n:0000000000000000
+_xlfn.IFS({A},10.0,{B},20.0)	s:x	n:3ff0000000000000
+CHOOSE({A},10.0,20.0,30.0)	n:3ff0000000000000
+CHOOSE({A},10.0,20.0,30.0)	n:4000000000000000
+CHOOSE({A},10.0,20.0,30.0)	n:4008000000000000
+CHOOSE({A},10.0,20.0,30.0)	n:4007333333333333
+CHOOSE({A},10.0,20.0,30.0)	n:3ff199999999999a
+CHOOSE({A},10.0,20.0,30.0)	n:0000000000000000
+CHOOSE({A},10.0,20.0,30.0)	n:4010000000000000
+CHOOSE({A},10.0,20.0,30.0)	n:bff0000000000000
+CHOOSE({A},10.0,20.0,30.0)	s:1
+CHOOSE({A},10.0,20.0,30.0)	s:x
+_xlfn.SWITCH({A},1.0,10.0,2.0,20.0,3.0,30.0,40.0)	n:4000000000000000
+_xlfn.SWITCH({A},1.0,10.0,2.0,20.0,3.0,30.0,40.0)	n:3ff0000000000000
+_xlfn.SWITCH({A},1.0,10.0,2.0,20.0,3.0,30.0,40.0)	n:4008000000000000
+_xlfn.SWITCH({A},1.0,10.0,2.0,20.0,3.0,30.0,40.0)	n:4058c00000000000
+_xlfn.SWITCH({A},1.0,10.0,2.0,20.0)	n:4058c00000000000
+_xlfn.SWITCH({A},"a",10.0,"b",20.0,30.0)	s:b
+_xlfn.SWITCH({A},"a",10.0,"b",20.0,30.0)	s:B
+_xlfn.ISOMITTED({A})	n:3ff0000000000000
+_xlfn.ISOMITTED({A})	s:a
+_xlfn.ISOMITTED({A})	b:TRUE
+_xlfn.ISOMITTED({A})	-
+_xlfn.TAKE({5,3,8,1,9,2},,0.0)
+_xlfn.TAKE({5,3,8,1,9,2},0.0,)
+_xlfn.DROP({5,3,8,1,9,2},,6.0)
+ROW({A})	n:401c000000000000
+COLUMN({A})	n:401c000000000000

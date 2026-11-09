@@ -1102,7 +1102,85 @@ J9 = [
     ("DPRODUCT", [arr_num([[1, 2], [3, 4]]), lit(1), arr_num([[1]])], err("value"), "database_family.rs dproduct_array_ref_check"),
 ]
 
-CASES = {"J10": J10, "J11": J11, "J4": J4, "J6": J6, "J7": J7, "J8": J8, "J9": J9}
+J5 = [
+    # POWER subnormal boundaries & exponentiation facts
+    ("POWER", [n(2), n(-1023)], num(0), "ftc_0630_subnormal_boundary_tests.rs eval_power_underflow"),
+    ("POWER", [n(2), n(-1022)], num(2.2250738585072014e-308), "ftc_0630_subnormal_boundary_tests.rs eval_power_min_normal"),
+    ("POWER", [n(2), n(-1024)], num(0), "ftc_0630_subnormal_boundary_tests.rs eval_power_underflow_past_min"),
+    ("POWER", [n(-1), n(0.5)], err("num"), "evaluator_tests.rs eval_negative_fractional_power"),
+    ("POWER", [n(2), n(3)], num(8), "evaluator_tests.rs eval_power_2_3"),
+    ("POWER", [n(2), n(6)], num(64), "evaluator_tests.rs eval_power_2_6"),
+    ("POWER", [n(2), n(9)], num(512), "evaluator_tests.rs eval_power_2_9"),
+    ("POWER", [n(-2), n(2)], num(4), "evaluator_tests.rs eval_power_neg_base_even_power"),
+    ("POWER", [n(2), n(-1)], num(0.5), "evaluator_tests.rs eval_power_neg_power"),
+
+    # SIGN
+    ("SIGN", [n(-5)], num(-1), "evaluator_tests.rs eval_sign_negative"),
+    ("SIGN", [n(0)], num(0), "evaluator_tests.rs eval_sign_zero"),
+    ("SIGN", [n(5)], num(1), "evaluator_tests.rs eval_sign_positive"),
+
+    # IF
+    ("IF", [b(True), n(10), n(20)], num(10), "evaluator_tests.rs eval_if_true"),
+    ("IF", [b(False), n(10), n(20)], num(20), "evaluator_tests.rs eval_if_false"),
+    ("IF", [n(1), n(10), n(20)], num(10), "evaluator_tests.rs eval_if_num_1"),
+    ("IF", [n(0), n(10), n(20)], num(20), "evaluator_tests.rs eval_if_num_0"),
+    ("IF", [cell_s("TRUE"), n(10), n(20)], num(10), "ftc_0176_if_array_condition_tests.rs eval_if_text_true"),
+    ("IF", [cell_s("FALSE"), n(10), n(20)], num(20), "ftc_0176_if_array_condition_tests.rs eval_if_text_false"),
+    ("IF", [cell_s("x"), n(10), n(20)], err("value"), "ftc_0176_if_array_condition_tests.rs eval_if_text_non_boolean"),
+    ("IF", [EMPTY, n(10), n(20)], num(20), "evaluator_tests.rs eval_if_blank_condition"),
+    ("IF", [b(True), n(10)], num(10), "evaluator_tests.rs eval_if_true_omitted_false"),
+    ("IF", [b(False), n(10)], F_, "evaluator_tests.rs eval_if_false_omitted_false"),
+    ("IF", [b(True), s("")], txt(""), "evaluator_tests.rs eval_if_empty_text_true"),
+    ("IF", [b(False), n(10), s("")], txt(""), "evaluator_tests.rs eval_if_empty_text_false"),
+
+    # IFS
+    ("IFS", [b(True), lit(10), b(False), lit(20)], num(10), "evaluator_tests.rs eval_ifs_first_true"),
+    ("IFS", [b(False), lit(10), b(True), lit(20), b(True), lit(30)], num(20), "evaluator_tests.rs eval_ifs_second_true"),
+    ("IFS", [b(False), lit(10), b(False), lit(20), b(True), lit(30)], num(30), "evaluator_tests.rs eval_ifs_third_true"),
+    ("IFS", [b(False), lit(10), b(False), lit(20)], err("na"), "evaluator_tests.rs eval_ifs_none_true"),
+    ("IFS", [n(1), lit(10), n(0), lit(20)], num(10), "evaluator_tests.rs eval_ifs_num_1_cond"),
+    ("IFS", [n(0), lit(10), n(1), lit(20)], num(20), "evaluator_tests.rs eval_ifs_num_0_cond"),
+    ("IFS", [cell_s("TRUE"), lit(10), n(0), lit(20)], num(10), "evaluator_tests.rs eval_ifs_text_true_cond"),
+    ("IFS", [cell_s("x"), lit(10), n(1), lit(20)], err("value"), "evaluator_tests.rs eval_ifs_text_non_boolean"),
+
+    # CHOOSE
+    ("CHOOSE", [n(1), lit(10), lit(20), lit(30)], num(10), "evaluator_tests.rs eval_choose_1"),
+    ("CHOOSE", [n(2), lit(10), lit(20), lit(30)], num(20), "evaluator_tests.rs eval_choose_2"),
+    ("CHOOSE", [n(3), lit(10), lit(20), lit(30)], num(30), "evaluator_tests.rs eval_choose_3"),
+    ("CHOOSE", [n(2.9), lit(10), lit(20), lit(30)], num(20), "evaluator_tests.rs eval_choose_2_9"),
+    ("CHOOSE", [n(1.1), lit(10), lit(20), lit(30)], num(10), "evaluator_tests.rs eval_choose_1_1"),
+    ("CHOOSE", [n(0), lit(10), lit(20), lit(30)], err("value"), "evaluator_tests.rs eval_choose_0_underflow"),
+    ("CHOOSE", [n(4), lit(10), lit(20), lit(30)], err("value"), "evaluator_tests.rs eval_choose_4_overflow"),
+    ("CHOOSE", [n(-1), lit(10), lit(20), lit(30)], err("value"), "evaluator_tests.rs eval_choose_negative"),
+    ("CHOOSE", [cell_s("1"), lit(10), lit(20), lit(30)], num(10), "evaluator_tests.rs eval_choose_text_digit"),
+    ("CHOOSE", [cell_s("x"), lit(10), lit(20), lit(30)], err("value"), "evaluator_tests.rs eval_choose_text_non_num"),
+
+    # SWITCH
+    ("SWITCH", [n(2), lit(1), lit(10), lit(2), lit(20), lit(3), lit(30), lit(40)], num(20), "evaluator_tests.rs eval_switch_match_2"),
+    ("SWITCH", [n(1), lit(1), lit(10), lit(2), lit(20), lit(3), lit(30), lit(40)], num(10), "evaluator_tests.rs eval_switch_match_1"),
+    ("SWITCH", [n(3), lit(1), lit(10), lit(2), lit(20), lit(3), lit(30), lit(40)], num(30), "evaluator_tests.rs eval_switch_match_3"),
+    ("SWITCH", [n(99), lit(1), lit(10), lit(2), lit(20), lit(3), lit(30), lit(40)], num(40), "evaluator_tests.rs eval_switch_default"),
+    ("SWITCH", [n(99), lit(1), lit(10), lit(2), lit(20)], err("na"), "evaluator_tests.rs eval_switch_no_default_na"),
+    ("SWITCH", [cell_s("b"), s("a"), lit(10), s("b"), lit(20), lit(30)], num(20), "evaluator_tests.rs eval_switch_text_match"),
+    ("SWITCH", [cell_s("B"), s("a"), lit(10), s("b"), lit(20), lit(30)], num(20), "evaluator_tests.rs eval_switch_case_insensitive"),
+
+    # ISOMITTED
+    ("ISOMITTED", [n(1)], F_, "evaluator_tests.rs eval_isomitted_1"),
+    ("ISOMITTED", [cell_s("a")], F_, "evaluator_tests.rs eval_isomitted_text"),
+    ("ISOMITTED", [b(True)], F_, "evaluator_tests.rs eval_isomitted_bool"),
+    ("ISOMITTED", [EMPTY], F_, "evaluator_tests.rs eval_isomitted_empty"),
+
+    # TAKE / DROP (empty carrier boundaries)
+    ("TAKE", [arr_num([[5, 3, 8, 1, 9, 2]]), omitted(), lit(0)], err("calc"), "ftc_1043_hstack_empty_carrier_tests.rs eval_take_zero_cols"),
+    ("TAKE", [arr_num([[5, 3, 8, 1, 9, 2]]), lit(0), omitted()], err("calc"), "ftc_1043_hstack_empty_carrier_tests.rs eval_take_zero_rows"),
+    ("DROP", [arr_num([[5, 3, 8, 1, 9, 2]]), omitted(), lit(6)], err("calc"), "ftc_1043_hstack_empty_carrier_tests.rs eval_drop_all_cols"),
+
+    # ROW / COLUMN boundary
+    ("ROW", [n(7)], err("value"), "ftc_builtin_callable_collision_boundary_tests.rs eval_row_rejects_scalar"),
+    ("COLUMN", [n(7)], err("value"), "ftc_builtin_callable_collision_boundary_tests.rs eval_column_rejects_scalar"),
+]
+
+CASES = {"J10": J10, "J11": J11, "J4": J4, "J5": J5, "J6": J6, "J7": J7, "J8": J8, "J9": J9}
 
 
 
