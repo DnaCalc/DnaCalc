@@ -69,6 +69,16 @@ pub(crate) fn calculate(state: &PivotState, tick: CalcTick) -> PivotResults {
         let Some(snapshot) = cache.snapshot.as_ref() else {
             continue;
         };
+        if table.collapsed {
+            // No room for the output: one cell, the top-left, holds the error Excel shows (code 2045).
+            let calculation = Calculation::new(
+                AuthoredRevision::new(snapshot.source_revision),
+                tick,
+                snapshot.numeric.clone(),
+            );
+            out.cells.insert(table.area.first(), (CalcValue::error(WorksheetErrorCode::Spill), calculation));
+            continue;
+        }
         match layout(table, cache) {
             Ok(layout) if layout.table.area == table.area => {
                 let calculation = Calculation::new(

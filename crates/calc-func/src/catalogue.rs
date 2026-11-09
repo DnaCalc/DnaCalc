@@ -137,7 +137,7 @@ pub enum EntryKind {
 pub enum HostRouteKind { Fetch(crate::FetchKind), Import(crate::ImportKind), Rtd }
 
 /// One entry as its family fragment declares it.
-#[derive(Debug)]
+#[derive(Clone, Copy, Debug)]
 pub(crate) struct CatalogueEntry {
     pub(crate) id: FunctionId,
     /// The spelling in an English formula: upper case for a named call, the token for an
