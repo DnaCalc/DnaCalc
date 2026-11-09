@@ -102,6 +102,10 @@ pub struct PivotTable {
     pub part: String,
     pub cache_id: u32,
     pub area: GridArea,
+    /// The output wanted more room than the sheet had (cells or another pivot in the way): as Excel does, the pivot
+    /// shows one cell, its top-left, holding an error, and keeps its fields. A refresh with room expands it again.
+    /// `area` is that one cell while this is set.
+    pub collapsed: bool,
     pub row_fields: Vec<i32>,
     pub column_fields: Vec<i32>,
     pub page_fields: Vec<PivotPageField>,

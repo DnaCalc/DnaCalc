@@ -1291,6 +1291,7 @@ pub(super) fn render_axes(
     .map_err(|_| bad("Pivot output exceeds worksheet"))?;
     let mut next = table.clone();
     next.area = GridArea::new(first, last).map_err(|_| bad("Invalid pivot output area"))?;
+    next.collapsed = false;
     next.location.insert("firstHeaderRow".into(), if values_only { "0" } else { "1" }.into());
     next.location
         .insert("firstDataRow".into(), header.to_string());

@@ -434,7 +434,7 @@ pub(super) fn attach_page(upstream: u16, out: &Path) -> Result<(DriverProcess, S
         .and_then(|text| text.split_whitespace().nth(1).map(str::to_owned))
         .unwrap_or_default();
     let proxy = paint::devtools_proxy(upstream, format!("Chrome/{version}"))?;
-    open_attached(browser, &out.join("downloads"), None, Some(&format!("127.0.0.1:{proxy}")))
+    open_attached(browser, &out.join("downloads"), None, Some(&format!("127.0.0.1:{proxy}")), None)
 }
 
 /// Opens the workbook at `path` through the page's file input, answering the page's question about

@@ -17105,13 +17105,17 @@ fn dc_8wp_2__refresh_publishes_shared_results_and_roundtrips_source_records(){
 #[cfg_attr(not(target_arch="wasm32"),test)]
 #[cfg_attr(target_arch="wasm32",wasm_bindgen_test::wasm_bindgen_test)]
 fn dc_8wp_2__refresh_refuses_stale_source_overwrite_and_unmeasured_layouts_atomically(){
+    // (Growing over a nonblank cell is no longer a refusal: Excel collapses the pivot, see below.)
     let bytes=include_bytes!("../../calc-doc/tests/fixtures/cdoc_m1_1/pivot-saved.xlsx");
     let mut book=session(bytes);let sheet=book.host().sheets()[0].id();
     let refresh=|book:&mut HostSession|{let revision=book.host().revision();let result=book.dispatch(SkinIntent::Command(calc_host::WorkbookCommand::PivotRefresh{sheet,revision:revision.get(),part:"xl/pivotTables/summary.xml".into()}));assert!(!result.accepted(),"{result:?}");assert_eq!(book.host().revision(),revision);assert!(book.host().model().definitions().pivots().caches.caches[&7].snapshot.is_none());assert_eq!(session_value(book,at(sheet,"E6")),ProjectedValue::Literal(CalcValue::number(24.)));};
     assert!(!book.dispatch(SkinIntent::EnterCell{at:at(sheet,"E6"),text:"999".into()}).accepted());
     assert!(book.dispatch(SkinIntent::SetCalcMode(calc_host::CalcMode::Manual)).accepted());assert!(enter(&mut book,at(sheet,"B2"),"=6+6").accepted());refresh(&mut book);
     assert!(book.dispatch(SkinIntent::Recalculate).accepted());assert!(book.dispatch(SkinIntent::SetCalcMode(calc_host::CalcMode::Automatic)).accepted());
-    assert!(enter(&mut book,at(sheet,"A4"),"North").accepted());assert!(enter(&mut book,at(sheet,"D7"),"keep").accepted());refresh(&mut book);assert_eq!(session_value(&book,at(sheet,"D7")),ProjectedValue::Literal(CalcValue::text(calc_value::ExcelText::from_utf16_code_units("keep".encode_utf16().collect()))));
+    assert!(enter(&mut book,at(sheet,"A4"),"North").accepted());assert!(enter(&mut book,at(sheet,"D7"),"keep").accepted());
+    // The output would grow over the nonblank D7. Excel (measured, tests/pivot_m5.rs) does not refuse: the pivot takes its corner cell, an error, and D7 stays.
+    let revision=book.host().revision();let result=book.dispatch(SkinIntent::Command(calc_host::WorkbookCommand::PivotRefresh{sheet,revision:revision.get(),part:"xl/pivotTables/summary.xml".into()}));assert!(result.accepted(),"{result:?}");assert!(book.host().model().definitions().pivots().tables().next().unwrap().collapsed);assert_eq!(session_calculated(&book,at(sheet,"D3")),Some(CalcValue::error(calc_value::WorksheetErrorCode::Spill)));
+    assert_eq!(session_value(&book,at(sheet,"D7")),ProjectedValue::Literal(CalcValue::text(calc_value::ExcelText::from_utf16_code_units("keep".encode_utf16().collect()))));
     let unsupported=package_with_part_from(bytes,"xl/pivotTables/summary.xml",|xml|xml.replace("<dataFields count=\"1\">","<pageFields count=\"1\"><pageField fld=\"1\" item=\"0\"/></pageFields><dataFields count=\"1\">"));// Two row fields became measured layouts in UI28; a page field that selects an item is still unmeasured.
     let mut other=session(&unsupported);refresh(&mut other);
 }

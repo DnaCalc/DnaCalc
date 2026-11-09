@@ -1246,7 +1246,7 @@ pub(super) fn plan(package: &Package, edit: &Edited, views:Option<&super::SaveVi
             out.rewritten.insert(sheet.part().name().into(),super::page_setup::rewrite(current,&natural,&after)?);
         }
     }
-    if pivots_changed {super::pivot::finish(package,base.definitions().pivots(),model.definitions().pivots(),&mut out,workbook_part,sheets)?;}
+    if pivots_changed {super::pivot::finish(package,base.definitions().pivots(),model.definitions().pivots(),&mut out,workbook_part,sheets,true)?;}
     if charts_changed {super::chart::finish(package,base,model,&mut out,&sheets,structural.as_ref())?;}
     if review_changed {super::review::finish(package,workbook_part,&sheets,base,model,&moves,&mut out)?;}
     if sheets_changed {

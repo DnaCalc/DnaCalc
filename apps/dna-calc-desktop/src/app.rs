@@ -40,6 +40,11 @@ struct Options {
     /// Extra Chromium switches, for measuring a flag.
     webview_args: String,
     hidden: bool,
+    /// Save downloads here, without the save dialog (the smoke suite's way to run the save cases).
+    save_dir: Option<PathBuf>,
+    /// Answer the page's print requests without the native print dialog, which blocks the page
+    /// until a person closes it (a headless browser's `print()` also returns at once).
+    no_print_ui: bool,
     /// A workbook file to open as the page starts (`--open FILE`, or a path as the first argument).
     open: Option<PathBuf>,
 }
@@ -54,6 +59,8 @@ fn options(args: &[String]) -> Result<Options, String> {
         probe: None,
         webview_args: String::new(),
         hidden: false,
+        save_dir: None,
+        no_print_ui: false,
         open: None,
     };
     let mut args = args.iter().enumerate();
@@ -70,6 +77,8 @@ fn options(args: &[String]) -> Result<Options, String> {
             "--probe" => o.probe = Some(PathBuf::from(value()?)),
             "--webview-args" => o.webview_args = value()?,
             "--hidden" => o.hidden = true,
+            "--no-print-ui" => o.no_print_ui = true,
+            "--save-dir" => o.save_dir = Some(PathBuf::from(value()?)),
             "--open" => o.open = Some(PathBuf::from(value()?)),
             "--size" => {
                 let text = value()?;
@@ -116,9 +125,26 @@ struct App {
     quit: Cell<bool>,
     /// The add-ins' functions, bound to each new server (a page's load starts a new worker).
     functions: RefCell<Option<calc_host::CallableTable>>,
+    /// Further workers the page starts beside its own (the recalculation-contract smoke case
+    /// starts one, as a browser page may): each its own server, as each browser worker is its own
+    /// module instance. They carry no add-ins, fetch route or RTD. Keyed by the bridge's channel.
+    extras: RefCell<std::collections::BTreeMap<u32, Server>>,
     /// The file named on the command line, given to the first worker the page starts.
     opening: RefCell<Option<(String, Vec<u8>)>>,
 }
+
+/// The bridge prefixes every message of a worker other than the page's first with `@N` and U+0002
+/// (channel N); the first worker's messages carry no prefix.
+const CHANNEL_MARK: char = '\u{2}';
+
+fn channel_of(message: &str) -> (u32, &str) {
+    message
+        .strip_prefix('@')
+        .and_then(|rest| rest.split_once(CHANNEL_MARK))
+        .and_then(|(channel, rest)| Some((channel.parse().ok()?, rest)))
+        .unwrap_or((0, message))
+}
+
 
 /// The page starts by asking for an empty workbook (`New`, or `OpenTemplate` with a stored
 /// default). When a file was named on the command line, that first request becomes the Open of the
@@ -149,20 +175,76 @@ fn read_open_file(path: &std::path::Path) -> Result<(String, Vec<u8>), String> {
 
 impl App {
     fn post(&self, text: &str, bytes: Option<&[u8]>) {
-        if let Err(why) = self.web.post(text, bytes) {
+        self.post_to(0, text, bytes);
+    }
+
+    fn post_to(&self, channel: u32, text: &str, bytes: Option<&[u8]>) {
+        let result = if channel == 0 {
+            self.web.post(text, bytes)
+        } else {
+            self.web.post(&format!("@{channel}{CHANNEL_MARK}{text}"), bytes)
+        };
+        if let Err(why) = result {
             eprintln!("dna-calc-desktop: {why}");
         }
     }
 
     fn post_event(&self, event: Event) {
+        self.post_event_to(0, event);
+    }
+
+    fn post_event_to(&self, channel: u32, event: Event) {
         match event {
             Event::Tiles(batch) => match wire::encode_tiles(&batch) {
-                Ok(bytes) => self.post(wire::TILE_TAG, Some(&bytes)),
-                Err(message) => {
-                    self.post(&wire::encode(&FromServer::Failed { id: None, message }), None)
-                }
+                Ok(bytes) => self.post_to(channel, wire::TILE_TAG, Some(&bytes)),
+                Err(message) => self.post_to(
+                    channel,
+                    &wire::encode(&FromServer::Failed { id: None, message }),
+                    None,
+                ),
             },
-            control => self.post(&wire::encode(&FromServer::Event(control)), None),
+            control => self.post_to(channel, &wire::encode(&FromServer::Event(control)), None),
+        }
+    }
+
+    /// One request from the page's further worker `channel`.
+    fn extra_request(&self, channel: u32, message: &str) {
+        if message == "hello" {
+            let mut server = Server::new();
+            server.set_calculation_budget(calc_host::WorkBudget::evaluations(64));
+            self.extras.borrow_mut().insert(channel, server);
+            self.post_to(channel, &wire::encode(&FromServer::Started), None);
+            return;
+        }
+        let (text, bytes) = split_message(message);
+        let answered = self.extras.borrow_mut().get_mut(&channel).map(|server| {
+            let (reply, out) = server::answer_text(server, text, bytes);
+            (reply, out, server.take_events())
+        });
+        if let Some((reply, out, events)) = answered {
+            for event in events {
+                self.post_event_to(channel, event);
+            }
+            self.post_to(channel, &reply, out.as_deref());
+        }
+    }
+
+    /// The further workers' calculation slices and events, once per tick.
+    fn tick_extras(&self) {
+        let channels: Vec<u32> = self.extras.borrow().keys().copied().collect();
+        for channel in channels {
+            let events = {
+                let mut extras = self.extras.borrow_mut();
+                let Some(server) = extras.get_mut(&channel) else { continue };
+                let started = Instant::now();
+                while server.has_pending_calculation() && started.elapsed() < Duration::from_millis(6) {
+                    server.advance_calculation();
+                }
+                server.take_events()
+            };
+            for event in events {
+                self.post_event_to(channel, event);
+            }
         }
     }
 
@@ -176,8 +258,14 @@ impl App {
     /// One request from the page, answered as the browser worker answers it: events first, then
     /// the reply.
     fn request(&self, message: &str) {
+        let (channel, message) = channel_of(message);
+        if channel != 0 {
+            return self.extra_request(channel, message);
+        }
         if message == "hello" {
-            // A page that loads starts its own worker, as in a browser: a new server.
+            // A page that loads starts its own worker, as in a browser: a new server. Workers the
+            // previous page started are gone with it.
+            self.extras.borrow_mut().clear();
             let mut server = Server::new();
             server.set_calculation_budget(calc_host::WorkBudget::evaluations(64));
             server.set_fetch_route(self.fetch.clone());
@@ -291,6 +379,7 @@ impl App {
             self.server.borrow_mut().advance_calculation();
         }
         self.flush_events();
+        self.tick_extras();
     }
 }
 
@@ -319,9 +408,18 @@ pub fn run(args: &[String]) -> Result<(), String> {
             size: o.size,
         },
     )?;
+    if o.no_print_ui {
+        web.add_script("window.__dnacalcNoPrintUi = true;")?;
+    }
     web.add_script(include_str!("../../dna-calc/web/desktop-bridge.js"))?;
+    if let Some(folder) = &o.save_dir {
+        std::fs::create_dir_all(folder).map_err(|e| e.to_string())?;
+        web.save_downloads_to(folder)?;
+    }
 
-    // The native worker: the portable server, with the desktop's fetch route and add-ins.
+    // The native worker: the portable server, with the desktop's fetch route and add-ins. It reads
+    // the day from the machine's clock, as the browser worker reads it from the browser's.
+    dna_calc_worker::workbook::set_native_clock(calc_platform_desktop::local_serial_clock);
     let mut server = Server::new();
     server.set_calculation_budget(calc_host::WorkBudget::evaluations(64));
     let fetch = Rc::new(ThreadedFetch::new());
@@ -368,6 +466,7 @@ pub fn run(args: &[String]) -> Result<(), String> {
         probe: o.probe.clone(),
         quit: Cell::new(false),
         functions: RefCell::new(functions),
+        extras: RefCell::new(Default::default()),
         opening: RefCell::new(opening),
     });
     {

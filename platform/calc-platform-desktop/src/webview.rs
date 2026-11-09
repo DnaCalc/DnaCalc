@@ -320,6 +320,43 @@ Cache-Control: no-store
             .map_err(|e| format!("post to page failed: {e}"))
     }
 
+    /// Saves every download the page starts into `folder`, under the name the browser proposed,
+    /// without asking: the save path of a run that has no person to choose a file (the smoke
+    /// suite's `--save-dir`). A file of the same name is replaced.
+    pub fn save_downloads_to(&self, folder: &Path) -> Result<(), String> {
+        let view = self.view.cast::<ICoreWebView2_4>().map_err(|e| e.to_string())?;
+        // WebView2 wants a full backslash path, not a canonical verbatim one.
+        let folder = folder.canonicalize().map_err(|e| e.to_string())?;
+        let text = folder.to_string_lossy();
+        let folder = std::path::PathBuf::from(text.strip_prefix(r"\\?\").unwrap_or(&text));
+        let mut token = 0i64;
+        unsafe {
+            view.add_DownloadStarting(
+                &DownloadStartingEventHandler::create(Box::new(move |_, args| {
+                    if let Some(args) = args {
+                        let mut proposed = PWSTR::null();
+                        if args.ResultFilePath(&mut proposed).is_ok() {
+                            let proposed = take_pwstr(proposed);
+                            let name = proposed_name(Path::new(&proposed));
+                            if let Some(name) = name {
+                                let target = folder.join(name);
+                                let _ = std::fs::remove_file(&target);
+                                let wide = CoTaskMemPWSTR::from(target.to_string_lossy().as_ref());
+                                if let Err(why) = args.SetResultFilePath(*wide.as_ref().as_pcwstr()) {
+                                    eprintln!("dna-calc-desktop: cannot save to {}: {why}", target.display());
+                                }
+                                let _ = args.SetHandled(true);
+                            }
+                        }
+                    }
+                    Ok(())
+                })),
+                &mut token,
+            )
+            .map_err(|e| e.to_string())
+        }
+    }
+
     /// Loads `url` (a web address or a mapped folder's).
     pub fn navigate(&self, url: &str) -> Result<(), String> {
         let wide = CoTaskMemPWSTR::from(url);
@@ -340,6 +377,43 @@ pub fn runtime_version() -> Option<String> {
 /// Where a person downloads the WebView2 Evergreen runtime.
 pub const RUNTIME_DOWNLOAD: &str =
     "https://developer.microsoft.com/microsoft-edge/webview2/#download-section";
+
+/// The name the page gave a download. WebView2 proposes a path that does not clash with a file in
+/// the user's Downloads folder, so "Book1.xlsx" arrives as "Book1 (1).xlsx" when that exists: the
+/// number is taken off again when the unnumbered name is a file beside it.
+fn proposed_name(proposed: &Path) -> Option<std::ffi::OsString> {
+    let name = proposed.file_name()?.to_string_lossy().into_owned();
+    let (stem, extension) = match name.rfind('.') {
+        Some(dot) => (&name[..dot], &name[dot..]),
+        None => (name.as_str(), ""),
+    };
+    // Edge numbers a clash with a timestamp: "Book1 - 2026-11-09T011151.319.xlsx".
+    if let Some(at) = stem.rfind(" - ") {
+        if is_clash_stamp(&stem[at + 3..]) {
+            return Some(format!("{}{extension}", &stem[..at]).into());
+        }
+    }
+    if let Some(open) = stem.rfind(" (") {
+        let number = &stem[open + 2..];
+        if let Some(digits) = number.strip_suffix(')') {
+            let plain = format!("{}{extension}", &stem[..open]);
+            if !digits.is_empty()
+                && digits.bytes().all(|b| b.is_ascii_digit())
+                && proposed.with_file_name(&plain).exists()
+            {
+                return Some(plain.into());
+            }
+        }
+    }
+    Some(name.into())
+}
+
+/// Whether `text` is `YYYY-MM-DDThhmmss.mmm`, the stamp Edge appends to a name already taken.
+fn is_clash_stamp(text: &str) -> bool {
+    let shape = b"dddd-dd-ddTdddddd.ddd";
+    text.len() == shape.len()
+        && text.bytes().zip(shape).all(|(b, &p)| if p == b'd' { b.is_ascii_digit() } else { b == p })
+}
 
 /// Makes the process render at each display's real scale. Call before the first window.
 pub fn per_monitor_dpi_aware() {
@@ -416,6 +490,16 @@ pub fn run_message_loop(mut stop: impl FnMut() -> bool, mut on_thread_message: i
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    /// Native-only: a name WebView2 made unique is given back as the page named it.
+    #[test]
+    fn dc_0f1k_11_2__a_numbered_or_stamped_download_name_is_the_pages_own() {
+        let name = |p: &str| proposed_name(Path::new(p)).unwrap().to_string_lossy().into_owned();
+        assert_eq!(name(r"C:\d\Book1 - 2026-11-09T011151.319.xlsx"), "Book1.xlsx");
+        assert_eq!(name(r"C:\d\Book1.xlsx"), "Book1.xlsx");
+        assert_eq!(name(r"C:\d\a - b.xlsx"), "a - b.xlsx");
+        assert_eq!(name(r"C:\d\Book (1).xlsx"), "Book (1).xlsx");
+    }
 
     /// Native-only: the carrier's base64 must agree with the page's atob/btoa framing.
     #[test]
