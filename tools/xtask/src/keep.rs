@@ -406,6 +406,9 @@ fn red_bead(
                     &assignee,
                     "--description",
                     &body,
+                    // The keeper owns this bead and restates its whole body each round; a shorter
+                    // body is the newer finding, not a loss, and br refuses that rewrite without it.
+                    "--force",
                 ],
             )?;
             Ok((id.into(), true))
