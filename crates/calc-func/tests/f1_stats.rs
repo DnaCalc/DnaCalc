@@ -1260,10 +1260,37 @@ fn ets_short_seasonality_reports_zero_before_the_first_candidate_lag() {
             exact(call("FORECAST.ETS.SEASONALITY",vec![arr(vec![values]),times]),0.0);
         }
     }
-    // A five-point alternating series has period two in Excel. Its general
-    // detector remains refused here; it must not reach the short zero result.
-    assert!(matches!(call("FORECAST.ETS.SEASONALITY",vec![arr(vec![vec![1.0,-1.0,1.0,-1.0,1.0]]),
-        arr(vec![vec![1.0,2.0,3.0,4.0,5.0]])]),
+    // R48's exact alternating region starts at five observations.
+    exact(call("FORECAST.ETS.SEASONALITY",vec![arr(vec![vec![1.0,-1.0,1.0,-1.0,1.0]]),
+        arr(vec![vec![1.0,2.0,3.0,4.0,5.0]])]),2.0);
+}
+
+/// Excel20527 R48: exact alternating states continue through partial cycles.
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn ets_alternating_affine_fits_start_at_five_and_keep_partial_cycles() {
+    for length in 5..=32 {
+        let times = arr(vec![(1..=length).map(|j|j as f64).collect()]);
+        for exponent in [-400,0,400] {
+            let scale = 2.0_f64.powi(exponent);
+            let y = arr(vec![(0..length).map(|j|if j%2==0 {0.0} else {scale}).collect()]);
+            exact(call("FORECAST.ETS.SEASONALITY",vec![y.clone(),times.clone()]),2.0);
+            for season in [1.0,2.0] {
+                for horizon in [0,1,2,5] {
+                    let expected = if (length-1+horizon)%2==0 {0.0} else {scale};
+                    exact(call("FORECAST.ETS",vec![n((length+horizon) as f64),y.clone(),times.clone(),n(season)]),expected);
+                }
+                for (stat,expected) in [(1.0,0.751),(2.0,0.001),(3.0,0.001),
+                    (4.0,0.0),(5.0,0.0),(6.0,0.0),(7.0,0.0)] {
+                    exact(call("FORECAST.ETS.STAT",vec![y.clone(),times.clone(),n(stat),n(season)]),expected);
+                }
+                exact(call("FORECAST.ETS.CONFINT",vec![n((length+5) as f64),y.clone(),times.clone(),n(0.95),n(season)]),0.0);
+            }
+        }
+    }
+    // A nonzero innovation still needs the unidentified search and initializer.
+    assert!(matches!(call("FORECAST.ETS",vec![n(6.0),arr(vec![vec![0.0,1.0,0.0,1.0,0.125]]),
+        arr(vec![vec![1.0,2.0,3.0,4.0,5.0]]),n(2.0)]),
         Err(calc_func::FunctionFault::NotHeld { owner: "dc-j9k", .. })));
 }
 
@@ -1346,13 +1373,13 @@ fn ets_exact_seasonal_nonbinary_periods_and_six_observations() {
         }
         exact(call("FORECAST.ETS.CONFINT",vec![n(count as f64+1.0),y,times,n(0.95),n(period as f64)]),0.0);
     }
-    // The two-cycle odd-period initializer and six-value automatic detector
-    // have separate unproved decisions, even for these simple histories.
-    for (period,values) in [(3,vec![5.0,3.0,4.0,8.0,6.0,7.0]),(1,vec![4.0,3.0,6.0,5.0,8.0,7.0])] {
-        assert!(matches!(call("FORECAST.ETS",vec![n(7.0),arr(vec![values]),
-            arr(vec![vec![1.0,2.0,3.0,4.0,5.0,6.0]]),n(period as f64)]),
-            Err(calc_func::FunctionFault::NotHeld { owner: "dc-j9k", .. })));
-    }
+    // The two-cycle odd-period initializer remains unproved. R48's exact
+    // alternating detector now calculates the same six-value automatic input.
+    assert!(matches!(call("FORECAST.ETS",vec![n(7.0),arr(vec![vec![5.0,3.0,4.0,8.0,6.0,7.0]]),
+        arr(vec![vec![1.0,2.0,3.0,4.0,5.0,6.0]]),n(3.0)]),
+        Err(calc_func::FunctionFault::NotHeld { owner: "dc-j9k", .. })));
+    exact(call("FORECAST.ETS",vec![n(7.0),arr(vec![vec![4.0,3.0,6.0,5.0,8.0,7.0]]),
+        arr(vec![vec![1.0,2.0,3.0,4.0,5.0,6.0]]),n(1.0)]),10.0);
 }
 
 /// Fresh R39 explicit periods: one shared state loop retains zero innovations.
