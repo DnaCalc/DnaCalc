@@ -387,8 +387,14 @@ mod tests {
     #[test]
     fn a_real_executables_imports_are_read() {
         let exe = fs::read(std::env::current_exe().unwrap()).unwrap();
-        let imports = pe_imports(&exe).unwrap();
-        assert!(imports.iter().any(|dll| dll == "kernel32.dll"), "{imports:?}");
+        #[cfg(windows)]
+        {
+            let imports = pe_imports(&exe).unwrap();
+            assert!(imports.iter().any(|dll| dll == "kernel32.dll"), "{imports:?}");
+        }
+        // Elsewhere the running executable is not a PE image: a typed error, never a panic.
+        #[cfg(not(windows))]
+        assert!(pe_imports(&exe).unwrap_err().starts_with("not a 64-bit PE image"));
         assert!(pe_imports(b"not an image").is_err());
         assert!(needs_redistributable("vcruntime140.dll") && needs_redistributable("msvcp140.dll"));
         assert!(!needs_redistributable("kernel32.dll") && !needs_redistributable("api-ms-win-crt-heap-l1-1-0.dll"));

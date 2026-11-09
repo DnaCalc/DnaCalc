@@ -34,7 +34,9 @@ fn run() -> Result<(), String> {
     use calc_platform_desktop::Shell;
     use std::path::PathBuf;
     let all: Vec<String> = std::env::args().skip(1).collect();
-    if all.iter().any(|arg| arg == "--app") {
+    // `--open FILE` and a file path as the first argument are app mode: the page with that workbook.
+    let first_is_file = all.first().is_some_and(|arg| !arg.starts_with("--"));
+    if first_is_file || all.iter().any(|arg| arg == "--app" || arg == "--open") {
         return app::run(&all);
     }
     let mut xlls = Vec::new();
@@ -83,7 +85,7 @@ fn run() -> Result<(), String> {
             }
             "--help" => {
                 println!(
-                    "dna-calc-desktop --app (--assets DIR | --url URL) [--xll PATH ...] | --engine --xll PATH [--xll PATH ...] [--formula TEXT | --cases PATH] [--sheet NAME] [--workbook-name NAME] [--early-execution NAME]"
+                    "dna-calc-desktop [FILE | --open FILE] --app (--assets DIR | --url URL | a `page` folder beside the executable) [--xll PATH ...] | --engine --xll PATH [--xll PATH ...] [--formula TEXT | --cases PATH] [--sheet NAME] [--workbook-name NAME] [--early-execution NAME]"
                 );
                 return Ok(());
             }

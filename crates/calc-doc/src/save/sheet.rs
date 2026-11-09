@@ -270,6 +270,8 @@ struct SharedCandidate {
     extent: calc_doc_model::value::GridArea,
     original: Option<u32>,
     unchanged: bool,
+    /// The formula names a cell of another sheet.
+    cross_sheet: bool,
 }
 fn shared_members(job: &Job<'_>, unshared: &BTreeSet<u32>) -> BTreeMap<(u32, u32), SharedMember> {
     let mut groups =
@@ -346,12 +348,14 @@ fn shared_members(job: &Job<'_>, unshared: &BTreeSet<u32>) -> BTreeMap<(u32, u32
                     group.area() == block.extent() && group.master() == block.source().anchor()
                 })
         });
+        let cross_sheet = block.source().source().to_string_lossy().contains('!');
         candidates.push(SharedCandidate {
             block,
             cells,
             extent,
             original,
             unchanged,
+            cross_sheet,
         });
     }
     candidates.sort_by_key(|candidate| candidate.cells[0]);
@@ -410,6 +414,13 @@ fn shared_members(job: &Job<'_>, unshared: &BTreeSet<u32>) -> BTreeMap<(u32, u32
     let mut members = BTreeMap::new();
     for candidate in candidates {
         if candidate.unchanged || candidate.cells.len() < 2 {
+            continue;
+        }
+        // Excel refuses to open a package with a shared group the file did not hold whose formula names
+        // another sheet (measured on 16.0.20527 with `PvOne!$A$3` shared by B2 and B20, and by B2:B3,
+        // in a saved pivot workbook: Workbooks.Open fails, not even a repair); such formulas are written
+        // individually. Groups with no sheet reference open (the full-sheet and overlapping ones).
+        if candidate.original.is_none() && candidate.cross_sheet {
             continue;
         }
         let mut overlap = false;
