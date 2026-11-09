@@ -872,16 +872,28 @@ fn grid_pane(controller: Controller, ctx: PaneContext) -> impl IntoView {
             if let Some(element) = scroller.get()
                 && observer.with_value(Option::is_none)
             {
+                // The work runs in the next animation frame, not inside the observer's own
+                // delivery: measuring can change the scroller's size again, and a browser then
+                // reports "ResizeObserver loop completed with undelivered notifications" as a
+                // page error, which depends on how wide the interface text happens to be.
+                let queued = StoredValue::new(false);
                 let callback = wasm_bindgen::closure::Closure::<dyn FnMut()>::new(move || {
-                    let before = viewport.get_untracked();
-                    measure();
-                    let after = viewport.get_untracked();
-                    if (before.width, before.height) != (after.width, after.height)
-                        && !restoring.get_value()
-                    {
-                        let (row, col) = controller.active.get_untracked();
-                        reveal(row, col);
+                    if queued.get_value() {
+                        return;
                     }
+                    queued.set_value(true);
+                    request_animation_frame(move || {
+                        queued.set_value(false);
+                        let before = viewport.get_untracked();
+                        measure();
+                        let after = viewport.get_untracked();
+                        if (before.width, before.height) != (after.width, after.height)
+                            && !restoring.get_value()
+                        {
+                            let (row, col) = controller.active.get_untracked();
+                            reveal(row, col);
+                        }
+                    });
                 });
                 if let Ok(watch) = web_sys::ResizeObserver::new(callback.as_ref().unchecked_ref()) {
                     watch.observe(&element);
