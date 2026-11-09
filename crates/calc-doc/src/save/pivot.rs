@@ -188,9 +188,11 @@ fn cache_fields(cache: &PivotCache) -> Result<Vec<u8>, SaveRefusal> {
             if mixed { "1" } else { "0" },
             &mut out,
         );
+        // Text or blank (ISO/IEC 29500): Excel refuses (Workbooks.Open 0x800A03EC) a numeric field
+        // with a blank item that says 0 here (measured, dc-8wp.16 replay of a source row insert).
         attr(
             "containsSemiMixedTypes",
-            if text { "1" } else { "0" },
+            if text || missing { "1" } else { "0" },
             &mut out,
         );
         attr(
@@ -766,6 +768,32 @@ pub(super) fn finish<S:Borrow<crate::load::LoadedSheet>>(
         if old == cache {
             continue;
         }
+        // A worksheet source that a row or column edit moved (dc-8wp.16): only `cacheSource` is rewritten.
+        let source_changed = cache.source_range != old.source_range || cache.source_sheet != old.source_sheet;
+        let cache_source = if source_changed {
+            let (Some(sheet), Some(range)) = (&cache.source_sheet, &cache.source_range) else {
+                return Err(bad(&cache.part, "A moved cache source needs a worksheet and a range"));
+            };
+            let mut source = format!("<cacheSource xmlns=\"{M}\" type=\"{}\"><worksheetSource", cache.source_type).into_bytes();
+            string_attr("sheet", sheet, &mut source);
+            attr("ref", range, &mut source);
+            source.extend_from_slice(b"/></cacheSource>");
+            Some(source)
+        } else {
+            None
+        };
+        if let Some(source) = &cache_source {
+            let mut retained = (**cache).clone();
+            retained.source_range = old.source_range.clone();
+            retained.source_sheet = old.source_sheet.clone();
+            if retained == **old {
+                let xml = read_part(package, &cache.part)?;
+                preflight(&xml, &["cacheSource"])?;
+                let bytes = rewrite(&xml, "pivotCacheDefinition", &[], &BTreeMap::from([("cacheSource", source.clone())]))?;
+                out.rewritten.insert(cache.part.clone(), bytes);
+                continue;
+            }
+        }
         let Some(snapshot) = cache.snapshot.as_ref() else {
             return Err(bad(
                 &cache.part,
@@ -784,6 +812,8 @@ pub(super) fn finish<S:Borrow<crate::load::LoadedSheet>>(
         retained.record_count = old.record_count;
         retained.fields = old.fields.clone();
         retained.snapshot = old.snapshot.clone();
+        retained.source_range = old.source_range.clone();
+        retained.source_sheet = old.source_sheet.clone();
         if retained.attributes.get("missingItemsLimit") != old.attributes.get("missingItemsLimit") {
             if !matches!(retained.attributes.get("missingItemsLimit").map(String::as_str), None | Some("0" | "32500")) {
                 return Err(bad(&cache.part, "This item retention setting is not modelled"));
@@ -802,7 +832,10 @@ pub(super) fn finish<S:Borrow<crate::load::LoadedSheet>>(
         let xml = read_part(package, &cache.part)?;
         preflight(&xml, &["cacheFields"])?;
         let count = snapshot.records.len().to_string();
-        let children = BTreeMap::from([("cacheFields", cache_fields(cache)?)]);
+        let mut children = BTreeMap::from([("cacheFields", cache_fields(cache)?)]);
+        if let Some(source) = cache_source {
+            children.insert("cacheSource", source);
+        }
         let bytes = rewrite(
             &xml,
             "pivotCacheDefinition",

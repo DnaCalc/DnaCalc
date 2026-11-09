@@ -256,9 +256,15 @@ fn dc_8wp_16__unrelated_sheet_axes_leave_pivot_sources_and_outputs_intact() {
     let unrelated = sheet(&book, "GPD");
     let axis = |sheet| calc_host::AxisEdit::new(sheet, calc_host::Axis::Rows, calc_host::AxisChange::Insert, 200, 1).unwrap();
     let before = book.host().revision();
-    assert!(!book.dispatch(SkinIntent::EditAxis(axis(source))).accepted());
-    assert!(!book.dispatch(SkinIntent::EditAxis(axis(output))).accepted());
+    // dc-8wp.16 phase two: an edit after every pivot output and source is placed (nothing moves); one inside
+    // a pivot output is refused with Excel's text and leaves the workbook as it was.
+    let inside = calc_host::AxisEdit::new(output, calc_host::Axis::Rows, calc_host::AxisChange::Insert, 5, 1).unwrap();
+    let refused = book.dispatch(SkinIntent::EditAxis(inside));
+    assert!(!refused.accepted());
+    assert!(format!("{refused:?}").contains("will affect a PivotTable"), "{refused:?}");
     assert_eq!(book.host().revision(), before);
+    assert!(book.dispatch(SkinIntent::EditAxis(axis(source))).accepted());
+    assert!(book.dispatch(SkinIntent::EditAxis(axis(output))).accepted());
     assert!(book.dispatch(SkinIntent::EditAxis(axis(unrelated))).accepted());
     let rename = |sheet, text: &str| SkinIntent::Edit { edits: vec![calc_host::CellEdit::Sheet(
         calc_doc_model::SheetEdit::Rename { sheet, name: calc_doc_model::SheetName::new(

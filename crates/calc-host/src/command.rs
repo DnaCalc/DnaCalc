@@ -292,7 +292,7 @@ pub fn dispatch(
     let pivots = host.model.definitions().pivots();
     for op in &batch.operations {
         let sheet = match op {
-            WorkbookOp::EditAxis(edit) => Some(edit.sheet()),
+            // Row and column edits are placed (or refused with Excel's text) by the model: ModelRoot::pivots_after_axis_edit.
             WorkbookOp::EditSheet(calc_doc_model::SheetEdit::Rename { sheet, .. }
                 | calc_doc_model::SheetEdit::Move { sheet, .. }
                 | calc_doc_model::SheetEdit::Remove { sheet }

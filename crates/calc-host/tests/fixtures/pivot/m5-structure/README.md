@@ -74,3 +74,9 @@ layout-swapped pivot, where DNA Calc computes from the saved records and Excel f
 replay found six of eight saves refused by `Workbooks.Open` (0x800A03EC): a shared-formula group the file did not hold whose
 formula names another sheet (`GETPIVOTDATA("Sum of Amount",PvOne!$A$3)` in B2 and B20) is not accepted by Excel; calc-doc now
 writes such formulas individually (the same group with a constant formula, or without a sheet reference, opens).
+
+Second replay (P8 phase two): the 25 saves of the structural scenarios of `pivot_m5.rs` (output moved, sources moved or grown,
+a refresh after each; `DNACALC_PIVOT_SAVES`) plus the eight above: three of the 25 (a row inserted inside the source, which
+refreshes with a blank item) were refused by `Workbooks.Open` until a numeric cache field with a blank item stopped being
+flagged `containsSemiMixedTypes="0"` (Excel needs 1 when text or a blank is present; bisected by editing the saved package).
+All 33 then open with no repair log and match Excel's opened values (the layout-swapped pivot after Excel's refresh excepted).
