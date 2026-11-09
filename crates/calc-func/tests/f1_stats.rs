@@ -1219,15 +1219,18 @@ fn ets_confidence_rounded_probability_keeps_the_measured_fallback() {
         f64::from_bits(0x3fd75260983e90d1));
 }
 
-/// The minimum-alpha postfit decision is open; its pre-reset errors are known.
+/// Odd-history raw moments retain a different divisor from their selected tail.
 #[cfg_attr(not(target_arch = "wasm32"), test)]
 #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
-fn ets_unresolved_reset_keeps_independent_statistics() {
+fn ets_raw_moments_preserve_symmetric_history_forecasts_and_statistics() {
     let y = arr(vec![vec![-2.0,8.0,-13.0,10.0,-14.0,12.0,-17.0,-11.0,-29.0,27.0,
         30.0,27.0,-29.0,-11.0,-17.0,12.0,-14.0,10.0,-13.0,8.0,-2.0]]);
     let times = arr(vec![(1..=21).map(|i| i as f64).collect()]);
-    assert!(matches!(call("FORECAST.ETS", vec![n(22.0),y.clone(),times.clone(),n(0.0)]),
-        Err(calc_func::FunctionFault::NotHeld { owner: "dc-j9k", .. })));
+    for (horizon, expected) in [(0.0,0xbffd7243d1b598bb), (1.0,0xbffd3deb3a1235de),
+        (2.0,0xbffd0992a26ed4a5), (5.0,0xbffc6c88db84adb1)] {
+        exact(call("FORECAST.ETS", vec![n(21.0+horizon),y.clone(),times.clone(),n(0.0)]),
+            f64::from_bits(expected));
+    }
     exact(call("FORECAST.ETS.STAT", vec![y.clone(),times.clone(),n(1.0),n(0.0)]), 0.002);
     exact(call("FORECAST.ETS.STAT", vec![y,times,n(6.0),n(0.0)]),
         f64::from_bits(0x4024d679eaf575de));
@@ -1243,6 +1246,25 @@ fn ets_unresolved_reset_keeps_independent_statistics() {
             arr(vec![vec![1.0,2.0,3.0]]),n(3.0),n(0.0)]),
             Err(calc_func::FunctionFault::NotHeld { owner: "dc-j9k", .. })));
     }
+}
+
+/// Excel20527 R46: lag two becomes available after four prepared observations.
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn ets_short_seasonality_reports_zero_before_the_first_candidate_lag() {
+    for exponent in [-400, 0, 400] {
+        let scale = 2.0_f64.powi(exponent);
+        for values in [vec![scale,-scale],vec![scale,-scale,scale],
+            vec![scale,-scale,scale,-scale],vec![0.0,scale,0.0,0.0]] {
+            let times = arr(vec![(1..=values.len()).map(|j|j as f64).collect()]);
+            exact(call("FORECAST.ETS.SEASONALITY",vec![arr(vec![values]),times]),0.0);
+        }
+    }
+    // A five-point alternating series has period two in Excel. Its general
+    // detector remains refused here; it must not reach the short zero result.
+    assert!(matches!(call("FORECAST.ETS.SEASONALITY",vec![arr(vec![vec![1.0,-1.0,1.0,-1.0,1.0]]),
+        arr(vec![vec![1.0,2.0,3.0,4.0,5.0]])]),
+        Err(calc_func::FunctionFault::NotHeld { owner: "dc-j9k", .. })));
 }
 
 /// R40 fresh Excel20527 selections. The short initializer extends the first
@@ -1360,5 +1382,33 @@ fn ets_automatic_exact_alternating_states() {
         let times = arr(vec![(1..=8).map(|j|j as f64).collect()]);
         exact(call("FORECAST.ETS.SEASONALITY",vec![y.clone(),times.clone()]),2.0);
         exact(call("FORECAST.ETS",vec![n(9.0),y,times]),549_755_813_889.0);
+    }
+}
+
+/// R46: the two R41 adjacent histories repeat at three exact money scales.
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn ets_adjacent_histories_separate_raw_moment_reset_arithmetic() {
+    for (values, beta, forecasts) in [
+        ([0xbfcefa25555eb39e, 0xbfc4e4f4e3a538d8, 0x3fc97adbb54b314d, 0xbfd14efdf9923915, 0xbfc0ddbeeb06d525,
+            0xbfc1471962c9bbe4, 0xbfd2dffc3cde2a99, 0xbfc1fd87b671759a, 0xbfc3cead76b44036, 0xbfc043112287f4a7,
+            0xbf7a17fd88ff2440, 0xbfd1a52c0f60cf04, 0xbfc33dfd25ebae60, 0xbfc6a246ee8e8a90, 0xbfc3b6d827f1d202,
+            0xbfd5c7ed3073c9fa, 0xbfda3af5c3bbfe44, 0xbfdc09796cfbefc3, 0xbfd244b7f9557300, 0xbfe4fdf759b9f1b5,
+            0xbfe693d180891fda, 0xbfe743de9ec7d442, 0xbfd407237394c7a0, 0xbfe4a097169caa4f, 0xbfe0ad5c8d6d8f86,
+            0xbfe5cd117a513caa, 0xbfe3668f989556d4, 0xbfe73e90de936e54, 0xbfe7d84b18521912], 0x3f50624dd2f1a9fc, [0xbfe7d84b18521912, 0xbfe8a01ab9d192aa]),
+        ([0xbfcefa25555eb396, 0xbfc4e4f4e3a538d3, 0x3fc97adbb54b3144, 0xbfd14efdf9923912, 0xbfc0ddbeeb06d525,
+            0xbfc1471962c9bbe4, 0xbfd2dffc3cde2a98, 0xbfc1fd87b671759c, 0xbfc3cead76b44039, 0xbfc043112287f4ac,
+            0xbf7a17fd88ff2560, 0xbfd1a52c0f60cf04, 0xbfc33dfd25ebae66, 0xbfc6a246ee8e8a96, 0xbfc3b6d827f1d209,
+            0xbfd5c7ed3073c9fc, 0xbfda3af5c3bbfe45, 0xbfdc09796cfbefc5, 0xbfd244b7f9557304, 0xbfe4fdf759b9f1b4,
+            0xbfe693d180891fd9, 0xbfe743de9ec7d442, 0xbfd407237394c7a7, 0xbfe4a097169caa50, 0xbfe0ad5c8d6d8f88,
+            0xbfe5cd117a513caa, 0xbfe3668f989556d5, 0xbfe73e90de936e54, 0xbfe7d84b18521913], 0x3fc5555821294574, [0xbfe61fb9811b5204, 0xbfe6fa560c4d00c6])
+    ] {
+        let y = arr(vec![values.into_iter().map(f64::from_bits).collect()]);
+        let times = arr(vec![(1..=29).map(|j|j as f64).collect()]);
+        exact(call("FORECAST.ETS.STAT",vec![y.clone(),times.clone(),n(2.0),n(0.0)]),f64::from_bits(beta));
+        for (horizon, expected) in forecasts.into_iter().enumerate() {
+            exact(call("FORECAST.ETS",vec![n(29.0+horizon as f64),y.clone(),times.clone(),n(0.0)]),
+                f64::from_bits(expected));
+        }
     }
 }

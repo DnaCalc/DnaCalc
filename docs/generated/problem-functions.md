@@ -8,46 +8,47 @@ python3 racer/corpus_cases.py problem-functions ../DnaCalc ../DnaCalc/docs/gener
 
 Last-bit: finite numeric mismatches <=16 ULP; larger numeric: >16 ULP. This split is triage, not a relaxed verdict. Every mismatch, refusal, unread, missing, pending, external and circular-policy cell remains an inclusive failure. Corpus labels follow exact single-cell aliases, infer calls from formula spelling and unwrap INDEX selections; unresolved references and infix operators remain explicit. Bank functions use canonical judge identities. Counts are observations per source; corpus and bank may overlap and must not be added as unique calls. Bank reference/locale context gaps remain failures, not proven numerical defects. Rows are ordered by corpus mismatches plus refusals, then corpus larger differences, then bank nonpasses.
 
-Corpus: 57,506/59,856 matched (96.07391%); 2,350 inclusive failures, including 108 pending.
-Bank: 3,887,804/3,910,795 matched (99.41211%); 22,991 failures, including 4 unread and 2,064 excluded.
+Corpus: 75,137/76,957 matched (97.63504%); 1,820 inclusive failures, including 108 pending.
+Bank: 3,887,881/3,910,773 matched (99.41464%); 22,892 failures, including 4 unread and 2,064 excluded.
 
 Larger numeric and last-bit columns count numeric mismatches; other columns count remaining mismatches. Corpus and bank refusals are separate inclusive failures. Missing corpus values and unread bank rows remain failures too.
 
 | Function | Corpus larger | Corpus last-bit | Corpus other | Corpus refused | Bank larger | Bank last-bit | Bank other | Bank refused | Bank unread | Bank excluded |
 |---|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|
-| XLFN.FORECAST.ETS.CONFINT | 0 | 12 | 0 | 542 | 0 | 0 | 0 | 0 | 0 | 0 |
-| XLFN.FORECAST.ETS | 0 | 10 | 0 | 542 | 0 | 0 | 0 | 0 | 0 | 0 |
-| XLFN.FORECAST.ETS.SEASONALITY | 0 | 0 | 0 | 436 | 0 | 0 | 0 | 0 | 0 | 0 |
+| XLFN.FORECAST.ETS.SEASONALITY | 0 | 0 | 0 | 368 | 0 | 0 | 0 | 0 | 0 | 0 |
+| XLFN.FORECAST.ETS.CONFINT | 0 | 12 | 0 | 292 | 0 | 0 | 0 | 0 | 0 | 0 |
+| XLFN.FORECAST.ETS | 0 | 10 | 0 | 292 | 0 | 0 | 0 | 0 | 0 | 0 |
 | CUMPRINC | 13 | 155 | 0 | 0 | 0 | 356 | 0 | 0 | 0 | 0 |
-| XLFN.FORECAST.ETS.STAT | 0 | 9 | 0 | 96 | 0 | 0 | 0 | 0 | 0 | 0 |
+| XLFN.FORECAST.ETS.STAT | 0 | 9 | 0 | 72 | 0 | 0 | 0 | 0 | 0 | 0 |
 | CUMIPMT | 1 | 51 | 0 | 0 | 15 | 10 | 0 | 0 | 0 | 0 |
 | BINOM.DIST | 27 | 24 | 0 | 0 | 8 | 21 | 0 | 0 | 0 | 0 |
+| POISSON.DIST | 4 | 46 | 0 | 0 | 0 | 551 | 0 | 0 | 4 | 0 |
+| DATE | 0 | 0 | 47 | 0 | 0 | 0 | 0 | 0 | 0 | 0 |
 | YIELD | 31 | 5 | 0 | 0 | 422 | 95 | 0 | 0 | 0 | 0 |
 | ODDFYIELD | 30 | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 0 |
-| LINEST | 7 | 20 | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 0 |
 | INDEX | 0 | 0 | 24 | 0 | 0 | 0 | 0 | 0 | 0 | 0 |
-| POISSON.DIST | 4 | 17 | 0 | 0 | 0 | 551 | 0 | 0 | 4 | 0 |
-| LOGEST | 7 | 11 | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 0 |
+| LINEST | 7 | 11 | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 0 |
+| LOGEST | 7 | 6 | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 0 |
 | BETADIST | 0 | 12 | 0 | 0 | 17 | 137 | 0 | 0 | 0 | 0 |
 | IRR | 0 | 3 | 3 | 0 | 28 | 171 | 2 | 0 | 0 | 0 |
+| HYPGEOM.DIST | 3 | 2 | 0 | 0 | 2 | 87 | 0 | 0 | 0 | 0 |
 | HSTACK | 0 | 0 | 5 | 0 | 0 | 0 | 0 | 0 | 0 | 0 |
 | Infix & | 0 | 0 | 5 | 0 | 0 | 0 | 0 | 0 | 0 | 0 |
-| HYPGEOM.DIST | 2 | 2 | 0 | 0 | 2 | 92 | 0 | 0 | 0 | 0 |
 | SORT | 0 | 0 | 4 | 0 | 0 | 0 | 0 | 0 | 0 | 0 |
 | Infix + | 0 | 0 | 3 | 0 | 0 | 0 | 0 | 0 | 0 | 0 |
-| NEGBINOM.DIST | 1 | 1 | 0 | 0 | 16 | 50 | 0 | 0 | 0 | 0 |
+| NEGBINOM.DIST | 1 | 1 | 0 | 0 | 12 | 48 | 0 | 0 | 0 | 0 |
 | BESSELY | 1 | 1 | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 0 |
-| FDIST | 0 | 2 | 0 | 0 | 13 | 3,733 | 0 | 0 | 0 | 0 |
+| FDIST | 0 | 2 | 0 | 0 | 13 | 3,725 | 0 | 0 | 0 | 0 |
 | TDIST | 0 | 2 | 0 | 0 | 2 | 62 | 0 | 0 | 0 | 0 |
 | BETAINV | 0 | 2 | 0 | 0 | 0 | 44 | 0 | 0 | 0 | 0 |
 | FINV | 0 | 2 | 0 | 0 | 3 | 26 | 0 | 0 | 0 | 0 |
+| ROUND | 0 | 2 | 0 | 0 | 0 | 24 | 0 | 0 | 0 | 0 |
 | TINV | 0 | 2 | 0 | 0 | 4 | 13 | 0 | 0 | 0 | 0 |
 | CHIDIST | 0 | 2 | 0 | 0 | 1 | 16 | 0 | 0 | 0 | 0 |
 | GAMMAINV | 0 | 2 | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 0 |
-| LOGINV | 0 | 2 | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 0 |
 | TTEST | 0 | 2 | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 0 |
-| BETA.DIST | 0 | 1 | 0 | 0 | 574 | 1,277 | 0 | 0 | 0 | 0 |
-| GAMMA.DIST | 0 | 1 | 0 | 0 | 0 | 172 | 0 | 0 | 0 | 0 |
+| BETA.DIST | 0 | 1 | 0 | 0 | 574 | 1,266 | 0 | 0 | 0 | 0 |
+| GAMMA.DIST | 0 | 1 | 0 | 0 | 0 | 171 | 0 | 0 | 0 | 0 |
 | GAMMA.INV | 0 | 1 | 0 | 0 | 7 | 138 | 0 | 0 | 0 | 0 |
 | CHISQ.INV | 0 | 1 | 0 | 0 | 1 | 26 | 0 | 0 | 0 | 0 |
 | T.DIST.RT | 0 | 1 | 0 | 0 | 1 | 4 | 0 | 0 | 0 | 0 |
@@ -59,15 +60,14 @@ Larger numeric and last-bit columns count numeric mismatches; other columns coun
 | F.INV | 0 | 1 | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 0 |
 | F.INV.RT | 0 | 1 | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 0 |
 | Infix - | 0 | 0 | 1 | 0 | 0 | 0 | 0 | 0 | 0 | 0 |
-| LOGNORM.INV | 0 | 1 | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 0 |
 | T.DIST | 0 | 1 | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 0 |
 | T.DIST.2T | 0 | 1 | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 0 |
 | T.INV | 0 | 1 | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 0 |
 | T.INV.2T | 0 | 1 | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 0 |
 | T.TEST | 0 | 1 | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 0 |
 | GAMMA | 0 | 0 | 0 | 0 | 0 | 4,410 | 0 | 0 | 0 | 0 |
-| GAMMALN.PRECISE | 0 | 0 | 0 | 0 | 0 | 3,635 | 0 | 0 | 0 | 0 |
-| GAMMALN | 0 | 0 | 0 | 0 | 0 | 2,403 | 0 | 0 | 0 | 0 |
+| GAMMALN.PRECISE | 0 | 0 | 0 | 0 | 0 | 3,633 | 0 | 0 | 0 | 0 |
+| GAMMALN | 0 | 0 | 0 | 0 | 0 | 2,401 | 0 | 0 | 0 | 0 |
 | WEEKNUM | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 1,950 |
 | ROUNDDOWN | 0 | 0 | 0 | 0 | 200 | 246 | 0 | 0 | 0 | 0 |
 | ROUNDUP | 0 | 0 | 0 | 0 | 200 | 246 | 0 | 0 | 0 | 0 |
@@ -78,14 +78,11 @@ Larger numeric and last-bit columns count numeric mismatches; other columns coun
 | MINVERSE | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 112 |
 | NPV | 0 | 0 | 0 | 0 | 0 | 94 | 0 | 0 | 0 | 0 |
 | CHIINV | 0 | 0 | 0 | 0 | 3 | 67 | 0 | 0 | 0 | 0 |
-| F.TEST | 0 | 0 | 0 | 0 | 13 | 46 | 0 | 0 | 0 | 0 |
+| F.TEST | 0 | 0 | 0 | 0 | 13 | 44 | 0 | 0 | 0 | 0 |
 | PRICE | 0 | 0 | 0 | 0 | 0 | 50 | 0 | 0 | 0 | 0 |
 | COMPLEX | 0 | 0 | 0 | 0 | 0 | 0 | 40 | 0 | 0 | 0 |
-| COS | 0 | 0 | 0 | 0 | 0 | 33 | 0 | 0 | 0 | 0 |
-| ROUND | 0 | 0 | 0 | 0 | 0 | 24 | 0 | 0 | 0 | 0 |
 | BINOM.INV | 0 | 0 | 0 | 0 | 18 | 0 | 0 | 0 | 0 | 0 |
 | CRITBINOM | 0 | 0 | 0 | 0 | 18 | 0 | 0 | 0 | 0 | 0 |
-| LN | 0 | 0 | 0 | 0 | 0 | 13 | 0 | 0 | 0 | 0 |
 | IMSINH | 0 | 0 | 0 | 0 | 0 | 0 | 9 | 0 | 0 | 0 |
 | IMCSCH | 0 | 0 | 0 | 0 | 0 | 0 | 8 | 0 | 0 | 0 |
 | IMCOSH | 0 | 0 | 0 | 0 | 0 | 0 | 7 | 0 | 0 | 0 |
@@ -94,28 +91,20 @@ Larger numeric and last-bit columns count numeric mismatches; other columns coun
 | CONCAT | 0 | 0 | 0 | 0 | 0 | 0 | 5 | 0 | 0 | 0 |
 | CONCATENATE | 0 | 0 | 0 | 0 | 0 | 0 | 5 | 0 | 0 | 0 |
 | IMSECH | 0 | 0 | 0 | 0 | 0 | 0 | 4 | 0 | 0 | 0 |
-| PERMUTATIONA | 0 | 0 | 0 | 0 | 0 | 4 | 0 | 0 | 0 | 0 |
-| FV | 0 | 0 | 0 | 0 | 1 | 2 | 0 | 0 | 0 | 0 |
 | COTH | 0 | 0 | 0 | 0 | 0 | 3 | 0 | 0 | 0 | 0 |
 | NEGBINOMDIST | 0 | 0 | 0 | 0 | 0 | 3 | 0 | 0 | 0 | 0 |
 | SINH | 0 | 0 | 0 | 0 | 0 | 3 | 0 | 0 | 0 | 0 |
 | TANH | 0 | 0 | 0 | 0 | 0 | 3 | 0 | 0 | 0 | 0 |
-| WEIBULL.DIST | 0 | 0 | 0 | 0 | 0 | 3 | 0 | 0 | 0 | 0 |
 | SWITCH | 0 | 0 | 0 | 0 | 2 | 0 | 0 | 0 | 0 | 0 |
-| ACOTH | 0 | 0 | 0 | 0 | 0 | 2 | 0 | 0 | 0 | 0 |
+| FV | 0 | 0 | 0 | 0 | 1 | 1 | 0 | 0 | 0 | 0 |
 | INT | 0 | 0 | 0 | 0 | 0 | 2 | 0 | 0 | 0 | 0 |
-| POWER | 0 | 0 | 0 | 0 | 0 | 2 | 0 | 0 | 0 | 0 |
 | PV | 0 | 0 | 0 | 0 | 0 | 2 | 0 | 0 | 0 | 0 |
 | TEXTSPLIT | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 2 |
-| TREND | 0 | 0 | 0 | 0 | 0 | 2 | 0 | 0 | 0 | 0 |
+| WEIBULL.DIST | 0 | 0 | 0 | 0 | 0 | 2 | 0 | 0 | 0 | 0 |
 | RATE | 0 | 0 | 0 | 0 | 1 | 0 | 0 | 0 | 0 | 0 |
-| ACOS | 0 | 0 | 0 | 0 | 0 | 1 | 0 | 0 | 0 | 0 |
-| ASIN | 0 | 0 | 0 | 0 | 0 | 1 | 0 | 0 | 0 | 0 |
-| ATAN | 0 | 0 | 0 | 0 | 0 | 1 | 0 | 0 | 0 | 0 |
 | BESSELJ | 0 | 0 | 0 | 0 | 0 | 1 | 0 | 0 | 0 | 0 |
 | CHISQ.TEST | 0 | 0 | 0 | 0 | 0 | 1 | 0 | 0 | 0 | 0 |
 | CSCH | 0 | 0 | 0 | 0 | 0 | 1 | 0 | 0 | 0 | 0 |
-| EXP | 0 | 0 | 0 | 0 | 0 | 1 | 0 | 0 | 0 | 0 |
 | EXPON.DIST | 0 | 0 | 0 | 0 | 0 | 1 | 0 | 0 | 0 | 0 |
 | HYPGEOMDIST | 0 | 0 | 0 | 0 | 0 | 1 | 0 | 0 | 0 | 0 |
 | PMT | 0 | 0 | 0 | 0 | 0 | 1 | 0 | 0 | 0 | 0 |
