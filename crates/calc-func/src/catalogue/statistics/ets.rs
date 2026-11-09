@@ -368,6 +368,15 @@ fn exact_seasonal(site: &Site<'_>, y: &[f64], period: usize, output: Output, sta
         || y.iter().any(|&v| v != 0.0 && !(2.0_f64.powi(-400)..=2.0_f64.powi(400)).contains(&v.abs())) {
         return Err(unfinished(site));
     }
+    // R48's short/partial-cycle proofs identify detection, fitted parameters
+    // and zero variance. Fresh lattice-edge forecasts expose an unidentified
+    // publication step when a large affine component cancels near zero.
+    // Keep the entire newly extended forecast consumer refused; the previously
+    // measured complete-cycle forecast region retains its existing checks.
+    if output == Output::Forecast && period == 2
+        && (y.len() < 6 || y.len() % 2 != 0 || (automatic && y.len() < 8)) {
+        return Err(unfinished(site));
+    }
     let differences: Vec<_> = (0..period).map(|j| exact_sum(y[j + period], -y[j]))
         .collect::<Option<_>>().ok_or_else(|| unfinished(site))?;
     let trend = exact_total(&differences).and_then(|v| exact_ratio(v, (period * period) as f64))

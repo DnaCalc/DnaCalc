@@ -1277,8 +1277,13 @@ fn ets_alternating_affine_fits_start_at_five_and_keep_partial_cycles() {
             exact(call("FORECAST.ETS.SEASONALITY",vec![y.clone(),times.clone()]),2.0);
             for season in [1.0,2.0] {
                 for horizon in [0,1,2,5] {
-                    let expected = if (length-1+horizon)%2==0 {0.0} else {scale};
-                    exact(call("FORECAST.ETS",vec![n((length+horizon) as f64),y.clone(),times.clone(),n(season)]),expected);
+                    let result = call("FORECAST.ETS",vec![n((length+horizon) as f64),y.clone(),times.clone(),n(season)]);
+                    if length%2!=0 || (season==1.0 && length<8) {
+                        assert!(matches!(result,Err(calc_func::FunctionFault::NotHeld { owner:"dc-j9k",.. })));
+                    } else {
+                        let expected = if (length-1+horizon)%2==0 {0.0} else {scale};
+                        exact(result,expected);
+                    }
                 }
                 for (stat,expected) in [(1.0,0.751),(2.0,0.001),(3.0,0.001),
                     (4.0,0.0),(5.0,0.0),(6.0,0.0),(7.0,0.0)] {
@@ -1292,6 +1297,17 @@ fn ets_alternating_affine_fits_start_at_five_and_keep_partial_cycles() {
     assert!(matches!(call("FORECAST.ETS",vec![n(6.0),arr(vec![vec![0.0,1.0,0.0,1.0,0.125]]),
         arr(vec![vec![1.0,2.0,3.0,4.0,5.0]]),n(2.0)]),
         Err(calc_func::FunctionFault::NotHeld { owner: "dc-j9k", .. })));
+    // Preserve the four fresh Excel-zero answers that stopped the forecast
+    // extension. The unproved publication must stay a counted refusal.
+    for (offset,drift,amplitude) in [(1099511627776.0,-274877906944.0,-1.0),
+        (1099511627776.0,-274877906944.0,1.0),(-1099511627776.0,274877906944.0,-1.0),
+        (-1099511627776.0,274877906944.0,1.0)] {
+        let scale=2.0_f64.powi(-400);
+        let values=(0..5).map(|j|(offset+if j%2==0 {amplitude} else {-amplitude}+drift*j as f64)*scale).collect();
+        assert!(matches!(call("FORECAST.ETS",vec![n(5.0),arr(vec![values]),
+            arr(vec![vec![1.0,2.0,3.0,4.0,5.0]]),n(1.0)]),
+            Err(calc_func::FunctionFault::NotHeld { owner:"dc-j9k",.. })));
+    }
 }
 
 /// Excel20527 R47: the explicit two-period request at four observations uses
@@ -1373,13 +1389,16 @@ fn ets_exact_seasonal_nonbinary_periods_and_six_observations() {
         }
         exact(call("FORECAST.ETS.CONFINT",vec![n(count as f64+1.0),y,times,n(0.95),n(period as f64)]),0.0);
     }
-    // The two-cycle odd-period initializer remains unproved. R48's exact
-    // alternating detector now calculates the same six-value automatic input.
+    // The two-cycle odd-period initializer and newly extended forecast
+    // publication remain unproved. Keep both original refusal inputs.
     assert!(matches!(call("FORECAST.ETS",vec![n(7.0),arr(vec![vec![5.0,3.0,4.0,8.0,6.0,7.0]]),
         arr(vec![vec![1.0,2.0,3.0,4.0,5.0,6.0]]),n(3.0)]),
         Err(calc_func::FunctionFault::NotHeld { owner: "dc-j9k", .. })));
+    assert!(matches!(call("FORECAST.ETS",vec![n(7.0),arr(vec![vec![4.0,3.0,6.0,5.0,8.0,7.0]]),
+        arr(vec![vec![1.0,2.0,3.0,4.0,5.0,6.0]]),n(1.0)]),
+        Err(calc_func::FunctionFault::NotHeld { owner:"dc-j9k",.. })));
     exact(call("FORECAST.ETS",vec![n(7.0),arr(vec![vec![4.0,3.0,6.0,5.0,8.0,7.0]]),
-        arr(vec![vec![1.0,2.0,3.0,4.0,5.0,6.0]]),n(1.0)]),10.0);
+        arr(vec![vec![1.0,2.0,3.0,4.0,5.0,6.0]]),n(2.0)]),10.0);
 }
 
 /// Fresh R39 explicit periods: one shared state loop retains zero innovations.
