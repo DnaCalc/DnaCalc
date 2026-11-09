@@ -19,7 +19,7 @@ const WORKBOOK: &[u8] = include_bytes!("fixtures/jnt/oracle.xlsx");
 /// The sheets whose section files carry typed inputs, each with its section file.
 const SECTIONS: &[(&str, &str)] = &[
     ("jnt_w111_elementary", include_str!("fixtures/jnt/sheet-jnt_w111_elementary.txt")),
-    ("jnt_w111_rounding", include_str!("fixtures/jnt/sheet-jnt_w111_rounding.txt")),
+    ("jnt_w111_text_dates", include_str!("fixtures/jnt/sheet-jnt_w111_text_dates.txt")),
 ];
 
 fn unescape(text: &str) -> String {
@@ -115,6 +115,7 @@ fn typed_input_rows_reach_the_workbook_exactly() {
                         assert_eq!(cell.logical.as_deref(), Some(if flag == "TRUE" { "1" } else { "0" }), "{here}")
                     }
                     (("e:", literal), Some(cell)) => assert_eq!(cell.error.as_deref(), Some(literal), "{here}"),
+                    (("f:", formula), Some(cell)) => assert_eq!(cell.formula.as_deref(), Some(formula), "{here}"),
                     _ => panic!("{here}: the cell does not match the input"),
                 }
             }

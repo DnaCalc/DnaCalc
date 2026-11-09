@@ -260,7 +260,7 @@ ATAN({A})	n:bff0000000000793
 ATAN({A})	n:0010000000000000
 ATAN({A})	n:ffefffffffffffff
 #
-# family ATAN typed: 112 rows of 327 usable readings in 7 classes (0 boundary rows beyond the stride); left out: typed: array outcome 512, typed: control character in the formula 1, typed: fixture text 1
+# family ATAN typed: 104 rows of 329 usable readings in 7 classes (0 boundary rows beyond the stride); left out: typed: array outcome 512
 # sources: atan/typed-heldout-bank.json, atan/typed-repeat-controls-bank.json
 ATAN("")
 ATAN("0")
@@ -270,6 +270,7 @@ ATAN("1e300")
 ATAN("50%")
 ATAN("(2)")
 ATAN(" 1 ")
+ATAN((CHAR(9)&"1"))
 ATAN("TRUE")
 ATAN("FALSE")
 ATAN("x")
@@ -297,6 +298,7 @@ ATAN({A})	s:1e300
 ATAN({A})	s:50%
 ATAN({A})	s:(2)
 ATAN({A})	s: 1 
+ATAN({A})	f:CHAR(9)&"1"
 ATAN({A})	s:TRUE
 ATAN({A})	s:FALSE
 ATAN({A})	s:x
@@ -328,34 +330,24 @@ ATAN({A})	n:40000d685e59216e
 ATAN({A})	n:40000d685e592170
 ATAN({A})	n:40000d685e592171
 ATAN({A})	n:40000d685e592172
-ATAN({A})	n:40000d685e592173
+ATAN({A})	n:40001dc1079c3c88
 ATAN({A})	n:40001dc1079c3c89
 ATAN({A})	n:40001dc1079c3c8a
-ATAN({A})	n:40001dc1079c3c8b
+ATAN({A})	n:40001dc1079c3c8c
 ATAN({A})	n:40001dc1079c3c8d
 ATAN({A})	n:40001dc1079c3c8e
-ATAN({A})	n:40001dc1079c3c8f
-ATAN({A})	n:40000d685e59216f
-ATAN({A})	n:40001dc1079c3c88
-ATAN({A})	n:40001dc1079c3c8c
 ATAN({A})	n:c0000d685e592174
 ATAN({A})	n:c0000d685e592176
 ATAN({A})	n:c0000d685e592177
-ATAN({A})	n:c0000d685e592178
-ATAN({A})	n:c0000d685e59217a
-ATAN({A})	n:c0000d685e59217b
-ATAN({A})	n:c0001dc1079c3c90
-ATAN({A})	n:c0001dc1079c3c91
-ATAN({A})	n:c0001dc1079c3c93
-ATAN({A})	n:c0001dc1079c3c94
-ATAN({A})	n:c0001dc1079c3c96
-ATAN({A})	n:c0001dc1079c3c97
-ATAN({A})	n:c0000d685e592175
-ATAN({A})	n:c0000d685e59217c
-ATAN({A})	n:c0001dc1079c3c92
-ATAN({A})	n:c0001dc1079c3c95
-ATAN({A})	n:c0001dc1079c3c98
 ATAN({A})	n:c0000d685e592179
+ATAN({A})	n:c0000d685e59217a
+ATAN({A})	n:c0000d685e59217c
+ATAN({A})	n:c0001dc1079c3c90
+ATAN({A})	n:c0001dc1079c3c92
+ATAN({A})	n:c0001dc1079c3c93
+ATAN({A})	n:c0001dc1079c3c95
+ATAN({A})	n:c0001dc1079c3c96
+ATAN({A})	n:c0001dc1079c3c98
 ATAN({A})	n:40000d685e592175
 ATAN({A})	n:40000d685e592176
 ATAN({A})	n:40000d685e592178

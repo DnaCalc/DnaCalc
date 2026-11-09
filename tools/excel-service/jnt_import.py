@@ -320,8 +320,10 @@ def read_hex_source(legacy, rel, family, skipped):
                 why = special_class(value)
                 if why:
                     reasons.append(why)
-            elif re.search("[\x00-\x1f\x7f\ud800-\udfff\ufffe\uffff]", arg):
+            elif CANNOT_HOLD.search(arg):
                 reasons.append("text a cell cannot hold")
+            elif CONTROL.search(arg):
+                tokens.append(("f", "&".join(char_pieces(arg)), arg))
             else:
                 tokens.append(("s", arg))
         if reasons:
@@ -369,14 +371,38 @@ def outside_quotes(text):
     return pieces
 
 
+CONTROL = re.compile("[\x01-\x1f]")
+CANNOT_HOLD = re.compile("[\x00\ud800-\udfff\ufffe\uffff]")
+
+
+def char_pieces(text):
+    """Text holding control characters as formula pieces: quoted runs and CHAR(n) calls. XML 1.0 cannot
+    carry these characters (and a line cannot carry a tab or a newline), so an input cell or a formula
+    literal that holds one is written as ="ab"&CHAR(12)&"cd" and Excel builds the text."""
+    out, buf = [], ""
+    for ch in text:
+        if ord(ch) < 32:
+            if buf:
+                out.append('"' + buf.replace('"', '""') + '"')
+                buf = ""
+            out.append("CHAR(%d)" % ord(ch))
+        else:
+            buf += ch
+    if buf:
+        out.append('"' + buf.replace('"', '""') + '"')
+    return out
+
+
 def typed_input(value):
     kind = value["kind"]
     if kind == "number":
         return ("n", "%016x" % struct.unpack(">Q", struct.pack(">d", float(value["value"])))[0])
     if kind == "text":
         text = value["value"]
-        if "\t" in text or "\n" in text or "\r" in text:
+        if CANNOT_HOLD.search(text):
             return None
+        if CONTROL.search(text):
+            return ("f", "&".join(char_pieces(text)), text)
         return ("s", text)
     if kind == "logical":
         return ("b", "TRUE" if value["value"] else "FALSE")
@@ -450,9 +476,21 @@ def typed_cases(rows, rel, skipped):
             # the legacy capture entered such formulas as dynamic-array formulas.
             skipped["typed: array constant in a formula (dynamic-array entry)"] += 1
             continue
-        if re.search(r"[\x00-\x1f\x7f]", text):
-            skipped["typed: control character in the formula"] += 1
+        if CANNOT_HOLD.search(text):
+            skipped["typed: text a cell cannot hold"] += 1
             continue
+        rebuilt, usable = [], True
+        for is_text, part in outside_quotes(text):
+            if CONTROL.search(part):
+                if is_text and len(part) >= 2 and part.endswith('"'):
+                    part = "(" + "&".join(char_pieces(part[1:-1].replace('""', '"'))) + ")"
+                else:
+                    usable = False
+            rebuilt.append(part)
+        if not usable:
+            skipped["typed: control character outside a text literal"] += 1
+            continue
+        text = "".join(rebuilt)
         fixtures = {f["target"]: f["value"] for f in case["cell_fixture"]}
         mapping, inputs, ok = {}, [], True
         pieces = []
@@ -528,6 +566,10 @@ def prefixed_functions(repo):
         with_prefix, without = seen.get((index, 1)), seen.get((index, 2))
         if without == {"error": "name"} and with_prefix != {"error": "name"}:
             found.add(call.split("(")[0])
+    # Functions the prefix files do not list but Excel stores with the prefix (live Excel read them as
+    # #NAME? without it, dc-jnt.7).
+    found |= {"IFNA", "IFS", "SWITCH", "XOR", "CONCAT", "TEXTJOIN", "MAXIFS", "MINIFS", "DAYS", "ISFORMULA",
+              "FORMULATEXT", "SHEET", "SHEETS", "ISOMITTED"}
     _prefixed = found
     return found
 
@@ -602,7 +644,8 @@ def choose(family, cases):
 def row_text(family, case, repo):
     formula = add_prefixes(repo, case["formula"] or template_for(family, case["nargs"]))
     fields = [formula]
-    for kind, body in case["args"]:
+    for token in case["args"]:
+        kind, body = token[0], token[1]
         fields.append("-" if kind == "-" else "%s:%s" % (kind, body))
     return "\t".join(fields)
 
@@ -681,8 +724,9 @@ def build_rows(batch, legacy, repo):
         lines.append("# sources: " + ", ".join(sorted({c["source"] for c in unique})))
         for case in unique:
             lines.append(row_text(family, case, repo))
+            extras = {str(k): t[2] for k, t in enumerate(case["args"]) if len(t) == 3}
             cases_out.append(dict(family=family["name"], id=case["id"], source=case["source"], expected=case["expected"],
-                                  line=row_text(family, case, repo)))
+                                  line=row_text(family, case, repo), extras=extras))
         report.append((family["name"], len(unique), len(cases), classes, boundary_extra, dict(skipped)))
         total_skipped.update(skipped)
     return lines, cases_out, report, hashes
@@ -705,9 +749,40 @@ def utf16_hex(text):
     return "".join("%04x" % unit for unit in struct.unpack("<%dH" % (len(data) // 2), data))
 
 
-def observation(sheet, row, expected):
+def expected_of_token(token):
+    """A live read-back token (n:, e:, s:, b:) as an expectation."""
+    kind, body = token[0], token[2:]
+    if kind == "n":
+        return ("number", body)
+    if kind == "e":
+        return ("error", {v: k for k, v in ERROR_LITERAL_WIRE.items()}[body])
+    if kind == "s":
+        return ("text_hex", body)
+    if kind == "b":
+        return ("logical", body == "TRUE")
+    raise ValueError(token)
+
+
+ERROR_LITERAL_WIRE = {"null": "#NULL!", "div0": "#DIV/0!", "value": "#VALUE!", "ref": "#REF!", "name": "#NAME?",
+                      "num": "#NUM!", "na": "#N/A"}
+
+
+def token_of(expected):
     kind, value = expected
     if kind == "number":
+        return "n:" + value
+    if kind == "error":
+        return "e:" + ERROR_LITERAL_WIRE[value]
+    if kind == "text":
+        return "s:" + utf16_hex(value)
+    return "b:" + ("TRUE" if value else "FALSE")
+
+
+def observation(sheet, row, expected):
+    kind, value = expected
+    if kind == "text_hex":
+        raw = {"text": value}
+    elif kind == "number":
         raw = {"number": value}
     elif kind == "error":
         raw = {"error": value}
@@ -727,6 +802,8 @@ def main():
     parser.add_argument("--repo", required=True)
     parser.add_argument("--legacy", required=True)
     parser.add_argument("--work", default=None)
+    parser.add_argument("--live", default=None, help="the live Excel read-back (columns r, A, B, C, D, E, F, G) of the sheet")
+    parser.add_argument("--build", default=None, help="the Excel build of that read-back")
     arguments = parser.parse_args()
     batch = dict(BATCHES[arguments.batch])
     batch["id"] = arguments.batch
@@ -760,12 +837,57 @@ def main():
     entry = "OxFunc@05196c39:%s (%s);sha256:%s" % (
         EVIDENCE.rstrip("/"), "Excel " + EXCEL_BUILD,
         hashlib.sha256("".join(k + hashes[k] for k in sorted(hashes)).encode()).hexdigest())
-    formulas, observations = [], []
+    formulas, observations, contradicted = [], [], []
+    live = None
+    if arguments.live:
+        live = [line.rstrip("\n").split("\t") for line in open(arguments.live, encoding="utf-8")]
+        if any(c.get("extras") for c in saved):
+            entry += "; input formulas read back by live Excel build " + (arguments.build or "unknown")
     for index, case in enumerate(saved, start=1):
         formula_text = case["line"].split("\t")[0]
         formulas.append({"sheet": sheet, "row": index, "column": 4, "kind": "ordinary",
                          "formula": stored_formula(formula_text, index)})
-        observations.append(observation(sheet, index, tuple(case["expected"])))
+        expected = tuple(case["expected"])
+        if live is not None:
+            # Excel is the oracle: where live Excel reads another answer than the legacy reading, the row
+            # carries live Excel's answer and the disagreement is recorded (contradicted-<sheet>.json).
+            seen = live[index - 1][1 + 3]
+            if seen != token_of(expected):
+                formula_head = case["line"].split("\t")[0]
+                if formula_head.startswith("DATE(") and seen.startswith("e:") and expected[0] == "number":
+                    reason = "version difference: a number under Excel 20430 and an error under 20527; recorded in crates/calc-func/witness-differences.tsv"
+                elif formula_head.startswith("LEN(") or "text slice" in case["family"]:
+                    reason = "legacy harness mangling: a surrogate pair counted as one unit; Excel counts UTF-16 units"
+                else:
+                    reason = "unclassified: live Excel reads another answer than the legacy reading"
+                contradicted.append({"row": index, "family": case["family"], "id": case["id"], "formula": formula_head,
+                                     "inputs": case["line"].split("\t")[1:], "legacy": token_of(expected), "live": seen,
+                                     "legacy_build": "16.0.20430", "live_build": arguments.build or "unknown", "reason": reason})
+                expected = expected_of_token(seen)
+        observations.append(observation(sheet, index, expected))
+        # Inputs written as formulas (text with control characters): the answer of those cells is what
+        # live Excel read back, and a read-back that is not the intended text fails the import.
+        for k, text in case.get("extras", {}).items():
+            if live is None:
+                sys.exit("row %d has input formulas: give --live and --build" % index)
+            column = [1, 2, 3, 5, 6, 7][int(k)]
+            body = case["line"].split("\t")[1 + int(k)][2:]
+            got = live[index - 1][1 + [0, 1, 2, 4, 5, 6][int(k)]]
+            if got != "s:" + utf16_hex(text):
+                sys.exit("row %d column %d: Excel read back %s, not the intended text %r" % (index, column, got, text))
+            formulas.append({"sheet": sheet, "row": index, "column": column, "kind": "ordinary", "formula": "=" + body})
+            observations.append({"sheet": sheet, "row": index, "column": column,
+                                 "excel_raw": {"text": got[2:]}})
+    if contradicted:
+        entry += "; %d rows carry live Excel's answer where the legacy reading differs (contradicted-%s.json)" % (len(contradicted), sheet)
+    path_contra = os.path.join(fixtures, "contradicted-%s.json" % sheet)
+    if contradicted:
+        with open(path_contra, "w") as handle:
+            json.dump(contradicted, handle, indent=0)
+            handle.write("\n")
+        print("wrote", path_contra, len(contradicted))
+    elif os.path.exists(path_contra):
+        os.remove(path_contra)
     record = {"format": "dnacalc-capture-record", "version": 3, "case": "jnt__" + sheet,
               "source": "sha256:" + digest,
               "acquisition": {"kind": "function_questions", "entry": entry},
