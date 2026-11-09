@@ -182,3 +182,48 @@ judge --bank full` (295 functions, 3,910,795 rows, 3,887,850 matched) gave ident
 per-workbook and per-function counts before and after, in debug and in perf. The test
 `a_pending_producer_suspends_the_reading_instruction_and_keeps_its_prefix` passes on the old
 evaluator and on this one.
+
+## 6. Replay safety, instruction by instruction (dc-hsa5.19)
+
+A waiting instruction runs again from its start, so it is safe only if its start does nothing the
+evaluation could observe twice. The user-function counter is not the proof. The test
+`a_wait_replays_nothing_the_evaluation_could_observe` (`calc-fml`, `eval/run/tests/retry.rs`) drives
+each case twice, once with the producer ready and once pending until the evaluation has waited, at
+quantum `usize::MAX` and 1, and compares the whole event record: the value, the random source's
+draws, the user-function calls, the calls and resolved reference text the observer is shown, the
+defined-name records and the fact reads. Result, per instruction (all in the dynamic form):
+
+| Instruction | What it can do before a `MissingInput` | Status |
+|---|---|---|
+| `Call`, eager | Admission reads cells (footprint only, and a read is idempotent); the kernel reads, calls LAMBDAs, draws, reads facts, and the observer is shown the call. | Kernels that draw (RAND, RANDBETWEEN, RANDARRAY) have value parameters only, so admission reads before any draw (`the_kernels_that_draw_read_no_cell`). Kernels that call LAMBDAs keep their cursor. A fact read happens again, and is one entry once recorded. **Defect, fixed:** the observer was shown the call on the attempt that waited and again on the run that completed (`SUM`, `CELL` and every kernel that reads a range); it is now shown when the call completes. |
+| `Call`, lifted over arrays | Runs its kernel once per element; each element may read (an array of references) and the observer was shown each element's call. | **Defect, fixed:** an element that waited ran the whole call again, so the elements before it were shown twice (`N(OFFSET(B1,{0;1;2},0))` showed `N` six times). The events of a lifted call are held and shown when it completes. No lifted kernel draws and reads together. |
+| `LazyCall` | Argument blocks (their own cursors, kept), the argument's admission (a read), the kernel's selection (pure). | The evaluated arguments are retained (`PendingLazy`), a finished block is never run again (`cursor.result`). **Defect, fixed:** the call was shown on the attempt that waited at an argument's admission (`IF(B3,...)`, `IFERROR(B3,...)`). |
+| `Invoke`, LAMBDA | Moves its arguments into its frame; the body's instructions wait in place. | Nothing of the call is replayed. |
+| `Invoke`, function value | A call of an entry in place. | As `Call`. |
+| Kernel to LAMBDA callbacks (MAP, SCAN, REDUCE, BYROW, BYCOL, MAKEARRAY) | The helper's item cursor and the LAMBDA's frame are retained, with the draws and reads inside the body. | Waits in place. |
+| GROUPBY, PIVOTBY | Called their LAMBDA through the synchronous invoker, so a wait inside it was refused ("a helper callback without a retained kernel continuation"). | **Defect, fixed (D2):** the kernels are now resumable tasks (`GroupingTask`): a pass runs again from its start taking the value of each call already made from a ledger and advancing only the call in progress, so no LAMBDA is entered twice. The pass between calls is pure and is repeated, which costs time quadratic in the number of calls only when a quantum stops after every call. |
+| `Name` | Not a waiting instruction: its body is a child block with its own cursor, and its record is made once when it completes. | No replay. |
+| `Spill`, `Implicit`, the rest | Read no cell value (`Spill` asks for occupancy, which answers `NotModelled` and never `MissingInput`). | Not waiting instructions. |
+
+What still differs from Excel is stated in section 3. What the test cannot show is a kernel that
+both draws and reads a cell in the same call; the catalogue has none, and the test above pins
+the three that draw.
+
+Fallback (the evaluation ends with `MissingInput` and the engine evaluates the formula again from its
+start): the random stream is started again from its key, so the formula draws the same values again;
+nothing it drew before is kept (`calc-engine/src/random.rs`).
+
+### Call arity and the omitted-argument marker
+
+A call with too few or too many arguments is refused when the formula is compiled, as Excel
+refuses it at entry (`check_entry`, run before lowering and again for a defined name's formula), for
+every held catalogue entry; a lazy entry takes at least one argument, so no lazy call runs with none
+and none indexes a block that is not its own (`a_call_of_the_wrong_arity_is_refused_before_any_argument_can_run`).
+At run time only a call of a function value (`LET(f,ABS,f(RAND(),RAND()))`) can meet a wrong count:
+its arguments run first, as a LAMBDA call's do, and the result is `#VALUE!` (not separately
+measured in Excel). Every kernel result passes `admit_return`, which refuses the omitted-argument
+marker (`MissingReturned`); the evaluator's rules that turn `Missing` into `Empty` in a call result
+(`first_element`, `lifted_element`, GROUPBY's per-group results) were not reached by any test of calc-func,
+calc-fml, calc-engine or calc-host, nor by the 78,151 formula cells of the oracle corpus, so they are
+defensive; a LAMBDA's own result may be `Missing` (an omitted optional parameter), which the engine
+refuses at publication.

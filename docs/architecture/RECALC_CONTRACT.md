@@ -110,7 +110,7 @@ enum ExternalOperation { AsyncReturn { token, result }, RtdUpdate { subscription
 | An imported cache never gets a producing command or certificate | the reader never hands out a file cache or refusal as a value (`calc-engine/src/read.rs:4-9`, `recalc.rs:619-621`) = A7's `MissingCache` refusal |
 | `qualified_by` carries boundary caches and cached observations; arithmetic on a qualified input cannot upgrade it | precursors: `Calculation::reads_external_links` and `held_by_circular_rule` (`result.rs:36-81`) |
 | `ReadPurpose` is not a permission: the invocation frame authorizes the policy; invalid pairs are refused | none (one reader for all reads) |
-| Range reads are recorded as spans or versioned chunks; no per-element certificate entry | `EvalLocal.footprint: Vec<GridArea>` (`recalc.rs:323-332`) |
+| Range reads are recorded as spans or versioned chunks; no per-element certificate entry | `EvalLocal.footprint: Footprint`, one entry per distinct area read in first-read order (`recalc.rs`, dc-hsa5.19) |
 | `ObservableFacets` covers value/type/error, formula text, kind/dialect, shape, reference identity, occupancy, binding, row visibility, numeric semantics, host facts, calculation status | dialect already keys plans (`calc-engine/src/state.rs:401`, `calc-fml/src/eval/mod.rs:107-113`) |
 | `ResultDestination` is immutable; `PinnedSave` installations never reach live subscribers | none |
 | `PreparedTransaction` is prepared against one base; a stale base is rejected, never patched | `HostCommand { base, edits }`, `CommandError::StaleBase` (`calc-host/src/command.rs:103-109,164-171,238-239`) |
@@ -441,7 +441,9 @@ today's random behaviour (`calc-engine/src/random.rs:4-8`); it is allowed only f
 An effectful cone takes one of the reasons above or waits.
 Implementation update (2026-11-09): a pure wait now resumes at the instruction that read the cell, with the
 operands it found and nothing before it run again; restarting the formula is the fallback. Excel restarts the formula
-and re-enters earlier UDFs (measured); see EVALUATOR_SUSPENSION.md.
+and re-enters earlier UDFs (measured); see EVALUATOR_SUSPENSION.md. Draws: a wait in place keeps the stream, so every
+draw happens once; the fallback restart starts the same keyed stream again and draws the same values
+(`calc-engine/src/random.rs` header). Replay safety per instruction is in EVALUATOR_SUSPENSION.md section 6.
 
 P03 (O, 20527 safe mode) observed native status 64 followed by a second entry under ordinary and `$`
 registrations in every reversed-area trial, with the counter increment before each coercion. `#` succeeded
