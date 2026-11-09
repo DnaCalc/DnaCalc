@@ -672,6 +672,8 @@ fn source_names(host: &HostState, area: GridArea) -> Result<Vec<String>, String>
             CoreRef::Text(text) => String::from_utf16(text.utf16_code_units())
                 .map_err(|_| fail("The source header cannot be represented"))?,
             CoreRef::Empty => format!("Column{}", position + 1),
+            // Excel takes a number in the header row as text.
+            CoreRef::Number(number) => format!("{number}"),
             _ => return Err(fail("Every source column needs a text header")),
         };
         let name = if name.is_empty() { format!("Column{}", position + 1) } else { name };
@@ -695,12 +697,11 @@ fn text_equal(a: &str, b: &str) -> bool {
 /// Returns the pivot state with the cache and every table of it remapped, or `None` when the headers are the
 /// cache's own. Pivots with report filters, value filters, formats, groups, calculated items or value sorts keep
 /// the old refusal: their field indexes live in more places than are modelled.
-fn remap_fields(host: &HostState, before: &PivotState, cache: &PivotCache, area: GridArea) -> Result<Option<PivotState>, String> {
+fn remap_fields(host: &HostState, before: &PivotState, cache: &PivotCache, area: GridArea) -> Result<Option<(PivotState, bool)>, String> {
     let names = source_names(host, area)?;
     let source_count = cache.fields.iter().take_while(|field|
         !matches!(field.attributes.get("databaseField").map(String::as_str), Some("0" | "false"))).count();
-    if source_count == cache.fields.len() && names.len() == source_count
-        && names.iter().zip(&cache.fields).all(|(name, field)| text_equal(name, &field.name)) {
+    if names.len() == source_count && names.iter().zip(&cache.fields).all(|(name, field)| text_equal(name, &field.name)) {
         return Ok(None);
     }
     if source_count != cache.fields.len() || cache.fields.iter().any(|f| f.group.is_some() || !f.formula_items.is_empty())
@@ -726,13 +727,46 @@ fn remap_fields(host: &HostState, before: &PivotState, cache: &PivotCache, area:
     remapped.fields = fields;
     remapped.snapshot = None;
     let mut after = before.clone();
+    // When no value field of a pivot has its column any more (the source was cleared, its columns or its header row
+    // deleted), Excel's refresh leaves the pivot as the one-cell error stub (src-clear-all, src-del-cols-all,
+    // src-del-row-header): the cache has the new fields and the pivot has no layout left.
+    let stub = before.tables().filter(|t| t.cache_id == cache.id).any(|t|
+        t.data_fields.iter().all(|d| map.get(d.field as usize).copied().flatten().is_none()));
+    if stub {
+        remapped.record_count = Some(0);
+        remapped.snapshot = Some(Arc::new(PivotSnapshot {
+            records: Vec::new(), origin: PivotSnapshotOrigin::SourceRead,
+            source_revision: host.revision().get(), numeric: host.recalc_context().numeric.clone(),
+        }));
+    }
     for tables in after.sheets.values_mut() {
         for table in tables.tables.iter_mut().filter(|t| t.cache_id == cache.id) {
-            *table = remap_table(table, &map, names.len())?;
+            if stub {
+                *table = stub_table(table, names.len())?;
+            } else {
+                *table = remap_table(table, &map, names.len())?;
+            }
         }
     }
     after.caches.caches.insert(cache.id, Arc::new(remapped));
-    Ok(Some(after))
+    Ok(Some((after, stub)))
+}
+
+/// The pivot as the stub: its fields, none in an axis, no value field, one cell holding the error.
+fn stub_table(table: &PivotTable, width: usize) -> Result<PivotTable, String> {
+    if !table.page_fields.is_empty() || !table.filters.is_empty() || !table.formats.is_empty() || !table.unsupported.is_empty() {
+        return Err(fail("A source that left the pivot no value field, under report filters, value filters or formats, is not modelled"));
+    }
+    let mut next = table.clone();
+    next.fields = (0..width).map(|_| PivotField { attributes: BTreeMap::from([("showAll".into(), "0".into())]), items: Vec::new(), sort_measure: None }).collect();
+    next.row_fields.clear();
+    next.column_fields.clear();
+    next.data_fields.clear();
+    next.row_items.clear();
+    next.col_items.clear();
+    next.area = GridArea::cell(table.area.first());
+    next.collapsed = true;
+    Ok(next)
 }
 
 fn remap_table(table: &PivotTable, map: &[Option<usize>], width: usize) -> Result<PivotTable, String> {
@@ -811,8 +845,23 @@ pub(crate) fn prepare_refresh(
         return Err(fail("A pivot source cannot read another pivot output"));
     }
     // A source whose columns changed: the cache fields follow the new headers by name (Excel's refresh).
-    let remapped = remap_fields(host, before, cache, area)?;
+    if area.row_count() < 2 {
+        // Excel's text, bullets and all (measured, src-del-rows-all-data); the pivot is left as it was.
+        return Err("This command requires at least two rows of source data. You cannot use the command on a selection in only one row. Try the following: \u{2022} If you're using an advanced filter, select a range of cells that contains at least two rows of data. Then click the Advanced Filter command again. \u{2022} If you're creating a PivotTable report or PivotChart report, type a cell reference or select a range that includes at least two rows of data.".into());
+    }
+    let original = before;
+    let (remapped, stub) = match remap_fields(host, before, cache, area)? {
+        Some((state, stub)) => (Some(state), stub),
+        None => (None, false),
+    };
     let before: &PivotState = remapped.as_ref().unwrap_or(before);
+    if stub {
+        let mut edits = original.tables().filter(|t| t.cache_id == selected.cache_id)
+            .map(|t| CellEdit::Clear { area: t.area }).collect::<Vec<_>>();
+        host.loaded().check_pivot_state(before).map_err(|e| e.to_string())?;
+        edits.push(CellEdit::Pivots(Arc::new(before.clone())));
+        return Ok(edits);
+    }
     let selected = before.sheet(sheet).and_then(|s| s.tables.iter().find(|t| t.part == part))
         .ok_or_else(|| fail("The selected pivot is unavailable"))?;
     let cache = before.caches.caches.get(&selected.cache_id).ok_or_else(|| fail("The source cache is unavailable"))?;
