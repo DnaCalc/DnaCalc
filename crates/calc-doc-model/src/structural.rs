@@ -226,8 +226,8 @@ impl ModelRoot {
             let next = match op {
                 WorkbookOp::EditAxis(edit) => {
                     current.require_sheet(operation, edit.sheet())?;
-                    if current.pivot_uses_sheet(edit.sheet()) { return Err(ApplyError::PivotStructural { operation }); }
-                    current.axis_edit(*edit, rewriter)
+                    let pivots = current.pivots_after_axis_edit(*edit).map_err(|reason| ApplyError::PivotStructural { operation, reason: reason.message() })?;
+                    current.axis_edit(*edit, rewriter, pivots)
                 }
                 WorkbookOp::EditSheet(edit) => {
                     let sheet = match edit {
@@ -235,7 +235,7 @@ impl ModelRoot {
                         SheetEdit::Rename { sheet, .. } | SheetEdit::Move { sheet, .. }
                         | SheetEdit::Remove { sheet } | SheetEdit::SetVisibility { sheet, .. } => Some(*sheet),
                     };
-                    if sheet.is_some_and(|sheet| current.pivot_uses_sheet(sheet)) { return Err(ApplyError::PivotStructural { operation }); }
+                    if sheet.is_some_and(|sheet| current.pivot_uses_sheet(sheet)) { return Err(ApplyError::PivotStructural { operation, reason: "Structural edits on pivot output or source sheets need measured transforms (dc-8wp.16)" }); }
                     current.sheet_edit(operation, edit, rewriter, issue_sheet)?
                 }
                 other => {
@@ -324,7 +324,7 @@ impl ModelRoot {
             .collect()
     }
 
-    fn axis_edit(&self, edit: AxisEdit, rewriter: &dyn FormulaRewriter) -> Arc<ModelRoot> {
+    fn axis_edit(&self, edit: AxisEdit, rewriter: &dyn FormulaRewriter, pivots: Option<Arc<crate::pivot::PivotState>>) -> Arc<ModelRoot> {
         let change = StructuralChange::Axis(edit);
         let parts = self.parts();
         let cells = self.rewritten_cells(rewriter, &change, parts.cells);
@@ -371,7 +371,7 @@ impl ModelRoot {
                 }
             });
         let mut next = Definitions::new(arrays, names, tables, unloaded)
-            .with_pivots(Arc::clone(definitions.pivots()))
+            .with_pivots(pivots.unwrap_or_else(|| Arc::clone(definitions.pivots())))
             .with_styles(if definitions.styles().runs.iter().next().is_some() {
                 let mut styles = (**definitions.styles()).clone();
                 styles.runs = styles.runs.moved(edit);
@@ -753,5 +753,178 @@ mod tests {
                 .map(|input| matches!(input, CellInput::Formula(_))),
             Some(true)
         );
+    }
+}
+
+
+// Pivots under a row or column edit (dc-8wp.16, measured in tests/fixtures/pivot/m5-structure):
+// - the output moves with a row or column inserted at or before its first row or column, or deleted wholly
+//   before it; an edit after it leaves it; an insert from its second row or column to its last, or a delete
+//   that overlaps part of it, is refused (Excel: "We can't make this change for the selected cells because it
+//   will affect a PivotTable."); deleting exactly its rows or columns removes the pivot in Excel, which is not
+//   modelled here (refused);
+// - a worksheet-range source follows the edit as a reference range does ([`moved_run`]); a range all of which
+//   is deleted keeps its text (a refresh then fails, as in Excel); a table source follows its table.
+// Anything this cannot place (a defined-name source, load issues, a data model) keeps the old refusal.
+
+/// Why a pivot cannot follow a row or column edit.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub enum PivotEditRefusal {
+    /// The pivots cannot be moved by this layer (names, issues, data model, other source kinds).
+    Unplaceable,
+    /// The edit lands inside a pivot's output.
+    InsideOutput { table: String },
+    /// The edit deletes all of a pivot's output, which Excel answers by removing the pivot.
+    RemovesOutput { table: String },
+}
+
+impl PivotEditRefusal {
+    /// The text a person is told; the second is Excel's own (16.0.20527).
+    pub fn message(&self) -> &'static str {
+        match self {
+            PivotEditRefusal::Unplaceable => "Structural edits on this pivot's sheet need a source this layer can place (dc-8wp.16)",
+            PivotEditRefusal::InsideOutput { .. } => "We can't make this change for the selected cells because it will affect a PivotTable. Use the field list to change the report. If you are trying to insert or delete cells, move the PivotTable and try again.",
+            PivotEditRefusal::RemovesOutput { .. } => "Deleting all of a PivotTable's output removes the pivot, which is not modelled yet (dc-8wp.16)",
+        }
+    }
+}
+
+/// `B2:E14` or `$B$2:$E$14` or one cell, as (top, left, bottom, right).
+fn parse_source_range(text: &str) -> Option<(u32, u32, u32, u32)> {
+    fn cell(text: &str) -> Option<(u32, u32)> {
+        let text = text.replace('$', "");
+        let split = text.find(|c: char| c.is_ascii_digit())?;
+        let (letters, digits) = text.split_at(split);
+        if letters.is_empty() || !letters.bytes().all(|b| b.is_ascii_alphabetic()) {
+            return None;
+        }
+        let column = letters.bytes().try_fold(0u32, |n, b| {
+            n.checked_mul(26)?.checked_add(u32::from(b.to_ascii_uppercase() - b'A') + 1)
+        })?;
+        let row: u32 = digits.parse().ok()?;
+        (row >= 1 && column >= 1).then_some((row, column))
+    }
+    let (first, last) = text.split_once(':').unwrap_or((text, text));
+    let (top, left) = cell(first)?;
+    let (bottom, right) = cell(last)?;
+    (top <= bottom && left <= right).then_some((top, left, bottom, right))
+}
+
+fn column_letters(mut column: u32) -> String {
+    let mut letters = String::new();
+    while column > 0 {
+        letters.insert(0, char::from(b'A' + ((column - 1) % 26) as u8));
+        column = (column - 1) / 26;
+    }
+    letters
+}
+
+impl ModelRoot {
+    /// The pivot state after `edit`, `None` when nothing changes.
+    pub fn pivots_after_axis_edit(
+        &self,
+        edit: AxisEdit,
+    ) -> Result<Option<Arc<crate::pivot::PivotState>>, PivotEditRefusal> {
+        let pivots = self.definitions().pivots();
+        if pivots.tables().next().is_none() {
+            return Ok(None);
+        }
+        if !pivots.caches.issues.is_empty()
+            || pivots.sheets.values().any(|s| !s.issues.is_empty())
+            || self.definitions().data_model().is_some()
+        {
+            return Err(PivotEditRefusal::Unplaceable);
+        }
+        let Some(name) = self.sheet_by_id(edit.sheet()).map(|s| s.name().text().to_string_lossy()) else {
+            return Ok(None);
+        };
+        let mut next = (**pivots).clone();
+        let mut changed = false;
+        // Outputs.
+        for sheet in next.sheets.values_mut() {
+            for table in &mut sheet.tables {
+                if table.area.sheet() != edit.sheet() {
+                    continue;
+                }
+                let (first, last) = (table.area.first(), table.area.last());
+                let (lo, hi) = match edit.axis() {
+                    Axis::Rows => (first.row(), last.row()),
+                    Axis::Columns => (first.column(), last.column()),
+                };
+                let inside = match edit.change() {
+                    AxisChange::Insert => lo < edit.first() && edit.first() <= hi,
+                    AxisChange::Delete => {
+                        let overlaps = edit.first() <= hi && edit.last() >= lo;
+                        if overlaps && edit.first() <= lo && edit.last() >= hi {
+                            return Err(PivotEditRefusal::RemovesOutput { table: table.name.clone() });
+                        }
+                        overlaps
+                    }
+                };
+                if inside {
+                    return Err(PivotEditRefusal::InsideOutput { table: table.name.clone() });
+                }
+                if let Some(area) = moved_area(edit, table.area)
+                    && area != table.area
+                {
+                    table.area = area;
+                    changed = true;
+                }
+            }
+        }
+        // Sources.
+        let mut caches = BTreeMap::new();
+        for table in pivots.tables() {
+            let Some(cache) = pivots.caches.caches.get(&table.cache_id) else {
+                return Err(PivotEditRefusal::Unplaceable);
+            };
+            if cache.source_type != "worksheet" {
+                return Err(PivotEditRefusal::Unplaceable);
+            }
+            if let Some(source) = &cache.source_name {
+                let known = self.definitions().tables().iter().any(|t| {
+                    t.name.eq_ignore_ascii_case(source) || t.display_name.eq_ignore_ascii_case(source)
+                });
+                if !known {
+                    return Err(PivotEditRefusal::Unplaceable);
+                }
+                continue;
+            }
+            let (Some(sheet), Some(range)) = (&cache.source_sheet, &cache.source_range) else {
+                return Err(PivotEditRefusal::Unplaceable);
+            };
+            if !sheet.is_ascii() || !name.is_ascii() {
+                return Err(PivotEditRefusal::Unplaceable);
+            }
+            if !sheet.eq_ignore_ascii_case(&name) {
+                continue;
+            }
+            let (top, left, bottom, right) = parse_source_range(range).ok_or(PivotEditRefusal::Unplaceable)?;
+            let (start, end) = match edit.axis() {
+                Axis::Rows => (top, bottom),
+                Axis::Columns => (left, right),
+            };
+            // All of the range deleted: the text stays and a refresh finds nothing, as in Excel.
+            let Some((start, end)) = moved_run(edit, start, end) else { continue };
+            let (top, bottom, left, right) = match edit.axis() {
+                Axis::Rows => (start, end, left, right),
+                Axis::Columns => (top, bottom, start, end),
+            };
+            let text = if (top, left) == (bottom, right) && !range.contains(':') {
+                format!("{}{}", column_letters(left), top)
+            } else {
+                format!("{}{}:{}{}", column_letters(left), top, column_letters(right), bottom)
+            };
+            if &text != range {
+                let mut moved = (**cache).clone();
+                moved.source_range = Some(text);
+                caches.insert(cache.id, Arc::new(moved));
+            }
+        }
+        for (id, cache) in caches {
+            next.caches.caches.insert(id, cache);
+            changed = true;
+        }
+        Ok(changed.then(|| Arc::new(next)))
     }
 }

@@ -1,0 +1,13 @@
+stage	row	formula	value	text
+exact/before	1	=CUBEVALUE("ThisWorkbookDataModel","[Measures].[TotalAmount]","[Sales].[Region].&[East]")	0.3|3fd3333333333333	0.3
+exact/before	2	=CUBEVALUE("ThisWorkbookDataModel","[Measures].[AvgAmount]","[Sales].[Region].&[East]")	0.15|3fc3333333333333	0.15
+exact/before	3	=CUBEVALUE("ThisWorkbookDataModel","[Measures].[TotalAmount]","[Sales].[Region].&[West]")	1e-07|3e7ad7f29abcaf48	1E-07
+exact/before	4	=CUBEVALUE("ThisWorkbookDataModel","[Measures].[AvgAmount]","[Sales].[Region].&[West]")	1e-07|3e7ad7f29abcaf48	1E-07
+exact/before	5	=CUBEVALUE("ThisWorkbookDataModel","[Measures].[TotalAmount]")	0.3000001|3fd333339e92fd9e	0.3
+exact/before	6	=CUBEVALUE("ThisWorkbookDataModel","[Measures].[RowCount]","[Sales].[Region].&[East]")	2.0|4000000000000000	2
+exact/after-refresh-all	1	=CUBEVALUE("ThisWorkbookDataModel","[Measures].[TotalAmount]","[Sales].[Region].&[East]")	0.3|3fd3333333333333	0.3
+exact/after-refresh-all	2	=CUBEVALUE("ThisWorkbookDataModel","[Measures].[AvgAmount]","[Sales].[Region].&[East]")	0.15|3fc3333333333333	0.15
+exact/after-refresh-all	3	=CUBEVALUE("ThisWorkbookDataModel","[Measures].[TotalAmount]","[Sales].[Region].&[West]")	1e-07|3e7ad7f29abcaf48	1E-07
+exact/after-refresh-all	4	=CUBEVALUE("ThisWorkbookDataModel","[Measures].[AvgAmount]","[Sales].[Region].&[West]")	1e-07|3e7ad7f29abcaf48	1E-07
+exact/after-refresh-all	5	=CUBEVALUE("ThisWorkbookDataModel","[Measures].[TotalAmount]")	0.3000001|3fd333339e92fd9e	0.3
+exact/after-refresh-all	6	=CUBEVALUE("ThisWorkbookDataModel","[Measures].[RowCount]","[Sales].[Region].&[East]")	2.0|4000000000000000	2

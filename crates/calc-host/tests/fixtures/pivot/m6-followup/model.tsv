@@ -1,0 +1,113 @@
+stage	row	formula	value	text
+model/no-relationship/before	1	=CUBEVALUE("ThisWorkbookDataModel","[Measures].[TotalAmount]","[Sales].[Region].&[East]")	10.0|4024000000000000	10
+model/no-relationship/before	2	=CUBEVALUE("ThisWorkbookDataModel","[Measures].[TotalAmount]","[Sales].[Region].&[West]")	20.0|4034000000000000	20
+model/no-relationship/before	3	=CUBEVALUE("ThisWorkbookDataModel","[Measures].[TotalAmount]","[Sales].[Region].&[Unknown]")	5.0|4014000000000000	5
+model/no-relationship/before	4	=CUBEVALUE("ThisWorkbookDataModel","[Measures].[TotalAmount]","[Sales].[Region].&")	error-or-int:-2146826246	#N/A
+model/no-relationship/before	5	=CUBEVALUE("ThisWorkbookDataModel","[Measures].[TotalAmount]","[Sales].[Region].[(blank)]")	error-or-int:-2146826246	#N/A
+model/no-relationship/before	6	=CUBEVALUE("ThisWorkbookDataModel","[Measures].[TotalAmount]","[Sales].[Region].&[]")	error-or-int:-2146826246	#N/A
+model/no-relationship/before	7	=CUBEVALUE("ThisWorkbookDataModel","[Measures].[TotalAmount]","[Sales].[Region].[All]")	35.0|4041800000000000	35
+model/no-relationship/before	8	=CUBEVALUE("ThisWorkbookDataModel","[Measures].[TotalAmount]","[Regions].[Region].&[East]")	35.0|4041800000000000	35
+model/no-relationship/before	9	=CUBEVALUE("ThisWorkbookDataModel","[Measures].[TotalAmount]","[Regions].[Region].&[West]")	35.0|4041800000000000	35
+model/no-relationship/before	10	=CUBEVALUE("ThisWorkbookDataModel","[Measures].[TotalAmount]","[Regions].[Region].&[]")	error-or-int:-2146826246	#N/A
+model/no-relationship/before	11	=CUBEVALUE("ThisWorkbookDataModel","[Measures].[TotalAmount]","[Regions].[Region].[All]")	35.0|4041800000000000	35
+model/no-relationship/before	12	=CUBEVALUE("ThisWorkbookDataModel","[Measures].[TotalAmount]")	35.0|4041800000000000	35
+model/no-relationship/pivot	A3		String:Row Labels	Row Labels
+model/no-relationship/pivot	B3		String:TotalAmount	TotalAmount
+model/no-relationship/pivot	A4		String:East	East
+model/no-relationship/pivot	B4		10.0|4024000000000000	10
+model/no-relationship/pivot	A5		String:Unknown	Unknown
+model/no-relationship/pivot	B5		5.0|4014000000000000	5
+model/no-relationship/pivot	A6		String:West	West
+model/no-relationship/pivot	B6		20.0|4034000000000000	20
+model/no-relationship/pivot	A7		String:Grand Total	Grand Total
+model/no-relationship/pivot	B7		35.0|4041800000000000	35
+model/no-relationship/gpd-before	1	=GETPIVOTDATA("[Measures].[TotalAmount]",ModelPivot!$A$3)	35.0|4041800000000000	35
+model/no-relationship/gpd-before	2	=GETPIVOTDATA("[Measures].[TotalAmount]",ModelPivot!$A$3,"[Sales].[Region]","[Sales].[Region].&[East]")	10.0|4024000000000000	10
+model/no-relationship/gpd-before	3	=GETPIVOTDATA("[Measures].[TotalAmount]",ModelPivot!$A$3,"[Sales].[Region]","[Sales].[Region].&[West]")	20.0|4034000000000000	20
+model/no-relationship/gpd-before	4	=GETPIVOTDATA("[Measures].[TotalAmount]",ModelPivot!$A$3,"[Sales].[Region]","[Sales].[Region].&[Unknown]")	5.0|4014000000000000	5
+model/no-relationship/gpd-before	5	=GETPIVOTDATA("[Measures].[TotalAmount]",ModelPivot!$A$3,"[Sales].[Region]","[Sales].[Region].&")	error-or-int:-2146826265	#REF!
+model/no-relationship/gpd-before	6	=GETPIVOTDATA("[Measures].[TotalAmount]",ModelPivot!$A$3,"[Sales].[Region]","")	error-or-int:-2146826265	#REF!
+model/no-relationship/after-refresh-all	1	=CUBEVALUE("ThisWorkbookDataModel","[Measures].[TotalAmount]","[Sales].[Region].&[East]")	100.0|4059000000000000	100
+model/no-relationship/after-refresh-all	2	=CUBEVALUE("ThisWorkbookDataModel","[Measures].[TotalAmount]","[Sales].[Region].&[West]")	20.0|4034000000000000	20
+model/no-relationship/after-refresh-all	3	=CUBEVALUE("ThisWorkbookDataModel","[Measures].[TotalAmount]","[Sales].[Region].&[Unknown]")	5.0|4014000000000000	5
+model/no-relationship/after-refresh-all	4	=CUBEVALUE("ThisWorkbookDataModel","[Measures].[TotalAmount]","[Sales].[Region].&")	error-or-int:-2146826246	#N/A
+model/no-relationship/after-refresh-all	5	=CUBEVALUE("ThisWorkbookDataModel","[Measures].[TotalAmount]","[Sales].[Region].[(blank)]")	error-or-int:-2146826246	#N/A
+model/no-relationship/after-refresh-all	6	=CUBEVALUE("ThisWorkbookDataModel","[Measures].[TotalAmount]","[Sales].[Region].&[]")	error-or-int:-2146826246	#N/A
+model/no-relationship/after-refresh-all	7	=CUBEVALUE("ThisWorkbookDataModel","[Measures].[TotalAmount]","[Sales].[Region].[All]")	125.0|405f400000000000	125
+model/no-relationship/after-refresh-all	8	=CUBEVALUE("ThisWorkbookDataModel","[Measures].[TotalAmount]","[Regions].[Region].&[East]")	125.0|405f400000000000	125
+model/no-relationship/after-refresh-all	9	=CUBEVALUE("ThisWorkbookDataModel","[Measures].[TotalAmount]","[Regions].[Region].&[West]")	125.0|405f400000000000	125
+model/no-relationship/after-refresh-all	10	=CUBEVALUE("ThisWorkbookDataModel","[Measures].[TotalAmount]","[Regions].[Region].&[]")	error-or-int:-2146826246	#N/A
+model/no-relationship/after-refresh-all	11	=CUBEVALUE("ThisWorkbookDataModel","[Measures].[TotalAmount]","[Regions].[Region].[All]")	125.0|405f400000000000	125
+model/no-relationship/after-refresh-all	12	=CUBEVALUE("ThisWorkbookDataModel","[Measures].[TotalAmount]")	125.0|405f400000000000	125
+model/no-relationship/pivot-after	A3		String:Row Labels	Row Labels
+model/no-relationship/pivot-after	B3		String:TotalAmount	TotalAmount
+model/no-relationship/pivot-after	A4		String:East	East
+model/no-relationship/pivot-after	B4		100.0|4059000000000000	100
+model/no-relationship/pivot-after	A5		String:Unknown	Unknown
+model/no-relationship/pivot-after	B5		5.0|4014000000000000	5
+model/no-relationship/pivot-after	A6		String:West	West
+model/no-relationship/pivot-after	B6		20.0|4034000000000000	20
+model/no-relationship/pivot-after	A7		String:Grand Total	Grand Total
+model/no-relationship/pivot-after	B7		125.0|405f400000000000	125
+model/no-relationship/gpd-after	1	=GETPIVOTDATA("[Measures].[TotalAmount]",ModelPivot!$A$3)	125.0|405f400000000000	125
+model/no-relationship/gpd-after	2	=GETPIVOTDATA("[Measures].[TotalAmount]",ModelPivot!$A$3,"[Sales].[Region]","[Sales].[Region].&[East]")	100.0|4059000000000000	100
+model/no-relationship/gpd-after	3	=GETPIVOTDATA("[Measures].[TotalAmount]",ModelPivot!$A$3,"[Sales].[Region]","[Sales].[Region].&[West]")	20.0|4034000000000000	20
+model/no-relationship/gpd-after	4	=GETPIVOTDATA("[Measures].[TotalAmount]",ModelPivot!$A$3,"[Sales].[Region]","[Sales].[Region].&[Unknown]")	5.0|4014000000000000	5
+model/no-relationship/gpd-after	5	=GETPIVOTDATA("[Measures].[TotalAmount]",ModelPivot!$A$3,"[Sales].[Region]","[Sales].[Region].&")	error-or-int:-2146826265	#REF!
+model/no-relationship/gpd-after	6	=GETPIVOTDATA("[Measures].[TotalAmount]",ModelPivot!$A$3,"[Sales].[Region]","")	error-or-int:-2146826265	#REF!
+model/relationship/before	1	=CUBEVALUE("ThisWorkbookDataModel","[Measures].[TotalAmount]","[Sales].[Region].&[East]")	10.0|4024000000000000	10
+model/relationship/before	2	=CUBEVALUE("ThisWorkbookDataModel","[Measures].[TotalAmount]","[Sales].[Region].&[West]")	20.0|4034000000000000	20
+model/relationship/before	3	=CUBEVALUE("ThisWorkbookDataModel","[Measures].[TotalAmount]","[Sales].[Region].&[Unknown]")	5.0|4014000000000000	5
+model/relationship/before	4	=CUBEVALUE("ThisWorkbookDataModel","[Measures].[TotalAmount]","[Sales].[Region].&")	error-or-int:-2146826246	#N/A
+model/relationship/before	5	=CUBEVALUE("ThisWorkbookDataModel","[Measures].[TotalAmount]","[Sales].[Region].[(blank)]")	error-or-int:-2146826246	#N/A
+model/relationship/before	6	=CUBEVALUE("ThisWorkbookDataModel","[Measures].[TotalAmount]","[Sales].[Region].&[]")	error-or-int:-2146826246	#N/A
+model/relationship/before	7	=CUBEVALUE("ThisWorkbookDataModel","[Measures].[TotalAmount]","[Sales].[Region].[All]")	35.0|4041800000000000	35
+model/relationship/before	8	=CUBEVALUE("ThisWorkbookDataModel","[Measures].[TotalAmount]","[Regions].[Region].&[East]")	10.0|4024000000000000	10
+model/relationship/before	9	=CUBEVALUE("ThisWorkbookDataModel","[Measures].[TotalAmount]","[Regions].[Region].&[West]")	20.0|4034000000000000	20
+model/relationship/before	10	=CUBEVALUE("ThisWorkbookDataModel","[Measures].[TotalAmount]","[Regions].[Region].&[]")	error-or-int:-2146826246	#N/A
+model/relationship/before	11	=CUBEVALUE("ThisWorkbookDataModel","[Measures].[TotalAmount]","[Regions].[Region].[All]")	35.0|4041800000000000	35
+model/relationship/before	12	=CUBEVALUE("ThisWorkbookDataModel","[Measures].[TotalAmount]")	35.0|4041800000000000	35
+model/relationship/pivot	A3		String:Row Labels	Row Labels
+model/relationship/pivot	B3		String:TotalAmount	TotalAmount
+model/relationship/pivot	A4		String:East	East
+model/relationship/pivot	B4		10.0|4024000000000000	10
+model/relationship/pivot	A5		String:Unknown	Unknown
+model/relationship/pivot	B5		5.0|4014000000000000	5
+model/relationship/pivot	A6		String:West	West
+model/relationship/pivot	B6		20.0|4034000000000000	20
+model/relationship/pivot	A7		String:Grand Total	Grand Total
+model/relationship/pivot	B7		35.0|4041800000000000	35
+model/relationship/gpd-before	1	=GETPIVOTDATA("[Measures].[TotalAmount]",ModelPivot!$A$3)	35.0|4041800000000000	35
+model/relationship/gpd-before	2	=GETPIVOTDATA("[Measures].[TotalAmount]",ModelPivot!$A$3,"[Sales].[Region]","[Sales].[Region].&[East]")	10.0|4024000000000000	10
+model/relationship/gpd-before	3	=GETPIVOTDATA("[Measures].[TotalAmount]",ModelPivot!$A$3,"[Sales].[Region]","[Sales].[Region].&[West]")	20.0|4034000000000000	20
+model/relationship/gpd-before	4	=GETPIVOTDATA("[Measures].[TotalAmount]",ModelPivot!$A$3,"[Sales].[Region]","[Sales].[Region].&[Unknown]")	5.0|4014000000000000	5
+model/relationship/gpd-before	5	=GETPIVOTDATA("[Measures].[TotalAmount]",ModelPivot!$A$3,"[Sales].[Region]","[Sales].[Region].&")	error-or-int:-2146826265	#REF!
+model/relationship/gpd-before	6	=GETPIVOTDATA("[Measures].[TotalAmount]",ModelPivot!$A$3,"[Sales].[Region]","")	error-or-int:-2146826265	#REF!
+model/relationship/after-refresh-all	1	=CUBEVALUE("ThisWorkbookDataModel","[Measures].[TotalAmount]","[Sales].[Region].&[East]")	100.0|4059000000000000	100
+model/relationship/after-refresh-all	2	=CUBEVALUE("ThisWorkbookDataModel","[Measures].[TotalAmount]","[Sales].[Region].&[West]")	20.0|4034000000000000	20
+model/relationship/after-refresh-all	3	=CUBEVALUE("ThisWorkbookDataModel","[Measures].[TotalAmount]","[Sales].[Region].&[Unknown]")	5.0|4014000000000000	5
+model/relationship/after-refresh-all	4	=CUBEVALUE("ThisWorkbookDataModel","[Measures].[TotalAmount]","[Sales].[Region].&")	error-or-int:-2146826246	#N/A
+model/relationship/after-refresh-all	5	=CUBEVALUE("ThisWorkbookDataModel","[Measures].[TotalAmount]","[Sales].[Region].[(blank)]")	error-or-int:-2146826246	#N/A
+model/relationship/after-refresh-all	6	=CUBEVALUE("ThisWorkbookDataModel","[Measures].[TotalAmount]","[Sales].[Region].&[]")	error-or-int:-2146826246	#N/A
+model/relationship/after-refresh-all	7	=CUBEVALUE("ThisWorkbookDataModel","[Measures].[TotalAmount]","[Sales].[Region].[All]")	125.0|405f400000000000	125
+model/relationship/after-refresh-all	8	=CUBEVALUE("ThisWorkbookDataModel","[Measures].[TotalAmount]","[Regions].[Region].&[East]")	100.0|4059000000000000	100
+model/relationship/after-refresh-all	9	=CUBEVALUE("ThisWorkbookDataModel","[Measures].[TotalAmount]","[Regions].[Region].&[West]")	20.0|4034000000000000	20
+model/relationship/after-refresh-all	10	=CUBEVALUE("ThisWorkbookDataModel","[Measures].[TotalAmount]","[Regions].[Region].&[]")	error-or-int:-2146826246	#N/A
+model/relationship/after-refresh-all	11	=CUBEVALUE("ThisWorkbookDataModel","[Measures].[TotalAmount]","[Regions].[Region].[All]")	125.0|405f400000000000	125
+model/relationship/after-refresh-all	12	=CUBEVALUE("ThisWorkbookDataModel","[Measures].[TotalAmount]")	125.0|405f400000000000	125
+model/relationship/pivot-after	A3		String:Row Labels	Row Labels
+model/relationship/pivot-after	B3		String:TotalAmount	TotalAmount
+model/relationship/pivot-after	A4		String:East	East
+model/relationship/pivot-after	B4		100.0|4059000000000000	100
+model/relationship/pivot-after	A5		String:Unknown	Unknown
+model/relationship/pivot-after	B5		5.0|4014000000000000	5
+model/relationship/pivot-after	A6		String:West	West
+model/relationship/pivot-after	B6		20.0|4034000000000000	20
+model/relationship/pivot-after	A7		String:Grand Total	Grand Total
+model/relationship/pivot-after	B7		125.0|405f400000000000	125
+model/relationship/gpd-after	1	=GETPIVOTDATA("[Measures].[TotalAmount]",ModelPivot!$A$3)	125.0|405f400000000000	125
+model/relationship/gpd-after	2	=GETPIVOTDATA("[Measures].[TotalAmount]",ModelPivot!$A$3,"[Sales].[Region]","[Sales].[Region].&[East]")	100.0|4059000000000000	100
+model/relationship/gpd-after	3	=GETPIVOTDATA("[Measures].[TotalAmount]",ModelPivot!$A$3,"[Sales].[Region]","[Sales].[Region].&[West]")	20.0|4034000000000000	20
+model/relationship/gpd-after	4	=GETPIVOTDATA("[Measures].[TotalAmount]",ModelPivot!$A$3,"[Sales].[Region]","[Sales].[Region].&[Unknown]")	5.0|4014000000000000	5
+model/relationship/gpd-after	5	=GETPIVOTDATA("[Measures].[TotalAmount]",ModelPivot!$A$3,"[Sales].[Region]","[Sales].[Region].&")	error-or-int:-2146826265	#REF!
+model/relationship/gpd-after	6	=GETPIVOTDATA("[Measures].[TotalAmount]",ModelPivot!$A$3,"[Sales].[Region]","")	error-or-int:-2146826265	#REF!

@@ -1109,6 +1109,223 @@ public static class DialogWatch {
         }
         $book=$holder2
      }
+     'm6' {
+        # M6 follow-up questions from the Linux pivot lane (round 4). `scenario` picks one: theme, conflict, model, exact, fonts.
+        # Research workbook only: nothing here alters a committed fixture. Answers are data; refusals are retained.
+        $excel.Calculation=-4105
+        $holder6=$book
+        function Rgb6($c){if($null -eq $c){return $null};$v=[int]$c;return ('{0:X2}{1:X2}{2:X2}' -f ($v -band 255),(($v -shr 8) -band 255),(($v -shr 16) -band 255))}
+        function Opt6([scriptblock]$Do){try{return (& $Do)}catch{return ('unread: '+$_.Exception.Message)}}
+        function Cell6($c){
+            $d=$c.DisplayFormat
+            $o=[ordered]@{address=[string]$c.Address($false,$false);text=[string]$c.Text;value=(Enc $c.Value2)}
+            $o.fill=[ordered]@{color=(Opt6{[int]$d.Interior.Color});rgb=(Opt6{Rgb6 $d.Interior.Color});theme=(Opt6{[int]$d.Interior.ThemeColor});tint=(Opt6{[double]$d.Interior.TintAndShade});pattern=(Opt6{[int]$d.Interior.Pattern})}
+            $o.font=[ordered]@{name=(Opt6{[string]$d.Font.Name});size=(Opt6{$d.Font.Size});bold=(Opt6{$d.Font.Bold});color=(Opt6{[int]$d.Font.Color});rgb=(Opt6{Rgb6 $d.Font.Color});theme=(Opt6{[int]$d.Font.ThemeColor});tint=(Opt6{[double]$d.Font.TintAndShade})}
+            $b=[ordered]@{}
+            foreach($e in @(@('left',7),@('top',8),@('bottom',9),@('right',10))){
+                $b[$e[0]]=Opt6{$x=$d.Borders.Item($e[1]);[ordered]@{style=[int]$x.LineStyle;weight=[int]$x.Weight;color=[int]$x.Color;rgb=(Rgb6 $x.Color);theme=(Opt6{[int]$x.ThemeColor});tint=(Opt6{[double]$x.TintAndShade})}}
+            }
+            $o.borders=$b
+            return $o
+        }
+        function Read6([string]$Stage,$Range){$cells=[Collections.Generic.List[object]]::new();foreach($c in $Range.Cells){$cells.Add((Cell6 $c))};$obs.Add(@{stage=$Stage;utc=[DateTime]::UtcNow.ToString('O');range=[string]$Range.Address($false,$false);cells=$cells.ToArray()})}
+        switch([string]$req.scenario){
+         'theme' {
+            [void](Build-Source $book)
+            $SRC='Source!R1C1:R37C5'
+            $names=@{light16='PivotStyleLight16';dark11='PivotStyleDark11';medium2='PivotStyleMedium2'}
+            $sheets=@{}
+            foreach($k in 'light16','dark11','medium2'){
+                $style=$names[$k];$kk=$k
+                [void](Try-Step "pivot-$k" {
+                    $ws=$book.Worksheets.Add([Type]::Missing,$book.Worksheets.Item($book.Worksheets.Count));$ws.Name=$kk
+                    $cache=$book.PivotCaches().Create(1,$SRC,8)
+                    $p=$cache.CreatePivotTable($ws.Range('A3'),('pvt_'+$kk),$true,8)
+                    Row $p 'Region' 1; Row $p 'Product' 2; Add-Data $p 'Amount' 'Sum Amount' -4157; Add-Data $p 'Units' 'Sum Units' -4157; $p.TableStyle2=$style
+                    $script:sheets[$kk]=$ws
+                })
+            }
+            $obs.Add(@{stage='theme-colors-office';colors=$(Opt6{$out=@();foreach($i in 1..12){$out+=,@($i,(Rgb6 $book.Theme.ThemeColorScheme.Colors($i).RGB))};$out})})
+            function Pass6([string]$Tag){foreach($k in 'light16','dark11','medium2'){$ws=$script:sheets[$k];if($ws){Read6 "$Tag/$k" $ws.Range('A3:C26')}}}
+            Pass6 'office'
+            [void](Try-Step 'change-accent1' { $book.Theme.ThemeColorScheme.Colors(5).RGB=0x0000C0 })
+            Pass6 'accent1-changed'
+            [void](Try-Step 'change-accent3' { $book.Theme.ThemeColorScheme.Colors(7).RGB=0x00C000 })
+            Pass6 'accent1-and-3-changed'
+            $obs.Add(@{stage='theme-colors-changed';colors=$(Opt6{$out=@();foreach($i in 1..12){$out+=,@($i,(Rgb6 $book.Theme.ThemeColorScheme.Colors($i).RGB))};$out})})
+            Save 'm6-theme.xlsx'
+         }
+         'conflict' {
+            [void](Build-Source $book)
+            $SRC='Source!R1C1:R37C5'
+            function Mk6([string]$Id,[bool]$Preserve){
+                $ws=$book.Worksheets.Add([Type]::Missing,$book.Worksheets.Item($book.Worksheets.Count));$ws.Name=$Id
+                $cache=$book.PivotCaches().Create(1,$SRC,8)
+                $p=$cache.CreatePivotTable($ws.Range('A3'),('pvt_'+$Id.Replace('-','_')),$true,8)
+                Row $p 'Region'; Col $p 'Product'; Add-Data $p 'Amount' 'Sum Amount' -4157
+                $p.PreserveFormatting=$Preserve
+                return $p
+            }
+            $orders=@(@('area-then-cell','area','cell'),@('cell-then-area','cell','area'))
+            foreach($o in $orders){
+                foreach($preserve in $true,$false){
+                    $id=$o[0]+$(if($preserve){'-preserve'}else{'-nopreserve'});$oo=$o;$pp=$preserve
+                    [void](Try-Step "case-$id" {
+                        $p=Mk6 $id $pp;$ws=$p.Parent
+                        $apply={param($kind) if($kind -eq 'area'){ $p.DataBodyRange.Interior.Color=65535;$p.DataBodyRange.Font.Color=255;$p.DataBodyRange.Borders.Item(9).LineStyle=1 } else { $ws.Range('C6').Interior.Color=16711680;$ws.Range('C6').Font.Color=16777215;$ws.Range('C6').Font.Bold=$true } }
+                        & $apply $oo[1]; Read6 "$id/1-first" $ws.Range('B5:D7')
+                        & $apply $oo[2]; Read6 "$id/2-second" $ws.Range('B5:D7')
+                        # The source keys move: North/Beta becomes Nrth/Beta, then Refresh All.
+                        $src=$book.Worksheets.Item('Source');$old=$src.Range('A3').Value2
+                        $rowNo=0;for($r=2;$r -le 37;$r++){if($src.Cells.Item($r,1).Value2 -eq 'North' -and $src.Cells.Item($r,2).Value2 -eq 'Beta'){$rowNo=$r;break}}
+                        $obs.Add(@{stage="$id/source-row";row=$rowNo})
+                        $src.Cells.Item($rowNo,1).Value2='Nrth'
+                        [void](Try-Step "$id/refresh-all" { $book.RefreshAll();$excel.CalculateUntilAsyncQueriesDone() })
+                        Read6 "$id/3-after-refresh-all" $ws.Range('A3:E10')
+                        [void](Try-Step "$id/undo" { $excel.Undo() })
+                        Read6 "$id/4-after-undo" $ws.Range('A3:E10')
+                        $src.Cells.Item($rowNo,1).Value2='North'
+                        [void]$p.RefreshTable()
+                        Read6 "$id/5-keys-restored" $ws.Range('A3:E10')
+                    })
+                }
+            }
+            Save 'm6-conflict.xlsx'
+            # Save and reopen: the first case's pivot sheet, read from the saved file.
+            [void](Try-Step 'reopen-conflict' {
+                Copy-Item -LiteralPath (Join-Path $dir 'm6-conflict.xlsx') -Destination (Join-Path $dir 'm6-conflict-reopen.xlsx');$saved=$excel.Workbooks.Open((Join-Path $dir 'm6-conflict-reopen.xlsx'),0)
+                foreach($n in 'area-then-cell-preserve','area-then-cell-nopreserve','cell-then-area-preserve','cell-then-area-nopreserve'){Read6 "$n/6-reopened" $saved.Worksheets.Item($n).Range('A3:E10')}
+                $saved.Close($false)
+            })
+         }
+         'fonts' {
+            $ws=$book.Worksheets.Item(1);$ws.Name='Fonts'
+            $values=@(778.5,2194.75,123456789.125,123463844.625)
+            $widths=@(6.29,7.14,8.43,10.57)
+            $rows=[Collections.Generic.List[object]]::new()
+            foreach($font in 'Aptos Narrow','Courier New'){
+                $fn=$font
+                $ws.Cells.Clear()|Out-Null
+                $ws.Cells.Font.Name=$fn;$ws.Cells.Font.Size=11
+                $obs.Add(@{stage="font/$fn";actual=$ws.Range('A1').Font.Name;standard_width=$ws.StandardWidth})
+                for($j=0;$j -lt $values.Count;$j++){
+                    $v=$values[$j]
+                    foreach($w in $widths){
+                        $ww=$w
+                        $c=$ws.Cells.Item(1,$j+1);$c.Value2=[double]$v;$c.NumberFormat='General'
+                        $ws.Columns.Item($j+1).ColumnWidth=$ww
+                        $rows.Add([ordered]@{font=$fn;value=$v;set_width=$ww;column_width=$ws.Columns.Item($j+1).ColumnWidth;text=[string]$c.Text;width_px=$ws.Columns.Item($j+1).Width;stage='before-autofit'})
+                    }
+                    [void]$ws.Columns.Item($j+1).AutoFit()
+                    $c=$ws.Cells.Item(1,$j+1)
+                    $rows.Add([ordered]@{font=$fn;value=$v;set_width=$null;column_width=$ws.Columns.Item($j+1).ColumnWidth;text=[string]$c.Text;width_px=$ws.Columns.Item($j+1).Width;stage='after-autofit'})
+                    # AutoFit starting from each width (AutoFit is independent of the width, recorded once per width).
+                    foreach($w in $widths){ $ws.Columns.Item($j+1).ColumnWidth=$w;[void]$ws.Columns.Item($j+1).AutoFit()
+                        $rows.Add([ordered]@{font=$fn;value=$v;set_width=$w;column_width=$ws.Columns.Item($j+1).ColumnWidth;text=[string]$c.Text;width_px=$ws.Columns.Item($j+1).Width;stage='autofit-from-width'}) }
+                }
+            }
+            $obs.Add(@{stage='fonts';rows=$rows.ToArray()})
+         }
+         { $_ -in 'model','exact' } {
+            $isExact=([string]$req.scenario -eq 'exact')
+            $excel.ScreenUpdating=$true
+            $ws=$book.Worksheets.Item(1);$ws.Name='Sheet1'
+            $sales=if($isExact){@(@('Region','Amount'),@('East',0.1),@('East',0.2),@('West',0.0000001))}else{@(@('Region','Amount'),@('East',10),@('West',20),@('Unknown',5))}
+            for($r=0;$r -lt $sales.Count;$r++){for($c=0;$c -lt 2;$c++){$ws.Cells.Item($r+1,10+$c).Value2=$sales[$r][$c]}}
+            $lo=$ws.ListObjects.Add(1,$ws.Range(('J1:K'+$sales.Count)),$null,1);$lo.Name='Sales'
+            $ws.Cells.Item(1,13).Value2='Region';$ws.Cells.Item(2,13).Value2='East';$ws.Cells.Item(3,13).Value2='West'
+            $lr=$ws.ListObjects.Add(1,$ws.Range('M1:M3'),$null,1);$lr.Name='Regions'
+            $modelPath=Join-Path $dir ('m6-'+[string]$req.scenario+'-model.xlsx')
+            $book.SaveAs($modelPath,51)
+            [void](Try-Step 'connect-sales' { [void]$book.Connections.Add2('WorksheetConnection_Sales','',('WORKSHEET;'+$modelPath),'Sales',7,$true,$false) })
+            [void](Try-Step 'connect-regions' { [void]$book.Connections.Add2('WorksheetConnection_Regions','',('WORKSHEET;'+$modelPath),'Regions',7,$true,$false) })
+            $model=$book.Model
+            $salesT=$null;$regionsT=$null
+            [void](Try-Step 'model-tables' { $script:salesT=$model.ModelTables.Item('Sales');$script:regionsT=$model.ModelTables.Item('Regions') })
+            $salesT=$script:salesT;$regionsT=$script:regionsT
+            foreach($m in @(@('TotalAmount','SUM(Sales[Amount])'),@('AvgAmount','AVERAGE(Sales[Amount])'),@('RowCount','COUNTROWS(Sales)'))){
+                $mm=$m;[void](Try-Step ('measure-'+$mm[0]) { [void]$model.ModelMeasures.Add($mm[0],$salesT,$mm[1],$model.ModelFormatGeneral) })
+            }
+            $out=$ws.Range('A1')
+            function CubeRows6([string]$Stage,[string[]]$Formulas){
+                $vals=[Collections.Generic.List[object]]::new();$n=0
+                foreach($f in $Formulas){
+                    $n++;$cell=$ws.Cells.Item($n,3)
+                    [void](Try-Step "$Stage/enter-$n" { for($a=1;;$a++){ try{$cell.Formula=$f;break}catch{ if($a -ge 40 -or $_.Exception.HResult -ne -2146777998){throw}; try{$excel.CalculateUntilAsyncQueriesDone()}catch{}; Start-Sleep -Milliseconds 250 } } })
+                }
+                [void](Try-Step "$Stage/calc" { $excel.CalculateFull();for($i=0;$i -lt 60;$i++){ if([int]$excel.CalculationState -eq 0){break}; Start-Sleep -Milliseconds 500; try{$excel.CalculateUntilAsyncQueriesDone()}catch{} } })
+                $n=0;foreach($f in $Formulas){$n++;$cell=$ws.Cells.Item($n,3);$vals.Add([ordered]@{row=$n;formula=[string]$cell.Formula;value=(Enc $cell.Value2);text=[string]$cell.Text})}
+                $obs.Add(@{stage=$Stage;utc=[DateTime]::UtcNow.ToString('O');rows=$vals.ToArray()})
+            }
+            $cv='=CUBEVALUE("ThisWorkbookDataModel","[Measures].[{0}]",{1})'
+            if($isExact){
+                $f=@(
+                  ($cv -f 'TotalAmount','"[Sales].[Region].&[East]"'),($cv -f 'AvgAmount','"[Sales].[Region].&[East]"'),
+                  ($cv -f 'TotalAmount','"[Sales].[Region].&[West]"'),($cv -f 'AvgAmount','"[Sales].[Region].&[West]"'),
+                  ($cv -f 'TotalAmount',''),($cv -f 'RowCount','"[Sales].[Region].&[East]"'))
+                $f=@($f|ForEach-Object{$_ -replace ',\)',')'})
+                CubeRows6 'exact/before' $f
+                [void](Try-Step 'edit-amount' { $ws.Range('K2').Value2=[double]0.1 })
+                [void](Try-Step 'refresh-all' { $book.RefreshAll();$excel.CalculateUntilAsyncQueriesDone() })
+                CubeRows6 'exact/after-refresh-all' $f
+            } else {
+                $f=@(
+                  ($cv -f 'TotalAmount','"[Sales].[Region].&[East]"'),($cv -f 'TotalAmount','"[Sales].[Region].&[West]"'),($cv -f 'TotalAmount','"[Sales].[Region].&[Unknown]"'),
+                  ($cv -f 'TotalAmount','"[Sales].[Region].&"'),($cv -f 'TotalAmount','"[Sales].[Region].[(blank)]"'),($cv -f 'TotalAmount','"[Sales].[Region].&[]"'),($cv -f 'TotalAmount','"[Sales].[Region].[All]"'),
+                  ($cv -f 'TotalAmount','"[Regions].[Region].&[East]"'),($cv -f 'TotalAmount','"[Regions].[Region].&[West]"'),($cv -f 'TotalAmount','"[Regions].[Region].&[]"'),($cv -f 'TotalAmount','"[Regions].[Region].[All]"'),
+                  '=CUBEVALUE("ThisWorkbookDataModel","[Measures].[TotalAmount]")')
+                CubeRows6 'model/no-relationship/before' $f
+                $pv=$book.Worksheets.Add([Type]::Missing,$ws);$pv.Name='ModelPivot'
+                function Gpd6([string]$Stage,[string]$Pivot){
+                    $g=$book.Worksheets.Item('Gpd');$rows=[Collections.Generic.List[object]]::new()
+                    $forms=@(('=GETPIVOTDATA("[Measures].[TotalAmount]",{0}!$A$3)' -f $Pivot),
+                      ('=GETPIVOTDATA("[Measures].[TotalAmount]",{0}!$A$3,"[Sales].[Region]","[Sales].[Region].&[East]")' -f $Pivot),
+                      ('=GETPIVOTDATA("[Measures].[TotalAmount]",{0}!$A$3,"[Sales].[Region]","[Sales].[Region].&[West]")' -f $Pivot),
+                      ('=GETPIVOTDATA("[Measures].[TotalAmount]",{0}!$A$3,"[Sales].[Region]","[Sales].[Region].&[Unknown]")' -f $Pivot),
+                      ('=GETPIVOTDATA("[Measures].[TotalAmount]",{0}!$A$3,"[Sales].[Region]","[Sales].[Region].&")' -f $Pivot),
+                      ('=GETPIVOTDATA("[Measures].[TotalAmount]",{0}!$A$3,"[Sales].[Region]","")' -f $Pivot))
+                    $n=0;foreach($ff in $forms){$n++;$cc=$g.Cells.Item($n,2);$fx=$ff;[void](Try-Step "$Stage/gpd-$n" {$cc.Formula=$fx})}
+                    [void](Try-Step "$Stage/calc" { $excel.Calculate();$excel.CalculateUntilAsyncQueriesDone() })
+                    $n=0;foreach($ff in $forms){$n++;$cc=$g.Cells.Item($n,2);$rows.Add([ordered]@{row=$n;formula=[string]$cc.Formula;value=(Enc $cc.Value2);text=[string]$cc.Text})}
+                    $obs.Add(@{stage=$Stage;rows=$rows.ToArray()})
+                }
+                $g=$book.Worksheets.Add([Type]::Missing,$pv);$g.Name='Gpd'
+                $pt=$null
+                [void](Try-Step 'model-pivot' {
+                    $cache=$book.PivotCaches().Create(2,$book.Connections.Item('ThisWorkbookDataModel'),8)
+                    $script:pt=$cache.CreatePivotTable($pv.Range('A3'),'pvt_model6',$true,8)
+                    $script:pt.CubeFields.Item('[Sales].[Region]').Orientation=1
+                    $script:pt.CubeFields.Item('[Measures].[TotalAmount]').Orientation=4
+                })
+                $pt=$script:pt
+                [void](Try-Step 'pivot-read' { $obs.Add(@{stage='model/no-relationship/pivot';range=[string]$pt.TableRange2.Address();cells=(Range-Read $pt.TableRange2)}) })
+                Gpd6 'model/no-relationship/gpd-before' 'ModelPivot'
+                [void](Try-Step 'edit-amount-1' { $ws.Range('K2').Value2=[double]100 })
+                [void](Try-Step 'refresh-all-1' { $book.RefreshAll();$excel.CalculateUntilAsyncQueriesDone();$excel.CalculateFull();$excel.CalculateUntilAsyncQueriesDone() })
+                CubeRows6 'model/no-relationship/after-refresh-all' $f
+                [void](Try-Step 'pivot-read-2' { $obs.Add(@{stage='model/no-relationship/pivot-after';range=[string]$pt.TableRange2.Address();cells=(Range-Read $pt.TableRange2)}) })
+                Gpd6 'model/no-relationship/gpd-after' 'ModelPivot'
+                # With a relationship Sales[Region] -> Regions[Region]; the edit is undone first so both runs start alike.
+                [void](Try-Step 'restore-amount' { $ws.Range('K2').Value2=[double]10 })
+                [void](Try-Step 'refresh-all-2' { $book.RefreshAll();$excel.CalculateUntilAsyncQueriesDone() })
+                [void](Try-Step 'add-relationship' { [void]$model.ModelRelationships.Add($salesT.ModelTableColumns.Item('Region'),$regionsT.ModelTableColumns.Item('Region')) })
+                $obs.Add(@{stage='relationships';list=$(Opt6{Map $model.ModelRelationships {param($r)@{foreign=[string]$r.ForeignKeyColumn.Name;primary=[string]$r.PrimaryKeyColumn.Name;active=$r.Active}}})})
+                [void](Try-Step 'refresh-all-3' { $book.RefreshAll();$excel.CalculateUntilAsyncQueriesDone();$excel.CalculateFull();$excel.CalculateUntilAsyncQueriesDone() })
+                CubeRows6 'model/relationship/before' $f
+                [void](Try-Step 'pivot-read-3' { $obs.Add(@{stage='model/relationship/pivot';range=[string]$pt.TableRange2.Address();cells=(Range-Read $pt.TableRange2)}) })
+                Gpd6 'model/relationship/gpd-before' 'ModelPivot'
+                [void](Try-Step 'edit-amount-2' { $ws.Range('K2').Value2=[double]100 })
+                [void](Try-Step 'refresh-all-4' { $book.RefreshAll();$excel.CalculateUntilAsyncQueriesDone();$excel.CalculateFull();$excel.CalculateUntilAsyncQueriesDone() })
+                CubeRows6 'model/relationship/after-refresh-all' $f
+                [void](Try-Step 'pivot-read-4' { $obs.Add(@{stage='model/relationship/pivot-after';range=[string]$pt.TableRange2.Address();cells=(Range-Read $pt.TableRange2)}) })
+                Gpd6 'model/relationship/gpd-after' 'ModelPivot'
+            }
+            Save ('m6-'+[string]$req.scenario+'.xlsx')
+         }
+         default { throw "unknown m6 scenario $($req.scenario)" }
+        }
+        $book=$holder6
+     }
      default {throw "unknown kind $($req.kind)"}
     }
     Assert-HiddenExcel 'after-work'
