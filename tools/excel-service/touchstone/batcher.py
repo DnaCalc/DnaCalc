@@ -14,13 +14,19 @@ import protocol
 CHUNK = 5000                 # bulk is cut into items of at most this many calls
 BATCH_CALLS = 20000          # most calls in one batch when the queue is deep
 BATCH_BYTES = 4 * 1024 * 1024
-QUANTUM = 5000               # deficit added to an origin each round
+QUANTUM_US = 40_000          # deficit (estimated microseconds of Excel time) added to a client each round
 MAX_SPILL_CALLS = 1000       # a spill batch lays one anchor per call on a grid; keep the grid small
 INTERACTIVE_CALLS = 100      # requests at most this big are interactive unless flagged otherwise
 APPROX_BYTES_PER_VALUE = 18
-BULK_BATCH_MS = 120.0         # a bulk batch is cut to about this much estimated work, so interactive calls wait little
-MIN_BULK_CALLS = 2000         # never cut a bulk batch below this many calls (fixed costs per batch)
-MIN_LEARN_CALLS = 200
+BULK_BATCH_MS = 800.0         # a bulk batch is cut to about this much estimated work (a batch also costs ~150 ms of fixed
+                              # fingerprint and COM time, measured under load, so short batches would mostly pay that;
+                              # interactive calls do not wait behind bulk: the broker keeps a worker free for them)
+MIN_BULK_CALLS = 1            # a batch holds at least one call, however heavy the function
+PROBE_CALLS = 50              # a function never measured runs alone, this many calls, to learn its cost
+MIN_LEARN_CALLS = 200         # a mixed batch teaches costs only from this size on
+MIN_PROBE_LEARN_CALLS = 8     # a single-function batch is exact enough from here
+MIN_COST_US = 0.5
+MAX_COST_US = 500_000.0
 BATCH_FIXED_MS = 4.0          # fixed cost per batch, and per distinct shape below
 SHAPE_FIXED_MS = 1.0
 DEFAULT_COST_US = 25.0        # per call, until a function has been measured
@@ -29,10 +35,11 @@ DEFAULT_COST_US = 25.0        # per call, until a function has been measured
 class Piece:
     """One submit frame's worth of calls: answered as a unit by (origin, id, seq)."""
     __slots__ = ("conn", "origin", "rid", "seq", "last", "priority", "groups", "calls", "echo", "serial",
-                 "t_received", "t_dispatched", "remaining", "frames", "done", "fail", "env_ids", "workers", "primer")
+                 "t_received", "t_dispatched", "remaining", "frames", "done", "fail", "env_ids", "workers", "primer", "fair")
 
     def __init__(self, conn, rid, seq, groups, last, priority, echo=False, serial=False):
         self.conn, self.origin, self.rid, self.seq, self.last = conn, conn.origin, rid, seq, last
+        self.fair = conn.origin          # the fair-share key: the broker refines it to origin/client behind a relay
         self.priority = priority
         self.groups = groups
         self.calls = sum(g["n"] for g in groups)
@@ -65,9 +72,10 @@ class Slice:
 
 
 class Batch:
-    __slots__ = ("groups", "slices", "calls", "echo", "serial", "t_created", "pieces", "interactive", "primer")
+    __slots__ = ("groups", "slices", "calls", "echo", "serial", "t_created", "pieces", "interactive", "primer", "est_ms")
 
     def __init__(self):
+        self.est_ms = 0.0
         self.groups, self.slices, self.calls = [], [], 0
         self.primer = []
         self.echo = self.serial = False
@@ -105,7 +113,7 @@ class _Class:
         self.calls = 0
 
     def add(self, item):
-        origin = item.piece.origin
+        origin = item.piece.fair
         o = self.origins.get(origin)
         if o is None:
             o = self.origins[origin] = _Origin()
@@ -116,7 +124,7 @@ class _Class:
         self.calls += item.n
 
     def push_front(self, item):
-        origin = item.piece.origin
+        origin = item.piece.fair
         o = self.origins.setdefault(origin, _Origin())
         if o.empty():
             self.order.appendleft(origin)
@@ -131,18 +139,34 @@ class _Class:
     def empty(self):
         return not self.order
 
+    def oldest(self):
+        """Receive time of the oldest queued item (monotonic), or None."""
+        best = None
+        for o in self.origins.values():
+            for dq in o.shapes.values():
+                t = dq[0].piece.t_received
+                if best is None or t < best:
+                    best = t
+        return best
+
     def take(self, budget_calls, budget_bytes, isolate, costs=None, budget_ms=None):
-        """Items by DRR until a budget is spent; an item of an isolated function goes alone."""
+        """Items by cost-weighted deficit round robin over clients until a budget is spent.
+
+        Returns (items, calls, bytes, estimated_ms).  With budget_ms (bulk) a batch is cut to about that much
+        estimated Excel time; a function whose cost was never measured goes alone, PROBE_CALLS at a time, so its
+        cost is learnt from a batch that holds nothing else.  An isolated function goes as a one-call batch."""
+        costs = costs if costs is not None else {}
         taken, calls, size, spent = [], 0, 0, 0.0
         while self.order and calls < budget_calls and size < budget_bytes:
             origin = self.order[0]
             o = self.origins[origin]
-            self.deficit[origin] += QUANTUM
+            self.deficit[origin] += QUANTUM_US
             stop = False
             while not o.empty() and self.deficit[origin] > 0 and calls < budget_calls and size < budget_bytes:
                 key, dq = o.first()
                 item = dq[0]
-                if item.group["f"] in isolate:
+                f = item.group["f"]
+                if f in isolate:
                     # A function that crashed Excel twice runs as a one-call batch of its own.
                     if taken:
                         stop = True
@@ -158,7 +182,8 @@ class _Class:
                     if o.empty():
                         self.order.popleft()
                         self.deficit[origin] = 0
-                    return [head], 1, 100
+                    return [head], 1, 100, costs.get(f, DEFAULT_COST_US) / 1000
+                unit = costs.get(f, DEFAULT_COST_US)
                 room = budget_calls - calls
                 spill = bool(item.group.get("spill"))
                 if taken and spill != bool(taken[0].group.get("spill")):
@@ -169,9 +194,19 @@ class _Class:
                     if room <= 0:
                         stop = True
                         break
+                probe = False
                 if budget_ms is not None:
-                    cost = costs.get(item.group["f"], DEFAULT_COST_US)
-                    room = min(room, max(MIN_BULK_CALLS, int((budget_ms - spent) * 1000 / cost)))
+                    if f not in costs:
+                        if any(t.group["f"] != f for t in taken):
+                            stop = True      # an unmeasured function never shares a batch
+                            break
+                        room = min(room, PROBE_CALLS - calls)
+                        if room <= 0:
+                            stop = True
+                            break
+                        probe = True
+                    else:
+                        room = min(room, max(MIN_BULK_CALLS, int((budget_ms - spent) * 1000 / unit)))
                 if item.n > room:
                     if calls and room < item.n // 2:
                         stop = True      # the rest waits for the next batch; no progress is possible here
@@ -185,13 +220,12 @@ class _Class:
                         del o.shapes[key]
                 taken.append(item)
                 calls += item.n
-                if budget_ms is not None:
-                    spent += item.n * costs.get(item.group["f"], DEFAULT_COST_US) / 1000
-                    if spent >= budget_ms:
-                        stop = True
+                spent += item.n * unit / 1000
+                if budget_ms is not None and (spent >= budget_ms or (probe and calls >= PROBE_CALLS)):
+                    stop = True
                 size += item.n * max(1, protocol.group_width(item.group)) * APPROX_BYTES_PER_VALUE
                 self.calls -= item.n
-                self.deficit[origin] -= item.n
+                self.deficit[origin] -= item.n * unit
                 if stop:
                     break
             self.order.popleft()
@@ -201,7 +235,7 @@ class _Class:
                 self.deficit[origin] = 0
             if stop:
                 break
-        return taken, calls, size
+        return taken, calls, size, spent
 
 
 def split_item(item, head_calls):
@@ -279,13 +313,10 @@ class Batcher:
             return None
         batch = Batch()
         if not self.interactive.empty():
-            items, calls, _ = self.interactive.take(BATCH_CALLS, BATCH_BYTES, self.isolate)
+            items, calls, _, est = self.interactive.take(BATCH_CALLS, BATCH_BYTES, self.isolate, self.costs)
             batch.interactive = True
         else:
-            # A deep backlog and no interactive traffic lately: use the large batch, else keep batches short.
-            deep = self.bulk.calls > 4 * BATCH_CALLS and time.monotonic() - self.recent_interactive > 2.0
-            items, calls, _ = self.bulk.take(BATCH_CALLS if deep else 2 * CHUNK, BATCH_BYTES, self.isolate,
-                                             self.costs, BULK_BATCH_MS * (3 if deep else 1))
+            items, calls, _, est = self.bulk.take(BATCH_CALLS, BATCH_BYTES, self.isolate, self.costs, BULK_BATCH_MS)
         if not items:
             return None
         merged = {}
@@ -309,6 +340,7 @@ class Batcher:
             batch.echo = batch.echo or item.piece.echo
             batch.serial = batch.serial or item.piece.serial
         batch.calls = calls
+        batch.est_ms = est
         now = time.monotonic()
         for piece in batch.pieces:
             if piece.t_dispatched is None:
@@ -316,10 +348,24 @@ class Batcher:
         return batch
 
     def learn(self, batch, actual_ms):
-        """Scale the per-function cost estimates of a finished batch by how far off the prediction was."""
+        """Update per-function cost estimates (microseconds per call) from a finished batch.
+
+        A batch of one function gives its cost directly; a mixed batch scales its functions' estimates by how
+        far off the prediction was."""
+        fns = {g["f"] for g in batch.groups}
+        fixed = BATCH_FIXED_MS + SHAPE_FIXED_MS * len(batch.groups)
+        if len(fns) == 1:
+            if batch.calls < MIN_PROBE_LEARN_CALLS:
+                return
+            f = next(iter(fns))
+            net = max(actual_ms - fixed, 0.2 * actual_ms)
+            measured = net * 1000 / batch.calls
+            old = self.costs.get(f)
+            value = measured if old is None else 0.5 * old + 0.5 * measured
+            self.costs[f] = min(MAX_COST_US, max(MIN_COST_US, value))
+            return
         if batch.calls < MIN_LEARN_CALLS:
             return           # fixed costs would be charged to the few calls
-        fixed = SHAPE_FIXED_MS * len(batch.groups)
         actual_ms = max(actual_ms - fixed, 0.2 * actual_ms)
         predicted = sum(g["n"] * self.costs.get(g["f"], DEFAULT_COST_US) for g in batch.groups) / 1000
         if predicted <= 0 or actual_ms <= 0:
@@ -327,7 +373,13 @@ class Batcher:
         ratio = max(0.25, min(4.0, actual_ms / predicted))
         for g in batch.groups:
             old = self.costs.get(g["f"], DEFAULT_COST_US)
-            self.costs[g["f"]] = min(2000.0, max(0.5, old * ratio ** 0.5 if g["f"] in self.costs else old * ratio))
+            self.costs[g["f"]] = min(MAX_COST_US, max(MIN_COST_US, old * ratio ** 0.5 if g["f"] in self.costs else old * ratio))
+
+    def oldest_queued(self):
+        """Receive time of the oldest queued item, or None when nothing waits."""
+        times = [t for t in (self.interactive.oldest(), self.bulk.oldest()) if t is not None]
+        times += [p.t_received for p in self.serial]
+        return min(times) if times else None
 
     def requeue(self, batch):
         """Put a batch's items back at the front (a worker was lost before running it)."""

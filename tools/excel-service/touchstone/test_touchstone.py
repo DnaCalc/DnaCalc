@@ -4,6 +4,7 @@ Hermetic: no Excel.  The broker tests drive a stand-in worker (fake_worker.py) o
 """
 import asyncio
 import json
+import os
 from pathlib import Path
 import sys
 import tempfile
@@ -140,6 +141,7 @@ class BatcherTests(unittest.TestCase):
 
     def test_items_of_one_shape_merge_into_one_group(self):
         b = batcher.Batcher()
+        b.costs["ABS"] = 25.0
         for i in range(4):
             b.add_piece(piece("a", f"r{i}", "ABS", 50))
         batch = b.next_batch()
@@ -192,7 +194,7 @@ class BatcherTests(unittest.TestCase):
         big.groups, big.calls = [{"f": "X", "n": 5000, "k": "n", "v": []}], 5000
         for _ in range(30):
             b.learn(big, 1e9)
-        self.assertLessEqual(b.costs["X"], 2000.0)
+        self.assertLessEqual(b.costs["X"], batcher.MAX_COST_US)
 
     def test_requeue_puts_work_back_in_front(self):
         b = batcher.Batcher()
@@ -283,7 +285,8 @@ def start_broker(workers=2, extra=None):
     temporary = tempfile.TemporaryDirectory()
     state = Path(temporary.name)
     options = SimpleNamespace(state=state, workers=workers, local_queue=state / "queue", hosts=[], admission=None,
-                              worker_command=[sys.executable, str(HERE / "fake_worker.py")], **(extra or {}))
+                              worker_command=[sys.executable, str(HERE / "fake_worker.py")],
+                              **{"sweep_orphans": False, **(extra or {})})
     instance = broker_module.Broker(options)
     instance.cpu_name = lambda: "test cpu"
     failure = []
@@ -708,6 +711,371 @@ class RelayTests(unittest.TestCase):
         self.assertIsNotNone(self.relay.wait(30))
         gone = self.subprocess.run(["wsl", "-e", "ls", self.dir + "/excel.sock"], capture_output=True)
         self.assertNotEqual(gone.returncode, 0)
+
+
+class CostSizedBatchTests(unittest.TestCase):
+    def test_an_unmeasured_function_runs_alone_as_a_small_probe(self):
+        b = batcher.Batcher()
+        b.add_piece(piece("a", "r1", "NEWFN", 3000))
+        b.add_piece(piece("a", "r2", "ABS", 3000))
+        b.costs["ABS"] = 25.0
+        first = b.next_batch()
+        self.assertEqual({g["f"] for g in first.groups}, {"NEWFN"})
+        self.assertEqual(first.calls, batcher.PROBE_CALLS)
+
+    def test_a_measured_heavy_function_is_cut_by_estimated_cost_not_by_count(self):
+        b = batcher.Batcher()
+        b.costs["HEAVY"] = 20_000.0          # 20 ms per call
+        b.add_piece(piece("a", "r1", "HEAVY", 3000))
+        batch = b.next_batch()
+        self.assertLessEqual(batch.est_ms, batcher.BULK_BATCH_MS + 20.0)
+        self.assertLessEqual(batch.calls, 41)          # 800 ms of estimated work at 20 ms a call
+
+    def test_learning_from_a_batch_of_one_function_is_direct(self):
+        b = batcher.Batcher()
+        batch = batcher.Batch()
+        batch.groups, batch.calls = [{"f": "X", "n": 50, "k": "n", "v": []}], 50
+        b.learn(batch, 4.0 + 1.0 + 50 * 2.0)      # fixed costs plus 2 ms per call
+        self.assertAlmostEqual(b.costs["X"], 2000.0, delta=1.0)
+
+    def test_clients_share_by_cost_not_by_call_count(self):
+        b = batcher.Batcher()
+        b.costs.update({"HEAVY": 10_000.0, "LIGHT": 50.0})
+        heavy, light = piece("a", "ra", "HEAVY", 4000), piece("b", "rb", "LIGHT", 1000000)
+        heavy.fair, light.fair = "tcp:a", "tcp:b"
+        b.add_piece(heavy)
+        b.add_piece(light)
+        cost = {"tcp:a": 0.0, "tcp:b": 0.0}
+        for _ in range(40):
+            batch = b.next_batch()
+            for sl in batch.slices:
+                cost[sl.item.piece.fair] += sl.item.n * b.costs[sl.item.group["f"]]
+        self.assertGreater(min(cost.values()), 0.25 * max(cost.values()))
+
+    def test_clients_behind_one_relay_are_separate_clients(self):
+        b = batcher.Batcher()
+        b.costs["ABS"] = 25.0
+        one, two = piece("relay", "r1", "ABS", 400000), piece("relay", "r2", "ABS", 400000)
+        one.fair, two.fair = "relay/1", "relay/2"
+        b.add_piece(one)
+        b.add_piece(two)
+        seen = {}
+        for _ in range(6):
+            for sl in b.next_batch().slices:
+                seen[sl.item.piece.fair] = seen.get(sl.item.piece.fair, 0) + sl.item.n
+        self.assertEqual(set(seen), {"relay/1", "relay/2"})
+        self.assertGreater(min(seen.values()), 0.3 * sum(seen.values()))
+
+    def test_oldest_queued_item_is_reported(self):
+        b = batcher.Batcher()
+        self.assertIsNone(b.oldest_queued())
+        first = piece("a", "r1", "ABS", 10)
+        b.add_piece(first)
+        b.add_piece(piece("b", "r2", "SQRT", 10, "interactive"))
+        self.assertEqual(b.oldest_queued(), first.t_received)
+
+
+@unittest.skipUnless(sys.platform == "win32", "Native-only: the broker holds a Windows process lock")
+class SelfHealingTests(unittest.TestCase):
+    def connect(self, state, name="t"):
+        from touchstone import client
+        return client.Connection.open(endpoint=state / "endpoint.json", socket_path=state / "none.sock", name=name)
+
+    def wait_for(self, condition, seconds=20):
+        deadline = time.monotonic() + seconds
+        while time.monotonic() < deadline:
+            if condition():
+                return True
+            time.sleep(0.05)
+        return False
+
+    def test_a_failed_start_is_retried_after_the_cooldown_and_never_hammered(self):
+        import os
+        flag = Path(tempfile.mkdtemp()) / "fail"
+        flag.write_text("w2")
+        os.environ["TOUCHSTONE_TEST_FAIL_FLAG"] = str(flag)
+        try:
+            broker, state, stop = start_broker(workers=2, extra={"cooldown": 0.4, "restart_cap": 3})
+        except BaseException:
+            del os.environ["TOUCHSTONE_TEST_FAIL_FLAG"]
+            raise
+        try:
+            w2 = broker.slots[1]
+            self.assertEqual(w2.state, "down")
+            # still failing: two retries at the cool-down spacing, then the cap holds it down
+            self.assertTrue(self.wait_for(lambda: broker.window_attempts(w2) == 3 and w2.state == "down"))
+            time.sleep(1.5)
+            self.assertEqual(broker.window_attempts(w2), 3)         # no fourth try inside the window
+            self.assertIn("restart cap", w2.down_reason)
+            waits = [json.loads(l) for l in (state / "log" / "waits.jsonl").read_text().splitlines()]
+            downs = [w for w in waits if w["kind"] == "worker-down" and w.get("worker") == "w2"]
+            self.assertGreaterEqual(len(downs), 3)
+            self.assertTrue(any("restart cap" in w.get("detail", "") for w in downs))
+            self.assertEqual(broker.slots[0].state, "idle")            # the pool carried on
+            # Excel is fixed; the orchestrator asks for a retry now
+            flag.unlink()
+            (state / "heal-now").touch()
+            self.assertTrue(self.wait_for(lambda: w2.state == "idle"))
+        finally:
+            del os.environ["TOUCHSTONE_TEST_FAIL_FLAG"]
+            stop()
+
+    def test_a_worker_whose_start_works_again_comes_back_after_the_cooldown(self):
+        import os
+        flag = Path(tempfile.mkdtemp()) / "fail"
+        flag.write_text("w2")
+        os.environ["TOUCHSTONE_TEST_FAIL_FLAG"] = str(flag)
+        try:
+            broker, state, stop = start_broker(workers=2, extra={"cooldown": 0.5})
+        except BaseException:
+            del os.environ["TOUCHSTONE_TEST_FAIL_FLAG"]
+            raise
+        try:
+            w2 = broker.slots[1]
+            self.assertEqual(w2.state, "down")
+            flag.unlink()
+            self.assertTrue(self.wait_for(lambda: w2.state == "idle", 10))
+            conn = self.connect(state)
+            self.assertEqual(conn.submit_groups([{"f": "ID", "k": "n", "n": 1, "v": [TWO]}]).raw(30)[1], [TWO])
+            self.assertTrue(broker.health_line().startswith("OK "))
+        finally:
+            del os.environ["TOUCHSTONE_TEST_FAIL_FLAG"]
+            stop()
+
+    def test_a_lost_worker_process_is_restarted_and_the_batch_alone_fails(self):
+        broker, state, stop = start_broker(workers=1, extra={"cooldown": 0.3})
+        try:
+            from touchstone import client
+            conn = self.connect(state)
+            with self.assertRaises(client.ServiceError):
+                conn.submit_groups([{"f": "DIE", "k": "n", "n": 1, "v": [ONE]}]).raw(30)
+            self.assertTrue(self.wait_for(lambda: broker.slots[0].state == "idle"))
+            self.assertEqual(conn.submit_groups([{"f": "ID", "k": "n", "n": 1, "v": [TWO]}]).raw(30)[1], [TWO])
+        finally:
+            stop()
+
+    def test_repeated_crashes_hit_the_cap_then_down_with_a_status_and_a_waits_entry_then_heal_now(self):
+        broker, state, stop = start_broker(workers=1, extra={"cooldown": 0.3, "restart_cap": 3})
+        try:
+            from touchstone import client
+            conn = self.connect(state)
+            for _ in range(4):
+                self.assertTrue(self.wait_for(lambda: broker.slots[0].state in ("idle", "down")))
+                if broker.slots[0].state == "down":
+                    break
+                with self.assertRaises(client.ServiceError):
+                    conn.submit_groups([{"f": "CRASHALWAYS", "k": "n", "n": 1, "v": [ONE]}]).raw(30)
+            self.assertTrue(self.wait_for(lambda: broker.slots[0].state == "down"))
+            slot = broker.slots[0]
+            self.assertIn("restart cap", slot.down_reason)
+            self.assertTrue(broker.health_line().startswith("DOWN "), broker.health_line())
+            time.sleep(1.0)
+            self.assertEqual(slot.state, "down")                      # the cap holds even after the cool-down
+            self.assertIn("restart cap", (state / "log" / "waits.jsonl").read_text())
+            self.assertTrue(json.loads((state / "isolated.json").read_text())["isolated"] == ["CRASHALWAYS"])
+            (state / "heal-now").touch()
+            self.assertTrue(self.wait_for(lambda: slot.state == "idle"))
+            self.assertEqual(conn.submit_groups([{"f": "ID", "k": "n", "n": 1, "v": [TWO]}]).raw(30)[1], [TWO])
+        finally:
+            stop()
+
+    def test_isolated_functions_survive_a_broker_restart(self):
+        import broker as broker_module
+        with tempfile.TemporaryDirectory() as folder:
+            state = Path(folder)
+            (state / "isolated.json").write_text(json.dumps({"isolated": ["COMBIN", "COMBINA"], "crash_counts": {"COMBIN": 2}}))
+            (state / "costs.json").write_text(json.dumps({"ABS": 12.5}))
+            instance = broker_module.Broker(SimpleNamespace(state=state, workers=1, local_queue=state / "q", hosts=[], admission=None))
+            instance.prepare()
+            self.assertEqual(instance.batcher.isolate, {"COMBIN", "COMBINA"})
+            self.assertEqual(instance.crash_counts["COMBIN"], 2)
+            self.assertEqual(instance.batcher.costs["ABS"], 12.5)
+            instance.batch_log.close()
+
+    def test_health_line_file_and_status_command(self):
+        import broker as broker_module
+        import contextlib
+        import io
+        broker, state, stop = start_broker(workers=2, extra={"health_seconds": 0.3})
+        try:
+            self.assertTrue(self.wait_for(lambda: (state / "health.txt").exists()))
+            line = (state / "health.txt").read_text().strip()
+            self.assertRegex(line, r"^OK workers_up=2/2 down=0 starting=0 queue_calls=0 oldest_queued_s=0\.0 last_answer=never utc=")
+            conn = self.connect(state)
+            conn.submit_groups([{"f": "ID", "k": "n", "n": 1, "v": [TWO]}]).raw(30)
+            self.assertTrue(self.wait_for(lambda: "last_answer=never" not in (state / "health.txt").read_text()))
+            time.sleep(0.8)         # let one tick publish status.json after the answer
+            out = io.StringIO()
+            with contextlib.redirect_stdout(out):
+                with self.assertRaises(SystemExit) as raised:
+                    broker_module.command_status(SimpleNamespace(state=state, json=False))
+            self.assertEqual(raised.exception.code, 0)
+            self.assertEqual(len(out.getvalue().strip().splitlines()), 1)
+            self.assertIn("workers_up=2/2", out.getvalue())
+            self.assertIn("last_answer=", out.getvalue())
+            self.assertNotIn("never", out.getvalue())
+        finally:
+            stop()
+        out = io.StringIO()
+        with contextlib.redirect_stdout(out):
+            with self.assertRaises(SystemExit) as raised:
+                broker_module.command_status(SimpleNamespace(state=state, json=False))
+        self.assertNotEqual(raised.exception.code, 0)
+        self.assertTrue(out.getvalue().startswith("DOWN"))
+
+    def test_an_old_status_file_reads_as_down(self):
+        import broker as broker_module
+        import contextlib
+        import io
+        with tempfile.TemporaryDirectory() as folder:
+            state = Path(folder)
+            (state / "status.json").write_text(json.dumps({"pid": 1, "running": True, "utc": "2020-01-01T00:00:00+00:00",
+                                                           "health": "OK workers_up=3/3"}))
+            out = io.StringIO()
+            with contextlib.redirect_stdout(out):
+                with self.assertRaises(SystemExit) as raised:
+                    broker_module.command_status(SimpleNamespace(state=state, json=False))
+            self.assertEqual(raised.exception.code, 2)
+            self.assertTrue(out.getvalue().startswith("DOWN broker status is"))
+
+
+@unittest.skipUnless(sys.platform == "win32", "Native-only: the broker holds a Windows process lock")
+class CapacityTests(unittest.TestCase):
+    def connect(self, state, name="t"):
+        from touchstone import client
+        return client.Connection.open(endpoint=state / "endpoint.json", socket_path=state / "none.sock", name=name)
+
+    def test_bulk_never_fills_the_last_worker_and_interactive_calls_do_not_wait(self):
+        broker, state, stop = start_broker(workers=3)
+        try:
+            conn = self.connect(state)
+            bulk = conn.submit_groups([{"f": "SLEEP", "k": "n", "n": 400, "v": [ONE] * 400}], priority="bulk")
+            most = 0
+            waited = []
+            deadline = time.monotonic() + 3.0
+            while time.monotonic() < deadline:
+                most = max(most, sum(1 for s in broker.slots if s.state == "busy" and s.running == "bulk"))
+                t0 = time.monotonic()
+                conn.submit_groups([{"f": "ID", "k": "n", "n": 1, "v": [TWO]}]).raw(30)
+                waited.append(time.monotonic() - t0)
+                time.sleep(0.1)
+            self.assertEqual(most, 2)                       # three workers: two for bulk, one kept free
+            self.assertLess(max(waited), 0.5)
+            bulk.raw(120)
+        finally:
+            stop()
+
+    def test_one_worker_alone_still_serves_bulk(self):
+        broker, state, stop = start_broker(workers=1)
+        try:
+            conn = self.connect(state)
+            letters, values = conn.submit_groups([{"f": "ID", "k": "n", "n": 3000, "v": [ONE] * 3000}], priority="bulk").raw(60)
+            self.assertEqual(len(values), 3000)
+        finally:
+            stop()
+
+    def test_a_heavy_function_is_probed_small_then_batched_by_cost(self):
+        broker, state, stop = start_broker(workers=2)
+        try:
+            conn = self.connect(state)
+            conn.submit_groups([{"f": "HEAVY", "k": "n", "n": 120, "v": [ONE] * 120}], priority="bulk").raw(120)
+            broker.batch_log.flush()
+            import logs
+            sizes = [r["calls"] for r in logs.BatchLog.read(state / "log") if r.get("kind") == "batch" and "HEAVY" in r.get("fns", {})]
+            self.assertEqual(sizes[0], batcher.PROBE_CALLS)
+            self.assertGreater(broker.batcher.costs["HEAVY"], 5000.0)       # 20 ms per call measured, in microseconds
+            self.assertTrue(all(n <= batcher.PROBE_CALLS for n in sizes), sizes)         # 800 ms / 20 ms = 40 calls
+        finally:
+            stop()
+
+
+class OrphanAndBuildTests(unittest.TestCase):
+    def test_only_a_command_line_naming_this_state_folder_matches(self):
+        import engine
+        state = r"C:\Work\DnaCalc\codex-runs\excel-service-v2"
+        self.assertTrue(engine.names_state(r'EXCEL.EXE /x /automation /r "C:\Work\DnaCalc\codex-runs\excel-service-v2\excel\launches\w1-1.csv"', state))
+        self.assertTrue(engine.names_state(r"excel.exe C:/Work/DnaCalc/codex-runs/excel-service-v2/excel/x.csv", state))
+        self.assertFalse(engine.names_state(r"excel.exe C:\Work\DnaCalc\codex-runs\excel-service-v2-proof\excel\x.csv", state))
+        self.assertFalse(engine.names_state(r"excel.exe C:\Work\DnaCalc\codex-runs\jnt-excel-session\launches\1.csv", state))
+        self.assertFalse(engine.names_state(r'EXCEL.EXE /e "C:\Users\me\Documents\book.xlsx"', state))
+
+    def test_orphans_are_stopped_by_pid_and_start_ticks_and_nothing_else(self):
+        import engine
+        state = r"C:\Work\DnaCalc\codex-runs\excel-service-v2"
+        processes = [(10, 111, rf'EXCEL.EXE /x /r "{state}\excel\launches\w1-1.csv"'),
+                     (11, 222, r'EXCEL.EXE /x /r "C:\Work\DnaCalc\codex-runs\jnt-excel-session\launches\1.csv"'),
+                     (12, 333, r"EXCEL.EXE")]
+        killed = []
+        found = engine.stop_orphans(state, processes=processes, kill=lambda pid, ticks: killed.append((pid, ticks)) or "gone")
+        self.assertEqual(killed, [(10, 111)])
+        self.assertEqual(found, [(10, "gone")])
+
+    def test_a_real_process_named_excel_with_this_state_in_its_command_line_is_stopped(self):
+        import engine
+        import shutil
+        import subprocess
+        with tempfile.TemporaryDirectory() as folder:
+            state = Path(folder) / "state-v2"
+            (state / "excel" / "launches").mkdir(parents=True)
+            impostor = Path(folder) / "excel.exe"
+            shutil.copy(r"C:\Windows\System32\cmd.exe", impostor)
+            ours = subprocess.Popen([str(impostor), "/c", f'ping -n 60 127.0.0.1 >nul & rem {state}\\excel\\launches\\w1-1.csv'],
+                                    creationflags=subprocess.CREATE_NO_WINDOW)
+            other = subprocess.Popen([str(impostor), "/c", f'ping -n 60 127.0.0.1 >nul & rem {state}-other\\excel\\x.csv'],
+                                     creationflags=subprocess.CREATE_NO_WINDOW)
+            try:
+                deadline = time.monotonic() + 15
+                found = []
+                while time.monotonic() < deadline and not any(pid == ours.pid for pid, _ in found):
+                    found = engine.stop_orphans(state)
+                    time.sleep(0.2)
+                self.assertIn((ours.pid, "owned Excel terminated"), found)
+                self.assertTrue(all(pid != other.pid for pid, _ in found))
+                self.assertIsNone(other.poll())             # a sibling folder with the same prefix is left alone
+            finally:
+                for proc in (ours, other):
+                    proc.kill()
+                    proc.wait()
+
+    def make_project(self, folder):
+        project = Path(folder) / "excel"
+        project.mkdir()
+        (project / "ExcelWorker.csproj").write_text("<Project/>")
+        (project / "Program.cs").write_text("class P{}")
+        build = Path(folder) / "build.py"
+        build.write_text("import pathlib, sys\nb = pathlib.Path('bin'); b.mkdir(exist_ok=True)\n"
+                         "(b / 'excel-worker.dll').write_text('x'); (b / 'excel-worker.exe').write_text('x')\n"
+                         "open(sys.argv[1], 'a').write('built\\n')\n")
+        return project, build
+
+    def test_the_worker_is_built_when_bin_is_missing_or_stale_and_not_otherwise(self):
+        import engine
+        with tempfile.TemporaryDirectory() as folder:
+            project, build = self.make_project(folder)
+            log = Path(folder) / "builds.txt"
+            command = [sys.executable, str(build), str(log)]
+            self.assertTrue(engine.worker_is_stale(project))
+            self.assertTrue(engine.ensure_worker_built(project, command))
+            self.assertFalse(engine.worker_is_stale(project))
+            self.assertFalse(engine.ensure_worker_built(project, command))        # current: no build
+            old = time.time() - 100          # the binaries age; the source is edited now
+            for name in ("excel-worker.dll", "excel-worker.exe"):
+                os.utime(project / "bin" / name, (old, old))
+            os.utime(project / "Program.cs", None)
+            self.assertTrue(engine.worker_is_stale(project))
+            self.assertTrue(engine.ensure_worker_built(project, command))
+            self.assertEqual(log.read_text().count("built"), 2)
+
+    def test_a_failed_build_or_a_build_that_leaves_no_worker_fails_loudly(self):
+        import engine
+        with tempfile.TemporaryDirectory() as folder:
+            project, build = self.make_project(folder)
+            with self.assertRaises(RuntimeError) as failed:
+                engine.ensure_worker_built(project, [sys.executable, "-c", "import sys; print('CS1002 broken'); sys.exit(1)"])
+            self.assertIn("CS1002", str(failed.exception))
+            with self.assertRaises(RuntimeError) as empty:
+                engine.ensure_worker_built(project, [sys.executable, "-c", "pass"])
+            self.assertIn("holds no current", str(empty.exception))
 
 
 if __name__ == "__main__":
