@@ -141,12 +141,19 @@ fn snapshot(host: &HostState, cache: &PivotCache, area: GridArea, reconciled_axe
         return Err(fail("Calculated pivot fields in the 1904 date system are not modelled"));
     }
     let headers = read_row(host, area, area.first().row())?;
-    for (header, field) in headers.iter().zip(&cache.fields[..source_count]) {
-        let CoreRef::Text(text) = header.core_ref() else {
-            return Err(fail("Every source column needs a text header"));
+    for (position, (header, field)) in headers.iter().zip(&cache.fields[..source_count]).enumerate() {
+        // A blank header is the field `Column<position>` (see `source_names`).
+        let blank_name: Vec<u16>;
+        let units: &[u16] = match header.core_ref() {
+            CoreRef::Text(text) if !text.utf16_code_units().is_empty() => text.utf16_code_units(),
+            CoreRef::Text(_) | CoreRef::Empty => {
+                blank_name = format!("Column{}", position + 1).encode_utf16().collect();
+                &blank_name
+            }
+            _ => return Err(fail("Every source column needs a text header")),
         };
         if calc_fml::text_order(
-            text.utf16_code_units(),
+            units,
             &field.name.encode_utf16().collect::<Vec<_>>(),
         ) != Some(std::cmp::Ordering::Equal)
         {
@@ -655,6 +662,119 @@ pub(crate) fn prepare_model_pivot_refresh(host: &HostState, before: &PivotState,
     Ok(vec![CellEdit::Clear { area: selected.area }, CellEdit::Pivots(Arc::new(after))])
 }
 
+
+/// The headers of the source as cache field names: text as it stands, and a blank header as Excel names it,
+/// `Column` and the column's position in the source.
+fn source_names(host: &HostState, area: GridArea) -> Result<Vec<String>, String> {
+    let mut names = Vec::<String>::new();
+    for (position, value) in read_row(host, area, area.first().row())?.iter().enumerate() {
+        let name = match value.core_ref() {
+            CoreRef::Text(text) => String::from_utf16(text.utf16_code_units())
+                .map_err(|_| fail("The source header cannot be represented"))?,
+            CoreRef::Empty => format!("Column{}", position + 1),
+            _ => return Err(fail("Every source column needs a text header")),
+        };
+        let name = if name.is_empty() { format!("Column{}", position + 1) } else { name };
+        if names.iter().any(|prior| text_equal(prior, &name)) {
+            return Err(fail("Source headers that repeat a name need measured field naming"));
+        }
+        names.push(name);
+    }
+    Ok(names)
+}
+fn text_equal(a: &str, b: &str) -> bool {
+    calc_fml::text_order(&a.encode_utf16().collect::<Vec<_>>(), &b.encode_utf16().collect::<Vec<_>>())
+        == Some(std::cmp::Ordering::Equal)
+}
+
+/// A source whose columns changed (one inserted, deleted or a header renamed): Excel keeps the pivot, matches the
+/// cache fields to the new headers by name, drops the fields whose column is gone (and with them their place in
+/// the axes and their data fields) and adds a new column as a field that sits in no axis (measured:
+/// tests/fixtures/pivot/m5-structure, the `src-ins-col-*`, `src-del-col-*` and `tbl-*-col-*` scenarios).
+///
+/// Returns the pivot state with the cache and every table of it remapped, or `None` when the headers are the
+/// cache's own. Pivots with report filters, value filters, formats, groups, calculated items or value sorts keep
+/// the old refusal: their field indexes live in more places than are modelled.
+fn remap_fields(host: &HostState, before: &PivotState, cache: &PivotCache, area: GridArea) -> Result<Option<PivotState>, String> {
+    let names = source_names(host, area)?;
+    let source_count = cache.fields.iter().take_while(|field|
+        !matches!(field.attributes.get("databaseField").map(String::as_str), Some("0" | "false"))).count();
+    if source_count == cache.fields.len() && names.len() == source_count
+        && names.iter().zip(&cache.fields).all(|(name, field)| text_equal(name, &field.name)) {
+        return Ok(None);
+    }
+    if source_count != cache.fields.len() || cache.fields.iter().any(|f| f.group.is_some() || !f.formula_items.is_empty())
+        || !cache.calculated_items.is_empty() {
+        return Err(fail("A changed source column count with grouped or calculated fields is not modelled"));
+    }
+    // Old field -> new position, by name.
+    let mut taken = vec![false; names.len()];
+    let map: Vec<Option<usize>> = cache.fields.iter().map(|field| {
+        let found = names.iter().enumerate().position(|(j, name)| !taken[j] && text_equal(name, &field.name));
+        if let Some(j) = found { taken[j] = true; }
+        found
+    }).collect();
+    let mut fields: Vec<PivotCacheField> = names.iter().map(|name| PivotCacheField {
+        name: name.clone(), shared_items: Some(0), group: None, items: Vec::new(), unused_items: Vec::new(),
+        formula_items: Vec::new(),
+        attributes: BTreeMap::from([("name".into(), name.clone()), ("numFmtId".into(), "0".into())]),
+    }).collect();
+    for (old, to) in map.iter().enumerate() {
+        if let Some(j) = *to { fields[j] = cache.fields[old].clone(); }
+    }
+    let mut remapped = cache.clone();
+    remapped.fields = fields;
+    remapped.snapshot = None;
+    let mut after = before.clone();
+    for tables in after.sheets.values_mut() {
+        for table in tables.tables.iter_mut().filter(|t| t.cache_id == cache.id) {
+            *table = remap_table(table, &map, names.len())?;
+        }
+    }
+    after.caches.caches.insert(cache.id, Arc::new(remapped));
+    Ok(Some(after))
+}
+
+fn remap_table(table: &PivotTable, map: &[Option<usize>], width: usize) -> Result<PivotTable, String> {
+    if !table.page_fields.is_empty() || !table.filters.is_empty() || !table.formats.is_empty() || !table.unsupported.is_empty()
+        || table.fields.len() != map.len() || table.fields.iter().any(|f| f.sort_measure.is_some()) {
+        return Err(fail("A changed source column count under report filters, value filters, formats or sorts is not modelled"));
+    }
+    let to = |field: i32| if field < 0 { Some(field) } else { map.get(field as usize).copied().flatten().map(|j| j as i32) };
+    let mut next = table.clone();
+    let blank = || PivotField { attributes: BTreeMap::from([("showAll".into(), "0".into())]), items: Vec::new(), sort_measure: None };
+    next.fields = (0..width).map(|_| blank()).collect();
+    for (old, field) in table.fields.iter().enumerate() {
+        if let Some(j) = map[old] { next.fields[j] = field.clone(); }
+    }
+    next.row_fields = table.row_fields.iter().filter_map(|&f| to(f)).collect();
+    next.column_fields = table.column_fields.iter().filter_map(|&f| to(f)).collect();
+    next.data_fields = table.data_fields.iter().filter_map(|data| {
+        let j = map.get(data.field as usize).copied().flatten()?;
+        let mut data = data.clone();
+        data.field = j as u32;
+        data.attributes.insert("fld".into(), j.to_string());
+        Some(data)
+    }).collect();
+    if next.data_fields.is_empty() {
+        return Err(fail("The change removes every value field of the pivot, which is not modelled"));
+    }
+    // The Values position is only on an axis while there are several value fields.
+    if next.data_fields.len() < 2 {
+        next.row_fields.retain(|&f| f != -2);
+        next.column_fields.retain(|&f| f != -2);
+    }
+    for (index, field) in next.fields.iter_mut().enumerate() {
+        field.attributes.remove("axis");
+        if next.row_fields.contains(&(index as i32)) { field.attributes.insert("axis".into(), "axisRow".into()); }
+        if next.column_fields.contains(&(index as i32)) { field.attributes.insert("axis".into(), "axisCol".into()); }
+        if next.data_fields.iter().any(|d| d.field as usize == index) { field.attributes.insert("dataField".into(), "1".into()); }
+        else { field.attributes.remove("dataField"); }
+
+    }
+    Ok(next)
+}
+
 pub(crate) fn prepare_refresh(
     host: &HostState,
     sheet: SheetId,
@@ -690,6 +810,12 @@ pub(crate) fn prepare_refresh(
     if before.tables().any(|t| overlaps(area, t.area)) {
         return Err(fail("A pivot source cannot read another pivot output"));
     }
+    // A source whose columns changed: the cache fields follow the new headers by name (Excel's refresh).
+    let remapped = remap_fields(host, before, cache, area)?;
+    let before: &PivotState = remapped.as_ref().unwrap_or(before);
+    let selected = before.sheet(sheet).and_then(|s| s.tables.iter().find(|t| t.part == part))
+        .ok_or_else(|| fail("The selected pivot is unavailable"))?;
+    let cache = before.caches.caches.get(&selected.cache_id).ok_or_else(|| fail("The source cache is unavailable"))?;
     // Only this measured layout can reconcile a change in retained axis items.
     let reconciles_items = matches!(cache.attributes.get("missingItemsLimit").map(String::as_str), None | Some("32500"))
         && before.tables().filter(|t| t.cache_id == cache.id).count() == 1
@@ -701,7 +827,7 @@ pub(crate) fn prepare_refresh(
         && selected.fields.iter().all(|f| f.sort_measure.is_none() && f.items.iter().all(|i| !i.hidden && !i.calculated));
     let axes = reconciles_items.then(|| (selected.row_fields[0] as usize, selected.column_fields[0] as usize));
     let mut cache = snapshot(host, cache, area, axes)?;
-    let mut after = (**before).clone();
+    let mut after = before.clone();
     // The captured automatic and maximum policies retain an item removed from either axis.
     if reconciles_items {
         let records = &cache.snapshot.as_ref().expect("snapshot just created").records;

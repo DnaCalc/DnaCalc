@@ -328,7 +328,7 @@ impl ModelRoot {
         let change = StructuralChange::Axis(edit);
         let parts = self.parts();
         let cells = self.rewritten_cells(rewriter, &change, parts.cells);
-        let cells = cells
+        let cells: BTreeMap<SheetId, BTreeMap<CellKey, CellInput>> = cells
             .into_iter()
             .map(|(sheet, held)| {
                 let moved = held
@@ -347,16 +347,30 @@ impl ModelRoot {
             ))
         });
         let names = self.rewritten_names(rewriter, &change, definitions.names());
+        let mut headers: Vec<(CellKey, String)> = Vec::new();
         let tables = definitions
             .tables()
             .iter()
             .filter_map(|table| {
                 let area = moved_area(edit, table.area)?;
+                let before = table.area;
                 let mut table=table.clone();table.area=area;
+                if edit.axis() == Axis::Columns && table.sheet == edit.sheet() {
+                    for (position, name) in edit_table_columns(edit, before, &mut table) {
+                        headers.push((CellKey::new(table.sheet, table.area.first().row(), position).expect("a header cell"), name));
+                    }
+                }
                 if table.sheet==edit.sheet(){if let Some(f)=&mut table.filter{f.area=moved_area(edit,f.area)?;if edit.axis()==Axis::Rows{f.filtered_rows=f.filtered_rows.iter().filter_map(|r|moved_position(edit,*r)).collect();}else{f.columns=std::mem::take(&mut f.columns).into_iter().filter_map(|(c,v)|Some((moved_position(edit,c)?,v))).collect();}}}
                 Some(table)
             })
             .collect();
+        // The header cell of a column inserted into a table holds its name.
+        let mut cells = cells;
+        for (at, name) in headers {
+            if let Some(text) = crate::input::CellText::new(ExcelText::from_utf16_code_units(name.encode_utf16().collect())) {
+                cells.entry(at.sheet()).or_default().insert(at, CellInput::Text(text));
+            }
+        }
         let unloaded: Vec<_> = definitions
             .unloaded_cells()
             .filter_map(|(at, why)| Some((moved_cell(edit, at)?, why.clone())))
@@ -756,6 +770,56 @@ mod tests {
     }
 }
 
+
+/// A table's column lists after columns are inserted into (strictly inside its span) or deleted from it. Returns the
+/// columns inserted, as (worksheet column, name); `check_axis_edit` in calc-doc admits these edits only for tables
+/// whose columns are plain.
+fn edit_table_columns(edit: AxisEdit, before: GridArea, table: &mut crate::definitions::Table) -> Vec<(u32, String)> {
+    let (left, right) = (before.first().column(), before.last().column());
+    let mut inserted = Vec::new();
+    match edit.change() {
+        crate::op::AxisChange::Delete => {
+            let (from, to) = (edit.first().max(left), edit.last().min(right));
+            if from > to {
+                return inserted;
+            }
+            let (a, b) = ((from - left) as usize, (to - left) as usize);
+            fn cut<T>(list: &mut Vec<T>, a: usize, b: usize) {
+                if a < list.len() {
+                    list.drain(a..=b.min(list.len() - 1));
+                }
+            }
+            cut(&mut table.columns, a, b);
+            cut(&mut table.totals_functions, a, b);
+            cut(&mut table.totals_labels, a, b);
+            cut(&mut table.column_formulas, a, b);
+        }
+        crate::op::AxisChange::Insert => {
+            if !(left < edit.first() && edit.first() <= right) {
+                return inserted;
+            }
+            let at = (edit.first() - left) as usize;
+            for k in 0..edit.count() as usize {
+                // Excel names a new table column `Column<n>`, the first n not used.
+                let name = (1usize..)
+                    .map(|n| format!("Column{n}"))
+                    .find(|name| !table.columns.iter().any(|c| c.eq_ignore_ascii_case(name)))
+                    .expect("a free column name");
+                table.columns.insert(at + k, name.clone());
+                fn pad<T: Default>(list: &mut Vec<T>, at: usize) {
+                    if at <= list.len() {
+                        list.insert(at, T::default());
+                    }
+                }
+                pad(&mut table.totals_functions, at + k);
+                pad(&mut table.totals_labels, at + k);
+                pad(&mut table.column_formulas, at + k);
+                inserted.push((edit.first() + k as u32, name));
+            }
+        }
+    }
+    inserted
+}
 
 // Pivots under a row or column edit (dc-8wp.16, measured in tests/fixtures/pivot/m5-structure):
 // - the output moves with a row or column inserted at or before its first row or column, or deleted wholly

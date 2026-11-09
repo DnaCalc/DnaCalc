@@ -61,6 +61,7 @@ fn columns(xml: &XmlPart, table: &Table, model: &ModelRoot) -> Result<Vec<u8>, S
     let records =
         super::reader::element_sources(xml, |e| e.name.is(MAIN_NAMESPACE, "tableColumn"))?;
     let mut used = BTreeSet::new();
+    let mut record_names: Vec<Option<String>> = Vec::new();
     for record in &records {
         let part = XmlPart::new(
             "table-column.xml".into(),
@@ -68,12 +69,31 @@ fn columns(xml: &XmlPart, table: &Table, model: &ModelRoot) -> Result<Vec<u8>, S
             XmlLimits::default(),
         );
         let mut r = Reader::new(&part);
+        let mut name = None;
         if let (XmlEvent::Start(e), _) = r.expect()? {
             if let Some(id) = e.attribute("id").and_then(|s| s.parse::<u32>().ok()) {
                 used.insert(id);
             }
+            name = e.attribute("name").map(str::to_owned);
         }
+        record_names.push(name);
     }
+    // Each column keeps the record of its own name (columns went or came in); when the count is unchanged a
+    // column that was only renamed keeps the record in its place; a column the part never had gets a new one.
+    let mut taken = vec![false; records.len()];
+    let record_for: Vec<Option<usize>> = table
+        .columns
+        .iter()
+        .enumerate()
+        .map(|(index, name)| {
+            let by_name = (0..records.len()).find(|&r| !taken[r] && record_names[r].as_deref() == Some(name.as_str()));
+            let chosen = by_name.or_else(|| (records.len() == table.columns.len() && !taken[index]).then_some(index));
+            if let Some(r) = chosen {
+                taken[r] = true;
+            }
+            chosen
+        })
+        .collect();
     let mut out = Vec::new();
     for (index, name) in table.columns.iter().enumerate() {
         let fresh = (1..=u32::MAX)
@@ -84,8 +104,11 @@ fn columns(xml: &XmlPart, table: &Table, model: &ModelRoot) -> Result<Vec<u8>, S
             })?;
         used.insert(fresh);
         let default = format!("<tableColumn xmlns=\"{MAIN_NAMESPACE}\" id=\"{}\"/>", fresh);
-        let bytes = records
+        let bytes = record_for
             .get(index)
+            .copied()
+            .flatten()
+            .and_then(|r| records.get(r))
             .map(Vec::as_slice)
             .unwrap_or(default.as_bytes());
         let part = XmlPart::new(
