@@ -8,7 +8,7 @@ use crate::kernel::{Exit, Site, Step};
 use crate::value::{CalcValue, CoreRef, CubeValue, ExcelText, WorksheetErrorCode};
 use std::sync::Arc;
 
-const CODE: u16 = 324;
+use calc_catalogue::ported::cube_functions::{CODE, ENTRIES as DECLARATIONS};
 
 fn failed<T>(site: &Site<'_>, failure: CubeFailure) -> Step<T> {
     match failure {
@@ -270,23 +270,14 @@ fn cubekpimember(site: &Site<'_>, a: &[CalcValue], sv: &mut EvalServices<'_>) ->
     }
 }
 
-ported_family! {
+ported_shared_family! {
     code: CODE;
-    1 cubemember_fn "CUBEMEMBER" (2, 3) [R "connection", R "member_expression", R "caption"]
-    |s, a, sv| { cubemember(s, a, sv) }
-    2 cubevalue_fn "CUBEVALUE" (1, 127) [R "connection", R "member_expression"]
-    |s, a, sv| { cubevalue(s, a, sv) }
-    3 cubeset_fn "CUBESET" (2, 5)
-    [R "connection", R "set_expression", R "caption", R "sort_order", R "sort_by"]
-    |s, a, sv| { cubeset(s, a, sv) }
-    4 cubesetcount_fn "CUBESETCOUNT" (1, 1) [R "set"] |s, a, sv| { cubesetcount(s, a, sv) }
-    5 cuberankedmember_fn "CUBERANKEDMEMBER" (3, 4)
-    [R "connection", R "set_expression", R "rank", R "caption"]
-    |s, a, sv| { cuberankedmember(s, a, sv) }
-    6 cubememberproperty_fn "CUBEMEMBERPROPERTY" (3, 3)
-    [R "connection", R "member_expression", R "property"]
-    |s, a, sv| { cubememberproperty(s, a, sv) }
-    7 cubekpimember_fn "CUBEKPIMEMBER" (3, 4)
-    [R "connection", R "kpi_name", R "kpi_property", R "caption"]
-    |s, a, sv| { cubekpimember(s, a, sv) }
+    declarations: DECLARATIONS;
+    1 cubemember_fn |s, a, sv| { cubemember(s, a, sv) }
+    2 cubevalue_fn |s, a, sv| { cubevalue(s, a, sv) }
+    3 cubeset_fn |s, a, sv| { cubeset(s, a, sv) }
+    4 cubesetcount_fn |s, a, sv| { cubesetcount(s, a, sv) }
+    5 cuberankedmember_fn |s, a, sv| { cuberankedmember(s, a, sv) }
+    6 cubememberproperty_fn |s, a, sv| { cubememberproperty(s, a, sv) }
+    7 cubekpimember_fn |s, a, sv| { cubekpimember(s, a, sv) }
 }

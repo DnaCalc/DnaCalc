@@ -52,7 +52,7 @@ use std::cmp::Ordering;
 
 type W = WorksheetErrorCode;
 
-const CODE: u16 = 321;
+use calc_catalogue::ported::grouping::{CODE, ENTRIES as DECLARATIONS};
 
 /// A table argument: its rows of cells.
 struct Table {
@@ -790,9 +790,10 @@ fn pivotby(site: &Site<'_>, a: &[CalcValue], sv: &mut EvalServices<'_>) -> Step<
     result(out)
 }
 
-ported_family! {
+ported_shared_family! {
     code: CODE;
+    declarations: DECLARATIONS;
     // dc-h9u: ROWS(GROUPBY(...)) and ROWS(PIVOTBY(...)) lift field and filter expressions.
-    1 groupby_fn "GROUPBY" (3, 8) [R "row_fields" ~ ArrayAlways, R "values" ~ ArrayAlways, R "function", V "field_headers", V "total_depth", R "sort_order", R "filter_array" ~ ArrayAlways, V "field_relationship"] |s, a, sv| { groupby(s, a, sv) }
-    2 pivotby_fn "PIVOTBY" (4, 11) [R "row_fields" ~ ArrayAlways, R "col_fields" ~ ArrayAlways, R "values" ~ ArrayAlways, R "function", V "field_headers", V "row_total_depth", R "row_sort_order", V "col_total_depth", R "col_sort_order", R "filter_array" ~ ArrayAlways, V "relative_to"] |s, a, sv| { pivotby(s, a, sv) }
+    1 groupby_fn |s, a, sv| { groupby(s, a, sv) }
+    2 pivotby_fn |s, a, sv| { pivotby(s, a, sv) }
 }

@@ -281,9 +281,13 @@ pub(super) fn render_axes(
         else { usize::try_from(field).map_err(|_| bad("Invalid row field")) })
         .collect::<Result<Vec<_>, _>>()?;
     if root_only {
-        if table.column_fields != [-2] || table.data_fields.len() != 2
-            || table.data_fields[0].subtotal != "sum" || table.data_fields[1].subtotal != "product"
-            || table.data_fields[0].field != table.data_fields[1].field || !table.page_fields.is_empty()
+        // Two measured shapes: Values alone on the columns (a sum and a product of one field), and one source
+        // field on the columns with one value (the row field of a pivot was dropped, dc-8wp.16).
+        let values_alone = table.column_fields == [-2] && table.data_fields.len() == 2
+            && table.data_fields[0].subtotal == "sum" && table.data_fields[1].subtotal == "product"
+            && table.data_fields[0].field == table.data_fields[1].field;
+        let one_column_field = table.column_fields.len() == 1 && table.column_fields[0] >= 0 && table.data_fields.len() == 1;
+        if !(values_alone || one_column_field) || !table.page_fields.is_empty()
             || !table.filters.is_empty() || cache.fields.iter().any(|field| field.group.is_some() || field.attributes.contains_key("formula"))
             || !cache.calculated_items.is_empty() {
             return Err(bad("This empty row axis is not modelled"));
@@ -733,7 +737,9 @@ pub(super) fn render_axes(
     }
     let first = table.area.first();
     let header = if values_only || rows_only { 1 } else { levels.len() as u32 + 1 };
-    let label_width = if root_only { 0 } else if ((rows_only || (custom && values_only)) && form != Form::Compact) || tabular_values { row_fields.len() as u32 } else { 1 };
+    // One source field on the columns and no row field: a label column holds the value's caption on the one row.
+    let column_root = root_only && table.column_fields.len() == 1 && table.column_fields[0] >= 0;
+    let label_width = if column_root { 1 } else if root_only { 0 } else if ((rows_only || (custom && values_only)) && form != Form::Compact) || tabular_values { row_fields.len() as u32 } else { 1 };
     let mut cells = BTreeMap::<(u32, u32), CalcValue>::new();
     let caption = |m: usize| {
         table.data_fields[m].name.clone().unwrap_or_else(|| {
@@ -778,11 +784,11 @@ pub(super) fn render_axes(
             cells.insert((0, 0), plain_text(row_caption));
         }
     } else {
-        if table.data_fields.len() == 1 { cells.insert((0, 0), plain_text(&caption(0))); }
+        if table.data_fields.len() == 1 && !column_root { cells.insert((0, 0), plain_text(&caption(0))); }
         let column_caption = table.attributes.get("colHeaderCaption").map(String::as_str)
             .unwrap_or_else(|| if compact { "Column Labels" } else { &cache.fields[levels[0].field.unwrap()].name });
         cells.insert((0, 1), plain_text(column_caption));
-        cells.insert((header - 1, 0), plain_text(row_caption));
+        if !column_root { cells.insert((header - 1, 0), plain_text(row_caption)); }
     }
     let mut col_items = Vec::new();
     if rows_only { col_items.push(axis_item("data", 0, Vec::new())); }
@@ -1226,6 +1232,7 @@ pub(super) fn render_axes(
                 continue;
             }
             if !root_only { cells.insert((r, 0), group_label(group)?); }
+            else if column_root { cells.insert((r, 0), plain_text(&caption(0))); }
             for (col, entry) in columns.iter().enumerate() {
                 if let Some(value) = calculated.get(&(i, entry.path.clone(), entry.measure)) {
                     cells.insert((r, col as u32 + label_width), value.clone());

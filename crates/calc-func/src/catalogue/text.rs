@@ -1,27 +1,17 @@
 //! The text family fragment: the concatenation operator and its kernel.
 
-use super::{CatalogueEntry, Family, FunctionId, Notation, Parameter};
+
 use crate::call::{EvalServices, FunctionFault};
 use crate::coerce;
 use crate::kernel::{Exit, Site, Step};
 use crate::value::{CalcValue, CoreRef, EXCEL_TEXT_MAX_UTF16_CODE_UNITS, ExcelText};
 
-const CODE: u16 = 3;
+use calc_catalogue::operators::text::{CODE, ENTRIES as DECLARATIONS, CONCATENATE};
 
-const CONCATENATE: FunctionId = FunctionId::new(CODE, 1);
-
-const TEXTS: &[Parameter] = &[Parameter::value("text1"), Parameter::value("text2")];
-
-pub(super) const FAMILY: Family = Family {
-    code: CODE,
-    entries: &[CatalogueEntry::operator(
-        CONCATENATE,
-        "&",
-        Notation::Infix,
-        TEXTS,
-        concatenate,
-    )],
-};
+attach_eager_family! {
+    code: CODE; declarations: DECLARATIONS;
+    CONCATENATE => concatenate;
+}
 
 fn concatenate(
     arguments: &[CalcValue],

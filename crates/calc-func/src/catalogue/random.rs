@@ -9,7 +9,7 @@ use crate::call::EvalServices;
 use crate::kernel::{Site, Step};
 use crate::value::WorksheetErrorCode;
 
-const CODE: u16 = 106;
+use calc_catalogue::ported::random::{CODE, ENTRIES as DECLARATIONS};
 
 /// The next number of the services' random source, in [0, 1).
 fn draw(site: &Site<'_>, sv: &mut EvalServices<'_>) -> Step<f64> {
@@ -27,13 +27,14 @@ fn draw(site: &Site<'_>, sv: &mut EvalServices<'_>) -> Step<f64> {
 /// The largest RANDARRAY this family builds; a larger spill is not modelled.
 const RANDARRAY_LIMIT: f64 = 1_048_576.0;
 
-ported_family! {
+ported_shared_family! {
     code: CODE;
-    1 rand "RAND" (0, 0) [] volatile true; |s, a, sv| {
+    declarations: DECLARATIONS;
+    1 rand |s, a, sv| {
         let unit = draw(s, sv)?;
         s.number(unit)
     }
-    2 randbetween "RANDBETWEEN" (2, 2) [V "bottom", V "top"] volatile true; |s, a, sv| {
+    2 randbetween |s, a, sv| {
         // Excel rounds bottom up and top down to integers.
         let lo = num(s, a, 0)?.ceil();
         let hi = num(s, a, 1)?.floor();
@@ -44,7 +45,7 @@ ported_family! {
         let range = hi - lo + 1.0;
         s.number((lo + (unit * range).floor()).min(hi))
     }
-    3 randarray "RANDARRAY" (0, 5) [V "rows", V "columns", V "min", V "max", V "whole_number"] volatile true; |s, a, sv| {
+    3 randarray |s, a, sv| {
         let rows = if given(a, 0) { num(s, a, 0)?.trunc() } else { 1.0 };
         let cols = if given(a, 1) { num(s, a, 1)?.trunc() } else { 1.0 };
         let min = if given(a, 2) { num(s, a, 2)? } else { 0.0 };

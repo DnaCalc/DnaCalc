@@ -23,7 +23,7 @@ use std::collections::BTreeSet;
 
 type W = WorksheetErrorCode;
 
-const CODE: u16 = 203;
+use calc_catalogue::ported::dates::{CODE, ENTRIES as DECLARATIONS};
 
 /// The call's environment, or the refusal of a call that has none.
 fn environment<'a>(site: &'a Site<'_>) -> Step<&'a CalcEnvironment> {
@@ -223,36 +223,37 @@ fn now(site: &Site<'_>) -> Step<f64> {
 }
 
 // 3-D positions: dc-10y, Excel 16.0.20430, 2026-10-25; catalogue oracle ThreeD sheet.
-ported_family! {
+ported_shared_family! {
     code: CODE;
-    1 date_fn "DATE" (3, 3) [V "year", V "month", V "day"] three_d (None, None, Some(&[])); |s, a, sv| {
+    declarations: DECLARATIONS;
+    1 date_fn |s, a, sv| {
         let system = system(s)?;
         let (y, m, d) = (num(s, a, 0)?, num(s, a, 1)?, num(s, a, 2)?);
         out(s, k::date(y, m, d, system))
     }
-    2 time_fn "TIME" (3, 3) [V "hour", V "minute", V "second"] three_d (None, None, Some(&[])); |s, a, sv| {
+    2 time_fn |s, a, sv| {
         let (h, m, sec) = (num(s, a, 0)?, num(s, a, 1)?, num(s, a, 2)?);
         out(s, k::time(h, m, sec))
     }
-    3 year_fn "YEAR" (1, 1) [V "serial_number"] three_d (None, None, Some(&[])); |s, a, sv| {
+    3 year_fn |s, a, sv| {
         of_date(s, a, |x| k::serial_to_ymd(x).map(|(y, _, _)| y as f64))
     }
-    4 month_fn "MONTH" (1, 1) [V "serial_number"] three_d (None, None, Some(&[])); |s, a, sv| {
+    4 month_fn |s, a, sv| {
         of_date(s, a, |x| k::serial_to_ymd(x).map(|(_, m, _)| m as f64))
     }
-    5 day_fn "DAY" (1, 1) [V "serial_number"] three_d (None, None, Some(&[])); |s, a, sv| {
+    5 day_fn |s, a, sv| {
         of_date(s, a, |x| k::serial_to_ymd(x).map(|(_, _, d)| d as f64))
     }
-    6 hour_fn "HOUR" (1, 1) [V "serial_number"] three_d (None, None, Some(&[])); |s, a, sv| {
+    6 hour_fn |s, a, sv| {
         of_date(s, a, |x| k::hms(x).map(|(h, _, _)| h))
     }
-    7 minute_fn "MINUTE" (1, 1) [V "serial_number"] three_d (None, None, Some(&[])); |s, a, sv| {
+    7 minute_fn |s, a, sv| {
         of_date(s, a, |x| k::hms(x).map(|(_, m, _)| m))
     }
-    8 second_fn "SECOND" (1, 1) [V "serial_number"] three_d (None, None, Some(&[])); |s, a, sv| {
+    8 second_fn |s, a, sv| {
         of_date(s, a, |x| k::hms(x).map(|(_, _, sec)| sec))
     }
-    9 days_fn "DAYS" (2, 2) [V "end_date", V "start_date"] three_d (None, None, Some(&[])); |s, a, sv| {
+    9 days_fn |s, a, sv| {
         if let Some(code) = a.iter().find_map(CalcValue::as_error) {
             return fail(code);
         }
@@ -260,7 +261,7 @@ ported_family! {
         let start = date_arg(s, a, 1)?;
         out(s, k::days(end, start))
     }
-    10 days360_fn "DAYS360" (2, 3) [V "start_date", V "end_date", V "method"] three_d (None, None, Some(&[])); |s, a, sv| {
+    10 days360_fn |s, a, sv| {
         if let Some(code) = a.iter().find_map(CalcValue::as_error) {
             return fail(code);
         }
@@ -269,7 +270,7 @@ ported_family! {
         let european = a.len() > 2 && num(s, a, 2)? != 0.0;
         out(s, k::days360(start, end, european))
     }
-    11 datedif_fn "DATEDIF" (3, 3) [V "start_date", V "end_date", V "unit"] three_d (None, None, Some(&[])); |s, a, sv| {
+    11 datedif_fn |s, a, sv| {
         if let Some(code) = a.iter().find_map(CalcValue::as_error) {
             return fail(code);
         }
@@ -279,36 +280,36 @@ ported_family! {
         let unit = k::datedif_unit(&unit.to_string_lossy()).map_err(Exit::Error)?;
         out(s, k::datedif(start, end, unit))
     }
-    12 datevalue_fn "DATEVALUE" (1, 1) [V "date_text"] three_d (None, None, Some(&[])); |s, a, sv| {
+    12 datevalue_fn |s, a, sv| {
         let reading = super::text_format::read_value(s, a, 0)?;
         match reading {
             crate::value_text::Reading::DateTime(serial) => s.number(serial.floor()),
             crate::value_text::Reading::Number(_) => fail(W::Value),
         }
     }
-    13 timevalue_fn "TIMEVALUE" (1, 1) [V "time_text"] three_d (None, None, Some(&[])); |s, a, sv| {
+    13 timevalue_fn |s, a, sv| {
         let reading = super::text_format::read_value(s, a, 0)?;
         match reading {
             crate::value_text::Reading::DateTime(serial) => s.number(serial - serial.floor()),
             crate::value_text::Reading::Number(_) => fail(W::Value),
         }
     }
-    14 edate_fn "EDATE" (2, 2) [V "start_date", V "months"] three_d (None, Some(&[]), None); |s, a, sv| {
+    14 edate_fn |s, a, sv| {
         let start = strict_date_arg(s, a, 0)?;
         let months = strict_num(s, a, 1)?;
         serial_out(s, k::edate(start, months))
     }
-    15 eomonth_fn "EOMONTH" (2, 2) [V "start_date", V "months"] three_d (None, Some(&[]), None); |s, a, sv| {
+    15 eomonth_fn |s, a, sv| {
         let start = strict_date_arg(s, a, 0)?;
         let months = strict_num(s, a, 1)?;
         serial_out(s, k::eomonth(start, months))
     }
-    16 weekday_fn "WEEKDAY" (1, 2) [V "serial_number", V "return_type"] three_d (None, None, Some(&[])); |s, a, sv| {
+    16 weekday_fn |s, a, sv| {
         let serial = date_arg(s, a, 0)?;
         let kind = return_type(s, a, false)?;
         out(s, k::weekday(serial, kind))
     }
-    17 weeknum_fn "WEEKNUM" (1, 2) [V "serial_number", V "return_type"] three_d (None, Some(&[]), None); |s, a, sv| {
+    17 weeknum_fn |s, a, sv| {
         let serial = strict_date_arg(s, a, 0)?;
         let kind = return_type(s, a, true)?;
         // Q3, dc-1943: these types can inherit the preceding WEEKNUM call's state.
@@ -319,33 +320,33 @@ ported_family! {
         }
         out(s, k::weeknum(serial, kind))
     }
-    18 isoweeknum_fn "ISOWEEKNUM" (1, 1) [V "date"] three_d (None, None, Some(&[])); |s, a, sv| {
+    18 isoweeknum_fn |s, a, sv| {
         let serial = date_arg(s, a, 0)?;
         out(s, k::isoweeknum(serial))
     }
-    19 workday_fn "WORKDAY" (2, 3) [V "start_date", V "days", R "holidays" ~ AggregateAtRoot] three_d (None, Some(&[]), None); |s, a, sv| {
+    19 workday_fn |s, a, sv| {
         workday(s, a, sv, false)
     }
-    20 workday_intl_fn "WORKDAY.INTL" (2, 4) [V "start_date", V "days", V "weekend", R "holidays"] three_d (None, Some(&[0, 1]), Some(&[2])); |s, a, sv| {
+    20 workday_intl_fn |s, a, sv| {
         workday(s, a, sv, true)
     }
-    21 networkdays_fn "NETWORKDAYS" (2, 3) [V "start_date", V "end_date", R "holidays" ~ AggregateAtRoot] three_d (None, Some(&[]), None); |s, a, sv| {
+    21 networkdays_fn |s, a, sv| {
         networkdays(s, a, sv, false)
     }
-    22 networkdays_intl_fn "NETWORKDAYS.INTL" (2, 4) [V "start_date", V "end_date", V "weekend", R "holidays"] three_d (None, Some(&[0, 1]), Some(&[2])); |s, a, sv| {
+    22 networkdays_intl_fn |s, a, sv| {
         networkdays(s, a, sv, true)
     }
-    23 yearfrac_fn "YEARFRAC" (2, 3) [V "start_date", V "end_date", V "basis"] three_d (None, Some(&[]), None); |s, a, sv| {
+    23 yearfrac_fn |s, a, sv| {
         let start = super::kit::checked_date_serial(strict_date_arg(s, a, 0)?)?;
         let end = super::kit::checked_date_serial(strict_date_arg(s, a, 1)?)?;
         let basis = if a.len() > 2 && !a[2].is_missing() { super::kit::num_without_logical(s, a, 2)? } else { 0.0 };
         out(s, k::yearfrac(start, end, basis))
     }
-    24 now_fn "NOW" (0, 0) [] volatile true; |s, a, sv| {
+    24 now_fn |s, a, sv| {
         let now = now(s)?;
         serial_out(s, Ok(now))
     }
-    25 today_fn "TODAY" (0, 0) [] volatile true; |s, a, sv| {
+    25 today_fn |s, a, sv| {
         let now = now(s)?;
         serial_out(s, Ok(now.floor()))
     }

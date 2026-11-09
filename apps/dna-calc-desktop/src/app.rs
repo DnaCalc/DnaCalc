@@ -93,15 +93,15 @@ fn options(args: &[String]) -> Result<Options, String> {
             other => return Err(format!("unknown app argument: {other}")),
         }
     }
-    if o.assets.is_none() && o.url.is_none() && o.probe.is_none() {
-        // The packaged folder keeps the built page in `page` beside the executable.
+    if o.assets.is_none() && o.url.is_none() && o.probe.is_none() && !crate::embedded::has_page() {
+        // A build without its page looks for one in `page` beside the executable.
         o.assets = std::env::current_exe()
             .ok()
             .and_then(|exe| exe.parent().map(|folder| folder.join("page")))
             .filter(|folder| folder.join("index.html").is_file());
     }
-    if o.probe.is_none() && o.url.is_none() && o.assets.is_none() {
-        return Err("app mode needs --assets DIR (the built page; or a `page` folder beside the executable) or --url URL".into());
+    if o.probe.is_none() && o.url.is_none() && o.assets.is_none() && !crate::embedded::has_page() {
+        return Err("app mode needs --assets DIR (the built page; or a `page` folder beside the executable) or --url URL: this build carries no page".into());
     }
     Ok(o)
 }
@@ -386,6 +386,25 @@ impl App {
 pub fn run(args: &[String]) -> Result<(), String> {
     let o = options(args)?;
     let opening = o.open.as_deref().map(read_open_file).transpose()?;
+    // WebView2 is the app's window: say clearly what is missing and where to get it.
+    if o.probe.is_none() && calc_platform_desktop::runtime_version().is_none() {
+        let text = crate::embedded::missing_runtime_message();
+        eprintln!("dna-calc-desktop: {text}");
+        if crate::embedded::has_page()
+            && calc_platform_desktop::dialogs::message(
+                std::ptr::null_mut(),
+                "DNA Calc",
+                &format!("{text}
+
+Open the download page now?"),
+                calc_platform_desktop::dialogs::Buttons::YesNo,
+                false,
+            ) == calc_platform_desktop::dialogs::Pressed::Yes
+        {
+            calc_platform_desktop::dialogs::open_url(calc_platform_desktop::RUNTIME_DOWNLOAD);
+        }
+        return Err(text);
+    }
     // Per-monitor awareness: the page renders at the display's real scale.
     per_monitor_dpi_aware();
     let shell = Shell::new("DNA Calc")?;
@@ -488,17 +507,22 @@ pub fn run(args: &[String]) -> Result<(), String> {
         "https://dnacalc.app/webgpu.html".to_owned()
     } else if let Some(url) = &o.url {
         url.clone()
-    } else {
-        let assets = o.assets.as_ref().ok_or("no assets")?;
+    } else if let Some(assets) = &o.assets {
         app.web.map_folder("dnacalc.app", assets)?;
+        "https://dnacalc.app/index.html".to_owned()
+    } else {
+        // The page this executable carries, answered from memory at the same origin.
+        let page = crate::embedded::page()?;
+        app.web.serve_assets("dnacalc.app", Rc::new(page))?;
         "https://dnacalc.app/index.html".to_owned()
     };
     app.bind_sheets();
     app.web.navigate(&target)?;
     let _ = o.hidden;
     let timer = ThreadTimer::start(TICK_ID, TICK_MS);
+    // The loop ends when the page asks (the probe) or when the person closes the window.
     run_message_loop(
-        || app.quit.get(),
+        || app.quit.get() || calc_platform_desktop::client_size(frame).is_none(),
         |message| match message {
             ThreadMessage::Timer(TICK_ID) => app.tick(),
             ThreadMessage::Background => app.fetched(),

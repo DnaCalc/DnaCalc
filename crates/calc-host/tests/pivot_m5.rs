@@ -319,6 +319,10 @@ fn dc_8wp_16__deleting_all_of_an_output_removes_the_pivot_as_excel_does() {
         // There is nothing left to refresh, and the save carries no pivot table.
         let mut saved = Vec::new();
         book.save(&SavePolicy::default(), &mut saved).unwrap_or_else(|why| panic!("{id}: save refused: {why:?}"));
+        if let Some(folder) = std::env::var_os("DNACALC_PIVOT_SAVES").map(std::path::PathBuf::from) {
+            std::fs::create_dir_all(&folder).unwrap();
+            std::fs::write(folder.join(format!("p8-{id}.xlsx")), &saved).unwrap();
+        }
         let reopened = open(&saved);
         assert_eq!(pivot_now(&reopened), "-", "{id}: reopened");
         assert_eq!(dna_cells(&reopened, sheet_area), excel_cells_at(id, "1", sheet_area), "{id}: reopened cells");
@@ -386,29 +390,17 @@ fn dc_8wp_16__table_source_follows_row_edits_on_its_sheet() {
 }
 
 #[test]
-/// Native-only: opens the Excel-saved workbook files of the fixture set.
-fn dc_8wp_16__open_items_a_changed_source_field_count_and_table_column_edits_are_refused() {
-    // Excel adds or drops a cache field on the next refresh when a column is inserted into, or deleted from,
-    // the source; DNA Calc follows the source range (checked here) but refuses the refresh (open: dc-8wp.16).
-    for (id, first, count, change) in [
-        ("src-ins-col-inside", 4, 1, AxisChange::Insert),
-        ("src-ins-col-last", 5, 1, AxisChange::Insert),
-        ("src-del-col-inside-unused", 5, 1, AxisChange::Delete),
-    ] {
-        let want = excel(id);
-        let mut book = open(BASE_RANGE);
-        let src = sheet(&book, "Src");
-        let receipt = book.dispatch(SkinIntent::EditAxis(AxisEdit::new(src, Axis::Columns, change, first, count).unwrap()));
-        assert!(receipt.accepted(), "{id}: {receipt:?}");
-        assert_eq!(pivot_now(&book), want.pivots[1], "{id}");
-        assert!(refresh(&mut book).unwrap_err().contains("source column count"), "{id}");
-    }
-    // Deleting a table column through the sheet is refused by the table rules, not by the pivot.
+/// Native-only: opens the Excel-saved workbook file of the fixture set.
+fn dc_8wp_16__deleting_every_column_of_a_table_is_still_refused_by_the_table_rule() {
+    // Columns inserted into or deleted from a table are followed now (the test below). Deleting all of its columns
+    // deletes the table, which the table rule still refuses and leaves the workbook as it was.
     let mut book = open(BASE_TABLE);
     let src = sheet(&book, "Src");
-    let receipt = book.dispatch(SkinIntent::EditAxis(AxisEdit::new(src, Axis::Columns, AxisChange::Delete, 5, 1).unwrap()));
+    let before = book.host().revision();
+    let receipt = book.dispatch(SkinIntent::EditAxis(AxisEdit::new(src, Axis::Columns, AxisChange::Delete, 2, 4).unwrap()));
     assert!(!receipt.accepted());
     assert!(format!("{receipt:?}").contains("TablePart"), "{receipt:?}");
+    assert_eq!(book.host().revision(), before);
 }
 
 fn enter(book: &mut HostSession, sheet_name: &str, address: &str, text: &str) {
@@ -534,4 +526,152 @@ fn dc_8wp_16__a_new_pivot_takes_one_cell_when_nonblank_cells_are_in_its_way_and_
     let why = create(&mut book, "Out!E6").unwrap_err();
     assert!(why.replace("\\\"", "\"").contains(&want.act), "want {:?}, got {why}", want.act);
     assert_eq!(book.host().revision(), before);
+}
+
+/// (scenario, workbook, change, first column, count): a column edit on the source sheet, then a refresh.
+const COLUMN_EDITS: &[(&str, bool, char, u32, u32)] = &[
+    // A worksheet-range source Src!B2:E14 (Region, Product, Amount, Units).
+    ("src-ins-col-inside", false, 'i', 4, 1),
+    ("src-ins-col-last", false, 'i', 5, 1),
+    ("src-del-col-inside-unused", false, 'd', 5, 1),
+    ("src-del-col-first", false, 'd', 2, 1),
+    ("src-del-col-inside-used", false, 'd', 3, 1),
+    // A table source TblSrc over the same cells: the table follows the edit, the pivot follows the table.
+    ("tbl-ins-col-inside", true, 'i', 4, 1),
+    ("tbl-ins-col-first", true, 'i', 2, 1),
+    ("tbl-ins-col-last", true, 'i', 5, 1),
+    ("tbl-del-col-unused", true, 'd', 5, 1),
+    ("tbl-del-col-first", true, 'd', 2, 1),
+    ("tbl-del-col-inside-used", true, 'd', 3, 1),
+];
+
+#[test]
+/// Native-only: opens the Excel-saved workbook files of the fixture set and saves them to packages.
+fn dc_8wp_16__a_source_column_inserted_or_deleted_remaps_the_pivot_fields_on_refresh_as_excel_does() {
+    let mut failures = Vec::new();
+    for &(id, table, change, first, count) in COLUMN_EDITS {
+        let want = excel(id);
+        let mut book = open(if table { BASE_TABLE } else { BASE_RANGE });
+        let src = sheet(&book, "Src");
+        let change = if change == 'i' { AxisChange::Insert } else { AxisChange::Delete };
+        let receipt = book.dispatch(SkinIntent::EditAxis(AxisEdit::new(src, Axis::Columns, change, first, count).unwrap()));
+        if !receipt.accepted() {
+            failures.push(format!("{id}: Excel accepted, DNA Calc refused: {receipt:?}"));
+            continue;
+        }
+        if pivot_now(&book) != want.pivots[1] {
+            failures.push(format!("{id}: after the edit want {} got {}", want.pivots[1], pivot_now(&book)));
+            continue;
+        }
+        if table {
+            let t = &book.host().model().definitions().tables()[0];
+            let now = format!("{}={}", t.name, a1(t.area));
+            if now != want.tables[1] {
+                failures.push(format!("{id}: the table want {} got {now}", want.tables[1]));
+                continue;
+            }
+        }
+        if let Err(why) = refresh(&mut book) {
+            failures.push(format!("{id}: refresh refused ({why}); Excel gave {}", want.pivots[2]));
+            continue;
+        }
+        let after = pivot_now(&book);
+        if after != want.pivots[2] {
+            failures.push(format!("{id}: after the refresh want {} got {after}", want.pivots[2]));
+            continue;
+        }
+        let area = area_on(&want.pivots[2], sheet(&book, "Out"));
+        let (dna, excel) = (dna_cells(&book, area), excel_cells(id, area));
+        if dna != excel {
+            failures.push(format!("{id}: refreshed cells differ\n  dna   {dna:?}\n  excel {excel:?}"));
+        }
+        // The save a person would make reopens to the same pivot and cells.
+        let mut saved = Vec::new();
+        match book.save(&SavePolicy::default(), &mut saved) {
+            Ok(_) => {
+                if let Some(folder) = std::env::var_os("DNACALC_PIVOT_SAVES").map(std::path::PathBuf::from) {
+                    std::fs::create_dir_all(&folder).unwrap();
+                    std::fs::write(folder.join(format!("p8-{id}.xlsx")), &saved).unwrap();
+                }
+                let reopened = open(&saved);
+                if pivot_now(&reopened) != after {
+                    failures.push(format!("{id}: reopened {} want {after}", pivot_now(&reopened)));
+                } else if dna_cells(&reopened, area) != excel {
+                    failures.push(format!("{id}: reopened cells differ"));
+                }
+            }
+            Err(why) => failures.push(format!("{id}: save refused: {why:?}")),
+        }
+    }
+    assert!(failures.is_empty(), "{} of {} scenarios differ:\n{}", failures.len(), COLUMN_EDITS.len(), failures.join("\n"));
+}
+
+#[test]
+/// Native-only: opens the Excel-saved workbook file of the fixture set.
+fn dc_8wp_16__a_source_that_leaves_no_value_field_refreshes_to_the_one_cell_error_stub_as_excel_does() {
+    // src-del-cols-all, src-clear-all, src-del-row-header: the refresh is accepted and the pivot is its top-left cell
+    // holding an error; the cells around it stay.
+    type Setup = fn(&mut HostSession);
+    let cases: [(&str, Setup); 3] = [
+        ("src-del-cols-all", |b| {
+            let src = sheet(b, "Src");
+            assert!(b.dispatch(SkinIntent::EditAxis(AxisEdit::new(src, Axis::Columns, AxisChange::Delete, 2, 4).unwrap())).accepted());
+        }),
+        ("src-clear-all", |b| {
+            for row in 2..=14u32 {
+                for column in ["B", "C", "D", "E"] {
+                    enter(b, "Src", &format!("{column}{row}"), "");
+                }
+            }
+        }),
+        ("src-del-row-header", |b| {
+            let src = sheet(b, "Src");
+            assert!(b.dispatch(SkinIntent::EditAxis(AxisEdit::new(src, Axis::Rows, AxisChange::Delete, 2, 1).unwrap())).accepted());
+        }),
+    ];
+    let mut failures = Vec::new();
+    for (id, setup) in cases {
+        let want = excel(id);
+        let mut book = open(BASE_RANGE);
+        setup(&mut book);
+        if pivot_now(&book) != want.pivots[1] {
+            failures.push(format!("{id}: after the edit want {} got {}", want.pivots[1], pivot_now(&book)));
+            continue;
+        }
+        if let Err(why) = refresh(&mut book) {
+            failures.push(format!("{id}: refused where Excel left the stub: {why}"));
+            continue;
+        }
+        if pivot_now(&book) != want.pivots[2] {
+            failures.push(format!("{id}: want {} got {}", want.pivots[2], pivot_now(&book)));
+            continue;
+        }
+        let out = sheet(&book, "Out");
+        let area = GridArea::new(at(out, "A1"), at(out, "P40")).unwrap();
+        let (dna, excel) = (dna_cells(&book, area), excel_cells(id, area));
+        if dna != excel {
+            failures.push(format!("{id}: cells differ\n  dna   {dna:?}\n  excel {excel:?}"));
+        }
+    }
+    assert!(failures.is_empty(), "{} of {} differ:\n{}", failures.len(), cases.len(), failures.join("\n"));
+}
+
+#[test]
+/// Native-only: opens the Excel-saved workbook file of the fixture set.
+fn dc_8wp_16__a_source_cut_to_its_header_row_refuses_the_refresh_with_excels_text_and_changes_nothing() {
+    // src-del-rows-all-data: the range is left as the header row alone.
+    let want = excel("src-del-rows-all-data");
+    let mut book = open(BASE_RANGE);
+    let src = sheet(&book, "Src");
+    assert!(book.dispatch(SkinIntent::EditAxis(AxisEdit::new(src, Axis::Rows, AxisChange::Delete, 3, 12).unwrap())).accepted());
+    assert_eq!(pivot_now(&book), want.pivots[1]);
+    let before = book.host().revision();
+    let why = refresh(&mut book).unwrap_err();
+    let first_sentence = "This command requires at least two rows of source data. You cannot use the command on a selection in only one row.";
+    assert!(why.contains(first_sentence), "{why}");
+    assert_eq!(book.host().revision(), before);
+    assert_eq!(pivot_now(&book), want.pivots[2]);
+    let out = sheet(&book, "Out");
+    let area = GridArea::new(at(out, "A1"), at(out, "P40")).unwrap();
+    assert_eq!(dna_cells(&book, area), excel_cells("src-del-rows-all-data", area));
 }

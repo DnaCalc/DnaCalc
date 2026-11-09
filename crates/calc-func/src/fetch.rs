@@ -67,23 +67,19 @@ use crate::value::{
 use std::{fmt, rc::Rc, sync::Arc};
 
 /// The provider key the fetching functions are registered under in a callable table.
-pub const FETCH_PROVIDER: &str = "dnacalc:fetch";
+pub use calc_catalogue::{FETCH_PROVIDER, FetchKind};
 /// The functions that use the route, by catalogue spelling.
-pub const FETCH_FUNCTIONS: [&str; 2] = ["WEBSERVICE", "IMAGE"];
+pub const FETCH_FUNCTIONS: [&str; 2] = [
+    calc_catalogue::ported::find(calc_catalogue::ported::fetching::ENTRIES,
+        calc_catalogue::FunctionId::new(calc_catalogue::ported::fetching::CODE, 1)).spelling,
+    calc_catalogue::ported::find(calc_catalogue::ported::fetching::ENTRIES,
+        calc_catalogue::FunctionId::new(calc_catalogue::ported::fetching::CODE, 2)).spelling,
+];
 
 /// The most characters of a URL Excel requests.
 const URL_LIMIT: usize = 2048;
 /// The most UTF-16 code units of a worksheet text.
 const TEXT_LIMIT: usize = 32767;
-
-/// Which function a fetch is for, so a reply becomes the right value.
-#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
-pub enum FetchKind {
-    /// WEBSERVICE: the body as worksheet text.
-    Text,
-    /// IMAGE: the body as a picture.
-    Picture,
-}
 
 /// One GET of one URL, as it goes on the wire.
 #[derive(Clone, Debug, PartialEq, Eq)]

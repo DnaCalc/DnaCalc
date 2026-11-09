@@ -25,6 +25,9 @@ pub use help::{FunctionHelp, HELP, description_of, help_of};
 mod file_function_ids;
 pub use file_function_ids::EXCEL_FUNCTION_IDS;
 
+pub mod offset;
+pub mod operators;
+pub mod ported;
 pub mod unheld;
 
 mod declarations;

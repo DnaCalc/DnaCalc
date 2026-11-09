@@ -240,9 +240,12 @@ file's size and SHA-256 in `package-manifest.json`:
 - Started with no arguments it is the app. Test flags (`--debug-port`, `--data-dir`, `--save-dir`,
   `--close-answer save|discard|cancel`, `--message-file`) make it report on stderr and by exit code,
   never in a box that waits for a click.
+- `dna-calc-desktop.exe` (DNA Calc, built in the same release profile and with the same static C runtime)
+  is an optional companion in the folder, with its own page inside it (DNA Calc's bundle packed as
+  OneCalc's is, `DNACALC_CALC_PAGE`, embedded by its `build.rs`; `--without-calc` leaves it out). It runs
+  with no `--assets`, `--url` or `page` folder, takes `--open <file>`, and ends when its window is closed.
 - "Open in DNA Calc" appears for a file OneCalc refuses. The host launches `dna-calc-desktop.exe
-  --open <file>` when that exe is in the folder, otherwise says plainly that it is not. DNA Calc does
-  not accept `--open` yet (dc-0f1k.14).
+  --open <file>` when that exe is in the folder, otherwise says plainly that it is not (dc-0f1k.14).
 
 Desktop polish: the window title is the session name with `*` for unsaved changes (the page sets
 `document.title`, the host follows it); the window comes back where it was left (`settings.json`
@@ -257,4 +260,7 @@ outside the repository and runs it from there with a fresh data folder, a minima
 not to name the repository) and no `--assets`, driven through chromedriver on the app's WebView2 plus
 the app's own window (title, place, WM_CLOSE). The run and the guard of
 `tools/excel-session/on-private-desktop.ps1` (now `-ProcessNames`) kept every window off the owner's
-desktop. The native file dialogs need a person and were not driven.
+desktop. The native file dialogs need a person and were not driven. Run E of the same command starts the
+folder's `dna-calc-desktop.exe --open` on a workbook OneCalc refuses (two sheets and a pivot) and reads its
+sheet tabs from the page inside the executable; run B checks that the process "Open in DNA Calc" starts is that
+executable, shows a window, stays up and ends when its window is closed.

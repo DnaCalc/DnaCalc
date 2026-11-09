@@ -18,14 +18,17 @@
 //! Excel-DNA add-in, DnaExamples.xlsm with macros enabled through the bar, RTD over the numeric
 //! test server, a file OneCalc refuses and Open in DNA Calc); B (a second start: the window where it
 //! was left, the recent list kept, Save writing the opened file in place, close asking and saving);
-//! C (close discarding); D (WebView2 not found: the message). Exit code 0 when every check passed.
+//! C (close discarding); D (WebView2 not found: the message); E (DNA Calc, the companion in the folder:
+//! started from the copied folder with `--open`, its page inside the executable, showing the file's
+//! sheets; and the process OneCalc's "Open in DNA Calc" starts is that executable and shows a window).
+//! Exit code 0 when every check passed.
 
 use super::xll::{
     attach_page,
     CASE_WAIT, PAGE_WAIT, Shown, click, enter_formula, evaluate, items_of, set_text_input, text_of, wait_until,
 };
 use super::*;
-use crate::package::{EXE, unzip};
+use crate::package::{CALC_EXE, EXE, unzip};
 use std::collections::BTreeMap;
 use windows_sys::Win32::Foundation::{HWND, LPARAM, RECT};
 use windows_sys::Win32::UI::WindowsAndMessaging::{
@@ -396,6 +399,9 @@ fn clean_run(inputs: &Inputs) -> Result<Report, String> {
     fs::copy(&inputs.x5, work.join("addins/X5Native64.xll")).map_err(|e| io("x5", &inputs.x5, e))?;
     fs::copy(&inputs.xlsm, work.join("files/DnaExamples.xlsm")).map_err(|e| io("xlsm", &inputs.xlsm, e))?;
     fs::write(work.join("files/not-a-session.xlsx"), b"this is not a workbook").map_err(|e| e.to_string())?;
+    // A real workbook that is not a OneCalc session (two sheets and a pivot): OneCalc refuses it and DNA Calc opens it.
+    let two_sheets = inputs.repo.join("crates/calc-host/tests/fixtures/pivot/m5-structure/base-range.xlsx");
+    fs::copy(&two_sheets, work.join("files/two-sheets.xlsx")).map_err(|e| io("two-sheets", &two_sheets, e))?;
     let mut folder = Vec::new();
     for entry in fs::read_dir(work.join("app")).map_err(|e| e.to_string())?.flatten() {
         folder.push(entry.file_name().to_string_lossy().into_owned());
@@ -412,6 +418,14 @@ fn clean_run(inputs: &Inputs) -> Result<Report, String> {
         cases.iter().find(|c| c["formula"] == formula).map(|c| c["value"].clone()).unwrap_or(Value::Null)
     };
 
+    // Run A is OneCalc alone in its folder (its check that DNA Calc is missing needs that); DNA Calc is put back
+    // for run B.
+    let companion = work.join("app").join(CALC_EXE);
+    let aside = work.join("app").join("dna-calc-desktop.exe.aside");
+    let had_companion = companion.is_file();
+    if had_companion {
+        fs::rename(&companion, &aside).map_err(|e| e.to_string())?;
+    }
     // ---- Run A: the five-minute path.
     let mut a = launch(&inputs, "a", &["--save-dir".into(), saves.display().to_string(), "--close-answer".into(), "cancel".into()], true, &[])?;
     let session_ok = a.session.is_some();
@@ -625,11 +639,13 @@ fn clean_run(inputs: &Inputs) -> Result<Report, String> {
         window_rect_store(&work, rect);
     }
 
+    if had_companion {
+        fs::rename(&aside, &companion).map_err(|e| e.to_string())?;
+    }
     // ---- Run B: the second start.
     let rect_a = read_rect(&work);
-    // A stand-in for DNA Calc beside the exe: the repository's debug dna-calc-desktop.exe, which
-    // refuses the --open argument at once (no window), so that the launch is what is shown.
-    fs::copy(inputs.repo.join("target/debug/dna-calc-desktop.exe"), work.join("app/dna-calc-desktop.exe")).map_err(|e| e.to_string())?;
+    // DNA Calc beside the exe is the packaged one, with its page inside it (a folder packed without it gets no
+    // companion, and the launch check below says so).
     let mut b = launch(&inputs, "b", &["--close-answer".into(), "save".into()], true, &[])?;
     {
         let rect = window_rect(b.window);
@@ -653,13 +669,30 @@ fn clean_run(inputs: &Inputs) -> Result<Report, String> {
         let saved = wait_until(CASE_WAIT, || text_of(s, "file-status").starts_with("Saved "));
         let after = fs::read(&first).unwrap_or_default();
         report.check("b", "Ctrl+S writes the opened file in place, without a dialog", saved && after != before_bytes && saved_formula(Path::new(&first)).as_deref() == Ok("SUM(2,3)"), json!({"file": first}));
-        // Open in DNA Calc with DNA Calc beside the exe (a stand-in program: the launch is what is shown).
+        // Open in DNA Calc with DNA Calc beside the exe: the launcher starts the packaged dna-calc-desktop.exe.
         let element = s.element("[data-onecalc=\"file-input\"]")?;
-        s.post(&format!("/element/{element}/value"), json!({"text": work.join("files/not-a-session.xlsx").display().to_string()}))?;
+        s.post(&format!("/element/{element}/value"), json!({"text": work.join("files/two-sheets.xlsx").display().to_string()}))?;
         wait_until(CASE_WAIT, || text_of(s, "file-status").contains("outside what a OneCalc session holds"));
         click(s, "open-in-dna-calc")?;
         let launched = wait_until(CASE_WAIT, || text_of(s, "file-status") == "Opened the file in DNA Calc.");
         report.check("b", "Open in DNA Calc launches dna-calc-desktop.exe when it is beside the exe", launched, json!(text_of(s, "file-status")));
+        let spawned = wait_child(b.pid, CALC_EXE);
+        let at_the_folder = spawned.as_ref().is_some_and(|(_, path)| Path::new(path).starts_with(work.join("app")));
+        report.check("b", "the process it started is the packaged dna-calc-desktop.exe of the copied folder", at_the_folder, json!(spawned));
+        if let Some((calc_pid, _)) = spawned {
+            let window = (0..300).find_map(|_| { thread::sleep(Duration::from_millis(100)); window_of(calc_pid) });
+            report.check("b", "DNA Calc shows its window, so its page loaded from inside the executable", window.is_some(), json!({"pid": calc_pid}));
+            // It stays up while the page loads the file; then it is closed as a person would, by its window.
+            thread::sleep(Duration::from_secs(8));
+            let alive = child_alive(calc_pid);
+            report.check("b", "DNA Calc is still running after the page and the file loaded", alive, json!({"pid": calc_pid}));
+            if let Some(window) = window {
+                unsafe { PostMessageW(window, WM_CLOSE, 0, 0) };
+            }
+            let closed = wait_until(Duration::from_secs(20), || !child_alive(calc_pid));
+            report.check("b", "closing its window ends it", closed, json!({"pid": calc_pid}));
+        }
+        let s = b.session();
         // Close with unsaved changes, answered Save: the file is written first.
         enter_formula(s, "=SUM(4,5)")?;
         wait_title(&mut b, &format!("{name}* - DNA OneCalc"));
@@ -686,6 +719,9 @@ fn clean_run(inputs: &Inputs) -> Result<Report, String> {
         report.check("c", "closing with unsaved changes and answering Discard leaves the file as it was", code == Some(0) && before == after, json!({"exit": code}));
     }
 
+    // ---- Run E: DNA Calc, the companion, from the copied folder.
+    calc_companion(&inputs, &mut report)?;
+
     // ---- Run D: no WebView2 runtime.
     let empty = work.join("no-webview2");
     fs::create_dir_all(&empty).map_err(|e| e.to_string())?;
@@ -707,6 +743,90 @@ fn clean_run(inputs: &Inputs) -> Result<Report, String> {
     let leftover = registry_has(&format!("DnaCalc.X5.{}", a.pid));
     report.check("end", "no private COM class of this run is left in HKCU", !leftover, json!({"pid": a.pid}));
     Ok(report)
+}
+
+/// The process `image` that `parent` started, with its executable's path: the first one found within the wait.
+fn wait_child(parent: u32, image: &str) -> Option<(u32, String)> {
+    let script = format!(
+        "Get-CimInstance Win32_Process -Filter \"ParentProcessId={parent} and Name='{image}'\" | ForEach-Object {{ \"$($_.ProcessId)|$($_.ExecutablePath)\" }}"
+    );
+    let started = Instant::now();
+    while started.elapsed() < Duration::from_secs(30) {
+        if let Ok(out) = Command::new("pwsh").args(["-NoProfile", "-NonInteractive", "-Command", &script]).output() {
+            let text = String::from_utf8_lossy(&out.stdout).into_owned();
+            if let Some((pid, path)) = text.lines().next().and_then(|line| line.split_once('|')) {
+                if let Ok(pid) = pid.trim().parse() {
+                    return Some((pid, path.trim().to_owned()));
+                }
+            }
+        }
+        thread::sleep(Duration::from_millis(500));
+    }
+    None
+}
+
+fn child_alive(pid: u32) -> bool {
+    let script = format!("if (Get-Process -Id {pid} -ErrorAction SilentlyContinue) {{ 'yes' }} else {{ 'no' }}");
+    Command::new("pwsh")
+        .args(["-NoProfile", "-NonInteractive", "-Command", &script])
+        .output()
+        .is_ok_and(|out| String::from_utf8_lossy(&out.stdout).trim() == "yes")
+}
+
+/// Run E: `dna-calc-desktop.exe --open <workbook>` from the copied folder, with the clean environment, no
+/// `--assets` and no `page` folder, so its page is the one inside it. Driven like the others: chromedriver
+/// on its WebView2; the page must show the workbook's sheets.
+fn calc_companion(inputs: &Inputs, report: &mut Report) -> Result<(), String> {
+    let exe = inputs.work.join("app").join(CALC_EXE);
+    if !exe.is_file() {
+        report.check("e", "the folder holds dna-calc-desktop.exe", false, json!(exe.display().to_string()));
+        return Ok(());
+    }
+    let file = inputs.work.join("files/two-sheets.xlsx");
+    let upstream = free_port()?;
+    let stderr = fs::File::create(inputs.work.join("stderr-calc.txt")).map_err(|e| e.to_string())?;
+    let child = Command::new(&exe)
+        .env_clear()
+        .envs(minimal_environment(inputs)?)
+        .env("DNACALC_WEBVIEW2_DATA", inputs.work.join("calc-data"))
+        .current_dir(&inputs.work)
+        .arg("--open")
+        .arg(&file)
+        .args(["--debug-port", &upstream.to_string()])
+        .stdin(Stdio::null())
+        .stdout(Stdio::null())
+        .stderr(stderr)
+        .spawn()
+        .map_err(|e| format!("cannot start {}: {e}", exe.display()))?;
+    let pid = child.id();
+    let mut app = DriverProcess { child, port: upstream };
+    let started = Instant::now();
+    let mut window: HWND = std::ptr::null_mut();
+    while started.elapsed() < WAIT && window.is_null() {
+        window = window_of(pid).unwrap_or(std::ptr::null_mut());
+        thread::sleep(Duration::from_millis(100));
+    }
+    report.check("e", "DNA Calc starts from the copied folder with no page folder and shows its window", !window.is_null(), json!({"pid": pid}));
+    while TcpStream::connect(("127.0.0.1", upstream)).is_err() {
+        if started.elapsed() > Duration::from_secs(90) {
+            report.check("e", "DNA Calc opens its DevTools port", false, json!(upstream));
+            return Ok(());
+        }
+        thread::sleep(Duration::from_millis(200));
+    }
+    let (_driver, session) = attach_page(upstream, &inputs.out.join("driver-e"))?;
+    let tabs = "return Array.from(document.querySelectorAll('[data-dnacalc=\"sheet-tab\"]')).map(t => t.textContent.trim()).join('|');";
+    let shown = wait_until(WAIT, || !script_text(&session, tabs).is_empty());
+    let text = script_text(&session, tabs);
+    report.check("e", "the page inside the executable shows the opened workbook's sheets", shown && text == "Src|Out", json!(text));
+    let status = script_text(&session, "var e=document.querySelector('[data-dnacalc=\"worker-status\"]'); return e ? e.textContent : '';");
+    report.check("e", "the page's worker is running", !status.contains("fail") && !status.contains("error"), json!(status));
+    if !window.is_null() {
+        unsafe { PostMessageW(window, WM_CLOSE, 0, 0) };
+    }
+    let closed = wait_until(Duration::from_secs(20), || matches!(app.child.try_wait(), Ok(Some(_))));
+    report.check("e", "closing the window ends DNA Calc", closed, json!({"pid": pid}));
+    Ok(())
 }
 
 fn read_cases(path: &Path) -> Result<Vec<Value>, String> {

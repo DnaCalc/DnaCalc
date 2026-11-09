@@ -244,9 +244,12 @@ fn no_sheet() -> SheetId {
 ///   edits are not admitted in a structural batch here;
 /// - an edit that changes part of a legacy array formula, inserting inside it or deleting some but
 ///   not all of its rows or columns ([`EditError::ArrayPart`]);
-/// - an edit that changes a table's header or totals row, inserts or deletes columns inside a
-///   table, or deletes the whole table ([`EditError::TablePart`]): the table part records its
-///   columns and those rows, which this edit would contradict;
+/// - an edit that changes a table's header or totals row, deletes the whole table, or inserts or
+///   deletes columns inside a table whose columns this layer cannot follow ([`EditError::TablePart`]):
+///   the table part records its columns and those rows, which this edit would contradict. Columns of a
+///   plain table (one header row, no totals row, no calculated column or other retained column
+///   metadata) are followed as Excel follows them: a deleted column leaves the table, an inserted one
+///   joins it as `Column1`, `Column2`, ... (dc-8wp.16, measured in the pivot m5 capture);
 /// - an insertion that would push cells holding an input off the grid
 ///   ([`EditError::PushedOffGrid`]).
 ///
@@ -287,6 +290,19 @@ fn span(area: GridArea, axis: Axis) -> (u32, u32) {
     }
 }
 
+/// Whether columns can be inserted into or deleted from `table` with its part kept consistent: one header
+/// row, no totals row, no calculated columns, no retained metadata, and a filter this layer reads.
+fn columns_followed(table: &calc_doc_model::Table) -> bool {
+    !table.opaque
+        && !table.axis_opaque
+        && table.header_rows == 1
+        && table.totals_rows == 0
+        && table.column_formulas.iter().all(Option::is_none)
+        && table.totals_functions.iter().all(Option::is_none)
+        && table.totals_labels.iter().all(Option::is_none)
+        && table.filter.as_ref().is_none_or(|filter| !filter.unsupported)
+}
+
 /// Refuses an axis edit Excel refuses on `root` (see [`prepare_structural_edit`]).
 fn check_axis_edit(root: &ModelRoot, operation: usize, edit: AxisEdit) -> Result<(), EditError> {
     let (first, last) = (edit.first(), edit.last());
@@ -316,8 +332,10 @@ fn check_axis_edit(root: &ModelRoot, operation: usize, edit: AxisEdit) -> Result
         let (top, bottom) = span(table.area, Axis::Rows);
         let (left, right) = span(table.area, Axis::Columns);
         let refused = match (edit.axis(), edit.change()) {
-            (Axis::Columns, AxisChange::Insert) => left < first && first <= right,
-            (Axis::Columns, AxisChange::Delete) => first <= right && left <= last,
+            (Axis::Columns, AxisChange::Insert) => left < first && first <= right && !columns_followed(table),
+            (Axis::Columns, AxisChange::Delete) => {
+                first <= right && left <= last && (!columns_followed(table) || (first <= left && right <= last))
+            }
             (Axis::Rows, AxisChange::Insert) => {
                 // Inside the data rows the table grows; a row inserted at its header or between
                 // its data and its totals row would change those rows.

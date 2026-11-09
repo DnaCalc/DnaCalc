@@ -221,3 +221,16 @@ fn d1_file_form__catalogue_prefixes_agree() {
     }
     assert!(agreed > 100, "{agreed} catalogued functions");
 }
+
+// dc-h9u: Excel 16.0.20527 stores each trim reference as its measured function form.
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn trim_reference_file_forms_retain_the_measured_names() {
+    for (entered, saved) in [
+        ("C1.:C20", "_xlfn._TRO_LEADING(C1:C20)"),
+        ("C1:.C20", "_xlfn._TRO_TRAILING(C1:C20)"),
+        ("C1.:.C20", "_xlfn._TRO_ALL(C1:C20)"),
+    ] {
+        assert_eq!(form(entered, &[]).0, saved);
+    }
+}

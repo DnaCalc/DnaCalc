@@ -306,6 +306,22 @@ fn fields(table: &PivotTable) -> Vec<u8> {
     out.extend_from_slice(b"</pivotFields>");
     out
 }
+/// The `dataFields` container from the model (a refresh that dropped a source column drops its value fields).
+fn data_fields(table: &PivotTable) -> Vec<u8> {
+    let mut out = format!("<dataFields xmlns=\"{M}\" count=\"{}\">", table.data_fields.len()).into_bytes();
+    for data in &table.data_fields {
+        out.extend_from_slice(b"<dataField");
+        let mut a = data.attributes.clone();
+        a.remove("name");
+        attrs(&a, &mut out);
+        if let Some(name) = &data.name {
+            string_attr("name", name, &mut out);
+        }
+        out.extend_from_slice(b"/>");
+    }
+    out.extend_from_slice(b"</dataFields>");
+    out
+}
 fn axis_fields(name: &str, fields: &[i32]) -> Vec<u8> {
     if fields.is_empty() { return Vec::new(); }
     let mut out = format!("<{name} xmlns=\"{M}\" count=\"{}\">", fields.len()).into_bytes();
@@ -416,7 +432,9 @@ fn preflight(xml: &XmlPart, containers: &[&str]) -> Result<(), SaveRefusal> {
                                 || local == "colItems"
                                 || local == "rowFields"
                                 || local == "colFields"
+                                || local == "dataFields"
                         }
+                        "dataFields" => local == "dataField",
                         "pivotFields" => local == "pivotField",
                         "pivotField" => matches!(local, "items" | "extLst" | "autoSortScope"),
                         "autoSortScope" => local == "pivotArea",
@@ -447,9 +465,10 @@ fn preflight(xml: &XmlPart, containers: &[&str]) -> Result<(), SaveRefusal> {
                     for a in &e.attributes {
                         let allowed = match local {
                             "location" | "pivotField" | "cacheField" => true,
-                            "pivotFields" | "rowFields" | "colFields" | "rowItems" | "colItems" | "items" | "cacheFields" => {
+                            "pivotFields" | "rowFields" | "colFields" | "rowItems" | "colItems" | "items" | "cacheFields" | "dataFields" => {
                                 a.name.local.as_str() == "count"
                             }
+                            "dataField" => true,
                             "sharedItems" => matches!(
                                 a.name.local.as_str(),
                                 "count"
@@ -736,6 +755,14 @@ pub(super) fn finish<S:Borrow<crate::load::LoadedSheet>>(
         retained.col_items = old.col_items.clone();
         retained.row_fields = old.row_fields.clone();
         retained.column_fields = old.column_fields.clone();
+        let data_changed = old.data_fields != table.data_fields;
+        if data_changed {
+            // A source column that went takes its value fields (dc-8wp.16); only plain ones are rewritten.
+            if old.data_fields.iter().chain(&table.data_fields).any(|d| d.extended_show.is_some()) {
+                return Err(bad(&table.part, "Changing value fields with a display calculation is not modelled"));
+            }
+            retained.data_fields = old.data_fields.clone();
+        }
         if &retained != old {
             return Err(bad(
                 &table.part,
@@ -747,6 +774,7 @@ pub(super) fn finish<S:Borrow<crate::load::LoadedSheet>>(
         }
         let xml = read_part(package, &table.part)?;
         let mut containers = vec!["location", "pivotFields", "rowItems", "colItems"];
+        if data_changed { containers.push("dataFields"); }
         if old.row_fields != table.row_fields { containers.push("rowFields"); }
         if old.column_fields != table.column_fields { containers.push("colFields"); }
         preflight(&xml, &containers)?;
@@ -759,6 +787,7 @@ pub(super) fn finish<S:Borrow<crate::load::LoadedSheet>>(
         if !old.col_items.is_empty() || !table.col_items.is_empty() {
             replacements.insert("colItems", col_items(table));
         }
+        if data_changed { replacements.insert("dataFields", data_fields(table)); }
         if old.row_fields != table.row_fields { replacements.insert("rowFields", axis_fields("rowFields", &table.row_fields)); }
         if old.column_fields != table.column_fields { replacements.insert("colFields", axis_fields("colFields", &table.column_fields)); }
         out.rewritten.insert(
