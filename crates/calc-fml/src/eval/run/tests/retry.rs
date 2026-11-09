@@ -28,9 +28,10 @@ struct Events {
     resolved: Vec<String>,
     /// The defined-name invocations the effects recorded: ordinal, parent and result kind.
     names: Vec<String>,
-    /// The distinct fact reads the reader saw (a fact read is a read, and its repetition is not an
-    /// effect).
+    /// The distinct fact reads the reader saw.
     facts: Vec<String>,
+    /// The distinct areas read (the footprint): reads are idempotent, so only the set is compared.
+    areas: Vec<String>,
 }
 
 #[derive(Debug)]
@@ -82,6 +83,7 @@ struct Gated {
     pending: Vec<CellKey>,
     ready: bool,
     facts: Vec<String>,
+    areas: Vec<String>,
 }
 
 impl ReferenceReader for Gated {
@@ -111,6 +113,7 @@ impl ReferenceReader for Gated {
         area: GridArea,
         sink: &mut dyn FnMut(CellRun<'_>) -> ControlFlow<()>,
     ) {
+        self.areas.push(format!("{area:?}"));
         // Row-major, a pending cell as a missing run of its own, as the engine's reader gives it.
         let five = CalcValue::number(5.0);
         let (first, last) = (area.first(), area.last());
@@ -251,6 +254,7 @@ fn drive(formula: &str, pending: bool, quantum: usize) -> Run2 {
         pending: cells,
         ready: !pending,
         facts: Vec::new(),
+        areas: Vec::new(),
     };
     let mut effects = crate::UserFunctionEffects::default();
     let mut random = Draws(draws.clone());
@@ -295,11 +299,19 @@ fn drive(formula: &str, pending: bool, quantum: usize) -> Run2 {
         calls: log.calls,
         resolved: log.resolved,
         names,
+        // The evaluator asks a fact again when an instruction runs again; the engine's observer
+        // records each fact once (dc-hsa5.19, `a_wait_records_each_fact_once`), so they compare as a set.
         facts: {
             let mut facts = std::mem::take(&mut reader.facts);
             facts.sort();
             facts.dedup();
             facts
+        },
+        areas: {
+            let mut areas = std::mem::take(&mut reader.areas);
+            areas.sort();
+            areas.dedup();
+            areas
         },
     };
     Run2 {
@@ -401,6 +413,16 @@ fn a_wait_replays_nothing_the_evaluation_could_observe() {
             }
             if !*in_place && !matches!(ending, Ending::Waited(0)) {
                 differences.push(format!("{formula}: expected no wait, got {ending:?}"));
+            }
+        }
+    }
+    // The slicing of the evaluation is not observable either: one instruction per quantum and an
+    // unbounded quantum give the same value and the same events, producer ready or pending.
+    for (formula, _) in CASES {
+        for pending in [false, true] {
+            let (whole, sliced) = (drive(formula, pending, usize::MAX), drive(formula, pending, 1));
+            if whole.value != sliced.value || whole.events != sliced.events || whole.ending != sliced.ending {
+                differences.push(format!("{formula} (pending {pending}): quantum 1 differs from the unbounded quantum"));
             }
         }
     }

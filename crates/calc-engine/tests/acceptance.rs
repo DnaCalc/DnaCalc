@@ -3581,6 +3581,33 @@ fn l2_error(code: calc_doc_model::value::WorksheetErrorCode) -> CalcValue {
     CalcValue::error(code)
 }
 
+/// dc-hsa5.19: a formula that waits for a pending producer after reading a fact (CELL reads the
+/// sheet's metadata) runs the reading instruction again, and its certificate still holds each
+/// fact once, as a formula that never waited does.
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test)]
+fn dc_hsa5_19__a_wait_records_each_fact_once() {
+    let mut ids: IdAllocator<SheetId> = IdAllocator::new();
+    let (data, calc) = (ids.issue().unwrap(), ids.issue().unwrap());
+    let c = |row, column| CellKey::new(calc, row, column).unwrap();
+    let cells = vec![
+        (c(1, 2), number(5.0)),
+        // Calc!A1 reads A5 through INDIRECT, a formula ordered after it: it waits.
+        (c(1, 1), formula("CELL(\"contents\",INDIRECT(\"A\"&B1))")),
+        (c(5, 1), formula("1+1")),
+    ];
+    let root = l2_root(0, (data, calc), cells, vec![]);
+    let mut state = EngineState::new(&root);
+    let mut waits = Waits::default();
+    recalc(&mut state, &root, &mut waits);
+    assert_eq!(waits.deferred, [(c(1, 1), c(5, 1))], "the formula waited");
+    let facts = &state.result(c(1, 1)).unwrap().stamp().unwrap().reads.facts;
+    assert!(!facts.is_empty());
+    for (at, fact) in facts.iter().enumerate() {
+        assert!(!facts[..at].contains(fact), "{fact:?} is stamped twice");
+    }
+}
+
 /// INDIRECT is bound against the workbook's sheets and recalculated through the engine. A formula
 /// whose INDIRECT reads a formula cell ordered after it waits for that cell, and so does a formula
 /// that reads the waiting one; the discarded attempts are not reported as evaluated. The areas
