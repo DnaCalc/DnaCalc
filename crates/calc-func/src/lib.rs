@@ -67,6 +67,12 @@ pub fn text_order(a: &[u16], b: &[u16]) -> Option<std::cmp::Ordering> {
     catalogue::text_order(a, b)
 }
 
+/// Whether the digits of a number literal written in a formula (no sign) are within the scale Excel
+/// accepts, 1E-309 up to 9.99E+308: a literal below it makes the formula one Excel does not accept.
+pub fn number_literal_scale_is_readable(text: &str) -> bool {
+    coerce::literal_scale_is_readable(text)
+}
+
 /// What `text` (UTF-16 code units) reads as under `environment`'s locale profile, date system and
 /// clock, by the grammar VALUE reads text with: the number, date or time it is; `Ok(None)` when the
 /// grammar does not read it (VALUE's #VALUE!); `Err(())` when the reading is not modelled (no

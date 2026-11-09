@@ -206,6 +206,6 @@ fn percent(
         site.scalar_operands(arguments)
             .and_then(|()| site.number_argument(0, &arguments[0]))
             .and_then(|x| site.divide(x, 100.0))
-            .and_then(|x| site.number(x)),
+            .and_then(|x| site.number(flushed(x))),
     )
 }

@@ -17,7 +17,7 @@ pub fn permutationa_kernel(n: f64, k: f64) -> Result<f64, WorksheetErrorCode> {
     // covers the full finite decimal exponent range before any parity promotion.
     let result = if n == 10.0 {
         if k > 308 { f64::INFINITY }
-        else { format!("1e{k}").parse().unwrap_or(f64::INFINITY) }
+        else { crate::ported::power_fn::ten_to(k as i32) }
     } else {
         let mut result = 1.0;
         let mut base = n;

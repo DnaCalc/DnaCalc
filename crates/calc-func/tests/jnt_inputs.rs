@@ -16,6 +16,15 @@ const COLUMNS: [&str; 6] = ["A", "B", "C", "E", "F", "G"];
 
 const WORKBOOK: &[u8] = include_bytes!("fixtures/jnt/oracle.xlsx");
 
+/// The section captures (`captures/jnt/sections`), whose environment `jnt_import.py environment` sets.
+const CAPTURES: &[(&str, &str)] = &[
+    ("jnt_dates_random", include_str!("captures/jnt/sections/jnt_dates_random.capture.json")),
+    ("jnt_operators", include_str!("captures/jnt/sections/jnt_operators.capture.json")),
+    ("jnt_w111_elementary", include_str!("captures/jnt/sections/jnt_w111_elementary.capture.json")),
+    ("jnt_w111_rounding", include_str!("captures/jnt/sections/jnt_w111_rounding.capture.json")),
+    ("jnt_w111_text_dates", include_str!("captures/jnt/sections/jnt_w111_text_dates.capture.json")),
+];
+
 /// The sheets whose section files carry typed inputs, each with its section file.
 const SECTIONS: &[(&str, &str)] = &[
     ("jnt_w111_elementary", include_str!("fixtures/jnt/sheet-jnt_w111_elementary.txt")),
@@ -121,6 +130,20 @@ fn typed_input_rows_reach_the_workbook_exactly() {
                     _ => panic!("{here}: the cell does not match the input"),
                 }
             }
+        }
+    }
+}
+
+/// Every jnt section capture records the Excel environment with its user culture and separators: the
+/// corpus harness builds the locale profile from them, and without a profile number text such as
+/// "50%" or "(2)" given to a number argument is refused as not modelled (189 rows of the workbook).
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn section_captures_record_the_locale_of_their_excel() {
+    for (name, capture) in CAPTURES {
+        assert!(!capture.contains("\"environment\": null"), "{name} has no environment");
+        for setting in ["user_culture\": \"en-ZA", "decimal_separator\": \".", "thousands_separator\": \" ", "calculation_clock"] {
+            assert!(capture.contains(setting), "{name} lacks the setting {setting}");
         }
     }
 }
