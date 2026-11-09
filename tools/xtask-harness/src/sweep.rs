@@ -5,6 +5,7 @@
 //! The steps, by the name `--skip` takes:
 //! - `architecture`: four checks (`arch::run_all`): dependencies, os-imports,
 //!   wasm-refusal and tree-reference-tokens;
+//! - `name-tables`: flag separate worksheet-function name tables in shipped Rust sources;
 //! - `provenance`: the whole provenance scan (`licence::check`): every file under calc-func and
 //!   calc-value has a licence-ledger entry, and no marker of a removed source reappears;
 //! - `ceiling`: the dependency ceiling on the host and wasm32: the resolved closures (normal and
@@ -38,10 +39,11 @@ use std::path::Path;
 use std::process::{Command, ExitCode};
 use std::time::Instant;
 
-pub const USAGE: &str = "usage: cargo xtask sweep [--skip architecture|provenance|ceiling|wasm|app-smoke|acceptance|release]...";
+pub const USAGE: &str = "usage: cargo xtask sweep [--skip architecture|name-tables|provenance|ceiling|wasm|app-smoke|acceptance|release]...";
 
-const STEPS: [&str; 7] = [
+const STEPS: [&str; 8] = [
     "architecture",
+    "name-tables",
     "provenance",
     "ceiling",
     "wasm",
@@ -446,6 +448,7 @@ pub fn run(raw: &[String]) -> ExitCode {
                 }
                 (passed, lines.join(", "))
             }
+            "name-tables" => crate::name_tables::check(&ws.root),
             "provenance" => {
                 let result = licence::check(&ws.root);
                 for finding in &result.findings {

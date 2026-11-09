@@ -79,6 +79,14 @@ pub(crate) fn calculate(state: &PivotState, tick: CalcTick) -> PivotResults {
             out.cells.insert(table.area.first(), (CalcValue::error(WorksheetErrorCode::Spill), calculation));
             continue;
         }
+        if table.row_fields.is_empty()
+            && table.column_fields.is_empty()
+            && table.page_fields.is_empty()
+            && table.data_fields.is_empty()
+        {
+            // The empty pivot: Excel's placeholder frame holds no value (m7-names stub-*).
+            continue;
+        }
         match layout(table, cache) {
             Ok(layout) if layout.table.area == table.area => {
                 let calculation = Calculation::new(

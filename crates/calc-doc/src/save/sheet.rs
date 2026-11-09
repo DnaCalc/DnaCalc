@@ -869,9 +869,17 @@ impl<'j> Rewrite<'_, 'j> {
             Some((cache_kind, _, _)) => *cache_kind,
             None => kind,
         };
+        // A constant that holds a newer error (a pivot's corner when the pivot took one cell) is written as
+        // Excel writes it: `#VALUE!` with the value metadata of the error.
+        let rich_error = match input {
+            CellInput::Error(code) if !crate::edit::error_constant_writable(*code) => super::array_metadata::rich_error_type(*code)
+                .and_then(|kind| self.job.error_vm.get(&kind).copied()),
+            _ => None,
+        };
         let vm = cache
             .as_ref()
-            .and_then(|(_, _, vm)| vm.map(|vm| vm.to_string()));
+            .and_then(|(_, _, vm)| vm.map(|vm| vm.to_string()))
+            .or_else(|| rich_error.map(|vm| vm.to_string()));
         let form = match input {
             CellInput::Formula(_) => Some(
                 self.job
@@ -987,6 +995,7 @@ impl<'j> Rewrite<'_, 'j> {
                         .to_string()
                 }
                 CellInput::Logical(value) => u8::from(*value).to_string(),
+                CellInput::Error(_) if rich_error.is_some() => "#VALUE!".to_owned(),
                 CellInput::Error(code) => ERRORS
                     .iter()
                     .find(|(_, known)| known == code)

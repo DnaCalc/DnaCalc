@@ -800,11 +800,8 @@ fn edit_table_columns(edit: AxisEdit, before: GridArea, table: &mut crate::defin
             }
             let at = (edit.first() - left) as usize;
             for k in 0..edit.count() as usize {
-                // Excel names a new table column `Column<n>`, the first n not used.
-                let name = (1usize..)
-                    .map(|n| format!("Column{n}"))
-                    .find(|name| !table.columns.iter().any(|c| c.eq_ignore_ascii_case(name)))
-                    .expect("a free column name");
+                // Excel names a new table column after the column on its left (measured, m7-names).
+                let name = crate::table_names::added_column_name(&table.columns, at + k);
                 table.columns.insert(at + k, name.clone());
                 fn pad<T: Default>(list: &mut Vec<T>, at: usize) {
                     if at <= list.len() {

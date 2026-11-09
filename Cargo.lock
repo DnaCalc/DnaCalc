@@ -3382,6 +3382,7 @@ dependencies = [
 name = "xtask-harness"
 version = "0.1.0"
 dependencies = [
+ "calc-catalogue",
  "calc-doc",
  "calc-engine",
  "calc-fml",
@@ -3396,6 +3397,7 @@ dependencies = [
  "dna-strand",
  "miniz_oxide",
  "serde_json",
+ "syn 3.0.9",
  "tungstenite",
  "windows-sys 0.61.2",
  "xtask",

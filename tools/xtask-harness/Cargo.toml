@@ -17,6 +17,7 @@ portability = "native-only"
 # (NotModeled's CompileError, EvalFault and FunctionFault, and the catalogue that spells a
 # FunctionId).
 [dependencies]
+calc-catalogue = { path = "../../crates/calc-catalogue" }
 calc-engine = { path = "../../crates/calc-engine" }
 # calc-doc reads the parts of an oracle workbook and of the package Excel saved, stored or
 # deflated, for the section captures (`oracle_cases.rs`).
@@ -32,6 +33,7 @@ dna-strand = { path = "../../apps/dna-strand" }
 # the DEFLATE decoder calc-doc already uses (dc-ymjf.2).
 miniz_oxide = "=0.8.9"
 serde_json = "1"
+syn = { version = "3", default-features = false, features = ["full", "parsing", "visit"] }
 
 # calc-oracle-excel is the one Excel capture adapter `cargo xtask capture` runs. It is native-only
 # and refuses wasm32 itself, so it is left out of a wasm32 build of xtask (and so is the capture

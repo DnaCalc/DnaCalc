@@ -17,6 +17,9 @@
 //! - constants: numbers, text, logicals and error values, one per cell;
 //! - optionally one custom XML item of the application's own namespace for what the format has
 //!   no place for (the application's options, its add-in list), kept opaque;
+//! - optionally a look ([`SessionLook`], dc-0f1k.20): the cell format of the formula's cell and the
+//!   cells its result fills, and conditional formats over the same cells, as ordinary Excel
+//!   formats (`xf`, `cfRule` and `dxf`);
 //! - optionally a VBA project ([`SessionVba`]): the file is then an .xlsm. The project part is an
 //!   opaque blob here (theory 5a): CalcVBA reads what is inside it, and a save puts it back as the
 //!   session holds it, with its relationship, its content type and the document code names its
@@ -24,11 +27,14 @@
 //!
 //! A workbook outside that is refused with a typed [`SessionRefusal`] before anything is read
 //! into a session: more sheets, formulas or array areas than the content allows, defined names,
-//! tables, charts, pivot tables, validations, conditional formats or merged cells.
-//! Nothing is dropped silently except what carries no calculation: styles, the document's
-//! properties and a cached result (a reopen calculates the formula again, so a file's cached result
+//! tables, charts, pivot tables, validations, conditional formats over other ranges than the
+//! result's or ones a session cannot hold, or merged cells.
+//! Nothing is dropped silently except what carries no calculation: styles other than the formula
+//! cell's, the document's properties and a cached result (a reopen calculates the formula again, so a file's cached result
 //! is never read as a value).
 
+use crate::session_look::{look_operations, read_dxf, read_format};
+pub use crate::session_look::{SessionDxf, SessionFormat, SessionLook, SessionRule};
 use crate::{
     CustomXmlItem, LoadedWorkbook, MemorySource, OpenPolicy, PackageRead, SavePolicy,
     load, open, prepare_edit, prepare_save, write,
@@ -117,6 +123,9 @@ pub struct SessionFile {
     pub cached: Option<SessionValue>,
     /// The workbook's VBA project, when it carries one (an .xlsm).
     pub vba: Option<SessionVba>,
+    /// The cell format and conditional formats over the formula's cell and the cells its result
+    /// spills into, as ordinary Excel formats (dc-0f1k.20).
+    pub look: Option<SessionLook>,
 }
 
 /// A session's VBA project: the `vbaProject.bin` part as bytes, and the code names that bind the
@@ -222,9 +231,6 @@ pub fn read_session(bytes: Vec<u8>, namespace: &str) -> Result<SessionFile, Sess
         if !loaded_sheet.validations().is_empty() {
             return Err(SessionRefusal::Content { what: "data validation" });
         }
-        if !loaded_sheet.conditional_formats().is_empty() {
-            return Err(SessionRefusal::Content { what: "conditional formats" });
-        }
         if !loaded_sheet.charts().charts.is_empty() || loaded_sheet.charts().unread > 0 {
             return Err(SessionRefusal::Content { what: "charts" });
         }
@@ -304,6 +310,7 @@ pub fn read_session(bytes: Vec<u8>, namespace: &str) -> Result<SessionFile, Sess
                 .is_ok_and(|cell| area.contains(cell))
         })
     });
+    let look = read_look(&loaded, sheet, formula.as_ref(), &constants)?;
     let custom = match loaded.custom_xml(namespace).map_err(unreadable)?.into_iter().next() {
         Some((_, content)) => Some(CustomXmlItem {
             namespace: namespace.to_owned(),
@@ -319,7 +326,97 @@ pub fn read_session(bytes: Vec<u8>, namespace: &str) -> Result<SessionFile, Sess
         date_1904: loaded.date_system() == crate::DateSystem::Date1904,
         cached: None,
         vba,
+        look,
     })
+}
+
+/// The look a session file holds: the formula cell's own format and the conditional formats, which
+/// must all cover one range (the cells of the formula's result).
+fn read_look(
+    loaded: &LoadedWorkbook,
+    sheet: SheetId,
+    formula: Option<&SessionFormula>,
+    constants: &[SessionConstant],
+) -> Result<Option<SessionLook>, SessionRefusal> {
+    let styles = loaded.model().definitions().styles().clone();
+    let Some(loaded_sheet) = loaded.sheet(sheet) else {
+        return Ok(None);
+    };
+    let mut look = SessionLook::default();
+    let mut area: Option<(u32, u32, u32, u32)> = None;
+    for block in loaded_sheet.conditional_formats() {
+        if block.unread_container {
+            return Err(SessionRefusal::Content { what: "conditional formats with extensions" });
+        }
+        let [one] = block.areas.as_slice() else {
+            return Err(SessionRefusal::Content { what: "conditional formats over several ranges" });
+        };
+        if *area.get_or_insert(*one) != *one {
+            return Err(SessionRefusal::Content { what: "conditional formats over different ranges" });
+        }
+        for rule in &block.rules {
+            // A data bar Excel 2010 or later saved names its extension (`x14:id`), which the loader
+            // counts as unread; the extension's lengths and gradient are applied to the bar.
+            let extension_only = rule.kind == "dataBar" && rule.extension_id.is_some() && rule.data_bar.is_some();
+            if rule.unread && !extension_only {
+                return Err(SessionRefusal::Content { what: "conditional formats this version does not read" });
+            }
+            let dxf = match rule.dxf {
+                Some(index) => {
+                    let Some(d) = styles.differential_formats.get(index as usize) else {
+                        return Err(SessionRefusal::Content { what: "a conditional format with a missing differential format" });
+                    };
+                    if d.border.is_some() || d.alignment.is_some() || d.protection.is_some() {
+                        return Err(SessionRefusal::Content { what: "conditional formats with borders or alignment" });
+                    }
+                    read_dxf(&styles, index)
+                }
+                None => None,
+            };
+            let mut rule = rule.clone();
+            rule.dxf = None;
+            look.rules.push(SessionRule { rule, dxf });
+        }
+    }
+    look.rules.sort_by_key(|r| r.rule.priority);
+    if let Some((top, left, bottom, right)) = area {
+        (look.row, look.column, look.rows, look.columns) = (top, left, bottom - top + 1, right - left + 1);
+    }
+    // The format is the formula cell's own; a session without a formula keeps it on the first
+    // formatted cell.
+    let anchor = match formula {
+        Some(formula) => Some((formula.row, formula.column)),
+        // (a constant's cell format is not a look: the application's own cell is a blank one)
+        None => loaded_sheet
+            .styled_cells()
+            .map(|(r, c, _)| (r, c))
+            .filter(|&(r, c)| !constants.iter().any(|k| (k.row, k.column) == (r, c)))
+            .min(),
+    };
+    if let Some((row, column)) = anchor {
+        let style = loaded_sheet
+            .explicit_styles()
+            .find(|&(r, c, _)| (r, c) == (row, column))
+            .map(|(_, _, s)| s)
+            .unwrap_or_else(|| loaded_sheet.default_style(row, column));
+        look.format = read_format(&styles, style);
+        if look.format.is_some() && area.is_none() {
+            // The cells the format covers: the anchor's own and the cells below and right of it that
+            // carry the same format (a result that spilled).
+            let (mut rows, mut columns) = (1u32, 1u32);
+            let same = |r: u32, c: u32| {
+                loaded_sheet.explicit_styles().any(|(r2, c2, s)| (r2, c2, s) == (r, c, style))
+            };
+            while same(row + rows, column) {
+                rows += 1;
+            }
+            while same(row, column + columns) {
+                columns += 1;
+            }
+            (look.row, look.column, look.rows, look.columns) = (row, column, rows, columns);
+        }
+    }
+    Ok((look.format.is_some() || !look.rules.is_empty()).then_some(look))
 }
 
 fn read_vba(loaded: &LoadedWorkbook) -> Result<Option<SessionVba>, SessionRefusal> {
@@ -485,6 +582,9 @@ pub fn write_session(session: &SessionFile) -> Result<Vec<u8>, SessionRefusal> {
             cached.insert(at, value);
         }
     }
+    if let Some(look) = &session.look {
+        operations.extend(look_operations(look, model.definitions().styles(), sheet)?);
+    }
     let edited = prepare_edit(
         model,
         &OpBatch {
@@ -512,6 +612,7 @@ pub fn write_session(session: &SessionFile) -> Result<Vec<u8>, SessionRefusal> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::ConditionalRule;
 
     const NAMESPACE: &str = "urn:example:session-options";
 
@@ -545,6 +646,7 @@ mod tests {
             date_1904: false,
             cached: None,
             vba: None,
+            look: None,
         }
     }
 
@@ -637,8 +739,160 @@ mod tests {
             date_1904: false,
             cached: None,
             vba: None,
+            look: None,
         };
         assert_eq!(read_session(write_session(&empty).unwrap(), NAMESPACE).unwrap(), empty);
+    }
+
+    fn rule(kind: &str, priority: i64) -> ConditionalRule {
+        ConditionalRule {
+            unread: false,
+            kind: kind.to_owned(),
+            priority,
+            stop_if_true: false,
+            dxf: None,
+            operator: None,
+            formulas: Vec::new(),
+            text: None,
+            rank: None,
+            percent: false,
+            bottom: false,
+            above_average: true,
+            equal_average: false,
+            std_dev: None,
+            time_period: None,
+            color_scale: None,
+            data_bar: None,
+            icon_set: None,
+            extension_id: None,
+        }
+    }
+
+    fn rgb(hex: &str) -> calc_doc_model::StyleColor {
+        calc_doc_model::StyleColor { rgb: Some(format!("FF{hex}")), ..Default::default() }
+    }
+
+    fn threshold(kind: &str, value: Option<&str>) -> crate::Threshold {
+        crate::Threshold { kind: kind.to_owned(), value: value.map(str::to_owned), gte: true }
+    }
+
+    /// Native-only: reads the package parts it wrote.
+    #[test]
+    fn a_look_is_ordinary_cell_formats_and_conditional_formats_and_survives_the_file() {
+        let mut original = session();
+        let mut cell_is = rule("cellIs", 1);
+        cell_is.operator = Some("greaterThan".to_owned());
+        cell_is.formulas = vec!["10".to_owned()];
+        cell_is.stop_if_true = true;
+        let mut text = rule("containsText", 2);
+        text.operator = Some("containsText".to_owned());
+        text.text = Some("a \"b\" & c".to_owned());
+        text.formulas = vec!["NOT(ISERROR(SEARCH(\"a \"\"b\"\" & c\",H1)))".to_owned()];
+        let mut top = rule("top10", 3);
+        top.rank = Some(3);
+        top.bottom = true;
+        let mut average = rule("aboveAverage", 4);
+        average.above_average = false;
+        average.equal_average = true;
+        let mut scale = rule("colorScale", 5);
+        scale.color_scale = Some(crate::ColorScale {
+            thresholds: vec![threshold("min", None), threshold("percentile", Some("50")), threshold("max", None)],
+            colors: vec![rgb("F8696B"), rgb("FFEB84"), rgb("63BE7B")],
+        });
+        let mut bar = rule("dataBar", 6);
+        bar.data_bar = Some(crate::DataBar {
+            thresholds: vec![threshold("min", None), threshold("max", None)],
+            color: rgb("638EC6"),
+            min_length: 0,
+            max_length: 100,
+            gradient: true,
+            show_value: true,
+        });
+        let mut icons = rule("iconSet", 7);
+        icons.icon_set = Some(crate::IconSet {
+            name: "3Arrows".to_owned(),
+            thresholds: vec![threshold("percent", Some("0")), threshold("percent", Some("33")), threshold("percent", Some("67"))],
+            reverse: true,
+            show_value: true,
+        });
+        let dxf = SessionDxf {
+            fill: Some("#ffc7ce".to_owned()),
+            font_color: Some("#9c0006".to_owned()),
+            bold: true,
+            italic: true,
+            underline: true,
+            strike: true,
+            number_format: Some("0.00\"x\"".to_owned()),
+        };
+        original.look = Some(SessionLook {
+            row: 1,
+            column: 8,
+            rows: 3,
+            columns: 2,
+            format: Some(SessionFormat {
+                font_family: "Consolas".to_owned(),
+                font_size: 14,
+                bold: true,
+                italic: true,
+                underline: true,
+                strike: true,
+                text_color: "#336699".to_owned(),
+                fill: "#ffee99".to_owned(),
+                horizontal: "center".to_owned(),
+                wrap: true,
+                border_top: true,
+                border_bottom: false,
+                border_left: true,
+                border_right: true,
+                border_color: "#112233".to_owned(),
+            }),
+            rules: vec![
+                SessionRule { rule: cell_is, dxf: Some(dxf.clone()) },
+                SessionRule { rule: text, dxf: Some(SessionDxf { bold: true, ..SessionDxf::default() }) },
+                SessionRule { rule: top, dxf: Some(dxf) },
+                SessionRule { rule: average, dxf: None },
+                SessionRule { rule: scale, dxf: None },
+                SessionRule { rule: bar, dxf: None },
+                SessionRule { rule: icons, dxf: None },
+            ],
+        });
+        let bytes = write_session(&original).expect("written");
+        let read = read_session(bytes.clone(), NAMESPACE).expect("read back");
+        assert_eq!(read, original);
+        // Ordinary parts: the formats are cell formats (`s`) on the cells of the area, the rules
+        // are `cfRule` elements over the same range, and no custom XML holds them.
+        let document = crate::open(Arc::new(MemorySource::new(bytes)), &OpenPolicy::default()).expect("opens");
+        let sheet = String::from_utf8(document.package().read_part("xl/worksheets/sheet1.xml").unwrap()).unwrap();
+        assert!(sheet.contains("<conditionalFormatting sqref=\"H1:I3\""), "{sheet}");
+        assert!(sheet.contains("type=\"cellIs\""), "{sheet}");
+        for cell in ["H1", "I1", "H2", "I2", "H3", "I3"] {
+            assert!(sheet.contains(&format!("<c r=\"{cell}\" s=\"1\"")), "{cell}: {sheet}");
+        }
+    }
+
+    #[cfg_attr(not(target_arch = "wasm32"), test)]
+    #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+    fn a_data_bar_without_a_gradient_is_refused_with_its_reason_not_dropped() {
+        let mut original = session();
+        let mut bar = rule("dataBar", 1);
+        bar.data_bar = Some(crate::DataBar {
+            thresholds: vec![threshold("min", None), threshold("max", None)],
+            color: rgb("638EC6"),
+            min_length: 0,
+            max_length: 100,
+            gradient: false,
+            show_value: true,
+        });
+        original.look = Some(SessionLook {
+            row: 1,
+            column: 8,
+            rows: 1,
+            columns: 1,
+            format: None,
+            rules: vec![SessionRule { rule: bar, dxf: None }],
+        });
+        let refusal = write_session(&original).expect_err("refused");
+        assert!(refusal.to_string().contains("gradient"), "{refusal}");
     }
 
     #[cfg_attr(not(target_arch = "wasm32"), test)]

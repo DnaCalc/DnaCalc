@@ -14,13 +14,14 @@
 //! computes, written for this table (dc-96l.5). `OP_IMPLICIT_INTERSECTION` has no Microsoft text;
 //! its description is our own.
 //!
-//! The table is keyed by the function's spelling and held in byte order, so a lookup is a binary
-//! search. A function the table does not describe has no description; the table is help text only
-//! and says nothing about whether calc-func implements a function, which is the catalogue's to say.
+//! Help is keyed by stable function ID. Its spelling view remains in byte order for callers that
+//! receive a name from formula text. A description does not imply that a kernel is held.
 
 /// The help of one named function.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct FunctionHelp {
+    /// Stable identity of the declaration this text describes.
+    pub id: crate::FunctionId,
     /// The function's spelling, upper case, as the catalogue spells it.
     pub spelling: &'static str,
     /// Microsoft's official one-line description (Microsoft's text, copyright Microsoft
@@ -40,6 +41,48 @@ impl FunctionHelp {
     }
 }
 
+// Two published help labels differ from the corresponding declaration's surface spelling.
+const fn help_spelling(id: crate::FunctionId) -> &'static str {
+    if id.raw() == crate::euro_tools::EUROCONVERT.raw() { return crate::file_spelling(id); }
+    if id.raw() == crate::unheld::IMPLICIT_INTERSECTION_ID.raw() { return "OP_IMPLICIT_INTERSECTION"; }
+    match crate::declaration(id) {
+        Some(entry) => entry.spelling(),
+        None => panic!("help names an undeclared function ID"),
+    }
+}
+
+/// The help for a stable declaration ID.
+pub fn help_of_id(id: crate::FunctionId) -> Option<&'static FunctionHelp> {
+    HELP_BY_ID.binary_search_by_key(&id.raw(), |index| HELP[*index].id.raw())
+        .ok().map(|at| &HELP[HELP_BY_ID[at]])
+}
+
+/// The description for a stable declaration ID.
+pub fn description_of_id(id: crate::FunctionId) -> Option<&'static str> {
+    help_of_id(id).map(FunctionHelp::description)
+}
+
+const fn help_index() -> [usize; HELP.len()] {
+    let mut result = [0; HELP.len()];
+    let mut i = 0;
+    while i < result.len() {
+        let mut at = i;
+        while at > 0 && HELP[result[at - 1]].id.raw() > HELP[i].id.raw() {
+            result[at] = result[at - 1];
+            at -= 1;
+        }
+        result[at] = i;
+        i += 1;
+    }
+    i = 1;
+    while i < result.len() {
+        assert!(HELP[result[i - 1]].id.raw() != HELP[result[i]].id.raw());
+        i += 1;
+    }
+    result
+}
+const HELP_BY_ID: [usize; HELP.len()] = help_index();
+
 /// The description of the function spelled `spelling` (upper case, as the catalogue spells it).
 pub fn description_of(spelling: &str) -> Option<&'static str> {
     help_of(spelling).map(|h| h.description())
@@ -56,7 +99,8 @@ pub fn help_of(spelling: &str) -> Option<&'static FunctionHelp> {
 #[doc(hidden)]
 pub const HELP: &[FunctionHelp] = &[
     FunctionHelp {
-        spelling: "ABS",
+        id: crate::FunctionId::from_raw(393217),
+        spelling: help_spelling(crate::FunctionId::from_raw(393217)),
         microsoft: Some("Returns the absolute value of a number"),
         source: Some(
             "https://support.microsoft.com/en-us/office/abs-function-3420200f-5628-4e8c-99da-c99d7c87713c",
@@ -64,7 +108,8 @@ pub const HELP: &[FunctionHelp] = &[
         own: "Absolute value: the number without its sign, its distance from zero",
     },
     FunctionHelp {
-        spelling: "ACCRINT",
+        id: crate::FunctionId::from_raw(19726344),
+        spelling: help_spelling(crate::FunctionId::from_raw(19726344)),
         microsoft: Some("Returns the accrued interest for a security that pays periodic interest"),
         source: Some(
             "https://support.microsoft.com/en-us/office/accrint-function-fe45d089-6722-4fb3-9379-e1f911d8dc74",
@@ -72,7 +117,8 @@ pub const HELP: &[FunctionHelp] = &[
         own: "Interest accrued on a security with periodic coupons, from issue to settlement",
     },
     FunctionHelp {
-        spelling: "ACCRINTM",
+        id: crate::FunctionId::from_raw(19726345),
+        spelling: help_spelling(crate::FunctionId::from_raw(19726345)),
         microsoft: Some(
             "Returns the accrued interest for a security that pays interest at maturity",
         ),
@@ -82,7 +128,8 @@ pub const HELP: &[FunctionHelp] = &[
         own: "Interest accrued on a security that pays all its interest when it matures",
     },
     FunctionHelp {
-        spelling: "ACOS",
+        id: crate::FunctionId::from_raw(6553601),
+        spelling: help_spelling(crate::FunctionId::from_raw(6553601)),
         microsoft: Some("Returns the arccosine of a number"),
         source: Some(
             "https://support.microsoft.com/en-us/office/acos-function-cb73173f-d089-4582-afa1-76e5524b5d5b",
@@ -90,7 +137,8 @@ pub const HELP: &[FunctionHelp] = &[
         own: "Angle in radians, from 0 to pi, whose cosine is the given number",
     },
     FunctionHelp {
-        spelling: "ACOSH",
+        id: crate::FunctionId::from_raw(6553602),
+        spelling: help_spelling(crate::FunctionId::from_raw(6553602)),
         microsoft: Some("Returns the inverse hyperbolic cosine of a number"),
         source: Some(
             "https://support.microsoft.com/en-us/office/acosh-function-e3992cc1-103f-4e72-9f04-624b9ef5ebfe",
@@ -98,7 +146,8 @@ pub const HELP: &[FunctionHelp] = &[
         own: "Inverse of the hyperbolic cosine",
     },
     FunctionHelp {
-        spelling: "ACOT",
+        id: crate::FunctionId::from_raw(6553603),
+        spelling: help_spelling(crate::FunctionId::from_raw(6553603)),
         microsoft: Some("Returns the arccotangent of a number"),
         source: Some(
             "https://support.microsoft.com/en-us/office/acot-function-dc7e5008-fe6b-402e-bdd6-2eea8383d905",
@@ -106,7 +155,8 @@ pub const HELP: &[FunctionHelp] = &[
         own: "Angle in radians, from 0 to pi, whose cotangent is the given number",
     },
     FunctionHelp {
-        spelling: "ACOTH",
+        id: crate::FunctionId::from_raw(6553604),
+        spelling: help_spelling(crate::FunctionId::from_raw(6553604)),
         microsoft: Some("Returns the hyperbolic arccotangent of a number"),
         source: Some(
             "https://support.microsoft.com/en-us/office/acoth-function-cc49480f-f684-4171-9fc5-73e4e852300f",
@@ -114,7 +164,8 @@ pub const HELP: &[FunctionHelp] = &[
         own: "Inverse of the hyperbolic cotangent",
     },
     FunctionHelp {
-        spelling: "ADDRESS",
+        id: crate::FunctionId::from_raw(13369350),
+        spelling: help_spelling(crate::FunctionId::from_raw(13369350)),
         microsoft: Some("Returns a reference as text to a single cell in a worksheet"),
         source: Some(
             "https://support.microsoft.com/en-us/office/address-function-d0c26c0d-3991-446b-8de4-ab46431d4f89",
@@ -122,7 +173,8 @@ pub const HELP: &[FunctionHelp] = &[
         own: "Text of a cell reference built from a row and a column number",
     },
     FunctionHelp {
-        spelling: "AGGREGATE",
+        id: crate::FunctionId::from_raw(6684674),
+        spelling: help_spelling(crate::FunctionId::from_raw(6684674)),
         microsoft: Some("Returns an aggregate in a list or database"),
         source: Some(
             "https://support.microsoft.com/en-us/office/aggregate-function-43b9278e-6aa7-4f17-92b6-e19993fa26df",
@@ -130,7 +182,8 @@ pub const HELP: &[FunctionHelp] = &[
         own: "One of nineteen summaries (sum, average, percentile and more) of a range, optionally skipping errors, hidden rows and nested subtotals",
     },
     FunctionHelp {
-        spelling: "AMORDEGRC",
+        id: crate::FunctionId::from_raw(19660827),
+        spelling: help_spelling(crate::FunctionId::from_raw(19660827)),
         microsoft: Some(
             "Returns the depreciation for each accounting period by using a depreciation coefficient",
         ),
@@ -140,7 +193,8 @@ pub const HELP: &[FunctionHelp] = &[
         own: "French accounting depreciation for one period, with a coefficient that depends on the asset's life",
     },
     FunctionHelp {
-        spelling: "AMORLINC",
+        id: crate::FunctionId::from_raw(19660826),
+        spelling: help_spelling(crate::FunctionId::from_raw(19660826)),
         microsoft: Some("Returns the depreciation for each accounting period"),
         source: Some(
             "https://support.microsoft.com/en-us/office/amorlinc-function-7d417b45-f7f5-4dba-a0a5-3451a81079a8",
@@ -148,7 +202,8 @@ pub const HELP: &[FunctionHelp] = &[
         own: "French accounting straight-line depreciation for one period, prorated in the first period",
     },
     FunctionHelp {
-        spelling: "AND",
+        id: crate::FunctionId::from_raw(327682),
+        spelling: help_spelling(crate::FunctionId::from_raw(327682)),
         microsoft: Some("Returns TRUE if all of its arguments are TRUE"),
         source: Some(
             "https://support.microsoft.com/en-us/office/and-function-5f19b2e8-e1df-4408-897a-ce285a19e9d9",
@@ -156,7 +211,8 @@ pub const HELP: &[FunctionHelp] = &[
         own: "TRUE only when every argument is TRUE",
     },
     FunctionHelp {
-        spelling: "ARABIC",
+        id: crate::FunctionId::from_raw(6553641),
+        spelling: help_spelling(crate::FunctionId::from_raw(6553641)),
         microsoft: Some("Converts a Roman number to Arabic, as a number"),
         source: Some(
             "https://support.microsoft.com/en-us/office/arabic-function-9a8da418-c17b-4ef9-a657-9370a30a674f",
@@ -164,7 +220,8 @@ pub const HELP: &[FunctionHelp] = &[
         own: "Number written by a Roman numeral",
     },
     FunctionHelp {
-        spelling: "AREAS",
+        id: crate::FunctionId::from_raw(589837),
+        spelling: help_spelling(crate::FunctionId::from_raw(589837)),
         microsoft: Some("Returns the number of areas in a reference"),
         source: Some(
             "https://support.microsoft.com/en-us/office/areas-function-8392ba32-7a41-43b3-96b0-3695d2ec6152",
@@ -172,7 +229,8 @@ pub const HELP: &[FunctionHelp] = &[
         own: "How many separate areas a reference covers",
     },
     FunctionHelp {
-        spelling: "ARRAYTOTEXT",
+        id: crate::FunctionId::from_raw(13238279),
+        spelling: help_spelling(crate::FunctionId::from_raw(13238279)),
         microsoft: Some("Returns an array of text values from any specified range"),
         source: Some(
             "https://support.microsoft.com/en-us/office/arraytotext-function-9cdcad46-2fa5-4c6b-ac92-14e7bc862b8b",
@@ -180,7 +238,8 @@ pub const HELP: &[FunctionHelp] = &[
         own: "One text holding all the values of an array or range",
     },
     FunctionHelp {
-        spelling: "ASC",
+        id: crate::FunctionId::from_raw(13238281),
+        spelling: help_spelling(crate::FunctionId::from_raw(13238281)),
         microsoft: Some(
             "Changes full-width (double-byte) English letters or katakana within a character string to half-width (single-byte) characters",
         ),
@@ -190,7 +249,8 @@ pub const HELP: &[FunctionHelp] = &[
         own: "Text with full-width (double-byte) characters turned into their half-width forms",
     },
     FunctionHelp {
-        spelling: "ASIN",
+        id: crate::FunctionId::from_raw(6553605),
+        spelling: help_spelling(crate::FunctionId::from_raw(6553605)),
         microsoft: Some("Returns the arcsine of a number"),
         source: Some(
             "https://support.microsoft.com/en-us/office/asin-function-81fb95e5-6d6f-48c4-bc45-58f955c6d347",
@@ -198,7 +258,8 @@ pub const HELP: &[FunctionHelp] = &[
         own: "Angle in radians, from -pi/2 to pi/2, whose sine is the given number",
     },
     FunctionHelp {
-        spelling: "ASINH",
+        id: crate::FunctionId::from_raw(6553606),
+        spelling: help_spelling(crate::FunctionId::from_raw(6553606)),
         microsoft: Some("Returns the inverse hyperbolic sine of a number"),
         source: Some(
             "https://support.microsoft.com/en-us/office/asinh-function-4e00475a-067a-43cf-926a-765b0249717c",
@@ -206,7 +267,8 @@ pub const HELP: &[FunctionHelp] = &[
         own: "Inverse of the hyperbolic sine",
     },
     FunctionHelp {
-        spelling: "ATAN",
+        id: crate::FunctionId::from_raw(6553607),
+        spelling: help_spelling(crate::FunctionId::from_raw(6553607)),
         microsoft: Some("Returns the arctangent of a number"),
         source: Some(
             "https://support.microsoft.com/en-us/office/atan-function-50746fa8-630a-406b-81d0-4a2aed395543",
@@ -214,7 +276,8 @@ pub const HELP: &[FunctionHelp] = &[
         own: "Angle in radians, between -pi/2 and pi/2, whose tangent is the given number",
     },
     FunctionHelp {
-        spelling: "ATAN2",
+        id: crate::FunctionId::from_raw(6553608),
+        spelling: help_spelling(crate::FunctionId::from_raw(6553608)),
         microsoft: Some("Returns the arctangent from x- and y-coordinates"),
         source: Some(
             "https://support.microsoft.com/en-us/office/atan2-function-c04592ab-b9e3-4908-b428-c96b3a565033",
@@ -222,7 +285,8 @@ pub const HELP: &[FunctionHelp] = &[
         own: "Angle in radians from the positive x-axis to the point (x, y), between -pi and pi",
     },
     FunctionHelp {
-        spelling: "ATANH",
+        id: crate::FunctionId::from_raw(6553609),
+        spelling: help_spelling(crate::FunctionId::from_raw(6553609)),
         microsoft: Some("Returns the inverse hyperbolic tangent of a number"),
         source: Some(
             "https://support.microsoft.com/en-us/office/atanh-function-3cd65768-0de7-4f1d-b312-d01c8c930d90",
@@ -230,7 +294,8 @@ pub const HELP: &[FunctionHelp] = &[
         own: "Inverse of the hyperbolic tangent",
     },
     FunctionHelp {
-        spelling: "AVEDEV",
+        id: crate::FunctionId::from_raw(6750209),
+        spelling: help_spelling(crate::FunctionId::from_raw(6750209)),
         microsoft: Some(
             "Returns the average of the absolute deviations of data points from their mean",
         ),
@@ -240,7 +305,8 @@ pub const HELP: &[FunctionHelp] = &[
         own: "Mean of the absolute distances of the values from their mean",
     },
     FunctionHelp {
-        spelling: "AVERAGE",
+        id: crate::FunctionId::from_raw(262152),
+        spelling: help_spelling(crate::FunctionId::from_raw(262152)),
         microsoft: Some("Returns the average of its arguments"),
         source: Some(
             "https://support.microsoft.com/en-us/office/average-function-047bac88-d466-426c-a32b-8f33eb960cf6",
@@ -248,7 +314,8 @@ pub const HELP: &[FunctionHelp] = &[
         own: "Arithmetic mean of the numbers given",
     },
     FunctionHelp {
-        spelling: "AVERAGEA",
+        id: crate::FunctionId::from_raw(262153),
+        spelling: help_spelling(crate::FunctionId::from_raw(262153)),
         microsoft: Some(
             "Returns the average of its arguments, including numbers, text, and logical values",
         ),
@@ -258,7 +325,8 @@ pub const HELP: &[FunctionHelp] = &[
         own: "Arithmetic mean that also counts text as 0 and logical values as 1 or 0",
     },
     FunctionHelp {
-        spelling: "AVERAGEIF",
+        id: crate::FunctionId::from_raw(458757),
+        spelling: help_spelling(crate::FunctionId::from_raw(458757)),
         microsoft: Some(
             "Returns the average (arithmetic mean) of all the cells in a range that meet a given criteria",
         ),
@@ -268,7 +336,8 @@ pub const HELP: &[FunctionHelp] = &[
         own: "Mean of the cells that meet one condition",
     },
     FunctionHelp {
-        spelling: "AVERAGEIFS",
+        id: crate::FunctionId::from_raw(458758),
+        spelling: help_spelling(crate::FunctionId::from_raw(458758)),
         microsoft: Some(
             "Returns the average (arithmetic mean) of all cells that meet multiple criteria",
         ),
@@ -278,7 +347,8 @@ pub const HELP: &[FunctionHelp] = &[
         own: "Mean of the cells that meet every one of several conditions",
     },
     FunctionHelp {
-        spelling: "BAHTTEXT",
+        id: crate::FunctionId::from_raw(13238280),
+        spelling: help_spelling(crate::FunctionId::from_raw(13238280)),
         microsoft: Some("Converts a number to text, using the ? (baht) currency format"),
         source: Some(
             "https://support.microsoft.com/en-us/office/bahttext-function-5ba4d0b4-abd3-4325-8d22-7a92d59aab9c",
@@ -286,7 +356,8 @@ pub const HELP: &[FunctionHelp] = &[
         own: "A number spelled out in Thai words as an amount in baht",
     },
     FunctionHelp {
-        spelling: "BASE",
+        id: crate::FunctionId::from_raw(6553643),
+        spelling: help_spelling(crate::FunctionId::from_raw(6553643)),
         microsoft: Some("Converts a number into a text representation with the given radix (base)"),
         source: Some(
             "https://support.microsoft.com/en-us/office/base-function-2ef61411-aee9-4f29-a811-1c42456c6342",
@@ -294,7 +365,8 @@ pub const HELP: &[FunctionHelp] = &[
         own: "A number written as text in another base (radix 2 to 36)",
     },
     FunctionHelp {
-        spelling: "BESSELI",
+        id: crate::FunctionId::from_raw(6881340),
+        spelling: help_spelling(crate::FunctionId::from_raw(6881340)),
         microsoft: Some("Returns the modified Bessel function In(x)"),
         source: Some(
             "https://support.microsoft.com/en-us/office/besseli-function-8d33855c-9a8d-444b-98e0-852267b1c0df",
@@ -302,7 +374,8 @@ pub const HELP: &[FunctionHelp] = &[
         own: "Modified Bessel function of the first kind, I_n(x)",
     },
     FunctionHelp {
-        spelling: "BESSELJ",
+        id: crate::FunctionId::from_raw(6881341),
+        spelling: help_spelling(crate::FunctionId::from_raw(6881341)),
         microsoft: Some("Returns the Bessel function Jn(x)"),
         source: Some(
             "https://support.microsoft.com/en-us/office/besselj-function-839cb181-48de-408b-9d80-bd02982d94f7",
@@ -310,7 +383,8 @@ pub const HELP: &[FunctionHelp] = &[
         own: "Bessel function of the first kind, J_n(x)",
     },
     FunctionHelp {
-        spelling: "BESSELK",
+        id: crate::FunctionId::from_raw(6881342),
+        spelling: help_spelling(crate::FunctionId::from_raw(6881342)),
         microsoft: Some("Returns the modified Bessel function Kn(x)"),
         source: Some(
             "https://support.microsoft.com/en-us/office/besselk-function-606d11bc-06d3-4d53-9ecb-2803e2b90b70",
@@ -318,7 +392,8 @@ pub const HELP: &[FunctionHelp] = &[
         own: "Modified Bessel function of the second kind, K_n(x)",
     },
     FunctionHelp {
-        spelling: "BESSELY",
+        id: crate::FunctionId::from_raw(6881343),
+        spelling: help_spelling(crate::FunctionId::from_raw(6881343)),
         microsoft: Some("Returns the Bessel function Yn(x)"),
         source: Some(
             "https://support.microsoft.com/en-us/office/bessely-function-f3a356b3-da89-42c3-8974-2da54d6353a2",
@@ -326,7 +401,8 @@ pub const HELP: &[FunctionHelp] = &[
         own: "Bessel function of the second kind, Y_n(x)",
     },
     FunctionHelp {
-        spelling: "BETA.DIST",
+        id: crate::FunctionId::from_raw(6815794),
+        spelling: help_spelling(crate::FunctionId::from_raw(6815794)),
         microsoft: Some("Returns the beta cumulative distribution function"),
         source: Some(
             "https://support.microsoft.com/en-us/office/beta-dist-function-11188c9c-780a-42c7-ba43-9ecb5a878d31",
@@ -334,7 +410,8 @@ pub const HELP: &[FunctionHelp] = &[
         own: "Beta distribution: the density or the cumulative probability, on an optional interval",
     },
     FunctionHelp {
-        spelling: "BETA.INV",
+        id: crate::FunctionId::from_raw(6815796),
+        spelling: help_spelling(crate::FunctionId::from_raw(6815796)),
         microsoft: Some(
             "Returns the inverse of the cumulative distribution function for a specified beta distribution",
         ),
@@ -344,7 +421,8 @@ pub const HELP: &[FunctionHelp] = &[
         own: "The value at which the cumulative beta distribution reaches a given probability",
     },
     FunctionHelp {
-        spelling: "BETADIST",
+        id: crate::FunctionId::from_raw(6815795),
+        spelling: help_spelling(crate::FunctionId::from_raw(6815795)),
         microsoft: Some("Returns the beta cumulative distribution function"),
         source: Some(
             "https://support.microsoft.com/en-us/office/betadist-function-49f1b9a9-a5da-470f-8077-5f1730b5fd47",
@@ -352,7 +430,8 @@ pub const HELP: &[FunctionHelp] = &[
         own: "Cumulative beta probability (the older form of BETA.DIST)",
     },
     FunctionHelp {
-        spelling: "BETAINV",
+        id: crate::FunctionId::from_raw(6815797),
+        spelling: help_spelling(crate::FunctionId::from_raw(6815797)),
         microsoft: Some(
             "Returns the inverse of the cumulative distribution function for a specified beta distribution",
         ),
@@ -362,7 +441,8 @@ pub const HELP: &[FunctionHelp] = &[
         own: "Inverse of the cumulative beta distribution (the older form of BETA.INV)",
     },
     FunctionHelp {
-        spelling: "BIN2DEC",
+        id: crate::FunctionId::from_raw(6881281),
+        spelling: help_spelling(crate::FunctionId::from_raw(6881281)),
         microsoft: Some("Converts a binary number to decimal"),
         source: Some(
             "https://support.microsoft.com/en-us/office/bin2dec-function-63905b57-b3a0-453d-99f4-647bb519cd6c",
@@ -370,7 +450,8 @@ pub const HELP: &[FunctionHelp] = &[
         own: "Decimal value of a binary number given as text",
     },
     FunctionHelp {
-        spelling: "BIN2HEX",
+        id: crate::FunctionId::from_raw(6881282),
+        spelling: help_spelling(crate::FunctionId::from_raw(6881282)),
         microsoft: Some("Converts a binary number to hexadecimal"),
         source: Some(
             "https://support.microsoft.com/en-us/office/bin2hex-function-0375e507-f5e5-4077-9af8-28d84f9f41cc",
@@ -378,7 +459,8 @@ pub const HELP: &[FunctionHelp] = &[
         own: "Binary number rewritten in hexadecimal",
     },
     FunctionHelp {
-        spelling: "BIN2OCT",
+        id: crate::FunctionId::from_raw(6881283),
+        spelling: help_spelling(crate::FunctionId::from_raw(6881283)),
         microsoft: Some("Converts a binary number to octal"),
         source: Some(
             "https://support.microsoft.com/en-us/office/bin2oct-function-0a4e01ba-ac8d-4158-9b29-16c25c4c23fd",
@@ -386,7 +468,8 @@ pub const HELP: &[FunctionHelp] = &[
         own: "Binary number rewritten in octal",
     },
     FunctionHelp {
-        spelling: "BINOM.DIST",
+        id: crate::FunctionId::from_raw(6815814),
+        spelling: help_spelling(crate::FunctionId::from_raw(6815814)),
         microsoft: Some("Returns the individual term binomial distribution probability"),
         source: Some(
             "https://support.microsoft.com/en-us/office/binom-dist-function-c5ae37b6-f39c-4be2-94c2-509a1480770c",
@@ -394,7 +477,8 @@ pub const HELP: &[FunctionHelp] = &[
         own: "Binomial distribution: the chance of a number of successes in a number of trials, as a single value or cumulative",
     },
     FunctionHelp {
-        spelling: "BINOM.DIST.RANGE",
+        id: crate::FunctionId::from_raw(6815816),
+        spelling: help_spelling(crate::FunctionId::from_raw(6815816)),
         microsoft: Some("Returns the probability of a trial result using a binomial distribution"),
         source: Some(
             "https://support.microsoft.com/en-us/office/binom-dist-range-function-17331329-74c7-4053-bb4c-6653a7421595",
@@ -402,7 +486,8 @@ pub const HELP: &[FunctionHelp] = &[
         own: "Chance that the number of binomial successes falls between two bounds",
     },
     FunctionHelp {
-        spelling: "BINOM.INV",
+        id: crate::FunctionId::from_raw(6815817),
+        spelling: help_spelling(crate::FunctionId::from_raw(6815817)),
         microsoft: Some(
             "Returns the smallest value for which the cumulative binomial distribution is less than or equal to a criterion value",
         ),
@@ -412,7 +497,8 @@ pub const HELP: &[FunctionHelp] = &[
         own: "Fewest successes whose cumulative binomial probability reaches a target",
     },
     FunctionHelp {
-        spelling: "BINOMDIST",
+        id: crate::FunctionId::from_raw(6815815),
+        spelling: help_spelling(crate::FunctionId::from_raw(6815815)),
         microsoft: Some("Returns the individual term binomial distribution probability"),
         source: Some(
             "https://support.microsoft.com/en-us/office/binomdist-function-506a663e-c4ca-428d-b9a8-05583d68789c",
@@ -420,7 +506,8 @@ pub const HELP: &[FunctionHelp] = &[
         own: "Binomial probability (the older form of BINOM.DIST)",
     },
     FunctionHelp {
-        spelling: "BITAND",
+        id: crate::FunctionId::from_raw(6881300),
+        spelling: help_spelling(crate::FunctionId::from_raw(6881300)),
         microsoft: Some("Returns a 'Bitwise And' of two numbers"),
         source: Some(
             "https://support.microsoft.com/en-us/office/bitand-function-8a2be3d7-91c3-4b48-9517-64548008563a",
@@ -428,7 +515,8 @@ pub const HELP: &[FunctionHelp] = &[
         own: "Bits set in both of two whole numbers",
     },
     FunctionHelp {
-        spelling: "BITLSHIFT",
+        id: crate::FunctionId::from_raw(6881303),
+        spelling: help_spelling(crate::FunctionId::from_raw(6881303)),
         microsoft: Some("Returns a value number shifted left by shift_amount bits"),
         source: Some(
             "https://support.microsoft.com/en-us/office/bitlshift-function-c55bb27e-cacd-4c7c-b258-d80861a03c9c",
@@ -436,7 +524,8 @@ pub const HELP: &[FunctionHelp] = &[
         own: "A whole number with its bits moved left by a given count",
     },
     FunctionHelp {
-        spelling: "BITOR",
+        id: crate::FunctionId::from_raw(6881301),
+        spelling: help_spelling(crate::FunctionId::from_raw(6881301)),
         microsoft: Some("Returns a bitwise OR of 2 numbers"),
         source: Some(
             "https://support.microsoft.com/en-us/office/bitor-function-f6ead5c8-5b98-4c9e-9053-8ad5234919b2",
@@ -444,7 +533,8 @@ pub const HELP: &[FunctionHelp] = &[
         own: "Bits set in either of two whole numbers",
     },
     FunctionHelp {
-        spelling: "BITRSHIFT",
+        id: crate::FunctionId::from_raw(6881304),
+        spelling: help_spelling(crate::FunctionId::from_raw(6881304)),
         microsoft: Some("Returns a value number shifted right by shift_amount bits"),
         source: Some(
             "https://support.microsoft.com/en-us/office/bitrshift-function-274d6996-f42c-4743-abdb-4ff95351222c",
@@ -452,7 +542,8 @@ pub const HELP: &[FunctionHelp] = &[
         own: "A whole number with its bits moved right by a given count",
     },
     FunctionHelp {
-        spelling: "BITXOR",
+        id: crate::FunctionId::from_raw(6881302),
+        spelling: help_spelling(crate::FunctionId::from_raw(6881302)),
         microsoft: Some("Returns a bitwise 'Exclusive Or' of two numbers"),
         source: Some(
             "https://support.microsoft.com/en-us/office/bitxor-function-c81306a1-03f9-4e89-85ac-b86c3cba10e4",
@@ -460,7 +551,8 @@ pub const HELP: &[FunctionHelp] = &[
         own: "Bits set in exactly one of two whole numbers",
     },
     FunctionHelp {
-        spelling: "BYCOL",
+        id: crate::FunctionId::from_raw(20381701),
+        spelling: help_spelling(crate::FunctionId::from_raw(20381701)),
         microsoft: Some("Applies a LAMBDA to each column and returns an array of the results"),
         source: Some(
             "https://support.microsoft.com/en-us/office/bycol-function-58463999-7de5-49ce-8f38-b7f7a2192bfb",
@@ -468,7 +560,8 @@ pub const HELP: &[FunctionHelp] = &[
         own: "One result per column, from a LAMBDA called on each column",
     },
     FunctionHelp {
-        spelling: "BYROW",
+        id: crate::FunctionId::from_raw(20381700),
+        spelling: help_spelling(crate::FunctionId::from_raw(20381700)),
         microsoft: Some("Applies a LAMBDA to each row and returns an array of the results"),
         source: Some(
             "https://support.microsoft.com/en-us/office/byrow-function-2e04c677-78c8-4e6b-8c10-a4602f2602bb",
@@ -476,7 +569,8 @@ pub const HELP: &[FunctionHelp] = &[
         own: "One result per row, from a LAMBDA called on each row",
     },
     FunctionHelp {
-        spelling: "CALL",
+        id: crate::FunctionId::from_raw(21299201),
+        spelling: help_spelling(crate::FunctionId::from_raw(21299201)),
         microsoft: Some("Calls a procedure in a dynamic link library or code resource"),
         source: Some(
             "https://support.microsoft.com/en-us/office/call-function-32d58445-e646-4ffd-8d5e-b45077a5e995",
@@ -484,7 +578,8 @@ pub const HELP: &[FunctionHelp] = &[
         own: "Runs a procedure from a code library (DLL) and gives back its result",
     },
     FunctionHelp {
-        spelling: "CEILING",
+        id: crate::FunctionId::from_raw(393225),
+        spelling: help_spelling(crate::FunctionId::from_raw(393225)),
         microsoft: Some(
             "Rounds a number to the nearest integer or to the nearest multiple of significance",
         ),
@@ -494,7 +589,8 @@ pub const HELP: &[FunctionHelp] = &[
         own: "Number rounded up, away from zero, to a multiple of the significance",
     },
     FunctionHelp {
-        spelling: "CEILING.MATH",
+        id: crate::FunctionId::from_raw(6619137),
+        spelling: help_spelling(crate::FunctionId::from_raw(6619137)),
         microsoft: Some(
             "Rounds a number up, to the nearest integer or to the nearest multiple of significance",
         ),
@@ -504,7 +600,8 @@ pub const HELP: &[FunctionHelp] = &[
         own: "Number rounded up to a multiple of the significance, with a choice of direction for negative numbers",
     },
     FunctionHelp {
-        spelling: "CEILING.PRECISE",
+        id: crate::FunctionId::from_raw(6619138),
+        spelling: help_spelling(crate::FunctionId::from_raw(6619138)),
         microsoft: Some(
             "Rounds a number the nearest integer or to the nearest multiple of significance. Regardless of the sign of the number, the number is rounded up.",
         ),
@@ -514,7 +611,8 @@ pub const HELP: &[FunctionHelp] = &[
         own: "Number rounded up toward plus infinity to a multiple of the significance, whatever its sign",
     },
     FunctionHelp {
-        spelling: "CELL",
+        id: crate::FunctionId::from_raw(13369345),
+        spelling: help_spelling(crate::FunctionId::from_raw(13369345)),
         microsoft: Some(
             "Returns information about the formatting, location, or contents of a cell",
         ),
@@ -524,7 +622,8 @@ pub const HELP: &[FunctionHelp] = &[
         own: "A fact about a cell, such as its address, format, contents or width",
     },
     FunctionHelp {
-        spelling: "CHAR",
+        id: crate::FunctionId::from_raw(13107201),
+        spelling: help_spelling(crate::FunctionId::from_raw(13107201)),
         microsoft: Some("Returns the character specified by the code number"),
         source: Some(
             "https://support.microsoft.com/en-us/office/char-function-bbd249c8-b36e-4a91-8017-1c133f9b837a",
@@ -532,7 +631,8 @@ pub const HELP: &[FunctionHelp] = &[
         own: "Character with a given code in the system character set",
     },
     FunctionHelp {
-        spelling: "CHIDIST",
+        id: crate::FunctionId::from_raw(6815766),
+        spelling: help_spelling(crate::FunctionId::from_raw(6815766)),
         microsoft: Some("Returns the one-tailed probability of the chi-squared distribution"),
         source: Some(
             "https://support.microsoft.com/en-us/office/chidist-function-c90d0fbc-5b56-4f5f-ab57-34af1bf6897e",
@@ -540,7 +640,8 @@ pub const HELP: &[FunctionHelp] = &[
         own: "Right-tail probability of the chi-squared distribution (older form)",
     },
     FunctionHelp {
-        spelling: "CHIINV",
+        id: crate::FunctionId::from_raw(6815769),
+        spelling: help_spelling(crate::FunctionId::from_raw(6815769)),
         microsoft: Some(
             "Returns the inverse of the one-tailed probability of the chi-squared distribution",
         ),
@@ -550,7 +651,8 @@ pub const HELP: &[FunctionHelp] = &[
         own: "Inverse of the right-tail chi-squared probability (older form)",
     },
     FunctionHelp {
-        spelling: "CHISQ.DIST",
+        id: crate::FunctionId::from_raw(6815764),
+        spelling: help_spelling(crate::FunctionId::from_raw(6815764)),
         microsoft: Some("Returns the cumulative beta probability density function"),
         source: Some(
             "https://support.microsoft.com/en-us/office/chisq-dist-function-8486b05e-5c05-4942-a9ea-f6b341518732",
@@ -558,7 +660,8 @@ pub const HELP: &[FunctionHelp] = &[
         own: "Chi-squared distribution: the density or the left-tail probability",
     },
     FunctionHelp {
-        spelling: "CHISQ.DIST.RT",
+        id: crate::FunctionId::from_raw(6815765),
+        spelling: help_spelling(crate::FunctionId::from_raw(6815765)),
         microsoft: Some("Returns the one-tailed probability of the chi-squared distribution"),
         source: Some(
             "https://support.microsoft.com/en-us/office/chisq-dist-rt-function-dc4832e8-ed2b-49ae-8d7c-b28d5804c0f2",
@@ -566,7 +669,8 @@ pub const HELP: &[FunctionHelp] = &[
         own: "Chi-squared upper-tail probability, P(X > x)",
     },
     FunctionHelp {
-        spelling: "CHISQ.INV",
+        id: crate::FunctionId::from_raw(6815767),
+        spelling: help_spelling(crate::FunctionId::from_raw(6815767)),
         microsoft: Some("Returns the cumulative beta probability density function"),
         source: Some(
             "https://support.microsoft.com/en-us/office/chisq-inv-function-400db556-62b3-472d-80b3-254723e7092f",
@@ -574,7 +678,8 @@ pub const HELP: &[FunctionHelp] = &[
         own: "The value at which the left-tail chi-squared probability reaches a given level",
     },
     FunctionHelp {
-        spelling: "CHISQ.INV.RT",
+        id: crate::FunctionId::from_raw(6815768),
+        spelling: help_spelling(crate::FunctionId::from_raw(6815768)),
         microsoft: Some(
             "Returns the inverse of the one-tailed probability of the chi-squared distribution",
         ),
@@ -584,7 +689,8 @@ pub const HELP: &[FunctionHelp] = &[
         own: "The value at which the right-tail chi-squared probability falls to a given level",
     },
     FunctionHelp {
-        spelling: "CHISQ.TEST",
+        id: crate::FunctionId::from_raw(6815844),
+        spelling: help_spelling(crate::FunctionId::from_raw(6815844)),
         microsoft: Some("Returns the test for independence"),
         source: Some(
             "https://support.microsoft.com/en-us/office/chisq-test-function-2e8a7861-b14a-4985-aa93-fb88de3f260f",
@@ -592,7 +698,8 @@ pub const HELP: &[FunctionHelp] = &[
         own: "Chi-squared test of independence between observed and expected counts, as a probability",
     },
     FunctionHelp {
-        spelling: "CHITEST",
+        id: crate::FunctionId::from_raw(6815845),
+        spelling: help_spelling(crate::FunctionId::from_raw(6815845)),
         microsoft: Some("Returns the test for independence"),
         source: Some(
             "https://support.microsoft.com/en-us/office/chitest-function-981ff871-b694-4134-848e-38ec704577ac",
@@ -600,7 +707,8 @@ pub const HELP: &[FunctionHelp] = &[
         own: "Chi-squared test of independence (older form of CHISQ.TEST)",
     },
     FunctionHelp {
-        spelling: "CHOOSE",
+        id: crate::FunctionId::from_raw(589832),
+        spelling: help_spelling(crate::FunctionId::from_raw(589832)),
         microsoft: Some("Chooses a value from a list of values"),
         source: Some(
             "https://support.microsoft.com/en-us/office/choose-function-fc5c184f-cb62-4ec7-a46e-38653b98f5bc",
@@ -608,7 +716,8 @@ pub const HELP: &[FunctionHelp] = &[
         own: "The value at a given position in a list of arguments",
     },
     FunctionHelp {
-        spelling: "CHOOSECOLS",
+        id: crate::FunctionId::from_raw(20316169),
+        spelling: help_spelling(crate::FunctionId::from_raw(20316169)),
         microsoft: Some("Returns the specified columns from an array"),
         source: Some(
             "https://support.microsoft.com/en-us/office/choosecols-function-bf117976-2722-4466-9b9a-1c01ed9aebff",
@@ -616,7 +725,8 @@ pub const HELP: &[FunctionHelp] = &[
         own: "Selected columns of an array, in the order asked for",
     },
     FunctionHelp {
-        spelling: "CHOOSEROWS",
+        id: crate::FunctionId::from_raw(20316168),
+        spelling: help_spelling(crate::FunctionId::from_raw(20316168)),
         microsoft: Some("Returns the specified rows from an array"),
         source: Some(
             "https://support.microsoft.com/en-us/office/chooserows-function-51ace882-9bab-4a44-9625-7274ef7507a3",
@@ -624,7 +734,8 @@ pub const HELP: &[FunctionHelp] = &[
         own: "Selected rows of an array, in the order asked for",
     },
     FunctionHelp {
-        spelling: "CLEAN",
+        id: crate::FunctionId::from_raw(13107217),
+        spelling: help_spelling(crate::FunctionId::from_raw(13107217)),
         microsoft: Some("Removes all nonprintable characters from text"),
         source: Some(
             "https://support.microsoft.com/en-us/office/clean-function-26f3d7c5-475f-4a9c-90e5-4b8ba987ba41",
@@ -632,7 +743,8 @@ pub const HELP: &[FunctionHelp] = &[
         own: "Text with the non-printing control characters taken out",
     },
     FunctionHelp {
-        spelling: "CODE",
+        id: crate::FunctionId::from_raw(13107202),
+        spelling: help_spelling(crate::FunctionId::from_raw(13107202)),
         microsoft: Some("Returns a numeric code for the first character in a text string"),
         source: Some(
             "https://support.microsoft.com/en-us/office/code-function-c32b692b-2ed0-4a04-bdd9-75640144b928",
@@ -640,7 +752,8 @@ pub const HELP: &[FunctionHelp] = &[
         own: "Code of the first character of a text in the system character set",
     },
     FunctionHelp {
-        spelling: "COLUMN",
+        id: crate::FunctionId::from_raw(589834),
+        spelling: help_spelling(crate::FunctionId::from_raw(589834)),
         microsoft: Some("Returns the column number of a reference"),
         source: Some(
             "https://support.microsoft.com/en-us/office/column-function-44e8c754-711c-4df3-9da4-47a55042554b",
@@ -648,7 +761,8 @@ pub const HELP: &[FunctionHelp] = &[
         own: "Column number of the first cell of a reference (of the formula's cell when left out)",
     },
     FunctionHelp {
-        spelling: "COLUMNS",
+        id: crate::FunctionId::from_raw(589836),
+        spelling: help_spelling(crate::FunctionId::from_raw(589836)),
         microsoft: Some("Returns the number of columns in a reference"),
         source: Some(
             "https://support.microsoft.com/en-us/office/columns-function-4e8e7b4e-e603-43e8-b177-956088fa48ca",
@@ -656,7 +770,8 @@ pub const HELP: &[FunctionHelp] = &[
         own: "How many columns an array or reference has",
     },
     FunctionHelp {
-        spelling: "COMBIN",
+        id: crate::FunctionId::from_raw(6553634),
+        spelling: help_spelling(crate::FunctionId::from_raw(6553634)),
         microsoft: Some("Returns the number of combinations for a given number of objects"),
         source: Some(
             "https://support.microsoft.com/en-us/office/combin-function-12a3f276-0a21-423a-8de6-06990aaf638a",
@@ -664,7 +779,8 @@ pub const HELP: &[FunctionHelp] = &[
         own: "Number of ways to pick k items from n when order does not matter",
     },
     FunctionHelp {
-        spelling: "COMBINA",
+        id: crate::FunctionId::from_raw(6553635),
+        spelling: help_spelling(crate::FunctionId::from_raw(6553635)),
         microsoft: Some(
             "Returns the number of combinations with repetitions for a given number of items",
         ),
@@ -674,7 +790,8 @@ pub const HELP: &[FunctionHelp] = &[
         own: "Number of ways to pick k items from n when items may repeat and order does not matter",
     },
     FunctionHelp {
-        spelling: "COMPLEX",
+        id: crate::FunctionId::from_raw(6881310),
+        spelling: help_spelling(crate::FunctionId::from_raw(6881310)),
         microsoft: Some("Converts real and imaginary coefficients into a complex number"),
         source: Some(
             "https://support.microsoft.com/en-us/office/complex-function-f0b8f3a9-51cc-4d6d-86fb-3a9362fa4128",
@@ -682,7 +799,8 @@ pub const HELP: &[FunctionHelp] = &[
         own: "A complex number written as text from its real and imaginary parts",
     },
     FunctionHelp {
-        spelling: "CONCAT",
+        id: crate::FunctionId::from_raw(13107229),
+        spelling: help_spelling(crate::FunctionId::from_raw(13107229)),
         microsoft: Some(
             "Combines the text from multiple ranges and/or strings, but it doesn't provide the delimiter or IgnoreEmpty arguments.",
         ),
@@ -692,7 +810,8 @@ pub const HELP: &[FunctionHelp] = &[
         own: "All the texts of the arguments and ranges joined end to end",
     },
     FunctionHelp {
-        spelling: "CONCATENATE",
+        id: crate::FunctionId::from_raw(13107228),
+        spelling: help_spelling(crate::FunctionId::from_raw(13107228)),
         microsoft: Some("Joins two or more text strings into one string"),
         source: Some(
             "https://support.microsoft.com/en-us/office/concatenate-function-8f8ae884-2ca8-4f7a-b093-75d702bea31d",
@@ -700,7 +819,8 @@ pub const HELP: &[FunctionHelp] = &[
         own: "Two or more texts joined end to end",
     },
     FunctionHelp {
-        spelling: "CONFIDENCE",
+        id: crate::FunctionId::from_raw(6815757),
+        spelling: help_spelling(crate::FunctionId::from_raw(6815757)),
         microsoft: Some("Returns the confidence interval for a population mean"),
         source: Some(
             "https://support.microsoft.com/en-us/office/confidence-function-75ccc007-f77c-4343-bc14-673642091ad6",
@@ -708,7 +828,8 @@ pub const HELP: &[FunctionHelp] = &[
         own: "Half-width of a normal confidence interval for a mean (older form)",
     },
     FunctionHelp {
-        spelling: "CONFIDENCE.NORM",
+        id: crate::FunctionId::from_raw(6815758),
+        spelling: help_spelling(crate::FunctionId::from_raw(6815758)),
         microsoft: Some("Returns the confidence interval for a population mean"),
         source: Some(
             "https://support.microsoft.com/en-us/office/confidence-norm-function-7cec58a6-85bb-488d-91c3-63828d4fbfd4",
@@ -716,7 +837,8 @@ pub const HELP: &[FunctionHelp] = &[
         own: "Half-width of a confidence interval for a mean, from the normal distribution",
     },
     FunctionHelp {
-        spelling: "CONFIDENCE.T",
+        id: crate::FunctionId::from_raw(6815759),
+        spelling: help_spelling(crate::FunctionId::from_raw(6815759)),
         microsoft: Some(
             "Returns the confidence interval for a population mean, using a Student's t distribution",
         ),
@@ -726,7 +848,8 @@ pub const HELP: &[FunctionHelp] = &[
         own: "Half-width of a confidence interval for a mean, from Student's t distribution",
     },
     FunctionHelp {
-        spelling: "CONVERT",
+        id: crate::FunctionId::from_raw(6881352),
+        spelling: help_spelling(crate::FunctionId::from_raw(6881352)),
         microsoft: Some("Converts a number from one measurement system to another"),
         source: Some(
             "https://support.microsoft.com/en-us/office/convert-function-d785bef1-808e-4aac-bdcd-666c810f9af2",
@@ -734,7 +857,8 @@ pub const HELP: &[FunctionHelp] = &[
         own: "A measurement converted from one unit to another",
     },
     FunctionHelp {
-        spelling: "CORREL",
+        id: crate::FunctionId::from_raw(6750246),
+        spelling: help_spelling(crate::FunctionId::from_raw(6750246)),
         microsoft: Some("Returns the correlation coefficient between two data sets"),
         source: Some(
             "https://support.microsoft.com/en-us/office/correl-function-995dcef7-0c0a-4bed-a3fb-239d7b68ca92",
@@ -742,7 +866,8 @@ pub const HELP: &[FunctionHelp] = &[
         own: "Pearson correlation coefficient of two data sets",
     },
     FunctionHelp {
-        spelling: "COS",
+        id: crate::FunctionId::from_raw(6553610),
+        spelling: help_spelling(crate::FunctionId::from_raw(6553610)),
         microsoft: Some("Returns the cosine of a number"),
         source: Some(
             "https://support.microsoft.com/en-us/office/cos-function-0fb808a5-95d6-4553-8148-22aebdce5f05",
@@ -750,7 +875,8 @@ pub const HELP: &[FunctionHelp] = &[
         own: "Cosine of an angle in radians",
     },
     FunctionHelp {
-        spelling: "COSH",
+        id: crate::FunctionId::from_raw(6553611),
+        spelling: help_spelling(crate::FunctionId::from_raw(6553611)),
         microsoft: Some("Returns the hyperbolic cosine of a number"),
         source: Some(
             "https://support.microsoft.com/en-us/office/cosh-function-e460d426-c471-43e8-9540-a57ff3b70555",
@@ -758,7 +884,8 @@ pub const HELP: &[FunctionHelp] = &[
         own: "Hyperbolic cosine",
     },
     FunctionHelp {
-        spelling: "COT",
+        id: crate::FunctionId::from_raw(6553612),
+        spelling: help_spelling(crate::FunctionId::from_raw(6553612)),
         microsoft: Some("Returns the cotangent of an angle"),
         source: Some(
             "https://support.microsoft.com/en-us/office/cot-function-c446f34d-6fe4-40dc-84f8-cf59e5f5e31a",
@@ -766,7 +893,8 @@ pub const HELP: &[FunctionHelp] = &[
         own: "Cotangent of an angle in radians",
     },
     FunctionHelp {
-        spelling: "COTH",
+        id: crate::FunctionId::from_raw(6553613),
+        spelling: help_spelling(crate::FunctionId::from_raw(6553613)),
         microsoft: Some("Returns the hyperbolic cotangent of a number"),
         source: Some(
             "https://support.microsoft.com/en-us/office/coth-function-2e0b4cb6-0ba0-403e-aed4-deaa71b49df5",
@@ -774,7 +902,8 @@ pub const HELP: &[FunctionHelp] = &[
         own: "Hyperbolic cotangent",
     },
     FunctionHelp {
-        spelling: "COUNT",
+        id: crate::FunctionId::from_raw(262149),
+        spelling: help_spelling(crate::FunctionId::from_raw(262149)),
         microsoft: Some(
             "Use this function to count how many numbers are in the list of arguments. You can use COUNTA to count how many values are in the list of arguments.",
         ),
@@ -784,7 +913,8 @@ pub const HELP: &[FunctionHelp] = &[
         own: "How many of the values are numbers",
     },
     FunctionHelp {
-        spelling: "COUNTA",
+        id: crate::FunctionId::from_raw(262150),
+        spelling: help_spelling(crate::FunctionId::from_raw(262150)),
         microsoft: Some("Counts how many values are in the list of arguments"),
         source: Some(
             "https://support.microsoft.com/en-us/office/counta-function-7dc98875-d5c1-46f1-9a82-53f3219e2509",
@@ -792,7 +922,8 @@ pub const HELP: &[FunctionHelp] = &[
         own: "How many of the values are not empty",
     },
     FunctionHelp {
-        spelling: "COUNTBLANK",
+        id: crate::FunctionId::from_raw(262151),
+        spelling: help_spelling(crate::FunctionId::from_raw(262151)),
         microsoft: Some("Counts the number of blank cells within a range"),
         source: Some(
             "https://support.microsoft.com/en-us/office/countblank-function-6a92d772-675c-4bee-b346-24af6bd3ac22",
@@ -800,7 +931,8 @@ pub const HELP: &[FunctionHelp] = &[
         own: "How many cells of a range are empty",
     },
     FunctionHelp {
-        spelling: "COUNTIF",
+        id: crate::FunctionId::from_raw(458753),
+        spelling: help_spelling(crate::FunctionId::from_raw(458753)),
         microsoft: Some("Counts the number of cells within a range that meet the given criteria"),
         source: Some(
             "https://support.microsoft.com/en-us/office/use-the-countif-function-in-microsoft-excel-e0de10c6-f885-4e71-abb4-1f464816df34",
@@ -808,7 +940,8 @@ pub const HELP: &[FunctionHelp] = &[
         own: "How many cells meet one condition",
     },
     FunctionHelp {
-        spelling: "COUNTIFS",
+        id: crate::FunctionId::from_raw(458754),
+        spelling: help_spelling(crate::FunctionId::from_raw(458754)),
         microsoft: Some(
             "Use this function to count the number of cells within a range that meet multiple criteria.",
         ),
@@ -818,7 +951,8 @@ pub const HELP: &[FunctionHelp] = &[
         own: "How many cells meet every one of several conditions",
     },
     FunctionHelp {
-        spelling: "COUPDAYBS",
+        id: crate::FunctionId::from_raw(19726346),
+        spelling: help_spelling(crate::FunctionId::from_raw(19726346)),
         microsoft: Some(
             "Returns the number of days from the beginning of the coupon period to the settlement date",
         ),
@@ -828,7 +962,8 @@ pub const HELP: &[FunctionHelp] = &[
         own: "Days from the start of the coupon period to the settlement date",
     },
     FunctionHelp {
-        spelling: "COUPDAYS",
+        id: crate::FunctionId::from_raw(19726347),
+        spelling: help_spelling(crate::FunctionId::from_raw(19726347)),
         microsoft: Some(
             "Returns the number of days in the coupon period that contains the settlement date",
         ),
@@ -838,7 +973,8 @@ pub const HELP: &[FunctionHelp] = &[
         own: "Days in the coupon period that holds the settlement date",
     },
     FunctionHelp {
-        spelling: "COUPDAYSNC",
+        id: crate::FunctionId::from_raw(19726348),
+        spelling: help_spelling(crate::FunctionId::from_raw(19726348)),
         microsoft: Some(
             "Returns the number of days from the settlement date to the next coupon date",
         ),
@@ -848,7 +984,8 @@ pub const HELP: &[FunctionHelp] = &[
         own: "Days left from settlement until the coupon date that follows it",
     },
     FunctionHelp {
-        spelling: "COUPNCD",
+        id: crate::FunctionId::from_raw(19726349),
+        spelling: help_spelling(crate::FunctionId::from_raw(19726349)),
         microsoft: Some("Returns the next coupon date after the settlement date"),
         source: Some(
             "https://support.microsoft.com/en-us/office/coupncd-function-fd962fef-506b-4d9d-8590-16df5393691f",
@@ -856,7 +993,8 @@ pub const HELP: &[FunctionHelp] = &[
         own: "Coupon date that follows the settlement date",
     },
     FunctionHelp {
-        spelling: "COUPNUM",
+        id: crate::FunctionId::from_raw(19726350),
+        spelling: help_spelling(crate::FunctionId::from_raw(19726350)),
         microsoft: Some(
             "Returns the number of coupons payable between the settlement date and maturity date",
         ),
@@ -866,7 +1004,8 @@ pub const HELP: &[FunctionHelp] = &[
         own: "Number of coupons still to be paid between settlement and maturity",
     },
     FunctionHelp {
-        spelling: "COUPPCD",
+        id: crate::FunctionId::from_raw(19726351),
+        spelling: help_spelling(crate::FunctionId::from_raw(19726351)),
         microsoft: Some("Returns the previous coupon date before the settlement date"),
         source: Some(
             "https://support.microsoft.com/en-us/office/couppcd-function-2eb50473-6ee9-4052-a206-77a9a385d5b3",
@@ -874,7 +1013,8 @@ pub const HELP: &[FunctionHelp] = &[
         own: "Last coupon date on or before the settlement date",
     },
     FunctionHelp {
-        spelling: "COVAR",
+        id: crate::FunctionId::from_raw(6750243),
+        spelling: help_spelling(crate::FunctionId::from_raw(6750243)),
         microsoft: Some("Returns covariance, the average of the products of paired deviations"),
         source: Some(
             "https://support.microsoft.com/en-us/office/covar-function-50479552-2c03-4daf-bd71-a5ab88b2db03",
@@ -882,7 +1022,8 @@ pub const HELP: &[FunctionHelp] = &[
         own: "Population covariance of two data sets (older form)",
     },
     FunctionHelp {
-        spelling: "COVARIANCE.P",
+        id: crate::FunctionId::from_raw(6750244),
+        spelling: help_spelling(crate::FunctionId::from_raw(6750244)),
         microsoft: Some("Returns covariance, the average of the products of paired deviations"),
         source: Some(
             "https://support.microsoft.com/en-us/office/covariance-p-function-6f0e1e6d-956d-4e4b-9943-cfef0bf9edfc",
@@ -890,7 +1031,8 @@ pub const HELP: &[FunctionHelp] = &[
         own: "Covariance of two data sets taken as a whole population",
     },
     FunctionHelp {
-        spelling: "COVARIANCE.S",
+        id: crate::FunctionId::from_raw(6750245),
+        spelling: help_spelling(crate::FunctionId::from_raw(6750245)),
         microsoft: Some(
             "Returns the sample covariance, the average of the products deviations for each data point pair in two data sets",
         ),
@@ -900,7 +1042,8 @@ pub const HELP: &[FunctionHelp] = &[
         own: "Covariance of two data sets taken as a sample",
     },
     FunctionHelp {
-        spelling: "CRITBINOM",
+        id: crate::FunctionId::from_raw(6815818),
+        spelling: help_spelling(crate::FunctionId::from_raw(6815818)),
         microsoft: Some(
             "Returns the smallest value for which the cumulative binomial distribution is less than or equal to a criterion value",
         ),
@@ -910,7 +1053,8 @@ pub const HELP: &[FunctionHelp] = &[
         own: "Fewest successes whose cumulative binomial probability reaches a target (older form)",
     },
     FunctionHelp {
-        spelling: "CSC",
+        id: crate::FunctionId::from_raw(6553614),
+        spelling: help_spelling(crate::FunctionId::from_raw(6553614)),
         microsoft: Some("Returns the cosecant of an angle"),
         source: Some(
             "https://support.microsoft.com/en-us/office/csc-function-07379361-219a-4398-8675-07ddc4f135c1",
@@ -918,7 +1062,8 @@ pub const HELP: &[FunctionHelp] = &[
         own: "Cosecant of an angle in radians",
     },
     FunctionHelp {
-        spelling: "CSCH",
+        id: crate::FunctionId::from_raw(6553615),
+        spelling: help_spelling(crate::FunctionId::from_raw(6553615)),
         microsoft: Some("Returns the hyperbolic cosecant of an angle"),
         source: Some(
             "https://support.microsoft.com/en-us/office/csch-function-f58f2c22-eb75-4dd6-84f4-a503527f8eeb",
@@ -926,7 +1071,8 @@ pub const HELP: &[FunctionHelp] = &[
         own: "Hyperbolic cosecant",
     },
     FunctionHelp {
-        spelling: "CUBEKPIMEMBER",
+        id: crate::FunctionId::from_raw(21233671),
+        spelling: help_spelling(crate::FunctionId::from_raw(21233671)),
         microsoft: Some(
             "Returns a key performance indicator (KPI) property and displays the KPI name in the cell. A KPI is a quantifiable measurement, such as monthly gross profit or quarterly employee turnover, that is used to monitor an organization's performance.",
         ),
@@ -936,7 +1082,8 @@ pub const HELP: &[FunctionHelp] = &[
         own: "A key performance indicator property of an OLAP cube",
     },
     FunctionHelp {
-        spelling: "CUBEMEMBER",
+        id: crate::FunctionId::from_raw(21233665),
+        spelling: help_spelling(crate::FunctionId::from_raw(21233665)),
         microsoft: Some(
             "Returns a member or tuple from the cube. Use to validate that the member or tuple exists in the cube.",
         ),
@@ -946,7 +1093,8 @@ pub const HELP: &[FunctionHelp] = &[
         own: "A member or tuple of an OLAP cube, if it exists",
     },
     FunctionHelp {
-        spelling: "CUBEMEMBERPROPERTY",
+        id: crate::FunctionId::from_raw(21233670),
+        spelling: help_spelling(crate::FunctionId::from_raw(21233670)),
         microsoft: Some(
             "Returns the value of a member property from the cube. Use to validate that a member name exists within the cube and to return the specified property for this member.",
         ),
@@ -956,7 +1104,8 @@ pub const HELP: &[FunctionHelp] = &[
         own: "A property of a member of an OLAP cube",
     },
     FunctionHelp {
-        spelling: "CUBERANKEDMEMBER",
+        id: crate::FunctionId::from_raw(21233669),
+        spelling: help_spelling(crate::FunctionId::from_raw(21233669)),
         microsoft: Some(
             "Returns the nth, or ranked, member in a set. Use to return one or more elements in a set, such as the top sales performer or the top 10 students.",
         ),
@@ -966,7 +1115,8 @@ pub const HELP: &[FunctionHelp] = &[
         own: "The member at a given rank in a set from an OLAP cube",
     },
     FunctionHelp {
-        spelling: "CUBESET",
+        id: crate::FunctionId::from_raw(21233667),
+        spelling: help_spelling(crate::FunctionId::from_raw(21233667)),
         microsoft: Some(
             "Defines a calculated set of members or tuples by sending a set expression to the cube on the server, which creates the set, and then returns that set to Microsoft Excel.",
         ),
@@ -976,7 +1126,8 @@ pub const HELP: &[FunctionHelp] = &[
         own: "A set of members or tuples computed by an OLAP cube server",
     },
     FunctionHelp {
-        spelling: "CUBESETCOUNT",
+        id: crate::FunctionId::from_raw(21233668),
+        spelling: help_spelling(crate::FunctionId::from_raw(21233668)),
         microsoft: Some("Returns the number of items in a set."),
         source: Some(
             "https://support.microsoft.com/en-us/office/cubesetcount-function-c4c2a438-c1ff-4061-80fe-982f2d705286",
@@ -984,7 +1135,8 @@ pub const HELP: &[FunctionHelp] = &[
         own: "How many items a cube set holds",
     },
     FunctionHelp {
-        spelling: "CUBEVALUE",
+        id: crate::FunctionId::from_raw(21233666),
+        spelling: help_spelling(crate::FunctionId::from_raw(21233666)),
         microsoft: Some("Returns an aggregated value from the cube."),
         source: Some(
             "https://support.microsoft.com/en-us/office/cubevalue-function-8733da24-26d1-4e34-9b3a-84a8f00dcbe0",
@@ -992,7 +1144,8 @@ pub const HELP: &[FunctionHelp] = &[
         own: "An aggregated value from an OLAP cube",
     },
     FunctionHelp {
-        spelling: "CUMIPMT",
+        id: crate::FunctionId::from_raw(19660816),
+        spelling: help_spelling(crate::FunctionId::from_raw(19660816)),
         microsoft: Some("Returns the cumulative interest paid between two periods"),
         source: Some(
             "https://support.microsoft.com/en-us/office/cumipmt-function-61067bb0-9016-427d-b95b-1a752af0e606",
@@ -1000,7 +1153,8 @@ pub const HELP: &[FunctionHelp] = &[
         own: "Total interest paid on a loan between two periods",
     },
     FunctionHelp {
-        spelling: "CUMPRINC",
+        id: crate::FunctionId::from_raw(19660817),
+        spelling: help_spelling(crate::FunctionId::from_raw(19660817)),
         microsoft: Some("Returns the cumulative principal paid on a loan between two periods"),
         source: Some(
             "https://support.microsoft.com/en-us/office/cumprinc-function-94a4516d-bd65-41a1-bc16-053a6af4c04d",
@@ -1008,7 +1162,8 @@ pub const HELP: &[FunctionHelp] = &[
         own: "Principal repaid on a loan from one period to another, added up",
     },
     FunctionHelp {
-        spelling: "DATE",
+        id: crate::FunctionId::from_raw(13303809),
+        spelling: help_spelling(crate::FunctionId::from_raw(13303809)),
         microsoft: Some("Returns the serial number of a particular date"),
         source: Some(
             "https://support.microsoft.com/en-us/office/date-function-e36c0c8c-4104-49da-ab83-82328b832349",
@@ -1016,7 +1171,8 @@ pub const HELP: &[FunctionHelp] = &[
         own: "Serial date number for a year, month and day",
     },
     FunctionHelp {
-        spelling: "DATEDIF",
+        id: crate::FunctionId::from_raw(13303819),
+        spelling: help_spelling(crate::FunctionId::from_raw(13303819)),
         microsoft: Some(
             "Calculates the number of days, months, or years between two dates. This function is useful in formulas where you need to calculate an age.",
         ),
@@ -1026,7 +1182,8 @@ pub const HELP: &[FunctionHelp] = &[
         own: "Whole days, months or years between two dates",
     },
     FunctionHelp {
-        spelling: "DATEVALUE",
+        id: crate::FunctionId::from_raw(13303820),
+        spelling: help_spelling(crate::FunctionId::from_raw(13303820)),
         microsoft: Some("Converts a date in the form of text to a serial number"),
         source: Some(
             "https://support.microsoft.com/en-us/office/datevalue-function-df8b07d4-7761-4a93-bc33-b7471bbff252",
@@ -1034,7 +1191,8 @@ pub const HELP: &[FunctionHelp] = &[
         own: "Serial date number read from a date written as text",
     },
     FunctionHelp {
-        spelling: "DAVERAGE",
+        id: crate::FunctionId::from_raw(13434881),
+        spelling: help_spelling(crate::FunctionId::from_raw(13434881)),
         microsoft: Some("Returns the average of selected database entries"),
         source: Some(
             "https://support.microsoft.com/en-us/office/daverage-function-a6a2d5ac-4b4b-48cd-a1d8-7b37834e5aee",
@@ -1042,7 +1200,8 @@ pub const HELP: &[FunctionHelp] = &[
         own: "Mean of a database column over the records that match the criteria",
     },
     FunctionHelp {
-        spelling: "DAY",
+        id: crate::FunctionId::from_raw(13303813),
+        spelling: help_spelling(crate::FunctionId::from_raw(13303813)),
         microsoft: Some("Converts a serial number to a day of the month"),
         source: Some(
             "https://support.microsoft.com/en-us/office/day-function-8a7d1cbb-6c7d-4ba1-8aea-25c134d03101",
@@ -1050,7 +1209,8 @@ pub const HELP: &[FunctionHelp] = &[
         own: "Day of the month (1 to 31) of a date",
     },
     FunctionHelp {
-        spelling: "DAYS",
+        id: crate::FunctionId::from_raw(13303817),
+        spelling: help_spelling(crate::FunctionId::from_raw(13303817)),
         microsoft: Some("Returns the number of days between two dates"),
         source: Some(
             "https://support.microsoft.com/en-us/office/days-function-57740535-d549-4395-8728-0f07bff0b9df",
@@ -1058,7 +1218,8 @@ pub const HELP: &[FunctionHelp] = &[
         own: "Number of days from one date to another",
     },
     FunctionHelp {
-        spelling: "DAYS360",
+        id: crate::FunctionId::from_raw(13303818),
+        spelling: help_spelling(crate::FunctionId::from_raw(13303818)),
         microsoft: Some("Calculates the number of days between two dates based on a 360-day year"),
         source: Some(
             "https://support.microsoft.com/en-us/office/days360-function-b9a509fd-49ef-407e-94df-0cbda5718c2a",
@@ -1066,7 +1227,8 @@ pub const HELP: &[FunctionHelp] = &[
         own: "Days between two dates counted with twelve 30-day months",
     },
     FunctionHelp {
-        spelling: "DB",
+        id: crate::FunctionId::from_raw(19660823),
+        spelling: help_spelling(crate::FunctionId::from_raw(19660823)),
         microsoft: Some(
             "Returns the depreciation of an asset for a specified period by using the fixed-declining balance method",
         ),
@@ -1076,7 +1238,8 @@ pub const HELP: &[FunctionHelp] = &[
         own: "Fixed-declining-balance depreciation of an asset for one period",
     },
     FunctionHelp {
-        spelling: "DBCS",
+        id: crate::FunctionId::from_raw(13238282),
+        spelling: help_spelling(crate::FunctionId::from_raw(13238282)),
         microsoft: Some(
             "Changes half-width (single-byte) English letters or katakana within a character string to full-width (double-byte) characters",
         ),
@@ -1086,7 +1249,8 @@ pub const HELP: &[FunctionHelp] = &[
         own: "Text with half-width (single-byte) characters turned into their full-width forms",
     },
     FunctionHelp {
-        spelling: "DCOUNT",
+        id: crate::FunctionId::from_raw(13434882),
+        spelling: help_spelling(crate::FunctionId::from_raw(13434882)),
         microsoft: Some("Counts the cells that contain numbers in a database"),
         source: Some(
             "https://support.microsoft.com/en-us/office/dcount-function-c1fc7b93-fb0d-4d8d-97db-8d5f076eaeb1",
@@ -1094,7 +1258,8 @@ pub const HELP: &[FunctionHelp] = &[
         own: "How many numbers a database column holds in the records that match the criteria",
     },
     FunctionHelp {
-        spelling: "DCOUNTA",
+        id: crate::FunctionId::from_raw(13434883),
+        spelling: help_spelling(crate::FunctionId::from_raw(13434883)),
         microsoft: Some("Counts nonblank cells in a database"),
         source: Some(
             "https://support.microsoft.com/en-us/office/dcounta-function-00232a6d-5a66-4a01-a25b-c1653fda1244",
@@ -1102,7 +1267,8 @@ pub const HELP: &[FunctionHelp] = &[
         own: "How many non-empty entries a database column holds in the matching records",
     },
     FunctionHelp {
-        spelling: "DDB",
+        id: crate::FunctionId::from_raw(19660824),
+        spelling: help_spelling(crate::FunctionId::from_raw(19660824)),
         microsoft: Some(
             "Returns the depreciation of an asset for a specified period by using the double-declining balance method or some other method that you specify",
         ),
@@ -1112,7 +1278,8 @@ pub const HELP: &[FunctionHelp] = &[
         own: "Double-declining-balance (or other factor) depreciation for one period",
     },
     FunctionHelp {
-        spelling: "DEC2BIN",
+        id: crate::FunctionId::from_raw(6881284),
+        spelling: help_spelling(crate::FunctionId::from_raw(6881284)),
         microsoft: Some("Converts a decimal number to binary"),
         source: Some(
             "https://support.microsoft.com/en-us/office/dec2bin-function-0f63dd0e-5d1a-42d8-b511-5bf5c6d43838",
@@ -1120,7 +1287,8 @@ pub const HELP: &[FunctionHelp] = &[
         own: "Decimal number written in binary",
     },
     FunctionHelp {
-        spelling: "DEC2HEX",
+        id: crate::FunctionId::from_raw(6881285),
+        spelling: help_spelling(crate::FunctionId::from_raw(6881285)),
         microsoft: Some("Converts a decimal number to hexadecimal"),
         source: Some(
             "https://support.microsoft.com/en-us/office/dec2hex-function-6344ee8b-b6b5-4c6a-a672-f64666704619",
@@ -1128,7 +1296,8 @@ pub const HELP: &[FunctionHelp] = &[
         own: "Decimal number written in hexadecimal",
     },
     FunctionHelp {
-        spelling: "DEC2OCT",
+        id: crate::FunctionId::from_raw(6881286),
+        spelling: help_spelling(crate::FunctionId::from_raw(6881286)),
         microsoft: Some("Converts a decimal number to octal"),
         source: Some(
             "https://support.microsoft.com/en-us/office/dec2oct-function-c9d835ca-20b7-40c4-8a9e-d3be351ce00f",
@@ -1136,7 +1305,8 @@ pub const HELP: &[FunctionHelp] = &[
         own: "Decimal number written in octal",
     },
     FunctionHelp {
-        spelling: "DECIMAL",
+        id: crate::FunctionId::from_raw(6553644),
+        spelling: help_spelling(crate::FunctionId::from_raw(6553644)),
         microsoft: Some(
             "Converts a text representation of a number in a given base into a decimal number",
         ),
@@ -1146,7 +1316,8 @@ pub const HELP: &[FunctionHelp] = &[
         own: "Value of a number written as text in a given base",
     },
     FunctionHelp {
-        spelling: "DEGREES",
+        id: crate::FunctionId::from_raw(6553622),
+        spelling: help_spelling(crate::FunctionId::from_raw(6553622)),
         microsoft: Some("Converts radians to degrees"),
         source: Some(
             "https://support.microsoft.com/en-us/office/degrees-function-4d6ec4db-e694-4b94-ace0-1cc3f61f9ba1",
@@ -1154,7 +1325,8 @@ pub const HELP: &[FunctionHelp] = &[
         own: "Angle in radians expressed in degrees",
     },
     FunctionHelp {
-        spelling: "DELTA",
+        id: crate::FunctionId::from_raw(6881350),
+        spelling: help_spelling(crate::FunctionId::from_raw(6881350)),
         microsoft: Some("Tests whether two values are equal"),
         source: Some(
             "https://support.microsoft.com/en-us/office/delta-function-2f763672-c959-4e07-ac33-fe03220ba432",
@@ -1162,7 +1334,8 @@ pub const HELP: &[FunctionHelp] = &[
         own: "1 when two numbers are equal, otherwise 0",
     },
     FunctionHelp {
-        spelling: "DETECTLANGUAGE",
+        id: crate::FunctionId::from_raw(21299205),
+        spelling: help_spelling(crate::FunctionId::from_raw(21299205)),
         microsoft: Some("Identifies the language of a specified text"),
         source: Some(
             "https://support.microsoft.com/en-us/office/detectlanguage-function-0748e285-1912-4d24-b735-57d18142fa3b",
@@ -1170,7 +1343,8 @@ pub const HELP: &[FunctionHelp] = &[
         own: "Code of the language a text is written in",
     },
     FunctionHelp {
-        spelling: "DEVSQ",
+        id: crate::FunctionId::from_raw(6750210),
+        spelling: help_spelling(crate::FunctionId::from_raw(6750210)),
         microsoft: Some("Returns the sum of squares of deviations"),
         source: Some(
             "https://support.microsoft.com/en-us/office/devsq-function-8b739616-8376-4df5-8bd0-cfe0a6caf444",
@@ -1178,7 +1352,8 @@ pub const HELP: &[FunctionHelp] = &[
         own: "Sum of the squared distances of the values from their mean",
     },
     FunctionHelp {
-        spelling: "DGET",
+        id: crate::FunctionId::from_raw(13434884),
+        spelling: help_spelling(crate::FunctionId::from_raw(13434884)),
         microsoft: Some(
             "Extracts from a database a single record that matches the specified criteria",
         ),
@@ -1188,7 +1363,8 @@ pub const HELP: &[FunctionHelp] = &[
         own: "The one value of a database column that matches the criteria",
     },
     FunctionHelp {
-        spelling: "DISC",
+        id: crate::FunctionId::from_raw(19726352),
+        spelling: help_spelling(crate::FunctionId::from_raw(19726352)),
         microsoft: Some("Returns the discount rate for a security"),
         source: Some(
             "https://support.microsoft.com/en-us/office/disc-function-71fce9f3-3f05-4acf-a5a3-eac6ef4daa53",
@@ -1196,7 +1372,8 @@ pub const HELP: &[FunctionHelp] = &[
         own: "Yearly discount rate implied by a security's price and redemption value",
     },
     FunctionHelp {
-        spelling: "DMAX",
+        id: crate::FunctionId::from_raw(13434885),
+        spelling: help_spelling(crate::FunctionId::from_raw(13434885)),
         microsoft: Some("Returns the maximum value from selected database entries"),
         source: Some(
             "https://support.microsoft.com/en-us/office/dmax-function-f4e8209d-8958-4c3d-a1ee-6351665d41c2",
@@ -1204,7 +1381,8 @@ pub const HELP: &[FunctionHelp] = &[
         own: "Largest value of a database column over the matching records",
     },
     FunctionHelp {
-        spelling: "DMIN",
+        id: crate::FunctionId::from_raw(13434886),
+        spelling: help_spelling(crate::FunctionId::from_raw(13434886)),
         microsoft: Some("Returns the minimum value from selected database entries"),
         source: Some(
             "https://support.microsoft.com/en-us/office/dmin-function-4ae6f1d9-1f26-40f1-a783-6dc3680192a3",
@@ -1212,7 +1390,8 @@ pub const HELP: &[FunctionHelp] = &[
         own: "Smallest value of a database column over the matching records",
     },
     FunctionHelp {
-        spelling: "DOLLAR",
+        id: crate::FunctionId::from_raw(13238276),
+        spelling: help_spelling(crate::FunctionId::from_raw(13238276)),
         microsoft: Some("Converts a number to text, using the $ (dollar) currency format"),
         source: Some(
             "https://support.microsoft.com/en-us/office/dollar-function-a6cd05d9-9740-4ad3-a469-8109d18ff611",
@@ -1220,7 +1399,8 @@ pub const HELP: &[FunctionHelp] = &[
         own: "A number as currency text, rounded to a number of decimals",
     },
     FunctionHelp {
-        spelling: "DOLLARDE",
+        id: crate::FunctionId::from_raw(19660828),
+        spelling: help_spelling(crate::FunctionId::from_raw(19660828)),
         microsoft: Some(
             "Converts a dollar price, expressed as a fraction, into a dollar price, expressed as a decimal number",
         ),
@@ -1230,7 +1410,8 @@ pub const HELP: &[FunctionHelp] = &[
         own: "A price quoted as a fraction (such as 1.02 for 1 2/16) as a decimal number",
     },
     FunctionHelp {
-        spelling: "DOLLARFR",
+        id: crate::FunctionId::from_raw(19660829),
+        spelling: help_spelling(crate::FunctionId::from_raw(19660829)),
         microsoft: Some(
             "Converts a dollar price, expressed as a decimal number, into a dollar price, expressed as a fraction",
         ),
@@ -1240,7 +1421,8 @@ pub const HELP: &[FunctionHelp] = &[
         own: "A decimal price written as a whole part and a fraction of a given denominator",
     },
     FunctionHelp {
-        spelling: "DPRODUCT",
+        id: crate::FunctionId::from_raw(13434887),
+        spelling: help_spelling(crate::FunctionId::from_raw(13434887)),
         microsoft: Some(
             "Multiplies the values in a particular field of records that match the criteria in a database",
         ),
@@ -1250,7 +1432,8 @@ pub const HELP: &[FunctionHelp] = &[
         own: "Product of a database column over the matching records",
     },
     FunctionHelp {
-        spelling: "DROP",
+        id: crate::FunctionId::from_raw(20316167),
+        spelling: help_spelling(crate::FunctionId::from_raw(20316167)),
         microsoft: Some(
             "Excludes a specified number of rows or columns from the start or end of an array",
         ),
@@ -1260,7 +1443,8 @@ pub const HELP: &[FunctionHelp] = &[
         own: "An array with a number of rows or columns removed from its start or end",
     },
     FunctionHelp {
-        spelling: "DSTDEV",
+        id: crate::FunctionId::from_raw(13434888),
+        spelling: help_spelling(crate::FunctionId::from_raw(13434888)),
         microsoft: Some(
             "Estimates the standard deviation based on a sample of selected database entries",
         ),
@@ -1270,7 +1454,8 @@ pub const HELP: &[FunctionHelp] = &[
         own: "Sample standard deviation of a database column over the matching records",
     },
     FunctionHelp {
-        spelling: "DSTDEVP",
+        id: crate::FunctionId::from_raw(13434889),
+        spelling: help_spelling(crate::FunctionId::from_raw(13434889)),
         microsoft: Some(
             "Calculates the standard deviation based on the entire population of selected database entries",
         ),
@@ -1280,7 +1465,8 @@ pub const HELP: &[FunctionHelp] = &[
         own: "Population standard deviation of a database column over the matching records",
     },
     FunctionHelp {
-        spelling: "DSUM",
+        id: crate::FunctionId::from_raw(13434890),
+        spelling: help_spelling(crate::FunctionId::from_raw(13434890)),
         microsoft: Some(
             "Adds the numbers in the field column of records in the database that match the criteria",
         ),
@@ -1290,7 +1476,8 @@ pub const HELP: &[FunctionHelp] = &[
         own: "Total of a database column over the matching records",
     },
     FunctionHelp {
-        spelling: "DURATION",
+        id: crate::FunctionId::from_raw(19726339),
+        spelling: help_spelling(crate::FunctionId::from_raw(19726339)),
         microsoft: Some(
             "Returns the annual duration of a security with periodic interest payments",
         ),
@@ -1300,7 +1487,8 @@ pub const HELP: &[FunctionHelp] = &[
         own: "Macaulay duration of a security with periodic coupons, in years",
     },
     FunctionHelp {
-        spelling: "DVAR",
+        id: crate::FunctionId::from_raw(13434891),
+        spelling: help_spelling(crate::FunctionId::from_raw(13434891)),
         microsoft: Some("Estimates variance based on a sample from selected database entries"),
         source: Some(
             "https://support.microsoft.com/en-us/office/dvar-function-d6747ca9-99c7-48bb-996e-9d7af00f3ed1",
@@ -1308,7 +1496,8 @@ pub const HELP: &[FunctionHelp] = &[
         own: "Sample variance of a database column over the matching records",
     },
     FunctionHelp {
-        spelling: "DVARP",
+        id: crate::FunctionId::from_raw(13434892),
+        spelling: help_spelling(crate::FunctionId::from_raw(13434892)),
         microsoft: Some(
             "Calculates variance based on the entire population of selected database entries",
         ),
@@ -1318,7 +1507,8 @@ pub const HELP: &[FunctionHelp] = &[
         own: "Population variance of a database column over the matching records",
     },
     FunctionHelp {
-        spelling: "EDATE",
+        id: crate::FunctionId::from_raw(13303822),
+        spelling: help_spelling(crate::FunctionId::from_raw(13303822)),
         microsoft: Some(
             "Returns the serial number of the date that is the indicated number of months before or after the start date",
         ),
@@ -1328,7 +1518,8 @@ pub const HELP: &[FunctionHelp] = &[
         own: "Date a number of months before or after a start date",
     },
     FunctionHelp {
-        spelling: "EFFECT",
+        id: crate::FunctionId::from_raw(19660815),
+        spelling: help_spelling(crate::FunctionId::from_raw(19660815)),
         microsoft: Some("Returns the effective annual interest rate"),
         source: Some(
             "https://support.microsoft.com/en-us/office/effect-function-910d4e4c-79e2-4009-95e6-507e04f11bc4",
@@ -1336,7 +1527,8 @@ pub const HELP: &[FunctionHelp] = &[
         own: "Effective annual rate from a nominal rate and the compounding periods per year",
     },
     FunctionHelp {
-        spelling: "ENCODEURL",
+        id: crate::FunctionId::from_raw(13238291),
+        spelling: help_spelling(crate::FunctionId::from_raw(13238291)),
         microsoft: Some("Returns a URL-encoded string"),
         source: Some(
             "https://support.microsoft.com/en-us/office/encodeurl-function-07c7fb90-7c60-4bff-8687-fac50fe33d0e",
@@ -1344,7 +1536,8 @@ pub const HELP: &[FunctionHelp] = &[
         own: "Text made safe for a URL by percent-encoding",
     },
     FunctionHelp {
-        spelling: "EOMONTH",
+        id: crate::FunctionId::from_raw(13303823),
+        spelling: help_spelling(crate::FunctionId::from_raw(13303823)),
         microsoft: Some(
             "Returns the serial number of the last day of the month before or after a specified number of months",
         ),
@@ -1354,7 +1547,8 @@ pub const HELP: &[FunctionHelp] = &[
         own: "Last day of the month a number of months before or after a date",
     },
     FunctionHelp {
-        spelling: "ERF",
+        id: crate::FunctionId::from_raw(6815834),
+        spelling: help_spelling(crate::FunctionId::from_raw(6815834)),
         microsoft: Some("Returns the error function"),
         source: Some(
             "https://support.microsoft.com/en-us/office/erf-function-c53c7e7b-5482-4b6c-883e-56df3c9af349",
@@ -1362,7 +1556,8 @@ pub const HELP: &[FunctionHelp] = &[
         own: "Error function, integrated between two limits or from 0",
     },
     FunctionHelp {
-        spelling: "ERF.PRECISE",
+        id: crate::FunctionId::from_raw(6815835),
+        spelling: help_spelling(crate::FunctionId::from_raw(6815835)),
         microsoft: Some("Returns the error function"),
         source: Some(
             "https://support.microsoft.com/en-us/office/erf-precise-function-9a349593-705c-4278-9a98-e4122831a8e0",
@@ -1370,7 +1565,8 @@ pub const HELP: &[FunctionHelp] = &[
         own: "Error function integrated from 0 to x",
     },
     FunctionHelp {
-        spelling: "ERFC",
+        id: crate::FunctionId::from_raw(6815836),
+        spelling: help_spelling(crate::FunctionId::from_raw(6815836)),
         microsoft: Some("Returns the complementary error function"),
         source: Some(
             "https://support.microsoft.com/en-us/office/erfc-function-736e0318-70ba-4e8b-8d08-461fe68b71b3",
@@ -1378,7 +1574,8 @@ pub const HELP: &[FunctionHelp] = &[
         own: "Complementary error function, 1 - ERF(x)",
     },
     FunctionHelp {
-        spelling: "ERFC.PRECISE",
+        id: crate::FunctionId::from_raw(6815837),
+        spelling: help_spelling(crate::FunctionId::from_raw(6815837)),
         microsoft: Some("Returns the complementary ERF function integrated between x and infinity"),
         source: Some(
             "https://support.microsoft.com/en-us/office/erfc-precise-function-e90e6bab-f45e-45df-b2ac-cd2eb4d4a273",
@@ -1386,7 +1583,8 @@ pub const HELP: &[FunctionHelp] = &[
         own: "Complementary error function integrated from x to infinity",
     },
     FunctionHelp {
-        spelling: "ERROR.TYPE",
+        id: crate::FunctionId::from_raw(655376),
+        spelling: help_spelling(crate::FunctionId::from_raw(655376)),
         microsoft: Some("Returns a number corresponding to an error type"),
         source: Some(
             "https://support.microsoft.com/en-us/office/error-type-function-10958677-7c8d-44f7-ae77-b9a9ee6eefaa",
@@ -1394,7 +1592,8 @@ pub const HELP: &[FunctionHelp] = &[
         own: "Number identifying which error value a cell holds",
     },
     FunctionHelp {
-        spelling: "EUROCONVERT",
+        id: crate::FunctionId::from_raw(21102593),
+        spelling: help_spelling(crate::FunctionId::from_raw(21102593)),
         microsoft: Some(
             "Converts a number to euros, converts a number from euros to a euro member currency, or converts a number from one euro member currency to another by using the euro as an intermediary (triangulation)",
         ),
@@ -1404,7 +1603,8 @@ pub const HELP: &[FunctionHelp] = &[
         own: "An amount converted between euro member currencies through the euro",
     },
     FunctionHelp {
-        spelling: "EVEN",
+        id: crate::FunctionId::from_raw(393229),
+        spelling: help_spelling(crate::FunctionId::from_raw(393229)),
         microsoft: Some("Rounds a number up to the nearest even integer"),
         source: Some(
             "https://support.microsoft.com/en-us/office/even-function-197b5f06-c795-4c1e-8696-3c3b8a646cf9",
@@ -1412,7 +1612,8 @@ pub const HELP: &[FunctionHelp] = &[
         own: "Number rounded away from zero to an even whole number",
     },
     FunctionHelp {
-        spelling: "EXACT",
+        id: crate::FunctionId::from_raw(13107219),
+        spelling: help_spelling(crate::FunctionId::from_raw(13107219)),
         microsoft: Some("Checks to see if two text values are identical"),
         source: Some(
             "https://support.microsoft.com/en-us/office/exact-function-d3087698-fc15-4a15-9631-12575cf29926",
@@ -1420,7 +1621,8 @@ pub const HELP: &[FunctionHelp] = &[
         own: "TRUE when two texts are identical, letter case included",
     },
     FunctionHelp {
-        spelling: "EXP",
+        id: crate::FunctionId::from_raw(6553625),
+        spelling: help_spelling(crate::FunctionId::from_raw(6553625)),
         microsoft: Some("Returns e raised to the power of a given number"),
         source: Some(
             "https://support.microsoft.com/en-us/office/exp-function-c578f034-2c45-4c37-bc8c-329660a63abe",
@@ -1428,7 +1630,8 @@ pub const HELP: &[FunctionHelp] = &[
         own: "e raised to a power",
     },
     FunctionHelp {
-        spelling: "EXPAND",
+        id: crate::FunctionId::from_raw(20316176),
+        spelling: help_spelling(crate::FunctionId::from_raw(20316176)),
         microsoft: Some("Expands or pads an array to specified row and column dimensions"),
         source: Some(
             "https://support.microsoft.com/en-us/office/expand-function-7433fba5-4ad1-41da-a904-d5d95808bc38",
@@ -1436,7 +1639,8 @@ pub const HELP: &[FunctionHelp] = &[
         own: "An array padded out to a given number of rows and columns",
     },
     FunctionHelp {
-        spelling: "EXPON.DIST",
+        id: crate::FunctionId::from_raw(6815807),
+        spelling: help_spelling(crate::FunctionId::from_raw(6815807)),
         microsoft: Some("Returns the exponential distribution"),
         source: Some(
             "https://support.microsoft.com/en-us/office/expon-dist-function-4c12ae24-e563-4155-bf3e-8b78b6ae140e",
@@ -1444,7 +1648,8 @@ pub const HELP: &[FunctionHelp] = &[
         own: "Exponential distribution: the density or the cumulative probability",
     },
     FunctionHelp {
-        spelling: "EXPONDIST",
+        id: crate::FunctionId::from_raw(6815808),
+        spelling: help_spelling(crate::FunctionId::from_raw(6815808)),
         microsoft: Some("Returns the exponential distribution"),
         source: Some(
             "https://support.microsoft.com/en-us/office/expondist-function-68ab45fd-cd6d-4887-9770-9357eb8ee06a",
@@ -1452,7 +1657,8 @@ pub const HELP: &[FunctionHelp] = &[
         own: "Exponential distribution (older form of EXPON.DIST)",
     },
     FunctionHelp {
-        spelling: "F.DIST",
+        id: crate::FunctionId::from_raw(6815774),
+        spelling: help_spelling(crate::FunctionId::from_raw(6815774)),
         microsoft: Some("Returns the F probability distribution"),
         source: Some(
             "https://support.microsoft.com/en-us/office/f-dist-function-a887efdc-7c8e-46cb-a74a-f884cd29b25d",
@@ -1460,7 +1666,8 @@ pub const HELP: &[FunctionHelp] = &[
         own: "F distribution: the density or the left-tail probability",
     },
     FunctionHelp {
-        spelling: "F.DIST.RT",
+        id: crate::FunctionId::from_raw(6815775),
+        spelling: help_spelling(crate::FunctionId::from_raw(6815775)),
         microsoft: Some("Returns the F probability distribution"),
         source: Some(
             "https://support.microsoft.com/en-us/office/f-dist-rt-function-d74cbb00-6017-4ac9-b7d7-6049badc0520",
@@ -1468,7 +1675,8 @@ pub const HELP: &[FunctionHelp] = &[
         own: "Right-tail probability of the F distribution",
     },
     FunctionHelp {
-        spelling: "F.INV",
+        id: crate::FunctionId::from_raw(6815777),
+        spelling: help_spelling(crate::FunctionId::from_raw(6815777)),
         microsoft: Some("Returns the inverse of the F probability distribution"),
         source: Some(
             "https://support.microsoft.com/en-us/office/f-inv-function-0dda0cf9-4ea0-42fd-8c3c-417a1ff30dbe",
@@ -1476,7 +1684,8 @@ pub const HELP: &[FunctionHelp] = &[
         own: "The value at which the left-tail F probability reaches a given level",
     },
     FunctionHelp {
-        spelling: "F.INV.RT",
+        id: crate::FunctionId::from_raw(6815778),
+        spelling: help_spelling(crate::FunctionId::from_raw(6815778)),
         microsoft: Some("Returns the inverse of the F probability distribution"),
         source: Some(
             "https://support.microsoft.com/en-us/office/f-inv-rt-function-d371aa8f-b0b1-40ef-9cc2-496f0693ac00",
@@ -1484,7 +1693,8 @@ pub const HELP: &[FunctionHelp] = &[
         own: "The value at which the right-tail F probability falls to a given level",
     },
     FunctionHelp {
-        spelling: "F.TEST",
+        id: crate::FunctionId::from_raw(6815846),
+        spelling: help_spelling(crate::FunctionId::from_raw(6815846)),
         microsoft: Some("Returns the result of an F-test"),
         source: Some(
             "https://support.microsoft.com/en-us/office/f-test-function-100a59e7-4108-46f8-8443-78ffacb6c0a7",
@@ -1492,7 +1702,8 @@ pub const HELP: &[FunctionHelp] = &[
         own: "Two-tailed probability that two samples' variances do not differ",
     },
     FunctionHelp {
-        spelling: "FACT",
+        id: crate::FunctionId::from_raw(6553632),
+        spelling: help_spelling(crate::FunctionId::from_raw(6553632)),
         microsoft: Some("Returns the factorial of a number"),
         source: Some(
             "https://support.microsoft.com/en-us/office/fact-function-ca8588c2-15f2-41c0-8e8c-c11bd471a4f3",
@@ -1500,7 +1711,8 @@ pub const HELP: &[FunctionHelp] = &[
         own: "Factorial: the product 1 x 2 x ... x n",
     },
     FunctionHelp {
-        spelling: "FACTDOUBLE",
+        id: crate::FunctionId::from_raw(6553633),
+        spelling: help_spelling(crate::FunctionId::from_raw(6553633)),
         microsoft: Some("Returns the double factorial of a number"),
         source: Some(
             "https://support.microsoft.com/en-us/office/factdouble-function-e67697ac-d214-48eb-b7b7-cce2589ecac8",
@@ -1508,7 +1720,8 @@ pub const HELP: &[FunctionHelp] = &[
         own: "Double factorial: the product of every second number down from n",
     },
     FunctionHelp {
-        spelling: "FALSE",
+        id: crate::FunctionId::from_raw(327687),
+        spelling: help_spelling(crate::FunctionId::from_raw(327687)),
         microsoft: Some("Returns the logical value FALSE"),
         source: Some(
             "https://support.microsoft.com/en-us/office/false-function-2d58dfa5-9c03-4259-bf8f-f0ae14346904",
@@ -1516,7 +1729,8 @@ pub const HELP: &[FunctionHelp] = &[
         own: "The logical value FALSE",
     },
     FunctionHelp {
-        spelling: "FDIST",
+        id: crate::FunctionId::from_raw(6815776),
+        spelling: help_spelling(crate::FunctionId::from_raw(6815776)),
         microsoft: Some("Returns the F probability distribution"),
         source: Some(
             "https://support.microsoft.com/en-us/office/fdist-function-ecf76fba-b3f1-4e7d-a57e-6a5b7460b786",
@@ -1524,7 +1738,8 @@ pub const HELP: &[FunctionHelp] = &[
         own: "Right-tail probability of the F distribution (older form)",
     },
     FunctionHelp {
-        spelling: "FILTER",
+        id: crate::FunctionId::from_raw(20316162),
+        spelling: help_spelling(crate::FunctionId::from_raw(20316162)),
         microsoft: Some(
             "Use this function to filter a range of data based on criteria you define.",
         ),
@@ -1534,7 +1749,8 @@ pub const HELP: &[FunctionHelp] = &[
         own: "The rows or columns of an array for which a condition holds",
     },
     FunctionHelp {
-        spelling: "FILTERXML",
+        id: crate::FunctionId::from_raw(13238292),
+        spelling: help_spelling(crate::FunctionId::from_raw(13238292)),
         microsoft: Some("Returns specific data from the XML content by using the specified XPath"),
         source: Some(
             "https://support.microsoft.com/en-us/office/filterxml-function-4df72efc-11ec-4951-86f5-c1374812f5b7",
@@ -1542,7 +1758,8 @@ pub const HELP: &[FunctionHelp] = &[
         own: "Values picked out of XML text by an XPath expression",
     },
     FunctionHelp {
-        spelling: "FIND",
+        id: crate::FunctionId::from_raw(13107220),
+        spelling: help_spelling(crate::FunctionId::from_raw(13107220)),
         microsoft: Some("Finds one text value within another (case-sensitive)"),
         source: Some(
             "https://support.microsoft.com/en-us/office/find-function-c7912941-af2a-4bdf-a553-d0d89b0a0628",
@@ -1550,7 +1767,8 @@ pub const HELP: &[FunctionHelp] = &[
         own: "Position of one text inside another, case-sensitive",
     },
     FunctionHelp {
-        spelling: "FINDB",
+        id: crate::FunctionId::from_raw(13107221),
+        spelling: help_spelling(crate::FunctionId::from_raw(13107221)),
         microsoft: Some("Finds one text value within another (case-sensitive)"),
         source: Some(
             "https://support.microsoft.com/en-us/office/find-function-c7912941-af2a-4bdf-a553-d0d89b0a0628",
@@ -1558,7 +1776,8 @@ pub const HELP: &[FunctionHelp] = &[
         own: "Position of one text inside another, case-sensitive, counted in bytes for double-byte languages",
     },
     FunctionHelp {
-        spelling: "FINV",
+        id: crate::FunctionId::from_raw(6815779),
+        spelling: help_spelling(crate::FunctionId::from_raw(6815779)),
         microsoft: Some("Returns the inverse of the F probability distribution"),
         source: Some(
             "https://support.microsoft.com/en-us/office/finv-function-4d46c97c-c368-4852-bc15-41e8e31140b1",
@@ -1566,7 +1785,8 @@ pub const HELP: &[FunctionHelp] = &[
         own: "Inverse of the right-tail F probability (older form)",
     },
     FunctionHelp {
-        spelling: "FISHER",
+        id: crate::FunctionId::from_raw(6750259),
+        spelling: help_spelling(crate::FunctionId::from_raw(6750259)),
         microsoft: Some("Returns the Fisher transformation"),
         source: Some(
             "https://support.microsoft.com/en-us/office/fisher-function-d656523c-5076-4f95-b87b-7741bf236c69",
@@ -1574,7 +1794,8 @@ pub const HELP: &[FunctionHelp] = &[
         own: "Fisher transformation of a correlation, artanh(x)",
     },
     FunctionHelp {
-        spelling: "FISHERINV",
+        id: crate::FunctionId::from_raw(6750260),
+        spelling: help_spelling(crate::FunctionId::from_raw(6750260)),
         microsoft: Some("Returns the inverse of the Fisher transformation"),
         source: Some(
             "https://support.microsoft.com/en-us/office/fisherinv-function-62504b39-415a-4284-a285-19c8e82f86bb",
@@ -1582,7 +1803,8 @@ pub const HELP: &[FunctionHelp] = &[
         own: "Inverse Fisher transformation, tanh(y)",
     },
     FunctionHelp {
-        spelling: "FIXED",
+        id: crate::FunctionId::from_raw(13238275),
+        spelling: help_spelling(crate::FunctionId::from_raw(13238275)),
         microsoft: Some("Formats a number as text with a fixed number of decimals"),
         source: Some(
             "https://support.microsoft.com/en-us/office/fixed-function-ffd5723c-324c-45e9-8b96-e41be2a8274a",
@@ -1590,7 +1812,8 @@ pub const HELP: &[FunctionHelp] = &[
         own: "A number as text with a fixed number of decimals, with or without thousands separators",
     },
     FunctionHelp {
-        spelling: "FLOOR",
+        id: crate::FunctionId::from_raw(393226),
+        spelling: help_spelling(crate::FunctionId::from_raw(393226)),
         microsoft: Some("Rounds a number down, toward zero"),
         source: Some(
             "https://support.microsoft.com/en-us/office/floor-function-14bb497c-24f2-4e04-b327-b0b4de5a8886",
@@ -1598,7 +1821,8 @@ pub const HELP: &[FunctionHelp] = &[
         own: "Number rounded down, toward zero, to a multiple of the significance",
     },
     FunctionHelp {
-        spelling: "FLOOR.MATH",
+        id: crate::FunctionId::from_raw(6619139),
+        spelling: help_spelling(crate::FunctionId::from_raw(6619139)),
         microsoft: Some(
             "Rounds a number down, to the nearest integer or to the nearest multiple of significance",
         ),
@@ -1608,7 +1832,8 @@ pub const HELP: &[FunctionHelp] = &[
         own: "Number rounded down to a multiple of the significance, with a choice of direction for negative numbers",
     },
     FunctionHelp {
-        spelling: "FLOOR.PRECISE",
+        id: crate::FunctionId::from_raw(6619140),
+        spelling: help_spelling(crate::FunctionId::from_raw(6619140)),
         microsoft: Some(
             "Rounds a number down to the nearest integer or to the nearest multiple of significance. Regardless of the sign of the number, the number is rounded down.",
         ),
@@ -1618,7 +1843,8 @@ pub const HELP: &[FunctionHelp] = &[
         own: "Number rounded down toward minus infinity to a multiple of the significance, whatever its sign",
     },
     FunctionHelp {
-        spelling: "FORECAST",
+        id: crate::FunctionId::from_raw(6750252),
+        spelling: help_spelling(crate::FunctionId::from_raw(6750252)),
         microsoft: Some("Returns a value along a linear trend"),
         source: Some(
             "https://support.microsoft.com/en-us/office/forecast-and-forecast-linear-functions-50ca49c9-7b40-4892-94e4-7ad38bbeda99",
@@ -1626,7 +1852,8 @@ pub const HELP: &[FunctionHelp] = &[
         own: "Value predicted for x on the least-squares line through the known points",
     },
     FunctionHelp {
-        spelling: "FORECAST.LINEAR",
+        id: crate::FunctionId::from_raw(6750253),
+        spelling: help_spelling(crate::FunctionId::from_raw(6750253)),
         microsoft: Some("Returns a value along a linear trend"),
         source: Some(
             "https://support.microsoft.com/en-us/office/forecast-and-forecast-linear-functions-50ca49c9-7b40-4892-94e4-7ad38bbeda99",
@@ -1634,7 +1861,8 @@ pub const HELP: &[FunctionHelp] = &[
         own: "Value predicted for x on the least-squares line through the known points",
     },
     FunctionHelp {
-        spelling: "FORMULATEXT",
+        id: crate::FunctionId::from_raw(13369349),
+        spelling: help_spelling(crate::FunctionId::from_raw(13369349)),
         microsoft: Some("Returns the formula at the given reference as text"),
         source: Some(
             "https://support.microsoft.com/en-us/office/formulatext-function-0a786771-54fd-4ae2-96ee-09cda35439c8",
@@ -1642,7 +1870,8 @@ pub const HELP: &[FunctionHelp] = &[
         own: "The formula of a cell, as text",
     },
     FunctionHelp {
-        spelling: "FREQUENCY",
+        id: crate::FunctionId::from_raw(6750262),
+        spelling: help_spelling(crate::FunctionId::from_raw(6750262)),
         microsoft: Some("Returns a frequency distribution as a vertical array"),
         source: Some(
             "https://support.microsoft.com/en-us/office/frequency-function-44e3be2b-eca0-42cd-a3f7-fd9ea898fdb9",
@@ -1650,7 +1879,8 @@ pub const HELP: &[FunctionHelp] = &[
         own: "How many values fall into each bin, as a vertical array",
     },
     FunctionHelp {
-        spelling: "FTEST",
+        id: crate::FunctionId::from_raw(6815847),
+        spelling: help_spelling(crate::FunctionId::from_raw(6815847)),
         microsoft: Some("Returns the result of an F-test"),
         source: Some(
             "https://support.microsoft.com/en-us/office/ftest-function-4c9e1202-53fe-428c-a737-976f6fc3f9fd",
@@ -1658,7 +1888,8 @@ pub const HELP: &[FunctionHelp] = &[
         own: "Two-tailed F-test probability (older form of F.TEST)",
     },
     FunctionHelp {
-        spelling: "FV",
+        id: crate::FunctionId::from_raw(19660802),
+        spelling: help_spelling(crate::FunctionId::from_raw(19660802)),
         microsoft: Some("Returns the future value of an investment"),
         source: Some(
             "https://support.microsoft.com/en-us/office/fv-function-2eef9f44-a084-4c61-bdd8-4fe4bb1b71b3",
@@ -1666,7 +1897,8 @@ pub const HELP: &[FunctionHelp] = &[
         own: "Future value of an investment with fixed periodic payments and a fixed rate",
     },
     FunctionHelp {
-        spelling: "FVSCHEDULE",
+        id: crate::FunctionId::from_raw(19660811),
+        spelling: help_spelling(crate::FunctionId::from_raw(19660811)),
         microsoft: Some(
             "Returns the future value of an initial principal after applying a series of compound interest rates",
         ),
@@ -1676,7 +1908,8 @@ pub const HELP: &[FunctionHelp] = &[
         own: "Future value of a principal grown by a series of interest rates",
     },
     FunctionHelp {
-        spelling: "GAMMA",
+        id: crate::FunctionId::from_raw(6815802),
+        spelling: help_spelling(crate::FunctionId::from_raw(6815802)),
         microsoft: Some("Returns the Gamma function value"),
         source: Some(
             "https://support.microsoft.com/en-us/office/gamma-function-ce1702b1-cf55-471d-8307-f83be0fc5297",
@@ -1684,7 +1917,8 @@ pub const HELP: &[FunctionHelp] = &[
         own: "Gamma function",
     },
     FunctionHelp {
-        spelling: "GAMMA.DIST",
+        id: crate::FunctionId::from_raw(6815798),
+        spelling: help_spelling(crate::FunctionId::from_raw(6815798)),
         microsoft: Some("Returns the gamma distribution"),
         source: Some(
             "https://support.microsoft.com/en-us/office/gamma-dist-function-9b6f1538-d11c-4d5f-8966-21f6a2201def",
@@ -1692,7 +1926,8 @@ pub const HELP: &[FunctionHelp] = &[
         own: "Gamma distribution: the density or the cumulative probability",
     },
     FunctionHelp {
-        spelling: "GAMMA.INV",
+        id: crate::FunctionId::from_raw(6815800),
+        spelling: help_spelling(crate::FunctionId::from_raw(6815800)),
         microsoft: Some("Returns the inverse of the gamma cumulative distribution"),
         source: Some(
             "https://support.microsoft.com/en-us/office/gamma-inv-function-74991443-c2b0-4be5-aaab-1aa4d71fbb18",
@@ -1700,7 +1935,8 @@ pub const HELP: &[FunctionHelp] = &[
         own: "The value at which the cumulative gamma distribution reaches a given probability",
     },
     FunctionHelp {
-        spelling: "GAMMADIST",
+        id: crate::FunctionId::from_raw(6815799),
+        spelling: help_spelling(crate::FunctionId::from_raw(6815799)),
         microsoft: Some("Returns the gamma distribution"),
         source: Some(
             "https://support.microsoft.com/en-us/office/gammadist-function-7327c94d-0f05-4511-83df-1dd7ed23e19e",
@@ -1708,7 +1944,8 @@ pub const HELP: &[FunctionHelp] = &[
         own: "Gamma distribution (older form of GAMMA.DIST)",
     },
     FunctionHelp {
-        spelling: "GAMMAINV",
+        id: crate::FunctionId::from_raw(6815801),
+        spelling: help_spelling(crate::FunctionId::from_raw(6815801)),
         microsoft: Some("Returns the inverse of the gamma cumulative distribution"),
         source: Some(
             "https://support.microsoft.com/en-us/office/gammainv-function-06393558-37ab-47d0-aa63-432f99e7916d",
@@ -1716,7 +1953,8 @@ pub const HELP: &[FunctionHelp] = &[
         own: "Inverse of the cumulative gamma distribution (older form)",
     },
     FunctionHelp {
-        spelling: "GAMMALN",
+        id: crate::FunctionId::from_raw(6815803),
+        spelling: help_spelling(crate::FunctionId::from_raw(6815803)),
         microsoft: Some("Returns the natural logarithm of the gamma function, ?(x)"),
         source: Some(
             "https://support.microsoft.com/en-us/office/gammaln-function-b838c48b-c65f-484f-9e1d-141c55470eb9",
@@ -1724,7 +1962,8 @@ pub const HELP: &[FunctionHelp] = &[
         own: "Natural logarithm of the gamma function",
     },
     FunctionHelp {
-        spelling: "GAMMALN.PRECISE",
+        id: crate::FunctionId::from_raw(6815804),
+        spelling: help_spelling(crate::FunctionId::from_raw(6815804)),
         microsoft: Some("Returns the natural logarithm of the gamma function, ?(x)"),
         source: Some(
             "https://support.microsoft.com/en-us/office/gammaln-precise-function-5cdfe601-4e1e-4189-9d74-241ef1caa599",
@@ -1732,7 +1971,8 @@ pub const HELP: &[FunctionHelp] = &[
         own: "Natural logarithm of the gamma function",
     },
     FunctionHelp {
-        spelling: "GAUSS",
+        id: crate::FunctionId::from_raw(6815760),
+        spelling: help_spelling(crate::FunctionId::from_raw(6815760)),
         microsoft: Some("Returns 0.5 less than the standard normal cumulative distribution"),
         source: Some(
             "https://support.microsoft.com/en-us/office/gauss-function-069f1b4e-7dee-4d6a-a71f-4b69044a6b33",
@@ -1740,7 +1980,8 @@ pub const HELP: &[FunctionHelp] = &[
         own: "Probability that a standard normal value lies between 0 and z",
     },
     FunctionHelp {
-        spelling: "GCD",
+        id: crate::FunctionId::from_raw(6553638),
+        spelling: help_spelling(crate::FunctionId::from_raw(6553638)),
         microsoft: Some("Returns the greatest common divisor"),
         source: Some(
             "https://support.microsoft.com/en-us/office/gcd-function-d5107a51-69e3-461f-8e4c-ddfc21b5073a",
@@ -1748,7 +1989,8 @@ pub const HELP: &[FunctionHelp] = &[
         own: "Greatest common divisor of whole numbers",
     },
     FunctionHelp {
-        spelling: "GEOMEAN",
+        id: crate::FunctionId::from_raw(6750211),
+        spelling: help_spelling(crate::FunctionId::from_raw(6750211)),
         microsoft: Some("Returns the geometric mean"),
         source: Some(
             "https://support.microsoft.com/en-us/office/geomean-function-db1ac48d-25a5-40a0-ab83-0b38980e40d5",
@@ -1756,7 +1998,8 @@ pub const HELP: &[FunctionHelp] = &[
         own: "Geometric mean: the n-th root of the product of n positive values",
     },
     FunctionHelp {
-        spelling: "GESTEP",
+        id: crate::FunctionId::from_raw(6881351),
+        spelling: help_spelling(crate::FunctionId::from_raw(6881351)),
         microsoft: Some("Tests whether a number is greater than a threshold value"),
         source: Some(
             "https://support.microsoft.com/en-us/office/gestep-function-f37e7d2a-41da-4129-be95-640883fca9df",
@@ -1764,7 +2007,8 @@ pub const HELP: &[FunctionHelp] = &[
         own: "1 when a number is at least the step value, otherwise 0",
     },
     FunctionHelp {
-        spelling: "GETPIVOTDATA",
+        id: crate::FunctionId::from_raw(13369351),
+        spelling: help_spelling(crate::FunctionId::from_raw(13369351)),
         microsoft: Some("Returns data stored in a PivotTable report"),
         source: Some(
             "https://support.microsoft.com/en-us/office/getpivotdata-function-8c083b99-a922-4ca0-af5e-3af55960761f",
@@ -1772,7 +2016,8 @@ pub const HELP: &[FunctionHelp] = &[
         own: "A value read out of a PivotTable report",
     },
     FunctionHelp {
-        spelling: "GROUPBY",
+        id: crate::FunctionId::from_raw(21037057),
+        spelling: help_spelling(crate::FunctionId::from_raw(21037057)),
         microsoft: Some(
             "Helps a user group, aggregate, sort, and filter data based on the fields you specify",
         ),
@@ -1782,7 +2027,8 @@ pub const HELP: &[FunctionHelp] = &[
         own: "A summary table with values aggregated by the groups of one or more row fields",
     },
     FunctionHelp {
-        spelling: "GROWTH",
+        id: crate::FunctionId::from_raw(6750264),
+        spelling: help_spelling(crate::FunctionId::from_raw(6750264)),
         microsoft: Some("Returns values along an exponential trend"),
         source: Some(
             "https://support.microsoft.com/en-us/office/growth-function-541a91dc-3d5e-437d-b156-21324e68b80d",
@@ -1790,7 +2036,8 @@ pub const HELP: &[FunctionHelp] = &[
         own: "Values predicted on the exponential curve fitted to known data",
     },
     FunctionHelp {
-        spelling: "HARMEAN",
+        id: crate::FunctionId::from_raw(6750212),
+        spelling: help_spelling(crate::FunctionId::from_raw(6750212)),
         microsoft: Some("Returns the harmonic mean"),
         source: Some(
             "https://support.microsoft.com/en-us/office/harmean-function-5efd9184-fab5-42f9-b1d3-57883a1d3bc6",
@@ -1798,7 +2045,8 @@ pub const HELP: &[FunctionHelp] = &[
         own: "Harmonic mean: n divided by the sum of the reciprocals",
     },
     FunctionHelp {
-        spelling: "HEX2BIN",
+        id: crate::FunctionId::from_raw(6881287),
+        spelling: help_spelling(crate::FunctionId::from_raw(6881287)),
         microsoft: Some("Converts a hexadecimal number to binary"),
         source: Some(
             "https://support.microsoft.com/en-us/office/hex2bin-function-a13aafaa-5737-4920-8424-643e581828c1",
@@ -1806,7 +2054,8 @@ pub const HELP: &[FunctionHelp] = &[
         own: "Hexadecimal number written in binary",
     },
     FunctionHelp {
-        spelling: "HEX2DEC",
+        id: crate::FunctionId::from_raw(6881288),
+        spelling: help_spelling(crate::FunctionId::from_raw(6881288)),
         microsoft: Some("Converts a hexadecimal number to decimal"),
         source: Some(
             "https://support.microsoft.com/en-us/office/hex2dec-function-8c8c3155-9f37-45a5-a3ee-ee5379ef106e",
@@ -1814,7 +2063,8 @@ pub const HELP: &[FunctionHelp] = &[
         own: "Decimal value of a hexadecimal number given as text",
     },
     FunctionHelp {
-        spelling: "HEX2OCT",
+        id: crate::FunctionId::from_raw(6881289),
+        spelling: help_spelling(crate::FunctionId::from_raw(6881289)),
         microsoft: Some("Converts a hexadecimal number to octal"),
         source: Some(
             "https://support.microsoft.com/en-us/office/hex2oct-function-54d52808-5d19-4bd0-8a63-1096a5d11912",
@@ -1822,7 +2072,8 @@ pub const HELP: &[FunctionHelp] = &[
         own: "Hexadecimal number written in octal",
     },
     FunctionHelp {
-        spelling: "HLOOKUP",
+        id: crate::FunctionId::from_raw(589830),
+        spelling: help_spelling(crate::FunctionId::from_raw(589830)),
         microsoft: Some(
             "Looks in the top row of an array and returns the value of the indicated cell",
         ),
@@ -1832,7 +2083,8 @@ pub const HELP: &[FunctionHelp] = &[
         own: "A value from a given row of a table, in the column found by searching the top row",
     },
     FunctionHelp {
-        spelling: "HOUR",
+        id: crate::FunctionId::from_raw(13303814),
+        spelling: help_spelling(crate::FunctionId::from_raw(13303814)),
         microsoft: Some("Converts a serial number to an hour"),
         source: Some(
             "https://support.microsoft.com/en-us/office/hour-function-a3afa879-86cb-4339-b1b5-2dd2d7310ac7",
@@ -1840,7 +2092,8 @@ pub const HELP: &[FunctionHelp] = &[
         own: "Hour (0 to 23) of a time",
     },
     FunctionHelp {
-        spelling: "HSTACK",
+        id: crate::FunctionId::from_raw(20316171),
+        spelling: help_spelling(crate::FunctionId::from_raw(20316171)),
         microsoft: Some("Appends arrays horizontally and in sequence to return a larger array"),
         source: Some(
             "https://support.microsoft.com/en-us/office/hstack-function-98c4ab76-10fe-4b4f-8d5f-af1c125fe8c2",
@@ -1848,7 +2101,8 @@ pub const HELP: &[FunctionHelp] = &[
         own: "Arrays placed side by side into one array",
     },
     FunctionHelp {
-        spelling: "HYPERLINK",
+        id: crate::FunctionId::from_raw(13238293),
+        spelling: help_spelling(crate::FunctionId::from_raw(13238293)),
         microsoft: Some(
             "Creates a shortcut or jump that opens a document stored on a network server, an intranet, or the Internet",
         ),
@@ -1858,7 +2112,8 @@ pub const HELP: &[FunctionHelp] = &[
         own: "A clickable link to a document or web address, shown with a label",
     },
     FunctionHelp {
-        spelling: "HYPGEOM.DIST",
+        id: crate::FunctionId::from_raw(6815821),
+        spelling: help_spelling(crate::FunctionId::from_raw(6815821)),
         microsoft: Some("Returns the hypergeometric distribution"),
         source: Some(
             "https://support.microsoft.com/en-us/office/hypgeom-dist-function-6dbd547f-1d12-4b1f-8ae5-b0d9e3d22fbf",
@@ -1866,7 +2121,8 @@ pub const HELP: &[FunctionHelp] = &[
         own: "Hypergeometric distribution: the chance of k successes in a sample drawn without replacement",
     },
     FunctionHelp {
-        spelling: "HYPGEOMDIST",
+        id: crate::FunctionId::from_raw(6815822),
+        spelling: help_spelling(crate::FunctionId::from_raw(6815822)),
         microsoft: Some("Returns the hypergeometric distribution"),
         source: Some(
             "https://support.microsoft.com/en-us/office/hypgeomdist-function-23e37961-2871-4195-9629-d0b2c108a12e",
@@ -1874,7 +2130,8 @@ pub const HELP: &[FunctionHelp] = &[
         own: "Hypergeometric probability (older form)",
     },
     FunctionHelp {
-        spelling: "IF",
+        id: crate::FunctionId::from_raw(327681),
+        spelling: help_spelling(crate::FunctionId::from_raw(327681)),
         microsoft: Some(
             "Use this function to return one value if a condition is true and another value if it's false.",
         ),
@@ -1884,7 +2141,8 @@ pub const HELP: &[FunctionHelp] = &[
         own: "One of two values, chosen by whether a condition is TRUE",
     },
     FunctionHelp {
-        spelling: "IFERROR",
+        id: crate::FunctionId::from_raw(524289),
+        spelling: help_spelling(crate::FunctionId::from_raw(524289)),
         microsoft: Some(
             "Returns a value you specify if a formula evaluates to an error; otherwise, returns the result of the formula",
         ),
@@ -1894,7 +2152,8 @@ pub const HELP: &[FunctionHelp] = &[
         own: "The value of an expression, or a fallback when it is an error",
     },
     FunctionHelp {
-        spelling: "IFNA",
+        id: crate::FunctionId::from_raw(524290),
+        spelling: help_spelling(crate::FunctionId::from_raw(524290)),
         microsoft: Some(
             "Returns the value you specify if the expression resolves to #N/A, otherwise returns the result of the expression",
         ),
@@ -1904,7 +2163,8 @@ pub const HELP: &[FunctionHelp] = &[
         own: "The value of an expression, or a fallback when it is #N/A",
     },
     FunctionHelp {
-        spelling: "IFS",
+        id: crate::FunctionId::from_raw(13172737),
+        spelling: help_spelling(crate::FunctionId::from_raw(13172737)),
         microsoft: Some(
             "Checks whether one or more conditions are met and returns a value that corresponds to the first TRUE condition.",
         ),
@@ -1914,7 +2174,8 @@ pub const HELP: &[FunctionHelp] = &[
         own: "The value paired with the first condition that is TRUE",
     },
     FunctionHelp {
-        spelling: "IMABS",
+        id: crate::FunctionId::from_raw(6881311),
+        spelling: help_spelling(crate::FunctionId::from_raw(6881311)),
         microsoft: Some("Returns the absolute value (modulus) of a complex number"),
         source: Some(
             "https://support.microsoft.com/en-us/office/imabs-function-b31e73c6-d90c-4062-90bc-8eb351d765a1",
@@ -1922,7 +2183,8 @@ pub const HELP: &[FunctionHelp] = &[
         own: "Modulus (absolute value) of a complex number",
     },
     FunctionHelp {
-        spelling: "IMAGE",
+        id: crate::FunctionId::from_raw(21168130),
+        spelling: help_spelling(crate::FunctionId::from_raw(21168130)),
         microsoft: Some("Returns an image from a given source"),
         source: Some(
             "https://support.microsoft.com/en-us/office/image-function-7e112975-5e52-4f2a-b9da-1d913d51f5d5",
@@ -1930,7 +2192,8 @@ pub const HELP: &[FunctionHelp] = &[
         own: "A picture from a web address shown inside the cell",
     },
     FunctionHelp {
-        spelling: "IMAGINARY",
+        id: crate::FunctionId::from_raw(6881312),
+        spelling: help_spelling(crate::FunctionId::from_raw(6881312)),
         microsoft: Some("Returns the imaginary coefficient of a complex number"),
         source: Some(
             "https://support.microsoft.com/en-us/office/imaginary-function-dd5952fd-473d-44d9-95a1-9a17b23e428a",
@@ -1938,7 +2201,8 @@ pub const HELP: &[FunctionHelp] = &[
         own: "Imaginary part of a complex number",
     },
     FunctionHelp {
-        spelling: "IMARGUMENT",
+        id: crate::FunctionId::from_raw(6881313),
+        spelling: help_spelling(crate::FunctionId::from_raw(6881313)),
         microsoft: Some("Returns the argument theta, an angle expressed in radians"),
         source: Some(
             "https://support.microsoft.com/en-us/office/imargument-function-eed37ec1-23b3-4f59-b9f3-d340358a034a",
@@ -1946,7 +2210,8 @@ pub const HELP: &[FunctionHelp] = &[
         own: "Argument (angle in radians) of a complex number",
     },
     FunctionHelp {
-        spelling: "IMCONJUGATE",
+        id: crate::FunctionId::from_raw(6881315),
+        spelling: help_spelling(crate::FunctionId::from_raw(6881315)),
         microsoft: Some("Returns the complex conjugate of a complex number"),
         source: Some(
             "https://support.microsoft.com/en-us/office/imconjugate-function-2e2fc1ea-f32b-4f9b-9de6-233853bafd42",
@@ -1954,7 +2219,8 @@ pub const HELP: &[FunctionHelp] = &[
         own: "Complex conjugate of a complex number",
     },
     FunctionHelp {
-        spelling: "IMCOS",
+        id: crate::FunctionId::from_raw(6881316),
+        spelling: help_spelling(crate::FunctionId::from_raw(6881316)),
         microsoft: Some("Returns the cosine of a complex number"),
         source: Some(
             "https://support.microsoft.com/en-us/office/imcos-function-dad75277-f592-4a6b-ad6c-be93a808a53c",
@@ -1962,7 +2228,8 @@ pub const HELP: &[FunctionHelp] = &[
         own: "Cosine of a complex number",
     },
     FunctionHelp {
-        spelling: "IMCOSH",
+        id: crate::FunctionId::from_raw(6881317),
+        spelling: help_spelling(crate::FunctionId::from_raw(6881317)),
         microsoft: Some("Returns the hyperbolic cosine of a complex number"),
         source: Some(
             "https://support.microsoft.com/en-us/office/imcosh-function-053e4ddb-4122-458b-be9a-457c405e90ff",
@@ -1970,7 +2237,8 @@ pub const HELP: &[FunctionHelp] = &[
         own: "Hyperbolic cosine of a complex number",
     },
     FunctionHelp {
-        spelling: "IMCOT",
+        id: crate::FunctionId::from_raw(6881318),
+        spelling: help_spelling(crate::FunctionId::from_raw(6881318)),
         microsoft: Some("Returns the cotangent of a complex number"),
         source: Some(
             "https://support.microsoft.com/en-us/office/imcot-function-dc6a3607-d26a-4d06-8b41-8931da36442c",
@@ -1978,7 +2246,8 @@ pub const HELP: &[FunctionHelp] = &[
         own: "Cotangent of a complex number",
     },
     FunctionHelp {
-        spelling: "IMCSC",
+        id: crate::FunctionId::from_raw(6881319),
+        spelling: help_spelling(crate::FunctionId::from_raw(6881319)),
         microsoft: Some("Returns the cosecant of a complex number"),
         source: Some(
             "https://support.microsoft.com/en-us/office/imcsc-function-9e158d8f-2ddf-46cd-9b1d-98e29904a323",
@@ -1986,7 +2255,8 @@ pub const HELP: &[FunctionHelp] = &[
         own: "Cosecant of a complex number",
     },
     FunctionHelp {
-        spelling: "IMCSCH",
+        id: crate::FunctionId::from_raw(6881320),
+        spelling: help_spelling(crate::FunctionId::from_raw(6881320)),
         microsoft: Some("Returns the hyperbolic cosecant of a complex number"),
         source: Some(
             "https://support.microsoft.com/en-us/office/imcsch-function-c0ae4f54-5f09-4fef-8da0-dc33ea2c5ca9",
@@ -1994,7 +2264,8 @@ pub const HELP: &[FunctionHelp] = &[
         own: "Hyperbolic cosecant of a complex number",
     },
     FunctionHelp {
-        spelling: "IMDIV",
+        id: crate::FunctionId::from_raw(6881331),
+        spelling: help_spelling(crate::FunctionId::from_raw(6881331)),
         microsoft: Some("Returns the quotient of two complex numbers"),
         source: Some(
             "https://support.microsoft.com/en-us/office/imdiv-function-a505aff7-af8a-4451-8142-77ec3d74d83f",
@@ -2002,7 +2273,8 @@ pub const HELP: &[FunctionHelp] = &[
         own: "Quotient of two complex numbers",
     },
     FunctionHelp {
-        spelling: "IMEXP",
+        id: crate::FunctionId::from_raw(6881321),
+        spelling: help_spelling(crate::FunctionId::from_raw(6881321)),
         microsoft: Some("Returns the exponential of a complex number"),
         source: Some(
             "https://support.microsoft.com/en-us/office/imexp-function-c6f8da1f-e024-4c0c-b802-a60e7147a95f",
@@ -2010,7 +2282,8 @@ pub const HELP: &[FunctionHelp] = &[
         own: "e raised to a complex power",
     },
     FunctionHelp {
-        spelling: "IMLN",
+        id: crate::FunctionId::from_raw(6881322),
+        spelling: help_spelling(crate::FunctionId::from_raw(6881322)),
         microsoft: Some("Returns the natural logarithm of a complex number"),
         source: Some(
             "https://support.microsoft.com/en-us/office/imln-function-32b98bcf-8b81-437c-a636-6fb3aad509d8",
@@ -2018,7 +2291,8 @@ pub const HELP: &[FunctionHelp] = &[
         own: "Natural logarithm of a complex number",
     },
     FunctionHelp {
-        spelling: "IMLOG10",
+        id: crate::FunctionId::from_raw(6881323),
+        spelling: help_spelling(crate::FunctionId::from_raw(6881323)),
         microsoft: Some("Returns the base-10 logarithm of a complex number"),
         source: Some(
             "https://support.microsoft.com/en-us/office/imlog10-function-58200fca-e2a2-4271-8a98-ccd4360213a5",
@@ -2026,7 +2300,8 @@ pub const HELP: &[FunctionHelp] = &[
         own: "Base-10 logarithm of a complex number",
     },
     FunctionHelp {
-        spelling: "IMLOG2",
+        id: crate::FunctionId::from_raw(6881324),
+        spelling: help_spelling(crate::FunctionId::from_raw(6881324)),
         microsoft: Some("Returns the base-2 logarithm of a complex number"),
         source: Some(
             "https://support.microsoft.com/en-us/office/imlog2-function-152e13b4-bc79-486c-a243-e6a676878c51",
@@ -2034,7 +2309,8 @@ pub const HELP: &[FunctionHelp] = &[
         own: "Base-2 logarithm of a complex number",
     },
     FunctionHelp {
-        spelling: "IMPOWER",
+        id: crate::FunctionId::from_raw(6881332),
+        spelling: help_spelling(crate::FunctionId::from_raw(6881332)),
         microsoft: Some("Returns a complex number raised to an integer power"),
         source: Some(
             "https://support.microsoft.com/en-us/office/impower-function-210fd2f5-f8ff-4c6a-9d60-30e34fbdef39",
@@ -2042,7 +2318,8 @@ pub const HELP: &[FunctionHelp] = &[
         own: "A complex number raised to a real power",
     },
     FunctionHelp {
-        spelling: "IMPRODUCT",
+        id: crate::FunctionId::from_raw(6881335),
+        spelling: help_spelling(crate::FunctionId::from_raw(6881335)),
         microsoft: Some("Returns the product of from 2 to 255 complex numbers"),
         source: Some(
             "https://support.microsoft.com/en-us/office/improduct-function-2fb8651a-a4f2-444f-975e-8ba7aab3a5ba",
@@ -2050,7 +2327,8 @@ pub const HELP: &[FunctionHelp] = &[
         own: "Product of complex numbers",
     },
     FunctionHelp {
-        spelling: "IMREAL",
+        id: crate::FunctionId::from_raw(6881314),
+        spelling: help_spelling(crate::FunctionId::from_raw(6881314)),
         microsoft: Some("Returns the real coefficient of a complex number"),
         source: Some(
             "https://support.microsoft.com/en-us/office/imreal-function-d12bc4c0-25d0-4bb3-a25f-ece1938bf366",
@@ -2058,7 +2336,8 @@ pub const HELP: &[FunctionHelp] = &[
         own: "Real part of a complex number",
     },
     FunctionHelp {
-        spelling: "IMSEC",
+        id: crate::FunctionId::from_raw(6881325),
+        spelling: help_spelling(crate::FunctionId::from_raw(6881325)),
         microsoft: Some("Returns the secant of a complex number"),
         source: Some(
             "https://support.microsoft.com/en-us/office/imsec-function-6df11132-4411-4df4-a3dc-1f17372459e0",
@@ -2066,7 +2345,8 @@ pub const HELP: &[FunctionHelp] = &[
         own: "Secant of a complex number",
     },
     FunctionHelp {
-        spelling: "IMSECH",
+        id: crate::FunctionId::from_raw(6881326),
+        spelling: help_spelling(crate::FunctionId::from_raw(6881326)),
         microsoft: Some("Returns the hyperbolic secant of a complex number"),
         source: Some(
             "https://support.microsoft.com/en-us/office/imsech-function-f250304f-788b-4505-954e-eb01fa50903b",
@@ -2074,7 +2354,8 @@ pub const HELP: &[FunctionHelp] = &[
         own: "Hyperbolic secant of a complex number",
     },
     FunctionHelp {
-        spelling: "IMSIN",
+        id: crate::FunctionId::from_raw(6881327),
+        spelling: help_spelling(crate::FunctionId::from_raw(6881327)),
         microsoft: Some("Returns the sine of a complex number"),
         source: Some(
             "https://support.microsoft.com/en-us/office/imsin-function-1ab02a39-a721-48de-82ef-f52bf37859f6",
@@ -2082,7 +2363,8 @@ pub const HELP: &[FunctionHelp] = &[
         own: "Sine of a complex number",
     },
     FunctionHelp {
-        spelling: "IMSINH",
+        id: crate::FunctionId::from_raw(6881328),
+        spelling: help_spelling(crate::FunctionId::from_raw(6881328)),
         microsoft: Some("Returns the hyperbolic sine of a complex number"),
         source: Some(
             "https://support.microsoft.com/en-us/office/imsinh-function-dfb9ec9e-8783-4985-8c42-b028e9e8da3d",
@@ -2090,7 +2372,8 @@ pub const HELP: &[FunctionHelp] = &[
         own: "Hyperbolic sine of a complex number",
     },
     FunctionHelp {
-        spelling: "IMSQRT",
+        id: crate::FunctionId::from_raw(6881329),
+        spelling: help_spelling(crate::FunctionId::from_raw(6881329)),
         microsoft: Some("Returns the square root of a complex number"),
         source: Some(
             "https://support.microsoft.com/en-us/office/imsqrt-function-e1753f80-ba11-4664-a10e-e17368396b70",
@@ -2098,7 +2381,8 @@ pub const HELP: &[FunctionHelp] = &[
         own: "Principal square root of a complex number",
     },
     FunctionHelp {
-        spelling: "IMSUB",
+        id: crate::FunctionId::from_raw(6881333),
+        spelling: help_spelling(crate::FunctionId::from_raw(6881333)),
         microsoft: Some("Returns the difference between two complex numbers"),
         source: Some(
             "https://support.microsoft.com/en-us/office/imsub-function-2e404b4d-4935-4e85-9f52-cb08b9a45054",
@@ -2106,7 +2390,8 @@ pub const HELP: &[FunctionHelp] = &[
         own: "One complex number minus another",
     },
     FunctionHelp {
-        spelling: "IMSUM",
+        id: crate::FunctionId::from_raw(6881334),
+        spelling: help_spelling(crate::FunctionId::from_raw(6881334)),
         microsoft: Some("Returns the sum of complex numbers"),
         source: Some(
             "https://support.microsoft.com/en-us/office/imsum-function-81542999-5f1c-4da6-9ffe-f1d7aaa9457f",
@@ -2114,7 +2399,8 @@ pub const HELP: &[FunctionHelp] = &[
         own: "Sum of complex numbers",
     },
     FunctionHelp {
-        spelling: "IMTAN",
+        id: crate::FunctionId::from_raw(6881330),
+        spelling: help_spelling(crate::FunctionId::from_raw(6881330)),
         microsoft: Some("Returns the tangent of a complex number"),
         source: Some(
             "https://support.microsoft.com/en-us/office/imtan-function-8478f45d-610a-43cf-8544-9fc0b553a132",
@@ -2122,7 +2408,8 @@ pub const HELP: &[FunctionHelp] = &[
         own: "Tangent of a complex number",
     },
     FunctionHelp {
-        spelling: "INDEX",
+        id: crate::FunctionId::from_raw(589825),
+        spelling: help_spelling(crate::FunctionId::from_raw(589825)),
         microsoft: Some("Uses an index to choose a value from a reference or array"),
         source: Some(
             "https://support.microsoft.com/en-us/office/index-function-a5dcf0dd-996d-40a4-a822-b56b061328bd",
@@ -2130,7 +2417,8 @@ pub const HELP: &[FunctionHelp] = &[
         own: "The value or reference at a given row and column of an array or range",
     },
     FunctionHelp {
-        spelling: "INDIRECT",
+        id: crate::FunctionId::from_raw(720897),
+        spelling: help_spelling(crate::FunctionId::from_raw(720897)),
         microsoft: Some("Returns a reference indicated by a text value"),
         source: Some(
             "https://support.microsoft.com/en-us/office/indirect-function-474b3a3a-8a26-4f44-b491-92b6306fa261",
@@ -2138,7 +2426,8 @@ pub const HELP: &[FunctionHelp] = &[
         own: "The reference that a text names",
     },
     FunctionHelp {
-        spelling: "INFO",
+        id: crate::FunctionId::from_raw(13369346),
+        spelling: help_spelling(crate::FunctionId::from_raw(13369346)),
         microsoft: Some("Returns information about the current operating environment"),
         source: Some(
             "https://support.microsoft.com/en-us/office/info-function-725f259a-0e4b-49b3-8b52-58815c69acae",
@@ -2146,7 +2435,8 @@ pub const HELP: &[FunctionHelp] = &[
         own: "A fact about the environment Excel runs in, such as the version or the system",
     },
     FunctionHelp {
-        spelling: "INT",
+        id: crate::FunctionId::from_raw(393219),
+        spelling: help_spelling(crate::FunctionId::from_raw(393219)),
         microsoft: Some("Rounds a number down to the nearest integer"),
         source: Some(
             "https://support.microsoft.com/en-us/office/int-function-a6c4af9e-356d-4369-ab6a-cb1fd9d343ef",
@@ -2154,7 +2444,8 @@ pub const HELP: &[FunctionHelp] = &[
         own: "Number rounded down to a whole number",
     },
     FunctionHelp {
-        spelling: "INTERCEPT",
+        id: crate::FunctionId::from_raw(6750250),
+        spelling: help_spelling(crate::FunctionId::from_raw(6750250)),
         microsoft: Some("Returns the intercept of the linear regression line"),
         source: Some(
             "https://support.microsoft.com/en-us/office/intercept-function-2a9b74e2-9d47-4772-b663-3bca70bf63ef",
@@ -2162,7 +2453,8 @@ pub const HELP: &[FunctionHelp] = &[
         own: "Where the least-squares line through the known points crosses the y-axis",
     },
     FunctionHelp {
-        spelling: "INTRATE",
+        id: crate::FunctionId::from_raw(19726353),
+        spelling: help_spelling(crate::FunctionId::from_raw(19726353)),
         microsoft: Some("Returns the interest rate for a fully invested security"),
         source: Some(
             "https://support.microsoft.com/en-us/office/intrate-function-5cb34dde-a221-4cb6-b3eb-0b9e55e1316f",
@@ -2170,7 +2462,8 @@ pub const HELP: &[FunctionHelp] = &[
         own: "Interest rate of a security bought and redeemed at given amounts",
     },
     FunctionHelp {
-        spelling: "IPMT",
+        id: crate::FunctionId::from_raw(19660807),
+        spelling: help_spelling(crate::FunctionId::from_raw(19660807)),
         microsoft: Some("Returns the interest payment for an investment for a given period"),
         source: Some(
             "https://support.microsoft.com/en-us/office/ipmt-function-5cce0ad6-8402-4a41-8d29-61a0b054cb6f",
@@ -2178,7 +2471,8 @@ pub const HELP: &[FunctionHelp] = &[
         own: "Interest part of one payment on a loan or investment",
     },
     FunctionHelp {
-        spelling: "IRR",
+        id: crate::FunctionId::from_raw(19660818),
+        spelling: help_spelling(crate::FunctionId::from_raw(19660818)),
         microsoft: Some("Returns the internal rate of return for a series of cash flows"),
         source: Some(
             "https://support.microsoft.com/en-us/office/irr-function-64925eaa-9988-495b-b290-3ad0c163c1bc",
@@ -2186,7 +2480,8 @@ pub const HELP: &[FunctionHelp] = &[
         own: "Rate at which a series of periodic cash flows has a net present value of zero",
     },
     FunctionHelp {
-        spelling: "ISBLANK",
+        id: crate::FunctionId::from_raw(655361),
+        spelling: help_spelling(crate::FunctionId::from_raw(655361)),
         microsoft: Some("Returns TRUE if the value is blank"),
         source: Some(
             "https://support.microsoft.com/en-us/office/is-functions-0f2d7971-6019-40a0-a171-f2d869135665",
@@ -2194,7 +2489,8 @@ pub const HELP: &[FunctionHelp] = &[
         own: "TRUE when the cell is empty",
     },
     FunctionHelp {
-        spelling: "ISERR",
+        id: crate::FunctionId::from_raw(655362),
+        spelling: help_spelling(crate::FunctionId::from_raw(655362)),
         microsoft: Some("Returns TRUE if the value is any error value except #N/A"),
         source: Some(
             "https://support.microsoft.com/en-us/office/is-functions-0f2d7971-6019-40a0-a171-f2d869135665",
@@ -2202,7 +2498,8 @@ pub const HELP: &[FunctionHelp] = &[
         own: "TRUE for any error value other than #N/A",
     },
     FunctionHelp {
-        spelling: "ISERROR",
+        id: crate::FunctionId::from_raw(655363),
+        spelling: help_spelling(crate::FunctionId::from_raw(655363)),
         microsoft: Some("Returns TRUE if the value is any error value"),
         source: Some(
             "https://support.microsoft.com/en-us/office/is-functions-0f2d7971-6019-40a0-a171-f2d869135665",
@@ -2210,7 +2507,8 @@ pub const HELP: &[FunctionHelp] = &[
         own: "TRUE for any error value",
     },
     FunctionHelp {
-        spelling: "ISEVEN",
+        id: crate::FunctionId::from_raw(655369),
+        spelling: help_spelling(crate::FunctionId::from_raw(655369)),
         microsoft: Some("Returns TRUE if the number is even"),
         source: Some(
             "https://support.microsoft.com/en-us/office/iseven-function-aa15929a-d77b-4fbb-92f4-2f479af55356",
@@ -2218,7 +2516,8 @@ pub const HELP: &[FunctionHelp] = &[
         own: "TRUE when the whole part of a number is even",
     },
     FunctionHelp {
-        spelling: "ISFORMULA",
+        id: crate::FunctionId::from_raw(655372),
+        spelling: help_spelling(crate::FunctionId::from_raw(655372)),
         microsoft: Some("Returns TRUE if there is a reference to a cell that contains a formula"),
         source: Some(
             "https://support.microsoft.com/en-us/office/isformula-function-e4d1355f-7121-4ef2-801e-3839bfd6b1e5",
@@ -2226,7 +2525,8 @@ pub const HELP: &[FunctionHelp] = &[
         own: "TRUE when the cell holds a formula",
     },
     FunctionHelp {
-        spelling: "ISLOGICAL",
+        id: crate::FunctionId::from_raw(655368),
+        spelling: help_spelling(crate::FunctionId::from_raw(655368)),
         microsoft: Some("Returns TRUE if the value is a logical value"),
         source: Some(
             "https://support.microsoft.com/en-us/office/is-functions-0f2d7971-6019-40a0-a171-f2d869135665",
@@ -2234,7 +2534,8 @@ pub const HELP: &[FunctionHelp] = &[
         own: "TRUE when the value is TRUE or FALSE",
     },
     FunctionHelp {
-        spelling: "ISNA",
+        id: crate::FunctionId::from_raw(655364),
+        spelling: help_spelling(crate::FunctionId::from_raw(655364)),
         microsoft: Some("Returns TRUE if the value is the #N/A error value"),
         source: Some(
             "https://support.microsoft.com/en-us/office/is-functions-0f2d7971-6019-40a0-a171-f2d869135665",
@@ -2242,7 +2543,8 @@ pub const HELP: &[FunctionHelp] = &[
         own: "TRUE when the value is #N/A",
     },
     FunctionHelp {
-        spelling: "ISNONTEXT",
+        id: crate::FunctionId::from_raw(655367),
+        spelling: help_spelling(crate::FunctionId::from_raw(655367)),
         microsoft: Some("Returns TRUE if the value is not text"),
         source: Some(
             "https://support.microsoft.com/en-us/office/is-functions-0f2d7971-6019-40a0-a171-f2d869135665",
@@ -2250,7 +2552,8 @@ pub const HELP: &[FunctionHelp] = &[
         own: "TRUE when the value is anything but text",
     },
     FunctionHelp {
-        spelling: "ISNUMBER",
+        id: crate::FunctionId::from_raw(655365),
+        spelling: help_spelling(crate::FunctionId::from_raw(655365)),
         microsoft: Some("Returns TRUE if the value is a number"),
         source: Some(
             "https://support.microsoft.com/en-us/office/is-functions-0f2d7971-6019-40a0-a171-f2d869135665",
@@ -2258,7 +2561,8 @@ pub const HELP: &[FunctionHelp] = &[
         own: "TRUE when the value is a number",
     },
     FunctionHelp {
-        spelling: "ISO.CEILING",
+        id: crate::FunctionId::from_raw(6619141),
+        spelling: help_spelling(crate::FunctionId::from_raw(6619141)),
         microsoft: Some(
             "Returns a number that is rounded up to the nearest integer or to the nearest multiple of significance",
         ),
@@ -2268,7 +2572,8 @@ pub const HELP: &[FunctionHelp] = &[
         own: "Number rounded up toward plus infinity to a multiple of the significance (ISO form)",
     },
     FunctionHelp {
-        spelling: "ISODD",
+        id: crate::FunctionId::from_raw(655370),
+        spelling: help_spelling(crate::FunctionId::from_raw(655370)),
         microsoft: Some("Returns TRUE if the number is odd"),
         source: Some(
             "https://support.microsoft.com/en-us/office/is-functions-0f2d7971-6019-40a0-a171-f2d869135665",
@@ -2276,7 +2581,8 @@ pub const HELP: &[FunctionHelp] = &[
         own: "TRUE when the whole part of a number is odd",
     },
     FunctionHelp {
-        spelling: "ISOMITTED",
+        id: crate::FunctionId::from_raw(2621442),
+        spelling: help_spelling(crate::FunctionId::from_raw(2621442)),
         microsoft: Some(
             "Checks whether the value in a LAMBDA is missing and returns TRUE or FALSE",
         ),
@@ -2286,7 +2592,8 @@ pub const HELP: &[FunctionHelp] = &[
         own: "TRUE when a LAMBDA parameter was left out of the call",
     },
     FunctionHelp {
-        spelling: "ISOWEEKNUM",
+        id: crate::FunctionId::from_raw(13303826),
+        spelling: help_spelling(crate::FunctionId::from_raw(13303826)),
         microsoft: Some("Returns the number of the ISO week number of the year for a given date"),
         source: Some(
             "https://support.microsoft.com/en-us/office/isoweeknum-function-1c2d0afe-d25b-4ab1-8894-8d0520e90e0e",
@@ -2294,7 +2601,8 @@ pub const HELP: &[FunctionHelp] = &[
         own: "ISO 8601 week number of a date",
     },
     FunctionHelp {
-        spelling: "ISPMT",
+        id: crate::FunctionId::from_raw(19660809),
+        spelling: help_spelling(crate::FunctionId::from_raw(19660809)),
         microsoft: Some("Calculates the interest paid during a specific period of an investment"),
         source: Some(
             "https://support.microsoft.com/en-us/office/ispmt-function-fa58adb6-9d39-4ce0-8f43-75399cea56cc",
@@ -2302,7 +2610,8 @@ pub const HELP: &[FunctionHelp] = &[
         own: "Interest paid in one period of a loan repaid in equal principal parts",
     },
     FunctionHelp {
-        spelling: "ISREF",
+        id: crate::FunctionId::from_raw(655371),
+        spelling: help_spelling(crate::FunctionId::from_raw(655371)),
         microsoft: Some("Returns TRUE if the value is a reference"),
         source: Some(
             "https://support.microsoft.com/en-us/office/is-functions-0f2d7971-6019-40a0-a171-f2d869135665",
@@ -2310,7 +2619,8 @@ pub const HELP: &[FunctionHelp] = &[
         own: "TRUE when the value is a reference",
     },
     FunctionHelp {
-        spelling: "ISTEXT",
+        id: crate::FunctionId::from_raw(655366),
+        spelling: help_spelling(crate::FunctionId::from_raw(655366)),
         microsoft: Some("Returns TRUE if the value is text"),
         source: Some(
             "https://support.microsoft.com/en-us/office/is-functions-0f2d7971-6019-40a0-a171-f2d869135665",
@@ -2318,7 +2628,8 @@ pub const HELP: &[FunctionHelp] = &[
         own: "TRUE when the value is text",
     },
     FunctionHelp {
-        spelling: "KURT",
+        id: crate::FunctionId::from_raw(6750254),
+        spelling: help_spelling(crate::FunctionId::from_raw(6750254)),
         microsoft: Some("Returns the kurtosis of a data set"),
         source: Some(
             "https://support.microsoft.com/en-us/office/kurt-function-bc3a265c-5da4-4dcb-b7fd-c237789095ab",
@@ -2326,7 +2637,8 @@ pub const HELP: &[FunctionHelp] = &[
         own: "Sample excess kurtosis: how heavy the tails of the data are",
     },
     FunctionHelp {
-        spelling: "LAMBDA",
+        id: crate::FunctionId::from_raw(21299210),
+        spelling: help_spelling(crate::FunctionId::from_raw(21299210)),
         microsoft: Some("Create custom, reusable functions and call them by a friendly name"),
         source: Some(
             "https://support.microsoft.com/en-us/office/lambda-function-bd212d27-1cd1-4321-a34a-ccbf254b8b67",
@@ -2334,7 +2646,8 @@ pub const HELP: &[FunctionHelp] = &[
         own: "A function defined in the formula from parameters and a calculation",
     },
     FunctionHelp {
-        spelling: "LARGE",
+        id: crate::FunctionId::from_raw(6750217),
+        spelling: help_spelling(crate::FunctionId::from_raw(6750217)),
         microsoft: Some("Returns the k-th largest value in a data set"),
         source: Some(
             "https://support.microsoft.com/en-us/office/large-function-3af0af19-1190-42bb-bb8b-01672ec00a64",
@@ -2342,7 +2655,8 @@ pub const HELP: &[FunctionHelp] = &[
         own: "The k-th largest value",
     },
     FunctionHelp {
-        spelling: "LCM",
+        id: crate::FunctionId::from_raw(6553639),
+        spelling: help_spelling(crate::FunctionId::from_raw(6553639)),
         microsoft: Some("Returns the least common multiple"),
         source: Some(
             "https://support.microsoft.com/en-us/office/lcm-function-7152b67a-8bb5-4075-ae5c-06ede5563c94",
@@ -2350,7 +2664,8 @@ pub const HELP: &[FunctionHelp] = &[
         own: "Least common multiple of whole numbers",
     },
     FunctionHelp {
-        spelling: "LEFT",
+        id: crate::FunctionId::from_raw(13107206),
+        spelling: help_spelling(crate::FunctionId::from_raw(13107206)),
         microsoft: Some("Returns the leftmost characters from a text value"),
         source: Some(
             "https://support.microsoft.com/en-us/office/left-function-9203d2d2-7960-479b-84c6-1ea52b99640c",
@@ -2358,7 +2673,8 @@ pub const HELP: &[FunctionHelp] = &[
         own: "The first characters of a text",
     },
     FunctionHelp {
-        spelling: "LEFTB",
+        id: crate::FunctionId::from_raw(13107210),
+        spelling: help_spelling(crate::FunctionId::from_raw(13107210)),
         microsoft: Some("Returns the leftmost characters from a text value"),
         source: Some(
             "https://support.microsoft.com/en-us/office/left-function-9203d2d2-7960-479b-84c6-1ea52b99640c",
@@ -2366,7 +2682,8 @@ pub const HELP: &[FunctionHelp] = &[
         own: "The first characters of a text, counted in bytes for double-byte languages",
     },
     FunctionHelp {
-        spelling: "LEN",
+        id: crate::FunctionId::from_raw(13107205),
+        spelling: help_spelling(crate::FunctionId::from_raw(13107205)),
         microsoft: Some("Returns the number of characters in a text string"),
         source: Some(
             "https://support.microsoft.com/en-us/office/len-function-29236f94-cedc-429d-affd-b5e33d2c67cb",
@@ -2374,7 +2691,8 @@ pub const HELP: &[FunctionHelp] = &[
         own: "Text length in characters",
     },
     FunctionHelp {
-        spelling: "LENB",
+        id: crate::FunctionId::from_raw(13107209),
+        spelling: help_spelling(crate::FunctionId::from_raw(13107209)),
         microsoft: Some("Returns the number of characters in a text string"),
         source: Some(
             "https://support.microsoft.com/en-us/office/len-function-29236f94-cedc-429d-affd-b5e33d2c67cb",
@@ -2382,7 +2700,8 @@ pub const HELP: &[FunctionHelp] = &[
         own: "Number of bytes a text takes in double-byte languages",
     },
     FunctionHelp {
-        spelling: "LET",
+        id: crate::FunctionId::from_raw(21299209),
+        spelling: help_spelling(crate::FunctionId::from_raw(21299209)),
         microsoft: Some("Use this function to assign names to calculation results."),
         source: Some(
             "https://support.microsoft.com/en-us/office/let-function-34842dd8-b92b-4d3f-b325-b8b8f9908999",
@@ -2390,7 +2709,8 @@ pub const HELP: &[FunctionHelp] = &[
         own: "A calculation that names intermediate results and uses them",
     },
     FunctionHelp {
-        spelling: "LINEST",
+        id: crate::FunctionId::from_raw(6750265),
+        spelling: help_spelling(crate::FunctionId::from_raw(6750265)),
         microsoft: Some("Returns the parameters of a linear trend"),
         source: Some(
             "https://support.microsoft.com/en-us/office/linest-function-84d7d0d9-6e50-4101-977a-fa7abf772b6d",
@@ -2398,7 +2718,8 @@ pub const HELP: &[FunctionHelp] = &[
         own: "Coefficients and statistics of the least-squares linear fit",
     },
     FunctionHelp {
-        spelling: "LN",
+        id: crate::FunctionId::from_raw(6553626),
+        spelling: help_spelling(crate::FunctionId::from_raw(6553626)),
         microsoft: Some("Returns the natural logarithm of a number"),
         source: Some(
             "https://support.microsoft.com/en-us/office/ln-function-81fe1ed7-dac9-4acd-ba1d-07a142c6118f",
@@ -2406,7 +2727,8 @@ pub const HELP: &[FunctionHelp] = &[
         own: "Natural logarithm",
     },
     FunctionHelp {
-        spelling: "LOG",
+        id: crate::FunctionId::from_raw(6553627),
+        spelling: help_spelling(crate::FunctionId::from_raw(6553627)),
         microsoft: Some("Returns the logarithm of a number to a specified base"),
         source: Some(
             "https://support.microsoft.com/en-us/office/log-function-4e82f196-1ca9-4747-8fb0-6c4a3abb3280",
@@ -2414,7 +2736,8 @@ pub const HELP: &[FunctionHelp] = &[
         own: "Logarithm in a given base (10 when the base is left out)",
     },
     FunctionHelp {
-        spelling: "LOG10",
+        id: crate::FunctionId::from_raw(6553628),
+        spelling: help_spelling(crate::FunctionId::from_raw(6553628)),
         microsoft: Some("Returns the base-10 logarithm of a number"),
         source: Some(
             "https://support.microsoft.com/en-us/office/log10-function-c75b881b-49dd-44fb-b6f4-37e3486a0211",
@@ -2422,7 +2745,8 @@ pub const HELP: &[FunctionHelp] = &[
         own: "Base-10 logarithm",
     },
     FunctionHelp {
-        spelling: "LOGEST",
+        id: crate::FunctionId::from_raw(6750266),
+        spelling: help_spelling(crate::FunctionId::from_raw(6750266)),
         microsoft: Some("Returns the parameters of an exponential trend"),
         source: Some(
             "https://support.microsoft.com/en-us/office/logest-function-f27462d8-3657-4030-866b-a272c1d18b4b",
@@ -2430,7 +2754,8 @@ pub const HELP: &[FunctionHelp] = &[
         own: "Coefficients and statistics of the exponential curve fitted to the data",
     },
     FunctionHelp {
-        spelling: "LOGINV",
+        id: crate::FunctionId::from_raw(6815756),
+        spelling: help_spelling(crate::FunctionId::from_raw(6815756)),
         microsoft: Some("Returns the inverse of the lognormal cumulative distribution function"),
         source: Some(
             "https://support.microsoft.com/en-us/office/loginv-function-0bd7631a-2725-482b-afb4-de23df77acfe",
@@ -2438,7 +2763,8 @@ pub const HELP: &[FunctionHelp] = &[
         own: "Inverse of the cumulative lognormal distribution (older form)",
     },
     FunctionHelp {
-        spelling: "LOGNORM.DIST",
+        id: crate::FunctionId::from_raw(6815753),
+        spelling: help_spelling(crate::FunctionId::from_raw(6815753)),
         microsoft: Some("Returns the cumulative lognormal distribution"),
         source: Some(
             "https://support.microsoft.com/en-us/office/lognorm-dist-function-eb60d00b-48a9-4217-be2b-6074aee6b070",
@@ -2446,7 +2772,8 @@ pub const HELP: &[FunctionHelp] = &[
         own: "Lognormal distribution: the density or the cumulative probability",
     },
     FunctionHelp {
-        spelling: "LOGNORM.INV",
+        id: crate::FunctionId::from_raw(6815755),
+        spelling: help_spelling(crate::FunctionId::from_raw(6815755)),
         microsoft: Some("Returns the inverse of the lognormal cumulative distribution"),
         source: Some(
             "https://support.microsoft.com/en-us/office/lognorm-inv-function-fe79751a-f1f2-4af8-a0a1-e151b2d4f600",
@@ -2454,7 +2781,8 @@ pub const HELP: &[FunctionHelp] = &[
         own: "The value at which the cumulative lognormal distribution reaches a given probability",
     },
     FunctionHelp {
-        spelling: "LOGNORMDIST",
+        id: crate::FunctionId::from_raw(6815754),
+        spelling: help_spelling(crate::FunctionId::from_raw(6815754)),
         microsoft: Some("Returns the cumulative lognormal distribution"),
         source: Some(
             "https://support.microsoft.com/en-us/office/lognormdist-function-f8d194cb-9ee3-4034-8c75-1bdb3884100b",
@@ -2462,7 +2790,8 @@ pub const HELP: &[FunctionHelp] = &[
         own: "Cumulative lognormal probability (older form)",
     },
     FunctionHelp {
-        spelling: "LOOKUP",
+        id: crate::FunctionId::from_raw(589831),
+        spelling: help_spelling(crate::FunctionId::from_raw(589831)),
         microsoft: Some("Looks up values in a vector or array"),
         source: Some(
             "https://support.microsoft.com/en-us/office/lookup-function-446d94af-663b-451d-8251-369d5e3864cb",
@@ -2470,7 +2799,8 @@ pub const HELP: &[FunctionHelp] = &[
         own: "A value found by searching one row or column, taken from the matching place in another",
     },
     FunctionHelp {
-        spelling: "LOWER",
+        id: crate::FunctionId::from_raw(13107214),
+        spelling: help_spelling(crate::FunctionId::from_raw(13107214)),
         microsoft: Some("Converts text to lowercase"),
         source: Some(
             "https://support.microsoft.com/en-us/office/lower-function-3f21df02-a80c-44b2-afaf-81358f9fdeb4",
@@ -2478,7 +2808,8 @@ pub const HELP: &[FunctionHelp] = &[
         own: "Text in lower case",
     },
     FunctionHelp {
-        spelling: "MAKEARRAY",
+        id: crate::FunctionId::from_raw(20381702),
+        spelling: help_spelling(crate::FunctionId::from_raw(20381702)),
         microsoft: Some(
             "Returns a calculated array of a specified row and column size, by applying a LAMBDA",
         ),
@@ -2488,7 +2819,8 @@ pub const HELP: &[FunctionHelp] = &[
         own: "An array of a given size whose items a LAMBDA computes from row and column",
     },
     FunctionHelp {
-        spelling: "MAP",
+        id: crate::FunctionId::from_raw(20381697),
+        spelling: help_spelling(crate::FunctionId::from_raw(20381697)),
         microsoft: Some(
             "Returns an array formed by mapping each value in the array(s) to a new value by applying a LAMBDA to create a new value",
         ),
@@ -2498,7 +2830,8 @@ pub const HELP: &[FunctionHelp] = &[
         own: "An array of the results of a LAMBDA applied to each item of the given arrays",
     },
     FunctionHelp {
-        spelling: "MATCH",
+        id: crate::FunctionId::from_raw(589826),
+        spelling: help_spelling(crate::FunctionId::from_raw(589826)),
         microsoft: Some("Looks up values in a reference or array"),
         source: Some(
             "https://support.microsoft.com/en-us/office/match-function-e8dffd45-c762-47d6-bf89-533f4a37673a",
@@ -2506,7 +2839,8 @@ pub const HELP: &[FunctionHelp] = &[
         own: "Position of a value within a row or column",
     },
     FunctionHelp {
-        spelling: "MAX",
+        id: crate::FunctionId::from_raw(262155),
+        spelling: help_spelling(crate::FunctionId::from_raw(262155)),
         microsoft: Some("Returns the maximum value in a list of arguments"),
         source: Some(
             "https://support.microsoft.com/en-us/office/max-function-e0012414-9ac8-4b34-9a47-73e662c08098",
@@ -2514,7 +2848,8 @@ pub const HELP: &[FunctionHelp] = &[
         own: "Largest of the numbers",
     },
     FunctionHelp {
-        spelling: "MAXA",
+        id: crate::FunctionId::from_raw(262157),
+        spelling: help_spelling(crate::FunctionId::from_raw(262157)),
         microsoft: Some(
             "Returns the maximum value in a list of arguments, including numbers, text, and logical values",
         ),
@@ -2524,7 +2859,8 @@ pub const HELP: &[FunctionHelp] = &[
         own: "Largest value, counting text as 0 and logical values as 1 or 0",
     },
     FunctionHelp {
-        spelling: "MAXIFS",
+        id: crate::FunctionId::from_raw(458759),
+        spelling: help_spelling(crate::FunctionId::from_raw(458759)),
         microsoft: Some(
             "Returns the maximum value among cells specified by a given set of conditions or criteria",
         ),
@@ -2534,7 +2870,8 @@ pub const HELP: &[FunctionHelp] = &[
         own: "Largest value among the cells that meet every condition",
     },
     FunctionHelp {
-        spelling: "MDETERM",
+        id: crate::FunctionId::from_raw(6553649),
+        spelling: help_spelling(crate::FunctionId::from_raw(6553649)),
         microsoft: Some("Returns the matrix determinant of an array"),
         source: Some(
             "https://support.microsoft.com/en-us/office/mdeterm-function-e7bfa857-3834-422b-b871-0ffd03717020",
@@ -2542,7 +2879,8 @@ pub const HELP: &[FunctionHelp] = &[
         own: "Determinant of a square matrix",
     },
     FunctionHelp {
-        spelling: "MDURATION",
+        id: crate::FunctionId::from_raw(19726340),
+        spelling: help_spelling(crate::FunctionId::from_raw(19726340)),
         microsoft: Some(
             "Returns the Macauley modified duration for a security with an assumed par value of $100",
         ),
@@ -2552,7 +2890,8 @@ pub const HELP: &[FunctionHelp] = &[
         own: "Modified duration of a security with periodic coupons",
     },
     FunctionHelp {
-        spelling: "MEDIAN",
+        id: crate::FunctionId::from_raw(6750213),
+        spelling: help_spelling(crate::FunctionId::from_raw(6750213)),
         microsoft: Some("Returns the median of the given numbers"),
         source: Some(
             "https://support.microsoft.com/en-us/office/median-function-d0916313-4753-414c-8537-ce85bdd967d2",
@@ -2560,7 +2899,8 @@ pub const HELP: &[FunctionHelp] = &[
         own: "Middle value of the numbers once sorted",
     },
     FunctionHelp {
-        spelling: "MID",
+        id: crate::FunctionId::from_raw(13107208),
+        spelling: help_spelling(crate::FunctionId::from_raw(13107208)),
         microsoft: Some(
             "Returns a specific number of characters from a text string starting at the position you specify",
         ),
@@ -2570,7 +2910,8 @@ pub const HELP: &[FunctionHelp] = &[
         own: "Characters from the middle of a text, from a start position for a given length",
     },
     FunctionHelp {
-        spelling: "MIDB",
+        id: crate::FunctionId::from_raw(13107212),
+        spelling: help_spelling(crate::FunctionId::from_raw(13107212)),
         microsoft: Some(
             "Returns a specific number of characters from a text string starting at the position you specify",
         ),
@@ -2580,7 +2921,8 @@ pub const HELP: &[FunctionHelp] = &[
         own: "Characters from the middle of a text, counted in bytes for double-byte languages",
     },
     FunctionHelp {
-        spelling: "MIN",
+        id: crate::FunctionId::from_raw(262154),
+        spelling: help_spelling(crate::FunctionId::from_raw(262154)),
         microsoft: Some("Returns the minimum value in a list of arguments"),
         source: Some(
             "https://support.microsoft.com/en-us/office/min-function-61635d12-920f-4ce2-a70f-96f202dcc152",
@@ -2588,7 +2930,8 @@ pub const HELP: &[FunctionHelp] = &[
         own: "Smallest of the numbers",
     },
     FunctionHelp {
-        spelling: "MINA",
+        id: crate::FunctionId::from_raw(262156),
+        spelling: help_spelling(crate::FunctionId::from_raw(262156)),
         microsoft: Some(
             "Returns the smallest value in a list of arguments, including numbers, text, and logical values",
         ),
@@ -2598,7 +2941,8 @@ pub const HELP: &[FunctionHelp] = &[
         own: "Smallest value, counting text as 0 and logical values as 1 or 0",
     },
     FunctionHelp {
-        spelling: "MINIFS",
+        id: crate::FunctionId::from_raw(458760),
+        spelling: help_spelling(crate::FunctionId::from_raw(458760)),
         microsoft: Some(
             "Returns the minimum value among cells specified by a given set of conditions or criteria.",
         ),
@@ -2608,7 +2952,8 @@ pub const HELP: &[FunctionHelp] = &[
         own: "Smallest value among the cells that meet every condition",
     },
     FunctionHelp {
-        spelling: "MINUTE",
+        id: crate::FunctionId::from_raw(13303815),
+        spelling: help_spelling(crate::FunctionId::from_raw(13303815)),
         microsoft: Some("Converts a serial number to a minute"),
         source: Some(
             "https://support.microsoft.com/en-us/office/minute-function-af728df0-05c4-4b07-9eed-a84801a60589",
@@ -2616,7 +2961,8 @@ pub const HELP: &[FunctionHelp] = &[
         own: "Minute (0 to 59) of a time",
     },
     FunctionHelp {
-        spelling: "MINVERSE",
+        id: crate::FunctionId::from_raw(6553650),
+        spelling: help_spelling(crate::FunctionId::from_raw(6553650)),
         microsoft: Some("Returns the matrix inverse of an array"),
         source: Some(
             "https://support.microsoft.com/en-us/office/minverse-function-11f55086-adde-4c9f-8eb9-59da2d72efc6",
@@ -2624,7 +2970,8 @@ pub const HELP: &[FunctionHelp] = &[
         own: "Inverse of a square matrix",
     },
     FunctionHelp {
-        spelling: "MIRR",
+        id: crate::FunctionId::from_raw(19660810),
+        spelling: help_spelling(crate::FunctionId::from_raw(19660810)),
         microsoft: Some(
             "Returns the internal rate of return where positive and negative cash flows are financed at different rates",
         ),
@@ -2634,7 +2981,8 @@ pub const HELP: &[FunctionHelp] = &[
         own: "Internal rate of return with separate finance and reinvestment rates",
     },
     FunctionHelp {
-        spelling: "MMULT",
+        id: crate::FunctionId::from_raw(6553651),
+        spelling: help_spelling(crate::FunctionId::from_raw(6553651)),
         microsoft: Some("Returns the matrix product of two arrays"),
         source: Some(
             "https://support.microsoft.com/en-us/office/mmult-function-40593ed7-a3cd-4b6b-b9a3-e4ad3c7245eb",
@@ -2642,7 +2990,8 @@ pub const HELP: &[FunctionHelp] = &[
         own: "Matrix multiplication: rows of the first array times columns of the second",
     },
     FunctionHelp {
-        spelling: "MOD",
+        id: crate::FunctionId::from_raw(393227),
+        spelling: help_spelling(crate::FunctionId::from_raw(393227)),
         microsoft: Some("Returns the remainder from division"),
         source: Some(
             "https://support.microsoft.com/en-us/office/mod-function-9b6cd169-b6ee-406a-a97b-edf2a9dc24f3",
@@ -2650,7 +2999,8 @@ pub const HELP: &[FunctionHelp] = &[
         own: "Remainder after division, with the sign of the divisor",
     },
     FunctionHelp {
-        spelling: "MODE",
+        id: crate::FunctionId::from_raw(6750214),
+        spelling: help_spelling(crate::FunctionId::from_raw(6750214)),
         microsoft: Some("Returns the most common value in a data set"),
         source: Some(
             "https://support.microsoft.com/en-us/office/mode-function-e45192ce-9122-4980-82ed-4bdc34973120",
@@ -2658,7 +3008,8 @@ pub const HELP: &[FunctionHelp] = &[
         own: "Most frequent number (older form)",
     },
     FunctionHelp {
-        spelling: "MODE.MULT",
+        id: crate::FunctionId::from_raw(6750216),
+        spelling: help_spelling(crate::FunctionId::from_raw(6750216)),
         microsoft: Some(
             "Returns a vertical array of the most frequently occurring, or repetitive values in an array or range of data",
         ),
@@ -2668,7 +3019,8 @@ pub const HELP: &[FunctionHelp] = &[
         own: "All the most frequent numbers, as a vertical array",
     },
     FunctionHelp {
-        spelling: "MODE.SNGL",
+        id: crate::FunctionId::from_raw(6750215),
+        spelling: help_spelling(crate::FunctionId::from_raw(6750215)),
         microsoft: Some("Returns the most common value in a data set"),
         source: Some(
             "https://support.microsoft.com/en-us/office/mode-sngl-function-f1267c16-66c6-4386-959f-8fba5f8bb7f8",
@@ -2676,7 +3028,8 @@ pub const HELP: &[FunctionHelp] = &[
         own: "Most frequent number",
     },
     FunctionHelp {
-        spelling: "MONTH",
+        id: crate::FunctionId::from_raw(13303812),
+        spelling: help_spelling(crate::FunctionId::from_raw(13303812)),
         microsoft: Some("Converts a serial number to a month"),
         source: Some(
             "https://support.microsoft.com/en-us/office/month-function-579a2881-199b-48b2-ab90-ddba0eba86e8",
@@ -2684,7 +3037,8 @@ pub const HELP: &[FunctionHelp] = &[
         own: "Month (1 to 12) of a date",
     },
     FunctionHelp {
-        spelling: "MROUND",
+        id: crate::FunctionId::from_raw(393224),
+        spelling: help_spelling(crate::FunctionId::from_raw(393224)),
         microsoft: Some("Returns a number rounded to the desired multiple"),
         source: Some(
             "https://support.microsoft.com/en-us/office/mround-function-c299c3b0-15a5-426d-aa4b-d2d5b3baf427",
@@ -2692,7 +3046,8 @@ pub const HELP: &[FunctionHelp] = &[
         own: "Number rounded to the nearest multiple of another",
     },
     FunctionHelp {
-        spelling: "MULTINOMIAL",
+        id: crate::FunctionId::from_raw(6553640),
+        spelling: help_spelling(crate::FunctionId::from_raw(6553640)),
         microsoft: Some("Returns the multinomial of a set of numbers"),
         source: Some(
             "https://support.microsoft.com/en-us/office/multinomial-function-6fa6373c-6533-41a2-a45e-a56db1db1bf6",
@@ -2700,7 +3055,8 @@ pub const HELP: &[FunctionHelp] = &[
         own: "Multinomial coefficient: (a + b + ...)! / (a! b! ...)",
     },
     FunctionHelp {
-        spelling: "MUNIT",
+        id: crate::FunctionId::from_raw(6553652),
+        spelling: help_spelling(crate::FunctionId::from_raw(6553652)),
         microsoft: Some("Returns the unit matrix or the specified dimension"),
         source: Some(
             "https://support.microsoft.com/en-us/office/munit-function-c9fe916a-dc26-4105-997d-ba22799853a3",
@@ -2708,7 +3064,8 @@ pub const HELP: &[FunctionHelp] = &[
         own: "Identity matrix of a given size",
     },
     FunctionHelp {
-        spelling: "N",
+        id: crate::FunctionId::from_raw(655374),
+        spelling: help_spelling(crate::FunctionId::from_raw(655374)),
         microsoft: Some("Returns a value converted to a number"),
         source: Some(
             "https://support.microsoft.com/en-us/office/n-function-a624cad1-3635-4208-b54a-29733d1278c9",
@@ -2716,7 +3073,8 @@ pub const HELP: &[FunctionHelp] = &[
         own: "A value as a number: numbers as they are, dates as serials, TRUE as 1, everything else 0",
     },
     FunctionHelp {
-        spelling: "NA",
+        id: crate::FunctionId::from_raw(655375),
+        spelling: help_spelling(crate::FunctionId::from_raw(655375)),
         microsoft: Some("Returns the error value #N/A"),
         source: Some(
             "https://support.microsoft.com/en-us/office/na-function-5469c2d1-a90c-4fb5-9bbc-64bd9bb6b47c",
@@ -2724,7 +3082,8 @@ pub const HELP: &[FunctionHelp] = &[
         own: "The error value #N/A",
     },
     FunctionHelp {
-        spelling: "NEGBINOM.DIST",
+        id: crate::FunctionId::from_raw(6815823),
+        spelling: help_spelling(crate::FunctionId::from_raw(6815823)),
         microsoft: Some("Returns the negative binomial distribution"),
         source: Some(
             "https://support.microsoft.com/en-us/office/negbinom-dist-function-c8239f89-c2d0-45bd-b6af-172e570f8599",
@@ -2732,7 +3091,8 @@ pub const HELP: &[FunctionHelp] = &[
         own: "Negative binomial distribution: the chance of f failures before the s-th success",
     },
     FunctionHelp {
-        spelling: "NEGBINOMDIST",
+        id: crate::FunctionId::from_raw(6815824),
+        spelling: help_spelling(crate::FunctionId::from_raw(6815824)),
         microsoft: Some("Returns the negative binomial distribution"),
         source: Some(
             "https://support.microsoft.com/en-us/office/negbinomdist-function-f59b0a37-bae2-408d-b115-a315609ba714",
@@ -2740,7 +3100,8 @@ pub const HELP: &[FunctionHelp] = &[
         own: "Negative binomial probability (older form)",
     },
     FunctionHelp {
-        spelling: "NETWORKDAYS",
+        id: crate::FunctionId::from_raw(13303829),
+        spelling: help_spelling(crate::FunctionId::from_raw(13303829)),
         microsoft: Some("Returns the number of whole workdays between two dates"),
         source: Some(
             "https://support.microsoft.com/en-us/office/networkdays-function-48e717bf-a7a3-495f-969e-5005e3eb18e7",
@@ -2748,7 +3109,8 @@ pub const HELP: &[FunctionHelp] = &[
         own: "Working days between two dates, leaving out weekends and listed holidays",
     },
     FunctionHelp {
-        spelling: "NETWORKDAYS.INTL",
+        id: crate::FunctionId::from_raw(13303830),
+        spelling: help_spelling(crate::FunctionId::from_raw(13303830)),
         microsoft: Some(
             "Returns the number of whole workdays between two dates using parameters to indicate which and how many days are weekend days",
         ),
@@ -2758,7 +3120,8 @@ pub const HELP: &[FunctionHelp] = &[
         own: "Working days between two dates with a chosen weekend and listed holidays",
     },
     FunctionHelp {
-        spelling: "NOMINAL",
+        id: crate::FunctionId::from_raw(19660814),
+        spelling: help_spelling(crate::FunctionId::from_raw(19660814)),
         microsoft: Some("Returns the annual nominal interest rate"),
         source: Some(
             "https://support.microsoft.com/en-us/office/nominal-function-7f1ae29b-6b92-435e-b950-ad8b190ddd2b",
@@ -2766,7 +3129,8 @@ pub const HELP: &[FunctionHelp] = &[
         own: "Nominal annual rate from an effective rate and the compounding periods per year",
     },
     FunctionHelp {
-        spelling: "NORM.DIST",
+        id: crate::FunctionId::from_raw(6815745),
+        spelling: help_spelling(crate::FunctionId::from_raw(6815745)),
         microsoft: Some("Returns the normal cumulative distribution"),
         source: Some(
             "https://support.microsoft.com/en-us/office/norm-dist-function-edb1cc14-a21c-4e53-839d-8082074c9f8d",
@@ -2774,7 +3138,8 @@ pub const HELP: &[FunctionHelp] = &[
         own: "Normal distribution with a given mean and standard deviation: density or cumulative",
     },
     FunctionHelp {
-        spelling: "NORM.INV",
+        id: crate::FunctionId::from_raw(6815747),
+        spelling: help_spelling(crate::FunctionId::from_raw(6815747)),
         microsoft: Some("Returns the inverse of the normal cumulative distribution"),
         source: Some(
             "https://support.microsoft.com/en-us/office/norm-inv-function-54b30935-fee7-493c-bedb-2278a9db7e13",
@@ -2782,7 +3147,8 @@ pub const HELP: &[FunctionHelp] = &[
         own: "The value at which the cumulative normal distribution reaches a given probability",
     },
     FunctionHelp {
-        spelling: "NORM.S.DIST",
+        id: crate::FunctionId::from_raw(6815749),
+        spelling: help_spelling(crate::FunctionId::from_raw(6815749)),
         microsoft: Some("Returns the standard normal cumulative distribution"),
         source: Some(
             "https://support.microsoft.com/en-us/office/norm-s-dist-function-1e787282-3832-4520-a9ae-bd2a8d99ba88",
@@ -2790,7 +3156,8 @@ pub const HELP: &[FunctionHelp] = &[
         own: "Standard normal distribution: density or cumulative",
     },
     FunctionHelp {
-        spelling: "NORM.S.INV",
+        id: crate::FunctionId::from_raw(6815751),
+        spelling: help_spelling(crate::FunctionId::from_raw(6815751)),
         microsoft: Some("Returns the inverse of the standard normal cumulative distribution"),
         source: Some(
             "https://support.microsoft.com/en-us/office/norm-s-inv-function-d6d556b4-ab7f-49cd-b526-5a20918452b1",
@@ -2798,7 +3165,8 @@ pub const HELP: &[FunctionHelp] = &[
         own: "The z at which the cumulative standard normal distribution reaches a given probability",
     },
     FunctionHelp {
-        spelling: "NORMDIST",
+        id: crate::FunctionId::from_raw(6815746),
+        spelling: help_spelling(crate::FunctionId::from_raw(6815746)),
         microsoft: Some("Returns the normal cumulative distribution"),
         source: Some(
             "https://support.microsoft.com/en-us/office/normdist-function-126db625-c53e-4591-9a22-c9ff422d6d58",
@@ -2806,7 +3174,8 @@ pub const HELP: &[FunctionHelp] = &[
         own: "Normal distribution (older form of NORM.DIST)",
     },
     FunctionHelp {
-        spelling: "NORMINV",
+        id: crate::FunctionId::from_raw(6815748),
+        spelling: help_spelling(crate::FunctionId::from_raw(6815748)),
         microsoft: Some("Returns the inverse of the normal cumulative distribution"),
         source: Some(
             "https://support.microsoft.com/en-us/office/norminv-function-87981ab8-2de0-4cb0-b1aa-e21d4cb879b8",
@@ -2814,7 +3183,8 @@ pub const HELP: &[FunctionHelp] = &[
         own: "Inverse of the cumulative normal distribution (older form)",
     },
     FunctionHelp {
-        spelling: "NORMSDIST",
+        id: crate::FunctionId::from_raw(6815750),
+        spelling: help_spelling(crate::FunctionId::from_raw(6815750)),
         microsoft: Some("Returns the standard normal cumulative distribution"),
         source: Some(
             "https://support.microsoft.com/en-us/office/normsdist-function-463369ea-0345-445d-802a-4ff0d6ce7cac",
@@ -2822,7 +3192,8 @@ pub const HELP: &[FunctionHelp] = &[
         own: "Cumulative standard normal probability (older form)",
     },
     FunctionHelp {
-        spelling: "NORMSINV",
+        id: crate::FunctionId::from_raw(6815752),
+        spelling: help_spelling(crate::FunctionId::from_raw(6815752)),
         microsoft: Some("Returns the inverse of the standard normal cumulative distribution"),
         source: Some(
             "https://support.microsoft.com/en-us/office/normsinv-function-8d1bce66-8e4d-4f3b-967c-30eed61f019d",
@@ -2830,7 +3201,8 @@ pub const HELP: &[FunctionHelp] = &[
         own: "Inverse of the cumulative standard normal distribution (older form)",
     },
     FunctionHelp {
-        spelling: "NOT",
+        id: crate::FunctionId::from_raw(327685),
+        spelling: help_spelling(crate::FunctionId::from_raw(327685)),
         microsoft: Some("Reverses the logic of its argument"),
         source: Some(
             "https://support.microsoft.com/en-us/office/not-function-9cfc6011-a054-40c7-a140-cd4ba2d87d77",
@@ -2838,7 +3210,8 @@ pub const HELP: &[FunctionHelp] = &[
         own: "The opposite logical value",
     },
     FunctionHelp {
-        spelling: "NOW",
+        id: crate::FunctionId::from_raw(13303832),
+        spelling: help_spelling(crate::FunctionId::from_raw(13303832)),
         microsoft: Some("Returns the serial number of the current date and time"),
         source: Some(
             "https://support.microsoft.com/en-us/office/now-function-3337fd29-145a-4347-b2e6-20c904739c46",
@@ -2846,7 +3219,8 @@ pub const HELP: &[FunctionHelp] = &[
         own: "Current date and time as a serial number",
     },
     FunctionHelp {
-        spelling: "NPER",
+        id: crate::FunctionId::from_raw(19660804),
+        spelling: help_spelling(crate::FunctionId::from_raw(19660804)),
         microsoft: Some("Returns the number of periods for an investment"),
         source: Some(
             "https://support.microsoft.com/en-us/office/nper-function-240535b5-6653-4d2d-bfcf-b6a38151d815",
@@ -2854,7 +3228,8 @@ pub const HELP: &[FunctionHelp] = &[
         own: "Number of periods needed to pay off a loan or reach a target value",
     },
     FunctionHelp {
-        spelling: "NPV",
+        id: crate::FunctionId::from_raw(19660806),
+        spelling: help_spelling(crate::FunctionId::from_raw(19660806)),
         microsoft: Some(
             "Returns the net present value of an investment based on a series of periodic cash flows and a discount rate",
         ),
@@ -2864,7 +3239,8 @@ pub const HELP: &[FunctionHelp] = &[
         own: "Net present value of periodic cash flows at a discount rate",
     },
     FunctionHelp {
-        spelling: "NUMBERVALUE",
+        id: crate::FunctionId::from_raw(13238277),
+        spelling: help_spelling(crate::FunctionId::from_raw(13238277)),
         microsoft: Some("Converts text to number in a locale-independent manner"),
         source: Some(
             "https://support.microsoft.com/en-us/office/numbervalue-function-1b05c8cf-2bfa-4437-af70-596c7ea7d879",
@@ -2872,7 +3248,8 @@ pub const HELP: &[FunctionHelp] = &[
         own: "Number read from text with the given decimal and group separators",
     },
     FunctionHelp {
-        spelling: "OCT2BIN",
+        id: crate::FunctionId::from_raw(6881290),
+        spelling: help_spelling(crate::FunctionId::from_raw(6881290)),
         microsoft: Some("Converts an octal number to binary"),
         source: Some(
             "https://support.microsoft.com/en-us/office/oct2bin-function-55383471-3c56-4d27-9522-1a8ec646c589",
@@ -2880,7 +3257,8 @@ pub const HELP: &[FunctionHelp] = &[
         own: "Octal number written in binary",
     },
     FunctionHelp {
-        spelling: "OCT2DEC",
+        id: crate::FunctionId::from_raw(6881291),
+        spelling: help_spelling(crate::FunctionId::from_raw(6881291)),
         microsoft: Some("Converts an octal number to decimal"),
         source: Some(
             "https://support.microsoft.com/en-us/office/oct2dec-function-87606014-cb98-44b2-8dbb-e48f8ced1554",
@@ -2888,7 +3266,8 @@ pub const HELP: &[FunctionHelp] = &[
         own: "Decimal value of an octal number given as text",
     },
     FunctionHelp {
-        spelling: "OCT2HEX",
+        id: crate::FunctionId::from_raw(6881292),
+        spelling: help_spelling(crate::FunctionId::from_raw(6881292)),
         microsoft: Some("Converts an octal number to hexadecimal"),
         source: Some(
             "https://support.microsoft.com/en-us/office/oct2hex-function-912175b4-d497-41b4-a029-221f051b858f",
@@ -2896,7 +3275,8 @@ pub const HELP: &[FunctionHelp] = &[
         own: "Octal number written in hexadecimal",
     },
     FunctionHelp {
-        spelling: "ODD",
+        id: crate::FunctionId::from_raw(393230),
+        spelling: help_spelling(crate::FunctionId::from_raw(393230)),
         microsoft: Some("Rounds a number up to the nearest odd integer"),
         source: Some(
             "https://support.microsoft.com/en-us/office/odd-function-deae64eb-e08a-4c88-8b40-6d0b42575c98",
@@ -2904,7 +3284,8 @@ pub const HELP: &[FunctionHelp] = &[
         own: "Number rounded away from zero to an odd whole number",
     },
     FunctionHelp {
-        spelling: "ODDFPRICE",
+        id: crate::FunctionId::from_raw(19726359),
+        spelling: help_spelling(crate::FunctionId::from_raw(19726359)),
         microsoft: Some(
             "Returns the price per $100 face value of a security with an odd first period",
         ),
@@ -2914,7 +3295,8 @@ pub const HELP: &[FunctionHelp] = &[
         own: "Price per 100 face value of a security whose first period is irregular",
     },
     FunctionHelp {
-        spelling: "ODDFYIELD",
+        id: crate::FunctionId::from_raw(19726360),
+        spelling: help_spelling(crate::FunctionId::from_raw(19726360)),
         microsoft: Some("Returns the yield of a security with an odd first period"),
         source: Some(
             "https://support.microsoft.com/en-us/office/oddfyield-function-66bc8b7b-6501-4c93-9ce3-2fd16220fe37",
@@ -2922,7 +3304,8 @@ pub const HELP: &[FunctionHelp] = &[
         own: "Yield of a security whose first period is irregular",
     },
     FunctionHelp {
-        spelling: "ODDLPRICE",
+        id: crate::FunctionId::from_raw(19726361),
+        spelling: help_spelling(crate::FunctionId::from_raw(19726361)),
         microsoft: Some(
             "Returns the price per $100 face value of a security with an odd last period",
         ),
@@ -2932,7 +3315,8 @@ pub const HELP: &[FunctionHelp] = &[
         own: "Price per 100 face value of a security whose last period is irregular",
     },
     FunctionHelp {
-        spelling: "ODDLYIELD",
+        id: crate::FunctionId::from_raw(19726362),
+        spelling: help_spelling(crate::FunctionId::from_raw(19726362)),
         microsoft: Some("Returns the yield of a security with an odd last period"),
         source: Some(
             "https://support.microsoft.com/en-us/office/oddlyield-function-c873d088-cf40-435f-8d41-c8232fee9238",
@@ -2940,7 +3324,8 @@ pub const HELP: &[FunctionHelp] = &[
         own: "Yield of a security whose last period is irregular",
     },
     FunctionHelp {
-        spelling: "OFFSET",
+        id: crate::FunctionId::from_raw(2621441),
+        spelling: help_spelling(crate::FunctionId::from_raw(2621441)),
         microsoft: Some("Returns a reference offset from a given reference"),
         source: Some(
             "https://support.microsoft.com/en-us/office/offset-function-c8de19ae-dd79-4b9b-a14e-b4d906d11b66",
@@ -2948,13 +3333,15 @@ pub const HELP: &[FunctionHelp] = &[
         own: "A reference shifted by rows and columns from a start, optionally resized",
     },
     FunctionHelp {
-        spelling: "OP_IMPLICIT_INTERSECTION",
+        id: crate::FunctionId::from_raw(21299215),
+        spelling: help_spelling(crate::FunctionId::from_raw(21299215)),
         microsoft: None,
         source: None,
         own: "Projects the implicit-intersection result for a reference or array in the current formula context.",
     },
     FunctionHelp {
-        spelling: "OR",
+        id: crate::FunctionId::from_raw(327683),
+        spelling: help_spelling(crate::FunctionId::from_raw(327683)),
         microsoft: Some("Returns TRUE if any argument is TRUE"),
         source: Some(
             "https://support.microsoft.com/en-us/office/or-function-7d17ad14-8700-4281-b308-00b131e22af0",
@@ -2962,7 +3349,8 @@ pub const HELP: &[FunctionHelp] = &[
         own: "TRUE when at least one argument is TRUE",
     },
     FunctionHelp {
-        spelling: "PDURATION",
+        id: crate::FunctionId::from_raw(19660812),
+        spelling: help_spelling(crate::FunctionId::from_raw(19660812)),
         microsoft: Some(
             "Returns the number of periods required by an investment to reach a specified value",
         ),
@@ -2972,7 +3360,8 @@ pub const HELP: &[FunctionHelp] = &[
         own: "Number of periods an investment needs to grow to a target value at a fixed rate",
     },
     FunctionHelp {
-        spelling: "PEARSON",
+        id: crate::FunctionId::from_raw(6750247),
+        spelling: help_spelling(crate::FunctionId::from_raw(6750247)),
         microsoft: Some("Returns the Pearson product moment correlation coefficient"),
         source: Some(
             "https://support.microsoft.com/en-us/office/pearson-function-0c3e30fc-e5af-49c4-808a-3ef66e034c18",
@@ -2980,7 +3369,8 @@ pub const HELP: &[FunctionHelp] = &[
         own: "Pearson correlation coefficient of two data sets",
     },
     FunctionHelp {
-        spelling: "PERCENTILE",
+        id: crate::FunctionId::from_raw(6750222),
+        spelling: help_spelling(crate::FunctionId::from_raw(6750222)),
         microsoft: Some("Returns the k-th percentile of values in a range"),
         source: Some(
             "https://support.microsoft.com/en-us/office/percentile-function-91b43a53-543c-4708-93de-d626debdddca",
@@ -2988,7 +3378,8 @@ pub const HELP: &[FunctionHelp] = &[
         own: "Value at a given percentile, inclusive of 0 and 1 (older form)",
     },
     FunctionHelp {
-        spelling: "PERCENTILE.EXC",
+        id: crate::FunctionId::from_raw(6750224),
+        spelling: help_spelling(crate::FunctionId::from_raw(6750224)),
         microsoft: Some(
             "Returns the k-th percentile of values in a range, where k is in the range 0..1, exclusive",
         ),
@@ -2998,7 +3389,8 @@ pub const HELP: &[FunctionHelp] = &[
         own: "Value at a given percentile, with 0 and 1 excluded",
     },
     FunctionHelp {
-        spelling: "PERCENTILE.INC",
+        id: crate::FunctionId::from_raw(6750223),
+        spelling: help_spelling(crate::FunctionId::from_raw(6750223)),
         microsoft: Some("Returns the k-th percentile of values in a range"),
         source: Some(
             "https://support.microsoft.com/en-us/office/percentile-inc-function-680f9539-45eb-410b-9a5e-c1355e5fe2ed",
@@ -3006,7 +3398,8 @@ pub const HELP: &[FunctionHelp] = &[
         own: "Value at a given percentile, with 0 and 1 included",
     },
     FunctionHelp {
-        spelling: "PERCENTOF",
+        id: crate::FunctionId::from_raw(20971521),
+        spelling: help_spelling(crate::FunctionId::from_raw(20971521)),
         microsoft: Some("Sums the values in the subset and divides it by all the values"),
         source: Some(
             "https://support.microsoft.com/en-us/office/percentof-function-7c66da0a-ac30-45d0-bfc7-834a8bd7c962",
@@ -3014,7 +3407,8 @@ pub const HELP: &[FunctionHelp] = &[
         own: "Share of a subset in a total, as a fraction",
     },
     FunctionHelp {
-        spelling: "PERCENTRANK",
+        id: crate::FunctionId::from_raw(6750228),
+        spelling: help_spelling(crate::FunctionId::from_raw(6750228)),
         microsoft: Some("Returns the percentage rank of a value in a data set"),
         source: Some(
             "https://support.microsoft.com/en-us/office/percentrank-function-f1b5836c-9619-4847-9fc9-080ec9024442",
@@ -3022,7 +3416,8 @@ pub const HELP: &[FunctionHelp] = &[
         own: "Relative standing of a value in a data set, as a fraction (older form)",
     },
     FunctionHelp {
-        spelling: "PERCENTRANK.EXC",
+        id: crate::FunctionId::from_raw(6750230),
+        spelling: help_spelling(crate::FunctionId::from_raw(6750230)),
         microsoft: Some(
             "Returns the rank of a value in a data set as a percentage (0..1, exclusive) of the data set",
         ),
@@ -3032,7 +3427,8 @@ pub const HELP: &[FunctionHelp] = &[
         own: "Relative standing of a value in a data set, with 0 and 1 excluded",
     },
     FunctionHelp {
-        spelling: "PERCENTRANK.INC",
+        id: crate::FunctionId::from_raw(6750229),
+        spelling: help_spelling(crate::FunctionId::from_raw(6750229)),
         microsoft: Some("Returns the percentage rank of a value in a data set"),
         source: Some(
             "https://support.microsoft.com/en-us/office/percentrank-inc-function-149592c9-00c0-49ba-86c1-c1f45b80463a",
@@ -3040,7 +3436,8 @@ pub const HELP: &[FunctionHelp] = &[
         own: "Relative standing of a value in a data set, with 0 and 1 included",
     },
     FunctionHelp {
-        spelling: "PERMUT",
+        id: crate::FunctionId::from_raw(6553636),
+        spelling: help_spelling(crate::FunctionId::from_raw(6553636)),
         microsoft: Some("Returns the number of permutations for a given number of objects"),
         source: Some(
             "https://support.microsoft.com/en-us/office/permut-function-3bd1cb9a-2880-41ab-a197-f246a7a602d3",
@@ -3048,7 +3445,8 @@ pub const HELP: &[FunctionHelp] = &[
         own: "Number of ordered arrangements of k items chosen from n",
     },
     FunctionHelp {
-        spelling: "PERMUTATIONA",
+        id: crate::FunctionId::from_raw(6553637),
+        spelling: help_spelling(crate::FunctionId::from_raw(6553637)),
         microsoft: Some(
             "Returns the number of permutations for a given number of objects (with repetitions) that can be selected from the total objects",
         ),
@@ -3058,7 +3456,8 @@ pub const HELP: &[FunctionHelp] = &[
         own: "Number of ordered arrangements of k items from n when items may repeat: n to the power k",
     },
     FunctionHelp {
-        spelling: "PHI",
+        id: crate::FunctionId::from_raw(6815761),
+        spelling: help_spelling(crate::FunctionId::from_raw(6815761)),
         microsoft: Some(
             "Returns the value of the density function for a standard normal distribution",
         ),
@@ -3068,7 +3467,8 @@ pub const HELP: &[FunctionHelp] = &[
         own: "Density of the standard normal distribution at z",
     },
     FunctionHelp {
-        spelling: "PHONETIC",
+        id: crate::FunctionId::from_raw(13238284),
+        spelling: help_spelling(crate::FunctionId::from_raw(13238284)),
         microsoft: Some("Extracts the phonetic (furigana) characters from a text string"),
         source: Some(
             "https://support.microsoft.com/en-us/office/phonetic-function-9a329dac-0c0f-42f8-9a55-639086988554",
@@ -3076,7 +3476,8 @@ pub const HELP: &[FunctionHelp] = &[
         own: "The phonetic (furigana) reading stored with Japanese text",
     },
     FunctionHelp {
-        spelling: "PI",
+        id: crate::FunctionId::from_raw(6553624),
+        spelling: help_spelling(crate::FunctionId::from_raw(6553624)),
         microsoft: Some("Returns the value of pi"),
         source: Some(
             "https://support.microsoft.com/en-us/office/pi-function-264199d0-a3ba-46b8-975a-c4a04608989b",
@@ -3084,7 +3485,8 @@ pub const HELP: &[FunctionHelp] = &[
         own: "The constant pi, 3.14159265358979",
     },
     FunctionHelp {
-        spelling: "PIVOTBY",
+        id: crate::FunctionId::from_raw(21037058),
+        spelling: help_spelling(crate::FunctionId::from_raw(21037058)),
         microsoft: Some(
             "Helps a user group, aggregate, sort, and filter data based on the row and column fields that you specify",
         ),
@@ -3094,7 +3496,8 @@ pub const HELP: &[FunctionHelp] = &[
         own: "A cross-tab of values aggregated by row groups and column groups",
     },
     FunctionHelp {
-        spelling: "PMT",
+        id: crate::FunctionId::from_raw(19660803),
+        spelling: help_spelling(crate::FunctionId::from_raw(19660803)),
         microsoft: Some("Returns the periodic payment for an annuity"),
         source: Some(
             "https://support.microsoft.com/en-us/office/pmt-function-0214da64-9a63-4996-bc20-214433fa6441",
@@ -3102,7 +3505,8 @@ pub const HELP: &[FunctionHelp] = &[
         own: "Fixed payment per period that pays off a loan at a fixed rate",
     },
     FunctionHelp {
-        spelling: "POISSON",
+        id: crate::FunctionId::from_raw(6815820),
+        spelling: help_spelling(crate::FunctionId::from_raw(6815820)),
         microsoft: Some("Returns the Poisson distribution"),
         source: Some(
             "https://support.microsoft.com/en-us/office/poisson-function-d81f7294-9d7c-4f75-bc23-80aa8624173a",
@@ -3110,7 +3514,8 @@ pub const HELP: &[FunctionHelp] = &[
         own: "Poisson probability (older form of POISSON.DIST)",
     },
     FunctionHelp {
-        spelling: "POISSON.DIST",
+        id: crate::FunctionId::from_raw(6815819),
+        spelling: help_spelling(crate::FunctionId::from_raw(6815819)),
         microsoft: Some("Returns the Poisson distribution"),
         source: Some(
             "https://support.microsoft.com/en-us/office/poisson-dist-function-8fe148ff-39a2-46cb-abf3-7772695d9636",
@@ -3118,7 +3523,8 @@ pub const HELP: &[FunctionHelp] = &[
         own: "Poisson distribution: the chance of a number of events, as a single value or cumulative",
     },
     FunctionHelp {
-        spelling: "POWER",
+        id: crate::FunctionId::from_raw(6553631),
+        spelling: help_spelling(crate::FunctionId::from_raw(6553631)),
         microsoft: Some("Returns the result of a number raised to a power"),
         source: Some(
             "https://support.microsoft.com/en-us/office/power-function-d3f2908b-56f4-4c3f-895a-07fb519c362a",
@@ -3126,7 +3532,8 @@ pub const HELP: &[FunctionHelp] = &[
         own: "A number raised to a power",
     },
     FunctionHelp {
-        spelling: "PPMT",
+        id: crate::FunctionId::from_raw(19660808),
+        spelling: help_spelling(crate::FunctionId::from_raw(19660808)),
         microsoft: Some(
             "Returns the payment on the principal for an investment for a given period",
         ),
@@ -3136,7 +3543,8 @@ pub const HELP: &[FunctionHelp] = &[
         own: "Principal part of one payment on a loan or investment",
     },
     FunctionHelp {
-        spelling: "PRICE",
+        id: crate::FunctionId::from_raw(19726337),
+        spelling: help_spelling(crate::FunctionId::from_raw(19726337)),
         microsoft: Some(
             "Returns the price per $100 face value of a security that pays periodic interest",
         ),
@@ -3146,7 +3554,8 @@ pub const HELP: &[FunctionHelp] = &[
         own: "Price per 100 face value of a security with periodic coupons",
     },
     FunctionHelp {
-        spelling: "PRICEDISC",
+        id: crate::FunctionId::from_raw(19726355),
+        spelling: help_spelling(crate::FunctionId::from_raw(19726355)),
         microsoft: Some("Returns the price per $100 face value of a discounted security"),
         source: Some(
             "https://support.microsoft.com/en-us/office/pricedisc-function-d06ad7c1-380e-4be7-9fd9-75e3079acfd3",
@@ -3154,7 +3563,8 @@ pub const HELP: &[FunctionHelp] = &[
         own: "Price, per 100 of face value, of a security sold at a discount",
     },
     FunctionHelp {
-        spelling: "PRICEMAT",
+        id: crate::FunctionId::from_raw(19726341),
+        spelling: help_spelling(crate::FunctionId::from_raw(19726341)),
         microsoft: Some(
             "Returns the price per $100 face value of a security that pays interest at maturity",
         ),
@@ -3164,7 +3574,8 @@ pub const HELP: &[FunctionHelp] = &[
         own: "Price, per 100 of face value, of a security whose interest is all paid at maturity",
     },
     FunctionHelp {
-        spelling: "PROB",
+        id: crate::FunctionId::from_raw(6750261),
+        spelling: help_spelling(crate::FunctionId::from_raw(6750261)),
         microsoft: Some("Returns the probability that values in a range are between two limits"),
         source: Some(
             "https://support.microsoft.com/en-us/office/prob-function-9ac30561-c81c-4259-8253-34f0a238fc49",
@@ -3172,7 +3583,8 @@ pub const HELP: &[FunctionHelp] = &[
         own: "Probability that values in a range fall between two limits, from their probabilities",
     },
     FunctionHelp {
-        spelling: "PRODUCT",
+        id: crate::FunctionId::from_raw(262146),
+        spelling: help_spelling(crate::FunctionId::from_raw(262146)),
         microsoft: Some("Multiplies its arguments"),
         source: Some(
             "https://support.microsoft.com/en-us/office/product-function-8e6b5b24-90ee-4650-aeec-80982a0512ce",
@@ -3180,7 +3592,8 @@ pub const HELP: &[FunctionHelp] = &[
         own: "Product of the numbers",
     },
     FunctionHelp {
-        spelling: "PROPER",
+        id: crate::FunctionId::from_raw(13107215),
+        spelling: help_spelling(crate::FunctionId::from_raw(13107215)),
         microsoft: Some("Capitalizes the first letter in each word of a text value"),
         source: Some(
             "https://support.microsoft.com/en-us/office/proper-function-52a5a283-e8b2-49be-8506-b2887b889f94",
@@ -3188,7 +3601,8 @@ pub const HELP: &[FunctionHelp] = &[
         own: "Text with the first letter of each word in upper case and the rest in lower case",
     },
     FunctionHelp {
-        spelling: "PV",
+        id: crate::FunctionId::from_raw(19660801),
+        spelling: help_spelling(crate::FunctionId::from_raw(19660801)),
         microsoft: Some("Returns the present value of an investment"),
         source: Some(
             "https://support.microsoft.com/en-us/office/pv-function-23879d31-0e02-4321-be01-da16e8168cbd",
@@ -3196,7 +3610,8 @@ pub const HELP: &[FunctionHelp] = &[
         own: "Present value of an investment with fixed periodic payments and a fixed rate",
     },
     FunctionHelp {
-        spelling: "QUARTILE",
+        id: crate::FunctionId::from_raw(6750225),
+        spelling: help_spelling(crate::FunctionId::from_raw(6750225)),
         microsoft: Some("Returns the quartile of a data set"),
         source: Some(
             "https://support.microsoft.com/en-us/office/quartile-function-93cf8f62-60cd-4fdb-8a92-8451041e1a2a",
@@ -3204,7 +3619,8 @@ pub const HELP: &[FunctionHelp] = &[
         own: "A quartile of a data set, inclusive (older form)",
     },
     FunctionHelp {
-        spelling: "QUARTILE.EXC",
+        id: crate::FunctionId::from_raw(6750227),
+        spelling: help_spelling(crate::FunctionId::from_raw(6750227)),
         microsoft: Some(
             "Returns the quartile of the data set, based on percentile values from 0..1, exclusive",
         ),
@@ -3214,7 +3630,8 @@ pub const HELP: &[FunctionHelp] = &[
         own: "A quartile of a data set, from percentiles with 0 and 1 excluded",
     },
     FunctionHelp {
-        spelling: "QUARTILE.INC",
+        id: crate::FunctionId::from_raw(6750226),
+        spelling: help_spelling(crate::FunctionId::from_raw(6750226)),
         microsoft: Some("Returns the quartile of a data set"),
         source: Some(
             "https://support.microsoft.com/en-us/office/quartile-inc-function-1bbacc80-5075-42f1-aed6-47d735c4819d",
@@ -3222,7 +3639,8 @@ pub const HELP: &[FunctionHelp] = &[
         own: "A quartile of a data set, from percentiles with 0 and 1 included",
     },
     FunctionHelp {
-        spelling: "QUOTIENT",
+        id: crate::FunctionId::from_raw(393228),
+        spelling: help_spelling(crate::FunctionId::from_raw(393228)),
         microsoft: Some("Returns the integer portion of a division"),
         source: Some(
             "https://support.microsoft.com/en-us/office/quotient-function-9f7bf099-2a18-4282-8fa4-65290cc99dee",
@@ -3230,7 +3648,8 @@ pub const HELP: &[FunctionHelp] = &[
         own: "Whole-number part of a division",
     },
     FunctionHelp {
-        spelling: "RADIANS",
+        id: crate::FunctionId::from_raw(6553623),
+        spelling: help_spelling(crate::FunctionId::from_raw(6553623)),
         microsoft: Some("Converts degrees to radians"),
         source: Some(
             "https://support.microsoft.com/en-us/office/radians-function-ac409508-3d48-45f5-ac02-1497c92de5bf",
@@ -3238,7 +3657,8 @@ pub const HELP: &[FunctionHelp] = &[
         own: "Angle in degrees expressed in radians",
     },
     FunctionHelp {
-        spelling: "RAND",
+        id: crate::FunctionId::from_raw(6946817),
+        spelling: help_spelling(crate::FunctionId::from_raw(6946817)),
         microsoft: Some("Returns a random number between 0 and 1"),
         source: Some(
             "https://support.microsoft.com/en-us/office/rand-function-4cbfa695-8869-4788-8d90-021ea9f5be73",
@@ -3246,7 +3666,8 @@ pub const HELP: &[FunctionHelp] = &[
         own: "A random number from 0 up to but not including 1, new at each recalculation",
     },
     FunctionHelp {
-        spelling: "RANDARRAY",
+        id: crate::FunctionId::from_raw(6946819),
+        spelling: help_spelling(crate::FunctionId::from_raw(6946819)),
         microsoft: Some(
             "Returns an array of random numbers between 0 and 1. However, you can specify the number of rows and columns to fill, minimum and maximum values, and whether to return whole numbers or decimal values.",
         ),
@@ -3256,7 +3677,8 @@ pub const HELP: &[FunctionHelp] = &[
         own: "An array of random numbers of a given size, within limits, whole or decimal",
     },
     FunctionHelp {
-        spelling: "RANDBETWEEN",
+        id: crate::FunctionId::from_raw(6946818),
+        spelling: help_spelling(crate::FunctionId::from_raw(6946818)),
         microsoft: Some("Returns a random number between the numbers you specify"),
         source: Some(
             "https://support.microsoft.com/en-us/office/randbetween-function-4cc7f0d1-87dc-4eb7-987f-a469ab381685",
@@ -3264,7 +3686,8 @@ pub const HELP: &[FunctionHelp] = &[
         own: "A random whole number between two limits, new at each recalculation",
     },
     FunctionHelp {
-        spelling: "RANK",
+        id: crate::FunctionId::from_raw(6750219),
+        spelling: help_spelling(crate::FunctionId::from_raw(6750219)),
         microsoft: Some("Returns the rank of a number in a list of numbers"),
         source: Some(
             "https://support.microsoft.com/en-us/office/rank-function-6a2fc49d-1831-4a03-9d8c-c279cf99f723",
@@ -3272,7 +3695,8 @@ pub const HELP: &[FunctionHelp] = &[
         own: "Rank of a number in a list (older form of RANK.EQ)",
     },
     FunctionHelp {
-        spelling: "RANK.AVG",
+        id: crate::FunctionId::from_raw(6750221),
+        spelling: help_spelling(crate::FunctionId::from_raw(6750221)),
         microsoft: Some("Returns the rank of a number in a list of numbers"),
         source: Some(
             "https://support.microsoft.com/en-us/office/rank-avg-function-bd406a6f-eb38-4d73-aa8e-6d1c3c72e83a",
@@ -3280,7 +3704,8 @@ pub const HELP: &[FunctionHelp] = &[
         own: "Rank of a number in a list, with tied values sharing their average rank",
     },
     FunctionHelp {
-        spelling: "RANK.EQ",
+        id: crate::FunctionId::from_raw(6750220),
+        spelling: help_spelling(crate::FunctionId::from_raw(6750220)),
         microsoft: Some("Returns the rank of a number in a list of numbers"),
         source: Some(
             "https://support.microsoft.com/en-us/office/rank-eq-function-284858ce-8ef6-450e-b662-26245be04a40",
@@ -3288,7 +3713,8 @@ pub const HELP: &[FunctionHelp] = &[
         own: "Rank of a number in a list, with tied values sharing the top rank",
     },
     FunctionHelp {
-        spelling: "RATE",
+        id: crate::FunctionId::from_raw(19660805),
+        spelling: help_spelling(crate::FunctionId::from_raw(19660805)),
         microsoft: Some("Returns the interest rate per period of an annuity"),
         source: Some(
             "https://support.microsoft.com/en-us/office/rate-function-9f665657-4a7e-4bb7-a030-83fc59e748ce",
@@ -3296,7 +3722,8 @@ pub const HELP: &[FunctionHelp] = &[
         own: "Interest rate per period that makes the payments match the present and future values",
     },
     FunctionHelp {
-        spelling: "RECEIVED",
+        id: crate::FunctionId::from_raw(19726354),
+        spelling: help_spelling(crate::FunctionId::from_raw(19726354)),
         microsoft: Some("Returns the amount received at maturity for a fully invested security"),
         source: Some(
             "https://support.microsoft.com/en-us/office/received-function-7a3f8b93-6611-4f81-8576-828312c9b5e5",
@@ -3304,7 +3731,8 @@ pub const HELP: &[FunctionHelp] = &[
         own: "Redemption amount of a security bought at a price and held to maturity at a discount rate",
     },
     FunctionHelp {
-        spelling: "REDUCE",
+        id: crate::FunctionId::from_raw(20381698),
+        spelling: help_spelling(crate::FunctionId::from_raw(20381698)),
         microsoft: Some(
             "Reduces an array to an accumulated value by applying a LAMBDA to each value and returning the total value in the accumulator",
         ),
@@ -3314,7 +3742,8 @@ pub const HELP: &[FunctionHelp] = &[
         own: "A running total built by a LAMBDA over each item of an array, giving the final value",
     },
     FunctionHelp {
-        spelling: "REGEXEXTRACT",
+        id: crate::FunctionId::from_raw(13238289),
+        spelling: help_spelling(crate::FunctionId::from_raw(13238289)),
         microsoft: Some("Extracts strings within the provided text that matches the pattern"),
         source: Some(
             "https://support.microsoft.com/en-us/office/regexextract-function-4b96c140-9205-4b6e-9fbe-6aa9e783ff57",
@@ -3322,7 +3751,8 @@ pub const HELP: &[FunctionHelp] = &[
         own: "Text matched by a regular expression",
     },
     FunctionHelp {
-        spelling: "REGEXREPLACE",
+        id: crate::FunctionId::from_raw(13238290),
+        spelling: help_spelling(crate::FunctionId::from_raw(13238290)),
         microsoft: Some(
             "Replaces strings within the provided text that matches the pattern with replacement",
         ),
@@ -3332,7 +3762,8 @@ pub const HELP: &[FunctionHelp] = &[
         own: "Text with the matches of a regular expression replaced",
     },
     FunctionHelp {
-        spelling: "REGEXTEST",
+        id: crate::FunctionId::from_raw(13238288),
+        spelling: help_spelling(crate::FunctionId::from_raw(13238288)),
         microsoft: Some("Determines whether any part of text matches the pattern"),
         source: Some(
             "https://support.microsoft.com/en-us/office/regextest-function-7d38200b-5e5c-4196-b4e6-9bff73afbd31",
@@ -3340,7 +3771,8 @@ pub const HELP: &[FunctionHelp] = &[
         own: "TRUE when a text matches a regular expression",
     },
     FunctionHelp {
-        spelling: "REGISTER.ID",
+        id: crate::FunctionId::from_raw(21299202),
+        spelling: help_spelling(crate::FunctionId::from_raw(21299202)),
         microsoft: Some(
             "Returns the register ID of the specified dynamic link library (DLL) or code resource that has been previously registered",
         ),
@@ -3350,7 +3782,8 @@ pub const HELP: &[FunctionHelp] = &[
         own: "Identifier of a registered procedure in a code library (DLL)",
     },
     FunctionHelp {
-        spelling: "REPLACE",
+        id: crate::FunctionId::from_raw(13107224),
+        spelling: help_spelling(crate::FunctionId::from_raw(13107224)),
         microsoft: Some("Replaces characters within text"),
         source: Some(
             "https://support.microsoft.com/en-us/office/replace-function-8d799074-2425-4a8a-84bc-82472868878a",
@@ -3358,7 +3791,8 @@ pub const HELP: &[FunctionHelp] = &[
         own: "Text with a span of characters replaced by other text",
     },
     FunctionHelp {
-        spelling: "REPLACEB",
+        id: crate::FunctionId::from_raw(13107225),
+        spelling: help_spelling(crate::FunctionId::from_raw(13107225)),
         microsoft: Some("Replaces characters within text"),
         source: Some(
             "https://support.microsoft.com/en-us/office/replace-function-8d799074-2425-4a8a-84bc-82472868878a",
@@ -3366,7 +3800,8 @@ pub const HELP: &[FunctionHelp] = &[
         own: "Text with a span of bytes replaced by other text, for double-byte languages",
     },
     FunctionHelp {
-        spelling: "REPT",
+        id: crate::FunctionId::from_raw(13107218),
+        spelling: help_spelling(crate::FunctionId::from_raw(13107218)),
         microsoft: Some("Repeats text a given number of times"),
         source: Some(
             "https://support.microsoft.com/en-us/office/rept-function-04c4d778-e712-43b4-9c15-d656582bb061",
@@ -3374,7 +3809,8 @@ pub const HELP: &[FunctionHelp] = &[
         own: "A text repeated a number of times",
     },
     FunctionHelp {
-        spelling: "RIGHT",
+        id: crate::FunctionId::from_raw(13107207),
+        spelling: help_spelling(crate::FunctionId::from_raw(13107207)),
         microsoft: Some("Returns the rightmost characters from a text value"),
         source: Some(
             "https://support.microsoft.com/en-us/office/right-function-240267ee-9afa-4639-a02b-f19e1786cf2f",
@@ -3382,7 +3818,8 @@ pub const HELP: &[FunctionHelp] = &[
         own: "The last characters of a text",
     },
     FunctionHelp {
-        spelling: "RIGHTB",
+        id: crate::FunctionId::from_raw(13107211),
+        spelling: help_spelling(crate::FunctionId::from_raw(13107211)),
         microsoft: Some("Returns the rightmost characters from a text value"),
         source: Some(
             "https://support.microsoft.com/en-us/office/right-function-240267ee-9afa-4639-a02b-f19e1786cf2f",
@@ -3390,7 +3827,8 @@ pub const HELP: &[FunctionHelp] = &[
         own: "The last characters of a text, counted in bytes for double-byte languages",
     },
     FunctionHelp {
-        spelling: "ROMAN",
+        id: crate::FunctionId::from_raw(6553642),
+        spelling: help_spelling(crate::FunctionId::from_raw(6553642)),
         microsoft: Some("Converts an Arabic numeral to Roman, as text"),
         source: Some(
             "https://support.microsoft.com/en-us/office/roman-function-d6b0b99e-de46-4704-a518-b45a0f8b56f5",
@@ -3398,7 +3836,8 @@ pub const HELP: &[FunctionHelp] = &[
         own: "A number written as a Roman numeral, in one of several styles",
     },
     FunctionHelp {
-        spelling: "ROUND",
+        id: crate::FunctionId::from_raw(393221),
+        spelling: help_spelling(crate::FunctionId::from_raw(393221)),
         microsoft: Some("Rounds a number to a specified number of digits"),
         source: Some(
             "https://support.microsoft.com/en-us/office/round-function-c018c5d8-40fb-4053-90b1-b3e7f61a213c",
@@ -3406,7 +3845,8 @@ pub const HELP: &[FunctionHelp] = &[
         own: "Number rounded to a number of digits",
     },
     FunctionHelp {
-        spelling: "ROUNDDOWN",
+        id: crate::FunctionId::from_raw(393223),
+        spelling: help_spelling(crate::FunctionId::from_raw(393223)),
         microsoft: Some("Rounds a number down, toward zero"),
         source: Some(
             "https://support.microsoft.com/en-us/office/rounddown-function-2ec94c73-241f-4b01-8c6f-17e6d7968f53",
@@ -3414,7 +3854,8 @@ pub const HELP: &[FunctionHelp] = &[
         own: "Number rounded toward zero to a number of digits",
     },
     FunctionHelp {
-        spelling: "ROUNDUP",
+        id: crate::FunctionId::from_raw(393222),
+        spelling: help_spelling(crate::FunctionId::from_raw(393222)),
         microsoft: Some("Rounds a number up, away from zero"),
         source: Some(
             "https://support.microsoft.com/en-us/office/roundup-function-f8bc9b23-e795-47db-8703-db171d0c42a7",
@@ -3422,7 +3863,8 @@ pub const HELP: &[FunctionHelp] = &[
         own: "Number rounded away from zero to a number of digits",
     },
     FunctionHelp {
-        spelling: "ROW",
+        id: crate::FunctionId::from_raw(589833),
+        spelling: help_spelling(crate::FunctionId::from_raw(589833)),
         microsoft: Some("Returns the row number of a reference"),
         source: Some(
             "https://support.microsoft.com/en-us/office/row-function-3a63b74a-c4d0-4093-b49a-e76eb49a6d8d",
@@ -3430,7 +3872,8 @@ pub const HELP: &[FunctionHelp] = &[
         own: "Row number of the first cell of a reference (of the formula's cell when left out)",
     },
     FunctionHelp {
-        spelling: "ROWS",
+        id: crate::FunctionId::from_raw(589835),
+        spelling: help_spelling(crate::FunctionId::from_raw(589835)),
         microsoft: Some("Returns the number of rows in a reference"),
         source: Some(
             "https://support.microsoft.com/en-us/office/rows-function-b592593e-3fc2-47f2-bec1-bda493811597",
@@ -3438,7 +3881,8 @@ pub const HELP: &[FunctionHelp] = &[
         own: "How many rows an array or reference has",
     },
     FunctionHelp {
-        spelling: "RRI",
+        id: crate::FunctionId::from_raw(19660813),
+        spelling: help_spelling(crate::FunctionId::from_raw(19660813)),
         microsoft: Some("Returns an equivalent interest rate for the growth of an investment"),
         source: Some(
             "https://support.microsoft.com/en-us/office/rri-function-6f5822d8-7ef1-4233-944c-79e8172930f4",
@@ -3446,7 +3890,8 @@ pub const HELP: &[FunctionHelp] = &[
         own: "Equivalent rate per period for an investment to grow from a present to a future value",
     },
     FunctionHelp {
-        spelling: "RSQ",
+        id: crate::FunctionId::from_raw(6750248),
+        spelling: help_spelling(crate::FunctionId::from_raw(6750248)),
         microsoft: Some("Returns the square of the Pearson product moment correlation coefficient"),
         source: Some(
             "https://support.microsoft.com/en-us/office/rsq-function-d7161715-250d-4a01-b80d-a8364f2be08f",
@@ -3454,7 +3899,8 @@ pub const HELP: &[FunctionHelp] = &[
         own: "Square of the Pearson correlation coefficient of two data sets",
     },
     FunctionHelp {
-        spelling: "RTD",
+        id: crate::FunctionId::from_raw(21299203),
+        spelling: help_spelling(crate::FunctionId::from_raw(21299203)),
         microsoft: Some("Retrieves real-time data from a program that supports COM automation"),
         source: Some(
             "https://support.microsoft.com/en-us/office/rtd-function-e0cc001a-56f0-470a-9b19-9455dc0eb593",
@@ -3462,7 +3908,8 @@ pub const HELP: &[FunctionHelp] = &[
         own: "Live data from a program that supports real-time data (COM automation)",
     },
     FunctionHelp {
-        spelling: "SCAN",
+        id: crate::FunctionId::from_raw(20381699),
+        spelling: help_spelling(crate::FunctionId::from_raw(20381699)),
         microsoft: Some(
             "Scans an array by applying a LAMBDA to each value and returns an array that has each intermediate value",
         ),
@@ -3472,7 +3919,8 @@ pub const HELP: &[FunctionHelp] = &[
         own: "Every intermediate value of a running calculation by a LAMBDA over an array",
     },
     FunctionHelp {
-        spelling: "SEARCH",
+        id: crate::FunctionId::from_raw(13107222),
+        spelling: help_spelling(crate::FunctionId::from_raw(13107222)),
         microsoft: Some("Finds one text value within another (not case-sensitive)"),
         source: Some(
             "https://support.microsoft.com/en-us/office/search-function-9ab04538-0e55-4719-a72e-b6f54513b495",
@@ -3480,7 +3928,8 @@ pub const HELP: &[FunctionHelp] = &[
         own: "Position of one text inside another, ignoring letter case and allowing wildcards",
     },
     FunctionHelp {
-        spelling: "SEARCHB",
+        id: crate::FunctionId::from_raw(13107223),
+        spelling: help_spelling(crate::FunctionId::from_raw(13107223)),
         microsoft: Some("Finds one text value within another (not case-sensitive)"),
         source: Some(
             "https://support.microsoft.com/en-us/office/search-function-9ab04538-0e55-4719-a72e-b6f54513b495",
@@ -3488,7 +3937,8 @@ pub const HELP: &[FunctionHelp] = &[
         own: "Position of one text inside another, ignoring case, counted in bytes for double-byte languages",
     },
     FunctionHelp {
-        spelling: "SEC",
+        id: crate::FunctionId::from_raw(6553616),
+        spelling: help_spelling(crate::FunctionId::from_raw(6553616)),
         microsoft: Some("Returns the secant of an angle"),
         source: Some(
             "https://support.microsoft.com/en-us/office/sec-function-ff224717-9c87-4170-9b58-d069ced6d5f7",
@@ -3496,7 +3946,8 @@ pub const HELP: &[FunctionHelp] = &[
         own: "Secant of an angle in radians",
     },
     FunctionHelp {
-        spelling: "SECH",
+        id: crate::FunctionId::from_raw(6553617),
+        spelling: help_spelling(crate::FunctionId::from_raw(6553617)),
         microsoft: Some("Returns the hyperbolic secant of an angle"),
         source: Some(
             "https://support.microsoft.com/en-us/office/sech-function-e05a789f-5ff7-4d7f-984a-5edb9b09556f",
@@ -3504,7 +3955,8 @@ pub const HELP: &[FunctionHelp] = &[
         own: "Hyperbolic secant",
     },
     FunctionHelp {
-        spelling: "SECOND",
+        id: crate::FunctionId::from_raw(13303816),
+        spelling: help_spelling(crate::FunctionId::from_raw(13303816)),
         microsoft: Some("Converts a serial number to a second"),
         source: Some(
             "https://support.microsoft.com/en-us/office/second-function-740d1cfc-553c-4099-b668-80eaa24e8af1",
@@ -3512,7 +3964,8 @@ pub const HELP: &[FunctionHelp] = &[
         own: "Second (0 to 59) of a time",
     },
     FunctionHelp {
-        spelling: "SEQUENCE",
+        id: crate::FunctionId::from_raw(20316161),
+        spelling: help_spelling(crate::FunctionId::from_raw(20316161)),
         microsoft: Some("Generates a list of sequential numbers in an array, such as 1, 2, 3, 4"),
         source: Some(
             "https://support.microsoft.com/en-us/office/sequence-function-57467a98-57e0-4817-9f14-2eb78519ca90",
@@ -3520,7 +3973,8 @@ pub const HELP: &[FunctionHelp] = &[
         own: "An array of evenly spaced numbers of a given size",
     },
     FunctionHelp {
-        spelling: "SERIESSUM",
+        id: crate::FunctionId::from_raw(6553645),
+        spelling: help_spelling(crate::FunctionId::from_raw(6553645)),
         microsoft: Some("Returns the sum of a power series based on the formula"),
         source: Some(
             "https://support.microsoft.com/en-us/office/seriessum-function-a3ab25b5-1093-4f5b-b084-96c49087f637",
@@ -3528,7 +3982,8 @@ pub const HELP: &[FunctionHelp] = &[
         own: "Sum of a power series with given coefficients",
     },
     FunctionHelp {
-        spelling: "SHEET",
+        id: crate::FunctionId::from_raw(13369347),
+        spelling: help_spelling(crate::FunctionId::from_raw(13369347)),
         microsoft: Some("Returns the sheet number of the referenced sheet"),
         source: Some(
             "https://support.microsoft.com/en-us/office/sheet-function-44718b6f-8b87-47a1-a9d6-b701c06cff24",
@@ -3536,7 +3991,8 @@ pub const HELP: &[FunctionHelp] = &[
         own: "Number of the sheet a reference or name points to",
     },
     FunctionHelp {
-        spelling: "SHEETS",
+        id: crate::FunctionId::from_raw(13369348),
+        spelling: help_spelling(crate::FunctionId::from_raw(13369348)),
         microsoft: Some("Returns the number of sheets in a reference"),
         source: Some(
             "https://support.microsoft.com/en-us/office/sheets-function-770515eb-e1e8-45ce-8066-b557e5e4b80b",
@@ -3544,7 +4000,8 @@ pub const HELP: &[FunctionHelp] = &[
         own: "Number of sheets in a reference or in the workbook",
     },
     FunctionHelp {
-        spelling: "SIGN",
+        id: crate::FunctionId::from_raw(393218),
+        spelling: help_spelling(crate::FunctionId::from_raw(393218)),
         microsoft: Some("Returns the sign of a number"),
         source: Some(
             "https://support.microsoft.com/en-us/office/sign-function-109c932d-fcdc-4023-91f1-2dd0e916a1d8",
@@ -3552,7 +4009,8 @@ pub const HELP: &[FunctionHelp] = &[
         own: "1 for a positive number, 0 for zero, -1 for a negative number",
     },
     FunctionHelp {
-        spelling: "SIN",
+        id: crate::FunctionId::from_raw(6553618),
+        spelling: help_spelling(crate::FunctionId::from_raw(6553618)),
         microsoft: Some("Returns the sine of the given angle"),
         source: Some(
             "https://support.microsoft.com/en-us/office/sin-function-cf0e3432-8b9e-483c-bc55-a76651c95602",
@@ -3560,7 +4018,8 @@ pub const HELP: &[FunctionHelp] = &[
         own: "Sine of an angle in radians",
     },
     FunctionHelp {
-        spelling: "SINH",
+        id: crate::FunctionId::from_raw(6553619),
+        spelling: help_spelling(crate::FunctionId::from_raw(6553619)),
         microsoft: Some("Returns the hyperbolic sine of a number"),
         source: Some(
             "https://support.microsoft.com/en-us/office/sinh-function-1e4e8b9f-2b65-43fc-ab8a-0a37f4081fa7",
@@ -3568,7 +4027,8 @@ pub const HELP: &[FunctionHelp] = &[
         own: "Hyperbolic sine",
     },
     FunctionHelp {
-        spelling: "SKEW",
+        id: crate::FunctionId::from_raw(6750255),
+        spelling: help_spelling(crate::FunctionId::from_raw(6750255)),
         microsoft: Some("Returns the skewness of a distribution"),
         source: Some(
             "https://support.microsoft.com/en-us/office/skew-function-bdf49d86-b1ef-4804-a046-28eaea69c9fa",
@@ -3576,7 +4036,8 @@ pub const HELP: &[FunctionHelp] = &[
         own: "Sample skewness: how lopsided the data are around their mean",
     },
     FunctionHelp {
-        spelling: "SKEW.P",
+        id: crate::FunctionId::from_raw(6750256),
+        spelling: help_spelling(crate::FunctionId::from_raw(6750256)),
         microsoft: Some(
             "Returns the skewness of a distribution based on a population: a characterization of the degree of asymmetry of a distribution around its mean",
         ),
@@ -3586,7 +4047,8 @@ pub const HELP: &[FunctionHelp] = &[
         own: "Population skewness",
     },
     FunctionHelp {
-        spelling: "SLN",
+        id: crate::FunctionId::from_raw(19660821),
+        spelling: help_spelling(crate::FunctionId::from_raw(19660821)),
         microsoft: Some("Returns the straight-line depreciation of an asset for one period"),
         source: Some(
             "https://support.microsoft.com/en-us/office/sln-function-cdb666e5-c1c6-40a7-806a-e695edc2f1c8",
@@ -3594,7 +4056,8 @@ pub const HELP: &[FunctionHelp] = &[
         own: "Depreciation per period by the straight-line method",
     },
     FunctionHelp {
-        spelling: "SLOPE",
+        id: crate::FunctionId::from_raw(6750249),
+        spelling: help_spelling(crate::FunctionId::from_raw(6750249)),
         microsoft: Some("Returns the slope of the linear regression line"),
         source: Some(
             "https://support.microsoft.com/en-us/office/slope-function-11fb8f97-3117-4813-98aa-61d7e01276b9",
@@ -3602,7 +4065,8 @@ pub const HELP: &[FunctionHelp] = &[
         own: "Slope of the least-squares line through the known points",
     },
     FunctionHelp {
-        spelling: "SMALL",
+        id: crate::FunctionId::from_raw(6750218),
+        spelling: help_spelling(crate::FunctionId::from_raw(6750218)),
         microsoft: Some("Returns the k-th smallest value in a data set"),
         source: Some(
             "https://support.microsoft.com/en-us/office/small-function-17da8222-7c82-42b2-961b-14c45384df07",
@@ -3610,7 +4074,8 @@ pub const HELP: &[FunctionHelp] = &[
         own: "The k-th smallest value",
     },
     FunctionHelp {
-        spelling: "SORT",
+        id: crate::FunctionId::from_raw(20316163),
+        spelling: help_spelling(crate::FunctionId::from_raw(20316163)),
         microsoft: Some("Sorts the contents of a range or array"),
         source: Some(
             "https://support.microsoft.com/en-us/office/sort-function-22f63bd0-ccc8-492f-953d-c20e8e44b86c",
@@ -3618,7 +4083,8 @@ pub const HELP: &[FunctionHelp] = &[
         own: "The contents of an array in sorted order",
     },
     FunctionHelp {
-        spelling: "SORTBY",
+        id: crate::FunctionId::from_raw(20316164),
+        spelling: help_spelling(crate::FunctionId::from_raw(20316164)),
         microsoft: Some(
             "Sorts the contents of a range or array based on the values in a corresponding range or array",
         ),
@@ -3628,7 +4094,8 @@ pub const HELP: &[FunctionHelp] = &[
         own: "An array sorted by the values of other arrays",
     },
     FunctionHelp {
-        spelling: "SQRT",
+        id: crate::FunctionId::from_raw(6553629),
+        spelling: help_spelling(crate::FunctionId::from_raw(6553629)),
         microsoft: Some("Returns a positive square root"),
         source: Some(
             "https://support.microsoft.com/en-us/office/sqrt-function-654975c2-05c4-4831-9a24-2c65e4040fdf",
@@ -3636,7 +4103,8 @@ pub const HELP: &[FunctionHelp] = &[
         own: "Square root of a number that is zero or more",
     },
     FunctionHelp {
-        spelling: "SQRTPI",
+        id: crate::FunctionId::from_raw(6553630),
+        spelling: help_spelling(crate::FunctionId::from_raw(6553630)),
         microsoft: Some("Returns the square root of (number * pi)"),
         source: Some(
             "https://support.microsoft.com/en-us/office/sqrtpi-function-1fb4e63f-9b51-46d6-ad68-b3e7a8b519b4",
@@ -3644,7 +4112,8 @@ pub const HELP: &[FunctionHelp] = &[
         own: "Square root of a number times pi",
     },
     FunctionHelp {
-        spelling: "STANDARDIZE",
+        id: crate::FunctionId::from_raw(6750258),
+        spelling: help_spelling(crate::FunctionId::from_raw(6750258)),
         microsoft: Some("Returns a normalized value"),
         source: Some(
             "https://support.microsoft.com/en-us/office/standardize-function-81d66554-2d54-40ec-ba83-6437108ee775",
@@ -3652,7 +4121,8 @@ pub const HELP: &[FunctionHelp] = &[
         own: "z-score: distance from the mean in standard deviations",
     },
     FunctionHelp {
-        spelling: "STDEV",
+        id: crate::FunctionId::from_raw(6750231),
+        spelling: help_spelling(crate::FunctionId::from_raw(6750231)),
         microsoft: Some("Estimates standard deviation based on a sample"),
         source: Some(
             "https://support.microsoft.com/en-us/office/stdev-function-51fecaaa-231e-4bbb-9230-33650a72c9b0",
@@ -3660,7 +4130,8 @@ pub const HELP: &[FunctionHelp] = &[
         own: "Sample standard deviation (older form)",
     },
     FunctionHelp {
-        spelling: "STDEV.P",
+        id: crate::FunctionId::from_raw(6750233),
+        spelling: help_spelling(crate::FunctionId::from_raw(6750233)),
         microsoft: Some("Calculates standard deviation based on the entire population"),
         source: Some(
             "https://support.microsoft.com/en-us/office/stdev-p-function-6e917c05-31a0-496f-ade7-4f4e7462f285",
@@ -3668,7 +4139,8 @@ pub const HELP: &[FunctionHelp] = &[
         own: "Standard deviation of a whole population",
     },
     FunctionHelp {
-        spelling: "STDEV.S",
+        id: crate::FunctionId::from_raw(6750232),
+        spelling: help_spelling(crate::FunctionId::from_raw(6750232)),
         microsoft: Some("Estimates standard deviation based on a sample"),
         source: Some(
             "https://support.microsoft.com/en-us/office/stdev-s-function-7d69cf97-0c1f-4acf-be27-f3e83904cc23",
@@ -3676,7 +4148,8 @@ pub const HELP: &[FunctionHelp] = &[
         own: "Standard deviation of a sample",
     },
     FunctionHelp {
-        spelling: "STDEVA",
+        id: crate::FunctionId::from_raw(6750234),
+        spelling: help_spelling(crate::FunctionId::from_raw(6750234)),
         microsoft: Some(
             "Estimates standard deviation based on a sample, including numbers, text, and logical values",
         ),
@@ -3686,7 +4159,8 @@ pub const HELP: &[FunctionHelp] = &[
         own: "Sample standard deviation counting text as 0 and logical values as 1 or 0",
     },
     FunctionHelp {
-        spelling: "STDEVP",
+        id: crate::FunctionId::from_raw(6750235),
+        spelling: help_spelling(crate::FunctionId::from_raw(6750235)),
         microsoft: Some("Calculates standard deviation based on the entire population"),
         source: Some(
             "https://support.microsoft.com/en-us/office/stdevp-function-1f7c1c88-1bec-4422-8242-e9f7dc8bb195",
@@ -3694,7 +4168,8 @@ pub const HELP: &[FunctionHelp] = &[
         own: "Population standard deviation (older form)",
     },
     FunctionHelp {
-        spelling: "STDEVPA",
+        id: crate::FunctionId::from_raw(6750236),
+        spelling: help_spelling(crate::FunctionId::from_raw(6750236)),
         microsoft: Some(
             "Calculates standard deviation based on the entire population, including numbers, text, and logical values",
         ),
@@ -3704,7 +4179,8 @@ pub const HELP: &[FunctionHelp] = &[
         own: "Population standard deviation counting text as 0 and logical values as 1 or 0",
     },
     FunctionHelp {
-        spelling: "STEYX",
+        id: crate::FunctionId::from_raw(6750251),
+        spelling: help_spelling(crate::FunctionId::from_raw(6750251)),
         microsoft: Some(
             "Returns the standard error of the predicted y-value for each x in the regression",
         ),
@@ -3714,7 +4190,8 @@ pub const HELP: &[FunctionHelp] = &[
         own: "Standard error of the y values predicted by the least-squares line",
     },
     FunctionHelp {
-        spelling: "STOCKHISTORY",
+        id: crate::FunctionId::from_raw(21299206),
+        spelling: help_spelling(crate::FunctionId::from_raw(21299206)),
         microsoft: Some("Retrieves historical data about a financial instrument"),
         source: Some(
             "https://support.microsoft.com/en-us/office/stockhistory-function-1ac8b5b3-5f62-4d94-8ab8-7504ec7239a8",
@@ -3722,7 +4199,8 @@ pub const HELP: &[FunctionHelp] = &[
         own: "Historical prices of a financial instrument over a date range",
     },
     FunctionHelp {
-        spelling: "SUBSTITUTE",
+        id: crate::FunctionId::from_raw(13107226),
+        spelling: help_spelling(crate::FunctionId::from_raw(13107226)),
         microsoft: Some("Substitutes new text for old text in a text string"),
         source: Some(
             "https://support.microsoft.com/en-us/office/substitute-function-6434944e-a904-4336-a9b0-1e58df3bc332",
@@ -3730,7 +4208,8 @@ pub const HELP: &[FunctionHelp] = &[
         own: "Text with occurrences of one text replaced by another",
     },
     FunctionHelp {
-        spelling: "SUBTOTAL",
+        id: crate::FunctionId::from_raw(6684673),
+        spelling: help_spelling(crate::FunctionId::from_raw(6684673)),
         microsoft: Some("Returns a subtotal in a list or database"),
         source: Some(
             "https://support.microsoft.com/en-us/office/subtotal-function-7b027003-f060-4ade-9040-e478765b9939",
@@ -3738,7 +4217,8 @@ pub const HELP: &[FunctionHelp] = &[
         own: "A summary (sum, count, average and more) of a range that skips nested subtotals",
     },
     FunctionHelp {
-        spelling: "SUM",
+        id: crate::FunctionId::from_raw(262145),
+        spelling: help_spelling(crate::FunctionId::from_raw(262145)),
         microsoft: Some("Use this function to add the values in cells."),
         source: Some(
             "https://support.microsoft.com/en-us/office/sum-function-043e1c7d-7726-4e80-8f32-07b23e057f89",
@@ -3746,7 +4226,8 @@ pub const HELP: &[FunctionHelp] = &[
         own: "Total of the numbers",
     },
     FunctionHelp {
-        spelling: "SUMIF",
+        id: crate::FunctionId::from_raw(458755),
+        spelling: help_spelling(crate::FunctionId::from_raw(458755)),
         microsoft: Some("Adds the cells specified by a given criteria"),
         source: Some(
             "https://support.microsoft.com/en-us/office/sumif-function-169b8c99-c05c-4483-a712-1697a653039b",
@@ -3754,7 +4235,8 @@ pub const HELP: &[FunctionHelp] = &[
         own: "Total of the cells that meet one condition",
     },
     FunctionHelp {
-        spelling: "SUMIFS",
+        id: crate::FunctionId::from_raw(458756),
+        spelling: help_spelling(crate::FunctionId::from_raw(458756)),
         microsoft: Some(
             "Use this function when you need to add the cells in a range that meet multiple criteria.",
         ),
@@ -3764,7 +4246,8 @@ pub const HELP: &[FunctionHelp] = &[
         own: "Total of the cells that meet every one of several conditions",
     },
     FunctionHelp {
-        spelling: "SUMPRODUCT",
+        id: crate::FunctionId::from_raw(262148),
+        spelling: help_spelling(crate::FunctionId::from_raw(262148)),
         microsoft: Some("Returns the sum of the products of corresponding array components"),
         source: Some(
             "https://support.microsoft.com/en-us/office/sumproduct-function-16753e75-9f68-4874-94ac-4d2145a2fd2e",
@@ -3772,7 +4255,8 @@ pub const HELP: &[FunctionHelp] = &[
         own: "Sum of the products of matching items of arrays",
     },
     FunctionHelp {
-        spelling: "SUMSQ",
+        id: crate::FunctionId::from_raw(262147),
+        spelling: help_spelling(crate::FunctionId::from_raw(262147)),
         microsoft: Some("Returns the sum of the squares of the arguments"),
         source: Some(
             "https://support.microsoft.com/en-us/office/sumsq-function-e3313c02-51cc-4963-aae6-31442d9ec307",
@@ -3780,7 +4264,8 @@ pub const HELP: &[FunctionHelp] = &[
         own: "Squares of the numbers, added up",
     },
     FunctionHelp {
-        spelling: "SUMX2MY2",
+        id: crate::FunctionId::from_raw(6553646),
+        spelling: help_spelling(crate::FunctionId::from_raw(6553646)),
         microsoft: Some(
             "Returns the sum of the difference of squares of corresponding values in two arrays",
         ),
@@ -3790,7 +4275,8 @@ pub const HELP: &[FunctionHelp] = &[
         own: "Sum of x squared minus y squared over matching items",
     },
     FunctionHelp {
-        spelling: "SUMX2PY2",
+        id: crate::FunctionId::from_raw(6553647),
+        spelling: help_spelling(crate::FunctionId::from_raw(6553647)),
         microsoft: Some(
             "Returns the sum of the sum of squares of corresponding values in two arrays",
         ),
@@ -3800,7 +4286,8 @@ pub const HELP: &[FunctionHelp] = &[
         own: "Sum of x squared plus y squared over matching items",
     },
     FunctionHelp {
-        spelling: "SUMXMY2",
+        id: crate::FunctionId::from_raw(6553648),
+        spelling: help_spelling(crate::FunctionId::from_raw(6553648)),
         microsoft: Some(
             "Returns the sum of squares of differences of corresponding values in two arrays",
         ),
@@ -3810,7 +4297,8 @@ pub const HELP: &[FunctionHelp] = &[
         own: "Sum of the squared differences of matching items",
     },
     FunctionHelp {
-        spelling: "SWITCH",
+        id: crate::FunctionId::from_raw(13172738),
+        spelling: help_spelling(crate::FunctionId::from_raw(13172738)),
         microsoft: Some(
             "Evaluates an expression against a list of values and returns the result corresponding to the first matching value. If there is no match, an optional default value may be returned.",
         ),
@@ -3820,7 +4308,8 @@ pub const HELP: &[FunctionHelp] = &[
         own: "The result paired with the first value that equals the expression, or a default",
     },
     FunctionHelp {
-        spelling: "SYD",
+        id: crate::FunctionId::from_raw(19660822),
+        spelling: help_spelling(crate::FunctionId::from_raw(19660822)),
         microsoft: Some(
             "Returns the sum-of-years' digits depreciation of an asset for a specified period",
         ),
@@ -3830,7 +4319,8 @@ pub const HELP: &[FunctionHelp] = &[
         own: "Sum-of-years'-digits depreciation for one period",
     },
     FunctionHelp {
-        spelling: "T",
+        id: crate::FunctionId::from_raw(13107227),
+        spelling: help_spelling(crate::FunctionId::from_raw(13107227)),
         microsoft: Some("Converts its arguments to text"),
         source: Some(
             "https://support.microsoft.com/en-us/office/t-function-fb83aeec-45e7-4924-af95-53e073541228",
@@ -3838,7 +4328,8 @@ pub const HELP: &[FunctionHelp] = &[
         own: "The value when it is text, otherwise empty text",
     },
     FunctionHelp {
-        spelling: "T.DIST",
+        id: crate::FunctionId::from_raw(6815784),
+        spelling: help_spelling(crate::FunctionId::from_raw(6815784)),
         microsoft: Some(
             "Returns the Percentage Points (probability) for the Student t-distribution",
         ),
@@ -3848,7 +4339,8 @@ pub const HELP: &[FunctionHelp] = &[
         own: "Student's t distribution: the density or the left-tail probability",
     },
     FunctionHelp {
-        spelling: "T.DIST.2T",
+        id: crate::FunctionId::from_raw(6815786),
+        spelling: help_spelling(crate::FunctionId::from_raw(6815786)),
         microsoft: Some(
             "Returns the Percentage Points (probability) for the Student t-distribution",
         ),
@@ -3858,7 +4350,8 @@ pub const HELP: &[FunctionHelp] = &[
         own: "Two-tailed probability of Student's t distribution",
     },
     FunctionHelp {
-        spelling: "T.DIST.RT",
+        id: crate::FunctionId::from_raw(6815785),
+        spelling: help_spelling(crate::FunctionId::from_raw(6815785)),
         microsoft: Some("Returns the Student's t-distribution"),
         source: Some(
             "https://support.microsoft.com/en-us/office/t-dist-rt-function-20a30020-86f9-4b35-af1f-7ef6ae683eda",
@@ -3866,7 +4359,8 @@ pub const HELP: &[FunctionHelp] = &[
         own: "Right-tail probability of Student's t distribution",
     },
     FunctionHelp {
-        spelling: "T.INV",
+        id: crate::FunctionId::from_raw(6815788),
+        spelling: help_spelling(crate::FunctionId::from_raw(6815788)),
         microsoft: Some(
             "Returns the t-value of the Student's t-distribution as a function of the probability and the degrees of freedom",
         ),
@@ -3876,7 +4370,8 @@ pub const HELP: &[FunctionHelp] = &[
         own: "The t at which the left-tail probability reaches a given level",
     },
     FunctionHelp {
-        spelling: "T.INV.2T",
+        id: crate::FunctionId::from_raw(6815789),
+        spelling: help_spelling(crate::FunctionId::from_raw(6815789)),
         microsoft: Some("Returns the inverse of the Student's t-distribution"),
         source: Some(
             "https://support.microsoft.com/en-us/office/t-inv-2t-function-ce72ea19-ec6c-4be7-bed2-b9baf2264f17",
@@ -3884,7 +4379,8 @@ pub const HELP: &[FunctionHelp] = &[
         own: "The t at which the two-tailed probability falls to a given level",
     },
     FunctionHelp {
-        spelling: "T.TEST",
+        id: crate::FunctionId::from_raw(6815848),
+        spelling: help_spelling(crate::FunctionId::from_raw(6815848)),
         microsoft: Some("Returns the probability associated with a Student's t-test"),
         source: Some(
             "https://support.microsoft.com/en-us/office/t-test-function-d4e08ec3-c545-485f-962e-276f7cbed055",
@@ -3892,7 +4388,8 @@ pub const HELP: &[FunctionHelp] = &[
         own: "Probability from Student's t-test that two samples have the same mean",
     },
     FunctionHelp {
-        spelling: "TAKE",
+        id: crate::FunctionId::from_raw(20316166),
+        spelling: help_spelling(crate::FunctionId::from_raw(20316166)),
         microsoft: Some(
             "Returns a specified number of contiguous rows or columns from the start or end of an array",
         ),
@@ -3902,7 +4399,8 @@ pub const HELP: &[FunctionHelp] = &[
         own: "Rows or columns kept from the start or end of an array",
     },
     FunctionHelp {
-        spelling: "TAN",
+        id: crate::FunctionId::from_raw(6553620),
+        spelling: help_spelling(crate::FunctionId::from_raw(6553620)),
         microsoft: Some("Returns the tangent of a number"),
         source: Some(
             "https://support.microsoft.com/en-us/office/tan-function-08851a40-179f-4052-b789-d7f699447401",
@@ -3910,7 +4408,8 @@ pub const HELP: &[FunctionHelp] = &[
         own: "Tangent of an angle in radians",
     },
     FunctionHelp {
-        spelling: "TANH",
+        id: crate::FunctionId::from_raw(6553621),
+        spelling: help_spelling(crate::FunctionId::from_raw(6553621)),
         microsoft: Some("Returns the hyperbolic tangent of a number"),
         source: Some(
             "https://support.microsoft.com/en-us/office/tanh-function-017222f0-a0c3-4f69-9787-b3202295dc6c",
@@ -3918,7 +4417,8 @@ pub const HELP: &[FunctionHelp] = &[
         own: "Hyperbolic tangent",
     },
     FunctionHelp {
-        spelling: "TBILLEQ",
+        id: crate::FunctionId::from_raw(19726356),
+        spelling: help_spelling(crate::FunctionId::from_raw(19726356)),
         microsoft: Some("Returns the bond-equivalent yield for a Treasury bill"),
         source: Some(
             "https://support.microsoft.com/en-us/office/tbilleq-function-2ab72d90-9b4d-4efe-9fc2-0f81f2c19c8c",
@@ -3926,7 +4426,8 @@ pub const HELP: &[FunctionHelp] = &[
         own: "Treasury bill yield restated as a bond-equivalent yield",
     },
     FunctionHelp {
-        spelling: "TBILLPRICE",
+        id: crate::FunctionId::from_raw(19726357),
+        spelling: help_spelling(crate::FunctionId::from_raw(19726357)),
         microsoft: Some("Returns the price per $100 face value for a Treasury bill"),
         source: Some(
             "https://support.microsoft.com/en-us/office/tbillprice-function-eacca992-c29d-425a-9eb8-0513fe6035a2",
@@ -3934,7 +4435,8 @@ pub const HELP: &[FunctionHelp] = &[
         own: "Treasury bill price per 100 of face value, from its discount rate",
     },
     FunctionHelp {
-        spelling: "TBILLYIELD",
+        id: crate::FunctionId::from_raw(19726358),
+        spelling: help_spelling(crate::FunctionId::from_raw(19726358)),
         microsoft: Some("Returns the yield for a Treasury bill"),
         source: Some(
             "https://support.microsoft.com/en-us/office/tbillyield-function-6d381232-f4b0-4cd5-8e97-45b9c03468ba",
@@ -3942,7 +4444,8 @@ pub const HELP: &[FunctionHelp] = &[
         own: "Treasury bill yield, from its price",
     },
     FunctionHelp {
-        spelling: "TDIST",
+        id: crate::FunctionId::from_raw(6815787),
+        spelling: help_spelling(crate::FunctionId::from_raw(6815787)),
         microsoft: Some("Returns the Student's t-distribution"),
         source: Some(
             "https://support.microsoft.com/en-us/office/tdist-function-630a7695-4021-4853-9468-4a1f9dcdd192",
@@ -3950,7 +4453,8 @@ pub const HELP: &[FunctionHelp] = &[
         own: "Student's t probability, one- or two-tailed (older form)",
     },
     FunctionHelp {
-        spelling: "TEXT",
+        id: crate::FunctionId::from_raw(13238274),
+        spelling: help_spelling(crate::FunctionId::from_raw(13238274)),
         microsoft: Some("Formats a number and converts it to text"),
         source: Some(
             "https://support.microsoft.com/en-us/office/text-function-20d5ac4d-7b94-49fd-bb38-93d29371225c",
@@ -3958,7 +4462,8 @@ pub const HELP: &[FunctionHelp] = &[
         own: "A value as text, in a number format",
     },
     FunctionHelp {
-        spelling: "TEXTAFTER",
+        id: crate::FunctionId::from_raw(13238286),
+        spelling: help_spelling(crate::FunctionId::from_raw(13238286)),
         microsoft: Some("Returns text that occurs after given character or string"),
         source: Some(
             "https://support.microsoft.com/en-us/office/textafter-function-c8db2546-5b51-416a-9690-c7e6722e90b4",
@@ -3966,7 +4471,8 @@ pub const HELP: &[FunctionHelp] = &[
         own: "The part of a text after a delimiter",
     },
     FunctionHelp {
-        spelling: "TEXTBEFORE",
+        id: crate::FunctionId::from_raw(13238285),
+        spelling: help_spelling(crate::FunctionId::from_raw(13238285)),
         microsoft: Some(
             "Use this function to return text that occurs before a given character or string. You can use TEXTAFTER to return text that occurs after a given character or string.",
         ),
@@ -3976,7 +4482,8 @@ pub const HELP: &[FunctionHelp] = &[
         own: "The part of a text before a delimiter",
     },
     FunctionHelp {
-        spelling: "TEXTJOIN",
+        id: crate::FunctionId::from_raw(13107230),
+        spelling: help_spelling(crate::FunctionId::from_raw(13107230)),
         microsoft: Some("Text: Combines the text from multiple ranges and/or strings"),
         source: Some(
             "https://support.microsoft.com/en-us/office/textjoin-function-357b449a-ec91-49d0-80c3-0e8fc845691c",
@@ -3984,7 +4491,8 @@ pub const HELP: &[FunctionHelp] = &[
         own: "Texts joined with a delimiter, optionally skipping empty ones",
     },
     FunctionHelp {
-        spelling: "TEXTSPLIT",
+        id: crate::FunctionId::from_raw(13238287),
+        spelling: help_spelling(crate::FunctionId::from_raw(13238287)),
         microsoft: Some("Splits text strings by using column and row delimiters"),
         source: Some(
             "https://support.microsoft.com/en-us/office/textsplit-function-b1ca414e-4c21-4ca0-b1b7-bdecace8a6e7",
@@ -3992,7 +4500,8 @@ pub const HELP: &[FunctionHelp] = &[
         own: "A text split into rows and columns at delimiters",
     },
     FunctionHelp {
-        spelling: "TIME",
+        id: crate::FunctionId::from_raw(13303810),
+        spelling: help_spelling(crate::FunctionId::from_raw(13303810)),
         microsoft: Some("Returns the serial number of a particular time"),
         source: Some(
             "https://support.microsoft.com/en-us/office/time-function-9a5aff99-8f7d-4611-845e-747d0b8d5457",
@@ -4000,7 +4509,8 @@ pub const HELP: &[FunctionHelp] = &[
         own: "Time serial (fraction of a day) for an hour, minute and second",
     },
     FunctionHelp {
-        spelling: "TIMEVALUE",
+        id: crate::FunctionId::from_raw(13303821),
+        spelling: help_spelling(crate::FunctionId::from_raw(13303821)),
         microsoft: Some("Converts a time in the form of text to a serial number"),
         source: Some(
             "https://support.microsoft.com/en-us/office/timevalue-function-0b615c12-33d8-4431-bf3d-f3eb6d186645",
@@ -4008,7 +4518,8 @@ pub const HELP: &[FunctionHelp] = &[
         own: "Time serial read from a time written as text",
     },
     FunctionHelp {
-        spelling: "TINV",
+        id: crate::FunctionId::from_raw(6815790),
+        spelling: help_spelling(crate::FunctionId::from_raw(6815790)),
         microsoft: Some("Returns the inverse of the Student's t-distribution"),
         source: Some(
             "https://support.microsoft.com/en-us/office/tinv-function-a7c85b9d-90f5-41fe-9ca5-1cd2f3e1ed7c",
@@ -4016,7 +4527,8 @@ pub const HELP: &[FunctionHelp] = &[
         own: "Two-tailed inverse of Student's t distribution (older form)",
     },
     FunctionHelp {
-        spelling: "TOCOL",
+        id: crate::FunctionId::from_raw(20316172),
+        spelling: help_spelling(crate::FunctionId::from_raw(20316172)),
         microsoft: Some("Returns the array in a single column"),
         source: Some(
             "https://support.microsoft.com/en-us/office/tocol-function-22839d9b-0b55-4fc1-b4e6-2761f8f122ed",
@@ -4024,7 +4536,8 @@ pub const HELP: &[FunctionHelp] = &[
         own: "The items of an array in one column",
     },
     FunctionHelp {
-        spelling: "TODAY",
+        id: crate::FunctionId::from_raw(13303833),
+        spelling: help_spelling(crate::FunctionId::from_raw(13303833)),
         microsoft: Some("Returns the serial number of today's date"),
         source: Some(
             "https://support.microsoft.com/en-us/office/today-function-5eb3078d-a82c-4736-8930-2f51a028fdd9",
@@ -4032,7 +4545,8 @@ pub const HELP: &[FunctionHelp] = &[
         own: "Current date as a serial number",
     },
     FunctionHelp {
-        spelling: "TOROW",
+        id: crate::FunctionId::from_raw(20316173),
+        spelling: help_spelling(crate::FunctionId::from_raw(20316173)),
         microsoft: Some("Returns the array in a single row"),
         source: Some(
             "https://support.microsoft.com/en-us/office/torow-function-b90d0964-a7d9-44b7-816b-ffa5c2fe2289",
@@ -4040,7 +4554,8 @@ pub const HELP: &[FunctionHelp] = &[
         own: "The items of an array in one row",
     },
     FunctionHelp {
-        spelling: "TRANSLATE",
+        id: crate::FunctionId::from_raw(21299207),
+        spelling: help_spelling(crate::FunctionId::from_raw(21299207)),
         microsoft: Some("Translates a text from one language to another"),
         source: Some(
             "https://support.microsoft.com/en-us/office/translate-function-d34f71c7-2ffe-409a-9a63-5eb5e91aa3dd",
@@ -4048,7 +4563,8 @@ pub const HELP: &[FunctionHelp] = &[
         own: "A text translated from one language to another",
     },
     FunctionHelp {
-        spelling: "TRANSPOSE",
+        id: crate::FunctionId::from_raw(13369352),
+        spelling: help_spelling(crate::FunctionId::from_raw(13369352)),
         microsoft: Some("Returns the transpose of an array"),
         source: Some(
             "https://support.microsoft.com/en-us/office/transpose-function-ed039415-ed8a-4a81-93e9-4b6dfac76027",
@@ -4056,7 +4572,8 @@ pub const HELP: &[FunctionHelp] = &[
         own: "An array with rows and columns swapped",
     },
     FunctionHelp {
-        spelling: "TREND",
+        id: crate::FunctionId::from_raw(6750263),
+        spelling: help_spelling(crate::FunctionId::from_raw(6750263)),
         microsoft: Some("Returns values along a linear trend"),
         source: Some(
             "https://support.microsoft.com/en-us/office/trend-function-e2f135f0-8827-4096-9873-9a7cf7b51ef1",
@@ -4064,7 +4581,8 @@ pub const HELP: &[FunctionHelp] = &[
         own: "Values predicted on the least-squares line fitted to known data",
     },
     FunctionHelp {
-        spelling: "TRIM",
+        id: crate::FunctionId::from_raw(13107216),
+        spelling: help_spelling(crate::FunctionId::from_raw(13107216)),
         microsoft: Some("Removes spaces from text"),
         source: Some(
             "https://support.microsoft.com/en-us/office/trim-function-410388fa-c5df-49c6-b16c-9e5630b479f9",
@@ -4072,7 +4590,8 @@ pub const HELP: &[FunctionHelp] = &[
         own: "Text with spaces removed at both ends and runs of spaces inside cut to one",
     },
     FunctionHelp {
-        spelling: "TRIMMEAN",
+        id: crate::FunctionId::from_raw(6750257),
+        spelling: help_spelling(crate::FunctionId::from_raw(6750257)),
         microsoft: Some("Returns the mean of the interior of a data set"),
         source: Some(
             "https://support.microsoft.com/en-us/office/trimmean-function-d90c9878-a119-4746-88fa-63d988f511d3",
@@ -4080,7 +4599,8 @@ pub const HELP: &[FunctionHelp] = &[
         own: "Mean of the data after cutting a share of the values from both ends",
     },
     FunctionHelp {
-        spelling: "TRIMRANGE",
+        id: crate::FunctionId::from_raw(2621443),
+        spelling: help_spelling(crate::FunctionId::from_raw(2621443)),
         microsoft: Some(
             "Scans in from the edges of a range or array until it finds a non-blank cell (or value), it then excludes those blank rows or columns",
         ),
@@ -4090,7 +4610,8 @@ pub const HELP: &[FunctionHelp] = &[
         own: "A range with its empty outer rows and columns cut away",
     },
     FunctionHelp {
-        spelling: "TRUE",
+        id: crate::FunctionId::from_raw(327686),
+        spelling: help_spelling(crate::FunctionId::from_raw(327686)),
         microsoft: Some("Returns the logical value TRUE"),
         source: Some(
             "https://support.microsoft.com/en-us/office/true-function-7652c6e3-8987-48d0-97cd-ef223246b3fb",
@@ -4098,7 +4619,8 @@ pub const HELP: &[FunctionHelp] = &[
         own: "The logical value TRUE",
     },
     FunctionHelp {
-        spelling: "TRUNC",
+        id: crate::FunctionId::from_raw(393220),
+        spelling: help_spelling(crate::FunctionId::from_raw(393220)),
         microsoft: Some("Truncates a number to an integer"),
         source: Some(
             "https://support.microsoft.com/en-us/office/trunc-function-8b86a64c-3127-43db-ba14-aa5ceb292721",
@@ -4106,7 +4628,8 @@ pub const HELP: &[FunctionHelp] = &[
         own: "Number cut to a number of digits by dropping the rest",
     },
     FunctionHelp {
-        spelling: "TTEST",
+        id: crate::FunctionId::from_raw(6815849),
+        spelling: help_spelling(crate::FunctionId::from_raw(6815849)),
         microsoft: Some("Returns the probability associated with a Student's t-test"),
         source: Some(
             "https://support.microsoft.com/en-us/office/ttest-function-1696ffc1-4811-40fd-9d13-a0eaad83c7ae",
@@ -4114,7 +4637,8 @@ pub const HELP: &[FunctionHelp] = &[
         own: "Student's t-test probability (older form of T.TEST)",
     },
     FunctionHelp {
-        spelling: "TYPE",
+        id: crate::FunctionId::from_raw(655373),
+        spelling: help_spelling(crate::FunctionId::from_raw(655373)),
         microsoft: Some("Returns a number indicating the data type of a value"),
         source: Some(
             "https://support.microsoft.com/en-us/office/type-function-45b4e688-4bc3-48b3-a105-ffa892995899",
@@ -4122,7 +4646,8 @@ pub const HELP: &[FunctionHelp] = &[
         own: "Number saying what kind of value an argument is",
     },
     FunctionHelp {
-        spelling: "UNICHAR",
+        id: crate::FunctionId::from_raw(13107203),
+        spelling: help_spelling(crate::FunctionId::from_raw(13107203)),
         microsoft: Some(
             "Returns the Unicode character that is references by the given numeric value",
         ),
@@ -4132,7 +4657,8 @@ pub const HELP: &[FunctionHelp] = &[
         own: "Character with a given Unicode code point",
     },
     FunctionHelp {
-        spelling: "UNICODE",
+        id: crate::FunctionId::from_raw(13107204),
+        spelling: help_spelling(crate::FunctionId::from_raw(13107204)),
         microsoft: Some(
             "Returns the number (code point) that corresponds to the first character of the text",
         ),
@@ -4142,7 +4668,8 @@ pub const HELP: &[FunctionHelp] = &[
         own: "Unicode code point of the first character of a text",
     },
     FunctionHelp {
-        spelling: "UNIQUE",
+        id: crate::FunctionId::from_raw(20316165),
+        spelling: help_spelling(crate::FunctionId::from_raw(20316165)),
         microsoft: Some("Use this function to return a list of unique values in a list or range."),
         source: Some(
             "https://support.microsoft.com/en-us/office/unique-function-c5ab87fd-30a3-4ce9-9d1a-40204fb85e1e",
@@ -4150,7 +4677,8 @@ pub const HELP: &[FunctionHelp] = &[
         own: "The distinct rows or columns of an array, or those that occur only once",
     },
     FunctionHelp {
-        spelling: "UPPER",
+        id: crate::FunctionId::from_raw(13107213),
+        spelling: help_spelling(crate::FunctionId::from_raw(13107213)),
         microsoft: Some("Converts text to uppercase"),
         source: Some(
             "https://support.microsoft.com/en-us/office/upper-function-c11f29b3-d1a3-4537-8df6-04d0049963d6",
@@ -4158,7 +4686,8 @@ pub const HELP: &[FunctionHelp] = &[
         own: "Text in upper case",
     },
     FunctionHelp {
-        spelling: "VALUE",
+        id: crate::FunctionId::from_raw(13238273),
+        spelling: help_spelling(crate::FunctionId::from_raw(13238273)),
         microsoft: Some("Converts a text argument to a number"),
         source: Some(
             "https://support.microsoft.com/en-us/office/value-function-257d0108-07dc-437d-ae1c-bc2d3953d8c2",
@@ -4166,7 +4695,8 @@ pub const HELP: &[FunctionHelp] = &[
         own: "Number read from text",
     },
     FunctionHelp {
-        spelling: "VALUETOTEXT",
+        id: crate::FunctionId::from_raw(13238278),
+        spelling: help_spelling(crate::FunctionId::from_raw(13238278)),
         microsoft: Some("Returns text from any specified value"),
         source: Some(
             "https://support.microsoft.com/en-us/office/valuetotext-function-5fff61a2-301a-4ab2-9ffa-0a5242a08fea",
@@ -4174,7 +4704,8 @@ pub const HELP: &[FunctionHelp] = &[
         own: "Text for any value, in a concise or a formula-ready form",
     },
     FunctionHelp {
-        spelling: "VAR",
+        id: crate::FunctionId::from_raw(6750237),
+        spelling: help_spelling(crate::FunctionId::from_raw(6750237)),
         microsoft: Some("Estimates variance based on a sample"),
         source: Some(
             "https://support.microsoft.com/en-us/office/var-function-1f2b7ab2-954d-4e17-ba2c-9e58b15a7da2",
@@ -4182,7 +4713,8 @@ pub const HELP: &[FunctionHelp] = &[
         own: "Sample variance (older form)",
     },
     FunctionHelp {
-        spelling: "VAR.P",
+        id: crate::FunctionId::from_raw(6750239),
+        spelling: help_spelling(crate::FunctionId::from_raw(6750239)),
         microsoft: Some("Calculates variance based on the entire population"),
         source: Some(
             "https://support.microsoft.com/en-us/office/var-p-function-73d1285c-108c-4843-ba5d-a51f90656f3a",
@@ -4190,7 +4722,8 @@ pub const HELP: &[FunctionHelp] = &[
         own: "Variance of a whole population",
     },
     FunctionHelp {
-        spelling: "VAR.S",
+        id: crate::FunctionId::from_raw(6750238),
+        spelling: help_spelling(crate::FunctionId::from_raw(6750238)),
         microsoft: Some("Estimates variance based on a sample"),
         source: Some(
             "https://support.microsoft.com/en-us/office/var-s-function-913633de-136b-449d-813e-65a00b2b990b",
@@ -4198,7 +4731,8 @@ pub const HELP: &[FunctionHelp] = &[
         own: "Variance of a sample",
     },
     FunctionHelp {
-        spelling: "VARA",
+        id: crate::FunctionId::from_raw(6750240),
+        spelling: help_spelling(crate::FunctionId::from_raw(6750240)),
         microsoft: Some(
             "Estimates variance based on a sample, including numbers, text, and logical values",
         ),
@@ -4208,7 +4742,8 @@ pub const HELP: &[FunctionHelp] = &[
         own: "Sample variance counting text as 0 and logical values as 1 or 0",
     },
     FunctionHelp {
-        spelling: "VARP",
+        id: crate::FunctionId::from_raw(6750241),
+        spelling: help_spelling(crate::FunctionId::from_raw(6750241)),
         microsoft: Some("Calculates variance based on the entire population"),
         source: Some(
             "https://support.microsoft.com/en-us/office/varp-function-26a541c4-ecee-464d-a731-bd4c575b1a6b",
@@ -4216,7 +4751,8 @@ pub const HELP: &[FunctionHelp] = &[
         own: "Population variance (older form)",
     },
     FunctionHelp {
-        spelling: "VARPA",
+        id: crate::FunctionId::from_raw(6750242),
+        spelling: help_spelling(crate::FunctionId::from_raw(6750242)),
         microsoft: Some(
             "Calculates variance based on the entire population, including numbers, text, and logical values",
         ),
@@ -4226,7 +4762,8 @@ pub const HELP: &[FunctionHelp] = &[
         own: "Population variance counting text as 0 and logical values as 1 or 0",
     },
     FunctionHelp {
-        spelling: "VDB",
+        id: crate::FunctionId::from_raw(19660825),
+        spelling: help_spelling(crate::FunctionId::from_raw(19660825)),
         microsoft: Some(
             "Returns the depreciation of an asset for a specified or partial period by using a declining balance method",
         ),
@@ -4236,7 +4773,8 @@ pub const HELP: &[FunctionHelp] = &[
         own: "Declining-balance depreciation over any span of periods, with an optional switch to straight line",
     },
     FunctionHelp {
-        spelling: "VLOOKUP",
+        id: crate::FunctionId::from_raw(589829),
+        spelling: help_spelling(crate::FunctionId::from_raw(589829)),
         microsoft: Some(
             "Looks in the first column of an array and moves across the row to return the value of a cell",
         ),
@@ -4246,7 +4784,8 @@ pub const HELP: &[FunctionHelp] = &[
         own: "A value from a given column of a table, in the row found by searching the first column",
     },
     FunctionHelp {
-        spelling: "VSTACK",
+        id: crate::FunctionId::from_raw(20316170),
+        spelling: help_spelling(crate::FunctionId::from_raw(20316170)),
         microsoft: Some("Appends arrays vertically and in sequence to return a larger array"),
         source: Some(
             "https://support.microsoft.com/en-us/office/vstack-function-a4b86897-be0f-48fc-adca-fcc10d795a9c",
@@ -4254,7 +4793,8 @@ pub const HELP: &[FunctionHelp] = &[
         own: "Arrays placed one above another into one array",
     },
     FunctionHelp {
-        spelling: "WEBSERVICE",
+        id: crate::FunctionId::from_raw(21168129),
+        spelling: help_spelling(crate::FunctionId::from_raw(21168129)),
         microsoft: Some("Returns data from a web service"),
         source: Some(
             "https://support.microsoft.com/en-us/office/webservice-function-0546a35a-ecc6-4739-aed7-c0b7ce1562c4",
@@ -4262,7 +4802,8 @@ pub const HELP: &[FunctionHelp] = &[
         own: "Text fetched from a web service at a URL",
     },
     FunctionHelp {
-        spelling: "WEEKDAY",
+        id: crate::FunctionId::from_raw(13303824),
+        spelling: help_spelling(crate::FunctionId::from_raw(13303824)),
         microsoft: Some("Converts a serial number to a day of the week"),
         source: Some(
             "https://support.microsoft.com/en-us/office/weekday-function-60e44483-2ed1-439f-8bd0-e404c190949a",
@@ -4270,7 +4811,8 @@ pub const HELP: &[FunctionHelp] = &[
         own: "Day of the week of a date, as a number",
     },
     FunctionHelp {
-        spelling: "WEEKNUM",
+        id: crate::FunctionId::from_raw(13303825),
+        spelling: help_spelling(crate::FunctionId::from_raw(13303825)),
         microsoft: Some(
             "Converts a serial number to a number representing where the week falls numerically with a year",
         ),
@@ -4280,7 +4822,8 @@ pub const HELP: &[FunctionHelp] = &[
         own: "Week of the year a date falls in",
     },
     FunctionHelp {
-        spelling: "WEIBULL",
+        id: crate::FunctionId::from_raw(6815806),
+        spelling: help_spelling(crate::FunctionId::from_raw(6815806)),
         microsoft: Some("Returns the Weibull distribution"),
         source: Some(
             "https://support.microsoft.com/en-us/office/weibull-function-b83dc2c6-260b-4754-bef2-633196f6fdcc",
@@ -4288,7 +4831,8 @@ pub const HELP: &[FunctionHelp] = &[
         own: "Weibull probability (older form of WEIBULL.DIST)",
     },
     FunctionHelp {
-        spelling: "WEIBULL.DIST",
+        id: crate::FunctionId::from_raw(6815805),
+        spelling: help_spelling(crate::FunctionId::from_raw(6815805)),
         microsoft: Some("Returns the Weibull distribution"),
         source: Some(
             "https://support.microsoft.com/en-us/office/weibull-dist-function-4e783c39-9325-49be-bbc9-a83ef82b45db",
@@ -4296,7 +4840,8 @@ pub const HELP: &[FunctionHelp] = &[
         own: "Weibull distribution: the density or the cumulative probability",
     },
     FunctionHelp {
-        spelling: "WORKDAY",
+        id: crate::FunctionId::from_raw(13303827),
+        spelling: help_spelling(crate::FunctionId::from_raw(13303827)),
         microsoft: Some(
             "Returns the serial number of the date before or after a specified number of workdays",
         ),
@@ -4306,7 +4851,8 @@ pub const HELP: &[FunctionHelp] = &[
         own: "Date a number of working days before or after a start date, skipping weekends and holidays",
     },
     FunctionHelp {
-        spelling: "WORKDAY.INTL",
+        id: crate::FunctionId::from_raw(13303828),
+        spelling: help_spelling(crate::FunctionId::from_raw(13303828)),
         microsoft: Some(
             "Returns the serial number of the date before or after a specified number of workdays using parameters to indicate which and how many days are weekend days",
         ),
@@ -4316,7 +4862,8 @@ pub const HELP: &[FunctionHelp] = &[
         own: "Date a number of working days away, with a chosen weekend and listed holidays",
     },
     FunctionHelp {
-        spelling: "WRAPCOLS",
+        id: crate::FunctionId::from_raw(20316175),
+        spelling: help_spelling(crate::FunctionId::from_raw(20316175)),
         microsoft: Some(
             "Wraps the provided row or column of values by columns after a specified number of elements",
         ),
@@ -4326,7 +4873,8 @@ pub const HELP: &[FunctionHelp] = &[
         own: "A row or column of values folded into columns of a given length",
     },
     FunctionHelp {
-        spelling: "WRAPROWS",
+        id: crate::FunctionId::from_raw(20316174),
+        spelling: help_spelling(crate::FunctionId::from_raw(20316174)),
         microsoft: Some(
             "Wraps the provided row or column of values by rows after a specified number of elements",
         ),
@@ -4336,7 +4884,8 @@ pub const HELP: &[FunctionHelp] = &[
         own: "A row or column of values folded into rows of a given length",
     },
     FunctionHelp {
-        spelling: "XIRR",
+        id: crate::FunctionId::from_raw(19660820),
+        spelling: help_spelling(crate::FunctionId::from_raw(19660820)),
         microsoft: Some(
             "Returns the internal rate of return for a schedule of cash flows that is not necessarily periodic",
         ),
@@ -4346,7 +4895,8 @@ pub const HELP: &[FunctionHelp] = &[
         own: "Rate at which cash flows on given dates have a net present value of zero",
     },
     FunctionHelp {
-        spelling: "XLOOKUP",
+        id: crate::FunctionId::from_raw(589828),
+        spelling: help_spelling(crate::FunctionId::from_raw(589828)),
         microsoft: Some(
             "Use this function when you need to search a range or an array, and return an item corresponding to the first match it finds. If a match doesn't exist, then XLOOKUP can return the closest (approximate) match.",
         ),
@@ -4356,7 +4906,8 @@ pub const HELP: &[FunctionHelp] = &[
         own: "The item matching a search in one array, taken from another, with a fallback and match options",
     },
     FunctionHelp {
-        spelling: "XMATCH",
+        id: crate::FunctionId::from_raw(589827),
+        spelling: help_spelling(crate::FunctionId::from_raw(589827)),
         microsoft: Some("Returns the relative position of an item in an array or range of cells."),
         source: Some(
             "https://support.microsoft.com/en-us/office/xmatch-function-d966da31-7a6b-4a13-a1c6-5a33ed6a0312",
@@ -4364,7 +4915,8 @@ pub const HELP: &[FunctionHelp] = &[
         own: "Position of a value in an array, with match and search options",
     },
     FunctionHelp {
-        spelling: "XNPV",
+        id: crate::FunctionId::from_raw(19660819),
+        spelling: help_spelling(crate::FunctionId::from_raw(19660819)),
         microsoft: Some(
             "Returns the net present value for a schedule of cash flows that is not necessarily periodic",
         ),
@@ -4374,7 +4926,8 @@ pub const HELP: &[FunctionHelp] = &[
         own: "Net present value of cash flows on given dates",
     },
     FunctionHelp {
-        spelling: "XOR",
+        id: crate::FunctionId::from_raw(327684),
+        spelling: help_spelling(crate::FunctionId::from_raw(327684)),
         microsoft: Some("Returns a logical exclusive OR of all arguments"),
         source: Some(
             "https://support.microsoft.com/en-us/office/xor-function-1548d4c2-5e47-4f77-9a92-0533bba14f37",
@@ -4382,7 +4935,8 @@ pub const HELP: &[FunctionHelp] = &[
         own: "TRUE when an odd number of the arguments are TRUE",
     },
     FunctionHelp {
-        spelling: "YEAR",
+        id: crate::FunctionId::from_raw(13303811),
+        spelling: help_spelling(crate::FunctionId::from_raw(13303811)),
         microsoft: Some("Converts a serial number to a year"),
         source: Some(
             "https://support.microsoft.com/en-us/office/year-function-c64f017a-1354-490d-981f-578e8ec8d3b9",
@@ -4390,7 +4944,8 @@ pub const HELP: &[FunctionHelp] = &[
         own: "Year of a date",
     },
     FunctionHelp {
-        spelling: "YEARFRAC",
+        id: crate::FunctionId::from_raw(13303831),
+        spelling: help_spelling(crate::FunctionId::from_raw(13303831)),
         microsoft: Some(
             "Returns the year fraction representing the number of whole days between start_date and end_date",
         ),
@@ -4400,7 +4955,8 @@ pub const HELP: &[FunctionHelp] = &[
         own: "Fraction of a year between two dates under a day-count basis",
     },
     FunctionHelp {
-        spelling: "YIELD",
+        id: crate::FunctionId::from_raw(19726338),
+        spelling: help_spelling(crate::FunctionId::from_raw(19726338)),
         microsoft: Some("Returns the yield on a security that pays periodic interest"),
         source: Some(
             "https://support.microsoft.com/en-us/office/yield-function-f5f5ca43-c4bd-434f-8bd2-ed3c9727a4fe",
@@ -4408,7 +4964,8 @@ pub const HELP: &[FunctionHelp] = &[
         own: "Yield of a security with periodic coupons",
     },
     FunctionHelp {
-        spelling: "YIELDDISC",
+        id: crate::FunctionId::from_raw(19726343),
+        spelling: help_spelling(crate::FunctionId::from_raw(19726343)),
         microsoft: Some(
             "Returns the annual yield for a discounted security; for example, a Treasury bill",
         ),
@@ -4418,7 +4975,8 @@ pub const HELP: &[FunctionHelp] = &[
         own: "Annual yield of a discounted security",
     },
     FunctionHelp {
-        spelling: "YIELDMAT",
+        id: crate::FunctionId::from_raw(19726342),
+        spelling: help_spelling(crate::FunctionId::from_raw(19726342)),
         microsoft: Some("Returns the annual yield of a security that pays interest at maturity"),
         source: Some(
             "https://support.microsoft.com/en-us/office/yieldmat-function-ba7d1809-0d33-4bcb-96c7-6c56ec62ef6f",
@@ -4426,7 +4984,8 @@ pub const HELP: &[FunctionHelp] = &[
         own: "Yearly yield of a security whose interest is all paid at maturity",
     },
     FunctionHelp {
-        spelling: "Z.TEST",
+        id: crate::FunctionId::from_raw(6815850),
+        spelling: help_spelling(crate::FunctionId::from_raw(6815850)),
         microsoft: Some("Returns the one-tailed probability-value of a z-test"),
         source: Some(
             "https://support.microsoft.com/en-us/office/z-test-function-d633d5a3-2031-4614-a016-92180ad82bee",
@@ -4434,7 +4993,8 @@ pub const HELP: &[FunctionHelp] = &[
         own: "One-tailed probability of a z-test for a sample mean",
     },
     FunctionHelp {
-        spelling: "ZTEST",
+        id: crate::FunctionId::from_raw(6815851),
+        spelling: help_spelling(crate::FunctionId::from_raw(6815851)),
         microsoft: Some("Returns the one-tailed probability-value of a z-test"),
         source: Some(
             "https://support.microsoft.com/en-us/office/ztest-function-8f33be8a-6bd6-4ecc-8e3a-d9a4420c4a6a",
@@ -4442,3 +5002,25 @@ pub const HELP: &[FunctionHelp] = &[
         own: "One-tailed z-test probability (older form of Z.TEST)",
     },
 ];
+
+#[cfg(test)]
+mod identity_equivalence {
+    #[cfg_attr(not(target_arch = "wasm32"), test)]
+    #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+    fn original_help_text_and_sources_are_preserved() {
+        let mut actual = String::new();
+        for help in super::HELP {
+            let mut hash = 0xcbf29ce484222325u64;
+            for value in [Some(help.spelling), help.microsoft, help.source, Some(help.own)] {
+                let text = value.unwrap_or("");
+                for byte in [u8::from(value.is_some())].into_iter()
+                    .chain((text.len() as u64).to_le_bytes()).chain(text.bytes()) {
+                    hash = (hash ^ u64::from(byte)).wrapping_mul(0x100000001b3);
+                }
+            }
+            assert_eq!(super::help_of_id(help.id), Some(help));
+            actual.push_str(&format!("{}\t{:016x}\n", help.spelling, hash));
+        }
+        assert_eq!(actual, include_str!("../tests/fixtures/help-before.tsv"));
+    }
+}

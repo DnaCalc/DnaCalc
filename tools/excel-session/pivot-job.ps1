@@ -1326,6 +1326,174 @@ public static class DialogWatch {
         }
         $book=$holder6
      }
+     'm7' {
+        # M7 names and saves taken from memory in M5 (bead dc-8wp): Excel's name for a blank pivot source header and for a new
+        # table column, the corner cell of a pivot reduced to one cell (live Value2, Text, saved file), and the saved file of a
+        # collapsed pivot and of the one-cell error stub. One workbook per scenario (Src + Out), alerts off, no dialog answered.
+        # `scenario` selects scenario ids by -like pattern. Every scenario saves its workbook, reopens it and refreshes.
+        $excel.Calculation=-4105
+        $holder7=$book
+        $filter=if($req.scenario){[string]$req.scenario}else{'*'}
+        function ColL7([int]$n){$s='';while($n -gt 0){$s=[string][char](65+(($n-1)%26))+$s;$n=[int][math]::Floor(($n-1)/26)};return $s}
+        function Dump7($ws,[string]$addr){
+            $l=[Collections.Generic.List[object]]::new()
+            try{
+                $r=$ws.Range($addr);$rows=$r.Rows.Count;$cols=$r.Columns.Count;$r0=$r.Row;$c0=$r.Column
+                for($i=0;$i -lt $rows;$i++){for($j=0;$j -lt $cols;$j++){
+                    $c=$r.Cells.Item($i+1,$j+1);$x=$c.Value2
+                    if($null -ne $x){$l.Add(@{a=((ColL7 ($c0+$j))+($r0+$i));v=(Enc $x);text=[string]$c.Text;has_formula=[bool]$c.HasFormula;formula=[string]$c.Formula})}
+                }}
+            }catch{$l.Add(@{unread=$_.Exception.Message})}
+            return ,$l.ToArray()
+        }
+        function Pv7(){return ($script:book.Worksheets.Item('Out').PivotTables('pvt_m5'))}
+        function Names7(){
+            $e=[ordered]@{}
+            foreach($n in 'Src','Out'){
+                try{$ws=$script:book.Worksheets.Item($n);$e[$n]=@{cells=(Dump7 $ws 'A1:P40');tables=@(foreach($lo in (Items (Call $ws 'ListObjects'))){@{name=[string]$lo.Name;range=[string]$lo.Range.Address($false,$false);columns=@(foreach($lc in (Items (Call $lo 'ListColumns'))){[string]$lc.Name})}});pivots=@(foreach($pp in (Items (Call $ws 'PivotTables'))){
+                    $f=@(try{foreach($pf in (Items (Call $pp 'PivotFields'))){@{name=[string]$pf.Name;source_name=$(try{[string]$pf.SourceName}catch{$null});cache_index=$(try{[int]$pf.CacheIndex}catch{$null});orientation=$(try{[int]$pf.Orientation}catch{$null})}}}catch{@{unread=$_.Exception.Message}})
+                    @{name=[string]$pp.Name;range=$(try{[string]$pp.TableRange2.Address($false,$false)}catch{$null});source=$(try{[string]$pp.SourceData}catch{$null});fields=$f;data_fields=@(try{foreach($df in (Items (Call $pp 'DataFields'))){[string]$df.Name}}catch{})}})}
+                }catch{$e[$n]=@{missing=$_.Exception.Message}}
+            }
+            return $e
+        }
+        function Stage7([string]$Name){Assert-HiddenExcel $Name;$obs.Add([ordered]@{stage=$Name;utc=[DateTime]::UtcNow.ToString('O');state=(Names7)})}
+        function Setup7([string]$Mode,[bool]$WithPivot=$true){
+            $wb=$excel.Workbooks.Add(-4167);$script:book=$wb
+            $s=$wb.Worksheets.Item(1);$s.Name='Src';$o=$wb.Worksheets.Add([Type]::Missing,$s);$o.Name='Out'
+            $h=[object[,]]::new(13,4);$hn='Region','Product','Amount','Units';for($j=0;$j -lt 4;$j++){$h[0,$j]=$hn[$j]}
+            $reg='North','South','East';$prd='Alpha','Beta','Gamma','Delta'
+            for($i=0;$i -lt 12;$i++){$h[($i+1),0]=$reg[$i%3];$h[($i+1),1]=$prd[$i%4];$h[($i+1),2]=[double](5+$i*10);$h[($i+1),3]=[double](1+$i%5)}
+            $s.Range('B2:E14').Value2=$h
+            $s.Range('A1').Value2='src-note';$s.Range('H2').Value2='src-far-right';$s.Range('B18').Value2='src-below-marker'
+            $src='Src!R2C2:R14C5'
+            if($Mode -eq 'table'){$lo=$s.ListObjects.Add(1,$s.Range('B2:E14'),$null,1);$lo.Name='TblSrc';$src='TblSrc'}
+            $p=$null
+            if($WithPivot){
+                $cache=$wb.PivotCaches().Create(1,$src,8)
+                $p=$cache.CreatePivotTable($o.Range('C4'),'pvt_m5',$true,8)
+                Row $p 'Region';Col $p 'Product';Add-Data $p 'Amount' 'Sum Amount' -4157
+            }
+            $o.Range('A1').Value2='m-a1';$o.Range('A60').Value2='m-far-below';$o.Range('Z5').Value2='m-far-right'
+            return @{s=$s;o=$o;p=$p;wb=$wb;src=$src}
+        }
+        # the live facts of one cell (a collapsed pivot's top-left cell), read several ways
+        function Corner7([string]$Stage,[string]$Addr){
+            $c=$script:book.Worksheets.Item('Out').Range($Addr)
+            $rec=[ordered]@{stage=$Stage;corner=$Addr;value2=(Enc $c.Value2);text=[string]$c.Text;has_formula=[bool]$c.HasFormula;formula=[string]$c.Formula}
+            try{$rec.value=(Enc $c.Value)}catch{$rec.value=@{unread=$_.Exception.Message}}
+            try{$pc=$c.PivotCell;$rec.pivot_cell_type=[int]$pc.PivotCellType}catch{$rec.pivot_cell_type=$null}
+            try{$rec.pivot_table=[string]$c.PivotTable.Name}catch{$rec.pivot_table=$null}
+            $obs.Add($rec)
+        }
+        function Scn7([string]$Id,[string]$Mode,[scriptblock]$Act,[bool]$WithPivot=$true,[string]$Corner=$null){
+            if($Id -notlike $filter){return}
+            [void](Try-Step "m7-$Id" {
+                $ctx=Setup7 $Mode $WithPivot
+                Stage7 "$Id/0-built"
+                $ok=Try-Step "$Id/act" { $null = & $Act $ctx.s $ctx.o $ctx.p $ctx.wb }
+                Stage7 "$Id/1-after-edit"
+                if($Corner){Corner7 "$Id/1-after-edit" $Corner}
+                if($WithPivot){
+                    [void](Try-Step "$Id/refresh" { [void](Pv7).RefreshTable() })
+                    Stage7 "$Id/2-after-refresh"
+                    if($Corner){Corner7 "$Id/2-after-refresh" $Corner}
+                }
+                $path=Join-Path $dir ("m7-"+$Id+".xlsx")
+                $saved=Try-Step "$Id/save" { [void]$script:book.SaveAs($path,51) }
+                try{$script:book.Close($false)}catch{}
+                $script:book=$null
+                if($saved){
+                    [void](Try-Step "$Id/reopen" {
+                        $script:book=$excel.Workbooks.Open($path,0)
+                        Stage7 "$Id/3-reopened"
+                        if($Corner){Corner7 "$Id/3-reopened" $Corner}
+                        if($WithPivot){
+                            [void](Try-Step "$Id/refresh-reopened" { [void](Pv7).RefreshTable() })
+                            Stage7 "$Id/4-reopened-refreshed"
+                            if($Corner){Corner7 "$Id/4-reopened-refreshed" $Corner}
+                        }
+                        $script:book.Close($false);$script:book=$null
+                    })
+                }
+                if($script:book){try{$script:book.Close($false)}catch{};$script:book=$null}
+            })
+        }
+        # 1. blank source header on a worksheet range (Src!B2:E14: position 3 is column D, position 4 column E)
+        Scn7 'hdr-blank-unused-last' 'range' { param($s,$o,$p,$wb) $s.Range('E2').ClearContents()|Out-Null }
+        Scn7 'hdr-blank-unused-empty-string' 'range' { param($s,$o,$p,$wb) $s.Range('E2').Value2='' }
+        Scn7 'hdr-blank-used-amount' 'range' { param($s,$o,$p,$wb) $s.Range('D2').ClearContents()|Out-Null }
+        Scn7 'hdr-blank-used-product' 'range' { param($s,$o,$p,$wb) $s.Range('C2').ClearContents()|Out-Null }
+        Scn7 'hdr-blank-two' 'range' { param($s,$o,$p,$wb) $s.Range('D2:E2').ClearContents()|Out-Null }
+        Scn7 'hdr-blank-first' 'range' { param($s,$o,$p,$wb) $s.Range('B2').ClearContents()|Out-Null }
+        Scn7 'hdr-space' 'range' { param($s,$o,$p,$wb) $s.Range('E2').Value2=' ' }
+        Scn7 'hdr-number' 'range' { param($s,$o,$p,$wb) $s.Range('E2').Value2=[double]42 }
+        Scn7 'hdr-duplicate-name' 'range' { param($s,$o,$p,$wb) $s.Range('E2').Value2='Region' }
+        Scn7 'hdr-blank-then-column-before' 'range' { param($s,$o,$p,$wb) $s.Range('E2').ClearContents()|Out-Null; $s.Range('A:A').Insert()|Out-Null }
+        # creating a pivot over a range with a blank header
+        Scn7 'hdr-create-blank' 'range' { param($s,$o,$p,$wb)
+            $s.Range('E2').ClearContents()|Out-Null
+            $c2=$wb.PivotCaches().Create(1,'Src!R2C2:R14C5',8);$p2=$c2.CreatePivotTable($o.Range('C21'),'pvt_other',$true,8)
+        } $false
+        # blank header in a table source: the table renames the header cell itself
+        Scn7 'hdr-table-clear' 'table' { param($s,$o,$p,$wb) $s.Range('E2').ClearContents()|Out-Null }
+        Scn7 'hdr-table-clear-two' 'table' { param($s,$o,$p,$wb) $s.Range('D2:E2').ClearContents()|Out-Null }
+        Scn7 'hdr-table-empty-string' 'table' { param($s,$o,$p,$wb) $s.Range('E2').Value2='' }
+        Scn7 'hdr-table-clear-middle' 'table' { param($s,$o,$p,$wb) $s.Range('C2').ClearContents()|Out-Null }
+        # 2. new table column names
+        Scn7 'tbl-col-type-right' 'table' { param($s,$o,$p,$wb) $s.Range('F3').Value2='x' }
+        Scn7 'tbl-col-type-header-right' 'table' { param($s,$o,$p,$wb) $s.Range('F2').Value2='Extra' }
+        Scn7 'tbl-col-add-end' 'table' { param($s,$o,$p,$wb) [void]$s.ListObjects.Item('TblSrc').ListColumns.Add() }
+        Scn7 'tbl-col-add-pos1' 'table' { param($s,$o,$p,$wb) [void]$s.ListObjects.Item('TblSrc').ListColumns.Add(1) }
+        Scn7 'tbl-col-add-pos3' 'table' { param($s,$o,$p,$wb) [void]$s.ListObjects.Item('TblSrc').ListColumns.Add(3) }
+        Scn7 'tbl-col-add-twice' 'table' { param($s,$o,$p,$wb) $lc=$s.ListObjects.Item('TblSrc').ListColumns;[void]$lc.Add();[void]$lc.Add() }
+        Scn7 'tbl-col-add-three-at-1' 'table' { param($s,$o,$p,$wb) $lc=$s.ListObjects.Item('TblSrc').ListColumns;[void]$lc.Add(1);[void]$lc.Add(1);[void]$lc.Add(1) }
+        Scn7 'tbl-col-delete-then-add' 'table' { param($s,$o,$p,$wb) $lo=$s.ListObjects.Item('TblSrc');$lo.ListColumns.Item(4).Delete();[void]$lo.ListColumns.Add() }
+        Scn7 'tbl-col-delete-two-then-add' 'table' { param($s,$o,$p,$wb) $lo=$s.ListObjects.Item('TblSrc');$lo.ListColumns.Item(4).Delete();$lo.ListColumns.Item(3).Delete();[void]$lo.ListColumns.Add() }
+        Scn7 'tbl-col-sheet-insert-inside' 'table' { param($s,$o,$p,$wb) $s.Range('D:D').Insert()|Out-Null }
+        Scn7 'tbl-col-sheet-insert-first' 'table' { param($s,$o,$p,$wb) $s.Range('C:C').Insert()|Out-Null;$s.Range('C:C').Insert()|Out-Null }
+        Scn7 'tbl-col-collide-end' 'table' { param($s,$o,$p,$wb) $s.Range('E2').Value2='Column5';[void]$s.ListObjects.Item('TblSrc').ListColumns.Add() }
+        Scn7 'tbl-col-collide-two' 'table' { param($s,$o,$p,$wb) $s.Range('E2').Value2='Column5';$s.Range('D2').Value2='Column6';[void]$s.ListObjects.Item('TblSrc').ListColumns.Add() }
+        Scn7 'tbl-col-collide-pos' 'table' { param($s,$o,$p,$wb) $s.Range('C2').Value2='Column3';[void]$s.ListObjects.Item('TblSrc').ListColumns.Add(3) }
+        # the rule behind the name: other headers of the form Column<n> (second run)
+        Scn7 'tbln-sparse' 'table' { param($s,$o,$p,$wb) $s.Range('E2').Value2='Column2';$s.Range('D2').Value2='Column7';[void]$s.ListObjects.Item('TblSrc').ListColumns.Add() }
+        Scn7 'tbln-six-only' 'table' { param($s,$o,$p,$wb) $s.Range('E2').Value2='Column6';[void]$s.ListObjects.Item('TblSrc').ListColumns.Add() }
+        Scn7 'tbln-asc-pair' 'table' { param($s,$o,$p,$wb) $s.Range('D2').Value2='Column5';$s.Range('E2').Value2='Column6';[void]$s.ListObjects.Item('TblSrc').ListColumns.Add() }
+        Scn7 'tbln-desc-pair' 'table' { param($s,$o,$p,$wb) $s.Range('D2').Value2='Column6';$s.Range('E2').Value2='Column5';[void]$s.ListObjects.Item('TblSrc').ListColumns.Add() }
+        Scn7 'tbln-desc-pair-at1' 'table' { param($s,$o,$p,$wb) $s.Range('D2').Value2='Column6';$s.Range('E2').Value2='Column5';[void]$s.ListObjects.Item('TblSrc').ListColumns.Add(1) }
+        Scn7 'tbln-nonadjacent' 'table' { param($s,$o,$p,$wb) $s.Range('C2').Value2='Column6';$s.Range('E2').Value2='Column5';[void]$s.ListObjects.Item('TblSrc').ListColumns.Add() }
+        Scn7 'tbln-three-times-over-three' 'table' { param($s,$o,$p,$wb) $s.Range('E2').Value2='Column3';$lc=$s.ListObjects.Item('TblSrc').ListColumns;[void]$lc.Add();[void]$lc.Add();[void]$lc.Add() }
+        Scn7 'tbln-lower-case' 'table' { param($s,$o,$p,$wb) $s.Range('E2').Value2='column5';[void]$s.ListObjects.Item('TblSrc').ListColumns.Add() }
+        Scn7 'tbln-ten' 'table' { param($s,$o,$p,$wb) $s.Range('E2').Value2='Column10';[void]$s.ListObjects.Item('TblSrc').ListColumns.Add() }
+        Scn7 'tbln-zero' 'table' { param($s,$o,$p,$wb) $s.Range('E2').Value2='Column0';[void]$s.ListObjects.Item('TblSrc').ListColumns.Add() }
+        Scn7 'tbln-other-prefix' 'table' { param($s,$o,$p,$wb) $s.Range('E2').Value2='Col9';[void]$s.ListObjects.Item('TblSrc').ListColumns.Add() }
+        Scn7 'tbln-blank-with-column1' 'table' { param($s,$o,$p,$wb) $s.Range('D2').Value2='Column1';$s.Range('E2').ClearContents()|Out-Null }
+        Scn7 'tbln-blank-with-column5' 'table' { param($s,$o,$p,$wb) $s.Range('D2').Value2='Column5';$s.Range('E2').ClearContents()|Out-Null }
+        Scn7 'tbln-blank-before-column5' 'table' { param($s,$o,$p,$wb) $s.Range('E2').Value2='Column5';$s.Range('C2').ClearContents()|Out-Null }
+        Scn7 'tbln-blank-before-column5-two' 'table' { param($s,$o,$p,$wb) $s.Range('E2').Value2='Column5';$s.Range('C2:D2').ClearContents()|Out-Null }
+        Scn7 'tbln-typed-duplicate' 'table' { param($s,$o,$p,$wb) $s.Range('E2').Value2='Region' }
+        Scn7 'tbln-typed-duplicate-three' 'table' { param($s,$o,$p,$wb) $s.Range('D2').Value2='Region';$s.Range('E2').Value2='Region' }
+        Scn7 'tbl-col-add-fresh-table' 'table' { param($s,$o,$p,$wb)
+            $s.Range('H5').Value2='a';$s.Range('I5').Value2='b';$s.Range('H6').Value2=1;$s.Range('I6').Value2=2
+            $lo2=$s.ListObjects.Add(1,$s.Range('H5:I6'),$null,1);$lo2.Name='Tbl2';[void]$lo2.ListColumns.Add();[void]$lo2.ListColumns.Add(1)
+        } $false
+        # 3. the corner of a pivot reduced to one cell, and the file Excel saves for it
+        Scn7 'col-layout-growth-below' 'range' { param($s,$o,$p,$wb) $o.Range('C14').Value2='blocker-C14'; Row $p 'Product' 2 } $true 'C4'
+        Scn7 'col-layout-growth-right' 'range' { param($s,$o,$p,$wb) $o.Range('K5').Value2='blocker-K5'; Row $p 'Product' 2; Col $p 'Units' 1 } $true 'C4'
+        Scn7 'col-refresh-growth-right' 'range' { param($s,$o,$p,$wb) $o.Range('I5').Value2='blocker-I5'; $s.Range('C14').Value2='Epsilon' } $true 'C4'
+        Scn7 'col-refresh-growth-below' 'range' { param($s,$o,$p,$wb) $o.Range('C10').Value2='blocker-C10'; $s.Range('B14').Value2='West' } $true 'C4'
+        Scn7 'col-move-location' 'range' { param($s,$o,$p,$wb) $o.Range('M5').Value2='blocker-M5'; $p.Location='Out!$M$4' } $true 'M4'
+        Scn7 'col-create-onto-nonblank' 'range' { param($s,$o,$p,$wb) $o.Range('E22').Value2='blocker-E22'; $c2=$wb.PivotCaches().Create(1,'Src!R2C2:R14C5',8);$p2=$c2.CreatePivotTable($o.Range('C21'),'pvt_other',$true,8);Row $p2 'Region';Col $p2 'Product';Add-Data $p2 'Units' 'Sum Units' -4157 } $true 'C21'
+        Scn7 'col-collapsed-then-room' 'range' { param($s,$o,$p,$wb) $o.Range('C14').Value2='blocker-C14'; Row $p 'Product' 2; $o.Range('C14').ClearContents()|Out-Null } $true 'C4'
+        Scn7 'col-collapsed-edit-field' 'range' { param($s,$o,$p,$wb) $o.Range('C14').Value2='blocker-C14'; Row $p 'Product' 2; Add-Data $p 'Units' 'Sum Units' -4157 } $true 'C4'
+        # the one-cell error stub: no value field survives the source
+        Scn7 'stub-delete-value-column' 'range' { param($s,$o,$p,$wb) $s.Range('D:D').Delete()|Out-Null } $true 'C4'
+        Scn7 'stub-delete-all-columns' 'range' { param($s,$o,$p,$wb) $s.Range('B:E').Delete()|Out-Null } $true 'C4'
+        Scn7 'stub-clear-source' 'range' { param($s,$o,$p,$wb) $s.Range('B2:E14').Clear()|Out-Null } $true 'C4'
+        Scn7 'stub-rename-value-header' 'range' { param($s,$o,$p,$wb) $s.Range('D2').Value2='Total' } $true 'C4'
+        Scn7 'stub-table-delete-value-column' 'table' { param($s,$o,$p,$wb) $s.ListObjects.Item('TblSrc').ListColumns.Item(3).Delete() } $true 'C4'
+        $book=$holder7
+     }
      default {throw "unknown kind $($req.kind)"}
     }
     Assert-HiddenExcel 'after-work'

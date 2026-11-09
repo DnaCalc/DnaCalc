@@ -775,12 +775,17 @@ fn read_table(package: &Package, part: &str, sheet: SheetId) -> Result<PivotTabl
         || filters.iter().any(|f| matches!(f.kind, PivotFilterKind::Unsupported)) {
         unsupported.push("unsupported pivot filter".into());
     }
+    let area = location.ok_or_else(|| events.invalid("The pivot has no saved location"))?;
+    // A pivot with fields whose location is one cell is the file Excel writes for a pivot that took its top-left
+    // cell for lack of room (m7-names col-*): its output cell holds an error.
+    let collapsed = area.cell_count() == 1
+        && !(row_fields.is_empty() && column_fields.is_empty() && page_fields.is_empty() && data_fields.is_empty());
     Ok(PivotTable {
         name,
         part: part.into(),
         cache_id,
-        area: location.ok_or_else(|| events.invalid("The pivot has no saved location"))?,
-        collapsed: false,
+        area,
+        collapsed,
         row_fields,
         column_fields,
         page_fields,

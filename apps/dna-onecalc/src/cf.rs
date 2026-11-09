@@ -194,6 +194,147 @@ pub fn hex_color(text: &str) -> Option<String> {
         .then(|| format!("#{}", digits.to_ascii_lowercase()))
 }
 
+impl CellStyle {
+    /// The style as the session file's cell format.
+    pub fn session_format(&self) -> calc_doc::SessionFormat {
+        let color = |text: &str| hex_color(text).unwrap_or_default();
+        calc_doc::SessionFormat {
+            font_family: self.font_family.trim().to_owned(),
+            font_size: self.font_size,
+            bold: self.bold,
+            italic: self.italic,
+            underline: self.underline,
+            strike: self.strike,
+            text_color: color(&self.text_color),
+            fill: color(&self.fill),
+            horizontal: if matches!(self.horizontal.as_str(), "left" | "center" | "right") {
+                self.horizontal.clone()
+            } else {
+                String::new()
+            },
+            wrap: self.wrap,
+            border_top: self.border_top,
+            border_bottom: self.border_bottom,
+            border_left: self.border_left,
+            border_right: self.border_right,
+            border_color: color(&self.border_color),
+        }
+    }
+
+    /// The style a file's cell format gives the panel.
+    pub fn of_session_format(format: &calc_doc::SessionFormat) -> CellStyle {
+        CellStyle {
+            font_family: format.font_family.clone(),
+            font_size: format.font_size,
+            bold: format.bold,
+            italic: format.italic,
+            underline: format.underline,
+            strike: format.strike,
+            text_color: format.text_color.clone(),
+            fill: format.fill.clone(),
+            horizontal: format.horizontal.clone(),
+            wrap: format.wrap,
+            border_top: format.border_top,
+            border_bottom: format.border_bottom,
+            border_left: format.border_left,
+            border_right: format.border_right,
+            border_color: format.border_color.clone(),
+        }
+    }
+}
+
+/// `formula` with every relative A1 reference moved by (`rows`, `columns`): the formula a rule
+/// holds, written for A1, as a file stores it for the range that starts `rows` below and
+/// `columns` right of A1 (a negative amount moves it back). Text in quotes is left as it is, and
+/// so are function names, defined names and whole-row and whole-column references.
+pub fn shift_formula(formula: &str, rows: i64, columns: i64) -> Result<String, String> {
+    let chars: Vec<char> = formula.chars().collect();
+    let mut out = String::with_capacity(formula.len() + 8);
+    let mut i = 0;
+    let is_word = |c: char| c.is_alphanumeric() || matches!(c, '_' | '.');
+    while i < chars.len() {
+        let c = chars[i];
+        if c == '"' || c == '\'' {
+            // A text constant or a quoted sheet name: copied whole (a doubled quote stays inside).
+            out.push(c);
+            i += 1;
+            while i < chars.len() {
+                out.push(chars[i]);
+                if chars[i] == c {
+                    if chars.get(i + 1) == Some(&c) {
+                        out.push(c);
+                        i += 2;
+                        continue;
+                    }
+                    i += 1;
+                    break;
+                }
+                i += 1;
+            }
+            continue;
+        }
+        let boundary = i == 0 || !is_word(chars[i - 1]);
+        if boundary && (c == '$' || c.is_ascii_alphabetic()) {
+            let mut j = i;
+            let col_abs = chars[j] == '$';
+            if col_abs {
+                j += 1;
+            }
+            let letters_start = j;
+            while j < chars.len() && chars[j].is_ascii_alphabetic() {
+                j += 1;
+            }
+            let letters = &chars[letters_start..j];
+            let mut k = j;
+            let row_abs = chars.get(k) == Some(&'$');
+            if row_abs {
+                k += 1;
+            }
+            let digits_start = k;
+            while k < chars.len() && chars[k].is_ascii_digit() {
+                k += 1;
+            }
+            let digits = &chars[digits_start..k];
+            let next_is_word = chars.get(k).is_some_and(|&n| is_word(n) || n == '(' || n == '!');
+            if (1..=3).contains(&letters.len()) && !digits.is_empty() && !next_is_word {
+                let column = letters
+                    .iter()
+                    .fold(0u64, |n, c| n * 26 + u64::from(c.to_ascii_uppercase() as u8 - b'A' + 1));
+                let row: u64 = digits.iter().collect::<String>().parse().unwrap_or(u64::MAX);
+                if (1..=16_384).contains(&column) && (1..=1_048_576).contains(&row) {
+                    let column = if col_abs { column as i64 } else { column as i64 + columns };
+                    let row = if row_abs { row as i64 } else { row as i64 + rows };
+                    if !(1..=16_384).contains(&column) || !(1..=1_048_576).contains(&row) {
+                        return Err(format!("a reference in {formula} would leave the sheet"));
+                    }
+                    if col_abs {
+                        out.push('$');
+                    }
+                    out.push_str(&crate::file::column_letters(column as u32));
+                    if row_abs {
+                        out.push('$');
+                    }
+                    out.push_str(&row.to_string());
+                    i = k;
+                    continue;
+                }
+            }
+            // Not a cell reference: copy the word whole.
+            let mut w = i;
+            while w < chars.len() && (is_word(chars[w]) || (w == i && chars[w] == '$')) {
+                w += 1;
+            }
+            let end = w.max(i + 1);
+            out.extend(&chars[i..end]);
+            i = end;
+            continue;
+        }
+        out.push(c);
+        i += 1;
+    }
+    Ok(out)
+}
+
 /// One conditional-format rule as the Conditional Formatting panel holds it.
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 pub struct CfRuleSpec {
@@ -549,6 +690,161 @@ impl CfRuleSpec {
 
     fn look_color(&self, text: &str) -> Option<LookColor> {
         hex_color(text).map(LookColor::Rgb)
+    }
+
+    /// The rule as the session file holds it, for the range that starts `rows` below and
+    /// `columns` right of A1: its formulas moved there, its look as a differential format.
+    pub fn session_rule(&self, priority: i64, rows: i64, columns: i64) -> Result<calc_doc::SessionRule, String> {
+        let (mut rule, appearance) = self.rule(priority)?;
+        for formula in &mut rule.formulas {
+            *formula = shift_formula(formula, rows, columns)?;
+        }
+        let hex = |color: &Option<LookColor>| match color {
+            Some(LookColor::Rgb(hex)) => Some(hex.clone()),
+            _ => None,
+        };
+        let dxf = calc_doc::SessionDxf {
+            fill: hex(&appearance.fill),
+            font_color: hex(&appearance.font_color),
+            bold: appearance.bold == Some(true),
+            italic: appearance.italic == Some(true),
+            underline: appearance.underline == Some(true),
+            strike: appearance.strike == Some(true),
+            number_format: appearance.number_format.clone(),
+        };
+        let visual = matches!(self.kind.as_str(), "colorScale" | "dataBar" | "iconSet");
+        Ok(calc_doc::SessionRule { rule, dxf: (!visual).then_some(dxf) })
+    }
+
+    /// The panel's rule a file's rule is. `rows` and `columns` are the amounts the file's formulas
+    /// are moved back by. A rule the panel cannot hold is refused with its reason.
+    pub fn of_session_rule(rule: &calc_doc::SessionRule, rows: i64, columns: i64) -> Result<CfRuleSpec, String> {
+        let r = &rule.rule;
+        let back = |index: usize| -> Result<String, String> {
+            r.formulas
+                .get(index)
+                .map(|f| shift_formula(f, -rows, -columns))
+                .unwrap_or_else(|| Err(format!("the {} rule has no formula", r.kind)))
+        };
+        let refuse = |what: &str| Err(format!("a {} rule {what}", r.kind));
+        let mut spec = CfRuleSpec::new(match r.kind.as_str() {
+            "cellIs" => "cellIs",
+            "containsText" | "notContainsText" | "beginsWith" | "endsWith" => "text",
+            "containsBlanks" | "notContainsBlanks" => "blanks",
+            "containsErrors" | "notContainsErrors" => "errors",
+            "timePeriod" => "dates",
+            "expression" => "expression",
+            "top10" => "rank",
+            "aboveAverage" => "average",
+            "duplicateValues" => "duplicates",
+            "uniqueValues" => "uniques",
+            "colorScale" => "colorScale",
+            "dataBar" => "dataBar",
+            "iconSet" => "iconSet",
+            other => return Err(format!("a {other} rule is not one the panel holds")),
+        });
+        spec.stop = r.stop_if_true;
+        match r.kind.as_str() {
+            "cellIs" => {
+                spec.operator = r.operator.clone().unwrap_or_default();
+                if !matches!(
+                    spec.operator.as_str(),
+                    "between" | "notBetween" | "equal" | "notEqual" | "greaterThan" | "lessThan"
+                        | "greaterThanOrEqual" | "lessThanOrEqual"
+                ) {
+                    return refuse("with a comparison the panel does not offer");
+                }
+                spec.operand1 = back(0)?;
+                if matches!(spec.operator.as_str(), "between" | "notBetween") {
+                    spec.operand2 = back(1)?;
+                }
+            }
+            "containsText" | "notContainsText" | "beginsWith" | "endsWith" => {
+                spec.operator = r.kind.clone();
+                spec.operand1 = r.text.clone().ok_or_else(|| format!("a {} rule has no text", r.kind))?;
+            }
+            "containsBlanks" | "notContainsBlanks" => {
+                spec.operator = if r.kind == "containsBlanks" { "blanks" } else { "noBlanks" }.into()
+            }
+            "containsErrors" | "notContainsErrors" => {
+                spec.operator = if r.kind == "containsErrors" { "errors" } else { "noErrors" }.into()
+            }
+            "timePeriod" => spec.operator = r.time_period.clone().unwrap_or_default(),
+            "expression" => spec.operand1 = back(0)?,
+            "top10" => {
+                spec.operator = if r.bottom { "bottom" } else { "top" }.into();
+                spec.rank = r.rank.unwrap_or(10);
+                spec.percent = r.percent;
+            }
+            "aboveAverage" => {
+                if r.std_dev.is_some_and(|n| n > 0) {
+                    return refuse("by standard deviations");
+                }
+                spec.operator = if r.above_average { "above" } else { "below" }.into();
+                spec.equal = r.equal_average;
+            }
+            "colorScale" => {
+                let Some(scale) = &r.color_scale else { return refuse("without its scale") };
+                let kinds: Vec<&str> = scale.thresholds.iter().map(|t| t.kind.as_str()).collect();
+                let mid = scale.thresholds.get(1).and_then(|t| t.value.as_deref());
+                let ok = match kinds.as_slice() {
+                    ["min", "max"] => true,
+                    ["min", "percentile", "max"] => mid == Some("50"),
+                    _ => false,
+                };
+                if !ok || scale.colors.len() != scale.thresholds.len() {
+                    return refuse("with thresholds other than lowest, 50th percentile and highest");
+                }
+                let color = |c: &StyleColor| {
+                    c.rgb.as_deref().filter(|v| v.len() == 8).map(|v| format!("#{}", v[2..].to_ascii_lowercase()))
+                };
+                let colors: Option<Vec<String>> = scale.colors.iter().map(color).collect();
+                let Some(colors) = colors else { return refuse("with a colour that is not RGB") };
+                spec.low = colors[0].clone();
+                spec.mid = if colors.len() == 3 { colors[1].clone() } else { String::new() };
+                spec.high = colors[colors.len() - 1].clone();
+            }
+            "dataBar" => {
+                let Some(bar) = &r.data_bar else { return refuse("without its bar") };
+                let kinds: Vec<&str> = bar.thresholds.iter().map(|t| t.kind.as_str()).collect();
+                if kinds != ["min", "max"] || bar.min_length != 0 || bar.max_length != 100 || !bar.show_value {
+                    return refuse("with thresholds, lengths or a hidden value the panel does not offer");
+                }
+                let Some(hex) = bar.color.rgb.as_deref().filter(|v| v.len() == 8) else {
+                    return refuse("with a colour that is not RGB");
+                };
+                spec.bar_color = format!("#{}", hex[2..].to_ascii_lowercase());
+                spec.gradient = bar.gradient;
+            }
+            "iconSet" => {
+                let Some(set) = &r.icon_set else { return refuse("without its icons") };
+                let mine = CfRuleSpec { icon_set: set.name.clone(), ..CfRuleSpec::new("iconSet") };
+                let (expected, _) = mine.rule(1).map_err(|e| format!("a {} rule: {e}", r.kind))?;
+                let same = expected.icon_set.as_ref().is_some_and(|e| {
+                    e.thresholds.len() == set.thresholds.len()
+                        && e.thresholds.iter().zip(&set.thresholds).all(|(a, b)| a.kind == b.kind && a.value == b.value && a.gte == b.gte)
+                });
+                if !same || !set.show_value {
+                    return refuse("with thresholds or a hidden value the panel does not offer");
+                }
+                spec.icon_set = set.name.clone();
+                spec.reverse = set.reverse;
+            }
+            _ => {}
+        }
+        if let Some(dxf) = &rule.dxf {
+            spec.fill = dxf.fill.clone().unwrap_or_default();
+            spec.font_color = dxf.font_color.clone().unwrap_or_default();
+            spec.bold = dxf.bold;
+            spec.italic = dxf.italic;
+            spec.underline = dxf.underline;
+            spec.strike = dxf.strike;
+            spec.number_format = dxf.number_format.clone().unwrap_or_default();
+        } else if !matches!(spec.kind.as_str(), "colorScale" | "dataBar" | "iconSet") {
+            spec.fill.clear();
+            spec.font_color.clear();
+        }
+        Ok(spec)
     }
 }
 

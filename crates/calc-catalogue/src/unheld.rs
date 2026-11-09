@@ -11,6 +11,10 @@ use calc_value::CallableArityShape;
 /// File and entry metadata for a function or an operator without an ordinary kernel.
 #[derive(Clone, Copy, Debug)]
 pub struct UnheldEntry {
+    /// `None` means translated names have not been recorded for this entry.
+    pub localized_names: Option<&'static [crate::LocalizedDisplayName]>,
+    /// `None` means the complete set of facilities has not been classified.
+    pub context_facilities: Option<&'static [crate::ContextFacility]>,
     pub id: FunctionId,
     pub spelling: &'static str,
     pub notation: Notation,
@@ -36,7 +40,8 @@ pub enum UnheldKind {
 /// Provider identity for the RTD route.
 pub const RTD_PROVIDER: &str = "calc-fml/rtd";
 
-const CODE: u16 = 325;
+/// Stable family code for the entries without an ordinary kernel.
+pub const CODE: u16 = 325;
 
 /// Stable IDs of the two reference operators with function-shaped file forms.
 pub const IMPLICIT_INTERSECTION_ID: FunctionId = FunctionId::new(CODE, 15);
@@ -141,6 +146,8 @@ const fn entry(
     implementation: Implementation,
 ) -> UnheldEntry {
     UnheldEntry {
+        localized_names: None,
+        context_facilities: None,
         id: FunctionId::new(CODE, member),
         spelling,
         notation: Notation::Call,

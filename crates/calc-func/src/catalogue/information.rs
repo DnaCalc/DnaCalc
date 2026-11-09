@@ -34,110 +34,36 @@
 //! say, is refused as not modelled.
 
 use super::aggregate::{read_reference, reader};
-use super::{ArgumentDemand, CatalogueEntry, Family, FunctionId, Kernel, Notation, Parameter};
-use crate::call::{EagerKernel, EvalServices, FunctionFault};
+use super::FunctionId;
+use crate::call::{EvalServices, FunctionFault};
 use crate::coerce;
 use crate::kernel::{Exit, Site, Step};
 use crate::value::{
-    CalcArray, CalcValue, CallableArityShape, CoreRef, GridArea, ReferenceLike,
+    CalcArray, CalcValue, CoreRef, GridArea, ReferenceLike,
     WorksheetErrorCode,
 };
 
-const CODE: u16 = 10;
+use calc_catalogue::information::{CODE, ENTRIES as DECLARATIONS, ISBLANK, ISERR, ISERROR, ISNA, ISNUMBER, ISTEXT, ISNONTEXT, ISLOGICAL, ISEVEN, ISODD, ISREF, ISFORMULA, TYPE, N, NA, ERROR_TYPE};
 
-const ISBLANK: FunctionId = FunctionId::new(CODE, 1);
-const ISERR: FunctionId = FunctionId::new(CODE, 2);
-const ISERROR: FunctionId = FunctionId::new(CODE, 3);
-const ISNA: FunctionId = FunctionId::new(CODE, 4);
-const ISNUMBER: FunctionId = FunctionId::new(CODE, 5);
-const ISTEXT: FunctionId = FunctionId::new(CODE, 6);
-const ISNONTEXT: FunctionId = FunctionId::new(CODE, 7);
-const ISLOGICAL: FunctionId = FunctionId::new(CODE, 8);
-const ISEVEN: FunctionId = FunctionId::new(CODE, 9);
-const ISODD: FunctionId = FunctionId::new(CODE, 10);
-const ISREF: FunctionId = FunctionId::new(CODE, 11);
-const ISFORMULA: FunctionId = FunctionId::new(CODE, 12);
-const TYPE: FunctionId = FunctionId::new(CODE, 13);
-const N: FunctionId = FunctionId::new(CODE, 14);
-const NA: FunctionId = FunctionId::new(CODE, 15);
-const ERROR_TYPE: FunctionId = FunctionId::new(CODE, 16);
-
-const VALUE: &[Parameter] = &[Parameter::value("value")];
-/// dc-o9r: TYPE intersects a reference except below an array place.
-const TYPE_VALUE: &[Parameter] = &[Parameter::value_or_reference("value")
-    .legacy(super::LegacyPlace::AggregateIntersectReference)];
-const N_VALUE: &[Parameter] = &[Parameter::value_or_reference("value")
-    .legacy(super::LegacyPlace::AggregateRootArrayNestedLiftReferences)];
-const NUMBER: &[Parameter] = &[Parameter::value_or_reference("number")
-    .legacy(super::LegacyPlace::AggregateAtRoot)];
-const ISREF_VALUE: &[Parameter] = &[Parameter::value_or_reference("value")
-    .legacy(super::LegacyPlace::AggregateAtRoot)];
-/// ISFORMULA's reference takes only an operand that may give one (dc-mx3x, Excel 16.0.20527,
-/// 2026-11-07, Formula2 and Formula alike): `=ISFORMULA(2)`, `=ISFORMULA({1,2})` and
-/// `=ISFORMULA(1+1)` are refused, `=ISFORMULA(B1:B3)` and `=ISFORMULA(INDEX(B1:B3,0))` enter.
-/// ISREF's value takes any operand: `=ISREF(2)` enters.
-const REFERENCE: &[Parameter] =
-    &[Parameter::reference("reference").entry(super::EntryClass::Reference)];
-const ERROR_VAL: &[Parameter] = &[Parameter::value("error_val")];
-
-/// An eager named call of one argument.
-const fn unary(
-    id: FunctionId,
-    spelling: &'static str,
-    parameters: &'static [Parameter],
-    kernel: EagerKernel,
-) -> CatalogueEntry {
-    CatalogueEntry {
-        id,
-        spelling,
-        notation: Notation::Call,
-        kind: super::EntryKind::Worksheet,
-        availability: super::Availability::Unspecified,
-        arity: CallableArityShape::exact(1),
-        groups: None,
-        parameters,
-        result: super::ResultForm::Value,
-        demand: ArgumentDemand::Eager,
-        traits: super::EntryTraits::NONE,
-        kernel: Kernel::Eager(kernel),
-    }
+attach_eager_family! {
+    code: CODE; declarations: DECLARATIONS;
+    ISBLANK => isblank;
+    ISERR => iserr;
+    ISERROR => iserror;
+    ISNA => isna;
+    ISNUMBER => isnumber;
+    ISTEXT => istext;
+    ISNONTEXT => isnontext;
+    ISLOGICAL => islogical;
+    ISEVEN => iseven;
+    ISODD => isodd;
+    ISREF => isref;
+    ISFORMULA => isformula;
+    TYPE => type_of;
+    N => n;
+    NA => na;
+    ERROR_TYPE => error_type;
 }
-
-// 3-D positions: dc-10y, Excel 16.0.20430, 2026-10-25; catalogue oracle ThreeD sheet.
-pub(super) const FAMILY: Family = Family {
-    code: CODE,
-    entries: &[
-        unary(ISBLANK, "ISBLANK", VALUE, isblank).with_three_d(super::ThreeD::new(None, None, Some(&[]))),
-        unary(ISERR, "ISERR", VALUE, iserr).with_three_d(super::ThreeD::new(None, None, Some(&[]))),
-        unary(ISERROR, "ISERROR", VALUE, iserror).with_three_d(super::ThreeD::new(None, None, Some(&[]))),
-        unary(ISNA, "ISNA", VALUE, isna).with_three_d(super::ThreeD::new(None, None, Some(&[]))),
-        unary(ISNUMBER, "ISNUMBER", VALUE, isnumber).with_three_d(super::ThreeD::new(None, None, Some(&[]))),
-        unary(ISTEXT, "ISTEXT", VALUE, istext).with_three_d(super::ThreeD::new(None, None, Some(&[]))),
-        unary(ISNONTEXT, "ISNONTEXT", VALUE, isnontext).with_three_d(super::ThreeD::new(None, None, Some(&[]))),
-        unary(ISLOGICAL, "ISLOGICAL", VALUE, islogical).with_three_d(super::ThreeD::new(None, None, Some(&[]))),
-        unary(ISEVEN, "ISEVEN", NUMBER, iseven).with_three_d(super::ThreeD::new(None, Some(&[]), None)),
-        unary(ISODD, "ISODD", NUMBER, isodd).with_three_d(super::ThreeD::new(None, Some(&[]), None)),
-        unary(ISREF, "ISREF", ISREF_VALUE, isref).with_three_d(super::ThreeD::new(None, None, Some(&[]))).with_traits(super::EntryTraits::NONE.take_reference_array()),
-        unary(ISFORMULA, "ISFORMULA", REFERENCE, isformula).with_three_d(super::ThreeD::new(None, Some(&[]), None)),
-        unary(TYPE, "TYPE", TYPE_VALUE, type_of).with_three_d(super::ThreeD::new(None, None, Some(&[]))),
-        unary(N, "N", N_VALUE, n).with_three_d(super::ThreeD::new(None, Some(&[]), None)).with_traits(super::EntryTraits::NONE.lift_dynamic_references()),
-        CatalogueEntry {
-            id: NA,
-            spelling: "NA",
-            notation: Notation::Call,
-            kind: super::EntryKind::Worksheet,
-            availability: super::Availability::Unspecified,
-            arity: CallableArityShape::exact(0),
-            groups: None,
-            parameters: &[],
-            result: super::ResultForm::Value,
-            demand: ArgumentDemand::Eager,
-            traits: super::EntryTraits::NONE,
-            kernel: Kernel::Eager(na),
-        },
-        unary(ERROR_TYPE, "ERROR.TYPE", ERROR_VAL, error_type).with_three_d(super::ThreeD::new(None, None, Some(&[]))),
-    ],
-};
 
 /// The argument's worksheet value, or the refusal of a value no kernel here reads: an omitted
 /// argument, an array (lifted or intersected by array evaluation), a callable and a number that is

@@ -63,146 +63,33 @@
 
 use super::aggregate::{read_reference, reader};
 use super::comparison::{self, Want};
-use super::{
-    ArgumentDemand, ArgumentGroups, CatalogueEntry, EntryClass, Family, FunctionId, Kernel,
-    Notation, Parameter,
-};
-use crate::call::{EagerKernel, EvalServices, FunctionFault};
+use crate::call::{EvalServices, FunctionFault};
 use crate::coerce;
 use crate::kernel::{Exit, Site, Step};
 use crate::value::{
-    CalcValue, CallableArityShape, CellKey, CoreRef, ExcelText, GridArea, MAX_COLUMNS, MAX_ROWS,
+    CalcValue, CellKey, CoreRef, ExcelText, GridArea, MAX_COLUMNS, MAX_ROWS,
     ReferenceLike, WorksheetErrorCode,
 };
 use std::cmp::Ordering;
-
-const CODE: u16 = 7;
-
-const COUNTIF: FunctionId = FunctionId::new(CODE, 1);
-const COUNTIFS: FunctionId = FunctionId::new(CODE, 2);
-const SUMIF: FunctionId = FunctionId::new(CODE, 3);
-const SUMIFS: FunctionId = FunctionId::new(CODE, 4);
-const AVERAGEIF: FunctionId = FunctionId::new(CODE, 5);
-const AVERAGEIFS: FunctionId = FunctionId::new(CODE, 6);
-const MAXIFS: FunctionId = FunctionId::new(CODE, 7);
-const MINIFS: FunctionId = FunctionId::new(CODE, 8);
 
 /// The longest criterion text, operator and escapes included, in UTF-16 code units: a longer one
 /// is #VALUE!. Also the longest text a text criterion or a pattern compares: Excel's pages for
 /// SUMIF and COUNTIF say they return incorrect results beyond 255 characters.
 const LONGEST_TEXT: usize = 255;
 
-// Formula entry (dc-mx3x, Excel 16.0.20527, 2026-11-07, Formula2 and Formula alike): every range
-// below takes only an operand that may give a reference. `=COUNTIF(2,1)`, `=COUNTIF({1,2},1)`,
-// `=COUNTIF(1+1,1)` and `=COUNTIF(,1)` are refused and `=COUNTIF(B1:B3,1)` and
-// `=COUNTIF(INDEX(B1:B3,0),1)` enter; so for SUMIF's and AVERAGEIF's range and sum or average
-// range, each criteria range of COUNTIFS (`=COUNTIFS(B1:B3,1,2,1)` is refused), and the first
-// range and each criteria range of SUMIFS, AVERAGEIFS, MAXIFS and MINIFS
-// (`=SUMIFS(B1:B3,B1:B3,1,2,1)` is refused). A criterion takes any operand.
-const RANGE_CRITERIA: &[Parameter] = &[
-    Parameter::reference("range").entry(EntryClass::Reference).legacy(super::LegacyPlace::ArrayAlwaysLiftReferences),
-    Parameter::value_or_reference("criteria"),
-];
-const SUM_RANGE: &[Parameter] = &[
-    Parameter::reference("range").entry(EntryClass::Reference).legacy(super::LegacyPlace::ArrayAlwaysLiftReferences),
-    Parameter::value_or_reference("criteria"),
-    Parameter::reference("sum_range").entry(EntryClass::Reference),
-];
-const AVERAGE_RANGE: &[Parameter] = &[
-    Parameter::reference("range").entry(EntryClass::Reference),
-    Parameter::value_or_reference("criteria"),
-    Parameter::reference("average_range").entry(EntryClass::Reference),
-];
-// The catalogue repeats only the last named parameter, so arguments past these names take its
-// class, ValueOrReference: a criteria range there reaches the kernel, which requires a reference.
-const COUNT_PAIRS: &[Parameter] = &[
-    Parameter::reference("criteria_range1").entry(EntryClass::Reference),
-    Parameter::value_or_reference("criteria1"),
-    Parameter::reference("criteria_range2").entry(EntryClass::Reference),
-    Parameter::value_or_reference("criteria2"),
-];
-const SUM_PAIRS: &[Parameter] = &[
-    Parameter::reference("sum_range").entry(EntryClass::Reference),
-    Parameter::reference("criteria_range1").entry(EntryClass::Reference),
-    Parameter::value_or_reference("criteria1"),
-    Parameter::reference("criteria_range2").entry(EntryClass::Reference),
-    Parameter::value_or_reference("criteria2"),
-];
-const AVERAGE_PAIRS: &[Parameter] = &[
-    Parameter::reference("average_range").entry(EntryClass::Reference),
-    Parameter::reference("criteria_range1").entry(EntryClass::Reference),
-    Parameter::value_or_reference("criteria1"),
-    Parameter::reference("criteria_range2").entry(EntryClass::Reference),
-    Parameter::value_or_reference("criteria2"),
-];
-const MAX_PAIRS: &[Parameter] = &[
-    Parameter::reference("max_range").entry(EntryClass::Reference),
-    Parameter::reference("criteria_range1").entry(EntryClass::Reference),
-    Parameter::value_or_reference("criteria1"),
-    Parameter::reference("criteria_range2").entry(EntryClass::Reference),
-    Parameter::value_or_reference("criteria2"),
-];
-const MIN_PAIRS: &[Parameter] = &[
-    Parameter::reference("min_range").entry(EntryClass::Reference),
-    Parameter::reference("criteria_range1").entry(EntryClass::Reference),
-    Parameter::value_or_reference("criteria1"),
-    Parameter::reference("criteria_range2").entry(EntryClass::Reference),
-    Parameter::value_or_reference("criteria2"),
-];
+use calc_catalogue::conditional::{CODE, ENTRIES as DECLARATIONS, COUNTIF, COUNTIFS, SUMIF, SUMIFS, AVERAGEIF, AVERAGEIFS, MAXIFS, MINIFS};
 
-/// An eager named call taking `min` to `max` arguments.
-const fn conditional(
-    id: FunctionId,
-    spelling: &'static str,
-    (min, max): (usize, usize),
-    parameters: &'static [Parameter],
-    kernel: EagerKernel,
-) -> CatalogueEntry {
-    CatalogueEntry {
-        id,
-        spelling,
-        notation: Notation::Call,
-        kind: super::EntryKind::Worksheet,
-        availability: super::Availability::Unspecified,
-        arity: CallableArityShape::range(min, max),
-        groups: None,
-        parameters,
-        result: super::ResultForm::Value,
-        demand: ArgumentDemand::Eager,
-        traits: super::EntryTraits::NONE,
-        kernel: Kernel::Eager(kernel),
-    }
+attach_eager_family! {
+    code: CODE; declarations: DECLARATIONS;
+    COUNTIF => countif;
+    COUNTIFS => countifs;
+    SUMIF => sumif;
+    SUMIFS => sumifs;
+    AVERAGEIF => averageif;
+    AVERAGEIFS => averageifs;
+    MAXIFS => maxifs;
+    MINIFS => minifs;
 }
-
-// The criteria pairs are groups (dc-mx3x, both forms): `=COUNTIFS(B1:B3,1,B1:B3)` and
-// `=SUMIFS(B1:B3,B1:B3,1,B1:B3)` are refused, `=COUNTIFS(B1:B3,1,B1:B3,1)` and
-// `=SUMIFS(B1:B3,B1:B3,1,B1:B3,1)` enter: COUNTIFS takes 2, 4, 6 and 8 arguments of 1 to 8, and
-// SUMIFS, AVERAGEIFS, MAXIFS and MINIFS 3, 5 and 7.
-// 3-D positions: dc-10y, Excel 16.0.20430, 2026-10-25; catalogue oracle ThreeD sheet.
-pub(super) const FAMILY: Family = Family {
-    code: CODE,
-    entries: &[
-        conditional(COUNTIF, "COUNTIF", (2, 2), RANGE_CRITERIA, countif).with_three_d(super::ThreeD::new(None, Some(&[0]), None)).with_traits(super::EntryTraits::NONE.lift_dynamic_references()),
-        conditional(COUNTIFS, "COUNTIFS", (2, 254), COUNT_PAIRS, countifs).with_three_d(super::ThreeD::new(None, Some(&[0]), None))
-            .with_groups(ArgumentGroups::new(0, 2, 0)),
-        conditional(SUMIF, "SUMIF", (2, 3), SUM_RANGE, sumif).with_three_d(super::ThreeD::new(None, Some(&[0, 2]), None)).with_traits(super::EntryTraits::NONE.lift_dynamic_references()),
-        conditional(SUMIFS, "SUMIFS", (3, 255), SUM_PAIRS, sumifs).with_three_d(super::ThreeD::new(None, Some(&[0, 1]), None))
-            .with_groups(ArgumentGroups::new(1, 2, 0)).with_traits(super::EntryTraits::NONE.lift_dynamic_references()),
-        conditional(AVERAGEIF, "AVERAGEIF", (2, 3), AVERAGE_RANGE, averageif).with_three_d(super::ThreeD::new(None, Some(&[0, 2]), Some(&[1]))).with_traits(super::EntryTraits::NONE.lift_dynamic_references()),
-        conditional(
-            AVERAGEIFS,
-            "AVERAGEIFS",
-            (3, 255),
-            AVERAGE_PAIRS,
-            averageifs,
-        ).with_three_d(super::ThreeD::new(None, Some(&[0, 1]), Some(&[2])))
-        .with_groups(ArgumentGroups::new(1, 2, 0)),
-        conditional(MAXIFS, "MAXIFS", (3, 255), MAX_PAIRS, maxifs).with_three_d(super::ThreeD::new(None, Some(&[0, 1]), None))
-            .with_groups(ArgumentGroups::new(1, 2, 0)),
-        conditional(MINIFS, "MINIFS", (3, 255), MIN_PAIRS, minifs).with_three_d(super::ThreeD::new(None, Some(&[0, 1]), None))
-            .with_groups(ArgumentGroups::new(1, 2, 0)),
-    ],
-};
 
 /// COUNTIF: the cells of the range that meet the criterion.
 fn countif(

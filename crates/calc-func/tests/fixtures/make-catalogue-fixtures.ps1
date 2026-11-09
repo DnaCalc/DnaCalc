@@ -382,6 +382,61 @@ function Get-SectionLines([string]$Name, [string]$Case = 'catalogue') {
         Where-Object { $_ -ne '' -and -not $_.StartsWith('#') })
 }
 
+# A section line may carry typed inputs (dc-jnt.5): the formula, then up to six tab-separated
+# cells, written as constants in columns A, B, C, E, F and G of the row the formula takes (column D),
+# so the formula reads inputs that are exact. {A}, {B}, {C}, {E}, {F} and {G} in the formula stand
+# for this row's cells.
+# A cell is n:<16 hex digits> (a finite binary64 number, written with 17 significant digits),
+# s:<text>, b:TRUE or b:FALSE, e:<error literal>, f:<formula> (a formula cell; text holding control
+# characters, which XML 1.0 cannot carry, is built as "a"&CHAR(12)&"b"), or - (the cell stays empty). A line without a tab is
+# a plain formula, as before.
+$InputColumns = @('A', 'B', 'C', 'E', 'F', 'G')
+function New-InputCell([string]$Ref, [string]$Token) {
+    if ($Token -eq '-') { return $null }
+    if ($Token.Length -lt 2 -or $Token[1] -ne ':') { throw "input cell $Ref has no kind: $Token" }
+    $body = $Token.Substring(2)
+    switch ($Token[0]) {
+        'n' {
+            if ($body -cnotmatch '^[0-9a-f]{16}$') { throw "input cell $Ref is not 16 hex digits: $Token" }
+            $number = [BitConverter]::Int64BitsToDouble([Convert]::ToInt64($body, 16))
+            if ([double]::IsNaN($number) -or [double]::IsInfinity($number)) { throw "input cell $Ref is not finite: $Token" }
+            return (New-Number $Ref ($number.ToString('G17', [Globalization.CultureInfo]::InvariantCulture)))
+        }
+        's' {
+            if ($body -ne $body.Trim()) {
+                return @($Ref, ('<c r="' + $Ref + '" t="inlineStr"><is><t xml:space="preserve">' + (Get-Escaped $body) + '</t></is></c>'))
+            }
+            return (New-Text $Ref $body)
+        }
+        'b' {
+            if ($body -ne 'TRUE' -and $body -ne 'FALSE') { throw "input cell $Ref is not TRUE or FALSE: $Token" }
+            return (New-Logical $Ref ($body -eq 'TRUE'))
+        }
+        'e' { return (New-Error $Ref $body) }
+        'f' { return @($Ref, ('<c r="' + $Ref + '"><f>' + (Get-Escaped $body) + '</f></c>')) }
+        default { throw "input cell $Ref has an unknown kind: $Token" }
+    }
+}
+
+# The formulas and the input cells of a section's lines (see New-InputCell).
+function Expand-SectionLines($Lines) {
+    $formulas = @(); $inputs = @(); $number = 0
+    foreach ($line in $Lines) {
+        $number += 1
+        $fields = $line.Split([char]9)
+        if ($fields.Count -eq 1) { $formulas += $line; continue }
+        if ($fields.Count -gt 7) { throw "line $number has more than six input cells" }
+        $text = $fields[0]
+        foreach ($column in $InputColumns) { $text = $text.Replace('{' + $column + '}', $column + $number) }
+        $formulas += $text
+        for ($k = 1; $k -lt $fields.Count; $k++) {
+            $cell = New-InputCell ($InputColumns[$k - 1] + $number) $fields[$k]
+            if ($null -ne $cell) { $inputs += , $cell }
+        }
+    }
+    return @{ Formulas = $formulas; Inputs = $inputs }
+}
+
 $prefixCalls = @()
 foreach ($section in $PrefixSections) { $prefixCalls += Get-SectionLines $section }
 
@@ -530,3 +585,20 @@ Write-Workbook (Join-Path $OutDir 'fn3_questions/oracle.xlsx') $fn3Sheets
 # dc-zsn.2.4: separate unanswered SORT questions preserve all captured sheet lists.
 $fn10SortSheets = @(, @('fn10_sort_cycle', (New-OracleSheet @() (Get-SectionLines 'sheet-fn10_sort_cycle.txt' 'fn10_sort_cycle'))))
 Write-Workbook (Join-Path $OutDir 'fn10_sort_cycle/oracle.xlsx') $fn10SortSheets
+
+# dc-jnt (test migration of the legacy suites): the legacy OxFunc Excel readings, one sheet per batch,
+# in a workbook of their own (catalogue sheets cannot be added: every added sheet changes the context
+# of prefix_metadata and dcuar_cell, whose captures must stay valid). A line of a section file is a
+# formula and the typed inputs it reads (Expand-SectionLines); the answers are the legacy readings,
+# imported into the section captures by tools/excel-service/jnt_import.py. Each batch appends its
+# sheet to $JntSheets, whose section files are fixtures/jnt/sheet-<name>.txt.
+$JntSheets = @()
+$JntSheets += 'jnt_w111_elementary'
+$JntSheets += 'jnt_w111_rounding'
+$JntSheets += 'jnt_w111_text_dates'
+$jnt = @()
+foreach ($name in $JntSheets) {
+    $expanded = Expand-SectionLines (Get-SectionLines ('sheet-' + $name + '.txt') 'jnt')
+    $jnt += , @($name, (New-OracleSheet $expanded.Inputs $expanded.Formulas))
+}
+Write-Workbook (Join-Path $OutDir 'jnt/oracle.xlsx') $jnt

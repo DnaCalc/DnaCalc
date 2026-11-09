@@ -6,6 +6,7 @@
   py -3 tools/excel-session/pivot-fixtures.py gpd RESULT.json OUT.tsv      (m3: id, formula, kind, value, text; entry refusals)
   py -3 tools/excel-session/pivot-fixtures.py cube RESULT.json OUT.tsv     (m4: every stage of CUBE rows, converted and model pivot cells)
   py -3 tools/excel-session/pivot-fixtures.py m5 OUT_DIR RESULT.json [RESULT.json ...]   (m5: scenarios.tsv and cells.tsv; a later result replaces a scenario of an earlier one)
+  py -3 tools/excel-session/pivot-fixtures.py m7 OUT_DIR RESULT.json [RESULT.json ...]   (m7: names.tsv, cells.tsv and corners.tsv)
   py -3 tools/excel-session/pivot-fixtures.py compare A.tsv B.tsv
 
 `formats` and `--formats` add: number_format, text, font_name, font_size, bold, italic, font_color,
@@ -229,6 +230,82 @@ def write_m5(out_dir, results):
     print(f"{out_dir}: {len(rows)} scenarios, {len(cells)} cells")
 
 
+def write_m7(out_dir, results):
+    """names.tsv: per scenario and stage the pivots (name@range@source@field names) and the tables
+    (name=range=column names); cells.tsv: every non-empty cell of Out at stage 2 (after the refresh);
+    corners.tsv: the corner cell of a collapsed or empty pivot, read several ways."""
+    import os
+    scenarios = {}
+    corners = []
+    for path in results:
+        data = load(path)
+        seen = {}
+        for item in data["observations"]:
+            if "stage" in item and "/" in item["stage"] and "state" in item:
+                name, stage = item["stage"].split("/", 1)
+                seen.setdefault(name, {"stages": {}, "steps": {}})["stages"][stage[0]] = item
+            elif "stage" in item and "corner" in item:
+                name, stage = item["stage"].split("/", 1)
+                value = cell_value(item["value2"]) or ("empty", "")
+                corners.append("\t".join([name, stage[0], item["corner"], value[0], value[1], item["text"], item["formula"],
+                                          str(item.get("pivot_cell_type")), str(item.get("pivot_table"))]))
+            elif "step" in item and "/" in item["step"]:
+                name, step = item["step"].split("/", 1)
+                seen.setdefault(name, {"stages": {}, "steps": {}})["steps"][step] = item
+        scenarios.update(seen)
+
+    def flat(text):
+        return " ".join(str(text).split())
+
+    def pivots(item):
+        found = []
+        for sheet in ("Src", "Out"):
+            for p in item["state"].get(sheet, {}).get("pivots", []):
+                fields = "|".join(f["name"] for f in p["fields"])
+                found.append(f"{p['name'].removeprefix('pvt_')}@{p['range']}@{p['source']}@{fields}")
+        return ";".join(found) or "-"
+
+    def tables(item):
+        found = []
+        for sheet in ("Src", "Out"):
+            for table in item["state"].get(sheet, {}).get("tables", []):
+                found.append(f"{table['name']}={table['range']}={'|'.join(table['columns'])}")
+        return ";".join(found) or "-"
+
+    os.makedirs(out_dir, exist_ok=True)
+    rows, cells = [], []
+    for name in sorted(scenarios):
+        entry = scenarios[name]
+        if "1" not in entry["stages"]:
+            continue
+
+        def step(key):
+            item = entry["steps"].get(key)
+            return "ok" if item is None or item.get("success") else flat(item.get("message", "failed"))
+
+        stages = [entry["stages"].get(str(n)) for n in range(5)]
+        rows.append("\t".join([name, step("act"), step("refresh"), step("refresh-reopened"), step("save")]
+                              + [pivots(s) if s else "-" for s in stages] + [tables(s) if s else "-" for s in stages]))
+        for number in (2,):
+            item = entry["stages"].get(str(number))
+            if not item:
+                continue
+            for sheet in ("Out",):
+                for cell in item["state"].get(sheet, {}).get("cells", []):
+                    decoded = cell_value(cell["v"])
+                    if decoded:
+                        cells.append("\t".join([name, str(number), sheet, cell["a"], decoded[0], decoded[1]]))
+    header = "\t".join(["id", "act", "refresh", "refresh_reopened", "save", "pivots0", "pivots1", "pivots2", "pivots3", "pivots4",
+                        "tables0", "tables1", "tables2", "tables3", "tables4"])
+    files = (("names.tsv", header, rows),
+             ("cells.tsv", "scenario\tstage\tsheet\taddress\tkind\tvalue", cells),
+             ("corners.tsv", "scenario\tstage\tcorner\tkind\tvalue\ttext\tformula\tpivot_cell_type\tpivot_table", corners))
+    for name, head, lines in files:
+        with open(os.path.join(out_dir, name), "w", encoding="utf-8", newline="\n") as handle:
+            handle.write(head + "\n" + "\n".join(lines) + "\n")
+    print(f"{out_dir}: {len(rows)} scenarios, {len(cells)} cells, {len(corners)} corner reads")
+
+
 def main(argv):
     if argv and argv[0] in ("cells", "formats") and len(argv) >= 4:
         sheets = None
@@ -244,6 +321,8 @@ def main(argv):
         write_stages(argv[1], argv[2], prefix, "--formats" in argv)
     elif argv and argv[0] == "m5" and len(argv) >= 3:
         write_m5(argv[1], argv[2:])
+    elif argv and argv[0] == "m7" and len(argv) >= 3:
+        write_m7(argv[1], argv[2:])
     elif argv and argv[0] == "compare" and len(argv) == 3:
         a = open(argv[1], encoding="utf-8").read().splitlines()
         b = open(argv[2], encoding="utf-8").read().splitlines()

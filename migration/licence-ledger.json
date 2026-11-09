@@ -189,6 +189,19 @@
   "allowed": {}
  },
  "files": [
+  {"path": "crates/calc-catalogue/src/error_fallback.rs", "class": "own-work", "reason": "Declarations moved from the existing DnaCalc catalogue."},
+  {"path": "crates/calc-catalogue/src/euro_tools.rs", "class": "own-work", "reason": "Declarations moved from the existing DnaCalc catalogue."},
+  {"path": "crates/calc-catalogue/src/reference_text.rs", "class": "own-work", "reason": "Declarations moved from the existing DnaCalc catalogue."},
+  {"path": "crates/calc-catalogue/src/group_pivot.rs", "class": "own-work", "reason": "Declarations moved from the existing DnaCalc catalogue."},
+  {"path": "crates/calc-catalogue/src/file_call.rs", "class": "own-work", "reason": "File and entered call identity classification."},
+  {"path": "crates/calc-catalogue/src/registry.rs", "class": "own-work", "reason": "ID lookup over the shared catalogue declarations."},
+  {"path": "crates/calc-catalogue/src/lookup.rs", "class": "own-work", "reason": "Lookup declarations moved from the existing DnaCalc catalogue."},
+  {"path": "crates/calc-catalogue/src/conditional.rs", "class": "own-work", "reason": "Conditional declarations moved from the existing DnaCalc catalogue."},
+  {"path": "crates/calc-catalogue/src/rounding.rs", "class": "own-work", "reason": "Rounding declarations moved from the existing DnaCalc catalogue."},
+  {"path": "crates/calc-catalogue/src/information.rs", "class": "own-work", "reason": "Information function declarations moved from the existing DnaCalc catalogue."},
+  {"path": "crates/calc-catalogue/src/logical_more.rs", "class": "own-work", "reason": "Selection declarations moved from the existing DnaCalc catalogue."},
+  {"path": "crates/calc-catalogue/src/logical.rs", "class": "own-work", "reason": "Logical function declarations moved from the existing DnaCalc catalogue."},
+  {"path": "crates/calc-catalogue/src/aggregate.rs", "class": "own-work", "reason": "Worksheet declaration data moved from the existing DnaCalc catalogue."},
   {"path": "crates/calc-catalogue/src/operators.rs", "class": "own-work", "reason": "Operator declarations moved from the existing DnaCalc catalogue families."},
   {"path": "crates/calc-catalogue/src/ported.rs", "class": "own-work", "reason": "Function declaration metadata moved from the existing DnaCalc catalogue families."},
   {"path": "crates/calc-catalogue/src/offset.rs", "class": "own-work", "reason": "Worksheet declaration data moved from the existing DnaCalc reference-offset family."},
@@ -5195,6 +5208,23 @@
     {"path": "crates/calc-func/tests/captures/dcj9k_r39_ets/sections/dcj9k_r39_ets.capture.json", "class": "own-work", "reason": "Original MIT R39 ETS numeric questions and audited Excel question-service observations, using the existing generator and capture codec; dc-j9k."},
     {"path": "crates/calc-func/tests/fixtures/dcj9k_r39_seasonal/oracle.xlsx", "class": "own-work", "reason": "Original MIT R39 exact seasonal affine questions, using the existing generator and audited Excel question-service capture route; dc-j9k."},
     {"path": "crates/calc-func/tests/fixtures/dcj9k_r39_seasonal/sheet-dcj9k_r39_seasonal.txt", "class": "own-work", "reason": "Original MIT R39 exact seasonal affine questions, using the existing generator and audited Excel question-service capture route; dc-j9k."},
-    {"path": "crates/calc-func/tests/captures/dcj9k_r39_seasonal/sections/dcj9k_r39_seasonal.capture.json", "class": "own-work", "reason": "Original MIT R39 exact seasonal affine questions, using the existing generator and audited Excel question-service capture route; dc-j9k."}
+    {"path": "crates/calc-func/tests/captures/dcj9k_r39_seasonal/sections/dcj9k_r39_seasonal.capture.json", "class": "own-work", "reason": "Original MIT R39 exact seasonal affine questions, using the existing generator and audited Excel question-service capture route; dc-j9k."},
+    {"path": "crates/calc-func/tests/fixtures/jnt/sheet-jnt_w111_elementary.txt", "class": "own-work", "reason": "dc-jnt test migration: rows of legacy OxFunc Excel readings (OxFunc, MIT, DNA Kode) as formula and typed-input lines; written by tools/excel-service/jnt_import.py, no answers computed here."},
+    {"path": "crates/calc-func/tests/captures/jnt/sections/jnt_w111_elementary.capture.json", "class": "own-work", "reason": "dc-jnt test migration: the legacy OxFunc Excel readings (build 20430) as the answers of the rows of the sheet, imported as function questions by tools/excel-service/jnt_import.py; measurement."},
+    {"path": "crates/calc-func/tests/jnt_inputs.rs", "class": "own-work", "reason": "dc-jnt test migration: own test of the typed-input rows of the catalogue oracle."},
+  {
+   "path": "crates/calc-func/tests/captures/jnt/sections/jnt_w111_rounding.capture.json",
+   "class": "own-work",
+   "reason": "Excel capture: values read from live Excel by cargo xtask capture (measurement)"
+  },
+    {"path": "crates/calc-func/tests/fixtures/jnt/sheet-jnt_w111_rounding.txt", "class": "own-work", "reason": "dc-jnt test migration: rows of legacy OxFunc Excel readings (OxFunc, MIT, DNA Kode) as formula and typed-input lines; written by tools/excel-service/jnt_import.py, no answers computed here."},
+  {
+   "path": "crates/calc-func/tests/captures/jnt/sections/jnt_w111_text_dates.capture.json",
+   "class": "own-work",
+   "reason": "Excel capture: values read from live Excel by cargo xtask capture (measurement)"
+  },
+    {"path": "crates/calc-func/tests/fixtures/jnt/README.md", "class": "own-work", "reason": "dc-jnt test migration: own test of the typed-input rows of the catalogue oracle."},
+    {"path": "crates/calc-func/tests/fixtures/jnt/sheet-jnt_w111_text_dates.txt", "class": "own-work", "reason": "dc-jnt test migration: rows of legacy OxFunc Excel readings (OxFunc, MIT, DNA Kode) as formula and typed-input lines; written by tools/excel-service/jnt_import.py, no answers computed here."},
+    {"path": "crates/calc-func/tests/fixtures/jnt/contradicted-jnt_w111_text_dates.json", "class": "own-work", "reason": "dc-jnt test migration: own test of the typed-input rows of the catalogue oracle."}
   ]
 }

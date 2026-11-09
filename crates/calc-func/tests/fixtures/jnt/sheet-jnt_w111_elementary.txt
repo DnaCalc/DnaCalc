@@ -1,0 +1,3146 @@
+# dc-jnt.5 J1: W111 elementary functions: ATAN, ASIN, ACOS, ACOT, TANH, COTH, LOG, LOG10, POWER, FISHER, MEDIAN.
+# Ported from OxFunc@05196c39:crates/oxfunc_core/tests/ (w111_atan_live_replay.rs, w111_atan_typed_replay.rs, w111_asin_acos_live_replay.rs, w111_acot_live_replay.rs, w111_tanh_coth_live_replay.rs, w111_elementary_prepared_live_replay.rs, w111_elementary_publication_replay.rs, w111_power_integer_threshold_live_replay.rs).
+# Each row is a legacy Excel reading: the formula reads its exact binary64 inputs from columns A to C of
+# its row (make-catalogue-fixtures.ps1, typed inputs) and the answer is the bit pattern the legacy suite
+# replayed. Excel 16.0.20430 64-bit, Value2 bulk input (OxFunc w111-broad-20260929). The answers are in the section capture, imported by
+# tools/excel-service/jnt_import.py; none is computed here. A row DNA Calc does not match stays failing.
+#
+# family ATAN: 252 rows of 181495 usable readings in 4 classes (2 boundary rows beyond the stride); none left out
+# sources: atan/discovery.json, atan/heldout.json, atan/heldout2.json, atan/refinement.json
+ATAN({A})	n:8010000000000000
+ATAN({A})	n:7fefffffffffffff
+ATAN({A})	n:bd5ae74a9896b4c9
+ATAN({A})	n:c07ae3e0e47901b1
+ATAN({A})	n:3ffbfab5ec24d290
+ATAN({A})	n:513269d114f5c475
+ATAN({A})	n:bffd8b41c41fa2ac
+ATAN({A})	n:6a56a2f188d0ab7b
+ATAN({A})	n:4081b05a8ae27248
+ATAN({A})	n:bff4b7a879800fa8
+ATAN({A})	n:c05259f1758d1138
+ATAN({A})	n:bff63fe68be87020
+ATAN({A})	n:5454afa656cf0c23
+ATAN({A})	n:4084f5ce39c8a504
+ATAN({A})	n:edd83a26b63c5fcd
+ATAN({A})	n:c061431b3bcfa32c
+ATAN({A})	n:bfd7c623207d7dc8
+ATAN({A})	n:9c06d5c8ec3ba643
+ATAN({A})	n:bffa1e9696d51680
+ATAN({A})	n:cc49c48bf46a9cfe
+ATAN({A})	n:4081200f654b9198
+ATAN({A})	n:bfef94deaf0ce638
+ATAN({A})	n:4080b08778a407bc
+ATAN({A})	n:3fede7e0fe65a664
+ATAN({A})	n:b70e20972ba059c4
+ATAN({A})	n:40812b5bbdab01e2
+ATAN({A})	n:bc24b5aa18395c82
+ATAN({A})	n:404461928ec622b0
+ATAN({A})	n:bff9ad1d998ca4ea
+ATAN({A})	n:f36590dc8e3e73a5
+ATAN({A})	n:bfac2bd2a1e97b00
+ATAN({A})	n:86d47966fad77fd7
+ATAN({A})	n:4082e58fd006183a
+ATAN({A})	n:b07b66c57a4c3b4c
+ATAN({A})	n:4067f9e0f16ed770
+ATAN({A})	n:bfc5936834aa6a50
+ATAN({A})	n:8a1841253509dfb8
+ATAN({A})	n:bffcef1c17c9123e
+ATAN({A})	n:34b2359a8cd39e7c
+ATAN({A})	n:403a4b00e4523ca0
+ATAN({A})	n:3ff8affeed2b8404
+ATAN({A})	n:4067a4da2a8223c0
+ATAN({A})	n:3ff4fa272fdc0a84
+ATAN({A})	n:a1c346b5e6071b24
+ATAN({A})	n:40851ae8267fe608
+ATAN({A})	n:1f96f3b8a515b7a4
+ATAN({A})	n:4085acaa6257a6a0
+ATAN({A})	n:bfe12c8a53bc68bc
+ATAN({A})	n:99e81d5ed6e5b924
+ATAN({A})	n:3ff8420e0287ecf2
+ATAN({A})	n:d3552435a659c11d
+ATAN({A})	n:c0706bca1a988c5d
+ATAN({A})	n:3fe0ed0fc29e9848
+ATAN({A})	n:407ec4f2e9bcecd8
+ATAN({A})	n:bff9343726527c8a
+ATAN({A})	n:25f620c10147fcd5
+ATAN({A})	n:40730cdbbb53d4dc
+ATAN({A})	n:45f29fc93f4d598e
+ATAN({A})	n:c086479732c35970
+ATAN({A})	n:bfec33a9a0aada4c
+ATAN({A})	n:f2796fc0a6477ea3
+ATAN({A})	n:3ff5173318a1f120
+ATAN({A})	n:53d9e70eb7f80032
+ATAN({A})	n:38847b1e61fdc8b4
+ATAN({A})	n:f735202d43ff13a9
+ATAN({A})	n:ef91f966de1fe0f9
+ATAN({A})	n:baa26ff59690c758
+ATAN({A})	n:84c160bb33bd6900
+ATAN({A})	n:bb4988d5d283eebd
+ATAN({A})	n:3a1c3ff21820b56d
+ATAN({A})	n:efb6d721c27d8b10
+ATAN({A})	n:045bffa174289460
+ATAN({A})	n:7e13762cf691e1a8
+ATAN({A})	n:f0f86f66df49161a
+ATAN({A})	n:f685d1df1c0b4f83
+ATAN({A})	n:6fb1b0b25532e1ef
+ATAN({A})	n:c4be143ad22c349e
+ATAN({A})	n:266fd1c744d10c70
+ATAN({A})	n:a6eb49dde13dabc8
+ATAN({A})	n:fd9c7dd19246e5d4
+ATAN({A})	n:8f6d0f10ef6fa451
+ATAN({A})	n:bf7522fe15e2bfbc
+ATAN({A})	n:8dc5e701397aea54
+ATAN({A})	n:19a254ef422201ad
+ATAN({A})	n:9f6ae4327684370a
+ATAN({A})	n:8692d46997f234c8
+ATAN({A})	n:0a2c212bf8e67fde
+ATAN({A})	n:d107efa0fd5b4fc5
+ATAN({A})	n:f96af2eb5d7ba868
+ATAN({A})	n:817a869368692426
+ATAN({A})	n:eec5e56ff9188bd2
+ATAN({A})	n:a0fbff13c7d2a159
+ATAN({A})	n:fa10705b8928fd17
+ATAN({A})	n:3d685153eb6148e7
+ATAN({A})	n:cc84567d4d3fc9d4
+ATAN({A})	n:dd1f4fdd7485f4e2
+ATAN({A})	n:9ad5e267f9099454
+ATAN({A})	n:a78d1e6d223d1426
+ATAN({A})	n:ab716d92a3a7a62f
+ATAN({A})	n:a5f097701ca49f54
+ATAN({A})	n:c01dfef02cacdcd4
+ATAN({A})	n:401d8d3a49a64406
+ATAN({A})	n:3ff55d64cb882120
+ATAN({A})	n:bff448e12588a4f0
+ATAN({A})	n:3ff1b25a8dc076f8
+ATAN({A})	n:c014f5ef495ddb6c
+ATAN({A})	n:401ea094c82cbcda
+ATAN({A})	n:400d22c31a971f88
+ATAN({A})	n:400ba9f3fb5dc138
+ATAN({A})	n:bff02bd40f199178
+ATAN({A})	n:c01cf69eb59096f2
+ATAN({A})	n:c0006400e8281e18
+ATAN({A})	n:8170000000000015
+ATAN({A})	n:be30000000000008
+ATAN({A})	n:3fd0000000000014
+ATAN({A})	n:403000000000000f
+ATAN({A})	n:4340000000000005
+ATAN({A})	n:bfda827999fcef75
+ATAN({A})	n:c003504f333f9db9
+ATAN({A})	n:3ffbb67ae8584c92
+ATAN({A})	n:3fe279a745903321
+ATAN({A})	n:3fdc000000000052
+ATAN({A})	n:bff300000000003d
+ATAN({A})	n:c0037fffffffffd7
+ATAN({A})	n:c0000d685e591f8b
+ATAN({A})	n:40000d685e5920ba
+ATAN({A})	n:40000d685e5921e9
+ATAN({A})	n:c0000d685e592319
+ATAN({A})	n:c0001dc1079c3b63
+ATAN({A})	n:c0001dc1079c3c92
+ATAN({A})	n:40001dc1079c3dc1
+ATAN({A})	n:bfe39c2702837c00
+ATAN({A})	n:bff2ba0e65fb747f
+ATAN({A})	n:4002a77843d8505c
+ATAN({A})	n:3fc9898ddf723020
+ATAN({A})	n:40046211dfb38804
+ATAN({A})	n:bf8cbcd112066400
+ATAN({A})	n:c0073447f5eb82de
+ATAN({A})	n:bfea7d7329df76e0
+ATAN({A})	n:bffea67371b331bc
+ATAN({A})	n:3f97362881fc3300
+ATAN({A})	n:3f85dec98396ac00
+ATAN({A})	n:3fd05fcc95201760
+ATAN({A})	n:400527de82853a20
+ATAN({A})	n:3ff0daa297c1cfbc
+ATAN({A})	n:3fff27a79a55b1f4
+ATAN({A})	n:40054b524b3c5f0a
+ATAN({A})	n:c003f78bc0a0571d
+ATAN({A})	n:bfff464b510a55d7
+ATAN({A})	n:bfe78a43da069e28
+ATAN({A})	n:4001acb912819884
+ATAN({A})	n:bff7b4ae20efcba6
+ATAN({A})	n:3fede637237a3008
+ATAN({A})	n:bfff28f945c25642
+ATAN({A})	n:3ffa51f856826694
+ATAN({A})	n:c006c4314ba0557f
+ATAN({A})	n:bfe46a2e5aa7ace0
+ATAN({A})	n:3ff48e17e52e8008
+ATAN({A})	n:c003d900bf303ee8
+ATAN({A})	n:bfb2b75d8114b480
+ATAN({A})	n:c005bd50453be591
+ATAN({A})	n:c005d4f20008e764
+ATAN({A})	n:3fdc0484743d1650
+ATAN({A})	n:c001cc0bc1e7be56
+ATAN({A})	n:3fe2b36af72fa748
+ATAN({A})	n:40019c2f17a534dc
+ATAN({A})	n:40027cc86ce2d7bc
+ATAN({A})	n:bff84601b7764011
+ATAN({A})	n:3ff5a3bc00f34c50
+ATAN({A})	n:bfeb5e2f13f4c8c0
+ATAN({A})	n:3ff6c68fa5f6ce00
+ATAN({A})	n:3fe355dec2730dc8
+ATAN({A})	n:40068afd0e733b9a
+ATAN({A})	n:3ffff3f35e25bd54
+ATAN({A})	n:3ff62aa1a4a82a30
+ATAN({A})	n:40026daf8c0c300c
+ATAN({A})	n:4006b7850755d5fc
+ATAN({A})	n:3fe12c8b5fcf4c38
+ATAN({A})	n:bfe90a02fba96db0
+ATAN({A})	n:400763575be5fd32
+ATAN({A})	n:c0019c44aa3ef174
+ATAN({A})	n:bffffffffffffefe
+ATAN({A})	n:400000000000002d
+ATAN({A})	n:400000000000015c
+ATAN({A})	n:40033333333331bd
+ATAN({A})	n:c0033333333332ed
+ATAN({A})	n:c00333333333341c
+ATAN({A})	n:1bf565cc6d4e6189
+ATAN({A})	n:6f881dc7c165afcb
+ATAN({A})	n:503514b126d99d1f
+ATAN({A})	n:d0b42ee0bcd554c4
+ATAN({A})	n:a102105b39fdb7f2
+ATAN({A})	n:c3fb0d398484aea1
+ATAN({A})	n:c57040b239eeb7a0
+ATAN({A})	n:41c6a3f4d2ab70a8
+ATAN({A})	n:c2f09a122a485b73
+ATAN({A})	n:b686fa3cd03c35dc
+ATAN({A})	n:f32aef5100866ed3
+ATAN({A})	n:611ec575ebf02966
+ATAN({A})	n:f016c9f622c2e90d
+ATAN({A})	n:c54b0f8f36f97656
+ATAN({A})	n:b933ab90ff0db208
+ATAN({A})	n:d4f06a2f1357dc1f
+ATAN({A})	n:9f53510688d7d788
+ATAN({A})	n:4a00ddddfe81e5b6
+ATAN({A})	n:f25252d300475bca
+ATAN({A})	n:97f553378451195b
+ATAN({A})	n:5c9381a0d0487d33
+ATAN({A})	n:0c943ec4f26c5bf4
+ATAN({A})	n:3fa572c5e8575200
+ATAN({A})	n:400976fd75ed3ce0
+ATAN({A})	n:40046cb433382e98
+ATAN({A})	n:c02c3ec440371cd0
+ATAN({A})	n:40201cff4669e4f2
+ATAN({A})	n:3ff900970b954a50
+ATAN({A})	n:c02b8f084c414c10
+ATAN({A})	n:bff0d81612809c52
+ATAN({A})	n:bfb46d5a2ae58f29
+ATAN({A})	n:bff04665c225c9c4
+ATAN({A})	n:3fc29fc5bca03656
+ATAN({A})	n:3fdc5d64c5333cdc
+ATAN({A})	n:4003f1d71eb0624b
+ATAN({A})	n:bff03d0a1674f1f7
+ATAN({A})	n:c022b62c94e96222
+ATAN({A})	n:bfffebc0fff99201
+ATAN({A})	n:c007123ad4210991
+ATAN({A})	n:4037d200d6eb2039
+ATAN({A})	n:3fe5412f8e25f58c
+ATAN({A})	n:3fef5f716a7c9cd2
+ATAN({A})	n:bff56aab85a32da7
+ATAN({A})	n:c010689c768d2873
+ATAN({A})	n:c01828b252518c24
+ATAN({A})	n:3feb9f9192b9c7dd
+ATAN({A})	n:3ff4bf264f4eaf22
+ATAN({A})	n:3fc60f7eaab7638b
+ATAN({A})	n:bfab77941618071f
+ATAN({A})	n:bfe17742b79b6580
+ATAN({A})	n:bfe1c261084e015d
+ATAN({A})	n:3fdb4fb71f360ed5
+ATAN({A})	n:400e17be8e750b33
+ATAN({A})	n:4057b71d8b25dbd5
+ATAN({A})	n:bfcbe0660e5ca002
+ATAN({A})	n:bff3ef29f8c15a9e
+ATAN({A})	n:bfedc58e17e6fd37
+ATAN({A})	n:41929e3b93237dfb
+ATAN({A})	n:3feffffffffff96e
+ATAN({A})	n:3feffffffffffceb
+ATAN({A})	n:3ff0000000000099
+ATAN({A})	n:bff0000000000416
+ATAN({A})	n:bff0000000000793
+ATAN({A})	n:0010000000000000
+ATAN({A})	n:ffefffffffffffff
+#
+# family ATAN typed: 104 rows of 329 usable readings in 7 classes (0 boundary rows beyond the stride); left out: typed: array outcome 512
+# sources: atan/typed-heldout-bank.json, atan/typed-repeat-controls-bank.json
+ATAN("")
+ATAN("0")
+ATAN("-1")
+ATAN("1e-300")
+ATAN("1e300")
+ATAN("50%")
+ATAN("(2)")
+ATAN(" 1 ")
+ATAN((CHAR(9)&"1"))
+ATAN("TRUE")
+ATAN("FALSE")
+ATAN("x")
+ATAN({A})	n:fe37e43c8800759c
+ATAN({A})	n:bff0000000000000
+ATAN({A})	n:bfc0000000000000
+ATAN({A})	n:0000000000000000
+ATAN({A})	n:3fc0000000000000
+ATAN({A})	n:3ff0000000000000
+ATAN({A})	n:7e37e43c8800759c
+ATAN(FALSE)
+ATAN(TRUE)
+ATAN(#N/A)
+ATAN(#VALUE!)
+ATAN(#DIV/0!)
+ATAN(#NUM!)
+ATAN(#REF!)
+ATAN(#NAME?)
+ATAN(#NULL!)
+ATAN({A})	s:
+ATAN({A})	s:0
+ATAN({A})	s:-1
+ATAN({A})	s:1e-300
+ATAN({A})	s:1e300
+ATAN({A})	s:50%
+ATAN({A})	s:(2)
+ATAN({A})	s: 1 
+ATAN({A})	f:CHAR(9)&"1"
+ATAN({A})	s:TRUE
+ATAN({A})	s:FALSE
+ATAN({A})	s:x
+ATAN({A})	b:FALSE
+ATAN({A})	b:TRUE
+ATAN({A})	e:#N/A
+ATAN({A})	e:#VALUE!
+ATAN({A})	e:#DIV/0!
+ATAN({A})	e:#NUM!
+ATAN({A})	e:#REF!
+ATAN({A})	e:#NAME?
+ATAN({A})	e:#NULL!
+ATAN({A})	-
+ATAN({A})	n:c0000d685e59216c
+ATAN({A})	n:c0000d685e59216d
+ATAN({A})	n:c0000d685e59216f
+ATAN({A})	n:c0000d685e592170
+ATAN({A})	n:c0000d685e592171
+ATAN({A})	n:c0000d685e592173
+ATAN({A})	n:c0001dc1079c3c88
+ATAN({A})	n:c0001dc1079c3c89
+ATAN({A})	n:c0001dc1079c3c8b
+ATAN({A})	n:c0001dc1079c3c8c
+ATAN({A})	n:c0001dc1079c3c8d
+ATAN({A})	n:c0001dc1079c3c8f
+ATAN({A})	n:40000d685e59216c
+ATAN({A})	n:40000d685e59216d
+ATAN({A})	n:40000d685e59216e
+ATAN({A})	n:40000d685e592170
+ATAN({A})	n:40000d685e592171
+ATAN({A})	n:40000d685e592172
+ATAN({A})	n:40001dc1079c3c88
+ATAN({A})	n:40001dc1079c3c89
+ATAN({A})	n:40001dc1079c3c8a
+ATAN({A})	n:40001dc1079c3c8c
+ATAN({A})	n:40001dc1079c3c8d
+ATAN({A})	n:40001dc1079c3c8e
+ATAN({A})	n:c0000d685e592174
+ATAN({A})	n:c0000d685e592176
+ATAN({A})	n:c0000d685e592177
+ATAN({A})	n:c0000d685e592179
+ATAN({A})	n:c0000d685e59217a
+ATAN({A})	n:c0000d685e59217c
+ATAN({A})	n:c0001dc1079c3c90
+ATAN({A})	n:c0001dc1079c3c92
+ATAN({A})	n:c0001dc1079c3c93
+ATAN({A})	n:c0001dc1079c3c95
+ATAN({A})	n:c0001dc1079c3c96
+ATAN({A})	n:c0001dc1079c3c98
+ATAN({A})	n:40000d685e592175
+ATAN({A})	n:40000d685e592176
+ATAN({A})	n:40000d685e592178
+ATAN({A})	n:40000d685e592179
+ATAN({A})	n:40000d685e59217b
+ATAN({A})	n:40000d685e59217c
+ATAN({A})	n:40001dc1079c3c90
+ATAN({A})	n:40001dc1079c3c92
+ATAN({A})	n:40001dc1079c3c93
+ATAN({A})	n:40001dc1079c3c95
+ATAN({A})	n:40001dc1079c3c96
+ATAN({A})	n:40001dc1079c3c98
+ATAN({A})	n:40000d685e592174
+ATAN({A})	n:40000d685e592177
+ATAN({A})	n:40000d685e59217a
+ATAN({A})	n:40001dc1079c3c94
+ATAN({A})	n:40001dc1079c3c97
+ATAN({A})	n:40001dc1079c3c91
+#
+# family ASIN: 254 rows of 22189 usable readings in 15 classes (18 boundary rows beyond the stride); left out: negative zero 3
+# sources: asin/discovery.json, asin/heldout.json, asin/heldout2-asin.json, asin/isolation-asin.json, asin/signed-discovery.json
+ASIN({A})	n:c084d6cab69b0b58
+ASIN({A})	n:4081dd5ada24017c
+ASIN({A})	n:40598211d48aa8e8
+ASIN({A})	n:c0714467ff73c8fe
+ASIN({A})	n:4072337cd9bef618
+ASIN({A})	n:408196d2c6d825c2
+ASIN({A})	n:4086de50891b9188
+ASIN({A})	n:c06111165518b5fc
+ASIN({A})	n:c07e14cb84ba5dab
+ASIN({A})	n:c07858558c51d874
+ASIN({A})	n:c08355099fe1cf86
+ASIN({A})	n:c054be2019a793d8
+ASIN({A})	n:c081e1a7a7284d77
+ASIN({A})	n:c072e858e2d95648
+ASIN({A})	n:c07292b88695318f
+ASIN({A})	n:40775e240964abd0
+ASIN({A})	n:4085dca51e4b6d3a
+ASIN({A})	n:3fe52a3a8df2ead8
+ASIN({A})	n:bfe52a3a8df2ead8
+ASIN({A})	n:3fe52a3a8df2ead9
+ASIN({A})	n:bfe52a3a8df2ead9
+ASIN({A})	n:3fe52a3a8df2eada
+ASIN({A})	n:bfe52a3a8df2eada
+ASIN({A})	n:3fe52a3a8df2eadb
+ASIN({A})	n:bfe52a3a8df2eadb
+ASIN({A})	n:3fe52a3a8df2eadc
+ASIN({A})	n:bfe52a3a8df2eadc
+ASIN({A})	n:3fe52a3a8df2eadd
+ASIN({A})	n:bfe52a3a8df2eadd
+ASIN({A})	n:3fe52a3a8df2eade
+ASIN({A})	n:bfe52a3a8df2eade
+ASIN({A})	n:3fbbee3caa44fe18
+ASIN({A})	n:3fd9be22725aaf24
+ASIN({A})	n:3fe99ca3e97c3600
+ASIN({A})	n:bfdd73b1a63a1bd2
+ASIN({A})	n:bfe2f95e60cc1988
+ASIN({A})	n:bfc955bc1f7cc6ec
+ASIN({A})	n:bfec134520e119f3
+ASIN({A})	n:bfcbc6ef2fb1d680
+ASIN({A})	n:3fefd7d34bdf3d12
+ASIN({A})	n:3fe9a4809d8fd8f4
+ASIN({A})	n:3f9906372c548760
+ASIN({A})	n:3fd16431eede4fb8
+ASIN({A})	n:bfed055ce06d19c1
+ASIN({A})	n:bfee773a37f4e453
+ASIN({A})	n:bf9b730172715020
+ASIN({A})	n:bfc9c4dce01ac658
+ASIN({A})	n:3fec9e64bf438bda
+ASIN({A})	n:b66c5359ea3349a1
+ASIN({A})	n:b21663502a0baf8d
+ASIN({A})	n:97d9996ad189c16c
+ASIN({A})	n:33e63e261a78c25f
+ASIN({A})	n:22ef40654b5490f7
+ASIN({A})	n:15d7a9567f1b0832
+ASIN({A})	n:28b5cba49775a1f2
+ASIN({A})	n:22091e70988fbb5c
+ASIN({A})	n:38a9f416b36b2cdb
+ASIN({A})	n:046ca961727fe12a
+ASIN({A})	n:282a11504a0d9bf6
+ASIN({A})	n:331c281bec358f6c
+ASIN({A})	n:a6d64c1a9f0b8d62
+ASIN({A})	n:910f0d5985bf8ead
+ASIN({A})	n:bdbcd22cbc1fbff7
+ASIN({A})	n:a65ead0d4cffbd5d
+ASIN({A})	n:a840aab59477f07a
+ASIN({A})	n:8010000000000004
+ASIN({A})	n:3c9ffffffffffff6
+ASIN({A})	n:bca0000000000000
+ASIN({A})	n:bca000000000000a
+ASIN({A})	n:3e3ffffffffffffc
+ASIN({A})	n:be40000000000006
+ASIN({A})	n:3fcffffffffffff8
+ASIN({A})	n:3fd0000000000002
+ASIN({A})	n:bfd000000000000c
+ASIN({A})	n:3fdffffffffffffe
+ASIN({A})	n:bfe0000000000008
+ASIN({A})	n:3fe6a09e667f3bc7
+ASIN({A})	n:3fe6a09e667f3bd1
+ASIN({A})	n:bfe7fffffffffff5
+ASIN({A})	n:3fe8000000000000
+ASIN({A})	n:bfe800000000000a
+ASIN({A})	n:bfeffffffffffffb
+ASIN({A})	n:3fe52a3a8df2e9e7
+ASIN({A})	n:3fe52a3a8df2ea05
+ASIN({A})	n:3fe52a3a8df2ea23
+ASIN({A})	n:bfe52a3a8df2ea41
+ASIN({A})	n:bfe52a3a8df2ea5f
+ASIN({A})	n:bfe52a3a8df2ea7d
+ASIN({A})	n:3fe52a3a8df2ea9c
+ASIN({A})	n:3fe52a3a8df2eaba
+ASIN({A})	n:bfe52a3a8df2eaf6
+ASIN({A})	n:bfe52a3a8df2eb14
+ASIN({A})	n:3fe52a3a8df2eb33
+ASIN({A})	n:3fe52a3a8df2eb51
+ASIN({A})	n:3fe52a3a8df2eb6f
+ASIN({A})	n:bfe52a3a8df2eb8d
+ASIN({A})	n:bfe52a3a8df2ebab
+ASIN({A})	n:bfe52a3a8df2ebc9
+ASIN({A})	n:bfec73e6d10ae577
+ASIN({A})	n:bfe833703fb3bb64
+ASIN({A})	n:3febcfcfc49b62df
+ASIN({A})	n:bfd543225572ec92
+ASIN({A})	n:3fc8f4729c2833a0
+ASIN({A})	n:3feac98d5ef9b4c3
+ASIN({A})	n:bfe0943c14b5ac05
+ASIN({A})	n:3fe9229019a1c3de
+ASIN({A})	n:3feabb6c12b989d5
+ASIN({A})	n:bfaf280c33887df0
+ASIN({A})	n:3f9ec301be35abe0
+ASIN({A})	n:3fe25e85e31ffabe
+ASIN({A})	n:bfea1b099a1cef12
+ASIN({A})	n:3fe6ebf3357bfa3a
+ASIN({A})	n:bfe82da5d613ae23
+ASIN({A})	n:bfd601e7274e1abc
+ASIN({A})	n:3fd5f332450f4ed6
+ASIN({A})	n:9961376b1f7fc8d9
+ASIN({A})	n:8fa39a025748eba6
+ASIN({A})	n:01f373384aae9fd1
+ASIN({A})	n:3fc1532a285a926c
+ASIN({A})	n:19ed53957bf8b458
+ASIN({A})	n:8fbaca5aab30a3cf
+ASIN({A})	n:8fb5fe124fdacfc7
+ASIN({A})	n:b0d4b3f539efa745
+ASIN({A})	n:0046a23c898d6f0f
+ASIN({A})	n:0dc0e2b6f5ca514c
+ASIN({A})	n:89a719216b17950a
+ASIN({A})	n:906043c338899056
+ASIN({A})	n:a6d428b9485e09f4
+ASIN({A})	n:0aafd5a011924f84
+ASIN({A})	n:1d584d5e9387f639
+ASIN({A})	n:2b560c04c6966b1c
+ASIN({A})	n:bc60114310a95449
+ASIN({A})	n:3fef0a2c79073ebf
+ASIN({A})	n:3fee27c1a4c0466c
+ASIN({A})	n:bfed749ddae87b8f
+ASIN({A})	n:bfebd6be2032a0f8
+ASIN({A})	n:bfeec428ff5e3004
+ASIN({A})	n:3fe9ea77cd7a6488
+ASIN({A})	n:3fe94235a45fc38c
+ASIN({A})	n:bfef5e2c22275b1d
+ASIN({A})	n:bfee178b136d8731
+ASIN({A})	n:3fe78406beb20ee7
+ASIN({A})	n:3fef094b26dc94b1
+ASIN({A})	n:bfeb9913aaa5f5d2
+ASIN({A})	n:bfed9292a0febcb5
+ASIN({A})	n:3fed8deb27c4aa92
+ASIN({A})	n:3fe7c0555fa8f35a
+ASIN({A})	n:bfe88130e17edc89
+ASIN({A})	n:bfe79da826f0f946
+ASIN({A})	n:8010000000000003
+ASIN({A})	n:3c9ffffffffffff9
+ASIN({A})	n:3ca0000000000002
+ASIN({A})	n:3e3ffffffffffff8
+ASIN({A})	n:3e40000000000001
+ASIN({A})	n:3fcffffffffffff7
+ASIN({A})	n:3fd0000000000000
+ASIN({A})	n:3fd0000000000009
+ASIN({A})	n:3fdfffffffffffff
+ASIN({A})	n:3fe0000000000008
+ASIN({A})	n:3fe6a09e667f3bcb
+ASIN({A})	n:3fe6a09e667f3bd4
+ASIN({A})	n:3fe7fffffffffffd
+ASIN({A})	n:3fe8000000000006
+ASIN({A})	n:3feffffffffffffc
+ASIN({A})	n:3ff0000000000005
+ASIN({A})	n:3fd54179d2bce5d6
+ASIN({A})	n:bfe62ba1637eef47
+ASIN({A})	n:3fe12d2dc57ba6fc
+ASIN({A})	n:3fe26baf24ea043e
+ASIN({A})	n:bfd8c29cfd979d34
+ASIN({A})	n:3f9a5af0a49a36a0
+ASIN({A})	n:3fe1c448b1f9e225
+ASIN({A})	n:bfee7b8544900c7d
+ASIN({A})	n:3fe473e4ef1d0f52
+ASIN({A})	n:bfcf7768b5dd96d0
+ASIN({A})	n:bfeb3b738b2da99d
+ASIN({A})	n:3fb49a1c6c74ec40
+ASIN({A})	n:bfe130fc980a0121
+ASIN({A})	n:bfc923cca9240e60
+ASIN({A})	n:3fb5d4ac80acaf18
+ASIN({A})	n:bfd1069ecd16516e
+ASIN({A})	n:3feac05438eb5ca4
+ASIN({A})	n:0f6f6cae99e179cc
+ASIN({A})	n:912873b629c33d82
+ASIN({A})	n:9f9aa38a51886b27
+ASIN({A})	n:b295a018ba9e7af1
+ASIN({A})	n:0fb3c4f8d905f135
+ASIN({A})	n:3c3f67a8bc791b58
+ASIN({A})	n:23daa7fbc6658651
+ASIN({A})	n:a94b09468808d197
+ASIN({A})	n:b01ebc10cfd70502
+ASIN({A})	n:a996c4143d70dee4
+ASIN({A})	n:3ae4d2a7d0292ed6
+ASIN({A})	n:207671d458d7f33c
+ASIN({A})	n:38c379ad82c6cdbc
+ASIN({A})	n:915d23f90cbb4821
+ASIN({A})	n:b7b4cb0685bfbf11
+ASIN({A})	n:ba1004b1fd6230f2
+ASIN({A})	n:20e4e405df34c020
+ASIN({A})	n:3fe89971015eb69f
+ASIN({A})	n:3fefb8bb3aa6d78d
+ASIN({A})	n:3fea02219f771500
+ASIN({A})	n:bfe81a3b6252d725
+ASIN({A})	n:bfed9189b7cc3d44
+ASIN({A})	n:3fe780b686b3a6f9
+ASIN({A})	n:3fe804ce8096f12c
+ASIN({A})	n:bfe84e734541eac7
+ASIN({A})	n:bfef65997799e778
+ASIN({A})	n:3fe9b591cd62e9da
+ASIN({A})	n:3fed5d7bee75b26c
+ASIN({A})	n:bfe7a05e727616b0
+ASIN({A})	n:bfed12d316c1f8e5
+ASIN({A})	n:3fe97d606dc56915
+ASIN({A})	n:3fe730be4c27decc
+ASIN({A})	n:bfe89cf1f5ef92f2
+ASIN({A})	n:bfef72a651d34112
+ASIN({A})	n:bc9ffffffffffffa
+ASIN({A})	n:bca0000000000003
+ASIN({A})	n:be3ffffffffffff9
+ASIN({A})	n:be40000000000002
+ASIN({A})	n:bfcffffffffffff8
+ASIN({A})	n:bfd0000000000001
+ASIN({A})	n:bfdffffffffffff7
+ASIN({A})	n:bfe0000000000000
+ASIN({A})	n:bfe0000000000009
+ASIN({A})	n:bfe6a09e667f3bcc
+ASIN({A})	n:bfe6a09e667f3bd5
+ASIN({A})	n:bfe7fffffffffffe
+ASIN({A})	n:bfe8000000000007
+ASIN({A})	n:bfeffffffffffffd
+ASIN({A})	n:bff0000000000006
+ASIN({A})	n:bcb8000000000000
+ASIN({A})	n:bccbfffffffffffd
+ASIN({A})	n:bcd5ffc000000001
+ASIN({A})	n:bcddffbffffffffe
+ASIN({A})	n:3ce1002000000003
+ASIN({A})	n:3ce5002000000000
+ASIN({A})	n:3ce9001ffffffffd
+ASIN({A})	n:3ced000000000001
+ASIN({A})	n:bcf07ffffffffffe
+ASIN({A})	n:bcf27ff000000002
+ASIN({A})	n:bcf47fefffffffff
+ASIN({A})	n:bcf5801000000003
+ASIN({A})	n:bcf7801000000000
+ASIN({A})	n:3cf9800ffffffffe
+ASIN({A})	n:3cfb800000000002
+ASIN({A})	n:3cfd7fffffffffff
+ASIN({A})	n:3cff7ff000000003
+ASIN({A})	n:0010000000000000
+ASIN({A})	n:8010000000000000
+ASIN({A})	n:3ff0000000000000
+ASIN({A})	n:bff0000000000000
+ASIN({A})	n:7fefffffffffffff
+ASIN({A})	n:ffefffffffffffff
+#
+# family ACOS: 249 rows of 14230 usable readings in 9 classes (5 boundary rows beyond the stride); left out: negative zero 2
+# sources: asin/acos-caller.json, asin/heldout2-acos.json
+ACOS({A})	n:3fd7dcfebffda6da
+ACOS({A})	n:3fb48f5aa97b2ca0
+ACOS({A})	n:3fe0aa05a622eb74
+ACOS({A})	n:bfdd2d1a54ed0a56
+ACOS({A})	n:bfd32608c90be4d8
+ACOS({A})	n:bfdd73b1a63a1bd2
+ACOS({A})	n:3fe2fb8ec33326aa
+ACOS({A})	n:3fee949068fca93c
+ACOS({A})	n:3fb54d6d54272938
+ACOS({A})	n:3fc413f98ef4aa20
+ACOS({A})	n:bfdad8ec157d0fb8
+ACOS({A})	n:bfcfcf037964ea50
+ACOS({A})	n:bfb989d1f1e8bdf0
+ACOS({A})	n:3f9ae32222c3d2a0
+ACOS({A})	n:3f943bfc96b2eca0
+ACOS({A})	n:3fb1ae0e45679fc8
+ACOS({A})	n:3fd9b6a01786f182
+ACOS({A})	n:bfee15ca53d5d0af
+ACOS({A})	n:bfc7f3613fb90064
+ACOS({A})	n:bfefae656d43a45d
+ACOS({A})	n:3fef6b6e20ee8a0d
+ACOS({A})	n:3fa37385dda6c8a0
+ACOS({A})	n:3fdd4d32442d11fc
+ACOS({A})	n:3fe16c38d9e5063f
+ACOS({A})	n:bfe0637555262b3d
+ACOS({A})	n:bfdefceb416ff5d0
+ACOS({A})	n:bfe184aac8ce9cbb
+ACOS({A})	n:3fecee4a3cf7475d
+ACOS({A})	n:20ee3fb502e83b65
+ACOS({A})	n:3c7cfd6a03490774
+ACOS({A})	n:a382280236e8eb4d
+ACOS({A})	n:2c7e464b8d04273e
+ACOS({A})	n:9f5b6d771ab619cc
+ACOS({A})	n:31e5eaf3718455c7
+ACOS({A})	n:bb1928c9e86d8a0e
+ACOS({A})	n:075db5b79ed2d67a
+ACOS({A})	n:31c0c5dd1429d87c
+ACOS({A})	n:93cd4d7509a3f1a1
+ACOS({A})	n:0cf0cd1a1fc3c6d8
+ACOS({A})	n:80f048d0f60b4ecd
+ACOS({A})	n:05439fe285eeaad3
+ACOS({A})	n:9f16b57554e92b23
+ACOS({A})	n:084aa5418b5771cb
+ACOS({A})	n:3f65c378eba0c194
+ACOS({A})	n:9f26c5c91ec18a3f
+ACOS({A})	n:3cb1b6d5dabb2c0c
+ACOS({A})	n:882e309e52075001
+ACOS({A})	n:07a7a5d148942d63
+ACOS({A})	n:94b70bb5f78ed68b
+ACOS({A})	n:01e7daa0a96b9244
+ACOS({A})	n:3bd082fe1ab58f2b
+ACOS({A})	n:9affab2b7fa7915d
+ACOS({A})	n:17db2b5c38e0283e
+ACOS({A})	n:bc407d0edf52fb31
+ACOS({A})	n:305df00d92667f13
+ACOS({A})	n:9e5a416fc7e32c70
+ACOS({A})	n:0010000000000005
+ACOS({A})	n:801000000000000b
+ACOS({A})	n:3c9ffffffffffff9
+ACOS({A})	n:bc9fffffffffffff
+ACOS({A})	n:bca0000000000006
+ACOS({A})	n:3e3ffffffffffff4
+ACOS({A})	n:be3ffffffffffffa
+ACOS({A})	n:3e40000000000001
+ACOS({A})	n:be40000000000007
+ACOS({A})	n:3fcffffffffffff5
+ACOS({A})	n:bfcffffffffffffb
+ACOS({A})	n:3fd0000000000002
+ACOS({A})	n:bfd0000000000008
+ACOS({A})	n:3fdffffffffffff6
+ACOS({A})	n:bfdffffffffffffc
+ACOS({A})	n:3fe0000000000003
+ACOS({A})	n:bfe0000000000009
+ACOS({A})	n:bfe6a09e667f3bc4
+ACOS({A})	n:3fe6a09e667f3bcb
+ACOS({A})	n:bfe6a09e667f3bd1
+ACOS({A})	n:3fe6a09e667f3bd8
+ACOS({A})	n:bfe7fffffffffff8
+ACOS({A})	n:3fe7ffffffffffff
+ACOS({A})	n:bfe8000000000005
+ACOS({A})	n:3fe800000000000c
+ACOS({A})	n:bfeffffffffffff9
+ACOS({A})	n:3ff0000000000000
+ACOS({A})	n:bfe52a3a8df2e9e8
+ACOS({A})	n:3fe52a3a8df2e9fb
+ACOS({A})	n:bfe52a3a8df2ea0d
+ACOS({A})	n:bfe52a3a8df2ea1f
+ACOS({A})	n:3fe52a3a8df2ea32
+ACOS({A})	n:bfe52a3a8df2ea44
+ACOS({A})	n:bfe52a3a8df2ea56
+ACOS({A})	n:3fe52a3a8df2ea69
+ACOS({A})	n:bfe52a3a8df2ea7b
+ACOS({A})	n:bfe52a3a8df2ea8d
+ACOS({A})	n:3fe52a3a8df2eaa0
+ACOS({A})	n:3fe52a3a8df2eab2
+ACOS({A})	n:bfe52a3a8df2eac4
+ACOS({A})	n:3fe52a3a8df2ead7
+ACOS({A})	n:3fe52a3a8df2eae9
+ACOS({A})	n:bfe52a3a8df2eafb
+ACOS({A})	n:3fe52a3a8df2eb0e
+ACOS({A})	n:3fe52a3a8df2eb20
+ACOS({A})	n:bfe52a3a8df2eb32
+ACOS({A})	n:3fe52a3a8df2eb45
+ACOS({A})	n:3fe52a3a8df2eb57
+ACOS({A})	n:bfe52a3a8df2eb69
+ACOS({A})	n:3fe52a3a8df2eb7c
+ACOS({A})	n:3fe52a3a8df2eb8e
+ACOS({A})	n:bfe52a3a8df2eba0
+ACOS({A})	n:bfe52a3a8df2ebb2
+ACOS({A})	n:3fe52a3a8df2ebc5
+ACOS({A})	n:bfe52a3a8df2ebd7
+ACOS({A})	n:3fe524f9d8514837
+ACOS({A})	n:3fe5f29c5e06c512
+ACOS({A})	n:bfeb9a107c3e45d4
+ACOS({A})	n:3fc5eb0ddbbb35c8
+ACOS({A})	n:bfd28932579850e8
+ACOS({A})	n:3fec2954e167a3f2
+ACOS({A})	n:bfa3e0289efb9040
+ACOS({A})	n:3fe8f397dd2f3d48
+ACOS({A})	n:3fd0338a3a2443fc
+ACOS({A})	n:bfae51ab23be6b80
+ACOS({A})	n:3fb233f55a090820
+ACOS({A})	n:bfc8608a766ddbb4
+ACOS({A})	n:3fdb9750c42e3536
+ACOS({A})	n:bfee79cfee333c8b
+ACOS({A})	n:3fc7a66bdeb90d38
+ACOS({A})	n:3fd1e923179e3884
+ACOS({A})	n:bfdac11458945946
+ACOS({A})	n:3fe4bbe54153cce5
+ACOS({A})	n:bfd87a4b1897b972
+ACOS({A})	n:3fdc0ba76d0b2e46
+ACOS({A})	n:bfe82cb443a18f5b
+ACOS({A})	n:3fb4d1c7a17324a0
+ACOS({A})	n:3fdb61905ae89484
+ACOS({A})	n:bfba63d7f2efbd28
+ACOS({A})	n:3fe01cc47dfb4bf8
+ACOS({A})	n:bfe8189ae96d06b4
+ACOS({A})	n:3fc1d8abb61bdb3c
+ACOS({A})	n:bfbddeaed35c3898
+ACOS({A})	n:10e8999503a932d5
+ACOS({A})	n:aaa0f2c3feef8801
+ACOS({A})	n:a4677c576cccb507
+ACOS({A})	n:24df1c37a5b8a09c
+ACOS({A})	n:871a9bc3929fcb3b
+ACOS({A})	n:9d1c66c5c7bd68e1
+ACOS({A})	n:2f7ee7e9384980d3
+ACOS({A})	n:1814cbb499255a1e
+ACOS({A})	n:8b9b34d73dfda1ec
+ACOS({A})	n:982ecc67e7293888
+ACOS({A})	n:1bea240604be4eeb
+ACOS({A})	n:b756c150f1f2d8e2
+ACOS({A})	n:9b014e3b370422bc
+ACOS({A})	n:1157d6dd15783ff3
+ACOS({A})	n:235c7714ceb5286e
+ACOS({A})	n:81165b74d3388e91
+ACOS({A})	n:abd0db6f191fad6e
+ACOS({A})	n:034168c16e9609cb
+ACOS({A})	n:80813e5278a0b3cd
+ACOS({A})	n:92f0afa87cb5dde6
+ACOS({A})	n:3c6c6e452c7b1ac0
+ACOS({A})	n:2eaf4a334029f54f
+ACOS({A})	n:915d23f90cbb4821
+ACOS({A})	n:b1e4f38d0d1f1863
+ACOS({A})	n:1966873ba646244e
+ACOS({A})	n:bc09b87ab72b35c4
+ACOS({A})	n:8e1d8c12506cdc56
+ACOS({A})	n:3b88ff3b6b14edb0
+ACOS({A})	n:bfee845e415db5c4
+ACOS({A})	n:bfe89971015eb6a2
+ACOS({A})	n:3fe9e0416f315e0d
+ACOS({A})	n:3fef486f785a4994
+ACOS({A})	n:bfea02219f771500
+ACOS({A})	n:bfe81a3b6252d721
+ACOS({A})	n:3fee7c931f54a7c6
+ACOS({A})	n:3fed9189b7cc3d43
+ACOS({A})	n:bfea07853f98cbfb
+ACOS({A})	n:bfe780b686b3a6fa
+ACOS({A})	n:3fe87d982adb71f7
+ACOS({A})	n:3fe804ce8096f130
+ACOS({A})	n:bfe8543a912b57ff
+ACOS({A})	n:bfef65997799e772
+ACOS({A})	n:3fe6df9104d5d86a
+ACOS({A})	n:3fe9b591cd62e9d7
+ACOS({A})	n:bfe9b38b8908048e
+ACOS({A})	n:bfed5d7bee75b26b
+ACOS({A})	n:3feddf405054f751
+ACOS({A})	n:3fe7a05e727616b3
+ACOS({A})	n:bfec36c6f18cdc3d
+ACOS({A})	n:bfed12d316c1f8ea
+ACOS({A})	n:3fe97d606dc56915
+ACOS({A})	n:3fe730be4c27dec7
+ACOS({A})	n:bfe72fbbc22e0b0d
+ACOS({A})	n:bfe89cf1f5ef92f0
+ACOS({A})	n:3febfb50879c5fee
+ACOS({A})	n:3fef72a651d34113
+ACOS({A})	n:8010000000000000
+ACOS({A})	n:0010000000000006
+ACOS({A})	n:bc9ffffffffffff8
+ACOS({A})	n:bc9ffffffffffffd
+ACOS({A})	n:3ca0000000000003
+ACOS({A})	n:bca0000000000008
+ACOS({A})	n:3e40000000000000
+ACOS({A})	n:3e40000000000005
+ACOS({A})	n:bfcffffffffffff7
+ACOS({A})	n:3fcffffffffffffd
+ACOS({A})	n:bfd0000000000007
+ACOS({A})	n:3fdffffffffffffa
+ACOS({A})	n:3fdfffffffffffff
+ACOS({A})	n:bfe0000000000004
+ACOS({A})	n:3fe6a09e667f3bc4
+ACOS({A})	n:3fe6a09e667f3bc9
+ACOS({A})	n:bfe6a09e667f3bce
+ACOS({A})	n:bfe6a09e667f3bd3
+ACOS({A})	n:3fe7fffffffffff9
+ACOS({A})	n:bfe7fffffffffffe
+ACOS({A})	n:bfe8000000000003
+ACOS({A})	n:3fe8000000000009
+ACOS({A})	n:bfeffffffffffffb
+ACOS({A})	n:bff0000000000000
+ACOS({A})	n:3ff0000000000006
+ACOS({A})	n:bcb7ff0000000000
+ACOS({A})	n:3cc3ff8000000003
+ACOS({A})	n:3ccbffffffffffff
+ACOS({A})	n:bcd2000000000001
+ACOS({A})	n:bcd6003ffffffffd
+ACOS({A})	n:3cda004000000000
+ACOS({A})	n:3cde004000000003
+ACOS({A})	n:bce2ffdffffffffe
+ACOS({A})	n:bce4ffe000000001
+ACOS({A})	n:3ce6fffffffffffd
+ACOS({A})	n:3ce9000000000000
+ACOS({A})	n:bceb000000000002
+ACOS({A})	n:bced001ffffffffe
+ACOS({A})	n:3cef002000000001
+ACOS({A})	n:3cf17feffffffffd
+ACOS({A})	n:bcf27fefffffffff
+ACOS({A})	n:bcf37ff000000002
+ACOS({A})	n:3cf47ffffffffffe
+ACOS({A})	n:3cf5800000000001
+ACOS({A})	n:bcf6800000000003
+ACOS({A})	n:bcf7800fffffffff
+ACOS({A})	n:3cf8801000000002
+ACOS({A})	n:3cfa7feffffffffe
+ACOS({A})	n:bcfb7ff000000000
+ACOS({A})	n:bcfc7ff000000003
+ACOS({A})	n:3cfd7fffffffffff
+ACOS({A})	n:3cfe800000000002
+ACOS({A})	n:bcff800ffffffffd
+ACOS({A})	n:0010000000000000
+#
+# family ACOT: 238 rows of 17144 usable readings in 13 classes (12 boundary rows beyond the stride); left out: negative zero 2
+# sources: acot/discovery.json, acot/heldout.json, acot/heldout2.json
+_xlfn.ACOT({A})	n:3feb284c443a2f64
+_xlfn.ACOT({A})	n:c080c3d310a23ed0
+_xlfn.ACOT({A})	n:95e291ab056660ba
+_xlfn.ACOT({A})	n:c085bec69727900c
+_xlfn.ACOT({A})	n:5865eecc02fd2785
+_xlfn.ACOT({A})	n:407b054f4b951958
+_xlfn.ACOT({A})	n:eacdede6e4fa818b
+_xlfn.ACOT({A})	n:3ff6fd58952edc04
+_xlfn.ACOT({A})	n:db21c4c60f5d05bf
+_xlfn.ACOT({A})	n:3fff4d14c3c7440e
+_xlfn.ACOT({A})	n:852143930f624061
+_xlfn.ACOT({A})	n:bfc6c56d876028c0
+_xlfn.ACOT({A})	n:a15228f28b9b5377
+_xlfn.ACOT({A})	n:3ff7570b18f557ce
+_xlfn.ACOT({A})	n:c07bd2f968b9ecec
+_xlfn.ACOT({A})	n:bfe16712596e6cf8
+_xlfn.ACOT({A})	n:c048bc5d45ba2c60
+_xlfn.ACOT({A})	n:bfecf15c9db16700
+_xlfn.ACOT({A})	n:406a1e18482b013c
+_xlfn.ACOT({A})	n:6a3f94827c9d11ff
+_xlfn.ACOT({A})	n:b975a99298b0f1b4
+_xlfn.ACOT({A})	n:f9db660248294270
+_xlfn.ACOT({A})	n:03e54de551be2afd
+_xlfn.ACOT({A})	n:b064ac8e2226b914
+_xlfn.ACOT({A})	n:a929e722b7dea5ef
+_xlfn.ACOT({A})	n:e1602246e56d991c
+_xlfn.ACOT({A})	n:d74f3c3de41cbb83
+_xlfn.ACOT({A})	n:317f098bf1717101
+_xlfn.ACOT({A})	n:ca9b41e1b11b133b
+_xlfn.ACOT({A})	n:d32a52384e6b1e14
+_xlfn.ACOT({A})	n:2da371b0cc461202
+_xlfn.ACOT({A})	n:d89bfe7fdb2107b1
+_xlfn.ACOT({A})	n:3a70117d976ccac2
+_xlfn.ACOT({A})	n:3876c4541193e09c
+_xlfn.ACOT({A})	n:41a211e30cb40845
+_xlfn.ACOT({A})	n:a668d3d3dba51281
+_xlfn.ACOT({A})	n:347ec8f429e453de
+_xlfn.ACOT({A})	n:ee5c254e7a02d09d
+_xlfn.ACOT({A})	n:c089072fb84512c7
+_xlfn.ACOT({A})	n:407182981213c0e4
+_xlfn.ACOT({A})	n:40735c2f0f8345b4
+_xlfn.ACOT({A})	n:c0870202c974935f
+_xlfn.ACOT({A})	n:c0824447ea067baa
+_xlfn.ACOT({A})	n:c083c2696bafb09f
+_xlfn.ACOT({A})	n:408cb23d6d4c8962
+_xlfn.ACOT({A})	n:408ed0b799bc3ea2
+_xlfn.ACOT({A})	n:c07ba5af9775e08c
+_xlfn.ACOT({A})	n:c07c5cb4c4fe9042
+_xlfn.ACOT({A})	n:c08c703610d01356
+_xlfn.ACOT({A})	n:c05b40cd5434f938
+_xlfn.ACOT({A})	n:c08230b5fdb8db4b
+_xlfn.ACOT({A})	n:40489b1408e46d60
+_xlfn.ACOT({A})	n:c054541ea4322cc8
+_xlfn.ACOT({A})	n:4088072944b9d58a
+_xlfn.ACOT({A})	n:407787a896324c18
+_xlfn.ACOT({A})	n:40863d8bef5d1218
+_xlfn.ACOT({A})	n:c05572dd289b1f60
+_xlfn.ACOT({A})	n:3ffdb18459ea49f0
+_xlfn.ACOT({A})	n:400d99ab5139ace6
+_xlfn.ACOT({A})	n:c004f480dda6fa1c
+_xlfn.ACOT({A})	n:c00245504927ce1a
+_xlfn.ACOT({A})	n:c00fdfd6e83f6d3c
+_xlfn.ACOT({A})	n:c000124112dd1fac
+_xlfn.ACOT({A})	n:3feaf12d59fcc0d8
+_xlfn.ACOT({A})	n:3feb9df3cecd7720
+_xlfn.ACOT({A})	n:bff4276d235ec9a0
+_xlfn.ACOT({A})	n:3ff6f3f338b3329c
+_xlfn.ACOT({A})	n:c00a034c4a2e7742
+_xlfn.ACOT({A})	n:bfdc4af962958050
+_xlfn.ACOT({A})	n:400f397b9a7743d6
+_xlfn.ACOT({A})	n:3ffafcbf7fc4a110
+_xlfn.ACOT({A})	n:bff479428f79817c
+_xlfn.ACOT({A})	n:4009fc5e59479e9e
+_xlfn.ACOT({A})	n:bfe5d8b088404a90
+_xlfn.ACOT({A})	n:bfe9c10b6be9ff98
+_xlfn.ACOT({A})	n:bffd2f6d5e7b27fc
+_xlfn.ACOT({A})	n:caca2384c2283d03
+_xlfn.ACOT({A})	n:198d7a41e704a186
+_xlfn.ACOT({A})	n:9ed55f046c325c0c
+_xlfn.ACOT({A})	n:c73b02469e57dd21
+_xlfn.ACOT({A})	n:660d35b15ee8a2a9
+_xlfn.ACOT({A})	n:c1f05178c5b0cf59
+_xlfn.ACOT({A})	n:97eb63a8d838e2ec
+_xlfn.ACOT({A})	n:14548423851195a4
+_xlfn.ACOT({A})	n:59cdc9b5fa86e618
+_xlfn.ACOT({A})	n:a09b0d914bc3c554
+_xlfn.ACOT({A})	n:76c4fc3c2e0ac558
+_xlfn.ACOT({A})	n:0e972221a685f41a
+_xlfn.ACOT({A})	n:ced1ed1de6062d4f
+_xlfn.ACOT({A})	n:50c236291b84bf29
+_xlfn.ACOT({A})	n:5f1ad76f1161350c
+_xlfn.ACOT({A})	n:e12223ef6e420bdc
+_xlfn.ACOT({A})	n:f696265bebfef054
+_xlfn.ACOT({A})	n:3a1adef528306ef8
+_xlfn.ACOT({A})	n:c98c7b53a3769042
+_xlfn.ACOT({A})	n:0010000000000001
+_xlfn.ACOT({A})	n:ffeffffffffffffc
+_xlfn.ACOT({A})	n:ffcffffffffffffd
+_xlfn.ACOT({A})	n:7fd0000000000001
+_xlfn.ACOT({A})	n:3fdffffffffffffd
+_xlfn.ACOT({A})	n:3fe0000000000002
+_xlfn.ACOT({A})	n:bfeffffffffffffe
+_xlfn.ACOT({A})	n:bff0000000000003
+_xlfn.ACOT({A})	n:bfffffffffffffff
+_xlfn.ACOT({A})	n:4000000000000003
+_xlfn.ACOT({A})	n:400fffffffffffff
+_xlfn.ACOT({A})	n:4010000000000004
+_xlfn.ACOT({A})	n:81a56e1fc2f8f359
+_xlfn.ACOT({A})	n:fe37e43c88007598
+_xlfn.ACOT({A})	n:7e37e43c8800759c
+_xlfn.ACOT({A})	n:3c9ffffffffffffc
+_xlfn.ACOT({A})	n:3ca0000000000001
+_xlfn.ACOT({A})	n:c33ffffffffffffd
+_xlfn.ACOT({A})	n:c340000000000002
+_xlfn.ACOT({A})	n:bfdfe545a90d3327
+_xlfn.ACOT({A})	n:3fdfe545a90d3327
+_xlfn.ACOT({A})	n:bfdfe545a90d3328
+_xlfn.ACOT({A})	n:3fdfe545a90d3328
+_xlfn.ACOT({A})	n:bfdfe545a90d3329
+_xlfn.ACOT({A})	n:3fdfe545a90d3329
+_xlfn.ACOT({A})	n:3fdfe545a90d332a
+_xlfn.ACOT({A})	n:bfdfe545a90d332b
+_xlfn.ACOT({A})	n:3fdfe545a90d332b
+_xlfn.ACOT({A})	n:bfdfe545a90d332c
+_xlfn.ACOT({A})	n:3fdfe545a90d332c
+_xlfn.ACOT({A})	n:bfdfe545a90d332d
+_xlfn.ACOT({A})	n:bfdfe545a90d332e
+_xlfn.ACOT({A})	n:3fdfe545a90d332e
+_xlfn.ACOT({A})	n:bfdfe545a90d332f
+_xlfn.ACOT({A})	n:3fdfe545a90d332f
+_xlfn.ACOT({A})	n:bfdfe545a90d3330
+_xlfn.ACOT({A})	n:3fdfe545a90d3330
+_xlfn.ACOT({A})	n:bfdfe545a90d3331
+_xlfn.ACOT({A})	n:55dda56e370cc0ee
+_xlfn.ACOT({A})	n:4fd90c740fa528c6
+_xlfn.ACOT({A})	n:aa4343c48b657b18
+_xlfn.ACOT({A})	n:5cb7aa4335f72201
+_xlfn.ACOT({A})	n:e08e48981bd4420e
+_xlfn.ACOT({A})	n:d5fe3512419dd117
+_xlfn.ACOT({A})	n:e3ade5804c0832f6
+_xlfn.ACOT({A})	n:b4ebb5d951d6ee8b
+_xlfn.ACOT({A})	n:148dd0982961b770
+_xlfn.ACOT({A})	n:15381d7b8346d75b
+_xlfn.ACOT({A})	n:f56a35741e740d0c
+_xlfn.ACOT({A})	n:ab2e00fea82deb68
+_xlfn.ACOT({A})	n:162f42ec3c959b5a
+_xlfn.ACOT({A})	n:4246d409ec8cfb6d
+_xlfn.ACOT({A})	n:c08f9a7aad72a897
+_xlfn.ACOT({A})	n:907085082f5821b9
+_xlfn.ACOT({A})	n:5e08ebc33414e1e8
+_xlfn.ACOT({A})	n:4476703a6c3a4d97
+_xlfn.ACOT({A})	n:2b1d11ab800f3a59
+_xlfn.ACOT({A})	n:5d65d7b1db9fc840
+_xlfn.ACOT({A})	n:c07da3fb9e30ae2e
+_xlfn.ACOT({A})	n:c082711cdf1224f2
+_xlfn.ACOT({A})	n:4067bccce9524a08
+_xlfn.ACOT({A})	n:407ea777a692c03c
+_xlfn.ACOT({A})	n:c08405b254db684c
+_xlfn.ACOT({A})	n:c076ce2e8505c964
+_xlfn.ACOT({A})	n:c06a7c6b5c9bbf90
+_xlfn.ACOT({A})	n:c08df916be015033
+_xlfn.ACOT({A})	n:c07ae78a42d2d9d2
+_xlfn.ACOT({A})	n:c061892798404960
+_xlfn.ACOT({A})	n:4070f930a5e01c28
+_xlfn.ACOT({A})	n:c07c30f7c78fa210
+_xlfn.ACOT({A})	n:c081f18e9deb1d04
+_xlfn.ACOT({A})	n:c07c519eed3790de
+_xlfn.ACOT({A})	n:c07a9258f3837384
+_xlfn.ACOT({A})	n:40820b1b67f152c4
+_xlfn.ACOT({A})	n:c08edf8ef46bdca5
+_xlfn.ACOT({A})	n:c0834e9e5b786b5c
+_xlfn.ACOT({A})	n:c084d81965f2dda8
+_xlfn.ACOT({A})	n:c072e5fef3c98c68
+_xlfn.ACOT({A})	n:c00cb5d4370b2f46
+_xlfn.ACOT({A})	n:bfe913d1319bc508
+_xlfn.ACOT({A})	n:bfc0264c38928fe0
+_xlfn.ACOT({A})	n:400650dd608da1c6
+_xlfn.ACOT({A})	n:c00e91b9c3cfd682
+_xlfn.ACOT({A})	n:3ff9fdafc2dfb3e4
+_xlfn.ACOT({A})	n:c00723aeadc93dc4
+_xlfn.ACOT({A})	n:40003ba4d4e4eb98
+_xlfn.ACOT({A})	n:c006ac43d6001db6
+_xlfn.ACOT({A})	n:bff99f8fd9b6acbc
+_xlfn.ACOT({A})	n:400d4c21316d8f72
+_xlfn.ACOT({A})	n:3ffc7d2850829d84
+_xlfn.ACOT({A})	n:bfab049400c28780
+_xlfn.ACOT({A})	n:c00fc8bbb7698f6a
+_xlfn.ACOT({A})	n:400a7ce3fb64d63a
+_xlfn.ACOT({A})	n:c00b5beeae904b78
+_xlfn.ACOT({A})	n:400b75f4725c0720
+_xlfn.ACOT({A})	n:400e518ef7b6d9d8
+_xlfn.ACOT({A})	n:3fe66ed91da6fd28
+_xlfn.ACOT({A})	n:c003a05cdc3ab028
+_xlfn.ACOT({A})	n:0a7355b7bec7ee0b
+_xlfn.ACOT({A})	n:29be95c6deb7f928
+_xlfn.ACOT({A})	n:234a5b27c8d03412
+_xlfn.ACOT({A})	n:2f87e12855cae94b
+_xlfn.ACOT({A})	n:4a64a7a6b6fc6c97
+_xlfn.ACOT({A})	n:b43ab54e339cdd96
+_xlfn.ACOT({A})	n:f0e01b46dea13605
+_xlfn.ACOT({A})	n:e9ae70c85e4ba9ca
+_xlfn.ACOT({A})	n:a59aead0640ea519
+_xlfn.ACOT({A})	n:8fdc7c0315b31854
+_xlfn.ACOT({A})	n:1f43e601154caec1
+_xlfn.ACOT({A})	n:206c09a665b99ec1
+_xlfn.ACOT({A})	n:21451dce1b254840
+_xlfn.ACOT({A})	n:11185c1ed15c8d7f
+_xlfn.ACOT({A})	n:19cb1d536303ca9b
+_xlfn.ACOT({A})	n:f62d95bf95149edc
+_xlfn.ACOT({A})	n:dc956a6c0a03c205
+_xlfn.ACOT({A})	n:d9f5682f6d7838b2
+_xlfn.ACOT({A})	n:e9da2697ba85e8fd
+_xlfn.ACOT({A})	n:8010000000000004
+_xlfn.ACOT({A})	n:7feffffffffffffe
+_xlfn.ACOT({A})	n:7fcfffffffffffff
+_xlfn.ACOT({A})	n:ffd0000000000004
+_xlfn.ACOT({A})	n:bfe0000000000000
+_xlfn.ACOT({A})	n:bfeffffffffffffc
+_xlfn.ACOT({A})	n:3ff0000000000000
+_xlfn.ACOT({A})	n:3ffffffffffffffc
+_xlfn.ACOT({A})	n:4000000000000001
+_xlfn.ACOT({A})	n:c00ffffffffffffd
+_xlfn.ACOT({A})	n:c010000000000002
+_xlfn.ACOT({A})	n:81a56e1fc2f8f357
+_xlfn.ACOT({A})	n:01a56e1fc2f8f35b
+_xlfn.ACOT({A})	n:7e37e43c8800759a
+_xlfn.ACOT({A})	n:fe37e43c8800759f
+_xlfn.ACOT({A})	n:bc9fffffffffffff
+_xlfn.ACOT({A})	n:bca0000000000004
+_xlfn.ACOT({A})	n:433fffffffffffff
+_xlfn.ACOT({A})	n:4340000000000004
+_xlfn.ACOT({A})	n:bfdfe545a90d332a
+_xlfn.ACOT({A})	n:3fdfe545a90d332d
+_xlfn.ACOT({A})	n:3fdfe545a90d3331
+_xlfn.ACOT({A})	n:0010000000000000
+_xlfn.ACOT({A})	n:8010000000000000
+_xlfn.ACOT({A})	n:7fefffffffffffff
+_xlfn.ACOT({A})	n:ffefffffffffffff
+#
+# family TANH: 250 rows of 39234 usable readings in 9 classes (0 boundary rows beyond the stride); none left out
+# sources: hyperbolic/discovery/answers/answers-tanh.json, hyperbolic/heldout/answers/answers-tanh.json, tanh-coth/independent-tanh.json
+TANH({A})	n:4076200000000003
+TANH({A})	n:40862ffffffffff9
+TANH({A})	n:4089000000000010
+TANH({A})	n:c086b2e96709df6e
+TANH({A})	n:c07f0484e9b16d59
+TANH({A})	n:40738c2ce2d76bac
+TANH({A})	n:4068fe56a842cb08
+TANH({A})	n:40674649f72047b8
+TANH({A})	n:407a5143d11a6a18
+TANH({A})	n:406b43e7c5b394e0
+TANH({A})	n:c0685f57e67227c4
+TANH({A})	n:4085a035d7601ae0
+TANH({A})	n:404fa717d73f2bd0
+TANH({A})	n:c05f9f17efd04410
+TANH({A})	n:c0719e9ee7202dfe
+TANH({A})	n:4069666a32ab215c
+TANH({A})	n:405d06cc01221890
+TANH({A})	n:4085cc240844220c
+TANH({A})	n:40820d43e23929fe
+TANH({A})	n:b44ed942f1f0f818
+TANH({A})	n:4452179bcf26cdb8
+TANH({A})	n:8fca9f3c562af536
+TANH({A})	n:dcc50ee901b98e31
+TANH({A})	n:f49abe189273902a
+TANH({A})	n:fbbf5432fda80a18
+TANH({A})	n:78160c0bb8afdc05
+TANH({A})	n:6d6a4ffc81a79c7c
+TANH({A})	n:1da414ec7b024677
+TANH({A})	n:d122e332572bdd6e
+TANH({A})	n:3fbfffffffffffe3
+TANH({A})	n:bfd0000000000009
+TANH({A})	n:bfe000000000004f
+TANH({A})	n:3ff0000000000095
+TANH({A})	n:c033ffffffffff52
+TANH({A})	n:c0762fffffffff98
+TANH({A})	n:40862e42fefa39cd
+TANH({A})	n:408633ce8fb9f8c3
+TANH({A})	n:c001a8be1a1ca7fd
+TANH({A})	n:3ff1f4fa5c9638dc
+TANH({A})	n:4005c06496d156ae
+TANH({A})	n:3fee63c2c2df57c4
+TANH({A})	n:bff29595bdb2c99d
+TANH({A})	n:bff9cab5c5e99242
+TANH({A})	n:406c019074635a84
+TANH({A})	n:3fb19170b11ce000
+TANH({A})	n:4086af31c8d1e974
+TANH({A})	n:407d6db23108c480
+TANH({A})	n:bffec25e84d18200
+TANH({A})	n:40795af98d7e7c98
+TANH({A})	n:f78c2cf0987fd586
+TANH({A})	n:cfbf2f84a51a2c0e
+TANH({A})	n:e5bcb27efc03e8e0
+TANH({A})	n:4708f63f624c4de3
+TANH({A})	n:a0593805999c90ac
+TANH({A})	n:13af3595475c15bc
+TANH({A})	n:8148468720284c98
+TANH({A})	n:863b8adb6836ae55
+TANH({A})	n:d19c7663b9bd1ca0
+TANH({A})	n:0000000000000000
+TANH({A})	n:3ff0000000000000
+TANH({A})	n:bff0000000000000
+TANH({A})	n:3fe0000000000000
+TANH({A})	n:bfe0000000000000
+TANH({A})	n:3fe62e42fefa39ef
+TANH({A})	n:bfe62e42fefa39ef
+TANH({A})	n:3ca0000000000000
+TANH({A})	n:bca0000000000000
+TANH({A})	n:3ca59e05f1e2674d
+TANH({A})	n:bca59e05f1e2674d
+TANH({A})	n:3e45798ee2308c3a
+TANH({A})	n:be45798ee2308c3a
+TANH({A})	n:4024000000000000
+TANH({A})	n:c024000000000000
+TANH({A})	n:40862c0000000000
+TANH({A})	n:c0862c0000000000
+TANH({A})	n:4086300000000000
+TANH({A})	n:c086300000000000
+TANH({A})	n:3feffffffffffff4
+TANH({A})	n:3ff0000000000011
+TANH({A})	n:bfeffffffffffffc
+TANH({A})	n:3fdffffffffffff8
+TANH({A})	n:3fe000000000000c
+TANH({A})	n:bfe0000000000010
+TANH({A})	n:3fe62e42fefa39ec
+TANH({A})	n:3fe62e42fefa39f6
+TANH({A})	n:bfe62e42fefa39fa
+TANH({A})	n:bfe62e42fefa39e0
+TANH({A})	n:3ca0000000000003
+TANH({A})	n:bca0000000000007
+TANH({A})	n:bc9ffffffffffff5
+TANH({A})	n:3ca59e05f1e2673e
+TANH({A})	n:bca59e05f1e2674f
+TANH({A})	n:bca59e05f1e26747
+TANH({A})	n:3e45798ee2308c30
+TANH({A})	n:3e45798ee2308c48
+TANH({A})	n:be45798ee2308c39
+TANH({A})	n:4023fffffffffffb
+TANH({A})	n:402400000000000a
+TANH({A})	n:c02400000000000e
+TANH({A})	n:40862bffffffffff
+TANH({A})	n:40862c0000000005
+TANH({A})	n:c0862c0000000009
+TANH({A})	n:c0862bfffffffff3
+TANH({A})	n:40862fffffffffef
+TANH({A})	n:c086300000000004
+TANH({A})	n:c0862ffffffffff8
+TANH({A})	n:3fd69ae22213f958
+TANH({A})	n:bfba90e501b63ce0
+TANH({A})	n:bfc9e29c73641e30
+TANH({A})	n:3fec8ee9cc40ac36
+TANH({A})	n:bfec9191dd745390
+TANH({A})	n:3fe8e1c6f4fcd626
+TANH({A})	n:3fe6d6dffdef98ec
+TANH({A})	n:bfd8df4263de8b04
+TANH({A})	n:bfec2d501460a542
+TANH({A})	n:bfa8edde0ddb6dc0
+TANH({A})	n:bfe1b10fb273a0d2
+TANH({A})	n:bfe573095d645c20
+TANH({A})	n:bfe227721d1f0a82
+TANH({A})	n:3fe0a3c58f64b07a
+TANH({A})	n:3fed431cd7ac2592
+TANH({A})	n:3fc0d99f05e79a18
+TANH({A})	n:bfcd4de3088c7498
+TANH({A})	n:3fe7e72fb149eae8
+TANH({A})	n:3fe370cd7cce06e4
+TANH({A})	n:3fe24f7090abe398
+TANH({A})	n:3fe79a935b0f552e
+TANH({A})	n:3fd2c946fbe0bb1c
+TANH({A})	n:3fd305dd458babbc
+TANH({A})	n:bfe400c95c404eae
+TANH({A})	n:3fc0e4e253cf4a48
+TANH({A})	n:3fddcd07362376a4
+TANH({A})	n:bfd6f3a823fa1230
+TANH({A})	n:bfe2b2cedc083d48
+TANH({A})	n:bfd26bfdd5eace54
+TANH({A})	n:9ca84e0e5eaa1d96
+TANH({A})	n:bf42cee5c2ad7828
+TANH({A})	n:34311265b3a8ff26
+TANH({A})	n:3bb5d818362fb408
+TANH({A})	n:19afa33163e26592
+TANH({A})	n:0a9a0df6732494b8
+TANH({A})	n:14c455cf47a1b495
+TANH({A})	n:806caaa85e7f916e
+TANH({A})	n:83b3a65086021063
+TANH({A})	n:065a78a715eb5332
+TANH({A})	n:0a44fc716dcdbf48
+TANH({A})	n:9f5fa47de58268cd
+TANH({A})	n:8196e07b95ed4e60
+TANH({A})	n:3045d7ac0fe6ca72
+TANH({A})	n:23d57d3f83d90a62
+TANH({A})	n:8fd17fbfb112efde
+TANH({A})	n:295dcb9a38cb5b8e
+TANH({A})	n:27275e7fd245e723
+TANH({A})	n:2509531a28ad5c3a
+TANH({A})	n:992c152ffa7180d8
+TANH({A})	n:a7e399a991bb7ffc
+TANH({A})	n:97b6f05dcc4a5ca0
+TANH({A})	n:a22b4920249933ee
+TANH({A})	n:845863757f2dbcbe
+TANH({A})	n:aaa21b3abde1f511
+TANH({A})	n:be464f6fa5f32e1d
+TANH({A})	n:b3705e6ad37ddb32
+TANH({A})	n:af99932fe7b9c90c
+TANH({A})	n:99e559d930abcef4
+TANH({A})	n:3cb0573945511ee2
+TANH({A})	n:3ca82d06ab79fb53
+TANH({A})	n:bc83cff9b12b1cf0
+TANH({A})	n:bca168a7744475a2
+TANH({A})	n:3c9621c87dc4f20c
+TANH({A})	n:bcbf437e51ebaa3c
+TANH({A})	n:bc9ebf0172ce1abf
+TANH({A})	n:3c72c06c00a1209e
+TANH({A})	n:bcd483a604500b54
+TANH({A})	n:bc5104a408570b9e
+TANH({A})	n:bc7f95a8676681ba
+TANH({A})	n:3cd7cc291cb4dd40
+TANH({A})	n:3c9af0effc9dc4d0
+TANH({A})	n:3c599a1f8d41c6ac
+TANH({A})	n:3cca420a2e208e44
+TANH({A})	n:bcb52a587400a373
+TANH({A})	n:bc8ea312f727365d
+TANH({A})	n:3ca06c91e834ff0f
+TANH({A})	n:3c60d6180eb4154c
+TANH({A})	n:3cca6ef435a2a026
+TANH({A})	n:bcafdb3d7adb9100
+TANH({A})	n:3cefdda89d65db9c
+TANH({A})	n:bcdf4ce7c04f1a64
+TANH({A})	n:3c9a46e199bb1096
+TANH({A})	n:bce38a0f2edfa5b6
+TANH({A})	n:3c8c95f091b94d30
+TANH({A})	n:3c6190ce5f353932
+TANH({A})	n:bceb1c2d05cce9f9
+TANH({A})	n:406793b75773f338
+TANH({A})	n:c075b5ee137bb44a
+TANH({A})	n:405b2bdcd80d9b40
+TANH({A})	n:c069cdb26c94e6cc
+TANH({A})	n:c06ab7bc5a3b6126
+TANH({A})	n:c07ccf6acc4a0d01
+TANH({A})	n:c073184f23f5edf5
+TANH({A})	n:c083ad79b73f1adc
+TANH({A})	n:4070c67ae7702ffc
+TANH({A})	n:bffa7abb893a8000
+TANH({A})	n:c04115270927cf70
+TANH({A})	n:c072a594e85909fa
+TANH({A})	n:c0793787bef3aba8
+TANH({A})	n:407e27cfcaa2e794
+TANH({A})	n:406f66318df72d60
+TANH({A})	n:40842134fce2a36e
+TANH({A})	n:c0699bd24175e288
+TANH({A})	n:c075e8d08b80c39a
+TANH({A})	n:40741ae75a3eb7e8
+TANH({A})	n:c07556a8d8a76d9b
+TANH({A})	n:c08602bed8bafb51
+TANH({A})	n:c06fe3dddf4cf450
+TANH({A})	n:c07211ff864f8ce1
+TANH({A})	n:c07fcdc298289d58
+TANH({A})	n:c050c84a197ef860
+TANH({A})	n:406e245d026e62bc
+TANH({A})	n:4082bffa438a154a
+TANH({A})	n:4074a79c482dcc2c
+TANH({A})	n:407b79b493829890
+TANH({A})	n:8974d9869881bbfa
+TANH({A})	n:79766738ced85778
+TANH({A})	n:f27d823805006678
+TANH({A})	n:c46b661b4a5dbf4b
+TANH({A})	n:d955b229e206e6ce
+TANH({A})	n:3acbf30090b5e107
+TANH({A})	n:fa9c9a3edc554839
+TANH({A})	n:10e559c0c1fad262
+TANH({A})	n:77a73ef35bee0ff9
+TANH({A})	n:4eaa4f0cd57abbd4
+TANH({A})	n:cdad5376bedbd59a
+TANH({A})	n:f1fe4823724c0b06
+TANH({A})	n:902bcd5d649e8b17
+TANH({A})	n:7e6063a185fa614c
+TANH({A})	n:a7b354b6ca7929c9
+TANH({A})	n:3a850d9e7eab4374
+TANH({A})	n:66a441d1003146f9
+TANH({A})	n:c0fa3cc5a519c1c6
+TANH({A})	n:fb658b97df0cdd6e
+TANH({A})	n:fe4cb8f809bc18b5
+TANH({A})	n:04a4f04648466ab9
+TANH({A})	n:a810e2d68f854054
+TANH({A})	n:2e715ed9c38e8df8
+TANH({A})	n:83f7d57b8260aa91
+TANH({A})	n:8036cd4dfae1e03f
+TANH({A})	n:a387d85562a918a0
+TANH({A})	n:bc28be51c7d314fe
+TANH({A})	n:bc90f4321181c9de
+TANH({A})	n:f0ccc661ef57ee49
+#
+# family COTH: 250 rows of 39232 usable readings in 9 classes (0 boundary rows beyond the stride); none left out
+# sources: hyperbolic/discovery/answers/answers-coth.json, hyperbolic/heldout/answers/answers-coth.json, tanh-coth/independent-coth.json
+_xlfn.COTH({A})	n:c075dffffffffff9
+_xlfn.COTH({A})	n:c086280000000010
+_xlfn.COTH({A})	n:c086d00000000006
+_xlfn.COTH({A})	n:c045da5fa89de460
+_xlfn.COTH({A})	n:c080776028fb9fd6
+_xlfn.COTH({A})	n:4066d7c72d3c5f6c
+_xlfn.COTH({A})	n:c080e945a1577f04
+_xlfn.COTH({A})	n:c06514300efec45c
+_xlfn.COTH({A})	n:408715f203c81414
+_xlfn.COTH({A})	n:c07558124f6bbf79
+_xlfn.COTH({A})	n:40819bbf19395574
+_xlfn.COTH({A})	n:4072e1532ef274a0
+_xlfn.COTH({A})	n:3f8f37cf4b7a0000
+_xlfn.COTH({A})	n:407cd02ee8e700a0
+_xlfn.COTH({A})	n:407420e876441660
+_xlfn.COTH({A})	n:4080bf4d1d8906a2
+_xlfn.COTH({A})	n:c065684c12b0d568
+_xlfn.COTH({A})	n:c06f09ad7c9793fc
+_xlfn.COTH({A})	n:4079fe205c310718
+_xlfn.COTH({A})	n:d64cd81f50a487e5
+_xlfn.COTH({A})	n:c1af3e102d8aaac0
+_xlfn.COTH({A})	n:3d949629c451adeb
+_xlfn.COTH({A})	n:e6819ab90b1b4328
+_xlfn.COTH({A})	n:ffe5abc190c24dbb
+_xlfn.COTH({A})	n:69d77c2677b43f56
+_xlfn.COTH({A})	n:52942849ff794f8c
+_xlfn.COTH({A})	n:14f2d9d5f4851b96
+_xlfn.COTH({A})	n:c3a90f6d0617199a
+_xlfn.COTH({A})	n:310882ddd449c301
+_xlfn.COTH({A})	n:bfbfffffffffffa7
+_xlfn.COTH({A})	n:3fcfffffffffffcc
+_xlfn.COTH({A})	n:3fe0000000000012
+_xlfn.COTH({A})	n:bff0000000000059
+_xlfn.COTH({A})	n:c00000000000007f
+_xlfn.COTH({A})	n:40762fffffffff5c
+_xlfn.COTH({A})	n:40862e42fefa3991
+_xlfn.COTH({A})	n:c08633ce8fb9f867
+_xlfn.COTH({A})	n:c00219818c3d2022
+_xlfn.COTH({A})	n:40070933a846ce50
+_xlfn.COTH({A})	n:c0021211abef81be
+_xlfn.COTH({A})	n:3ffed8788deea6c0
+_xlfn.COTH({A})	n:bfd3300aa55e0070
+_xlfn.COTH({A})	n:c002bff6178b0e20
+_xlfn.COTH({A})	n:40873e862c8ca4d0
+_xlfn.COTH({A})	n:40302984307709c0
+_xlfn.COTH({A})	n:c062904c95f690e4
+_xlfn.COTH({A})	n:c082903ba80b0112
+_xlfn.COTH({A})	n:c0849830d4ddcf4d
+_xlfn.COTH({A})	n:c07b66ad042cbf70
+_xlfn.COTH({A})	n:76a0f8079ccd9d76
+_xlfn.COTH({A})	n:9e4c606b5a1079bc
+_xlfn.COTH({A})	n:dc153b9b05290f6c
+_xlfn.COTH({A})	n:7bfd5312630f021f
+_xlfn.COTH({A})	n:26923a7cee596e77
+_xlfn.COTH({A})	n:75dbcf787bc15944
+_xlfn.COTH({A})	n:3d8f1b5128276828
+_xlfn.COTH({A})	n:1f4360a6ee73bc65
+_xlfn.COTH({A})	n:e1c2bc6e316585f5
+_xlfn.COTH({A})	n:0000000000000000
+_xlfn.COTH({A})	n:3ff0000000000000
+_xlfn.COTH({A})	n:bff0000000000000
+_xlfn.COTH({A})	n:3fe0000000000000
+_xlfn.COTH({A})	n:bfe0000000000000
+_xlfn.COTH({A})	n:3fe62e42fefa39ef
+_xlfn.COTH({A})	n:bfe62e42fefa39ef
+_xlfn.COTH({A})	n:3ca0000000000000
+_xlfn.COTH({A})	n:bca0000000000000
+_xlfn.COTH({A})	n:3ca59e05f1e2674d
+_xlfn.COTH({A})	n:bca59e05f1e2674d
+_xlfn.COTH({A})	n:3e45798ee2308c3a
+_xlfn.COTH({A})	n:be45798ee2308c3a
+_xlfn.COTH({A})	n:4024000000000000
+_xlfn.COTH({A})	n:c024000000000000
+_xlfn.COTH({A})	n:40862c0000000000
+_xlfn.COTH({A})	n:c0862c0000000000
+_xlfn.COTH({A})	n:4086300000000000
+_xlfn.COTH({A})	n:c086300000000000
+_xlfn.COTH({A})	n:3feffffffffffffd
+_xlfn.COTH({A})	n:3ff0000000000007
+_xlfn.COTH({A})	n:bff000000000000c
+_xlfn.COTH({A})	n:bfeffffffffffff0
+_xlfn.COTH({A})	n:3fe0000000000003
+_xlfn.COTH({A})	n:bfe0000000000007
+_xlfn.COTH({A})	n:bfdffffffffffff5
+_xlfn.COTH({A})	n:3fe62e42fefa39e0
+_xlfn.COTH({A})	n:bfe62e42fefa39f1
+_xlfn.COTH({A})	n:bfe62e42fefa39e9
+_xlfn.COTH({A})	n:3c9ffffffffffff6
+_xlfn.COTH({A})	n:3ca000000000000f
+_xlfn.COTH({A})	n:bc9ffffffffffffe
+_xlfn.COTH({A})	n:3ca59e05f1e26747
+_xlfn.COTH({A})	n:3ca59e05f1e26757
+_xlfn.COTH({A})	n:bca59e05f1e2675b
+_xlfn.COTH({A})	n:3e45798ee2308c39
+_xlfn.COTH({A})	n:3e45798ee2308c3f
+_xlfn.COTH({A})	n:be45798ee2308c43
+_xlfn.COTH({A})	n:be45798ee2308c2d
+_xlfn.COTH({A})	n:4023ffffffffffef
+_xlfn.COTH({A})	n:c024000000000005
+_xlfn.COTH({A})	n:c023fffffffffff7
+_xlfn.COTH({A})	n:40862bfffffffff3
+_xlfn.COTH({A})	n:40862c0000000011
+_xlfn.COTH({A})	n:c0862bfffffffffc
+_xlfn.COTH({A})	n:40862ffffffffff8
+_xlfn.COTH({A})	n:408630000000000c
+_xlfn.COTH({A})	n:c086300000000010
+_xlfn.COTH({A})	n:bfeda28a8991df28
+_xlfn.COTH({A})	n:3fd52605c516fff8
+_xlfn.COTH({A})	n:3f81eba9b6be0600
+_xlfn.COTH({A})	n:bfd202e5b4f77a1c
+_xlfn.COTH({A})	n:3fe094f9153cb96a
+_xlfn.COTH({A})	n:3fb0a8e2dc8cbde0
+_xlfn.COTH({A})	n:3febf30f87aa0a2c
+_xlfn.COTH({A})	n:3fea9ae8792618e6
+_xlfn.COTH({A})	n:3fe339e39c117b32
+_xlfn.COTH({A})	n:3feacf23097e7578
+_xlfn.COTH({A})	n:3fad8fcfef508120
+_xlfn.COTH({A})	n:3feff2d2718cfe82
+_xlfn.COTH({A})	n:bfd0dd19dcb04d9c
+_xlfn.COTH({A})	n:bfde0f2d13d08290
+_xlfn.COTH({A})	n:3fe5150c42e61532
+_xlfn.COTH({A})	n:bfd503758a5fa3b8
+_xlfn.COTH({A})	n:3fee999c329a14d4
+_xlfn.COTH({A})	n:3fbd7a7cdf718400
+_xlfn.COTH({A})	n:bfc993b94734c440
+_xlfn.COTH({A})	n:3fea26d908ef2bf2
+_xlfn.COTH({A})	n:3fa820a4a75d9560
+_xlfn.COTH({A})	n:bfe2bb9b9912c034
+_xlfn.COTH({A})	n:bfe78bfe4ee008dc
+_xlfn.COTH({A})	n:bfcc3d8c8badc088
+_xlfn.COTH({A})	n:3fd2d396bcdff418
+_xlfn.COTH({A})	n:3fc5b9ba93e37cb8
+_xlfn.COTH({A})	n:3fd300c5ea54b650
+_xlfn.COTH({A})	n:3fe0b8f4f432340a
+_xlfn.COTH({A})	n:bfd97a3e28379358
+_xlfn.COTH({A})	n:924946fca0482d30
+_xlfn.COTH({A})	n:a4da33e0ab9ad596
+_xlfn.COTH({A})	n:88fef15de52367b8
+_xlfn.COTH({A})	n:35236aee79fe0cc8
+_xlfn.COTH({A})	n:a506f4e938a44ba0
+_xlfn.COTH({A})	n:a375d75ff36a2e8a
+_xlfn.COTH({A})	n:011de3099be16178
+_xlfn.COTH({A})	n:bbf61de574bdaed8
+_xlfn.COTH({A})	n:b13659b458ef196c
+_xlfn.COTH({A})	n:867357df01e3e236
+_xlfn.COTH({A})	n:ad87e644a4fa7508
+_xlfn.COTH({A})	n:a376eda7b19fd334
+_xlfn.COTH({A})	n:050e6fbbce8c6cce
+_xlfn.COTH({A})	n:80fa910fb133b6c1
+_xlfn.COTH({A})	n:279ad60e87c43ad9
+_xlfn.COTH({A})	n:23c76a7c69ce7756
+_xlfn.COTH({A})	n:3cf1ccc58b41aa8a
+_xlfn.COTH({A})	n:09a6c730bda0bb21
+_xlfn.COTH({A})	n:aaeb7a68eb0d870e
+_xlfn.COTH({A})	n:37b33a306f16d39c
+_xlfn.COTH({A})	n:248003f8b1a92fe6
+_xlfn.COTH({A})	n:81b7527e2e945b16
+_xlfn.COTH({A})	n:84e5bcec7b6b8e4f
+_xlfn.COTH({A})	n:38064312ef215214
+_xlfn.COTH({A})	n:3a4f353a76fd6cda
+_xlfn.COTH({A})	n:86f09f0a2eb88a2e
+_xlfn.COTH({A})	n:b9ca19237c48d43a
+_xlfn.COTH({A})	n:8840b79b883452b7
+_xlfn.COTH({A})	n:8759bab1171f0d04
+_xlfn.COTH({A})	n:3cc8a17045d935be
+_xlfn.COTH({A})	n:bcd6396f362507d6
+_xlfn.COTH({A})	n:bce696f6ca281ca0
+_xlfn.COTH({A})	n:3cd41f9adbc4e39b
+_xlfn.COTH({A})	n:bcd1343b3aa6b3ac
+_xlfn.COTH({A})	n:bc734e90e23e403e
+_xlfn.COTH({A})	n:3ca1a12d21ce9a90
+_xlfn.COTH({A})	n:3c8ed84a0e165a87
+_xlfn.COTH({A})	n:bcbf39e054c82008
+_xlfn.COTH({A})	n:3c6012c907e430bc
+_xlfn.COTH({A})	n:bc7fe369c11ade89
+_xlfn.COTH({A})	n:bcbe1bc585d018e4
+_xlfn.COTH({A})	n:bcb4cdcfcd824e37
+_xlfn.COTH({A})	n:bce0f983ba09f404
+_xlfn.COTH({A})	n:3c79856ca6cd2f2a
+_xlfn.COTH({A})	n:bcec198cfe57cad4
+_xlfn.COTH({A})	n:bcd04d0dc277b891
+_xlfn.COTH({A})	n:bc72d5279ce8c690
+_xlfn.COTH({A})	n:3c7c463e6aaac193
+_xlfn.COTH({A})	n:bc7bd6c1273f4f28
+_xlfn.COTH({A})	n:3c595adb0b33b6a3
+_xlfn.COTH({A})	n:bcd914cc48b2faec
+_xlfn.COTH({A})	n:bc73f0408b8efc06
+_xlfn.COTH({A})	n:bc785402944870d8
+_xlfn.COTH({A})	n:bca71f1744dad38c
+_xlfn.COTH({A})	n:bcbbd972fb60f579
+_xlfn.COTH({A})	n:3c9291f73c7f37ac
+_xlfn.COTH({A})	n:bc80bbd9bcc4f8da
+_xlfn.COTH({A})	n:406f1264c89edc58
+_xlfn.COTH({A})	n:c0861b9cee9a86c6
+_xlfn.COTH({A})	n:c07652685edd6d59
+_xlfn.COTH({A})	n:407ee9d1784616f4
+_xlfn.COTH({A})	n:408266b5553d4c58
+_xlfn.COTH({A})	n:407be9883073dc9c
+_xlfn.COTH({A})	n:c058a23ec2c4ef58
+_xlfn.COTH({A})	n:40853b87eb81bd96
+_xlfn.COTH({A})	n:40566d6356723720
+_xlfn.COTH({A})	n:406c87d48949aa70
+_xlfn.COTH({A})	n:4071f19fcbe13404
+_xlfn.COTH({A})	n:407e5fb5ed2be898
+_xlfn.COTH({A})	n:406e9e7a10864640
+_xlfn.COTH({A})	n:4081fab99cad8c70
+_xlfn.COTH({A})	n:c078d033fcd93316
+_xlfn.COTH({A})	n:407170318496c6e8
+_xlfn.COTH({A})	n:c052dabb804a4340
+_xlfn.COTH({A})	n:4054b471a575c540
+_xlfn.COTH({A})	n:c080c28566bc59e2
+_xlfn.COTH({A})	n:40632ddf8fdbf144
+_xlfn.COTH({A})	n:4084432bf316c336
+_xlfn.COTH({A})	n:4079a8f4c189db08
+_xlfn.COTH({A})	n:c07d0f6e58a79f6c
+_xlfn.COTH({A})	n:c076029377684801
+_xlfn.COTH({A})	n:c08227b2c03382d1
+_xlfn.COTH({A})	n:c083263c1c47d453
+_xlfn.COTH({A})	n:c06f29f5ee27dc92
+_xlfn.COTH({A})	n:c060e3e1c01800a8
+_xlfn.COTH({A})	n:c07f51c99a3a5da0
+_xlfn.COTH({A})	n:f48c4e9f8a80f302
+_xlfn.COTH({A})	n:15701c4d41db3761
+_xlfn.COTH({A})	n:1ba28828f1d606a9
+_xlfn.COTH({A})	n:93097725311dae8e
+_xlfn.COTH({A})	n:f33388a1306b6735
+_xlfn.COTH({A})	n:968e96063b83bdc4
+_xlfn.COTH({A})	n:9ab38514bd446b7a
+_xlfn.COTH({A})	n:17888b941e7886bf
+_xlfn.COTH({A})	n:1986bf3028fde153
+_xlfn.COTH({A})	n:3100f47b6d0a0f42
+_xlfn.COTH({A})	n:17e11b51215c1964
+_xlfn.COTH({A})	n:015551aaf7a72c7b
+_xlfn.COTH({A})	n:359a40591cba979e
+_xlfn.COTH({A})	n:58424c15a42bd0b0
+_xlfn.COTH({A})	n:2f43fbca5f245ccf
+_xlfn.COTH({A})	n:c37fb7c070cf5fe2
+_xlfn.COTH({A})	n:af7fadc137f09e2b
+_xlfn.COTH({A})	n:479c44271af8a8e8
+_xlfn.COTH({A})	n:3a0f5cdcb0d1e22e
+_xlfn.COTH({A})	n:ca33712fb0678edd
+_xlfn.COTH({A})	n:9af4a1f9bf965083
+_xlfn.COTH({A})	n:b0b11e125b5a67b0
+_xlfn.COTH({A})	n:ad94a67a3317907a
+_xlfn.COTH({A})	n:a3dc1a73b662ba7a
+_xlfn.COTH({A})	n:729cec2745f8d146
+_xlfn.COTH({A})	n:c877787b2b5f6522
+_xlfn.COTH({A})	n:ac8a073611468966
+_xlfn.COTH({A})	n:a8959ef822d7c299
+_xlfn.COTH({A})	n:e21f37a42ca2ee1b
+#
+# family LOG: 254 rows of 23924 usable readings in 6 classes (4 boundary rows beyond the stride); none left out
+# sources: elementary-publication/discovery/answers-log.json, elementary-publication/heldout/answers-log.json, elementary-publication/omitted-base/answers-log.json, elementary-publication/prepared-first-heldout/answers-log.json
+LOG({A},{B})	n:75c1397ebc8c931d	n:11cc69712bb0aefb
+LOG({A},{B})	n:3ff0000000000000	n:24d639ec7d93cdbd
+LOG({A},{B})	n:4e2fd51000a38c2e	n:7696f0899f4b7b99
+LOG({A},{B})	n:58d5503cd48cae84	n:04e2eacfe6e67028
+LOG({A},{B})	n:3ff0000000000000	n:5fc8066553ccf3a4
+LOG({A},{B})	n:672be23d8abdfc2c	n:454c584803c112ce
+LOG({A},{B})	n:53ac00255fb2f140	n:789b073b97ae739e
+LOG({A},{B})	n:3ff0000000000000	n:7471e59096ab6722
+LOG({A},{B})	n:1fc7e56c0cf63381	n:7da5485e52ad2a59
+LOG({A},{B})	n:6a27872b6f30cb15	n:0df64517336caae3
+LOG({A},{B})	n:3ff0000000000000	n:79b760db48aa804b
+LOG({A},{B})	n:3bee209ede61ed41	n:72d2d3e833c45524
+LOG({A},{B})	n:35959cff72ce6289	n:28f6291ae65d40f5
+LOG({A},{B})	n:3ff0000000000000	n:6e47ee6ed275fda4
+LOG({A},{B})	n:14a9cfe9f335c2d2	n:4bfc3f650c219e12
+LOG({A},{B})	n:3ff0000000000000	n:22991d9d90b9a034
+LOG({A},{B})	n:3ff0000000000000	n:488512f4b573d487
+LOG({A},{B})	n:2bf4bb949b379c9e	n:52459246d2d55505
+LOG({A},{B})	n:3ff0000000000000	n:4bc29440f42b63c0
+LOG({A},{B})	n:3ff0000000000000	n:5ec2b8a824e6a0bd
+LOG({A},{B})	n:5fda8ccac1c24e45	n:511384798bf5a584
+LOG({A},{B})	n:3ff0000000000000	n:59dfc5466d3ea503
+LOG({A},{B})	n:3ff0000000000000	n:0172d6558c1b6cf2
+LOG({A},{B})	n:6818a5a0b17d6ae4	n:40897663f5eda22f
+LOG({A},{B})	n:3ff0000000000000	n:5d1996a05da1b81e
+LOG({A},{B})	n:3ff0000000000000	n:4745eb15e1822ad8
+LOG({A},{B})	n:01c8d2f961537491	n:62150da29269f8b6
+LOG({A},{B})	n:3ff0000000000000	n:770715d55210564d
+LOG({A},{B})	n:3ff0000000000000	n:63a58f871fccc47a
+LOG({A},{B})	n:74e828ae6f7f0aa2	n:43fbcddef1c72061
+LOG({A},{B})	n:3ff0000000000000	n:5f63af605f1adba8
+LOG({A},{B})	n:1d1c71453f01b004	n:5396bffaaa76a08f
+LOG({A},{B})	n:017d08111d0098e1	n:0bf18e8cd39fd59f
+LOG({A},{B})	n:3ff0000000000000	n:3e323e61a92158ba
+LOG({A},{B})	n:4a1a74e31194ad90	n:1f9f8fed3c857b23
+LOG({A},{B})	n:337619c38e32e716	n:738a492b87f2be1b
+LOG({A},{B})	n:3ff0000000000000	n:0effc3d42fdf5fe2
+LOG({A},{B})	n:5ca74ca0b188fadd	n:13a245ae7e7eb777
+LOG({A},{B})	n:6010ec714eb649ae	n:5211d451e3fa9a38
+LOG({A},{B})	n:3ff0000000000000	n:4236d6c9c4da24ca
+LOG({A},{B})	n:45ac33e32ad6566b	n:2a6e08469f1e80e7
+LOG({A},{B})	n:042265ab1fcf16e9	n:6d9467c900dc7bb3
+LOG({A},{B})	n:39f84f3b382ca13f	n:682b7b1f30394892
+LOG({A},{B})	n:3ff0000000000000	n:36d2689e9d61e8e5
+LOG({A},{B})	n:232532ee5aa09319	n:4d7c84529e9cd7f2
+LOG({A},{B})	n:7212de172ad9d96c	n:74fb9e7d32e2234c
+LOG({A},{B})	n:0b0a271b50f82631	n:06445b0215c523f6
+LOG({A},{B})	n:3ff0000000000000	n:520c6d9ee6f1aec1
+LOG({A},{B})	n:3ff0000000000000	n:19663de37c6346b7
+LOG({A},{B})	n:222c08843cbad48a	n:47cfde1d9386cca5
+LOG({A},{B})	n:3e5e809d4748e0e8	n:66704b856b428d3c
+LOG({A},{B})	n:3ff0000000000000	n:34965c6db79e3df4
+LOG({A},{B})	n:03b77975a6cd4846	n:55f6da359b6b1199
+LOG({A},{B})	n:3ff0000000000000	n:237fdeeb79918588
+LOG({A},{B})	n:6c1a5ae420158499	n:712067131b60ee62
+LOG({A},{B})	n:5cce0aa3a017b677	n:146ab004cd90124a
+LOG({A},{B})	n:3a1a01f68fa01338	n:0bcd12e9d37f1ebe
+LOG({A},{B})	n:5a0d3fe144dbdfff	n:7e05b20d7cee137e
+LOG({A},{B})	n:77bdf5b3f87d34de	n:3b4972606c10f831
+LOG({A},{B})	n:4d033bd0e017c0c1	n:5abe6f5c00338ec0
+LOG({A},{B})	n:403054f10bd1e6d4	n:441d1f142bc5aab2
+LOG({A},{B})	n:3ff0000000000000	n:33d92ecf71391350
+LOG({A},{B})	n:7bdd555636eb01b8	n:0e05eccd50a5da5d
+LOG({A},{B})	n:105e94cd1a753838	n:4efc86993d196b20
+LOG({A},{B})	n:3ff0000000000000	n:5a27638e28e7c619
+LOG({A},{B})	n:3ff0000000000000	n:3f8a94e9c8754942
+LOG({A},{B})	n:3ff0000000000000	n:09dd807232f718cf
+LOG({A},{B})	n:5e9c34048afdf395	n:7d937bca788d0ce8
+LOG({A},{B})	n:3ff0000000000000	n:2561f5d69d46f293
+LOG({A},{B})	n:79cdde7a2ca0ab07	n:03454023678e0cea
+LOG({A},{B})	n:5f6947b4c6453871	n:49b9cc2e578f4380
+LOG({A},{B})	n:3ff0000000000000	n:15917abc98bf5c1c
+LOG({A},{B})	n:224cef40bc258b31	n:71349402053c0693
+LOG({A},{B})	n:631448c3bb4f2468	n:52ab69895072d29a
+LOG({A},{B})	n:3ff0000000000000	n:0100f6029c6ea446
+LOG({A},{B})	n:698f3546e05534ce	n:339b780e1581c29c
+LOG({A},{B})	n:7a2d287c0cd4698b	n:541a33e5c4d7a0c6
+LOG({A},{B})	n:4481fb69526afad9	n:24b586101055d19b
+LOG({A},{B})	n:331d94c5099804d3	n:73ef3ac714b4e64a
+LOG({A},{B})	n:3ff0000000000000	n:644a2a5696a12b99
+LOG({A},{B})	n:3ff000000000006a	n:3fefffffffffffe1
+LOG({A},{B})	n:3ff00000000000bd	n:3ff0000000000009
+LOG({A},{B})	n:3ff00000000000da	n:3fefffffffffff48
+LOG({A},{B})	n:3fefffffffffff61	n:3ff0000000000015
+LOG({A})	n:004993d538bd35a9
+LOG({A})	n:037ada36fd6473a5
+LOG({A})	n:0696c274ece88e1d
+LOG({A})	n:0ab47c7b400b6d26
+LOG({A})	n:0ca992e25d8cf15b
+LOG({A})	n:0fe2766a8ab8e7a6
+LOG({A})	n:12dc678454929f63
+LOG({A})	n:17257a5a185b237f
+LOG({A})	n:1a7f09a3e89d208c
+LOG({A})	n:1f5553e941bc5758
+LOG({A})	n:23bfabd4acc733ca
+LOG({A})	n:26c4ad2c3d574296
+LOG({A})	n:29983bfdf196f2a0
+LOG({A})	n:2c8aea25f8ad01b5
+LOG({A})	n:30394da810071b2a
+LOG({A})	n:32b678980f6443ca
+LOG({A})	n:3695d12eff32f0a5
+LOG({A})	n:3b423537588624dd
+LOG({A})	n:3e257ef77a5bf263
+LOG({A})	n:3fb9999999999999
+LOG({A})	n:4058ffffffffffff
+LOG({A})	n:4197d78400000001
+LOG({A})	n:451ce6b7bad9e149
+LOG({A})	n:49b375b2c2eeb6f0
+LOG({A})	n:4d384f03e93ff9f5
+LOG({A})	n:50330dcd4f5b34d3
+LOG({A})	n:52e57918be4231a3
+LOG({A})	n:546e23da71916ae2
+LOG({A})	n:579219a23105a533
+LOG({A})	n:5a827748f9301d33
+LOG({A})	n:5cc51bbde417377a
+LOG({A})	n:5f8cab3d32df9528
+LOG({A})	n:62f15b94429b67a5
+LOG({A})	n:662a83ab605affd2
+LOG({A})	n:68c70b051f69f19d
+LOG({A})	n:6cc413a500092b13
+LOG({A})	n:71208f4e080e1422
+LOG({A})	n:7475aeceedab13bf
+LOG({A})	n:77efe18d55c8d082
+LOG({A})	n:7b5db0562a4a2292
+LOG({A})	n:7f72b24f48c94f55
+LOG({A},{B})	n:0010000000000001	n:4024000000000000
+LOG({A},{B})	n:0256adc8815c76f6	n:4024000000000000
+LOG({A},{B})	n:05e46edd5aef5842	n:4024000000000000
+LOG({A},{B})	n:093eee41c7c4b3c7	n:4024000000000000
+LOG({A},{B})	n:0bec8792bf69e4fc	n:4024000000000000
+LOG({A},{B})	n:0f5609baab008032	n:4024000000000000
+LOG({A},{B})	n:120d927e41b70714	n:4024000000000000
+LOG({A},{B})	n:168880f291df035b	n:4024000000000000
+LOG({A},{B})	n:1950854040f9a80e	n:4024000000000000
+LOG({A},{B})	n:1e4a9ae90a1d0932	n:4024000000000000
+LOG({A},{B})	n:21a3630f3696a3a8	n:4024000000000000
+LOG({A},{B})	n:255bba08cf8c979d	n:4024000000000000
+LOG({A},{B})	n:27f6897ca3e6cf61	n:4024000000000000
+LOG({A},{B})	n:2bc8e2014e6bd3c5	n:4024000000000000
+LOG({A},{B})	n:2f45a3c736701f32	n:4024000000000000
+LOG({A},{B})	n:326bb6d69466e70a	n:4024000000000000
+LOG({A},{B})	n:3558c33aa8096cf9	n:4024000000000000
+LOG({A},{B})	n:3a6ff2da2a7fdb56	n:4024000000000000
+LOG({A},{B})	n:3cb4d1219a71657e	n:4024000000000000
+LOG({A},{B})	n:3f32c0e9ca00223a	n:4024000000000000
+LOG({A},{B})	n:4021a1e74fbb45f5	n:4024000000000000
+LOG({A},{B})	n:40c3880000000001	n:4024000000000000
+LOG({A},{B})	n:4341c37937e08001	n:4024000000000000
+LOG({A},{B})	n:4712e092e3b37d6d	n:4024000000000000
+LOG({A},{B})	n:4cac2bb783f6fe0b	n:4024000000000000
+LOG({A},{B})	n:4e7706eb94236754	n:4024000000000000
+LOG({A},{B})	n:521cf2ada1707a65	n:4024000000000000
+LOG({A},{B})	n:53933bddec2a991f	n:4024000000000000
+LOG({A},{B})	n:56bed6d847c6a2d1	n:4024000000000000
+LOG({A},{B})	n:59a6cccbc28ebbfc	n:4024000000000000
+LOG({A},{B})	n:5bcdaa6f9eb63584	n:4024000000000000
+LOG({A},{B})	n:5e93eb1c2cdf5e4d	n:4024000000000000
+LOG({A},{B})	n:614da0d421996c09	n:4024000000000000
+LOG({A},{B})	n:65767471b4b7c068	n:4024000000000000
+LOG({A},{B})	n:67a607fac5a9747f	n:4024000000000000
+LOG({A},{B})	n:6bdc87578c157ddf	n:4024000000000000
+LOG({A},{B})	n:6fc94261f0601d52	n:4024000000000000
+LOG({A},{B})	n:7341579a58a7c80d	n:4024000000000000
+LOG({A},{B})	n:763313ab8d0f8e76	n:4024000000000000
+LOG({A},{B})	n:7a1dd433be1f8f11	n:4024000000000000
+LOG({A},{B})	n:7e464a13f3e507db	n:4024000000000000
+LOG({A})	n:5a4acefe7ea96066
+LOG({A})	n:18b9c6f54ad568c1
+LOG({A})	n:370615534bf6abf0
+LOG({A})	n:2bd7e50b2b903dbc
+LOG({A})	n:1231b19ee1b57afd
+LOG({A})	n:61cee4c9e828fdee
+LOG({A})	n:35a971664ca441be
+LOG({A})	n:0a3e3aa14eecbb69
+LOG({A})	n:6919db98d86216e7
+LOG({A})	n:10175e37b6ead02e
+LOG({A})	n:07ee1114846e8b3c
+LOG({A})	n:41ccc5e9cdc8e4bf
+LOG({A})	n:6adb6f76c9c448d9
+LOG({A})	n:768324e29659a643
+LOG({A})	n:0f588b70bebb3a7b
+LOG({A})	n:18a4674d41e54733
+LOG({A})	n:0521a5f5474e7973
+LOG({A})	n:0392f2022e2e0097
+LOG({A})	n:01cef567fe4cef90
+LOG({A})	n:3870ea32036adbc5
+LOG({A})	n:18b1dda42cdb7016
+LOG({A})	n:3b5efe9b2261ea69
+LOG({A})	n:6b32c232cbd729ee
+LOG({A})	n:671e86bb85fed0bb
+LOG({A})	n:62aff19bda039b02
+LOG({A})	n:5ab35a12cca64b61
+LOG({A})	n:7fb0a8a7249b27ed
+LOG({A})	n:022b20dac8f6332e
+LOG({A})	n:389b3f31a78894db
+LOG({A})	n:278a067a501dae59
+LOG({A})	n:44152e028237273c
+LOG({A})	n:261fc750524a0ed6
+LOG({A})	n:7815e4b4edd3dfcc
+LOG({A})	n:7e3ecdfe8e2d7381
+LOG({A})	n:331f5651a705dc5e
+LOG({A})	n:0262ea643962c40a
+LOG({A})	n:52a76ff118aeb1a7
+LOG({A})	n:01ce10159f5aea4c
+LOG({A})	n:504a394960b979f6
+LOG({A})	n:4d02c5011718e711
+LOG({A})	n:697c30984c199824
+LOG({A})	n:319790f168f6e97a
+LOG({A},{B})	n:5c817129878d1b72	n:4024000000000000
+LOG({A},{B})	n:19a54fcb3f0a8a90	n:4024000000000000
+LOG({A},{B})	n:47cd069dd0762047	n:4024000000000000
+LOG({A},{B})	n:7f5f7394832a7110	n:4024000000000000
+LOG({A},{B})	n:090681f3cea26481	n:4024000000000000
+LOG({A},{B})	n:63f1a1e3a719eea6	n:4024000000000000
+LOG({A},{B})	n:54f44eebf3b5bc75	n:4024000000000000
+LOG({A},{B})	n:00e3c878de1c5dc1	n:4024000000000000
+LOG({A},{B})	n:01b13bfdad639b9b	n:4024000000000000
+LOG({A},{B})	n:3b9fb0b9533d577b	n:4024000000000000
+LOG({A},{B})	n:59a5b31adf639471	n:4024000000000000
+LOG({A},{B})	n:2a88ae3fdd54053a	n:4024000000000000
+LOG({A},{B})	n:10db078d700c5f98	n:4024000000000000
+LOG({A},{B})	n:6d8039120da40ffc	n:4024000000000000
+LOG({A},{B})	n:50079ac76de4e48b	n:4024000000000000
+LOG({A},{B})	n:16bdb2404b812248	n:4024000000000000
+LOG({A},{B})	n:6ed9cf7cbfa44b29	n:4024000000000000
+LOG({A},{B})	n:64de6011d3d6a612	n:4024000000000000
+LOG({A},{B})	n:2686115c19666ec7	n:4024000000000000
+LOG({A},{B})	n:3f54b38c4d41951f	n:4024000000000000
+LOG({A},{B})	n:3be397265c46d19d	n:4024000000000000
+LOG({A},{B})	n:37eaf7aff219812c	n:4024000000000000
+LOG({A},{B})	n:0f63122ff14a5792	n:4024000000000000
+LOG({A},{B})	n:554093685df289d0	n:4024000000000000
+LOG({A},{B})	n:037740717d5a205f	n:4024000000000000
+LOG({A},{B})	n:318ff9c2452ee8b0	n:4024000000000000
+LOG({A},{B})	n:1030f76bbf2189c6	n:4024000000000000
+LOG({A},{B})	n:4fd2a4f09e77fe72	n:4024000000000000
+LOG({A},{B})	n:5575056e8dac6860	n:4024000000000000
+LOG({A},{B})	n:09d540e7651a0f64	n:4024000000000000
+LOG({A},{B})	n:6a4eb3dd41ef772b	n:4024000000000000
+LOG({A},{B})	n:74b17f6569f6bb0a	n:4024000000000000
+LOG({A},{B})	n:738590a61790633b	n:4024000000000000
+LOG({A},{B})	n:453ef26ea7298b5f	n:4024000000000000
+LOG({A},{B})	n:55f61e0290a53aea	n:4024000000000000
+LOG({A},{B})	n:632f3f391885c7b0	n:4024000000000000
+LOG({A},{B})	n:7ee922f80e44eb4d	n:4024000000000000
+LOG({A},{B})	n:6ff58c206793cbe9	n:4024000000000000
+LOG({A},{B})	n:35693b9f67016166	n:4024000000000000
+LOG({A},{B})	n:4177c8c87de4152a	n:4024000000000000
+LOG({A},{B})	n:02de8277dbe79ca1	n:4024000000000000
+LOG({A},{B})	n:185748c361511f64	n:4024000000000000
+LOG({A})	n:0010000000000000
+LOG({A},{B})	n:0010000000000000	n:4024000000000000
+LOG({A})	n:7fefffffffffffff
+LOG({A},{B})	n:7fefffffffffffff	n:4024000000000000
+#
+# family LOG10: 252 rows of 1609 usable readings in 2 classes (2 boundary rows beyond the stride); none left out
+# sources: elementary-publication/omitted-base/answers-log10.json, elementary-publication/prepared-first-heldout/answers-log10.json
+LOG10({A})	n:bff0000000000000
+LOG10({A})	n:0014371991d177ca
+LOG10({A})	n:007e1319b45fa329
+LOG10({A})	n:01a91f173637fbc6
+LOG10({A})	n:027da3f1cebf9468
+LOG10({A})	n:03a0f346c8275357
+LOG10({A})	n:043d5d36ea854cef
+LOG10({A})	n:05e46edd5aef5842
+LOG10({A})	n:069712777eacdd09
+LOG10({A})	n:0774c18b06f0cc6e
+LOG10({A})	n:093eee41c7c4b3c7
+LOG10({A})	n:0ab47c7b400b6d26
+LOG10({A})	n:0af8adc1c02da1c7
+LOG10({A})	n:0bec8792bf69e4fc
+LOG10({A})	n:0ca992e25d8cf15b
+LOG10({A})	n:0d9cba7a6c416ed2
+LOG10({A})	n:0f700a7a818152ce
+LOG10({A})	n:0fe2766a8ab8e7a6
+LOG10({A})	n:10b6bb3abb3df862
+LOG10({A})	n:120d927e41b70714
+LOG10({A})	n:12af09908c1dcacb
+LOG10({A})	n:1329310d59bd4556
+LOG10({A})	n:168880f291df035b
+LOG10({A})	n:16fc92f0147a70bd
+LOG10({A})	n:18a2a225a2744933
+LOG10({A})	n:1950854040f9a80e
+LOG10({A})	n:19e8763325097249
+LOG10({A})	n:1bef2bfb84f0d24a
+LOG10({A})	n:1e13fdbff6fa035a
+LOG10({A})	n:1f486d6f91167111
+LOG10({A})	n:2039897845071a48
+LOG10({A})	n:21a0bda9f2f47d25
+LOG10({A})	n:2305f209a9b97e90
+LOG10({A})	n:248359be3d3bb0cd
+LOG10({A})	n:255bba08cf8c979c
+LOG10({A})	n:2674da0ea15ed9d1
+LOG10({A})	n:27225ef3272292d4
+LOG10({A})	n:279e77a9b3c09753
+LOG10({A})	n:2905185737a02f67
+LOG10({A})	n:29d4ac327aedb80f
+LOG10({A})	n:2b32c7adbc133733
+LOG10({A})	n:2c3faa52511276db
+LOG10({A})	n:2d51aa6942b30d31
+LOG10({A})	n:2efd9c2849c5bd2e
+LOG10({A})	n:300b376d5c33ad27
+LOG10({A})	n:3074582d3128333c
+LOG10({A})	n:322f84f80e809b10
+LOG10({A})	n:32a50ffd44f4a73e
+LOG10({A})	n:32c8a72b9e985afe
+LOG10({A})	n:34f2ffb6241d7f0a
+LOG10({A})	n:36308ad1053c70bd
+LOG10({A})	n:36fc16f50626b6e8
+LOG10({A})	n:3949f623d5a8a734
+LOG10({A})	n:3a883aa39c818795
+LOG10({A})	n:3bab4c4466341ca7
+LOG10({A})	n:3c9cd2b297d889bb
+LOG10({A})	n:3d2ef5eaca836012
+LOG10({A})	n:3e45798ee2308c39
+LOG10({A})	n:3f1a36e2eb1c432c
+LOG10({A})	n:3f847ae147ae147a
+LOG10({A})	n:3fb999999999999a
+LOG10({A})	n:3fefffffffffffff
+LOG10({A})	n:4023ffffffffffff
+LOG10({A})	n:4059000000000000
+LOG10({A})	n:409cbc74cb0a5725
+LOG10({A})	n:413376fed1c3aea5
+LOG10({A})	n:41ae697bbca7893a
+LOG10({A})	n:42d2515958313810
+LOG10({A})	n:4388ab0875cb0ba1
+LOG10({A})	n:4584ab55cf3f7f28
+LOG10({A})	n:4693b8b5b5056e16
+LOG10({A})	n:4762f9b46e607109
+LOG10({A})	n:4a53514b19547c90
+LOG10({A})	n:4b89c8ca4ba8fa3a
+LOG10({A})	n:4cac2bb783f6fe0b
+LOG10({A})	n:4d384f03e93ff9f6
+LOG10({A})	n:4db2692dedc71004
+LOG10({A})	n:4e7706eb94236754
+LOG10({A})	n:50330dcd4f5b34d3
+LOG10({A})	n:50b0afdd050d4b04
+LOG10({A})	n:521cf2ada1707a65
+LOG10({A})	n:52e57918be4231a3
+LOG10({A})	n:531702d59a86c92a
+LOG10({A})	n:53933bddec2a991f
+LOG10({A})	n:546e23da71916ae2
+LOG10({A})	n:54f0c07071497006
+LOG10({A})	n:567f92c0cc7bd794
+LOG10({A})	n:579219a23105a533
+LOG10({A})	n:5815fe12fb35f926
+LOG10({A})	n:598dc6cb52c13c97
+LOG10({A})	n:5a827748f9301d32
+LOG10({A})	n:5b1d7a309077cabc
+LOG10({A})	n:5bad5caeacbadd87
+LOG10({A})	n:5c477ddd0786ca86
+LOG10({A})	n:5d982459cd0884e7
+LOG10({A})	n:5e60efda0deae88e
+LOG10({A})	n:5f4051c8db7973e6
+LOG10({A})	n:60538dd13a074e51
+LOG10({A})	n:6149d48da16e7abc
+LOG10({A})	n:6267590e0c96147a
+LOG10({A})	n:64316908bb9c4b6e
+LOG10({A})	n:6573abe2c088adfe
+LOG10({A})	n:65cc7de893af0e20
+LOG10({A})	n:6682c63347bf7bbb
+LOG10({A})	n:671648ddebf73386
+LOG10({A})	n:684585dd69ee8d67
+LOG10({A})	n:6a4519c4302323f1
+LOG10({A})	n:6b153f2e3722885e
+LOG10({A})	n:6c0c175db9b0e78c
+LOG10({A})	n:6cfc045810663ffe
+LOG10({A})	n:6dd5ed2694afa480
+LOG10({A})	n:70744d1ec06690ba
+LOG10({A})	n:717f7e6f3be520fe
+LOG10({A})	n:7244313fc28e81a2
+LOG10({A})	n:742bdf0665e15a97
+LOG10({A})	n:75154fdd7f73bf3b
+LOG10({A})	n:75dba7a5d4a478b4
+LOG10({A})	n:7715a74828cf8705
+LOG10({A})	n:784e578c4aaccc2b
+LOG10({A})	n:796c5f828027b6fe
+LOG10({A})	n:7b005e0075eb3fd4
+LOG10({A})	n:7c34ed14da1c8fba
+LOG10({A})	n:7ddf4d230a9c2cd3
+LOG10({A})	n:7e7be9cbf2f4c6e3
+LOG10({A})	n:7fac7b1f3cac7432
+LOG10({A})	n:3be53d297be73ca4
+LOG10({A})	n:0809032bb1858944
+LOG10({A})	n:0860817f58aed0e7
+LOG10({A})	n:47ca343eb4f02417
+LOG10({A})	n:453101109d839dc0
+LOG10({A})	n:5364d065b52f7374
+LOG10({A})	n:3907bf95c133782e
+LOG10({A})	n:546fa41be4821ebe
+LOG10({A})	n:625e7d5b46717a5e
+LOG10({A})	n:27441633c55b155a
+LOG10({A})	n:6b88b10ba02fe96d
+LOG10({A})	n:0b1b37ea63c60ccc
+LOG10({A})	n:1b223fc8765f9fbc
+LOG10({A})	n:128b530edfa1980a
+LOG10({A})	n:0d7d8f89792ff50b
+LOG10({A})	n:7104c168594b08ae
+LOG10({A})	n:6aec62414fcc0582
+LOG10({A})	n:1809a01329441664
+LOG10({A})	n:495c65caac2047a2
+LOG10({A})	n:1faf472e8550e717
+LOG10({A})	n:08e0b0c13f8e4071
+LOG10({A})	n:7700f67c667eac98
+LOG10({A})	n:0a3e3aa14eecbb69
+LOG10({A})	n:3e9dbfa9fe5d8cba
+LOG10({A})	n:5f84e0ea903769a6
+LOG10({A})	n:3dc5138846c73e22
+LOG10({A})	n:23146bb5c7c829b5
+LOG10({A})	n:4349baf7e7a04925
+LOG10({A})	n:10175e37b6ead02e
+LOG10({A})	n:281db3c7a92aa96c
+LOG10({A})	n:69ce1c872c009b22
+LOG10({A})	n:07ee1114846e8b3c
+LOG10({A})	n:4af02ecd3a3f3972
+LOG10({A})	n:00db23e1406c77cc
+LOG10({A})	n:41ccc5e9cdc8e4bf
+LOG10({A})	n:09eb6bee3cc8464b
+LOG10({A})	n:68ad93a5467af015
+LOG10({A})	n:1f1231c191b41169
+LOG10({A})	n:280373dcedc105ad
+LOG10({A})	n:6dff7f3447c0425d
+LOG10({A})	n:768324e29659a643
+LOG10({A})	n:305f59e4e16d2eda
+LOG10({A})	n:26249b11b726931b
+LOG10({A})	n:176bff06b4ea4631
+LOG10({A})	n:7e41724f1457b4f7
+LOG10({A})	n:1057adacac013450
+LOG10({A})	n:18a4674d41e54733
+LOG10({A})	n:323f060172ac6a92
+LOG10({A})	n:471c3943349848c6
+LOG10({A})	n:7c70cdc687270806
+LOG10({A})	n:07609ed1d43fdde7
+LOG10({A})	n:0b9977011a09dc0d
+LOG10({A})	n:79760652b9fe4e6c
+LOG10({A})	n:677a66f509a6cae5
+LOG10({A})	n:5b5f2b8d1c5f72a0
+LOG10({A})	n:3ac3eb2209728765
+LOG10({A})	n:403c1c0304a722c0
+LOG10({A})	n:5206ecd2487b0df4
+LOG10({A})	n:0c144e59069b97ba
+LOG10({A})	n:6ee955fde6bffb35
+LOG10({A})	n:583688bfa841e3b3
+LOG10({A})	n:49f1a2c39d23138b
+LOG10({A})	n:47ddf50249f120ed
+LOG10({A})	n:0d8218cb7a8210eb
+LOG10({A})	n:1ef7400549ea47ef
+LOG10({A})	n:6a8fa8d4f93c9b43
+LOG10({A})	n:3514a07a881bfdeb
+LOG10({A})	n:0efaef6332e33c47
+LOG10({A})	n:460e214defddd2ab
+LOG10({A})	n:750a4701e8da819a
+LOG10({A})	n:410d8f72092cb7d1
+LOG10({A})	n:156b8a96378c55b3
+LOG10({A})	n:4101788505adca78
+LOG10({A})	n:037740717d5a205f
+LOG10({A})	n:3befb3dcd466e21b
+LOG10({A})	n:015d40ebb657854f
+LOG10({A})	n:4a22c7a5a676c4cc
+LOG10({A})	n:06d2d71a73137252
+LOG10({A})	n:5100468fcc680e8a
+LOG10({A})	n:1030f76bbf2189c6
+LOG10({A})	n:5101c21793a10f6b
+LOG10({A})	n:65020046b8ab8930
+LOG10({A})	n:68d693a878a08a6d
+LOG10({A})	n:4e8578784a0552ca
+LOG10({A})	n:510fb69e0eafb915
+LOG10({A})	n:5575056e8dac6860
+LOG10({A})	n:3017c1dfaa0e7137
+LOG10({A})	n:0b5d4b244bd240e0
+LOG10({A})	n:09d540e7651a0f64
+LOG10({A})	n:429b090b9cc89714
+LOG10({A})	n:5cdafd345a6ab5c5
+LOG10({A})	n:6a4eb3dd41ef772b
+LOG10({A})	n:42b6bbe3dea037c0
+LOG10({A})	n:032fde98a472d618
+LOG10({A})	n:2be030b9887796d4
+LOG10({A})	n:6178c190cff0d6e1
+LOG10({A})	n:5e5ba0f2feab3bdd
+LOG10({A})	n:738590a61790633b
+LOG10({A})	n:72c9438ed966fc4d
+LOG10({A})	n:669e41e2e9d7713d
+LOG10({A})	n:626235ce9f9ba742
+LOG10({A})	n:3cef91ef0c0a146e
+LOG10({A})	n:32b4ca123009c0bd
+LOG10({A})	n:03e2e1dd4f1b9e6d
+LOG10({A})	n:0f255c3b31960120
+LOG10({A})	n:0af4211bf6f0c70e
+LOG10({A})	n:38be66c199bd91c9
+LOG10({A})	n:4614196dca589af0
+LOG10({A})	n:478ce58f780528bb
+LOG10({A})	n:35b531923fdbf9a2
+LOG10({A})	n:466869003f6fd1e7
+LOG10({A})	n:65d79e58046e93b7
+LOG10({A})	n:1b64d6db9fe4b8b2
+LOG10({A})	n:238d661fc822887e
+LOG10({A})	n:02c018308546f68c
+LOG10({A})	n:65ea8cbed3d01c76
+LOG10({A})	n:5245fa5fa5268251
+LOG10({A})	n:77d21d5cd97bf525
+LOG10({A})	n:384d58079d3322cf
+LOG10({A})	n:45c3af85bc4d58d5
+LOG10({A})	n:2f87177e8c6570bb
+LOG10({A})	n:1a1d23647bb6da76
+LOG10({A})	n:05c61c3467af14bf
+LOG10({A})	n:626da8b8116b5661
+LOG10({A})	n:7f31041d16d04c6b
+LOG10({A})	n:0010000000000000
+LOG10({A})	n:7fefffffffffffff
+#
+# family POWER: 249 rows of 61742 usable readings in 8 classes (0 boundary rows beyond the stride); none left out
+# sources: elementary-publication/discovery/answers-power.json, elementary-publication/heldout/answers-power.json, power-integer-thresholds/decimal-wrap-answers.json, power-integer-thresholds/discovery-answers.json, power-integer-thresholds/heldout-answers.json
+POWER({A},{B})	n:4024000000000000	n:c08c100000000000
+POWER({A},{B})	n:4024000000000000	n:c070a00000000000
+POWER({A},{B})	n:4024000000000000	n:4076d00000000000
+POWER({A},{B})	n:4024000000000000	n:408f280000000000
+POWER({A},{B})	n:c024000000000000	n:c081e80000000000
+POWER({A},{B})	n:c024000000000000	n:404d800000000000
+POWER({A},{B})	n:c024000000000000	n:4085900000000000
+POWER({A},{B})	n:3fb999999999999a	n:c08b780000000000
+POWER({A},{B})	n:3fb999999999999a	n:c06f000000000000
+POWER({A},{B})	n:3fb999999999999a	n:4077f00000000000
+POWER({A},{B})	n:3fb999999999999a	n:408fb80000000000
+POWER({A},{B})	n:bfb999999999999a	n:c081580000000000
+POWER({A},{B})	n:bfb999999999999a	n:4053400000000000
+POWER({A},{B})	n:bfb999999999999a	n:4086200000000000
+POWER({A},{B})	n:4000000000000000	n:c08ae80000000000
+POWER({A},{B})	n:4000000000000000	n:c06cc00000000000
+POWER({A},{B})	n:4000000000000000	n:4079100000000000
+POWER({A},{B})	n:4000000000000000	n:4090240000000000
+POWER({A},{B})	n:c000000000000000	n:c080c80000000000
+POWER({A},{B})	n:c000000000000000	n:4057c00000000000
+POWER({A},{B})	n:c000000000000000	n:4086b00000000000
+POWER({A},{B})	n:c011718c41b84b00	n:c04c800000000000
+POWER({A},{B})	n:3fe59f8d31a1ba60	n:c063c00000000000
+POWER({A},{B})	n:4033bf39de5e9526	n:4051c00000000000
+POWER({A},{B})	n:401f734440d7267c	n:c054000000000000
+POWER({A},{B})	n:c0277c45fc8c3e3c	n:c066e00000000000
+POWER({A},{B})	n:40256a899c078e34	n:403f000000000000
+POWER({A},{B})	n:4085bda2d24ea851	n:c000000000000000
+POWER({A},{B})	n:4dcf93472cd41060	n:3ff0000000000000
+POWER({A},{B})	n:65d80bbcb31f5b93	n:3fe0000000000000
+POWER({A},{B})	n:7f39f3118fa8b80a	n:bfe0000000000000
+POWER({A},{B})	n:6ab12943c4a73f5d	n:3fd0000000000000
+POWER({A},{B})	n:c02748e580209a16	n:404b000000000000
+POWER({A},{B})	n:bfaf245e9de26400	n:c073600000000000
+POWER({A},{B})	n:40376cc650374868	n:c073100000000000
+POWER({A},{B})	n:c017179983123898	n:407b100000000000
+POWER({A},{B})	n:4022ad586eeb3414	n:c056c00000000000
+POWER({A},{B})	n:4030fff855a98a52	n:c06b800000000000
+POWER({A},{B})	n:4032d0f47f1d4d26	n:4030000000000000
+POWER({A},{B})	n:c039b5f15f53ad77	n:4078500000000000
+POWER({A},{B})	n:402a4a14453e2f20	n:4075f00000000000
+POWER({A},{B})	n:c01d13db7fdb30c0	n:c05e400000000000
+POWER({A},{B})	n:c036ffed90c9bfd2	n:c07b800000000000
+POWER({A},{B})	n:c03a0393b5b69186	n:404b800000000000
+POWER({A},{B})	n:402defb2ec08125c	n:4077d00000000000
+POWER({A},{B})	n:40192992b7519990	n:4076300000000000
+POWER({A},{B})	n:c0112c8e61e2c484	n:4073c00000000000
+POWER({A},{B})	n:401f0f689f27b498	n:c07b300000000000
+POWER({A},{B})	n:c02c2be8ac6556aa	n:c07a200000000000
+POWER({A},{B})	n:c0339f9f48e9af2a	n:c076b00000000000
+POWER({A},{B})	n:c023c51f3e08dc3c	n:4074b00000000000
+POWER({A},{B})	n:403b0544a1da7698	n:c071800000000000
+POWER({A},{B})	n:402de09652a16d04	n:c077300000000000
+POWER({A},{B})	n:c03ae47cce99ab8a	n:c05e800000000000
+POWER({A},{B})	n:67fe8c2bce80e364	n:bfe0000000000000
+POWER({A},{B})	n:1937a60059bd9e88	n:3fe0000000000000
+POWER({A},{B})	n:455354baea43071f	n:bfe0000000000000
+POWER({A},{B})	n:687e25a181e31038	n:3fe0000000000000
+POWER({A},{B})	n:2d7e1619d76a4957	n:c0088b14f6279310
+POWER({A},{B})	n:52c178a10323f3e4	n:c000000000000000
+POWER({A},{B})	n:5553b11a818299e8	n:4000000000000000
+POWER({A},{B})	n:1bbccedfdbdc374b	n:3ff0000000000000
+POWER({A},{B})	n:4f4c1714cc0fc014	n:3fd0000000000000
+POWER({A},{B})	n:3fefffffffffffff	n:41e0000000000000
+POWER({A},{B})	n:c024000000000002	n:41dfffffffc00000
+POWER({A},{B})	n:c024000000000001	n:c1f0000000040000
+POWER({A},{B})	n:c023ffffffffffff	n:c1e3348deb000000
+POWER({A},{B})	n:c000000000000000	n:40dfff8000000000
+POWER({A},{B})	n:bff0000020000000	n:41ee8c1726400000
+POWER({A},{B})	n:bff0000000200000	n:c0efffe000000002
+POWER({A},{B})	n:bff0000000008000	n:41efffffffe00000
+POWER({A},{B})	n:bff0000000000008	n:41dfffffffffffff
+POWER({A},{B})	n:bff0000000000002	n:c1f0000000100003
+POWER({A},{B})	n:bff0000000000000	n:c1e8297981c00000
+POWER({A},{B})	n:bfeffffffffffffe	n:40dfffc000000003
+POWER({A},{B})	n:bfeffffffffffff0	n:41efffffffbffffd
+POWER({A},{B})	n:bfefffffffff0000	n:c1dfffffffb00000
+POWER({A},{B})	n:bfefffffffc00000	n:41efffffffffffff
+POWER({A},{B})	n:bfefffffc0000000	n:41e029e33d800000
+POWER({A},{B})	n:bfe0000000000000	n:c340000000000001
+POWER({A},{B})	n:3fe0000000000000	n:c1eb036d87000000
+POWER({A},{B})	n:3fefffffff000000	n:40efffdffffffffd
+POWER({A},{B})	n:3fefffffffc00000	n:41efffffffd80000
+POWER({A},{B})	n:3feffffffffffc00	n:c1dfffffffe00000
+POWER({A},{B})	n:3feffffffffffff0	n:41f00000000ffffe
+POWER({A},{B})	n:3fefffffffffffff	n:41e6521398e00000
+POWER({A},{B})	n:3ff0000000000001	n:c0dfffbfffffffff
+POWER({A},{B})	n:3ff0000000000002	n:c1efffffff800000
+POWER({A},{B})	n:3ff0000000000200	n:40f0000000000000
+POWER({A},{B})	n:3ff0000000008000	n:c1effffffff00000
+POWER({A},{B})	n:3ff0000000800000	n:c1e0000000080000
+POWER({A},{B})	n:3ff0000020000000	n:41f0000000300000
+POWER({A},{B})	n:4023fffffffffffe	n:41ea96cf7f200000
+POWER({A},{B})	n:4024000000000000	n:c0efffa000000000
+POWER({A},{B})	n:4024000000000001	n:c1efffffffc00002
+POWER({A},{B})	n:4024000000000000	n:c1efffffce800000
+POWER({A},{B})	n:4024000000000000	n:c1efffffd0200000
+POWER({A},{B})	n:4024000000000000	n:c1efffffd1c00000
+POWER({A},{B})	n:4024000000000000	n:41efffffd3600000
+POWER({A},{B})	n:4024000000000000	n:41efffffd5000000
+POWER({A},{B})	n:4024000000000000	n:41efffffd6a00000
+POWER({A},{B})	n:4024000000000000	n:4073f00000000000
+POWER({A},{B})	n:4024000000000000	n:4073200000000000
+POWER({A},{B})	n:4024000000000000	n:c072500000000000
+POWER({A},{B})	n:4024000000000000	n:c071800000000000
+POWER({A},{B})	n:4024000000000000	n:c070b00000000000
+POWER({A},{B})	n:4024000000000000	n:c1efffffe0400000
+POWER({A},{B})	n:4024000000000000	n:c1efffffe1e00000
+POWER({A},{B})	n:4024000000000000	n:41efffffe3800000
+POWER({A},{B})	n:4024000000000000	n:41efffffe5200000
+POWER({A},{B})	n:4024000000000000	n:41efffffe6c00000
+POWER({A},{B})	n:4024000000000000	n:4067c00000000000
+POWER({A},{B})	n:4024000000000000	n:4066200000000000
+POWER({A},{B})	n:4024000000000000	n:c064800000000000
+POWER({A},{B})	n:4024000000000000	n:c062e00000000000
+POWER({A},{B})	n:4024000000000000	n:c061400000000000
+POWER({A},{B})	n:4024000000000000	n:c1effffff0600000
+POWER({A},{B})	n:4024000000000000	n:c1effffff2000000
+POWER({A},{B})	n:4024000000000000	n:c1effffff3a00000
+POWER({A},{B})	n:4024000000000000	n:41effffff5400000
+POWER({A},{B})	n:4024000000000000	n:41effffff6e00000
+POWER({A},{B})	n:4024000000000000	n:404e800000000000
+POWER({A},{B})	n:4024000000000000	n:4048000000000000
+POWER({A},{B})	n:4024000000000000	n:4041800000000000
+POWER({A},{B})	n:4024000000000000	n:c036000000000000
+POWER({A},{B})	n:4024000000000000	n:c022000000000000
+POWER({A},{B})	n:3ff0000000100000	n:41dfffffff800000
+POWER({A},{B})	n:4024000000000000	n:c1dfffffff800000
+POWER({A},{B})	n:3ff0000000100000	n:c1dfffffff800000
+POWER({A},{B})	n:c024000000000000	n:41dfffffffc00000
+POWER({A},{B})	n:3fefffffffe00000	n:41dfffffffc00000
+POWER({A},{B})	n:c024000000000000	n:c1dfffffffc00000
+POWER({A},{B})	n:4024000000000000	n:41e0000000000000
+POWER({A},{B})	n:3ff0000000100000	n:41e0000000000000
+POWER({A},{B})	n:4024000000000000	n:c1e0000000000000
+POWER({A},{B})	n:3fefffffffe00000	n:c1e0000000000000
+POWER({A},{B})	n:c024000000000000	n:41e0000000200000
+POWER({A},{B})	n:3fefffffffe00000	n:41e0000000200000
+POWER({A},{B})	n:3ff0000000100000	n:c1e0000000200000
+POWER({A},{B})	n:4024000000000000	n:41e0000000400000
+POWER({A},{B})	n:3ff0000000100000	n:41e0000000400000
+POWER({A},{B})	n:c024000000000000	n:c1e0000000400000
+POWER({A},{B})	n:3fefffffffe00000	n:c1e0000000400000
+POWER({A},{B})	n:c024000000000000	n:41e000000fe00000
+POWER({A},{B})	n:4024000000000000	n:c1e000000fe00000
+POWER({A},{B})	n:3ff0000000100000	n:c1e000000fe00000
+POWER({A},{B})	n:4024000000000000	n:41e000001fe00000
+POWER({A},{B})	n:3fefffffffe00000	n:41e000001fe00000
+POWER({A},{B})	n:c024000000000000	n:c1e000001fe00000
+POWER({A},{B})	n:3fefffffffe00000	n:c1e000001fe00000
+POWER({A},{B})	n:c024000000000000	n:41e0001fffe00000
+POWER({A},{B})	n:4024000000000000	n:c1e0001fffe00000
+POWER({A},{B})	n:3ff0000000100000	n:c1e0001fffe00000
+POWER({A},{B})	n:4024000000000000	n:41e7ffffffe00000
+POWER({A},{B})	n:3fefffffffe00000	n:41e7ffffffe00000
+POWER({A},{B})	n:c024000000000000	n:c1e7ffffffe00000
+POWER({A},{B})	n:3fefffffffe00000	n:c1e7ffffffe00000
+POWER({A},{B})	n:bff000000742e58e	n:41f0000000000000
+POWER({A},{B})	n:3fefffffffcb3c16	n:41dfffffffc00000
+POWER({A},{B})	n:bff0000001b3042a	n:c1e0000000200000
+POWER({A},{B})	n:bfeffffffa5f34c6	n:c1e000002a400000
+POWER({A},{B})	n:3feffffffb1895c2	n:41f000004f800000
+POWER({A},{B})	n:bff000000be0bdea	n:41e0dfaa51000000
+POWER({A},{B})	n:3feffffffaea5b28	n:42018f18ec200000
+POWER({A},{B})	n:bff000000dc5449c	n:c1efffffffc00000
+POWER({A},{B})	n:3ff000000dc02edb	n:c1efffffffe00000
+POWER({A},{B})	n:bff000000ee1de0d	n:c1f0000000000000
+POWER({A},{B})	n:3feffffffc7d3623	n:41dfffffffc00000
+POWER({A},{B})	n:bfeffffffe9e6b3b	n:41e0000000000000
+POWER({A},{B})	n:bfeffffff5dd8691	n:c1dffffe36000000
+POWER({A},{B})	n:3ff000000172baf9	n:c1f0000030e00000
+POWER({A},{B})	n:bff000000e921346	n:c1e9b52ee1e00000
+POWER({A},{B})	n:3feffffff1b758d0	n:41f8a04420100000
+POWER({A},{B})	n:bfeffffffb260188	n:4209b6c4ec9e0000
+POWER({A},{B})	n:3ff000000b451e71	n:c1efffffffe00000
+POWER({A},{B})	n:bff0000005509f6c	n:c1f0000000000000
+POWER({A},{B})	n:3ff0000001e642a4	n:c1dfffffffc00000
+POWER({A},{B})	n:bfeffffff90ba116	n:41e0000000000000
+POWER({A},{B})	n:3feffffffbed59c0	n:41e0000000200000
+POWER({A},{B})	n:bff000000f2811d9	n:41efffffffdfffff
+POWER({A},{B})	n:3feffffff37189ba	n:c340000000000000
+POWER({A},{B})	n:bff0000000f4b3db	n:c3e0000000000000
+POWER({A},{B})	n:bfeffffffbde9402	n:41e00000ff200000
+POWER({A},{B})	n:3feffffffd04e676	n:41f0000009200000
+POWER({A},{B})	n:bff0000003f2dd2a	n:41efdc483da00000
+POWER({A},{B})	n:3ff0000004dd0921	n:c1f2f9aba4fc0000
+POWER({A},{B})	n:bff000000a7e3f77	n:c1efffffffc00000
+POWER({A},{B})	n:3ff0000001b67fac	n:41efffffffe00000
+POWER({A},{B})	n:c0117bb47e739639	n:c1e57e58ddc00000
+POWER({A},{B})	n:4024998fc062838a	n:c1e1614a12c00000
+POWER({A},{B})	n:4024b594ab8a3f22	n:41e4b88e10000000
+POWER({A},{B})	n:40274f0994f10364	n:41e8af1874600000
+POWER({A},{B})	n:3ffbe773a768556b	n:c1edb101a5400000
+POWER({A},{B})	n:bfeb4f4aa260ace6	n:c1ebbfdfba800000
+POWER({A},{B})	n:c02090864d5f79b8	n:41e691f523800000
+POWER({A},{B})	n:401ce003fbf827f1	n:41eabfbfeee00000
+POWER({A},{B})	n:c017b5a817a9f696	n:c1e06c7a2dc00000
+POWER({A},{B})	n:c01eb73cef85f6cc	n:41ee84fe8da00000
+POWER({A},{B})	n:4021f923185982f5	n:41ec4613c8200000
+POWER({A},{B})	n:c026d0cb1893a8c5	n:c1e5c39102c00000
+POWER({A},{B})	n:401e8022c21e4bc9	n:c1e2ad2189e00000
+POWER({A},{B})	n:400b718ed6d792a5	n:41e2a0784c000000
+POWER({A},{B})	n:c027dfedc3d75522	n:41e6be982a800000
+POWER({A},{B})	n:3fece586332855e9	n:c1e92ff3f4600000
+POWER({A},{B})	n:3fff0b89dc1695a3	n:c1e79fc599800000
+POWER({A},{B})	n:c0125354ae3a05c9	n:41e3c8d9d6000000
+POWER({A},{B})	n:c0264aab30314cf1	n:41eda7c1ac000000
+POWER({A},{B})	n:40110a33fb707282	n:c1e5bace77200000
+POWER({A},{B})	n:c01d13393e8a00b5	n:c1ebe5fc9cc00000
+POWER({A},{B})	n:c019897d4e4705bc	n:41e8b9c1e3c00000
+POWER({A},{B})	n:bffb7e83fdf39a59	n:41e16ea406a00000
+POWER({A},{B})	n:c027988180164f6e	n:c1edfee356200000
+POWER({A},{B})	n:c017d8eec5fdc273	n:c1eda91508c00000
+POWER({A},{B})	n:c01569a85b1675f7	n:41e2262ab0c00000
+POWER({A},{B})	n:c02722c3fd56b533	n:41e83f7737e00000
+POWER({A},{B})	n:40153dbf63f07752	n:c1ee19880b000000
+POWER({A},{B})	n:c0213d25c21c094b	n:c1e3bf0efb200000
+POWER({A},{B})	n:401dcd01f90fe6cb	n:41e63391d8e00000
+POWER({A},{B})	n:4024c6218f1e8f63	n:41e37e4ebf000000
+POWER({A},{B})	n:4024000000000000	n:41efffffd9600000
+POWER({A},{B})	n:4024000000000000	n:c1effffffd200000
+POWER({A},{B})	n:4024000000000000	n:c1efffffffa00000
+POWER({A},{B})	n:4024000000000000	n:c1efffffffe00000
+POWER({A},{B})	n:4024000000000000	n:c1f0000000100000
+POWER({A},{B})	n:c024000000000000	n:c1e0000000000000
+POWER({A},{B})	n:c024000000000000	n:41efffffd9600000
+POWER({A},{B})	n:c024000000000000	n:41efffffd9a00000
+POWER({A},{B})	n:c024000000000000	n:41efffffff800000
+POWER({A},{B})	n:c024000000000000	n:41efffffffc00000
+POWER({A},{B})	n:c024000000000000	n:41f0000000000000
+POWER({A},{B})	n:0000000000000000	n:c1e0000000000000
+POWER({A},{B})	n:0000000000000000	n:c1efffffd9600000
+POWER({A},{B})	n:0000000000000000	n:c1efffffd9a00000
+POWER({A},{B})	n:0000000000000000	n:c1efffffff800000
+POWER({A},{B})	n:0000000000000000	n:c1efffffffc00000
+POWER({A},{B})	n:0000000000000000	n:41f0000000000000
+POWER({A},{B})	n:3ff0000000000000	n:41dfffffffc00000
+POWER({A},{B})	n:3ff0000000000000	n:41e0000000200000
+POWER({A},{B})	n:3ff0000000000000	n:41efffffd9800000
+POWER({A},{B})	n:3ff0000000000000	n:41effffffd200000
+POWER({A},{B})	n:3ff0000000000000	n:c1efffffffc00000
+POWER({A},{B})	n:3ff0000000000000	n:c1f0000000000000
+POWER({A},{B})	n:bff0000000000000	n:c1dfffffffc00000
+POWER({A},{B})	n:bff0000000000000	n:c1e0000000200000
+POWER({A},{B})	n:bff0000000000000	n:c1efffffd9800000
+POWER({A},{B})	n:bff0000000000000	n:41effffffd200000
+POWER({A},{B})	n:bff0000000000000	n:41efffffffa00000
+POWER({A},{B})	n:bff0000000000000	n:41efffffffe00000
+POWER({A},{B})	n:bff0000000000000	n:41f0000000100000
+#
+# family FISHER: 252 rows of 32950 usable readings in 2 classes (2 boundary rows beyond the stride); none left out
+# sources: elementary-publication/discovery/answers-fisher.json, elementary-publication/heldout/answers-fisher.json
+FISHER({A})	n:3fd59bcb0f902f50
+FISHER({A})	n:3fed01b7d481aeec
+FISHER({A})	n:3f79474f7cc2f500
+FISHER({A})	n:3f9a06fa6a4ba040
+FISHER({A})	n:bfe59cc90d114dc8
+FISHER({A})	n:bfe1e7a84e597a5a
+FISHER({A})	n:bfc4aeee9c494c04
+FISHER({A})	n:3feb75777bc3b402
+FISHER({A})	n:bfe05951dd7dd48f
+FISHER({A})	n:3fd0ddad9d67b928
+FISHER({A})	n:3fe6b1a457532b0a
+FISHER({A})	n:3fdea31b9c054240
+FISHER({A})	n:3fd05f46de9cf8f0
+FISHER({A})	n:3fea8e7dbce64bba
+FISHER({A})	n:bfd9518edda2be12
+FISHER({A})	n:bfe540f649578032
+FISHER({A})	n:bfe4d07c9feed80e
+FISHER({A})	n:3fea1ec43238b4d8
+FISHER({A})	n:bfe90f087f25f98e
+FISHER({A})	n:3febebb8c4688402
+FISHER({A})	n:3fcad566a3630c10
+FISHER({A})	n:bfe07c8e76b71fd3
+FISHER({A})	n:bfe7b0cfc6709231
+FISHER({A})	n:bfe759c76c7c5196
+FISHER({A})	n:3fe3b6dab1483764
+FISHER({A})	n:3fe322b5cf09c078
+FISHER({A})	n:3fef2a8a000618bc
+FISHER({A})	n:3fd09f9af1174fe0
+FISHER({A})	n:3feb567361de9934
+FISHER({A})	n:3fcb2e02120cd150
+FISHER({A})	n:3fd0f6de802bf2b4
+FISHER({A})	n:3fbb0e65c637c4b0
+FISHER({A})	n:bfb239060dc95220
+FISHER({A})	n:3feb9d1b36891292
+FISHER({A})	n:3fd1284241927e38
+FISHER({A})	n:bfef86a103ffaed8
+FISHER({A})	n:bfbe906e3c191d90
+FISHER({A})	n:bfe521ef7b51227a
+FISHER({A})	n:3fe3787650c757ec
+FISHER({A})	n:3feb76a9be6cc816
+FISHER({A})	n:3fdafeb4723138b0
+FISHER({A})	n:3fb439b5d14074b0
+FISHER({A})	n:bfe92401fefa10c6
+FISHER({A})	n:3fe1f0605b0244e6
+FISHER({A})	n:3fd950b15e1f95a0
+FISHER({A})	n:bfd23a714144d286
+FISHER({A})	n:bfdac4343a57bd2c
+FISHER({A})	n:bfe0e15fb99b1877
+FISHER({A})	n:bfa01d487a49cba0
+FISHER({A})	n:bfc4954daa884930
+FISHER({A})	n:3fed40401350b7e4
+FISHER({A})	n:bfc24e471e9ddb38
+FISHER({A})	n:3f80000000000000
+FISHER({A})	n:bd70000000000000
+FISHER({A})	n:bb60000000000000
+FISHER({A})	n:3940000000000000
+FISHER({A})	n:b730000000000000
+FISHER({A})	n:3510000000000000
+FISHER({A})	n:b300000000000000
+FISHER({A})	n:b0f0000000000000
+FISHER({A})	n:2ed0000000000000
+FISHER({A})	n:acc0000000000000
+FISHER({A})	n:2aa0000000000000
+FISHER({A})	n:a890000000000000
+FISHER({A})	n:a680000000000000
+FISHER({A})	n:2460000000000000
+FISHER({A})	n:a250000000000000
+FISHER({A})	n:2030000000000000
+FISHER({A})	n:9e20000000000000
+FISHER({A})	n:9c10000000000000
+FISHER({A})	n:19f0000000000000
+FISHER({A})	n:97e0000000000000
+FISHER({A})	n:15c0000000000000
+FISHER({A})	n:93b0000000000000
+FISHER({A})	n:91a0000000000000
+FISHER({A})	n:0f80000000000000
+FISHER({A})	n:8d70000000000000
+FISHER({A})	n:0b50000000000000
+FISHER({A})	n:8940000000000000
+FISHER({A})	n:8730000000000000
+FISHER({A})	n:0510000000000000
+FISHER({A})	n:8300000000000000
+FISHER({A})	n:00e0000000000000
+FISHER({A})	n:bfefffffffffffaf
+FISHER({A})	n:bfefffffffffffd0
+FISHER({A})	n:3feffffffffffff2
+FISHER({A})	n:bff0000000000013
+FISHER({A})	n:3ff0000000000035
+FISHER({A})	n:bff0000000000056
+FISHER({A})	n:bfdfffffffffffae
+FISHER({A})	n:3fdfffffffffffd0
+FISHER({A})	n:bfdffffffffffff1
+FISHER({A})	n:3fe0000000000014
+FISHER({A})	n:bfe0000000000035
+FISHER({A})	n:bfe0000000000056
+FISHER({A})	n:3c9fffffffffffaf
+FISHER({A})	n:bc9fffffffffffd0
+FISHER({A})	n:3c9ffffffffffff2
+FISHER({A})	n:bca0000000000014
+FISHER({A})	n:bca0000000000035
+FISHER({A})	n:3ca0000000000057
+FISHER({A})	n:bcafffffffffffaf
+FISHER({A})	n:3cafffffffffffd1
+FISHER({A})	n:bcaffffffffffff2
+FISHER({A})	n:bcb0000000000014
+FISHER({A})	n:3cb0000000000036
+FISHER({A})	n:bcb0000000000057
+FISHER({A})	n:3e4fffffffffffb0
+FISHER({A})	n:be4fffffffffffd1
+FISHER({A})	n:be4ffffffffffff2
+FISHER({A})	n:3e50000000000015
+FISHER({A})	n:be50000000000036
+FISHER({A})	n:3e50000000000058
+FISHER({A})	n:be45798ee2308bea
+FISHER({A})	n:be45798ee2308c0b
+FISHER({A})	n:3e45798ee2308c2d
+FISHER({A})	n:be45798ee2308c4e
+FISHER({A})	n:3e45798ee2308c70
+FISHER({A})	n:be45798ee2308c91
+FISHER({A})	n:bddb7cdfd9d7bd6a
+FISHER({A})	n:3ddb7cdfd9d7bd8c
+FISHER({A})	n:bddb7cdfd9d7bdad
+FISHER({A})	n:3ddb7cdfd9d7bdcf
+FISHER({A})	n:bddb7cdfd9d7bdf0
+FISHER({A})	n:bddb7cdfd9d7be11
+FISHER({A})	n:3fa69287f7a10400
+FISHER({A})	n:3fb1d63ae75aa8a0
+FISHER({A})	n:bfcf1b13b275c8c8
+FISHER({A})	n:3fea9befdf90db26
+FISHER({A})	n:3fe5c8418b04037e
+FISHER({A})	n:bfcbf22efb40e98c
+FISHER({A})	n:3fee617119c87c92
+FISHER({A})	n:bfe217d01e2ac7c3
+FISHER({A})	n:bff1363695b58554
+FISHER({A})	n:bfe673857925bd40
+FISHER({A})	n:3fefe82390b4e8a2
+FISHER({A})	n:3fe96f34dcc25d2a
+FISHER({A})	n:bfee44da99af6623
+FISHER({A})	n:bfe32fe3357219d0
+FISHER({A})	n:3fc0c2e6ebbca628
+FISHER({A})	n:3ff0dd77952cbe6d
+FISHER({A})	n:3fc88b2ca5950540
+FISHER({A})	n:bff07d3ec11206bb
+FISHER({A})	n:3f920967a3b6a080
+FISHER({A})	n:bfd9d4f76715d8a0
+FISHER({A})	n:3fea4a8b7860f75e
+FISHER({A})	n:bff2c204644ab06d
+FISHER({A})	n:bfd13e8997fbe19a
+FISHER({A})	n:bfdf7add02843766
+FISHER({A})	n:bfe7bd231e5c7ad4
+FISHER({A})	n:3fe4e2b31b089a8c
+FISHER({A})	n:3fd5eee7d6459ac0
+FISHER({A})	n:bfda722327104c4c
+FISHER({A})	n:bff180aeed29aa77
+FISHER({A})	n:bfe3d1c44a4d428f
+FISHER({A})	n:bfe49ab27cd40cf5
+FISHER({A})	n:bfbc3d4d5e1c40d0
+FISHER({A})	n:3fd3e542eca14778
+FISHER({A})	n:bfeec03f72725c23
+FISHER({A})	n:bff2ec0673508d37
+FISHER({A})	n:bff0d62bfabac90b
+FISHER({A})	n:3fa05a603af07940
+FISHER({A})	n:3fc1070a8b3c13b0
+FISHER({A})	n:3fe83f30b9e10e6a
+FISHER({A})	n:bfe33f051dbcb0fe
+FISHER({A})	n:bfd2ffd1b2bd6d1c
+FISHER({A})	n:bfab91b8da2ee660
+FISHER({A})	n:3feb8f7bdf97f76a
+FISHER({A})	n:bfe72983c9e12dd0
+FISHER({A})	n:bfa6eeadf2b31140
+FISHER({A})	n:bff1923d50468383
+FISHER({A})	n:81280663b190c0e3
+FISHER({A})	n:ad1a4a170b47c316
+FISHER({A})	n:9378d44ad202d462
+FISHER({A})	n:36db1fbfc8292cf8
+FISHER({A})	n:03aee0c4f87cf5f9
+FISHER({A})	n:a0f5136bddec827e
+FISHER({A})	n:affd5472b0bdcfb3
+FISHER({A})	n:0e194cc40805b6d9
+FISHER({A})	n:a0c114affa89edd0
+FISHER({A})	n:8fec7c0480912d23
+FISHER({A})	n:8252f365c394731d
+FISHER({A})	n:974d9010ecd1d251
+FISHER({A})	n:0e6198fed7a2d080
+FISHER({A})	n:85b194dfa31ddc23
+FISHER({A})	n:a936e61b89ae8184
+FISHER({A})	n:03dd7ea0fc844102
+FISHER({A})	n:0b099050db4ca2ae
+FISHER({A})	n:22a3ef152f49eb2b
+FISHER({A})	n:0d4a54d323f0b8a4
+FISHER({A})	n:bca0974d169891f8
+FISHER({A})	n:1ea63183f45b7469
+FISHER({A})	n:1d761d9b75ef46ac
+FISHER({A})	n:b80cd8e915b33e74
+FISHER({A})	n:85fe297f9a5b2d8e
+FISHER({A})	n:3a73dab1f10ff7c9
+FISHER({A})	n:3af0713e53516709
+FISHER({A})	n:34d6c747cf9dd4a8
+FISHER({A})	n:18dc215824f71afb
+FISHER({A})	n:2ab94eda8a6817c9
+FISHER({A})	n:33ada8c2b34536b4
+FISHER({A})	n:036d24663ff87346
+FISHER({A})	n:bc9ffffffffffe66
+FISHER({A})	n:3c9ffffffffffec9
+FISHER({A})	n:bc9fffffffffff2b
+FISHER({A})	n:3c9fffffffffff8e
+FISHER({A})	n:bca00000000000b9
+FISHER({A})	n:bca000000000011b
+FISHER({A})	n:3ca000000000017e
+FISHER({A})	n:bca00000000001e0
+FISHER({A})	n:3caffffffffffe5a
+FISHER({A})	n:bcaffffffffffebc
+FISHER({A})	n:bcafffffffffff1e
+FISHER({A})	n:3cafffffffffff81
+FISHER({A})	n:bcb00000000000ac
+FISHER({A})	n:3cb000000000010f
+FISHER({A})	n:bcb0000000000171
+FISHER({A})	n:bcb00000000001d3
+FISHER({A})	n:3fdffffffffffe4d
+FISHER({A})	n:bfdffffffffffeaf
+FISHER({A})	n:3fdfffffffffff12
+FISHER({A})	n:bfdfffffffffff74
+FISHER({A})	n:bfe000000000009f
+FISHER({A})	n:3fe0000000000102
+FISHER({A})	n:bfe0000000000164
+FISHER({A})	n:3fe00000000001c7
+FISHER({A})	n:bfeffffffffffe40
+FISHER({A})	n:bfeffffffffffea2
+FISHER({A})	n:3fefffffffffff05
+FISHER({A})	n:bfefffffffffff67
+FISHER({A})	n:3ff0000000000093
+FISHER({A})	n:bff00000000000f5
+FISHER({A})	n:bff0000000000157
+FISHER({A})	n:3ff00000000001ba
+FISHER({A})	n:bddb7cdfd9d7bbee
+FISHER({A})	n:3ddb7cdfd9d7bc51
+FISHER({A})	n:bddb7cdfd9d7bcb3
+FISHER({A})	n:bddb7cdfd9d7bd15
+FISHER({A})	n:3ddb7cdfd9d7be41
+FISHER({A})	n:bddb7cdfd9d7bea3
+FISHER({A})	n:3ddb7cdfd9d7bf06
+FISHER({A})	n:bddb7cdfd9d7bf68
+FISHER({A})	n:be45798ee2308a60
+FISHER({A})	n:3e45798ee2308ac3
+FISHER({A})	n:be45798ee2308b25
+FISHER({A})	n:3e45798ee2308b88
+FISHER({A})	n:be45798ee2308cb3
+FISHER({A})	n:be45798ee2308d15
+FISHER({A})	n:3e45798ee2308d78
+FISHER({A})	n:be45798ee2308dda
+FISHER({A})	n:0010000000000000
+FISHER({A})	n:8010000000000000
+#
+# family MEDIAN: 250 rows of 39152 usable readings in 2 classes (0 boundary rows beyond the stride); left out: more than six arguments 3049
+# sources: elementary-publication/discovery/answers-median.json, elementary-publication/heldout/answers-median.json
+MEDIAN({A},{B})	n:22cf5c90aa18f301	n:a2cf5c90aa18f300
+MEDIAN({A},{B})	n:648e51b5169f32b7	n:647e42da63847589
+MEDIAN({A},{B})	n:4d51ffe2b9813490	n:cd51ffe2b981348f
+MEDIAN({A},{B})	n:6aee71c3fe042ff3	n:ead955a45d979680
+MEDIAN({A},{B})	n:5ddd16a416ad371c	n:ddd43be3f7ea4502
+MEDIAN({A},{B})	n:2b6b94e014c8d7f0	n:ab43ecb052cbce2b
+MEDIAN({A},{B})	n:46af94c3b1f8fe31	n:46ac75299e35fde8
+MEDIAN({A},{B})	n:1751023979e35b65	n:9751023979e35b66
+MEDIAN({A},{B})	n:09be3c323a1a8c08	n:89a4342d639c7a00
+MEDIAN({A},{B})	n:04d982b36d0d2080	n:04cfb2e58da3012d
+MEDIAN({A},{B})	n:5c049a1c1e20b226	n:dc049a1c1e20b227
+MEDIAN({A},{B})	n:1e72e5deb56441c4	n:1e551259d0229923
+MEDIAN({A},{B})	n:2de2c4521bed693c	n:2de1f4d9053cd689
+MEDIAN({A},{B})	n:4144ebf1653c6676	n:412de5a8cd765ef1
+MEDIAN({A},{B})	n:30ad4f346cda56ca	n:b05f12eeeee76bba
+MEDIAN({A},{B})	n:459ce457d3b689ce	n:c594976f098302ca
+MEDIAN({A},{B})	n:485c9857433655a0	n:c850abc4e1d2456f
+MEDIAN({A},{B})	n:4f44e8ccf4cf0462	n:cf312728920ae795
+MEDIAN({A},{B})	n:5749e4454e21122e	n:d749e4454e21122d
+MEDIAN({A},{B})	n:7101057f5068d302	n:f0f7715cc8840574
+MEDIAN({A},{B})	n:2b552c277ebcd738	n:2b511aaecde68327
+MEDIAN({A},{B})	n:22f237be1d6fa070	n:22f002d9f156c8f5
+MEDIAN({A},{B})	n:42d57e9fd72ff742	n:c2d57e9fd72ff741
+MEDIAN({A},{B})	n:6280eb1e5e25cefc	n:627c998212e8c129
+MEDIAN({A},{B})	n:2be4f9a729e4c402	n:abe371bb8f32f438
+MEDIAN({A},{B})	n:15993aea478d2c4f	n:959544a2a54c47a2
+MEDIAN({A},{B})	n:42b85563372ca204	n:42b0463ac088e082
+MEDIAN({A},{B})	n:7c359c0007b241d2	n:fc34ad9a02799c39
+MEDIAN({A},{B})	n:23e106708b726ba0	n:a3d082de9a7e63e0
+MEDIAN({A},{B})	n:0058eac12727d1f2	n:0050bc828272c684
+MEDIAN({A},{B})	n:282f25acb2d189fa	n:2830b4a8beca174c
+MEDIAN({A},{B})	n:5ecd2850349b48a6	n:decd2850349b48a5
+MEDIAN({A},{B})	n:1cc96dd4af83f9cc	n:9cb07d3ab2d177ea
+MEDIAN({A},{B})	n:1a58ac47f95388c8	n:1a5766b48a64b185
+MEDIAN({A},{B})	n:66e89609f7c735a4	n:66ea80073cea6180
+MEDIAN({A},{B})	n:1778126848d0a4ac	n:975467fa362d9f32
+MEDIAN({A},{B})	n:73bcbd04391c01c6	n:f3b67a0c56404976
+MEDIAN({A},{B})	n:2c9371c5b5dd7504	n:ac34f2d1102926a1
+MEDIAN({A},{B})	n:0a3a004b63b4e308	n:0a32968446e0c291
+MEDIAN({A},{B})	n:01783be7768faf2a	n:8158895e3608e4dc
+MEDIAN({A},{B})	n:323b9c6cde9e9120	n:b23b9c6cde9e911f
+MEDIAN({A},{B})	n:56734c4722fda4f5	n:564e99cb1d282f18
+MEDIAN({A},{B})	n:20e51f6d9ec83f44	n:a0dfc2938376e977
+MEDIAN({A},{B})	n:79d4ab94f0757fbc	n:f9cc127e7ef16725
+MEDIAN({A},{B})	n:5b201af445a49586	n:db1bbbdd4b0225fd
+MEDIAN({A},{B})	n:4df8d99a63067620	n:cdcc2072e36c25a2
+MEDIAN({A},{B})	n:635402fe4eed603c	n:e3502985e169087d
+MEDIAN({A},{B})	n:28ed4586e5223be0	n:a8ed4586e5223be1
+MEDIAN({A},{B})	n:5374ab3f691d0a9c	n:d3761d3da3ab6443
+MEDIAN({A},{B})	n:665c3218fb6f8ea6	n:66477fbadf3fead9
+MEDIAN({A},{B})	n:1745371924ff411e	n:173a6955ddf21b21
+MEDIAN({A},{B})	n:478edb0ad53c68aa	n:c78297c11c2a5c2b
+MEDIAN({A},{B})	n:7434d1d260571e75	n:f405df9a0e47c888
+MEDIAN({A},{B})	n:3f5e051900066b14	n:bf5e051900066b13
+MEDIAN({A},{B})	n:7f1299ffbec86acf	n:ff062a530ba729c1
+MEDIAN({A},{B})	n:305c7394d7e5466a	n:30578d66bbe443a6
+MEDIAN({A},{B})	n:7219af3916c3fc2c	n:720bf4f58b769b19
+MEDIAN({A},{B})	n:66f6434a229f1e0f	n:e6f230f2b28fb7bc
+MEDIAN({A},{B})	n:2761ffa66f44f514	n:a75ba0facf7fbf27
+MEDIAN({A},{B})	n:79a223dd51558277	n:f9a223dd51558276
+MEDIAN({A},{B})	n:71d6c55841086e70	n:71bc6a7f8fc97a6a
+MEDIAN({A},{B})	n:52c15cb1a9c8c698	n:52bbc67e05fa07b9
+MEDIAN({A},{B})	n:4006daa5dd27d516	n:c0024fbc85327432
+MEDIAN({A},{B})	n:3f9331368c79b1cc	n:bf7e5870ad2cf37b
+MEDIAN({A},{B})	n:620e7519d07ae93a	n:620f29a78f67ba7e
+MEDIAN({A},{B})	n:635cedd731091300	n:e31d521c80730414
+MEDIAN({A},{B})	n:41f733ebabd4dce4	n:c1f733ebabd4dce5
+MEDIAN({A},{B})	n:5359a91a0e54af68	n:5359ef882a5543a0
+MEDIAN({A},{B})	n:43b3b5e907f0a2d4	n:439b02e5c61728a3
+MEDIAN({A},{B})	n:49bfcf8492095876	n:c9bfcf8492095875
+MEDIAN({A},{B})	n:26aa55ae07ed716d	n:a697bbfcdbd8326d
+MEDIAN({A},{B})	n:642402f680e78d8c	n:e41574387baac48f
+MEDIAN({A},{B})	n:22d22834e264605c	n:a2b2109a85ada000
+MEDIAN({A},{B})	n:33d1286b82156efe	n:33d2a16776c2b4c2
+MEDIAN({A},{B})	n:2372e188852c3265	n:a372e188852c3266
+MEDIAN({A},{B})	n:197fd1f4625fc344	n:9956121f4ce4dc95
+MEDIAN({A},{B})	n:44e22120520788a0	n:44c3284cd128e6c6
+MEDIAN({A},{B})	n:2d1051cc7fcf760d	n:2cf40704f14b1f60
+MEDIAN({A},{B})	n:28b6d5baa3074ef8	n:28b5234c4117810d
+MEDIAN({A},{B})	n:3b6e3616b1a643ec	n:bb4d68ce01d40633
+MEDIAN({A},{B})	n:1a605fc0f5ed9857	n:1a369c3301c6d4d9
+MEDIAN({A},{B})	n:110b18b02dfd477e	n:110098354d416a07
+MEDIAN({A},{B})	n:65bc77538e50ddee	n:65698e878e1fd84d
+MEDIAN({A},{B})	n:1c4002c77b36ce87	n:9c40a4bfd627a96a
+MEDIAN({A},{B})	n:752be4ef118fe820	n:f52a60ef78513962
+MEDIAN({A},{B})	n:097e7e7b81a6d81a	n:8956eae27da759e1
+MEDIAN({A},{B})	n:5aeb07d4096d6128	n:daeb84cd9305208d
+MEDIAN({A},{B})	n:12970f33cc7bbf4c	n:928a1dc429dd47bd
+MEDIAN({A},{B})	n:7a998079abbfba88	n:fa91bc05f1654814
+MEDIAN({A},{B})	n:565fd2f93675cc9e	n:564b19b4c7791416
+MEDIAN({A},{B})	n:7058e1ee3c114ebc	n:f041bb0c3880464e
+MEDIAN({A},{B})	n:404f9224508032ec	n:c03f9294aa59524f
+MEDIAN({A},{B})	n:44c1137b2b3ac9d9	n:44b9ef9ee48d2748
+MEDIAN({A},{B})	n:3ad24f57b6f908ec	n:ba92ca46ced079f9
+MEDIAN({A},{B})	n:7665061bf6064fa3	n:f6519f333f2ef0c6
+MEDIAN({A},{B})	n:376716735bf35fa6	n:3751db0f4876fcf5
+MEDIAN({A},{B})	n:12d264e95437abbe	n:12bbebb33272738a
+MEDIAN({A},{B})	n:5782f67ebda3b154	n:5769e277546641fc
+MEDIAN({A},{B})	n:1c470e701446b2bc	n:1c3767fde8e3799c
+MEDIAN({A},{B})	n:2bdad1e2e2d5ffe0	n:abdd2d1051504267
+MEDIAN({A},{B})	n:60ff87f8b2f828d2	n:60c486e7287bc073
+MEDIAN({A},{B})	n:3f6df752bfa26ff1	n:3f60b4c2462d368e
+MEDIAN({A},{B})	n:10feb932ee27a4ca	n:10ff662360b925a8
+MEDIAN({A},{B})	n:0f6b8ea2d1866c20	n:8f4cd2b18c5aeded
+MEDIAN({A},{B})	n:0d8d113bed4d3a46	n:0d7887f77ce8cb61
+MEDIAN({A},{B})	n:52a061f6c0616e34	n:d299439623a04fe4
+MEDIAN({A},{B})	n:31e7638ce3305434	n:b1bb45d5cb70ddad
+MEDIAN({A},{B})	n:60c206d6a8ba0938	n:e0b6855c779b3fc3
+MEDIAN({A},{B})	n:6a74ce727c4a231b	n:6a652afa28cf16cd
+MEDIAN({A},{B})	n:0869770288f30bac	n:084370c14d3b362b
+MEDIAN({A},{B})	n:07516d41623d83a4	n:07512ce267584306
+MEDIAN({A},{B})	n:5971fe4c19a5fc3c	n:59667e49262f3755
+MEDIAN({A},{B})	n:09b8326584584e9e	n:89b12bf4276b1279
+MEDIAN({A},{B})	n:3b9caa155e995a6c	n:bb9caa155e995a6d
+MEDIAN({A},{B})	n:0ad487be2a3470d2	n:0ab5c5a7018db672
+MEDIAN({A},{B})	n:2ba5ea30339cbf2a	n:aba2c6f0df1a2148
+MEDIAN({A},{B})	n:7d5fe2026bc6b280	n:fd5fe625a85f637c
+MEDIAN({A},{B},{C},{E},{F})	n:4177a4e92cef4f24	n:c186dc9812ab056e	n:c1881efa6ddf664e	n:419486e0a3178984	n:c188e7145968339f
+MEDIAN({A})	n:41904a6daf8c36a8
+MEDIAN({A},{B},{C})	n:c19746df08742a5e	n:41941b7cd3a2140c	n:c192443e8d4ae5b2
+MEDIAN({A},{B})	n:c103cef0f05c5a00	n:c154ee4448029380
+MEDIAN({A},{B},{C},{E})	n:c1639b3b9b0bb9b0	n:c18119b1dab52792	n:41889ac3d139e558	n:4183a42e94e3cc50
+MEDIAN({A},{B},{C},{E},{F},{G})	n:4166df9e33c509d0	n:c17f8f6359963728	n:4190d4754d847f98	n:4180db8e33117c94	n:c18fa8c6d816f29d	n:c18266ed74c0feed
+MEDIAN({A},{B},{C},{E},{F},{G})	n:c189991118ba5883	n:4195c5720728d90e	n:41925b7f5cd800e8	n:4179339bec420c6c	n:c193e4126f82ec02	n:c194406509d2859d
+MEDIAN({A},{B},{C})	n:c18d6b2194865a2d	n:41869a250b417aac	n:41877b51384b5b08
+MEDIAN({A},{B})	n:2dbd24bc8e60fab2	n:ada89f2953125130
+MEDIAN({A},{B})	n:343cef621d4009cf	n:b43cef621d4009ce
+MEDIAN({A},{B})	n:4418dff256055113	n:c404dbdec95205ed
+MEDIAN({A},{B})	n:242dd7dfb20764f8	n:a3e8e649695607b3
+MEDIAN({A},{B})	n:1f11e32ee479aaa4	n:9ec4629c4762939b
+MEDIAN({A},{B})	n:46223d0eafc36596	n:46239216adb08c74
+MEDIAN({A},{B})	n:545923b00e7c1b08	n:d454e623f01d7b93
+MEDIAN({A},{B})	n:066cfba9c6d52e0f	n:8662dd0ceb8b0ad0
+MEDIAN({A},{B})	n:5dd4e0df9a4c1002	n:ddd4e0df9a4c1003
+MEDIAN({A},{B})	n:5bee286b6efe4502	n:5bbb157d3f7a8ebf
+MEDIAN({A},{B})	n:10e3b341455d7680	n:10c001d3ad0d87ac
+MEDIAN({A},{B})	n:3eafd0443166b272	n:beafd0443166b273
+MEDIAN({A},{B})	n:3cc84d2dcb3a3efa	n:bcb3fc27e3819cd2
+MEDIAN({A},{B})	n:45c4a718a4b78da6	n:45c57f77b80bc05b
+MEDIAN({A},{B})	n:327e5b2123ed2f80	n:326cc2393a472b1b
+MEDIAN({A},{B})	n:659ba099ba9e7cb4	n:e5711f1e2ce221c4
+MEDIAN({A},{B})	n:23884144c2e664fa	n:a35e2292a04b18c7
+MEDIAN({A},{B})	n:6d8d57a604d08258	n:6d5f67f5fe72ff65
+MEDIAN({A},{B})	n:55adc5261efd2484	n:5568d561cb7af8c1
+MEDIAN({A},{B})	n:58e236fa1d7564ce	n:d8e236fa1d7564cf
+MEDIAN({A},{B})	n:690c10eb16a8374a	n:e90c10eb16a83749
+MEDIAN({A},{B})	n:728100bd3a987fdb	n:f262069d1c046405
+MEDIAN({A},{B})	n:738c0325fb4f88ba	n:f38c0325fb4f88b9
+MEDIAN({A},{B})	n:41f9c7b3abf699ce	n:c1f9c7b3abf699cd
+MEDIAN({A},{B})	n:6deab95a48fbff02	n:edeab95a48fbff01
+MEDIAN({A},{B})	n:061477aa13318b8f	n:05aa4945fd1de7d1
+MEDIAN({A},{B})	n:0f826397f8849093	n:8f7bcec91279a949
+MEDIAN({A},{B})	n:118c7709eed0e794	n:91899fce80cfb6ed
+MEDIAN({A},{B})	n:55343d93af4169fa	n:55351a952b293876
+MEDIAN({A},{B})	n:5689f75aa7d61a8e	n:568b407c64ae62e0
+MEDIAN({A},{B})	n:16528b58cdfe9efc	n:96528b58cdfe9efb
+MEDIAN({A},{B})	n:1bc309349b8ea3d0	n:9b934db0b708f9d4
+MEDIAN({A},{B})	n:0b8f1810247fb5c8	n:8b70744ecc76ecb4
+MEDIAN({A},{B})	n:26e1c4a920958f04	n:a6e2d1ef04f23d38
+MEDIAN({A},{B})	n:42473183c0ecad32	n:c232f4d921297c7e
+MEDIAN({A},{B})	n:6ae3a7414c57c6c4	n:eae3a7414c57c6c5
+MEDIAN({A},{B})	n:182cde37e3e038ce	n:17f2d4922011d74e
+MEDIAN({A},{B})	n:1bbb4cc7865b08f6	n:9ba4c3f62de5e1c5
+MEDIAN({A},{B})	n:05275c8cdbb6f5f6	n:052b3d940f0933c1
+MEDIAN({A},{B})	n:299a014e567ffe6c	n:297abecda0d12efa
+MEDIAN({A},{B})	n:61bf1c55c925fe36	n:61bbd73bbe37818e
+MEDIAN({A},{B})	n:1336cf83733ec914	n:9325121d10aa5e8b
+MEDIAN({A},{B})	n:6b974cc663f5274a	n:eb974cc663f5274b
+MEDIAN({A},{B})	n:5149754f82fecd2e	n:5092dfec0b63f627
+MEDIAN({A},{B})	n:11e6bb5f67812d8a	n:11d95777ef607257
+MEDIAN({A},{B})	n:70ef55e8be1ceb4e	n:70d51b865e338927
+MEDIAN({A},{B})	n:191c8a86840aa11e	n:191e8b1633df3cc0
+MEDIAN({A},{B})	n:46ef1a42b1cb8182	n:c6ef1a42b1cb8181
+MEDIAN({A},{B})	n:5447b900eb828d8b	n:d447b900eb828d8c
+MEDIAN({A},{B})	n:6e6db941100610f6	n:6e6ca505dc194c7b
+MEDIAN({A},{B})	n:792f10228c89ca36	n:f92cdcd333cbac16
+MEDIAN({A},{B})	n:362c357016871f82	n:b62c357016871f81
+MEDIAN({A},{B})	n:5dd3ede8eb304393	n:ddcb94ea0c4e01fd
+MEDIAN({A},{B})	n:3f273312e3019cf5	n:3f29790cc6949a8c
+MEDIAN({A},{B})	n:440c90c8f420ee23	n:c40bba9924d3eb2e
+MEDIAN({A},{B})	n:3ab6251acf7785c3	n:ba90f5dd2b562f3c
+MEDIAN({A},{B})	n:51789b600eb83b1f	n:d17a5a4c528c59d3
+MEDIAN({A},{B})	n:299b314ba08e3fc4	n:a99d7ac08b8d5873
+MEDIAN({A},{B})	n:0f0fed35f700b1d2	n:8ee54c21e73ec471
+MEDIAN({A},{B})	n:4da866185a147456	n:4d751ab292885de5
+MEDIAN({A},{B})	n:5a1415c9439089d5	n:da1415c9439089d4
+MEDIAN({A},{B})	n:2a88797fe3118b5c	n:aa88797fe3118b5d
+MEDIAN({A},{B})	n:68f02884d3725364	n:e8f2bc4999840b25
+MEDIAN({A},{B})	n:73b0c201731c9dfe	n:73b204be5f692ce4
+MEDIAN({A},{B})	n:76b204ebc2855a54	n:f6b204ebc2855a53
+MEDIAN({A},{B})	n:2a51248e777f99f2	n:aa37b20f281396fe
+MEDIAN({A},{B})	n:608cf63e671f6f10	n:e07b9e3c910f82f4
+MEDIAN({A},{B})	n:618c4b5882044f74	n:e18c4b5882044f73
+MEDIAN({A},{B})	n:28bef0ac41cceef0	n:a85efd66f9f1ec80
+MEDIAN({A},{B})	n:4fd3ae64598a9f16	n:cfd3ae64598a9f17
+MEDIAN({A},{B})	n:5ccfb8e592f689fa	n:dca9890bf9699626
+MEDIAN({A},{B})	n:5874c42d5a2d7c40	n:58717a6f6bdde77e
+MEDIAN({A},{B})	n:510cec8d1607e3bc	n:d10cec8d1607e3bd
+MEDIAN({A},{B})	n:00c71fb4b499d6c4	n:8067f783411c2227
+MEDIAN({A},{B})	n:5a3354fa8046b04b	n:d9f4400ea0386636
+MEDIAN({A},{B})	n:03587057eab19b63	n:035d27f879bfc296
+MEDIAN({A},{B})	n:4959c2c025e5a507	n:4922e0ec3a3aba26
+MEDIAN({A},{B})	n:14d76a3f884292e4	n:14c7cf80f81916fd
+MEDIAN({A},{B})	n:6aa7b280b112ad14	n:6a887a8c0f2f1dec
+MEDIAN({A},{B})	n:3d102ad963886278	n:bd102ad963886279
+MEDIAN({A},{B})	n:7166bd4744e89801	n:7149ce6a22b83678
+MEDIAN({A},{B})	n:547809954368ce37	n:d474bb81e88a29fd
+MEDIAN({A},{B})	n:1c5dd5c4836aec14	n:9c0929f140cdb6e6
+MEDIAN({A},{B})	n:3f4c15fd259b3bb6	n:3f4fd21fff081be5
+MEDIAN({A},{B})	n:70a30ebe2e362a26	n:7084b083410af3dc
+MEDIAN({A},{B})	n:0edb686da5348a2c	n:0ec3badb2507821c
+MEDIAN({A},{B})	n:27dff8b9b54c9be0	n:a7e05122c453fdce
+MEDIAN({A},{B})	n:52148bad89dffe8e	n:d20f322313e5f937
+MEDIAN({A},{B})	n:61331227df42adec	n:e1331227df42adeb
+MEDIAN({A},{B})	n:107abb306f7055ba	n:9075c55552eea049
+MEDIAN({A},{B})	n:7b9d4ef7d6385786	n:fb9b11aaf21146e5
+MEDIAN({A},{B})	n:2b3ee172475353ad	n:2b3125abd9780d15
+MEDIAN({A},{B})	n:668584abda925e18	n:6677cb285d5bf723
+MEDIAN({A},{B})	n:7be94dae65997e85	n:fbe2073c86150128
+MEDIAN({A},{B})	n:214bb67deac3c05c	n:a14e28b7dafbe162
+MEDIAN({A},{B})	n:76e21d4ad3534292	n:f6e21d4ad3534293
+MEDIAN({A},{B})	n:1f8b0956146114a2	n:9f75cdfdf8a2550e
+MEDIAN({A},{B})	n:0ce1a25789da18b7	n:0ce29d5451fed383
+MEDIAN({A},{B})	n:1c3229728b177e82	n:9c3229728b177e81
+MEDIAN({A},{B})	n:2a087b179c31e3ab	n:aa087b179c31e3ac
+MEDIAN({A},{B})	n:61f05207b9a152e4	n:e1f10c6eea8bee43
+MEDIAN({A},{B})	n:258775d5a52b01ae	n:a585b1bf68b79199
+MEDIAN({A},{B})	n:1221ec5bf9279818	n:9217bf5618d5f695
+MEDIAN({A},{B})	n:39c431f7dd8d1cfc	n:b9c0682ea13bbce2
+MEDIAN({A},{B})	n:306362c16bc082dc	n:b05f0bf1c2a600fa
+MEDIAN({A},{B})	n:74e1b370443dfb45	n:f4c394701c8882f5
+MEDIAN({A},{B})	n:7184a53f719afbce	n:f184a53f719afbcf
+MEDIAN({A},{B})	n:77079b8d4d20dda9	n:77036c10acea511d
+MEDIAN({A},{B})	n:2f76e520d16160ee	n:af5ef0c607e00a5a
+MEDIAN({A},{B})	n:3c868f6569e744f5	n:3c7a34bbe0f5d30a
+MEDIAN({A},{B})	n:3296e6921078d927	n:b296e6921078d928
+MEDIAN({A},{B})	n:7e094617b3b875ce	n:fdea36977df44ac3
+MEDIAN({A},{B})	n:0dc816c84ebab985	n:8dc013ba0235edde
+MEDIAN({A},{B})	n:695c4a92774aa8b8	n:695148a98368ea98
+MEDIAN({A},{B})	n:71e8fe3eb69d0dd4	n:f1d1822239c24177
+MEDIAN({A},{B})	n:672559b5d172cfe2	n:671a65b17f090e47
+MEDIAN({A},{B})	n:4e73fd44f5fad6dc	n:4e722e8d7e13e355
+MEDIAN({A},{B})	n:5b435c36a21180a0	n:db435c36a211809f
+MEDIAN({A},{B})	n:5d1b41629168e6ae	n:dd1fb4ad4351c989
+MEDIAN({A},{B})	n:645421a2b196a33f	n:64539fdd057d96d6
+MEDIAN({A},{B})	n:4a7996b50b1e9262	n:ca7996b50b1e9261
+MEDIAN({A},{B},{C})	n:4262f821a0f0ff06	n:c2520df3200dcb5a	n:c25391c70437a812
+MEDIAN({A},{B},{C})	n:4250a32b8ae9d8bc	n:424216759e676068	n:c262bfd826d11cca
+MEDIAN({A},{B},{C},{E},{F},{G})	n:42493270000ad660	n:c268dbc36a06505e	n:c26085ca6f8f3ec8	n:424027d6f9de6060	n:4256717159759234	n:c26072bd6961e215
+MEDIAN({A},{B})	n:c2631940b0fc9e9d	n:c25dbf3f00706e0c
+#
+# family prepared values: 247 rows of 1657 usable readings in 32 classes (0 boundary rows beyond the stride); left out: typed: array outcome 437, typed: fixture array 19, typed: more than six cells 137, typed: range reference 1430
+# sources: elementary-publication/aggregate-origin-heldout.json, elementary-publication/median-error-origin.json, elementary-publication/prepared-discovery.json, elementary-publication/prepared-heldout.json
+LOG("x",{A})	n:4000000000000000
+LOG({A},"0.5")	n:4020000000000000
+POWER({A},{B})	n:bfe0000000000000	n:4000000000000000
+POWER(,{A})	n:4000000000000000
+POWER({A},#N/A)	n:4020000000000000
+FISHER("2")
+MEDIAN(FALSE,{A})	n:4010000000000000
+MEDIAN({A},{B})	n:4020000000000000	n:3fe0000000000000
+MEDIAN({A},{B})	n:4020000000000000	-
+LOG({A},{B})	s:0.5	n:4000000000000000
+LOG({A},{B})	n:4020000000000000	n:4000000000000000
+POWER({A},{B})	n:0000000000000000	n:4000000000000000
+POWER({A},{B})	e:#DIV/0!	n:4000000000000000
+POWER({A},{B})	n:4020000000000000	s:
+FISHER({A})	b:FALSE
+MEDIAN({A},{B})	n:bfe0000000000000	n:4010000000000000
+MEDIAN({A},{B})	-	n:4010000000000000
+MEDIAN({A},{B})	n:4020000000000000	e:#N/A
+LOG(CHOOSE({1},"2"),{A})	n:4000000000000000
+LOG({A},CHOOSE({1},"2"))	n:4020000000000000
+POWER(CHOOSE({1},{A}),{B})	n:3fe0000000000000	n:4000000000000000
+POWER({A},CHOOSE({1},{B}))	n:4020000000000000	n:3fe0000000000000
+POWER({A},CHOOSE({1},#DIV/0!))	n:4020000000000000
+FISHER(CHOOSE({1},#DIV/0!))
+MEDIAN(CHOOSE({1},TRUE),{A})	n:4010000000000000
+MEDIAN({A},CHOOSE({1},TRUE))	n:4020000000000000
+LOG({A})	n:0000000000000000
+LOG({A})	n:bfe0000000000000
+LOG(TRUE)
+LOG(FALSE)
+LOG("2")
+LOG("x")
+LOG(#DIV/0!)
+LOG(#NUM!)
+LOG(#VALUE!,#N/A)
+LOG(#DIV/0!,#N/A)
+LOG("x",#VALUE!)
+LOG(,#VALUE!)
+POWER(#N/A,#DIV/0!)
+POWER(#VALUE!,#DIV/0!)
+POWER(#DIV/0!,"x")
+POWER("x","x")
+POWER(,)
+MEDIAN(CHOOSE({1,2},{A},{B}),{C})	n:0000000000000000	n:3fe0000000000000	n:4010000000000000
+MEDIAN(CHOOSE({1,2},TRUE,{A}),{B})	n:3fe0000000000000	n:4010000000000000
+MEDIAN(CHOOSE({1,2},"2",{A}),{B})	n:3fe0000000000000	n:4010000000000000
+MEDIAN(CHOOSE({1,2},#N/A,{A}),{B})	n:3fe0000000000000	n:4010000000000000
+MEDIAN({A},CHOOSE({1,2},{B},{C}))	n:4020000000000000	n:0000000000000000	n:3fe0000000000000
+MEDIAN({A},CHOOSE({1,2},TRUE,{B}))	n:4020000000000000	n:3fe0000000000000
+MEDIAN({A},CHOOSE({1,2},"2",{B}))	n:4020000000000000	n:3fe0000000000000
+MEDIAN({A},CHOOSE({1,2},#N/A,{B}))	n:4020000000000000	n:3fe0000000000000
+MEDIAN("2",TRUE,{A})	n:4020000000000000
+MEDIAN(#DIV/0!,#N/A,{A})	n:4020000000000000
+MEDIAN("","x",FALSE)
+MEDIAN(CHOOSE({1,2,3},"2",TRUE,{A}))	n:4020000000000000
+MEDIAN(CHOOSE({1,2,3},#DIV/0!,#N/A,{A}))	n:4020000000000000
+MEDIAN(CHOOSE({1,2,3},"","x",FALSE))
+LOG("0.375","")
+LOG({A},)	-
+LOG({A},{B})	n:3ff0000000000000	n:3ff0000000000000
+LOG(#DIV/0!,"-1.25")
+LOG({A},"")	-
+POWER(TRUE,{A})	n:3ff0000000000000
+POWER({A},{B})	n:0000000000000000	n:3ff0000000000000
+POWER({A},TRUE)	-
+POWER({A},{B})	n:404bf00000000000	n:3ff0000000000000
+LOG(CHOOSE({1},""),CHOOSE({1},""))
+LOG(CHOOSE({1},"-6.75"),CHOOSE({1},"x"))
+LOG(CHOOSE({1},{A}),CHOOSE({1},{B}))	n:0000000000000000	n:40592c0000000000
+POWER(CHOOSE({1},{A}),CHOOSE({1},{B}))	n:3ff0000000000000	n:0000000000000000
+LOG({A})	-
+LOG(#N/A)
+LOG({A})	n:4051dc0000000000
+LOG("-0.25")
+LOG(#VALUE!)
+MEDIAN(,{A},{B},CHOOSE({1,2;3,4;5,6},"",FALSE,"x",{C},"8.5","x"),)	n:c02ce00000000000	s:6.375	n:4013000000000000
+MEDIAN(#REF!,CHOOSE({1;2},{A},#VALUE!),{B},)	n:3ff0000000000000	n:0000000000000000
+MEDIAN(CHOOSE({1,2},{A},"-3.5"),CHOOSE({1,2,3;4,5,6},{B},"",#N/A,"-11.75",{C},"x"))	n:c051e00000000000	n:3ff0000000000000	n:0000000000000000
+MEDIAN(#DIV/0!,"x")
+MEDIAN({A},{B},CHOOSE({1,2},"",""),{C})	n:c050b40000000000	n:3ff0000000000000	n:405b180000000000
+MEDIAN(CHOOSE({1,2;3,4},"",{A},"3.25",""),{B},"x",CHOOSE({1,2,3,4},{C},"8.875",FALSE,"x"),{E},{F})	n:3ff0000000000000	b:FALSE	n:406c640000000000	e:#DIV/0!	n:0000000000000000
+MEDIAN({A},{B},{C},CHOOSE({1;2;3},{E},{F},"-7.5"))	e:#N/A	n:3ff0000000000000	n:c018c00000000000	n:40699a0000000000	n:3ff0000000000000
+MEDIAN(CHOOSE({1},{A}),{B},CHOOSE({1,2;3,4},TRUE,#DIV/0!,{C},"3.5"),"",#REF!)	n:0000000000000000	n:0000000000000000	n:0000000000000000
+MEDIAN(CHOOSE({1,2,3;4,5,6},{A},"x",FALSE,"3.875",{B},"-9.0"),{C},{E})	n:0000000000000000	n:403d700000000000	-	-
+FISHER("")
+FISHER("-3.875")
+FISHER("-5.0")
+FISHER(CHOOSE({1},""))
+FISHER({A})	-
+FISHER(#N/A)
+FISHER({A})	n:0000000000000000
+FISHER("11.875")
+FISHER({A})	n:3ff0000000000000
+MEDIAN(#DIV/0!,#DIV/0!,{A})	n:4020000000000000
+MEDIAN(#DIV/0!,"x",{A})	n:4020000000000000
+MEDIAN(#NUM!,#DIV/0!,{A})	n:4020000000000000
+MEDIAN(#NUM!,#NUM!,{A})	n:4020000000000000
+MEDIAN(#NUM!,"x",{A})	n:4020000000000000
+MEDIAN("x",#DIV/0!,{A})	n:4020000000000000
+MEDIAN("x",#NUM!,{A})	n:4020000000000000
+MEDIAN("x","x",{A})	n:4020000000000000
+MEDIAN(#DIV/0!,CHOOSE({1},#DIV/0!),{A})	n:4020000000000000
+MEDIAN(#DIV/0!,CHOOSE({1},#NUM!),{A})	n:4020000000000000
+MEDIAN(#DIV/0!,CHOOSE({1},"x"),{A})	n:4020000000000000
+MEDIAN(#NUM!,CHOOSE({1},#NUM!),{A})	n:4020000000000000
+MEDIAN(#NUM!,CHOOSE({1},"x"),{A})	n:4020000000000000
+MEDIAN("x",CHOOSE({1},#DIV/0!),{A})	n:4020000000000000
+MEDIAN("x",CHOOSE({1},#NUM!),{A})	n:4020000000000000
+MEDIAN("x",CHOOSE({1},"x"),{A})	n:4020000000000000
+MEDIAN(#DIV/0!,CHOOSE({1,2},#NUM!,{A}),{B})	n:4000000000000000	n:4020000000000000
+MEDIAN(#DIV/0!,CHOOSE({1,2},"x",{A}),{B})	n:4000000000000000	n:4020000000000000
+MEDIAN(#NUM!,CHOOSE({1,2},#DIV/0!,{A}),{B})	n:4000000000000000	n:4020000000000000
+MEDIAN(#NUM!,CHOOSE({1,2},#NUM!,{A}),{B})	n:4000000000000000	n:4020000000000000
+MEDIAN(#NUM!,CHOOSE({1,2},"x",{A}),{B})	n:4000000000000000	n:4020000000000000
+MEDIAN("x",CHOOSE({1,2},#DIV/0!,{A}),{B})	n:4000000000000000	n:4020000000000000
+MEDIAN("x",CHOOSE({1,2},#NUM!,{A}),{B})	n:4000000000000000	n:4020000000000000
+MEDIAN("x",CHOOSE({1,2},"x",{A}),{B})	n:4000000000000000	n:4020000000000000
+MEDIAN(#DIV/0!,{A},{B})	e:#DIV/0!	n:4020000000000000
+MEDIAN(#DIV/0!,{A},{B})	e:#NUM!	n:4020000000000000
+MEDIAN(#DIV/0!,{A},{B})	s:x	n:4020000000000000
+MEDIAN(#NUM!,{A},{B})	e:#NUM!	n:4020000000000000
+MEDIAN(#NUM!,{A},{B})	s:x	n:4020000000000000
+MEDIAN("x",{A},{B})	e:#DIV/0!	n:4020000000000000
+MEDIAN("x",{A},{B})	e:#NUM!	n:4020000000000000
+MEDIAN("x",{A},{B})	s:x	n:4020000000000000
+MEDIAN(CHOOSE({1},#DIV/0!),#DIV/0!,{A})	n:4020000000000000
+MEDIAN(CHOOSE({1},#DIV/0!),#NUM!,{A})	n:4020000000000000
+MEDIAN(CHOOSE({1},#NUM!),#DIV/0!,{A})	n:4020000000000000
+MEDIAN(CHOOSE({1},#NUM!),#NUM!,{A})	n:4020000000000000
+MEDIAN(CHOOSE({1},#NUM!),"x",{A})	n:4020000000000000
+MEDIAN(CHOOSE({1},"x"),#DIV/0!,{A})	n:4020000000000000
+MEDIAN(CHOOSE({1},"x"),#NUM!,{A})	n:4020000000000000
+MEDIAN(CHOOSE({1},"x"),"x",{A})	n:4020000000000000
+MEDIAN(CHOOSE({1},#DIV/0!),CHOOSE({1},#DIV/0!),{A})	n:4020000000000000
+MEDIAN(CHOOSE({1},#DIV/0!),CHOOSE({1},#NUM!),{A})	n:4020000000000000
+MEDIAN(CHOOSE({1},#DIV/0!),CHOOSE({1},"x"),{A})	n:4020000000000000
+MEDIAN(CHOOSE({1},#NUM!),CHOOSE({1},#DIV/0!),{A})	n:4020000000000000
+MEDIAN(CHOOSE({1},#NUM!),CHOOSE({1},#NUM!),{A})	n:4020000000000000
+MEDIAN(CHOOSE({1},"x"),CHOOSE({1},#DIV/0!),{A})	n:4020000000000000
+MEDIAN(CHOOSE({1},"x"),CHOOSE({1},#NUM!),{A})	n:4020000000000000
+MEDIAN(CHOOSE({1},"x"),CHOOSE({1},"x"),{A})	n:4020000000000000
+MEDIAN(CHOOSE({1},#DIV/0!),CHOOSE({1,2},#DIV/0!,{A}),{B})	n:4000000000000000	n:4020000000000000
+MEDIAN(CHOOSE({1},#DIV/0!),CHOOSE({1,2},#NUM!,{A}),{B})	n:4000000000000000	n:4020000000000000
+MEDIAN(CHOOSE({1},#DIV/0!),CHOOSE({1,2},"x",{A}),{B})	n:4000000000000000	n:4020000000000000
+MEDIAN(CHOOSE({1},#NUM!),CHOOSE({1,2},#DIV/0!,{A}),{B})	n:4000000000000000	n:4020000000000000
+MEDIAN(CHOOSE({1},#NUM!),CHOOSE({1,2},#NUM!,{A}),{B})	n:4000000000000000	n:4020000000000000
+MEDIAN(CHOOSE({1},#NUM!),CHOOSE({1,2},"x",{A}),{B})	n:4000000000000000	n:4020000000000000
+MEDIAN(CHOOSE({1},"x"),CHOOSE({1,2},#DIV/0!,{A}),{B})	n:4000000000000000	n:4020000000000000
+MEDIAN(CHOOSE({1},"x"),CHOOSE({1,2},"x",{A}),{B})	n:4000000000000000	n:4020000000000000
+MEDIAN(CHOOSE({1},#DIV/0!),{A},{B})	e:#DIV/0!	n:4020000000000000
+MEDIAN(CHOOSE({1},#DIV/0!),{A},{B})	e:#NUM!	n:4020000000000000
+MEDIAN(CHOOSE({1},#DIV/0!),{A},{B})	s:x	n:4020000000000000
+MEDIAN(CHOOSE({1},#NUM!),{A},{B})	e:#DIV/0!	n:4020000000000000
+MEDIAN(CHOOSE({1},#NUM!),{A},{B})	e:#NUM!	n:4020000000000000
+MEDIAN(CHOOSE({1},#NUM!),{A},{B})	s:x	n:4020000000000000
+MEDIAN(CHOOSE({1},"x"),{A},{B})	e:#DIV/0!	n:4020000000000000
+MEDIAN(CHOOSE({1},"x"),{A},{B})	e:#NUM!	n:4020000000000000
+MEDIAN(CHOOSE({1,2},#DIV/0!,{A}),#DIV/0!,{B})	n:4000000000000000	n:4020000000000000
+MEDIAN(CHOOSE({1,2},#DIV/0!,{A}),#NUM!,{B})	n:4000000000000000	n:4020000000000000
+MEDIAN(CHOOSE({1,2},#DIV/0!,{A}),"x",{B})	n:4000000000000000	n:4020000000000000
+MEDIAN(CHOOSE({1,2},#NUM!,{A}),#DIV/0!,{B})	n:4000000000000000	n:4020000000000000
+MEDIAN(CHOOSE({1,2},#NUM!,{A}),#NUM!,{B})	n:4000000000000000	n:4020000000000000
+MEDIAN(CHOOSE({1,2},"x",{A}),#DIV/0!,{B})	n:4000000000000000	n:4020000000000000
+MEDIAN(CHOOSE({1,2},"x",{A}),#NUM!,{B})	n:4000000000000000	n:4020000000000000
+MEDIAN(CHOOSE({1,2},"x",{A}),"x",{B})	n:4000000000000000	n:4020000000000000
+MEDIAN(CHOOSE({1,2},#DIV/0!,{A}),CHOOSE({1},#DIV/0!),{B})	n:4000000000000000	n:4020000000000000
+MEDIAN(CHOOSE({1,2},#DIV/0!,{A}),CHOOSE({1},#NUM!),{B})	n:4000000000000000	n:4020000000000000
+MEDIAN(CHOOSE({1,2},#DIV/0!,{A}),CHOOSE({1},"x"),{B})	n:4000000000000000	n:4020000000000000
+MEDIAN(CHOOSE({1,2},#NUM!,{A}),CHOOSE({1},#DIV/0!),{B})	n:4000000000000000	n:4020000000000000
+MEDIAN(CHOOSE({1,2},#NUM!,{A}),CHOOSE({1},"x"),{B})	n:4000000000000000	n:4020000000000000
+MEDIAN(CHOOSE({1,2},"x",{A}),CHOOSE({1},#DIV/0!),{B})	n:4000000000000000	n:4020000000000000
+MEDIAN(CHOOSE({1,2},"x",{A}),CHOOSE({1},#NUM!),{B})	n:4000000000000000	n:4020000000000000
+MEDIAN(CHOOSE({1,2},"x",{A}),CHOOSE({1},"x"),{B})	n:4000000000000000	n:4020000000000000
+MEDIAN(CHOOSE({1,2},#DIV/0!,{A}),CHOOSE({1,2},#NUM!,{B}),{C})	n:4000000000000000	n:4000000000000000	n:4020000000000000
+MEDIAN(CHOOSE({1,2},#DIV/0!,{A}),CHOOSE({1,2},"x",{B}),{C})	n:4000000000000000	n:4000000000000000	n:4020000000000000
+MEDIAN(CHOOSE({1,2},#NUM!,{A}),CHOOSE({1,2},#DIV/0!,{B}),{C})	n:4000000000000000	n:4000000000000000	n:4020000000000000
+MEDIAN(CHOOSE({1,2},#NUM!,{A}),CHOOSE({1,2},#NUM!,{B}),{C})	n:4000000000000000	n:4000000000000000	n:4020000000000000
+MEDIAN(CHOOSE({1,2},#NUM!,{A}),CHOOSE({1,2},"x",{B}),{C})	n:4000000000000000	n:4000000000000000	n:4020000000000000
+MEDIAN(CHOOSE({1,2},"x",{A}),CHOOSE({1,2},#DIV/0!,{B}),{C})	n:4000000000000000	n:4000000000000000	n:4020000000000000
+MEDIAN(CHOOSE({1,2},"x",{A}),CHOOSE({1,2},#NUM!,{B}),{C})	n:4000000000000000	n:4000000000000000	n:4020000000000000
+MEDIAN(CHOOSE({1,2},"x",{A}),CHOOSE({1,2},"x",{B}),{C})	n:4000000000000000	n:4000000000000000	n:4020000000000000
+MEDIAN(CHOOSE({1,2},#DIV/0!,{A}),{B},{C})	n:4000000000000000	e:#DIV/0!	n:4020000000000000
+MEDIAN(CHOOSE({1,2},#DIV/0!,{A}),{B},{C})	n:4000000000000000	e:#NUM!	n:4020000000000000
+MEDIAN(CHOOSE({1,2},#DIV/0!,{A}),{B},{C})	n:4000000000000000	s:x	n:4020000000000000
+MEDIAN(CHOOSE({1,2},#NUM!,{A}),{B},{C})	n:4000000000000000	e:#DIV/0!	n:4020000000000000
+MEDIAN(CHOOSE({1,2},#NUM!,{A}),{B},{C})	n:4000000000000000	e:#NUM!	n:4020000000000000
+MEDIAN(CHOOSE({1,2},"x",{A}),{B},{C})	n:4000000000000000	e:#DIV/0!	n:4020000000000000
+MEDIAN(CHOOSE({1,2},"x",{A}),{B},{C})	n:4000000000000000	e:#NUM!	n:4020000000000000
+MEDIAN(CHOOSE({1,2},"x",{A}),{B},{C})	n:4000000000000000	s:x	n:4020000000000000
+MEDIAN({A},#DIV/0!,{B})	e:#DIV/0!	n:4020000000000000
+MEDIAN({A},"x",{B})	e:#DIV/0!	n:4020000000000000
+MEDIAN({A},#DIV/0!,{B})	e:#NUM!	n:4020000000000000
+MEDIAN({A},#NUM!,{B})	e:#NUM!	n:4020000000000000
+MEDIAN({A},"x",{B})	e:#NUM!	n:4020000000000000
+MEDIAN({A},#DIV/0!,{B})	s:x	n:4020000000000000
+MEDIAN({A},#NUM!,{B})	s:x	n:4020000000000000
+MEDIAN({A},"x",{B})	s:x	n:4020000000000000
+MEDIAN({A},CHOOSE({1},#DIV/0!),{B})	e:#DIV/0!	n:4020000000000000
+MEDIAN({A},CHOOSE({1},#NUM!),{B})	e:#DIV/0!	n:4020000000000000
+MEDIAN({A},CHOOSE({1},"x"),{B})	e:#DIV/0!	n:4020000000000000
+MEDIAN({A},CHOOSE({1},#DIV/0!),{B})	e:#NUM!	n:4020000000000000
+MEDIAN({A},CHOOSE({1},#NUM!),{B})	e:#NUM!	n:4020000000000000
+MEDIAN({A},CHOOSE({1},#DIV/0!),{B})	s:x	n:4020000000000000
+MEDIAN({A},CHOOSE({1},#NUM!),{B})	s:x	n:4020000000000000
+MEDIAN({A},CHOOSE({1},"x"),{B})	s:x	n:4020000000000000
+MEDIAN({A},CHOOSE({1,2},#DIV/0!,{B}),{C})	e:#DIV/0!	n:4000000000000000	n:4020000000000000
+MEDIAN({A},CHOOSE({1,2},#NUM!,{B}),{C})	e:#DIV/0!	n:4000000000000000	n:4020000000000000
+MEDIAN({A},CHOOSE({1,2},#DIV/0!,{B}),{C})	e:#NUM!	n:4000000000000000	n:4020000000000000
+MEDIAN({A},CHOOSE({1,2},#NUM!,{B}),{C})	e:#NUM!	n:4000000000000000	n:4020000000000000
+MEDIAN({A},CHOOSE({1,2},"x",{B}),{C})	e:#NUM!	n:4000000000000000	n:4020000000000000
+MEDIAN({A},CHOOSE({1,2},#DIV/0!,{B}),{C})	s:x	n:4000000000000000	n:4020000000000000
+MEDIAN({A},CHOOSE({1,2},#NUM!,{B}),{C})	s:x	n:4000000000000000	n:4020000000000000
+MEDIAN({A},CHOOSE({1,2},"x",{B}),{C})	s:x	n:4000000000000000	n:4020000000000000
+MEDIAN({A},{B},{C})	e:#DIV/0!	e:#DIV/0!	n:4020000000000000
+MEDIAN({A},{B},{C})	e:#DIV/0!	e:#NUM!	n:4020000000000000
+MEDIAN({A},{B},{C})	e:#NUM!	e:#DIV/0!	n:4020000000000000
+MEDIAN({A},{B},{C})	e:#NUM!	e:#NUM!	n:4020000000000000
+MEDIAN({A},{B},{C})	e:#NUM!	s:x	n:4020000000000000
+MEDIAN({A},{B},{C})	s:x	e:#DIV/0!	n:4020000000000000
+MEDIAN({A},{B},{C})	s:x	e:#NUM!	n:4020000000000000
+MEDIAN({A},{B},{C})	s:x	s:x	n:4020000000000000
+DEVSQ(#NAME?,"x",#N/A,{A})	n:4020000000000000
+HARMEAN("x",CHOOSE({1},"bad number"),CHOOSE({1,2,3,4},{A},#NAME?,{B},{C}),{E})	n:4000000000000000	n:4010000000000000	n:4014000000000000	n:4020000000000000
+HARMEAN(#DIV/0!,{A},CHOOSE({1},#N/A),{B})	e:#REF!	n:4020000000000000
+HARMEAN({A},#VALUE!,CHOOSE({1},#NAME?),{B})	e:#NULL!	n:4020000000000000
+MEDIAN(CHOOSE({1},#NULL!),CHOOSE({1,2,3;4,5,6},{A},#NAME?,{B},{C},{E},{F}),CHOOSE({1},""),{G})	n:4000000000000000	n:4010000000000000	n:4014000000000000	n:4018000000000000	n:401c000000000000	n:4020000000000000
+MEDIAN(CHOOSE({1,2;3,4;5,6},{A},{B},{C},{E},{F},#NAME?),#N/A,"",{G})	n:4000000000000000	n:4008000000000000	n:4010000000000000	n:4014000000000000	n:4018000000000000	n:4020000000000000
+MEDIAN(CHOOSE({1;2},{A},"x"),CHOOSE({1},""),CHOOSE({1;2;3},#REF!,{B},{C}),{E})	n:4000000000000000	n:4008000000000000	n:4010000000000000	n:4020000000000000
+DEVSQ({A},#DIV/0!,CHOOSE({1},"bad number"),{B})	e:#NUM!	n:4020000000000000
+DEVSQ(#DIV/0!,CHOOSE({1,2},{A},"bad number"),{B},{C})	n:4000000000000000	e:#NUM!	n:4020000000000000
+DEVSQ(CHOOSE({1;2;3},#REF!,#NUM!,#NUM!),CHOOSE({1,2;3,4},#REF!,#VALUE!,{A},#N/A),CHOOSE({1,2,3;4,5,6},#NULL!,#NULL!,#NULL!,#NAME?,#VALUE!,{B}),CHOOSE({1},#NAME?),{C},{E})	n:c000000000000000	n:c000000000000000	s:	n:4020000000000000
+HARMEAN({A},CHOOSE({1,2,3,4},"86","70","x",FALSE),{B},CHOOSE({1,2},#REF!,#NAME?),{C},{E})	s:x	e:#NULL!	e:#N/A	n:4020000000000000
+DEVSQ(CHOOSE({1,2,3,4},#VALUE!,{A},#N/A,{B}),{C},{E},CHOOSE({1},#DIV/0!),#N/A,CHOOSE({1},#N/A),"",{F})	n:0000000000000000	n:c000000000000000	e:#N/A	e:#NUM!	n:4020000000000000
+MEDIAN(CHOOSE({1,2;3,4;5,6},#DIV/0!,#NULL!,"63",#N/A,#N/A,""),CHOOSE({1,2;3,4},#DIV/0!,"82",#N/A,"x"),#VALUE!,{A})	n:4020000000000000
+DEVSQ(CHOOSE({1},#NULL!),"30",CHOOSE({1},"x"),CHOOSE({1,2,3;4,5,6},#NUM!,{A},{B},#NULL!,#NAME?,{C}),{E})	n:c000000000000000	n:4045e80000000000	n:c000000000000000	n:4020000000000000
+MEDIAN({A},CHOOSE({1,2,3,4},"",#NAME?,{B},#NUM!),CHOOSE({1;2;3},"x",#NUM!,#REF!),#NUM!,CHOOSE({1},#REF!),{C})	e:#NUM!	n:0000000000000000	n:4020000000000000
+HARMEAN(CHOOSE({1,2;3,4},"",#NUM!,TRUE,#N/A),{A},CHOOSE({1},#N/A),{B})	e:#REF!	n:4020000000000000
+MEDIAN({A},CHOOSE({1,2;3,4;5,6},#DIV/0!,"","x",#NAME?,#DIV/0!,#REF!),CHOOSE({1,2;3,4},#VALUE!,#NUM!,#DIV/0!,#DIV/0!),{B},CHOOSE({1},TRUE),{C})	e:#DIV/0!	s:94	n:4020000000000000
+HARMEAN(CHOOSE({1},{A}),CHOOSE({1},#DIV/0!),{B},{C},{E},{F})	n:c000000000000000	e:#NULL!	b:TRUE	e:#NULL!	n:4020000000000000
+HARMEAN({A},CHOOSE({1,2,3,4},"85",{B},{C},""),CHOOSE({1,2},{E},{F}),{G})	n:40a94ca000000000	n:c000000000000000	n:40a798c000000000	n:0000000000000000	n:40adb32000000000	n:4020000000000000
+MEDIAN(CHOOSE({1},{A}),CHOOSE({1,2},{B},{C}),CHOOSE({1},{E}),{F})	n:408a2e0000000000	n:409353c000000000	n:404e300000000000	n:4095908000000000	n:4020000000000000
+DEVSQ({A},{B},{C},{E})	n:409868c000000000	n:406c8e0000000000	n:40a3fdc000000000	n:4020000000000000
+HARMEAN(CHOOSE({1},{A}),CHOOSE({1},{B}),CHOOSE({1},{C}),{E},{F})	n:40adc68000000000	n:4085cd0000000000	n:409bce4000000000	n:40929cc000000000	n:4020000000000000
+MEDIAN({A},CHOOSE({1,2;3,4;5,6},{B},{C},"x","x","x","x"),{E},{F})	n:408fe00000000000	n:40ae9e0000000000	n:c000000000000000	n:40a058e000000000	n:4020000000000000
+DEVSQ({A},CHOOSE({1},{B}),CHOOSE({1},{C}),{E},CHOOSE({1,2;3,4},"16","88","32",{F}),{G})	n:4081578000000000	n:4042c80000000000	n:40a12e4000000000	n:40a7da0000000000	n:407da20000000000	n:4020000000000000
+MEDIAN({A},CHOOSE({1},{B}),CHOOSE({1,2},{C},{E}),{F})	n:40a0aee000000000	n:407f1b0000000000	n:4056ec0000000000	n:40a8a26000000000	n:4020000000000000
+DEVSQ({A},CHOOSE({1},{B}),{C},CHOOSE({1},{E}),CHOOSE({1},{F}),{G})	n:40a9562000000000	n:40a5492000000000	n:40ac8fc000000000	n:409659c000000000	n:40a83e4000000000	n:4020000000000000

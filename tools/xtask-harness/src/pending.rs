@@ -1,7 +1,7 @@
 //! `cargo xtask capture --pending [--list] [--timeout <s>] [--attempts <n>]`: every committed
 //! oracle capture that is missing or no longer of its workbook, taken with Excel; and `cargo xtask
 //! capture --split --fixture <oracle.xlsx> --capture <capture.json> [--saved <package>]
-//! [--keep-saved <sheet>]... [--pending-only]`, a capture of a whole sectioned oracle workbook written as its
+//! [--keep-saved <sheet>]... [--pending-only] [--only <sheet>]...`, a capture of a whole sectioned oracle workbook written as its
 //! section captures, with no Excel run.
 //!
 //! Slow validation is run on purpose, never as a condition of building, testing or committing: no
@@ -45,7 +45,9 @@
 //! during that capture, it also writes the saved worksheet part of each section that keeps one
 //! (an existing `sections/<sheet>.saved.xml`, or a sheet named by `--keep-saved`).
 //! With `--pending-only`, current section captures remain untouched; only missing or stale
-//! sections are written. The whole capture and saved package still undergo the same hash checks.
+//! sections are written. With `--only <sheet>` (repeatable), only the named sections are written, and
+//! only their cells must map: a capture of those sheets alone (the answers of a legacy-evidence import)
+//! is enough. The whole capture and saved package still undergo the same hash checks.
 
 use crate::capture::{accepted, default_work_dir_in, repository_revision, with_workbook_iteration};
 use crate::oracle_cases::{
@@ -59,7 +61,7 @@ use std::fs;
 use std::path::{Path, PathBuf};
 use std::time::Duration;
 
-pub const USAGE: &str = "usage: cargo xtask capture --pending [--list] [--timeout <s>] [--attempts <n>]\n       cargo xtask capture --split --fixture <oracle.xlsx> --capture <capture.json> [--saved <package>] [--keep-saved <sheet>]... [--pending-only]";
+pub const USAGE: &str = "usage: cargo xtask capture --pending [--list] [--timeout <s>] [--attempts <n>]\n       cargo xtask capture --split --fixture <oracle.xlsx> --capture <capture.json> [--saved <package>] [--keep-saved <sheet>]... [--pending-only] [--only <sheet>]...";
 
 const EXIT_FAILED: u8 = 1;
 const EXIT_USAGE: u8 = 2;
@@ -586,9 +588,10 @@ fn ensure_ledger_entries(root: &Path, written: &[String]) -> Result<(), String> 
     if added.is_empty() {
         return Ok(());
     }
-    let end = format!("{newline} ]{newline}}}");
-    let at = text
-        .rfind(&end)
+    // The list closes with " ]" or, as the entries of later lanes leave it, "  ]".
+    let at = [format!("{newline}  ]{newline}}}"), format!("{newline} ]{newline}}}")]
+        .iter()
+        .find_map(|end| text.rfind(end.as_str()))
         .ok_or_else(|| format!("{} does not end with its files list", path.display()))?;
     let updated = format!("{}{added}{}", &text[..at], &text[at..]);
     serde_json::from_str::<serde_json::Value>(&updated)
@@ -603,12 +606,14 @@ struct SplitArgs {
     saved: Option<PathBuf>,
     keep_saved: Vec<String>,
     pending_only: bool,
+    only: Vec<String>,
 }
 
 fn parse_split(args: &[String]) -> Result<SplitArgs, String> {
     let (mut fixture, mut capture, mut saved) = (None, None, None);
     let mut keep_saved = Vec::new();
     let mut pending_only = false;
+    let mut only = Vec::new();
     let mut rest = args.iter();
     while let Some(flag) = rest.next() {
         if flag == "--pending-only" {
@@ -624,6 +629,7 @@ fn parse_split(args: &[String]) -> Result<SplitArgs, String> {
             "--capture" => capture = Some(PathBuf::from(value)),
             "--saved" => saved = Some(PathBuf::from(value)),
             "--keep-saved" => keep_saved.push(value),
+            "--only" => only.push(value),
             other => return Err(format!("unknown argument {other:?}")),
         }
     }
@@ -633,6 +639,7 @@ fn parse_split(args: &[String]) -> Result<SplitArgs, String> {
         saved,
         keep_saved,
         pending_only,
+        only,
     })
 }
 
@@ -690,8 +697,16 @@ fn run_split(args: &SplitArgs) -> Result<Vec<String>, String> {
     } else {
         BTreeSet::new()
     };
-    let with_formulas: Vec<&calc_verdict::WorkbookSection> =
-        sections.iter().filter(|s| s.formula_cells > 0 && !current.contains(&s.sheet)).collect();
+    for name in &args.only {
+        if !sections.iter().any(|s| s.formula_cells > 0 && &s.sheet == name) {
+            return Err(format!("--only {name}: the workbook has no sheet {name} with formulas"));
+        }
+    }
+    let with_formulas: Vec<&calc_verdict::WorkbookSection> = sections
+        .iter()
+        .filter(|s| s.formula_cells > 0 && !current.contains(&s.sheet))
+        .filter(|s| args.only.is_empty() || args.only.contains(&s.sheet))
+        .collect();
     let written =
         write_sections(&case, &record, &with_formulas, saved.as_deref(), &args.keep_saved)?;
     ensure_ledger_entries(&root, &written)?;
@@ -770,9 +785,14 @@ mod tests {
                 saved: None,
                 keep_saved: vec!["s".to_owned()],
                 pending_only: false,
+                only: Vec::new(),
             }
         );
         assert!(parse_split(&args("--fixture f --capture c --pending-only")).unwrap().pending_only);
+        assert_eq!(
+            parse_split(&args("--fixture f --capture c --only a --only b")).unwrap().only,
+            vec!["a".to_owned(), "b".to_owned()]
+        );
     }
 
     /// The copy a capture of some of the catalogue's sections opens keeps every pending section's

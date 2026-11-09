@@ -211,6 +211,10 @@ pub struct Session {
     plain: bool,
     options: SessionOptions,
     addins: Vec<AddinRef>,
+    /// The Formatting panel's style and the Conditional Formatting panel's rules: the look of the
+    /// result, kept in the session file as ordinary cell formats and conditional formats
+    /// (dc-0f1k.20).
+    look: (crate::cf::CellStyle, Vec<crate::cf::CfRuleSpec>),
     /// Whether a VBA standard module typed into the session is loaded (beside any project).
     vba_loaded: bool,
     /// The VBA project the session's file carries (an .xlsm session), compiled.
@@ -262,6 +266,7 @@ impl Session {
             form: FormulaForm::Dynamic,
             plain: false,
             options: SessionOptions::default(),
+            look: Default::default(),
             addins: Vec::new(),
             vba_loaded: false,
             project: None,
@@ -374,6 +379,15 @@ impl Session {
 
     pub fn set_addins(&mut self, addins: Vec<AddinRef>) {
         self.addins = addins;
+    }
+
+    /// The look of the result: the Formatting panel's style and the Conditional Formatting rules.
+    pub fn look(&self) -> (&crate::cf::CellStyle, &[crate::cf::CfRuleSpec]) {
+        (&self.look.0, &self.look.1)
+    }
+
+    pub fn set_look(&mut self, style: crate::cf::CellStyle, rules: Vec<crate::cf::CfRuleSpec>) {
+        self.look = (style, rules);
     }
 
     /// Records whether a VBA module is loaded, for a host that keeps the module beside its
