@@ -588,9 +588,10 @@ fn ensure_ledger_entries(root: &Path, written: &[String]) -> Result<(), String> 
     if added.is_empty() {
         return Ok(());
     }
-    let end = format!("{newline} ]{newline}}}");
-    let at = text
-        .rfind(&end)
+    // The list closes with " ]" or, as the entries of later lanes leave it, "  ]".
+    let at = [format!("{newline}  ]{newline}}}"), format!("{newline} ]{newline}}}")]
+        .iter()
+        .find_map(|end| text.rfind(end.as_str()))
         .ok_or_else(|| format!("{} does not end with its files list", path.display()))?;
     let updated = format!("{}{added}{}", &text[..at], &text[at..]);
     serde_json::from_str::<serde_json::Value>(&updated)

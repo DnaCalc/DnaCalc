@@ -592,6 +592,7 @@ Write-Workbook (Join-Path $OutDir 'fn10_sort_cycle/oracle.xlsx') $fn10SortSheets
 # sheet to $JntSheets, whose section files are fixtures/jnt/sheet-<name>.txt.
 $JntSheets = @()
 $JntSheets += 'jnt_w111_elementary'
+$JntSheets += 'jnt_w111_rounding'
 $jnt = @()
 foreach ($name in $JntSheets) {
     $expanded = Expand-SectionLines (Get-SectionLines ('sheet-' + $name + '.txt') 'jnt')
