@@ -1,0 +1,1372 @@
+{
+  "rows": [
+    {
+      "errors": [],
+      "new_error_logs": [],
+      "workbook_name": "onecalc-look.xlsx",
+      "range": "K4:M7",
+      "cells": [
+        {
+          "address": "K4",
+          "formula": "=A1:C4",
+          "value2": 5.0,
+          "text": "5",
+          "font": {
+            "name": "Consolas",
+            "size": 14.0,
+            "bold": true,
+            "italic": true,
+            "underline": 2,
+            "strike": true,
+            "color": 10053171
+          },
+          "interior": {
+            "color": 10088191,
+            "pattern": 1
+          },
+          "borders": {
+            "left": {
+              "color": 0,
+              "style": -4142,
+              "weight": 2
+            },
+            "top": {
+              "color": 3351057,
+              "style": 1,
+              "weight": 2
+            },
+            "bottom": {
+              "color": 3351057,
+              "style": 1,
+              "weight": 2
+            },
+            "right": {
+              "color": 3351057,
+              "style": 1,
+              "weight": 2
+            }
+          },
+          "horizontal": -4108,
+          "wrap": true,
+          "number_format": "General",
+          "display": {
+            "font_color": 393372,
+            "bold": true,
+            "italic": true,
+            "underline": 2,
+            "strike": true,
+            "interior_color": 13551615,
+            "interior_pattern": 1,
+            "number_format": "General"
+          }
+        },
+        {
+          "address": "L4",
+          "formula": "",
+          "value2": "abc",
+          "text": "abc",
+          "font": {
+            "name": "Consolas",
+            "size": 14.0,
+            "bold": true,
+            "italic": true,
+            "underline": 2,
+            "strike": true,
+            "color": 10053171
+          },
+          "interior": {
+            "color": 10088191,
+            "pattern": 1
+          },
+          "borders": {
+            "left": {
+              "color": 3351057,
+              "style": 1,
+              "weight": 2
+            },
+            "top": {
+              "color": 3351057,
+              "style": 1,
+              "weight": 2
+            },
+            "bottom": {
+              "color": 3351057,
+              "style": 1,
+              "weight": 2
+            },
+            "right": {
+              "color": 3351057,
+              "style": 1,
+              "weight": 2
+            }
+          },
+          "horizontal": -4108,
+          "wrap": true,
+          "number_format": "General",
+          "display": {
+            "font_color": 393372,
+            "bold": true,
+            "italic": true,
+            "underline": 2,
+            "strike": true,
+            "interior_color": 13551615,
+            "interior_pattern": 1,
+            "number_format": "General"
+          }
+        },
+        {
+          "address": "M4",
+          "formula": "",
+          "value2": 12.0,
+          "text": "12",
+          "font": {
+            "name": "Consolas",
+            "size": 14.0,
+            "bold": true,
+            "italic": true,
+            "underline": 2,
+            "strike": true,
+            "color": 10053171
+          },
+          "interior": {
+            "color": 10088191,
+            "pattern": 1
+          },
+          "borders": {
+            "left": {
+              "color": 3351057,
+              "style": 1,
+              "weight": 2
+            },
+            "top": {
+              "color": 3351057,
+              "style": 1,
+              "weight": 2
+            },
+            "bottom": {
+              "color": 3351057,
+              "style": 1,
+              "weight": 2
+            },
+            "right": {
+              "color": 3351057,
+              "style": 1,
+              "weight": 2
+            }
+          },
+          "horizontal": -4108,
+          "wrap": true,
+          "number_format": "General",
+          "display": {
+            "font_color": 393372,
+            "bold": true,
+            "italic": true,
+            "underline": 2,
+            "strike": true,
+            "interior_color": 13551615,
+            "interior_pattern": 1,
+            "number_format": "General"
+          }
+        },
+        {
+          "address": "K5",
+          "formula": "",
+          "value2": -3.0,
+          "text": "-3",
+          "font": {
+            "name": "Consolas",
+            "size": 14.0,
+            "bold": true,
+            "italic": true,
+            "underline": 2,
+            "strike": true,
+            "color": 10053171
+          },
+          "interior": {
+            "color": 10088191,
+            "pattern": 1
+          },
+          "borders": {
+            "left": {
+              "color": 0,
+              "style": -4142,
+              "weight": 2
+            },
+            "top": {
+              "color": 3351057,
+              "style": 1,
+              "weight": 2
+            },
+            "bottom": {
+              "color": 3351057,
+              "style": 1,
+              "weight": 2
+            },
+            "right": {
+              "color": 3351057,
+              "style": 1,
+              "weight": 2
+            }
+          },
+          "horizontal": -4108,
+          "wrap": true,
+          "number_format": "General",
+          "display": {
+            "font_color": 393372,
+            "bold": true,
+            "italic": true,
+            "underline": 2,
+            "strike": true,
+            "interior_color": 13551615,
+            "interior_pattern": 1,
+            "number_format": "General"
+          }
+        },
+        {
+          "address": "L5",
+          "formula": "",
+          "value2": "a \"q\" b",
+          "text": "a \"q\" b",
+          "font": {
+            "name": "Consolas",
+            "size": 14.0,
+            "bold": true,
+            "italic": true,
+            "underline": 2,
+            "strike": true,
+            "color": 10053171
+          },
+          "interior": {
+            "color": 10088191,
+            "pattern": 1
+          },
+          "borders": {
+            "left": {
+              "color": 3351057,
+              "style": 1,
+              "weight": 2
+            },
+            "top": {
+              "color": 3351057,
+              "style": 1,
+              "weight": 2
+            },
+            "bottom": {
+              "color": 3351057,
+              "style": 1,
+              "weight": 2
+            },
+            "right": {
+              "color": 3351057,
+              "style": 1,
+              "weight": 2
+            }
+          },
+          "horizontal": -4108,
+          "wrap": true,
+          "number_format": "General",
+          "display": {
+            "font_color": 393372,
+            "bold": true,
+            "italic": true,
+            "underline": 2,
+            "strike": true,
+            "interior_color": 13551615,
+            "interior_pattern": 1,
+            "number_format": "General"
+          }
+        },
+        {
+          "address": "M5",
+          "formula": "",
+          "value2": 40.0,
+          "text": "40",
+          "font": {
+            "name": "Consolas",
+            "size": 14.0,
+            "bold": true,
+            "italic": true,
+            "underline": 2,
+            "strike": true,
+            "color": 10053171
+          },
+          "interior": {
+            "color": 10088191,
+            "pattern": 1
+          },
+          "borders": {
+            "left": {
+              "color": 3351057,
+              "style": 1,
+              "weight": 2
+            },
+            "top": {
+              "color": 3351057,
+              "style": 1,
+              "weight": 2
+            },
+            "bottom": {
+              "color": 3351057,
+              "style": 1,
+              "weight": 2
+            },
+            "right": {
+              "color": 3351057,
+              "style": 1,
+              "weight": 2
+            }
+          },
+          "horizontal": -4108,
+          "wrap": true,
+          "number_format": "General",
+          "display": {
+            "font_color": 393372,
+            "bold": true,
+            "italic": true,
+            "underline": 2,
+            "strike": true,
+            "interior_color": 13551615,
+            "interior_pattern": 1,
+            "number_format": "General"
+          }
+        },
+        {
+          "address": "K6",
+          "formula": "",
+          "value2": 8.0,
+          "text": "8",
+          "font": {
+            "name": "Consolas",
+            "size": 14.0,
+            "bold": true,
+            "italic": true,
+            "underline": 2,
+            "strike": true,
+            "color": 10053171
+          },
+          "interior": {
+            "color": 10088191,
+            "pattern": 1
+          },
+          "borders": {
+            "left": {
+              "color": 0,
+              "style": -4142,
+              "weight": 2
+            },
+            "top": {
+              "color": 3351057,
+              "style": 1,
+              "weight": 2
+            },
+            "bottom": {
+              "color": 3351057,
+              "style": 1,
+              "weight": 2
+            },
+            "right": {
+              "color": 3351057,
+              "style": 1,
+              "weight": 2
+            }
+          },
+          "horizontal": -4108,
+          "wrap": true,
+          "number_format": "General",
+          "display": {
+            "font_color": 393372,
+            "bold": true,
+            "italic": true,
+            "underline": 2,
+            "strike": true,
+            "interior_color": 13551615,
+            "interior_pattern": 1,
+            "number_format": "General"
+          }
+        },
+        {
+          "address": "L6",
+          "formula": "",
+          "value2": true,
+          "text": "TRUE",
+          "font": {
+            "name": "Consolas",
+            "size": 14.0,
+            "bold": true,
+            "italic": true,
+            "underline": 2,
+            "strike": true,
+            "color": 10053171
+          },
+          "interior": {
+            "color": 10088191,
+            "pattern": 1
+          },
+          "borders": {
+            "left": {
+              "color": 3351057,
+              "style": 1,
+              "weight": 2
+            },
+            "top": {
+              "color": 3351057,
+              "style": 1,
+              "weight": 2
+            },
+            "bottom": {
+              "color": 3351057,
+              "style": 1,
+              "weight": 2
+            },
+            "right": {
+              "color": 3351057,
+              "style": 1,
+              "weight": 2
+            }
+          },
+          "horizontal": -4108,
+          "wrap": true,
+          "number_format": "General",
+          "display": {
+            "font_color": 393372,
+            "bold": true,
+            "italic": true,
+            "underline": 2,
+            "strike": true,
+            "interior_color": 13551615,
+            "interior_pattern": 1,
+            "number_format": "General"
+          }
+        },
+        {
+          "address": "M6",
+          "formula": "",
+          "value2": -2146826246,
+          "text": "#N/A",
+          "font": {
+            "name": "Consolas",
+            "size": 14.0,
+            "bold": true,
+            "italic": true,
+            "underline": 2,
+            "strike": true,
+            "color": 10053171
+          },
+          "interior": {
+            "color": 10088191,
+            "pattern": 1
+          },
+          "borders": {
+            "left": {
+              "color": 3351057,
+              "style": 1,
+              "weight": 2
+            },
+            "top": {
+              "color": 3351057,
+              "style": 1,
+              "weight": 2
+            },
+            "bottom": {
+              "color": 3351057,
+              "style": 1,
+              "weight": 2
+            },
+            "right": {
+              "color": 3351057,
+              "style": 1,
+              "weight": 2
+            }
+          },
+          "horizontal": -4108,
+          "wrap": true,
+          "number_format": "General",
+          "display": {
+            "font_color": 393372,
+            "bold": true,
+            "italic": true,
+            "underline": 2,
+            "strike": true,
+            "interior_color": 13551615,
+            "interior_pattern": 1,
+            "number_format": "General"
+          }
+        },
+        {
+          "address": "K7",
+          "formula": "",
+          "value2": 5.0,
+          "text": "5",
+          "font": {
+            "name": "Consolas",
+            "size": 14.0,
+            "bold": true,
+            "italic": true,
+            "underline": 2,
+            "strike": true,
+            "color": 10053171
+          },
+          "interior": {
+            "color": 10088191,
+            "pattern": 1
+          },
+          "borders": {
+            "left": {
+              "color": 0,
+              "style": -4142,
+              "weight": 2
+            },
+            "top": {
+              "color": 3351057,
+              "style": 1,
+              "weight": 2
+            },
+            "bottom": {
+              "color": 3351057,
+              "style": 1,
+              "weight": 2
+            },
+            "right": {
+              "color": 3351057,
+              "style": 1,
+              "weight": 2
+            }
+          },
+          "horizontal": -4108,
+          "wrap": true,
+          "number_format": "General",
+          "display": {
+            "font_color": 393372,
+            "bold": true,
+            "italic": true,
+            "underline": 2,
+            "strike": true,
+            "interior_color": 13551615,
+            "interior_pattern": 1,
+            "number_format": "General"
+          }
+        },
+        {
+          "address": "L7",
+          "formula": "",
+          "value2": "xyz",
+          "text": "xyz",
+          "font": {
+            "name": "Consolas",
+            "size": 14.0,
+            "bold": true,
+            "italic": true,
+            "underline": 2,
+            "strike": true,
+            "color": 10053171
+          },
+          "interior": {
+            "color": 10088191,
+            "pattern": 1
+          },
+          "borders": {
+            "left": {
+              "color": 3351057,
+              "style": 1,
+              "weight": 2
+            },
+            "top": {
+              "color": 3351057,
+              "style": 1,
+              "weight": 2
+            },
+            "bottom": {
+              "color": 3351057,
+              "style": 1,
+              "weight": 2
+            },
+            "right": {
+              "color": 3351057,
+              "style": 1,
+              "weight": 2
+            }
+          },
+          "horizontal": -4108,
+          "wrap": true,
+          "number_format": "General",
+          "display": {
+            "font_color": 393372,
+            "bold": true,
+            "italic": true,
+            "underline": 2,
+            "strike": true,
+            "interior_color": 13551615,
+            "interior_pattern": 1,
+            "number_format": "General"
+          }
+        },
+        {
+          "address": "M7",
+          "formula": "",
+          "value2": 100.0,
+          "text": "100",
+          "font": {
+            "name": "Consolas",
+            "size": 14.0,
+            "bold": true,
+            "italic": true,
+            "underline": 2,
+            "strike": true,
+            "color": 10053171
+          },
+          "interior": {
+            "color": 10088191,
+            "pattern": 1
+          },
+          "borders": {
+            "left": {
+              "color": 3351057,
+              "style": 1,
+              "weight": 2
+            },
+            "top": {
+              "color": 3351057,
+              "style": 1,
+              "weight": 2
+            },
+            "bottom": {
+              "color": 3351057,
+              "style": 1,
+              "weight": 2
+            },
+            "right": {
+              "color": 3351057,
+              "style": 1,
+              "weight": 2
+            }
+          },
+          "horizontal": -4108,
+          "wrap": true,
+          "number_format": "General",
+          "display": {
+            "font_color": 393372,
+            "bold": true,
+            "italic": true,
+            "underline": 2,
+            "strike": true,
+            "interior_color": 13551615,
+            "interior_pattern": 1,
+            "number_format": "General"
+          }
+        }
+      ],
+      "condition_count": 14,
+      "conditions": [
+        {
+          "index": 1,
+          "Type": 1,
+          "Priority": 1,
+          "StopIfTrue": true,
+          "Operator": 1,
+          "Formula1": "=2",
+          "Formula2": "=L4+5",
+          "Text": 0,
+          "TextOperator": 0,
+          "DateOperator": 0,
+          "Rank": 0,
+          "Percent": 0,
+          "TopBottom": 0,
+          "AboveBelow": 0,
+          "NumStdDev": 0,
+          "NumberFormat": "0.00\"x\"",
+          "ShowValue": 0,
+          "ReverseOrder": 0,
+          "ShowIconOnly": 0,
+          "BarFillType": 0,
+          "Direction": 0,
+          "applies_to": "K4:M7",
+          "font": {
+            "color": 393372,
+            "bold": true,
+            "italic": null,
+            "underline": null,
+            "strike": null
+          },
+          "interior": {
+            "unread": "Cannot convert value \"\" to type \"System.Int32\". Error: \"Object cannot be cast from DBNull to other types.\""
+          },
+          "criteria": {
+            "unread": "You cannot call a method on a null-valued expression."
+          },
+          "bar": {
+            "color": 0,
+            "min_type": 0,
+            "max_type": 0,
+            "fill": 0,
+            "negative": null
+          },
+          "icons": {
+            "unread": "You cannot call a method on a null-valued expression."
+          }
+        },
+        {
+          "index": 2,
+          "Type": 9,
+          "Priority": 2,
+          "StopIfTrue": false,
+          "Operator": 0,
+          "Formula1": "=LEFT(K4,LEN(\"a \"\"q\"\"\"))=\"a \"\"q\"\"\"",
+          "Formula2": 0,
+          "Text": "a \"q\"",
+          "TextOperator": 2,
+          "DateOperator": 0,
+          "Rank": 0,
+          "Percent": 0,
+          "TopBottom": 0,
+          "AboveBelow": 0,
+          "NumStdDev": 0,
+          "NumberFormat": 0,
+          "ShowValue": 0,
+          "ReverseOrder": 0,
+          "ShowIconOnly": 0,
+          "BarFillType": 0,
+          "Direction": 0,
+          "applies_to": "K4:M7",
+          "font": {
+            "color": 393372,
+            "bold": null,
+            "italic": null,
+            "underline": null,
+            "strike": null
+          },
+          "interior": {
+            "unread": "Cannot convert value \"\" to type \"System.Int32\". Error: \"Object cannot be cast from DBNull to other types.\""
+          },
+          "criteria": {
+            "unread": "You cannot call a method on a null-valued expression."
+          },
+          "bar": {
+            "color": 0,
+            "min_type": 0,
+            "max_type": 0,
+            "fill": 0,
+            "negative": null
+          },
+          "icons": {
+            "unread": "You cannot call a method on a null-valued expression."
+          }
+        },
+        {
+          "index": 3,
+          "Type": 13,
+          "Priority": 3,
+          "StopIfTrue": false,
+          "Operator": 0,
+          "Formula1": "=LEN(TRIM(K4))>0",
+          "Formula2": 0,
+          "Text": 0,
+          "TextOperator": 0,
+          "DateOperator": 0,
+          "Rank": 0,
+          "Percent": 0,
+          "TopBottom": 0,
+          "AboveBelow": 0,
+          "NumStdDev": 0,
+          "NumberFormat": 0,
+          "ShowValue": 0,
+          "ReverseOrder": 0,
+          "ShowIconOnly": 0,
+          "BarFillType": 0,
+          "Direction": 0,
+          "applies_to": "K4:M7",
+          "font": {
+            "color": 393372,
+            "bold": null,
+            "italic": null,
+            "underline": null,
+            "strike": null
+          },
+          "interior": {
+            "unread": "Cannot convert value \"\" to type \"System.Int32\". Error: \"Object cannot be cast from DBNull to other types.\""
+          },
+          "criteria": {
+            "unread": "You cannot call a method on a null-valued expression."
+          },
+          "bar": {
+            "color": 0,
+            "min_type": 0,
+            "max_type": 0,
+            "fill": 0,
+            "negative": null
+          },
+          "icons": {
+            "unread": "You cannot call a method on a null-valued expression."
+          }
+        },
+        {
+          "index": 4,
+          "Type": 16,
+          "Priority": 4,
+          "StopIfTrue": false,
+          "Operator": 0,
+          "Formula1": "=ISERROR(K4)",
+          "Formula2": 0,
+          "Text": 0,
+          "TextOperator": 0,
+          "DateOperator": 0,
+          "Rank": 0,
+          "Percent": 0,
+          "TopBottom": 0,
+          "AboveBelow": 0,
+          "NumStdDev": 0,
+          "NumberFormat": 0,
+          "ShowValue": 0,
+          "ReverseOrder": 0,
+          "ShowIconOnly": 0,
+          "BarFillType": 0,
+          "Direction": 0,
+          "applies_to": "K4:M7",
+          "font": {
+            "color": 393372,
+            "bold": null,
+            "italic": null,
+            "underline": null,
+            "strike": null
+          },
+          "interior": {
+            "unread": "Cannot convert value \"\" to type \"System.Int32\". Error: \"Object cannot be cast from DBNull to other types.\""
+          },
+          "criteria": {
+            "unread": "You cannot call a method on a null-valued expression."
+          },
+          "bar": {
+            "color": 0,
+            "min_type": 0,
+            "max_type": 0,
+            "fill": 0,
+            "negative": null
+          },
+          "icons": {
+            "unread": "You cannot call a method on a null-valued expression."
+          }
+        },
+        {
+          "index": 5,
+          "Type": 11,
+          "Priority": 5,
+          "StopIfTrue": false,
+          "Operator": 0,
+          "Formula1": "=AND(TODAY()-ROUNDDOWN(K4,0)>=(WEEKDAY(TODAY())),TODAY()-ROUNDDOWN(K4,0)<(WEEKDAY(TODAY())+7))",
+          "Formula2": 0,
+          "Text": 0,
+          "TextOperator": 0,
+          "DateOperator": 4,
+          "Rank": 0,
+          "Percent": 0,
+          "TopBottom": 0,
+          "AboveBelow": 0,
+          "NumStdDev": 0,
+          "NumberFormat": 0,
+          "ShowValue": 0,
+          "ReverseOrder": 0,
+          "ShowIconOnly": 0,
+          "BarFillType": 0,
+          "Direction": 0,
+          "applies_to": "K4:M7",
+          "font": {
+            "color": 393372,
+            "bold": null,
+            "italic": null,
+            "underline": null,
+            "strike": null
+          },
+          "interior": {
+            "unread": "Cannot convert value \"\" to type \"System.Int32\". Error: \"Object cannot be cast from DBNull to other types.\""
+          },
+          "criteria": {
+            "unread": "You cannot call a method on a null-valued expression."
+          },
+          "bar": {
+            "color": 0,
+            "min_type": 0,
+            "max_type": 0,
+            "fill": 0,
+            "negative": null
+          },
+          "icons": {
+            "unread": "You cannot call a method on a null-valued expression."
+          }
+        },
+        {
+          "index": 6,
+          "Type": 2,
+          "Priority": 6,
+          "StopIfTrue": false,
+          "Operator": 0,
+          "Formula1": "=AND(K4>2,L4<$C$3)",
+          "Formula2": 0,
+          "Text": 0,
+          "TextOperator": 0,
+          "DateOperator": 0,
+          "Rank": 0,
+          "Percent": 0,
+          "TopBottom": 0,
+          "AboveBelow": 0,
+          "NumStdDev": 0,
+          "NumberFormat": 0,
+          "ShowValue": 0,
+          "ReverseOrder": 0,
+          "ShowIconOnly": 0,
+          "BarFillType": 0,
+          "Direction": 0,
+          "applies_to": "K4:M7",
+          "font": {
+            "color": 393372,
+            "bold": null,
+            "italic": true,
+            "underline": 2,
+            "strike": true
+          },
+          "interior": {
+            "unread": "Cannot convert value \"\" to type \"System.Int32\". Error: \"Object cannot be cast from DBNull to other types.\""
+          },
+          "criteria": {
+            "unread": "You cannot call a method on a null-valued expression."
+          },
+          "bar": {
+            "color": 0,
+            "min_type": 0,
+            "max_type": 0,
+            "fill": 0,
+            "negative": null
+          },
+          "icons": {
+            "unread": "You cannot call a method on a null-valued expression."
+          }
+        },
+        {
+          "index": 7,
+          "Type": 5,
+          "Priority": 7,
+          "StopIfTrue": false,
+          "Operator": 0,
+          "Formula1": 0,
+          "Formula2": 0,
+          "Text": 0,
+          "TextOperator": 0,
+          "DateOperator": 0,
+          "Rank": 25,
+          "Percent": true,
+          "TopBottom": 0,
+          "AboveBelow": 0,
+          "NumStdDev": 0,
+          "NumberFormat": 0,
+          "ShowValue": 0,
+          "ReverseOrder": 0,
+          "ShowIconOnly": 0,
+          "BarFillType": 0,
+          "Direction": 0,
+          "applies_to": "K4:M7",
+          "font": {
+            "color": 393372,
+            "bold": null,
+            "italic": null,
+            "underline": null,
+            "strike": null
+          },
+          "interior": {
+            "unread": "Cannot convert value \"\" to type \"System.Int32\". Error: \"Object cannot be cast from DBNull to other types.\""
+          },
+          "criteria": {
+            "unread": "You cannot call a method on a null-valued expression."
+          },
+          "bar": {
+            "color": 0,
+            "min_type": 0,
+            "max_type": 0,
+            "fill": 0,
+            "negative": null
+          },
+          "icons": {
+            "unread": "You cannot call a method on a null-valued expression."
+          }
+        },
+        {
+          "index": 8,
+          "Type": 12,
+          "Priority": 8,
+          "StopIfTrue": false,
+          "Operator": 0,
+          "Formula1": 0,
+          "Formula2": 0,
+          "Text": 0,
+          "TextOperator": 0,
+          "DateOperator": 0,
+          "Rank": 0,
+          "Percent": 0,
+          "TopBottom": 0,
+          "AboveBelow": 3,
+          "NumStdDev": 1,
+          "NumberFormat": 0,
+          "ShowValue": 0,
+          "ReverseOrder": 0,
+          "ShowIconOnly": 0,
+          "BarFillType": 0,
+          "Direction": 0,
+          "applies_to": "K4:M7",
+          "font": {
+            "color": 393372,
+            "bold": null,
+            "italic": null,
+            "underline": null,
+            "strike": null
+          },
+          "interior": {
+            "unread": "Cannot convert value \"\" to type \"System.Int32\". Error: \"Object cannot be cast from DBNull to other types.\""
+          },
+          "criteria": {
+            "unread": "You cannot call a method on a null-valued expression."
+          },
+          "bar": {
+            "color": 0,
+            "min_type": 0,
+            "max_type": 0,
+            "fill": 0,
+            "negative": null
+          },
+          "icons": {
+            "unread": "You cannot call a method on a null-valued expression."
+          }
+        },
+        {
+          "index": 9,
+          "Type": 8,
+          "Priority": 9,
+          "StopIfTrue": false,
+          "Operator": 0,
+          "Formula1": 0,
+          "Formula2": 0,
+          "Text": 0,
+          "TextOperator": 0,
+          "DateOperator": 0,
+          "Rank": 0,
+          "Percent": 0,
+          "TopBottom": 0,
+          "AboveBelow": 0,
+          "NumStdDev": 0,
+          "NumberFormat": 0,
+          "ShowValue": 0,
+          "ReverseOrder": 0,
+          "ShowIconOnly": 0,
+          "BarFillType": 0,
+          "Direction": 0,
+          "applies_to": "K4:M7",
+          "font": {
+            "color": 393372,
+            "bold": null,
+            "italic": null,
+            "underline": null,
+            "strike": null
+          },
+          "interior": {
+            "unread": "Cannot convert value \"\" to type \"System.Int32\". Error: \"Object cannot be cast from DBNull to other types.\""
+          },
+          "criteria": {
+            "unread": "You cannot call a method on a null-valued expression."
+          },
+          "bar": {
+            "color": 0,
+            "min_type": 0,
+            "max_type": 0,
+            "fill": 0,
+            "negative": null
+          },
+          "icons": {
+            "unread": "You cannot call a method on a null-valued expression."
+          }
+        },
+        {
+          "index": 10,
+          "Type": 8,
+          "Priority": 10,
+          "StopIfTrue": false,
+          "Operator": 0,
+          "Formula1": 0,
+          "Formula2": 0,
+          "Text": 0,
+          "TextOperator": 0,
+          "DateOperator": 0,
+          "Rank": 0,
+          "Percent": 0,
+          "TopBottom": 0,
+          "AboveBelow": 0,
+          "NumStdDev": 0,
+          "NumberFormat": 0,
+          "ShowValue": 0,
+          "ReverseOrder": 0,
+          "ShowIconOnly": 0,
+          "BarFillType": 0,
+          "Direction": 0,
+          "applies_to": "K4:M7",
+          "font": {
+            "color": 393372,
+            "bold": null,
+            "italic": null,
+            "underline": null,
+            "strike": null
+          },
+          "interior": {
+            "unread": "Cannot convert value \"\" to type \"System.Int32\". Error: \"Object cannot be cast from DBNull to other types.\""
+          },
+          "criteria": {
+            "unread": "You cannot call a method on a null-valued expression."
+          },
+          "bar": {
+            "color": 0,
+            "min_type": 0,
+            "max_type": 0,
+            "fill": 0,
+            "negative": null
+          },
+          "icons": {
+            "unread": "You cannot call a method on a null-valued expression."
+          }
+        },
+        {
+          "index": 11,
+          "Type": 3,
+          "Priority": 11,
+          "StopIfTrue": false,
+          "Operator": 0,
+          "Formula1": 0,
+          "Formula2": 0,
+          "Text": 0,
+          "TextOperator": 0,
+          "DateOperator": 0,
+          "Rank": 0,
+          "Percent": 0,
+          "TopBottom": 0,
+          "AboveBelow": 0,
+          "NumStdDev": 0,
+          "NumberFormat": 0,
+          "ShowValue": 0,
+          "ReverseOrder": 0,
+          "ShowIconOnly": 0,
+          "BarFillType": 0,
+          "Direction": 0,
+          "applies_to": "K4:M7",
+          "font": {
+            "color": 0,
+            "bold": null,
+            "italic": null,
+            "underline": null,
+            "strike": null
+          },
+          "interior": {
+            "color": 0,
+            "pattern": 0
+          },
+          "criteria": [
+            {
+              "type": 1,
+              "value": -3.0,
+              "color": 7039480
+            },
+            {
+              "type": 2,
+              "value": 100.0,
+              "color": 8109667
+            }
+          ],
+          "bar": {
+            "color": 0,
+            "min_type": 0,
+            "max_type": 0,
+            "fill": 0,
+            "negative": null
+          },
+          "icons": {
+            "unread": "You cannot call a method on a null-valued expression."
+          }
+        },
+        {
+          "index": 12,
+          "Type": 3,
+          "Priority": 12,
+          "StopIfTrue": false,
+          "Operator": 0,
+          "Formula1": 0,
+          "Formula2": 0,
+          "Text": 0,
+          "TextOperator": 0,
+          "DateOperator": 0,
+          "Rank": 0,
+          "Percent": 0,
+          "TopBottom": 0,
+          "AboveBelow": 0,
+          "NumStdDev": 0,
+          "NumberFormat": 0,
+          "ShowValue": 0,
+          "ReverseOrder": 0,
+          "ShowIconOnly": 0,
+          "BarFillType": 0,
+          "Direction": 0,
+          "applies_to": "K4:M7",
+          "font": {
+            "color": 0,
+            "bold": null,
+            "italic": null,
+            "underline": null,
+            "strike": null
+          },
+          "interior": {
+            "color": 0,
+            "pattern": 0
+          },
+          "criteria": [
+            {
+              "type": 1,
+              "value": -3.0,
+              "color": 3351057
+            },
+            {
+              "type": 5,
+              "value": 50.0,
+              "color": 8711167
+            },
+            {
+              "type": 2,
+              "value": 100.0,
+              "color": 8109667
+            }
+          ],
+          "bar": {
+            "color": 0,
+            "min_type": 0,
+            "max_type": 0,
+            "fill": 0,
+            "negative": null
+          },
+          "icons": {
+            "unread": "You cannot call a method on a null-valued expression."
+          }
+        },
+        {
+          "index": 13,
+          "Type": 4,
+          "Priority": 13,
+          "StopIfTrue": false,
+          "Operator": 0,
+          "Formula1": 0,
+          "Formula2": 0,
+          "Text": 0,
+          "TextOperator": 0,
+          "DateOperator": 0,
+          "Rank": 0,
+          "Percent": 0,
+          "TopBottom": 0,
+          "AboveBelow": 0,
+          "NumStdDev": 0,
+          "NumberFormat": 0,
+          "ShowValue": true,
+          "ReverseOrder": 0,
+          "ShowIconOnly": 0,
+          "BarFillType": 1,
+          "Direction": -5002,
+          "applies_to": "K4:M7",
+          "font": {
+            "color": 0,
+            "bold": null,
+            "italic": null,
+            "underline": null,
+            "strike": null
+          },
+          "interior": {
+            "color": 0,
+            "pattern": 0
+          },
+          "criteria": {
+            "unread": "You cannot call a method on a null-valued expression."
+          },
+          "bar": {
+            "color": 255,
+            "min_type": 1,
+            "max_type": 2,
+            "fill": 1,
+            "negative": null
+          },
+          "icons": {
+            "unread": "You cannot call a method on a null-valued expression."
+          }
+        },
+        {
+          "index": 14,
+          "Type": 6,
+          "Priority": 14,
+          "StopIfTrue": false,
+          "Operator": 0,
+          "Formula1": 0,
+          "Formula2": 0,
+          "Text": 0,
+          "TextOperator": 0,
+          "DateOperator": 0,
+          "Rank": 0,
+          "Percent": 0,
+          "TopBottom": 0,
+          "AboveBelow": 0,
+          "NumStdDev": 0,
+          "NumberFormat": 0,
+          "ShowValue": 0,
+          "ReverseOrder": true,
+          "ShowIconOnly": false,
+          "BarFillType": 0,
+          "Direction": 0,
+          "applies_to": "K4:M7",
+          "font": {
+            "color": 0,
+            "bold": null,
+            "italic": null,
+            "underline": null,
+            "strike": null
+          },
+          "interior": {
+            "color": 0,
+            "pattern": 0
+          },
+          "criteria": {
+            "unread": "You cannot call a method on a null-valued expression."
+          },
+          "bar": {
+            "color": 0,
+            "min_type": 0,
+            "max_type": 0,
+            "fill": 0,
+            "negative": null
+          },
+          "icons": {
+            "id": 13,
+            "count": 4,
+            "types": [
+              {
+                "type": 3,
+                "value": 0.0,
+                "operator": 7
+              },
+              {
+                "type": 3,
+                "value": 25.0,
+                "operator": 7
+              },
+              {
+                "type": 3,
+                "value": 50.0,
+                "operator": 7
+              },
+              {
+                "type": 3,
+                "value": 75.0,
+                "operator": 7
+              }
+            ]
+          }
+        }
+      ]
+    }
+  ],
+  "fatal": null
+}

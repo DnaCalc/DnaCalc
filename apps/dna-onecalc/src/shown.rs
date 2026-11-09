@@ -39,10 +39,12 @@ pub struct Authored {
     pub date_1904: bool,
     /// The clock (a serial date number) the page reads, for NOW and TODAY.
     pub now: Option<f64>,
-    /// The Formatting panel: how the result is drawn. Not saved in the session file.
+    /// The Formatting panel: how the result is drawn. Saved in the session file as the cell format
+    /// of the formula's cell and the cells its result fills.
     #[serde(default)]
     pub style: CellStyle,
-    /// The Conditional Formatting panel's rules, in priority order. Not saved in the session file.
+    /// The Conditional Formatting panel's rules, in priority order. Saved in the session file as
+    /// conditional formats over the same cells.
     #[serde(default)]
     pub cf_rules: Vec<CfRuleSpec>,
 }
@@ -230,8 +232,11 @@ pub(crate) fn prepare(session: &mut Session, authored: &Authored) -> (String, Ve
         number_format,
         date_1904,
         now,
+        style,
+        cf_rules,
         ..
     } = authored;
+    session.set_look(style.clone(), cf_rules.clone());
     session.set_form(if *legacy {
         FormulaForm::Legacy
     } else {
@@ -575,6 +580,9 @@ pub fn authored_of(session: &Session) -> Authored {
     authored.locale = session.options().locale.clone();
     authored.number_format = session.options().number_format.clone();
     authored.date_1904 = session.options().date_1904;
+    let (style, rules) = session.look();
+    authored.style = style.clone();
+    authored.cf_rules = rules.to_vec();
     authored
 }
 

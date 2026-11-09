@@ -84,6 +84,7 @@ mod opc;
 mod policy;
 mod save;
 mod session;
+mod session_look;
 mod source;
 mod vba;
 mod xlsb;
@@ -117,7 +118,8 @@ pub use save::{
     WriteError, SpreadsheetFormat, conditional_rule, new_condition_rule, new_conditional_rule, prepare_save, write,
 };
 pub use session::{
-    SessionArray, SessionConstant, SessionFile, SessionFormula, SessionRefusal, SessionValue,
+    SessionArray, SessionConstant, SessionDxf, SessionFile, SessionFormat, SessionFormula, SessionLook,
+    SessionRefusal, SessionRule, SessionValue,
     SessionVba, plain_formula_needs_legacy, read_session, read_vba_file, write_session,
 };
 pub use source::{MemorySource, PackageRead, PackageWrite, SinkError, SourceError};

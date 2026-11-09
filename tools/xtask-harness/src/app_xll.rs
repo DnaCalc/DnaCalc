@@ -335,6 +335,7 @@ fn reopen_offer(session: &Session, xll: &Path, name: &str, out: &Path) -> Result
         date_1904: false,
         cached: None,
         vba: None,
+        look: None,
     };
     let session_bytes = calc_doc::write_session(&file).map_err(|e| e.to_string())?;
     let directory = out.join("reopen");

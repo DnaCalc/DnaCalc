@@ -490,8 +490,7 @@ pub(super) fn rewrite(
         .get(before.differential_formats.len()..)
         .unwrap_or(&[])
     {
-        if dxf.number_format.is_some()
-            || dxf.border.is_some()
+        if dxf.border.is_some()
             || dxf.alignment.is_some()
             || dxf.protection.is_some()
             || dxf
@@ -525,6 +524,13 @@ pub(super) fn rewrite(
                         f,
                     )),
                 );
+            }
+            // A differential format's number format (schema order: font, numFmt, fill).
+            if let Some(format) = &after.number_format {
+                let mut n = Node::new(&node.prefix(), "numFmt");
+                n.attr("numFmtId", Some(format.id.to_string()));
+                n.attr("formatCode", Some(format.code.clone()));
+                node.set_child("numFmt", Some(n));
             }
             if let Some(f) = &after.fill {
                 node.set_child(

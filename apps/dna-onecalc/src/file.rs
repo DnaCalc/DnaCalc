@@ -14,6 +14,12 @@
 //! </onecalc>
 //! ```
 //!
+//! The Formatting and Conditional Formatting panels are saved as ordinary Excel content: the
+//! style as the cell format of the formula's cell and of the cells its result fills, the rules as
+//! conditional formats (`cfRule` and `dxf`) over the same cells, with their formulas stored for
+//! the range's first cell. Excel opens the file and shows the same formats and rules; a reopen
+//! restores the panels.
+//!
 //! The file lists add-ins and never loads one: a reopen shows the list, and loading is the
 //! person's choice. A file outside the constraints is refused with an [`OpenRefusal`], which
 //! says why and offers the same file in DNA Calc.
@@ -27,9 +33,10 @@
 
 use crate::grid;
 use crate::session::{AddinRef, InputValue, Session, SessionOptions};
+use crate::cf::{CellStyle, CfRuleSpec};
 use calc_doc::{
-    CustomXmlItem, SessionArray, SessionConstant, SessionFile, SessionFormula, SessionValue,
-    XmlEvent, XmlPart, read_session, write_session,
+    CustomXmlItem, SessionArray, SessionConstant, SessionFile, SessionFormula, SessionLook,
+    SessionValue, XmlEvent, XmlPart, read_session, write_session,
 };
 use calc_fml::FormulaForm;
 use calc_func::value::{CalcValue, CellKey, CoreValue};
@@ -68,8 +75,8 @@ fn outside(reason: impl std::fmt::Display) -> OpenRefusal {
     }
 }
 
-/// A1 text of a cell: `H1`, `AA10`.
-pub(crate) fn a1(row: u32, column: u32) -> String {
+/// A column's letters: `A`, `AA`.
+pub(crate) fn column_letters(column: u32) -> String {
     let mut letters = Vec::new();
     let mut n = column;
     while n > 0 {
@@ -78,7 +85,12 @@ pub(crate) fn a1(row: u32, column: u32) -> String {
         n /= 26;
     }
     letters.reverse();
-    format!("{}{row}", letters.into_iter().collect::<String>())
+    letters.into_iter().collect()
+}
+
+/// A1 text of a cell: `H1`, `AA10`.
+pub(crate) fn a1(row: u32, column: u32) -> String {
+    format!("{}{row}", column_letters(column))
 }
 
 /// The session a file holds, and its VBA project part when it carries one (for
@@ -96,6 +108,11 @@ pub fn open(bytes: &[u8]) -> Result<(Session, Option<calc_doc::SessionVba>), Ope
     // surface's default, H1, or J1 (outside the grid) when a constant holds H1.
     let anchor = match &file.formula {
         Some(formula) => a1(formula.row, formula.column),
+        // The look's cell when a session without a formula keeps formats on one.
+        None if file.look.is_some() => {
+            let look = file.look.as_ref().expect("checked");
+            a1(look.row, look.column)
+        }
         None => {
             let taken = file.constants.iter().any(|c| (c.row, c.column) == (1, grid::COLUMNS));
             a1(1, if taken { grid::COLUMNS + 2 } else { grid::COLUMNS })
@@ -150,6 +167,26 @@ pub fn open(bytes: &[u8]) -> Result<(Session, Option<calc_doc::SessionVba>), Ope
     options.date_1904 = file.date_1904;
     session.set_options(options);
     session.set_addins(addins);
+    if let Some(look) = &file.look {
+        let cell = session.formula_cell();
+        let (rows, columns) = (i64::from(cell.row()) - 1, i64::from(cell.column()) - 1);
+        let mut rules = Vec::new();
+        if !look.rules.is_empty() && (look.row, look.column) != (cell.row(), cell.column()) {
+            return Err(outside(format!(
+                "its conditional formats start in {}, not in the formula's cell {}",
+                a1(look.row, look.column),
+                a1(cell.row(), cell.column())
+            )));
+        }
+        for (index, rule) in look.rules.iter().enumerate() {
+            rules.push(
+                CfRuleSpec::of_session_rule(rule, rows, columns)
+                    .map_err(|why| outside(format!("conditional format {}: {why}", index + 1)))?,
+            );
+        }
+        let style = look.format.as_ref().map(CellStyle::of_session_format).unwrap_or_default();
+        session.set_look(style, rules);
+    }
     Ok((session, file.vba))
 }
 
@@ -202,11 +239,43 @@ pub fn save(session: &mut Session) -> Result<Vec<u8>, String> {
             FormulaForm::Dynamic => SessionArray::Dynamic,
         },
     });
+    let mut shape = (1u32, 1u32);
     let cached = if formula.is_some() {
         let calculation = session.calculate();
+        // The cells the result fills: the window the panels draw and test the rules over.
+        if let Some(CoreValue::Array(array)) = calculation.result.as_ref().map(CalcValue::core) {
+            let s = array.shape();
+            let columns = s.cols.min(dna_formula_ui::result::MAX_SCROLL_WINDOW_COLS).max(1);
+            let rows = s
+                .rows
+                .min(dna_formula_ui::result::MAX_SCROLL_WINDOW_ROWS)
+                .min((dna_formula_ui::result::MAX_SCROLL_WINDOW_CELLS / columns).max(1))
+                .max(1);
+            shape = (rows as u32, columns as u32);
+        }
         calculation.result.as_ref().and_then(cached_value)
     } else {
         None
+    };
+    let (style, specs) = session.look();
+    let look = if style.is_default() && specs.is_empty() {
+        None
+    } else {
+        let (dr, dc) = (i64::from(formula_cell.row()) - 1, i64::from(formula_cell.column()) - 1);
+        let mut rules = Vec::new();
+        for (index, spec) in specs.iter().enumerate() {
+            rules.push(spec.session_rule(index as i64 + 1, dr, dc).map_err(|why| {
+                format!("Conditional format {} cannot be saved: {why}. Complete or remove it first.", index + 1)
+            })?);
+        }
+        Some(SessionLook {
+            row: formula_cell.row(),
+            column: formula_cell.column(),
+            rows: shape.0,
+            columns: shape.1,
+            format: (!style.is_default()).then(|| style.session_format()),
+            rules,
+        })
     };
     let file = SessionFile {
         sheet: sheet_name,
@@ -219,6 +288,7 @@ pub fn save(session: &mut Session) -> Result<Vec<u8>, String> {
         date_1904: session.options().date_1904,
         cached,
         vba: session.project().map(|project| project.vba.clone()),
+        look,
     };
     write_session(&file).map_err(|refusal| refusal.to_string())
 }
@@ -423,6 +493,7 @@ mod tests {
             date_1904: false,
             cached: None,
             vba: None,
+            look: None,
         };
         let mut plain = open(&write_session(&file).unwrap()).unwrap().0;
         assert_eq!(plain.form(), FormulaForm::Legacy);
@@ -468,6 +539,7 @@ mod tests {
             date_1904: false,
             cached: None,
             vba: None,
+            look: None,
         };
         let refusal = open(&write_session(&file).unwrap()).unwrap_err();
         assert!(refusal.reason.contains("Z99"), "{refusal}");
@@ -500,5 +572,157 @@ mod tests {
         let (options, addins) = read_item(&item("version=\"1\"", "")).unwrap();
         assert_eq!(options, SessionOptions::default());
         assert!(addins.is_empty());
+    }
+
+    fn look_style() -> CellStyle {
+        CellStyle {
+            font_family: "Consolas".into(),
+            font_size: 14,
+            bold: true,
+            italic: true,
+            underline: true,
+            strike: true,
+            text_color: "#336699".into(),
+            fill: "#ffee99".into(),
+            horizontal: "center".into(),
+            wrap: true,
+            border_top: true,
+            border_bottom: true,
+            border_left: false,
+            border_right: true,
+            border_color: "#112233".into(),
+        }
+    }
+
+    fn look_rules() -> Vec<CfRuleSpec> {
+        let with = |kind: &str, edit: &dyn Fn(&mut CfRuleSpec)| {
+            let mut spec = CfRuleSpec::new(kind);
+            edit(&mut spec);
+            spec
+        };
+        vec![
+            with("cellIs", &|s| {
+                s.operator = "between".into();
+                s.operand1 = "2".into();
+                s.operand2 = "B1+5".into();
+                s.stop = true;
+                s.bold = true;
+                s.number_format = "0.00\"x\"".into();
+            }),
+            with("text", &|s| {
+                s.operator = "beginsWith".into();
+                s.operand1 = "a \"q\" & b".into();
+            }),
+            with("blanks", &|s| s.operator = "noBlanks".into()),
+            with("errors", &|_| {}),
+            with("dates", &|s| s.operator = "lastWeek".into()),
+            with("expression", &|s| {
+                s.operand1 = "AND(A1>2,B1<$C$3,\"A1\"<>\"\")".into();
+                s.italic = true;
+                s.underline = true;
+                s.strike = true;
+            }),
+            with("rank", &|s| {
+                s.operator = "bottom".into();
+                s.rank = 25;
+                s.percent = true;
+            }),
+            with("average", &|s| {
+                s.operator = "below".into();
+                s.equal = true;
+            }),
+            with("duplicates", &|_| {}),
+            with("uniques", &|s| s.fill = "#c6efce".into()),
+            with("colorScale", &|s| s.mid = String::new()),
+            with("colorScale", &|s| s.low = "#112233".into()),
+            with("dataBar", &|s| s.bar_color = "#ff0000".into()),
+            with("iconSet", &|s| {
+                s.icon_set = "4TrafficLights".into();
+                s.reverse = true;
+            }),
+        ]
+    }
+
+    #[cfg_attr(not(target_arch = "wasm32"), test)]
+    #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+    fn the_formatting_and_the_rules_are_saved_as_ordinary_excel_formats_and_restored() {
+        let mut original = Session::new("Sheet1").unwrap();
+        original.set_formula("=SEQUENCE(3,2)");
+        original.set_formula_cell("K4").unwrap();
+        original.set_look(look_style(), look_rules());
+        let bytes = save(&mut original).unwrap();
+
+        // The panels come back as they were.
+        let reopened = open(&bytes).unwrap().0;
+        let (style, rules) = reopened.look();
+        assert_eq!(style, &look_style());
+        assert_eq!(rules, look_rules().as_slice());
+
+        // The file holds them as cell formats on the formula's cell and the cells its result
+        // fills (K4:L6), and as conditional formats over the same cells: no custom XML for them.
+        let document = calc_doc::open(
+            std::sync::Arc::new(calc_doc::MemorySource::new(bytes.clone())),
+            &calc_doc::OpenPolicy::default(),
+        )
+        .unwrap();
+        let sheet = String::from_utf8(document.package().read_part("xl/worksheets/sheet1.xml").unwrap()).unwrap();
+        assert!(sheet.contains("sqref=\"K4:L6\""), "{sheet}");
+        for cell in ["K4", "L4", "K5", "L5", "K6", "L6"] {
+            assert!(sheet.contains(&format!("<c r=\"{cell}\" s=\"1\"")), "{cell}: {sheet}");
+        }
+        // A rule's formula is stored for the range's first cell: the panel's A1 is K4.
+        assert!(sheet.contains("<formula>AND(K4&gt;2,L4&lt;$C$3,\"A1\"&lt;&gt;\"\")</formula>"), "{sheet}");
+        assert!(sheet.contains("<formula>LEFT(K4,LEN(\"a \"\"q\"\" &amp; b\"))=\"a \"\"q\"\" &amp; b\"</formula>"), "{sheet}");
+        let custom = String::from_utf8(document.package().read_part("customXml/item1.xml").unwrap_or_default()).unwrap();
+        assert!(!custom.contains("cfRule") && !custom.contains("Consolas"), "{custom}");
+
+        // Saved again, the same file content.
+        let mut again = open(&bytes).unwrap().0;
+        assert_eq!(save(&mut again).unwrap().len(), bytes.len());
+    }
+
+    #[cfg_attr(not(target_arch = "wasm32"), test)]
+    #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+    fn a_scalar_result_and_an_empty_session_keep_their_look_and_an_unfinished_rule_is_not_dropped() {
+        let mut scalar = Session::new("Sheet1").unwrap();
+        scalar.set_formula("=1+1");
+        scalar.set_look(CellStyle { bold: true, ..CellStyle::default() }, vec![CfRuleSpec::new("duplicates")]);
+        let reopened = open(&save(&mut scalar).unwrap()).unwrap().0;
+        assert!(reopened.look().0.bold);
+        assert_eq!(reopened.look().1.len(), 1);
+
+        // No formula yet: the look stays on the formula's cell.
+        let mut empty = Session::new("Sheet1").unwrap();
+        empty.set_formula_cell("C7").unwrap();
+        empty.set_look(CellStyle { fill: "#ff0000".into(), ..CellStyle::default() }, Vec::new());
+        let reopened = open(&save(&mut empty).unwrap()).unwrap().0;
+        assert_eq!(reopened.look().0.fill, "#ff0000");
+        assert_eq!(crate::file::a1(reopened.formula_cell().row(), reopened.formula_cell().column()), "C7");
+
+        // A rule that is not finished (it needs a value) stops the save with its reason.
+        let mut unfinished = Session::new("Sheet1").unwrap();
+        unfinished.set_formula("=1");
+        unfinished.set_look(CellStyle::default(), vec![CfRuleSpec::new("cellIs")]);
+        let refusal = save(&mut unfinished).unwrap_err();
+        assert!(refusal.contains("Conditional format 1 cannot be saved"), "{refusal}");
+        // So does a solid data bar, which the standard rule cannot hold.
+        let mut solid = Session::new("Sheet1").unwrap();
+        solid.set_formula("=1");
+        solid.set_look(CellStyle::default(), vec![CfRuleSpec { gradient: false, ..CfRuleSpec::new("dataBar") }]);
+        assert!(save(&mut solid).unwrap_err().contains("gradient"));
+    }
+
+    #[cfg_attr(not(target_arch = "wasm32"), test)]
+    #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+    fn rule_formulas_move_with_their_range_and_back() {
+        use crate::cf::shift_formula;
+        assert_eq!(shift_formula("A1>B$2+$C3+$D$4", 3, 10).unwrap(), "K4>L$2+$C6+$D$4");
+        assert_eq!(shift_formula("K4>L$2+$C6+$D$4", -3, -10).unwrap(), "A1>B$2+$C3+$D$4");
+        // Text, function names that look like cells, names and a sheet's references.
+        assert_eq!(
+            shift_formula("LOG10(A1)+\"A1\"&'My A1'!B2+Sheet1!C3+x1y", 1, 1).unwrap(),
+            "LOG10(B2)+\"A1\"&'My A1'!C3+Sheet1!D4+x1y"
+        );
+        assert!(shift_formula("A1", -1, 0).is_err());
     }
 }
