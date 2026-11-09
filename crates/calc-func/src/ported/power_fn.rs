@@ -49,6 +49,21 @@ pub(crate) fn binexp_positive(base: f64, mut n: u64) -> f64 {
     acc
 }
 
+/// 10 to the integer `scale`, from -308 to 308, as Excel's decimal power publishes it: 1E+scale
+/// rounded to a 64-bit significand (the x87 unit's precision control) and then to binary64, which
+/// is the nearest binary64 except where that double rounding lands a unit in the last place away:
+/// 1E+126 is 0x5A17A2ECC414A040, not ...A03F. Excel 16.0.20527 through the question service,
+/// POWER(10, k) and PERMUTATIONA(10, k) for every k from 0 to 308: 126 is the only difference from
+/// the nearest value, the same discriminator as ROUNDUP's power-of-ten unit (jnt_w111_rounding row
+/// 5910 holds it for PERMUTATIONA).
+pub(crate) fn ten_to(scale: i32) -> f64 {
+    crate::decimal::ExactDecimal::unit(scale)
+        .rounded_pc64()
+        .text()
+        .parse()
+        .unwrap_or(f64::INFINITY)
+}
+
 /// `POWER(x, y)` candidate graph (the `^` operator shares this kernel).
 /// Extends the black-box BUG-FUNC-042 / W108 graph with W111 integer-power
 /// observations: positive base ten has a decimal-scale branch; other integer
@@ -94,7 +109,7 @@ pub fn power_kernel(number: f64, power: f64) -> Result<f64, WorksheetErrorCode> 
             } else if scale < -308 {
                 0.0
             } else {
-                format!("1e{scale}").parse::<f64>().unwrap_or(f64::INFINITY)
+                ten_to(scale)
             }
         } else {
             binexp_positive(number, u64::from(magnitude))
@@ -156,6 +171,19 @@ pub fn power_kernel(number: f64, power: f64) -> Result<f64, WorksheetErrorCode> 
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[cfg_attr(not(target_arch = "wasm32"), test)]
+    #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+    fn ten_to_is_the_double_rounded_power_of_ten() {
+        // Excel 16.0.20527: POWER(10, k) is the nearest binary64 for k from 0 to 308 except 126.
+        for k in 0..=308 {
+            let nearest: f64 = format!("1e{k}").parse().unwrap();
+            let expected = if k == 126 { f64::from_bits(nearest.to_bits() + 1) } else { nearest };
+            assert_eq!(ten_to(k).to_bits(), expected.to_bits(), "10^{k}");
+        }
+        assert_eq!(ten_to(126).to_bits(), 0x5A17_A2EC_C414_A040);
+        assert_eq!(power_kernel(10.0, 126.0).unwrap().to_bits(), 0x5A17_A2EC_C414_A040);
+    }
 
     #[cfg_attr(not(target_arch = "wasm32"), test)]
     #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]

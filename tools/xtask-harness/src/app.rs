@@ -144,6 +144,9 @@ pub struct App {
     /// Further scripts copied beside the page, relative to the workspace root (DNA Calc's
     /// calculation worker, `web/worker.js`, dc-p96).
     pub scripts: &'static [&'static str],
+    /// Further files copied beside the page, relative to the workspace root: the web fonts the
+    /// stylesheet names, so no platform draws the interface in whatever font the browser has.
+    pub files: &'static [&'static str],
     /// The stylesheets, relative to the workspace root, in order: the bundle's `app.css` is
     /// Strand's token stylesheet (`dna_strand::stylesheet`) followed by these (dc-xib).
     /// Other CSS files under the app's web/css folder follow in filename order, so a skin's
@@ -181,6 +184,7 @@ pub static APPS: [App; 2] = [
         page: "apps/dna-onecalc/web/index.html",
         stack_bytes: PAGE_STACK_BYTES,
         scripts: &[],
+        files: &[],
         styles: &[
             "apps/dna-formula-ui/web/css/formula-field.css",
             "apps/dna-onecalc/web/css/surface.css",
@@ -202,6 +206,11 @@ pub static APPS: [App; 2] = [
         page: "apps/dna-calc/web/index.html",
         stack_bytes: PAGE_STACK_BYTES,
         scripts: &["apps/dna-calc/web/worker.js"],
+        files: &[
+            "apps/dna-calc/web/fonts/selawik-regular.woff2",
+            "apps/dna-calc/web/fonts/selawik-semibold.woff2",
+            "apps/dna-calc/web/fonts/selawik-bold.woff2",
+        ],
         styles: &[
             "apps/dna-formula-ui/web/css/formula-field.css",
             "apps/dna-calc/web/css/shell.css",
@@ -500,7 +509,7 @@ pub(crate) fn bundle(ws: &Workspace, app: &App, out: &Path) -> Result<Vec<(Strin
     let boot = app.boot();
     fs::copy(ws.root.join(&boot), out.join("boot.js"))
         .map_err(|e| format!("cannot copy {boot}: {e}"))?;
-    for script in app.scripts {
+    for script in app.scripts.iter().chain(app.files) {
         let name = Path::new(script)
             .file_name()
             .and_then(|n| n.to_str())
@@ -546,6 +555,7 @@ pub(crate) fn bundle(ws: &Workspace, app: &App, out: &Path) -> Result<Vec<(Strin
     names.extend(
         app.scripts
             .iter()
+            .chain(app.files)
             .filter_map(|p| Path::new(p).file_name())
             .map(|n| n.to_string_lossy().into_owned()),
     );
@@ -630,6 +640,7 @@ pub(crate) fn content_type(name: &str) -> &'static str {
         Some("json") => "application/json",
         Some("txt") => "text/plain; charset=utf-8",
         Some("css") => "text/css; charset=utf-8",
+        Some("woff2") => "font/woff2",
         _ => match name.rsplit('/').next() {
             Some("LICENSE") => "text/plain; charset=utf-8",
             _ => "application/octet-stream",

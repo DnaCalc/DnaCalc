@@ -192,7 +192,7 @@ F.DIST	pinned	20228	120	62	5	numeric	7e118266e6+changes	0
 F.DIST.RT	full	20131,?	6	5	2	last_bit	16d9d3dffd+changes	0
 F.DIST.RT	pinned	20131	6	5	2	last_bit	919dd43269+changes	0
 F.TEST	full	20131,20228	78	19	1767616520413419	gross	16d9d3dffd+changes	0
-F.TEST	pinned	20131,20228	78	19	1767616520413419	gross	7e118266e6+changes	0
+F.TEST	pinned	20131,20228	78	21	1767616520413419	gross	6996cf6de7+changes	0
 FACT	full	20430	2709	2709	-	exact	16d9d3dffd+changes	0
 FACT	pinned	20430	120	120	-	exact	919dd43269+changes	0
 FACTDOUBLE	full	20430	2710	2710	-	exact	16d9d3dffd+changes	0
@@ -382,7 +382,7 @@ N	pinned	20430	120	120	-	exact	c0b94f88ab+changes	0
 NA	full	20430	1	1	-	exact	16d9d3dffd+changes	0
 NA	pinned	20430	1	1	-	exact	919dd43269+changes	0
 NEGBINOM.DIST	full	20430	510	444	554	numeric	16d9d3dffd+changes	0
-NEGBINOM.DIST	pinned	20430	120	106	248	numeric	7e118266e6+changes	0
+NEGBINOM.DIST	pinned	20430	120	108	24	numeric	6996cf6de7+changes	0
 NEGBINOMDIST	full	20131,?	1804	1801	2	last_bit	16d9d3dffd+changes	0
 NEGBINOMDIST	pinned	20131	120	120	-	exact	bab456b6f8+changes	0
 NETWORKDAYS	full	20430	3600	3600	-	exact	16d9d3dffd+changes	0

@@ -78,7 +78,7 @@ impl Decimal {
     /// exponent beyond the cap of [`Decimal::scale`].
     pub(crate) fn nearest(&self) -> Result<f64, Stop> {
         let position = self.scale();
-        if !(-308..=308).contains(&position) {
+        if !readable_scale(position) {
             return Err(Stop::Error(WorksheetErrorCode::Value));
         }
         // Plain spellings need no currency, date or grouping profile. Fn11's
@@ -130,6 +130,20 @@ impl Decimal {
             },
         }
     }
+}
+
+/// Whether Excel reads a decimal whose [`Decimal::scale`] is `position`: from -308 to 308.
+fn readable_scale(position: i64) -> bool {
+    (-308..=308).contains(&position)
+}
+
+/// Whether Excel accepts the digits of a number literal (digits, an optional point and an optional
+/// exponent, no sign) by their scale. A formula holding a literal below this range (`=1E-310`,
+/// `=1E-400`) is not accepted by Excel at all: entering it is an error (read through COM on
+/// Excel 16.0.20527, 2026-11-09). One in range whose value lies below the normal range is
+/// accepted and read as 0 (`=1E-308`, `=2.2250738585072014E-308` and `=1E-309` all become `=0`).
+pub(crate) fn literal_scale_is_readable(text: &str) -> bool {
+    readable_scale(Decimal(text.to_owned()).scale())
 }
 
 /// The value as a number: a number as it is, TRUE as 1 and FALSE as 0, Empty and Missing as 0,

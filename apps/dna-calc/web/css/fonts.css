@@ -1,0 +1,10 @@
+/* The interface font. Windows has Segoe UI and uses it (local() first). Every other platform gets
+   Selawik, Microsoft's metric-compatible stand-in (SIL OFL 1.1, fonts/LICENSE.txt), so the toolbar,
+   dialogs and phone layout wrap at the same widths everywhere, rather than in whatever font the
+   browser calls system-ui (DejaVu Sans on a Linux host is about 10% wider). */
+@font-face{font-family:"Segoe UI";font-style:normal;font-weight:400;src:local("Segoe UI"),url(selawik-regular.woff2) format("woff2")}
+@font-face{font-family:"Segoe UI";font-style:normal;font-weight:600;src:local("Segoe UI Semibold"),url(selawik-semibold.woff2) format("woff2")}
+@font-face{font-family:"Segoe UI";font-style:normal;font-weight:700;src:local("Segoe UI Bold"),url(selawik-bold.woff2) format("woff2")}
+@font-face{font-family:"Segoe UI";font-style:italic;font-weight:400;src:local("Segoe UI Italic"),url(selawik-regular.woff2) format("woff2")}
+@font-face{font-family:"Segoe UI";font-style:italic;font-weight:600;src:local("Segoe UI Semibold Italic"),url(selawik-semibold.woff2) format("woff2")}
+@font-face{font-family:"Segoe UI";font-style:italic;font-weight:700;src:local("Segoe UI Bold Italic"),url(selawik-bold.woff2) format("woff2")}

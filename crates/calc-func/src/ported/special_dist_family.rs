@@ -484,6 +484,29 @@ mod tests {
         assert_eq!(gamma_kernel(172.0), Err(WorksheetErrorCode::Num));
     }
 
+    /// Excel 16.0.20527 question-service answers, R44. These half-grid
+    /// crossings distinguish the ten-term stored correction from fdlibm;
+    /// the final two also distinguish PC64 stores from binary64 arithmetic.
+    #[cfg_attr(not(target_arch = "wasm32"), test)]
+    #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+    fn gammaln_stirling_correction_matches_excel() {
+        for (input, expected) in [
+            (0x40261817e0a4a21f, 0x402e6e2cad433600_u64),
+            (0x402cbe23cee7741e, 0x4037861bc18ecbe1),
+            (0x402ea968ebdf79db, 0x403a1471175a5610),
+            (0x40294f89acf6f053, 0x40331f15269fd857),
+            (0x4030a0ede05b039c, 0x403da28aa7bdb6c7),
+            (0x403d0781fa5e8dec, 0x4050ff3b6f0de10a),
+            (0x4040a42d8bdc0374, 0x4054a2c2b32b777c),
+            (0x40279bbd8e3fc118, 0x40310691d7dd2362),
+            (0x403ffffffffffff7, 0x405385e6fd9e5a38),
+        ] {
+            let x = f64::from_bits(input);
+            assert_eq!(gammaln_kernel(x).unwrap().to_bits(), expected, "GAMMALN({input:x})");
+            assert_eq!(gammaln_precise_kernel(x).unwrap().to_bits(), expected, "GAMMALN.PRECISE({input:x})");
+        }
+    }
+
     #[cfg_attr(not(target_arch = "wasm32"), test)]
     #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
     fn gamma_recorded_values_and_known_gaps() {

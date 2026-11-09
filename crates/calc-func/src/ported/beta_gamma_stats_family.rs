@@ -233,6 +233,25 @@ mod tests {
         }
     }
 
+    /// BETA.DIST(x, 1, b, TRUE) below x = 0.1 is -expm1(b * log1p(-x)) on the x87 chain
+    /// (R43). Excel 16.0 build 20527, the question service, 2026-11-09.
+    #[cfg_attr(not(target_arch = "wasm32"), test)]
+    #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+    fn beta_dist_unit_first_shape_below_a_tenth_matches_excel() {
+        let rows: [(f64, f64, u64); 6] = [
+            (0.05, 3.0, 0x3fc24189374bc6a8),
+            (0.001, 2.5, 0x3f6476f2d098e78f),
+            (0.01, 10.0, 0x3fb87a6a94bfa203),
+            (0.07, 0.5, 0x3fa23ebda17f7999),
+            (0.003, 7.0, 0x3f954fb9cbf27f4d),
+            (0.02, 1.5, 0x3f9e90ddc821a601),
+        ];
+        for (x, b, expected) in rows {
+            let got = beta_dist_kernel(x, 1.0, b, true, 0.0, 1.0).unwrap();
+            assert_eq!(got.to_bits(), expected, "BETA.DIST({x},1,{b},TRUE)");
+        }
+    }
+
     #[cfg_attr(not(target_arch = "wasm32"), test)]
     #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
     fn gamma_dist_half_shape_scale_two_matches_erf_sqrt_half_x() {
