@@ -1,5 +1,5 @@
 /* ledger.css: moved from apps/dna-calc/src/ledger.rs (LEDGER_CSS), dc-xib. */
-.dc-ledger{overflow:auto;flex:1 1 auto;padding:10px 14px;font:13px system-ui,"Segoe UI",sans-serif}
+.dc-ledger{overflow:auto;flex:1 1 auto;padding:10px 14px;font:13px "Segoe UI",system-ui,sans-serif}
 .dc-ledger .dc-cleave{display:flex;flex-wrap:wrap;gap:8px;align-items:center;margin:0 0 10px}
 .dc-ledger table{border-collapse:collapse;min-width:900px}
 .dc-ledger th{position:sticky;top:0;background:var(--dna-paper-2);text-align:left;font-weight:600;border-bottom:1px solid var(--dna-line);padding:3px 8px}

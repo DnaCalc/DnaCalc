@@ -1,12 +1,12 @@
 /* shell.css: moved from apps/dna-calc/src/app.rs (APP_CSS), dc-xib. */
 /* The page (moved from web/index.html). */
 html, body { margin: 0; height: 100%; background: var(--dna-paper); color: var(--dna-ink); }
-#dnacalc-loading { font-family: system-ui, sans-serif; color: var(--dna-ink-3); padding: 16px; }
+#dnacalc-loading { font-family: "Segoe UI", system-ui, sans-serif; color: var(--dna-ink-3); padding: 16px; }
 html,body{height:100%}
-.dc-app{display:flex;flex-direction:column;height:100vh;font:13px system-ui,-apple-system,"Segoe UI",sans-serif;color:var(--dna-ink);background:var(--dna-paper)}
+.dc-app{display:flex;flex-direction:column;height:100vh;font:13px "Segoe UI",system-ui,sans-serif;color:var(--dna-ink);background:var(--dna-paper)}
 .dc-mast{display:flex;flex-wrap:wrap;gap:8px;align-items:center;padding:6px 10px;background:var(--dna-chrome);color:var(--dna-chrome-ink)}
 .dc-mast strong{font-size:15px;margin-right:8px}
-.dc-mast button,.dc-mast select,.dc-mast label.dc-open{font:12px system-ui,sans-serif;border:1px solid var(--dna-chrome-ink-2);background:var(--dna-chrome-2);color:var(--dna-chrome-ink);border-radius:4px;padding:3px 8px;cursor:pointer}
+.dc-mast button,.dc-mast select,.dc-mast label.dc-open{font:12px "Segoe UI",system-ui,sans-serif;border:1px solid var(--dna-chrome-ink-2);background:var(--dna-chrome-2);color:var(--dna-chrome-ink);border-radius:4px;padding:3px 8px;cursor:pointer}
 .dc-mast select option{color:var(--dna-ink);background:var(--dna-paper)}
 .dc-mast .dc-doc{font-weight:600}
 .dc-mast .dc-skins{margin-left:auto;display:flex;gap:4px}
@@ -20,7 +20,7 @@ html,body{height:100%}
 .dc-edit-tools{display:flex;flex-wrap:wrap;align-items:center;gap:2px 8px;flex:0 0 auto;padding:2px 10px;color:var(--dna-ink-2);background:var(--dna-paper-2);font-size:12px}
 .dc-edit-tools button{border:1px solid var(--dna-line);border-radius:4px;padding:3px 8px;background:var(--dna-paper);color:var(--dna-ink);cursor:pointer}
 .dc-tabs{display:flex;gap:2px;padding:0 10px;border-top:1px solid var(--dna-line);background:var(--dna-paper-2);overflow-x:auto}
-.dc-tabs button{border:1px solid var(--dna-line);border-top:0;background:var(--dna-line-soft);padding:3px 12px;font:12px system-ui,sans-serif;cursor:pointer}
+.dc-tabs button{border:1px solid var(--dna-line);border-top:0;background:var(--dna-line-soft);padding:3px 12px;font:12px "Segoe UI",system-ui,sans-serif;cursor:pointer}
 .dc-tabs button[aria-selected=true]{background:var(--dna-paper);color:var(--dna-accent-ink);font-weight:600;box-shadow:inset 0 2px 0 var(--dna-amber)}
 .dc-status{display:flex;gap:16px;padding:3px 10px;border-top:1px solid var(--dna-line);background:var(--dna-paper-2);font-size:12px;color:var(--dna-ink-2);white-space:nowrap;overflow:hidden}
 .dc-status [data-refused=true]{color:var(--dna-red-ink)}

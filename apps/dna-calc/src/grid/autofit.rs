@@ -440,6 +440,14 @@ pub fn measure(rows: bool, cells: &[wire::Cell]) -> Result<Vec<(u32, u64)>, Stri
         let r = probe.get_bounding_client_rect();
         let (w, h) = if cell.style.rotation==255 { (r.width(),r.height()) }
             else { rotated_size(r.width(), r.height(), cell.style.rotation) };
+        // Text the Grid places with whole-pixel advances is fitted with the same advances: a
+        // browser that reports fractional outline advances (Linux) would otherwise fit a column
+        // a few pixels narrower than the text the Grid paints.
+        let w = if rows { w } else {
+            cell.shown()
+                .and_then(|shown| text_advances(&shown, text, 1.))
+                .map_or(w, |advances| advances.iter().sum())
+        };
         let pixels = if rows { h + 4. } else { w + padding + indent + icon };
         samples.push((if rows { cell.at.2 } else { cell.at.3 }, pixels));
     }

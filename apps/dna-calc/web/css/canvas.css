@@ -1,5 +1,5 @@
 /* canvas.css: moved from apps/dna-calc/src/canvas.rs (CANVAS_CSS), dc-xib. */
-.dc-canvas{display:flex;flex:1 1 auto;min-height:0;font:13px system-ui,"Segoe UI",sans-serif;outline:none}
+.dc-canvas{display:flex;flex:1 1 auto;min-height:0;font:13px "Segoe UI",system-ui,sans-serif;outline:none}
 .dc-canvas .dc-stage{flex:1 1 auto;overflow:auto;padding:12px;background:var(--dna-paper-2)}
 .dc-canvas .dc-bar{display:flex;gap:6px;align-items:center;margin:0 0 10px}
 .dc-canvas .dc-plane{position:relative}
@@ -23,7 +23,7 @@
 }
 
 /* dc-971p.13: bounded dependency inspection with keyboard chips and a separate viewport. */
-.dc-canvas{min-width:0;font:13px system-ui,sans-serif;line-height:1.45}
+.dc-canvas{min-width:0;font:13px "Segoe UI",system-ui,sans-serif;line-height:1.45}
 .dc-canvas .dc-stage{display:flex;flex-direction:column;overflow:hidden;min-width:0;min-height:0}
 .dc-canvas .dc-bar{flex-wrap:wrap;flex-shrink:0}
 .dc-canvas button{font:inherit;color:var(--dna-accent-ink);background:var(--dna-paper);border:1px solid var(--dna-ink-3);border-radius:4px;padding:5px 8px;cursor:pointer}

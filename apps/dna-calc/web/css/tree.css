@@ -1,4 +1,4 @@
-.dc-tree-skin{display:flex;flex-direction:column;min-height:0;min-width:0;flex:1;font:13px system-ui,sans-serif}
+.dc-tree-skin{display:flex;flex-direction:column;min-height:0;min-width:0;flex:1;font:13px "Segoe UI",system-ui,sans-serif}
 .dc-tree-tools{display:flex;flex-wrap:wrap;gap:8px;padding:8px 12px;align-items:center}
 .dc-tree-tools input{width:240px;max-width:100%;background:var(--dna-paper);color:var(--dna-ink);border:1px solid var(--dna-line);border-radius:4px;padding:5px}
 .dc-tree-caption{margin:0 12px 8px;color:var(--dna-ink-3);font-size:12px}
