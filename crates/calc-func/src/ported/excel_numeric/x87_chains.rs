@@ -158,25 +158,41 @@ pub(crate) fn excel_stirling_series(n: f64) -> f64 {
     stirling_series::<Native>(n)
 }
 
+const STIRLING_TERMS: [f64; 10] = [
+    1.0 / 12.0,
+    -1.0 / 360.0,
+    1.0 / 1260.0,
+    -1.0 / 1680.0,
+    1.0 / 1188.0,
+    -691.0 / 360360.0,
+    1.0 / 156.0,
+    -3617.0 / 122400.0,
+    43867.0 / 244188.0,
+    -174611.0 / 125400.0,
+];
+
 fn stirling_series<F: Fpu>(n: f64) -> f64 {
-    const TERMS: [f64; 10] = [
-        1.0 / 12.0,
-        -1.0 / 360.0,
-        1.0 / 1260.0,
-        -1.0 / 1680.0,
-        1.0 / 1188.0,
-        -691.0 / 360360.0,
-        1.0 / 156.0,
-        -3617.0 / 122400.0,
-        43867.0 / 244188.0,
-        -174611.0 / 125400.0,
-    ];
     let t = F::div(&ext_one(), &F::mul(&load(n), &load(n), CW), CW);
-    let mut w = load(TERMS[9]);
-    for term in TERMS[..9].iter().rev() {
+    let mut w = load(STIRLING_TERMS[9]);
+    for term in STIRLING_TERMS[..9].iter().rev() {
         w = F::add(&F::mul(&w, &t, CW), &load(*term), CW);
     }
     F::store(&F::div(&w, &load(n), CW), CW)
+}
+
+/// GAMMALN's correction uses the same ten Bernoulli terms, with the reciprocal,
+/// square, every Horner product and sum, and final product stored from PC64.
+/// R44's frozen 10,212-input set supports this stored program; reciprocal
+/// division separates PC64 from binary64. Individual Horner store sites
+/// have not all been separated from alternatives.
+pub(super) fn stirling_series_stored(n: f64) -> f64 {
+    let z = super::excel_x87_div(1.0, n);
+    let t = super::excel_x87_mul(z, z);
+    let mut w = STIRLING_TERMS[9];
+    for term in STIRLING_TERMS[..9].iter().rev() {
+        w = super::excel_x87_add(super::excel_x87_mul(w, t), *term);
+    }
+    super::excel_x87_mul(z, w)
 }
 
 /// `ln(1 + u)` as Excel's internal logarithm forms it, times `c`, the product stored. For

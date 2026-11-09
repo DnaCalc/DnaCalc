@@ -6,7 +6,7 @@
 //!   * `1.5 <= x < 2`    B2: stands in SPECFUN's table in x87 continuous arithmetic.
 //!   * `2 <= x <= 3`     B3: Excel's own form, read from its answers: see [`b3_with`].
 //!   * `3 < x < 8`       the recurrence from the `[2,3)` band, identified: see [`recurrence`].
-//!   * `x >= 8`          Stirling: fdlibm w-tail, worksheet LN and stored stages.
+//!   * `x >= 8`          Stirling: ten Bernoulli terms, worksheet LN and stored stages.
 //!
 //! Excel's bands below 3 are rationals in `x` itself: noise reaches a full unit of the result at
 //! `x = 1 + 2^-52` and `2 + 2^-51`, where a polynomial in `x - 1` or `x - 2` could carry none, and the
@@ -114,14 +114,6 @@ const Q4: [f64; 8] = [
     f64::from_bits(0x4259_FA9F_BBBD_7E2A),
 ];
 
-// ---- STIRLING (x>=8): fdlibm e_lgamma_r w1..w6 verbatim -------------------
-const W1: f64 = f64::from_bits(0x3FB5_5555_5555_553B);
-const W2: f64 = f64::from_bits(0xBF66_C16C_16B0_2E5C);
-const W3: f64 = f64::from_bits(0x3F4A_019F_98CF_38B6);
-const W4: f64 = f64::from_bits(0xBF43_80CB_8C0F_E741);
-const W5: f64 = f64::from_bits(0x3F4B_67BA_4CDA_D5D1);
-const W6: f64 = f64::from_bits(0xBF5A_B89D_0B9E_43E4);
-
 /// B1 band `[0.7, 1.5)`: `(x-1) * N(x)/D(x)`, every op plain double, Horner
 /// descending over the ascending-stored coefficients.
 fn b1(x: f64) -> f64 {
@@ -136,30 +128,24 @@ fn b1(x: f64) -> f64 {
     (x - 1.0) * (n / d)
 }
 
-/// STIRLING band `x >= 8`: fdlibm w-tail with worksheet LN and x87
-/// PC64-to-binary64 stores on the q chain and the final add.
+/// STIRLING band `x >= 8`: worksheet LN, stored main expression, and the
+/// ten-term Bernoulli correction with each operation stored from PC64.
 ///
-/// Identified (W109 G3-02 high-band, 2026-08-09 reconstructed graph, replayed
-/// 2026-09-12 on 1711 unique x>=8 rows): `ln = LN87(x)`, then
-/// `q = DR(DR(DR((x-0.5)*ln) - x) + LS2PI)`, native fdlibm `z*w` Horner,
-/// `out = DR(q + corr)`. Scores 1709/1711 (max 1 ULP) versus production
-/// native-ln 1701/1711 (max 2). The two remaining misses
-/// (`x=0x40215bf4d43f4d44`, `x=0x40234ce3244e3245`) sit between adjacent
-/// stored-log effects; they stay open.
+/// R44: single-bit windows around integers and exponent edges locate the
+/// correction's rounding changes. At 192 designed half-grid crossings the
+/// old fdlibm tail disagrees on 525/9408 inputs. The ten-term correction
+/// agrees on all; nine and eleven terms and unstored arithmetic are separated
+/// by additional controls. A second frozen set agrees on all 10,212 inputs
+/// (9,312 new arguments and 900 retained boundary controls).
+/// Coefficient neighbours above the leading 1/12 remain undetermined in
+/// the searched domain; the coefficients are the existing Bernoulli table,
+/// not fitted last bits.
 fn stirl8(x: f64) -> f64 {
     let lg = super::excel_log(x);
     let q1 = super::excel_x87_mul(x - 0.5, lg);
     let q2 = super::excel_x87_sub(q1, x);
     let q = super::excel_x87_add(q2, LS2PI);
-    let z = 1.0 / x;
-    let y = z * z;
-    let mut w = W6;
-    w = w * y + W5;
-    w = w * y + W4;
-    w = w * y + W3;
-    w = w * y + W2;
-    w = w * y + W1;
-    super::excel_x87_add(q, z * w)
+    super::excel_x87_add(q, super::x87_chains::stirling_series_stored(x))
 }
 
 // -------------------------------------------------------------------------
@@ -564,7 +550,7 @@ mod tests {
 
     #[cfg_attr(not(target_arch = "wasm32"), test)]
     #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
-    fn stirling_ln87_dr_matches_current_build_hits_and_keeps_two_open() {
+    fn stirling_ln87_dr_matches_recorded_controls() {
         // Current-build discovery (build 20228, Value2). Native ln missed
         // old-resid-00/08; LN87+DR matches Excel.
         assert_eq!(
@@ -575,14 +561,15 @@ mod tests {
             gammaln_excel(f64::from_bits(0x4029800000000000)).to_bits(),
             0x40335bb50a8f4512
         );
-        // Two remaining open rows: still exactly 1 ULP below Excel.
+        // R44 re-read these former misses on Excel build 20527. The ten-term
+        // stored correction now gives the observed answers, one unit higher.
         assert_eq!(
             gammaln_excel(f64::from_bits(0x40215bf4d43f4d44)).to_bits(),
-            0x4023d98694477878
+            0x4023d98694477879
         );
         assert_eq!(
             gammaln_excel(f64::from_bits(0x40234ce3244e3245)).to_bits(),
-            0x40280a8dd6771c99
+            0x40280a8dd6771c9a
         );
     }
 }
