@@ -1,0 +1,17 @@
+[
+{
+"formula": "MATCH(4.0,{5,3,1},-1.0)",
+"inputs": [],
+"source": "match_fn.rs eval_match_type_negative_one_descending",
+"legacy": [
+"number",
+2.0
+],
+"excel": [
+"number",
+"3ff0000000000000"
+],
+"excel_build": "20527",
+"reason": "the legacy unit-test expectation differs from Excel's answer"
+}
+]

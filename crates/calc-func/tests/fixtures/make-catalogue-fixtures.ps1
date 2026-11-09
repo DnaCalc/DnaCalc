@@ -600,6 +600,7 @@ $JntSheets += 'jnt_dates_random'
 $JntSheets += 'jnt_operators'
 $JntSheets += 'jnt_parity_complex'
 $JntSheets += 'jnt_logical_info'
+$JntSheets += 'jnt_lookup'
 $jnt = @()
 foreach ($name in $JntSheets) {
     $expanded = Expand-SectionLines (Get-SectionLines ('sheet-' + $name + '.txt') 'jnt')

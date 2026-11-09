@@ -72,6 +72,14 @@ def e(code):
     return ("e", str(code))
 
 
+
+def arr_num(rows):
+    return ("arr_num", rows)
+
+
+def omitted():
+    return ("omitted",)
+
 T_ = ("logical", True)
 F_ = ("logical", False)
 
@@ -215,6 +223,14 @@ OCC = "operator_compare_concat_family.rs"
 def f(text, legacy, source):
     return ("=" + text, [], legacy, source)
 
+
+
+def arr_num(rows):
+    return ("arr_num", rows)
+
+
+def omitted():
+    return ("omitted",)
 
 T_ = ("logical", True)
 F_ = ("logical", False)
@@ -581,6 +597,110 @@ J6 = [
     ("CELL", [s("type"), n(123)], txt("v"), "cell.rs cell_type_number"),
 ]
 
-CASES = {"J10": J10, "J11": J11, "J4": J4, "J6": J6}
+J7 = [
+    # --- xmatch.rs ---
+    ("XMATCH", [lit(2), arr_num([[1, 2, 3]])], num(2), "xmatch.rs eval_xmatch_adapter_prepared_defaults_to_exact_forward"),
+    ("XMATCH", [lit(2), arr_num([[1, 2, 2]]), lit(0), lit(-1)], num(3), "xmatch.rs eval_xmatch_adapter_prepared_reverse_mode_returns_last_match"),
+    ("XMATCH", [lit(9), arr_num([[1, 2, 3]])], err("na"), "xmatch.rs eval_xmatch_adapter_prepared_not_found_returns_na_lane"),
+    ("XMATCH", [lit(0.3), arr_num([[0.30000000000000004]]), lit(0)], err("na"), "xmatch.rs eval_xmatch_adapter_prepared_exact_mode_keeps_near_equal_numbers_distinct"),
+    ("XMATCH", [lit(1), arr_num([[1]]), lit(9)], err("value"), "xmatch.rs eval_xmatch_adapter_prepared_rejects_invalid_modes"),
+    ("XMATCH", [lit(2.5), arr_num([[1, 2, 3]]), lit(1)], num(3), "xmatch.rs eval_xmatch_adapter_prepared_supports_approximate_modes exact_or_larger"),
+    ("XMATCH", [lit(2.5), arr_num([[1, 2, 3]]), lit(-1)], num(2), "xmatch.rs eval_xmatch_adapter_prepared_supports_approximate_modes exact_or_smaller"),
+    ("XMATCH", [lit(2), arr_num([[1, 2, 3]]), lit(2), lit(2)], err("value"), "xmatch.rs eval_xmatch_adapter_prepared_rejects_wildcard_binary_search"),
+    ("XMATCH", [lit(2), arr_num([[1, 2, 3]]), lit(0), lit(1)], num(2), "xmatch.rs eval_xmatch_adapter_prepared_supports_binary_modes forward"),
+
+    # --- xlookup.rs ---
+    ("XLOOKUP", [lit(2), arr_num([[1], [2]]), arr_num([[10], [20]])], num(20), "xlookup.rs eval_xlookup_exact_forward_returns_value"),
+    ("XLOOKUP", [lit(9), arr_num([[1], [2]]), arr_num([[10], [20]]), s("fallback")], txt("fallback"), "xlookup.rs eval_xlookup_returns_if_not_found_fallback"),
+    ("XLOOKUP", [lit(9), arr_num([[1], [2]]), arr_num([[10], [20]])], err("na"), "xlookup.rs eval_xlookup_not_found_no_fallback"),
+    ("XLOOKUP", [lit(2.5), arr_num([[1], [2], [3]]), arr_num([[10], [20], [30]]), omitted(), lit(1)], num(30), "xlookup.rs eval_xlookup_approximate_larger"),
+    ("XLOOKUP", [lit(2.5), arr_num([[1], [2], [3]]), arr_num([[10], [20], [30]]), omitted(), lit(-1)], num(20), "xlookup.rs eval_xlookup_approximate_smaller"),
+    ("XLOOKUP", [lit(2), arr_num([[1], [2], [3], [2]]), arr_num([[10], [20], [30], [40]]), omitted(), lit(0), lit(-1)], num(40), "xlookup.rs eval_xlookup_reverse_exact"),
+    ("XLOOKUP", [lit(1), arr_num([[1], [2]]), arr_num([[10], [20], [30]])], err("value"), "xlookup.rs eval_xlookup_rejects_orientation_mismatch"),
+    ("XLOOKUP", [lit(2), arr_num([[1, 2]]), arr_num([[10, 20]])], num(20), "xlookup.rs eval_xlookup_horizontal_lookup"),
+
+    # --- match_fn.rs ---
+    ("MATCH", [lit(3), arr_num([[1, 3, 5]])], num(2), "match_fn.rs eval_match_default_match_type_uses_approximate_next_smaller"),
+    ("MATCH", [lit(3), arr_num([[1, 3, 5]]), lit(0)], num(2), "match_fn.rs eval_match_exact_returns_first_index"),
+    ("MATCH", [lit(4), arr_num([[1, 3, 5]]), lit(1)], num(2), "match_fn.rs eval_match_default_and_type_one_approximate"),
+    ("MATCH", [lit(4), arr_num([[5, 3, 1]]), lit(-1)], num(2), "match_fn.rs eval_match_type_negative_one_descending"),
+    ("MATCH", [lit(0), arr_num([[1, 3, 5]]), lit(1)], err("na"), "match_fn.rs match_below_lowest_returns_na"),
+    ("MATCH", [lit(6), arr_num([[5, 3, 1]]), lit(-1)], err("na"), "match_fn.rs match_above_highest_descending_returns_na"),
+
+    # --- index.rs ---
+    ("INDEX", [arr_num([[10], [20], [30]]), lit(2)], num(20), "index.rs eval_index_column_vector_single_position"),
+    ("INDEX", [arr_num([[10, 20, 30]]), lit(2)], num(20), "index.rs eval_index_row_vector_single_position"),
+    ("INDEX", [arr_num([[1, 2], [3, 4]]), lit(2), lit(1)], num(3), "index.rs eval_index_array_position_returns_payload_value"),
+    ("INDEX", [arr_num([[1, 2], [3, 4]]), lit(1), lit(2)], num(2), "index.rs eval_index_array_position_row1_col2"),
+    ("INDEX", [arr_num([[1, 2], [3, 4]]), lit(5), lit(1)], err("ref"), "index.rs eval_index_array_bounds_checked row"),
+    ("INDEX", [arr_num([[1, 2], [3, 4]]), lit(1), lit(5)], err("ref"), "index.rs eval_index_array_bounds_checked col"),
+    ("INDEX", [lit(100), lit(1), lit(1)], num(100), "index.rs eval_index_scalar_source"),
+    ("INDEX", [lit(100), lit(2), lit(1)], err("ref"), "index.rs eval_index_scalar_out_of_bounds"),
+
+    # --- vhlookup_family.rs ---
+    ("VLOOKUP", [lit(2), arr_num([[1, 10], [2, 20], [3, 30]]), lit(2), lit_b(False)], num(20), "vhlookup_family.rs vlookup_exact"),
+    ("VLOOKUP", [lit(2.5), arr_num([[1, 10], [2, 20], [3, 30]]), lit(2), lit_b(True)], num(20), "vhlookup_family.rs vlookup_approximate"),
+    ("VLOOKUP", [lit(0), arr_num([[1, 10], [2, 20], [3, 30]]), lit(2), lit_b(True)], err("na"), "vhlookup_family.rs vlookup_below_lowest"),
+    ("VLOOKUP", [lit(2), arr_num([[1, 10], [2, 20]]), lit(3), lit_b(False)], err("ref"), "vhlookup_family.rs lookup_indices_truncate_and_validate_bounds"),
+    ("VLOOKUP", [lit(2), arr_num([[1, 10], [2, 20]]), lit(0), lit_b(False)], err("value"), "vhlookup_family.rs lookup_indices_below_one_return_value_error"),
+    ("VLOOKUP", [lit(9), arr_num([[1, 10], [2, 20]]), lit(2), lit_b(False)], err("na"), "vhlookup_family.rs exact_lookup_no_match_returns_not_available"),
+    ("HLOOKUP", [lit(2), arr_num([[1, 2, 3], [10, 20, 30]]), lit(2), lit_b(False)], num(20), "vhlookup_family.rs hlookup_exact"),
+    ("HLOOKUP", [lit(2.5), arr_num([[1, 2, 3], [10, 20, 30]]), lit(2), lit_b(True)], num(20), "vhlookup_family.rs hlookup_approximate"),
+    ("HLOOKUP", [lit(0), arr_num([[1, 2, 3], [10, 20, 30]]), lit(2), lit_b(True)], err("na"), "vhlookup_family.rs hlookup_below_lowest"),
+    ("HLOOKUP", [lit(2), arr_num([[1, 2], [10, 20]]), lit(3), lit_b(False)], err("ref"), "vhlookup_family.rs hlookup_indices_out_of_bounds"),
+    ("HLOOKUP", [lit(2), arr_num([[1, 2], [10, 20]]), lit(0), lit_b(False)], err("value"), "vhlookup_family.rs hlookup_indices_below_one"),
+
+    # --- rows_fn.rs ---
+    ("ROWS", [arr_num([[1, 2, 3]])], num(1), "rows_fn.rs rows_row_vector"),
+    ("ROWS", [arr_num([[1], [2], [3]])], num(3), "rows_fn.rs rows_col_vector"),
+    ("ROWS", [arr_num([[1, 2], [3, 4], [5, 6]])], num(3), "rows_fn.rs rows_matrix"),
+    ("ROWS", [lit(42)], num(1), "rows_fn.rs rows_scalar_number"),
+    ("ROWS", [s("text")], num(1), "rows_fn.rs rows_scalar_text"),
+    ("ROWS", [lit_b(True)], num(1), "rows_fn.rs rows_scalar_logical"),
+    ("ROWS", [EMPTY], num(1), "rows_fn.rs rows_single_cell"),
+
+    # --- columns_fn.rs ---
+    ("COLUMNS", [arr_num([[1, 2, 3]])], num(3), "columns_fn.rs columns_row_vector"),
+    ("COLUMNS", [arr_num([[1], [2], [3]])], num(1), "columns_fn.rs columns_col_vector"),
+    ("COLUMNS", [arr_num([[1, 2], [3, 4], [5, 6]])], num(2), "columns_fn.rs columns_matrix"),
+    ("COLUMNS", [lit(42)], num(1), "columns_fn.rs columns_scalar_number"),
+    ("COLUMNS", [s("text")], num(1), "columns_fn.rs columns_scalar_text"),
+    ("COLUMNS", [lit_b(True)], num(1), "columns_fn.rs columns_scalar_logical"),
+    ("COLUMNS", [EMPTY], num(1), "columns_fn.rs columns_single_cell"),
+
+    # --- row_fn.rs ---
+
+    # --- column_fn.rs ---
+
+    # --- reference_metadata_family.rs ---
+    ("ADDRESS", [lit(1), lit(1)], txt("$A$1"), "reference_metadata_family.rs address_1_1"),
+    ("ADDRESS", [lit(2), lit(3)], txt("$C$2"), "reference_metadata_family.rs address_2_3"),
+    ("ADDRESS", [lit(3), lit(2)], txt("$B$3"), "reference_metadata_family.rs address_default_a1_is_absolute"),
+    ("ADDRESS", [lit(3), lit(2), lit(1)], txt("$B$3"), "reference_metadata_family.rs address_abs_row_abs_col"),
+    ("ADDRESS", [lit(3), lit(2), lit(2)], txt("B$3"), "reference_metadata_family.rs address_abs_row_rel_col"),
+    ("ADDRESS", [lit(3), lit(2), lit(3)], txt("$B3"), "reference_metadata_family.rs address_rel_row_abs_col"),
+    ("ADDRESS", [lit(3), lit(2), lit(4)], txt("B3"), "reference_metadata_family.rs address_rel_row_rel_col"),
+    ("ADDRESS", [lit(3), lit(2), lit(1), lit_b(True), s("Sheet1")], txt("Sheet1!$B$3"), "reference_metadata_family.rs address_quoted_sheet_text"),
+    ("ADDRESS", [lit(3), lit(2), lit(1), lit_b(False)], txt("R3C2"), "reference_metadata_family.rs address_r1c1_abs"),
+    ("ADDRESS", [lit(3), lit(2), lit(4), lit_b(False)], txt("R[3]C[2]"), "reference_metadata_family.rs address_r1c1_rel"),
+    ("ADDRESS", [lit(3), lit(2), lit(2), lit_b(False)], txt("R3C[2]"), "reference_metadata_family.rs address_r1c1_mixed_row_abs"),
+    ("ADDRESS", [lit(3), lit(2), lit(3), lit_b(False)], txt("R[3]C2"), "reference_metadata_family.rs address_r1c1_mixed_col_abs"),
+    ("ADDRESS", [lit(0), lit(3)], err("value"), "reference_metadata_family.rs address_row_zero_value_error"),
+    ("ADDRESS", [lit(3), lit(0)], err("value"), "reference_metadata_family.rs address_col_zero_value_error"),
+    ("ADDRESS", [lit(3), lit(2), lit(5)], err("value"), "reference_metadata_family.rs address_abs_num_out_of_range"),
+    ("AREAS", [EMPTY], num(1), "reference_metadata_family.rs areas_single_cell"),
+
+    # --- offset.rs ---
+    ("OFFSET", [EMPTY, lit(-100), lit(0)], err("ref"), "offset.rs offset_negative_row_off_top"),
+    ("OFFSET", [EMPTY, lit(0), lit(-5)], err("ref"), "offset.rs offset_negative_col_off_left"),
+
+    # --- indirect.rs ---
+    ("INDIRECT", [s("invalid reference")], err("ref"), "indirect.rs eval_indirect_rejects_invalid_reference"),
+    ("INDIRECT", [lit(123)], err("ref"), "indirect.rs eval_indirect_rejects_non_text_reference"),
+    ("INDIRECT", [lit_b(True)], err("ref"), "indirect.rs eval_indirect_rejects_boolean_reference"),
+]
+
+CASES = {"J10": J10, "J11": J11, "J4": J4, "J6": J6, "J7": J7}
+
 
 

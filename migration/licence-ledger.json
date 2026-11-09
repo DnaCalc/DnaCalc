@@ -5252,9 +5252,10 @@
   },
   {"path": "crates/calc-func/tests/fixtures/jnt/sheet-jnt_logical_info.txt", "class": "own-work", "reason": "dc-jnt test migration: rows of legacy OxFunc Excel readings (OxFunc, MIT, DNA Kode) as formula and typed-input lines; written by tools/excel-service/jnt_import.py, no answers computed here."},
   {
-   "path": "crates/calc-func/tests/captures/jnt/sections/jnt_logical_info.capture.json",
+   "path": "crates/calc-func/tests/captures/jnt/sections/jnt_lookup.capture.json",
    "class": "own-work",
    "reason": "Excel capture: values read from live Excel by cargo xtask capture (measurement)"
-  }
+  },
+  {"path": "crates/calc-func/tests/fixtures/jnt/sheet-jnt_lookup.txt", "class": "own-work", "reason": "dc-jnt test migration: rows of legacy OxFunc Excel readings (OxFunc, MIT, DNA Kode) as formula and typed-input lines; written by tools/excel-service/jnt_import.py, no answers computed here."}
   ]
 }

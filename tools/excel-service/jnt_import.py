@@ -144,6 +144,19 @@ BATCHES = {
         ],
         families=[],
     ),
+    "J7": dict(
+        bead="dc-jnt.11",
+        sheet="jnt_lookup",
+        hand=True,
+        title="Lookup and reference: XMATCH, XLOOKUP, MATCH, INDEX, V/HLOOKUP, OFFSET, INDIRECT, ROWS, COLUMNS, ADDRESS",
+        tests=[
+            "xmatch.rs", "xlookup.rs", "match_fn.rs", "index.rs",
+            "vhlookup_family.rs", "offset.rs", "indirect.rs", "rows_fn.rs",
+            "columns_fn.rs", "row_fn.rs", "column_fn.rs", "a1_refs.rs",
+            "reference_metadata_family.rs",
+        ],
+        families=[],
+    ),
     "J11": dict(
         bead="dc-jnt.15",
         sheet="jnt_operators",
@@ -644,7 +657,7 @@ def prefixed_functions(repo):
     # Functions the prefix files do not list but Excel stores with the prefix (live Excel read them as
     # #NAME? without it, dc-jnt.7).
     found |= {"IFNA", "IFS", "SWITCH", "XOR", "CONCAT", "TEXTJOIN", "MAXIFS", "MINIFS", "DAYS", "ISFORMULA",
-              "FORMULATEXT", "SHEET", "SHEETS", "ISOMITTED"}
+              "FORMULATEXT", "SHEET", "SHEETS", "ISOMITTED", "XMATCH", "XLOOKUP"}
     _prefixed = found
     return found
 
@@ -811,7 +824,7 @@ def hand_rows(batch, repo, work):
     """Cases written by hand from OxFunc unit tests (jnt_hand.py): ask Excel through the question service."""
     sys.path.insert(0, os.path.join(repo, "tools/excel-service"))
     import jnt_hand
-    from client import Client, number, text, boolean, blank, error
+    from client import Client, number, text, boolean, blank, error, number_array
     client = Client()
     wire_of_literal = {v: k for k, v in ERROR_LITERAL_WIRE.items()}
     lines, cases, contradicted, builds, envs = [], [], [], set(), set()
@@ -840,6 +853,15 @@ def hand_rows(batch, repo, work):
             if kind == "s":
                 parts.append('"' + arg[1].replace('"', '""') + '"')
                 asked.append(text(arg[1], literal=True))
+                continue
+            if kind == "omitted":
+                parts.append("")
+                asked.append(blank())
+                continue
+            if kind == "arr_num":
+                rows_str = ";".join(",".join(str(int(x)) if isinstance(x, int) or (isinstance(x, float) and x.is_integer()) else str(x) for x in row) for row in arg[1])
+                parts.append("{" + rows_str + "}")
+                asked.append(number_array(arg[1]))
                 continue
             parts.append("{%s}" % "ABCEFG"[len(tokens)])
             if kind == "cell_s":
