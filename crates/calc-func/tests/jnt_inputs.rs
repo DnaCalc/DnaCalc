@@ -19,6 +19,7 @@ const WORKBOOK: &[u8] = include_bytes!("fixtures/jnt/oracle.xlsx");
 /// The sheets whose section files carry typed inputs, each with its section file.
 const SECTIONS: &[(&str, &str)] = &[
     ("jnt_w111_elementary", include_str!("fixtures/jnt/sheet-jnt_w111_elementary.txt")),
+    ("jnt_w111_rounding", include_str!("fixtures/jnt/sheet-jnt_w111_rounding.txt")),
 ];
 
 fn unescape(text: &str) -> String {

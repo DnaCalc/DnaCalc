@@ -33,6 +33,10 @@ import struct
 import sys
 
 QUOTA = 250
+# A batch that sets "skip_array_forms" leaves out typed cases whose formula holds an array constant:
+# the legacy capture entered those as dynamic-array formulas, which a catalogue row (a legacy formula
+# in the file) is not; live Excel read CHOOSE({1},x) under MROUND as #VALUE! there (dc-jnt.6).
+SKIP_ARRAY_FORMS = False
 SEED = "dc-jnt-1"
 EVIDENCE = "docs/function-lane/evidence/w111-broad-20260929/"
 LEGACY_TESTS = "crates/oxfunc_core/tests/"
@@ -130,6 +134,7 @@ BATCHES = {
     ),
     "J2": dict(
         bead="dc-jnt.6",
+        skip_array_forms=True,
         sheet="jnt_w111_rounding",
         title="W111 rounding and integers: ROUND family, MROUND, QUOTIENT, GCD, LCM, FACT, PERMUTATIONA, radix conversions, MOD, RADIANS, SECH",
         tests=["w111_rounding_boundary_live_replay.rs", "w111_rounding_prepared_live_replay.rs",
@@ -184,6 +189,7 @@ BATCHES = {
     ),
     "J3": dict(
         bead="dc-jnt.7",
+        skip_array_forms=True,
         sheet="jnt_w111_text_dates",
         title="W111 text, dates and statistics: numeric text, numeric to text, text slices, dates, ADDRESS, conditional, NOT, distributions, aggregates",
         tests=["w111_numeric_text_live_replay.rs", "w111_numeric_to_text_live_replay.rs", "w111_text_slice_live_replay.rs",
@@ -439,6 +445,11 @@ def typed_cases(rows, rel, skipped):
             skipped["typed: not a formula"] += 1
             continue
         text = text[1:]
+        if SKIP_ARRAY_FORMS and "{" in "".join(part for is_text, part in outside_quotes(text) if not is_text):
+            # Excel's legacy file form reads CHOOSE({1},x) and the like through implicit intersection;
+            # the legacy capture entered such formulas as dynamic-array formulas.
+            skipped["typed: array constant in a formula (dynamic-array entry)"] += 1
+            continue
         if re.search(r"[\x00-\x1f\x7f]", text):
             skipped["typed: control character in the formula"] += 1
             continue
@@ -719,6 +730,8 @@ def main():
     arguments = parser.parse_args()
     batch = dict(BATCHES[arguments.batch])
     batch["id"] = arguments.batch
+    global SKIP_ARRAY_FORMS
+    SKIP_ARRAY_FORMS = batch.get("skip_array_forms", False)
     work = arguments.work or os.path.expanduser("~/codex-runs/jnt1/work")
     os.makedirs(work, exist_ok=True)
     lines, cases, report, hashes = build_rows(batch, arguments.legacy, arguments.repo)
