@@ -25,17 +25,27 @@ fn validate_finite(values: &[f64]) -> Result<(), CumulativeFinanceEvalError> {
     }
 }
 
-fn trunc_positive_period(value: f64) -> Result<i32, CumulativeFinanceEvalError> {
+/// A period argument as Excel reads it: the number itself, not its integer part. CUMIPMT and
+/// CUMPRINC keep a fractional nper in the annuity and admit fractional start and end periods,
+/// summing the whole periods between them (Excel 16.0.20527: CUMPRINC(0.1013,352.5,79905.9,352,
+/// 352.5,0) is the principal of period 352 of a 352.5-period loan, CUMPRINC(..,1.9,10.2,0) the
+/// periods 2 to 10, and CUMPRINC(..,1.5,1.5,0) zero).
+fn period_argument(value: f64) -> Result<f64, CumulativeFinanceEvalError> {
     if !value.is_finite() {
         return Err(CumulativeFinanceEvalError::Domain(
             WorksheetErrorCode::Value,
         ));
     }
-    let truncated = value.trunc();
-    if truncated < 1.0 || truncated > i32::MAX as f64 {
+    if value < 1.0 || value > i32::MAX as f64 {
         return Err(CumulativeFinanceEvalError::Domain(WorksheetErrorCode::Num));
     }
-    Ok(truncated as i32)
+    Ok(value)
+}
+
+/// The whole periods from `start` to `end`: the first whole period at or after the start and the
+/// last at or before the end. An interval holding no whole period is empty.
+fn whole_periods(start: f64, end: f64) -> (i32, i32) {
+    (start.ceil() as i32, end.floor() as i32)
 }
 
 fn payment_timing_arg(value: f64) -> Result<PaymentTiming, CumulativeFinanceEvalError> {
@@ -61,14 +71,14 @@ fn kernel_error(error: FinancialError) -> CumulativeFinanceEvalError {
 /// The existing principal-sum fallback, independent of public PPMT's timing finish.
 fn principal_sum(
     rate: f64,
-    periods: i32,
+    periods: f64,
     pv: f64,
     start_period: i32,
     end_period: i32,
     timing: PaymentTiming,
 ) -> Result<f64, CumulativeFinanceEvalError> {
     let beginning_payment = if timing == PaymentTiming::BeginningOfPeriod {
-        Some(time_value::pmt(rate, periods as f64, pv, 0.0, timing).map_err(kernel_error)?)
+        Some(time_value::pmt(rate, periods, pv, 0.0, timing).map_err(kernel_error)?)
     } else {
         None
     };
@@ -77,15 +87,15 @@ fn principal_sum(
         let principal = if let Some(payment) = beginning_payment {
             // Keep the previous numeric admission as well as its expression.
             // CUMPRINC is not a sum of the public PPMT publications in Excel.
-            let interest = time_value::ipmt(rate, period as f64, periods as f64, pv, 0.0, timing)
+            let interest = time_value::ipmt(rate, period as f64, periods, pv, 0.0, timing)
                 .map_err(kernel_error)?;
             if period == 1 { payment - interest } else {
                 time_value::discounted_payment_principal(
-                    rate, period as f64, periods as f64, payment, 0.0, timing,
+                    rate, period as f64, periods, payment, 0.0, timing,
                 )
             }
         } else {
-            time_value::ppmt(rate, period as f64, periods as f64, pv, 0.0, timing)
+            time_value::ppmt(rate, period as f64, periods, pv, 0.0, timing)
                 .map_err(kernel_error)?
         };
         if !principal.is_finite() {
@@ -107,18 +117,17 @@ fn interest_finish(count: f64, payment: f64, principal: f64) -> f64 {
 
 fn validate_cumulative_inputs(
     rate: f64,
-    periods: i32,
+    periods: f64,
     pv: f64,
-    start_period: i32,
-    end_period: i32,
-    timing: PaymentTiming,
+    start_period: f64,
+    end_period: f64,
 ) -> Result<(), CumulativeFinanceEvalError> {
-    let _ = timing;
     validate_finite(&[rate, pv])?;
-    if rate <= 0.0 || periods < 1 || pv <= 0.0 {
+    if rate <= 0.0 || pv <= 0.0 {
         return Err(CumulativeFinanceEvalError::Domain(WorksheetErrorCode::Num));
     }
-    if start_period < 1 || end_period < 1 || start_period > end_period || end_period > periods {
+    // The bounds compare the numbers as given: an end past a fractional nper is #NUM!.
+    if start_period > end_period || end_period > periods {
         return Err(CumulativeFinanceEvalError::Domain(WorksheetErrorCode::Num));
     }
     Ok(())
@@ -132,17 +141,18 @@ pub fn cumipmt_kernel(
     end_period: f64,
     type_number: f64,
 ) -> Result<f64, CumulativeFinanceEvalError> {
-    let periods = trunc_positive_period(periods)?;
-    let start_period = trunc_positive_period(start_period)?;
-    let end_period = trunc_positive_period(end_period)?;
+    let periods = period_argument(periods)?;
+    let start_period = period_argument(start_period)?;
+    let end_period = period_argument(end_period)?;
     let timing = payment_timing_arg(type_number)?;
-    validate_cumulative_inputs(rate, periods, pv, start_period, end_period, timing)?;
+    validate_cumulative_inputs(rate, periods, pv, start_period, end_period)?;
+    let (start_period, end_period) = whole_periods(start_period, end_period);
 
     // dc-j9k: Excel's CUMIPMT is the payments less the principal, count * PMT - sum(PPMT), not
     // the sum of IPMT. Over 400 Excel readings (rates 0.001 to 0.25, up to 400 periods, both
     // types) it matches 131 of 195 CUMIPMT bit for bit against 53 for the sum of IPMT, and the
     // others are within a few ulp.
-    let payment = time_value::pmt(rate, periods as f64, pv, 0.0, timing).map_err(kernel_error)?;
+    let payment = time_value::pmt(rate, periods, pv, 0.0, timing).map_err(kernel_error)?;
     // Beginning payments have no first-period interest. Excel omits that
     // period from both the payment count and the principal sum: all252
     // eight-period pairs and216 independent longer-loan pairs agree.
@@ -171,11 +181,15 @@ pub fn cumprinc_kernel(
     end_period: f64,
     type_number: f64,
 ) -> Result<f64, CumulativeFinanceEvalError> {
-    let periods = trunc_positive_period(periods)?;
-    let start_period = trunc_positive_period(start_period)?;
-    let end_period = trunc_positive_period(end_period)?;
+    let periods = period_argument(periods)?;
+    let start_period = period_argument(start_period)?;
+    let end_period = period_argument(end_period)?;
     let timing = payment_timing_arg(type_number)?;
-    validate_cumulative_inputs(rate, periods, pv, start_period, end_period, timing)?;
+    validate_cumulative_inputs(rate, periods, pv, start_period, end_period)?;
+    let (start_period, end_period) = whole_periods(start_period, end_period);
+    if start_period > end_period {
+        return Ok(0.0);
+    }
 
     let total = principal_sum(rate, periods, pv, start_period, end_period, timing)?;
     if total.is_finite() {
@@ -378,14 +392,40 @@ mod tests {
         );
     }
 
+    /// Excel 16.0.20527 keeps a fractional nper and sums the whole periods between fractional
+    /// start and end periods: CUMIPMT(0.0075,360.8,125000,13.9,24.9,0) is the same
+    /// 0xc0c3ee6a32355f50 as CUMIPMT(0.0075,360.8,125000,14,24,0), and neither is the
+    /// 0xc0c5bf9db675dfa1 of CUMIPMT(0.0075,360,125000,13,24,0). The same holds for CUMPRINC.
     #[cfg_attr(not(target_arch = "wasm32"), test)]
     #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
-    fn period_arguments_truncate_toward_zero() {
-        let exact = cumipmt_kernel(0.09 / 12.0, 360.8, 125000.0, 13.9, 24.9, 0.0)
+    fn period_arguments_keep_nper_and_sum_whole_periods() {
+        let fractional = cumipmt_kernel(0.09 / 12.0, 360.8, 125000.0, 13.9, 24.9, 0.0)
+            .expect("fractional periods should succeed");
+        let whole = cumipmt_kernel(0.09 / 12.0, 360.8, 125000.0, 14.0, 24.0, 0.0)
+            .expect("whole periods should succeed");
+        let truncated = cumipmt_kernel(0.09 / 12.0, 360.0, 125000.0, 13.0, 24.0, 0.0)
             .expect("truncated periods should succeed");
-        let seeded = cumipmt_kernel(0.09 / 12.0, 360.0, 125000.0, 13.0, 24.0, 0.0)
-            .expect("seeded periods should succeed");
-        assert_close(exact, seeded, 1.0e-8);
+        assert_bits(fractional, whole);
+        assert_close(fractional, f64::from_bits(0xc0c3_ee6a_3235_5f50), 1.0e-8);
+        assert!((fractional - truncated).abs() > 900.0);
+        let fractional = cumprinc_kernel(0.09 / 12.0, 360.8, 125000.0, 13.9, 24.9, 0.0)
+            .expect("fractional periods should succeed");
+        let whole = cumprinc_kernel(0.09 / 12.0, 360.8, 125000.0, 14.0, 24.0, 0.0)
+            .expect("whole periods should succeed");
+        assert_bits(fractional, whole);
+        assert_close(fractional, f64::from_bits(0xc08a_af73_3376_49b4), 1.0e-9);
+        // An interval holding no whole period is zero; a start below one or an end past nper
+        // is #NUM!.
+        assert_eq!(cumprinc_kernel(0.1013, 352.0, 79905.9, 1.5, 1.5, 0.0), Ok(0.0));
+        assert_eq!(
+            cumprinc_kernel(0.1013, 352.0, 79905.9, 0.999, 1.0, 0.0),
+            Err(CumulativeFinanceEvalError::Domain(WorksheetErrorCode::Num))
+        );
+        assert_eq!(
+            cumprinc_kernel(0.1013, 352.0, 79905.9, 352.0, 352.9, 0.0),
+            Err(CumulativeFinanceEvalError::Domain(WorksheetErrorCode::Num))
+        );
+        assert!(cumprinc_kernel(0.1013, 352.5, 79905.9, 352.0, 352.5, 0.0).is_ok());
     }
 
     #[cfg_attr(not(target_arch = "wasm32"), test)]
