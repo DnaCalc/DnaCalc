@@ -1,0 +1,829 @@
+[
+{
+"row": 614,
+"family": "text slice",
+"id": "w111textdiscovery-01732-len-scalar-8",
+"formula": "LEN(\"\ud83d\ude00\")",
+"inputs": [],
+"legacy": "n:3ff0000000000000",
+"live": "n:4000000000000000",
+"legacy_build": "16.0.20430",
+"live_build": "20527",
+"reason": "legacy harness mangling: a surrogate pair counted as one unit; Excel counts UTF-16 units"
+},
+{
+"row": 615,
+"family": "text slice",
+"id": "w111textdiscovery-01733-len-scalar-9",
+"formula": "LEN(\"A\ud83d\ude00B\")",
+"inputs": [],
+"legacy": "n:4008000000000000",
+"live": "n:4010000000000000",
+"legacy_build": "16.0.20430",
+"live_build": "20527",
+"reason": "legacy harness mangling: a surrogate pair counted as one unit; Excel counts UTF-16 units"
+},
+{
+"row": 617,
+"family": "text slice",
+"id": "w111textdiscovery-01735-len-scalar-11",
+"formula": "LEN(\"\ud83d\udc69\u200d\ud83d\udcbb\")",
+"inputs": [],
+"legacy": "n:4008000000000000",
+"live": "n:4014000000000000",
+"legacy_build": "16.0.20430",
+"live_build": "20527",
+"reason": "legacy harness mangling: a surrogate pair counted as one unit; Excel counts UTF-16 units"
+},
+{
+"row": 674,
+"family": "text slice",
+"id": "w111textnumeric-01355-mid-start-205",
+"formula": "MID(\"ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789!?\",{A},{B})",
+"inputs": [
+"n:41e0000000100001",
+"n:4008000000000000"
+],
+"legacy": "e:#VALUE!",
+"live": "s:",
+"legacy_build": "16.0.20430",
+"live_build": "20527",
+"reason": "legacy harness mangling: a surrogate pair counted as one unit; Excel counts UTF-16 units"
+},
+{
+"row": 697,
+"family": "text slice",
+"id": "w111textholdout-01092-len-fresh-12",
+"formula": "LEN((CHAR(10)&\"\ufe0f\ud83d\ude00\"&CHAR(10)&\"\u00e9\"))",
+"inputs": [],
+"legacy": "n:4014000000000000",
+"live": "n:4018000000000000",
+"legacy_build": "16.0.20430",
+"live_build": "20527",
+"reason": "legacy harness mangling: a surrogate pair counted as one unit; Excel counts UTF-16 units"
+},
+{
+"row": 698,
+"family": "text slice",
+"id": "w111textholdout-01122-len-fresh-42",
+"formula": "LEN((\"b\"&CHAR(10)&\"\u6f22\ud83d\udc69\"&CHAR(10)&\"\ufe0f\u00e9\ud83d\udc69\u00e9\ufe0f/\ud83d\udcbb\"&CHAR(10)&\"\u6f22\u6f22\u00e9\u0301\u0301A0\ud83d\udcbb/%\ufe0f\ud83d\udc69\ud83d\udcbb\"))",
+"inputs": [],
+"legacy": "n:403a000000000000",
+"live": "n:4040000000000000",
+"legacy_build": "16.0.20430",
+"live_build": "20527",
+"reason": "legacy harness mangling: a surrogate pair counted as one unit; Excel counts UTF-16 units"
+},
+{
+"row": 778,
+"family": "dates DATE",
+"id": "date-boundary-DATE-01737",
+"formula": "DATE({A},{B},{C})",
+"inputs": [
+"n:40c3880000000000",
+"n:bff0000000000000",
+"n:c073300000000000"
+],
+"legacy": "n:4146918880000000",
+"live": "e:#NUM!",
+"legacy_build": "16.0.20430",
+"live_build": "20527",
+"reason": "version difference: a number under Excel 20430 and an error under 20527; recorded in crates/calc-func/witness-differences.tsv"
+},
+{
+"row": 825,
+"family": "dates DATE",
+"id": "date-integer-DATE-00098",
+"formula": "DATE({A},{B},{C})",
+"inputs": [
+"n:c200000000000001",
+"n:3ff0000000000000",
+"n:3ff0000000000000"
+],
+"legacy": "n:3ff0000000000000",
+"live": "e:#NUM!",
+"legacy_build": "16.0.20430",
+"live_build": "20527",
+"reason": "version difference: a number under Excel 20430 and an error under 20527; recorded in crates/calc-func/witness-differences.tsv"
+},
+{
+"row": 826,
+"family": "dates DATE",
+"id": "date-integer-DATE-00262",
+"formula": "DATE({A},{B},{C})",
+"inputs": [
+"n:c56fffffffffffff",
+"n:3ff0000000000000",
+"n:3ff0000000000000"
+],
+"legacy": "n:3ff0000000000000",
+"live": "e:#NUM!",
+"legacy_build": "16.0.20430",
+"live_build": "20527",
+"reason": "version difference: a number under Excel 20430 and an error under 20527; recorded in crates/calc-func/witness-differences.tsv"
+},
+{
+"row": 827,
+"family": "dates DATE",
+"id": "date-integer-DATE-00426",
+"formula": "DATE({A},{B},{C})",
+"inputs": [
+"n:c8e0000000000000",
+"n:3ff0000000000000",
+"n:3ff0000000000000"
+],
+"legacy": "n:3ff0000000000000",
+"live": "e:#NUM!",
+"legacy_build": "16.0.20430",
+"live_build": "20527",
+"reason": "version difference: a number under Excel 20430 and an error under 20527; recorded in crates/calc-func/witness-differences.tsv"
+},
+{
+"row": 828,
+"family": "dates DATE",
+"id": "date-integer-DATE-00590",
+"formula": "DATE({A},{B},{C})",
+"inputs": [
+"n:cc40000000000001",
+"n:3ff0000000000000",
+"n:3ff0000000000000"
+],
+"legacy": "n:3ff0000000000000",
+"live": "e:#NUM!",
+"legacy_build": "16.0.20430",
+"live_build": "20527",
+"reason": "version difference: a number under Excel 20430 and an error under 20527; recorded in crates/calc-func/witness-differences.tsv"
+},
+{
+"row": 829,
+"family": "dates DATE",
+"id": "date-integer-DATE-00754",
+"formula": "DATE({A},{B},{C})",
+"inputs": [
+"n:cfafffffffffffff",
+"n:3ff0000000000000",
+"n:3ff0000000000000"
+],
+"legacy": "n:3ff0000000000000",
+"live": "e:#NUM!",
+"legacy_build": "16.0.20430",
+"live_build": "20527",
+"reason": "version difference: a number under Excel 20430 and an error under 20527; recorded in crates/calc-func/witness-differences.tsv"
+},
+{
+"row": 830,
+"family": "dates DATE",
+"id": "date-integer-DATE-00918",
+"formula": "DATE({A},{B},{C})",
+"inputs": [
+"n:d320000000000000",
+"n:3ff0000000000000",
+"n:3ff0000000000000"
+],
+"legacy": "n:3ff0000000000000",
+"live": "e:#NUM!",
+"legacy_build": "16.0.20430",
+"live_build": "20527",
+"reason": "version difference: a number under Excel 20430 and an error under 20527; recorded in crates/calc-func/witness-differences.tsv"
+},
+{
+"row": 831,
+"family": "dates DATE",
+"id": "date-integer-DATE-01082",
+"formula": "DATE({A},{B},{C})",
+"inputs": [
+"n:d680000000000001",
+"n:3ff0000000000000",
+"n:3ff0000000000000"
+],
+"legacy": "n:3ff0000000000000",
+"live": "e:#NUM!",
+"legacy_build": "16.0.20430",
+"live_build": "20527",
+"reason": "version difference: a number under Excel 20430 and an error under 20527; recorded in crates/calc-func/witness-differences.tsv"
+},
+{
+"row": 832,
+"family": "dates DATE",
+"id": "date-integer-DATE-01246",
+"formula": "DATE({A},{B},{C})",
+"inputs": [
+"n:d9efffffffffffff",
+"n:3ff0000000000000",
+"n:3ff0000000000000"
+],
+"legacy": "n:3ff0000000000000",
+"live": "e:#NUM!",
+"legacy_build": "16.0.20430",
+"live_build": "20527",
+"reason": "version difference: a number under Excel 20430 and an error under 20527; recorded in crates/calc-func/witness-differences.tsv"
+},
+{
+"row": 833,
+"family": "dates DATE",
+"id": "date-integer-DATE-01410",
+"formula": "DATE({A},{B},{C})",
+"inputs": [
+"n:dd60000000000000",
+"n:3ff0000000000000",
+"n:3ff0000000000000"
+],
+"legacy": "n:3ff0000000000000",
+"live": "e:#NUM!",
+"legacy_build": "16.0.20430",
+"live_build": "20527",
+"reason": "version difference: a number under Excel 20430 and an error under 20527; recorded in crates/calc-func/witness-differences.tsv"
+},
+{
+"row": 834,
+"family": "dates DATE",
+"id": "date-integer-DATE-01574",
+"formula": "DATE({A},{B},{C})",
+"inputs": [
+"n:e0c0000000000001",
+"n:3ff0000000000000",
+"n:3ff0000000000000"
+],
+"legacy": "n:3ff0000000000000",
+"live": "e:#NUM!",
+"legacy_build": "16.0.20430",
+"live_build": "20527",
+"reason": "version difference: a number under Excel 20430 and an error under 20527; recorded in crates/calc-func/witness-differences.tsv"
+},
+{
+"row": 835,
+"family": "dates DATE",
+"id": "date-integer-DATE-01738",
+"formula": "DATE({A},{B},{C})",
+"inputs": [
+"n:e42fffffffffffff",
+"n:3ff0000000000000",
+"n:3ff0000000000000"
+],
+"legacy": "n:3ff0000000000000",
+"live": "e:#NUM!",
+"legacy_build": "16.0.20430",
+"live_build": "20527",
+"reason": "version difference: a number under Excel 20430 and an error under 20527; recorded in crates/calc-func/witness-differences.tsv"
+},
+{
+"row": 836,
+"family": "dates DATE",
+"id": "date-integer-DATE-01902",
+"formula": "DATE({A},{B},{C})",
+"inputs": [
+"n:e7a0000000000000",
+"n:3ff0000000000000",
+"n:3ff0000000000000"
+],
+"legacy": "n:3ff0000000000000",
+"live": "e:#NUM!",
+"legacy_build": "16.0.20430",
+"live_build": "20527",
+"reason": "version difference: a number under Excel 20430 and an error under 20527; recorded in crates/calc-func/witness-differences.tsv"
+},
+{
+"row": 837,
+"family": "dates DATE",
+"id": "date-integer-DATE-02066",
+"formula": "DATE({A},{B},{C})",
+"inputs": [
+"n:eb00000000000001",
+"n:3ff0000000000000",
+"n:3ff0000000000000"
+],
+"legacy": "n:3ff0000000000000",
+"live": "e:#NUM!",
+"legacy_build": "16.0.20430",
+"live_build": "20527",
+"reason": "version difference: a number under Excel 20430 and an error under 20527; recorded in crates/calc-func/witness-differences.tsv"
+},
+{
+"row": 838,
+"family": "dates DATE",
+"id": "date-integer-DATE-02230",
+"formula": "DATE({A},{B},{C})",
+"inputs": [
+"n:ee6fffffffffffff",
+"n:3ff0000000000000",
+"n:3ff0000000000000"
+],
+"legacy": "n:3ff0000000000000",
+"live": "e:#NUM!",
+"legacy_build": "16.0.20430",
+"live_build": "20527",
+"reason": "version difference: a number under Excel 20430 and an error under 20527; recorded in crates/calc-func/witness-differences.tsv"
+},
+{
+"row": 839,
+"family": "dates DATE",
+"id": "date-integer-DATE-02394",
+"formula": "DATE({A},{B},{C})",
+"inputs": [
+"n:f1e0000000000000",
+"n:3ff0000000000000",
+"n:3ff0000000000000"
+],
+"legacy": "n:3ff0000000000000",
+"live": "e:#NUM!",
+"legacy_build": "16.0.20430",
+"live_build": "20527",
+"reason": "version difference: a number under Excel 20430 and an error under 20527; recorded in crates/calc-func/witness-differences.tsv"
+},
+{
+"row": 840,
+"family": "dates DATE",
+"id": "date-integer-DATE-02558",
+"formula": "DATE({A},{B},{C})",
+"inputs": [
+"n:f540000000000001",
+"n:3ff0000000000000",
+"n:3ff0000000000000"
+],
+"legacy": "n:3ff0000000000000",
+"live": "e:#NUM!",
+"legacy_build": "16.0.20430",
+"live_build": "20527",
+"reason": "version difference: a number under Excel 20430 and an error under 20527; recorded in crates/calc-func/witness-differences.tsv"
+},
+{
+"row": 841,
+"family": "dates DATE",
+"id": "date-integer-DATE-02722",
+"formula": "DATE({A},{B},{C})",
+"inputs": [
+"n:f8afffffffffffff",
+"n:3ff0000000000000",
+"n:3ff0000000000000"
+],
+"legacy": "n:3ff0000000000000",
+"live": "e:#NUM!",
+"legacy_build": "16.0.20430",
+"live_build": "20527",
+"reason": "version difference: a number under Excel 20430 and an error under 20527; recorded in crates/calc-func/witness-differences.tsv"
+},
+{
+"row": 842,
+"family": "dates DATE",
+"id": "date-integer-DATE-02886",
+"formula": "DATE({A},{B},{C})",
+"inputs": [
+"n:fc20000000000000",
+"n:3ff0000000000000",
+"n:3ff0000000000000"
+],
+"legacy": "n:3ff0000000000000",
+"live": "e:#NUM!",
+"legacy_build": "16.0.20430",
+"live_build": "20527",
+"reason": "version difference: a number under Excel 20430 and an error under 20527; recorded in crates/calc-func/witness-differences.tsv"
+},
+{
+"row": 843,
+"family": "dates DATE",
+"id": "date-integer-DATE-03050",
+"formula": "DATE({A},{B},{C})",
+"inputs": [
+"n:ff80000000000001",
+"n:3ff0000000000000",
+"n:3ff0000000000000"
+],
+"legacy": "n:3ff0000000000000",
+"live": "e:#NUM!",
+"legacy_build": "16.0.20430",
+"live_build": "20527",
+"reason": "version difference: a number under Excel 20430 and an error under 20527; recorded in crates/calc-func/witness-differences.tsv"
+},
+{
+"row": 873,
+"family": "dates DATE",
+"id": "date-heldout-DATE-00661",
+"formula": "DATE({A},{B},{C})",
+"inputs": [
+"n:5dabfb04dfd90ac8",
+"n:c0d46d992622e072",
+"n:c0c61c31c4541438"
+],
+"legacy": "n:4141a08280000000",
+"live": "e:#NUM!",
+"legacy_build": "16.0.20430",
+"live_build": "20527",
+"reason": "version difference: a number under Excel 20430 and an error under 20527; recorded in crates/calc-func/witness-differences.tsv"
+},
+{
+"row": 888,
+"family": "dates DATE",
+"id": "date-heldout-DATE-02089",
+"formula": "DATE({A},{B},{C})",
+"inputs": [
+"n:ebbf48b16884a52e",
+"n:40bb72e227aed758",
+"n:c0d529e8a204085e"
+],
+"legacy": "n:410774a000000000",
+"live": "e:#NUM!",
+"legacy_build": "16.0.20430",
+"live_build": "20527",
+"reason": "version difference: a number under Excel 20430 and an error under 20527; recorded in crates/calc-func/witness-differences.tsv"
+},
+{
+"row": 889,
+"family": "dates DATE",
+"id": "date-heldout-DATE-02185",
+"formula": "DATE({A},{B},{C})",
+"inputs": [
+"n:f9c18756134c4a60",
+"n:40c4bc6e417a118c",
+"n:40763fb4afa9bdf4"
+],
+"legacy": "n:4113bdcc00000000",
+"live": "e:#NUM!",
+"legacy_build": "16.0.20430",
+"live_build": "20527",
+"reason": "version difference: a number under Excel 20430 and an error under 20527; recorded in crates/calc-func/witness-differences.tsv"
+},
+{
+"row": 890,
+"family": "dates DATE",
+"id": "date-heldout-DATE-02280",
+"formula": "DATE({A},{B},{C})",
+"inputs": [
+"n:41ce7aad7645be94",
+"n:c0284bee95a57c95",
+"n:c049bba9f56171d8"
+],
+"legacy": "n:4146915180000000",
+"live": "e:#NUM!",
+"legacy_build": "16.0.20430",
+"live_build": "20527",
+"reason": "version difference: a number under Excel 20430 and an error under 20527; recorded in crates/calc-func/witness-differences.tsv"
+},
+{
+"row": 895,
+"family": "dates DATE",
+"id": "date-heldout-DATE-02756",
+"formula": "DATE({A},{B},{C})",
+"inputs": [
+"n:418e40565bc5fac0",
+"n:c0d457087313f82b",
+"n:c0d17d87bebee27b"
+],
+"legacy": "n:414198fc80000000",
+"live": "e:#NUM!",
+"legacy_build": "16.0.20430",
+"live_build": "20527",
+"reason": "version difference: a number under Excel 20430 and an error under 20527; recorded in crates/calc-func/witness-differences.tsv"
+},
+{
+"row": 904,
+"family": "dates DATE",
+"id": "date-heldout-DATE-03613",
+"formula": "DATE({A},{B},{C})",
+"inputs": [
+"n:c524661cced2d6a3",
+"n:40c293d035241120",
+"n:c0db67ac6e9565e4"
+],
+"legacy": "n:410fe88000000000",
+"live": "e:#NUM!",
+"legacy_build": "16.0.20430",
+"live_build": "20527",
+"reason": "version difference: a number under Excel 20430 and an error under 20527; recorded in crates/calc-func/witness-differences.tsv"
+},
+{
+"row": 905,
+"family": "dates DATE",
+"id": "date-heldout-DATE-03709",
+"formula": "DATE({A},{B},{C})",
+"inputs": [
+"n:5643e25066adb87f",
+"n:c0d7159af5490864",
+"n:c0d8fcca2313a368"
+],
+"legacy": "n:4140e2f300000000",
+"live": "e:#NUM!",
+"legacy_build": "16.0.20430",
+"live_build": "20527",
+"reason": "version difference: a number under Excel 20430 and an error under 20527; recorded in crates/calc-func/witness-differences.tsv"
+},
+{
+"row": 911,
+"family": "dates DATE",
+"id": "date-heldout2-DATE-00444",
+"formula": "DATE({A},{B},{C})",
+"inputs": [
+"n:41b4959610f06520",
+"n:c005b2233f1fac80",
+"n:4052e7e302fca8ac"
+],
+"legacy": "n:4146922900000000",
+"live": "e:#NUM!",
+"legacy_build": "16.0.20430",
+"live_build": "20527",
+"reason": "version difference: a number under Excel 20430 and an error under 20527; recorded in crates/calc-func/witness-differences.tsv"
+},
+{
+"row": 915,
+"family": "dates DATE",
+"id": "date-heldout2-DATE-01110",
+"formula": "DATE({A},{B},{C})",
+"inputs": [
+"n:c1bfefe1299beaf7",
+"n:c02a82e32c7138a1",
+"n:40dfffc000000000"
+],
+"legacy": "n:4140f30380000000",
+"live": "e:#NUM!",
+"legacy_build": "16.0.20430",
+"live_build": "20527",
+"reason": "version difference: a number under Excel 20430 and an error under 20527; recorded in crates/calc-func/witness-differences.tsv"
+},
+{
+"row": 916,
+"family": "dates DATE",
+"id": "date-heldout2-DATE-01277",
+"formula": "DATE({A},{B},{C})",
+"inputs": [
+"n:da195817b65402ed",
+"n:40dceb4f883a5a2e",
+"n:405567c1606c33e0"
+],
+"legacy": "n:412b820c00000000",
+"live": "e:#NUM!",
+"legacy_build": "16.0.20430",
+"live_build": "20527",
+"reason": "version difference: a number under Excel 20430 and an error under 20527; recorded in crates/calc-func/witness-differences.tsv"
+},
+{
+"row": 919,
+"family": "dates DATE",
+"id": "date-heldout2-DATE-01777",
+"formula": "DATE({A},{B},{C})",
+"inputs": [
+"n:c544d32ecca3cc34",
+"n:40dfff8000000000",
+"n:c0376d86329b4240"
+],
+"legacy": "n:412e6ef000000000",
+"live": "e:#NUM!",
+"legacy_build": "16.0.20430",
+"live_build": "20527",
+"reason": "version difference: a number under Excel 20430 and an error under 20527; recorded in crates/calc-func/witness-differences.tsv"
+},
+{
+"row": 922,
+"family": "dates DATE",
+"id": "date-heldout2-DATE-02277",
+"formula": "DATE({A},{B},{C})",
+"inputs": [
+"n:604705aab15f1ce3",
+"n:c0dfffc000000000",
+"n:40dfffc000000000"
+],
+"legacy": "n:413e6c9400000000",
+"live": "e:#NUM!",
+"legacy_build": "16.0.20430",
+"live_build": "20527",
+"reason": "version difference: a number under Excel 20430 and an error under 20527; recorded in crates/calc-func/witness-differences.tsv"
+},
+{
+"row": 925,
+"family": "dates DATE",
+"id": "date-heldout2-DATE-02777",
+"formula": "DATE({A},{B},{C})",
+"inputs": [
+"n:7d37faebffc4d886",
+"n:c0300d2a38581c70",
+"n:c0e0000000000000"
+],
+"legacy": "n:4146512e00000000",
+"live": "e:#NUM!",
+"legacy_build": "16.0.20430",
+"live_build": "20527",
+"reason": "version difference: a number under Excel 20430 and an error under 20527; recorded in crates/calc-func/witness-differences.tsv"
+},
+{
+"row": 926,
+"family": "dates DATE",
+"id": "date-heldout2-DATE-02944",
+"formula": "DATE({A},{B},{C})",
+"inputs": [
+"n:41d6d016c38a2308",
+"n:c0dfffc000000000",
+"n:c0d14b2026481e69"
+],
+"legacy": "n:413da76800000000",
+"live": "e:#NUM!",
+"legacy_build": "16.0.20430",
+"live_build": "20527",
+"reason": "version difference: a number under Excel 20430 and an error under 20527; recorded in crates/calc-func/witness-differences.tsv"
+},
+{
+"row": 932,
+"family": "dates DATE",
+"id": "date-heldout2-DATE-03944",
+"formula": "DATE({A},{B},{C})",
+"inputs": [
+"n:c196bfb3564f6ab0",
+"n:c0dfffc000000000",
+"n:c0e0000000000000"
+],
+"legacy": "n:40f08d3000000000",
+"live": "e:#NUM!",
+"legacy_build": "16.0.20430",
+"live_build": "20527",
+"reason": "version difference: a number under Excel 20430 and an error under 20527; recorded in crates/calc-func/witness-differences.tsv"
+},
+{
+"row": 945,
+"family": "dates DATE",
+"id": "date-heldout2-DATE-06110",
+"formula": "DATE({A},{B},{C})",
+"inputs": [
+"n:c1d968b65f4df406",
+"n:400c1116c15aa960",
+"n:40dfffc000000000"
+],
+"legacy": "n:41466d1180000000",
+"live": "e:#NUM!",
+"legacy_build": "16.0.20430",
+"live_build": "20527",
+"reason": "version difference: a number under Excel 20430 and an error under 20527; recorded in crates/calc-func/witness-differences.tsv"
+},
+{
+"row": 950,
+"family": "dates DATE",
+"id": "date-heldout2-DATE-06944",
+"formula": "DATE({A},{B},{C})",
+"inputs": [
+"n:41b137fa5c06feb8",
+"n:c0dfffc000000000",
+"n:40dfffc000000000"
+],
+"legacy": "n:413e6c9400000000",
+"live": "e:#NUM!",
+"legacy_build": "16.0.20430",
+"live_build": "20527",
+"reason": "version difference: a number under Excel 20430 and an error under 20527; recorded in crates/calc-func/witness-differences.tsv"
+},
+{
+"row": 951,
+"family": "dates DATE",
+"id": "date-refinement-DATE-00018",
+"formula": "DATE({A},{B},{C})",
+"inputs": [
+"n:c1e0001000000002",
+"n:3ff0000000000000",
+"n:3ff0000000000000"
+],
+"legacy": "n:3ff0000000000000",
+"live": "e:#NUM!",
+"legacy_build": "16.0.20430",
+"live_build": "20527",
+"reason": "version difference: a number under Excel 20430 and an error under 20527; recorded in crates/calc-func/witness-differences.tsv"
+},
+{
+"row": 952,
+"family": "dates DATE",
+"id": "date-refinement-DATE-00038",
+"formula": "DATE({A},{B},{C})",
+"inputs": [
+"n:c1e00000ed800000",
+"n:402a000000000000",
+"n:3ff0000000000000"
+],
+"legacy": "n:4076f00000000000",
+"live": "e:#NUM!",
+"legacy_build": "16.0.20430",
+"live_build": "20527",
+"reason": "version difference: a number under Excel 20430 and an error under 20527; recorded in crates/calc-func/witness-differences.tsv"
+},
+{
+"row": 956,
+"family": "dates DATE",
+"id": "date-refinement-DATE-00120",
+"formula": "DATE({A},{B},{C})",
+"inputs": [
+"n:c1dffffe25000000",
+"n:3ff0000000000000",
+"n:3ff0000000000000"
+],
+"legacy": "n:3ff0000000000000",
+"live": "e:#NUM!",
+"legacy_build": "16.0.20430",
+"live_build": "20527",
+"reason": "version difference: a number under Excel 20430 and an error under 20527; recorded in crates/calc-func/witness-differences.tsv"
+},
+{
+"row": 957,
+"family": "dates DATE",
+"id": "date-refinement-DATE-00140",
+"formula": "DATE({A},{B},{C})",
+"inputs": [
+"n:c1dffffe25000004",
+"n:402a000000000000",
+"n:3ff0000000000000"
+],
+"legacy": "n:41252d9600000000",
+"live": "e:#NUM!",
+"legacy_build": "16.0.20430",
+"live_build": "20527",
+"reason": "version difference: a number under Excel 20430 and an error under 20527; recorded in crates/calc-func/witness-differences.tsv"
+},
+{
+"row": 960,
+"family": "dates DATE",
+"id": "date-refinement-DATE-00201",
+"formula": "DATE({A},{B},{C})",
+"inputs": [
+"n:c1dfffc000400004",
+"n:40dfff8000000000",
+"n:3ff0000000000000"
+],
+"legacy": "n:412e696e00000000",
+"live": "e:#NUM!",
+"legacy_build": "16.0.20430",
+"live_build": "20527",
+"reason": "version difference: a number under Excel 20430 and an error under 20527; recorded in crates/calc-func/witness-differences.tsv"
+},
+{
+"row": 965,
+"family": "dates DATE",
+"id": "date-refinement-DATE-00303",
+"formula": "DATE({A},{B},{C})",
+"inputs": [
+"n:c0f0001000010c6f",
+"n:40dfff8000000000",
+"n:3ff0000000000000"
+],
+"legacy": "n:412e696e00000000",
+"live": "e:#NUM!",
+"legacy_build": "16.0.20430",
+"live_build": "20527",
+"reason": "version difference: a number under Excel 20430 and an error under 20527; recorded in crates/calc-func/witness-differences.tsv"
+},
+{
+"row": 967,
+"family": "dates DATE",
+"id": "date-refinement-DATE-00344",
+"formula": "DATE({A},{B},{C})",
+"inputs": [
+"n:c0efffe000004000",
+"n:402a000000000000",
+"n:3ff0000000000000"
+],
+"legacy": "n:4086e00000000000",
+"live": "e:#NUM!",
+"legacy_build": "16.0.20430",
+"live_build": "20527",
+"reason": "version difference: a number under Excel 20430 and an error under 20527; recorded in crates/calc-func/witness-differences.tsv"
+},
+{
+"row": 969,
+"family": "dates DATE",
+"id": "date-refinement-DATE-00384",
+"formula": "DATE({A},{B},{C})",
+"inputs": [
+"n:c0ef1280000218df",
+"n:3ff0000000000000",
+"n:3ff0000000000000"
+],
+"legacy": "n:41252abc00000000",
+"live": "e:#NUM!",
+"legacy_build": "16.0.20430",
+"live_build": "20527",
+"reason": "version difference: a number under Excel 20430 and an error under 20527; recorded in crates/calc-func/witness-differences.tsv"
+},
+{
+"row": 989,
+"family": "dates DATE",
+"id": "date-refinement-DATE-00791",
+"formula": "DATE({A},{B},{C})",
+"inputs": [
+"n:40efffdffffde721",
+"n:0000000000000000",
+"n:bff0000000000000"
+],
+"legacy": "n:4146923080000000",
+"live": "e:#NUM!",
+"legacy_build": "16.0.20430",
+"live_build": "20527",
+"reason": "version difference: a number under Excel 20430 and an error under 20527; recorded in crates/calc-func/witness-differences.tsv"
+},
+{
+"row": 990,
+"family": "dates DATE",
+"id": "date-refinement-DATE-00811",
+"formula": "DATE({A},{B},{C})",
+"inputs": [
+"n:40c3880000000000",
+"n:c028000000000000",
+"n:3ff0000000000000"
+],
+"legacy": "n:4146917b00000000",
+"live": "e:#NUM!",
+"legacy_build": "16.0.20430",
+"live_build": "20527",
+"reason": "version difference: a number under Excel 20430 and an error under 20527; recorded in crates/calc-func/witness-differences.tsv"
+}
+]

@@ -387,7 +387,8 @@ function Get-SectionLines([string]$Name, [string]$Case = 'catalogue') {
 # so the formula reads inputs that are exact. {A}, {B}, {C}, {E}, {F} and {G} in the formula stand
 # for this row's cells.
 # A cell is n:<16 hex digits> (a finite binary64 number, written with 17 significant digits),
-# s:<text>, b:TRUE or b:FALSE, e:<error literal>, or - (the cell stays empty). A line without a tab is
+# s:<text>, b:TRUE or b:FALSE, e:<error literal>, f:<formula> (a formula cell; text holding control
+# characters, which XML 1.0 cannot carry, is built as "a"&CHAR(12)&"b"), or - (the cell stays empty). A line without a tab is
 # a plain formula, as before.
 $InputColumns = @('A', 'B', 'C', 'E', 'F', 'G')
 function New-InputCell([string]$Ref, [string]$Token) {
@@ -412,6 +413,7 @@ function New-InputCell([string]$Ref, [string]$Token) {
             return (New-Logical $Ref ($body -eq 'TRUE'))
         }
         'e' { return (New-Error $Ref $body) }
+        'f' { return @($Ref, ('<c r="' + $Ref + '"><f>' + (Get-Escaped $body) + '</f></c>')) }
         default { throw "input cell $Ref has an unknown kind: $Token" }
     }
 }
@@ -593,6 +595,8 @@ Write-Workbook (Join-Path $OutDir 'fn10_sort_cycle/oracle.xlsx') $fn10SortSheets
 $JntSheets = @()
 $JntSheets += 'jnt_w111_elementary'
 $JntSheets += 'jnt_w111_rounding'
+$JntSheets += 'jnt_w111_text_dates'
+$JntSheets += 'jnt_dates_random'
 $jnt = @()
 foreach ($name in $JntSheets) {
     $expanded = Expand-SectionLines (Get-SectionLines ('sheet-' + $name + '.txt') 'jnt')
