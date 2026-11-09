@@ -70,9 +70,9 @@ pub fn map_dollar_fraction_error_to_ws(e: &DollarFractionEvalError) -> Worksheet
 
 #[cfg(test)]
 mod tests {
+    use super::*;
     #[allow(unused_imports)]
     use crate::value::{CalcArray, CalcValue, CoreValue, ExcelText};
-    use super::*;
 
     struct NoResolver;
 

@@ -41,7 +41,10 @@ impl calc_func::UserFunction for Tick {
     fn call(&self, arguments: &[CalcValue]) -> Result<CalcValue, String> {
         self.0.borrow_mut().push(format!(
             "{:?}",
-            arguments.iter().map(CalcValue::as_number).collect::<Vec<_>>()
+            arguments
+                .iter()
+                .map(CalcValue::as_number)
+                .collect::<Vec<_>>()
         ));
         Ok(CalcValue::number(42.0))
     }
@@ -67,7 +70,11 @@ struct Log {
 impl EvaluationObserver for Log {
     fn called(&mut self, call: ExecutedCall) {
         let target = call.target();
-        self.calls.push(format!("{} {}", target.spelling(), if call.synthetic() { "*" } else { "" }));
+        self.calls.push(format!(
+            "{} {}",
+            target.spelling(),
+            if call.synthetic() { "*" } else { "" }
+        ));
     }
 
     fn resolved(&mut self, reference: ResolvedReference) {
@@ -150,7 +157,11 @@ impl Named {
 }
 
 impl ReferenceCatalog for Named {
-    fn defined_name(&self, name: &str, _: crate::reference::NameScope) -> crate::reference::NameDefinition {
+    fn defined_name(
+        &self,
+        name: &str,
+        _: crate::reference::NameScope,
+    ) -> crate::reference::NameDefinition {
         if name.eq_ignore_ascii_case("Drawn") {
             crate::reference::NameDefinition::Formula(self.formula.into())
         } else {
@@ -164,15 +175,16 @@ impl ReferenceCatalog for Named {
         _: crate::reference::NameScope,
         _: Option<calc_func::value::NameId>,
     ) -> Option<crate::reference::NameBindingProof> {
-        name.eq_ignore_ascii_case("Drawn").then(|| crate::reference::NameBindingProof {
-            resolved: Some(crate::reference::BoundName {
-                id: self.id,
-                version: 1,
-                scope: calc_func::value::NameScope::Workbook,
-            }),
-            probes: Vec::new(),
-            parent: None,
-        })
+        name.eq_ignore_ascii_case("Drawn")
+            .then(|| crate::reference::NameBindingProof {
+                resolved: Some(crate::reference::BoundName {
+                    id: self.id,
+                    version: 1,
+                    scope: calc_func::value::NameScope::Workbook,
+                }),
+                probes: Vec::new(),
+                parent: None,
+            })
     }
 
     fn sheet_named(&self, name: &str) -> Option<SheetId> {
@@ -199,7 +211,11 @@ impl ReferenceCatalog for Named {
         None
     }
 
-    fn external_sheet(&self, book: &crate::reference::ExternalBookRef, sheet: &str) -> Option<SheetId> {
+    fn external_sheet(
+        &self,
+        book: &crate::reference::ExternalBookRef,
+        sheet: &str,
+    ) -> Option<SheetId> {
         NoSheets.external_sheet(book, sheet)
     }
 
@@ -236,7 +252,9 @@ fn drive(formula: &str, pending: bool, quantum: usize) -> Run2 {
     let user = Rc::new(RefCell::new(Vec::new()));
     let draws = Rc::new(RefCell::new(Vec::new()));
     let mut functions = crate::CallableTable::new();
-    functions.register("Tick", Rc::new(Tick(user.clone()))).unwrap();
+    functions
+        .register("Tick", Rc::new(Tick(user.clone())))
+        .unwrap();
     let catalog = Named::new("RAND()+$B$3");
     let plan = crate::compile_with_functions(
         &parse_formula(formula),
@@ -359,9 +377,18 @@ const CASES: &[(&str, bool)] = &[
     ("=BYROW({1,2;3,4},LAMBDA(r,SUM(r)+RAND()+B3))", true),
     ("=MAKEARRAY(2,2,LAMBDA(r,c,r+c+RAND()+B3))", true),
     // GROUPBY and PIVOTBY call their LAMBDA through the retained helper path too (dc-hsa5.19, D2).
-    ("=GROUPBY({\"a\";\"b\";\"a\"},{1;2;3},LAMBDA(x,SUM(x)+RAND()+B3))", true),
-    ("=GROUPBY({\"a\";\"b\";\"a\"},{1;2;3},LAMBDA(x,B3+SUM(x)),0,-1)", true),
-    ("=PIVOTBY({\"a\";\"b\";\"a\"},{\"x\";\"x\";\"y\"},{1;2;3},LAMBDA(x,SUM(x)+RAND()+B3))", true),
+    (
+        "=GROUPBY({\"a\";\"b\";\"a\"},{1;2;3},LAMBDA(x,SUM(x)+RAND()+B3))",
+        true,
+    ),
+    (
+        "=GROUPBY({\"a\";\"b\";\"a\"},{1;2;3},LAMBDA(x,B3+SUM(x)),0,-1)",
+        true,
+    ),
+    (
+        "=PIVOTBY({\"a\";\"b\";\"a\"},{\"x\";\"x\";\"y\"},{1;2;3},LAMBDA(x,SUM(x)+RAND()+B3))",
+        true,
+    ),
     // A kernel whose LAMBDA reads, through a name.
     ("=SUM(MAP({1;2},LAMBDA(x,x+B3)),RAND())", true),
     // A defined name whose body draws and reads.
@@ -381,12 +408,18 @@ fn compare(formula: &str, quantum: usize) -> (Ending, Vec<String>) {
     let mut differences = Vec::new();
     if pending.ending == Ending::FellBack {
         if pending.value.is_ok() || ready.value.is_err() {
-            differences.push(format!("{formula}: fell back, ready {:?}, pending {:?}", ready.value, pending.value));
+            differences.push(format!(
+                "{formula}: fell back, ready {:?}, pending {:?}",
+                ready.value, pending.value
+            ));
         }
         return (pending.ending, differences);
     }
     if ready.value != pending.value {
-        differences.push(format!("{formula}: value {:?} against {:?}", ready.value, pending.value));
+        differences.push(format!(
+            "{formula}: value {:?} against {:?}",
+            ready.value, pending.value
+        ));
     }
     if ready.events != pending.events {
         differences.push(format!(
@@ -409,7 +442,9 @@ fn a_wait_replays_nothing_the_evaluation_could_observe() {
             report.push(format!("quantum {quantum}: {formula} -> {ending:?}"));
             differences.extend(found);
             if *in_place && !matches!(ending, Ending::Waited(waits) if waits > 0) {
-                differences.push(format!("{formula}: expected a wait in place, got {ending:?}"));
+                differences.push(format!(
+                    "{formula}: expected a wait in place, got {ending:?}"
+                ));
             }
             if !*in_place && !matches!(ending, Ending::Waited(0)) {
                 differences.push(format!("{formula}: expected no wait, got {ending:?}"));
@@ -420,13 +455,26 @@ fn a_wait_replays_nothing_the_evaluation_could_observe() {
     // unbounded quantum give the same value and the same events, producer ready or pending.
     for (formula, _) in CASES {
         for pending in [false, true] {
-            let (whole, sliced) = (drive(formula, pending, usize::MAX), drive(formula, pending, 1));
-            if whole.value != sliced.value || whole.events != sliced.events || whole.ending != sliced.ending {
-                differences.push(format!("{formula} (pending {pending}): quantum 1 differs from the unbounded quantum"));
+            let (whole, sliced) = (
+                drive(formula, pending, usize::MAX),
+                drive(formula, pending, 1),
+            );
+            if whole.value != sliced.value
+                || whole.events != sliced.events
+                || whole.ending != sliced.ending
+            {
+                differences.push(format!(
+                    "{formula} (pending {pending}): quantum 1 differs from the unbounded quantum"
+                ));
             }
         }
     }
-    assert!(differences.is_empty(), "{}\n--\n{}", differences.join("\n"), report.join("\n"));
+    assert!(
+        differences.is_empty(),
+        "{}\n--\n{}",
+        differences.join("\n"),
+        report.join("\n")
+    );
 }
 
 /// A compile error's entry rule, when Excel's entry refuses the call.
@@ -494,7 +542,11 @@ fn a_call_of_the_wrong_arity_is_refused_before_any_argument_can_run() {
         }
         if target.argument_demand().is_lazy() {
             lazy += 1;
-            assert!(arity.min >= 1, "{} is lazy and takes no argument", target.spelling());
+            assert!(
+                arity.min >= 1,
+                "{} is lazy and takes no argument",
+                target.spelling()
+            );
         }
     }
     assert!(lazy >= 4, "the lazy entries were found: {lazy}");
@@ -599,6 +651,10 @@ fn an_omitted_argument_never_reaches_a_result() {
     // the engine refuses it at publication (a cell holds no omitted-argument marker, calc-engine
     // `result.rs`); it never passes through a kernel.
     for formula in ["=LAMBDA(x,[y],y)(1)", "=LET(f,LAMBDA([y],y),f())"] {
-        assert_eq!(evaluated(formula, CalcValue::number(5.0)), Ok(CalcValue::missing()), "{formula}");
+        assert_eq!(
+            evaluated(formula, CalcValue::number(5.0)),
+            Ok(CalcValue::missing()),
+            "{formula}"
+        );
     }
 }

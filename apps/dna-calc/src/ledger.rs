@@ -180,22 +180,52 @@ fn ledger_view(controller: Controller) -> impl IntoView {
         let focus_ticket = reveal_focus
             .get_untracked()
             .unwrap_or_else(|| controller.selection_focus_snapshot());
-        controller.ask_result(request,move |reply| {
-            if epoch.try_get_value()!=Some(asked)||controller.revision.try_get_untracked()!=Some(revision)||controller.generation.try_get_untracked()!=Some(generation){return;}
+        controller.ask_result(request, move |reply| {
+            if epoch.try_get_value() != Some(asked)
+                || controller.revision.try_get_untracked() != Some(revision)
+                || controller.generation.try_get_untracked() != Some(generation)
+            {
+                return;
+            }
             match reply {
-                Ok(wire::Reply::Ledger(found))=>{
+                Ok(wire::Reply::Ledger(found)) => {
                     if reveal.get_value() {
-                        if let Some(active)=found.active_page {if active!=found.page_index {page.set(active as usize);return;}}
+                        if let Some(active) = found.active_page {
+                            if active != found.page_index {
+                                page.set(active as usize);
+                                return;
+                            }
+                        }
                         reveal.set_value(false);
-                        if found.active_page.is_none(){failure.set(if found.whole==0 {"No formulas yet. Enter a formula in Grid or open a workbook."}else if found.rows==0 {"No formulas match these filters. Clear filters to see the full list."}else{"The active cell is outside the current formula list or filters."}.into());}
-                        #[cfg(target_arch="wasm32")]
-                        controller.focus_projection(SkinId::Ledger,"[data-dnacalc=ledger-row][data-active=true] [data-dnacalc=ledger-select]".into(),focus_ticket);
+                        if found.active_page.is_none() {
+                            let msg = if found.whole == 0 {
+                                "No formulas yet. Enter a formula in Grid or open a workbook."
+                            } else if found.rows == 0 {
+                                "No formulas match these filters. Clear filters to see the full list."
+                            } else {
+                                "The active cell is outside the current formula list or filters."
+                            };
+                            failure.set(msg.into());
+                        }
+                        #[cfg(target_arch = "wasm32")]
+                        controller.focus_projection(
+                            SkinId::Ledger,
+                            "[data-dnacalc=ledger-row][data-active=true] [data-dnacalc=ledger-select]".into(),
+                            focus_ticket,
+                        );
                     }
-                    if found.page_index!=page.get_untracked() as u64 {page.set(found.page_index as usize);}
-                    ledger.try_set(found);available.try_set(true);loading.try_set(false);
-                },
-                Err(error)=>{failure.try_set(format!("Formula list unavailable: {error}"));loading.try_set(false);},
-                _=>{}
+                    if found.page_index != page.get_untracked() as u64 {
+                        page.set(found.page_index as usize);
+                    }
+                    ledger.try_set(found);
+                    available.try_set(true);
+                    loading.try_set(false);
+                }
+                Err(error) => {
+                    failure.try_set(format!("Formula list unavailable: {error}"));
+                    loading.try_set(false);
+                }
+                _ => {}
             }
         });
     });
@@ -222,14 +252,111 @@ fn ledger_view(controller: Controller) -> impl IntoView {
         let select_name = format!("Inspect {}", row.label);
         let grid_name = format!("Open {} in Grid", row.label);
         let canvas_name = format!("Open {} in Canvas", row.label);
-        view!{<tr role="row" data-dnacalc="ledger-row" data-cell=row.label.clone() data-provenance=row.provenance.name() data-active=move ||active().to_string() on:click=move |_|if !hidden&&!loading.get_untracked(){controller.go_to(at);}>
-            <td role="cell" class="dc-mono"><button data-dnacalc="ledger-select" aria-label=select_name aria-current=move ||active().to_string() disabled=move ||hidden||loading.get()||!available.get() on:click=move |ev|{ev.stop_propagation();controller.navigate_to(at,move |ok|{if ok&&reveal.try_update_value(|v|*v=true).is_some(){refresh.try_update(|n|*n+=1);}});}>{row.label.clone()}</button></td>
-            <td role="cell" data-field="formula" class="dc-mono dc-ledger-formula">{row.formula}</td><td role="cell" data-field="value" class="dc-mono" data-dnacalc="ledger-value">{row.value}</td>
-            <td role="cell" data-field="provenance" class="dc-ledger-state"><span class="dc-chip" data-provenance=row.provenance.name()>{if row.error&&row.provenance==Provenance::Calculated{"calculated error"}else{row.provenance.name()}}</span>{concise.map(|note|view!{<p class="dc-ledger-reason" data-dnacalc="ledger-reason">{note}</p>})}</td>
-            <td role="cell" data-field="recovery" class="dc-ledger-actions"><button data-dnacalc="ledger-open-grid" aria-label=grid_name disabled=move ||hidden||loading.get()||!available.get() on:click=move |ev|{ev.stop_propagation();open_source(at, SkinId::Grid);}>"Grid"</button><button data-dnacalc="ledger-open-canvas" aria-label=canvas_name disabled=move ||hidden||loading.get()||!available.get() on:click=move |ev|{ev.stop_propagation();open_source(at, SkinId::Canvas);}>"Canvas"</button>
-                <details data-dnacalc="ledger-details" on:click=move |ev|ev.stop_propagation()><summary>"Details"</summary><p>{note}</p><dl><dt>"Number format"</dt><dd>{row.format}</dd><dt>"Read areas"</dt><dd>{row.reads}</dd><dt>"Dependent cells"</dt><dd>{row.read_by}</dd></dl></details>
-            </td>
-        </tr>}.into_any()
+        view! {
+            <tr
+                role={"row"}
+                data-dnacalc={"ledger-row"}
+                data-cell={row.label.clone()}
+                data-provenance={row.provenance.name()}
+                data-active={move || active().to_string()}
+                on:click={move |_| {
+                    if !hidden && !loading.get_untracked() {
+                        controller.go_to(at);
+                    }
+                }}
+            >
+                <td role={"cell"} class={"dc-mono"}>
+                    <button
+                        data-dnacalc={"ledger-select"}
+                        aria-label={select_name}
+                        aria-current={move || active().to_string()}
+                        disabled={move || hidden || loading.get() || !available.get()}
+                        on:click={move |ev| {
+                            ev.stop_propagation();
+                            controller
+                                .navigate_to(
+                                    at,
+                                    move |ok| {
+                                        if ok && reveal.try_update_value(|v| *v = true).is_some() {
+                                            refresh.try_update(|n| *n += 1);
+                                        }
+                                    },
+                                );
+                        }}
+                    >
+                        {row.label.clone()}
+                    </button>
+                </td>
+                <td role={"cell"} data-field={"formula"} class={"dc-mono dc-ledger-formula"}>
+                    {row.formula}
+                </td>
+                <td
+                    role={"cell"}
+                    data-field={"value"}
+                    class={"dc-mono"}
+                    data-dnacalc={"ledger-value"}
+                >
+                    {row.value}
+                </td>
+                <td role={"cell"} data-field={"provenance"} class={"dc-ledger-state"}>
+                    <span class={"dc-chip"} data-provenance={row.provenance.name()}>
+                        {if row.error && row.provenance == Provenance::Calculated {
+                            "calculated error"
+                        } else {
+                            row.provenance.name()
+                        }}
+                    </span>
+                    {concise
+                        .map(|note| {
+                            view! {
+                                <p class={"dc-ledger-reason"} data-dnacalc={"ledger-reason"}>
+                                    {note}
+                                </p>
+                            }
+                        })}
+                </td>
+                <td role={"cell"} data-field={"recovery"} class={"dc-ledger-actions"}>
+                    <button
+                        data-dnacalc={"ledger-open-grid"}
+                        aria-label={grid_name}
+                        disabled={move || hidden || loading.get() || !available.get()}
+                        on:click={move |ev| {
+                            ev.stop_propagation();
+                            open_source(at, SkinId::Grid);
+                        }}
+                    >
+                        "Grid"
+                    </button>
+                    <button
+                        data-dnacalc={"ledger-open-canvas"}
+                        aria-label={canvas_name}
+                        disabled={move || hidden || loading.get() || !available.get()}
+                        on:click={move |ev| {
+                            ev.stop_propagation();
+                            open_source(at, SkinId::Canvas);
+                        }}
+                    >
+                        "Canvas"
+                    </button>
+                    <details
+                        data-dnacalc={"ledger-details"}
+                        on:click={move |ev| ev.stop_propagation()}
+                    >
+                        <summary>"Details"</summary>
+                        <p>{note}</p>
+                        <dl>
+                            <dt>"Number format"</dt>
+                            <dd>{row.format}</dd>
+                            <dt>"Read areas"</dt>
+                            <dd>{row.reads}</dd>
+                            <dt>"Dependent cells"</dt>
+                            <dd>{row.read_by}</dd>
+                        </dl>
+                    </details>
+                </td>
+            </tr>
+        }
+        .into_any()
     };
     let body = move || {
         if !available.get() {
@@ -252,8 +379,12 @@ fn ledger_view(controller: Controller) -> impl IntoView {
             .map(|(provenance, members)| {
                 let count = members.len();
                 view! {
-                    <tr class="dc-group" data-dnacalc="ledger-group" data-provenance=provenance.name()>
-                        <td colspan="5">{format!("{} ({count})", provenance.name())}</td>
+                    <tr
+                        class={"dc-group"}
+                        data-dnacalc={"ledger-group"}
+                        data-provenance={provenance.name()}
+                    >
+                        <td colspan={"5"}>{format!("{} ({count})", provenance.name())}</td>
                     </tr>
                     {members.into_iter().map(row_view).collect_view()}
                 }
@@ -263,51 +394,168 @@ fn ledger_view(controller: Controller) -> impl IntoView {
     };
 
     view! {
-        <section class="dc-ledger" data-skin="ledger" data-dnacalc="ledger">
-            <div class="dc-cleave">
-                <select prop:value={move ||if this_sheet.get(){"sheet"}else{"workbook"}} data-dnacalc="ledger-scope" aria-label="Formula scope" on:change=move |ev| this_sheet.set(event_target_value(&ev) == "sheet")>
-                    <option value="workbook">"Workbook"</option>
-                    <option value="sheet">"This sheet"</option>
+        <section class={"dc-ledger"} data-skin={"ledger"} data-dnacalc={"ledger"}>
+            <div class={"dc-cleave"}>
+                <select
+                    prop:value={move || if this_sheet.get() { "sheet" } else { "workbook" }}
+                    data-dnacalc={"ledger-scope"}
+                    aria-label={"Formula scope"}
+                    on:change={move |ev| this_sheet.set(event_target_value(&ev) == "sheet")}
+                >
+                    <option value={"workbook"}>"Workbook"</option>
+                    <option value={"sheet"}>"This sheet"</option>
                 </select>
-                <select prop:value=move ||filter_choice.get() data-dnacalc="ledger-filter" aria-label="Formula filter" on:change=move |ev| filter_choice.set(event_target_value(&ev))>
-                    <option value="">"Every formula cell"</option>
-                    <option value="errors">"Errors"</option>
-                    <option value="calculated">"Calculated"</option>
-                    <option value="refused">"Refused"</option>
-                    <option value="file-cache">"File cache"</option>
-                    <option value="stale">"Stale"</option>
-                    <option value="text">"Holding text"</option>
-                    <option value="reads-active">"Reading the active cell"</option>
+                <select
+                    prop:value={move || filter_choice.get()}
+                    data-dnacalc={"ledger-filter"}
+                    aria-label={"Formula filter"}
+                    on:change={move |ev| filter_choice.set(event_target_value(&ev))}
+                >
+                    <option value={""}>"Every formula cell"</option>
+                    <option value={"errors"}>"Errors"</option>
+                    <option value={"calculated"}>"Calculated"</option>
+                    <option value={"refused"}>"Refused"</option>
+                    <option value={"file-cache"}>"File cache"</option>
+                    <option value={"stale"}>"Stale"</option>
+                    <option value={"text"}>"Holding text"</option>
+                    <option value={"reads-active"}>"Reading the active cell"</option>
                 </select>
-                <input type="text" data-dnacalc="ledger-text" aria-label="Filter formula text" placeholder="text" spellcheck="false"
-                    prop:value=move || text.get() on:input=move |ev| text.set(event_target_value(&ev)) />
-                <select prop:value=move ||sort_choice.get() data-dnacalc="ledger-sort" aria-label="Formula sort" on:change=move |ev| sort_choice.set(event_target_value(&ev))>
-                    <option value="">"By address"</option>
-                    <option value="address-desc">"By address, last first"</option>
-                    <option value="value-asc">"By value, smallest first"</option>
-                    <option value="value-desc">"By value, largest first"</option>
+                <input
+                    type={"text"}
+                    data-dnacalc={"ledger-text"}
+                    aria-label={"Filter formula text"}
+                    placeholder={"text"}
+                    spellcheck={"false"}
+                    prop:value={move || text.get()}
+                    on:input={move |ev| text.set(event_target_value(&ev))}
+                />
+                <select
+                    prop:value={move || sort_choice.get()}
+                    data-dnacalc={"ledger-sort"}
+                    aria-label={"Formula sort"}
+                    on:change={move |ev| sort_choice.set(event_target_value(&ev))}
+                >
+                    <option value={""}>"By address"</option>
+                    <option value={"address-desc"}>"By address, last first"</option>
+                    <option value={"value-asc"}>"By value, smallest first"</option>
+                    <option value={"value-desc"}>"By value, largest first"</option>
                 </select>
-                <label><input type="checkbox" data-dnacalc="ledger-group-toggle" prop:checked=move ||grouped.get()
-                    on:change=move |ev| grouped.set(event_target_checked(&ev)) />" Group by provenance"</label>
-                <button type="button" data-dnacalc="ledger-previous" disabled=move ||loading.get()||!available.get()||page.get()==0
-                    on:click=move |_| page.update(|p| *p = p.saturating_sub(1))>"Previous"</button>
-                <span data-dnacalc="ledger-count">
-                    {move || if !available.get(){if loading.get(){"Loading formula list…".into()}else{"Formula counts unavailable".into()}}else{format!("{} of {} formula cells; page {} of {}",
-                        ledger.with(|l| l.rows), ledger.with(|l| l.keys), page.get() + 1, pages())}}
+                <label>
+                    <input
+                        type={"checkbox"}
+                        data-dnacalc={"ledger-group-toggle"}
+                        prop:checked={move || grouped.get()}
+                        on:change={move |ev| grouped.set(event_target_checked(&ev))}
+                    />
+                    " Group by provenance"
+                </label>
+                <button
+                    type={"button"}
+                    data-dnacalc={"ledger-previous"}
+                    disabled={move || loading.get() || !available.get() || page.get() == 0}
+                    on:click={move |_| page.update(|p| *p = p.saturating_sub(1))}
+                >
+                    "Previous"
+                </button>
+                <span data-dnacalc={"ledger-count"}>
+                    {move || {
+                        if !available.get() {
+                            if loading.get() {
+                                "Loading formula list…".into()
+                            } else {
+                                "Formula counts unavailable".into()
+                            }
+                        } else {
+                            format!(
+                                "{} of {} formula cells; page {} of {}",
+                                ledger.with(|l| l.rows),
+                                ledger.with(|l| l.keys),
+                                page.get() + 1,
+                                pages(),
+                            )
+                        }
+                    }}
                 </span>
-                <button type="button" data-dnacalc="ledger-next" disabled={move ||loading.get()||!available.get()||page.get()+1>=pages()}
-                    on:click=move |_| page.update(|p| if *p + 1 < pages() { *p += 1 })>"Next"</button>
+                <button
+                    type="button"
+                    data-dnacalc="ledger-next"
+                    disabled={move || {
+                        loading.get() || !available.get() || page.get() + 1 >= pages()
+                    }}
+                    on:click=move |_| {
+                        page.update(|p| {
+                            if *p + 1 < pages() {
+                                *p += 1;
+                            }
+                        })
+                    }
+                >
+                    "Next"
+                </button>
             </div>
-            <p class="dc-ledger-population" data-dnacalc="ledger-population">{move ||if !available.get(){if loading.get(){"Loading formula population…".into()}else{"Formula counts unavailable".into()}}else{format!("{} formulas in this workbook · {} in scope · {} match the active filters",ledger.with(|l|l.whole),ledger.with(|l|l.keys),ledger.with(|l|l.rows))}}</p>
-            <p role="status" data-dnacalc="ledger-status">{move ||failure.get()}</p>
-            <div class="dc-ledger-recovery"><button data-dnacalc="ledger-show-active" on:click=move |_|{reveal.set_value(true);refresh.update(|n|*n+=1);}>"Show active cell"</button><button data-dnacalc="ledger-clear-filter" on:click=move |_|batch(||{filter_choice.set(String::new());text.set(String::new());this_sheet.set(false);page.set(0);})>"Clear filters"</button></div>
-            <div class="dc-ledger-table" data-dnacalc="ledger-table" tabindex="0" role="region" aria-label="Formula audit rows with source and recovery actions"><table role="table">
-                <thead role="rowgroup">
-                    <tr><th>"Cell"</th><th>"Formula"</th><th>"Value"</th><th>"Provenance"</th>
-                        <th>"Recovery & details"</th></tr>
-                </thead>
-                <tbody role="rowgroup">{body}</tbody>
-            </table></div>
+            <p class={"dc-ledger-population"} data-dnacalc={"ledger-population"}>
+                {move || {
+                    if !available.get() {
+                        if loading.get() {
+                            "Loading formula population…".into()
+                        } else {
+                            "Formula counts unavailable".into()
+                        }
+                    } else {
+                        format!(
+                            "{} formulas in this workbook · {} in scope · {} match the active filters",
+                            ledger.with(|l| l.whole),
+                            ledger.with(|l| l.keys),
+                            ledger.with(|l| l.rows),
+                        )
+                    }
+                }}
+            </p>
+            <p role={"status"} data-dnacalc={"ledger-status"}>
+                {move || failure.get()}
+            </p>
+            <div class={"dc-ledger-recovery"}>
+                <button
+                    data-dnacalc={"ledger-show-active"}
+                    on:click={move |_| {
+                        reveal.set_value(true);
+                        refresh.update(|n| *n += 1);
+                    }}
+                >
+                    "Show active cell"
+                </button>
+                <button
+                    data-dnacalc={"ledger-clear-filter"}
+                    on:click={move |_| batch(|| {
+                        filter_choice.set(String::new());
+                        text.set(String::new());
+                        this_sheet.set(false);
+                        page.set(0);
+                    })}
+                >
+                    "Clear filters"
+                </button>
+            </div>
+            <div
+                class={"dc-ledger-table"}
+                data-dnacalc={"ledger-table"}
+                tabindex={"0"}
+                role={"region"}
+                aria-label={"Formula audit rows with source and recovery actions"}
+            >
+                <table role={"table"}>
+                    <thead role={"rowgroup"}>
+                        <tr>
+                            <th>"Cell"</th>
+                            <th>"Formula"</th>
+                            <th>"Value"</th>
+                            <th>"Provenance"</th>
+                            <th>"Recovery & details"</th>
+                        </tr>
+                    </thead>
+                    <tbody role={"rowgroup"}>{body}</tbody>
+                </table>
+            </div>
         </section>
     }
 }

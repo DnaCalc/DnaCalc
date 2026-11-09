@@ -385,8 +385,12 @@ fn gamma_stirling(x: f64) -> f64 {
     let n = half.floor();
     let root = super::excel_exp(super::excel_x87_mul(half - n, super::excel_log(x)));
     let v = super::excel_x87_mul(integer_power(x, n as u32), root);
-    let root_of_reciprocal = Native::store(&Native::sqrt(&ext(super::excel_x87_div(1.0, x)), CW), CW);
-    let scaled = super::excel_x87_mul(v, super::excel_x87_mul(super::excel_exp(-x), root_of_reciprocal));
+    let root_of_reciprocal =
+        Native::store(&Native::sqrt(&ext(super::excel_x87_div(1.0, x)), CW), CW);
+    let scaled = super::excel_x87_mul(
+        v,
+        super::excel_x87_mul(super::excel_exp(-x), root_of_reciprocal),
+    );
     let body = super::excel_x87_mul(super::excel_x87_mul(scaled, v), SQRT_2PI);
     super::excel_x87_mul(body, super::excel_exp(super::excel_stirling_series(x)))
 }
@@ -402,7 +406,11 @@ fn gamma_reflected(m: f64) -> f64 {
 
     let whole = m.floor();
     let fraction = m - whole;
-    let folded = if fraction > 0.5 { 1.0 - fraction } else { fraction };
+    let folded = if fraction > 0.5 {
+        1.0 - fraction
+    } else {
+        fraction
+    };
     let sine = super::crt_sin(super::excel_x87_mul(core::f64::consts::PI, folded));
     let z = super::excel_x87_mul(sine, m);
     let g = gamma_stirling(m);
@@ -468,7 +476,10 @@ mod tests {
         for k in 1..=99 {
             let x = 2.0 + f64::from(k) / 100.0;
             let want = libm::lgamma(x);
-            assert!((b3(x) - want).abs() <= 8.0 * f64::EPSILON * want.abs(), "b3({x})");
+            assert!(
+                (b3(x) - want).abs() <= 8.0 * f64::EPSILON * want.abs(),
+                "b3({x})"
+            );
         }
     }
 
@@ -485,7 +496,11 @@ mod tests {
             (0x401a86fb7b3bb29a, 0x401799f191ccab24),
             (0x401e86fb7b3bb29a, 0x401f2b3a51b521e9),
         ] {
-            assert_eq!(recurrence_from(f64::from_bits(x), band).to_bits(), answer, "GAMMALN({x:#x})");
+            assert_eq!(
+                recurrence_from(f64::from_bits(x), band).to_bits(),
+                answer,
+                "GAMMALN({x:#x})"
+            );
         }
         let seed = f64::from_bits(0x3fecb842a2a183d9);
         for (x, answer) in [
@@ -498,7 +513,11 @@ mod tests {
             (0x4021437dbd9dd94d, 0x40d20c722095858b),
             (0x4023437dbd9dd94d, 0x4103795b37a801f2),
         ] {
-            assert_eq!(product_times_seed(f64::from_bits(x), seed).to_bits(), answer, "GAMMA({x:#x})");
+            assert_eq!(
+                product_times_seed(f64::from_bits(x), seed).to_bits(),
+                answer,
+                "GAMMA({x:#x})"
+            );
         }
     }
 
@@ -543,12 +562,28 @@ mod tests {
             s ^= s >> 7;
             s ^= s << 17;
             let unit = (s >> 11) as f64 / (1u64 << 53) as f64;
-            let x = if i % 2 == 0 { 1.5 + 2.5 * unit } else { 4.0 + 4.0 * unit };
-            if x < 4.0 {
-                assert_eq!(b2_with::<Hard>(x).to_bits(), b2_with::<Soft>(x).to_bits(), "B2 {x:e}");
-                assert_eq!(b3_with::<Hard>(x).to_bits(), b3_with::<Soft>(x).to_bits(), "B3 {x:e}");
+            let x = if i % 2 == 0 {
+                1.5 + 2.5 * unit
             } else {
-                assert_eq!(b4_with::<Hard>(x).to_bits(), b4_with::<Soft>(x).to_bits(), "B4 {x:e}");
+                4.0 + 4.0 * unit
+            };
+            if x < 4.0 {
+                assert_eq!(
+                    b2_with::<Hard>(x).to_bits(),
+                    b2_with::<Soft>(x).to_bits(),
+                    "B2 {x:e}"
+                );
+                assert_eq!(
+                    b3_with::<Hard>(x).to_bits(),
+                    b3_with::<Soft>(x).to_bits(),
+                    "B3 {x:e}"
+                );
+            } else {
+                assert_eq!(
+                    b4_with::<Hard>(x).to_bits(),
+                    b4_with::<Soft>(x).to_bits(),
+                    "B4 {x:e}"
+                );
             }
         }
     }

@@ -1,6 +1,6 @@
+use crate::ported::excel_numeric::crt_pow;
 use crate::value::WorksheetErrorCode;
 use crate::value::{CalcValue, CoreRef, CoreValue};
-use crate::ported::excel_numeric::crt_pow;
 
 const ROOT_TOLERANCE: f64 = 1e-8;
 const ROOT_DERIVATIVE_EPS: f64 = 1e-12;
@@ -56,7 +56,9 @@ pub(crate) fn scalar_number_from_eval(value: &CalcValue) -> Result<f64, Cashflow
     }
 }
 
-pub(crate) fn collect_numeric_vector_from_eval(value: &CalcValue) -> Result<Vec<f64>, CashflowRateEvalError> {
+pub(crate) fn collect_numeric_vector_from_eval(
+    value: &CalcValue,
+) -> Result<Vec<f64>, CashflowRateEvalError> {
     match value.core_ref() {
         CoreRef::Number(n) => Ok(vec![n]),
         CoreRef::Error(code) => Err(CashflowRateEvalError::Domain(code)),
@@ -85,7 +87,9 @@ pub(crate) fn collect_numeric_vector_from_eval(value: &CalcValue) -> Result<Vec<
 /// A whole-argument scalar error still propagates as usual. This differs from the
 /// strict positional collector used by XNPV/XIRR, whose values must stay aligned
 /// with the parallel dates array.
-pub(crate) fn collect_irr_values_from_eval(value: &CalcValue) -> Result<Vec<f64>, CashflowRateEvalError> {
+pub(crate) fn collect_irr_values_from_eval(
+    value: &CalcValue,
+) -> Result<Vec<f64>, CashflowRateEvalError> {
     match value.core_ref() {
         CoreRef::Number(n) => Ok(vec![n]),
         CoreRef::Error(code) => Err(CashflowRateEvalError::Domain(code)),
@@ -101,10 +105,7 @@ pub(crate) fn collect_irr_values_from_eval(value: &CalcValue) -> Result<Vec<f64>
                     CoreRef::Error(_) => {
                         return Err(CashflowRateEvalError::Domain(WorksheetErrorCode::Value));
                     }
-                    CoreRef::Text(_)
-                    | CoreRef::Logical(_)
-                    | CoreRef::Empty
-                    | CoreRef::Missing => {} // ignored, like Excel
+                    CoreRef::Text(_) | CoreRef::Logical(_) | CoreRef::Empty | CoreRef::Missing => {} // ignored, like Excel
                     CoreRef::Array(_) | CoreRef::Reference(_) => {
                         return Err(CashflowRateEvalError::Domain(WorksheetErrorCode::Value));
                     }
@@ -130,7 +131,9 @@ fn serial_from_number(value: f64) -> Result<i64, CashflowRateEvalError> {
     Ok(serial)
 }
 
-pub(crate) fn collect_serial_vector_from_eval(value: &CalcValue) -> Result<Vec<i64>, CashflowRateEvalError> {
+pub(crate) fn collect_serial_vector_from_eval(
+    value: &CalcValue,
+) -> Result<Vec<i64>, CashflowRateEvalError> {
     match value.core_ref() {
         CoreRef::Number(n) => Ok(vec![serial_from_number(n)?]),
         CoreRef::Error(code) => Err(CashflowRateEvalError::Domain(code)),
@@ -238,11 +241,19 @@ fn xnpv_derivative(rate: f64, values: &[f64], dates: &[i64]) -> Result<f64, Work
 
 fn ordered_rate(rate: f64) -> u64 {
     let bits = rate.to_bits();
-    if rate.is_sign_negative() { !bits } else { bits | (1 << 63) }
+    if rate.is_sign_negative() {
+        !bits
+    } else {
+        bits | (1 << 63)
+    }
 }
 
 fn rate_from_ordered(key: u64) -> f64 {
-    f64::from_bits(if key & (1 << 63) == 0 { !key } else { key & !(1 << 63) })
+    f64::from_bits(if key & (1 << 63) == 0 {
+        !key
+    } else {
+        key & !(1 << 63)
+    })
 }
 
 /// Find the end of the residual plateau by doubling the distance, then bisecting its last
@@ -269,7 +280,11 @@ where
     };
     for bit in 0..64 {
         let distance = 1u64 << bit;
-        let outside = if lower { root.saturating_sub(distance) } else { root.saturating_add(distance) };
+        let outside = if lower {
+            root.saturating_sub(distance)
+        } else {
+            root.saturating_add(distance)
+        };
         let candidate = rate_from_ordered(outside);
         if candidate.is_finite() && on_plateau(candidate)? {
             inside = outside;
@@ -458,13 +473,20 @@ where
 /// under 1e-7, both at once, 200 steps. The NPV test is why flows of 1e153 are #NUM!: their
 /// NPV has no value that small to land on. The NPV divides by POWER of the stored `1 / v`.
 fn irr_discount_secant(cashflows: &[f64], guess: f64) -> Option<f64> {
-    use crate::ported::excel_numeric::{excel_x87_add as add, excel_x87_div as div, excel_x87_mul as mul, excel_x87_sub as sub};
+    use crate::ported::excel_numeric::{
+        excel_x87_add as add, excel_x87_div as div, excel_x87_mul as mul, excel_x87_sub as sub,
+    };
     use crate::ported::power_fn::power_kernel;
     let npv = |v: f64| {
         let base = div(1.0, v);
-        cashflows.iter().enumerate().try_fold(0.0, |sum, (k, &flow)| {
-            power_kernel(base, k as f64).ok().map(|power| add(sum, div(flow, power)))
-        })
+        cashflows
+            .iter()
+            .enumerate()
+            .try_fold(0.0, |sum, (k, &flow)| {
+                power_kernel(base, k as f64)
+                    .ok()
+                    .map(|power| add(sum, div(flow, power)))
+            })
     };
     let mut before = div(1.0, add(1.0, guess));
     let mut value_before = npv(before)?;
@@ -737,9 +759,9 @@ pub fn map_cashflow_rate_error_to_ws(error: &CashflowRateEvalError) -> Worksheet
 
 #[cfg(test)]
 mod tests {
+    use super::*;
     #[allow(unused_imports)]
     use crate::value::{CalcArray, CalcValue, CoreValue, ExcelText};
-    use super::*;
     use std::collections::BTreeMap;
 
     #[cfg_attr(not(target_arch = "wasm32"), test)]
@@ -870,9 +892,12 @@ mod tests {
             (0.1, false, 1e308_f64.next_down()),
             (-0.1, true, (-1e308_f64).next_up()),
         ] {
-            let result = residual_plateau_end(ordered_rate(root), 1.0_f64.to_bits(), lower, &mut |rate: f64| {
-                Ok(if rate.abs() < 1e308 { 1.0 } else { 2.0 })
-            });
+            let result = residual_plateau_end(
+                ordered_rate(root),
+                1.0_f64.to_bits(),
+                lower,
+                &mut |rate: f64| Ok(if rate.abs() < 1e308 { 1.0 } else { 2.0 }),
+            );
             assert_eq!(result, Ok(ordered_rate(end)));
         }
     }

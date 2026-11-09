@@ -176,7 +176,10 @@ fn worker_file_open_fault_is_reported_once_and_unsupported_projects_stay_typed()
         Err(other) => panic!("expected the remaining automatic-event refusal: {other:?}"), // ubs:ignore[rust.ownership.panic-macro] A different refusal must fail this regression.
         Ok(_) => panic!("unsupported automatic events cannot run on file open"), // ubs:ignore[rust.ownership.panic-macro] Unexpected admission must fail this regression.
     };
-    assert!(refusal.contains("unsupported automatic-event prefix"), "{refusal}");
+    assert!(
+        refusal.contains("unsupported automatic-event prefix"),
+        "{refusal}"
+    );
     assert!(refusal.contains("dc-hsa5.12"), "{refusal}");
     let designer = vba_project::replace_project_declaration(
         unsupported,

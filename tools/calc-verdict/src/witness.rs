@@ -98,7 +98,9 @@ fn scalar(node: &Value, path: &str) -> Result<CalcValue, String> {
             None => CalcValue::text(ExcelText::from_interop_assignment(text)),
         }),
         Value::Bool(b) => Ok(CalcValue::logical(*b)),
-        other => Err(format!("{path}: an argument is a hex string, a boolean or text, not {other}")),
+        other => Err(format!(
+            "{path}: an argument is a hex string, a boolean or text, not {other}"
+        )),
     }
 }
 
@@ -205,7 +207,9 @@ impl WitnessInvocation {
     }
 
     pub fn decode(value: &Value, path: &str) -> Result<Self, String> {
-        let node = value.as_object().ok_or_else(|| format!("{path}: an object is required"))?;
+        let node = value
+            .as_object()
+            .ok_or_else(|| format!("{path}: an object is required"))?;
         let mut result = Self::default();
         for (key, value) in node {
             let field = match key.as_str() {
@@ -221,7 +225,12 @@ impl WitnessInvocation {
             *field = if value.is_null() {
                 None
             } else {
-                Some(value.as_str().ok_or_else(|| format!("{path}.{key}: a string is required"))?.to_owned())
+                Some(
+                    value
+                        .as_str()
+                        .ok_or_else(|| format!("{path}.{key}: a string is required"))?
+                        .to_owned(),
+                )
             };
         }
         Ok(result)
@@ -238,7 +247,9 @@ impl WitnessInvocation {
             ("date_system", &self.date_system),
             ("compatibility_version", &self.compatibility_version),
         ] {
-            if let Some(value) = value { node.insert(key.to_owned(), json!(value)); }
+            if let Some(value) = value {
+                node.insert(key.to_owned(), json!(value));
+            }
         }
         Value::Object(node)
     }
@@ -342,9 +353,12 @@ impl WitnessSet {
                 platform: optional_text(node, "platform"),
                 bitness: optional_text(node, "bitness"),
                 cpu: optional_text(node, "cpu"),
-                invocation: node.get("invocation").filter(|v| !v.is_null())
+                invocation: node
+                    .get("invocation")
+                    .filter(|v| !v.is_null())
                     .map(|v| WitnessInvocation::decode(v, &format!("{path}.invocation")))
-                    .transpose()?.filter(|c| !c.is_empty()),
+                    .transpose()?
+                    .filter(|c| !c.is_empty()),
             });
         }
         let mut witnesses = Vec::new();
@@ -395,7 +409,9 @@ impl WitnessSet {
                 "id": r.id, "source": r.source, "excel_build": r.excel_build,
                 "platform": r.platform, "bitness": r.bitness, "cpu": r.cpu,
             });
-            if let Some(invocation) = &r.invocation { node["invocation"] = invocation.to_json(); }
+            if let Some(invocation) = &r.invocation {
+                node["invocation"] = invocation.to_json();
+            }
             let comma = if i + 1 < self.readings.len() { "," } else { "" };
             out.push_str(&format!("    {node}{comma}\n"));
         }
@@ -412,7 +428,11 @@ impl WitnessSet {
             if let Some(pinned) = &w.calc_func {
                 node.insert("calc_func".into(), json!(pinned));
             }
-            let comma = if i + 1 < self.witnesses.len() { "," } else { "" };
+            let comma = if i + 1 < self.witnesses.len() {
+                ","
+            } else {
+                ""
+            };
             out.push_str(&format!("    {}{comma}\n", Value::Object(node)));
         }
         out.push_str("  ]\n}\n");
@@ -434,7 +454,10 @@ mod tests {
             ..Default::default()
         };
         let json = context.to_json();
-        assert_eq!(WitnessInvocation::decode(&json, "context").unwrap(), context);
+        assert_eq!(
+            WitnessInvocation::decode(&json, "context").unwrap(),
+            context
+        );
         assert!(json.get("locale").is_none());
         assert!(json.get("decimal_separator").is_none());
         assert!(WitnessInvocation::decode(&json!({"locale": 1033}), "context").is_err());
@@ -450,13 +473,25 @@ mod tests {
     fn severity_follows_the_odr_fn_005_classes() {
         let one = 0x3ff0000000000000;
         assert_eq!(Severity::of(&n(one), &n(one)), (Severity::Exact, None));
-        assert_eq!(Severity::of(&n(one), &n(one + 4)), (Severity::LastBit, Some(4)));
-        assert_eq!(Severity::of(&n(one), &n(one + 5)), (Severity::Numeric, Some(5)));
+        assert_eq!(
+            Severity::of(&n(one), &n(one + 4)),
+            (Severity::LastBit, Some(4))
+        );
+        assert_eq!(
+            Severity::of(&n(one), &n(one + 5)),
+            (Severity::Numeric, Some(5))
+        );
         assert_eq!(Severity::of(&n(one), &n(one + 1024)).0, Severity::Numeric);
         assert_eq!(Severity::of(&n(one), &n(one + 1025)).0, Severity::Gross);
-        assert_eq!(Severity::of(&n(0), &n(1 << 63)), (Severity::LastBit, Some(0)));
+        assert_eq!(
+            Severity::of(&n(0), &n(1 << 63)),
+            (Severity::LastBit, Some(0))
+        );
         assert_eq!(Severity::of(&n(one), &n(one | 1 << 63)).0, Severity::Gross);
-        assert_eq!(Severity::of(&n(one), &n(0x7ff0000000000000)).0, Severity::Gross);
+        assert_eq!(
+            Severity::of(&n(one), &n(0x7ff0000000000000)).0,
+            Severity::Gross
+        );
         let num = CalcValue::error(WorksheetErrorCode::Num);
         assert_eq!(Severity::of(&num, &n(one)).0, Severity::Structural);
         assert_eq!(
@@ -468,19 +503,48 @@ mod tests {
     #[cfg_attr(not(target_arch = "wasm32"), test)]
     #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
     fn results_round_trip_and_arguments_decode() {
-        for text in ["0x3ff0000000000001", "error:Num", "error:Div0", "logical:True", "text:ab"] {
-            assert_eq!(encode_result(&decode_result(text).unwrap()).as_deref(), Some(text));
+        for text in [
+            "0x3ff0000000000001",
+            "error:Num",
+            "error:Div0",
+            "logical:True",
+            "text:ab",
+        ] {
+            assert_eq!(
+                encode_result(&decode_result(text).unwrap()).as_deref(),
+                Some(text)
+            );
         }
         assert!(decode_result("fault:NotModelled").is_err());
-        let array = decode_argument(&json!([["0x3ff0000000000000", true], ["0x0000000000000000", "x"]]), "a")
-            .unwrap();
+        let array = decode_argument(
+            &json!([["0x3ff0000000000000", true], ["0x0000000000000000", "x"]]),
+            "a",
+        )
+        .unwrap();
         assert_eq!(array.as_array().unwrap().shape().rows, 2);
-        assert_eq!(decode_argument(&json!("Em"), "a").unwrap().as_text().unwrap().to_string_lossy(), "Em");
-        let flat = decode_argument(&json!(["0x3ff0000000000000", "0x4000000000000000"]), "a").unwrap();
+        assert_eq!(
+            decode_argument(&json!("Em"), "a")
+                .unwrap()
+                .as_text()
+                .unwrap()
+                .to_string_lossy(),
+            "Em"
+        );
+        let flat =
+            decode_argument(&json!(["0x3ff0000000000000", "0x4000000000000000"]), "a").unwrap();
         assert_eq!(flat.as_array().unwrap().shape().cols, 2);
-        assert_eq!(select_result(&flat, Some((1, 2))), Some(n(0x4000000000000000)));
-        assert_eq!(select_result(&flat, Some((0, 2))), Some(n(0x4000000000000000)));
-        assert_eq!(select_result(&flat, Some((0, 0))), Some(n(0x3ff0000000000000)));
+        assert_eq!(
+            select_result(&flat, Some((1, 2))),
+            Some(n(0x4000000000000000))
+        );
+        assert_eq!(
+            select_result(&flat, Some((0, 2))),
+            Some(n(0x4000000000000000))
+        );
+        assert_eq!(
+            select_result(&flat, Some((0, 0))),
+            Some(n(0x3ff0000000000000))
+        );
         let error = CalcValue::error(WorksheetErrorCode::Num);
         assert_eq!(select_result(&error, Some((4, 2))), Some(error));
     }

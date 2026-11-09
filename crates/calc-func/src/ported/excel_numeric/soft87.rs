@@ -106,17 +106,36 @@ fn unpack(x: &Ext80) -> Unpacked {
     let neg = se & 0x8000 != 0;
     let biased = (se & 0x7fff) as i32;
     if biased == 0x7fff {
-        let class = if sig << 1 == 0 { Class::Inf } else { Class::Nan };
-        return Unpacked { neg, class, exp: 0, sig };
+        let class = if sig << 1 == 0 {
+            Class::Inf
+        } else {
+            Class::Nan
+        };
+        return Unpacked {
+            neg,
+            class,
+            exp: 0,
+            sig,
+        };
     }
     if sig == 0 {
-        return Unpacked { neg, class: Class::Zero, exp: 0, sig: 0 };
+        return Unpacked {
+            neg,
+            class: Class::Zero,
+            exp: 0,
+            sig: 0,
+        };
     }
     // An extended subnormal (biased 0) has the exponent of biased 1; an unnormal is read by its
     // value as well.
     let exp0 = if biased == 0 { 1 - BIAS } else { biased - BIAS };
     let lz = sig.leading_zeros() as i32;
-    Unpacked { neg, class: Class::Finite, exp: exp0 - lz, sig: sig << lz }
+    Unpacked {
+        neg,
+        class: Class::Finite,
+        exp: exp0 - lz,
+        sig: sig << lz,
+    }
 }
 
 fn pack_raw(neg: bool, biased: u16, sig: u64) -> Ext80 {
@@ -169,7 +188,11 @@ fn round_shift(v: u128, shift: u32, sticky: bool, neg: bool, rc: Rc) -> u128 {
         (v, if sticky { Rest::Below } else { Rest::Zero })
     } else if shift <= 128 {
         let keep = if shift == 128 { 0 } else { v >> shift };
-        let low = if shift == 128 { v } else { v & ((1u128 << shift) - 1) };
+        let low = if shift == 128 {
+            v
+        } else {
+            v & ((1u128 << shift) - 1)
+        };
         let half = 1u128 << (shift - 1);
         let rest = if low == 0 && !sticky {
             Rest::Zero
@@ -182,7 +205,14 @@ fn round_shift(v: u128, shift: u32, sticky: bool, neg: bool, rc: Rc) -> u128 {
         };
         (keep, rest)
     } else {
-        (0, if v == 0 && !sticky { Rest::Zero } else { Rest::Below })
+        (
+            0,
+            if v == 0 && !sticky {
+                Rest::Zero
+            } else {
+                Rest::Below
+            },
+        )
     };
     let up = match rc {
         Rc::Nearest => rest == Rest::Above || (rest == Rest::Half && keep & 1 == 1),
@@ -339,7 +369,14 @@ pub(crate) fn ext_chs(x: &Ext80, _cw: u16) -> Ext80 {
 /// Rounds a finite extended value to the precision field (what an operation with an exact
 /// result still does under PC=53 or PC=24).
 fn round_finite(u: &Unpacked, cw: u16) -> Ext80 {
-    round_pack(u.neg, u.exp, (u.sig as u128) << 64, false, precision_of(cw), rc_of(cw))
+    round_pack(
+        u.neg,
+        u.exp,
+        (u.sig as u128) << 64,
+        false,
+        precision_of(cw),
+        rc_of(cw),
+    )
 }
 
 /// `FADD`: `a + b`, rounded once.
@@ -359,12 +396,20 @@ fn add_unpacked(a: Unpacked, b: Unpacked, cw: u16) -> Ext80 {
     match (a.class, b.class) {
         (Class::Nan, _) | (_, Class::Nan) => return indefinite(),
         (Class::Inf, Class::Inf) => {
-            return if a.neg == b.neg { inf(a.neg) } else { indefinite() };
+            return if a.neg == b.neg {
+                inf(a.neg)
+            } else {
+                indefinite()
+            };
         }
         (Class::Inf, _) => return inf(a.neg),
         (_, Class::Inf) => return inf(b.neg),
         (Class::Zero, Class::Zero) => {
-            let neg = if a.neg == b.neg { a.neg } else { rc == Rc::Down };
+            let neg = if a.neg == b.neg {
+                a.neg
+            } else {
+                rc == Rc::Down
+            };
             return zero(neg);
         }
         (Class::Zero, _) => return round_finite(&b, cw),
@@ -372,7 +417,11 @@ fn add_unpacked(a: Unpacked, b: Unpacked, cw: u16) -> Ext80 {
         _ => {}
     }
     // |big| >= |small|.
-    let (big, small) = if (a.exp, a.sig) >= (b.exp, b.sig) { (a, b) } else { (b, a) };
+    let (big, small) = if (a.exp, a.sig) >= (b.exp, b.sig) {
+        (a, b)
+    } else {
+        (b, a)
+    };
     let d = (big.exp - small.exp) as u32;
     let mb = (big.sig as u128) << 62;
     let ms0 = (small.sig as u128) << 62;
@@ -384,7 +433,11 @@ fn add_unpacked(a: Unpacked, b: Unpacked, cw: u16) -> Ext80 {
         let lost = ms0 & ((1u128 << d) - 1) != 0;
         (ms0 >> d) | lost as u128
     };
-    let s = if big.neg == small.neg { mb + ms } else { mb - ms };
+    let s = if big.neg == small.neg {
+        mb + ms
+    } else {
+        mb - ms
+    };
     if s == 0 {
         return zero(rc == Rc::Down);
     }
@@ -405,7 +458,14 @@ pub(crate) fn ext_mul(a: &Ext80, b: &Ext80, cw: u16) -> Ext80 {
     }
     let p = (a.sig as u128) * (b.sig as u128); // in [2^126, 2^128)
     // value = p * 2^(a.exp + b.exp - 126)
-    normalize_round_pack(neg, a.exp + b.exp + 1, p, false, precision_of(cw), rc_of(cw))
+    normalize_round_pack(
+        neg,
+        a.exp + b.exp + 1,
+        p,
+        false,
+        precision_of(cw),
+        rc_of(cw),
+    )
 }
 
 /// `FDIV`: `a / b`, rounded once.
@@ -616,7 +676,11 @@ struct Big {
     m: u128,
 }
 
-const BIG_ZERO: Big = Big { neg: false, e: 0, m: 0 };
+const BIG_ZERO: Big = Big {
+    neg: false,
+    e: 0,
+    m: 0,
+};
 /// ln 2 to 128 bits.
 const LN2_M: u128 = 0xB172_17F7_D1CF_79AB_C9E3_B398_03F2_F6AF;
 /// pi to 128 bits.
@@ -630,14 +694,22 @@ impl Big {
             return BIG_ZERO;
         }
         let lz = m.leading_zeros();
-        Big { neg, e: e - lz as i32, m: m << lz }
+        Big {
+            neg,
+            e: e - lz as i32,
+            m: m << lz,
+        }
     }
 
     fn from_unpacked(u: &Unpacked) -> Big {
         if u.class == Class::Zero {
             return BIG_ZERO;
         }
-        Big { neg: u.neg, e: u.exp, m: (u.sig as u128) << 64 }
+        Big {
+            neg: u.neg,
+            e: u.exp,
+            m: (u.sig as u128) << 64,
+        }
     }
 
     fn from_u64(n: u64) -> Big {
@@ -645,11 +717,19 @@ impl Big {
     }
 
     fn ln2() -> Big {
-        Big { neg: false, e: -1, m: LN2_M }
+        Big {
+            neg: false,
+            e: -1,
+            m: LN2_M,
+        }
     }
 
     fn pi() -> Big {
-        Big { neg: false, e: 1, m: PI_M }
+        Big {
+            neg: false,
+            e: 1,
+            m: PI_M,
+        }
     }
 
     fn is_zero(&self) -> bool {
@@ -657,11 +737,21 @@ impl Big {
     }
 
     fn neg(self) -> Big {
-        Big { neg: !self.neg, ..self }
+        Big {
+            neg: !self.neg,
+            ..self
+        }
     }
 
     fn scale2(self, k: i32) -> Big {
-        if self.is_zero() { self } else { Big { e: self.e + k, ..self } }
+        if self.is_zero() {
+            self
+        } else {
+            Big {
+                e: self.e + k,
+                ..self
+            }
+        }
     }
 
     fn add(self, b: Big) -> Big {
@@ -671,15 +761,27 @@ impl Big {
         if b.is_zero() {
             return self;
         }
-        let (big, small) = if (self.e, self.m) >= (b.e, b.m) { (self, b) } else { (b, self) };
+        let (big, small) = if (self.e, self.m) >= (b.e, b.m) {
+            (self, b)
+        } else {
+            (b, self)
+        };
         let d = (big.e - small.e) as u32;
         let sm = if d >= 128 { 0 } else { small.m >> d };
         if big.neg == small.neg {
             let (s, carry) = big.m.overflowing_add(sm);
             if carry {
-                Big { neg: big.neg, e: big.e + 1, m: (s >> 1) | (1u128 << 127) }
+                Big {
+                    neg: big.neg,
+                    e: big.e + 1,
+                    m: (s >> 1) | (1u128 << 127),
+                }
             } else {
-                Big { neg: big.neg, e: big.e, m: s }
+                Big {
+                    neg: big.neg,
+                    e: big.e,
+                    m: s,
+                }
             }
         } else {
             Big::norm(big.neg, big.e, big.m - sm)
@@ -706,9 +808,17 @@ impl Big {
         let neg = self.neg != b.neg;
         // product = hi * 2^128 + ..., value = product * 2^(ea + eb - 254)
         if hi >> 127 == 1 {
-            Big { neg, e: self.e + b.e + 1, m: hi }
+            Big {
+                neg,
+                e: self.e + b.e + 1,
+                m: hi,
+            }
         } else {
-            Big { neg, e: self.e + b.e, m: (hi << 1) | lo_top }
+            Big {
+                neg,
+                e: self.e + b.e,
+                m: (hi << 1) | lo_top,
+            }
         }
     }
 
@@ -741,7 +851,11 @@ impl Big {
         let q = self.m / n;
         let r = self.m % n;
         let lz = q.leading_zeros();
-        Big { neg: self.neg, e: self.e - lz as i32, m: (q << lz) | ((r << lz) / n) }
+        Big {
+            neg: self.neg,
+            e: self.e - lz as i32,
+            m: (q << lz) | ((r << lz) / n),
+        }
     }
 
     /// An `f64` near the value (for seeds).
@@ -766,7 +880,10 @@ impl Big {
         }
         // Keep the exponent even so the seed and the iterations stay near 1.
         let half = self.e.div_euclid(2);
-        let x = Big { e: self.e - 2 * half, ..self }; // in [1, 4)
+        let x = Big {
+            e: self.e - 2 * half,
+            ..self
+        }; // in [1, 4)
         let mut y = Big::from_f64(1.0 / x.approx().sqrt());
         let three = Big::from_u64(3);
         for _ in 0..3 {
@@ -816,7 +933,11 @@ fn big_expm1(z: Big) -> Big {
 fn big_ln(v: Big) -> Big {
     // v = f * 2^k with f in [1/sqrt2, sqrt2).
     let mut k = v.e;
-    let mut f = Big { neg: false, e: 0, m: v.m };
+    let mut f = Big {
+        neg: false,
+        e: 0,
+        m: v.m,
+    };
     if f.m > SQRT2_M {
         f = f.scale2(-1);
         k += 1;
@@ -869,7 +990,11 @@ fn big_atan_unit(t: Big) -> Big {
         if negligible(&term, &sum) {
             break;
         }
-        sum = if negative { sum.sub(term) } else { sum.add(term) };
+        sum = if negative {
+            sum.sub(term)
+        } else {
+            sum.add(term)
+        };
         negative = !negative;
         j += 2;
     }
@@ -972,7 +1097,9 @@ pub(crate) fn ext_fyl2x(y: &Ext80, x: &Ext80, cw: u16) -> Ext80 {
 /// `FYL2XP1`: `y * log2(1 + x)`, defined for `|x| < 1 - sqrt(2)/2`.
 pub(crate) fn ext_fyl2xp1(y: &Ext80, x: &Ext80, cw: u16) -> Ext80 {
     let (yu, xu) = (unpack(y), unpack(x));
-    if yu.class != Class::Finite && yu.class != Class::Zero || xu.class != Class::Finite && xu.class != Class::Zero {
+    if yu.class != Class::Finite && yu.class != Class::Zero
+        || xu.class != Class::Finite && xu.class != Class::Zero
+    {
         return indefinite();
     }
     if xu.class == Class::Zero || yu.class == Class::Zero {
@@ -1016,7 +1143,11 @@ pub(crate) fn ext_fpatan(y: &Ext80, x: &Ext80, cw: u16) -> Ext80 {
         }
         (_, Class::Zero) => pi.scale2(-1),
         (Class::Inf, Class::Inf) => {
-            if xu.neg { pi.mul(Big::from_u64(3)).scale2(-2) } else { pi.scale2(-2) }
+            if xu.neg {
+                pi.mul(Big::from_u64(3)).scale2(-2)
+            } else {
+                pi.scale2(-2)
+            }
         }
         (Class::Inf, _) => pi.scale2(-1),
         (_, Class::Inf) => {
@@ -1096,7 +1227,10 @@ mod tests {
         for k in 1..200u64 {
             ln2 = ln2.add(Big::from_u64(1).scale2(-(k as i32)).div_small(k));
         }
-        assert!((ln2.m as i128 - LN2_M as i128).abs() <= 256 && ln2.e == -1, "{ln2:?}");
+        assert!(
+            (ln2.m as i128 - LN2_M as i128).abs() <= 256 && ln2.e == -1,
+            "{ln2:?}"
+        );
         let atan_inv = |n: u64| {
             let x = Big::from_u64(1).div_small(n);
             let mut sum = x;
@@ -1109,20 +1243,42 @@ mod tests {
                 if negligible(&term, &sum) {
                     break sum;
                 }
-                sum = if negative { sum.sub(term) } else { sum.add(term) };
+                sum = if negative {
+                    sum.sub(term)
+                } else {
+                    sum.add(term)
+                };
                 negative = !negative;
                 j += 2;
             }
         };
         let pi = atan_inv(5).scale2(4).sub(atan_inv(239).scale2(2));
-        assert!((pi.m as i128 - PI_M as i128).abs() <= 256 && pi.e == 1, "{pi:?}");
-        let two = Big { neg: false, e: 0, m: SQRT2_M }.mul(Big { neg: false, e: 0, m: SQRT2_M });
-        assert!(two.e == 0 && two.m >= u128::MAX - 8 || two.e == 1 && two.m <= (1 << 127) + 8, "{two:?}");
+        assert!(
+            (pi.m as i128 - PI_M as i128).abs() <= 256 && pi.e == 1,
+            "{pi:?}"
+        );
+        let two = Big {
+            neg: false,
+            e: 0,
+            m: SQRT2_M,
+        }
+        .mul(Big {
+            neg: false,
+            e: 0,
+            m: SQRT2_M,
+        });
+        assert!(
+            two.e == 0 && two.m >= u128::MAX - 8 || two.e == 1 && two.m <= (1 << 127) + 8,
+            "{two:?}"
+        );
         // The software series against these constants.
         let ln2_series = big_ln(Big::from_u64(2));
         assert!((ln2_series.m as i128 - LN2_M as i128).abs() <= 64);
         let pi_atan = big_atan_unit(Big::from_u64(1)).scale2(2);
-        assert!((pi_atan.m as i128 - PI_M as i128).abs() <= 64, "{pi_atan:?}");
+        assert!(
+            (pi_atan.m as i128 - PI_M as i128).abs() <= 64,
+            "{pi_atan:?}"
+        );
     }
 
     #[cfg_attr(not(target_arch = "wasm32"), test)]
@@ -1141,7 +1297,11 @@ mod tests {
             0x4009_21fb_5444_2d18,
         ] {
             let x = f64::from_bits(bits);
-            assert_eq!(ext_to_f64(&ext_from_f64(x), CW_PC64_RN).to_bits(), bits, "{bits:016x}");
+            assert_eq!(
+                ext_to_f64(&ext_from_f64(x), CW_PC64_RN).to_bits(),
+                bits,
+                "{bits:016x}"
+            );
         }
         assert!(ext_to_f64(&ext_from_f64(f64::NAN), CW_PC64_RN).is_nan());
         assert_eq!(ext_bits(&ext_one()), 0x3fff_8000_0000_0000_0000);
@@ -1236,20 +1396,36 @@ mod hardware {
         for &cw in &cws {
             total += count(&format!("add cw={cw:04x}"), n, 1, |r| {
                 let (a, b) = (r.ext(-20, 40), r.ext(-20, 40));
-                (ext_add(&a, &b, cw), hw::ext_add(&a, &b, cw), format!("{a:?} {b:?}"))
+                (
+                    ext_add(&a, &b, cw),
+                    hw::ext_add(&a, &b, cw),
+                    format!("{a:?} {b:?}"),
+                )
             });
             total += count(&format!("sub cw={cw:04x}"), n, 2, |r| {
                 let e = r.int(0, 8);
                 let (a, b) = (r.ext(e, 1), r.ext(e - 1, 3));
-                (ext_sub(&a, &b, cw), hw::ext_sub(&a, &b, cw), format!("{a:?} {b:?}"))
+                (
+                    ext_sub(&a, &b, cw),
+                    hw::ext_sub(&a, &b, cw),
+                    format!("{a:?} {b:?}"),
+                )
             });
             total += count(&format!("mul cw={cw:04x}"), n, 3, |r| {
                 let (a, b) = (r.ext(-20, 40), r.ext(-20, 40));
-                (ext_mul(&a, &b, cw), hw::ext_mul(&a, &b, cw), format!("{a:?} {b:?}"))
+                (
+                    ext_mul(&a, &b, cw),
+                    hw::ext_mul(&a, &b, cw),
+                    format!("{a:?} {b:?}"),
+                )
             });
             total += count(&format!("div cw={cw:04x}"), n, 4, |r| {
                 let (a, b) = (r.ext(-20, 40), r.ext(-20, 40));
-                (ext_div(&a, &b, cw), hw::ext_div(&a, &b, cw), format!("{a:?} {b:?}"))
+                (
+                    ext_div(&a, &b, cw),
+                    hw::ext_div(&a, &b, cw),
+                    format!("{a:?} {b:?}"),
+                )
             });
             total += count(&format!("sqrt cw={cw:04x}"), n, 5, |r| {
                 let a = r.ext_pos(-20, 40);
@@ -1272,7 +1448,11 @@ mod hardware {
         total += count("scale", n, 8, |r| {
             let a = r.ext(-20, 40);
             let k = ext_from_f64(r.int(-100, 200) as f64 + 0.5);
-            (ext_scale(&a, &k, CW_PC64_RN), hw::ext_scale(&a, &k, CW_PC64_RN), format!("{a:?} {k:?}"))
+            (
+                ext_scale(&a, &k, CW_PC64_RN),
+                hw::ext_scale(&a, &k, CW_PC64_RN),
+                format!("{a:?} {k:?}"),
+            )
         });
         total += count("prem1", n, 9, |r| {
             let a = ext_from_f64(r.f64_in(-4, 36) * r.sign());
@@ -1281,7 +1461,11 @@ mod hardware {
             } else {
                 ext_scale(&ext_pi(), &ext_chs(&ext_one(), 0), 0)
             };
-            (ext_prem1_quo(&a, &m, CW_PC64_RN), hw::ext_prem1_quo(&a, &m, CW_PC64_RN), format!("{a:?}"))
+            (
+                ext_prem1_quo(&a, &m, CW_PC64_RN),
+                hw::ext_prem1_quo(&a, &m, CW_PC64_RN),
+                format!("{a:?}"),
+            )
         });
         assert_eq!(total, 0);
     }
@@ -1290,7 +1474,10 @@ mod hardware {
     #[test]
     #[ignore]
     fn transcendental_operations_against_the_hardware() {
-        let n: usize = std::env::var("SOFT87_N").ok().and_then(|v| v.parse().ok()).unwrap_or(100_000);
+        let n: usize = std::env::var("SOFT87_N")
+            .ok()
+            .and_then(|v| v.parse().ok())
+            .unwrap_or(100_000);
         let cw = CW_PC64_RN;
         count("f2xm1 [0,1/2]", n, 11, |r| {
             let a = r.ext_pos(-3, 2);
@@ -1298,16 +1485,28 @@ mod hardware {
         });
         count("fyl2x ln2*log2(x)", n, 12, |r| {
             let x = ext_from_f64(r.f64_in(-30, 60));
-            (ext_fyl2x(&ext_ln2(), &x, cw), hw::ext_fyl2x(&ext_ln2(), &x, cw), format!("{x:?}"))
+            (
+                ext_fyl2x(&ext_ln2(), &x, cw),
+                hw::ext_fyl2x(&ext_ln2(), &x, cw),
+                format!("{x:?}"),
+            )
         });
         count("fyl2x y*log2(x)", n, 13, |r| {
             let x = ext_from_f64(r.f64_in(-30, 60));
             let y = r.ext(-5, 10);
-            (ext_fyl2x(&y, &x, cw), hw::ext_fyl2x(&y, &x, cw), format!("{y:?} {x:?}"))
+            (
+                ext_fyl2x(&y, &x, cw),
+                hw::ext_fyl2x(&y, &x, cw),
+                format!("{y:?} {x:?}"),
+            )
         });
         count("fpatan(x,1)", n, 14, |r| {
             let x = ext_from_f64(r.f64_in(-30, 30) * r.sign());
-            (ext_fpatan(&x, &ext_one(), cw), hw::ext_fpatan(&x, &ext_one(), cw), format!("{x:?}"))
+            (
+                ext_fpatan(&x, &ext_one(), cw),
+                hw::ext_fpatan(&x, &ext_one(), cw),
+                format!("{x:?}"),
+            )
         });
         count("fsin |r|<=pi/2", n, 15, |r| {
             let a = r.ext(-5, 6);

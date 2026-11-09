@@ -393,7 +393,11 @@ impl RtdConnector for RtdClient {
     ) -> Result<RtdConnection, String> {
         let lease = RtdService::subscribe(self, caller, topic)?;
         if declared && let Ok(mut state) = self.state.try_borrow_mut() {
-            state.connector_reads.entry(caller).or_default().insert(lease.0);
+            state
+                .connector_reads
+                .entry(caller)
+                .or_default()
+                .insert(lease.0);
         }
         Ok(RtdConnection {
             lease,
@@ -413,7 +417,12 @@ impl RtdService for RtdClient {
             .borrow()
             .topics
             .iter()
-            .filter_map(|(&id, topic)| topic.active_callers.contains(&caller).then_some(RtdLease(id)))
+            .filter_map(|(&id, topic)| {
+                topic
+                    .active_callers
+                    .contains(&caller)
+                    .then_some(RtdLease(id))
+            })
             .collect()
     }
     fn has_live_servers(&self) -> bool {
@@ -782,18 +791,14 @@ fn replacement_connects_before_retired_transport_disconnects() {
     };
     let providers = BTreeSet::from([provider]);
     let caller = CellKey::new(calc_value::SheetId::from_parts(0, 0), 1, 1).unwrap();
-    let old = client
-        .subscribe(caller, &fixture_topic("old"))
-        .unwrap();
+    let old = client.subscribe(caller, &fixture_topic("old")).unwrap();
     assert_eq!(
         client.begin_replacement(&providers, caller).unwrap(),
         vec![(fixture_topic("old"), old)]
     );
     assert_eq!(client.subscriptions(), 0);
     assert_eq!(queued_events(&client), vec![(1, 1)]);
-    let next = client
-        .subscribe(caller, &fixture_topic("new"))
-        .unwrap();
+    let next = client.subscribe(caller, &fixture_topic("new")).unwrap();
     assert_ne!(old, next);
     client.finish_replacement(&providers, caller).unwrap();
     assert_eq!(queued_events(&client), vec![(1, 1), (1, 2), (2, 1)]);
@@ -825,24 +830,15 @@ fn replacement_preserves_another_callers_topic_lease() {
     let sheet = calc_value::SheetId::from_parts(0, 0);
     let first = CellKey::new(sheet, 1, 1).unwrap();
     let other = CellKey::new(sheet, 1, 2).unwrap();
-    let old = client
-        .subscribe(first, &fixture_topic("old"))
-        .unwrap();
-    assert_eq!(
-        client
-            .subscribe(other, &fixture_topic("old"))
-            .unwrap(),
-        old
-    );
+    let old = client.subscribe(first, &fixture_topic("old")).unwrap();
+    assert_eq!(client.subscribe(other, &fixture_topic("old")).unwrap(), old);
     assert!(
         client
             .begin_replacement(&providers, first)
             .unwrap()
             .is_empty()
     );
-    client
-        .subscribe(first, &fixture_topic("new"))
-        .unwrap();
+    client.subscribe(first, &fixture_topic("new")).unwrap();
     client.finish_replacement(&providers, first).unwrap();
     assert_eq!(queued_events(&client), vec![(1, 1), (1, 2)]);
     assert_eq!(
@@ -901,9 +897,7 @@ fn completed_call_defers_disconnect_until_replacement_can_connect() {
     };
     let providers = BTreeSet::from([provider]);
     let caller = CellKey::new(calc_value::SheetId::from_parts(0, 0), 1, 1).unwrap();
-    let old = client
-        .subscribe(caller, &fixture_topic("old"))
-        .unwrap();
+    let old = client.subscribe(caller, &fixture_topic("old")).unwrap();
     client
         .finish_call(provider, caller, 100, &[], &[], &[])
         .unwrap();
@@ -915,9 +909,7 @@ fn completed_call_defers_disconnect_until_replacement_can_connect() {
         client.begin_replacement(&providers, caller).unwrap(),
         vec![(fixture_topic("old"), old)]
     );
-    client
-        .subscribe(caller, &fixture_topic("next"))
-        .unwrap();
+    client.subscribe(caller, &fixture_topic("next")).unwrap();
     client.finish_replacement(&providers, caller).unwrap();
     assert_eq!(queued_events(&client), vec![(1, 1), (1, 2), (2, 1)]);
     client.close().unwrap();
@@ -943,9 +935,7 @@ fn cached_replacement_renews_one_signal_for_main_and_dependent_reads() {
     let arguments = [CalcValue::text(ExcelText::from_utf16_code_units(
         "shared".encode_utf16().collect(),
     ))];
-    let old = client
-        .subscribe(main, &fixture_topic("shared"))
-        .unwrap();
+    let old = client.subscribe(main, &fixture_topic("shared")).unwrap();
     assert_eq!(
         client
             .subscribe(dependent, &fixture_topic("shared"))
@@ -1074,9 +1064,7 @@ fn cached_reads_survive_disconnect_but_not_unrenewable_retirement() {
     let providers = BTreeSet::from([provider]);
     let caller = CellKey::new(calc_value::SheetId::from_parts(0, 0), 1, 1).unwrap();
     let arguments = [CalcValue::number(0.)];
-    let topic = client
-        .subscribe(caller, &fixture_topic("cached"))
-        .unwrap();
+    let topic = client.subscribe(caller, &fixture_topic("cached")).unwrap();
     assert_eq!(client.poll().unwrap().len(), 1);
     client
         .finish_call(provider, caller, 100, &arguments, &[], &[topic])
@@ -1132,9 +1120,7 @@ fn cached_call_keys_preserve_number_bits_and_refuse_reference_recovery() {
     let arguments = [CalcValue::reference(calc_value::ReferenceLike::cell(
         caller,
     ))];
-    let topic = client
-        .subscribe(caller, &fixture_topic("cached"))
-        .unwrap();
+    let topic = client.subscribe(caller, &fixture_topic("cached")).unwrap();
     client
         .finish_call(provider, caller, 100, &arguments, &[topic], &[topic])
         .unwrap();
@@ -1164,9 +1150,7 @@ fn first_cache_only_sibling_keeps_the_observed_input() {
     let main = CellKey::new(sheet, 1, 1).unwrap();
     let sibling = CellKey::new(sheet, 1, 2).unwrap();
     let arguments = [CalcValue::number(42.)];
-    let id = client
-        .subscribe(main, &fixture_topic("shared"))
-        .unwrap();
+    let id = client.subscribe(main, &fixture_topic("shared")).unwrap();
     let shared = fixture_topic("shared");
     assert_eq!(
         client.initial_value(&shared, id),

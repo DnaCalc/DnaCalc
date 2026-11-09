@@ -497,7 +497,9 @@ mod tests {
         assert_eq!(
             work.result().unwrap().evaluation.outcome,
             Ok(CalcValue::text(
-                calc_value::ExcelText::from_interop_assignment("Manual|engine22-test|/facts/[facts.xlsx]Sheet1")
+                calc_value::ExcelText::from_interop_assignment(
+                    "Manual|engine22-test|/facts/[facts.xlsx]Sheet1"
+                )
             ))
         );
         let consumes = add(&mut book, "ConsumesFact", "=$B$1&\"\"");
@@ -517,7 +519,9 @@ mod tests {
             finish(&mut work, &mut book, quantum);
             assert_eq!(
                 work.result().unwrap().evaluation.outcome,
-                Ok(CalcValue::text(calc_value::ExcelText::from_interop_assignment("engine22-test")))
+                Ok(CalcValue::text(
+                    calc_value::ExcelText::from_interop_assignment("engine22-test")
+                ))
             );
             assert_eq!(
                 book.host().engine.result(at),

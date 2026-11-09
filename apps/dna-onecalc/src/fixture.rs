@@ -65,7 +65,14 @@ impl<'f> SessionFacts<'f> {
 }
 
 impl calc_func::HostFacts for SessionFacts<'_> {
-    fn pivot_data_cell(&mut self,_:&str,_:&[calc_func::value::GridArea],_:&[(String,calc_func::value::CalcValue)])->calc_func::PivotLookup{calc_func::PivotLookup::NotModelled}
+    fn pivot_data_cell(
+        &mut self,
+        _: &str,
+        _: &[calc_func::value::GridArea],
+        _: &[(String, calc_func::value::CalcValue)],
+    ) -> calc_func::PivotLookup {
+        calc_func::PivotLookup::NotModelled
+    }
 
     fn is_external_sheet(&mut self, _: SheetId) -> bool {
         false
@@ -84,7 +91,10 @@ impl calc_func::HostFacts for SessionFacts<'_> {
     }
 
     fn sheet_index(&mut self, sheet: SheetId) -> Option<u32> {
-        self.fixture.sheets.iter().position(|(_, id)| *id == sheet)
+        self.fixture
+            .sheets
+            .iter()
+            .position(|(_, id)| *id == sheet)
             .and_then(|index| u32::try_from(index + 1).ok())
     }
 
@@ -237,7 +247,10 @@ impl ReferenceReader for TracingReader<'_> {
 
     fn read_fact(&mut self, _fact: calc_fml::FactRead) {}
 
-    fn spill_extent(&mut self, anchor: calc_func::value::CellKey) -> calc_fml::reference::SpillExtent {
+    fn spill_extent(
+        &mut self,
+        anchor: calc_func::value::CellKey,
+    ) -> calc_fml::reference::SpillExtent {
         // An explicitly stored literal cannot be a formula's spill anchor. Missing inputs
         // and the separately evaluated formula's own anchor still have no spill knowledge.
         if anchor != self.caller && self.fixture.inputs.contains_key(&anchor) {

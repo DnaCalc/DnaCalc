@@ -5,7 +5,6 @@
 use crate::ported::excel_numeric;
 use crate::value::{CalcArray, CalcValue, CoreRef, CoreValue, WorksheetErrorCode};
 
-
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 enum VectorShape {
     Scalar,
@@ -72,10 +71,7 @@ fn resolve_arg_eval(arg: &CalcValue) -> Result<CalcValue, WorksheetErrorCode> {
     }
 }
 
-
-fn optional_arg_value(
-    arg: Option<&CalcValue>
-) -> Result<Option<CalcValue>, WorksheetErrorCode> {
+fn optional_arg_value(arg: Option<&CalcValue>) -> Result<Option<CalcValue>, WorksheetErrorCode> {
     match arg {
         None => Ok(None),
         Some(value) if matches!(value.core_ref(), CoreRef::Missing) => Ok(None),
@@ -92,7 +88,7 @@ fn numeric_from_cell(cell: &CalcValue) -> Result<f64, WorksheetErrorCode> {
         | CoreRef::Empty
         | CoreRef::Missing
         | CoreRef::Array(_)
-        | CoreRef::Reference(_) => Err(WorksheetErrorCode::Value,),
+        | CoreRef::Reference(_) => Err(WorksheetErrorCode::Value),
     }
 }
 
@@ -106,11 +102,11 @@ fn numeric_scalar_from_eval(value: &CalcValue) -> Result<f64, WorksheetErrorCode
             if shape.rows == 1 && shape.cols == 1 {
                 numeric_from_cell(array.get(0, 0).expect("single-cell array"))
             } else {
-                Err(WorksheetErrorCode::Value,)
+                Err(WorksheetErrorCode::Value)
             }
         }
-        CoreRef::Text(_) | CoreRef::Reference(_) => Err(WorksheetErrorCode::Value,),
-        _ => Err(WorksheetErrorCode::Value,),
+        CoreRef::Text(_) | CoreRef::Reference(_) => Err(WorksheetErrorCode::Value),
+        _ => Err(WorksheetErrorCode::Value),
     }
 }
 
@@ -158,16 +154,14 @@ fn collect_numeric_vector_from_eval(
                 shape: vector_shape,
             })
         }
-        CoreRef::Text(_) | CoreRef::Logical(_) | CoreRef::Reference(_) => Err(
-            WorksheetErrorCode::Value,
-        ),
-        _ => Err(WorksheetErrorCode::Value,),
+        CoreRef::Text(_) | CoreRef::Logical(_) | CoreRef::Reference(_) => {
+            Err(WorksheetErrorCode::Value)
+        }
+        _ => Err(WorksheetErrorCode::Value),
     }
 }
 
-fn collect_numeric_vector_arg(
-    arg: &CalcValue
-) -> Result<NumericVector, WorksheetErrorCode> {
+fn collect_numeric_vector_arg(arg: &CalcValue) -> Result<NumericVector, WorksheetErrorCode> {
     let eval = resolve_arg_eval(arg)?;
     collect_numeric_vector_from_eval(&eval)
 }
@@ -211,15 +205,26 @@ fn shape_first_matrix(arg: &CalcValue) -> Result<ShapeFirst<NumericMatrix>, Work
             for cell in array.iter_row_major() {
                 values.push(shape_first_cell(cell, &mut non_numeric)?);
             }
-            NumericMatrix { rows: shape.rows, cols: shape.cols, values }
+            NumericMatrix {
+                rows: shape.rows,
+                cols: shape.cols,
+                values,
+            }
         }
-        _ => NumericMatrix { rows: 1, cols: 1, values: vec![shape_first_cell(arg, &mut non_numeric)?] },
+        _ => NumericMatrix {
+            rows: 1,
+            cols: 1,
+            values: vec![shape_first_cell(arg, &mut non_numeric)?],
+        },
     };
     Ok(ShapeFirst { value, non_numeric })
 }
 
 fn shape_first_vector(arg: &CalcValue) -> Result<ShapeFirst<NumericVector>, WorksheetErrorCode> {
-    let ShapeFirst { value: matrix, non_numeric } = shape_first_matrix(arg)?;
+    let ShapeFirst {
+        value: matrix,
+        non_numeric,
+    } = shape_first_matrix(arg)?;
     if matrix.rows > 1 && matrix.cols > 1 {
         return Err(WorksheetErrorCode::Ref);
     }
@@ -230,7 +235,13 @@ fn shape_first_vector(arg: &CalcValue) -> Result<ShapeFirst<NumericVector>, Work
     } else {
         VectorShape::Column(matrix.rows)
     };
-    Ok(ShapeFirst { value: NumericVector { values: matrix.values, shape }, non_numeric })
+    Ok(ShapeFirst {
+        value: NumericVector {
+            values: matrix.values,
+            shape,
+        },
+        non_numeric,
+    })
 }
 
 /// known_y, then known_x read into the predictors (#REF! when the shapes disagree), then #VALUE!
@@ -299,16 +310,14 @@ fn collect_numeric_matrix_from_eval(
                 values,
             })
         }
-        CoreRef::Text(_) | CoreRef::Logical(_) | CoreRef::Reference(_) => Err(
-            WorksheetErrorCode::Value,
-        ),
-        _ => Err(WorksheetErrorCode::Value,),
+        CoreRef::Text(_) | CoreRef::Logical(_) | CoreRef::Reference(_) => {
+            Err(WorksheetErrorCode::Value)
+        }
+        _ => Err(WorksheetErrorCode::Value),
     }
 }
 
-fn collect_numeric_matrix_arg(
-    arg: &CalcValue
-) -> Result<NumericMatrix, WorksheetErrorCode> {
+fn collect_numeric_matrix_arg(arg: &CalcValue) -> Result<NumericMatrix, WorksheetErrorCode> {
     let eval = resolve_arg_eval(arg)?;
     collect_numeric_matrix_from_eval(&eval)
 }
@@ -584,12 +593,20 @@ fn least_squares(
     // Use the shared stored product; the exact accumulator/store layout stays
     // unresolved, so keep the existing addition.
     let squares_from = |values: &[f64], from: usize| {
-        values[from..].iter().fold(0.0, |sum, v| sum + excel_numeric::excel_x87_mul(*v, *v))
+        values[from..]
+            .iter()
+            .fold(0.0, |sum, v| sum + excel_numeric::excel_x87_mul(*v, *v))
     };
     // Each column's sum of squares before the steps, the scale its remainder is judged against.
-    let initial: Vec<f64> = matrix.iter().map(|(_, column)| squares_from(column, 0)).collect();
-    let mut scale: Vec<(Option<usize>, f64)> =
-        matrix.iter().map(|(predictor, _)| *predictor).zip(initial).collect();
+    let initial: Vec<f64> = matrix
+        .iter()
+        .map(|(_, column)| squares_from(column, 0))
+        .collect();
+    let mut scale: Vec<(Option<usize>, f64)> = matrix
+        .iter()
+        .map(|(predictor, _)| *predictor)
+        .zip(initial)
+        .collect();
     let mut diagonal = vec![0.0; p];
     // Pivot by the remaining sum of squares, then apply the collinearity test (5 above).
     let mut j = 0;
@@ -668,12 +685,9 @@ fn least_squares(
         v[0] = excel_numeric::excel_x87_sub(x0, alpha);
         let vv = excel_numeric::excel_x87_add(rest, excel_numeric::excel_x87_mul(v[0], v[0]));
         let reflect = |a: &mut [f64]| {
-            let t = v
-                .iter()
-                .zip(a[j..].iter())
-                .fold(0.0, |sum, (vi, ai)| {
-                    excel_numeric::excel_x87_add(sum, excel_numeric::excel_x87_mul(*vi, *ai))
-                });
+            let t = v.iter().zip(a[j..].iter()).fold(0.0, |sum, (vi, ai)| {
+                excel_numeric::excel_x87_add(sum, excel_numeric::excel_x87_mul(*vi, *ai))
+            });
             let f = excel_numeric::excel_x87_div(excel_numeric::excel_x87_mul(2.0, t), vv);
             for (ai, vi) in a[j..].iter_mut().zip(v.iter()) {
                 *ai = excel_numeric::excel_x87_sub(*ai, excel_numeric::excel_x87_mul(f, *vi));
@@ -690,7 +704,11 @@ fn least_squares(
     let mut solution = vec![0.0; rank];
     for j in (0..rank).rev() {
         let d = ((j + 1)..rank).fold(0.0, |sum, k| sum + matrix[k].1[j] * solution[k]);
-        solution[j] = if diagonal[j] == 0.0 { 0.0 } else { (target[j] - d) / diagonal[j] };
+        solution[j] = if diagonal[j] == 0.0 {
+            0.0
+        } else {
+            (target[j] - d) / diagonal[j]
+        };
     }
     let mut coefficients = vec![0.0; columns.len()];
     for (j, (predictor, _)) in matrix.iter().take(rank).enumerate() {
@@ -709,7 +727,15 @@ fn least_squares(
     let r = (0..rank)
         .map(|j| {
             (0..rank)
-                .map(|k| if k < j { 0.0 } else if k == j { diagonal[j] } else { matrix[k].1[j] })
+                .map(|k| {
+                    if k < j {
+                        0.0
+                    } else if k == j {
+                        diagonal[j]
+                    } else {
+                        matrix[k].1[j]
+                    }
+                })
                 .collect()
         })
         .collect();
@@ -768,7 +794,9 @@ fn exponential_prediction(model: &LinearRegressionModel, x: &[f64]) -> f64 {
         .coefficients
         .iter()
         .zip(x.iter())
-        .fold(1.0, |product, (b, x)| product * excel_numeric::excel_exp(b * x));
+        .fold(1.0, |product, (b, x)| {
+            product * excel_numeric::excel_exp(b * x)
+        });
     excel_numeric::excel_exp(model.intercept) * product
 }
 
@@ -930,9 +958,11 @@ fn statistics_block(fit: &RegressionFit, use_const: bool, first: Vec<f64>) -> Ca
     // fresh selections separate strict additions after the same PC64 products.
     // Private QR and
     // centring remain separate, unresolved producers.
-    let squares = |values: &[f64]| values.iter().fold(0.0, |sum, v| {
-        excel_numeric::excel_x87_add(sum, excel_numeric::excel_x87_mul(*v, *v))
-    });
+    let squares = |values: &[f64]| {
+        values.iter().fold(0.0, |sum, v| {
+            excel_numeric::excel_x87_add(sum, excel_numeric::excel_x87_mul(*v, *v))
+        })
+    };
     let ss_resid = squares(&fit.qty[p..]);
     let ss_total = squares(&fit.y);
     let ss_reg = ss_total - ss_resid;
@@ -942,7 +972,11 @@ fn statistics_block(fit: &RegressionFit, use_const: bool, first: Vec<f64>) -> Ca
     let exact = n == p;
     let r2 = if exact { 1.0 } else { ss_reg / ss_total };
     let se_y = if exact { 0.0 } else { (ss_resid / df).sqrt() };
-    let f = if exact { f64::NAN } else { (ss_reg / predictors as f64) / (ss_resid / df) };
+    let f = if exact {
+        f64::NAN
+    } else {
+        (ss_reg / predictors as f64) / (ss_resid / df)
+    };
     // The inverse of the triangular factor over the columns with a nonzero diagonal (a column
     // kept as zero comes last and has standard error 0), column by column.
     let nz = (0..p).take_while(|j| fit.r[*j][*j] != 0.0).count();
@@ -967,7 +1001,11 @@ fn statistics_block(fit: &RegressionFit, use_const: bool, first: Vec<f64>) -> Ca
     }
     let n_a = || CalcValue::error(WorksheetErrorCode::NA);
     let number = |v: f64| {
-        if v.is_finite() { CalcValue::number(v) } else { CalcValue::error(WorksheetErrorCode::Num) }
+        if v.is_finite() {
+            CalcValue::number(v)
+        } else {
+            CalcValue::error(WorksheetErrorCode::Num)
+        }
     };
     let cols = first.len();
     let mut second: Vec<CalcValue> = se.iter().rev().map(|v| number(*v)).collect();
@@ -994,7 +1032,11 @@ fn statistics_block(fit: &RegressionFit, use_const: bool, first: Vec<f64>) -> Ca
         // with residual * variance before /df, conditioned on their published
         // residual sum and inverse ones-column norm. The private QR/residual
         // producers remain incomplete; this changes only the final association.
-        let se_b = if exact { 0.0 } else { (ss_resid * variance / df).sqrt() };
+        let se_b = if exact {
+            0.0
+        } else {
+            (ss_resid * variance / df).sqrt()
+        };
         second.push(number(se_b));
     } else {
         second.push(n_a());
@@ -1110,9 +1152,7 @@ fn forecast_pair_kernel(
     Ok(CalcValue::number(a + b * x))
 }
 
-pub(crate) fn eval_trend_surface(
-    args: &[CalcValue]
-) -> Result<CalcValue, WorksheetErrorCode> {
+pub(crate) fn eval_trend_surface(args: &[CalcValue]) -> Result<CalcValue, WorksheetErrorCode> {
     let (known_y, known_x) = shape_first_inputs(args)?;
     let new_x_raw = args
         .get(2)
@@ -1120,14 +1160,11 @@ pub(crate) fn eval_trend_surface(
         .map(|arg| collect_numeric_matrix_arg(arg))
         .transpose()?;
     let new_x = prediction_input_from_optional(new_x_raw, &known_y, &known_x)?;
-    let use_const =
-        bool_flag_from_eval_or_default(optional_arg_value(args.get(3))?, true)?;
+    let use_const = bool_flag_from_eval_or_default(optional_arg_value(args.get(3))?, true)?;
     trend_kernel(&known_y, &known_x, &new_x, use_const)
 }
 
-pub(crate) fn eval_growth_surface(
-    args: &[CalcValue]
-) -> Result<CalcValue, WorksheetErrorCode> {
+pub(crate) fn eval_growth_surface(args: &[CalcValue]) -> Result<CalcValue, WorksheetErrorCode> {
     let (known_y, known_x) = shape_first_inputs(args)?;
     let new_x_raw = args
         .get(2)
@@ -1135,14 +1172,11 @@ pub(crate) fn eval_growth_surface(
         .map(|arg| collect_numeric_matrix_arg(arg))
         .transpose()?;
     let new_x = prediction_input_from_optional(new_x_raw, &known_y, &known_x)?;
-    let use_const =
-        bool_flag_from_eval_or_default(optional_arg_value(args.get(3))?, true)?;
+    let use_const = bool_flag_from_eval_or_default(optional_arg_value(args.get(3))?, true)?;
     growth_kernel(&known_y, &known_x, &new_x, use_const)
 }
 
-pub(crate) fn eval_forecast_surface(
-    args: &[CalcValue]
-) -> Result<CalcValue, WorksheetErrorCode> {
+pub(crate) fn eval_forecast_surface(args: &[CalcValue]) -> Result<CalcValue, WorksheetErrorCode> {
     let x = numeric_scalar_from_eval(&resolve_arg_eval(&args[0])?)?;
     let known_y = collect_numeric_vector_arg(&args[1])?;
     let known_x = collect_numeric_vector_arg(&args[2])?;
@@ -1150,7 +1184,7 @@ pub(crate) fn eval_forecast_surface(
 }
 
 pub(crate) fn eval_forecast_linear_surface(
-    args: &[CalcValue]
+    args: &[CalcValue],
 ) -> Result<CalcValue, WorksheetErrorCode> {
     let x = numeric_scalar_from_eval(&resolve_arg_eval(&args[0])?)?;
     let known_y = collect_numeric_vector_arg(&args[1])?;
@@ -1158,22 +1192,16 @@ pub(crate) fn eval_forecast_linear_surface(
     forecast_pair_kernel(x, &known_y, &known_x)
 }
 
-pub(crate) fn eval_linest_surface(
-    args: &[CalcValue]
-) -> Result<CalcValue, WorksheetErrorCode> {
+pub(crate) fn eval_linest_surface(args: &[CalcValue]) -> Result<CalcValue, WorksheetErrorCode> {
     let (known_y, known_x) = shape_first_inputs(args)?;
-    let use_const =
-        bool_flag_from_eval_or_default(optional_arg_value(args.get(2))?, true)?;
+    let use_const = bool_flag_from_eval_or_default(optional_arg_value(args.get(2))?, true)?;
     let stats = bool_flag_from_eval_or_default(optional_arg_value(args.get(3))?, false)?;
     linest_kernel(&known_y, &known_x, use_const, stats)
 }
 
-pub(crate) fn eval_logest_surface(
-    args: &[CalcValue]
-) -> Result<CalcValue, WorksheetErrorCode> {
+pub(crate) fn eval_logest_surface(args: &[CalcValue]) -> Result<CalcValue, WorksheetErrorCode> {
     let (known_y, known_x) = shape_first_inputs(args)?;
-    let use_const =
-        bool_flag_from_eval_or_default(optional_arg_value(args.get(2))?, true)?;
+    let use_const = bool_flag_from_eval_or_default(optional_arg_value(args.get(2))?, true)?;
     let stats = bool_flag_from_eval_or_default(optional_arg_value(args.get(3))?, false)?;
     logest_kernel(&known_y, &known_x, use_const, stats)
 }
@@ -1289,19 +1317,56 @@ mod tests {
         // forward order without conditioning on an approximate QR factor.
         for (y, residual, regression) in [
             (vec![0.0, 1.8975095069898755, 0.0], 0x400c_cde9_22fb_5e3c, 0),
-            (vec![2.750390944694963e-6, 0.0032663285051918933, 72054.06702097756,
-                0.005624079914020067], 0x41f3_5746_81e4_3792, 0),
-            (vec![50.85618900492427, 665182.4723075805, 501243.51410530537,
-                1020.9925815877413], 0x4264_3092_1d48_76cb, 0x40a4_34b4_4000_0000),
-            (vec![1.3874764646265145, 1302.388046265071, 6.7993072824179475,
-                1.8687740262216257e-5], 0x4139_e204_da87_bc76, 0x3ffe_cd2c_2840_0000),
+            (
+                vec![
+                    2.750390944694963e-6,
+                    0.0032663285051918933,
+                    72054.06702097756,
+                    0.005624079914020067,
+                ],
+                0x41f3_5746_81e4_3792,
+                0,
+            ),
+            (
+                vec![
+                    50.85618900492427,
+                    665182.4723075805,
+                    501243.51410530537,
+                    1020.9925815877413,
+                ],
+                0x4264_3092_1d48_76cb,
+                0x40a4_34b4_4000_0000,
+            ),
+            (
+                vec![
+                    1.3874764646265145,
+                    1302.388046265071,
+                    6.7993072824179475,
+                    1.8687740262216257e-5,
+                ],
+                0x4139_e204_da87_bc76,
+                0x3ffe_cd2c_2840_0000,
+            ),
         ] {
             let mut x = vec![0.0; y.len()];
             x[0] = 1.0;
-            let got = eval_linest_surface(&[col(&y), col(&x), bool_arg(false), bool_arg(true)]).unwrap();
-            let CoreRef::Array(array) = got.core_ref() else { panic!("LINEST statistics array") };
-            assert_eq!(numeric_from_cell(array.get(4, 1).unwrap()).unwrap().to_bits(), residual);
-            assert_eq!(numeric_from_cell(array.get(4, 0).unwrap()).unwrap().to_bits(), regression);
+            let got =
+                eval_linest_surface(&[col(&y), col(&x), bool_arg(false), bool_arg(true)]).unwrap();
+            let CoreRef::Array(array) = got.core_ref() else {
+                panic!("LINEST statistics array")
+            };
+            assert_eq!(
+                numeric_from_cell(array.get(4, 1).unwrap())
+                    .unwrap()
+                    .to_bits(),
+                residual
+            );
+            assert_eq!(
+                numeric_from_cell(array.get(4, 0).unwrap())
+                    .unwrap()
+                    .to_bits(),
+                regression
+            );
         }
     }
 
@@ -1330,10 +1395,7 @@ mod tests {
     #[cfg_attr(not(target_arch = "wasm32"), test)]
     #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
     fn trend_defaults_known_x_to_sequence_and_preserves_row_shape() {
-        let got = eval_trend_surface(
-            &[row(&[2.0, 4.0, 6.0])]
-        )
-        .unwrap();
+        let got = eval_trend_surface(&[row(&[2.0, 4.0, 6.0])]).unwrap();
         let values = expect_row_array(got);
         assert_eq!(values.len(), 3);
         assert_close(values[0], 2.0);
@@ -1344,13 +1406,11 @@ mod tests {
     #[cfg_attr(not(target_arch = "wasm32"), test)]
     #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
     fn trend_projects_column_vector() {
-        let got = eval_trend_surface(
-            &[
-                col(&[2.0, 4.0, 6.0]),
-                col(&[1.0, 2.0, 3.0]),
-                col(&[4.0, 5.0]),
-            ]
-        )
+        let got = eval_trend_surface(&[
+            col(&[2.0, 4.0, 6.0]),
+            col(&[1.0, 2.0, 3.0]),
+            col(&[4.0, 5.0]),
+        ])
         .unwrap();
         match got.core_ref() {
             CoreRef::Array(array) => {
@@ -1365,13 +1425,11 @@ mod tests {
     #[cfg_attr(not(target_arch = "wasm32"), test)]
     #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
     fn growth_projects_exponential_sequence() {
-        let got = eval_growth_surface(
-            &[
-                col(&[2.0, 4.0, 8.0]),
-                CalcValue::missing(),
-                col(&[4.0, 5.0]),
-            ]
-        )
+        let got = eval_growth_surface(&[
+            col(&[2.0, 4.0, 8.0]),
+            CalcValue::missing(),
+            col(&[4.0, 5.0]),
+        ])
         .unwrap();
         match got.core_ref() {
             CoreRef::Array(array) => {
@@ -1385,19 +1443,17 @@ mod tests {
     #[cfg_attr(not(target_arch = "wasm32"), test)]
     #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
     fn growth_projects_multivariate_rows_to_column_result() {
-        let got = eval_growth_surface(
-            &[
-                col(&[9.0, 18.0, 27.0, 54.0, 72.0]),
-                matrix(&[
-                    &[1.0, 1.0],
-                    &[2.0, 1.0],
-                    &[1.0, 2.0],
-                    &[2.0, 2.0],
-                    &[3.0, 2.0],
-                ]),
-                matrix(&[&[4.0, 1.0], &[4.0, 2.0]]),
-            ]
-        )
+        let got = eval_growth_surface(&[
+            col(&[9.0, 18.0, 27.0, 54.0, 72.0]),
+            matrix(&[
+                &[1.0, 1.0],
+                &[2.0, 1.0],
+                &[1.0, 2.0],
+                &[2.0, 2.0],
+                &[3.0, 2.0],
+            ]),
+            matrix(&[&[4.0, 1.0], &[4.0, 2.0]]),
+        ])
         .unwrap();
         match got.core_ref() {
             CoreRef::Array(array) => {
@@ -1415,14 +1471,10 @@ mod tests {
     #[cfg_attr(not(target_arch = "wasm32"), test)]
     #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
     fn forecast_and_forecast_linear_match_seed_lanes() {
-        let forecast = eval_forecast_surface(
-            &[num(3.0), row(&[1.0, 2.0]), row(&[2.0, 4.0])]
-        )
-        .unwrap();
-        let forecast_linear = eval_forecast_linear_surface(
-            &[num(3.0), row(&[1.0, 2.0]), row(&[2.0, 4.0])]
-        )
-        .unwrap();
+        let forecast =
+            eval_forecast_surface(&[num(3.0), row(&[1.0, 2.0]), row(&[2.0, 4.0])]).unwrap();
+        let forecast_linear =
+            eval_forecast_linear_surface(&[num(3.0), row(&[1.0, 2.0]), row(&[2.0, 4.0])]).unwrap();
         assert_close(expect_number(forecast), 1.5);
         assert_close(expect_number(forecast_linear), 1.5);
     }
@@ -1430,10 +1482,7 @@ mod tests {
     #[cfg_attr(not(target_arch = "wasm32"), test)]
     #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
     fn linest_returns_single_predictor_coefficients() {
-        let got = eval_linest_surface(
-            &[col(&[3.0, 5.0, 7.0]), col(&[1.0, 2.0, 3.0])]
-        )
-        .unwrap();
+        let got = eval_linest_surface(&[col(&[3.0, 5.0, 7.0]), col(&[1.0, 2.0, 3.0])]).unwrap();
         let coeffs = expect_row_array(got);
         assert_eq!(coeffs.len(), 2);
         assert_close(coeffs[0], 2.0);
@@ -1443,13 +1492,11 @@ mod tests {
     #[cfg_attr(not(target_arch = "wasm32"), test)]
     #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
     fn linest_without_const_keeps_trailing_zero_intercept_cell() {
-        let got = eval_linest_surface(
-            &[
-                col(&[2.0, 4.0, 6.0]),
-                col(&[1.0, 2.0, 3.0]),
-                bool_arg(false),
-            ]
-        )
+        let got = eval_linest_surface(&[
+            col(&[2.0, 4.0, 6.0]),
+            col(&[1.0, 2.0, 3.0]),
+            bool_arg(false),
+        ])
         .unwrap();
         let coeffs = expect_row_array(got);
         // Excel 16.0.20430: =INDEX(LINEST({2;4;6},{1;2;3},FALSE),1) is 2.0000000000000004, the QR
@@ -1460,18 +1507,16 @@ mod tests {
     #[cfg_attr(not(target_arch = "wasm32"), test)]
     #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
     fn linest_returns_reversed_multivariate_coefficients() {
-        let got = eval_linest_surface(
-            &[
-                col(&[6.0, 8.0, 9.0, 11.0, 10.0]),
-                matrix(&[
-                    &[1.0, 1.0],
-                    &[2.0, 1.0],
-                    &[1.0, 2.0],
-                    &[2.0, 2.0],
-                    &[3.0, 1.0],
-                ]),
-            ]
-        )
+        let got = eval_linest_surface(&[
+            col(&[6.0, 8.0, 9.0, 11.0, 10.0]),
+            matrix(&[
+                &[1.0, 1.0],
+                &[2.0, 1.0],
+                &[1.0, 2.0],
+                &[2.0, 2.0],
+                &[3.0, 1.0],
+            ]),
+        ])
         .unwrap();
         let coeffs = expect_row_array(got);
         assert_close(coeffs[0], 3.0);
@@ -1482,10 +1527,7 @@ mod tests {
     #[cfg_attr(not(target_arch = "wasm32"), test)]
     #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
     fn logest_returns_growth_factor_and_base() {
-        let got = eval_logest_surface(
-            &[col(&[3.0, 6.0, 12.0]), col(&[1.0, 2.0, 3.0])]
-        )
-        .unwrap();
+        let got = eval_logest_surface(&[col(&[3.0, 6.0, 12.0]), col(&[1.0, 2.0, 3.0])]).unwrap();
         let coeffs = expect_row_array(got);
         assert_eq!(coeffs.len(), 2);
         assert_close(coeffs[0], 2.0);
@@ -1495,13 +1537,11 @@ mod tests {
     #[cfg_attr(not(target_arch = "wasm32"), test)]
     #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
     fn logest_without_const_keeps_trailing_one_base_cell() {
-        let got = eval_logest_surface(
-            &[
-                col(&[3.0, 6.0, 12.0]),
-                col(&[1.0, 2.0, 3.0]),
-                bool_arg(false),
-            ]
-        )
+        let got = eval_logest_surface(&[
+            col(&[3.0, 6.0, 12.0]),
+            col(&[1.0, 2.0, 3.0]),
+            bool_arg(false),
+        ])
         .unwrap();
         let coeffs = expect_row_array(got);
         assert_close(coeffs[0], 2.37956557896877);
@@ -1511,18 +1551,16 @@ mod tests {
     #[cfg_attr(not(target_arch = "wasm32"), test)]
     #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
     fn logest_returns_reversed_multivariate_factors() {
-        let got = eval_logest_surface(
-            &[
-                col(&[9.0, 18.0, 27.0, 54.0, 72.0]),
-                matrix(&[
-                    &[1.0, 1.0],
-                    &[2.0, 1.0],
-                    &[1.0, 2.0],
-                    &[2.0, 2.0],
-                    &[3.0, 2.0],
-                ]),
-            ]
-        )
+        let got = eval_logest_surface(&[
+            col(&[9.0, 18.0, 27.0, 54.0, 72.0]),
+            matrix(&[
+                &[1.0, 1.0],
+                &[2.0, 1.0],
+                &[1.0, 2.0],
+                &[2.0, 2.0],
+                &[3.0, 2.0],
+            ]),
+        ])
         .unwrap();
         let coeffs = expect_row_array(got);
         assert_close(coeffs[0], 2.84212006162885);
@@ -1533,22 +1571,18 @@ mod tests {
     #[cfg_attr(not(target_arch = "wasm32"), test)]
     #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
     fn scalar_new_x_returns_scalar_trend_result() {
-        let got = eval_trend_surface(
-            &[col(&[2.0, 4.0, 6.0]), col(&[1.0, 2.0, 3.0]), num(4.0)]
-        )
-        .unwrap();
+        let got =
+            eval_trend_surface(&[col(&[2.0, 4.0, 6.0]), col(&[1.0, 2.0, 3.0]), num(4.0)]).unwrap();
         assert_close(expect_number(got), 8.0);
     }
     #[cfg_attr(not(target_arch = "wasm32"), test)]
     #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
     fn trend_projects_matrix_shape_for_single_predictor_new_x() {
-        let got = eval_trend_surface(
-            &[
-                col(&[2.0, 4.0, 6.0]),
-                col(&[1.0, 2.0, 3.0]),
-                matrix(&[&[1.0, 2.0], &[3.0, 4.0]]),
-            ]
-        )
+        let got = eval_trend_surface(&[
+            col(&[2.0, 4.0, 6.0]),
+            col(&[1.0, 2.0, 3.0]),
+            matrix(&[&[1.0, 2.0], &[3.0, 4.0]]),
+        ])
         .unwrap();
         match got.core_ref() {
             CoreRef::Array(array) => {
@@ -1565,19 +1599,17 @@ mod tests {
     #[cfg_attr(not(target_arch = "wasm32"), test)]
     #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
     fn trend_projects_multivariate_rows_to_column_result() {
-        let got = eval_trend_surface(
-            &[
-                col(&[6.0, 8.0, 9.0, 11.0, 10.0]),
-                matrix(&[
-                    &[1.0, 1.0],
-                    &[2.0, 1.0],
-                    &[1.0, 2.0],
-                    &[2.0, 2.0],
-                    &[3.0, 1.0],
-                ]),
-                matrix(&[&[4.0, 1.0], &[4.0, 2.0]]),
-            ]
-        )
+        let got = eval_trend_surface(&[
+            col(&[6.0, 8.0, 9.0, 11.0, 10.0]),
+            matrix(&[
+                &[1.0, 1.0],
+                &[2.0, 1.0],
+                &[1.0, 2.0],
+                &[2.0, 2.0],
+                &[3.0, 1.0],
+            ]),
+            matrix(&[&[4.0, 1.0], &[4.0, 2.0]]),
+        ])
         .unwrap();
         match got.core_ref() {
             CoreRef::Array(array) => {
@@ -1624,8 +1656,8 @@ mod tests {
         assert_eq!(cells[0], Ok(0x3ff0cccccccccccd)); // slope 1.05
         assert_eq!(cells[2], Ok(0x3fc01b375bea0831)); // its standard error
         assert_eq!(cells[5], Ok(0x3fd9776097813568)); // the standard error of y
-        let one = eval_linest_surface(&[num(5.0), num(2.0), bool_arg(false), bool_arg(true)])
-            .unwrap();
+        let one =
+            eval_linest_surface(&[num(5.0), num(2.0), bool_arg(false), bool_arg(true)]).unwrap();
         assert_eq!(
             block(one),
             vec![
@@ -1666,7 +1698,10 @@ mod tests {
     }
 
     fn bits_col(values: &[u64]) -> CalcValue {
-        col(&values.iter().map(|b| f64::from_bits(*b)).collect::<Vec<_>>())
+        col(&values
+            .iter()
+            .map(|b| f64::from_bits(*b))
+            .collect::<Vec<_>>())
     }
 
     /// dc-j9k.14: the collinearity test reads a column's running remainder, its sum of squares
@@ -1680,12 +1715,156 @@ mod tests {
     #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
     fn collinearity_test_matches_excel_degrees_of_freedom() {
         let cases: [(&[u64], &[u64], &[u64], bool, u64); 6] = [
-            (&[0x3ff0000000000000, 0x4000000000000000, 0x4010000000000000], &[0x3ff0000376b70fde, 0x3ffffffe44a47811, 0x4014000000000000], &[0x4000000000000000, 0x4010000000000000, 0x4024000000000000], false, 0x3ff0000000000000),
-            (&[0x3ff0000000000000, 0x4000000000000000, 0x4010000000000000], &[0x3ff00001843ac3a9, 0x3ffffffe7bc53c57, 0x4014000000000000], &[0x3fe0000000000000, 0x3ff0000000000000, 0x4004000000000000], true, 0x3ff0000000000000),
-            (&[0x3ff0000000000000, 0x4000000000000000, 0x4010000000000000, 0x401c000000000000], &[0x3ff000044a3dd906, 0x3ffffffddae1137d, 0x4014000000000000, 0x4010000000000000], &[0x4000000000000000, 0x4010000000000000, 0x4024000000000000, 0x4020000000000000], false, 0x4008000000000000),
-            (&[0x3ff0000000000000, 0x4000000000000000, 0x4010000000000000, 0x401c000000000000], &[0x3ff000044a3dd90b, 0x3ffffffddae1137b, 0x4014000000000000, 0x4010000000000000], &[0x3fe0000000000000, 0x3ff0000000000000, 0x4004000000000000, 0x4000000000000000], false, 0x4000000000000000),
-            (&[0x3ff0000000000000, 0x4000000000000000, 0x4010000000000000, 0x401c000000000000, 0x4008000000000000, 0x4020000000000000, 0x4018000000000000, 0x3ff0000000000000], &[0x3ff00007971f6708, 0x3ffffffc34704c7c, 0x4014000000000000, 0x4010000000000000, 0x4008000000000000, 0x401c000000000000, 0x4018000000000000, 0x4000000000000000], &[0x4000000000000000, 0x4010000000000000, 0x4024000000000000, 0x4020000000000000, 0x4018000000000000, 0x402c000000000000, 0x4028000000000000, 0x4010000000000000], false, 0x401c000000000000),
-            (&[0x3ff0000000000000, 0x4000000000000000, 0x4010000000000000, 0x401c000000000000, 0x4008000000000000, 0x4020000000000000, 0x4018000000000000, 0x3ff0000000000000, 0x4022000000000000, 0x4000000000000000, 0x4020000000000000, 0x4014000000000000, 0x4008000000000000, 0x4018000000000000, 0x4000000000000000, 0x4010000000000000], &[0x3ff00004c84789fa, 0x3ffffffb37b87606, 0x4014000000000000, 0x4010000000000000, 0x4008000000000000, 0x401c000000000000, 0x4018000000000000, 0x4000000000000000, 0x4020000000000000, 0x3ff0000000000000, 0x4022000000000000, 0x4010000000000000, 0x4000000000000000, 0x4018000000000000, 0x4008000000000000, 0x4014000000000000], &[0x3fe0000000000000, 0x3ff0000000000000, 0x4004000000000000, 0x4000000000000000, 0x3ff8000000000000, 0x400c000000000000, 0x4008000000000000, 0x3ff0000000000000, 0x4010000000000000, 0x3fe0000000000000, 0x4012000000000000, 0x4000000000000000, 0x3ff0000000000000, 0x4008000000000000, 0x3ff8000000000000, 0x4004000000000000], true, 0x402a000000000000),
+            (
+                &[0x3ff0000000000000, 0x4000000000000000, 0x4010000000000000],
+                &[0x3ff0000376b70fde, 0x3ffffffe44a47811, 0x4014000000000000],
+                &[0x4000000000000000, 0x4010000000000000, 0x4024000000000000],
+                false,
+                0x3ff0000000000000,
+            ),
+            (
+                &[0x3ff0000000000000, 0x4000000000000000, 0x4010000000000000],
+                &[0x3ff00001843ac3a9, 0x3ffffffe7bc53c57, 0x4014000000000000],
+                &[0x3fe0000000000000, 0x3ff0000000000000, 0x4004000000000000],
+                true,
+                0x3ff0000000000000,
+            ),
+            (
+                &[
+                    0x3ff0000000000000,
+                    0x4000000000000000,
+                    0x4010000000000000,
+                    0x401c000000000000,
+                ],
+                &[
+                    0x3ff000044a3dd906,
+                    0x3ffffffddae1137d,
+                    0x4014000000000000,
+                    0x4010000000000000,
+                ],
+                &[
+                    0x4000000000000000,
+                    0x4010000000000000,
+                    0x4024000000000000,
+                    0x4020000000000000,
+                ],
+                false,
+                0x4008000000000000,
+            ),
+            (
+                &[
+                    0x3ff0000000000000,
+                    0x4000000000000000,
+                    0x4010000000000000,
+                    0x401c000000000000,
+                ],
+                &[
+                    0x3ff000044a3dd90b,
+                    0x3ffffffddae1137b,
+                    0x4014000000000000,
+                    0x4010000000000000,
+                ],
+                &[
+                    0x3fe0000000000000,
+                    0x3ff0000000000000,
+                    0x4004000000000000,
+                    0x4000000000000000,
+                ],
+                false,
+                0x4000000000000000,
+            ),
+            (
+                &[
+                    0x3ff0000000000000,
+                    0x4000000000000000,
+                    0x4010000000000000,
+                    0x401c000000000000,
+                    0x4008000000000000,
+                    0x4020000000000000,
+                    0x4018000000000000,
+                    0x3ff0000000000000,
+                ],
+                &[
+                    0x3ff00007971f6708,
+                    0x3ffffffc34704c7c,
+                    0x4014000000000000,
+                    0x4010000000000000,
+                    0x4008000000000000,
+                    0x401c000000000000,
+                    0x4018000000000000,
+                    0x4000000000000000,
+                ],
+                &[
+                    0x4000000000000000,
+                    0x4010000000000000,
+                    0x4024000000000000,
+                    0x4020000000000000,
+                    0x4018000000000000,
+                    0x402c000000000000,
+                    0x4028000000000000,
+                    0x4010000000000000,
+                ],
+                false,
+                0x401c000000000000,
+            ),
+            (
+                &[
+                    0x3ff0000000000000,
+                    0x4000000000000000,
+                    0x4010000000000000,
+                    0x401c000000000000,
+                    0x4008000000000000,
+                    0x4020000000000000,
+                    0x4018000000000000,
+                    0x3ff0000000000000,
+                    0x4022000000000000,
+                    0x4000000000000000,
+                    0x4020000000000000,
+                    0x4014000000000000,
+                    0x4008000000000000,
+                    0x4018000000000000,
+                    0x4000000000000000,
+                    0x4010000000000000,
+                ],
+                &[
+                    0x3ff00004c84789fa,
+                    0x3ffffffb37b87606,
+                    0x4014000000000000,
+                    0x4010000000000000,
+                    0x4008000000000000,
+                    0x401c000000000000,
+                    0x4018000000000000,
+                    0x4000000000000000,
+                    0x4020000000000000,
+                    0x3ff0000000000000,
+                    0x4022000000000000,
+                    0x4010000000000000,
+                    0x4000000000000000,
+                    0x4018000000000000,
+                    0x4008000000000000,
+                    0x4014000000000000,
+                ],
+                &[
+                    0x3fe0000000000000,
+                    0x3ff0000000000000,
+                    0x4004000000000000,
+                    0x4000000000000000,
+                    0x3ff8000000000000,
+                    0x400c000000000000,
+                    0x4008000000000000,
+                    0x3ff0000000000000,
+                    0x4010000000000000,
+                    0x3fe0000000000000,
+                    0x4012000000000000,
+                    0x4000000000000000,
+                    0x3ff0000000000000,
+                    0x4008000000000000,
+                    0x3ff8000000000000,
+                    0x4004000000000000,
+                ],
+                true,
+                0x402a000000000000,
+            ),
         ];
         for (index, (y, x1, x2, constant, df)) in cases.iter().enumerate() {
             let n = y.len();
@@ -1706,7 +1885,11 @@ mod tests {
                 eval_linest_surface(&[bits_col(y), x, bool_arg(*constant), bool_arg(true)])
                     .unwrap(),
             );
-            assert_eq!(cells[3 * 3 + 1], Ok(*df), "case {index}: degrees of freedom");
+            assert_eq!(
+                cells[3 * 3 + 1],
+                Ok(*df),
+                "case {index}: degrees of freedom"
+            );
         }
     }
 
@@ -1717,7 +1900,9 @@ mod tests {
     #[cfg_attr(not(target_arch = "wasm32"), test)]
     #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
     fn rank_stop_leaves_out_an_unstepped_zero_column() {
-        let rows: Vec<Vec<f64>> = (1..=8).map(|i| vec![0.0, i as f64, 2.0 * i as f64]).collect();
+        let rows: Vec<Vec<f64>> = (1..=8)
+            .map(|i| vec![0.0, i as f64, 2.0 * i as f64])
+            .collect();
         let rows: Vec<&[f64]> = rows.iter().map(|r| r.as_slice()).collect();
         let y = col(&[0.0, 1.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0]);
         let cells = block(
@@ -1767,7 +1952,11 @@ mod tests {
         let x = CalcValue::array(
             CalcArray::from_rows(
                 rows.iter()
-                    .map(|r| r.iter().map(|b| CalcValue::number(f64::from_bits(*b))).collect())
+                    .map(|r| {
+                        r.iter()
+                            .map(|b| CalcValue::number(f64::from_bits(*b)))
+                            .collect()
+                    })
                     .collect(),
             )
             .unwrap(),
@@ -1820,7 +2009,11 @@ mod tests {
         let x = CalcValue::array(
             CalcArray::from_rows(
                 rows.iter()
-                    .map(|r| r.iter().map(|b| CalcValue::number(f64::from_bits(*b))).collect())
+                    .map(|r| {
+                        r.iter()
+                            .map(|b| CalcValue::number(f64::from_bits(*b)))
+                            .collect()
+                    })
                     .collect(),
             )
             .unwrap(),
@@ -1840,10 +2033,20 @@ mod tests {
     #[cfg_attr(not(target_arch = "wasm32"), test)]
     #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
     fn logest_leaves_out_a_near_collinear_column() {
-        let x = matrix(&[&[1.0, 2.0], &[2.0, 4.0], &[5.0, 10.0], &[4.0, 8.00000381469726]]);
+        let x = matrix(&[
+            &[1.0, 2.0],
+            &[2.0, 4.0],
+            &[5.0, 10.0],
+            &[4.0, 8.00000381469726],
+        ]);
         let cells = block(
-            eval_logest_surface(&[col(&[1.0, 2.0, 4.0, 7.0]), x, bool_arg(false), bool_arg(true)])
-                .unwrap(),
+            eval_logest_surface(&[
+                col(&[1.0, 2.0, 4.0, 7.0]),
+                x,
+                bool_arg(false),
+                bool_arg(true),
+            ])
+            .unwrap(),
         );
         assert_eq!(cells[0], Ok(0x3ff30f6b4559ebb7));
         assert_eq!(cells[1], Ok(1.0f64.to_bits()));
@@ -1857,15 +2060,27 @@ mod tests {
         use WorksheetErrorCode::{Ref, Value};
         let wide = || matrix(&[&[1.0, 2.0], &[2.0, 4.0], &[5.0, 10.0], &[4.0, 8.0001]]);
         let text = |t: &str| CalcValue::text(crate::value::ExcelText::from_interop_assignment(t));
-        assert_eq!(eval_linest_surface(&[num(0.0), wide(), bool_arg(true), bool_arg(true)]), Err(Ref));
-        assert_eq!(eval_linest_surface(&[text("-11.827"), wide(), bool_arg(true), bool_arg(true)]), Err(Ref));
+        assert_eq!(
+            eval_linest_surface(&[num(0.0), wide(), bool_arg(true), bool_arg(true)]),
+            Err(Ref)
+        );
+        assert_eq!(
+            eval_linest_surface(&[text("-11.827"), wide(), bool_arg(true), bool_arg(true)]),
+            Err(Ref)
+        );
         assert_eq!(eval_linest_surface(&[bool_arg(true), wide()]), Err(Ref));
-        assert_eq!(eval_logest_surface(&[num(0.0), wide(), bool_arg(true), bool_arg(true)]), Err(Ref));
+        assert_eq!(
+            eval_logest_surface(&[num(0.0), wide(), bool_arg(true), bool_arg(true)]),
+            Err(Ref)
+        );
         assert_eq!(
             eval_linest_surface(&[col(&[1.0, 2.0, 4.0, 7.0]), text("53.13")]),
             Err(Ref)
         );
-        assert_eq!(eval_linest_surface(&[text("5"), col(&[1.0, 2.0, 3.0])]), Err(Value));
+        assert_eq!(
+            eval_linest_surface(&[text("5"), col(&[1.0, 2.0, 3.0])]),
+            Err(Value)
+        );
         assert_eq!(eval_linest_surface(&[num(5.0), text("1")]), Err(Value));
         assert_eq!(
             eval_linest_surface(&[CalcValue::error(WorksheetErrorCode::NA), wide()]),

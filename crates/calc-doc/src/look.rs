@@ -111,7 +111,13 @@ impl RuleStats {
 pub fn is_aggregate(kind: &str) -> bool {
     matches!(
         kind,
-        "colorScale" | "dataBar" | "iconSet" | "top10" | "aboveAverage" | "duplicateValues" | "uniqueValues"
+        "colorScale"
+            | "dataBar"
+            | "iconSet"
+            | "top10"
+            | "aboveAverage"
+            | "duplicateValues"
+            | "uniqueValues"
     )
 }
 
@@ -141,10 +147,17 @@ pub fn apply_aggregate(
     look: &mut CellLook,
 ) -> Option<Applied> {
     let number = value.and_then(number_of);
-    let held = |held: bool| if held { Applied::Held } else { Applied::NotHeld };
+    let held = |held: bool| {
+        if held {
+            Applied::Held
+        } else {
+            Applied::NotHeld
+        }
+    };
     Some(match rule.kind.as_str() {
         "colorScale" => {
-            let (Some(scale), Some(n), Some(stats)) = (rule.color_scale.as_ref(), number, stats) else {
+            let (Some(scale), Some(n), Some(stats)) = (rule.color_scale.as_ref(), number, stats)
+            else {
                 return Some(Applied::NotHeld);
             };
             let points: Vec<f64> = scale
@@ -366,7 +379,11 @@ pub fn percentile(numbers: &[f64], k: f64) -> f64 {
 /// colour toward the upper by that share and truncated toward the lower. Fitted to Excel
 /// 16.0.20430's colours for all twenty cells of the fixture's two scales (cf-excel.txt, E and F),
 /// where rounding misses eleven and truncating the share within the segment misses two.
-pub fn interpolate(points: &[f64], colors: &[Option<(u8, u8, u8)>], n: f64) -> Option<(u8, u8, u8)> {
+pub fn interpolate(
+    points: &[f64],
+    colors: &[Option<(u8, u8, u8)>],
+    n: f64,
+) -> Option<(u8, u8, u8)> {
     let last = points.len() - 1;
     let (lo, hi) = (points[0], points[last]);
     if n <= lo {

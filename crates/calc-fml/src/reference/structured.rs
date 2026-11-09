@@ -90,8 +90,14 @@ impl TableInfo {
 }
 
 fn column_index(columns: &[String], name: &str) -> Option<usize> {
-    columns.iter().position(|column| same_name(column, name))
-        .or_else(|| columns.iter().position(|column| same_name(column, name.trim())))
+    columns
+        .iter()
+        .position(|column| same_name(column, name))
+        .or_else(|| {
+            columns
+                .iter()
+                .position(|column| same_name(column, name.trim()))
+        })
 }
 
 /// Excel matches table and column names without case, as workbook names: under the full Unicode
@@ -131,7 +137,9 @@ pub enum TableColumnContext<'a> {
 pub fn quote_table_column(name: &str) -> String {
     let mut out = String::new();
     for ch in name.chars() {
-        if "#[]@'".contains(ch) { out.push('\''); }
+        if "#[]@'".contains(ch) {
+            out.push('\'');
+        }
         out.push(ch);
     }
     out
@@ -142,12 +150,31 @@ fn spelling(parsed: &Parsed) -> String {
     if parsed.sections.is_empty() && parsed.columns.len() == 1 {
         return format!("{table}[{}]", quote_table_column(&parsed.columns[0]));
     }
-    let mut parts = parsed.sections.iter().map(|section| format!("[{}]", match section {
-        Section::All => "#All", Section::Data => "#Data", Section::Headers => "#Headers",
-        Section::Totals => "#Totals", Section::ThisRow => "#This Row",
-    })).collect::<Vec<_>>();
+    let mut parts = parsed
+        .sections
+        .iter()
+        .map(|section| {
+            format!(
+                "[{}]",
+                match section {
+                    Section::All => "#All",
+                    Section::Data => "#Data",
+                    Section::Headers => "#Headers",
+                    Section::Totals => "#Totals",
+                    Section::ThisRow => "#This Row",
+                }
+            )
+        })
+        .collect::<Vec<_>>();
     if !parsed.columns.is_empty() {
-        parts.push(parsed.columns.iter().map(|c| format!("[{}]", quote_table_column(c))).collect::<Vec<_>>().join(":"));
+        parts.push(
+            parsed
+                .columns
+                .iter()
+                .map(|c| format!("[{}]", quote_table_column(c)))
+                .collect::<Vec<_>>()
+                .join(":"),
+        );
     }
     format!("{table}[{}]", parts.join(","))
 }
@@ -155,37 +182,71 @@ fn spelling(parsed: &Parsed) -> String {
 /// Rename actual selectors, preserving literals, unrelated tables and all surrounding text.
 /// Unsupported qualifiers and context-dependent names refuse before the caller mutates a model.
 pub fn rename_table_column(
-    source: &str, table: &str, columns: &[String], old: &str, new: &str, context: TableColumnContext<'_>,
+    source: &str,
+    table: &str,
+    columns: &[String],
+    old: &str,
+    new: &str,
+    context: TableColumnContext<'_>,
     sheet_exists: &dyn Fn(&str) -> bool,
 ) -> Result<String, &'static str> {
     use crate::syntax::{SyntaxKind, Token};
     let tree = crate::parse_formula(source);
-    let lambda = tree.tokens().iter().any(|t| t.text().eq_ignore_ascii_case("LAMBDA") || crate::eval::without_prefix(t.text(), calc_catalogue::FUTURE_FUNCTION_PREFIX).is_some_and(|name| name.eq_ignore_ascii_case("LAMBDA")));
-    let old_index = columns.iter().position(|c| same_name(c, old)).ok_or("The original table column is unavailable")?;
+    let lambda = tree.tokens().iter().any(|t| {
+        t.text().eq_ignore_ascii_case("LAMBDA")
+            || crate::eval::without_prefix(t.text(), calc_catalogue::FUTURE_FUNCTION_PREFIX)
+                .is_some_and(|name| name.eq_ignore_ascii_case("LAMBDA"))
+    });
+    let old_index = columns
+        .iter()
+        .position(|c| same_name(c, old))
+        .ok_or("The original table column is unavailable")?;
     let mut next_columns = columns.to_vec();
     next_columns[old_index] = new.into();
     let rewrite = |token: &Token| -> Result<Option<String>, &'static str> {
-        let Some(mut parsed) = parse(token.text()) else { return Ok(None); };
-        let replacements = parsed.columns.iter().map(|c| {
-            let index = column_index(columns, c)?;
-            if index == old_index { Some(new.to_owned()) }
-            else if column_index(&next_columns, c) != Some(index) { Some(columns[index].clone()) }
-            else { None }
-        }).collect::<Vec<_>>();
-        if replacements.iter().all(Option::is_none) { return Ok(None); }
+        let Some(mut parsed) = parse(token.text()) else {
+            return Ok(None);
+        };
+        let replacements = parsed
+            .columns
+            .iter()
+            .map(|c| {
+                let index = column_index(columns, c)?;
+                if index == old_index {
+                    Some(new.to_owned())
+                } else if column_index(&next_columns, c) != Some(index) {
+                    Some(columns[index].clone())
+                } else {
+                    None
+                }
+            })
+            .collect::<Vec<_>>();
+        if replacements.iter().all(Option::is_none) {
+            return Ok(None);
+        }
         if let Some(name) = &parsed.table {
-            if !same_name(name, table) { return Ok(None); }
+            if !same_name(name, table) {
+                return Ok(None);
+            }
         } else {
             match context {
-                TableColumnContext::Name => return Err("A named formula has a context-dependent table selector"),
+                TableColumnContext::Name => {
+                    return Err("A named formula has a context-dependent table selector");
+                }
                 TableColumnContext::Cell(Some(name)) if same_name(name, table) => {
-                    if lambda { return Err("Unqualified table selectors inside LAMBDA need a binding-aware rename"); }
+                    if lambda {
+                        return Err(
+                            "Unqualified table selectors inside LAMBDA need a binding-aware rename",
+                        );
+                    }
                 }
                 _ => return Ok(None),
             }
         }
         for (column, replacement) in parsed.columns.iter_mut().zip(replacements) {
-            if let Some(replacement) = replacement { *column = replacement; }
+            if let Some(replacement) = replacement {
+                *column = replacement;
+            }
         }
         Ok(Some(spelling(&parsed)))
     };
@@ -196,29 +257,47 @@ pub fn rename_table_column(
             SyntaxKind::QualifiedReferenceExpr | SyntaxKind::SheetSpan3DReferenceExpr => {
                 if let Some((sheet, token)) = super::bind::qualified_name(node) {
                     if let Some(text) = rewrite(token)? {
-                        if !sheet_exists(&sheet) { return Err("A table selector has an unavailable sheet qualifier"); }
+                        if !sheet_exists(&sheet) {
+                            return Err("A table selector has an unavailable sheet qualifier");
+                        }
                         changes.push((token.span(), text));
                     }
-                } else if node.tokens().iter().any(|t| rewrite(t).is_err() || rewrite(t).ok().flatten().is_some()) {
+                } else if node
+                    .tokens()
+                    .iter()
+                    .any(|t| rewrite(t).is_err() || rewrite(t).ok().flatten().is_some())
+                {
                     return Err("A table selector has an unsupported workbook or sheet qualifier");
                 }
             }
             SyntaxKind::UnsupportedExpr | SyntaxKind::ArrayLiteralExpr => {
                 for token in node.tokens() {
-                    if rewrite(token)?.is_some() { return Err("A table selector occurs in unsupported formula syntax"); }
+                    if rewrite(token)?.is_some() {
+                        return Err("A table selector occurs in unsupported formula syntax");
+                    }
                 }
             }
             SyntaxKind::IdentifierExpr => {
-                for token in node.tokens() { if let Some(text) = rewrite(token)? { changes.push((token.span(), text)); } }
+                for token in node.tokens() {
+                    if let Some(text) = rewrite(token)? {
+                        changes.push((token.span(), text));
+                    }
+                }
             }
             _ => pending.extend(node.child_nodes()),
         }
     }
-    if changes.is_empty() { return Ok(source.into()); }
-    if !tree.diagnostics().is_empty() { return Err("A table selector occurs in an incomplete formula"); }
+    if changes.is_empty() {
+        return Ok(source.into());
+    }
+    if !tree.diagnostics().is_empty() {
+        return Err("A table selector occurs in an incomplete formula");
+    }
     changes.sort_by_key(|(span, _)| span.start);
     let mut units = source.encode_utf16().collect::<Vec<_>>();
-    for (span, text) in changes.into_iter().rev() { units.splice(span.start..span.end(), text.encode_utf16()); }
+    for (span, text) in changes.into_iter().rev() {
+        units.splice(span.start..span.end(), text.encode_utf16());
+    }
     String::from_utf16(&units).map_err(|_| "The renamed formula is not valid Unicode")
 }
 
@@ -418,7 +497,9 @@ fn parse(text: &str) -> Option<Parsed> {
     })
 }
 
-pub(super) fn is_selector(text: &str) -> bool { parse(text).is_some() }
+pub(super) fn is_selector(text: &str) -> bool {
+    parse(text).is_some()
+}
 
 /// A column segment: `[Qty]`, `Qty`, or `[Qty]:[Price]`.
 fn column_segment(segment: &str) -> Option<Vec<String>> {

@@ -53,9 +53,7 @@ pub fn template_key_of_chars(chars: &[char], anchor: FormulaAnchor) -> Option<St
         // row's or a column's only as an end of a range: alone, `A` is a name.
         let spelled = match kind {
             // A sheet's name (`A1!B2` names sheet A1) is kept as written.
-            TokenKind::Identifier
-                if significant(index, 1) != Some(TokenKind::Bang) =>
-            {
+            TokenKind::Identifier if significant(index, 1) != Some(TokenKind::Bang) => {
                 word.clear();
                 word.extend(&chars[start..end]);
                 if significant(index, 1) == Some(TokenKind::LParen) {
@@ -63,18 +61,21 @@ pub fn template_key_of_chars(chars: &[char], anchor: FormulaAnchor) -> Option<St
                     // Other bare cell callees carry relative operands too and
                     // must not share a plan at different relative coordinates.
                     if significant(index, -1) == Some(TokenKind::Bang)
-                        || !super::is_cell_callee(&word, super::ReferenceNotation::A1) {
+                        || !super::is_cell_callee(&word, super::ReferenceNotation::A1)
+                    {
                         None
                     } else {
                         notation::a1(&word, at.row(), at.column())
                     }
-                } else { match notation::a1(&word, at.row(), at.column()) {
-                    Some(spelled @ Spelled::Cell(_)) => Some(spelled),
-                    Some(spelled @ (Spelled::Row(_) | Spelled::Column(_))) if beside_colon => {
-                        Some(spelled)
+                } else {
+                    match notation::a1(&word, at.row(), at.column()) {
+                        Some(spelled @ Spelled::Cell(_)) => Some(spelled),
+                        Some(spelled @ (Spelled::Row(_) | Spelled::Column(_))) if beside_colon => {
+                            Some(spelled)
+                        }
+                        _ => None,
                     }
-                    _ => None,
-                } }
+                }
             }
             TokenKind::Number if beside_colon => return None,
             _ => None,
@@ -182,7 +183,10 @@ mod tests {
         assert_ne!(key("=A1(2)", 1, 2), key("=A1(2)", 1, 3));
         assert_eq!(key("=A1(2)", 1, 2), key("=B1(2)", 1, 3));
         assert_eq!(key("=Module1.A1(2)", 1, 2), key("=Module1.A1(2)", 1, 3));
-        assert_eq!(key("='Book.xlsm'!A1(2)", 1, 2), key("='Book.xlsm'!A1(2)", 1, 3));
+        assert_eq!(
+            key("='Book.xlsm'!A1(2)", 1, 2),
+            key("='Book.xlsm'!A1(2)", 1, 3)
+        );
         assert_eq!(key("=SUM(1:3)", 1, 1), None);
         assert_ne!(key("=\"A1\"", 1, 1), key("=\"A2\"", 2, 1));
         // A lone column's letters are a name: A in column 1 and B in column 2 differ.

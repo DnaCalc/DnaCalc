@@ -117,14 +117,25 @@ fn refused(message: String) -> Failure {
 }
 
 fn parse_args(args: &[String]) -> Result<Request, String> {
-    let (mut fixture, mut capture, mut out, mut target, mut saved_excel) = (None, None, None, None, None);
+    let (mut fixture, mut capture, mut out, mut target, mut saved_excel) =
+        (None, None, None, None, None);
     let (mut trusted_code, mut trusted_code_sha256) = (None, None);
     let (mut minimize, mut dna_only, mut inventory_only) = (false, false, false);
     let mut rest = args.iter();
     while let Some(flag) = rest.next() {
-        if flag == "--minimize" { minimize = true; continue; }
-        if flag == "--dna-only" { dna_only = true; continue; }
-        if flag == "--inventory-only" { dna_only = true; inventory_only = true; continue; }
+        if flag == "--minimize" {
+            minimize = true;
+            continue;
+        }
+        if flag == "--dna-only" {
+            dna_only = true;
+            continue;
+        }
+        if flag == "--inventory-only" {
+            dna_only = true;
+            inventory_only = true;
+            continue;
+        }
         let value = rest.next().ok_or_else(|| format!("{flag} needs a value"))?;
         let slot = match flag.as_str() {
             "--fixture" => &mut fixture,
@@ -140,9 +151,15 @@ fn parse_args(args: &[String]) -> Result<Request, String> {
             return Err(format!("{flag} is given twice"));
         }
     }
-    if dna_only && capture.is_some() { return Err("--dna-only and --capture cannot be combined".into()); }
-    if !dna_only && capture.is_none() { return Err("--capture is required (or --dna-only without Excel observations)".into()); }
-    if trusted_code_sha256.is_some() && trusted_code.is_none() { return Err("--trusted-code-sha256 needs --trusted-code".into()); }
+    if dna_only && capture.is_some() {
+        return Err("--dna-only and --capture cannot be combined".into());
+    }
+    if !dna_only && capture.is_none() {
+        return Err("--capture is required (or --dna-only without Excel observations)".into());
+    }
+    if trusted_code_sha256.is_some() && trusted_code.is_none() {
+        return Err("--trusted-code-sha256 needs --trusted-code".into());
+    }
     Ok(Request {
         fixture: PathBuf::from(fixture.ok_or("--fixture is required")?),
         capture: capture.map(PathBuf::from),
@@ -581,24 +598,31 @@ pub(crate) fn prepare_captured_vba(
     name: &str,
     capture: &CaptureRecord,
 ) -> Result<Option<(std::rc::Rc<calc_host_vba::WorkbookEvents>, bool)>, WorkbookFailure> {
-    if !host.loaded().has_vba_project() { return Ok(None); }
+    if !host.loaded().has_vba_project() {
+        return Ok(None);
+    }
     match capture_setting(capture, "automation_security") {
         Some("3") => return Ok(None),
         Some("1") => {}
-        _ => return Err(WorkbookFailure {
-            class: Class::Context,
-            key: "VbaPolicy:dc-snz.15".into(),
-            message: "the capture does not establish an enabled or disabled VBA project policy".into(),
-        }),
+        _ => {
+            return Err(WorkbookFailure {
+                class: Class::Context,
+                key: "VbaPolicy:dc-snz.15".into(),
+                message: "the capture does not establish an enabled or disabled VBA project policy"
+                    .into(),
+            });
+        }
     }
     let events = match capture_setting(capture, "enable_events") {
         Some("true") => true,
         Some("false") => false,
-        _ => return Err(WorkbookFailure {
-            class: Class::Context,
-            key: "VbaEventsPolicy:dc-hsa5.12".into(),
-            message: "the enabled-VBA capture does not establish its event policy".into(),
-        }),
+        _ => {
+            return Err(WorkbookFailure {
+                class: Class::Context,
+                key: "VbaEventsPolicy:dc-hsa5.12".into(),
+                message: "the enabled-VBA capture does not establish its event policy".into(),
+            });
+        }
     };
     calc_host_vba::prepare_file_project_with_events(host, name, 100_000, None, events)
         .map(|project| project.map(|project| (project, events)))
@@ -690,22 +714,51 @@ fn run_workbook(
     numeric: NumericMode,
     retain_matching: bool,
 ) -> Result<Run, Failure> {
-    run_workbook_with_code(fixture, name, fixture_path, capture, numeric, retain_matching, None, None, None)
+    run_workbook_with_code(
+        fixture,
+        name,
+        fixture_path,
+        capture,
+        numeric,
+        retain_matching,
+        None,
+        None,
+        None,
+    )
 }
 
 #[cfg(test)]
 fn run_workbook_with_saved(
-    fixture: &[u8], name: Option<&str>, fixture_path: Option<&Path>,
-    capture: &CaptureRecord, numeric: NumericMode, retain_matching: bool,
+    fixture: &[u8],
+    name: Option<&str>,
+    fixture_path: Option<&Path>,
+    capture: &CaptureRecord,
+    numeric: NumericMode,
+    retain_matching: bool,
     saved_origin: Option<&serde_json::Value>,
 ) -> Result<Run, Failure> {
-    run_workbook_with_code(fixture,name,fixture_path,capture,numeric,retain_matching,saved_origin,None,None)
+    run_workbook_with_code(
+        fixture,
+        name,
+        fixture_path,
+        capture,
+        numeric,
+        retain_matching,
+        saved_origin,
+        None,
+        None,
+    )
 }
 
 fn run_workbook_with_code(
-    fixture: &[u8], name: Option<&str>, fixture_path: Option<&Path>,
-    capture: &CaptureRecord, numeric: NumericMode, retain_matching: bool,
-    saved_origin: Option<&serde_json::Value>, trusted: Option<&crate::trusted_code::Manifest>,
+    fixture: &[u8],
+    name: Option<&str>,
+    fixture_path: Option<&Path>,
+    capture: &CaptureRecord,
+    numeric: NumericMode,
+    retain_matching: bool,
+    saved_origin: Option<&serde_json::Value>,
+    trusted: Option<&crate::trusted_code::Manifest>,
     capture_digest: Option<&str>,
 ) -> Result<Run, Failure> {
     // Native owners outlive every session/domain borrowing their callable adapters.
@@ -733,18 +786,29 @@ fn run_workbook_with_code(
             locale: capture_locale(capture),
         },
     );
-    let opened = opened.map_err(|failure| WorkbookFailure {
-        message: format!("HostState::open refused the package: {failure}"),
-        key: open_key(&failure), class: Class::Doc,
-    }).and_then(|host| {
-        if let Some(trusted) = trusted {
-            trusted.prepare(&host,name.unwrap_or("Book1"),capture,&sha256_hex(fixture),capture_digest,false)
-                .map(|code|(host,None,Some(code)))
-        } else {
-            prepare_captured_vba(&host, name.unwrap_or("Book1"), capture)
-                .map(|project| (host, project, None))
-        }
-    });
+    let opened = opened
+        .map_err(|failure| WorkbookFailure {
+            message: format!("HostState::open refused the package: {failure}"),
+            key: open_key(&failure),
+            class: Class::Doc,
+        })
+        .and_then(|host| {
+            if let Some(trusted) = trusted {
+                trusted
+                    .prepare(
+                        &host,
+                        name.unwrap_or("Book1"),
+                        capture,
+                        &sha256_hex(fixture),
+                        capture_digest,
+                        false,
+                    )
+                    .map(|code| (host, None, Some(code)))
+            } else {
+                prepare_captured_vba(&host, name.unwrap_or("Book1"), capture)
+                    .map(|project| (host, project, None))
+            }
+        });
     let open_time = started.elapsed();
     let (mut host, vba_project, trusted_owner) = match opened {
         Ok(host) => host,
@@ -834,10 +898,25 @@ fn run_workbook_with_code(
         project.install(&mut session);
         session.notify_workbook_open();
     }
-    if let Some(code) = &trusted_owner { code.install(&mut session); }
-    let root = domain.insert_session(session).expect("new calculation domain");
+    if let Some(code) = &trusted_owner {
+        code.install(&mut session);
+    }
+    let root = domain
+        .insert_session(session)
+        .expect("new calculation domain");
     let linked_inputs = fixture_path
-        .map(|path| crate::linked_workbooks::load(&mut domain, root, path, &options, capture, trusted, capture_digest, &mut linked_code))
+        .map(|path| {
+            crate::linked_workbooks::load(
+                &mut domain,
+                root,
+                path,
+                &options,
+                capture,
+                trusted,
+                capture_digest,
+                &mut linked_code,
+            )
+        })
         .unwrap_or_default();
     let mut workbook = match domain.request_calculation(&[root], true) {
         Err(error) => Some(WorkbookFailure {
@@ -861,10 +940,19 @@ fn run_workbook_with_code(
                 calc_host::DomainProgress::Advanced { .. } => {}
                 calc_host::DomainProgress::Waiting { .. } => {
                     if let Some(code) = &trusted_owner {
-                        match code.poll(&mut domain,root) {
+                        match code.poll(&mut domain, root) {
                             Ok(true) => continue,
-                            Err(error) => break Some(WorkbookFailure {class:Class::Engine,key:"XllReturn:dc-ztvv.13".into(),message:error}),
-                            Ok(false) if code.has_async(&domain,root) && started.elapsed() < Duration::from_secs(20) => {
+                            Err(error) => {
+                                break Some(WorkbookFailure {
+                                    class: Class::Engine,
+                                    key: "XllReturn:dc-ztvv.13".into(),
+                                    message: error,
+                                });
+                            }
+                            Ok(false)
+                                if code.has_async(&domain, root)
+                                    && started.elapsed() < Duration::from_secs(20) =>
+                            {
                                 std::thread::sleep(Duration::from_millis(2));
                                 continue;
                             }
@@ -889,12 +977,18 @@ fn run_workbook_with_code(
     };
     let ids = domain.workbook_ids().collect::<Vec<_>>();
     for id in ids {
-        let failures = domain.session(id).expect("loaded workbook").workbook_event_failures();
+        let failures = domain
+            .session(id)
+            .expect("loaded workbook")
+            .workbook_event_failures();
         if !failures.failures.is_empty() || failures.omitted > 0 {
             workbook.get_or_insert_with(|| WorkbookFailure {
                 class: Class::Engine,
                 key: "VbaEvent:dc-hsa5.12".into(),
-                message: format!("workbook VBA events failed: {:?}; omitted {}", failures.failures, failures.omitted),
+                message: format!(
+                    "workbook VBA events failed: {:?}; omitted {}",
+                    failures.failures, failures.omitted
+                ),
             });
         }
     }
@@ -942,8 +1036,8 @@ fn run_workbook_with_code(
             .expect("the projection returns one cell per requested cell");
         // A formula Excel's entry refuses, which the loader left without input (dc-mx3x): the
         // run's claim that Excel refuses it, judged against Excel's entry.
-        if let Some(calc_host::UnloadedCell::RejectedFormula { rule, .. }) = key
-            .and_then(|at| host.model().definitions().unloaded(at).cloned())
+        if let Some(calc_host::UnloadedCell::RejectedFormula { rule, .. }) =
+            key.and_then(|at| host.model().definitions().unloaded(at).cloned())
         {
             results.push(CellResult {
                 cell,
@@ -1068,14 +1162,24 @@ fn run_workbook_with_code(
     // Follow the existing application graph, including shape-only consumers,
     // so descendants are not blamed on ROWS/COLUMNS or on a valid calculation.
     let mut entry_failures = HashMap::new();
-    for failure in capture.session.iter().flat_map(|session|&session.failures)
-        .filter(|failure|failure.stage=="entry") {
-        let Some(root) = &failure.cell else { continue; };
-        let Some(at) = key_of(root) else { continue; };
+    for failure in capture
+        .session
+        .iter()
+        .flat_map(|session| &session.failures)
+        .filter(|failure| failure.stage == "entry")
+    {
+        let Some(root) = &failure.cell else {
+            continue;
+        };
+        let Some(at) = key_of(root) else {
+            continue;
+        };
         let mut pending = std::collections::VecDeque::from([at]);
         while let Some(at) = pending.pop_front() {
-            if entry_failures.contains_key(&at) { continue; }
-            entry_failures.insert(at,root.clone());
+            if entry_failures.contains_key(&at) {
+                continue;
+            }
+            entry_failures.insert(at, root.clone());
             pending.extend(host.dependents(at));
         }
     }
@@ -1120,10 +1224,15 @@ fn run_workbook_with_code(
         .collect();
     let revision = host.revision().get();
     Ok(Run {
-        saved_reference: saved_origin.map(|origin|
-            crate::compare_saved::reference(fixture, &host, capture, (!origin.is_null()).then_some(origin))
-                .unwrap_or_else(|reason|crate::compare_saved::unavailable(capture,&reason))
-        ),
+        saved_reference: saved_origin.map(|origin| {
+            crate::compare_saved::reference(
+                fixture,
+                &host,
+                capture,
+                (!origin.is_null()).then_some(origin),
+            )
+            .unwrap_or_else(|reason| crate::compare_saved::unavailable(capture, &reason))
+        }),
         source_caches,
         model,
         linked_inputs,
@@ -1173,46 +1282,73 @@ fn numeric_name(numeric: &NumericMode) -> String {
 /// prints the summary.
 fn compare(request: &Request) -> Result<(), Failure> {
     let fixture = read(&request.fixture, "fixture")?;
-    let trusted = request.trusted_code.as_ref().map(|path|
-        crate::trusted_code::Manifest::read(path,request.trusted_code_sha256.as_deref()).map_err(refused)).transpose()?;
+    let trusted = request
+        .trusted_code
+        .as_ref()
+        .map(|path| {
+            crate::trusted_code::Manifest::read(path, request.trusted_code_sha256.as_deref())
+                .map_err(refused)
+        })
+        .transpose()?;
     let mut capture_digest = None;
     let capture = if let Some(path) = &request.capture {
         let capture_bytes = read(path, "capture record")?;
         capture_digest = Some(sha256_hex(&capture_bytes));
         if let Some(missing) = MissingCapture::recognize(&capture_bytes) {
-            return Err(Failure { code: EXIT_MISSING_CAPTURE, message: format!("{}: {missing}", path.display()) });
+            return Err(Failure {
+                code: EXIT_MISSING_CAPTURE,
+                message: format!("{}: {missing}", path.display()),
+            });
         }
-        CaptureRecord::decode(&capture_bytes).map_err(|e|refused(format!("the capture record is refused: {e}")))?
+        CaptureRecord::decode(&capture_bytes)
+            .map_err(|e| refused(format!("the capture record is refused: {e}")))?
     } else {
-        let name = request.fixture.file_name().and_then(|name|name.to_str()).unwrap_or("workbook");
-        fs::create_dir_all(&request.out).map_err(|e|refused(e.to_string()))?;
+        let name = request
+            .fixture
+            .file_name()
+            .and_then(|name| name.to_str())
+            .unwrap_or("workbook");
+        fs::create_dir_all(&request.out).map_err(|e| refused(e.to_string()))?;
         let mut inventory = match crate::compare_inventory::source_record(&fixture, name) {
-            Ok(record)=>record,
-            Err(error)=>{
-                let failure=json!({"format":"dnacalc-source-inventory-failure","version":1,
+            Ok(record) => record,
+            Err(error) => {
+                let failure = json!({"format":"dnacalc-source-inventory-failure","version":1,
                     "source":format!("sha256:{}",sha256_hex(&fixture)),"key":error.key,"message":error.message});
-                write(&request.out.join("inventory-failure.json"),&serde_json::to_string_pretty(&failure).expect("failure serializes"))?;
-                return Err(refused(format!("source formula inventory (dc-ztvv): {error}")));
+                write(
+                    &request.out.join("inventory-failure.json"),
+                    &serde_json::to_string_pretty(&failure).expect("failure serializes"),
+                )?;
+                return Err(refused(format!(
+                    "source formula inventory (dc-ztvv): {error}"
+                )));
             }
         };
         if let Some(trusted) = &trusted {
             let policy = trusted.policy(&sha256_hex(&fixture));
             if let Some(environment) = &mut inventory.environment {
-                for (key,value) in &mut environment.settings {
+                for (key, value) in &mut environment.settings {
                     match key.as_str() {
                         "comparison_policy" => *value = "trusted-evidence-code-inventory".into(),
-                        "automation_security" => *value = if policy["vba"]==true {"1"} else {"3"}.into(),
-                        "enable_events" => *value = (policy["events"]==true).to_string(),
+                        "automation_security" => {
+                            *value = if policy["vba"] == true { "1" } else { "3" }.into()
+                        }
+                        "enable_events" => *value = (policy["events"] == true).to_string(),
                         _ => {}
                     }
                 }
             }
         }
-        write(&request.out.join("inventory.record.json"), &inventory.encode().map_err(|e|refused(e.to_string()))?)?;
+        write(
+            &request.out.join("inventory.record.json"),
+            &inventory.encode().map_err(|e| refused(e.to_string()))?,
+        )?;
         inventory
     };
     if request.inventory_only {
-        println!("xtask compare: source inventory only; {} formula cells; no evaluation or Excel observation",capture.formulas.len());
+        println!(
+            "xtask compare: source inventory only; {} formula cells; no evaluation or Excel observation",
+            capture.formulas.len()
+        );
         return Ok(());
     }
     let workbook_hash = sha256_hex(&fixture);
@@ -1261,14 +1397,25 @@ fn compare(request: &Request) -> Result<(), Failure> {
     .map_err(judge_failure)?;
 
     let name = request.fixture.file_name().and_then(|name| name.to_str());
-    let saved_provenance = request.saved_excel.as_ref().map(|path| {
-        let bytes = read(path, "Excel-save provenance")?;
-        let value: serde_json::Value = serde_json::from_slice(&bytes)
-            .map_err(|e|refused(e.to_string()))?;
-        if value["format"] != "dnacalc-excel-saved-provenance" || value["version"] != 1
-            || !value["packages"].is_object() { return Err(refused("invalid Excel-save provenance manifest".into())); }
-        Ok((value["packages"][sha256_hex(&fixture)].clone(),sha256_hex(&bytes)))
-    }).transpose()?;
+    let saved_provenance = request
+        .saved_excel
+        .as_ref()
+        .map(|path| {
+            let bytes = read(path, "Excel-save provenance")?;
+            let value: serde_json::Value =
+                serde_json::from_slice(&bytes).map_err(|e| refused(e.to_string()))?;
+            if value["format"] != "dnacalc-excel-saved-provenance"
+                || value["version"] != 1
+                || !value["packages"].is_object()
+            {
+                return Err(refused("invalid Excel-save provenance manifest".into()));
+            }
+            Ok((
+                value["packages"][sha256_hex(&fixture)].clone(),
+                sha256_hex(&bytes),
+            ))
+        })
+        .transpose()?;
     let mut run = run_workbook_with_code(
         &fixture,
         name,
@@ -1276,8 +1423,9 @@ fn compare(request: &Request) -> Result<(), Failure> {
         &capture,
         numeric.clone(),
         request.minimize,
-        saved_provenance.as_ref().map(|(origin,_)|origin),
-        trusted.as_ref(), capture_digest.as_deref(),
+        saved_provenance.as_ref().map(|(origin, _)| origin),
+        trusted.as_ref(),
+        capture_digest.as_deref(),
     )?;
     let started = Instant::now();
     let report = judge(&capture, &run.results, &run.record, &policy).map_err(judge_failure)?;
@@ -1322,76 +1470,150 @@ fn compare(request: &Request) -> Result<(), Failure> {
         &request.out.join("linked-inputs.json"),
         &serde_json::to_string_pretty(&run.linked_inputs).expect("input records serialize"),
     )?;
-    write(&request.out.join("source-caches.json"),
-        &serde_json::to_string_pretty(&run.source_caches).expect("source caches serialize"))?;
-    let mut triage_json: serde_json::Value = serde_json::from_str(&triage.encode(&report, run_member))
-        .map_err(|e|refused(format!("cannot encode triage: {e}")))?;
-    let source_classes: HashMap<_, _> = run.source_caches["cells"].as_array().into_iter().flatten()
-        .map(|cell| ((cell["sheet"].as_str().unwrap_or(""),cell["row"].as_u64(),cell["column"].as_u64()), &cell["class"]))
+    write(
+        &request.out.join("source-caches.json"),
+        &serde_json::to_string_pretty(&run.source_caches).expect("source caches serialize"),
+    )?;
+    let mut triage_json: serde_json::Value =
+        serde_json::from_str(&triage.encode(&report, run_member))
+            .map_err(|e| refused(format!("cannot encode triage: {e}")))?;
+    let source_classes: HashMap<_, _> = run.source_caches["cells"]
+        .as_array()
+        .into_iter()
+        .flatten()
+        .map(|cell| {
+            (
+                (
+                    cell["sheet"].as_str().unwrap_or(""),
+                    cell["row"].as_u64(),
+                    cell["column"].as_u64(),
+                ),
+                &cell["class"],
+            )
+        })
         .collect();
     if let Some(cells) = triage_json["cells"].as_array_mut() {
         for cell in cells {
-            let key = (cell["sheet"].as_str().unwrap_or(""),cell["row"].as_u64(),cell["column"].as_u64());
-            if let Some(class) = source_classes.get(&key) { cell["source_cache"] = (*class).clone(); }
+            let key = (
+                cell["sheet"].as_str().unwrap_or(""),
+                cell["row"].as_u64(),
+                cell["column"].as_u64(),
+            );
+            if let Some(class) = source_classes.get(&key) {
+                cell["source_cache"] = (*class).clone();
+            }
         }
     }
     triage_json["source_cache_counts"] = run.source_caches["counts"].clone();
-    triage_json["trusted_code_sha256"] = json!(trusted.as_ref().map(|manifest|&manifest.digest));
-    triage_json["execution_policy"] = trusted.as_ref().map(|manifest|manifest.policy(&workbook_hash))
-        .unwrap_or_else(||json!({"route":"captured-policy-or-disabled-inventory"}));
-    triage_json["saved_excel_provenance_sha256"] = json!(saved_provenance.as_ref().map(|(_,digest)|digest));
+    triage_json["trusted_code_sha256"] = json!(trusted.as_ref().map(|manifest| &manifest.digest));
+    triage_json["execution_policy"] = trusted
+        .as_ref()
+        .map(|manifest| manifest.policy(&workbook_hash))
+        .unwrap_or_else(|| json!({"route":"captured-policy-or-disabled-inventory"}));
+    triage_json["saved_excel_provenance_sha256"] =
+        json!(saved_provenance.as_ref().map(|(_, digest)| digest));
     if request.saved_excel.is_some() {
         let mut saved_counts = json!({"reference_cells":0,"matched":0,"mismatched":0,"refused":0,"failed_or_missing":capture.formulas.len(),"external_links":0,"circular_rule":0});
         let fallback = {
             let mut reference = capture.clone();
             reference.acquisition = calc_verdict::Acquisition::FileCacheReplay;
             reference.observations.clear();
-            (reference,json!({"unavailable":"workbook admission failed"}))
+            (
+                reference,
+                json!({"unavailable":"workbook admission failed"}),
+            )
         };
         let (reference, info) = run.saved_reference.as_ref().unwrap_or(&fallback);
         let mut metadata = info.clone();
         {
-            let saved_report = judge(reference, &run.results, &run.record, &policy).map_err(judge_failure)?;
-            let mut counts = BTreeMap::<String,u64>::new();
-            let referenced: std::collections::BTreeSet<_> = reference.observations.iter().map(|o|&o.cell).collect();
+            let saved_report =
+                judge(reference, &run.results, &run.record, &policy).map_err(judge_failure)?;
+            let mut counts = BTreeMap::<String, u64>::new();
+            let referenced: std::collections::BTreeSet<_> =
+                reference.observations.iter().map(|o| &o.cell).collect();
             for cell in &saved_report.cells {
-                let bucket = if !referenced.contains(&cell.formula.cell) { "failed_or_missing" }
-                    else if cell.circular_rule { "circular_rule" }
-                    else if cell.external_links { "external_links" }
-                    else { match &cell.verdict {
-                        calc_verdict::Verdict::Matched {..} => "matched",
-                        calc_verdict::Verdict::Mismatched {..} => "mismatched",
-                        calc_verdict::Verdict::NotModeled {..} => "refused",
+                let bucket = if !referenced.contains(&cell.formula.cell) {
+                    "failed_or_missing"
+                } else if cell.circular_rule {
+                    "circular_rule"
+                } else if cell.external_links {
+                    "external_links"
+                } else {
+                    match &cell.verdict {
+                        calc_verdict::Verdict::Matched { .. } => "matched",
+                        calc_verdict::Verdict::Mismatched { .. } => "mismatched",
+                        calc_verdict::Verdict::NotModeled { .. } => "refused",
                         _ => "failed_or_missing",
-                    }};
+                    }
+                };
                 *counts.entry(bucket.into()).or_default() += 1;
             }
-            for key in ["matched","mismatched","refused","failed_or_missing","external_links","circular_rule"] {
+            for key in [
+                "matched",
+                "mismatched",
+                "refused",
+                "failed_or_missing",
+                "external_links",
+                "circular_rule",
+            ] {
                 saved_counts[key] = json!(counts.get(key).copied().unwrap_or(0));
             }
             saved_counts["reference_cells"] = json!(reference.observations.len());
-            write(&request.out.join("saved-excel.record.json"), &reference.encode().map_err(|e|refused(e.to_string()))?)?;
-            write(&request.out.join("saved-excel.report.json"), &saved_report.encode())?;
+            write(
+                &request.out.join("saved-excel.record.json"),
+                &reference.encode().map_err(|e| refused(e.to_string()))?,
+            )?;
+            write(
+                &request.out.join("saved-excel.report.json"),
+                &saved_report.encode(),
+            )?;
         }
         metadata["counts"] = saved_counts.clone();
-        write(&request.out.join("saved-excel.json"), &serde_json::to_string_pretty(&metadata).expect("metadata serializes"))?;
+        write(
+            &request.out.join("saved-excel.json"),
+            &serde_json::to_string_pretty(&metadata).expect("metadata serializes"),
+        )?;
         triage_json["saved_excel_counts"] = saved_counts;
     }
-    write(&request.out.join("triage.json"), &serde_json::to_string_pretty(&triage_json).expect("triage serializes"))?;
+    write(
+        &request.out.join("triage.json"),
+        &serde_json::to_string_pretty(&triage_json).expect("triage serializes"),
+    )?;
     if request.minimize {
-        crate::compare_minimize::write_cases(&request.out, &capture, &report, &run.retained, run.model.as_deref(), &numeric)
-            .map_err(refused)?;
+        crate::compare_minimize::write_cases(
+            &request.out,
+            &capture,
+            &report,
+            &run.retained,
+            run.model.as_deref(),
+            &numeric,
+        )
+        .map_err(refused)?;
     }
 
-    let compared=crate::corpus_summary::read_triage(&triage_json).map_err(refused)?;
-    let summary=json!({"format":"dnacalc-comparison-summary","version":1,"source":capture.source,
+    let compared = crate::corpus_summary::read_triage(&triage_json).map_err(refused)?;
+    let summary = json!({"format":"dnacalc-comparison-summary","version":1,"source":capture.source,
         "rule":"pass requires a calculated value equal to live Excel; every other inventoried formula fails",
         "counts":compared.counts.json(),"evaluation_records":run.record.evaluations.len()});
-    write(&request.out.join("summary.json"),&serde_json::to_string_pretty(&summary).expect("summary serializes"))?;
-    let counts=&compared.counts;
-    println!("xtask compare: {}: formula cells {}; matched {}; fail {} (mismatched {}, refused {}, failed or missing {}, external caches {}, held caches {}, awaiting capture {}); pass rate {}",
-        report.case,counts.formula_cells,counts.pass,counts.fail(),counts.mismatched,counts.refused,counts.failed_or_missing,
-        counts.external_links,counts.circular_rule,counts.awaiting_capture,crate::corpus_summary::rate(counts.pass,counts.formula_cells));
+    write(
+        &request.out.join("summary.json"),
+        &serde_json::to_string_pretty(&summary).expect("summary serializes"),
+    )?;
+    let counts = &compared.counts;
+    println!(
+        "xtask compare: {}: formula cells {}; matched {}; fail {} (mismatched {}, refused {}, failed or missing {}, external caches {}, held caches {}, awaiting capture {}); pass rate {}",
+        report.case,
+        counts.formula_cells,
+        counts.pass,
+        counts.fail(),
+        counts.mismatched,
+        counts.refused,
+        counts.failed_or_missing,
+        counts.external_links,
+        counts.circular_rule,
+        counts.awaiting_capture,
+        crate::corpus_summary::rate(counts.pass, counts.formula_cells)
+    );
     let c = &report.counts;
     if c.external_links > 0 {
         println!(
@@ -1476,59 +1698,133 @@ mod tests {
     fn minimisation_retains_matching_producer_reads_without_changing_results() {
         let mut book = calc_host::HostSession::open(
             std::sync::Arc::new(calc_host::MemorySource::new(calc_host::blank_package())),
-            &calc_host::OpenPolicy::default(), calc_host::HostOptions::default(),
-        ).unwrap();
+            &calc_host::OpenPolicy::default(),
+            calc_host::HostOptions::default(),
+        )
+        .unwrap();
         let sheet = book.host().sheets()[0].id();
         for (column, text) in [(1, "1"), (2, "=A1+1")] {
-            assert!(book.dispatch(calc_host::SkinIntent::EnterCell {
-                at: calc_host::value::CellKey::new(sheet, 1, column).unwrap(), text: text.into(),
-            }).accepted());
+            assert!(
+                book.dispatch(calc_host::SkinIntent::EnterCell {
+                    at: calc_host::value::CellKey::new(sheet, 1, column).unwrap(),
+                    text: text.into(),
+                })
+                .accepted()
+            );
         }
-        while book.has_pending_calculation() { book.advance_calculation(); }
+        while book.has_pending_calculation() {
+            book.advance_calculation();
+        }
         let mut fixture = Vec::new();
         calc_host::save(book.host(), &calc_host::SavePolicy::default(), &mut fixture).unwrap();
-        let capture = crate::compare_inventory::source_record(&fixture, "matching-producer-control").unwrap();
-        let ordinary = super::run_workbook(&fixture, None, None, &capture, calc_host::value::NumericMode::Fast, false).unwrap();
-        let minimising = super::run_workbook(&fixture, None, None, &capture, calc_host::value::NumericMode::Fast, true).unwrap();
+        let capture =
+            crate::compare_inventory::source_record(&fixture, "matching-producer-control").unwrap();
+        let ordinary = super::run_workbook(
+            &fixture,
+            None,
+            None,
+            &capture,
+            calc_host::value::NumericMode::Fast,
+            false,
+        )
+        .unwrap();
+        let minimising = super::run_workbook(
+            &fixture,
+            None,
+            None,
+            &capture,
+            calc_host::value::NumericMode::Fast,
+            true,
+        )
+        .unwrap();
         assert!(ordinary.retained.is_empty());
         let retained = minimising.retained.values().next().unwrap();
         assert!(!retained.reads.is_empty());
         assert!(!retained.precedents.is_empty());
         assert_eq!(ordinary.results, minimising.results);
-        assert_eq!(ordinary.record.encode().unwrap(), minimising.record.encode().unwrap());
+        assert_eq!(
+            ordinary.record.encode().unwrap(),
+            minimising.record.encode().unwrap()
+        );
     }
 
     use super::*;
 
     #[test]
     fn dna_only_macro_disabled_run_calculates_chains_and_keeps_saved_reference_separate() {
-        let bytes = include_bytes!("../../../crates/calc-engine/tests/fixtures/excel-calc-probes/P08/observer-cold-off-01.xlsm");
-        let capture = crate::compare_inventory::source_record(bytes, "observer-cold-off-01.xlsm").unwrap();
-        assert_eq!(capture_setting(&capture,"comparison_policy"),Some("opened-with-macros-disabled"));
+        let bytes = include_bytes!(
+            "../../../crates/calc-engine/tests/fixtures/excel-calc-probes/P08/observer-cold-off-01.xlsm"
+        );
+        let capture =
+            crate::compare_inventory::source_record(bytes, "observer-cold-off-01.xlsm").unwrap();
+        assert_eq!(
+            capture_setting(&capture, "comparison_policy"),
+            Some("opened-with-macros-disabled")
+        );
         let origin = json!({"application":"Microsoft Excel","app_version":"16.0300",
             "file_version":{"appName":"xl","lastEdited":"7","lowestEdited":"7","rupBuild":"30527","codeName":"{82680DD9-3F13-7979-5B5F-3D2375947C00}"},
             "evidence":{"record":"P08/saved-caches.json"}});
-        let run = run_workbook_with_saved(bytes,Some("observer-cold-off-01.xlsm"),None,&capture,NumericMode::Fast,false,Some(&origin)).unwrap();
+        let run = run_workbook_with_saved(
+            bytes,
+            Some("observer-cold-off-01.xlsm"),
+            None,
+            &capture,
+            NumericMode::Fast,
+            false,
+            Some(&origin),
+        )
+        .unwrap();
         assert!(run.workbook.is_none());
-        let live = judge(&capture,&run.results,&run.record,&VerdictPolicy::default()).unwrap();
-        assert_eq!(live.counts.denominator,2003);
-        assert_eq!(live.counts.matched,0);
-        let (saved,_) = run.saved_reference.as_ref().unwrap();
-        let report = judge(saved,&run.results,&run.record,&VerdictPolicy::default()).unwrap();
-        assert_eq!(report.counts.matched,2000);
-        assert_eq!(report.counts.not_modeled,3);
-        assert_eq!(report.counts.strict_certified,0);
-        assert!(saved.observations.iter().all(|o|matches!(o.observation,Observation::ExcelSavedCache(_))));
-        let host = HostState::open(Arc::new(MemorySource::new(bytes.to_vec())),&OpenPolicy::default(),HostOptions::default()).unwrap();
-        assert!(crate::compare_saved::reference(bytes,&host,&capture,None).unwrap().0.observations.is_empty());
-        let mut wrong = origin.clone(); wrong["app_version"] = json!("wrong");
-        assert!(crate::compare_saved::reference(bytes,&host,&capture,Some(&wrong)).unwrap().0.observations.is_empty());
+        let live = judge(
+            &capture,
+            &run.results,
+            &run.record,
+            &VerdictPolicy::default(),
+        )
+        .unwrap();
+        assert_eq!(live.counts.denominator, 2003);
+        assert_eq!(live.counts.matched, 0);
+        let (saved, _) = run.saved_reference.as_ref().unwrap();
+        let report = judge(saved, &run.results, &run.record, &VerdictPolicy::default()).unwrap();
+        assert_eq!(report.counts.matched, 2000);
+        assert_eq!(report.counts.not_modeled, 3);
+        assert_eq!(report.counts.strict_certified, 0);
+        assert!(
+            saved
+                .observations
+                .iter()
+                .all(|o| matches!(o.observation, Observation::ExcelSavedCache(_)))
+        );
+        let host = HostState::open(
+            Arc::new(MemorySource::new(bytes.to_vec())),
+            &OpenPolicy::default(),
+            HostOptions::default(),
+        )
+        .unwrap();
+        assert!(
+            crate::compare_saved::reference(bytes, &host, &capture, None)
+                .unwrap()
+                .0
+                .observations
+                .is_empty()
+        );
+        let mut wrong = origin.clone();
+        wrong["app_version"] = json!("wrong");
+        assert!(
+            crate::compare_saved::reference(bytes, &host, &capture, Some(&wrong))
+                .unwrap()
+                .0
+                .observations
+                .is_empty()
+        );
     }
 
     #[test]
     fn saved_reference_excludes_volatile_names_lazy_calls_dirty_readers_and_spill_children() {
         // Authored control of the reader's exclusions, not new Excel evidence.
-        let base = include_bytes!("../../../crates/calc-engine/tests/fixtures/excel-calc-probes/P08/observer-cold-off-01.xlsm");
+        let base = include_bytes!(
+            "../../../crates/calc-engine/tests/fixtures/excel-calc-probes/P08/observer-cold-off-01.xlsm"
+        );
         let parts = crate::oracle_cases::package_parts(base).unwrap();
         let workbook = String::from_utf8(parts["xl/workbook.xml"].clone()).unwrap()
             .replace("<calcPr", "<definedNames><definedName name=\"Pulse\">RAND()</definedName></definedNames><calcPr");
@@ -1541,141 +1837,363 @@ mod tests {
             <c r="J1" cm="1"><f t="array" ref="J1:J2">_xlfn.SEQUENCE(2,1,RAND())</f><v>0.5</v></c>
             <c r="K1"><f>J2+1</f><v>2.5</v></c></row><row r="2"><c r="J2"><v>1.5</v></c></row>
             </sheetData></worksheet>"#;
-        let bytes = crate::oracle_cases::replace_package_parts(base,&BTreeMap::from([
-            ("xl/workbook.xml".into(),workbook.into_bytes()),("xl/worksheets/sheet1.xml".into(),sheet.to_vec())
-        ])).unwrap();
-        let capture = crate::compare_inventory::source_record(&bytes,"authored-reader-control.xlsm").unwrap();
+        let bytes = crate::oracle_cases::replace_package_parts(
+            base,
+            &BTreeMap::from([
+                ("xl/workbook.xml".into(), workbook.into_bytes()),
+                ("xl/worksheets/sheet1.xml".into(), sheet.to_vec()),
+            ]),
+        )
+        .unwrap();
+        let capture =
+            crate::compare_inventory::source_record(&bytes, "authored-reader-control.xlsm")
+                .unwrap();
         let origin = json!({"application":"Microsoft Excel","app_version":"16.0300",
             "file_version":{"appName":"xl","lastEdited":"7","lowestEdited":"7","rupBuild":"30527","codeName":"{82680DD9-3F13-7979-5B5F-3D2375947C00}"},"evidence":{"control":"authored test, not Excel provenance"}});
-        let run = run_workbook_with_saved(&bytes,None,None,&capture,NumericMode::Fast,false,Some(&origin)).unwrap();
+        let run = run_workbook_with_saved(
+            &bytes,
+            None,
+            None,
+            &capture,
+            NumericMode::Fast,
+            false,
+            Some(&origin),
+        )
+        .unwrap();
         assert!(run.workbook.is_none());
-        let (reference,_) = run.saved_reference.unwrap();
-        assert_eq!(reference.observations.iter().map(|o|o.cell.a1()).collect::<Vec<_>>(),["E1"]);
-        let report = judge(&reference,&run.results,&run.record,&VerdictPolicy::default()).unwrap();
-        assert_eq!(report.counts.matched,1);
+        let (reference, _) = run.saved_reference.unwrap();
+        assert_eq!(
+            reference
+                .observations
+                .iter()
+                .map(|o| o.cell.a1())
+                .collect::<Vec<_>>(),
+            ["E1"]
+        );
+        let report = judge(
+            &reference,
+            &run.results,
+            &run.record,
+            &VerdictPolicy::default(),
+        )
+        .unwrap();
+        assert_eq!(report.counts.matched, 1);
     }
 
     #[test]
     fn unavailable_saved_xml_metadata_preserves_the_application_results() {
         let bytes = include_bytes!("../../../crates/calc-doc/tests/fixtures/dc_5sr/features.xlsb");
-        let capture = crate::compare_inventory::source_record(bytes,"features.xlsb").unwrap();
-        let ordinary = run_workbook(bytes,None,None,&capture,NumericMode::Fast,false).unwrap();
-        let optional = run_workbook_with_saved(bytes,None,None,&capture,NumericMode::Fast,false,Some(&json!({}))).unwrap();
+        let capture = crate::compare_inventory::source_record(bytes, "features.xlsb").unwrap();
+        let ordinary = run_workbook(bytes, None, None, &capture, NumericMode::Fast, false).unwrap();
+        let optional = run_workbook_with_saved(
+            bytes,
+            None,
+            None,
+            &capture,
+            NumericMode::Fast,
+            false,
+            Some(&json!({})),
+        )
+        .unwrap();
         assert!(optional.workbook.is_none());
-        assert_eq!(optional.results,ordinary.results);
-        assert_eq!(optional.record.encode().unwrap(),ordinary.record.encode().unwrap());
-        let (reference,info) = optional.saved_reference.unwrap();
+        assert_eq!(optional.results, ordinary.results);
+        assert_eq!(
+            optional.record.encode().unwrap(),
+            ordinary.record.encode().unwrap()
+        );
+        let (reference, info) = optional.saved_reference.unwrap();
         assert!(reference.observations.is_empty());
         assert!(info["unavailable"].is_string());
     }
 
     #[test]
     fn one_cell_array_proof_follows_the_retained_host_publication() {
-        let bytes = include_bytes!("../../../crates/calc-func/tests/fixtures/fn2_questions/oracle.xlsx");
-        let capture = CaptureRecord::decode(include_bytes!("../../../crates/calc-func/tests/captures/fn2_questions/oracle.capture.json")).unwrap();
-        let run = run_workbook(bytes,Some("oracle.xlsx"),None,&capture,NumericMode::Fast,false).unwrap();
-        let report = judge(&capture,&run.results,&run.record,&VerdictPolicy::default()).unwrap();
-        assert_eq!(report.evaluation_record_version,2);
+        let bytes =
+            include_bytes!("../../../crates/calc-func/tests/fixtures/fn2_questions/oracle.xlsx");
+        let capture = CaptureRecord::decode(include_bytes!(
+            "../../../crates/calc-func/tests/captures/fn2_questions/oracle.capture.json"
+        ))
+        .unwrap();
+        let run = run_workbook(
+            bytes,
+            Some("oracle.xlsx"),
+            None,
+            &capture,
+            NumericMode::Fast,
+            false,
+        )
+        .unwrap();
+        let report = judge(
+            &capture,
+            &run.results,
+            &run.record,
+            &VerdictPolicy::default(),
+        )
+        .unwrap();
+        assert_eq!(report.evaluation_record_version, 2);
         let mut checked = 0;
         for cell in &report.cells {
-            if !["fn2_q013","fn2_q014"].contains(&cell.formula.cell.sheet()) { continue; }
-            let evaluated = run.record.evaluations.iter().find(|e|e.evaluation.cell==cell.formula.cell).unwrap();
+            if !["fn2_q013", "fn2_q014"].contains(&cell.formula.cell.sheet()) {
+                continue;
+            }
+            let evaluated = run
+                .record
+                .evaluations
+                .iter()
+                .find(|e| e.evaluation.cell == cell.formula.cell)
+                .unwrap();
             let array = evaluated.returned.as_ref().unwrap().as_array().unwrap();
-            assert_eq!(array.cell_count(),1);
-            let published = run.results.results.iter().find(|r|r.cell==cell.formula.cell).unwrap().value.as_ref().unwrap();
+            assert_eq!(array.cell_count(), 1);
+            let published = run
+                .results
+                .results
+                .iter()
+                .find(|r| r.cell == cell.formula.cell)
+                .unwrap()
+                .value
+                .as_ref()
+                .unwrap();
             assert!(published.as_array().is_none());
-            assert_eq!(array.get(0,0),Some(published));
-            assert!(matches!(cell.verdict,calc_verdict::Verdict::Matched {..}));
-            checked+=1;
+            assert_eq!(array.get(0, 0), Some(published));
+            assert!(matches!(
+                cell.verdict,
+                calc_verdict::Verdict::Matched { .. }
+            ));
+            checked += 1;
         }
-        assert_eq!(checked,2);
+        assert_eq!(checked, 2);
     }
 
     #[test]
     fn refused_excel_entries_are_agreed_rejections_and_their_observers_read_a_blank() {
-        let bytes = include_bytes!("../../../crates/calc-func/tests/fixtures/fn2_questions/oracle.xlsx");
-        let capture = CaptureRecord::decode(include_bytes!("../../../crates/calc-func/tests/captures/fn2_questions/oracle.capture.json")).unwrap();
-        let run = run_workbook(bytes,Some("oracle.xlsx"),None,&capture,NumericMode::Fast,false).unwrap();
-        let report = judge(&capture,&run.results,&run.record,&VerdictPolicy::default()).unwrap();
+        let bytes =
+            include_bytes!("../../../crates/calc-func/tests/fixtures/fn2_questions/oracle.xlsx");
+        let capture = CaptureRecord::decode(include_bytes!(
+            "../../../crates/calc-func/tests/captures/fn2_questions/oracle.capture.json"
+        ))
+        .unwrap();
+        let run = run_workbook(
+            bytes,
+            Some("oracle.xlsx"),
+            None,
+            &capture,
+            NumericMode::Fast,
+            false,
+        )
+        .unwrap();
+        let report = judge(
+            &capture,
+            &run.results,
+            &run.record,
+            &VerdictPolicy::default(),
+        )
+        .unwrap();
         // dc-mx3x: Excel refused each of these entries and so does the run; the loader leaves each
         // without input, as Excel's cell holds nothing, so the observers, which Excel took, read a
         // blank cell and match Excel's values and spill shapes.
-        let sources = ["fn2_q123","fn2_q124","fn2_q125","fn2_q184","fn2_q185","fn2_q196","fn2_q197"];
+        let sources = [
+            "fn2_q123", "fn2_q124", "fn2_q125", "fn2_q184", "fn2_q185", "fn2_q196", "fn2_q197",
+        ];
         let mut checked = (0, 0);
         for cell in &report.cells {
             let sheet = cell.formula.cell.sheet();
             if sources.contains(&sheet) {
-                assert!(matches!(cell.verdict,calc_verdict::Verdict::AgreedRejection {..}),"{sheet}: {:?}",cell.verdict);
+                assert!(
+                    matches!(cell.verdict, calc_verdict::Verdict::AgreedRejection { .. }),
+                    "{sheet}: {:?}",
+                    cell.verdict
+                );
                 checked.0 += 1;
-            } else if sources.contains(&sheet.replace("_o","_q").as_str()) {
-                assert!(matches!(cell.verdict,calc_verdict::Verdict::Matched {..}),"{sheet}: {:?}",cell.verdict);
+            } else if sources.contains(&sheet.replace("_o", "_q").as_str()) {
+                assert!(
+                    matches!(cell.verdict, calc_verdict::Verdict::Matched { .. }),
+                    "{sheet}: {:?}",
+                    cell.verdict
+                );
                 checked.1 += 1;
             }
         }
-        assert_eq!(checked,(7,21));
-        assert_eq!(report.counts.agreed_rejection,7);
+        assert_eq!(checked, (7, 21));
+        assert_eq!(report.counts.agreed_rejection, 7);
     }
 
     #[test]
     fn trusted_file_project_uses_the_application_route_without_inventing_observations() {
-        let bytes = include_bytes!("../../../crates/calc-doc/tests/fixtures/vba_udf_names/local.xlsm");
-        let dir = std::env::temp_dir().join(format!("xtask-trusted-code-{}",std::process::id()));
+        let bytes =
+            include_bytes!("../../../crates/calc-doc/tests/fixtures/vba_udf_names/local.xlsm");
+        let dir = std::env::temp_dir().join(format!("xtask-trusted-code-{}", std::process::id()));
         fs::create_dir_all(&dir).unwrap();
-        let fixture = dir.join("local.xlsm"); fs::write(&fixture,bytes).unwrap();
+        let fixture = dir.join("local.xlsm");
+        fs::write(&fixture, bytes).unwrap();
         let manifest = dir.join("trusted.json");
         fs::write(&manifest,serde_json::to_vec(&json!({"format":"dnacalc-trusted-evidence-code","version":1,
             "workbooks":{sha256_hex(bytes):{"vba":true,"events":false,"xlls":[],"evidence":"authored test control"}}})).unwrap()).unwrap();
-        let trusted = crate::trusted_code::Manifest::read(&manifest,None).unwrap();
-        let mut capture = crate::compare_inventory::source_record(bytes,"local.xlsm").unwrap();
-        let disabled = run_workbook(bytes,Some("local.xlsm"),None,&capture,NumericMode::Fast,false).unwrap();
-        let enabled = run_workbook_with_code(bytes,Some("local.xlsm"),None,&capture,NumericMode::Fast,false,None,Some(&trusted),None).unwrap();
+        let trusted = crate::trusted_code::Manifest::read(&manifest, None).unwrap();
+        let mut capture = crate::compare_inventory::source_record(bytes, "local.xlsm").unwrap();
+        let disabled = run_workbook(
+            bytes,
+            Some("local.xlsm"),
+            None,
+            &capture,
+            NumericMode::Fast,
+            false,
+        )
+        .unwrap();
+        let enabled = run_workbook_with_code(
+            bytes,
+            Some("local.xlsm"),
+            None,
+            &capture,
+            NumericMode::Fast,
+            false,
+            None,
+            Some(&trusted),
+            None,
+        )
+        .unwrap();
         assert!(enabled.workbook.is_none());
-        let b1 = |run: &Run|run.results.results.iter().find(|r|r.cell.sheet()=="Cases" && r.cell.a1()=="B1").unwrap().clone();
-        assert!(matches!(b1(&disabled).provenance,Provenance::NotModeled {..}));
-        assert_eq!(b1(&enabled).value.unwrap().as_number(),Some(102.));
-        let report = judge(&capture,&enabled.results,&enabled.record,&VerdictPolicy::default()).unwrap();
-        assert_eq!(report.counts.matched,0); assert!(report.counts.calculated>0);
-        compare(&Request {fixture,capture:None,saved_excel:None,trusted_code:Some(manifest.clone()),
-            trusted_code_sha256:Some(trusted.digest.clone()),minimize:false,inventory_only:false,out:dir.join("out"),target:None}).unwrap();
-        let triage:serde_json::Value=serde_json::from_slice(&fs::read(dir.join("out/triage.json")).unwrap()).unwrap();
-        assert_eq!(triage["trusted_code_sha256"],trusted.digest);
-        assert_eq!(triage["execution_policy"]["vba"],true);
+        let b1 = |run: &Run| {
+            run.results
+                .results
+                .iter()
+                .find(|r| r.cell.sheet() == "Cases" && r.cell.a1() == "B1")
+                .unwrap()
+                .clone()
+        };
+        assert!(matches!(
+            b1(&disabled).provenance,
+            Provenance::NotModeled { .. }
+        ));
+        assert_eq!(b1(&enabled).value.unwrap().as_number(), Some(102.));
+        let report = judge(
+            &capture,
+            &enabled.results,
+            &enabled.record,
+            &VerdictPolicy::default(),
+        )
+        .unwrap();
+        assert_eq!(report.counts.matched, 0);
+        assert!(report.counts.calculated > 0);
+        compare(&Request {
+            fixture,
+            capture: None,
+            saved_excel: None,
+            trusted_code: Some(manifest.clone()),
+            trusted_code_sha256: Some(trusted.digest.clone()),
+            minimize: false,
+            inventory_only: false,
+            out: dir.join("out"),
+            target: None,
+        })
+        .unwrap();
+        let triage: serde_json::Value =
+            serde_json::from_slice(&fs::read(dir.join("out/triage.json")).unwrap()).unwrap();
+        assert_eq!(triage["trusted_code_sha256"], trusted.digest);
+        assert_eq!(triage["execution_policy"]["vba"], true);
         // Synthetic policy guard: this is not a new Excel observation or a scored pass.
-        capture.observations.push(calc_verdict::CellObservation {cell:capture.formulas[0].cell.clone(),observation:Observation::ExcelRaw(CalcValue::number(102.))});
-        let blocked = run_workbook_with_code(bytes,None,None,&capture,NumericMode::Fast,false,None,Some(&trusted),None).unwrap();
-        assert_eq!(blocked.workbook.unwrap().key,"TrustedCodePolicy:dc-ztvv.13");
+        capture.observations.push(calc_verdict::CellObservation {
+            cell: capture.formulas[0].cell.clone(),
+            observation: Observation::ExcelRaw(CalcValue::number(102.)),
+        });
+        let blocked = run_workbook_with_code(
+            bytes,
+            None,
+            None,
+            &capture,
+            NumericMode::Fast,
+            false,
+            None,
+            Some(&trusted),
+            None,
+        )
+        .unwrap();
+        assert_eq!(
+            blocked.workbook.unwrap().key,
+            "TrustedCodePolicy:dc-ztvv.13"
+        );
         assert!(blocked.record.evaluations.is_empty());
-        assert!(crate::trusted_code::Manifest::read(&manifest,Some(&"0".repeat(64))).is_err());
+        assert!(crate::trusted_code::Manifest::read(&manifest, Some(&"0".repeat(64))).is_err());
     }
 
     #[test]
     fn captured_macro_policy_controls_file_execution_and_event_admission() {
-        let bytes = include_bytes!("../../../crates/calc-doc/tests/fixtures/vba_udf_names/local.xlsm");
+        let bytes =
+            include_bytes!("../../../crates/calc-doc/tests/fixtures/vba_udf_names/local.xlsm");
         let mut capture = CaptureRecord::decode(br#"{"format":"dnacalc-capture-record","version":1,"case":"vba-policy-control","source":"sha256:00","acquisition":{"kind":"file_cache_replay"},"environment":null,"sheets":[{"name":"Cases","visibility":"visible"}],"formulas":[{"sheet":"Cases","row":1,"column":2,"kind":"ordinary"}],"observations":[]}"#).unwrap();
-        let unknown = run_workbook(bytes, Some("local.xlsm"), None, &capture, NumericMode::Fast, false).unwrap();
+        let unknown = run_workbook(
+            bytes,
+            Some("local.xlsm"),
+            None,
+            &capture,
+            NumericMode::Fast,
+            false,
+        )
+        .unwrap();
         assert_eq!(unknown.workbook.as_ref().unwrap().class, Class::Context);
         assert!(unknown.record.evaluations.is_empty());
         capture.environment = Some(calc_verdict::ExcelEnvironment {
             target: NumericTargetId::new("test", "test", "test", "test").unwrap(),
             settings: vec![("automation_security".into(), "3".into())],
         });
-        let disabled = run_workbook(bytes, Some("local.xlsm"), None, &capture, NumericMode::Fast, false).unwrap();
-        assert!(matches!(disabled.results.results[0].provenance, Provenance::NotModeled { .. }));
-        let host = HostState::open(Arc::new(MemorySource::new(bytes.to_vec())), &OpenPolicy::default(), HostOptions::default()).unwrap();
+        let disabled = run_workbook(
+            bytes,
+            Some("local.xlsm"),
+            None,
+            &capture,
+            NumericMode::Fast,
+            false,
+        )
+        .unwrap();
+        assert!(matches!(
+            disabled.results.results[0].provenance,
+            Provenance::NotModeled { .. }
+        ));
+        let host = HostState::open(
+            Arc::new(MemorySource::new(bytes.to_vec())),
+            &OpenPolicy::default(),
+            HostOptions::default(),
+        )
+        .unwrap();
         for enabled in [false, true] {
             capture.environment.as_mut().unwrap().settings = vec![
                 ("automation_security".into(), "1".into()),
                 ("enable_events".into(), enabled.to_string()),
             ];
-            let (_, events) = prepare_captured_vba(&host, "local.xlsm", &capture).unwrap().unwrap();
+            let (_, events) = prepare_captured_vba(&host, "local.xlsm", &capture)
+                .unwrap()
+                .unwrap();
             assert_eq!(events, enabled);
-            let admitted = run_workbook(bytes, Some("local.xlsm"), None, &capture, NumericMode::Fast, false).unwrap();
+            let admitted = run_workbook(
+                bytes,
+                Some("local.xlsm"),
+                None,
+                &capture,
+                NumericMode::Fast,
+                false,
+            )
+            .unwrap();
             assert!(admitted.workbook.is_none());
-            assert!(matches!(admitted.results.results[0].provenance, Provenance::Calculated { .. }));
-            assert_eq!(admitted.results.results[0].value.as_ref().unwrap().as_number(), Some(102.));
+            assert!(matches!(
+                admitted.results.results[0].provenance,
+                Provenance::Calculated { .. }
+            ));
+            assert_eq!(
+                admitted.results.results[0]
+                    .value
+                    .as_ref()
+                    .unwrap()
+                    .as_number(),
+                Some(102.)
+            );
         }
         capture.environment.as_mut().unwrap().settings.pop();
-        assert_eq!(prepare_captured_vba(&host, "local.xlsm", &capture).err().unwrap().class, Class::Context);
+        assert_eq!(
+            prepare_captured_vba(&host, "local.xlsm", &capture)
+                .err()
+                .unwrap()
+                .class,
+            Class::Context
+        );
     }
 
     /// Native-only: resolves actual linked package files through the comparison route.
@@ -1786,15 +2304,13 @@ mod tests {
         assert_eq!(report.counts.matched, 74, "{}", report.summary());
         assert_eq!(report.counts.external_links, 0);
         let canonical_source = source_path.canonicalize().unwrap();
-        assert!(
-            run.linked_inputs.iter().any(|record| {
-                record.get("sha256").is_some()
-                    && record
-                        .get("source")
-                        .and_then(serde_json::Value::as_str)
-                        .is_some_and(|source| Path::new(source) == canonical_source)
-            })
-        );
+        assert!(run.linked_inputs.iter().any(|record| {
+            record.get("sha256").is_some()
+                && record
+                    .get("source")
+                    .and_then(serde_json::Value::as_str)
+                    .is_some_and(|source| Path::new(source) == canonical_source)
+        }));
         fs::remove_file(source_path).unwrap();
         let run = run_workbook(
             fixture,
@@ -2001,24 +2517,48 @@ mod tests {
 
     #[test]
     fn dna_only_calculates_the_real_fixture_without_scoring_an_excel_match() {
-        let dir=std::env::temp_dir().join(format!("xtask-dna-only-{}",std::process::id()));
+        let dir = std::env::temp_dir().join(format!("xtask-dna-only-{}", std::process::id()));
         fs::create_dir_all(&dir).unwrap();
-        let fixture=dir.join("input.xlsx");
-        fs::write(&fixture,include_bytes!("../../../crates/calc-engine/tests/fixtures/l3/oracle.xlsx")).unwrap();
-        let out=dir.join("out");
-        compare(&Request {fixture,capture:None,saved_excel:None,trusted_code:None,trusted_code_sha256:None,minimize:false,inventory_only:false,out:out.clone(),target:None}).unwrap();
-        let report:serde_json::Value=serde_json::from_slice(&fs::read(out.join("report.json")).unwrap()).unwrap();
-        assert_eq!(report["counts"]["denominator"],112);
-        assert_eq!(report["counts"]["matched"],0);
-        assert!(report["counts"]["calculated"].as_u64().unwrap()>0);
-        let inventory=CaptureRecord::decode(&fs::read(out.join("inventory.record.json")).unwrap()).unwrap();
-        assert_eq!(inventory.acquisition,calc_verdict::Acquisition::FileCacheReplay);
+        let fixture = dir.join("input.xlsx");
+        fs::write(
+            &fixture,
+            include_bytes!("../../../crates/calc-engine/tests/fixtures/l3/oracle.xlsx"),
+        )
+        .unwrap();
+        let out = dir.join("out");
+        compare(&Request {
+            fixture,
+            capture: None,
+            saved_excel: None,
+            trusted_code: None,
+            trusted_code_sha256: None,
+            minimize: false,
+            inventory_only: false,
+            out: out.clone(),
+            target: None,
+        })
+        .unwrap();
+        let report: serde_json::Value =
+            serde_json::from_slice(&fs::read(out.join("report.json")).unwrap()).unwrap();
+        assert_eq!(report["counts"]["denominator"], 112);
+        assert_eq!(report["counts"]["matched"], 0);
+        assert!(report["counts"]["calculated"].as_u64().unwrap() > 0);
+        let inventory =
+            CaptureRecord::decode(&fs::read(out.join("inventory.record.json")).unwrap()).unwrap();
+        assert_eq!(
+            inventory.acquisition,
+            calc_verdict::Acquisition::FileCacheReplay
+        );
         assert!(inventory.observations.is_empty());
-        assert_eq!(capture_setting(&inventory, "automation_security"),Some("3"));
-        let triage:serde_json::Value=serde_json::from_slice(&fs::read(out.join("triage.json")).unwrap()).unwrap();
-        let counts=crate::corpus_summary::read_triage(&triage).unwrap().counts;
-        assert_eq!(counts.pass,0);
-        assert_eq!(counts.fail(),112);
+        assert_eq!(
+            capture_setting(&inventory, "automation_security"),
+            Some("3")
+        );
+        let triage: serde_json::Value =
+            serde_json::from_slice(&fs::read(out.join("triage.json")).unwrap()).unwrap();
+        let counts = crate::corpus_summary::read_triage(&triage).unwrap().counts;
+        assert_eq!(counts.pass, 0);
+        assert_eq!(counts.fail(), 112);
     }
 
     #[test]

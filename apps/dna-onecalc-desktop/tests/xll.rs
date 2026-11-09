@@ -5,7 +5,9 @@ mod support;
 use support::{Fixture, checked};
 
 fn new_fixture() -> Fixture {
-    Fixture::new(std::path::Path::new(env!("CARGO_BIN_EXE_dna-onecalc-desktop")))
+    Fixture::new(std::path::Path::new(env!(
+        "CARGO_BIN_EXE_dna-onecalc-desktop"
+    )))
 }
 /// Native-only: loads a native XLL in the exported Windows executable and calculates formulas.
 #[test]

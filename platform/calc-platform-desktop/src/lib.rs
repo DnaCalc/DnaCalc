@@ -38,9 +38,8 @@ pub use shell::{
 };
 #[cfg(windows)]
 pub use webview::{
-    RUNTIME_DOWNLOAD, runtime_version,
-    SEPARATOR, ThreadMessage, ThreadTimer, WebView, WebViewOptions, base64, per_monitor_dpi_aware,
-    run_message_loop, split_message, unbase64,
+    RUNTIME_DOWNLOAD, SEPARATOR, ThreadMessage, ThreadTimer, WebView, WebViewOptions, base64,
+    per_monitor_dpi_aware, run_message_loop, runtime_version, split_message, unbase64,
 };
 
 /// The most threads a native host's recalculation uses by default (dc-dxm): past eight the
@@ -84,7 +83,9 @@ pub fn local_serial_clock() -> Option<f64> {
     let doy = (153 * (if m > 2 { m - 3 } else { m + 9 }) + 2) / 5 + d - 1;
     let doe = yoe * 365 + yoe / 4 - yoe / 100 + doy;
     let days = era * 146_097 + doe - 719_468;
-    let seconds = f64::from(t.wHour) * 3600.0 + f64::from(t.wMinute) * 60.0 + f64::from(t.wSecond)
+    let seconds = f64::from(t.wHour) * 3600.0
+        + f64::from(t.wMinute) * 60.0
+        + f64::from(t.wSecond)
         + f64::from(t.wMilliseconds) / 1000.0;
     Some(days as f64 + 25_569.0 + seconds / 86_400.0)
 }
@@ -124,10 +125,14 @@ fn cores_of_system() -> Option<usize> {
     for cpu in std::fs::read_dir("/sys/devices/system/cpu").ok()?.flatten() {
         let name = cpu.file_name();
         let name = name.to_string_lossy();
-        if !name.strip_prefix("cpu").is_some_and(|n| !n.is_empty() && n.bytes().all(|b| b.is_ascii_digit())) {
+        if !name
+            .strip_prefix("cpu")
+            .is_some_and(|n| !n.is_empty() && n.bytes().all(|b| b.is_ascii_digit()))
+        {
             continue;
         }
-        let read = |file: &str| std::fs::read_to_string(cpu.path().join("topology").join(file)).ok();
+        let read =
+            |file: &str| std::fs::read_to_string(cpu.path().join("topology").join(file)).ok();
         let (Some(package), Some(core)) = (read("physical_package_id"), read("core_id")) else {
             continue;
         };
@@ -145,8 +150,13 @@ mod tests {
     fn dc_dxm__the_default_threads_are_the_physical_cores_up_to_eight() {
         let cores = physical_cores();
         assert!(cores >= 1);
-        let logical = std::thread::available_parallelism().map(usize::from).unwrap_or(1);
-        assert!(cores <= logical, "{cores} cores, {logical} logical processors");
+        let logical = std::thread::available_parallelism()
+            .map(usize::from)
+            .unwrap_or(1);
+        assert!(
+            cores <= logical,
+            "{cores} cores, {logical} logical processors"
+        );
         assert_eq!(default_threads(), cores.min(MOST_DEFAULT_THREADS));
     }
 }
@@ -167,6 +177,9 @@ mod clock_tests {
             / 86_400.0
             + 25_569.0;
         assert!(serial > 46_023.0);
-        assert!((serial - utc_days).abs() < 1.0, "{serial} against {utc_days}");
+        assert!(
+            (serial - utc_days).abs() < 1.0,
+            "{serial} against {utc_days}"
+        );
     }
 }

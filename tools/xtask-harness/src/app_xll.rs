@@ -89,7 +89,8 @@ impl Shown {
             "blank" => return Some(Shown::Blank),
             _ => {}
         }
-        text.strip_prefix("error ").map(|e| Shown::Error(e.to_owned()))
+        text.strip_prefix("error ")
+            .map(|e| Shown::Error(e.to_owned()))
     }
 
     /// An element of an array result as the table shows it.
@@ -149,7 +150,8 @@ fn expand(text: &str, vars: &BTreeMap<String, String>) -> String {
 pub(super) fn read_json(path: &Path) -> Result<Value, String> {
     let bytes = fs::read(path).map_err(|e| format!("{}: {e}", path.display()))?;
     let text = String::from_utf8_lossy(&bytes);
-    serde_json::from_str(text.trim_start_matches('\u{feff}')).map_err(|e| format!("{}: {e}", path.display()))
+    serde_json::from_str(text.trim_start_matches('\u{feff}'))
+        .map_err(|e| format!("{}: {e}", path.display()))
 }
 
 /// Excel's answer for each formula of a controller record: the last line whose operation is the
@@ -158,9 +160,12 @@ fn excel_answers(path: &Path) -> Result<BTreeMap<String, Value>, String> {
     let text = fs::read_to_string(path).map_err(|e| format!("{}: {e}", path.display()))?;
     let mut answers = BTreeMap::new();
     for line in text.lines().filter(|l| !l.trim().is_empty()) {
-        let record: Value =
-            serde_json::from_str(line.trim_start_matches('\u{feff}')).map_err(|e| format!("{}: {e}", path.display()))?;
-        if let (Some(operation), Some(value)) = (record.get("operation").and_then(Value::as_str), record.get("value")) {
+        let record: Value = serde_json::from_str(line.trim_start_matches('\u{feff}'))
+            .map_err(|e| format!("{}: {e}", path.display()))?;
+        if let (Some(operation), Some(value)) = (
+            record.get("operation").and_then(Value::as_str),
+            record.get("value"),
+        ) {
             answers.insert(operation.to_owned(), value.clone());
         }
     }
@@ -182,7 +187,10 @@ pub(super) fn items_of(session: &Session, role: &str) -> Vec<String> {
         "return Array.from(document.querySelectorAll('[data-onecalc=\"{role}\"] li')).map(function(e){{return e.textContent;}});"
     );
     match session.script(&script) {
-        Ok(Value::Array(items)) => items.iter().filter_map(|i| i.as_str().map(str::to_owned)).collect(),
+        Ok(Value::Array(items)) => items
+            .iter()
+            .filter_map(|i| i.as_str().map(str::to_owned))
+            .collect(),
         _ => Vec::new(),
     }
 }
@@ -208,7 +216,9 @@ pub(super) fn set_text_input(session: &Session, role: &str, text: &str) -> Resul
 
 pub(super) fn click(session: &Session, role: &str) -> Result<(), String> {
     let element = session.element(&format!("[data-onecalc=\"{role}\"]"))?;
-    session.post(&format!("/element/{element}/click"), json!({})).map(|_| ())
+    session
+        .post(&format!("/element/{element}/click"), json!({}))
+        .map(|_| ())
 }
 
 pub(super) fn wait_until(limit: Duration, mut done: impl FnMut() -> bool) -> bool {
@@ -226,7 +236,10 @@ pub(super) fn wait_until(limit: Duration, mut done: impl FnMut() -> bool) -> boo
 
 /// The settled result of the formula in the field: the page first shows "no formula" for an empty
 /// field, so each case is entered after an empty one and waits for the answer to change.
-pub(super) fn evaluate(session: &Session, formula: &str) -> Result<(String, Vec<String>, Option<Shown>), String> {
+pub(super) fn evaluate(
+    session: &Session,
+    formula: &str,
+) -> Result<(String, Vec<String>, Option<Shown>), String> {
     enter_formula(session, "")?;
     if !wait_until(PAGE_WAIT, || text_of(session, "result") == "no formula") {
         return Err("the page did not return to an empty formula".to_owned());
@@ -273,7 +286,9 @@ fn describe_functions(session: &Session, listed: &[String]) -> Value {
         if enter_formula(session, "").is_err() || enter_formula(session, &call).is_err() {
             continue;
         }
-        wait_until(Duration::from_secs(5), || !text_of(session, "signature").is_empty());
+        wait_until(Duration::from_secs(5), || {
+            !text_of(session, "signature").is_empty()
+        });
         thread::sleep(Duration::from_millis(60));
         let signature = text_of(session, "signature");
         let help_name = text_of(session, "help-name");
@@ -281,7 +296,10 @@ fn describe_functions(session: &Session, listed: &[String]) -> Value {
         let description = text_of(session, "help-description");
         let status = text_of(session, "help-status");
         let parameters = items_of_role(session, "help-parameter");
-        let prefix: String = name.chars().take(name.chars().count().clamp(1, 4)).collect();
+        let prefix: String = name
+            .chars()
+            .take(name.chars().count().clamp(1, 4))
+            .collect();
         let _ = enter_formula(session, "");
         let _ = enter_formula(session, &format!("={prefix}"));
         thread::sleep(Duration::from_millis(80));
@@ -301,7 +319,10 @@ pub(super) fn items_of_role(session: &Session, role: &str) -> Vec<String> {
         "return Array.from(document.querySelectorAll('[data-onecalc=\"{role}\"]')).map(function(e){{return e.textContent;}});"
     );
     match session.script(&script) {
-        Ok(Value::Array(items)) => items.iter().filter_map(|i| i.as_str().map(str::to_owned)).collect(),
+        Ok(Value::Array(items)) => items
+            .iter()
+            .filter_map(|i| i.as_str().map(str::to_owned))
+            .collect(),
         _ => Vec::new(),
     }
 }
@@ -312,7 +333,11 @@ fn reopen_offer(session: &Session, xll: &Path, name: &str, out: &Path) -> Result
     let hash = format!("sha256:{}", calc_verdict::sha256_hex(&bytes));
     let wrong = format!("sha256:{}", "0".repeat(64));
     let path_text = xll.display().to_string();
-    let escape = |t: &str| t.replace('&', "&amp;").replace('<', "&lt;").replace('"', "&quot;");
+    let escape = |t: &str| {
+        t.replace('&', "&amp;")
+            .replace('<', "&lt;")
+            .replace('"', "&quot;")
+    };
     let content = format!(
         "<?xml version=\"1.0\" encoding=\"UTF-8\" standalone=\"yes\"?>
 <onecalc xmlns=\"urn:dnacalc:onecalc-session\" version=\"1\"><options locale=\"en-US\" numberFormat=\"General\"/><addins><addin kind=\"{k}\" path=\"{p}\" hash=\"{wrong}\"/><addin kind=\"{k}\" path=\"{p}\" hash=\"{hash}\"/></addins></onecalc>",
@@ -345,18 +370,28 @@ fn reopen_offer(session: &Session, xll: &Path, name: &str, out: &Path) -> Result
     // The add-in is unloaded by now; the page's own state may be unsaved, which asks first.
     let offered_before = items_of(session, "addins-offered").len();
     let element = session.element("[data-onecalc=\"file-input\"]")?;
-    let text = path.canonicalize().map_err(|e| e.to_string())?.display().to_string();
+    let text = path
+        .canonicalize()
+        .map_err(|e| e.to_string())?
+        .display()
+        .to_string();
     let text = text.strip_prefix(r"\?\").unwrap_or(&text).to_owned();
     session.post(&format!("/element/{element}/value"), json!({"text": text}))?;
     thread::sleep(Duration::from_millis(300));
     if text_of(session, "file-dialog").contains("Replace unsaved changes") {
-        let visible = session.script("return document.querySelector('[data-onecalc=\"file-dialog\"]').open;").ok().and_then(|v| v.as_bool());
+        let visible = session
+            .script("return document.querySelector('[data-onecalc=\"file-dialog\"]').open;")
+            .ok()
+            .and_then(|v| v.as_bool());
         if visible == Some(true) {
             click(session, "file-replace")?;
         }
     }
     if !wait_until(PAGE_WAIT, || items_of(session, "addins-offered").len() >= 2) {
-        return Err(format!("the page offered {} add-ins (before {offered_before})", items_of(session, "addins-offered").len()));
+        return Err(format!(
+            "the page offered {} add-ins (before {offered_before})",
+            items_of(session, "addins-offered").len()
+        ));
     }
     let offered = items_of(session, "addins-offered");
     let loaded_after_open = items_of(session, "addins-loaded").len();
@@ -370,9 +405,17 @@ fn reopen_offer(session: &Session, xll: &Path, name: &str, out: &Path) -> Result
         items_of(session, "addins-loaded").len() > loaded_after_wrong || {
             let status = text_of(session, "addin-status");
             status != refusal
-                && ["refused", "already loaded", "cannot", "rollback", "not an .xll", "failed", "dc-snz"]
-                    .iter()
-                    .any(|word| status.contains(word))
+                && [
+                    "refused",
+                    "already loaded",
+                    "cannot",
+                    "rollback",
+                    "not an .xll",
+                    "failed",
+                    "dc-snz",
+                ]
+                .iter()
+                .any(|word| status.contains(word))
         }
     });
     let status = text_of(session, "addin-status");
@@ -408,11 +451,17 @@ fn start_page(
             "1280x1000",
         ])
         .args(extra)
-        .env("DNACALC_WEBVIEW2_DATA", out.join(format!("webview2-{name}")))
+        .env(
+            "DNACALC_WEBVIEW2_DATA",
+            out.join(format!("webview2-{name}")),
+        )
         .stdin(Stdio::null())
         .spawn()
         .map_err(|e| format!("cannot start {}: {e}", exe.display()))?;
-    let app = DriverProcess { child, port: upstream };
+    let app = DriverProcess {
+        child,
+        port: upstream,
+    };
     let started = Instant::now();
     while TcpStream::connect(("127.0.0.1", upstream)).is_err() {
         if started.elapsed() > Duration::from_secs(60) {
@@ -435,26 +484,47 @@ pub(super) fn attach_page(upstream: u16, out: &Path) -> Result<(DriverProcess, S
         .and_then(|text| text.split_whitespace().nth(1).map(str::to_owned))
         .unwrap_or_default();
     let proxy = paint::devtools_proxy(upstream, format!("Chrome/{version}"))?;
-    open_attached(browser, &out.join("downloads"), None, Some(&format!("127.0.0.1:{proxy}")), None)
+    open_attached(
+        browser,
+        &out.join("downloads"),
+        None,
+        Some(&format!("127.0.0.1:{proxy}")),
+        None,
+    )
 }
 
 /// Opens the workbook at `path` through the page's file input, answering the page's question about
 /// unsaved changes, and waits for the page to say it opened it.
 pub(super) fn open_through_page(session: &Session, path: &Path) -> Result<(), String> {
     let element = session.element("[data-onecalc=\"file-input\"]")?;
-    let text = path.canonicalize().map_err(|e| e.to_string())?.display().to_string();
+    let text = path
+        .canonicalize()
+        .map_err(|e| e.to_string())?
+        .display()
+        .to_string();
     let text = text.strip_prefix(r"\\?\").unwrap_or(&text).to_owned();
     session.post(&format!("/element/{element}/value"), json!({"text": text}))?;
     thread::sleep(Duration::from_millis(300));
     if text_of(session, "file-dialog").contains("Replace unsaved changes") {
-        let visible = session.script("return document.querySelector('[data-onecalc=\"file-dialog\"]').open;").ok().and_then(|v| v.as_bool());
+        let visible = session
+            .script("return document.querySelector('[data-onecalc=\"file-dialog\"]').open;")
+            .ok()
+            .and_then(|v| v.as_bool());
         if visible == Some(true) {
             click(session, "file-replace")?;
         }
     }
-    let file = path.file_name().map(|n| n.to_string_lossy().into_owned()).unwrap_or_default();
-    if !wait_until(PAGE_WAIT, || text_of(session, "file-status").contains(&format!("Opened {file}"))) {
-        return Err(format!("the page did not open {file}: {}", text_of(session, "file-status")));
+    let file = path
+        .file_name()
+        .map(|n| n.to_string_lossy().into_owned())
+        .unwrap_or_default();
+    if !wait_until(PAGE_WAIT, || {
+        text_of(session, "file-status").contains(&format!("Opened {file}"))
+    }) {
+        return Err(format!(
+            "the page did not open {file}: {}",
+            text_of(session, "file-status")
+        ));
     }
     Ok(())
 }
@@ -470,24 +540,48 @@ fn run_session_set(
     out: &Path,
 ) -> Result<Value, String> {
     let name = set["name"].as_str().ok_or("a set needs a name")?;
-    let file = PathBuf::from(expand(set["session"].as_str().ok_or("a session set needs a session")?, vars));
+    let file = PathBuf::from(expand(
+        set["session"]
+            .as_str()
+            .ok_or("a session set needs a session")?,
+        vars,
+    ));
     let sheet = set["sheet"].as_str().unwrap_or("Sheet1");
     let cell = set["cell"].as_str().unwrap_or("H1");
     let cases_path = {
         let text = expand(set["cases"].as_str().ok_or("a set needs cases")?, vars);
         let path = PathBuf::from(&text);
-        if path.is_absolute() { path } else { fixture_dir.join(path) }
+        if path.is_absolute() {
+            path
+        } else {
+            fixture_dir.join(path)
+        }
     };
-    let job = PathBuf::from(expand(set["excel_job"].as_str().ok_or("a session set needs excel_job")?, vars));
+    let job = PathBuf::from(expand(
+        set["excel_job"]
+            .as_str()
+            .ok_or("a session set needs excel_job")?,
+        vars,
+    ));
     let cases = read_json(&cases_path)?;
     let cases = cases.as_array().ok_or("cases are an array")?;
     let saved_dir = out.join(format!("saved-{name}"));
     if saved_dir.exists() {
-        return Err(format!("{} exists; earlier evidence is never overwritten", saved_dir.display()));
+        return Err(format!(
+            "{} exists; earlier evidence is never overwritten",
+            saved_dir.display()
+        ));
     }
-    let file_hash = calc_verdict::sha256_hex(&fs::read(&file).map_err(|e| format!("{}: {e}", file.display()))?);
-    let (_app, _driver, session) =
-        start_page(exe, bundle, sheet, name, out, &["--save-dir".to_owned(), saved_dir.display().to_string()])?;
+    let file_hash =
+        calc_verdict::sha256_hex(&fs::read(&file).map_err(|e| format!("{}: {e}", file.display()))?);
+    let (_app, _driver, session) = start_page(
+        exe,
+        bundle,
+        sheet,
+        name,
+        out,
+        &["--save-dir".to_owned(), saved_dir.display().to_string()],
+    )?;
     let page = (|| -> Result<(Value, Vec<(String, Result<(String, Vec<String>, Option<Shown>), String>, Option<String>)>), String> {
         if !wait_until(PAGE_WAIT, || !text_of(&session, "addin-count").is_empty()) {
             return Err("the page did not mount".to_owned());
@@ -545,16 +639,30 @@ fn run_session_set(
     session.end();
     let (opened, rows) = page?;
     // Excel reopens every saved file in the owned hidden session.
-    let files: Vec<String> = rows.iter().filter_map(|(_, _, saved)| saved.clone()).collect();
+    let files: Vec<String> = rows
+        .iter()
+        .filter_map(|(_, _, saved)| saved.clone())
+        .collect();
     let excel_dir = out.join(format!("excel-{name}"));
     let mut command = Command::new("pwsh");
-    command.args(["-NoProfile", "-Sta", "-File"]).arg(&job).args(["-Action", "reopen", "-OutDirectory"]).arg(&excel_dir).args(["-FormulaCell", cell, "-Files"]);
+    command
+        .args(["-NoProfile", "-Sta", "-File"])
+        .arg(&job)
+        .args(["-Action", "reopen", "-OutDirectory"])
+        .arg(&excel_dir)
+        .args(["-FormulaCell", cell, "-Files"]);
     command.arg(files.join(","));
-    let status = cargo::output(&mut command).map(|o| cargo::text(&o.stdout)).unwrap_or_else(|e| e);
+    let status = cargo::output(&mut command)
+        .map(|o| cargo::text(&o.stdout))
+        .unwrap_or_else(|e| e);
     let reopened = read_json(&excel_dir.join("reopen.json")).unwrap_or(Value::Null);
     let by_file: BTreeMap<String, &Value> = reopened["rows"]
         .as_array()
-        .map(|rows| rows.iter().filter_map(|r| Some((r["file"].as_str()?.to_owned(), r))).collect())
+        .map(|rows| {
+            rows.iter()
+                .filter_map(|r| Some((r["file"].as_str()?.to_owned(), r)))
+                .collect()
+        })
         .unwrap_or_default();
     let mut results = Vec::new();
     let (mut matched, mut mismatched, mut refused, mut missing, mut repaired) = (0, 0, 0, 0, 0);
@@ -562,20 +670,32 @@ fn run_session_set(
         let excel = saved.as_ref().and_then(|f| by_file.get(f));
         let theirs = excel.and_then(|r| excel_value(&r["excel"]));
         let repair = excel.is_some_and(|r| {
-            r["repaired"].as_bool() == Some(true) || r["repair_logs"].as_array().is_some_and(|l| !l.is_empty())
+            r["repaired"].as_bool() == Some(true)
+                || r["repair_logs"].as_array().is_some_and(|l| !l.is_empty())
         });
         if repair {
             repaired += 1;
         }
         let (verdict, detail) = match (answer, &theirs) {
             (Err(why), _) => ("refused", why.clone()),
-            (Ok((result, diagnostics, _)), _) if result == "not calculated" => {
-                ("refused", format!("not calculated: {}", diagnostics.join(" | ")))
-            }
-            (Ok(_), None) => ("missing", format!("Excel gave no answer for the saved file {saved:?}")),
+            (Ok((result, diagnostics, _)), _) if result == "not calculated" => (
+                "refused",
+                format!("not calculated: {}", diagnostics.join(" | ")),
+            ),
+            (Ok(_), None) => (
+                "missing",
+                format!("Excel gave no answer for the saved file {saved:?}"),
+            ),
             (Ok((result, diagnostics, shown)), Some(excel_value)) => match shown {
                 Some(shown) if shown.same(excel_value) => ("matched", result.clone()),
-                _ => ("mismatched", format!("{result}; Excel {}; {}", excel_value.describe(), diagnostics.join(" | "))),
+                _ => (
+                    "mismatched",
+                    format!(
+                        "{result}; Excel {}; {}",
+                        excel_value.describe(),
+                        diagnostics.join(" | ")
+                    ),
+                ),
             },
         };
         match verdict {
@@ -632,15 +752,25 @@ fn run_set(
     out: &Path,
 ) -> Result<Value, String> {
     let name = set["name"].as_str().ok_or("a set needs a name")?;
-    let xll = PathBuf::from(expand(set["xll"].as_str().ok_or("a set needs an xll")?, vars));
+    let xll = PathBuf::from(expand(
+        set["xll"].as_str().ok_or("a set needs an xll")?,
+        vars,
+    ));
     let sheet = set["sheet"].as_str().unwrap_or("X0");
     let cell = set["cell"].as_str().unwrap_or("B3");
     let cases_path = {
         let text = expand(set["cases"].as_str().ok_or("a set needs cases")?, vars);
         let path = PathBuf::from(&text);
-        if path.is_absolute() { path } else { fixture_dir.join(path) }
+        if path.is_absolute() {
+            path
+        } else {
+            fixture_dir.join(path)
+        }
     };
-    let excel_path = PathBuf::from(expand(set["excel"].as_str().ok_or("a set needs an excel record")?, vars));
+    let excel_path = PathBuf::from(expand(
+        set["excel"].as_str().ok_or("a set needs an excel record")?,
+        vars,
+    ));
     let cases = read_json(&cases_path)?;
     let cases = cases.as_array().ok_or("cases are an array")?;
     let excel = excel_answers(&excel_path)?;
@@ -648,7 +778,9 @@ fn run_set(
     let xll_hash = calc_verdict::sha256_hex(&xll_bytes);
     let (_app, _driver, session) = start_page(exe, bundle, sheet, name, out, &[])?;
     let outcome = (|| -> Result<Value, String> {
-        if !wait_until(PAGE_WAIT, || text_of(&session, "addin-count").ends_with("loaded")) {
+        if !wait_until(PAGE_WAIT, || {
+            text_of(&session, "addin-count").ends_with("loaded")
+        }) {
             return Err("the page did not mount its add-in panel".to_owned());
         }
         // The formula cell and the one input the Excel runs had (A1 = 7).
@@ -660,7 +792,12 @@ fn run_set(
         // the one under test; each is typed into the panel and loaded with its button.
         let also: Vec<PathBuf> = set["also"]
             .as_array()
-            .map(|list| list.iter().filter_map(Value::as_str).map(|p| PathBuf::from(expand(p, vars))).collect())
+            .map(|list| {
+                list.iter()
+                    .filter_map(Value::as_str)
+                    .map(|p| PathBuf::from(expand(p, vars)))
+                    .collect()
+            })
             .unwrap_or_default();
         let (mut loaded, mut load_seconds, mut status) = (true, 0.0, String::new());
         for path in also.iter().chain(std::iter::once(&xll)) {
@@ -671,9 +808,21 @@ fn run_set(
             let came = wait_until(LOAD_WAIT, || {
                 items_of(&session, "addins-loaded").len() > before || {
                     let status = text_of(&session, "addin-status");
-                    ["refused", "not the file", "already loaded", "cannot", "rollback", "not an .xll", "failed", "dc-snz", "dc-0f1k", "compile", "VBA project"]
-                        .iter()
-                        .any(|word| status.contains(word))
+                    [
+                        "refused",
+                        "not the file",
+                        "already loaded",
+                        "cannot",
+                        "rollback",
+                        "not an .xll",
+                        "failed",
+                        "dc-snz",
+                        "dc-0f1k",
+                        "compile",
+                        "VBA project",
+                    ]
+                    .iter()
+                    .any(|word| status.contains(word))
                 }
             });
             load_seconds += load_started.elapsed().as_secs_f64();
@@ -705,15 +854,29 @@ fn run_set(
             let seconds = case_started.elapsed().as_secs_f64();
             let (verdict, detail) = match (&page, &theirs) {
                 (Err(why), _) => ("refused", why.clone()),
-                (Ok((result, diagnostics, _)), _) if result == "not calculated" => {
-                    ("refused", format!("not calculated: {}", diagnostics.join(" | ")))
-                }
+                (Ok((result, diagnostics, _)), _) if result == "not calculated" => (
+                    "refused",
+                    format!("not calculated: {}", diagnostics.join(" | ")),
+                ),
                 (Ok((result, diagnostics, shown)), Some(excel_value)) => match shown {
                     Some(shown) if shown.same(excel_value) => ("matched", result.clone()),
-                    Some(_) => ("mismatched", format!("{result}; Excel {}; {}", excel_value.describe(), diagnostics.join(" | "))),
-                    None => ("mismatched", format!("{result}; Excel {}", excel_value.describe())),
+                    Some(_) => (
+                        "mismatched",
+                        format!(
+                            "{result}; Excel {}; {}",
+                            excel_value.describe(),
+                            diagnostics.join(" | ")
+                        ),
+                    ),
+                    None => (
+                        "mismatched",
+                        format!("{result}; Excel {}", excel_value.describe()),
+                    ),
                 },
-                (Ok(_), None) => ("missing", "Excel gave no answer for this formula".to_owned()),
+                (Ok(_), None) => (
+                    "missing",
+                    "Excel gave no answer for this formula".to_owned(),
+                ),
             };
             match verdict {
                 "matched" => matched += 1,
@@ -760,7 +923,8 @@ fn run_set(
         // Reopen: a session file that lists the add-in (with the right hash, and with a wrong one)
         // is opened through the page's file input, which offers to load what it lists and loads
         // nothing itself; loading the listed entry with the wrong hash is refused, the right one loads.
-        let reopen = reopen_offer(&session, &xll, name, out).unwrap_or_else(|e| json!({"error": e}));
+        let reopen =
+            reopen_offer(&session, &xll, name, out).unwrap_or_else(|e| json!({"error": e}));
         Ok(json!({
             "loaded": true, "status": status, "listed": listed, "load_seconds": load_seconds, "reopen": reopen,
             "documented": documented,
@@ -821,16 +985,27 @@ pub fn run(ws: &Workspace, raw: &[String]) -> ExitCode {
             .as_array()
             .ok_or("the plan needs sets")?
             .iter()
-            .filter(|s| only.is_empty() || s["name"].as_str().is_some_and(|n| only.iter().any(|o| o == n)))
+            .filter(|s| {
+                only.is_empty()
+                    || s["name"]
+                        .as_str()
+                        .is_some_and(|n| only.iter().any(|o| o == n))
+            })
             .collect();
         let mut reports = Vec::new();
         let (mut total, mut matched) = (0u64, 0u64);
         let mut clean = true;
         for set in sets {
-            let run = if set.get("session").is_some() { run_session_set } else { run_set };
+            let run = if set.get("session").is_some() {
+                run_session_set
+            } else {
+                run_set
+            };
             let report = match run(&exe, &bundle, set, &vars, &fixture_dir, &out) {
                 Ok(report) => report,
-                Err(why) => json!({"name": set["name"], "error": why, "outcome": {"loaded": false}}),
+                Err(why) => {
+                    json!({"name": set["name"], "error": why, "outcome": {"loaded": false}})
+                }
             };
             let o = &report["outcome"];
             total += o["count"].as_u64().unwrap_or(0);
@@ -855,9 +1030,15 @@ pub fn run(ws: &Workspace, raw: &[String]) -> ExitCode {
             reports.push(report);
         }
         let summary = json!({"sets": reports, "cases": total, "matched": matched});
-        fs::write(out.join("summary.json"), serde_json::to_string_pretty(&summary).map_err(|e| e.to_string())?)
-            .map_err(|e| e.to_string())?;
-        println!("ONECALC XLL-ACCEPT total: matched {matched} of {total} cases; summary {}", out.join("summary.json").display());
+        fs::write(
+            out.join("summary.json"),
+            serde_json::to_string_pretty(&summary).map_err(|e| e.to_string())?,
+        )
+        .map_err(|e| e.to_string())?;
+        println!(
+            "ONECALC XLL-ACCEPT total: matched {matched} of {total} cases; summary {}",
+            out.join("summary.json").display()
+        );
         Ok((summary, clean))
     })();
     match result {

@@ -109,7 +109,7 @@ pub struct HostState {
     pub(crate) engine: EngineState,
     pub(crate) options: HostOptions,
     /// Regional meanings of undeclared built-ins; authored style records retain their IDs.
-    pub(crate) builtin_formats: std::collections::BTreeMap<u32,String>,
+    pub(crate) builtin_formats: std::collections::BTreeMap<u32, String>,
     /// The recalculation in progress, between two [`crate::step`] calls.
     pub(crate) work: Option<RecalcWork>,
     pub(crate) async_records: calc_engine::AsyncReturns,
@@ -118,8 +118,10 @@ pub struct HostState {
     /// Revokes owner-held continuations even when no cell calculation is active.
     pub(crate) calculation_authority: u64,
     pub(crate) current_facts: Option<Arc<crate::facts::HostFacts>>,
-    pub(crate) admitted_model_snapshots: std::cell::RefCell<Vec<std::sync::Weak<calc_doc_model::DataModel>>>,
-    pub(crate) cube_cache: std::cell::RefCell<Option<(Arc<calc_doc_model::DataModel>, calc_func::CubeLookup)>>,
+    pub(crate) admitted_model_snapshots:
+        std::cell::RefCell<Vec<std::sync::Weak<calc_doc_model::DataModel>>>,
+    pub(crate) cube_cache:
+        std::cell::RefCell<Option<(Arc<calc_doc_model::DataModel>, calc_func::CubeLookup)>>,
     pub(crate) functions: calc_fml::CallableTable,
     /// The host's way to fetch a URL a workbook names; none gives Excel's failed-fetch results.
     pub(crate) fetch_route: Option<std::rc::Rc<dyn calc_func::FetchRoute>>,
@@ -193,7 +195,8 @@ impl HostState {
     /// Already-bound volatile formula anchors. This passive query neither binds
     /// nor calculates a formula; callers can follow `dependents` for its readers.
     pub fn volatile_formula_cells(&self) -> Vec<CellKey> {
-        self.engine.nodes()
+        self.engine
+            .nodes()
             .filter(|node| self.engine.is_volatile(node.id()))
             .map(|node| node.anchor())
             .collect()
@@ -318,7 +321,9 @@ impl HostState {
             pinned_calculations: Default::default(),
             calculation_authority: 0,
             current_facts: None,
-            admitted_model_snapshots: std::cell::RefCell::new(initial_snapshot.into_iter().collect()),
+            admitted_model_snapshots: std::cell::RefCell::new(
+                initial_snapshot.into_iter().collect(),
+            ),
             cube_cache: Default::default(),
             functions: calc_fml::CallableTable::new(),
             fetch_route: None,
@@ -372,16 +377,25 @@ impl HostState {
     }
 
     /// Resolve indexed colours once for display and colour filtering.
-    pub fn indexed_color(&self, index:u32)->Option<String> {
-        const BASIC:[&str;8]=["#000000","#ffffff","#ff0000","#00ff00","#0000ff","#ffff00","#ff00ff","#00ffff"];
+    pub fn indexed_color(&self, index: u32) -> Option<String> {
+        const BASIC: [&str; 8] = [
+            "#000000", "#ffffff", "#ff0000", "#00ff00", "#0000ff", "#ffff00", "#ff00ff", "#00ffff",
+        ];
         match index {
-            0..=7=>Some(BASIC[index as usize].into()),
-            8..=63=>self.palette_color((index-7) as u8).or_else(||Some(calc_func::DEFAULT_PALETTE[(index-8) as usize].into())),
-            64=>Some("#000000".into()),65=>Some("#ffffff".into()),_=>None,
+            0..=7 => Some(BASIC[index as usize].into()),
+            8..=63 => self
+                .palette_color((index - 7) as u8)
+                .or_else(|| Some(calc_func::DEFAULT_PALETTE[(index - 8) as usize].into())),
+            64 => Some("#000000".into()),
+            65 => Some("#ffffff".into()),
+            _ => None,
         }
     }
-    pub fn resolved_style_color(&self,color:&calc_doc_model::StyleColor)->Option<String> {
-        match self.style_color(color)? {crate::LookColor::Rgb(rgb)=>Some(rgb),crate::LookColor::Indexed(index)=>self.indexed_color(index)}
+    pub fn resolved_style_color(&self, color: &calc_doc_model::StyleColor) -> Option<String> {
+        match self.style_color(color)? {
+            crate::LookColor::Rgb(rgb) => Some(rgb),
+            crate::LookColor::Indexed(index) => self.indexed_color(index),
+        }
     }
 
     pub fn loaded(&self) -> &LoadedWorkbook {
@@ -549,7 +563,19 @@ impl HostState {
                 area.last().column(),
             );
         }
-        for table in definitions.pivots().tables().filter(|t|t.area.sheet()==sheet){let area=table.area;take(area.first().row(),area.first().column(),area.last().row(),area.last().column());}
+        for table in definitions
+            .pivots()
+            .tables()
+            .filter(|t| t.area.sheet() == sheet)
+        {
+            let area = table.area;
+            take(
+                area.first().row(),
+                area.first().column(),
+                area.last().row(),
+                area.last().column(),
+            );
+        }
         let (top, left, bottom, right) = bounds?;
         let first = CellKey::new(sheet, top, left).expect("an occupied cell is inside the grid");
         let last = CellKey::new(sheet, bottom, right).expect("an occupied cell is inside the grid");
@@ -727,7 +753,13 @@ impl HostState {
             .collect();
         let definitions = self.model.definitions();
         let full = GridArea::full_sheet(sheet);
-        areas.extend(definitions.pivots().tables().filter(|t|t.area.sheet()==sheet).map(|t|t.area));
+        areas.extend(
+            definitions
+                .pivots()
+                .tables()
+                .filter(|t| t.area.sheet() == sheet)
+                .map(|t| t.area),
+        );
         areas.extend(definitions.arrays_meeting(full).map(|array| array.area()));
         areas.extend(
             definitions
@@ -853,12 +885,18 @@ impl HostState {
     /// ([`HostState::opened_position`]); a cell format an edit gave the cell
     /// ([`crate::CellEdit::SetFormat`], a copy's) comes first.
     pub fn number_format(&self, at: CellKey) -> Option<&str> {
-        self.style_number_format(self.styles(),self.cell_style(at))
+        self.style_number_format(self.styles(), self.cell_style(at))
     }
 
     /// The same format resolution for an uncommitted Format Cells preview table.
-    pub fn style_number_format<'a>(&'a self, table:&'a calc_doc_model::StyleTable, style:u32)->Option<&'a str> {
-        table.number_format_code_with(style,|id|self.builtin_formats.get(&id).map(String::as_str))
+    pub fn style_number_format<'a>(
+        &'a self,
+        table: &'a calc_doc_model::StyleTable,
+        style: u32,
+    ) -> Option<&'a str> {
+        table.number_format_code_with(style, |id| {
+            self.builtin_formats.get(&id).map(String::as_str)
+        })
     }
 
     /// The cell format (an index into the workbook's cell formats, a cell's `s`) of the cell at
@@ -910,7 +948,11 @@ impl HostState {
     /// The current first window's imported origins. Authored freeze commands use leading bands.
     pub fn sheet_view(&self, sheet: SheetId) -> Option<calc_doc::SheetView> {
         self.model.sheet_by_id(sheet)?;
-        let mut view = self.loaded.sheet(sheet).map(|s|s.view()).unwrap_or_default();
+        let mut view = self
+            .loaded
+            .sheet(sheet)
+            .map(|s| s.view())
+            .unwrap_or_default();
         for edit in self.axis_edits.iter().filter(|e| e.sheet() == sheet) {
             let move_at = |(row, col): (u32, u32)| {
                 let old = if edit.axis() == calc_doc_model::Axis::Rows {
@@ -935,8 +977,10 @@ impl HostState {
             view.pane_top_left = view.pane_top_left.map(move_at);
             view.active_cell = view.active_cell.map(move_at);
         }
-        if self.model.definitions().pane_layout(sheet) != self.loaded.model().definitions().pane_layout(sheet) {
-            view=view.with_pane_layout(self.model.definitions().pane_layout(sheet));
+        if self.model.definitions().pane_layout(sheet)
+            != self.loaded.model().definitions().pane_layout(sheet)
+        {
+            view = view.with_pane_layout(self.model.definitions().pane_layout(sheet));
         }
         Some(view)
     }

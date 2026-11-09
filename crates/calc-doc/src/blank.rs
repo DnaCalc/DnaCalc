@@ -110,7 +110,11 @@ fn escaped(text: &str) -> String {
 /// [`blank_package_named_in`], as an .xlsm carrying `project` when there is one: the macro-enabled
 /// workbook content type, the project part with its content type and its relationship from the
 /// workbook part, and the code names.
-pub(crate) fn blank_package_with(sheet: &str, date_1904: bool, project: Option<Project<'_>>) -> Vec<u8> {
+pub(crate) fn blank_package_with(
+    sheet: &str,
+    date_1904: bool,
+    project: Option<Project<'_>>,
+) -> Vec<u8> {
     let name = escaped(sheet);
     let workbook_code_name = project
         .as_ref()
@@ -163,7 +167,10 @@ pub(crate) fn blank_package_with(sheet: &str, date_1904: bool, project: Option<P
     let worksheet = match project.sheet_code_name {
         Some(code_name) => WORKSHEET.replace(
             "<sheetData/>",
-            &format!(r#"<sheetPr codeName="{}"/><sheetData/>"#, escaped(code_name)),
+            &format!(
+                r#"<sheetPr codeName="{}"/><sheetData/>"#,
+                escaped(code_name)
+            ),
         ),
         None => WORKSHEET.to_owned(),
     };

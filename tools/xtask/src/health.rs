@@ -120,7 +120,9 @@ fn ensure_leptosfmt() -> Result<String, String> {
 }
 
 fn find_rs_files(dir: &Path, files: &mut Vec<PathBuf>) {
-    let Ok(entries) = fs::read_dir(dir) else { return };
+    let Ok(entries) = fs::read_dir(dir) else {
+        return;
+    };
     for entry in entries.flatten() {
         let path = entry.path();
         if path.is_dir() {
@@ -148,7 +150,11 @@ fn normalize_rel_path(ws: &Workspace, path_str: &str) -> String {
     ws.rel(path)
 }
 
-fn find_package_for_file<'a>(ws: &Workspace, rel: &str, members: &'a [Member]) -> Option<&'a Member> {
+fn find_package_for_file<'a>(
+    ws: &Workspace,
+    rel: &str,
+    members: &'a [Member],
+) -> Option<&'a Member> {
     let mut best: Option<&'a Member> = None;
     let mut best_len = 0;
     for member in members {
@@ -205,7 +211,9 @@ pub fn collect_health(ws: &Workspace) -> Result<HealthReport, String> {
 
     // 3. Rustfmt check across workspace
     let mut fmt_cmd = Command::new(cargo::cargo_program());
-    fmt_cmd.args(["fmt", "--check", "--all"]).current_dir(&ws.root);
+    fmt_cmd
+        .args(["fmt", "--check", "--all"])
+        .current_dir(&ws.root);
     let fmt_out = cargo::output(&mut fmt_cmd)?;
     let fmt_text = format!(
         "{}\n{}",
@@ -253,7 +261,8 @@ pub fn collect_health(ws: &Workspace) -> Result<HealthReport, String> {
                 let line = line.trim();
                 // Format: ❌ <path> is not correctly formatted. See the difference below:
                 if let Some(rest) = line.strip_prefix("❌ ") {
-                    if let Some(path_str) = rest.strip_suffix(" is not correctly formatted. See the difference below:")
+                    if let Some(path_str) = rest
+                        .strip_suffix(" is not correctly formatted. See the difference below:")
                         .or_else(|| rest.strip_suffix(" is not correctly formatted."))
                     {
                         let rel = normalize_rel_path(ws, path_str);
@@ -475,9 +484,15 @@ pub fn run(raw: &[String]) -> ExitCode {
     }
     if show_json {
         if show_table {
-            println!("\nJSON Report:\n{}", serde_json::to_string_pretty(&rep_json).unwrap_or_default());
+            println!(
+                "\nJSON Report:\n{}",
+                serde_json::to_string_pretty(&rep_json).unwrap_or_default()
+            );
         } else {
-            println!("{}", serde_json::to_string_pretty(&rep_json).unwrap_or_default());
+            println!(
+                "{}",
+                serde_json::to_string_pretty(&rep_json).unwrap_or_default()
+            );
         }
     }
 

@@ -571,15 +571,25 @@ impl WireOp {
             WorkbookOp::SetIteration(_) => {
                 unreachable!("encode_batch refuses the iteration settings before it reaches here")
             }
-            WorkbookOp::SetPageSetup {..}=>unreachable!("page setup is refused before version 1 encoding"),
-            WorkbookOp::SetPivots(_) | WorkbookOp::SetDataModel(_)=>unreachable!("pivot changes are refused before encoding"),
-            WorkbookOp::SetCharts {..}=>unreachable!("chart changes are refused before encoding"),
+            WorkbookOp::SetPageSetup { .. } => {
+                unreachable!("page setup is refused before version 1 encoding")
+            }
+            WorkbookOp::SetPivots(_) | WorkbookOp::SetDataModel(_) => {
+                unreachable!("pivot changes are refused before encoding")
+            }
+            WorkbookOp::SetCharts { .. } => {
+                unreachable!("chart changes are refused before encoding")
+            }
             WorkbookOp::SetTables(_) => unreachable!("Tables are refused before encoding"),
-            WorkbookOp::SetAutoFilter { .. } => unreachable!("AutoFilter is refused before encoding"),
+            WorkbookOp::SetAutoFilter { .. } => {
+                unreachable!("AutoFilter is refused before encoding")
+            }
             WorkbookOp::SetAxisFormat(_) => {
                 unreachable!("wire version 1 refuses physical dimensions before encoding")
             }
-            WorkbookOp::SetReviewLinks { .. } | WorkbookOp::SetReviewNotes { .. } | WorkbookOp::SetValidations { .. } => {
+            WorkbookOp::SetReviewLinks { .. }
+            | WorkbookOp::SetReviewNotes { .. }
+            | WorkbookOp::SetValidations { .. } => {
                 unreachable!("review notes are refused before encoding")
             }
             WorkbookOp::SetConditionalRules { .. } => {

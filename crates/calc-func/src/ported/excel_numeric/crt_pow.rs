@@ -11,7 +11,6 @@
 //! `f64::mul_add` is the one fused multiply-add: the instruction where the target has it, a
 //! correctly rounded software form elsewhere, so the bits do not depend on the target.
 
-
 const POW_LOG_TABLE_BITS: u32 = 7;
 const N_LOG: u64 = 1 << POW_LOG_TABLE_BITS;
 const OFF: u64 = 0x3fe6_9555_0000_0000;
@@ -507,8 +506,15 @@ fn exp_inline(x: f64, xtail: f64, sign_bias: u64) -> f64 {
         }
         if abstop >= top12(1024.0) {
             let sign = if sign_bias != 0 { -1.0 } else { 1.0 };
-            let (big, small) = (f64::from_bits(0x7000_0000_0000_0000), f64::from_bits(0x1000_0000_0000_0000));
-            return if x.to_bits() >> 63 != 0 { sign * small * small } else { sign * big * big };
+            let (big, small) = (
+                f64::from_bits(0x7000_0000_0000_0000),
+                f64::from_bits(0x1000_0000_0000_0000),
+            );
+            return if x.to_bits() >> 63 != 0 {
+                sign * small * small
+            } else {
+                sign * big * big
+            };
         }
         abstop = 0;
     }
@@ -523,10 +529,8 @@ fn exp_inline(x: f64, xtail: f64, sign_bias: u64) -> f64 {
     let tail = f64::from_bits(EXP_TAB[idx]);
     let sbits = EXP_TAB[idx + 1].wrapping_add(top);
     let r2 = r * r;
-    let tmp = tail
-        + r
-        + r2 * (EXP_POLY[0] + r * EXP_POLY[1])
-        + r2 * r2 * (EXP_POLY[2] + r * EXP_POLY[3]);
+    let tmp =
+        tail + r + r2 * (EXP_POLY[0] + r * EXP_POLY[1]) + r2 * r2 * (EXP_POLY[2] + r * EXP_POLY[3]);
     if abstop == 0 {
         return specialcase(tmp, sbits, ki);
     }
@@ -615,8 +619,15 @@ pub(crate) fn crt_pow(x: f64, y: f64) -> f64 {
                 // |y| < 2^-65: x^y is 1 + y*log(x), rounded.
                 return if ix > one_bits { 1.0 + y } else { 1.0 - y };
             }
-            let (big, small) = (f64::from_bits(0x7000_0000_0000_0000), f64::from_bits(0x1000_0000_0000_0000));
-            return if (ix > one_bits) == (topy < 0x800) { big * big } else { small * small };
+            let (big, small) = (
+                f64::from_bits(0x7000_0000_0000_0000),
+                f64::from_bits(0x1000_0000_0000_0000),
+            );
+            return if (ix > one_bits) == (topy < 0x800) {
+                big * big
+            } else {
+                small * small
+            };
         }
         if topx == 0 {
             // A subnormal x, normalized so its exponent becomes negative.
@@ -665,21 +676,36 @@ mod tests {
         let n: usize = std::env::var("SOFT87_N")
             .ok()
             .and_then(|v| v.parse().ok())
-            .unwrap_or(if cfg!(debug_assertions) { 100_000 } else { 1_000_000 });
+            .unwrap_or(if cfg!(debug_assertions) {
+                100_000
+            } else {
+                1_000_000
+            });
         let regions: [(&str, &dyn Fn(&mut Rng) -> (f64, f64)); 8] = [
-            ("ordinary", &|r| (r.positive(-10, 20), r.positive(-6, 10) * r.sign())),
-            ("whole range", &|r| (r.positive(-1022, 2046), r.positive(-30, 40) * r.sign())),
+            ("ordinary", &|r| {
+                (r.positive(-10, 20), r.positive(-6, 10) * r.sign())
+            }),
+            ("whole range", &|r| {
+                (r.positive(-1022, 2046), r.positive(-30, 40) * r.sign())
+            }),
             ("near overflow and underflow", &|r| {
                 let x = r.positive(-4, 8);
                 let target = 700.0 + 50.0 * (r.next() % 1000) as f64 / 1000.0;
                 let y = target / x.ln() * r.sign();
                 (x, y)
             }),
-            ("subnormal bases", &|r| (f64::from_bits(r.next() & 0x000f_ffff_ffff_ffff), r.positive(-8, 8) * r.sign())),
+            ("subnormal bases", &|r| {
+                (
+                    f64::from_bits(r.next() & 0x000f_ffff_ffff_ffff),
+                    r.positive(-8, 8) * r.sign(),
+                )
+            }),
             ("negative bases, integer exponents", &|r| {
                 (-r.positive(-4, 8), ((r.next() % 400) as f64 - 200.0))
             }),
-            ("tiny exponents", &|r| (r.positive(-20, 40), r.positive(-80, 30) * r.sign())),
+            ("tiny exponents", &|r| {
+                (r.positive(-20, 40), r.positive(-80, 30) * r.sign())
+            }),
             ("square roots", &|r| (r.positive(-1022, 2046), 0.5)),
             ("SQRTPI products", &|r| {
                 let n = r.positive(-60, 1080);
@@ -700,7 +726,11 @@ mod tests {
                 let (port, runtime) = (crt_pow(x, y), x.powf(y));
                 if port.to_bits() != runtime.to_bits() && !(port.is_nan() && runtime.is_nan()) {
                     if differ < 3 {
-                        eprintln!("{name}: pow({x:e}, {y:e}): port {:016x} runtime {:016x}", port.to_bits(), runtime.to_bits());
+                        eprintln!(
+                            "{name}: pow({x:e}, {y:e}): port {:016x} runtime {:016x}",
+                            port.to_bits(),
+                            runtime.to_bits()
+                        );
                     }
                     differ += 1;
                 }

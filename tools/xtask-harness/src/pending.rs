@@ -91,11 +91,9 @@ fn parse_pending(args: &[String]) -> Result<PendingArgs, String> {
             "--list" => parsed.list = true,
             "--timeout" => {
                 let text = value()?;
-                let seconds = text
-                    .parse::<u64>()
-                    .ok()
-                    .filter(|s| *s > 0)
-                    .ok_or_else(|| format!("--timeout {text:?} is not a positive number of seconds"))?;
+                let seconds = text.parse::<u64>().ok().filter(|s| *s > 0).ok_or_else(|| {
+                    format!("--timeout {text:?} is not a positive number of seconds")
+                })?;
                 parsed.timeout = Some(Duration::from_secs(seconds));
             }
             "--attempts" => {
@@ -154,7 +152,9 @@ fn pending(root: &Path) -> Result<(Vec<Pending>, Vec<String>), String> {
             .map_err(|e| format!("cannot read {}: {e}", case.fixture.display()))?;
         if case.sectioned() {
             let workbook_hash = sha256_hex(&bytes);
-            if calc_oracle_excel::capture_source_sha256(&case.fixture, &workbook_hash)? != workbook_hash {
+            if calc_oracle_excel::capture_source_sha256(&case.fixture, &workbook_hash)?
+                != workbook_hash
+            {
                 return Err("authored-entry fixtures require whole-workbook captures".to_owned());
             }
             let (states, orphans) = section_states(&case, &bytes)?;
@@ -250,7 +250,10 @@ fn capture_with_attempts(
                 Ok(_) => return Ok(outcome),
                 Err(e) => {
                     let _ = write(&work_dir.join("capture.json"), outcome.encoded.as_bytes());
-                    last = format!("refused: {e} (the record is kept in {})", work_dir.display());
+                    last = format!(
+                        "refused: {e} (the record is kept in {})",
+                        work_dir.display()
+                    );
                 }
             },
             Err(CaptureError::Unavailable { reason }) => {
@@ -327,10 +330,7 @@ fn write_sections(
     keep_saved: &[String],
 ) -> Result<Vec<String>, String> {
     let saved_parts = saved.map(package_parts).transpose()?;
-    let saved_sections = saved_parts
-        .as_ref()
-        .map(workbook_sections)
-        .transpose()?;
+    let saved_sections = saved_parts.as_ref().map(workbook_sections).transpose()?;
     let mut written = Vec::new();
     for section in sections {
         let split = section_record(
@@ -347,9 +347,12 @@ fn write_sections(
                 section.formula_cells
             ));
         }
-        let encoded = split
-            .encode()
-            .map_err(|e| format!("the section capture of {} cannot be written: {e}", section.sheet))?;
+        let encoded = split.encode().map_err(|e| {
+            format!(
+                "the section capture of {} cannot be written: {e}",
+                section.sheet
+            )
+        })?;
         let path = case.section_capture(&section.sheet);
         write(&path, encoded.as_bytes())?;
         written.push(path.display().to_string());
@@ -412,7 +415,10 @@ fn run_pending(args: &PendingArgs) -> u8 {
             }
             Err(None) => return EXIT_UNAVAILABLE,
             Err(Some(e)) => {
-                eprintln!("xtask capture: {} is still awaiting capture: {e}", case.name);
+                eprintln!(
+                    "xtask capture: {} is still awaiting capture: {e}",
+                    case.name
+                );
                 failed.push(case.name.clone());
             }
         }
@@ -540,8 +546,14 @@ fn capture_section(
         args.attempts,
     )?;
     let saved = fs::read(&outcome.output_package).ok();
-    let written = write_sections(case, &outcome.record, &[&state.section], saved.as_deref(), &[])
-        .map_err(Some)?;
+    let written = write_sections(
+        case,
+        &outcome.record,
+        &[&state.section],
+        saved.as_deref(),
+        &[],
+    )
+    .map_err(Some)?;
     ensure_ledger_entries(root, &written).map_err(Some)?;
     Ok(written)
 }
@@ -551,8 +563,8 @@ fn capture_section(
 /// classed: own work, values read from live Excel.
 fn ensure_ledger_entries(root: &Path, written: &[String]) -> Result<(), String> {
     let path = root.join(crate::licence::LEDGER_PATH);
-    let text = fs::read_to_string(&path)
-        .map_err(|e| format!("cannot read {}: {e}", path.display()))?;
+    let text =
+        fs::read_to_string(&path).map_err(|e| format!("cannot read {}: {e}", path.display()))?;
     let ledger: serde_json::Value = serde_json::from_str(&text)
         .map_err(|e| format!("{} does not parse: {e}", path.display()))?;
     let roots: Vec<String> = ledger["scan"]["ledger_roots"]
@@ -576,9 +588,7 @@ fn ensure_ledger_entries(root: &Path, written: &[String]) -> Result<(), String> 
             .unwrap_or(Path::new(file))
             .to_string_lossy()
             .replace('\\', "/");
-        let covered = roots
-            .iter()
-            .any(|r| relative.starts_with(&format!("{r}/")));
+        let covered = roots.iter().any(|r| relative.starts_with(&format!("{r}/")));
         if covered && !listed.contains(relative.as_str()) {
             added.push_str(&format!(
                 ",{newline}  {{{newline}   \"path\": \"{relative}\",{newline}   \"class\": \"own-work\",{newline}   \"reason\": \"Excel capture: values read from live Excel by cargo xtask capture (measurement)\"{newline}  }}"
@@ -589,10 +599,13 @@ fn ensure_ledger_entries(root: &Path, written: &[String]) -> Result<(), String> 
         return Ok(());
     }
     // The list closes with " ]" or, as the entries of later lanes leave it, "  ]".
-    let at = [format!("{newline}  ]{newline}}}"), format!("{newline} ]{newline}}}")]
-        .iter()
-        .find_map(|end| text.rfind(end.as_str()))
-        .ok_or_else(|| format!("{} does not end with its files list", path.display()))?;
+    let at = [
+        format!("{newline}  ]{newline}}}"),
+        format!("{newline} ]{newline}}}"),
+    ]
+    .iter()
+    .find_map(|end| text.rfind(end.as_str()))
+    .ok_or_else(|| format!("{} does not end with its files list", path.display()))?;
     let updated = format!("{}{added}{}", &text[..at], &text[at..]);
     serde_json::from_str::<serde_json::Value>(&updated)
         .map_err(|e| format!("the updated ledger would not parse: {e}"))?;
@@ -650,12 +663,21 @@ fn run_split(args: &SplitArgs) -> Result<Vec<String>, String> {
     let case = oracle_cases(&root)?
         .into_iter()
         .find(|case| fs::canonicalize(&case.fixture).is_ok_and(|path| path == fixture))
-        .ok_or_else(|| format!("{} is not an oracle workbook of this repository", args.fixture.display()))?;
+        .ok_or_else(|| {
+            format!(
+                "{} is not an oracle workbook of this repository",
+                args.fixture.display()
+            )
+        })?;
     let bytes = fs::read(&case.fixture)
         .map_err(|e| format!("cannot read {}: {e}", case.fixture.display()))?;
     let workbook_hash = sha256_hex(&bytes);
     let input_hash = calc_oracle_excel::capture_source_sha256(&case.fixture, &workbook_hash)?;
-    if input_hash != workbook_hash { return Err("authored-entry captures cannot be split into ordinary section captures".to_owned()); }
+    if input_hash != workbook_hash {
+        return Err(
+            "authored-entry captures cannot be split into ordinary section captures".to_owned(),
+        );
+    }
     if !case.sectioned() {
         fs::create_dir_all(case.captures.join(crate::oracle_cases::SECTIONS_DIR))
             .map_err(|e| format!("cannot create the sections folder of {}: {e}", case.name))?;
@@ -690,7 +712,9 @@ fn run_split(args: &SplitArgs) -> Result<Vec<String>, String> {
     }
     let sections = workbook_sections(&package_parts(&bytes)?)?;
     let current: BTreeSet<String> = if args.pending_only {
-        section_states(&case, &bytes)?.0.into_iter()
+        section_states(&case, &bytes)?
+            .0
+            .into_iter()
             .filter(|s| s.capture.is_some())
             .map(|s| s.section.sheet)
             .collect()
@@ -698,8 +722,13 @@ fn run_split(args: &SplitArgs) -> Result<Vec<String>, String> {
         BTreeSet::new()
     };
     for name in &args.only {
-        if !sections.iter().any(|s| s.formula_cells > 0 && &s.sheet == name) {
-            return Err(format!("--only {name}: the workbook has no sheet {name} with formulas"));
+        if !sections
+            .iter()
+            .any(|s| s.formula_cells > 0 && &s.sheet == name)
+        {
+            return Err(format!(
+                "--only {name}: the workbook has no sheet {name} with formulas"
+            ));
         }
     }
     let with_formulas: Vec<&calc_verdict::WorkbookSection> = sections
@@ -707,8 +736,13 @@ fn run_split(args: &SplitArgs) -> Result<Vec<String>, String> {
         .filter(|s| s.formula_cells > 0 && !current.contains(&s.sheet))
         .filter(|s| args.only.is_empty() || args.only.contains(&s.sheet))
         .collect();
-    let written =
-        write_sections(&case, &record, &with_formulas, saved.as_deref(), &args.keep_saved)?;
+    let written = write_sections(
+        &case,
+        &record,
+        &with_formulas,
+        saved.as_deref(),
+        &args.keep_saved,
+    )?;
     ensure_ledger_entries(&root, &written)?;
     Ok(written)
 }
@@ -788,9 +822,15 @@ mod tests {
                 only: Vec::new(),
             }
         );
-        assert!(parse_split(&args("--fixture f --capture c --pending-only")).unwrap().pending_only);
+        assert!(
+            parse_split(&args("--fixture f --capture c --pending-only"))
+                .unwrap()
+                .pending_only
+        );
         assert_eq!(
-            parse_split(&args("--fixture f --capture c --only a --only b")).unwrap().only,
+            parse_split(&args("--fixture f --capture c --only a --only b"))
+                .unwrap()
+                .only,
             vec!["a".to_owned(), "b".to_owned()]
         );
     }
@@ -814,13 +854,16 @@ mod tests {
             .collect();
         assert_eq!(pending.len(), 2);
         let copy = pending_copy(catalogue, &pending).unwrap();
-        let copied = workbook_sections(&calc_verdict::stored_package_parts(&copy).unwrap()).unwrap();
+        let copied =
+            workbook_sections(&calc_verdict::stored_package_parts(&copy).unwrap()).unwrap();
         assert_eq!(copied.len(), sections.len());
         for (before, after) in sections.iter().zip(&copied) {
             assert_eq!(before.sheet, after.sheet);
             let kept = before.formula_cells == 0
                 || pending.iter().any(|p| p.section.sheet == before.sheet)
-                || pending.iter().any(|p| p.section.reads.contains(&before.sheet));
+                || pending
+                    .iter()
+                    .any(|p| p.section.reads.contains(&before.sheet));
             if kept {
                 assert_eq!(before.key, after.key, "{}", before.sheet);
                 assert_eq!(before.formula_cells, after.formula_cells);

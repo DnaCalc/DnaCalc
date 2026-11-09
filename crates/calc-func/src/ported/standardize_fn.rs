@@ -9,7 +9,11 @@ pub fn standardize_kernel(x: f64, mean: f64, stdev: f64) -> Result<f64, Workshee
     if !difference.is_finite() || !result.is_finite() {
         return Err(WorksheetErrorCode::Num);
     }
-    Ok(if result.abs() < f64::MIN_POSITIVE { 0.0 } else { result })
+    Ok(if result.abs() < f64::MIN_POSITIVE {
+        0.0
+    } else {
+        result
+    })
 }
 
 #[cfg(test)]

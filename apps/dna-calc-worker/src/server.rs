@@ -46,7 +46,10 @@ impl PendingName {
     fn reply(&self) -> dna_calc_model::names::NameCalculationReply {
         use dna_calc_model::names::NameCalculationReply;
         match &self.result {
-            Some(evaluation) => NameCalculationReply::Ready { token: self.token, evaluation: evaluation.clone() },
+            Some(evaluation) => NameCalculationReply::Ready {
+                token: self.token,
+                evaluation: evaluation.clone(),
+            },
             None => NameCalculationReply::Pending { token: self.token },
         }
     }
@@ -105,7 +108,7 @@ pub struct Server {
     save_as_target: Option<(String, calc_host::SpreadsheetFormat)>,
     next_save: u64,
     /// Successful creations, per template stem, across workbook replacements in this session.
-    template_counters: BTreeMap<String,u64>,
+    template_counters: BTreeMap<String, u64>,
 }
 
 impl Default for Server {
@@ -205,11 +208,23 @@ mod mixed_range_tests {
                 .unwrap();
             let mut refused = Vec::new();
             for event in &events {
-                if let Event::Calculation { receipt: wire::CalculationEvent::TargetsRefused {
-                    command: id, targets, owner, .. }, .. } = event
-                    && *id == command {
+                if let Event::Calculation {
+                    receipt:
+                        wire::CalculationEvent::TargetsRefused {
+                            command: id,
+                            targets,
+                            owner,
+                            ..
+                        },
+                    ..
+                } = event
+                    && *id == command
+                {
                     assert_eq!(owner, "dc-hsa5.11");
-                    for target in targets { assert!(!refused.contains(target)); refused.push(*target); }
+                    for target in targets {
+                        assert!(!refused.contains(target));
+                        refused.push(*target);
+                    }
                 }
             }
             assert_eq!(refused.len(), 3);
@@ -303,17 +318,27 @@ impl Server {
         self.book.set_calculation_budget(budget);
     }
     pub fn has_pending_calculation(&self) -> bool {
-        self.pending_name.as_ref().is_some_and(|name| name.work.is_some())
-            || self.pending_save
+        self.pending_name
             .as_ref()
-            .is_some_and(|(_, save)| save.needs_advance(self.book.host()))
+            .is_some_and(|name| name.work.is_some())
+            || self
+                .pending_save
+                .as_ref()
+                .is_some_and(|(_, save)| save.needs_advance(self.book.host()))
             || self.deferred_calculation.len() < wire::MAX_PENDING_REQUESTS - 2
                 && self.book.has_pending_calculation()
     }
     pub fn advance_calculation(&mut self) -> calc_host::HostProgress {
-        if let Some(name) = &mut self.pending_name && let Some(work) = &mut name.work {
-            let quantum = if self.calculation_budget == calc_host::WorkBudget::UNLIMITED { usize::MAX }
-                else if self.calculation_budget == calc_host::WorkBudget::evaluations(0) { 0 } else { 64 };
+        if let Some(name) = &mut self.pending_name
+            && let Some(work) = &mut name.work
+        {
+            let quantum = if self.calculation_budget == calc_host::WorkBudget::UNLIMITED {
+                usize::MAX
+            } else if self.calculation_budget == calc_host::WorkBudget::evaluations(0) {
+                0
+            } else {
+                64
+            };
             let progress = self.book.advance_name_calculation(work, quantum);
             self.collect_name_result();
             self.collect();
@@ -323,7 +348,9 @@ impl Server {
                 calc_host::HostProgress::Calculating { remaining: 0 }
             } else if self.book.host().calc_mode() == CalcMode::Manual {
                 calc_host::HostProgress::Manual
-            } else { calc_host::HostProgress::Current };
+            } else {
+                calc_host::HostProgress::Current
+            };
         }
         if let Some((token, save)) = self.pending_save.as_mut()
             && save.needs_advance(self.book.host())
@@ -378,11 +405,23 @@ impl Server {
     }
 
     fn collect_name_result(&mut self) {
-        let Some(name) = &mut self.pending_name else { return; };
-        let Some(work) = &mut name.work else { return; };
-        let Some(result) = work.take_result() else { return; };
-        name.result = Some(crate::names::calculated(&self.book, name.id, name.version,
-            name.anchor, name.command, result));
+        let Some(name) = &mut self.pending_name else {
+            return;
+        };
+        let Some(work) = &mut name.work else {
+            return;
+        };
+        let Some(result) = work.take_result() else {
+            return;
+        };
+        name.result = Some(crate::names::calculated(
+            &self.book,
+            name.id,
+            name.version,
+            name.anchor,
+            name.command,
+            result,
+        ));
         name.work = None;
     }
 
@@ -393,9 +432,7 @@ impl Server {
         sequence: u64,
         value: calc_host::value::CalcValue,
     ) -> calc_host::RtdDisposition {
-        let disposition = self
-            .book
-            .update_rtd(topic, lease, sequence, value);
+        let disposition = self.book.update_rtd(topic, lease, sequence, value);
         self.collect();
         disposition
     }
@@ -543,9 +580,16 @@ impl Server {
         if let Ok(Reply::NameEvaluation(value)) = &mut answer.reply {
             value.command = stamp.id;
         }
-        if let Ok(Reply::NameCalculation(dna_calc_model::names::NameCalculationReply::Pending { token })) = &answer.reply
-            && let Some(name) = self.pending_name.as_mut().filter(|name| name.token == *token && name.command == 0)
-        { name.command = stamp.id; }
+        if let Ok(Reply::NameCalculation(dna_calc_model::names::NameCalculationReply::Pending {
+            token,
+        })) = &answer.reply
+            && let Some(name) = self
+                .pending_name
+                .as_mut()
+                .filter(|name| name.token == *token && name.command == 0)
+        {
+            name.command = stamp.id;
+        }
         let reply_bytes = wire::encode(&answer.reply)
             .len()
             .saturating_add(answer.bytes.as_ref().map_or(0, Vec::len));
@@ -601,30 +645,69 @@ impl Server {
                 Request::UserFunctions => {
                     Ok(Reply::UserFunctions(self.book.host().user_function_names()))
                 }
-                Request::CalculateName { id, version, anchor } => {
-                    if self.pending_name.as_ref().is_some_and(|name| name.work.is_some()) {
+                Request::CalculateName {
+                    id,
+                    version,
+                    anchor,
+                } => {
+                    if self
+                        .pending_name
+                        .as_ref()
+                        .is_some_and(|name| name.work.is_some())
+                    {
                         return Err("A selected-name calculation is already running".into());
                     }
                     let anchor = cell(anchor)?;
                     let token = self.next_name;
-                    let next = token.checked_add(1).ok_or("Name calculation tokens exhausted")?;
-                    let work = self.book.begin_name_calculation(calc_host::value::NameId::from_parts(id.0, id.1), version, anchor)?;
+                    let next = token
+                        .checked_add(1)
+                        .ok_or("Name calculation tokens exhausted")?;
+                    let work = self.book.begin_name_calculation(
+                        calc_host::value::NameId::from_parts(id.0, id.1),
+                        version,
+                        anchor,
+                    )?;
                     self.next_name = next;
-                    self.pending_name = Some(PendingName { token, id, version, anchor, command: 0,
-                        work: Some(Box::new(work)), result: None });
-                    Ok(Reply::NameCalculation(self.pending_name.as_ref().expect("an admitted name task").reply()))
+                    self.pending_name = Some(PendingName {
+                        token,
+                        id,
+                        version,
+                        anchor,
+                        command: 0,
+                        work: Some(Box::new(work)),
+                        result: None,
+                    });
+                    Ok(Reply::NameCalculation(
+                        self.pending_name
+                            .as_ref()
+                            .expect("an admitted name task")
+                            .reply(),
+                    ))
                 }
                 Request::PollNameCalculation { token } => {
-                    let name = self.pending_name.as_ref().filter(|name| name.token == token)
+                    let name = self
+                        .pending_name
+                        .as_ref()
+                        .filter(|name| name.token == token)
                         .ok_or("The selected-name calculation token has expired")?;
                     Ok(Reply::NameCalculation(name.reply()))
                 }
                 Request::CancelNameCalculation { token } => {
-                    let name = self.pending_name.as_mut().filter(|name| name.token == token)
+                    let name = self
+                        .pending_name
+                        .as_mut()
+                        .filter(|name| name.token == token)
                         .ok_or("The selected-name calculation token has expired")?;
-                    if let Some(work) = &mut name.work { work.cancel(); }
+                    if let Some(work) = &mut name.work {
+                        work.cancel();
+                    }
                     self.collect_name_result();
-                    Ok(Reply::NameCalculation(self.pending_name.as_ref().expect("the selected name task").reply()))
+                    Ok(Reply::NameCalculation(
+                        self.pending_name
+                            .as_ref()
+                            .expect("the selected name task")
+                            .reply(),
+                    ))
                 }
                 Request::FormatSelection(areas) => Ok(Reply::FormatSelection(
                     areas
@@ -705,31 +788,83 @@ impl Server {
                     version: env!("CARGO_PKG_VERSION").to_owned(),
                 }),
                 Request::InspectTemplate => {
-                    let host=calc_host::HostState::open(std::sync::Arc::new(calc_host::MemorySource::new(bytes.unwrap_or_default())),&calc_host::OpenPolicy::default(),calc_host::HostOptions::default()).map_err(|e|e.to_string())?;
-                    let format=match host.loaded().spreadsheet_format(){calc_host::SpreadsheetFormat::Xltx=>wire::FileFormat::Xltx,calc_host::SpreadsheetFormat::Xltm=>wire::FileFormat::Xltm,_=>return Err("Choose an actual .xltx or .xltm template package (dc-bctq)".into())};
+                    let host = calc_host::HostState::open(
+                        std::sync::Arc::new(calc_host::MemorySource::new(
+                            bytes.unwrap_or_default(),
+                        )),
+                        &calc_host::OpenPolicy::default(),
+                        calc_host::HostOptions::default(),
+                    )
+                    .map_err(|e| e.to_string())?;
+                    let format = match host.loaded().spreadsheet_format() {
+                        calc_host::SpreadsheetFormat::Xltx => wire::FileFormat::Xltx,
+                        calc_host::SpreadsheetFormat::Xltm => wire::FileFormat::Xltm,
+                        _ => {
+                            return Err(
+                                "Choose an actual .xltx or .xltm template package (dc-bctq)".into(),
+                            );
+                        }
+                    };
                     Ok(Reply::TemplateFormat(format))
                 }
-                Request::InsertTemplate{name,revision} => self.dispatch_entry(SkinIntent::Command(calc_host::WorkbookCommand::InsertTemplate{bytes:bytes.unwrap_or_default().into(),name,revision}),false),
+                Request::InsertTemplate { name, revision } => self.dispatch_entry(
+                    SkinIntent::Command(calc_host::WorkbookCommand::InsertTemplate {
+                        bytes: bytes.unwrap_or_default().into(),
+                        name,
+                        revision,
+                    }),
+                    false,
+                ),
                 Request::New => {
                     self.install(Workbook::new_blank());
                     Ok(self.done(true, None, 0.0))
                 }
-                request @ (Request::Open { .. } | Request::OpenForEditing { .. } | Request::OpenTemplate{..}) => {
-                    let template_only=matches!(request,Request::OpenTemplate{..});
-                    let edit_template=matches!(request,Request::OpenForEditing{..});
-                    let name=match request {Request::Open{name}|Request::OpenForEditing{name}|Request::OpenTemplate{name}=>name,_=>unreachable!()};
+                request @ (Request::Open { .. }
+                | Request::OpenForEditing { .. }
+                | Request::OpenTemplate { .. }) => {
+                    let template_only = matches!(request, Request::OpenTemplate { .. });
+                    let edit_template = matches!(request, Request::OpenForEditing { .. });
+                    let name = match request {
+                        Request::Open { name }
+                        | Request::OpenForEditing { name }
+                        | Request::OpenTemplate { name } => name,
+                        _ => unreachable!(),
+                    };
                     let started = crate::services::now_ms();
                     let bytes = bytes.unwrap_or_default();
                     if template_only {
-                        let host=calc_host::HostState::open(std::sync::Arc::new(calc_host::MemorySource::new(bytes.clone())),&calc_host::OpenPolicy::default(),calc_host::HostOptions::default()).map_err(|e|e.to_string())?;
-                        if !host.loaded().spreadsheet_format().is_template(){return Err("The stored default is not an actual template package; remove it and add an .xltx or .xltm template (dc-bctq)".into());}
+                        let host = calc_host::HostState::open(
+                            std::sync::Arc::new(calc_host::MemorySource::new(bytes.clone())),
+                            &calc_host::OpenPolicy::default(),
+                            calc_host::HostOptions::default(),
+                        )
+                        .map_err(|e| e.to_string())?;
+                        if !host.loaded().spreadsheet_format().is_template() {
+                            return Err("The stored default is not an actual template package; remove it and add an .xltx or .xltm template (dc-bctq)".into());
+                        }
                     }
                     crate::workbook::reserve_for_open(bytes.len());
-                    let counter_key=calc_value::fold_workbook_name(crate::workbook::template_basename(&name));
-                    let counter=self.template_counters.get(&counter_key).copied().unwrap_or(0).checked_add(1).ok_or("The template workbook name counter is exhausted (dc-bctq)")?;
-                    match Workbook::open_with_template_counter(&name, bytes, self.calculation_budget, crate::workbook::VbaOpenPolicy::Run, edit_template, counter) {
+                    let counter_key =
+                        calc_value::fold_workbook_name(crate::workbook::template_basename(&name));
+                    let counter = self
+                        .template_counters
+                        .get(&counter_key)
+                        .copied()
+                        .unwrap_or(0)
+                        .checked_add(1)
+                        .ok_or("The template workbook name counter is exhausted (dc-bctq)")?;
+                    match Workbook::open_with_template_counter(
+                        &name,
+                        bytes,
+                        self.calculation_budget,
+                        crate::workbook::VbaOpenPolicy::Run,
+                        edit_template,
+                        counter,
+                    ) {
                         Ok(book) => {
-                            if book.unsaved() {self.template_counters.insert(counter_key,counter);}
+                            if book.unsaved() {
+                                self.template_counters.insert(counter_key, counter);
+                            }
                             let elapsed = crate::services::now_ms() - started;
                             let calculated = book.calculated_on_open();
                             self.install(book);
@@ -767,32 +902,73 @@ impl Server {
                     self.book.set_vba_events_enabled(enabled);
                     Ok(self.done(true, None, 0.0))
                 }
-                request @ (Request::Save | Request::SaveWithContext { .. } | Request::SaveAs { .. }) => {
+                request @ (Request::Save
+                | Request::SaveWithContext { .. }
+                | Request::SaveAs { .. }) => {
                     if self.pending_save.is_some() {
                         return Err("Finish or cancel the pending save first".into());
                     }
                     let calculate_before_save = matches!(
                         request,
                         Request::SaveWithContext {
-                            calculate_before_save: true, ..
+                            calculate_before_save: true,
+                            ..
                         }
                     );
-                    let views=match &request { Request::SaveWithContext{views:Some(v),..}|Request::SaveAs{views:Some(v),..}=>Some(std::sync::Arc::new(self.save_window(v)?)),_=>None };
-                    let target=if let Request::SaveAs {name,format,..}=&request {
-                        if name.trim().is_empty() || name.contains(['/', '\\', '\0']) {return Err("Type a file name without folders".into());}
+                    let views = match &request {
+                        Request::SaveWithContext { views: Some(v), .. }
+                        | Request::SaveAs { views: Some(v), .. } => {
+                            Some(std::sync::Arc::new(self.save_window(v)?))
+                        }
+                        _ => None,
+                    };
+                    let target = if let Request::SaveAs { name, format, .. } = &request {
+                        if name.trim().is_empty() || name.contains(['/', '\\', '\0']) {
+                            return Err("Type a file name without folders".into());
+                        }
                         use wire::FileFormat as F;
-                        let format=match format {F::Xlsx=>calc_host::SpreadsheetFormat::Xlsx,F::Xlsm=>calc_host::SpreadsheetFormat::Xlsm,F::Xltx=>calc_host::SpreadsheetFormat::Xltx,F::Xltm=>calc_host::SpreadsheetFormat::Xltm};
-                        if !name.to_ascii_lowercase().ends_with(&format!(".{}",format.extension())) {return Err("The file name must match the selected format".into());}
-                        Some((name.clone(),format))
-                    }else{None};
-                    let format=target.as_ref().map_or(self.book.output_format(),|(_,f)|*f);
-                    let policy=calc_host::SavePolicy {views,format:calc_host::SaveFormat::Spreadsheet(format),..Default::default()};
-                    let save = self.book.begin_ordinary_save_operation(calculate_before_save,&policy,target.is_some())?;
-                    if matches!(save.progress(),calc_host::CalculatedSaveProgress::Ready | calc_host::CalculatedSaveProgress::Failed) {
-                        let name = target.as_ref().map_or_else(||self.book.save_name(),|(n,_)|n.clone());
+                        let format = match format {
+                            F::Xlsx => calc_host::SpreadsheetFormat::Xlsx,
+                            F::Xlsm => calc_host::SpreadsheetFormat::Xlsm,
+                            F::Xltx => calc_host::SpreadsheetFormat::Xltx,
+                            F::Xltm => calc_host::SpreadsheetFormat::Xltm,
+                        };
+                        if !name
+                            .to_ascii_lowercase()
+                            .ends_with(&format!(".{}", format.extension()))
+                        {
+                            return Err("The file name must match the selected format".into());
+                        }
+                        Some((name.clone(), format))
+                    } else {
+                        None
+                    };
+                    let format = target
+                        .as_ref()
+                        .map_or(self.book.output_format(), |(_, f)| *f);
+                    let policy = calc_host::SavePolicy {
+                        views,
+                        format: calc_host::SaveFormat::Spreadsheet(format),
+                        ..Default::default()
+                    };
+                    let save = self.book.begin_ordinary_save_operation(
+                        calculate_before_save,
+                        &policy,
+                        target.is_some(),
+                    )?;
+                    if matches!(
+                        save.progress(),
+                        calc_host::CalculatedSaveProgress::Ready
+                            | calc_host::CalculatedSaveProgress::Failed
+                    ) {
+                        let name = target
+                            .as_ref()
+                            .map_or_else(|| self.book.save_name(), |(n, _)| n.clone());
                         match self.book.finish_ordinary_save(save) {
                             Ok((bytes, _)) => {
-                                if let Some((name,format))=target {self.book.saved_as(name,format);}
+                                if let Some((name, format)) = target {
+                                    self.book.saved_as(name, format);
+                                }
                                 out = Some(bytes);
                                 Ok(Reply::Done {
                                     outcome: self.outcome(true, None, 0.0),
@@ -816,7 +992,7 @@ impl Server {
                             .checked_add(1)
                             .expect("save request identity exhausted");
                         let waiting = save.progress() == calc_host::CalculatedSaveProgress::Waiting;
-                        self.save_as_target=target;
+                        self.save_as_target = target;
                         self.pending_save = Some((token, PendingSave::Ordinary(save)));
                         Ok(Reply::SavePending { token, waiting })
                     }
@@ -850,8 +1026,10 @@ impl Server {
                         P::Ready | P::Failed => {
                             let (_, save) = self.pending_save.take().expect("checked save");
                             let model_revision = save.model_revision().get();
-                            let target=self.save_as_target.take();
-                            let name = target.as_ref().map_or_else(||self.book.save_name(),|(n,_)|n.clone());
+                            let target = self.save_as_target.take();
+                            let name = target
+                                .as_ref()
+                                .map_or_else(|| self.book.save_name(), |(n, _)| n.clone());
                             let (bytes, _) = match save {
                                 PendingSave::Calculated(save) => {
                                     self.book.finish_calculated_save(save)?
@@ -860,7 +1038,9 @@ impl Server {
                                     self.book.finish_ordinary_save(save)?
                                 }
                             };
-                            if let Some((name,format))=target {self.book.saved_as(name,format);}
+                            if let Some((name, format)) = target {
+                                self.book.saved_as(name, format);
+                            }
                             out = Some(bytes);
                             Ok(Reply::SaveImage {
                                 outcome: self.outcome(true, None, 0.0),
@@ -882,7 +1062,7 @@ impl Server {
                     {
                         return Err("This calculated save is no longer pending".into());
                     }
-                    self.save_as_target=None;
+                    self.save_as_target = None;
                     let (_, save) = self.pending_save.take().expect("checked save");
                     match save {
                         PendingSave::Calculated(save) => self.book.cancel_calculated_save(save)?,
@@ -915,7 +1095,8 @@ impl Server {
                     match self.book.subscribe(widened(&interest, &extras)) {
                         Ok(host) => {
                             self.last_subscription = Some(id);
-                            self.overhang.insert(id, (self.book.host().revision().get(), extras));
+                            self.overhang
+                                .insert(id, (self.book.host().revision().get(), extras));
                             self.subscription_interests.insert(id, interest);
                             self.subscriptions.insert(id, host);
                             self.tile_streams.insert(id, Default::default());
@@ -943,7 +1124,8 @@ impl Server {
                     if let Some(error) = receipt.error {
                         return Err(error.to_string());
                     }
-                    self.overhang.insert(id, (self.book.host().revision().get(), extras));
+                    self.overhang
+                        .insert(id, (self.book.host().revision().get(), extras));
                     self.subscription_interests.insert(id, interest);
                     Ok(Reply::Subscribed)
                 }
@@ -980,7 +1162,8 @@ impl Server {
                             subscription,
                             interest: widened(&interest, &extras),
                         });
-                        self.overhang.insert(id, (self.book.host().revision().get(), extras));
+                        self.overhang
+                            .insert(id, (self.book.host().revision().get(), extras));
                         if let Some(error) = receipt.error {
                             return Err(error.to_string());
                         }
@@ -1001,7 +1184,87 @@ impl Server {
                     }
                     Ok(Reply::Subscribed)
                 }
-                Request::FilterValues { sheet,table,column } => Ok(Reply::FilterValues { revision:self.book.host().revision().get(), values:calc_host::filter_values_for(self.book.host(),sheet.id(),table.as_deref(),column), criteria:table.as_ref().map_or_else(||self.book.host().model().definitions().auto_filter(sheet.id()),|part|self.book.host().model().definitions().tables().iter().find(|t|t.part==*part&&t.sheet==sheet.id()).and_then(|t|t.filter.as_ref())).and_then(|f|f.columns.get(&column)).map(|c|match c {calc_host::FilterCriteria::Values{values,blank}=>wire::FilterChange::Values{column,values:values.clone(),blank:*blank},calc_host::FilterCriteria::Dates{groups,values,blank}=>wire::FilterChange::Dates{column,groups:groups.clone(),values:values.clone(),blank:*blank},calc_host::FilterCriteria::Top{top,percent,value}=>wire::FilterChange::Top{column,top:*top,percent:*percent,value:value.clone()},calc_host::FilterCriteria::Color{dxf_id,cell_color}=>wire::FilterChange::ColorReference{column,dxf_id:*dxf_id,cell_color:*cell_color},calc_host::FilterCriteria::Custom{and,predicates}=>wire::FilterChange::Custom{column,and:*and,predicates:predicates.iter().map(|p|(p.operator.xml().to_owned(),p.value.clone())).collect()}}) }),
+                Request::FilterValues {
+                    sheet,
+                    table,
+                    column,
+                } => Ok(Reply::FilterValues {
+                    revision: self.book.host().revision().get(),
+                    values: calc_host::filter_values_for(
+                        self.book.host(),
+                        sheet.id(),
+                        table.as_deref(),
+                        column,
+                    ),
+                    criteria: table
+                        .as_ref()
+                        .map_or_else(
+                            || {
+                                self.book
+                                    .host()
+                                    .model()
+                                    .definitions()
+                                    .auto_filter(sheet.id())
+                            },
+                            |part| {
+                                self.book
+                                    .host()
+                                    .model()
+                                    .definitions()
+                                    .tables()
+                                    .iter()
+                                    .find(|t| t.part == *part && t.sheet == sheet.id())
+                                    .and_then(|t| t.filter.as_ref())
+                            },
+                        )
+                        .and_then(|f| f.columns.get(&column))
+                        .map(|c| match c {
+                            calc_host::FilterCriteria::Values { values, blank } => {
+                                wire::FilterChange::Values {
+                                    column,
+                                    values: values.clone(),
+                                    blank: *blank,
+                                }
+                            }
+                            calc_host::FilterCriteria::Dates {
+                                groups,
+                                values,
+                                blank,
+                            } => wire::FilterChange::Dates {
+                                column,
+                                groups: groups.clone(),
+                                values: values.clone(),
+                                blank: *blank,
+                            },
+                            calc_host::FilterCriteria::Top {
+                                top,
+                                percent,
+                                value,
+                            } => wire::FilterChange::Top {
+                                column,
+                                top: *top,
+                                percent: *percent,
+                                value: value.clone(),
+                            },
+                            calc_host::FilterCriteria::Color { dxf_id, cell_color } => {
+                                wire::FilterChange::ColorReference {
+                                    column,
+                                    dxf_id: *dxf_id,
+                                    cell_color: *cell_color,
+                                }
+                            }
+                            calc_host::FilterCriteria::Custom { and, predicates } => {
+                                wire::FilterChange::Custom {
+                                    column,
+                                    and: *and,
+                                    predicates: predicates
+                                        .iter()
+                                        .map(|p| (p.operator.xml().to_owned(), p.value.clone()))
+                                        .collect(),
+                                }
+                            }
+                        }),
+                }),
                 Request::Geometry(sheet) => Ok(Reply::Geometry(self.geometry(sheet))),
                 Request::UsedArea(sheet) => Ok(Reply::UsedArea(
                     self.book.used_area(sheet.id()).map(Area::of),
@@ -1037,8 +1300,9 @@ impl Server {
                 Request::ReviewMarkers(sheet) => {
                     let review = self.book.host().sheet_review(sheet.id());
                     let mut markers: BTreeMap<Key, String> = BTreeMap::new();
-                    for note in review.notes .into_iter().filter(|n| !n.compatibility) {
-                        markers.entry(Key::of(note.at))
+                    for note in review.notes.into_iter().filter(|n| !n.compatibility) {
+                        markers
+                            .entry(Key::of(note.at))
                             .and_modify(|label| {
                                 if note.source.as_ref().is_some_and(|s| s.threaded()) {
                                     *label = "Comment and note".into();
@@ -1048,7 +1312,8 @@ impl Server {
                                 if note.source.as_ref().is_some_and(|s| s.threaded()) {
                                     "Comment".into()
                                 } else {
-                                    "Note".into()}
+                                    "Note".into()
+                                }
                             });
                     }
                     for link in review.links {
@@ -1073,8 +1338,19 @@ impl Server {
                         self.charts(sheet),
                     )))
                 }
-                Request::PivotSourceFields{area,revision}=>Ok(Reply::PivotSourceFields(if revision!=self.book.host().revision().get(){Err("The source changed; select it again".into())}else{area.area().ok_or_else(||"Select one source range".into()).and_then(|area|calc_host::pivot_source_fields(self.book.host(),area))})),
-                Request::PivotTables(sheet)=>{let (tables,issues)=self.pivots(sheet);Ok(Reply::PivotTables{tables,issues})},
+                Request::PivotSourceFields { area, revision } => Ok(Reply::PivotSourceFields(
+                    if revision != self.book.host().revision().get() {
+                        Err("The source changed; select it again".into())
+                    } else {
+                        area.area()
+                            .ok_or_else(|| "Select one source range".into())
+                            .and_then(|area| calc_host::pivot_source_fields(self.book.host(), area))
+                    },
+                )),
+                Request::PivotTables(sheet) => {
+                    let (tables, issues) = self.pivots(sheet);
+                    Ok(Reply::PivotTables { tables, issues })
+                }
                 Request::Charts(sheet) => Ok(Reply::Charts(self.charts(sheet))),
                 Request::CellImage { .. } => Err("handle answers a cell image".into()),
                 Request::AtlasRefusals { reason, page } => Ok(Reply::AtlasRefusals(
@@ -1206,7 +1482,8 @@ impl Server {
             };
         };
         let cells = vec![cell];
-        let projected = calc_host::project(self.book.host(), &calc_host::ProjectionRequest { cells });
+        let projected =
+            calc_host::project(self.book.host(), &calc_host::ProjectionRequest { cells });
         let value = match projected.as_ref().map(|page| page.cells()[0].value()) {
             Ok(calc_host::ProjectedValue::Calculated { value, .. }) => Some(value.clone()),
             Ok(calc_host::ProjectedValue::FileCached(cache)) => Some(cache.value().to_value()),
@@ -1266,7 +1543,9 @@ impl Server {
             .into_iter()
             .find(|token| token.request == request);
         match token {
-            Some(token) => self.complete_async(&token, value) == calc_host::AsyncDisposition::Accepted,
+            Some(token) => {
+                self.complete_async(&token, value) == calc_host::AsyncDisposition::Accepted
+            }
             None => false,
         }
     }
@@ -1320,7 +1599,7 @@ impl Server {
     ) -> Result<Reply, String> {
         use wire::PasteSource;
         self.paste_plan = None;
-        let flash=matches!(source,PasteSource::FlashFill);
+        let flash = matches!(source, PasteSource::FlashFill);
         let source = match source {
             PasteSource::Internal { token, cut } => calc_host::PasteSource::Snapshot {
                 snapshot: self
@@ -1344,7 +1623,14 @@ impl Server {
             wire::host_paste_mode(mode),
             transpose,
         )?;
-        let samples=if flash{plan.text_preview().into_iter().map(|(at,text)|format!("{} → {text}",cells::address(at.row(),at.column()))).collect()}else{Vec::new()};
+        let samples = if flash {
+            plan.text_preview()
+                .into_iter()
+                .map(|(at, text)| format!("{} → {text}", cells::address(at.row(), at.column())))
+                .collect()
+        } else {
+            Vec::new()
+        };
         let target = plan.target();
         let replaces = plan.replaces();
         let id = self.next_clip;
@@ -1364,10 +1650,32 @@ impl Server {
         Summary {
             workbook: self.workbook,
             session: self.clipboard_session.clone(),
-            initial_cell: self.book.host().loaded().active_sheet()
-                .and_then(|id|self.book.host().sheets().iter().find(|s|s.id()==id && s.visibility()==calc_host::SheetVisibility::Visible))
-                .or_else(||self.book.host().sheets().iter().find(|s|s.visibility()==calc_host::SheetVisibility::Visible))
-                .and_then(|s| {let (r,c)=self.book.host().sheet_view(s.id()).and_then(|v|v.active_cell).unwrap_or((1,1));CellKey::new(s.id(),r,c).ok().map(Key::of)}),
+            initial_cell: self
+                .book
+                .host()
+                .loaded()
+                .active_sheet()
+                .and_then(|id| {
+                    self.book.host().sheets().iter().find(|s| {
+                        s.id() == id && s.visibility() == calc_host::SheetVisibility::Visible
+                    })
+                })
+                .or_else(|| {
+                    self.book
+                        .host()
+                        .sheets()
+                        .iter()
+                        .find(|s| s.visibility() == calc_host::SheetVisibility::Visible)
+                })
+                .and_then(|s| {
+                    let (r, c) = self
+                        .book
+                        .host()
+                        .sheet_view(s.id())
+                        .and_then(|v| v.active_cell)
+                        .unwrap_or((1, 1));
+                    CellKey::new(s.id(), r, c).ok().map(Key::of)
+                }),
             name: self.book.name().to_owned(),
             changed: self.book.changed(),
             unsaved: self.book.unsaved(),
@@ -1540,7 +1848,7 @@ impl Server {
         }
         let validation=host.validation(at).map(|v|format!("{} validation · {:?}. Entry alerts check candidate values through the workbook evaluator. Circle Invalid Data checks current published values.",v.kind,v.style));
         wire::Review {
-            next_index:review.notes.len() as u32,
+            next_index: review.notes.len() as u32,
             at: Some(Key::of(at)),
             revision: host.revision().get(),
             rules,
@@ -1548,7 +1856,7 @@ impl Server {
                 .notes
                 .into_iter()
                 .enumerate()
-                .filter(|(_, n)| n.at == at&& !n.compatibility)
+                .filter(|(_, n)| n.at == at && !n.compatibility)
                 .map(|(index, n)| {
                     let (threaded, reply, resolved) = match &n.source {
                         Some(calc_host::ReviewSource::Thread {
@@ -1556,8 +1864,25 @@ impl Server {
                         }) => (true, parent.is_some(), *resolved),
                         _ => (false, false, false),
                     };
-                    let runs=calc_host::note_segments(&n).into_iter().map(|(text,s)|wire::ReviewRun{text,bold:s.bold,italic:s.italic,underline:s.underline,strike:s.strike,color:s.color.filter(|c|matches!(c.len(),6|8)&&c.bytes().all(|b|b.is_ascii_hexdigit())),size:s.size.filter(|s|s.parse::<f64>().is_ok_and(|n|n.is_finite()&&n>0.&&n<=500.))}).collect();
-                    wire::ReviewItem {runs,
+                    let runs = calc_host::note_segments(&n)
+                        .into_iter()
+                        .map(|(text, s)| wire::ReviewRun {
+                            text,
+                            bold: s.bold,
+                            italic: s.italic,
+                            underline: s.underline,
+                            strike: s.strike,
+                            color: s.color.filter(|c| {
+                                matches!(c.len(), 6 | 8) && c.bytes().all(|b| b.is_ascii_hexdigit())
+                            }),
+                            size: s.size.filter(|s| {
+                                s.parse::<f64>()
+                                    .is_ok_and(|n| n.is_finite() && n > 0. && n <= 500.)
+                            }),
+                        })
+                        .collect();
+                    wire::ReviewItem {
+                        runs,
                         index: index as u32,
                         author: n.author,
                         text: n.text,
@@ -1591,9 +1916,60 @@ impl Server {
 
     fn intent(&mut self, intent: Intent) -> Result<Reply, String> {
         let intent = match intent {
-            Intent::CreateReview{at,revision,parent,threaded,author,text,timestamp}=>SkinIntent::Command(calc_host::WorkbookCommand::ReviewAction{at:cell(at)?,revision,action:calc_host::ReviewAction::Create{parent,threaded,author,text,timestamp}}),
-            Intent::FormatReview{at,revision,index,text,start,end,patch}=>SkinIntent::Command(calc_host::WorkbookCommand::ReviewAction{at:cell(at)?,revision,action:calc_host::ReviewAction::Format{index,text,start,end,patch:calc_host::NoteStylePatch{bold:patch.bold,italic:patch.italic,underline:patch.underline,color:patch.color,clear:patch.clear}}}),
-            Intent::ResolveReview{at,revision,index,resolved}=>SkinIntent::Command(calc_host::WorkbookCommand::ReviewAction{at:cell(at)?,revision,action:calc_host::ReviewAction::Resolve{index,resolved}}),
+            Intent::CreateReview {
+                at,
+                revision,
+                parent,
+                threaded,
+                author,
+                text,
+                timestamp,
+            } => SkinIntent::Command(calc_host::WorkbookCommand::ReviewAction {
+                at: cell(at)?,
+                revision,
+                action: calc_host::ReviewAction::Create {
+                    parent,
+                    threaded,
+                    author,
+                    text,
+                    timestamp,
+                },
+            }),
+            Intent::FormatReview {
+                at,
+                revision,
+                index,
+                text,
+                start,
+                end,
+                patch,
+            } => SkinIntent::Command(calc_host::WorkbookCommand::ReviewAction {
+                at: cell(at)?,
+                revision,
+                action: calc_host::ReviewAction::Format {
+                    index,
+                    text,
+                    start,
+                    end,
+                    patch: calc_host::NoteStylePatch {
+                        bold: patch.bold,
+                        italic: patch.italic,
+                        underline: patch.underline,
+                        color: patch.color,
+                        clear: patch.clear,
+                    },
+                },
+            }),
+            Intent::ResolveReview {
+                at,
+                revision,
+                index,
+                resolved,
+            } => SkinIntent::Command(calc_host::WorkbookCommand::ReviewAction {
+                at: cell(at)?,
+                revision,
+                action: calc_host::ReviewAction::Resolve { index, resolved },
+            }),
             Intent::EditReview {
                 at,
                 revision,
@@ -1656,14 +2032,114 @@ impl Server {
                 direction,
             } => return self.notebook_order(placement, direction),
 
-            Intent::RefreshAll { revision } => SkinIntent::Command(calc_host::WorkbookCommand::RefreshAll { revision }),
-            Intent::PivotCreate{revision,source,destination,row,value,subtotal}=>SkinIntent::Command(calc_host::WorkbookCommand::PivotCreate{revision,source:source.area().ok_or("Invalid pivot source range")?,destination,row,value,subtotal}),
-            Intent::PivotRefresh{sheet,revision,part}=>SkinIntent::Command(calc_host::WorkbookCommand::PivotRefresh{sheet:sheet.id(),revision,part}),
-            Intent::ChartCreate{revision,area,kind,rows,headers,categories}=>SkinIntent::Command(calc_host::WorkbookCommand::ChartCreate{revision,area:area.area().ok_or("Invalid chart selection")?,kind,rows,headers,categories}),
-            Intent::ChartSeriesStyle{sheet,revision,part,plot,series,fill}=>SkinIntent::Command(calc_host::WorkbookCommand::ChartSeriesStyle{sheet:sheet.id(),revision,part,plot,series,fill}),
-            Intent::ChartElementTextStyle{sheet,revision,part,target,style}=>SkinIntent::Command(calc_host::WorkbookCommand::ChartElementTextStyle{sheet:sheet.id(),revision,part,target,style:calc_host::chart::ChartTextStyle{family:style.family,size:style.size,bold:style.bold,italic:style.italic,color:style.color}}),
-            Intent::ChartTextStyle{sheet,revision,part,style}=>SkinIntent::Command(calc_host::WorkbookCommand::ChartTextStyle{sheet:sheet.id(),revision,part,style:calc_host::chart::ChartTextStyle{family:style.family,size:style.size,bold:style.bold,italic:style.italic,color:style.color}}),
-            Intent::ChartType{sheet,revision,part,plot,kind,stacked}=>SkinIntent::Command(calc_host::WorkbookCommand::ChartType{sheet:sheet.id(),revision,part,plot,kind,stacked}),
+            Intent::RefreshAll { revision } => {
+                SkinIntent::Command(calc_host::WorkbookCommand::RefreshAll { revision })
+            }
+            Intent::PivotCreate {
+                revision,
+                source,
+                destination,
+                row,
+                value,
+                subtotal,
+            } => SkinIntent::Command(calc_host::WorkbookCommand::PivotCreate {
+                revision,
+                source: source.area().ok_or("Invalid pivot source range")?,
+                destination,
+                row,
+                value,
+                subtotal,
+            }),
+            Intent::PivotRefresh {
+                sheet,
+                revision,
+                part,
+            } => SkinIntent::Command(calc_host::WorkbookCommand::PivotRefresh {
+                sheet: sheet.id(),
+                revision,
+                part,
+            }),
+            Intent::ChartCreate {
+                revision,
+                area,
+                kind,
+                rows,
+                headers,
+                categories,
+            } => SkinIntent::Command(calc_host::WorkbookCommand::ChartCreate {
+                revision,
+                area: area.area().ok_or("Invalid chart selection")?,
+                kind,
+                rows,
+                headers,
+                categories,
+            }),
+            Intent::ChartSeriesStyle {
+                sheet,
+                revision,
+                part,
+                plot,
+                series,
+                fill,
+            } => SkinIntent::Command(calc_host::WorkbookCommand::ChartSeriesStyle {
+                sheet: sheet.id(),
+                revision,
+                part,
+                plot,
+                series,
+                fill,
+            }),
+            Intent::ChartElementTextStyle {
+                sheet,
+                revision,
+                part,
+                target,
+                style,
+            } => SkinIntent::Command(calc_host::WorkbookCommand::ChartElementTextStyle {
+                sheet: sheet.id(),
+                revision,
+                part,
+                target,
+                style: calc_host::chart::ChartTextStyle {
+                    family: style.family,
+                    size: style.size,
+                    bold: style.bold,
+                    italic: style.italic,
+                    color: style.color,
+                },
+            }),
+            Intent::ChartTextStyle {
+                sheet,
+                revision,
+                part,
+                style,
+            } => SkinIntent::Command(calc_host::WorkbookCommand::ChartTextStyle {
+                sheet: sheet.id(),
+                revision,
+                part,
+                style: calc_host::chart::ChartTextStyle {
+                    family: style.family,
+                    size: style.size,
+                    bold: style.bold,
+                    italic: style.italic,
+                    color: style.color,
+                },
+            }),
+            Intent::ChartType {
+                sheet,
+                revision,
+                part,
+                plot,
+                kind,
+                stacked,
+            } => SkinIntent::Command(calc_host::WorkbookCommand::ChartType {
+                sheet: sheet.id(),
+                revision,
+                part,
+                plot,
+                kind,
+                stacked,
+            }),
             Intent::PageSetup {
                 sheet,
                 revision,
@@ -1673,32 +2149,280 @@ impl Server {
                 revision,
                 change: crate::printing::change(change),
             }),
-            Intent::ChartLegend{sheet,revision,part,position}=>SkinIntent::Command(calc_host::WorkbookCommand::ChartLegend{sheet:sheet.id(),revision,part,position}),
-            Intent::ChartLogAxis{sheet,revision,part,axis,base}=>SkinIntent::Command(calc_host::WorkbookCommand::ChartLogAxis{sheet:sheet.id(),revision,part,axis,base}),
-            Intent::ChartAxis{sheet,revision,part,axis,minimum,maximum,major_unit,reversed}=>SkinIntent::Command(calc_host::WorkbookCommand::ChartAxis{sheet:sheet.id(),revision,part,axis,minimum,maximum,major_unit,reversed}),
-            Intent::ChartSeries {sheet,revision,part,plot,series,name,categories,values,remove}=>SkinIntent::Command(calc_host::WorkbookCommand::ChartSeries {sheet:sheet.id(),revision,part,plot,series,name,categories,values,remove}),
-            Intent::ChartProperties {sheet,revision,part,title,set_title,legend}=>SkinIntent::Command(calc_host::WorkbookCommand::ChartProperties {sheet:sheet.id(),revision,part,title,set_title,legend}),
-            Intent::Table{revision,change}=>{
-                use wire::TableChange as W;use calc_host::TableChange as H;
-                let change=match change{W::Create{area:a,name}=>H::Create{area:area(a)?,name},W::Resize{part,area:a}=>H::Resize{part,area:area(a)?},W::Options{part,headers,totals,style,row_stripes,column_stripes,first_column,last_column}=>H::Options{part,headers,totals,style,row_stripes,column_stripes,first_column,last_column},W::Total{part,column,function}=>H::Total{part,column,function},W::RenameColumn{part,column,name}=>H::RenameColumn{part,column,name},W::CalculatedColumn{part,column,formula}=>H::CalculatedColumn{part,column,formula}};
-                SkinIntent::Command(calc_host::WorkbookCommand::Table{revision,change})
-            }
-            Intent::AutoFilter {sheet,revision,table,change} => {
-                use wire::FilterChange as W; use calc_host::{FilterChange as H,FilterCriteria,FilterPredicate,FilterOperator};
-                let change=match change {
-                    W::Enable(a)=>H::Enable{area:area(a)?},
-                    W::Values{column,values,blank}=>H::Column{column,criteria:Some(FilterCriteria::Values{values,blank})},
-                    W::Custom{column,and,predicates}=>H::Column{column,criteria:Some(FilterCriteria::Custom{and,predicates:predicates.into_iter().map(|(operator,value)|Ok(FilterPredicate{operator:FilterOperator::from_xml(&operator).ok_or("Unknown filter operator")?,value})).collect::<Result<Vec<_>,&str>>()?})},
-                    W::Dates{column,groups,values,blank}=>H::Column{column,criteria:Some(FilterCriteria::Dates{groups,values,blank})},
-                    W::Top{column,top,percent,value}=>H::Column{column,criteria:Some(FilterCriteria::Top{top,percent,value})},
-                    W::Color{column,cell_color,color}=>H::Color{column,cell_color,color},
-                    W::ColorReference{column,dxf_id,cell_color}=>H::Column{column,criteria:Some(FilterCriteria::Color{dxf_id,cell_color})},
-                    W::ClearColumn(column)=>H::Column{column,criteria:None}, W::Clear=>H::Clear,W::Remove=>H::Remove,W::Reapply=>H::Reapply,
+            Intent::ChartLegend {
+                sheet,
+                revision,
+                part,
+                position,
+            } => SkinIntent::Command(calc_host::WorkbookCommand::ChartLegend {
+                sheet: sheet.id(),
+                revision,
+                part,
+                position,
+            }),
+            Intent::ChartLogAxis {
+                sheet,
+                revision,
+                part,
+                axis,
+                base,
+            } => SkinIntent::Command(calc_host::WorkbookCommand::ChartLogAxis {
+                sheet: sheet.id(),
+                revision,
+                part,
+                axis,
+                base,
+            }),
+            Intent::ChartAxis {
+                sheet,
+                revision,
+                part,
+                axis,
+                minimum,
+                maximum,
+                major_unit,
+                reversed,
+            } => SkinIntent::Command(calc_host::WorkbookCommand::ChartAxis {
+                sheet: sheet.id(),
+                revision,
+                part,
+                axis,
+                minimum,
+                maximum,
+                major_unit,
+                reversed,
+            }),
+            Intent::ChartSeries {
+                sheet,
+                revision,
+                part,
+                plot,
+                series,
+                name,
+                categories,
+                values,
+                remove,
+            } => SkinIntent::Command(calc_host::WorkbookCommand::ChartSeries {
+                sheet: sheet.id(),
+                revision,
+                part,
+                plot,
+                series,
+                name,
+                categories,
+                values,
+                remove,
+            }),
+            Intent::ChartProperties {
+                sheet,
+                revision,
+                part,
+                title,
+                set_title,
+                legend,
+            } => SkinIntent::Command(calc_host::WorkbookCommand::ChartProperties {
+                sheet: sheet.id(),
+                revision,
+                part,
+                title,
+                set_title,
+                legend,
+            }),
+            Intent::Table { revision, change } => {
+                use calc_host::TableChange as H;
+                use wire::TableChange as W;
+                let change = match change {
+                    W::Create { area: a, name } => H::Create {
+                        area: area(a)?,
+                        name,
+                    },
+                    W::Resize { part, area: a } => H::Resize {
+                        part,
+                        area: area(a)?,
+                    },
+                    W::Options {
+                        part,
+                        headers,
+                        totals,
+                        style,
+                        row_stripes,
+                        column_stripes,
+                        first_column,
+                        last_column,
+                    } => H::Options {
+                        part,
+                        headers,
+                        totals,
+                        style,
+                        row_stripes,
+                        column_stripes,
+                        first_column,
+                        last_column,
+                    },
+                    W::Total {
+                        part,
+                        column,
+                        function,
+                    } => H::Total {
+                        part,
+                        column,
+                        function,
+                    },
+                    W::RenameColumn { part, column, name } => {
+                        H::RenameColumn { part, column, name }
+                    }
+                    W::CalculatedColumn {
+                        part,
+                        column,
+                        formula,
+                    } => H::CalculatedColumn {
+                        part,
+                        column,
+                        formula,
+                    },
                 };
-                SkinIntent::Command(if let Some(part)=table{calc_host::WorkbookCommand::TableFilter{sheet:sheet.id(),revision,part,change}}else{calc_host::WorkbookCommand::AutoFilter{sheet:sheet.id(),revision,change}})
-            },
-            Intent::SortRowsWithOptions{area:a,keys,header,revision,case_sensitive,custom_order}=>SkinIntent::Command(calc_host::WorkbookCommand::SortRowsWithOptions{area:area(a)?,keys:keys.into_iter().map(|(column,descending)|calc_host::SortKey{column,descending}).collect(),header,revision,options:calc_host::SortOptions{case_sensitive,custom_order}}),
-            Intent::SortRows {area:a,keys,header,revision} => SkinIntent::Command(calc_host::WorkbookCommand::SortRows {area:area(a)?,keys:keys.into_iter().map(|(column,descending)|calc_host::SortKey{column,descending}).collect(),header,revision}),
+                SkinIntent::Command(calc_host::WorkbookCommand::Table { revision, change })
+            }
+            Intent::AutoFilter {
+                sheet,
+                revision,
+                table,
+                change,
+            } => {
+                use calc_host::{
+                    FilterChange as H, FilterCriteria, FilterOperator, FilterPredicate,
+                };
+                use wire::FilterChange as W;
+                let change = match change {
+                    W::Enable(a) => H::Enable { area: area(a)? },
+                    W::Values {
+                        column,
+                        values,
+                        blank,
+                    } => H::Column {
+                        column,
+                        criteria: Some(FilterCriteria::Values { values, blank }),
+                    },
+                    W::Custom {
+                        column,
+                        and,
+                        predicates,
+                    } => H::Column {
+                        column,
+                        criteria: Some(FilterCriteria::Custom {
+                            and,
+                            predicates: predicates
+                                .into_iter()
+                                .map(|(operator, value)| {
+                                    Ok(FilterPredicate {
+                                        operator: FilterOperator::from_xml(&operator)
+                                            .ok_or("Unknown filter operator")?,
+                                        value,
+                                    })
+                                })
+                                .collect::<Result<Vec<_>, &str>>()?,
+                        }),
+                    },
+                    W::Dates {
+                        column,
+                        groups,
+                        values,
+                        blank,
+                    } => H::Column {
+                        column,
+                        criteria: Some(FilterCriteria::Dates {
+                            groups,
+                            values,
+                            blank,
+                        }),
+                    },
+                    W::Top {
+                        column,
+                        top,
+                        percent,
+                        value,
+                    } => H::Column {
+                        column,
+                        criteria: Some(FilterCriteria::Top {
+                            top,
+                            percent,
+                            value,
+                        }),
+                    },
+                    W::Color {
+                        column,
+                        cell_color,
+                        color,
+                    } => H::Color {
+                        column,
+                        cell_color,
+                        color,
+                    },
+                    W::ColorReference {
+                        column,
+                        dxf_id,
+                        cell_color,
+                    } => H::Column {
+                        column,
+                        criteria: Some(FilterCriteria::Color { dxf_id, cell_color }),
+                    },
+                    W::ClearColumn(column) => H::Column {
+                        column,
+                        criteria: None,
+                    },
+                    W::Clear => H::Clear,
+                    W::Remove => H::Remove,
+                    W::Reapply => H::Reapply,
+                };
+                SkinIntent::Command(if let Some(part) = table {
+                    calc_host::WorkbookCommand::TableFilter {
+                        sheet: sheet.id(),
+                        revision,
+                        part,
+                        change,
+                    }
+                } else {
+                    calc_host::WorkbookCommand::AutoFilter {
+                        sheet: sheet.id(),
+                        revision,
+                        change,
+                    }
+                })
+            }
+            Intent::SortRowsWithOptions {
+                area: a,
+                keys,
+                header,
+                revision,
+                case_sensitive,
+                custom_order,
+            } => SkinIntent::Command(calc_host::WorkbookCommand::SortRowsWithOptions {
+                area: area(a)?,
+                keys: keys
+                    .into_iter()
+                    .map(|(column, descending)| calc_host::SortKey { column, descending })
+                    .collect(),
+                header,
+                revision,
+                options: calc_host::SortOptions {
+                    case_sensitive,
+                    custom_order,
+                },
+            }),
+            Intent::SortRows {
+                area: a,
+                keys,
+                header,
+                revision,
+            } => SkinIntent::Command(calc_host::WorkbookCommand::SortRows {
+                area: area(a)?,
+                keys: keys
+                    .into_iter()
+                    .map(|(column, descending)| calc_host::SortKey { column, descending })
+                    .collect(),
+                header,
+                revision,
+            }),
             Intent::Replace {
                 options,
                 replacement,
@@ -1747,13 +2471,41 @@ impl Server {
                 revision,
                 sizes,
             }),
-            Intent::Outline {sheet,rows,revision,change} => SkinIntent::Command(calc_host::WorkbookCommand::Outline {sheet:sheet.id(),rows,revision,change:match change {
-                wire::OutlineChange::Group{first,last}=>calc_host::OutlineChange::Group{first,last},
-                wire::OutlineChange::Ungroup{first,last}=>calc_host::OutlineChange::Ungroup{first,last},
-                wire::OutlineChange::Detail{first,last,level,show}=>calc_host::OutlineChange::Detail{first,last,level,show},
-                wire::OutlineChange::ShowLevel(level)=>calc_host::OutlineChange::ShowLevel(level),
-                wire::OutlineChange::SummaryAfter(after)=>calc_host::OutlineChange::SummaryAfter(after),
-            }}),
+            Intent::Outline {
+                sheet,
+                rows,
+                revision,
+                change,
+            } => SkinIntent::Command(calc_host::WorkbookCommand::Outline {
+                sheet: sheet.id(),
+                rows,
+                revision,
+                change: match change {
+                    wire::OutlineChange::Group { first, last } => {
+                        calc_host::OutlineChange::Group { first, last }
+                    }
+                    wire::OutlineChange::Ungroup { first, last } => {
+                        calc_host::OutlineChange::Ungroup { first, last }
+                    }
+                    wire::OutlineChange::Detail {
+                        first,
+                        last,
+                        level,
+                        show,
+                    } => calc_host::OutlineChange::Detail {
+                        first,
+                        last,
+                        level,
+                        show,
+                    },
+                    wire::OutlineChange::ShowLevel(level) => {
+                        calc_host::OutlineChange::ShowLevel(level)
+                    }
+                    wire::OutlineChange::SummaryAfter(after) => {
+                        calc_host::OutlineChange::SummaryAfter(after)
+                    }
+                },
+            }),
             Intent::AxisFormat {
                 sheet,
                 rows,
@@ -1769,7 +2521,21 @@ impl Server {
                 size_bits,
                 hidden,
             }),
-            Intent::SplitPanes {sheet,revision,x,y,row,column} => SkinIntent::Command(calc_host::WorkbookCommand::SplitPanes {sheet:sheet.id(),revision,x,y,row,column}),
+            Intent::SplitPanes {
+                sheet,
+                revision,
+                x,
+                y,
+                row,
+                column,
+            } => SkinIntent::Command(calc_host::WorkbookCommand::SplitPanes {
+                sheet: sheet.id(),
+                revision,
+                x,
+                y,
+                row,
+                column,
+            }),
             Intent::FreezePanes {
                 sheet,
                 rows,
@@ -1786,7 +2552,11 @@ impl Server {
                 if held != id {
                     return Err("The workbook changed after the preview; paste again".into());
                 }
-                SkinIntent::Command(calc_host::WorkbookCommand::Paste(if select_target {plan.with_target_selection()} else {plan}))
+                SkinIntent::Command(calc_host::WorkbookCommand::Paste(if select_target {
+                    plan.with_target_selection()
+                } else {
+                    plan
+                }))
             }
             Intent::Navigate {
                 nav,
@@ -2469,7 +3239,9 @@ impl Server {
             Event::Tiles(batch) => batch.stamp.id != id,
             Event::TileCompletion(barrier) => barrier.id != id,
             Event::ProjectionFailed { id: failed, .. } => *failed != id,
-            Event::Calculation { .. } | Event::SaveReady { .. } | Event::WorkbookEventFailed { .. } => true,
+            Event::Calculation { .. }
+            | Event::SaveReady { .. }
+            | Event::WorkbookEventFailed { .. } => true,
         });
     }
 
@@ -2511,7 +3283,8 @@ impl Server {
                     || pane.x < 0.
                     || pane.y < 0.
                     || !pane.zoom.is_finite()
-                    || !(dna_calc_model::viewport::ZOOM_MIN..=dna_calc_model::viewport::ZOOM_MAX).contains(&pane.zoom)
+                    || !(dna_calc_model::viewport::ZOOM_MIN..=dna_calc_model::viewport::ZOOM_MAX)
+                        .contains(&pane.zoom)
                 {
                     return Err("Invalid saved pane position or zoom".into());
                 }
@@ -2579,10 +3352,67 @@ impl Server {
             .sheet_geometry(sheet.id())
             .map(|g| wire::geometry_of(&g))
             .unwrap_or_default();
-        let layouts=self.book.host().model().definitions().axis_layouts();
-        geometry.outline=[calc_host::Axis::Rows,calc_host::Axis::Columns].into_iter().flat_map(|axis|layouts.outline_groups(sheet.id(),axis).into_iter().map(move |g|wire::OutlineGroup {rows:axis==calc_host::Axis::Rows,first:g.first,last:g.last,level:g.level,summary:g.summary,collapsed:g.collapsed})).collect();
-        geometry.auto_filter=self.book.host().model().definitions().auto_filter(sheet.id()).map(|f|wire::FilterView{table:None,area:Area::of(f.area),columns:f.columns.keys().copied().collect(),filtered:f.filtered_rows.len() as u32,unsupported:f.unsupported});
-        geometry.tables=self.book.host().model().definitions().tables().iter().filter(|t|t.sheet==sheet.id()).map(|t|wire::TableView{part:t.part.clone(),name:t.display_name.clone(),area:Area::of(t.area),columns:t.columns.clone(),column_formulas:t.column_formulas.clone(),headers:t.header_rows>0,totals:t.totals_rows>0,style:t.style.name.clone().unwrap_or_default(),row_stripes:t.style.row_stripes,column_stripes:t.style.column_stripes,first_column:t.style.first_column,last_column:t.style.last_column,opaque:t.axis_opaque,filter:t.filter.as_ref().map(|f|wire::FilterView{table:Some(t.part.clone()),area:Area::of(f.area),columns:f.columns.keys().copied().collect(),filtered:f.filtered_rows.len() as u32,unsupported:f.unsupported})}).collect();
+        let layouts = self.book.host().model().definitions().axis_layouts();
+        geometry.outline = [calc_host::Axis::Rows, calc_host::Axis::Columns]
+            .into_iter()
+            .flat_map(|axis| {
+                layouts
+                    .outline_groups(sheet.id(), axis)
+                    .into_iter()
+                    .map(move |g| wire::OutlineGroup {
+                        rows: axis == calc_host::Axis::Rows,
+                        first: g.first,
+                        last: g.last,
+                        level: g.level,
+                        summary: g.summary,
+                        collapsed: g.collapsed,
+                    })
+            })
+            .collect();
+        geometry.auto_filter = self
+            .book
+            .host()
+            .model()
+            .definitions()
+            .auto_filter(sheet.id())
+            .map(|f| wire::FilterView {
+                table: None,
+                area: Area::of(f.area),
+                columns: f.columns.keys().copied().collect(),
+                filtered: f.filtered_rows.len() as u32,
+                unsupported: f.unsupported,
+            });
+        geometry.tables = self
+            .book
+            .host()
+            .model()
+            .definitions()
+            .tables()
+            .iter()
+            .filter(|t| t.sheet == sheet.id())
+            .map(|t| wire::TableView {
+                part: t.part.clone(),
+                name: t.display_name.clone(),
+                area: Area::of(t.area),
+                columns: t.columns.clone(),
+                column_formulas: t.column_formulas.clone(),
+                headers: t.header_rows > 0,
+                totals: t.totals_rows > 0,
+                style: t.style.name.clone().unwrap_or_default(),
+                row_stripes: t.style.row_stripes,
+                column_stripes: t.style.column_stripes,
+                first_column: t.style.first_column,
+                last_column: t.style.last_column,
+                opaque: t.axis_opaque,
+                filter: t.filter.as_ref().map(|f| wire::FilterView {
+                    table: Some(t.part.clone()),
+                    area: Area::of(f.area),
+                    columns: f.columns.keys().copied().collect(),
+                    filtered: f.filtered_rows.len() as u32,
+                    unsupported: f.unsupported,
+                }),
+            })
+            .collect();
         geometry.merges = self
             .book
             .host()
@@ -2647,15 +3477,26 @@ impl Server {
                 for (at, _) in model.cells(strip).into_iter().flatten() {
                     nearest.insert(at.row(), at.column());
                 }
-                found.extend(std::mem::take(&mut nearest).into_iter().map(|(row, column)| (sheet, row, column)));
+                found.extend(
+                    std::mem::take(&mut nearest)
+                        .into_iter()
+                        .map(|(row, column)| (sheet, row, column)),
+                );
             }
             if right < 16_384
-                && let Some(strip) = strip(right + 1, right.saturating_add(OVERHANG_COLUMNS).min(16_384))
+                && let Some(strip) = strip(
+                    right + 1,
+                    right.saturating_add(OVERHANG_COLUMNS).min(16_384),
+                )
             {
                 for (at, _) in model.cells(strip).into_iter().flatten() {
                     nearest.entry(at.row()).or_insert(at.column());
                 }
-                found.extend(std::mem::take(&mut nearest).into_iter().map(|(row, column)| (sheet, row, column)));
+                found.extend(
+                    std::mem::take(&mut nearest)
+                        .into_iter()
+                        .map(|(row, column)| (sheet, row, column)),
+                );
             }
         }
         found
@@ -2677,9 +3518,10 @@ impl Server {
             .map(|(id, _)| *id)
             .collect();
         for id in stale {
-            let (Some(interest), Some(&subscription)) =
-                (self.subscription_interests.get(&id).cloned(), self.subscriptions.get(&id))
-            else {
+            let (Some(interest), Some(&subscription)) = (
+                self.subscription_interests.get(&id).cloned(),
+                self.subscriptions.get(&id),
+            ) else {
                 continue;
             };
             let extras = self.overhang_of(&interest);
@@ -2706,7 +3548,13 @@ impl Server {
                 calc_host::WorkbookEvent::WorksheetCalculate { .. } => "Worksheet_Calculate",
                 calc_host::WorkbookEvent::BeforeSave { .. } => "Workbook_BeforeSave",
             };
-            self.events.push(Event::WorkbookEventFailed { workbook: self.workbook, sequence: failure.sequence, event: event.into(), reason: failure.reason, omitted: if index == 0 { failures.omitted } else { 0 } });
+            self.events.push(Event::WorkbookEventFailed {
+                workbook: self.workbook,
+                sequence: failure.sequence,
+                event: event.into(),
+                reason: failure.reason,
+                omitted: if index == 0 { failures.omitted } else { 0 },
+            });
         }
         let mut terminal = Vec::new();
         for event in self.book.take_calculation_events() {
@@ -3174,7 +4022,11 @@ impl Server {
                     origin: d.origin,
                     category: d.category,
                     description: d.description,
-                    parameters: d.parameters.into_iter().map(|p| (p.name, p.description)).collect(),
+                    parameters: d
+                        .parameters
+                        .into_iter()
+                        .map(|p| (p.name, p.description))
+                        .collect(),
                     volatile: d.volatile,
                     thread_safe: d.thread_safe,
                     asynchronous: d.asynchronous,
@@ -3187,23 +4039,142 @@ impl Server {
 
     /// The sheet's charts, laid out with its sizes at 100% and drawn.
     /// Describe saved definitions; cache contents never stand in for a refresh.
-    fn pivots(&self,sheet:Sheet)->(Vec<wire::SavedPivot>,Vec<String>){
-        let state=self.book.host().model().definitions().pivots();let caches=&state.caches;
-        let mut issues=caches.issues.iter().map(|e|format!("{}: {} ({})",e.part,e.detail,e.owner)).collect::<Vec<_>>();
-        let Some(source)=state.sheet(sheet.id())else{return (Vec::new(),Vec::new());};
-        issues.extend(source.issues.iter().map(|e|format!("{}: {} ({})",e.part,e.detail,e.owner)));
-        let tables=source.tables.iter().map(|p|{
-            let (source,fields,cache)=match caches.caches.get(&p.cache_id){
-                Some(c)=>{
-                    let field=|index:i32|if index==-2{"Values".to_owned()}else{usize::try_from(index).ok().and_then(|i|c.fields.get(i)).map(|f|f.name.clone()).unwrap_or_else(||format!("Field {index} (unread)"))};
-                    let mut fields=Vec::new();if !p.row_fields.is_empty(){fields.push(format!("Rows: {}",p.row_fields.iter().map(|i|field(*i)).collect::<Vec<_>>().join(", ")));}if !p.column_fields.is_empty(){fields.push(format!("Columns: {}",p.column_fields.iter().map(|i|field(*i)).collect::<Vec<_>>().join(", ")));}if !p.page_fields.is_empty(){fields.push(format!("Filters: {}",p.page_fields.iter().map(|i|field(i.field as i32)).collect::<Vec<_>>().join(", ")));}if !p.data_fields.is_empty(){fields.push(format!("Values: {}",p.data_fields.iter().map(|v|format!("{} ({})",v.name.clone().unwrap_or_else(||field(v.field as i32)),v.subtotal)).collect::<Vec<_>>().join(", ")));}
-                    let source=if let Some(name)=&c.source_name{format!("Source name: {name}")}else if let (Some(sheet),Some(range))=(&c.source_sheet,&c.source_range){format!("Source: {sheet}!{range}")}else{format!("Saved {} source",c.source_type)};
-                    (source,fields.join(" · "),format!("Saved cache {} · {} fields · {} records declared",c.id,c.fields.len(),c.record_count.map(|n|n.to_string()).unwrap_or_else(||"unknown".into())))
-                },None=>{issues.push(format!("{}: cache {} was not read (dc-8wp)",p.name,p.cache_id));("Source unavailable".into(),"Fields unavailable".into(),format!("Saved cache {} is unread",p.cache_id))},
-            };
-            let address=|cell:CellKey|format!("{}{}",dna_calc_model::address::column_letters(cell.column()),cell.row());
-            wire::SavedPivot{refreshed_revision:caches.caches.get(&p.cache_id).and_then(|c|c.snapshot.as_ref().map(|s|s.source_revision)),name:p.name.clone(),part:p.part.clone(),area:Area::of(p.area),location:format!("{}:{}",address(p.area.first()),address(p.area.last())),source,fields,cache}
-        }).collect();(tables,issues)
+    fn pivots(&self, sheet: Sheet) -> (Vec<wire::SavedPivot>, Vec<String>) {
+        let state = self.book.host().model().definitions().pivots();
+        let caches = &state.caches;
+        let mut issues = caches
+            .issues
+            .iter()
+            .map(|e| format!("{}: {} ({})", e.part, e.detail, e.owner))
+            .collect::<Vec<_>>();
+        let Some(source) = state.sheet(sheet.id()) else {
+            return (Vec::new(), Vec::new());
+        };
+        issues.extend(
+            source
+                .issues
+                .iter()
+                .map(|e| format!("{}: {} ({})", e.part, e.detail, e.owner)),
+        );
+        let tables = source
+            .tables
+            .iter()
+            .map(|p| {
+                let (source, fields, cache) = match caches.caches.get(&p.cache_id) {
+                    Some(c) => {
+                        let field = |index: i32| {
+                            if index == -2 {
+                                "Values".to_owned()
+                            } else {
+                                usize::try_from(index)
+                                    .ok()
+                                    .and_then(|i| c.fields.get(i))
+                                    .map(|f| f.name.clone())
+                                    .unwrap_or_else(|| format!("Field {index} (unread)"))
+                            }
+                        };
+                        let mut fields = Vec::new();
+                        if !p.row_fields.is_empty() {
+                            fields.push(format!(
+                                "Rows: {}",
+                                p.row_fields
+                                    .iter()
+                                    .map(|i| field(*i))
+                                    .collect::<Vec<_>>()
+                                    .join(", ")
+                            ));
+                        }
+                        if !p.column_fields.is_empty() {
+                            fields.push(format!(
+                                "Columns: {}",
+                                p.column_fields
+                                    .iter()
+                                    .map(|i| field(*i))
+                                    .collect::<Vec<_>>()
+                                    .join(", ")
+                            ));
+                        }
+                        if !p.page_fields.is_empty() {
+                            fields.push(format!(
+                                "Filters: {}",
+                                p.page_fields
+                                    .iter()
+                                    .map(|i| field(i.field as i32))
+                                    .collect::<Vec<_>>()
+                                    .join(", ")
+                            ));
+                        }
+                        if !p.data_fields.is_empty() {
+                            fields.push(format!(
+                                "Values: {}",
+                                p.data_fields
+                                    .iter()
+                                    .map(|v| format!(
+                                        "{} ({})",
+                                        v.name.clone().unwrap_or_else(|| field(v.field as i32)),
+                                        v.subtotal
+                                    ))
+                                    .collect::<Vec<_>>()
+                                    .join(", ")
+                            ));
+                        }
+                        let source = if let Some(name) = &c.source_name {
+                            format!("Source name: {name}")
+                        } else if let (Some(sheet), Some(range)) =
+                            (&c.source_sheet, &c.source_range)
+                        {
+                            format!("Source: {sheet}!{range}")
+                        } else {
+                            format!("Saved {} source", c.source_type)
+                        };
+                        (
+                            source,
+                            fields.join(" · "),
+                            format!(
+                                "Saved cache {} · {} fields · {} records declared",
+                                c.id,
+                                c.fields.len(),
+                                c.record_count
+                                    .map(|n| n.to_string())
+                                    .unwrap_or_else(|| "unknown".into())
+                            ),
+                        )
+                    }
+                    None => {
+                        issues.push(format!(
+                            "{}: cache {} was not read (dc-8wp)",
+                            p.name, p.cache_id
+                        ));
+                        (
+                            "Source unavailable".into(),
+                            "Fields unavailable".into(),
+                            format!("Saved cache {} is unread", p.cache_id),
+                        )
+                    }
+                };
+                let address = |cell: CellKey| {
+                    format!(
+                        "{}{}",
+                        dna_calc_model::address::column_letters(cell.column()),
+                        cell.row()
+                    )
+                };
+                wire::SavedPivot {
+                    refreshed_revision: caches
+                        .caches
+                        .get(&p.cache_id)
+                        .and_then(|c| c.snapshot.as_ref().map(|s| s.source_revision)),
+                    name: p.name.clone(),
+                    part: p.part.clone(),
+                    area: Area::of(p.area),
+                    location: format!("{}:{}", address(p.area.first()), address(p.area.last())),
+                    source,
+                    fields,
+                    cache,
+                }
+            })
+            .collect();
+        (tables, issues)
     }
 
     fn charts(&self, sheet: Sheet) -> Vec<Chart> {
@@ -3267,24 +4238,144 @@ impl Server {
                     .first()
                     .map(|plot| format!("{:?}", plot.kind).to_lowercase())
                     .unwrap_or_default();
-                let source=host.model().definitions().charts(sheet.id()).iter().find(|chart|chart.part==view.part);
-                let plots=source.map(|chart|chart.plots.iter().enumerate().map(|(p,plot)|wire::ChartPlotSource {
-                    kind:plot.kind.clone(),bar_direction:plot.bar_direction.clone(),grouping:plot.grouping.clone(),
-                    series:plot.series.iter().enumerate().map(|(i,s)|wire::ChartSeriesSource {
-                        index:s.index,fill:s.fill.clone(),
-                        label:view.plots.get(p).and_then(|p|p.series.get(i)).map(|s|s.name.clone()).unwrap_or_default(),
-                        name:s.name.as_ref().map(|d|d.formula.as_ref().map(|f|format!("={f}")).unwrap_or_else(||d.cache.first().cloned().flatten().unwrap_or_default())).unwrap_or_default(),
-                        categories:s.categories.as_ref().and_then(|d|d.formula.clone()),
-                        values:s.values.as_ref().and_then(|d|d.formula.clone()),
-                    }).collect(),
-                }).collect()).unwrap_or_default();
+                let source = host
+                    .model()
+                    .definitions()
+                    .charts(sheet.id())
+                    .iter()
+                    .find(|chart| chart.part == view.part);
+                let plots = source
+                    .map(|chart| {
+                        chart
+                            .plots
+                            .iter()
+                            .enumerate()
+                            .map(|(p, plot)| wire::ChartPlotSource {
+                                kind: plot.kind.clone(),
+                                bar_direction: plot.bar_direction.clone(),
+                                grouping: plot.grouping.clone(),
+                                series: plot
+                                    .series
+                                    .iter()
+                                    .enumerate()
+                                    .map(|(i, s)| wire::ChartSeriesSource {
+                                        index: s.index,
+                                        fill: s.fill.clone(),
+                                        label: view
+                                            .plots
+                                            .get(p)
+                                            .and_then(|p| p.series.get(i))
+                                            .map(|s| s.name.clone())
+                                            .unwrap_or_default(),
+                                        name: s
+                                            .name
+                                            .as_ref()
+                                            .map(|d| {
+                                                d.formula
+                                                    .as_ref()
+                                                    .map(|f| format!("={f}"))
+                                                    .unwrap_or_else(|| {
+                                                        d.cache
+                                                            .first()
+                                                            .cloned()
+                                                            .flatten()
+                                                            .unwrap_or_default()
+                                                    })
+                                            })
+                                            .unwrap_or_default(),
+                                        categories: s
+                                            .categories
+                                            .as_ref()
+                                            .and_then(|d| d.formula.clone()),
+                                        values: s.values.as_ref().and_then(|d| d.formula.clone()),
+                                    })
+                                    .collect(),
+                            })
+                            .collect()
+                    })
+                    .unwrap_or_default();
                 Chart {
-                    axes:source.map(|c|c.axes.iter().filter(|a|a.kind=="valAx").map(|a|wire::ChartAxisSource{id:a.id,position:a.position.clone().unwrap_or_default(),minimum:a.minimum.clone(),maximum:a.maximum.clone(),major_unit:a.major_unit.clone(),reversed:a.reversed,logarithmic:a.log_base.is_some(),log_base:a.log_base.clone()}).collect()).unwrap_or_default(),
+                    axes: source
+                        .map(|c| {
+                            c.axes
+                                .iter()
+                                .filter(|a| a.kind == "valAx")
+                                .map(|a| wire::ChartAxisSource {
+                                    id: a.id,
+                                    position: a.position.clone().unwrap_or_default(),
+                                    minimum: a.minimum.clone(),
+                                    maximum: a.maximum.clone(),
+                                    major_unit: a.major_unit.clone(),
+                                    reversed: a.reversed,
+                                    logarithmic: a.log_base.is_some(),
+                                    log_base: a.log_base.clone(),
+                                })
+                                .collect()
+                        })
+                        .unwrap_or_default(),
                     plots,
-                    text_elements:source.map(|c|{let mut targets=Vec::new();if c.title.is_some()||c.title_formula.is_some(){targets.push(("title".into(),"Title".into()));}if c.legend.is_some(){targets.push(("legend".into(),"Legend".into()));}for a in &c.axes{targets.push((format!("axis:{}",a.id),format!("{} axis labels",match a.position.as_deref(){Some("l")=>"Left",Some("r")=>"Right",Some("t")=>"Top",Some("b")=>"Bottom",_=>"Other"})));}targets.into_iter().map(|(target,label)|{let f=c.element_text.get(&target).cloned().unwrap_or_default();wire::ChartTextElement{target,label,style:wire::ChartTextStyle{family:f.family,size:f.size,bold:f.bold,italic:f.italic,color:f.color}}}).collect()}).unwrap_or_default(),
-                    text_style:source.map(|c|wire::ChartTextStyle{family:c.text_style.family.clone(),size:c.text_style.size,bold:c.text_style.bold,italic:c.text_style.italic,color:c.text_style.color.clone()}).unwrap_or_default(),
-                    part:view.part.clone(),title:view.title.clone(),legend:view.legend.clone(),
-                    title_linked:host.model().definitions().charts(sheet.id()).iter().any(|chart|chart.part==view.part && chart.title_formula.is_some()),
+                    text_elements: source
+                        .map(|c| {
+                            let mut targets = Vec::new();
+                            if c.title.is_some() || c.title_formula.is_some() {
+                                targets.push(("title".into(), "Title".into()));
+                            }
+                            if c.legend.is_some() {
+                                targets.push(("legend".into(), "Legend".into()));
+                            }
+                            for a in &c.axes {
+                                targets.push((
+                                    format!("axis:{}", a.id),
+                                    format!(
+                                        "{} axis labels",
+                                        match a.position.as_deref() {
+                                            Some("l") => "Left",
+                                            Some("r") => "Right",
+                                            Some("t") => "Top",
+                                            Some("b") => "Bottom",
+                                            _ => "Other",
+                                        }
+                                    ),
+                                ));
+                            }
+                            targets
+                                .into_iter()
+                                .map(|(target, label)| {
+                                    let f =
+                                        c.element_text.get(&target).cloned().unwrap_or_default();
+                                    wire::ChartTextElement {
+                                        target,
+                                        label,
+                                        style: wire::ChartTextStyle {
+                                            family: f.family,
+                                            size: f.size,
+                                            bold: f.bold,
+                                            italic: f.italic,
+                                            color: f.color,
+                                        },
+                                    }
+                                })
+                                .collect()
+                        })
+                        .unwrap_or_default(),
+                    text_style: source
+                        .map(|c| wire::ChartTextStyle {
+                            family: c.text_style.family.clone(),
+                            size: c.text_style.size,
+                            bold: c.text_style.bold,
+                            italic: c.text_style.italic,
+                            color: c.text_style.color.clone(),
+                        })
+                        .unwrap_or_default(),
+                    part: view.part.clone(),
+                    title: view.title.clone(),
+                    legend: view.legend.clone(),
+                    title_linked: host
+                        .model()
+                        .definitions()
+                        .charts(sheet.id())
+                        .iter()
+                        .any(|chart| chart.part == view.part && chart.title_formula.is_some()),
                     name: view.name.clone(),
                     kind,
                     place,
@@ -3510,9 +4601,18 @@ mod outline_tests {
         let functions = server.outline(&[], &[], None, "").functions;
         assert_eq!(functions.len(), 1);
         let function = &functions[0];
-        assert_eq!((function.name.as_str(), function.origin.as_str()), ("MyAdd", "xll My.xll"));
-        assert_eq!((function.category.as_str(), function.description.as_str()), ("Math", "Adds."));
-        assert_eq!(function.parameters, [("first".to_owned(), "One.".to_owned())]);
+        assert_eq!(
+            (function.name.as_str(), function.origin.as_str()),
+            ("MyAdd", "xll My.xll")
+        );
+        assert_eq!(
+            (function.category.as_str(), function.description.as_str()),
+            ("Math", "Adds.")
+        );
+        assert_eq!(
+            function.parameters,
+            [("first".to_owned(), "One.".to_owned())]
+        );
         assert!(function.thread_safe && !function.volatile && !function.asynchronous);
     }
 
@@ -3879,7 +4979,25 @@ fn conditional_change(change: wire::ConditionalChange) -> calc_host::Conditional
     use calc_host::ConditionalChange as H;
     use wire::ConditionalChange as W;
     match change {
-        W::Condition {kind,applies,color,formulas,operator,rank,percent,stop} => H::Condition {kind,applies,color,formulas,operator,rank,percent,stop},
+        W::Condition {
+            kind,
+            applies,
+            color,
+            formulas,
+            operator,
+            rank,
+            percent,
+            stop,
+        } => H::Condition {
+            kind,
+            applies,
+            color,
+            formulas,
+            operator,
+            rank,
+            percent,
+            stop,
+        },
         W::Add {
             kind,
             applies,
@@ -4077,17 +5195,27 @@ mod tile_tests {
         let barrier = receive(&mut mirror, projection_events(&mut server));
         server.handle(Request::TileAck(barrier), None);
         let marker = mirror.cells().next().unwrap().1.clone();
-        eprintln!("cell inline bytes: {}, accounted bytes: {}", std::mem::size_of_val(&marker), marker.retained_bytes());
+        eprintln!(
+            "cell inline bytes: {}, accounted bytes: {}",
+            std::mem::size_of_val(&marker),
+            marker.retained_bytes()
+        );
         let sheet = Sheet(marker.at.0, marker.at.1);
-        let cells = (1..=7900).map(|row| {
-            let mut cell = marker.clone();
-            cell.at = Key(sheet.0, sheet.1, row, 1);
-            cell
-        }).collect();
+        let cells = (1..=7900)
+            .map(|row| {
+                let mut cell = marker.clone();
+                cell.at = Key(sheet.0, sheet.1, row, 1);
+                cell
+            })
+            .collect();
         let geometry = vec![(sheet, server.geometry(sheet))];
         let stream = server.tile_streams.get_mut(&11).unwrap();
-        stream.update(true, cells, vec![], 1, geometry, None).unwrap();
-        let events = stream.publish(11, barrier.workbook, barrier.transaction + 1).unwrap();
+        stream
+            .update(true, cells, vec![], 1, geometry, None)
+            .unwrap();
+        let events = stream
+            .publish(11, barrier.workbook, barrier.transaction + 1)
+            .unwrap();
         receive(&mut mirror, events);
         assert_eq!(mirror.cells().count(), 7900);
     }
@@ -4099,50 +5227,88 @@ mod tile_tests {
         let sheet = server.book().sheets()[0].id;
         let anchor = CellKey::new(sheet, 1, 1).unwrap();
         let visible = CellKey::new(sheet, 1, 17).unwrap();
-        server.execute_current(Request::Intent(Intent::EnterCell {
-            at: Key::of(anchor), text: "wide text ".repeat(100),
-        }), None).reply.unwrap();
+        server
+            .execute_current(
+                Request::Intent(Intent::EnterCell {
+                    at: Key::of(anchor),
+                    text: "wide text ".repeat(100),
+                }),
+                None,
+            )
+            .reply
+            .unwrap();
         server.take_events();
-        server.execute_current(Request::Subscribe {
-            workbook: server.workbook_id(), id: 1,
-            interest: Interest::Area(Area::of(GridArea::cell(visible))),
-        }, None).reply.unwrap();
+        server
+            .execute_current(
+                Request::Subscribe {
+                    workbook: server.workbook_id(),
+                    id: 1,
+                    interest: Interest::Area(Area::of(GridArea::cell(visible))),
+                },
+                None,
+            )
+            .reply
+            .unwrap();
         let mut mirror = ViewMirror::default();
         receive(&mut mirror, projection_events(&mut server));
-        assert!(mirror.cell(anchor).is_some(), "overflow source must be projected");
+        assert!(
+            mirror.cell(anchor).is_some(),
+            "overflow source must be projected"
+        );
     }
 
     #[cfg_attr(not(target_arch = "wasm32"), test)]
     #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
-    fn an_overflow_anchor_authored_after_the_subscription_reaches_the_mirror_and_leaves_with_its_text() {
+    fn an_overflow_anchor_authored_after_the_subscription_reaches_the_mirror_and_leaves_with_its_text()
+     {
         let mut server = Server::new();
         let sheet = server.book().sheets()[0].id;
         let anchor = CellKey::new(sheet, 2, 1).unwrap();
         let near = CellKey::new(sheet, 2, 3).unwrap();
         let visible = CellKey::new(sheet, 1, 17).unwrap();
         let area = GridArea::new(visible, CellKey::new(sheet, 4, 20).unwrap()).unwrap();
-        server.execute_current(Request::Subscribe {
-            workbook: server.workbook_id(), id: 1,
-            interest: Interest::Area(Area::of(area)),
-        }, None).reply.unwrap();
+        server
+            .execute_current(
+                Request::Subscribe {
+                    workbook: server.workbook_id(),
+                    id: 1,
+                    interest: Interest::Area(Area::of(area)),
+                },
+                None,
+            )
+            .reply
+            .unwrap();
         let mut mirror = ViewMirror::default();
         let barrier = receive(&mut mirror, projection_events(&mut server));
         server.handle(Request::TileAck(barrier), None);
         let enter = |server: &mut Server, at: CellKey, text: &str| {
-            server.execute_current(Request::Intent(Intent::EnterCell {
-                at: Key::of(at), text: text.into(),
-            }), None).reply.unwrap();
+            server
+                .execute_current(
+                    Request::Intent(Intent::EnterCell {
+                        at: Key::of(at),
+                        text: text.into(),
+                    }),
+                    None,
+                )
+                .reply
+                .unwrap();
         };
         enter(&mut server, anchor, &"wide text ".repeat(100));
         let barrier = receive(&mut mirror, projection_events(&mut server));
         server.handle(Request::TileAck(barrier), None);
-        assert!(mirror.cell(anchor).is_some(), "an anchor authored later must be projected");
+        assert!(
+            mirror.cell(anchor).is_some(),
+            "an anchor authored later must be projected"
+        );
         // A nearer cell in the same row stops the overflow, so it replaces the far anchor.
         enter(&mut server, near, "blocker");
         let barrier = receive(&mut mirror, projection_events(&mut server));
         server.handle(Request::TileAck(barrier), None);
         assert!(mirror.cell(near).is_some());
-        assert!(mirror.cell(anchor).is_none(), "a blocked anchor is no longer needed");
+        assert!(
+            mirror.cell(anchor).is_none(),
+            "a blocked anchor is no longer needed"
+        );
     }
     fn projection_events(server: &mut Server) -> Vec<Event> {
         server
@@ -4245,7 +5411,9 @@ mod tile_tests {
                     barrier = Some(b);
                 }
                 Event::ProjectionFailed { reason, .. } => panic!("{reason}"),
-                Event::Calculation { .. } | Event::SaveReady { .. } | Event::WorkbookEventFailed { .. } => {
+                Event::Calculation { .. }
+                | Event::SaveReady { .. }
+                | Event::WorkbookEventFailed { .. } => {
                     unreachable!("projection helper removes owner controls")
                 }
             }
@@ -5024,7 +6192,8 @@ mod async_contract_tests {
         drain(&mut server);
         assert_eq!(route.0.borrow().len(), 1);
         assert_eq!(route.0.borrow()[0].url, "http://mock/x");
-        let reply = calc_func::FetchReply::Body(b"abc".to_vec()).into_value(calc_func::FetchKind::Text);
+        let reply =
+            calc_func::FetchReply::Body(b"abc".to_vec()).into_value(calc_func::FetchKind::Text);
         assert!(server.complete_fetch(1, reply.clone()));
         assert!(!server.complete_fetch(1, reply), "one reply per request");
         drain(&mut server);
@@ -5062,7 +6231,8 @@ mod async_contract_tests {
             .unwrap();
         drain(&mut server);
         let bytes = b"\x89PNG\r\n\x1a\n a picture".to_vec();
-        let reply = calc_func::FetchReply::Body(bytes.clone()).into_value(calc_func::FetchKind::Picture);
+        let reply =
+            calc_func::FetchReply::Body(bytes.clone()).into_value(calc_func::FetchKind::Picture);
         assert!(server.complete_fetch(1, reply));
         drain(&mut server);
         let answer = server.handle(Request::CellImage { at: Key::of(b) }, None);
@@ -5197,7 +6367,7 @@ mod async_contract_tests {
                 drain(&mut server);
             }
             let request = server.envelope(Request::SaveWithContext {
-                views:None,
+                views: None,
                 calculate_before_save: true,
             });
             let first = server.handle(request.clone(), None);
@@ -5497,11 +6667,14 @@ mod async_contract_tests {
         let before_unrelated = server.book.cell(unrelated).unwrap().value().clone();
         // Open now supplies the file's own name. This measured malformed local
         // INDIRECT reference calculates #REF! rather than refusing a missing file identity.
-        assert!(matches!(
-            &before_unrelated,
-            ProjectedValue::Calculated { value, .. }
-                if value.as_error() == Some(calc_value::WorksheetErrorCode::Ref)
-        ), "{before_unrelated:?}");
+        assert!(
+            matches!(
+                &before_unrelated,
+                ProjectedValue::Calculated { value, .. }
+                    if value.as_error() == Some(calc_value::WorksheetErrorCode::Ref)
+            ),
+            "{before_unrelated:?}"
+        );
         server.set_calculation_budget(calc_host::WorkBudget::evaluations(1));
         let request = server.envelope(Request::Save);
         let answer = server.handle(request.clone(), None);
@@ -5813,7 +6986,13 @@ mod friendly_formula_tests {
             other => panic!("{other:?}"),
         };
         server
-            .execute_current(Request::Intent(Intent::ApplyPaste { id: preview.id, select_target: false }), None)
+            .execute_current(
+                Request::Intent(Intent::ApplyPaste {
+                    id: preview.id,
+                    select_target: false,
+                }),
+                None,
+            )
             .reply
             .unwrap();
         assert_eq!(
@@ -6090,116 +7269,488 @@ mod window_tests {
 #[cfg(test)]
 mod template_save_tests {
     use super::*;
-    #[cfg_attr(not(target_arch="wasm32"),test)]
-    #[cfg_attr(target_arch="wasm32",wasm_bindgen_test::wasm_bindgen_test)]
-    fn dc_bctq__template_basename_counters_survive_replacement_without_counting_edits_or_failures() {
-        let mut source=Server::new();let sheet=source.book().sheets()[0].id;
-        for (column,text) in [(1,"6"),(2,"=A1*3")] {
-            source.execute_current(Request::Intent(Intent::EnterCell{at:Key::of(CellKey::new(sheet,1,column).unwrap()),text:text.into()}),None).reply.unwrap();
+    #[cfg_attr(not(target_arch = "wasm32"), test)]
+    #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+    fn dc_bctq__template_basename_counters_survive_replacement_without_counting_edits_or_failures()
+    {
+        let mut source = Server::new();
+        let sheet = source.book().sheets()[0].id;
+        for (column, text) in [(1, "6"), (2, "=A1*3")] {
+            source
+                .execute_current(
+                    Request::Intent(Intent::EnterCell {
+                        at: Key::of(CellKey::new(sheet, 1, column).unwrap()),
+                        text: text.into(),
+                    }),
+                    None,
+                )
+                .reply
+                .unwrap();
         }
-        let plain=source.execute_current(Request::SaveAs{name:"Budget.xltx".into(),format:wire::FileFormat::Xltx,views:None},None).bytes.unwrap();
-        let macros=source.execute_current(Request::SaveAs{name:"Budget.xltm".into(),format:wire::FileFormat::Xltm,views:None},None).bytes.unwrap();
-        let mut server=Server::new();
-        let open=|server:&mut Server,request:Request,bytes:Vec<u8>,expected:&str,unsaved:bool| {
-            let answer=server.execute_current(request,Some(bytes));
-            assert!(matches!(answer.reply,Ok(Reply::Done{outcome:Outcome{accepted:true,..},..})),"{:?}",answer.reply);
-            assert_eq!(server.book().name(),expected);assert_eq!(server.book().save_name(),expected);
-            assert_eq!(server.book().host().model().definitions().workbook_name(),Some(expected));
-            assert_eq!(server.book().unsaved(),unsaved);
-            let at=CellKey::new(server.book().sheets()[0].id,1,2).unwrap();
-            assert_eq!(server.book().shown(&server.book().cell(at).unwrap()).text,"18");
+        let plain = source
+            .execute_current(
+                Request::SaveAs {
+                    name: "Budget.xltx".into(),
+                    format: wire::FileFormat::Xltx,
+                    views: None,
+                },
+                None,
+            )
+            .bytes
+            .unwrap();
+        let macros = source
+            .execute_current(
+                Request::SaveAs {
+                    name: "Budget.xltm".into(),
+                    format: wire::FileFormat::Xltm,
+                    views: None,
+                },
+                None,
+            )
+            .bytes
+            .unwrap();
+        let mut server = Server::new();
+        let open = |server: &mut Server,
+                    request: Request,
+                    bytes: Vec<u8>,
+                    expected: &str,
+                    unsaved: bool| {
+            let answer = server.execute_current(request, Some(bytes));
+            assert!(
+                matches!(
+                    answer.reply,
+                    Ok(Reply::Done {
+                        outcome: Outcome { accepted: true, .. },
+                        ..
+                    })
+                ),
+                "{:?}",
+                answer.reply
+            );
+            assert_eq!(server.book().name(), expected);
+            assert_eq!(server.book().save_name(), expected);
+            assert_eq!(
+                server.book().host().model().definitions().workbook_name(),
+                Some(expected)
+            );
+            assert_eq!(server.book().unsaved(), unsaved);
+            let at = CellKey::new(server.book().sheets()[0].id, 1, 2).unwrap();
+            assert_eq!(
+                server.book().shown(&server.book().cell(at).unwrap()).text,
+                "18"
+            );
         };
-        open(&mut server,Request::Open{name:"Budget.xltx".into()},plain.clone(),"Budget1.xlsx",true);
-        let before=server.summary();
-        let failed=server.execute_current(Request::Open{name:"Budget.xltx".into()},Some(vec![0,1,2]));
-        assert!(matches!(failed.reply,Ok(Reply::Done{outcome:Outcome{accepted:false,..},..})));
-        assert_eq!(server.summary(),before);
-        open(&mut server,Request::OpenForEditing{name:"Budget.xltx".into()},plain.clone(),"Budget.xltx",false);
-        server.execute_current(Request::InspectTemplate,Some(plain.clone())).reply.unwrap();
-        open(&mut server,Request::OpenTemplate{name:"C:\\Templates\\budget.XLTX".into()},plain.clone(),"budget2.xlsx",true);
-        open(&mut server,Request::Open{name:"Forecast.xltx".into()},plain.clone(),"Forecast1.xlsx",true);
-        server.execute_current(Request::New,None).reply.unwrap();
-        open(&mut server,Request::Open{name:"/templates/Budget.xltm".into()},macros,"Budget3.xlsm",true);
-        server.execute_current(Request::SaveAs{name:"Chosen.xlsm".into(),format:wire::FileFormat::Xlsm,views:None},None).reply.unwrap();
-        assert_eq!(server.book().name(),"Chosen.xlsm");assert!(!server.book().unsaved());
-        open(&mut server,Request::Open{name:"Budget.xltx".into()},plain.clone(),"Budget4.xlsx",true);
-        let mut other=Server::new();
-        open(&mut other,Request::Open{name:"Budget.xltx".into()},plain,"Budget1.xlsx",true);
+        open(
+            &mut server,
+            Request::Open {
+                name: "Budget.xltx".into(),
+            },
+            plain.clone(),
+            "Budget1.xlsx",
+            true,
+        );
+        let before = server.summary();
+        let failed = server.execute_current(
+            Request::Open {
+                name: "Budget.xltx".into(),
+            },
+            Some(vec![0, 1, 2]),
+        );
+        assert!(matches!(
+            failed.reply,
+            Ok(Reply::Done {
+                outcome: Outcome {
+                    accepted: false,
+                    ..
+                },
+                ..
+            })
+        ));
+        assert_eq!(server.summary(), before);
+        open(
+            &mut server,
+            Request::OpenForEditing {
+                name: "Budget.xltx".into(),
+            },
+            plain.clone(),
+            "Budget.xltx",
+            false,
+        );
+        server
+            .execute_current(Request::InspectTemplate, Some(plain.clone()))
+            .reply
+            .unwrap();
+        open(
+            &mut server,
+            Request::OpenTemplate {
+                name: "C:\\Templates\\budget.XLTX".into(),
+            },
+            plain.clone(),
+            "budget2.xlsx",
+            true,
+        );
+        open(
+            &mut server,
+            Request::Open {
+                name: "Forecast.xltx".into(),
+            },
+            plain.clone(),
+            "Forecast1.xlsx",
+            true,
+        );
+        server.execute_current(Request::New, None).reply.unwrap();
+        open(
+            &mut server,
+            Request::Open {
+                name: "/templates/Budget.xltm".into(),
+            },
+            macros,
+            "Budget3.xlsm",
+            true,
+        );
+        server
+            .execute_current(
+                Request::SaveAs {
+                    name: "Chosen.xlsm".into(),
+                    format: wire::FileFormat::Xlsm,
+                    views: None,
+                },
+                None,
+            )
+            .reply
+            .unwrap();
+        assert_eq!(server.book().name(), "Chosen.xlsm");
+        assert!(!server.book().unsaved());
+        open(
+            &mut server,
+            Request::Open {
+                name: "Budget.xltx".into(),
+            },
+            plain.clone(),
+            "Budget4.xlsx",
+            true,
+        );
+        let mut other = Server::new();
+        open(
+            &mut other,
+            Request::Open {
+                name: "Budget.xltx".into(),
+            },
+            plain,
+            "Budget1.xlsx",
+            true,
+        );
     }
 
-    #[cfg_attr(not(target_arch="wasm32"),test)]
-    #[cfg_attr(target_arch="wasm32",wasm_bindgen_test::wasm_bindgen_test)]
+    #[cfg_attr(not(target_arch = "wasm32"), test)]
+    #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
     fn dc_bctq__inspection_is_read_only_and_insertion_keeps_the_worker_session() {
-        let mut source=Server::new();let sheet=source.book().sheets()[0].id;
-        source.execute_current(Request::Intent(wire::Intent::EnterCell{at:Key::of(CellKey::new(sheet,1,1).unwrap()),text:"6".into()}),None).reply.unwrap();
-        source.execute_current(Request::Intent(wire::Intent::EnterCell{at:Key::of(CellKey::new(sheet,1,2).unwrap()),text:"=A1*3".into()}),None).reply.unwrap();
-        let template=source.execute_current(Request::SaveAs{name:"Test.xltx".into(),format:wire::FileFormat::Xltx,views:None},None).bytes.unwrap();
-        let mut server=Server::new();let before=server.summary();
-        assert!(matches!(server.execute_current(Request::InspectTemplate,Some(template.clone())).reply,Ok(Reply::TemplateFormat(wire::FileFormat::Xltx))));
-        assert!(server.execute_current(Request::InspectTemplate,Some(calc_host::blank_package())).reply.is_err());
-        assert_eq!(server.summary(),before);
-        let result=server.execute_current(Request::InsertTemplate{name:None,revision:before.revision},Some(template));
-        assert!(matches!(result.reply,Ok(Reply::Done{outcome:Outcome{accepted:true,..},..})),"{:?}",result.reply);
-        let after=server.summary();assert_eq!(after.session,before.session);assert_eq!(after.workbook,before.workbook);assert_eq!(after.undo,before.undo+1);
-        assert_eq!(after.sheets.len(),2);let sheet=after.sheets[1].0.id();
-        assert_eq!(server.book().shown(&server.book().cell(CellKey::new(sheet,1,2).unwrap()).unwrap()).text,"18");
-        server.execute_current(Request::Intent(wire::Intent::Undo),None).reply.unwrap();assert_eq!(server.summary().sheets.len(),1);
-        server.execute_current(Request::Intent(wire::Intent::Redo),None).reply.unwrap();assert_eq!(server.summary().sheets[1].0.id(),sheet);
+        let mut source = Server::new();
+        let sheet = source.book().sheets()[0].id;
+        source
+            .execute_current(
+                Request::Intent(wire::Intent::EnterCell {
+                    at: Key::of(CellKey::new(sheet, 1, 1).unwrap()),
+                    text: "6".into(),
+                }),
+                None,
+            )
+            .reply
+            .unwrap();
+        source
+            .execute_current(
+                Request::Intent(wire::Intent::EnterCell {
+                    at: Key::of(CellKey::new(sheet, 1, 2).unwrap()),
+                    text: "=A1*3".into(),
+                }),
+                None,
+            )
+            .reply
+            .unwrap();
+        let template = source
+            .execute_current(
+                Request::SaveAs {
+                    name: "Test.xltx".into(),
+                    format: wire::FileFormat::Xltx,
+                    views: None,
+                },
+                None,
+            )
+            .bytes
+            .unwrap();
+        let mut server = Server::new();
+        let before = server.summary();
+        assert!(matches!(
+            server
+                .execute_current(Request::InspectTemplate, Some(template.clone()))
+                .reply,
+            Ok(Reply::TemplateFormat(wire::FileFormat::Xltx))
+        ));
+        assert!(
+            server
+                .execute_current(Request::InspectTemplate, Some(calc_host::blank_package()))
+                .reply
+                .is_err()
+        );
+        assert_eq!(server.summary(), before);
+        let result = server.execute_current(
+            Request::InsertTemplate {
+                name: None,
+                revision: before.revision,
+            },
+            Some(template),
+        );
+        assert!(
+            matches!(
+                result.reply,
+                Ok(Reply::Done {
+                    outcome: Outcome { accepted: true, .. },
+                    ..
+                })
+            ),
+            "{:?}",
+            result.reply
+        );
+        let after = server.summary();
+        assert_eq!(after.session, before.session);
+        assert_eq!(after.workbook, before.workbook);
+        assert_eq!(after.undo, before.undo + 1);
+        assert_eq!(after.sheets.len(), 2);
+        let sheet = after.sheets[1].0.id();
+        assert_eq!(
+            server
+                .book()
+                .shown(
+                    &server
+                        .book()
+                        .cell(CellKey::new(sheet, 1, 2).unwrap())
+                        .unwrap()
+                )
+                .text,
+            "18"
+        );
+        server
+            .execute_current(Request::Intent(wire::Intent::Undo), None)
+            .reply
+            .unwrap();
+        assert_eq!(server.summary().sheets.len(), 1);
+        server
+            .execute_current(Request::Intent(wire::Intent::Redo), None)
+            .reply
+            .unwrap();
+        assert_eq!(server.summary().sheets[1].0.id(), sheet);
     }
-    #[cfg_attr(not(target_arch="wasm32"),test)]
-    #[cfg_attr(target_arch="wasm32",wasm_bindgen_test::wasm_bindgen_test)]
+    #[cfg_attr(not(target_arch = "wasm32"), test)]
+    #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
     fn dc_bctq__save_as_updates_actual_reference_identity_and_undo_retains_it() {
-        let mut server=Server::new();let sheet=server.book().sheets()[0].id;
-        let at=|r,c|Key::of(CellKey::new(sheet,r,c).unwrap());
-        server.execute_current(Request::Intent(wire::Intent::EnterCell{at:at(1,1),text:"42".into()}),None).reply.unwrap();
-        server.execute_current(Request::Intent(wire::Intent::EditSheet {sheet:None,change:wire::SheetChange::Add{name:"Extra".into()}}),None).reply.unwrap();
-        let reply=server.execute_current(Request::SaveAs{name:"Budget.xltm".into(),format:wire::FileFormat::Xltm,views:None},None);
-        assert!(reply.bytes.is_some());assert!(matches!(reply.reply,Ok(Reply::Done {saved:Some(_),..})));
-        assert_eq!(server.book().host().model().definitions().workbook_name(),Some("Budget.xltm"));
+        let mut server = Server::new();
+        let sheet = server.book().sheets()[0].id;
+        let at = |r, c| Key::of(CellKey::new(sheet, r, c).unwrap());
+        server
+            .execute_current(
+                Request::Intent(wire::Intent::EnterCell {
+                    at: at(1, 1),
+                    text: "42".into(),
+                }),
+                None,
+            )
+            .reply
+            .unwrap();
+        server
+            .execute_current(
+                Request::Intent(wire::Intent::EditSheet {
+                    sheet: None,
+                    change: wire::SheetChange::Add {
+                        name: "Extra".into(),
+                    },
+                }),
+                None,
+            )
+            .reply
+            .unwrap();
+        let reply = server.execute_current(
+            Request::SaveAs {
+                name: "Budget.xltm".into(),
+                format: wire::FileFormat::Xltm,
+                views: None,
+            },
+            None,
+        );
+        assert!(reply.bytes.is_some());
+        assert!(matches!(
+            reply.reply,
+            Ok(Reply::Done { saved: Some(_), .. })
+        ));
+        assert_eq!(
+            server.book().host().model().definitions().workbook_name(),
+            Some("Budget.xltm")
+        );
         assert!(server.book().host().model().definitions().macro_enabled());
-        server.execute_current(Request::Intent(wire::Intent::EnterCell{at:at(1,2),text:"=INDIRECT(\"[Budget.xltm]Sheet1!A1\")".into()}),None).reply.unwrap();
-        assert_eq!(server.book().shown(&server.book().cell(CellKey::new(sheet,1,2).unwrap()).unwrap()).text,"42");
+        server
+            .execute_current(
+                Request::Intent(wire::Intent::EnterCell {
+                    at: at(1, 2),
+                    text: "=INDIRECT(\"[Budget.xltm]Sheet1!A1\")".into(),
+                }),
+                None,
+            )
+            .reply
+            .unwrap();
+        assert_eq!(
+            server
+                .book()
+                .shown(
+                    &server
+                        .book()
+                        .cell(CellKey::new(sheet, 1, 2).unwrap())
+                        .unwrap()
+                )
+                .text,
+            "42"
+        );
         // A structural snapshot undo must not restore an obsolete file identity.
-        server.execute_current(Request::Intent(wire::Intent::Undo),None).reply.unwrap();
-        server.execute_current(Request::Intent(wire::Intent::Undo),None).reply.unwrap();
-        assert_eq!(server.book().sheets().len(),1);
-        assert_eq!(server.book().host().model().definitions().workbook_name(),Some("Budget.xltm"));
+        server
+            .execute_current(Request::Intent(wire::Intent::Undo), None)
+            .reply
+            .unwrap();
+        server
+            .execute_current(Request::Intent(wire::Intent::Undo), None)
+            .reply
+            .unwrap();
+        assert_eq!(server.book().sheets().len(), 1);
+        assert_eq!(
+            server.book().host().model().definitions().workbook_name(),
+            Some("Budget.xltm")
+        );
         assert!(server.book().host().model().definitions().macro_enabled());
     }
-    #[cfg_attr(not(target_arch="wasm32"),test)]
-    #[cfg_attr(target_arch="wasm32",wasm_bindgen_test::wasm_bindgen_test)]
+    #[cfg_attr(not(target_arch = "wasm32"), test)]
+    #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
     fn dc_bctq__macro_loss_answers_with_a_terminal_refusal_and_no_save_token() {
-        let mut server=Server::new();
-        server.execute_current(Request::Open{name:"local.xlsm".into()},Some(include_bytes!("../../../crates/calc-doc/tests/fixtures/vba_udf_names/local.xlsm").to_vec())).reply.unwrap();
-        let revision=server.book().host().revision();let history=server.book().session().history_depth();
-        let answer=server.execute_current(Request::SaveAs{name:"bad.xltx".into(),format:wire::FileFormat::Xltx,views:None},None);
-        assert!(answer.bytes.is_none());assert!(matches!(answer.reply,Ok(Reply::Done{outcome:Outcome{accepted:false,error:Some(ref e),..},saved:None,..}) if e.contains("would be lost")));
-        assert!(server.pending_save.is_none());assert!(server.save_as_target.is_none());assert_eq!(server.book().name(),"local.xlsm");
-        assert_eq!(server.book().host().revision(),revision);assert_eq!(server.book().session().history_depth(),history);
+        let mut server = Server::new();
+        server
+            .execute_current(
+                Request::Open {
+                    name: "local.xlsm".into(),
+                },
+                Some(
+                    include_bytes!(
+                        "../../../crates/calc-doc/tests/fixtures/vba_udf_names/local.xlsm"
+                    )
+                    .to_vec(),
+                ),
+            )
+            .reply
+            .unwrap();
+        let revision = server.book().host().revision();
+        let history = server.book().session().history_depth();
+        let answer = server.execute_current(
+            Request::SaveAs {
+                name: "bad.xltx".into(),
+                format: wire::FileFormat::Xltx,
+                views: None,
+            },
+            None,
+        );
+        assert!(answer.bytes.is_none());
+        assert!(
+            matches!(answer.reply,Ok(Reply::Done{outcome:Outcome{accepted:false,error:Some(ref e),..},saved:None,..}) if e.contains("would be lost"))
+        );
+        assert!(server.pending_save.is_none());
+        assert!(server.save_as_target.is_none());
+        assert_eq!(server.book().name(), "local.xlsm");
+        assert_eq!(server.book().host().revision(), revision);
+        assert_eq!(server.book().session().history_depth(), history);
     }
 }
 
 #[cfg(test)]
 mod template_pending_tests {
     use super::*;
-    #[cfg_attr(not(target_arch="wasm32"),test)]
-    #[cfg_attr(target_arch="wasm32",wasm_bindgen_test::wasm_bindgen_test)]
+    #[cfg_attr(not(target_arch = "wasm32"), test)]
+    #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
     fn dc_bctq__save_as_retires_old_calculation_before_rebinding_file_identity() {
-        let mut server=Server::new();let sheet=server.book().sheets()[0].id;
-        for (c,text) in [(1,"42"),(2,"=INDIRECT(\"[NewName.xlsx]Sheet1!A1\")"),(3,"=B1+1"),(4,"=C1+1")] {
-            server.execute_current(Request::Intent(wire::Intent::EnterCell{at:Key::of(CellKey::new(sheet,1,c).unwrap()),text:text.into()}),None).reply.unwrap();
+        let mut server = Server::new();
+        let sheet = server.book().sheets()[0].id;
+        for (c, text) in [
+            (1, "42"),
+            (2, "=INDIRECT(\"[NewName.xlsx]Sheet1!A1\")"),
+            (3, "=B1+1"),
+            (4, "=C1+1"),
+        ] {
+            server
+                .execute_current(
+                    Request::Intent(wire::Intent::EnterCell {
+                        at: Key::of(CellKey::new(sheet, 1, c).unwrap()),
+                        text: text.into(),
+                    }),
+                    None,
+                )
+                .reply
+                .unwrap();
         }
         server.set_calculation_budget(calc_host::WorkBudget::evaluations(1));
-        server.execute_current(Request::Intent(wire::Intent::Recalculate),None).reply.unwrap();
-        assert!(server.book().has_pending_calculation());server.take_events();
-        let answer=server.execute_current(Request::SaveAs{name:"NewName.xlsx".into(),format:wire::FileFormat::Xlsx,views:None},None);
-        assert!(matches!(answer.reply,Ok(Reply::Done{outcome:Outcome{accepted:true,..},saved:Some(_),..})),"{:?}",answer.reply);
+        server
+            .execute_current(Request::Intent(wire::Intent::Recalculate), None)
+            .reply
+            .unwrap();
+        assert!(server.book().has_pending_calculation());
+        server.take_events();
+        let answer = server.execute_current(
+            Request::SaveAs {
+                name: "NewName.xlsx".into(),
+                format: wire::FileFormat::Xlsx,
+                views: None,
+            },
+            None,
+        );
+        assert!(
+            matches!(
+                answer.reply,
+                Ok(Reply::Done {
+                    outcome: Outcome { accepted: true, .. },
+                    saved: Some(_),
+                    ..
+                })
+            ),
+            "{:?}",
+            answer.reply
+        );
         assert!(answer.bytes.is_some());
-        let mut events=server.take_events();
-        for _ in 0..100 {if !server.has_pending_calculation(){break;}server.advance_calculation();events.extend(server.take_events());}
+        let mut events = server.take_events();
+        for _ in 0..100 {
+            if !server.has_pending_calculation() {
+                break;
+            }
+            server.advance_calculation();
+            events.extend(server.take_events());
+        }
         assert!(!server.has_pending_calculation());
-        assert_eq!(server.book().shown(&server.book().cell(CellKey::new(sheet,1,4).unwrap()).unwrap()).text,"44");
-        assert!(events.iter().any(|e|matches!(e,Event::Calculation{receipt:wire::CalculationEvent::Completed{outcome:wire::CalculationOutcome::Cancelled,..},..})),"{events:?}");
+        assert_eq!(
+            server
+                .book()
+                .shown(
+                    &server
+                        .book()
+                        .cell(CellKey::new(sheet, 1, 4).unwrap())
+                        .unwrap()
+                )
+                .text,
+            "44"
+        );
+        assert!(
+            events.iter().any(|e| matches!(
+                e,
+                Event::Calculation {
+                    receipt: wire::CalculationEvent::Completed {
+                        outcome: wire::CalculationOutcome::Cancelled,
+                        ..
+                    },
+                    ..
+                }
+            )),
+            "{events:?}"
+        );
     }
 }
 

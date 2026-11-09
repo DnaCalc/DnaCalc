@@ -89,7 +89,8 @@ impl Reading {
 /// The numeric-text host grammar measured by the fn8 scalar questions.
 pub(crate) fn measured_host_reader(profile: &FormatProfile) -> bool {
     matches!(profile.id, LocaleId::EnZa | LocaleId::CurrentExcelHost)
-        && profile.decimal_separator == "." && profile.thousands_separator == " "
+        && profile.decimal_separator == "."
+        && profile.thousands_separator == " "
         && profile.currency_symbol == "R"
 }
 
@@ -111,7 +112,10 @@ pub(crate) fn read(units: &[u16], context: &ReadContext<'_>) -> Result<Reading, 
     .iter()
     .all(|s| s.is_ascii());
     let measured_digits = ascii_profile
-        && matches!(context.profile.id, LocaleId::EnZa | LocaleId::CurrentExcelHost);
+        && matches!(
+            context.profile.id,
+            LocaleId::EnZa | LocaleId::CurrentExcelHost
+        );
     let mut translated_digits = false;
     let mut beyond = false;
     let mut has_measured_space = false;
@@ -126,8 +130,12 @@ pub(crate) fn read(units: &[u16], context: &ReadContext<'_>) -> Result<Reading, 
             // Fn4 qt031..qt096 accepts these four digit scripts in the measured profiles.
             // Fn7 live SQRT/DATEVALUE controls also confirm mixed-script numbers, exponent
             // digits and three-component dates; unmeasured fraction/time forms stay refused.
-            Ok(c @ ('\u{0660}'..='\u{0669}' | '\u{06f0}'..='\u{06f9}'
-                | '\u{0966}'..='\u{096f}' | '\u{0e50}'..='\u{0e59}')) if measured_digits => {
+            Ok(
+                c @ ('\u{0660}'..='\u{0669}'
+                | '\u{06f0}'..='\u{06f9}'
+                | '\u{0966}'..='\u{096f}'
+                | '\u{0e50}'..='\u{0e59}'),
+            ) if measured_digits => {
                 translated_digits = true;
                 let zero = match c {
                     '\u{0660}'..='\u{0669}' => 0x0660,
@@ -183,9 +191,13 @@ fn number(text: &str, profile: &FormatProfile) -> Result<Option<f64>, Unread> {
     let currency = profile.currency_symbol.as_bytes();
     let euro = "€".as_bytes();
     let currency_length = |at: usize| {
-        if !currency.is_empty() && bytes[at..].starts_with(currency) { currency.len() }
-        else if measured_host_reader(profile) && bytes[at..].starts_with(euro) { euro.len() }
-        else { 0 }
+        if !currency.is_empty() && bytes[at..].starts_with(currency) {
+            currency.len()
+        } else if measured_host_reader(profile) && bytes[at..].starts_with(euro) {
+            euro.len()
+        } else {
+            0
+        }
     };
     let group = profile.thousands_separator.as_bytes();
     let point = profile.decimal_separator.as_bytes();
@@ -369,7 +381,8 @@ fn fraction(text: &str) -> Option<Result<f64, Unread>> {
     let (whole, rest) = body.split_once(' ')?;
     let rest = rest.trim_start_matches(' ');
     let (numerator, denominator) = rest.split_once('/')?;
-    let all_digits = |s: &str| !s.is_empty() && s.bytes().all(|b| b.is_ascii_digit()) && s.len() <= 15;
+    let all_digits =
+        |s: &str| !s.is_empty() && s.bytes().all(|b| b.is_ascii_digit()) && s.len() <= 15;
     if !all_digits(whole) || !all_digits(numerator) || !all_digits(denominator) {
         return None;
     }
@@ -436,15 +449,26 @@ fn tokens(text: &str) -> Result<Vec<Token>, Unread> {
 
 fn month_named(word: &str) -> Option<i64> {
     const NAMES: [&str; 12] = [
-        "january", "february", "march", "april", "may", "june", "july", "august", "september",
-        "october", "november", "december",
+        "january",
+        "february",
+        "march",
+        "april",
+        "may",
+        "june",
+        "july",
+        "august",
+        "september",
+        "october",
+        "november",
+        "december",
     ];
     if word == "sept" {
         return Some(9);
     }
-    NAMES.iter().position(|name| {
-        *name == word || (word.len() == 3 && name.starts_with(word))
-    }).map(|at| at as i64 + 1)
+    NAMES
+        .iter()
+        .position(|name| *name == word || (word.len() == 3 && name.starts_with(word)))
+        .map(|at| at as i64 + 1)
 }
 
 /// The time at the start of `tokens[from..]`, its fraction of a day and the tokens it took.
@@ -517,11 +541,7 @@ fn time_at(tokens: &[Token], from: usize) -> Option<(f64, usize)> {
 /// A two-digit year as Excel reads it: below 30 in the 2000s, else in the 1900s.
 fn full_year(year: i64, len: usize) -> i64 {
     if len <= 2 {
-        if year < 30 {
-            2000 + year
-        } else {
-            1900 + year
-        }
+        if year < 30 { 2000 + year } else { 1900 + year }
     } else {
         year
     }
@@ -547,7 +567,9 @@ fn serial_1900(year: i64, month: i64, day: i64) -> Result<i64, Unread> {
     if !(1900..=9999).contains(&year) || !valid_day(year, month, day) {
         return Err(Unread::Rejected);
     }
-    Ok(crate::ported::date_kernels::serial_unbounded_1900(year, month, day))
+    Ok(crate::ported::date_kernels::serial_unbounded_1900(
+        year, month, day,
+    ))
 }
 
 /// The date that `tokens` (without a time) name, as a 1900 serial.
@@ -612,8 +634,11 @@ fn date_of(tokens: &[Token], context: &ReadContext<'_>) -> Result<i64, Unread> {
                     };
                     // Fn4 list-controls ql041..ql085: month/day tokens have one or two
                     // digits. A three/four-digit final token is not a day with leading zeros.
-                    if matches!(context.profile.id, LocaleId::EnZa | LocaleId::CurrentExcelHost)
-                        && (m.1 > 2 || d.1 > 2) {
+                    if matches!(
+                        context.profile.id,
+                        LocaleId::EnZa | LocaleId::CurrentExcelHost
+                    ) && (m.1 > 2 || d.1 > 2)
+                    {
                         return Err(Unread::Rejected);
                     }
                     serial_1900(full_year(y.0, y.1), m.0, d.0)
@@ -946,10 +971,17 @@ mod tests {
     #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
     fn unmeasured_unicode_number_forms_keep_their_refusal() {
         let profile = format_profile(LocaleId::EnZa);
-        let context = ReadContext { profile: &profile, date_system: DateSystem::System1900, now: None };
+        let context = ReadContext {
+            profile: &profile,
+            date_system: DateSystem::System1900,
+            now: None,
+        };
         for text in ["1\u{00a0}234,5", "1\u{2009}234", "\u{0661}"] {
-            assert_eq!(read(&text.encode_utf16().collect::<Vec<_>>(), &context),
-                Err(Unread::NotModelled), "{text:?}");
+            assert_eq!(
+                read(&text.encode_utf16().collect::<Vec<_>>(), &context),
+                Err(Unread::NotModelled),
+                "{text:?}"
+            );
         }
     }
 }

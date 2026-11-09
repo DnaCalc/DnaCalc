@@ -7,7 +7,11 @@ pub fn csch_kernel(n: f64) -> Result<f64, WorksheetErrorCode> {
     }
     // Live Excel 16.0 b20326: CSCH(x)=1/SINH(x) 5/5; follows the SINH kernel.
     let value = crate::ported::excel_numeric::excel_x87_recip(sinh);
-    Ok(if value.abs() < f64::MIN_POSITIVE { 0.0 } else { value })
+    Ok(if value.abs() < f64::MIN_POSITIVE {
+        0.0
+    } else {
+        value
+    })
 }
 
 #[cfg(test)]

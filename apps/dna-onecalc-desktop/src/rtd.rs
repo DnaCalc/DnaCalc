@@ -35,11 +35,14 @@ fn calculate(session: &mut Session, formula: &str) -> Result<calc_value::CalcVal
     if !calculation.diagnostics.is_empty() {
         return Err(format!("{formula}: {:?}", calculation.diagnostics));
     }
-    calculation.result.ok_or_else(|| format!("{formula}: no calculated value"))
+    calculation
+        .result
+        .ok_or_else(|| format!("{formula}: no calculated value"))
 }
 
 fn same(actual: &serde_json::Value, expected: &serde_json::Value) -> bool {
-    actual == expected || (actual.is_number() && expected.is_number() && actual.as_f64() == expected.as_f64())
+    actual == expected
+        || (actual.is_number() && expected.is_number() && actual.as_f64() == expected.as_f64())
 }
 
 /// Runs `cases` (the RTD case files: `formula`, `value`, optional `rtd_wait_value`, `rtd_idle_ms`)
@@ -117,12 +120,18 @@ pub fn run(
                 }
             }
             let complete = !rtd.has_pending_inputs()
-                && case.get("rtd_wait_value").is_none_or(|expected| same(&value_json(&value), expected));
+                && case
+                    .get("rtd_wait_value")
+                    .is_none_or(|expected| same(&value_json(&value), expected));
             if complete && idle_until.is_none() {
                 if idle.is_zero() {
                     break;
                 }
-                idle_until = Some(Instant::now().checked_add(idle).ok_or("RTD idle interval overflow")?);
+                idle_until = Some(
+                    Instant::now()
+                        .checked_add(idle)
+                        .ok_or("RTD idle interval overflow")?,
+                );
             }
             if let Some(until) = idle_until {
                 if Instant::now() >= until {
@@ -136,10 +145,14 @@ pub fn run(
             }
             shell.pump_for(Duration::from_millis(2));
         }
-        let idle_observed_ms = idle_until.map(|until| (Instant::now() - (until - idle)).as_millis());
+        let idle_observed_ms =
+            idle_until.map(|until| (Instant::now() - (until - idle)).as_millis());
         let actual = value_json(&value);
         if !case["value"].is_null() && !same(&actual, &case["value"]) {
-            return Err(format!("{formula}: calculated {actual}, expected {}", case["value"]));
+            return Err(format!(
+                "{formula}: calculated {actual}, expected {}",
+                case["value"]
+            ));
         }
         results.push(serde_json::json!({
             "formula": text,

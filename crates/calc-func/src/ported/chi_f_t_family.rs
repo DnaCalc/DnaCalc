@@ -1,8 +1,8 @@
+use crate::ported::excel_numeric::crt_exp;
+use crate::ported::excel_numeric::crt_pow;
 use crate::ported::special_dist_family::erfc_of_sqrt_half_x;
 use crate::ported::special_math_common::{bisect_inverse, bratio, gamma, regularized_gamma_q};
 use crate::value::WorksheetErrorCode;
-use crate::ported::excel_numeric::crt_pow;
-use crate::ported::excel_numeric::crt_exp;
 
 fn truncate_positive_integer(value: f64) -> Result<f64, WorksheetErrorCode> {
     let truncated = value.trunc();
@@ -69,9 +69,7 @@ pub fn chisq_dist_kernel(
         // Routes df=1/2 through the landed ERF/EXPON gamma specials.
         crate::ported::beta_gamma_stats_family::gamma_dist_kernel(x, k / 2.0, 2.0, true).map_err(
             |e| match e {
-                code => {
-                    code
-                }
+                code => code,
                 _ => WorksheetErrorCode::Value,
             },
         )
@@ -236,7 +234,10 @@ fn t_pdf(x: f64, deg_freedom: f64) -> Result<f64, WorksheetErrorCode> {
         // Live Excel 16.0 b20326: T.DIST(x,2,FALSE)=POWER(2+x*x,-1.5) 15/15.
         // 1/EXP(1.5*LN) is 15/15 in Excel but only 10/15 via spilled excel_exp/log.
         // excel_pow_chain is 15/15 including |x|=4,8.
-        return Ok(crate::ported::excel_numeric::excel_pow_chain(2.0 + x * x, -1.5));
+        return Ok(crate::ported::excel_numeric::excel_pow_chain(
+            2.0 + x * x,
+            -1.5,
+        ));
     }
     let numerator = gamma((v + 1.0) / 2.0);
     let denominator = (v * std::f64::consts::PI).sqrt()
@@ -363,8 +364,7 @@ mod tests {
             assert_eq!(rt.to_bits(), exp.to_bits(), "df=2 rt x={x}");
             let cdf = chisq_dist_kernel(x, 2.0, true).unwrap();
             let expon =
-                crate::ported::discrete_dist::expon_dist_kernel(x / 2.0, 1.0, true)
-                    .unwrap();
+                crate::ported::discrete_dist::expon_dist_kernel(x / 2.0, 1.0, true).unwrap();
             assert_eq!(cdf.to_bits(), expon.to_bits(), "df=2 cdf x={x}");
         }
     }
@@ -378,13 +378,11 @@ mod tests {
             let x = 0.5 * f64::from(i);
             let chi4 = chisq_dist_rt_kernel(x, 4.0).unwrap();
             let pois1 =
-                crate::ported::discrete_dist::poisson_dist_kernel(1.0, x / 2.0, true)
-                    .unwrap();
+                crate::ported::discrete_dist::poisson_dist_kernel(1.0, x / 2.0, true).unwrap();
             assert_eq!(chi4.to_bits(), pois1.to_bits(), "df=4 x={x}");
             let chi6 = chisq_dist_rt_kernel(x, 6.0).unwrap();
             let pois2 =
-                crate::ported::discrete_dist::poisson_dist_kernel(2.0, x / 2.0, true)
-                    .unwrap();
+                crate::ported::discrete_dist::poisson_dist_kernel(2.0, x / 2.0, true).unwrap();
             assert_eq!(chi6.to_bits(), pois2.to_bits(), "df=6 x={x}");
         }
     }

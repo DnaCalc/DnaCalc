@@ -1,8 +1,8 @@
-use crate::value::WorksheetErrorCode;
-use crate::ported::excel_numeric::crt_pow;
-use crate::ported::excel_numeric::crt_log;
-use crate::ported::excel_numeric::crt_sin;
 use crate::ported::excel_numeric::crt_cos;
+use crate::ported::excel_numeric::crt_log;
+use crate::ported::excel_numeric::crt_pow;
+use crate::ported::excel_numeric::crt_sin;
+use crate::value::WorksheetErrorCode;
 pub fn ln_gamma(z: f64) -> f64 {
     const COEFFS: [f64; 9] = [
         0.999_999_999_999_809_9,
@@ -605,7 +605,16 @@ pub fn gratio(a: f64, x: f64) -> (f64, f64) {
         return gratio_temme_270(a, l, y, z, e, s, iop);
     }
     let m = poisson_mass(a, x);
-    gratio_after40(a, x, m, crate::ported::excel_numeric::excel_x87_mul(m, a), e, acc, x0, &mut wk)
+    gratio_after40(
+        a,
+        x,
+        m,
+        crate::ported::excel_numeric::excel_x87_mul(m, a),
+        e,
+        acc,
+        x0,
+        &mut wk,
+    )
 }
 
 fn gratio_after40(
@@ -855,9 +864,8 @@ fn gratio_temme_330(a: f64, l: f64, y: f64, z: f64, e: f64, _s: f64, iop: usize)
 
 fn gratio_temme_finish(l: f64, c: f64, w: f64, t: f64, a: f64) -> (f64, f64) {
     let rta = a.sqrt();
-    let (answer, complement) = crate::ported::excel_numeric::excel_x87_temme_finish(
-        c, w, GRATIO_RT2PIN, t, rta, l < 1.0,
-    );
+    let (answer, complement) =
+        crate::ported::excel_numeric::excel_x87_temme_finish(c, w, GRATIO_RT2PIN, t, rta, l < 1.0);
     if l >= 1.0 {
         (complement, answer)
     } else {
@@ -972,9 +980,8 @@ fn bratio_alnrel(a: f64) -> f64 {
     let t = a / (a + 2.0);
     let t2 = t * t;
     // Recorded beta tails distinguish the denominator's final PC64 store.
-    let denominator = crate::ported::excel_numeric::excel_x87_add(
-        ((Q3 * t2 + Q2) * t2 + Q1) * t2, 1.0,
-    );
+    let denominator =
+        crate::ported::excel_numeric::excel_x87_add(((Q3 * t2 + Q2) * t2 + Q1) * t2, 1.0);
     let w = (((P3 * t2 + P2) * t2 + P1) * t2 + 1.0) / denominator;
     2.0 * t * w
 }
@@ -1106,15 +1113,15 @@ fn bratio_gamln1(a: f64) -> f64 {
     if a >= 0.6 {
         let x = (a - 0.5) - 0.5;
         let denominator = crate::ported::excel_numeric::excel_x87_mul_add(
-            (((S5 * x + S4) * x + S3) * x + S2) * x + S1, x, 1.0,
+            (((S5 * x + S4) * x + S3) * x + S2) * x + S1,
+            x,
+            1.0,
         );
-        let w = (((((R5 * x + R4) * x + R3) * x + R2) * x + R1) * x + R0)
-            / denominator;
+        let w = (((((R5 * x + R4) * x + R3) * x + R2) * x + R1) * x + R0) / denominator;
         return x * w;
     }
-    let numerator_mid = crate::ported::excel_numeric::excel_x87_mul_add(
-        ((P6 * a + P5) * a + P4) * a + P3, a, P2,
-    );
+    let numerator_mid =
+        crate::ported::excel_numeric::excel_x87_mul_add(((P6 * a + P5) * a + P4) * a + P3, a, P2);
     let w = ((numerator_mid * a + P1) * a + P0)
         / ((((((Q6 * a + Q5) * a + Q4) * a + Q3) * a + Q2) * a + Q1) * a + 1.0);
     -a * w
@@ -1690,7 +1697,8 @@ fn bratio_bpser(a: f64, b: f64, x: f64, eps: f64) -> f64 {
             } else {
                 t = 1.0 + bratio_gam1(apb);
             }
-            bp = crate::ported::excel_numeric::excel_exp(z) * (a0 / a) * (1.0 + bratio_gam1(b0m)) / t;
+            bp = crate::ported::excel_numeric::excel_exp(z) * (a0 / a) * (1.0 + bratio_gam1(b0m))
+                / t;
         } else {
             bp = crt_pow(x, a);
             if bp == 0.0 {
@@ -1818,7 +1826,10 @@ fn bratio_brcomp(a: f64, b: f64, x: f64, y: f64) -> f64 {
             bratio_rlog1(e)
         };
         let z = crate::ported::excel_numeric::excel_exp(-(a * u + b * v));
-        return CONST * (b * x0).sqrt() * z * crate::ported::excel_numeric::excel_exp(-bratio_bcorr(a, b));
+        return CONST
+            * (b * x0).sqrt()
+            * z
+            * crate::ported::excel_numeric::excel_exp(-bratio_bcorr(a, b));
     }
 
     let lnx;
@@ -1914,7 +1925,10 @@ fn bratio_brcmp1(mu: i32, a: f64, b: f64, x: f64, y: f64) -> f64 {
             bratio_rlog1(e)
         };
         let z = bratio_esum(mu, -(a * u + b * v));
-        return CONST * (b * x0).sqrt() * z * crate::ported::excel_numeric::excel_exp(-bratio_bcorr(a, b));
+        return CONST
+            * (b * x0).sqrt()
+            * z
+            * crate::ported::excel_numeric::excel_exp(-bratio_bcorr(a, b));
     }
 
     let lnx;
@@ -2034,12 +2048,17 @@ fn bratio_bgrat(a: f64, b: f64, x: f64, y: f64, w: f64, eps: f64) -> (f64, i32) 
     let mut d = [0.0f64; 31];
     let bm1 = (b - 0.5) - 0.5;
     let nu = a + 0.5 * bm1;
-    let lnx = if y > 0.375 { crt_log(x) } else { bratio_alnrel(-y) };
+    let lnx = if y > 0.375 {
+        crt_log(x)
+    } else {
+        bratio_alnrel(-y)
+    };
     let z = -nu * lnx;
     if b * z == 0.0 {
         return (w, 1);
     }
-    let mut r = b * (1.0 + bratio_gam1(b)) * crate::ported::excel_numeric::excel_exp(b * crt_log(z));
+    let mut r =
+        b * (1.0 + bratio_gam1(b)) * crate::ported::excel_numeric::excel_exp(b * crt_log(z));
     r = r
         * crate::ported::excel_numeric::excel_exp(a * lnx)
         * crate::ported::excel_numeric::excel_exp(0.5 * bm1 * lnx);

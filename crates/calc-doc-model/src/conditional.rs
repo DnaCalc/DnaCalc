@@ -11,7 +11,7 @@ pub struct ConditionalRuleSource {
     pub stop: bool,
     pub formulas: Vec<String>,
     /// Formula-valued colour/bar/icon thresholds, separate from condition formulas.
-    pub threshold_formulas:Vec<String>,
+    pub threshold_formulas: Vec<String>,
     /// True when a command, rather than loading/structural movement, changed this rule.
     pub authored: bool,
 }

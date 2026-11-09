@@ -125,8 +125,16 @@ fn compute(site: &Site<'_>, number: i64, values: &[CalcValue]) -> Step<CalcValue
             }
             site.divide(total, numbers.len() as f64)?
         }
-        4 => numbers.iter().copied().fold(None, |m: Option<f64>, n| Some(m.map_or(n, |m| m.max(n)))).unwrap_or(0.0),
-        5 => numbers.iter().copied().fold(None, |m: Option<f64>, n| Some(m.map_or(n, |m| m.min(n)))).unwrap_or(0.0),
+        4 => numbers
+            .iter()
+            .copied()
+            .fold(None, |m: Option<f64>, n| Some(m.map_or(n, |m| m.max(n))))
+            .unwrap_or(0.0),
+        5 => numbers
+            .iter()
+            .copied()
+            .fold(None, |m: Option<f64>, n| Some(m.map_or(n, |m| m.min(n))))
+            .unwrap_or(0.0),
         6 => {
             if numbers.is_empty() {
                 0.0
@@ -167,7 +175,10 @@ fn compute(site: &Site<'_>, number: i64, values: &[CalcValue]) -> Step<CalcValue
             let mut best: Option<(usize, f64)> = None;
             for (i, n) in numbers.iter().enumerate() {
                 let count = numbers.iter().filter(|m| *m == n).count();
-                if count >= 2 && best.is_none_or(|(c, _)| count > c) && numbers[..i].iter().all(|m| m != n) {
+                if count >= 2
+                    && best.is_none_or(|(c, _)| count > c)
+                    && numbers[..i].iter().all(|m| m != n)
+                {
                     best = Some((count, *n));
                 }
             }

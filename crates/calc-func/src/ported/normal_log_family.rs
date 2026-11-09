@@ -3,10 +3,12 @@
 //! The inverse uses the published Acklam rational approximation and one Newton
 //! refinement. Exact Excel parity for this generic method remains open.
 
-use crate::ported::normal_dist_common::{erf_approx, phi_kernel, stored_normal_z, FRAC_1_SQRT_2_BITS, GAUSS_TINY_MAX_BITS};
+use crate::ported::excel_numeric::crt_log;
+use crate::ported::normal_dist_common::{
+    FRAC_1_SQRT_2_BITS, GAUSS_TINY_MAX_BITS, erf_approx, phi_kernel, stored_normal_z,
+};
 use crate::ported::special_dist_family::erfc_precise_kernel;
 use crate::value::WorksheetErrorCode;
-use crate::ported::excel_numeric::crt_log;
 
 fn flush_subnormal(value: f64) -> f64 {
     if value.abs() < f64::MIN_POSITIVE {
@@ -37,7 +39,8 @@ pub fn identified_std_normal_cdf(x: f64) -> f64 {
     if x == 0.0 {
         return 0.5;
     }
-    let z = crate::ported::excel_numeric::excel_x87_mul(x.abs(), f64::from_bits(FRAC_1_SQRT_2_BITS));
+    let z =
+        crate::ported::excel_numeric::excel_x87_mul(x.abs(), f64::from_bits(FRAC_1_SQRT_2_BITS));
     let q = match erfc_precise_kernel(z) {
         Ok(value) => value,
         Err(_) => return f64::NAN,
@@ -90,7 +93,10 @@ fn validate_probability_open_unit(p: f64) -> Result<(), WorksheetErrorCode> {
 fn inverse_standard_normal_as241_tail(p: f64) -> f64 {
     use crate::ported::excel_numeric::{excel_x87_add, excel_x87_div, excel_x87_mul};
     let horner = |c: &[f64; 8], r: f64| {
-        c[..7].iter().rev().fold(c[7], |v, &a| excel_x87_add(excel_x87_mul(v, r), a))
+        c[..7]
+            .iter()
+            .rev()
+            .fold(c[7], |v, &a| excel_x87_add(excel_x87_mul(v, r), a))
     };
     const C: [f64; 8] = [
         1.4234371107496835,
@@ -144,11 +150,7 @@ fn inverse_standard_normal_as241_tail(p: f64) -> f64 {
         excel_x87_div(horner(&E, r), horner(&F, r))
     };
 
-    if q < 0.0 {
-        -x
-    } else {
-        x
-    }
+    if q < 0.0 { -x } else { x }
 }
 
 fn inverse_standard_normal_acklam_refined(p: f64) -> f64 {
@@ -215,8 +217,11 @@ fn inverse_standard_normal(p: f64) -> Result<f64, WorksheetErrorCode> {
     // central bound (`p - 0.5 < -0.425`) Excel publishes the same AS241 tail evaluated at
     // `p` itself (R42: 393,140 of 393,216 retained R41 answers there). The central route and
     // the upper interval (0.925, 15/16] keep their existing numerical program.
-    Ok(if p > 15.0 / 16.0 || p - 0.5 < -0.425 { inverse_standard_normal_as241_tail(p) }
-        else { inverse_standard_normal_acklam_refined(p) })
+    Ok(if p > 15.0 / 16.0 || p - 0.5 < -0.425 {
+        inverse_standard_normal_as241_tail(p)
+    } else {
+        inverse_standard_normal_acklam_refined(p)
+    })
 }
 
 pub fn norm_s_dist_kernel(z: f64, cumulative: bool) -> Result<f64, WorksheetErrorCode> {
@@ -242,7 +247,9 @@ pub fn norm_dist_kernel(
         // subtract and divide at RN64 then store binary64; divide the unflushed
         // exponential by sigma before multiplying the normal constant. Calling
         // worksheet PHI first loses both scale ordering and tiny intermediates.
-        use crate::ported::excel_numeric::{excel_exp, excel_x87_div, excel_x87_mul, excel_x87_sub};
+        use crate::ported::excel_numeric::{
+            excel_exp, excel_x87_div, excel_x87_mul, excel_x87_sub,
+        };
         let z = excel_x87_div(excel_x87_sub(x, mean), sigma);
         let square = excel_x87_mul(z, z);
         if !square.is_finite() {
@@ -289,7 +296,9 @@ pub fn lognorm_dist_kernel(
     // On adjacent means the answers' exponent sits on one grid at a fine offset of minus the stored
     // logarithms, which names `excel_exp_of_sum`. `(d*d / sigma*sigma) / 2` holds all 7,809 rows of
     // the bank in this order of the logarithms; the other five orders hold 7,398 to 7,680.
-    use crate::ported::excel_numeric::{excel_exp_of_sum, excel_log, excel_x87_div, excel_x87_mul, excel_x87_sub};
+    use crate::ported::excel_numeric::{
+        excel_exp_of_sum, excel_log, excel_x87_div, excel_x87_mul, excel_x87_sub,
+    };
     let log_x = excel_log(x);
     let d = excel_x87_sub(log_x, mean);
     let half_square = excel_x87_div(excel_x87_mul(d, d), excel_x87_mul(sigma, sigma)) / 2.0;
@@ -297,7 +306,10 @@ pub fn lognorm_dist_kernel(
         return Err(WorksheetErrorCode::Num);
     }
     const LN_SQRT_2PI: f64 = 0.9189385332046728;
-    Ok(flush_subnormal(excel_exp_of_sum(half_square, &[excel_log(sigma), LN_SQRT_2PI, log_x])))
+    Ok(flush_subnormal(excel_exp_of_sum(
+        half_square,
+        &[excel_log(sigma), LN_SQRT_2PI, log_x],
+    )))
 }
 
 pub fn lognorm_inv_kernel(p: f64, mean: f64, sigma: f64) -> Result<f64, WorksheetErrorCode> {
@@ -349,8 +361,10 @@ mod tests {
             (1e-300, -37.0470962993612),
         ] {
             let actual = norm_s_inv_kernel(p).unwrap();
-            assert!((actual - expected).abs() < 4e-13,
-                "p={p:e}, calculated {actual:e}, mathematical {expected:e}");
+            assert!(
+                (actual - expected).abs() < 4e-13,
+                "p={p:e}, calculated {actual:e}, mathematical {expected:e}"
+            );
         }
     }
 
@@ -416,7 +430,10 @@ mod tests {
         assert_eq!(norm_dist_kernel(0.0, 0.0, 1.0, true).unwrap(), 0.5);
         assert_eq!(norm_s_dist_kernel(0.0, true).unwrap(), 0.5);
         // R39 restores the measured upper tail through the shared inverse.
-        assert_bits(norm_inv_kernel(0.975, 0.0, 1.0).unwrap(), 0x3fff5c0331eeff82);
+        assert_bits(
+            norm_inv_kernel(0.975, 0.0, 1.0).unwrap(),
+            0x3fff5c0331eeff82,
+        );
         assert_bits(norm_s_inv_kernel(0.975).unwrap(), 0x3fff5c0331eeff82);
     }
 
@@ -431,8 +448,16 @@ mod tests {
             (0.975_f64, 0x3fff_5c03_31ee_ff82u64, 0x3fff5c0331eeff82),
             (0.97575_f64, 0x3fff_913f_9b7a_a942u64, 0x3fff913f9b7aa942),
         ] {
-            assert_eq!(norm_s_inv_kernel(p).unwrap().to_bits(), calculated_bits, "recorded Excel {expected_bits:#018x}");
-            assert_eq!(norm_inv_kernel(p, 0.0, 1.0).unwrap().to_bits(), calculated_bits, "recorded Excel {expected_bits:#018x}");
+            assert_eq!(
+                norm_s_inv_kernel(p).unwrap().to_bits(),
+                calculated_bits,
+                "recorded Excel {expected_bits:#018x}"
+            );
+            assert_eq!(
+                norm_inv_kernel(p, 0.0, 1.0).unwrap().to_bits(),
+                calculated_bits,
+                "recorded Excel {expected_bits:#018x}"
+            );
         }
     }
 
@@ -541,5 +566,4 @@ mod tests {
             assert_bits(norm_inv_kernel(p, 0.0, 1.0).unwrap(), expected);
         }
     }
-
 }

@@ -3,7 +3,8 @@
 use super::{autofit, render_plan::PlannedCell};
 use crate::cells::ConditionalShown;
 
-pub(super) const STACKED_LINE_CSS: &str = "display:block;flex:none;height:1em;line-height:1;white-space:pre;overflow:hidden";
+pub(super) const STACKED_LINE_CSS: &str =
+    "display:block;flex:none;height:1em;line-height:1;white-space:pre;overflow:hidden";
 
 pub struct TextLine {
     pub text: String,
@@ -48,8 +49,8 @@ pub fn layout(
     italic: bool,
     zoom: f64,
 ) -> TextLayout {
-    let mut display_style=cell.shown.style.clone();
-    display_style.pixels=cell.paint_pixels;
+    let mut display_style = cell.shown.style.clone();
+    display_style.pixels = cell.paint_pixels;
     let style = &display_style;
     let horizontal = horizontal(cell);
     let vertical = style.vertical.as_deref().unwrap_or("bottom");
@@ -78,11 +79,22 @@ pub fn layout(
         "center" => "center",
         _ => "flex-end",
     };
-    let inset = if style.rotation == 0 && !style.wrap && !style.shrink
-        && !matches!(horizontal, "justify" | "distributed") && !cell.shown.text.contains('\n')
-    { zoom } else { 0. };
+    let inset = if style.rotation == 0
+        && !style.wrap
+        && !style.shrink
+        && !matches!(horizontal, "justify" | "distributed")
+        && !cell.shown.text.contains('\n')
+    {
+        zoom
+    } else {
+        0.
+    };
     let top = if vertical == "top" { inset } else { 0. };
-    let bottom = if vertical == "bottom" { inset + cell.baseline_inset } else { 0. };
+    let bottom = if vertical == "bottom" {
+        inset + cell.baseline_inset
+    } else {
+        0.
+    };
     let mut out = TextLayout {
         container: format!(
             ";padding-left:{left}px;padding-right:{right}px;padding-top:{top}px;padding-bottom:{bottom}px;justify-content:{justify};align-items:{align}"
@@ -105,11 +117,17 @@ pub fn layout(
     };
     let font = autofit::font_css(style, Some(conditional), italic, zoom);
     if style.rotation == 255 {
-        out.lines = graphemes(&out.lines[0].text).into_iter().map(|text|TextLine {
-            text, segments: None, advances: None,
-            css: STACKED_LINE_CSS.into(),
-        }).collect();
-        out.span.push_str(";display:flex;flex-direction:column;align-items:center");
+        out.lines = graphemes(&out.lines[0].text)
+            .into_iter()
+            .map(|text| TextLine {
+                text,
+                segments: None,
+                advances: None,
+                css: STACKED_LINE_CSS.into(),
+            })
+            .collect();
+        out.span
+            .push_str(";display:flex;flex-direction:column;align-items:center");
         return out;
     }
     if style.rotation != 0 {
@@ -216,18 +234,28 @@ pub fn layout(
     }
     // Excel's single-line top/bottom placement uses the font's measured line box.
     // Keep centred and multi-line placement independent of this single-line correction.
-    if !wrap && !out.lines[0].text.contains('\n') && matches!(vertical, "top" | "bottom")
+    if !wrap
+        && !out.lines[0].text.contains('\n')
+        && matches!(vertical, "top" | "bottom")
         && let Some((ascent, descent)) = autofit::font_box(style, Some(conditional), italic, zoom)
     {
         let extra = (ascent + descent - style.pixels * zoom) / 2.;
         let shift = if vertical == "top" { extra } else { -extra };
-        out.span.push_str(&format!(";position:relative;top:{shift}px"));
+        out.span
+            .push_str(&format!(";position:relative;top:{shift}px"));
     }
     if let Some(advances) = autofit::text_advances(&cell.shown, &out.lines[0].text, zoom) {
         out.lines[0].segments = Some(graphemes(&out.lines[0].text));
         out.lines[0].advances = Some(advances);
-        out.lines[0].css.push_str(";display:inline-flex;align-items:baseline");
-        out.lines[0].css.push_str(&autofit::segmented_decoration(style, conditional, italic, zoom));
+        out.lines[0]
+            .css
+            .push_str(";display:inline-flex;align-items:baseline");
+        out.lines[0].css.push_str(&autofit::segmented_decoration(
+            style,
+            conditional,
+            italic,
+            zoom,
+        ));
     }
     out
 }

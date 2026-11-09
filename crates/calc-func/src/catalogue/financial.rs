@@ -38,7 +38,9 @@ pub(super) const OFFSET_1904: f64 = 1462.0;
 /// Required scalar financial slots distinguish a Missing placeholder from a
 /// blank cell. The latter still reaches the existing numeric coercion as zero.
 pub(super) fn required_number(value: &CalcValue) -> Step<()> {
-    if value.is_missing() { return fail(W::NA); }
+    if value.is_missing() {
+        return fail(W::NA);
+    }
     reject_logical(value)
 }
 
@@ -70,7 +72,12 @@ fn timing(site: &Site<'_>, a: &[CalcValue], index: usize) -> Step<PaymentTiming>
 /// Argument `index` as OxFunc's resolver gave it to the cash-flow collectors: a reference to one
 /// cell as the cell's value, a larger reference as the array of its values, anything else as it
 /// is.
-fn resolved(site: &Site<'_>, a: &[CalcValue], index: usize, sv: &mut EvalServices<'_>) -> Step<CalcValue> {
+fn resolved(
+    site: &Site<'_>,
+    a: &[CalcValue],
+    index: usize,
+    sv: &mut EvalServices<'_>,
+) -> Step<CalcValue> {
     if !matches!(a[index].core_ref(), CoreRef::Reference(_)) {
         return Ok(a[index].clone());
     }
@@ -90,7 +97,12 @@ fn cash_err<T>(error: cash::CashflowRateEvalError) -> Step<T> {
 }
 
 /// The optional guess of IRR and XIRR: `None` when omitted, else the number OxFunc's rule reads.
-fn guess(site: &Site<'_>, a: &[CalcValue], index: usize, sv: &mut EvalServices<'_>) -> Step<Option<f64>> {
+fn guess(
+    site: &Site<'_>,
+    a: &[CalcValue],
+    index: usize,
+    sv: &mut EvalServices<'_>,
+) -> Step<Option<f64>> {
     if !given(a, index) {
         return Ok(None);
     }
@@ -103,7 +115,12 @@ fn guess(site: &Site<'_>, a: &[CalcValue], index: usize, sv: &mut EvalServices<'
 
 /// A date argument of AMORLINC or AMORDEGRC as a serial of the 1900 system, counted in the date
 /// system of the call's environment.
-pub(super) fn date_1900(site: &Site<'_>, a: &[CalcValue], index: usize, sv: &EvalServices<'_>) -> Step<f64> {
+pub(super) fn date_1900(
+    site: &Site<'_>,
+    a: &[CalcValue],
+    index: usize,
+    sv: &EvalServices<'_>,
+) -> Step<f64> {
     let Some(environment) = sv.environment() else {
         return Err(site.not_modelled(None));
     };
@@ -114,7 +131,10 @@ pub(super) fn date_1900(site: &Site<'_>, a: &[CalcValue], index: usize, sv: &Eva
     })
 }
 
-fn amor_out(site: &Site<'_>, result: Result<f64, amor::AmorDepreciationEvalError>) -> Step<CalcValue> {
+fn amor_out(
+    site: &Site<'_>,
+    result: Result<f64, amor::AmorDepreciationEvalError>,
+) -> Step<CalcValue> {
     match result {
         Ok(n) => site.number(n),
         Err(error) => fail(amor::map_amor_depreciation_error_to_ws(&error)),
@@ -142,7 +162,12 @@ fn dollar_num(site: &Site<'_>, a: &[CalcValue], index: usize) -> Step<f64> {
 
 /// FVSCHEDULE's schedule: numbers, a blank cell as 0, any other held value #VALUE!; a direct
 /// value through number coercion.
-fn schedule(site: &Site<'_>, a: &[CalcValue], index: usize, sv: &mut EvalServices<'_>) -> Step<Vec<f64>> {
+fn schedule(
+    site: &Site<'_>,
+    a: &[CalcValue],
+    index: usize,
+    sv: &mut EvalServices<'_>,
+) -> Step<Vec<f64>> {
     let g = grid(site, a, index, sv)?;
     if !g.held {
         return Ok(vec![num(site, a, index)?]);

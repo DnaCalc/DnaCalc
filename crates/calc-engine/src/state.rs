@@ -450,7 +450,9 @@ impl Default for ParallelMinimum {
 }
 
 impl EngineState {
-    pub fn pivot_results(&self)->&crate::pivot::PivotResults {&self.pivot_results}
+    pub fn pivot_results(&self) -> &crate::pivot::PivotResults {
+        &self.pivot_results
+    }
 
     pub fn input_version(&self) -> CalculationInputVersion {
         CalculationInputVersion {
@@ -535,8 +537,7 @@ impl EngineState {
     /// Cell, save and explicit name passes share this owner-issued sequence.
     /// Reserving a diagnostic pass does not publish or change the last cell tick.
     pub(crate) fn allocate_tick(&self) -> u64 {
-        self
-            .tick_sequence
+        self.tick_sequence
             .fetch_update(
                 std::sync::atomic::Ordering::Relaxed,
                 std::sync::atomic::Ordering::Relaxed,
@@ -561,7 +562,7 @@ impl EngineState {
     // their payloads; derived graph/result indexes are copied for this explicit save.
     pub(crate) fn snapshot_for_save(&self, save: crate::contract::CommandId) -> Self {
         Self {
-            pivot_results:self.pivot_results.clone(),
+            pivot_results: self.pivot_results.clone(),
             linked_workbooks: self.linked_workbooks.clone(),
             linked_input_version: self.linked_input_version,
             contract: self.contract.clone(),
@@ -627,10 +628,12 @@ impl EngineState {
                         .callable_bindings()
                         .iter()
                         .any(|proof| !next.validates(proof)),
-                    Binding::Refused(NotModeled::Compile(calc_fml::CompileError::NotModelled {
-                        gap: calc_fml::Gap::UnknownFunction { .. },
-                        ..
-                    })) => true,
+                    Binding::Refused(NotModeled::Compile(
+                        calc_fml::CompileError::NotModelled {
+                            gap: calc_fml::Gap::UnknownFunction { .. },
+                            ..
+                        },
+                    )) => true,
                     _ => false,
                 };
                 (changed
@@ -725,7 +728,7 @@ impl EngineState {
     /// published until the first recalculation, which calculates every node.
     pub fn new(inputs: &ModelRoot) -> Self {
         let mut state = EngineState {
-            pivot_results:Default::default(),
+            pivot_results: Default::default(),
             linked_workbooks: Default::default(),
             linked_input_version: 0,
             contract: crate::contract::ContractState::new(),
@@ -801,7 +804,19 @@ impl EngineState {
             }
         }
         state.anchor_index = AnchorIndex::build(&state.by_anchor);
-        if inputs.definitions().pivots().caches.caches.values().any(|c|c.snapshot.is_some()){state.pivot_results=crate::pivot::calculate(inputs.definitions().pivots(),crate::CalcTick::new(state.allocate_tick()));}
+        if inputs
+            .definitions()
+            .pivots()
+            .caches
+            .caches
+            .values()
+            .any(|c| c.snapshot.is_some())
+        {
+            state.pivot_results = crate::pivot::calculate(
+                inputs.definitions().pivots(),
+                crate::CalcTick::new(state.allocate_tick()),
+            );
+        }
         state
     }
 
@@ -1187,7 +1202,19 @@ impl EngineState {
         state.callables = self.callables.clone();
         state.last_tick = self.last_tick;
         state.tick_sequence = self.tick_sequence.clone();
-        if inputs.definitions().pivots().caches.caches.values().any(|c|c.snapshot.is_some()){state.pivot_results=crate::pivot::calculate(inputs.definitions().pivots(),crate::CalcTick::new(state.allocate_tick()));}
+        if inputs
+            .definitions()
+            .pivots()
+            .caches
+            .caches
+            .values()
+            .any(|c| c.snapshot.is_some())
+        {
+            state.pivot_results = crate::pivot::calculate(
+                inputs.definitions().pivots(),
+                crate::CalcTick::new(state.allocate_tick()),
+            );
+        }
         state.view_sequence = self.view_sequence.clone();
         state.advance_view();
         state.environment = self.environment;
@@ -1204,36 +1231,65 @@ impl EngineState {
     /// Rebase a package extension while retaining unchanged live holdings as stale displays.
     /// Every node remains pending; old read certificates are discarded. New worksheet caches
     /// enter through the ordinary imported-cache validator and never become calculated values.
-    pub fn rebuilt_with_held_caches(&self,before:&ModelRoot,inputs:&ModelRoot,caches:impl IntoIterator<Item=(CellKey,FileCached)>)->Result<Self,CacheWithoutFormula> {
-        let imported=Self::with_file_caches(inputs,caches)?;
-        let mut state=self.rebuilt(inputs);
-        for (at,result) in imported.results(){
-            if let Some(node)=state.node_at(at){state.results.publish(node,at,result.clone(),None);}
+    pub fn rebuilt_with_held_caches(
+        &self,
+        before: &ModelRoot,
+        inputs: &ModelRoot,
+        caches: impl IntoIterator<Item = (CellKey, FileCached)>,
+    ) -> Result<Self, CacheWithoutFormula> {
+        let imported = Self::with_file_caches(inputs, caches)?;
+        let mut state = self.rebuilt(inputs);
+        for (at, result) in imported.results() {
+            if let Some(node) = state.node_at(at) {
+                state.results.publish(node, at, result.clone(), None);
+            }
         }
-        for (node,spill) in &imported.cached_arrays {
-            let at=imported.node(*node).expect("cached array owner").anchor();
-            if let Some(node)=state.node_at(at){state.cached_arrays.insert(node,spill.clone());}
+        for (node, spill) in &imported.cached_arrays {
+            let at = imported.node(*node).expect("cached array owner").anchor();
+            if let Some(node) = state.node_at(at) {
+                state.cached_arrays.insert(node, spill.clone());
+            }
         }
         for old in self.nodes() {
-            let at=old.anchor();
+            let at = old.anchor();
             // A save/reload can materialise or resize a dynamic array's stored extent.
             // Identical formula input still owns its actual old spill as a stale holding;
             // saved dynamic extents do not turn that holding into a current calculation.
             // Fixed arrays and membership under another anchor retain the strict check.
             let dynamic_image_only = matches!(before.cell(at), Some(CellInput::Formula(_)))
                 && [before.array_containing(at), inputs.array_containing(at)]
-                    .into_iter().all(|array| array.is_none_or(|array|
-                        array.anchor() == at && matches!(array.kind(), calc_doc_model::ArrayKind::Dynamic { .. })));
+                    .into_iter()
+                    .all(|array| {
+                        array.is_none_or(|array| {
+                            array.anchor() == at
+                                && matches!(array.kind(), calc_doc_model::ArrayKind::Dynamic { .. })
+                        })
+                    });
             if before.cell(at) != inputs.cell(at)
-                || before.array_containing(at) != inputs.array_containing(at) && !dynamic_image_only {
+                || before.array_containing(at) != inputs.array_containing(at) && !dynamic_image_only
+            {
                 continue;
             }
-            let Some(node)=state.node_at(at)else{continue};
-            if self.entered.contains(&old.id()){state.entered.insert(node);}
-            if let Some(result)=self.results.of(old.id()){state.results.publish(node,at,result.clone().without_stamp(),None);}
-            if let Some(spill)=self.spills.get(at){state.spills.insert(spill.clone());}
-            if let Some(spill)=self.cached_arrays.get(&old.id()){state.cached_arrays.insert(node,spill.clone());}
-            if let Some(area)=self.blocked_spills.get(&at){state.blocked_spills.insert(at,*area);}
+            let Some(node) = state.node_at(at) else {
+                continue;
+            };
+            if self.entered.contains(&old.id()) {
+                state.entered.insert(node);
+            }
+            if let Some(result) = self.results.of(old.id()) {
+                state
+                    .results
+                    .publish(node, at, result.clone().without_stamp(), None);
+            }
+            if let Some(spill) = self.spills.get(at) {
+                state.spills.insert(spill.clone());
+            }
+            if let Some(spill) = self.cached_arrays.get(&old.id()) {
+                state.cached_arrays.insert(node, spill.clone());
+            }
+            if let Some(area) = self.blocked_spills.get(&at) {
+                state.blocked_spills.insert(at, *area);
+            }
         }
         Ok(state)
     }
@@ -1246,9 +1302,14 @@ impl EngineState {
         // would repeatedly search and mutate indexes that are about to be empty.
         self.index.clear();
         for &node in self.by_anchor.values() {
-            let Some(record) = self.nodes.get_mut(node.slot() as usize)
-                .and_then(Option::as_mut).filter(|record| record.id == node)
-            else { continue; };
+            let Some(record) = self
+                .nodes
+                .get_mut(node.slot() as usize)
+                .and_then(Option::as_mut)
+                .filter(|record| record.id == node)
+            else {
+                continue;
+            };
             record.prerequisites = None;
             record.dynamic = Vec::new();
             self.bindings.remove(&node);

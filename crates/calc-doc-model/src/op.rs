@@ -34,28 +34,48 @@ pub enum WorkbookOp {
     /// The immutable style table, committed atomically with cell style assignments.
     SetStyles(std::sync::Arc<crate::StyleTable>),
     /// Criteria and filtered visibility committed together; manual hiding remains independent.
-    SetAutoFilter { sheet: SheetId, filter: Option<crate::AutoFilter>,
+    SetAutoFilter {
+        sheet: SheetId,
+        filter: Option<crate::AutoFilter>,
     },
     SetTables(Vec<crate::Table>),
-    SetPageSetup { sheet: SheetId, setup: crate::PageSetup },
-    SetCharts {sheet:SheetId,charts:Vec<crate::Chart>},
+    SetPageSetup {
+        sheet: SheetId,
+        setup: crate::PageSetup,
+    },
+    SetCharts {
+        sheet: SheetId,
+        charts: Vec<crate::Chart>,
+    },
     SetPivots(std::sync::Arc<crate::pivot::PivotState>),
     /// Replace the data model snapshot after an explicit refresh.
     SetDataModel(std::sync::Arc<crate::DataModel>),
-    SetValidations { sheet: SheetId, rules: Vec<crate::Validation> },
-    SetReviewLinks { sheet:SheetId, links:Vec<crate::ReviewLink> },
+    SetValidations {
+        sheet: SheetId,
+        rules: Vec<crate::Validation>,
+    },
+    SetReviewLinks {
+        sheet: SheetId,
+        links: Vec<crate::ReviewLink>,
+    },
     SetReviewNotes {
         sheet: SheetId,
-        notes: Vec<crate::ReviewNote> },
+        notes: Vec<crate::ReviewNote>,
+    },
     /// Replaces a worksheet's complete conditional-rule state, retaining source fields.
     SetConditionalRules {
         sheet: SheetId,
         rules: Vec<crate::ConditionalRuleSource>,
     },
     /// Replace the authored input of one cell.
-    SetCell { at: CellKey, input: CellInput },
+    SetCell {
+        at: CellKey,
+        input: CellInput,
+    },
     /// Remove the authored contents of every cell of an area.
-    Clear { area: GridArea },
+    Clear {
+        area: GridArea,
+    },
     /// Author an array formula: the rest of `array`'s area is emptied, its anchor (the area's
     /// first cell) holds `input`, which must be a formula ([`crate::ApplyError::ArrayInput`]),
     /// and the array fills the area: a legacy array's fixed area, or the extent a dynamic array's
@@ -69,7 +89,10 @@ pub enum WorkbookOp {
     /// Give one cell a cell format: an index into the workbook's cell formats (a cell's `s`), or
     /// `None` to return it to the format the file gave it (dc-09v). It changes no input and no
     /// calculation.
-    SetFormat { at: CellKey, format: Option<u32> },
+    SetFormat {
+        at: CellKey,
+        format: Option<u32>,
+    },
     /// Give the defined name `name` of `scope` (matched under the full Unicode case fold, as
     /// Excel matches names: dc-cpr, calc-value's `workbook_names_equal`) the formula `formula`,
     /// as the model holds a name's formula, defining the name when the root holds none of that
@@ -95,7 +118,10 @@ pub enum WorkbookOp {
         sheet: SheetId,
         panes: Option<FrozenPanes>,
     },
-    SetPaneLayout { sheet: SheetId, layout: Option<PaneLayout> },
+    SetPaneLayout {
+        sheet: SheetId,
+        layout: Option<PaneLayout>,
+    },
     /// Insert or delete rows or columns of one sheet.
     EditAxis(AxisEdit),
     /// Insert, rename, move, remove or show or hide a sheet.

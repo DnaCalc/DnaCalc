@@ -6,8 +6,10 @@ use calc_doc::{SessionRefusal, SessionVba, read_session, read_vba_file, write_se
 const MANY_SHEETS: &[u8] = include_bytes!("fixtures/cdoc_m1_2/d1.saved.xlsx");
 const WITH_VBA: &[u8] = include_bytes!("fixtures/vba_udf_names/case-only.xlsm");
 // DNA Calc's example add-in project as Excel saved it (crates/calc-xll-reference/fixture/vba).
-const EXAMPLES_XLSM: &[u8] = include_bytes!("../../calc-xll-reference/fixture/vba/DnaExamples.xlsm");
-const EXAMPLES_XLAM: &[u8] = include_bytes!("../../calc-xll-reference/fixture/vba/DnaExamples.xlam");
+const EXAMPLES_XLSM: &[u8] =
+    include_bytes!("../../calc-xll-reference/fixture/vba/DnaExamples.xlsm");
+const EXAMPLES_XLAM: &[u8] =
+    include_bytes!("../../calc-xll-reference/fixture/vba/DnaExamples.xlam");
 
 fn opened(package: &[u8]) -> calc_doc::OpenedDocument {
     calc_doc::open(
@@ -39,7 +41,9 @@ fn a_workbook_with_a_vba_project_is_refused_only_for_what_else_it_holds() {
     // holds defined names, which a session file has no place for.
     assert_eq!(
         read_session(WITH_VBA.to_vec(), "urn:example:none"),
-        Err(SessionRefusal::Content { what: "defined names" })
+        Err(SessionRefusal::Content {
+            what: "defined names"
+        })
     );
 }
 
@@ -79,7 +83,10 @@ fn an_xlsm_session_saves_with_its_project_part_unchanged_and_reads_back() {
         package.content_types().of("xl/workbook.xml"),
         Some("application/vnd.ms-excel.sheet.macroEnabled.main+xml")
     );
-    let links = package.relationships_of(Some("xl/workbook.xml")).unwrap().items();
+    let links = package
+        .relationships_of(Some("xl/workbook.xml"))
+        .unwrap()
+        .items();
     assert!(links.iter().any(|link| link.kind
         == "http://schemas.microsoft.com/office/2006/relationships/vbaProject"
         && link.resolved.as_deref() == Some("xl/vbaProject.bin")));
@@ -91,7 +98,9 @@ fn an_xlsm_session_saves_with_its_project_part_unchanged_and_reads_back() {
 #[cfg_attr(not(target_arch = "wasm32"), test)]
 #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
 fn an_add_in_file_gives_its_project_part_and_code_name() {
-    let vba = read_vba_file(EXAMPLES_XLAM.to_vec()).unwrap().expect("the add-in's project");
+    let vba = read_vba_file(EXAMPLES_XLAM.to_vec())
+        .unwrap()
+        .expect("the add-in's project");
     assert_eq!(vba.project, part(EXAMPLES_XLAM, "xl/vbaProject.bin"));
     assert_eq!(vba.workbook_code_name.as_deref(), Some("ThisWorkbook"));
     assert_eq!(read_vba_file(MANY_SHEETS.to_vec()).unwrap(), None);

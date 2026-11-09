@@ -43,10 +43,21 @@ mod tests {
     /// it back (an everyday build has none).
     #[test]
     fn the_message_has_the_link_and_an_embedded_page_reads() {
-        assert!(missing_runtime_message().contains("https://developer.microsoft.com/microsoft-edge/webview2"));
+        assert!(
+            missing_runtime_message()
+                .contains("https://developer.microsoft.com/microsoft-edge/webview2")
+        );
         if has_page() {
             let page = page().unwrap();
-            for name in ["index.html", "boot.js", "dna-calc-web.js", "dna-calc-web_bg.wasm", "worker.js", "dna-calc-worker-web.js", "dna-calc-worker-web_bg.wasm"] {
+            for name in [
+                "index.html",
+                "boot.js",
+                "dna-calc-web.js",
+                "dna-calc-web_bg.wasm",
+                "worker.js",
+                "dna-calc-worker-web.js",
+                "dna-calc-worker-web_bg.wasm",
+            ] {
                 assert!(page.get(name).is_some(), "{name}");
             }
         } else {

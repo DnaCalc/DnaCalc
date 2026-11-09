@@ -2,7 +2,14 @@
 //! the OxFunc surface layer (argument preparation, references, lifting) removed: the catalogue's
 //! family fragments read and coerce the arguments and call these kernels.
 
-#![allow(dead_code, unused_imports, unused_variables, unreachable_patterns, private_interfaces, clippy::all)]
+#![allow(
+    dead_code,
+    unused_imports,
+    unused_variables,
+    unreachable_patterns,
+    private_interfaces,
+    clippy::all
+)]
 
 pub(crate) mod a1_refs;
 pub(crate) mod acos;
@@ -38,14 +45,15 @@ pub(crate) mod confidence_test_family;
 pub(crate) mod cos;
 pub(crate) mod cosh;
 pub(crate) mod cot;
-pub(crate) mod date_kernels;
 pub(crate) mod coth;
 pub(crate) mod csc;
 pub(crate) mod csch;
+pub(crate) mod date_kernels;
 pub(crate) mod decimal_fn;
 pub(crate) mod degrees;
 pub(crate) mod delta_fn;
 pub(crate) mod engineering_radix_family;
+pub(crate) mod excel_numeric;
 pub(crate) mod excel_numeric_compare;
 pub(crate) mod exp_fn;
 pub(crate) mod fact;
@@ -73,8 +81,8 @@ pub(crate) mod percentile_common;
 pub(crate) mod percentrank_common;
 pub(crate) mod permut_fn;
 pub(crate) mod permutationa_fn;
-pub(crate) mod power_fn;
 pub(crate) mod phi_fn;
+pub(crate) mod power_fn;
 pub(crate) mod radians;
 pub(crate) mod rank_common;
 pub(crate) mod real_policy;
@@ -93,22 +101,21 @@ pub(crate) mod statistical_tests_family;
 pub(crate) mod subtotal_aggregate_family;
 pub(crate) mod sumproduct_family;
 pub(crate) mod tan;
+pub(crate) mod tanh;
 pub(crate) mod text_kernels;
 pub(crate) mod text_more;
-pub(crate) mod tanh;
 pub(crate) mod variance_common;
-pub(crate) mod excel_numeric;
 // F3 (dc-728): the financial kernels.
 pub(crate) mod amor_depreciation_family;
 pub(crate) mod bond_core_family;
-pub(crate) mod coupon_family;
-pub(crate) mod day_count_common;
-pub(crate) mod discount_bill_yearfrac_family;
-pub(crate) mod dynamic_array_reshape_family;
-pub(crate) mod odd_bond_family;
 pub(crate) mod cashflow_rate_family;
+pub(crate) mod coupon_family;
 pub(crate) mod cumulative_finance_family;
+pub(crate) mod day_count_common;
 pub(crate) mod depreciation_family;
+pub(crate) mod discount_bill_yearfrac_family;
 pub(crate) mod discrete_dist;
 pub(crate) mod dollar_fraction_family;
+pub(crate) mod dynamic_array_reshape_family;
 pub(crate) mod financial_time_value_family;
+pub(crate) mod odd_bond_family;

@@ -252,7 +252,9 @@ pub(crate) fn append(
     transpose: bool,
     edits: &mut Vec<CellEdit>,
 ) -> Result<(), CopyRefusal> {
-    if !matches!(mode, PasteMode::All | PasteMode::Formats) || (from == to && source.revision()==host.model().revision()) {
+    if !matches!(mode, PasteMode::All | PasteMode::Formats)
+        || (from == to && source.revision() == host.model().revision())
+    {
         return Ok(());
     }
     if !source.same_lineage(host.model()) {
@@ -575,7 +577,13 @@ fn append_notes(
         .keys()
         .map(|s| s.to_ascii_uppercase())
         .collect();
-    for (_, notes) in host.model().definitions().all_review_notes().chain(host.loaded().model().definitions().all_review_notes()).chain(source.definitions().all_review_notes()) {
+    for (_, notes) in host
+        .model()
+        .definitions()
+        .all_review_notes()
+        .chain(host.loaded().model().definitions().all_review_notes())
+        .chain(source.definitions().all_review_notes())
+    {
         for n in notes {
             match &n.source {
                 Some(ReviewSource::Thread { id, person, .. }) => {
@@ -718,8 +726,16 @@ fn append_notes(
             .map(|n| n.at)
             .collect();
         for at in positions {
-            let threads=|n:&ReviewNote|n.at==at&&n.source.as_ref().is_some_and(ReviewSource::threaded);
-            if !notes.iter().filter(|n|threads(n)).eq(host.model().definitions().review_notes(sheet).iter().filter(|n|threads(n))) {
+            let threads = |n: &ReviewNote| {
+                n.at == at && n.source.as_ref().is_some_and(ReviewSource::threaded)
+            };
+            if !notes.iter().filter(|n| threads(n)).eq(host
+                .model()
+                .definitions()
+                .review_notes(sheet)
+                .iter()
+                .filter(|n| threads(n)))
+            {
                 crate::review::refresh_compatibility(&mut notes, at);
             }
         }
@@ -759,33 +775,53 @@ pub(crate) fn permute_rows(
             .map_err(|_| refusal("The original note boxes cannot follow this sort (dc-971p.38)"))?;
         edits.push(CellEdit::ReviewNotes { sheet, notes });
     }
-    let mut links=Vec::new();
-    let mut fragments=0usize;
+    let mut links = Vec::new();
+    let mut fragments = 0usize;
     for link in host.model().definitions().review_links(sheet) {
-        let mut target=subtract(link.area,data);
-        if let Some(intersection)=link.area.intersection(data){
-            fragments=fragments.saturating_add(intersection.row_count() as usize);
-            if fragments>crate::COPY_LIMIT as usize{return Err(refusal("Too many sorted hyperlink fragments (dc-971p.38)"));}
-            for source in intersection.first().row()..=intersection.last().row(){
-                let row=*rows.get(&source).ok_or_else(||refusal("The sort omits a hyperlink row"))?;
-                target.push(GridArea::new(CellKey::new(sheet,row,intersection.first().column()).unwrap(),CellKey::new(sheet,row,intersection.last().column()).unwrap()).unwrap());
+        let mut target = subtract(link.area, data);
+        if let Some(intersection) = link.area.intersection(data) {
+            fragments = fragments.saturating_add(intersection.row_count() as usize);
+            if fragments > crate::COPY_LIMIT as usize {
+                return Err(refusal("Too many sorted hyperlink fragments (dc-971p.38)"));
+            }
+            for source in intersection.first().row()..=intersection.last().row() {
+                let row = *rows
+                    .get(&source)
+                    .ok_or_else(|| refusal("The sort omits a hyperlink row"))?;
+                target.push(
+                    GridArea::new(
+                        CellKey::new(sheet, row, intersection.first().column()).unwrap(),
+                        CellKey::new(sheet, row, intersection.last().column()).unwrap(),
+                    )
+                    .unwrap(),
+                );
             }
         }
-        for area in merge(target){let mut next=link.clone();next.area=area;links.push(next);}
-        if links.len()>10000{return Err(refusal("Too many sorted hyperlink records (dc-971p.38)"));}
+        for area in merge(target) {
+            let mut next = link.clone();
+            next.area = area;
+            links.push(next);
+        }
+        if links.len() > 10000 {
+            return Err(refusal("Too many sorted hyperlink records (dc-971p.38)"));
+        }
     }
-    if links!=host.model().definitions().review_links(sheet){
-        host.loaded().check_sorted_links(sheet,&links).map_err(|_|refusal("The original hyperlinks cannot follow this sort (dc-971p.38)"))?;
-        edits.push(CellEdit::ReviewLinks{sheet,links});
+    if links != host.model().definitions().review_links(sheet) {
+        host.loaded()
+            .check_sorted_links(sheet, &links)
+            .map_err(|_| refusal("The original hyperlinks cannot follow this sort (dc-971p.38)"))?;
+        edits.push(CellEdit::ReviewLinks { sheet, links });
     }
-    permute_conditional_rows(host,data,rows,edits)?;
+    permute_conditional_rows(host, data, rows, edits)?;
     let mut rules = Vec::new();
     let mut fragments = 0usize;
     for original in host.model().definitions().validations(sheet) {
         // Keep the inherited prompt-only source refusal. This increment moves active rules;
         // a type=none record has no condition whose relative origin can be checked here.
         if original.kind == "none" {
-            return Err(refusal("Sorting prompt-only validation records is unavailable (dc-971p.38)"));
+            return Err(refusal(
+                "Sorting prompt-only validation records is unavailable (dc-971p.38)",
+            ));
         }
         if !calc_doc::validation_movement_supported(original) {
             return Err(refusal(
@@ -901,15 +937,43 @@ pub(crate) fn conditional_sort_supported(host: &HostState, sheet: calc_value::Sh
             // Standard operators: https://learn.microsoft.com/en-us/dotnet/api/documentformat.openxml.spreadsheet.conditionalformattingoperatorvalues
             "containsText" | "notContainsText" | "beginsWith" | "endsWith"
                 if parsed.text.is_some()
-                    && parsed.operator.as_deref() == Some(if parsed.kind == "notContainsText" { "notContains" } else { parsed.kind.as_str() }) => 1,
+                    && parsed.operator.as_deref()
+                        == Some(if parsed.kind == "notContainsText" {
+                            "notContains"
+                        } else {
+                            parsed.kind.as_str()
+                        }) =>
+            {
+                1
+            }
             "containsBlanks" | "notContainsBlanks" | "containsErrors" | "notContainsErrors"
-                if parsed.text.is_none() && parsed.operator.is_none() => 1,
+                if parsed.text.is_none() && parsed.operator.is_none() =>
+            {
+                1
+            }
             // Standard calendar labels retain their stored executable predicate.
             // https://learn.microsoft.com/en-us/dotnet/api/documentformat.openxml.spreadsheet.timeperiodvalues
-            "timePeriod" if parsed.text.is_none() && parsed.operator.is_none()
-                && matches!(parsed.time_period.as_deref(), Some("today" | "yesterday"
-                    | "tomorrow" | "last7Days" | "thisMonth" | "lastMonth" | "nextMonth"
-                    | "thisWeek" | "lastWeek" | "nextWeek")) => 1,
+            "timePeriod"
+                if parsed.text.is_none()
+                    && parsed.operator.is_none()
+                    && matches!(
+                        parsed.time_period.as_deref(),
+                        Some(
+                            "today"
+                                | "yesterday"
+                                | "tomorrow"
+                                | "last7Days"
+                                | "thisMonth"
+                                | "lastMonth"
+                                | "nextMonth"
+                                | "thisWeek"
+                                | "lastWeek"
+                                | "nextWeek"
+                        )
+                    ) =>
+            {
+                1
+            }
             _ => return false,
         };
         if rule.formulas.len() != count {

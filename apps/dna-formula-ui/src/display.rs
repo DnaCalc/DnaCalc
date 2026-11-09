@@ -54,7 +54,10 @@ pub fn formula_literal(value: &CalcValue) -> Result<String, String> {
                 })
             }
             CoreValue::Number(_) => Err("a number a formula cannot write".to_owned()),
-            CoreValue::Text(text) => Ok(format!("\"{}\"", text.to_string_lossy().replace('"', "\"\""))),
+            CoreValue::Text(text) => Ok(format!(
+                "\"{}\"",
+                text.to_string_lossy().replace('"', "\"\"")
+            )),
             CoreValue::Logical(true) => Ok("TRUE".to_owned()),
             CoreValue::Logical(false) => Ok("FALSE".to_owned()),
             CoreValue::Error(code) => Ok(error_spelling(*code).to_owned()),
@@ -298,7 +301,8 @@ fn function_fault(fault: &FunctionFault) -> String {
         ),
         FunctionFault::Deferred { id, class } => format!(
             "function fault in {}: deferred (work package {})",
-            function_label(*id), class.owner()
+            function_label(*id),
+            class.owner()
         ),
         FunctionFault::Binding { id } => format!(
             "function fault in {}: this form requires formula evaluation",

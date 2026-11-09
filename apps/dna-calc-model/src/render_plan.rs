@@ -183,7 +183,10 @@ pub fn build_render_plan_with<'a>(
         .collect();
     cells.extend(empty.iter());
     let boundary_cells = cells.clone();
-    let by_address: BTreeMap<_,_> = cells.iter().map(|c|((c.at.row(),c.at.column()),*c)).collect();
+    let by_address: BTreeMap<_, _> = cells
+        .iter()
+        .map(|c| ((c.at.row(), c.at.column()), *c))
+        .collect();
     let occupied: std::collections::BTreeSet<(u32, u32)> = cells
         .iter()
         .filter(|shown| {
@@ -219,7 +222,12 @@ pub fn build_render_plan_with<'a>(
                 .and_then(|measure| measure(shown, &shown.text))
                 .filter(|w| w.is_finite() && *w >= 0.0);
             let (borders, boundary) = merged.map_or_else(
-                || (shared_borders(shown, &by_address, options.geometry), Vec::new()),
+                || {
+                    (
+                        shared_borders(shown, &by_address, options.geometry),
+                        Vec::new(),
+                    )
+                },
                 |area| merge_boundary(shown, area, &boundary_cells, m),
             );
             let mut cell = PlannedCell {
@@ -228,11 +236,10 @@ pub fn build_render_plan_with<'a>(
                 row_span: merged.map_or(1, |a| a.row_count()),
                 col_span: merged.map_or(1, |a| a.column_count()),
                 editability: Editability::from_geometry(options.geometry),
-                text_advance: measured
-                    .unwrap_or_else(|| {
-                        let (left, right) = text_insets(m.scale);
-                        text_width(&shown.text, m) - left - right
-                    }),
+                text_advance: measured.unwrap_or_else(|| {
+                    let (left, right) = text_insets(m.scale);
+                    text_width(&shown.text, m) - left - right
+                }),
                 text_measured: measured.is_some(),
                 baseline_inset: 0.,
                 paint_pixels: shown.style.pixels,
@@ -295,24 +302,45 @@ pub fn build_render_plan_with<'a>(
 
 fn shared_borders(
     shown: &CellShown,
-    cells: &BTreeMap<(u32,u32),&CellShown>,
+    cells: &BTreeMap<(u32, u32), &CellShown>,
     geometry: Option<&crate::projection::Geometry>,
-) -> [Option<crate::projection::BorderShown>;4] {
+) -> [Option<crate::projection::BorderShown>; 4] {
     let strength = |edge: &crate::projection::BorderShown| match edge.style.as_str() {
-        "double" => 30, "thick" => 29, "medium" => 20,
-        "mediumDashed" => 19, "mediumDashDot" => 18, "slantDashDot" => 17,
+        "double" => 30,
+        "thick" => 29,
+        "medium" => 20,
+        "mediumDashed" => 19,
+        "mediumDashDot" => 18,
+        "slantDashDot" => 17,
         "mediumDashDotDot" => 16,
-        "thin" => 10, "dashed" => 9, "dashDot" => 8,
-        "dashDotDot" => 7, "dotted" => 6, "hair" => 1, _ => 0,
+        "thin" => 10,
+        "dashed" => 9,
+        "dashDot" => 8,
+        "dashDotDot" => 7,
+        "dotted" => 6,
+        "hair" => 1,
+        _ => 0,
     };
-    let (row,col) = (shown.at.row(),shown.at.column());
-    let neighbours = [(row,col.saturating_sub(1),1),(row,col.saturating_add(1),0),(row.saturating_sub(1),col,3),(row.saturating_add(1),col,2)];
+    let (row, col) = (shown.at.row(), shown.at.column());
+    let neighbours = [
+        (row, col.saturating_sub(1), 1),
+        (row, col.saturating_add(1), 0),
+        (row.saturating_sub(1), col, 3),
+        (row.saturating_add(1), col, 2),
+    ];
     let mut borders = shown.style.borders.clone();
-    for (side,(r,c,opposite)) in neighbours.into_iter().enumerate() {
-        let Some(other) = cells.get(&(r,c)) else {continue};
-        if geometry.is_some_and(|g|g.merge_at(other.at).is_some()) {continue;}
+    for (side, (r, c, opposite)) in neighbours.into_iter().enumerate() {
+        let Some(other) = cells.get(&(r, c)) else {
+            continue;
+        };
+        if geometry.is_some_and(|g| g.merge_at(other.at).is_some()) {
+            continue;
+        }
         if let Some(edge) = &other.style.borders[opposite] {
-            if borders[side].as_ref().is_none_or(|own| strength(edge)>strength(own) || (strength(edge)==strength(own) && matches!(side,1|3))) {
+            if borders[side].as_ref().is_none_or(|own| {
+                strength(edge) > strength(own)
+                    || (strength(edge) == strength(own) && matches!(side, 1 | 3))
+            }) {
                 borders[side] = Some(edge.clone());
             }
         }
@@ -338,12 +366,17 @@ fn narrow_general(text: &str, available: f64, width_of: &dyn Fn(&str) -> f64) ->
     }
     let trimmed = |digits: String| -> String {
         if digits.contains('.') {
-            digits.trim_end_matches('0').trim_end_matches('.').to_owned()
+            digits
+                .trim_end_matches('0')
+                .trim_end_matches('.')
+                .to_owned()
         } else {
             digits
         }
     };
-    let decimals = text.split_once('.').map_or(0, |(_, fraction)| fraction.split(['e', 'E']).next().map_or(0, str::len));
+    let decimals = text.split_once('.').map_or(0, |(_, fraction)| {
+        fraction.split(['e', 'E']).next().map_or(0, str::len)
+    });
     if !text.contains(['e', 'E']) {
         for places in (0..decimals).rev() {
             let candidate = trimmed(format!("{value:.places$}"));
@@ -549,7 +582,13 @@ fn fit(
                 cell.shown.text = "#".repeat(count);
             }
         }
-        "number" if matches!(cell.shown.format, crate::projection::FormatShown::Applied | crate::projection::FormatShown::Unshowable) => {
+        "number"
+            if matches!(
+                cell.shown.format,
+                crate::projection::FormatShown::Applied
+                    | crate::projection::FormatShown::Unshowable
+            ) =>
+        {
             let hash = options
                 .measure
                 .and_then(|f| f(&cell.shown, "#"))
@@ -981,16 +1020,32 @@ mod tests {
         number.format = crate::projection::FormatShown::General;
         let plan = build_render_plan(&[number.clone()], &narrow, &v, 10, 10);
         assert_eq!(plan.cells[0].shown.text, "####");
-        for (width, expected) in [(80.0, "123456.79"), (67.0, "123456.8"), (54.0, "123457"), (45.0, "1E+05")] {
-            let metrics = GridMetrics { cols: crate::geometry::Sizes::new(80.0, [(1, width)]), ..m.clone() };
+        for (width, expected) in [
+            (80.0, "123456.79"),
+            (67.0, "123456.8"),
+            (54.0, "123457"),
+            (45.0, "1E+05"),
+        ] {
+            let metrics = GridMetrics {
+                cols: crate::geometry::Sizes::new(80.0, [(1, width)]),
+                ..m.clone()
+            };
             let plan = build_render_plan(&[number.clone()], &metrics, &v, 10, 10);
             assert_eq!(plan.cells[0].shown.text, expected, "{width}");
         }
         // A small fraction: scientific when it fits, a bare 0 when only that fits, else #.
         let mut small = cell(s, 1, 1, "0.000012345");
         small.format = crate::projection::FormatShown::General;
-        for (width, expected) in [(90.0, "0.000012345"), (45.0, "1E-05"), (38.0, "0"), (11.0, "#")] {
-            let metrics = GridMetrics { cols: crate::geometry::Sizes::new(80.0, [(1, width)]), ..m.clone() };
+        for (width, expected) in [
+            (90.0, "0.000012345"),
+            (45.0, "1E-05"),
+            (38.0, "0"),
+            (11.0, "#"),
+        ] {
+            let metrics = GridMetrics {
+                cols: crate::geometry::Sizes::new(80.0, [(1, width)]),
+                ..m.clone()
+            };
             let plan = build_render_plan(&[small.clone()], &metrics, &v, 10, 10);
             assert_eq!(plan.cells[0].shown.text, expected, "small {width}");
         }
@@ -1040,22 +1095,39 @@ mod tests {
     #[cfg_attr(not(target_arch = "wasm32"), test)]
     #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
     fn filled_blank_neighbours_stop_text_while_font_only_blanks_allow_overflow() {
-        let s=sheet();let m=GridMetrics::default();let v=viewport(2000.,400.);
-        let mut source=cell(s,1,1,"Text that is wider than its source column");source.kind="text";
-        let mut blank=cell(s,1,2,"");blank.kind="";blank.formula=false;blank.provenance=Provenance::Empty;
-        blank.style.bold=true;
-        let plan=build_render_plan(&[source.clone(),blank.clone()],&m,&v,10,10);
-        assert!(plan.cells[0].rect.w>m.width(1));
+        let s = sheet();
+        let m = GridMetrics::default();
+        let v = viewport(2000., 400.);
+        let mut source = cell(s, 1, 1, "Text that is wider than its source column");
+        source.kind = "text";
+        let mut blank = cell(s, 1, 2, "");
+        blank.kind = "";
+        blank.formula = false;
+        blank.provenance = Provenance::Empty;
+        blank.style.bold = true;
+        let plan = build_render_plan(&[source.clone(), blank.clone()], &m, &v, 10, 10);
+        assert!(plan.cells[0].rect.w > m.width(1));
         for kind in 0..3 {
-            let mut blank=blank.clone();
+            let mut blank = blank.clone();
             match kind {
-                0=>blank.style.fill=Some("#ffeecc".into()),
-                1=>blank.style.brush=Some(crate::projection::FillShown::Pattern{name:"lightGrid".into(),foreground:"#154c94".into(),background:"#ffffff".into()}),
-                _=>blank.conditional=Some(crate::projection::ConditionalShown{fill:Some("#ffeecc".into()),..Default::default()}),
+                0 => blank.style.fill = Some("#ffeecc".into()),
+                1 => {
+                    blank.style.brush = Some(crate::projection::FillShown::Pattern {
+                        name: "lightGrid".into(),
+                        foreground: "#154c94".into(),
+                        background: "#ffffff".into(),
+                    })
+                }
+                _ => {
+                    blank.conditional = Some(crate::projection::ConditionalShown {
+                        fill: Some("#ffeecc".into()),
+                        ..Default::default()
+                    })
+                }
             }
-            let plan=build_render_plan(&[source.clone(),blank],&m,&v,10,10);
-            assert_eq!(plan.cells[0].rect,plan.cells[0].anchor);
-            assert_eq!(plan.cells[0].shown.text,source.text);
+            let plan = build_render_plan(&[source.clone(), blank], &m, &v, 10, 10);
+            assert_eq!(plan.cells[0].rect, plan.cells[0].anchor);
+            assert_eq!(plan.cells[0].shown.text, source.text);
         }
     }
 
@@ -1679,25 +1751,62 @@ mod layout_tests {
     #[cfg_attr(not(target_arch = "wasm32"), test)]
     #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
     fn unshowable_dates_fill_the_physical_width_even_when_the_formatter_mask_is_short() {
-        let mut cell = text(1,1,"#####");
+        let mut cell = text(1, 1, "#####");
         cell.kind = "number";
         cell.format = crate::projection::FormatShown::Unshowable;
         let measure = |_: &CellShown, value: &str| Some(value.chars().count() as f64 * 7.);
-        let plan = build_render_plan_with([&cell], &GridMetrics {col_width:84.,..Default::default()}, &Viewport {width:400.,height:100.,..Default::default()},100,20,&PlanOptions {measure:Some(&measure),..Default::default()});
-        assert_eq!(plan.cells[0].shown.text,"###########");
-        assert_eq!(cell.text,"#####");
-        assert_eq!(plan.cells[0].shown.format,crate::projection::FormatShown::Unshowable);
+        let plan = build_render_plan_with(
+            [&cell],
+            &GridMetrics {
+                col_width: 84.,
+                ..Default::default()
+            },
+            &Viewport {
+                width: 400.,
+                height: 100.,
+                ..Default::default()
+            },
+            100,
+            20,
+            &PlanOptions {
+                measure: Some(&measure),
+                ..Default::default()
+            },
+        );
+        assert_eq!(plan.cells[0].shown.text, "###########");
+        assert_eq!(cell.text, "#####");
+        assert_eq!(
+            plan.cells[0].shown.format,
+            crate::projection::FormatShown::Unshowable
+        );
     }
     #[cfg_attr(not(target_arch = "wasm32"), test)]
     #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
     fn adjacent_cells_share_one_effective_border_without_changing_their_authored_styles() {
-        let mut a=text(1,1,"a");let mut b=text(1,2,"b");
-        a.style.borders[1]=Some(crate::projection::BorderShown {style:"thin".into(),color:Some("#154c94".into())});
-        b.style.borders[0]=Some(crate::projection::BorderShown {style:"medium".into(),color:Some("#154c94".into())});
-        let plan=build_render_plan([&a,&b],&GridMetrics::default(),&Viewport {width:400.,height:100.,..Default::default()},100,20);
-        assert_eq!(plan.cells[0].borders[1],plan.cells[1].borders[0]);
-        assert_eq!(plan.cells[0].borders[1].as_ref().unwrap().style,"medium");
-        assert_eq!(plan.cells[0].shown,a);
-        assert_eq!(plan.cells[1].shown,b);
+        let mut a = text(1, 1, "a");
+        let mut b = text(1, 2, "b");
+        a.style.borders[1] = Some(crate::projection::BorderShown {
+            style: "thin".into(),
+            color: Some("#154c94".into()),
+        });
+        b.style.borders[0] = Some(crate::projection::BorderShown {
+            style: "medium".into(),
+            color: Some("#154c94".into()),
+        });
+        let plan = build_render_plan(
+            [&a, &b],
+            &GridMetrics::default(),
+            &Viewport {
+                width: 400.,
+                height: 100.,
+                ..Default::default()
+            },
+            100,
+            20,
+        );
+        assert_eq!(plan.cells[0].borders[1], plan.cells[1].borders[0]);
+        assert_eq!(plan.cells[0].borders[1].as_ref().unwrap().style, "medium");
+        assert_eq!(plan.cells[0].shown, a);
+        assert_eq!(plan.cells[1].shown, b);
     }
 }

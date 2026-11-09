@@ -79,15 +79,15 @@ fn weighed(a: &[u16], b: &[u16]) -> Result<Ordering, Beyond> {
     let left = parts(a);
     let right = parts(b);
     if left.is_err() || right.is_err() {
-        return leading_order(&left, &right).or_else(|| {
-            match (left.is_ok(), right.is_ok()) {
+        return leading_order(&left, &right)
+            .or_else(|| match (left.is_ok(), right.is_ok()) {
                 (true, false) if measured_iteration_extension(a, b) => Some(Ordering::Less),
                 (false, true) if measured_iteration_extension(b, a) => Some(Ordering::Greater),
                 _ => None,
-            }
-        }).ok_or(Beyond {
-            operand: usize::from(left.is_ok()),
-        });
+            })
+            .ok_or(Beyond {
+                operand: usize::from(left.is_ok()),
+            });
     }
     let left = left.map_err(|_| Beyond { operand: 0 })?;
     let right = right.map_err(|_| Beyond { operand: 1 })?;
@@ -102,7 +102,9 @@ fn weighed(a: &[u16], b: &[u16]) -> Result<Ordering, Beyond> {
 /// prefix precedes that prefix plus its known special, which precedes the measured mark.
 /// A combining unit, another mark/special, or a tail beyond this suffix remains unmodelled.
 fn measured_iteration_extension(shorter: &[u16], longer: &[u16]) -> bool {
-    let Some(suffix) = longer.strip_prefix(shorter) else { return false; };
+    let Some(suffix) = longer.strip_prefix(shorter) else {
+        return false;
+    };
     let special = |unit: u16| matches!(unit, 0x002D | 0x0027 | 0x2010);
     let mark = |unit: u16| matches!(unit, 0x309D | 0x3005 | 0x30FC);
     match suffix {
@@ -146,7 +148,9 @@ mod tests {
     #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
     fn hangul_texts_order_as_windows_orders() {
         let units = |hex: &str| -> Vec<u16> {
-            hex.split(' ').map(|u| u16::from_str_radix(u, 16).unwrap()).collect()
+            hex.split(' ')
+                .map(|u| u16::from_str_radix(u, 16).unwrap())
+                .collect()
         };
         let mut wrong = Vec::new();
         let mut count = 0;
@@ -160,7 +164,10 @@ mod tests {
             count += 1;
             let got = compare(&units(fields[0]), &units(fields[1]));
             if got != Ok(expected) {
-                wrong.push(format!("{} against {}: Windows {expected:?}, here {got:?}", fields[0], fields[1]));
+                wrong.push(format!(
+                    "{} against {}: Windows {expected:?}, here {got:?}",
+                    fields[0], fields[1]
+                ));
             }
         }
         assert!(count >= 1000);

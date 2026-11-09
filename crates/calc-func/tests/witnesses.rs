@@ -25,15 +25,25 @@ fn every_pinned_witness_row_calculates_as_pinned() {
     let mut failures = Vec::new();
     for (file, text) in index::SETS {
         let set = WitnessSet::decode(text.as_bytes()).unwrap_or_else(|e| panic!("{file}: {e}"));
-        assert_eq!(*file, format!("{}.json", set.function), "{file} names its function");
+        assert_eq!(
+            *file,
+            format!("{}.json", set.function),
+            "{file} names its function"
+        );
         for row in &set.witnesses {
             rows += 1;
-            let context = set.readings.iter().find(|source| source.id == row.reading)
+            let context = set
+                .readings
+                .iter()
+                .find(|source| source.id == row.reading)
                 .and_then(|source| source.invocation.as_ref());
-            let actual = witness_call::calculate(&set.function, &row.args, row.result_index, context, true);
+            let actual =
+                witness_call::calculate(&set.function, &row.args, row.result_index, context, true);
             let pinned = row.calc_func.as_deref().unwrap_or(&row.expected);
             let cpu_row = match row.args.as_slice() {
-                [arg] => arg.as_str().and_then(|s| s.strip_prefix("0x"))
+                [arg] => arg
+                    .as_str()
+                    .and_then(|s| s.strip_prefix("0x"))
                     .and_then(|s| u64::from_str_radix(s, 16).ok())
                     .and_then(|input| x87_cpu::find(&set.function, input)),
                 _ => None,
@@ -41,7 +51,11 @@ fn every_pinned_witness_row_calculates_as_pinned() {
             // Excel itself on Intel has not been measured for these inputs. Check the
             // hardware result for this CPUID vendor without changing the Excel reading.
             let want = if let Some(cpu_row) = cpu_row {
-                assert_eq!(pinned, format!("0x{:016x}", cpu_row.for_vendor("AuthenticAMD").bits), "original pin");
+                assert_eq!(
+                    pinned,
+                    format!("0x{:016x}", cpu_row.for_vendor("AuthenticAMD").bits),
+                    "original pin"
+                );
                 format!("0x{:016x}", cpu_row.expected_bits())
             } else {
                 pinned.to_owned()
@@ -56,10 +70,7 @@ fn every_pinned_witness_row_calculates_as_pinned() {
                 };
                 failures.push(format!(
                     "{} {} {:?}: Excel {}, pinned {want}, calculated {actual}: {what}",
-                    set.function,
-                    row.id,
-                    row.args,
-                    row.expected
+                    set.function, row.id, row.args, row.expected
                 ));
             }
         }
@@ -68,7 +79,12 @@ fn every_pinned_witness_row_calculates_as_pinned() {
         failures.is_empty(),
         "{} of {rows} pinned witness rows changed:\n{}",
         failures.len(),
-        failures.iter().take(40).cloned().collect::<Vec<_>>().join("\n")
+        failures
+            .iter()
+            .take(40)
+            .cloned()
+            .collect::<Vec<_>>()
+            .join("\n")
     );
 }
 
@@ -78,9 +94,16 @@ fn every_pinned_witness_row_calculates_as_pinned() {
 #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
 fn recorded_compatibility_version_reaches_the_witness_call() {
     let context = calc_verdict::WitnessInvocation {
-        compatibility_version: Some("2".into()), ..Default::default()
+        compatibility_version: Some("2".into()),
+        ..Default::default()
     };
     let args = [serde_json::json!("A😀B")];
-    assert_eq!(witness_call::calculate("LEN", &args, None, Some(&context), true), "0x4008000000000000");
-    assert_eq!(witness_call::calculate("LEN", &args, None, None, true), "0x4010000000000000");
+    assert_eq!(
+        witness_call::calculate("LEN", &args, None, Some(&context), true),
+        "0x4008000000000000"
+    );
+    assert_eq!(
+        witness_call::calculate("LEN", &args, None, None, true),
+        "0x4010000000000000"
+    );
 }

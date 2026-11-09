@@ -205,12 +205,19 @@ pub(crate) fn source_record(bytes: &[u8], name: &str) -> Result<CaptureRecord, I
         // session. File projects and their open/event handlers are never run.
         environment: Some(calc_verdict::ExcelEnvironment {
             target: calc_host::value::NumericTargetId::new(
-                "unrecorded", "unrecorded", "unrecorded", "unrecorded",
-            ).expect("nonempty inventory labels"),
+                "unrecorded",
+                "unrecorded",
+                "unrecorded",
+                "unrecorded",
+            )
+            .expect("nonempty inventory labels"),
             settings: vec![
                 ("automation_security".into(), "3".into()),
                 ("enable_events".into(), "false".into()),
-                ("comparison_policy".into(), "opened-with-macros-disabled".into()),
+                (
+                    "comparison_policy".into(),
+                    "opened-with-macros-disabled".into(),
+                ),
             ],
         }),
         sheets,

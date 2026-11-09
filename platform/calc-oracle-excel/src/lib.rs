@@ -147,7 +147,8 @@ mod worker_tests;
 pub use calc_verdict::sha256_hex;
 pub use capture::{
     CalculationMode, CalculationPolicy, CaptureOutcome, CaptureRequest, capture,
-    capture_source_sha256, capture_tool_revision, excel_available, isolation_failures, windows_powershell,
+    capture_source_sha256, capture_tool_revision, excel_available, isolation_failures,
+    windows_powershell,
 };
 pub use convert::STAGE_SPILL;
 pub use isolation::{

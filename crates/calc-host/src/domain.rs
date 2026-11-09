@@ -225,12 +225,22 @@ impl CalculationDomain {
     /// Rebuild the selected domain workbooks and their linked sources, then Full.
     /// Validate the whole request before discarding any derived bindings.
     pub fn request_rebuild(&mut self, targets: &[DomainWorkbookId]) -> Result<(), DomainError> {
-        if self.work.is_some() || self.workbooks.values().any(|session| session.host.work.is_some()) {
+        if self.work.is_some()
+            || self
+                .workbooks
+                .values()
+                .any(|session| session.host.work.is_some())
+        {
             return Err(DomainError::Busy);
         }
         self.request_calculation(targets, true)?;
         for id in &self.work.as_ref().expect("admitted rebuild").order {
-            self.workbooks.get_mut(id).expect("admitted workbook").host.engine.rebuild_bindings();
+            self.workbooks
+                .get_mut(id)
+                .expect("admitted workbook")
+                .host
+                .engine
+                .rebuild_bindings();
         }
         Ok(())
     }
@@ -266,11 +276,18 @@ impl CalculationDomain {
             // A save may wait for an existing invocation, but cannot discharge
             // it by driving a successor after refreshing one of its source cuts.
             if let Some(save) = &mut self.save {
-                if host.work.as_ref().is_some_and(|active|
-                    !active.live_inputs_current(&host.engine) || !active.callables_current(&host.engine)) {
-                    save.terminal = Some(Err(crate::save::operation_failed("The source cut of an existing domain invocation changed")));
+                if host.work.as_ref().is_some_and(|active| {
+                    !active.live_inputs_current(&host.engine)
+                        || !active.callables_current(&host.engine)
+                }) {
+                    save.terminal = Some(Err(crate::save::operation_failed(
+                        "The source cut of an existing domain invocation changed",
+                    )));
                     self.work = None;
-                    return DomainProgress::Failed { workbook:id, error:RecalcFailed::Failed(crate::RecalcFailure::ExternalInputMismatch) };
+                    return DomainProgress::Failed {
+                        workbook: id,
+                        error: RecalcFailed::Failed(crate::RecalcFailure::ExternalInputMismatch),
+                    };
                 }
             }
             if work.full {

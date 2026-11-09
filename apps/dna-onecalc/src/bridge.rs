@@ -120,7 +120,8 @@ mod page {
             let post = js_sys::Reflect::get(&self.host, &JsValue::from_str("postMessage"))
                 .ok()
                 .and_then(|post| post.dyn_into::<js_sys::Function>().ok());
-            let posted = post.and_then(|post| post.call1(&self.host, &JsValue::from_str(&text)).ok());
+            let posted =
+                post.and_then(|post| post.call1(&self.host, &JsValue::from_str(&text)).ok());
             if posted.is_none()
                 && let Some(done) = self.waiting.borrow_mut().remove(&id)
             {
@@ -170,20 +171,39 @@ mod tests {
     #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
     fn calls_and_answers_round_trip_through_the_wire_text() {
         let calls = vec![
-            Call { id: 1, request: Request::Evaluate(Authored::example_sum()) },
-            Call { id: 2, request: Request::Open { name: "a.xlsx".into(), bytes: (0u8..=255).collect(), zone: Some(3) } },
-            Call { id: 3, request: Request::SaveNative },
+            Call {
+                id: 1,
+                request: Request::Evaluate(Authored::example_sum()),
+            },
+            Call {
+                id: 2,
+                request: Request::Open {
+                    name: "a.xlsx".into(),
+                    bytes: (0u8..=255).collect(),
+                    zone: Some(3),
+                },
+            },
+            Call {
+                id: 3,
+                request: Request::SaveNative,
+            },
         ];
         for call in calls {
             let text = serde_json::to_string(&call).unwrap();
             assert_eq!(serde_json::from_str::<Call>(&text).unwrap(), call);
         }
-        let event = Event { event: "rtd".to_owned() };
+        let event = Event {
+            event: "rtd".to_owned(),
+        };
         let text = serde_json::to_string(&event).unwrap();
         assert_eq!(serde_json::from_str::<Event>(&text).unwrap(), event);
         // An event is no answer, and an answer is no event: the page tells them apart by parsing.
         assert!(serde_json::from_str::<Answer>(&text).is_err());
-        let answer = serde_json::to_string(&Answer { id: 1, reply: Reply::Accepted }).unwrap();
+        let answer = serde_json::to_string(&Answer {
+            id: 1,
+            reply: Reply::Accepted,
+        })
+        .unwrap();
         assert!(serde_json::from_str::<Event>(&answer).is_err());
         let mut port = crate::port::LocalPort::new(crate::Session::new("Sheet1").unwrap());
         use crate::port::SessionPort;
@@ -191,9 +211,16 @@ mod tests {
             Request::Evaluate(Authored::example_sum()),
             Request::Save,
             Request::New,
-            Request::Open { name: "x".into(), bytes: b"not a workbook".to_vec(), zone: None },
+            Request::Open {
+                name: "x".into(),
+                bytes: b"not a workbook".to_vec(),
+                zone: None,
+            },
         ] {
-            let answer = Answer { id: 7, reply: port.send(request) };
+            let answer = Answer {
+                id: 7,
+                reply: port.send(request),
+            };
             let text = serde_json::to_string(&answer).unwrap();
             assert_eq!(serde_json::from_str::<Answer>(&text).unwrap(), answer);
         }

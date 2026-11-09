@@ -24,7 +24,12 @@ pub fn minimal_control(bytes: &[u8]) -> Vec<u8> {
         ("xl/worksheets/sheet1.xml", br#"<worksheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main"><sheetPr codeName="Sheet1"/><sheetData/></worksheet>"#),
         ("xl/vbaProject.bin", &binary),
     ];
-    support::build_zip(&parts.iter().map(|(name, data)| support::RawEntry::stored(name, data)).collect::<Vec<_>>())
+    support::build_zip(
+        &parts
+            .iter()
+            .map(|(name, data)| support::RawEntry::stored(name, data))
+            .collect::<Vec<_>>(),
+    )
 }
 
 #[allow(dead_code)]
@@ -67,7 +72,11 @@ fn replace_project(
             let attributes: String = module
                 .source
                 .lines()
-                .filter(|line| line.trim_start().to_ascii_lowercase().starts_with("attribute "))
+                .filter(|line| {
+                    line.trim_start()
+                        .to_ascii_lowercase()
+                        .starts_with("attribute ")
+                })
                 .map(|line| format!("{line}\r\n"))
                 .collect();
             attributes + text

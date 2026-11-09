@@ -4,8 +4,14 @@ use calc_func::{Notation, catalogue};
 
 #[cfg(test)]
 static NAMES: std::sync::LazyLock<Vec<&'static str>> = std::sync::LazyLock::new(|| {
-    catalogue().entries().filter(|target| target.notation() == Notation::Call && !matches!(target.kind(), calc_func::EntryKind::AddIn { .. }))
-        .map(|target| target.spelling()).collect()
+    catalogue()
+        .entries()
+        .filter(|target| {
+            target.notation() == Notation::Call
+                && !matches!(target.kind(), calc_func::EntryKind::AddIn { .. })
+        })
+        .map(|target| target.spelling())
+        .collect()
 });
 
 /// Whether `name` is a built-in function, matched without ASCII case.

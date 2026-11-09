@@ -1,10 +1,10 @@
 //! Desktop composition of native return messages and CalcHost's checked P07 route.
 use calc_addin_host::{AddinHost, value_json};
-use calc_platform_desktop::Shell;
 use calc_host::{
     CalcMode, HostOptions, HostProgress, HostSession, MemorySource, OpenPolicy, ProjectedValue,
     ProjectionRequest, SheetChange, SkinIntent, WorkBudget, WorkbookCommand,
 };
+use calc_platform_desktop::Shell;
 use calc_value::{CalcValue, CellKey};
 use std::{
     collections::BTreeSet,
@@ -313,7 +313,12 @@ pub fn run(
         if !keep_formula {
             current_formula = Some(formula.to_owned());
             // A case formula's {pid} is this process's id, as the owned Excel's is its own.
-            enter_as(&mut book, b, &formula.replace("{pid}", &std::process::id().to_string()), legacy)?;
+            enter_as(
+                &mut book,
+                b,
+                &formula.replace("{pid}", &std::process::id().to_string()),
+                legacy,
+            )?;
             retire_rtd(&mut book, &rtd, &providers, b, &mut rtd_retired)?;
             if entry_evaluation {
                 evaluate_entry(&mut book, b)?;

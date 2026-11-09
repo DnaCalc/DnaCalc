@@ -99,7 +99,16 @@ fn difference(a: &LoadedWorkbook, b: &LoadedWorkbook) -> Option<String> {
         }
         // Each encoding has its own retained XML (including revision IDs and namespaces).
         // Compare every semantic validation field, as before source retention was added.
-        let semantic = |rules: &[calc_doc::Validation]| rules.iter().cloned().map(|mut r| { r.source=None; r }).collect::<Vec<_>>();
+        let semantic = |rules: &[calc_doc::Validation]| {
+            rules
+                .iter()
+                .cloned()
+                .map(|mut r| {
+                    r.source = None;
+                    r
+                })
+                .collect::<Vec<_>>()
+        };
         if semantic(s.validations()) != semantic(t.validations()) {
             return Some(format!(
                 "validations of {:?}: {:?} and {:?}",
@@ -209,18 +218,22 @@ fn dc_5sr__the_conversion_is_what_open_reads_and_only_for_binary_workbooks() {
     );
 }
 
-
 #[cfg_attr(not(target_arch = "wasm32"), test)]
 #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
 fn binary_function_table_matches_the_existing_measurement() {
     let bytes = include_bytes!("fixtures/dc_5sr/functions.json");
     let source: serde_json::Value = serde_json::from_slice(bytes).unwrap();
-    let mut expected: Vec<_> = source["functions"].as_object().unwrap().iter().map(|(id, row)| {
-        let index: u16 = id.parse().unwrap();
-        let name = row[0].as_str().unwrap();
-        let arity = row[1].as_i64().map_or(-1, |value| value as i8);
-        (index, name, arity)
-    }).collect();
+    let mut expected: Vec<_> = source["functions"]
+        .as_object()
+        .unwrap()
+        .iter()
+        .map(|(id, row)| {
+            let index: u16 = id.parse().unwrap();
+            let name = row[0].as_str().unwrap();
+            let arity = row[1].as_i64().map_or(-1, |value| value as i8);
+            (index, name, arity)
+        })
+        .collect();
     expected.sort_by_key(|row| row.0);
     assert_eq!(calc_catalogue::EXCEL_FUNCTION_IDS, expected.as_slice());
 }

@@ -92,7 +92,9 @@ fn build(raw: &[String]) -> ExitCode {
 fn package(ws: &Workspace, out: &Path, zip: bool, calc: bool) -> Result<Value, String> {
     let io = |what: &str, path: &Path, e: std::io::Error| format!("{what} {}: {e}", path.display());
     fs::create_dir_all(out).map_err(|e| io("cannot create", out, e))?;
-    let out = out.canonicalize().map_err(|e| io("cannot resolve", out, e))?;
+    let out = out
+        .canonicalize()
+        .map_err(|e| io("cannot resolve", out, e))?;
     let out = PathBuf::from(out.display().to_string().trim_start_matches(r"\\?\"));
     let app = &APPS[0];
 
@@ -103,7 +105,10 @@ fn package(ws: &Workspace, out: &Path, zip: bool, calc: bool) -> Result<Value, S
     let mut packed = Vec::new();
     for (name, _) in &page_files {
         let path = page_dir.join(name);
-        packed.push((name.clone(), fs::read(&path).map_err(|e| io("cannot read", &path, e))?));
+        packed.push((
+            name.clone(),
+            fs::read(&path).map_err(|e| io("cannot read", &path, e))?,
+        ));
     }
     let block = out.join("page.block");
     fs::write(&block, assets::pack(&packed)).map_err(|e| io("cannot write", &block, e))?;
@@ -116,9 +121,13 @@ fn package(ws: &Workspace, out: &Path, zip: bool, calc: bool) -> Result<Value, S
         let mut packed = Vec::new();
         for (name, _) in &files {
             let path = calc_dir.join(name);
-            packed.push((name.clone(), fs::read(&path).map_err(|e| io("cannot read", &path, e))?));
+            packed.push((
+                name.clone(),
+                fs::read(&path).map_err(|e| io("cannot read", &path, e))?,
+            ));
         }
-        fs::write(&calc_block, assets::pack(&packed)).map_err(|e| io("cannot write", &calc_block, e))?;
+        fs::write(&calc_block, assets::pack(&packed))
+            .map_err(|e| io("cannot write", &calc_block, e))?;
         files
     } else {
         Vec::new()
@@ -129,21 +138,38 @@ fn package(ws: &Workspace, out: &Path, zip: bool, calc: bool) -> Result<Value, S
     let mut build = Command::new(cargo::cargo_program());
     build
         .current_dir(&ws.root)
-        .args(["build", "--release", "--locked", "-p", "dna-onecalc-desktop", "-p", "calc-xll-shim"])
+        .args([
+            "build",
+            "--release",
+            "--locked",
+            "-p",
+            "dna-onecalc-desktop",
+            "-p",
+            "calc-xll-shim",
+        ])
         .env("RUSTFLAGS", "-C target-feature=+crt-static")
         .env("DNACALC_ONECALC_PAGE", &block);
     if calc {
-        build.args(["-p", "dna-calc-desktop"]).env("DNACALC_CALC_PAGE", &calc_block);
+        build
+            .args(["-p", "dna-calc-desktop"])
+            .env("DNACALC_CALC_PAGE", &calc_block);
     }
     let built = cargo::output(&mut build)?;
     if !built.status.success() {
-        return Err(format!("cargo build failed:\n{}", cargo::tail(&built.stderr, 40)));
+        return Err(format!(
+            "cargo build failed:\n{}",
+            cargo::tail(&built.stderr, 40)
+        ));
     }
     let release = ws.target_dir().join("release");
     let exe = fs::read(release.join(EXE)).map_err(|e| io("cannot read", &release.join(EXE), e))?;
-    let shim = fs::read(release.join("xlcall32.dll")).map_err(|e| io("cannot read", &release.join("xlcall32.dll"), e))?;
+    let shim = fs::read(release.join("xlcall32.dll"))
+        .map_err(|e| io("cannot read", &release.join("xlcall32.dll"), e))?;
     let calc_exe = if calc {
-        Some(fs::read(release.join(CALC_EXE)).map_err(|e| io("cannot read", &release.join(CALC_EXE), e))?)
+        Some(
+            fs::read(release.join(CALC_EXE))
+                .map_err(|e| io("cannot read", &release.join(CALC_EXE), e))?,
+        )
     } else {
         None
     };
@@ -157,7 +183,9 @@ fn package(ws: &Workspace, out: &Path, zip: bool, calc: bool) -> Result<Value, S
     for (name, bytes) in checked {
         let list = pe_imports(bytes)?;
         if let Some(runtime) = list.iter().find(|dll| needs_redistributable(dll)) {
-            return Err(format!("{name} imports {runtime}: the folder would need the Visual C++ redistributable"));
+            return Err(format!(
+                "{name} imports {runtime}: the folder would need the Visual C++ redistributable"
+            ));
         }
         imports[name] = json!(list);
     }
@@ -178,8 +206,11 @@ fn package(ws: &Workspace, out: &Path, zip: bool, calc: bool) -> Result<Value, S
     ]);
     let mut listed = Vec::new();
     for (name, bytes) in &files {
-        fs::write(folder.join(name), bytes).map_err(|e| io("cannot write", &folder.join(name), e))?;
-        listed.push(json!({"name": name, "bytes": bytes.len(), "sha256": calc_verdict::sha256_hex(bytes)}));
+        fs::write(folder.join(name), bytes)
+            .map_err(|e| io("cannot write", &folder.join(name), e))?;
+        listed.push(
+            json!({"name": name, "bytes": bytes.len(), "sha256": calc_verdict::sha256_hex(bytes)}),
+        );
     }
     let version = workspace_version(&ws.root)?;
     let mut manifest = json!({
@@ -199,21 +230,33 @@ fn package(ws: &Workspace, out: &Path, zip: bool, calc: bool) -> Result<Value, S
     manifest["folder_bytes"] = json!(folder_bytes);
     if zip {
         let name = format!("{FOLDER}-{version}-win-x64.zip");
-        let entries: Vec<(String, Vec<u8>)> =
-            files.iter().map(|(n, b)| (format!("{FOLDER}/{n}"), b.clone())).collect();
+        let entries: Vec<(String, Vec<u8>)> = files
+            .iter()
+            .map(|(n, b)| (format!("{FOLDER}/{n}"), b.clone()))
+            .collect();
         let bytes = zip_bytes(&entries);
         let path = out.join(&name);
         fs::write(&path, &bytes).map_err(|e| io("cannot write", &path, e))?;
-        manifest["zip"] = json!({"name": name, "bytes": bytes.len(), "sha256": calc_verdict::sha256_hex(&bytes)});
+        manifest["zip"] =
+            json!({"name": name, "bytes": bytes.len(), "sha256": calc_verdict::sha256_hex(&bytes)});
     }
     let record = out.join("package-manifest.json");
-    fs::write(&record, serde_json::to_string_pretty(&manifest).map_err(|e| e.to_string())?)
-        .map_err(|e| io("cannot write", &record, e))?;
+    fs::write(
+        &record,
+        serde_json::to_string_pretty(&manifest).map_err(|e| e.to_string())?,
+    )
+    .map_err(|e| io("cannot write", &record, e))?;
     for file in manifest["files"].as_array().into_iter().flatten() {
-        println!("ONECALC PACKAGE file {}: {} bytes sha256 {}", file["name"], file["bytes"], file["sha256"]);
+        println!(
+            "ONECALC PACKAGE file {}: {} bytes sha256 {}",
+            file["name"], file["bytes"], file["sha256"]
+        );
     }
     if zip {
-        println!("ONECALC PACKAGE zip {}: {} bytes sha256 {}", manifest["zip"]["name"], manifest["zip"]["bytes"], manifest["zip"]["sha256"]);
+        println!(
+            "ONECALC PACKAGE zip {}: {} bytes sha256 {}",
+            manifest["zip"]["name"], manifest["zip"]["bytes"], manifest["zip"]["sha256"]
+        );
     }
     println!("ONECALC PACKAGE record {}", record.display());
     Ok(manifest)
@@ -234,7 +277,10 @@ fn readme(calc: bool) -> String {
 pub fn pe_imports(image: &[u8]) -> Result<Vec<String>, String> {
     let bad = |what: &str| format!("not a 64-bit PE image: {what}");
     let u16_at = |at: usize| -> Result<usize, String> {
-        image.get(at..at + 2).map(|b| u16::from_le_bytes([b[0], b[1]]) as usize).ok_or_else(|| bad("short"))
+        image
+            .get(at..at + 2)
+            .map(|b| u16::from_le_bytes([b[0], b[1]]) as usize)
+            .ok_or_else(|| bad("short"))
     };
     let u32_at = |at: usize| -> Result<usize, String> {
         image
@@ -261,8 +307,12 @@ pub fn pe_imports(image: &[u8]) -> Result<Vec<String>, String> {
     let to_offset = |rva: usize| -> Result<usize, String> {
         for section in 0..sections {
             let header = table + section * 40;
-            let (virtual_size, virtual_address, raw_size, raw_pointer) =
-                (u32_at(header + 8)?, u32_at(header + 12)?, u32_at(header + 16)?, u32_at(header + 20)?);
+            let (virtual_size, virtual_address, raw_size, raw_pointer) = (
+                u32_at(header + 8)?,
+                u32_at(header + 12)?,
+                u32_at(header + 16)?,
+                u32_at(header + 20)?,
+            );
             if rva >= virtual_address && rva < virtual_address + virtual_size.max(raw_size) {
                 return Ok(raw_pointer + rva - virtual_address);
             }
@@ -280,7 +330,10 @@ pub fn pe_imports(image: &[u8]) -> Result<Vec<String>, String> {
             break;
         }
         let at = to_offset(name_rva)?;
-        let end = image[at..].iter().position(|&b| b == 0).ok_or_else(|| bad("an unterminated name"))?;
+        let end = image[at..]
+            .iter()
+            .position(|&b| b == 0)
+            .ok_or_else(|| bad("an unterminated name"))?;
         names.push(String::from_utf8_lossy(&image[at..at + end]).to_ascii_lowercase());
         descriptor += 20;
     }
@@ -290,12 +343,20 @@ pub fn pe_imports(image: &[u8]) -> Result<Vec<String>, String> {
 /// Whether a DLL is part of the Visual C++ redistributable (the universal C runtime, `ucrtbase` and
 /// the `api-ms-win-crt` forwarders, ships with Windows 10 and later).
 pub fn needs_redistributable(dll: &str) -> bool {
-    dll.starts_with("vcruntime") || dll.starts_with("msvcp") || dll.starts_with("vcomp") || dll.starts_with("concrt") || dll.starts_with("msvcr")
+    dll.starts_with("vcruntime")
+        || dll.starts_with("msvcp")
+        || dll.starts_with("vcomp")
+        || dll.starts_with("concrt")
+        || dll.starts_with("msvcr")
 }
 
 fn workspace_version(root: &Path) -> Result<String, String> {
-    let text = fs::read_to_string(root.join("Cargo.toml")).map_err(|e| format!("Cargo.toml: {e}"))?;
-    let section = text.split("[workspace.package]").nth(1).ok_or("Cargo.toml has no [workspace.package]")?;
+    let text =
+        fs::read_to_string(root.join("Cargo.toml")).map_err(|e| format!("Cargo.toml: {e}"))?;
+    let section = text
+        .split("[workspace.package]")
+        .nth(1)
+        .ok_or("Cargo.toml has no [workspace.package]")?;
     section
         .lines()
         .find_map(|line| line.trim().strip_prefix("version"))
@@ -305,9 +366,18 @@ fn workspace_version(root: &Path) -> Result<String, String> {
 }
 
 fn git_head(root: &Path) -> String {
-    let head = cargo::git(root, &["rev-parse", "HEAD"]).unwrap_or_default().trim().to_owned();
-    let dirty = cargo::git(root, &["status", "--porcelain", "--untracked-files=no"]).map(|s| !s.trim().is_empty()).unwrap_or(false);
-    if dirty { format!("{head}+uncommitted") } else { head }
+    let head = cargo::git(root, &["rev-parse", "HEAD"])
+        .unwrap_or_default()
+        .trim()
+        .to_owned();
+    let dirty = cargo::git(root, &["status", "--porcelain", "--untracked-files=no"])
+        .map(|s| !s.trim().is_empty())
+        .unwrap_or(false);
+    if dirty {
+        format!("{head}+uncommitted")
+    } else {
+        head
+    }
 }
 
 /// The CRC-32 (IEEE) of `bytes`, as a zip stores it.
@@ -316,11 +386,17 @@ pub fn crc32(bytes: &[u8]) -> u32 {
     for (n, entry) in table.iter_mut().enumerate() {
         let mut c = n as u32;
         for _ in 0..8 {
-            c = if c & 1 != 0 { 0xedb8_8320 ^ (c >> 1) } else { c >> 1 };
+            c = if c & 1 != 0 {
+                0xedb8_8320 ^ (c >> 1)
+            } else {
+                c >> 1
+            };
         }
         *entry = c;
     }
-    !bytes.iter().fold(!0u32, |c, &b| table[((c ^ u32::from(b)) & 0xff) as usize] ^ (c >> 8))
+    !bytes.iter().fold(!0u32, |c, &b| {
+        table[((c ^ u32::from(b)) & 0xff) as usize] ^ (c >> 8)
+    })
 }
 
 /// A zip of `entries` (path inside the zip, bytes), deflated, with a fixed time stamp so that the
@@ -333,7 +409,11 @@ pub fn zip_bytes(entries: &[(String, Vec<u8>)]) -> Vec<u8> {
     let mut central = Vec::new();
     for (name, data) in entries {
         let packed = miniz_oxide::deflate::compress_to_vec(data, 9);
-        let (method, body): (u16, &[u8]) = if packed.len() < data.len() { (8, &packed) } else { (0, data) };
+        let (method, body): (u16, &[u8]) = if packed.len() < data.len() {
+            (8, &packed)
+        } else {
+            (0, data)
+        };
         let crc = crc32(data);
         let offset = out.len() as u32;
         let mut header = Vec::new();
@@ -379,10 +459,14 @@ pub fn zip_bytes(entries: &[(String, Vec<u8>)]) -> Vec<u8> {
 pub fn unzip(zip: &[u8]) -> Result<Vec<(String, Vec<u8>)>, String> {
     let bad = |what: &str| format!("not a zip this tool reads: {what}");
     let u16_at = |at: usize| -> Result<usize, String> {
-        zip.get(at..at + 2).map(|b| u16::from_le_bytes([b[0], b[1]]) as usize).ok_or_else(|| bad("short"))
+        zip.get(at..at + 2)
+            .map(|b| u16::from_le_bytes([b[0], b[1]]) as usize)
+            .ok_or_else(|| bad("short"))
     };
     let u32_at = |at: usize| -> Result<usize, String> {
-        zip.get(at..at + 4).map(|b| u32::from_le_bytes([b[0], b[1], b[2], b[3]]) as usize).ok_or_else(|| bad("short"))
+        zip.get(at..at + 4)
+            .map(|b| u32::from_le_bytes([b[0], b[1], b[2], b[3]]) as usize)
+            .ok_or_else(|| bad("short"))
     };
     let end = zip.len().checked_sub(22).ok_or_else(|| bad("too short"))?;
     if u32_at(end)? != 0x0605_4b50 {
@@ -394,14 +478,31 @@ pub fn unzip(zip: &[u8]) -> Result<Vec<(String, Vec<u8>)>, String> {
         if u32_at(at)? != 0x0201_4b50 {
             return Err(bad("no central entry"));
         }
-        let (method, crc, packed, size) = (u16_at(at + 10)?, u32_at(at + 16)?, u32_at(at + 20)?, u32_at(at + 24)?);
-        let (name_len, extra, comment, local) = (u16_at(at + 28)?, u16_at(at + 30)?, u16_at(at + 32)?, u32_at(at + 42)?);
-        let name = String::from_utf8_lossy(zip.get(at + 46..at + 46 + name_len).ok_or_else(|| bad("short"))?).into_owned();
+        let (method, crc, packed, size) = (
+            u16_at(at + 10)?,
+            u32_at(at + 16)?,
+            u32_at(at + 20)?,
+            u32_at(at + 24)?,
+        );
+        let (name_len, extra, comment, local) = (
+            u16_at(at + 28)?,
+            u16_at(at + 30)?,
+            u16_at(at + 32)?,
+            u32_at(at + 42)?,
+        );
+        let name = String::from_utf8_lossy(
+            zip.get(at + 46..at + 46 + name_len)
+                .ok_or_else(|| bad("short"))?,
+        )
+        .into_owned();
         let data_at = local + 30 + u16_at(local + 26)? + u16_at(local + 28)?;
-        let body = zip.get(data_at..data_at + packed).ok_or_else(|| bad("short"))?;
+        let body = zip
+            .get(data_at..data_at + packed)
+            .ok_or_else(|| bad("short"))?;
         let data = match method {
             0 => body.to_vec(),
-            8 => miniz_oxide::inflate::decompress_to_vec(body).map_err(|e| format!("{name}: {e:?}"))?,
+            8 => miniz_oxide::inflate::decompress_to_vec(body)
+                .map_err(|e| format!("{name}: {e:?}"))?,
             other => return Err(bad(&format!("method {other}"))),
         };
         if data.len() != size || crc32(&data) as usize != crc {
@@ -423,8 +524,16 @@ mod tests {
     fn the_zip_holds_its_files_exactly() {
         assert_eq!(crc32(b"123456789"), 0xcbf4_3926);
         let entries = vec![
-            ("DNA-OneCalc/a.txt".to_owned(), b"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa".to_vec()),
-            ("DNA-OneCalc/b.bin".to_owned(), (0u32..5000).map(|i| (i.wrapping_mul(2_654_435_761) >> 13) as u8).collect()),
+            (
+                "DNA-OneCalc/a.txt".to_owned(),
+                b"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa".to_vec(),
+            ),
+            (
+                "DNA-OneCalc/b.bin".to_owned(),
+                (0u32..5000)
+                    .map(|i| (i.wrapping_mul(2_654_435_761) >> 13) as u8)
+                    .collect(),
+            ),
             ("DNA-OneCalc/empty".to_owned(), Vec::new()),
         ];
         let zip = zip_bytes(&entries);
@@ -440,14 +549,24 @@ mod tests {
         #[cfg(windows)]
         {
             let imports = pe_imports(&exe).unwrap();
-            assert!(imports.iter().any(|dll| dll == "kernel32.dll"), "{imports:?}");
+            assert!(
+                imports.iter().any(|dll| dll == "kernel32.dll"),
+                "{imports:?}"
+            );
         }
         // Elsewhere the running executable is not a PE image: a typed error, never a panic.
         #[cfg(not(windows))]
-        assert!(pe_imports(&exe).unwrap_err().starts_with("not a 64-bit PE image"));
+        assert!(
+            pe_imports(&exe)
+                .unwrap_err()
+                .starts_with("not a 64-bit PE image")
+        );
         assert!(pe_imports(b"not an image").is_err());
         assert!(needs_redistributable("vcruntime140.dll") && needs_redistributable("msvcp140.dll"));
-        assert!(!needs_redistributable("kernel32.dll") && !needs_redistributable("api-ms-win-crt-heap-l1-1-0.dll"));
+        assert!(
+            !needs_redistributable("kernel32.dll")
+                && !needs_redistributable("api-ms-win-crt-heap-l1-1-0.dll")
+        );
     }
 
     /// Native-only: the version comes from the workspace package table.

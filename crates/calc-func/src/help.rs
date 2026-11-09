@@ -1,9 +1,9 @@
 //! The catalogue's shared help text, selected for a resolved function.
 
 use crate::{FunctionCallTarget, Notation};
-pub use calc_catalogue::{FunctionHelp, description_of, help_of};
 #[cfg(test)]
 use calc_catalogue::HELP;
+pub use calc_catalogue::{FunctionHelp, description_of, help_of};
 
 /// The description of a named function (see [`FunctionHelp::description`]), or `None` for an
 /// operator and for a function the table does not describe.
@@ -14,7 +14,9 @@ pub fn description(target: FunctionCallTarget<'_>) -> Option<&'static str> {
 /// The help of a named function, or `None` for an operator and for a function the table does not
 /// describe.
 pub fn help(target: FunctionCallTarget<'_>) -> Option<&'static FunctionHelp> {
-    if target.notation() != Notation::Call || matches!(target.kind(), crate::EntryKind::AddIn { .. }) {
+    if target.notation() != Notation::Call
+        || matches!(target.kind(), crate::EntryKind::AddIn { .. })
+    {
         return None;
     }
     calc_catalogue::help_of_id(target.id())
@@ -58,7 +60,11 @@ mod tests {
     #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
     fn id_lookup_preserves_every_previous_help_result() {
         for target in catalogue().entries() {
-            let previous = if target.notation() == Notation::Call { help_of(target.spelling()) } else { None };
+            let previous = if target.notation() == Notation::Call {
+                help_of(target.spelling())
+            } else {
+                None
+            };
             assert_eq!(super::help(target), previous, "{}", target.spelling());
         }
     }

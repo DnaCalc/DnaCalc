@@ -45,8 +45,8 @@ mod refops;
 mod run;
 
 pub use compile::{
-    CompileError, Gap, NameAnalysis, analyze_loaded_names, compile, compile_loaded, compile_loaded_with,
-    compile_loaded_with_bindings, compile_loaded_with_functions, compile_with,
+    CompileError, Gap, NameAnalysis, analyze_loaded_names, compile, compile_loaded,
+    compile_loaded_with, compile_loaded_with_bindings, compile_loaded_with_functions, compile_with,
     compile_with_functions,
 };
 /// The spelling a named call resolves by in the catalogue; the editor assistance resolves by it too.

@@ -178,11 +178,18 @@ mod tests {
         // Excel 16.0.20527: POWER(10, k) is the nearest binary64 for k from 0 to 308 except 126.
         for k in 0..=308 {
             let nearest: f64 = format!("1e{k}").parse().unwrap();
-            let expected = if k == 126 { f64::from_bits(nearest.to_bits() + 1) } else { nearest };
+            let expected = if k == 126 {
+                f64::from_bits(nearest.to_bits() + 1)
+            } else {
+                nearest
+            };
             assert_eq!(ten_to(k).to_bits(), expected.to_bits(), "10^{k}");
         }
         assert_eq!(ten_to(126).to_bits(), 0x5A17_A2EC_C414_A040);
-        assert_eq!(power_kernel(10.0, 126.0).unwrap().to_bits(), 0x5A17_A2EC_C414_A040);
+        assert_eq!(
+            power_kernel(10.0, 126.0).unwrap().to_bits(),
+            0x5A17_A2EC_C414_A040
+        );
     }
 
     #[cfg_attr(not(target_arch = "wasm32"), test)]

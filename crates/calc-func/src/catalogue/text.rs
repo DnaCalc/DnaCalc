@@ -1,12 +1,11 @@
 //! The text family fragment: the concatenation operator and its kernel.
 
-
 use crate::call::{EvalServices, FunctionFault};
 use crate::coerce;
 use crate::kernel::{Exit, Site, Step};
 use crate::value::{CalcValue, CoreRef, EXCEL_TEXT_MAX_UTF16_CODE_UNITS, ExcelText};
 
-use calc_catalogue::operators::text::{CODE, ENTRIES as DECLARATIONS, CONCATENATE};
+use calc_catalogue::operators::text::{CODE, CONCATENATE, ENTRIES as DECLARATIONS};
 
 attach_eager_family! {
     code: CODE; declarations: DECLARATIONS;
@@ -30,10 +29,13 @@ fn concatenate(
 /// whose result another operator or function reads is unmeasured.
 fn joined(site: &Site<'_>, arguments: &[CalcValue]) -> Step<CalcValue> {
     site.scalar_operands(arguments)?;
-    if let Some(code) = arguments.iter().find_map(|argument| match argument.core_ref() {
-        CoreRef::Error(code) => Some(code),
-        _ => None,
-    }) {
+    if let Some(code) = arguments
+        .iter()
+        .find_map(|argument| match argument.core_ref() {
+            CoreRef::Error(code) => Some(code),
+            _ => None,
+        })
+    {
         return Err(Exit::Error(code));
     }
     let left = site.argument(0, coerce::text(&arguments[0]))?;

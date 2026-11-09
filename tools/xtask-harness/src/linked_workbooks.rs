@@ -87,7 +87,8 @@ pub(crate) fn load(
     fixture: &Path,
     options: &HostOptions,
     capture: &calc_verdict::CaptureRecord,
-    trusted: Option<&crate::trusted_code::Manifest>, capture_digest: Option<&str>,
+    trusted: Option<&crate::trusted_code::Manifest>,
+    capture_digest: Option<&str>,
     owners: &mut Vec<crate::trusted_code::PreparedCode>,
 ) -> Vec<Value> {
     const MAX_WORKBOOKS: usize = 64;
@@ -152,29 +153,46 @@ pub(crate) fn load(
                 }));
                 let mut session = calc_host::HostSession::new(source);
                 if let Some(trusted) = trusted {
-                    match trusted.prepare(session.host(),source_path.file_name().and_then(|n|n.to_str()).unwrap_or("linked.xlsx"),capture,&hash,capture_digest,true) {
-                        Ok(code) => { code.install(&mut session); owners.push(code); }
+                    match trusted.prepare(
+                        session.host(),
+                        source_path
+                            .file_name()
+                            .and_then(|n| n.to_str())
+                            .unwrap_or("linked.xlsx"),
+                        capture,
+                        &hash,
+                        capture_digest,
+                        true,
+                    ) {
+                        Ok(code) => {
+                            code.install(&mut session);
+                            owners.push(code);
+                        }
                         Err(error) => {
                             records.push(json!({"referrer":path,"link":number,"source":source_path,"sha256":hash,"execution_policy":trusted.policy(&hash),"status":"external-cache: trusted code refused","key":error.key,"reason":error.message}));
                             continue;
                         }
                     }
-                } else { match crate::compare::prepare_captured_vba(
-                    session.host(),
-                    source_path.file_name().and_then(|name| name.to_str()).unwrap_or("linked.xlsx"),
-                    capture,
-                ) {
-                    Ok(Some((project, events))) => {
-                        session.set_workbook_events_enabled(events);
-                        project.install(&mut session);
-                        session.notify_workbook_open();
+                } else {
+                    match crate::compare::prepare_captured_vba(
+                        session.host(),
+                        source_path
+                            .file_name()
+                            .and_then(|name| name.to_str())
+                            .unwrap_or("linked.xlsx"),
+                        capture,
+                    ) {
+                        Ok(Some((project, events))) => {
+                            session.set_workbook_events_enabled(events);
+                            project.install(&mut session);
+                            session.notify_workbook_open();
+                        }
+                        Ok(None) => {}
+                        Err(error) => {
+                            records.push(json!({"referrer":path,"link":number,"source":source_path,"status":"external-cache: VBA project refused","reason":error.message}));
+                            continue;
+                        }
                     }
-                    Ok(None) => {}
-                    Err(error) => {
-                        records.push(json!({"referrer":path,"link":number,"source":source_path,"status":"external-cache: VBA project refused","reason":error.message}));
-                        continue;
-                    }
-                }
                 }
                 let source = domain
                     .insert_session(session)

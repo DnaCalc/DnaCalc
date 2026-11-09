@@ -43,26 +43,44 @@ fn authored_name_formula(host: &HostState, text: &str, scope: NameScope) -> Resu
     let formula = calc_doc_model::FormulaText::with_form(
         calc_value::ExcelText::from_utf16_code_units(text.encode_utf16().collect()),
         calc_doc_model::FormulaForm::Dynamic,
-    ).map_err(|_| "The name's formula is empty")?;
+    )
+    .map_err(|_| "The name's formula is empty")?;
     let table = host.model().definitions().name_table();
     let lookup = |qualifier: Option<&str>, spelling: &str| {
         let local = match qualifier {
-            Some(name) => Some(host.model().sheets().iter().find(|sheet|
-                calc_value::workbook_names_equal(&sheet.name().text().to_string_lossy(), name))?.id()),
-            None => match scope { NameScope::Sheet(sheet) => Some(sheet), NameScope::Workbook => None },
+            Some(name) => Some(
+                host.model()
+                    .sheets()
+                    .iter()
+                    .find(|sheet| {
+                        calc_value::workbook_names_equal(
+                            &sheet.name().text().to_string_lossy(),
+                            name,
+                        )
+                    })?
+                    .id(),
+            ),
+            None => match scope {
+                NameScope::Sheet(sheet) => Some(sheet),
+                NameScope::Workbook => None,
+            },
         };
         if let Some(sheet) = local
             && let Some(node) = table.lookup(NameScope::Sheet(sheet), spelling)
         {
             return Some(node.definition().formula.as_str());
         }
-        qualifier.is_none().then(|| table.lookup(NameScope::Workbook, spelling))
-            .flatten().map(|node| node.definition().formula.as_str())
+        qualifier
+            .is_none()
+            .then(|| table.lookup(NameScope::Workbook, spelling))
+            .flatten()
+            .map(|node| node.definition().formula.as_str())
     };
     let links = host.model().definitions().external_file_names();
     let form = calc_doc::file_form_with_lookup(&formula, &lookup, &links)
         .map_err(|_| "The name's formula cannot be written in Excel form (dc-hsa5.6)")?;
-    String::from_utf16(&form.text).map_err(|_| "The name's formula is unreadable (dc-hsa5.6)".into())
+    String::from_utf16(&form.text)
+        .map_err(|_| "The name's formula is unreadable (dc-hsa5.6)".into())
 }
 
 pub(crate) fn prepare(host: &HostState, edit: NameEdit) -> Result<Vec<CellEdit>, String> {
@@ -108,7 +126,9 @@ pub(crate) fn prepare(host: &HostState, edit: NameEdit) -> Result<Vec<CellEdit>,
         return Ok(vec![CellEdit::SetName {
             name: edit.name,
             scope: edit.scope,
-            formula: formula.map(|f| authored_name_formula(host, &f, edit.scope)).transpose()?,
+            formula: formula
+                .map(|f| authored_name_formula(host, &f, edit.scope))
+                .transpose()?,
         }]);
     };
     let node = host
@@ -118,8 +138,14 @@ pub(crate) fn prepare(host: &HostState, edit: NameEdit) -> Result<Vec<CellEdit>,
         return Err("The name changed; refresh before editing it".into());
     }
     if node.definition().scope != edit.scope || node.definition().name != edit.name {
-        let original = calc_fml::assist::display_formula(&format!("={}", node.definition().formula));
-        if formula.as_ref().map(|f| calc_fml::assist::display_formula(&format!("={f}"))).as_ref() != Some(&original) {
+        let original =
+            calc_fml::assist::display_formula(&format!("={}", node.definition().formula));
+        if formula
+            .as_ref()
+            .map(|f| calc_fml::assist::display_formula(&format!("={f}")))
+            .as_ref()
+            != Some(&original)
+        {
             return Err(
                 "Rename or move the name first, then edit or delete its definition (dc-hsa5.6)"
                     .into(),
@@ -199,7 +225,9 @@ pub(crate) fn prepare(host: &HostState, edit: NameEdit) -> Result<Vec<CellEdit>,
             })
             .collect();
     }
-    let formula = formula.map(|f| authored_name_formula(host, &f, edit.scope)).transpose()?;
+    let formula = formula
+        .map(|f| authored_name_formula(host, &f, edit.scope))
+        .transpose()?;
     if formula.as_ref() == Some(&node.definition().formula) {
         return Ok(Vec::new());
     }
@@ -260,7 +288,9 @@ impl HostState {
         version: u64,
         anchor: CellKey,
     ) -> Result<calc_value::CalcValue, String> {
-        self.evaluate_name_with_evidence(id, version, anchor)?.evaluation.outcome
+        self.evaluate_name_with_evidence(id, version, anchor)?
+            .evaluation
+            .outcome
             .map_err(|e| e.to_string())
     }
 
@@ -311,13 +341,22 @@ impl HostState {
             return Err("The evaluation worksheet is unavailable".into());
         }
         let formula = calc_engine::DetachedFormula::compile_name_with_bindings(
-            &self.model, id, anchor, &self.user_function_bindings())
-            .map_err(|e| e.to_string())?;
+            &self.model,
+            id,
+            anchor,
+            &self.user_function_bindings(),
+        )
+        .map_err(|e| e.to_string())?;
         Ok(NameDiagnosticEvaluation {
             revision: self.revision(),
             results: self.engine.result_view(),
             workbook: self.engine.workbook_instance(),
-            evaluation: formula.evaluate_with_name_evidence(&self.engine, &self.model, anchor, &self.options.numeric),
+            evaluation: formula.evaluate_with_name_evidence(
+                &self.engine,
+                &self.model,
+                anchor,
+                &self.options.numeric,
+            ),
         })
     }
 }
@@ -365,27 +404,61 @@ mod tests {
         use calc_engine::{DetachedEvaluationContext as Context, DetachedReadPolicy as Policy};
         let mut book = book();
         let anchor = CellKey::new(book.host().sheets()[0].id(), 1, 1).unwrap();
-        assert!(book.dispatch(SkinIntent::EnterCell { at: anchor, text: "=2".into() }).accepted());
+        assert!(
+            book.dispatch(SkinIntent::EnterCell {
+                at: anchor,
+                text: "=2".into()
+            })
+            .accepted()
+        );
         let host = book.host();
         let fast = Context::new(&host.engine, host.model(), Policy::CurrentValues).unwrap();
         assert_eq!(fast.read_cell(anchor), Ok(CalcValue::number(2.)));
         let view = host.engine.result_view();
         let revision = host.revision();
         let history = book.history_depth();
-        let mode = calc_value::NumericMode::Exact(calc_value::NumericTargetId::new(
-            "16.0.20527.20150", "Current", "Excel", "x86-64").unwrap());
-        let current = Context::new_with_numeric_mode(&host.engine, host.model(), Policy::CurrentValues, &mode).unwrap();
+        let mode = calc_value::NumericMode::Exact(
+            calc_value::NumericTargetId::new("16.0.20527.20150", "Current", "Excel", "x86-64")
+                .unwrap(),
+        );
+        let current = Context::new_with_numeric_mode(
+            &host.engine,
+            host.model(),
+            Policy::CurrentValues,
+            &mode,
+        )
+        .unwrap();
         assert!(current.stale_cells().unwrap().contains(&anchor));
         assert_eq!(current.all_formula_values_current(), Some(false));
         assert!(current.read_cell(anchor).is_err());
-        let lazy = current.compile("IF(FALSE,$A$1,42)", anchor, calc_fml::FormulaForm::Legacy).unwrap();
-        assert_eq!(lazy.evaluate_in(&current, anchor), Ok(CalcValue::number(42.)));
-        let arithmetic = current.compile("1+1", anchor, calc_fml::FormulaForm::Legacy).unwrap();
+        let lazy = current
+            .compile("IF(FALSE,$A$1,42)", anchor, calc_fml::FormulaForm::Legacy)
+            .unwrap();
+        assert_eq!(
+            lazy.evaluate_in(&current, anchor),
+            Ok(CalcValue::number(42.))
+        );
+        let arithmetic = current
+            .compile("1+1", anchor, calc_fml::FormulaForm::Legacy)
+            .unwrap();
         assert!(arithmetic.evaluate_in(&current, anchor).is_err());
-        let historical = Context::new_with_numeric_mode(&host.engine, host.model(), Policy::PublishedValues, &mode).unwrap();
+        let historical = Context::new_with_numeric_mode(
+            &host.engine,
+            host.model(),
+            Policy::PublishedValues,
+            &mode,
+        )
+        .unwrap();
         assert_eq!(historical.read_cell(anchor), Ok(CalcValue::number(2.)));
         assert!(historical.all_formula_values_current().is_none());
-        assert_eq!((host.engine.result_view(), host.revision(), book.history_depth()), (view, revision, history));
+        assert_eq!(
+            (
+                host.engine.result_view(),
+                host.revision(),
+                book.history_depth()
+            ),
+            (view, revision, history)
+        );
     }
 
     #[cfg_attr(not(target_arch = "wasm32"), test)]
@@ -405,24 +478,51 @@ mod tests {
         let calls = std::rc::Rc::new(std::cell::Cell::new(0));
         let functions = || {
             let mut table = calc_fml::CallableTable::new();
-            table.register("KnownUdf", std::rc::Rc::new(Counted(calls.clone()))).unwrap();
+            table
+                .register("KnownUdf", std::rc::Rc::new(Counted(calls.clone())))
+                .unwrap();
             table
         };
         book.set_user_functions(functions());
         let old = {
             let host = book.host();
             let context = Context::new(&host.engine, host.model(), Policy::CurrentValues).unwrap();
-            let formula = context.compile("IF(FALSE,KnownUdf(),42)", anchor, calc_fml::FormulaForm::Legacy).unwrap();
-            assert_eq!(formula.evaluate_in(&context, anchor), Ok(CalcValue::number(42.)));
+            let formula = context
+                .compile(
+                    "IF(FALSE,KnownUdf(),42)",
+                    anchor,
+                    calc_fml::FormulaForm::Legacy,
+                )
+                .unwrap();
+            assert_eq!(
+                formula.evaluate_in(&context, anchor),
+                Ok(CalcValue::number(42.))
+            );
             formula
         };
         book.set_user_functions(functions());
         let host = book.host();
         let context = Context::new(&host.engine, host.model(), Policy::CurrentValues).unwrap();
-        assert!(old.evaluate_in(&context, anchor).is_err(), "registration replacement expires the old plan");
-        let fresh = context.compile("IF(FALSE,KnownUdf(),42)", anchor, calc_fml::FormulaForm::Legacy).unwrap();
-        assert_eq!(fresh.evaluate_in(&context, anchor), Ok(CalcValue::number(42.)));
-        assert_eq!(calls.get(), 0, "neither binding nor a lazy branch enters user code");
+        assert!(
+            old.evaluate_in(&context, anchor).is_err(),
+            "registration replacement expires the old plan"
+        );
+        let fresh = context
+            .compile(
+                "IF(FALSE,KnownUdf(),42)",
+                anchor,
+                calc_fml::FormulaForm::Legacy,
+            )
+            .unwrap();
+        assert_eq!(
+            fresh.evaluate_in(&context, anchor),
+            Ok(CalcValue::number(42.))
+        );
+        assert_eq!(
+            calls.get(),
+            0,
+            "neither binding nor a lazy branch enters user code"
+        );
         assert_eq!(host.engine.nodes().count(), 0);
     }
 
@@ -433,10 +533,27 @@ mod tests {
         let sheet = book.host().sheets()[0].id();
         let anchor = CellKey::new(sheet, 4, 5).unwrap();
         let inner = add(&mut book, NameScope::Workbook, "PassRandom", "=RAND()");
-        let repeated = add(&mut book, NameScope::Workbook, "RepeatedRandom", "=PassRandom+PassRandom");
-        let once = add(&mut book, NameScope::Workbook, "LocalRandom", "=LET(x,PassRandom,x+x)");
-        let evaluate = |id| book.host().evaluate_name_with_evidence(id,
-            book.host().name_node(id).unwrap().binding_version(), anchor).unwrap();
+        let repeated = add(
+            &mut book,
+            NameScope::Workbook,
+            "RepeatedRandom",
+            "=PassRandom+PassRandom",
+        );
+        let once = add(
+            &mut book,
+            NameScope::Workbook,
+            "LocalRandom",
+            "=LET(x,PassRandom,x+x)",
+        );
+        let evaluate = |id| {
+            book.host()
+                .evaluate_name_with_evidence(
+                    id,
+                    book.host().name_node(id).unwrap().binding_version(),
+                    anchor,
+                )
+                .unwrap()
+        };
         let revision = book.host().revision();
         let results = book.host().engine.result_view();
         let history = book.history_depth();
@@ -446,31 +563,70 @@ mod tests {
         assert_eq!(root.locus.definition.id, repeated);
         assert_eq!(root.locus.caller, anchor);
         assert_eq!(root.pass.ordinal, 0);
-        assert_eq!(root.reason, calc_engine::contract::ReevaluationReason::NewCommandDemand);
+        assert_eq!(
+            root.reason,
+            calc_engine::contract::ReevaluationReason::NewCommandDemand
+        );
         assert_eq!(first.evaluation.inputs, book.host().engine.input_version());
         let draws = &first.evaluation.random_draws;
         assert_eq!((draws.samples.len(), draws.omitted), (2, 0));
-        assert_eq!(first.evaluation.outcome, Ok(CalcValue::number(
-            f64::from_bits(draws.samples[0]) + f64::from_bits(draws.samples[1]))));
-        assert_eq!(first.evaluation.invocations.iter().filter(|body| body.definition.id == inner).count(), 2);
+        assert_eq!(
+            first.evaluation.outcome,
+            Ok(CalcValue::number(
+                f64::from_bits(draws.samples[0]) + f64::from_bits(draws.samples[1])
+            ))
+        );
+        assert_eq!(
+            first
+                .evaluation
+                .invocations
+                .iter()
+                .filter(|body| body.definition.id == inner)
+                .count(),
+            2
+        );
         let local = evaluate(once);
         let local_root = local.evaluation.root.as_ref().unwrap();
-        assert_ne!(root.pass.command, local_root.pass.command, "new command has a new draw key");
+        assert_ne!(
+            root.pass.command, local_root.pass.command,
+            "new command has a new draw key"
+        );
         let draws = &local.evaluation.random_draws;
         assert_eq!((draws.samples.len(), draws.omitted), (1, 0));
         let x = f64::from_bits(draws.samples[0]);
         assert_eq!(local.evaluation.outcome, Ok(CalcValue::number(x + x)));
-        assert_eq!(local.evaluation.invocations.iter().filter(|body| body.definition.id == inner).count(), 1);
+        assert_eq!(
+            local
+                .evaluation
+                .invocations
+                .iter()
+                .filter(|body| body.definition.id == inner)
+                .count(),
+            1
+        );
         for _ in 0..4 {
             assert!(book.host().name_node(inner).is_some());
             assert!(book.host().name_invocation_view(anchor).is_none());
         }
         let next = evaluate(once);
-        assert_eq!(next.evaluation.root.as_ref().unwrap().pass.command.sequence,
-            local_root.pass.command.sequence + 1, "passive views allocate no name pass");
-        assert_eq!(book.host().engine.nodes().count(), 0, "no synthetic name cell");
-        assert_eq!((book.host().revision(), book.host().engine.result_view(), book.history_depth()),
-            (revision, results, history));
+        assert_eq!(
+            next.evaluation.root.as_ref().unwrap().pass.command.sequence,
+            local_root.pass.command.sequence + 1,
+            "passive views allocate no name pass"
+        );
+        assert_eq!(
+            book.host().engine.nodes().count(),
+            0,
+            "no synthetic name cell"
+        );
+        assert_eq!(
+            (
+                book.host().revision(),
+                book.host().engine.result_view(),
+                book.history_depth()
+            ),
+            (revision, results, history)
+        );
     }
 
     #[cfg_attr(not(target_arch = "wasm32"), test)]
@@ -479,51 +635,163 @@ mod tests {
         let mut book = book();
         let sheet = book.host().sheets()[0].id();
         let at = |row, column| CellKey::new(sheet, row, column).unwrap();
-        let anchor = at(4,5);
-        let array = add(&mut book, NameScope::Workbook, "RandomArray", "=RANDARRAY(1,1026)");
-        let evaluate = |book: &HostSession, id| book.host().evaluate_name_with_evidence(id,
-            book.host().name_node(id).unwrap().binding_version(), anchor).unwrap();
+        let anchor = at(4, 5);
+        let array = add(
+            &mut book,
+            NameScope::Workbook,
+            "RandomArray",
+            "=RANDARRAY(1,1026)",
+        );
+        let evaluate = |book: &HostSession, id| {
+            book.host()
+                .evaluate_name_with_evidence(
+                    id,
+                    book.host().name_node(id).unwrap().binding_version(),
+                    anchor,
+                )
+                .unwrap()
+        };
         let sampled = evaluate(&book, array);
-        assert!(sampled.evaluation.outcome.is_ok(), "{:?}", sampled.evaluation.outcome);
+        assert!(
+            sampled.evaluation.outcome.is_ok(),
+            "{:?}",
+            sampled.evaluation.outcome
+        );
         let draws = &sampled.evaluation.random_draws;
-        assert_eq!((draws.samples.len(), draws.omitted), (calc_engine::MAX_RECORDED_RANDOM_DRAWS, 2),
-            "outcome {:?}; bodies {:?}", sampled.evaluation.outcome, sampled.evaluation.invocations);
-        let value = sampled.evaluation.outcome.as_ref().unwrap().as_array().unwrap();
+        assert_eq!(
+            (draws.samples.len(), draws.omitted),
+            (calc_engine::MAX_RECORDED_RANDOM_DRAWS, 2),
+            "outcome {:?}; bodies {:?}",
+            sampled.evaluation.outcome,
+            sampled.evaluation.invocations
+        );
+        let value = sampled
+            .evaluation
+            .outcome
+            .as_ref()
+            .unwrap()
+            .as_array()
+            .unwrap();
         assert_eq!((value.shape().rows, value.shape().cols), (1, 1026));
         for (value, bits) in value.iter_row_major().zip(&draws.samples) {
             assert_eq!(value.as_number().unwrap().to_bits(), *bits);
         }
         assert_eq!(book.host().engine.nodes().count(), 0);
-        assert_eq!(book.host().name_node(array).unwrap().definition().formula, "_xlfn.RANDARRAY(1,1026)");
+        assert_eq!(
+            book.host().name_node(array).unwrap().definition().formula,
+            "_xlfn.RANDARRAY(1,1026)"
+        );
         let mut bytes = Vec::new();
         book.save(&Default::default(), &mut bytes).unwrap();
-        let reopened = HostSession::open(std::sync::Arc::new(crate::MemorySource::new(bytes)),
-            &Default::default(), crate::HostOptions { calc_mode: Some(crate::CalcMode::Manual), ..Default::default() }).unwrap();
-        let restored = reopened.host().model().definitions().name_table().lookup(NameScope::Workbook, "RandomArray").unwrap();
+        let reopened = HostSession::open(
+            std::sync::Arc::new(crate::MemorySource::new(bytes)),
+            &Default::default(),
+            crate::HostOptions {
+                calc_mode: Some(crate::CalcMode::Manual),
+                ..Default::default()
+            },
+        )
+        .unwrap();
+        let restored = reopened
+            .host()
+            .model()
+            .definitions()
+            .name_table()
+            .lookup(NameScope::Workbook, "RandomArray")
+            .unwrap();
         assert_eq!(restored.definition().formula, "_xlfn.RANDARRAY(1,1026)");
-        let restored_evaluation = reopened.host().evaluate_name_with_evidence(restored.id(), restored.binding_version(),
-            CellKey::new(reopened.host().sheets()[0].id(), 4, 5).unwrap()).unwrap();
-        assert_eq!((restored_evaluation.evaluation.random_draws.samples.len(), restored_evaluation.evaluation.random_draws.omitted),
-            (calc_engine::MAX_RECORDED_RANDOM_DRAWS, 2));
-        assert_ne!(restored_evaluation.workbook, sampled.workbook, "reopen has a new owner namespace");
-        for (at, text) in [(at(1,1), "1"), (at(1,2), "=$A$1+1")] {
-            assert!(book.dispatch(SkinIntent::EnterCell { at, text: text.into() }).accepted());
+        let restored_evaluation = reopened
+            .host()
+            .evaluate_name_with_evidence(
+                restored.id(),
+                restored.binding_version(),
+                CellKey::new(reopened.host().sheets()[0].id(), 4, 5).unwrap(),
+            )
+            .unwrap();
+        assert_eq!(
+            (
+                restored_evaluation.evaluation.random_draws.samples.len(),
+                restored_evaluation.evaluation.random_draws.omitted
+            ),
+            (calc_engine::MAX_RECORDED_RANDOM_DRAWS, 2)
+        );
+        assert_ne!(
+            restored_evaluation.workbook, sampled.workbook,
+            "reopen has a new owner namespace"
+        );
+        for (at, text) in [(at(1, 1), "1"), (at(1, 2), "=$A$1+1")] {
+            assert!(
+                book.dispatch(SkinIntent::EnterCell {
+                    at,
+                    text: text.into()
+                })
+                .accepted()
+            );
         }
-        let stale = add(&mut book, NameScope::Workbook, "RandomThenStale", "=RAND()+$B$1");
-        assert!(book.dispatch(SkinIntent::SetCalcMode(crate::CalcMode::Manual)).accepted());
-        assert!(book.dispatch(SkinIntent::EnterCell { at: at(1,1), text: "5".into() }).accepted());
+        let stale = add(
+            &mut book,
+            NameScope::Workbook,
+            "RandomThenStale",
+            "=RAND()+$B$1",
+        );
+        assert!(
+            book.dispatch(SkinIntent::SetCalcMode(crate::CalcMode::Manual))
+                .accepted()
+        );
+        assert!(
+            book.dispatch(SkinIntent::EnterCell {
+                at: at(1, 1),
+                text: "5".into()
+            })
+            .accepted()
+        );
         let revision = book.host().revision();
         let results = book.host().engine.result_view();
         let history = book.history_depth();
         let refused = evaluate(&book, stale);
         assert!(refused.evaluation.outcome.is_err());
-        assert_eq!(refused.evaluation.random_draws.samples.len(), 1, "retain the executed prefix");
-        assert_eq!(refused.evaluation.root.as_ref().unwrap().locus.definition.id, stale);
-        assert!(refused.evaluation.invocations.iter().any(|body| body.result == calc_fml::NameResultKind::Refused));
-        let page = crate::project(book.host(), &crate::ProjectionRequest { cells: vec![at(1,2)] }).unwrap();
-        assert!(matches!(page.cells()[0].value(), ProjectedValue::Stale(_)), "diagnostic admits no producer");
-        assert_eq!((book.host().revision(), book.host().engine.result_view(), book.history_depth()),
-            (revision, results, history));
+        assert_eq!(
+            refused.evaluation.random_draws.samples.len(),
+            1,
+            "retain the executed prefix"
+        );
+        assert_eq!(
+            refused
+                .evaluation
+                .root
+                .as_ref()
+                .unwrap()
+                .locus
+                .definition
+                .id,
+            stale
+        );
+        assert!(
+            refused
+                .evaluation
+                .invocations
+                .iter()
+                .any(|body| body.result == calc_fml::NameResultKind::Refused)
+        );
+        let page = crate::project(
+            book.host(),
+            &crate::ProjectionRequest {
+                cells: vec![at(1, 2)],
+            },
+        )
+        .unwrap();
+        assert!(
+            matches!(page.cells()[0].value(), ProjectedValue::Stale(_)),
+            "diagnostic admits no producer"
+        );
+        assert_eq!(
+            (
+                book.host().revision(),
+                book.host().engine.result_view(),
+                book.history_depth()
+            ),
+            (revision, results, history)
+        );
         let clock = add(&mut book, NameScope::Workbook, "OwnerClock", "=NOW()");
         book.set_clock(Some(45200.25));
         let timed = evaluate(&book, clock);
@@ -533,26 +801,44 @@ mod tests {
         book.set_clock(None);
         let absent = evaluate(&book, clock);
         assert_eq!(absent.evaluation.clock, None);
-        assert!(absent.evaluation.outcome.is_err(), "no implicit clock source");
+        assert!(
+            absent.evaluation.outcome.is_err(),
+            "no implicit clock source"
+        );
     }
 
     #[cfg_attr(not(target_arch = "wasm32"), test)]
     #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
     fn dc_hsa5_6__name_pass_uses_owner_numeric_mode_before_any_cell_publication() {
-        let target = calc_value::NumericTargetId::new("16.0.20527.20150", "Current", "Excel", "x86-64").unwrap();
+        let target =
+            calc_value::NumericTargetId::new("16.0.20527.20150", "Current", "Excel", "x86-64")
+                .unwrap();
         let mode = calc_value::NumericMode::Exact(target);
         let mut book = HostSession::open(
             std::sync::Arc::new(crate::MemorySource::new(crate::blank_package())),
             &Default::default(),
-            crate::HostOptions { numeric: mode.clone(), calc_mode: Some(crate::CalcMode::Manual), ..Default::default() },
-        ).unwrap();
+            crate::HostOptions {
+                numeric: mode.clone(),
+                calc_mode: Some(crate::CalcMode::Manual),
+                ..Default::default()
+            },
+        )
+        .unwrap();
         let id = add(&mut book, NameScope::Workbook, "SelectedMode", "=42");
         let anchor = CellKey::new(book.host().sheets()[0].id(), 1, 1).unwrap();
-        let diagnostic = book.host().evaluate_name_with_evidence(id,
-            book.host().name_node(id).unwrap().binding_version(), anchor).unwrap();
+        let diagnostic = book
+            .host()
+            .evaluate_name_with_evidence(
+                id,
+                book.host().name_node(id).unwrap().binding_version(),
+                anchor,
+            )
+            .unwrap();
         assert_eq!(diagnostic.evaluation.outcome, Ok(CalcValue::number(42.)));
-        assert_eq!(diagnostic.evaluation.numeric, mode,
-            "the requested owner mode is independent of the last cell publication");
+        assert_eq!(
+            diagnostic.evaluation.numeric, mode,
+            "the requested owner mode is independent of the last cell publication"
+        );
         assert_eq!(book.host().engine.nodes().count(), 0);
     }
 
@@ -570,7 +856,9 @@ mod tests {
         let mut book = book();
         let calls = std::rc::Rc::new(std::cell::Cell::new(0));
         let mut functions = calc_fml::CallableTable::new();
-        functions.register("KnownUdf", std::rc::Rc::new(Counted(calls.clone()))).unwrap();
+        functions
+            .register("KnownUdf", std::rc::Rc::new(Counted(calls.clone())))
+            .unwrap();
         book.set_user_functions(functions);
         let anchor = CellKey::new(book.host().sheets()[0].id(), 1, 1).unwrap();
         for (name, formula, refused) in [
@@ -579,54 +867,103 @@ mod tests {
             ("UntakenCall", "=IF(FALSE,KnownUdf(),RAND())", false),
         ] {
             let id = add(&mut book, NameScope::Workbook, name, formula);
-            let result = book.host().evaluate_name_with_evidence(id,
-                book.host().name_node(id).unwrap().binding_version(), anchor).unwrap();
-            assert_eq!(result.evaluation.outcome.is_err(), refused, "{formula}: {:?}", result.evaluation.outcome);
+            let result = book
+                .host()
+                .evaluate_name_with_evidence(
+                    id,
+                    book.host().name_node(id).unwrap().binding_version(),
+                    anchor,
+                )
+                .unwrap();
+            assert_eq!(
+                result.evaluation.outcome.is_err(),
+                refused,
+                "{formula}: {:?}",
+                result.evaluation.outcome
+            );
             assert!(result.evaluation.root.is_some());
-            assert_eq!(result.evaluation.random_draws.samples.len(), usize::from(!refused));
+            assert_eq!(
+                result.evaluation.random_draws.samples.len(),
+                usize::from(!refused)
+            );
             if !refused {
-                assert_eq!(result.evaluation.outcome, Ok(CalcValue::number(
-                    f64::from_bits(result.evaluation.random_draws.samples[0]))));
+                assert_eq!(
+                    result.evaluation.outcome,
+                    Ok(CalcValue::number(f64::from_bits(
+                        result.evaluation.random_draws.samples[0]
+                    )))
+                );
             }
         }
-        assert_eq!(calls.get(), 0, "registration metadata grants no executable capability");
+        assert_eq!(
+            calls.get(),
+            0,
+            "registration metadata grants no executable capability"
+        );
         assert_eq!(book.host().engine.nodes().count(), 0);
     }
 
     #[cfg_attr(not(target_arch = "wasm32"), test)]
     #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
     fn dc_hsa5_6__detached_context_keeps_read_policy_and_reference_consumption_explicit() {
-        use calc_engine::{DetachedEvaluationContext as Context, DetachedFormula, DetachedReadPolicy as Policy};
+        use calc_engine::{
+            DetachedEvaluationContext as Context, DetachedFormula, DetachedReadPolicy as Policy,
+        };
         let mut book = book();
         let sheet = book.host().sheets()[0].id();
         let at = |row, col| CellKey::new(sheet, row, col).unwrap();
-        for (at, text) in [(at(1,1), "1"), (at(1,2), "=A1+1"), (at(3,1), "=SEQUENCE(A1)")] {
-            assert!(book.dispatch(SkinIntent::EnterCell { at, text: text.into() }).accepted());
+        for (at, text) in [
+            (at(1, 1), "1"),
+            (at(1, 2), "=A1+1"),
+            (at(3, 1), "=SEQUENCE(A1)"),
+        ] {
+            assert!(
+                book.dispatch(SkinIntent::EnterCell {
+                    at,
+                    text: text.into()
+                })
+                .accepted()
+            );
         }
         let name = add(&mut book, NameScope::Workbook, "SelectedReference", "=$B$1");
-        let scalar = DetachedFormula::compile(book.host().model(), "$B$1+1", at(8,5)).unwrap();
+        let scalar = DetachedFormula::compile(book.host().model(), "$B$1+1", at(8, 5)).unwrap();
         let old = book.host().model().pin();
-        assert!(book.dispatch(SkinIntent::SetCalcMode(crate::CalcMode::Manual)).accepted());
-        assert!(book.dispatch(SkinIntent::EnterCell { at: at(1,1), text: "2".into() }).accepted());
+        assert!(
+            book.dispatch(SkinIntent::SetCalcMode(crate::CalcMode::Manual))
+                .accepted()
+        );
+        assert!(
+            book.dispatch(SkinIntent::EnterCell {
+                at: at(1, 1),
+                text: "2".into()
+            })
+            .accepted()
+        );
         let revision = book.host().revision();
         let history = book.history_depth();
         let view = book.host().engine.result_view();
         let host = book.host();
-        let reference = DetachedFormula::compile_name(host.model(), name, at(8,5)).unwrap();
-        let blank = DetachedFormula::compile(host.model(), "$A$4+1", at(8,5)).unwrap();
+        let reference = DetachedFormula::compile_name(host.model(), name, at(8, 5)).unwrap();
+        let blank = DetachedFormula::compile(host.model(), "$A$4+1", at(8, 5)).unwrap();
         let display = Context::new(&host.engine, host.model(), Policy::PublishedValues).unwrap();
         assert!(display.stale_cells().is_none());
-        assert_eq!(scalar.evaluate_in(&display, at(8,5)), Ok(CalcValue::number(3.)));
+        assert_eq!(
+            scalar.evaluate_in(&display, at(8, 5)),
+            Ok(CalcValue::number(3.))
+        );
         let current = Context::new(&host.engine, host.model(), Policy::CurrentValues).unwrap();
         for row in 8..40 {
-            assert!(scalar.evaluate_in(&current, at(row,5)).is_err());
-            assert!(blank.evaluate_in(&current, at(row,5)).is_err());
-            assert!(current.read_cell(at(1,2)).is_err());
-            assert!(current.read_cell(at(4,1)).is_err());
-            assert_eq!(current.read_cell(at(1,1)), Ok(CalcValue::number(2.)));
+            assert!(scalar.evaluate_in(&current, at(row, 5)).is_err());
+            assert!(blank.evaluate_in(&current, at(row, 5)).is_err());
+            assert!(current.read_cell(at(1, 2)).is_err());
+            assert!(current.read_cell(at(4, 1)).is_err());
+            assert_eq!(current.read_cell(at(1, 1)), Ok(CalcValue::number(2.)));
         }
-        let returned = reference.evaluate_in(&current, at(8,5)).unwrap();
-        assert!(matches!(returned.core_ref(), CoreRef::Reference(_)), "identity does not consume values");
+        let returned = reference.evaluate_in(&current, at(8, 5)).unwrap();
+        assert!(
+            matches!(returned.core_ref(), CoreRef::Reference(_)),
+            "identity does not consume values"
+        );
         assert!(Context::new(&host.engine, &old, Policy::CurrentValues).is_err());
         assert_eq!(host.revision(), revision);
         assert_eq!(host.engine.result_view(), view);
@@ -643,12 +980,20 @@ mod tests {
         let version = book.host().name_node(name).unwrap().binding_version();
         let plan = DetachedFormula::compile_name(book.host().model(), name, at).unwrap();
         let receipt = book.dispatch(SkinIntent::Command(WorkbookCommand::Name(NameEdit {
-            id: Some(name), version: Some(version), scope: NameScope::Workbook,
-            name: "Choice".into(), formula: Some("=99".into()),
+            id: Some(name),
+            version: Some(version),
+            scope: NameScope::Workbook,
+            name: "Choice".into(),
+            formula: Some("=99".into()),
         })));
         assert!(receipt.accepted(), "{:?}", receipt.error);
         let host = book.host();
-        let context = DetachedEvaluationContext::new(&host.engine, host.model(), DetachedReadPolicy::CurrentValues).unwrap();
+        let context = DetachedEvaluationContext::new(
+            &host.engine,
+            host.model(),
+            DetachedReadPolicy::CurrentValues,
+        )
+        .unwrap();
         assert!(plan.evaluate_in(&context, at).is_err());
         assert_eq!(value(&book, name, at), CalcValue::number(99.));
     }
@@ -656,7 +1001,9 @@ mod tests {
     #[cfg_attr(not(target_arch = "wasm32"), test)]
     #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
     fn dc_hsa5_6__detached_context_refuses_changed_file_identity_and_caller_scope() {
-        use calc_engine::{DetachedEvaluationContext as Context, DetachedFormula, DetachedReadPolicy as Policy};
+        use calc_engine::{
+            DetachedEvaluationContext as Context, DetachedFormula, DetachedReadPolicy as Policy,
+        };
         let mut book = book();
         let one = book.host().sheets()[0].id();
         let other = extra_sheet(&mut book, "Other");
@@ -680,7 +1027,10 @@ mod tests {
         assert_eq!(book.history_depth(), history);
         let host = book.host();
         let context = Context::new(&host.engine, host.model(), Policy::CurrentValues).unwrap();
-        assert!(plan.evaluate_in(&context, a).is_err(), "same revision does not preserve file bindings");
+        assert!(
+            plan.evaluate_in(&context, a).is_err(),
+            "same revision does not preserve file bindings"
+        );
         let rebound = DetachedFormula::compile(host.model(), "Choice", a).unwrap();
         assert_eq!(rebound.evaluate_in(&context, a), Ok(CalcValue::number(42.)));
     }
@@ -697,13 +1047,22 @@ mod tests {
             let revision = book.host().revision();
             let results = book.host().engine.result_view();
             let history = book.history_depth();
-            let diagnostic = book.host().evaluate_name_with_evidence(id, version, anchor).unwrap();
+            let diagnostic = book
+                .host()
+                .evaluate_name_with_evidence(id, version, anchor)
+                .unwrap();
             let root = diagnostic.evaluation.root.as_ref().unwrap();
-            assert_eq!((root.locus.definition.id, root.locus.definition.version), (id, version));
+            assert_eq!(
+                (root.locus.definition.id, root.locus.definition.version),
+                (id, version)
+            );
             assert_eq!(root.locus.caller, anchor);
             assert_eq!(diagnostic.revision, revision);
             assert_eq!(diagnostic.results, results);
-            assert_eq!(diagnostic.evaluation.outcome, Ok(CalcValue::number(expected)));
+            assert_eq!(
+                diagnostic.evaluation.outcome,
+                Ok(CalcValue::number(expected))
+            );
             assert_eq!(diagnostic.evaluation.omitted, 0);
             let body = &diagnostic.evaluation.invocations[0];
             assert_eq!(diagnostic.evaluation.invocations.len(), 1);
@@ -715,42 +1074,106 @@ mod tests {
             assert_eq!(book.history_depth(), history);
             assert!(book.host().name_invocation_view(anchor).is_none());
         }
-        assert!(book.dispatch(SkinIntent::SetCalcMode(crate::CalcMode::Manual)).accepted());
+        assert!(
+            book.dispatch(SkinIntent::SetCalcMode(crate::CalcMode::Manual))
+                .accepted()
+        );
         let b1 = CellKey::new(sheet, 1, 2).unwrap();
-        assert!(book.dispatch(SkinIntent::EnterCell { at: b1, text: "=2".into() }).accepted());
+        assert!(
+            book.dispatch(SkinIntent::EnterCell {
+                at: b1,
+                text: "=2".into()
+            })
+            .accepted()
+        );
         let needs_current = add(&mut book, NameScope::Workbook, "NeedsCurrent", "=$B$1+1");
-        let version = book.host().name_node(needs_current).unwrap().binding_version();
+        let version = book
+            .host()
+            .name_node(needs_current)
+            .unwrap()
+            .binding_version();
         let results = book.host().engine.result_view();
-        let refused = book.host().evaluate_name_with_evidence(needs_current, version, anchor).unwrap();
-        assert!(matches!(&refused.evaluation.outcome,
-            Err(calc_engine::NotModeled::Evaluation(calc_fml::EvalFault::NotModelled {
-                construct: "a detached formula that reads a formula cell with no published value",
-                owner: "dc-6yw",
-            }))), "{:?}", refused.evaluation.outcome);
+        let refused = book
+            .host()
+            .evaluate_name_with_evidence(needs_current, version, anchor)
+            .unwrap();
+        assert!(
+            matches!(
+                &refused.evaluation.outcome,
+                Err(calc_engine::NotModeled::Evaluation(
+                    calc_fml::EvalFault::NotModelled {
+                        construct: "a detached formula that reads a formula cell with no published value",
+                        owner: "dc-6yw",
+                    }
+                ))
+            ),
+            "{:?}",
+            refused.evaluation.outcome
+        );
         assert_eq!(refused.evaluation.invocations.len(), 1);
-        assert_eq!(refused.evaluation.invocations[0].result, calc_fml::NameResultKind::Refused);
+        assert_eq!(
+            refused.evaluation.invocations[0].result,
+            calc_fml::NameResultKind::Refused
+        );
         assert_eq!(book.host().engine.result_view(), results);
         assert!(book.host().name_invocation_view(anchor).is_none());
-        assert!(book.dispatch(SkinIntent::SetCalcMode(crate::CalcMode::Automatic)).accepted());
+        assert!(
+            book.dispatch(SkinIntent::SetCalcMode(crate::CalcMode::Automatic))
+                .accepted()
+        );
         let a1 = CellKey::new(sheet, 1, 1).unwrap();
         for (at, text) in [(a1, "1"), (b1, "=$A$1+1")] {
-            assert!(book.dispatch(SkinIntent::EnterCell { at, text: text.into() }).accepted());
+            assert!(
+                book.dispatch(SkinIntent::EnterCell {
+                    at,
+                    text: text.into()
+                })
+                .accepted()
+            );
         }
-        assert!(book.dispatch(SkinIntent::SetCalcMode(crate::CalcMode::Manual)).accepted());
-        assert!(book.dispatch(SkinIntent::EnterCell { at: a1, text: "5".into() }).accepted());
-        let page = crate::project(book.host(), &crate::ProjectionRequest { cells: vec![b1] }).unwrap();
+        assert!(
+            book.dispatch(SkinIntent::SetCalcMode(crate::CalcMode::Manual))
+                .accepted()
+        );
+        assert!(
+            book.dispatch(SkinIntent::EnterCell {
+                at: a1,
+                text: "5".into()
+            })
+            .accepted()
+        );
+        let page =
+            crate::project(book.host(), &crate::ProjectionRequest { cells: vec![b1] }).unwrap();
         assert!(matches!(page.cells()[0].value(), ProjectedValue::Stale(_)));
         let results = book.host().engine.result_view();
-        let stale = book.host().evaluate_name_with_evidence(needs_current, version, anchor).unwrap();
-        assert!(stale.evaluation.outcome.is_err(), "a dirty formula cache cannot supply a diagnostic calculation");
+        let stale = book
+            .host()
+            .evaluate_name_with_evidence(needs_current, version, anchor)
+            .unwrap();
+        assert!(
+            stale.evaluation.outcome.is_err(),
+            "a dirty formula cache cannot supply a diagnostic calculation"
+        );
         assert_eq!(stale.evaluation.invocations.len(), 1);
-        assert_eq!(stale.evaluation.invocations[0].result, calc_fml::NameResultKind::Refused);
+        assert_eq!(
+            stale.evaluation.invocations[0].result,
+            calc_fml::NameResultKind::Refused
+        );
         assert_eq!(book.host().engine.result_view(), results);
         let error = add(&mut book, NameScope::Workbook, "WorksheetFault", "=1/0");
         let version = book.host().name_node(error).unwrap().binding_version();
-        let fault = book.host().evaluate_name_with_evidence(error, version, anchor).unwrap();
-        assert_eq!(fault.evaluation.outcome, Ok(CalcValue::error(calc_value::WorksheetErrorCode::Div0)));
-        assert_eq!(fault.evaluation.invocations[0].result, calc_fml::NameResultKind::Error(calc_value::WorksheetErrorCode::Div0));
+        let fault = book
+            .host()
+            .evaluate_name_with_evidence(error, version, anchor)
+            .unwrap();
+        assert_eq!(
+            fault.evaluation.outcome,
+            Ok(CalcValue::error(calc_value::WorksheetErrorCode::Div0))
+        );
+        assert_eq!(
+            fault.evaluation.invocations[0].result,
+            calc_fml::NameResultKind::Error(calc_value::WorksheetErrorCode::Div0)
+        );
     }
 
     #[cfg_attr(not(target_arch = "wasm32"), test)]
@@ -760,28 +1183,65 @@ mod tests {
             let mut book = book();
             let sheet = book.host().sheets()[0].id();
             let at = |row, column| CellKey::new(sheet, row, column).unwrap();
-            for (at, text) in [(at(1,2), "1"), (at(1,1), "=SEQUENCE(B1)")] {
-                assert!(book.dispatch(SkinIntent::EnterCell { at, text: text.into() }).accepted());
+            for (at, text) in [(at(1, 2), "1"), (at(1, 1), "=SEQUENCE(B1)")] {
+                assert!(
+                    book.dispatch(SkinIntent::EnterCell {
+                        at,
+                        text: text.into()
+                    })
+                    .accepted()
+                );
             }
             let scalar = add(&mut book, NameScope::Workbook, "ExpansionScalar", "=$A$2+1");
-            let area = add(&mut book, NameScope::Workbook, "ExpansionArea", "=SUM($A$2:$A$3)+1");
+            let area = add(
+                &mut book,
+                NameScope::Workbook,
+                "ExpansionArea",
+                "=SUM($A$2:$A$3)+1",
+            );
             let safe = add(&mut book, NameScope::Workbook, "BlockedCorridor", "=$C$1+1");
-            assert!(book.dispatch(SkinIntent::SetCalcMode(crate::CalcMode::Manual)).accepted());
-            let (target, text) = if replace_formula { (at(1,1), "=SEQUENCE(2)") } else { (at(1,2), "2") };
-            assert!(book.dispatch(SkinIntent::EnterCell { at: target, text: text.into() }).accepted());
+            assert!(
+                book.dispatch(SkinIntent::SetCalcMode(crate::CalcMode::Manual))
+                    .accepted()
+            );
+            let (target, text) = if replace_formula {
+                (at(1, 1), "=SEQUENCE(2)")
+            } else {
+                (at(1, 2), "2")
+            };
+            assert!(
+                book.dispatch(SkinIntent::EnterCell {
+                    at: target,
+                    text: text.into()
+                })
+                .accepted()
+            );
             let results = book.host().engine.result_view();
             for id in [scalar, area] {
                 let version = book.host().name_node(id).unwrap().binding_version();
-                let diagnostic = book.host().evaluate_name_with_evidence(id, version, at(4,5)).unwrap();
-                assert!(diagnostic.evaluation.outcome.is_err(), "pending expansion, replace={replace_formula}: {:?}", diagnostic.evaluation.outcome);
+                let diagnostic = book
+                    .host()
+                    .evaluate_name_with_evidence(id, version, at(4, 5))
+                    .unwrap();
+                assert!(
+                    diagnostic.evaluation.outcome.is_err(),
+                    "pending expansion, replace={replace_formula}: {:?}",
+                    diagnostic.evaluation.outcome
+                );
                 assert_eq!(diagnostic.evaluation.invocations.len(), 1);
-                assert_eq!(diagnostic.evaluation.invocations[0].result, calc_fml::NameResultKind::Refused);
+                assert_eq!(
+                    diagnostic.evaluation.invocations[0].result,
+                    calc_fml::NameResultKind::Refused
+                );
                 assert_eq!(book.host().engine.result_view(), results);
             }
-            assert_eq!(value(&book, safe, at(4,5)), CalcValue::number(1.));
-            assert!(book.dispatch(SkinIntent::SetCalcMode(crate::CalcMode::Automatic)).accepted());
-            assert_eq!(value(&book, scalar, at(4,5)), CalcValue::number(3.));
-            assert_eq!(value(&book, area, at(4,5)), CalcValue::number(3.));
+            assert_eq!(value(&book, safe, at(4, 5)), CalcValue::number(1.));
+            assert!(
+                book.dispatch(SkinIntent::SetCalcMode(crate::CalcMode::Automatic))
+                    .accepted()
+            );
+            assert_eq!(value(&book, scalar, at(4, 5)), CalcValue::number(3.));
+            assert_eq!(value(&book, area, at(4, 5)), CalcValue::number(3.));
         }
     }
 

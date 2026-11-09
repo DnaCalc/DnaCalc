@@ -298,8 +298,10 @@ fn catalogue_call(written: &str, loaded: bool) -> Option<FunctionCallTarget<'sta
         .ok()?;
     // An unheld entry's signature is no Excel measurement, except that a macro-sheet-only name is
     // refused whatever it is called with.
-    if matches!(target.implementation(), calc_func::Implementation::NotHeld { .. } | calc_func::Implementation::Deferred { .. })
-        && target.availability() != calc_func::Availability::MacroSheetOnly
+    if matches!(
+        target.implementation(),
+        calc_func::Implementation::NotHeld { .. } | calc_func::Implementation::Deferred { .. }
+    ) && target.availability() != calc_func::Availability::MacroSheetOnly
     {
         return None;
     }
@@ -332,7 +334,9 @@ pub(crate) fn operand_form(node: &SyntaxNode, loaded: bool) -> OperandForm {
             SyntaxKind::ArrayLiteralExpr => OperandForm::ArrayConstant,
             SyntaxKind::OmittedArgExpr => OperandForm::Missing,
             SyntaxKind::IdentifierExpr => {
-                let text = only_token(node).map(|token| token.text()).unwrap_or_default();
+                let text = only_token(node)
+                    .map(|token| token.text())
+                    .unwrap_or_default();
                 if text.eq_ignore_ascii_case("TRUE") || text.eq_ignore_ascii_case("FALSE") {
                     OperandForm::Constant
                 } else {
@@ -363,19 +367,15 @@ pub(crate) fn operand_form(node: &SyntaxNode, loaded: bool) -> OperandForm {
             SyntaxKind::BinaryExpr => OperandForm::Expression,
             SyntaxKind::InvokeExpr => OperandForm::Invocation,
             SyntaxKind::CallExpr => match node.children() {
-                [SyntaxChild::Token(name), _] => {
-                    match binding_call(file_unprefixed(name.text())) {
-                        Some(BindingCall::Let) => OperandForm::Let,
-                        Some(BindingCall::Lambda) => OperandForm::Lambda,
-                        None if operator_call(name.text(), loaded).is_some() => {
-                            OperandForm::Reference
-                        }
-                        None => match catalogue_call(name.text(), loaded) {
-                            Some(target) => OperandForm::Call(target.id()),
-                            None => OperandForm::Invocation,
-                        },
-                    }
-                }
+                [SyntaxChild::Token(name), _] => match binding_call(file_unprefixed(name.text())) {
+                    Some(BindingCall::Let) => OperandForm::Let,
+                    Some(BindingCall::Lambda) => OperandForm::Lambda,
+                    None if operator_call(name.text(), loaded).is_some() => OperandForm::Reference,
+                    None => match catalogue_call(name.text(), loaded) {
+                        Some(target) => OperandForm::Call(target.id()),
+                        None => OperandForm::Invocation,
+                    },
+                },
                 _ => OperandForm::Invocation,
             },
             // Only a formula with a diagnostic holds these, and that is refused first.
@@ -413,7 +413,12 @@ mod tests {
             count += 1;
         }
         assert_eq!(count, 3822);
-        assert!(differ.is_empty(), "{} differ:\n{}", differ.len(), differ.join("\n"));
+        assert!(
+            differ.is_empty(),
+            "{} differ:\n{}",
+            differ.len(),
+            differ.join("\n")
+        );
     }
 
     /// Native and browser: Excel 16.0.20527 refused every formula holding CALL or REGISTER.ID at
@@ -426,12 +431,18 @@ mod tests {
             "../../tests/fixtures/host_functions/call-register-id-excel.json"
         ))
         .expect("the measurement");
-        let rows = answers["worksheet_entry"].as_array().expect("entry answers");
+        let rows = answers["worksheet_entry"]
+            .as_array()
+            .expect("entry answers");
         assert_eq!(rows.len(), 39);
         for row in rows {
             let formula = row["formula"].as_str().expect("a formula");
             let entered = row["entered"].as_bool().expect("an answer");
-            assert_eq!(check_entry(&parse_formula(formula), false).is_ok(), entered, "{formula}");
+            assert_eq!(
+                check_entry(&parse_formula(formula), false).is_ok(),
+                entered,
+                "{formula}"
+            );
         }
     }
 }

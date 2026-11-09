@@ -872,8 +872,10 @@ impl<'j> Rewrite<'_, 'j> {
         // A constant that holds a newer error (a pivot's corner when the pivot took one cell) is written as
         // Excel writes it: `#VALUE!` with the value metadata of the error.
         let rich_error = match input {
-            CellInput::Error(code) if !crate::edit::error_constant_writable(*code) => super::array_metadata::rich_error_type(*code)
-                .and_then(|kind| self.job.error_vm.get(&kind).copied()),
+            CellInput::Error(code) if !crate::edit::error_constant_writable(*code) => {
+                super::array_metadata::rich_error_type(*code)
+                    .and_then(|kind| self.job.error_vm.get(&kind).copied())
+            }
             _ => None,
         };
         let vm = cache

@@ -1,7 +1,7 @@
+use crate::ported::excel_numeric::crt_exp;
+use crate::ported::excel_numeric::crt_log;
 use crate::ported::factorial_common::{factorial_of_int, trunc_nonnegative};
 use crate::value::WorksheetErrorCode;
-use crate::ported::excel_numeric::crt_log;
-use crate::ported::excel_numeric::crt_exp;
 
 const MULTINOMIAL_LANCZOS_G: f64 = 7.0;
 const MULTINOMIAL_LANCZOS_COEFFS: [f64; 9] = [

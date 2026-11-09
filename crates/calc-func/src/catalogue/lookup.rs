@@ -59,13 +59,15 @@ use crate::call::{CellReader, EvalServices, FunctionFault, LazyArguments, Unread
 use crate::coerce;
 use crate::kernel::{Exit, Site, Step};
 use crate::value::{
-    ArrayShape, CalcArray, CalcValue, CellKey, CoreRef, GridArea,
-    ReferenceLike, WorksheetErrorCode,
+    ArrayShape, CalcArray, CalcValue, CellKey, CoreRef, GridArea, ReferenceLike, WorksheetErrorCode,
 };
 use std::cmp::Ordering;
 use std::ops::ControlFlow;
 
-use calc_catalogue::lookup::{CODE, ENTRIES as DECLARATIONS, INDEX, MATCH, XMATCH, XLOOKUP, VLOOKUP, HLOOKUP, LOOKUP, CHOOSE, ROW, COLUMN, ROWS, COLUMNS, AREAS};
+use calc_catalogue::lookup::{
+    AREAS, CHOOSE, CODE, COLUMN, COLUMNS, ENTRIES as DECLARATIONS, HLOOKUP, INDEX, LOOKUP, MATCH,
+    ROW, ROWS, VLOOKUP, XLOOKUP, XMATCH,
+};
 
 attach_family! {
     code: CODE; declarations: DECLARATIONS;
@@ -256,9 +258,11 @@ fn pattern(units: &[u16]) -> Option<Vec<Token>> {
 /// Whether `text` matches `pattern`. Excel's fn1 Value2 controls use simple Unicode case
 /// equality for literals, retain accents and count one UTF-16 unit for each `?`.
 fn matches(_site: &Site<'_>, pattern: &[Token], text: &[u16]) -> Step<bool> {
-    let fold = |unit: u16| char::from_u32(u32::from(unit))
-        .map(calc_value::unicode_simple_case_fold)
-        .map_or(u32::from(unit), |ch| ch as u32);
+    let fold = |unit: u16| {
+        char::from_u32(u32::from(unit))
+            .map(calc_value::unicode_simple_case_fold)
+            .map_or(u32::from(unit), |ch| ch as u32)
+    };
     let same = |p: u16, t: u16| p == t || fold(p) == fold(t);
     let (mut p, mut t) = (0, 0);
     let mut resume: Option<(usize, usize)> = None;

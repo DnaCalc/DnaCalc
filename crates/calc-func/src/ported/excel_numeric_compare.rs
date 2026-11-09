@@ -1,7 +1,7 @@
+use crate::ported::excel_numeric::crt_log10;
+use crate::ported::excel_numeric::crt_pow;
 use crate::value::WorksheetErrorCode;
 use std::cmp::Ordering;
-use crate::ported::excel_numeric::crt_pow;
-use crate::ported::excel_numeric::crt_log10;
 
 const EXCEL_COMPARE_SIGNIFICANT_DIGITS: usize = 15;
 

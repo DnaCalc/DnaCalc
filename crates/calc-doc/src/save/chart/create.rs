@@ -44,7 +44,7 @@ pub(crate) fn render(chart: &Chart) -> Result<Vec<u8>, SaveRefusal> {
     {
         return Err(fail("Choose a supported legend position"));
     }
-    let combo=category_combination(&chart.plots);
+    let combo = category_combination(&chart.plots);
     if chart.plots.len() != 1 && !combo {
         return Err(fail(
             "Use one supported plot or up to three distinct vertical category plots (dc-971p.51)",
@@ -312,7 +312,10 @@ pub(crate) fn render(chart: &Chart) -> Result<Vec<u8>, SaveRefusal> {
         if a.kind == "catAx" {
             bytes.extend(b"<c:auto val=\"1\"/><c:lblAlgn val=\"ctr\"/><c:lblOffset val=\"100\"/>");
         } else {
-            bytes.extend(fresh_number("crossBetween", a.cross_between.as_deref().unwrap_or("between")));
+            bytes.extend(fresh_number(
+                "crossBetween",
+                a.cross_between.as_deref().unwrap_or("between"),
+            ));
             if let Some(unit) = &a.major_unit {
                 bytes.extend(fresh_number("majorUnit", unit));
             }
@@ -326,12 +329,16 @@ pub(crate) fn render(chart: &Chart) -> Result<Vec<u8>, SaveRefusal> {
                 .as_bytes(),
         );
     }
-    bytes.extend(
-        b"<c:plotVisOnly val=\"1\"/><c:dispBlanksAs val=\"gap\"/></c:chart>",
-    );
-    if chart.text_style!=Default::default(){bytes.extend(font::fresh(&chart.text_style));}
+    bytes.extend(b"<c:plotVisOnly val=\"1\"/><c:dispBlanksAs val=\"gap\"/></c:chart>");
+    if chart.text_style != Default::default() {
+        bytes.extend(font::fresh(&chart.text_style));
+    }
     bytes.extend(b"</c:chartSpace>");
-    font::apply_elements(&crate::xml::XmlPart::new(chart.part.clone(),bytes,crate::xml::XmlLimits::default()),&Default::default(),&chart.element_text)
+    font::apply_elements(
+        &crate::xml::XmlPart::new(chart.part.clone(), bytes, crate::xml::XmlLimits::default()),
+        &Default::default(),
+        &chart.element_text,
+    )
 }
 
 fn frame(chart: &Chart, id: u32, rel: &str) -> Result<Vec<u8>, SaveRefusal> {

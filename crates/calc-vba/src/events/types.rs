@@ -184,9 +184,14 @@ fn application_members(mut members: Vec<TypeLibMemberMetadata>) -> Vec<TypeLibMe
         if slot == 0 {
             m.parameter_types = vec![T::String];
             m.return_type = Some(T::Object);
-            m.return_wire_type = Some(oxvba_com::TypeLibWireType::InterfacePointer { name: "Excel.Range".into() });
-        } else if slot == 4 { m.return_type = Some(T::Boolean); }
-        else if slot == 5 { m.parameter_types = vec![T::Boolean]; }
+            m.return_wire_type = Some(oxvba_com::TypeLibWireType::InterfacePointer {
+                name: "Excel.Range".into(),
+            });
+        } else if slot == 4 {
+            m.return_type = Some(T::Boolean);
+        } else if slot == 5 {
+            m.parameter_types = vec![T::Boolean];
+        }
     }
     members
 }
@@ -197,8 +202,13 @@ impl TypeLibResolver for EventTypes {
         request: &TypeLibResolveRequest,
         blob: &TypeLibMetadataBlob,
     ) -> Option<ComInterfaceIid> {
-        if self.automatic_events && request.reference_name.eq_ignore_ascii_case("DnaCalc")
-            && request.requested_coclass.as_deref().is_none_or(|name| name.eq_ignore_ascii_case("Application")) {
+        if self.automatic_events
+            && request.reference_name.eq_ignore_ascii_case("DnaCalc")
+            && request
+                .requested_coclass
+                .as_deref()
+                .is_none_or(|name| name.eq_ignore_ascii_case("Application"))
+        {
             return Some(iid(APP));
         }
         if request.reference_name.eq_ignore_ascii_case("Excel") {
@@ -225,8 +235,13 @@ impl TypeLibResolver for EventTypes {
     fn resolve(&self, request: &TypeLibResolveRequest) -> Option<TypeLibMetadataBlob> {
         if !request.reference_name.eq_ignore_ascii_case("Excel") {
             let mut blob = crate::runtime::spreadsheet::SpreadsheetTypes.resolve(request)?;
-            if self.automatic_events && request.reference_name.eq_ignore_ascii_case("DnaCalc")
-                && request.requested_coclass.as_deref().is_none_or(|name| name.eq_ignore_ascii_case("Application")) {
+            if self.automatic_events
+                && request.reference_name.eq_ignore_ascii_case("DnaCalc")
+                && request
+                    .requested_coclass
+                    .as_deref()
+                    .is_none_or(|name| name.eq_ignore_ascii_case("Application"))
+            {
                 blob.members = application_members(blob.members);
             }
             return Some(blob);
@@ -282,21 +297,18 @@ impl TypeLibResolver for EventTypes {
             ),
             "workbook" => (
                 vec![member("Name", 0, T::String, BOOK, 1)],
-                vec![event("Open", 2, "Workbook", BOOK_EVENTS, vec![], vec![]), event(
-                    "AddinInstall",
-                    3,
-                    "Workbook",
-                    BOOK_EVENTS,
-                    vec![],
-                    vec![],
-                ), event(
-                    "BeforeSave",
-                    1,
-                    "Workbook",
-                    BOOK_EVENTS,
-                    vec![T::Boolean, T::ByRefBoolean],
-                    vec![None, None],
-                )],
+                vec![
+                    event("Open", 2, "Workbook", BOOK_EVENTS, vec![], vec![]),
+                    event("AddinInstall", 3, "Workbook", BOOK_EVENTS, vec![], vec![]),
+                    event(
+                        "BeforeSave",
+                        1,
+                        "Workbook",
+                        BOOK_EVENTS,
+                        vec![T::Boolean, T::ByRefBoolean],
+                        vec![None, None],
+                    ),
+                ],
             ),
             _ => return None,
         };
@@ -370,7 +382,10 @@ impl TypeLibResolver for EventTypes {
                     } else {
                         100 + members.len() as i32
                     };
-                    if !(self.automatic_events && ((name == "Value2" && kind == K::PropertyPut) || (name == "Calculate" && kind == K::Method))) {
+                    if !(self.automatic_events
+                        && ((name == "Value2" && kind == K::PropertyPut)
+                            || (name == "Calculate" && kind == K::Method)))
+                    {
                         members.push(declaration(name, token, kind, args, required, T::Variant));
                     }
                 }

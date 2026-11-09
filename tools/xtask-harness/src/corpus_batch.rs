@@ -141,16 +141,27 @@ pub(crate) fn census(
 }
 
 /// Valid captures share their semantic key. Invalid sidecars remain separate inputs.
-pub(crate) fn input_identity(path: &Path, name: &str, workbook_sha256: &str) -> (String, Result<String, String>) {
+pub(crate) fn input_identity(
+    path: &Path,
+    name: &str,
+    workbook_sha256: &str,
+) -> (String, Result<String, String>) {
     let source = calc_oracle_excel::capture_source_sha256(path, workbook_sha256);
     let identity = match &source {
         Ok(digest) => digest.clone(),
         Err(reason) => {
             let authority = file_digest(&path.with_extension("entries.json"))
                 .unwrap_or_else(|error| error.to_string());
-            sha256_hex(&serde_json::to_vec(&json!([
-                "dnacalc-invalid-capture-input/1", name, workbook_sha256, authority, reason
-            ])).expect("invalid input identity serializes"))
+            sha256_hex(
+                &serde_json::to_vec(&json!([
+                    "dnacalc-invalid-capture-input/1",
+                    name,
+                    workbook_sha256,
+                    authority,
+                    reason
+                ]))
+                .expect("invalid input identity serializes"),
+            )
         }
     };
     (identity, source)
@@ -169,9 +180,13 @@ pub(crate) fn select(
         let read = file_digest(&entry.path);
         let digest = read.as_ref().ok().cloned();
         entry.batch_sha256 = digest.clone();
-        let source = digest.as_ref().map(|hash| input_identity(&entry.path, &entry.name, hash));
+        let source = digest
+            .as_ref()
+            .map(|hash| input_identity(&entry.path, &entry.name, hash));
         let valid = source.as_ref().is_some_and(|(_, result)| result.is_ok());
-        let identity = source.as_ref().map(|(identity, _)| identity.clone())
+        let identity = source
+            .as_ref()
+            .map(|(identity, _)| identity.clone())
             .unwrap_or_else(|| sha256_hex(entry.name.as_bytes()));
         entry.batch_input_identity = Some(identity.clone());
         let duplicate = valid.then(|| seen.get(&identity).cloned()).flatten();
@@ -285,7 +300,9 @@ pub(crate) fn merge_summaries(paths: &[PathBuf], out: &Path) -> Result<(), Strin
         );
         if let Some(held) = &identity {
             if held != &id {
-                return Err("shard corpus, executable or execution-policy identities differ".into());
+                return Err(
+                    "shard corpus, executable or execution-policy identities differ".into(),
+                );
             }
         } else {
             identity = Some(id);
@@ -388,7 +405,8 @@ pub(crate) fn merge_summaries(paths: &[PathBuf], out: &Path) -> Result<(), Strin
         }
         reports.push(json!(path));
     }
-    let (inventory, executable, saved_provenance, trusted_code) = identity.ok_or("no shard summaries")?;
+    let (inventory, executable, saved_provenance, trusted_code) =
+        identity.ok_or("no shard summaries")?;
     let count = shard_count.ok_or("no shard count")?;
     let missing: Vec<_> = (0..count).filter(|n| !shard_ids.contains(n)).collect();
     let cells = totals["counts"]["formula_cells"].as_u64().unwrap_or(0);
@@ -479,7 +497,11 @@ const OUTPUTS: &[&str] = &[
     "source-caches.json",
     "summary.json",
 ];
-const SAVED_OUTPUTS: &[&str] = &["saved-excel.json", "saved-excel.record.json", "saved-excel.report.json"];
+const SAVED_OUTPUTS: &[&str] = &[
+    "saved-excel.json",
+    "saved-excel.record.json",
+    "saved-excel.report.json",
+];
 
 pub(crate) fn completed(out: &Path, key: &Value) -> Option<Value> {
     let marker: Value = serde_json::from_slice(&fs::read(out.join("complete.json")).ok()?).ok()?;
@@ -493,7 +515,13 @@ pub(crate) fn completed(out: &Path, key: &Value) -> Option<Value> {
     if key["capture"].is_null() && !payloads.contains_key("inventory.record.json") {
         return None;
     }
-    if !key["saved_excel"].is_null() && !SAVED_OUTPUTS.iter().all(|name|payloads.contains_key(*name)) { return None; }
+    if !key["saved_excel"].is_null()
+        && !SAVED_OUTPUTS
+            .iter()
+            .all(|name| payloads.contains_key(*name))
+    {
+        return None;
+    }
     for (name, hash) in payloads {
         // Completion files contain only relative file paths below this result directory.
         let path = Path::new(name);
@@ -550,7 +578,13 @@ pub(crate) fn finish(out: &Path, key: &Value) -> Result<(), String> {
     }
     if !key["saved_excel"].is_null() {
         for name in SAVED_OUTPUTS {
-            hashes.insert((*name).into(),json!(file_digest(&out.join(name)).map_err(|e|format!("missing supplemental {name}: {e}"))?));
+            hashes.insert(
+                (*name).into(),
+                json!(
+                    file_digest(&out.join(name))
+                        .map_err(|e| format!("missing supplemental {name}: {e}"))?
+                ),
+            );
         }
     }
     if key["minimize"] == true {
@@ -623,10 +657,14 @@ pub(crate) fn publish(attempt: &Path, out: &Path) -> Result<(), String> {
             return Err(format!("new comparison did not write {name}"));
         }
     }
-    let triage:Value = serde_json::from_slice(&fs::read(attempt.join("triage.json")).map_err(|e|e.to_string())?).map_err(|e|e.to_string())?;
+    let triage: Value =
+        serde_json::from_slice(&fs::read(attempt.join("triage.json")).map_err(|e| e.to_string())?)
+            .map_err(|e| e.to_string())?;
     if triage["saved_excel_counts"].is_object() {
         for name in SAVED_OUTPUTS {
-            if !attempt.join(name).is_file() { return Err(format!("new comparison did not write {name}")); }
+            if !attempt.join(name).is_file() {
+                return Err(format!("new comparison did not write {name}"));
+            }
         }
     }
     fn copy(source: &Path, destination: &Path) -> Result<(), String> {
@@ -736,12 +774,27 @@ mod tests {
         let out = scratch("fresh-saved-output");
         let attempt = out.join("attempt");
         fs::create_dir_all(&attempt).unwrap();
-        for name in OUTPUTS { fs::write(attempt.join(name),b"new output").unwrap(); }
-        fs::write(attempt.join("triage.json"),br#"{"cells":[],"saved_excel_counts":{}}"#).unwrap();
-        for name in SAVED_OUTPUTS { fs::write(out.join(name),b"old saved output").unwrap(); }
-        fs::write(attempt.join("saved-excel.json"),b"new counts").unwrap();
-        assert!(publish(&attempt,&out).unwrap_err().contains("saved-excel.record.json"));
-        assert_eq!(fs::read(out.join("saved-excel.report.json")).unwrap(),b"old saved output");
+        for name in OUTPUTS {
+            fs::write(attempt.join(name), b"new output").unwrap();
+        }
+        fs::write(
+            attempt.join("triage.json"),
+            br#"{"cells":[],"saved_excel_counts":{}}"#,
+        )
+        .unwrap();
+        for name in SAVED_OUTPUTS {
+            fs::write(out.join(name), b"old saved output").unwrap();
+        }
+        fs::write(attempt.join("saved-excel.json"), b"new counts").unwrap();
+        assert!(
+            publish(&attempt, &out)
+                .unwrap_err()
+                .contains("saved-excel.record.json")
+        );
+        assert_eq!(
+            fs::read(out.join("saved-excel.report.json")).unwrap(),
+            b"old saved output"
+        );
     }
     #[test]
     fn merged_shards_keep_failures_and_reject_overlap_or_changed_code() {
@@ -778,10 +831,14 @@ mod tests {
         assert_eq!(read()["run"]["shards_complete"], true);
         assert_eq!(read()["totals"]["counts"]["fail"], 2);
         assert_eq!(read()["root_causes"]["other"][0]["cells"], 2);
-        let mut enabled = fixture(1,"bbb","code-a");
+        let mut enabled = fixture(1, "bbb", "code-a");
         enabled["run"]["trusted_code_sha256"] = json!("different-policy");
-        fs::write(&b,serde_json::to_vec(&enabled).unwrap()).unwrap();
-        assert!(merge_summaries(&[a.clone(),b.clone()],&out).unwrap_err().contains("execution-policy identities differ"));
+        fs::write(&b, serde_json::to_vec(&enabled).unwrap()).unwrap();
+        assert!(
+            merge_summaries(&[a.clone(), b.clone()], &out)
+                .unwrap_err()
+                .contains("execution-policy identities differ")
+        );
 
         fs::write(
             &b,
@@ -804,7 +861,11 @@ mod tests {
         assert_eq!(read()["totals"]["counts"]["formula_cells"], 2);
         right["workbooks"][0]["input_identity"] = json!("authored-left");
         fs::write(&b, serde_json::to_vec(&right).unwrap()).unwrap();
-        assert!(merge_summaries(&[a.clone(), b.clone()], &out).unwrap_err().contains("multiple shard"));
+        assert!(
+            merge_summaries(&[a.clone(), b.clone()], &out)
+                .unwrap_err()
+                .contains("multiple shard")
+        );
         fs::write(
             &b,
             serde_json::to_vec(&fixture(1, "bbb", "code-b")).unwrap(),

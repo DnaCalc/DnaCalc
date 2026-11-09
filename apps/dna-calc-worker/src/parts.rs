@@ -67,7 +67,9 @@ mod tests {
     struct Double;
     impl calc_fml::UserFunction for Double {
         fn call(&self, arguments: &[CalcValue]) -> Result<CalcValue, String> {
-            Ok(CalcValue::number(arguments[0].as_number().unwrap_or(0.0) * 2.0))
+            Ok(CalcValue::number(
+                arguments[0].as_number().unwrap_or(0.0) * 2.0,
+            ))
         }
     }
 
@@ -86,21 +88,31 @@ mod tests {
 
     fn span_of(formula: &str, part: &str) -> (usize, usize) {
         let at = formula.find(part).expect("the part is in the formula");
-        (formula[..at].encode_utf16().count(), part.encode_utf16().count())
+        (
+            formula[..at].encode_utf16().count(),
+            part.encode_utf16().count(),
+        )
     }
 
     fn setup() -> (Server, CellKey) {
         let mut server = Server::new();
         let sheet = server.book().sheets()[0].id;
         let mut functions = calc_host::CallableTable::new();
-        functions.register("Double", std::rc::Rc::new(Double)).unwrap();
+        functions
+            .register("Double", std::rc::Rc::new(Double))
+            .unwrap();
         server.book_mut().set_user_functions(functions);
         enter(&mut server, CellKey::new(sheet, 1, 1).unwrap(), "1.5");
         enter(&mut server, CellKey::new(sheet, 2, 1).unwrap(), "2");
         (server, CellKey::new(sheet, 1, 3).unwrap())
     }
 
-    fn part(server: &mut Server, anchor: CellKey, formula: &str, of: &str) -> Result<(String, String), String> {
+    fn part(
+        server: &mut Server,
+        anchor: CellKey,
+        formula: &str,
+        of: &str,
+    ) -> Result<(String, String), String> {
         let (start, len) = span_of(formula, of);
         let Ok(Reply::Part(answer)) = server
             .handle(
@@ -131,28 +143,50 @@ mod tests {
             part(&mut server, anchor, formula, "SUM(A1:A2)"),
             Ok(("3.5".into(), "number 3.5".into()))
         );
-        assert_eq!(part(&mut server, anchor, formula, "A1:A2").unwrap().0, "{1.5;2}");
-        assert_eq!(part(&mut server, anchor, formula, "SUM(A1:A2)*2").unwrap().0, "7");
+        assert_eq!(
+            part(&mut server, anchor, formula, "A1:A2").unwrap().0,
+            "{1.5;2}"
+        );
+        assert_eq!(
+            part(&mut server, anchor, formula, "SUM(A1:A2)*2")
+                .unwrap()
+                .0,
+            "7"
+        );
         // A part that calls a registered function is a typed refusal that names its owner: the
         // detached evaluation has no effect-free capability for user functions yet (dc-hsa5).
         let refusal = part(&mut server, anchor, formula, "Double(A1)").unwrap_err();
-        assert!(refusal.contains("user function") && refusal.contains("dc-hsa5"), "{refusal}");
+        assert!(
+            refusal.contains("user function") && refusal.contains("dc-hsa5"),
+            "{refusal}"
+        );
         let formula = "=LET(a,2,b,a*10,b+a)";
         assert_eq!(part(&mut server, anchor, formula, "b+a").unwrap().0, "22");
         let formula = "=MAP({1,2},LAMBDA(x,x*3))";
-        assert!(part(&mut server, anchor, formula, "x*3").unwrap_err().contains("LAMBDA parameter"));
-        let (formula, empty) = ("=1+1", Request::EvaluatePart {
-            formula: "=1+1".into(),
-            anchor: Key::of(anchor),
-            start: 1,
-            len: 0,
-        });
+        assert!(
+            part(&mut server, anchor, formula, "x*3")
+                .unwrap_err()
+                .contains("LAMBDA parameter")
+        );
+        let (formula, empty) = (
+            "=1+1",
+            Request::EvaluatePart {
+                formula: "=1+1".into(),
+                anchor: Key::of(anchor),
+                start: 1,
+                len: 0,
+            },
+        );
         let _ = formula;
         let Ok(Reply::Part(answer)) = server.handle(empty, None).reply else {
             panic!("a part answer")
         };
         assert!(answer.unwrap_err().starts_with("Select"));
-        assert_eq!(server.book().host().revision(), revision, "nothing is written");
+        assert_eq!(
+            server.book().host().revision(),
+            revision,
+            "nothing is written"
+        );
     }
 
     #[cfg_attr(not(target_arch = "wasm32"), test)]
@@ -191,7 +225,8 @@ mod tests {
                 ("SUM(A1:A2)*2+Double(A1)", refusal, 0),
             ]
         );
-        let Ok(Reply::UserFunctions(names)) = server.handle(Request::UserFunctions, None).reply else {
+        let Ok(Reply::UserFunctions(names)) = server.handle(Request::UserFunctions, None).reply
+        else {
             panic!("the registered functions")
         };
         assert_eq!(names, ["DOUBLE"], "the table folds the names");

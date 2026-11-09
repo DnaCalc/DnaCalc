@@ -44,7 +44,11 @@ fn split(url: &str) -> Option<(bool, String, u16, String)> {
     };
     let end = rest.find(['/', '?']).unwrap_or(rest.len());
     let (authority, tail) = rest.split_at(end);
-    let path = if tail.starts_with('/') { tail.to_owned() } else { format!("/{tail}") };
+    let path = if tail.starts_with('/') {
+        tail.to_owned()
+    } else {
+        format!("/{tail}")
+    };
     let default = if secure { 443 } else { 80 };
     let (host, port) = if let Some(inner) = authority.strip_prefix('[') {
         let (host, after) = inner.split_once(']')?;
@@ -141,7 +145,13 @@ pub fn get(url: &str) -> Option<Response> {
             let at = body.len();
             body.resize(at + available as usize, 0u8);
             let mut read = 0u32;
-            if WinHttpReadData(request.0, body[at..].as_mut_ptr().cast(), available, &mut read) == 0 {
+            if WinHttpReadData(
+                request.0,
+                body[at..].as_mut_ptr().cast(),
+                available,
+                &mut read,
+            ) == 0
+            {
                 return None;
             }
             body.truncate(at + read as usize);
@@ -166,8 +176,14 @@ mod tests {
     fn urls_split_into_host_port_and_path() {
         let split = |url| split(url).map(|(s, h, p, t)| (s, h, p, t));
         let owned = |s: bool, h: &str, p: u16, t: &str| Some((s, h.to_owned(), p, t.to_owned()));
-        assert_eq!(split("http://a.test/x?y=1"), owned(false, "a.test", 80, "/x?y=1"));
-        assert_eq!(split("https://a.test:8443"), owned(true, "a.test", 8443, "/"));
+        assert_eq!(
+            split("http://a.test/x?y=1"),
+            owned(false, "a.test", 80, "/x?y=1")
+        );
+        assert_eq!(
+            split("https://a.test:8443"),
+            owned(true, "a.test", 8443, "/")
+        );
         assert_eq!(split("http://a.test?q"), owned(false, "a.test", 80, "/?q"));
         assert_eq!(split("http://[::1]:81/p"), owned(false, "::1", 81, "/p"));
         assert_eq!(split("ftp://a.test/"), None);
@@ -204,7 +220,10 @@ mod tests {
         assert_eq!((text.status, text.location.clone()), (200, None));
         assert_eq!(String::from_utf8(text.body).unwrap(), "caf\u{e9} ok");
         let redirect = get(&url("redir")).unwrap();
-        assert_eq!((redirect.status, redirect.location.as_deref()), (302, Some("/text")));
+        assert_eq!(
+            (redirect.status, redirect.location.as_deref()),
+            (302, Some("/text"))
+        );
         assert_eq!(get(&url("gone")).unwrap().status, 404);
         let empty = get(&url("nothing")).unwrap();
         assert_eq!((empty.status, empty.body.len()), (204, 0));

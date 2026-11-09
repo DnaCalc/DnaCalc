@@ -86,8 +86,11 @@ fn columns(xml: &XmlPart, table: &Table, model: &ModelRoot) -> Result<Vec<u8>, S
         .iter()
         .enumerate()
         .map(|(index, name)| {
-            let by_name = (0..records.len()).find(|&r| !taken[r] && record_names[r].as_deref() == Some(name.as_str()));
-            let chosen = by_name.or_else(|| (records.len() == table.columns.len() && !taken[index]).then_some(index));
+            let by_name = (0..records.len())
+                .find(|&r| !taken[r] && record_names[r].as_deref() == Some(name.as_str()));
+            let chosen = by_name.or_else(|| {
+                (records.len() == table.columns.len() && !taken[index]).then_some(index)
+            });
             if let Some(r) = chosen {
                 taken[r] = true;
             }
@@ -149,7 +152,9 @@ fn columns(xml: &XmlPart, table: &Table, model: &ModelRoot) -> Result<Vec<u8>, S
         let bytes = splice.finish();
         let part = part.with_bytes(bytes);
         let mut formula = Vec::new();
-        let old = super::reader::element_sources(&part, |e| e.name.is(MAIN_NAMESPACE, "calculatedColumnFormula"))?;
+        let old = super::reader::element_sources(&part, |e| {
+            e.name.is(MAIN_NAMESPACE, "calculatedColumnFormula")
+        })?;
         if old.is_empty() && table.column_formulas.get(index).is_none_or(Option::is_none) {
             out.extend_from_slice(part.bytes());
             continue;
@@ -157,17 +162,57 @@ fn columns(xml: &XmlPart, table: &Table, model: &ModelRoot) -> Result<Vec<u8>, S
         if let Some(source) = table.column_formulas.get(index).and_then(|s| s.as_ref()) {
             // Retain untouched source attributes; authored columns use the same text
             // escaping as ordinary formula elements.
-            let existing = old.first().map(|bytes| XmlPart::new("column-formula.xml".into(), bytes.clone(), XmlLimits::default()));
-            let raw = existing.as_ref().map(|xml| { let mut r=Reader::new(xml);r.root("calculatedColumnFormula").map(|(_,span)|RawTag::parse(&xml.bytes()[span.0..span.1]).rebuilt(&[],false)) }).transpose()?;
-            formula.extend(raw.unwrap_or_else(|| format!("<calculatedColumnFormula xmlns=\"{MAIN_NAMESPACE}\">").into_bytes()));
+            let existing = old.first().map(|bytes| {
+                XmlPart::new(
+                    "column-formula.xml".into(),
+                    bytes.clone(),
+                    XmlLimits::default(),
+                )
+            });
+            let raw = existing
+                .as_ref()
+                .map(|xml| {
+                    let mut r = Reader::new(xml);
+                    r.root("calculatedColumnFormula").map(|(_, span)| {
+                        RawTag::parse(&xml.bytes()[span.0..span.1]).rebuilt(&[], false)
+                    })
+                })
+                .transpose()?;
+            formula.extend(raw.unwrap_or_else(|| {
+                format!("<calculatedColumnFormula xmlns=\"{MAIN_NAMESPACE}\">").into_bytes()
+            }));
             let name = RawTag::parse(&formula).qualified_name().to_vec();
-            let input = calc_doc_model::FormulaText::new(calc_doc_model::value::ExcelText::from_utf16_code_units(source.encode_utf16().collect())).map_err(|_| SaveRefusal::InvalidPart {part: xml.name().into(),detail:"The calculated-column source is empty".into()})?;
-            let form = super::file_form::file_form_with_links(&input,model.definitions().names(),&model.definitions().external_file_names()).map_err(|error| SaveRefusal::InvalidPart {part:xml.name().into(),detail:format!("The calculated-column formula has no file form: {error:?}")})?;
+            let input = calc_doc_model::FormulaText::new(
+                calc_doc_model::value::ExcelText::from_utf16_code_units(
+                    source.encode_utf16().collect(),
+                ),
+            )
+            .map_err(|_| SaveRefusal::InvalidPart {
+                part: xml.name().into(),
+                detail: "The calculated-column source is empty".into(),
+            })?;
+            let form = super::file_form::file_form_with_links(
+                &input,
+                model.definitions().names(),
+                &model.definitions().external_file_names(),
+            )
+            .map_err(|error| SaveRefusal::InvalidPart {
+                part: xml.name().into(),
+                detail: format!("The calculated-column formula has no file form: {error:?}"),
+            })?;
             super::text::xstring(&form.text, &mut formula);
             // A source prefix can differ from the column's namespace prefix.
-            formula.extend_from_slice(b"</"); formula.extend(name); formula.push(b'>');
+            formula.extend_from_slice(b"</");
+            formula.extend(name);
+            formula.push(b'>');
         }
-        out.extend(parts::root_child(&part,"tableColumn","calculatedColumnFormula",&formula,&["totalsRowFormula","xmlColumnPr","extLst"])?);
+        out.extend(parts::root_child(
+            &part,
+            "tableColumn",
+            "calculatedColumnFormula",
+            &formula,
+            &["totalsRowFormula", "xmlColumnPr", "extLst"],
+        )?);
     }
     let old = super::reader::element_sources(xml, |e| e.name.is(MAIN_NAMESPACE, "tableColumns"))?
         .into_iter()

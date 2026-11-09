@@ -176,6 +176,10 @@ mod tests {
     #[cfg_attr(not(target_arch = "wasm32"), test)]
     #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
     fn the_per_cell_charge_covers_the_inline_cell() {
-        assert!(std::mem::size_of::<Cell>() <= CELL_BYTES, "Cell is now {} bytes", std::mem::size_of::<Cell>());
+        assert!(
+            std::mem::size_of::<Cell>() <= CELL_BYTES,
+            "Cell is now {} bytes",
+            std::mem::size_of::<Cell>()
+        );
     }
 }

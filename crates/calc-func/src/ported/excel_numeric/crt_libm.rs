@@ -95,7 +95,11 @@ fn log_reduce(x: f64) -> Result<(f64, u64, u64, f64), f64> {
             return Err(d(ux | QNAN_BIT));
         }
         if x <= 0.0 {
-            return Err(if x == 0.0 { f64::NEG_INFINITY } else { f64::NAN });
+            return Err(if x == 0.0 {
+                f64::NEG_INFINITY
+            } else {
+                f64::NAN
+            });
         }
         // A subnormal: (significand | 1.0) - 1.0 normalizes it.
         let adjusted = d(mant | ONE) - 1.0;
@@ -211,7 +215,11 @@ pub(crate) fn crt_exp(x: f64) -> f64 {
         if x > max_arg {
             return f64::INFINITY;
         }
-        return if x >= d(0xc0874910d52d3051) { d(1) } else { 0.0 };
+        return if x >= d(0xc0874910d52d3051) {
+            d(1)
+        } else {
+            0.0
+        };
     }
     if ax <= 0x3e50_0000_0000_0000 {
         return 1.0 + x;
@@ -239,13 +247,21 @@ pub(crate) fn crt_exp(x: f64) -> f64 {
 
 /// The sine polynomial's coefficients S0..S5 (of r^3, r^5, ...).
 const SIN_C: [u64; 6] = [
-    0xbfc5555555555555, 0x3f81111111110bb3, 0xbf2a01a019e83e5c,
-    0x3ec71de3796cde01, 0xbe5ae600b42fdfa7, 0x3de5e0b2f9a43bb8,
+    0xbfc5555555555555,
+    0x3f81111111110bb3,
+    0xbf2a01a019e83e5c,
+    0x3ec71de3796cde01,
+    0xbe5ae600b42fdfa7,
+    0x3de5e0b2f9a43bb8,
 ];
 /// The cosine polynomial's coefficients C0..C5 (of r^4, r^6, ...).
 const COS_C: [u64; 6] = [
-    0x3fa5555555555555, 0xbf56c16c16c16967, 0x3efa01a019f4ec91,
-    0xbe927e4fa17f667b, 0x3e21eeb690382eec, 0xbda907db47258aa7,
+    0x3fa5555555555555,
+    0xbf56c16c16c16967,
+    0x3efa01a019f4ec91,
+    0xbe927e4fa17f667b,
+    0x3e21eeb690382eec,
+    0xbda907db47258aa7,
 ];
 const PI_BY_4: u64 = 0x3fe921fb54442d18;
 const TWO_POW_M13: u64 = 0x3f20000000000000;
@@ -415,10 +431,22 @@ pub(crate) fn crt_sin(x: f64) -> f64 {
     let ax = ux & !SIGN;
     if ax >= PI_BY_4 {
         if ax >= INF {
-            return if x.is_nan() { d(ux | QNAN_BIT) } else { f64::NAN };
+            return if x.is_nan() {
+                d(ux | QNAN_BIT)
+            } else {
+                f64::NAN
+            };
         }
-        let (r, rr, region) = if ax >= LARGE { reduce_large(d(ax)) } else { reduce_medium(d(ax)) };
-        let v = if region & 1 == 1 { cos_reduced(r, rr) } else { sin_reduced(r, rr) };
+        let (r, rr, region) = if ax >= LARGE {
+            reduce_large(d(ax))
+        } else {
+            reduce_medium(d(ax))
+        };
+        let v = if region & 1 == 1 {
+            cos_reduced(r, rr)
+        } else {
+            sin_reduced(r, rr)
+        };
         let flip = if region & 2 != 0 { SIGN } else { 0 };
         return d(v.to_bits() ^ (flip ^ (ux & SIGN)));
     }
@@ -440,10 +468,22 @@ pub(crate) fn crt_cos(x: f64) -> f64 {
     let ax = ux & !SIGN;
     if ax > PI_BY_4 {
         if ax >= INF {
-            return if x.is_nan() { d(ux | QNAN_BIT) } else { f64::NAN };
+            return if x.is_nan() {
+                d(ux | QNAN_BIT)
+            } else {
+                f64::NAN
+            };
         }
-        let (r, rr, region) = if ax >= LARGE { reduce_large(d(ax)) } else { reduce_medium(d(ax)) };
-        let v = if region & 1 == 1 { sin_reduced(r, rr) } else { cos_reduced(r, rr) };
+        let (r, rr, region) = if ax >= LARGE {
+            reduce_large(d(ax))
+        } else {
+            reduce_medium(d(ax))
+        };
+        let v = if region & 1 == 1 {
+            sin_reduced(r, rr)
+        } else {
+            cos_reduced(r, rr)
+        };
         let flip = if (region + 1) & 2 != 0 { SIGN } else { 0 };
         return d(v.to_bits() ^ flip);
     }
@@ -464,7 +504,11 @@ pub(crate) fn crt_cos(x: f64) -> f64 {
 /// `splitexp(x, 1.0, 32/ln2, ln2/32 lead, ln2/32 trail)`: `e^x = 2^m (z1 + z2)`.
 fn splitexp(x: f64) -> (i32, f64, f64) {
     let r = x * d(0x40471547652b82fe); // 32/ln2
-    let n = if r > 0.0 { (r + 0.5) as i32 } else { (r - 0.5) as i32 };
+    let n = if r > 0.0 {
+        (r + 0.5) as i32
+    } else {
+        (r - 0.5) as i32
+    };
     let j = (n & 0x1f) as usize;
     let nd = n as f64;
     let r1 = (-d(0x3f962e42fe000000)).mul_add(nd, x);
@@ -495,11 +539,23 @@ fn half_scaled(m: i32, z: f64) -> f64 {
 /// without its `dy^3` factor and `cdy` without its `dy2` factor.
 fn sinh_cosh_polys(dy2: f64) -> (f64, f64) {
     let mut s = dy2.mul_add(d(0x3d6b4125921ea08b), d(0x3de611cb2bdcb7be));
-    for c in [0x3e5ae6460fbe61c0u64, 0x3ec71de3a4e13e7d, 0x3f2a01a01a01ee80, 0x3f811111111110fd, 0x3fc5555555555555] {
+    for c in [
+        0x3e5ae6460fbe61c0u64,
+        0x3ec71de3a4e13e7d,
+        0x3f2a01a01a01ee80,
+        0x3f811111111110fd,
+        0x3fc5555555555555,
+    ] {
         s = dy2.mul_add(s, d(c));
     }
     let mut c = dy2.mul_add(d(0x3da9984b7f63fcd7), d(0x3e21ee56385b7b20));
-    for k in [0x3e927e5069f1cb55u64, 0x3efa01a019079011, 0x3f56c16c16c212e5, 0x3fa5555555555502, 0x3fe0000000000000] {
+    for k in [
+        0x3e927e5069f1cb55u64,
+        0x3efa01a019079011,
+        0x3f56c16c16c212e5,
+        0x3fa5555555555502,
+        0x3fe0000000000000,
+    ] {
         c = dy2.mul_add(c, d(k));
     }
     (s, c)
@@ -531,7 +587,12 @@ pub(crate) fn crt_sinh(x: f64) -> f64 {
         let dy3 = dy2 * dy;
         let sdy1 = d(dy.to_bits() & 0xffff_ffff_f800_0000);
         let sdy2 = dy3.mul_add(sp, dy - sdy1);
-        let (st, ct, cl, sl) = (d(SINH_TAIL[ind]), d(COSH_TAIL[ind]), d(COSH_LEAD[ind]), d(SINH_LEAD[ind]));
+        let (st, ct, cl, sl) = (
+            d(SINH_TAIL[ind]),
+            d(COSH_TAIL[ind]),
+            d(COSH_LEAD[ind]),
+            d(SINH_LEAD[ind]),
+        );
         let mut t = sdy2.mul_add(ct, st * cdy);
         t = sdy1.mul_add(ct, t);
         let mut u = t + st;
@@ -551,7 +612,11 @@ pub(crate) fn crt_cosh(x: f64) -> f64 {
         return 1.0;
     }
     if aux >= INF {
-        return if aux == INF { f64::INFINITY } else { d(ux | QNAN_BIT) };
+        return if aux == INF {
+            f64::INFINITY
+        } else {
+            d(ux | QNAN_BIT)
+        };
     }
     let y = d(aux);
     if y >= d(0x408633ce8fb9f87e) {
@@ -567,7 +632,12 @@ pub(crate) fn crt_cosh(x: f64) -> f64 {
     let (sp, cp) = sinh_cosh_polys(dy2);
     let sdy = sp * (dy2 * dy);
     let cdy = cp * dy2;
-    let (ct, cl, st, sl) = (d(COSH_TAIL[ind]), d(COSH_LEAD[ind]), d(SINH_TAIL[ind]), d(SINH_LEAD[ind]));
+    let (ct, cl, st, sl) = (
+        d(COSH_TAIL[ind]),
+        d(COSH_LEAD[ind]),
+        d(SINH_TAIL[ind]),
+        d(SINH_LEAD[ind]),
+    );
     let mut t = cdy.mul_add(ct, st * sdy);
     t = dy.mul_add(st, t);
     let mut u = t + ct;
@@ -706,7 +776,11 @@ pub(crate) fn crt_atan2(y: f64, x: f64) -> f64 {
         let vu2 = vbyu - vu1;
         w = (-u).mul_add(vu2, w);
         let mut p = (-s).mul_add(d(0x3fb70c3192d751c2), d(0x3fbc718839b8c4eb));
-        for c in [0x3fc2492482bd6be1u64, 0x3fc99999999643a3, 0x3fd5555555555538] {
+        for c in [
+            0x3fc2492482bd6be1u64,
+            0x3fc99999999643a3,
+            0x3fd5555555555538,
+        ] {
             p = (-s).mul_add(p, d(c));
         }
         q1 = 0.0;
@@ -758,7 +832,11 @@ pub(crate) fn crt_hypot(x: f64, y: f64) -> f64 {
     } else if ex < 0x20b || ey < 0x20b {
         // Times 2^600; a subnormal through (bits + 601*2^52) - 2^-422.
         let up = |bits: u64, e: u64| {
-            if e == 0 { d(bits + 0x2590_0000_0000_0000) + d(0xa590_0000_0000_0000) } else { d(bits + 0x2580_0000_0000_0000) }
+            if e == 0 {
+                d(bits + 0x2590_0000_0000_0000) + d(0xa590_0000_0000_0000)
+            } else {
+                d(bits + 0x2580_0000_0000_0000)
+            }
         };
         a = up(ax, ex);
         b = up(ay, ey);
@@ -1418,7 +1496,11 @@ mod tests {
                 let (a, b) = (port(x), runtime(x));
                 if a.to_bits() != b.to_bits() && !(a.is_nan() && b.is_nan()) {
                     if differ < 3 {
-                        eprintln!("{name} {region}: x={x:e} port {:016x} runtime {:016x}", a.to_bits(), b.to_bits());
+                        eprintln!(
+                            "{name} {region}: x={x:e} port {:016x} runtime {:016x}",
+                            a.to_bits(),
+                            b.to_bits()
+                        );
                     }
                     differ += 1;
                 }
@@ -1441,17 +1523,39 @@ mod tests {
             ("near one", &|r| r.uniform(0.9375, 1.0625)),
             ("table edges", &|r| r.uniform(0.5, 2.0)),
             ("subnormal", &|r| d(r.next() & MANT)),
-            ("specials", &|r| [0.0, -0.0, -1.0, f64::INFINITY, f64::NEG_INFINITY, f64::NAN, 1.0][(r.next() % 7) as usize]),
+            ("specials", &|r| {
+                [
+                    0.0,
+                    -0.0,
+                    -1.0,
+                    f64::INFINITY,
+                    f64::NEG_INFINITY,
+                    f64::NAN,
+                    1.0,
+                ][(r.next() % 7) as usize]
+            }),
         ];
         let mut total = against_the_runtime("log", crt_log, f64::ln, &log_regions);
         total += against_the_runtime("log10", crt_log10, f64::log10, &log_regions);
         let exp_regions: [(&str, &dyn Fn(&mut Rng) -> f64); 6] = [
             ("[-745, 710]", &|r| r.uniform(-745.2, 709.8)),
             ("[-2, 2]", &|r| r.uniform(-2.0, 2.0)),
-            ("small", &|r| r.positive(-60, 40) * if r.next() & 1 == 0 { 1.0 } else { -1.0 }),
+            ("small", &|r| {
+                r.positive(-60, 40) * if r.next() & 1 == 0 { 1.0 } else { -1.0 }
+            }),
             ("subnormal results", &|r| r.uniform(-745.2, -707.0)),
             ("near overflow", &|r| r.uniform(700.0, 710.0)),
-            ("specials", &|r| [f64::INFINITY, f64::NEG_INFINITY, f64::NAN, 0.0, -0.0, 1000.0, -1000.0][(r.next() % 7) as usize]),
+            ("specials", &|r| {
+                [
+                    f64::INFINITY,
+                    f64::NEG_INFINITY,
+                    f64::NAN,
+                    0.0,
+                    -0.0,
+                    1000.0,
+                    -1000.0,
+                ][(r.next() % 7) as usize]
+            }),
         ];
         total += against_the_runtime("exp", crt_exp, f64::exp, &exp_regions);
         assert_eq!(total, 0);
@@ -1466,13 +1570,27 @@ mod tests {
     fn sin_and_cos_equal_the_windows_runtime() {
         let sign = |r: &mut Rng| if r.next() & 1 == 0 { 1.0 } else { -1.0 };
         let regions: [(&str, &dyn Fn(&mut Rng) -> f64); 7] = [
-            ("[-pi/4, pi/4]", &|r| r.uniform(-0.7853981633974483, 0.7853981633974483)),
+            ("[-pi/4, pi/4]", &|r| {
+                r.uniform(-0.7853981633974483, 0.7853981633974483)
+            }),
             ("[-100, 100]", &|r| r.uniform(-100.0, 100.0)),
             ("to 2e7", &|r| r.positive(-1, 26) * sign(r)),
-            ("multiples of pi/2", &|r| ((r.next() % 2_000_000) as f64) * 1.5707963267948966 * sign(r)),
+            ("multiples of pi/2", &|r| {
+                ((r.next() % 2_000_000) as f64) * 1.5707963267948966 * sign(r)
+            }),
             ("2e7 and beyond", &|r| r.positive(24, 1000) * sign(r)),
             ("small", &|r| r.positive(-40, 30) * sign(r)),
-            ("specials", &|r| [f64::INFINITY, f64::NEG_INFINITY, f64::NAN, 0.0, -0.0, 0.7853981633974483, 2e7][(r.next() % 7) as usize]),
+            ("specials", &|r| {
+                [
+                    f64::INFINITY,
+                    f64::NEG_INFINITY,
+                    f64::NAN,
+                    0.0,
+                    -0.0,
+                    0.7853981633974483,
+                    2e7,
+                ][(r.next() % 7) as usize]
+            }),
         ];
         let mut total = against_the_runtime("sin", crt_sin, f64::sin, &regions);
         total += against_the_runtime("cos", crt_cos, f64::cos, &regions);
@@ -1492,7 +1610,17 @@ mod tests {
             ("[-1, 1]", &|r| r.uniform(-1.0, 1.0)),
             ("to overflow", &|r| r.uniform(19.0, 711.0) * sign(r)),
             ("small", &|r| r.positive(-40, 34) * sign(r)),
-            ("specials", &|r| [f64::INFINITY, f64::NEG_INFINITY, f64::NAN, 0.0, -0.0, 20.0, 710.4758600739439][(r.next() % 7) as usize]),
+            ("specials", &|r| {
+                [
+                    f64::INFINITY,
+                    f64::NEG_INFINITY,
+                    f64::NAN,
+                    0.0,
+                    -0.0,
+                    20.0,
+                    710.4758600739439,
+                ][(r.next() % 7) as usize]
+            }),
         ];
         let mut total = against_the_runtime("sinh", crt_sinh, f64::sinh, &regions);
         total += against_the_runtime("cosh", crt_cosh, f64::cosh, &regions);
@@ -1507,26 +1635,67 @@ mod tests {
     /// Native-only: the reference is the MSVC runtime's libm, which only Windows has.
     #[test]
     fn atan2_and_hypot_equal_the_windows_runtime() {
-        let n: usize = std::env::var("SOFT87_N").ok().and_then(|v| v.parse().ok()).unwrap_or(1_000_000);
-        let specials = [0.0, -0.0, f64::INFINITY, f64::NEG_INFINITY, f64::NAN, 1.0, -1.0, d(1), d(MANT), f64::MAX];
+        let n: usize = std::env::var("SOFT87_N")
+            .ok()
+            .and_then(|v| v.parse().ok())
+            .unwrap_or(1_000_000);
+        let specials = [
+            0.0,
+            -0.0,
+            f64::INFINITY,
+            f64::NEG_INFINITY,
+            f64::NAN,
+            1.0,
+            -1.0,
+            d(1),
+            d(MANT),
+            f64::MAX,
+        ];
         let regions: [(&str, &dyn Fn(&mut Rng) -> (f64, f64)); 6] = [
             ("mixed", &|r| {
                 let (a, b) = (r.positive(-30, 60), r.positive(-30, 60));
-                (if r.next() & 1 == 0 { a } else { -a }, if r.next() & 1 == 0 { b } else { -b })
+                (
+                    if r.next() & 1 == 0 { a } else { -a },
+                    if r.next() & 1 == 0 { b } else { -b },
+                )
             }),
             ("near thresholds", &|r| {
                 let x = r.positive(-5, 10) * if r.next() & 1 == 0 { 1.0 } else { -1.0 };
                 let k = [0.0625, 1e-8, 1.0, 0.5][(r.next() % 4) as usize] * r.uniform(0.9, 1.1);
                 (x * k, x)
             }),
-            ("exponent gaps", &|r| (r.positive(-1022, 2046) * if r.next() & 1 == 0 { 1.0 } else { -1.0 }, r.positive(-1022, 2046) * if r.next() & 1 == 0 { 1.0 } else { -1.0 })),
-            ("subnormal", &|r| (d(r.next() & MANT) * if r.next() & 1 == 0 { 1.0 } else { -1.0 }, r.positive(-1022, 30) * if r.next() & 1 == 0 { 1.0 } else { -1.0 })),
-            ("both small", &|r| (r.positive(-1074, 60), r.positive(-1074, 60) * if r.next() & 1 == 0 { 1.0 } else { -1.0 })),
-            ("specials", &|r| (specials[(r.next() % 10) as usize], specials[(r.next() % 10) as usize])),
+            ("exponent gaps", &|r| {
+                (
+                    r.positive(-1022, 2046) * if r.next() & 1 == 0 { 1.0 } else { -1.0 },
+                    r.positive(-1022, 2046) * if r.next() & 1 == 0 { 1.0 } else { -1.0 },
+                )
+            }),
+            ("subnormal", &|r| {
+                (
+                    d(r.next() & MANT) * if r.next() & 1 == 0 { 1.0 } else { -1.0 },
+                    r.positive(-1022, 30) * if r.next() & 1 == 0 { 1.0 } else { -1.0 },
+                )
+            }),
+            ("both small", &|r| {
+                (
+                    r.positive(-1074, 60),
+                    r.positive(-1074, 60) * if r.next() & 1 == 0 { 1.0 } else { -1.0 },
+                )
+            }),
+            ("specials", &|r| {
+                (
+                    specials[(r.next() % 10) as usize],
+                    specials[(r.next() % 10) as usize],
+                )
+            }),
         ];
         let mut total = 0;
         for (name, port, runtime) in [
-            ("atan2", crt_atan2 as fn(f64, f64) -> f64, f64::atan2 as fn(f64, f64) -> f64),
+            (
+                "atan2",
+                crt_atan2 as fn(f64, f64) -> f64,
+                f64::atan2 as fn(f64, f64) -> f64,
+            ),
             ("hypot", crt_hypot, f64::hypot),
         ] {
             for (seed, (region, draw)) in regions.iter().enumerate() {
@@ -1538,7 +1707,11 @@ mod tests {
                     let (p, q) = (port(a, b), runtime(a, b));
                     if p.to_bits() != q.to_bits() && !(p.is_nan() && q.is_nan()) {
                         if differ < 3 {
-                            eprintln!("{name} {region}: ({a:e}, {b:e}) port {:016x} runtime {:016x}", p.to_bits(), q.to_bits());
+                            eprintln!(
+                                "{name} {region}: ({a:e}, {b:e}) port {:016x} runtime {:016x}",
+                                p.to_bits(),
+                                q.to_bits()
+                            );
                         }
                         differ += 1;
                     }

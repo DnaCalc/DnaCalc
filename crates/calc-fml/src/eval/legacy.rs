@@ -91,8 +91,14 @@ pub(super) enum Place {
 fn intersects_reference(place: Place, spelling: &str, index: usize) -> bool {
     let target = calc_func::catalogue().resolve_surface(calc_func::Notation::Call, spelling);
     match target.ok().and_then(|target| target.legacy_place(index)) {
-        Some(calc_func::LegacyPlace::IntersectReferenceAlways | calc_func::LegacyPlace::AggregateAlwaysIntersectReference) => true,
-        Some(calc_func::LegacyPlace::IntersectReference | calc_func::LegacyPlace::AggregateIntersectReference) => place != Place::Array,
+        Some(
+            calc_func::LegacyPlace::IntersectReferenceAlways
+            | calc_func::LegacyPlace::AggregateAlwaysIntersectReference,
+        ) => true,
+        Some(
+            calc_func::LegacyPlace::IntersectReference
+            | calc_func::LegacyPlace::AggregateIntersectReference,
+        ) => place != Place::Array,
         _ => false,
     }
 }
@@ -143,33 +149,69 @@ impl Place {
             .ok()
             .and_then(|target| target.legacy_place(index));
         match class {
-            Some(ParameterClass::Value)
-                if legacy
-                    == Some(calc_func::LegacyPlace::SingleValue) => Place::Value,
+            Some(ParameterClass::Value) if legacy == Some(calc_func::LegacyPlace::SingleValue) => {
+                Place::Value
+            }
             Some(ParameterClass::Value) => self,
             Some(ParameterClass::ValueOrReference | ParameterClass::Reference) | None => {
                 // N's range arithmetic intersects at an aggregate place (dc_10y
                 // Lg!D124). An enclosing array place still lifts it, including
                 // generated arrays of references below SUMPRODUCT.
-                if matches!(legacy,
-                    Some(calc_func::LegacyPlace::ArrayAlways | calc_func::LegacyPlace::ArrayAlwaysRepeated | calc_func::LegacyPlace::ArrayAlwaysLiftReferences | calc_func::LegacyPlace::ArrayAlwaysLiftReferencesRepeated))
-                    || (self == Place::Array && matches!(legacy, Some(calc_func::LegacyPlace::AggregateRootArrayNested | calc_func::LegacyPlace::AggregateRootArrayNestedLiftReferences)))
+                if matches!(
+                    legacy,
+                    Some(
+                        calc_func::LegacyPlace::ArrayAlways
+                            | calc_func::LegacyPlace::ArrayAlwaysRepeated
+                            | calc_func::LegacyPlace::ArrayAlwaysLiftReferences
+                            | calc_func::LegacyPlace::ArrayAlwaysLiftReferencesRepeated
+                    )
+                ) || (self == Place::Array
+                    && matches!(
+                        legacy,
+                        Some(
+                            calc_func::LegacyPlace::AggregateRootArrayNested
+                                | calc_func::LegacyPlace::AggregateRootArrayNestedLiftReferences
+                        )
+                    ))
                 {
                     Place::Array
-                } else if legacy == Some(calc_func::LegacyPlace::AggregateAlwaysIntersectReference) {
-                    Place::Aggregate
-                } else if matches!(legacy, Some(calc_func::LegacyPlace::ArrayAtRoot | calc_func::LegacyPlace::ArrayAtRootRepeated))
+                } else if legacy == Some(calc_func::LegacyPlace::AggregateAlwaysIntersectReference)
                 {
+                    Place::Aggregate
+                } else if matches!(
+                    legacy,
+                    Some(
+                        calc_func::LegacyPlace::ArrayAtRoot
+                            | calc_func::LegacyPlace::ArrayAtRootRepeated
+                    )
+                ) {
                     match self {
                         Place::Value | Place::Aggregate => Place::Array,
                         _ => Place::Unknown,
                     }
-                } else if matches!(legacy, Some(calc_func::LegacyPlace::AggregateAtRoot | calc_func::LegacyPlace::AggregateAtRootRepeated | calc_func::LegacyPlace::AggregateUnderArray | calc_func::LegacyPlace::AggregateUnderArrayRepeated | calc_func::LegacyPlace::AggregateAtRootTwice | calc_func::LegacyPlace::AggregateRootArrayNested | calc_func::LegacyPlace::AggregateRootArrayNestedLiftReferences | calc_func::LegacyPlace::AggregateIntersectReference))
-                {
+                } else if matches!(
+                    legacy,
+                    Some(
+                        calc_func::LegacyPlace::AggregateAtRoot
+                            | calc_func::LegacyPlace::AggregateAtRootRepeated
+                            | calc_func::LegacyPlace::AggregateUnderArray
+                            | calc_func::LegacyPlace::AggregateUnderArrayRepeated
+                            | calc_func::LegacyPlace::AggregateAtRootTwice
+                            | calc_func::LegacyPlace::AggregateRootArrayNested
+                            | calc_func::LegacyPlace::AggregateRootArrayNestedLiftReferences
+                            | calc_func::LegacyPlace::AggregateIntersectReference
+                    )
+                ) {
                     match self {
                         Place::Value | Place::Aggregate => Place::Aggregate,
                         Place::Array
-                            if matches!(legacy, Some(calc_func::LegacyPlace::AggregateUnderArray | calc_func::LegacyPlace::AggregateUnderArrayRepeated)) =>
+                            if matches!(
+                                legacy,
+                                Some(
+                                    calc_func::LegacyPlace::AggregateUnderArray
+                                        | calc_func::LegacyPlace::AggregateUnderArrayRepeated
+                                )
+                            ) =>
                         {
                             Place::ArrayAggregate
                         }
@@ -216,7 +258,10 @@ mod tests {
         );
         // L3: XLOOKUP's lookup array lifts; MEDIAN's numbers are intersected.
         assert_eq!(Place::Value.argument("XLOOKUP", 1, r, false), Place::Array);
-        assert_eq!(Place::Value.argument("MEDIAN", 0, r, false), Place::Aggregate);
+        assert_eq!(
+            Place::Value.argument("MEDIAN", 0, r, false),
+            Place::Aggregate
+        );
         assert_eq!(Place::Unknown.admission(), Admission::Refuse);
         // A function below an array place that is not measured there; dc-b1l: SUM there lifts an
         // operator and takes a function's arguments as at the root.

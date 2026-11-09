@@ -62,24 +62,36 @@ fn iteration_prefix_and_measured_han_repeat_order() {
     // Fn1 D2 now measures the Han repeat order separately from the earlier prefix reading.
     // Fn3 records the exact bare-prefix comparison too. Fn7 later measures the
     // punctuation primary that decides different prefixes with completed primaries.
-    let order = |a: &str, b: &str| calc_func::text_order(
-        &a.encode_utf16().collect::<Vec<_>>(), &b.encode_utf16().collect::<Vec<_>>()
-    );
+    let order = |a: &str, b: &str| {
+        calc_func::text_order(
+            &a.encode_utf16().collect::<Vec<_>>(),
+            &b.encode_utf16().collect::<Vec<_>>(),
+        )
+    };
     assert_eq!(order("時々", "時時"), Some(std::cmp::Ordering::Less));
-    let fn3 = CaptureRecord::decode(include_bytes!(
-        "captures/fn3_questions/oracle.capture.json"
-    )).expect("the retained fn3 Excel capture");
-    let relation = fn3.formulas.iter().find(|f|
-        f.formula.as_deref() == Some("=\"カ-\"<\"カ-ゝ\"")
-    ).expect("the same prefix has a measured reverse relation");
-    let observed = fn3.observations.iter().find(|o| o.cell == relation.cell).unwrap();
-    let Observation::ExcelRaw(value) = &observed.observation else { panic!("a raw reading"); };
+    let fn3 = CaptureRecord::decode(include_bytes!("captures/fn3_questions/oracle.capture.json"))
+        .expect("the retained fn3 Excel capture");
+    let relation = fn3
+        .formulas
+        .iter()
+        .find(|f| f.formula.as_deref() == Some("=\"カ-\"<\"カ-ゝ\""))
+        .expect("the same prefix has a measured reverse relation");
+    let observed = fn3
+        .observations
+        .iter()
+        .find(|o| o.cell == relation.cell)
+        .unwrap();
+    let Observation::ExcelRaw(value) = &observed.observation else {
+        panic!("a raw reading");
+    };
     assert_eq!(value.as_logical(), Some(true));
     assert_eq!(order("カ-ゝ", "カ-"), Some(std::cmp::Ordering::Greater));
-    assert_eq!(order("カ-ゝ", "カゝ"), Some(std::cmp::Ordering::Less),
-        "fn7 measures the punctuation primary before the repeated kana");
+    assert_eq!(
+        order("カ-ゝ", "カゝ"),
+        Some(std::cmp::Ordering::Less),
+        "fn7 measures the punctuation primary before the repeated kana"
+    );
 }
-
 
 #[cfg_attr(not(target_arch = "wasm32"), test)]
 #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
@@ -164,23 +176,44 @@ fn find_search_replace_substitute() {
     error(call("SEARCH", vec![t("q"), t("abc")]), Value);
     exact(call("FINDB", vec![t("c"), t("abc")]), 3.0);
     exact(call("SEARCHB", vec![t("C"), t("abc")]), 3.0);
-    text(call("REPLACE", vec![t("abcdef"), n(2.0), n(3.0), t("X")]), "aXef");
-    text(call("REPLACEB", vec![t("abc"), n(2.0), n(1.0), t("x")]), "axc");
-    text(call("SUBSTITUTE", vec![t("a-b-c"), t("-"), t("+")]), "a+b+c");
-    text(call("SUBSTITUTE", vec![t("a-b-c"), t("-"), t("+"), n(2.0)]), "a-b+c");
-    error(call("SUBSTITUTE", vec![t("a-b-c"), t("-"), t("+"), n(0.0)]), Value);
+    text(
+        call("REPLACE", vec![t("abcdef"), n(2.0), n(3.0), t("X")]),
+        "aXef",
+    );
+    text(
+        call("REPLACEB", vec![t("abc"), n(2.0), n(1.0), t("x")]),
+        "axc",
+    );
+    text(
+        call("SUBSTITUTE", vec![t("a-b-c"), t("-"), t("+")]),
+        "a+b+c",
+    );
+    text(
+        call("SUBSTITUTE", vec![t("a-b-c"), t("-"), t("+"), n(2.0)]),
+        "a-b+c",
+    );
+    error(
+        call("SUBSTITUTE", vec![t("a-b-c"), t("-"), t("+"), n(0.0)]),
+        Value,
+    );
 }
 
 #[cfg_attr(not(target_arch = "wasm32"), test)]
 #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
 fn joins_and_t() {
-    text(call("CONCATENATE", vec![t("a"), n(1.0), b(false)]), "a1FALSE");
+    text(
+        call("CONCATENATE", vec![t("a"), n(1.0), b(false)]),
+        "a1FALSE",
+    );
     error(call("CONCATENATE", vec![t("a"), e(NA)]), NA);
     let mut sheet = Sheet::new();
     sheet.column(1, 1, vec![t("x"), t("y")]);
     sheet.column(4, 1, vec![t("z")]);
     let range = sheet.area(1, 1, 4, 1);
-    text(call_on(&mut sheet, "CONCAT", vec![range.clone(), t("!")]), "xyz!");
+    text(
+        call_on(&mut sheet, "CONCAT", vec![range.clone(), t("!")]),
+        "xyz!",
+    );
     text(
         call_on(&mut sheet, "TEXTJOIN", vec![t("-"), b(true), range.clone()]),
         "x-y-z",
@@ -203,21 +236,42 @@ fn ifs_and_switch() {
     error(call("IFS", vec![b(false), n(1.0)]), NA);
     error(call("IFS", vec![t("x"), n(1.0)]), Value);
     error(call("IFS", vec![e(Div0), n(1.0)]), Div0);
-    text(call("SWITCH", vec![n(2.0), n(1.0), t("a"), n(2.0), t("b")]), "b");
+    text(
+        call("SWITCH", vec![n(2.0), n(1.0), t("a"), n(2.0), t("b")]),
+        "b",
+    );
     text(call("SWITCH", vec![n(3.0), n(1.0), t("a"), t("z")]), "z");
     error(call("SWITCH", vec![n(3.0), n(1.0), t("a")]), NA);
-    text(call("SWITCH", vec![t("A"), t("a"), t("hit"), t("miss")]), "hit");
+    text(
+        call("SWITCH", vec![t("A"), t("a"), t("hit"), t("miss")]),
+        "hit",
+    );
     error(call("SWITCH", vec![e(Div0), n(1.0), t("a")]), Div0);
     // Excel 16.0.20527: a number whose fifteen-digit reading overflows matches every number,
     // from DBL_MAX less three units up; less four units does not; text does not match.
     let max = f64::MAX;
     let three_below = f64::from_bits(max.to_bits() - 3);
     let four_below = f64::from_bits(max.to_bits() - 4);
-    text(call("SWITCH", vec![n(max), n(1.0), t("hit"), t("miss")]), "hit");
-    text(call("SWITCH", vec![n(-max), n(-1.0), t("hit"), t("miss")]), "hit");
-    text(call("SWITCH", vec![n(1.0), n(three_below), t("hit"), t("miss")]), "hit");
-    text(call("SWITCH", vec![n(four_below), n(1.0), t("hit"), t("miss")]), "miss");
-    text(call("SWITCH", vec![n(max), t("a"), t("hit"), t("miss")]), "miss");
+    text(
+        call("SWITCH", vec![n(max), n(1.0), t("hit"), t("miss")]),
+        "hit",
+    );
+    text(
+        call("SWITCH", vec![n(-max), n(-1.0), t("hit"), t("miss")]),
+        "hit",
+    );
+    text(
+        call("SWITCH", vec![n(1.0), n(three_below), t("hit"), t("miss")]),
+        "hit",
+    );
+    text(
+        call("SWITCH", vec![n(four_below), n(1.0), t("hit"), t("miss")]),
+        "miss",
+    );
+    text(
+        call("SWITCH", vec![n(max), t("a"), t("hit"), t("miss")]),
+        "miss",
+    );
 }
 
 /// Folded in from dc-fwpz and cfunc-m1.2: digit text in a logical position is #VALUE! (Excel:
@@ -236,10 +290,22 @@ fn digit_text_is_no_logical() {
 #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
 fn blocked_and_connect_are_errors() {
     for code in [Blocked, Connect] {
-        assert_eq!(call("ISERROR", vec![e(code)]).unwrap().as_logical(), Some(true));
-        assert_eq!(call("ISERR", vec![e(code)]).unwrap().as_logical(), Some(true));
-        assert_eq!(call("ISNA", vec![e(code)]).unwrap().as_logical(), Some(false));
-        assert_eq!(call("ISBLANK", vec![e(code)]).unwrap().as_logical(), Some(false));
+        assert_eq!(
+            call("ISERROR", vec![e(code)]).unwrap().as_logical(),
+            Some(true)
+        );
+        assert_eq!(
+            call("ISERR", vec![e(code)]).unwrap().as_logical(),
+            Some(true)
+        );
+        assert_eq!(
+            call("ISNA", vec![e(code)]).unwrap().as_logical(),
+            Some(false)
+        );
+        assert_eq!(
+            call("ISBLANK", vec![e(code)]).unwrap().as_logical(),
+            Some(false)
+        );
         exact(call("TYPE", vec![e(code)]), 16.0);
         error(call("N", vec![e(code)]), code);
     }
@@ -273,7 +339,8 @@ fn a_direct_blank_in_the_sum_and_count_family() {
 #[cfg_attr(not(target_arch = "wasm32"), test)]
 #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
 fn fn1_excel_case_mapping_controls() {
-    for (input, expected) in [("ΑΣ", "ας"), ("ΑΣ́", "ασ́"), ("ΑΣ́Α", "ασ́α"), ("ΆΣ", "άς")] {
+    for (input, expected) in [("ΑΣ", "ας"), ("ΑΣ́", "ασ́"), ("ΑΣ́Α", "ασ́α"), ("ΆΣ", "άς")]
+    {
         text(call("LOWER", vec![t(input)]), expected);
     }
     text(call("UPPER", vec![t("𐐨")]), "𐐨");
@@ -288,21 +355,44 @@ fn fn1_excel_case_mapping_controls() {
 #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
 fn fn1_excel_unicode_lookup_wildcards() {
     for (pattern, value, found) in [
-        ("é*", "Élan", true), ("ασ*", "ΑΣ", true), ("ǆ*", "ǅemal", true),
-        ("*SSE", "Straße", false), ("nai*", "naïve", false), ("e*", "é", false),
-        ("?", "😀", false), ("??", "😀", true), ("*", "😀", true),
-        ("*", "", true), ("Σ*", "ς", true), ("i*", "İ", false), ("a~*", "a*", true),
+        ("é*", "Élan", true),
+        ("ασ*", "ΑΣ", true),
+        ("ǆ*", "ǅemal", true),
+        ("*SSE", "Straße", false),
+        ("nai*", "naïve", false),
+        ("e*", "é", false),
+        ("?", "😀", false),
+        ("??", "😀", true),
+        ("*", "😀", true),
+        ("*", "", true),
+        ("Σ*", "ς", true),
+        ("i*", "İ", false),
+        ("a~*", "a*", true),
     ] {
         for (function, mode) in [("MATCH", 0.0), ("XMATCH", 2.0)] {
             let mut sheet = Sheet::new();
             sheet.column(1, 1, vec![t(value)]);
             let source = sheet.area(1, 1, 1, 1);
             let result = call_on(&mut sheet, function, vec![t(pattern), source, n(mode)]);
-            if found { exact(result, 1.0); } else { error(result, NA); }
+            if found {
+                exact(result, 1.0);
+            } else {
+                error(result, NA);
+            }
         }
     }
     for (function, mode) in [("MATCH", 0.0), ("XMATCH", 2.0)] {
-        exact(call(function, vec![t("?"), arr_values(vec![vec![t("😀")], vec![t("a")], vec![t("ab")]]), n(mode)]), 2.0);
+        exact(
+            call(
+                function,
+                vec![
+                    t("?"),
+                    arr_values(vec![vec![t("😀")], vec![t("a")], vec![t("ab")]]),
+                    n(mode),
+                ],
+            ),
+            2.0,
+        );
     }
 }
 
@@ -311,12 +401,19 @@ fn fn1_excel_unicode_lookup_wildcards() {
 #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
 fn fn1_excel_regex_unicode_and_newline_controls() {
     for (input, pattern, mode, expected) in [
-        ("Élan", "é", 1.0, true), ("Straße", "STRASSE", 1.0, false),
-        ("ΑΣ", "ας", 1.0, true), ("😀", ".", 0.0, true),
-        ("a\nb", "a.b", 0.0, false), ("中", "\\w", 0.0, true),
+        ("Élan", "é", 1.0, true),
+        ("Straße", "STRASSE", 1.0, false),
+        ("ΑΣ", "ας", 1.0, true),
+        ("😀", ".", 0.0, true),
+        ("a\nb", "a.b", 0.0, false),
+        ("中", "\\w", 0.0, true),
     ] {
         let result = call("REGEXTEST", vec![t(input), t(pattern), n(mode)]).unwrap();
-        assert_eq!(result.as_logical(), Some(expected), "{input:?} / {pattern:?}");
+        assert_eq!(
+            result.as_logical(),
+            Some(expected),
+            "{input:?} / {pattern:?}"
+        );
     }
 }
 
@@ -346,7 +443,13 @@ fn fn1_excel_empty_text_with_explicit_instance() {
             error(call(function, vec![t(""), t("-"), n(instance)]), Value);
         }
         text(call(function, vec![t(""), t(""), n(1.0)]), "");
-        error(call(function, vec![t(""), t("-"), n(1.0), n(0.0), n(0.0), t("fallback")]), Value);
+        error(
+            call(
+                function,
+                vec![t(""), t("-"), n(1.0), n(0.0), n(0.0), t("fallback")],
+            ),
+            Value,
+        );
     }
 }
 
@@ -356,13 +459,22 @@ fn fn1_excel_empty_text_with_explicit_instance() {
 #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
 fn fn1_excel_text_locale_names() {
     use calc_func::locale::{CalcEnvironment, DateSystem, LocaleId, format_profile};
-    let env = CalcEnvironment { profile: Some(format_profile(LocaleId::EnZa)), ..CalcEnvironment::dates(DateSystem::System1900) };
+    let env = CalcEnvironment {
+        profile: Some(format_profile(LocaleId::EnZa)),
+        ..CalcEnvironment::dates(DateSystem::System1900)
+    };
     for (code, expected) in [
-        ("[$-407]mmmm dddd", "März Mittwoch"), ("[$-40C]mmmm dddd", "mars mercredi"),
-        ("[$-411]mmmm dddd", "3月 水曜日"), ("[$-419]mmmm dddd", "Март среда"),
-        ("[$-407]mmm", "Mrz"), ("[$-de-DE]mmmm", "März"),
+        ("[$-407]mmmm dddd", "März Mittwoch"),
+        ("[$-40C]mmmm dddd", "mars mercredi"),
+        ("[$-411]mmmm dddd", "3月 水曜日"),
+        ("[$-419]mmmm dddd", "Март среда"),
+        ("[$-407]mmm", "Mrz"),
+        ("[$-de-DE]mmmm", "März"),
         ("[$-411]ggge", "令和5"),
     ] {
-        text(call_in(&env, None, None, "TEXT", vec![n(45000.0), t(code)]), expected);
+        text(
+            call_in(&env, None, None, "TEXT", vec![n(45000.0), t(code)]),
+            expected,
+        );
     }
 }

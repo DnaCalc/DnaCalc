@@ -58,10 +58,16 @@ use std::{fmt, rc::Rc};
 pub use calc_catalogue::{IMPORT_PROVIDER, ImportKind};
 /// The functions that use the route, by catalogue spelling.
 pub const IMPORT_FUNCTIONS: [&str; 2] = [
-    calc_catalogue::ported::find(calc_catalogue::ported::importing::ENTRIES,
-        calc_catalogue::FunctionId::new(calc_catalogue::ported::importing::CODE, 1)).spelling,
-    calc_catalogue::ported::find(calc_catalogue::ported::importing::ENTRIES,
-        calc_catalogue::FunctionId::new(calc_catalogue::ported::importing::CODE, 2)).spelling,
+    calc_catalogue::ported::find(
+        calc_catalogue::ported::importing::ENTRIES,
+        calc_catalogue::FunctionId::new(calc_catalogue::ported::importing::CODE, 1),
+    )
+    .spelling,
+    calc_catalogue::ported::find(
+        calc_catalogue::ported::importing::ENTRIES,
+        calc_catalogue::FunctionId::new(calc_catalogue::ported::importing::CODE, 2),
+    )
+    .spelling,
 ];
 
 /// A host's way to read a file: the whole file as bytes, for an absolute path (the `file:///`
@@ -194,7 +200,15 @@ impl Request {
         if text_only && locale.is_some() {
             return Err(value_error());
         }
-        Ok(Self { path, delimiter, skip, take, encoding, text_only, locale })
+        Ok(Self {
+            path,
+            delimiter,
+            skip,
+            take,
+            encoding,
+            text_only,
+            locale,
+        })
     }
 }
 
@@ -218,7 +232,11 @@ fn delimiter(value: &CalcValue) -> Result<Delimiter, Failure> {
         CoreRef::Missing | CoreRef::Empty => Ok(Delimiter::Text(vec!['\t'])),
         CoreRef::Text(text) => {
             let chars: Vec<char> = text.to_string_lossy().chars().collect();
-            Ok(Delimiter::Text(if chars.is_empty() { vec!['\t'] } else { chars }))
+            Ok(Delimiter::Text(if chars.is_empty() {
+                vec!['\t']
+            } else {
+                chars
+            }))
         }
         CoreRef::Number(number) => widths(vec![number]),
         CoreRef::Logical(logical) => widths(vec![f64::from(u8::from(logical))]),
@@ -255,9 +273,9 @@ fn encoding(value: &CalcValue) -> Result<Encoding, Failure> {
             // Windows takes every installed code page (850, 1250 to 1258, 932, 936, 20105, 65000
             // and 12000 were read); 1, 99999 and the negatives are #VALUE!. Only the pages above
             // are decoded here, so the others are not answered with a guess.
-            n if n.fract() == 0.0 && n > 1.0 && n < 99999.0 => {
-                Err(Stop::Refused("an import code page this build does not decode"))
-            }
+            n if n.fract() == 0.0 && n > 1.0 && n < 99999.0 => Err(Stop::Refused(
+                "an import code page this build does not decode",
+            )),
             _ => Err(value_error()),
         },
         _ => Err(value_error()),
@@ -296,9 +314,15 @@ const CP437_HIGH: [char; 128] = [
 fn utf16_text(bytes: &[u8], little: bool) -> String {
     let units = bytes.chunks(2).map(|pair| {
         let (a, b) = (pair[0], pair.get(1).copied().unwrap_or(0));
-        if little { u16::from_le_bytes([a, b]) } else { u16::from_be_bytes([a, b]) }
+        if little {
+            u16::from_le_bytes([a, b])
+        } else {
+            u16::from_be_bytes([a, b])
+        }
     });
-    char::decode_utf16(units).map(|c| c.unwrap_or('\u{FFFD}')).collect()
+    char::decode_utf16(units)
+        .map(|c| c.unwrap_or('\u{FFFD}'))
+        .collect()
 }
 
 /// The file's text: a byte order mark decides first, whatever encoding was named.
@@ -317,7 +341,10 @@ fn decode(bytes: &[u8], encoding: Encoding) -> String {
         Encoding::Utf16Le => utf16_text(bytes, true),
         Encoding::Utf16Be => utf16_text(bytes, false),
         Encoding::Latin1 => bytes.iter().map(|&b| char::from(b)).collect(),
-        Encoding::Ascii => bytes.iter().map(|&b| if b < 0x80 { char::from(b) } else { '?' }).collect(),
+        Encoding::Ascii => bytes
+            .iter()
+            .map(|&b| if b < 0x80 { char::from(b) } else { '?' })
+            .collect(),
         Encoding::Windows1252 => bytes
             .iter()
             .map(|&b| match b {
@@ -327,7 +354,13 @@ fn decode(bytes: &[u8], encoding: Encoding) -> String {
             .collect(),
         Encoding::Cp437 => bytes
             .iter()
-            .map(|&b| if b < 0x80 { char::from(b) } else { CP437_HIGH[usize::from(b - 0x80)] })
+            .map(|&b| {
+                if b < 0x80 {
+                    char::from(b)
+                } else {
+                    CP437_HIGH[usize::from(b - 0x80)]
+                }
+            })
             .collect(),
     }
 }
@@ -429,7 +462,9 @@ fn fixed_rows(text: &str, widths: &[usize]) -> Vec<Vec<String>> {
 /// Skip, then take, by the module notes: a negative count works from the end.
 fn window(mut rows: Vec<Vec<String>>, skip: Option<i64>, take: Option<i64>) -> Vec<Vec<String>> {
     if let Some(skip) = skip {
-        let count = usize::try_from(skip.unsigned_abs()).unwrap_or(usize::MAX).min(rows.len());
+        let count = usize::try_from(skip.unsigned_abs())
+            .unwrap_or(usize::MAX)
+            .min(rows.len());
         if skip >= 0 {
             rows.drain(..count);
         } else {
@@ -437,7 +472,9 @@ fn window(mut rows: Vec<Vec<String>>, skip: Option<i64>, take: Option<i64>) -> V
         }
     }
     if let Some(take) = take {
-        let count = usize::try_from(take.unsigned_abs()).unwrap_or(usize::MAX).min(rows.len());
+        let count = usize::try_from(take.unsigned_abs())
+            .unwrap_or(usize::MAX)
+            .min(rows.len());
         if take >= 0 {
             rows.truncate(count);
         } else {
@@ -472,7 +509,9 @@ fn profile(locale: Option<&str>) -> Result<FormatProfile, Failure> {
 }
 
 fn text_value(text: &str) -> CalcValue {
-    CalcValue::text(ExcelText::from_utf16_code_units(text.encode_utf16().collect()))
+    CalcValue::text(ExcelText::from_utf16_code_units(
+        text.encode_utf16().collect(),
+    ))
 }
 
 /// Whether `text` is a number written with an exponent too large for binary64.
@@ -483,15 +522,21 @@ fn overflowing(text: &str) -> bool {
     };
     let digits = mantissa.trim_start_matches(['+', '-']);
     let numeric = !digits.is_empty()
-        && digits.chars().all(|c| c.is_ascii_digit() || c == '.' || c == ',')
+        && digits
+            .chars()
+            .all(|c| c.is_ascii_digit() || c == '.' || c == ',')
         && digits.chars().any(|c| c.is_ascii_digit());
     let exponent_digits = exponent.trim_start_matches(['+', '-']);
     numeric
         && !exponent_digits.is_empty()
         && exponent_digits.chars().all(|c| c.is_ascii_digit())
-        && format!("{}{}e{exponent}", if mantissa.starts_with('-') { "-" } else { "" }, digits.replace(',', "."))
-            .parse::<f64>()
-            .is_ok_and(f64::is_infinite)
+        && format!(
+            "{}{}e{exponent}",
+            if mantissa.starts_with('-') { "-" } else { "" },
+            digits.replace(',', ".")
+        )
+        .parse::<f64>()
+        .is_ok_and(f64::is_infinite)
 }
 
 /// A number in the import's own grammar (the same under every locale, with the locale's
@@ -502,7 +547,10 @@ fn overflowing(text: &str) -> bool {
 fn own_number(field: &str, profile: &FormatProfile) -> Option<f64> {
     let mut text = field.trim_matches(' ');
     let mut negative = false;
-    if let Some(inner) = text.strip_prefix('(').and_then(|rest| rest.strip_suffix(')')) {
+    if let Some(inner) = text
+        .strip_prefix('(')
+        .and_then(|rest| rest.strip_suffix(')'))
+    {
         negative = true;
         text = inner;
     } else if let Some(rest) = text.strip_prefix('-') {
@@ -584,7 +632,11 @@ fn own_number(field: &str, profile: &FormatProfile) -> Option<f64> {
         number /= 100.0;
     }
     // Minus zero is zero.
-    Some(if negative && number != 0.0 { -number } else { number })
+    Some(if negative && number != 0.0 {
+        -number
+    } else {
+        number
+    })
 }
 
 /// Whether `text` starts as `yyyy-m-d`, a date written year first.
@@ -594,7 +646,9 @@ fn iso_date(text: &str) -> bool {
         return false;
     };
     let day = rest.split([' ', 'T']).next().unwrap_or_default();
-    let digits = |part: &str, most: usize| (1..=most).contains(&part.len()) && part.bytes().all(|b| b.is_ascii_digit());
+    let digits = |part: &str, most: usize| {
+        (1..=most).contains(&part.len()) && part.bytes().all(|b| b.is_ascii_digit())
+    };
     year.len() == 4 && digits(year, 4) && digits(month, 2) && digits(day, 2)
 }
 
@@ -613,21 +667,35 @@ fn convert(field: &str, environment: &CalcEnvironment) -> Result<CalcValue, Fail
     if overflowing(trimmed) {
         return Ok(CalcValue::error(WorksheetErrorCode::Num));
     }
-    let profile = environment.profile.as_ref().expect("a conversion has a profile");
+    let profile = environment
+        .profile
+        .as_ref()
+        .expect("a conversion has a profile");
     if let Some(number) = own_number(field, profile) {
         return Ok(CalcValue::number(number));
     }
     // Dates and times are read by VALUE's grammar under the locale. What it reads as a number is
     // not the import's: `- 1` is text here and -1 there.
     // A symbol beyond ASCII that is no digit or space is in no date or time.
-    if field.chars().any(|c| !c.is_ascii()) && field.chars().all(|c| c.is_ascii() || !(c.is_numeric() || c.is_whitespace())) {
+    if field.chars().any(|c| !c.is_ascii())
+        && field
+            .chars()
+            .all(|c| c.is_ascii() || !(c.is_numeric() || c.is_whitespace()))
+    {
         return Ok(text_value(field));
     }
     let units: Vec<u16> = field.encode_utf16().collect();
     // A year first and four digits long is read the same under every locale.
-    let year_first = FormatProfile { short_date_order: crate::locale::DateComponentOrder::Ymd, ..*profile };
+    let year_first = FormatProfile {
+        short_date_order: crate::locale::DateComponentOrder::Ymd,
+        ..*profile
+    };
     let context = crate::value_text::ReadContext {
-        profile: if iso_date(trimmed) { &year_first } else { profile },
+        profile: if iso_date(trimmed) {
+            &year_first
+        } else {
+            profile
+        },
         date_system: environment.date_system,
         now: environment.now,
     };
@@ -655,7 +723,11 @@ fn build(request: &Request, bytes: &[u8]) -> Result<CalcValue, Failure> {
     };
     // The first row sets the width; the one column more than it holds a longer row's next field.
     let base = first.len();
-    let width = if rows.iter().any(|row| row.len() > base) { base + 1 } else { base };
+    let width = if rows.iter().any(|row| row.len() > base) {
+        base + 1
+    } else {
+        base
+    };
     let environment = if request.text_only {
         None
     } else {
@@ -679,7 +751,10 @@ fn build(request: &Request, bytes: &[u8]) -> Result<CalcValue, Failure> {
             });
         }
     }
-    let shape = ArrayShape { rows: rows.len(), cols: width };
+    let shape = ArrayShape {
+        rows: rows.len(),
+        cols: width,
+    };
     match CalcArray::new(shape, cells) {
         Some(array) if shape.rows == 1 && shape.cols == 1 => {
             Ok(array.get(0, 0).cloned().expect("one cell"))
@@ -701,11 +776,17 @@ pub struct ImportFunction {
 impl ImportFunction {
     /// The function of [`IMPORT_FUNCTIONS`] spelled `spelling`, on `route`.
     pub fn new(spelling: &str, route: Rc<dyn ImportRoute>) -> Option<Self> {
-        let target = crate::catalogue().resolve_surface(crate::Notation::Call, spelling).ok()?;
+        let target = crate::catalogue()
+            .resolve_surface(crate::Notation::Call, spelling)
+            .ok()?;
         if target.spelling() != spelling {
             return None;
         }
-        let crate::EntryKind::HostRoute { route: crate::HostRouteKind::Import(kind), .. } = target.kind() else {
+        let crate::EntryKind::HostRoute {
+            route: crate::HostRouteKind::Import(kind),
+            ..
+        } = target.kind()
+        else {
             return None;
         };
         Some(Self { kind, route })
@@ -721,7 +802,11 @@ impl ImportFunction {
 
     fn lifted_call(&self, arguments: &[CalcValue]) -> Result<CalcValue, Failure> {
         // IMPORTTEXT's delimiter may be an array of widths: it is an argument, not a lift.
-        let held = if self.kind == ImportKind::Text { arguments.get(1).cloned() } else { None };
+        let held = if self.kind == ImportKind::Text {
+            arguments.get(1).cloned()
+        } else {
+            None
+        };
         let mut lifting = arguments.to_vec();
         if held.is_some() {
             lifting[1] = CalcValue::missing();
@@ -750,7 +835,9 @@ impl ImportFunction {
         }
         CalcArray::new(shape, cells)
             .map(CalcValue::array)
-            .ok_or(Stop::Refused("a lifted import's cells do not fill its shape"))
+            .ok_or(Stop::Refused(
+                "a lifted import's cells do not fill its shape",
+            ))
     }
 }
 

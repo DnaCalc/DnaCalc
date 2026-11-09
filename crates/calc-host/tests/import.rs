@@ -39,7 +39,9 @@ impl ImportRoute for Files {
 }
 
 fn escape(text: &str) -> String {
-    text.replace('&', "&amp;").replace('<', "&lt;").replace('"', "&quot;")
+    text.replace('&', "&amp;")
+        .replace('<', "&lt;")
+        .replace('"', "&quot;")
 }
 
 /// Sheet1 with `formulas` in column A, each as the file stores it.
@@ -47,7 +49,10 @@ fn workbook(formulas: &[&str]) -> Vec<u8> {
     let mut rows = String::new();
     for (index, formula) in formulas.iter().enumerate() {
         let row = index + 1;
-        rows.push_str(&format!(r#"<row r="{row}"><c r="A{row}"><f>{}</f></c></row>"#, escape(formula)));
+        rows.push_str(&format!(
+            r#"<row r="{row}"><c r="A{row}"><f>{}</f></c></row>"#,
+            escape(formula)
+        ));
     }
     let sheet = format!(
         r#"<?xml version="1.0" encoding="UTF-8"?><worksheet xmlns="{MAIN}"><sheetData>{rows}</sheetData></worksheet>"#
@@ -76,15 +81,19 @@ fn open(bytes: Vec<u8>) -> HostState {
     HostState::open(
         source,
         &OpenPolicy::default(),
-        HostOptions { calc_mode: Some(CalcMode::Manual), ..HostOptions::default() },
+        HostOptions {
+            calc_mode: Some(CalcMode::Manual),
+            ..HostOptions::default()
+        },
     )
     .expect("the package opens")
 }
 
 fn values(host: &HostState, rows: usize) -> Vec<CalcValue> {
     let sheet = host.sheets()[0].id();
-    let cells: Vec<CellKey> =
-        (1..=rows as u32).map(|row| CellKey::new(sheet, row, 1).expect("in the grid")).collect();
+    let cells: Vec<CellKey> = (1..=rows as u32)
+        .map(|row| CellKey::new(sheet, row, 1).expect("in the grid"))
+        .collect();
     let projection = project(host, &ProjectionRequest { cells }).expect("projected");
     projection
         .cells()
@@ -105,7 +114,9 @@ fn results(formulas: &[&str], route: Option<Rc<dyn ImportRoute>>) -> Vec<CalcVal
     for _ in 0..100_000 {
         match step(&mut host, WorkBudget::UNLIMITED, &mut Unobserved) {
             HostProgress::Failed(why) => panic!("{why}"),
-            HostProgress::Calculating { .. } | HostProgress::Waiting { .. } | HostProgress::Published(_) => {}
+            HostProgress::Calculating { .. }
+            | HostProgress::Waiting { .. }
+            | HostProgress::Published(_) => {}
             _ => break,
         }
     }
@@ -113,7 +124,9 @@ fn results(formulas: &[&str], route: Option<Rc<dyn ImportRoute>>) -> Vec<CalcVal
 }
 
 fn text(value: &str) -> CalcValue {
-    CalcValue::text(ExcelText::from_utf16_code_units(value.encode_utf16().collect()))
+    CalcValue::text(ExcelText::from_utf16_code_units(
+        value.encode_utf16().collect(),
+    ))
 }
 
 #[cfg_attr(not(target_arch = "wasm32"), test)]
@@ -153,7 +166,10 @@ fn dc_z8c1__imports_read_through_the_hosts_route() {
 #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
 fn dc_z8c1__without_a_route_the_file_cannot_be_read() {
     let got = results(&[r#"_xlfn.IMPORTCSV("C:\data\basic.csv")"#], None);
-    assert_eq!(shown(&got[0]), shown(&CalcValue::error(WorksheetErrorCode::Value)));
+    assert_eq!(
+        shown(&got[0]),
+        shown(&CalcValue::error(WorksheetErrorCode::Value))
+    );
 }
 
 fn shown(value: &CalcValue) -> String {

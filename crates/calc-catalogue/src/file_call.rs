@@ -24,14 +24,25 @@ pub enum CallOrigin {
 /// The identity established from a spelling and its origin.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum FileCallIdentity<'a> {
-    BuiltIn { id: FunctionId, prefix: FilePrefix, origin: CallOrigin },
-    ForcedUserDefined { spelling: &'a str, origin: CallOrigin },
-    Other { spelling: &'a str, origin: CallOrigin },
+    BuiltIn {
+        id: FunctionId,
+        prefix: FilePrefix,
+        origin: CallOrigin,
+    },
+    ForcedUserDefined {
+        spelling: &'a str,
+        origin: CallOrigin,
+    },
+    Other {
+        spelling: &'a str,
+        origin: CallOrigin,
+    },
 }
 
 /// Strip an ASCII file prefix in any ASCII case, preserving the original remainder.
 pub fn strip_ascii_prefix<'a>(text: &'a str, prefix: &str) -> Option<&'a str> {
-    text.get(..prefix.len()).filter(|start| start.eq_ignore_ascii_case(prefix))
+    text.get(..prefix.len())
+        .filter(|start| start.eq_ignore_ascii_case(prefix))
         .map(|_| &text[prefix.len()..])
 }
 
@@ -49,7 +60,10 @@ pub fn file_call_identity(spelling: &str, origin: CallOrigin) -> FileCallIdentit
     let other = || FileCallIdentity::Other { spelling, origin };
     if origin == CallOrigin::LoadedFile {
         if let Some(name) = strip_ascii_prefix(spelling, crate::USER_DEFINED_FUNCTION_PREFIX) {
-            return FileCallIdentity::ForcedUserDefined { spelling: name, origin };
+            return FileCallIdentity::ForcedUserDefined {
+                spelling: name,
+                origin,
+            };
         }
     }
     let (base, prefix) = match strip_ascii_prefix(spelling, crate::FUTURE_FUNCTION_PREFIX) {
@@ -60,16 +74,31 @@ pub fn file_call_identity(spelling: &str, origin: CallOrigin) -> FileCallIdentit
         None => (spelling, FilePrefix::Bare),
     };
     if prefix == FilePrefix::Bare && base.eq_ignore_ascii_case(FIELD_ACCESS_FILE_NAME) {
-        return FileCallIdentity::BuiltIn { id: FIELD_ACCESS_ID, prefix, origin };
+        return FileCallIdentity::BuiltIn {
+            id: FIELD_ACCESS_ID,
+            prefix,
+            origin,
+        };
     }
     let Some(entry) = crate::declarations().find(|entry| {
         entry.notation() == Notation::Call && entry.spelling().eq_ignore_ascii_case(base)
-    }) else { return other(); };
-    if origin == CallOrigin::LoadedFile && prefix == FilePrefix::Bare
-        && matches!(entry.file_prefix(), Some(FilePrefix::Xlfn | FilePrefix::XlfnXlws)) {
+    }) else {
+        return other();
+    };
+    if origin == CallOrigin::LoadedFile
+        && prefix == FilePrefix::Bare
+        && matches!(
+            entry.file_prefix(),
+            Some(FilePrefix::Xlfn | FilePrefix::XlfnXlws)
+        )
+    {
         return other();
     }
-    FileCallIdentity::BuiltIn { id: entry.id(), prefix, origin }
+    FileCallIdentity::BuiltIn {
+        id: entry.id(),
+        prefix,
+        origin,
+    }
 }
 
 #[cfg(test)]
@@ -82,24 +111,74 @@ mod tests {
     fn loaded_and_entered_names_keep_their_origin_and_identity() {
         let sum = crate::named("SUM").unwrap().id();
         let maxifs = crate::named("MAXIFS").unwrap().id();
-        assert_eq!(file_call_identity("SUM", CallOrigin::LoadedFile),
-            FileCallIdentity::BuiltIn { id: sum, prefix: FilePrefix::Bare, origin: CallOrigin::LoadedFile });
-        assert_eq!(file_call_identity("_XLUDF.SUM", CallOrigin::LoadedFile),
-            FileCallIdentity::ForcedUserDefined { spelling: "SUM", origin: CallOrigin::LoadedFile });
-        assert_eq!(file_call_identity("_xludf.SUM", CallOrigin::FormulaEntry),
-            FileCallIdentity::Other { spelling: "_xludf.SUM", origin: CallOrigin::FormulaEntry });
-        assert_eq!(file_call_identity("MAXIFS", CallOrigin::LoadedFile),
-            FileCallIdentity::Other { spelling: "MAXIFS", origin: CallOrigin::LoadedFile });
-        assert_eq!(file_call_identity("MAXIFS", CallOrigin::FormulaEntry),
-            FileCallIdentity::BuiltIn { id: maxifs, prefix: FilePrefix::Bare, origin: CallOrigin::FormulaEntry });
-        assert_eq!(file_call_identity("_FV", CallOrigin::LoadedFile),
-            FileCallIdentity::BuiltIn { id: crate::FIELD_ACCESS_ID, prefix: FilePrefix::Bare, origin: CallOrigin::LoadedFile });
-        assert_eq!(file_call_identity("_FV", CallOrigin::FormulaEntry),
-            FileCallIdentity::BuiltIn { id: crate::FIELD_ACCESS_ID, prefix: FilePrefix::Bare, origin: CallOrigin::FormulaEntry });
-        assert_eq!(file_call_identity("_xlfn._FV", CallOrigin::LoadedFile),
-            FileCallIdentity::Other { spelling: "_xlfn._FV", origin: CallOrigin::LoadedFile });
-        assert_eq!(file_call_identity("_XLFN.MAXIFS", CallOrigin::LoadedFile),
-            FileCallIdentity::BuiltIn { id: maxifs, prefix: FilePrefix::Xlfn, origin: CallOrigin::LoadedFile });
+        assert_eq!(
+            file_call_identity("SUM", CallOrigin::LoadedFile),
+            FileCallIdentity::BuiltIn {
+                id: sum,
+                prefix: FilePrefix::Bare,
+                origin: CallOrigin::LoadedFile
+            }
+        );
+        assert_eq!(
+            file_call_identity("_XLUDF.SUM", CallOrigin::LoadedFile),
+            FileCallIdentity::ForcedUserDefined {
+                spelling: "SUM",
+                origin: CallOrigin::LoadedFile
+            }
+        );
+        assert_eq!(
+            file_call_identity("_xludf.SUM", CallOrigin::FormulaEntry),
+            FileCallIdentity::Other {
+                spelling: "_xludf.SUM",
+                origin: CallOrigin::FormulaEntry
+            }
+        );
+        assert_eq!(
+            file_call_identity("MAXIFS", CallOrigin::LoadedFile),
+            FileCallIdentity::Other {
+                spelling: "MAXIFS",
+                origin: CallOrigin::LoadedFile
+            }
+        );
+        assert_eq!(
+            file_call_identity("MAXIFS", CallOrigin::FormulaEntry),
+            FileCallIdentity::BuiltIn {
+                id: maxifs,
+                prefix: FilePrefix::Bare,
+                origin: CallOrigin::FormulaEntry
+            }
+        );
+        assert_eq!(
+            file_call_identity("_FV", CallOrigin::LoadedFile),
+            FileCallIdentity::BuiltIn {
+                id: crate::FIELD_ACCESS_ID,
+                prefix: FilePrefix::Bare,
+                origin: CallOrigin::LoadedFile
+            }
+        );
+        assert_eq!(
+            file_call_identity("_FV", CallOrigin::FormulaEntry),
+            FileCallIdentity::BuiltIn {
+                id: crate::FIELD_ACCESS_ID,
+                prefix: FilePrefix::Bare,
+                origin: CallOrigin::FormulaEntry
+            }
+        );
+        assert_eq!(
+            file_call_identity("_xlfn._FV", CallOrigin::LoadedFile),
+            FileCallIdentity::Other {
+                spelling: "_xlfn._FV",
+                origin: CallOrigin::LoadedFile
+            }
+        );
+        assert_eq!(
+            file_call_identity("_XLFN.MAXIFS", CallOrigin::LoadedFile),
+            FileCallIdentity::BuiltIn {
+                id: maxifs,
+                prefix: FilePrefix::Xlfn,
+                origin: CallOrigin::LoadedFile
+            }
+        );
         assert!(crate::declaration(FunctionId::from_raw(u32::MAX)).is_none());
     }
 }

@@ -13,7 +13,8 @@ pub fn sinh_kernel(n: f64) -> f64 {
     // Live Excel 16.0 b20326 Range.Value2: SINH(x)=(expm1(x)-expm1(-x))/2
     // using Excel's internal Kahan expm1, 37/37 including the worksheet
     // EXP-pair misses at |x|<~0.25. libm sinh is 1 ULP off at 0.01 and 2.
-    (crate::ported::excel_numeric::excel_expm1_internal(n) - crate::ported::excel_numeric::excel_expm1_internal(-n))
+    (crate::ported::excel_numeric::excel_expm1_internal(n)
+        - crate::ported::excel_numeric::excel_expm1_internal(-n))
         / 2.0
 }
 
@@ -90,8 +91,7 @@ mod tests {
     #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
     fn sinh_overflow_maps_to_num() {
         assert_eq!(
-            ExcelRealPolicy::FINITE
-                .publish(-326648.33, sinh_kernel(-326648.33)),
+            ExcelRealPolicy::FINITE.publish(-326648.33, sinh_kernel(-326648.33)),
             Err(WorksheetErrorCode::Num)
         );
         assert_eq!(

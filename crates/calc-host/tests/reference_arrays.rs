@@ -23,58 +23,131 @@ use std::sync::Arc;
 #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
 fn dc_b1l__nested_matrix_arguments_use_the_full_array() {
     for (bytes, captured, expected_count) in [
-        (include_bytes!("../../calc-func/tests/fixtures/dcj9k_r25_regression/oracle.xlsx").as_slice(),
-         include_bytes!("../../calc-func/tests/captures/dcj9k_r25_regression/oracle.capture.json").as_slice(), 456),
-        (include_bytes!("../../calc-func/tests/fixtures/dcj9k_r25_qr_stores/oracle.xlsx").as_slice(),
-         include_bytes!("../../calc-func/tests/captures/dcj9k_r25_qr_stores/oracle.capture.json").as_slice(), 38),
-        (include_bytes!("../../calc-func/tests/fixtures/dcj9k_r26_regression/oracle.xlsx").as_slice(),
-         include_bytes!("../../calc-func/tests/captures/dcj9k_r26_regression/oracle.capture.json").as_slice(), 64),
+        (
+            include_bytes!("../../calc-func/tests/fixtures/dcj9k_r25_regression/oracle.xlsx")
+                .as_slice(),
+            include_bytes!(
+                "../../calc-func/tests/captures/dcj9k_r25_regression/oracle.capture.json"
+            )
+            .as_slice(),
+            456,
+        ),
+        (
+            include_bytes!("../../calc-func/tests/fixtures/dcj9k_r25_qr_stores/oracle.xlsx")
+                .as_slice(),
+            include_bytes!(
+                "../../calc-func/tests/captures/dcj9k_r25_qr_stores/oracle.capture.json"
+            )
+            .as_slice(),
+            38,
+        ),
+        (
+            include_bytes!("../../calc-func/tests/fixtures/dcj9k_r26_regression/oracle.xlsx")
+                .as_slice(),
+            include_bytes!(
+                "../../calc-func/tests/captures/dcj9k_r26_regression/oracle.capture.json"
+            )
+            .as_slice(),
+            64,
+        ),
     ] {
         let capture = calc_verdict::CaptureRecord::decode(captured).unwrap();
         for budget in [usize::MAX, 1] {
             let mut book = HostSession::open(
-                Arc::new(MemorySource::new(bytes.to_vec())), &OpenPolicy::default(),
-                HostOptions { calc_mode: Some(CalcMode::Manual), ..HostOptions::default() },
-            ).unwrap();
+                Arc::new(MemorySource::new(bytes.to_vec())),
+                &OpenPolicy::default(),
+                HostOptions {
+                    calc_mode: Some(CalcMode::Manual),
+                    ..HostOptions::default()
+                },
+            )
+            .unwrap();
             book.set_calculation_budget(calc_host::WorkBudget::evaluations(budget));
             assert!(book.dispatch(SkinIntent::Rebuild).accepted());
             for _ in 0..10_000 {
-                if !book.has_pending_calculation() { break; }
+                if !book.has_pending_calculation() {
+                    break;
+                }
                 book.advance_calculation();
             }
             assert!(!book.has_pending_calculation());
             let mut checked = 0;
             for observed in &capture.observations {
-                let sheet = book.host().sheets().iter()
-                    .find(|sheet| sheet.name().text().to_string_lossy() == observed.cell.sheet()).unwrap().id();
+                let sheet = book
+                    .host()
+                    .sheets()
+                    .iter()
+                    .find(|sheet| sheet.name().text().to_string_lossy() == observed.cell.sheet())
+                    .unwrap()
+                    .id();
                 let at = CellKey::new(sheet, observed.cell.row(), observed.cell.column()).unwrap();
-                let Some(calc_host::CellInput::Formula(formula)) = book.host().model().cell(at) else { continue; };
+                let Some(calc_host::CellInput::Formula(formula)) = book.host().model().cell(at)
+                else {
+                    continue;
+                };
                 let text = formula.text().to_string_lossy();
-                if !(text.contains("INDEX(LINEST(") || text.contains("INDEX(LOGEST(") || text.contains("INDEX(MINVERSE("))
-                    || !text.contains("CHOOSE({1,2},") { continue; }
-                if expected_count == 64 && !text.contains("INDEX(MINVERSE(") { continue; }
+                if !(text.contains("INDEX(LINEST(")
+                    || text.contains("INDEX(LOGEST(")
+                    || text.contains("INDEX(MINVERSE("))
+                    || !text.contains("CHOOSE({1,2},")
+                {
+                    continue;
+                }
+                if expected_count == 64 && !text.contains("INDEX(MINVERSE(") {
+                    continue;
+                }
                 assert_eq!(formula.form(), calc_host::FormulaForm::Legacy);
                 let page = project(book.host(), &ProjectionRequest { cells: vec![at] }).unwrap();
-                let ProjectedValue::Calculated { value, calculation } = page.cells()[0].value() else {
-                    panic!("nested matrix must calculate at {at:?}: {:?}", page.cells()[0].value());
+                let ProjectedValue::Calculated { value, calculation } = page.cells()[0].value()
+                else {
+                    panic!(
+                        "nested matrix must calculate at {at:?}: {:?}",
+                        page.cells()[0].value()
+                    );
                 };
                 assert!(value.as_number().is_some() || value.as_error().is_some());
                 // Six reviewed 4x2 predictor controls and all 64 R26 inverse
                 // roots have finite captured numbers. A scalar-intersection
                 // error cannot satisfy their admission check. Numeric roots
                 // retain the corpus's complete value comparison.
-                if expected_count == 64 || (expected_count == 38 && [63, 64, 67, 68, 88, 89].contains(&at.row())) {
-                    assert!(observed.observation.expected().expect("a value observation").as_number().is_some());
-                    assert!(value.as_number().is_some(), "two predictor columns at {at:?}: {value:?}");
+                if expected_count == 64
+                    || (expected_count == 38 && [63, 64, 67, 68, 88, 89].contains(&at.row()))
+                {
+                    assert!(
+                        observed
+                            .observation
+                            .expected()
+                            .expect("a value observation")
+                            .as_number()
+                            .is_some()
+                    );
+                    assert!(
+                        value.as_number().is_some(),
+                        "two predictor columns at {at:?}: {value:?}"
+                    );
                 }
                 if expected_count == 64 && at.row() == 3829 {
                     // [[1.3,1],[1,2]] has the recorded top-left inverse 1.25;
                     // intersecting to one value cannot satisfy this control.
-                    assert_eq!(calc_verdict::compare(observed.observation.expected().expect("a value observation"), value), None);
+                    assert_eq!(
+                        calc_verdict::compare(
+                            observed
+                                .observation
+                                .expected()
+                                .expect("a value observation"),
+                            value
+                        ),
+                        None
+                    );
                 }
-                let stamp = calculation.stamp().expect("ordinary execution needs its result certificate");
+                let stamp = calculation
+                    .stamp()
+                    .expect("ordinary execution needs its result certificate");
                 assert!(!stamp.reads.uses_imported_cache && !stamp.reads.uses_boundary_cache);
-                assert!(matches!(stamp.computed_by, calc_engine::contract::ComputationOrigin::Evaluated { .. }));
+                assert!(matches!(
+                    stamp.computed_by,
+                    calc_engine::contract::ComputationOrigin::Evaluated { .. }
+                ));
                 checked += 1;
             }
             assert_eq!(checked, expected_count);
@@ -91,31 +164,51 @@ fn dc_b1l__nested_matrix_arguments_use_the_full_array() {
 fn dc_b1l34_dc_ejvk5__legacy_argument_and_selected_result_origins() {
     let capture = calc_verdict::CaptureRecord::decode(include_bytes!(
         "captures/eng13_legacy/oracle.capture.json"
-    )).unwrap();
+    ))
+    .unwrap();
     let mut book = HostSession::open(
-        Arc::new(MemorySource::new(include_bytes!(
-            "fixtures/eng13_legacy/oracle.xlsx"
-        ).to_vec())),
+        Arc::new(MemorySource::new(
+            include_bytes!("fixtures/eng13_legacy/oracle.xlsx").to_vec(),
+        )),
         &OpenPolicy::default(),
-        HostOptions { calc_mode: Some(CalcMode::Automatic), ..HostOptions::default() },
-    ).unwrap();
+        HostOptions {
+            calc_mode: Some(CalcMode::Automatic),
+            ..HostOptions::default()
+        },
+    )
+    .unwrap();
     assert!(book.dispatch(SkinIntent::Rebuild).accepted());
     for _ in 0..128 {
-        if !book.has_pending_calculation() { break; }
+        if !book.has_pending_calculation() {
+            break;
+        }
         book.advance_calculation();
     }
     assert!(!book.has_pending_calculation());
     assert_eq!(capture.observations.len(), 50);
     for observed in &capture.observations {
-        let sheet = book.host().sheets().iter()
-            .find(|s| s.name().text().to_string_lossy() == observed.cell.sheet()).unwrap().id();
+        let sheet = book
+            .host()
+            .sheets()
+            .iter()
+            .find(|s| s.name().text().to_string_lossy() == observed.cell.sheet())
+            .unwrap()
+            .id();
         let at = CellKey::new(sheet, observed.cell.row(), observed.cell.column()).unwrap();
         let page = project(book.host(), &ProjectionRequest { cells: vec![at] }).unwrap();
         let ProjectedValue::Calculated { value, .. } = page.cells()[0].value() else {
             panic!("the recorded result must calculate: {:?}", page.cells()[0]);
         };
-        assert_eq!(value, observed.observation.expected().expect("a value observation"), "{}!{}",
-            observed.cell.sheet(), observed.cell.a1());
+        assert_eq!(
+            value,
+            observed
+                .observation
+                .expected()
+                .expect("a value observation"),
+            "{}!{}",
+            observed.cell.sheet(),
+            observed.cell.a1()
+        );
     }
 }
 
@@ -123,25 +216,66 @@ fn dc_b1l34_dc_ejvk5__legacy_argument_and_selected_result_origins() {
 #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
 fn dc_b1l__retained_legacy_mround_and_quotient_reference_controls() {
     let bytes = include_bytes!("../../calc-func/tests/fixtures/fn2_questions/oracle.xlsx");
-    let capture = calc_verdict::CaptureRecord::decode(include_bytes!("../../calc-func/tests/captures/fn2_questions/oracle.capture.json")).unwrap();
-    let mut book = HostSession::open(Arc::new(MemorySource::new(bytes.to_vec())),&OpenPolicy::default(),HostOptions {
-        calc_mode:Some(CalcMode::Automatic),..HostOptions::default()
-    }).unwrap();
+    let capture = calc_verdict::CaptureRecord::decode(include_bytes!(
+        "../../calc-func/tests/captures/fn2_questions/oracle.capture.json"
+    ))
+    .unwrap();
+    let mut book = HostSession::open(
+        Arc::new(MemorySource::new(bytes.to_vec())),
+        &OpenPolicy::default(),
+        HostOptions {
+            calc_mode: Some(CalcMode::Automatic),
+            ..HostOptions::default()
+        },
+    )
+    .unwrap();
     assert!(book.dispatch(SkinIntent::Rebuild).accepted());
-    for _ in 0..128 { if !book.has_pending_calculation() { break; } book.advance_calculation(); }
+    for _ in 0..128 {
+        if !book.has_pending_calculation() {
+            break;
+        }
+        book.advance_calculation();
+    }
     assert!(!book.has_pending_calculation());
     let mut checked = 0;
     for observed in &capture.observations {
-        if !["fn2_q176","fn2_q177","fn2_q178","fn2_q179","fn2_q180","fn2_q181","fn2_q182","fn2_q183","fn2_o176","fn2_o177","fn2_o178","fn2_o179","fn2_o180","fn2_o181","fn2_o182","fn2_o183"].contains(&observed.cell.sheet()) { continue; }
-        if observed.cell.sheet().starts_with("fn2_o") && observed.cell.row()!=1 { continue; }
-        let sheet = book.host().sheets().iter().find(|s|s.name().text().to_string_lossy()==observed.cell.sheet()).unwrap().id();
-        let at = CellKey::new(sheet,observed.cell.row(),observed.cell.column()).unwrap();
-        let page = project(book.host(),&ProjectionRequest {cells:vec![at]}).unwrap();
-        let ProjectedValue::Calculated {value,..} = page.cells()[0].value() else { panic!("the recorded control must calculate: {:?}",page.cells()[0]); };
-        assert_eq!(value,observed.observation.expected().expect("a value observation"),"{}!{}",observed.cell.sheet(),observed.cell.a1());
-        checked+=1;
+        if ![
+            "fn2_q176", "fn2_q177", "fn2_q178", "fn2_q179", "fn2_q180", "fn2_q181", "fn2_q182",
+            "fn2_q183", "fn2_o176", "fn2_o177", "fn2_o178", "fn2_o179", "fn2_o180", "fn2_o181",
+            "fn2_o182", "fn2_o183",
+        ]
+        .contains(&observed.cell.sheet())
+        {
+            continue;
+        }
+        if observed.cell.sheet().starts_with("fn2_o") && observed.cell.row() != 1 {
+            continue;
+        }
+        let sheet = book
+            .host()
+            .sheets()
+            .iter()
+            .find(|s| s.name().text().to_string_lossy() == observed.cell.sheet())
+            .unwrap()
+            .id();
+        let at = CellKey::new(sheet, observed.cell.row(), observed.cell.column()).unwrap();
+        let page = project(book.host(), &ProjectionRequest { cells: vec![at] }).unwrap();
+        let ProjectedValue::Calculated { value, .. } = page.cells()[0].value() else {
+            panic!("the recorded control must calculate: {:?}", page.cells()[0]);
+        };
+        assert_eq!(
+            value,
+            observed
+                .observation
+                .expected()
+                .expect("a value observation"),
+            "{}!{}",
+            observed.cell.sheet(),
+            observed.cell.a1()
+        );
+        checked += 1;
     }
-    assert_eq!(checked,16);
+    assert_eq!(checked, 16);
 }
 
 #[cfg_attr(not(target_arch = "wasm32"), test)]
@@ -214,11 +348,15 @@ fn dc_b1l43_dc_b1l44__fn7_argument_origins() {
     let books: [(&[u8], &[u8]); 2] = [
         (
             include_bytes!("../../calc-func/tests/fixtures/fn7_argument_origins/oracle.xlsx"),
-            include_bytes!("../../calc-func/tests/captures/fn7_argument_origins/oracle.capture.json"),
+            include_bytes!(
+                "../../calc-func/tests/captures/fn7_argument_origins/oracle.capture.json"
+            ),
         ),
         (
             include_bytes!("../../calc-func/tests/fixtures/fn7_date_argument_origins/oracle.xlsx"),
-            include_bytes!("../../calc-func/tests/captures/fn7_date_argument_origins/oracle.capture.json"),
+            include_bytes!(
+                "../../calc-func/tests/captures/fn7_date_argument_origins/oracle.capture.json"
+            ),
         ),
     ];
     for (bytes, captured) in books {
@@ -268,7 +406,10 @@ fn check_captured_book(
             .unwrap()
             .id();
         let at = CellKey::new(sheet, observed.cell.row(), observed.cell.column()).unwrap();
-        let expected = observed.observation.expected().expect("a value observation");
+        let expected = observed
+            .observation
+            .expected()
+            .expect("a value observation");
         let mut expected_cells = vec![(at, expected)];
         if let Some(array) = expected.as_array() {
             let extent = book

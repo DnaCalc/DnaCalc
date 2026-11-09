@@ -390,7 +390,9 @@ impl<T> BySlot<T> {
         self.entries.insert(node.slot(), (node, value));
     }
     fn remove(&mut self, node: NodeId) {
-        if self.get(node).is_some() { self.entries.remove(node.slot()); }
+        if self.get(node).is_some() {
+            self.entries.remove(node.slot());
+        }
     }
     fn into_entries(self) -> impl Iterator<Item = (NodeId, T)> {
         self.entries.into_values()
@@ -653,10 +655,7 @@ macro_rules! shared_of {
 }
 
 impl RecalcWork {
-    pub fn with_external_inputs(
-        mut self,
-        inputs: std::rc::Rc<dyn calc_fml::RtdCut>,
-    ) -> Self {
+    pub fn with_external_inputs(mut self, inputs: std::rc::Rc<dyn calc_fml::RtdCut>) -> Self {
         if inputs.version() != self.external_input_version {
             self.failure = Some(RecalcFailure::ExternalInputMismatch);
         }
@@ -690,7 +689,10 @@ impl RecalcWork {
     }
 
     /// The owner's capability to join or start RTD topics while this work evaluates.
-    pub fn with_rtd_connector(mut self, connector: std::rc::Rc<dyn calc_fml::RtdConnector>) -> Self {
+    pub fn with_rtd_connector(
+        mut self,
+        connector: std::rc::Rc<dyn calc_fml::RtdConnector>,
+    ) -> Self {
         self.rtd_connector = Some(connector);
         self
     }
@@ -1387,7 +1389,10 @@ fn begin_with_scope(
         }
         // The measured scalar Manual profile includes cached callback readers.
         // A reader is refused only if its executed path requests a refused value.
-        if order.iter().any(|node| !measured_range_scalar(state, inputs, *node)) {
+        if order
+            .iter()
+            .any(|node| !measured_range_scalar(state, inputs, *node))
+        {
             return Err(iterative_range_refusal());
         }
         range_refused.extend(cyclic.iter().copied());
@@ -1447,7 +1452,8 @@ fn begin_with_scope(
         },
         predecessor: None,
     };
-    let boundary_caches = crate::read::BoundarySnapshot::capture(state, inputs, &admission.scope, &range_refused);
+    let boundary_caches =
+        crate::read::BoundarySnapshot::capture(state, inputs, &admission.scope, &range_refused);
     let mut reference_rank = BySlot::new(state.nodes.len(), order.len());
     let segment_scheduling = selection != EvalSelection::FormulaEntry
         && !iteration.enabled()
@@ -1573,25 +1579,48 @@ fn begin_with_scope(
     })
     .map(|mut work| {
         work.add_cyclic(state, cyclic);
-        if work.iterating() && selection.forces_all()
-            && work.cyclic.iter().all(|node| measured_range_scalar(state, inputs, *node)) {
+        if work.iterating()
+            && selection.forces_all()
+            && work
+                .cyclic
+                .iter()
+                .all(|node| measured_range_scalar(state, inputs, *node))
+        {
             // P14 eng16: direct reference callbacks get a provisional entry before
             // the scalar SCC sweeps, even when the file holds warm seed values.
             for &node in &work.order {
-                if work.cyclic.contains(&node) { continue; }
-                let Some(Binding::Placed(instance, _)) = state.bindings.get(&node) else { continue; };
+                if work.cyclic.contains(&node) {
+                    continue;
+                }
+                let Some(Binding::Placed(instance, _)) = state.bindings.get(&node) else {
+                    continue;
+                };
                 if !instance.plan().only_cached_user_calls(&state.callables)
-                    || instance.plan().name_bindings().iter().any(|proof| proof.resolved.is_some()) {
+                    || instance
+                        .plan()
+                        .name_bindings()
+                        .iter()
+                        .any(|proof| proof.resolved.is_some())
+                {
                     continue;
                 }
                 let references = instance.plan().provisional_references(&state.callables);
-                if references.iter().any(|&index| instance.areas()[index].is_ok_and(|area|
-                    work.cyclic.iter().any(|producer| area.contains(live_anchor(state, *producer))))) {
+                if references.iter().any(|&index| {
+                    instance.areas()[index].is_ok_and(|area| {
+                        work.cyclic
+                            .iter()
+                            .any(|producer| area.contains(live_anchor(state, *producer)))
+                    })
+                }) {
                     work.preliminary.insert(node);
                 }
             }
-            let prefix: Vec<_> = work.order.iter().copied()
-                .filter(|node| work.preliminary.contains(node)).collect();
+            let prefix: Vec<_> = work
+                .order
+                .iter()
+                .copied()
+                .filter(|node| work.preliminary.contains(node))
+                .collect();
             work.order.splice(0..0, prefix);
         }
         if !work.range_refused.is_empty() {
@@ -1970,29 +1999,58 @@ fn process(
 }
 
 /// Retain the finished invocation before admitting a semantic reevaluation.
-fn record_reevaluation(state: &EngineState, work: &mut RecalcWork, node: NodeId, reason: ReevaluationReason) {
+fn record_reevaluation(
+    state: &EngineState,
+    work: &mut RecalcWork,
+    node: NodeId,
+    reason: ReevaluationReason,
+) {
     let previous = root_invocation(state, &shared_of!(work), node);
-    let invocations = work.local.effects.invocations().iter().map(|record| {
-        let mut identity = previous.clone();
-        identity.call_site = record.call_site;
-        identity.occurrence = record.occurrence.clone();
-        CallInvocation {
-            identity, runtime: record.id, parent: record.parent,
-            callable: record.callable, completed: record.completed,
-            non_preemptible: record.non_preemptible,
-        }
-    }).collect();
-    work.evaluations.insert(node, (
-        previous.evaluation.checked_add(1).expect("evaluation ordinal exhausted"), reason,
-    ));
+    let invocations = work
+        .local
+        .effects
+        .invocations()
+        .iter()
+        .map(|record| {
+            let mut identity = previous.clone();
+            identity.call_site = record.call_site;
+            identity.occurrence = record.occurrence.clone();
+            CallInvocation {
+                identity,
+                runtime: record.id,
+                parent: record.parent,
+                callable: record.callable,
+                completed: record.completed,
+                non_preemptible: record.non_preemptible,
+            }
+        })
+        .collect();
+    work.evaluations.insert(
+        node,
+        (
+            previous
+                .evaluation
+                .checked_add(1)
+                .expect("evaluation ordinal exhausted"),
+            reason,
+        ),
+    );
     let next = root_invocation(state, &shared_of!(work), node);
-    work.events.push(CalcEvent::Reevaluated { previous, next, invocations });
+    work.events.push(CalcEvent::Reevaluated {
+        previous,
+        next,
+        invocations,
+    });
     work.local = EvalLocal::default();
 }
 
 fn finish_preliminary(work: &mut RecalcWork, node: NodeId) {
-    if !work.preliminary.remove(&node) { return; }
-    let position = work.order[..work.next].iter().position(|entry| *entry == node)
+    if !work.preliminary.remove(&node) {
+        return;
+    }
+    let position = work.order[..work.next]
+        .iter()
+        .position(|entry| *entry == node)
         .expect("provisional prefix was selected");
     work.order.remove(position);
     work.next -= 1;
@@ -2131,12 +2189,23 @@ fn apply(
 /// Retains an executed reader's historical result and releases its pure waiters.
 /// Refusal does not establish SCC membership or satisfy a target requirement.
 fn exclude_range_reader(state: &EngineState, work: &mut RecalcWork, node: NodeId) {
-    exclude_range_target(state, work, node,
-        "an executed reader of a refused cyclic value in a Manual range calculation");
+    exclude_range_target(
+        state,
+        work,
+        node,
+        "an executed reader of a refused cyclic value in a Manual range calculation",
+    );
 }
 
-fn exclude_range_target(state: &EngineState, work: &mut RecalcWork, node: NodeId, construct: &'static str) {
-    if !work.range_refused.insert(node) { return; }
+fn exclude_range_target(
+    state: &EngineState,
+    work: &mut RecalcWork,
+    node: NodeId,
+    construct: &'static str,
+) {
+    if !work.range_refused.insert(node) {
+        return;
+    }
     work.progress.exclude(node);
     work.local = EvalLocal::default();
     work.suspended.remove(&node);
@@ -2150,14 +2219,16 @@ fn exclude_range_target(state: &EngineState, work: &mut RecalcWork, node: NodeId
     work.semantic_waits.remove(&node);
     work.ready.retain(|held| *held != node);
     if let Some(on) = work.waits_on.remove(&node)
-        && let Some(waiters) = work.waiting.get_mut(&on) {
+        && let Some(waiters) = work.waiting.get_mut(&on)
+    {
         waiters.retain(|held| *held != node);
     }
     if let Some(waiters) = work.waiting.remove(&node) {
         for waiter in waiters {
             if work.waits_on.remove(&waiter) == Some(node)
                 && !work.range_refused.contains(&waiter)
-                && !work.ready.contains(&waiter) {
+                && !work.ready.contains(&waiter)
+            {
                 work.ready.push_back(waiter);
             }
         }
@@ -2461,8 +2532,17 @@ mod parallel {
                 }
                 for index in from..(from + CHUNK).min(positions.len()) {
                     let node = order[positions[index]];
-                    let attempt =
-                        evaluate_with(state, inputs, &shared, local, node, None, None, None, &mut silent);
+                    let attempt = evaluate_with(
+                        state,
+                        inputs,
+                        &shared,
+                        local,
+                        node,
+                        None,
+                        None,
+                        None,
+                        &mut silent,
+                    );
                     // Unfinished speculative work is replayed by process on the owner.
                     // Its continuation belongs to this node, never the worker's next one.
                     if !matches!(&attempt, Ok(Attempt::Done(_))) {
@@ -3693,10 +3773,12 @@ fn full_observation_order(
                             && !instance.plan().permits_early_execution(&state.callables),
                     )
                 }
-                Some(Binding::Refused(NotModeled::Compile(calc_fml::CompileError::NotModelled {
-                    gap: calc_fml::Gap::UnknownFunction { .. },
-                    ..
-                }))) => (false, inputs.definitions().macro_enabled()),
+                Some(Binding::Refused(NotModeled::Compile(
+                    calc_fml::CompileError::NotModelled {
+                        gap: calc_fml::Gap::UnknownFunction { .. },
+                        ..
+                    },
+                ))) => (false, inputs.definitions().macro_enabled()),
                 _ => (false, false),
             };
             observers |= observer;
@@ -3980,13 +4062,18 @@ fn next_node(state: &EngineState, inputs: &ModelRoot, work: &mut RecalcWork) -> 
             }
         }
         if let Some(node) = work.ready.pop_front() {
-            if work.range_refused.contains(&node) { continue; }
+            if work.range_refused.contains(&node) {
+                continue;
+            }
             return Some(node);
         }
         if work.next < work.order.len() {
             let node = work.order[work.next];
             work.next += 1;
-            if work.range_refused.contains(&node) || work.progress.is_evaluated(node) || work.waits_on.contains_key(&node) {
+            if work.range_refused.contains(&node)
+                || work.progress.is_evaluated(node)
+                || work.waits_on.contains_key(&node)
+            {
                 continue;
             }
             return Some(node);
@@ -4554,9 +4641,18 @@ fn measured_range_scalar(state: &EngineState, inputs: &ModelRoot, node: NodeId) 
     !matches!(state.bindings.get(&node), Some(Binding::DataTable(_)))
         && !matches!(state.bindings.get(&node), Some(Binding::Placed(instance, _))
             if instance.plan().has_user_calls() && !instance.plan().only_cached_user_calls(&state.callables))
-        && !inputs.definitions().array(at).is_some_and(|array| array.area().cell_count() > 1)
-        && !state.spills.get(at).is_some_and(|spill| spill.area().cell_count() > 1)
-        && !state.cached_arrays.get(&node).is_some_and(|spill| spill.area().cell_count() > 1)
+        && !inputs
+            .definitions()
+            .array(at)
+            .is_some_and(|array| array.area().cell_count() > 1)
+        && !state
+            .spills
+            .get(at)
+            .is_some_and(|spill| spill.area().cell_count() > 1)
+        && !state
+            .cached_arrays
+            .get(&node)
+            .is_some_and(|spill| spill.area().cell_count() > 1)
 }
 
 /// An actual closed wait chain proves these producers cyclic. For the measured
@@ -4570,15 +4666,22 @@ fn refuse_closed_range_chain(
 ) -> bool {
     if !work.iterative_range()
         || work.admission.range_post_state != RangePostState::StillRequired
-        || work.waves != 0 || work.passes != 0
-        || work.has_fences || !work.early_published.is_empty()
-        || !work.async_waits.is_empty() || !work.semantic_waits.is_empty()
+        || work.waves != 0
+        || work.passes != 0
+        || work.has_fences
+        || !work.early_published.is_empty()
+        || !work.async_waits.is_empty()
+        || !work.semantic_waits.is_empty()
         || chain.is_empty()
         || chain.iter().copied().collect::<BTreeSet<_>>().len() != chain.len()
-        || chain.iter().any(|node| state.node(*node).is_none()
-            || !work.admission.scope.contains(live_anchor(state, *node))
-            || !work.progress.is_scheduled(*node) || work.progress.is_evaluated(*node)
-            || work.range_refused.contains(node)) {
+        || chain.iter().any(|node| {
+            state.node(*node).is_none()
+                || !work.admission.scope.contains(live_anchor(state, *node))
+                || !work.progress.is_scheduled(*node)
+                || work.progress.is_evaluated(*node)
+                || work.range_refused.contains(node)
+        })
+    {
         return false;
     }
     let safe_local = |local: &EvalLocal| {
@@ -4593,8 +4696,12 @@ fn refuse_closed_range_chain(
     if !safe_local(&work.local) || work.suspended.values().any(|local| !safe_local(local)) {
         return false;
     }
-    let participants = work.order.iter().chain(work.range_refused.iter())
-        .chain(work.suspended.keys()).copied()
+    let participants = work
+        .order
+        .iter()
+        .chain(work.range_refused.iter())
+        .chain(work.suspended.keys())
+        .copied()
         .chain(work.progress.staged_results().map(|(node, _)| node));
     if participants.into_iter().any(|node| !pure_range_scalar(state, inputs, node)
         || !matches!(state.bindings.get(&node), Some(Binding::Placed(instance, _)) if instance.plan().external_references().is_empty())) {
@@ -4615,8 +4722,12 @@ fn refuse_closed_range_chain(
     }
     work.add_cyclic(state, chain.iter().copied());
     for node in chain {
-        exclude_range_target(state, work, *node,
-            "a dynamically proven cyclic value in a Manual range calculation");
+        exclude_range_target(
+            state,
+            work,
+            *node,
+            "a dynamically proven cyclic value in a Manual range calculation",
+        );
     }
     true
 }
@@ -5544,7 +5655,9 @@ fn evaluate_with(
             root: root_invocation(state, shared, node),
         }
     };
-    if reads.udf_volatility.is_some_and(calc_fml::UdfVolatility::requests_volatile)
+    if reads
+        .udf_volatility
+        .is_some_and(calc_fml::UdfVolatility::requests_volatile)
         || matches!(state.bindings.get(&node),Some(Binding::Placed(instance,_)) if instance.plan().volatile())
     {
         reads.volatile_inputs = Some(shared.volatile_inputs);
@@ -5761,8 +5874,10 @@ fn evaluate_unstamped(
         let (outcome, cached_stopped) = {
             let mut observation_cells = observation_pin.as_ref().map(|pin| {
                 let mut view = pin.view(state, shared.workbook_facts);
-                view.caller = (!shared.iterates.is_some_and(|values| values.contains_key(&node)))
-                    .then_some(node);
+                view.caller = (!shared
+                    .iterates
+                    .is_some_and(|values| values.contains_key(&node)))
+                .then_some(node);
                 WorkbookReader::new(view, &observation_uncomputed)
             });
             let mut cached_observed = observation_cells.as_mut().map(|cells| Observed {
@@ -6264,7 +6379,14 @@ enum Collision {
 /// calculated leaves it unknown.
 fn collision(view: RecalcView<'_>, node: NodeId, anchor: CellKey, extent: GridArea) -> Collision {
     let inputs = view.inputs;
-    if inputs.definitions().pivots().tables().any(|table|table.area.intersection(extent).is_some()){return Collision::Blocked;}
+    if inputs
+        .definitions()
+        .pivots()
+        .tables()
+        .any(|table| table.area.intersection(extent).is_some())
+    {
+        return Collision::Blocked;
+    }
     if inputs
         .cells(extent)
         .into_iter()
@@ -6443,7 +6565,11 @@ mod footprint_tests {
         let mut sheets: IdAllocator<SheetId> = IdAllocator::new();
         let sheet = sheets.issue().unwrap();
         let cell = |row| GridArea::cell(CellKey::new(sheet, row, 1).unwrap());
-        let column = GridArea::new(CellKey::new(sheet, 1, 1).unwrap(), CellKey::new(sheet, 3, 1).unwrap()).unwrap();
+        let column = GridArea::new(
+            CellKey::new(sheet, 1, 1).unwrap(),
+            CellKey::new(sheet, 3, 1).unwrap(),
+        )
+        .unwrap();
         let mut footprint = Footprint::default();
         for round in 0..100_000u32 {
             for row in [3, 1, 2] {
@@ -6457,6 +6583,10 @@ mod footprint_tests {
         footprint.clear();
         assert!(footprint.areas().is_empty());
         footprint.push(cell(2));
-        assert_eq!(footprint.areas(), [cell(2)], "a cleared footprint files an area again");
+        assert_eq!(
+            footprint.areas(),
+            [cell(2)],
+            "a cleared footprint files an area again"
+        );
     }
 }

@@ -1,7 +1,7 @@
 // CUMIPMT and CUMPRINC share the time-value primitives. Their summation remains
 // a fallback: Excel's cumulative singletons differ from public PPMT's bits.
-use crate::ported::financial_time_value_family::{self as time_value, FinancialError};
 pub use crate::ported::financial_time_value_family::PaymentTiming;
+use crate::ported::financial_time_value_family::{self as time_value, FinancialError};
 use crate::value::CalcValue;
 use crate::value::WorksheetErrorCode;
 
@@ -89,14 +89,20 @@ fn principal_sum(
             // CUMPRINC is not a sum of the public PPMT publications in Excel.
             let interest = time_value::ipmt(rate, period as f64, periods, pv, 0.0, timing)
                 .map_err(kernel_error)?;
-            if period == 1 { payment - interest } else {
+            if period == 1 {
+                payment - interest
+            } else {
                 time_value::discounted_payment_principal(
-                    rate, period as f64, periods, payment, 0.0, timing,
+                    rate,
+                    period as f64,
+                    periods,
+                    payment,
+                    0.0,
+                    timing,
                 )
             }
         } else {
-            time_value::ppmt(rate, period as f64, periods, pv, 0.0, timing)
-                .map_err(kernel_error)?
+            time_value::ppmt(rate, period as f64, periods, pv, 0.0, timing).map_err(kernel_error)?
         };
         if !principal.is_finite() {
             return Err(CumulativeFinanceEvalError::Domain(WorksheetErrorCode::Num));
@@ -210,9 +216,9 @@ pub fn map_cumulative_finance_error_to_ws(
 
 #[cfg(test)]
 mod tests {
+    use super::*;
     #[allow(unused_imports)]
     use crate::value::{CalcArray, CalcValue, CoreValue, ExcelText};
-    use super::*;
 
     fn assert_close(actual: f64, expected: f64, tolerance: f64) {
         assert!(
@@ -235,14 +241,32 @@ mod tests {
     #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
     fn cumulative_interest_finish_stores_its_count_product() {
         for (count, payment, principal, interest) in [
-            (5275.0, 0xbff4_51a5_7553_a993u64, 0xc0a0_fac2_640c_097e, 0xc0b1_ad84_9383_29b3),
-            (3665.0, 0xbfb4_54e1_e6d9_c2b1, 0xc055_351e_1a7d_fb0e, 0xc069_c7d7_b5ff_7401),
-            (4527.0, 0xbfb4_54e1_e6d9_c2b1, 0xc05b_bb33_94ab_0301, 0xc06f_1387_0dd3_17bc),
+            (
+                5275.0,
+                0xbff4_51a5_7553_a993u64,
+                0xc0a0_fac2_640c_097e,
+                0xc0b1_ad84_9383_29b3,
+            ),
+            (
+                3665.0,
+                0xbfb4_54e1_e6d9_c2b1,
+                0xc055_351e_1a7d_fb0e,
+                0xc069_c7d7_b5ff_7401,
+            ),
+            (
+                4527.0,
+                0xbfb4_54e1_e6d9_c2b1,
+                0xc05b_bb33_94ab_0301,
+                0xc06f_1387_0dd3_17bc,
+            ),
         ] {
             let payment = f64::from_bits(payment);
             let principal = f64::from_bits(principal);
             assert_ne!((count * payment - principal).to_bits(), interest);
-            assert_eq!(interest_finish(count, payment, principal).to_bits(), interest);
+            assert_eq!(
+                interest_finish(count, payment, principal).to_bits(),
+                interest
+            );
         }
     }
 
@@ -251,9 +275,21 @@ mod tests {
     #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
     fn cumulative_interest_finish_stores_its_subtraction() {
         for (payment, principal, interest) in [
-            (0xc35f_ffff_ffff_ffffu64, 0xbfff_ffff_ffff_fff4, 0xc35f_ffff_ffff_fffe),
-            (0xc49f_ffff_ffff_fffe, 0xc140_0000_0000_001a, 0xc49f_ffff_ffff_fffe),
-            (0xc4a0_0000_0000_0000, 0xc140_0000_0000_001b, 0xc4a0_0000_0000_0000),
+            (
+                0xc35f_ffff_ffff_ffffu64,
+                0xbfff_ffff_ffff_fff4,
+                0xc35f_ffff_ffff_fffe,
+            ),
+            (
+                0xc49f_ffff_ffff_fffe,
+                0xc140_0000_0000_001a,
+                0xc49f_ffff_ffff_fffe,
+            ),
+            (
+                0xc4a0_0000_0000_0000,
+                0xc140_0000_0000_001b,
+                0xc4a0_0000_0000_0000,
+            ),
         ] {
             let payment = f64::from_bits(payment);
             let principal = f64::from_bits(principal);
@@ -416,7 +452,10 @@ mod tests {
         assert_close(fractional, f64::from_bits(0xc08a_af73_3376_49b4), 1.0e-9);
         // An interval holding no whole period is zero; a start below one or an end past nper
         // is #NUM!.
-        assert_eq!(cumprinc_kernel(0.1013, 352.0, 79905.9, 1.5, 1.5, 0.0), Ok(0.0));
+        assert_eq!(
+            cumprinc_kernel(0.1013, 352.0, 79905.9, 1.5, 1.5, 0.0),
+            Ok(0.0)
+        );
         assert_eq!(
             cumprinc_kernel(0.1013, 352.0, 79905.9, 0.999, 1.0, 0.0),
             Err(CumulativeFinanceEvalError::Domain(WorksheetErrorCode::Num))

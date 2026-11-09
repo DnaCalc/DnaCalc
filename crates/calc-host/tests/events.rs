@@ -66,20 +66,36 @@ struct StopDelivery {
 impl StopDelivery {
     fn stop(&self, session: &mut HostSession, sheet: SheetId) {
         self.delivered.borrow_mut().push(sheet);
-        if self.retire { session.set_workbook_event_handler(None); }
-        else { session.set_workbook_events_enabled(false); }
+        if self.retire {
+            session.set_workbook_event_handler(None);
+        } else {
+            session.set_workbook_events_enabled(false);
+        }
     }
 }
 impl WorkbookEventHandler for StopDelivery {
-    fn worksheet_change(&self, session: &mut HostSession, sheet: SheetId, _: &[GridArea]) -> Result<(), String> {
-        if !self.calculation { self.stop(session, sheet); }
+    fn worksheet_change(
+        &self,
+        session: &mut HostSession,
+        sheet: SheetId,
+        _: &[GridArea],
+    ) -> Result<(), String> {
+        if !self.calculation {
+            self.stop(session, sheet);
+        }
         Ok(())
     }
     fn worksheet_calculate(&self, session: &mut HostSession, sheet: SheetId) -> Result<(), String> {
-        if self.calculation { self.stop(session, sheet); }
+        if self.calculation {
+            self.stop(session, sheet);
+        }
         Ok(())
     }
-    fn before_save(&self, _: &mut HostSession, _: SaveOperation) -> Result<BeforeSaveOutcome, String> {
+    fn before_save(
+        &self,
+        _: &mut HostSession,
+        _: SaveOperation,
+    ) -> Result<BeforeSaveOutcome, String> {
         Ok(BeforeSaveOutcome::default())
     }
 }
@@ -90,26 +106,56 @@ fn mutable_owner_stops_a_multi_sheet_batch_when_disabled_or_replaced() {
     for calculation in [false, true] {
         for retire in [false, true] {
             let mut session = book();
-            assert!(session.dispatch(SkinIntent::Command(calc_host::WorkbookCommand::Sheet {
-                sheet: None, change: calc_host::SheetChange::Add { name: "Other".into() },
-            })).accepted());
-            let edits = session.host().model().sheets().iter().map(|sheet| CellEdit::Set {
-                at: CellKey::new(sheet.id(), 1, 1).unwrap(),
-                input: calc_host::interpret_entry(if calculation { "=1" } else { "1" }).unwrap().unwrap(),
-            }).collect();
-            let owner = Rc::new(StopDelivery { calculation, retire, delivered: RefCell::default() });
+            assert!(
+                session
+                    .dispatch(SkinIntent::Command(calc_host::WorkbookCommand::Sheet {
+                        sheet: None,
+                        change: calc_host::SheetChange::Add {
+                            name: "Other".into()
+                        },
+                    }))
+                    .accepted()
+            );
+            let edits = session
+                .host()
+                .model()
+                .sheets()
+                .iter()
+                .map(|sheet| CellEdit::Set {
+                    at: CellKey::new(sheet.id(), 1, 1).unwrap(),
+                    input: calc_host::interpret_entry(if calculation { "=1" } else { "1" })
+                        .unwrap()
+                        .unwrap(),
+                })
+                .collect();
+            let owner = Rc::new(StopDelivery {
+                calculation,
+                retire,
+                delivered: RefCell::default(),
+            });
             if calculation {
                 assert!(session.dispatch(SkinIntent::Edit { edits }).accepted());
                 session.set_workbook_event_handler(Some(owner.clone()));
-                assert!(session.dispatch(SkinIntent::Calculate {
-                    scope: calc_host::CalcScope::Workbook, selection: calc_host::EvalSelection::ForceAll,
-                }).accepted());
-                while session.has_pending_calculation() { session.advance_calculation(); }
+                assert!(
+                    session
+                        .dispatch(SkinIntent::Calculate {
+                            scope: calc_host::CalcScope::Workbook,
+                            selection: calc_host::EvalSelection::ForceAll,
+                        })
+                        .accepted()
+                );
+                while session.has_pending_calculation() {
+                    session.advance_calculation();
+                }
             } else {
                 session.set_workbook_event_handler(Some(owner.clone()));
                 assert!(session.dispatch(SkinIntent::Edit { edits }).accepted());
             }
-            assert_eq!(owner.delivered.borrow().len(), 1, "calculation={calculation}, retire={retire}");
+            assert_eq!(
+                owner.delivered.borrow().len(),
+                1,
+                "calculation={calculation}, retire={retire}"
+            );
             assert!(session.workbook_event_failures().failures.is_empty());
         }
     }
@@ -121,26 +167,46 @@ fn mutable_owner_automation_change_does_not_follow_a_parked_provider() {
     let mut session = book();
     let counts = Rc::new(RefCell::new(async_provider::Counts::default()));
     let mut functions = calc_host::CallableTable::new();
-    functions.register("AsyncEcho", Rc::new(async_provider::Echo(counts.clone()))).unwrap();
+    functions
+        .register("AsyncEcho", Rc::new(async_provider::Echo(counts.clone())))
+        .unwrap();
     session.set_user_functions(functions);
     enter(&mut session, 1, "1");
     enter(&mut session, 2, "=AsyncEcho(A1)+2");
     session.set_workbook_events_enabled(false);
     session.dispatch(SkinIntent::SetCalcMode(CalcMode::Automatic));
-    while session.has_pending_calculation() { session.advance_calculation(); }
+    while session.has_pending_calculation() {
+        session.advance_calculation();
+    }
     assert!(session.has_unfinished_calculation());
     let probe = Probe::new(&session);
     session.set_workbook_event_handler(Some(probe.clone()));
     session.set_workbook_events_enabled(true);
     let at = cell(&session, 1);
-    let receipt = session.dispatch_from(calc_host::CommandIngress::Automation, SkinIntent::EnterCell { at, text: "9".into() });
+    let receipt = session.dispatch_from(
+        calc_host::CommandIngress::Automation,
+        SkinIntent::EnterCell {
+            at,
+            text: "9".into(),
+        },
+    );
     assert!(receipt.accepted()); // The authored edit stands even though calculation cannot finish.
     assert!(!session.has_pending_calculation());
     assert!(session.has_unfinished_calculation());
-    assert!(probe.log.borrow().iter().all(|entry| !entry.starts_with("change")));
+    assert!(
+        probe
+            .log
+            .borrow()
+            .iter()
+            .all(|entry| !entry.starts_with("change"))
+    );
     let failures = session.workbook_event_failures();
     assert_eq!(failures.failures.len(), 1);
-    assert!(failures.failures[0].reason.contains("terminal successful calculation"));
+    assert!(
+        failures.failures[0]
+            .reason
+            .contains("terminal successful calculation")
+    );
     assert_eq!(counts.borrow().prefix, 2); // One invocation before, one after the authored edit.
     assert_eq!(counts.borrow().suffix, 0);
 }
@@ -365,72 +431,163 @@ fn failed_event_is_counted_once_without_rejecting_or_replaying_the_committed_edi
 fn p22_recorded_com_change_observes_completed_automatic_values() {
     use calc_host::CommandIngress;
     let traces: [(&str, &[&str]); 3] = [
-        ("manual-basic", &[
-            include_str!("../../calc-engine/tests/fixtures/excel-calc-probes/P22/eng9-20261103/traces/manual-basic/01.tsv"),
-            include_str!("../../calc-engine/tests/fixtures/excel-calc-probes/P22/eng9-20261103/traces/manual-basic/02.tsv"),
-            include_str!("../../calc-engine/tests/fixtures/excel-calc-probes/P22/eng9-20261103/traces/manual-basic/03.tsv"),
-            include_str!("../../calc-engine/tests/fixtures/excel-calc-probes/P22/eng9-20261103/traces/manual-basic/04.tsv"),
-            include_str!("../../calc-engine/tests/fixtures/excel-calc-probes/P22/eng9-20261103/traces/manual-basic/05.tsv"),
-            include_str!("../../calc-engine/tests/fixtures/excel-calc-probes/P22/eng9-20261103/traces/manual-basic/06.tsv"),
-            include_str!("../../calc-engine/tests/fixtures/excel-calc-probes/P22/eng9-20261103/traces/manual-basic/07.tsv"),
-            include_str!("../../calc-engine/tests/fixtures/excel-calc-probes/P22/eng9-20261103/traces/manual-basic/08.tsv"),
-            include_str!("../../calc-engine/tests/fixtures/excel-calc-probes/P22/eng9-20261103/traces/manual-basic/09.tsv"),
-            include_str!("../../calc-engine/tests/fixtures/excel-calc-probes/P22/eng9-20261103/traces/manual-basic/10.tsv"),
-        ]),
-        ("automatic-basic", &[
-            include_str!("../../calc-engine/tests/fixtures/excel-calc-probes/P22/eng9-20261103/traces/automatic-basic/01.tsv"),
-            include_str!("../../calc-engine/tests/fixtures/excel-calc-probes/P22/eng9-20261103/traces/automatic-basic/02.tsv"),
-            include_str!("../../calc-engine/tests/fixtures/excel-calc-probes/P22/eng9-20261103/traces/automatic-basic/03.tsv"),
-            include_str!("../../calc-engine/tests/fixtures/excel-calc-probes/P22/eng9-20261103/traces/automatic-basic/04.tsv"),
-            include_str!("../../calc-engine/tests/fixtures/excel-calc-probes/P22/eng9-20261103/traces/automatic-basic/05.tsv"),
-            include_str!("../../calc-engine/tests/fixtures/excel-calc-probes/P22/eng9-20261103/traces/automatic-basic/06.tsv"),
-            include_str!("../../calc-engine/tests/fixtures/excel-calc-probes/P22/eng9-20261103/traces/automatic-basic/07.tsv"),
-            include_str!("../../calc-engine/tests/fixtures/excel-calc-probes/P22/eng9-20261103/traces/automatic-basic/08.tsv"),
-            include_str!("../../calc-engine/tests/fixtures/excel-calc-probes/P22/eng9-20261103/traces/automatic-basic/09.tsv"),
-            include_str!("../../calc-engine/tests/fixtures/excel-calc-probes/P22/eng9-20261103/traces/automatic-basic/10.tsv"),
-        ]),
-        ("automatic-events-disabled", &[
-            include_str!("../../calc-engine/tests/fixtures/excel-calc-probes/P22/eng9-20261103/traces/automatic-events-disabled/01.tsv"),
-            include_str!("../../calc-engine/tests/fixtures/excel-calc-probes/P22/eng9-20261103/traces/automatic-events-disabled/02.tsv"),
-            include_str!("../../calc-engine/tests/fixtures/excel-calc-probes/P22/eng9-20261103/traces/automatic-events-disabled/03.tsv"),
-            include_str!("../../calc-engine/tests/fixtures/excel-calc-probes/P22/eng9-20261103/traces/automatic-events-disabled/04.tsv"),
-            include_str!("../../calc-engine/tests/fixtures/excel-calc-probes/P22/eng9-20261103/traces/automatic-events-disabled/05.tsv"),
-            include_str!("../../calc-engine/tests/fixtures/excel-calc-probes/P22/eng9-20261103/traces/automatic-events-disabled/06.tsv"),
-            include_str!("../../calc-engine/tests/fixtures/excel-calc-probes/P22/eng9-20261103/traces/automatic-events-disabled/07.tsv"),
-            include_str!("../../calc-engine/tests/fixtures/excel-calc-probes/P22/eng9-20261103/traces/automatic-events-disabled/08.tsv"),
-            include_str!("../../calc-engine/tests/fixtures/excel-calc-probes/P22/eng9-20261103/traces/automatic-events-disabled/09.tsv"),
-            include_str!("../../calc-engine/tests/fixtures/excel-calc-probes/P22/eng9-20261103/traces/automatic-events-disabled/10.tsv"),
-        ]),
+        (
+            "manual-basic",
+            &[
+                include_str!(
+                    "../../calc-engine/tests/fixtures/excel-calc-probes/P22/eng9-20261103/traces/manual-basic/01.tsv"
+                ),
+                include_str!(
+                    "../../calc-engine/tests/fixtures/excel-calc-probes/P22/eng9-20261103/traces/manual-basic/02.tsv"
+                ),
+                include_str!(
+                    "../../calc-engine/tests/fixtures/excel-calc-probes/P22/eng9-20261103/traces/manual-basic/03.tsv"
+                ),
+                include_str!(
+                    "../../calc-engine/tests/fixtures/excel-calc-probes/P22/eng9-20261103/traces/manual-basic/04.tsv"
+                ),
+                include_str!(
+                    "../../calc-engine/tests/fixtures/excel-calc-probes/P22/eng9-20261103/traces/manual-basic/05.tsv"
+                ),
+                include_str!(
+                    "../../calc-engine/tests/fixtures/excel-calc-probes/P22/eng9-20261103/traces/manual-basic/06.tsv"
+                ),
+                include_str!(
+                    "../../calc-engine/tests/fixtures/excel-calc-probes/P22/eng9-20261103/traces/manual-basic/07.tsv"
+                ),
+                include_str!(
+                    "../../calc-engine/tests/fixtures/excel-calc-probes/P22/eng9-20261103/traces/manual-basic/08.tsv"
+                ),
+                include_str!(
+                    "../../calc-engine/tests/fixtures/excel-calc-probes/P22/eng9-20261103/traces/manual-basic/09.tsv"
+                ),
+                include_str!(
+                    "../../calc-engine/tests/fixtures/excel-calc-probes/P22/eng9-20261103/traces/manual-basic/10.tsv"
+                ),
+            ],
+        ),
+        (
+            "automatic-basic",
+            &[
+                include_str!(
+                    "../../calc-engine/tests/fixtures/excel-calc-probes/P22/eng9-20261103/traces/automatic-basic/01.tsv"
+                ),
+                include_str!(
+                    "../../calc-engine/tests/fixtures/excel-calc-probes/P22/eng9-20261103/traces/automatic-basic/02.tsv"
+                ),
+                include_str!(
+                    "../../calc-engine/tests/fixtures/excel-calc-probes/P22/eng9-20261103/traces/automatic-basic/03.tsv"
+                ),
+                include_str!(
+                    "../../calc-engine/tests/fixtures/excel-calc-probes/P22/eng9-20261103/traces/automatic-basic/04.tsv"
+                ),
+                include_str!(
+                    "../../calc-engine/tests/fixtures/excel-calc-probes/P22/eng9-20261103/traces/automatic-basic/05.tsv"
+                ),
+                include_str!(
+                    "../../calc-engine/tests/fixtures/excel-calc-probes/P22/eng9-20261103/traces/automatic-basic/06.tsv"
+                ),
+                include_str!(
+                    "../../calc-engine/tests/fixtures/excel-calc-probes/P22/eng9-20261103/traces/automatic-basic/07.tsv"
+                ),
+                include_str!(
+                    "../../calc-engine/tests/fixtures/excel-calc-probes/P22/eng9-20261103/traces/automatic-basic/08.tsv"
+                ),
+                include_str!(
+                    "../../calc-engine/tests/fixtures/excel-calc-probes/P22/eng9-20261103/traces/automatic-basic/09.tsv"
+                ),
+                include_str!(
+                    "../../calc-engine/tests/fixtures/excel-calc-probes/P22/eng9-20261103/traces/automatic-basic/10.tsv"
+                ),
+            ],
+        ),
+        (
+            "automatic-events-disabled",
+            &[
+                include_str!(
+                    "../../calc-engine/tests/fixtures/excel-calc-probes/P22/eng9-20261103/traces/automatic-events-disabled/01.tsv"
+                ),
+                include_str!(
+                    "../../calc-engine/tests/fixtures/excel-calc-probes/P22/eng9-20261103/traces/automatic-events-disabled/02.tsv"
+                ),
+                include_str!(
+                    "../../calc-engine/tests/fixtures/excel-calc-probes/P22/eng9-20261103/traces/automatic-events-disabled/03.tsv"
+                ),
+                include_str!(
+                    "../../calc-engine/tests/fixtures/excel-calc-probes/P22/eng9-20261103/traces/automatic-events-disabled/04.tsv"
+                ),
+                include_str!(
+                    "../../calc-engine/tests/fixtures/excel-calc-probes/P22/eng9-20261103/traces/automatic-events-disabled/05.tsv"
+                ),
+                include_str!(
+                    "../../calc-engine/tests/fixtures/excel-calc-probes/P22/eng9-20261103/traces/automatic-events-disabled/06.tsv"
+                ),
+                include_str!(
+                    "../../calc-engine/tests/fixtures/excel-calc-probes/P22/eng9-20261103/traces/automatic-events-disabled/07.tsv"
+                ),
+                include_str!(
+                    "../../calc-engine/tests/fixtures/excel-calc-probes/P22/eng9-20261103/traces/automatic-events-disabled/08.tsv"
+                ),
+                include_str!(
+                    "../../calc-engine/tests/fixtures/excel-calc-probes/P22/eng9-20261103/traces/automatic-events-disabled/09.tsv"
+                ),
+                include_str!(
+                    "../../calc-engine/tests/fixtures/excel-calc-probes/P22/eng9-20261103/traces/automatic-events-disabled/10.tsv"
+                ),
+            ],
+        ),
     ];
     for (name, trials) in traces {
         let mut expected_trials = Vec::new();
         for raw in trials {
-            let rows: Vec<_> = raw.lines().map(|line| line.split('\t').collect::<Vec<_>>()).collect();
+            let rows: Vec<_> = raw
+                .lines()
+                .map(|line| line.split('\t').collect::<Vec<_>>())
+                .collect();
             let mut expected = Vec::new();
             for (i, row) in rows.iter().enumerate() {
-                let [_, operation, event, ..] = row.as_slice() else { continue };
-                if !matches!(*operation, "COM write A1=5" | "COM same-value rewrite" | "COM ClearContents A1") {
+                let [_, operation, event, ..] = row.as_slice() else {
+                    continue;
+                };
+                if !matches!(
+                    *operation,
+                    "COM write A1=5" | "COM same-value rewrite" | "COM ClearContents A1"
+                ) {
                     continue;
                 }
-                if !matches!(*event, "Worksheet_Change entry" | "Worksheet_Calculate entry") { continue; }
-                let values: Vec<Option<f64>> = rows[i+1..].iter().take(3).map(|cell| {
-                    assert_eq!(cell[2], "cell");
-                    if let Some((_, bits)) = cell[3].split_once("bits=") {
-                        Some(f64::from_bits(u64::from_str_radix(bits, 16).unwrap()))
-                    } else {
-                        assert!(cell[3].contains("type=Empty"));
-                        None
-                    }
-                }).collect();
+                if !matches!(
+                    *event,
+                    "Worksheet_Change entry" | "Worksheet_Calculate entry"
+                ) {
+                    continue;
+                }
+                let values: Vec<Option<f64>> = rows[i + 1..]
+                    .iter()
+                    .take(3)
+                    .map(|cell| {
+                        assert_eq!(cell[2], "cell");
+                        if let Some((_, bits)) = cell[3].split_once("bits=") {
+                            Some(f64::from_bits(u64::from_str_radix(bits, 16).unwrap()))
+                        } else {
+                            assert!(cell[3].contains("type=Empty"));
+                            None
+                        }
+                    })
+                    .collect();
                 expected.push(if *event == "Worksheet_Change entry" {
-                    format!("change {:?}/{:?}/{:?}", values[0],values[1],values[2])
+                    format!("change {:?}/{:?}/{:?}", values[0], values[1], values[2])
                 } else {
-                    format!("calculate {:?}/{:?}", values[1],values[2])
+                    format!("calculate {:?}/{:?}", values[1], values[2])
                 });
             }
             expected_trials.push(expected);
         }
-        for expected in &expected_trials { assert_eq!(expected, &expected_trials[0], "{name}: Excel trial disagreement"); }
+        for expected in &expected_trials {
+            assert_eq!(
+                expected, &expected_trials[0],
+                "{name}: Excel trial disagreement"
+            );
+        }
         for budget in [usize::MAX, 1, 0] {
             let mut book = book();
             enter(&mut book, 1, "1");
@@ -438,21 +595,35 @@ fn p22_recorded_com_change_observes_completed_automatic_values() {
             enter(&mut book, 3, "=B1*2");
             assert!(book.dispatch(SkinIntent::Recalculate).accepted());
             if name.starts_with("automatic") {
-                assert!(book.dispatch(SkinIntent::SetCalcMode(CalcMode::Automatic)).accepted());
+                assert!(
+                    book.dispatch(SkinIntent::SetCalcMode(CalcMode::Automatic))
+                        .accepted()
+                );
             }
             book.set_calculation_budget(WorkBudget::evaluations(budget));
             let probe = Probe::new(&book);
             book.set_workbook_event_handler(Some(probe.clone()));
             book.set_workbook_events_enabled(name != "automatic-events-disabled");
             for text in ["5", "5", "", "5"] {
-                let receipt = book.dispatch_from(CommandIngress::Automation, SkinIntent::EnterCell {
-                    at: probe.a, text: text.into(),
-                });
+                let receipt = book.dispatch_from(
+                    CommandIngress::Automation,
+                    SkinIntent::EnterCell {
+                        at: probe.a,
+                        text: text.into(),
+                    },
+                );
                 assert!(receipt.accepted(), "{receipt:?}");
                 assert!(!book.has_pending_calculation());
-                assert_eq!(book.intent_log().last().unwrap().ingress, CommandIngress::Automation);
+                assert_eq!(
+                    book.intent_log().last().unwrap().ingress,
+                    CommandIngress::Automation
+                );
             }
-            assert_eq!(*probe.log.borrow(), expected_trials[0], "{name}, budget {budget}");
+            assert_eq!(
+                *probe.log.borrow(),
+                expected_trials[0],
+                "{name}, budget {budget}"
+            );
             assert!(book.workbook_event_failures().failures.is_empty());
         }
     }

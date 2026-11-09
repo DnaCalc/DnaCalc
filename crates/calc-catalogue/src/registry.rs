@@ -1,7 +1,9 @@
 //! One ID lookup across the shared function declaration fragments.
-use crate::{ArgumentDemand, ArgumentGroups, Availability, EntryKind, EntryTraits, FunctionId,
-    HostRouteKind, Implementation, Notation, Parameter, ResultForm, WorksheetDeclaration};
 use crate::unheld::{UnheldEntry, UnheldKind};
+use crate::{
+    ArgumentDemand, ArgumentGroups, Availability, EntryKind, EntryTraits, FunctionId,
+    HostRouteKind, Implementation, Notation, Parameter, ResultForm, WorksheetDeclaration,
+};
 use calc_value::CallableArityShape;
 
 const FAMILIES: &[&[WorksheetDeclaration]] = &[
@@ -40,7 +42,6 @@ const FAMILIES: &[&[WorksheetDeclaration]] = &[
     crate::euro_tools::ENTRIES,
     crate::reference_text::ENTRIES,
     crate::group_pivot::ENTRIES,
-
 ];
 
 const fn declaration_count() -> usize {
@@ -65,13 +66,22 @@ pub enum DeclarationRef {
 
 impl DeclarationRef {
     pub const fn id(self) -> FunctionId {
-        match self { Self::Worksheet(x) => x.id, Self::Other(x) => x.id }
+        match self {
+            Self::Worksheet(x) => x.id,
+            Self::Other(x) => x.id,
+        }
     }
     pub const fn spelling(self) -> &'static str {
-        match self { Self::Worksheet(x) => x.spelling, Self::Other(x) => x.spelling }
+        match self {
+            Self::Worksheet(x) => x.spelling,
+            Self::Other(x) => x.spelling,
+        }
     }
     pub const fn notation(self) -> Notation {
-        match self { Self::Worksheet(x) => x.notation, Self::Other(x) => x.notation }
+        match self {
+            Self::Worksheet(x) => x.notation,
+            Self::Other(x) => x.notation,
+        }
     }
     pub const fn kind(self) -> EntryKind {
         match self {
@@ -80,56 +90,97 @@ impl DeclarationRef {
                 UnheldKind::Worksheet => EntryKind::Worksheet,
                 UnheldKind::Binding(form) => EntryKind::Binding(form),
                 UnheldKind::Operator { file_spelling } => EntryKind::Operator { file_spelling },
-                UnheldKind::Rtd { provider } => EntryKind::HostRoute { provider, route: HostRouteKind::Rtd },
+                UnheldKind::Rtd { provider } => EntryKind::HostRoute {
+                    provider,
+                    route: HostRouteKind::Rtd,
+                },
             },
         }
     }
     pub const fn availability(self) -> Availability {
-        match self { Self::Worksheet(x) => x.availability, Self::Other(x) => x.availability }
+        match self {
+            Self::Worksheet(x) => x.availability,
+            Self::Other(x) => x.availability,
+        }
     }
     pub const fn arity(self) -> CallableArityShape {
-        match self { Self::Worksheet(x) => x.arity, Self::Other(x) => x.arity }
+        match self {
+            Self::Worksheet(x) => x.arity,
+            Self::Other(x) => x.arity,
+        }
     }
     pub const fn groups(self) -> Option<ArgumentGroups> {
-        match self { Self::Worksheet(x) => x.groups, Self::Other(x) => x.groups }
+        match self {
+            Self::Worksheet(x) => x.groups,
+            Self::Other(x) => x.groups,
+        }
     }
     pub const fn parameters(self) -> &'static [Parameter] {
-        match self { Self::Worksheet(x) => x.parameters, Self::Other(x) => x.parameters }
+        match self {
+            Self::Worksheet(x) => x.parameters,
+            Self::Other(x) => x.parameters,
+        }
     }
     pub const fn result(self) -> ResultForm {
-        match self { Self::Worksheet(x) => x.result, Self::Other(x) => x.result }
+        match self {
+            Self::Worksheet(x) => x.result,
+            Self::Other(x) => x.result,
+        }
     }
     pub const fn demand(self) -> ArgumentDemand {
-        match self { Self::Worksheet(x) => x.demand, Self::Other(x) => x.demand }
+        match self {
+            Self::Worksheet(x) => x.demand,
+            Self::Other(x) => x.demand,
+        }
     }
     pub const fn traits(self) -> EntryTraits {
-        match self { Self::Worksheet(x) => x.traits, Self::Other(x) => x.traits }
+        match self {
+            Self::Worksheet(x) => x.traits,
+            Self::Other(x) => x.traits,
+        }
     }
     /// Translations are absent until a source records them for this entry.
     pub const fn localized_names(self) -> Option<&'static [crate::LocalizedDisplayName]> {
-        match self { Self::Worksheet(x) => x.localized_names, Self::Other(x) => x.localized_names }
+        match self {
+            Self::Worksheet(x) => x.localized_names,
+            Self::Other(x) => x.localized_names,
+        }
     }
     /// An absent value means the complete service set has not been classified.
     pub const fn context_facilities(self) -> Option<&'static [crate::ContextFacility]> {
-        match self { Self::Worksheet(x) => x.context_facilities, Self::Other(x) => x.context_facilities }
+        match self {
+            Self::Worksheet(x) => x.context_facilities,
+            Self::Other(x) => x.context_facilities,
+        }
     }
     pub const fn implementation(self) -> Implementation {
-        match self { Self::Worksheet(_) => Implementation::Held, Self::Other(x) => x.implementation }
+        match self {
+            Self::Worksheet(_) => Implementation::Held,
+            Self::Other(x) => x.implementation,
+        }
     }
     /// The measured prefix associated with the executable catalogue, when known.
     pub fn file_prefix(self) -> Option<crate::FilePrefix> {
-        if self.notation() != Notation::Call { return None; }
+        if self.notation() != Notation::Call {
+            return None;
+        }
         crate::executable_file_prefix(self.spelling())
     }
     /// The measured dynamic-array file positions, when known.
     pub fn file_form(self) -> Option<&'static crate::FunctionFileForm> {
-        if self.notation() != Notation::Call { return None; }
+        if self.notation() != Notation::Call {
+            return None;
+        }
         crate::file_form(crate::file_spelling(self.id()))
     }
     /// Excel's binary function index and fixed arity, when present in the Ftab measurements.
     pub fn xlsb_function(self) -> Option<(u16, i8)> {
-        if self.notation() != Notation::Call { return None; }
-        crate::EXCEL_FUNCTION_IDS.iter().find(|(_, name, _)| *name == crate::file_spelling(self.id()))
+        if self.notation() != Notation::Call {
+            return None;
+        }
+        crate::EXCEL_FUNCTION_IDS
+            .iter()
+            .find(|(_, name, _)| *name == crate::file_spelling(self.id()))
             .map(|(index, _, arity)| (*index, *arity))
     }
 }
@@ -140,7 +191,9 @@ pub const fn declaration(id: FunctionId) -> Option<DeclarationRef> {
         let entries = crate::unheld::UNHELD_ENTRIES;
         let mut i = 0;
         while i < entries.len() {
-            if entries[i].id.raw() == id.raw() { return Some(DeclarationRef::Other(&entries[i])); }
+            if entries[i].id.raw() == id.raw() {
+                return Some(DeclarationRef::Other(&entries[i]));
+            }
             i += 1;
         }
         return None;
@@ -185,7 +238,9 @@ pub const fn declaration(id: FunctionId) -> Option<DeclarationRef> {
     };
     let mut i = 0;
     while i < family.len() {
-        if family[i].id.raw() == id.raw() { return Some(DeclarationRef::Worksheet(&family[i])); }
+        if family[i].id.raw() == id.raw() {
+            return Some(DeclarationRef::Worksheet(&family[i]));
+        }
         i += 1;
     }
     None
@@ -193,8 +248,14 @@ pub const fn declaration(id: FunctionId) -> Option<DeclarationRef> {
 
 /// Every declared entry, including typed refusals and binding forms.
 pub fn declarations() -> impl Iterator<Item = DeclarationRef> {
-    FAMILIES.iter().flat_map(|family| family.iter().map(DeclarationRef::Worksheet))
-        .chain(crate::unheld::UNHELD_ENTRIES.iter().map(DeclarationRef::Other))
+    FAMILIES
+        .iter()
+        .flat_map(|family| family.iter().map(DeclarationRef::Worksheet))
+        .chain(
+            crate::unheld::UNHELD_ENTRIES
+                .iter()
+                .map(DeclarationRef::Other),
+        )
 }
 
 /// Look up an invariant worksheet spelling in the shared declarations.

@@ -130,13 +130,21 @@ fn dc_h9u__function_values_are_written_with_xleta() {
             "_xlfn.GROUPBY(A101:A103,B101:B103,_xleta.SUM)",
             true,
         ),
-        ("BYROW(B101:C103,SUM)", "_xlfn.BYROW(B101:C103,_xleta.SUM)", true),
+        (
+            "BYROW(B101:C103,SUM)",
+            "_xlfn.BYROW(B101:C103,_xleta.SUM)",
+            true,
+        ),
         (
             "BYROW(B101:C103,STDEV.S)",
             "_xlfn.BYROW(B101:C103,_xleta.STDEV.S)",
             true,
         ),
-        ("MAP(B101:B103,ABS)", "_xlfn.MAP(B101:B103,_xleta.ABS)", true),
+        (
+            "MAP(B101:B103,ABS)",
+            "_xlfn.MAP(B101:B103,_xleta.ABS)",
+            true,
+        ),
         (
             "GROUPBY(A101:A103,B101:B103,HSTACK(SUM,MAX))",
             "_xlfn.GROUPBY(A101:A103,B101:B103,_xlfn.HSTACK(_xleta.SUM,_xleta.MAX))",
@@ -148,10 +156,22 @@ fn dc_h9u__function_values_are_written_with_xleta() {
             "ROWS(_xlfn.GROUPBY(A101:A103,B101:B103,_xleta.PERCENTOF))",
             false,
         ),
-        ("REDUCE(0,B101:B103,SUM)", "_xlfn.REDUCE(0,B101:B103,_xleta.SUM)", true),
+        (
+            "REDUCE(0,B101:B103,SUM)",
+            "_xlfn.REDUCE(0,B101:B103,_xleta.SUM)",
+            true,
+        ),
         ("ISREF(SUM)", "ISREF(_xleta.SUM)", false),
-        ("BYCOL(B101:C103,CONCAT)", "_xlfn.BYCOL(B101:C103,_xleta.CONCAT)", true),
-        ("_xlfn.MAP(B1:B3,_xleta.ABS)", "_xlfn.MAP(B1:B3,_xleta.ABS)", true),
+        (
+            "BYCOL(B101:C103,CONCAT)",
+            "_xlfn.BYCOL(B101:C103,_xleta.CONCAT)",
+            true,
+        ),
+        (
+            "_xlfn.MAP(B1:B3,_xleta.ABS)",
+            "_xlfn.MAP(B1:B3,_xleta.ABS)",
+            true,
+        ),
         (
             "ROWS(PIVOTBY(C1:C6,E1:E6,D1:D6,SUM))",
             "ROWS(_xlfn.PIVOTBY(C1:C6,E1:E6,D1:D6,_xleta.SUM))",
@@ -167,8 +187,16 @@ fn dc_h9u__function_values_are_written_with_xleta() {
             "ROWS(_xlfn.GROUPBY(C1:C6,D1:D6,_xleta.SUM,0,0,,C1:C6=\"a\"))",
             true,
         ),
-        ("ROWS(TRIMRANGE(C1:C20))", "ROWS(_xlfn.TRIMRANGE(C1:C20))", false),
-        ("ROWS(GROUPBY(C1,D1,SUM))", "ROWS(_xlfn.GROUPBY(C1,D1,_xleta.SUM))", false),
+        (
+            "ROWS(TRIMRANGE(C1:C20))",
+            "ROWS(_xlfn.TRIMRANGE(C1:C20))",
+            false,
+        ),
+        (
+            "ROWS(GROUPBY(C1,D1,SUM))",
+            "ROWS(_xlfn.GROUPBY(C1,D1,_xleta.SUM))",
+            false,
+        ),
     ] {
         let (text, array) = form(entered, &[]);
         assert_eq!(text, stored, "{entered}");

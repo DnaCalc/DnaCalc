@@ -105,7 +105,12 @@ fn dc_971p__format_cells_is_atomic_undoable_and_round_trips_styles() {
         assert_eq!(reopened.styles().number_formats, after.number_formats);
         for (address, index) in ["A1", "B2"].into_iter().zip(authored) {
             assert_eq!(reopened.cell_style(at(r, address)), index);
-            assert!(reopened.cell_alignment(at(r,address)).unwrap().shrink_to_fit);
+            assert!(
+                reopened
+                    .cell_alignment(at(r, address))
+                    .unwrap()
+                    .shrink_to_fit
+            );
             assert_eq!(
                 reopened.number_format(at(r, address)),
                 Some("0.0000 \"units\"")
@@ -770,54 +775,102 @@ fn session(bytes: &[u8]) -> HostSession {
 #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
 fn contract_p05_published_spill_discharges_blank_reader_before_a_refused_callback() {
     use calc_host::{CalculationDomain, DomainProgress};
-    let bytes = include_bytes!("../../calc-engine/tests/fixtures/excel-calc-probes/P05/child-scope-growth-reader-first-01.xlsm");
+    let bytes = include_bytes!(
+        "../../calc-engine/tests/fixtures/excel-calc-probes/P05/child-scope-growth-reader-first-01.xlsm"
+    );
     for budget in [WorkBudget::UNLIMITED, WorkBudget::evaluations(1)] {
-        let book = HostSession::open(Arc::new(MemorySource::new(bytes.to_vec())),&OpenPolicy::default(),HostOptions {
-            calc_mode:Some(CalcMode::Automatic),..HostOptions::default()
-        }).unwrap();
+        let book = HostSession::open(
+            Arc::new(MemorySource::new(bytes.to_vec())),
+            &OpenPolicy::default(),
+            HostOptions {
+                calc_mode: Some(CalcMode::Automatic),
+                ..HostOptions::default()
+            },
+        )
+        .unwrap();
         let mut domain = CalculationDomain::new();
         let id = domain.insert_session(book).unwrap();
-        for (index,(height,expected)) in [("1",1.0),("12",11.0),("1",1.0)].into_iter().enumerate() {
-            if index>0 {
+        for (index, (height, expected)) in [("1", 1.0), ("12", 11.0), ("1", 1.0)]
+            .into_iter()
+            .enumerate()
+        {
+            if index > 0 {
                 let book = domain.session_mut(id).unwrap();
                 let sheet = book.host().sheets()[0].id();
-                assert!(book.dispatch(SkinIntent::SetCalcMode(CalcMode::Manual)).accepted());
-                assert!(enter(book,at(sheet,"Z1"),height).accepted());
+                assert!(
+                    book.dispatch(SkinIntent::SetCalcMode(CalcMode::Manual))
+                        .accepted()
+                );
+                assert!(enter(book, at(sheet, "Z1"), height).accepted());
             }
-            domain.request_calculation(&[id],true).unwrap();
+            domain.request_calculation(&[id], true).unwrap();
             let mut finished = false;
             for _ in 0..100 {
                 match domain.advance(budget) {
-                    DomainProgress::Complete => { finished=true;break; }
-                    DomainProgress::Advanced { progress:HostProgress::Failed(error),.. } => panic!("published producer must satisfy the admitted blank proof: {error:?}"),
-                    DomainProgress::Failed {error,..} => panic!("domain failed: {error:?}"),
+                    DomainProgress::Complete => {
+                        finished = true;
+                        break;
+                    }
+                    DomainProgress::Advanced {
+                        progress: HostProgress::Failed(error),
+                        ..
+                    } => panic!(
+                        "published producer must satisfy the admitted blank proof: {error:?}"
+                    ),
+                    DomainProgress::Failed { error, .. } => panic!("domain failed: {error:?}"),
                     _ => {}
                 }
             }
             assert!(finished);
             let host = domain.host(id).unwrap();
             let sheet = host.sheets()[0].id();
-            assert_eq!(calculated(host,at(sheet,"C10")),Some(CalcValue::number(expected)));
-            if height=="12" { assert_eq!(calculated(host,at(sheet,"A10")),Some(CalcValue::number(10.0))); }
-            else { assert!(matches!(value(host,at(sheet,"A10")),ProjectedValue::Empty)); }
-            assert!(matches!(value(host,at(sheet,"E10")),ProjectedValue::NotModeled {..}),"disabled macro remains a refusal");
+            assert_eq!(
+                calculated(host, at(sheet, "C10")),
+                Some(CalcValue::number(expected))
+            );
+            if height == "12" {
+                assert_eq!(
+                    calculated(host, at(sheet, "A10")),
+                    Some(CalcValue::number(10.0))
+                );
+            } else {
+                assert!(matches!(
+                    value(host, at(sheet, "A10")),
+                    ProjectedValue::Empty
+                ));
+            }
+            assert!(
+                matches!(
+                    value(host, at(sheet, "E10")),
+                    ProjectedValue::NotModeled { .. }
+                ),
+                "disabled macro remains a refusal"
+            );
             let events = domain.session_mut(id).unwrap().take_calculation_events();
             let completed = events.iter().position(|event|matches!(event,calc_engine::CalcEvent::Completed(receipt) if receipt.coverage.refused==1)).unwrap();
-            let published = events.iter().rposition(|event|matches!(event,calc_engine::CalcEvent::Published(_))).unwrap();
-            assert!(published<completed);
+            let published = events
+                .iter()
+                .rposition(|event| matches!(event, calc_engine::CalcEvent::Published(_)))
+                .unwrap();
+            assert!(published < completed);
         }
         // A newly admitted requirement cannot be discharged by the preceding
         // command's installed stamp, nor by a refused producer's old footprint.
         let book = domain.session_mut(id).unwrap();
         let sheet = book.host().sheets()[0].id();
-        assert!(enter(book,at(sheet,"Z1"),"=DisabledSource()").accepted());
-        domain.request_calculation(&[id],true).unwrap();
+        assert!(enter(book, at(sheet, "Z1"), "=DisabledSource()").accepted());
+        domain.request_calculation(&[id], true).unwrap();
         for _ in 0..100 {
-            if matches!(domain.advance(budget),DomainProgress::Complete|DomainProgress::Failed {..}) { break; }
+            if matches!(
+                domain.advance(budget),
+                DomainProgress::Complete | DomainProgress::Failed { .. }
+            ) {
+                break;
+            }
         }
         let host = domain.host(id).unwrap();
-        assert!(calculated(host,at(sheet,"A1")).is_none());
-        assert!(calculated(host,at(sheet,"C10")).is_none());
+        assert!(calculated(host, at(sheet, "A1")).is_none());
+        assert!(calculated(host, at(sheet, "C10")).is_none());
     }
 }
 
@@ -874,20 +927,31 @@ fn enter(session: &mut HostSession, at: CellKey, text: &str) -> IntentReceipt {
 #[cfg_attr(not(target_arch = "wasm32"), test)]
 #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
 fn dc_j9k_19__eng14_original_immediate_bits_and_reopen_failures() {
-    recorded_overflow_round_trip(include_bytes!(
-        "../../calc-engine/tests/captures/eng14-raw-nonfinite/oracle.capture.json"
-    ), include_bytes!("../../calc-engine/tests/fixtures/eng14-raw-nonfinite/oracle.xlsx"), 21, 6);
+    recorded_overflow_round_trip(
+        include_bytes!("../../calc-engine/tests/captures/eng14-raw-nonfinite/oracle.capture.json"),
+        include_bytes!("../../calc-engine/tests/fixtures/eng14-raw-nonfinite/oracle.xlsx"),
+        21,
+        6,
+    );
 }
 
 #[cfg_attr(not(target_arch = "wasm32"), test)]
 #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
 fn dc_j9k_19__eng15_order_extrema_sign_and_text_match_original_readings() {
-    recorded_overflow_round_trip(include_bytes!(
-        "../../calc-engine/tests/captures/eng15-overflow/oracle.capture.json"
-    ), include_bytes!("../../calc-engine/tests/fixtures/eng15-overflow/oracle.xlsx"), 94, 30);
+    recorded_overflow_round_trip(
+        include_bytes!("../../calc-engine/tests/captures/eng15-overflow/oracle.capture.json"),
+        include_bytes!("../../calc-engine/tests/fixtures/eng15-overflow/oracle.xlsx"),
+        94,
+        30,
+    );
 }
 
-fn recorded_overflow_round_trip(capture_bytes: &[u8], fixture: &[u8], observations: usize, reopen_differences: usize) {
+fn recorded_overflow_round_trip(
+    capture_bytes: &[u8],
+    fixture: &[u8],
+    observations: usize,
+    reopen_differences: usize,
+) {
     let capture = calc_verdict::CaptureRecord::decode(capture_bytes).unwrap();
     assert_eq!(capture.observations.len(), observations);
     let check = |book: &HostSession| {
@@ -896,46 +960,91 @@ fn recorded_overflow_round_trip(capture_bytes: &[u8], fixture: &[u8], observatio
             let key = CellKey::new(s, observed.cell.row(), observed.cell.column()).unwrap();
             let page = project(book.host(), &ProjectionRequest { cells: vec![key] }).unwrap();
             let ProjectedValue::Calculated { value, calculation } = page.cells()[0].value() else {
-                panic!("actual calculation required at {key:?}: {:?}", page.cells()[0]);
+                panic!(
+                    "actual calculation required at {key:?}: {:?}",
+                    page.cells()[0]
+                );
             };
             // The canonical verdict compares number bits, including raw observed NaNs.
-            assert_eq!(calc_verdict::compare(observed.observation.expected().expect("a value observation"), value), None,
-                "{}!{}", observed.cell.sheet(), observed.cell.a1());
+            assert_eq!(
+                calc_verdict::compare(
+                    observed
+                        .observation
+                        .expected()
+                        .expect("a value observation"),
+                    value
+                ),
+                None,
+                "{}!{}",
+                observed.cell.sheet(),
+                observed.cell.a1()
+            );
             let stamp = calculation.stamp().unwrap();
-            assert!(matches!(stamp.computed_by, calc_engine::contract::ComputationOrigin::Evaluated { .. }));
+            assert!(matches!(
+                stamp.computed_by,
+                calc_engine::contract::ComputationOrigin::Evaluated { .. }
+            ));
             assert!(!stamp.reads.uses_imported_cache && !stamp.reads.uses_boundary_cache);
             assert!(!calculation.held_by_circular_rule());
         }
     };
     for budget in [usize::MAX, 1] {
-        let open = |bytes: Vec<u8>| HostSession::open(
-            Arc::new(MemorySource::new(bytes)), &OpenPolicy::default(),
-            HostOptions { calc_mode: Some(CalcMode::Manual), ..HostOptions::default() },
-        ).unwrap();
+        let open = |bytes: Vec<u8>| {
+            HostSession::open(
+                Arc::new(MemorySource::new(bytes)),
+                &OpenPolicy::default(),
+                HostOptions {
+                    calc_mode: Some(CalcMode::Manual),
+                    ..HostOptions::default()
+                },
+            )
+            .unwrap()
+        };
         let mut book = open(fixture.to_vec());
         book.set_calculation_budget(WorkBudget::evaluations(budget));
         assert!(book.dispatch(SkinIntent::Rebuild).accepted());
-        while book.has_pending_calculation() { book.advance_calculation(); }
+        while book.has_pending_calculation() {
+            book.advance_calculation();
+        }
         check(&book);
         let mut saved = Vec::new();
         save(book.host(), &SavePolicy::default(), &mut saved).unwrap();
         let mut reopened = open(saved);
         let mut changed = 0;
         for observed in &capture.observations {
-            if !observed.observation.expected().expect("a value observation").as_number().is_some_and(|n| !n.is_finite()) { continue; }
+            if !observed
+                .observation
+                .expected()
+                .expect("a value observation")
+                .as_number()
+                .is_some_and(|n| !n.is_finite())
+            {
+                continue;
+            }
             let s = sheet(reopened.host(), observed.cell.sheet());
             let key = CellKey::new(s, observed.cell.row(), observed.cell.column()).unwrap();
             let page = project(reopened.host(), &ProjectionRequest { cells: vec![key] }).unwrap();
             let ProjectedValue::FileCached(cache) = page.cells()[0].value() else {
-                panic!("saved cache must not be called calculated: {:?}", page.cells()[0]);
+                panic!(
+                    "saved cache must not be called calculated: {:?}",
+                    page.cells()[0]
+                );
             };
-            assert_eq!(cache.value().to_value().as_error(), Some(calc_value::WorksheetErrorCode::Num));
+            assert_eq!(
+                cache.value().to_value().as_error(),
+                Some(calc_value::WorksheetErrorCode::Num)
+            );
             changed += 1;
         }
-        assert_eq!(changed, reopen_differences, "captured reopen differences remain distinct");
+        assert_eq!(
+            changed, reopen_differences,
+            "captured reopen differences remain distinct"
+        );
         reopened.set_calculation_budget(WorkBudget::evaluations(budget));
         assert!(reopened.dispatch(SkinIntent::Rebuild).accepted());
-        while reopened.has_pending_calculation() { reopened.advance_calculation(); }
+        while reopened.has_pending_calculation() {
+            reopened.advance_calculation();
+        }
         check(&reopened);
     }
 }
@@ -1019,8 +1128,16 @@ fn dc_j9k_19__overflow_bits_survive_cells_and_save_as_num_errors() {
                 assert!(value.is_excel_overflow(), "{cell}: {value:?}");
                 // Eng15 D63 measures ABS of the negative encoding. The earlier
                 // synthetic control's shared sign-preservation assumption was wrong.
-                let expected_bits = if column == "E" { bits & !(1_u64 << 63) } else { *bits };
-                assert_eq!(value.as_number().unwrap().to_bits(), expected_bits, "{cell}");
+                let expected_bits = if column == "E" {
+                    bits & !(1_u64 << 63)
+                } else {
+                    *bits
+                };
+                assert_eq!(
+                    value.as_number().unwrap().to_bits(),
+                    expected_bits,
+                    "{cell}"
+                );
                 assert_eq!(
                     calc_func::general_format(
                         &calc_func::locale::format_profile(calc_func::locale::LocaleId::EnUs),
@@ -1166,19 +1283,34 @@ fn dc_j9k_19__other_kernel_nan_is_refused_in_scalar_and_spill_positions() {
     for bits in [bits, bits | (1_u64 << 63)] {
         let mut book = session(&calc_host::blank_package());
         let s = book.host().sheets()[0].id();
-        let returned = CalcValue::array(calc_value::CalcArray::from_rows(vec![
-            vec![CalcValue::number(f64::from_bits(bits))], vec![CalcValue::number(1.0)],
-        ]).unwrap());
+        let returned = CalcValue::array(
+            calc_value::CalcArray::from_rows(vec![
+                vec![CalcValue::number(f64::from_bits(bits))],
+                vec![CalcValue::number(1.0)],
+            ])
+            .unwrap(),
+        );
         let mut functions = calc_fml::CallableTable::new();
-        functions.register("OtherKernel", Rc::new(OtherKernel(returned))).unwrap();
+        functions
+            .register("OtherKernel", Rc::new(OtherKernel(returned)))
+            .unwrap();
         book.set_user_functions(functions);
         // INDEX selects the finite element that sorting would otherwise leave
         // after/before the invalid NaN. A valid scalar result must not hide it.
         let selected = if bits >> 63 == 0 { 1 } else { 2 };
-        enter(&mut book, at(s, "A1"), &format!("=INDEX(SORT(OtherKernel()),{selected})"));
+        enter(
+            &mut book,
+            at(s, "A1"),
+            &format!("=INDEX(SORT(OtherKernel()),{selected})"),
+        );
         assert!(book.dispatch(SkinIntent::Recalculate).accepted());
-        assert!(matches!(session_value(&book, at(s, "A1")), ProjectedValue::NotModeled { .. }),
-            "a nested ordinary NaN must not disappear inside SORT/INDEX: {bits:016x}");
+        assert!(
+            matches!(
+                session_value(&book, at(s, "A1")),
+                ProjectedValue::NotModeled { .. }
+            ),
+            "a nested ordinary NaN must not disappear inside SORT/INDEX: {bits:016x}"
+        );
     }
 }
 
@@ -3943,58 +4075,142 @@ fn dc_gf0__precedents_and_dependents_from_the_graph() {
 fn dc_hsa5_6__eng19_recorded_name_contexts_and_selected_evaluations() {
     use calc_host::value::NameScope;
     let cases: &[(&[u8], &[u8])] = &[
-        (include_bytes!("../../calc-engine/tests/fixtures/excel-calc-probes/P12/eng19-20261106/eng19-P12-inherited-definition-sheet/saved.xlsx"),
-         include_bytes!("../../calc-engine/tests/fixtures/excel-calc-probes/P12/eng19-20261106/eng19-P12-inherited-definition-sheet/result.json")),
-        (include_bytes!("../../calc-engine/tests/fixtures/excel-calc-probes/P12/eng19-20261106/eng19-P12-returned-closure-context/saved.xlsx"),
-         include_bytes!("../../calc-engine/tests/fixtures/excel-calc-probes/P12/eng19-20261106/eng19-P12-returned-closure-context/result.json")),
-        (include_bytes!("../../calc-engine/tests/fixtures/excel-calc-probes/P12/eng19-20261106/eng19-P12-shadowed-explicit-evaluate/saved.xlsx"),
-         include_bytes!("../../calc-engine/tests/fixtures/excel-calc-probes/P12/eng19-20261106/eng19-P12-shadowed-explicit-evaluate/result.json")),
+        (
+            include_bytes!(
+                "../../calc-engine/tests/fixtures/excel-calc-probes/P12/eng19-20261106/eng19-P12-inherited-definition-sheet/saved.xlsx"
+            ),
+            include_bytes!(
+                "../../calc-engine/tests/fixtures/excel-calc-probes/P12/eng19-20261106/eng19-P12-inherited-definition-sheet/result.json"
+            ),
+        ),
+        (
+            include_bytes!(
+                "../../calc-engine/tests/fixtures/excel-calc-probes/P12/eng19-20261106/eng19-P12-returned-closure-context/saved.xlsx"
+            ),
+            include_bytes!(
+                "../../calc-engine/tests/fixtures/excel-calc-probes/P12/eng19-20261106/eng19-P12-returned-closure-context/result.json"
+            ),
+        ),
+        (
+            include_bytes!(
+                "../../calc-engine/tests/fixtures/excel-calc-probes/P12/eng19-20261106/eng19-P12-shadowed-explicit-evaluate/saved.xlsx"
+            ),
+            include_bytes!(
+                "../../calc-engine/tests/fixtures/excel-calc-probes/P12/eng19-20261106/eng19-P12-shadowed-explicit-evaluate/result.json"
+            ),
+        ),
     ];
     let mut checked = 0;
     for (bytes, record) in cases {
         let record: serde_json::Value = serde_json::from_slice(record).unwrap();
         let observations = record["observations"].as_array().unwrap();
-        let expected = observations.iter().find(|s| s["stage"] == "after-CalculateFullRebuild").unwrap();
+        let expected = observations
+            .iter()
+            .find(|s| s["stage"] == "after-CalculateFullRebuild")
+            .unwrap();
         for budget in [1, usize::MAX] {
-            let mut book = HostSession::open(Arc::new(MemorySource::new(bytes.to_vec())),
-                &OpenPolicy::default(), HostOptions { calc_mode: Some(CalcMode::Manual), ..Default::default() }).unwrap();
+            let mut book = HostSession::open(
+                Arc::new(MemorySource::new(bytes.to_vec())),
+                &OpenPolicy::default(),
+                HostOptions {
+                    calc_mode: Some(CalcMode::Manual),
+                    ..Default::default()
+                },
+            )
+            .unwrap();
             book.set_calculation_budget(calc_host::WorkBudget::evaluations(budget));
-            for entry in observations.iter().filter(|s| s["operation"] == "formula-entry") {
-                let (worksheet, address) = entry["caller"].as_str().unwrap().split_once('!').unwrap();
+            for entry in observations
+                .iter()
+                .filter(|s| s["operation"] == "formula-entry")
+            {
+                let (worksheet, address) =
+                    entry["caller"].as_str().unwrap().split_once('!').unwrap();
                 let key = at(sheet(book.host(), worksheet), address);
                 assert!(enter(&mut book, key, entry["authored"].as_str().unwrap()).accepted());
             }
             assert!(book.dispatch(SkinIntent::Rebuild).accepted());
             for _ in 0..10_000 {
-                if !book.has_pending_calculation() { break; }
-                assert!(!matches!(book.advance_calculation(), calc_host::HostProgress::Failed(_)));
+                if !book.has_pending_calculation() {
+                    break;
+                }
+                assert!(!matches!(
+                    book.advance_calculation(),
+                    calc_host::HostProgress::Failed(_)
+                ));
             }
             assert!(!book.has_pending_calculation());
-            for cell in expected["cells"].as_array().unwrap().iter().filter(|c|
-                c["formula"].as_str().is_some_and(|text| text.starts_with('='))) {
+            for cell in expected["cells"].as_array().unwrap().iter().filter(|c| {
+                c["formula"]
+                    .as_str()
+                    .is_some_and(|text| text.starts_with('='))
+            }) {
                 let s = sheet(book.host(), cell["sheet"].as_str().unwrap());
-                let key = CellKey::new(s, cell["row"].as_u64().unwrap() as u32,
-                    cell["column"].as_u64().unwrap() as u32).unwrap();
-                let ProjectedValue::Calculated { value, calculation } = value(book.host(), key) else {
-                    panic!("{} {key:?}: {:?}", record["condition"]["id"], value(book.host(), key));
+                let key = CellKey::new(
+                    s,
+                    cell["row"].as_u64().unwrap() as u32,
+                    cell["column"].as_u64().unwrap() as u32,
+                )
+                .unwrap();
+                let ProjectedValue::Calculated { value, calculation } = value(book.host(), key)
+                else {
+                    panic!(
+                        "{} {key:?}: {:?}",
+                        record["condition"]["id"],
+                        value(book.host(), key)
+                    );
                 };
-                let expected_bits = u64::from_str_radix(cell["value"]["number"].as_str().unwrap(), 16).unwrap();
-                assert_eq!(value.as_number().unwrap().to_bits(), expected_bits, "{} {key:?}", record["condition"]["id"]);
-                let stamp = calculation.stamp().expect("ordinary name formulas have producing invocations");
+                let expected_bits =
+                    u64::from_str_radix(cell["value"]["number"].as_str().unwrap(), 16).unwrap();
+                assert_eq!(
+                    value.as_number().unwrap().to_bits(),
+                    expected_bits,
+                    "{} {key:?}",
+                    record["condition"]["id"]
+                );
+                let stamp = calculation
+                    .stamp()
+                    .expect("ordinary name formulas have producing invocations");
                 assert!(!stamp.reads.uses_imported_cache && !stamp.reads.uses_boundary_cache);
                 checked += 1;
             }
-            for operation in observations.iter().filter(|s| s["operation"] == "Evaluate" && s["selected_name"].is_string()) {
-                let caller = at(sheet(book.host(), operation["sheet"].as_str().unwrap()), "A1");
+            for operation in observations
+                .iter()
+                .filter(|s| s["operation"] == "Evaluate" && s["selected_name"].is_string())
+            {
+                let caller = at(
+                    sheet(book.host(), operation["sheet"].as_str().unwrap()),
+                    "A1",
+                );
                 let selected = operation["selected_name"].as_str().unwrap();
                 let (scope, name) = if let Some((scope, name)) = selected.split_once('!') {
                     (NameScope::Sheet(sheet(book.host(), scope)), name)
-                } else { (NameScope::Workbook, selected) };
-                let definition = book.host().model().definitions().name_table().lookup(scope, name).unwrap();
-                let result = book.host().evaluate_name_with_evidence(definition.id(), definition.binding_version(), caller).unwrap();
+                } else {
+                    (NameScope::Workbook, selected)
+                };
+                let definition = book
+                    .host()
+                    .model()
+                    .definitions()
+                    .name_table()
+                    .lookup(scope, name)
+                    .unwrap();
+                let result = book
+                    .host()
+                    .evaluate_name_with_evidence(
+                        definition.id(),
+                        definition.binding_version(),
+                        caller,
+                    )
+                    .unwrap();
                 let actual = result.evaluation.outcome.unwrap();
-                let expected_bits = u64::from_str_radix(operation["value"]["number"].as_str().unwrap(), 16).unwrap();
-                assert_eq!(actual.as_number().unwrap().to_bits(), expected_bits, "{selected}");
+                let expected_bits =
+                    u64::from_str_radix(operation["value"]["number"].as_str().unwrap(), 16)
+                        .unwrap();
+                assert_eq!(
+                    actual.as_number().unwrap().to_bits(),
+                    expected_bits,
+                    "{selected}"
+                );
                 let root = result.evaluation.root.unwrap();
                 assert_eq!(root.locus.definition.id, definition.id());
                 assert_eq!(root.locus.caller, caller);
@@ -4008,22 +4224,38 @@ fn dc_hsa5_6__eng19_recorded_name_contexts_and_selected_evaluations() {
 #[cfg_attr(not(target_arch = "wasm32"), test)]
 #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
 fn dc_hsa5_17__rebuild_keeps_targets_and_restores_all_dependency_kinds() {
-    use calc_host::{NameEdit, WorkbookCommand};
     use calc_host::value::NameScope;
+    use calc_host::{NameEdit, WorkbookCommand};
     let drain = |book: &mut HostSession| {
         for _ in 0..100_000 {
-            if !book.has_pending_calculation() { break; }
-            assert!(!matches!(book.advance_calculation(), calc_host::HostProgress::Failed(_)));
+            if !book.has_pending_calculation() {
+                break;
+            }
+            assert!(!matches!(
+                book.advance_calculation(),
+                calc_host::HostProgress::Failed(_)
+            ));
         }
         assert!(!book.has_pending_calculation());
     };
     let name = |book: &mut HostSession, name: &str, formula: &str| {
-        let previous = book.host().model().definitions().name_table().lookup(NameScope::Workbook, name)
+        let previous = book
+            .host()
+            .model()
+            .definitions()
+            .name_table()
+            .lookup(NameScope::Workbook, name)
             .map(|node| (node.id(), node.binding_version()));
-        assert!(book.dispatch(SkinIntent::Command(WorkbookCommand::Name(NameEdit {
-            id: previous.map(|p| p.0), version: previous.map(|p| p.1), scope: NameScope::Workbook,
-            name: name.into(), formula: Some(formula.into()),
-        }))).accepted());
+        assert!(
+            book.dispatch(SkinIntent::Command(WorkbookCommand::Name(NameEdit {
+                id: previous.map(|p| p.0),
+                version: previous.map(|p| p.1),
+                scope: NameScope::Workbook,
+                name: name.into(),
+                formula: Some(formula.into()),
+            })))
+            .accepted()
+        );
     };
     for budget in [1, usize::MAX] {
         let mut book = session(&calc_host::blank_package());
@@ -4031,51 +4263,109 @@ fn dc_hsa5_17__rebuild_keeps_targets_and_restores_all_dependency_kinds() {
         book.set_calculation_budget(calc_host::WorkBudget::evaluations(budget));
         let s = book.host().sheets()[0].id();
         name(&mut book, "Amount", "=$A$1");
-        for (address, text) in [("A1", "1"), ("A2", "2"), ("A3", "=SUBTOTAL(9,A1:A2)"),
-            ("B1", "=A1+1"), ("C1", "=INDIRECT(\"A2\")+1"), ("D1", "=SUBTOTAL(9,A1:A3)"),
-            ("E1", "=Amount+1"), ("G1", "=SEQUENCE(A1)"), ("H1", "=ROWS(G1#)+SUM(G1#)"),
-            ("I1", "=IFERROR(MissingAlias,77)"), ("J1", "=SUM(A1:A2)"), ("K1", "=SUM(A:A)")] {
+        for (address, text) in [
+            ("A1", "1"),
+            ("A2", "2"),
+            ("A3", "=SUBTOTAL(9,A1:A2)"),
+            ("B1", "=A1+1"),
+            ("C1", "=INDIRECT(\"A2\")+1"),
+            ("D1", "=SUBTOTAL(9,A1:A3)"),
+            ("E1", "=Amount+1"),
+            ("G1", "=SEQUENCE(A1)"),
+            ("H1", "=ROWS(G1#)+SUM(G1#)"),
+            ("I1", "=IFERROR(MissingAlias,77)"),
+            ("J1", "=SUM(A1:A2)"),
+            ("K1", "=SUM(A:A)"),
+        ] {
             assert!(enter(&mut book, at(s, address), text).accepted());
         }
-        assert!(book.dispatch(SkinIntent::Calculate { scope: calc_host::CalcScope::Workbook,
-            selection: calc_host::EvalSelection::ForceAll }).accepted());
+        assert!(
+            book.dispatch(SkinIntent::Calculate {
+                scope: calc_host::CalcScope::Workbook,
+                selection: calc_host::EvalSelection::ForceAll
+            })
+            .accepted()
+        );
         drain(&mut book);
         let addresses = ["A3", "B1", "C1", "D1", "E1", "G1", "H1", "I1", "J1", "K1"];
-        let before: Vec<_> = addresses.iter().map(|address| {
-            let ProjectedValue::Calculated { value, calculation } = value(book.host(), at(s, address)) else {
-                panic!("{address}: expected an initial calculation");
-            };
-            (value, calculation.stamp().unwrap().clone())
-        }).collect();
+        let before: Vec<_> = addresses
+            .iter()
+            .map(|address| {
+                let ProjectedValue::Calculated { value, calculation } =
+                    value(book.host(), at(s, address))
+                else {
+                    panic!("{address}: expected an initial calculation");
+                };
+                (value, calculation.stamp().unwrap().clone())
+            })
+            .collect();
         let revision = book.host().revision();
         assert!(book.dispatch(SkinIntent::Rebuild).accepted());
         drain(&mut book);
         assert_eq!(book.host().revision(), revision);
         for (address, (old_value, old_stamp)) in addresses.iter().zip(&before) {
-            let ProjectedValue::Calculated { value, calculation } = value(book.host(), at(s, address)) else {
+            let ProjectedValue::Calculated { value, calculation } =
+                value(book.host(), at(s, address))
+            else {
                 panic!("{address}: expected a rebuilt calculation");
             };
             let stamp = calculation.stamp().unwrap();
             assert_eq!(&value, old_value, "{address}");
-            assert_eq!(stamp.target, old_stamp.target, "Rebuild keeps the live formula target");
-            assert_ne!(stamp.computed_by, old_stamp.computed_by, "Rebuild actually calculates {address}");
+            assert_eq!(
+                stamp.target, old_stamp.target,
+                "Rebuild keeps the live formula target"
+            );
+            assert_ne!(
+                stamp.computed_by, old_stamp.computed_by,
+                "Rebuild actually calculates {address}"
+            );
         }
-        assert!(book.host().dependents(at(s, "A2")).contains(&at(s, "C1")), "executed dynamic edge is restored");
+        assert!(
+            book.host().dependents(at(s, "A2")).contains(&at(s, "C1")),
+            "executed dynamic edge is restored"
+        );
         assert!(enter(&mut book, at(s, "A1"), "3").accepted());
         assert!(book.dispatch(SkinIntent::Recalculate).accepted());
         drain(&mut book);
-        for (address, expected) in [("A3", 5.), ("B1", 4.), ("C1", 3.), ("D1", 5.),
-            ("E1", 4.), ("G3", 3.), ("H1", 9.), ("I1", 77.), ("J1", 5.), ("K1", 10.)] {
-            assert_eq!(calculated(book.host(), at(s, address)), Some(CalcValue::number(expected)), "{address}");
+        for (address, expected) in [
+            ("A3", 5.),
+            ("B1", 4.),
+            ("C1", 3.),
+            ("D1", 5.),
+            ("E1", 4.),
+            ("G3", 3.),
+            ("H1", 9.),
+            ("I1", 77.),
+            ("J1", 5.),
+            ("K1", 10.),
+        ] {
+            assert_eq!(
+                calculated(book.host(), at(s, address)),
+                Some(CalcValue::number(expected)),
+                "{address}"
+            );
         }
         name(&mut book, "Amount", "=$A$2");
         name(&mut book, "MissingAlias", "=9");
         assert!(enter(&mut book, at(s, "A2"), "7").accepted());
         assert!(book.dispatch(SkinIntent::Recalculate).accepted());
         drain(&mut book);
-        for (address, expected) in [("A3", 10.), ("B1", 4.), ("C1", 8.), ("D1", 10.),
-            ("E1", 8.), ("H1", 9.), ("I1", 9.), ("J1", 10.), ("K1", 20.)] {
-            assert_eq!(calculated(book.host(), at(s, address)), Some(CalcValue::number(expected)), "{address}");
+        for (address, expected) in [
+            ("A3", 10.),
+            ("B1", 4.),
+            ("C1", 8.),
+            ("D1", 10.),
+            ("E1", 8.),
+            ("H1", 9.),
+            ("I1", 9.),
+            ("J1", 10.),
+            ("K1", 20.),
+        ] {
+            assert_eq!(
+                calculated(book.host(), at(s, address)),
+                Some(CalcValue::number(expected)),
+                "{address}"
+            );
         }
     }
 }
@@ -4084,8 +4374,8 @@ fn dc_hsa5_17__rebuild_keeps_targets_and_restores_all_dependency_kinds() {
 #[cfg_attr(not(target_arch = "wasm32"), test)]
 #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
 fn dc_hsa5_6__qualified_name_calls_keep_caller_arguments_and_binding_watches() {
-    use calc_host::{NameEdit, WorkbookCommand};
     use calc_host::value::NameScope;
+    use calc_host::{NameEdit, WorkbookCommand};
     #[derive(Debug)]
     struct Mark(Rc<std::cell::Cell<usize>>);
     impl calc_fml::UserFunction for Mark {
@@ -4094,84 +4384,186 @@ fn dc_hsa5_6__qualified_name_calls_keep_caller_arguments_and_binding_watches() {
             Ok(CalcValue::number(1.))
         }
     }
-    let bytes = include_bytes!("../../calc-engine/tests/fixtures/excel-calc-probes/P12/eng19-20261106/eng19-P12-returned-closure-context/saved.xlsx");
+    let bytes = include_bytes!(
+        "../../calc-engine/tests/fixtures/excel-calc-probes/P12/eng19-20261106/eng19-P12-returned-closure-context/saved.xlsx"
+    );
     let drain = |book: &mut HostSession| {
         for _ in 0..10_000 {
-            if !book.has_pending_calculation() { break; }
-            assert!(!matches!(book.advance_calculation(), calc_host::HostProgress::Failed(_)));
+            if !book.has_pending_calculation() {
+                break;
+            }
+            assert!(!matches!(
+                book.advance_calculation(),
+                calc_host::HostProgress::Failed(_)
+            ));
         }
         assert!(!book.has_pending_calculation());
     };
     for ambiguous in [false, true] {
-        let mut book = HostSession::open(Arc::new(MemorySource::new(bytes.to_vec()).named(if ambiguous { "Sheet1" } else { "names.xlsx" })),
-            &OpenPolicy::default(), HostOptions { calc_mode: Some(CalcMode::Manual), ..Default::default() }).unwrap();
+        let mut book = HostSession::open(
+            Arc::new(MemorySource::new(bytes.to_vec()).named(if ambiguous {
+                "Sheet1"
+            } else {
+                "names.xlsx"
+            })),
+            &OpenPolicy::default(),
+            HostOptions {
+                calc_mode: Some(CalcMode::Manual),
+                ..Default::default()
+            },
+        )
+        .unwrap();
         let entries = Rc::new(std::cell::Cell::new(0));
         let mut functions = calc_fml::CallableTable::new();
-        functions.register("CallerMarker", Rc::new(Mark(entries.clone()))).unwrap();
+        functions
+            .register("CallerMarker", Rc::new(Mark(entries.clone())))
+            .unwrap();
         book.set_user_functions(functions);
         let other = sheet(book.host(), "Other");
         let local = sheet(book.host(), "Sheet1");
-        assert!(book.dispatch(SkinIntent::Command(WorkbookCommand::Name(NameEdit {
-            id: None, version: None, scope: NameScope::Workbook, name: "OwnFunc".into(),
-            formula: Some("=LAMBDA(x,x+1)".into()),
-        }))).accepted());
+        assert!(
+            book.dispatch(SkinIntent::Command(WorkbookCommand::Name(NameEdit {
+                id: None,
+                version: None,
+                scope: NameScope::Workbook,
+                name: "OwnFunc".into(),
+                formula: Some("=LAMBDA(x,x+1)".into()),
+            })))
+            .accepted()
+        );
         assert!(enter(&mut book, at(other, "F1"), "=[0]!OwnFunc(CallerMarker())").accepted());
-        assert!(enter(&mut book, at(other, "F2"), "=IFERROR('Sheet1'!NotDefined(CallerMarker()),17)").accepted());
+        assert!(
+            enter(
+                &mut book,
+                at(other, "F2"),
+                "=IFERROR('Sheet1'!NotDefined(CallerMarker()),17)"
+            )
+            .accepted()
+        );
         assert!(enter(&mut book, at(other, "F4"), "='Sheet1'!Maker(A1)").accepted());
         assert!(book.dispatch(SkinIntent::Recalculate).accepted());
         drain(&mut book);
-        assert_eq!(entries.get(), 1, "only the unambiguous own-workbook call enters its argument");
-        assert_eq!(calculated(book.host(), at(other, "F1")), Some(CalcValue::number(2.)));
-        assert!(matches!(value(book.host(), at(other, "F2")), ProjectedValue::NotModeled { .. }));
+        assert_eq!(
+            entries.get(),
+            1,
+            "only the unambiguous own-workbook call enters its argument"
+        );
+        assert_eq!(
+            calculated(book.host(), at(other, "F1")),
+            Some(CalcValue::number(2.))
+        );
+        assert!(matches!(
+            value(book.host(), at(other, "F2")),
+            ProjectedValue::NotModeled { .. }
+        ));
         if ambiguous {
-            let ProjectedValue::NotModeled { refusal, .. } = value(book.host(), at(other, "F4")) else {
+            let ProjectedValue::NotModeled { refusal, .. } = value(book.host(), at(other, "F4"))
+            else {
                 panic!("an ambiguous sheet/workbook qualifier must refuse");
             };
-            assert!(refusal.to_string().contains("both a sheet and a workbook provider"));
+            assert!(
+                refusal
+                    .to_string()
+                    .contains("both a sheet and a workbook provider")
+            );
             continue;
         }
-        assert_eq!(calculated(book.host(), at(other, "F4")), Some(CalcValue::number(9.)), "A1 in an argument belongs to Other");
-        let maker = book.host().model().definitions().name_table().lookup(NameScope::Sheet(local), "Maker").unwrap();
+        assert_eq!(
+            calculated(book.host(), at(other, "F4")),
+            Some(CalcValue::number(9.)),
+            "A1 in an argument belongs to Other"
+        );
+        let maker = book
+            .host()
+            .model()
+            .definitions()
+            .name_table()
+            .lookup(NameScope::Sheet(local), "Maker")
+            .unwrap();
         let (id, version) = (maker.id(), maker.binding_version());
-        assert!(book.dispatch(SkinIntent::Command(WorkbookCommand::Name(NameEdit {
-            id: Some(id), version: Some(version), scope: NameScope::Sheet(local), name: "Maker".into(),
-            formula: Some("=LAMBDA(x,x+10)".into()),
-        }))).accepted());
-        assert!(book.dispatch(SkinIntent::Command(WorkbookCommand::Name(NameEdit {
-            id: None, version: None, scope: NameScope::Sheet(local), name: "NotDefined".into(),
-            formula: Some("=LAMBDA(x,x+2)".into()),
-        }))).accepted());
+        assert!(
+            book.dispatch(SkinIntent::Command(WorkbookCommand::Name(NameEdit {
+                id: Some(id),
+                version: Some(version),
+                scope: NameScope::Sheet(local),
+                name: "Maker".into(),
+                formula: Some("=LAMBDA(x,x+10)".into()),
+            })))
+            .accepted()
+        );
+        assert!(
+            book.dispatch(SkinIntent::Command(WorkbookCommand::Name(NameEdit {
+                id: None,
+                version: None,
+                scope: NameScope::Sheet(local),
+                name: "NotDefined".into(),
+                formula: Some("=LAMBDA(x,x+2)".into()),
+            })))
+            .accepted()
+        );
         assert!(book.dispatch(SkinIntent::Recalculate).accepted());
         drain(&mut book);
-        assert_eq!(calculated(book.host(), at(other, "F4")), Some(CalcValue::number(19.)));
-        assert_eq!(calculated(book.host(), at(other, "F2")), Some(CalcValue::number(3.)), "a formerly refused missing binding becomes available");
-        assert_eq!(entries.get(), 2, "definition edits rebind only the reached marker argument");
+        assert_eq!(
+            calculated(book.host(), at(other, "F4")),
+            Some(CalcValue::number(19.))
+        );
+        assert_eq!(
+            calculated(book.host(), at(other, "F2")),
+            Some(CalcValue::number(3.)),
+            "a formerly refused missing binding becomes available"
+        );
+        assert_eq!(
+            entries.get(),
+            2,
+            "definition edits rebind only the reached marker argument"
+        );
         let version = book.host().name_node(id).unwrap().binding_version();
-        let definition = format!("={}", book.host().name_node(id).unwrap().definition().formula);
+        let definition = format!(
+            "={}",
+            book.host().name_node(id).unwrap().definition().formula
+        );
         let renamed = book.dispatch(SkinIntent::Command(WorkbookCommand::Name(NameEdit {
-            id: Some(id), version: Some(version), scope: NameScope::Sheet(local), name: "RenamedMaker".into(),
+            id: Some(id),
+            version: Some(version),
+            scope: NameScope::Sheet(local),
+            name: "RenamedMaker".into(),
             formula: Some(definition),
         })));
         assert!(renamed.accepted(), "{:?}", renamed.error);
         assert!(book.dispatch(SkinIntent::Recalculate).accepted());
         drain(&mut book);
-        assert_eq!(calculated(book.host(), at(other, "F4")), Some(CalcValue::number(19.)));
+        assert_eq!(
+            calculated(book.host(), at(other, "F4")),
+            Some(CalcValue::number(19.))
+        );
         for action in [SkinIntent::Undo, SkinIntent::Redo] {
             assert!(book.dispatch(action).accepted());
             assert!(book.dispatch(SkinIntent::Recalculate).accepted());
             drain(&mut book);
-            assert_eq!(calculated(book.host(), at(other, "F4")), Some(CalcValue::number(19.)));
+            assert_eq!(
+                calculated(book.host(), at(other, "F4")),
+                Some(CalcValue::number(19.))
+            );
         }
         let version = book.host().name_node(id).unwrap().binding_version();
-        let definition = format!("={}", book.host().name_node(id).unwrap().definition().formula);
+        let definition = format!(
+            "={}",
+            book.host().name_node(id).unwrap().definition().formula
+        );
         let moved = book.dispatch(SkinIntent::Command(WorkbookCommand::Name(NameEdit {
-            id: Some(id), version: Some(version), scope: NameScope::Workbook, name: "RenamedMaker".into(),
+            id: Some(id),
+            version: Some(version),
+            scope: NameScope::Workbook,
+            name: "RenamedMaker".into(),
             formula: Some(definition),
         })));
         assert!(moved.accepted(), "{:?}", moved.error);
         assert!(book.dispatch(SkinIntent::Recalculate).accepted());
         drain(&mut book);
-        assert_eq!(calculated(book.host(), at(other, "F4")), Some(CalcValue::number(19.)));
+        assert_eq!(
+            calculated(book.host(), at(other, "F4")),
+            Some(CalcValue::number(19.))
+        );
         assert_eq!(entries.get(), 2);
     }
 }
@@ -6138,10 +6530,15 @@ fn package_with_part(name: &str, rewrite: impl Fn(&str) -> String) -> Vec<u8> {
     package_with_part_from(&calc_host::blank_package(), name, rewrite)
 }
 fn package_with_part_from(blank: &[u8], name: &str, rewrite: impl Fn(&str) -> String) -> Vec<u8> {
-    package_with_parts_from(blank,name,rewrite,&[])
+    package_with_parts_from(blank, name, rewrite, &[])
 }
 // The same retained-source fixture adapter also appends parts for relationship admission cases.
-fn package_with_parts_from(blank: &[u8], name: &str, rewrite: impl Fn(&str) -> String, added:&[(&str,&[u8])]) -> Vec<u8> {
+fn package_with_parts_from(
+    blank: &[u8],
+    name: &str,
+    rewrite: impl Fn(&str) -> String,
+    added: &[(&str, &[u8])],
+) -> Vec<u8> {
     use existing_wire_support::{RawEntry, build_zip, parse_zip};
     let archive = parse_zip(blank);
     let mut entries: Vec<_> = archive
@@ -6164,7 +6561,11 @@ fn package_with_parts_from(blank: &[u8], name: &str, rewrite: impl Fn(&str) -> S
             }
         })
         .collect();
-    entries.extend(added.iter().map(|(name,bytes)|RawEntry::stored(name,bytes)));
+    entries.extend(
+        added
+            .iter()
+            .map(|(name, bytes)| RawEntry::stored(name, bytes)),
+    );
     build_zip(&entries)
 }
 
@@ -7063,10 +7464,15 @@ fn contract_vba_volatile_spill_sizing_and_skipped_calls_use_executed_effects() {
             ("B4", Some(calc_fml::UdfVolatility::Set(true))),
             ("B5", None),
         ] {
-            let ProjectedValue::Calculated { calculation, .. } = value(book.host(), at(s, cell)) else {
+            let ProjectedValue::Calculated { calculation, .. } = value(book.host(), at(s, cell))
+            else {
                 panic!("{cell} calculated")
             };
-            assert_eq!(calculation.stamp().unwrap().reads.udf_volatility, expected, "{backend:?}: {cell}");
+            assert_eq!(
+                calculation.stamp().unwrap().reads.udf_volatility,
+                expected,
+                "{backend:?}: {cell}"
+            );
         }
     }
 }
@@ -8901,7 +9307,8 @@ mod async_contract {
     }
     #[cfg_attr(not(target_arch = "wasm32"), test)]
     #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
-    fn contract_p03_a_connection_shows_its_initial_value_at_once_and_it_is_admitted_as_sequence_one() {
+    fn contract_p03_a_connection_shows_its_initial_value_at_once_and_it_is_admitted_as_sequence_one()
+     {
         use calc_host::RtdDisposition as T;
         let mut book = session(&calc_host::blank_package());
         let s = book.host().sheets()[0].id();
@@ -8916,20 +9323,30 @@ mod async_contract {
         book.dispatch(SkinIntent::Recalculate);
         drain(&mut book);
         // The value ConnectData returned shows at once: never a temporary #N/A.
-        assert_eq!(calculated(book.host(), at(s, "B1")), Some(CalcValue::number(2.0)));
+        assert_eq!(
+            calculated(book.host(), at(s, "B1")),
+            Some(CalcValue::number(2.0))
+        );
         assert!(*connects.borrow() >= 1);
         // The host admitted it as sequence 1 before it published the result.
         let admitted = book.take_rtd_admissions();
         assert_eq!(admitted.len(), 1);
         assert_eq!(
-            (admitted[0].lease, admitted[0].sequence, admitted[0].value.clone()),
+            (
+                admitted[0].lease,
+                admitted[0].sequence,
+                admitted[0].value.clone()
+            ),
             (RtdLease(5), 1, CalcValue::number(1.0))
         );
         let ProjectedValue::Calculated { calculation, .. } = value(book.host(), at(s, "B1")) else {
             panic!("calculated")
         };
         let read = &calculation.stamp().unwrap().reads.external_inputs[0];
-        assert_eq!((read.topic.clone(), read.lease, read.sequence), (probe_topic(), RtdLease(5), 1));
+        assert_eq!(
+            (read.topic.clone(), read.lease, read.sequence),
+            (probe_topic(), RtdLease(5), 1)
+        );
         // The client's own queued copy of the same admission is a duplicate.
         assert_eq!(
             book.update_rtd(probe_topic(), RtdLease(5), 1, CalcValue::number(1.0)),
@@ -8942,7 +9359,10 @@ mod async_contract {
         );
         book.dispatch(SkinIntent::Recalculate);
         drain(&mut book);
-        assert_eq!(calculated(book.host(), at(s, "B1")), Some(CalcValue::number(43.0)));
+        assert_eq!(
+            calculated(book.host(), at(s, "B1")),
+            Some(CalcValue::number(43.0))
+        );
     }
     /// A connector that records the topic of every connect and refuses one ProgID, as a registry
     /// with no such class does.
@@ -8996,7 +9416,11 @@ mod async_contract {
             number("B5").and_then(|v| v.as_error()),
             Some(calc_host::value::WorksheetErrorCode::NA)
         );
-        assert_eq!(number("B6"), None, "a named (remote) server is a typed refusal");
+        assert_eq!(
+            number("B6"),
+            None,
+            "a named (remote) server is a typed refusal"
+        );
         let seen = seen.borrow();
         let key = |strings: &[&str]| {
             calc_host::TopicKey::new(
@@ -9036,8 +9460,14 @@ mod async_contract {
         enter(&mut book, at(s, "B2"), "=RtdBy(\"b\")+1");
         book.dispatch(SkinIntent::Recalculate);
         drain(&mut book);
-        assert_eq!(calculated(book.host(), at(s, "B1")), Some(CalcValue::number(2.0)));
-        assert_eq!(calculated(book.host(), at(s, "B2")), Some(CalcValue::number(11.0)));
+        assert_eq!(
+            calculated(book.host(), at(s, "B1")),
+            Some(CalcValue::number(2.0))
+        );
+        assert_eq!(
+            calculated(book.host(), at(s, "B2")),
+            Some(CalcValue::number(11.0))
+        );
         let (a0, b0) = (runs.borrow()["a"], runs.borrow()["b"]);
         assert_eq!(
             book.update_rtd(topic("a"), RtdLease(1), 2, CalcValue::number(5.0)),
@@ -9045,8 +9475,14 @@ mod async_contract {
         );
         book.dispatch(SkinIntent::Recalculate);
         drain(&mut book);
-        assert_eq!(calculated(book.host(), at(s, "B1")), Some(CalcValue::number(6.0)));
-        assert_eq!(calculated(book.host(), at(s, "B2")), Some(CalcValue::number(11.0)));
+        assert_eq!(
+            calculated(book.host(), at(s, "B1")),
+            Some(CalcValue::number(6.0))
+        );
+        assert_eq!(
+            calculated(book.host(), at(s, "B2")),
+            Some(CalcValue::number(11.0))
+        );
         assert_eq!(
             runs.borrow()["a"],
             a0 + 1,
@@ -9472,7 +9908,10 @@ mod async_contract {
             }));
             let mut functions = calc_fml::CallableTable::new();
             functions
-                .register("HiddenPoolRead", Rc::new(HiddenPoolRead(at(s, "D1"), limit)))
+                .register(
+                    "HiddenPoolRead",
+                    Rc::new(HiddenPoolRead(at(s, "D1"), limit)),
+                )
                 .unwrap();
             functions
                 .register(
@@ -9513,14 +9952,23 @@ mod async_contract {
             drain(&mut book);
             for address in ["B1", "C1"] {
                 let result = value(book.host(), at(s, address));
-                let ProjectedValue::NotModeled { refusal, calculation } = result else {
+                let ProjectedValue::NotModeled {
+                    refusal,
+                    calculation,
+                } = result
+                else {
                     panic!("limit {limit}: {address}: {result:?}");
                 };
-                assert!(!calculation.held_by_circular_rule(), "limit {limit}: {address}");
+                assert!(
+                    !calculation.held_by_circular_rule(),
+                    "limit {limit}: {address}"
+                );
                 // The outcome is a typed refusal for every pool; only the construct it names
                 // differs (an observation fence, or a concurrent scalar callback).
                 assert!(
-                    ["dc-hsa5.4", "dc-snz.23"].iter().any(|owner| format!("{refusal:?}").contains(owner)),
+                    ["dc-hsa5.4", "dc-snz.23"]
+                        .iter()
+                        .any(|owner| format!("{refusal:?}").contains(owner)),
                     "limit {limit}: {address}: {refusal:?}"
                 );
             }
@@ -9783,7 +10231,13 @@ mod async_contract {
                 HostProgress::Failed(_)
             ));
         }
-        assert_eq!(state.borrow().entered, vec![10., 20., 1.], "G1: {:?}; pending={}",value(book.host(),at(s,"G1")),book.has_pending_calculation());
+        assert_eq!(
+            state.borrow().entered,
+            vec![10., 20., 1.],
+            "G1: {:?}; pending={}",
+            value(book.host(), at(s, "G1")),
+            book.has_pending_calculation()
+        );
         assert_eq!(state.borrow().maximum, 2);
         assert_eq!(state.borrow().active, 1);
         for address in ["D1", "G1"] {
@@ -11738,17 +12192,14 @@ fn dc_hsa5_10__overlapping_shared_rectangles_keep_the_second_group_individual() 
 #[cfg_attr(not(target_arch = "wasm32"), test)]
 #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
 fn dc_hsa5_10__untouched_singleton_reserves_its_original_shared_rectangle() {
-    let bytes = package_with_part_from(
-        &shared_block_package(),
-        "xl/worksheets/sheet1.xml",
-        |xml| {
+    let bytes =
+        package_with_part_from(&shared_block_package(), "xl/worksheets/sheet1.xml", |xml| {
             xml.replace(
                 r#"<c r="C1"><f t="shared" si="2">ignored dependent</f><v>999</v></c>"#,
                 "",
             )
             .replace(r#"ref="C1:C3""#, r#"ref="C1:E10""#)
-        },
-    );
+        });
     let mut book = session(&bytes);
     let s = book.host().sheets()[0].id();
     for address in ["D1", "D10"] {
@@ -12035,9 +12486,15 @@ fn dc_971p__transpose_paste_preserves_formula_offsets_formats_history_and_xlsx()
         calc_host::search::entry_text(reopened.host().model().cell(at(rs, "F7"))),
         "=D6+$B6+F$1+$D$1"
     );
-    assert!(matches!(session_value(&reopened, at(rs, "F7")), ProjectedValue::FileCached(_)));
+    assert!(matches!(
+        session_value(&reopened, at(rs, "F7")),
+        ProjectedValue::FileCached(_)
+    ));
     assert!(reopened.dispatch(SkinIntent::Recalculate).accepted());
-    assert_eq!(session_calculated(&reopened, at(rs, "F7")), Some(CalcValue::number(67.)));
+    assert_eq!(
+        session_calculated(&reopened, at(rs, "F7")),
+        Some(CalcValue::number(67.))
+    );
     assert_eq!(reopened.host().number_format(at(rs, "F6")), Some("0.00"));
     assert_eq!(
         reopened.host().cell_style(at(rs, "E5")),
@@ -12306,19 +12763,41 @@ fn dc_971p__transpose_modes_keep_captured_values_and_refuse_unsupported_or_parti
 #[cfg_attr(not(target_arch = "wasm32"), test)]
 #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
 fn dc_971p__transpose_table_refusals_keep_the_source_and_target_unchanged() {
-    use calc_host::{CopySnapshot,PasteMode,PasteSource,prepare_paste_oriented};
-    let book=session(&fixture());
-    let table=book.host().model().definitions().tables()[0].area;
-    let snapshot=CopySnapshot::capture(book.host(),table).unwrap();
-    let to=GridArea::cell(CellKey::new(table.sheet(),1000,1).unwrap());
-    let revision=book.host().revision();
-    for mode in [PasteMode::All,PasteMode::Values,PasteMode::Formulas,PasteMode::Formats] {
-        let refusal=prepare_paste_oriented(book.host(),PasteSource::Snapshot{snapshot:&snapshot,cut:false},to,mode,true).unwrap_err();
-        assert!(refusal.contains("Transposing table cells"),"{refusal}");
+    use calc_host::{CopySnapshot, PasteMode, PasteSource, prepare_paste_oriented};
+    let book = session(&fixture());
+    let table = book.host().model().definitions().tables()[0].area;
+    let snapshot = CopySnapshot::capture(book.host(), table).unwrap();
+    let to = GridArea::cell(CellKey::new(table.sheet(), 1000, 1).unwrap());
+    let revision = book.host().revision();
+    for mode in [
+        PasteMode::All,
+        PasteMode::Values,
+        PasteMode::Formulas,
+        PasteMode::Formats,
+    ] {
+        let refusal = prepare_paste_oriented(
+            book.host(),
+            PasteSource::Snapshot {
+                snapshot: &snapshot,
+                cut: false,
+            },
+            to,
+            mode,
+            true,
+        )
+        .unwrap_err();
+        assert!(refusal.contains("Transposing table cells"), "{refusal}");
     }
-    let refusal=prepare_paste_oriented(book.host(),PasteSource::External(vec![vec!["1".into(),"2".into()]]),GridArea::cell(table.first()),PasteMode::All,true).unwrap_err();
-    assert!(refusal.contains("Transposing table cells"),"{refusal}");
-    assert_eq!(book.host().revision(),revision);
+    let refusal = prepare_paste_oriented(
+        book.host(),
+        PasteSource::External(vec![vec!["1".into(), "2".into()]]),
+        GridArea::cell(table.first()),
+        PasteMode::All,
+        true,
+    )
+    .unwrap_err();
+    assert!(refusal.contains("Transposing table cells"), "{refusal}");
+    assert_eq!(book.host().revision(), revision);
     assert!(book.host().model().cell(to.first()).is_none());
 }
 
@@ -12328,93 +12807,255 @@ fn dc_971p__numeric_row_sort_is_stable_moves_formats_and_round_trips_one_history
     use calc_host::{FormatPatch, WorkbookCommand};
     let mut book = session(&calc_host::blank_package());
     let s = book.host().sheets()[0].id();
-    for (address, input) in [("A1","Key"),("B1","Payload"),("A2","3"),("B2","three"),("A3","1"),("B3","one first"),("A4","1"),("B4","one second"),("B5","blank"),("A6","2"),("B6","two"),("D1","=A2")] {
-        let entered = enter(&mut book, at(s,address),input);
-        assert!(entered.accepted(),"{entered:?}");
+    for (address, input) in [
+        ("A1", "Key"),
+        ("B1", "Payload"),
+        ("A2", "3"),
+        ("B2", "three"),
+        ("A3", "1"),
+        ("B3", "one first"),
+        ("A4", "1"),
+        ("B4", "one second"),
+        ("B5", "blank"),
+        ("A6", "2"),
+        ("B6", "two"),
+        ("D1", "=A2"),
+    ] {
+        let entered = enter(&mut book, at(s, address), input);
+        assert!(entered.accepted(), "{entered:?}");
     }
-    let red = GridArea::new(at(s,"A2"),at(s,"B2")).unwrap();
-    assert!(book.dispatch(SkinIntent::Command(WorkbookCommand::FormatCells {areas:vec![red],patch:FormatPatch{fill:Some("#ff0000".into()),number_format:Some("0.000".into()),..Default::default()}})).accepted());
-    let style = book.host().cell_style(at(s,"A2"));
-    let sort = |book:&mut HostSession, descending| {
+    let red = GridArea::new(at(s, "A2"), at(s, "B2")).unwrap();
+    assert!(
+        book.dispatch(SkinIntent::Command(WorkbookCommand::FormatCells {
+            areas: vec![red],
+            patch: FormatPatch {
+                fill: Some("#ff0000".into()),
+                number_format: Some("0.000".into()),
+                ..Default::default()
+            }
+        }))
+        .accepted()
+    );
+    let style = book.host().cell_style(at(s, "A2"));
+    let sort = |book: &mut HostSession, descending| {
         let revision = book.host().revision().get();
-        book.dispatch(SkinIntent::Command(WorkbookCommand::SortRows {area:GridArea::new(at(s,"A1"),at(s,"B6")).unwrap(),keys:vec![calc_host::SortKey{column:1,descending}],header:true,revision}))
+        book.dispatch(SkinIntent::Command(WorkbookCommand::SortRows {
+            area: GridArea::new(at(s, "A1"), at(s, "B6")).unwrap(),
+            keys: vec![calc_host::SortKey {
+                column: 1,
+                descending,
+            }],
+            header: true,
+            revision,
+        }))
     };
-    let done = sort(&mut book,false);
-    assert!(done.accepted(),"{done:?}");
-    for (address, expected) in [("A1","Key"),("B2","one first"),("B3","one second"),("B4","two"),("B5","three"),("B6","blank")] {
-        assert_eq!(book.host().model().cell(at(s,address)),Some(&calc_host::interpret_entry(expected).unwrap().unwrap()));
+    let done = sort(&mut book, false);
+    assert!(done.accepted(), "{done:?}");
+    for (address, expected) in [
+        ("A1", "Key"),
+        ("B2", "one first"),
+        ("B3", "one second"),
+        ("B4", "two"),
+        ("B5", "three"),
+        ("B6", "blank"),
+    ] {
+        assert_eq!(
+            book.host().model().cell(at(s, address)),
+            Some(&calc_host::interpret_entry(expected).unwrap().unwrap())
+        );
     }
-    assert_eq!(book.host().model().cell(at(s,"A6")),None);
-    assert_eq!(book.host().cell_style(at(s,"A5")),style);
-    assert_eq!(book.host().cell_style(at(s,"B5")),style);
-    assert_eq!(book.host().cell_style(at(s,"A2")),0);
-    assert_eq!(session_calculated(&book,at(s,"D1")).unwrap().as_number().unwrap(),1.);
+    assert_eq!(book.host().model().cell(at(s, "A6")), None);
+    assert_eq!(book.host().cell_style(at(s, "A5")), style);
+    assert_eq!(book.host().cell_style(at(s, "B5")), style);
+    assert_eq!(book.host().cell_style(at(s, "A2")), 0);
+    assert_eq!(
+        session_calculated(&book, at(s, "D1"))
+            .unwrap()
+            .as_number()
+            .unwrap(),
+        1.
+    );
     assert!(book.dispatch(SkinIntent::Undo).accepted());
-    assert_eq!(session_calculated(&book,at(s,"D1")).unwrap().as_number().unwrap(),3.);
-    assert_eq!(book.host().cell_style(at(s,"A2")),style);
-    assert_eq!(book.host().model().cell(at(s,"A5")),None);
+    assert_eq!(
+        session_calculated(&book, at(s, "D1"))
+            .unwrap()
+            .as_number()
+            .unwrap(),
+        3.
+    );
+    assert_eq!(book.host().cell_style(at(s, "A2")), style);
+    assert_eq!(book.host().model().cell(at(s, "A5")), None);
     assert!(book.dispatch(SkinIntent::Redo).accepted());
-    assert_eq!(session_calculated(&book,at(s,"D1")).unwrap().as_number().unwrap(),1.);
-    let mut saved=Vec::new();
-    book.save(&SavePolicy::default(),&mut saved).unwrap();
-    let reopened=open(&saved); let r=reopened.sheets()[0].id();
-    assert_eq!(reopened.model().cell(at(r,"B2")),Some(&calc_host::interpret_entry("one first").unwrap().unwrap()));
-    assert_eq!(reopened.model().cell(at(r,"B6")),Some(&calc_host::interpret_entry("blank").unwrap().unwrap()));
-    assert_eq!(reopened.cell_style(at(r,"A5")),style);
-    assert_eq!(reopened.number_format(at(r,"A5")),Some("0.000"));
-    assert!(sort(&mut book,true).accepted());
-    assert_eq!(match book.host().model().cell(at(s,"A2")).unwrap() {CellInput::Number(n)=>n.get(),_=>panic!("number")},3.);
-    assert_eq!(book.host().model().cell(at(s,"B4")),Some(&calc_host::interpret_entry("one first").unwrap().unwrap()));
-    assert_eq!(book.host().model().cell(at(s,"B5")),Some(&calc_host::interpret_entry("one second").unwrap().unwrap()));
-    assert_eq!(book.host().model().cell(at(s,"A6")),None);
-    let mut twin=session(&calc_host::blank_package());
-    let replayed=replay(book.intent_log(),&mut twin);
-    assert!(replayed.mismatches.is_empty(),"{replayed:?}");
-    let p=twin.host().sheets()[0].id();
-    assert_eq!(twin.host().model().cell(at(p,"B2")),book.host().model().cell(at(s,"B2")));
-    assert_eq!(twin.host().cell_style(at(p,"A2")),book.host().cell_style(at(s,"A2")));
+    assert_eq!(
+        session_calculated(&book, at(s, "D1"))
+            .unwrap()
+            .as_number()
+            .unwrap(),
+        1.
+    );
+    let mut saved = Vec::new();
+    book.save(&SavePolicy::default(), &mut saved).unwrap();
+    let reopened = open(&saved);
+    let r = reopened.sheets()[0].id();
+    assert_eq!(
+        reopened.model().cell(at(r, "B2")),
+        Some(&calc_host::interpret_entry("one first").unwrap().unwrap())
+    );
+    assert_eq!(
+        reopened.model().cell(at(r, "B6")),
+        Some(&calc_host::interpret_entry("blank").unwrap().unwrap())
+    );
+    assert_eq!(reopened.cell_style(at(r, "A5")), style);
+    assert_eq!(reopened.number_format(at(r, "A5")), Some("0.000"));
+    assert!(sort(&mut book, true).accepted());
+    assert_eq!(
+        match book.host().model().cell(at(s, "A2")).unwrap() {
+            CellInput::Number(n) => n.get(),
+            _ => panic!("number"),
+        },
+        3.
+    );
+    assert_eq!(
+        book.host().model().cell(at(s, "B4")),
+        Some(&calc_host::interpret_entry("one first").unwrap().unwrap())
+    );
+    assert_eq!(
+        book.host().model().cell(at(s, "B5")),
+        Some(&calc_host::interpret_entry("one second").unwrap().unwrap())
+    );
+    assert_eq!(book.host().model().cell(at(s, "A6")), None);
+    let mut twin = session(&calc_host::blank_package());
+    let replayed = replay(book.intent_log(), &mut twin);
+    assert!(replayed.mismatches.is_empty(), "{replayed:?}");
+    let p = twin.host().sheets()[0].id();
+    assert_eq!(
+        twin.host().model().cell(at(p, "B2")),
+        book.host().model().cell(at(s, "B2"))
+    );
+    assert_eq!(
+        twin.host().cell_style(at(p, "A2")),
+        book.host().cell_style(at(s, "A2"))
+    );
 }
 
 #[cfg_attr(not(target_arch = "wasm32"), test)]
 #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
 fn dc_971p__numeric_sort_refusals_preserve_inputs_styles_and_revision() {
-    use calc_host::{WorkbookCommand,SheetChange};
-    let mut book=session(&calc_host::blank_package()); let s=book.host().sheets()[0].id();
-    assert!(enter(&mut book,at(s,"A1"),"3").accepted());
-    assert!(enter(&mut book,at(s,"A2"),"1").accepted());
-    assert!(enter(&mut book,at(s,"B1"),"=Sheet1!A1+1").accepted());
-    let area=GridArea::new(at(s,"A1"),at(s,"B2")).unwrap();
-    let refuse=|book:&mut HostSession,column,revision| {
-        let before=book.host().revision(); let old=book.host().model().clone(); let styles=book.host().styles().clone();
-        let r=book.dispatch(SkinIntent::Command(WorkbookCommand::SortRows{area,keys:vec![calc_host::SortKey{column,descending:false}],header:false,revision}));
-        assert!(!r.accepted(),"{r:?}"); assert_eq!(book.host().revision(),before); assert_eq!(book.host().styles(),&styles);
-        for at in [at(s,"A1"),at(s,"A2"),at(s,"B1"),at(s,"B2")] {assert_eq!(book.host().model().cell(at),old.cell(at));}
+    use calc_host::{SheetChange, WorkbookCommand};
+    let mut book = session(&calc_host::blank_package());
+    let s = book.host().sheets()[0].id();
+    assert!(enter(&mut book, at(s, "A1"), "3").accepted());
+    assert!(enter(&mut book, at(s, "A2"), "1").accepted());
+    assert!(enter(&mut book, at(s, "B1"), "=Sheet1!A1+1").accepted());
+    let area = GridArea::new(at(s, "A1"), at(s, "B2")).unwrap();
+    let refuse = |book: &mut HostSession, column, revision| {
+        let before = book.host().revision();
+        let old = book.host().model().clone();
+        let styles = book.host().styles().clone();
+        let r = book.dispatch(SkinIntent::Command(WorkbookCommand::SortRows {
+            area,
+            keys: vec![calc_host::SortKey {
+                column,
+                descending: false,
+            }],
+            header: false,
+            revision,
+        }));
+        assert!(!r.accepted(), "{r:?}");
+        assert_eq!(book.host().revision(), before);
+        assert_eq!(book.host().styles(), &styles);
+        for at in [at(s, "A1"), at(s, "A2"), at(s, "B1"), at(s, "B2")] {
+            assert_eq!(book.host().model().cell(at), old.cell(at));
+        }
         r
     };
-    let rev=book.host().revision().get();
-    let r=refuse(&mut book,1,rev);assert!(r.error.unwrap().to_string().contains("qualified or unsupported formula references"));
-    assert!(enter(&mut book,at(s,"B1"),"literal").accepted());
-    let rev=book.host().revision().get();refuse(&mut book,3,rev);refuse(&mut book,1,rev-1);
+    let rev = book.host().revision().get();
+    let r = refuse(&mut book, 1, rev);
+    assert!(
+        r.error
+            .unwrap()
+            .to_string()
+            .contains("qualified or unsupported formula references")
+    );
+    assert!(enter(&mut book, at(s, "B1"), "literal").accepted());
+    let rev = book.host().revision().get();
+    refuse(&mut book, 3, rev);
+    refuse(&mut book, 1, rev - 1);
     // The Hangul jamo are measured now (dc-8wp). U+30A0 still has no measured comparison route
     // (CompareStringEx orders it otherwise than its key); keep every refusal assertion.
-    assert!(enter(&mut book,at(s,"A2"),"\u{30a0}").accepted());assert!(enter(&mut book,at(s,"A1"),"text").accepted());let rev=book.host().revision().get();
-    let r=refuse(&mut book,1,rev);assert!(r.error.unwrap().to_string().contains("row order"));
-    assert!(enter(&mut book,at(s,"A1"),"3").accepted());
-    assert!(enter(&mut book,at(s,"A2"),"1").accepted());
-    assert!(book.dispatch(SkinIntent::Command(WorkbookCommand::AxisFormat{sheet:s,rows:true,first:2,count:1,size_bits:None,hidden:Some(true)})).accepted());
-    let rev=book.host().revision().get();let r=refuse(&mut book,1,rev);assert!(r.error.unwrap().to_string().contains("hidden or filtered rows"));
+    assert!(enter(&mut book, at(s, "A2"), "\u{30a0}").accepted());
+    assert!(enter(&mut book, at(s, "A1"), "text").accepted());
+    let rev = book.host().revision().get();
+    let r = refuse(&mut book, 1, rev);
+    assert!(r.error.unwrap().to_string().contains("row order"));
+    assert!(enter(&mut book, at(s, "A1"), "3").accepted());
+    assert!(enter(&mut book, at(s, "A2"), "1").accepted());
+    assert!(
+        book.dispatch(SkinIntent::Command(WorkbookCommand::AxisFormat {
+            sheet: s,
+            rows: true,
+            first: 2,
+            count: 1,
+            size_bits: None,
+            hidden: Some(true)
+        }))
+        .accepted()
+    );
+    let rev = book.host().revision().get();
+    let r = refuse(&mut book, 1, rev);
+    assert!(
+        r.error
+            .unwrap()
+            .to_string()
+            .contains("hidden or filtered rows")
+    );
     assert!(book.dispatch(SkinIntent::Undo).accepted());
-    assert!(enter(&mut book,at(s,"A1"),"=SEQUENCE(2,2)").accepted());let rev=book.host().revision().get();
-    let r=refuse(&mut book,1,rev);assert!(r.error.unwrap().to_string().contains("array formulas"));
+    assert!(enter(&mut book, at(s, "A1"), "=SEQUENCE(2,2)").accepted());
+    let rev = book.host().revision().get();
+    let r = refuse(&mut book, 1, rev);
+    assert!(r.error.unwrap().to_string().contains("array formulas"));
     // A new ordinary sheet proves the header option is independent of the input spellings.
-    assert!(book.dispatch(SkinIntent::Command(WorkbookCommand::Sheet{sheet:None,change:SheetChange::Add{name:"Dates".into()}})).accepted());
-    let dates=book.host().sheets().last().unwrap().id();
-    for (cell,text) in [("A1","46329"),("A2","46023")] {assert!(enter(&mut book,at(dates,cell),text).accepted());}
-    assert!(book.dispatch(SkinIntent::Command(WorkbookCommand::FormatCells {areas:vec![GridArea::new(at(dates,"A1"),at(dates,"A2")).unwrap()],patch:calc_host::FormatPatch{number_format:Some("yyyy-mm-dd".into()),..Default::default()}})).accepted());
-    let revision=book.host().revision().get();
-    let sorted=book.dispatch(SkinIntent::Command(WorkbookCommand::SortRows{area:GridArea::new(at(dates,"A1"),at(dates,"A2")).unwrap(),keys:vec![calc_host::SortKey{column:1,descending:false}],header:false,revision}));
-    assert!(sorted.accepted(),"{sorted:?}");
-    assert!(match (book.host().model().cell(at(dates,"A1")),book.host().model().cell(at(dates,"A2"))) {(Some(CellInput::Number(a)),Some(CellInput::Number(b)))=>a.get()<b.get(),_=>false});
+    assert!(
+        book.dispatch(SkinIntent::Command(WorkbookCommand::Sheet {
+            sheet: None,
+            change: SheetChange::Add {
+                name: "Dates".into()
+            }
+        }))
+        .accepted()
+    );
+    let dates = book.host().sheets().last().unwrap().id();
+    for (cell, text) in [("A1", "46329"), ("A2", "46023")] {
+        assert!(enter(&mut book, at(dates, cell), text).accepted());
+    }
+    assert!(
+        book.dispatch(SkinIntent::Command(WorkbookCommand::FormatCells {
+            areas: vec![GridArea::new(at(dates, "A1"), at(dates, "A2")).unwrap()],
+            patch: calc_host::FormatPatch {
+                number_format: Some("yyyy-mm-dd".into()),
+                ..Default::default()
+            }
+        }))
+        .accepted()
+    );
+    let revision = book.host().revision().get();
+    let sorted = book.dispatch(SkinIntent::Command(WorkbookCommand::SortRows {
+        area: GridArea::new(at(dates, "A1"), at(dates, "A2")).unwrap(),
+        keys: vec![calc_host::SortKey {
+            column: 1,
+            descending: false,
+        }],
+        header: false,
+        revision,
+    }));
+    assert!(sorted.accepted(), "{sorted:?}");
+    assert!(match (
+        book.host().model().cell(at(dates, "A1")),
+        book.host().model().cell(at(dates, "A2"))
+    ) {
+        (Some(CellInput::Number(a)), Some(CellInput::Number(b))) => a.get() < b.get(),
+        _ => false,
+    });
 }
 
 /// A consequence of the measured C0 versus Latin primary groups. Same-group
@@ -12425,43 +13066,89 @@ fn dc_zsn25__numeric_sort_uses_measured_primary_group() {
     use calc_host::WorkbookCommand;
     let mut book = session(&calc_host::blank_package());
     let sheet = book.host().sheets()[0].id();
-    for (cell, input) in [("A1", "ᄀ"), ("B1", "Jamo"), ("A2", "text"), ("B2", "Latin")] {
+    for (cell, input) in [
+        ("A1", "ᄀ"),
+        ("B1", "Jamo"),
+        ("A2", "text"),
+        ("B2", "Latin"),
+    ] {
         assert!(enter(&mut book, at(sheet, cell), input).accepted());
     }
     let revision = book.host().revision().get();
     let sorted = book.dispatch(SkinIntent::Command(WorkbookCommand::SortRows {
         area: GridArea::new(at(sheet, "A1"), at(sheet, "B2")).unwrap(),
-        keys: vec![calc_host::SortKey { column: 1, descending: false }],
+        keys: vec![calc_host::SortKey {
+            column: 1,
+            descending: false,
+        }],
         header: false,
         revision,
     }));
     assert!(sorted.accepted(), "{sorted:?}");
-    assert_eq!(book.host().model().cell(at(sheet, "A1")), calc_host::interpret_entry("text").unwrap().as_ref());
-    assert_eq!(book.host().model().cell(at(sheet, "A2")), calc_host::interpret_entry("ᄀ").unwrap().as_ref());
-    assert_eq!(book.host().model().cell(at(sheet, "B1")), calc_host::interpret_entry("Latin").unwrap().as_ref());
-    assert_eq!(book.host().model().cell(at(sheet, "B2")), calc_host::interpret_entry("Jamo").unwrap().as_ref());
+    assert_eq!(
+        book.host().model().cell(at(sheet, "A1")),
+        calc_host::interpret_entry("text").unwrap().as_ref()
+    );
+    assert_eq!(
+        book.host().model().cell(at(sheet, "A2")),
+        calc_host::interpret_entry("ᄀ").unwrap().as_ref()
+    );
+    assert_eq!(
+        book.host().model().cell(at(sheet, "B1")),
+        calc_host::interpret_entry("Latin").unwrap().as_ref()
+    );
+    assert_eq!(
+        book.host().model().cell(at(sheet, "B2")),
+        calc_host::interpret_entry("Jamo").unwrap().as_ref()
+    );
     assert!(book.dispatch(SkinIntent::Undo).accepted());
-    assert_eq!(book.host().model().cell(at(sheet, "A1")), calc_host::interpret_entry("ᄀ").unwrap().as_ref());
-    assert_eq!(book.host().model().cell(at(sheet, "B1")), calc_host::interpret_entry("Jamo").unwrap().as_ref());
+    assert_eq!(
+        book.host().model().cell(at(sheet, "A1")),
+        calc_host::interpret_entry("ᄀ").unwrap().as_ref()
+    );
+    assert_eq!(
+        book.host().model().cell(at(sheet, "B1")),
+        calc_host::interpret_entry("Jamo").unwrap().as_ref()
+    );
 }
 
 #[cfg_attr(not(target_arch = "wasm32"), test)]
 #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
 fn dc_971p__numeric_sort_retains_source_metadata_by_refusing_decorated_text_and_prompt_rules() {
     use calc_host::WorkbookCommand;
-    for (text,tail) in [
-        ("<r><rPr><b/></rPr><t>rich</t></r>",""),
-        ("<t>plain</t><rPh sb=\"0\" eb=\"1\"><t>reading</t></rPh>",""),
-        ("<t>plain</t>","<dataValidations count=\"1\"><dataValidation type=\"none\" sqref=\"B1\" showInputMessage=\"1\" promptTitle=\"Keep me\" prompt=\"Help\"/></dataValidations>"),
+    for (text, tail) in [
+        ("<r><rPr><b/></rPr><t>rich</t></r>", ""),
+        (
+            "<t>plain</t><rPh sb=\"0\" eb=\"1\"><t>reading</t></rPh>",
+            "",
+        ),
+        (
+            "<t>plain</t>",
+            "<dataValidations count=\"1\"><dataValidation type=\"none\" sqref=\"B1\" showInputMessage=\"1\" promptTitle=\"Keep me\" prompt=\"Help\"/></dataValidations>",
+        ),
     ] {
-        let xml=format!("<worksheet xmlns=\"http://schemas.openxmlformats.org/spreadsheetml/2006/main\"><sheetData><row r=\"1\"><c r=\"A1\"><v>3</v></c><c r=\"B1\" t=\"inlineStr\"><is>{text}</is></c></row><row r=\"2\"><c r=\"A2\"><v>1</v></c><c r=\"B2\" t=\"inlineStr\"><is><t>second</t></is></c></row></sheetData>{tail}</worksheet>");
-        let bytes=package_with_part("xl/worksheets/sheet1.xml",|_|xml.clone());
-        let mut book=session(&bytes);let s=book.host().sheets()[0].id();let revision=book.host().revision().get();
-        let r=book.dispatch(SkinIntent::Command(WorkbookCommand::SortRows{area:GridArea::new(at(s,"A1"),at(s,"B2")).unwrap(),keys:vec![calc_host::SortKey{column:1,descending:false}],header:false,revision}));
-        assert!(!r.accepted(),"{r:?}");assert_eq!(book.host().revision().get(),revision);
-        assert_eq!(book.host().model().cell(at(s,"A1")),Some(&number(3.)));
-        let mut saved=Vec::new();book.save(&SavePolicy::default(),&mut saved).unwrap();
-        assert_eq!(part_text(&saved,"xl/worksheets/sheet1.xml"),xml);
+        let xml = format!(
+            "<worksheet xmlns=\"http://schemas.openxmlformats.org/spreadsheetml/2006/main\"><sheetData><row r=\"1\"><c r=\"A1\"><v>3</v></c><c r=\"B1\" t=\"inlineStr\"><is>{text}</is></c></row><row r=\"2\"><c r=\"A2\"><v>1</v></c><c r=\"B2\" t=\"inlineStr\"><is><t>second</t></is></c></row></sheetData>{tail}</worksheet>"
+        );
+        let bytes = package_with_part("xl/worksheets/sheet1.xml", |_| xml.clone());
+        let mut book = session(&bytes);
+        let s = book.host().sheets()[0].id();
+        let revision = book.host().revision().get();
+        let r = book.dispatch(SkinIntent::Command(WorkbookCommand::SortRows {
+            area: GridArea::new(at(s, "A1"), at(s, "B2")).unwrap(),
+            keys: vec![calc_host::SortKey {
+                column: 1,
+                descending: false,
+            }],
+            header: false,
+            revision,
+        }));
+        assert!(!r.accepted(), "{r:?}");
+        assert_eq!(book.host().revision().get(), revision);
+        assert_eq!(book.host().model().cell(at(s, "A1")), Some(&number(3.)));
+        let mut saved = Vec::new();
+        book.save(&SavePolicy::default(), &mut saved).unwrap();
+        assert_eq!(part_text(&saved, "xl/worksheets/sheet1.xml"), xml);
     }
     for cell in [
         "<c r=\"B1\"><!--vendor payload--><v>42</v></c>",
@@ -12471,323 +13158,1261 @@ fn dc_971p__numeric_sort_retains_source_metadata_by_refusing_decorated_text_and_
         "<c r=\"B1\" t=\"inlineStr\"><is><t v:keep=\"spoken\">plain</t></is></c>",
         "<c r=\"B1\" t=\"inlineStr\"><is><v:alternate>retained</v:alternate><t>plain</t></is></c>",
     ] {
-        let xml=format!("<worksheet xmlns=\"http://schemas.openxmlformats.org/spreadsheetml/2006/main\" xmlns:v=\"urn:sort-retained\"><sheetData><row r=\"1\"><c r=\"A1\"><v>3</v></c>{cell}</row><row r=\"2\"><c r=\"A2\"><v>1</v></c></row></sheetData></worksheet>");
-        let bytes=package_with_part("xl/worksheets/sheet1.xml",|_|xml.clone());
-        let mut book=session(&bytes);let s=book.host().sheets()[0].id();let revision=book.host().revision().get();
-        let r=book.dispatch(SkinIntent::Command(WorkbookCommand::SortRows{area:GridArea::new(at(s,"A1"),at(s,"B2")).unwrap(),keys:vec![calc_host::SortKey{column:1,descending:false}],header:false,revision}));
-        assert!(!r.accepted(),"{r:?}");assert_eq!(book.host().revision().get(),revision);
-        let mut saved=Vec::new();book.save(&SavePolicy::default(),&mut saved).unwrap();
-        assert_eq!(part_text(&saved,"xl/worksheets/sheet1.xml"),xml);
+        let xml = format!(
+            "<worksheet xmlns=\"http://schemas.openxmlformats.org/spreadsheetml/2006/main\" xmlns:v=\"urn:sort-retained\"><sheetData><row r=\"1\"><c r=\"A1\"><v>3</v></c>{cell}</row><row r=\"2\"><c r=\"A2\"><v>1</v></c></row></sheetData></worksheet>"
+        );
+        let bytes = package_with_part("xl/worksheets/sheet1.xml", |_| xml.clone());
+        let mut book = session(&bytes);
+        let s = book.host().sheets()[0].id();
+        let revision = book.host().revision().get();
+        let r = book.dispatch(SkinIntent::Command(WorkbookCommand::SortRows {
+            area: GridArea::new(at(s, "A1"), at(s, "B2")).unwrap(),
+            keys: vec![calc_host::SortKey {
+                column: 1,
+                descending: false,
+            }],
+            header: false,
+            revision,
+        }));
+        assert!(!r.accepted(), "{r:?}");
+        assert_eq!(book.host().revision().get(), revision);
+        let mut saved = Vec::new();
+        book.save(&SavePolicy::default(), &mut saved).unwrap();
+        assert_eq!(part_text(&saved, "xl/worksheets/sheet1.xml"), xml);
     }
-    let mut original=session(&calc_host::blank_package());let s=original.host().sheets()[0].id();
-    for (cell,text) in [("A1","3"),("A2","1"),("B1","payload"),("B2","second")] {assert!(enter(&mut original,at(s,cell),text).accepted());}
-    let mut plain=Vec::new();original.save(&SavePolicy::default(),&mut plain).unwrap();
-    let rich=package_with_part_from(&plain,"xl/sharedStrings.xml",|xml| {
-        assert!(xml.contains("<t>payload</t>"));xml.replace("<t>payload</t>","<r><rPr><i/></rPr><t>payload</t></r>")
+    let mut original = session(&calc_host::blank_package());
+    let s = original.host().sheets()[0].id();
+    for (cell, text) in [
+        ("A1", "3"),
+        ("A2", "1"),
+        ("B1", "payload"),
+        ("B2", "second"),
+    ] {
+        assert!(enter(&mut original, at(s, cell), text).accepted());
+    }
+    let mut plain = Vec::new();
+    original.save(&SavePolicy::default(), &mut plain).unwrap();
+    let rich = package_with_part_from(&plain, "xl/sharedStrings.xml", |xml| {
+        assert!(xml.contains("<t>payload</t>"));
+        xml.replace("<t>payload</t>", "<r><rPr><i/></rPr><t>payload</t></r>")
     });
-    let mut book=session(&rich);let s=book.host().sheets()[0].id();let revision=book.host().revision().get();
-    let r=book.dispatch(SkinIntent::Command(WorkbookCommand::SortRows{area:GridArea::new(at(s,"A1"),at(s,"B2")).unwrap(),keys:vec![calc_host::SortKey{column:1,descending:false}],header:false,revision}));
-    assert!(!r.accepted(),"{r:?}");assert_eq!(book.host().revision().get(),revision);
-    let mut saved=Vec::new();book.save(&SavePolicy::default(),&mut saved).unwrap();
-    assert_eq!(part_text(&saved,"xl/sharedStrings.xml"),part_text(&rich,"xl/sharedStrings.xml"));
-    let mut ordinary=session(&plain);let p=ordinary.host().sheets()[0].id();let revision=ordinary.host().revision().get();
-    let done=ordinary.dispatch(SkinIntent::Command(WorkbookCommand::SortRows{area:GridArea::new(at(p,"A1"),at(p,"B2")).unwrap(),keys:vec![calc_host::SortKey{column:1,descending:false}],header:false,revision}));
-    assert!(done.accepted(),"{done:?}");
-    assert_eq!(ordinary.host().model().cell(at(p,"B1")),Some(&calc_host::interpret_entry("second").unwrap().unwrap()));
+    let mut book = session(&rich);
+    let s = book.host().sheets()[0].id();
+    let revision = book.host().revision().get();
+    let r = book.dispatch(SkinIntent::Command(WorkbookCommand::SortRows {
+        area: GridArea::new(at(s, "A1"), at(s, "B2")).unwrap(),
+        keys: vec![calc_host::SortKey {
+            column: 1,
+            descending: false,
+        }],
+        header: false,
+        revision,
+    }));
+    assert!(!r.accepted(), "{r:?}");
+    assert_eq!(book.host().revision().get(), revision);
+    let mut saved = Vec::new();
+    book.save(&SavePolicy::default(), &mut saved).unwrap();
+    assert_eq!(
+        part_text(&saved, "xl/sharedStrings.xml"),
+        part_text(&rich, "xl/sharedStrings.xml")
+    );
+    let mut ordinary = session(&plain);
+    let p = ordinary.host().sheets()[0].id();
+    let revision = ordinary.host().revision().get();
+    let done = ordinary.dispatch(SkinIntent::Command(WorkbookCommand::SortRows {
+        area: GridArea::new(at(p, "A1"), at(p, "B2")).unwrap(),
+        keys: vec![calc_host::SortKey {
+            column: 1,
+            descending: false,
+        }],
+        header: false,
+        revision,
+    }));
+    assert!(done.accepted(), "{done:?}");
+    assert_eq!(
+        ordinary.host().model().cell(at(p, "B1")),
+        Some(&calc_host::interpret_entry("second").unwrap().unwrap())
+    );
 }
 
 #[cfg_attr(not(target_arch = "wasm32"), test)]
 #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
 fn dc_971p_37__filter_visibility_history_subtotals_and_xlsx_keep_manual_hiding() {
-    use calc_host::{WorkbookCommand as W, FilterChange as F, FilterCriteria, FrozenPanes};
-    let mut book=session(&calc_host::blank_package()); let s=book.host().sheets()[0].id();
-    for (address,input) in [("A1","Category"),("B1","Amount"),("A2","Alpha"),("B2","10"),("A3","Beta"),("B3","=B2*2"),("A4","Alpha"),("B4","30"),("A5","Beta"),("B5","40"),("B6","50"),("D1","=SUBTOTAL(9,B2:B6)"),("D2","=SUBTOTAL(109,B2:B6)")] {assert!(enter(&mut book,at(s,address),input).accepted());}
-    assert!(book.dispatch(SkinIntent::Command(W::AxisFormat{sheet:s,rows:true,first:4,count:1,size_bits:None,hidden:Some(true)})).accepted());
-    let command=|book:&mut HostSession,change| {let revision=book.host().revision().get();book.dispatch(SkinIntent::Command(W::AutoFilter{sheet:s,revision,change}))};
-    assert!(command(&mut book,F::Enable{area:GridArea::new(at(s,"A1"),at(s,"B6")).unwrap()}).accepted());
-    assert_eq!(calc_host::filter_values(book.host(),s,1).unwrap().0,vec![("Alpha".into(),true),("Beta".into(),true)]);
-    let filtered=command(&mut book,F::Column{column:1,criteria:Some(FilterCriteria::Values{values:vec!["alpha".into()],blank:false})});
-    assert!(filtered.accepted(),"{filtered:?}");
-    let rows=|b:&HostSession| b.host().model().definitions().auto_filter(s).unwrap().filtered_rows.iter().copied().collect::<Vec<_>>();
-    assert_eq!(rows(&book),vec![3,5,6]);
-    assert!(!calc_host::filter_values(book.host(),s,1).unwrap().1);
-    assert_eq!(calc_host::filter_values(book.host(),s,1).unwrap().0,vec![("Alpha".into(),true),("Beta".into(),false)]);
-    assert_eq!(session_calculated(&book,at(s,"D1")).unwrap().as_number(),Some(40.));
-    assert_eq!(session_calculated(&book,at(s,"D2")).unwrap().as_number(),Some(10.));
+    use calc_host::{FilterChange as F, FilterCriteria, FrozenPanes, WorkbookCommand as W};
+    let mut book = session(&calc_host::blank_package());
+    let s = book.host().sheets()[0].id();
+    for (address, input) in [
+        ("A1", "Category"),
+        ("B1", "Amount"),
+        ("A2", "Alpha"),
+        ("B2", "10"),
+        ("A3", "Beta"),
+        ("B3", "=B2*2"),
+        ("A4", "Alpha"),
+        ("B4", "30"),
+        ("A5", "Beta"),
+        ("B5", "40"),
+        ("B6", "50"),
+        ("D1", "=SUBTOTAL(9,B2:B6)"),
+        ("D2", "=SUBTOTAL(109,B2:B6)"),
+    ] {
+        assert!(enter(&mut book, at(s, address), input).accepted());
+    }
+    assert!(
+        book.dispatch(SkinIntent::Command(W::AxisFormat {
+            sheet: s,
+            rows: true,
+            first: 4,
+            count: 1,
+            size_bits: None,
+            hidden: Some(true)
+        }))
+        .accepted()
+    );
+    let command = |book: &mut HostSession, change| {
+        let revision = book.host().revision().get();
+        book.dispatch(SkinIntent::Command(W::AutoFilter {
+            sheet: s,
+            revision,
+            change,
+        }))
+    };
+    assert!(
+        command(
+            &mut book,
+            F::Enable {
+                area: GridArea::new(at(s, "A1"), at(s, "B6")).unwrap()
+            }
+        )
+        .accepted()
+    );
+    assert_eq!(
+        calc_host::filter_values(book.host(), s, 1).unwrap().0,
+        vec![("Alpha".into(), true), ("Beta".into(), true)]
+    );
+    let filtered = command(
+        &mut book,
+        F::Column {
+            column: 1,
+            criteria: Some(FilterCriteria::Values {
+                values: vec!["alpha".into()],
+                blank: false,
+            }),
+        },
+    );
+    assert!(filtered.accepted(), "{filtered:?}");
+    let rows = |b: &HostSession| {
+        b.host()
+            .model()
+            .definitions()
+            .auto_filter(s)
+            .unwrap()
+            .filtered_rows
+            .iter()
+            .copied()
+            .collect::<Vec<_>>()
+    };
+    assert_eq!(rows(&book), vec![3, 5, 6]);
+    assert!(!calc_host::filter_values(book.host(), s, 1).unwrap().1);
+    assert_eq!(
+        calc_host::filter_values(book.host(), s, 1).unwrap().0,
+        vec![("Alpha".into(), true), ("Beta".into(), false)]
+    );
+    assert_eq!(
+        session_calculated(&book, at(s, "D1")).unwrap().as_number(),
+        Some(40.)
+    );
+    assert_eq!(
+        session_calculated(&book, at(s, "D2")).unwrap().as_number(),
+        Some(10.)
+    );
     assert!(book.host().sheet_geometry(s).unwrap().rows[&4].hidden);
     assert!(book.host().sheet_geometry(s).unwrap().rows[&3].hidden);
     // A pane change must not erase filtering (the interrupted implementation did so).
-    assert!(book.dispatch(SkinIntent::Edit{edits:vec![CellEdit::FrozenPanes{sheet:s,panes:Some(FrozenPanes::new(1,0).unwrap())}]}).accepted());
-    assert!(book.dispatch(SkinIntent::Edit{edits:vec![CellEdit::FrozenPanes{sheet:s,panes:None}]}).accepted());
-    assert_eq!(rows(&book),vec![3,5,6]);
-    let mut saved=Vec::new(); book.save(&SavePolicy::default(),&mut saved).unwrap();
-    let xml=part_text(&saved,"xl/worksheets/sheet1.xml");
-    assert!(xml.contains("autoFilter ref=\"A1:B6\""),"{xml}");
-    assert!(xml.contains("sheetPr filterMode=\"1\""),"{xml}");
-    let saved=package_with_part_from(&saved,"xl/worksheets/sheet1.xml",|xml|xml.replace("><dc:visibility",">\n  <dc:visibility").replace("/></ext>","/>\n</ext>"));
-    let mut reopened=session(&saved); let r=reopened.host().sheets()[0].id();
-    assert_eq!(reopened.host().model().definitions().auto_filter(r).unwrap().filtered_rows.iter().copied().collect::<Vec<_>>(),vec![3,5,6]);
-    let rev=reopened.host().revision().get();
-    let cleared=reopened.dispatch(SkinIntent::Command(W::AutoFilter{sheet:r,revision:rev,change:F::Clear}));
-    assert!(cleared.accepted(),"{cleared:?}");
-    let g=reopened.host().sheet_geometry(r).unwrap();
-    assert!(!g.rows.get(&3).is_some_and(|r|r.hidden)); assert!(g.rows[&4].hidden);
-    assert_eq!(session_calculated(&reopened,at(r,"D1")).unwrap().as_number(),Some(150.));
-    assert_eq!(session_calculated(&reopened,at(r,"D2")).unwrap().as_number(),Some(120.));
+    assert!(
+        book.dispatch(SkinIntent::Edit {
+            edits: vec![CellEdit::FrozenPanes {
+                sheet: s,
+                panes: Some(FrozenPanes::new(1, 0).unwrap())
+            }]
+        })
+        .accepted()
+    );
+    assert!(
+        book.dispatch(SkinIntent::Edit {
+            edits: vec![CellEdit::FrozenPanes {
+                sheet: s,
+                panes: None
+            }]
+        })
+        .accepted()
+    );
+    assert_eq!(rows(&book), vec![3, 5, 6]);
+    let mut saved = Vec::new();
+    book.save(&SavePolicy::default(), &mut saved).unwrap();
+    let xml = part_text(&saved, "xl/worksheets/sheet1.xml");
+    assert!(xml.contains("autoFilter ref=\"A1:B6\""), "{xml}");
+    assert!(xml.contains("sheetPr filterMode=\"1\""), "{xml}");
+    let saved = package_with_part_from(&saved, "xl/worksheets/sheet1.xml", |xml| {
+        xml.replace("><dc:visibility", ">\n  <dc:visibility")
+            .replace("/></ext>", "/>\n</ext>")
+    });
+    let mut reopened = session(&saved);
+    let r = reopened.host().sheets()[0].id();
+    assert_eq!(
+        reopened
+            .host()
+            .model()
+            .definitions()
+            .auto_filter(r)
+            .unwrap()
+            .filtered_rows
+            .iter()
+            .copied()
+            .collect::<Vec<_>>(),
+        vec![3, 5, 6]
+    );
+    let rev = reopened.host().revision().get();
+    let cleared = reopened.dispatch(SkinIntent::Command(W::AutoFilter {
+        sheet: r,
+        revision: rev,
+        change: F::Clear,
+    }));
+    assert!(cleared.accepted(), "{cleared:?}");
+    let g = reopened.host().sheet_geometry(r).unwrap();
+    assert!(!g.rows.get(&3).is_some_and(|r| r.hidden));
+    assert!(g.rows[&4].hidden);
+    assert_eq!(
+        session_calculated(&reopened, at(r, "D1"))
+            .unwrap()
+            .as_number(),
+        Some(150.)
+    );
+    assert_eq!(
+        session_calculated(&reopened, at(r, "D2"))
+            .unwrap()
+            .as_number(),
+        Some(120.)
+    );
     assert!(reopened.dispatch(SkinIntent::Undo).accepted());
     assert!(reopened.host().sheet_geometry(r).unwrap().rows[&3].hidden);
     assert!(reopened.dispatch(SkinIntent::Redo).accepted());
-    assert!(!reopened.host().sheet_geometry(r).unwrap().rows.get(&3).is_some_and(|r|r.hidden));
-    assert!(command(&mut book,F::Remove).accepted());
+    assert!(
+        !reopened
+            .host()
+            .sheet_geometry(r)
+            .unwrap()
+            .rows
+            .get(&3)
+            .is_some_and(|r| r.hidden)
+    );
+    assert!(command(&mut book, F::Remove).accepted());
     assert!(book.host().model().definitions().auto_filter(s).is_none());
     assert!(book.host().sheet_geometry(s).unwrap().rows[&4].hidden);
-    assert!(book.dispatch(SkinIntent::Undo).accepted()); assert_eq!(rows(&book),vec![3,5,6]);
-    let mut twin=session(&calc_host::blank_package()); let replayed=replay(book.intent_log(),&mut twin);
-    assert!(replayed.mismatches.is_empty(),"{replayed:?}"); assert_eq!(rows(&twin),vec![3,5,6]);
+    assert!(book.dispatch(SkinIntent::Undo).accepted());
+    assert_eq!(rows(&book), vec![3, 5, 6]);
+    let mut twin = session(&calc_host::blank_package());
+    let replayed = replay(book.intent_log(), &mut twin);
+    assert!(replayed.mismatches.is_empty(), "{replayed:?}");
+    assert_eq!(rows(&twin), vec![3, 5, 6]);
 }
 
 #[cfg_attr(not(target_arch = "wasm32"), test)]
 #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
 fn dc_971p_37__custom_filters_use_shared_wildcards_comparisons_and_atomic_refusals() {
-    use calc_host::{WorkbookCommand as W, FilterChange as F, FilterCriteria as C, FilterOperator as O, FilterPredicate as P};
-    let mut book=session(&calc_host::blank_package()); let s=book.host().sheets()[0].id();
-    for (address,input) in [("A1","Text"),("B1","Value"),("A2","apple"),("B2","1"),("A3","Apricot"),("B3","=B2+1"),("A4","banana"),("B4","3"),("A5","a*"),("B5","4")] {assert!(enter(&mut book,at(s,address),input).accepted());}
-    let command=|book:&mut HostSession,change| {let revision=book.host().revision().get();book.dispatch(SkinIntent::Command(W::AutoFilter{sheet:s,revision,change}))};
-    assert!(command(&mut book,F::Enable{area:GridArea::new(at(s,"A1"),at(s,"B5")).unwrap()}).accepted());
-    let custom=|column,and,predicates| F::Column{column,criteria:Some(C::Custom{and,predicates})};
-    assert!(command(&mut book,custom(1,true,vec![P{operator:O::Equal,value:"a*".into()}])).accepted());
-    assert_eq!(book.host().model().definitions().auto_filter(s).unwrap().filtered_rows.iter().copied().collect::<Vec<_>>(),vec![4]);
-    assert!(command(&mut book,custom(2,true,vec![P{operator:O::Greater,value:"1".into()},P{operator:O::LessEqual,value:"3".into()}])).accepted());
-    assert_eq!(book.host().model().definitions().auto_filter(s).unwrap().filtered_rows.iter().copied().collect::<Vec<_>>(),vec![2,4,5]);
-    assert!(command(&mut book,F::Column{column:2,criteria:None}).accepted());
-    assert!(command(&mut book,custom(1,false,vec![P{operator:O::Equal,value:"a~*".into()},P{operator:O::Equal,value:"banana".into()}])).accepted());
-    assert_eq!(book.host().model().definitions().auto_filter(s).unwrap().filtered_rows.iter().copied().collect::<Vec<_>>(),vec![2,3]);
-    let revision=book.host().revision(); let before=book.host().model().definitions().auto_filter(s).cloned();
-    assert!(!command(&mut book,F::Column{column:99,criteria:None}).accepted());
-    assert_eq!(book.host().revision(),revision); assert_eq!(book.host().model().definitions().auto_filter(s),before.as_ref());
+    use calc_host::{
+        FilterChange as F, FilterCriteria as C, FilterOperator as O, FilterPredicate as P,
+        WorkbookCommand as W,
+    };
+    let mut book = session(&calc_host::blank_package());
+    let s = book.host().sheets()[0].id();
+    for (address, input) in [
+        ("A1", "Text"),
+        ("B1", "Value"),
+        ("A2", "apple"),
+        ("B2", "1"),
+        ("A3", "Apricot"),
+        ("B3", "=B2+1"),
+        ("A4", "banana"),
+        ("B4", "3"),
+        ("A5", "a*"),
+        ("B5", "4"),
+    ] {
+        assert!(enter(&mut book, at(s, address), input).accepted());
+    }
+    let command = |book: &mut HostSession, change| {
+        let revision = book.host().revision().get();
+        book.dispatch(SkinIntent::Command(W::AutoFilter {
+            sheet: s,
+            revision,
+            change,
+        }))
+    };
+    assert!(
+        command(
+            &mut book,
+            F::Enable {
+                area: GridArea::new(at(s, "A1"), at(s, "B5")).unwrap()
+            }
+        )
+        .accepted()
+    );
+    let custom = |column, and, predicates| F::Column {
+        column,
+        criteria: Some(C::Custom { and, predicates }),
+    };
+    assert!(
+        command(
+            &mut book,
+            custom(
+                1,
+                true,
+                vec![P {
+                    operator: O::Equal,
+                    value: "a*".into()
+                }]
+            )
+        )
+        .accepted()
+    );
+    assert_eq!(
+        book.host()
+            .model()
+            .definitions()
+            .auto_filter(s)
+            .unwrap()
+            .filtered_rows
+            .iter()
+            .copied()
+            .collect::<Vec<_>>(),
+        vec![4]
+    );
+    assert!(
+        command(
+            &mut book,
+            custom(
+                2,
+                true,
+                vec![
+                    P {
+                        operator: O::Greater,
+                        value: "1".into()
+                    },
+                    P {
+                        operator: O::LessEqual,
+                        value: "3".into()
+                    }
+                ]
+            )
+        )
+        .accepted()
+    );
+    assert_eq!(
+        book.host()
+            .model()
+            .definitions()
+            .auto_filter(s)
+            .unwrap()
+            .filtered_rows
+            .iter()
+            .copied()
+            .collect::<Vec<_>>(),
+        vec![2, 4, 5]
+    );
+    assert!(
+        command(
+            &mut book,
+            F::Column {
+                column: 2,
+                criteria: None
+            }
+        )
+        .accepted()
+    );
+    assert!(
+        command(
+            &mut book,
+            custom(
+                1,
+                false,
+                vec![
+                    P {
+                        operator: O::Equal,
+                        value: "a~*".into()
+                    },
+                    P {
+                        operator: O::Equal,
+                        value: "banana".into()
+                    }
+                ]
+            )
+        )
+        .accepted()
+    );
+    assert_eq!(
+        book.host()
+            .model()
+            .definitions()
+            .auto_filter(s)
+            .unwrap()
+            .filtered_rows
+            .iter()
+            .copied()
+            .collect::<Vec<_>>(),
+        vec![2, 3]
+    );
+    let revision = book.host().revision();
+    let before = book.host().model().definitions().auto_filter(s).cloned();
+    assert!(
+        !command(
+            &mut book,
+            F::Column {
+                column: 99,
+                criteria: None
+            }
+        )
+        .accepted()
+    );
+    assert_eq!(book.host().revision(), revision);
+    assert_eq!(
+        book.host().model().definitions().auto_filter(s),
+        before.as_ref()
+    );
     // Showing a filtered row changes only its manual flag, not the filter result.
-    assert!(book.dispatch(SkinIntent::Command(W::AxisFormat{sheet:s,rows:true,first:2,count:1,size_bits:None,hidden:Some(false)})).accepted());
+    assert!(
+        book.dispatch(SkinIntent::Command(W::AxisFormat {
+            sheet: s,
+            rows: true,
+            first: 2,
+            count: 1,
+            size_bits: None,
+            hidden: Some(false)
+        }))
+        .accepted()
+    );
     assert!(book.host().sheet_geometry(s).unwrap().rows[&2].hidden);
-    assert!(command(&mut book,F::Clear).accepted());
-    assert!(!book.host().sheet_geometry(s).unwrap().rows.get(&2).is_some_and(|r|r.hidden));
+    assert!(command(&mut book, F::Clear).accepted());
+    assert!(
+        !book
+            .host()
+            .sheet_geometry(s)
+            .unwrap()
+            .rows
+            .get(&2)
+            .is_some_and(|r| r.hidden)
+    );
 }
 
 #[cfg_attr(not(target_arch = "wasm32"), test)]
 #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
 fn dc_971p_37__unknown_imported_filter_xml_survives_unrelated_edits() {
-    use calc_host::{WorkbookCommand as W,FilterChange as F};
-    let raw="<autoFilter ref=\"A1:B4\"><filterColumn colId=\"0\"><dynamicFilter type=\"aboveAverage\"/></filterColumn></autoFilter>";
-    let bytes=package_with_part("xl/worksheets/sheet1.xml",|xml|xml.replace("</worksheet>",&format!("{raw}</worksheet>")));
-    let mut book=session(&bytes);let s=book.host().sheets()[0].id();
-    assert!(book.host().model().definitions().auto_filter(s).unwrap().unsupported);
-    let old=book.host().revision();
-    assert!(!book.dispatch(SkinIntent::Command(W::AxisFormat{sheet:s,rows:true,first:2,count:1,size_bits:None,hidden:Some(true)})).accepted());
-    assert_eq!(book.host().revision(),old);
-    let revision=book.host().revision();
-    let denied=book.dispatch(SkinIntent::Command(W::AutoFilter{sheet:s,revision:revision.get(),change:F::Clear}));
-    assert!(!denied.accepted()); assert_eq!(book.host().revision(),revision);
-    assert!(enter(&mut book,at(s,"D1"),"42").accepted());
-    assert!(book.dispatch(SkinIntent::Command(W::AxisFormat{sheet:s,rows:false,first:4,count:1,size_bits:Some(100f64.to_bits()),hidden:None})).accepted());
-    let mut saved=Vec::new();book.save(&SavePolicy::default(),&mut saved).unwrap();
-    assert!(part_text(&saved,"xl/worksheets/sheet1.xml").contains(raw));
+    use calc_host::{FilterChange as F, WorkbookCommand as W};
+    let raw = "<autoFilter ref=\"A1:B4\"><filterColumn colId=\"0\"><dynamicFilter type=\"aboveAverage\"/></filterColumn></autoFilter>";
+    let bytes = package_with_part("xl/worksheets/sheet1.xml", |xml| {
+        xml.replace("</worksheet>", &format!("{raw}</worksheet>"))
+    });
+    let mut book = session(&bytes);
+    let s = book.host().sheets()[0].id();
+    assert!(
+        book.host()
+            .model()
+            .definitions()
+            .auto_filter(s)
+            .unwrap()
+            .unsupported
+    );
+    let old = book.host().revision();
+    assert!(
+        !book
+            .dispatch(SkinIntent::Command(W::AxisFormat {
+                sheet: s,
+                rows: true,
+                first: 2,
+                count: 1,
+                size_bits: None,
+                hidden: Some(true)
+            }))
+            .accepted()
+    );
+    assert_eq!(book.host().revision(), old);
+    let revision = book.host().revision();
+    let denied = book.dispatch(SkinIntent::Command(W::AutoFilter {
+        sheet: s,
+        revision: revision.get(),
+        change: F::Clear,
+    }));
+    assert!(!denied.accepted());
+    assert_eq!(book.host().revision(), revision);
+    assert!(enter(&mut book, at(s, "D1"), "42").accepted());
+    assert!(
+        book.dispatch(SkinIntent::Command(W::AxisFormat {
+            sheet: s,
+            rows: false,
+            first: 4,
+            count: 1,
+            size_bits: Some(100f64.to_bits()),
+            hidden: None
+        }))
+        .accepted()
+    );
+    let mut saved = Vec::new();
+    book.save(&SavePolicy::default(), &mut saved).unwrap();
+    assert!(part_text(&saved, "xl/worksheets/sheet1.xml").contains(raw));
 }
 
 #[cfg_attr(not(target_arch = "wasm32"), test)]
 #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
 fn dc_971p_37__filter_refuses_uncomputed_values_and_reopens_overlapping_hidden_causes() {
-    use calc_host::{WorkbookCommand as W,FilterChange as F,FilterCriteria as C};
-    let mut book=session(&calc_host::blank_package());let s=book.host().sheets()[0].id();
-    assert!(enter(&mut book,at(s,"A1"),"Header").accepted());
-    assert!(book.dispatch(SkinIntent::SetCalcMode(CalcMode::Manual)).accepted());
-    assert!(enter(&mut book,at(s,"A2"),"=1+1").accepted());
-    assert!(enter(&mut book,at(s,"A3"),"3").accepted());
-    let command=|book:&mut HostSession,change| {let revision=book.host().revision().get();book.dispatch(SkinIntent::Command(W::AutoFilter{sheet:s,revision,change}))};
-    assert!(command(&mut book,F::Enable{area:GridArea::new(at(s,"A1"),at(s,"A3")).unwrap()}).accepted());
-    assert!(calc_host::filter_values(book.host(),s,1).is_err());
-    let revision=book.host().revision();
-    let criterion=||F::Column{column:1,criteria:Some(C::Values{values:vec!["2".into()],blank:false})};
-    let denied=command(&mut book,criterion());assert!(!denied.accepted(),"{denied:?}");assert_eq!(book.host().revision(),revision);
-    assert!(book.dispatch(SkinIntent::SetCalcMode(CalcMode::Automatic)).accepted());
-    assert!(command(&mut book,criterion()).accepted());
+    use calc_host::{FilterChange as F, FilterCriteria as C, WorkbookCommand as W};
+    let mut book = session(&calc_host::blank_package());
+    let s = book.host().sheets()[0].id();
+    assert!(enter(&mut book, at(s, "A1"), "Header").accepted());
+    assert!(
+        book.dispatch(SkinIntent::SetCalcMode(CalcMode::Manual))
+            .accepted()
+    );
+    assert!(enter(&mut book, at(s, "A2"), "=1+1").accepted());
+    assert!(enter(&mut book, at(s, "A3"), "3").accepted());
+    let command = |book: &mut HostSession, change| {
+        let revision = book.host().revision().get();
+        book.dispatch(SkinIntent::Command(W::AutoFilter {
+            sheet: s,
+            revision,
+            change,
+        }))
+    };
+    assert!(
+        command(
+            &mut book,
+            F::Enable {
+                area: GridArea::new(at(s, "A1"), at(s, "A3")).unwrap()
+            }
+        )
+        .accepted()
+    );
+    assert!(calc_host::filter_values(book.host(), s, 1).is_err());
+    let revision = book.host().revision();
+    let criterion = || F::Column {
+        column: 1,
+        criteria: Some(C::Values {
+            values: vec!["2".into()],
+            blank: false,
+        }),
+    };
+    let denied = command(&mut book, criterion());
+    assert!(!denied.accepted(), "{denied:?}");
+    assert_eq!(book.host().revision(), revision);
+    assert!(
+        book.dispatch(SkinIntent::SetCalcMode(CalcMode::Automatic))
+            .accepted()
+    );
+    assert!(command(&mut book, criterion()).accepted());
     // Row 3 is both manually hidden and excluded by the filter.
-    assert!(book.dispatch(SkinIntent::Command(W::AxisFormat{sheet:s,rows:true,first:3,count:1,size_bits:None,hidden:Some(true)})).accepted());
-    let mut saved=Vec::new();book.save(&SavePolicy::default(),&mut saved).unwrap();
-    let mut reopened=session(&saved);let r=reopened.host().sheets()[0].id();let revision=reopened.host().revision().get();
-    assert!(reopened.dispatch(SkinIntent::Command(W::AutoFilter{sheet:r,revision,change:F::Clear})).accepted());
+    assert!(
+        book.dispatch(SkinIntent::Command(W::AxisFormat {
+            sheet: s,
+            rows: true,
+            first: 3,
+            count: 1,
+            size_bits: None,
+            hidden: Some(true)
+        }))
+        .accepted()
+    );
+    let mut saved = Vec::new();
+    book.save(&SavePolicy::default(), &mut saved).unwrap();
+    let mut reopened = session(&saved);
+    let r = reopened.host().sheets()[0].id();
+    let revision = reopened.host().revision().get();
+    assert!(
+        reopened
+            .dispatch(SkinIntent::Command(W::AutoFilter {
+                sheet: r,
+                revision,
+                change: F::Clear
+            }))
+            .accepted()
+    );
     assert!(reopened.host().sheet_geometry(r).unwrap().rows[&3].hidden);
-    assert_eq!(reopened.host().model().definitions().hidden_rows(r,3,3).collect::<Vec<_>>(),vec![(3,calc_host::RowHidden::Manual)]);
-    assert_eq!(session_calculated(&reopened,at(r,"A2")).unwrap().as_number(),Some(2.));
+    assert_eq!(
+        reopened
+            .host()
+            .model()
+            .definitions()
+            .hidden_rows(r, 3, 3)
+            .collect::<Vec<_>>(),
+        vec![(3, calc_host::RowHidden::Manual)]
+    );
+    assert_eq!(
+        session_calculated(&reopened, at(r, "A2"))
+            .unwrap()
+            .as_number(),
+        Some(2.)
+    );
 }
 
 #[cfg_attr(not(target_arch = "wasm32"), test)]
 #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
 fn dc_971p_37__custom_filter_choices_preserve_excluded_blanks() {
-    use calc_host::{WorkbookCommand as W,FilterChange as F,FilterCriteria as C,FilterPredicate as P,FilterOperator as O};
-    let mut book=session(&calc_host::blank_package());let s=book.host().sheets()[0].id();
-    for (a,v) in [("A1","Key"),("A2","1"),("A3","2")] {enter(&mut book,at(s,a),v);}
-    let command=|book:&mut HostSession,change| {let revision=book.host().revision().get();book.dispatch(SkinIntent::Command(W::AutoFilter{sheet:s,revision,change}))};
-    assert!(command(&mut book,F::Enable{area:GridArea::new(at(s,"A1"),at(s,"A4")).unwrap()}).accepted());
-    assert!(command(&mut book,F::Column{column:1,criteria:Some(C::Custom{and:true,predicates:vec![P{operator:O::Greater,value:"0".into()}]})}).accepted());
-    let (choices,blank)=calc_host::filter_values(book.host(),s,1).unwrap();
-    assert_eq!(choices,vec![("1".into(),true),("2".into(),true)]);assert!(!blank);
-    assert!(command(&mut book,F::Column{column:1,criteria:Some(C::Values{values:choices.into_iter().filter(|(_,checked)|*checked).map(|(v,_)|v).collect(),blank})}).accepted());
-    assert_eq!(book.host().model().definitions().auto_filter(s).unwrap().filtered_rows.iter().copied().collect::<Vec<_>>(),vec![4]);
+    use calc_host::{
+        FilterChange as F, FilterCriteria as C, FilterOperator as O, FilterPredicate as P,
+        WorkbookCommand as W,
+    };
+    let mut book = session(&calc_host::blank_package());
+    let s = book.host().sheets()[0].id();
+    for (a, v) in [("A1", "Key"), ("A2", "1"), ("A3", "2")] {
+        enter(&mut book, at(s, a), v);
+    }
+    let command = |book: &mut HostSession, change| {
+        let revision = book.host().revision().get();
+        book.dispatch(SkinIntent::Command(W::AutoFilter {
+            sheet: s,
+            revision,
+            change,
+        }))
+    };
+    assert!(
+        command(
+            &mut book,
+            F::Enable {
+                area: GridArea::new(at(s, "A1"), at(s, "A4")).unwrap()
+            }
+        )
+        .accepted()
+    );
+    assert!(
+        command(
+            &mut book,
+            F::Column {
+                column: 1,
+                criteria: Some(C::Custom {
+                    and: true,
+                    predicates: vec![P {
+                        operator: O::Greater,
+                        value: "0".into()
+                    }]
+                })
+            }
+        )
+        .accepted()
+    );
+    let (choices, blank) = calc_host::filter_values(book.host(), s, 1).unwrap();
+    assert_eq!(choices, vec![("1".into(), true), ("2".into(), true)]);
+    assert!(!blank);
+    assert!(
+        command(
+            &mut book,
+            F::Column {
+                column: 1,
+                criteria: Some(C::Values {
+                    values: choices
+                        .into_iter()
+                        .filter(|(_, checked)| *checked)
+                        .map(|(v, _)| v)
+                        .collect(),
+                    blank
+                })
+            }
+        )
+        .accepted()
+    );
+    assert_eq!(
+        book.host()
+            .model()
+            .definitions()
+            .auto_filter(s)
+            .unwrap()
+            .filtered_rows
+            .iter()
+            .copied()
+            .collect::<Vec<_>>(),
+        vec![4]
+    );
 }
 
 #[cfg_attr(not(target_arch = "wasm32"), test)]
 #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
 fn dc_971p_37__axis_edits_move_filter_criteria_visibility_and_manual_flags_together() {
-    use calc_host::{WorkbookCommand as W,FilterChange as F,FilterCriteria as C};
-    let mut book=session(&calc_host::blank_package());let s=book.host().sheets()[0].id();
-    for (a,v) in [("A1","Key"),("A2","keep"),("A3","hide"),("A4","keep")] {enter(&mut book,at(s,a),v);}
-    assert!(book.dispatch(SkinIntent::Command(W::AxisFormat{sheet:s,rows:true,first:3,count:1,size_bits:None,hidden:Some(true)})).accepted());
-    let command=|book:&mut HostSession,change| {let revision=book.host().revision().get();book.dispatch(SkinIntent::Command(W::AutoFilter{sheet:s,revision,change}))};
-    assert!(command(&mut book,F::Enable{area:GridArea::new(at(s,"A1"),at(s,"B4")).unwrap()}).accepted());
-    assert!(command(&mut book,F::Column{column:1,criteria:Some(C::Values{values:vec!["keep".into()],blank:false})}).accepted());
-    let inserted=book.dispatch(SkinIntent::EditAxis(AxisEdit::new(s,Axis::Rows,AxisChange::Insert,2,1).unwrap()));
-    assert!(inserted.accepted(),"{inserted:?}");
-    let f=book.host().model().definitions().auto_filter(s).unwrap();
-    assert_eq!(f.area,GridArea::new(at(s,"A1"),at(s,"B5")).unwrap());assert_eq!(f.filtered_rows.iter().copied().collect::<Vec<_>>(),vec![4]);
-    assert!(book.dispatch(SkinIntent::EditAxis(AxisEdit::new(s,Axis::Columns,AxisChange::Insert,1,1).unwrap())).accepted());
-    let f=book.host().model().definitions().auto_filter(s).unwrap();assert_eq!(f.columns.keys().copied().collect::<Vec<_>>(),vec![2]);assert_eq!(f.area,GridArea::new(at(s,"B1"),at(s,"C5")).unwrap());
-    let mut saved=Vec::new();book.save(&SavePolicy::default(),&mut saved).unwrap();
-    let mut reopened=session(&saved);let r=reopened.host().sheets()[0].id();let revision=reopened.host().revision().get();
-    assert!(reopened.dispatch(SkinIntent::Command(W::AutoFilter{sheet:r,revision,change:F::Clear})).accepted());assert!(reopened.host().sheet_geometry(r).unwrap().rows[&4].hidden);
-    assert!(book.dispatch(SkinIntent::Undo).accepted());assert!(book.dispatch(SkinIntent::Undo).accepted());
-    let f=book.host().model().definitions().auto_filter(s).unwrap();assert_eq!(f.area,GridArea::new(at(s,"A1"),at(s,"B4")).unwrap());assert_eq!(f.filtered_rows.iter().copied().collect::<Vec<_>>(),vec![3]);
-    assert!(book.dispatch(SkinIntent::Redo).accepted());assert!(book.dispatch(SkinIntent::Redo).accepted());
-    let before=book.host().revision();let denied=book.dispatch(SkinIntent::EditAxis(AxisEdit::new(s,Axis::Rows,AxisChange::Delete,1,1).unwrap()));assert!(!denied.accepted());assert_eq!(book.host().revision(),before);
+    use calc_host::{FilterChange as F, FilterCriteria as C, WorkbookCommand as W};
+    let mut book = session(&calc_host::blank_package());
+    let s = book.host().sheets()[0].id();
+    for (a, v) in [
+        ("A1", "Key"),
+        ("A2", "keep"),
+        ("A3", "hide"),
+        ("A4", "keep"),
+    ] {
+        enter(&mut book, at(s, a), v);
+    }
+    assert!(
+        book.dispatch(SkinIntent::Command(W::AxisFormat {
+            sheet: s,
+            rows: true,
+            first: 3,
+            count: 1,
+            size_bits: None,
+            hidden: Some(true)
+        }))
+        .accepted()
+    );
+    let command = |book: &mut HostSession, change| {
+        let revision = book.host().revision().get();
+        book.dispatch(SkinIntent::Command(W::AutoFilter {
+            sheet: s,
+            revision,
+            change,
+        }))
+    };
+    assert!(
+        command(
+            &mut book,
+            F::Enable {
+                area: GridArea::new(at(s, "A1"), at(s, "B4")).unwrap()
+            }
+        )
+        .accepted()
+    );
+    assert!(
+        command(
+            &mut book,
+            F::Column {
+                column: 1,
+                criteria: Some(C::Values {
+                    values: vec!["keep".into()],
+                    blank: false
+                })
+            }
+        )
+        .accepted()
+    );
+    let inserted = book.dispatch(SkinIntent::EditAxis(
+        AxisEdit::new(s, Axis::Rows, AxisChange::Insert, 2, 1).unwrap(),
+    ));
+    assert!(inserted.accepted(), "{inserted:?}");
+    let f = book.host().model().definitions().auto_filter(s).unwrap();
+    assert_eq!(f.area, GridArea::new(at(s, "A1"), at(s, "B5")).unwrap());
+    assert_eq!(f.filtered_rows.iter().copied().collect::<Vec<_>>(), vec![4]);
+    assert!(
+        book.dispatch(SkinIntent::EditAxis(
+            AxisEdit::new(s, Axis::Columns, AxisChange::Insert, 1, 1).unwrap()
+        ))
+        .accepted()
+    );
+    let f = book.host().model().definitions().auto_filter(s).unwrap();
+    assert_eq!(f.columns.keys().copied().collect::<Vec<_>>(), vec![2]);
+    assert_eq!(f.area, GridArea::new(at(s, "B1"), at(s, "C5")).unwrap());
+    let mut saved = Vec::new();
+    book.save(&SavePolicy::default(), &mut saved).unwrap();
+    let mut reopened = session(&saved);
+    let r = reopened.host().sheets()[0].id();
+    let revision = reopened.host().revision().get();
+    assert!(
+        reopened
+            .dispatch(SkinIntent::Command(W::AutoFilter {
+                sheet: r,
+                revision,
+                change: F::Clear
+            }))
+            .accepted()
+    );
+    assert!(reopened.host().sheet_geometry(r).unwrap().rows[&4].hidden);
+    assert!(book.dispatch(SkinIntent::Undo).accepted());
+    assert!(book.dispatch(SkinIntent::Undo).accepted());
+    let f = book.host().model().definitions().auto_filter(s).unwrap();
+    assert_eq!(f.area, GridArea::new(at(s, "A1"), at(s, "B4")).unwrap());
+    assert_eq!(f.filtered_rows.iter().copied().collect::<Vec<_>>(), vec![3]);
+    assert!(book.dispatch(SkinIntent::Redo).accepted());
+    assert!(book.dispatch(SkinIntent::Redo).accepted());
+    let before = book.host().revision();
+    let denied = book.dispatch(SkinIntent::EditAxis(
+        AxisEdit::new(s, Axis::Rows, AxisChange::Delete, 1, 1).unwrap(),
+    ));
+    assert!(!denied.accepted());
+    assert_eq!(book.host().revision(), before);
 }
 
 #[cfg_attr(not(target_arch = "wasm32"), test)]
 #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
 fn dc_971p_37__opaque_filter_row_edits_refuse_without_losing_independent_manual_hiding() {
-    use calc_host::{WorkbookCommand as W,FilterChange as F,FilterCriteria as C};
-    let mut book=session(&calc_host::blank_package());let s=book.host().sheets()[0].id();
-    for (a,v) in [("A1","Key"),("A2","keep"),("A3","keep"),("A4","hide")] {enter(&mut book,at(s,a),v);}
-    assert!(book.dispatch(SkinIntent::Command(W::AxisFormat{sheet:s,rows:true,first:3,count:1,size_bits:None,hidden:Some(true)})).accepted());
-    let revision=book.host().revision().get();assert!(book.dispatch(SkinIntent::Command(W::AutoFilter{sheet:s,revision,change:F::Enable{area:GridArea::new(at(s,"A1"),at(s,"A4")).unwrap()}})).accepted());
-    let revision=book.host().revision().get();assert!(book.dispatch(SkinIntent::Command(W::AutoFilter{sheet:s,revision,change:F::Column{column:1,criteria:Some(C::Values{values:vec!["keep".into()],blank:false})}})).accepted());
-    let mut saved=Vec::new();book.save(&SavePolicy::default(),&mut saved).unwrap();
-    let opaque=package_with_part_from(&saved,"xl/worksheets/sheet1.xml",|s|s.replace("<autoFilter ","<autoFilter xmlns:v=\"urn:filter-test\" v:uid=\"retained\" "));
-    let mut reopened=session(&opaque);let r=reopened.host().sheets()[0].id();assert!(reopened.host().model().definitions().auto_filter(r).unwrap().unsupported);
-    let before=reopened.host().revision();let denied=reopened.dispatch(SkinIntent::EditAxis(AxisEdit::new(r,Axis::Rows,AxisChange::Insert,2,1).unwrap()));assert!(!denied.accepted());assert_eq!(reopened.host().revision(),before);
-    assert_eq!(reopened.host().model().definitions().hidden_rows(r,3,4).collect::<Vec<_>>(),vec![(3,calc_host::RowHidden::Manual),(4,calc_host::RowHidden::Filtered)]);
-    let revision=reopened.host().revision().get();assert!(reopened.dispatch(SkinIntent::Command(W::AutoFilter{sheet:r,revision,change:F::Remove})).accepted());
-    let mut removed=Vec::new();reopened.save(&SavePolicy::default(),&mut removed).unwrap();let after=open(&removed);let a=after.sheets()[0].id();assert!(after.sheet_geometry(a).unwrap().rows[&3].hidden);assert!(!after.sheet_geometry(a).unwrap().rows.get(&4).is_some_and(|v|v.hidden));
+    use calc_host::{FilterChange as F, FilterCriteria as C, WorkbookCommand as W};
+    let mut book = session(&calc_host::blank_package());
+    let s = book.host().sheets()[0].id();
+    for (a, v) in [
+        ("A1", "Key"),
+        ("A2", "keep"),
+        ("A3", "keep"),
+        ("A4", "hide"),
+    ] {
+        enter(&mut book, at(s, a), v);
+    }
+    assert!(
+        book.dispatch(SkinIntent::Command(W::AxisFormat {
+            sheet: s,
+            rows: true,
+            first: 3,
+            count: 1,
+            size_bits: None,
+            hidden: Some(true)
+        }))
+        .accepted()
+    );
+    let revision = book.host().revision().get();
+    assert!(
+        book.dispatch(SkinIntent::Command(W::AutoFilter {
+            sheet: s,
+            revision,
+            change: F::Enable {
+                area: GridArea::new(at(s, "A1"), at(s, "A4")).unwrap()
+            }
+        }))
+        .accepted()
+    );
+    let revision = book.host().revision().get();
+    assert!(
+        book.dispatch(SkinIntent::Command(W::AutoFilter {
+            sheet: s,
+            revision,
+            change: F::Column {
+                column: 1,
+                criteria: Some(C::Values {
+                    values: vec!["keep".into()],
+                    blank: false
+                })
+            }
+        }))
+        .accepted()
+    );
+    let mut saved = Vec::new();
+    book.save(&SavePolicy::default(), &mut saved).unwrap();
+    let opaque = package_with_part_from(&saved, "xl/worksheets/sheet1.xml", |s| {
+        s.replace(
+            "<autoFilter ",
+            "<autoFilter xmlns:v=\"urn:filter-test\" v:uid=\"retained\" ",
+        )
+    });
+    let mut reopened = session(&opaque);
+    let r = reopened.host().sheets()[0].id();
+    assert!(
+        reopened
+            .host()
+            .model()
+            .definitions()
+            .auto_filter(r)
+            .unwrap()
+            .unsupported
+    );
+    let before = reopened.host().revision();
+    let denied = reopened.dispatch(SkinIntent::EditAxis(
+        AxisEdit::new(r, Axis::Rows, AxisChange::Insert, 2, 1).unwrap(),
+    ));
+    assert!(!denied.accepted());
+    assert_eq!(reopened.host().revision(), before);
+    assert_eq!(
+        reopened
+            .host()
+            .model()
+            .definitions()
+            .hidden_rows(r, 3, 4)
+            .collect::<Vec<_>>(),
+        vec![
+            (3, calc_host::RowHidden::Manual),
+            (4, calc_host::RowHidden::Filtered)
+        ]
+    );
+    let revision = reopened.host().revision().get();
+    assert!(
+        reopened
+            .dispatch(SkinIntent::Command(W::AutoFilter {
+                sheet: r,
+                revision,
+                change: F::Remove
+            }))
+            .accepted()
+    );
+    let mut removed = Vec::new();
+    reopened.save(&SavePolicy::default(), &mut removed).unwrap();
+    let after = open(&removed);
+    let a = after.sheets()[0].id();
+    assert!(after.sheet_geometry(a).unwrap().rows[&3].hidden);
+    assert!(
+        !after
+            .sheet_geometry(a)
+            .unwrap()
+            .rows
+            .get(&4)
+            .is_some_and(|v| v.hidden)
+    );
 }
 
 #[cfg_attr(not(target_arch = "wasm32"), test)]
 #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
 fn dc_971p_38__text_multiple_keys_relocate_formulas_and_keep_history_xlsx_and_replay() {
-    use calc_host::{WorkbookCommand as W, SortKey};
-    let mut book=session(&calc_host::blank_package()); let s=book.host().sheets()[0].id();
-    for (address,input) in [("A1","Category"),("B1","Amount"),("C1","Total"),("D1","Mixed"),("F1","1000"),("B9","100"),("H1","=B2")] {assert!(enter(&mut book,at(s,address),input).accepted());}
-    for (row,text,number) in [(2,"Beta",2),(3,"alpha",3),(4,"Alpha",1),(5,"co-op",4),(6,"coop",5)] {
-        for (col,value) in [("A",text.to_string()),("B",number.to_string()),("C",format!("=B{row}+$F$1")),("D",format!("=$B{row}+B$9+$B$9"))] {assert!(enter(&mut book,at(s,&format!("{col}{row}")),&value).accepted());}
+    use calc_host::{SortKey, WorkbookCommand as W};
+    let mut book = session(&calc_host::blank_package());
+    let s = book.host().sheets()[0].id();
+    for (address, input) in [
+        ("A1", "Category"),
+        ("B1", "Amount"),
+        ("C1", "Total"),
+        ("D1", "Mixed"),
+        ("F1", "1000"),
+        ("B9", "100"),
+        ("H1", "=B2"),
+    ] {
+        assert!(enter(&mut book, at(s, address), input).accepted());
     }
-    assert!(book.dispatch(SkinIntent::Command(W::FormatCells{areas:vec![GridArea::new(at(s,"A2"),at(s,"D2")).unwrap()],patch:calc_host::FormatPatch{fill:Some("#ff0000".into()),..Default::default()}})).accepted());
-    let style=book.host().cell_style(at(s,"A2"));
-    let area=GridArea::new(at(s,"A1"),at(s,"D6")).unwrap();
-    let revision=book.host().revision().get();
-    let result=book.dispatch(SkinIntent::Command(W::SortRows{area,keys:vec![SortKey{column:1,descending:false},SortKey{column:2,descending:true}],header:true,revision}));
-    assert!(result.accepted(),"{result:?}");
-    for (row,text,value) in [(2,"alpha",3.),(3,"Alpha",1.),(4,"Beta",2.),(5,"coop",5.),(6,"co-op",4.)] {
-        assert_eq!(book.host().model().cell(at(s,&format!("A{row}"))),Some(&calc_host::interpret_entry(text).unwrap().unwrap()));
-        assert_eq!(book.host().model().cell(at(s,&format!("C{row}"))),Some(&calc_host::interpret_entry(&format!("=B{row}+$F$1")).unwrap().unwrap()));
-        assert_eq!(book.host().model().cell(at(s,&format!("D{row}"))),Some(&calc_host::interpret_entry(&format!("=$B{row}+B$9+$B$9")).unwrap().unwrap()));
-        assert_eq!(session_calculated(&book,at(s,&format!("C{row}"))).unwrap().as_number(),Some(value+1000.));
-        assert_eq!(session_calculated(&book,at(s,&format!("D{row}"))).unwrap().as_number(),Some(value+200.));
+    for (row, text, number) in [
+        (2, "Beta", 2),
+        (3, "alpha", 3),
+        (4, "Alpha", 1),
+        (5, "co-op", 4),
+        (6, "coop", 5),
+    ] {
+        for (col, value) in [
+            ("A", text.to_string()),
+            ("B", number.to_string()),
+            ("C", format!("=B{row}+$F$1")),
+            ("D", format!("=$B{row}+B$9+$B$9")),
+        ] {
+            assert!(enter(&mut book, at(s, &format!("{col}{row}")), &value).accepted());
+        }
     }
-    assert_eq!(book.host().cell_style(at(s,"A4")),style);
+    assert!(
+        book.dispatch(SkinIntent::Command(W::FormatCells {
+            areas: vec![GridArea::new(at(s, "A2"), at(s, "D2")).unwrap()],
+            patch: calc_host::FormatPatch {
+                fill: Some("#ff0000".into()),
+                ..Default::default()
+            }
+        }))
+        .accepted()
+    );
+    let style = book.host().cell_style(at(s, "A2"));
+    let area = GridArea::new(at(s, "A1"), at(s, "D6")).unwrap();
+    let revision = book.host().revision().get();
+    let result = book.dispatch(SkinIntent::Command(W::SortRows {
+        area,
+        keys: vec![
+            SortKey {
+                column: 1,
+                descending: false,
+            },
+            SortKey {
+                column: 2,
+                descending: true,
+            },
+        ],
+        header: true,
+        revision,
+    }));
+    assert!(result.accepted(), "{result:?}");
+    for (row, text, value) in [
+        (2, "alpha", 3.),
+        (3, "Alpha", 1.),
+        (4, "Beta", 2.),
+        (5, "coop", 5.),
+        (6, "co-op", 4.),
+    ] {
+        assert_eq!(
+            book.host().model().cell(at(s, &format!("A{row}"))),
+            Some(&calc_host::interpret_entry(text).unwrap().unwrap())
+        );
+        assert_eq!(
+            book.host().model().cell(at(s, &format!("C{row}"))),
+            Some(
+                &calc_host::interpret_entry(&format!("=B{row}+$F$1"))
+                    .unwrap()
+                    .unwrap()
+            )
+        );
+        assert_eq!(
+            book.host().model().cell(at(s, &format!("D{row}"))),
+            Some(
+                &calc_host::interpret_entry(&format!("=$B{row}+B$9+$B$9"))
+                    .unwrap()
+                    .unwrap()
+            )
+        );
+        assert_eq!(
+            session_calculated(&book, at(s, &format!("C{row}")))
+                .unwrap()
+                .as_number(),
+            Some(value + 1000.)
+        );
+        assert_eq!(
+            session_calculated(&book, at(s, &format!("D{row}")))
+                .unwrap()
+                .as_number(),
+            Some(value + 200.)
+        );
+    }
+    assert_eq!(book.host().cell_style(at(s, "A4")), style);
     // Formulas outside the selected rectangle keep their physical references.
-    assert_eq!(book.host().model().cell(at(s,"H1")),Some(&calc_host::interpret_entry("=B2").unwrap().unwrap()));
-    assert_eq!(session_calculated(&book,at(s,"H1")).unwrap().as_number(),Some(3.));
+    assert_eq!(
+        book.host().model().cell(at(s, "H1")),
+        Some(&calc_host::interpret_entry("=B2").unwrap().unwrap())
+    );
+    assert_eq!(
+        session_calculated(&book, at(s, "H1")).unwrap().as_number(),
+        Some(3.)
+    );
     assert!(book.dispatch(SkinIntent::Undo).accepted());
-    assert_eq!(session_calculated(&book,at(s,"H1")).unwrap().as_number(),Some(2.));
-    assert_eq!(book.host().cell_style(at(s,"A2")),style);
+    assert_eq!(
+        session_calculated(&book, at(s, "H1")).unwrap().as_number(),
+        Some(2.)
+    );
+    assert_eq!(book.host().cell_style(at(s, "A2")), style);
     assert!(book.dispatch(SkinIntent::Redo).accepted());
-    let mut saved=Vec::new();book.save(&SavePolicy::default(),&mut saved).unwrap();
-    let mut reopened=session(&saved);let r=reopened.host().sheets()[0].id();
+    let mut saved = Vec::new();
+    book.save(&SavePolicy::default(), &mut saved).unwrap();
+    let mut reopened = session(&saved);
+    let r = reopened.host().sheets()[0].id();
     assert!(reopened.dispatch(SkinIntent::Recalculate).accepted());
-    assert_eq!(reopened.host().model().cell(at(r,"C4")),Some(&calc_host::interpret_entry("=B4+$F$1").unwrap().unwrap()));
-    assert_eq!(reopened.host().cell_style(at(r,"A4")),style);
-    assert_eq!(session_calculated(&reopened,at(r,"D4")).unwrap().as_number(),Some(202.));
+    assert_eq!(
+        reopened.host().model().cell(at(r, "C4")),
+        Some(&calc_host::interpret_entry("=B4+$F$1").unwrap().unwrap())
+    );
+    assert_eq!(reopened.host().cell_style(at(r, "A4")), style);
+    assert_eq!(
+        session_calculated(&reopened, at(r, "D4"))
+            .unwrap()
+            .as_number(),
+        Some(202.)
+    );
     // The normal XLSX writer compresses these formula columns into shared groups. Sorting
     // the reopened file must materialise and relocate their members through the same route.
-    assert!(part_text(&saved,"xl/worksheets/sheet1.xml").contains("t=\"shared\""));
-    let revision=reopened.host().revision().get();
-    let sorted=reopened.dispatch(SkinIntent::Command(W::SortRows{area:GridArea::new(at(r,"A1"),at(r,"D6")).unwrap(),keys:vec![SortKey{column:1,descending:true},SortKey{column:2,descending:false}],header:true,revision}));
-    assert!(sorted.accepted(),"{sorted:?}");
-    assert_eq!(reopened.host().model().cell(at(r,"C2")),Some(&calc_host::interpret_entry("=B2+$F$1").unwrap().unwrap()));
-    assert_eq!(session_calculated(&reopened,at(r,"C2")).unwrap().as_number(),Some(1004.));
-    let mut twin=session(&calc_host::blank_package());let replayed=replay(book.intent_log(),&mut twin);
-    assert!(replayed.mismatches.is_empty(),"{replayed:?}");
-    let t=twin.host().sheets()[0].id();
-    for address in ["A2","C4","D6","H1"] {assert_eq!(twin.host().model().cell(at(t,address)),book.host().model().cell(at(s,address)));}
+    assert!(part_text(&saved, "xl/worksheets/sheet1.xml").contains("t=\"shared\""));
+    let revision = reopened.host().revision().get();
+    let sorted = reopened.dispatch(SkinIntent::Command(W::SortRows {
+        area: GridArea::new(at(r, "A1"), at(r, "D6")).unwrap(),
+        keys: vec![
+            SortKey {
+                column: 1,
+                descending: true,
+            },
+            SortKey {
+                column: 2,
+                descending: false,
+            },
+        ],
+        header: true,
+        revision,
+    }));
+    assert!(sorted.accepted(), "{sorted:?}");
+    assert_eq!(
+        reopened.host().model().cell(at(r, "C2")),
+        Some(&calc_host::interpret_entry("=B2+$F$1").unwrap().unwrap())
+    );
+    assert_eq!(
+        session_calculated(&reopened, at(r, "C2"))
+            .unwrap()
+            .as_number(),
+        Some(1004.)
+    );
+    let mut twin = session(&calc_host::blank_package());
+    let replayed = replay(book.intent_log(), &mut twin);
+    assert!(replayed.mismatches.is_empty(), "{replayed:?}");
+    let t = twin.host().sheets()[0].id();
+    for address in ["A2", "C4", "D6", "H1"] {
+        assert_eq!(
+            twin.host().model().cell(at(t, address)),
+            book.host().model().cell(at(s, address))
+        );
+    }
 }
 
 #[cfg_attr(not(target_arch = "wasm32"), test)]
 #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
 fn dc_971p_38__mixed_keys_keep_errors_equal_and_blanks_last_in_both_directions() {
-    use calc_host::{WorkbookCommand as W,SortKey};
-    let mut book=session(&calc_host::blank_package());let s=book.host().sheets()[0].id();
-    for (row,input,label) in [(1,"=1/0","error first"),(2,"TRUE","true"),(3,"a","text"),(4,"1","number"),(5,"=#REF!","error second"),(6,"FALSE","false")] {
-        assert!(enter(&mut book,at(s,&format!("A{row}")),input).accepted());
-        assert!(enter(&mut book,at(s,&format!("B{row}")),label).accepted());
+    use calc_host::{SortKey, WorkbookCommand as W};
+    let mut book = session(&calc_host::blank_package());
+    let s = book.host().sheets()[0].id();
+    for (row, input, label) in [
+        (1, "=1/0", "error first"),
+        (2, "TRUE", "true"),
+        (3, "a", "text"),
+        (4, "1", "number"),
+        (5, "=#REF!", "error second"),
+        (6, "FALSE", "false"),
+    ] {
+        assert!(enter(&mut book, at(s, &format!("A{row}")), input).accepted());
+        assert!(enter(&mut book, at(s, &format!("B{row}")), label).accepted());
     }
-    assert!(enter(&mut book,at(s,"B7"),"blank").accepted());
-    for (descending,expected) in [(false,["number","text","false","true","error first","error second","blank"]),(true,["error first","error second","true","false","text","number","blank"])] {
-        let revision=book.host().revision().get();
-        let sorted=book.dispatch(SkinIntent::Command(W::SortRows{area:GridArea::new(at(s,"A1"),at(s,"B7")).unwrap(),keys:vec![SortKey{column:1,descending}],header:false,revision}));
-        assert!(sorted.accepted(),"{sorted:?}");
-        for (index,text) in expected.iter().enumerate() {assert_eq!(book.host().model().cell(at(s,&format!("B{}",index+1))),Some(&calc_host::interpret_entry(text).unwrap().unwrap()));}
-        assert_eq!(book.host().model().cell(at(s,"A7")),None);
+    assert!(enter(&mut book, at(s, "B7"), "blank").accepted());
+    for (descending, expected) in [
+        (
+            false,
+            [
+                "number",
+                "text",
+                "false",
+                "true",
+                "error first",
+                "error second",
+                "blank",
+            ],
+        ),
+        (
+            true,
+            [
+                "error first",
+                "error second",
+                "true",
+                "false",
+                "text",
+                "number",
+                "blank",
+            ],
+        ),
+    ] {
+        let revision = book.host().revision().get();
+        let sorted = book.dispatch(SkinIntent::Command(W::SortRows {
+            area: GridArea::new(at(s, "A1"), at(s, "B7")).unwrap(),
+            keys: vec![SortKey {
+                column: 1,
+                descending,
+            }],
+            header: false,
+            revision,
+        }));
+        assert!(sorted.accepted(), "{sorted:?}");
+        for (index, text) in expected.iter().enumerate() {
+            assert_eq!(
+                book.host().model().cell(at(s, &format!("B{}", index + 1))),
+                Some(&calc_host::interpret_entry(text).unwrap().unwrap())
+            );
+        }
+        assert_eq!(book.host().model().cell(at(s, "A7")), None);
     }
 }
 
 #[cfg_attr(not(target_arch = "wasm32"), test)]
 #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
 fn dc_971p_38__formula_keys_require_current_values_and_invalid_key_lists_are_atomic() {
-    use calc_host::{WorkbookCommand as W,SortKey};
-    let mut book=session(&calc_host::blank_package());let s=book.host().sheets()[0].id();
-    assert!(book.dispatch(SkinIntent::SetCalcMode(CalcMode::Manual)).accepted());
-    assert!(enter(&mut book,at(s,"A1"),"=3").accepted());assert!(enter(&mut book,at(s,"A2"),"=1").accepted());
-    let area=GridArea::new(at(s,"A1"),at(s,"A2")).unwrap();
-    let sort=|book:&mut HostSession,keys| {let revision=book.host().revision().get();book.dispatch(SkinIntent::Command(W::SortRows{area,keys,header:false,revision}))};
-    let key=SortKey{column:1,descending:false};let revision=book.host().revision();
-    let refused=sort(&mut book,vec![key]);assert!(!refused.accepted());assert!(refused.error.unwrap().to_string().contains("current calculated values"));assert_eq!(book.host().revision(),revision);
-    assert!(book.dispatch(SkinIntent::SetCalcMode(CalcMode::Automatic)).accepted());
-    for keys in [vec![],vec![key,key],vec![SortKey{column:2,..key}],vec![key;33]] {
-        let revision=book.host().revision();let old=book.host().model().cell(at(s,"A1")).cloned();
-        assert!(!sort(&mut book,keys).accepted());assert_eq!(book.host().revision(),revision);assert_eq!(book.host().model().cell(at(s,"A1")),old.as_ref());
+    use calc_host::{SortKey, WorkbookCommand as W};
+    let mut book = session(&calc_host::blank_package());
+    let s = book.host().sheets()[0].id();
+    assert!(
+        book.dispatch(SkinIntent::SetCalcMode(CalcMode::Manual))
+            .accepted()
+    );
+    assert!(enter(&mut book, at(s, "A1"), "=3").accepted());
+    assert!(enter(&mut book, at(s, "A2"), "=1").accepted());
+    let area = GridArea::new(at(s, "A1"), at(s, "A2")).unwrap();
+    let sort = |book: &mut HostSession, keys| {
+        let revision = book.host().revision().get();
+        book.dispatch(SkinIntent::Command(W::SortRows {
+            area,
+            keys,
+            header: false,
+            revision,
+        }))
+    };
+    let key = SortKey {
+        column: 1,
+        descending: false,
+    };
+    let revision = book.host().revision();
+    let refused = sort(&mut book, vec![key]);
+    assert!(!refused.accepted());
+    assert!(
+        refused
+            .error
+            .unwrap()
+            .to_string()
+            .contains("current calculated values")
+    );
+    assert_eq!(book.host().revision(), revision);
+    assert!(
+        book.dispatch(SkinIntent::SetCalcMode(CalcMode::Automatic))
+            .accepted()
+    );
+    for keys in [
+        vec![],
+        vec![key, key],
+        vec![SortKey { column: 2, ..key }],
+        vec![key; 33],
+    ] {
+        let revision = book.host().revision();
+        let old = book.host().model().cell(at(s, "A1")).cloned();
+        assert!(!sort(&mut book, keys).accepted());
+        assert_eq!(book.host().revision(), revision);
+        assert_eq!(book.host().model().cell(at(s, "A1")), old.as_ref());
     }
-    let sorted=sort(&mut book,vec![key]);assert!(sorted.accepted(),"{sorted:?}");
-    assert_eq!(session_calculated(&book,at(s,"A1")).unwrap().as_number(),Some(1.));
+    let sorted = sort(&mut book, vec![key]);
+    assert!(sorted.accepted(), "{sorted:?}");
+    assert_eq!(
+        session_calculated(&book, at(s, "A1")).unwrap().as_number(),
+        Some(1.)
+    );
 }
 
 #[cfg_attr(not(target_arch = "wasm32"), test)]
 #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
 fn dc_971p_38__shifted_source_formula_attributes_and_filter_ranges_refuse_atomically() {
-    use calc_host::{WorkbookCommand as W,SortKey};
-    let xml="<worksheet xmlns=\"http://schemas.openxmlformats.org/spreadsheetml/2006/main\"><sheetData><row r=\"9\"><c r=\"A9\"><v>2</v></c></row><row r=\"10\"><c r=\"A10\"><f ca=\"1\">1</f><v>1</v></c></row></sheetData></worksheet>";
-    let bytes=package_with_part("xl/worksheets/sheet1.xml",|_|xml.into());
-    let mut book=session(&bytes);let s=book.host().sheets()[0].id();
-    assert!(book.dispatch(SkinIntent::EditAxis(AxisEdit::new(s,Axis::Rows,AxisChange::Delete,1,1).unwrap())).accepted());
+    use calc_host::{SortKey, WorkbookCommand as W};
+    let xml = "<worksheet xmlns=\"http://schemas.openxmlformats.org/spreadsheetml/2006/main\"><sheetData><row r=\"9\"><c r=\"A9\"><v>2</v></c></row><row r=\"10\"><c r=\"A10\"><f ca=\"1\">1</f><v>1</v></c></row></sheetData></worksheet>";
+    let bytes = package_with_part("xl/worksheets/sheet1.xml", |_| xml.into());
+    let mut book = session(&bytes);
+    let s = book.host().sheets()[0].id();
+    assert!(
+        book.dispatch(SkinIntent::EditAxis(
+            AxisEdit::new(s, Axis::Rows, AxisChange::Delete, 1, 1).unwrap()
+        ))
+        .accepted()
+    );
     assert!(book.dispatch(SkinIntent::Recalculate).accepted());
-    let before=book.host().revision();
-    let result=book.dispatch(SkinIntent::Command(W::SortRows{area:GridArea::new(at(s,"A8"),at(s,"A9")).unwrap(),keys:vec![SortKey{column:1,descending:false}],header:false,revision:before.get()}));
-    assert!(!result.accepted(),"{result:?}");assert_eq!(book.host().revision(),before);
-    assert_eq!(book.host().model().cell(at(s,"A8")),Some(&number(2.)));
-    let mut saved=Vec::new();book.save(&SavePolicy::default(),&mut saved).unwrap();
-    assert!(part_text(&saved,"xl/worksheets/sheet1.xml").contains("<f ca=\"1\">1</f>"));
-    let mut book=session(&calc_host::blank_package());let s=book.host().sheets()[0].id();
-    for (address,input) in [("A1","Header"),("A2","2"),("A3","1")] {assert!(enter(&mut book,at(s,address),input).accepted());}
-    let area=GridArea::new(at(s,"A1"),at(s,"A3")).unwrap();let revision=book.host().revision().get();
-    assert!(book.dispatch(SkinIntent::Command(W::AutoFilter{sheet:s,revision,change:calc_host::FilterChange::Enable{area}})).accepted());
-    let before=book.host().revision();let result=book.dispatch(SkinIntent::Command(W::SortRows{area,keys:vec![SortKey{column:1,descending:false}],header:true,revision:before.get()}));
-    assert!(!result.accepted(),"{result:?}");assert!(result.error.unwrap().to_string().contains("AutoFilter ranges"));assert_eq!(book.host().revision(),before);
-    assert_eq!(book.host().model().cell(at(s,"A2")),Some(&number(2.)));
+    let before = book.host().revision();
+    let result = book.dispatch(SkinIntent::Command(W::SortRows {
+        area: GridArea::new(at(s, "A8"), at(s, "A9")).unwrap(),
+        keys: vec![SortKey {
+            column: 1,
+            descending: false,
+        }],
+        header: false,
+        revision: before.get(),
+    }));
+    assert!(!result.accepted(), "{result:?}");
+    assert_eq!(book.host().revision(), before);
+    assert_eq!(book.host().model().cell(at(s, "A8")), Some(&number(2.)));
+    let mut saved = Vec::new();
+    book.save(&SavePolicy::default(), &mut saved).unwrap();
+    assert!(part_text(&saved, "xl/worksheets/sheet1.xml").contains("<f ca=\"1\">1</f>"));
+    let mut book = session(&calc_host::blank_package());
+    let s = book.host().sheets()[0].id();
+    for (address, input) in [("A1", "Header"), ("A2", "2"), ("A3", "1")] {
+        assert!(enter(&mut book, at(s, address), input).accepted());
+    }
+    let area = GridArea::new(at(s, "A1"), at(s, "A3")).unwrap();
+    let revision = book.host().revision().get();
+    assert!(
+        book.dispatch(SkinIntent::Command(W::AutoFilter {
+            sheet: s,
+            revision,
+            change: calc_host::FilterChange::Enable { area }
+        }))
+        .accepted()
+    );
+    let before = book.host().revision();
+    let result = book.dispatch(SkinIntent::Command(W::SortRows {
+        area,
+        keys: vec![SortKey {
+            column: 1,
+            descending: false,
+        }],
+        header: true,
+        revision: before.get(),
+    }));
+    assert!(!result.accepted(), "{result:?}");
+    assert!(
+        result
+            .error
+            .unwrap()
+            .to_string()
+            .contains("AutoFilter ranges")
+    );
+    assert_eq!(book.host().revision(), before);
+    assert_eq!(book.host().model().cell(at(s, "A2")), Some(&number(2.)));
 }
 
 #[cfg_attr(not(target_arch = "wasm32"), test)]
@@ -12980,360 +14605,1772 @@ fn dc_971p_16__empty_view_elements_and_frozen_split_state_survive_window_save() 
 #[cfg_attr(not(target_arch = "wasm32"), test)]
 #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
 fn dc_971p_39__nested_outline_history_subtotals_and_xlsx_keep_independent_hiding() {
-    use calc_host::{WorkbookCommand as W,OutlineChange as O,Axis};
-    let mut book=session(&calc_host::blank_package());let s=book.host().sheets()[0].id();
-    for (cell,input) in [("A1","Amount"),("A2","10"),("A3","20"),("A4","30"),("A5","40"),("A6","50"),("A7","=SUM(A2:A6)"),("C1","=SUBTOTAL(9,A2:A6)"),("D1","=SUBTOTAL(109,A2:A6)")] {assert!(enter(&mut book,at(s,cell),input).accepted());}
-    let command=|book:&mut HostSession,change| {let revision=book.host().revision().get();book.dispatch(SkinIntent::Command(W::Outline{sheet:s,rows:true,revision,change}))};
-    for change in [O::Group{first:2,last:6},O::Group{first:3,last:4}] {let r=command(&mut book,change);assert!(r.accepted(),"{r:?}");}
-    assert!(book.dispatch(SkinIntent::Command(W::AxisFormat{sheet:s,rows:true,first:3,count:1,size_bits:None,hidden:Some(true)})).accepted());
-    let before=book.host().model().definitions().axis_layouts().clone();
-    assert!(command(&mut book,O::Detail{first:3,last:4,level:Some(2),show:false}).accepted());
-    assert_eq!(session_calculated(&book,at(s,"C1")).unwrap().as_number(),Some(150.));
-    assert_eq!(session_calculated(&book,at(s,"D1")).unwrap().as_number(),Some(100.));
-    let collapsed=book.host().model().definitions().axis_layouts().clone();
-    assert!(book.dispatch(SkinIntent::Undo).accepted());assert_eq!(book.host().model().definitions().axis_layouts(),&before);
-    assert!(book.dispatch(SkinIntent::Redo).accepted());assert_eq!(book.host().model().definitions().axis_layouts(),&collapsed);
-    assert!(command(&mut book,O::Detail{first:2,last:6,level:Some(1),show:false}).accepted());
-    assert_eq!(session_calculated(&book,at(s,"D1")).unwrap().as_number(),Some(0.));
-    assert!(command(&mut book,O::Detail{first:2,last:6,level:Some(1),show:true}).accepted());
-    let g=book.host().sheet_geometry(s).unwrap();assert!(!g.rows[&2].hidden);assert!(g.rows[&3].hidden && g.rows[&4].hidden);assert!(!g.rows[&6].hidden);
-    assert!(command(&mut book,O::SummaryAfter(false)).accepted());
-    let final_layout=book.host().model().definitions().axis_layouts().clone();
-    assert!(!final_layout.summary_after(s,Axis::Rows));
-    assert!(final_layout.outline_groups(s,Axis::Rows).iter().any(|g|g.level==2 && g.summary==2 && g.collapsed));
-    let mut bytes=Vec::new();book.save(&SavePolicy::default(),&mut bytes).unwrap();
-    let xml=part_text(&bytes,"xl/worksheets/sheet1.xml");assert!(xml.contains("summaryBelow=\"0\""),"{xml}");assert!(xml.contains("outlineLevelRow=\"2\""));assert!(xml.contains("urn:dnacalc:outline:v1"));
-    let mut reopened=session(&bytes);let rs=reopened.host().sheets()[0].id();assert_eq!(rs,s);
-    assert_eq!(reopened.host().model().definitions().axis_layouts(),&final_layout);
-    assert!(reopened.dispatch(SkinIntent::Calculate{scope:calc_engine::CalcScope::Workbook,selection:calc_engine::EvalSelection::ForceAll}).accepted());
-    assert_eq!(session_calculated(&reopened,at(s,"D1")).unwrap().as_number(),Some(100.));
-    assert!(command(&mut reopened,O::ShowLevel(3)).accepted());
-    let g=reopened.host().sheet_geometry(s).unwrap();assert!(g.rows[&3].hidden);assert!(!g.rows[&4].hidden);
-    assert_eq!(session_calculated(&reopened,at(s,"D1")).unwrap().as_number(),Some(130.));
-    assert_eq!(session_calculated(&reopened,at(s,"A7")).unwrap().as_number(),Some(150.));
-    let mut twin=session(&calc_host::blank_package());let replayed=replay(book.intent_log(),&mut twin);assert!(replayed.mismatches.is_empty(),"{replayed:?}");assert_eq!(twin.host().model().definitions().axis_layouts(),&final_layout);
+    use calc_host::{Axis, OutlineChange as O, WorkbookCommand as W};
+    let mut book = session(&calc_host::blank_package());
+    let s = book.host().sheets()[0].id();
+    for (cell, input) in [
+        ("A1", "Amount"),
+        ("A2", "10"),
+        ("A3", "20"),
+        ("A4", "30"),
+        ("A5", "40"),
+        ("A6", "50"),
+        ("A7", "=SUM(A2:A6)"),
+        ("C1", "=SUBTOTAL(9,A2:A6)"),
+        ("D1", "=SUBTOTAL(109,A2:A6)"),
+    ] {
+        assert!(enter(&mut book, at(s, cell), input).accepted());
+    }
+    let command = |book: &mut HostSession, change| {
+        let revision = book.host().revision().get();
+        book.dispatch(SkinIntent::Command(W::Outline {
+            sheet: s,
+            rows: true,
+            revision,
+            change,
+        }))
+    };
+    for change in [
+        O::Group { first: 2, last: 6 },
+        O::Group { first: 3, last: 4 },
+    ] {
+        let r = command(&mut book, change);
+        assert!(r.accepted(), "{r:?}");
+    }
+    assert!(
+        book.dispatch(SkinIntent::Command(W::AxisFormat {
+            sheet: s,
+            rows: true,
+            first: 3,
+            count: 1,
+            size_bits: None,
+            hidden: Some(true)
+        }))
+        .accepted()
+    );
+    let before = book.host().model().definitions().axis_layouts().clone();
+    assert!(
+        command(
+            &mut book,
+            O::Detail {
+                first: 3,
+                last: 4,
+                level: Some(2),
+                show: false
+            }
+        )
+        .accepted()
+    );
+    assert_eq!(
+        session_calculated(&book, at(s, "C1")).unwrap().as_number(),
+        Some(150.)
+    );
+    assert_eq!(
+        session_calculated(&book, at(s, "D1")).unwrap().as_number(),
+        Some(100.)
+    );
+    let collapsed = book.host().model().definitions().axis_layouts().clone();
+    assert!(book.dispatch(SkinIntent::Undo).accepted());
+    assert_eq!(book.host().model().definitions().axis_layouts(), &before);
+    assert!(book.dispatch(SkinIntent::Redo).accepted());
+    assert_eq!(book.host().model().definitions().axis_layouts(), &collapsed);
+    assert!(
+        command(
+            &mut book,
+            O::Detail {
+                first: 2,
+                last: 6,
+                level: Some(1),
+                show: false
+            }
+        )
+        .accepted()
+    );
+    assert_eq!(
+        session_calculated(&book, at(s, "D1")).unwrap().as_number(),
+        Some(0.)
+    );
+    assert!(
+        command(
+            &mut book,
+            O::Detail {
+                first: 2,
+                last: 6,
+                level: Some(1),
+                show: true
+            }
+        )
+        .accepted()
+    );
+    let g = book.host().sheet_geometry(s).unwrap();
+    assert!(!g.rows[&2].hidden);
+    assert!(g.rows[&3].hidden && g.rows[&4].hidden);
+    assert!(!g.rows[&6].hidden);
+    assert!(command(&mut book, O::SummaryAfter(false)).accepted());
+    let final_layout = book.host().model().definitions().axis_layouts().clone();
+    assert!(!final_layout.summary_after(s, Axis::Rows));
+    assert!(
+        final_layout
+            .outline_groups(s, Axis::Rows)
+            .iter()
+            .any(|g| g.level == 2 && g.summary == 2 && g.collapsed)
+    );
+    let mut bytes = Vec::new();
+    book.save(&SavePolicy::default(), &mut bytes).unwrap();
+    let xml = part_text(&bytes, "xl/worksheets/sheet1.xml");
+    assert!(xml.contains("summaryBelow=\"0\""), "{xml}");
+    assert!(xml.contains("outlineLevelRow=\"2\""));
+    assert!(xml.contains("urn:dnacalc:outline:v1"));
+    let mut reopened = session(&bytes);
+    let rs = reopened.host().sheets()[0].id();
+    assert_eq!(rs, s);
+    assert_eq!(
+        reopened.host().model().definitions().axis_layouts(),
+        &final_layout
+    );
+    assert!(
+        reopened
+            .dispatch(SkinIntent::Calculate {
+                scope: calc_engine::CalcScope::Workbook,
+                selection: calc_engine::EvalSelection::ForceAll
+            })
+            .accepted()
+    );
+    assert_eq!(
+        session_calculated(&reopened, at(s, "D1"))
+            .unwrap()
+            .as_number(),
+        Some(100.)
+    );
+    assert!(command(&mut reopened, O::ShowLevel(3)).accepted());
+    let g = reopened.host().sheet_geometry(s).unwrap();
+    assert!(g.rows[&3].hidden);
+    assert!(!g.rows[&4].hidden);
+    assert_eq!(
+        session_calculated(&reopened, at(s, "D1"))
+            .unwrap()
+            .as_number(),
+        Some(130.)
+    );
+    assert_eq!(
+        session_calculated(&reopened, at(s, "A7"))
+            .unwrap()
+            .as_number(),
+        Some(150.)
+    );
+    let mut twin = session(&calc_host::blank_package());
+    let replayed = replay(book.intent_log(), &mut twin);
+    assert!(replayed.mismatches.is_empty(), "{replayed:?}");
+    assert_eq!(
+        twin.host().model().definitions().axis_layouts(),
+        &final_layout
+    );
 }
 
 #[cfg_attr(not(target_arch = "wasm32"), test)]
 #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
 fn dc_971p_39__shared_summary_controls_columns_and_seven_levels_round_trip() {
-    use calc_host::{WorkbookCommand as W,OutlineChange as O,Axis};
-    let mut book=session(&calc_host::blank_package());let s=book.host().sheets()[0].id();
-    assert!(enter(&mut book,at(s,"B1"),"detail").accepted());
-    let command=|book:&mut HostSession,change| {let revision=book.host().revision().get();book.dispatch(SkinIntent::Command(W::Outline{sheet:s,rows:false,revision,change}))};
-    for change in [O::Group{first:2,last:5},O::Group{first:3,last:5},O::Detail{first:3,last:5,level:Some(2),show:false},O::Detail{first:2,last:5,level:Some(1),show:false}] {let r=command(&mut book,change);assert!(r.accepted(),"{r:?}");}
-    let layout=book.host().model().definitions().axis_layouts();assert_eq!(layout.get(s,Axis::Columns,6).collapsed(),3);
-    let mut bytes=Vec::new();book.save(&SavePolicy::default(),&mut bytes).unwrap();let mut reopened=session(&bytes);
-    assert_eq!(reopened.host().model().definitions().axis_layouts(),book.host().model().definitions().axis_layouts());
-    assert!(command(&mut reopened,O::Detail{first:2,last:5,level:Some(1),show:true}).accepted());
-    let g=reopened.host().sheet_geometry(s).unwrap();assert!(!g.column(2).unwrap().hidden);assert!(g.column(3).unwrap().hidden);
-    assert!(command(&mut reopened,O::SummaryAfter(false)).accepted());let before=reopened.host().model().definitions().axis_layouts().clone();
-    assert!(reopened.dispatch(SkinIntent::Undo).accepted());assert!(reopened.host().model().definitions().axis_layouts().summary_after(s,Axis::Columns));assert!(reopened.dispatch(SkinIntent::Redo).accepted());assert_eq!(reopened.host().model().definitions().axis_layouts(),&before);
-    assert!(command(&mut reopened,O::Ungroup{first:3,last:5}).accepted());assert_eq!(reopened.host().model().definitions().axis_layouts().outline_groups(s,Axis::Columns).len(),1);
-    assert!(reopened.host().sheet_geometry(s).unwrap().column(3).unwrap().hidden);
-    assert!(reopened.dispatch(SkinIntent::Command(W::AxisFormat{sheet:s,rows:false,first:3,count:3,size_bits:None,hidden:Some(false)})).accepted());
-    for _ in 0..6 {assert!(command(&mut reopened,O::Group{first:2,last:5}).accepted());}
-    let revision=reopened.host().revision();let history=reopened.history_depth();let refusal=command(&mut reopened,O::Group{first:2,last:5});assert!(!refusal.accepted());assert_eq!(reopened.host().revision(),revision);assert_eq!(reopened.history_depth(),history);
-    assert!(command(&mut reopened,O::ShowLevel(8)).accepted());assert!(!reopened.host().sheet_geometry(s).unwrap().column(3).unwrap().hidden);
+    use calc_host::{Axis, OutlineChange as O, WorkbookCommand as W};
+    let mut book = session(&calc_host::blank_package());
+    let s = book.host().sheets()[0].id();
+    assert!(enter(&mut book, at(s, "B1"), "detail").accepted());
+    let command = |book: &mut HostSession, change| {
+        let revision = book.host().revision().get();
+        book.dispatch(SkinIntent::Command(W::Outline {
+            sheet: s,
+            rows: false,
+            revision,
+            change,
+        }))
+    };
+    for change in [
+        O::Group { first: 2, last: 5 },
+        O::Group { first: 3, last: 5 },
+        O::Detail {
+            first: 3,
+            last: 5,
+            level: Some(2),
+            show: false,
+        },
+        O::Detail {
+            first: 2,
+            last: 5,
+            level: Some(1),
+            show: false,
+        },
+    ] {
+        let r = command(&mut book, change);
+        assert!(r.accepted(), "{r:?}");
+    }
+    let layout = book.host().model().definitions().axis_layouts();
+    assert_eq!(layout.get(s, Axis::Columns, 6).collapsed(), 3);
+    let mut bytes = Vec::new();
+    book.save(&SavePolicy::default(), &mut bytes).unwrap();
+    let mut reopened = session(&bytes);
+    assert_eq!(
+        reopened.host().model().definitions().axis_layouts(),
+        book.host().model().definitions().axis_layouts()
+    );
+    assert!(
+        command(
+            &mut reopened,
+            O::Detail {
+                first: 2,
+                last: 5,
+                level: Some(1),
+                show: true
+            }
+        )
+        .accepted()
+    );
+    let g = reopened.host().sheet_geometry(s).unwrap();
+    assert!(!g.column(2).unwrap().hidden);
+    assert!(g.column(3).unwrap().hidden);
+    assert!(command(&mut reopened, O::SummaryAfter(false)).accepted());
+    let before = reopened.host().model().definitions().axis_layouts().clone();
+    assert!(reopened.dispatch(SkinIntent::Undo).accepted());
+    assert!(
+        reopened
+            .host()
+            .model()
+            .definitions()
+            .axis_layouts()
+            .summary_after(s, Axis::Columns)
+    );
+    assert!(reopened.dispatch(SkinIntent::Redo).accepted());
+    assert_eq!(
+        reopened.host().model().definitions().axis_layouts(),
+        &before
+    );
+    assert!(command(&mut reopened, O::Ungroup { first: 3, last: 5 }).accepted());
+    assert_eq!(
+        reopened
+            .host()
+            .model()
+            .definitions()
+            .axis_layouts()
+            .outline_groups(s, Axis::Columns)
+            .len(),
+        1
+    );
+    assert!(
+        reopened
+            .host()
+            .sheet_geometry(s)
+            .unwrap()
+            .column(3)
+            .unwrap()
+            .hidden
+    );
+    assert!(
+        reopened
+            .dispatch(SkinIntent::Command(W::AxisFormat {
+                sheet: s,
+                rows: false,
+                first: 3,
+                count: 3,
+                size_bits: None,
+                hidden: Some(false)
+            }))
+            .accepted()
+    );
+    for _ in 0..6 {
+        assert!(command(&mut reopened, O::Group { first: 2, last: 5 }).accepted());
+    }
+    let revision = reopened.host().revision();
+    let history = reopened.history_depth();
+    let refusal = command(&mut reopened, O::Group { first: 2, last: 5 });
+    assert!(!refusal.accepted());
+    assert_eq!(reopened.host().revision(), revision);
+    assert_eq!(reopened.history_depth(), history);
+    assert!(command(&mut reopened, O::ShowLevel(8)).accepted());
+    assert!(
+        !reopened
+            .host()
+            .sheet_geometry(s)
+            .unwrap()
+            .column(3)
+            .unwrap()
+            .hidden
+    );
 }
 
 #[cfg_attr(not(target_arch = "wasm32"), test)]
 #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
 fn dc_971p_39__outline_and_filter_visibility_remain_separate_after_reopen() {
-    use calc_host::{WorkbookCommand as W,OutlineChange as O,FilterChange as F,FilterCriteria};
-    let mut book=session(&calc_host::blank_package());let s=book.host().sheets()[0].id();
-    for (cell,input) in [("A1","Category"),("A2","Alpha"),("A3","Beta"),("A4","Alpha"),("A5","Beta")] {assert!(enter(&mut book,at(s,cell),input).accepted());}
-    let outline=|book:&mut HostSession,change| {let revision=book.host().revision().get();book.dispatch(SkinIntent::Command(W::Outline{sheet:s,rows:true,revision,change}))};
-    let filter=|book:&mut HostSession,change| {let revision=book.host().revision().get();book.dispatch(SkinIntent::Command(W::AutoFilter{sheet:s,revision,change}))};
-    assert!(outline(&mut book,O::Group{first:2,last:4}).accepted());assert!(outline(&mut book,O::Detail{first:2,last:4,level:None,show:false}).accepted());
-    assert!(filter(&mut book,F::Enable{area:GridArea::new(at(s,"A1"),at(s,"A5")).unwrap()}).accepted());assert!(filter(&mut book,F::Column{column:1,criteria:Some(FilterCriteria::Values{values:vec!["Alpha".into()],blank:false})}).accepted());
-    let mut bytes=Vec::new();book.save(&SavePolicy::default(),&mut bytes).unwrap();let mut reopened=session(&bytes);
-    assert_eq!(reopened.host().model().definitions().auto_filter(s).unwrap().filtered_rows.iter().copied().collect::<Vec<_>>(),vec![3,5]);
-    assert!(filter(&mut reopened,F::Clear).accepted());let g=reopened.host().sheet_geometry(s).unwrap();assert!(g.rows[&2].hidden && g.rows[&3].hidden && g.rows[&4].hidden);assert!(!g.rows.get(&5).is_some_and(|r|r.hidden));
-    assert!(outline(&mut reopened,O::ShowLevel(8)).accepted());let g=reopened.host().sheet_geometry(s).unwrap();assert!((2..=5).all(|r|!g.rows.get(&r).is_some_and(|f|f.hidden)));
+    use calc_host::{FilterChange as F, FilterCriteria, OutlineChange as O, WorkbookCommand as W};
+    let mut book = session(&calc_host::blank_package());
+    let s = book.host().sheets()[0].id();
+    for (cell, input) in [
+        ("A1", "Category"),
+        ("A2", "Alpha"),
+        ("A3", "Beta"),
+        ("A4", "Alpha"),
+        ("A5", "Beta"),
+    ] {
+        assert!(enter(&mut book, at(s, cell), input).accepted());
+    }
+    let outline = |book: &mut HostSession, change| {
+        let revision = book.host().revision().get();
+        book.dispatch(SkinIntent::Command(W::Outline {
+            sheet: s,
+            rows: true,
+            revision,
+            change,
+        }))
+    };
+    let filter = |book: &mut HostSession, change| {
+        let revision = book.host().revision().get();
+        book.dispatch(SkinIntent::Command(W::AutoFilter {
+            sheet: s,
+            revision,
+            change,
+        }))
+    };
+    assert!(outline(&mut book, O::Group { first: 2, last: 4 }).accepted());
+    assert!(
+        outline(
+            &mut book,
+            O::Detail {
+                first: 2,
+                last: 4,
+                level: None,
+                show: false
+            }
+        )
+        .accepted()
+    );
+    assert!(
+        filter(
+            &mut book,
+            F::Enable {
+                area: GridArea::new(at(s, "A1"), at(s, "A5")).unwrap()
+            }
+        )
+        .accepted()
+    );
+    assert!(
+        filter(
+            &mut book,
+            F::Column {
+                column: 1,
+                criteria: Some(FilterCriteria::Values {
+                    values: vec!["Alpha".into()],
+                    blank: false
+                })
+            }
+        )
+        .accepted()
+    );
+    let mut bytes = Vec::new();
+    book.save(&SavePolicy::default(), &mut bytes).unwrap();
+    let mut reopened = session(&bytes);
+    assert_eq!(
+        reopened
+            .host()
+            .model()
+            .definitions()
+            .auto_filter(s)
+            .unwrap()
+            .filtered_rows
+            .iter()
+            .copied()
+            .collect::<Vec<_>>(),
+        vec![3, 5]
+    );
+    assert!(filter(&mut reopened, F::Clear).accepted());
+    let g = reopened.host().sheet_geometry(s).unwrap();
+    assert!(g.rows[&2].hidden && g.rows[&3].hidden && g.rows[&4].hidden);
+    assert!(!g.rows.get(&5).is_some_and(|r| r.hidden));
+    assert!(outline(&mut reopened, O::ShowLevel(8)).accepted());
+    let g = reopened.host().sheet_geometry(s).unwrap();
+    assert!((2..=5).all(|r| !g.rows.get(&r).is_some_and(|f| f.hidden)));
 }
 
 #[cfg_attr(not(target_arch = "wasm32"), test)]
 #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
 fn dc_971p_39__foreign_outline_reads_and_unknown_metadata_survive_with_stale_extension_ignored() {
-    use calc_host::{WorkbookCommand as W,OutlineChange as O,Axis};
-    let bytes=package_with_part_from(&calc_host::blank_package(),"xl/worksheets/sheet1.xml",|xml|xml.replace("<sheetData/>","<sheetData><row r=\"2\" outlineLevel=\"1\" hidden=\"1\" customHeight=\"1\" ht=\"20\"/><row r=\"3\" outlineLevel=\"1\" hidden=\"1\"/><row r=\"4\" collapsed=\"1\"/></sheetData>").replace("<sheetData>","<sheetPr codeName=\"OutlineSheet\"><outlinePr summaryBelow=\"1\" applyStyles=\"1\"/><pageSetUpPr autoPageBreaks=\"0\"/></sheetPr><sheetData>"));
-    let mut book=session(&bytes);let s=book.host().sheets()[0].id();assert_eq!(book.host().model().definitions().axis_layouts().outline_groups(s,Axis::Rows).len(),1);
-    assert!(book.host().model().definitions().axis_layouts().outline_groups(s,Axis::Rows)[0].collapsed);
-    let r=book.host().revision().get();assert!(book.dispatch(SkinIntent::Command(W::Outline{sheet:s,rows:true,revision:r,change:O::ShowLevel(8)})).accepted());assert!(!book.host().sheet_geometry(s).unwrap().rows[&2].hidden);
-    let mut saved=Vec::new();book.save(&SavePolicy::default(),&mut saved).unwrap();let xml=part_text(&saved,"xl/worksheets/sheet1.xml");assert!(xml.contains("codeName=\"OutlineSheet\""));assert!(xml.contains("applyStyles=\"1\""));assert!(xml.contains("autoPageBreaks=\"0\""));
+    use calc_host::{Axis, OutlineChange as O, WorkbookCommand as W};
+    let bytes = package_with_part_from(
+        &calc_host::blank_package(),
+        "xl/worksheets/sheet1.xml",
+        |xml| {
+            xml.replace("<sheetData/>","<sheetData><row r=\"2\" outlineLevel=\"1\" hidden=\"1\" customHeight=\"1\" ht=\"20\"/><row r=\"3\" outlineLevel=\"1\" hidden=\"1\"/><row r=\"4\" collapsed=\"1\"/></sheetData>").replace("<sheetData>","<sheetPr codeName=\"OutlineSheet\"><outlinePr summaryBelow=\"1\" applyStyles=\"1\"/><pageSetUpPr autoPageBreaks=\"0\"/></sheetPr><sheetData>")
+        },
+    );
+    let mut book = session(&bytes);
+    let s = book.host().sheets()[0].id();
+    assert_eq!(
+        book.host()
+            .model()
+            .definitions()
+            .axis_layouts()
+            .outline_groups(s, Axis::Rows)
+            .len(),
+        1
+    );
+    assert!(
+        book.host()
+            .model()
+            .definitions()
+            .axis_layouts()
+            .outline_groups(s, Axis::Rows)[0]
+            .collapsed
+    );
+    let r = book.host().revision().get();
+    assert!(
+        book.dispatch(SkinIntent::Command(W::Outline {
+            sheet: s,
+            rows: true,
+            revision: r,
+            change: O::ShowLevel(8)
+        }))
+        .accepted()
+    );
+    assert!(!book.host().sheet_geometry(s).unwrap().rows[&2].hidden);
+    let mut saved = Vec::new();
+    book.save(&SavePolicy::default(), &mut saved).unwrap();
+    let xml = part_text(&saved, "xl/worksheets/sheet1.xml");
+    assert!(xml.contains("codeName=\"OutlineSheet\""));
+    assert!(xml.contains("applyStyles=\"1\""));
+    assert!(xml.contains("autoPageBreaks=\"0\""));
     // External editing changes the physical outline, so stale independent-hiding metadata is discarded.
-    let edited=package_with_part_from(&saved,"xl/worksheets/sheet1.xml",|xml|xml.replace("r=\"3\" outlineLevel=\"1\"","r=\"3\" outlineLevel=\"1\" hidden=\"1\""));
-    let edited=session(&edited);assert!(edited.host().sheet_geometry(s).unwrap().rows[&3].hidden);
+    let edited = package_with_part_from(&saved, "xl/worksheets/sheet1.xml", |xml| {
+        xml.replace(
+            "r=\"3\" outlineLevel=\"1\"",
+            "r=\"3\" outlineLevel=\"1\" hidden=\"1\"",
+        )
+    });
+    let edited = session(&edited);
+    assert!(edited.host().sheet_geometry(s).unwrap().rows[&3].hidden);
 }
 
 #[cfg_attr(not(target_arch = "wasm32"), test)]
 #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
 fn dc_971p_39__grouping_existing_collapsed_detail_keeps_only_the_original_group_collapsed() {
-    use calc_host::{WorkbookCommand as W,OutlineChange as O,Axis};
-    let mut book=session(&calc_host::blank_package());let s=book.host().sheets()[0].id();
-    let command=|book:&mut HostSession,revision,change|book.dispatch(SkinIntent::Command(W::Outline{sheet:s,rows:true,revision,change}));
-    for change in [O::Group{first:2,last:4},O::Detail{first:2,last:4,level:None,show:false},O::Group{first:2,last:4}] {let r=book.host().revision().get();assert!(command(&mut book,r,change).accepted());}
-    let layout=book.host().model().definitions().axis_layouts();let groups=layout.outline_groups(s,Axis::Rows);
-    assert!(!groups[0].collapsed);assert!(groups[1].collapsed);assert_eq!(layout.get(s,Axis::Rows,5).collapsed(),2);
-    let revision=book.host().revision();let before=book.host().model().definitions().axis_layouts().clone();let depth=book.history_depth();
-    for (r,change) in [(revision.get()-1,O::ShowLevel(8)),(revision.get(),O::Group{first:0,last:3}),(revision.get(),O::Group{first:1048576,last:1048576}),(revision.get(),O::ShowLevel(9))] {assert!(!command(&mut book,r,change).accepted());assert_eq!(book.host().revision(),revision);assert_eq!(book.history_depth(),depth);assert_eq!(book.host().model().definitions().axis_layouts(),&before);}
-    assert!(command(&mut book,revision.get(),O::Ungroup{first:2,last:4}).accepted());assert!(book.host().model().definitions().axis_layouts().outline_groups(s,Axis::Rows)[0].collapsed);
+    use calc_host::{Axis, OutlineChange as O, WorkbookCommand as W};
+    let mut book = session(&calc_host::blank_package());
+    let s = book.host().sheets()[0].id();
+    let command = |book: &mut HostSession, revision, change| {
+        book.dispatch(SkinIntent::Command(W::Outline {
+            sheet: s,
+            rows: true,
+            revision,
+            change,
+        }))
+    };
+    for change in [
+        O::Group { first: 2, last: 4 },
+        O::Detail {
+            first: 2,
+            last: 4,
+            level: None,
+            show: false,
+        },
+        O::Group { first: 2, last: 4 },
+    ] {
+        let r = book.host().revision().get();
+        assert!(command(&mut book, r, change).accepted());
+    }
+    let layout = book.host().model().definitions().axis_layouts();
+    let groups = layout.outline_groups(s, Axis::Rows);
+    assert!(!groups[0].collapsed);
+    assert!(groups[1].collapsed);
+    assert_eq!(layout.get(s, Axis::Rows, 5).collapsed(), 2);
+    let revision = book.host().revision();
+    let before = book.host().model().definitions().axis_layouts().clone();
+    let depth = book.history_depth();
+    for (r, change) in [
+        (revision.get() - 1, O::ShowLevel(8)),
+        (revision.get(), O::Group { first: 0, last: 3 }),
+        (
+            revision.get(),
+            O::Group {
+                first: 1048576,
+                last: 1048576,
+            },
+        ),
+        (revision.get(), O::ShowLevel(9)),
+    ] {
+        assert!(!command(&mut book, r, change).accepted());
+        assert_eq!(book.host().revision(), revision);
+        assert_eq!(book.history_depth(), depth);
+        assert_eq!(book.host().model().definitions().axis_layouts(), &before);
+    }
+    assert!(command(&mut book, revision.get(), O::Ungroup { first: 2, last: 4 }).accepted());
+    assert!(
+        book.host()
+            .model()
+            .definitions()
+            .axis_layouts()
+            .outline_groups(s, Axis::Rows)[0]
+            .collapsed
+    );
 }
 
 #[cfg_attr(not(target_arch = "wasm32"), test)]
 #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
 fn dc_971p_39__axis_insert_delete_preserve_current_outline_visibility_and_remove_orphan_controls() {
-    use calc_host::{WorkbookCommand as W,OutlineChange as O,Axis,AxisChange,AxisEdit};
-    let mut book=session(&calc_host::blank_package());let s=book.host().sheets()[0].id();
-    for (cell,input) in [("A2","10"),("A3","20"),("A4","30"),("C1","=SUBTOTAL(109,A2:A4)")] {assert!(enter(&mut book,at(s,cell),input).accepted());}
-    for change in [O::Group{first:2,last:4},O::Detail{first:2,last:4,level:None,show:false}] {let revision=book.host().revision().get();assert!(book.dispatch(SkinIntent::Command(W::Outline{sheet:s,rows:true,revision,change})).accepted());}
-    let original=book.host().model().definitions().axis_layouts().clone();
-    let edit=|book:&mut HostSession,change,first,count|book.dispatch(SkinIntent::Edit{edits:vec![CellEdit::Axis(AxisEdit::new(s,Axis::Rows,change,first,count).unwrap())]});
-    assert!(edit(&mut book,AxisChange::Insert,3,1).accepted());let g=book.host().sheet_geometry(s).unwrap();assert!((2..=5).all(|r|g.rows[&r].hidden));assert_eq!(session_calculated(&book,at(s,"C1")).unwrap().as_number(),Some(0.));
-    assert!(book.dispatch(SkinIntent::Undo).accepted());assert_eq!(book.host().model().definitions().axis_layouts(),&original);
-    assert!(edit(&mut book,AxisChange::Delete,2,3).accepted());assert!(book.host().model().definitions().axis_layouts().outline_groups(s,Axis::Rows).is_empty());assert_eq!(book.host().model().definitions().axis_layouts().get(s,Axis::Rows,2).collapsed(),0);
-    let mut bytes=Vec::new();book.save(&SavePolicy::default(),&mut bytes).unwrap();let reopened=session(&bytes);assert!(reopened.host().model().definitions().axis_layouts().outline_groups(s,Axis::Rows).is_empty());
+    use calc_host::{Axis, AxisChange, AxisEdit, OutlineChange as O, WorkbookCommand as W};
+    let mut book = session(&calc_host::blank_package());
+    let s = book.host().sheets()[0].id();
+    for (cell, input) in [
+        ("A2", "10"),
+        ("A3", "20"),
+        ("A4", "30"),
+        ("C1", "=SUBTOTAL(109,A2:A4)"),
+    ] {
+        assert!(enter(&mut book, at(s, cell), input).accepted());
+    }
+    for change in [
+        O::Group { first: 2, last: 4 },
+        O::Detail {
+            first: 2,
+            last: 4,
+            level: None,
+            show: false,
+        },
+    ] {
+        let revision = book.host().revision().get();
+        assert!(
+            book.dispatch(SkinIntent::Command(W::Outline {
+                sheet: s,
+                rows: true,
+                revision,
+                change
+            }))
+            .accepted()
+        );
+    }
+    let original = book.host().model().definitions().axis_layouts().clone();
+    let edit = |book: &mut HostSession, change, first, count| {
+        book.dispatch(SkinIntent::Edit {
+            edits: vec![CellEdit::Axis(
+                AxisEdit::new(s, Axis::Rows, change, first, count).unwrap(),
+            )],
+        })
+    };
+    assert!(edit(&mut book, AxisChange::Insert, 3, 1).accepted());
+    let g = book.host().sheet_geometry(s).unwrap();
+    assert!((2..=5).all(|r| g.rows[&r].hidden));
+    assert_eq!(
+        session_calculated(&book, at(s, "C1")).unwrap().as_number(),
+        Some(0.)
+    );
+    assert!(book.dispatch(SkinIntent::Undo).accepted());
+    assert_eq!(book.host().model().definitions().axis_layouts(), &original);
+    assert!(edit(&mut book, AxisChange::Delete, 2, 3).accepted());
+    assert!(
+        book.host()
+            .model()
+            .definitions()
+            .axis_layouts()
+            .outline_groups(s, Axis::Rows)
+            .is_empty()
+    );
+    assert_eq!(
+        book.host()
+            .model()
+            .definitions()
+            .axis_layouts()
+            .get(s, Axis::Rows, 2)
+            .collapsed(),
+        0
+    );
+    let mut bytes = Vec::new();
+    book.save(&SavePolicy::default(), &mut bytes).unwrap();
+    let reopened = session(&bytes);
+    assert!(
+        reopened
+            .host()
+            .model()
+            .definitions()
+            .axis_layouts()
+            .outline_groups(s, Axis::Rows)
+            .is_empty()
+    );
 }
 
 #[cfg_attr(not(target_arch = "wasm32"), test)]
 #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
 fn dc_971p_39__unmodelled_imported_outline_refuses_dimension_changes_and_retains_source() {
-    use calc_host::{WorkbookCommand as W,OutlineChange as O};
-    let bytes=package_with_part_from(&calc_host::blank_package(),"xl/worksheets/sheet1.xml",|xml|xml.replace("<sheetData/>","<sheetData><row r=\"2\" outlineLevel=\"8\" hidden=\"1\"/><row r=\"3\" collapsed=\"1\"/></sheetData>"));
-    let mut book=session(&bytes);let s=book.host().sheets()[0].id();let revision=book.host().revision();
-    for command in [W::Outline{sheet:s,rows:true,revision:revision.get(),change:O::ShowLevel(8)},W::AxisFormat{sheet:s,rows:true,first:2,count:1,size_bits:None,hidden:Some(false)}] {let r=book.dispatch(SkinIntent::Command(command));assert!(!r.accepted(),"{r:?}");assert_eq!(book.host().revision(),revision);}
-    let structural=book.dispatch(SkinIntent::Edit{edits:vec![CellEdit::Axis(calc_host::AxisEdit::new(s,calc_host::Axis::Rows,calc_host::AxisChange::Insert,3,1).unwrap())]});assert!(!structural.accepted());assert_eq!(book.host().revision(),revision);
-    assert!(enter(&mut book,at(s,"C1"),"unrelated").accepted());let mut saved=Vec::new();book.save(&SavePolicy::default(),&mut saved).unwrap();let xml=part_text(&saved,"xl/worksheets/sheet1.xml");assert!(xml.contains("outlineLevel=\"8\""));assert!(xml.contains("collapsed=\"1\""));
+    use calc_host::{OutlineChange as O, WorkbookCommand as W};
+    let bytes = package_with_part_from(
+        &calc_host::blank_package(),
+        "xl/worksheets/sheet1.xml",
+        |xml| {
+            xml.replace("<sheetData/>","<sheetData><row r=\"2\" outlineLevel=\"8\" hidden=\"1\"/><row r=\"3\" collapsed=\"1\"/></sheetData>")
+        },
+    );
+    let mut book = session(&bytes);
+    let s = book.host().sheets()[0].id();
+    let revision = book.host().revision();
+    for command in [
+        W::Outline {
+            sheet: s,
+            rows: true,
+            revision: revision.get(),
+            change: O::ShowLevel(8),
+        },
+        W::AxisFormat {
+            sheet: s,
+            rows: true,
+            first: 2,
+            count: 1,
+            size_bits: None,
+            hidden: Some(false),
+        },
+    ] {
+        let r = book.dispatch(SkinIntent::Command(command));
+        assert!(!r.accepted(), "{r:?}");
+        assert_eq!(book.host().revision(), revision);
+    }
+    let structural = book.dispatch(SkinIntent::Edit {
+        edits: vec![CellEdit::Axis(
+            calc_host::AxisEdit::new(
+                s,
+                calc_host::Axis::Rows,
+                calc_host::AxisChange::Insert,
+                3,
+                1,
+            )
+            .unwrap(),
+        )],
+    });
+    assert!(!structural.accepted());
+    assert_eq!(book.host().revision(), revision);
+    assert!(enter(&mut book, at(s, "C1"), "unrelated").accepted());
+    let mut saved = Vec::new();
+    book.save(&SavePolicy::default(), &mut saved).unwrap();
+    let xml = part_text(&saved, "xl/worksheets/sheet1.xml");
+    assert!(xml.contains("outlineLevel=\"8\""));
+    assert!(xml.contains("collapsed=\"1\""));
 }
 
 #[cfg_attr(not(target_arch = "wasm32"), test)]
 #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
 fn dc_971p_39__inserting_outline_settings_preserves_tab_color_child_order_and_extensions() {
-    use calc_host::{WorkbookCommand as W,OutlineChange as O};
-    let bytes=package_with_part_from(&calc_host::blank_package(),"xl/worksheets/sheet1.xml",|xml|xml.replace("<sheetData/>","<sheetPr codeName=\"Outline\"><tabColor rgb=\"FFFF0000\"/><pageSetUpPr autoPageBreaks=\"0\"/></sheetPr><sheetData/><extLst><ext uri=\"urn:retained\"><keep xmlns=\"urn:retained\" text=\"unchanged\"/></ext></extLst>"));
-    let mut book=session(&bytes);let s=book.host().sheets()[0].id();let revision=book.host().revision().get();assert!(book.dispatch(SkinIntent::Command(W::Outline{sheet:s,rows:true,revision,change:O::Group{first:2,last:3}})).accepted());
-    let mut saved=Vec::new();book.save(&SavePolicy::default(),&mut saved).unwrap();let xml=part_text(&saved,"xl/worksheets/sheet1.xml");
-    assert!(xml.find("<tabColor ").unwrap()<xml.find("<outlinePr ").unwrap(),"{xml}");assert!(xml.find("<outlinePr ").unwrap()<xml.find("<pageSetUpPr ").unwrap(),"{xml}");assert!(xml.contains("<keep xmlns=\"urn:retained\" text=\"unchanged\"/>"));assert_eq!(xml.matches("<extLst>").count(),1);
-    let saved=package_with_part_from(&saved,"xl/worksheets/sheet1.xml",|xml|xml.replace("manualRows=\"\"","manualRows=\"1\""));let reopened=session(&saved);assert!(!reopened.host().model().definitions().axis_layouts().get(s,calc_host::Axis::Rows,1).hidden());
+    use calc_host::{OutlineChange as O, WorkbookCommand as W};
+    let bytes = package_with_part_from(
+        &calc_host::blank_package(),
+        "xl/worksheets/sheet1.xml",
+        |xml| {
+            xml.replace("<sheetData/>","<sheetPr codeName=\"Outline\"><tabColor rgb=\"FFFF0000\"/><pageSetUpPr autoPageBreaks=\"0\"/></sheetPr><sheetData/><extLst><ext uri=\"urn:retained\"><keep xmlns=\"urn:retained\" text=\"unchanged\"/></ext></extLst>")
+        },
+    );
+    let mut book = session(&bytes);
+    let s = book.host().sheets()[0].id();
+    let revision = book.host().revision().get();
+    assert!(
+        book.dispatch(SkinIntent::Command(W::Outline {
+            sheet: s,
+            rows: true,
+            revision,
+            change: O::Group { first: 2, last: 3 }
+        }))
+        .accepted()
+    );
+    let mut saved = Vec::new();
+    book.save(&SavePolicy::default(), &mut saved).unwrap();
+    let xml = part_text(&saved, "xl/worksheets/sheet1.xml");
+    assert!(
+        xml.find("<tabColor ").unwrap() < xml.find("<outlinePr ").unwrap(),
+        "{xml}"
+    );
+    assert!(
+        xml.find("<outlinePr ").unwrap() < xml.find("<pageSetUpPr ").unwrap(),
+        "{xml}"
+    );
+    assert!(xml.contains("<keep xmlns=\"urn:retained\" text=\"unchanged\"/>"));
+    assert_eq!(xml.matches("<extLst>").count(), 1);
+    let saved = package_with_part_from(&saved, "xl/worksheets/sheet1.xml", |xml| {
+        xml.replace("manualRows=\"\"", "manualRows=\"1\"")
+    });
+    let reopened = session(&saved);
+    assert!(
+        !reopened
+            .host()
+            .model()
+            .definitions()
+            .axis_layouts()
+            .get(s, calc_host::Axis::Rows, 1)
+            .hidden()
+    );
 }
 
 #[cfg_attr(not(target_arch = "wasm32"), test)]
 #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
 fn dc_971p_39__imported_table_filter_facts_survive_outline_visibility_refresh() {
-    use calc_host::{WorkbookCommand as W,OutlineChange as O};
-    let bytes=package_with_part_from(include_bytes!("../../calc-doc/tests/fixtures/cdoc_m1_2/d1.saved.xlsx"),"xl/worksheets/sheet1.xml",|xml|xml.replace("<row r=\"3\" ","<row r=\"3\" hidden=\"1\" "));
-    let mut book=session(&bytes);let s=book.host().model().definitions().tables()[0].sheet;
-    assert_eq!(book.host().model().definitions().hidden_rows(s,3,3).collect::<Vec<_>>(),vec![(3,calc_host::RowHidden::Filtered)]);
-    assert!(enter(&mut book,at(s,"H1"),"=SUBTOTAL(9,E2:E6)").accepted());assert_eq!(session_calculated(&book,at(s,"H1")).unwrap().as_number(),Some(130.));
-    let revision=book.host().revision().get();assert!(book.dispatch(SkinIntent::Command(W::Outline{sheet:s,rows:true,revision,change:O::Group{first:9,last:10}})).accepted());
-    assert_eq!(session_calculated(&book,at(s,"H1")).unwrap().as_number(),Some(130.));let revision=book.host().revision();let refused=book.dispatch(SkinIntent::Command(W::AxisFormat{sheet:s,rows:true,first:3,count:1,size_bits:None,hidden:Some(false)}));assert!(!refused.accepted());assert_eq!(book.host().revision(),revision);
+    use calc_host::{OutlineChange as O, WorkbookCommand as W};
+    let bytes = package_with_part_from(
+        include_bytes!("../../calc-doc/tests/fixtures/cdoc_m1_2/d1.saved.xlsx"),
+        "xl/worksheets/sheet1.xml",
+        |xml| xml.replace("<row r=\"3\" ", "<row r=\"3\" hidden=\"1\" "),
+    );
+    let mut book = session(&bytes);
+    let s = book.host().model().definitions().tables()[0].sheet;
+    assert_eq!(
+        book.host()
+            .model()
+            .definitions()
+            .hidden_rows(s, 3, 3)
+            .collect::<Vec<_>>(),
+        vec![(3, calc_host::RowHidden::Filtered)]
+    );
+    assert!(enter(&mut book, at(s, "H1"), "=SUBTOTAL(9,E2:E6)").accepted());
+    assert_eq!(
+        session_calculated(&book, at(s, "H1")).unwrap().as_number(),
+        Some(130.)
+    );
+    let revision = book.host().revision().get();
+    assert!(
+        book.dispatch(SkinIntent::Command(W::Outline {
+            sheet: s,
+            rows: true,
+            revision,
+            change: O::Group { first: 9, last: 10 }
+        }))
+        .accepted()
+    );
+    assert_eq!(
+        session_calculated(&book, at(s, "H1")).unwrap().as_number(),
+        Some(130.)
+    );
+    let revision = book.host().revision();
+    let refused = book.dispatch(SkinIntent::Command(W::AxisFormat {
+        sheet: s,
+        rows: true,
+        first: 3,
+        count: 1,
+        size_bits: None,
+        hidden: Some(false),
+    }));
+    assert!(!refused.accepted());
+    assert_eq!(book.host().revision(), revision);
 }
 
 #[cfg_attr(not(target_arch = "wasm32"), test)]
 #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
 fn dc_971p_39__summary_before_structural_boundaries_and_private_omissions_preserve_visibility() {
-    use calc_host::{WorkbookCommand as W,OutlineChange as O,Axis,AxisEdit,AxisChange};
-    let mut book=session(&calc_host::blank_package());let s=book.host().sheets()[0].id();
-    let command=|book:&mut HostSession,change|{let revision=book.host().revision().get();book.dispatch(SkinIntent::Command(W::Outline{sheet:s,rows:true,revision,change}))};
-    for change in [O::Group{first:3,last:5},O::SummaryAfter(false),O::Detail{first:3,last:5,level:None,show:false}] {assert!(command(&mut book,change).accepted());}
-    assert!(book.dispatch(SkinIntent::Edit{edits:vec![CellEdit::Axis(AxisEdit::new(s,Axis::Rows,AxisChange::Insert,3,1).unwrap())]}).accepted());
-    let groups=book.host().model().definitions().axis_layouts().outline_groups(s,Axis::Rows);assert_eq!(groups.len(),1);assert_eq!((groups[0].first,groups[0].last,groups[0].summary),(4,6,3));assert!(groups[0].collapsed);
-    assert!((4..=6).all(|r|book.host().sheet_geometry(s).unwrap().rows[&r].hidden));
-    assert!(book.dispatch(SkinIntent::Command(W::AxisFormat{sheet:s,rows:true,first:8,count:1,size_bits:None,hidden:Some(true)})).accepted());
-    let mut bytes=Vec::new();book.save(&SavePolicy::default(),&mut bytes).unwrap();let changed=package_with_part_from(&bytes,"xl/worksheets/sheet1.xml",|xml|xml.replace("manualRows=\"8\"","manualRows=\"\""));
-    let mut reopened=session(&changed);assert!(reopened.host().sheet_geometry(s).unwrap().rows[&8].hidden);assert!(command(&mut reopened,O::ShowLevel(8)).accepted());assert!(reopened.host().sheet_geometry(s).unwrap().rows[&8].hidden);
+    use calc_host::{Axis, AxisChange, AxisEdit, OutlineChange as O, WorkbookCommand as W};
+    let mut book = session(&calc_host::blank_package());
+    let s = book.host().sheets()[0].id();
+    let command = |book: &mut HostSession, change| {
+        let revision = book.host().revision().get();
+        book.dispatch(SkinIntent::Command(W::Outline {
+            sheet: s,
+            rows: true,
+            revision,
+            change,
+        }))
+    };
+    for change in [
+        O::Group { first: 3, last: 5 },
+        O::SummaryAfter(false),
+        O::Detail {
+            first: 3,
+            last: 5,
+            level: None,
+            show: false,
+        },
+    ] {
+        assert!(command(&mut book, change).accepted());
+    }
+    assert!(
+        book.dispatch(SkinIntent::Edit {
+            edits: vec![CellEdit::Axis(
+                AxisEdit::new(s, Axis::Rows, AxisChange::Insert, 3, 1).unwrap()
+            )]
+        })
+        .accepted()
+    );
+    let groups = book
+        .host()
+        .model()
+        .definitions()
+        .axis_layouts()
+        .outline_groups(s, Axis::Rows);
+    assert_eq!(groups.len(), 1);
+    assert_eq!(
+        (groups[0].first, groups[0].last, groups[0].summary),
+        (4, 6, 3)
+    );
+    assert!(groups[0].collapsed);
+    assert!((4..=6).all(|r| book.host().sheet_geometry(s).unwrap().rows[&r].hidden));
+    assert!(
+        book.dispatch(SkinIntent::Command(W::AxisFormat {
+            sheet: s,
+            rows: true,
+            first: 8,
+            count: 1,
+            size_bits: None,
+            hidden: Some(true)
+        }))
+        .accepted()
+    );
+    let mut bytes = Vec::new();
+    book.save(&SavePolicy::default(), &mut bytes).unwrap();
+    let changed = package_with_part_from(&bytes, "xl/worksheets/sheet1.xml", |xml| {
+        xml.replace("manualRows=\"8\"", "manualRows=\"\"")
+    });
+    let mut reopened = session(&changed);
+    assert!(reopened.host().sheet_geometry(s).unwrap().rows[&8].hidden);
+    assert!(command(&mut reopened, O::ShowLevel(8)).accepted());
+    assert!(reopened.host().sheet_geometry(s).unwrap().rows[&8].hidden);
 }
 
 #[cfg_attr(not(target_arch = "wasm32"), test)]
 #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
 fn dc_971p_39__ungroup_final_collapsed_level_keeps_manual_hiding_through_history_and_xlsx() {
-    use calc_host::{WorkbookCommand as W,OutlineChange as O,Axis,RowHidden};
-    let mut book=session(&calc_host::blank_package());let s=book.host().sheets()[0].id();
-    let command=|book:&mut HostSession,change|{let revision=book.host().revision().get();book.dispatch(SkinIntent::Command(W::Outline{sheet:s,rows:true,revision,change}))};
-    for change in [O::Group{first:2,last:4},O::Detail{first:2,last:4,level:None,show:false}] {assert!(command(&mut book,change).accepted());}
-    let grouped=book.host().model().definitions().axis_layouts().clone();
-    assert!(command(&mut book,O::Ungroup{first:2,last:4}).accepted());
-    let ungrouped=book.host().model().definitions().axis_layouts().clone();assert!(ungrouped.outline_groups(s,Axis::Rows).is_empty());
-    for row in 2..=4 {assert!(ungrouped.get(s,Axis::Rows,row).hidden());assert_eq!(book.host().model().definitions().hidden_rows(s,row,row).collect::<Vec<_>>(),vec![(row,RowHidden::Manual)]);}
-    assert!(book.dispatch(SkinIntent::Undo).accepted());assert_eq!(book.host().model().definitions().axis_layouts(),&grouped);
-    assert!(book.dispatch(SkinIntent::Redo).accepted());assert_eq!(book.host().model().definitions().axis_layouts(),&ungrouped);
-    let mut bytes=Vec::new();book.save(&SavePolicy::default(),&mut bytes).unwrap();let reopened=session(&bytes);assert_eq!(reopened.host().model().definitions().axis_layouts(),&ungrouped);assert!((2..=4).all(|r|reopened.host().sheet_geometry(s).unwrap().rows[&r].hidden));
+    use calc_host::{Axis, OutlineChange as O, RowHidden, WorkbookCommand as W};
+    let mut book = session(&calc_host::blank_package());
+    let s = book.host().sheets()[0].id();
+    let command = |book: &mut HostSession, change| {
+        let revision = book.host().revision().get();
+        book.dispatch(SkinIntent::Command(W::Outline {
+            sheet: s,
+            rows: true,
+            revision,
+            change,
+        }))
+    };
+    for change in [
+        O::Group { first: 2, last: 4 },
+        O::Detail {
+            first: 2,
+            last: 4,
+            level: None,
+            show: false,
+        },
+    ] {
+        assert!(command(&mut book, change).accepted());
+    }
+    let grouped = book.host().model().definitions().axis_layouts().clone();
+    assert!(command(&mut book, O::Ungroup { first: 2, last: 4 }).accepted());
+    let ungrouped = book.host().model().definitions().axis_layouts().clone();
+    assert!(ungrouped.outline_groups(s, Axis::Rows).is_empty());
+    for row in 2..=4 {
+        assert!(ungrouped.get(s, Axis::Rows, row).hidden());
+        assert_eq!(
+            book.host()
+                .model()
+                .definitions()
+                .hidden_rows(s, row, row)
+                .collect::<Vec<_>>(),
+            vec![(row, RowHidden::Manual)]
+        );
+    }
+    assert!(book.dispatch(SkinIntent::Undo).accepted());
+    assert_eq!(book.host().model().definitions().axis_layouts(), &grouped);
+    assert!(book.dispatch(SkinIntent::Redo).accepted());
+    assert_eq!(book.host().model().definitions().axis_layouts(), &ungrouped);
+    let mut bytes = Vec::new();
+    book.save(&SavePolicy::default(), &mut bytes).unwrap();
+    let reopened = session(&bytes);
+    assert_eq!(
+        reopened.host().model().definitions().axis_layouts(),
+        &ungrouped
+    );
+    assert!((2..=4).all(|r| reopened.host().sheet_geometry(s).unwrap().rows[&r].hidden));
 }
 
 #[cfg_attr(not(target_arch = "wasm32"), test)]
 #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
 fn dc_971p_37__date_groups_use_the_workbook_calendar_and_shared_date_functions() {
-    use calc_host::{WorkbookCommand as W,FilterChange as F,FilterCriteria as C};
-    for date1904 in [false,true] {
-        let bytes=package_with_part_from(&calc_host::blank_package(),"xl/workbook.xml",|xml|xml.replace("<sheets>",&format!("<workbookPr date1904=\"{}\"/><sheets>",u8::from(date1904))));
-        let mut book=session(&bytes);let s=book.host().sheets()[0].id();
-        for (a,v) in [("A1","Date"),("A2","=DATE(2026,11,1)"),("A3","=DATE(2026,11,3)+TIME(14,30,15)"),("A4","=DATE(2025,11,3)"),("A5","=DATE(2026,12,1)"),("A6","text"),("A8","=1/0")] {assert!(enter(&mut book,at(s,a),v).accepted());}
-        let command=|book:&mut HostSession,change|{let revision=book.host().revision().get();book.dispatch(SkinIntent::Command(W::AutoFilter{sheet:s,revision,change}))};
-        assert!(command(&mut book,F::Enable{area:GridArea::new(at(s,"A1"),at(s,"A8")).unwrap()}).accepted());
-        for (groups,values,blank,expected) in [
-            (vec![vec![2026]],vec![],false,vec![4,6,7,8]),
-            (vec![vec![2026,11]],vec![],false,vec![4,5,6,7,8]),
-            (vec![vec![2026,11,3,14,30,15]],vec![],false,vec![2,4,5,6,7,8]),
-            (vec![vec![2026,12],vec![2025]],vec!["text".into()],true,vec![2,3,8]),
+    use calc_host::{FilterChange as F, FilterCriteria as C, WorkbookCommand as W};
+    for date1904 in [false, true] {
+        let bytes = package_with_part_from(&calc_host::blank_package(), "xl/workbook.xml", |xml| {
+            xml.replace(
+                "<sheets>",
+                &format!("<workbookPr date1904=\"{}\"/><sheets>", u8::from(date1904)),
+            )
+        });
+        let mut book = session(&bytes);
+        let s = book.host().sheets()[0].id();
+        for (a, v) in [
+            ("A1", "Date"),
+            ("A2", "=DATE(2026,11,1)"),
+            ("A3", "=DATE(2026,11,3)+TIME(14,30,15)"),
+            ("A4", "=DATE(2025,11,3)"),
+            ("A5", "=DATE(2026,12,1)"),
+            ("A6", "text"),
+            ("A8", "=1/0"),
         ] {
-            let criteria=C::Dates{groups,values,blank};
-            let done=command(&mut book,F::Column{column:1,criteria:Some(criteria.clone())});assert!(done.accepted(),"{done:?}");
-            assert_eq!(book.host().model().definitions().auto_filter(s).unwrap().filtered_rows.iter().copied().collect::<Vec<_>>(),expected,"date1904={date1904}, {criteria:?}");
+            assert!(enter(&mut book, at(s, a), v).accepted());
         }
-        let mut saved=Vec::new();book.save(&SavePolicy::default(),&mut saved).unwrap();
-        let xml=part_text(&saved,"xl/worksheets/sheet1.xml");assert!(xml.contains("dateTimeGrouping=\"month\""),"{xml}");assert!(xml.contains("year=\"2026\" month=\"12\""),"{xml}");
-        let mut reopened=session(&saved);assert!(reopened.dispatch(SkinIntent::Recalculate).accepted());let r=reopened.host().sheets()[0].id();let revision=reopened.host().revision().get();
-        assert!(reopened.dispatch(SkinIntent::Command(W::AutoFilter{sheet:r,revision,change:F::Reapply})).accepted());
-        assert_eq!(reopened.host().model().definitions().auto_filter(r).unwrap().filtered_rows.iter().copied().collect::<Vec<_>>(),vec![2,3,8]);
+        let command = |book: &mut HostSession, change| {
+            let revision = book.host().revision().get();
+            book.dispatch(SkinIntent::Command(W::AutoFilter {
+                sheet: s,
+                revision,
+                change,
+            }))
+        };
+        assert!(
+            command(
+                &mut book,
+                F::Enable {
+                    area: GridArea::new(at(s, "A1"), at(s, "A8")).unwrap()
+                }
+            )
+            .accepted()
+        );
+        for (groups, values, blank, expected) in [
+            (vec![vec![2026]], vec![], false, vec![4, 6, 7, 8]),
+            (vec![vec![2026, 11]], vec![], false, vec![4, 5, 6, 7, 8]),
+            (
+                vec![vec![2026, 11, 3, 14, 30, 15]],
+                vec![],
+                false,
+                vec![2, 4, 5, 6, 7, 8],
+            ),
+            (
+                vec![vec![2026, 12], vec![2025]],
+                vec!["text".into()],
+                true,
+                vec![2, 3, 8],
+            ),
+        ] {
+            let criteria = C::Dates {
+                groups,
+                values,
+                blank,
+            };
+            let done = command(
+                &mut book,
+                F::Column {
+                    column: 1,
+                    criteria: Some(criteria.clone()),
+                },
+            );
+            assert!(done.accepted(), "{done:?}");
+            assert_eq!(
+                book.host()
+                    .model()
+                    .definitions()
+                    .auto_filter(s)
+                    .unwrap()
+                    .filtered_rows
+                    .iter()
+                    .copied()
+                    .collect::<Vec<_>>(),
+                expected,
+                "date1904={date1904}, {criteria:?}"
+            );
+        }
+        let mut saved = Vec::new();
+        book.save(&SavePolicy::default(), &mut saved).unwrap();
+        let xml = part_text(&saved, "xl/worksheets/sheet1.xml");
+        assert!(xml.contains("dateTimeGrouping=\"month\""), "{xml}");
+        assert!(xml.contains("year=\"2026\" month=\"12\""), "{xml}");
+        let mut reopened = session(&saved);
+        assert!(reopened.dispatch(SkinIntent::Recalculate).accepted());
+        let r = reopened.host().sheets()[0].id();
+        let revision = reopened.host().revision().get();
+        assert!(
+            reopened
+                .dispatch(SkinIntent::Command(W::AutoFilter {
+                    sheet: r,
+                    revision,
+                    change: F::Reapply
+                }))
+                .accepted()
+        );
+        assert_eq!(
+            reopened
+                .host()
+                .model()
+                .definitions()
+                .auto_filter(r)
+                .unwrap()
+                .filtered_rows
+                .iter()
+                .copied()
+                .collect::<Vec<_>>(),
+            vec![2, 3, 8]
+        );
     }
 }
 
 #[cfg_attr(not(target_arch = "wasm32"), test)]
 #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
 fn dc_971p_37__top_bottom_cutoffs_include_ties_and_ignore_text_blanks_errors() {
-    use calc_host::{WorkbookCommand as W,FilterChange as F,FilterCriteria as C};
-    let mut book=session(&calc_host::blank_package());let s=book.host().sheets()[0].id();
-    for (a,v) in [("A1","Amount"),("A2","-10"),("A3","=25*2"),("A4","50"),("A5","20"),("A6","99"),("A7","30"),("A8","text"),("A10","=1/0"),("B1","=SUBTOTAL(109,A2:A9)")] {assert!(enter(&mut book,at(s,a),v).accepted());}
-    let command=|book:&mut HostSession,change|{let revision=book.host().revision().get();book.dispatch(SkinIntent::Command(W::AutoFilter{sheet:s,revision,change}))};
-    assert!(command(&mut book,F::Enable{area:GridArea::new(at(s,"A1"),at(s,"A10")).unwrap()}).accepted());
-    for (top,percent,value,expected) in [
-        (true,false,"2",vec![2,5,7,8,9,10]),
-        (true,false,"2.0",vec![2,5,7,8,9,10]),
-        (false,false,"1",vec![3,4,5,6,7,8,9,10]),
-        (true,true,"50",vec![2,5,7,8,9,10]),
-        (false,true,"33.33",vec![3,4,6,7,8,9,10]),
-        (true,false,"255",vec![8,9,10]),
+    use calc_host::{FilterChange as F, FilterCriteria as C, WorkbookCommand as W};
+    let mut book = session(&calc_host::blank_package());
+    let s = book.host().sheets()[0].id();
+    for (a, v) in [
+        ("A1", "Amount"),
+        ("A2", "-10"),
+        ("A3", "=25*2"),
+        ("A4", "50"),
+        ("A5", "20"),
+        ("A6", "99"),
+        ("A7", "30"),
+        ("A8", "text"),
+        ("A10", "=1/0"),
+        ("B1", "=SUBTOTAL(109,A2:A9)"),
     ] {
-        let criteria=C::Top{top,percent,value:value.into()};let done=command(&mut book,F::Column{column:1,criteria:Some(criteria.clone())});assert!(done.accepted(),"{done:?}");
-        assert_eq!(book.host().model().definitions().auto_filter(s).unwrap().filtered_rows.iter().copied().collect::<Vec<_>>(),expected,"{criteria:?}");
+        assert!(enter(&mut book, at(s, a), v).accepted());
     }
-    assert!(command(&mut book,F::Column{column:1,criteria:Some(C::Top{top:true,percent:false,value:"2".into()})}).accepted());
-    assert_eq!(session_calculated(&book,at(s,"B1")).unwrap().as_number(),Some(199.));
-    assert!(book.dispatch(SkinIntent::Undo).accepted());assert_eq!(session_calculated(&book,at(s,"B1")).unwrap().as_number(),Some(239.));
-    assert!(book.dispatch(SkinIntent::Redo).accepted());assert_eq!(session_calculated(&book,at(s,"B1")).unwrap().as_number(),Some(199.));
-    let mut saved=Vec::new();book.save(&SavePolicy::default(),&mut saved).unwrap();let xml=part_text(&saved,"xl/worksheets/sheet1.xml");assert!(xml.contains("<top10 top=\"1\" percent=\"0\" val=\"2\"/>"),"{xml}");
-    let mut reopened=session(&saved);assert!(reopened.dispatch(SkinIntent::Recalculate).accepted());let r=reopened.host().sheets()[0].id();let revision=reopened.host().revision().get();assert!(reopened.dispatch(SkinIntent::Command(W::AutoFilter{sheet:r,revision,change:F::Reapply})).accepted());
-    assert_eq!(reopened.host().model().definitions().auto_filter(r).unwrap().filtered_rows.iter().copied().collect::<Vec<_>>(),vec![2,5,7,8,9,10]);
+    let command = |book: &mut HostSession, change| {
+        let revision = book.host().revision().get();
+        book.dispatch(SkinIntent::Command(W::AutoFilter {
+            sheet: s,
+            revision,
+            change,
+        }))
+    };
+    assert!(
+        command(
+            &mut book,
+            F::Enable {
+                area: GridArea::new(at(s, "A1"), at(s, "A10")).unwrap()
+            }
+        )
+        .accepted()
+    );
+    for (top, percent, value, expected) in [
+        (true, false, "2", vec![2, 5, 7, 8, 9, 10]),
+        (true, false, "2.0", vec![2, 5, 7, 8, 9, 10]),
+        (false, false, "1", vec![3, 4, 5, 6, 7, 8, 9, 10]),
+        (true, true, "50", vec![2, 5, 7, 8, 9, 10]),
+        (false, true, "33.33", vec![3, 4, 6, 7, 8, 9, 10]),
+        (true, false, "255", vec![8, 9, 10]),
+    ] {
+        let criteria = C::Top {
+            top,
+            percent,
+            value: value.into(),
+        };
+        let done = command(
+            &mut book,
+            F::Column {
+                column: 1,
+                criteria: Some(criteria.clone()),
+            },
+        );
+        assert!(done.accepted(), "{done:?}");
+        assert_eq!(
+            book.host()
+                .model()
+                .definitions()
+                .auto_filter(s)
+                .unwrap()
+                .filtered_rows
+                .iter()
+                .copied()
+                .collect::<Vec<_>>(),
+            expected,
+            "{criteria:?}"
+        );
+    }
+    assert!(
+        command(
+            &mut book,
+            F::Column {
+                column: 1,
+                criteria: Some(C::Top {
+                    top: true,
+                    percent: false,
+                    value: "2".into()
+                })
+            }
+        )
+        .accepted()
+    );
+    assert_eq!(
+        session_calculated(&book, at(s, "B1")).unwrap().as_number(),
+        Some(199.)
+    );
+    assert!(book.dispatch(SkinIntent::Undo).accepted());
+    assert_eq!(
+        session_calculated(&book, at(s, "B1")).unwrap().as_number(),
+        Some(239.)
+    );
+    assert!(book.dispatch(SkinIntent::Redo).accepted());
+    assert_eq!(
+        session_calculated(&book, at(s, "B1")).unwrap().as_number(),
+        Some(199.)
+    );
+    let mut saved = Vec::new();
+    book.save(&SavePolicy::default(), &mut saved).unwrap();
+    let xml = part_text(&saved, "xl/worksheets/sheet1.xml");
+    assert!(
+        xml.contains("<top10 top=\"1\" percent=\"0\" val=\"2\"/>"),
+        "{xml}"
+    );
+    let mut reopened = session(&saved);
+    assert!(reopened.dispatch(SkinIntent::Recalculate).accepted());
+    let r = reopened.host().sheets()[0].id();
+    let revision = reopened.host().revision().get();
+    assert!(
+        reopened
+            .dispatch(SkinIntent::Command(W::AutoFilter {
+                sheet: r,
+                revision,
+                change: F::Reapply
+            }))
+            .accepted()
+    );
+    assert_eq!(
+        reopened
+            .host()
+            .model()
+            .definitions()
+            .auto_filter(r)
+            .unwrap()
+            .filtered_rows
+            .iter()
+            .copied()
+            .collect::<Vec<_>>(),
+        vec![2, 5, 7, 8, 9, 10]
+    );
 }
 
 #[cfg_attr(not(target_arch = "wasm32"), test)]
 #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
 fn dc_971p_37__date_and_top_criteria_combine_reapply_and_refuse_invalid_state_atomically() {
-    use calc_host::{WorkbookCommand as W,FilterChange as F,FilterCriteria as C};
-    let mut book=session(&calc_host::blank_package());let s=book.host().sheets()[0].id();
-    for (a,v) in [("A1","Date"),("B1","Amount"),("A2","=DATE(2026,11,1)"),("B2","10"),("A3","=DATE(2025,11,1)"),("B3","50"),("A4","=DATE(2026,11,2)"),("B4","50"),("B5","99")] {assert!(enter(&mut book,at(s,a),v).accepted());}
-    let command=|book:&mut HostSession,change|{let revision=book.host().revision().get();book.dispatch(SkinIntent::Command(W::AutoFilter{sheet:s,revision,change}))};
-    assert!(command(&mut book,F::Enable{area:GridArea::new(at(s,"A1"),at(s,"B5")).unwrap()}).accepted());
-    assert!(command(&mut book,F::Column{column:1,criteria:Some(C::Dates{groups:vec![vec![2026,11]],values:vec![],blank:false})}).accepted());
-    assert!(command(&mut book,F::Column{column:2,criteria:Some(C::Top{top:true,percent:false,value:"1".into()})}).accepted());
-    assert_eq!(book.host().model().definitions().auto_filter(s).unwrap().filtered_rows.iter().copied().collect::<Vec<_>>(),vec![2,3,4,5]);
-    assert!(enter(&mut book,at(s,"B4"),"100").accepted());assert!(command(&mut book,F::Reapply).accepted());
-    assert_eq!(book.host().model().definitions().auto_filter(s).unwrap().filtered_rows.iter().copied().collect::<Vec<_>>(),vec![2,3,5]);
-    let revision=book.host().revision();let before=book.host().model().definitions().auto_filter(s).cloned();
-    for bad in [C::Top{top:true,percent:true,value:"NaN".into()},C::Top{top:true,percent:false,value:"1.5".into()},C::Dates{groups:vec![vec![2026,13]],values:vec![],blank:false},C::Dates{groups:vec![vec![2026,1,1,24]],values:vec![],blank:false}] {
-        assert!(!command(&mut book,F::Column{column:1,criteria:Some(bad)}).accepted());assert_eq!(book.host().revision(),revision);assert_eq!(book.host().model().definitions().auto_filter(s),before.as_ref());
+    use calc_host::{FilterChange as F, FilterCriteria as C, WorkbookCommand as W};
+    let mut book = session(&calc_host::blank_package());
+    let s = book.host().sheets()[0].id();
+    for (a, v) in [
+        ("A1", "Date"),
+        ("B1", "Amount"),
+        ("A2", "=DATE(2026,11,1)"),
+        ("B2", "10"),
+        ("A3", "=DATE(2025,11,1)"),
+        ("B3", "50"),
+        ("A4", "=DATE(2026,11,2)"),
+        ("B4", "50"),
+        ("B5", "99"),
+    ] {
+        assert!(enter(&mut book, at(s, a), v).accepted());
+    }
+    let command = |book: &mut HostSession, change| {
+        let revision = book.host().revision().get();
+        book.dispatch(SkinIntent::Command(W::AutoFilter {
+            sheet: s,
+            revision,
+            change,
+        }))
+    };
+    assert!(
+        command(
+            &mut book,
+            F::Enable {
+                area: GridArea::new(at(s, "A1"), at(s, "B5")).unwrap()
+            }
+        )
+        .accepted()
+    );
+    assert!(
+        command(
+            &mut book,
+            F::Column {
+                column: 1,
+                criteria: Some(C::Dates {
+                    groups: vec![vec![2026, 11]],
+                    values: vec![],
+                    blank: false
+                })
+            }
+        )
+        .accepted()
+    );
+    assert!(
+        command(
+            &mut book,
+            F::Column {
+                column: 2,
+                criteria: Some(C::Top {
+                    top: true,
+                    percent: false,
+                    value: "1".into()
+                })
+            }
+        )
+        .accepted()
+    );
+    assert_eq!(
+        book.host()
+            .model()
+            .definitions()
+            .auto_filter(s)
+            .unwrap()
+            .filtered_rows
+            .iter()
+            .copied()
+            .collect::<Vec<_>>(),
+        vec![2, 3, 4, 5]
+    );
+    assert!(enter(&mut book, at(s, "B4"), "100").accepted());
+    assert!(command(&mut book, F::Reapply).accepted());
+    assert_eq!(
+        book.host()
+            .model()
+            .definitions()
+            .auto_filter(s)
+            .unwrap()
+            .filtered_rows
+            .iter()
+            .copied()
+            .collect::<Vec<_>>(),
+        vec![2, 3, 5]
+    );
+    let revision = book.host().revision();
+    let before = book.host().model().definitions().auto_filter(s).cloned();
+    for bad in [
+        C::Top {
+            top: true,
+            percent: true,
+            value: "NaN".into(),
+        },
+        C::Top {
+            top: true,
+            percent: false,
+            value: "1.5".into(),
+        },
+        C::Dates {
+            groups: vec![vec![2026, 13]],
+            values: vec![],
+            blank: false,
+        },
+        C::Dates {
+            groups: vec![vec![2026, 1, 1, 24]],
+            values: vec![],
+            blank: false,
+        },
+    ] {
+        assert!(
+            !command(
+                &mut book,
+                F::Column {
+                    column: 1,
+                    criteria: Some(bad)
+                }
+            )
+            .accepted()
+        );
+        assert_eq!(book.host().revision(), revision);
+        assert_eq!(
+            book.host().model().definitions().auto_filter(s),
+            before.as_ref()
+        );
     }
 }
 
 #[cfg_attr(not(target_arch = "wasm32"), test)]
 #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
 fn dc_971p_37__fill_font_colors_share_palette_resolution_history_and_xlsx() {
-    use calc_host::{WorkbookCommand as W,FilterChange as F,FormatPatch};
-    let mut book=session(&calc_host::blank_package());let s=book.host().sheets()[0].id();
-    for (a,v) in [("A1","Amount"),("A2","1"),("A3","2"),("A4","3"),("A6","4"),("D1","=SUBTOTAL(109,A2:A6)")] {assert!(enter(&mut book,at(s,a),v).accepted());}
-    for (a,patch) in [("A2",FormatPatch{fill:Some("#ff0000".into()),..Default::default()}),("A3",FormatPatch{fill:Some("#ff0000".into()),..Default::default()}),("A5",FormatPatch{fill:Some("#ff0000".into()),..Default::default()}),("A4",FormatPatch{font_color:Some("#ff0000".into()),..Default::default()})] {assert!(book.dispatch(SkinIntent::Command(W::FormatCells{areas:vec![GridArea::cell(at(s,a))],patch})).accepted());}
-    let mut saved=Vec::new();book.save(&SavePolicy::default(),&mut saved).unwrap();
-    // This independent imported style uses Excel's indexed red; the authored criterion is RGB.
-    let old_dxf="<dxf xmlns:v=\"urn:filter-color\" v:keep=\"old\"><font><b/></font></dxf>";
-    let indexed=package_with_part_from(&saved,"xl/styles.xml",|xml|xml.replace("<fgColor rgb=\"FFFF0000\"/>","<fgColor indexed=\"10\"/>").replace("</styleSheet>",&format!("<dxfs count=\"1\">{old_dxf}</dxfs></styleSheet>")));
-    assert!(part_text(&indexed,"xl/styles.xml").contains("<fgColor indexed=\"10\"/>"));
-    let mut book=session(&indexed);let s=book.host().sheets()[0].id();assert!(book.dispatch(SkinIntent::Recalculate).accepted());
-    assert!(book.dispatch(SkinIntent::Command(W::AxisFormat{sheet:s,rows:true,first:3,count:1,size_bits:None,hidden:Some(true)})).accepted());
-    let command=|book:&mut HostSession,change|{let revision=book.host().revision().get();book.dispatch(SkinIntent::Command(W::AutoFilter{sheet:s,revision,change}))};
-    assert!(command(&mut book,F::Enable{area:GridArea::new(at(s,"A1"),at(s,"A6")).unwrap()}).accepted());
-    for (cell_color,color,rows,total) in [(true,"#ff0000",vec![4,6],1.),(false,"#ff0000",vec![2,3,5,6],3.),(true,"",vec![2,3,5],7.)] {
-        let receipt=command(&mut book,F::Color{column:1,cell_color,color:color.into()});assert!(receipt.accepted(),"{receipt:?}");
-        assert_eq!(book.host().model().definitions().auto_filter(s).unwrap().filtered_rows.iter().copied().collect::<Vec<_>>(),rows);
-        assert_eq!(session_calculated(&book,at(s,"D1")).unwrap().as_number(),Some(total));
+    use calc_host::{FilterChange as F, FormatPatch, WorkbookCommand as W};
+    let mut book = session(&calc_host::blank_package());
+    let s = book.host().sheets()[0].id();
+    for (a, v) in [
+        ("A1", "Amount"),
+        ("A2", "1"),
+        ("A3", "2"),
+        ("A4", "3"),
+        ("A6", "4"),
+        ("D1", "=SUBTOTAL(109,A2:A6)"),
+    ] {
+        assert!(enter(&mut book, at(s, a), v).accepted());
     }
-    assert!(book.dispatch(SkinIntent::Undo).accepted());assert_eq!(session_calculated(&book,at(s,"D1")).unwrap().as_number(),Some(3.));
-    assert!(book.dispatch(SkinIntent::Redo).accepted());assert_eq!(session_calculated(&book,at(s,"D1")).unwrap().as_number(),Some(7.));
-    let mut saved=Vec::new();book.save(&SavePolicy::default(),&mut saved).unwrap();let xml=part_text(&saved,"xl/worksheets/sheet1.xml");assert!(xml.contains("<colorFilter dxfId="),"{xml}");assert!(part_text(&saved,"xl/styles.xml").contains(old_dxf));
-    let mut reopened=session(&saved);let r=reopened.host().sheets()[0].id();assert!(reopened.dispatch(SkinIntent::Recalculate).accepted());let revision=reopened.host().revision().get();let receipt=reopened.dispatch(SkinIntent::Command(W::AutoFilter{sheet:r,revision,change:F::Reapply}));assert!(receipt.accepted(),"{receipt:?}");
-    assert_eq!(session_calculated(&reopened,at(r,"D1")).unwrap().as_number(),Some(7.));
-    let revision=reopened.host().revision().get();assert!(reopened.dispatch(SkinIntent::Command(W::AutoFilter{sheet:r,revision,change:F::Clear})).accepted());assert_eq!(session_calculated(&reopened,at(r,"D1")).unwrap().as_number(),Some(8.));
+    for (a, patch) in [
+        (
+            "A2",
+            FormatPatch {
+                fill: Some("#ff0000".into()),
+                ..Default::default()
+            },
+        ),
+        (
+            "A3",
+            FormatPatch {
+                fill: Some("#ff0000".into()),
+                ..Default::default()
+            },
+        ),
+        (
+            "A5",
+            FormatPatch {
+                fill: Some("#ff0000".into()),
+                ..Default::default()
+            },
+        ),
+        (
+            "A4",
+            FormatPatch {
+                font_color: Some("#ff0000".into()),
+                ..Default::default()
+            },
+        ),
+    ] {
+        assert!(
+            book.dispatch(SkinIntent::Command(W::FormatCells {
+                areas: vec![GridArea::cell(at(s, a))],
+                patch
+            }))
+            .accepted()
+        );
+    }
+    let mut saved = Vec::new();
+    book.save(&SavePolicy::default(), &mut saved).unwrap();
+    // This independent imported style uses Excel's indexed red; the authored criterion is RGB.
+    let old_dxf = "<dxf xmlns:v=\"urn:filter-color\" v:keep=\"old\"><font><b/></font></dxf>";
+    let indexed = package_with_part_from(&saved, "xl/styles.xml", |xml| {
+        xml.replace("<fgColor rgb=\"FFFF0000\"/>", "<fgColor indexed=\"10\"/>")
+            .replace(
+                "</styleSheet>",
+                &format!("<dxfs count=\"1\">{old_dxf}</dxfs></styleSheet>"),
+            )
+    });
+    assert!(part_text(&indexed, "xl/styles.xml").contains("<fgColor indexed=\"10\"/>"));
+    let mut book = session(&indexed);
+    let s = book.host().sheets()[0].id();
+    assert!(book.dispatch(SkinIntent::Recalculate).accepted());
+    assert!(
+        book.dispatch(SkinIntent::Command(W::AxisFormat {
+            sheet: s,
+            rows: true,
+            first: 3,
+            count: 1,
+            size_bits: None,
+            hidden: Some(true)
+        }))
+        .accepted()
+    );
+    let command = |book: &mut HostSession, change| {
+        let revision = book.host().revision().get();
+        book.dispatch(SkinIntent::Command(W::AutoFilter {
+            sheet: s,
+            revision,
+            change,
+        }))
+    };
+    assert!(
+        command(
+            &mut book,
+            F::Enable {
+                area: GridArea::new(at(s, "A1"), at(s, "A6")).unwrap()
+            }
+        )
+        .accepted()
+    );
+    for (cell_color, color, rows, total) in [
+        (true, "#ff0000", vec![4, 6], 1.),
+        (false, "#ff0000", vec![2, 3, 5, 6], 3.),
+        (true, "", vec![2, 3, 5], 7.),
+    ] {
+        let receipt = command(
+            &mut book,
+            F::Color {
+                column: 1,
+                cell_color,
+                color: color.into(),
+            },
+        );
+        assert!(receipt.accepted(), "{receipt:?}");
+        assert_eq!(
+            book.host()
+                .model()
+                .definitions()
+                .auto_filter(s)
+                .unwrap()
+                .filtered_rows
+                .iter()
+                .copied()
+                .collect::<Vec<_>>(),
+            rows
+        );
+        assert_eq!(
+            session_calculated(&book, at(s, "D1")).unwrap().as_number(),
+            Some(total)
+        );
+    }
+    assert!(book.dispatch(SkinIntent::Undo).accepted());
+    assert_eq!(
+        session_calculated(&book, at(s, "D1")).unwrap().as_number(),
+        Some(3.)
+    );
+    assert!(book.dispatch(SkinIntent::Redo).accepted());
+    assert_eq!(
+        session_calculated(&book, at(s, "D1")).unwrap().as_number(),
+        Some(7.)
+    );
+    let mut saved = Vec::new();
+    book.save(&SavePolicy::default(), &mut saved).unwrap();
+    let xml = part_text(&saved, "xl/worksheets/sheet1.xml");
+    assert!(xml.contains("<colorFilter dxfId="), "{xml}");
+    assert!(part_text(&saved, "xl/styles.xml").contains(old_dxf));
+    let mut reopened = session(&saved);
+    let r = reopened.host().sheets()[0].id();
+    assert!(reopened.dispatch(SkinIntent::Recalculate).accepted());
+    let revision = reopened.host().revision().get();
+    let receipt = reopened.dispatch(SkinIntent::Command(W::AutoFilter {
+        sheet: r,
+        revision,
+        change: F::Reapply,
+    }));
+    assert!(receipt.accepted(), "{receipt:?}");
+    assert_eq!(
+        session_calculated(&reopened, at(r, "D1"))
+            .unwrap()
+            .as_number(),
+        Some(7.)
+    );
+    let revision = reopened.host().revision().get();
+    assert!(
+        reopened
+            .dispatch(SkinIntent::Command(W::AutoFilter {
+                sheet: r,
+                revision,
+                change: F::Clear
+            }))
+            .accepted()
+    );
+    assert_eq!(
+        session_calculated(&reopened, at(r, "D1"))
+            .unwrap()
+            .as_number(),
+        Some(8.)
+    );
 }
 
 #[cfg_attr(not(target_arch = "wasm32"), test)]
 #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
 fn dc_971p_37__color_refusals_keep_styles_criteria_and_visibility_atomic() {
-    use calc_host::{WorkbookCommand as W,FilterChange as F};
-    let mut book=session(&calc_host::blank_package());let s=book.host().sheets()[0].id();for (a,v) in [("A1","Key"),("A2","1"),("A3","2")] {assert!(enter(&mut book,at(s,a),v).accepted());}
-    let command=|book:&mut HostSession,change|{let revision=book.host().revision().get();book.dispatch(SkinIntent::Command(W::AutoFilter{sheet:s,revision,change}))};
-    assert!(command(&mut book,F::Enable{area:GridArea::new(at(s,"A1"),at(s,"A3")).unwrap()}).accepted());
-    let revision=book.host().revision();let styles=book.host().styles().clone();let filter=book.host().model().definitions().auto_filter(s).cloned();
-    for change in [F::Color{column:1,cell_color:true,color:"bad".into()},F::Color{column:99,cell_color:true,color:"#ff0000".into()},F::Column{column:1,criteria:Some(calc_host::FilterCriteria::Color{dxf_id:999,cell_color:true})}] {assert!(!command(&mut book,change).accepted());assert_eq!(book.host().revision(),revision);assert_eq!(book.host().styles(),&styles);assert_eq!(book.host().model().definitions().auto_filter(s),filter.as_ref());}
-    let revision=book.host().revision().get();assert!(book.dispatch(SkinIntent::Command(W::Conditional{sheet:s,revision,index:None,change:calc_host::ConditionalChange::Add{kind:"colorScale".into(),applies:"A2:A3".into(),color:"#ff0000".into()}})).accepted());
-    let revision=book.host().revision();let styles=book.host().styles().clone();let denied=command(&mut book,F::Color{column:1,cell_color:true,color:"#ff0000".into()});assert!(!denied.accepted(),"{denied:?}");assert_eq!(book.host().revision(),revision);assert_eq!(book.host().styles(),&styles);
+    use calc_host::{FilterChange as F, WorkbookCommand as W};
+    let mut book = session(&calc_host::blank_package());
+    let s = book.host().sheets()[0].id();
+    for (a, v) in [("A1", "Key"), ("A2", "1"), ("A3", "2")] {
+        assert!(enter(&mut book, at(s, a), v).accepted());
+    }
+    let command = |book: &mut HostSession, change| {
+        let revision = book.host().revision().get();
+        book.dispatch(SkinIntent::Command(W::AutoFilter {
+            sheet: s,
+            revision,
+            change,
+        }))
+    };
+    assert!(
+        command(
+            &mut book,
+            F::Enable {
+                area: GridArea::new(at(s, "A1"), at(s, "A3")).unwrap()
+            }
+        )
+        .accepted()
+    );
+    let revision = book.host().revision();
+    let styles = book.host().styles().clone();
+    let filter = book.host().model().definitions().auto_filter(s).cloned();
+    for change in [
+        F::Color {
+            column: 1,
+            cell_color: true,
+            color: "bad".into(),
+        },
+        F::Color {
+            column: 99,
+            cell_color: true,
+            color: "#ff0000".into(),
+        },
+        F::Column {
+            column: 1,
+            criteria: Some(calc_host::FilterCriteria::Color {
+                dxf_id: 999,
+                cell_color: true,
+            }),
+        },
+    ] {
+        assert!(!command(&mut book, change).accepted());
+        assert_eq!(book.host().revision(), revision);
+        assert_eq!(book.host().styles(), &styles);
+        assert_eq!(
+            book.host().model().definitions().auto_filter(s),
+            filter.as_ref()
+        );
+    }
+    let revision = book.host().revision().get();
+    assert!(
+        book.dispatch(SkinIntent::Command(W::Conditional {
+            sheet: s,
+            revision,
+            index: None,
+            change: calc_host::ConditionalChange::Add {
+                kind: "colorScale".into(),
+                applies: "A2:A3".into(),
+                color: "#ff0000".into()
+            }
+        }))
+        .accepted()
+    );
+    let revision = book.host().revision();
+    let styles = book.host().styles().clone();
+    let denied = command(
+        &mut book,
+        F::Color {
+            column: 1,
+            cell_color: true,
+            color: "#ff0000".into(),
+        },
+    );
+    assert!(!denied.accepted(), "{denied:?}");
+    assert_eq!(book.host().revision(), revision);
+    assert_eq!(book.host().styles(), &styles);
 }
 
 #[cfg_attr(not(target_arch = "wasm32"), test)]
 #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
 fn dc_971p_37__invalid_imported_color_reference_stays_opaque_and_retained() {
-    use calc_host::{WorkbookCommand as W,FilterChange as F};
-    let raw="<autoFilter ref=\"A1:A4\"><filterColumn colId=\"0\"><colorFilter dxfId=\"999\" cellColor=\"1\"/></filterColumn></autoFilter>";
-    let bytes=package_with_part_from(&calc_host::blank_package(),"xl/worksheets/sheet1.xml",|xml|xml.replace("</worksheet>",&format!("{raw}</worksheet>")));let mut book=session(&bytes);let s=book.host().sheets()[0].id();assert!(book.host().model().definitions().auto_filter(s).unwrap().unsupported);
-    let revision=book.host().revision();assert!(!book.dispatch(SkinIntent::Command(W::AutoFilter{sheet:s,revision:revision.get(),change:F::Reapply})).accepted());assert_eq!(book.host().revision(),revision);
-    assert!(enter(&mut book,at(s,"D1"),"42").accepted());let mut saved=Vec::new();book.save(&SavePolicy::default(),&mut saved).unwrap();assert!(part_text(&saved,"xl/worksheets/sheet1.xml").contains(raw));
+    use calc_host::{FilterChange as F, WorkbookCommand as W};
+    let raw = "<autoFilter ref=\"A1:A4\"><filterColumn colId=\"0\"><colorFilter dxfId=\"999\" cellColor=\"1\"/></filterColumn></autoFilter>";
+    let bytes = package_with_part_from(
+        &calc_host::blank_package(),
+        "xl/worksheets/sheet1.xml",
+        |xml| xml.replace("</worksheet>", &format!("{raw}</worksheet>")),
+    );
+    let mut book = session(&bytes);
+    let s = book.host().sheets()[0].id();
+    assert!(
+        book.host()
+            .model()
+            .definitions()
+            .auto_filter(s)
+            .unwrap()
+            .unsupported
+    );
+    let revision = book.host().revision();
+    assert!(
+        !book
+            .dispatch(SkinIntent::Command(W::AutoFilter {
+                sheet: s,
+                revision: revision.get(),
+                change: F::Reapply
+            }))
+            .accepted()
+    );
+    assert_eq!(book.host().revision(), revision);
+    assert!(enter(&mut book, at(s, "D1"), "42").accepted());
+    let mut saved = Vec::new();
+    book.save(&SavePolicy::default(), &mut saved).unwrap();
+    assert!(part_text(&saved, "xl/worksheets/sheet1.xml").contains(raw));
 }
 
 #[cfg_attr(not(target_arch = "wasm32"), test)]
 #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
 fn dc_971p_37__missing_dxf_collection_precedes_retained_style_successors() {
-    use calc_host::{WorkbookCommand as W,FilterChange as F};
-    let suffix="<tableStyles count=\"0\" defaultTableStyle=\"TableStyleMedium2\"/><colors><indexedColors><rgbColor rgb=\"FF123456\"/></indexedColors></colors><extLst><ext uri=\"urn:color-save-test\"><v:keep xmlns:v=\"urn:color-save-test\"/></ext></extLst>";
-    let bytes=package_with_part_from(&calc_host::blank_package(),"xl/styles.xml",|xml|xml.replace("</styleSheet>",&format!("{suffix}</styleSheet>")));let mut book=session(&bytes);let s=book.host().sheets()[0].id();
-    for (a,v) in [("A1","Amount"),("A2","1"),("A3","2")] {assert!(enter(&mut book,at(s,a),v).accepted());}
-    assert!(book.dispatch(SkinIntent::Command(W::FormatCells{areas:vec![GridArea::cell(at(s,"A2"))],patch:calc_host::FormatPatch{fill:Some("#ff0000".into()),..Default::default()}})).accepted());
-    let revision=book.host().revision().get();assert!(book.dispatch(SkinIntent::Command(W::AutoFilter{sheet:s,revision,change:F::Enable{area:GridArea::new(at(s,"A1"),at(s,"A3")).unwrap()}})).accepted());
-    let revision=book.host().revision().get();assert!(book.dispatch(SkinIntent::Command(W::AutoFilter{sheet:s,revision,change:F::Color{column:1,cell_color:true,color:"#ff0000".into()}})).accepted());
-    let mut saved=Vec::new();book.save(&SavePolicy::default(),&mut saved).unwrap();let xml=part_text(&saved,"xl/styles.xml");assert!(xml.contains(suffix),"{xml}");
-    let positions=["<dxfs ","<tableStyles ","<colors>","<extLst>"].map(|name|xml.find(name).unwrap());assert!(positions.windows(2).all(|p|p[0]<p[1]),"{xml}");
-    let mut reopened=session(&saved);let r=reopened.host().sheets()[0].id();let revision=reopened.host().revision().get();assert!(reopened.dispatch(SkinIntent::Command(W::AutoFilter{sheet:r,revision,change:F::Reapply})).accepted());assert_eq!(reopened.host().model().definitions().auto_filter(r).unwrap().filtered_rows.iter().copied().collect::<Vec<_>>(),vec![3]);
+    use calc_host::{FilterChange as F, WorkbookCommand as W};
+    let suffix = "<tableStyles count=\"0\" defaultTableStyle=\"TableStyleMedium2\"/><colors><indexedColors><rgbColor rgb=\"FF123456\"/></indexedColors></colors><extLst><ext uri=\"urn:color-save-test\"><v:keep xmlns:v=\"urn:color-save-test\"/></ext></extLst>";
+    let bytes = package_with_part_from(&calc_host::blank_package(), "xl/styles.xml", |xml| {
+        xml.replace("</styleSheet>", &format!("{suffix}</styleSheet>"))
+    });
+    let mut book = session(&bytes);
+    let s = book.host().sheets()[0].id();
+    for (a, v) in [("A1", "Amount"), ("A2", "1"), ("A3", "2")] {
+        assert!(enter(&mut book, at(s, a), v).accepted());
+    }
+    assert!(
+        book.dispatch(SkinIntent::Command(W::FormatCells {
+            areas: vec![GridArea::cell(at(s, "A2"))],
+            patch: calc_host::FormatPatch {
+                fill: Some("#ff0000".into()),
+                ..Default::default()
+            }
+        }))
+        .accepted()
+    );
+    let revision = book.host().revision().get();
+    assert!(
+        book.dispatch(SkinIntent::Command(W::AutoFilter {
+            sheet: s,
+            revision,
+            change: F::Enable {
+                area: GridArea::new(at(s, "A1"), at(s, "A3")).unwrap()
+            }
+        }))
+        .accepted()
+    );
+    let revision = book.host().revision().get();
+    assert!(
+        book.dispatch(SkinIntent::Command(W::AutoFilter {
+            sheet: s,
+            revision,
+            change: F::Color {
+                column: 1,
+                cell_color: true,
+                color: "#ff0000".into()
+            }
+        }))
+        .accepted()
+    );
+    let mut saved = Vec::new();
+    book.save(&SavePolicy::default(), &mut saved).unwrap();
+    let xml = part_text(&saved, "xl/styles.xml");
+    assert!(xml.contains(suffix), "{xml}");
+    let positions =
+        ["<dxfs ", "<tableStyles ", "<colors>", "<extLst>"].map(|name| xml.find(name).unwrap());
+    assert!(positions.windows(2).all(|p| p[0] < p[1]), "{xml}");
+    let mut reopened = session(&saved);
+    let r = reopened.host().sheets()[0].id();
+    let revision = reopened.host().revision().get();
+    assert!(
+        reopened
+            .dispatch(SkinIntent::Command(W::AutoFilter {
+                sheet: r,
+                revision,
+                change: F::Reapply
+            }))
+            .accepted()
+    );
+    assert_eq!(
+        reopened
+            .host()
+            .model()
+            .definitions()
+            .auto_filter(r)
+            .unwrap()
+            .filtered_rows
+            .iter()
+            .copied()
+            .collect::<Vec<_>>(),
+        vec![3]
+    );
 }
 
 #[cfg_attr(not(target_arch = "wasm32"), test)]
 #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
 fn dc_971p_37__unread_and_extension_conditional_colors_refuse_before_styles_change() {
-    use calc_host::{WorkbookCommand as W,FilterChange as F};
+    use calc_host::{FilterChange as F, WorkbookCommand as W};
     for raw in [
         "<conditionalFormatting sqref=\"A2:A3\"><v:unknownRule xmlns:v=\"urn:color-filter-test\"/></conditionalFormatting>",
         "<extLst><ext uri=\"urn:color-filter-test\" xmlns:x14=\"http://schemas.microsoft.com/office/spreadsheetml/2009/9/main\"><x14:conditionalFormattings><x14:conditionalFormatting><x14:cfRule type=\"expression\" id=\"{filter-test}\" priority=\"1\"><x14:formula>1=1</x14:formula></x14:cfRule></x14:conditionalFormatting></x14:conditionalFormattings></ext></extLst>",
     ] {
-        let bytes=package_with_part_from(&calc_host::blank_package(),"xl/worksheets/sheet1.xml",|xml|xml.replace("</worksheet>",&format!("{raw}</worksheet>")));let mut book=session(&bytes);let s=book.host().sheets()[0].id();
-        for (a,v) in [("A1","Key"),("A2","1"),("A3","2")] {assert!(enter(&mut book,at(s,a),v).accepted());}
-        assert!(book.host().model().definitions().conditional_rules(s).is_empty());
-        let revision=book.host().revision().get();assert!(book.dispatch(SkinIntent::Command(W::AutoFilter{sheet:s,revision,change:F::Enable{area:GridArea::new(at(s,"A1"),at(s,"A3")).unwrap()}})).accepted());
-        let revision=book.host().revision();let styles=book.host().styles().clone();let before=book.host().model().definitions().auto_filter(s).cloned();
-        let denied=book.dispatch(SkinIntent::Command(W::AutoFilter{sheet:s,revision:revision.get(),change:F::Color{column:1,cell_color:true,color:"#ff0000".into()}}));assert!(!denied.accepted(),"{denied:?}");assert_eq!(book.host().revision(),revision);assert_eq!(book.host().styles(),&styles);assert_eq!(book.host().model().definitions().auto_filter(s),before.as_ref());
-        let mut saved=Vec::new();book.save(&SavePolicy::default(),&mut saved).unwrap();assert!(part_text(&saved,"xl/worksheets/sheet1.xml").contains(raw));
+        let bytes = package_with_part_from(
+            &calc_host::blank_package(),
+            "xl/worksheets/sheet1.xml",
+            |xml| xml.replace("</worksheet>", &format!("{raw}</worksheet>")),
+        );
+        let mut book = session(&bytes);
+        let s = book.host().sheets()[0].id();
+        for (a, v) in [("A1", "Key"), ("A2", "1"), ("A3", "2")] {
+            assert!(enter(&mut book, at(s, a), v).accepted());
+        }
+        assert!(
+            book.host()
+                .model()
+                .definitions()
+                .conditional_rules(s)
+                .is_empty()
+        );
+        let revision = book.host().revision().get();
+        assert!(
+            book.dispatch(SkinIntent::Command(W::AutoFilter {
+                sheet: s,
+                revision,
+                change: F::Enable {
+                    area: GridArea::new(at(s, "A1"), at(s, "A3")).unwrap()
+                }
+            }))
+            .accepted()
+        );
+        let revision = book.host().revision();
+        let styles = book.host().styles().clone();
+        let before = book.host().model().definitions().auto_filter(s).cloned();
+        let denied = book.dispatch(SkinIntent::Command(W::AutoFilter {
+            sheet: s,
+            revision: revision.get(),
+            change: F::Color {
+                column: 1,
+                cell_color: true,
+                color: "#ff0000".into(),
+            },
+        }));
+        assert!(!denied.accepted(), "{denied:?}");
+        assert_eq!(book.host().revision(), revision);
+        assert_eq!(book.host().styles(), &styles);
+        assert_eq!(
+            book.host().model().definitions().auto_filter(s),
+            before.as_ref()
+        );
+        let mut saved = Vec::new();
+        book.save(&SavePolicy::default(), &mut saved).unwrap();
+        assert!(part_text(&saved, "xl/worksheets/sheet1.xml").contains(raw));
     }
 }
 
 #[cfg_attr(not(target_arch = "wasm32"), test)]
 #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
 fn dc_971p_37__implicit_default_styles_support_no_fill_and_automatic_font_filters() {
-    use calc_host::{WorkbookCommand as W,FilterChange as F};
-    let bytes=package_with_part_from(&calc_host::blank_package(),"xl/_rels/workbook.xml.rels",|xml|xml.replace("Type=\"http://schemas.openxmlformats.org/officeDocument/2006/relationships/styles\"","Type=\"urn:unlinked-style-test\""));
-    let mut book=session(&bytes);let s=book.host().sheets()[0].id();assert!(book.host().styles().cell_formats.is_empty());
-    for (a,v) in [("A1","Key"),("A2","1"),("A3","2")] {assert!(enter(&mut book,at(s,a),v).accepted());}
-    let revision=book.host().revision().get();assert!(book.dispatch(SkinIntent::Command(W::AutoFilter{sheet:s,revision,change:F::Enable{area:GridArea::new(at(s,"A1"),at(s,"A4")).unwrap()}})).accepted());
-    for cell_color in [true,false] {
-        let revision=book.host().revision().get();let done=book.dispatch(SkinIntent::Command(W::AutoFilter{sheet:s,revision,change:F::Color{column:1,cell_color,color:String::new()}}));assert!(done.accepted(),"{done:?}");assert!(book.host().model().definitions().auto_filter(s).unwrap().filtered_rows.is_empty());
+    use calc_host::{FilterChange as F, WorkbookCommand as W};
+    let bytes = package_with_part_from(
+        &calc_host::blank_package(),
+        "xl/_rels/workbook.xml.rels",
+        |xml| {
+            xml.replace("Type=\"http://schemas.openxmlformats.org/officeDocument/2006/relationships/styles\"","Type=\"urn:unlinked-style-test\"")
+        },
+    );
+    let mut book = session(&bytes);
+    let s = book.host().sheets()[0].id();
+    assert!(book.host().styles().cell_formats.is_empty());
+    for (a, v) in [("A1", "Key"), ("A2", "1"), ("A3", "2")] {
+        assert!(enter(&mut book, at(s, a), v).accepted());
     }
-    let mut saved=Vec::new();book.save(&SavePolicy::default(),&mut saved).unwrap();let mut reopened=session(&saved);let r=reopened.host().sheets()[0].id();
-    let revision=reopened.host().revision().get();let done=reopened.dispatch(SkinIntent::Command(W::AutoFilter{sheet:r,revision,change:F::Reapply}));assert!(done.accepted(),"{done:?}");assert!(reopened.host().model().definitions().auto_filter(r).unwrap().filtered_rows.is_empty());
+    let revision = book.host().revision().get();
+    assert!(
+        book.dispatch(SkinIntent::Command(W::AutoFilter {
+            sheet: s,
+            revision,
+            change: F::Enable {
+                area: GridArea::new(at(s, "A1"), at(s, "A4")).unwrap()
+            }
+        }))
+        .accepted()
+    );
+    for cell_color in [true, false] {
+        let revision = book.host().revision().get();
+        let done = book.dispatch(SkinIntent::Command(W::AutoFilter {
+            sheet: s,
+            revision,
+            change: F::Color {
+                column: 1,
+                cell_color,
+                color: String::new(),
+            },
+        }));
+        assert!(done.accepted(), "{done:?}");
+        assert!(
+            book.host()
+                .model()
+                .definitions()
+                .auto_filter(s)
+                .unwrap()
+                .filtered_rows
+                .is_empty()
+        );
+    }
+    let mut saved = Vec::new();
+    book.save(&SavePolicy::default(), &mut saved).unwrap();
+    let mut reopened = session(&saved);
+    let r = reopened.host().sheets()[0].id();
+    let revision = reopened.host().revision().get();
+    let done = reopened.dispatch(SkinIntent::Command(W::AutoFilter {
+        sheet: r,
+        revision,
+        change: F::Reapply,
+    }));
+    assert!(done.accepted(), "{done:?}");
+    assert!(
+        reopened
+            .host()
+            .model()
+            .definitions()
+            .auto_filter(r)
+            .unwrap()
+            .filtered_rows
+            .is_empty()
+    );
 }
 
 #[cfg_attr(not(target_arch = "wasm32"), test)]
@@ -13689,87 +16726,232 @@ fn dc_971p_38__opaque_and_extension_conditional_rules_stay_attached_on_refused_s
 #[cfg_attr(not(target_arch = "wasm32"), test)]
 #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
 fn dc_971p_40__conditions_share_evaluation_history_styles_and_xlsx() {
-    use calc_host::{ConditionalChange,WorkbookCommand};
-    for (kind,formula,expected) in [
-        ("cellIs",vec!["6"],vec![7,8,9,10]),
-        ("expression",vec!["A1>=8"],vec![8,9,10]),
-        ("top10",vec![],vec![9,10]),
-        ("bottom10",vec![],vec![1,2]),
-        ("aboveAverage",vec![],vec![6,7,8,9,10]),
-        ("belowAverage",vec![],vec![1,2,3,4,5]),
-        ("duplicateValues",vec![],vec![]),
-        ("uniqueValues",vec![],(1..=10).collect()),
+    use calc_host::{ConditionalChange, WorkbookCommand};
+    for (kind, formula, expected) in [
+        ("cellIs", vec!["6"], vec![7, 8, 9, 10]),
+        ("expression", vec!["A1>=8"], vec![8, 9, 10]),
+        ("top10", vec![], vec![9, 10]),
+        ("bottom10", vec![], vec![1, 2]),
+        ("aboveAverage", vec![], vec![6, 7, 8, 9, 10]),
+        ("belowAverage", vec![], vec![1, 2, 3, 4, 5]),
+        ("duplicateValues", vec![], vec![]),
+        ("uniqueValues", vec![], (1..=10).collect()),
     ] {
-        let bytes=calc_host::blank_package();
-        let mut book=session(&bytes);
-        let sheet=book.host().sheets()[0].id();
-        for row in 1..=10 {enter(&mut book,CellKey::new(sheet,row,1).unwrap(),&row.to_string());}
-        let old=book.host().styles().clone();
-        let change=ConditionalChange::Condition {kind:kind.into(),applies:"A1:A10".into(),color:"#123456".into(),formulas:formula.iter().map(|s|s.to_string()).collect(),operator:"greaterThan".into(),rank:20,percent:true,stop:true};
-        let revision=book.host().revision().get();
-        let receipt=book.dispatch(SkinIntent::Command(WorkbookCommand::Conditional {sheet,revision,index:None,change}));
-        assert!(receipt.accepted(),"{kind}: {receipt:?}");
-        let check=|host:&calc_host::HostState| {
-            let sheet=host.sheets()[0].id();
-            let formats=host.conditional_formats(sheet);
-            let filled=(1..=10).filter(|row|formats.look(host,CellKey::new(sheet,*row,1).unwrap()).and_then(|l|l.fill).is_some()).collect::<Vec<_>>();
-            assert_eq!(filled,expected,"{kind}");
-            assert_eq!(formats.refused(),0,"{kind}");
+        let bytes = calc_host::blank_package();
+        let mut book = session(&bytes);
+        let sheet = book.host().sheets()[0].id();
+        for row in 1..=10 {
+            enter(
+                &mut book,
+                CellKey::new(sheet, row, 1).unwrap(),
+                &row.to_string(),
+            );
+        }
+        let old = book.host().styles().clone();
+        let change = ConditionalChange::Condition {
+            kind: kind.into(),
+            applies: "A1:A10".into(),
+            color: "#123456".into(),
+            formulas: formula.iter().map(|s| s.to_string()).collect(),
+            operator: "greaterThan".into(),
+            rank: 20,
+            percent: true,
+            stop: true,
+        };
+        let revision = book.host().revision().get();
+        let receipt = book.dispatch(SkinIntent::Command(WorkbookCommand::Conditional {
+            sheet,
+            revision,
+            index: None,
+            change,
+        }));
+        assert!(receipt.accepted(), "{kind}: {receipt:?}");
+        let check = |host: &calc_host::HostState| {
+            let sheet = host.sheets()[0].id();
+            let formats = host.conditional_formats(sheet);
+            let filled = (1..=10)
+                .filter(|row| {
+                    formats
+                        .look(host, CellKey::new(sheet, *row, 1).unwrap())
+                        .and_then(|l| l.fill)
+                        .is_some()
+                })
+                .collect::<Vec<_>>();
+            assert_eq!(filled, expected, "{kind}");
+            assert_eq!(formats.refused(), 0, "{kind}");
         };
         check(book.host());
-        assert_eq!(book.host().styles().differential_formats.len(),old.differential_formats.len()+1);
+        assert_eq!(
+            book.host().styles().differential_formats.len(),
+            old.differential_formats.len() + 1
+        );
         assert!(book.dispatch(SkinIntent::Undo).accepted());
-        assert!(book.host().model().definitions().conditional_rules(sheet).is_empty());
-        assert_eq!(book.host().styles(),&old);
+        assert!(
+            book.host()
+                .model()
+                .definitions()
+                .conditional_rules(sheet)
+                .is_empty()
+        );
+        assert_eq!(book.host().styles(), &old);
         assert!(book.dispatch(SkinIntent::Redo).accepted());
         check(book.host());
-        let mut saved=Vec::new();book.save(&SavePolicy::default(),&mut saved).unwrap();
-        let mut reopened=session(&saved);assert!(reopened.dispatch(SkinIntent::Recalculate).accepted());check(reopened.host());
-        let mut twin=session(&bytes);
-        assert!(replay(book.intent_log(),&mut twin).mismatches.is_empty());check(twin.host());
-        let revision=book.host().revision();let depth=book.history_depth();let styles=book.host().styles().clone();
-        let refused=book.dispatch(SkinIntent::Command(WorkbookCommand::Conditional {sheet,revision:revision.get(),index:None,change:ConditionalChange::Condition {kind:"cellIs".into(),applies:"A1:A10".into(),color:"#ff0000".into(),formulas:vec!["1".into()],operator:"invalid".into(),rank:1,percent:false,stop:false}}));
-        assert!(!refused.accepted());assert_eq!(book.host().revision(),revision);assert_eq!(book.history_depth(),depth);assert_eq!(book.host().styles(),&styles);
+        let mut saved = Vec::new();
+        book.save(&SavePolicy::default(), &mut saved).unwrap();
+        let mut reopened = session(&saved);
+        assert!(reopened.dispatch(SkinIntent::Recalculate).accepted());
+        check(reopened.host());
+        let mut twin = session(&bytes);
+        assert!(replay(book.intent_log(), &mut twin).mismatches.is_empty());
+        check(twin.host());
+        let revision = book.host().revision();
+        let depth = book.history_depth();
+        let styles = book.host().styles().clone();
+        let refused = book.dispatch(SkinIntent::Command(WorkbookCommand::Conditional {
+            sheet,
+            revision: revision.get(),
+            index: None,
+            change: ConditionalChange::Condition {
+                kind: "cellIs".into(),
+                applies: "A1:A10".into(),
+                color: "#ff0000".into(),
+                formulas: vec!["1".into()],
+                operator: "invalid".into(),
+                rank: 1,
+                percent: false,
+                stop: false,
+            },
+        }));
+        assert!(!refused.accepted());
+        assert_eq!(book.host().revision(), revision);
+        assert_eq!(book.history_depth(), depth);
+        assert_eq!(book.host().styles(), &styles);
     }
 }
 
 #[cfg_attr(not(target_arch = "wasm32"), test)]
 #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
 fn dc_971p_40__average_standard_deviation_uses_the_existing_evaluator() {
-    let original=include_bytes!("fixtures/dc_6yw/conditional-formats.xlsx");
-    let bytes=package_with_part_from(original,"xl/worksheets/sheet1.xml",|xml|xml.replace("type=\"aboveAverage\"","type=\"aboveAverage\" stdDev=\"1\""));
-    let mut book=session(&bytes);assert!(book.dispatch(SkinIntent::Recalculate).accepted());
-    let sheet=book.host().sheets()[0].id();
-    let formats=book.host().conditional_formats(sheet);
-    let rule=book.host().model().definitions().conditional_rules(sheet).iter().find(|r|calc_host::conditional_rule(r).unwrap().kind=="aboveAverage").unwrap();
-    let area=rule.areas[0];
-    let rows=(1..=10).filter(|r|formats.look(book.host(),CellKey::new(sheet,*r,area.first().column()).unwrap()).is_some()).collect::<Vec<_>>();
-    assert_eq!(rows,vec![2,6]); // values 9 and 10 exceed 5.5 + STDEV.P(1..10).
-    assert_eq!(formats.refused(),0);
-    let mut saved=Vec::new();book.save(&SavePolicy::default(),&mut saved).unwrap();
-    let reopened=session(&saved);let sheet=reopened.host().sheets()[0].id();
-    assert!(reopened.host().model().definitions().conditional_rules(sheet).iter().any(|r|calc_host::conditional_rule(r).unwrap().std_dev==Some(1)));
+    let original = include_bytes!("fixtures/dc_6yw/conditional-formats.xlsx");
+    let bytes = package_with_part_from(original, "xl/worksheets/sheet1.xml", |xml| {
+        xml.replace(
+            "type=\"aboveAverage\"",
+            "type=\"aboveAverage\" stdDev=\"1\"",
+        )
+    });
+    let mut book = session(&bytes);
+    assert!(book.dispatch(SkinIntent::Recalculate).accepted());
+    let sheet = book.host().sheets()[0].id();
+    let formats = book.host().conditional_formats(sheet);
+    let rule = book
+        .host()
+        .model()
+        .definitions()
+        .conditional_rules(sheet)
+        .iter()
+        .find(|r| calc_host::conditional_rule(r).unwrap().kind == "aboveAverage")
+        .unwrap();
+    let area = rule.areas[0];
+    let rows = (1..=10)
+        .filter(|r| {
+            formats
+                .look(
+                    book.host(),
+                    CellKey::new(sheet, *r, area.first().column()).unwrap(),
+                )
+                .is_some()
+        })
+        .collect::<Vec<_>>();
+    assert_eq!(rows, vec![2, 6]); // values 9 and 10 exceed 5.5 + STDEV.P(1..10).
+    assert_eq!(formats.refused(), 0);
+    let mut saved = Vec::new();
+    book.save(&SavePolicy::default(), &mut saved).unwrap();
+    let reopened = session(&saved);
+    let sheet = reopened.host().sheets()[0].id();
+    assert!(
+        reopened
+            .host()
+            .model()
+            .definitions()
+            .conditional_rules(sheet)
+            .iter()
+            .any(|r| calc_host::conditional_rule(r).unwrap().std_dev == Some(1))
+    );
 }
 
 #[cfg_attr(not(target_arch = "wasm32"), test)]
 #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
 fn dc_971p_40__conditional_statistics_include_calculated_spill_members() {
-    use calc_host::{ConditionalChange,WorkbookCommand,LookColor};
-    for kind in ["top10","colorScale","dataBar","iconSet","duplicateValues"] {
-        let mut book=session(&calc_host::blank_package());let sheet=book.host().sheets()[0].id();
-        enter(&mut book,at(sheet,"A1"),if kind=="duplicateValues" {"={\"North\";\"north\";\"South\"}"}else{"=SEQUENCE(3)"});
-        let revision=book.host().revision().get();
-        let change=if matches!(kind,"top10"|"duplicateValues") {ConditionalChange::Condition{kind:kind.into(),applies:"A1:A3".into(),color:"#123456".into(),formulas:vec![],operator:String::new(),rank:1,percent:false,stop:false}}else{ConditionalChange::Add {kind:kind.into(),applies:"A1:A3".into(),color:"123456".into()}};
-        let receipt=book.dispatch(SkinIntent::Command(WorkbookCommand::Conditional{sheet,revision,index:None,change}));assert!(receipt.accepted(),"{kind}: {receipt:?}");
-        let formats=book.host().conditional_formats(sheet);
-        let look=|address|formats.look(book.host(),at(sheet,address)).unwrap_or_default();
+    use calc_host::{ConditionalChange, LookColor, WorkbookCommand};
+    for kind in [
+        "top10",
+        "colorScale",
+        "dataBar",
+        "iconSet",
+        "duplicateValues",
+    ] {
+        let mut book = session(&calc_host::blank_package());
+        let sheet = book.host().sheets()[0].id();
+        enter(
+            &mut book,
+            at(sheet, "A1"),
+            if kind == "duplicateValues" {
+                "={\"North\";\"north\";\"South\"}"
+            } else {
+                "=SEQUENCE(3)"
+            },
+        );
+        let revision = book.host().revision().get();
+        let change = if matches!(kind, "top10" | "duplicateValues") {
+            ConditionalChange::Condition {
+                kind: kind.into(),
+                applies: "A1:A3".into(),
+                color: "#123456".into(),
+                formulas: vec![],
+                operator: String::new(),
+                rank: 1,
+                percent: false,
+                stop: false,
+            }
+        } else {
+            ConditionalChange::Add {
+                kind: kind.into(),
+                applies: "A1:A3".into(),
+                color: "123456".into(),
+            }
+        };
+        let receipt = book.dispatch(SkinIntent::Command(WorkbookCommand::Conditional {
+            sheet,
+            revision,
+            index: None,
+            change,
+        }));
+        assert!(receipt.accepted(), "{kind}: {receipt:?}");
+        let formats = book.host().conditional_formats(sheet);
+        let look = |address| {
+            formats
+                .look(book.host(), at(sheet, address))
+                .unwrap_or_default()
+        };
         match kind {
-            "top10"=>{assert!(look("A1").fill.is_none());assert!(look("A2").fill.is_none());assert!(look("A3").fill.is_some());}
-            "colorScale"=>assert_eq!(look("A2").fill,Some(LookColor::Rgb("#cfdeeb".into()))),
-            "dataBar"=>assert_eq!(look("A2").bar.unwrap().fraction,0.5),
-            "iconSet"=>{assert_eq!(look("A1").icon.unwrap().index,0);assert_eq!(look("A2").icon.unwrap().index,1);assert_eq!(look("A3").icon.unwrap().index,2);}
-            "duplicateValues"=>{assert!(look("A1").fill.is_some());assert!(look("A2").fill.is_some());assert!(look("A3").fill.is_none());}
-            _=>unreachable!(),
+            "top10" => {
+                assert!(look("A1").fill.is_none());
+                assert!(look("A2").fill.is_none());
+                assert!(look("A3").fill.is_some());
+            }
+            "colorScale" => assert_eq!(look("A2").fill, Some(LookColor::Rgb("#cfdeeb".into()))),
+            "dataBar" => assert_eq!(look("A2").bar.unwrap().fraction, 0.5),
+            "iconSet" => {
+                assert_eq!(look("A1").icon.unwrap().index, 0);
+                assert_eq!(look("A2").icon.unwrap().index, 1);
+                assert_eq!(look("A3").icon.unwrap().index, 2);
+            }
+            "duplicateValues" => {
+                assert!(look("A1").fill.is_some());
+                assert!(look("A2").fill.is_some());
+                assert!(look("A3").fill.is_none());
+            }
+            _ => unreachable!(),
         }
     }
 }
@@ -14084,25 +17266,113 @@ fn dc_971p_40__raw_review_edits_cannot_change_the_source_author() {
     assert!(result.is_err());
     assert_eq!(host.revision(), revision);
     assert_eq!(host.model().definitions().review_notes(s), original);
-    let u=sheet(&host,"U");let original=host.model().definitions().review_notes(u).to_vec();let mut changed=original.clone();
-    changed.iter_mut().find(|n|n.source.as_ref().is_some_and(|s|s.threaded())).unwrap().text="Raw thread".into();
-    let result=calc_host::dispatch(&mut host,calc_host::HostCommand {base:revision,edits:vec![CellEdit::ReviewNotes {sheet:u,notes:changed.clone()}]});
-    assert!(result.is_err());assert_eq!(host.revision(),revision);assert_eq!(host.model().definitions().review_notes(u),original);
-    let fallback=calc_doc_model::review_thread_text(&changed,at(u,"A1"));
-    changed.iter_mut().find(|n|n.compatibility).unwrap().text=fallback.clone();
-    let result=calc_host::dispatch(&mut host,calc_host::HostCommand {base:revision,edits:vec![CellEdit::ReviewNotes {sheet:u,notes:changed}]});assert!(result.is_ok(),"{result:?}");
-    let mut saved=Vec::new();calc_host::save(&host,&SavePolicy::default(),&mut saved).unwrap();let reopened=open(&saved);let u=sheet(&reopened,"U");
-    assert_eq!(reopened.model().definitions().review_notes(u).iter().find(|n|n.compatibility).unwrap().text,fallback);
-    let mut fallback_only=host.model().definitions().review_notes(u).to_vec();
-    fallback_only.iter_mut().find(|n|n.compatibility).unwrap().text=original.iter().find(|n|n.compatibility).unwrap().text.clone();
-    let revision=host.revision();let result=calc_host::dispatch(&mut host,calc_host::HostCommand {base:revision,edits:vec![CellEdit::ReviewNotes {sheet:u,notes:fallback_only}]});assert!(result.is_err());assert_eq!(host.revision(),revision);
-    let mut partial=host.model().definitions().review_notes(u).to_vec();
-    let previous=original.iter().find(|n|n.source.as_ref().is_some_and(|s|s.threaded())).unwrap();
-    partial.iter_mut().find(|n|n.source==previous.source).unwrap().text=previous.text.clone();
-    let revision=host.revision();let result=calc_host::dispatch(&mut host,calc_host::HostCommand {base:revision,edits:vec![CellEdit::ReviewNotes {sheet:u,notes:partial}]});assert!(result.is_err());assert_eq!(host.revision(),revision);
-    let result=calc_host::dispatch(&mut host,calc_host::HostCommand {base:revision,edits:vec![CellEdit::ReviewNotes {sheet:u,notes:original}]});assert!(result.is_ok(),"{result:?}");
-
-
+    let u = sheet(&host, "U");
+    let original = host.model().definitions().review_notes(u).to_vec();
+    let mut changed = original.clone();
+    changed
+        .iter_mut()
+        .find(|n| n.source.as_ref().is_some_and(|s| s.threaded()))
+        .unwrap()
+        .text = "Raw thread".into();
+    let result = calc_host::dispatch(
+        &mut host,
+        calc_host::HostCommand {
+            base: revision,
+            edits: vec![CellEdit::ReviewNotes {
+                sheet: u,
+                notes: changed.clone(),
+            }],
+        },
+    );
+    assert!(result.is_err());
+    assert_eq!(host.revision(), revision);
+    assert_eq!(host.model().definitions().review_notes(u), original);
+    let fallback = calc_doc_model::review_thread_text(&changed, at(u, "A1"));
+    changed.iter_mut().find(|n| n.compatibility).unwrap().text = fallback.clone();
+    let result = calc_host::dispatch(
+        &mut host,
+        calc_host::HostCommand {
+            base: revision,
+            edits: vec![CellEdit::ReviewNotes {
+                sheet: u,
+                notes: changed,
+            }],
+        },
+    );
+    assert!(result.is_ok(), "{result:?}");
+    let mut saved = Vec::new();
+    calc_host::save(&host, &SavePolicy::default(), &mut saved).unwrap();
+    let reopened = open(&saved);
+    let u = sheet(&reopened, "U");
+    assert_eq!(
+        reopened
+            .model()
+            .definitions()
+            .review_notes(u)
+            .iter()
+            .find(|n| n.compatibility)
+            .unwrap()
+            .text,
+        fallback
+    );
+    let mut fallback_only = host.model().definitions().review_notes(u).to_vec();
+    fallback_only
+        .iter_mut()
+        .find(|n| n.compatibility)
+        .unwrap()
+        .text = original
+        .iter()
+        .find(|n| n.compatibility)
+        .unwrap()
+        .text
+        .clone();
+    let revision = host.revision();
+    let result = calc_host::dispatch(
+        &mut host,
+        calc_host::HostCommand {
+            base: revision,
+            edits: vec![CellEdit::ReviewNotes {
+                sheet: u,
+                notes: fallback_only,
+            }],
+        },
+    );
+    assert!(result.is_err());
+    assert_eq!(host.revision(), revision);
+    let mut partial = host.model().definitions().review_notes(u).to_vec();
+    let previous = original
+        .iter()
+        .find(|n| n.source.as_ref().is_some_and(|s| s.threaded()))
+        .unwrap();
+    partial
+        .iter_mut()
+        .find(|n| n.source == previous.source)
+        .unwrap()
+        .text = previous.text.clone();
+    let revision = host.revision();
+    let result = calc_host::dispatch(
+        &mut host,
+        calc_host::HostCommand {
+            base: revision,
+            edits: vec![CellEdit::ReviewNotes {
+                sheet: u,
+                notes: partial,
+            }],
+        },
+    );
+    assert!(result.is_err());
+    assert_eq!(host.revision(), revision);
+    let result = calc_host::dispatch(
+        &mut host,
+        calc_host::HostCommand {
+            base: revision,
+            edits: vec![CellEdit::ReviewNotes {
+                sheet: u,
+                notes: original,
+            }],
+        },
+    );
+    assert!(result.is_ok(), "{result:?}");
 }
 
 #[cfg_attr(not(target_arch = "wasm32"), test)]
@@ -14250,188 +17520,476 @@ fn dc_hsa5_6__validation_criteria_share_current_snapshot() {
     let revision = book.host().revision();
     let history = book.history_depth();
     for address in ["C1", "D1", "E1"] {
-        assert!(matches!(book.host().validation_status(at(s, address)),
-            Some(ValidationStatus::Unavailable { .. })), "{address}");
+        assert!(
+            matches!(
+                book.host().validation_status(at(s, address)),
+                Some(ValidationStatus::Unavailable { .. })
+            ),
+            "{address}"
+        );
     }
     let report = book.host().scan_validation(s);
-    assert_eq!((report.checked, report.valid, report.unavailable), (3, 0, 3));
+    assert_eq!(
+        (report.checked, report.valid, report.unavailable),
+        (3, 0, 3)
+    );
     assert!(report.invalid.is_empty());
     assert_eq!(book.host().revision(), revision);
     assert_eq!(book.history_depth(), history);
-    assert!(matches!(value(book.host(), at(s, "B1")), ProjectedValue::Stale(_)));
+    assert!(matches!(
+        value(book.host(), at(s, "B1")),
+        ProjectedValue::Stale(_)
+    ));
     assert!(book.dispatch(SkinIntent::Recalculate).accepted());
     let report = book.host().scan_validation(s);
-    assert_eq!((report.checked, report.valid, report.unavailable), (3, 0, 0));
-    assert_eq!(report.invalid, ["C1", "D1", "E1"].map(|address| at(s, address)));
+    assert_eq!(
+        (report.checked, report.valid, report.unavailable),
+        (3, 0, 0)
+    );
+    assert_eq!(
+        report.invalid,
+        ["C1", "D1", "E1"].map(|address| at(s, address))
+    );
 }
 
 #[cfg_attr(not(target_arch = "wasm32"), test)]
 #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
 fn dc_971p_40__raw_review_text_survives_save_after_the_cell_moves() {
-    let bytes=include_bytes!("fixtures/d2/structural-base.xlsx");
-    let mut host=open(bytes);let s=sheet(&host,"S");
-    let revision=host.revision();
-    let receipt=calc_host::dispatch(&mut host,calc_host::HostCommand {base:revision,edits:vec![CellEdit::Axis(AxisEdit::new(s,Axis::Rows,AxisChange::Insert,1,1).unwrap())]});assert!(receipt.is_ok(),"{receipt:?}");
-    let mut notes=host.model().definitions().review_notes(s).to_vec();
-    let note=notes.iter_mut().find(|n|n.at==at(s,"A3")).unwrap();note.text="Raw text after moving the source".into();
-    let revision=host.revision();
-    let result=calc_host::dispatch(&mut host,calc_host::HostCommand {base:revision,edits:vec![CellEdit::ReviewNotes {sheet:s,notes}]});
-    assert!(result.is_ok(),"{result:?}");
-    let mut saved=Vec::new();calc_host::save(&host,&SavePolicy::default(),&mut saved).unwrap();
-    let reopened=session(&saved);let s=sheet(reopened.host(),"S");
-    let notes=reopened.host().model().definitions().review_notes(s);
-    assert_eq!(notes.iter().find(|n|n.at==at(s,"A3")).unwrap().text,"Raw text after moving the source");
-    assert_eq!(notes.iter().find(|n|n.at==at(s,"A9")).unwrap().text,"eight");
+    let bytes = include_bytes!("fixtures/d2/structural-base.xlsx");
+    let mut host = open(bytes);
+    let s = sheet(&host, "S");
+    let revision = host.revision();
+    let receipt = calc_host::dispatch(
+        &mut host,
+        calc_host::HostCommand {
+            base: revision,
+            edits: vec![CellEdit::Axis(
+                AxisEdit::new(s, Axis::Rows, AxisChange::Insert, 1, 1).unwrap(),
+            )],
+        },
+    );
+    assert!(receipt.is_ok(), "{receipt:?}");
+    let mut notes = host.model().definitions().review_notes(s).to_vec();
+    let note = notes.iter_mut().find(|n| n.at == at(s, "A3")).unwrap();
+    note.text = "Raw text after moving the source".into();
+    let revision = host.revision();
+    let result = calc_host::dispatch(
+        &mut host,
+        calc_host::HostCommand {
+            base: revision,
+            edits: vec![CellEdit::ReviewNotes { sheet: s, notes }],
+        },
+    );
+    assert!(result.is_ok(), "{result:?}");
+    let mut saved = Vec::new();
+    calc_host::save(&host, &SavePolicy::default(), &mut saved).unwrap();
+    let reopened = session(&saved);
+    let s = sheet(reopened.host(), "S");
+    let notes = reopened.host().model().definitions().review_notes(s);
+    assert_eq!(
+        notes.iter().find(|n| n.at == at(s, "A3")).unwrap().text,
+        "Raw text after moving the source"
+    );
+    assert_eq!(
+        notes.iter().find(|n| n.at == at(s, "A9")).unwrap().text,
+        "eight"
+    );
 }
 
 #[cfg_attr(not(target_arch = "wasm32"), test)]
 #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
 fn dc_971p_40__validation_audit_updates_cross_sheet_references_before_reopen() {
     use calc_host::ValidationStatus;
-    let original=include_bytes!("fixtures/d2/structural-base.xlsx");
-    let bytes=package_with_part_from(original,"xl/worksheets/sheet1.xml",|xml|xml.replace("</worksheet>",r#"<dataValidations count="1"><dataValidation type="list" allowBlank="0" showErrorMessage="0" sqref="Z1"><formula1>U!$Z$2:$Z$3</formula1></dataValidation></dataValidations></worksheet>"#));
-    let mut book=session(&bytes);let s=sheet(book.host(),"S");let source=sheet(book.host(),"U");
-    for (a,v) in [("Z1","Before"),("Z2","Red"),("Z3","Green")] {assert!(enter(&mut book,at(source,a),v).accepted());}
-    assert!(enter(&mut book,at(s,"Z1"),"Green").accepted());
-    assert_eq!(book.host().validation_status(at(s,"Z1")),Some(ValidationStatus::Valid));
-    let receipt=book.dispatch(SkinIntent::EditAxis(AxisEdit::new(source,Axis::Rows,AxisChange::Insert,2,1).unwrap()));assert!(receipt.accepted(),"{receipt:?}");
-    assert_eq!(book.host().validation_status(at(s,"Z1")),Some(ValidationStatus::Valid));
-    let mut saved=Vec::new();book.save(&SavePolicy::default(),&mut saved).unwrap();
-    let reopened=session(&saved);let s=sheet(reopened.host(),"S");
-    assert_eq!(reopened.host().validation_status(at(s,"Z1")),Some(ValidationStatus::Valid));
+    let original = include_bytes!("fixtures/d2/structural-base.xlsx");
+    let bytes = package_with_part_from(original, "xl/worksheets/sheet1.xml", |xml| {
+        xml.replace("</worksheet>",r#"<dataValidations count="1"><dataValidation type="list" allowBlank="0" showErrorMessage="0" sqref="Z1"><formula1>U!$Z$2:$Z$3</formula1></dataValidation></dataValidations></worksheet>"#)
+    });
+    let mut book = session(&bytes);
+    let s = sheet(book.host(), "S");
+    let source = sheet(book.host(), "U");
+    for (a, v) in [("Z1", "Before"), ("Z2", "Red"), ("Z3", "Green")] {
+        assert!(enter(&mut book, at(source, a), v).accepted());
+    }
+    assert!(enter(&mut book, at(s, "Z1"), "Green").accepted());
+    assert_eq!(
+        book.host().validation_status(at(s, "Z1")),
+        Some(ValidationStatus::Valid)
+    );
+    let receipt = book.dispatch(SkinIntent::EditAxis(
+        AxisEdit::new(source, Axis::Rows, AxisChange::Insert, 2, 1).unwrap(),
+    ));
+    assert!(receipt.accepted(), "{receipt:?}");
+    assert_eq!(
+        book.host().validation_status(at(s, "Z1")),
+        Some(ValidationStatus::Valid)
+    );
+    let mut saved = Vec::new();
+    book.save(&SavePolicy::default(), &mut saved).unwrap();
+    let reopened = session(&saved);
+    let s = sheet(reopened.host(), "S");
+    assert_eq!(
+        reopened.host().validation_status(at(s, "Z1")),
+        Some(ValidationStatus::Valid)
+    );
 }
 
 /// Proposed values use the existing evaluator without committing a model revision or history.
 #[cfg_attr(not(target_arch = "wasm32"), test)]
 #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
 fn dc_971p_40__custom_and_formula_candidates_use_current_dependents_and_leave_no_edits() {
-    let bytes=package_with_part("xl/worksheets/sheet1.xml",|xml|xml.replace("</worksheet>",r#"<dataValidations count="3"><dataValidation type="custom" showErrorMessage="1" sqref="A1:A4"><formula1>AND(A1&gt;0,B1=A1*2)</formula1></dataValidation><dataValidation type="whole" operator="between" showErrorMessage="1" sqref="C1"><formula1>1</formula1><formula2>5</formula2></dataValidation><dataValidation type="list" showErrorMessage="1" sqref="D1"><formula1>"Red,Green"</formula1></dataValidation></dataValidations></worksheet>"#));
-    let mut book=session(&bytes);let s=book.host().sheets()[0].id();
-    enter(&mut book,at(s,"B1"),"=A1*2");
-    let revision=book.host().revision();let depth=book.history_depth();
-    for (address,text,valid) in [("A1","3",true),("A1","-3",false),("A1","=2+2",true),("A1","=-2",false),("C1","=2+2",true),("C1","=3+3",false),("C1","=1/0",false),("D1","=\"Red\"",true),("D1","=\"Blue\"",false)] {
-        let input=calc_host::interpret_entry_in(text,Some(&book.host().entry_environment())).unwrap();
-        let result=book.host().check_entry(at(s,address),input.as_ref());
-        assert_eq!(result.is_ok(),valid,"{address} {text}: {result:?}");
-        assert_eq!(book.host().revision(),revision);assert_eq!(book.history_depth(),depth);
+    let bytes = package_with_part("xl/worksheets/sheet1.xml", |xml| {
+        xml.replace("</worksheet>",r#"<dataValidations count="3"><dataValidation type="custom" showErrorMessage="1" sqref="A1:A4"><formula1>AND(A1&gt;0,B1=A1*2)</formula1></dataValidation><dataValidation type="whole" operator="between" showErrorMessage="1" sqref="C1"><formula1>1</formula1><formula2>5</formula2></dataValidation><dataValidation type="list" showErrorMessage="1" sqref="D1"><formula1>"Red,Green"</formula1></dataValidation></dataValidations></worksheet>"#)
+    });
+    let mut book = session(&bytes);
+    let s = book.host().sheets()[0].id();
+    enter(&mut book, at(s, "B1"), "=A1*2");
+    let revision = book.host().revision();
+    let depth = book.history_depth();
+    for (address, text, valid) in [
+        ("A1", "3", true),
+        ("A1", "-3", false),
+        ("A1", "=2+2", true),
+        ("A1", "=-2", false),
+        ("C1", "=2+2", true),
+        ("C1", "=3+3", false),
+        ("C1", "=1/0", false),
+        ("D1", "=\"Red\"", true),
+        ("D1", "=\"Blue\"", false),
+    ] {
+        let input =
+            calc_host::interpret_entry_in(text, Some(&book.host().entry_environment())).unwrap();
+        let result = book.host().check_entry(at(s, address), input.as_ref());
+        assert_eq!(result.is_ok(), valid, "{address} {text}: {result:?}");
+        assert_eq!(book.host().revision(), revision);
+        assert_eq!(book.history_depth(), depth);
     }
-    assert!(!book.dispatch(SkinIntent::EnterCell {at:at(s,"A1"),text:"-3".into()}).accepted());
-    assert_eq!(book.host().revision(),revision);assert_eq!(book.history_depth(),depth);
-    enter(&mut book,at(s,"A1"),"=2+2");
-    assert!(matches!(value(book.host(),at(s,"B1")),ProjectedValue::Calculated{value,..} if value==calc_value::CalcValue::number(8.)));
+    assert!(
+        !book
+            .dispatch(SkinIntent::EnterCell {
+                at: at(s, "A1"),
+                text: "-3".into()
+            })
+            .accepted()
+    );
+    assert_eq!(book.host().revision(), revision);
+    assert_eq!(book.history_depth(), depth);
+    enter(&mut book, at(s, "A1"), "=2+2");
+    assert!(
+        matches!(value(book.host(),at(s,"B1")),ProjectedValue::Calculated{value,..} if value==calc_value::CalcValue::number(8.))
+    );
     assert!(book.dispatch(SkinIntent::Undo).accepted());
-    assert!(book.host().model().cell(at(s,"A1")).is_none());
+    assert!(book.host().model().cell(at(s, "A1")).is_none());
 }
 
 #[cfg_attr(not(target_arch = "wasm32"), test)]
 #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
 fn dc_971p_40__validation_references_agree_before_and_after_axis_edits_and_sheet_rename() {
-    use calc_host::{ValidationStatus,WorkbookCommand,SheetChange};
-    let bytes=package_with_part("xl/worksheets/sheet1.xml",|xml|xml.replace("</worksheet>",r#"<dataValidations count="2"><dataValidation type="custom" showErrorMessage="0" sqref="A1:A4"><formula1>A1&gt;=$C$1</formula1></dataValidation><dataValidation type="list" showErrorMessage="1" sqref="D1:D4"><formula1>$C$1:$C$2</formula1></dataValidation></dataValidations></worksheet>"#));
-    let mut book=session(&bytes);let s=book.host().sheets()[0].id();
-    for (a,t) in [("A1","2"),("A2","7"),("C1","5"),("C2","9")] {enter(&mut book,at(s,a),t);}
-    assert!(matches!(book.host().validation_status(at(s,"A1")),Some(ValidationStatus::Invalid(_))));
-    let receipt=book.dispatch(SkinIntent::Edit {edits:vec![CellEdit::Axis(calc_doc_model::AxisEdit::new(s,calc_doc_model::Axis::Rows,calc_doc_model::AxisChange::Insert,1,2).unwrap())]});assert!(receipt.accepted(),"{receipt:?}");
-    assert!(matches!(book.host().validation_status(at(s,"A3")),Some(ValidationStatus::Invalid(_))));
-    assert_eq!(book.host().validation_status(at(s,"A4")),Some(ValidationStatus::Valid));
-    assert_eq!(book.host().validation_list(at(s,"D3")).unwrap().len(),2);
-    let revision=book.host().revision().get();
-    let receipt=book.dispatch(SkinIntent::Command(WorkbookCommand::Sheet{sheet:Some(s),change:SheetChange::Rename{name:"Input data".into()}}));assert!(receipt.accepted(),"{receipt:?}, {revision}");
-    let before=book.host().scan_validation(s);let mut saved=Vec::new();book.save(&SavePolicy::default(),&mut saved).unwrap();
-    let reopened=session(&saved);let rs=reopened.host().sheets()[0].id();let after=reopened.host().scan_validation(rs);
-    assert_eq!((before.valid,before.invalid.len(),before.unavailable),(after.valid,after.invalid.len(),after.unavailable));
-    assert_eq!(before.unavailable,0);
-    assert!(part_text(&saved,"xl/worksheets/sheet1.xml").contains("$C$3"));
+    use calc_host::{SheetChange, ValidationStatus, WorkbookCommand};
+    let bytes = package_with_part("xl/worksheets/sheet1.xml", |xml| {
+        xml.replace("</worksheet>",r#"<dataValidations count="2"><dataValidation type="custom" showErrorMessage="0" sqref="A1:A4"><formula1>A1&gt;=$C$1</formula1></dataValidation><dataValidation type="list" showErrorMessage="1" sqref="D1:D4"><formula1>$C$1:$C$2</formula1></dataValidation></dataValidations></worksheet>"#)
+    });
+    let mut book = session(&bytes);
+    let s = book.host().sheets()[0].id();
+    for (a, t) in [("A1", "2"), ("A2", "7"), ("C1", "5"), ("C2", "9")] {
+        enter(&mut book, at(s, a), t);
+    }
+    assert!(matches!(
+        book.host().validation_status(at(s, "A1")),
+        Some(ValidationStatus::Invalid(_))
+    ));
+    let receipt = book.dispatch(SkinIntent::Edit {
+        edits: vec![CellEdit::Axis(
+            calc_doc_model::AxisEdit::new(
+                s,
+                calc_doc_model::Axis::Rows,
+                calc_doc_model::AxisChange::Insert,
+                1,
+                2,
+            )
+            .unwrap(),
+        )],
+    });
+    assert!(receipt.accepted(), "{receipt:?}");
+    assert!(matches!(
+        book.host().validation_status(at(s, "A3")),
+        Some(ValidationStatus::Invalid(_))
+    ));
+    assert_eq!(
+        book.host().validation_status(at(s, "A4")),
+        Some(ValidationStatus::Valid)
+    );
+    assert_eq!(book.host().validation_list(at(s, "D3")).unwrap().len(), 2);
+    let revision = book.host().revision().get();
+    let receipt = book.dispatch(SkinIntent::Command(WorkbookCommand::Sheet {
+        sheet: Some(s),
+        change: SheetChange::Rename {
+            name: "Input data".into(),
+        },
+    }));
+    assert!(receipt.accepted(), "{receipt:?}, {revision}");
+    let before = book.host().scan_validation(s);
+    let mut saved = Vec::new();
+    book.save(&SavePolicy::default(), &mut saved).unwrap();
+    let reopened = session(&saved);
+    let rs = reopened.host().sheets()[0].id();
+    let after = reopened.host().scan_validation(rs);
+    assert_eq!(
+        (before.valid, before.invalid.len(), before.unavailable),
+        (after.valid, after.invalid.len(), after.unavailable)
+    );
+    assert_eq!(before.unavailable, 0);
+    assert!(part_text(&saved, "xl/worksheets/sheet1.xml").contains("$C$3"));
 }
 
 /// Canonical range/formula changes keep x14 containers, revision IDs and unknown source metadata.
 #[cfg_attr(not(target_arch = "wasm32"), test)]
 #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
 fn dc_971p_40__validation_x14_and_container_metadata_survive_current_reference_writes() {
-    let bytes=package_with_part("xl/worksheets/sheet1.xml",|xml|xml.replace("</worksheet>",r#"<dataValidations count="1" disablePrompts="1" xWindow="117"><dataValidation type="whole" allowBlank="1" showErrorMessage="0" sqref="A1:A3" xmlns:meta="urn:retained" meta:flag="keep"><formula1>1</formula1><formula2>9</formula2><meta:formula1>opaque</meta:formula1><meta:dataValidation><formula1>retained nested</formula1></meta:dataValidation></dataValidation></dataValidations><extLst><ext uri="{CCE6A557-97BC-4B89-ADB6-D9C93CAAB3DF}" xmlns:x14="http://schemas.microsoft.com/office/spreadsheetml/2009/9/main"><x14:dataValidations count="1" xmlns:xm="http://schemas.microsoft.com/office/excel/2006/main"><x14:dataValidation type="list" allowBlank="1" showErrorMessage="0" xmlns:meta="urn:retained" meta:flag="extended" sqref="ignored"><x14:formula1><xm:f>$C$1:$C$2</xm:f></x14:formula1><xm:sqref>D1:D3</xm:sqref></x14:dataValidation></x14:dataValidations></ext></extLst></worksheet>"#));
-    let mut book=session(&bytes);let s=book.host().sheets()[0].id();
-    enter(&mut book,at(s,"C1"),"Red");enter(&mut book,at(s,"C2"),"Green");enter(&mut book,at(s,"D1"),"Green");
-    let receipt=book.dispatch(SkinIntent::EditAxis(AxisEdit::new(s,Axis::Rows,AxisChange::Insert,1,2).unwrap()));assert!(receipt.accepted(),"{receipt:?}");
-    assert_eq!(book.host().validation_list(at(s,"D3")).unwrap().len(),2);
-    let before=book.host().scan_validation(s);let mut saved=Vec::new();book.save(&SavePolicy::default(),&mut saved).unwrap();
-    let xml=part_text(&saved,"xl/worksheets/sheet1.xml");
-    for text in ["disablePrompts=\"1\"","xWindow=\"117\"","meta:flag=\"keep\"","meta:flag=\"extended\"","$C$3:$C$4","D3:D5","<meta:formula1>opaque</meta:formula1>","<formula1>retained nested</formula1>"] {assert!(xml.contains(text),"{text}: {xml}");}
-    let reopened=session(&saved);let rs=reopened.host().sheets()[0].id();let after=reopened.host().scan_validation(rs);
-    assert_eq!((before.valid,before.invalid.len(),before.unavailable),(after.valid,after.invalid.len(),after.unavailable));assert_eq!(after.unavailable,0);
+    let bytes = package_with_part("xl/worksheets/sheet1.xml", |xml| {
+        xml.replace("</worksheet>",r#"<dataValidations count="1" disablePrompts="1" xWindow="117"><dataValidation type="whole" allowBlank="1" showErrorMessage="0" sqref="A1:A3" xmlns:meta="urn:retained" meta:flag="keep"><formula1>1</formula1><formula2>9</formula2><meta:formula1>opaque</meta:formula1><meta:dataValidation><formula1>retained nested</formula1></meta:dataValidation></dataValidation></dataValidations><extLst><ext uri="{CCE6A557-97BC-4B89-ADB6-D9C93CAAB3DF}" xmlns:x14="http://schemas.microsoft.com/office/spreadsheetml/2009/9/main"><x14:dataValidations count="1" xmlns:xm="http://schemas.microsoft.com/office/excel/2006/main"><x14:dataValidation type="list" allowBlank="1" showErrorMessage="0" xmlns:meta="urn:retained" meta:flag="extended" sqref="ignored"><x14:formula1><xm:f>$C$1:$C$2</xm:f></x14:formula1><xm:sqref>D1:D3</xm:sqref></x14:dataValidation></x14:dataValidations></ext></extLst></worksheet>"#)
+    });
+    let mut book = session(&bytes);
+    let s = book.host().sheets()[0].id();
+    enter(&mut book, at(s, "C1"), "Red");
+    enter(&mut book, at(s, "C2"), "Green");
+    enter(&mut book, at(s, "D1"), "Green");
+    let receipt = book.dispatch(SkinIntent::EditAxis(
+        AxisEdit::new(s, Axis::Rows, AxisChange::Insert, 1, 2).unwrap(),
+    ));
+    assert!(receipt.accepted(), "{receipt:?}");
+    assert_eq!(book.host().validation_list(at(s, "D3")).unwrap().len(), 2);
+    let before = book.host().scan_validation(s);
+    let mut saved = Vec::new();
+    book.save(&SavePolicy::default(), &mut saved).unwrap();
+    let xml = part_text(&saved, "xl/worksheets/sheet1.xml");
+    for text in [
+        "disablePrompts=\"1\"",
+        "xWindow=\"117\"",
+        "meta:flag=\"keep\"",
+        "meta:flag=\"extended\"",
+        "$C$3:$C$4",
+        "D3:D5",
+        "<meta:formula1>opaque</meta:formula1>",
+        "<formula1>retained nested</formula1>",
+    ] {
+        assert!(xml.contains(text), "{text}: {xml}");
+    }
+    let reopened = session(&saved);
+    let rs = reopened.host().sheets()[0].id();
+    let after = reopened.host().scan_validation(rs);
+    assert_eq!(
+        (before.valid, before.invalid.len(), before.unavailable),
+        (after.valid, after.invalid.len(), after.unavailable)
+    );
+    assert_eq!(after.unavailable, 0);
 }
-
 
 #[cfg_attr(not(target_arch = "wasm32"), test)]
 #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
 fn dc_971p_40__literal_candidates_recalculate_formula_bounds_and_lists() {
-    let bytes=package_with_part("xl/worksheets/sheet1.xml",|xml|xml.replace("</worksheet>",r#"<dataValidations count="2"><dataValidation type="whole" operator="lessThan" showErrorMessage="1" sqref="A1"><formula1>B1</formula1></dataValidation><dataValidation type="list" showErrorMessage="1" sqref="C1"><formula1>D1</formula1></dataValidation></dataValidations></worksheet>"#));
-    let mut book=session(&bytes);let s=book.host().sheets()[0].id();
-    enter(&mut book,at(s,"B1"),"=A1*2");enter(&mut book,at(s,"D1"),"=C1");
-    assert!(enter(&mut book,at(s,"A1"),"3").accepted());
-    for (address,text,valid) in [("A1","7",true),("A1","0",false),("C1","Red",true)] {
-        let input=calc_host::interpret_entry_in(text,Some(&book.host().entry_environment())).unwrap();
-        assert_eq!(book.host().check_entry(at(s,address),input.as_ref()).is_ok(),valid,"{address} {text}");
+    let bytes = package_with_part("xl/worksheets/sheet1.xml", |xml| {
+        xml.replace("</worksheet>",r#"<dataValidations count="2"><dataValidation type="whole" operator="lessThan" showErrorMessage="1" sqref="A1"><formula1>B1</formula1></dataValidation><dataValidation type="list" showErrorMessage="1" sqref="C1"><formula1>D1</formula1></dataValidation></dataValidations></worksheet>"#)
+    });
+    let mut book = session(&bytes);
+    let s = book.host().sheets()[0].id();
+    enter(&mut book, at(s, "B1"), "=A1*2");
+    enter(&mut book, at(s, "D1"), "=C1");
+    assert!(enter(&mut book, at(s, "A1"), "3").accepted());
+    for (address, text, valid) in [("A1", "7", true), ("A1", "0", false), ("C1", "Red", true)] {
+        let input =
+            calc_host::interpret_entry_in(text, Some(&book.host().entry_environment())).unwrap();
+        assert_eq!(
+            book.host()
+                .check_entry(at(s, address), input.as_ref())
+                .is_ok(),
+            valid,
+            "{address} {text}"
+        );
     }
 }
 
 #[cfg_attr(not(target_arch = "wasm32"), test)]
 #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
 fn dc_971p_40__rejected_candidate_does_not_call_live_user_function_providers() {
-    use std::{rc::Rc,cell::Cell};
-    #[derive(Debug)] struct Counter(Rc<Cell<u32>>);
+    use std::{cell::Cell, rc::Rc};
+    #[derive(Debug)]
+    struct Counter(Rc<Cell<u32>>);
     impl calc_fml::UserFunction for Counter {
-        fn call(&self,_:&[calc_value::CalcValue])->Result<calc_value::CalcValue,String>{self.0.set(self.0.get()+1);Ok(calc_value::CalcValue::number(1.))}
+        fn call(&self, _: &[calc_value::CalcValue]) -> Result<calc_value::CalcValue, String> {
+            self.0.set(self.0.get() + 1);
+            Ok(calc_value::CalcValue::number(1.))
+        }
     }
-    let bytes=package_with_part("xl/worksheets/sheet1.xml",|xml|xml.replace("</worksheet>",r#"<dataValidations count="1"><dataValidation type="custom" showErrorMessage="1" sqref="A1"><formula1>A1&gt;0</formula1></dataValidation></dataValidations></worksheet>"#));
-    let mut book=session(&bytes);let s=book.host().sheets()[0].id();let calls=Rc::new(Cell::new(0));
-    let mut functions=calc_fml::CallableTable::new();functions.register("ValidationCounter",Rc::new(Counter(calls.clone()))).unwrap();book.set_user_functions(functions);
-    assert!(enter(&mut book,at(s,"Z1"),"=ValidationCounter()").accepted());
-    calls.set(0);let revision=book.host().revision();let depth=book.history_depth();
-    let input=calc_host::interpret_entry_in("-3",Some(&book.host().entry_environment())).unwrap();
-    let failure=book.host().check_entry(at(s,"A1"),input.as_ref()).unwrap_err();
+    let bytes = package_with_part("xl/worksheets/sheet1.xml", |xml| {
+        xml.replace("</worksheet>",r#"<dataValidations count="1"><dataValidation type="custom" showErrorMessage="1" sqref="A1"><formula1>A1&gt;0</formula1></dataValidation></dataValidations></worksheet>"#)
+    });
+    let mut book = session(&bytes);
+    let s = book.host().sheets()[0].id();
+    let calls = Rc::new(Cell::new(0));
+    let mut functions = calc_fml::CallableTable::new();
+    functions
+        .register("ValidationCounter", Rc::new(Counter(calls.clone())))
+        .unwrap();
+    book.set_user_functions(functions);
+    assert!(enter(&mut book, at(s, "Z1"), "=ValidationCounter()").accepted());
+    calls.set(0);
+    let revision = book.host().revision();
+    let depth = book.history_depth();
+    let input =
+        calc_host::interpret_entry_in("-3", Some(&book.host().entry_environment())).unwrap();
+    let failure = book
+        .host()
+        .check_entry(at(s, "A1"), input.as_ref())
+        .unwrap_err();
     assert!(failure.title.contains("dc-971p.40"));
-    assert!(!book.dispatch(SkinIntent::EnterCell{at:at(s,"A1"),text:"-3".into()}).accepted());
-    assert_eq!(calls.get(),0);assert_eq!(book.host().revision(),revision);assert_eq!(book.history_depth(),depth);
+    assert!(
+        !book
+            .dispatch(SkinIntent::EnterCell {
+                at: at(s, "A1"),
+                text: "-3".into()
+            })
+            .accepted()
+    );
+    assert_eq!(calls.get(), 0);
+    assert_eq!(book.host().revision(), revision);
+    assert_eq!(book.history_depth(), depth);
 }
 
 #[cfg_attr(not(target_arch = "wasm32"), test)]
 #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
 fn dc_971p_40__deleting_rule_origin_rebases_surviving_cells_and_keeps_rules_when_notes_empty() {
     use calc_host::ValidationStatus;
-    for areas in ["A1:A4","A1 A3:A5"] {
-        let bytes=package_with_part_from(&calc_host::blank_package(),"xl/worksheets/sheet1.xml",|xml|xml.replace("</worksheet>",&format!(r#"<dataValidations count="1"><dataValidation type="custom" showErrorMessage="0" sqref="{areas}"><formula1>A1&gt;0</formula1></dataValidation></dataValidations></worksheet>"#)));
-        let mut book=session(&bytes);let s=book.host().sheets()[0].id();
-        for (a,v) in [("A1","1"),("A2","2"),("A3","3"),("A4","4"),("A5","5")] {enter(&mut book,at(s,a),v);}
-        assert!(book.dispatch(SkinIntent::EditAxis(AxisEdit::new(s,Axis::Rows,AxisChange::Delete,1,1).unwrap())).accepted());
-        let address=if areas.contains(' '){"A2"}else{"A1"};
-        assert_eq!(book.host().validation_status(at(s,address)),Some(ValidationStatus::Valid));
-        assert!(book.dispatch(SkinIntent::Undo).accepted());assert_eq!(book.host().validation_status(at(s,"A1")),Some(ValidationStatus::Valid));
+    for areas in ["A1:A4", "A1 A3:A5"] {
+        let bytes = package_with_part_from(
+            &calc_host::blank_package(),
+            "xl/worksheets/sheet1.xml",
+            |xml| {
+                xml.replace("</worksheet>",&format!(r#"<dataValidations count="1"><dataValidation type="custom" showErrorMessage="0" sqref="{areas}"><formula1>A1&gt;0</formula1></dataValidation></dataValidations></worksheet>"#))
+            },
+        );
+        let mut book = session(&bytes);
+        let s = book.host().sheets()[0].id();
+        for (a, v) in [
+            ("A1", "1"),
+            ("A2", "2"),
+            ("A3", "3"),
+            ("A4", "4"),
+            ("A5", "5"),
+        ] {
+            enter(&mut book, at(s, a), v);
+        }
+        assert!(
+            book.dispatch(SkinIntent::EditAxis(
+                AxisEdit::new(s, Axis::Rows, AxisChange::Delete, 1, 1).unwrap()
+            ))
+            .accepted()
+        );
+        let address = if areas.contains(' ') { "A2" } else { "A1" };
+        assert_eq!(
+            book.host().validation_status(at(s, address)),
+            Some(ValidationStatus::Valid)
+        );
+        assert!(book.dispatch(SkinIntent::Undo).accepted());
+        assert_eq!(
+            book.host().validation_status(at(s, "A1")),
+            Some(ValidationStatus::Valid)
+        );
         assert!(book.dispatch(SkinIntent::Redo).accepted());
-        let mut saved=Vec::new();book.save(&SavePolicy::default(),&mut saved).unwrap();let reopened=session(&saved);let rs=reopened.host().sheets()[0].id();
-        assert_eq!(reopened.host().validation_status(at(rs,address)),Some(ValidationStatus::Valid));
+        let mut saved = Vec::new();
+        book.save(&SavePolicy::default(), &mut saved).unwrap();
+        let reopened = session(&saved);
+        let rs = reopened.host().sheets()[0].id();
+        assert_eq!(
+            reopened.host().validation_status(at(rs, address)),
+            Some(ValidationStatus::Valid)
+        );
     }
-    let original=include_bytes!("fixtures/d2/structural-base.xlsx");
-    let bytes=package_with_part_from(original,"xl/worksheets/sheet1.xml",|xml|xml.replace("</worksheet>",r#"<dataValidations count="1"><dataValidation type="whole" operator="between" showErrorMessage="1" sqref="Z10:Z12"><formula1>1</formula1><formula2>9</formula2></dataValidation></dataValidations></worksheet>"#));
-    let mut book=session(&bytes);let s=sheet(book.host(),"S");assert!(!book.host().model().definitions().review_notes(s).is_empty());enter(&mut book,at(s,"Z10"),"5");
-    assert!(book.dispatch(SkinIntent::Edit{edits:vec![CellEdit::ConditionalRules{sheet:s,rules:vec![]}]}).accepted());
-    let revision=book.host().revision().get();
-    assert!(book.dispatch(SkinIntent::Command(calc_host::WorkbookCommand::AutoFilter{sheet:s,revision,change:calc_host::FilterChange::Remove})).accepted());
-    let receipt=book.dispatch(SkinIntent::EditAxis(AxisEdit::new(s,Axis::Rows,AxisChange::Delete,1,8).unwrap()));assert!(receipt.accepted(),"{receipt:?}");
-    assert!(book.host().model().definitions().review_notes(s).is_empty());assert_eq!(book.host().validation_status(at(s,"Z2")),Some(ValidationStatus::Valid));
-    let mut saved=Vec::new();book.save(&SavePolicy::default(),&mut saved).unwrap();let reopened=session(&saved);let rs=sheet(reopened.host(),"S");assert_eq!(reopened.host().validation_status(at(rs,"Z2")),Some(ValidationStatus::Valid));
+    let original = include_bytes!("fixtures/d2/structural-base.xlsx");
+    let bytes = package_with_part_from(original, "xl/worksheets/sheet1.xml", |xml| {
+        xml.replace("</worksheet>",r#"<dataValidations count="1"><dataValidation type="whole" operator="between" showErrorMessage="1" sqref="Z10:Z12"><formula1>1</formula1><formula2>9</formula2></dataValidation></dataValidations></worksheet>"#)
+    });
+    let mut book = session(&bytes);
+    let s = sheet(book.host(), "S");
+    assert!(!book.host().model().definitions().review_notes(s).is_empty());
+    enter(&mut book, at(s, "Z10"), "5");
+    assert!(
+        book.dispatch(SkinIntent::Edit {
+            edits: vec![CellEdit::ConditionalRules {
+                sheet: s,
+                rules: vec![]
+            }]
+        })
+        .accepted()
+    );
+    let revision = book.host().revision().get();
+    assert!(
+        book.dispatch(SkinIntent::Command(
+            calc_host::WorkbookCommand::AutoFilter {
+                sheet: s,
+                revision,
+                change: calc_host::FilterChange::Remove
+            }
+        ))
+        .accepted()
+    );
+    let receipt = book.dispatch(SkinIntent::EditAxis(
+        AxisEdit::new(s, Axis::Rows, AxisChange::Delete, 1, 8).unwrap(),
+    ));
+    assert!(receipt.accepted(), "{receipt:?}");
+    assert!(book.host().model().definitions().review_notes(s).is_empty());
+    assert_eq!(
+        book.host().validation_status(at(s, "Z2")),
+        Some(ValidationStatus::Valid)
+    );
+    let mut saved = Vec::new();
+    book.save(&SavePolicy::default(), &mut saved).unwrap();
+    let reopened = session(&saved);
+    let rs = sheet(reopened.host(), "S");
+    assert_eq!(
+        reopened.host().validation_status(at(rs, "Z2")),
+        Some(ValidationStatus::Valid)
+    );
 }
 
 #[cfg_attr(not(target_arch = "wasm32"), test)]
 #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
 fn dc_971p_40__raw_validation_edits_refuse_bad_coordinates_and_source_attribute_changes() {
-    let bytes=package_with_part("xl/worksheets/sheet1.xml",|xml|xml.replace("</worksheet>",r#"<dataValidations count="1"><dataValidation type="whole" showErrorMessage="1" sqref="Z1"><formula1>1</formula1><formula2>9</formula2></dataValidation></dataValidations></worksheet>"#));
-    let mut book=session(&bytes);let s=book.host().sheets()[0].id();let old=book.host().model().definitions().validations(s).to_vec();let revision=book.host().revision();let depth=book.history_depth();
+    let bytes = package_with_part("xl/worksheets/sheet1.xml", |xml| {
+        xml.replace("</worksheet>",r#"<dataValidations count="1"><dataValidation type="whole" showErrorMessage="1" sqref="Z1"><formula1>1</formula1><formula2>9</formula2></dataValidation></dataValidations></worksheet>"#)
+    });
+    let mut book = session(&bytes);
+    let s = book.host().sheets()[0].id();
+    let old = book.host().model().definitions().validations(s).to_vec();
+    let revision = book.host().revision();
+    let depth = book.history_depth();
     for malformed in 0..3 {
-        let mut rules=old.clone();if malformed==0{rules[0].areas=vec![(0,1,1,1)];}else if malformed==1{rules[0].allow_blank=!rules[0].allow_blank;rules[0].show_error=false;}else{rules[0].formula2=None;}
-        assert!(!book.dispatch(SkinIntent::Edit{edits:vec![CellEdit::Validations{sheet:s,rules}]}).accepted());
-        assert_eq!(book.host().revision(),revision);assert_eq!(book.history_depth(),depth);assert_eq!(book.host().model().definitions().validations(s),old);
+        let mut rules = old.clone();
+        if malformed == 0 {
+            rules[0].areas = vec![(0, 1, 1, 1)];
+        } else if malformed == 1 {
+            rules[0].allow_blank = !rules[0].allow_blank;
+            rules[0].show_error = false;
+        } else {
+            rules[0].formula2 = None;
+        }
+        assert!(
+            !book
+                .dispatch(SkinIntent::Edit {
+                    edits: vec![CellEdit::Validations { sheet: s, rules }]
+                })
+                .accepted()
+        );
+        assert_eq!(book.host().revision(), revision);
+        assert_eq!(book.history_depth(), depth);
+        assert_eq!(book.host().model().definitions().validations(s), old);
     }
-    let mut saved=Vec::new();book.save(&SavePolicy::default(),&mut saved).unwrap();let reopened=session(&saved);let rs=reopened.host().sheets()[0].id();let rule=&reopened.host().model().definitions().validations(rs)[0];assert!(!rule.allow_blank);assert!(rule.show_error);
+    let mut saved = Vec::new();
+    book.save(&SavePolicy::default(), &mut saved).unwrap();
+    let reopened = session(&saved);
+    let rs = reopened.host().sheets()[0].id();
+    let rule = &reopened.host().model().definitions().validations(rs)[0];
+    assert!(!rule.allow_blank);
+    assert!(rule.show_error);
 }
 fn review_action(
     book: &mut HostSession,
@@ -14749,322 +18307,2082 @@ fn dc_971p_40__legacy_note_revision_ids_remain_unique_after_reopen_and_raw_forge
 #[cfg_attr(not(target_arch = "wasm32"), test)]
 #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
 fn dc_971p_40__clipboard_all_copies_validation_notes_and_conditional_thresholds_atomically() {
-    use calc_host::{CopySnapshot,PasteSource,PasteMode,WorkbookCommand as W,ReviewAction as R,NoteStylePatch,ValidationStatus};
-    let bytes=package_with_part_from(&calc_host::blank_package(),"xl/worksheets/sheet1.xml",|xml|xml.replace("</worksheet>",r#"<dataValidations count="1"><dataValidation type="custom" showErrorMessage="0" sqref="A1:A3"><formula1>A1&gt;$Z$1</formula1></dataValidation></dataValidations><conditionalFormatting sqref="A1:A3"><cfRule type="dataBar" priority="1"><dataBar><cfvo type="formula" val="$Z$1"/><cfvo type="num" val="9"/><color rgb="FF123456"/></dataBar></cfRule></conditionalFormatting></worksheet>"#));
-    let mut book=session(&bytes);let s=book.host().sheets()[0].id();for (a,v) in [("A1","2"),("A2","5"),("A3","9"),("Z1","3")] {enter(&mut book,at(s,a),v);}
-    assert!(review_action(&mut book,at(s,"A2"),R::Create{parent:None,threaded:false,author:"Local".into(),text:"Rich 🧬".into(),timestamp:String::new()}).accepted());
-    assert!(review_action(&mut book,at(s,"A2"),R::Format{index:0,text:"Rich 🧬".into(),start:0,end:4,patch:NoteStylePatch{bold:Some(true),..Default::default()}}).accepted());
-    let snapshot=CopySnapshot::capture(book.host(),GridArea::new(at(s,"A1"),at(s,"A3")).unwrap()).unwrap();let depth=book.history_depth();
-    let plan=calc_host::prepare_paste(book.host(),PasteSource::Snapshot{snapshot:&snapshot,cut:false},GridArea::cell(at(s,"C4")),PasteMode::All).unwrap();let receipt=book.dispatch(SkinIntent::Command(W::Paste(plan)));assert!(receipt.accepted(),"{receipt:?}");assert_eq!(book.history_depth().0,depth.0+1);
-    assert!(matches!(book.host().validation_status(at(s,"C4")),Some(ValidationStatus::Invalid(_))));assert_eq!(book.host().validation_status(at(s,"C5")),Some(ValidationStatus::Valid));
-    let copied=book.host().model().definitions().review_notes(s).iter().find(|n|n.at==at(s,"C5")).unwrap();assert_eq!(copied.text,"Rich 🧬");assert!(copied.style_at(0).bold);
-    let source_id=book.host().model().definitions().review_notes(s).iter().find(|n|n.at==at(s,"A2")).unwrap().source.as_ref().unwrap();assert_ne!(source_id,copied.source.as_ref().unwrap());
-    assert!(book.host().model().definitions().conditional_rules(s).iter().any(|r|r.areas.iter().any(|a|a.contains(at(s,"C4")))&&r.threshold_formulas==["$Z$1"]));
-    assert!(book.dispatch(SkinIntent::Undo).accepted());assert!(book.host().validation(at(s,"C4")).is_none());assert!(book.host().model().definitions().review_notes(s).iter().all(|n|n.at!=at(s,"C5")));assert!(book.dispatch(SkinIntent::Redo).accepted());
-    let receipt=book.dispatch(SkinIntent::EditAxis(AxisEdit::new(s,Axis::Rows,AxisChange::Insert,1,1).unwrap()));assert!(receipt.accepted(),"{receipt:?}");
-    assert!(book.host().model().definitions().conditional_rules(s).iter().all(|r|r.threshold_formulas==["$Z$2"]));
-    let before=book.host().scan_validation(s);let mut saved=Vec::new();book.save(&SavePolicy::default(),&mut saved).unwrap();let reopened=session(&saved);let rs=reopened.host().sheets()[0].id();let after=reopened.host().scan_validation(rs);assert_eq!((before.valid,before.invalid.len(),before.unavailable),(after.valid,after.invalid.len(),after.unavailable));assert_eq!(after.unavailable,0);assert!(reopened.host().model().definitions().review_notes(rs).iter().any(|n|n.at==at(rs,"C6")&&n.style_at(0).bold));assert!(part_text(&saved,"xl/worksheets/sheet1.xml").contains("val=\"$Z$2\""));
+    use calc_host::{
+        CopySnapshot, NoteStylePatch, PasteMode, PasteSource, ReviewAction as R, ValidationStatus,
+        WorkbookCommand as W,
+    };
+    let bytes = package_with_part_from(
+        &calc_host::blank_package(),
+        "xl/worksheets/sheet1.xml",
+        |xml| {
+            xml.replace("</worksheet>",r#"<dataValidations count="1"><dataValidation type="custom" showErrorMessage="0" sqref="A1:A3"><formula1>A1&gt;$Z$1</formula1></dataValidation></dataValidations><conditionalFormatting sqref="A1:A3"><cfRule type="dataBar" priority="1"><dataBar><cfvo type="formula" val="$Z$1"/><cfvo type="num" val="9"/><color rgb="FF123456"/></dataBar></cfRule></conditionalFormatting></worksheet>"#)
+        },
+    );
+    let mut book = session(&bytes);
+    let s = book.host().sheets()[0].id();
+    for (a, v) in [("A1", "2"), ("A2", "5"), ("A3", "9"), ("Z1", "3")] {
+        enter(&mut book, at(s, a), v);
+    }
+    assert!(
+        review_action(
+            &mut book,
+            at(s, "A2"),
+            R::Create {
+                parent: None,
+                threaded: false,
+                author: "Local".into(),
+                text: "Rich 🧬".into(),
+                timestamp: String::new()
+            }
+        )
+        .accepted()
+    );
+    assert!(
+        review_action(
+            &mut book,
+            at(s, "A2"),
+            R::Format {
+                index: 0,
+                text: "Rich 🧬".into(),
+                start: 0,
+                end: 4,
+                patch: NoteStylePatch {
+                    bold: Some(true),
+                    ..Default::default()
+                }
+            }
+        )
+        .accepted()
+    );
+    let snapshot = CopySnapshot::capture(
+        book.host(),
+        GridArea::new(at(s, "A1"), at(s, "A3")).unwrap(),
+    )
+    .unwrap();
+    let depth = book.history_depth();
+    let plan = calc_host::prepare_paste(
+        book.host(),
+        PasteSource::Snapshot {
+            snapshot: &snapshot,
+            cut: false,
+        },
+        GridArea::cell(at(s, "C4")),
+        PasteMode::All,
+    )
+    .unwrap();
+    let receipt = book.dispatch(SkinIntent::Command(W::Paste(plan)));
+    assert!(receipt.accepted(), "{receipt:?}");
+    assert_eq!(book.history_depth().0, depth.0 + 1);
+    assert!(matches!(
+        book.host().validation_status(at(s, "C4")),
+        Some(ValidationStatus::Invalid(_))
+    ));
+    assert_eq!(
+        book.host().validation_status(at(s, "C5")),
+        Some(ValidationStatus::Valid)
+    );
+    let copied = book
+        .host()
+        .model()
+        .definitions()
+        .review_notes(s)
+        .iter()
+        .find(|n| n.at == at(s, "C5"))
+        .unwrap();
+    assert_eq!(copied.text, "Rich 🧬");
+    assert!(copied.style_at(0).bold);
+    let source_id = book
+        .host()
+        .model()
+        .definitions()
+        .review_notes(s)
+        .iter()
+        .find(|n| n.at == at(s, "A2"))
+        .unwrap()
+        .source
+        .as_ref()
+        .unwrap();
+    assert_ne!(source_id, copied.source.as_ref().unwrap());
+    assert!(
+        book.host()
+            .model()
+            .definitions()
+            .conditional_rules(s)
+            .iter()
+            .any(|r| r.areas.iter().any(|a| a.contains(at(s, "C4")))
+                && r.threshold_formulas == ["$Z$1"])
+    );
+    assert!(book.dispatch(SkinIntent::Undo).accepted());
+    assert!(book.host().validation(at(s, "C4")).is_none());
+    assert!(
+        book.host()
+            .model()
+            .definitions()
+            .review_notes(s)
+            .iter()
+            .all(|n| n.at != at(s, "C5"))
+    );
+    assert!(book.dispatch(SkinIntent::Redo).accepted());
+    let receipt = book.dispatch(SkinIntent::EditAxis(
+        AxisEdit::new(s, Axis::Rows, AxisChange::Insert, 1, 1).unwrap(),
+    ));
+    assert!(receipt.accepted(), "{receipt:?}");
+    assert!(
+        book.host()
+            .model()
+            .definitions()
+            .conditional_rules(s)
+            .iter()
+            .all(|r| r.threshold_formulas == ["$Z$2"])
+    );
+    let before = book.host().scan_validation(s);
+    let mut saved = Vec::new();
+    book.save(&SavePolicy::default(), &mut saved).unwrap();
+    let reopened = session(&saved);
+    let rs = reopened.host().sheets()[0].id();
+    let after = reopened.host().scan_validation(rs);
+    assert_eq!(
+        (before.valid, before.invalid.len(), before.unavailable),
+        (after.valid, after.invalid.len(), after.unavailable)
+    );
+    assert_eq!(after.unavailable, 0);
+    assert!(
+        reopened
+            .host()
+            .model()
+            .definitions()
+            .review_notes(rs)
+            .iter()
+            .any(|n| n.at == at(rs, "C6") && n.style_at(0).bold)
+    );
+    assert!(part_text(&saved, "xl/worksheets/sheet1.xml").contains("val=\"$Z$2\""));
 }
 
 #[cfg_attr(not(target_arch = "wasm32"), test)]
 #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
 fn dc_971p_40__clipboard_snapshot_restores_removed_metadata_at_same_or_new_cell() {
-    use calc_host::{CopySnapshot,PasteSource,PasteMode,WorkbookCommand as W,ReviewAction as R};
-    let bytes=package_with_part_from(&calc_host::blank_package(),"xl/worksheets/sheet1.xml",|xml|xml.replace("</worksheet>",r#"<dataValidations count="1"><dataValidation type="whole" operator="between" showErrorMessage="1" sqref="A1"><formula1>1</formula1><formula2>9</formula2></dataValidation></dataValidations><conditionalFormatting sqref="A1"><cfRule type="dataBar" priority="3"><dataBar><cfvo type="min"/><cfvo type="max"/><color rgb="FF123456"/></dataBar></cfRule></conditionalFormatting></worksheet>"#));
-    let mut book=session(&bytes);let s=book.host().sheets()[0].id();enter(&mut book,at(s,"A1"),"5");assert!(review_action(&mut book,at(s,"A1"),R::Create{parent:None,threaded:false,author:"Retained".into(),text:"Captured note".into(),timestamp:String::new()}).accepted());let mut baseline=Vec::new();book.save(&SavePolicy::default(),&mut baseline).unwrap();
-    for target in ["A1","B1"] {
-        let mut book=session(&baseline);let s=book.host().sheets()[0].id();let captured=CopySnapshot::capture(book.host(),GridArea::cell(at(s,"A1"))).unwrap();let blank=CopySnapshot::capture(book.host(),GridArea::cell(at(s,"Z20"))).unwrap();
-        let plan=calc_host::prepare_paste(book.host(),PasteSource::Snapshot{snapshot:&blank,cut:false},GridArea::cell(at(s,"A1")),PasteMode::All).unwrap();assert!(book.dispatch(SkinIntent::Command(W::Paste(plan))).accepted());assert!(book.host().model().definitions().review_notes(s).is_empty());assert!(book.host().validation(at(s,"A1")).is_none());
-        let plan=calc_host::prepare_paste(book.host(),PasteSource::Snapshot{snapshot:&captured,cut:false},GridArea::cell(at(s,target)),PasteMode::All).unwrap();let receipt=book.dispatch(SkinIntent::Command(W::Paste(plan)));assert!(receipt.accepted(),"{target}: {receipt:?}");assert!(book.host().validation(at(s,target)).is_some());assert!(book.host().model().definitions().review_notes(s).iter().any(|n|n.at==at(s,target)&&n.text=="Captured note"));assert!(book.host().model().definitions().conditional_rules(s).iter().any(|r|r.areas.iter().any(|a|a.contains(at(s,target)))));
-        assert!(book.dispatch(SkinIntent::Undo).accepted());assert!(book.host().model().definitions().review_notes(s).is_empty());assert!(book.dispatch(SkinIntent::Redo).accepted());let mut saved=Vec::new();book.save(&SavePolicy::default(),&mut saved).unwrap();let reopened=session(&saved);let rs=reopened.host().sheets()[0].id();assert!(reopened.host().model().definitions().review_notes(rs).iter().any(|n|n.at==at(rs,target)&&n.text=="Captured note"));assert!(reopened.host().validation(at(rs,target)).is_some());
+    use calc_host::{
+        CopySnapshot, PasteMode, PasteSource, ReviewAction as R, WorkbookCommand as W,
+    };
+    let bytes = package_with_part_from(
+        &calc_host::blank_package(),
+        "xl/worksheets/sheet1.xml",
+        |xml| {
+            xml.replace("</worksheet>",r#"<dataValidations count="1"><dataValidation type="whole" operator="between" showErrorMessage="1" sqref="A1"><formula1>1</formula1><formula2>9</formula2></dataValidation></dataValidations><conditionalFormatting sqref="A1"><cfRule type="dataBar" priority="3"><dataBar><cfvo type="min"/><cfvo type="max"/><color rgb="FF123456"/></dataBar></cfRule></conditionalFormatting></worksheet>"#)
+        },
+    );
+    let mut book = session(&bytes);
+    let s = book.host().sheets()[0].id();
+    enter(&mut book, at(s, "A1"), "5");
+    assert!(
+        review_action(
+            &mut book,
+            at(s, "A1"),
+            R::Create {
+                parent: None,
+                threaded: false,
+                author: "Retained".into(),
+                text: "Captured note".into(),
+                timestamp: String::new()
+            }
+        )
+        .accepted()
+    );
+    let mut baseline = Vec::new();
+    book.save(&SavePolicy::default(), &mut baseline).unwrap();
+    for target in ["A1", "B1"] {
+        let mut book = session(&baseline);
+        let s = book.host().sheets()[0].id();
+        let captured = CopySnapshot::capture(book.host(), GridArea::cell(at(s, "A1"))).unwrap();
+        let blank = CopySnapshot::capture(book.host(), GridArea::cell(at(s, "Z20"))).unwrap();
+        let plan = calc_host::prepare_paste(
+            book.host(),
+            PasteSource::Snapshot {
+                snapshot: &blank,
+                cut: false,
+            },
+            GridArea::cell(at(s, "A1")),
+            PasteMode::All,
+        )
+        .unwrap();
+        assert!(
+            book.dispatch(SkinIntent::Command(W::Paste(plan)))
+                .accepted()
+        );
+        assert!(book.host().model().definitions().review_notes(s).is_empty());
+        assert!(book.host().validation(at(s, "A1")).is_none());
+        let plan = calc_host::prepare_paste(
+            book.host(),
+            PasteSource::Snapshot {
+                snapshot: &captured,
+                cut: false,
+            },
+            GridArea::cell(at(s, target)),
+            PasteMode::All,
+        )
+        .unwrap();
+        let receipt = book.dispatch(SkinIntent::Command(W::Paste(plan)));
+        assert!(receipt.accepted(), "{target}: {receipt:?}");
+        assert!(book.host().validation(at(s, target)).is_some());
+        assert!(
+            book.host()
+                .model()
+                .definitions()
+                .review_notes(s)
+                .iter()
+                .any(|n| n.at == at(s, target) && n.text == "Captured note")
+        );
+        assert!(
+            book.host()
+                .model()
+                .definitions()
+                .conditional_rules(s)
+                .iter()
+                .any(|r| r.areas.iter().any(|a| a.contains(at(s, target))))
+        );
+        assert!(book.dispatch(SkinIntent::Undo).accepted());
+        assert!(book.host().model().definitions().review_notes(s).is_empty());
+        assert!(book.dispatch(SkinIntent::Redo).accepted());
+        let mut saved = Vec::new();
+        book.save(&SavePolicy::default(), &mut saved).unwrap();
+        let reopened = session(&saved);
+        let rs = reopened.host().sheets()[0].id();
+        assert!(
+            reopened
+                .host()
+                .model()
+                .definitions()
+                .review_notes(rs)
+                .iter()
+                .any(|n| n.at == at(rs, target) && n.text == "Captured note")
+        );
+        assert!(reopened.host().validation(at(rs, target)).is_some());
     }
 }
 
 #[cfg_attr(not(target_arch = "wasm32"), test)]
 #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
 fn dc_971p_40__clipboard_cut_retains_note_uid_and_moves_external_rule_references() {
-    use calc_host::{CopySnapshot,PasteSource,PasteMode,WorkbookCommand as W,ReviewAction as R};
-    let bytes=package_with_part_from(&calc_host::blank_package(),"xl/worksheets/sheet1.xml",|xml|xml.replace("</worksheet>",r#"<dataValidations count="1"><dataValidation type="custom" showErrorMessage="0" sqref="Z1"><formula1>A1&gt;0</formula1></dataValidation></dataValidations><conditionalFormatting sqref="Y1"><cfRule type="expression" priority="1"><formula>A1&gt;0</formula></cfRule></conditionalFormatting></worksheet>"#));
-    let mut book=session(&bytes);let s=book.host().sheets()[0].id();enter(&mut book,at(s,"A1"),"5");assert!(review_action(&mut book,at(s,"A1"),R::Create{parent:None,threaded:false,author:"A".into(),text:"Move me".into(),timestamp:String::new()}).accepted());let mut baseline=Vec::new();book.save(&SavePolicy::default(),&mut baseline).unwrap();
-    for cross_sheet in [false,true] {
-        let mut book=session(&baseline);let s=book.host().sheets()[0].id();let old_uid=match &book.host().model().definitions().review_notes(s)[0].source {Some(calc_doc_model::ReviewSource::Note{uid:Some(id),..})=>id.clone(),_=>panic!("uid")};
-        let target=if cross_sheet{assert!(book.dispatch(SkinIntent::Command(W::Sheet{sheet:None,change:calc_host::SheetChange::Add{name:"Target".into()}})).accepted());book.host().sheets()[1].id()}else{s};
-        let snapshot=CopySnapshot::capture(book.host(),GridArea::cell(at(s,"A1"))).unwrap();let plan=calc_host::prepare_paste(book.host(),PasteSource::Snapshot{snapshot:&snapshot,cut:true},GridArea::cell(at(target,"C4")),PasteMode::All).unwrap();let receipt=book.dispatch(SkinIntent::Command(W::Paste(plan)));assert!(receipt.accepted(),"{receipt:?}");
-        assert!(book.host().model().definitions().review_notes(s).iter().all(|n|n.at!=at(s,"A1")));assert_eq!(book.host().model().definitions().review_notes(target).iter().find(|n|n.at==at(target,"C4")).unwrap().text,"Move me");
-        let dv=&book.host().model().definitions().validations(s)[0];assert!(dv.formula1.as_ref().unwrap().contains("C4"));assert!(book.host().model().definitions().conditional_rules(s)[0].formulas[0].contains("C4"));
-        let mut saved=Vec::new();book.save(&SavePolicy::default(),&mut saved).unwrap();let reopened=session(&saved);let target=sheet(reopened.host(),if cross_sheet{"Target"}else{"Sheet1"});let note=reopened.host().model().definitions().review_notes(target).iter().find(|n|n.at==at(target,"C4")).unwrap();assert!(matches!(&note.source,Some(calc_doc_model::ReviewSource::Note{uid:Some(id),..})if id==&old_uid));
+    use calc_host::{
+        CopySnapshot, PasteMode, PasteSource, ReviewAction as R, WorkbookCommand as W,
+    };
+    let bytes = package_with_part_from(
+        &calc_host::blank_package(),
+        "xl/worksheets/sheet1.xml",
+        |xml| {
+            xml.replace("</worksheet>",r#"<dataValidations count="1"><dataValidation type="custom" showErrorMessage="0" sqref="Z1"><formula1>A1&gt;0</formula1></dataValidation></dataValidations><conditionalFormatting sqref="Y1"><cfRule type="expression" priority="1"><formula>A1&gt;0</formula></cfRule></conditionalFormatting></worksheet>"#)
+        },
+    );
+    let mut book = session(&bytes);
+    let s = book.host().sheets()[0].id();
+    enter(&mut book, at(s, "A1"), "5");
+    assert!(
+        review_action(
+            &mut book,
+            at(s, "A1"),
+            R::Create {
+                parent: None,
+                threaded: false,
+                author: "A".into(),
+                text: "Move me".into(),
+                timestamp: String::new()
+            }
+        )
+        .accepted()
+    );
+    let mut baseline = Vec::new();
+    book.save(&SavePolicy::default(), &mut baseline).unwrap();
+    for cross_sheet in [false, true] {
+        let mut book = session(&baseline);
+        let s = book.host().sheets()[0].id();
+        let old_uid = match &book.host().model().definitions().review_notes(s)[0].source {
+            Some(calc_doc_model::ReviewSource::Note { uid: Some(id), .. }) => id.clone(),
+            _ => panic!("uid"),
+        };
+        let target = if cross_sheet {
+            assert!(
+                book.dispatch(SkinIntent::Command(W::Sheet {
+                    sheet: None,
+                    change: calc_host::SheetChange::Add {
+                        name: "Target".into()
+                    }
+                }))
+                .accepted()
+            );
+            book.host().sheets()[1].id()
+        } else {
+            s
+        };
+        let snapshot = CopySnapshot::capture(book.host(), GridArea::cell(at(s, "A1"))).unwrap();
+        let plan = calc_host::prepare_paste(
+            book.host(),
+            PasteSource::Snapshot {
+                snapshot: &snapshot,
+                cut: true,
+            },
+            GridArea::cell(at(target, "C4")),
+            PasteMode::All,
+        )
+        .unwrap();
+        let receipt = book.dispatch(SkinIntent::Command(W::Paste(plan)));
+        assert!(receipt.accepted(), "{receipt:?}");
+        assert!(
+            book.host()
+                .model()
+                .definitions()
+                .review_notes(s)
+                .iter()
+                .all(|n| n.at != at(s, "A1"))
+        );
+        assert_eq!(
+            book.host()
+                .model()
+                .definitions()
+                .review_notes(target)
+                .iter()
+                .find(|n| n.at == at(target, "C4"))
+                .unwrap()
+                .text,
+            "Move me"
+        );
+        let dv = &book.host().model().definitions().validations(s)[0];
+        assert!(dv.formula1.as_ref().unwrap().contains("C4"));
+        assert!(
+            book.host().model().definitions().conditional_rules(s)[0].formulas[0].contains("C4")
+        );
+        let mut saved = Vec::new();
+        book.save(&SavePolicy::default(), &mut saved).unwrap();
+        let reopened = session(&saved);
+        let target = sheet(
+            reopened.host(),
+            if cross_sheet { "Target" } else { "Sheet1" },
+        );
+        let note = reopened
+            .host()
+            .model()
+            .definitions()
+            .review_notes(target)
+            .iter()
+            .find(|n| n.at == at(target, "C4"))
+            .unwrap();
+        assert!(
+            matches!(&note.source,Some(calc_doc_model::ReviewSource::Note{uid:Some(id),..})if id==&old_uid)
+        );
     }
 }
-
 
 #[cfg_attr(not(target_arch = "wasm32"), test)]
 #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
 fn dc_971p_40__removing_imported_rgb_note_color_preserves_other_run_properties() {
-    use calc_host::{ReviewAction as R,NoteStylePatch};
-    let mut book=session(&calc_host::blank_package());let s=book.host().sheets()[0].id();
-    assert!(review_action(&mut book,at(s,"A1"),R::Create{parent:None,threaded:false,author:"A".into(),text:"Colored".into(),timestamp:String::new()}).accepted());
-    assert!(review_action(&mut book,at(s,"A1"),R::Format{index:0,text:"Colored".into(),start:0,end:7,patch:NoteStylePatch{bold:Some(true),color:Some("#123456".into()),..Default::default()}}).accepted());
-    let mut saved=Vec::new();book.save(&SavePolicy::default(),&mut saved).unwrap();let mut book=session(&saved);let s=book.host().sheets()[0].id();
-    let mut notes=book.host().model().definitions().review_notes(s).to_vec();let part=notes[0].source.as_ref().unwrap().part().to_owned();
-    assert!(notes[0].spans.iter().any(|span|span.style.color.is_some()));
-    for span in &mut notes[0].spans {span.style.color=None;}
-    let receipt=book.dispatch(SkinIntent::Edit{edits:vec![CellEdit::ReviewNotes{sheet:s,notes}]});assert!(receipt.accepted(),"{receipt:?}");
-    let mut saved=Vec::new();book.save(&SavePolicy::default(),&mut saved).unwrap();let xml=part_text(&saved,&part);assert!(!xml.contains("123456"),"{xml}");
-    let reopened=session(&saved);let rs=reopened.host().sheets()[0].id();let note=&reopened.host().model().definitions().review_notes(rs)[0];assert!(note.style_at(0).bold);assert_eq!(note.style_at(0).color,None);
+    use calc_host::{NoteStylePatch, ReviewAction as R};
+    let mut book = session(&calc_host::blank_package());
+    let s = book.host().sheets()[0].id();
+    assert!(
+        review_action(
+            &mut book,
+            at(s, "A1"),
+            R::Create {
+                parent: None,
+                threaded: false,
+                author: "A".into(),
+                text: "Colored".into(),
+                timestamp: String::new()
+            }
+        )
+        .accepted()
+    );
+    assert!(
+        review_action(
+            &mut book,
+            at(s, "A1"),
+            R::Format {
+                index: 0,
+                text: "Colored".into(),
+                start: 0,
+                end: 7,
+                patch: NoteStylePatch {
+                    bold: Some(true),
+                    color: Some("#123456".into()),
+                    ..Default::default()
+                }
+            }
+        )
+        .accepted()
+    );
+    let mut saved = Vec::new();
+    book.save(&SavePolicy::default(), &mut saved).unwrap();
+    let mut book = session(&saved);
+    let s = book.host().sheets()[0].id();
+    let mut notes = book.host().model().definitions().review_notes(s).to_vec();
+    let part = notes[0].source.as_ref().unwrap().part().to_owned();
+    assert!(notes[0].spans.iter().any(|span| span.style.color.is_some()));
+    for span in &mut notes[0].spans {
+        span.style.color = None;
+    }
+    let receipt = book.dispatch(SkinIntent::Edit {
+        edits: vec![CellEdit::ReviewNotes { sheet: s, notes }],
+    });
+    assert!(receipt.accepted(), "{receipt:?}");
+    let mut saved = Vec::new();
+    book.save(&SavePolicy::default(), &mut saved).unwrap();
+    let xml = part_text(&saved, &part);
+    assert!(!xml.contains("123456"), "{xml}");
+    let reopened = session(&saved);
+    let rs = reopened.host().sheets()[0].id();
+    let note = &reopened.host().model().definitions().review_notes(rs)[0];
+    assert!(note.style_at(0).bold);
+    assert_eq!(note.style_at(0).color, None);
 }
 
 #[cfg_attr(not(target_arch = "wasm32"), test)]
 #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
 fn dc_971p_40__unrelated_paste_keeps_imported_thread_fallback_exactly() {
-    use calc_host::{CopySnapshot,PasteSource,PasteMode,WorkbookCommand as W};
-    let bytes=include_bytes!("fixtures/d2/structural-base.xlsx");let mut book=session(bytes);let s=sheet(book.host(),"U");
-    let notes=book.host().model().definitions().review_notes(s).to_vec();assert!(notes.iter().any(|n|n.compatibility));
-    let snapshot=CopySnapshot::capture(book.host(),GridArea::cell(at(s,"X20"))).unwrap();let plan=calc_host::prepare_paste(book.host(),PasteSource::Snapshot{snapshot:&snapshot,cut:false},GridArea::cell(at(s,"Z20")),PasteMode::All).unwrap();assert!(book.dispatch(SkinIntent::Command(W::Paste(plan))).accepted());
-    assert_eq!(book.host().model().definitions().review_notes(s),notes);
-    let mut saved=Vec::new();book.save(&SavePolicy::default(),&mut saved).unwrap();for n in &notes {if let Some(source)=&n.source {assert_eq!(part_text(bytes,source.part()),part_text(&saved,source.part()));}}
+    use calc_host::{CopySnapshot, PasteMode, PasteSource, WorkbookCommand as W};
+    let bytes = include_bytes!("fixtures/d2/structural-base.xlsx");
+    let mut book = session(bytes);
+    let s = sheet(book.host(), "U");
+    let notes = book.host().model().definitions().review_notes(s).to_vec();
+    assert!(notes.iter().any(|n| n.compatibility));
+    let snapshot = CopySnapshot::capture(book.host(), GridArea::cell(at(s, "X20"))).unwrap();
+    let plan = calc_host::prepare_paste(
+        book.host(),
+        PasteSource::Snapshot {
+            snapshot: &snapshot,
+            cut: false,
+        },
+        GridArea::cell(at(s, "Z20")),
+        PasteMode::All,
+    )
+    .unwrap();
+    assert!(
+        book.dispatch(SkinIntent::Command(W::Paste(plan)))
+            .accepted()
+    );
+    assert_eq!(book.host().model().definitions().review_notes(s), notes);
+    let mut saved = Vec::new();
+    book.save(&SavePolicy::default(), &mut saved).unwrap();
+    for n in &notes {
+        if let Some(source) = &n.source {
+            assert_eq!(
+                part_text(bytes, source.part()),
+                part_text(&saved, source.part())
+            );
+        }
+    }
 }
 
 #[cfg_attr(not(target_arch = "wasm32"), test)]
 #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
 fn dc_971p_40__opaque_note_runs_never_become_visible_text_or_formatting() {
-    use calc_host::{ReviewAction as R,NoteStylePatch};
-    let mut book=session(&calc_host::blank_package());let s=book.host().sheets()[0].id();
-    assert!(review_action(&mut book,at(s,"A1"),R::Create{parent:None,threaded:false,author:"A".into(),text:"Visible".into(),timestamp:String::new()}).accepted());
-    assert!(review_action(&mut book,at(s,"A1"),R::Format{index:0,text:"Visible".into(),start:0,end:7,patch:NoteStylePatch{bold:Some(true),..Default::default()}}).accepted());
-    let mut saved=Vec::new();book.save(&SavePolicy::default(),&mut saved).unwrap();let part=book.host().model().definitions().review_notes(s)[0].source.as_ref().unwrap().part().to_owned();
-    let unknown=r#"<v:opaque xmlns:v="urn:retained"><r><rPr><i/></rPr><t>Hidden long text</t></r></v:opaque>"#;
-    let augmented=package_with_part_from(&saved,&part,|xml|xml.replacen("<text",&format!("{unknown}<text"),1));
-    assert!(part_text(&augmented,&part).contains(unknown));let mut book=session(&augmented);let s=book.host().sheets()[0].id();let note=&book.host().model().definitions().review_notes(s)[0];
-    assert_eq!(note.text,"Visible");assert!(note.valid_spans());assert!(note.style_at(0).bold);assert!(!note.style_at(0).italic);assert_eq!(calc_host::note_segments(note).iter().map(|(s,_)|s.as_str()).collect::<String>(),"Visible");
-    assert!(review_action(&mut book,at(s,"A1"),R::Edit{index:0,text:"Visible edited".into()}).accepted());let mut saved=Vec::new();book.save(&SavePolicy::default(),&mut saved).unwrap();assert!(part_text(&saved,&part).contains(unknown));
-    let annotated=package_with_part_from(&augmented,&part,|xml|xml.replacen("</text>",&format!("{unknown}</text>"),1));let mut book=session(&annotated);let s=book.host().sheets()[0].id();let note=&book.host().model().definitions().review_notes(s)[0];assert!(!note.editable);assert!(note.annotated);assert_eq!(note.text,"Visible");
-    let revision=book.host().revision();assert!(!review_action(&mut book,at(s,"A1"),R::Edit{index:0,text:"Changed".into()}).accepted());assert_eq!(book.host().revision(),revision);
-    assert!(book.dispatch(SkinIntent::EditAxis(AxisEdit::new(s,Axis::Rows,AxisChange::Insert,1,1).unwrap())).accepted());let mut saved=Vec::new();book.save(&SavePolicy::default(),&mut saved).unwrap();let reopened=session(&saved);let rs=reopened.host().sheets()[0].id();let note=&reopened.host().model().definitions().review_notes(rs)[0];assert_eq!(note.at,at(rs,"A2"));assert!(note.annotated);assert_eq!(part_text(&saved,&part).matches(unknown).count(),2);
+    use calc_host::{NoteStylePatch, ReviewAction as R};
+    let mut book = session(&calc_host::blank_package());
+    let s = book.host().sheets()[0].id();
+    assert!(
+        review_action(
+            &mut book,
+            at(s, "A1"),
+            R::Create {
+                parent: None,
+                threaded: false,
+                author: "A".into(),
+                text: "Visible".into(),
+                timestamp: String::new()
+            }
+        )
+        .accepted()
+    );
+    assert!(
+        review_action(
+            &mut book,
+            at(s, "A1"),
+            R::Format {
+                index: 0,
+                text: "Visible".into(),
+                start: 0,
+                end: 7,
+                patch: NoteStylePatch {
+                    bold: Some(true),
+                    ..Default::default()
+                }
+            }
+        )
+        .accepted()
+    );
+    let mut saved = Vec::new();
+    book.save(&SavePolicy::default(), &mut saved).unwrap();
+    let part = book.host().model().definitions().review_notes(s)[0]
+        .source
+        .as_ref()
+        .unwrap()
+        .part()
+        .to_owned();
+    let unknown = r#"<v:opaque xmlns:v="urn:retained"><r><rPr><i/></rPr><t>Hidden long text</t></r></v:opaque>"#;
+    let augmented = package_with_part_from(&saved, &part, |xml| {
+        xml.replacen("<text", &format!("{unknown}<text"), 1)
+    });
+    assert!(part_text(&augmented, &part).contains(unknown));
+    let mut book = session(&augmented);
+    let s = book.host().sheets()[0].id();
+    let note = &book.host().model().definitions().review_notes(s)[0];
+    assert_eq!(note.text, "Visible");
+    assert!(note.valid_spans());
+    assert!(note.style_at(0).bold);
+    assert!(!note.style_at(0).italic);
+    assert_eq!(
+        calc_host::note_segments(note)
+            .iter()
+            .map(|(s, _)| s.as_str())
+            .collect::<String>(),
+        "Visible"
+    );
+    assert!(
+        review_action(
+            &mut book,
+            at(s, "A1"),
+            R::Edit {
+                index: 0,
+                text: "Visible edited".into()
+            }
+        )
+        .accepted()
+    );
+    let mut saved = Vec::new();
+    book.save(&SavePolicy::default(), &mut saved).unwrap();
+    assert!(part_text(&saved, &part).contains(unknown));
+    let annotated = package_with_part_from(&augmented, &part, |xml| {
+        xml.replacen("</text>", &format!("{unknown}</text>"), 1)
+    });
+    let mut book = session(&annotated);
+    let s = book.host().sheets()[0].id();
+    let note = &book.host().model().definitions().review_notes(s)[0];
+    assert!(!note.editable);
+    assert!(note.annotated);
+    assert_eq!(note.text, "Visible");
+    let revision = book.host().revision();
+    assert!(
+        !review_action(
+            &mut book,
+            at(s, "A1"),
+            R::Edit {
+                index: 0,
+                text: "Changed".into()
+            }
+        )
+        .accepted()
+    );
+    assert_eq!(book.host().revision(), revision);
+    assert!(
+        book.dispatch(SkinIntent::EditAxis(
+            AxisEdit::new(s, Axis::Rows, AxisChange::Insert, 1, 1).unwrap()
+        ))
+        .accepted()
+    );
+    let mut saved = Vec::new();
+    book.save(&SavePolicy::default(), &mut saved).unwrap();
+    let reopened = session(&saved);
+    let rs = reopened.host().sheets()[0].id();
+    let note = &reopened.host().model().definitions().review_notes(rs)[0];
+    assert_eq!(note.at, at(rs, "A2"));
+    assert!(note.annotated);
+    assert_eq!(part_text(&saved, &part).matches(unknown).count(), 2);
 }
 
-fn table_action(book:&mut HostSession,change:calc_host::TableChange)->calc_host::IntentReceipt{
-    let revision=book.host().revision().get();book.dispatch(SkinIntent::Command(calc_host::WorkbookCommand::Table{revision,change}))
+fn table_action(
+    book: &mut HostSession,
+    change: calc_host::TableChange,
+) -> calc_host::IntentReceipt {
+    let revision = book.host().revision().get();
+    book.dispatch(SkinIntent::Command(calc_host::WorkbookCommand::Table {
+        revision,
+        change,
+    }))
 }
-fn create_test_table(book:&mut HostSession)->(SheetId,String){
-    let s=book.host().sheets()[0].id();for (a,v) in [("A1","Item"),("B1","Amount"),("A2","First"),("B2","5"),("A3","Second"),("B3","9"),("A4","Third"),("B4","2")] {enter(book,at(s,a),v);}
-    let done=table_action(book,calc_host::TableChange::Create{area:GridArea::new(at(s,"A1"),at(s,"B3")).unwrap(),name:"Sales".into()});assert!(done.accepted(),"{done:?}");let part=book.host().model().definitions().tables()[0].part.clone();(s,part)
-}
-#[cfg_attr(not(target_arch = "wasm32"), test)]
-#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
-fn dc_971p_41__table_create_resize_rebind_history_and_xlsx_share_one_route(){
-    use calc_host::TableChange as T;let mut book=session(&calc_host::blank_package());let (s,part)=create_test_table(&mut book);enter(&mut book,at(s,"D1"),"=SUM(Sales[Amount])");assert_eq!(calculated(book.host(),at(s,"D1")),Some(CalcValue::number(14.)));
-    let receipt=table_action(&mut book,T::Resize{part:part.clone(),area:GridArea::new(at(s,"A1"),at(s,"B4")).unwrap()});assert!(receipt.accepted(),"{receipt:?}");assert_eq!(calculated(book.host(),at(s,"D1")),Some(CalcValue::number(16.)));assert!(book.dispatch(SkinIntent::Undo).accepted());assert_eq!(calculated(book.host(),at(s,"D1")),Some(CalcValue::number(14.)));assert!(book.dispatch(SkinIntent::Redo).accepted());assert_eq!(calculated(book.host(),at(s,"D1")),Some(CalcValue::number(16.)));
-    let old=book.host().model().definitions().tables()[0].clone();let mut saved=Vec::new();book.save(&SavePolicy::default(),&mut saved).unwrap();assert_eq!(part_text(&saved,"xl/worksheets/sheet1.xml").matches("<tableParts").count(),1);let mut reopened=session(&saved);assert!(reopened.dispatch(SkinIntent::Recalculate).accepted());assert_eq!(reopened.host().model().definitions().tables()[0],old);let rs=reopened.host().sheets()[0].id();assert_eq!(calculated(reopened.host(),at(rs,"D1")),Some(CalcValue::number(16.)));
-    let mut twice=Vec::new();reopened.save(&SavePolicy::default(),&mut twice).unwrap();assert_eq!(part_text(&saved,&part),part_text(&twice,&part));
-}
-#[cfg_attr(not(target_arch = "wasm32"), test)]
-#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
-fn dc_971p_41__totals_filters_and_manual_hiding_survive_reopen(){
-    use calc_host::{TableChange as T,WorkbookCommand as W,FilterChange as F,FilterCriteria as C,FilterPredicate as P,FilterOperator as O};let mut book=session(&calc_host::blank_package());let (s,part)=create_test_table(&mut book);assert!(book.dispatch(SkinIntent::Edit{edits:vec![CellEdit::Clear{area:GridArea::new(at(s,"A4"),at(s,"B4")).unwrap()}]}).accepted());
-    let receipt=table_action(&mut book,T::Options{part:part.clone(),headers:true,totals:true,style:"TableStyleMedium2".into(),row_stripes:true,column_stripes:false,first_column:false,last_column:false});assert!(receipt.accepted(),"{receipt:?}");assert_eq!(calculated(book.host(),at(s,"B4")),Some(CalcValue::number(14.)));
-    let revision=book.host().revision().get();let done=book.dispatch(SkinIntent::Command(W::TableFilter{sheet:s,revision,part:part.clone(),change:F::Column{column:2,criteria:Some(C::Custom{and:true,predicates:vec![P{operator:O::Greater,value:"5".into()}]})}}));assert!(done.accepted(),"{done:?}");assert_eq!(calculated(book.host(),at(s,"B4")),Some(CalcValue::number(9.)));assert!(book.host().model().definitions().tables()[0].filter.as_ref().unwrap().filtered_rows.contains(&2));
-    let f=book.host().model().definitions().axis_layouts().get(s,Axis::Rows,3).with_hidden(true);let done=book.dispatch(SkinIntent::Edit{edits:vec![CellEdit::AxisFormat(calc_host::AxisFormatEdit::new(s,Axis::Rows,3,f).unwrap())]});assert!(done.accepted(),"{done:?}");assert_eq!(calculated(book.host(),at(s,"B4")),Some(CalcValue::number(0.)));
-    let mut saved=Vec::new();book.save(&SavePolicy::default(),&mut saved).unwrap();let mut book=session(&saved);assert!(book.dispatch(SkinIntent::Recalculate).accepted());let s=book.host().sheets()[0].id();assert!(book.host().model().definitions().axis_layouts().get(s,Axis::Rows,3).hidden());assert!(!book.host().model().definitions().axis_layouts().get(s,Axis::Rows,2).hidden());assert_eq!(calculated(book.host(),at(s,"B4")),Some(CalcValue::number(0.)));
-    let revision=book.host().revision().get();assert!(book.dispatch(SkinIntent::Command(W::TableFilter{sheet:s,revision,part,change:F::Clear})).accepted());assert!(book.host().model().definitions().axis_layouts().get(s,Axis::Rows,3).hidden());assert_eq!(calculated(book.host(),at(s,"B4")),Some(CalcValue::number(5.)));
-}
-#[cfg_attr(not(target_arch = "wasm32"), test)]
-#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
-fn dc_971p_41__raw_header_metadata_and_occupied_header_targets_refuse_atomically(){
-    use calc_host::TableChange as T;let mut book=session(&calc_host::blank_package());let (s,part)=create_test_table(&mut book);let mut tables=book.host().model().definitions().tables().to_vec();tables[0].columns[0]="Renamed".into();let revision=book.host().revision();let done=book.dispatch(SkinIntent::Edit{edits:vec![CellEdit::Tables(tables)]});assert!(!done.accepted());assert_eq!(book.host().revision(),revision);
-    let options=|headers|T::Options{part:part.clone(),headers,totals:false,style:"TableStyleMedium2".into(),row_stripes:true,column_stripes:false,first_column:false,last_column:false};assert!(table_action(&mut book,options(false)).accepted());
-    for entry in ["=1+2","#N/A"]{enter(&mut book,at(s,"A1"),entry);let revision=book.host().revision();assert!(!table_action(&mut book,options(true)).accepted());assert_eq!(book.host().revision(),revision);}
-}
-#[cfg_attr(not(target_arch = "wasm32"), test)]
-#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
-fn dc_971p_41__formula_headers_use_published_values_and_create_undo_restores_inputs(){
-    use calc_host::TableChange as T;let mut book=session(&calc_host::blank_package());let s=book.host().sheets()[0].id();enter(&mut book,at(s,"A1"),"=10+20");enter(&mut book,at(s,"B1"),"#N/A");enter(&mut book,at(s,"A2"),"1");let old=book.host().model().cell(at(s,"A1")).cloned();let done=table_action(&mut book,T::Create{area:GridArea::new(at(s,"A1"),at(s,"B2")).unwrap(),name:"Headers".into()});assert!(done.accepted(),"{done:?}");assert_eq!(book.host().model().definitions().tables()[0].columns,["30","#N/A"]);assert!(book.dispatch(SkinIntent::Undo).accepted());assert!(book.host().model().definitions().tables().is_empty());assert_eq!(book.host().model().cell(at(s,"A1")),old.as_ref());assert!(book.dispatch(SkinIntent::Redo).accepted());let mut saved=Vec::new();book.save(&SavePolicy::default(),&mut saved).unwrap();assert_eq!(session(&saved).host().model().definitions().tables()[0].columns,["30","#N/A"]);
+fn create_test_table(book: &mut HostSession) -> (SheetId, String) {
+    let s = book.host().sheets()[0].id();
+    for (a, v) in [
+        ("A1", "Item"),
+        ("B1", "Amount"),
+        ("A2", "First"),
+        ("B2", "5"),
+        ("A3", "Second"),
+        ("B3", "9"),
+        ("A4", "Third"),
+        ("B4", "2"),
+    ] {
+        enter(book, at(s, a), v);
+    }
+    let done = table_action(
+        book,
+        calc_host::TableChange::Create {
+            area: GridArea::new(at(s, "A1"), at(s, "B3")).unwrap(),
+            name: "Sales".into(),
+        },
+    );
+    assert!(done.accepted(), "{done:?}");
+    let part = book.host().model().definitions().tables()[0].part.clone();
+    (s, part)
 }
 #[cfg_attr(not(target_arch = "wasm32"), test)]
 #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
-fn dc_971p_41__side_by_side_filters_retain_each_excluded_row_set(){
-    use calc_host::{TableChange as T,WorkbookCommand as W,FilterChange as F,FilterCriteria as C};let mut book=session(&calc_host::blank_package());let (s,first)=create_test_table(&mut book);for (a,v) in [("D1","Name"),("E1","Score"),("D2","First"),("E2","10"),("D3","Second"),("E3","1")] {enter(&mut book,at(s,a),v);}
-    assert!(table_action(&mut book,T::Create{area:GridArea::new(at(s,"D1"),at(s,"E3")).unwrap(),name:"Other".into()}).accepted());let second=book.host().model().definitions().tables()[1].part.clone();
-    for (part,column,value) in [(&first,2,"9"),(&second,5,"10")] {let revision=book.host().revision().get();let done=book.dispatch(SkinIntent::Command(W::TableFilter{sheet:s,revision,part:part.clone(),change:F::Column{column,criteria:Some(C::Values{values:vec![value.into()],blank:false})}}));assert!(done.accepted(),"{done:?}");}
-    let mut saved=Vec::new();book.save(&SavePolicy::default(),&mut saved).unwrap();let mut book=session(&saved);let s=book.host().sheets()[0].id();let tables=book.host().model().definitions().tables();assert_eq!(tables[0].filter.as_ref().unwrap().filtered_rows.iter().copied().collect::<Vec<_>>(),vec![2]);assert_eq!(tables[1].filter.as_ref().unwrap().filtered_rows.iter().copied().collect::<Vec<_>>(),vec![3]);let revision=book.host().revision().get();assert!(book.dispatch(SkinIntent::Command(W::TableFilter{sheet:s,revision,part:first,change:F::Clear})).accepted());let visible=book.host().model().definitions().visible_axis_layouts();assert!(!visible.get(s,Axis::Rows,2).hidden());assert!(visible.get(s,Axis::Rows,3).hidden());
+fn dc_971p_41__table_create_resize_rebind_history_and_xlsx_share_one_route() {
+    use calc_host::TableChange as T;
+    let mut book = session(&calc_host::blank_package());
+    let (s, part) = create_test_table(&mut book);
+    enter(&mut book, at(s, "D1"), "=SUM(Sales[Amount])");
+    assert_eq!(
+        calculated(book.host(), at(s, "D1")),
+        Some(CalcValue::number(14.))
+    );
+    let receipt = table_action(
+        &mut book,
+        T::Resize {
+            part: part.clone(),
+            area: GridArea::new(at(s, "A1"), at(s, "B4")).unwrap(),
+        },
+    );
+    assert!(receipt.accepted(), "{receipt:?}");
+    assert_eq!(
+        calculated(book.host(), at(s, "D1")),
+        Some(CalcValue::number(16.))
+    );
+    assert!(book.dispatch(SkinIntent::Undo).accepted());
+    assert_eq!(
+        calculated(book.host(), at(s, "D1")),
+        Some(CalcValue::number(14.))
+    );
+    assert!(book.dispatch(SkinIntent::Redo).accepted());
+    assert_eq!(
+        calculated(book.host(), at(s, "D1")),
+        Some(CalcValue::number(16.))
+    );
+    let old = book.host().model().definitions().tables()[0].clone();
+    let mut saved = Vec::new();
+    book.save(&SavePolicy::default(), &mut saved).unwrap();
+    assert_eq!(
+        part_text(&saved, "xl/worksheets/sheet1.xml")
+            .matches("<tableParts")
+            .count(),
+        1
+    );
+    let mut reopened = session(&saved);
+    assert!(reopened.dispatch(SkinIntent::Recalculate).accepted());
+    assert_eq!(reopened.host().model().definitions().tables()[0], old);
+    let rs = reopened.host().sheets()[0].id();
+    assert_eq!(
+        calculated(reopened.host(), at(rs, "D1")),
+        Some(CalcValue::number(16.))
+    );
+    let mut twice = Vec::new();
+    reopened.save(&SavePolicy::default(), &mut twice).unwrap();
+    assert_eq!(part_text(&saved, &part), part_text(&twice, &part));
 }
 #[cfg_attr(not(target_arch = "wasm32"), test)]
 #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
-fn dc_971p_41__prefixed_tables_preserve_column_metadata_and_filter_namespaces(){
-    use calc_host::{TableChange as T,WorkbookCommand as W,FilterChange as F,FilterCriteria as C};let mut book=session(&calc_host::blank_package());let (_,part)=create_test_table(&mut book);let mut saved=Vec::new();book.save(&SavePolicy::default(),&mut saved).unwrap();
-    let augmented=package_with_part_from(&saved,&part,|xml|{let mut xml=xml.replace("<tableColumns ","<tableColumns xmlns:v=\"urn:table-keep\" v:keep=\"container\" ");let start=xml.find("<tableColumn ").unwrap();let end=start+xml[start..].find('>').unwrap()+1;let tag=xml[start..end].replace("id=\"1\"","id=\"4294967295\"");assert!(tag.contains("4294967295"));xml.replace_range(start..end,&tag);for name in ["table","tableColumns","tableColumn","autoFilter","filterColumn","filters","filter","tableStyleInfo","extLst","ext"] {xml=xml.replace(&format!("<{name} "),&format!("<m:{name} ")).replace(&format!("<{name}>"),&format!("<m:{name}>")).replace(&format!("</{name}>"),&format!("</m:{name}>"));}xml.replace("xmlns=\"http://schemas.openxmlformats.org/spreadsheetml/2006/main\"","xmlns:m=\"http://schemas.openxmlformats.org/spreadsheetml/2006/main\"")});let mut book=session(&augmented);let s=book.host().sheets()[0].id();assert!(table_action(&mut book,T::Resize{part:part.clone(),area:GridArea::new(at(s,"A1"),at(s,"C3")).unwrap()}).accepted());let revision=book.host().revision().get();assert!(book.dispatch(SkinIntent::Command(W::TableFilter{sheet:s,revision,part:part.clone(),change:F::Column{column:2,criteria:Some(C::Values{values:vec!["9".into()],blank:false})}})).accepted());
-    let mut saved=Vec::new();book.save(&SavePolicy::default(),&mut saved).unwrap();let xml=part_text(&saved,&part);assert!(xml.contains("v:keep=\"container\""),"{xml}");assert_eq!(xml.matches("id=\"4294967295\"").count(),1);let reopened=session(&saved);let t=&reopened.host().model().definitions().tables()[0];assert_eq!(t.columns.len(),3);assert!(t.filter.as_ref().unwrap().filtered_rows.contains(&2));assert!(!t.filter.as_ref().unwrap().unsupported);
+fn dc_971p_41__totals_filters_and_manual_hiding_survive_reopen() {
+    use calc_host::{
+        FilterChange as F, FilterCriteria as C, FilterOperator as O, FilterPredicate as P,
+        TableChange as T, WorkbookCommand as W,
+    };
+    let mut book = session(&calc_host::blank_package());
+    let (s, part) = create_test_table(&mut book);
+    assert!(
+        book.dispatch(SkinIntent::Edit {
+            edits: vec![CellEdit::Clear {
+                area: GridArea::new(at(s, "A4"), at(s, "B4")).unwrap()
+            }]
+        })
+        .accepted()
+    );
+    let receipt = table_action(
+        &mut book,
+        T::Options {
+            part: part.clone(),
+            headers: true,
+            totals: true,
+            style: "TableStyleMedium2".into(),
+            row_stripes: true,
+            column_stripes: false,
+            first_column: false,
+            last_column: false,
+        },
+    );
+    assert!(receipt.accepted(), "{receipt:?}");
+    assert_eq!(
+        calculated(book.host(), at(s, "B4")),
+        Some(CalcValue::number(14.))
+    );
+    let revision = book.host().revision().get();
+    let done = book.dispatch(SkinIntent::Command(W::TableFilter {
+        sheet: s,
+        revision,
+        part: part.clone(),
+        change: F::Column {
+            column: 2,
+            criteria: Some(C::Custom {
+                and: true,
+                predicates: vec![P {
+                    operator: O::Greater,
+                    value: "5".into(),
+                }],
+            }),
+        },
+    }));
+    assert!(done.accepted(), "{done:?}");
+    assert_eq!(
+        calculated(book.host(), at(s, "B4")),
+        Some(CalcValue::number(9.))
+    );
+    assert!(
+        book.host().model().definitions().tables()[0]
+            .filter
+            .as_ref()
+            .unwrap()
+            .filtered_rows
+            .contains(&2)
+    );
+    let f = book
+        .host()
+        .model()
+        .definitions()
+        .axis_layouts()
+        .get(s, Axis::Rows, 3)
+        .with_hidden(true);
+    let done = book.dispatch(SkinIntent::Edit {
+        edits: vec![CellEdit::AxisFormat(
+            calc_host::AxisFormatEdit::new(s, Axis::Rows, 3, f).unwrap(),
+        )],
+    });
+    assert!(done.accepted(), "{done:?}");
+    assert_eq!(
+        calculated(book.host(), at(s, "B4")),
+        Some(CalcValue::number(0.))
+    );
+    let mut saved = Vec::new();
+    book.save(&SavePolicy::default(), &mut saved).unwrap();
+    let mut book = session(&saved);
+    assert!(book.dispatch(SkinIntent::Recalculate).accepted());
+    let s = book.host().sheets()[0].id();
+    assert!(
+        book.host()
+            .model()
+            .definitions()
+            .axis_layouts()
+            .get(s, Axis::Rows, 3)
+            .hidden()
+    );
+    assert!(
+        !book
+            .host()
+            .model()
+            .definitions()
+            .axis_layouts()
+            .get(s, Axis::Rows, 2)
+            .hidden()
+    );
+    assert_eq!(
+        calculated(book.host(), at(s, "B4")),
+        Some(CalcValue::number(0.))
+    );
+    let revision = book.host().revision().get();
+    assert!(
+        book.dispatch(SkinIntent::Command(W::TableFilter {
+            sheet: s,
+            revision,
+            part,
+            change: F::Clear
+        }))
+        .accepted()
+    );
+    assert!(
+        book.host()
+            .model()
+            .definitions()
+            .axis_layouts()
+            .get(s, Axis::Rows, 3)
+            .hidden()
+    );
+    assert_eq!(
+        calculated(book.host(), at(s, "B4")),
+        Some(CalcValue::number(5.))
+    );
 }
 #[cfg_attr(not(target_arch = "wasm32"), test)]
 #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
-fn dc_971p_41__chart_parts_and_unrendered_plot_xml_survive_ordinary_edits(){
-    let bytes=include_bytes!("fixtures/dc_6yw/charts.xlsx");
-    for unsupported in [false,true]{let bytes=if unsupported{package_with_part_from(bytes,"xl/charts/chart1.xml",|xml|xml.replace("barChart","surfaceChart"))}else{bytes.to_vec()};let mut book=session(&bytes);let s=book.host().sheets()[0].id();assert!(book.dispatch(SkinIntent::Recalculate).accepted());enter(&mut book,at(s,"B2"),"40");let (charts,unread)=book.host().charts(s);assert_eq!(unread,0);assert_eq!(charts.len(),6);if unsupported{assert!(matches!(charts[0].plots[0].kind,calc_host::ChartKind::Other(_)));}
-        let mut saved=Vec::new();book.save(&SavePolicy::default(),&mut saved).unwrap();for part in ["xl/charts/chart1.xml","xl/charts/chart2.xml","xl/charts/chart3.xml","xl/charts/chart4.xml","xl/charts/chart5.xml","xl/charts/chart6.xml","xl/drawings/drawing1.xml"] {assert_eq!(part_text(&bytes,part),part_text(&saved,part),"{part}");}
-        let mut reopened=session(&saved);assert!(reopened.dispatch(SkinIntent::Recalculate).accepted());let (charts,unread)=reopened.host().charts(reopened.host().sheets()[0].id());assert_eq!(unread,0);assert_eq!(charts[0].plots[0].series[0].values[0],Some(40.));if unsupported{assert!(matches!(charts[0].plots[0].kind,calc_host::ChartKind::Other(_)));}
+fn dc_971p_41__raw_header_metadata_and_occupied_header_targets_refuse_atomically() {
+    use calc_host::TableChange as T;
+    let mut book = session(&calc_host::blank_package());
+    let (s, part) = create_test_table(&mut book);
+    let mut tables = book.host().model().definitions().tables().to_vec();
+    tables[0].columns[0] = "Renamed".into();
+    let revision = book.host().revision();
+    let done = book.dispatch(SkinIntent::Edit {
+        edits: vec![CellEdit::Tables(tables)],
+    });
+    assert!(!done.accepted());
+    assert_eq!(book.host().revision(), revision);
+    let options = |headers| T::Options {
+        part: part.clone(),
+        headers,
+        totals: false,
+        style: "TableStyleMedium2".into(),
+        row_stripes: true,
+        column_stripes: false,
+        first_column: false,
+        last_column: false,
+    };
+    assert!(table_action(&mut book, options(false)).accepted());
+    for entry in ["=1+2", "#N/A"] {
+        enter(&mut book, at(s, "A1"), entry);
+        let revision = book.host().revision();
+        assert!(!table_action(&mut book, options(true)).accepted());
+        assert_eq!(book.host().revision(), revision);
     }
 }
 #[cfg_attr(not(target_arch = "wasm32"), test)]
 #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
-fn dc_971p_41__manual_visibility_refreshes_an_unchanged_saved_table(){
-    use calc_host::{WorkbookCommand as W,FilterChange as F,FilterCriteria as C};let mut book=session(&calc_host::blank_package());let (s,part)=create_test_table(&mut book);let revision=book.host().revision().get();assert!(book.dispatch(SkinIntent::Command(W::TableFilter{sheet:s,revision,part:part.clone(),change:F::Column{column:2,criteria:Some(C::Values{values:vec!["9".into()],blank:false})}})).accepted());let mut saved=Vec::new();book.save(&SavePolicy::default(),&mut saved).unwrap();let mut book=session(&saved);let s=book.host().sheets()[0].id();let before=book.host().model().definitions().tables().to_vec();let hidden=book.host().model().definitions().axis_layouts().get(s,Axis::Rows,3).with_hidden(true);assert!(book.dispatch(SkinIntent::Edit{edits:vec![CellEdit::AxisFormat(calc_host::AxisFormatEdit::new(s,Axis::Rows,3,hidden).unwrap())]}).accepted());assert_eq!(book.host().model().definitions().tables(),before);
-    let mut saved=Vec::new();book.save(&SavePolicy::default(),&mut saved).unwrap();let mut book=session(&saved);let s=book.host().sheets()[0].id();let revision=book.host().revision().get();assert!(book.dispatch(SkinIntent::Command(W::TableFilter{sheet:s,revision,part,change:F::Clear})).accepted());let visible=book.host().model().definitions().visible_axis_layouts();assert!(!visible.get(s,Axis::Rows,2).hidden());assert!(visible.get(s,Axis::Rows,3).hidden());assert!(book.host().model().definitions().axis_layouts().get(s,Axis::Rows,3).hidden());
+fn dc_971p_41__formula_headers_use_published_values_and_create_undo_restores_inputs() {
+    use calc_host::TableChange as T;
+    let mut book = session(&calc_host::blank_package());
+    let s = book.host().sheets()[0].id();
+    enter(&mut book, at(s, "A1"), "=10+20");
+    enter(&mut book, at(s, "B1"), "#N/A");
+    enter(&mut book, at(s, "A2"), "1");
+    let old = book.host().model().cell(at(s, "A1")).cloned();
+    let done = table_action(
+        &mut book,
+        T::Create {
+            area: GridArea::new(at(s, "A1"), at(s, "B2")).unwrap(),
+            name: "Headers".into(),
+        },
+    );
+    assert!(done.accepted(), "{done:?}");
+    assert_eq!(
+        book.host().model().definitions().tables()[0].columns,
+        ["30", "#N/A"]
+    );
+    assert!(book.dispatch(SkinIntent::Undo).accepted());
+    assert!(book.host().model().definitions().tables().is_empty());
+    assert_eq!(book.host().model().cell(at(s, "A1")), old.as_ref());
+    assert!(book.dispatch(SkinIntent::Redo).accepted());
+    let mut saved = Vec::new();
+    book.save(&SavePolicy::default(), &mut saved).unwrap();
+    assert_eq!(
+        session(&saved).host().model().definitions().tables()[0].columns,
+        ["30", "#N/A"]
+    );
 }
 #[cfg_attr(not(target_arch = "wasm32"), test)]
 #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
-fn dc_971p_41__imported_custom_totals_and_linked_tables_keep_their_source(){
-    use calc_host::TableChange as T;let mut book=session(&calc_host::blank_package());let (_,part)=create_test_table(&mut book);let mut saved=Vec::new();book.save(&SavePolicy::default(),&mut saved).unwrap();let marker="<totalsRowFormula>SUM(B2:B3)*2</totalsRowFormula>";
-    for linked in [false,true] {let augmented=package_with_part_from(&saved,&part,|xml|{if linked{xml.replacen("<table ","<table tableType=\"queryTable\" connectionId=\"7\" ",1)}else{let start=xml.find("<tableColumn ").unwrap();let end=start+xml[start..].find("/>").unwrap()+2;let opening=xml[start..end].trim_end_matches("/>");let replacement=format!("{opening} totalsRowFunction=\"custom\">{marker}</tableColumn>");let mut xml=xml.to_owned();xml.replace_range(start..end,&replacement);xml}});let mut book=session(&augmented);let s=book.host().sheets()[0].id();assert!(book.host().model().definitions().tables()[0].opaque);let revision=book.host().revision();assert!(!table_action(&mut book,T::Resize{part:part.clone(),area:GridArea::new(at(s,"A1"),at(s,"B4")).unwrap()}).accepted());assert_eq!(book.host().revision(),revision);assert!(!book.dispatch(SkinIntent::EditAxis(AxisEdit::new(s,Axis::Rows,AxisChange::Insert,2,1).unwrap())).accepted());
-        let mut raw=book.host().model().definitions().tables().to_vec();raw[0].totals_functions[0]=Some("sum".into());assert!(!book.dispatch(SkinIntent::Edit{edits:vec![CellEdit::Tables(raw)]}).accepted());
-        let done=table_action(&mut book,T::Options{part:part.clone(),headers:true,totals:false,style:String::new(),row_stripes:false,column_stripes:false,first_column:false,last_column:false});assert!(done.accepted(),"{done:?}");let mut output=Vec::new();book.save(&SavePolicy::default(),&mut output).unwrap();let xml=part_text(&output,&part);if linked{assert!(xml.contains("connectionId=\"7\""));}else{assert!(xml.contains(marker));assert!(xml.contains("totalsRowFunction=\"custom\""));}
+fn dc_971p_41__side_by_side_filters_retain_each_excluded_row_set() {
+    use calc_host::{
+        FilterChange as F, FilterCriteria as C, TableChange as T, WorkbookCommand as W,
+    };
+    let mut book = session(&calc_host::blank_package());
+    let (s, first) = create_test_table(&mut book);
+    for (a, v) in [
+        ("D1", "Name"),
+        ("E1", "Score"),
+        ("D2", "First"),
+        ("E2", "10"),
+        ("D3", "Second"),
+        ("E3", "1"),
+    ] {
+        enter(&mut book, at(s, a), v);
+    }
+    assert!(
+        table_action(
+            &mut book,
+            T::Create {
+                area: GridArea::new(at(s, "D1"), at(s, "E3")).unwrap(),
+                name: "Other".into()
+            }
+        )
+        .accepted()
+    );
+    let second = book.host().model().definitions().tables()[1].part.clone();
+    for (part, column, value) in [(&first, 2, "9"), (&second, 5, "10")] {
+        let revision = book.host().revision().get();
+        let done = book.dispatch(SkinIntent::Command(W::TableFilter {
+            sheet: s,
+            revision,
+            part: part.clone(),
+            change: F::Column {
+                column,
+                criteria: Some(C::Values {
+                    values: vec![value.into()],
+                    blank: false,
+                }),
+            },
+        }));
+        assert!(done.accepted(), "{done:?}");
+    }
+    let mut saved = Vec::new();
+    book.save(&SavePolicy::default(), &mut saved).unwrap();
+    let mut book = session(&saved);
+    let s = book.host().sheets()[0].id();
+    let tables = book.host().model().definitions().tables();
+    assert_eq!(
+        tables[0]
+            .filter
+            .as_ref()
+            .unwrap()
+            .filtered_rows
+            .iter()
+            .copied()
+            .collect::<Vec<_>>(),
+        vec![2]
+    );
+    assert_eq!(
+        tables[1]
+            .filter
+            .as_ref()
+            .unwrap()
+            .filtered_rows
+            .iter()
+            .copied()
+            .collect::<Vec<_>>(),
+        vec![3]
+    );
+    let revision = book.host().revision().get();
+    assert!(
+        book.dispatch(SkinIntent::Command(W::TableFilter {
+            sheet: s,
+            revision,
+            part: first,
+            change: F::Clear
+        }))
+        .accepted()
+    );
+    let visible = book.host().model().definitions().visible_axis_layouts();
+    assert!(!visible.get(s, Axis::Rows, 2).hidden());
+    assert!(visible.get(s, Axis::Rows, 3).hidden());
+}
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn dc_971p_41__prefixed_tables_preserve_column_metadata_and_filter_namespaces() {
+    use calc_host::{
+        FilterChange as F, FilterCriteria as C, TableChange as T, WorkbookCommand as W,
+    };
+    let mut book = session(&calc_host::blank_package());
+    let (_, part) = create_test_table(&mut book);
+    let mut saved = Vec::new();
+    book.save(&SavePolicy::default(), &mut saved).unwrap();
+    let augmented = package_with_part_from(&saved, &part, |xml| {
+        let mut xml = xml.replace(
+            "<tableColumns ",
+            "<tableColumns xmlns:v=\"urn:table-keep\" v:keep=\"container\" ",
+        );
+        let start = xml.find("<tableColumn ").unwrap();
+        let end = start + xml[start..].find('>').unwrap() + 1;
+        let tag = xml[start..end].replace("id=\"1\"", "id=\"4294967295\"");
+        assert!(tag.contains("4294967295"));
+        xml.replace_range(start..end, &tag);
+        for name in [
+            "table",
+            "tableColumns",
+            "tableColumn",
+            "autoFilter",
+            "filterColumn",
+            "filters",
+            "filter",
+            "tableStyleInfo",
+            "extLst",
+            "ext",
+        ] {
+            xml = xml
+                .replace(&format!("<{name} "), &format!("<m:{name} "))
+                .replace(&format!("<{name}>"), &format!("<m:{name}>"))
+                .replace(&format!("</{name}>"), &format!("</m:{name}>"));
+        }
+        xml.replace(
+            "xmlns=\"http://schemas.openxmlformats.org/spreadsheetml/2006/main\"",
+            "xmlns:m=\"http://schemas.openxmlformats.org/spreadsheetml/2006/main\"",
+        )
+    });
+    let mut book = session(&augmented);
+    let s = book.host().sheets()[0].id();
+    assert!(
+        table_action(
+            &mut book,
+            T::Resize {
+                part: part.clone(),
+                area: GridArea::new(at(s, "A1"), at(s, "C3")).unwrap()
+            }
+        )
+        .accepted()
+    );
+    let revision = book.host().revision().get();
+    assert!(
+        book.dispatch(SkinIntent::Command(W::TableFilter {
+            sheet: s,
+            revision,
+            part: part.clone(),
+            change: F::Column {
+                column: 2,
+                criteria: Some(C::Values {
+                    values: vec!["9".into()],
+                    blank: false
+                })
+            }
+        }))
+        .accepted()
+    );
+    let mut saved = Vec::new();
+    book.save(&SavePolicy::default(), &mut saved).unwrap();
+    let xml = part_text(&saved, &part);
+    assert!(xml.contains("v:keep=\"container\""), "{xml}");
+    assert_eq!(xml.matches("id=\"4294967295\"").count(), 1);
+    let reopened = session(&saved);
+    let t = &reopened.host().model().definitions().tables()[0];
+    assert_eq!(t.columns.len(), 3);
+    assert!(t.filter.as_ref().unwrap().filtered_rows.contains(&2));
+    assert!(!t.filter.as_ref().unwrap().unsupported);
+}
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn dc_971p_41__chart_parts_and_unrendered_plot_xml_survive_ordinary_edits() {
+    let bytes = include_bytes!("fixtures/dc_6yw/charts.xlsx");
+    for unsupported in [false, true] {
+        let bytes = if unsupported {
+            package_with_part_from(bytes, "xl/charts/chart1.xml", |xml| {
+                xml.replace("barChart", "surfaceChart")
+            })
+        } else {
+            bytes.to_vec()
+        };
+        let mut book = session(&bytes);
+        let s = book.host().sheets()[0].id();
+        assert!(book.dispatch(SkinIntent::Recalculate).accepted());
+        enter(&mut book, at(s, "B2"), "40");
+        let (charts, unread) = book.host().charts(s);
+        assert_eq!(unread, 0);
+        assert_eq!(charts.len(), 6);
+        if unsupported {
+            assert!(matches!(
+                charts[0].plots[0].kind,
+                calc_host::ChartKind::Other(_)
+            ));
+        }
+        let mut saved = Vec::new();
+        book.save(&SavePolicy::default(), &mut saved).unwrap();
+        for part in [
+            "xl/charts/chart1.xml",
+            "xl/charts/chart2.xml",
+            "xl/charts/chart3.xml",
+            "xl/charts/chart4.xml",
+            "xl/charts/chart5.xml",
+            "xl/charts/chart6.xml",
+            "xl/drawings/drawing1.xml",
+        ] {
+            assert_eq!(part_text(&bytes, part), part_text(&saved, part), "{part}");
+        }
+        let mut reopened = session(&saved);
+        assert!(reopened.dispatch(SkinIntent::Recalculate).accepted());
+        let (charts, unread) = reopened.host().charts(reopened.host().sheets()[0].id());
+        assert_eq!(unread, 0);
+        assert_eq!(charts[0].plots[0].series[0].values[0], Some(40.));
+        if unsupported {
+            assert!(matches!(
+                charts[0].plots[0].kind,
+                calc_host::ChartKind::Other(_)
+            ));
+        }
     }
 }
 #[cfg_attr(not(target_arch = "wasm32"), test)]
 #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
-fn dc_971p_41__long_headers_retain_their_structured_reference_through_resize(){
-    use calc_host::TableChange as T;let mut book=session(&calc_host::blank_package());let s=book.host().sheets()[0].id();let name="界".repeat(255);enter(&mut book,at(s,"A1"),&name);enter(&mut book,at(s,"A2"),"5");enter(&mut book,at(s,"A3"),"7");assert!(table_action(&mut book,T::Create{area:GridArea::new(at(s,"A1"),at(s,"A2")).unwrap(),name:"LongHeader".into()}).accepted());enter(&mut book,at(s,"D1"),&format!("=SUM(LongHeader[{name}])"));let mut saved=Vec::new();book.save(&SavePolicy::default(),&mut saved).unwrap();let mut book=session(&saved);assert!(book.dispatch(SkinIntent::Recalculate).accepted());let s=book.host().sheets()[0].id();let part=book.host().model().definitions().tables()[0].part.clone();assert!(table_action(&mut book,T::Resize{part,area:GridArea::new(at(s,"A1"),at(s,"A3")).unwrap()}).accepted());assert_eq!(book.host().model().definitions().tables()[0].columns[0],name);assert_eq!(calculated(book.host(),at(s,"D1")),Some(CalcValue::number(12.)));assert!(book.dispatch(SkinIntent::Undo).accepted());assert_eq!(calculated(book.host(),at(s,"D1")),Some(CalcValue::number(5.)));assert!(book.dispatch(SkinIntent::Redo).accepted());let mut saved=Vec::new();book.save(&SavePolicy::default(),&mut saved).unwrap();assert_eq!(session(&saved).host().model().definitions().tables()[0].columns[0],name);
+fn dc_971p_41__manual_visibility_refreshes_an_unchanged_saved_table() {
+    use calc_host::{FilterChange as F, FilterCriteria as C, WorkbookCommand as W};
+    let mut book = session(&calc_host::blank_package());
+    let (s, part) = create_test_table(&mut book);
+    let revision = book.host().revision().get();
+    assert!(
+        book.dispatch(SkinIntent::Command(W::TableFilter {
+            sheet: s,
+            revision,
+            part: part.clone(),
+            change: F::Column {
+                column: 2,
+                criteria: Some(C::Values {
+                    values: vec!["9".into()],
+                    blank: false
+                })
+            }
+        }))
+        .accepted()
+    );
+    let mut saved = Vec::new();
+    book.save(&SavePolicy::default(), &mut saved).unwrap();
+    let mut book = session(&saved);
+    let s = book.host().sheets()[0].id();
+    let before = book.host().model().definitions().tables().to_vec();
+    let hidden = book
+        .host()
+        .model()
+        .definitions()
+        .axis_layouts()
+        .get(s, Axis::Rows, 3)
+        .with_hidden(true);
+    assert!(
+        book.dispatch(SkinIntent::Edit {
+            edits: vec![CellEdit::AxisFormat(
+                calc_host::AxisFormatEdit::new(s, Axis::Rows, 3, hidden).unwrap()
+            )]
+        })
+        .accepted()
+    );
+    assert_eq!(book.host().model().definitions().tables(), before);
+    let mut saved = Vec::new();
+    book.save(&SavePolicy::default(), &mut saved).unwrap();
+    let mut book = session(&saved);
+    let s = book.host().sheets()[0].id();
+    let revision = book.host().revision().get();
+    assert!(
+        book.dispatch(SkinIntent::Command(W::TableFilter {
+            sheet: s,
+            revision,
+            part,
+            change: F::Clear
+        }))
+        .accepted()
+    );
+    let visible = book.host().model().definitions().visible_axis_layouts();
+    assert!(!visible.get(s, Axis::Rows, 2).hidden());
+    assert!(visible.get(s, Axis::Rows, 3).hidden());
+    assert!(
+        book.host()
+            .model()
+            .definitions()
+            .axis_layouts()
+            .get(s, Axis::Rows, 3)
+            .hidden()
+    );
 }
 #[cfg_attr(not(target_arch = "wasm32"), test)]
 #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
-fn dc_971p_41__cached_scatter_x_is_reported_while_y_uses_current_values(){
-    let bytes=package_with_part_from(include_bytes!("fixtures/dc_6yw/charts.xlsx"),"xl/charts/chart6.xml",|xml|xml.replace("Data!$B$2:$B$7","Missing!$B$2:$B$7"));let mut book=session(&bytes);assert!(book.dispatch(SkinIntent::Recalculate).accepted());let s=book.host().sheets()[0].id();enter(&mut book,at(s,"C2"),"17");let (charts,unread)=book.host().charts(s);assert_eq!(unread,0);let series=&charts[5].plots[0].series[0];assert_eq!(series.values[0],Some(17.));assert_eq!(series.categories[0],Some(CalcValue::number(12.)));assert!(series.cached);
+fn dc_971p_41__imported_custom_totals_and_linked_tables_keep_their_source() {
+    use calc_host::TableChange as T;
+    let mut book = session(&calc_host::blank_package());
+    let (_, part) = create_test_table(&mut book);
+    let mut saved = Vec::new();
+    book.save(&SavePolicy::default(), &mut saved).unwrap();
+    let marker = "<totalsRowFormula>SUM(B2:B3)*2</totalsRowFormula>";
+    for linked in [false, true] {
+        let augmented = package_with_part_from(&saved, &part, |xml| {
+            if linked {
+                xml.replacen(
+                    "<table ",
+                    "<table tableType=\"queryTable\" connectionId=\"7\" ",
+                    1,
+                )
+            } else {
+                let start = xml.find("<tableColumn ").unwrap();
+                let end = start + xml[start..].find("/>").unwrap() + 2;
+                let opening = xml[start..end].trim_end_matches("/>");
+                let replacement =
+                    format!("{opening} totalsRowFunction=\"custom\">{marker}</tableColumn>");
+                let mut xml = xml.to_owned();
+                xml.replace_range(start..end, &replacement);
+                xml
+            }
+        });
+        let mut book = session(&augmented);
+        let s = book.host().sheets()[0].id();
+        assert!(book.host().model().definitions().tables()[0].opaque);
+        let revision = book.host().revision();
+        assert!(
+            !table_action(
+                &mut book,
+                T::Resize {
+                    part: part.clone(),
+                    area: GridArea::new(at(s, "A1"), at(s, "B4")).unwrap()
+                }
+            )
+            .accepted()
+        );
+        assert_eq!(book.host().revision(), revision);
+        assert!(
+            !book
+                .dispatch(SkinIntent::EditAxis(
+                    AxisEdit::new(s, Axis::Rows, AxisChange::Insert, 2, 1).unwrap()
+                ))
+                .accepted()
+        );
+        let mut raw = book.host().model().definitions().tables().to_vec();
+        raw[0].totals_functions[0] = Some("sum".into());
+        assert!(
+            !book
+                .dispatch(SkinIntent::Edit {
+                    edits: vec![CellEdit::Tables(raw)]
+                })
+                .accepted()
+        );
+        let done = table_action(
+            &mut book,
+            T::Options {
+                part: part.clone(),
+                headers: true,
+                totals: false,
+                style: String::new(),
+                row_stripes: false,
+                column_stripes: false,
+                first_column: false,
+                last_column: false,
+            },
+        );
+        assert!(done.accepted(), "{done:?}");
+        let mut output = Vec::new();
+        book.save(&SavePolicy::default(), &mut output).unwrap();
+        let xml = part_text(&output, &part);
+        if linked {
+            assert!(xml.contains("connectionId=\"7\""));
+        } else {
+            assert!(xml.contains(marker));
+            assert!(xml.contains("totalsRowFunction=\"custom\""));
+        }
+    }
 }
 #[cfg_attr(not(target_arch = "wasm32"), test)]
 #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
-fn dc_971p_41__imported_filter_revision_identity_survives_criteria_changes(){
-    use calc_host::{WorkbookCommand as W,FilterChange as F,FilterCriteria as C};let bytes=include_bytes!("fixtures/d2/structural-base.xlsx");let mut book=session(bytes);assert!(book.dispatch(SkinIntent::Recalculate).accepted());let table=book.host().model().definitions().tables()[0].clone();let s=table.sheet;assert!(!table.filter.as_ref().unwrap().unsupported);let source=part_text(bytes,&table.part);let marker=source.split("<autoFilter ").nth(1).unwrap().split("xr:uid=\"").nth(1).unwrap().split('"').next().unwrap();let revision=book.host().revision().get();let done=book.dispatch(SkinIntent::Command(W::TableFilter{sheet:s,revision,part:table.part.clone(),change:F::Column{column:1,criteria:Some(C::Values{values:vec!["none of these rows".into()],blank:false})}}));assert!(done.accepted(),"{done:?}");let mut saved=Vec::new();book.save(&SavePolicy::default(),&mut saved).unwrap();let xml=part_text(&saved,&table.part);assert_eq!(xml.matches(marker).count(),source.matches(marker).count());let reopened=session(&saved);let table=reopened.host().model().definitions().tables().iter().find(|t|t.part==table.part).unwrap();assert!(!table.filter.as_ref().unwrap().unsupported);assert_eq!(table.filter.as_ref().unwrap().filtered_rows.len(),3);
+fn dc_971p_41__long_headers_retain_their_structured_reference_through_resize() {
+    use calc_host::TableChange as T;
+    let mut book = session(&calc_host::blank_package());
+    let s = book.host().sheets()[0].id();
+    let name = "界".repeat(255);
+    enter(&mut book, at(s, "A1"), &name);
+    enter(&mut book, at(s, "A2"), "5");
+    enter(&mut book, at(s, "A3"), "7");
+    assert!(
+        table_action(
+            &mut book,
+            T::Create {
+                area: GridArea::new(at(s, "A1"), at(s, "A2")).unwrap(),
+                name: "LongHeader".into()
+            }
+        )
+        .accepted()
+    );
+    enter(&mut book, at(s, "D1"), &format!("=SUM(LongHeader[{name}])"));
+    let mut saved = Vec::new();
+    book.save(&SavePolicy::default(), &mut saved).unwrap();
+    let mut book = session(&saved);
+    assert!(book.dispatch(SkinIntent::Recalculate).accepted());
+    let s = book.host().sheets()[0].id();
+    let part = book.host().model().definitions().tables()[0].part.clone();
+    assert!(
+        table_action(
+            &mut book,
+            T::Resize {
+                part,
+                area: GridArea::new(at(s, "A1"), at(s, "A3")).unwrap()
+            }
+        )
+        .accepted()
+    );
+    assert_eq!(
+        book.host().model().definitions().tables()[0].columns[0],
+        name
+    );
+    assert_eq!(
+        calculated(book.host(), at(s, "D1")),
+        Some(CalcValue::number(12.))
+    );
+    assert!(book.dispatch(SkinIntent::Undo).accepted());
+    assert_eq!(
+        calculated(book.host(), at(s, "D1")),
+        Some(CalcValue::number(5.))
+    );
+    assert!(book.dispatch(SkinIntent::Redo).accepted());
+    let mut saved = Vec::new();
+    book.save(&SavePolicy::default(), &mut saved).unwrap();
+    assert_eq!(
+        session(&saved).host().model().definitions().tables()[0].columns[0],
+        name
+    );
+}
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn dc_971p_41__cached_scatter_x_is_reported_while_y_uses_current_values() {
+    let bytes = package_with_part_from(
+        include_bytes!("fixtures/dc_6yw/charts.xlsx"),
+        "xl/charts/chart6.xml",
+        |xml| xml.replace("Data!$B$2:$B$7", "Missing!$B$2:$B$7"),
+    );
+    let mut book = session(&bytes);
+    assert!(book.dispatch(SkinIntent::Recalculate).accepted());
+    let s = book.host().sheets()[0].id();
+    enter(&mut book, at(s, "C2"), "17");
+    let (charts, unread) = book.host().charts(s);
+    assert_eq!(unread, 0);
+    let series = &charts[5].plots[0].series[0];
+    assert_eq!(series.values[0], Some(17.));
+    assert_eq!(series.categories[0], Some(CalcValue::number(12.)));
+    assert!(series.cached);
+}
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn dc_971p_41__imported_filter_revision_identity_survives_criteria_changes() {
+    use calc_host::{FilterChange as F, FilterCriteria as C, WorkbookCommand as W};
+    let bytes = include_bytes!("fixtures/d2/structural-base.xlsx");
+    let mut book = session(bytes);
+    assert!(book.dispatch(SkinIntent::Recalculate).accepted());
+    let table = book.host().model().definitions().tables()[0].clone();
+    let s = table.sheet;
+    assert!(!table.filter.as_ref().unwrap().unsupported);
+    let source = part_text(bytes, &table.part);
+    let marker = source
+        .split("<autoFilter ")
+        .nth(1)
+        .unwrap()
+        .split("xr:uid=\"")
+        .nth(1)
+        .unwrap()
+        .split('"')
+        .next()
+        .unwrap();
+    let revision = book.host().revision().get();
+    let done = book.dispatch(SkinIntent::Command(W::TableFilter {
+        sheet: s,
+        revision,
+        part: table.part.clone(),
+        change: F::Column {
+            column: 1,
+            criteria: Some(C::Values {
+                values: vec!["none of these rows".into()],
+                blank: false,
+            }),
+        },
+    }));
+    assert!(done.accepted(), "{done:?}");
+    let mut saved = Vec::new();
+    book.save(&SavePolicy::default(), &mut saved).unwrap();
+    let xml = part_text(&saved, &table.part);
+    assert_eq!(xml.matches(marker).count(), source.matches(marker).count());
+    let reopened = session(&saved);
+    let table = reopened
+        .host()
+        .model()
+        .definitions()
+        .tables()
+        .iter()
+        .find(|t| t.part == table.part)
+        .unwrap();
+    assert!(!table.filter.as_ref().unwrap().unsupported);
+    assert_eq!(table.filter.as_ref().unwrap().filtered_rows.len(), 3);
 }
 
 #[cfg_attr(not(target_arch = "wasm32"), test)]
 #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
 fn dc_971p_41__axis_edits_refuse_imported_column_formula_rewrites_atomically() {
-    let mut book=session(&calc_host::blank_package());let (s,part)=create_test_table(&mut book);
-    assert!(enter(&mut book,at(s,"A2"),"=B2*2").accepted());assert!(enter(&mut book,at(s,"A3"),"=B3*2").accepted());
-    let mut saved=Vec::new();book.save(&SavePolicy::default(),&mut saved).unwrap();
-    let augmented=package_with_part_from(&saved,&part,|xml|{let start=xml.find("<tableColumn ").unwrap();let end=start+xml[start..].find("/>").unwrap()+2;let replacement=format!("{}><calculatedColumnFormula>B2*2</calculatedColumnFormula></tableColumn>",xml[start..end].trim_end_matches("/>"));let mut xml=xml.to_owned();xml.replace_range(start..end,&replacement);xml});
-    let mut book=session(&augmented);let s=book.host().sheets()[0].id();let table=&book.host().model().definitions().tables()[0];assert!(table.opaque);assert!(!table.axis_opaque);assert_eq!(table.column_formulas[0].as_deref(),Some("B2*2"));
-    let revision=book.host().revision();assert!(!book.dispatch(SkinIntent::EditAxis(AxisEdit::new(s,Axis::Rows,AxisChange::Insert,1,1).unwrap())).accepted());assert_eq!(book.host().revision(),revision);
-    assert!(book.dispatch(SkinIntent::EditAxis(AxisEdit::new(s,Axis::Rows,AxisChange::Insert,20,1).unwrap())).accepted());let mut saved=Vec::new();book.save(&SavePolicy::default(),&mut saved).unwrap();assert!(part_text(&saved,&part).contains("<calculatedColumnFormula>B2*2</calculatedColumnFormula>"));
+    let mut book = session(&calc_host::blank_package());
+    let (s, part) = create_test_table(&mut book);
+    assert!(enter(&mut book, at(s, "A2"), "=B2*2").accepted());
+    assert!(enter(&mut book, at(s, "A3"), "=B3*2").accepted());
+    let mut saved = Vec::new();
+    book.save(&SavePolicy::default(), &mut saved).unwrap();
+    let augmented = package_with_part_from(&saved, &part, |xml| {
+        let start = xml.find("<tableColumn ").unwrap();
+        let end = start + xml[start..].find("/>").unwrap() + 2;
+        let replacement = format!(
+            "{}><calculatedColumnFormula>B2*2</calculatedColumnFormula></tableColumn>",
+            xml[start..end].trim_end_matches("/>")
+        );
+        let mut xml = xml.to_owned();
+        xml.replace_range(start..end, &replacement);
+        xml
+    });
+    let mut book = session(&augmented);
+    let s = book.host().sheets()[0].id();
+    let table = &book.host().model().definitions().tables()[0];
+    assert!(table.opaque);
+    assert!(!table.axis_opaque);
+    assert_eq!(table.column_formulas[0].as_deref(), Some("B2*2"));
+    let revision = book.host().revision();
+    assert!(
+        !book
+            .dispatch(SkinIntent::EditAxis(
+                AxisEdit::new(s, Axis::Rows, AxisChange::Insert, 1, 1).unwrap()
+            ))
+            .accepted()
+    );
+    assert_eq!(book.host().revision(), revision);
+    assert!(
+        book.dispatch(SkinIntent::EditAxis(
+            AxisEdit::new(s, Axis::Rows, AxisChange::Insert, 20, 1).unwrap()
+        ))
+        .accepted()
+    );
+    let mut saved = Vec::new();
+    book.save(&SavePolicy::default(), &mut saved).unwrap();
+    assert!(
+        part_text(&saved, &part)
+            .contains("<calculatedColumnFormula>B2*2</calculatedColumnFormula>")
+    );
 }
 
 #[cfg_attr(not(target_arch = "wasm32"), test)]
 #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
 fn dc_971p_41__calculated_columns_author_copy_resize_history_and_reopen() {
     use calc_host::TableChange as T;
-    let mut book=session(&calc_host::blank_package());let (s,part)=create_test_table(&mut book);
-    let fill=|formula:Option<&str>|T::CalculatedColumn{part:part.clone(),column:1,formula:formula.map(str::to_owned)};
-    let done=table_action(&mut book,fill(Some("=[@Amount]*2")));assert!(done.accepted(),"{done:?}");
-    assert_eq!(calculated(book.host(),at(s,"A2")),Some(CalcValue::number(10.)));assert_eq!(calculated(book.host(),at(s,"A3")),Some(CalcValue::number(18.)));
-    assert!(book.dispatch(SkinIntent::Undo).accepted());assert_eq!(calc_host::search::entry_text(book.host().model().cell(at(s,"A2"))),"First");assert!(book.dispatch(SkinIntent::Redo).accepted());
-    let done=table_action(&mut book,T::Resize{part:part.clone(),area:GridArea::new(at(s,"A1"),at(s,"B4")).unwrap()});assert!(done.accepted(),"{done:?}");assert_eq!(calculated(book.host(),at(s,"A4")),Some(CalcValue::number(4.)));
-    enter(&mut book,at(s,"D1"),"3");assert!(table_action(&mut book,fill(Some("=B2*$D$1"))).accepted());
-    for (cell,value) in [("A2",15.),("A3",27.),("A4",6.)] {assert_eq!(calculated(book.host(),at(s,cell)),Some(CalcValue::number(value)));}
-    let mut saved=Vec::new();book.save(&SavePolicy::default(),&mut saved).unwrap();assert!(part_text(&saved,&part).contains("<calculatedColumnFormula"));
-    let mut book=session(&saved);assert!(book.dispatch(SkinIntent::Recalculate).accepted());assert_eq!(book.host().model().definitions().tables()[0].column_formulas[0].as_deref(),Some("B2*$D$1"));assert_eq!(calculated(book.host(),at(s,"A4")),Some(CalcValue::number(6.)));
-    assert!(table_action(&mut book,fill(None)).accepted());assert!(book.host().model().definitions().tables()[0].column_formulas[0].is_none());assert_eq!(calculated(book.host(),at(s,"A2")),Some(CalcValue::number(15.)));assert!(book.dispatch(SkinIntent::Undo).accepted());assert!(book.host().model().definitions().tables()[0].column_formulas[0].is_some());
+    let mut book = session(&calc_host::blank_package());
+    let (s, part) = create_test_table(&mut book);
+    let fill = |formula: Option<&str>| T::CalculatedColumn {
+        part: part.clone(),
+        column: 1,
+        formula: formula.map(str::to_owned),
+    };
+    let done = table_action(&mut book, fill(Some("=[@Amount]*2")));
+    assert!(done.accepted(), "{done:?}");
+    assert_eq!(
+        calculated(book.host(), at(s, "A2")),
+        Some(CalcValue::number(10.))
+    );
+    assert_eq!(
+        calculated(book.host(), at(s, "A3")),
+        Some(CalcValue::number(18.))
+    );
+    assert!(book.dispatch(SkinIntent::Undo).accepted());
+    assert_eq!(
+        calc_host::search::entry_text(book.host().model().cell(at(s, "A2"))),
+        "First"
+    );
+    assert!(book.dispatch(SkinIntent::Redo).accepted());
+    let done = table_action(
+        &mut book,
+        T::Resize {
+            part: part.clone(),
+            area: GridArea::new(at(s, "A1"), at(s, "B4")).unwrap(),
+        },
+    );
+    assert!(done.accepted(), "{done:?}");
+    assert_eq!(
+        calculated(book.host(), at(s, "A4")),
+        Some(CalcValue::number(4.))
+    );
+    enter(&mut book, at(s, "D1"), "3");
+    assert!(table_action(&mut book, fill(Some("=B2*$D$1"))).accepted());
+    for (cell, value) in [("A2", 15.), ("A3", 27.), ("A4", 6.)] {
+        assert_eq!(
+            calculated(book.host(), at(s, cell)),
+            Some(CalcValue::number(value))
+        );
+    }
+    let mut saved = Vec::new();
+    book.save(&SavePolicy::default(), &mut saved).unwrap();
+    assert!(part_text(&saved, &part).contains("<calculatedColumnFormula"));
+    let mut book = session(&saved);
+    assert!(book.dispatch(SkinIntent::Recalculate).accepted());
+    assert_eq!(
+        book.host().model().definitions().tables()[0].column_formulas[0].as_deref(),
+        Some("B2*$D$1")
+    );
+    assert_eq!(
+        calculated(book.host(), at(s, "A4")),
+        Some(CalcValue::number(6.))
+    );
+    assert!(table_action(&mut book, fill(None)).accepted());
+    assert!(book.host().model().definitions().tables()[0].column_formulas[0].is_none());
+    assert_eq!(
+        calculated(book.host(), at(s, "A2")),
+        Some(CalcValue::number(15.))
+    );
+    assert!(book.dispatch(SkinIntent::Undo).accepted());
+    assert!(book.host().model().definitions().tables()[0].column_formulas[0].is_some());
 }
 
 #[cfg_attr(not(target_arch = "wasm32"), test)]
 #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
 fn dc_971p_41__column_rename_rewrites_references_names_and_calculated_metadata() {
     use calc_host::TableChange as T;
-    let mut book=session(&calc_host::blank_package());let (s,part)=create_test_table(&mut book);
-    assert!(table_action(&mut book,T::CalculatedColumn{part:part.clone(),column:1,formula:Some("=[@Amount]*2".into())}).accepted());
-    enter(&mut book,at(s,"D1"),"=SUM(Sales[Amount])");enter(&mut book,at(s,"D2"),"=\"Sales[Amount]\"&\" Ω\"");
-    assert!(book.dispatch(SkinIntent::Edit{edits:vec![CellEdit::SetName{name:"RevenueTotal".into(),scope:calc_doc_model::NameScope::Workbook,formula:Some("SUM(Sales[Amount])".into())}]}).accepted());enter(&mut book,at(s,"D3"),"=RevenueTotal");
-    let done=table_action(&mut book,T::RenameColumn{part:part.clone(),column:2,name:"Net [#]".into()});assert!(done.accepted(),"{done:?}");
-    assert_eq!(book.host().model().definitions().tables()[0].columns[1],"Net [#]");
-    for (cell,value) in [("A2",10.),("A3",18.),("D1",14.),("D3",14.)] {assert_eq!(calculated(book.host(),at(s,cell)),Some(CalcValue::number(value)));}
-    assert_eq!(calculated(book.host(),at(s,"D2")),Some(CalcValue::text(calc_value::ExcelText::from_utf16_code_units("Sales[Amount] Ω".encode_utf16().collect()))));
-    assert!(book.dispatch(SkinIntent::Undo).accepted());assert_eq!(book.host().model().definitions().tables()[0].columns[1],"Amount");assert_eq!(calculated(book.host(),at(s,"D3")),Some(CalcValue::number(14.)));assert!(book.dispatch(SkinIntent::Redo).accepted());
-    let mut saved=Vec::new();book.save(&SavePolicy::default(),&mut saved).unwrap();let mut reopened=session(&saved);assert!(reopened.dispatch(SkinIntent::Recalculate).accepted());assert_eq!(calculated(reopened.host(),at(s,"A3")),Some(CalcValue::number(18.)));assert_eq!(calculated(reopened.host(),at(s,"D3")),Some(CalcValue::number(14.)));
-    let before=reopened.host().revision();assert!(!table_action(&mut reopened,T::RenameColumn{part,column:2,name:"ITEM".into()}).accepted());assert_eq!(reopened.host().revision(),before);
+    let mut book = session(&calc_host::blank_package());
+    let (s, part) = create_test_table(&mut book);
+    assert!(
+        table_action(
+            &mut book,
+            T::CalculatedColumn {
+                part: part.clone(),
+                column: 1,
+                formula: Some("=[@Amount]*2".into())
+            }
+        )
+        .accepted()
+    );
+    enter(&mut book, at(s, "D1"), "=SUM(Sales[Amount])");
+    enter(&mut book, at(s, "D2"), "=\"Sales[Amount]\"&\" Ω\"");
+    assert!(
+        book.dispatch(SkinIntent::Edit {
+            edits: vec![CellEdit::SetName {
+                name: "RevenueTotal".into(),
+                scope: calc_doc_model::NameScope::Workbook,
+                formula: Some("SUM(Sales[Amount])".into())
+            }]
+        })
+        .accepted()
+    );
+    enter(&mut book, at(s, "D3"), "=RevenueTotal");
+    let done = table_action(
+        &mut book,
+        T::RenameColumn {
+            part: part.clone(),
+            column: 2,
+            name: "Net [#]".into(),
+        },
+    );
+    assert!(done.accepted(), "{done:?}");
+    assert_eq!(
+        book.host().model().definitions().tables()[0].columns[1],
+        "Net [#]"
+    );
+    for (cell, value) in [("A2", 10.), ("A3", 18.), ("D1", 14.), ("D3", 14.)] {
+        assert_eq!(
+            calculated(book.host(), at(s, cell)),
+            Some(CalcValue::number(value))
+        );
+    }
+    assert_eq!(
+        calculated(book.host(), at(s, "D2")),
+        Some(CalcValue::text(
+            calc_value::ExcelText::from_utf16_code_units(
+                "Sales[Amount] Ω".encode_utf16().collect()
+            )
+        ))
+    );
+    assert!(book.dispatch(SkinIntent::Undo).accepted());
+    assert_eq!(
+        book.host().model().definitions().tables()[0].columns[1],
+        "Amount"
+    );
+    assert_eq!(
+        calculated(book.host(), at(s, "D3")),
+        Some(CalcValue::number(14.))
+    );
+    assert!(book.dispatch(SkinIntent::Redo).accepted());
+    let mut saved = Vec::new();
+    book.save(&SavePolicy::default(), &mut saved).unwrap();
+    let mut reopened = session(&saved);
+    assert!(reopened.dispatch(SkinIntent::Recalculate).accepted());
+    assert_eq!(
+        calculated(reopened.host(), at(s, "A3")),
+        Some(CalcValue::number(18.))
+    );
+    assert_eq!(
+        calculated(reopened.host(), at(s, "D3")),
+        Some(CalcValue::number(14.))
+    );
+    let before = reopened.host().revision();
+    assert!(
+        !table_action(
+            &mut reopened,
+            T::RenameColumn {
+                part,
+                column: 2,
+                name: "ITEM".into()
+            }
+        )
+        .accepted()
+    );
+    assert_eq!(reopened.host().revision(), before);
 }
 
 #[cfg_attr(not(target_arch = "wasm32"), test)]
 #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
 fn dc_971p_41__formatted_headers_use_the_shared_number_text_route() {
-    use calc_host::{TableChange as T,WorkbookCommand as W,FormatPatch};
-    let mut book=HostSession::open(Arc::new(MemorySource::new(calc_host::blank_package())),&OpenPolicy::default(),HostOptions{locale:calc_host::FormatProfile::for_culture("en-US"),..Default::default()}).unwrap();let s=book.host().sheets()[0].id();
-    for (cell,value) in [("A1","0.25"),("B1","=1/4"),("A2","1"),("B2","2")] {enter(&mut book,at(s,cell),value);}
-    assert!(book.dispatch(SkinIntent::Command(W::FormatCells{areas:vec![GridArea::new(at(s,"A1"),at(s,"B1")).unwrap()],patch:FormatPatch{number_format:Some("0.0%".into()),..Default::default()}})).accepted());
-    let done=table_action(&mut book,T::Create{area:GridArea::new(at(s,"A1"),at(s,"B2")).unwrap(),name:"Percentages".into()});assert!(done.accepted(),"{done:?}");assert_eq!(book.host().model().definitions().tables()[0].columns,["25.0%","25.0%2"]);
-    assert!(book.dispatch(SkinIntent::Undo).accepted());assert!(matches!(book.host().model().cell(at(s,"B1")),Some(CellInput::Formula(_))));assert!(book.dispatch(SkinIntent::Redo).accepted());
-    let mut saved=Vec::new();book.save(&SavePolicy::default(),&mut saved).unwrap();assert_eq!(session(&saved).host().model().definitions().tables()[0].columns,["25.0%","25.0%2"]);
+    use calc_host::{FormatPatch, TableChange as T, WorkbookCommand as W};
+    let mut book = HostSession::open(
+        Arc::new(MemorySource::new(calc_host::blank_package())),
+        &OpenPolicy::default(),
+        HostOptions {
+            locale: calc_host::FormatProfile::for_culture("en-US"),
+            ..Default::default()
+        },
+    )
+    .unwrap();
+    let s = book.host().sheets()[0].id();
+    for (cell, value) in [("A1", "0.25"), ("B1", "=1/4"), ("A2", "1"), ("B2", "2")] {
+        enter(&mut book, at(s, cell), value);
+    }
+    assert!(
+        book.dispatch(SkinIntent::Command(W::FormatCells {
+            areas: vec![GridArea::new(at(s, "A1"), at(s, "B1")).unwrap()],
+            patch: FormatPatch {
+                number_format: Some("0.0%".into()),
+                ..Default::default()
+            }
+        }))
+        .accepted()
+    );
+    let done = table_action(
+        &mut book,
+        T::Create {
+            area: GridArea::new(at(s, "A1"), at(s, "B2")).unwrap(),
+            name: "Percentages".into(),
+        },
+    );
+    assert!(done.accepted(), "{done:?}");
+    assert_eq!(
+        book.host().model().definitions().tables()[0].columns,
+        ["25.0%", "25.0%2"]
+    );
+    assert!(book.dispatch(SkinIntent::Undo).accepted());
+    assert!(matches!(
+        book.host().model().cell(at(s, "B1")),
+        Some(CellInput::Formula(_))
+    ));
+    assert!(book.dispatch(SkinIntent::Redo).accepted());
+    let mut saved = Vec::new();
+    book.save(&SavePolicy::default(), &mut saved).unwrap();
+    assert_eq!(
+        session(&saved).host().model().definitions().tables()[0].columns,
+        ["25.0%", "25.0%2"]
+    );
 }
 
 #[cfg_attr(not(target_arch = "wasm32"), test)]
 #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
 fn dc_971p_41__column_metadata_refuses_partial_and_contextual_name_changes() {
-    use calc_host::TableChange as T;let mut book=session(&calc_host::blank_package());let (s,part)=create_test_table(&mut book);
-    let before=book.host().revision();let mut tables=book.host().model().definitions().tables().to_vec();tables[0].column_formulas[0]=Some("B2*2".into());tables[0].opaque=true;
-    assert!(!book.dispatch(SkinIntent::Edit{edits:vec![CellEdit::Tables(tables)]}).accepted());assert_eq!(book.host().revision(),before);
-    assert!(book.dispatch(SkinIntent::Edit{edits:vec![CellEdit::SetName{name:"RelativeColumn".into(),scope:calc_doc_model::NameScope::Workbook,formula:Some("SUM([Amount])".into())}]}).accepted());
-    let before=book.host().revision();assert!(!table_action(&mut book,T::RenameColumn{part:part.clone(),column:2,name:"Revenue".into()}).accepted());assert_eq!(book.host().revision(),before);assert_eq!(calc_host::search::entry_text(book.host().model().cell(at(s,"B1"))),"Amount");
-    for formula in ["", "=SUM("] {let before=book.host().revision();assert!(!table_action(&mut book,T::CalculatedColumn{part:part.clone(),column:1,formula:Some(formula.into())}).accepted());assert_eq!(book.host().revision(),before);}
+    use calc_host::TableChange as T;
+    let mut book = session(&calc_host::blank_package());
+    let (s, part) = create_test_table(&mut book);
+    let before = book.host().revision();
+    let mut tables = book.host().model().definitions().tables().to_vec();
+    tables[0].column_formulas[0] = Some("B2*2".into());
+    tables[0].opaque = true;
+    assert!(
+        !book
+            .dispatch(SkinIntent::Edit {
+                edits: vec![CellEdit::Tables(tables)]
+            })
+            .accepted()
+    );
+    assert_eq!(book.host().revision(), before);
+    assert!(
+        book.dispatch(SkinIntent::Edit {
+            edits: vec![CellEdit::SetName {
+                name: "RelativeColumn".into(),
+                scope: calc_doc_model::NameScope::Workbook,
+                formula: Some("SUM([Amount])".into())
+            }]
+        })
+        .accepted()
+    );
+    let before = book.host().revision();
+    assert!(
+        !table_action(
+            &mut book,
+            T::RenameColumn {
+                part: part.clone(),
+                column: 2,
+                name: "Revenue".into()
+            }
+        )
+        .accepted()
+    );
+    assert_eq!(book.host().revision(), before);
+    assert_eq!(
+        calc_host::search::entry_text(book.host().model().cell(at(s, "B1"))),
+        "Amount"
+    );
+    for formula in ["", "=SUM("] {
+        let before = book.host().revision();
+        assert!(
+            !table_action(
+                &mut book,
+                T::CalculatedColumn {
+                    part: part.clone(),
+                    column: 1,
+                    formula: Some(formula.into())
+                }
+            )
+            .accepted()
+        );
+        assert_eq!(book.host().revision(), before);
+    }
 }
 
 #[cfg_attr(not(target_arch = "wasm32"), test)]
 #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
 fn dc_971p_41__all_six_medium_presets_round_trip_with_their_flags() {
-    use calc_host::TableChange as T;let mut book=session(&calc_host::blank_package());let (_,part)=create_test_table(&mut book);
-    for index in 2..=7 {let name=format!("TableStyleMedium{index}");let done=table_action(&mut book,T::Options{part:part.clone(),headers:true,totals:false,style:name.clone(),row_stripes:true,column_stripes:true,first_column:true,last_column:true});assert!(done.accepted(),"{done:?}");let mut saved=Vec::new();book.save(&SavePolicy::default(),&mut saved).unwrap();let reopened=session(&saved);let style=&reopened.host().model().definitions().tables()[0].style;assert_eq!(style.name.as_deref(),Some(name.as_str()));assert_eq!(style.medium_accent_theme(),Some(index+2));assert!(style.row_stripes&&style.column_stripes&&style.first_column&&style.last_column);}
+    use calc_host::TableChange as T;
+    let mut book = session(&calc_host::blank_package());
+    let (_, part) = create_test_table(&mut book);
+    for index in 2..=7 {
+        let name = format!("TableStyleMedium{index}");
+        let done = table_action(
+            &mut book,
+            T::Options {
+                part: part.clone(),
+                headers: true,
+                totals: false,
+                style: name.clone(),
+                row_stripes: true,
+                column_stripes: true,
+                first_column: true,
+                last_column: true,
+            },
+        );
+        assert!(done.accepted(), "{done:?}");
+        let mut saved = Vec::new();
+        book.save(&SavePolicy::default(), &mut saved).unwrap();
+        let reopened = session(&saved);
+        let style = &reopened.host().model().definitions().tables()[0].style;
+        assert_eq!(style.name.as_deref(), Some(name.as_str()));
+        assert_eq!(style.medium_accent_theme(), Some(index + 2));
+        assert!(
+            style.row_stripes && style.column_stripes && style.first_column && style.last_column
+        );
+    }
 }
 
 #[cfg_attr(not(target_arch = "wasm32"), test)]
 #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
 fn dc_971p_41__calculated_row_insert_and_filtered_fill_refuse_atomically() {
-    use calc_host::{TableChange as T,WorkbookCommand as W,FilterChange as F,FilterCriteria as C};
-    let mut book=session(&calc_host::blank_package());let (s,part)=create_test_table(&mut book);
-    assert!(table_action(&mut book,T::CalculatedColumn{part:part.clone(),column:1,formula:Some("=B2*2".into())}).accepted());
-    let before=book.host().revision();let definitions=book.host().model().definitions().tables().to_vec();
-    assert!(!book.dispatch(SkinIntent::EditAxis(AxisEdit::new(s,Axis::Rows,AxisChange::Insert,3,1).unwrap())).accepted());assert_eq!(book.host().revision(),before);assert_eq!(book.host().model().definitions().tables(),definitions);assert_eq!(calculated(book.host(),at(s,"A3")),Some(CalcValue::number(18.)));
-    let revision=book.host().revision().get();assert!(book.dispatch(SkinIntent::Command(W::TableFilter{sheet:s,revision,part:part.clone(),change:F::Column{column:1,criteria:Some(C::Values{values:vec!["18".into()],blank:false})}})).accepted());
-    let before=book.host().revision();assert!(!table_action(&mut book,T::Resize{part:part.clone(),area:GridArea::new(at(s,"A1"),at(s,"B4")).unwrap()}).accepted());assert!(!table_action(&mut book,T::CalculatedColumn{part:part.clone(),column:1,formula:Some("=B2*3".into())}).accepted());assert_eq!(book.host().revision(),before);
-    let revision=book.host().revision().get();assert!(book.dispatch(SkinIntent::Command(W::TableFilter{sheet:s,revision,part:part.clone(),change:F::Clear})).accepted());assert!(table_action(&mut book,T::Resize{part,area:GridArea::new(at(s,"A1"),at(s,"B4")).unwrap()}).accepted());assert_eq!(calculated(book.host(),at(s,"A4")),Some(CalcValue::number(4.)));
+    use calc_host::{
+        FilterChange as F, FilterCriteria as C, TableChange as T, WorkbookCommand as W,
+    };
+    let mut book = session(&calc_host::blank_package());
+    let (s, part) = create_test_table(&mut book);
+    assert!(
+        table_action(
+            &mut book,
+            T::CalculatedColumn {
+                part: part.clone(),
+                column: 1,
+                formula: Some("=B2*2".into())
+            }
+        )
+        .accepted()
+    );
+    let before = book.host().revision();
+    let definitions = book.host().model().definitions().tables().to_vec();
+    assert!(
+        !book
+            .dispatch(SkinIntent::EditAxis(
+                AxisEdit::new(s, Axis::Rows, AxisChange::Insert, 3, 1).unwrap()
+            ))
+            .accepted()
+    );
+    assert_eq!(book.host().revision(), before);
+    assert_eq!(book.host().model().definitions().tables(), definitions);
+    assert_eq!(
+        calculated(book.host(), at(s, "A3")),
+        Some(CalcValue::number(18.))
+    );
+    let revision = book.host().revision().get();
+    assert!(
+        book.dispatch(SkinIntent::Command(W::TableFilter {
+            sheet: s,
+            revision,
+            part: part.clone(),
+            change: F::Column {
+                column: 1,
+                criteria: Some(C::Values {
+                    values: vec!["18".into()],
+                    blank: false
+                })
+            }
+        }))
+        .accepted()
+    );
+    let before = book.host().revision();
+    assert!(
+        !table_action(
+            &mut book,
+            T::Resize {
+                part: part.clone(),
+                area: GridArea::new(at(s, "A1"), at(s, "B4")).unwrap()
+            }
+        )
+        .accepted()
+    );
+    assert!(
+        !table_action(
+            &mut book,
+            T::CalculatedColumn {
+                part: part.clone(),
+                column: 1,
+                formula: Some("=B2*3".into())
+            }
+        )
+        .accepted()
+    );
+    assert_eq!(book.host().revision(), before);
+    let revision = book.host().revision().get();
+    assert!(
+        book.dispatch(SkinIntent::Command(W::TableFilter {
+            sheet: s,
+            revision,
+            part: part.clone(),
+            change: F::Clear
+        }))
+        .accepted()
+    );
+    assert!(
+        table_action(
+            &mut book,
+            T::Resize {
+                part,
+                area: GridArea::new(at(s, "A1"), at(s, "B4")).unwrap()
+            }
+        )
+        .accepted()
+    );
+    assert_eq!(
+        calculated(book.host(), at(s, "A4")),
+        Some(CalcValue::number(4.))
+    );
 }
 
 #[cfg_attr(not(target_arch = "wasm32"), test)]
 #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
 fn dc_971p_41__rename_preserves_spaces_unicode_rules_and_source_attributes() {
     use calc_host::TableChange as T;
-    let mut book=session(&calc_host::blank_package());let (_,part)=create_test_table(&mut book);let mut saved=Vec::new();book.save(&SavePolicy::default(),&mut saved).unwrap();
-    let saved=package_with_part_from(&saved,"xl/worksheets/sheet1.xml",|xml|xml.replace("</worksheet>",r#"<conditionalFormatting sqref="D2"><cfRule type="expression" priority="1"><formula>SUM(Sales[Amount])&gt;0</formula></cfRule></conditionalFormatting><dataValidations count="1"><dataValidation type="custom" sqref="D2"><formula1>SUM(Sales[Amount])&gt;0</formula1></dataValidation></dataValidations></worksheet>"#));
-    let mut book=session(&saved);let s=book.host().sheets()[0].id();enter(&mut book,at(s,"D1"),"=IF(\"🧬\"=\"🧬\",SUM(Sales[Amount]),0)");
-    let done=table_action(&mut book,T::RenameColumn{part:part.clone(),column:2,name:" Net [#] ".into()});assert!(done.accepted(),"{done:?}");assert_eq!(book.host().model().definitions().tables()[0].columns[1]," Net [#] ");assert_eq!(calculated(book.host(),at(s,"D1")),Some(CalcValue::number(14.)));
-    let rules=book.host().model().definitions().conditional_rules(s);assert!(rules[0].formulas[0].contains(" Net "));assert!(book.host().model().definitions().validations(s)[0].formula1.as_ref().unwrap().contains(" Net "));
-    let mut saved=Vec::new();book.save(&SavePolicy::default(),&mut saved).unwrap();let mut reopened=session(&saved);assert!(reopened.dispatch(SkinIntent::Recalculate).accepted());assert_eq!(reopened.host().model().definitions().tables()[0].columns[1]," Net [#] ");assert_eq!(calculated(reopened.host(),at(s,"D1")),Some(CalcValue::number(14.)));
+    let mut book = session(&calc_host::blank_package());
+    let (_, part) = create_test_table(&mut book);
+    let mut saved = Vec::new();
+    book.save(&SavePolicy::default(), &mut saved).unwrap();
+    let saved = package_with_part_from(&saved, "xl/worksheets/sheet1.xml", |xml| {
+        xml.replace("</worksheet>",r#"<conditionalFormatting sqref="D2"><cfRule type="expression" priority="1"><formula>SUM(Sales[Amount])&gt;0</formula></cfRule></conditionalFormatting><dataValidations count="1"><dataValidation type="custom" sqref="D2"><formula1>SUM(Sales[Amount])&gt;0</formula1></dataValidation></dataValidations></worksheet>"#)
+    });
+    let mut book = session(&saved);
+    let s = book.host().sheets()[0].id();
+    enter(
+        &mut book,
+        at(s, "D1"),
+        "=IF(\"🧬\"=\"🧬\",SUM(Sales[Amount]),0)",
+    );
+    let done = table_action(
+        &mut book,
+        T::RenameColumn {
+            part: part.clone(),
+            column: 2,
+            name: " Net [#] ".into(),
+        },
+    );
+    assert!(done.accepted(), "{done:?}");
+    assert_eq!(
+        book.host().model().definitions().tables()[0].columns[1],
+        " Net [#] "
+    );
+    assert_eq!(
+        calculated(book.host(), at(s, "D1")),
+        Some(CalcValue::number(14.))
+    );
+    let rules = book.host().model().definitions().conditional_rules(s);
+    assert!(rules[0].formulas[0].contains(" Net "));
+    assert!(
+        book.host().model().definitions().validations(s)[0]
+            .formula1
+            .as_ref()
+            .unwrap()
+            .contains(" Net ")
+    );
+    let mut saved = Vec::new();
+    book.save(&SavePolicy::default(), &mut saved).unwrap();
+    let mut reopened = session(&saved);
+    assert!(reopened.dispatch(SkinIntent::Recalculate).accepted());
+    assert_eq!(
+        reopened.host().model().definitions().tables()[0].columns[1],
+        " Net [#] "
+    );
+    assert_eq!(
+        calculated(reopened.host(), at(s, "D1")),
+        Some(CalcValue::number(14.))
+    );
 }
 
 #[cfg_attr(not(target_arch = "wasm32"), test)]
 #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
 fn dc_971p_41__column_rename_uses_exact_names_before_whitespace_fallback() {
-    use calc_host::TableChange as T;let mut book=session(&calc_host::blank_package());let (s,part)=create_test_table(&mut book);
-    enter(&mut book,at(s,"D1"),"=SUM(Sales[ Amount ])");assert_eq!(calculated(book.host(),at(s,"D1")),Some(CalcValue::number(14.)));
-    assert!(table_action(&mut book,T::RenameColumn{part:part.clone(),column:1,name:" Amount ".into()}).accepted());assert_eq!(calculated(book.host(),at(s,"D1")),Some(CalcValue::number(14.)));
-    enter(&mut book,at(s,"A2"),"2");enter(&mut book,at(s,"A3"),"3");enter(&mut book,at(s,"D2"),"=SUM(Sales[ Amount ])");assert_eq!(calculated(book.host(),at(s,"D2")),Some(CalcValue::number(5.)));
-    assert!(table_action(&mut book,T::RenameColumn{part:part.clone(),column:2,name:"Revenue".into()}).accepted());assert_eq!(calculated(book.host(),at(s,"D1")),Some(CalcValue::number(14.)));assert_eq!(calculated(book.host(),at(s,"D2")),Some(CalcValue::number(5.)));
-    assert!(table_action(&mut book,T::RenameColumn{part,column:1,name:"Other".into()}).accepted());assert_eq!(calculated(book.host(),at(s,"D2")),Some(CalcValue::number(5.)));
+    use calc_host::TableChange as T;
+    let mut book = session(&calc_host::blank_package());
+    let (s, part) = create_test_table(&mut book);
+    enter(&mut book, at(s, "D1"), "=SUM(Sales[ Amount ])");
+    assert_eq!(
+        calculated(book.host(), at(s, "D1")),
+        Some(CalcValue::number(14.))
+    );
+    assert!(
+        table_action(
+            &mut book,
+            T::RenameColumn {
+                part: part.clone(),
+                column: 1,
+                name: " Amount ".into()
+            }
+        )
+        .accepted()
+    );
+    assert_eq!(
+        calculated(book.host(), at(s, "D1")),
+        Some(CalcValue::number(14.))
+    );
+    enter(&mut book, at(s, "A2"), "2");
+    enter(&mut book, at(s, "A3"), "3");
+    enter(&mut book, at(s, "D2"), "=SUM(Sales[ Amount ])");
+    assert_eq!(
+        calculated(book.host(), at(s, "D2")),
+        Some(CalcValue::number(5.))
+    );
+    assert!(
+        table_action(
+            &mut book,
+            T::RenameColumn {
+                part: part.clone(),
+                column: 2,
+                name: "Revenue".into()
+            }
+        )
+        .accepted()
+    );
+    assert_eq!(
+        calculated(book.host(), at(s, "D1")),
+        Some(CalcValue::number(14.))
+    );
+    assert_eq!(
+        calculated(book.host(), at(s, "D2")),
+        Some(CalcValue::number(5.))
+    );
+    assert!(
+        table_action(
+            &mut book,
+            T::RenameColumn {
+                part,
+                column: 1,
+                name: "Other".into()
+            }
+        )
+        .accepted()
+    );
+    assert_eq!(
+        calculated(book.host(), at(s, "D2")),
+        Some(CalcValue::number(5.))
+    );
 }
 
 #[cfg_attr(not(target_arch = "wasm32"), test)]
 #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
 fn dc_971p_41__calculated_formula_namespaces_and_quoted_attributes_survive_rename() {
-    use calc_host::TableChange as T;let mut book=session(&calc_host::blank_package());let (_,part)=create_test_table(&mut book);
-    assert!(table_action(&mut book,T::CalculatedColumn{part:part.clone(),column:1,formula:Some("=SUM(Sales[Amount])".into())}).accepted());let mut saved=Vec::new();book.save(&SavePolicy::default(),&mut saved).unwrap();
-    let augmented=package_with_part_from(&saved,&part,|xml|xml.replace("<calculatedColumnFormula ",r#"<m:calculatedColumnFormula xmlns:m="http://schemas.openxmlformats.org/spreadsheetml/2006/main" xmlns:v="urn:keep" v:note="a>b" array="0" "#).replace("</calculatedColumnFormula>","</m:calculatedColumnFormula>"));
-    let mut book=session(&augmented);let s=book.host().sheets()[0].id();assert!(!book.host().model().definitions().tables()[0].axis_opaque);
-    let done=table_action(&mut book,T::RenameColumn{part:part.clone(),column:2,name:"Revenue".into()});assert!(done.accepted(),"{done:?}");let mut saved=Vec::new();book.save(&SavePolicy::default(),&mut saved).unwrap();let xml=part_text(&saved,&part);assert!(xml.contains(r#"v:note="a>b""#),"{xml}");assert!(xml.contains(r#"array="0""#));assert!(xml.contains("</m:calculatedColumnFormula>"));let mut reopened=session(&saved);assert!(reopened.dispatch(SkinIntent::Recalculate).accepted());assert_eq!(calculated(reopened.host(),at(s,"A3")),Some(CalcValue::number(14.)));
+    use calc_host::TableChange as T;
+    let mut book = session(&calc_host::blank_package());
+    let (_, part) = create_test_table(&mut book);
+    assert!(
+        table_action(
+            &mut book,
+            T::CalculatedColumn {
+                part: part.clone(),
+                column: 1,
+                formula: Some("=SUM(Sales[Amount])".into())
+            }
+        )
+        .accepted()
+    );
+    let mut saved = Vec::new();
+    book.save(&SavePolicy::default(), &mut saved).unwrap();
+    let augmented = package_with_part_from(&saved, &part, |xml| {
+        xml.replace("<calculatedColumnFormula ",r#"<m:calculatedColumnFormula xmlns:m="http://schemas.openxmlformats.org/spreadsheetml/2006/main" xmlns:v="urn:keep" v:note="a>b" array="0" "#).replace("</calculatedColumnFormula>","</m:calculatedColumnFormula>")
+    });
+    let mut book = session(&augmented);
+    let s = book.host().sheets()[0].id();
+    assert!(!book.host().model().definitions().tables()[0].axis_opaque);
+    let done = table_action(
+        &mut book,
+        T::RenameColumn {
+            part: part.clone(),
+            column: 2,
+            name: "Revenue".into(),
+        },
+    );
+    assert!(done.accepted(), "{done:?}");
+    let mut saved = Vec::new();
+    book.save(&SavePolicy::default(), &mut saved).unwrap();
+    let xml = part_text(&saved, &part);
+    assert!(xml.contains(r#"v:note="a>b""#), "{xml}");
+    assert!(xml.contains(r#"array="0""#));
+    assert!(xml.contains("</m:calculatedColumnFormula>"));
+    let mut reopened = session(&saved);
+    assert!(reopened.dispatch(SkinIntent::Recalculate).accepted());
+    assert_eq!(
+        calculated(reopened.host(), at(s, "A3")),
+        Some(CalcValue::number(14.))
+    );
 }
 
 #[cfg_attr(not(target_arch = "wasm32"), test)]
 #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
 fn dc_971p_6__double_underline_and_stacked_text_share_history_and_save() {
-    use calc_host::{WorkbookCommand as W,FormatPatch};let mut book=session(&calc_host::blank_package());let s=book.host().sheets()[0].id();enter(&mut book,at(s,"A1"),"Aé🧬");enter(&mut book,at(s,"B1"),"12.3");
-    let done=book.dispatch(SkinIntent::Command(W::FormatCells{areas:vec![GridArea::new(at(s,"A1"),at(s,"B1")).unwrap()],patch:FormatPatch{font_name:Some("monospace".into()),font_size:Some("14".into()),underline_style:Some("double".into()),strike:Some(true),rotation:Some(255),..Default::default()}}));assert!(done.accepted(),"{done:?}");
-    let style=book.host().cell_style(at(s,"A1"));let styles=book.host().styles();let font=&styles.fonts[styles.cell_formats[style as usize].font_id.unwrap() as usize];assert_eq!(font.underline.as_deref(),Some("double"));assert!(font.strike);assert_eq!(book.host().cell_alignment(at(s,"A1")).unwrap().text_rotation.as_deref(),Some("255"));
-    assert!(book.dispatch(SkinIntent::Undo).accepted());assert_eq!(book.host().cell_style(at(s,"A1")),0);assert!(book.dispatch(SkinIntent::Redo).accepted());
-    let mut saved=Vec::new();book.save(&SavePolicy::default(),&mut saved).unwrap();assert!(part_text(&saved,"xl/styles.xml").contains("textRotation=\"255\""));let reopened=session(&saved);let styles=reopened.host().styles();let font=&styles.fonts[styles.cell_formats[reopened.host().cell_style(at(s,"B1")) as usize].font_id.unwrap() as usize];assert_eq!(font.underline.as_deref(),Some("double"));assert!(font.strike);assert_eq!(calc_host::search::entry_text(reopened.host().model().cell(at(s,"A1"))),"Aé🧬");
-    for patch in [FormatPatch{underline_style:Some("wavy".into()),..Default::default()},FormatPatch{rotation:Some(254),..Default::default()},FormatPatch{underline:Some(false),underline_style:Some("double".into()),..Default::default()}] {let revision=book.host().revision();assert!(!book.dispatch(SkinIntent::Command(W::FormatCells{areas:vec![GridArea::cell(at(s,"A1"))],patch})).accepted());assert_eq!(book.host().revision(),revision);}
+    use calc_host::{FormatPatch, WorkbookCommand as W};
+    let mut book = session(&calc_host::blank_package());
+    let s = book.host().sheets()[0].id();
+    enter(&mut book, at(s, "A1"), "Aé🧬");
+    enter(&mut book, at(s, "B1"), "12.3");
+    let done = book.dispatch(SkinIntent::Command(W::FormatCells {
+        areas: vec![GridArea::new(at(s, "A1"), at(s, "B1")).unwrap()],
+        patch: FormatPatch {
+            font_name: Some("monospace".into()),
+            font_size: Some("14".into()),
+            underline_style: Some("double".into()),
+            strike: Some(true),
+            rotation: Some(255),
+            ..Default::default()
+        },
+    }));
+    assert!(done.accepted(), "{done:?}");
+    let style = book.host().cell_style(at(s, "A1"));
+    let styles = book.host().styles();
+    let font = &styles.fonts[styles.cell_formats[style as usize].font_id.unwrap() as usize];
+    assert_eq!(font.underline.as_deref(), Some("double"));
+    assert!(font.strike);
+    assert_eq!(
+        book.host()
+            .cell_alignment(at(s, "A1"))
+            .unwrap()
+            .text_rotation
+            .as_deref(),
+        Some("255")
+    );
+    assert!(book.dispatch(SkinIntent::Undo).accepted());
+    assert_eq!(book.host().cell_style(at(s, "A1")), 0);
+    assert!(book.dispatch(SkinIntent::Redo).accepted());
+    let mut saved = Vec::new();
+    book.save(&SavePolicy::default(), &mut saved).unwrap();
+    assert!(part_text(&saved, "xl/styles.xml").contains("textRotation=\"255\""));
+    let reopened = session(&saved);
+    let styles = reopened.host().styles();
+    let font = &styles.fonts[styles.cell_formats[reopened.host().cell_style(at(s, "B1")) as usize]
+        .font_id
+        .unwrap() as usize];
+    assert_eq!(font.underline.as_deref(), Some("double"));
+    assert!(font.strike);
+    assert_eq!(
+        calc_host::search::entry_text(reopened.host().model().cell(at(s, "A1"))),
+        "Aé🧬"
+    );
+    for patch in [
+        FormatPatch {
+            underline_style: Some("wavy".into()),
+            ..Default::default()
+        },
+        FormatPatch {
+            rotation: Some(254),
+            ..Default::default()
+        },
+        FormatPatch {
+            underline: Some(false),
+            underline_style: Some("double".into()),
+            ..Default::default()
+        },
+    ] {
+        let revision = book.host().revision();
+        assert!(
+            !book
+                .dispatch(SkinIntent::Command(W::FormatCells {
+                    areas: vec![GridArea::cell(at(s, "A1"))],
+                    patch
+                }))
+                .accepted()
+        );
+        assert_eq!(book.host().revision(), revision);
+    }
 }
 
 #[cfg_attr(not(target_arch = "wasm32"), test)]
@@ -15083,33 +20401,80 @@ fn dc_971p_37__conditional_fill_and_font_filters_read_the_existing_excel_looks()
     ] {
         assert!(enter(&mut book, at(s, address), formula).accepted());
     }
-    assert!(book.dispatch(SkinIntent::Command(W::AxisFormat {
-        sheet: s, rows: true, first: 4, count: 1, size_bits: None, hidden: Some(true),
-    })).accepted());
+    assert!(
+        book.dispatch(SkinIntent::Command(W::AxisFormat {
+            sheet: s,
+            rows: true,
+            first: 4,
+            count: 1,
+            size_bits: None,
+            hidden: Some(true),
+        }))
+        .accepted()
+    );
     let command = |book: &mut HostSession, change| {
         let revision = book.host().revision().get();
-        book.dispatch(SkinIntent::Command(W::AutoFilter { sheet: s, revision, change }))
+        book.dispatch(SkinIntent::Command(W::AutoFilter {
+            sheet: s,
+            revision,
+            change,
+        }))
     };
-    assert!(command(&mut book, F::Enable {
-        area: GridArea::new(at(s, "A1"), at(s, "D10")).unwrap(),
-    }).accepted());
+    assert!(
+        command(
+            &mut book,
+            F::Enable {
+                area: GridArea::new(at(s, "A1"), at(s, "D10")).unwrap(),
+            }
+        )
+        .accepted()
+    );
     // These colours and their conditions were captured from this existing Excel fixture;
     // this test exercises applying a colour filter, rather than recapturing its looks.
     let before = book.host().model().definitions().auto_filter(s).cloned();
-    let receipt = command(&mut book, F::Color {
-        column: 1, cell_color: true, color: "#ffc7ce".into(),
-    });
+    let receipt = command(
+        &mut book,
+        F::Color {
+            column: 1,
+            cell_color: true,
+            color: "#ffc7ce".into(),
+        },
+    );
     assert!(receipt.accepted(), "{receipt:?}");
-    let filtered = book.host().model().definitions().auto_filter(s).unwrap().clone();
-    assert_eq!(filtered.filtered_rows.iter().copied().collect::<Vec<_>>(), vec![3, 5, 8, 10]);
+    let filtered = book
+        .host()
+        .model()
+        .definitions()
+        .auto_filter(s)
+        .unwrap()
+        .clone();
+    assert_eq!(
+        filtered.filtered_rows.iter().copied().collect::<Vec<_>>(),
+        vec![3, 5, 8, 10]
+    );
     for (address, expected) in [("P1", 80.), ("P2", 66.), ("P3", 102.), ("P4", 66.)] {
-        assert_eq!(session_calculated(&book, at(s, address)).unwrap().as_number(), Some(expected), "{address}");
+        assert_eq!(
+            session_calculated(&book, at(s, address))
+                .unwrap()
+                .as_number(),
+            Some(expected),
+            "{address}"
+        );
     }
     assert!(book.dispatch(SkinIntent::Undo).accepted());
-    assert_eq!(book.host().model().definitions().auto_filter(s), before.as_ref());
-    assert_eq!(session_calculated(&book, at(s, "P2")).unwrap().as_number(), Some(88.));
+    assert_eq!(
+        book.host().model().definitions().auto_filter(s),
+        before.as_ref()
+    );
+    assert_eq!(
+        session_calculated(&book, at(s, "P2")).unwrap().as_number(),
+        Some(88.)
+    );
     assert!(book.dispatch(SkinIntent::Redo).accepted());
-    assert_eq!(book.host().model().definitions().auto_filter(s), Some(&filtered));
+    assert_eq!(
+        book.host().model().definitions().auto_filter(s),
+        Some(&filtered)
+    );
     let mut saved = Vec::new();
     book.save(&SavePolicy::default(), &mut saved).unwrap();
     let xml = part_text(&saved, "xl/worksheets/sheet1.xml");
@@ -15119,19 +20484,77 @@ fn dc_971p_37__conditional_fill_and_font_filters_read_the_existing_excel_looks()
     assert!(reopened.dispatch(SkinIntent::Recalculate).accepted());
     let r = reopened.host().sheets()[0].id();
     let revision = reopened.host().revision().get();
-    let receipt = reopened.dispatch(SkinIntent::Command(W::AutoFilter { sheet: r, revision, change: F::Reapply }));
+    let receipt = reopened.dispatch(SkinIntent::Command(W::AutoFilter {
+        sheet: r,
+        revision,
+        change: F::Reapply,
+    }));
     assert!(receipt.accepted(), "{receipt:?}");
-    assert_eq!(reopened.host().model().definitions().auto_filter(r).unwrap().filtered_rows, filtered.filtered_rows);
-    assert_eq!(session_calculated(&reopened, at(r, "P4")).unwrap().as_number(), Some(66.));
+    assert_eq!(
+        reopened
+            .host()
+            .model()
+            .definitions()
+            .auto_filter(r)
+            .unwrap()
+            .filtered_rows,
+        filtered.filtered_rows
+    );
+    assert_eq!(
+        session_calculated(&reopened, at(r, "P4"))
+            .unwrap()
+            .as_number(),
+        Some(66.)
+    );
     assert!(command(&mut book, F::Clear).accepted());
-    assert!(command(&mut book, F::Color { column: 4, cell_color: false, color: "#0000ff".into() }).accepted());
-    assert_eq!(book.host().model().definitions().auto_filter(s).unwrap().filtered_rows.iter().copied().collect::<Vec<_>>(), vec![3, 5, 7, 8, 10]);
-    assert_eq!(session_calculated(&book, at(s, "P1")).unwrap().as_number(), Some(68.));
-    assert_eq!(session_calculated(&book, at(s, "P4")).unwrap().as_number(), Some(54.));
+    assert!(
+        command(
+            &mut book,
+            F::Color {
+                column: 4,
+                cell_color: false,
+                color: "#0000ff".into()
+            }
+        )
+        .accepted()
+    );
+    assert_eq!(
+        book.host()
+            .model()
+            .definitions()
+            .auto_filter(s)
+            .unwrap()
+            .filtered_rows
+            .iter()
+            .copied()
+            .collect::<Vec<_>>(),
+        vec![3, 5, 7, 8, 10]
+    );
+    assert_eq!(
+        session_calculated(&book, at(s, "P1")).unwrap().as_number(),
+        Some(68.)
+    );
+    assert_eq!(
+        session_calculated(&book, at(s, "P4")).unwrap().as_number(),
+        Some(54.)
+    );
     assert!(command(&mut book, F::Clear).accepted());
-    assert_eq!(session_calculated(&book, at(s, "P1")).unwrap().as_number(), Some(102.));
-    assert_eq!(session_calculated(&book, at(s, "P4")).unwrap().as_number(), Some(88.));
-    assert!(book.host().model().definitions().axis_layouts().get(s, calc_host::Axis::Rows, 4).hidden());
+    assert_eq!(
+        session_calculated(&book, at(s, "P1")).unwrap().as_number(),
+        Some(102.)
+    );
+    assert_eq!(
+        session_calculated(&book, at(s, "P4")).unwrap().as_number(),
+        Some(88.)
+    );
+    assert!(
+        book.host()
+            .model()
+            .definitions()
+            .axis_layouts()
+            .get(s, calc_host::Axis::Rows, 4)
+            .hidden()
+    );
 }
 
 #[cfg_attr(not(target_arch = "wasm32"), test)]
@@ -15146,40 +20569,99 @@ fn dc_971p_37__conditional_colour_priority_and_stale_rules_are_atomic() {
     for (formula, colour, stop) in [("A2=2", "#0000ff", true), ("A2>0", "#ff0000", false)] {
         let revision = book.host().revision().get();
         let receipt = book.dispatch(SkinIntent::Command(W::Conditional {
-            sheet: s, revision, index: None,
+            sheet: s,
+            revision,
+            index: None,
             change: calc_host::ConditionalChange::Condition {
-                kind: "expression".into(), applies: "A2:A4".into(), color: colour.into(),
-                formulas: vec![formula.into()], operator: "".into(), rank: 10, percent: false, stop,
+                kind: "expression".into(),
+                applies: "A2:A4".into(),
+                color: colour.into(),
+                formulas: vec![formula.into()],
+                operator: "".into(),
+                rank: 10,
+                percent: false,
+                stop,
             },
         }));
         assert!(receipt.accepted(), "{receipt:?}");
     }
     let command = |book: &mut HostSession, change| {
         let revision = book.host().revision().get();
-        book.dispatch(SkinIntent::Command(W::AutoFilter { sheet: s, revision, change }))
+        book.dispatch(SkinIntent::Command(W::AutoFilter {
+            sheet: s,
+            revision,
+            change,
+        }))
     };
-    assert!(command(&mut book, F::Enable { area: GridArea::new(at(s, "A1"), at(s, "A4")).unwrap() }).accepted());
-    assert!(command(&mut book, F::Color { column: 1, cell_color: true, color: "#ff0000".into() }).accepted());
-    assert_eq!(book.host().model().definitions().auto_filter(s).unwrap().filtered_rows.iter().copied().collect::<Vec<_>>(), vec![3]);
+    assert!(
+        command(
+            &mut book,
+            F::Enable {
+                area: GridArea::new(at(s, "A1"), at(s, "A4")).unwrap()
+            }
+        )
+        .accepted()
+    );
+    assert!(
+        command(
+            &mut book,
+            F::Color {
+                column: 1,
+                cell_color: true,
+                color: "#ff0000".into()
+            }
+        )
+        .accepted()
+    );
+    assert_eq!(
+        book.host()
+            .model()
+            .definitions()
+            .auto_filter(s)
+            .unwrap()
+            .filtered_rows
+            .iter()
+            .copied()
+            .collect::<Vec<_>>(),
+        vec![3]
+    );
     // A condition must not fall back to the underlying fill when its formula is unavailable.
     assert!(enter(&mut book, at(s, "D1"), "=1+1").accepted());
-    assert!(book.dispatch(SkinIntent::SetCalcMode(calc_host::CalcMode::Manual)).accepted());
+    assert!(
+        book.dispatch(SkinIntent::SetCalcMode(calc_host::CalcMode::Manual))
+            .accepted()
+    );
     assert!(enter(&mut book, at(s, "D1"), "=3+1").accepted());
     let revision = book.host().revision().get();
     let receipt = book.dispatch(SkinIntent::Command(W::Conditional {
-        sheet: s, revision, index: Some(0), change: calc_host::ConditionalChange::Update {
-            applies: "A2:A4".into(), formulas: vec!["$D$1>0".into()], stop: true,
+        sheet: s,
+        revision,
+        index: Some(0),
+        change: calc_host::ConditionalChange::Update {
+            applies: "A2:A4".into(),
+            formulas: vec!["$D$1>0".into()],
+            stop: true,
         },
     }));
     assert!(receipt.accepted(), "{receipt:?}");
     let revision = book.host().revision();
     let styles = book.host().styles().clone();
     let filter = book.host().model().definitions().auto_filter(s).cloned();
-    let denied = command(&mut book, F::Color { column: 1, cell_color: true, color: "#00ff00".into() });
+    let denied = command(
+        &mut book,
+        F::Color {
+            column: 1,
+            cell_color: true,
+            color: "#00ff00".into(),
+        },
+    );
     assert!(!denied.accepted(), "{denied:?}");
     assert_eq!(book.host().revision(), revision);
     assert_eq!(book.host().styles(), &styles);
-    assert_eq!(book.host().model().definitions().auto_filter(s), filter.as_ref());
+    assert_eq!(
+        book.host().model().definitions().auto_filter(s),
+        filter.as_ref()
+    );
 }
 
 #[cfg_attr(not(target_arch = "wasm32"), test)]
@@ -15195,13 +20677,25 @@ fn dc_971p_37__unread_conditional_rule_fields_keep_colour_filtering_atomic() {
         ("priority=\"3\"", ""),
         ("stopIfTrue=\"1\"", "stopIfTrue=\"bad\""),
         ("</formula>", "</formula><formula>1</formula>"),
-        ("<cfRule type=\"cellIs\"", "<cfRule xmlns:v=\"urn:filter-rule-test\" v:effect=\"keep\" type=\"cellIs\""),
-        ("</cfRule>", "<v:effect xmlns:v=\"urn:filter-rule-test\"/></cfRule>"),
-        ("<formula>", "<formula xmlns:v=\"urn:filter-rule-test\" v:effect=\"keep\">"),
+        (
+            "<cfRule type=\"cellIs\"",
+            "<cfRule xmlns:v=\"urn:filter-rule-test\" v:effect=\"keep\" type=\"cellIs\"",
+        ),
+        (
+            "</cfRule>",
+            "<v:effect xmlns:v=\"urn:filter-rule-test\"/></cfRule>",
+        ),
+        (
+            "<formula>",
+            "<formula xmlns:v=\"urn:filter-rule-test\" v:effect=\"keep\">",
+        ),
         ("sqref=\"A1:A10\"", "sqref=\"E2:E4 invalid\""),
         ("sqref=\"A1:A10\"", "sqref=\"\""),
         ("sqref=\"A1:A10\"", ""),
-        ("<conditionalFormatting sqref=\"A1:A10\"", "<conditionalFormatting xmlns:v=\"urn:filter-rule-test\" v:effect=\"keep\" sqref=\"A1:A10\""),
+        (
+            "<conditionalFormatting sqref=\"A1:A10\"",
+            "<conditionalFormatting xmlns:v=\"urn:filter-rule-test\" v:effect=\"keep\" sqref=\"A1:A10\"",
+        ),
     ] {
         let bytes = package_with_part_from(original, "xl/worksheets/sheet1.xml", |xml| {
             assert!(xml.contains(before));
@@ -15211,23 +20705,41 @@ fn dc_971p_37__unread_conditional_rule_fields_keep_colour_filtering_atomic() {
         assert!(book.dispatch(SkinIntent::Recalculate).accepted());
         let s = book.host().sheets()[0].id();
         let revision = book.host().revision().get();
-        assert!(book.dispatch(SkinIntent::Command(W::AutoFilter { sheet: s, revision,
-            change: F::Enable { area: GridArea::new(at(s, "A1"), at(s, "A10")).unwrap() },
-        })).accepted());
+        assert!(
+            book.dispatch(SkinIntent::Command(W::AutoFilter {
+                sheet: s,
+                revision,
+                change: F::Enable {
+                    area: GridArea::new(at(s, "A1"), at(s, "A10")).unwrap()
+                },
+            }))
+            .accepted()
+        );
         let revision = book.host().revision();
         let styles = book.host().styles().clone();
         let filter = book.host().model().definitions().auto_filter(s).cloned();
-        let denied = book.dispatch(SkinIntent::Command(W::AutoFilter { sheet: s, revision: revision.get(),
-            change: F::Color { column: 1, cell_color: true, color: "#ffc7ce".into() },
+        let denied = book.dispatch(SkinIntent::Command(W::AutoFilter {
+            sheet: s,
+            revision: revision.get(),
+            change: F::Color {
+                column: 1,
+                cell_color: true,
+                color: "#ffc7ce".into(),
+            },
         }));
         assert!(!denied.accepted(), "{after}: {denied:?}");
         assert_eq!(book.host().revision(), revision);
         assert_eq!(book.host().styles(), &styles);
-        assert_eq!(book.host().model().definitions().auto_filter(s), filter.as_ref());
+        assert_eq!(
+            book.host().model().definitions().auto_filter(s),
+            filter.as_ref()
+        );
         let mut saved = Vec::new();
         book.save(&SavePolicy::default(), &mut saved).unwrap();
         assert!(part_text(&saved, "xl/worksheets/sheet1.xml").contains(after));
-        if after.is_empty(){assert!(!part_text(&saved,"xl/worksheets/sheet1.xml").contains(before));}
+        if after.is_empty() {
+            assert!(!part_text(&saved, "xl/worksheets/sheet1.xml").contains(before));
+        }
     }
 }
 
@@ -15236,43 +20748,80 @@ fn dc_971p_37__unread_conditional_rule_fields_keep_colour_filtering_atomic() {
 fn dc_971p_37__extension_colour_scope_requires_one_complete_direct_range() {
     use calc_host::{FilterChange as F, WorkbookCommand as W};
     for (scope, column, accepted, attribute) in [
-        ("<xm:sqref>E2:E4</xm:sqref></x14:conditionalFormatting><v:unknown xmlns:v=\"urn:unread-filter-scope\"/><x14:conditionalFormatting><xm:sqref>F2:F4</xm:sqref>", 1, false, ""),
+        (
+            "<xm:sqref>E2:E4</xm:sqref></x14:conditionalFormatting><v:unknown xmlns:v=\"urn:unread-filter-scope\"/><x14:conditionalFormatting><xm:sqref>F2:F4</xm:sqref>",
+            1,
+            false,
+            "",
+        ),
         ("<xm:sqref>E2:E4</xm:sqref>", 1, true, ""),
         ("<xm:sqref>E2:E4</xm:sqref>", 1, false, "collection"),
         ("<xm:sqref>E2:E4</xm:sqref>", 1, false, "range"),
         ("<xm:sqref>E2:E4</xm:sqref>", 5, false, ""),
-        ("<xm:sqref>E2:E4</xm:sqref><xm:sqref>F2:F4</xm:sqref>", 1, false, ""),
+        (
+            "<xm:sqref>E2:E4</xm:sqref><xm:sqref>F2:F4</xm:sqref>",
+            1,
+            false,
+            "",
+        ),
         ("<xm:sqref>E2:E4 invalid</xm:sqref>", 1, false, ""),
-        ("<x14:cfRule type=\"expression\" priority=\"2\"><xm:sqref>E2:E4</xm:sqref></x14:cfRule>", 1, false, ""),
+        (
+            "<x14:cfRule type=\"expression\" priority=\"2\"><xm:sqref>E2:E4</xm:sqref></x14:cfRule>",
+            1,
+            false,
+            "",
+        ),
         ("", 1, false, ""),
     ] {
-        let extension = format!("<extLst><ext uri=\"urn:filter-scope-test\"><x14:conditionalFormattings xmlns:x14=\"http://schemas.microsoft.com/office/spreadsheetml/2009/9/main\" xmlns:xm=\"http://schemas.microsoft.com/office/excel/2006/main\"><x14:conditionalFormatting><x14:cfRule type=\"expression\" priority=\"1\"/>{scope}</x14:conditionalFormatting></x14:conditionalFormattings></ext></extLst>");
+        let extension = format!(
+            "<extLst><ext uri=\"urn:filter-scope-test\"><x14:conditionalFormattings xmlns:x14=\"http://schemas.microsoft.com/office/spreadsheetml/2009/9/main\" xmlns:xm=\"http://schemas.microsoft.com/office/excel/2006/main\"><x14:conditionalFormatting><x14:cfRule type=\"expression\" priority=\"1\"/>{scope}</x14:conditionalFormatting></x14:conditionalFormattings></ext></extLst>"
+        );
         let extension = match attribute {
             "collection" => extension.replacen("<x14:conditionalFormattings ", "<x14:conditionalFormattings xmlns:v=\"urn:unread-filter-scope\" v:scope=\"unknown\" ", 1),
             "range" => extension.replacen("<xm:sqref>", "<xm:sqref xmlns:v=\"urn:unread-filter-scope\" v:scope=\"unknown\">", 1),
             _ => extension,
         };
-        let bytes = package_with_part_from(&calc_host::blank_package(), "xl/worksheets/sheet1.xml", |xml| xml.replace("</worksheet>", &format!("{extension}</worksheet>")));
+        let bytes = package_with_part_from(
+            &calc_host::blank_package(),
+            "xl/worksheets/sheet1.xml",
+            |xml| xml.replace("</worksheet>", &format!("{extension}</worksheet>")),
+        );
         let mut book = session(&bytes);
         let s = book.host().sheets()[0].id();
         for (address, input) in [("A1", "Key"), ("A2", "1"), ("A3", "2"), ("A4", "3")] {
             assert!(enter(&mut book, at(s, address), input).accepted());
         }
         let revision = book.host().revision().get();
-        assert!(book.dispatch(SkinIntent::Command(W::AutoFilter { sheet: s, revision,
-            change: F::Enable { area: GridArea::new(at(s, "A1"), at(s, "E4")).unwrap() },
-        })).accepted());
+        assert!(
+            book.dispatch(SkinIntent::Command(W::AutoFilter {
+                sheet: s,
+                revision,
+                change: F::Enable {
+                    area: GridArea::new(at(s, "A1"), at(s, "E4")).unwrap()
+                },
+            }))
+            .accepted()
+        );
         let revision = book.host().revision();
         let styles = book.host().styles().clone();
         let filter = book.host().model().definitions().auto_filter(s).cloned();
-        let receipt = book.dispatch(SkinIntent::Command(W::AutoFilter { sheet: s, revision: revision.get(),
-            change: F::Color { column, cell_color: true, color: "#ff0000".into() },
+        let receipt = book.dispatch(SkinIntent::Command(W::AutoFilter {
+            sheet: s,
+            revision: revision.get(),
+            change: F::Color {
+                column,
+                cell_color: true,
+                color: "#ff0000".into(),
+            },
         }));
         assert_eq!(receipt.accepted(), accepted, "{scope}: {receipt:?}");
         if !accepted {
             assert_eq!(book.host().revision(), revision);
             assert_eq!(book.host().styles(), &styles);
-            assert_eq!(book.host().model().definitions().auto_filter(s), filter.as_ref());
+            assert_eq!(
+                book.host().model().definitions().auto_filter(s),
+                filter.as_ref()
+            );
         }
         let mut saved = Vec::new();
         book.save(&SavePolicy::default(), &mut saved).unwrap();
@@ -15292,11 +20841,23 @@ fn dc_971p_37__table_style_colours_refuse_before_committing_raw_style_comparison
     assert!(tables[0].style.name.is_some());
     for (cell_color, color) in [(true, "#4472c4"), (false, "#000000")] {
         let receipt = book.dispatch(SkinIntent::Command(W::TableFilter {
-            sheet: s, revision: revision.get(), part: part.clone(),
-            change: F::Color { column: 1, cell_color, color: color.into() },
+            sheet: s,
+            revision: revision.get(),
+            part: part.clone(),
+            change: F::Color {
+                column: 1,
+                cell_color,
+                color: color.into(),
+            },
         }));
         assert!(!receipt.accepted(), "{receipt:?}");
-        assert!(receipt.error.unwrap().to_string().contains("effective colours"));
+        assert!(
+            receipt
+                .error
+                .unwrap()
+                .to_string()
+                .contains("effective colours")
+        );
         assert_eq!(book.host().revision(), revision);
         assert_eq!(book.host().styles(), &styles);
         assert_eq!(book.host().model().definitions().tables(), tables);
@@ -15647,145 +21208,301 @@ fn dc_971p_38__imported_note_identities_rich_text_and_boxes_follow_a_three_cycle
 #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
 fn dc_971p_38__unknown_legacy_drawing_namespace_keeps_shift_and_sort_refusals() {
     use calc_host::{SortKey, WorkbookCommand as W};
-    let bytes = package_with_part_from(&calc_host::blank_package(), "xl/worksheets/sheet1.xml", |xml| {
-        xml.replace("</worksheet>", r#"<v:legacyDrawing xmlns:v="urn:unknown"/></worksheet>"#)
-    });
+    let bytes = package_with_part_from(
+        &calc_host::blank_package(),
+        "xl/worksheets/sheet1.xml",
+        |xml| {
+            xml.replace(
+                "</worksheet>",
+                r#"<v:legacyDrawing xmlns:v="urn:unknown"/></worksheet>"#,
+            )
+        },
+    );
     let mut book = session(&bytes);
     let s = book.host().sheets()[0].id();
     assert!(!book.host().loaded().cell_shift_metadata_supported(s));
     assert!(!book.host().loaded().cell_sort_metadata_supported(s));
-    assert!(enter(&mut book, at(s,"A1"), "2").accepted());
-    assert!(enter(&mut book, at(s,"A2"), "1").accepted());
-    let held=(book.host().revision(),book.history_depth());
-    let result=book.dispatch(SkinIntent::Command(W::SortRows {
-        area:GridArea::new(at(s,"A1"),at(s,"A2")).unwrap(),
-        keys:vec![SortKey {column:1,descending:false}],header:false,
-        revision:held.0.get(),
+    assert!(enter(&mut book, at(s, "A1"), "2").accepted());
+    assert!(enter(&mut book, at(s, "A2"), "1").accepted());
+    let held = (book.host().revision(), book.history_depth());
+    let result = book.dispatch(SkinIntent::Command(W::SortRows {
+        area: GridArea::new(at(s, "A1"), at(s, "A2")).unwrap(),
+        keys: vec![SortKey {
+            column: 1,
+            descending: false,
+        }],
+        header: false,
+        revision: held.0.get(),
     }));
-    assert!(!result.accepted(),"{result:?}");
-    assert_eq!(held,(book.host().revision(),book.history_depth()));
-    assert_eq!(book.host().model().cell(at(s,"A1")),Some(&number(2.)));
-    assert_eq!(book.host().model().cell(at(s,"A2")),Some(&number(1.)));
+    assert!(!result.accepted(), "{result:?}");
+    assert_eq!(held, (book.host().revision(), book.history_depth()));
+    assert_eq!(book.host().model().cell(at(s, "A1")), Some(&number(2.)));
+    assert_eq!(book.host().model().cell(at(s, "A2")), Some(&number(1.)));
 }
 
 #[cfg_attr(not(target_arch = "wasm32"), test)]
 #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
 fn dc_971p_38__complete_table_data_sort_keeps_headers_totals_and_saved_definitions() {
-    use calc_host::{TableChange as T, WorkbookCommand as W, SortKey};
-    let mut book=session(&calc_host::blank_package());
-    let (s,part)=create_test_table(&mut book);
-    assert!(book.dispatch(SkinIntent::Edit {edits:vec![CellEdit::Clear {area:GridArea::new(at(s,"A4"),at(s,"B4")).unwrap()}]}).accepted());
-    assert!(table_action(&mut book,T::Options {part:part.clone(),headers:true,totals:true,style:"TableStyleMedium2".into(),row_stripes:true,column_stripes:false,first_column:false,last_column:false}).accepted());
-    assert!(enter(&mut book,at(s,"D1"),"=SUM(Sales[Amount])").accepted());
-    let tables=book.host().model().definitions().tables().to_vec();
-    let sort=|b:&mut HostSession,area,descending,header| {
-        let revision=b.host().revision().get();
-        b.dispatch(SkinIntent::Command(W::SortRows {area,keys:vec![SortKey {column:2,descending}],header,revision}))
+    use calc_host::{SortKey, TableChange as T, WorkbookCommand as W};
+    let mut book = session(&calc_host::blank_package());
+    let (s, part) = create_test_table(&mut book);
+    assert!(
+        book.dispatch(SkinIntent::Edit {
+            edits: vec![CellEdit::Clear {
+                area: GridArea::new(at(s, "A4"), at(s, "B4")).unwrap()
+            }]
+        })
+        .accepted()
+    );
+    assert!(
+        table_action(
+            &mut book,
+            T::Options {
+                part: part.clone(),
+                headers: true,
+                totals: true,
+                style: "TableStyleMedium2".into(),
+                row_stripes: true,
+                column_stripes: false,
+                first_column: false,
+                last_column: false
+            }
+        )
+        .accepted()
+    );
+    assert!(enter(&mut book, at(s, "D1"), "=SUM(Sales[Amount])").accepted());
+    let tables = book.host().model().definitions().tables().to_vec();
+    let sort = |b: &mut HostSession, area, descending, header| {
+        let revision = b.host().revision().get();
+        b.dispatch(SkinIntent::Command(W::SortRows {
+            area,
+            keys: vec![SortKey {
+                column: 2,
+                descending,
+            }],
+            header,
+            revision,
+        }))
     };
-    let data=GridArea::new(at(s,"A1"),at(s,"B3")).unwrap();
-    let mut before=Vec::new();book.save(&SavePolicy::default(),&mut before).unwrap();
-    let done=sort(&mut book,data,true,true);assert!(done.accepted(),"{done:?}");
-    assert_eq!(book.host().model().cell(at(s,"A1")),Some(&calc_host::interpret_entry("Item").unwrap().unwrap()));
-    assert_eq!(book.host().model().cell(at(s,"A2")),Some(&calc_host::interpret_entry("Second").unwrap().unwrap()));
-    assert_eq!(book.host().model().cell(at(s,"B2")),Some(&number(9.)));
-    assert_eq!(book.host().model().definitions().tables(),tables);
-    assert_eq!(calculated(book.host(),at(s,"B4")),Some(CalcValue::number(14.)));
-    assert_eq!(calculated(book.host(),at(s,"D1")),Some(CalcValue::number(14.)));
+    let data = GridArea::new(at(s, "A1"), at(s, "B3")).unwrap();
+    let mut before = Vec::new();
+    book.save(&SavePolicy::default(), &mut before).unwrap();
+    let done = sort(&mut book, data, true, true);
+    assert!(done.accepted(), "{done:?}");
+    assert_eq!(
+        book.host().model().cell(at(s, "A1")),
+        Some(&calc_host::interpret_entry("Item").unwrap().unwrap())
+    );
+    assert_eq!(
+        book.host().model().cell(at(s, "A2")),
+        Some(&calc_host::interpret_entry("Second").unwrap().unwrap())
+    );
+    assert_eq!(book.host().model().cell(at(s, "B2")), Some(&number(9.)));
+    assert_eq!(book.host().model().definitions().tables(), tables);
+    assert_eq!(
+        calculated(book.host(), at(s, "B4")),
+        Some(CalcValue::number(14.))
+    );
+    assert_eq!(
+        calculated(book.host(), at(s, "D1")),
+        Some(CalcValue::number(14.))
+    );
     assert!(book.dispatch(SkinIntent::Undo).accepted());
-    assert_eq!(book.host().model().cell(at(s,"B2")),Some(&number(5.)));
+    assert_eq!(book.host().model().cell(at(s, "B2")), Some(&number(5.)));
     assert!(book.dispatch(SkinIntent::Redo).accepted());
-    let mut saved=Vec::new();book.save(&SavePolicy::default(),&mut saved).unwrap();
-    assert_eq!(part_text(&saved,&part),part_text(&before,&part));
-    let mut reopened=session(&saved);let r=reopened.host().sheets()[0].id();
-    let done=sort(&mut reopened,GridArea::new(at(r,"A2"),at(r,"B3")).unwrap(),false,false);
-    assert!(done.accepted(),"{done:?}");
-    assert_eq!(reopened.host().model().cell(at(r,"B2")),Some(&number(5.)));
-    for (last,header) in [("B2",false),("C3",false),("B4",false)] {
-        let area=GridArea::new(at(r,"A2"),at(r,last)).unwrap();
-        let held=(reopened.host().revision(),reopened.history_depth());
-        let bad=sort(&mut reopened,area,true,header);assert!(!bad.accepted(),"{bad:?}");
-        assert_eq!(held,(reopened.host().revision(),reopened.history_depth()));
-        assert_eq!(reopened.host().model().cell(at(r,"B2")),Some(&number(5.)));
-        assert_eq!(reopened.host().model().definitions().tables(),tables);
+    let mut saved = Vec::new();
+    book.save(&SavePolicy::default(), &mut saved).unwrap();
+    assert_eq!(part_text(&saved, &part), part_text(&before, &part));
+    let mut reopened = session(&saved);
+    let r = reopened.host().sheets()[0].id();
+    let done = sort(
+        &mut reopened,
+        GridArea::new(at(r, "A2"), at(r, "B3")).unwrap(),
+        false,
+        false,
+    );
+    assert!(done.accepted(), "{done:?}");
+    assert_eq!(reopened.host().model().cell(at(r, "B2")), Some(&number(5.)));
+    for (last, header) in [("B2", false), ("C3", false), ("B4", false)] {
+        let area = GridArea::new(at(r, "A2"), at(r, last)).unwrap();
+        let held = (reopened.host().revision(), reopened.history_depth());
+        let bad = sort(&mut reopened, area, true, header);
+        assert!(!bad.accepted(), "{bad:?}");
+        assert_eq!(held, (reopened.host().revision(), reopened.history_depth()));
+        assert_eq!(reopened.host().model().cell(at(r, "B2")), Some(&number(5.)));
+        assert_eq!(reopened.host().model().definitions().tables(), tables);
     }
-    let mut twice=Vec::new();reopened.save(&SavePolicy::default(),&mut twice).unwrap();
-    assert_eq!(part_text(&twice,&part),part_text(&saved,&part));
+    let mut twice = Vec::new();
+    reopened.save(&SavePolicy::default(), &mut twice).unwrap();
+    assert_eq!(part_text(&twice, &part), part_text(&saved, &part));
 }
 
 #[cfg_attr(not(target_arch = "wasm32"), test)]
 #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
 fn dc_971p_38__table_source_identities_relationships_and_unread_fields_refuse_atomically() {
-    use calc_host::{SortKey,WorkbookCommand as W};
-    let mut base=session(&calc_host::blank_package());let (_,part)=create_test_table(&mut base);
-    let mut saved=Vec::new();base.save(&SavePolicy::default(),&mut saved).unwrap();
-    let mut inputs=Vec::new();
-    for (from,to) in [
-        ("ref=\"A1:B3\"","ref=\"A1:C3\""),
-        ("name=\"Amount\"","name=\"Item\""),
-        ("name=\"Amount\"","name=\"\""),
-        ("<table ","<table xmlns:v=\"urn:retained\" v:rowOrigin=\"2\" "),
-        ("</table>","<sortState ref=\"A2:B3\"/></table>"),
-        (" id=\"2\""," id=\"1\""),
+    use calc_host::{SortKey, WorkbookCommand as W};
+    let mut base = session(&calc_host::blank_package());
+    let (_, part) = create_test_table(&mut base);
+    let mut saved = Vec::new();
+    base.save(&SavePolicy::default(), &mut saved).unwrap();
+    let mut inputs = Vec::new();
+    for (from, to) in [
+        ("ref=\"A1:B3\"", "ref=\"A1:C3\""),
+        ("name=\"Amount\"", "name=\"Item\""),
+        ("name=\"Amount\"", "name=\"\""),
+        (
+            "<table ",
+            "<table xmlns:v=\"urn:retained\" v:rowOrigin=\"2\" ",
+        ),
+        ("</table>", "<sortState ref=\"A2:B3\"/></table>"),
+        (" id=\"2\"", " id=\"1\""),
     ] {
-        inputs.push(package_with_part_from(&saved,&part,|xml|{assert!(xml.contains(from),"missing {from}: {xml}");xml.replacen(from,to,1)}));
+        inputs.push(package_with_part_from(&saved, &part, |xml| {
+            assert!(xml.contains(from), "missing {from}: {xml}");
+            xml.replacen(from, to, 1)
+        }));
     }
-    let (dir,file)=part.rsplit_once('/').unwrap();let rels=format!("{dir}/_rels/{file}.rels");
-    for internal in [false,true] {
-        let xml=if internal {
+    let (dir, file) = part.rsplit_once('/').unwrap();
+    let rels = format!("{dir}/_rels/{file}.rels");
+    for internal in [false, true] {
+        let xml = if internal {
             r#"<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships"><Relationship Id="q" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/queryTable" Target="../queryTables/retained.xml"/></Relationships>"#
         } else {
             r#"<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships"><Relationship Id="v" Type="urn:retained:row-map" Target="https://example.invalid/retained" TargetMode="External"/></Relationships>"#
         };
         let query=b"<queryTable xmlns=\"http://schemas.openxmlformats.org/spreadsheetml/2006/main\" name=\"Retained\" connectionId=\"1\"/>";
-        let added=if internal {vec![(rels.as_str(),xml.as_bytes()),("xl/queryTables/retained.xml",query.as_slice())]} else {vec![(rels.as_str(),xml.as_bytes())]};
-        inputs.push(package_with_parts_from(&saved,"",str::to_owned,&added));
+        let added = if internal {
+            vec![
+                (rels.as_str(), xml.as_bytes()),
+                ("xl/queryTables/retained.xml", query.as_slice()),
+            ]
+        } else {
+            vec![(rels.as_str(), xml.as_bytes())]
+        };
+        inputs.push(package_with_parts_from(&saved, "", str::to_owned, &added));
     }
-    let s=base.host().sheets()[0].id();
-    assert!(table_action(&mut base,calc_host::TableChange::Create {area:GridArea::new(at(s,"D1"),at(s,"E3")).unwrap(),name:"Other".into()}).accepted());
-    let second=base.host().model().definitions().tables()[1].part.clone();
-    let mut two=Vec::new();base.save(&SavePolicy::default(),&mut two).unwrap();
-    inputs.push(package_with_part_from(&two,&second,|xml|{assert!(xml.contains(" id=\"2\""));xml.replacen(" id=\"2\""," id=\"1\"",1)}));
+    let s = base.host().sheets()[0].id();
+    assert!(
+        table_action(
+            &mut base,
+            calc_host::TableChange::Create {
+                area: GridArea::new(at(s, "D1"), at(s, "E3")).unwrap(),
+                name: "Other".into()
+            }
+        )
+        .accepted()
+    );
+    let second = base.host().model().definitions().tables()[1].part.clone();
+    let mut two = Vec::new();
+    base.save(&SavePolicy::default(), &mut two).unwrap();
+    inputs.push(package_with_part_from(&two, &second, |xml| {
+        assert!(xml.contains(" id=\"2\""));
+        xml.replacen(" id=\"2\"", " id=\"1\"", 1)
+    }));
     for bytes in inputs {
-        let mut book=session(&bytes);let s=book.host().sheets()[0].id();let tables=book.host().model().definitions().tables().to_vec();let table=tables[0].clone();
-        let held=(book.host().revision(),book.history_depth());
-        let last=CellKey::new(s,table.area.last().row(),table.area.last().column()).unwrap();
-        let result=book.dispatch(SkinIntent::Command(W::SortRows {area:GridArea::new(at(s,"A1"),last).unwrap(),keys:vec![SortKey {column:2,descending:true}],header:true,revision:held.0.get()}));
-        assert!(!result.accepted(),"{result:?}");assert_eq!(held,(book.host().revision(),book.history_depth()));
-        assert_eq!(book.host().model().cell(at(s,"B2")),Some(&number(5.)));
-        assert_eq!(book.host().model().definitions().tables(),tables);
-        let mut kept=Vec::new();book.save(&SavePolicy::default(),&mut kept).unwrap();
-        for t in &tables {assert_eq!(part_text(&kept,&t.part),part_text(&bytes,&t.part));}
-        if existing_wire_support::parse_zip(&bytes).entries.iter().any(|entry|entry.name==rels) {assert_eq!(part_text(&kept,&rels),part_text(&bytes,&rels));}
+        let mut book = session(&bytes);
+        let s = book.host().sheets()[0].id();
+        let tables = book.host().model().definitions().tables().to_vec();
+        let table = tables[0].clone();
+        let held = (book.host().revision(), book.history_depth());
+        let last = CellKey::new(s, table.area.last().row(), table.area.last().column()).unwrap();
+        let result = book.dispatch(SkinIntent::Command(W::SortRows {
+            area: GridArea::new(at(s, "A1"), last).unwrap(),
+            keys: vec![SortKey {
+                column: 2,
+                descending: true,
+            }],
+            header: true,
+            revision: held.0.get(),
+        }));
+        assert!(!result.accepted(), "{result:?}");
+        assert_eq!(held, (book.host().revision(), book.history_depth()));
+        assert_eq!(book.host().model().cell(at(s, "B2")), Some(&number(5.)));
+        assert_eq!(book.host().model().definitions().tables(), tables);
+        let mut kept = Vec::new();
+        book.save(&SavePolicy::default(), &mut kept).unwrap();
+        for t in &tables {
+            assert_eq!(part_text(&kept, &t.part), part_text(&bytes, &t.part));
+        }
+        if existing_wire_support::parse_zip(&bytes)
+            .entries
+            .iter()
+            .any(|entry| entry.name == rels)
+        {
+            assert_eq!(part_text(&kept, &rels), part_text(&bytes, &rels));
+        }
     }
 }
 
 #[cfg_attr(not(target_arch = "wasm32"), test)]
 #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
 fn dc_971p_38__existing_excel_table_revision_identities_survive_sorting() {
-    use calc_host::{TableChange as T,SortKey,WorkbookCommand as W};
-    let mut authored=session(&calc_host::blank_package());let (s,part)=create_test_table(&mut authored);
-    assert!(table_action(&mut authored,T::Resize {part:part.clone(),area:GridArea::new(at(s,"A1"),at(s,"B4")).unwrap()}).accepted());
-    assert!(table_action(&mut authored,T::RenameColumn {part:part.clone(),column:2,name:"Units".into()}).accepted());
-    let mut saved=Vec::new();authored.save(&SavePolicy::default(),&mut saved).unwrap();
+    use calc_host::{SortKey, TableChange as T, WorkbookCommand as W};
+    let mut authored = session(&calc_host::blank_package());
+    let (s, part) = create_test_table(&mut authored);
+    assert!(
+        table_action(
+            &mut authored,
+            T::Resize {
+                part: part.clone(),
+                area: GridArea::new(at(s, "A1"), at(s, "B4")).unwrap()
+            }
+        )
+        .accepted()
+    );
+    assert!(
+        table_action(
+            &mut authored,
+            T::RenameColumn {
+                part: part.clone(),
+                column: 2,
+                name: "Units".into()
+            }
+        )
+        .accepted()
+    );
+    let mut saved = Vec::new();
+    authored.save(&SavePolicy::default(), &mut saved).unwrap();
     // Use the actual retained Excel table part, with xr/xr3 identities and mc:Ignorable,
     // in the existing authored package. Cell values remain authored test inputs.
-    let source=part_text(include_bytes!("fixtures/d2/structural-base.xlsx"),"xl/tables/table1.xml");
-    assert!(source.contains("xr3:uid=")&&source.contains("mc:Ignorable="));
-    let bytes=package_with_part_from(&saved,&part,|_|source.clone());
-    let mut book=session(&bytes);let s=book.host().sheets()[0].id();let tables=book.host().model().definitions().tables().to_vec();
-    let revision=book.host().revision().get();
-    let sorted=book.dispatch(SkinIntent::Command(W::SortRows {area:GridArea::new(at(s,"A1"),at(s,"B4")).unwrap(),keys:vec![SortKey {column:2,descending:false}],header:true,revision}));
-    assert!(sorted.accepted(),"{sorted:?}");
-    for (row,key,label) in [(2,2.,"Third"),(3,5.,"First"),(4,9.,"Second")] {
-        assert_eq!(book.host().model().cell(at(s,&format!("B{row}"))),Some(&number(key)));
-        assert_eq!(book.host().model().cell(at(s,&format!("A{row}"))),Some(&calc_host::interpret_entry(label).unwrap().unwrap()));
+    let source = part_text(
+        include_bytes!("fixtures/d2/structural-base.xlsx"),
+        "xl/tables/table1.xml",
+    );
+    assert!(source.contains("xr3:uid=") && source.contains("mc:Ignorable="));
+    let bytes = package_with_part_from(&saved, &part, |_| source.clone());
+    let mut book = session(&bytes);
+    let s = book.host().sheets()[0].id();
+    let tables = book.host().model().definitions().tables().to_vec();
+    let revision = book.host().revision().get();
+    let sorted = book.dispatch(SkinIntent::Command(W::SortRows {
+        area: GridArea::new(at(s, "A1"), at(s, "B4")).unwrap(),
+        keys: vec![SortKey {
+            column: 2,
+            descending: false,
+        }],
+        header: true,
+        revision,
+    }));
+    assert!(sorted.accepted(), "{sorted:?}");
+    for (row, key, label) in [(2, 2., "Third"), (3, 5., "First"), (4, 9., "Second")] {
+        assert_eq!(
+            book.host().model().cell(at(s, &format!("B{row}"))),
+            Some(&number(key))
+        );
+        assert_eq!(
+            book.host().model().cell(at(s, &format!("A{row}"))),
+            Some(&calc_host::interpret_entry(label).unwrap().unwrap())
+        );
     }
-    assert_eq!(book.host().model().definitions().tables(),tables);
-    let mut kept=Vec::new();book.save(&SavePolicy::default(),&mut kept).unwrap();
-    assert_eq!(part_text(&kept,&part),source);
-    let reopened=session(&kept);let s=reopened.host().sheets()[0].id();
-    assert_eq!(reopened.host().model().cell(at(s,"B2")),Some(&number(2.)));
-    assert_eq!(reopened.host().model().definitions().tables(),tables);
+    assert_eq!(book.host().model().definitions().tables(), tables);
+    let mut kept = Vec::new();
+    book.save(&SavePolicy::default(), &mut kept).unwrap();
+    assert_eq!(part_text(&kept, &part), source);
+    let reopened = session(&kept);
+    let s = reopened.host().sheets()[0].id();
+    assert_eq!(reopened.host().model().cell(at(s, "B2")), Some(&number(2.)));
+    assert_eq!(reopened.host().model().definitions().tables(), tables);
 }
 
 /// The workbook setting is independent of locale, build and formula form. Retained W111
@@ -15794,17 +21511,27 @@ fn dc_971p_38__existing_excel_table_revision_identities_survive_sorting() {
 #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
 fn recorded_workbook_compatibility_version_survives_host_save_and_reopen() {
     for (version, expected) in [(1, 4.0), (2, 3.0)] {
-        let bytes = package_with_part("xl/workbook.xml", |xml| xml.replace("</workbook>",
-            &format!("<extLst><ext uri=\"{{D14903EA-33C4-47F7-8F05-3474C54BE107}}\"><v:version xmlns:v=\"http://schemas.microsoft.com/office/spreadsheetml/2024/workbookCompatibilityVersion\" setVersion=\"{version}\"/></ext></extLst></workbook>")));
+        let bytes = package_with_part("xl/workbook.xml", |xml| {
+            xml.replace("</workbook>",
+            &format!("<extLst><ext uri=\"{{D14903EA-33C4-47F7-8F05-3474C54BE107}}\"><v:version xmlns:v=\"http://schemas.microsoft.com/office/spreadsheetml/2024/workbookCompatibilityVersion\" setVersion=\"{version}\"/></ext></extLst></workbook>"))
+        });
         let mut book = session(&bytes);
         let cell = at(book.host().sheets()[0].id(), "A1");
         enter(&mut book, cell, "=LEN(\"A😀B\")");
-        assert_eq!(session_calculated(&book, cell), Some(CalcValue::number(expected)), "version{version}");
+        assert_eq!(
+            session_calculated(&book, cell),
+            Some(CalcValue::number(expected)),
+            "version{version}"
+        );
         let mut saved = Vec::new();
         book.save(&SavePolicy::default(), &mut saved).unwrap();
         let mut reopened = session(&saved);
         enter(&mut reopened, cell, "=LEN(\"A😀B\")+0");
-        assert_eq!(session_calculated(&reopened, cell), Some(CalcValue::number(expected)), "reopened version{version}");
+        assert_eq!(
+            session_calculated(&reopened, cell),
+            Some(CalcValue::number(expected)),
+            "reopened version{version}"
+        );
     }
 }
 
@@ -15813,236 +21540,973 @@ fn recorded_workbook_compatibility_version_survives_host_save_and_reopen() {
 #[cfg_attr(not(target_arch = "wasm32"), test)]
 #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
 fn workbook_compatibility_metadata_is_qualified_and_unknown_versions_stay_unknown() {
-    let extension = |uri: &str, namespace: &str, attributes: &str| format!(
-        "<extLst><ext uri=\"{uri}\"><v:version xmlns:v=\"{namespace}\" {attributes}/></ext></extLst>"
-    );
+    let extension = |uri: &str, namespace: &str, attributes: &str| {
+        format!(
+            "<extLst><ext uri=\"{uri}\"><v:version xmlns:v=\"{namespace}\" {attributes}/></ext></extLst>"
+        )
+    };
     let uri = "{D14903EA-33C4-47F7-8F05-3474C54BE107}";
-    let namespace = "http://schemas.microsoft.com/office/spreadsheetml/2024/workbookCompatibilityVersion";
+    let namespace =
+        "http://schemas.microsoft.com/office/spreadsheetml/2024/workbookCompatibilityVersion";
     for (extra, version, expected) in [
         (String::new(), 1, Some(4.0)),
-        (extension("other", namespace, "setVersion=\"2\""), 1, Some(4.0)),
-        (extension(uri, "urn:other", "setVersion=\"2\""), 1, Some(4.0)),
+        (
+            extension("other", namespace, "setVersion=\"2\""),
+            1,
+            Some(4.0),
+        ),
+        (
+            extension(uri, "urn:other", "setVersion=\"2\""),
+            1,
+            Some(4.0),
+        ),
         (extension(uri, namespace, ""), 0, None),
         (extension(uri, namespace, "setVersion=\"0\""), 0, None),
         (extension(uri, namespace, "setVersion=\"3\""), 3, None),
     ] {
-        let bytes = package_with_part("xl/workbook.xml", |xml|
-            xml.replace("</workbook>", &format!("{extra}</workbook>")));
+        let bytes = package_with_part("xl/workbook.xml", |xml| {
+            xml.replace("</workbook>", &format!("{extra}</workbook>"))
+        });
         let mut book = session(&bytes);
-        assert_eq!(book.host().entry_environment().compatibility_version, version);
+        assert_eq!(
+            book.host().entry_environment().compatibility_version,
+            version
+        );
         let sheet = book.host().sheets()[0].id();
         enter(&mut book, at(sheet, "B1"), "=40+2");
         enter(&mut book, at(sheet, "A1"), "=LEN(\"A😀B\")");
-        assert_eq!(session_calculated(&book, at(sheet, "A1")), expected.map(CalcValue::number), "{extra}");
-        assert_eq!(session_calculated(&book, at(sheet, "B1")), Some(CalcValue::number(42.0)));
+        assert_eq!(
+            session_calculated(&book, at(sheet, "A1")),
+            expected.map(CalcValue::number),
+            "{extra}"
+        );
+        assert_eq!(
+            session_calculated(&book, at(sheet, "B1")),
+            Some(CalcValue::number(42.0))
+        );
     }
 }
 
 #[cfg_attr(not(target_arch = "wasm32"), test)]
 #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
 fn dc_bctq__template_insertion_keeps_history_references_styles_and_reopen() {
-    use calc_host::{WorkbookCommand as C,FormatPatch,SaveFormat,SpreadsheetFormat};
-    let mut source=session(&calc_host::blank_package());let ss=source.host().sheets()[0].id();
-    enter(&mut source,at(ss,"A1"),"6");enter(&mut source,at(ss,"B1"),"=Sheet1!A1*3");
-    enter(&mut source,at(ss,"C1"),"template text");
-    enter(&mut source,at(ss,"B2"),"=Sheet1!A1&\"_x0041_\"");
-    assert!(source.dispatch(SkinIntent::Command(C::FormatCells{areas:vec![GridArea::cell(at(ss,"A1"))],patch:FormatPatch{number_format:Some("0.000 \"units\"".into()),bold:Some(true),..Default::default()}})).accepted());
-    let mut bytes=Vec::new();source.save(&SavePolicy{format:SaveFormat::Spreadsheet(SpreadsheetFormat::Xltx),..Default::default()},&mut bytes).unwrap();
-    let mut book=session(&calc_host::blank_package());let original=book.host().sheets()[0].id();
-    enter(&mut book,at(original,"A1"),"99");enter(&mut book,at(original,"B1"),"=A1+1");
-    let old_revision=book.host().revision();let old_depth=book.history_depth().0;
-    let receipt=book.dispatch(SkinIntent::Command(C::InsertTemplate{bytes:bytes.clone().into(),name:None,revision:old_revision.get()}));
-    assert!(receipt.accepted(),"{:?}",receipt.error);
-    assert_eq!(book.history_depth().0,old_depth+1);assert_eq!(book.host().sheets()[0].id(),original);
-    let inserted=book.host().sheets()[1].id();assert_eq!(book.host().sheets()[1].name().text().to_string_lossy(),"Sheet2");
-    assert_eq!(calculated(book.host(),at(original,"B1")),Some(CalcValue::number(100.)));
-    assert_eq!(calculated(book.host(),at(inserted,"B1")),Some(CalcValue::number(18.)));
-    assert_eq!(calculated(book.host(),at(inserted,"B2")),Some(CalcValue::text(calc_host::value::ExcelText::from_utf16_code_units("6_x0041_".encode_utf16().collect()))));
-    assert_eq!(book.host().number_format(at(inserted,"A1")),Some("0.000 \"units\""));
-    assert_eq!(book.host().model().cell(at(inserted,"C1")),source.host().model().cell(at(ss,"C1")));
-    let mut saved=Vec::new();book.save(&SavePolicy::default(),&mut saved).unwrap();
-    let mut reopened=session(&saved);reopened.dispatch(SkinIntent::Recalculate);
-    let rs=reopened.host().sheets()[1].id();assert_eq!(calculated(reopened.host(),at(rs,"B1")),Some(CalcValue::number(18.)));
-    assert_eq!(reopened.host().number_format(at(rs,"A1")),Some("0.000 \"units\""));
-    assert!(book.dispatch(SkinIntent::Undo).accepted());assert_eq!(book.host().sheets().len(),1);
-    assert!(book.dispatch(SkinIntent::Undo).accepted());assert!(book.host().model().cell(at(original,"B1")).is_none());
-    assert!(book.dispatch(SkinIntent::Redo).accepted());assert!(book.dispatch(SkinIntent::Redo).accepted());
-    assert_eq!(book.host().sheets()[1].id(),inserted);
-    enter(&mut book,at(inserted,"A1"),"8");assert_eq!(calculated(book.host(),at(inserted,"B1")),Some(CalcValue::number(24.)));
-    let revision=book.host().revision();let depth=book.history_depth().0;
-    for (bytes,revision) in [(calc_host::blank_package(),revision.get()),(bytes,old_revision.get())] {
-        let refused=book.dispatch(SkinIntent::Command(C::InsertTemplate{bytes:bytes.into(),name:None,revision}));assert!(!refused.accepted());assert_eq!(book.history_depth().0,depth);
+    use calc_host::{FormatPatch, SaveFormat, SpreadsheetFormat, WorkbookCommand as C};
+    let mut source = session(&calc_host::blank_package());
+    let ss = source.host().sheets()[0].id();
+    enter(&mut source, at(ss, "A1"), "6");
+    enter(&mut source, at(ss, "B1"), "=Sheet1!A1*3");
+    enter(&mut source, at(ss, "C1"), "template text");
+    enter(&mut source, at(ss, "B2"), "=Sheet1!A1&\"_x0041_\"");
+    assert!(
+        source
+            .dispatch(SkinIntent::Command(C::FormatCells {
+                areas: vec![GridArea::cell(at(ss, "A1"))],
+                patch: FormatPatch {
+                    number_format: Some("0.000 \"units\"".into()),
+                    bold: Some(true),
+                    ..Default::default()
+                }
+            }))
+            .accepted()
+    );
+    let mut bytes = Vec::new();
+    source
+        .save(
+            &SavePolicy {
+                format: SaveFormat::Spreadsheet(SpreadsheetFormat::Xltx),
+                ..Default::default()
+            },
+            &mut bytes,
+        )
+        .unwrap();
+    let mut book = session(&calc_host::blank_package());
+    let original = book.host().sheets()[0].id();
+    enter(&mut book, at(original, "A1"), "99");
+    enter(&mut book, at(original, "B1"), "=A1+1");
+    let old_revision = book.host().revision();
+    let old_depth = book.history_depth().0;
+    let receipt = book.dispatch(SkinIntent::Command(C::InsertTemplate {
+        bytes: bytes.clone().into(),
+        name: None,
+        revision: old_revision.get(),
+    }));
+    assert!(receipt.accepted(), "{:?}", receipt.error);
+    assert_eq!(book.history_depth().0, old_depth + 1);
+    assert_eq!(book.host().sheets()[0].id(), original);
+    let inserted = book.host().sheets()[1].id();
+    assert_eq!(
+        book.host().sheets()[1].name().text().to_string_lossy(),
+        "Sheet2"
+    );
+    assert_eq!(
+        calculated(book.host(), at(original, "B1")),
+        Some(CalcValue::number(100.))
+    );
+    assert_eq!(
+        calculated(book.host(), at(inserted, "B1")),
+        Some(CalcValue::number(18.))
+    );
+    assert_eq!(
+        calculated(book.host(), at(inserted, "B2")),
+        Some(CalcValue::text(
+            calc_host::value::ExcelText::from_utf16_code_units("6_x0041_".encode_utf16().collect())
+        ))
+    );
+    assert_eq!(
+        book.host().number_format(at(inserted, "A1")),
+        Some("0.000 \"units\"")
+    );
+    assert_eq!(
+        book.host().model().cell(at(inserted, "C1")),
+        source.host().model().cell(at(ss, "C1"))
+    );
+    let mut saved = Vec::new();
+    book.save(&SavePolicy::default(), &mut saved).unwrap();
+    let mut reopened = session(&saved);
+    reopened.dispatch(SkinIntent::Recalculate);
+    let rs = reopened.host().sheets()[1].id();
+    assert_eq!(
+        calculated(reopened.host(), at(rs, "B1")),
+        Some(CalcValue::number(18.))
+    );
+    assert_eq!(
+        reopened.host().number_format(at(rs, "A1")),
+        Some("0.000 \"units\"")
+    );
+    assert!(book.dispatch(SkinIntent::Undo).accepted());
+    assert_eq!(book.host().sheets().len(), 1);
+    assert!(book.dispatch(SkinIntent::Undo).accepted());
+    assert!(book.host().model().cell(at(original, "B1")).is_none());
+    assert!(book.dispatch(SkinIntent::Redo).accepted());
+    assert!(book.dispatch(SkinIntent::Redo).accepted());
+    assert_eq!(book.host().sheets()[1].id(), inserted);
+    enter(&mut book, at(inserted, "A1"), "8");
+    assert_eq!(
+        calculated(book.host(), at(inserted, "B1")),
+        Some(CalcValue::number(24.))
+    );
+    let revision = book.host().revision();
+    let depth = book.history_depth().0;
+    for (bytes, revision) in [
+        (calc_host::blank_package(), revision.get()),
+        (bytes, old_revision.get()),
+    ] {
+        let refused = book.dispatch(SkinIntent::Command(C::InsertTemplate {
+            bytes: bytes.into(),
+            name: None,
+            revision,
+        }));
+        assert!(!refused.accepted());
+        assert_eq!(book.history_depth().0, depth);
     }
-    assert_eq!(book.host().revision(),revision);assert_eq!(book.host().sheets().len(),2);
+    assert_eq!(book.host().revision(), revision);
+    assert_eq!(book.host().sheets().len(), 2);
 }
 
 #[cfg_attr(not(target_arch = "wasm32"), test)]
 #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
 fn dc_bctq__explicit_template_save_retains_manual_caches_without_calculating() {
-    let mut book=session(&calc_host::blank_package());let s=book.host().sheets()[0].id();
-    enter(&mut book,at(s,"A1"),"2");enter(&mut book,at(s,"B1"),"=A1*3");
-    book.dispatch(SkinIntent::SetCalcMode(CalcMode::Manual));enter(&mut book,at(s,"A1"),"9");
-    for format in [calc_host::SpreadsheetFormat::Xlsx,calc_host::SpreadsheetFormat::Xlsm,calc_host::SpreadsheetFormat::Xltx,calc_host::SpreadsheetFormat::Xltm] {
-        let prepared=book.prepare_save(&SavePolicy{format:calc_host::SaveFormat::Spreadsheet(format),..Default::default()}).unwrap();
-        assert_eq!(prepared.pin().cache_policy,calc_host::SaveCachePolicy::PreservePermittedCaches);
-        let mut bytes=Vec::new();prepared.write(&mut bytes).unwrap();let host=open(&bytes);let s=host.sheets()[0].id();
-        let ProjectedValue::FileCached(cache)=value(&host,at(s,"B1"))else{panic!("manual save keeps unverified held caches")};
-        assert_eq!(cache.value(),&cached_of(&CalcValue::number(6.)));
-        assert_eq!(host.model().cell(at(s,"A1")),Some(&number(9.)));
+    let mut book = session(&calc_host::blank_package());
+    let s = book.host().sheets()[0].id();
+    enter(&mut book, at(s, "A1"), "2");
+    enter(&mut book, at(s, "B1"), "=A1*3");
+    book.dispatch(SkinIntent::SetCalcMode(CalcMode::Manual));
+    enter(&mut book, at(s, "A1"), "9");
+    for format in [
+        calc_host::SpreadsheetFormat::Xlsx,
+        calc_host::SpreadsheetFormat::Xlsm,
+        calc_host::SpreadsheetFormat::Xltx,
+        calc_host::SpreadsheetFormat::Xltm,
+    ] {
+        let prepared = book
+            .prepare_save(&SavePolicy {
+                format: calc_host::SaveFormat::Spreadsheet(format),
+                ..Default::default()
+            })
+            .unwrap();
+        assert_eq!(
+            prepared.pin().cache_policy,
+            calc_host::SaveCachePolicy::PreservePermittedCaches
+        );
+        let mut bytes = Vec::new();
+        prepared.write(&mut bytes).unwrap();
+        let host = open(&bytes);
+        let s = host.sheets()[0].id();
+        let ProjectedValue::FileCached(cache) = value(&host, at(s, "B1")) else {
+            panic!("manual save keeps unverified held caches")
+        };
+        assert_eq!(cache.value(), &cached_of(&CalcValue::number(6.)));
+        assert_eq!(host.model().cell(at(s, "A1")), Some(&number(9.)));
     }
 }
 
 #[cfg_attr(not(target_arch = "wasm32"), test)]
 #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
 fn dc_bctq__manual_insertion_retains_historical_values_without_freshness_proofs() {
-    use calc_host::{WorkbookCommand as C,SaveFormat,SpreadsheetFormat};
-    let mut source=session(&calc_host::blank_package());let ss=source.host().sheets()[0].id();enter(&mut source,at(ss,"A1"),"6");enter(&mut source,at(ss,"B1"),"=A1*3");
-    let mut bytes=Vec::new();source.save(&SavePolicy{format:SaveFormat::Spreadsheet(SpreadsheetFormat::Xltx),..Default::default()},&mut bytes).unwrap();
-    let mut book=session(&calc_host::blank_package());let s=book.host().sheets()[0].id();enter(&mut book,at(s,"A1"),"2");enter(&mut book,at(s,"B1"),"=A1*3");
-    book.dispatch(SkinIntent::SetCalcMode(CalcMode::Manual));enter(&mut book,at(s,"A1"),"9");
-    let receipt=book.dispatch(SkinIntent::Command(C::InsertTemplate{bytes:bytes.clone().into(),name:None,revision:book.host().revision().get()}));assert!(receipt.accepted(),"{receipt:?}");
-    let held=|book:&HostSession|{let ProjectedValue::Stale(value)=value(book.host(),at(s,"B1"))else{panic!("existing value must stay stale")};assert_eq!(value.last_value(),Some(&CalcValue::number(6.)));assert!(value.last_calculation().unwrap().stamp().is_none());};held(&book);
-    let added=book.host().sheets()[1].id();let ProjectedValue::Stale(cache)=value(book.host(),at(added,"B1"))else{panic!("imported value stays unverified")};assert_eq!(cache.file_cache().unwrap().value(),&cached_of(&CalcValue::number(18.)));
-    assert_eq!(book.calc_mode(),CalcMode::Manual);
-    assert!(book.dispatch(SkinIntent::Undo).accepted());held(&book);assert!(book.dispatch(SkinIntent::Redo).accepted());held(&book);
-    let mut saved=Vec::new();book.save(&SavePolicy::default(),&mut saved).unwrap();let reopened=open(&saved);let rs=reopened.sheets()[0].id();let ProjectedValue::FileCached(cache)=value(&reopened,at(rs,"B1"))else{panic!("manual save keeps stale value as a file cache")};assert_eq!(cache.value(),&cached_of(&CalcValue::number(6.)));
-    let mut bounded=HostSession::open(Arc::new(MemorySource::new(calc_host::blank_package())),&OpenPolicy::default(),HostOptions{formula_cell_budget:Some(0),..Default::default()}).unwrap();let revision=bounded.host().revision();
-    let refusal=bounded.dispatch(SkinIntent::Command(C::InsertTemplate{bytes:bytes.into(),name:None,revision:revision.get()}));assert!(!refusal.accepted());assert!(refusal.error.unwrap().to_string().contains("formula-cell budget"));assert_eq!(bounded.host().revision(),revision);assert_eq!(bounded.host().sheets().len(),1);
+    use calc_host::{SaveFormat, SpreadsheetFormat, WorkbookCommand as C};
+    let mut source = session(&calc_host::blank_package());
+    let ss = source.host().sheets()[0].id();
+    enter(&mut source, at(ss, "A1"), "6");
+    enter(&mut source, at(ss, "B1"), "=A1*3");
+    let mut bytes = Vec::new();
+    source
+        .save(
+            &SavePolicy {
+                format: SaveFormat::Spreadsheet(SpreadsheetFormat::Xltx),
+                ..Default::default()
+            },
+            &mut bytes,
+        )
+        .unwrap();
+    let mut book = session(&calc_host::blank_package());
+    let s = book.host().sheets()[0].id();
+    enter(&mut book, at(s, "A1"), "2");
+    enter(&mut book, at(s, "B1"), "=A1*3");
+    book.dispatch(SkinIntent::SetCalcMode(CalcMode::Manual));
+    enter(&mut book, at(s, "A1"), "9");
+    let receipt = book.dispatch(SkinIntent::Command(C::InsertTemplate {
+        bytes: bytes.clone().into(),
+        name: None,
+        revision: book.host().revision().get(),
+    }));
+    assert!(receipt.accepted(), "{receipt:?}");
+    let held = |book: &HostSession| {
+        let ProjectedValue::Stale(value) = value(book.host(), at(s, "B1")) else {
+            panic!("existing value must stay stale")
+        };
+        assert_eq!(value.last_value(), Some(&CalcValue::number(6.)));
+        assert!(value.last_calculation().unwrap().stamp().is_none());
+    };
+    held(&book);
+    let added = book.host().sheets()[1].id();
+    let ProjectedValue::Stale(cache) = value(book.host(), at(added, "B1")) else {
+        panic!("imported value stays unverified")
+    };
+    assert_eq!(
+        cache.file_cache().unwrap().value(),
+        &cached_of(&CalcValue::number(18.))
+    );
+    assert_eq!(book.calc_mode(), CalcMode::Manual);
+    assert!(book.dispatch(SkinIntent::Undo).accepted());
+    held(&book);
+    assert!(book.dispatch(SkinIntent::Redo).accepted());
+    held(&book);
+    let mut saved = Vec::new();
+    book.save(&SavePolicy::default(), &mut saved).unwrap();
+    let reopened = open(&saved);
+    let rs = reopened.sheets()[0].id();
+    let ProjectedValue::FileCached(cache) = value(&reopened, at(rs, "B1")) else {
+        panic!("manual save keeps stale value as a file cache")
+    };
+    assert_eq!(cache.value(), &cached_of(&CalcValue::number(6.)));
+    let mut bounded = HostSession::open(
+        Arc::new(MemorySource::new(calc_host::blank_package())),
+        &OpenPolicy::default(),
+        HostOptions {
+            formula_cell_budget: Some(0),
+            ..Default::default()
+        },
+    )
+    .unwrap();
+    let revision = bounded.host().revision();
+    let refusal = bounded.dispatch(SkinIntent::Command(C::InsertTemplate {
+        bytes: bytes.into(),
+        name: None,
+        revision: revision.get(),
+    }));
+    assert!(!refusal.accepted());
+    assert!(
+        refusal
+            .error
+            .unwrap()
+            .to_string()
+            .contains("formula-cell budget")
+    );
+    assert_eq!(bounded.host().revision(), revision);
+    assert_eq!(bounded.host().sheets().len(), 1);
 }
 
 #[cfg_attr(not(target_arch = "wasm32"), test)]
 #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
 fn dc_bctq__template_parts_rules_rich_text_links_tables_and_notes_survive_insertion() {
-    use calc_host::{WorkbookCommand as C,SaveFormat,SpreadsheetFormat,ReviewAction as R,TableChange};
-    let raw=package_with_part_from(&calc_host::blank_package(),"xl/worksheets/sheet1.xml",|xml|xml.replace("<sheetData/>",r#"<sheetData><row r="1"><c r="A1"><v>6</v></c><c r="B1"><f>Sheet1!A1*3</f><v>18</v></c><c r="C1" t="inlineStr"><is><r><rPr><b/></rPr><t>Rich </t></r><r><t>text</t></r></is></c></row></sheetData><conditionalFormatting sqref="A1"><cfRule type="expression" priority="1"><formula>Sheet1!A1&gt;0</formula></cfRule></conditionalFormatting><dataValidations count="1"><dataValidation type="whole" sqref="A1"><formula1>1</formula1><formula2>9</formula2></dataValidation></dataValidations><hyperlinks><hyperlink ref="C1" location="Sheet1!A1" display="Jump"/></hyperlinks>"#));
-    let mut source=session(&raw);let ss=source.host().sheets()[0].id();assert!(review_action(&mut source,at(ss,"A1"),R::Create{parent:None,threaded:false,author:"Local".into(),text:"Retained note".into(),timestamp:String::new()}).accepted());
-    for (address,text) in [("D1","Key"),("E1","Amount"),("D2","one"),("E2","4")] {enter(&mut source,at(ss,address),text);}
-    assert!(source.dispatch(SkinIntent::Command(C::Table{revision:source.host().revision().get(),change:TableChange::Create{area:GridArea::new(at(ss,"D1"),at(ss,"E2")).unwrap(),name:"SourceTable".into()}})).accepted());
-    let mut bytes=Vec::new();source.save(&SavePolicy{format:SaveFormat::Spreadsheet(SpreadsheetFormat::Xltx),..Default::default()},&mut bytes).unwrap();
-    let mut book=session(&calc_host::blank_package());let s=book.host().sheets()[0].id();for (a,t) in [("D1","Key"),("E1","Amount"),("D2","old"),("E2","99")] {enter(&mut book,at(s,a),t);}
-    assert!(book.dispatch(SkinIntent::Command(C::Table{revision:book.host().revision().get(),change:TableChange::Create{area:GridArea::new(at(s,"D1"),at(s,"E2")).unwrap(),name:"TargetTable".into()}})).accepted());
-    let receipt=book.dispatch(SkinIntent::Command(C::InsertTemplate{bytes:bytes.into(),name:None,revision:book.host().revision().get()}));assert!(receipt.accepted(),"{receipt:?}");let added=book.host().sheets()[1].id();
-    assert_eq!(calculated(book.host(),at(added,"B1")),Some(CalcValue::number(18.)));assert!(book.host().validation(at(added,"A1")).is_some());assert_eq!(book.host().model().definitions().review_notes(added)[0].text,"Retained note");
-    let tables=book.host().model().definitions().tables();assert_eq!(tables.len(),2);assert_ne!(tables[0].id,tables[1].id);assert!(tables.iter().any(|t|t.display_name=="SourceTable"));
-    let mut saved=Vec::new();book.save(&SavePolicy::default(),&mut saved).unwrap();let reopened=session(&saved);let rs=reopened.host().sheets()[1].id();let loaded=reopened.host().loaded().sheet(rs).unwrap();let part=part_text(&saved,loaded.part().name());
-    assert!(part.contains("<b/>")&&part.contains("Rich "));assert!(part.contains("location=\"Sheet2!A1\""),"{part}");assert!(part.contains("Sheet2!A1&gt;0"),"{part}");assert_eq!(reopened.host().model().definitions().review_notes(rs)[0].text,"Retained note");assert!(reopened.host().validation(at(rs,"A1")).is_some());
-}
-
-#[cfg_attr(not(target_arch="wasm32"),test)]
-#[cfg_attr(target_arch="wasm32",wasm_bindgen_test::wasm_bindgen_test)]
-fn dc_971p_38__case_sensitive_ascii_uses_lowercase_first_and_restores_rows() {
-    use calc_host::{WorkbookCommand as W,SortOptions,SortKey};
-    let mut book=session(&calc_host::blank_package());let s=book.host().sheets()[0].id();
-    for (row,text) in [(1,"Key"),(2,"AB"),(3,"ab"),(4,"Ab"),(5,"aB")] {enter(&mut book,at_(s,&format!("A{row}")),text);}
-    for row in 2..=6 {enter(&mut book,at_(s,&format!("B{row}")),&(row-1).to_string());enter(&mut book,at_(s,&format!("C{row}")),&format!("=B{row}*10"));}
-    let sort=|book:&mut HostSession,descending|book.dispatch(SkinIntent::Command(W::SortRowsWithOptions{area:GridArea::new(at(s,"A1"),at(s,"C6")).unwrap(),keys:vec![SortKey{column:1,descending}],header:true,revision:book.host().revision().get(),options:SortOptions{case_sensitive:true,custom_order:Vec::new()}}));
-    let depth=book.history_depth();let receipt=sort(&mut book,false);assert!(receipt.accepted(),"{receipt:?}");assert_eq!(book.history_depth().0,depth.0+1);
-    for (row,text,score) in [(2,"ab",2.),(3,"aB",4.),(4,"Ab",3.),(5,"AB",1.)] {assert_eq!(book.host().model().cell(at_(s,&format!("A{row}"))),Some(&calc_host::interpret_entry(text).unwrap().unwrap()));assert_eq!(calculated(book.host(),at_(s,&format!("C{row}"))),Some(CalcValue::number(score*10.)));}
-    assert!(book.host().model().cell(at(s,"A6")).is_none());assert!(book.dispatch(SkinIntent::Undo).accepted());assert_eq!(book.host().model().cell(at(s,"A2")),Some(&calc_host::interpret_entry("AB").unwrap().unwrap()));assert!(book.dispatch(SkinIntent::Redo).accepted());assert!(sort(&mut book,true).accepted());assert_eq!(book.host().model().cell(at(s,"A2")),Some(&calc_host::interpret_entry("AB").unwrap().unwrap()));assert_eq!(book.host().model().cell(at(s,"A5")),Some(&calc_host::interpret_entry("ab").unwrap().unwrap()));
-    enter(&mut book,at(s,"A2"),"café");let revision=book.host().revision();let depth=book.history_depth();assert!(!sort(&mut book,false).accepted());assert_eq!(book.host().revision(),revision);assert_eq!(book.history_depth(),depth);
-    for (row,text)in [(2,"aZ"),(3,"Aa"),(4,"ab"),(5,"aB")] {enter(&mut book,at_(s,&format!("A{row}")),text);}
-    assert!(sort(&mut book,false).accepted());
-    for (row,text)in [(2,"ab"),(3,"aB"),(4,"aZ"),(5,"Aa")] {assert_eq!(book.host().model().cell(at_(s,&format!("A{row}"))),Some(&calc_host::interpret_entry(text).unwrap().unwrap()));}
-}
-
-#[cfg_attr(not(target_arch="wasm32"),test)]
-#[cfg_attr(target_arch="wasm32",wasm_bindgen_test::wasm_bindgen_test)]
-fn dc_971p_38__custom_lists_use_exact_matches_secondary_keys_and_atomic_refusals() {
-    use calc_host::{WorkbookCommand as W,SortOptions,SortKey};
-    let mut book=session(&calc_host::blank_package());let s=book.host().sheets()[0].id();
-    for (row,text) in [(1,"Priority"),(2,"Low"),(3,"High"),(4,"Medium"),(5,"HIGH")] {enter(&mut book,at_(s,&format!("A{row}")),text);}
-    for row in 2..=5 {enter(&mut book,at_(s,&format!("B{row}")),&(row-1).to_string());enter(&mut book,at_(s,&format!("C{row}")),&format!("=B{row}*10"));}
-    let sort=|book:&mut HostSession,custom_order:Vec<String>,descending|book.dispatch(SkinIntent::Command(W::SortRowsWithOptions{area:GridArea::new(at(s,"A1"),at(s,"C5")).unwrap(),keys:vec![SortKey{column:1,descending},SortKey{column:2,descending:true}],header:true,revision:book.host().revision().get(),options:SortOptions{case_sensitive:false,custom_order}}));
-    let list=||["High","Medium","Low"].map(str::to_owned).to_vec();let receipt=sort(&mut book,list(),false);assert!(receipt.accepted(),"{receipt:?}");
-    for (row,expected)in [(2,40.),(3,20.),(4,30.),(5,10.)]{assert_eq!(calculated(book.host(),at_(s,&format!("C{row}"))),Some(CalcValue::number(expected)));}
-    assert!(book.dispatch(SkinIntent::Undo).accepted());assert!(book.dispatch(SkinIntent::Redo).accepted());let revision=book.host().revision();let depth=book.history_depth();
-    for (list,reverse) in [(vec!["High".into(),"Low".into()],false),(vec!["High".into(),"HIGH".into(),"Low".into(),"Medium".into()],false),(list(),true)] {let refusal=sort(&mut book,list,reverse);assert!(!refusal.accepted(),"{refusal:?}");assert_eq!(book.host().revision(),revision);assert_eq!(book.history_depth(),depth);}
-    let mut saved=Vec::new();book.save(&SavePolicy::default(),&mut saved).unwrap();let mut reopened=session(&saved);reopened.dispatch(SkinIntent::Recalculate);let r=reopened.host().sheets()[0].id();assert_eq!(calculated(reopened.host(),at(r,"C2")),Some(CalcValue::number(40.)));
-    // XMATCH mode zero treats wildcard characters literally.
-    enter(&mut book,at(s,"A2"),"a*");enter(&mut book,at(s,"A3"),"a?");enter(&mut book,at(s,"A4"),"a?");enter(&mut book,at(s,"A5"),"a*");assert!(sort(&mut book,vec!["a?".into(),"a*".into()],false).accepted());assert_eq!(book.host().model().cell(at(s,"A2")),Some(&calc_host::interpret_entry("a?").unwrap().unwrap()));
-    for row in 2..=5{enter(&mut book,at_(s,&format!("A{row}")),"High");}
-    let receipt=sort(&mut book,vec!["High".into()],false);assert!(receipt.accepted(),"{receipt:?}");
-}
-
-#[cfg_attr(not(target_arch="wasm32"),test)]
-#[cfg_attr(target_arch="wasm32",wasm_bindgen_test::wasm_bindgen_test)]
-fn dc_971p_38__case_sort_keeps_digits_prefixes_z_and_value_kinds_in_order() {
-    use calc_host::{WorkbookCommand as W,SortOptions,SortKey};
-    let mut book=session(&calc_host::blank_package());let s=book.host().sheets()[0].id();
-    for(row,text)in[(1,"Key"),(2,"Z"),(3,"z"),(4,"Z0"),(5,"z0"),(6,"'0"),(7,"'00"),(8,"-1"),(9,"=TRUE()"),(10,"=NA()")] {enter(&mut book,at_(s,&format!("A{row}")),text);}
-    for row in 2..=11{enter(&mut book,at_(s,&format!("B{row}")),&row.to_string());}
-    let receipt=book.dispatch(SkinIntent::Command(W::SortRowsWithOptions{area:GridArea::new(at(s,"A1"),at(s,"B11")).unwrap(),keys:vec![SortKey{column:1,descending:false}],header:true,revision:book.host().revision().get(),options:SortOptions{case_sensitive:true,custom_order:Vec::new()}}));assert!(receipt.accepted(),"{receipt:?}");
-    for(index,source)in[8,6,7,3,5,2,4,9,10,11].into_iter().enumerate(){assert_eq!(book.host().model().cell(at_(s,&format!("B{}",index+2))),Some(&calc_host::interpret_entry(&source.to_string()).unwrap().unwrap()));}
-    assert!(book.host().model().cell(at(s,"A11")).is_none());
-}
-
-#[cfg_attr(not(target_arch="wasm32"),test)]
-#[cfg_attr(target_arch="wasm32",wasm_bindgen_test::wasm_bindgen_test)]
-fn dc_971p_38__pointwise_conditional_formats_follow_rows_priorities_and_history(){
-    use calc_host::{WorkbookCommand as W,ConditionalChange as C,LookColor};
-    let blank=calc_host::blank_package();let mut book=session(&blank);let s=book.host().sheets()[0].id();
-    for(address,text)in[("A1","Key"),("B1","Amount"),("A2","3"),("B2","30"),("C2","=B2"),("A3","1"),("B3","10"),("C3","=B3"),("A4","2"),("B4","20"),("C4","=B4"),("B5","40")]{enter(&mut book,at(s,address),text);}
-    for(kind,applies,formula,color,stop)in[("expression","B2","$B2>0","#ff0000",true),("cellIs","B2:B5","15","#0000ff",false)]{
-        let revision=book.host().revision().get();let receipt=book.dispatch(SkinIntent::Command(W::Conditional{sheet:s,revision,index:None,change:C::Condition{kind:kind.into(),applies:applies.into(),color:color.into(),formulas:vec![formula.into()],operator:"greaterThan".into(),rank:1,percent:false,stop}}));assert!(receipt.accepted(),"{receipt:?}");
+    use calc_host::{
+        ReviewAction as R, SaveFormat, SpreadsheetFormat, TableChange, WorkbookCommand as C,
+    };
+    let raw = package_with_part_from(
+        &calc_host::blank_package(),
+        "xl/worksheets/sheet1.xml",
+        |xml| {
+            xml.replace("<sheetData/>",r#"<sheetData><row r="1"><c r="A1"><v>6</v></c><c r="B1"><f>Sheet1!A1*3</f><v>18</v></c><c r="C1" t="inlineStr"><is><r><rPr><b/></rPr><t>Rich </t></r><r><t>text</t></r></is></c></row></sheetData><conditionalFormatting sqref="A1"><cfRule type="expression" priority="1"><formula>Sheet1!A1&gt;0</formula></cfRule></conditionalFormatting><dataValidations count="1"><dataValidation type="whole" sqref="A1"><formula1>1</formula1><formula2>9</formula2></dataValidation></dataValidations><hyperlinks><hyperlink ref="C1" location="Sheet1!A1" display="Jump"/></hyperlinks>"#)
+        },
+    );
+    let mut source = session(&raw);
+    let ss = source.host().sheets()[0].id();
+    assert!(
+        review_action(
+            &mut source,
+            at(ss, "A1"),
+            R::Create {
+                parent: None,
+                threaded: false,
+                author: "Local".into(),
+                text: "Retained note".into(),
+                timestamp: String::new()
+            }
+        )
+        .accepted()
+    );
+    for (address, text) in [("D1", "Key"), ("E1", "Amount"), ("D2", "one"), ("E2", "4")] {
+        enter(&mut source, at(ss, address), text);
     }
-    let before=book.host().model().definitions().conditional_rules(s).to_vec();let depth=book.history_depth();
-    let receipt=book.dispatch(SkinIntent::Command(W::SortRows{area:GridArea::new(at(s,"A1"),at(s,"C4")).unwrap(),keys:vec![calc_host::SortKey{column:1,descending:false}],header:true,revision:book.host().revision().get()}));assert!(receipt.accepted(),"{receipt:?}");assert_eq!(book.history_depth().0,depth.0+1);
-    let check=|host:&calc_host::HostState|{let s=host.sheets()[0].id();let cf=host.conditional_formats(s);let fill=|address|cf.look(host,at(s,address)).and_then(|l|l.fill);assert_eq!(fill("B2"),None);assert_eq!(fill("B3"),Some(LookColor::Rgb("#0000ff".into())));assert_eq!(fill("B4"),Some(LookColor::Rgb("#ff0000".into())));assert_eq!(fill("B5"),Some(LookColor::Rgb("#0000ff".into())));assert_eq!(calculated(host,at(s,"C2")),Some(CalcValue::number(10.)));assert_eq!(cf.refused(),0);};
-    check(book.host());let rules=book.host().model().definitions().conditional_rules(s);assert_eq!(rules.len(),5);assert_eq!(rules[0].formulas,["$B4>0"]);assert!(rules[0].stop);assert_eq!(rules.iter().map(|r|r.priority).collect::<Vec<_>>(),vec![1,2,3,4,5]);
-    assert!(book.dispatch(SkinIntent::Undo).accepted());assert_eq!(book.host().model().definitions().conditional_rules(s),before);assert!(book.dispatch(SkinIntent::Redo).accepted());check(book.host());
-    let mut saved=Vec::new();book.save(&SavePolicy::default(),&mut saved).unwrap();let mut reopened=session(&saved);reopened.dispatch(SkinIntent::Recalculate);check(reopened.host());assert!(reopened.host().model().definitions().conditional_rules(reopened.host().sheets()[0].id()).iter().find(|r|r.priority==1).unwrap().stop);let mut replayed=session(&blank);assert!(replay(book.intent_log(),&mut replayed).mismatches.is_empty());check(replayed.host());
-    assert!(book.dispatch(SkinIntent::EditAxis(AxisEdit::new(s,Axis::Rows,AxisChange::Insert,1,1).unwrap())).accepted());let revision=book.host().revision();let depth=book.history_depth();
-    let refused=book.dispatch(SkinIntent::Command(W::SortRows{area:GridArea::new(at(s,"A2"),at(s,"C5")).unwrap(),keys:vec![calc_host::SortKey{column:1,descending:false}],header:true,revision:revision.get()}));assert!(!refused.accepted());assert_eq!(book.host().revision(),revision);assert_eq!(book.history_depth(),depth);
+    assert!(
+        source
+            .dispatch(SkinIntent::Command(C::Table {
+                revision: source.host().revision().get(),
+                change: TableChange::Create {
+                    area: GridArea::new(at(ss, "D1"), at(ss, "E2")).unwrap(),
+                    name: "SourceTable".into()
+                }
+            }))
+            .accepted()
+    );
+    let mut bytes = Vec::new();
+    source
+        .save(
+            &SavePolicy {
+                format: SaveFormat::Spreadsheet(SpreadsheetFormat::Xltx),
+                ..Default::default()
+            },
+            &mut bytes,
+        )
+        .unwrap();
+    let mut book = session(&calc_host::blank_package());
+    let s = book.host().sheets()[0].id();
+    for (a, t) in [("D1", "Key"), ("E1", "Amount"), ("D2", "old"), ("E2", "99")] {
+        enter(&mut book, at(s, a), t);
+    }
+    assert!(
+        book.dispatch(SkinIntent::Command(C::Table {
+            revision: book.host().revision().get(),
+            change: TableChange::Create {
+                area: GridArea::new(at(s, "D1"), at(s, "E2")).unwrap(),
+                name: "TargetTable".into()
+            }
+        }))
+        .accepted()
+    );
+    let receipt = book.dispatch(SkinIntent::Command(C::InsertTemplate {
+        bytes: bytes.into(),
+        name: None,
+        revision: book.host().revision().get(),
+    }));
+    assert!(receipt.accepted(), "{receipt:?}");
+    let added = book.host().sheets()[1].id();
+    assert_eq!(
+        calculated(book.host(), at(added, "B1")),
+        Some(CalcValue::number(18.))
+    );
+    assert!(book.host().validation(at(added, "A1")).is_some());
+    assert_eq!(
+        book.host().model().definitions().review_notes(added)[0].text,
+        "Retained note"
+    );
+    let tables = book.host().model().definitions().tables();
+    assert_eq!(tables.len(), 2);
+    assert_ne!(tables[0].id, tables[1].id);
+    assert!(tables.iter().any(|t| t.display_name == "SourceTable"));
+    let mut saved = Vec::new();
+    book.save(&SavePolicy::default(), &mut saved).unwrap();
+    let reopened = session(&saved);
+    let rs = reopened.host().sheets()[1].id();
+    let loaded = reopened.host().loaded().sheet(rs).unwrap();
+    let part = part_text(&saved, loaded.part().name());
+    assert!(part.contains("<b/>") && part.contains("Rich "));
+    assert!(part.contains("location=\"Sheet2!A1\""), "{part}");
+    assert!(part.contains("Sheet2!A1&gt;0"), "{part}");
+    assert_eq!(
+        reopened.host().model().definitions().review_notes(rs)[0].text,
+        "Retained note"
+    );
+    assert!(reopened.host().validation(at(rs, "A1")).is_some());
 }
 
-#[cfg_attr(not(target_arch="wasm32"),test)]
-#[cfg_attr(target_arch="wasm32",wasm_bindgen_test::wasm_bindgen_test)]
-fn dc_971p_38__conditional_sort_refuses_lossy_rebasing_unbound_references_and_invalid_rules(){
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn dc_971p_38__case_sensitive_ascii_uses_lowercase_first_and_restores_rows() {
+    use calc_host::{SortKey, SortOptions, WorkbookCommand as W};
+    let mut book = session(&calc_host::blank_package());
+    let s = book.host().sheets()[0].id();
+    for (row, text) in [(1, "Key"), (2, "AB"), (3, "ab"), (4, "Ab"), (5, "aB")] {
+        enter(&mut book, at_(s, &format!("A{row}")), text);
+    }
+    for row in 2..=6 {
+        enter(
+            &mut book,
+            at_(s, &format!("B{row}")),
+            &(row - 1).to_string(),
+        );
+        enter(
+            &mut book,
+            at_(s, &format!("C{row}")),
+            &format!("=B{row}*10"),
+        );
+    }
+    let sort = |book: &mut HostSession, descending| {
+        book.dispatch(SkinIntent::Command(W::SortRowsWithOptions {
+            area: GridArea::new(at(s, "A1"), at(s, "C6")).unwrap(),
+            keys: vec![SortKey {
+                column: 1,
+                descending,
+            }],
+            header: true,
+            revision: book.host().revision().get(),
+            options: SortOptions {
+                case_sensitive: true,
+                custom_order: Vec::new(),
+            },
+        }))
+    };
+    let depth = book.history_depth();
+    let receipt = sort(&mut book, false);
+    assert!(receipt.accepted(), "{receipt:?}");
+    assert_eq!(book.history_depth().0, depth.0 + 1);
+    for (row, text, score) in [(2, "ab", 2.), (3, "aB", 4.), (4, "Ab", 3.), (5, "AB", 1.)] {
+        assert_eq!(
+            book.host().model().cell(at_(s, &format!("A{row}"))),
+            Some(&calc_host::interpret_entry(text).unwrap().unwrap())
+        );
+        assert_eq!(
+            calculated(book.host(), at_(s, &format!("C{row}"))),
+            Some(CalcValue::number(score * 10.))
+        );
+    }
+    assert!(book.host().model().cell(at(s, "A6")).is_none());
+    assert!(book.dispatch(SkinIntent::Undo).accepted());
+    assert_eq!(
+        book.host().model().cell(at(s, "A2")),
+        Some(&calc_host::interpret_entry("AB").unwrap().unwrap())
+    );
+    assert!(book.dispatch(SkinIntent::Redo).accepted());
+    assert!(sort(&mut book, true).accepted());
+    assert_eq!(
+        book.host().model().cell(at(s, "A2")),
+        Some(&calc_host::interpret_entry("AB").unwrap().unwrap())
+    );
+    assert_eq!(
+        book.host().model().cell(at(s, "A5")),
+        Some(&calc_host::interpret_entry("ab").unwrap().unwrap())
+    );
+    enter(&mut book, at(s, "A2"), "café");
+    let revision = book.host().revision();
+    let depth = book.history_depth();
+    assert!(!sort(&mut book, false).accepted());
+    assert_eq!(book.host().revision(), revision);
+    assert_eq!(book.history_depth(), depth);
+    for (row, text) in [(2, "aZ"), (3, "Aa"), (4, "ab"), (5, "aB")] {
+        enter(&mut book, at_(s, &format!("A{row}")), text);
+    }
+    assert!(sort(&mut book, false).accepted());
+    for (row, text) in [(2, "ab"), (3, "aB"), (4, "aZ"), (5, "Aa")] {
+        assert_eq!(
+            book.host().model().cell(at_(s, &format!("A{row}"))),
+            Some(&calc_host::interpret_entry(text).unwrap().unwrap())
+        );
+    }
+}
+
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn dc_971p_38__custom_lists_use_exact_matches_secondary_keys_and_atomic_refusals() {
+    use calc_host::{SortKey, SortOptions, WorkbookCommand as W};
+    let mut book = session(&calc_host::blank_package());
+    let s = book.host().sheets()[0].id();
+    for (row, text) in [
+        (1, "Priority"),
+        (2, "Low"),
+        (3, "High"),
+        (4, "Medium"),
+        (5, "HIGH"),
+    ] {
+        enter(&mut book, at_(s, &format!("A{row}")), text);
+    }
+    for row in 2..=5 {
+        enter(
+            &mut book,
+            at_(s, &format!("B{row}")),
+            &(row - 1).to_string(),
+        );
+        enter(
+            &mut book,
+            at_(s, &format!("C{row}")),
+            &format!("=B{row}*10"),
+        );
+    }
+    let sort = |book: &mut HostSession, custom_order: Vec<String>, descending| {
+        book.dispatch(SkinIntent::Command(W::SortRowsWithOptions {
+            area: GridArea::new(at(s, "A1"), at(s, "C5")).unwrap(),
+            keys: vec![
+                SortKey {
+                    column: 1,
+                    descending,
+                },
+                SortKey {
+                    column: 2,
+                    descending: true,
+                },
+            ],
+            header: true,
+            revision: book.host().revision().get(),
+            options: SortOptions {
+                case_sensitive: false,
+                custom_order,
+            },
+        }))
+    };
+    let list = || ["High", "Medium", "Low"].map(str::to_owned).to_vec();
+    let receipt = sort(&mut book, list(), false);
+    assert!(receipt.accepted(), "{receipt:?}");
+    for (row, expected) in [(2, 40.), (3, 20.), (4, 30.), (5, 10.)] {
+        assert_eq!(
+            calculated(book.host(), at_(s, &format!("C{row}"))),
+            Some(CalcValue::number(expected))
+        );
+    }
+    assert!(book.dispatch(SkinIntent::Undo).accepted());
+    assert!(book.dispatch(SkinIntent::Redo).accepted());
+    let revision = book.host().revision();
+    let depth = book.history_depth();
+    for (list, reverse) in [
+        (vec!["High".into(), "Low".into()], false),
+        (
+            vec!["High".into(), "HIGH".into(), "Low".into(), "Medium".into()],
+            false,
+        ),
+        (list(), true),
+    ] {
+        let refusal = sort(&mut book, list, reverse);
+        assert!(!refusal.accepted(), "{refusal:?}");
+        assert_eq!(book.host().revision(), revision);
+        assert_eq!(book.history_depth(), depth);
+    }
+    let mut saved = Vec::new();
+    book.save(&SavePolicy::default(), &mut saved).unwrap();
+    let mut reopened = session(&saved);
+    reopened.dispatch(SkinIntent::Recalculate);
+    let r = reopened.host().sheets()[0].id();
+    assert_eq!(
+        calculated(reopened.host(), at(r, "C2")),
+        Some(CalcValue::number(40.))
+    );
+    // XMATCH mode zero treats wildcard characters literally.
+    enter(&mut book, at(s, "A2"), "a*");
+    enter(&mut book, at(s, "A3"), "a?");
+    enter(&mut book, at(s, "A4"), "a?");
+    enter(&mut book, at(s, "A5"), "a*");
+    assert!(sort(&mut book, vec!["a?".into(), "a*".into()], false).accepted());
+    assert_eq!(
+        book.host().model().cell(at(s, "A2")),
+        Some(&calc_host::interpret_entry("a?").unwrap().unwrap())
+    );
+    for row in 2..=5 {
+        enter(&mut book, at_(s, &format!("A{row}")), "High");
+    }
+    let receipt = sort(&mut book, vec!["High".into()], false);
+    assert!(receipt.accepted(), "{receipt:?}");
+}
+
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn dc_971p_38__case_sort_keeps_digits_prefixes_z_and_value_kinds_in_order() {
+    use calc_host::{SortKey, SortOptions, WorkbookCommand as W};
+    let mut book = session(&calc_host::blank_package());
+    let s = book.host().sheets()[0].id();
+    for (row, text) in [
+        (1, "Key"),
+        (2, "Z"),
+        (3, "z"),
+        (4, "Z0"),
+        (5, "z0"),
+        (6, "'0"),
+        (7, "'00"),
+        (8, "-1"),
+        (9, "=TRUE()"),
+        (10, "=NA()"),
+    ] {
+        enter(&mut book, at_(s, &format!("A{row}")), text);
+    }
+    for row in 2..=11 {
+        enter(&mut book, at_(s, &format!("B{row}")), &row.to_string());
+    }
+    let receipt = book.dispatch(SkinIntent::Command(W::SortRowsWithOptions {
+        area: GridArea::new(at(s, "A1"), at(s, "B11")).unwrap(),
+        keys: vec![SortKey {
+            column: 1,
+            descending: false,
+        }],
+        header: true,
+        revision: book.host().revision().get(),
+        options: SortOptions {
+            case_sensitive: true,
+            custom_order: Vec::new(),
+        },
+    }));
+    assert!(receipt.accepted(), "{receipt:?}");
+    for (index, source) in [8, 6, 7, 3, 5, 2, 4, 9, 10, 11].into_iter().enumerate() {
+        assert_eq!(
+            book.host().model().cell(at_(s, &format!("B{}", index + 2))),
+            Some(
+                &calc_host::interpret_entry(&source.to_string())
+                    .unwrap()
+                    .unwrap()
+            )
+        );
+    }
+    assert!(book.host().model().cell(at(s, "A11")).is_none());
+}
+
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn dc_971p_38__pointwise_conditional_formats_follow_rows_priorities_and_history() {
+    use calc_host::{ConditionalChange as C, LookColor, WorkbookCommand as W};
+    let blank = calc_host::blank_package();
+    let mut book = session(&blank);
+    let s = book.host().sheets()[0].id();
+    for (address, text) in [
+        ("A1", "Key"),
+        ("B1", "Amount"),
+        ("A2", "3"),
+        ("B2", "30"),
+        ("C2", "=B2"),
+        ("A3", "1"),
+        ("B3", "10"),
+        ("C3", "=B3"),
+        ("A4", "2"),
+        ("B4", "20"),
+        ("C4", "=B4"),
+        ("B5", "40"),
+    ] {
+        enter(&mut book, at(s, address), text);
+    }
+    for (kind, applies, formula, color, stop) in [
+        ("expression", "B2", "$B2>0", "#ff0000", true),
+        ("cellIs", "B2:B5", "15", "#0000ff", false),
+    ] {
+        let revision = book.host().revision().get();
+        let receipt = book.dispatch(SkinIntent::Command(W::Conditional {
+            sheet: s,
+            revision,
+            index: None,
+            change: C::Condition {
+                kind: kind.into(),
+                applies: applies.into(),
+                color: color.into(),
+                formulas: vec![formula.into()],
+                operator: "greaterThan".into(),
+                rank: 1,
+                percent: false,
+                stop,
+            },
+        }));
+        assert!(receipt.accepted(), "{receipt:?}");
+    }
+    let before = book
+        .host()
+        .model()
+        .definitions()
+        .conditional_rules(s)
+        .to_vec();
+    let depth = book.history_depth();
+    let receipt = book.dispatch(SkinIntent::Command(W::SortRows {
+        area: GridArea::new(at(s, "A1"), at(s, "C4")).unwrap(),
+        keys: vec![calc_host::SortKey {
+            column: 1,
+            descending: false,
+        }],
+        header: true,
+        revision: book.host().revision().get(),
+    }));
+    assert!(receipt.accepted(), "{receipt:?}");
+    assert_eq!(book.history_depth().0, depth.0 + 1);
+    let check = |host: &calc_host::HostState| {
+        let s = host.sheets()[0].id();
+        let cf = host.conditional_formats(s);
+        let fill = |address| cf.look(host, at(s, address)).and_then(|l| l.fill);
+        assert_eq!(fill("B2"), None);
+        assert_eq!(fill("B3"), Some(LookColor::Rgb("#0000ff".into())));
+        assert_eq!(fill("B4"), Some(LookColor::Rgb("#ff0000".into())));
+        assert_eq!(fill("B5"), Some(LookColor::Rgb("#0000ff".into())));
+        assert_eq!(calculated(host, at(s, "C2")), Some(CalcValue::number(10.)));
+        assert_eq!(cf.refused(), 0);
+    };
+    check(book.host());
+    let rules = book.host().model().definitions().conditional_rules(s);
+    assert_eq!(rules.len(), 5);
+    assert_eq!(rules[0].formulas, ["$B4>0"]);
+    assert!(rules[0].stop);
+    assert_eq!(
+        rules.iter().map(|r| r.priority).collect::<Vec<_>>(),
+        vec![1, 2, 3, 4, 5]
+    );
+    assert!(book.dispatch(SkinIntent::Undo).accepted());
+    assert_eq!(
+        book.host().model().definitions().conditional_rules(s),
+        before
+    );
+    assert!(book.dispatch(SkinIntent::Redo).accepted());
+    check(book.host());
+    let mut saved = Vec::new();
+    book.save(&SavePolicy::default(), &mut saved).unwrap();
+    let mut reopened = session(&saved);
+    reopened.dispatch(SkinIntent::Recalculate);
+    check(reopened.host());
+    assert!(
+        reopened
+            .host()
+            .model()
+            .definitions()
+            .conditional_rules(reopened.host().sheets()[0].id())
+            .iter()
+            .find(|r| r.priority == 1)
+            .unwrap()
+            .stop
+    );
+    let mut replayed = session(&blank);
+    assert!(
+        replay(book.intent_log(), &mut replayed)
+            .mismatches
+            .is_empty()
+    );
+    check(replayed.host());
+    assert!(
+        book.dispatch(SkinIntent::EditAxis(
+            AxisEdit::new(s, Axis::Rows, AxisChange::Insert, 1, 1).unwrap()
+        ))
+        .accepted()
+    );
+    let revision = book.host().revision();
+    let depth = book.history_depth();
+    let refused = book.dispatch(SkinIntent::Command(W::SortRows {
+        area: GridArea::new(at(s, "A2"), at(s, "C5")).unwrap(),
+        keys: vec![calc_host::SortKey {
+            column: 1,
+            descending: false,
+        }],
+        header: true,
+        revision: revision.get(),
+    }));
+    assert!(!refused.accepted());
+    assert_eq!(book.host().revision(), revision);
+    assert_eq!(book.history_depth(), depth);
+}
+
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn dc_971p_38__conditional_sort_refuses_lossy_rebasing_unbound_references_and_invalid_rules() {
     for source in [
         r#"<conditionalFormatting sqref="C3 A1 C5"><cfRule type="expression" priority="1"><formula>A1</formula></cfRule></conditionalFormatting>"#,
         r#"<conditionalFormatting sqref="C3:C4"><cfRule type="cellIs" operator="sideways" priority="1"><formula>1</formula></cfRule></conditionalFormatting>"#,
         r#"<conditionalFormatting sqref="C3:C4"><cfRule type="cellIs" operator="between" priority="1"><formula>1</formula></cfRule></conditionalFormatting>"#,
         r#"<conditionalFormatting sqref="C3:C4"><cfRule type="expression" priority="1"><formula>$XFE$1&gt;0</formula></cfRule></conditionalFormatting>"#,
         r#"<conditionalFormatting sqref="C3:C4"><cfRule type="top10" rank="1" priority="1"/></conditionalFormatting>"#,
-    ]{
-        let bytes=package_with_part_from(&calc_host::blank_package(),"xl/worksheets/sheet1.xml",|xml|xml.replace("</worksheet>",&format!("{source}</worksheet>")));let mut book=session(&bytes);let s=book.host().sheets()[0].id();
-        for(address,text)in[("B3","2"),("C3","30"),("B4","1"),("C4","10"),("A1","1"),("A3","1")]{enter(&mut book,at(s,address),text);}
-        let revision=book.host().revision();let depth=book.history_depth();let rules=book.host().model().definitions().conditional_rules(s).to_vec();let receipt=book.dispatch(SkinIntent::Command(calc_host::WorkbookCommand::SortRows{area:GridArea::new(at(s,"B3"),at(s,"C4")).unwrap(),keys:vec![calc_host::SortKey{column:2,descending:false}],header:false,revision:revision.get()}));assert!(!receipt.accepted(),"{source}: {receipt:?}");assert_eq!(book.host().revision(),revision);assert_eq!(book.history_depth(),depth);assert_eq!(book.host().model().definitions().conditional_rules(s),rules);assert_eq!(book.host().model().cell(at(s,"C3")),Some(&calc_host::interpret_entry("30").unwrap().unwrap()));
+    ] {
+        let bytes = package_with_part_from(
+            &calc_host::blank_package(),
+            "xl/worksheets/sheet1.xml",
+            |xml| xml.replace("</worksheet>", &format!("{source}</worksheet>")),
+        );
+        let mut book = session(&bytes);
+        let s = book.host().sheets()[0].id();
+        for (address, text) in [
+            ("B3", "2"),
+            ("C3", "30"),
+            ("B4", "1"),
+            ("C4", "10"),
+            ("A1", "1"),
+            ("A3", "1"),
+        ] {
+            enter(&mut book, at(s, address), text);
+        }
+        let revision = book.host().revision();
+        let depth = book.history_depth();
+        let rules = book
+            .host()
+            .model()
+            .definitions()
+            .conditional_rules(s)
+            .to_vec();
+        let receipt = book.dispatch(SkinIntent::Command(calc_host::WorkbookCommand::SortRows {
+            area: GridArea::new(at(s, "B3"), at(s, "C4")).unwrap(),
+            keys: vec![calc_host::SortKey {
+                column: 2,
+                descending: false,
+            }],
+            header: false,
+            revision: revision.get(),
+        }));
+        assert!(!receipt.accepted(), "{source}: {receipt:?}");
+        assert_eq!(book.host().revision(), revision);
+        assert_eq!(book.history_depth(), depth);
+        assert_eq!(
+            book.host().model().definitions().conditional_rules(s),
+            rules
+        );
+        assert_eq!(
+            book.host().model().cell(at(s, "C3")),
+            Some(&calc_host::interpret_entry("30").unwrap().unwrap())
+        );
     }
 }
 
-#[cfg_attr(not(target_arch="wasm32"),test)]
-#[cfg_attr(target_arch="wasm32",wasm_bindgen_test::wasm_bindgen_test)]
-fn dc_971p_38__partial_column_sort_retains_outside_conditional_origins(){
-    use calc_host::{WorkbookCommand as W,ConditionalChange as C,LookColor};
-    let mut book=session(&calc_host::blank_package());let s=book.host().sheets()[0].id();
-    for(address,text)in[("A1","Key"),("A2","2"),("B2","20"),("C2","100"),("A3","1"),("B3","-10"),("C3","-100")]{enter(&mut book,at(s,address),text);}
-    let revision=book.host().revision().get();assert!(book.dispatch(SkinIntent::Command(W::Conditional{sheet:s,revision,index:None,change:C::Condition{kind:"expression".into(),applies:"B2:C3".into(),color:"#123456".into(),formulas:vec!["B2>0".into()],operator:"".into(),rank:1,percent:false,stop:false}})).accepted());
-    let revision=book.host().revision().get();let receipt=book.dispatch(SkinIntent::Command(W::SortRows{area:GridArea::new(at(s,"A1"),at(s,"B3")).unwrap(),keys:vec![calc_host::SortKey{column:1,descending:false}],header:true,revision}));assert!(receipt.accepted(),"{receipt:?}");
-    let cf=book.host().conditional_formats(s);for(address,colored)in[("B2",false),("B3",true),("C2",true),("C3",false)]{assert_eq!(cf.look(book.host(),at(s,address)).and_then(|l|l.fill),colored.then(||LookColor::Rgb("#123456".into())),"{address}");}
-    let rules=book.host().model().definitions().conditional_rules(s);assert_eq!(rules.len(),3);assert_eq!(rules[0].formulas,["C2>0"]);
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn dc_971p_38__partial_column_sort_retains_outside_conditional_origins() {
+    use calc_host::{ConditionalChange as C, LookColor, WorkbookCommand as W};
+    let mut book = session(&calc_host::blank_package());
+    let s = book.host().sheets()[0].id();
+    for (address, text) in [
+        ("A1", "Key"),
+        ("A2", "2"),
+        ("B2", "20"),
+        ("C2", "100"),
+        ("A3", "1"),
+        ("B3", "-10"),
+        ("C3", "-100"),
+    ] {
+        enter(&mut book, at(s, address), text);
+    }
+    let revision = book.host().revision().get();
+    assert!(
+        book.dispatch(SkinIntent::Command(W::Conditional {
+            sheet: s,
+            revision,
+            index: None,
+            change: C::Condition {
+                kind: "expression".into(),
+                applies: "B2:C3".into(),
+                color: "#123456".into(),
+                formulas: vec!["B2>0".into()],
+                operator: "".into(),
+                rank: 1,
+                percent: false,
+                stop: false
+            }
+        }))
+        .accepted()
+    );
+    let revision = book.host().revision().get();
+    let receipt = book.dispatch(SkinIntent::Command(W::SortRows {
+        area: GridArea::new(at(s, "A1"), at(s, "B3")).unwrap(),
+        keys: vec![calc_host::SortKey {
+            column: 1,
+            descending: false,
+        }],
+        header: true,
+        revision,
+    }));
+    assert!(receipt.accepted(), "{receipt:?}");
+    let cf = book.host().conditional_formats(s);
+    for (address, colored) in [("B2", false), ("B3", true), ("C2", true), ("C3", false)] {
+        assert_eq!(
+            cf.look(book.host(), at(s, address)).and_then(|l| l.fill),
+            colored.then(|| LookColor::Rgb("#123456".into())),
+            "{address}"
+        );
+    }
+    let rules = book.host().model().definitions().conditional_rules(s);
+    assert_eq!(rules.len(), 3);
+    assert_eq!(rules[0].formulas, ["C2>0"]);
 }
 
-#[cfg_attr(not(target_arch="wasm32"),test)]
-#[cfg_attr(target_arch="wasm32",wasm_bindgen_test::wasm_bindgen_test)]
-fn dc_971p_38__conditional_rule_fragment_limit_refuses_before_row_changes(){
-    let rules=(1..=513).map(|p|format!("<cfRule type=\"expression\" priority=\"{p}\"><formula>1=1</formula></cfRule>")).collect::<String>();
-    let bytes=package_with_part_from(&calc_host::blank_package(),"xl/worksheets/sheet1.xml",|xml|xml.replace("</worksheet>",&format!("<conditionalFormatting sqref=\"B2:B3\">{rules}</conditionalFormatting></worksheet>")));let mut book=session(&bytes);let s=book.host().sheets()[0].id();
-    for(address,text)in[("A1","Key"),("A2","2"),("B2","20"),("A3","1"),("B3","10")]{enter(&mut book,at(s,address),text);}
-    let revision=book.host().revision();let depth=book.history_depth();let before=book.host().model().definitions().conditional_rules(s).to_vec();assert_eq!(before.len(),513);
-    let receipt=book.dispatch(SkinIntent::Command(calc_host::WorkbookCommand::SortRows{area:GridArea::new(at(s,"A1"),at(s,"B3")).unwrap(),keys:vec![calc_host::SortKey{column:1,descending:false}],header:true,revision:revision.get()}));assert!(!receipt.accepted(),"{receipt:?}");assert_eq!(book.host().revision(),revision);assert_eq!(book.history_depth(),depth);assert_eq!(book.host().model().definitions().conditional_rules(s),before);assert_eq!(book.host().model().cell(at(s,"B2")),Some(&calc_host::interpret_entry("20").unwrap().unwrap()));
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn dc_971p_38__conditional_rule_fragment_limit_refuses_before_row_changes() {
+    let rules = (1..=513)
+        .map(|p| {
+            format!("<cfRule type=\"expression\" priority=\"{p}\"><formula>1=1</formula></cfRule>")
+        })
+        .collect::<String>();
+    let bytes = package_with_part_from(
+        &calc_host::blank_package(),
+        "xl/worksheets/sheet1.xml",
+        |xml| {
+            xml.replace("</worksheet>",&format!("<conditionalFormatting sqref=\"B2:B3\">{rules}</conditionalFormatting></worksheet>"))
+        },
+    );
+    let mut book = session(&bytes);
+    let s = book.host().sheets()[0].id();
+    for (address, text) in [
+        ("A1", "Key"),
+        ("A2", "2"),
+        ("B2", "20"),
+        ("A3", "1"),
+        ("B3", "10"),
+    ] {
+        enter(&mut book, at(s, address), text);
+    }
+    let revision = book.host().revision();
+    let depth = book.history_depth();
+    let before = book
+        .host()
+        .model()
+        .definitions()
+        .conditional_rules(s)
+        .to_vec();
+    assert_eq!(before.len(), 513);
+    let receipt = book.dispatch(SkinIntent::Command(calc_host::WorkbookCommand::SortRows {
+        area: GridArea::new(at(s, "A1"), at(s, "B3")).unwrap(),
+        keys: vec![calc_host::SortKey {
+            column: 1,
+            descending: false,
+        }],
+        header: true,
+        revision: revision.get(),
+    }));
+    assert!(!receipt.accepted(), "{receipt:?}");
+    assert_eq!(book.host().revision(), revision);
+    assert_eq!(book.history_depth(), depth);
+    assert_eq!(
+        book.host().model().definitions().conditional_rules(s),
+        before
+    );
+    assert_eq!(
+        book.host().model().cell(at(s, "B2")),
+        Some(&calc_host::interpret_entry("20").unwrap().unwrap())
+    );
 }
-
 
 #[cfg_attr(not(target_arch = "wasm32"), test)]
 #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
 fn dc_971p_38__text_blank_and_error_conditions_sort_through_stored_formulas() {
-    use calc_host::{ConditionalChange as C, WorkbookCommand as W, LookColor};
+    use calc_host::{ConditionalChange as C, LookColor, WorkbookCommand as W};
     for (kind, extra, formula, first, second) in [
-        ("containsText", " text=\"red\" operator=\"containsText\"", "NOT(ISERROR(SEARCH(\"red\",B2)))", "red apple", "blue"),
-        ("notContainsText", " text=\"red\" operator=\"notContains\"", "ISERROR(SEARCH(\"red\",B2))", "blue", "red apple"),
-        ("beginsWith", " text=\"red\" operator=\"beginsWith\"", "LEFT(B2,3)=\"red\"", "red apple", "apple red"),
-        ("endsWith", " text=\"red\" operator=\"endsWith\"", "RIGHT(B2,3)=\"red\"", "apple red", "red apple"),
+        (
+            "containsText",
+            " text=\"red\" operator=\"containsText\"",
+            "NOT(ISERROR(SEARCH(\"red\",B2)))",
+            "red apple",
+            "blue",
+        ),
+        (
+            "notContainsText",
+            " text=\"red\" operator=\"notContains\"",
+            "ISERROR(SEARCH(\"red\",B2))",
+            "blue",
+            "red apple",
+        ),
+        (
+            "beginsWith",
+            " text=\"red\" operator=\"beginsWith\"",
+            "LEFT(B2,3)=\"red\"",
+            "red apple",
+            "apple red",
+        ),
+        (
+            "endsWith",
+            " text=\"red\" operator=\"endsWith\"",
+            "RIGHT(B2,3)=\"red\"",
+            "apple red",
+            "red apple",
+        ),
         ("containsBlanks", "", "LEN(TRIM(B2))=0", "", "apple"),
         ("notContainsBlanks", "", "LEN(TRIM(B2))>0", "apple", ""),
         ("containsErrors", "", "ISERROR(B2)", "=1/0", "apple"),
@@ -16050,51 +22514,133 @@ fn dc_971p_38__text_blank_and_error_conditions_sort_through_stored_formulas() {
     ] {
         let mut seed = session(&calc_host::blank_package());
         let s = seed.host().sheets()[0].id();
-        for (address, text) in [("A1","Key"),("A2","2"),("A3","1"),("B2",first),("B3",second)] {
-            assert!(enter(&mut seed,at(s,address),text).accepted());
+        for (address, text) in [
+            ("A1", "Key"),
+            ("A2", "2"),
+            ("A3", "1"),
+            ("B2", first),
+            ("B3", second),
+        ] {
+            assert!(enter(&mut seed, at(s, address), text).accepted());
         }
-        let revision=seed.host().revision().get();
-        assert!(seed.dispatch(SkinIntent::Command(W::Conditional{sheet:s,revision,index:None,change:C::Condition{
-            kind:"expression".into(),applies:"B2:B3".into(),color:"#123456".into(),formulas:vec![formula.into()],operator:"".into(),rank:1,percent:false,stop:true,
-        }})).accepted());
-        let mut bytes=Vec::new();seed.save(&SavePolicy::default(),&mut bytes).unwrap();
-        let bytes=package_with_part_from(&bytes,"xl/worksheets/sheet1.xml",|xml| {
+        let revision = seed.host().revision().get();
+        assert!(
+            seed.dispatch(SkinIntent::Command(W::Conditional {
+                sheet: s,
+                revision,
+                index: None,
+                change: C::Condition {
+                    kind: "expression".into(),
+                    applies: "B2:B3".into(),
+                    color: "#123456".into(),
+                    formulas: vec![formula.into()],
+                    operator: "".into(),
+                    rank: 1,
+                    percent: false,
+                    stop: true,
+                }
+            }))
+            .accepted()
+        );
+        let mut bytes = Vec::new();
+        seed.save(&SavePolicy::default(), &mut bytes).unwrap();
+        let bytes = package_with_part_from(&bytes, "xl/worksheets/sheet1.xml", |xml| {
             assert!(xml.contains("type=\"expression\""));
-            xml.replace("type=\"expression\"",&format!("type=\"{kind}\"{extra}"))
+            xml.replace("type=\"expression\"", &format!("type=\"{kind}\"{extra}"))
         });
-        let mut book=session(&bytes);assert!(book.dispatch(SkinIntent::Recalculate).accepted());
-        let s=book.host().sheets()[0].id();
-        let fill=|host:&calc_host::HostState,address|host.conditional_formats(host.sheets()[0].id()).look(host,at(host.sheets()[0].id(),address)).and_then(|l|l.fill);
-        assert_eq!(fill(book.host(),"B2"),Some(LookColor::Rgb("#123456".into())),"{kind}");
-        assert_eq!(fill(book.host(),"B3"),None,"{kind}");
-        let before=book.host().model().definitions().conditional_rules(s).to_vec();
-        let revision=book.host().revision().get();
-        let receipt=book.dispatch(SkinIntent::Command(W::SortRows{area:GridArea::new(at(s,"A1"),at(s,"B3")).unwrap(),keys:vec![calc_host::SortKey{column:1,descending:false}],header:true,revision}));
-        assert!(receipt.accepted(),"{kind}: {receipt:?}");
-        let check=|host:&calc_host::HostState| {
-            let s=host.sheets()[0].id();
-            assert_eq!(host.model().cell(at(s,"A2")),Some(&number(1.)));
-            assert_eq!(fill(host,"B2"),None,"{kind}");
-            assert_eq!(fill(host,"B3"),Some(LookColor::Rgb("#123456".into())),"{kind}");
-            let rules=host.model().definitions().conditional_rules(s);
-            assert_eq!(rules.len(),2);
-            assert!(rules.iter().all(|r|r.stop));
+        let mut book = session(&bytes);
+        assert!(book.dispatch(SkinIntent::Recalculate).accepted());
+        let s = book.host().sheets()[0].id();
+        let fill = |host: &calc_host::HostState, address| {
+            host.conditional_formats(host.sheets()[0].id())
+                .look(host, at(host.sheets()[0].id(), address))
+                .and_then(|l| l.fill)
+        };
+        assert_eq!(
+            fill(book.host(), "B2"),
+            Some(LookColor::Rgb("#123456".into())),
+            "{kind}"
+        );
+        assert_eq!(fill(book.host(), "B3"), None, "{kind}");
+        let before = book
+            .host()
+            .model()
+            .definitions()
+            .conditional_rules(s)
+            .to_vec();
+        let revision = book.host().revision().get();
+        let receipt = book.dispatch(SkinIntent::Command(W::SortRows {
+            area: GridArea::new(at(s, "A1"), at(s, "B3")).unwrap(),
+            keys: vec![calc_host::SortKey {
+                column: 1,
+                descending: false,
+            }],
+            header: true,
+            revision,
+        }));
+        assert!(receipt.accepted(), "{kind}: {receipt:?}");
+        let check = |host: &calc_host::HostState| {
+            let s = host.sheets()[0].id();
+            assert_eq!(host.model().cell(at(s, "A2")), Some(&number(1.)));
+            assert_eq!(fill(host, "B2"), None, "{kind}");
+            assert_eq!(
+                fill(host, "B3"),
+                Some(LookColor::Rgb("#123456".into())),
+                "{kind}"
+            );
+            let rules = host.model().definitions().conditional_rules(s);
+            assert_eq!(rules.len(), 2);
+            assert!(rules.iter().all(|r| r.stop));
             for rule in rules {
-                let parsed=calc_doc::conditional_rule(rule).unwrap();
-                assert_eq!(parsed.kind,kind);
-                assert_eq!(parsed.text,if extra.is_empty(){None}else{Some("red".into())});
-                assert_eq!(parsed.operator,if extra.is_empty(){None}else{Some(if kind=="notContainsText" {"notContains"}else{kind}.into())});
-                assert_eq!(parsed.formulas,[formula.replace("B2",&format!("B{}",rule.origin().unwrap().row()))]);
+                let parsed = calc_doc::conditional_rule(rule).unwrap();
+                assert_eq!(parsed.kind, kind);
+                assert_eq!(
+                    parsed.text,
+                    if extra.is_empty() {
+                        None
+                    } else {
+                        Some("red".into())
+                    }
+                );
+                assert_eq!(
+                    parsed.operator,
+                    if extra.is_empty() {
+                        None
+                    } else {
+                        Some(
+                            if kind == "notContainsText" {
+                                "notContains"
+                            } else {
+                                kind
+                            }
+                            .into(),
+                        )
+                    }
+                );
+                assert_eq!(
+                    parsed.formulas,
+                    [formula.replace("B2", &format!("B{}", rule.origin().unwrap().row()))]
+                );
             }
-            assert_eq!(host.conditional_formats(s).refused(),0);
+            assert_eq!(host.conditional_formats(s).refused(), 0);
         };
         check(book.host());
-        assert!(book.dispatch(SkinIntent::Undo).accepted());assert_eq!(book.host().model().definitions().conditional_rules(s),before);
-        assert!(book.dispatch(SkinIntent::Redo).accepted());check(book.host());
-        let mut saved=Vec::new();book.save(&SavePolicy::default(),&mut saved).unwrap();
-        let mut reopened=session(&saved);assert!(reopened.dispatch(SkinIntent::Recalculate).accepted());check(reopened.host());
-        let mut twin=session(&bytes);assert!(replay(book.intent_log(),&mut twin).mismatches.is_empty());check(twin.host());
-        check_pointwise_colour_filter_history_and_reopen(&mut book,None);
+        assert!(book.dispatch(SkinIntent::Undo).accepted());
+        assert_eq!(
+            book.host().model().definitions().conditional_rules(s),
+            before
+        );
+        assert!(book.dispatch(SkinIntent::Redo).accepted());
+        check(book.host());
+        let mut saved = Vec::new();
+        book.save(&SavePolicy::default(), &mut saved).unwrap();
+        let mut reopened = session(&saved);
+        assert!(reopened.dispatch(SkinIntent::Recalculate).accepted());
+        check(reopened.host());
+        let mut twin = session(&bytes);
+        assert!(replay(book.intent_log(), &mut twin).mismatches.is_empty());
+        check(twin.host());
+        check_pointwise_colour_filter_history_and_reopen(&mut book, None);
     }
 }
 
@@ -16110,92 +22656,241 @@ fn dc_971p_38__invalid_pointwise_condition_fields_refuse_atomically() {
         "type=\"containsBlanks\" operator=\"equal\"",
         "type=\"containsErrors\" timePeriod=\"today\"",
     ] {
-        let bytes=package_with_part_from(&calc_host::blank_package(),"xl/worksheets/sheet1.xml",|xml|xml.replace("</worksheet>",&format!("<conditionalFormatting sqref=\"B2:B3\"><cfRule {attributes} priority=\"1\"><formula>B2&gt;0</formula></cfRule></conditionalFormatting></worksheet>")));
-        let mut book=session(&bytes);let s=book.host().sheets()[0].id();
-        for (a,t) in [("A2","2"),("A3","1"),("B2","20"),("B3","10")] {assert!(enter(&mut book,at(s,a),t).accepted());}
-        let revision=book.host().revision();let depth=book.history_depth();
-        let old=book.host().model().definitions().conditional_rules(s).to_vec();
-        let receipt=book.dispatch(SkinIntent::Command(calc_host::WorkbookCommand::SortRows{area:GridArea::new(at(s,"A2"),at(s,"B3")).unwrap(),keys:vec![calc_host::SortKey{column:1,descending:false}],header:false,revision:revision.get()}));
-        assert!(!receipt.accepted(),"{attributes}: {receipt:?}");
-        assert_eq!(book.host().revision(),revision);assert_eq!(book.history_depth(),depth);
-        assert_eq!(book.host().model().definitions().conditional_rules(s),old);
-        assert_eq!(book.host().model().cell(at(s,"A2")),Some(&number(2.)));
+        let bytes = package_with_part_from(
+            &calc_host::blank_package(),
+            "xl/worksheets/sheet1.xml",
+            |xml| {
+                xml.replace("</worksheet>",&format!("<conditionalFormatting sqref=\"B2:B3\"><cfRule {attributes} priority=\"1\"><formula>B2&gt;0</formula></cfRule></conditionalFormatting></worksheet>"))
+            },
+        );
+        let mut book = session(&bytes);
+        let s = book.host().sheets()[0].id();
+        for (a, t) in [("A2", "2"), ("A3", "1"), ("B2", "20"), ("B3", "10")] {
+            assert!(enter(&mut book, at(s, a), t).accepted());
+        }
+        let revision = book.host().revision();
+        let depth = book.history_depth();
+        let old = book
+            .host()
+            .model()
+            .definitions()
+            .conditional_rules(s)
+            .to_vec();
+        let receipt = book.dispatch(SkinIntent::Command(calc_host::WorkbookCommand::SortRows {
+            area: GridArea::new(at(s, "A2"), at(s, "B3")).unwrap(),
+            keys: vec![calc_host::SortKey {
+                column: 1,
+                descending: false,
+            }],
+            header: false,
+            revision: revision.get(),
+        }));
+        assert!(!receipt.accepted(), "{attributes}: {receipt:?}");
+        assert_eq!(book.host().revision(), revision);
+        assert_eq!(book.history_depth(), depth);
+        assert_eq!(book.host().model().definitions().conditional_rules(s), old);
+        assert_eq!(book.host().model().cell(at(s, "A2")), Some(&number(2.)));
     }
 }
 
-#[cfg_attr(not(target_arch="wasm32"),test)]
-#[cfg_attr(target_arch="wasm32",wasm_bindgen_test::wasm_bindgen_test)]
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
 fn dc_971p_38__hyperlinks_follow_rows_history_axis_edits_and_actual_reopening() {
-    use calc_host::{WorkbookCommand as W,SortKey};
-    let sheet=r#"<worksheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships"><sheetData><row r="1"><c r="A1" t="inlineStr"><is><t>Key</t></is></c></row><row r="2"><c r="A2"><v>3</v></c><c r="B2" t="inlineStr"><is><t>three</t></is></c><c r="C2"><f>A2*10</f></c></row><row r="3"><c r="A3"><v>1</v></c><c r="B3" t="inlineStr"><is><t>one</t></is></c><c r="C3"><f>A3*10</f></c></row><row r="4"><c r="A4"><v>2</v></c><c r="B4" t="inlineStr"><is><t>two</t></is></c><c r="C4"><f>A4*10</f></c></row></sheetData><hyperlinks><hyperlink ref="B2" r:id="external" display="External &amp; link" tooltip="A_x005F_x0041_ tip"/><hyperlink ref="B3:C4" location="Sheet1!$A$1" display="Jump" tooltip="Internal"/><hyperlink ref="B6" r:id="external" tooltip="Outside"/></hyperlinks></worksheet>"#;
-    let rels=r#"<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships"><Relationship Id="external" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/hyperlink" Target="https://example.test/path?a=1&amp;b=2#anchor" TargetMode="External"/></Relationships>"#;
-    let bytes=package_with_parts_from(&calc_host::blank_package(),"xl/worksheets/sheet1.xml",|_|sheet.into(),&[("xl/worksheets/_rels/sheet1.xml.rels",rels.as_bytes())]);
-    let mut book=session(&bytes);assert!(book.dispatch(SkinIntent::Recalculate).accepted());let s=book.host().sheets()[0].id();
-    let before=book.host().sheet_review(s).links;assert_eq!(before.len(),3);
-    let sort=|book:&mut HostSession,descending|{
-        let s=book.host().sheets()[0].id();let revision=book.host().revision().get();
-        let receipt=book.dispatch(SkinIntent::Command(W::SortRows{area:GridArea::new(at(s,"A1"),at(s,"C4")).unwrap(),keys:vec![SortKey{column:1,descending}],header:true,revision}));assert!(receipt.accepted(),"{receipt:?}");
+    use calc_host::{SortKey, WorkbookCommand as W};
+    let sheet = r#"<worksheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships"><sheetData><row r="1"><c r="A1" t="inlineStr"><is><t>Key</t></is></c></row><row r="2"><c r="A2"><v>3</v></c><c r="B2" t="inlineStr"><is><t>three</t></is></c><c r="C2"><f>A2*10</f></c></row><row r="3"><c r="A3"><v>1</v></c><c r="B3" t="inlineStr"><is><t>one</t></is></c><c r="C3"><f>A3*10</f></c></row><row r="4"><c r="A4"><v>2</v></c><c r="B4" t="inlineStr"><is><t>two</t></is></c><c r="C4"><f>A4*10</f></c></row></sheetData><hyperlinks><hyperlink ref="B2" r:id="external" display="External &amp; link" tooltip="A_x005F_x0041_ tip"/><hyperlink ref="B3:C4" location="Sheet1!$A$1" display="Jump" tooltip="Internal"/><hyperlink ref="B6" r:id="external" tooltip="Outside"/></hyperlinks></worksheet>"#;
+    let rels = r#"<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships"><Relationship Id="external" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/hyperlink" Target="https://example.test/path?a=1&amp;b=2#anchor" TargetMode="External"/></Relationships>"#;
+    let bytes = package_with_parts_from(
+        &calc_host::blank_package(),
+        "xl/worksheets/sheet1.xml",
+        |_| sheet.into(),
+        &[("xl/worksheets/_rels/sheet1.xml.rels", rels.as_bytes())],
+    );
+    let mut book = session(&bytes);
+    assert!(book.dispatch(SkinIntent::Recalculate).accepted());
+    let s = book.host().sheets()[0].id();
+    let before = book.host().sheet_review(s).links;
+    assert_eq!(before.len(), 3);
+    let sort = |book: &mut HostSession, descending| {
+        let s = book.host().sheets()[0].id();
+        let revision = book.host().revision().get();
+        let receipt = book.dispatch(SkinIntent::Command(W::SortRows {
+            area: GridArea::new(at(s, "A1"), at(s, "C4")).unwrap(),
+            keys: vec![SortKey {
+                column: 1,
+                descending,
+            }],
+            header: true,
+            revision,
+        }));
+        assert!(receipt.accepted(), "{receipt:?}");
     };
-    let check=|book:&HostSession,external:&str,internal:&str,outside:&str| {
-        let s=book.host().sheets()[0].id();let links=book.host().sheet_review(s).links;
-        assert_eq!(links.len(),3);
-        let area=|text:&str|book.host().resolve_reference_text(at(s,"A1"),text);
-        assert_eq!(links[0].area,match area(external){calc_host::ReferenceTarget::Area(a)=>a,other=>panic!("{other:?}")});
-        assert_eq!(links[1].area,match area(internal){calc_host::ReferenceTarget::Area(a)=>a,other=>panic!("{other:?}")});
-        assert_eq!(links[2].area,GridArea::cell(at(s,outside)));
-        assert_eq!(links[0].target.as_deref(),Some("https://example.test/path?a=1&b=2#anchor"));
-        assert_eq!(links[0].tooltip.as_deref(),Some("A_x0041_ tip"));
-        assert_eq!(links[0].display.as_deref(),Some("External & link"));
-        assert_eq!(links[1].location.as_deref(),Some("Sheet1!$A$1"));
-        assert_eq!(links[2].tooltip.as_deref(),Some("Outside"));
+    let check = |book: &HostSession, external: &str, internal: &str, outside: &str| {
+        let s = book.host().sheets()[0].id();
+        let links = book.host().sheet_review(s).links;
+        assert_eq!(links.len(), 3);
+        let area = |text: &str| book.host().resolve_reference_text(at(s, "A1"), text);
+        assert_eq!(
+            links[0].area,
+            match area(external) {
+                calc_host::ReferenceTarget::Area(a) => a,
+                other => panic!("{other:?}"),
+            }
+        );
+        assert_eq!(
+            links[1].area,
+            match area(internal) {
+                calc_host::ReferenceTarget::Area(a) => a,
+                other => panic!("{other:?}"),
+            }
+        );
+        assert_eq!(links[2].area, GridArea::cell(at(s, outside)));
+        assert_eq!(
+            links[0].target.as_deref(),
+            Some("https://example.test/path?a=1&b=2#anchor")
+        );
+        assert_eq!(links[0].tooltip.as_deref(), Some("A_x0041_ tip"));
+        assert_eq!(links[0].display.as_deref(), Some("External & link"));
+        assert_eq!(links[1].location.as_deref(), Some("Sheet1!$A$1"));
+        assert_eq!(links[2].tooltip.as_deref(), Some("Outside"));
     };
-    sort(&mut book,false);check(&book,"B4","B2:C3","B6");
-    assert_eq!(session_calculated(&book,at(s,"C2")).unwrap().as_number(),Some(10.));
-    assert!(book.dispatch(SkinIntent::Undo).accepted());assert_eq!(book.host().sheet_review(s).links,before);
-    assert!(book.dispatch(SkinIntent::Redo).accepted());check(&book,"B4","B2:C3","B6");
-    sort(&mut book,true);check(&book,"B2","B3:C4","B6");sort(&mut book,false);check(&book,"B4","B2:C3","B6");
-    let mut saved=Vec::new();book.save(&SavePolicy::default(),&mut saved).unwrap();
-    assert_eq!(part_text(&saved,"xl/worksheets/_rels/sheet1.xml.rels"),rels);
-    let xml=part_text(&saved,"xl/worksheets/sheet1.xml");assert!(xml.contains("r:id=\"external\""));assert!(xml.contains("A_x005F_x0041_ tip"));
-    let mut reopened=session(&saved);assert!(reopened.dispatch(SkinIntent::Recalculate).accepted());check(&reopened,"B4","B2:C3","B6");
-    sort(&mut reopened,true);check(&reopened,"B2","B3:C4","B6");
-    assert!(book.dispatch(SkinIntent::EditAxis(AxisEdit::new(s,Axis::Rows,AxisChange::Insert,2,1).unwrap())).accepted());check(&book,"B5","B3:C4","B7");
-    assert!(book.dispatch(SkinIntent::EditAxis(AxisEdit::new(s,Axis::Rows,AxisChange::Delete,3,1).unwrap())).accepted());check(&book,"B4","B3:C3","B6");
-    let mut saved=Vec::new();book.save(&SavePolicy::default(),&mut saved).unwrap();let reopened=session(&saved);check(&reopened,"B4","B3:C3","B6");
-    let mut twin=session(&bytes);assert!(replay(book.intent_log(),&mut twin).mismatches.is_empty());check(&twin,"B4","B3:C3","B6");
+    sort(&mut book, false);
+    check(&book, "B4", "B2:C3", "B6");
+    assert_eq!(
+        session_calculated(&book, at(s, "C2")).unwrap().as_number(),
+        Some(10.)
+    );
+    assert!(book.dispatch(SkinIntent::Undo).accepted());
+    assert_eq!(book.host().sheet_review(s).links, before);
+    assert!(book.dispatch(SkinIntent::Redo).accepted());
+    check(&book, "B4", "B2:C3", "B6");
+    sort(&mut book, true);
+    check(&book, "B2", "B3:C4", "B6");
+    sort(&mut book, false);
+    check(&book, "B4", "B2:C3", "B6");
+    let mut saved = Vec::new();
+    book.save(&SavePolicy::default(), &mut saved).unwrap();
+    assert_eq!(
+        part_text(&saved, "xl/worksheets/_rels/sheet1.xml.rels"),
+        rels
+    );
+    let xml = part_text(&saved, "xl/worksheets/sheet1.xml");
+    assert!(xml.contains("r:id=\"external\""));
+    assert!(xml.contains("A_x005F_x0041_ tip"));
+    let mut reopened = session(&saved);
+    assert!(reopened.dispatch(SkinIntent::Recalculate).accepted());
+    check(&reopened, "B4", "B2:C3", "B6");
+    sort(&mut reopened, true);
+    check(&reopened, "B2", "B3:C4", "B6");
+    assert!(
+        book.dispatch(SkinIntent::EditAxis(
+            AxisEdit::new(s, Axis::Rows, AxisChange::Insert, 2, 1).unwrap()
+        ))
+        .accepted()
+    );
+    check(&book, "B5", "B3:C4", "B7");
+    assert!(
+        book.dispatch(SkinIntent::EditAxis(
+            AxisEdit::new(s, Axis::Rows, AxisChange::Delete, 3, 1).unwrap()
+        ))
+        .accepted()
+    );
+    check(&book, "B4", "B3:C3", "B6");
+    let mut saved = Vec::new();
+    book.save(&SavePolicy::default(), &mut saved).unwrap();
+    let reopened = session(&saved);
+    check(&reopened, "B4", "B3:C3", "B6");
+    let mut twin = session(&bytes);
+    assert!(replay(book.intent_log(), &mut twin).mismatches.is_empty());
+    check(&twin, "B4", "B3:C3", "B6");
 }
 
-#[cfg_attr(not(target_arch="wasm32"),test)]
-#[cfg_attr(target_arch="wasm32",wasm_bindgen_test::wasm_bindgen_test)]
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
 fn dc_971p_38__partly_selected_hyperlink_ranges_split_without_losing_the_outside() {
-    let xml=r#"<worksheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main"><sheetData><row r="2"><c r="A2"><v>2</v></c></row><row r="3"><c r="A3"><v>1</v></c></row></sheetData><hyperlinks><hyperlink ref="B2:C2" location="Sheet1!$D$1" tooltip="Keep both"/></hyperlinks></worksheet>"#;
-    let bytes=package_with_part("xl/worksheets/sheet1.xml",|_|xml.into());let mut book=session(&bytes);let s=book.host().sheets()[0].id();
-    let revision=book.host().revision().get();let receipt=book.dispatch(SkinIntent::Command(calc_host::WorkbookCommand::SortRows{area:GridArea::new(at(s,"A2"),at(s,"B3")).unwrap(),keys:vec![calc_host::SortKey{column:1,descending:false}],header:false,revision}));assert!(receipt.accepted(),"{receipt:?}");
-    let check=|book:&HostSession|{
-        let s=book.host().sheets()[0].id();let links=book.host().sheet_review(s).links;assert_eq!(links.len(),2);
-        assert_eq!(links.iter().map(|l|l.area).collect::<Vec<_>>(),vec![GridArea::cell(at(s,"C2")),GridArea::cell(at(s,"B3"))]);
-        assert!(links.iter().all(|l|l.location.as_deref()==Some("Sheet1!$D$1") && l.tooltip.as_deref()==Some("Keep both")));
+    let xml = r#"<worksheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main"><sheetData><row r="2"><c r="A2"><v>2</v></c></row><row r="3"><c r="A3"><v>1</v></c></row></sheetData><hyperlinks><hyperlink ref="B2:C2" location="Sheet1!$D$1" tooltip="Keep both"/></hyperlinks></worksheet>"#;
+    let bytes = package_with_part("xl/worksheets/sheet1.xml", |_| xml.into());
+    let mut book = session(&bytes);
+    let s = book.host().sheets()[0].id();
+    let revision = book.host().revision().get();
+    let receipt = book.dispatch(SkinIntent::Command(calc_host::WorkbookCommand::SortRows {
+        area: GridArea::new(at(s, "A2"), at(s, "B3")).unwrap(),
+        keys: vec![calc_host::SortKey {
+            column: 1,
+            descending: false,
+        }],
+        header: false,
+        revision,
+    }));
+    assert!(receipt.accepted(), "{receipt:?}");
+    let check = |book: &HostSession| {
+        let s = book.host().sheets()[0].id();
+        let links = book.host().sheet_review(s).links;
+        assert_eq!(links.len(), 2);
+        assert_eq!(
+            links.iter().map(|l| l.area).collect::<Vec<_>>(),
+            vec![GridArea::cell(at(s, "C2")), GridArea::cell(at(s, "B3"))]
+        );
+        assert!(
+            links
+                .iter()
+                .all(|l| l.location.as_deref() == Some("Sheet1!$D$1")
+                    && l.tooltip.as_deref() == Some("Keep both"))
+        );
     };
-    check(&book);assert!(book.dispatch(SkinIntent::Undo).accepted());assert_eq!(book.host().sheet_review(s).links.len(),1);assert!(book.dispatch(SkinIntent::Redo).accepted());check(&book);
-    let mut saved=Vec::new();book.save(&SavePolicy::default(),&mut saved).unwrap();check(&session(&saved));
+    check(&book);
+    assert!(book.dispatch(SkinIntent::Undo).accepted());
+    assert_eq!(book.host().sheet_review(s).links.len(), 1);
+    assert!(book.dispatch(SkinIntent::Redo).accepted());
+    check(&book);
+    let mut saved = Vec::new();
+    book.save(&SavePolicy::default(), &mut saved).unwrap();
+    check(&session(&saved));
 }
 
-#[cfg_attr(not(target_arch="wasm32"),test)]
-#[cfg_attr(target_arch="wasm32",wasm_bindgen_test::wasm_bindgen_test)]
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
 fn dc_971p_38__unread_or_excessive_hyperlinks_refuse_without_mutation() {
     for links in [
         r#"<hyperlinks><hyperlink ref="B2" r:id="missing"/></hyperlinks>"#.to_owned(),
-        r#"<hyperlinks v:keep="unknown"><hyperlink ref="B2" location="A1"/></hyperlinks>"#.to_owned(),
-        r#"<hyperlinks><hyperlink ref="B2" location="A1" v:keep="unknown"/></hyperlinks>"#.to_owned(),
-        r#"<hyperlinks><hyperlink ref="B2" location="A1"><v:keep/></hyperlink></hyperlinks>"#.to_owned(),
+        r#"<hyperlinks v:keep="unknown"><hyperlink ref="B2" location="A1"/></hyperlinks>"#
+            .to_owned(),
+        r#"<hyperlinks><hyperlink ref="B2" location="A1" v:keep="unknown"/></hyperlinks>"#
+            .to_owned(),
+        r#"<hyperlinks><hyperlink ref="B2" location="A1"><v:keep/></hyperlink></hyperlinks>"#
+            .to_owned(),
         r#"<hyperlinks><hyperlink ref="B2 B3" location="A1"/></hyperlinks>"#.to_owned(),
         r#"<v:hyperlinks><v:hyperlink ref="B2" location="A1"/></v:hyperlinks>"#.to_owned(),
-        format!("<hyperlinks>{}</hyperlinks>",r#"<hyperlink ref="B2" location="A1"/>"#.repeat(10001)),
+        format!(
+            "<hyperlinks>{}</hyperlinks>",
+            r#"<hyperlink ref="B2" location="A1"/>"#.repeat(10001)
+        ),
     ] {
-        let xml=format!(r#"<worksheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships" xmlns:v="urn:retained-link"><sheetData><row r="2"><c r="A2"><v>2</v></c></row><row r="3"><c r="A3"><v>1</v></c></row></sheetData>{links}</worksheet>"#);
-        let bytes=package_with_part("xl/worksheets/sheet1.xml",|_|xml.clone());let mut book=session(&bytes);let s=book.host().sheets()[0].id();let revision=book.host().revision();let depth=book.history_depth();let before=book.host().sheet_review(s).links;
-        let receipt=book.dispatch(SkinIntent::Command(calc_host::WorkbookCommand::SortRows{area:GridArea::new(at(s,"A2"),at(s,"B3")).unwrap(),keys:vec![calc_host::SortKey{column:1,descending:false}],header:false,revision:revision.get()}));assert!(!receipt.accepted(),"{receipt:?}");assert_eq!(book.host().revision(),revision);assert_eq!(book.history_depth(),depth);assert_eq!(book.host().sheet_review(s).links,before);assert_eq!(book.host().model().cell(at(s,"A2")),Some(&number(2.)));
-        let mut saved=Vec::new();book.save(&SavePolicy::default(),&mut saved).unwrap();assert_eq!(part_text(&saved,"xl/worksheets/sheet1.xml"),xml);
+        let xml = format!(
+            r#"<worksheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships" xmlns:v="urn:retained-link"><sheetData><row r="2"><c r="A2"><v>2</v></c></row><row r="3"><c r="A3"><v>1</v></c></row></sheetData>{links}</worksheet>"#
+        );
+        let bytes = package_with_part("xl/worksheets/sheet1.xml", |_| xml.clone());
+        let mut book = session(&bytes);
+        let s = book.host().sheets()[0].id();
+        let revision = book.host().revision();
+        let depth = book.history_depth();
+        let before = book.host().sheet_review(s).links;
+        let receipt = book.dispatch(SkinIntent::Command(calc_host::WorkbookCommand::SortRows {
+            area: GridArea::new(at(s, "A2"), at(s, "B3")).unwrap(),
+            keys: vec![calc_host::SortKey {
+                column: 1,
+                descending: false,
+            }],
+            header: false,
+            revision: revision.get(),
+        }));
+        assert!(!receipt.accepted(), "{receipt:?}");
+        assert_eq!(book.host().revision(), revision);
+        assert_eq!(book.history_depth(), depth);
+        assert_eq!(book.host().sheet_review(s).links, before);
+        assert_eq!(book.host().model().cell(at(s, "A2")), Some(&number(2.)));
+        let mut saved = Vec::new();
+        book.save(&SavePolicy::default(), &mut saved).unwrap();
+        assert_eq!(part_text(&saved, "xl/worksheets/sheet1.xml"), xml);
     }
 }
 
@@ -16203,189 +22898,989 @@ fn dc_971p_38__unread_or_excessive_hyperlinks_refuse_without_mutation() {
 #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
 fn dc_971p_38__independent_local_ranges_and_fixed_qualified_scalars_sort_together() {
     use calc_host::{SheetChange, SortKey, WorkbookCommand as W};
-    let mut book=session(&calc_host::blank_package());let s=book.host().sheets()[0].id();
-    assert!(book.dispatch(SkinIntent::Command(W::Sheet{sheet:None,change:SheetChange::Add{name:"Tax rates".into()}})).accepted());
-    let rates=book.host().sheets()[1].id();assert!(enter(&mut book,at(rates,"A1"),"10").accepted());
-    assert!(enter(&mut book,at(rates,"D1"),"=Sheet1!C2").accepted());
-    for (a,v) in [("A1","Key"),("B1","Amount"),("C1","Sum"),("D1","Arguments"),("E1","Product"),("A2","3"),("B2","30"),("A3","1"),("B3","10"),("A4","2"),("B4","20"),("G1","=C2")] {assert!(enter(&mut book,at(s,a),v).accepted());}
-    let formulas=|row|[("C",format!("=SUM(B{row}:B{row})+'Tax rates'!$A$1")),("D",format!("=SUM(B{row}:B{row},'Tax rates'!$A$1)")),("E",format!("=SUM(B{row}:B{row})*'Tax rates'!$A$1"))];
-    for row in 2..=4 {for (col,formula) in formulas(row){assert!(enter(&mut book,at(s,&format!("{col}{row}")),&formula).accepted());}}
-    let sort=|book:&mut HostSession,descending|{let s=book.host().sheets()[0].id();let revision=book.host().revision().get();let done=book.dispatch(SkinIntent::Command(W::SortRows{area:GridArea::new(at(s,"A1"),at(s,"E4")).unwrap(),keys:vec![SortKey{column:1,descending}],header:true,revision}));assert!(done.accepted(),"{done:?}");};
-    let check=|book:&HostSession,values:[f64;3]|{
-        let s=book.host().sheets()[0].id();let rates=book.host().sheets()[1].id();
-        for (row,value) in (2..=4).zip(values){
-            for (col,formula) in formulas(row){assert_eq!(book.host().model().cell(at(s,&format!("{col}{row}"))),calc_host::interpret_entry(&formula).unwrap().as_ref());}
-            assert_eq!(session_calculated(book,at(s,&format!("C{row}"))).unwrap().as_number(),Some(value+10.));
-            assert_eq!(session_calculated(book,at(s,&format!("D{row}"))).unwrap().as_number(),Some(value+10.));
-            assert_eq!(session_calculated(book,at(s,&format!("E{row}"))).unwrap().as_number(),Some(value*10.));
+    let mut book = session(&calc_host::blank_package());
+    let s = book.host().sheets()[0].id();
+    assert!(
+        book.dispatch(SkinIntent::Command(W::Sheet {
+            sheet: None,
+            change: SheetChange::Add {
+                name: "Tax rates".into()
+            }
+        }))
+        .accepted()
+    );
+    let rates = book.host().sheets()[1].id();
+    assert!(enter(&mut book, at(rates, "A1"), "10").accepted());
+    assert!(enter(&mut book, at(rates, "D1"), "=Sheet1!C2").accepted());
+    for (a, v) in [
+        ("A1", "Key"),
+        ("B1", "Amount"),
+        ("C1", "Sum"),
+        ("D1", "Arguments"),
+        ("E1", "Product"),
+        ("A2", "3"),
+        ("B2", "30"),
+        ("A3", "1"),
+        ("B3", "10"),
+        ("A4", "2"),
+        ("B4", "20"),
+        ("G1", "=C2"),
+    ] {
+        assert!(enter(&mut book, at(s, a), v).accepted());
+    }
+    let formulas = |row| {
+        [
+            ("C", format!("=SUM(B{row}:B{row})+'Tax rates'!$A$1")),
+            ("D", format!("=SUM(B{row}:B{row},'Tax rates'!$A$1)")),
+            ("E", format!("=SUM(B{row}:B{row})*'Tax rates'!$A$1")),
+        ]
+    };
+    for row in 2..=4 {
+        for (col, formula) in formulas(row) {
+            assert!(enter(&mut book, at(s, &format!("{col}{row}")), &formula).accepted());
         }
-        assert_eq!(session_calculated(book,at(s,"G1")).unwrap().as_number(),Some(values[0]+10.));
-        assert_eq!(session_calculated(book,at(rates,"D1")).unwrap().as_number(),Some(values[0]+10.));
+    }
+    let sort = |book: &mut HostSession, descending| {
+        let s = book.host().sheets()[0].id();
+        let revision = book.host().revision().get();
+        let done = book.dispatch(SkinIntent::Command(W::SortRows {
+            area: GridArea::new(at(s, "A1"), at(s, "E4")).unwrap(),
+            keys: vec![SortKey {
+                column: 1,
+                descending,
+            }],
+            header: true,
+            revision,
+        }));
+        assert!(done.accepted(), "{done:?}");
     };
-    sort(&mut book,false);check(&book,[10.,20.,30.]);
-    assert!(book.dispatch(SkinIntent::Undo).accepted());check(&book,[30.,10.,20.]);
-    assert!(book.dispatch(SkinIntent::Redo).accepted());check(&book,[10.,20.,30.]);
-    let mut saved=Vec::new();book.save(&SavePolicy::default(),&mut saved).unwrap();let mut reopened=session(&saved);assert!(reopened.dispatch(SkinIntent::Recalculate).accepted());check(&reopened,[10.,20.,30.]);
-    sort(&mut reopened,true);check(&reopened,[30.,20.,10.]);
-    let mut twin=session(&calc_host::blank_package());let result=replay(book.intent_log(),&mut twin);assert!(result.mismatches.is_empty(),"{result:?}");check(&twin,[10.,20.,30.]);
-}
-
-#[cfg_attr(not(target_arch="wasm32"),test)]
-#[cfg_attr(target_arch="wasm32",wasm_bindgen_test::wasm_bindgen_test)]
-fn dc_971p_38__qualified_trim_ranges_refuse_before_rows_or_history_change(){
-    use calc_host::{SheetChange,SortKey,WorkbookCommand as W};
-    let mut book=session(&calc_host::blank_package());let s=book.host().sheets()[0].id();
-    assert!(book.dispatch(SkinIntent::Command(W::Sheet{sheet:None,change:SheetChange::Add{name:"Tax rates".into()}})).accepted());
-    for(a,v)in [("A1","2"),("A2","1")] {assert!(enter(&mut book,at(s,a),v).accepted());}
-    for formula in ["=SUM('Tax rates'!$A$1.:B2)","=SUM('Tax rates'!$A$1:.B2)","=SUM('Tax rates'!$A$1.:.B2)"] {
-        assert!(enter(&mut book,at(s,"B1"),formula).accepted());let revision=book.host().revision();let depth=book.history_depth();let before=book.host().model().cell(at(s,"B1")).cloned();
-        let done=book.dispatch(SkinIntent::Command(W::SortRows{area:GridArea::new(at(s,"A1"),at(s,"B2")).unwrap(),keys:vec![SortKey{column:1,descending:false}],header:false,revision:revision.get()}));
-        assert!(!done.accepted(),"{formula}: {done:?}");assert!(done.error.unwrap().to_string().contains("qualified or unsupported formula references"));assert_eq!(book.host().revision(),revision);assert_eq!(book.history_depth(),depth);assert_eq!(book.host().model().cell(at(s,"B1")),before.as_ref());assert_eq!(book.host().model().cell(at(s,"A1")),Some(&number(2.)));
-    }
-}
-
-#[cfg_attr(not(target_arch="wasm32"),test)]
-#[cfg_attr(target_arch="wasm32",wasm_bindgen_test::wasm_bindgen_test)]
-fn dc_971p_38__sort_and_axis_displacements_that_cancel_still_save_the_link(){
-    let xml=r#"<worksheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main"><sheetData><row r="2"><c r="A2"><v>2</v></c></row><row r="3"><c r="A3"><v>1</v></c></row></sheetData><hyperlinks><hyperlink ref="B2" location="Sheet1!$D$1" tooltip="Keep the moved link"/></hyperlinks></worksheet>"#;
-    let bytes=package_with_part("xl/worksheets/sheet1.xml",|_|xml.into());let mut book=session(&bytes);let s=book.host().sheets()[0].id();let before=book.host().sheet_review(s).links;
-    let revision=book.host().revision().get();let done=book.dispatch(SkinIntent::Command(calc_host::WorkbookCommand::SortRows{area:GridArea::new(at(s,"A2"),at(s,"B3")).unwrap(),keys:vec![calc_host::SortKey{column:1,descending:false}],header:false,revision}));assert!(done.accepted(),"{done:?}");assert_eq!(book.host().sheet_review(s).links[0].area,GridArea::cell(at(s,"B3")));
-    assert!(book.dispatch(SkinIntent::EditAxis(AxisEdit::new(s,Axis::Rows,AxisChange::Delete,2,1).unwrap())).accepted());assert_eq!(book.host().sheet_review(s).links,before);
-    let mut saved=Vec::new();book.save(&SavePolicy::default(),&mut saved).unwrap();let reopened=session(&saved);let r=reopened.host().sheets()[0].id();let links=reopened.host().sheet_review(r).links;assert_eq!(links.len(),1);assert_eq!(links[0].area,GridArea::cell(at(r,"B2")));assert_eq!(links[0].location.as_deref(),Some("Sheet1!$D$1"));assert_eq!(links[0].tooltip.as_deref(),Some("Keep the moved link"));
-}
-
-#[cfg_attr(not(target_arch="wasm32"),test)]
-#[cfg_attr(target_arch="wasm32",wasm_bindgen_test::wasm_bindgen_test)]
-fn dc_bctq__insertion_keeps_target_and_imported_arrays_spills_and_data_tables(){
-    use calc_host::{WorkbookCommand as W,SaveFormat,SpreadsheetFormat};
-    let raw=package_with_part_from(&calc_host::blank_package(),"xl/worksheets/sheet1.xml",|_|r#"<worksheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main"><sheetData><row r="1"><c r="A1"><v>1</v></c><c r="B1"><f>Sheet1!A1*10</f></c><c r="D1"><f t="array" ref="D1:D3">A1:A3*2</f></c><c r="H1"><f>A1*Z1</f></c><c r="Z1"><v>10</v></c></row><row r="2"><c r="A2"><v>2</v></c><c r="G2"><v>2</v></c><c r="H2"><f t="dataTable" ref="H2:H3" r1="A1"/><v>20</v></c></row><row r="3"><c r="A3"><v>3</v></c><c r="G3"><v>3</v></c><c r="H3"><v>30</v></c></row></sheetData></worksheet>"#.into());
-    let mut source=session(&raw);let ss=source.host().sheets()[0].id();assert!(enter(&mut source,at(ss,"F1"),"=SEQUENCE(3)+A1").accepted());assert!(source.dispatch(SkinIntent::Recalculate).accepted());
-    let mut bytes=Vec::new();source.save(&SavePolicy{format:SaveFormat::Spreadsheet(SpreadsheetFormat::Xltx),..Default::default()},&mut bytes).unwrap();
-    let mut book=session(&raw);let s=book.host().sheets()[0].id();assert!(enter(&mut book,at(s,"A1"),"4").accepted());assert!(enter(&mut book,at(s,"F1"),"=SEQUENCE(3)+A1").accepted());assert!(book.dispatch(SkinIntent::Recalculate).accepted());
-    let depth=book.history_depth().0;let revision=book.host().revision().get();let receipt=book.dispatch(SkinIntent::Command(W::InsertTemplate{bytes:bytes.into(),name:None,revision}));assert!(receipt.accepted(),"{receipt:?}");assert_eq!(book.history_depth().0,depth+1);assert_eq!(book.host().sheets()[0].id(),s);
-    let added=book.host().sheets()[1].id();
-    let check=|book:&HostSession,s,first:f64|{
-        for(a,n)in [("B1",first*10.),("D1",first*2.),("D2",4.),("D3",6.),("F1",first+1.),("F3",first+3.),("H2",20.),("H3",30.)]{assert_eq!(session_calculated(book,at(s,a)).unwrap().as_number(),Some(n),"{s:?} {a}");}
-        let defs=book.host().model().definitions();assert!(defs.arrays().any(|a|a.anchor().sheet()==s));assert!(defs.data_tables().iter().any(|t|t.area().sheet()==s));
+    let check = |book: &HostSession, values: [f64; 3]| {
+        let s = book.host().sheets()[0].id();
+        let rates = book.host().sheets()[1].id();
+        for (row, value) in (2..=4).zip(values) {
+            for (col, formula) in formulas(row) {
+                assert_eq!(
+                    book.host().model().cell(at(s, &format!("{col}{row}"))),
+                    calc_host::interpret_entry(&formula).unwrap().as_ref()
+                );
+            }
+            assert_eq!(
+                session_calculated(book, at(s, &format!("C{row}")))
+                    .unwrap()
+                    .as_number(),
+                Some(value + 10.)
+            );
+            assert_eq!(
+                session_calculated(book, at(s, &format!("D{row}")))
+                    .unwrap()
+                    .as_number(),
+                Some(value + 10.)
+            );
+            assert_eq!(
+                session_calculated(book, at(s, &format!("E{row}")))
+                    .unwrap()
+                    .as_number(),
+                Some(value * 10.)
+            );
+        }
+        assert_eq!(
+            session_calculated(book, at(s, "G1")).unwrap().as_number(),
+            Some(values[0] + 10.)
+        );
+        assert_eq!(
+            session_calculated(book, at(rates, "D1"))
+                .unwrap()
+                .as_number(),
+            Some(values[0] + 10.)
+        );
     };
-    check(&book,s,4.);check(&book,added,1.);
-    assert!(book.dispatch(SkinIntent::Undo).accepted());assert_eq!(book.host().sheets().len(),1);check(&book,s,4.);
-    assert!(book.dispatch(SkinIntent::Redo).accepted());assert_eq!(book.host().sheets()[1].id(),added);check(&book,s,4.);check(&book,added,1.);
-    assert!(enter(&mut book,at(added,"A1"),"7").accepted());check(&book,added,7.);check(&book,s,4.);
-    let mut saved=Vec::new();book.save(&SavePolicy::default(),&mut saved).unwrap();let mut reopened=session(&saved);assert!(reopened.dispatch(SkinIntent::Recalculate).accepted());let rs=reopened.host().sheets()[0].id();let ra=reopened.host().sheets()[1].id();check(&reopened,rs,4.);check(&reopened,ra,7.);
-    for sheet in reopened.host().sheets(){let xml=part_text(&saved,reopened.host().loaded().sheet(sheet.id()).unwrap().part().name());assert!(xml.contains("t=\"array\""));assert!(xml.contains("t=\"dataTable\""));assert!(xml.contains("cm=\""));}
-    let mut twin=session(&raw);let result=replay(book.intent_log(),&mut twin);assert!(result.mismatches.is_empty(),"{result:?}");let ts=twin.host().sheets()[0].id();let ta=twin.host().sheets()[1].id();check(&twin,ts,4.);check(&twin,ta,7.);
+    sort(&mut book, false);
+    check(&book, [10., 20., 30.]);
+    assert!(book.dispatch(SkinIntent::Undo).accepted());
+    check(&book, [30., 10., 20.]);
+    assert!(book.dispatch(SkinIntent::Redo).accepted());
+    check(&book, [10., 20., 30.]);
+    let mut saved = Vec::new();
+    book.save(&SavePolicy::default(), &mut saved).unwrap();
+    let mut reopened = session(&saved);
+    assert!(reopened.dispatch(SkinIntent::Recalculate).accepted());
+    check(&reopened, [10., 20., 30.]);
+    sort(&mut reopened, true);
+    check(&reopened, [30., 20., 10.]);
+    let mut twin = session(&calc_host::blank_package());
+    let result = replay(book.intent_log(), &mut twin);
+    assert!(result.mismatches.is_empty(), "{result:?}");
+    check(&twin, [10., 20., 30.]);
 }
 
-#[cfg_attr(not(target_arch="wasm32"),test)]
-#[cfg_attr(target_arch="wasm32",wasm_bindgen_test::wasm_bindgen_test)]
-fn dc_bctq__manual_target_spills_keep_stamp_free_holdings_across_insertion_and_history(){
-    use calc_host::{WorkbookCommand as W,SaveFormat,SpreadsheetFormat};
-    let mut template=session(&calc_host::blank_package());let t=template.host().sheets()[0].id();assert!(enter(&mut template,at(t,"B1"),"=SEQUENCE(2)").accepted());let mut bytes=Vec::new();template.save(&SavePolicy{format:SaveFormat::Spreadsheet(SpreadsheetFormat::Xltx),..Default::default()},&mut bytes).unwrap();
-    for loaded in [false,true]{for dirty in [false,true]{
-        let mut book=session(&calc_host::blank_package());let s=book.host().sheets()[0].id();assert!(enter(&mut book,at(s,"A1"),"2").accepted());assert!(enter(&mut book,at(s,"C1"),"=SEQUENCE(A1)+10").accepted());
-        if loaded {let mut saved=Vec::new();book.save(&SavePolicy::default(),&mut saved).unwrap();book=session(&saved);assert!(book.dispatch(SkinIntent::Recalculate).accepted());}
-        let s=book.host().sheets()[0].id();assert!(enter(&mut book,at(s,"A1"),"3").accepted());assert_eq!(session_calculated(&book,at(s,"C3")).unwrap().as_number(),Some(13.));
-        book.dispatch(SkinIntent::SetCalcMode(CalcMode::Manual));if dirty {assert!(enter(&mut book,at(s,"A1"),"4").accepted());}
-        let held=|book:&HostSession|{for(a,n)in [("C1",11.),("C3",13.)]{let ProjectedValue::Stale(v)=value(book.host(),at(s,a))else{panic!("{a} must remain stale, loaded={loaded}, dirty={dirty}")};assert_eq!(v.last_value(),Some(&CalcValue::number(n)));assert!(v.last_calculation().is_some_and(|last|last.stamp().is_none()));}assert!(!matches!(value(book.host(),at(s,"C4")),ProjectedValue::Calculated{..}));};
-        let revision=book.host().revision().get();let receipt=book.dispatch(SkinIntent::Command(W::InsertTemplate{bytes:bytes.clone().into(),name:None,revision}));assert!(receipt.accepted(),"{receipt:?}");held(&book);
-        let added=book.host().sheets()[1].id();assert!(!matches!(value(book.host(),at(added,"B1")),ProjectedValue::Calculated{..}));
-        assert!(book.dispatch(SkinIntent::Undo).accepted());held(&book);assert!(book.dispatch(SkinIntent::Redo).accepted());held(&book);
-        assert!(book.dispatch(SkinIntent::Recalculate).accepted());assert_eq!(session_calculated(&book,at(s,"C3")).unwrap().as_number(),Some(13.));if dirty {assert_eq!(session_calculated(&book,at(s,"C4")).unwrap().as_number(),Some(14.));}else{assert!(matches!(value(book.host(),at(s,"C4")),ProjectedValue::Empty));}assert_eq!(session_calculated(&book,at(added,"B2")).unwrap().as_number(),Some(2.));
-        // Enter Manual after the automatic insertion/recalculation, then undo the same image.
-        book.dispatch(SkinIntent::SetCalcMode(CalcMode::Automatic));book.dispatch(SkinIntent::SetCalcMode(CalcMode::Manual));assert!(book.dispatch(SkinIntent::Undo).accepted());assert!(matches!(value(book.host(),at(s,"C1")),ProjectedValue::Stale(_)));assert!(book.dispatch(SkinIntent::Redo).accepted());assert!(matches!(value(book.host(),at(s,"C1")),ProjectedValue::Stale(_)));
-    }}
-}
-
-#[cfg_attr(not(target_arch="wasm32"),test)]
-#[cfg_attr(target_arch="wasm32",wasm_bindgen_test::wasm_bindgen_test)]
-fn dc_bctq__conflicting_palette_refusal_keeps_current_spills_and_history_unchanged(){
-    use calc_host::{WorkbookCommand as W,SaveFormat,SpreadsheetFormat};
-    let ordinary=calc_host::blank_package();
-    let custom=package_with_part_from(&ordinary,"xl/styles.xml",|xml|xml.replace("</styleSheet>","<colors><indexedColors><rgbColor rgb=\"FF112233\"/></indexedColors></colors></styleSheet>"));
-    for (target,source) in [(&ordinary,&custom),(&custom,&ordinary)]{
-        let mut template=session(source);let t=template.host().sheets()[0].id();assert!(enter(&mut template,at(t,"A1"),"=SEQUENCE(2)").accepted());let mut bytes=Vec::new();template.save(&SavePolicy{format:SaveFormat::Spreadsheet(SpreadsheetFormat::Xltx),..Default::default()},&mut bytes).unwrap();
-        let mut book=session(target);let s=book.host().sheets()[0].id();assert!(enter(&mut book,at(s,"C1"),"=SEQUENCE(3)+10").accepted());assert_eq!(session_calculated(&book,at(s,"C3")).unwrap().as_number(),Some(13.));
-        let before=(book.host().revision(),book.history_depth(),value(book.host(),at(s,"C1")),value(book.host(),at(s,"C3")));
-        let receipt=book.dispatch(SkinIntent::Command(W::InsertTemplate{bytes:bytes.into(),name:None,revision:before.0.get()}));assert!(!receipt.accepted());let reason=receipt.error.unwrap().to_string();assert!(reason.contains("different indexed colour palettes")&&reason.contains("dc-bctq"),"{reason}");
-        assert_eq!(book.host().sheets().len(),1);assert_eq!(book.host().sheets()[0].id(),s);assert_eq!((book.host().revision(),book.history_depth(),value(book.host(),at(s,"C1")),value(book.host(),at(s,"C3"))),before);
-        assert!(book.dispatch(SkinIntent::Undo).accepted());assert!(matches!(value(book.host(),at(s,"C1")),ProjectedValue::Empty));assert!(book.dispatch(SkinIntent::Redo).accepted());assert_eq!(session_calculated(&book,at(s,"C3")).unwrap().as_number(),Some(13.));
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn dc_971p_38__qualified_trim_ranges_refuse_before_rows_or_history_change() {
+    use calc_host::{SheetChange, SortKey, WorkbookCommand as W};
+    let mut book = session(&calc_host::blank_package());
+    let s = book.host().sheets()[0].id();
+    assert!(
+        book.dispatch(SkinIntent::Command(W::Sheet {
+            sheet: None,
+            change: SheetChange::Add {
+                name: "Tax rates".into()
+            }
+        }))
+        .accepted()
+    );
+    for (a, v) in [("A1", "2"), ("A2", "1")] {
+        assert!(enter(&mut book, at(s, a), v).accepted());
+    }
+    for formula in [
+        "=SUM('Tax rates'!$A$1.:B2)",
+        "=SUM('Tax rates'!$A$1:.B2)",
+        "=SUM('Tax rates'!$A$1.:.B2)",
+    ] {
+        assert!(enter(&mut book, at(s, "B1"), formula).accepted());
+        let revision = book.host().revision();
+        let depth = book.history_depth();
+        let before = book.host().model().cell(at(s, "B1")).cloned();
+        let done = book.dispatch(SkinIntent::Command(W::SortRows {
+            area: GridArea::new(at(s, "A1"), at(s, "B2")).unwrap(),
+            keys: vec![SortKey {
+                column: 1,
+                descending: false,
+            }],
+            header: false,
+            revision: revision.get(),
+        }));
+        assert!(!done.accepted(), "{formula}: {done:?}");
+        assert!(
+            done.error
+                .unwrap()
+                .to_string()
+                .contains("qualified or unsupported formula references")
+        );
+        assert_eq!(book.host().revision(), revision);
+        assert_eq!(book.history_depth(), depth);
+        assert_eq!(book.host().model().cell(at(s, "B1")), before.as_ref());
+        assert_eq!(book.host().model().cell(at(s, "A1")), Some(&number(2.)));
     }
 }
 
-#[cfg_attr(not(target_arch="wasm32"),test)]
-#[cfg_attr(target_arch="wasm32",wasm_bindgen_test::wasm_bindgen_test)]
-fn dc_971p_38__calendar_condition_formulas_keep_periods_clock_provenance_and_rows(){
-    use calc_host::{ConditionalChange as C,WorkbookCommand as W,LookColor};
-    for(period,condition,matching)in [
-        ("today","FLOOR(B2,1)=TODAY()","=TODAY()"),
-        ("yesterday","FLOOR(B2,1)=TODAY()-1","=TODAY()-1"),
-        ("tomorrow","FLOOR(B2,1)=TODAY()+1","=TODAY()+1"),
-        ("last7Days","AND(B2>=TODAY()-6,B2<TODAY()+1)","=TODAY()-3"),
-        ("thisMonth","AND(B2>=DATE(YEAR(TODAY()),MONTH(TODAY()),1),B2<DATE(YEAR(TODAY()),MONTH(TODAY())+1,1))","=TODAY()"),
-        ("lastMonth","AND(B2>=DATE(YEAR(TODAY()),MONTH(TODAY())-1,1),B2<DATE(YEAR(TODAY()),MONTH(TODAY()),1))","=DATE(YEAR(TODAY()),MONTH(TODAY())-1,1)"),
-        ("nextMonth","AND(B2>=DATE(YEAR(TODAY()),MONTH(TODAY())+1,1),B2<DATE(YEAR(TODAY()),MONTH(TODAY())+2,1))","=DATE(YEAR(TODAY()),MONTH(TODAY())+1,1)"),
-        ("thisWeek","AND(B2>=TODAY()-WEEKDAY(TODAY())+1,B2<TODAY()-WEEKDAY(TODAY())+8)","=TODAY()"),
-        ("lastWeek","AND(B2>=TODAY()-WEEKDAY(TODAY())-6,B2<TODAY()-WEEKDAY(TODAY())+1)","=TODAY()-7"),
-        ("nextWeek","AND(B2>=TODAY()-WEEKDAY(TODAY())+8,B2<TODAY()-WEEKDAY(TODAY())+15)","=TODAY()+7"),
-    ]{
-        let mut seed=session(&calc_host::blank_package());seed.set_clock(Some(45000.75));let s=seed.host().sheets()[0].id();
-        for(a,t)in [("A1","Key"),("A2","2"),("A3","1"),("B2",matching),("B3","=TODAY()-4000")]{assert!(enter(&mut seed,at(s,a),t).accepted());}
-        let revision=seed.host().revision().get();assert!(seed.dispatch(SkinIntent::Command(W::Conditional{sheet:s,revision,index:None,change:C::Condition{kind:"expression".into(),applies:"B2:B3".into(),color:"#123456".into(),formulas:vec![condition.into()],operator:String::new(),rank:1,percent:false,stop:true}})).accepted());
-        let mut bytes=Vec::new();seed.save(&SavePolicy::default(),&mut bytes).unwrap();let bytes=package_with_part_from(&bytes,"xl/worksheets/sheet1.xml",|xml|xml.replace("type=\"expression\"",&format!("type=\"timePeriod\" timePeriod=\"{period}\"")));
-        let fill=|host:&HostState,address|host.conditional_formats(host.sheets()[0].id()).look(host,at(host.sheets()[0].id(),address)).and_then(|l|l.fill);
-        let mut without_clock=session(&bytes);let s=without_clock.host().sheets()[0].id();assert!(without_clock.dispatch(SkinIntent::Recalculate).accepted());assert!(matches!(value(without_clock.host(),at(s,"B2")),ProjectedValue::NotModeled{..}));assert_eq!(fill(without_clock.host(),"B2"),None);
-        let mut book=session(&bytes);let s=book.host().sheets()[0].id();book.set_clock(Some(45000.75));assert!(book.dispatch(SkinIntent::Recalculate).accepted());assert_eq!(fill(book.host(),"B2"),Some(LookColor::Rgb("#123456".into())),"{period}");assert_eq!(fill(book.host(),"B3"),None,"{period}");
-        let before=book.host().model().definitions().conditional_rules(s).to_vec();let revision=book.host().revision().get();let receipt=book.dispatch(SkinIntent::Command(W::SortRows{area:GridArea::new(at(s,"A1"),at(s,"B3")).unwrap(),keys:vec![calc_host::SortKey{column:1,descending:false}],header:true,revision}));assert!(receipt.accepted(),"{period}: {receipt:?}");
-        let check=|host:&HostState|{let s=host.sheets()[0].id();assert_eq!(host.model().cell(at(s,"A2")),Some(&number(1.)));assert_eq!(fill(host,"B2"),None,"{period}");assert_eq!(fill(host,"B3"),Some(LookColor::Rgb("#123456".into())),"{period}");assert!(matches!(value(host,at(s,"B3")),ProjectedValue::Calculated{..}));let rules=host.model().definitions().conditional_rules(s);assert_eq!(rules.len(),2);for rule in rules{let parsed=calc_doc::conditional_rule(rule).unwrap();assert_eq!(parsed.kind,"timePeriod");assert_eq!(parsed.time_period.as_deref(),Some(period));assert_eq!(parsed.formulas,[condition.replace("B2",&format!("B{}",rule.origin().unwrap().row()))]);assert!(parsed.stop_if_true);assert!(parsed.text.is_none()&&parsed.operator.is_none());}assert_eq!(host.conditional_formats(s).refused(),0);};
-        check(book.host());assert!(book.dispatch(SkinIntent::Undo).accepted());assert_eq!(book.host().model().definitions().conditional_rules(s),before);assert!(book.dispatch(SkinIntent::Redo).accepted());check(book.host());
-        let mut saved=Vec::new();book.save(&SavePolicy::default(),&mut saved).unwrap();let mut reopened=session(&saved);reopened.set_clock(Some(45000.75));assert!(reopened.dispatch(SkinIntent::Recalculate).accepted());check(reopened.host());let mut twin=session(&bytes);twin.set_clock(Some(45000.75));assert!(replay(book.intent_log(),&mut twin).mismatches.is_empty());check(twin.host());
-        check_pointwise_colour_filter_history_and_reopen(&mut book,Some(45000.75));
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn dc_971p_38__sort_and_axis_displacements_that_cancel_still_save_the_link() {
+    let xml = r#"<worksheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main"><sheetData><row r="2"><c r="A2"><v>2</v></c></row><row r="3"><c r="A3"><v>1</v></c></row></sheetData><hyperlinks><hyperlink ref="B2" location="Sheet1!$D$1" tooltip="Keep the moved link"/></hyperlinks></worksheet>"#;
+    let bytes = package_with_part("xl/worksheets/sheet1.xml", |_| xml.into());
+    let mut book = session(&bytes);
+    let s = book.host().sheets()[0].id();
+    let before = book.host().sheet_review(s).links;
+    let revision = book.host().revision().get();
+    let done = book.dispatch(SkinIntent::Command(calc_host::WorkbookCommand::SortRows {
+        area: GridArea::new(at(s, "A2"), at(s, "B3")).unwrap(),
+        keys: vec![calc_host::SortKey {
+            column: 1,
+            descending: false,
+        }],
+        header: false,
+        revision,
+    }));
+    assert!(done.accepted(), "{done:?}");
+    assert_eq!(
+        book.host().sheet_review(s).links[0].area,
+        GridArea::cell(at(s, "B3"))
+    );
+    assert!(
+        book.dispatch(SkinIntent::EditAxis(
+            AxisEdit::new(s, Axis::Rows, AxisChange::Delete, 2, 1).unwrap()
+        ))
+        .accepted()
+    );
+    assert_eq!(book.host().sheet_review(s).links, before);
+    let mut saved = Vec::new();
+    book.save(&SavePolicy::default(), &mut saved).unwrap();
+    let reopened = session(&saved);
+    let r = reopened.host().sheets()[0].id();
+    let links = reopened.host().sheet_review(r).links;
+    assert_eq!(links.len(), 1);
+    assert_eq!(links[0].area, GridArea::cell(at(r, "B2")));
+    assert_eq!(links[0].location.as_deref(), Some("Sheet1!$D$1"));
+    assert_eq!(links[0].tooltip.as_deref(), Some("Keep the moved link"));
+}
+
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn dc_bctq__insertion_keeps_target_and_imported_arrays_spills_and_data_tables() {
+    use calc_host::{SaveFormat, SpreadsheetFormat, WorkbookCommand as W};
+    let raw = package_with_part_from(
+        &calc_host::blank_package(),
+        "xl/worksheets/sheet1.xml",
+        |_| {
+            r#"<worksheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main"><sheetData><row r="1"><c r="A1"><v>1</v></c><c r="B1"><f>Sheet1!A1*10</f></c><c r="D1"><f t="array" ref="D1:D3">A1:A3*2</f></c><c r="H1"><f>A1*Z1</f></c><c r="Z1"><v>10</v></c></row><row r="2"><c r="A2"><v>2</v></c><c r="G2"><v>2</v></c><c r="H2"><f t="dataTable" ref="H2:H3" r1="A1"/><v>20</v></c></row><row r="3"><c r="A3"><v>3</v></c><c r="G3"><v>3</v></c><c r="H3"><v>30</v></c></row></sheetData></worksheet>"#.into()
+        },
+    );
+    let mut source = session(&raw);
+    let ss = source.host().sheets()[0].id();
+    assert!(enter(&mut source, at(ss, "F1"), "=SEQUENCE(3)+A1").accepted());
+    assert!(source.dispatch(SkinIntent::Recalculate).accepted());
+    let mut bytes = Vec::new();
+    source
+        .save(
+            &SavePolicy {
+                format: SaveFormat::Spreadsheet(SpreadsheetFormat::Xltx),
+                ..Default::default()
+            },
+            &mut bytes,
+        )
+        .unwrap();
+    let mut book = session(&raw);
+    let s = book.host().sheets()[0].id();
+    assert!(enter(&mut book, at(s, "A1"), "4").accepted());
+    assert!(enter(&mut book, at(s, "F1"), "=SEQUENCE(3)+A1").accepted());
+    assert!(book.dispatch(SkinIntent::Recalculate).accepted());
+    let depth = book.history_depth().0;
+    let revision = book.host().revision().get();
+    let receipt = book.dispatch(SkinIntent::Command(W::InsertTemplate {
+        bytes: bytes.into(),
+        name: None,
+        revision,
+    }));
+    assert!(receipt.accepted(), "{receipt:?}");
+    assert_eq!(book.history_depth().0, depth + 1);
+    assert_eq!(book.host().sheets()[0].id(), s);
+    let added = book.host().sheets()[1].id();
+    let check = |book: &HostSession, s, first: f64| {
+        for (a, n) in [
+            ("B1", first * 10.),
+            ("D1", first * 2.),
+            ("D2", 4.),
+            ("D3", 6.),
+            ("F1", first + 1.),
+            ("F3", first + 3.),
+            ("H2", 20.),
+            ("H3", 30.),
+        ] {
+            assert_eq!(
+                session_calculated(book, at(s, a)).unwrap().as_number(),
+                Some(n),
+                "{s:?} {a}"
+            );
+        }
+        let defs = book.host().model().definitions();
+        assert!(defs.arrays().any(|a| a.anchor().sheet() == s));
+        assert!(defs.data_tables().iter().any(|t| t.area().sheet() == s));
+    };
+    check(&book, s, 4.);
+    check(&book, added, 1.);
+    assert!(book.dispatch(SkinIntent::Undo).accepted());
+    assert_eq!(book.host().sheets().len(), 1);
+    check(&book, s, 4.);
+    assert!(book.dispatch(SkinIntent::Redo).accepted());
+    assert_eq!(book.host().sheets()[1].id(), added);
+    check(&book, s, 4.);
+    check(&book, added, 1.);
+    assert!(enter(&mut book, at(added, "A1"), "7").accepted());
+    check(&book, added, 7.);
+    check(&book, s, 4.);
+    let mut saved = Vec::new();
+    book.save(&SavePolicy::default(), &mut saved).unwrap();
+    let mut reopened = session(&saved);
+    assert!(reopened.dispatch(SkinIntent::Recalculate).accepted());
+    let rs = reopened.host().sheets()[0].id();
+    let ra = reopened.host().sheets()[1].id();
+    check(&reopened, rs, 4.);
+    check(&reopened, ra, 7.);
+    for sheet in reopened.host().sheets() {
+        let xml = part_text(
+            &saved,
+            reopened
+                .host()
+                .loaded()
+                .sheet(sheet.id())
+                .unwrap()
+                .part()
+                .name(),
+        );
+        assert!(xml.contains("t=\"array\""));
+        assert!(xml.contains("t=\"dataTable\""));
+        assert!(xml.contains("cm=\""));
+    }
+    let mut twin = session(&raw);
+    let result = replay(book.intent_log(), &mut twin);
+    assert!(result.mismatches.is_empty(), "{result:?}");
+    let ts = twin.host().sheets()[0].id();
+    let ta = twin.host().sheets()[1].id();
+    check(&twin, ts, 4.);
+    check(&twin, ta, 7.);
+}
+
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn dc_bctq__manual_target_spills_keep_stamp_free_holdings_across_insertion_and_history() {
+    use calc_host::{SaveFormat, SpreadsheetFormat, WorkbookCommand as W};
+    let mut template = session(&calc_host::blank_package());
+    let t = template.host().sheets()[0].id();
+    assert!(enter(&mut template, at(t, "B1"), "=SEQUENCE(2)").accepted());
+    let mut bytes = Vec::new();
+    template
+        .save(
+            &SavePolicy {
+                format: SaveFormat::Spreadsheet(SpreadsheetFormat::Xltx),
+                ..Default::default()
+            },
+            &mut bytes,
+        )
+        .unwrap();
+    for loaded in [false, true] {
+        for dirty in [false, true] {
+            let mut book = session(&calc_host::blank_package());
+            let s = book.host().sheets()[0].id();
+            assert!(enter(&mut book, at(s, "A1"), "2").accepted());
+            assert!(enter(&mut book, at(s, "C1"), "=SEQUENCE(A1)+10").accepted());
+            if loaded {
+                let mut saved = Vec::new();
+                book.save(&SavePolicy::default(), &mut saved).unwrap();
+                book = session(&saved);
+                assert!(book.dispatch(SkinIntent::Recalculate).accepted());
+            }
+            let s = book.host().sheets()[0].id();
+            assert!(enter(&mut book, at(s, "A1"), "3").accepted());
+            assert_eq!(
+                session_calculated(&book, at(s, "C3")).unwrap().as_number(),
+                Some(13.)
+            );
+            book.dispatch(SkinIntent::SetCalcMode(CalcMode::Manual));
+            if dirty {
+                assert!(enter(&mut book, at(s, "A1"), "4").accepted());
+            }
+            let held = |book: &HostSession| {
+                for (a, n) in [("C1", 11.), ("C3", 13.)] {
+                    let ProjectedValue::Stale(v) = value(book.host(), at(s, a)) else {
+                        panic!("{a} must remain stale, loaded={loaded}, dirty={dirty}")
+                    };
+                    assert_eq!(v.last_value(), Some(&CalcValue::number(n)));
+                    assert!(
+                        v.last_calculation()
+                            .is_some_and(|last| last.stamp().is_none())
+                    );
+                }
+                assert!(!matches!(
+                    value(book.host(), at(s, "C4")),
+                    ProjectedValue::Calculated { .. }
+                ));
+            };
+            let revision = book.host().revision().get();
+            let receipt = book.dispatch(SkinIntent::Command(W::InsertTemplate {
+                bytes: bytes.clone().into(),
+                name: None,
+                revision,
+            }));
+            assert!(receipt.accepted(), "{receipt:?}");
+            held(&book);
+            let added = book.host().sheets()[1].id();
+            assert!(!matches!(
+                value(book.host(), at(added, "B1")),
+                ProjectedValue::Calculated { .. }
+            ));
+            assert!(book.dispatch(SkinIntent::Undo).accepted());
+            held(&book);
+            assert!(book.dispatch(SkinIntent::Redo).accepted());
+            held(&book);
+            assert!(book.dispatch(SkinIntent::Recalculate).accepted());
+            assert_eq!(
+                session_calculated(&book, at(s, "C3")).unwrap().as_number(),
+                Some(13.)
+            );
+            if dirty {
+                assert_eq!(
+                    session_calculated(&book, at(s, "C4")).unwrap().as_number(),
+                    Some(14.)
+                );
+            } else {
+                assert!(matches!(
+                    value(book.host(), at(s, "C4")),
+                    ProjectedValue::Empty
+                ));
+            }
+            assert_eq!(
+                session_calculated(&book, at(added, "B2"))
+                    .unwrap()
+                    .as_number(),
+                Some(2.)
+            );
+            // Enter Manual after the automatic insertion/recalculation, then undo the same image.
+            book.dispatch(SkinIntent::SetCalcMode(CalcMode::Automatic));
+            book.dispatch(SkinIntent::SetCalcMode(CalcMode::Manual));
+            assert!(book.dispatch(SkinIntent::Undo).accepted());
+            assert!(matches!(
+                value(book.host(), at(s, "C1")),
+                ProjectedValue::Stale(_)
+            ));
+            assert!(book.dispatch(SkinIntent::Redo).accepted());
+            assert!(matches!(
+                value(book.host(), at(s, "C1")),
+                ProjectedValue::Stale(_)
+            ));
+        }
     }
 }
 
-#[cfg_attr(not(target_arch="wasm32"),test)]
-#[cfg_attr(target_arch="wasm32",wasm_bindgen_test::wasm_bindgen_test)]
-fn dc_971p_38__invalid_calendar_condition_fields_refuse_without_changing_rows(){
-    for(attrs,formulas)in [
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn dc_bctq__conflicting_palette_refusal_keeps_current_spills_and_history_unchanged() {
+    use calc_host::{SaveFormat, SpreadsheetFormat, WorkbookCommand as W};
+    let ordinary = calc_host::blank_package();
+    let custom = package_with_part_from(&ordinary, "xl/styles.xml", |xml| {
+        xml.replace("</styleSheet>","<colors><indexedColors><rgbColor rgb=\"FF112233\"/></indexedColors></colors></styleSheet>")
+    });
+    for (target, source) in [(&ordinary, &custom), (&custom, &ordinary)] {
+        let mut template = session(source);
+        let t = template.host().sheets()[0].id();
+        assert!(enter(&mut template, at(t, "A1"), "=SEQUENCE(2)").accepted());
+        let mut bytes = Vec::new();
+        template
+            .save(
+                &SavePolicy {
+                    format: SaveFormat::Spreadsheet(SpreadsheetFormat::Xltx),
+                    ..Default::default()
+                },
+                &mut bytes,
+            )
+            .unwrap();
+        let mut book = session(target);
+        let s = book.host().sheets()[0].id();
+        assert!(enter(&mut book, at(s, "C1"), "=SEQUENCE(3)+10").accepted());
+        assert_eq!(
+            session_calculated(&book, at(s, "C3")).unwrap().as_number(),
+            Some(13.)
+        );
+        let before = (
+            book.host().revision(),
+            book.history_depth(),
+            value(book.host(), at(s, "C1")),
+            value(book.host(), at(s, "C3")),
+        );
+        let receipt = book.dispatch(SkinIntent::Command(W::InsertTemplate {
+            bytes: bytes.into(),
+            name: None,
+            revision: before.0.get(),
+        }));
+        assert!(!receipt.accepted());
+        let reason = receipt.error.unwrap().to_string();
+        assert!(
+            reason.contains("different indexed colour palettes") && reason.contains("dc-bctq"),
+            "{reason}"
+        );
+        assert_eq!(book.host().sheets().len(), 1);
+        assert_eq!(book.host().sheets()[0].id(), s);
+        assert_eq!(
+            (
+                book.host().revision(),
+                book.history_depth(),
+                value(book.host(), at(s, "C1")),
+                value(book.host(), at(s, "C3"))
+            ),
+            before
+        );
+        assert!(book.dispatch(SkinIntent::Undo).accepted());
+        assert!(matches!(
+            value(book.host(), at(s, "C1")),
+            ProjectedValue::Empty
+        ));
+        assert!(book.dispatch(SkinIntent::Redo).accepted());
+        assert_eq!(
+            session_calculated(&book, at(s, "C3")).unwrap().as_number(),
+            Some(13.)
+        );
+    }
+}
+
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn dc_971p_38__calendar_condition_formulas_keep_periods_clock_provenance_and_rows() {
+    use calc_host::{ConditionalChange as C, LookColor, WorkbookCommand as W};
+    for (period, condition, matching) in [
+        ("today", "FLOOR(B2,1)=TODAY()", "=TODAY()"),
+        ("yesterday", "FLOOR(B2,1)=TODAY()-1", "=TODAY()-1"),
+        ("tomorrow", "FLOOR(B2,1)=TODAY()+1", "=TODAY()+1"),
+        ("last7Days", "AND(B2>=TODAY()-6,B2<TODAY()+1)", "=TODAY()-3"),
+        (
+            "thisMonth",
+            "AND(B2>=DATE(YEAR(TODAY()),MONTH(TODAY()),1),B2<DATE(YEAR(TODAY()),MONTH(TODAY())+1,1))",
+            "=TODAY()",
+        ),
+        (
+            "lastMonth",
+            "AND(B2>=DATE(YEAR(TODAY()),MONTH(TODAY())-1,1),B2<DATE(YEAR(TODAY()),MONTH(TODAY()),1))",
+            "=DATE(YEAR(TODAY()),MONTH(TODAY())-1,1)",
+        ),
+        (
+            "nextMonth",
+            "AND(B2>=DATE(YEAR(TODAY()),MONTH(TODAY())+1,1),B2<DATE(YEAR(TODAY()),MONTH(TODAY())+2,1))",
+            "=DATE(YEAR(TODAY()),MONTH(TODAY())+1,1)",
+        ),
+        (
+            "thisWeek",
+            "AND(B2>=TODAY()-WEEKDAY(TODAY())+1,B2<TODAY()-WEEKDAY(TODAY())+8)",
+            "=TODAY()",
+        ),
+        (
+            "lastWeek",
+            "AND(B2>=TODAY()-WEEKDAY(TODAY())-6,B2<TODAY()-WEEKDAY(TODAY())+1)",
+            "=TODAY()-7",
+        ),
+        (
+            "nextWeek",
+            "AND(B2>=TODAY()-WEEKDAY(TODAY())+8,B2<TODAY()-WEEKDAY(TODAY())+15)",
+            "=TODAY()+7",
+        ),
+    ] {
+        let mut seed = session(&calc_host::blank_package());
+        seed.set_clock(Some(45000.75));
+        let s = seed.host().sheets()[0].id();
+        for (a, t) in [
+            ("A1", "Key"),
+            ("A2", "2"),
+            ("A3", "1"),
+            ("B2", matching),
+            ("B3", "=TODAY()-4000"),
+        ] {
+            assert!(enter(&mut seed, at(s, a), t).accepted());
+        }
+        let revision = seed.host().revision().get();
+        assert!(
+            seed.dispatch(SkinIntent::Command(W::Conditional {
+                sheet: s,
+                revision,
+                index: None,
+                change: C::Condition {
+                    kind: "expression".into(),
+                    applies: "B2:B3".into(),
+                    color: "#123456".into(),
+                    formulas: vec![condition.into()],
+                    operator: String::new(),
+                    rank: 1,
+                    percent: false,
+                    stop: true
+                }
+            }))
+            .accepted()
+        );
+        let mut bytes = Vec::new();
+        seed.save(&SavePolicy::default(), &mut bytes).unwrap();
+        let bytes = package_with_part_from(&bytes, "xl/worksheets/sheet1.xml", |xml| {
+            xml.replace(
+                "type=\"expression\"",
+                &format!("type=\"timePeriod\" timePeriod=\"{period}\""),
+            )
+        });
+        let fill = |host: &HostState, address| {
+            host.conditional_formats(host.sheets()[0].id())
+                .look(host, at(host.sheets()[0].id(), address))
+                .and_then(|l| l.fill)
+        };
+        let mut without_clock = session(&bytes);
+        let s = without_clock.host().sheets()[0].id();
+        assert!(without_clock.dispatch(SkinIntent::Recalculate).accepted());
+        assert!(matches!(
+            value(without_clock.host(), at(s, "B2")),
+            ProjectedValue::NotModeled { .. }
+        ));
+        assert_eq!(fill(without_clock.host(), "B2"), None);
+        let mut book = session(&bytes);
+        let s = book.host().sheets()[0].id();
+        book.set_clock(Some(45000.75));
+        assert!(book.dispatch(SkinIntent::Recalculate).accepted());
+        assert_eq!(
+            fill(book.host(), "B2"),
+            Some(LookColor::Rgb("#123456".into())),
+            "{period}"
+        );
+        assert_eq!(fill(book.host(), "B3"), None, "{period}");
+        let before = book
+            .host()
+            .model()
+            .definitions()
+            .conditional_rules(s)
+            .to_vec();
+        let revision = book.host().revision().get();
+        let receipt = book.dispatch(SkinIntent::Command(W::SortRows {
+            area: GridArea::new(at(s, "A1"), at(s, "B3")).unwrap(),
+            keys: vec![calc_host::SortKey {
+                column: 1,
+                descending: false,
+            }],
+            header: true,
+            revision,
+        }));
+        assert!(receipt.accepted(), "{period}: {receipt:?}");
+        let check = |host: &HostState| {
+            let s = host.sheets()[0].id();
+            assert_eq!(host.model().cell(at(s, "A2")), Some(&number(1.)));
+            assert_eq!(fill(host, "B2"), None, "{period}");
+            assert_eq!(
+                fill(host, "B3"),
+                Some(LookColor::Rgb("#123456".into())),
+                "{period}"
+            );
+            assert!(matches!(
+                value(host, at(s, "B3")),
+                ProjectedValue::Calculated { .. }
+            ));
+            let rules = host.model().definitions().conditional_rules(s);
+            assert_eq!(rules.len(), 2);
+            for rule in rules {
+                let parsed = calc_doc::conditional_rule(rule).unwrap();
+                assert_eq!(parsed.kind, "timePeriod");
+                assert_eq!(parsed.time_period.as_deref(), Some(period));
+                assert_eq!(
+                    parsed.formulas,
+                    [condition.replace("B2", &format!("B{}", rule.origin().unwrap().row()))]
+                );
+                assert!(parsed.stop_if_true);
+                assert!(parsed.text.is_none() && parsed.operator.is_none());
+            }
+            assert_eq!(host.conditional_formats(s).refused(), 0);
+        };
+        check(book.host());
+        assert!(book.dispatch(SkinIntent::Undo).accepted());
+        assert_eq!(
+            book.host().model().definitions().conditional_rules(s),
+            before
+        );
+        assert!(book.dispatch(SkinIntent::Redo).accepted());
+        check(book.host());
+        let mut saved = Vec::new();
+        book.save(&SavePolicy::default(), &mut saved).unwrap();
+        let mut reopened = session(&saved);
+        reopened.set_clock(Some(45000.75));
+        assert!(reopened.dispatch(SkinIntent::Recalculate).accepted());
+        check(reopened.host());
+        let mut twin = session(&bytes);
+        twin.set_clock(Some(45000.75));
+        assert!(replay(book.intent_log(), &mut twin).mismatches.is_empty());
+        check(twin.host());
+        check_pointwise_colour_filter_history_and_reopen(&mut book, Some(45000.75));
+    }
+}
+
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn dc_971p_38__invalid_calendar_condition_fields_refuse_without_changing_rows() {
+    for (attrs, formulas) in [
         ("", "<formula>B2&gt;0</formula>"),
         ("timePeriod=\"Today\"", "<formula>B2&gt;0</formula>"),
         ("timePeriod=\"nextDay\"", "<formula>B2&gt;0</formula>"),
-        ("timePeriod=\"today\" text=\"date\"", "<formula>B2&gt;0</formula>"),
-        ("timePeriod=\"today\" operator=\"equal\"", "<formula>B2&gt;0</formula>"),
+        (
+            "timePeriod=\"today\" text=\"date\"",
+            "<formula>B2&gt;0</formula>",
+        ),
+        (
+            "timePeriod=\"today\" operator=\"equal\"",
+            "<formula>B2&gt;0</formula>",
+        ),
         ("timePeriod=\"today\"", ""),
-        ("timePeriod=\"today\"", "<formula>B2&gt;0</formula><formula>B2&lt;10</formula>"),
-    ]{
-        let bytes=package_with_part_from(&calc_host::blank_package(),"xl/worksheets/sheet1.xml",|xml|xml.replace("</worksheet>",&format!("<conditionalFormatting sqref=\"B2:B3\"><cfRule type=\"timePeriod\" {attrs} priority=\"1\">{formulas}</cfRule></conditionalFormatting></worksheet>")));let mut book=session(&bytes);let s=book.host().sheets()[0].id();for(a,t)in[("A2","2"),("A3","1"),("B2","20"),("B3","10")]{assert!(enter(&mut book,at(s,a),t).accepted());}let before=(book.host().revision(),book.history_depth(),book.host().model().definitions().conditional_rules(s).to_vec());let receipt=book.dispatch(SkinIntent::Command(calc_host::WorkbookCommand::SortRows{area:GridArea::new(at(s,"A2"),at(s,"B3")).unwrap(),keys:vec![calc_host::SortKey{column:1,descending:false}],header:false,revision:before.0.get()}));assert!(!receipt.accepted(),"{attrs} {formulas}: {receipt:?}");assert_eq!((book.host().revision(),book.history_depth(),book.host().model().definitions().conditional_rules(s).to_vec()),before);assert_eq!(book.host().model().cell(at(s,"A2")),Some(&number(2.)));
+        (
+            "timePeriod=\"today\"",
+            "<formula>B2&gt;0</formula><formula>B2&lt;10</formula>",
+        ),
+    ] {
+        let bytes = package_with_part_from(
+            &calc_host::blank_package(),
+            "xl/worksheets/sheet1.xml",
+            |xml| {
+                xml.replace("</worksheet>",&format!("<conditionalFormatting sqref=\"B2:B3\"><cfRule type=\"timePeriod\" {attrs} priority=\"1\">{formulas}</cfRule></conditionalFormatting></worksheet>"))
+            },
+        );
+        let mut book = session(&bytes);
+        let s = book.host().sheets()[0].id();
+        for (a, t) in [("A2", "2"), ("A3", "1"), ("B2", "20"), ("B3", "10")] {
+            assert!(enter(&mut book, at(s, a), t).accepted());
+        }
+        let before = (
+            book.host().revision(),
+            book.history_depth(),
+            book.host()
+                .model()
+                .definitions()
+                .conditional_rules(s)
+                .to_vec(),
+        );
+        let receipt = book.dispatch(SkinIntent::Command(calc_host::WorkbookCommand::SortRows {
+            area: GridArea::new(at(s, "A2"), at(s, "B3")).unwrap(),
+            keys: vec![calc_host::SortKey {
+                column: 1,
+                descending: false,
+            }],
+            header: false,
+            revision: before.0.get(),
+        }));
+        assert!(!receipt.accepted(), "{attrs} {formulas}: {receipt:?}");
+        assert_eq!(
+            (
+                book.host().revision(),
+                book.history_depth(),
+                book.host()
+                    .model()
+                    .definitions()
+                    .conditional_rules(s)
+                    .to_vec()
+            ),
+            before
+        );
+        assert_eq!(book.host().model().cell(at(s, "A2")), Some(&number(2.)));
     }
 }
 
-#[cfg_attr(not(target_arch="wasm32"),test)]
-#[cfg_attr(target_arch="wasm32",wasm_bindgen_test::wasm_bindgen_test)]
-fn dc_971p_37__calendar_colour_filters_refuse_missing_clock_and_invalid_source_atomically(){
-    use calc_host::{FilterChange as F,ConditionalChange as C,WorkbookCommand as W};
-    let mut seed=session(&calc_host::blank_package());seed.set_clock(Some(45000.75));let s=seed.host().sheets()[0].id();for(a,t)in[("A1","Key"),("A2","1"),("A3","2"),("B2","45000"),("B3","44999")]{assert!(enter(&mut seed,at(s,a),t).accepted());}
-    let revision=seed.host().revision().get();assert!(seed.dispatch(SkinIntent::Command(W::Conditional{sheet:s,revision,index:None,change:C::Condition{kind:"expression".into(),applies:"B2:B3".into(),color:"#123456".into(),formulas:vec!["FLOOR(B2,1)=TODAY()".into()],operator:String::new(),rank:1,percent:false,stop:false}})).accepted());let mut bytes=Vec::new();seed.save(&SavePolicy::default(),&mut bytes).unwrap();let bytes=package_with_part_from(&bytes,"xl/worksheets/sheet1.xml",|xml|xml.replace("type=\"expression\"","type=\"timePeriod\" timePeriod=\"today\""));
-    let command=|book:&mut HostSession,change|{let sheet=book.host().sheets()[0].id();let revision=book.host().revision().get();book.dispatch(SkinIntent::Command(W::AutoFilter{sheet,revision,change}))};
-    for invalid in [false,true]{
-        let bytes=if invalid{package_with_part_from(&bytes,"xl/worksheets/sheet1.xml",|xml|xml.replace("timePeriod=\"today\"","timePeriod=\"today\" text=\"unread\""))}else{bytes.clone()};let mut book=session(&bytes);let s=book.host().sheets()[0].id();if invalid{book.set_clock(Some(45000.75));}assert!(command(&mut book,F::Enable{area:GridArea::new(at(s,"A1"),at(s,"B3")).unwrap()}).accepted());
-        let before=(book.host().revision(),book.history_depth(),book.host().styles().clone(),book.host().model().definitions().auto_filter(s).cloned());let denied=command(&mut book,F::Color{column:2,cell_color:true,color:"#123456".into()});assert!(!denied.accepted(),"{denied:?}");assert_eq!((book.host().revision(),book.history_depth(),book.host().styles().clone(),book.host().model().definitions().auto_filter(s).cloned()),before);
-        if !invalid{book.set_clock(Some(45000.75));assert!(command(&mut book,F::Color{column:2,cell_color:true,color:"#123456".into()}).accepted());assert_eq!(book.host().model().definitions().auto_filter(s).unwrap().filtered_rows.iter().copied().collect::<Vec<_>>(),[3]);book.set_clock(None);let before=(book.host().revision(),book.history_depth(),book.host().styles().clone(),book.host().model().definitions().auto_filter(s).cloned());assert!(!command(&mut book,F::Reapply).accepted());assert_eq!((book.host().revision(),book.history_depth(),book.host().styles().clone(),book.host().model().definitions().auto_filter(s).cloned()),before);}
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn dc_971p_37__calendar_colour_filters_refuse_missing_clock_and_invalid_source_atomically() {
+    use calc_host::{ConditionalChange as C, FilterChange as F, WorkbookCommand as W};
+    let mut seed = session(&calc_host::blank_package());
+    seed.set_clock(Some(45000.75));
+    let s = seed.host().sheets()[0].id();
+    for (a, t) in [
+        ("A1", "Key"),
+        ("A2", "1"),
+        ("A3", "2"),
+        ("B2", "45000"),
+        ("B3", "44999"),
+    ] {
+        assert!(enter(&mut seed, at(s, a), t).accepted());
+    }
+    let revision = seed.host().revision().get();
+    assert!(
+        seed.dispatch(SkinIntent::Command(W::Conditional {
+            sheet: s,
+            revision,
+            index: None,
+            change: C::Condition {
+                kind: "expression".into(),
+                applies: "B2:B3".into(),
+                color: "#123456".into(),
+                formulas: vec!["FLOOR(B2,1)=TODAY()".into()],
+                operator: String::new(),
+                rank: 1,
+                percent: false,
+                stop: false
+            }
+        }))
+        .accepted()
+    );
+    let mut bytes = Vec::new();
+    seed.save(&SavePolicy::default(), &mut bytes).unwrap();
+    let bytes = package_with_part_from(&bytes, "xl/worksheets/sheet1.xml", |xml| {
+        xml.replace(
+            "type=\"expression\"",
+            "type=\"timePeriod\" timePeriod=\"today\"",
+        )
+    });
+    let command = |book: &mut HostSession, change| {
+        let sheet = book.host().sheets()[0].id();
+        let revision = book.host().revision().get();
+        book.dispatch(SkinIntent::Command(W::AutoFilter {
+            sheet,
+            revision,
+            change,
+        }))
+    };
+    for invalid in [false, true] {
+        let bytes = if invalid {
+            package_with_part_from(&bytes, "xl/worksheets/sheet1.xml", |xml| {
+                xml.replace(
+                    "timePeriod=\"today\"",
+                    "timePeriod=\"today\" text=\"unread\"",
+                )
+            })
+        } else {
+            bytes.clone()
+        };
+        let mut book = session(&bytes);
+        let s = book.host().sheets()[0].id();
+        if invalid {
+            book.set_clock(Some(45000.75));
+        }
+        assert!(
+            command(
+                &mut book,
+                F::Enable {
+                    area: GridArea::new(at(s, "A1"), at(s, "B3")).unwrap()
+                }
+            )
+            .accepted()
+        );
+        let before = (
+            book.host().revision(),
+            book.history_depth(),
+            book.host().styles().clone(),
+            book.host().model().definitions().auto_filter(s).cloned(),
+        );
+        let denied = command(
+            &mut book,
+            F::Color {
+                column: 2,
+                cell_color: true,
+                color: "#123456".into(),
+            },
+        );
+        assert!(!denied.accepted(), "{denied:?}");
+        assert_eq!(
+            (
+                book.host().revision(),
+                book.history_depth(),
+                book.host().styles().clone(),
+                book.host().model().definitions().auto_filter(s).cloned()
+            ),
+            before
+        );
+        if !invalid {
+            book.set_clock(Some(45000.75));
+            assert!(
+                command(
+                    &mut book,
+                    F::Color {
+                        column: 2,
+                        cell_color: true,
+                        color: "#123456".into()
+                    }
+                )
+                .accepted()
+            );
+            assert_eq!(
+                book.host()
+                    .model()
+                    .definitions()
+                    .auto_filter(s)
+                    .unwrap()
+                    .filtered_rows
+                    .iter()
+                    .copied()
+                    .collect::<Vec<_>>(),
+                [3]
+            );
+            book.set_clock(None);
+            let before = (
+                book.host().revision(),
+                book.history_depth(),
+                book.host().styles().clone(),
+                book.host().model().definitions().auto_filter(s).cloned(),
+            );
+            assert!(!command(&mut book, F::Reapply).accepted());
+            assert_eq!(
+                (
+                    book.host().revision(),
+                    book.history_depth(),
+                    book.host().styles().clone(),
+                    book.host().model().definitions().auto_filter(s).cloned()
+                ),
+                before
+            );
+        }
     }
 }
 
 // Called after the row-movement assertions for every supported formula-backed family.
-fn check_pointwise_colour_filter_history_and_reopen(book:&mut HostSession,clock:Option<f64>){
-    use calc_host::{FilterChange as F,WorkbookCommand as W};
-    let s=book.host().sheets()[0].id();assert!(enter(book,at(s,"C1"),"=SUBTOTAL(9,A2:A3)").accepted());
-    let command=|book:&mut HostSession,change|{let revision=book.host().revision().get();book.dispatch(SkinIntent::Command(W::AutoFilter{sheet:s,revision,change}))};
-    assert!(command(book,F::Enable{area:GridArea::new(at(s,"A1"),at(s,"B3")).unwrap()}).accepted());let before=book.host().model().definitions().auto_filter(s).cloned();let receipt=command(book,F::Color{column:2,cell_color:true,color:"#123456".into()});assert!(receipt.accepted(),"{receipt:?}");
-    let rows=|book:&HostSession|book.host().model().definitions().auto_filter(book.host().sheets()[0].id()).unwrap().filtered_rows.iter().copied().collect::<Vec<_>>();assert_eq!(rows(book),[2]);assert_eq!(session_calculated(book,at(s,"C1")).unwrap().as_number(),Some(2.));
-    assert!(book.dispatch(SkinIntent::Undo).accepted());assert_eq!(book.host().model().definitions().auto_filter(s),before.as_ref());assert_eq!(session_calculated(book,at(s,"C1")).unwrap().as_number(),Some(3.));assert!(book.dispatch(SkinIntent::Redo).accepted());assert_eq!(rows(book),[2]);
-    let mut saved=Vec::new();book.save(&SavePolicy::default(),&mut saved).unwrap();let mut reopened=session(&saved);reopened.set_clock(clock);assert!(reopened.dispatch(SkinIntent::Recalculate).accepted());let r=reopened.host().sheets()[0].id();
-    let rules=reopened.host().model().definitions().conditional_rules(r);assert_eq!(rules.len(),2);assert!(rules.iter().all(|rule| !String::from_utf8_lossy(&rule.source).contains("urn:dnacalc:autofilter-visibility:v1")),"AutoFilter extensions must stay outside conditional rule sources");
-    let revision=reopened.host().revision().get();let receipt=reopened.dispatch(SkinIntent::Command(W::AutoFilter{sheet:r,revision,change:F::Reapply}));assert!(receipt.accepted(),"{receipt:?}");assert_eq!(rows(&reopened),[2]);assert_eq!(session_calculated(&reopened,at(r,"C1")).unwrap().as_number(),Some(2.));
-    assert!(command(book,F::Clear).accepted());assert!(rows(book).is_empty());assert!(command(book,F::Color{column:2,cell_color:true,color:String::new()}).accepted());assert_eq!(rows(book),[3]);assert_eq!(session_calculated(book,at(s,"C1")).unwrap().as_number(),Some(1.));
+fn check_pointwise_colour_filter_history_and_reopen(book: &mut HostSession, clock: Option<f64>) {
+    use calc_host::{FilterChange as F, WorkbookCommand as W};
+    let s = book.host().sheets()[0].id();
+    assert!(enter(book, at(s, "C1"), "=SUBTOTAL(9,A2:A3)").accepted());
+    let command = |book: &mut HostSession, change| {
+        let revision = book.host().revision().get();
+        book.dispatch(SkinIntent::Command(W::AutoFilter {
+            sheet: s,
+            revision,
+            change,
+        }))
+    };
+    assert!(
+        command(
+            book,
+            F::Enable {
+                area: GridArea::new(at(s, "A1"), at(s, "B3")).unwrap()
+            }
+        )
+        .accepted()
+    );
+    let before = book.host().model().definitions().auto_filter(s).cloned();
+    let receipt = command(
+        book,
+        F::Color {
+            column: 2,
+            cell_color: true,
+            color: "#123456".into(),
+        },
+    );
+    assert!(receipt.accepted(), "{receipt:?}");
+    let rows = |book: &HostSession| {
+        book.host()
+            .model()
+            .definitions()
+            .auto_filter(book.host().sheets()[0].id())
+            .unwrap()
+            .filtered_rows
+            .iter()
+            .copied()
+            .collect::<Vec<_>>()
+    };
+    assert_eq!(rows(book), [2]);
+    assert_eq!(
+        session_calculated(book, at(s, "C1")).unwrap().as_number(),
+        Some(2.)
+    );
+    assert!(book.dispatch(SkinIntent::Undo).accepted());
+    assert_eq!(
+        book.host().model().definitions().auto_filter(s),
+        before.as_ref()
+    );
+    assert_eq!(
+        session_calculated(book, at(s, "C1")).unwrap().as_number(),
+        Some(3.)
+    );
+    assert!(book.dispatch(SkinIntent::Redo).accepted());
+    assert_eq!(rows(book), [2]);
+    let mut saved = Vec::new();
+    book.save(&SavePolicy::default(), &mut saved).unwrap();
+    let mut reopened = session(&saved);
+    reopened.set_clock(clock);
+    assert!(reopened.dispatch(SkinIntent::Recalculate).accepted());
+    let r = reopened.host().sheets()[0].id();
+    let rules = reopened.host().model().definitions().conditional_rules(r);
+    assert_eq!(rules.len(), 2);
+    assert!(
+        rules
+            .iter()
+            .all(|rule| !String::from_utf8_lossy(&rule.source)
+                .contains("urn:dnacalc:autofilter-visibility:v1")),
+        "AutoFilter extensions must stay outside conditional rule sources"
+    );
+    let revision = reopened.host().revision().get();
+    let receipt = reopened.dispatch(SkinIntent::Command(W::AutoFilter {
+        sheet: r,
+        revision,
+        change: F::Reapply,
+    }));
+    assert!(receipt.accepted(), "{receipt:?}");
+    assert_eq!(rows(&reopened), [2]);
+    assert_eq!(
+        session_calculated(&reopened, at(r, "C1"))
+            .unwrap()
+            .as_number(),
+        Some(2.)
+    );
+    assert!(command(book, F::Clear).accepted());
+    assert!(rows(book).is_empty());
+    assert!(
+        command(
+            book,
+            F::Color {
+                column: 2,
+                cell_color: true,
+                color: String::new()
+            }
+        )
+        .accepted()
+    );
+    assert_eq!(rows(book), [3]);
+    assert_eq!(
+        session_calculated(book, at(s, "C1")).unwrap().as_number(),
+        Some(1.)
+    );
 }
 
 /// Retained title XML keeps run properties and links; shared/protected frames refuse atomically.
@@ -16492,13 +23987,29 @@ fn dc_e5z5__chart_properties_preserve_rich_and_linked_titles_and_refuse_shared_o
             "</a:p><a:p><a:r><a:t>Second</a:t></a:r></a:p></c:rich>",
         )
     });
-    for bytes in [&shared,&protected] {
-        let mut book=session(bytes);let sheet=book.host().sheets()[0].id();
-        let revision=book.host().revision();let history=book.history_depth();let before=book.host().charts(sheet).0;
-        let outcome=book.dispatch(SkinIntent::Command(calc_host::WorkbookCommand::ChartSeries{
-            sheet,revision:revision.get(),part:"xl/charts/chart1.xml".into(),plot:0,series:Some(0),name:Some("Refuse source edit".into()),categories:None,values:Some("Data!C2:C7".into()),remove:false,
-        }));assert!(!outcome.accepted(),"{outcome:?}");
-        assert_eq!(book.host().revision(),revision);assert_eq!(book.history_depth(),history);assert_eq!(book.host().charts(sheet).0,before);
+    for bytes in [&shared, &protected] {
+        let mut book = session(bytes);
+        let sheet = book.host().sheets()[0].id();
+        let revision = book.host().revision();
+        let history = book.history_depth();
+        let before = book.host().charts(sheet).0;
+        let outcome = book.dispatch(SkinIntent::Command(
+            calc_host::WorkbookCommand::ChartSeries {
+                sheet,
+                revision: revision.get(),
+                part: "xl/charts/chart1.xml".into(),
+                plot: 0,
+                series: Some(0),
+                name: Some("Refuse source edit".into()),
+                categories: None,
+                values: Some("Data!C2:C7".into()),
+                remove: false,
+            },
+        ));
+        assert!(!outcome.accepted(), "{outcome:?}");
+        assert_eq!(book.host().revision(), revision);
+        assert_eq!(book.history_depth(), history);
+        assert_eq!(book.host().charts(sheet).0, before);
     }
     for bytes in [shared, protected, broken, paragraphs] {
         let mut book = session(&bytes);
@@ -16654,9 +24165,20 @@ fn dc_e5z5__shared_drawing_owner_refuses_before_revision_or_history() {
             ))
             .accepted()
     );
-    let outcome=book.dispatch(SkinIntent::Command(calc_host::WorkbookCommand::ChartSeries{
-        sheet,revision:revision.get(),part:"xl/charts/chart1.xml".into(),plot:0,series:Some(0),name:Some("Refuse shared drawing source edit".into()),categories:None,values:None,remove:false,
-    }));assert!(!outcome.accepted(),"{outcome:?}");
+    let outcome = book.dispatch(SkinIntent::Command(
+        calc_host::WorkbookCommand::ChartSeries {
+            sheet,
+            revision: revision.get(),
+            part: "xl/charts/chart1.xml".into(),
+            plot: 0,
+            series: Some(0),
+            name: Some("Refuse shared drawing source edit".into()),
+            categories: None,
+            values: None,
+            remove: false,
+        },
+    ));
+    assert!(!outcome.accepted(), "{outcome:?}");
     assert_eq!(book.host().revision(), revision);
     assert_eq!(book.history_depth(), history);
     assert_eq!(book.host().charts(sheet).0, before);
@@ -16666,40 +24188,108 @@ fn dc_e5z5__shared_drawing_owner_refuses_before_revision_or_history() {
 #[cfg_attr(not(target_arch = "wasm32"), test)]
 #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
 fn dc_971p_46__custom_series_order_is_preserved_or_refused() {
-    const CHARTS:&[u8]=include_bytes!("fixtures/dc_6yw/charts.xlsx");
-    let part="xl/charts/chart1.xml";
-    let bytes=package_with_part_from(CHARTS,part,|xml|xml.replace("<c:order val=\"0\"/>","<c:order val=\"9\"/>").replace("<c:order val=\"1\"/>","<c:order val=\"0\"/>").replace("<c:order val=\"9\"/>","<c:order val=\"1\"/>"));
-    let mut book=session(&bytes);let sheet=book.host().sheets()[0].id();
-    let command=|revision,series,remove|calc_host::WorkbookCommand::ChartSeries{sheet,revision,part:part.into(),plot:0,series,name:Some("Retain order".into()),categories:None,values:Some("Data!C2:C7".into()),remove};
-    let outcome=book.dispatch(SkinIntent::Command(command(book.host().revision().get(),Some(0),false)));assert!(outcome.accepted(),"{outcome:?}");
-    let mut saved=Vec::new();book.save(&SavePolicy::default(),&mut saved).unwrap();
-    let orders=|xml:String|xml.match_indices("<c:order ").map(|(i,_)|xml[i..].split("/>").next().unwrap().to_owned()).collect::<Vec<_>>();
-    assert_eq!(orders(part_text(&saved,part)),orders(part_text(&bytes,part)));
-    let mut book=session(&saved);let revision=book.host().revision();let history=book.history_depth();let before=book.host().charts(sheet).0;
-    for series in [None,Some(0)] {
-        let outcome=book.dispatch(SkinIntent::Command(command(revision.get(),series,series.is_some())));assert!(!outcome.accepted(),"{outcome:?}");
-        assert_eq!(book.host().revision(),revision);assert_eq!(book.history_depth(),history);assert_eq!(book.host().charts(sheet).0,before);
+    const CHARTS: &[u8] = include_bytes!("fixtures/dc_6yw/charts.xlsx");
+    let part = "xl/charts/chart1.xml";
+    let bytes = package_with_part_from(CHARTS, part, |xml| {
+        xml.replace("<c:order val=\"0\"/>", "<c:order val=\"9\"/>")
+            .replace("<c:order val=\"1\"/>", "<c:order val=\"0\"/>")
+            .replace("<c:order val=\"9\"/>", "<c:order val=\"1\"/>")
+    });
+    let mut book = session(&bytes);
+    let sheet = book.host().sheets()[0].id();
+    let command = |revision, series, remove| calc_host::WorkbookCommand::ChartSeries {
+        sheet,
+        revision,
+        part: part.into(),
+        plot: 0,
+        series,
+        name: Some("Retain order".into()),
+        categories: None,
+        values: Some("Data!C2:C7".into()),
+        remove,
+    };
+    let outcome = book.dispatch(SkinIntent::Command(command(
+        book.host().revision().get(),
+        Some(0),
+        false,
+    )));
+    assert!(outcome.accepted(), "{outcome:?}");
+    let mut saved = Vec::new();
+    book.save(&SavePolicy::default(), &mut saved).unwrap();
+    let orders = |xml: String| {
+        xml.match_indices("<c:order ")
+            .map(|(i, _)| xml[i..].split("/>").next().unwrap().to_owned())
+            .collect::<Vec<_>>()
+    };
+    assert_eq!(
+        orders(part_text(&saved, part)),
+        orders(part_text(&bytes, part))
+    );
+    let mut book = session(&saved);
+    let revision = book.host().revision();
+    let history = book.history_depth();
+    let before = book.host().charts(sheet).0;
+    for series in [None, Some(0)] {
+        let outcome = book.dispatch(SkinIntent::Command(command(
+            revision.get(),
+            series,
+            series.is_some(),
+        )));
+        assert!(!outcome.accepted(), "{outcome:?}");
+        assert_eq!(book.host().revision(), revision);
+        assert_eq!(book.history_depth(), history);
+        assert_eq!(book.host().charts(sheet).0, before);
     }
 }
-
 
 /// Imported axis identities must prove plot ownership before an axis edit can enter history.
 #[cfg_attr(not(target_arch = "wasm32"), test)]
 #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
 fn dc_971p_46__unassociated_chart_axes_refuse_before_history_changes() {
-    let original=include_bytes!("fixtures/dc_6yw/charts.xlsx");
-    for (from,to) in [
-        ("<c:axId val=\"1264925584\"/>","<c:axId val=\"4294967295\"/>"),
-        ("<c:crossAx val=\"1264926064\"/>","<c:crossAx val=\"4294967295\"/>"),
-        ("<c:valAx><c:axId val=\"1264926064\"/>","<c:valAx><c:axId val=\"1264925584\"/>"),
+    let original = include_bytes!("fixtures/dc_6yw/charts.xlsx");
+    for (from, to) in [
+        (
+            "<c:axId val=\"1264925584\"/>",
+            "<c:axId val=\"4294967295\"/>",
+        ),
+        (
+            "<c:crossAx val=\"1264926064\"/>",
+            "<c:crossAx val=\"4294967295\"/>",
+        ),
+        (
+            "<c:valAx><c:axId val=\"1264926064\"/>",
+            "<c:valAx><c:axId val=\"1264925584\"/>",
+        ),
     ] {
-        let bytes=package_with_part_from(original,"xl/charts/chart1.xml",|xml|{assert!(xml.contains(from));xml.replacen(from,to,1)});
-        let mut book=session(&bytes);let sheet=book.host().sheets()[0].id();let charts=book.host().charts(sheet).0;
-        let id=charts[0].axes.iter().find(|a|a.kind=="valAx").unwrap().id;
-        let revision=book.host().revision();let history=book.history_depth();
-        let command=calc_host::WorkbookCommand::ChartAxis{sheet,revision:revision.get(),part:charts[0].part.clone(),axis:id,minimum:Some("0".into()),maximum:Some("20".into()),major_unit:Some("5".into()),reversed:false};
+        let bytes = package_with_part_from(original, "xl/charts/chart1.xml", |xml| {
+            assert!(xml.contains(from));
+            xml.replacen(from, to, 1)
+        });
+        let mut book = session(&bytes);
+        let sheet = book.host().sheets()[0].id();
+        let charts = book.host().charts(sheet).0;
+        let id = charts[0]
+            .axes
+            .iter()
+            .find(|a| a.kind == "valAx")
+            .unwrap()
+            .id;
+        let revision = book.host().revision();
+        let history = book.history_depth();
+        let command = calc_host::WorkbookCommand::ChartAxis {
+            sheet,
+            revision: revision.get(),
+            part: charts[0].part.clone(),
+            axis: id,
+            minimum: Some("0".into()),
+            maximum: Some("20".into()),
+            major_unit: Some("5".into()),
+            reversed: false,
+        };
         assert!(!book.dispatch(SkinIntent::Command(command)).accepted());
-        assert_eq!(book.host().revision(),revision);assert_eq!(book.history_depth(),history);assert_eq!(book.host().charts(sheet).0,charts);
+        assert_eq!(book.host().revision(), revision);
+        assert_eq!(book.history_depth(), history);
+        assert_eq!(book.host().charts(sheet).0, charts);
     }
 }
 
@@ -16707,202 +24297,794 @@ fn dc_971p_46__unassociated_chart_axes_refuse_before_history_changes() {
 #[cfg_attr(not(target_arch = "wasm32"), test)]
 #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
 fn dc_971p_46__type_and_added_series_keep_minimal_plot_schema_order() {
-    let part="xl/charts/chart1.xml";
-    let bytes=package_with_part_from(include_bytes!("fixtures/dc_6yw/charts.xlsx"),part,|xml|{
-        let end=xml.find("</c:barChart>").unwrap();let series=xml[..end].rfind("</c:ser>").unwrap()+8;
-        let axes=series+xml[series..end].find("<c:axId ").unwrap();format!("{}{}",&xml[..series],&xml[axes..])
-    });
-    let mut book=session(&bytes);let sheet=book.host().sheets()[0].id();
-    let command=calc_host::WorkbookCommand::ChartSeries{sheet,revision:book.host().revision().get(),part:part.into(),plot:0,series:None,name:Some("Extra".into()),categories:Some("Data!A2:A7".into()),values:Some("Data!B2:B7".into()),remove:false};
+    let part = "xl/charts/chart1.xml";
+    let bytes =
+        package_with_part_from(include_bytes!("fixtures/dc_6yw/charts.xlsx"), part, |xml| {
+            let end = xml.find("</c:barChart>").unwrap();
+            let series = xml[..end].rfind("</c:ser>").unwrap() + 8;
+            let axes = series + xml[series..end].find("<c:axId ").unwrap();
+            format!("{}{}", &xml[..series], &xml[axes..])
+        });
+    let mut book = session(&bytes);
+    let sheet = book.host().sheets()[0].id();
+    let command = calc_host::WorkbookCommand::ChartSeries {
+        sheet,
+        revision: book.host().revision().get(),
+        part: part.into(),
+        plot: 0,
+        series: None,
+        name: Some("Extra".into()),
+        categories: Some("Data!A2:A7".into()),
+        values: Some("Data!B2:B7".into()),
+        remove: false,
+    };
     assert!(book.dispatch(SkinIntent::Command(command)).accepted());
-    let command=calc_host::WorkbookCommand::ChartType{sheet,revision:book.host().revision().get(),part:part.into(),plot:0,kind:"bar".into(),stacked:true};
+    let command = calc_host::WorkbookCommand::ChartType {
+        sheet,
+        revision: book.host().revision().get(),
+        part: part.into(),
+        plot: 0,
+        kind: "bar".into(),
+        stacked: true,
+    };
     assert!(book.dispatch(SkinIntent::Command(command)).accepted());
-    let mut saved=Vec::new();book.save(&SavePolicy::default(),&mut saved).unwrap();
-    let reopened=session(&saved);let charts=reopened.host().charts(sheet).0;
-    assert_eq!(charts[0].plots[0].kind,calc_host::ChartKind::Bar);assert!(charts[0].plots[0].stacked);
-    assert_eq!(charts[0].plots[0].series.len(),3);assert_eq!(charts[0].plots[0].series[2].values[0],Some(12.));
-    let snapshot=reopened.host().loaded().snapshot(reopened.host().model());let xml=snapshot.package().read_xml(part).unwrap();
-    let mut reader=xml.reader();let mut path=Vec::<String>::new();let mut children=Vec::new();
-    while let Some(event)=reader.next_event().unwrap(){match event{
-        calc_doc::XmlEvent::Start(e)=>{if path.last().is_some_and(|p|p=="barChart"){children.push(e.name.local.to_string());}path.push(e.name.local.to_string());},
-        calc_doc::XmlEvent::End(_)=>{path.pop();},_=>{}
-    }}
-    assert_eq!(children,["barDir","grouping","varyColors","ser","ser","ser","overlap","axId","axId"]);
+    let mut saved = Vec::new();
+    book.save(&SavePolicy::default(), &mut saved).unwrap();
+    let reopened = session(&saved);
+    let charts = reopened.host().charts(sheet).0;
+    assert_eq!(charts[0].plots[0].kind, calc_host::ChartKind::Bar);
+    assert!(charts[0].plots[0].stacked);
+    assert_eq!(charts[0].plots[0].series.len(), 3);
+    assert_eq!(charts[0].plots[0].series[2].values[0], Some(12.));
+    let snapshot = reopened.host().loaded().snapshot(reopened.host().model());
+    let xml = snapshot.package().read_xml(part).unwrap();
+    let mut reader = xml.reader();
+    let mut path = Vec::<String>::new();
+    let mut children = Vec::new();
+    while let Some(event) = reader.next_event().unwrap() {
+        match event {
+            calc_doc::XmlEvent::Start(e) => {
+                if path.last().is_some_and(|p| p == "barChart") {
+                    children.push(e.name.local.to_string());
+                }
+                path.push(e.name.local.to_string());
+            }
+            calc_doc::XmlEvent::End(_) => {
+                path.pop();
+            }
+            _ => {}
+        }
+    }
+    assert_eq!(
+        children,
+        [
+            "barDir",
+            "grouping",
+            "varyColors",
+            "ser",
+            "ser",
+            "ser",
+            "overlap",
+            "axId",
+            "axId"
+        ]
+    );
 }
 
 /// Numbered text uses the ordinary fill plan, preserves zero widths and remains one history step.
 #[cfg_attr(not(target_arch = "wasm32"), test)]
 #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
-fn dc_971p_47__numbered_text_fill_steps_history_and_saved_reopening(){
-    use calc_host::{PasteSource as P,PasteMode as M,WorkbookCommand as W};
-    let mut book=session(&calc_host::blank_package());let s=book.host().sheets()[0].id();
-    for(a,t)in[("A1","Part 007 Ω"),("A2","Part 009 Ω"),("C1","Item10"),("D1","Item8")]{assert!(enter(&mut book,at(s,a),t).accepted());}
-    let from=GridArea::new(at(s,"A1"),at(s,"A2")).unwrap();let to=GridArea::new(at(s,"A3"),at(s,"A5")).unwrap();
-    let plan=calc_host::prepare_paste(book.host(),P::Fill{from,down:true,series:true},to,M::All).unwrap();
-    assert!(book.host().model().cell(at(s,"A3")).is_none());let depth=book.history_depth();
-    assert!(book.dispatch(SkinIntent::Command(W::Paste(plan))).accepted());assert_eq!(book.history_depth(),(depth.0+1,0));
-    assert_eq!(book.host().model().cell(at(s,"A3")),Some(&CellInput::Text(calc_host::CellText::new(calc_host::value::ExcelText::from_utf16_code_units("Part 011 Ω".encode_utf16().collect())).unwrap())));
-    assert!(book.dispatch(SkinIntent::Undo).accepted());assert!(book.host().model().cell(at(s,"A3")).is_none());assert!(book.dispatch(SkinIntent::Redo).accepted());
-    let plan=calc_host::prepare_paste(book.host(),P::Fill{from:GridArea::new(at(s,"C1"),at(s,"D1")).unwrap(),down:false,series:true},GridArea::new(at(s,"E1"),at(s,"F1")).unwrap(),M::All).unwrap();assert!(book.dispatch(SkinIntent::Command(W::Paste(plan))).accepted());
-    assert_eq!(book.host().model().cell(at(s,"F1")),Some(&CellInput::Text(calc_host::CellText::new(calc_host::value::ExcelText::from_utf16_code_units("Item4".encode_utf16().collect())).unwrap())));
-    assert!(enter(&mut book,at(s,"H3"),"Item10").accepted());
-    let plan=calc_host::prepare_paste(book.host(),P::Fill{from:GridArea::cell(at(s,"H3")),down:true,series:true},GridArea::new(at(s,"H1"),at(s,"H2")).unwrap(),M::All).unwrap();assert!(book.dispatch(SkinIntent::Command(W::Paste(plan))).accepted());
-    assert_eq!(match book.host().model().cell(at(s,"H2")){Some(CellInput::Text(t))=>String::from_utf16(t.text().utf16_code_units()).unwrap(),_=>panic!("numbered text")},"Item9");
-    let mut saved=Vec::new();book.save(&SavePolicy::default(),&mut saved).unwrap();let next=session(&saved);
-    for a in ["A1","A2","A3","A4","A5","C1","D1","E1","F1","H1","H2","H3"]{assert_eq!(next.host().model().cell(at(s,a)),book.host().model().cell(at(s,a)));}
-    assert!(enter(&mut book,at(s,"A2"),"Different009").accepted());let before=(book.host().revision(),book.history_depth());assert!(calc_host::prepare_paste(book.host(),P::Fill{from,down:true,series:true},to,M::All).is_err());assert_eq!((book.host().revision(),book.history_depth()),before);
+fn dc_971p_47__numbered_text_fill_steps_history_and_saved_reopening() {
+    use calc_host::{PasteMode as M, PasteSource as P, WorkbookCommand as W};
+    let mut book = session(&calc_host::blank_package());
+    let s = book.host().sheets()[0].id();
+    for (a, t) in [
+        ("A1", "Part 007 Ω"),
+        ("A2", "Part 009 Ω"),
+        ("C1", "Item10"),
+        ("D1", "Item8"),
+    ] {
+        assert!(enter(&mut book, at(s, a), t).accepted());
+    }
+    let from = GridArea::new(at(s, "A1"), at(s, "A2")).unwrap();
+    let to = GridArea::new(at(s, "A3"), at(s, "A5")).unwrap();
+    let plan = calc_host::prepare_paste(
+        book.host(),
+        P::Fill {
+            from,
+            down: true,
+            series: true,
+        },
+        to,
+        M::All,
+    )
+    .unwrap();
+    assert!(book.host().model().cell(at(s, "A3")).is_none());
+    let depth = book.history_depth();
+    assert!(
+        book.dispatch(SkinIntent::Command(W::Paste(plan)))
+            .accepted()
+    );
+    assert_eq!(book.history_depth(), (depth.0 + 1, 0));
+    assert_eq!(
+        book.host().model().cell(at(s, "A3")),
+        Some(&CellInput::Text(
+            calc_host::CellText::new(calc_host::value::ExcelText::from_utf16_code_units(
+                "Part 011 Ω".encode_utf16().collect()
+            ))
+            .unwrap()
+        ))
+    );
+    assert!(book.dispatch(SkinIntent::Undo).accepted());
+    assert!(book.host().model().cell(at(s, "A3")).is_none());
+    assert!(book.dispatch(SkinIntent::Redo).accepted());
+    let plan = calc_host::prepare_paste(
+        book.host(),
+        P::Fill {
+            from: GridArea::new(at(s, "C1"), at(s, "D1")).unwrap(),
+            down: false,
+            series: true,
+        },
+        GridArea::new(at(s, "E1"), at(s, "F1")).unwrap(),
+        M::All,
+    )
+    .unwrap();
+    assert!(
+        book.dispatch(SkinIntent::Command(W::Paste(plan)))
+            .accepted()
+    );
+    assert_eq!(
+        book.host().model().cell(at(s, "F1")),
+        Some(&CellInput::Text(
+            calc_host::CellText::new(calc_host::value::ExcelText::from_utf16_code_units(
+                "Item4".encode_utf16().collect()
+            ))
+            .unwrap()
+        ))
+    );
+    assert!(enter(&mut book, at(s, "H3"), "Item10").accepted());
+    let plan = calc_host::prepare_paste(
+        book.host(),
+        P::Fill {
+            from: GridArea::cell(at(s, "H3")),
+            down: true,
+            series: true,
+        },
+        GridArea::new(at(s, "H1"), at(s, "H2")).unwrap(),
+        M::All,
+    )
+    .unwrap();
+    assert!(
+        book.dispatch(SkinIntent::Command(W::Paste(plan)))
+            .accepted()
+    );
+    assert_eq!(
+        match book.host().model().cell(at(s, "H2")) {
+            Some(CellInput::Text(t)) => String::from_utf16(t.text().utf16_code_units()).unwrap(),
+            _ => panic!("numbered text"),
+        },
+        "Item9"
+    );
+    let mut saved = Vec::new();
+    book.save(&SavePolicy::default(), &mut saved).unwrap();
+    let next = session(&saved);
+    for a in [
+        "A1", "A2", "A3", "A4", "A5", "C1", "D1", "E1", "F1", "H1", "H2", "H3",
+    ] {
+        assert_eq!(
+            next.host().model().cell(at(s, a)),
+            book.host().model().cell(at(s, a))
+        );
+    }
+    assert!(enter(&mut book, at(s, "A2"), "Different009").accepted());
+    let before = (book.host().revision(), book.history_depth());
+    assert!(
+        calc_host::prepare_paste(
+            book.host(),
+            P::Fill {
+                from,
+                down: true,
+                series: true
+            },
+            to,
+            M::All
+        )
+        .is_err()
+    );
+    assert_eq!((book.host().revision(), book.history_depth()), before);
 }
 
 /// Flash Fill previews generated literal text, preserves examples and uses ordinary save/history.
 #[cfg_attr(not(target_arch = "wasm32"), test)]
 #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
-fn dc_971p_47__flash_fill_preview_apply_undo_and_save(){
-    use calc_host::{PasteSource as P,PasteMode as M,WorkbookCommand as W};
-    let mut book=session(&calc_host::blank_package());let s=book.host().sheets()[0].id();
-    for(a,t)in[("A1","Ada Lovelace"),("A2","Grace Hopper"),("A3","Katherine Johnson"),("A4","Alan Turing"),("B1","ADA"),("B2","GRACE")]{assert!(enter(&mut book,at(s,a),t).accepted());}
-    let area=GridArea::new(at(s,"B1"),at(s,"B4")).unwrap();let revision=book.host().revision();let depth=book.history_depth();
-    let plan=calc_host::prepare_paste(book.host(),P::FlashFill,area,M::Formats).unwrap();
-    assert_eq!(plan.replaces(),0);assert_eq!(plan.text_preview(),vec![(at(s,"B3"),"KATHERINE".into()),(at(s,"B4"),"ALAN".into())]);assert_eq!(book.host().revision(),revision);assert!(book.host().model().cell(at(s,"B3")).is_none());
-    assert!(book.dispatch(SkinIntent::Command(W::Paste(plan))).accepted());assert_eq!(book.history_depth(),(depth.0+1,0));
-    assert!(matches!(book.host().model().cell(at(s,"B3")),Some(CellInput::Text(_))));
-    assert!(book.dispatch(SkinIntent::Undo).accepted());assert!(book.host().model().cell(at(s,"B3")).is_none());assert!(book.host().model().cell(at(s,"B1")).is_some());assert!(book.dispatch(SkinIntent::Redo).accepted());
-    let mut saved=Vec::new();book.save(&SavePolicy::default(),&mut saved).unwrap();let next=session(&saved);for a in ["B1","B2","B3","B4"]{assert_eq!(next.host().model().cell(at(s,a)),book.host().model().cell(at(s,a)));}
-    let mut stale=book;assert!(stale.dispatch(SkinIntent::Undo).accepted());let plan=calc_host::prepare_paste(stale.host(),P::FlashFill,area,M::All).unwrap();assert!(enter(&mut stale,at(s,"A3"),"Changed Source").accepted());let before=(stale.host().revision(),stale.history_depth());assert!(!stale.dispatch(SkinIntent::Command(W::Paste(plan))).accepted());assert_eq!((stale.host().revision(),stale.history_depth()),before);assert!(stale.host().model().cell(at(s,"B3")).is_none());
+fn dc_971p_47__flash_fill_preview_apply_undo_and_save() {
+    use calc_host::{PasteMode as M, PasteSource as P, WorkbookCommand as W};
+    let mut book = session(&calc_host::blank_package());
+    let s = book.host().sheets()[0].id();
+    for (a, t) in [
+        ("A1", "Ada Lovelace"),
+        ("A2", "Grace Hopper"),
+        ("A3", "Katherine Johnson"),
+        ("A4", "Alan Turing"),
+        ("B1", "ADA"),
+        ("B2", "GRACE"),
+    ] {
+        assert!(enter(&mut book, at(s, a), t).accepted());
+    }
+    let area = GridArea::new(at(s, "B1"), at(s, "B4")).unwrap();
+    let revision = book.host().revision();
+    let depth = book.history_depth();
+    let plan = calc_host::prepare_paste(book.host(), P::FlashFill, area, M::Formats).unwrap();
+    assert_eq!(plan.replaces(), 0);
+    assert_eq!(
+        plan.text_preview(),
+        vec![
+            (at(s, "B3"), "KATHERINE".into()),
+            (at(s, "B4"), "ALAN".into())
+        ]
+    );
+    assert_eq!(book.host().revision(), revision);
+    assert!(book.host().model().cell(at(s, "B3")).is_none());
+    assert!(
+        book.dispatch(SkinIntent::Command(W::Paste(plan)))
+            .accepted()
+    );
+    assert_eq!(book.history_depth(), (depth.0 + 1, 0));
+    assert!(matches!(
+        book.host().model().cell(at(s, "B3")),
+        Some(CellInput::Text(_))
+    ));
+    assert!(book.dispatch(SkinIntent::Undo).accepted());
+    assert!(book.host().model().cell(at(s, "B3")).is_none());
+    assert!(book.host().model().cell(at(s, "B1")).is_some());
+    assert!(book.dispatch(SkinIntent::Redo).accepted());
+    let mut saved = Vec::new();
+    book.save(&SavePolicy::default(), &mut saved).unwrap();
+    let next = session(&saved);
+    for a in ["B1", "B2", "B3", "B4"] {
+        assert_eq!(
+            next.host().model().cell(at(s, a)),
+            book.host().model().cell(at(s, a))
+        );
+    }
+    let mut stale = book;
+    assert!(stale.dispatch(SkinIntent::Undo).accepted());
+    let plan = calc_host::prepare_paste(stale.host(), P::FlashFill, area, M::All).unwrap();
+    assert!(enter(&mut stale, at(s, "A3"), "Changed Source").accepted());
+    let before = (stale.host().revision(), stale.history_depth());
+    assert!(
+        !stale
+            .dispatch(SkinIntent::Command(W::Paste(plan)))
+            .accepted()
+    );
+    assert_eq!((stale.host().revision(), stale.history_depth()), before);
+    assert!(stale.host().model().cell(at(s, "B3")).is_none());
 }
 
 /// Different plausible predictions, unavailable sources and invalid destinations refuse atomically.
 #[cfg_attr(not(target_arch = "wasm32"), test)]
 #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
-fn dc_971p_47__flash_fill_ambiguity_and_source_provenance_refuse(){
-    use calc_host::{PasteSource as P,PasteMode as M};
-    let mut book=session(&calc_host::blank_package());let s=book.host().sheets()[0].id();
-    for(a,t)in[("A1","Ada"),("A2","Grace"),("A3","Alan Turing"),("B1","Ada"),("B2","Grace")]{assert!(enter(&mut book,at(s,a),t).accepted());}
-    let area=GridArea::new(at(s,"B1"),at(s,"B3")).unwrap();let before=(book.host().revision(),book.history_depth());
-    assert!(calc_host::prepare_paste(book.host(),P::FlashFill,area,M::All).unwrap_err().contains("different results"));assert_eq!((book.host().revision(),book.history_depth()),before);assert!(book.host().model().cell(at(s,"B3")).is_none());
-    assert!(enter(&mut book,at(s,"A1"),"Ada Lovelace").accepted());assert!(enter(&mut book,at(s,"A2"),"Grace Hopper").accepted());
-    assert!(book.dispatch(SkinIntent::SetCalcMode(CalcMode::Manual)).accepted());assert!(enter(&mut book,at(s,"A3"),"=\"Alan Turing\"").accepted());
-    assert!(calc_host::prepare_paste(book.host(),P::FlashFill,area,M::All).unwrap_err().contains("Calculate"));
-    assert!(book.dispatch(SkinIntent::Recalculate).accepted());while book.has_pending_calculation(){book.advance_calculation();}
-    assert!(calc_host::prepare_paste(book.host(),P::FlashFill,area,M::All).is_ok());
-    assert!(calc_host::prepare_paste_oriented(book.host(),P::FlashFill,area,M::All,true).is_err());
-    assert!(enter(&mut book,at(s,"B3"),"=1").accepted());assert!(calc_host::prepare_paste(book.host(),P::FlashFill,area,M::All).unwrap_err().contains("formulas and numeric"));
+fn dc_971p_47__flash_fill_ambiguity_and_source_provenance_refuse() {
+    use calc_host::{PasteMode as M, PasteSource as P};
+    let mut book = session(&calc_host::blank_package());
+    let s = book.host().sheets()[0].id();
+    for (a, t) in [
+        ("A1", "Ada"),
+        ("A2", "Grace"),
+        ("A3", "Alan Turing"),
+        ("B1", "Ada"),
+        ("B2", "Grace"),
+    ] {
+        assert!(enter(&mut book, at(s, a), t).accepted());
+    }
+    let area = GridArea::new(at(s, "B1"), at(s, "B3")).unwrap();
+    let before = (book.host().revision(), book.history_depth());
+    assert!(
+        calc_host::prepare_paste(book.host(), P::FlashFill, area, M::All)
+            .unwrap_err()
+            .contains("different results")
+    );
+    assert_eq!((book.host().revision(), book.history_depth()), before);
+    assert!(book.host().model().cell(at(s, "B3")).is_none());
+    assert!(enter(&mut book, at(s, "A1"), "Ada Lovelace").accepted());
+    assert!(enter(&mut book, at(s, "A2"), "Grace Hopper").accepted());
+    assert!(
+        book.dispatch(SkinIntent::SetCalcMode(CalcMode::Manual))
+            .accepted()
+    );
+    assert!(enter(&mut book, at(s, "A3"), "=\"Alan Turing\"").accepted());
+    assert!(
+        calc_host::prepare_paste(book.host(), P::FlashFill, area, M::All)
+            .unwrap_err()
+            .contains("Calculate")
+    );
+    assert!(book.dispatch(SkinIntent::Recalculate).accepted());
+    while book.has_pending_calculation() {
+        book.advance_calculation();
+    }
+    assert!(calc_host::prepare_paste(book.host(), P::FlashFill, area, M::All).is_ok());
+    assert!(
+        calc_host::prepare_paste_oriented(book.host(), P::FlashFill, area, M::All, true).is_err()
+    );
+    assert!(enter(&mut book, at(s, "B3"), "=1").accepted());
+    assert!(
+        calc_host::prepare_paste(book.host(), P::FlashFill, area, M::All)
+            .unwrap_err()
+            .contains("formulas and numeric")
+    );
 }
 
 /// Delimiters, fixed affixes and Unicode extraction produce literal text even with an equals sign.
 #[cfg_attr(not(target_arch = "wasm32"), test)]
 #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
-fn dc_971p_47__flash_fill_delimiters_affixes_and_literal_equals(){
-    use calc_host::{PasteSource as P,PasteMode as M,WorkbookCommand as W};
-    for(sources,examples,expected)in[
-        (["ada@example.com","grace@example.net","alan@example.org"],["user:ada","user:grace"],"user:alan"),
-        (["'=1, alpha","'=2, beta","'=3, gamma"],["'=1","'=2"],"=3"),
-        (["Zoë Smith","李 Four","Éva Five"],["Zoë","李"],"Éva"),
-    ]{
-        let mut book=session(&calc_host::blank_package());let s=book.host().sheets()[0].id();
-        for(row,source)in sources.into_iter().enumerate(){assert!(enter(&mut book,CellKey::new(s,row as u32+1,1).unwrap(),source).accepted());}
-        for(row,example)in examples.into_iter().enumerate(){assert!(enter(&mut book,CellKey::new(s,row as u32+1,2).unwrap(),example).accepted());}
-        let area=GridArea::new(at(s,"B1"),at(s,"B3")).unwrap();let plan=calc_host::prepare_paste(book.host(),P::FlashFill,area,M::All).unwrap();assert_eq!(plan.text_preview(),vec![(at(s,"B3"),expected.into())]);assert!(book.dispatch(SkinIntent::Command(W::Paste(plan))).accepted());
-        let Some(CellInput::Text(text))=book.host().model().cell(at(s,"B3"))else{panic!("generated text stays literal");};assert_eq!(String::from_utf16(text.text().utf16_code_units()).unwrap(),expected);
-        let mut saved=Vec::new();book.save(&SavePolicy::default(),&mut saved).unwrap();let next=session(&saved);assert_eq!(next.host().model().cell(at(s,"B3")),book.host().model().cell(at(s,"B3")));
+fn dc_971p_47__flash_fill_delimiters_affixes_and_literal_equals() {
+    use calc_host::{PasteMode as M, PasteSource as P, WorkbookCommand as W};
+    for (sources, examples, expected) in [
+        (
+            ["ada@example.com", "grace@example.net", "alan@example.org"],
+            ["user:ada", "user:grace"],
+            "user:alan",
+        ),
+        (
+            ["'=1, alpha", "'=2, beta", "'=3, gamma"],
+            ["'=1", "'=2"],
+            "=3",
+        ),
+        (["Zoë Smith", "李 Four", "Éva Five"], ["Zoë", "李"], "Éva"),
+    ] {
+        let mut book = session(&calc_host::blank_package());
+        let s = book.host().sheets()[0].id();
+        for (row, source) in sources.into_iter().enumerate() {
+            assert!(
+                enter(
+                    &mut book,
+                    CellKey::new(s, row as u32 + 1, 1).unwrap(),
+                    source
+                )
+                .accepted()
+            );
+        }
+        for (row, example) in examples.into_iter().enumerate() {
+            assert!(
+                enter(
+                    &mut book,
+                    CellKey::new(s, row as u32 + 1, 2).unwrap(),
+                    example
+                )
+                .accepted()
+            );
+        }
+        let area = GridArea::new(at(s, "B1"), at(s, "B3")).unwrap();
+        let plan = calc_host::prepare_paste(book.host(), P::FlashFill, area, M::All).unwrap();
+        assert_eq!(plan.text_preview(), vec![(at(s, "B3"), expected.into())]);
+        assert!(
+            book.dispatch(SkinIntent::Command(W::Paste(plan)))
+                .accepted()
+        );
+        let Some(CellInput::Text(text)) = book.host().model().cell(at(s, "B3")) else {
+            panic!("generated text stays literal");
+        };
+        assert_eq!(
+            String::from_utf16(text.text().utf16_code_units()).unwrap(),
+            expected
+        );
+        let mut saved = Vec::new();
+        book.save(&SavePolicy::default(), &mut saved).unwrap();
+        let next = session(&saved);
+        assert_eq!(
+            next.host().model().cell(at(s, "B3")),
+            book.host().model().cell(at(s, "B3"))
+        );
     }
 }
 
 /// Overlapping placements of the extracted core cannot silently choose one fixed affix.
 #[cfg_attr(not(target_arch = "wasm32"), test)]
 #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
-fn dc_971p_47__flash_fill_overlapping_core_placements_refuse(){
-    let mut book=session(&calc_host::blank_package());let s=book.host().sheets()[0].id();
-    for(a,t)in[("A1","aba One"),("A2","aba Two"),("A3","xyz Three"),("B1","ababa"),("B2","ababa")]{assert!(enter(&mut book,at(s,a),t).accepted());}
-    let area=GridArea::new(at(s,"B1"),at(s,"B3")).unwrap();let before=(book.host().revision(),book.history_depth());
-    assert!(calc_host::prepare_paste(book.host(),calc_host::PasteSource::FlashFill,area,calc_host::PasteMode::All).unwrap_err().contains("pattern"));assert_eq!((book.host().revision(),book.history_depth()),before);assert!(book.host().model().cell(at(s,"B3")).is_none());
+fn dc_971p_47__flash_fill_overlapping_core_placements_refuse() {
+    let mut book = session(&calc_host::blank_package());
+    let s = book.host().sheets()[0].id();
+    for (a, t) in [
+        ("A1", "aba One"),
+        ("A2", "aba Two"),
+        ("A3", "xyz Three"),
+        ("B1", "ababa"),
+        ("B2", "ababa"),
+    ] {
+        assert!(enter(&mut book, at(s, a), t).accepted());
+    }
+    let area = GridArea::new(at(s, "B1"), at(s, "B3")).unwrap();
+    let before = (book.host().revision(), book.history_depth());
+    assert!(
+        calc_host::prepare_paste(
+            book.host(),
+            calc_host::PasteSource::FlashFill,
+            area,
+            calc_host::PasteMode::All
+        )
+        .unwrap_err()
+        .contains("pattern")
+    );
+    assert_eq!((book.host().revision(), book.history_depth()), before);
+    assert!(book.host().model().cell(at(s, "B3")).is_none());
 }
 
 /// Invalid UTF-16 in either source or examples refuses without entering a history step.
 #[cfg_attr(not(target_arch = "wasm32"), test)]
 #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
-fn dc_971p_47__flash_fill_invalid_unicode_refuses_atomically(){
-    for address in ["A3","B2"]{
-        let mut book=session(&calc_host::blank_package());let s=book.host().sheets()[0].id();
-        for(a,t)in[("A1","Ada Lovelace"),("A2","Grace Hopper"),("A3","Alan Turing"),("B1","Ada"),("B2","Grace")]{assert!(enter(&mut book,at(s,a),t).accepted());}
-        let input=CellInput::Text(calc_host::CellText::new(calc_host::value::ExcelText::from_utf16_code_units(vec![0xD800])).unwrap());assert!(book.dispatch(SkinIntent::Edit{edits:vec![CellEdit::Set{at:at(s,address),input}]}).accepted());
-        let before=(book.host().revision(),book.history_depth());let area=GridArea::new(at(s,"B1"),at(s,"B3")).unwrap();assert!(calc_host::prepare_paste(book.host(),calc_host::PasteSource::FlashFill,area,calc_host::PasteMode::Values).unwrap_err().contains("Unicode"));assert_eq!((book.host().revision(),book.history_depth()),before);assert!(book.host().model().cell(at(s,"B3")).is_none());
+fn dc_971p_47__flash_fill_invalid_unicode_refuses_atomically() {
+    for address in ["A3", "B2"] {
+        let mut book = session(&calc_host::blank_package());
+        let s = book.host().sheets()[0].id();
+        for (a, t) in [
+            ("A1", "Ada Lovelace"),
+            ("A2", "Grace Hopper"),
+            ("A3", "Alan Turing"),
+            ("B1", "Ada"),
+            ("B2", "Grace"),
+        ] {
+            assert!(enter(&mut book, at(s, a), t).accepted());
+        }
+        let input = CellInput::Text(
+            calc_host::CellText::new(calc_host::value::ExcelText::from_utf16_code_units(vec![
+                0xD800,
+            ]))
+            .unwrap(),
+        );
+        assert!(
+            book.dispatch(SkinIntent::Edit {
+                edits: vec![CellEdit::Set {
+                    at: at(s, address),
+                    input
+                }]
+            })
+            .accepted()
+        );
+        let before = (book.host().revision(), book.history_depth());
+        let area = GridArea::new(at(s, "B1"), at(s, "B3")).unwrap();
+        assert!(
+            calc_host::prepare_paste(
+                book.host(),
+                calc_host::PasteSource::FlashFill,
+                area,
+                calc_host::PasteMode::Values
+            )
+            .unwrap_err()
+            .contains("Unicode")
+        );
+        assert_eq!((book.host().revision(), book.history_depth()), before);
+        assert!(book.host().model().cell(at(s, "B3")).is_none());
     }
 }
 
 /// Competing extraction kinds must retain all fitting placements before comparing predictions.
 #[cfg_attr(not(target_arch = "wasm32"), test)]
 #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
-fn dc_971p_47__flash_fill_ambiguous_placements_across_kinds_refuse(){
-    let mut book=session(&calc_host::blank_package());let s=book.host().sheets()[0].id();
-    for(a,t)in[("A1","aa b"),("A2","x b"),("A3","y z"),("B1","aaa b"),("B2","ax b")]{assert!(enter(&mut book,at(s,a),t).accepted());}
-    let area=GridArea::new(at(s,"B1"),at(s,"B3")).unwrap();let before=(book.host().revision(),book.history_depth());
-    assert!(calc_host::prepare_paste(book.host(),calc_host::PasteSource::FlashFill,area,calc_host::PasteMode::All).unwrap_err().contains("different results"));assert_eq!((book.host().revision(),book.history_depth()),before);assert!(book.host().model().cell(at(s,"B3")).is_none());
+fn dc_971p_47__flash_fill_ambiguous_placements_across_kinds_refuse() {
+    let mut book = session(&calc_host::blank_package());
+    let s = book.host().sheets()[0].id();
+    for (a, t) in [
+        ("A1", "aa b"),
+        ("A2", "x b"),
+        ("A3", "y z"),
+        ("B1", "aaa b"),
+        ("B2", "ax b"),
+    ] {
+        assert!(enter(&mut book, at(s, a), t).accepted());
+    }
+    let area = GridArea::new(at(s, "B1"), at(s, "B3")).unwrap();
+    let before = (book.host().revision(), book.history_depth());
+    assert!(
+        calc_host::prepare_paste(
+            book.host(),
+            calc_host::PasteSource::FlashFill,
+            area,
+            calc_host::PasteMode::All
+        )
+        .unwrap_err()
+        .contains("different results")
+    );
+    assert_eq!((book.host().revision(), book.history_depth()), before);
+    assert!(book.host().model().cell(at(s, "B3")).is_none());
 }
-
 
 /// Orphan retained axes must not be silently omitted when four-axis combinations are supported.
-#[cfg_attr(not(target_arch="wasm32"),test)]
-#[cfg_attr(target_arch="wasm32",wasm_bindgen_test::wasm_bindgen_test)]
-fn dc_971p_51__orphan_axes_refuse_before_history_changes(){
-    let part="xl/charts/chart1.xml";
-    let bytes=package_with_part_from(include_bytes!("fixtures/dc_6yw/charts.xlsx"),part,|xml|{
-        let mut extra=String::new();for kind in ["catAx","valAx"]{let start=xml.find(&format!("<c:{kind}>")).unwrap();let end=start+xml[start..].find(&format!("</c:{kind}>")).unwrap()+format!("</c:{kind}>").len();extra.push_str(&xml[start..end].replace("1264925584","1000000001").replace("1264926064","1000000002"));}
-        xml.replace("</c:plotArea>",&format!("{extra}</c:plotArea>"))
-    });
-    let mut book=session(&bytes);let sheet=book.host().sheets()[0].id();let before=book.host().charts(sheet).0;assert_eq!(before[0].axes.len(),4);assert!(!calc_host::chart::axes_associated(&before[0]));let revision=book.host().revision();let history=book.history_depth();
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn dc_971p_51__orphan_axes_refuse_before_history_changes() {
+    let part = "xl/charts/chart1.xml";
+    let bytes =
+        package_with_part_from(include_bytes!("fixtures/dc_6yw/charts.xlsx"), part, |xml| {
+            let mut extra = String::new();
+            for kind in ["catAx", "valAx"] {
+                let start = xml.find(&format!("<c:{kind}>")).unwrap();
+                let end = start
+                    + xml[start..].find(&format!("</c:{kind}>")).unwrap()
+                    + format!("</c:{kind}>").len();
+                extra.push_str(
+                    &xml[start..end]
+                        .replace("1264925584", "1000000001")
+                        .replace("1264926064", "1000000002"),
+                );
+            }
+            xml.replace("</c:plotArea>", &format!("{extra}</c:plotArea>"))
+        });
+    let mut book = session(&bytes);
+    let sheet = book.host().sheets()[0].id();
+    let before = book.host().charts(sheet).0;
+    assert_eq!(before[0].axes.len(), 4);
+    assert!(!calc_host::chart::axes_associated(&before[0]));
+    let revision = book.host().revision();
+    let history = book.history_depth();
     for command in [
-        calc_host::WorkbookCommand::ChartAxis{sheet,revision:revision.get(),part:part.into(),axis:1264926064,minimum:None,maximum:Some("100".into()),major_unit:None,reversed:false},
-        calc_host::WorkbookCommand::ChartLogAxis{sheet,revision:revision.get(),part:part.into(),axis:1264926064,base:Some("10".into())},
-        calc_host::WorkbookCommand::ChartType{sheet,revision:revision.get(),part:part.into(),plot:0,kind:"line".into(),stacked:false},
-    ]{assert!(!book.dispatch(SkinIntent::Command(command)).accepted());assert_eq!(book.host().revision(),revision);assert_eq!(book.history_depth(),history);assert_eq!(book.host().charts(sheet).0,before);}
+        calc_host::WorkbookCommand::ChartAxis {
+            sheet,
+            revision: revision.get(),
+            part: part.into(),
+            axis: 1264926064,
+            minimum: None,
+            maximum: Some("100".into()),
+            major_unit: None,
+            reversed: false,
+        },
+        calc_host::WorkbookCommand::ChartLogAxis {
+            sheet,
+            revision: revision.get(),
+            part: part.into(),
+            axis: 1264926064,
+            base: Some("10".into()),
+        },
+        calc_host::WorkbookCommand::ChartType {
+            sheet,
+            revision: revision.get(),
+            part: part.into(),
+            plot: 0,
+            kind: "line".into(),
+            stacked: false,
+        },
+    ] {
+        assert!(!book.dispatch(SkinIntent::Command(command)).accepted());
+        assert_eq!(book.host().revision(), revision);
+        assert_eq!(book.history_depth(), history);
+        assert_eq!(book.host().charts(sheet).0, before);
+    }
 }
 /// Imported shared-axis combinations use the same source editor and retained writer as Save.
-#[cfg_attr(not(target_arch="wasm32"),test)]
-#[cfg_attr(target_arch="wasm32",wasm_bindgen_test::wasm_bindgen_test)]
-fn dc_971p_51__shared_axis_combination_edit_and_saved_reopening(){
-    let part="xl/charts/chart1.xml";
-    let bytes=package_with_part_from(include_bytes!("fixtures/dc_6yw/charts.xlsx"),part,|xml|{
-        let start=xml.match_indices("<c:ser>").nth(1).unwrap().0;let end=start+xml[start..].find("</c:ser>").unwrap()+8;
-        let series=xml[start..end].replace("<c:invertIfNegative val=\"0\"/>","");let retained=format!("{}{}",&xml[..start],&xml[end..]);
-        retained.replace("</c:barChart>",&format!("</c:barChart><c:lineChart><c:grouping val=\"standard\"/>{series}<c:axId val=\"1264925584\"/><c:axId val=\"1264926064\"/></c:lineChart>"))
-    });
-    let mut book=session(&bytes);assert!(book.dispatch(SkinIntent::Recalculate).accepted());let sheet=book.host().sheets()[0].id();let chart=book.host().charts(sheet).0[0].clone();assert!(calc_host::chart::combination_supported(&chart));assert_eq!(chart.axes.len(),2);assert_eq!(calc_host::chart::category_scale(&chart,&chart.plots[0]).unwrap(),calc_host::chart::category_scale(&chart,&chart.plots[1]).unwrap());
-    let command=calc_host::WorkbookCommand::ChartLogAxis{sheet,revision:book.host().revision().get(),part:part.into(),axis:1264926064,base:Some("10".into())};let outcome=book.dispatch(SkinIntent::Command(command));assert!(outcome.accepted(),"{outcome:?}");
-    let command=calc_host::WorkbookCommand::ChartSeries{sheet,revision:book.host().revision().get(),part:part.into(),plot:1,series:Some(1),name:None,categories:None,values:Some("Data!D2:D7".into()),remove:false};let outcome=book.dispatch(SkinIntent::Command(command));assert!(outcome.accepted(),"{outcome:?}");
-    let after=book.host().charts(sheet).0;assert_eq!(after[0].plots[1].series[0].values[0],Some(20.));let mut saved=Vec::new();book.save(&SavePolicy::default(),&mut saved).unwrap();let mut reopened=session(&saved);assert!(reopened.dispatch(SkinIntent::Recalculate).accepted());assert_eq!(reopened.host().charts(sheet).0,after);let xml=part_text(&saved,part);assert_eq!(xml.matches("<c:barChart>").count(),1);assert_eq!(xml.matches("<c:lineChart>").count(),1);assert_eq!(xml.matches("<c:catAx>").count(),1);assert_eq!(xml.matches("<c:valAx>").count(),1);
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn dc_971p_51__shared_axis_combination_edit_and_saved_reopening() {
+    let part = "xl/charts/chart1.xml";
+    let bytes = package_with_part_from(
+        include_bytes!("fixtures/dc_6yw/charts.xlsx"),
+        part,
+        |xml| {
+            let start = xml.match_indices("<c:ser>").nth(1).unwrap().0;
+            let end = start + xml[start..].find("</c:ser>").unwrap() + 8;
+            let series = xml[start..end].replace("<c:invertIfNegative val=\"0\"/>", "");
+            let retained = format!("{}{}", &xml[..start], &xml[end..]);
+            retained.replace("</c:barChart>",&format!("</c:barChart><c:lineChart><c:grouping val=\"standard\"/>{series}<c:axId val=\"1264925584\"/><c:axId val=\"1264926064\"/></c:lineChart>"))
+        },
+    );
+    let mut book = session(&bytes);
+    assert!(book.dispatch(SkinIntent::Recalculate).accepted());
+    let sheet = book.host().sheets()[0].id();
+    let chart = book.host().charts(sheet).0[0].clone();
+    assert!(calc_host::chart::combination_supported(&chart));
+    assert_eq!(chart.axes.len(), 2);
+    assert_eq!(
+        calc_host::chart::category_scale(&chart, &chart.plots[0]).unwrap(),
+        calc_host::chart::category_scale(&chart, &chart.plots[1]).unwrap()
+    );
+    let command = calc_host::WorkbookCommand::ChartLogAxis {
+        sheet,
+        revision: book.host().revision().get(),
+        part: part.into(),
+        axis: 1264926064,
+        base: Some("10".into()),
+    };
+    let outcome = book.dispatch(SkinIntent::Command(command));
+    assert!(outcome.accepted(), "{outcome:?}");
+    let command = calc_host::WorkbookCommand::ChartSeries {
+        sheet,
+        revision: book.host().revision().get(),
+        part: part.into(),
+        plot: 1,
+        series: Some(1),
+        name: None,
+        categories: None,
+        values: Some("Data!D2:D7".into()),
+        remove: false,
+    };
+    let outcome = book.dispatch(SkinIntent::Command(command));
+    assert!(outcome.accepted(), "{outcome:?}");
+    let after = book.host().charts(sheet).0;
+    assert_eq!(after[0].plots[1].series[0].values[0], Some(20.));
+    let mut saved = Vec::new();
+    book.save(&SavePolicy::default(), &mut saved).unwrap();
+    let mut reopened = session(&saved);
+    assert!(reopened.dispatch(SkinIntent::Recalculate).accepted());
+    assert_eq!(reopened.host().charts(sheet).0, after);
+    let xml = part_text(&saved, part);
+    assert_eq!(xml.matches("<c:barChart>").count(), 1);
+    assert_eq!(xml.matches("<c:lineChart>").count(), 1);
+    assert_eq!(xml.matches("<c:catAx>").count(), 1);
+    assert_eq!(xml.matches("<c:valAx>").count(), 1);
 }
 
 #[cfg_attr(not(target_arch = "wasm32"), test)]
 #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
 fn dc_971p_56__page_setup_is_authored_undoable_and_survives_xlsx() {
-    let mut book=session(&calc_host::blank_package());let sheet=book.host().sheets()[0].id();
-    let original=book.host().model().definitions().page_setup(sheet);let mut setup=original.clone();
-    for (section,name,value) in [("pageSetup","orientation","landscape"),("pageSetup","paperSize","9"),("pageSetup","scale","75"),("pageSetUpPr","fitToPage","1"),("pageSetup","fitToWidth","1"),("pageSetup","fitToHeight","0"),("pageMargins","left","0.25"),("printOptions","gridLines","1"),("printOptions","headings","1"),("headerFooter","differentFirst","1")] {setup.set(section,name,Some(value.into())).unwrap();}
-    setup.headers.insert("oddHeader".into(),calc_host::value::ExcelText::from_utf16_code_units("&LReport&CPage &P of &N".encode_utf16().collect()));setup.headers.insert("firstFooter".into(),calc_host::value::ExcelText::from_utf16_code_units("&RConfidential".encode_utf16().collect()));
-    setup.row_breaks.push(calc_doc_model::PageBreak {id:20,min:0,max:16383,manual:true,pivot:false});setup.column_breaks.push(calc_doc_model::PageBreak{id:4,min:0,max:1048575,manual:true,pivot:false});
-    let receipt=book.dispatch(SkinIntent::Edit{edits:vec![CellEdit::PageSetup{sheet,setup:setup.clone()}]});assert!(receipt.accepted(),"{:?}",receipt.error);
-    assert_eq!(book.host().model().definitions().page_setup(sheet),setup);
-    assert!(book.dispatch(SkinIntent::Undo).accepted());assert_eq!(book.host().model().definitions().page_setup(sheet),original);
-    assert!(book.dispatch(SkinIntent::Redo).accepted());assert_eq!(book.host().model().definitions().page_setup(sheet),setup);
-    let mut saved=Vec::new();book.save(&SavePolicy::default(),&mut saved).unwrap();let reopened=session(&saved);let reopened_sheet=reopened.host().sheets()[0].id();assert_eq!(reopened.host().model().definitions().page_setup(reopened_sheet),setup);
-    let before=(book.host().revision(),book.history_depth());let mut bad=setup.clone();bad.sections.entry("pageSetup".into()).or_default().insert("scale".into(),"NaN".into());
-    assert!(!book.dispatch(SkinIntent::Edit{edits:vec![CellEdit::PageSetup{sheet,setup:bad}]}).accepted());assert_eq!((book.host().revision(),book.history_depth()),before);
+    let mut book = session(&calc_host::blank_package());
+    let sheet = book.host().sheets()[0].id();
+    let original = book.host().model().definitions().page_setup(sheet);
+    let mut setup = original.clone();
+    for (section, name, value) in [
+        ("pageSetup", "orientation", "landscape"),
+        ("pageSetup", "paperSize", "9"),
+        ("pageSetup", "scale", "75"),
+        ("pageSetUpPr", "fitToPage", "1"),
+        ("pageSetup", "fitToWidth", "1"),
+        ("pageSetup", "fitToHeight", "0"),
+        ("pageMargins", "left", "0.25"),
+        ("printOptions", "gridLines", "1"),
+        ("printOptions", "headings", "1"),
+        ("headerFooter", "differentFirst", "1"),
+    ] {
+        setup.set(section, name, Some(value.into())).unwrap();
+    }
+    setup.headers.insert(
+        "oddHeader".into(),
+        calc_host::value::ExcelText::from_utf16_code_units(
+            "&LReport&CPage &P of &N".encode_utf16().collect(),
+        ),
+    );
+    setup.headers.insert(
+        "firstFooter".into(),
+        calc_host::value::ExcelText::from_utf16_code_units(
+            "&RConfidential".encode_utf16().collect(),
+        ),
+    );
+    setup.row_breaks.push(calc_doc_model::PageBreak {
+        id: 20,
+        min: 0,
+        max: 16383,
+        manual: true,
+        pivot: false,
+    });
+    setup.column_breaks.push(calc_doc_model::PageBreak {
+        id: 4,
+        min: 0,
+        max: 1048575,
+        manual: true,
+        pivot: false,
+    });
+    let receipt = book.dispatch(SkinIntent::Edit {
+        edits: vec![CellEdit::PageSetup {
+            sheet,
+            setup: setup.clone(),
+        }],
+    });
+    assert!(receipt.accepted(), "{:?}", receipt.error);
+    assert_eq!(book.host().model().definitions().page_setup(sheet), setup);
+    assert!(book.dispatch(SkinIntent::Undo).accepted());
+    assert_eq!(
+        book.host().model().definitions().page_setup(sheet),
+        original
+    );
+    assert!(book.dispatch(SkinIntent::Redo).accepted());
+    assert_eq!(book.host().model().definitions().page_setup(sheet), setup);
+    let mut saved = Vec::new();
+    book.save(&SavePolicy::default(), &mut saved).unwrap();
+    let reopened = session(&saved);
+    let reopened_sheet = reopened.host().sheets()[0].id();
+    assert_eq!(
+        reopened
+            .host()
+            .model()
+            .definitions()
+            .page_setup(reopened_sheet),
+        setup
+    );
+    let before = (book.host().revision(), book.history_depth());
+    let mut bad = setup.clone();
+    bad.sections
+        .entry("pageSetup".into())
+        .or_default()
+        .insert("scale".into(), "NaN".into());
+    assert!(
+        !book
+            .dispatch(SkinIntent::Edit {
+                edits: vec![CellEdit::PageSetup { sheet, setup: bad }]
+            })
+            .accepted()
+    );
+    assert_eq!((book.host().revision(), book.history_depth()), before);
 }
 
 #[cfg_attr(not(target_arch = "wasm32"), test)]
 #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
 fn dc_971p_56__page_setup_commands_keep_scoped_print_names_atomic_and_reject_stale_edits() {
-    use calc_host::{PageSetupChange,WorkbookCommand};
-    let mut book=session(&calc_host::blank_package());let sheet=book.host().sheets()[0].id();let revision=book.host().revision().get();
-    let change=PageSetupChange {attributes:vec![("pageSetup".into(),"orientation".into(),Some("landscape".into()))],print_area:Some("A5:H80,K2:N15".into()),print_titles:Some("1:2,A:B".into()),..Default::default()};
-    let command=||SkinIntent::Command(WorkbookCommand::PageSetup{sheet,revision,change:change.clone()});
-    let receipt=book.dispatch(command());assert!(receipt.accepted(),"{:?}",receipt.error);
-    let area=calc_host::print_name(book.host(),sheet,"_xlnm.Print_Area").unwrap();assert_eq!(area,"'Sheet1'!$A$5:$H$80,'Sheet1'!$K$2:$N$15");
-    let titles=calc_host::print_name(book.host(),sheet,"_xlnm.Print_Titles").unwrap();assert_eq!(titles,"'Sheet1'!$1:$2,'Sheet1'!$A:$B");
-    let before=(book.host().revision(),book.history_depth());assert!(!book.dispatch(command()).accepted());assert_eq!((book.host().revision(),book.history_depth()),before);
-    let invalid=PageSetupChange{attributes:vec![("pageSetup".into(),"orientation".into(),Some("portrait".into()))],print_titles:Some("A1:B2".into()),..Default::default()};assert!(!book.dispatch(SkinIntent::Command(WorkbookCommand::PageSetup{sheet,revision:before.0.get(),change:invalid})).accepted());assert_eq!(book.host().model().definitions().page_setup(sheet).get("pageSetup","orientation"),Some("landscape"));
-    let mut saved=Vec::new();book.save(&SavePolicy::default(),&mut saved).unwrap();let reopened=session(&saved);let other=reopened.host().sheets()[0].id();assert_eq!(calc_host::print_name(reopened.host(),other,"_xlnm.Print_Area"),Some(area));assert_eq!(calc_host::print_name(reopened.host(),other,"_xlnm.Print_Titles"),Some(titles));
-    assert!(book.dispatch(SkinIntent::Undo).accepted());assert_eq!(calc_host::print_name(book.host(),sheet,"_xlnm.Print_Area"),None);assert_eq!(book.host().model().definitions().page_setup(sheet).get("pageSetup","orientation"),None);
+    use calc_host::{PageSetupChange, WorkbookCommand};
+    let mut book = session(&calc_host::blank_package());
+    let sheet = book.host().sheets()[0].id();
+    let revision = book.host().revision().get();
+    let change = PageSetupChange {
+        attributes: vec![(
+            "pageSetup".into(),
+            "orientation".into(),
+            Some("landscape".into()),
+        )],
+        print_area: Some("A5:H80,K2:N15".into()),
+        print_titles: Some("1:2,A:B".into()),
+        ..Default::default()
+    };
+    let command = || {
+        SkinIntent::Command(WorkbookCommand::PageSetup {
+            sheet,
+            revision,
+            change: change.clone(),
+        })
+    };
+    let receipt = book.dispatch(command());
+    assert!(receipt.accepted(), "{:?}", receipt.error);
+    let area = calc_host::print_name(book.host(), sheet, "_xlnm.Print_Area").unwrap();
+    assert_eq!(area, "'Sheet1'!$A$5:$H$80,'Sheet1'!$K$2:$N$15");
+    let titles = calc_host::print_name(book.host(), sheet, "_xlnm.Print_Titles").unwrap();
+    assert_eq!(titles, "'Sheet1'!$1:$2,'Sheet1'!$A:$B");
+    let before = (book.host().revision(), book.history_depth());
+    assert!(!book.dispatch(command()).accepted());
+    assert_eq!((book.host().revision(), book.history_depth()), before);
+    let invalid = PageSetupChange {
+        attributes: vec![(
+            "pageSetup".into(),
+            "orientation".into(),
+            Some("portrait".into()),
+        )],
+        print_titles: Some("A1:B2".into()),
+        ..Default::default()
+    };
+    assert!(
+        !book
+            .dispatch(SkinIntent::Command(WorkbookCommand::PageSetup {
+                sheet,
+                revision: before.0.get(),
+                change: invalid
+            }))
+            .accepted()
+    );
+    assert_eq!(
+        book.host()
+            .model()
+            .definitions()
+            .page_setup(sheet)
+            .get("pageSetup", "orientation"),
+        Some("landscape")
+    );
+    let mut saved = Vec::new();
+    book.save(&SavePolicy::default(), &mut saved).unwrap();
+    let reopened = session(&saved);
+    let other = reopened.host().sheets()[0].id();
+    assert_eq!(
+        calc_host::print_name(reopened.host(), other, "_xlnm.Print_Area"),
+        Some(area)
+    );
+    assert_eq!(
+        calc_host::print_name(reopened.host(), other, "_xlnm.Print_Titles"),
+        Some(titles)
+    );
+    assert!(book.dispatch(SkinIntent::Undo).accepted());
+    assert_eq!(
+        calc_host::print_name(book.host(), sheet, "_xlnm.Print_Area"),
+        None
+    );
+    assert_eq!(
+        book.host()
+            .model()
+            .definitions()
+            .page_setup(sheet)
+            .get("pageSetup", "orientation"),
+        None
+    );
     assert!(book.dispatch(SkinIntent::Redo).accepted());
 }
 
@@ -17000,26 +25182,50 @@ fn dc_hsa5_6__validation_keeps_owner_numeric_mode_before_cell_publication() {
         xml.replace("<sheetData/>", r#"<sheetData><row r="1"><c r="A1"><v>1</v></c></row></sheetData>"#)
             .replace("</worksheet>", r#"<dataValidations count="1"><dataValidation type="custom" allowBlank="0" showErrorMessage="1" sqref="A1"><formula1>1+1</formula1></dataValidation></dataValidations></worksheet>"#)
     });
-    let target = calc_value::NumericTargetId::new("16.0.20527.20150", "Current", "Excel", "x86-64").unwrap();
-    for mode in [calc_value::NumericMode::Fast, calc_value::NumericMode::Exact(target)] {
+    let target =
+        calc_value::NumericTargetId::new("16.0.20527.20150", "Current", "Excel", "x86-64").unwrap();
+    for mode in [
+        calc_value::NumericMode::Fast,
+        calc_value::NumericMode::Exact(target),
+    ] {
         let exact = mode.target().is_some();
         let mut book = HostSession::open(
-            Arc::new(MemorySource::new(bytes.clone())), &OpenPolicy::default(),
-            HostOptions { numeric: mode, calc_mode: Some(CalcMode::Manual), ..HostOptions::default() },
-        ).unwrap();
+            Arc::new(MemorySource::new(bytes.clone())),
+            &OpenPolicy::default(),
+            HostOptions {
+                numeric: mode,
+                calc_mode: Some(CalcMode::Manual),
+                ..HostOptions::default()
+            },
+        )
+        .unwrap();
         let s = sheet(book.host(), "Sheet1");
         let revision = book.host().revision();
         let history = book.history_depth();
         let report = book.host().scan_validation(s);
         assert_eq!(report.checked, 1);
-        assert_eq!((report.valid, report.unavailable), if exact { (0, 1) } else { (1, 0) },
-            "Exact arithmetic is unavailable; a detached decision cannot silently use Fast");
+        assert_eq!(
+            (report.valid, report.unavailable),
+            if exact { (0, 1) } else { (1, 0) },
+            "Exact arithmetic is unavailable; a detached decision cannot silently use Fast"
+        );
         let status = book.host().validation_status(at(s, "A1"));
-        assert_eq!(matches!(status, Some(ValidationStatus::Unavailable { .. })), exact);
+        assert_eq!(
+            matches!(status, Some(ValidationStatus::Unavailable { .. })),
+            exact
+        );
         assert_eq!(book.host().revision(), revision);
         assert_eq!(book.history_depth(), history);
-        let receipt = book.dispatch(SkinIntent::EnterCell { at: at(s, "A1"), text: "2".into() });
-        assert_eq!(receipt.accepted(), !exact, "candidate decision must use the same mode: {:?}", receipt.error);
+        let receipt = book.dispatch(SkinIntent::EnterCell {
+            at: at(s, "A1"),
+            text: "2".into(),
+        });
+        assert_eq!(
+            receipt.accepted(),
+            !exact,
+            "candidate decision must use the same mode: {:?}",
+            receipt.error
+        );
         if exact {
             assert_eq!(book.host().revision(), revision);
             assert_eq!(book.history_depth(), history);
@@ -17047,26 +25253,46 @@ fn dc_hsa5_6__validation_known_udfs_use_context_metadata_without_entry() {
     let mut book = session(&bytes);
     let calls = std::rc::Rc::new(std::cell::Cell::new(0));
     let mut functions = calc_fml::CallableTable::new();
-    functions.register("KnownUdf", std::rc::Rc::new(Counted(calls.clone()))).unwrap();
+    functions
+        .register("KnownUdf", std::rc::Rc::new(Counted(calls.clone())))
+        .unwrap();
     book.set_user_functions(functions);
     let s = sheet(book.host(), "Sheet1");
     let revision = book.host().revision();
     let history = book.history_depth();
     let report = book.host().scan_validation(s);
-    assert_eq!((report.checked, report.valid, report.unavailable), (3, 1, 2));
+    assert_eq!(
+        (report.checked, report.valid, report.unavailable),
+        (3, 1, 2)
+    );
     for address in ["A1", "B1"] {
-        assert!(matches!(book.host().validation_status(at(s, address)),
-            Some(ValidationStatus::Unavailable { .. })), "{address}");
+        assert!(
+            matches!(
+                book.host().validation_status(at(s, address)),
+                Some(ValidationStatus::Unavailable { .. })
+            ),
+            "{address}"
+        );
     }
-    assert_eq!(book.host().validation_status(at(s, "C1")), Some(ValidationStatus::Valid));
-    assert_eq!(calls.get(), 0, "binding metadata grants no runtime capability");
-    assert_eq!((book.host().revision(), book.history_depth()), (revision, history));
+    assert_eq!(
+        book.host().validation_status(at(s, "C1")),
+        Some(ValidationStatus::Valid)
+    );
+    assert_eq!(
+        calls.get(),
+        0,
+        "binding metadata grants no runtime capability"
+    );
+    assert_eq!(
+        (book.host().revision(), book.history_depth()),
+        (revision, history)
+    );
 }
 
 #[cfg_attr(not(target_arch = "wasm32"), test)]
 #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
 fn dc_hsa5_6__conditional_colour_filter_uses_current_owner_services() {
-    use calc_host::{WorkbookCommand as W, FilterChange as F};
+    use calc_host::{FilterChange as F, WorkbookCommand as W};
     #[derive(Debug)]
     struct Counted(std::rc::Rc<std::cell::Cell<usize>>);
     impl calc_fml::UserFunction for Counted {
@@ -17075,7 +25301,8 @@ fn dc_hsa5_6__conditional_colour_filter_uses_current_owner_services() {
             Ok(CalcValue::logical(true))
         }
     }
-    let target = calc_value::NumericTargetId::new("16.0.20527.20150", "Current", "Excel", "x86-64").unwrap();
+    let target =
+        calc_value::NumericTargetId::new("16.0.20527.20150", "Current", "Excel", "x86-64").unwrap();
     let mut mismatches = Vec::new();
     for (label, formula, exact, registered, allowed) in [
         ("Fast arithmetic", "1+1", false, false, true),
@@ -17091,33 +25318,75 @@ fn dc_hsa5_6__conditional_colour_filter_uses_current_owner_services() {
         let bytes = package_with_part_from(&bytes, "xl/styles.xml", |xml| {
             xml.replace("</styleSheet>", r#"<dxfs count="1"><dxf><fill><patternFill patternType="solid"><fgColor rgb="FFFF0000"/></patternFill></fill></dxf></dxfs></styleSheet>"#)
         });
-        let mut book = HostSession::open(Arc::new(MemorySource::new(bytes)), &OpenPolicy::default(),
-            HostOptions { numeric: if exact { calc_value::NumericMode::Exact(target.clone()) } else { calc_value::NumericMode::Fast },
-                calc_mode: Some(CalcMode::Manual), ..Default::default() }).unwrap();
+        let mut book = HostSession::open(
+            Arc::new(MemorySource::new(bytes)),
+            &OpenPolicy::default(),
+            HostOptions {
+                numeric: if exact {
+                    calc_value::NumericMode::Exact(target.clone())
+                } else {
+                    calc_value::NumericMode::Fast
+                },
+                calc_mode: Some(CalcMode::Manual),
+                ..Default::default()
+            },
+        )
+        .unwrap();
         let calls = std::rc::Rc::new(std::cell::Cell::new(0));
         if registered {
             let mut functions = calc_fml::CallableTable::new();
-            functions.register("KnownUdf", std::rc::Rc::new(Counted(calls.clone()))).unwrap();
+            functions
+                .register("KnownUdf", std::rc::Rc::new(Counted(calls.clone())))
+                .unwrap();
             book.set_user_functions(functions);
         }
         let s = sheet(book.host(), "Sheet1");
         let command = |book: &mut HostSession, change| {
             let revision = book.host().revision().get();
-            book.dispatch(SkinIntent::Command(W::AutoFilter { sheet: s, revision, change }))
+            book.dispatch(SkinIntent::Command(W::AutoFilter {
+                sheet: s,
+                revision,
+                change,
+            }))
         };
-        assert!(command(&mut book, F::Enable { area: GridArea::new(at(s,"A1"), at(s,"A2")).unwrap() }).accepted());
+        assert!(
+            command(
+                &mut book,
+                F::Enable {
+                    area: GridArea::new(at(s, "A1"), at(s, "A2")).unwrap()
+                }
+            )
+            .accepted()
+        );
         let revision = book.host().revision();
         let history = book.history_depth();
         let styles = book.host().styles().clone();
         let filter = book.host().model().definitions().auto_filter(s).cloned();
-        let result = command(&mut book, F::Color { column: 1, cell_color: true, color: "#ff0000".into() });
+        let result = command(
+            &mut book,
+            F::Color {
+                column: 1,
+                cell_color: true,
+                color: "#ff0000".into(),
+            },
+        );
         if result.accepted() != allowed {
-            mismatches.push(format!("{label}: accepted={}, expected={allowed}; {:?}", result.accepted(), result.error));
+            mismatches.push(format!(
+                "{label}: accepted={}, expected={allowed}; {:?}",
+                result.accepted(),
+                result.error
+            ));
         }
         if !allowed && !result.accepted() {
-            assert_eq!((book.host().revision(), book.history_depth()), (revision, history));
+            assert_eq!(
+                (book.host().revision(), book.history_depth()),
+                (revision, history)
+            );
             assert_eq!(book.host().styles(), &styles);
-            assert_eq!(book.host().model().definitions().auto_filter(s), filter.as_ref());
+            assert_eq!(
+                book.host().model().definitions().auto_filter(s),
+                filter.as_ref()
+            );
         }
         assert_eq!(calls.get(), 0, "{label}: no user code is entered");
     }
@@ -17125,236 +25394,980 @@ fn dc_hsa5_6__conditional_colour_filter_uses_current_owner_services() {
 }
 
 /// Saved pivot output remains worksheet data; cache parts are retained through the application save.
-#[cfg_attr(not(target_arch="wasm32"),test)]
-#[cfg_attr(target_arch="wasm32",wasm_bindgen_test::wasm_bindgen_test)]
-fn dc_8wp_1__saved_pivots_share_caches_and_survive_source_edits(){
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn dc_8wp_1__saved_pivots_share_caches_and_survive_source_edits() {
     use calc_doc::pivot::PivotItem;
-    let bytes=include_bytes!("../../calc-doc/tests/fixtures/cdoc_m1_1/pivot-saved.xlsx");
-    let mut book=session(bytes);let sheet=book.host().sheets()[0].id();
-    let check=|book:&HostSession|{
-        let loaded=book.host().loaded();let caches=loaded.pivot_caches();assert!(caches.issues.is_empty(),"{:?}",caches.issues);assert_eq!(caches.caches.keys().copied().collect::<Vec<_>>(),[7,9]);
-        let cache=&caches.caches[&7];assert_eq!(cache.source_sheet.as_deref(),Some("Data"));assert_eq!(cache.source_range.as_deref(),Some("A1:B4"));assert_eq!(cache.fields.iter().map(|f|f.name.as_str()).collect::<Vec<_>>(),["Region","Amount"]);assert_eq!(cache.fields[0].items,[PivotItem::Text("East".into()),PivotItem::Text("West".into())]);assert_eq!(caches.caches[&9].source_name.as_deref(),Some("SalesRange"));
-        let pivots=loaded.sheet(sheet).unwrap().pivots();assert!(pivots.issues.is_empty());assert_eq!(pivots.tables.len(),2);assert!(pivots.tables.iter().all(|p|p.cache_id==7));assert_eq!(pivots.tables[0].name,"Summary");assert_eq!(pivots.tables[0].area,GridArea::new(at(sheet,"D3"),at(sheet,"E6")).unwrap());assert_eq!(pivots.tables[0].row_fields,[0]);assert_eq!(pivots.tables[0].data_fields[0].field,1);assert_eq!(pivots.tables[0].data_fields[0].subtotal,"sum");
-        let rows=loaded.pivot_records(7,10).unwrap();assert_eq!(rows.declared_count,Some(3));assert!(!rows.truncated);assert_eq!(rows.records,[vec![PivotItem::Index(0),PivotItem::Number("12".into())],vec![PivotItem::Index(1),PivotItem::Number("8".into())],vec![PivotItem::Index(0),PivotItem::Number("4".into())]]);let limited=loaded.pivot_records(7,1).unwrap();assert!(limited.truncated);assert_eq!(limited.records,rows.records[..1]);assert!(loaded.pivot_records(9,10).is_err());assert!(loaded.pivot_records(99,10).is_err());
+    let bytes = include_bytes!("../../calc-doc/tests/fixtures/cdoc_m1_1/pivot-saved.xlsx");
+    let mut book = session(bytes);
+    let sheet = book.host().sheets()[0].id();
+    let check = |book: &HostSession| {
+        let loaded = book.host().loaded();
+        let caches = loaded.pivot_caches();
+        assert!(caches.issues.is_empty(), "{:?}", caches.issues);
+        assert_eq!(caches.caches.keys().copied().collect::<Vec<_>>(), [7, 9]);
+        let cache = &caches.caches[&7];
+        assert_eq!(cache.source_sheet.as_deref(), Some("Data"));
+        assert_eq!(cache.source_range.as_deref(), Some("A1:B4"));
+        assert_eq!(
+            cache
+                .fields
+                .iter()
+                .map(|f| f.name.as_str())
+                .collect::<Vec<_>>(),
+            ["Region", "Amount"]
+        );
+        assert_eq!(
+            cache.fields[0].items,
+            [
+                PivotItem::Text("East".into()),
+                PivotItem::Text("West".into())
+            ]
+        );
+        assert_eq!(caches.caches[&9].source_name.as_deref(), Some("SalesRange"));
+        let pivots = loaded.sheet(sheet).unwrap().pivots();
+        assert!(pivots.issues.is_empty());
+        assert_eq!(pivots.tables.len(), 2);
+        assert!(pivots.tables.iter().all(|p| p.cache_id == 7));
+        assert_eq!(pivots.tables[0].name, "Summary");
+        assert_eq!(
+            pivots.tables[0].area,
+            GridArea::new(at(sheet, "D3"), at(sheet, "E6")).unwrap()
+        );
+        assert_eq!(pivots.tables[0].row_fields, [0]);
+        assert_eq!(pivots.tables[0].data_fields[0].field, 1);
+        assert_eq!(pivots.tables[0].data_fields[0].subtotal, "sum");
+        let rows = loaded.pivot_records(7, 10).unwrap();
+        assert_eq!(rows.declared_count, Some(3));
+        assert!(!rows.truncated);
+        assert_eq!(
+            rows.records,
+            [
+                vec![PivotItem::Index(0), PivotItem::Number("12".into())],
+                vec![PivotItem::Index(1), PivotItem::Number("8".into())],
+                vec![PivotItem::Index(0), PivotItem::Number("4".into())]
+            ]
+        );
+        let limited = loaded.pivot_records(7, 1).unwrap();
+        assert!(limited.truncated);
+        assert_eq!(limited.records, rows.records[..1]);
+        assert!(loaded.pivot_records(9, 10).is_err());
+        assert!(loaded.pivot_records(99, 10).is_err());
     };
-    check(&book);assert!(enter(&mut book,at(sheet,"B2"),"100").accepted());assert_eq!(session_calculated(&book,at(sheet,"H1")),Some(CalcValue::number(112.)));assert!(matches!(session_value(&book,at(sheet,"E6")),ProjectedValue::Literal(_)),"Saved output is literal worksheet data");assert_eq!(session_value(&book,at(sheet,"E6")),ProjectedValue::Literal(CalcValue::number(24.)));
-    let mut saved=Vec::new();book.save(&SavePolicy::default(),&mut saved).unwrap();let mut reopened=session(&saved);assert!(reopened.dispatch(SkinIntent::Recalculate).accepted());check(&reopened);assert_eq!(session_calculated(&reopened,at(sheet,"H1")),Some(CalcValue::number(112.)));assert_eq!(reopened.host().model().cell(at(sheet,"E6")).unwrap(),book.host().model().cell(at(sheet,"E6")).unwrap());
-    for part in ["xl/_rels/workbook.xml.rels","xl/pivotCache/cache-main.xml","xl/pivotCache/cache-name.xml","xl/pivotCache/records.xml","xl/pivotCache/_rels/cache-main.xml.rels","xl/pivotTables/summary.xml","xl/pivotTables/summary-two.xml","xl/worksheets/_rels/sheet1.xml.rels","xl/pivotTables/_rels/summary.xml.rels","xl/pivotTables/_rels/summary-two.xml.rels"]{assert_eq!(part_text(&saved,part),part_text(bytes,part),"{part}");}
-}
-
-
-#[cfg_attr(not(target_arch="wasm32"),test)]
-#[cfg_attr(target_arch="wasm32",wasm_bindgen_test::wasm_bindgen_test)]
-fn dc_8wp_1__unread_pivot_metadata_is_reported_and_preserved_without_losing_the_workbook(){
- let original=include_bytes!("../../calc-doc/tests/fixtures/cdoc_m1_1/pivot-saved.xlsx");
- for (part,from,to,kind) in [
-   ("xl/pivotTables/summary.xml","ref=\"D3:E6\"","ref=\"not-an-area\"",0),
-   ("xl/workbook.xml","<pivotCache cacheId=\"7\" r:id=\"Cache77\"/>","<pivotCache cacheId=\"7\" r:id=\"Cache77\"/><pivotCache cacheId=\"7\" r:id=\"Cache77\"/>",1),
-   ("xl/pivotCache/records.xml","<n v=\"12\"/>","<n/>",2),
-   ("xl/worksheets/_rels/sheet1.xml.rels","relationships/pivotTable","relationships/unreadPivot",3),
- ]{
-  let bytes=package_with_part_from(original,part,|xml|{assert!(xml.contains(from));xml.replacen(from,to,1)});let mut book=session(&bytes);let sheet=book.host().sheets()[0].id();let loaded=book.host().loaded();
-  match kind{
-   0|3=>{assert_eq!(loaded.sheet(sheet).unwrap().pivots().tables.len(),1);let issues=&loaded.sheet(sheet).unwrap().pivots().issues;assert_eq!(issues.len(),1);assert_eq!(issues[0].owner,"dc-8wp");},
-   1=>{assert_eq!(loaded.pivot_caches().issues.len(),1);assert!(!loaded.pivot_caches().caches.contains_key(&7));assert!(loaded.pivot_caches().caches.contains_key(&9));},
-   _=>{assert!(loaded.pivot_caches().issues.is_empty());assert_eq!(loaded.pivot_records(7,10).unwrap_err().owner,"dc-8wp");},
-  }
-  assert!(enter(&mut book,at(sheet,"B2"),"100").accepted());assert_eq!(session_calculated(&book,at(sheet,"H1")),Some(CalcValue::number(112.)));let mut saved=Vec::new();book.save(&SavePolicy::default(),&mut saved).unwrap();if part!="xl/workbook.xml"{assert_eq!(part_text(&saved,part),part_text(&bytes,part));}else{assert!(part_text(&saved,part).contains(to));}
- }
-}
-
-/// Refresh reads actual source values and publishes owned engine results, never authored totals.
-#[cfg_attr(not(target_arch="wasm32"),test)]
-#[cfg_attr(target_arch="wasm32",wasm_bindgen_test::wasm_bindgen_test)]
-fn dc_8wp_2__refresh_publishes_shared_results_and_roundtrips_source_records(){
-    let bytes=include_bytes!("../../calc-doc/tests/fixtures/cdoc_m1_1/pivot-saved.xlsx");
-    let mut book=session(bytes);let sheet=book.host().sheets()[0].id();
-    assert!(enter(&mut book,at(sheet,"B2"),"100").accepted());
-    let command=|book:&HostSession|SkinIntent::Command(calc_host::WorkbookCommand::PivotRefresh{sheet,revision:book.host().revision().get(),part:"xl/pivotTables/summary.xml".into()});
-    assert_eq!(session_value(&book,at(sheet,"E6")),ProjectedValue::Literal(CalcValue::number(24.)));
-    assert!(enter(&mut book,at(sheet,"J1"),"=E6*2").accepted());
-    assert!(enter(&mut book,at(sheet,"J2"),"=SUM(D3:E6)").accepted());
-    assert_eq!(session_calculated(&book,at(sheet,"J1")),Some(CalcValue::number(48.)));
-    let region=GridArea::new(at(sheet,"A1"),at(sheet,"J13")).unwrap();let (_,received)=subscribe(&mut book,Interest::Area(region));
-    let receipt=book.dispatch(command(&book));assert!(receipt.accepted(),"{receipt:?}");
-    for cell in ["E6","E13"]{assert_eq!(session_calculated(&book,at(sheet,cell)),Some(CalcValue::number(112.)));assert!(book.host().model().cell(at(sheet,cell)).is_none(),"Calculated pivot output must not become authored input");}
-    assert_eq!(session_calculated(&book,at(sheet,"J1")),Some(CalcValue::number(224.)));
-    assert_eq!(session_calculated(&book,at(sheet,"J2")),Some(CalcValue::number(224.)));
-    assert_mirror_current(&book,region,&received);
-    assert_eq!(book.host().model().definitions().pivots().caches.caches[&7].snapshot.as_ref().unwrap().records.len(),3);
-    assert!(book.dispatch(SkinIntent::Undo).accepted());assert_eq!(session_value(&book,at(sheet,"E6")),ProjectedValue::Literal(CalcValue::number(24.)));assert!(book.host().model().definitions().pivots().caches.caches[&7].snapshot.is_none());
-    assert_eq!(session_calculated(&book,at(sheet,"J1")),Some(CalcValue::number(48.)));
-    assert_eq!(session_calculated(&book,at(sheet,"J2")),Some(CalcValue::number(48.)));
-    assert_mirror_current(&book,region,&received);
-    assert!(book.dispatch(SkinIntent::Redo).accepted());assert_eq!(session_calculated(&book,at(sheet,"E6")),Some(CalcValue::number(112.)));
-    assert_eq!(session_calculated(&book,at(sheet,"J1")),Some(CalcValue::number(224.)));
-    assert_eq!(session_calculated(&book,at(sheet,"J2")),Some(CalcValue::number(224.)));
-    assert_mirror_current(&book,region,&received);
-    assert!(enter(&mut book,at(sheet,"B2"),"7").accepted());assert_eq!(session_calculated(&book,at(sheet,"H1")),Some(CalcValue::number(19.)));assert_eq!(session_calculated(&book,at(sheet,"E6")),Some(CalcValue::number(112.)),"Ordinary calculation must not refresh a pivot");
-    let template=package_with_part_from(&calc_host::blank_package(),"[Content_Types].xml",|xml|xml.replace("spreadsheetml.sheet.main+xml","spreadsheetml.template.main+xml"));
-    let revision=book.host().revision();let receipt=book.dispatch(SkinIntent::Command(calc_host::WorkbookCommand::InsertTemplate{bytes:Arc::from(template),name:None,revision:revision.get()}));assert!(!receipt.accepted(),"{receipt:?}");assert_eq!(book.host().revision(),revision);assert_eq!(session_calculated(&book,at(sheet,"E6")),Some(CalcValue::number(112.)));
-    let mut saved=Vec::new();book.save(&SavePolicy::default(),&mut saved).unwrap();
-    let reopened=session(&saved);assert_eq!(session_value(&reopened,at(sheet,"E6")),ProjectedValue::Literal(CalcValue::number(112.)));assert!(reopened.host().model().definitions().pivots().caches.caches[&7].snapshot.is_none(),"Reopening a saved result is not a refresh");
-    let cache=&reopened.host().loaded().pivot_caches().caches[&7];let records=reopened.host().loaded().pivot_records(7,10).unwrap();
-    let values=records.records.iter().map(|row|{let calc_doc::pivot::PivotItem::Index(i)=row[1]else{panic!("Expected shared cache record")};cache.fields[1].items[i as usize].clone()}).collect::<Vec<_>>();
-    assert_eq!(values,[calc_doc::pivot::PivotItem::Number("100".into()),calc_doc::pivot::PivotItem::Number("8".into()),calc_doc::pivot::PivotItem::Number("4".into())]);
-    for part in ["xl/pivotCache/cache-name.xml","xl/pivotCache/_rels/cache-main.xml.rels","xl/worksheets/_rels/sheet1.xml.rels","xl/pivotTables/_rels/summary.xml.rels"]{assert_eq!(part_text(&saved,part),part_text(bytes,part),"{part}");}
-    let expected_rels=part_text(bytes,"xl/_rels/workbook.xml.rels").replace("</Relationships>","<Relationship Id=\"rId1\" Type=\"http://schemas.openxmlformats.org/officeDocument/2006/relationships/sharedStrings\" Target=\"sharedStrings.xml\"/></Relationships>");
-    assert_eq!(part_text(&saved,"xl/_rels/workbook.xml.rels"),expected_rels,"Only the normal shared-string writer adds a relationship");
-    assert!(part_text(&saved,"xl/pivotTables/summary.xml").contains("definition-extension"));assert!(part_text(&saved,"xl/pivotCache/cache-main.xml").contains("cache-extension"));
-}
-
-#[cfg_attr(not(target_arch="wasm32"),test)]
-#[cfg_attr(target_arch="wasm32",wasm_bindgen_test::wasm_bindgen_test)]
-fn dc_8wp_2__refresh_refuses_stale_source_overwrite_and_unmeasured_layouts_atomically(){
-    // (Growing over a nonblank cell is no longer a refusal: Excel collapses the pivot, see below.)
-    let bytes=include_bytes!("../../calc-doc/tests/fixtures/cdoc_m1_1/pivot-saved.xlsx");
-    let mut book=session(bytes);let sheet=book.host().sheets()[0].id();
-    let refresh=|book:&mut HostSession|{let revision=book.host().revision();let result=book.dispatch(SkinIntent::Command(calc_host::WorkbookCommand::PivotRefresh{sheet,revision:revision.get(),part:"xl/pivotTables/summary.xml".into()}));assert!(!result.accepted(),"{result:?}");assert_eq!(book.host().revision(),revision);assert!(book.host().model().definitions().pivots().caches.caches[&7].snapshot.is_none());assert_eq!(session_value(book,at(sheet,"E6")),ProjectedValue::Literal(CalcValue::number(24.)));};
-    assert!(!book.dispatch(SkinIntent::EnterCell{at:at(sheet,"E6"),text:"999".into()}).accepted());
-    assert!(book.dispatch(SkinIntent::SetCalcMode(calc_host::CalcMode::Manual)).accepted());assert!(enter(&mut book,at(sheet,"B2"),"=6+6").accepted());refresh(&mut book);
-    assert!(book.dispatch(SkinIntent::Recalculate).accepted());assert!(book.dispatch(SkinIntent::SetCalcMode(calc_host::CalcMode::Automatic)).accepted());
-    assert!(enter(&mut book,at(sheet,"A4"),"North").accepted());assert!(enter(&mut book,at(sheet,"D7"),"keep").accepted());
-    // The output would grow over the nonblank D7. Excel (measured, tests/pivot_m5.rs) does not refuse: the pivot takes its corner cell, an error, and D7 stays.
-    let revision=book.host().revision();let result=book.dispatch(SkinIntent::Command(calc_host::WorkbookCommand::PivotRefresh{sheet,revision:revision.get(),part:"xl/pivotTables/summary.xml".into()}));assert!(result.accepted(),"{result:?}");assert!(book.host().model().definitions().pivots().tables().next().unwrap().collapsed);assert_eq!(session_calculated(&book,at(sheet,"D3")),Some(CalcValue::error(calc_value::WorksheetErrorCode::Spill)));
-    assert_eq!(session_value(&book,at(sheet,"D7")),ProjectedValue::Literal(CalcValue::text(calc_value::ExcelText::from_utf16_code_units("keep".encode_utf16().collect()))));
-    let unsupported=package_with_part_from(bytes,"xl/pivotTables/summary.xml",|xml|xml.replace("<dataFields count=\"1\">","<pageFields count=\"1\"><pageField fld=\"1\" item=\"0\"/></pageFields><dataFields count=\"1\">"));// Two row fields became measured layouts in UI28; a page field that selects an item is still unmeasured.
-    let mut other=session(&unsupported);refresh(&mut other);
-}
-
-#[cfg_attr(not(target_arch="wasm32"),test)]
-#[cfg_attr(target_arch="wasm32",wasm_bindgen_test::wasm_bindgen_test)]
-fn dc_8wp_2__refreshed_pivot_output_blocks_spills_and_supports_changed_categories(){
-    let bytes=include_bytes!("../../calc-doc/tests/fixtures/cdoc_m1_1/pivot-saved.xlsx");let mut book=session(bytes);let sheet=book.host().sheets()[0].id();
-    assert!(enter(&mut book,at(sheet,"A4"),"North").accepted());let revision=book.host().revision().get();let receipt=book.dispatch(SkinIntent::Command(calc_host::WorkbookCommand::PivotRefresh{sheet,revision,part:"xl/pivotTables/summary.xml".into()}));assert!(receipt.accepted(),"{receipt:?}");
-    assert_eq!(book.host().model().definitions().pivots().sheets[&sheet].tables[0].area,GridArea::new(at(sheet,"D3"),at(sheet,"E7")).unwrap());assert_eq!(session_calculated(&book,at(sheet,"E7")),Some(CalcValue::number(24.)));
-    assert!(enter(&mut book,at(sheet,"C4"),"=SEQUENCE(1,3)").accepted());assert_eq!(session_calculated(&book,at(sheet,"C4")),Some(CalcValue::error(calc_value::WorksheetErrorCode::Spill)));
-    assert!(enter(&mut book,at(sheet,"A4"),"East").accepted());let revision=book.host().revision().get();assert!(book.dispatch(SkinIntent::Command(calc_host::WorkbookCommand::PivotRefresh{sheet,revision,part:"xl/pivotTables/summary.xml".into()})).accepted());
-    assert_eq!(session_calculated(&book,at(sheet,"E6")),Some(CalcValue::number(24.)));assert_eq!(session_value(&book,at(sheet,"E7")),ProjectedValue::Empty);assert!(enter(&mut book,at(sheet,"E7"),"3").accepted(),"A released output cell must become editable");
-}
-
-#[cfg_attr(not(target_arch="wasm32"),test)]
-#[cfg_attr(target_arch="wasm32",wasm_bindgen_test::wasm_bindgen_test)]
-fn dc_8wp_2__refresh_refuses_nested_metadata_without_losing_retained_bytes(){
-    let original=include_bytes!("../../calc-doc/tests/fixtures/cdoc_m1_1/pivot-saved.xlsx");
-    for (part,from,to) in [
-        ("xl/_rels/workbook.xml.rels","Target=\"pivotCache/cache-name.xml\"","Target=\"pivotCache/cache-main.xml\""),
-        ("xl/pivotTables/_rels/summary.xml.rels","Target=\"../pivotCache/cache-main.xml\"","Target=\"../pivotCache/cache-name.xml\""),
-        ("xl/pivotTables/summary.xml","<pivotField axis=","<pivotField xmlns:v=\"urn:keep\" v:flag=\"keep\" axis="),
-        ("xl/pivotTables/summary.xml","<items count=","<v:keep xmlns:v=\"urn:keep\"/><items count="),
-        ("xl/pivotTables/summary.xml","<item x=\"0\"/>","<item x=\"0\" n=\"Custom caption\"/>"),
-        ("xl/pivotCache/cache-main.xml","<sharedItems count=\"2\">","<sharedItems count=\"2\"><v:keep xmlns:v=\"urn:keep\"/>"),
-        ("xl/pivotCache/cache-main.xml","<cacheField name=\"Region\"","<cacheField xmlns:v=\"urn:keep\" v:flag=\"keep\" name=\"Region\""),
-        ("xl/pivotCache/records.xml","<r>","<r xmlns:v=\"urn:keep\" v:flag=\"keep\">"),
-        ("xl/pivotCache/records.xml","<r>","<r><v:keep xmlns:v=\"urn:keep\"/>"),
-        ("xl/pivotCache/cache-main.xml","<cacheField name=\"Region\"","<cacheField databaseField=\"false\" name=\"Region\""),
-    ]{
-        let bytes=package_with_part_from(original,part,|xml|{assert!(xml.contains(from));xml.replace(from,to)});
-        let mut book=session(&bytes);let sheet=book.host().sheets()[0].id();let revision=book.host().revision();
-        let result=book.dispatch(SkinIntent::Command(calc_host::WorkbookCommand::PivotRefresh{sheet,revision:revision.get(),part:"xl/pivotTables/summary.xml".into()}));
-        assert!(!result.accepted(),"{part}: {result:?}");assert_eq!(book.host().revision(),revision);assert!(book.host().model().definitions().pivots().caches.caches[&7].snapshot.is_none());
-        let mut saved=Vec::new();book.save(&SavePolicy::default(),&mut saved).unwrap();assert_eq!(part_text(&saved,part),part_text(&bytes,part));
+    check(&book);
+    assert!(enter(&mut book, at(sheet, "B2"), "100").accepted());
+    assert_eq!(
+        session_calculated(&book, at(sheet, "H1")),
+        Some(CalcValue::number(112.))
+    );
+    assert!(
+        matches!(
+            session_value(&book, at(sheet, "E6")),
+            ProjectedValue::Literal(_)
+        ),
+        "Saved output is literal worksheet data"
+    );
+    assert_eq!(
+        session_value(&book, at(sheet, "E6")),
+        ProjectedValue::Literal(CalcValue::number(24.))
+    );
+    let mut saved = Vec::new();
+    book.save(&SavePolicy::default(), &mut saved).unwrap();
+    let mut reopened = session(&saved);
+    assert!(reopened.dispatch(SkinIntent::Recalculate).accepted());
+    check(&reopened);
+    assert_eq!(
+        session_calculated(&reopened, at(sheet, "H1")),
+        Some(CalcValue::number(112.))
+    );
+    assert_eq!(
+        reopened.host().model().cell(at(sheet, "E6")).unwrap(),
+        book.host().model().cell(at(sheet, "E6")).unwrap()
+    );
+    for part in [
+        "xl/_rels/workbook.xml.rels",
+        "xl/pivotCache/cache-main.xml",
+        "xl/pivotCache/cache-name.xml",
+        "xl/pivotCache/records.xml",
+        "xl/pivotCache/_rels/cache-main.xml.rels",
+        "xl/pivotTables/summary.xml",
+        "xl/pivotTables/summary-two.xml",
+        "xl/worksheets/_rels/sheet1.xml.rels",
+        "xl/pivotTables/_rels/summary.xml.rels",
+        "xl/pivotTables/_rels/summary-two.xml.rels",
+    ] {
+        assert_eq!(part_text(&saved, part), part_text(bytes, part), "{part}");
     }
 }
 
-#[cfg_attr(not(target_arch="wasm32"),test)]
-#[cfg_attr(target_arch="wasm32",wasm_bindgen_test::wasm_bindgen_test)]
-fn dc_8wp_2__refresh_keeps_the_cache_within_its_loader_budget(){
-    let original=include_bytes!("../../calc-doc/tests/fixtures/cdoc_m1_1/pivot-saved.xlsx");
-    let bytes=package_with_part_from(original,"xl/pivotCache/cache-main.xml",|xml|xml.replace("<sharedItems count=\"2\"><s v=\"East\"/><s v=\"West\"/></sharedItems>",&format!("<sharedItems count=\"100000\">{}</sharedItems>","<s v=\"held\"/>".repeat(100000))));
-    let mut book=session(&bytes);let sheet=book.host().sheets()[0].id();assert_eq!(book.host().model().definitions().pivots().caches.caches[&7].fields[0].items.len(),100000);
-    let revision=book.host().revision();let result=book.dispatch(SkinIntent::Command(calc_host::WorkbookCommand::PivotRefresh{sheet,revision:revision.get(),part:"xl/pivotTables/summary.xml".into()}));assert!(!result.accepted(),"{result:?}");assert_eq!(book.host().revision(),revision);assert!(book.host().model().definitions().pivots().caches.caches[&7].snapshot.is_none());
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn dc_8wp_1__unread_pivot_metadata_is_reported_and_preserved_without_losing_the_workbook() {
+    let original = include_bytes!("../../calc-doc/tests/fixtures/cdoc_m1_1/pivot-saved.xlsx");
+    for (part, from, to, kind) in [
+        (
+            "xl/pivotTables/summary.xml",
+            "ref=\"D3:E6\"",
+            "ref=\"not-an-area\"",
+            0,
+        ),
+        (
+            "xl/workbook.xml",
+            "<pivotCache cacheId=\"7\" r:id=\"Cache77\"/>",
+            "<pivotCache cacheId=\"7\" r:id=\"Cache77\"/><pivotCache cacheId=\"7\" r:id=\"Cache77\"/>",
+            1,
+        ),
+        ("xl/pivotCache/records.xml", "<n v=\"12\"/>", "<n/>", 2),
+        (
+            "xl/worksheets/_rels/sheet1.xml.rels",
+            "relationships/pivotTable",
+            "relationships/unreadPivot",
+            3,
+        ),
+    ] {
+        let bytes = package_with_part_from(original, part, |xml| {
+            assert!(xml.contains(from));
+            xml.replacen(from, to, 1)
+        });
+        let mut book = session(&bytes);
+        let sheet = book.host().sheets()[0].id();
+        let loaded = book.host().loaded();
+        match kind {
+            0 | 3 => {
+                assert_eq!(loaded.sheet(sheet).unwrap().pivots().tables.len(), 1);
+                let issues = &loaded.sheet(sheet).unwrap().pivots().issues;
+                assert_eq!(issues.len(), 1);
+                assert_eq!(issues[0].owner, "dc-8wp");
+            }
+            1 => {
+                assert_eq!(loaded.pivot_caches().issues.len(), 1);
+                assert!(!loaded.pivot_caches().caches.contains_key(&7));
+                assert!(loaded.pivot_caches().caches.contains_key(&9));
+            }
+            _ => {
+                assert!(loaded.pivot_caches().issues.is_empty());
+                assert_eq!(loaded.pivot_records(7, 10).unwrap_err().owner, "dc-8wp");
+            }
+        }
+        assert!(enter(&mut book, at(sheet, "B2"), "100").accepted());
+        assert_eq!(
+            session_calculated(&book, at(sheet, "H1")),
+            Some(CalcValue::number(112.))
+        );
+        let mut saved = Vec::new();
+        book.save(&SavePolicy::default(), &mut saved).unwrap();
+        if part != "xl/workbook.xml" {
+            assert_eq!(part_text(&saved, part), part_text(&bytes, part));
+        } else {
+            assert!(part_text(&saved, part).contains(to));
+        }
+    }
 }
 
-#[cfg_attr(not(target_arch="wasm32"),test)]
-#[cfg_attr(target_arch="wasm32",wasm_bindgen_test::wasm_bindgen_test)]
-fn dc_8wp_2__implicit_worksheet_relationships_discover_and_refresh_both_pivots(){
-    let original=include_bytes!("../../calc-doc/tests/fixtures/cdoc_m1_1/pivot-saved.xlsx");
-    let bytes=package_with_part_from(original,"xl/worksheets/sheet1.xml",|xml|{let start=xml.find("<pivotParts").unwrap();let end=start+xml[start..].find("</pivotParts>").unwrap()+"</pivotParts>".len();format!("{}{}",&xml[..start],&xml[end..])});
-    let mut book=session(&bytes);let sheet=book.host().sheets()[0].id();assert_eq!(book.host().model().definitions().pivots().sheets[&sheet].tables.len(),2);
-    assert!(enter(&mut book,at(sheet,"B2"),"100").accepted());let revision=book.host().revision().get();let result=book.dispatch(SkinIntent::Command(calc_host::WorkbookCommand::PivotRefresh{sheet,revision,part:"xl/pivotTables/summary.xml".into()}));assert!(result.accepted(),"{result:?}");assert_eq!(session_calculated(&book,at(sheet,"E6")),Some(CalcValue::number(112.)));assert_eq!(session_calculated(&book,at(sheet,"E13")),Some(CalcValue::number(112.)));
-    let mut saved=Vec::new();book.save(&SavePolicy::default(),&mut saved).unwrap();assert!(!part_text(&saved,"xl/worksheets/sheet1.xml").contains("pivotParts"));let reopened=session(&saved);assert_eq!(reopened.host().model().definitions().pivots().sheets[&sheet].tables.len(),2);assert_eq!(session_value(&reopened,at(sheet,"E6")),ProjectedValue::Literal(CalcValue::number(112.)));
+/// Refresh reads actual source values and publishes owned engine results, never authored totals.
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn dc_8wp_2__refresh_publishes_shared_results_and_roundtrips_source_records() {
+    let bytes = include_bytes!("../../calc-doc/tests/fixtures/cdoc_m1_1/pivot-saved.xlsx");
+    let mut book = session(bytes);
+    let sheet = book.host().sheets()[0].id();
+    assert!(enter(&mut book, at(sheet, "B2"), "100").accepted());
+    let command = |book: &HostSession| {
+        SkinIntent::Command(calc_host::WorkbookCommand::PivotRefresh {
+            sheet,
+            revision: book.host().revision().get(),
+            part: "xl/pivotTables/summary.xml".into(),
+        })
+    };
+    assert_eq!(
+        session_value(&book, at(sheet, "E6")),
+        ProjectedValue::Literal(CalcValue::number(24.))
+    );
+    assert!(enter(&mut book, at(sheet, "J1"), "=E6*2").accepted());
+    assert!(enter(&mut book, at(sheet, "J2"), "=SUM(D3:E6)").accepted());
+    assert_eq!(
+        session_calculated(&book, at(sheet, "J1")),
+        Some(CalcValue::number(48.))
+    );
+    let region = GridArea::new(at(sheet, "A1"), at(sheet, "J13")).unwrap();
+    let (_, received) = subscribe(&mut book, Interest::Area(region));
+    let receipt = book.dispatch(command(&book));
+    assert!(receipt.accepted(), "{receipt:?}");
+    for cell in ["E6", "E13"] {
+        assert_eq!(
+            session_calculated(&book, at(sheet, cell)),
+            Some(CalcValue::number(112.))
+        );
+        assert!(
+            book.host().model().cell(at(sheet, cell)).is_none(),
+            "Calculated pivot output must not become authored input"
+        );
+    }
+    assert_eq!(
+        session_calculated(&book, at(sheet, "J1")),
+        Some(CalcValue::number(224.))
+    );
+    assert_eq!(
+        session_calculated(&book, at(sheet, "J2")),
+        Some(CalcValue::number(224.))
+    );
+    assert_mirror_current(&book, region, &received);
+    assert_eq!(
+        book.host().model().definitions().pivots().caches.caches[&7]
+            .snapshot
+            .as_ref()
+            .unwrap()
+            .records
+            .len(),
+        3
+    );
+    assert!(book.dispatch(SkinIntent::Undo).accepted());
+    assert_eq!(
+        session_value(&book, at(sheet, "E6")),
+        ProjectedValue::Literal(CalcValue::number(24.))
+    );
+    assert!(
+        book.host().model().definitions().pivots().caches.caches[&7]
+            .snapshot
+            .is_none()
+    );
+    assert_eq!(
+        session_calculated(&book, at(sheet, "J1")),
+        Some(CalcValue::number(48.))
+    );
+    assert_eq!(
+        session_calculated(&book, at(sheet, "J2")),
+        Some(CalcValue::number(48.))
+    );
+    assert_mirror_current(&book, region, &received);
+    assert!(book.dispatch(SkinIntent::Redo).accepted());
+    assert_eq!(
+        session_calculated(&book, at(sheet, "E6")),
+        Some(CalcValue::number(112.))
+    );
+    assert_eq!(
+        session_calculated(&book, at(sheet, "J1")),
+        Some(CalcValue::number(224.))
+    );
+    assert_eq!(
+        session_calculated(&book, at(sheet, "J2")),
+        Some(CalcValue::number(224.))
+    );
+    assert_mirror_current(&book, region, &received);
+    assert!(enter(&mut book, at(sheet, "B2"), "7").accepted());
+    assert_eq!(
+        session_calculated(&book, at(sheet, "H1")),
+        Some(CalcValue::number(19.))
+    );
+    assert_eq!(
+        session_calculated(&book, at(sheet, "E6")),
+        Some(CalcValue::number(112.)),
+        "Ordinary calculation must not refresh a pivot"
+    );
+    let template =
+        package_with_part_from(&calc_host::blank_package(), "[Content_Types].xml", |xml| {
+            xml.replace(
+                "spreadsheetml.sheet.main+xml",
+                "spreadsheetml.template.main+xml",
+            )
+        });
+    let revision = book.host().revision();
+    let receipt = book.dispatch(SkinIntent::Command(
+        calc_host::WorkbookCommand::InsertTemplate {
+            bytes: Arc::from(template),
+            name: None,
+            revision: revision.get(),
+        },
+    ));
+    assert!(!receipt.accepted(), "{receipt:?}");
+    assert_eq!(book.host().revision(), revision);
+    assert_eq!(
+        session_calculated(&book, at(sheet, "E6")),
+        Some(CalcValue::number(112.))
+    );
+    let mut saved = Vec::new();
+    book.save(&SavePolicy::default(), &mut saved).unwrap();
+    let reopened = session(&saved);
+    assert_eq!(
+        session_value(&reopened, at(sheet, "E6")),
+        ProjectedValue::Literal(CalcValue::number(112.))
+    );
+    assert!(
+        reopened.host().model().definitions().pivots().caches.caches[&7]
+            .snapshot
+            .is_none(),
+        "Reopening a saved result is not a refresh"
+    );
+    let cache = &reopened.host().loaded().pivot_caches().caches[&7];
+    let records = reopened.host().loaded().pivot_records(7, 10).unwrap();
+    let values = records
+        .records
+        .iter()
+        .map(|row| {
+            let calc_doc::pivot::PivotItem::Index(i) = row[1] else {
+                panic!("Expected shared cache record")
+            };
+            cache.fields[1].items[i as usize].clone()
+        })
+        .collect::<Vec<_>>();
+    assert_eq!(
+        values,
+        [
+            calc_doc::pivot::PivotItem::Number("100".into()),
+            calc_doc::pivot::PivotItem::Number("8".into()),
+            calc_doc::pivot::PivotItem::Number("4".into())
+        ]
+    );
+    for part in [
+        "xl/pivotCache/cache-name.xml",
+        "xl/pivotCache/_rels/cache-main.xml.rels",
+        "xl/worksheets/_rels/sheet1.xml.rels",
+        "xl/pivotTables/_rels/summary.xml.rels",
+    ] {
+        assert_eq!(part_text(&saved, part), part_text(bytes, part), "{part}");
+    }
+    let expected_rels=part_text(bytes,"xl/_rels/workbook.xml.rels").replace("</Relationships>","<Relationship Id=\"rId1\" Type=\"http://schemas.openxmlformats.org/officeDocument/2006/relationships/sharedStrings\" Target=\"sharedStrings.xml\"/></Relationships>");
+    assert_eq!(
+        part_text(&saved, "xl/_rels/workbook.xml.rels"),
+        expected_rels,
+        "Only the normal shared-string writer adds a relationship"
+    );
+    assert!(part_text(&saved, "xl/pivotTables/summary.xml").contains("definition-extension"));
+    assert!(part_text(&saved, "xl/pivotCache/cache-main.xml").contains("cache-extension"));
 }
 
-#[cfg_attr(not(target_arch="wasm32"),test)]
-#[cfg_attr(target_arch="wasm32",wasm_bindgen_test::wasm_bindgen_test)]
-fn dc_8wp_3__getpivotdata_reads_visible_cells_and_tracks_refresh_undo_and_saved_reopen(){
-    let bytes=include_bytes!("../../calc-doc/tests/fixtures/cdoc_m1_1/pivot-saved.xlsx");let mut book=session(bytes);let sheet=book.host().sheets()[0].id();
-    for (cell,formula,expected)in [
-        ("J1","=GETPIVOTDATA(\"Sum of Amount\",$D$3)",24.),
-        ("J2","=GETPIVOTDATA(\"Amount\",$D$3,\"Region\",\"east\")",16.),
-        ("J3","=GETPIVOTDATA(\"Amount\",$D$10,\"region\",\"West\")",8.),
-    ]{assert!(enter(&mut book,at(sheet,cell),formula).accepted());assert_eq!(session_calculated(&book,at(sheet,cell)),Some(CalcValue::number(expected)),"{formula}");}
-    for (cell,formula)in [
-        ("K1","=GETPIVOTDATA(\"Missing\",D3)"),
-        ("K2","=GETPIVOTDATA(\"Amount\",A1)"),
-        ("K3","=GETPIVOTDATA(\"Amount\",D3,\"Region\",\"Absent\")"),
-        ("K4","=GETPIVOTDATA(\"Amount\",D3,\"Missing\",\"East\")"),
-    ]{assert!(enter(&mut book,at(sheet,cell),formula).accepted());assert_eq!(session_calculated(&book,at(sheet,cell)),Some(CalcValue::error(calc_value::WorksheetErrorCode::Ref)),"{formula}");}
-    assert!(enter(&mut book,at(sheet,"K6"),"=GETPIVOTDATA(\"Amount\",D3,\"Region\")").accepted());assert_eq!(session_calculated(&book,at(sheet,"K6")),Some(CalcValue::error(calc_value::WorksheetErrorCode::Ref)));
-    assert!(enter(&mut book,at(sheet,"B2"),"100").accepted());assert_eq!(session_calculated(&book,at(sheet,"J1")),Some(CalcValue::number(24.)),"Source edits do not refresh GETPIVOTDATA");
-    let revision=book.host().revision().get();let result=book.dispatch(SkinIntent::Command(calc_host::WorkbookCommand::PivotRefresh{sheet,revision,part:"xl/pivotTables/summary.xml".into()}));assert!(result.accepted(),"{result:?}");
-    assert_eq!(session_calculated(&book,at(sheet,"J1")),Some(CalcValue::number(112.)));assert_eq!(session_calculated(&book,at(sheet,"J2")),Some(CalcValue::number(104.)));assert_eq!(session_calculated(&book,at(sheet,"J3")),Some(CalcValue::number(8.)));
-    assert!(book.dispatch(SkinIntent::Undo).accepted());assert_eq!(session_calculated(&book,at(sheet,"J1")),Some(CalcValue::number(24.)));assert_eq!(session_calculated(&book,at(sheet,"J2")),Some(CalcValue::number(16.)));
-    assert!(book.dispatch(SkinIntent::Redo).accepted());assert_eq!(session_calculated(&book,at(sheet,"J1")),Some(CalcValue::number(112.)));
-    assert!(enter(&mut book,at(sheet,"A4"),"Absent").accepted());assert_eq!(session_calculated(&book,at(sheet,"K3")),Some(CalcValue::error(calc_value::WorksheetErrorCode::Ref)));
-    assert!(book.dispatch(SkinIntent::Command(calc_host::WorkbookCommand::PivotRefresh{sheet,revision:book.host().revision().get(),part:"xl/pivotTables/summary.xml".into()})).accepted());
-    assert_eq!(session_calculated(&book,at(sheet,"K3")),Some(CalcValue::number(4.)));assert_eq!(session_calculated(&book,at(sheet,"J1")),Some(CalcValue::number(112.)));assert_eq!(session_calculated(&book,at(sheet,"J2")),Some(CalcValue::number(100.)));assert_eq!(session_calculated(&book,at(sheet,"E7")),Some(CalcValue::number(112.)));
-    assert!(book.dispatch(SkinIntent::Undo).accepted());assert_eq!(session_calculated(&book,at(sheet,"K3")),Some(CalcValue::error(calc_value::WorksheetErrorCode::Ref)));assert_eq!(session_calculated(&book,at(sheet,"J1")),Some(CalcValue::number(112.)));assert_eq!(session_calculated(&book,at(sheet,"J2")),Some(CalcValue::number(104.)));assert_eq!(session_calculated(&book,at(sheet,"E6")),Some(CalcValue::number(112.)));
-    assert!(book.dispatch(SkinIntent::Redo).accepted());assert_eq!(session_calculated(&book,at(sheet,"K3")),Some(CalcValue::number(4.)));assert_eq!(session_calculated(&book,at(sheet,"J1")),Some(CalcValue::number(112.)));
-    let mut saved=Vec::new();book.save(&SavePolicy::default(),&mut saved).unwrap();let mut reopened=session(&saved);assert!(reopened.dispatch(SkinIntent::Recalculate).accepted());assert_eq!(session_calculated(&reopened,at(sheet,"J1")),Some(CalcValue::number(112.)),"{:?}",session_value(&reopened,at(sheet,"J1")));assert_eq!(session_value(&reopened,at(sheet,"E7")),ProjectedValue::Literal(CalcValue::number(112.)));
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn dc_8wp_2__refresh_refuses_stale_source_overwrite_and_unmeasured_layouts_atomically() {
+    // (Growing over a nonblank cell is no longer a refusal: Excel collapses the pivot, see below.)
+    let bytes = include_bytes!("../../calc-doc/tests/fixtures/cdoc_m1_1/pivot-saved.xlsx");
+    let mut book = session(bytes);
+    let sheet = book.host().sheets()[0].id();
+    let refresh = |book: &mut HostSession| {
+        let revision = book.host().revision();
+        let result = book.dispatch(SkinIntent::Command(
+            calc_host::WorkbookCommand::PivotRefresh {
+                sheet,
+                revision: revision.get(),
+                part: "xl/pivotTables/summary.xml".into(),
+            },
+        ));
+        assert!(!result.accepted(), "{result:?}");
+        assert_eq!(book.host().revision(), revision);
+        assert!(
+            book.host().model().definitions().pivots().caches.caches[&7]
+                .snapshot
+                .is_none()
+        );
+        assert_eq!(
+            session_value(book, at(sheet, "E6")),
+            ProjectedValue::Literal(CalcValue::number(24.))
+        );
+    };
+    assert!(
+        !book
+            .dispatch(SkinIntent::EnterCell {
+                at: at(sheet, "E6"),
+                text: "999".into()
+            })
+            .accepted()
+    );
+    assert!(
+        book.dispatch(SkinIntent::SetCalcMode(calc_host::CalcMode::Manual))
+            .accepted()
+    );
+    assert!(enter(&mut book, at(sheet, "B2"), "=6+6").accepted());
+    refresh(&mut book);
+    assert!(book.dispatch(SkinIntent::Recalculate).accepted());
+    assert!(
+        book.dispatch(SkinIntent::SetCalcMode(calc_host::CalcMode::Automatic))
+            .accepted()
+    );
+    assert!(enter(&mut book, at(sheet, "A4"), "North").accepted());
+    assert!(enter(&mut book, at(sheet, "D7"), "keep").accepted());
+    // The output would grow over the nonblank D7. Excel (measured, tests/pivot_m5.rs) does not refuse: the pivot takes its corner cell, an error, and D7 stays.
+    let revision = book.host().revision();
+    let result = book.dispatch(SkinIntent::Command(
+        calc_host::WorkbookCommand::PivotRefresh {
+            sheet,
+            revision: revision.get(),
+            part: "xl/pivotTables/summary.xml".into(),
+        },
+    ));
+    assert!(result.accepted(), "{result:?}");
+    assert!(
+        book.host()
+            .model()
+            .definitions()
+            .pivots()
+            .tables()
+            .next()
+            .unwrap()
+            .collapsed
+    );
+    assert_eq!(
+        session_calculated(&book, at(sheet, "D3")),
+        Some(CalcValue::error(calc_value::WorksheetErrorCode::Spill))
+    );
+    assert_eq!(
+        session_value(&book, at(sheet, "D7")),
+        ProjectedValue::Literal(CalcValue::text(
+            calc_value::ExcelText::from_utf16_code_units("keep".encode_utf16().collect())
+        ))
+    );
+    let unsupported = package_with_part_from(bytes, "xl/pivotTables/summary.xml", |xml| {
+        xml.replace("<dataFields count=\"1\">","<pageFields count=\"1\"><pageField fld=\"1\" item=\"0\"/></pageFields><dataFields count=\"1\">")
+    }); // Two row fields became measured layouts in UI28; a page field that selects an item is still unmeasured.
+    let mut other = session(&unsupported);
+    refresh(&mut other);
 }
 
-#[cfg_attr(not(target_arch="wasm32"),test)]
-#[cfg_attr(target_arch="wasm32",wasm_bindgen_test::wasm_bindgen_test)]
-fn dc_8wp_3__getpivotdata_handles_ambiguous_and_refuses_unmeasured_layouts(){
-    let bytes=include_bytes!("../../calc-doc/tests/fixtures/cdoc_m1_1/pivot-saved.xlsx");let mut book=session(bytes);let sheet=book.host().sheets()[0].id();
-    assert!(enter(&mut book,at(sheet,"J1"),"=GETPIVOTDATA(\"Amount\",D3:E13)").accepted());
-    assert_eq!(session_calculated(&book,at(sheet,"J1")),Some(CalcValue::error(calc_value::WorksheetErrorCode::Ref)));
-    assert!(enter(&mut book,at(sheet,"J2"),"=GETPIVOTDATA(\"Amount\",D3,\"Region\",\"East\",\"Region\",\"West\")").accepted());assert_eq!(session_calculated(&book,at(sheet,"J2")),Some(CalcValue::error(calc_value::WorksheetErrorCode::Ref)));
-    let bytes=package_with_part_from(bytes,"xl/pivotTables/summary.xml",|xml|xml.replace("<rowFields count=\"1\"><field x=\"0\"/></rowFields>","<rowFields count=\"2\"><field x=\"0\"/><field x=\"1\"/></rowFields>"));let mut book=session(&bytes);assert!(enter(&mut book,at(sheet,"J1"),"=GETPIVOTDATA(\"Amount\",D3)").accepted());assert!(matches!(session_value(&book,at(sheet,"J1")),ProjectedValue::NotModeled{..}));
-    let bytes=package_with_part_from(include_bytes!("../../calc-doc/tests/fixtures/cdoc_m1_1/pivot-saved.xlsx"),"xl/pivotTables/summary.xml",|xml|xml.replacen("<item x=\"0\"/>","<item x=\"0\" n=\"Custom caption\"/>",1));let mut book=session(&bytes);assert!(enter(&mut book,at(sheet,"J1"),"=GETPIVOTDATA(\"Amount\",D3,\"Region\",\"East\")").accepted());assert!(matches!(session_value(&book,at(sheet,"J1")),ProjectedValue::NotModeled{..}));
-    let bytes=package_with_part_from(include_bytes!("../../calc-doc/tests/fixtures/cdoc_m1_1/pivot-saved.xlsx"),"xl/pivotCache/cache-main.xml",|xml|xml.replacen("</sharedItems></cacheField>","</sharedItems><extLst/></cacheField>",1));let mut book=session(&bytes);assert!(enter(&mut book,at(sheet,"J1"),"=GETPIVOTDATA(\"Amount\",D3,\"Region\",\"East\")").accepted());assert!(matches!(session_value(&book,at(sheet,"J1")),ProjectedValue::NotModeled{..}));
-
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn dc_8wp_2__refreshed_pivot_output_blocks_spills_and_supports_changed_categories() {
+    let bytes = include_bytes!("../../calc-doc/tests/fixtures/cdoc_m1_1/pivot-saved.xlsx");
+    let mut book = session(bytes);
+    let sheet = book.host().sheets()[0].id();
+    assert!(enter(&mut book, at(sheet, "A4"), "North").accepted());
+    let revision = book.host().revision().get();
+    let receipt = book.dispatch(SkinIntent::Command(
+        calc_host::WorkbookCommand::PivotRefresh {
+            sheet,
+            revision,
+            part: "xl/pivotTables/summary.xml".into(),
+        },
+    ));
+    assert!(receipt.accepted(), "{receipt:?}");
+    assert_eq!(
+        book.host().model().definitions().pivots().sheets[&sheet].tables[0].area,
+        GridArea::new(at(sheet, "D3"), at(sheet, "E7")).unwrap()
+    );
+    assert_eq!(
+        session_calculated(&book, at(sheet, "E7")),
+        Some(CalcValue::number(24.))
+    );
+    assert!(enter(&mut book, at(sheet, "C4"), "=SEQUENCE(1,3)").accepted());
+    assert_eq!(
+        session_calculated(&book, at(sheet, "C4")),
+        Some(CalcValue::error(calc_value::WorksheetErrorCode::Spill))
+    );
+    assert!(enter(&mut book, at(sheet, "A4"), "East").accepted());
+    let revision = book.host().revision().get();
+    assert!(
+        book.dispatch(SkinIntent::Command(
+            calc_host::WorkbookCommand::PivotRefresh {
+                sheet,
+                revision,
+                part: "xl/pivotTables/summary.xml".into()
+            }
+        ))
+        .accepted()
+    );
+    assert_eq!(
+        session_calculated(&book, at(sheet, "E6")),
+        Some(CalcValue::number(24.))
+    );
+    assert_eq!(session_value(&book, at(sheet, "E7")), ProjectedValue::Empty);
+    assert!(
+        enter(&mut book, at(sheet, "E7"), "3").accepted(),
+        "A released output cell must become editable"
+    );
 }
 
-#[cfg_attr(not(target_arch="wasm32"),test)]
-#[cfg_attr(target_arch="wasm32",wasm_bindgen_test::wasm_bindgen_test)]
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn dc_8wp_2__refresh_refuses_nested_metadata_without_losing_retained_bytes() {
+    let original = include_bytes!("../../calc-doc/tests/fixtures/cdoc_m1_1/pivot-saved.xlsx");
+    for (part, from, to) in [
+        (
+            "xl/_rels/workbook.xml.rels",
+            "Target=\"pivotCache/cache-name.xml\"",
+            "Target=\"pivotCache/cache-main.xml\"",
+        ),
+        (
+            "xl/pivotTables/_rels/summary.xml.rels",
+            "Target=\"../pivotCache/cache-main.xml\"",
+            "Target=\"../pivotCache/cache-name.xml\"",
+        ),
+        (
+            "xl/pivotTables/summary.xml",
+            "<pivotField axis=",
+            "<pivotField xmlns:v=\"urn:keep\" v:flag=\"keep\" axis=",
+        ),
+        (
+            "xl/pivotTables/summary.xml",
+            "<items count=",
+            "<v:keep xmlns:v=\"urn:keep\"/><items count=",
+        ),
+        (
+            "xl/pivotTables/summary.xml",
+            "<item x=\"0\"/>",
+            "<item x=\"0\" n=\"Custom caption\"/>",
+        ),
+        (
+            "xl/pivotCache/cache-main.xml",
+            "<sharedItems count=\"2\">",
+            "<sharedItems count=\"2\"><v:keep xmlns:v=\"urn:keep\"/>",
+        ),
+        (
+            "xl/pivotCache/cache-main.xml",
+            "<cacheField name=\"Region\"",
+            "<cacheField xmlns:v=\"urn:keep\" v:flag=\"keep\" name=\"Region\"",
+        ),
+        (
+            "xl/pivotCache/records.xml",
+            "<r>",
+            "<r xmlns:v=\"urn:keep\" v:flag=\"keep\">",
+        ),
+        (
+            "xl/pivotCache/records.xml",
+            "<r>",
+            "<r><v:keep xmlns:v=\"urn:keep\"/>",
+        ),
+        (
+            "xl/pivotCache/cache-main.xml",
+            "<cacheField name=\"Region\"",
+            "<cacheField databaseField=\"false\" name=\"Region\"",
+        ),
+    ] {
+        let bytes = package_with_part_from(original, part, |xml| {
+            assert!(xml.contains(from));
+            xml.replace(from, to)
+        });
+        let mut book = session(&bytes);
+        let sheet = book.host().sheets()[0].id();
+        let revision = book.host().revision();
+        let result = book.dispatch(SkinIntent::Command(
+            calc_host::WorkbookCommand::PivotRefresh {
+                sheet,
+                revision: revision.get(),
+                part: "xl/pivotTables/summary.xml".into(),
+            },
+        ));
+        assert!(!result.accepted(), "{part}: {result:?}");
+        assert_eq!(book.host().revision(), revision);
+        assert!(
+            book.host().model().definitions().pivots().caches.caches[&7]
+                .snapshot
+                .is_none()
+        );
+        let mut saved = Vec::new();
+        book.save(&SavePolicy::default(), &mut saved).unwrap();
+        assert_eq!(part_text(&saved, part), part_text(&bytes, part));
+    }
+}
+
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn dc_8wp_2__refresh_keeps_the_cache_within_its_loader_budget() {
+    let original = include_bytes!("../../calc-doc/tests/fixtures/cdoc_m1_1/pivot-saved.xlsx");
+    let bytes = package_with_part_from(original, "xl/pivotCache/cache-main.xml", |xml| {
+        xml.replace(
+            "<sharedItems count=\"2\"><s v=\"East\"/><s v=\"West\"/></sharedItems>",
+            &format!(
+                "<sharedItems count=\"100000\">{}</sharedItems>",
+                "<s v=\"held\"/>".repeat(100000)
+            ),
+        )
+    });
+    let mut book = session(&bytes);
+    let sheet = book.host().sheets()[0].id();
+    assert_eq!(
+        book.host().model().definitions().pivots().caches.caches[&7].fields[0]
+            .items
+            .len(),
+        100000
+    );
+    let revision = book.host().revision();
+    let result = book.dispatch(SkinIntent::Command(
+        calc_host::WorkbookCommand::PivotRefresh {
+            sheet,
+            revision: revision.get(),
+            part: "xl/pivotTables/summary.xml".into(),
+        },
+    ));
+    assert!(!result.accepted(), "{result:?}");
+    assert_eq!(book.host().revision(), revision);
+    assert!(
+        book.host().model().definitions().pivots().caches.caches[&7]
+            .snapshot
+            .is_none()
+    );
+}
+
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn dc_8wp_2__implicit_worksheet_relationships_discover_and_refresh_both_pivots() {
+    let original = include_bytes!("../../calc-doc/tests/fixtures/cdoc_m1_1/pivot-saved.xlsx");
+    let bytes = package_with_part_from(original, "xl/worksheets/sheet1.xml", |xml| {
+        let start = xml.find("<pivotParts").unwrap();
+        let end = start + xml[start..].find("</pivotParts>").unwrap() + "</pivotParts>".len();
+        format!("{}{}", &xml[..start], &xml[end..])
+    });
+    let mut book = session(&bytes);
+    let sheet = book.host().sheets()[0].id();
+    assert_eq!(
+        book.host().model().definitions().pivots().sheets[&sheet]
+            .tables
+            .len(),
+        2
+    );
+    assert!(enter(&mut book, at(sheet, "B2"), "100").accepted());
+    let revision = book.host().revision().get();
+    let result = book.dispatch(SkinIntent::Command(
+        calc_host::WorkbookCommand::PivotRefresh {
+            sheet,
+            revision,
+            part: "xl/pivotTables/summary.xml".into(),
+        },
+    ));
+    assert!(result.accepted(), "{result:?}");
+    assert_eq!(
+        session_calculated(&book, at(sheet, "E6")),
+        Some(CalcValue::number(112.))
+    );
+    assert_eq!(
+        session_calculated(&book, at(sheet, "E13")),
+        Some(CalcValue::number(112.))
+    );
+    let mut saved = Vec::new();
+    book.save(&SavePolicy::default(), &mut saved).unwrap();
+    assert!(!part_text(&saved, "xl/worksheets/sheet1.xml").contains("pivotParts"));
+    let reopened = session(&saved);
+    assert_eq!(
+        reopened.host().model().definitions().pivots().sheets[&sheet]
+            .tables
+            .len(),
+        2
+    );
+    assert_eq!(
+        session_value(&reopened, at(sheet, "E6")),
+        ProjectedValue::Literal(CalcValue::number(112.))
+    );
+}
+
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn dc_8wp_3__getpivotdata_reads_visible_cells_and_tracks_refresh_undo_and_saved_reopen() {
+    let bytes = include_bytes!("../../calc-doc/tests/fixtures/cdoc_m1_1/pivot-saved.xlsx");
+    let mut book = session(bytes);
+    let sheet = book.host().sheets()[0].id();
+    for (cell, formula, expected) in [
+        ("J1", "=GETPIVOTDATA(\"Sum of Amount\",$D$3)", 24.),
+        (
+            "J2",
+            "=GETPIVOTDATA(\"Amount\",$D$3,\"Region\",\"east\")",
+            16.,
+        ),
+        (
+            "J3",
+            "=GETPIVOTDATA(\"Amount\",$D$10,\"region\",\"West\")",
+            8.,
+        ),
+    ] {
+        assert!(enter(&mut book, at(sheet, cell), formula).accepted());
+        assert_eq!(
+            session_calculated(&book, at(sheet, cell)),
+            Some(CalcValue::number(expected)),
+            "{formula}"
+        );
+    }
+    for (cell, formula) in [
+        ("K1", "=GETPIVOTDATA(\"Missing\",D3)"),
+        ("K2", "=GETPIVOTDATA(\"Amount\",A1)"),
+        ("K3", "=GETPIVOTDATA(\"Amount\",D3,\"Region\",\"Absent\")"),
+        ("K4", "=GETPIVOTDATA(\"Amount\",D3,\"Missing\",\"East\")"),
+    ] {
+        assert!(enter(&mut book, at(sheet, cell), formula).accepted());
+        assert_eq!(
+            session_calculated(&book, at(sheet, cell)),
+            Some(CalcValue::error(calc_value::WorksheetErrorCode::Ref)),
+            "{formula}"
+        );
+    }
+    assert!(
+        enter(
+            &mut book,
+            at(sheet, "K6"),
+            "=GETPIVOTDATA(\"Amount\",D3,\"Region\")"
+        )
+        .accepted()
+    );
+    assert_eq!(
+        session_calculated(&book, at(sheet, "K6")),
+        Some(CalcValue::error(calc_value::WorksheetErrorCode::Ref))
+    );
+    assert!(enter(&mut book, at(sheet, "B2"), "100").accepted());
+    assert_eq!(
+        session_calculated(&book, at(sheet, "J1")),
+        Some(CalcValue::number(24.)),
+        "Source edits do not refresh GETPIVOTDATA"
+    );
+    let revision = book.host().revision().get();
+    let result = book.dispatch(SkinIntent::Command(
+        calc_host::WorkbookCommand::PivotRefresh {
+            sheet,
+            revision,
+            part: "xl/pivotTables/summary.xml".into(),
+        },
+    ));
+    assert!(result.accepted(), "{result:?}");
+    assert_eq!(
+        session_calculated(&book, at(sheet, "J1")),
+        Some(CalcValue::number(112.))
+    );
+    assert_eq!(
+        session_calculated(&book, at(sheet, "J2")),
+        Some(CalcValue::number(104.))
+    );
+    assert_eq!(
+        session_calculated(&book, at(sheet, "J3")),
+        Some(CalcValue::number(8.))
+    );
+    assert!(book.dispatch(SkinIntent::Undo).accepted());
+    assert_eq!(
+        session_calculated(&book, at(sheet, "J1")),
+        Some(CalcValue::number(24.))
+    );
+    assert_eq!(
+        session_calculated(&book, at(sheet, "J2")),
+        Some(CalcValue::number(16.))
+    );
+    assert!(book.dispatch(SkinIntent::Redo).accepted());
+    assert_eq!(
+        session_calculated(&book, at(sheet, "J1")),
+        Some(CalcValue::number(112.))
+    );
+    assert!(enter(&mut book, at(sheet, "A4"), "Absent").accepted());
+    assert_eq!(
+        session_calculated(&book, at(sheet, "K3")),
+        Some(CalcValue::error(calc_value::WorksheetErrorCode::Ref))
+    );
+    assert!(
+        book.dispatch(SkinIntent::Command(
+            calc_host::WorkbookCommand::PivotRefresh {
+                sheet,
+                revision: book.host().revision().get(),
+                part: "xl/pivotTables/summary.xml".into()
+            }
+        ))
+        .accepted()
+    );
+    assert_eq!(
+        session_calculated(&book, at(sheet, "K3")),
+        Some(CalcValue::number(4.))
+    );
+    assert_eq!(
+        session_calculated(&book, at(sheet, "J1")),
+        Some(CalcValue::number(112.))
+    );
+    assert_eq!(
+        session_calculated(&book, at(sheet, "J2")),
+        Some(CalcValue::number(100.))
+    );
+    assert_eq!(
+        session_calculated(&book, at(sheet, "E7")),
+        Some(CalcValue::number(112.))
+    );
+    assert!(book.dispatch(SkinIntent::Undo).accepted());
+    assert_eq!(
+        session_calculated(&book, at(sheet, "K3")),
+        Some(CalcValue::error(calc_value::WorksheetErrorCode::Ref))
+    );
+    assert_eq!(
+        session_calculated(&book, at(sheet, "J1")),
+        Some(CalcValue::number(112.))
+    );
+    assert_eq!(
+        session_calculated(&book, at(sheet, "J2")),
+        Some(CalcValue::number(104.))
+    );
+    assert_eq!(
+        session_calculated(&book, at(sheet, "E6")),
+        Some(CalcValue::number(112.))
+    );
+    assert!(book.dispatch(SkinIntent::Redo).accepted());
+    assert_eq!(
+        session_calculated(&book, at(sheet, "K3")),
+        Some(CalcValue::number(4.))
+    );
+    assert_eq!(
+        session_calculated(&book, at(sheet, "J1")),
+        Some(CalcValue::number(112.))
+    );
+    let mut saved = Vec::new();
+    book.save(&SavePolicy::default(), &mut saved).unwrap();
+    let mut reopened = session(&saved);
+    assert!(reopened.dispatch(SkinIntent::Recalculate).accepted());
+    assert_eq!(
+        session_calculated(&reopened, at(sheet, "J1")),
+        Some(CalcValue::number(112.)),
+        "{:?}",
+        session_value(&reopened, at(sheet, "J1"))
+    );
+    assert_eq!(
+        session_value(&reopened, at(sheet, "E7")),
+        ProjectedValue::Literal(CalcValue::number(112.))
+    );
+}
+
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn dc_8wp_3__getpivotdata_handles_ambiguous_and_refuses_unmeasured_layouts() {
+    let bytes = include_bytes!("../../calc-doc/tests/fixtures/cdoc_m1_1/pivot-saved.xlsx");
+    let mut book = session(bytes);
+    let sheet = book.host().sheets()[0].id();
+    assert!(
+        enter(
+            &mut book,
+            at(sheet, "J1"),
+            "=GETPIVOTDATA(\"Amount\",D3:E13)"
+        )
+        .accepted()
+    );
+    assert_eq!(
+        session_calculated(&book, at(sheet, "J1")),
+        Some(CalcValue::error(calc_value::WorksheetErrorCode::Ref))
+    );
+    assert!(
+        enter(
+            &mut book,
+            at(sheet, "J2"),
+            "=GETPIVOTDATA(\"Amount\",D3,\"Region\",\"East\",\"Region\",\"West\")"
+        )
+        .accepted()
+    );
+    assert_eq!(
+        session_calculated(&book, at(sheet, "J2")),
+        Some(CalcValue::error(calc_value::WorksheetErrorCode::Ref))
+    );
+    let bytes = package_with_part_from(bytes, "xl/pivotTables/summary.xml", |xml| {
+        xml.replace(
+            "<rowFields count=\"1\"><field x=\"0\"/></rowFields>",
+            "<rowFields count=\"2\"><field x=\"0\"/><field x=\"1\"/></rowFields>",
+        )
+    });
+    let mut book = session(&bytes);
+    assert!(enter(&mut book, at(sheet, "J1"), "=GETPIVOTDATA(\"Amount\",D3)").accepted());
+    assert!(matches!(
+        session_value(&book, at(sheet, "J1")),
+        ProjectedValue::NotModeled { .. }
+    ));
+    let bytes = package_with_part_from(
+        include_bytes!("../../calc-doc/tests/fixtures/cdoc_m1_1/pivot-saved.xlsx"),
+        "xl/pivotTables/summary.xml",
+        |xml| xml.replacen("<item x=\"0\"/>", "<item x=\"0\" n=\"Custom caption\"/>", 1),
+    );
+    let mut book = session(&bytes);
+    assert!(
+        enter(
+            &mut book,
+            at(sheet, "J1"),
+            "=GETPIVOTDATA(\"Amount\",D3,\"Region\",\"East\")"
+        )
+        .accepted()
+    );
+    assert!(matches!(
+        session_value(&book, at(sheet, "J1")),
+        ProjectedValue::NotModeled { .. }
+    ));
+    let bytes = package_with_part_from(
+        include_bytes!("../../calc-doc/tests/fixtures/cdoc_m1_1/pivot-saved.xlsx"),
+        "xl/pivotCache/cache-main.xml",
+        |xml| {
+            xml.replacen(
+                "</sharedItems></cacheField>",
+                "</sharedItems><extLst/></cacheField>",
+                1,
+            )
+        },
+    );
+    let mut book = session(&bytes);
+    assert!(
+        enter(
+            &mut book,
+            at(sheet, "J1"),
+            "=GETPIVOTDATA(\"Amount\",D3,\"Region\",\"East\")"
+        )
+        .accepted()
+    );
+    assert!(matches!(
+        session_value(&book, at(sheet, "J1")),
+        ProjectedValue::NotModeled { .. }
+    ));
+}
+
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
 fn dc_8wp_14__undecidable_lookup_text_refuses() {
-    assert_eq!(calc_fml::text_order(&[0x30a0], &"Amount".encode_utf16().collect::<Vec<_>>()), None);
-    let bytes=include_bytes!("../../calc-doc/tests/fixtures/cdoc_m1_1/pivot-saved.xlsx");
-    let mut book=session(bytes); let sheet=book.host().sheets()[0].id();
+    assert_eq!(
+        calc_fml::text_order(&[0x30a0], &"Amount".encode_utf16().collect::<Vec<_>>()),
+        None
+    );
+    let bytes = include_bytes!("../../calc-doc/tests/fixtures/cdoc_m1_1/pivot-saved.xlsx");
+    let mut book = session(bytes);
+    let sheet = book.host().sheets()[0].id();
     for formula in [
         r#"=GETPIVOTDATA("゠",D3)"#,
         r#"=GETPIVOTDATA("Amount",D3,"゠","East")"#,
         r#"=GETPIVOTDATA("Amount",D3,"Region","゠","Region","East")"#,
     ] {
-        assert!(enter(&mut book,at(sheet,"J1"),formula).accepted());
-        assert!(matches!(session_value(&book,at(sheet,"J1")),ProjectedValue::NotModeled{..}), "{formula}");
+        assert!(enter(&mut book, at(sheet, "J1"), formula).accepted());
+        assert!(
+            matches!(
+                session_value(&book, at(sheet, "J1")),
+                ProjectedValue::NotModeled { .. }
+            ),
+            "{formula}"
+        );
     }
 }
 
 // The W3 capture supplies the expected values. Refresh must rebuild the same index and keep the
 // formula's dependency on the displayed intersection.
-#[cfg_attr(not(target_arch="wasm32"),test)]
-#[cfg_attr(target_arch="wasm32",wasm_bindgen_test::wasm_bindgen_test)]
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
 fn dc_8wp_14__row_column_lookup_survives_refresh_and_reopen() {
     let bytes = include_bytes!("fixtures/pivot_getpivotdata/oracle.xlsx");
     let mut book = session(bytes);
-    let sheet = |book: &HostSession, name: &str| book.host().sheets().iter()
-        .find(|s| s.name().text().to_string_lossy() == name).unwrap().id();
+    let sheet = |book: &HostSession, name: &str| {
+        book.host()
+            .sheets()
+            .iter()
+            .find(|s| s.name().text().to_string_lossy() == name)
+            .unwrap()
+            .id()
+    };
     let pivot_sheet = sheet(&book, "PvRowCol");
     let result_sheet = sheet(&book, "GPD");
-    let part = book.host().model().definitions().pivots().sheets[&pivot_sheet].tables[0].part.clone();
+    let part = book.host().model().definitions().pivots().sheets[&pivot_sheet].tables[0]
+        .part
+        .clone();
     let verify = |book: &HostSession| {
-        for (cell, expected) in [("B40", 7162.75), ("B41", 2074.5), ("B42", 2296.25), ("B43", 691.5), ("B44", 691.5)] {
-            assert_eq!(session_calculated(book, at(result_sheet, cell)), Some(CalcValue::number(expected)), "{cell}");
+        for (cell, expected) in [
+            ("B40", 7162.75),
+            ("B41", 2074.5),
+            ("B42", 2296.25),
+            ("B43", 691.5),
+            ("B44", 691.5),
+        ] {
+            assert_eq!(
+                session_calculated(book, at(result_sheet, cell)),
+                Some(CalcValue::number(expected)),
+                "{cell}"
+            );
         }
     };
     assert!(book.dispatch(SkinIntent::Recalculate).accepted());
     verify(&book);
     let revision = book.host().revision().get();
-    let receipt = book.dispatch(SkinIntent::Command(calc_host::WorkbookCommand::PivotRefresh { sheet: pivot_sheet, revision, part }));
+    let receipt = book.dispatch(SkinIntent::Command(
+        calc_host::WorkbookCommand::PivotRefresh {
+            sheet: pivot_sheet,
+            revision,
+            part,
+        },
+    ));
     assert!(receipt.accepted(), "{receipt:?}");
     verify(&book);
     let mut saved = Vec::new();
@@ -17364,165 +26377,1045 @@ fn dc_8wp_14__row_column_lookup_survives_refresh_and_reopen() {
     verify(&reopened);
 }
 
-#[cfg_attr(not(target_arch="wasm32"),test)]
-#[cfg_attr(target_arch="wasm32",wasm_bindgen_test::wasm_bindgen_test)]
-fn dc_8wp_4__create_uses_source_headers_and_the_refresh_query_history_save_route(){
-    let bytes=include_bytes!("../../calc-doc/tests/fixtures/cdoc_m1_1/pivot-saved.xlsx");let mut book=session(bytes);let sheet=book.host().sheets()[0].id();let source=GridArea::new(at(sheet,"A1"),at(sheet,"B4")).unwrap();
-    assert_eq!(calc_host::pivot_source_fields(book.host(),source).unwrap(),["Region","Amount"]);
-    assert!(enter(&mut book,at(sheet,"J1"),"=GETPIVOTDATA(\"Amount\",M3)").accepted());assert_eq!(session_calculated(&book,at(sheet,"J1")),Some(CalcValue::error(calc_value::WorksheetErrorCode::Ref)));
-    let revision=book.host().revision().get();let result=book.dispatch(SkinIntent::Command(calc_host::WorkbookCommand::PivotCreate{revision,source,destination:"M3".into(),row:0,value:1,subtotal:"sum".into()}));assert!(result.accepted(),"{result:?}");
-    assert_eq!(session_calculated(&book,at(sheet,"N6")),Some(CalcValue::number(24.)));assert_eq!(session_calculated(&book,at(sheet,"J1")),Some(CalcValue::number(24.)));assert!(book.host().model().cell(at(sheet,"N6")).is_none());
-    let table=book.host().model().definitions().pivots().tables().find(|t|t.name=="PivotTable1").unwrap().clone();let cache=book.host().model().definitions().pivots().caches.caches[&table.cache_id].clone();assert_ne!(table.cache_id,7);assert_ne!(cache.part,"xl/pivotCache/cache-main.xml");
-    assert!(book.dispatch(SkinIntent::Undo).accepted());assert_eq!(session_value(&book,at(sheet,"N6")),ProjectedValue::Empty);assert_eq!(session_calculated(&book,at(sheet,"J1")),Some(CalcValue::error(calc_value::WorksheetErrorCode::Ref)));
-    assert!(book.dispatch(SkinIntent::Redo).accepted());assert_eq!(session_calculated(&book,at(sheet,"J1")),Some(CalcValue::number(24.)));
-    assert!(enter(&mut book,at(sheet,"B2"),"100").accepted());assert_eq!(session_calculated(&book,at(sheet,"N6")),Some(CalcValue::number(24.)));
-    let revision=book.host().revision().get();assert!(book.dispatch(SkinIntent::Command(calc_host::WorkbookCommand::PivotRefresh{sheet,revision,part:table.part.clone()})).accepted());assert_eq!(session_calculated(&book,at(sheet,"J1")),Some(CalcValue::number(112.)));
-    let mut saved=Vec::new();book.save(&SavePolicy::default(),&mut saved).unwrap();let mut reopened=session(&saved);assert!(reopened.dispatch(SkinIntent::Recalculate).accepted());assert_eq!(reopened.host().model().definitions().pivots().tables().count(),3);assert_eq!(session_value(&reopened,at(sheet,"N6")),ProjectedValue::Literal(CalcValue::number(112.)));assert_eq!(session_calculated(&reopened,at(sheet,"J1")),Some(CalcValue::number(112.)));
-    assert_eq!(reopened.host().loaded().pivot_records(table.cache_id,10).unwrap().records.len(),3);
-    for part in ["xl/pivotCache/cache-main.xml","xl/pivotCache/records.xml","xl/pivotTables/summary.xml","xl/pivotTables/summary-two.xml"]{assert_eq!(part_text(&saved,part),part_text(bytes,part),"Creating a new cache leaves every imported cache/pivot part intact");}
-    assert!(part_text(&saved,"xl/workbook.xml").contains(&format!("cacheId=\"{}\"",table.cache_id)));assert!(part_text(&saved,&table.part).contains("pivotTableDefinition"));assert!(part_text(&saved,&cache.part).contains("pivotCacheDefinition"));
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn dc_8wp_4__create_uses_source_headers_and_the_refresh_query_history_save_route() {
+    let bytes = include_bytes!("../../calc-doc/tests/fixtures/cdoc_m1_1/pivot-saved.xlsx");
+    let mut book = session(bytes);
+    let sheet = book.host().sheets()[0].id();
+    let source = GridArea::new(at(sheet, "A1"), at(sheet, "B4")).unwrap();
+    assert_eq!(
+        calc_host::pivot_source_fields(book.host(), source).unwrap(),
+        ["Region", "Amount"]
+    );
+    assert!(enter(&mut book, at(sheet, "J1"), "=GETPIVOTDATA(\"Amount\",M3)").accepted());
+    assert_eq!(
+        session_calculated(&book, at(sheet, "J1")),
+        Some(CalcValue::error(calc_value::WorksheetErrorCode::Ref))
+    );
+    let revision = book.host().revision().get();
+    let result = book.dispatch(SkinIntent::Command(
+        calc_host::WorkbookCommand::PivotCreate {
+            revision,
+            source,
+            destination: "M3".into(),
+            row: 0,
+            value: 1,
+            subtotal: "sum".into(),
+        },
+    ));
+    assert!(result.accepted(), "{result:?}");
+    assert_eq!(
+        session_calculated(&book, at(sheet, "N6")),
+        Some(CalcValue::number(24.))
+    );
+    assert_eq!(
+        session_calculated(&book, at(sheet, "J1")),
+        Some(CalcValue::number(24.))
+    );
+    assert!(book.host().model().cell(at(sheet, "N6")).is_none());
+    let table = book
+        .host()
+        .model()
+        .definitions()
+        .pivots()
+        .tables()
+        .find(|t| t.name == "PivotTable1")
+        .unwrap()
+        .clone();
+    let cache = book.host().model().definitions().pivots().caches.caches[&table.cache_id].clone();
+    assert_ne!(table.cache_id, 7);
+    assert_ne!(cache.part, "xl/pivotCache/cache-main.xml");
+    assert!(book.dispatch(SkinIntent::Undo).accepted());
+    assert_eq!(session_value(&book, at(sheet, "N6")), ProjectedValue::Empty);
+    assert_eq!(
+        session_calculated(&book, at(sheet, "J1")),
+        Some(CalcValue::error(calc_value::WorksheetErrorCode::Ref))
+    );
+    assert!(book.dispatch(SkinIntent::Redo).accepted());
+    assert_eq!(
+        session_calculated(&book, at(sheet, "J1")),
+        Some(CalcValue::number(24.))
+    );
+    assert!(enter(&mut book, at(sheet, "B2"), "100").accepted());
+    assert_eq!(
+        session_calculated(&book, at(sheet, "N6")),
+        Some(CalcValue::number(24.))
+    );
+    let revision = book.host().revision().get();
+    assert!(
+        book.dispatch(SkinIntent::Command(
+            calc_host::WorkbookCommand::PivotRefresh {
+                sheet,
+                revision,
+                part: table.part.clone()
+            }
+        ))
+        .accepted()
+    );
+    assert_eq!(
+        session_calculated(&book, at(sheet, "J1")),
+        Some(CalcValue::number(112.))
+    );
+    let mut saved = Vec::new();
+    book.save(&SavePolicy::default(), &mut saved).unwrap();
+    let mut reopened = session(&saved);
+    assert!(reopened.dispatch(SkinIntent::Recalculate).accepted());
+    assert_eq!(
+        reopened
+            .host()
+            .model()
+            .definitions()
+            .pivots()
+            .tables()
+            .count(),
+        3
+    );
+    assert_eq!(
+        session_value(&reopened, at(sheet, "N6")),
+        ProjectedValue::Literal(CalcValue::number(112.))
+    );
+    assert_eq!(
+        session_calculated(&reopened, at(sheet, "J1")),
+        Some(CalcValue::number(112.))
+    );
+    assert_eq!(
+        reopened
+            .host()
+            .loaded()
+            .pivot_records(table.cache_id, 10)
+            .unwrap()
+            .records
+            .len(),
+        3
+    );
+    for part in [
+        "xl/pivotCache/cache-main.xml",
+        "xl/pivotCache/records.xml",
+        "xl/pivotTables/summary.xml",
+        "xl/pivotTables/summary-two.xml",
+    ] {
+        assert_eq!(
+            part_text(&saved, part),
+            part_text(bytes, part),
+            "Creating a new cache leaves every imported cache/pivot part intact"
+        );
+    }
+    assert!(
+        part_text(&saved, "xl/workbook.xml").contains(&format!("cacheId=\"{}\"", table.cache_id))
+    );
+    assert!(part_text(&saved, &table.part).contains("pivotTableDefinition"));
+    assert!(part_text(&saved, &cache.part).contains("pivotCacheDefinition"));
     // The new table is discovered through an implicit relationship, without an extra sheet child.
-    assert_eq!(part_text(&saved,"xl/worksheets/sheet1.xml").matches("pivotPart r:id").count(),2);
+    assert_eq!(
+        part_text(&saved, "xl/worksheets/sheet1.xml")
+            .matches("pivotPart r:id")
+            .count(),
+        2
+    );
 }
 
-#[cfg_attr(not(target_arch="wasm32"),test)]
-#[cfg_attr(target_arch="wasm32",wasm_bindgen_test::wasm_bindgen_test)]
-fn dc_8wp_4__creation_refuses_source_headers_and_destination_collisions_atomically(){
-    let bytes=include_bytes!("../../calc-doc/tests/fixtures/cdoc_m1_1/pivot-saved.xlsx");let mut book=session(bytes);let sheet=book.host().sheets()[0].id();let source=GridArea::new(at(sheet,"A1"),at(sheet,"B4")).unwrap();
-    for destination in ["D3","A1","Data!A1:B2"]{let revision=book.host().revision();let count=book.host().model().definitions().pivots().tables().count();let result=book.dispatch(SkinIntent::Command(calc_host::WorkbookCommand::PivotCreate{revision:revision.get(),source,destination:destination.into(),row:0,value:1,subtotal:"sum".into()}));assert!(!result.accepted(),"{destination}: {result:?}");assert_eq!(book.host().revision(),revision);assert_eq!(book.host().model().definitions().pivots().tables().count(),count);}
-    assert!(enter(&mut book,at(sheet,"B1"),"region").accepted());assert!(calc_host::pivot_source_fields(book.host(),source).is_err());let revision=book.host().revision();let result=book.dispatch(SkinIntent::Command(calc_host::WorkbookCommand::PivotCreate{revision:revision.get(),source,destination:"M3".into(),row:0,value:1,subtotal:"sum".into()}));assert!(!result.accepted());assert_eq!(book.host().revision(),revision);
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn dc_8wp_4__creation_refuses_source_headers_and_destination_collisions_atomically() {
+    let bytes = include_bytes!("../../calc-doc/tests/fixtures/cdoc_m1_1/pivot-saved.xlsx");
+    let mut book = session(bytes);
+    let sheet = book.host().sheets()[0].id();
+    let source = GridArea::new(at(sheet, "A1"), at(sheet, "B4")).unwrap();
+    for destination in ["D3", "A1", "Data!A1:B2"] {
+        let revision = book.host().revision();
+        let count = book.host().model().definitions().pivots().tables().count();
+        let result = book.dispatch(SkinIntent::Command(
+            calc_host::WorkbookCommand::PivotCreate {
+                revision: revision.get(),
+                source,
+                destination: destination.into(),
+                row: 0,
+                value: 1,
+                subtotal: "sum".into(),
+            },
+        ));
+        assert!(!result.accepted(), "{destination}: {result:?}");
+        assert_eq!(book.host().revision(), revision);
+        assert_eq!(
+            book.host().model().definitions().pivots().tables().count(),
+            count
+        );
+    }
+    assert!(enter(&mut book, at(sheet, "B1"), "region").accepted());
+    assert!(calc_host::pivot_source_fields(book.host(), source).is_err());
+    let revision = book.host().revision();
+    let result = book.dispatch(SkinIntent::Command(
+        calc_host::WorkbookCommand::PivotCreate {
+            revision: revision.get(),
+            source,
+            destination: "M3".into(),
+            row: 0,
+            value: 1,
+            subtotal: "sum".into(),
+        },
+    ));
+    assert!(!result.accepted());
+    assert_eq!(book.host().revision(), revision);
 }
 
-#[cfg_attr(not(target_arch="wasm32"),test)]
-#[cfg_attr(target_arch="wasm32",wasm_bindgen_test::wasm_bindgen_test)]
-fn dc_8wp_4__create_first_pivot_adds_root_collection_and_retains_nested_extensions(){
-    let blank=calc_host::blank_package();let bytes=package_with_part_from(&blank,"xl/workbook.xml",|xml|xml.replacen("</workbook>","<extLst><ext uri=\"keep-pivot-extension\"><pivotCaches><pivotCache cacheId=\"999\"/></pivotCaches></ext></extLst></workbook>",1));let mut book=session(&bytes);let sheet=book.host().sheets()[0].id();
-    for(cell,text)in[("A1","Region"),("B1","Amount"),("A2","East"),("B2","10"),("A3","West"),("B3","8")]{assert!(enter(&mut book,at(sheet,cell),text).accepted());}
-    let source=GridArea::new(at(sheet,"A1"),at(sheet,"B3")).unwrap();let result=book.dispatch(SkinIntent::Command(calc_host::WorkbookCommand::PivotCreate{revision:book.host().revision().get(),source,destination:"D3".into(),row:0,value:1,subtotal:"sum".into()}));assert!(result.accepted(),"{result:?}");assert_eq!(session_calculated(&book,at(sheet,"E6")),Some(CalcValue::number(18.)));
-    let mut saved=Vec::new();book.save(&SavePolicy::default(),&mut saved).unwrap();let xml=part_text(&saved,"xl/workbook.xml");assert!(xml.contains("<extLst><ext uri=\"keep-pivot-extension\"><pivotCaches><pivotCache cacheId=\"999\"/></pivotCaches></ext></extLst>"),"{xml}");let reopened=session(&saved);let pivots=reopened.host().model().definitions().pivots();assert_eq!(pivots.tables().count(),1);assert_eq!(pivots.caches.caches.len(),1);assert!(pivots.caches.issues.is_empty());assert_eq!(session_value(&reopened,at(sheet,"E6")),ProjectedValue::Literal(CalcValue::number(18.)));assert_eq!(reopened.host().loaded().pivot_records(pivots.tables().next().unwrap().cache_id,10).unwrap().records.len(),2);
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn dc_8wp_4__create_first_pivot_adds_root_collection_and_retains_nested_extensions() {
+    let blank = calc_host::blank_package();
+    let bytes = package_with_part_from(&blank, "xl/workbook.xml", |xml| {
+        xml.replacen("</workbook>","<extLst><ext uri=\"keep-pivot-extension\"><pivotCaches><pivotCache cacheId=\"999\"/></pivotCaches></ext></extLst></workbook>",1)
+    });
+    let mut book = session(&bytes);
+    let sheet = book.host().sheets()[0].id();
+    for (cell, text) in [
+        ("A1", "Region"),
+        ("B1", "Amount"),
+        ("A2", "East"),
+        ("B2", "10"),
+        ("A3", "West"),
+        ("B3", "8"),
+    ] {
+        assert!(enter(&mut book, at(sheet, cell), text).accepted());
+    }
+    let source = GridArea::new(at(sheet, "A1"), at(sheet, "B3")).unwrap();
+    let result = book.dispatch(SkinIntent::Command(
+        calc_host::WorkbookCommand::PivotCreate {
+            revision: book.host().revision().get(),
+            source,
+            destination: "D3".into(),
+            row: 0,
+            value: 1,
+            subtotal: "sum".into(),
+        },
+    ));
+    assert!(result.accepted(), "{result:?}");
+    assert_eq!(
+        session_calculated(&book, at(sheet, "E6")),
+        Some(CalcValue::number(18.))
+    );
+    let mut saved = Vec::new();
+    book.save(&SavePolicy::default(), &mut saved).unwrap();
+    let xml = part_text(&saved, "xl/workbook.xml");
+    assert!(xml.contains("<extLst><ext uri=\"keep-pivot-extension\"><pivotCaches><pivotCache cacheId=\"999\"/></pivotCaches></ext></extLst>"),"{xml}");
+    let reopened = session(&saved);
+    let pivots = reopened.host().model().definitions().pivots();
+    assert_eq!(pivots.tables().count(), 1);
+    assert_eq!(pivots.caches.caches.len(), 1);
+    assert!(pivots.caches.issues.is_empty());
+    assert_eq!(
+        session_value(&reopened, at(sheet, "E6")),
+        ProjectedValue::Literal(CalcValue::number(18.))
+    );
+    assert_eq!(
+        reopened
+            .host()
+            .loaded()
+            .pivot_records(pivots.tables().next().unwrap().cache_id, 10)
+            .unwrap()
+            .records
+            .len(),
+        2
+    );
 }
 
-#[cfg_attr(not(target_arch="wasm32"),test)]
-#[cfg_attr(target_arch="wasm32",wasm_bindgen_test::wasm_bindgen_test)]
-fn dc_971p_60__chart_three_plot_stacked_combination_retains_sources_axes_and_history_on_save(){
-    let bytes=include_bytes!("fixtures/dc_6yw/charts.xlsx");let mut book=session(bytes);let sheet=book.host().sheets()[0].id();
-    for (cell,text)in [("A1","Region"),("B1","First"),("C1","Second"),("D1","Line"),("E1","Area"),("A2","East"),("A3","West"),("A4","North"),("B2","2"),("B3","3"),("B4","4"),("C2","5"),("C3","6"),("C4","7"),("D2","100"),("D3","200"),("D4","300"),("E2","8"),("E3","9"),("E4","10")]{assert!(enter(&mut book,at(sheet,cell),text).accepted());}
-    let source=calc_value::GridArea::new(at(sheet,"A1"),at(sheet,"E4")).unwrap();let result=book.dispatch(SkinIntent::Command(calc_host::WorkbookCommand::ChartCreate{revision:book.host().revision().get(),area:source,kind:"combo-three".into(),rows:false,headers:true,categories:true}));assert!(result.accepted(),"{result:?}");
-    let chart=book.host().charts(sheet).0.pop().unwrap();let part=chart.part.clone();assert_eq!(chart.plots.len(),3);assert_eq!(chart.plots.iter().map(|p|p.series.len()).collect::<Vec<_>>(),[2,1,1]);assert_eq!(chart.plots[0].axis_ids,chart.plots[2].axis_ids);assert_ne!(chart.plots[0].axis_ids,chart.plots[1].axis_ids);assert!(calc_host::chart::combination_supported(&chart));
-    let command=calc_host::WorkbookCommand::ChartType{sheet,revision:book.host().revision().get(),part:part.clone(),plot:0,kind:"column".into(),stacked:true};let result=book.dispatch(SkinIntent::Command(command));assert!(result.accepted(),"{result:?}");
-    let chart=book.host().charts(sheet).0.pop().unwrap();assert!(chart.plots[0].stacked);assert_eq!(calc_host::chart::plot_scale_range(&chart.plots[0],false).unwrap(),(0.,11.));assert_eq!(calc_host::chart::category_scale(&chart,&chart.plots[0]).unwrap(),calc_host::chart::category_scale(&chart,&chart.plots[2]).unwrap());assert!(calc_host::chart::category_scale(&chart,&chart.plots[1]).unwrap().maximum>=300.);
-    assert!(book.dispatch(SkinIntent::Undo).accepted());assert!(!book.host().charts(sheet).0.last().unwrap().plots[0].stacked);assert!(book.dispatch(SkinIntent::Redo).accepted());
-    assert!(enter(&mut book,at(sheet,"B2"),"-2").accepted());assert!(enter(&mut book,at(sheet,"C2"),"-5").accepted());let chart=book.host().charts(sheet).0.pop().unwrap();assert_eq!(calc_host::chart::plot_scale_range(&chart.plots[0],false).unwrap(),(-7.,11.));
-    for (plot,kind)in [(2,"area")]{let result=book.dispatch(SkinIntent::Command(calc_host::WorkbookCommand::ChartType{sheet,revision:book.host().revision().get(),part:part.clone(),plot,kind:kind.into(),stacked:true}));assert!(result.accepted(),"{kind}: {result:?}");let current=book.host().charts(sheet).0.pop().unwrap();assert!(current.plots[plot as usize].stacked);assert!(calc_host::chart::combination_supported(&current));assert!(book.dispatch(SkinIntent::Undo).accepted());assert!(!book.host().charts(sheet).0.last().unwrap().plots[plot as usize].stacked);}
-    let before=(book.host().revision(),book.history_depth(),book.host().model().definitions().charts(sheet).to_vec());let result=book.dispatch(SkinIntent::Command(calc_host::WorkbookCommand::ChartType{sheet,revision:before.0.get(),part:part.clone(),plot:1,kind:"line".into(),stacked:true}));assert!(!result.accepted(),"{result:?}");assert_eq!((book.host().revision(),book.history_depth(),book.host().model().definitions().charts(sheet).to_vec()),before);
-    let result=book.dispatch(SkinIntent::Command(calc_host::WorkbookCommand::ChartLogAxis{sheet,revision:book.host().revision().get(),part:part.clone(),axis:4,base:Some("10".into())}));assert!(result.accepted(),"A separate unstacked logarithmic plot remains supported: {result:?}");
-    let before=(book.host().revision(),book.history_depth());assert!(!book.dispatch(SkinIntent::Command(calc_host::WorkbookCommand::ChartLogAxis{sheet,revision:before.0.get(),part:part.clone(),axis:2,base:Some("10".into())})).accepted());assert_eq!((book.host().revision(),book.history_depth()),before);
-    let model=book.host().model().definitions().charts(sheet).iter().find(|c|c.part==part).unwrap().clone();let mut saved=Vec::new();book.save(&SavePolicy::default(),&mut saved).unwrap();let reopened=session(&saved);let after=reopened.host().model().definitions().charts(sheet).iter().find(|c|c.part==part).unwrap();assert_eq!(after.plots,model.plots);assert_eq!(after.axes,model.axes);assert!(calc_host::chart::combination_supported(reopened.host().charts(sheet).0.last().unwrap()));
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn dc_971p_60__chart_three_plot_stacked_combination_retains_sources_axes_and_history_on_save() {
+    let bytes = include_bytes!("fixtures/dc_6yw/charts.xlsx");
+    let mut book = session(bytes);
+    let sheet = book.host().sheets()[0].id();
+    for (cell, text) in [
+        ("A1", "Region"),
+        ("B1", "First"),
+        ("C1", "Second"),
+        ("D1", "Line"),
+        ("E1", "Area"),
+        ("A2", "East"),
+        ("A3", "West"),
+        ("A4", "North"),
+        ("B2", "2"),
+        ("B3", "3"),
+        ("B4", "4"),
+        ("C2", "5"),
+        ("C3", "6"),
+        ("C4", "7"),
+        ("D2", "100"),
+        ("D3", "200"),
+        ("D4", "300"),
+        ("E2", "8"),
+        ("E3", "9"),
+        ("E4", "10"),
+    ] {
+        assert!(enter(&mut book, at(sheet, cell), text).accepted());
+    }
+    let source = calc_value::GridArea::new(at(sheet, "A1"), at(sheet, "E4")).unwrap();
+    let result = book.dispatch(SkinIntent::Command(
+        calc_host::WorkbookCommand::ChartCreate {
+            revision: book.host().revision().get(),
+            area: source,
+            kind: "combo-three".into(),
+            rows: false,
+            headers: true,
+            categories: true,
+        },
+    ));
+    assert!(result.accepted(), "{result:?}");
+    let chart = book.host().charts(sheet).0.pop().unwrap();
+    let part = chart.part.clone();
+    assert_eq!(chart.plots.len(), 3);
+    assert_eq!(
+        chart
+            .plots
+            .iter()
+            .map(|p| p.series.len())
+            .collect::<Vec<_>>(),
+        [2, 1, 1]
+    );
+    assert_eq!(chart.plots[0].axis_ids, chart.plots[2].axis_ids);
+    assert_ne!(chart.plots[0].axis_ids, chart.plots[1].axis_ids);
+    assert!(calc_host::chart::combination_supported(&chart));
+    let command = calc_host::WorkbookCommand::ChartType {
+        sheet,
+        revision: book.host().revision().get(),
+        part: part.clone(),
+        plot: 0,
+        kind: "column".into(),
+        stacked: true,
+    };
+    let result = book.dispatch(SkinIntent::Command(command));
+    assert!(result.accepted(), "{result:?}");
+    let chart = book.host().charts(sheet).0.pop().unwrap();
+    assert!(chart.plots[0].stacked);
+    assert_eq!(
+        calc_host::chart::plot_scale_range(&chart.plots[0], false).unwrap(),
+        (0., 11.)
+    );
+    assert_eq!(
+        calc_host::chart::category_scale(&chart, &chart.plots[0]).unwrap(),
+        calc_host::chart::category_scale(&chart, &chart.plots[2]).unwrap()
+    );
+    assert!(
+        calc_host::chart::category_scale(&chart, &chart.plots[1])
+            .unwrap()
+            .maximum
+            >= 300.
+    );
+    assert!(book.dispatch(SkinIntent::Undo).accepted());
+    assert!(!book.host().charts(sheet).0.last().unwrap().plots[0].stacked);
+    assert!(book.dispatch(SkinIntent::Redo).accepted());
+    assert!(enter(&mut book, at(sheet, "B2"), "-2").accepted());
+    assert!(enter(&mut book, at(sheet, "C2"), "-5").accepted());
+    let chart = book.host().charts(sheet).0.pop().unwrap();
+    assert_eq!(
+        calc_host::chart::plot_scale_range(&chart.plots[0], false).unwrap(),
+        (-7., 11.)
+    );
+    for (plot, kind) in [(2, "area")] {
+        let result = book.dispatch(SkinIntent::Command(calc_host::WorkbookCommand::ChartType {
+            sheet,
+            revision: book.host().revision().get(),
+            part: part.clone(),
+            plot,
+            kind: kind.into(),
+            stacked: true,
+        }));
+        assert!(result.accepted(), "{kind}: {result:?}");
+        let current = book.host().charts(sheet).0.pop().unwrap();
+        assert!(current.plots[plot as usize].stacked);
+        assert!(calc_host::chart::combination_supported(&current));
+        assert!(book.dispatch(SkinIntent::Undo).accepted());
+        assert!(!book.host().charts(sheet).0.last().unwrap().plots[plot as usize].stacked);
+    }
+    let before = (
+        book.host().revision(),
+        book.history_depth(),
+        book.host().model().definitions().charts(sheet).to_vec(),
+    );
+    let result = book.dispatch(SkinIntent::Command(calc_host::WorkbookCommand::ChartType {
+        sheet,
+        revision: before.0.get(),
+        part: part.clone(),
+        plot: 1,
+        kind: "line".into(),
+        stacked: true,
+    }));
+    assert!(!result.accepted(), "{result:?}");
+    assert_eq!(
+        (
+            book.host().revision(),
+            book.history_depth(),
+            book.host().model().definitions().charts(sheet).to_vec()
+        ),
+        before
+    );
+    let result = book.dispatch(SkinIntent::Command(
+        calc_host::WorkbookCommand::ChartLogAxis {
+            sheet,
+            revision: book.host().revision().get(),
+            part: part.clone(),
+            axis: 4,
+            base: Some("10".into()),
+        },
+    ));
+    assert!(
+        result.accepted(),
+        "A separate unstacked logarithmic plot remains supported: {result:?}"
+    );
+    let before = (book.host().revision(), book.history_depth());
+    assert!(
+        !book
+            .dispatch(SkinIntent::Command(
+                calc_host::WorkbookCommand::ChartLogAxis {
+                    sheet,
+                    revision: before.0.get(),
+                    part: part.clone(),
+                    axis: 2,
+                    base: Some("10".into())
+                }
+            ))
+            .accepted()
+    );
+    assert_eq!((book.host().revision(), book.history_depth()), before);
+    let model = book
+        .host()
+        .model()
+        .definitions()
+        .charts(sheet)
+        .iter()
+        .find(|c| c.part == part)
+        .unwrap()
+        .clone();
+    let mut saved = Vec::new();
+    book.save(&SavePolicy::default(), &mut saved).unwrap();
+    let reopened = session(&saved);
+    let after = reopened
+        .host()
+        .model()
+        .definitions()
+        .charts(sheet)
+        .iter()
+        .find(|c| c.part == part)
+        .unwrap();
+    assert_eq!(after.plots, model.plots);
+    assert_eq!(after.axes, model.axes);
+    assert!(calc_host::chart::combination_supported(
+        reopened.host().charts(sheet).0.last().unwrap()
+    ));
 }
 
-#[cfg_attr(not(target_arch="wasm32"),test)]
-#[cfg_attr(target_arch="wasm32",wasm_bindgen_test::wasm_bindgen_test)]
-fn dc_971p_61__chart_element_fonts_keep_unknown_source_and_other_objects_through_history_and_save(){
-    let part="xl/charts/chart1.xml";let bytes=package_with_part_from(include_bytes!("fixtures/dc_6yw/charts.xlsx"),part,|xml|xml.replacen("<a:defRPr/>","<a:defRPr lang=\"en-ZA\" sz=\"1100\"><a:solidFill><a:schemeClr val=\"accent2\"><a:lumMod val=\"50000\"/></a:schemeClr></a:solidFill><a:latin typeface=\"Old title\" pitchFamily=\"34\"/><a:ea typeface=\"Retained\"/><a:extLst><a:ext uri=\"keep-font\"/></a:extLst></a:defRPr>",1));
-    let mut book=session(&bytes);let sheet=book.host().sheets()[0].id();let original=book.host().model().definitions().charts(sheet)[0].clone();assert_eq!(original.element_text["title"].size,Some(1100));assert_eq!(original.element_text["title"].family.as_deref(),Some("Old title"));
-    let title_style=calc_host::chart::ChartTextStyle{family:Some("Arial & Title".into()),size:Some(1800),bold:Some(true),italic:Some(true),color:Some("D02030".into())};
-    let command=calc_host::WorkbookCommand::ChartElementTextStyle{sheet,revision:book.host().revision().get(),part:part.into(),target:"title".into(),style:title_style.clone()};let result=book.dispatch(SkinIntent::Command(command));assert!(result.accepted(),"{result:?}");assert_eq!(book.host().model().definitions().charts(sheet)[0].text_style,original.text_style);
-    assert!(book.dispatch(SkinIntent::Undo).accepted());assert_eq!(book.host().model().definitions().charts(sheet)[0].element_text,original.element_text);assert!(book.dispatch(SkinIntent::Redo).accepted());
-    let mut saved=Vec::new();book.save(&SavePolicy::default(),&mut saved).unwrap();let xml=part_text(&saved,part);for retained in ["lang=\"en-ZA\"","pitchFamily=\"34\"","<a:ea typeface=\"Retained\"/>","uri=\"keep-font\"","<a:t>Column</a:t>"]{assert!(xml.contains(retained),"{retained}: {xml}");}let title=xml.split("<c:title>").nth(1).unwrap().split("</c:title>").next().unwrap();assert!(title.contains("sz=\"1800\"")&&title.contains("Arial &amp; Title")&&title.contains("D02030"));assert!(!xml.split("</c:title>").nth(1).unwrap().contains("D02030"));let reopened=session(&saved);assert_eq!(reopened.host().model().definitions().charts(sheet)[0].element_text["title"],title_style);
-    for(target,size,color)in [("legend",1300,"209040"),("axis:1264926064",900,"2030C0")]{let command=calc_host::WorkbookCommand::ChartElementTextStyle{sheet,revision:book.host().revision().get(),part:part.into(),target:target.into(),style:calc_host::chart::ChartTextStyle{size:Some(size),color:Some(color.into()),..Default::default()}};let result=book.dispatch(SkinIntent::Command(command));assert!(result.accepted(),"{result:?}");}
-    let before=book.host().model().definitions().charts(sheet)[0].element_text.clone();let command=calc_host::WorkbookCommand::ChartProperties{sheet,revision:book.host().revision().get(),part:part.into(),title:Some("Renamed title".into()),set_title:true,legend:None};assert!(book.dispatch(SkinIntent::Command(command)).accepted());let command=calc_host::WorkbookCommand::ChartLegend{sheet,revision:book.host().revision().get(),part:part.into(),position:"b".into()};assert!(book.dispatch(SkinIntent::Command(command)).accepted());
-    let mut saved=Vec::new();book.save(&SavePolicy::default(),&mut saved).unwrap();let reopened=session(&saved);assert_eq!(reopened.host().model().definitions().charts(sheet)[0].element_text,before);assert_eq!(reopened.host().model().definitions().charts(sheet)[0].title.as_deref(),Some("Renamed title"));
-    let command=calc_host::WorkbookCommand::ChartElementTextStyle{sheet,revision:book.host().revision().get(),part:part.into(),target:"title".into(),style:Default::default()};assert!(book.dispatch(SkinIntent::Command(command)).accepted());let mut saved=Vec::new();book.save(&SavePolicy::default(),&mut saved).unwrap();let reopened=session(&saved);let fonts=&reopened.host().model().definitions().charts(sheet)[0].element_text;assert!(!fonts.contains_key("title"));for key in ["legend","axis:1264926064"]{assert_eq!(fonts.get(key),before.get(key));}
-}
-
-#[cfg_attr(not(target_arch="wasm32"),test)]
-#[cfg_attr(target_arch="wasm32",wasm_bindgen_test::wasm_bindgen_test)]
-fn dc_971p_61__chart_element_fonts_on_a_new_chart_save_and_invalid_targets_refuse_atomically(){
-    let mut book=session(&calc_host::blank_package());let sheet=book.host().sheets()[0].id();for(cell,text)in[("A1","Region"),("B1","Amount"),("A2","East"),("B2","10")]{assert!(enter(&mut book,at(sheet,cell),text).accepted());}let command=calc_host::WorkbookCommand::ChartCreate{revision:book.host().revision().get(),area:GridArea::new(at(sheet,"A1"),at(sheet,"B2")).unwrap(),kind:"column".into(),rows:false,headers:true,categories:true};assert!(book.dispatch(SkinIntent::Command(command)).accepted());let part=book.host().model().definitions().charts(sheet)[0].part.clone();
-    for(target,color)in[("legend","BAD"),("title","102030"),("axis:999","102030"),("axis:02","102030")]{let before=(book.host().revision(),book.history_depth(),book.host().model().definitions().charts(sheet).to_vec());let command=calc_host::WorkbookCommand::ChartElementTextStyle{sheet,revision:before.0.get(),part:part.clone(),target:target.into(),style:calc_host::chart::ChartTextStyle{color:Some(color.into()),..Default::default()}};assert!(!book.dispatch(SkinIntent::Command(command)).accepted());assert_eq!((book.host().revision(),book.history_depth(),book.host().model().definitions().charts(sheet).to_vec()),before);}
-    for target in ["legend","axis:1","axis:2"]{let command=calc_host::WorkbookCommand::ChartElementTextStyle{sheet,revision:book.host().revision().get(),part:part.clone(),target:target.into(),style:calc_host::chart::ChartTextStyle{family:Some("Arial".into()),size:Some(1250),color:Some("102030".into()),..Default::default()}};let result=book.dispatch(SkinIntent::Command(command));assert!(result.accepted(),"{result:?}");}
-    let before=book.host().model().definitions().charts(sheet)[0].element_text.clone();let mut saved=Vec::new();book.save(&SavePolicy::default(),&mut saved).unwrap();let reopened=session(&saved);assert_eq!(reopened.host().model().definitions().charts(sheet)[0].element_text,before);
-}
-
-#[cfg_attr(not(target_arch="wasm32"),test)]
-#[cfg_attr(target_arch="wasm32",wasm_bindgen_test::wasm_bindgen_test)]
-fn dc_971p_61__chart_mixed_rich_text_refuses_before_noop_and_literal_replacement_allows_fonts(){
-    let part="xl/charts/chart1.xml";let bytes=package_with_part_from(include_bytes!("fixtures/dc_6yw/charts.xlsx"),part,|xml|xml.replacen("<a:t>Column</a:t>","<a:t>Column</a:t></a:r><a:r><a:rPr sz=\"1800\"/><a:t> mixed</a:t>",1));
-    let mut book=session(&bytes);let sheet=book.host().sheets()[0].id();let chart=book.host().model().definitions().charts(sheet)[0].clone();assert!(chart.element_text_complex.contains("title"));
-    let before=(book.host().revision(),book.history_depth(),chart.clone());let result=book.dispatch(SkinIntent::Command(calc_host::WorkbookCommand::ChartElementTextStyle{sheet,revision:before.0.get(),part:part.into(),target:"title".into(),style:chart.element_text.get("title").cloned().unwrap_or_default()}));assert!(!result.accepted(),"{result:?}");assert_eq!((book.host().revision(),book.history_depth(),book.host().model().definitions().charts(sheet)[0].clone()),before);
-    let mut saved=Vec::new();book.save(&SavePolicy::default(),&mut saved).unwrap();assert_eq!(part_text(&saved,part),part_text(&bytes,part));
-    let result=book.dispatch(SkinIntent::Command(calc_host::WorkbookCommand::ChartProperties{sheet,revision:book.host().revision().get(),part:part.into(),title:Some("One run".into()),set_title:true,legend:None}));assert!(result.accepted(),"{result:?}");assert!(book.host().model().definitions().charts(sheet)[0].element_text_complex.contains("title"));
-    let result=book.dispatch(SkinIntent::Command(calc_host::WorkbookCommand::ChartProperties{sheet,revision:book.host().revision().get(),part:part.into(),title:None,set_title:true,legend:None}));assert!(result.accepted(),"{result:?}");let mut removed=Vec::new();book.save(&SavePolicy::default(),&mut removed).unwrap();book=session(&removed);let result=book.dispatch(SkinIntent::Command(calc_host::WorkbookCommand::ChartProperties{sheet,revision:book.host().revision().get(),part:part.into(),title:Some("One fresh run".into()),set_title:true,legend:None}));assert!(result.accepted(),"{result:?}");assert!(!book.host().model().definitions().charts(sheet)[0].element_text_complex.contains("title"));
-    let result=book.dispatch(SkinIntent::Command(calc_host::WorkbookCommand::ChartElementTextStyle{sheet,revision:book.host().revision().get(),part:part.into(),target:"title".into(),style:calc_host::chart::ChartTextStyle{size:Some(2000),..Default::default()}}));assert!(result.accepted(),"{result:?}");let mut saved=Vec::new();book.save(&SavePolicy::default(),&mut saved).unwrap();let reopened=session(&saved);assert_eq!(reopened.host().model().definitions().charts(sheet)[0].element_text["title"].size,Some(2000));
-}
-
-#[cfg_attr(not(target_arch="wasm32"),test)]
-#[cfg_attr(target_arch="wasm32",wasm_bindgen_test::wasm_bindgen_test)]
-fn dc_971p_61__chart_title_run_font_overrides_paragraph_and_object_defaults(){
-    let part="xl/charts/chart1.xml";let bytes=package_with_part_from(include_bytes!("fixtures/dc_6yw/charts.xlsx"),part,|xml|xml.replacen("<a:defRPr/>","<a:defRPr sz=\"1100\"/>",1).replacen("<a:rPr lang=\"en-ZA\"/>","<a:rPr lang=\"en-ZA\" sz=\"2100\"/>",1).replacen("</a:r></a:p>","</a:r><a:endParaRPr sz=\"1200\"/></a:p>",1).replacen("</c:title>","<c:txPr><a:bodyPr/><a:lstStyle/><a:p><a:pPr><a:defRPr sz=\"1300\"/></a:pPr></a:p></c:txPr></c:title>",1));let book=session(&bytes);let sheet=book.host().sheets()[0].id();let chart=&book.host().model().definitions().charts(sheet)[0];assert!(!chart.element_text_complex.contains("title"));assert_eq!(chart.element_text["title"].size,Some(2100));
-}
-
-#[cfg_attr(not(target_arch="wasm32"),test)]
-#[cfg_attr(target_arch="wasm32",wasm_bindgen_test::wasm_bindgen_test)]
-fn dc_971p_61__chart_legend_run_font_overrides_paragraph_and_end_defaults(){
-    let part="xl/charts/chart1.xml";let bytes=package_with_part_from(include_bytes!("fixtures/dc_6yw/charts.xlsx"),part,|xml|xml.replacen("</c:legend>","<c:txPr><a:bodyPr/><a:lstStyle/><a:p><a:pPr><a:defRPr sz=\"1100\"/></a:pPr><a:r><a:rPr sz=\"2100\"/><a:t>Legend</a:t></a:r><a:endParaRPr sz=\"1200\"/></a:p></c:txPr></c:legend>",1));let book=session(&bytes);let sheet=book.host().sheets()[0].id();let chart=&book.host().model().definitions().charts(sheet)[0];assert!(!chart.element_text_complex.contains("legend"));assert_eq!(chart.element_text["legend"].size,Some(2100));
-}
-
-#[cfg_attr(not(target_arch="wasm32"),test)]
-#[cfg_attr(target_arch="wasm32",wasm_bindgen_test::wasm_bindgen_test)]
-fn dc_971p_61__chart_renaming_and_moving_keep_unchanged_theme_text_and_transforms(){
-    let part="xl/charts/chart1.xml";let fill="<a:solidFill><a:schemeClr val=\"accent2\"><a:lumMod val=\"50000\"/></a:schemeClr></a:solidFill>";let property=format!("<a:defRPr sz=\"1100\">{fill}</a:defRPr>");let bytes=package_with_part_from(include_bytes!("fixtures/dc_6yw/charts.xlsx"),part,|xml|xml.replacen("<a:defRPr/>",&property,1).replacen("</c:legend>",&format!("<c:txPr><a:bodyPr/><a:lstStyle/><a:p><a:pPr>{property}</a:pPr></a:p></c:txPr></c:legend>"),1));let mut book=session(&bytes);let sheet=book.host().sheets()[0].id();let fonts=book.host().model().definitions().charts(sheet)[0].element_text.clone();assert_eq!(fonts["title"].color.as_deref(),Some("accent2"));assert_eq!(fonts["legend"].color.as_deref(),Some("accent2"));
-    for command in [calc_host::WorkbookCommand::ChartProperties{sheet,revision:book.host().revision().get(),part:part.into(),title:Some("New title".into()),set_title:true,legend:None}]{let result=book.dispatch(SkinIntent::Command(command));assert!(result.accepted(),"{result:?}");}let result=book.dispatch(SkinIntent::Command(calc_host::WorkbookCommand::ChartLegend{sheet,revision:book.host().revision().get(),part:part.into(),position:"b".into()}));assert!(result.accepted(),"{result:?}");
-    let mut saved=Vec::new();book.save(&SavePolicy::default(),&mut saved).unwrap();let xml=part_text(&saved,part);assert_eq!(xml.matches(fill).count(),2,"{xml}");let reopened=session(&saved);assert_eq!(reopened.host().model().definitions().charts(sheet)[0].element_text,fonts);assert_eq!(reopened.host().model().definitions().charts(sheet)[0].title.as_deref(),Some("New title"));assert_eq!(reopened.host().model().definitions().charts(sheet)[0].legend.as_deref(),Some("b"));
-}
-
-#[cfg_attr(not(target_arch="wasm32"),test)]
-#[cfg_attr(target_arch="wasm32",wasm_bindgen_test::wasm_bindgen_test)]
-fn dc_971p_61__chart_linked_title_without_a_saved_text_cache_keeps_its_font_on_legend_edits(){
-    let part="xl/charts/chart1.xml";let bytes=package_with_part_from(include_bytes!("fixtures/dc_6yw/charts.xlsx"),part,|xml|{let start=xml.find("<c:tx>").unwrap();let end=xml[start..].find("</c:tx>").unwrap()+start+7;let mut s=xml.to_owned();s.replace_range(start..end,"<c:tx><c:strRef><c:f>Data!$A$1</c:f></c:strRef></c:tx>");s});let mut book=session(&bytes);let sheet=book.host().sheets()[0].id();let chart=&book.host().model().definitions().charts(sheet)[0];assert!(chart.title.is_none());assert_eq!(chart.title_formula.as_deref(),Some("Data!$A$1"));
-    let style=calc_host::chart::ChartTextStyle{size:Some(1700),color:Some("123ABC".into()),..Default::default()};let result=book.dispatch(SkinIntent::Command(calc_host::WorkbookCommand::ChartElementTextStyle{sheet,revision:book.host().revision().get(),part:part.into(),target:"title".into(),style:style.clone()}));assert!(result.accepted(),"{result:?}");let result=book.dispatch(SkinIntent::Command(calc_host::WorkbookCommand::ChartLegend{sheet,revision:book.host().revision().get(),part:part.into(),position:"b".into()}));assert!(result.accepted(),"{result:?}");let mut saved=Vec::new();book.save(&SavePolicy::default(),&mut saved).unwrap();assert!(part_text(&saved,part).contains("<c:f>Data!$A$1</c:f>"));let reopened=session(&saved);let chart=&reopened.host().model().definitions().charts(sheet)[0];assert_eq!(chart.element_text["title"],style);assert_eq!(chart.title_formula.as_deref(),Some("Data!$A$1"));
-}
-
-#[cfg_attr(not(target_arch="wasm32"),test)]
-#[cfg_attr(target_arch="wasm32",wasm_bindgen_test::wasm_bindgen_test)]
-fn dc_8wp_4__picture_source_refuses_refresh_and_creation_without_mutation(){
-    // Complete the normal IMAGE async route with a picture payload; no network or cache shortcut.
-    #[derive(Debug)]
-    struct Route;
-    impl calc_func::FetchRoute for Route { fn begin(&self,_:calc_func::FetchRequest)->u64{1} }
-    let bytes=include_bytes!("../../calc-doc/tests/fixtures/cdoc_m1_1/pivot-saved.xlsx");
-    let mut book=session(bytes);let sheet=book.host().sheets()[0].id();
-    book.set_fetch_route(std::rc::Rc::new(Route));
-    assert!(enter(&mut book,at(sheet,"B2"),"=IMAGE(\"https://example.invalid/picture.png\")").accepted());
-    let tokens=book.host().pending_async();assert_eq!(tokens.len(),1);
-    let image=CalcValue::image(calc_value::ImageValue::picture(calc_value::ImageFormat::Png,std::sync::Arc::from(&b"\x89PNG\r\n\x1a\n picture"[..])));
-    book.complete_async(&tokens[0],image);
-    for _ in 0..100{if !book.has_pending_calculation(){break;}book.advance_calculation();}
-    assert!(session_calculated(&book,at(sheet,"B2")).unwrap().image_value().is_some());
-    let before=(book.host().revision(),book.history_depth(),book.host().model().definitions().pivots().clone());
-    let source=GridArea::new(at(sheet,"A1"),at(sheet,"B4")).unwrap();
-    for command in [
-        calc_host::WorkbookCommand::PivotRefresh{sheet,revision:before.0.get(),part:"xl/pivotTables/summary.xml".into()},
-        calc_host::WorkbookCommand::PivotCreate{revision:before.0.get(),source,destination:"M3".into(),row:0,value:1,subtotal:"sum".into()},
-    ]{
-        let result=book.dispatch(SkinIntent::Command(command));assert!(!result.accepted(),"{result:?}");
-        let message=format!("{result:?}");assert!(message.contains("Picture source")&&message.contains("dc-8wp"),"{message}");
-        assert_eq!((book.host().revision(),book.history_depth(),book.host().model().definitions().pivots().clone()),before);
-        assert_eq!(session_value(&book,at(sheet,"E6")),ProjectedValue::Literal(CalcValue::number(24.)));
-        assert!(book.host().model().cell(at(sheet,"M3")).is_none());
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn dc_971p_61__chart_element_fonts_keep_unknown_source_and_other_objects_through_history_and_save()
+{
+    let part = "xl/charts/chart1.xml";
+    let bytes = package_with_part_from(
+        include_bytes!("fixtures/dc_6yw/charts.xlsx"),
+        part,
+        |xml| {
+            xml.replacen("<a:defRPr/>","<a:defRPr lang=\"en-ZA\" sz=\"1100\"><a:solidFill><a:schemeClr val=\"accent2\"><a:lumMod val=\"50000\"/></a:schemeClr></a:solidFill><a:latin typeface=\"Old title\" pitchFamily=\"34\"/><a:ea typeface=\"Retained\"/><a:extLst><a:ext uri=\"keep-font\"/></a:extLst></a:defRPr>",1)
+        },
+    );
+    let mut book = session(&bytes);
+    let sheet = book.host().sheets()[0].id();
+    let original = book.host().model().definitions().charts(sheet)[0].clone();
+    assert_eq!(original.element_text["title"].size, Some(1100));
+    assert_eq!(
+        original.element_text["title"].family.as_deref(),
+        Some("Old title")
+    );
+    let title_style = calc_host::chart::ChartTextStyle {
+        family: Some("Arial & Title".into()),
+        size: Some(1800),
+        bold: Some(true),
+        italic: Some(true),
+        color: Some("D02030".into()),
+    };
+    let command = calc_host::WorkbookCommand::ChartElementTextStyle {
+        sheet,
+        revision: book.host().revision().get(),
+        part: part.into(),
+        target: "title".into(),
+        style: title_style.clone(),
+    };
+    let result = book.dispatch(SkinIntent::Command(command));
+    assert!(result.accepted(), "{result:?}");
+    assert_eq!(
+        book.host().model().definitions().charts(sheet)[0].text_style,
+        original.text_style
+    );
+    assert!(book.dispatch(SkinIntent::Undo).accepted());
+    assert_eq!(
+        book.host().model().definitions().charts(sheet)[0].element_text,
+        original.element_text
+    );
+    assert!(book.dispatch(SkinIntent::Redo).accepted());
+    let mut saved = Vec::new();
+    book.save(&SavePolicy::default(), &mut saved).unwrap();
+    let xml = part_text(&saved, part);
+    for retained in [
+        "lang=\"en-ZA\"",
+        "pitchFamily=\"34\"",
+        "<a:ea typeface=\"Retained\"/>",
+        "uri=\"keep-font\"",
+        "<a:t>Column</a:t>",
+    ] {
+        assert!(xml.contains(retained), "{retained}: {xml}");
+    }
+    let title = xml
+        .split("<c:title>")
+        .nth(1)
+        .unwrap()
+        .split("</c:title>")
+        .next()
+        .unwrap();
+    assert!(
+        title.contains("sz=\"1800\"")
+            && title.contains("Arial &amp; Title")
+            && title.contains("D02030")
+    );
+    assert!(!xml.split("</c:title>").nth(1).unwrap().contains("D02030"));
+    let reopened = session(&saved);
+    assert_eq!(
+        reopened.host().model().definitions().charts(sheet)[0].element_text["title"],
+        title_style
+    );
+    for (target, size, color) in [
+        ("legend", 1300, "209040"),
+        ("axis:1264926064", 900, "2030C0"),
+    ] {
+        let command = calc_host::WorkbookCommand::ChartElementTextStyle {
+            sheet,
+            revision: book.host().revision().get(),
+            part: part.into(),
+            target: target.into(),
+            style: calc_host::chart::ChartTextStyle {
+                size: Some(size),
+                color: Some(color.into()),
+                ..Default::default()
+            },
+        };
+        let result = book.dispatch(SkinIntent::Command(command));
+        assert!(result.accepted(), "{result:?}");
+    }
+    let before = book.host().model().definitions().charts(sheet)[0]
+        .element_text
+        .clone();
+    let command = calc_host::WorkbookCommand::ChartProperties {
+        sheet,
+        revision: book.host().revision().get(),
+        part: part.into(),
+        title: Some("Renamed title".into()),
+        set_title: true,
+        legend: None,
+    };
+    assert!(book.dispatch(SkinIntent::Command(command)).accepted());
+    let command = calc_host::WorkbookCommand::ChartLegend {
+        sheet,
+        revision: book.host().revision().get(),
+        part: part.into(),
+        position: "b".into(),
+    };
+    assert!(book.dispatch(SkinIntent::Command(command)).accepted());
+    let mut saved = Vec::new();
+    book.save(&SavePolicy::default(), &mut saved).unwrap();
+    let reopened = session(&saved);
+    assert_eq!(
+        reopened.host().model().definitions().charts(sheet)[0].element_text,
+        before
+    );
+    assert_eq!(
+        reopened.host().model().definitions().charts(sheet)[0]
+            .title
+            .as_deref(),
+        Some("Renamed title")
+    );
+    let command = calc_host::WorkbookCommand::ChartElementTextStyle {
+        sheet,
+        revision: book.host().revision().get(),
+        part: part.into(),
+        target: "title".into(),
+        style: Default::default(),
+    };
+    assert!(book.dispatch(SkinIntent::Command(command)).accepted());
+    let mut saved = Vec::new();
+    book.save(&SavePolicy::default(), &mut saved).unwrap();
+    let reopened = session(&saved);
+    let fonts = &reopened.host().model().definitions().charts(sheet)[0].element_text;
+    assert!(!fonts.contains_key("title"));
+    for key in ["legend", "axis:1264926064"] {
+        assert_eq!(fonts.get(key), before.get(key));
     }
 }
 
-#[cfg_attr(not(target_arch="wasm32"),test)]
-#[cfg_attr(target_arch="wasm32",wasm_bindgen_test::wasm_bindgen_test)]
-fn dc_971p_61__title_family_edit_keeps_rich_theme_fill_without_object_text_defaults(){
-    let part="xl/charts/chart1.xml";let fill="<a:solidFill><a:schemeClr val=\"accent2\"><a:lumMod val=\"50000\"/></a:schemeClr></a:solidFill>";
-    let bytes=package_with_part_from(include_bytes!("fixtures/dc_6yw/charts.xlsx"),part,|xml|xml.replacen("<a:defRPr/>",&format!("<a:defRPr sz=\"1100\">{fill}</a:defRPr>"),1));
-    let mut book=session(&bytes);let sheet=book.host().sheets()[0].id();let mut style=book.host().model().definitions().charts(sheet)[0].element_text["title"].clone();assert_eq!(style.color.as_deref(),Some("accent2"));style.family=Some("New family".into());
-    let result=book.dispatch(SkinIntent::Command(calc_host::WorkbookCommand::ChartElementTextStyle{sheet,revision:book.host().revision().get(),part:part.into(),target:"title".into(),style:style.clone()}));assert!(result.accepted(),"{result:?}");
-    let mut saved=Vec::new();book.save(&SavePolicy::default(),&mut saved).unwrap();let xml=part_text(&saved,part);assert!(xml.contains(fill),"{xml}");assert!(!xml.contains("srgbClr val=\"accent2\""),"{xml}");let reopened=session(&saved);assert_eq!(reopened.host().model().definitions().charts(sheet)[0].element_text["title"],style);
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn dc_971p_61__chart_element_fonts_on_a_new_chart_save_and_invalid_targets_refuse_atomically() {
+    let mut book = session(&calc_host::blank_package());
+    let sheet = book.host().sheets()[0].id();
+    for (cell, text) in [
+        ("A1", "Region"),
+        ("B1", "Amount"),
+        ("A2", "East"),
+        ("B2", "10"),
+    ] {
+        assert!(enter(&mut book, at(sheet, cell), text).accepted());
+    }
+    let command = calc_host::WorkbookCommand::ChartCreate {
+        revision: book.host().revision().get(),
+        area: GridArea::new(at(sheet, "A1"), at(sheet, "B2")).unwrap(),
+        kind: "column".into(),
+        rows: false,
+        headers: true,
+        categories: true,
+    };
+    assert!(book.dispatch(SkinIntent::Command(command)).accepted());
+    let part = book.host().model().definitions().charts(sheet)[0]
+        .part
+        .clone();
+    for (target, color) in [
+        ("legend", "BAD"),
+        ("title", "102030"),
+        ("axis:999", "102030"),
+        ("axis:02", "102030"),
+    ] {
+        let before = (
+            book.host().revision(),
+            book.history_depth(),
+            book.host().model().definitions().charts(sheet).to_vec(),
+        );
+        let command = calc_host::WorkbookCommand::ChartElementTextStyle {
+            sheet,
+            revision: before.0.get(),
+            part: part.clone(),
+            target: target.into(),
+            style: calc_host::chart::ChartTextStyle {
+                color: Some(color.into()),
+                ..Default::default()
+            },
+        };
+        assert!(!book.dispatch(SkinIntent::Command(command)).accepted());
+        assert_eq!(
+            (
+                book.host().revision(),
+                book.history_depth(),
+                book.host().model().definitions().charts(sheet).to_vec()
+            ),
+            before
+        );
+    }
+    for target in ["legend", "axis:1", "axis:2"] {
+        let command = calc_host::WorkbookCommand::ChartElementTextStyle {
+            sheet,
+            revision: book.host().revision().get(),
+            part: part.clone(),
+            target: target.into(),
+            style: calc_host::chart::ChartTextStyle {
+                family: Some("Arial".into()),
+                size: Some(1250),
+                color: Some("102030".into()),
+                ..Default::default()
+            },
+        };
+        let result = book.dispatch(SkinIntent::Command(command));
+        assert!(result.accepted(), "{result:?}");
+    }
+    let before = book.host().model().definitions().charts(sheet)[0]
+        .element_text
+        .clone();
+    let mut saved = Vec::new();
+    book.save(&SavePolicy::default(), &mut saved).unwrap();
+    let reopened = session(&saved);
+    assert_eq!(
+        reopened.host().model().definitions().charts(sheet)[0].element_text,
+        before
+    );
 }
 
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn dc_971p_61__chart_mixed_rich_text_refuses_before_noop_and_literal_replacement_allows_fonts() {
+    let part = "xl/charts/chart1.xml";
+    let bytes =
+        package_with_part_from(include_bytes!("fixtures/dc_6yw/charts.xlsx"), part, |xml| {
+            xml.replacen(
+                "<a:t>Column</a:t>",
+                "<a:t>Column</a:t></a:r><a:r><a:rPr sz=\"1800\"/><a:t> mixed</a:t>",
+                1,
+            )
+        });
+    let mut book = session(&bytes);
+    let sheet = book.host().sheets()[0].id();
+    let chart = book.host().model().definitions().charts(sheet)[0].clone();
+    assert!(chart.element_text_complex.contains("title"));
+    let before = (book.host().revision(), book.history_depth(), chart.clone());
+    let result = book.dispatch(SkinIntent::Command(
+        calc_host::WorkbookCommand::ChartElementTextStyle {
+            sheet,
+            revision: before.0.get(),
+            part: part.into(),
+            target: "title".into(),
+            style: chart.element_text.get("title").cloned().unwrap_or_default(),
+        },
+    ));
+    assert!(!result.accepted(), "{result:?}");
+    assert_eq!(
+        (
+            book.host().revision(),
+            book.history_depth(),
+            book.host().model().definitions().charts(sheet)[0].clone()
+        ),
+        before
+    );
+    let mut saved = Vec::new();
+    book.save(&SavePolicy::default(), &mut saved).unwrap();
+    assert_eq!(part_text(&saved, part), part_text(&bytes, part));
+    let result = book.dispatch(SkinIntent::Command(
+        calc_host::WorkbookCommand::ChartProperties {
+            sheet,
+            revision: book.host().revision().get(),
+            part: part.into(),
+            title: Some("One run".into()),
+            set_title: true,
+            legend: None,
+        },
+    ));
+    assert!(result.accepted(), "{result:?}");
+    assert!(
+        book.host().model().definitions().charts(sheet)[0]
+            .element_text_complex
+            .contains("title")
+    );
+    let result = book.dispatch(SkinIntent::Command(
+        calc_host::WorkbookCommand::ChartProperties {
+            sheet,
+            revision: book.host().revision().get(),
+            part: part.into(),
+            title: None,
+            set_title: true,
+            legend: None,
+        },
+    ));
+    assert!(result.accepted(), "{result:?}");
+    let mut removed = Vec::new();
+    book.save(&SavePolicy::default(), &mut removed).unwrap();
+    book = session(&removed);
+    let result = book.dispatch(SkinIntent::Command(
+        calc_host::WorkbookCommand::ChartProperties {
+            sheet,
+            revision: book.host().revision().get(),
+            part: part.into(),
+            title: Some("One fresh run".into()),
+            set_title: true,
+            legend: None,
+        },
+    ));
+    assert!(result.accepted(), "{result:?}");
+    assert!(
+        !book.host().model().definitions().charts(sheet)[0]
+            .element_text_complex
+            .contains("title")
+    );
+    let result = book.dispatch(SkinIntent::Command(
+        calc_host::WorkbookCommand::ChartElementTextStyle {
+            sheet,
+            revision: book.host().revision().get(),
+            part: part.into(),
+            target: "title".into(),
+            style: calc_host::chart::ChartTextStyle {
+                size: Some(2000),
+                ..Default::default()
+            },
+        },
+    ));
+    assert!(result.accepted(), "{result:?}");
+    let mut saved = Vec::new();
+    book.save(&SavePolicy::default(), &mut saved).unwrap();
+    let reopened = session(&saved);
+    assert_eq!(
+        reopened.host().model().definitions().charts(sheet)[0].element_text["title"].size,
+        Some(2000)
+    );
+}
+
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn dc_971p_61__chart_title_run_font_overrides_paragraph_and_object_defaults() {
+    let part = "xl/charts/chart1.xml";
+    let bytes = package_with_part_from(
+        include_bytes!("fixtures/dc_6yw/charts.xlsx"),
+        part,
+        |xml| {
+            xml.replacen("<a:defRPr/>","<a:defRPr sz=\"1100\"/>",1).replacen("<a:rPr lang=\"en-ZA\"/>","<a:rPr lang=\"en-ZA\" sz=\"2100\"/>",1).replacen("</a:r></a:p>","</a:r><a:endParaRPr sz=\"1200\"/></a:p>",1).replacen("</c:title>","<c:txPr><a:bodyPr/><a:lstStyle/><a:p><a:pPr><a:defRPr sz=\"1300\"/></a:pPr></a:p></c:txPr></c:title>",1)
+        },
+    );
+    let book = session(&bytes);
+    let sheet = book.host().sheets()[0].id();
+    let chart = &book.host().model().definitions().charts(sheet)[0];
+    assert!(!chart.element_text_complex.contains("title"));
+    assert_eq!(chart.element_text["title"].size, Some(2100));
+}
+
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn dc_971p_61__chart_legend_run_font_overrides_paragraph_and_end_defaults() {
+    let part = "xl/charts/chart1.xml";
+    let bytes = package_with_part_from(
+        include_bytes!("fixtures/dc_6yw/charts.xlsx"),
+        part,
+        |xml| {
+            xml.replacen("</c:legend>","<c:txPr><a:bodyPr/><a:lstStyle/><a:p><a:pPr><a:defRPr sz=\"1100\"/></a:pPr><a:r><a:rPr sz=\"2100\"/><a:t>Legend</a:t></a:r><a:endParaRPr sz=\"1200\"/></a:p></c:txPr></c:legend>",1)
+        },
+    );
+    let book = session(&bytes);
+    let sheet = book.host().sheets()[0].id();
+    let chart = &book.host().model().definitions().charts(sheet)[0];
+    assert!(!chart.element_text_complex.contains("legend"));
+    assert_eq!(chart.element_text["legend"].size, Some(2100));
+}
+
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn dc_971p_61__chart_renaming_and_moving_keep_unchanged_theme_text_and_transforms() {
+    let part = "xl/charts/chart1.xml";
+    let fill = "<a:solidFill><a:schemeClr val=\"accent2\"><a:lumMod val=\"50000\"/></a:schemeClr></a:solidFill>";
+    let property = format!("<a:defRPr sz=\"1100\">{fill}</a:defRPr>");
+    let bytes = package_with_part_from(
+        include_bytes!("fixtures/dc_6yw/charts.xlsx"),
+        part,
+        |xml| {
+            xml.replacen("<a:defRPr/>",&property,1).replacen("</c:legend>",&format!("<c:txPr><a:bodyPr/><a:lstStyle/><a:p><a:pPr>{property}</a:pPr></a:p></c:txPr></c:legend>"),1)
+        },
+    );
+    let mut book = session(&bytes);
+    let sheet = book.host().sheets()[0].id();
+    let fonts = book.host().model().definitions().charts(sheet)[0]
+        .element_text
+        .clone();
+    assert_eq!(fonts["title"].color.as_deref(), Some("accent2"));
+    assert_eq!(fonts["legend"].color.as_deref(), Some("accent2"));
+    for command in [calc_host::WorkbookCommand::ChartProperties {
+        sheet,
+        revision: book.host().revision().get(),
+        part: part.into(),
+        title: Some("New title".into()),
+        set_title: true,
+        legend: None,
+    }] {
+        let result = book.dispatch(SkinIntent::Command(command));
+        assert!(result.accepted(), "{result:?}");
+    }
+    let result = book.dispatch(SkinIntent::Command(
+        calc_host::WorkbookCommand::ChartLegend {
+            sheet,
+            revision: book.host().revision().get(),
+            part: part.into(),
+            position: "b".into(),
+        },
+    ));
+    assert!(result.accepted(), "{result:?}");
+    let mut saved = Vec::new();
+    book.save(&SavePolicy::default(), &mut saved).unwrap();
+    let xml = part_text(&saved, part);
+    assert_eq!(xml.matches(fill).count(), 2, "{xml}");
+    let reopened = session(&saved);
+    assert_eq!(
+        reopened.host().model().definitions().charts(sheet)[0].element_text,
+        fonts
+    );
+    assert_eq!(
+        reopened.host().model().definitions().charts(sheet)[0]
+            .title
+            .as_deref(),
+        Some("New title")
+    );
+    assert_eq!(
+        reopened.host().model().definitions().charts(sheet)[0]
+            .legend
+            .as_deref(),
+        Some("b")
+    );
+}
+
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn dc_971p_61__chart_linked_title_without_a_saved_text_cache_keeps_its_font_on_legend_edits() {
+    let part = "xl/charts/chart1.xml";
+    let bytes =
+        package_with_part_from(include_bytes!("fixtures/dc_6yw/charts.xlsx"), part, |xml| {
+            let start = xml.find("<c:tx>").unwrap();
+            let end = xml[start..].find("</c:tx>").unwrap() + start + 7;
+            let mut s = xml.to_owned();
+            s.replace_range(
+                start..end,
+                "<c:tx><c:strRef><c:f>Data!$A$1</c:f></c:strRef></c:tx>",
+            );
+            s
+        });
+    let mut book = session(&bytes);
+    let sheet = book.host().sheets()[0].id();
+    let chart = &book.host().model().definitions().charts(sheet)[0];
+    assert!(chart.title.is_none());
+    assert_eq!(chart.title_formula.as_deref(), Some("Data!$A$1"));
+    let style = calc_host::chart::ChartTextStyle {
+        size: Some(1700),
+        color: Some("123ABC".into()),
+        ..Default::default()
+    };
+    let result = book.dispatch(SkinIntent::Command(
+        calc_host::WorkbookCommand::ChartElementTextStyle {
+            sheet,
+            revision: book.host().revision().get(),
+            part: part.into(),
+            target: "title".into(),
+            style: style.clone(),
+        },
+    ));
+    assert!(result.accepted(), "{result:?}");
+    let result = book.dispatch(SkinIntent::Command(
+        calc_host::WorkbookCommand::ChartLegend {
+            sheet,
+            revision: book.host().revision().get(),
+            part: part.into(),
+            position: "b".into(),
+        },
+    ));
+    assert!(result.accepted(), "{result:?}");
+    let mut saved = Vec::new();
+    book.save(&SavePolicy::default(), &mut saved).unwrap();
+    assert!(part_text(&saved, part).contains("<c:f>Data!$A$1</c:f>"));
+    let reopened = session(&saved);
+    let chart = &reopened.host().model().definitions().charts(sheet)[0];
+    assert_eq!(chart.element_text["title"], style);
+    assert_eq!(chart.title_formula.as_deref(), Some("Data!$A$1"));
+}
+
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn dc_8wp_4__picture_source_refuses_refresh_and_creation_without_mutation() {
+    // Complete the normal IMAGE async route with a picture payload; no network or cache shortcut.
+    #[derive(Debug)]
+    struct Route;
+    impl calc_func::FetchRoute for Route {
+        fn begin(&self, _: calc_func::FetchRequest) -> u64 {
+            1
+        }
+    }
+    let bytes = include_bytes!("../../calc-doc/tests/fixtures/cdoc_m1_1/pivot-saved.xlsx");
+    let mut book = session(bytes);
+    let sheet = book.host().sheets()[0].id();
+    book.set_fetch_route(std::rc::Rc::new(Route));
+    assert!(
+        enter(
+            &mut book,
+            at(sheet, "B2"),
+            "=IMAGE(\"https://example.invalid/picture.png\")"
+        )
+        .accepted()
+    );
+    let tokens = book.host().pending_async();
+    assert_eq!(tokens.len(), 1);
+    let image = CalcValue::image(calc_value::ImageValue::picture(
+        calc_value::ImageFormat::Png,
+        std::sync::Arc::from(&b"\x89PNG\r\n\x1a\n picture"[..]),
+    ));
+    book.complete_async(&tokens[0], image);
+    for _ in 0..100 {
+        if !book.has_pending_calculation() {
+            break;
+        }
+        book.advance_calculation();
+    }
+    assert!(
+        session_calculated(&book, at(sheet, "B2"))
+            .unwrap()
+            .image_value()
+            .is_some()
+    );
+    let before = (
+        book.host().revision(),
+        book.history_depth(),
+        book.host().model().definitions().pivots().clone(),
+    );
+    let source = GridArea::new(at(sheet, "A1"), at(sheet, "B4")).unwrap();
+    for command in [
+        calc_host::WorkbookCommand::PivotRefresh {
+            sheet,
+            revision: before.0.get(),
+            part: "xl/pivotTables/summary.xml".into(),
+        },
+        calc_host::WorkbookCommand::PivotCreate {
+            revision: before.0.get(),
+            source,
+            destination: "M3".into(),
+            row: 0,
+            value: 1,
+            subtotal: "sum".into(),
+        },
+    ] {
+        let result = book.dispatch(SkinIntent::Command(command));
+        assert!(!result.accepted(), "{result:?}");
+        let message = format!("{result:?}");
+        assert!(
+            message.contains("Picture source") && message.contains("dc-8wp"),
+            "{message}"
+        );
+        assert_eq!(
+            (
+                book.host().revision(),
+                book.history_depth(),
+                book.host().model().definitions().pivots().clone()
+            ),
+            before
+        );
+        assert_eq!(
+            session_value(&book, at(sheet, "E6")),
+            ProjectedValue::Literal(CalcValue::number(24.))
+        );
+        assert!(book.host().model().cell(at(sheet, "M3")).is_none());
+    }
+}
+
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn dc_971p_61__title_family_edit_keeps_rich_theme_fill_without_object_text_defaults() {
+    let part = "xl/charts/chart1.xml";
+    let fill = "<a:solidFill><a:schemeClr val=\"accent2\"><a:lumMod val=\"50000\"/></a:schemeClr></a:solidFill>";
+    let bytes =
+        package_with_part_from(include_bytes!("fixtures/dc_6yw/charts.xlsx"), part, |xml| {
+            xml.replacen(
+                "<a:defRPr/>",
+                &format!("<a:defRPr sz=\"1100\">{fill}</a:defRPr>"),
+                1,
+            )
+        });
+    let mut book = session(&bytes);
+    let sheet = book.host().sheets()[0].id();
+    let mut style =
+        book.host().model().definitions().charts(sheet)[0].element_text["title"].clone();
+    assert_eq!(style.color.as_deref(), Some("accent2"));
+    style.family = Some("New family".into());
+    let result = book.dispatch(SkinIntent::Command(
+        calc_host::WorkbookCommand::ChartElementTextStyle {
+            sheet,
+            revision: book.host().revision().get(),
+            part: part.into(),
+            target: "title".into(),
+            style: style.clone(),
+        },
+    ));
+    assert!(result.accepted(), "{result:?}");
+    let mut saved = Vec::new();
+    book.save(&SavePolicy::default(), &mut saved).unwrap();
+    let xml = part_text(&saved, part);
+    assert!(xml.contains(fill), "{xml}");
+    assert!(!xml.contains("srgbClr val=\"accent2\""), "{xml}");
+    let reopened = session(&saved);
+    assert_eq!(
+        reopened.host().model().definitions().charts(sheet)[0].element_text["title"],
+        style
+    );
+}
 
 #[cfg_attr(not(target_arch = "wasm32"), test)]
 #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
@@ -17532,8 +27425,13 @@ fn dc_8wp__multiple_page_items_and_unsupported_compound_filter() {
     let field = r#"<pivotField axis="axisPage" multipleItemSelectionAllowed="1" showAll="0"><items count="4"><item x="0"/><item x="1"/><item x="2"/><item t="default"/></items></pivotField>"#;
     let hidden = package_with_part_from(fixture, part, |xml| {
         assert!(xml.contains(field));
-        xml.replacen(field, &field.replace("<item x=\"1\"/>", "<item x=\"1\" h=\"1\"/>")
-            .replace("<item x=\"2\"/>", "<item x=\"2\" h=\"1\"/>"), 1)
+        xml.replacen(
+            field,
+            &field
+                .replace("<item x=\"1\"/>", "<item x=\"1\" h=\"1\"/>")
+                .replace("<item x=\"2\"/>", "<item x=\"2\" h=\"1\"/>"),
+            1,
+        )
     });
     let selected = package_with_part_from(fixture, part, |xml| {
         let from = r#"<pageField fld="1" hier="-1"/>"#;
@@ -17542,7 +27440,11 @@ fn dc_8wp__multiple_page_items_and_unsupported_compound_filter() {
     });
     let two_visible = package_with_part_from(fixture, part, |xml| {
         assert!(xml.contains(field));
-        xml.replacen(field, &field.replace("<item x=\"2\"/>", "<item x=\"2\" h=\"1\"/>"), 1)
+        xml.replacen(
+            field,
+            &field.replace("<item x=\"2\"/>", "<item x=\"2\" h=\"1\"/>"),
+            1,
+        )
     });
     let selected_beta = package_with_part_from(fixture, part, |xml| {
         let from = r#"<pageField fld="1" hier="-1"/>"#;
@@ -17553,16 +27455,31 @@ fn dc_8wp__multiple_page_items_and_unsupported_compound_filter() {
     for bytes in [&hidden, &selected, &two_visible, &selected_beta] {
         let mut book = session(bytes);
         let s = sheet(book.host(), "N1");
-        let part = book.host().model().definitions().pivots().sheet(s).unwrap().tables[0].part.clone();
-        let receipt = book.dispatch(SkinIntent::Command(calc_host::WorkbookCommand::PivotRefresh {
-            sheet: s, revision: book.host().revision().get(), part,
-        }));
+        let part = book
+            .host()
+            .model()
+            .definitions()
+            .pivots()
+            .sheet(s)
+            .unwrap()
+            .tables[0]
+            .part
+            .clone();
+        let receipt = book.dispatch(SkinIntent::Command(
+            calc_host::WorkbookCommand::PivotRefresh {
+                sheet: s,
+                revision: book.host().revision().get(),
+                part,
+            },
+        ));
         assert!(receipt.accepted(), "{receipt:?}");
-        let cells = (5..=20).flat_map(|row| (1..=2).map(move |col| CellKey::new(s, row, col).unwrap()))
+        let cells = (5..=20)
+            .flat_map(|row| (1..=2).map(move |col| CellKey::new(s, row, col).unwrap()))
             .map(|cell| match value(book.host(), cell) {
                 ProjectedValue::Literal(v) | ProjectedValue::Calculated { value: v, .. } => Some(v),
                 _ => None,
-            }).collect::<Vec<_>>();
+            })
+            .collect::<Vec<_>>();
         outputs.push(cells);
     }
     assert_eq!(outputs[0], outputs[1]);
@@ -17578,43 +27495,88 @@ fn dc_8wp__multiple_page_items_and_unsupported_compound_filter() {
         rows
     };
     let mut union = data_rows(&outputs[1]);
-    for (date, amount) in data_rows(&outputs[3]) { assert!(union.insert(date, amount).is_none()); }
+    for (date, amount) in data_rows(&outputs[3]) {
+        assert!(union.insert(date, amount).is_none());
+    }
     assert!(union.len() > 1);
     assert_eq!(data_rows(&outputs[2]), union);
     let compound = package_with_part_from(fixture, "xl/pivotTables/pivotTable35.xml", |xml| {
         let one = r#"<customFilter operator="greaterThan" val="3000"/>"#;
         assert!(xml.contains(one));
-        xml.replacen(one, &format!("{one}<customFilter operator=\"lessThan\" val=\"4000\"/>"), 1)
+        xml.replacen(
+            one,
+            &format!("{one}<customFilter operator=\"lessThan\" val=\"4000\"/>"),
+            1,
+        )
     });
     let mut book = session(&compound);
     let s = sheet(book.host(), "N13");
-    let part = book.host().model().definitions().pivots().sheet(s).unwrap().tables[0].part.clone();
-    let receipt = book.dispatch(SkinIntent::Command(calc_host::WorkbookCommand::PivotRefresh {
-        sheet: s, revision: book.host().revision().get(), part,
-    }));
-    assert!(!receipt.accepted(), "compound filter must refuse: {receipt:?}");
+    let part = book
+        .host()
+        .model()
+        .definitions()
+        .pivots()
+        .sheet(s)
+        .unwrap()
+        .tables[0]
+        .part
+        .clone();
+    let receipt = book.dispatch(SkinIntent::Command(
+        calc_host::WorkbookCommand::PivotRefresh {
+            sheet: s,
+            revision: book.host().revision().get(),
+            part,
+        },
+    ));
+    assert!(
+        !receipt.accepted(),
+        "compound filter must refuse: {receipt:?}"
+    );
 }
 
 #[cfg_attr(not(target_arch = "wasm32"), test)]
 #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
 fn dc_8wp__unsupported_date_group_and_out_of_range_source_refuse() {
     let fixture = include_bytes!("fixtures/ui30/pivots-ui30-excel.xlsx");
-    let changed = package_with_part_from(fixture, "xl/pivotCache/pivotCacheDefinition32.xml", |xml| {
-        assert!(xml.contains("groupBy=\"months\""));
-        xml.replacen("groupBy=\"months\"", "groupBy=\"quarters\"", 1)
-    });
+    let changed =
+        package_with_part_from(fixture, "xl/pivotCache/pivotCacheDefinition32.xml", |xml| {
+            assert!(xml.contains("groupBy=\"months\""));
+            xml.replacen("groupBy=\"months\"", "groupBy=\"quarters\"", 1)
+        });
     for (bytes, change_source) in [(changed.as_slice(), false), (fixture.as_slice(), true)] {
         let mut book = session(bytes);
         if change_source {
             let source = sheet(book.host(), "Source");
-            assert!(book.dispatch(SkinIntent::EnterCell { at: at(source, "C2"), text: "1e300".into() }).accepted());
+            assert!(
+                book.dispatch(SkinIntent::EnterCell {
+                    at: at(source, "C2"),
+                    text: "1e300".into()
+                })
+                .accepted()
+            );
         }
         let s = sheet(book.host(), "N10");
-        let part = book.host().model().definitions().pivots().sheet(s).unwrap().tables[0].part.clone();
-        let receipt = book.dispatch(SkinIntent::Command(calc_host::WorkbookCommand::PivotRefresh {
-            sheet: s, revision: book.host().revision().get(), part,
-        }));
-        assert!(!receipt.accepted(), "unsupported grouping must refuse: {receipt:?}");
+        let part = book
+            .host()
+            .model()
+            .definitions()
+            .pivots()
+            .sheet(s)
+            .unwrap()
+            .tables[0]
+            .part
+            .clone();
+        let receipt = book.dispatch(SkinIntent::Command(
+            calc_host::WorkbookCommand::PivotRefresh {
+                sheet: s,
+                revision: book.host().revision().get(),
+                part,
+            },
+        ));
+        assert!(
+            !receipt.accepted(),
+            "unsupported grouping must refuse: {receipt:?}"
+        );
     }
 }
 
@@ -17631,13 +27593,29 @@ fn dc_8wp_10__percent_of_next_item_refuses() {
         },
     );
     let mut book = session(&bytes);
-    let (s, part) = book.host().model().definitions().pivots().sheets.iter().find_map(|(s, pivots)|
-        pivots.tables.iter().find(|table| table.name == "pvt_show_percentof_previous")
-            .map(|table| (*s, table.part.clone()))).unwrap();
+    let (s, part) = book
+        .host()
+        .model()
+        .definitions()
+        .pivots()
+        .sheets
+        .iter()
+        .find_map(|(s, pivots)| {
+            pivots
+                .tables
+                .iter()
+                .find(|table| table.name == "pvt_show_percentof_previous")
+                .map(|table| (*s, table.part.clone()))
+        })
+        .unwrap();
     let before = book.host().revision();
-    let receipt = book.dispatch(SkinIntent::Command(calc_host::WorkbookCommand::PivotRefresh {
-        sheet: s, revision: before.get(), part,
-    }));
+    let receipt = book.dispatch(SkinIntent::Command(
+        calc_host::WorkbookCommand::PivotRefresh {
+            sheet: s,
+            revision: before.get(),
+            part,
+        },
+    ));
     assert!(!receipt.accepted(), "{receipt:?}");
     assert_eq!(book.host().revision(), before);
 }
@@ -17649,25 +27627,63 @@ fn dc_8wp_10__percent_of_next_item_refuses() {
 #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
 fn dc_0f1k_11_3__reopened_large_rectangle_format_is_one_region() {
     use calc_host::{FormatPatch, WorkbookCommand};
-    let options = || HostOptions { locale: calc_host::FormatProfile::for_culture("en-US"), ..Default::default() };
-    let mut book = HostSession::open(Arc::new(MemorySource::new(calc_host::blank_package())), &OpenPolicy::default(), options()).unwrap();
+    let options = || HostOptions {
+        locale: calc_host::FormatProfile::for_culture("en-US"),
+        ..Default::default()
+    };
+    let mut book = HostSession::open(
+        Arc::new(MemorySource::new(calc_host::blank_package())),
+        &OpenPolicy::default(),
+        options(),
+    )
+    .unwrap();
     let s = book.host().sheets()[0].id();
     let rectangle = GridArea::new(at(s, "D10"), at(s, "E20010")).unwrap();
     let format = |book: &mut HostSession, area: GridArea, patch: FormatPatch| {
-        let receipt = book.dispatch(SkinIntent::Command(WorkbookCommand::FormatCells { areas: vec![area], patch }));
+        let receipt = book.dispatch(SkinIntent::Command(WorkbookCommand::FormatCells {
+            areas: vec![area],
+            patch,
+        }));
         assert!(receipt.accepted(), "{:?}", receipt.error);
     };
-    format(&mut book, rectangle, FormatPatch { fill: Some("#00ff00".into()), ..Default::default() });
+    format(
+        &mut book,
+        rectangle,
+        FormatPatch {
+            fill: Some("#00ff00".into()),
+            ..Default::default()
+        },
+    );
     let mut saved = Vec::new();
     book.save(&SavePolicy::default(), &mut saved).unwrap();
-    let mut reopened = HostSession::open(Arc::new(MemorySource::new(saved)), &OpenPolicy::default(), options()).unwrap();
+    let mut reopened = HostSession::open(
+        Arc::new(MemorySource::new(saved)),
+        &OpenPolicy::default(),
+        options(),
+    )
+    .unwrap();
     let r = reopened.host().sheets()[0].id();
     let rectangle = GridArea::new(at(r, "D10"), at(r, "E20010")).unwrap();
-    assert_eq!(reopened.host().loaded().sheet(r).unwrap().explicit_styles().count(), 40002, "one record per cell");
+    assert_eq!(
+        reopened
+            .host()
+            .loaded()
+            .sheet(r)
+            .unwrap()
+            .explicit_styles()
+            .count(),
+        40002,
+        "one record per cell"
+    );
     let regions = calc_host::format_regions(reopened.host(), rectangle).unwrap();
     assert_eq!(regions.len(), 1, "{regions:?}");
     assert_eq!(regions[0].area, rectangle);
-    assert_eq!(calc_host::format_samples(reopened.host(), &[rectangle]).unwrap().len(), 1);
+    assert_eq!(
+        calc_host::format_samples(reopened.host(), &[rectangle])
+            .unwrap()
+            .len(),
+        1
+    );
     // A large selection observer must not be sent 40,002 blank styled cells (they stream through
     // the tile pipeline and every later worker reply waits behind them); a viewport still gets
     // every styled cell it can show.
@@ -17681,9 +27697,20 @@ fn dc_0f1k_11_3__reopened_large_rectangle_format_is_one_region() {
     assert!(moved <= 1, "the selection interest received {moved} cells");
     let viewport = GridArea::new(at(r, "D10"), at(r, "E40")).unwrap();
     let (_, seen) = subscribe(&mut reopened, Interest::Area(viewport));
-    assert_eq!(seen.borrow()[0].cells.len(), 62, "the viewport shows its 31 x 2 styled cells");
+    assert_eq!(
+        seen.borrow()[0].cells.len(),
+        62,
+        "the viewport shows its 31 x 2 styled cells"
+    );
     let before = reopened.host().cell_style(at(r, "D10"));
-    format(&mut reopened, rectangle, FormatPatch { italic: Some(true), ..Default::default() });
+    format(
+        &mut reopened,
+        rectangle,
+        FormatPatch {
+            italic: Some(true),
+            ..Default::default()
+        },
+    );
     let after = reopened.host().cell_style(at(r, "D10"));
     assert_ne!(before, after);
     assert_eq!(reopened.host().cell_style(at(r, "E20010")), after);

@@ -331,7 +331,10 @@ impl Session {
 
     /// Whether the formula's last calculation read `topic` at `lease`.
     pub fn reads_rtd(&self, topic: &calc_fml::TopicKey, lease: calc_fml::RtdLease) -> bool {
-        self.rtd.reads().iter().any(|read| &read.topic == topic && read.lease == lease)
+        self.rtd
+            .reads()
+            .iter()
+            .any(|read| &read.topic == topic && read.lease == lease)
     }
 
     /// The connections the formula held before its last calculation and does not read now:
@@ -655,11 +658,17 @@ impl Session {
         let report = self.compile_project(&project)?;
         self.project.as_mut().expect("a held project part").macros = MacroState::Enabled;
         let notes = self.raise_open();
-        Ok(ProjectReport { notes: [report.notes, notes].concat(), ..report })
+        Ok(ProjectReport {
+            notes: [report.notes, notes].concat(),
+            ..report
+        })
     }
 
     /// Compiles `project` as the session's held project (its part and name stay as they are).
-    fn compile_project(&mut self, project: &calc_vba::OfficeProject) -> Result<ProjectReport, String> {
+    fn compile_project(
+        &mut self,
+        project: &calc_vba::OfficeProject,
+    ) -> Result<ProjectReport, String> {
         let held = self.project.as_mut().expect("a held project part");
         let load = calc_vba::events::load_office_project(
             project,
@@ -724,8 +733,14 @@ impl Session {
     /// next is the changed one. Module state starts again, as after an edit in the VBE;
     /// `Workbook_Open` is not raised again. A change that does not compile changes nothing.
     pub fn edit_project_module(&mut self, name: &str, code: &str) -> Result<ProjectReport, String> {
-        if self.project.as_ref().is_some_and(|p| p.macros != MacroState::Enabled) {
-            return Err("macros are not enabled for this file, so its project is not edited".to_owned());
+        if self
+            .project
+            .as_ref()
+            .is_some_and(|p| p.macros != MacroState::Enabled)
+        {
+            return Err(
+                "macros are not enabled for this file, so its project is not edited".to_owned(),
+            );
         }
         let Some(parsed) = self.project.as_ref().and_then(|p| p.parsed.as_ref()) else {
             return Err("the session has no VBA project CalcVBA could read".to_owned());
@@ -737,7 +752,10 @@ impl Session {
             .map_or(calc_vba::OfficeModuleKind::Standard, |m| m.kind);
         let changed = parsed.with_module(name, kind, code)?;
         let blob = changed.to_blob()?;
-        let previous = self.project.as_ref().map(|p| (p.parsed.clone(), p.load.clone()));
+        let previous = self
+            .project
+            .as_ref()
+            .map(|p| (p.parsed.clone(), p.load.clone()));
         match self.compile_project(&changed) {
             Ok(report) => {
                 self.project.as_mut().expect("held").vba.project = blob;
@@ -865,16 +883,12 @@ pub struct ProjectReport {
 /// refusal the event reports.
 struct NoWorkbookReads;
 impl calc_vba::events::EventReadContext for NoWorkbookReads {
-    fn read_reference(
-        &self,
-        _: &calc_func::value::ReferenceLike,
-    ) -> Result<CalcValue, String> {
+    fn read_reference(&self, _: &calc_func::value::ReferenceLike) -> Result<CalcValue, String> {
         Err("cell reads from a workbook event are not modelled in OneCalc (dc-0f1k.4)".into())
     }
 }
 
 impl Session {
-
     /// Calculates the formula: parse, compile (the session's plan cache shares one plan per
     /// normal form), place at the formula cell, and evaluate over the session's inputs, recording
     /// every read.
@@ -977,8 +991,10 @@ impl Session {
                 // A continuation: a call that answers later suspends the evaluation, the owner
                 // waits for the return, and the evaluation resumes with it.
                 returns.begin();
-                let mut run =
-                    EvalContinuation::new(&instance, std::mem::replace(&mut self.scratch, EvalScratch::new()));
+                let mut run = EvalContinuation::new(
+                    &instance,
+                    std::mem::replace(&mut self.scratch, EvalScratch::new()),
+                );
                 let outcome = loop {
                     match run.advance(&mut services, usize::MAX) {
                         EvalStep::Complete(outcome) => break outcome,
@@ -1022,8 +1038,13 @@ impl Session {
         // The session's own formula is the one whose RTD reads are kept; a part evaluated for
         // F9 or the trace reads the inputs but changes none of the session's connection state.
         if recording.is_some() && formula == self.formula {
-            let calls = rtd_effects.invocations().iter().map(|call| call.id).collect();
-            self.rtd.finish(rtd_effects.external_inputs().to_vec(), calls);
+            let calls = rtd_effects
+                .invocations()
+                .iter()
+                .map(|call| call.id)
+                .collect();
+            self.rtd
+                .finish(rtd_effects.external_inputs().to_vec(), calls);
         }
         function_diagnostics.extend(failure);
         let reads = reader.into_reads();
@@ -1130,7 +1151,11 @@ mod continuation_tests {
         polls: u32,
     }
     impl UserFunctionInvocation for PooledCall {
-        fn resume(&mut self, _: &mut dyn UserFunctionContext, _: u64) -> Result<UserFunctionStep, String> {
+        fn resume(
+            &mut self,
+            _: &mut dyn UserFunctionContext,
+            _: u64,
+        ) -> Result<UserFunctionStep, String> {
             self.polls += 1;
             Ok(if self.polls < 4 {
                 UserFunctionStep::Suspended

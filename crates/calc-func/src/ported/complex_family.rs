@@ -2,10 +2,10 @@
 //! OxFunc functions/complex_family.rs; the argument reading lives in the engineering family.
 
 use crate::ported::complex_decimal;
-use crate::value::WorksheetErrorCode;
 use crate::ported::excel_numeric::{
     crt_atan2, crt_cos, crt_cosh, crt_exp, crt_hypot, crt_log, crt_pow, crt_sin, crt_sinh,
 };
+use crate::value::WorksheetErrorCode;
 
 /// Decimal text of digits with at most one point and an optional exponent, read to its 15 leading
 /// significant digits and converted to the nearest binary64; `None` outside that form or with a
@@ -24,7 +24,10 @@ fn parse_ascii_decimal_15(text: &str) -> Option<f64> {
             let magnitude = exponent.bytes().fold(0_i64, |n, b| {
                 n.saturating_mul(10).saturating_add((b - b'0') as i64)
             });
-            (&text[..index], if negative { -magnitude } else { magnitude })
+            (
+                &text[..index],
+                if negative { -magnitude } else { magnitude },
+            )
         }
         None => (text, 0),
     };
@@ -123,7 +126,8 @@ impl ParsedComplex {
     /// and multiply the other component by it. Generic complex division forms
     /// two quotients instead; those are observably different after rounding.
     pub(crate) fn reciprocal(self) -> Result<Self, WorksheetErrorCode> {
-        if self.re == 0.0 && self.im == 0.0 { // ubs:ignore — exact zero denominator, not approximate comparison
+        if self.re == 0.0 && self.im == 0.0 {
+            // ubs:ignore — exact zero denominator, not approximate comparison
             return Err(WorksheetErrorCode::Num);
         }
         let (re, im) = if self.re.abs() >= self.im.abs() {
@@ -165,9 +169,19 @@ impl ParsedComplex {
         }
         let base = crate::ported::excel_numeric::excel_atan_reduced(ratio);
         let result = if re < 0.0 {
-            if im < 0.0 { base - std::f64::consts::PI } else { base + std::f64::consts::PI }
-        } else { base };
-        Ok(if result.abs() < f64::MIN_POSITIVE { 0.0 } else { result })
+            if im < 0.0 {
+                base - std::f64::consts::PI
+            } else {
+                base + std::f64::consts::PI
+            }
+        } else {
+            base
+        };
+        Ok(if result.abs() < f64::MIN_POSITIVE {
+            0.0
+        } else {
+            result
+        })
     }
     pub(crate) fn exp(self) -> Self {
         let s = crt_exp(self.re);
@@ -233,7 +247,11 @@ impl ParsedComplex {
     pub(crate) fn tan(self) -> Result<Self, WorksheetErrorCode> {
         if self.im == 0.0 {
             crate::ported::real_policy::ExcelRealPolicy::CIRCULAR_TRIG.check_arg(self.re)?;
-            return Ok(Self::new(crate::ported::excel_numeric::excel_tan(self.re), 0.0, None));
+            return Ok(Self::new(
+                crate::ported::excel_numeric::excel_tan(self.re),
+                0.0,
+                None,
+            ));
         }
         let denom = crt_cos(2.0 * self.re) + crt_cosh(2.0 * self.im);
         if denom == 0.0 {
@@ -248,9 +266,7 @@ impl ParsedComplex {
     /// The direct real-axis IMSINH/IMCOSH results have EXP's overflow domain.
     /// Their reciprocal companions retain the wider runtime computation.
     pub(crate) fn check_real_hyperbolic_domain(self) -> Result<(), WorksheetErrorCode> {
-        if self.im == 0.0
-            && !crate::ported::exp_fn::exp_kernel(self.re.abs()).is_finite()
-        {
+        if self.im == 0.0 && !crate::ported::exp_fn::exp_kernel(self.re.abs()).is_finite() {
             return Err(WorksheetErrorCode::Num);
         }
         Ok(())
@@ -282,7 +298,9 @@ impl ParsedComplex {
             // The real-axis cotangent uses the scalar tangent and one reciprocal.
             // At the scalar domain boundary IMCOT publishes zero, while IMTAN is #NUM!.
             if self.re.is_finite()
-                && crate::ported::real_policy::ExcelRealPolicy::CIRCULAR_TRIG.check_arg(self.re).is_err()
+                && crate::ported::real_policy::ExcelRealPolicy::CIRCULAR_TRIG
+                    .check_arg(self.re)
+                    .is_err()
             {
                 return Ok(Self::new(0.0, 0.0, None));
             }
@@ -290,7 +308,11 @@ impl ParsedComplex {
             if tangent == 0.0 {
                 return Err(WorksheetErrorCode::Num);
             }
-            return Ok(Self::new(crate::ported::excel_numeric::excel_x87_recip(tangent), 0.0, None));
+            return Ok(Self::new(
+                crate::ported::excel_numeric::excel_x87_recip(tangent),
+                0.0,
+                None,
+            ));
         }
         let denom = crt_cosh(2.0 * self.im) - crt_cos(2.0 * self.re);
         if denom == 0.0 {
@@ -326,10 +348,13 @@ impl ParsedComplex {
         }
         let scale = crt_pow(self.abs(), exponent);
         let angle = crt_atan2(self.im, self.re) * exponent;
-        Ok(Self::new(scale * crt_cos(angle), scale * crt_sin(angle), None))
+        Ok(Self::new(
+            scale * crt_cos(angle),
+            scale * crt_sin(angle),
+            None,
+        ))
     }
 }
-
 
 pub(crate) fn normalize_zero(n: f64) -> f64 {
     if n == 0.0 { 0.0 } else { n }
@@ -433,7 +458,10 @@ pub(crate) fn complex_circular_parts(real: f64) -> (f64, f64) {
     if real.abs() >= 134_217_728.0 {
         (f64::NAN, f64::NAN)
     } else {
-        (crate::ported::excel_numeric::excel_sin(real), crate::ported::excel_numeric::excel_cos(real))
+        (
+            crate::ported::excel_numeric::excel_sin(real),
+            crate::ported::excel_numeric::excel_cos(real),
+        )
     }
 }
 
@@ -443,11 +471,20 @@ pub(crate) fn parse_real_number(text: &str) -> Option<f64> {
         return None;
     }
     let negative = trimmed.starts_with('-');
-    let unsigned = trimmed.strip_prefix(['+', '-']).unwrap_or(trimmed).trim_matches(' ');
+    let unsigned = trimmed
+        .strip_prefix(['+', '-'])
+        .unwrap_or(trimmed)
+        .trim_matches(' ');
     let parsed = parse_ascii_decimal_15(unsigned)?;
     // Complex coefficient strings have their own grammar. Only decimal lexeme
     // conversion is shared with numeric argument coercion; decorations are not.
-    Some(if parsed < f64::MIN_POSITIVE { 0.0 } else if negative { -parsed } else { parsed })
+    Some(if parsed < f64::MIN_POSITIVE {
+        0.0
+    } else if negative {
+        -parsed
+    } else {
+        parsed
+    })
 }
 pub(crate) fn find_real_imag_split(body: &str) -> Option<usize> {
     let bytes = body.as_bytes();
@@ -491,8 +528,6 @@ pub(crate) fn parse_complex_text(raw: &str) -> Option<ParsedComplex> {
     }
     parse_real_number(text).map(|re| ParsedComplex::new(re, 0.0, None))
 }
-
-
 
 pub(crate) fn suffix_from_operands(values: &[ParsedComplex]) -> Result<char, WorksheetErrorCode> {
     let mut suffix = None;

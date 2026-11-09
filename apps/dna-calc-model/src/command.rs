@@ -221,7 +221,9 @@ impl Model {
                 id,
                 CommandId::PageSetup
                     | CommandId::PrintPreview
-                    | CommandId::PasteSpecial | CommandId::FlashFill | CommandId::FormatCells
+                    | CommandId::PasteSpecial
+                    | CommandId::FlashFill
+                    | CommandId::FormatCells
                     | CommandId::NameManager
                     | CommandId::Find
                     | CommandId::Replace
@@ -338,8 +340,20 @@ pub const SHELL_KEYMAP: &[CommandBinding] = &[
         alt: false,
         command: CommandId::PrintPreview,
     },
-    CommandBinding {key:"v",ctrl:true,shift:false,alt:true,command:CommandId::PasteSpecial},
-    CommandBinding {key:"e",ctrl:true,shift:false,alt:false,command:CommandId::FlashFill},
+    CommandBinding {
+        key: "v",
+        ctrl: true,
+        shift: false,
+        alt: true,
+        command: CommandId::PasteSpecial,
+    },
+    CommandBinding {
+        key: "e",
+        ctrl: true,
+        shift: false,
+        alt: false,
+        command: CommandId::FlashFill,
+    },
     CommandBinding {
         key: "F3",
         ctrl: true,
@@ -424,7 +438,23 @@ pub fn resolve_shell_key(chord: &crate::selection::KeyChord) -> Option<CommandId
 }
 
 /// Step through navigable search results with wrapping; hidden worksheets stay in the result list.
-pub fn find_match_index(rows:&[crate::projection::FoundRow],current:usize,backwards:bool)->Option<usize>{
-    let n=rows.len();if n==0{return None;}let current=current.min(n-1);
-    (1..=n).map(|step|if backwards{(current+n-step)%n}else{(current+step)%n}).find(|i|!rows[*i].hidden)
+pub fn find_match_index(
+    rows: &[crate::projection::FoundRow],
+    current: usize,
+    backwards: bool,
+) -> Option<usize> {
+    let n = rows.len();
+    if n == 0 {
+        return None;
+    }
+    let current = current.min(n - 1);
+    (1..=n)
+        .map(|step| {
+            if backwards {
+                (current + n - step) % n
+            } else {
+                (current + step) % n
+            }
+        })
+        .find(|i| !rows[*i].hidden)
 }

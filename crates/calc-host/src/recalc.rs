@@ -121,12 +121,11 @@ pub fn step(
             };
             match started {
                 Ok(work) => {
-                    let work = host
-                        .attach_rtd_connector(
-                            work.with_external_inputs(host.rtd_inputs.clone())
-                                .with_functions(&host.functions)
-                                .with_reference_tracker(host.references.clone()),
-                        );
+                    let work = host.attach_rtd_connector(
+                        work.with_external_inputs(host.rtd_inputs.clone())
+                            .with_functions(&host.functions)
+                            .with_reference_tracker(host.references.clone()),
+                    );
                     if reloaded {
                         work.with_reevaluation_reason(
                             calc_engine::contract::ReevaluationReason::CallableReload,

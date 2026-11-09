@@ -60,7 +60,13 @@ fn cached(host: &HostState, column: u32, rows: u32) -> Vec<(CellKey, String)> {
     let cells: Vec<CellKey> = (1..=rows)
         .map(|row| CellKey::new(sheet, row, column).expect("in the grid"))
         .collect();
-    let projection = project(host, &ProjectionRequest { cells: cells.clone() }).expect("projected");
+    let projection = project(
+        host,
+        &ProjectionRequest {
+            cells: cells.clone(),
+        },
+    )
+    .expect("projected");
     cells
         .into_iter()
         .zip(projection.cells())
@@ -131,10 +137,13 @@ fn dc_fetch_f0tp__save_and_reopen_keep_the_add_in_call() {
 const MAIN: &str = "http://schemas.openxmlformats.org/spreadsheetml/2006/main";
 const RELATIONSHIPS: &str = "http://schemas.openxmlformats.org/package/2006/relationships";
 const R: &str = "http://schemas.openxmlformats.org/officeDocument/2006/relationships";
-const LIBRARY: &str = "http://schemas.microsoft.com/office/2006/relationships/xlExternalLinkPath/xlLibrary";
+const LIBRARY: &str =
+    "http://schemas.microsoft.com/office/2006/relationships/xlExternalLinkPath/xlLibrary";
 
 fn escape(text: &str) -> String {
-    text.replace('&', "&amp;").replace('<', "&lt;").replace('"', "&quot;")
+    text.replace('&', "&amp;")
+        .replace('<', "&lt;")
+        .replace('"', "&quot;")
 }
 
 /// A workbook of `formulas` in column A, with the literal inputs of column E and F that the
@@ -183,7 +192,10 @@ fn library_workbook(formulas: &[&str]) -> Vec<u8> {
         ("xl/_rels/workbook.xml.rels", workbook_rels.as_bytes()),
         ("xl/worksheets/sheet1.xml", sheet.as_bytes()),
         ("xl/externalLinks/externalLink1.xml", link.as_bytes()),
-        ("xl/externalLinks/_rels/externalLink1.xml.rels", link_rels.as_bytes()),
+        (
+            "xl/externalLinks/_rels/externalLink1.xml.rels",
+            link_rels.as_bytes(),
+        ),
     ])
 }
 

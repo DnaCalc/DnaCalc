@@ -1,6 +1,5 @@
 use crate::value::WorksheetErrorCode;
 
-
 /// The quotient number/significance as the CEILING and FLOOR family counts multiples from it:
 /// rounded to 15 significant digits first, so a quotient within that rounding of an integer is
 /// that integer (dc-j9k: 736 of 736 CEILING, FLOOR, .MATH and .PRECISE readings in the catalogue

@@ -1,8 +1,6 @@
 //! Workbook event positions. The runtime owns handler selection and project state;
 //! the host supplies committed authored inputs and completed calculation views.
-use crate::{
-    BeforeSaveOutcome, CommandReceipt, HostProgress, HostSession, SaveOperation,
-};
+use crate::{BeforeSaveOutcome, CommandReceipt, HostProgress, HostSession, SaveOperation};
 use calc_value::{GridArea, SheetId};
 use std::{
     collections::{BTreeMap, BTreeSet, VecDeque},
@@ -30,7 +28,9 @@ pub enum WorkbookEvent {
 /// BeforeSave may also return an authored batch for the existing pre-pin route.
 pub trait WorkbookEventHandler {
     fn file_identity_changed(&self, _name: &str) {}
-    fn workbook_open(&self, _session: &mut HostSession) -> Result<(), String> { Ok(()) }
+    fn workbook_open(&self, _session: &mut HostSession) -> Result<(), String> {
+        Ok(())
+    }
     fn worksheet_change(
         &self,
         session: &mut HostSession,
@@ -92,7 +92,9 @@ impl HostSession {
     /// The application calls this once after admitting a file's owning project,
     /// before its first automatic calculation. Source replacement is not an open.
     pub fn notify_workbook_open(&mut self) {
-        if std::mem::replace(&mut self.workbook_events.open_delivered, true) { return; }
+        if std::mem::replace(&mut self.workbook_events.open_delivered, true) {
+            return;
+        }
         if let Some(owner) = self.event_owner()
             && let Err(reason) = owner.workbook_open(self)
         {
@@ -128,8 +130,12 @@ impl HostSession {
             .flatten()
     }
     fn event_owner_still_active(&self, owner: &Rc<dyn WorkbookEventHandler>) -> bool {
-        self.workbook_events.enabled && self.workbook_events.owner.as_ref()
-            .is_some_and(|current| Rc::ptr_eq(current, owner))
+        self.workbook_events.enabled
+            && self
+                .workbook_events
+                .owner
+                .as_ref()
+                .is_some_and(|current| Rc::ptr_eq(current, owner))
     }
     fn record_event_failure(&mut self, event: WorkbookEvent, reason: String) {
         let state = &mut self.workbook_events;
@@ -155,7 +161,9 @@ impl HostSession {
             targets.entry(area.sheet()).or_default().push(area);
         }
         for (sheet, target) in targets {
-            if !self.event_owner_still_active(&owner) { break; }
+            if !self.event_owner_still_active(&owner) {
+                break;
+            }
             if self.host.model().sheet_by_id(sheet).is_none() {
                 continue;
             }
@@ -166,7 +174,9 @@ impl HostSession {
         }
     }
     pub(crate) fn refuse_automation_change(&mut self, receipt: &CommandReceipt) {
-        if self.event_owner().is_none() { return; }
+        if self.event_owner().is_none() {
+            return;
+        }
         let mut targets: BTreeMap<SheetId, Vec<GridArea>> = BTreeMap::new();
         for area in receipt.input_writes().iter().copied() {
             targets.entry(area.sheet()).or_default().push(area);
@@ -208,7 +218,9 @@ impl HostSession {
             return;
         };
         for sheet in sheets {
-            if !self.event_owner_still_active(&owner) { break; }
+            if !self.event_owner_still_active(&owner) {
+                break;
+            }
             if self.host.model().sheet_by_id(sheet).is_none() {
                 continue;
             }

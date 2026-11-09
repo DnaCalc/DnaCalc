@@ -37,8 +37,8 @@ use crate::panels;
 use crate::port::{Link, LoadedAddin, LocalLink, LocalPort, MacrosView, Opened, Reply, Request};
 use crate::session::{AddinRef, Session, SessionOptions};
 use crate::shown::{Authored, Shown, ViewWire};
-use calc_fml::syntax::TextSpan;
 use calc_fml::FormatProfile;
+use calc_fml::syntax::TextSpan;
 use calc_func::help;
 use dna_formula_ui::editor::browse;
 use dna_formula_ui::formula_field::{FormulaAssist, TextBinding};
@@ -89,7 +89,10 @@ pub fn mount_over(parent: HtmlElement, link: Rc<dyn Link>) -> Mounted {
 #[derive(Clone, Debug, PartialEq)]
 enum Pending {
     New,
-    Open { name: String, bytes: Vec<u8> },
+    Open {
+        name: String,
+        bytes: Vec<u8>,
+    },
     OpenNative,
     /// A file from the recent list, by its path.
     OpenRecent(String),
@@ -343,14 +346,24 @@ fn surface(link: Rc<dyn Link>) -> impl IntoView {
     Effect::new(move |_| {
         let name = file_name.get();
         let changed = dirty();
-        let shown_name = if name.is_empty() { "Untitled".to_owned() } else { name.clone() };
-        let title = format!("{shown_name}{} - DNA OneCalc", if changed { "*" } else { "" });
+        let shown_name = if name.is_empty() {
+            "Untitled".to_owned()
+        } else {
+            name.clone()
+        };
+        let title = format!(
+            "{shown_name}{} - DNA OneCalc",
+            if changed { "*" } else { "" }
+        );
         if let Some(document) = web_sys::window().and_then(|window| window.document()) {
             document.set_title(&title);
         }
         if native {
             call(
-                Request::SessionState { dirty: changed, name },
+                Request::SessionState {
+                    dirty: changed,
+                    name,
+                },
                 Box::new(|_| {}),
             );
         }
@@ -398,12 +411,19 @@ fn surface(link: Rc<dyn Link>) -> impl IntoView {
             }
             // A session file's VBA project (an .xlsm) is compiled when it opens; its modules are
             // edited through the VBA panel, and Save writes the project back.
-            macros_view.set(project.as_ref().map_or(MacrosView::Enabled, |view| view.macros));
+            macros_view.set(
+                project
+                    .as_ref()
+                    .map_or(MacrosView::Enabled, |view| view.macros),
+            );
             vba_status.set(match &project {
                 None => "No VBA module loaded.".to_owned(),
                 Some(view) if view.macros != MacrosView::Enabled => view.notes.join("; "),
                 Some(view) if view.functions.is_empty() => {
-                    format!("The file's VBA project did not load: {}", view.notes.join("; "))
+                    format!(
+                        "The file's VBA project did not load: {}",
+                        view.notes.join("; ")
+                    )
                 }
                 Some(view) => {
                     let mut status = format!(
@@ -521,10 +541,17 @@ fn surface(link: Rc<dyn Link>) -> impl IntoView {
     let run_pending = move |what: Pending| match what {
         Pending::New => call(Request::New, Box::new(move |reply| on_reply.run(reply))),
         Pending::Open { name, bytes } => call(
-            Request::Open { name, bytes, zone: None },
+            Request::Open {
+                name,
+                bytes,
+                zone: None,
+            },
             Box::new(move |reply| on_reply.run(reply)),
         ),
-        Pending::OpenNative => call(Request::OpenNative, Box::new(move |reply| on_reply.run(reply))),
+        Pending::OpenNative => call(
+            Request::OpenNative,
+            Box::new(move |reply| on_reply.run(reply)),
+        ),
         Pending::OpenRecent(path) => call(
             Request::OpenRecent { path },
             Box::new(move |reply| on_reply.run(reply)),
@@ -615,7 +642,13 @@ fn surface(link: Rc<dyn Link>) -> impl IntoView {
             }),
         );
     };
-    let save_file = move |_| save_with(if native { Request::SaveNative } else { Request::Save });
+    let save_file = move |_| {
+        save_with(if native {
+            Request::SaveNative
+        } else {
+            Request::Save
+        })
+    };
     let save_file_as = move |_| save_with(Request::SaveAsNative);
     // The desktop app's keys: Ctrl+O opens, Ctrl+S saves, Ctrl+Shift+S saves as.
     if native {
@@ -630,7 +663,11 @@ fn surface(link: Rc<dyn Link>) -> impl IntoView {
                 }
                 "s" => {
                     ev.prevent_default();
-                    save_with(if ev.shift_key() { Request::SaveAsNative } else { Request::SaveNative });
+                    save_with(if ev.shift_key() {
+                        Request::SaveAsNative
+                    } else {
+                        Request::SaveNative
+                    });
                 }
                 _ => {}
             }
@@ -698,8 +735,12 @@ fn surface(link: Rc<dyn Link>) -> impl IntoView {
                 format!("{total} functions")
             };
             view! {
-                <p class="oc-prov" data-onecalc="function-count">{count}</p>
-                <ul class="oc-fns" data-onecalc="functions">{items}</ul>
+                <p class="oc-prov" data-onecalc="function-count">
+                    {count}
+                </p>
+                <ul class="oc-fns" data-onecalc="functions">
+                    {items}
+                </ul>
             }
         })
     };
@@ -716,8 +757,14 @@ fn surface(link: Rc<dyn Link>) -> impl IntoView {
         })
     });
     let look_attributes = |look: &Option<LookWire>| {
-        let fill = look.as_ref().map(|look| look.fill.clone()).unwrap_or_default();
-        let color = look.as_ref().map(|look| look.color.clone()).unwrap_or_default();
+        let fill = look
+            .as_ref()
+            .map(|look| look.fill.clone())
+            .unwrap_or_default();
+        let color = look
+            .as_ref()
+            .map(|look| look.color.clone())
+            .unwrap_or_default();
         let bar = look
             .as_ref()
             .and_then(|look| look.bar)
@@ -737,20 +784,39 @@ fn surface(link: Rc<dyn Link>) -> impl IntoView {
     });
     let result_view = move || match view_kind.get() {
         0 => view! {
-            <div class="oc-empty"><p>"Start with one Excel formula and supply the inputs it reads."</p><button data-onecalc="try-example" on:click=move |_| request.run(Pending::Example(Box::new(Authored::example_sum())))>"Try SUM with two inputs"</button></div>
+            <div class="oc-empty">
+                <p>"Start with one Excel formula and supply the inputs it reads."</p>
+                <button
+                    data-onecalc="try-example"
+                    on:click=move |_| {
+                        request.run(Pending::Example(Box::new(Authored::example_sum())))
+                    }
+                >
+                    "Try SUM with two inputs"
+                </button>
+            </div>
         }
         .into_any(),
         1 => (move || {
             shown.with(|shown| {
-                let ViewWire::Value { kind, text, exact, look } = &shown.view else {
+                let ViewWire::Value {
+                    kind,
+                    text,
+                    exact,
+                    look,
+                } = &shown.view
+                else {
                     return ().into_any();
                 };
                 let (kind, text) = (kind.clone(), text.clone());
                 let exact = exact.clone().map(|exact| {
                     view! {
-                        <details class="oc-exact"><summary>"Exact value"</summary><span class="oc-prov" data-onecalc="result-exact">
-                            {format!(" exactly {exact}")}
-                        </span></details>
+                        <details class="oc-exact">
+                            <summary>"Exact value"</summary>
+                            <span class="oc-prov" data-onecalc="result-exact">
+                                {format!(" exactly {exact}")}
+                            </span>
+                        </details>
                     }
                 });
                 let (fill, color, bar) = look_attributes(look);
@@ -761,13 +827,34 @@ fn surface(link: Rc<dyn Link>) -> impl IntoView {
                 );
                 let icon = look.as_ref().and_then(|look| {
                     look.icon_index.map(|_| {
-                        view! { <span class="oc-icon" data-onecalc="cell-icon" aria-hidden="true" data-css=format!("color:{}", look.icon_color)>{look.icon_glyph.clone()}</span> }
+                        view! {
+                            <span
+                                class="oc-icon"
+                                data-onecalc="cell-icon"
+                                aria-hidden="true"
+                                data-css=format!("color:{}", look.icon_color)
+                            >
+                                {look.icon_glyph.clone()}
+                            </span>
+                        }
                     })
                 });
                 view! {
                     <div>
-                        <span class="oc-kind" data-onecalc="result-type">{kind}</span>
-                        <span class="oc-value" data-onecalc="result-value" data-css=style_text data-fill=fill data-color=color data-bar=bar>{icon}{text}</span>
+                        <span class="oc-kind" data-onecalc="result-type">
+                            {kind}
+                        </span>
+                        <span
+                            class="oc-value"
+                            data-onecalc="result-value"
+                            data-css=style_text
+                            data-fill=fill
+                            data-color=color
+                            data-bar=bar
+                        >
+                            {icon}
+                            {text}
+                        </span>
                         {exact}
                     </div>
                 }
@@ -777,7 +864,12 @@ fn surface(link: Rc<dyn Link>) -> impl IntoView {
         .into_any(),
         2 => (move || {
             shown.with(|shown| {
-                let ViewWire::Error { code, meaning, look } = &shown.view else {
+                let ViewWire::Error {
+                    code,
+                    meaning,
+                    look,
+                } = &shown.view
+                else {
                     return ().into_any();
                 };
                 let (code, meaning) = (code.clone(), meaning.clone());
@@ -789,10 +881,23 @@ fn surface(link: Rc<dyn Link>) -> impl IntoView {
                 );
                 view! {
                     <div>
-                        <span class="oc-kind" data-onecalc="result-type">"error"</span>
-                        <span class="oc-value oc-err" data-onecalc="result-value" data-css=style_text data-fill=fill data-color=color data-bar=bar>{code}</span>
+                        <span class="oc-kind" data-onecalc="result-type">
+                            "error"
+                        </span>
+                        <span
+                            class="oc-value oc-err"
+                            data-onecalc="result-value"
+                            data-css=style_text
+                            data-fill=fill
+                            data-color=color
+                            data-bar=bar
+                        >
+                            {code}
+                        </span>
                         " "
-                        <span class="oc-err" data-onecalc="result-error">{meaning}</span>
+                        <span class="oc-err" data-onecalc="result-error">
+                            {meaning}
+                        </span>
                     </div>
                 }
                 .into_any()
@@ -802,7 +907,9 @@ fn surface(link: Rc<dyn Link>) -> impl IntoView {
         3 => panels::array_panel(shown, array_scroll).into_any(),
         _ => view! {
             <div>
-                <span class="oc-kind" data-onecalc="result-type">"no value"</span>
+                <span class="oc-kind" data-onecalc="result-type">
+                    "no value"
+                </span>
                 <span class="oc-err">"The formula was not calculated; see below."</span>
             </div>
         }
@@ -828,7 +935,11 @@ fn surface(link: Rc<dyn Link>) -> impl IntoView {
                             "refused" => "oc-refused",
                             _ => "",
                         };
-                        if pointed { format!("{base} oc-pointed") } else { base.to_owned() }
+                        if pointed {
+                            format!("{base} oc-pointed")
+                        } else {
+                            base.to_owned()
+                        }
                     };
                     let value = move || {
                         let shown = cell();
@@ -856,18 +967,24 @@ fn surface(link: Rc<dyn Link>) -> impl IntoView {
                                 prop:value=value
                                 on:input=move |ev| {
                                     let text = event_target_value(&ev);
-                                    entries.update(|entries| {
-                                        if let Some(entry) = entries.get_mut(index) {
-                                            *entry = text;
-                                        }
-                                    });
+                                    entries
+                                        .update(|entries| {
+                                            if let Some(entry) = entries.get_mut(index) {
+                                                *entry = text;
+                                            }
+                                        });
                                 }
                             />
                         </td>
                     }
                 })
                 .collect_view();
-            view! { <tr><th>{row}</th>{cells}</tr> }
+            view! {
+                <tr>
+                    <th>{row}</th>
+                    {cells}
+                </tr>
+            }
         })
         .collect_view();
 
@@ -884,7 +1001,7 @@ fn surface(link: Rc<dyn Link>) -> impl IntoView {
                                 addin.kind,
                                 addin.path,
                                 addin.hash,
-                                if running { "loaded" } else { "listed, not loaded" }
+                                if running { "loaded" } else { "listed, not loaded" },
                             )}
                         </li>
                     }
@@ -900,7 +1017,11 @@ fn surface(link: Rc<dyn Link>) -> impl IntoView {
             on:dragover=move |ev: leptos::ev::DragEvent| ev.prevent_default()
             on:drop=move |ev: leptos::ev::DragEvent| {
                 ev.prevent_default();
-                if let Some(file) = ev.data_transfer().and_then(|t| t.files()).and_then(|f| f.get(0)) {
+                if let Some(file) = ev
+                    .data_transfer()
+                    .and_then(|t| t.files())
+                    .and_then(|f| f.get(0))
+                {
                     read_file(file);
                 }
             }
@@ -920,86 +1041,320 @@ fn surface(link: Rc<dyn Link>) -> impl IntoView {
                         .collect_view()}
                 </select>
             </header>
-            <p class="oc-sub">
-                "One Excel formula, with the inputs it needs."
-            </p>
-            <details class="oc-fixtures" data-onecalc="addin-controls" prop:open=move || addins_open.get() on:toggle=move |ev| addins_open.set(event_target::<web_sys::HtmlElement>(&ev).has_attribute("open"))><summary data-onecalc="addin-tools">"Add-ins · "<span data-onecalc="addin-count">{move || loaded_addins.with(|list| format!("{} loaded", list.len()))}</span></summary>
-                <p>"Excel add-ins (.xll, and VBA add-ins in .xlam files) register worksheet functions the formula can call, with the argument names and help they carry. Loading an .xlam installs it, as Excel's Add-ins dialog does: its Workbook_Open and Workbook_AddinInstall run. A saved session lists the add-ins loaded, with the hash of each file; reopening it offers to load them again (an .xlam is then opened, not installed), and loads nothing by itself."</p>
-                <p data-onecalc="addin-browser-note" hidden=native>"Add-ins load in the desktop app; this page runs without a host that can load them."</p>
+            <p class="oc-sub">"One Excel formula, with the inputs it needs."</p>
+            <details
+                class="oc-fixtures"
+                data-onecalc="addin-controls"
+                prop:open=move || addins_open.get()
+                on:toggle=move |ev| {
+                    addins_open.set(event_target::<web_sys::HtmlElement>(&ev).has_attribute("open"))
+                }
+            >
+                <summary data-onecalc="addin-tools">
+                    "Add-ins · "
+                    <span data-onecalc="addin-count">
+                        {move || loaded_addins.with(|list| format!("{} loaded", list.len()))}
+                    </span>
+                </summary>
+                <p>
+                    "Excel add-ins (.xll, and VBA add-ins in .xlam files) register worksheet functions the formula can call, with the argument names and help they carry. Loading an .xlam installs it, as Excel's Add-ins dialog does: its Workbook_Open and Workbook_AddinInstall run. A saved session lists the add-ins loaded, with the hash of each file; reopening it offers to load them again (an .xlam is then opened, not installed), and loads nothing by itself."
+                </p>
+                <p data-onecalc="addin-browser-note" hidden=native>
+                    "Add-ins load in the desktop app; this page runs without a host that can load them."
+                </p>
                 <div class="oc-session-actions" hidden=!native>
-                    <button data-onecalc="addin-load" on:click=load_addin_native>"Load add-in…"</button>
-                    <input data-onecalc="addin-path" type="text" size="40" placeholder="Path of an .xll or .xlam file" aria-label="Path of an add-in" prop:value=move || addin_path.get() on:input=move |ev| addin_path.set(event_target_value(&ev))/>
-                    <button data-onecalc="addin-load-path" on:click=load_addin_path>"Load path"</button>
+                    <button data-onecalc="addin-load" on:click=load_addin_native>
+                        "Load add-in…"
+                    </button>
+                    <input
+                        data-onecalc="addin-path"
+                        type="text"
+                        size="40"
+                        placeholder="Path of an .xll or .xlam file"
+                        aria-label="Path of an add-in"
+                        prop:value=move || addin_path.get()
+                        on:input=move |ev| addin_path.set(event_target_value(&ev))
+                    />
+                    <button data-onecalc="addin-load-path" on:click=load_addin_path>
+                        "Load path"
+                    </button>
                 </div>
-                <p role="status" data-onecalc="addin-status">{move || addin_status.get()}</p>
-                <ul data-onecalc="addins-loaded">{move || loaded_addins.with(|list| list.iter().map(|addin| {
-                    let path = addin.path.clone();
-                    let functions = if addin.functions.is_empty() { "no worksheet functions".to_owned() } else { addin.functions.join(", ") };
-                    let notes = if addin.notes.is_empty() { String::new() } else { format!(" ({})", addin.notes.join("; ")) };
-                    view! {
-                        <li data-onecalc="addin-loaded" data-path=addin.path.clone()>
-                            <strong>{addin.kind.clone()}</strong>" "{addin.path.clone()}" ("{addin.hash.clone()}") - "{functions}{notes}" "
-                            <button data-onecalc="addin-unload" on:click=move |_| unload_addin.run(path.clone())>"Unload"</button>
-                        </li>
-                    }
-                }).collect_view())}</ul>
-                <p hidden=move || !native || addins.with(|listed| listed.is_empty())><button data-onecalc="addin-load-all" on:click=load_all_listed>"Load all the add-ins the session lists"</button></p>
-                <ul data-onecalc="addins-offered">{move || {
-                    let running = loaded_addins.get();
-                    addins.with(|listed| listed.iter().filter(|addin| !running.iter().any(|r| r.path == addin.path)).map(|addin| {
-                        let offered = addin.clone();
-                        view! {
-                            <li data-onecalc="addin-offered" data-path=addin.path.clone()>
-                                {format!("{}: {} ({}) - listed by the session, not loaded ", addin.kind, addin.path, addin.hash)}
-                                <button data-onecalc="addin-load-listed" hidden=!native on:click=move |_| load_listed.run(offered.clone())>"Load"</button>
-                            </li>
-                        }
-                    }).collect_view())
-                }}</ul>
+                <p role="status" data-onecalc="addin-status">
+                    {move || addin_status.get()}
+                </p>
+                <ul data-onecalc="addins-loaded">
+                    {move || {
+                        loaded_addins
+                            .with(|list| {
+                                list.iter()
+                                    .map(|addin| {
+                                        let path = addin.path.clone();
+                                        let functions = if addin.functions.is_empty() {
+                                            "no worksheet functions".to_owned()
+                                        } else {
+                                            addin.functions.join(", ")
+                                        };
+                                        let notes = if addin.notes.is_empty() {
+                                            String::new()
+                                        } else {
+                                            format!(" ({})", addin.notes.join("; "))
+                                        };
+                                        view! {
+                                            <li
+                                                data-onecalc="addin-loaded"
+                                                data-path=addin.path.clone()
+                                            >
+                                                <strong>{addin.kind.clone()}</strong>
+                                                " "
+                                                {addin.path.clone()}
+                                                " ("
+                                                {addin.hash.clone()}
+                                                ") - "
+                                                {functions}
+                                                {notes}
+                                                " "
+                                                <button
+                                                    data-onecalc="addin-unload"
+                                                    on:click=move |_| unload_addin.run(path.clone())
+                                                >
+                                                    "Unload"
+                                                </button>
+                                            </li>
+                                        }
+                                    })
+                                    .collect_view()
+                            })
+                    }}
+                </ul>
+                <p hidden=move || !native || addins.with(|listed| listed.is_empty())>
+                    <button data-onecalc="addin-load-all" on:click=load_all_listed>
+                        "Load all the add-ins the session lists"
+                    </button>
+                </p>
+                <ul data-onecalc="addins-offered">
+                    {move || {
+                        let running = loaded_addins.get();
+                        addins
+                            .with(|listed| {
+                                listed
+                                    .iter()
+                                    .filter(|addin| !running.iter().any(|r| r.path == addin.path))
+                                    .map(|addin| {
+                                        let offered = addin.clone();
+                                        view! {
+                                            <li
+                                                data-onecalc="addin-offered"
+                                                data-path=addin.path.clone()
+                                            >
+                                                {format!(
+                                                    "{}: {} ({}) - listed by the session, not loaded ",
+                                                    addin.kind,
+                                                    addin.path,
+                                                    addin.hash,
+                                                )}
+                                                <button
+                                                    data-onecalc="addin-load-listed"
+                                                    hidden=!native
+                                                    on:click=move |_| load_listed.run(offered.clone())
+                                                >
+                                                    "Load"
+                                                </button>
+                                            </li>
+                                        }
+                                    })
+                                    .collect_view()
+                            })
+                    }}
+                </ul>
             </details>
-            <details class="oc-fixtures" data-onecalc="file-controls"><summary data-onecalc="file-tools">"Session file · "<span data-onecalc="file-state">{move ||if dirty(){"Unsaved changes"}else{"Unchanged since opened or saved"}}</span></summary>
-                <p>"A session is an Excel workbook (.xlsx) with one sheet, the formula in its cell and the grid's constants; with a VBA project it is an .xlsm, whose project loads when it opens and is saved back with it. Open one, drop one on this page, or save the session as one; Excel opens it as it is."</p>
+            <details class="oc-fixtures" data-onecalc="file-controls">
+                <summary data-onecalc="file-tools">
+                    "Session file · "
+                    <span data-onecalc="file-state">
+                        {move || {
+                            if dirty() {
+                                "Unsaved changes"
+                            } else {
+                                "Unchanged since opened or saved"
+                            }
+                        }}
+                    </span>
+                </summary>
+                <p>
+                    "A session is an Excel workbook (.xlsx) with one sheet, the formula in its cell and the grid's constants; with a VBA project it is an .xlsm, whose project loads when it opens and is saved back with it. Open one, drop one on this page, or save the session as one; Excel opens it as it is."
+                </p>
                 <div class="oc-session-actions">
-                    <button data-onecalc="file-new" on:click=move |_| request.run(Pending::New)>"New session"</button>
-                    <button data-onecalc="file-open" on:click=open_file>"Open…"</button>
-                    <button data-onecalc="file-save" on:click=save_file>"Save…"</button>
-                    <button data-onecalc="file-save-as" hidden=!native on:click=save_file_as>"Save as…"</button>
-                    <button data-onecalc="open-in-dna-calc" hidden=move || !(native && refused_file.get()) on:click=open_in_dna_calc>"Open in DNA Calc"</button>
+                    <button data-onecalc="file-new" on:click=move |_| request.run(Pending::New)>
+                        "New session"
+                    </button>
+                    <button data-onecalc="file-open" on:click=open_file>
+                        "Open…"
+                    </button>
+                    <button data-onecalc="file-save" on:click=save_file>
+                        "Save…"
+                    </button>
+                    <button data-onecalc="file-save-as" hidden=!native on:click=save_file_as>
+                        "Save as…"
+                    </button>
+                    <button
+                        data-onecalc="open-in-dna-calc"
+                        hidden=move || !(native && refused_file.get())
+                        on:click=open_in_dna_calc
+                    >
+                        "Open in DNA Calc"
+                    </button>
                 </div>
-                <div hidden=move || !native || recent.with(Vec::is_empty)><strong>"Recent files"</strong>
-                    <ul data-onecalc="recent-files">{move || recent.with(|list| list.iter().map(|path| {
-                        let path = path.clone();
-                        let label = path.clone();
-                        view! { <li><button data-onecalc="recent-open" data-path=path.clone() on:click=move |_| request.run(Pending::OpenRecent(path.clone()))>{label}</button></li> }
-                    }).collect_view())}</ul>
+                <div hidden=move || !native || recent.with(Vec::is_empty)>
+                    <strong>"Recent files"</strong>
+                    <ul data-onecalc="recent-files">
+                        {move || {
+                            recent
+                                .with(|list| {
+                                    list.iter()
+                                        .map(|path| {
+                                            let path = path.clone();
+                                            let label = path.clone();
+                                            view! {
+                                                <li>
+                                                    <button
+                                                        data-onecalc="recent-open"
+                                                        data-path=path.clone()
+                                                        on:click=move |_| {
+                                                            request.run(Pending::OpenRecent(path.clone()))
+                                                        }
+                                                    >
+                                                        {label}
+                                                    </button>
+                                                </li>
+                                            }
+                                        })
+                                        .collect_view()
+                                })
+                        }}
+                    </ul>
                 </div>
-                <input node_ref=file_input data-onecalc="file-input" type="file" accept=".xlsx,.xlsm,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet,application/vnd.ms-excel.sheet.macroEnabled.12" hidden aria-label="Open a session workbook" on:change=move |ev| {
-                    let input = event_target::<web_sys::HtmlInputElement>(&ev);
-                    if let Some(file) = input.files().and_then(|files| files.get(0)) {
-                        read_file(file);
+                <input
+                    node_ref=file_input
+                    data-onecalc="file-input"
+                    type="file"
+                    accept=".xlsx,.xlsm,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet,application/vnd.ms-excel.sheet.macroEnabled.12"
+                    hidden
+                    aria-label="Open a session workbook"
+                    on:change=move |ev| {
+                        let input = event_target::<web_sys::HtmlInputElement>(&ev);
+                        if let Some(file) = input.files().and_then(|files| files.get(0)) {
+                            read_file(file);
+                        }
+                        input.set_value("");
                     }
-                    input.set_value("");
-                }/>
-                <p role="status" data-onecalc="file-status">{move || file_status.get()}</p>
+                />
+                <p role="status" data-onecalc="file-status">
+                    {move || file_status.get()}
+                </p>
                 <Show when=move || macros_view.get() != MacrosView::Enabled>
                     <p role="alert" data-onecalc="macros-bar">
-                        {move || if macros_view.get() == MacrosView::Blocked {
-                            "Macros are blocked: this file came from the internet or another computer, so its VBA project is not run."
-                        } else {
-                            "Macros are disabled for this file: its VBA project is kept and saved, but nothing in it runs."
+                        {move || {
+                            if macros_view.get() == MacrosView::Blocked {
+                                "Macros are blocked: this file came from the internet or another computer, so its VBA project is not run."
+                            } else {
+                                "Macros are disabled for this file: its VBA project is kept and saved, but nothing in it runs."
+                            }
                         }}
                         " "
                         <Show when=move || macros_view.get() == MacrosView::Disabled>
-                            <button data-onecalc="macros-enable" type="button" on:click=move |_| call(Request::EnableMacros, Box::new(move |reply| on_reply.run(reply)))>"Enable macros"</button>
+                            <button
+                                data-onecalc="macros-enable"
+                                type="button"
+                                on:click=move |_| call(
+                                    Request::EnableMacros,
+                                    Box::new(move |reply| on_reply.run(reply)),
+                                )
+                            >
+                                "Enable macros"
+                            </button>
                         </Show>
                     </p>
                 </Show>
                 <p data-onecalc="file-name">{move || file_name.get()}</p>
                 <ul data-onecalc="file-addins">{addin_list}</ul>
-                <div class="oc-examples"><strong>"Examples"</strong><button data-onecalc="example-sum" on:click=move |_| request.run(Pending::Example(Box::new(Authored::example_sum())))>"SUM & blank input"</button><button data-onecalc="example-array" on:click=move |_| request.run(Pending::Example(Box::new(Authored { formula: "=SEQUENCE(3,2)".to_owned(), ..Authored::default() })))>"Array"</button><button data-onecalc="example-lambda" on:click=move |_| request.run(Pending::Example(Box::new(Authored { formula: "=LAMBDA(x,x*2)(21)".to_owned(), ..Authored::default() })))>"LAMBDA"</button><button data-onecalc="example-missing" on:click=move |_| request.run(Pending::Example(Box::new(Authored { formula: "=Z99+1".to_owned(), ..Authored::default() })))>"Missing input"</button></div>
+                <div class="oc-examples">
+                    <strong>"Examples"</strong>
+                    <button
+                        data-onecalc="example-sum"
+                        on:click=move |_| {
+                            request.run(Pending::Example(Box::new(Authored::example_sum())))
+                        }
+                    >
+                        "SUM & blank input"
+                    </button>
+                    <button
+                        data-onecalc="example-array"
+                        on:click=move |_| {
+                            request
+                                .run(
+                                    Pending::Example(
+                                        Box::new(Authored {
+                                            formula: "=SEQUENCE(3,2)".to_owned(),
+                                            ..Authored::default()
+                                        }),
+                                    ),
+                                )
+                        }
+                    >
+                        "Array"
+                    </button>
+                    <button
+                        data-onecalc="example-lambda"
+                        on:click=move |_| {
+                            request
+                                .run(
+                                    Pending::Example(
+                                        Box::new(Authored {
+                                            formula: "=LAMBDA(x,x*2)(21)".to_owned(),
+                                            ..Authored::default()
+                                        }),
+                                    ),
+                                )
+                        }
+                    >
+                        "LAMBDA"
+                    </button>
+                    <button
+                        data-onecalc="example-missing"
+                        on:click=move |_| {
+                            request
+                                .run(
+                                    Pending::Example(
+                                        Box::new(Authored {
+                                            formula: "=Z99+1".to_owned(),
+                                            ..Authored::default()
+                                        }),
+                                    ),
+                                )
+                        }
+                    >
+                        "Missing input"
+                    </button>
+                </div>
             </details>
-            <dialog class="oc-session-dialog" node_ref=file_dialog data-onecalc="file-dialog" aria-labelledby="oc-replace-title" on:cancel=move |ev:leptos::ev::Event|{ev.prevent_default();keep();}>
-                <h2 id="oc-replace-title">"Replace unsaved changes?"</h2><p>"Save this session first to keep its formula and inputs."</p><button data-onecalc="file-keep" autofocus on:click=move |_|keep()>"Keep editing"</button><button data-onecalc="file-replace" on:click=move |_|replace()>"Replace session"</button>
+            <dialog
+                class="oc-session-dialog"
+                node_ref=file_dialog
+                data-onecalc="file-dialog"
+                aria-labelledby="oc-replace-title"
+                on:cancel=move |ev: leptos::ev::Event| {
+                    ev.prevent_default();
+                    keep();
+                }
+            >
+                <h2 id="oc-replace-title">"Replace unsaved changes?"</h2>
+                <p>"Save this session first to keep its formula and inputs."</p>
+                <button data-onecalc="file-keep" autofocus on:click=move |_| keep()>
+                    "Keep editing"
+                </button>
+                <button data-onecalc="file-replace" on:click=move |_| replace()>
+                    "Replace session"
+                </button>
             </dialog>
 
             <div class="oc-row">
@@ -1007,24 +1362,29 @@ fn surface(link: Rc<dyn Link>) -> impl IntoView {
                     {assist
                         .anchored_field(
                             Signal::derive(move || {
-                                shown.with(|shown| {
-                                    shown
-                                        .diagnostic_spans
-                                        .iter()
-                                        .map(|&(start, len)| TextSpan::new(start, len))
-                                        .collect()
-                                })
+                                shown
+                                    .with(|shown| {
+                                        shown
+                                            .diagnostic_spans
+                                            .iter()
+                                            .map(|&(start, len)| TextSpan::new(start, len))
+                                            .collect()
+                                    })
                             }),
                             Some(on_key),
                             2,
                             "=SUM(A1:A3)",
-                        )}
-                    <p class="oc-prov" role="status" data-onecalc="part-status">{move || assist.part_status().get()}</p>
-                    <p>
+                        )} <p class="oc-prov" role="status" data-onecalc="part-status">
+                        {move || assist.part_status().get()}
+                    </p> <p>
                         <span class="oc-prov" data-onecalc="array-formula" hidden=move || !braces()>
                             {move || format!("{{{}}}", formula.get())}
                         </span>
-                        <span class="oc-prov" data-onecalc="plain-formula" hidden=move || !plain_entry.get()>
+                        <span
+                            class="oc-prov"
+                            data-onecalc="plain-formula"
+                            hidden=move || !plain_entry.get()
+                        >
                             "A plain formula from a file: the legacy form, with implicit intersection. Editing it enters it in the dynamic form."
                         </span>
                         " entered in "
@@ -1032,7 +1392,8 @@ fn surface(link: Rc<dyn Link>) -> impl IntoView {
                             data-onecalc="formula-cell"
                             type="text"
                             size="10"
-                            aria-label="Formula cell" prop:value=move ||formula_cell.get()
+                            aria-label="Formula cell"
+                            prop:value=move || formula_cell.get()
                             on:input=move |ev| formula_cell.set(event_target_value(&ev))
                         />
                         " "
@@ -1040,80 +1401,258 @@ fn surface(link: Rc<dyn Link>) -> impl IntoView {
                             {move || shown.with(|shown| shown.formula_cell.clone())}
                         </span>
                     </p>
-                    <section class="oc-result" data-onecalc="result-panel" aria-labelledby="oc-result-title">
-                        <header><h2 id="oc-result-title">"Result"</h2><span class="oc-result-state" data-onecalc="result-state">{move ||shown.with(|s|s.state.clone())}</span></header>
-                        <div class="oc-primary-result" data-onecalc="primary-result" aria-live="polite" node_ref=primary>{result_view}</div>
-                        <p class="oc-format-note" data-onecalc="format-note">{move ||shown.with(|s|s.format_note.clone())}</p>
-                        <ul class="oc-diags" data-onecalc="diagnostics">{move ||shown.with(|s|s.diagnostics.clone()).into_iter().map(|line|view!{<li>{line}</li>}).collect_view()}</ul>
-                        <details class="oc-calculation-details" data-onecalc="result-details"><summary>"Calculation details"</summary>
-                            <p>"Raw result: "<output data-onecalc="result">{move ||shown.with(|s|s.result.clone())}</output></p>
-                            <p class="oc-prov" data-onecalc="provenance">{move ||shown.with(|s|s.provenance.clone())}</p>
-                            <p class="oc-prov" data-onecalc="environment">{move ||format!("Dates use the {} system; {} numbers in {} format. NOW and TODAY read the page's clock. Evaluation uses calc-fml and calc-func.",if date_1904.get(){"1904"}else{"1900"},locale.get(),number_format.get())}</p>
-                            <ol class="oc-reads" data-onecalc="reads">{move ||shown.with(|s|s.reads.clone()).into_iter().map(|line|view!{<li>{line}</li>}).collect_view()}</ol>
-                        </details>
-                    </section>
-                    {panels::effective_panel(shown)}
-                    {trace_panel.view(assist, trace_identity, trace_start)}
-                    <details class="oc-format-controls" data-onecalc="format-controls"><summary data-onecalc="format-tools">"Format & locale"</summary>
-                        <label>"Locale"<select data-onecalc="locale" prop:value=move ||locale.get() on:change=move |ev|locale.set(event_target_value(&ev))>{SessionOptions::LOCALES.into_iter().map(|name|view!{<option value=name>{name}</option>}).collect_view()}</select></label>
-                        <label>"Format"<select data-onecalc="format-picker" prop:value=move || {
-                            let current = number_format.get();
-                            let profile = FormatProfile::for_culture(&locale.get()).expect("listed locale");
-                            if dna_formula_ui::result::format_choices(&profile).iter().any(|choice| choice.code == current) { current } else { "custom".to_owned() }
-                        } on:change=move |ev| {
-                            let code = event_target_value(&ev);
-                            if code != "custom" { number_format.set(code); }
-                        }>
-                            <option value="custom" disabled=true>"Custom (type it below)"</option>
+                    <section
+                        class="oc-result"
+                        data-onecalc="result-panel"
+                        aria-labelledby="oc-result-title"
+                    >
+                        <header>
+                            <h2 id="oc-result-title">"Result"</h2>
+                            <span class="oc-result-state" data-onecalc="result-state">
+                                {move || shown.with(|s| s.state.clone())}
+                            </span>
+                        </header>
+                        <div
+                            class="oc-primary-result"
+                            data-onecalc="primary-result"
+                            aria-live="polite"
+                            node_ref=primary
+                        >
+                            {result_view}
+                        </div>
+                        <p class="oc-format-note" data-onecalc="format-note">
+                            {move || shown.with(|s| s.format_note.clone())}
+                        </p>
+                        <ul class="oc-diags" data-onecalc="diagnostics">
                             {move || {
-                                let profile = FormatProfile::for_culture(&locale.get()).expect("listed locale");
-                                dna_formula_ui::result::format_choices(&profile).into_iter().map(|choice| {
-                                    let text = format!("{}: {} ({})", choice.group, choice.label, choice.code);
-                                    view! { <option value=choice.code>{text}</option> }
-                                }).collect_view()
+                                shown
+                                    .with(|s| s.diagnostics.clone())
+                                    .into_iter()
+                                    .map(|line| view! { <li>{line}</li> })
+                                    .collect_view()
                             }}
-                        </select></label>
-                        <label>"Date system"<select data-onecalc="date-system" prop:value=move || if date_1904.get() { "1904" } else { "1900" } on:change=move |ev| date_1904.set(event_target_value(&ev) == "1904")>
-                            <option value="1900">"1900 (Excel for Windows, and the default)"</option>
-                            <option value="1904">"1904 (older Excel for Mac)"</option>
-                        </select></label>
-                        <label>"Number format (selected locale)"<input data-onecalc="number-format" list="oc-number-formats" prop:value=move ||number_format.get() on:input=move |ev|number_format.set(event_target_value(&ev))/></label>
-                        <datalist id="oc-number-formats">{move || {
-                            let p=FormatProfile::for_culture(&locale.get()).expect("listed locale");
-                            ["General".to_owned(),format!("0{}00",p.decimal_separator),format!("#{}##0{}00",p.thousands_separator,p.decimal_separator),format!("0{}00%",p.decimal_separator),"yyyy-mm-dd".to_owned()].into_iter().map(|code|view!{<option value=code/>}).collect_view()
-                        }}</datalist>
-                        <p class="oc-prov">{move || {
-                            let p=FormatProfile::for_culture(&locale.get()).expect("listed locale");
-                            format!("Number formats use the selected locale's separators, for example 0{}00. Changing locale keeps your format text; adjust its separators when needed.",p.decimal_separator)
-                        }}</p>
-                        <p class="oc-prov">"Formulas use English function names, commas between arguments and a dot for decimals. Numeric inputs also use a dot. Ctrl+Shift+Enter enters the formula as a legacy array formula, {=...}, as in Excel."</p>
-                    </details>
-                    {panels::formatting_panel(style)}
-                    {panels::cf_panel(cf_rules)}
+                        </ul>
+                        <details class="oc-calculation-details" data-onecalc="result-details">
+                            <summary>"Calculation details"</summary>
+                            <p>
+                                "Raw result: "
+                                <output data-onecalc="result">
+                                    {move || shown.with(|s| s.result.clone())}
+                                </output>
+                            </p>
+                            <p class="oc-prov" data-onecalc="provenance">
+                                {move || shown.with(|s| s.provenance.clone())}
+                            </p>
+                            <p class="oc-prov" data-onecalc="environment">
+                                {move || {
+                                    format!(
+                                        "Dates use the {} system; {} numbers in {} format. NOW and TODAY read the page's clock. Evaluation uses calc-fml and calc-func.",
+                                        if date_1904.get() { "1904" } else { "1900" },
+                                        locale.get(),
+                                        number_format.get(),
+                                    )
+                                }}
+                            </p>
+                            <ol class="oc-reads" data-onecalc="reads">
+                                {move || {
+                                    shown
+                                        .with(|s| s.reads.clone())
+                                        .into_iter()
+                                        .map(|line| view! { <li>{line}</li> })
+                                        .collect_view()
+                                }}
+                            </ol>
+                        </details>
+                    </section> {panels::effective_panel(shown)}
+                    {trace_panel.view(assist, trace_identity, trace_start)}
+                    <details class="oc-format-controls" data-onecalc="format-controls">
+                        <summary data-onecalc="format-tools">"Format & locale"</summary>
+                        <label>
+                            "Locale"
+                            <select
+                                data-onecalc="locale"
+                                prop:value=move || locale.get()
+                                on:change=move |ev| locale.set(event_target_value(&ev))
+                            >
+                                {SessionOptions::LOCALES
+                                    .into_iter()
+                                    .map(|name| view! { <option value=name>{name}</option> })
+                                    .collect_view()}
+                            </select>
+                        </label>
+                        <label>
+                            "Format"
+                            <select
+                                data-onecalc="format-picker"
+                                prop:value=move || {
+                                    let current = number_format.get();
+                                    let profile = FormatProfile::for_culture(&locale.get())
+                                        .expect("listed locale");
+                                    if dna_formula_ui::result::format_choices(&profile)
+                                        .iter()
+                                        .any(|choice| choice.code == current)
+                                    {
+                                        current
+                                    } else {
+                                        "custom".to_owned()
+                                    }
+                                }
+                                on:change=move |ev| {
+                                    let code = event_target_value(&ev);
+                                    if code != "custom" {
+                                        number_format.set(code);
+                                    }
+                                }
+                            >
+                                <option value="custom" disabled=true>
+                                    "Custom (type it below)"
+                                </option>
+                                {move || {
+                                    let profile = FormatProfile::for_culture(&locale.get())
+                                        .expect("listed locale");
+                                    dna_formula_ui::result::format_choices(&profile)
+                                        .into_iter()
+                                        .map(|choice| {
+                                            let text = format!(
+                                                "{}: {} ({})",
+                                                choice.group,
+                                                choice.label,
+                                                choice.code,
+                                            );
+                                            view! { <option value=choice.code>{text}</option> }
+                                        })
+                                        .collect_view()
+                                }}
+                            </select>
+                        </label>
+                        <label>
+                            "Date system"
+                            <select
+                                data-onecalc="date-system"
+                                prop:value=move || if date_1904.get() { "1904" } else { "1900" }
+                                on:change=move |ev| date_1904.set(event_target_value(&ev) == "1904")
+                            >
+                                <option value="1900">
+                                    "1900 (Excel for Windows, and the default)"
+                                </option>
+                                <option value="1904">"1904 (older Excel for Mac)"</option>
+                            </select>
+                        </label>
+                        <label>
+                            "Number format (selected locale)"
+                            <input
+                                data-onecalc="number-format"
+                                list="oc-number-formats"
+                                prop:value=move || number_format.get()
+                                on:input=move |ev| number_format.set(event_target_value(&ev))
+                            />
+                        </label>
+                        <datalist id="oc-number-formats">
+                            {move || {
+                                let p = FormatProfile::for_culture(&locale.get())
+                                    .expect("listed locale");
+                                [
+                                    "General".to_owned(),
+                                    format!("0{}00", p.decimal_separator),
+                                    format!(
+                                        "#{}##0{}00",
+                                        p.thousands_separator,
+                                        p.decimal_separator,
+                                    ),
+                                    format!("0{}00%", p.decimal_separator),
+                                    "yyyy-mm-dd".to_owned(),
+                                ]
+                                    .into_iter()
+                                    .map(|code| view! { <option value=code /> })
+                                    .collect_view()
+                            }}
+                        </datalist>
+                        <p class="oc-prov">
+                            {move || {
+                                let p = FormatProfile::for_culture(&locale.get())
+                                    .expect("listed locale");
+                                format!(
+                                    "Number formats use the selected locale's separators, for example 0{}00. Changing locale keeps your format text; adjust its separators when needed.",
+                                    p.decimal_separator,
+                                )
+                            }}
+                        </p>
+                        <p class="oc-prov">
+                            "Formulas use English function names, commas between arguments and a dot for decimals. Numeric inputs also use a dot. Ctrl+Shift+Enter enters the formula as a legacy array formula, {=...}, as in Excel."
+                        </p>
+                    </details> {panels::formatting_panel(style)} {panels::cf_panel(cf_rules)}
                     {panels::colour_list()}
-                    <details class="oc-help-details" data-onecalc="function-help-details" prop:open=move || function_help_open.get()
-                        on:toggle=move |ev| function_help_open.set(event_target::<web_sys::HtmlElement>(&ev).has_attribute("open"))>
-                        <summary data-onecalc="function-help-tools">"Function help · F1 in the formula"</summary>
-                        <p class="oc-prov">"Help for the function the caret is in, or for the one chosen in the completion list."</p>
+                    <details
+                        class="oc-help-details"
+                        data-onecalc="function-help-details"
+                        prop:open=move || function_help_open.get()
+                        on:toggle=move |ev| {
+                            function_help_open
+                                .set(
+                                    event_target::<web_sys::HtmlElement>(&ev).has_attribute("open"),
+                                )
+                        }
+                    >
+                        <summary data-onecalc="function-help-tools">
+                            "Function help · F1 in the formula"
+                        </summary>
+                        <p class="oc-prov">
+                            "Help for the function the caret is in, or for the one chosen in the completion list."
+                        </p>
                         {assist.help()}
                     </details>
                 </div>
                 <div class="oc-col">
-                    <details class="oc-panel oc-inputs-panel" data-onecalc="inputs" prop:open=move || inputs_open.get()
-                        on:toggle=move |ev| inputs_open.set(event_target::<web_sys::HtmlElement>(&ev).has_attribute("open"))>
-                        <summary data-onecalc="inputs-tools">"Inputs · "<span data-onecalc="inputs-count">{move || {
-                            let filled = entries.with(|entries| entries.iter().filter(|entry| !entry.trim().is_empty()).count());
-                            if filled == 0 { "no values entered".to_owned() } else { format!("{filled} cell(s) with values") }
-                        }}</span></summary>
-                        <p class="oc-prov" data-onecalc="inputs-note">{format!("The cells your formula can read: Sheet1!A1:{}. Type constants here, then refer to them, for example =SUM(A1:A3). With the caret in the formula, arrow keys or a click on a cell here put its reference in the formula. These cells are saved with the session file.", grid::address(grid::ROWS, grid::COLUMNS))}</p>
+                    <details
+                        class="oc-panel oc-inputs-panel"
+                        data-onecalc="inputs"
+                        prop:open=move || inputs_open.get()
+                        on:toggle=move |ev| {
+                            inputs_open
+                                .set(
+                                    event_target::<web_sys::HtmlElement>(&ev).has_attribute("open"),
+                                )
+                        }
+                    >
+                        <summary data-onecalc="inputs-tools">
+                            "Inputs · "
+                            <span data-onecalc="inputs-count">
+                                {move || {
+                                    let filled = entries
+                                        .with(|entries| {
+                                            entries
+                                                .iter()
+                                                .filter(|entry| !entry.trim().is_empty())
+                                                .count()
+                                        });
+                                    if filled == 0 {
+                                        "no values entered".to_owned()
+                                    } else {
+                                        format!("{filled} cell(s) with values")
+                                    }
+                                }}
+                            </span>
+                        </summary>
+                        <p class="oc-prov" data-onecalc="inputs-note">
+                            {format!(
+                                "The cells your formula can read: Sheet1!A1:{}. Type constants here, then refer to them, for example =SUM(A1:A3). With the caret in the formula, arrow keys or a click on a cell here put its reference in the formula. These cells are saved with the session file.",
+                                grid::address(grid::ROWS, grid::COLUMNS),
+                            )}
+                        </p>
                         <div class="oc-gridwrap">
                             <table class="oc-grid" data-onecalc="grid">
-                                <thead><tr><th></th>{grid_header}</tr></thead>
+                                <thead>
+                                    <tr>
+                                        <th></th>
+                                        {grid_header}
+                                    </tr>
+                                </thead>
                                 <tbody>{grid_body}</tbody>
                             </table>
                         </div>
                     </details>
-                    <details class="oc-panel oc-vba-panel"><summary data-onecalc="vba-tools">"VBA functions"</summary>
+                    <details class="oc-panel oc-vba-panel">
+                        <summary data-onecalc="vba-tools">"VBA functions"</summary>
                         <textarea
                             data-onecalc="vba-source"
                             aria-label="VBA standard module"
@@ -1122,11 +1661,17 @@ fn surface(link: Rc<dyn Link>) -> impl IntoView {
                             prop:value=move || vba_source.get()
                             on:input=move |ev| vba_source.set(event_target_value(&ev))
                         />
-                        <button data-onecalc="vba-load" type="button" on:click=load_vba>"Load module"</button>
+                        <button data-onecalc="vba-load" type="button" on:click=load_vba>
+                            "Load module"
+                        </button>
                         " "
-                        <button data-onecalc="vba-clear" type="button" on:click=clear_vba>"Unload module"</button>
+                        <button data-onecalc="vba-clear" type="button" on:click=clear_vba>
+                            "Unload module"
+                        </button>
                         <p data-onecalc="vba-status">{move || vba_status.get()}</p>
-                        <p class="oc-prov">"Load the example, enter 40 in A1, then try =Module1.Add2(A1,2). Module state lasts until reload or unload. Each call stops at its execution budget. References can supply values, arrays or read-only Excel Range arguments; a write to a cell raises VBA error 1004, as in Excel, and calculation commands remain unsupported. In an .xlsm session the module goes into the file's VBA project and is saved with it; a module typed into a session without a project cannot be saved (dc-0f1k.4)."</p>
+                        <p class="oc-prov">
+                            "Load the example, enter 40 in A1, then try =Module1.Add2(A1,2). Module state lasts until reload or unload. Each call stops at its execution budget. References can supply values, arrays or read-only Excel Range arguments; a write to a cell raises VBA error 1004, as in Excel, and calculation commands remain unsupported. In an .xlsm session the module goes into the file's VBA project and is saved with it; a module typed into a session without a project cannot be saved (dc-0f1k.4)."
+                        </p>
                     </details>
                     <div class="oc-panel oc-catalogue" data-onecalc="catalogue-panel">
                         <h2>"Functions"</h2>

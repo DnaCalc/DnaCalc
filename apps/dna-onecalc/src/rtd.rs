@@ -60,9 +60,12 @@ impl RtdConnector for Recording {
     ) -> Result<RtdConnection, String> {
         let connection = self.inner.connect(topic, caller, declared)?;
         if let Some((sequence, value)) = &connection.provisional {
-            self.queue
-                .borrow_mut()
-                .push((topic.clone(), connection.lease, *sequence, value.clone()));
+            self.queue.borrow_mut().push((
+                topic.clone(),
+                connection.lease,
+                *sequence,
+                value.clone(),
+            ));
         }
         Ok(connection)
     }
@@ -92,7 +95,11 @@ impl SessionRtd {
     /// An evaluation of the session's formula ended having read `reads`: the values its
     /// connections returned are admitted (before anything is shown as certified), and the leases
     /// the formula held before and no longer reads are noted for the owner to disconnect.
-    pub(crate) fn finish(&mut self, reads: Vec<RtdRead>, invocations: std::collections::BTreeSet<u64>) {
+    pub(crate) fn finish(
+        &mut self,
+        reads: Vec<RtdRead>,
+        invocations: std::collections::BTreeSet<u64>,
+    ) {
         self.invocations = invocations;
         let connected = std::mem::take(&mut *self.connected.borrow_mut());
         for (topic, lease, sequence, value) in connected {

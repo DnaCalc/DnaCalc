@@ -15,10 +15,9 @@
 use calc_func::value::{
     ArrayShape, CalcArray, CalcValue, CallableArityShape, CallableValue, CellKey, CoreRef,
     CoreValue, CubeValue, ExcelText, GridArea, GridError, IdAllocator, IdError, ImageFormat,
-    ImageValue,
-    MAX_COLUMNS, MAX_ROWS, NameId,
-    NameKey, NameScope, NodeId, NumericMode, NumericTargetId, OpaqueCallable, ReferenceError,
-    ReferenceLike, Selection, SheetId, TableId, WorkbookId, WorksheetErrorCode,
+    ImageValue, MAX_COLUMNS, MAX_ROWS, NameId, NameKey, NameScope, NodeId, NumericMode,
+    NumericTargetId, OpaqueCallable, ReferenceError, ReferenceLike, Selection, SheetId, TableId,
+    WorkbookId, WorksheetErrorCode,
 };
 use calc_func::{
     ArgumentDemand, CellReader, EvalServices, FunctionCallScratch, FunctionCallTarget,
@@ -2195,7 +2194,12 @@ fn computed_subnormal_arithmetic() {
     assert_eq!(tiny.as_number().unwrap().to_bits(), 1);
     for (op, left, right, expected) in [
         (PLUS, tiny.clone(), CalcValue::number(0.0), 1),
-        (MINUS, CalcValue::number(0.0), tiny.clone(), 0x8000_0000_0000_0001),
+        (
+            MINUS,
+            CalcValue::number(0.0),
+            tiny.clone(),
+            0x8000_0000_0000_0001,
+        ),
         (TIMES, tiny.clone(), CalcValue::number(3.0), 0),
         (DIVIDE, tiny.clone(), CalcValue::number(1.0), 0),
         (POWER, tiny.clone(), CalcValue::number(1.0), 0),
@@ -2223,7 +2227,11 @@ fn computed_subnormal_arithmetic() {
     ] {
         let mut args = Recorded::new(vec![CalcValue::number(f64::from_bits(input))]);
         let result = run(surface(Notation::Call, function), &mut args, &mode).unwrap();
-        assert_eq!(result.as_number().unwrap().to_bits(), expected, "{function}");
+        assert_eq!(
+            result.as_number().unwrap().to_bits(),
+            expected,
+            "{function}"
+        );
     }
     for (function, expected) in [("ISEVEN", true), ("ISODD", false)] {
         let mut args = Recorded::new(vec![CalcValue::number(f64::from_bits(1))]);
@@ -2231,14 +2239,22 @@ fn computed_subnormal_arithmetic() {
         assert_eq!(result.as_logical(), Some(expected), "{function}");
     }
     let mut negative = Recorded::new(vec![CalcValue::number(-f64::from_bits(1))]);
-    assert_eq!(run(surface(Notation::Call, "NOT"), &mut negative, &mode).unwrap().as_logical(), Some(false));
+    assert_eq!(
+        run(surface(Notation::Call, "NOT"), &mut negative, &mode)
+            .unwrap()
+            .as_logical(),
+        Some(false)
+    );
     for (function, a, b, expected) in [
         ("DELTA", 1, 0, 0.0),
         ("DELTA", 1, 1, 1.0),
         ("GESTEP", 1, 0, 1.0),
         ("GESTEP", 0, 1, 0.0),
     ] {
-        let mut args = Recorded::new(vec![CalcValue::number(f64::from_bits(a)), CalcValue::number(f64::from_bits(b))]);
+        let mut args = Recorded::new(vec![
+            CalcValue::number(f64::from_bits(a)),
+            CalcValue::number(f64::from_bits(b)),
+        ]);
         let result = run(surface(Notation::Call, function), &mut args, &mode).unwrap();
         assert_eq!(result.as_number(), Some(expected), "{function}");
     }
@@ -2253,7 +2269,10 @@ fn computed_subnormal_arithmetic() {
         ("FLOOR.MATH", 0x8008_bfe5_5de0_2338, 1.0, 0.0),
         ("QUOTIENT", 0x0008_bfe5_5de0_2338, 0.1, 0.0),
     ] {
-        let mut args = Recorded::new(vec![CalcValue::number(f64::from_bits(bits)), CalcValue::number(significance)]);
+        let mut args = Recorded::new(vec![
+            CalcValue::number(f64::from_bits(bits)),
+            CalcValue::number(significance),
+        ]);
         let result = run(surface(Notation::Call, function), &mut args, &mode).unwrap();
         assert_eq!(result.as_number(), Some(expected), "{function}");
     }
@@ -3722,7 +3741,14 @@ fn cfunc_m1_2__mixed_operands() {
         );
     }
     let mut subnormal = Recorded::new(vec![CalcValue::number(f64::from_bits(1))]);
-    assert_eq!(run(unary_plus, &mut subnormal, &fast).unwrap().as_number().unwrap().to_bits(), 1);
+    assert_eq!(
+        run(unary_plus, &mut subnormal, &fast)
+            .unwrap()
+            .as_number()
+            .unwrap()
+            .to_bits(),
+        1
+    );
     note!(
         "ACCEPT-NOTE: {CASE}: +(-0.0) through calc_func::invoke gives bits {:#018x}; +NaN, +inf and +(-inf) are refused naming the operand; +5e-324 is retained",
         published
@@ -6048,9 +6074,7 @@ fn cfunc_m3_4__argument_classes() {
             "COUNTBLANK({value:?})"
         );
     }
-    for refused in [
-        CalcValue::array(CalcArray::from_scalar(CalcValue::empty())),
-    ] {
+    for refused in [CalcValue::array(CalcArray::from_scalar(CalcValue::empty()))] {
         let mut given = Recorded::new(vec![refused.clone()]);
         assert_eq!(
             run(countblank, &mut given, &fast),
@@ -15873,28 +15897,34 @@ fn cfunc_m3_6__lookup_edges() {
     // The measured Giyeok-A leading primary follows every ASCII entry in B1:B6.
     // Approximate XMATCH therefore selects its final entry through the ordinary lookup route.
     let xmatch = surface(Notation::Call, "XMATCH");
-    assert_eq!(invoke(
-        xmatch,
-        &mut Recorded::new(vec![
-            text_value("\u{1100}\u{1161}"),
-            reference(s, &["B1:B6"]).value,
-            CalcValue::number(-1.0),
-        ]),
-        &mut EvalServices::with_cells(&fast, s),
-        &mut FunctionCallScratch::new(),
-    ), Ok(CalcValue::number(6.0)));
+    assert_eq!(
+        invoke(
+            xmatch,
+            &mut Recorded::new(vec![
+                text_value("\u{1100}\u{1161}"),
+                reference(s, &["B1:B6"]).value,
+                CalcValue::number(-1.0),
+            ]),
+            &mut EvalServices::with_cells(&fast, s),
+            &mut FunctionCallScratch::new(),
+        ),
+        Ok(CalcValue::number(6.0))
+    );
 
     // Dieut-A (U+1103 U+1161) is measured now too: it follows every ASCII entry, as Giyeok-A does.
-    assert_eq!(invoke(
-        xmatch,
-        &mut Recorded::new(vec![
-            text_value("\u{1103}\u{1161}"),
-            reference(s, &["B1:B6"]).value,
-            CalcValue::number(-1.0),
-        ]),
-        &mut EvalServices::with_cells(&fast, s),
-        &mut FunctionCallScratch::new(),
-    ), Ok(CalcValue::number(6.0)));
+    assert_eq!(
+        invoke(
+            xmatch,
+            &mut Recorded::new(vec![
+                text_value("\u{1103}\u{1161}"),
+                reference(s, &["B1:B6"]).value,
+                CalcValue::number(-1.0),
+            ]),
+            &mut EvalServices::with_cells(&fast, s),
+            &mut FunctionCallScratch::new(),
+        ),
+        Ok(CalcValue::number(6.0))
+    );
 
     // Through the call interface alone (no row of the workbook): the formula's own cell, which
     // ROW() and COLUMN() need, is not among the services (dc-m3u); regex matching (match_mode 3,

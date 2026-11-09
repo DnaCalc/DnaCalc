@@ -5,9 +5,9 @@
 
 use crate::coerce::{self, Numeric, Stop};
 use crate::value::CalcValue;
+use crate::value::{ArrayShape, CalcArray, CoreRef, CoreValue, WorksheetErrorCode};
 use std::cmp::Ordering;
 use std::collections::HashMap;
-use crate::value::{ArrayShape, CalcArray, CoreRef, CoreValue, WorksheetErrorCode};
 
 /// Why a prepared argument did not read as a number or a logical.
 #[derive(Debug, Clone, PartialEq)]
@@ -80,9 +80,7 @@ fn materialize_array_arg(arg: &CalcValue) -> CalcArray {
 
 fn scalar_calc_value(value: &CalcValue) -> CalcValue {
     match value.core_ref() {
-        CoreRef::Array(_) | CoreRef::Reference(_) => {
-            CalcValue::error(WorksheetErrorCode::Value)
-        }
+        CoreRef::Array(_) | CoreRef::Reference(_) => CalcValue::error(WorksheetErrorCode::Value),
         CoreRef::Missing | CoreRef::Empty => CalcValue::empty(),
         _ => value.clone(),
     }
@@ -124,9 +122,7 @@ fn prepared_from_array_cell(cell: &CalcValue) -> CalcValue {
         CoreRef::Logical(b) => CalcValue::logical(b),
         CoreRef::Error(code) => CalcValue::error(code),
         CoreRef::Empty | CoreRef::Missing => CalcValue::empty(),
-        CoreRef::Array(_) | CoreRef::Reference(_) => {
-            CalcValue::error(WorksheetErrorCode::Value)
-        }
+        CoreRef::Array(_) | CoreRef::Reference(_) => CalcValue::error(WorksheetErrorCode::Value),
     }
 }
 
@@ -277,9 +273,7 @@ fn compare_cell_values(lhs: &CalcValue, rhs: &CalcValue) -> Ordering {
         (CoreRef::Number(a), CoreRef::Number(b)) => a.partial_cmp(&b).unwrap_or(Ordering::Equal),
         (CoreRef::Text(a), CoreRef::Text(b)) => a.to_string_lossy().cmp(&b.to_string_lossy()),
         (CoreRef::Logical(a), CoreRef::Logical(b)) => a.cmp(&b),
-        (CoreRef::Empty | CoreRef::Missing, CoreRef::Empty | CoreRef::Missing) => {
-            Ordering::Equal
-        }
+        (CoreRef::Empty | CoreRef::Missing, CoreRef::Empty | CoreRef::Missing) => Ordering::Equal,
         (CoreRef::Error(a), CoreRef::Error(b)) => (a as u8).cmp(&(b as u8)),
         (CoreRef::Empty | CoreRef::Missing, _) => Ordering::Less,
         (_, CoreRef::Empty | CoreRef::Missing) => Ordering::Greater,
@@ -337,7 +331,10 @@ pub fn eval_chooserows_prepared(
     build_array(rows.len(), array.shape().cols, cells)
 }
 
-pub(crate) fn take_span(len: usize, count: isize) -> Result<(usize, usize), DynamicArrayReshapeEvalError> {
+pub(crate) fn take_span(
+    len: usize,
+    count: isize,
+) -> Result<(usize, usize), DynamicArrayReshapeEvalError> {
     if count == 0 {
         return Err(DynamicArrayReshapeEvalError::EmptyArrayResult);
     }
@@ -350,7 +347,10 @@ pub(crate) fn take_span(len: usize, count: isize) -> Result<(usize, usize), Dyna
     }
 }
 
-pub(crate) fn drop_span(len: usize, count: isize) -> Result<(usize, usize), DynamicArrayReshapeEvalError> {
+pub(crate) fn drop_span(
+    len: usize,
+    count: isize,
+) -> Result<(usize, usize), DynamicArrayReshapeEvalError> {
     let (start, end) = if count >= 0 {
         (usize::min(count as usize, len), len)
     } else {
@@ -549,8 +549,8 @@ pub fn eval_vstack_prepared(args: &[CalcValue]) -> Result<CalcValue, DynamicArra
 
 /// Wrapping has its own below-one error; other shaping counts keep their existing policy.
 fn wrap_count(value: &CalcValue) -> Result<usize, DynamicArrayReshapeEvalError> {
-    let number = coerce_prepared_to_number(value)
-        .map_err(DynamicArrayReshapeEvalError::Preparation)?;
+    let number =
+        coerce_prepared_to_number(value).map_err(DynamicArrayReshapeEvalError::Preparation)?;
     if number < 1.0 {
         return Err(DynamicArrayReshapeEvalError::Preparation(
             CoercionError::WorksheetError(WorksheetErrorCode::Num),
@@ -1126,7 +1126,11 @@ pub fn eval_sequence_prepared(
 /// HSTACK (hstack.rs): the arguments side by side, each padded with #N/A below to the tallest.
 pub fn eval_hstack_prepared(args: &[CalcValue]) -> Result<CalcValue, DynamicArrayReshapeEvalError> {
     let sources: Vec<StackArgSource<'_>> = args.iter().map(StackArgSource::new).collect();
-    let rows = sources.iter().map(|source| source.shape().rows).max().unwrap_or(1);
+    let rows = sources
+        .iter()
+        .map(|source| source.shape().rows)
+        .max()
+        .unwrap_or(1);
     let cols: usize = sources.iter().map(|source| source.shape().cols).sum();
     let mut cells = Vec::with_capacity(rows * cols);
     for row in 0..rows {

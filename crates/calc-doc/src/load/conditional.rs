@@ -154,9 +154,11 @@ pub(crate) fn areas(sqref: &str) -> Vec<(u32, u32, u32, u32)> {
 }
 
 fn complete_areas(sqref: &str) -> Option<Vec<(u32, u32, u32, u32)>> {
-    sqref.split_whitespace().map(|part| address::area(part)
-        .or_else(|| address::cell(part).map(|(r,c)| (r,c,r,c))))
-        .collect::<Option<Vec<_>>>().filter(|areas| !areas.is_empty())
+    sqref
+        .split_whitespace()
+        .map(|part| address::area(part).or_else(|| address::cell(part).map(|(r, c)| (r, c, r, c))))
+        .collect::<Option<Vec<_>>>()
+        .filter(|areas| !areas.is_empty())
 }
 
 /// Reads the `<conditionalFormatting>` element whose start tag `element` was just read.
@@ -166,10 +168,13 @@ pub(crate) fn read_block(
 ) -> Result<ConditionalFormat, LoadError> {
     let areas = element.attribute("sqref").and_then(complete_areas);
     let mut block = ConditionalFormat {
-        unread_container: areas.is_none() || element.attributes.iter().any(|a| {
-            a.name.namespace.is_some() || !(a.name.local.as_str() == "sqref"
-                || (a.name.local.as_str() == "pivot" && matches!(a.value.as_str(), "0" | "false")))
-        }),
+        unread_container: areas.is_none()
+            || element.attributes.iter().any(|a| {
+                a.name.namespace.is_some()
+                    || !(a.name.local.as_str() == "sqref"
+                        || (a.name.local.as_str() == "pivot"
+                            && matches!(a.value.as_str(), "0" | "false")))
+            }),
         areas: areas.unwrap_or_default(),
         rules: Vec::new(),
     };
@@ -190,17 +195,46 @@ pub(crate) fn read_block(
 }
 
 fn read_rule(events: &mut Events<'_>, element: &XmlElement) -> Result<ConditionalRule, LoadError> {
-    let bad_priority=number::<u32>(element,"priority").is_none_or(|n|n==0);
-    let bad_unsigned=["dxfId","rank","stdDev"].iter().any(|key|element.attribute(key).is_some() && number::<u32>(element,key).is_none());
-    let bad_flags=["stopIfTrue","percent","bottom","aboveAverage","equalAverage"].iter().any(|key|element.attribute(key).is_some_and(|v|!matches!(v.trim(),"0"|"1"|"true"|"false")));
+    let bad_priority = number::<u32>(element, "priority").is_none_or(|n| n == 0);
+    let bad_unsigned = ["dxfId", "rank", "stdDev"]
+        .iter()
+        .any(|key| element.attribute(key).is_some() && number::<u32>(element, key).is_none());
+    let bad_flags = [
+        "stopIfTrue",
+        "percent",
+        "bottom",
+        "aboveAverage",
+        "equalAverage",
+    ]
+    .iter()
+    .any(|key| {
+        element
+            .attribute(key)
+            .is_some_and(|v| !matches!(v.trim(), "0" | "1" | "true" | "false"))
+    });
     let mut rule = ConditionalRule {
-        unread: bad_priority || bad_unsigned || bad_flags || element.attributes.iter().any(|a| {
-            a.name.namespace.is_some()
-                || !matches!(a.name.local.as_str(),
-                    "type" | "priority" | "stopIfTrue" | "dxfId" | "operator" | "text"
-                    | "rank" | "percent" | "bottom" | "aboveAverage" | "equalAverage"
-                    | "stdDev" | "timePeriod")
-        }),
+        unread: bad_priority
+            || bad_unsigned
+            || bad_flags
+            || element.attributes.iter().any(|a| {
+                a.name.namespace.is_some()
+                    || !matches!(
+                        a.name.local.as_str(),
+                        "type"
+                            | "priority"
+                            | "stopIfTrue"
+                            | "dxfId"
+                            | "operator"
+                            | "text"
+                            | "rank"
+                            | "percent"
+                            | "bottom"
+                            | "aboveAverage"
+                            | "equalAverage"
+                            | "stdDev"
+                            | "timePeriod"
+                    )
+            }),
         kind: element.attribute("type").unwrap_or_default().to_owned(),
         priority: number(element, "priority").unwrap_or(i64::MAX),
         stop_if_true: flag(element, "stopIfTrue", false),
@@ -266,12 +300,21 @@ fn read_rule(events: &mut Events<'_>, element: &XmlElement) -> Result<Conditiona
             }
             Some(XmlEvent::Text(_)) => {}
             Some(XmlEvent::End(_)) => {
-                if matches!(rule.kind.as_str(),"expression"|"cellIs") {
-                    let count=if rule.kind=="cellIs" && matches!(rule.operator.as_deref(),Some("between"|"notBetween")){2}else{1};
-                    rule.unread |= rule.formulas.len()!=count || rule.color_scale.is_some() || rule.data_bar.is_some() || rule.icon_set.is_some();
+                if matches!(rule.kind.as_str(), "expression" | "cellIs") {
+                    let count = if rule.kind == "cellIs"
+                        && matches!(rule.operator.as_deref(), Some("between" | "notBetween"))
+                    {
+                        2
+                    } else {
+                        1
+                    };
+                    rule.unread |= rule.formulas.len() != count
+                        || rule.color_scale.is_some()
+                        || rule.data_bar.is_some()
+                        || rule.icon_set.is_some();
                 }
                 return Ok(rule);
-            },
+            }
             None => return Err(events.invalid("the part ends inside cfRule")),
         }
     }
@@ -350,14 +393,19 @@ pub(crate) fn read_extensions(
                 }
                 depth += 1;
             }
-            Some(XmlEvent::Start(element)) if element.name.is("http://schemas.microsoft.com/office/excel/2006/main", "sqref") && scope.is_some() => {
+            Some(XmlEvent::Start(element))
+                if element.name.is(
+                    "http://schemas.microsoft.com/office/excel/2006/main",
+                    "sqref",
+                ) && scope.is_some() =>
+            {
                 unscoped |= !element.attributes.is_empty();
                 let text = events.text()?;
                 let parsed = complete_areas(&text);
                 let (_, held) = scope.as_mut().unwrap();
                 unscoped |= held.is_some() || parsed.is_none();
                 *held = parsed;
-                unscoped |= scope.as_ref().is_some_and(|(at,_)| *at != depth);
+                unscoped |= scope.as_ref().is_some_and(|(at, _)| *at != depth);
             }
             Some(XmlEvent::Start(element)) if element.name.is(X14_NAMESPACE, "dataValidation") => {
                 unscoped |= collection_depth.is_some();
@@ -365,7 +413,7 @@ pub(crate) fn read_extensions(
             }
             Some(XmlEvent::Start(element)) if element.name.is(X14_NAMESPACE, "cfRule") => {
                 conditional = true;
-                unscoped |= scope.as_ref().is_none_or(|(at,_)| *at != depth);
+                unscoped |= scope.as_ref().is_none_or(|(at, _)| *at != depth);
                 if element.attribute("type") != Some("dataBar") {
                     unread += 1;
                 }
@@ -392,11 +440,16 @@ pub(crate) fn read_extensions(
                 depth += 1;
             }
             Some(XmlEvent::End(_)) => {
-                if scope.as_ref().is_some_and(|(at,_)| *at == depth) {
-                    if let Some((_, Some(areas))) = scope.take() { ranges.extend(areas); }
-                    else { unscoped = true; }
+                if scope.as_ref().is_some_and(|(at, _)| *at == depth) {
+                    if let Some((_, Some(areas))) = scope.take() {
+                        ranges.extend(areas);
+                    } else {
+                        unscoped = true;
+                    }
                 }
-                if collection_depth == Some(depth) { collection_depth = None; }
+                if collection_depth == Some(depth) {
+                    collection_depth = None;
+                }
                 depth -= 1;
             }
             Some(XmlEvent::Text(_)) => {}

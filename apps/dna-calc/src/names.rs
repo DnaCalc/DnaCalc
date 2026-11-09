@@ -254,34 +254,316 @@ pub fn controls(controller: Controller) -> impl IntoView {
         );
     };
     let rows = move || {
-        listing.get().rows.into_iter().map(|row|{
-        let label=row.name.clone();let scope=scope_label(controller,row.scope);let definition=format!("={}",row.formula);let id=row.id;let click=row.clone();let hidden=row.hidden;
-        view!{<tr data-dnacalc="name-row" data-name=label.clone() data-name-scope=scope.clone()><th scope="row"><button type="button" data-dnacalc="name-select" aria-pressed=move ||selected.with(|s|s.as_ref().is_some_and(|r|r.id==id)).to_string() on:click=move |_|choose(controller,click.clone())>{label.clone()}</button></th><td>{scope.clone()}</td><td class="dc-name-formula">{definition}</td><td>{if hidden {"Hidden"}else{""}}</td></tr>}
+        listing.get().rows.into_iter().map(|row| {
+            let label = row.name.clone();
+            let scope = scope_label(controller, row.scope);
+            let definition = format!("={}", row.formula);
+            let id = row.id;
+            let click = row.clone();
+            let hidden = row.hidden;
+        view! {
+            <tr data-dnacalc="name-row" data-name=label.clone() data-name-scope=scope.clone()>
+                <th scope="row">
+                    <button
+                        type="button"
+                        data-dnacalc="name-select"
+                        aria-pressed=move || {
+                            selected.with(|s| s.as_ref().is_some_and(|r| r.id == id)).to_string()
+                        }
+                        on:click=move |_| choose(controller, click.clone())
+                    >
+                        {label.clone()}
+                    </button>
+                </th>
+                <td>{scope.clone()}</td>
+                <td class="dc-name-formula">{definition}</td>
+                <td>{if hidden { "Hidden" } else { "" }}</td>
+            </tr>
+        }
     }).collect_view()
     };
-    view!{
-        <dialog node_ref=dialog class="dc-names-dialog" data-dnacalc="names-dialog" aria-labelledby="dc-names-title" on:cancel=move |_:web_sys::Event|close() on:close=move |_:web_sys::Event|observe_close()>
+    view! {
+        <dialog
+            node_ref=dialog
+            class="dc-names-dialog"
+            data-dnacalc="names-dialog"
+            aria-labelledby="dc-names-title"
+            on:cancel=move |_: web_sys::Event| close()
+            on:close=move |_: web_sys::Event| observe_close()
+        >
             <h2 id="dc-names-title">"Name Manager"</h2>
-            <p class="dc-note">"Definitions are listed without evaluation. Evaluate reads the published workbook for the selected name at the caller cell you choose."</p>
-            <div class="dc-name-toolbar"><label>"Filter names"<input data-dnacalc="names-filter" prop:value=move ||query.get() on:input=move |ev|{query.set(event_target_value(&ev));page.set(0);}/></label><button type="button" data-dnacalc="name-new" on:click=move |_|new_name()>"New…"</button><button type="button" data-dnacalc="names-undo" disabled=move ||controller.command_availability(dna_calc_model::CommandId::Undo).is_err() on:click=move |_|controller.command(Command::Undo)>"Undo"</button><button type="button" data-dnacalc="names-redo" disabled=move ||controller.command_availability(dna_calc_model::CommandId::Redo).is_err() on:click=move |_|controller.command(Command::Redo)>"Redo"</button></div>
-            <div class="dc-name-list"><table><thead><tr><th>"Name"</th><th>"Scope"</th><th>"Refers to"</th><th>"Visibility"</th></tr></thead><tbody>{rows}</tbody></table></div>
-            <div class="dc-name-toolbar"><button type="button" data-dnacalc="names-previous" disabled=move ||page.get()==0 on:click=move |_|page.update(|p|*p=p.saturating_sub(1))>"Previous"</button><span data-dnacalc="names-count">{move ||listing.with(|l|format!("{} names · page {}",l.total,l.page+1))}</span><button type="button" data-dnacalc="names-next" disabled=move ||listing.with(|l|(l.page+1).saturating_mul(200)>=l.total as u64) on:click=move |_|page.update(|p|*p+=1)>"Next"</button></div>
-            <fieldset class="dc-name-editor"><legend>{move ||if creating.get(){"New name"}else{"Selected definition"}}</legend>
-                <label>"Name"<input node_ref=name_field data-dnacalc="name-name" prop:value=move ||name.get() disabled=move ||!creating.get()&&selected.get().is_none() on:input=move |ev|name.set(event_target_value(&ev))/></label>
-                <label>"Scope"<select data-dnacalc="name-scope" disabled=move ||!creating.get()&&selected.get().is_none() prop:value=move ||scope.get() on:change=move |ev|scope.set(event_target_value(&ev))><option value="">"Workbook"</option>{move ||controller.all_sheets().into_iter().map(|s|view!{<option value=sheet_key(wire::Sheet::of(s.id))>{s.name}</option>}).collect_view()}</select></label>
-                <label class="dc-name-definition">"Refers to"<textarea data-dnacalc="name-formula" rows="2" spellcheck="false" disabled=move ||!creating.get()&&selected.get().is_none() prop:value=move ||formula.get() on:input=move |ev|formula.set(event_target_value(&ev))></textarea></label>
-                <p class="dc-note">"Referring formulas update with a supported rename or scope move. Save those changes before changing Refers to. Moves that cannot preserve references are refused."</p>
-                <div class="dc-dialog-actions"><button type="button" data-dnacalc="name-save" disabled=move ||(!creating.get()&&selected.get().is_none())||edit_revision.get()!=controller.summary.get().revision on:click=move |_|save(false)>{move ||if selected.with(|r|r.as_ref().is_some_and(|r|r.name!=name.get()||r.scope!=parse_sheet(&scope.get()))){"Rename or move name"}else{"Save definition"}}</button><button type="button" data-dnacalc="name-delete" disabled=move ||selected.get().is_none()||edit_revision.get()!=controller.summary.get().revision on:click=move |_|save(true)>"Delete"</button></div>
+            <p class="dc-note">
+                "Definitions are listed without evaluation. Evaluate reads the published workbook for the selected name at the caller cell you choose."
+            </p>
+            <div class="dc-name-toolbar">
+                <label>
+                    "Filter names"
+                    <input
+                        data-dnacalc="names-filter"
+                        prop:value=move || query.get()
+                        on:input=move |ev| {
+                            query.set(event_target_value(&ev));
+                            page.set(0);
+                        }
+                    />
+                </label>
+                <button type="button" data-dnacalc="name-new" on:click=move |_| new_name()>
+                    "New…"
+                </button>
+                <button
+                    type="button"
+                    data-dnacalc="names-undo"
+                    disabled=move || {
+                        controller.command_availability(dna_calc_model::CommandId::Undo).is_err()
+                    }
+                    on:click=move |_| controller.command(Command::Undo)
+                >
+                    "Undo"
+                </button>
+                <button
+                    type="button"
+                    data-dnacalc="names-redo"
+                    disabled=move || {
+                        controller.command_availability(dna_calc_model::CommandId::Redo).is_err()
+                    }
+                    on:click=move |_| controller.command(Command::Redo)
+                >
+                    "Redo"
+                </button>
+            </div>
+            <div class="dc-name-list">
+                <table>
+                    <thead>
+                        <tr>
+                            <th>"Name"</th>
+                            <th>"Scope"</th>
+                            <th>"Refers to"</th>
+                            <th>"Visibility"</th>
+                        </tr>
+                    </thead>
+                    <tbody>{rows}</tbody>
+                </table>
+            </div>
+            <div class="dc-name-toolbar">
+                <button
+                    type="button"
+                    data-dnacalc="names-previous"
+                    disabled=move || page.get() == 0
+                    on:click=move |_| page.update(|p| *p = p.saturating_sub(1))
+                >
+                    "Previous"
+                </button>
+                <span data-dnacalc="names-count">
+                    {move || listing.with(|l| format!("{} names · page {}", l.total, l.page + 1))}
+                </span>
+                <button
+                    type="button"
+                    data-dnacalc="names-next"
+                    disabled=move || {
+                        listing.with(|l| (l.page + 1).saturating_mul(200) >= l.total as u64)
+                    }
+                    on:click=move |_| page.update(|p| *p += 1)
+                >
+                    "Next"
+                </button>
+            </div>
+            <fieldset class="dc-name-editor">
+                <legend>
+                    {move || if creating.get() { "New name" } else { "Selected definition" }}
+                </legend>
+                <label>
+                    "Name"
+                    <input
+                        node_ref=name_field
+                        data-dnacalc="name-name"
+                        prop:value=move || name.get()
+                        disabled=move || !creating.get() && selected.get().is_none()
+                        on:input=move |ev| name.set(event_target_value(&ev))
+                    />
+                </label>
+                <label>
+                    "Scope"
+                    <select
+                        data-dnacalc="name-scope"
+                        disabled=move || !creating.get() && selected.get().is_none()
+                        prop:value=move || scope.get()
+                        on:change=move |ev| scope.set(event_target_value(&ev))
+                    >
+                        <option value="">"Workbook"</option>
+                        {move || {
+                            controller
+                                .all_sheets()
+                                .into_iter()
+                                .map(|s| {
+                                    view! {
+                                        <option value=sheet_key(
+                                            wire::Sheet::of(s.id),
+                                        )>{s.name}</option>
+                                    }
+                                })
+                                .collect_view()
+                        }}
+                    </select>
+                </label>
+                <label class="dc-name-definition">
+                    "Refers to"
+                    <textarea
+                        data-dnacalc="name-formula"
+                        rows="2"
+                        spellcheck="false"
+                        disabled=move || !creating.get() && selected.get().is_none()
+                        prop:value=move || formula.get()
+                        on:input=move |ev| formula.set(event_target_value(&ev))
+                    ></textarea>
+                </label>
+                <p class="dc-note">
+                    "Referring formulas update with a supported rename or scope move. "
+                    "Save those changes before changing Refers to. Moves that cannot preserve references are refused."
+                </p>
+                <div class="dc-dialog-actions">
+                    <button
+                        type="button"
+                        data-dnacalc="name-save"
+                        disabled=move || {
+                            (!creating.get() && selected.get().is_none())
+                                || edit_revision.get() != controller.summary.get().revision
+                        }
+                        on:click=move |_| save(false)
+                    >
+                        {move || {
+                            if selected
+                                .with(|r| {
+                                    r.as_ref()
+                                        .is_some_and(|r| {
+                                            r.name != name.get() || r.scope != parse_sheet(&scope.get())
+                                        })
+                                })
+                            {
+                                "Rename or move name"
+                            } else {
+                                "Save definition"
+                            }
+                        }}
+                    </button>
+                    <button
+                        type="button"
+                        data-dnacalc="name-delete"
+                        disabled=move || {
+                            selected.get().is_none()
+                                || edit_revision.get() != controller.summary.get().revision
+                        }
+                        on:click=move |_| save(true)
+                    >
+                        "Delete"
+                    </button>
+                </div>
             </fieldset>
-            <fieldset><legend>"Explicit evaluation"</legend>
-                <div class="dc-name-toolbar"><label>"Caller worksheet"<select data-dnacalc="name-evaluation-sheet" prop:value=move ||anchor_sheet.get() on:change=move |ev|anchor_sheet.set(event_target_value(&ev))>{move ||controller.all_sheets().into_iter().map(|s|view!{<option value=sheet_key(wire::Sheet::of(s.id))>{s.name}</option>}).collect_view()}</select></label><label>"Caller cell"<input data-dnacalc="name-anchor" prop:value=move ||anchor.get() on:input=move |ev|anchor.set(event_target_value(&ev))/></label><button type="button" data-dnacalc="name-evaluate" disabled=move ||selected.get().is_none() on:click=move |_|evaluate()>"Evaluate"</button></div>
-                <output data-dnacalc="name-value">{move ||evaluation.with(|e|e.as_ref().map(|e|e.text.clone().unwrap_or_else(|e|format!("Refused: {e}"))).unwrap_or("Not evaluated".into()))}</output>
-                <p class="dc-note">"The result is retained from this explicit command. Evaluate again to inspect current published values."</p>
-                <p class="dc-note" data-dnacalc="name-evaluation-context">{move ||evaluation.with(|e|e.as_ref().map(|e|format!("Explicit evaluation {} at {} · definition version {} · revision {}{}",e.command,e.anchor.cell().map(|at|controller.cell_label(at)).unwrap_or_default(),e.version,e.revision,if e.revision!=controller.summary.get().revision{" · authored workbook has changed"}else if evaluation_observation.get()!=controller.revision.get(){" · published view has changed"}else{""})).unwrap_or_default())}</p>
+            <fieldset>
+                <legend>"Explicit evaluation"</legend>
+                <div class="dc-name-toolbar">
+                    <label>
+                        "Caller worksheet"
+                        <select
+                            data-dnacalc="name-evaluation-sheet"
+                            prop:value=move || anchor_sheet.get()
+                            on:change=move |ev| anchor_sheet.set(event_target_value(&ev))
+                        >
+                            {move || {
+                                controller
+                                    .all_sheets()
+                                    .into_iter()
+                                    .map(|s| {
+                                        view! {
+                                            <option value=sheet_key(
+                                                wire::Sheet::of(s.id),
+                                            )>{s.name}</option>
+                                        }
+                                    })
+                                    .collect_view()
+                            }}
+                        </select>
+                    </label>
+                    <label>
+                        "Caller cell"
+                        <input
+                            data-dnacalc="name-anchor"
+                            prop:value=move || anchor.get()
+                            on:input=move |ev| anchor.set(event_target_value(&ev))
+                        />
+                    </label>
+                    <button
+                        type="button"
+                        data-dnacalc="name-evaluate"
+                        disabled=move || selected.get().is_none()
+                        on:click=move |_| evaluate()
+                    >
+                        "Evaluate"
+                    </button>
+                </div>
+                <output data-dnacalc="name-value">
+                    {move || {
+                        evaluation
+                            .with(|e| {
+                                e.as_ref()
+                                    .map(|e| {
+                                        e.text.clone().unwrap_or_else(|e| format!("Refused: {e}"))
+                                    })
+                                    .unwrap_or("Not evaluated".into())
+                            })
+                    }}
+                </output>
+                <p class="dc-note">
+                    "The result is retained from this explicit command. Evaluate again to inspect current published values."
+                </p>
+                <p class="dc-note" data-dnacalc="name-evaluation-context">
+                    {move || {
+                        evaluation
+                            .with(|e| {
+                                e.as_ref()
+                                    .map(|e| {
+                                        format!(
+                                            "Explicit evaluation {} at {} · definition version {} · revision {}{}",
+                                            e.command,
+                                            e
+                                                .anchor
+                                                .cell()
+                                                .map(|at| controller.cell_label(at))
+                                                .unwrap_or_default(),
+                                            e.version,
+                                            e.revision,
+                                            if e.revision != controller.summary.get().revision {
+                                                " · authored workbook has changed"
+                                            } else if evaluation_observation.get()
+                                                != controller.revision.get()
+                                            {
+                                                " · published view has changed"
+                                            } else {
+                                                ""
+                                            },
+                                        )
+                                    })
+                                    .unwrap_or_default()
+                            })
+                    }}
+                </p>
             </fieldset>
-            <p class="dc-note" hidden=move ||(!creating.get()&&selected.get().is_none())||edit_revision.get()==controller.summary.get().revision>"The workbook changed. Select the definition again before editing it."</p>
-            <p role="status" data-dnacalc="names-message">{move ||message.get()}</p>
-            <div class="dc-dialog-actions"><button type="button" data-dnacalc="names-close" on:click=move |_|close()>"Close"</button></div>
+            <p
+                class="dc-note"
+                hidden=move || {
+                    (!creating.get() && selected.get().is_none())
+                        || edit_revision.get() == controller.summary.get().revision
+                }
+            >
+                "The workbook changed. Select the definition again before editing it."
+            </p>
+            <p role="status" data-dnacalc="names-message">
+                {move || message.get()}
+            </p>
+            <div class="dc-dialog-actions">
+                <button type="button" data-dnacalc="names-close" on:click=move |_| close()>
+                    "Close"
+                </button>
+            </div>
         </dialog>
     }.into_any()
 }

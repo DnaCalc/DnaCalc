@@ -66,23 +66,106 @@ pub struct Health {
 }
 
 /// A revision-bound filter draft; choices are never applied to a different sheet or workbook.
-#[derive(Clone,Debug,PartialEq,Eq)]
+#[derive(Clone, Debug, PartialEq, Eq)]
 pub struct FilterTools {
-    pub column:String, pub search:String, pub values:Vec<(String,bool)>, pub blank:bool,
-    pub operator:String, pub value:String, pub operator2:String, pub value2:String, pub and:bool,
-    pub table:Option<String>,pub sheet:Option<wire::Sheet>, pub revision:u64, pub epoch:u64, pub message:String, pub loaded:bool, pub open:bool,
+    pub column: String,
+    pub search: String,
+    pub values: Vec<(String, bool)>,
+    pub blank: bool,
+    pub operator: String,
+    pub value: String,
+    pub operator2: String,
+    pub value2: String,
+    pub and: bool,
+    pub table: Option<String>,
+    pub sheet: Option<wire::Sheet>,
+    pub revision: u64,
+    pub epoch: u64,
+    pub message: String,
+    pub loaded: bool,
+    pub open: bool,
 }
 impl Default for FilterTools {
-    fn default()->Self {Self{column:"1".into(),search:String::new(),values:Vec::new(),blank:true,operator:"equal".into(),value:String::new(),operator2:String::new(),value2:String::new(),and:true,table:None,sheet:None,revision:0,epoch:0,message:String::new(),loaded:false,open:false}}
+    fn default() -> Self {
+        Self {
+            column: "1".into(),
+            search: String::new(),
+            values: Vec::new(),
+            blank: true,
+            operator: "equal".into(),
+            value: String::new(),
+            operator2: String::new(),
+            value2: String::new(),
+            and: true,
+            table: None,
+            sheet: None,
+            revision: 0,
+            epoch: 0,
+            message: String::new(),
+            loaded: false,
+            open: false,
+        }
+    }
 }
 
-#[derive(Clone,Debug,PartialEq,Eq)]
-pub struct TableTools {pub name:String,pub rows:String,pub columns:String,pub total_column:String,pub total_function:String,pub column:String,pub column_name:String,pub formula:String}
-impl Default for TableTools{fn default()->Self{Self{name:"Table1".into(),rows:String::new(),columns:String::new(),total_column:"1".into(),total_function:"sum".into(),column:"1".into(),column_name:String::new(),formula:String::new()}}}
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct TableTools {
+    pub name: String,
+    pub rows: String,
+    pub columns: String,
+    pub total_column: String,
+    pub total_function: String,
+    pub column: String,
+    pub column_name: String,
+    pub formula: String,
+}
+impl Default for TableTools {
+    fn default() -> Self {
+        Self {
+            name: "Table1".into(),
+            rows: String::new(),
+            columns: String::new(),
+            total_column: "1".into(),
+            total_function: "sum".into(),
+            column: "1".into(),
+            column_name: String::new(),
+            formula: String::new(),
+        }
+    }
+}
 
 /// A chart property draft uses the same portable tool state as tables and filters.
-#[derive(Clone,Debug,Default,PartialEq,Eq)]
-pub struct ChartTools {pub font_family:String,pub font_size:String,pub font_color:String,pub font_bold:bool,pub font_italic:bool,pub create_type:String,pub create_rows:bool,pub create_headers:bool,pub create_categories:bool,pub part:String,pub title:String,pub legend:bool,pub legend_position:String,pub plot:String,pub series:String,pub series_color:String,pub series_name:String,pub categories:String,pub values:String,pub chart_type:String,pub chart_grouping:String,pub axis:String,pub axis_minimum:String,pub axis_maximum:String,pub axis_unit:String,pub axis_reverse:bool,pub axis_log:bool,pub axis_base:String}
+#[derive(Clone, Debug, Default, PartialEq, Eq)]
+pub struct ChartTools {
+    pub font_family: String,
+    pub font_size: String,
+    pub font_color: String,
+    pub font_bold: bool,
+    pub font_italic: bool,
+    pub create_type: String,
+    pub create_rows: bool,
+    pub create_headers: bool,
+    pub create_categories: bool,
+    pub part: String,
+    pub title: String,
+    pub legend: bool,
+    pub legend_position: String,
+    pub plot: String,
+    pub series: String,
+    pub series_color: String,
+    pub series_name: String,
+    pub categories: String,
+    pub values: String,
+    pub chart_type: String,
+    pub chart_grouping: String,
+    pub axis: String,
+    pub axis_minimum: String,
+    pub axis_maximum: String,
+    pub axis_unit: String,
+    pub axis_reverse: bool,
+    pub axis_log: bool,
+    pub axis_base: String,
+}
 
 #[derive(Clone, Debug, Default, PartialEq, Eq)]
 pub struct PageTools {
@@ -99,11 +182,11 @@ pub struct PageTools {
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct ToolState {
     pub page: PageTools,
-    pub table:TableTools,
-    pub chart:ChartTools,
+    pub table: TableTools,
+    pub chart: ChartTools,
     pub filter: FilterTools,
-    pub sort_case_sensitive:bool,
-    pub sort_custom_order:String,
+    pub sort_case_sensitive: bool,
+    pub sort_custom_order: String,
     pub sort_header: bool,
     pub sort_column: String,
     pub sort_levels: Vec<(String, bool)>,
@@ -129,10 +212,11 @@ impl Default for ToolState {
     fn default() -> Self {
         Self {
             page: PageTools::default(),
-            table:TableTools::default(),
-            chart:ChartTools::default(),
+            table: TableTools::default(),
+            chart: ChartTools::default(),
             filter: FilterTools::default(),
-            sort_case_sensitive:false,sort_custom_order:String::new(),
+            sort_case_sensitive: false,
+            sort_custom_order: String::new(),
             sort_header: true,
             sort_column: "1".into(),
             sort_levels: Vec::new(),
@@ -167,9 +251,12 @@ impl ToolState {
     pub fn reset_workbook(&mut self) {
         self.invalidate_search();
         self.page = PageTools::default();
-        self.table=TableTools::default();
-        self.chart=ChartTools::default();
-        self.filter=FilterTools {epoch:self.filter.epoch+1,..Default::default()};
+        self.table = TableTools::default();
+        self.chart = ChartTools::default();
+        self.filter = FilterTools {
+            epoch: self.filter.epoch + 1,
+            ..Default::default()
+        };
         self.selected = 0;
         self.found_revision = 0;
         self.anchor = None;
@@ -181,7 +268,7 @@ impl ToolState {
 
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct ReviewDraft {
-    pub creation:Option<ReviewCreation>,
+    pub creation: Option<ReviewCreation>,
     pub session: u64,
     pub at: wire::Key,
     pub revision: u64,
@@ -190,8 +277,12 @@ pub struct ReviewDraft {
     pub threaded: bool,
 }
 
-#[derive(Clone,Debug,PartialEq,Eq)]
-pub struct ReviewCreation {pub parent:Option<u32>,pub author:String,pub timestamp:String}
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct ReviewCreation {
+    pub parent: Option<u32>,
+    pub author: String,
+    pub timestamp: String,
+}
 impl ReviewDraft {
     /// An accepted save retires only the submitted text. Later typing remains a draft against
     /// the accepted revision; a cancelled or different edit is never replaced by the reply.
@@ -265,13 +356,45 @@ pub struct RuntimeState {
     pub projected_views: BTreeMap<u64, Snapshot<ViewMirror>>,
 }
 impl RuntimeState {
-    pub fn begin_review_create(&mut self,at:wire::Key,revision:u64,index:u32,threaded:bool,parent:Option<u32>,timestamp:String){
-        self.begin_review_edit(at,revision,index,String::new(),threaded);
-        if let Some(n)=&mut self.review_edit {n.creation=Some(ReviewCreation{parent,author:"Author".into(),timestamp});}
+    pub fn begin_review_create(
+        &mut self,
+        at: wire::Key,
+        revision: u64,
+        index: u32,
+        threaded: bool,
+        parent: Option<u32>,
+        timestamp: String,
+    ) {
+        self.begin_review_edit(at, revision, index, String::new(), threaded);
+        if let Some(n) = &mut self.review_edit {
+            n.creation = Some(ReviewCreation {
+                parent,
+                author: "Author".into(),
+                timestamp,
+            });
+        }
     }
-    pub fn begin_review_edit(&mut self, at: wire::Key, revision: u64, index: u32, text: String, threaded: bool) {
-        self.review_sequence = self.review_sequence.checked_add(1).expect("review edit identities exhausted");
-        self.review_edit = Some(ReviewDraft { creation:None, session: self.review_sequence, at, revision, index, text, threaded });
+    pub fn begin_review_edit(
+        &mut self,
+        at: wire::Key,
+        revision: u64,
+        index: u32,
+        text: String,
+        threaded: bool,
+    ) {
+        self.review_sequence = self
+            .review_sequence
+            .checked_add(1)
+            .expect("review edit identities exhausted");
+        self.review_edit = Some(ReviewDraft {
+            creation: None,
+            session: self.review_sequence,
+            at,
+            revision,
+            index,
+            text,
+            threaded,
+        });
     }
 }
 impl Default for RuntimeState {
@@ -337,9 +460,11 @@ mod tool_tests {
     #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
     fn accepted_review_save_preserves_later_typing_cancellation_and_other_edits() {
         let submitted = ReviewDraft {
-            creation:None,
+            creation: None,
             session: 1,
-            at: wire::Key::of(calc_value::CellKey::new(calc_value::SheetId::from_parts(0, 0), 1, 1).unwrap()),
+            at: wire::Key::of(
+                calc_value::CellKey::new(calc_value::SheetId::from_parts(0, 0), 1, 1).unwrap(),
+            ),
             revision: 7,
             index: 0,
             text: "First text".into(),
@@ -384,28 +509,60 @@ mod tool_tests {
     #[cfg_attr(not(target_arch = "wasm32"), test)]
     #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
     fn delayed_creation_reply_turns_later_typing_into_an_edit_of_the_created_note() {
-        let mut runtime=RuntimeState::default();
-        let at=wire::Key::of(calc_value::CellKey::new(calc_value::SheetId::from_parts(0,0),1,1).unwrap());
-        runtime.begin_review_create(at,7,3,false,None,String::new());
-        runtime.review_edit.as_mut().unwrap().text="Created text".into();
-        let submitted=runtime.review_edit.clone().unwrap();
-        runtime.review_edit.as_mut().unwrap().text.push_str(" and later typing");
-        ReviewDraft::accepted_save(&mut runtime.review_edit,&submitted,8);
-        let current=runtime.review_edit.as_ref().unwrap();
-        assert_eq!(current.index,3);assert_eq!(current.revision,8);assert!(current.creation.is_none());assert_eq!(current.text,"Created text and later typing");
-        let edited=current.clone();ReviewDraft::accepted_save(&mut runtime.review_edit,&edited,9);assert!(runtime.review_edit.is_none());
+        let mut runtime = RuntimeState::default();
+        let at = wire::Key::of(
+            calc_value::CellKey::new(calc_value::SheetId::from_parts(0, 0), 1, 1).unwrap(),
+        );
+        runtime.begin_review_create(at, 7, 3, false, None, String::new());
+        runtime.review_edit.as_mut().unwrap().text = "Created text".into();
+        let submitted = runtime.review_edit.clone().unwrap();
+        runtime
+            .review_edit
+            .as_mut()
+            .unwrap()
+            .text
+            .push_str(" and later typing");
+        ReviewDraft::accepted_save(&mut runtime.review_edit, &submitted, 8);
+        let current = runtime.review_edit.as_ref().unwrap();
+        assert_eq!(current.index, 3);
+        assert_eq!(current.revision, 8);
+        assert!(current.creation.is_none());
+        assert_eq!(current.text, "Created text and later typing");
+        let edited = current.clone();
+        ReviewDraft::accepted_save(&mut runtime.review_edit, &edited, 9);
+        assert!(runtime.review_edit.is_none());
     }
 
     fn populated() -> ToolState {
         ToolState {
             page: PageTools::default(),
-            table:TableTools::default(),
-            chart:ChartTools {part:"old chart".into(),title:"old draft".into(),legend:true,chart_type:"line".into(),chart_grouping:"stacked".into(),axis:"old axis".into(),axis_minimum:"-5".into(),axis_maximum:"10".into(),axis_unit:"2.5".into(),axis_reverse:true,..ChartTools::default()},
-            filter: FilterTools {loaded:true, sheet:Some(wire::Sheet(0,0)), revision:7, epoch:3, values:vec![("old choice".into(),true)],..Default::default()},
-            sort_case_sensitive:true,sort_custom_order:"High\nMedium\nLow".into(),
+            table: TableTools::default(),
+            chart: ChartTools {
+                part: "old chart".into(),
+                title: "old draft".into(),
+                legend: true,
+                chart_type: "line".into(),
+                chart_grouping: "stacked".into(),
+                axis: "old axis".into(),
+                axis_minimum: "-5".into(),
+                axis_maximum: "10".into(),
+                axis_unit: "2.5".into(),
+                axis_reverse: true,
+                ..ChartTools::default()
+            },
+            filter: FilterTools {
+                loaded: true,
+                sheet: Some(wire::Sheet(0, 0)),
+                revision: 7,
+                epoch: 3,
+                values: vec![("old choice".into(), true)],
+                ..Default::default()
+            },
+            sort_case_sensitive: true,
+            sort_custom_order: "High\nMedium\nLow".into(),
             sort_header: false,
             sort_column: "3".into(),
-            sort_levels: vec![("2".into(),true)],
+            sort_levels: vec![("2".into(), true)],
             query: "needle".into(),
             replacement: "thread".into(),
             target: "C9".into(),
@@ -458,13 +615,18 @@ mod tool_tests {
         model.reset_workbook();
         let state = &model.runtime.tools;
         assert_ne!(state.epoch, before.epoch);
-        assert_eq!(state.chart,ChartTools::default());
-        assert!(!state.filter.loaded && state.filter.sheet.is_none() && state.filter.values.is_empty());
-        assert!(state.filter.epoch>before.filter.epoch);
+        assert_eq!(state.chart, ChartTools::default());
+        assert!(
+            !state.filter.loaded && state.filter.sheet.is_none() && state.filter.values.is_empty()
+        );
+        assert!(state.filter.epoch > before.filter.epoch);
         assert!(state.found.is_none() && state.anchor.is_none() && state.areas.is_empty());
         assert!(state.permission.is_none() && state.selection_stats.is_none());
         assert!(state.message.is_empty());
-        assert_eq!((state.sort_case_sensitive,state.sort_custom_order.as_str()),(true,"High\nMedium\nLow"));
+        assert_eq!(
+            (state.sort_case_sensitive, state.sort_custom_order.as_str()),
+            (true, "High\nMedium\nLow")
+        );
         assert_eq!((state.selected, state.found_revision), (0, 0));
         assert_eq!(
             (

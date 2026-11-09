@@ -35,8 +35,8 @@ pub(super) fn remember(canvas: bool) {
     }
 }
 fn font(cell: &PlannedCell, scale: f64) -> String {
-    let mut display_style=cell.shown.style.clone();
-    display_style.pixels=cell.paint_pixels;
+    let mut display_style = cell.shown.style.clone();
+    display_style.pixels = cell.paint_pixels;
     let style = &display_style;
     let conditional = cell.shown.conditional.as_ref();
     let italic = style.italic
@@ -255,10 +255,10 @@ pub(super) fn paint(
     for cell in &plan.cells {
         let r = cell.anchor;
         let expanded = cell.row_span == 1 && cell.col_span == 1;
-        let border_rect = super::decoration::border_rect(cell,plan.scale);
+        let border_rect = super::decoration::border_rect(cell, plan.scale);
         let Some(clip) = panes::intersection(
             border_rect,
-            (if expanded {None}else{cell.clip})
+            (if expanded { None } else { cell.clip })
                 .unwrap_or_else(|| panes.bounds(metrics, &plan.viewport, cell.row, cell.col)),
         ) else {
             continue;
@@ -268,7 +268,10 @@ pub(super) fn paint(
         rect(&ctx, clip);
         ctx.clip();
         let shift = super::decoration::dash_shift(metrics);
-        for line in super::decoration::edges(cell, plan.scale, shift).into_iter().chain(super::decoration::strokes(cell, plan.scale, shift)) {
+        for line in super::decoration::edges(cell, plan.scale, shift)
+            .into_iter()
+            .chain(super::decoration::strokes(cell, plan.scale, shift))
+        {
             ctx.set_stroke_style_str(&line.color);
             ctx.set_line_width(line.width);
             let dashes = js_sys::Array::new();
@@ -296,8 +299,8 @@ pub(super) fn paint(
     );
 }
 fn text(ctx: &Context, cell: &PlannedCell, scale: f64) {
-    let mut display_style=cell.shown.style.clone();
-    display_style.pixels=cell.paint_pixels;
+    let mut display_style = cell.shown.style.clone();
+    display_style.pixels = cell.paint_pixels;
     let s = &display_style;
     let c = cell.shown.conditional.clone().unwrap_or_default();
     if c.hide_value {
@@ -346,7 +349,11 @@ fn text(ctx: &Context, cell: &PlannedCell, scale: f64) {
     };
     let line_height = s.pixels * scale;
     let height = line_height * lines.len() as f64;
-    let inset = if s.rotation == 0 && !wrap && !s.shrink && !shown.contains('\n') { scale } else { 0. };
+    let inset = if s.rotation == 0 && !wrap && !s.shrink && !shown.contains('\n') {
+        scale
+    } else {
+        0.
+    };
     let top = match vertical {
         "top" => cell.rect.y + inset,
         "justify" => cell.rect.y,
@@ -367,27 +374,48 @@ fn text(ctx: &Context, cell: &PlannedCell, scale: f64) {
     } else {
         line_height * 0.8
     };
-    let shift = if s.rotation == 0 && !wrap && !shown.contains('\n')
-        && ascent.is_finite() && descent.is_finite()
+    let shift = if s.rotation == 0
+        && !wrap
+        && !shown.contains('\n')
+        && ascent.is_finite()
+        && descent.is_finite()
     {
         let extra = (ascent + descent - line_height) / 2.;
-        match vertical { "top" => extra, "bottom" => -extra, _ => 0. }
-    } else { 0. };
-    let double = autofit::double_underline(s,Some(&c));
+        match vertical {
+            "top" => extra,
+            "bottom" => -extra,
+            _ => 0.,
+        }
+    } else {
+        0.
+    };
+    let double = autofit::double_underline(s, Some(&c));
     let integer = autofit::integer_text(&cell.shown, &shown);
     let advance = |line: &str| -> f64 {
-        if integer { alignment::graphemes(line).into_iter().map(|part| autofit::integer_advance(s,Some(&c),italic,scale,&part,width(ctx,&part))).sum() }
-        else { width(ctx,line) }
+        if integer {
+            alignment::graphemes(line)
+                .into_iter()
+                .map(|part| {
+                    autofit::integer_advance(s, Some(&c), italic, scale, &part, width(ctx, &part))
+                })
+                .sum()
+        } else {
+            width(ctx, line)
+        }
     };
     let decorate = |x: f64, y: f64, advance: f64| {
         if c.underline || c.strike || s.underline || s.strike {
             ctx.set_line_width(scale);
-            let stroke = if double { autofit::underline_width(s.pixels,scale) } else { scale };
+            let stroke = if double {
+                autofit::underline_width(s.pixels, scale)
+            } else {
+                scale
+            };
             ctx.set_line_width(stroke);
             let under = baseline + stroke;
             for offset in [
                 (c.underline || s.underline).then_some(under),
-                double.then_some(under+2.*stroke),
+                double.then_some(under + 2. * stroke),
                 (c.strike || s.strike).then_some(line_height / 2.),
             ]
             .into_iter()
@@ -410,26 +438,34 @@ fn text(ctx: &Context, cell: &PlannedCell, scale: f64) {
         let x = if stacked {
             let left_edge = match horizontal {
                 "right" => cell.rect.x + cell.rect.w - right - block_width,
-                "center" | "centerContinuous" => cell.anchor.x + (cell.anchor.w-block_width)/2.,
+                "center" | "centerContinuous" => cell.anchor.x + (cell.anchor.w - block_width) / 2.,
                 _ => cell.rect.x + left,
             };
-            left_edge + (block_width-w)/2.
-        } else { match horizontal {
-            "right" => cell.rect.x + cell.rect.w - right - w,
-            "center" | "centerContinuous" => cell.anchor.x + cell.anchor.w / 2. - w / 2.,
-            _ => cell.rect.x + left,
-        } };
-        let y = shift + if stacked { top + i as f64 * line_height } else { match vertical {
-            "distributed" => {
-                cell.rect.y
-                    + (cell.rect.h - height) / (lines.len() as f64 * 2.)
-                    + i as f64 * (cell.rect.h / lines.len() as f64)
+            left_edge + (block_width - w) / 2.
+        } else {
+            match horizontal {
+                "right" => cell.rect.x + cell.rect.w - right - w,
+                "center" | "centerContinuous" => cell.anchor.x + cell.anchor.w / 2. - w / 2.,
+                _ => cell.rect.x + left,
             }
-            "justify" if lines.len() > 1 => {
-                cell.rect.y + i as f64 * (cell.rect.h - line_height) / (lines.len() - 1) as f64
-            }
-            _ => top + i as f64 * line_height,
-        } };
+        };
+        let y = shift
+            + if stacked {
+                top + i as f64 * line_height
+            } else {
+                match vertical {
+                    "distributed" => {
+                        cell.rect.y
+                            + (cell.rect.h - height) / (lines.len() as f64 * 2.)
+                            + i as f64 * (cell.rect.h / lines.len() as f64)
+                    }
+                    "justify" if lines.len() > 1 => {
+                        cell.rect.y
+                            + i as f64 * (cell.rect.h - line_height) / (lines.len() - 1) as f64
+                    }
+                    _ => top + i as f64 * line_height,
+                }
+            };
         ctx.save();
         if s.rotation != 0 && !stacked {
             let (rw, rh) = autofit::rotated_size(block_width, height, s.rotation);
@@ -449,7 +485,9 @@ fn text(ctx: &Context, cell: &PlannedCell, scale: f64) {
             let decoration_y = -height / 2. + i as f64 * line_height;
             let _ = ctx.fill_text(line, decoration_x, decoration_y + baseline);
             decorate(decoration_x, decoration_y, w);
-        } else if !stacked && (horizontal == "distributed" || (horizontal == "justify" && i + 1 < lines.len())) {
+        } else if !stacked
+            && (horizontal == "distributed" || (horizontal == "justify" && i + 1 < lines.len()))
+        {
             let parts = if horizontal == "distributed" {
                 alignment::distributed_segments(line)
             } else {
@@ -484,11 +522,16 @@ fn text(ctx: &Context, cell: &PlannedCell, scale: f64) {
         } else if integer {
             // Use the nearest baseline pixel; an exact half-pixel belongs to the
             // preceding pixel, as in the DOM line box. Other fractions round normally.
-            let paint_y=if matches!(vertical,"top"|"bottom") {(y+baseline-0.5).ceil()-baseline}else{y};
+            let paint_y = if matches!(vertical, "top" | "bottom") {
+                (y + baseline - 0.5).ceil() - baseline
+            } else {
+                y
+            };
             let mut pen = x;
             for part in alignment::graphemes(line) {
                 let _ = ctx.fill_text(&part, pen, paint_y + baseline);
-                pen += autofit::integer_advance(s, Some(&c), italic, scale, &part, width(ctx, &part));
+                pen +=
+                    autofit::integer_advance(s, Some(&c), italic, scale, &part, width(ctx, &part));
             }
             decorate(x, paint_y, w);
         } else {

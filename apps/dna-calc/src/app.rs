@@ -46,11 +46,15 @@ pub fn registry() -> SkinRegistry {
 pub(crate) fn download(name: &str, bytes: &[u8]) -> Result<(), String> {
     dna_formula_ui::web::download_bytes(
         name,
-        match name.rsplit_once('.').map(|(_,e)|e.to_ascii_lowercase()).as_deref() {
-            Some("xltx")=>"application/vnd.openxmlformats-officedocument.spreadsheetml.template",
-            Some("xltm")=>"application/vnd.ms-excel.template.macroEnabled.12",
-            Some("xlsm")=>"application/vnd.ms-excel.sheet.macroEnabled.12",
-            _=>"application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        match name
+            .rsplit_once('.')
+            .map(|(_, e)| e.to_ascii_lowercase())
+            .as_deref()
+        {
+            Some("xltx") => "application/vnd.openxmlformats-officedocument.spreadsheetml.template",
+            Some("xltm") => "application/vnd.ms-excel.template.macroEnabled.12",
+            Some("xlsm") => "application/vnd.ms-excel.sheet.macroEnabled.12",
+            _ => "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
         },
         bytes,
     )
@@ -96,8 +100,8 @@ pub(crate) enum Replacement {
     New,
     Open(String, Vec<u8>),
     OpenEditing(String, Vec<u8>),
-    Template(String,Vec<u8>),
-    PersonalEditing(String,Vec<u8>),
+    Template(String, Vec<u8>),
+    PersonalEditing(String, Vec<u8>),
 }
 
 pub(crate) fn focus(selector: &str) {
@@ -141,10 +145,14 @@ pub fn app_with_transport(
     let replacement = RwSignal::new(None::<Replacement>);
     let replace = move |next: Replacement| match next {
         Replacement::New => {
-            if let Some((name,bytes))=crate::files::default_template("Book") {controller.open_template(&name,bytes,|_|{});}else{controller.new_workbook();}
-        },
-        Replacement::Template(name,bytes)=>controller.open_template(&name,bytes,|_|{}),
-        Replacement::PersonalEditing(name,bytes)=>controller.edit_personal_template(name,bytes),
+            if let Some((name, bytes)) = crate::files::default_template("Book") {
+                controller.open_template(&name, bytes, |_| {});
+            } else {
+                controller.new_workbook();
+            }
+        }
+        Replacement::Template(name, bytes) => controller.open_template(&name, bytes, |_| {}),
+        Replacement::PersonalEditing(name, bytes) => controller.edit_personal_template(name, bytes),
         Replacement::Open(name, bytes) => controller.open(&name, bytes, |_| {}),
         Replacement::OpenEditing(name, bytes) => controller.open_mode(&name, bytes, true, |_| {}),
     };
@@ -205,18 +213,31 @@ pub fn app_with_transport(
     // An explicitly opened panel follows navigation; an explicit close holds for this selection.
     type ResultTarget = (u64, Option<calc_value::CellKey>, u64);
     let result_choice = StoredValue::new(None::<(ResultTarget, bool)>);
-    Effect::new(move |previous: Option<(ResultTarget, Option<cells::Provenance>, bool)>| {
-        let target = (controller.generation.get(), controller.active_key(), controller.reveal_epoch.get());
-        let cell = controller.active_cell();
-        let key = (target, cell.as_ref().map(|c| c.provenance), cell.as_ref().is_some_and(|c| c.kind == "error"));
-        if !result_choice.get_value().is_some_and(|(chosen, open)| chosen.0 == target.0 && (open || chosen == target)) {
-            result_choice.set_value(None);
-            if previous.as_ref() != Some(&key) {
-                result_open.set(key.1 == Some(cells::Provenance::Refused) || key.2);
+    Effect::new(
+        move |previous: Option<(ResultTarget, Option<cells::Provenance>, bool)>| {
+            let target = (
+                controller.generation.get(),
+                controller.active_key(),
+                controller.reveal_epoch.get(),
+            );
+            let cell = controller.active_cell();
+            let key = (
+                target,
+                cell.as_ref().map(|c| c.provenance),
+                cell.as_ref().is_some_and(|c| c.kind == "error"),
+            );
+            if !result_choice
+                .get_value()
+                .is_some_and(|(chosen, open)| chosen.0 == target.0 && (open || chosen == target))
+            {
+                result_choice.set_value(None);
+                if previous.as_ref() != Some(&key) {
+                    result_open.set(key.1 == Some(cells::Provenance::Refused) || key.2);
+                }
             }
-        }
-        key
-    });
+            key
+        },
+    );
 
     // Array details come from the existing worker projection, just as Notebook's do.
     // A new selection, authored revision or committed value publication dismisses old details.
@@ -276,10 +297,16 @@ pub fn app_with_transport(
     let name_box_epoch = StoredValue::new(0u64);
     // The field owns its text only while it holds native focus. A stored flag cannot answer
     // this: in a window without system focus, Firefox moves focus without a blur event.
-    let name_box_owns = move || name_box_field.get_untracked().is_some_and(|field| {
-        let field: &web_sys::Element = field.as_ref();
-        field.owner_document().and_then(|page| page.active_element()).as_ref() == Some(field)
-    });
+    let name_box_owns = move || {
+        name_box_field.get_untracked().is_some_and(|field| {
+            let field: &web_sys::Element = field.as_ref();
+            field
+                .owner_document()
+                .and_then(|page| page.active_element())
+                .as_ref()
+                == Some(field)
+        })
+    };
     // A delayed selection reply must not replace a focused native draft or collapse
     // its Ctrl+A selection before the next key (dc-971p.53). A draft belongs to its
     // workbook, so a replacement retires it and any address still on its way.
@@ -287,8 +314,12 @@ pub fn app_with_transport(
         let (row, col) = controller.active.get();
         let generation = controller.generation.get();
         let replaced = opened.is_some_and(|opened| opened != generation);
-        if replaced { name_box_epoch.update_value(|n| *n += 1); }
-        if replaced || !name_box_owns() { name_box.set(cells::address(row, col)); }
+        if replaced {
+            name_box_epoch.update_value(|n| *n += 1);
+        }
+        if replaced || !name_box_owns() {
+            name_box.set(cells::address(row, col));
+        }
         generation
     });
     let go_to = move |text: String| {
@@ -296,7 +327,9 @@ pub fn app_with_transport(
         controller.go_to_text(text, move |accepted| {
             let (row, col) = controller.active.get_untracked();
             // Invalid submissions still restore the address unless newer native input owns it.
-            if name_box_epoch.get_value() == epoch { name_box.set(cells::address(row, col)); }
+            if name_box_epoch.get_value() == epoch {
+                name_box.set(cells::address(row, col));
+            }
             if accepted && name_box_epoch.get_value() == epoch {
                 controller.focus_active_skin();
             }
@@ -305,9 +338,12 @@ pub fn app_with_transport(
 
     let bar_key = Callback::new(move |ev| controller.editor_key(ev, assist));
 
-    let save_as_open=RwSignal::new(false);
+    let save_as_open = RwSignal::new(false);
     let save = move |_| {
-        if controller.summary.get_untracked().unsaved {controller.prepare_save_as(move ||save_as_open.set(true));return;}
+        if controller.summary.get_untracked().unsaved {
+            controller.prepare_save_as(move || save_as_open.set(true));
+            return;
+        }
         controller.save(move |name, bytes| {
             if let Err(error) = download(&name, &bytes) {
                 controller.status.set(crate::controller::Status {
@@ -362,16 +398,17 @@ pub fn app_with_transport(
 
     let skin_view = {
         let registry = registry.clone();
-        move || {
-            match resolve_active_skin(&registry, active_skin.get().as_deref()) {
+        move || match resolve_active_skin(&registry, active_skin.get().as_deref()) {
             SkinResolution::Mount(skin) => skin.mount(SkinContext { controller }),
             SkinResolution::Unavailable { active } => view! {
                 <div class="dc-unavailable" data-dnacalc="skin-unavailable">
-                    {format!("The skin {:?} is not available in DNA Calc.", active.unwrap_or_default())}
+                    {format!(
+                        "The skin {:?} is not available in DNA Calc.",
+                        active.unwrap_or_default(),
+                    )}
                 </div>
             }
             .into_any(),
-        }
         }
     };
     let registry_for_keys = registry.clone();
@@ -404,7 +441,10 @@ pub fn app_with_transport(
             if !native_text
                 || !matches!(
                     id,
-                    dna_calc_model::CommandId::Undo | dna_calc_model::CommandId::Redo | dna_calc_model::CommandId::FlashFill | dna_calc_model::CommandId::PasteSpecial
+                    dna_calc_model::CommandId::Undo
+                        | dna_calc_model::CommandId::Redo
+                        | dna_calc_model::CommandId::FlashFill
+                        | dna_calc_model::CommandId::PasteSpecial
                 )
             {
                 ev.prevent_default();
@@ -482,12 +522,18 @@ pub fn app_with_transport(
         if (kind == "mousedown" || kind == "click") && ev.detail() != 2 {
             tab_click.set_value(None);
         }
-        if ev.detail() != 2 || ev.button() != 0 || ev.ctrl_key() || ev.meta_key()
-            || ev.shift_key() || ev.alt_key()
+        if ev.detail() != 2
+            || ev.button() != 0
+            || ev.ctrl_key()
+            || ev.meta_key()
+            || ev.shift_key()
+            || ev.alt_key()
         {
             return;
         }
-        let Some((generation, sheet)) = tab_click.get_value() else { return; };
+        let Some((generation, sheet)) = tab_click.get_value() else {
+            return;
+        };
         if controller.generation.get_untracked() != generation {
             tab_click.set_value(None);
             return;
@@ -520,8 +566,11 @@ pub fn app_with_transport(
                         data-sheet=name
                         aria-selected=if selected { "true" } else { "false" }
                         on:click=move |ev| {
-                            if ev.detail()==1 && ev.button()==0 && !ev.ctrl_key() && !ev.meta_key() && !ev.shift_key() && !ev.alt_key() {
-                                tab_click.set_value(Some((controller.generation.get_untracked(),id)));
+                            if ev.detail() == 1 && ev.button() == 0 && !ev.ctrl_key()
+                                && !ev.meta_key() && !ev.shift_key() && !ev.alt_key()
+                            {
+                                tab_click
+                                    .set_value(Some((controller.generation.get_untracked(), id)));
                             }
                             controller.show_sheet(id);
                         }
@@ -538,7 +587,10 @@ pub fn app_with_transport(
                             if let Some(next) = next {
                                 ev.prevent_default();
                                 controller.show_sheet(tabs[next].id);
-                                set_timeout(move || focus("[data-dnacalc=sheet-tab][aria-selected=true]"), std::time::Duration::from_millis(20));
+                                set_timeout(
+                                    move || focus("[data-dnacalc=sheet-tab][aria-selected=true]"),
+                                    std::time::Duration::from_millis(20),
+                                );
                             }
                         }
                     >
@@ -617,38 +669,154 @@ pub fn app_with_transport(
     };
 
     view! {
-        <div class="dc-app" data-dnacalc="app" inert=move || controller.replacing.get().then_some("") on:keydown=on_app_key
-            on:mousedown:capture=tab_gesture on:click:capture=tab_gesture on:dblclick:capture=tab_gesture>
+        <div
+            class="dc-app"
+            data-dnacalc="app"
+            inert=move || controller.replacing.get().then_some("")
+            on:keydown=on_app_key
+            on:mousedown:capture=tab_gesture
+            on:click:capture=tab_gesture
+            on:dblclick:capture=tab_gesture
+        >
             <header class="dc-mast">
                 <strong>"DNA Calc"</strong>
-                <span class="dc-doc" data-dnacalc="document" data-unsaved=move ||controller.summary.with(|s|s.unsaved.to_string()) data-template=move ||controller.summary.with(|s|s.template.to_string()) data-changed=move ||controller.summary.with(|s|s.changed.to_string()) title=document_line aria-label=document_line tabindex="0">{document_line}</span>
-                <button type="button" data-dnacalc="new" disabled=move || assist.readonly.get() on:click=move |_| request_replace.run(Replacement::New)>"New"</button>
-                <button type="button" data-dnacalc="open" disabled=move || assist.readonly.get() on:click=move |_| { if let Some(input) = file_input.get() { input.click(); } }>"Open"</button>
-                    <input
-                        node_ref=file_input
-                        type="file"
-                        data-dnacalc="open-file"
-                        accept=".xlsx,.xlsm,.xlsb,.xltx,.xltm"
-                        hidden=true
-                        on:change=move |ev| {
-                            use wasm_bindgen::JsCast;
-                            if let Some(input) = ev
-                                .target()
-                                .and_then(|target| target.dyn_into::<web_sys::HtmlInputElement>().ok())
-                            {
-                                open_chosen(controller, input, move |name, bytes| request_replace.run(Replacement::Open(name, bytes)));
-                            }
+                <span
+                    class="dc-doc"
+                    data-dnacalc="document"
+                    data-unsaved=move || controller.summary.with(|s| s.unsaved.to_string())
+                    data-template=move || controller.summary.with(|s| s.template.to_string())
+                    data-changed=move || controller.summary.with(|s| s.changed.to_string())
+                    title=document_line
+                    aria-label=document_line
+                    tabindex="0"
+                >
+                    {document_line}
+                </span>
+                <button
+                    type="button"
+                    data-dnacalc="new"
+                    disabled=move || assist.readonly.get()
+                    on:click=move |_| request_replace.run(Replacement::New)
+                >
+                    "New"
+                </button>
+                <button
+                    type="button"
+                    data-dnacalc="open"
+                    disabled=move || assist.readonly.get()
+                    on:click=move |_| {
+                        if let Some(input) = file_input.get() {
+                            input.click();
                         }
-                    />
-                <button type="button" data-dnacalc="save" disabled=move || assist.readonly.get() on:click=save>"Save"</button>
-                {crate::files::controls(controller,request_replace,save_as_open)}
-                <button type="button" data-dnacalc="undo" disabled=move || controller.command_availability(dna_calc_model::CommandId::Undo).is_err() title="Undo (Ctrl+Z)" on:click=move |_| controller.undo()>"Undo"</button>
-                <button type="button" data-dnacalc="redo" disabled=move || controller.command_availability(dna_calc_model::CommandId::Redo).is_err() title="Redo (Ctrl+Y)" on:click=move |_| controller.redo()>"Redo"</button>
-                <button type="button" data-dnacalc="calculate" title="Calculate now (F9)" on:click=move |_| controller.recalculate()>"Calculate"</button>
-                <button type="button" data-dnacalc="name-manager" disabled=move ||controller.command_availability(dna_calc_model::CommandId::NameManager).is_err() on:click=move |_|controller.command(dna_calc_model::Command::NameManager)>"Name Manager…"</button>
-                <button type="button" data-dnacalc="format-cells" disabled=move ||controller.command_availability(dna_calc_model::CommandId::FormatCells).is_err() on:click=move |_|controller.command(dna_calc_model::Command::FormatCells)>"Format Cells…"</button>
-                <button type="button" data-dnacalc="find-tools" disabled=move ||controller.command_availability(dna_calc_model::CommandId::Find).is_err() on:click=move |_|controller.command(dna_calc_model::Command::Find)>"Find…"</button>
-                <button type="button" data-dnacalc="review-tools" disabled=move ||controller.assist.readonly.get() || controller.editing.get().is_some() on:click=move |_|controller.review_open.set(true)>"Rules & review"</button>
+                    }
+                >
+                    "Open"
+                </button>
+                <input
+                    node_ref=file_input
+                    type="file"
+                    data-dnacalc="open-file"
+                    accept=".xlsx,.xlsm,.xlsb,.xltx,.xltm"
+                    hidden=true
+                    on:change=move |ev| {
+                        use wasm_bindgen::JsCast;
+                        if let Some(input) = ev
+                            .target()
+                            .and_then(|target| target.dyn_into::<web_sys::HtmlInputElement>().ok())
+                        {
+                            open_chosen(
+                                controller,
+                                input,
+                                move |name, bytes| {
+                                    request_replace.run(Replacement::Open(name, bytes))
+                                },
+                            );
+                        }
+                    }
+                />
+                <button
+                    type="button"
+                    data-dnacalc="save"
+                    disabled=move || assist.readonly.get()
+                    on:click=save
+                >
+                    "Save"
+                </button>
+                {crate::files::controls(controller, request_replace, save_as_open)}
+                <button
+                    type="button"
+                    data-dnacalc="undo"
+                    disabled=move || {
+                        controller.command_availability(dna_calc_model::CommandId::Undo).is_err()
+                    }
+                    title="Undo (Ctrl+Z)"
+                    on:click=move |_| controller.undo()
+                >
+                    "Undo"
+                </button>
+                <button
+                    type="button"
+                    data-dnacalc="redo"
+                    disabled=move || {
+                        controller.command_availability(dna_calc_model::CommandId::Redo).is_err()
+                    }
+                    title="Redo (Ctrl+Y)"
+                    on:click=move |_| controller.redo()
+                >
+                    "Redo"
+                </button>
+                <button
+                    type="button"
+                    data-dnacalc="calculate"
+                    title="Calculate now (F9)"
+                    on:click=move |_| controller.recalculate()
+                >
+                    "Calculate"
+                </button>
+                <button
+                    type="button"
+                    data-dnacalc="name-manager"
+                    disabled=move || {
+                        controller
+                            .command_availability(dna_calc_model::CommandId::NameManager)
+                            .is_err()
+                    }
+                    on:click=move |_| controller.command(dna_calc_model::Command::NameManager)
+                >
+                    "Name Manager…"
+                </button>
+                <button
+                    type="button"
+                    data-dnacalc="format-cells"
+                    disabled=move || {
+                        controller
+                            .command_availability(dna_calc_model::CommandId::FormatCells)
+                            .is_err()
+                    }
+                    on:click=move |_| controller.command(dna_calc_model::Command::FormatCells)
+                >
+                    "Format Cells…"
+                </button>
+                <button
+                    type="button"
+                    data-dnacalc="find-tools"
+                    disabled=move || {
+                        controller.command_availability(dna_calc_model::CommandId::Find).is_err()
+                    }
+                    on:click=move |_| controller.command(dna_calc_model::Command::Find)
+                >
+                    "Find…"
+                </button>
+                <button
+                    type="button"
+                    data-dnacalc="review-tools"
+                    disabled=move || {
+                        controller.assist.readonly.get() || controller.editing.get().is_some()
+                    }
+                    on:click=move |_| controller.review_open.set(true)
+                >
+                    "Rules & review"
+                </button>
                 <select
                     data-dnacalc="calc-mode"
                     aria-label="Calculation mode"
@@ -660,94 +828,139 @@ pub fn app_with_transport(
                     <option value="automatic">"Automatic"</option>
                     <option value="manual">"Manual"</option>
                 </select>
-                <details class="dc-settings" data-dnacalc="settings" on:keydown=move |ev: leptos::ev::KeyboardEvent| {
-                    if ev.key() == "Escape" {
-                        ev.prevent_default();
-                        use wasm_bindgen::JsCast;
-                        if let Some(settings) = document().query_selector("[data-dnacalc=settings]").ok().flatten().and_then(|e|e.dyn_into::<web_sys::HtmlDetailsElement>().ok()) { settings.set_open(false); }
-                        focus("[data-dnacalc=settings-toggle]");
+                <details
+                    class="dc-settings"
+                    data-dnacalc="settings"
+                    on:keydown=move |ev: leptos::ev::KeyboardEvent| {
+                        if ev.key() == "Escape" {
+                            ev.prevent_default();
+                            use wasm_bindgen::JsCast;
+                            if let Some(settings) = document()
+                                .query_selector("[data-dnacalc=settings]")
+                                .ok()
+                                .flatten()
+                                .and_then(|e| e.dyn_into::<web_sys::HtmlDetailsElement>().ok())
+                            {
+                                settings.set_open(false);
+                            }
+                            focus("[data-dnacalc=settings-toggle]");
+                        }
                     }
-                }>
+                >
                     <summary data-dnacalc="settings-toggle">"Settings & diagnostics"</summary>
                     <div class="dc-settings-body">
                         <h2>"Display and calculation"</h2>
-                <label class="dc-setting-label">"Theme"
-                <select
-                    class="dc-theme"
-                    data-dnacalc="theme"
-                    aria-label="Theme"
-                    on:change=move |ev| dna_formula_ui::theme::set(&event_target_value(&ev))
-                    prop:value=dna_formula_ui::theme::current()
-                >
-                    {dna_formula_ui::theme::CHOICES
-                        .iter()
-                        .map(|(id, label)| view! { <option value=*id>{*label}</option> })
-                        .collect_view()}
-                </select>
-                </label>
-                <label class="dc-iterate" title="Calculate circular references iteratively">
-                    <input
-                        type="checkbox"
-                        data-dnacalc="iterate"
-                        prop:checked=move || controller.iteration().0
-                        on:change=move |ev| {
-                            let (_, count, change) = controller.iteration();
-                            controller.set_iteration(event_target_checked(&ev), count, change)
-                        }
-                    />
-                    "Iterate"
-                </label>
-                <label class="dc-setting-label">"Maximum iterations"
-                <input
-                    type="number"
-                    class="dc-iterations"
-                    data-dnacalc="max-iterations"
-                    aria-label="Maximum iterations"
-                    title="Maximum iterations"
-                    min="1"
-                    max="32767"
-                    prop:value=move || controller.iteration().1.to_string()
-                    on:change=move |ev| {
-                        let (on, _, change) = controller.iteration();
-                        if let Ok(count) = event_target_value(&ev).trim().parse::<u32>()
-                            && (1..=32767).contains(&count)
-                        {
-                            controller.set_iteration(on, count, change)
-                        }
-                    }
-                />
-                </label>
-                <label class="dc-setting-label">"Maximum change"
-                <input
-                    type="text"
-                    class="dc-max-change"
-                    data-dnacalc="max-change"
-                    aria-label="Maximum change"
-                    title="Maximum change"
-                    prop:value=move || controller.iteration().2.to_string()
-                    on:change=move |ev| {
-                        let (on, count, _) = controller.iteration();
-                        if let Ok(change) = event_target_value(&ev).trim().parse::<f64>()
-                            && change.is_finite()
-                            && change >= 0.0
-                        {
-                            controller.set_iteration(on, count, change)
-                        }
-                    }
-                />
-                </label>
-                        <p>"Calculation mode applies to this session. Downloads retain the opened file's calculation-mode declaration."</p>
+                        <label class="dc-setting-label">
+                            "Theme"
+                            <select
+                                class="dc-theme"
+                                data-dnacalc="theme"
+                                aria-label="Theme"
+                                on:change=move |ev| dna_formula_ui::theme::set(
+                                    &event_target_value(&ev),
+                                )
+                                prop:value=dna_formula_ui::theme::current()
+                            >
+                                {dna_formula_ui::theme::CHOICES
+                                    .iter()
+                                    .map(|(id, label)| {
+                                        view! { <option value=*id>{*label}</option> }
+                                    })
+                                    .collect_view()}
+                            </select>
+                        </label>
+                        <label class="dc-iterate" title="Calculate circular references iteratively">
+                            <input
+                                type="checkbox"
+                                data-dnacalc="iterate"
+                                prop:checked=move || controller.iteration().0
+                                on:change=move |ev| {
+                                    let (_, count, change) = controller.iteration();
+                                    controller
+                                        .set_iteration(event_target_checked(&ev), count, change)
+                                }
+                            />
+                            "Iterate"
+                        </label>
+                        <label class="dc-setting-label">
+                            "Maximum iterations"
+                            <input
+                                type="number"
+                                class="dc-iterations"
+                                data-dnacalc="max-iterations"
+                                aria-label="Maximum iterations"
+                                title="Maximum iterations"
+                                min="1"
+                                max="32767"
+                                prop:value=move || controller.iteration().1.to_string()
+                                on:change=move |ev| {
+                                    let (on, _, change) = controller.iteration();
+                                    if let Ok(count) = event_target_value(&ev).trim().parse::<u32>()
+                                        && (1..=32767).contains(&count)
+                                    {
+                                        controller.set_iteration(on, count, change)
+                                    }
+                                }
+                            />
+                        </label>
+                        <label class="dc-setting-label">
+                            "Maximum change"
+                            <input
+                                type="text"
+                                class="dc-max-change"
+                                data-dnacalc="max-change"
+                                aria-label="Maximum change"
+                                title="Maximum change"
+                                prop:value=move || controller.iteration().2.to_string()
+                                on:change=move |ev| {
+                                    let (on, count, _) = controller.iteration();
+                                    if let Ok(change) = event_target_value(&ev)
+                                        .trim()
+                                        .parse::<f64>() && change.is_finite() && change >= 0.0
+                                    {
+                                        controller.set_iteration(on, count, change)
+                                    }
+                                }
+                            />
+                        </label>
+                        <p>
+                            "Calculation mode applies to this session. Downloads retain the opened file's calculation-mode declaration."
+                        </p>
                         <h2>"Diagnostics"</h2>
-                        <p>{move || controller.active_cell().map(|cell| cell.why).unwrap_or_default()}</p>
-                        <p data-dnacalc="status" data-refused=move || controller.status.get().refused.to_string()>{move || controller.status.get().text}</p>
-                        <p>{move || format!("Authored revision {}. Open: {:?} ms; last operation: {:?} ms. Page wasm memory: {:?} bytes.", controller.summary.get().revision, controller.timings.get().open_ms, controller.timings.get().last_intent_ms, crate::controller::memory_bytes())}</p>
-                        <p>"Keyboard: F6 and Shift+F6 move between commands, formula bar, workspace and sheets. F2 edits the active cell; Escape cancels a draft."</p>
+                        <p>
+                            {move || {
+                                controller.active_cell().map(|cell| cell.why).unwrap_or_default()
+                            }}
+                        </p>
+                        <p
+                            data-dnacalc="status"
+                            data-refused=move || controller.status.get().refused.to_string()
+                        >
+                            {move || controller.status.get().text}
+                        </p>
+                        <p>
+                            {move || {
+                                format!(
+                                    "Authored revision {}. Open: {:?} ms; last operation: {:?} ms. Page wasm memory: {:?} bytes.",
+                                    controller.summary.get().revision,
+                                    controller.timings.get().open_ms,
+                                    controller.timings.get().last_intent_ms,
+                                    crate::controller::memory_bytes(),
+                                )
+                            }}
+                        </p>
+                        <p>
+                            "Keyboard: F6 and Shift+F6 move between commands, formula bar, workspace "
+                            "and sheets. F2 edits the active cell; Escape cancels a draft."
+                        </p>
                     </div>
                 </details>
                 <span class="dc-circular" data-dnacalc="circular">
                     {move || controller.circular_warning().unwrap_or_default()}
                 </span>
-                <nav class="dc-skins" aria-label="Skins">{skin_buttons}</nav>
+                <nav class="dc-skins" aria-label="Skins">
+                    {skin_buttons}
+                </nav>
             </header>
             <div class="dc-bar">
                 <input
@@ -761,12 +974,14 @@ pub fn app_with_transport(
                     on:focus=move |_| name_box_epoch.update_value(|n| *n += 1)
                     on:blur=move |_| {
                         name_box_epoch.update_value(|n| *n += 1);
-                        // An abandoned draft gives way to the active cell's address.
                         let (row, col) = controller.active.get_untracked();
                         name_box.set(cells::address(row, col));
                     }
                     prop:value=move || name_box.get()
-                    on:input=move |ev| { name_box_epoch.update_value(|n| *n += 1); name_box.set(event_target_value(&ev)); }
+                    on:input=move |ev| {
+                        name_box_epoch.update_value(|n| *n += 1);
+                        name_box.set(event_target_value(&ev));
+                    }
                     on:keydown=move |ev: leptos::ev::KeyboardEvent| {
                         name_box_epoch.update_value(|n| *n += 1);
                         if ev.key() == "Enter" {
@@ -788,85 +1003,334 @@ pub fn app_with_transport(
                     }
                 >
                     {assist.field(Signal::derive(Vec::new), Some(bar_key), 1, "")}
-                    {move || (controller.editing.get() == Some(EditOrigin::Bar)).then(|| view! {
-                        {assist.popup()}
-                        {assist.signature()}
-                    })}
+                    {move || {
+                        (controller.editing.get() == Some(EditOrigin::Bar))
+                            .then(|| {
+                                view! {
+                                    {assist.popup()}
+                                    {assist.signature()}
+                                }
+                            })
+                    }}
                 </div>
             </div>
-            <details class="dc-result" node_ref=result_details prop:open=move || result_open.get()
+            <details
+                class="dc-result"
+                node_ref=result_details
+                prop:open=move || result_open.get()
                 data-dnacalc="result-details"
-                on:toggle=move |_| { if let Some(details) = result_details.get_untracked() { if details.open() != result_open.get_untracked() {
-                    result_choice.set_value(Some(((controller.generation.get_untracked(), controller.active_key_untracked(), controller.reveal_epoch.get_untracked()), details.open())));
-                    result_open.set(details.open());
-                } } }>
+                on:toggle=move |_| {
+                    if let Some(details) = result_details.get_untracked() {
+                        if details.open() != result_open.get_untracked() {
+                            result_choice
+                                .set_value(
+                                    Some((
+                                        (
+                                            controller.generation.get_untracked(),
+                                            controller.active_key_untracked(),
+                                            controller.reveal_epoch.get_untracked(),
+                                        ),
+                                        details.open(),
+                                    )),
+                                );
+                            result_open.set(details.open());
+                        }
+                    }
+                }
+            >
                 <summary data-dnacalc="result-toggle">
-                    <span class="dc-result-state" data-dnacalc="result-state">{move || controller.value_state().label()}</span>
-                    <span class="dc-mono">{move || controller.active_key().map(|at| controller.cell_label(at)).unwrap_or_default()}</span>
-                    <span class="dc-result-value" data-dnacalc="selected-value">{move || controller.active_cell().map(|cell| cell.text).unwrap_or_default()}</span>
+                    <span class="dc-result-state" data-dnacalc="result-state">
+                        {move || controller.value_state().label()}
+                    </span>
+                    <span class="dc-mono">
+                        {move || {
+                            controller
+                                .active_key()
+                                .map(|at| controller.cell_label(at))
+                                .unwrap_or_default()
+                        }}
+                    </span>
+                    <span class="dc-result-value" data-dnacalc="selected-value">
+                        {move || controller.active_cell().map(|cell| cell.text).unwrap_or_default()}
+                    </span>
                 </summary>
                 <div class="dc-result-body">
-                    <p role="status" data-dnacalc="array-detail-failure">{move || array_failure.get()}</p>
-                    {move || array_detail.get().filter(|d| d.anchor.is_some() || !d.blockers.is_empty()).map(|detail| view! {
-                        <div data-dnacalc="array-detail">
-                            <p data-dnacalc="array-detail-summary">{detail.summary}</p>
-                            {detail.anchor.and_then(|key|key.cell()).filter(|owner|Some(*owner)!=controller.active_key_untracked()).map(|owner|view!{
-                                <button type="button" data-dnacalc="array-owner" on:click=move |_| controller.reveal(owner,SkinId::Grid)>"Open array anchor"</button>
-                            })}
-                            {detail.blockers.into_iter().filter_map(|area|area.area()).map(|area| {
-                                let label=if area.cell_count()==1 {controller.cell_label(area.first())} else {format!("{}:{}",controller.cell_label(area.first()),cells::address(area.last().row(),area.last().column()))};
-                                view!{<button type="button" data-dnacalc="array-blocker" on:click=move |_| controller.reveal(area.first(),SkinId::Grid)>{format!("Open blocker {label}")}</button>}
-                            }).collect_view()}
-                        </div>
-                    })}
-                    <p data-dnacalc="state-explanation">{move || controller.value_state().explanation()}</p>
+                    <p role="status" data-dnacalc="array-detail-failure">
+                        {move || array_failure.get()}
+                    </p>
+                    {move || {
+                        array_detail
+                            .get()
+                            .filter(|d| d.anchor.is_some() || !d.blockers.is_empty())
+                            .map(|detail| {
+                                view! {
+                                    <div data-dnacalc="array-detail">
+                                        <p data-dnacalc="array-detail-summary">{detail.summary}</p>
+                                        {detail
+                                            .anchor
+                                            .and_then(|key| key.cell())
+                                            .filter(|owner| {
+                                                Some(*owner) != controller.active_key_untracked()
+                                            })
+                                            .map(|owner| {
+                                                view! {
+                                                    <button
+                                                        type="button"
+                                                        data-dnacalc="array-owner"
+                                                        on:click=move |_| controller.reveal(owner, SkinId::Grid)
+                                                    >
+                                                        "Open array anchor"
+                                                    </button>
+                                                }
+                                            })}
+                                        {detail
+                                            .blockers
+                                            .into_iter()
+                                            .filter_map(|area| area.area())
+                                            .map(|area| {
+                                                let label = if area.cell_count() == 1 {
+                                                    controller.cell_label(area.first())
+                                                } else {
+                                                    format!(
+                                                        "{}:{}",
+                                                        controller.cell_label(area.first()),
+                                                        cells::address(area.last().row(), area.last().column()),
+                                                    )
+                                                };
+                                                view! {
+                                                    <button
+                                                        type="button"
+                                                        data-dnacalc="array-blocker"
+                                                        on:click=move |_| {
+                                                            controller.reveal(area.first(), SkinId::Grid)
+                                                        }
+                                                    >
+                                                        {format!("Open blocker {label}")}
+                                                    </button>
+                                                }
+                                            })
+                                            .collect_view()}
+                                    </div>
+                                }
+                            })
+                    }}
+                    <p data-dnacalc="state-explanation">
+                        {move || controller.value_state().explanation()}
+                    </p>
                     <p data-dnacalc="cell-provenance">{provenance}</p>
-                    {move || controller.active_cell().and_then(|cell| cell.error_meaning).map(|meaning| view! { <p data-dnacalc="error-meaning">{meaning}</p> })}
-                    {move || controller.active_cell().and_then(|cell| cell.owner).map(|owner| view! { <p data-dnacalc="refusal-owner">{format!("Work package: {owner}")}</p> })}
-                    {move || controller.active_cell().filter(|cell| cell.provenance == cells::Provenance::Refused || cell.kind == "error").map(|_| view! {
-                        <button type="button" data-dnacalc="recover-edit" on:click=move |_| { controller.begin_edit(EditOrigin::Bar, None); controller.carry_edit_to_bar(); }>"Edit formula or input"</button>
-                    })}
-                    {move || controller.active_cell().filter(|cell| matches!(cell.provenance, cells::Provenance::Stale | cells::Provenance::FileCache)).map(|_| view! {
-                        <button type="button" data-dnacalc="recover-calculate" on:click=move |_| controller.recalculate()>"Calculate now"</button>
-                    })}
+                    {move || {
+                        controller
+                            .active_cell()
+                            .and_then(|cell| cell.error_meaning)
+                            .map(|meaning| view! { <p data-dnacalc="error-meaning">{meaning}</p> })
+                    }}
+                    {move || {
+                        controller
+                            .active_cell()
+                            .and_then(|cell| cell.owner)
+                            .map(|owner| {
+                                view! {
+                                    <p data-dnacalc="refusal-owner">
+                                        {format!("Work package: {owner}")}
+                                    </p>
+                                }
+                            })
+                    }}
+                    {move || {
+                        controller
+                            .active_cell()
+                            .filter(|cell| {
+                                cell.provenance == cells::Provenance::Refused
+                                    || cell.kind == "error"
+                            })
+                            .map(|_| {
+                                view! {
+                                    <button
+                                        type="button"
+                                        data-dnacalc="recover-edit"
+                                        on:click=move |_| {
+                                            controller.begin_edit(EditOrigin::Bar, None);
+                                            controller.carry_edit_to_bar();
+                                        }
+                                    >
+                                        "Edit formula or input"
+                                    </button>
+                                }
+                            })
+                    }}
+                    {move || {
+                        controller
+                            .active_cell()
+                            .filter(|cell| {
+                                matches!(
+                                    cell.provenance,
+                                    cells::Provenance::Stale | cells::Provenance::FileCache
+                                )
+                            })
+                            .map(|_| {
+                                view! {
+                                    <button
+                                        type="button"
+                                        data-dnacalc="recover-calculate"
+                                        on:click=move |_| controller.recalculate()
+                                    >
+                                        "Calculate now"
+                                    </button>
+                                }
+                            })
+                    }}
                 </div>
             </details>
-            <span class="dc-sr-only" role="status" aria-live=move ||if grid_speech.get(){"off"}else{"polite"} aria-atomic="true" data-dnacalc="result-announcement">{move || format!("{}. {}. {}", controller.active_key().map(|at| controller.cell_label(at)).unwrap_or_default(), controller.value_state().label(), controller.active_cell().map(|cell| format!("{} {}", cell.text, cell.why)).unwrap_or_default())}</span>
-            {move || controller.editing.get().map(|_| view! {
-                <div class="dc-edit-tools" data-dnacalc="edit-session">
-                    <span>{move || format!("Editing {}", controller.edit_label())}</span>
-                    <span data-dnacalc="edit-mode">{move || if controller.point_mode.get() {
-                        "Point · F2 to edit text"
-                    } else { "Edit · F2 to point to references" }}</span>
-                    <button type="button" data-dnacalc="commit-edit"
-                        disabled=move || assist.readonly.get()
-                        on:click=move |_| controller.finish_edit(crate::grid::selection::NavAction::CommitDown)>"Enter"</button>
-                    <button type="button" data-dnacalc="cancel-edit"
-                        disabled=move || assist.readonly.get()
-                        on:click=move |_| { controller.cancel_edit(); controller.focus_active_skin(); }>"Cancel"</button>
-                    <p role="status" data-onecalc="part-status">{move || assist.part_status().get()}</p>
-                    {trace_panel.view(
-                        assist,
-                        move || format!("{}\u{1}{}", assist.text.get(), controller.revision.get()),
-                        move |done| controller.trace_formula(done),
-                    )}
-                </div>
-            })}
+            <span
+                class="dc-sr-only"
+                role="status"
+                aria-live=move || if grid_speech.get() { "off" } else { "polite" }
+                aria-atomic="true"
+                data-dnacalc="result-announcement"
+            >
+                {move || {
+                    format!(
+                        "{}. {}. {}",
+                        controller
+                            .active_key()
+                            .map(|at| controller.cell_label(at))
+                            .unwrap_or_default(),
+                        controller.value_state().label(),
+                        controller
+                            .active_cell()
+                            .map(|cell| format!("{} {}", cell.text, cell.why))
+                            .unwrap_or_default(),
+                    )
+                }}
+            </span>
+            {move || {
+                controller
+                    .editing
+                    .get()
+                    .map(|_| {
+                        view! {
+                            <div class="dc-edit-tools" data-dnacalc="edit-session">
+                                <span>
+                                    {move || format!("Editing {}", controller.edit_label())}
+                                </span>
+                                <span data-dnacalc="edit-mode">
+                                    {move || {
+                                        if controller.point_mode.get() {
+                                            "Point · F2 to edit text"
+                                        } else {
+                                            "Edit · F2 to point to references"
+                                        }
+                                    }}
+                                </span>
+                                <button
+                                    type="button"
+                                    data-dnacalc="commit-edit"
+                                    disabled=move || assist.readonly.get()
+                                    on:click=move |_| {
+                                        controller
+                                            .finish_edit(crate::grid::selection::NavAction::CommitDown)
+                                    }
+                                >
+                                    "Enter"
+                                </button>
+                                <button
+                                    type="button"
+                                    data-dnacalc="cancel-edit"
+                                    disabled=move || assist.readonly.get()
+                                    on:click=move |_| {
+                                        controller.cancel_edit();
+                                        controller.focus_active_skin();
+                                    }
+                                >
+                                    "Cancel"
+                                </button>
+                                <p role="status" data-onecalc="part-status">
+                                    {move || assist.part_status().get()}
+                                </p>
+                                {trace_panel
+                                    .view(
+                                        assist,
+                                        move || {
+                                            format!(
+                                                "{}\u{1}{}",
+                                                assist.text.get(),
+                                                controller.revision.get(),
+                                            )
+                                        },
+                                        move |done| controller.trace_formula(done),
+                                    )}
+                            </div>
+                        }
+                    })
+            }}
             {crate::printing::toolbar(controller)}
-            <main id="dc-workspace" class="dc-main" tabindex="-1" aria-label="Workbook workspace">{skin_view}</main>
+            <main id="dc-workspace" class="dc-main" tabindex="-1" aria-label="Workbook workspace">
+                {skin_view}
+            </main>
             {crate::commands::summary(controller)}
-            <div class="dc-sheet-strip"><nav class="dc-tabs" role="tablist" aria-label="Worksheets" data-dnacalc="sheet-tabs">{tabs}</nav>{sheet_controls}</div>
+            <div class="dc-sheet-strip">
+                <nav
+                    class="dc-tabs"
+                    role="tablist"
+                    aria-label="Worksheets"
+                    data-dnacalc="sheet-tabs"
+                >
+                    {tabs}
+                </nav>
+                {sheet_controls}
+            </div>
             <footer class="dc-status">
-                <span data-dnacalc="worker-status" role="status" aria-live="polite" aria-atomic="true">{move || {
-                    let health = controller.transport.get();
-                    if health.pending > 0 { format!("Pending · {} workbook requests", health.pending) } else { health.state }
-                }}</span>
-                <span data-dnacalc="feedback" role="status" aria-live="polite" data-refused=move || controller.status.get().refused.to_string()>{move || {
-                    let status = controller.status.get();
-                    let message = if status.refused { status.text } else { status.text.split(" in ").next().unwrap_or("").split(": ").next().unwrap_or("").to_owned() };
-                    format!("Last action: {message}")
-                }}</span>
-                {move || controller.download_unconfirmed.get().then(|| view! { <span data-dnacalc="download-warning">"Download unconfirmed · check your files"</span> })}
+                <span
+                    data-dnacalc="worker-status"
+                    role="status"
+                    aria-live="polite"
+                    aria-atomic="true"
+                >
+                    {move || {
+                        let health = controller.transport.get();
+                        if health.pending > 0 {
+                            format!("Pending · {} workbook requests", health.pending)
+                        } else {
+                            health.state
+                        }
+                    }}
+                </span>
+                <span
+                    data-dnacalc="feedback"
+                    role="status"
+                    aria-live="polite"
+                    data-refused=move || controller.status.get().refused.to_string()
+                >
+                    {move || {
+                        let status = controller.status.get();
+                        let message = if status.refused {
+                            status.text
+                        } else {
+                            status
+                                .text
+                                .split(" in ")
+                                .next()
+                                .unwrap_or("")
+                                .split(": ")
+                                .next()
+                                .unwrap_or("")
+                                .to_owned()
+                        };
+                        format!("Last action: {message}")
+                    }}
+                </span>
+                {move || {
+                    controller
+                        .download_unconfirmed
+                        .get()
+                        .then(|| {
+                            view! {
+                                <span data-dnacalc="download-warning">
+                                    "Download unconfirmed · check your files"
+                                </span>
+                            }
+                        })
+                }}
             </footer>
             {crate::review::controls(controller)}
             {crate::commands::controls(controller)}
@@ -875,13 +1339,43 @@ pub fn app_with_transport(
             {crate::printing::controls(controller)}
             {crate::names::controls(controller)}
             {crate::format::diagnostic(controller)}
-            <dialog class="dc-replace" node_ref=replace_dialog data-dnacalc="replace-dialog" aria-labelledby="dc-replace-title" aria-describedby="dc-replace-description"
-                on:cancel=move |ev: leptos::ev::Event| { ev.prevent_default(); keep_working(); }>
+            <dialog
+                class="dc-replace"
+                node_ref=replace_dialog
+                data-dnacalc="replace-dialog"
+                aria-labelledby="dc-replace-title"
+                aria-describedby="dc-replace-description"
+                on:cancel=move |ev: leptos::ev::Event| {
+                    ev.prevent_default();
+                    keep_working();
+                }
+            >
                 <h2 id="dc-replace-title">"Keep your current work?"</h2>
-                <p id="dc-replace-description">"This workbook has changes, an edited draft, or a download whose storage is unconfirmed. Keep working to download it first, or discard it to continue."</p>
+                <p id="dc-replace-description">
+                    "This workbook has changes, an edited draft, or a download whose storage is unconfirmed. "
+                    "Keep working to download it first, or discard it to continue."
+                </p>
                 <div class="dc-dialog-actions">
-                    <button type="button" autofocus=true data-dnacalc="keep-working" on:click=move |_| keep_working()>"Keep working"</button>
-                    <button type="button" data-dnacalc="discard-work" on:click=move |_| { if let Some(next) = replacement.get_untracked() { replacement.set(None); replace(next); } }>"Discard and continue"</button>
+                    <button
+                        type="button"
+                        autofocus=true
+                        data-dnacalc="keep-working"
+                        on:click=move |_| keep_working()
+                    >
+                        "Keep working"
+                    </button>
+                    <button
+                        type="button"
+                        data-dnacalc="discard-work"
+                        on:click=move |_| {
+                            if let Some(next) = replacement.get_untracked() {
+                                replacement.set(None);
+                                replace(next);
+                            }
+                        }
+                    >
+                        "Discard and continue"
+                    </button>
                 </div>
             </dialog>
         </div>

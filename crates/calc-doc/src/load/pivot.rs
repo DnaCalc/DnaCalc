@@ -13,7 +13,10 @@ use std::{
 const R: &str = "http://schemas.openxmlformats.org/officeDocument/2006/relationships";
 
 pub use calc_doc_model::pivot::*;
-fn decoded(value:&str,events:&Events<'_>)->Result<String,LoadError>{String::from_utf16(&super::strings::decode(value)).map_err(|_|events.invalid("A pivot string has an unpaired UTF-16 code unit"))}
+fn decoded(value: &str, events: &Events<'_>) -> Result<String, LoadError> {
+    String::from_utf16(&super::strings::decode(value))
+        .map_err(|_| events.invalid("A pivot string has an unpaired UTF-16 code unit"))
+}
 const X14: &str = "http://schemas.microsoft.com/office/spreadsheetml/2009/9/main";
 const FILL_DOWN_URI: &str = "{2946ED86-A175-432a-8AC1-64E0C546D7DE}";
 fn attrs(e: &XmlElement) -> BTreeMap<String, String> {
@@ -163,26 +166,57 @@ fn read_cache(package: &Package, part: &str, id: u32) -> Result<PivotCache, Load
                     let names: Vec<_> = path.iter().map(String::as_str).collect();
                     let known = match (*step, names.as_slice(), e.name.local.as_str()) {
                         (0, ["calculatedItems"], "calculatedItem") => {
-                            *formula = e.attribute("formula").filter(|value| !value.is_empty()).map(str::to_owned);
+                            *formula = e
+                                .attribute("formula")
+                                .filter(|value| !value.is_empty())
+                                .map(str::to_owned);
                             e.attributes.len() == 1 && formula.is_some()
                         }
-                        (1, ["calculatedItems", "calculatedItem"], "pivotArea") => e.attributes.len() == 3
-                            && e.attribute("cacheIndex") == Some("1") && e.attribute("outline") == Some("0")
-                            && e.attribute("fieldPosition") == Some("0"),
-                        (2, ["calculatedItems", "calculatedItem", "pivotArea"], "references") =>
-                            e.attributes.len() == 1 && e.attribute("count") == Some("1"),
-                        (3, ["calculatedItems", "calculatedItem", "pivotArea", "references"], "reference") => {
-                            *field = e.attribute("field").and_then(|value| value.parse().ok());
-                            e.attributes.len() == 2 && e.attribute("count") == Some("1") && field.is_some()
+                        (1, ["calculatedItems", "calculatedItem"], "pivotArea") => {
+                            e.attributes.len() == 3
+                                && e.attribute("cacheIndex") == Some("1")
+                                && e.attribute("outline") == Some("0")
+                                && e.attribute("fieldPosition") == Some("0")
                         }
-                        (4, ["calculatedItems", "calculatedItem", "pivotArea", "references", "reference"], "x") => {
+                        (2, ["calculatedItems", "calculatedItem", "pivotArea"], "references") => {
+                            e.attributes.len() == 1 && e.attribute("count") == Some("1")
+                        }
+                        (
+                            3,
+                            [
+                                "calculatedItems",
+                                "calculatedItem",
+                                "pivotArea",
+                                "references",
+                            ],
+                            "reference",
+                        ) => {
+                            *field = e.attribute("field").and_then(|value| value.parse().ok());
+                            e.attributes.len() == 2
+                                && e.attribute("count") == Some("1")
+                                && field.is_some()
+                        }
+                        (
+                            4,
+                            [
+                                "calculatedItems",
+                                "calculatedItem",
+                                "pivotArea",
+                                "references",
+                                "reference",
+                            ],
+                            "x",
+                        ) => {
                             *item = e.attribute("v").and_then(|value| value.parse().ok());
                             e.attributes.len() == 1 && item.is_some()
                         }
                         _ => false,
                     };
-                    *invalid |= !known || e.name.namespace.as_deref() != Some(M)
-                        || e.attributes.iter().any(|attr| attr.name.namespace.is_some());
+                    *invalid |= !known
+                        || e.name.namespace.as_deref() != Some(M)
+                        || e.attributes
+                            .iter()
+                            .any(|attr| attr.name.namespace.is_some());
                     *step += 1;
                 }
                 if e.name.namespace.as_deref() == Some(M) {
@@ -193,98 +227,192 @@ fn read_cache(package: &Package, part: &str, id: u32) -> Result<PivotCache, Load
                             .as_slice(),
                         e.name.local.as_str(),
                     ) {
-                        ([], "calculatedMembers" | "cacheHierarchies" | "dimensions" | "measureGroups" | "maps")
-                        | (["cacheFields", "cacheField"], "mpMap" | "extLst") => cache.unsupported.push(e.name.local.to_string()),
+                        (
+                            [],
+                            "calculatedMembers" | "cacheHierarchies" | "dimensions"
+                            | "measureGroups" | "maps",
+                        )
+                        | (["cacheFields", "cacheField"], "mpMap" | "extLst") => {
+                            cache.unsupported.push(e.name.local.to_string())
+                        }
                         ([], "calculatedItems") => {
-                            if item_scope.is_some() || !cache.calculated_items.is_empty() || e.attributes.len() != 1
-                                || e.attribute("count") != Some("1") || e.attributes.iter().any(|attr| attr.name.namespace.is_some()) {
-                                cache.unsupported.push("unsupported calculated items".into());
+                            if item_scope.is_some()
+                                || !cache.calculated_items.is_empty()
+                                || e.attributes.len() != 1
+                                || e.attribute("count") != Some("1")
+                                || e.attributes
+                                    .iter()
+                                    .any(|attr| attr.name.namespace.is_some())
+                            {
+                                cache
+                                    .unsupported
+                                    .push("unsupported calculated items".into());
                             }
                             item_scope = Some((0, false, None, None, None));
                         }
                         ([], "cacheSource") => {
-                            if cache_source_seen { return Err(events.invalid("Duplicate pivot cache sources")); }
+                            if cache_source_seen {
+                                return Err(events.invalid("Duplicate pivot cache sources"));
+                            }
                             cache_source_seen = true;
                             cache.source_type = required(&e, "type", &events)?.into();
-                            cache.source_connection_id = optional_integer::<u32>(&e, "connectionId", &events)?.filter(|id| *id != 0);
+                            cache.source_connection_id =
+                                optional_integer::<u32>(&e, "connectionId", &events)?
+                                    .filter(|id| *id != 0);
                         }
                         (["cacheSource"], "worksheetSource") => {
                             cache.source_sheet = e.attribute("sheet").map(str::to_owned);
                             cache.source_range = e.attribute("ref").map(str::to_owned);
                             cache.source_name = e.attribute("name").map(str::to_owned);
                         }
-                        (["cacheFields"], "cacheField") => { group_items_seen = false; discrete_count = None; cache.fields.push(PivotCacheField {
-                            name: decoded(required(&e, "name", &events)?,&events)?,
-                            shared_items: None,
-                            group: None,
-                            items: Vec::new(),
-                            unused_items: Vec::new(),
-                            formula_items: Vec::new(),
-                            attributes: attrs(&e),
-                        }); },
+                        (["cacheFields"], "cacheField") => {
+                            group_items_seen = false;
+                            discrete_count = None;
+                            cache.fields.push(PivotCacheField {
+                                name: decoded(required(&e, "name", &events)?, &events)?,
+                                shared_items: None,
+                                group: None,
+                                items: Vec::new(),
+                                unused_items: Vec::new(),
+                                formula_items: Vec::new(),
+                                attributes: attrs(&e),
+                            });
+                        }
                         (["cacheFields", "cacheField"], "fieldGroup") => {
-                            if cache.fields.last().is_some_and(|field| field.group.is_some()) {
+                            if cache
+                                .fields
+                                .last()
+                                .is_some_and(|field| field.group.is_some())
+                            {
                                 cache.unsupported.push("duplicate field group".into());
                             }
                             if let Some(field) = cache.fields.last_mut() {
-                                field.group = Some(PivotCacheGroup { attributes: attrs(&e), range: None, discrete: None, numeric_items: None });
+                                field.group = Some(PivotCacheGroup {
+                                    attributes: attrs(&e),
+                                    range: None,
+                                    discrete: None,
+                                    numeric_items: None,
+                                });
                             }
                         }
                         (["cacheFields", "cacheField", "fieldGroup"], "rangePr") => {
-                            if cache.fields.last().and_then(|field| field.group.as_ref()).is_some_and(|group| group.range.is_some()) {
+                            if cache
+                                .fields
+                                .last()
+                                .and_then(|field| field.group.as_ref())
+                                .is_some_and(|group| group.range.is_some())
+                            {
                                 cache.unsupported.push("duplicate grouping range".into());
                             }
-                            if let Some(group) = cache.fields.last_mut().and_then(|field| field.group.as_mut()) {
+                            if let Some(group) = cache
+                                .fields
+                                .last_mut()
+                                .and_then(|field| field.group.as_mut())
+                            {
                                 group.range = Some(attrs(&e));
                             }
                         }
                         (["cacheFields", "cacheField", "fieldGroup"], "discretePr") => {
-                            if e.attributes.iter().any(|attr| attr.name.local != "count" || attr.name.namespace.is_some())
-                                || cache.fields.last().and_then(|field| field.group.as_ref()).is_none_or(|group| group.discrete.is_some()) {
-                                cache.unsupported.push("unsupported discrete grouping".into());
+                            if e.attributes.iter().any(|attr| {
+                                attr.name.local != "count" || attr.name.namespace.is_some()
+                            }) || cache
+                                .fields
+                                .last()
+                                .and_then(|field| field.group.as_ref())
+                                .is_none_or(|group| group.discrete.is_some())
+                            {
+                                cache
+                                    .unsupported
+                                    .push("unsupported discrete grouping".into());
                             }
-                            discrete_count = optional_integer::<u32>(&e, "count", &events)?.map(|count| count as usize);
-                            if let Some(group) = cache.fields.last_mut().and_then(|field| field.group.as_mut()) {
+                            discrete_count = optional_integer::<u32>(&e, "count", &events)?
+                                .map(|count| count as usize);
+                            if let Some(group) = cache
+                                .fields
+                                .last_mut()
+                                .and_then(|field| field.group.as_mut())
+                            {
                                 group.discrete = Some(Vec::new());
                             }
                         }
                         (["cacheFields", "cacheField", "fieldGroup", "discretePr"], "x") => {
-                            if e.attributes.iter().any(|attr| attr.name.local != "v" || attr.name.namespace.is_some()) {
-                                cache.unsupported.push("unsupported discrete grouping item".into());
+                            if e.attributes
+                                .iter()
+                                .any(|attr| attr.name.local != "v" || attr.name.namespace.is_some())
+                            {
+                                cache
+                                    .unsupported
+                                    .push("unsupported discrete grouping item".into());
                             }
                             let index = integer(&e, "v", &events)?;
-                            if let Some(discrete) = cache.fields.last_mut().and_then(|field| field.group.as_mut()).and_then(|group| group.discrete.as_mut()) {
-                                if discrete.len() >= 100_000 { return Err(events.invalid("Pivot grouping exceeds 100,000 items (dc-8wp)")); }
+                            if let Some(discrete) = cache
+                                .fields
+                                .last_mut()
+                                .and_then(|field| field.group.as_mut())
+                                .and_then(|group| group.discrete.as_mut())
+                            {
+                                if discrete.len() >= 100_000 {
+                                    return Err(events
+                                        .invalid("Pivot grouping exceeds 100,000 items (dc-8wp)"));
+                                }
                                 discrete.push(index);
                             }
                         }
                         (["cacheFields", "cacheField", "fieldGroup"], "groupItems") => {
-                            if group_items_seen { cache.unsupported.push("duplicate group items".into()); }
+                            if group_items_seen {
+                                cache.unsupported.push("duplicate group items".into());
+                            }
                             if let Some(field) = cache.fields.last_mut() {
-                                if !matches!(field.attributes.get("databaseField").map(String::as_str), Some("0" | "false")) {
-                                    if let Some(group) = field.group.as_mut() { group.numeric_items = Some(Vec::new()); }
+                                if !matches!(
+                                    field.attributes.get("databaseField").map(String::as_str),
+                                    Some("0" | "false")
+                                ) {
+                                    if let Some(group) = field.group.as_mut() {
+                                        group.numeric_items = Some(Vec::new());
+                                    }
                                 }
                             }
                             group_items_seen = true;
                         }
                         (["cacheFields", "cacheField", "fieldGroup", "groupItems"], _) => {
-                            if item_count >= 100_000 { return Err(events.invalid("Pivot group item reading exceeds 100,000 items (dc-8wp)")); }
+                            if item_count >= 100_000 {
+                                return Err(events.invalid(
+                                    "Pivot group item reading exceeds 100,000 items (dc-8wp)",
+                                ));
+                            }
                             item_count += 1;
                             let value = item(&e, &events)?;
                             if let Some(field) = cache.fields.last_mut() {
-                                if let Some(items) = field.group.as_mut().and_then(|group| group.numeric_items.as_mut()) {
+                                if let Some(items) = field
+                                    .group
+                                    .as_mut()
+                                    .and_then(|group| group.numeric_items.as_mut())
+                                {
                                     items.push(value);
-                                } else { field.items.push(value); }
+                                } else {
+                                    field.items.push(value);
+                                }
                             }
                             events.skip()?;
                             continue;
                         }
-                        (["cacheFields", "cacheField", "fieldGroup"], child) if child != "groupItems" => {
-                            cache.unsupported.push(format!("unsupported field group {child}"));
+                        (["cacheFields", "cacheField", "fieldGroup"], child)
+                            if child != "groupItems" =>
+                        {
+                            cache
+                                .unsupported
+                                .push(format!("unsupported field group {child}"));
                         }
                         (["cacheFields", "cacheField"], "sharedItems") => {
-                            if cache.fields.last().is_some_and(|field| matches!(field.attributes.get("databaseField").map(String::as_str), Some("0" | "false"))) {
-                                cache.unsupported.push("shared items on a grouped field".into());
+                            if cache.fields.last().is_some_and(|field| {
+                                matches!(
+                                    field.attributes.get("databaseField").map(String::as_str),
+                                    Some("0" | "false")
+                                )
+                            }) {
+                                cache
+                                    .unsupported
+                                    .push("shared items on a grouped field".into());
                             }
                             if let Some(field) = cache.fields.last_mut() {
                                 field.shared_items = optional_integer(&e, "count", &events)?;
@@ -297,10 +425,16 @@ fn read_cache(package: &Package, part: &str, id: u32) -> Result<PivotCache, Load
                                 ));
                             }
                             item_count += 1;
-                            if e.attribute("f").is_some_and(|value| !matches!(value, "0" | "1" | "false" | "true")) {
-                                cache.unsupported.push("invalid calculated-item cache flag".into());
+                            if e.attribute("f")
+                                .is_some_and(|value| !matches!(value, "0" | "1" | "false" | "true"))
+                            {
+                                cache
+                                    .unsupported
+                                    .push("invalid calculated-item cache flag".into());
                             }
-                            if e.attribute("u").is_some_and(|value| !matches!(value, "0" | "1" | "false" | "true")) {
+                            if e.attribute("u")
+                                .is_some_and(|value| !matches!(value, "0" | "1" | "false" | "true"))
+                            {
                                 cache.unsupported.push("invalid unused-item flag".into());
                             }
                             if let Some(field) = cache.fields.last_mut() {
@@ -327,16 +461,31 @@ fn read_cache(package: &Package, part: &str, id: u32) -> Result<PivotCache, Load
             XmlEvent::End(_) => {
                 if path.iter().map(String::as_str).collect::<Vec<_>>() == ["calculatedItems"] {
                     match item_scope.take() {
-                        Some((5, false, Some(formula), Some(field), Some(item))) =>
-                            cache.calculated_items.push(PivotCalculatedItem { formula, field, item }),
-                        _ => cache.unsupported.push("unsupported calculated items".into()),
+                        Some((5, false, Some(formula), Some(field), Some(item))) => {
+                            cache.calculated_items.push(PivotCalculatedItem {
+                                formula,
+                                field,
+                                item,
+                            })
+                        }
+                        _ => cache
+                            .unsupported
+                            .push("unsupported calculated items".into()),
                     }
                 }
-                if path.iter().map(String::as_str).collect::<Vec<_>>() == ["cacheFields", "cacheField", "fieldGroup", "discretePr"] {
-                    let actual = cache.fields.last().and_then(|field| field.group.as_ref())
-                        .and_then(|group| group.discrete.as_ref()).map(Vec::len);
+                if path.iter().map(String::as_str).collect::<Vec<_>>()
+                    == ["cacheFields", "cacheField", "fieldGroup", "discretePr"]
+                {
+                    let actual = cache
+                        .fields
+                        .last()
+                        .and_then(|field| field.group.as_ref())
+                        .and_then(|group| group.discrete.as_ref())
+                        .map(Vec::len);
                     if discrete_count.is_none() || discrete_count != actual {
-                        cache.unsupported.push("invalid discrete grouping count".into());
+                        cache
+                            .unsupported
+                            .push("invalid discrete grouping count".into());
                     }
                 }
                 if path.pop().is_none() {
@@ -348,93 +497,255 @@ fn read_cache(package: &Package, part: &str, id: u32) -> Result<PivotCache, Load
     }
     if cache.calculated_items.len() == 1 {
         let item = &cache.calculated_items[0];
-        if cache.fields.get(item.field as usize).is_none_or(|field|
+        if cache.fields.get(item.field as usize).is_none_or(|field| {
             field.formula_items.as_slice() != [item.item]
-                || !matches!(field.items.get(item.item as usize), Some(PivotItem::Text(_))))
-            || cache.fields.iter().enumerate().any(|(index, field)| index != item.field as usize && !field.formula_items.is_empty()) {
-            cache.unsupported.push("invalid calculated item mapping".into());
+                || !matches!(
+                    field.items.get(item.item as usize),
+                    Some(PivotItem::Text(_))
+                )
+        }) || cache
+            .fields
+            .iter()
+            .enumerate()
+            .any(|(index, field)| index != item.field as usize && !field.formula_items.is_empty())
+        {
+            cache
+                .unsupported
+                .push("invalid calculated item mapping".into());
         }
-    } else if cache.fields.iter().any(|field| !field.formula_items.is_empty()) {
+    } else if cache
+        .fields
+        .iter()
+        .any(|field| !field.formula_items.is_empty())
+    {
         cache.unsupported.push("unmapped calculated item".into());
     }
     for (field_index, field) in cache.fields.iter().enumerate() {
-        let virtual_field = matches!(field.attributes.get("databaseField").map(String::as_str), Some("0" | "false"));
+        let virtual_field = matches!(
+            field.attributes.get("databaseField").map(String::as_str),
+            Some("0" | "false")
+        );
         if field.attributes.contains_key("formula") && (!virtual_field || field.group.is_some()) {
-            cache.unsupported.push("unsupported calculated cache field".into());
+            cache
+                .unsupported
+                .push("unsupported calculated cache field".into());
         }
         if let Some(group) = &field.group {
-            if group.attributes.keys().any(|name| name != "base" && name != "par") {
-                cache.unsupported.push("unsupported field-group attributes".into());
+            if group
+                .attributes
+                .keys()
+                .any(|name| name != "base" && name != "par")
+            {
+                cache
+                    .unsupported
+                    .push("unsupported field-group attributes".into());
             }
             if virtual_field {
-                let supported = !group.attributes.contains_key("par") && group.discrete.is_none() && group.numeric_items.is_none()
-                    && group.attributes.get("base").and_then(|v| v.parse::<usize>().ok()).is_some()
+                let supported = !group.attributes.contains_key("par")
+                    && group.discrete.is_none()
+                    && group.numeric_items.is_none()
+                    && group
+                        .attributes
+                        .get("base")
+                        .and_then(|v| v.parse::<usize>().ok())
+                        .is_some()
                     && group.range.as_ref().is_some_and(|range| {
-                        matches!(range.get("groupBy").map(String::as_str), Some("days" | "months" | "quarters" | "years"))
-                            && range.contains_key("startDate") && range.contains_key("endDate")
-                            && ["autoStart", "autoEnd"].iter().all(|key| range.get(*key).is_none_or(|v|
-                                matches!(v.as_str(), "0" | "1" | "false" | "true")))
-                            && range.keys().all(|k| matches!(k.as_str(), "groupBy" | "startDate" | "endDate" | "autoStart" | "autoEnd" | "groupInterval"))
-                    }) && field.items.iter().all(|item| matches!(item, PivotItem::Text(_)))
-                    && group.range.as_ref().is_some_and(|range| match range.get("groupBy").map(String::as_str) {
-                        Some("days") if !range.contains_key("groupInterval") => field.items.len() == 368,
-                        Some("days") => {
-                            let fixed = |key: &str| matches!(range.get(key).map(String::as_str), Some("0" | "false"));
-                            let bound = |key: &str| range.get(key).and_then(|value| PivotItem::Date(value.clone()).date_serial());
-                            match (bound("startDate"), bound("endDate")) {
-                                (Some(start), Some(end)) if range.get("groupInterval").is_some_and(|v| v == "7")
-                                    && fixed("autoStart") && fixed("autoEnd") && start.fract() == 0.0
-                                    && end.fract() == 0.0 && end >= start =>
-                                        (((end - start) / 7.0).floor() as usize).checked_add(3) == Some(field.items.len()),
-                                _ => false,
-                            }
-                        }
-                        Some("months") => !range.contains_key("groupInterval") && field.items.len() == 14,
-                        Some("quarters") => !range.contains_key("groupInterval") && field.items.len() == 6,
-                        Some("years") if !range.contains_key("groupInterval") => {
-                            let year = |key: &str| range.get(key).and_then(|s| s.split('-').next()).and_then(|s| s.parse::<i64>().ok());
-                            match (year("startDate"), year("endDate")) {
-                                (Some(first), Some(last)) if (1900..=9999).contains(&first) && (first..=9999).contains(&last) => usize::try_from(last - first + 3).ok() == Some(field.items.len()),
-                                _ => false,
-                            }
-                        }
-                        _ => false,
-                    });
-                let discrete_supported = !group.attributes.contains_key("par") && group.range.is_none() && group.numeric_items.is_none()
-                    && group.attributes.get("base").and_then(|value| value.parse::<usize>().ok())
-                        .and_then(|base| cache.fields.get(base)).is_some_and(|base| {
-                            base.group.as_ref().and_then(|parent| parent.attributes.get("par"))
-                                .and_then(|value| value.parse::<usize>().ok()) == Some(field_index)
-                                && base.items.iter().all(|item| matches!(item, PivotItem::Text(_) | PivotItem::Missing))
-                                && group.discrete.as_ref().is_some_and(|mapping| mapping.len() == base.items.len()
-                                    && mapping.iter().all(|&index| (index as usize) < field.items.len()))
-                        }) && field.items.iter().all(|item| matches!(item, PivotItem::Text(_) | PivotItem::Missing));
-                if !supported && !discrete_supported { cache.unsupported.push("unsupported grouping".into()); }
-            } else {
-                let numeric = group.discrete.is_none() && !group.attributes.contains_key("par")
-                    && group.attributes.get("base").and_then(|v| v.parse::<usize>().ok()) == Some(field_index)
+                        matches!(
+                            range.get("groupBy").map(String::as_str),
+                            Some("days" | "months" | "quarters" | "years")
+                        ) && range.contains_key("startDate")
+                            && range.contains_key("endDate")
+                            && ["autoStart", "autoEnd"].iter().all(|key| {
+                                range.get(*key).is_none_or(|v| {
+                                    matches!(v.as_str(), "0" | "1" | "false" | "true")
+                                })
+                            })
+                            && range.keys().all(|k| {
+                                matches!(
+                                    k.as_str(),
+                                    "groupBy"
+                                        | "startDate"
+                                        | "endDate"
+                                        | "autoStart"
+                                        | "autoEnd"
+                                        | "groupInterval"
+                                )
+                            })
+                    })
+                    && field
+                        .items
+                        .iter()
+                        .all(|item| matches!(item, PivotItem::Text(_)))
                     && group.range.as_ref().is_some_and(|range| {
-                        let fixed = |key: &str| matches!(range.get(key).map(String::as_str), Some("0" | "false"));
-                        let number = |key: &str| range.get(key).and_then(|v| v.parse::<f64>().ok())
-                            .filter(|n| n.is_finite() && n.fract() == 0.0 && n.abs() <= 4_503_599_627_370_496.0);
-                        match (number("startNum"), number("endNum"), number("groupInterval")) {
-                            (Some(start), Some(end), Some(step)) if fixed("autoStart") && fixed("autoEnd")
-                                && end > start && step > 0.0 && ((end - start) / step).fract() == 0.0
-                                && range.keys().all(|key| matches!(key.as_str(), "autoStart" | "autoEnd" | "startNum" | "endNum" | "groupInterval")) => {
-                                let count = ((end - start) / step) as usize;
-                                count <= 100_000 && group.numeric_items.as_ref().is_some_and(|items|
-                                    items.len() == count + 2 && items.iter().all(|item| matches!(item, PivotItem::Text(_))))
+                        match range.get("groupBy").map(String::as_str) {
+                            Some("days") if !range.contains_key("groupInterval") => {
+                                field.items.len() == 368
+                            }
+                            Some("days") => {
+                                let fixed = |key: &str| {
+                                    matches!(
+                                        range.get(key).map(String::as_str),
+                                        Some("0" | "false")
+                                    )
+                                };
+                                let bound = |key: &str| {
+                                    range.get(key).and_then(|value| {
+                                        PivotItem::Date(value.clone()).date_serial()
+                                    })
+                                };
+                                match (bound("startDate"), bound("endDate")) {
+                                    (Some(start), Some(end))
+                                        if range.get("groupInterval").is_some_and(|v| v == "7")
+                                            && fixed("autoStart")
+                                            && fixed("autoEnd")
+                                            && start.fract() == 0.0
+                                            && end.fract() == 0.0
+                                            && end >= start =>
+                                    {
+                                        (((end - start) / 7.0).floor() as usize).checked_add(3)
+                                            == Some(field.items.len())
+                                    }
+                                    _ => false,
+                                }
+                            }
+                            Some("months") => {
+                                !range.contains_key("groupInterval") && field.items.len() == 14
+                            }
+                            Some("quarters") => {
+                                !range.contains_key("groupInterval") && field.items.len() == 6
+                            }
+                            Some("years") if !range.contains_key("groupInterval") => {
+                                let year = |key: &str| {
+                                    range
+                                        .get(key)
+                                        .and_then(|s| s.split('-').next())
+                                        .and_then(|s| s.parse::<i64>().ok())
+                                };
+                                match (year("startDate"), year("endDate")) {
+                                    (Some(first), Some(last))
+                                        if (1900..=9999).contains(&first)
+                                            && (first..=9999).contains(&last) =>
+                                    {
+                                        usize::try_from(last - first + 3).ok()
+                                            == Some(field.items.len())
+                                    }
+                                    _ => false,
+                                }
                             }
                             _ => false,
                         }
                     });
-                let parent = group.range.is_none() && group.discrete.is_none() && group.numeric_items.is_none()
+                let discrete_supported = !group.attributes.contains_key("par")
+                    && group.range.is_none()
+                    && group.numeric_items.is_none()
+                    && group
+                        .attributes
+                        .get("base")
+                        .and_then(|value| value.parse::<usize>().ok())
+                        .and_then(|base| cache.fields.get(base))
+                        .is_some_and(|base| {
+                            base.group
+                                .as_ref()
+                                .and_then(|parent| parent.attributes.get("par"))
+                                .and_then(|value| value.parse::<usize>().ok())
+                                == Some(field_index)
+                                && base.items.iter().all(|item| {
+                                    matches!(item, PivotItem::Text(_) | PivotItem::Missing)
+                                })
+                                && group.discrete.as_ref().is_some_and(|mapping| {
+                                    mapping.len() == base.items.len()
+                                        && mapping
+                                            .iter()
+                                            .all(|&index| (index as usize) < field.items.len())
+                                })
+                        })
+                    && field
+                        .items
+                        .iter()
+                        .all(|item| matches!(item, PivotItem::Text(_) | PivotItem::Missing));
+                if !supported && !discrete_supported {
+                    cache.unsupported.push("unsupported grouping".into());
+                }
+            } else {
+                let numeric = group.discrete.is_none()
+                    && !group.attributes.contains_key("par")
+                    && group
+                        .attributes
+                        .get("base")
+                        .and_then(|v| v.parse::<usize>().ok())
+                        == Some(field_index)
+                    && group.range.as_ref().is_some_and(|range| {
+                        let fixed = |key: &str| {
+                            matches!(range.get(key).map(String::as_str), Some("0" | "false"))
+                        };
+                        let number = |key: &str| {
+                            range
+                                .get(key)
+                                .and_then(|v| v.parse::<f64>().ok())
+                                .filter(|n| {
+                                    n.is_finite()
+                                        && n.fract() == 0.0
+                                        && n.abs() <= 4_503_599_627_370_496.0
+                                })
+                        };
+                        match (
+                            number("startNum"),
+                            number("endNum"),
+                            number("groupInterval"),
+                        ) {
+                            (Some(start), Some(end), Some(step))
+                                if fixed("autoStart")
+                                    && fixed("autoEnd")
+                                    && end > start
+                                    && step > 0.0
+                                    && ((end - start) / step).fract() == 0.0
+                                    && range.keys().all(|key| {
+                                        matches!(
+                                            key.as_str(),
+                                            "autoStart"
+                                                | "autoEnd"
+                                                | "startNum"
+                                                | "endNum"
+                                                | "groupInterval"
+                                        )
+                                    }) =>
+                            {
+                                let count = ((end - start) / step) as usize;
+                                count <= 100_000
+                                    && group.numeric_items.as_ref().is_some_and(|items| {
+                                        items.len() == count + 2
+                                            && items
+                                                .iter()
+                                                .all(|item| matches!(item, PivotItem::Text(_)))
+                                    })
+                            }
+                            _ => false,
+                        }
+                    });
+                let parent = group.range.is_none()
+                    && group.discrete.is_none()
+                    && group.numeric_items.is_none()
                     && !group.attributes.contains_key("base")
-                    && group.attributes.get("par").and_then(|v| v.parse::<usize>().ok()).is_some_and(|i| i < cache.fields.len());
-                if !numeric && !parent { cache.unsupported.push("unsupported source-field grouping".into()); }
+                    && group
+                        .attributes
+                        .get("par")
+                        .and_then(|v| v.parse::<usize>().ok())
+                        .is_some_and(|i| i < cache.fields.len());
+                if !numeric && !parent {
+                    cache
+                        .unsupported
+                        .push("unsupported source-field grouping".into());
+                }
             }
-        } else if virtual_field && field.attributes.get("formula").is_none_or(|formula| formula.is_empty()) {
-            cache.unsupported.push("unsupported virtual cache field".into());
+        } else if virtual_field
+            && field
+                .attributes
+                .get("formula")
+                .is_none_or(|formula| formula.is_empty())
+        {
+            cache
+                .unsupported
+                .push("unsupported virtual cache field".into());
         }
     }
     Ok(cache)
@@ -483,11 +794,41 @@ pub(crate) fn read_parts(
 /// Worksheet pivots are implicit relationship targets in SpreadsheetML. Retain support for
 /// the older synthetic fixture's explicit list, without reading any definition twice.
 /// https://learn.microsoft.com/en-us/office/open-xml/spreadsheet/working-with-pivottables
-pub(crate) fn read_related(package:&Package,sheet_part:&str,sheet:SheetId,out:&mut SheetPivots){
-    let mut seen=out.tables.iter().map(|t|t.part.clone()).chain(out.issues.iter().map(|i|i.part.clone())).collect::<BTreeSet<_>>();
-    for rel in package.relationships_of(Some(sheet_part)).into_iter().flat_map(|r|r.items()).filter(|r|r.kind==format!("{R}/pivotTable")){
-        let Some(part)=rel.resolved.as_deref().filter(|_|rel.mode==TargetMode::Internal)else{out.issues.push(issue(sheet_part,"A pivot relationship has no internal definition target"));continue;};
-        if seen.insert(part.to_owned()){match read_table(package,part,sheet){Ok(table)=>out.tables.push(table),Err(e)=>out.issues.push(issue(part,e)),}}
+pub(crate) fn read_related(
+    package: &Package,
+    sheet_part: &str,
+    sheet: SheetId,
+    out: &mut SheetPivots,
+) {
+    let mut seen = out
+        .tables
+        .iter()
+        .map(|t| t.part.clone())
+        .chain(out.issues.iter().map(|i| i.part.clone()))
+        .collect::<BTreeSet<_>>();
+    for rel in package
+        .relationships_of(Some(sheet_part))
+        .into_iter()
+        .flat_map(|r| r.items())
+        .filter(|r| r.kind == format!("{R}/pivotTable"))
+    {
+        let Some(part) = rel
+            .resolved
+            .as_deref()
+            .filter(|_| rel.mode == TargetMode::Internal)
+        else {
+            out.issues.push(issue(
+                sheet_part,
+                "A pivot relationship has no internal definition target",
+            ));
+            continue;
+        };
+        if seen.insert(part.to_owned()) {
+            match read_table(package, part, sheet) {
+                Ok(table) => out.tables.push(table),
+                Err(e) => out.issues.push(issue(part, e)),
+            }
+        }
     }
 }
 
@@ -499,7 +840,7 @@ fn read_table(package: &Package, part: &str, sheet: SheetId) -> Result<PivotTabl
         "pivotTableDefinition",
         "The table part has no pivotTableDefinition root",
     )?;
-    let name = decoded(required(&root, "name", &events)?,&events)?;
+    let name = decoded(required(&root, "name", &events)?, &events)?;
     let cache_id = integer(&root, "cacheId", &events)?;
     let mut location = None;
     let mut location_attrs = BTreeMap::new();
@@ -528,34 +869,81 @@ fn read_table(package: &Package, part: &str, sheet: SheetId) -> Result<PivotTabl
                 let filter_path: Vec<_> = path.iter().map(String::as_str).collect();
                 if let Some((step, invalid, selected)) = sort_scope.as_mut() {
                     let expected = match (*step, filter_path.as_slice(), e.name.local.as_str()) {
-                        (0, ["pivotFields", "pivotField", "autoSortScope"], "pivotArea") =>
-                            e.attributes.len() == 3 && e.attribute("dataOnly") == Some("0")
-                                && e.attribute("outline") == Some("0") && e.attribute("fieldPosition") == Some("0"),
-                        (1, ["pivotFields", "pivotField", "autoSortScope", "pivotArea"], "references") =>
-                            e.attributes.len() == 1 && e.attribute("count") == Some("1"),
-                        (2, ["pivotFields", "pivotField", "autoSortScope", "pivotArea", "references"], "reference") =>
-                            e.attributes.len() == 3 && e.attribute("field") == Some("4294967294")
-                                && e.attribute("count") == Some("1") && e.attribute("selected") == Some("0"),
-                        (3, ["pivotFields", "pivotField", "autoSortScope", "pivotArea", "references", "reference"], "x") => {
+                        (0, ["pivotFields", "pivotField", "autoSortScope"], "pivotArea") => {
+                            e.attributes.len() == 3
+                                && e.attribute("dataOnly") == Some("0")
+                                && e.attribute("outline") == Some("0")
+                                && e.attribute("fieldPosition") == Some("0")
+                        }
+                        (
+                            1,
+                            ["pivotFields", "pivotField", "autoSortScope", "pivotArea"],
+                            "references",
+                        ) => e.attributes.len() == 1 && e.attribute("count") == Some("1"),
+                        (
+                            2,
+                            [
+                                "pivotFields",
+                                "pivotField",
+                                "autoSortScope",
+                                "pivotArea",
+                                "references",
+                            ],
+                            "reference",
+                        ) => {
+                            e.attributes.len() == 3
+                                && e.attribute("field") == Some("4294967294")
+                                && e.attribute("count") == Some("1")
+                                && e.attribute("selected") == Some("0")
+                        }
+                        (
+                            3,
+                            [
+                                "pivotFields",
+                                "pivotField",
+                                "autoSortScope",
+                                "pivotArea",
+                                "references",
+                                "reference",
+                            ],
+                            "x",
+                        ) => {
                             *selected = e.attribute("v").and_then(|v| v.parse().ok());
                             e.attributes.len() == 1 && selected.is_some()
                         }
                         _ => false,
                     };
-                    *invalid |= !expected || e.name.namespace.as_deref() != Some(M)
+                    *invalid |= !expected
+                        || e.name.namespace.as_deref() != Some(M)
                         || e.attributes.iter().any(|a| a.name.namespace.is_some());
                     *step += 1;
                 }
                 if let Some((step, invalid, show)) = data_extension.as_mut() {
                     let known = match (*step, filter_path.as_slice(), e.name.local.as_str()) {
-                        (0, ["dataFields", "dataField", "extLst"], "ext") =>
-                            e.name.namespace.as_deref() == Some(M) && e.attributes.len() == 1
-                                && e.attribute("uri") == Some("{E15A36E0-9728-4e99-A89B-3F7291B0FE68}"),
+                        (0, ["dataFields", "dataField", "extLst"], "ext") => {
+                            e.name.namespace.as_deref() == Some(M)
+                                && e.attributes.len() == 1
+                                && e.attribute("uri")
+                                    == Some("{E15A36E0-9728-4e99-A89B-3F7291B0FE68}")
+                        }
                         (1, ["dataFields", "dataField", "extLst", "ext"], "dataField") => {
-                            *show = e.attribute("pivotShowAs").filter(|v| matches!(*v,
-                                "percentOfParentRow" | "percentOfParentCol" | "percentOfParent" | "percentOfRunningTotal" | "rankAscending" | "rankDescending"))
+                            *show = e
+                                .attribute("pivotShowAs")
+                                .filter(|v| {
+                                    matches!(
+                                        *v,
+                                        "percentOfParentRow"
+                                            | "percentOfParentCol"
+                                            | "percentOfParent"
+                                            | "percentOfRunningTotal"
+                                            | "rankAscending"
+                                            | "rankDescending"
+                                    )
+                                })
                                 .map(str::to_owned);
-                            e.name.namespace.as_deref() == Some(X14) && e.attributes.len() == 1 && show.is_some()
+                            e.name.namespace.as_deref() == Some(X14)
+                                && e.attributes.len() == 1
+                                && show.is_some()
                         }
                         _ => false,
                     };
@@ -563,21 +951,42 @@ fn read_table(package: &Package, part: &str, sheet: SheetId) -> Result<PivotTabl
                     *step += 1;
                 }
                 if filter_path.starts_with(&["filters", "filter"]) {
-                    let known = e.name.namespace.as_deref() == Some(M) && matches!(
-                        (filter_path.as_slice(), e.name.local.as_str()),
-                        (["filters", "filter"], "autoFilter") |
-                        (["filters", "filter", "autoFilter"], "filterColumn") |
-                        (["filters", "filter", "autoFilter", "filterColumn"], "top10" | "customFilters") |
-                        (["filters", "filter", "autoFilter", "filterColumn", "customFilters"], "customFilter")
-                    );
-                    if !known { if let Some(invalid) = invalid_filters.last_mut() { *invalid = true; } }
+                    let known = e.name.namespace.as_deref() == Some(M)
+                        && matches!(
+                            (filter_path.as_slice(), e.name.local.as_str()),
+                            (["filters", "filter"], "autoFilter")
+                                | (["filters", "filter", "autoFilter"], "filterColumn")
+                                | (
+                                    ["filters", "filter", "autoFilter", "filterColumn"],
+                                    "top10" | "customFilters"
+                                )
+                                | (
+                                    [
+                                        "filters",
+                                        "filter",
+                                        "autoFilter",
+                                        "filterColumn",
+                                        "customFilters"
+                                    ],
+                                    "customFilter"
+                                )
+                        );
+                    if !known {
+                        if let Some(invalid) = invalid_filters.last_mut() {
+                            *invalid = true;
+                        }
+                    }
                 }
                 if e.name.namespace.as_deref() == Some(X14)
                     && e.name.local == "pivotField"
-                    && path.iter().map(String::as_str).collect::<Vec<_>>() == ["pivotFields", "pivotField", "extLst", "ext"]
+                    && path.iter().map(String::as_str).collect::<Vec<_>>()
+                        == ["pivotFields", "pivotField", "extLst", "ext"]
                 {
                     // x14:pivotField carries Repeat All Item Labels as fillDownLabels.
-                    let known = e.attributes.iter().all(|a| a.name.local == "fillDownLabels");
+                    let known = e
+                        .attributes
+                        .iter()
+                        .all(|a| a.name.local == "fillDownLabels");
                     match (known, e.attribute("fillDownLabels"), fields.last_mut()) {
                         (true, Some(v), Some(field)) => {
                             field.attributes.insert("fillDownLabels".into(), v.into());
@@ -615,50 +1024,121 @@ fn read_table(package: &Package, part: &str, sheet: SheetId) -> Result<PivotTabl
                                     .map_err(|_| events.invalid("The pivot location is invalid"))?
                             });
                         }
-                        (["pivotFields"], "pivotField") => fields.push(PivotField { attributes:attrs(&e),items:Vec::new(),sort_measure:None }),
-                        (["pivotFields","pivotField","items"],"item") => {
-                            if e.attribute("n").is_some(){unsupported.push("custom item captions".into());}
-                            if e.attribute("f").is_some_and(|value| !matches!(value, "0" | "1" | "false" | "true")) {
+                        (["pivotFields"], "pivotField") => fields.push(PivotField {
+                            attributes: attrs(&e),
+                            items: Vec::new(),
+                            sort_measure: None,
+                        }),
+                        (["pivotFields", "pivotField", "items"], "item") => {
+                            if e.attribute("n").is_some() {
+                                unsupported.push("custom item captions".into());
+                            }
+                            if e.attribute("f")
+                                .is_some_and(|value| !matches!(value, "0" | "1" | "false" | "true"))
+                            {
                                 unsupported.push("invalid calculated-item flag".into());
                             }
-                            if e.attribute("m").is_some_and(|value| !matches!(value, "0" | "1" | "false" | "true")) {
+                            if e.attribute("m")
+                                .is_some_and(|value| !matches!(value, "0" | "1" | "false" | "true"))
+                            {
                                 unsupported.push("invalid missing-item flag".into());
                             }
-                            if let Some(field)=fields.last_mut() {field.items.push(PivotFieldItem {index:optional_integer(&e,"x",&events)?,kind:e.attribute("t").unwrap_or("data").into(),hidden:matches!(e.attribute("h"),Some("1"|"true")),missing:matches!(e.attribute("m"),Some("1"|"true")),calculated:matches!(e.attribute("f"),Some("1"|"true"))});}
+                            if let Some(field) = fields.last_mut() {
+                                field.items.push(PivotFieldItem {
+                                    index: optional_integer(&e, "x", &events)?,
+                                    kind: e.attribute("t").unwrap_or("data").into(),
+                                    hidden: matches!(e.attribute("h"), Some("1" | "true")),
+                                    missing: matches!(e.attribute("m"), Some("1" | "true")),
+                                    calculated: matches!(e.attribute("f"), Some("1" | "true")),
+                                });
+                            }
                         }
-                        (["rowItems"],"i") => row_items.push(PivotAxisItem {kind:e.attribute("t").unwrap_or("data").into(),repeat:optional_integer(&e,"r",&events)?.unwrap_or(0),data_index:optional_integer(&e,"i",&events)?.unwrap_or(0),indexes:Vec::new()}),
-                        (["colItems"],"i") => col_items.push(PivotAxisItem {kind:e.attribute("t").unwrap_or("data").into(),repeat:optional_integer(&e,"r",&events)?.unwrap_or(0),data_index:optional_integer(&e,"i",&events)?.unwrap_or(0),indexes:Vec::new()}),
-                        (["colItems","i"],"x") => {if let Some(item)=col_items.last_mut(){item.indexes.push(optional_integer(&e,"v",&events)?.unwrap_or(0));}}
-                        (["rowItems","i"],"x") => {if let Some(item)=row_items.last_mut(){item.indexes.push(optional_integer(&e,"v",&events)?.unwrap_or(0));}}
-                        ([], "pivotTableStyleInfo") => style = Some(PivotStyle { attributes: attrs(&e) }),
-                        (["formats"], "format") => formats.push(PivotFormat { attributes: attrs(&e), area: None }),
+                        (["rowItems"], "i") => row_items.push(PivotAxisItem {
+                            kind: e.attribute("t").unwrap_or("data").into(),
+                            repeat: optional_integer(&e, "r", &events)?.unwrap_or(0),
+                            data_index: optional_integer(&e, "i", &events)?.unwrap_or(0),
+                            indexes: Vec::new(),
+                        }),
+                        (["colItems"], "i") => col_items.push(PivotAxisItem {
+                            kind: e.attribute("t").unwrap_or("data").into(),
+                            repeat: optional_integer(&e, "r", &events)?.unwrap_or(0),
+                            data_index: optional_integer(&e, "i", &events)?.unwrap_or(0),
+                            indexes: Vec::new(),
+                        }),
+                        (["colItems", "i"], "x") => {
+                            if let Some(item) = col_items.last_mut() {
+                                item.indexes
+                                    .push(optional_integer(&e, "v", &events)?.unwrap_or(0));
+                            }
+                        }
+                        (["rowItems", "i"], "x") => {
+                            if let Some(item) = row_items.last_mut() {
+                                item.indexes
+                                    .push(optional_integer(&e, "v", &events)?.unwrap_or(0));
+                            }
+                        }
+                        ([], "pivotTableStyleInfo") => {
+                            style = Some(PivotStyle {
+                                attributes: attrs(&e),
+                            })
+                        }
+                        (["formats"], "format") => formats.push(PivotFormat {
+                            attributes: attrs(&e),
+                            area: None,
+                        }),
                         (["formats", "format"], "pivotArea") => {
                             if let Some(format) = formats.last_mut() {
-                                format.area = Some(PivotFormatArea { attributes: attrs(&e), references: Vec::new() });
+                                format.area = Some(PivotFormatArea {
+                                    attributes: attrs(&e),
+                                    references: Vec::new(),
+                                });
                             }
                         }
                         (["formats", "format", "pivotArea", "references"], "reference") => {
-                            if let Some(area) = formats.last_mut().and_then(|format| format.area.as_mut()) {
-                                area.references.push(PivotFormatReference { attributes: attrs(&e), items: Vec::new() });
+                            if let Some(area) =
+                                formats.last_mut().and_then(|format| format.area.as_mut())
+                            {
+                                area.references.push(PivotFormatReference {
+                                    attributes: attrs(&e),
+                                    items: Vec::new(),
+                                });
                             }
                         }
                         (["formats", "format", "pivotArea", "references", "reference"], "x") => {
-                            if let Some(reference) = formats.last_mut().and_then(|format| format.area.as_mut()).and_then(|area| area.references.last_mut()) {
-                                reference.items.push(optional_integer(&e, "v", &events)?.unwrap_or(0));
+                            if let Some(reference) = formats
+                                .last_mut()
+                                .and_then(|format| format.area.as_mut())
+                                .and_then(|area| area.references.last_mut())
+                            {
+                                reference
+                                    .items
+                                    .push(optional_integer(&e, "v", &events)?.unwrap_or(0));
                             }
                         }
-                        ([],"conditionalFormats"|"rowHierarchies"|"colHierarchies"|"calculatedMembers")
-                        | (["pivotFields","pivotField"],"memberProperties") => unsupported.push(e.name.local.to_string()),
-                        (["pivotFields","pivotField"],"autoSortScope") => {
-                            if sort_scope.is_some() || !e.attributes.is_empty()
-                                || fields.last().is_none_or(|field| field.sort_measure.is_some()) {
+                        (
+                            [],
+                            "conditionalFormats" | "rowHierarchies" | "colHierarchies"
+                            | "calculatedMembers",
+                        )
+                        | (["pivotFields", "pivotField"], "memberProperties") => {
+                            unsupported.push(e.name.local.to_string())
+                        }
+                        (["pivotFields", "pivotField"], "autoSortScope") => {
+                            if sort_scope.is_some()
+                                || !e.attributes.is_empty()
+                                || fields
+                                    .last()
+                                    .is_none_or(|field| field.sort_measure.is_some())
+                            {
                                 unsupported.push("unsupported value sort".into());
                             }
                             sort_scope = Some((0, false, None));
                         }
-                        (["pivotFields","pivotField"],"extLst") => {}
-                        (["pivotFields","pivotField","extLst"],"ext") => {
-                            if e.attribute("uri") != Some(FILL_DOWN_URI) { unsupported.push("extLst".into()); }
+                        (["pivotFields", "pivotField"], "extLst") => {}
+                        (["pivotFields", "pivotField", "extLst"], "ext") => {
+                            if e.attribute("uri") != Some(FILL_DOWN_URI) {
+                                unsupported.push("extLst".into());
+                            }
                         }
                         (["rowFields"], "field") => row_fields.push(integer(&e, "x", &events)?),
                         (["colFields"], "field") => column_fields.push(integer(&e, "x", &events)?),
@@ -675,68 +1155,138 @@ fn read_table(package: &Package, part: &str, sheet: SheetId) -> Result<PivotTabl
                             filter_type = e.attribute("type").unwrap_or("").into();
                             auto_filters = 0;
                             filter_columns = 0;
-                            invalid_filters.push(e.attributes.iter().any(|a| !matches!(a.name.local.as_str(),
-                                "fld" | "type" | "evalOrder" | "id" | "iMeasureFld"))
-                                || e.attribute("evalOrder").is_some_and(|v| v != "-1"));
+                            invalid_filters.push(
+                                e.attributes.iter().any(|a| {
+                                    !matches!(
+                                        a.name.local.as_str(),
+                                        "fld" | "type" | "evalOrder" | "id" | "iMeasureFld"
+                                    )
+                                }) || e.attribute("evalOrder").is_some_and(|v| v != "-1"),
+                            );
                             filters.push(PivotFilter {
                                 field: integer(&e, "fld", &events)?,
-                                measure: optional_integer(&e, "iMeasureFld", &events)?.unwrap_or(u32::MAX),
+                                measure: optional_integer(&e, "iMeasureFld", &events)?
+                                    .unwrap_or(u32::MAX),
                                 kind: PivotFilterKind::Unsupported,
                             });
                         }
-                        (["filters"], _) => unsupported.push("unsupported pivot filter element".into()),
+                        (["filters"], _) => {
+                            unsupported.push("unsupported pivot filter element".into())
+                        }
                         (["filters", "filter"], "autoFilter") => {
                             auto_filters += 1;
-                            if auto_filters != 1 || e.attributes.iter().any(|a| a.name.local != "ref") {
-                                if let Some(invalid) = invalid_filters.last_mut() { *invalid = true; }
+                            if auto_filters != 1
+                                || e.attributes.iter().any(|a| a.name.local != "ref")
+                            {
+                                if let Some(invalid) = invalid_filters.last_mut() {
+                                    *invalid = true;
+                                }
                             }
                         }
                         (["filters", "filter", "autoFilter"], "filterColumn") => {
                             filter_columns += 1;
-                            if filter_columns != 1 || e.attribute("colId") != Some("0") || e.attributes.iter().any(|a| a.name.local != "colId") {
-                                if let Some(invalid) = invalid_filters.last_mut() { *invalid = true; }
+                            if filter_columns != 1
+                                || e.attribute("colId") != Some("0")
+                                || e.attributes.iter().any(|a| a.name.local != "colId")
+                            {
+                                if let Some(invalid) = invalid_filters.last_mut() {
+                                    *invalid = true;
+                                }
                             }
                         }
                         (["filters", "filter", "autoFilter", "filterColumn"], "customFilters") => {
-                            if e.attributes.iter().any(|a| a.name.local != "and") || matches!(e.attribute("and"), Some("1" | "true")) {
-                                if let Some(invalid) = invalid_filters.last_mut() { *invalid = true; }
+                            if e.attributes.iter().any(|a| a.name.local != "and")
+                                || matches!(e.attribute("and"), Some("1" | "true"))
+                            {
+                                if let Some(invalid) = invalid_filters.last_mut() {
+                                    *invalid = true;
+                                }
                             }
                         }
                         (["filters", "filter", "autoFilter", "filterColumn"], "top10") => {
-                            if e.attributes.iter().any(|a| !matches!(a.name.local.as_str(), "val" | "filterVal" | "top" | "percent")) {
-                                if let Some(invalid) = invalid_filters.last_mut() { *invalid = true; }
+                            if e.attributes.iter().any(|a| {
+                                !matches!(
+                                    a.name.local.as_str(),
+                                    "val" | "filterVal" | "top" | "percent"
+                                )
+                            }) {
+                                if let Some(invalid) = invalid_filters.last_mut() {
+                                    *invalid = true;
+                                }
                             }
-                            if filters.last().is_some_and(|f| !matches!(f.kind, PivotFilterKind::Unsupported)) {
-                                if let Some(invalid) = invalid_filters.last_mut() { *invalid = true; }
+                            if filters
+                                .last()
+                                .is_some_and(|f| !matches!(f.kind, PivotFilterKind::Unsupported))
+                            {
+                                if let Some(invalid) = invalid_filters.last_mut() {
+                                    *invalid = true;
+                                }
                             }
-                            if filter_type == "count" && !matches!(e.attribute("top"), Some("0" | "false"))
-                                && !matches!(e.attribute("percent"), Some("1" | "true")) {
-                                if let (Some(filter), Some(count)) = (filters.last_mut(), e.attribute("val").and_then(|v| v.parse::<u32>().ok()).filter(|n| *n > 0)) {
+                            if filter_type == "count"
+                                && !matches!(e.attribute("top"), Some("0" | "false"))
+                                && !matches!(e.attribute("percent"), Some("1" | "true"))
+                            {
+                                if let (Some(filter), Some(count)) = (
+                                    filters.last_mut(),
+                                    e.attribute("val")
+                                        .and_then(|v| v.parse::<u32>().ok())
+                                        .filter(|n| *n > 0),
+                                ) {
                                     filter.kind = PivotFilterKind::TopCount(count);
                                 }
                             }
                         }
-                        (["filters", "filter", "autoFilter", "filterColumn", "customFilters"], "customFilter") => {
-                            if e.attributes.iter().any(|a| !matches!(a.name.local.as_str(), "operator" | "val"))
-                                || filters.last().is_some_and(|f| !matches!(f.kind, PivotFilterKind::Unsupported)) {
-                                if let Some(invalid) = invalid_filters.last_mut() { *invalid = true; }
+                        (
+                            [
+                                "filters",
+                                "filter",
+                                "autoFilter",
+                                "filterColumn",
+                                "customFilters",
+                            ],
+                            "customFilter",
+                        ) => {
+                            if e.attributes
+                                .iter()
+                                .any(|a| !matches!(a.name.local.as_str(), "operator" | "val"))
+                                || filters.last().is_some_and(|f| {
+                                    !matches!(f.kind, PivotFilterKind::Unsupported)
+                                })
+                            {
+                                if let Some(invalid) = invalid_filters.last_mut() {
+                                    *invalid = true;
+                                }
                             }
-                            if filter_type == "valueGreaterThan" && e.attribute("operator") == Some("greaterThan") {
-                                if let (Some(filter), Some(value)) = (filters.last_mut(), e.attribute("val")) {
+                            if filter_type == "valueGreaterThan"
+                                && e.attribute("operator") == Some("greaterThan")
+                            {
+                                if let (Some(filter), Some(value)) =
+                                    (filters.last_mut(), e.attribute("val"))
+                                {
                                     filter.kind = PivotFilterKind::ValueGreaterThan(value.into());
                                 }
                             }
                         }
                         (["dataFields", "dataField"], "extLst") => {
-                            if data_extension.is_some() || !e.attributes.is_empty()
-                                || data_fields.last().is_none_or(|field: &PivotDataField| field.extended_show.is_some()
-                                    || field.attributes.get("showDataAs").is_some_and(|v| v != "normal")) {
+                            if data_extension.is_some()
+                                || !e.attributes.is_empty()
+                                || data_fields.last().is_none_or(|field: &PivotDataField| {
+                                    field.extended_show.is_some()
+                                        || field
+                                            .attributes
+                                            .get("showDataAs")
+                                            .is_some_and(|v| v != "normal")
+                                })
+                            {
                                 unsupported.push("data field extension".into());
                             }
                             data_extension = Some((0, false, None));
-                        },
+                        }
                         (["dataFields"], "dataField") => data_fields.push(PivotDataField {
-                            name: e.attribute("name").map(|s|decoded(s,&events)).transpose()?,
+                            name: e
+                                .attribute("name")
+                                .map(|s| decoded(s, &events))
+                                .transpose()?,
                             field: integer(&e, "fld", &events)?,
                             subtotal: e.attribute("subtotal").unwrap_or("sum").into(),
                             attributes: attrs(&e),
@@ -752,15 +1302,23 @@ fn read_table(package: &Package, part: &str, sheet: SheetId) -> Result<PivotTabl
                 });
             }
             XmlEvent::End(_) => {
-                if path.iter().map(String::as_str).collect::<Vec<_>>() == ["dataFields", "dataField", "extLst"] {
+                if path.iter().map(String::as_str).collect::<Vec<_>>()
+                    == ["dataFields", "dataField", "extLst"]
+                {
                     match data_extension.take() {
-                        Some((2, false, Some(show))) => data_fields.last_mut().unwrap().extended_show = Some(show),
+                        Some((2, false, Some(show))) => {
+                            data_fields.last_mut().unwrap().extended_show = Some(show)
+                        }
                         _ => unsupported.push("data field extension".into()),
                     }
                 }
-                if path.iter().map(String::as_str).collect::<Vec<_>>() == ["pivotFields", "pivotField", "autoSortScope"] {
+                if path.iter().map(String::as_str).collect::<Vec<_>>()
+                    == ["pivotFields", "pivotField", "autoSortScope"]
+                {
                     match sort_scope.take() {
-                        Some((4, false, Some(measure))) => fields.last_mut().unwrap().sort_measure = Some(measure),
+                        Some((4, false, Some(measure))) => {
+                            fields.last_mut().unwrap().sort_measure = Some(measure)
+                        }
                         _ => unsupported.push("unsupported value sort".into()),
                     }
                 }
@@ -772,14 +1330,20 @@ fn read_table(package: &Package, part: &str, sheet: SheetId) -> Result<PivotTabl
         }
     }
     if invalid_filters.iter().any(|invalid| *invalid)
-        || filters.iter().any(|f| matches!(f.kind, PivotFilterKind::Unsupported)) {
+        || filters
+            .iter()
+            .any(|f| matches!(f.kind, PivotFilterKind::Unsupported))
+    {
         unsupported.push("unsupported pivot filter".into());
     }
     let area = location.ok_or_else(|| events.invalid("The pivot has no saved location"))?;
     // A pivot with fields whose location is one cell is the file Excel writes for a pivot that took its top-left
     // cell for lack of room (m7-names col-*): its output cell holds an error.
     let collapsed = area.cell_count() == 1
-        && !(row_fields.is_empty() && column_fields.is_empty() && page_fields.is_empty() && data_fields.is_empty());
+        && !(row_fields.is_empty()
+            && column_fields.is_empty()
+            && page_fields.is_empty()
+            && data_fields.is_empty());
     Ok(PivotTable {
         name,
         part: part.into(),
@@ -792,7 +1356,13 @@ fn read_table(package: &Package, part: &str, sheet: SheetId) -> Result<PivotTabl
         filters,
         data_fields,
         attributes: attrs(&root),
-        location: location_attrs, fields, row_items, col_items, style, formats, unsupported,
+        location: location_attrs,
+        fields,
+        row_items,
+        col_items,
+        style,
+        formats,
+        unsupported,
     })
 }
 
@@ -800,7 +1370,7 @@ fn item(e: &XmlElement, events: &Events<'_>) -> Result<PivotItem, LoadError> {
     Ok(match e.name.local.as_str() {
         "m" => PivotItem::Missing,
         "n" => PivotItem::Number(required(e, "v", events)?.into()),
-        "s" => PivotItem::Text(decoded(required(e, "v", events)?,events)?),
+        "s" => PivotItem::Text(decoded(required(e, "v", events)?, events)?),
         "d" => PivotItem::Date(required(e, "v", events)?.into()),
         "e" => PivotItem::Error(required(e, "v", events)?.into()),
         "x" => PivotItem::Index(integer(e, "v", events)?),

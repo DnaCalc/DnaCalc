@@ -253,7 +253,8 @@ impl Module {
         let entries = if private_worksheet_lookup {
             let entries = worksheet::private_entries(&mut manifest, &engine)?;
             if !entries.bridges.is_empty() {
-                engine = oxvba_embed::Module::load_project(&manifest, resolver).map_err(engine_error)?;
+                engine =
+                    oxvba_embed::Module::load_project(&manifest, resolver).map_err(engine_error)?;
             }
             entries
         } else {
@@ -314,7 +315,11 @@ impl Module {
                                 param_array: p.param_array,
                             })
                             .collect(),
-                        return_type: original.return_type.as_ref().map(type_name).unwrap_or_default(),
+                        return_type: original
+                            .return_type
+                            .as_ref()
+                            .map(type_name)
+                            .unwrap_or_default(),
                     },
                     entry,
                 )
@@ -353,9 +358,14 @@ impl Module {
         {
             return Err(Error::UnsupportedSignature("worksheet UDF signature outside the document project's owning value carriers (dc-hsa5.12)".into()));
         }
-        let late = late_binding::LateBinding::of(manifest.modules.iter().map(|m| m.source.as_str()));
+        let late =
+            late_binding::LateBinding::of(manifest.modules.iter().map(|m| m.source.as_str()));
         let spreadsheet = spreadsheet_objects.then(|| {
-            Arc::new(spreadsheet::SpreadsheetHost::new(events && automatic_events, references.com, late.clone()))
+            Arc::new(spreadsheet::SpreadsheetHost::new(
+                events && automatic_events,
+                references.com,
+                late.clone(),
+            ))
         });
         let engine = if let Some(host) = &spreadsheet {
             engine.with_host(host.clone())
@@ -377,7 +387,11 @@ impl Module {
     }
     pub(crate) fn worksheet_refusals(&self) -> impl Iterator<Item = (&str, &str, &'static str)> {
         self.worksheet_refusals.iter().map(|entry| {
-            (entry.name.as_str(), entry.qualified_name.as_str(), entry.reason)
+            (
+                entry.name.as_str(),
+                entry.qualified_name.as_str(),
+                entry.reason,
+            )
         })
     }
 }
@@ -459,16 +473,24 @@ fn exported_source(source: &str) -> String {
     let mut body = String::with_capacity(source.len());
     let mut attributes = String::new();
     let mut start = 0;
-    for end in (0..tokens.len()).filter(|&i| tokens[i].0 == K::Newline)
-        .map(|i| i + 1).chain(std::iter::once(tokens.len()))
+    for end in (0..tokens.len())
+        .filter(|&i| tokens[i].0 == K::Newline)
+        .map(|i| i + 1)
+        .chain(std::iter::once(tokens.len()))
     {
         let statement = &tokens[start..end];
         start = end;
-        let significant = statement.iter().filter(|(kind, _)| !matches!(
-            kind, K::Whitespace | K::Comment | K::Newline | K::LineContinuation,
-        )).collect::<Vec<_>>();
-        let description = significant.len() == 6
-            && significant[3].1.eq_ignore_ascii_case("VB_Description");
+        let significant = statement
+            .iter()
+            .filter(|(kind, _)| {
+                !matches!(
+                    kind,
+                    K::Whitespace | K::Comment | K::Newline | K::LineContinuation,
+                )
+            })
+            .collect::<Vec<_>>();
+        let description =
+            significant.len() == 6 && significant[3].1.eq_ignore_ascii_case("VB_Description");
         let invoke = significant.len() == 8
             && significant[3].1.eq_ignore_ascii_case("VB_ProcData")
             && significant[4].0 == K::Dot

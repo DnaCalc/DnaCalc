@@ -464,16 +464,34 @@ fn describe_input(input: &CellInput) -> String {
 /// own equality.
 fn describe(op: &WorkbookOp) -> String {
     match op {
-        WorkbookOp::SetPageSetup {sheet,setup}=>format!("page setup {sheet:?} {setup:?}"),
-        WorkbookOp::SetDataModel(state)=>format!("data model {state:?}"),
-        WorkbookOp::SetPivots(state)=>format!("pivots {state:?}"),
-        WorkbookOp::SetCharts {sheet,charts}=>format!("charts {sheet:?} {charts:?}"),
+        WorkbookOp::SetPageSetup { sheet, setup } => format!("page setup {sheet:?} {setup:?}"),
+        WorkbookOp::SetDataModel(state) => format!("data model {state:?}"),
+        WorkbookOp::SetPivots(state) => format!("pivots {state:?}"),
+        WorkbookOp::SetCharts { sheet, charts } => format!("charts {sheet:?} {charts:?}"),
         WorkbookOp::SetTables(tables) => format!("tables {tables:?}"),
-        WorkbookOp::SetValidations {sheet,rules} => format!("validation {sheet:?} {rules:?}"),
-        WorkbookOp::SetReviewLinks {sheet,links} => format!("links {sheet:?} {links:?}"),
-        WorkbookOp::SetReviewNotes {sheet,notes} => format!("review {sheet:?} {:?}",notes.iter().map(|n|(n.at,&n.author,&n.text,&n.source,n.editable,n.compatibility)).collect::<Vec<_>>()),
-        WorkbookOp::SetPaneLayout {sheet,layout} => format!("panes {sheet:?} {layout:?}"),
-        WorkbookOp::SetAutoFilter {sheet,filter} => format!("filter {sheet:?} {:?}",filter.as_ref().map(|f|(f.area,&f.columns,&f.filtered_rows,f.unsupported))),
+        WorkbookOp::SetValidations { sheet, rules } => format!("validation {sheet:?} {rules:?}"),
+        WorkbookOp::SetReviewLinks { sheet, links } => format!("links {sheet:?} {links:?}"),
+        WorkbookOp::SetReviewNotes { sheet, notes } => format!(
+            "review {sheet:?} {:?}",
+            notes
+                .iter()
+                .map(|n| (
+                    n.at,
+                    &n.author,
+                    &n.text,
+                    &n.source,
+                    n.editable,
+                    n.compatibility
+                ))
+                .collect::<Vec<_>>()
+        ),
+        WorkbookOp::SetPaneLayout { sheet, layout } => format!("panes {sheet:?} {layout:?}"),
+        WorkbookOp::SetAutoFilter { sheet, filter } => format!(
+            "filter {sheet:?} {:?}",
+            filter
+                .as_ref()
+                .map(|f| (f.area, &f.columns, &f.filtered_rows, f.unsupported))
+        ),
         WorkbookOp::SetConditionalRules { sheet, rules } => format!(
             "conditional {sheet:?} {:?}",
             rules
@@ -630,17 +648,17 @@ fn describe_all(ops: &[WorkbookOp]) -> Vec<String> {
 fn features(op: &WorkbookOp, out: &mut BTreeSet<String>) {
     let feature = match op {
         // Wire version 1 refuses chart authoring as EncodeError::Charts.
-        WorkbookOp::SetPageSetup {..}=>"op:page-setup".to_owned(),
-        WorkbookOp::SetDataModel(_)=>"op:data-model".to_owned(),
-        WorkbookOp::SetPivots(_)=>"op:pivots".to_owned(),
-        WorkbookOp::SetCharts {..}=>"op:charts".to_owned(),
+        WorkbookOp::SetPageSetup { .. } => "op:page-setup".to_owned(),
+        WorkbookOp::SetDataModel(_) => "op:data-model".to_owned(),
+        WorkbookOp::SetPivots(_) => "op:pivots".to_owned(),
+        WorkbookOp::SetCharts { .. } => "op:charts".to_owned(),
         WorkbookOp::SetTables(..) => "op:tables".to_owned(),
         // Wire version 1 refuses review state as EncodeError::ReviewNotes.
         WorkbookOp::SetReviewLinks { .. } => "op:review_links".to_owned(),
         WorkbookOp::SetReviewNotes { .. } => "op:review_notes".to_owned(),
         WorkbookOp::SetValidations { .. } => "op:validations".to_owned(),
         // Wire version 1 refuses AutoFilter state as EncodeError::AutoFilter.
-        WorkbookOp::SetPaneLayout {..} => "op:set_pane_layout".into(),
+        WorkbookOp::SetPaneLayout { .. } => "op:set_pane_layout".into(),
         WorkbookOp::SetAutoFilter { .. } => "op:auto_filter".to_owned(),
         // Wire version 1 refuses conditional-rule state as EncodeError::ConditionalRules.
         WorkbookOp::SetConditionalRules { .. } => "op:conditional_rules".to_owned(),

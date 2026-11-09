@@ -367,7 +367,25 @@ fn notebook_view(controller: Controller) -> impl IntoView {
     let blocks = move || {
         notebook.get().blocks.into_iter().map(|block| {
         let identity=block.placement.clone().unwrap_or_else(||format!("{:?}",block.anchor));
-        let Some(anchor)=block.anchor.and_then(|a|a.area()) else{return view!{<article class="dc-block"><p>"This linked block has lost its worksheet anchor. Its source has not been recreated."</p><button on:click=move |_|if let Some(id)=block.placement.clone(){controller.dispatch(wire::Intent::NotebookOrder {placement:id,direction:0},|_|{});}>"Remove link"</button></article>}.into_any();};
+        let Some(anchor)=block.anchor.and_then(|a|a.area()) else{return view! {
+            <article class="dc-block">
+                <p>
+                    "This linked block has lost its worksheet anchor. Its source has not been recreated."
+                </p>
+                <button on:click=move |_| {
+                    if let Some(id) = block.placement.clone() {
+                        controller
+                            .dispatch(
+                                wire::Intent::NotebookOrder {
+                                    placement: id,
+                                    direction: 0,
+                                },
+                                |_| {},
+                            );
+                    }
+                }>"Remove link"</button>
+            </article>
+        }.into_any();};
         let at=anchor.first();let label=controller.cell_label(at);let address=cells::address(at.row(),at.column());
         let Some(cell)=block.cell else{return ().into_any();};
         let selected=Signal::derive({let identity=identity.clone();move ||controller.active_key()==Some(at)&&state.selected.get().as_ref()==Some(&identity)});
@@ -375,57 +393,444 @@ fn notebook_view(controller: Controller) -> impl IntoView {
         let is_details=Signal::derive({let identity=identity.clone();move ||open_details.get().as_ref()==Some(&identity)});
         let assist=controller.assist.another_field();
         controller.register_editor_surface(dna_calc_model::SurfaceDescriptor::editor(crate::controller::EditOrigin::Notebook), assist);
-        let on_key=Callback::new(move |ev:leptos::ev::KeyboardEvent| {
-            if ev.is_composing()||ev.key_code()==229{return;}
+        let on_key = Callback::new(move |ev: leptos::ev::KeyboardEvent| {
+            if ev.is_composing() || ev.key_code() == 229 {
+                return;
+            }
             match ev.key().as_str() {
-                "Enter" if !ev.shift_key()&&!ev.ctrl_key()&&!ev.meta_key()&&!ev.alt_key()=>{ev.prevent_default();ev.stop_propagation();controller.commit_edit(move |ok|if ok {choose.run(false);});},
-                "Escape"=>{ev.prevent_default();ev.stop_propagation();controller.cancel_edit();choose.run(false);},
-                _=>controller.editor_key(ev,assist)
+                "Enter" if !ev.shift_key() && !ev.ctrl_key() && !ev.meta_key() && !ev.alt_key() => {
+                    ev.prevent_default();
+                    ev.stop_propagation();
+                    controller.commit_edit(move |ok| {
+                        if ok {
+                            choose.run(false);
+                        }
+                    });
+                }
+                "Escape" => {
+                    ev.prevent_default();
+                    ev.stop_propagation();
+                    controller.cancel_edit();
+                    choose.run(false);
+                }
+                _ => controller.editor_key(ev, assist),
             }
         });
-        let source=cell.input.clone();let value=cell.text.clone();let why=cell.why.clone();let meaning=cell.error_meaning.clone();
-        let prose_block=block.prose;
-        let editable=!source.is_empty()||matches!(cell.provenance,Provenance::Empty|Provenance::Literal);
-        let detail_why=why.clone();
-        let literal=cell.provenance==Provenance::Literal;
-        let kind=if block.prose {"prose"}else if cell.formula {"formula"}else if cell.provenance==Provenance::Empty {"empty"}else if source.is_empty(){"child value"}else{"value"};
-        let placement=block.placement.clone(); let order=Callback::new(move |direction:i8|{if let Some(placement)=placement.clone(){
-            let apply=move ||controller.dispatch(wire::Intent::NotebookOrder {placement,direction},|_|{});
-            if controller.editing.get_untracked().is_some(){controller.commit_edit(move |ok|if ok {apply();});}else{apply();}
-        }});
-        let block_key=identity.clone();
-        let detail_id=identity.clone();
-        let details=move |_|{
-            if is_details.get(){open_details.set(None);return;}
-            open_details.set(Some(detail_id.clone()));detail.set(None);
-
+        let source = cell.input.clone();
+        let value = cell.text.clone();
+        let why = cell.why.clone();
+        let meaning = cell.error_meaning.clone();
+        let prose_block = block.prose;
+        let editable = !source.is_empty() || matches!(cell.provenance, Provenance::Empty | Provenance::Literal);
+        let detail_why = why.clone();
+        let literal = cell.provenance == Provenance::Literal;
+        let kind = if block.prose {
+            "prose"
+        } else if cell.formula {
+            "formula"
+        } else if cell.provenance == Provenance::Empty {
+            "empty"
+        } else if source.is_empty() {
+            "child value"
+        } else {
+            "value"
         };
-        let link_existing=move |_|controller.navigate_to(at,move |ok|if ok {controller.dispatch(wire::Intent::NotebookLink {anchor:wire::Area::of(anchor),prose:false,text:None},move |done|linked(done,at,None));});
+        let placement = block.placement.clone();
+        let order = Callback::new(move |direction: i8| {
+            if let Some(placement) = placement.clone() {
+                let apply = move || controller.dispatch(wire::Intent::NotebookOrder { placement, direction }, |_| {});
+                if controller.editing.get_untracked().is_some() {
+                    controller.commit_edit(move |ok| {
+                        if ok {
+                            apply();
+                        }
+                    });
+                } else {
+                    apply();
+                }
+            }
+        });
+        let block_key = identity.clone();
+        let detail_id = identity.clone();
+        let details = move |_| {
+            if is_details.get() {
+                open_details.set(None);
+                return;
+            }
+            open_details.set(Some(detail_id.clone()));
+            detail.set(None);
+        };
+        let link_existing = move |_| {
+            controller.navigate_to(at, move |ok| {
+                if ok {
+                    controller.dispatch(
+                        wire::Intent::NotebookLink {
+                            anchor: wire::Area::of(anchor),
+                            prose: false,
+                            text: None,
+                        },
+                        move |done| linked(done, at, None),
+                    );
+                }
+            });
+        };
         let range=(anchor.first()!=anchor.last()).then(||format!(" to {}",cells::address(anchor.last().row(),anchor.last().column())));
-        view! {<article class="dc-block" data-dnacalc="block" data-cell=address data-block-key=block_key data-block-kind=kind data-provenance=cell.provenance.name() data-selected=move ||selected.get().to_string() data-placement=block.placement.clone()>
-            <header><button data-dnacalc="block-select" aria-current=move ||selected.get().to_string() on:click=move |_|choose.run(false)>{label}{range}</button><span>{kind}</span>{(!literal).then(||view!{<span class="dc-chip" data-provenance=cell.provenance.name()>{cell.provenance.name()}</span>})}</header>
-            {move ||(selected.get()&&editable).then(||view!{<div class="dc-block-editor" on:focusin=move |_|controller.activate_editor(crate::controller::EditOrigin::Notebook,assist) on:beforeinput=move |_|controller.activate_editor(crate::controller::EditOrigin::Notebook,assist) on:input=move |_|controller.edit_changed()>
-                {assist.field_labelled(Signal::derive(Vec::new),Some(on_key),if prose_block{3}else{1},"",Some("block-input"),format!("Input for {}",cells::address(at.row(),at.column())))}
-                {move ||(controller.editing.get()==Some(crate::controller::EditOrigin::Notebook)).then(||view!{{assist.popup()}{assist.signature()}})}
-            </div>})}
-            {move ||(!literal&&!selected.get()).then(||view!{<code class="dc-block-source" data-dnacalc="block-source">{source.clone()}</code>})}
-            <div class="dc-value" data-dnacalc="block-value">{value}</div>
-            {(cell.provenance==Provenance::Refused||cell.kind=="error").then(||view!{<p class="dc-why">{meaning.unwrap_or_else(||why.clone())}</p>})}
-            <details class="dc-block-menu" data-dnacalc="block-actions" prop:open=move ||selected.get()><summary>"Actions"</summary>
-            <nav class="dc-block-actions" aria-label="Block actions"><button data-dnacalc="block-grid" on:click=move |_|show_source(at, SkinId::Grid)>"Grid"</button><button data-dnacalc="block-canvas" on:click=move |_|show_source(at, SkinId::Canvas)>"Canvas"</button><button data-dnacalc="block-details" aria-expanded=move ||is_details.get().to_string() on:click=details>"Details"</button>
-                {if block.placement.is_some(){view!{<button data-dnacalc="block-up" on:click=move |_|order.run(-1)>"Move up"</button><button data-dnacalc="block-down" on:click=move |_|order.run(1)>"Move down"</button><button data-dnacalc="block-unlink" on:click=move |_|order.run(0)>"Unlink"</button>}.into_any()}else{view!{<button data-dnacalc="block-link" on:click=link_existing>"Link into notebook"</button>}.into_any()}}
-            </nav></details>
-            {move ||is_details.get().then(||view!{<div class="dc-block-detail" data-dnacalc="block-detail"><p>{detail_why.clone()}</p>{move ||detail.get().map(|d|view!{<p>{d.summary}</p>{d.anchor.and_then(|key|key.cell()).filter(|owner|*owner!=at).map(|owner|view!{<button data-dnacalc="block-owner" on:click=move |_|show_source(owner, SkinId::Grid)>"Open array anchor"</button>})}<div class="dc-array-preview">{d.cells.into_iter().map(|c|view!{<span>{format!("{}: {}",cells::address(c.at.2,c.at.3),c.text)}</span>}).collect_view()}</div>{d.blockers.into_iter().map(|key|view!{<button data-dnacalc="block-spill-blocker" on:click=move |_|if let Some(area)=key.area(){show_source(area.first(), SkinId::Grid);}>{format!("Open blocker {}",key.area().map(|a|format!("{}:{}",cells::address(a.first().row(),a.first().column()),cells::address(a.last().row(),a.last().column()))).unwrap_or_default())}</button>}).collect_view()}})}</div>})}
-        </article>}.into_any()
+        view! {
+            <article
+                class="dc-block"
+                data-dnacalc="block"
+                data-cell=address
+                data-block-key=block_key
+                data-block-kind=kind
+                data-provenance=cell.provenance.name()
+                data-selected=move || selected.get().to_string()
+                data-placement=block.placement.clone()
+            >
+                <header>
+                    <button
+                        data-dnacalc="block-select"
+                        aria-current=move || selected.get().to_string()
+                        on:click=move |_| choose.run(false)
+                    >
+                        {label}
+                        {range}
+                    </button>
+                    <span>{kind}</span>
+                    {(!literal)
+                        .then(|| {
+                            view! {
+                                <span class="dc-chip" data-provenance=cell.provenance.name()>
+                                    {cell.provenance.name()}
+                                </span>
+                            }
+                        })}
+                </header>
+                {move || {
+                    (selected.get() && editable)
+                        .then(|| {
+                            view! {
+                                <div
+                                    class="dc-block-editor"
+                                    on:focusin=move |_| {
+                                        controller
+                                            .activate_editor(
+                                                crate::controller::EditOrigin::Notebook,
+                                                assist,
+                                            )
+                                    }
+                                    on:beforeinput=move |_| {
+                                        controller
+                                            .activate_editor(
+                                                crate::controller::EditOrigin::Notebook,
+                                                assist,
+                                            )
+                                    }
+                                    on:input=move |_| controller.edit_changed()
+                                >
+                                    {assist
+                                        .field_labelled(
+                                            Signal::derive(Vec::new),
+                                            Some(on_key),
+                                            if prose_block { 3 } else { 1 },
+                                            "",
+                                            Some("block-input"),
+                                            format!(
+                                                "Input for {}",
+                                                cells::address(at.row(), at.column()),
+                                            ),
+                                        )}
+                                    {move || {
+                                        (controller.editing.get()
+                                            == Some(crate::controller::EditOrigin::Notebook))
+                                            .then(|| {
+                                                view! {
+                                                    {assist.popup()}
+                                                    {assist.signature()}
+                                                }
+                                            })
+                                    }}
+                                </div>
+                            }
+                        })
+                }}
+                {move || {
+                    (!literal && !selected.get())
+                        .then(|| {
+                            view! {
+                                <code class="dc-block-source" data-dnacalc="block-source">
+                                    {source.clone()}
+                                </code>
+                            }
+                        })
+                }}
+                <div class="dc-value" data-dnacalc="block-value">
+                    {value}
+                </div>
+                {(cell.provenance == Provenance::Refused || cell.kind == "error")
+                    .then(|| {
+                        view! { <p class="dc-why">{meaning.unwrap_or_else(|| why.clone())}</p> }
+                    })}
+                <details
+                    class="dc-block-menu"
+                    data-dnacalc="block-actions"
+                    prop:open=move || selected.get()
+                >
+                    <summary>"Actions"</summary>
+                    <nav class="dc-block-actions" aria-label="Block actions">
+                        <button
+                            data-dnacalc="block-grid"
+                            on:click=move |_| show_source(at, SkinId::Grid)
+                        >
+                            "Grid"
+                        </button>
+                        <button
+                            data-dnacalc="block-canvas"
+                            on:click=move |_| show_source(at, SkinId::Canvas)
+                        >
+                            "Canvas"
+                        </button>
+                        <button
+                            data-dnacalc="block-details"
+                            aria-expanded=move || is_details.get().to_string()
+                            on:click=details
+                        >
+                            "Details"
+                        </button>
+                        {if block.placement.is_some() {
+                            view! {
+                                <button data-dnacalc="block-up" on:click=move |_| order.run(-1)>
+                                    "Move up"
+                                </button>
+                                <button data-dnacalc="block-down" on:click=move |_| order.run(1)>
+                                    "Move down"
+                                </button>
+                                <button data-dnacalc="block-unlink" on:click=move |_| order.run(0)>
+                                    "Unlink"
+                                </button>
+                            }
+                                .into_any()
+                        } else {
+                            view! {
+                                <button data-dnacalc="block-link" on:click=link_existing>
+                                    "Link into notebook"
+                                </button>
+                            }
+                                .into_any()
+                        }}
+                    </nav>
+                </details>
+                {move || {
+                    is_details
+                        .get()
+                        .then(|| {
+                            view! {
+                                <div class="dc-block-detail" data-dnacalc="block-detail">
+                                    <p>{detail_why.clone()}</p>
+                                    {move || {
+                                        detail
+                                            .get()
+                                            .map(|d| {
+                                                view! {
+                                                    <p>{d.summary}</p>
+                                                    {d
+                                                        .anchor
+                                                        .and_then(|key| key.cell())
+                                                        .filter(|owner| *owner != at)
+                                                        .map(|owner| {
+                                                            view! {
+                                                                <button
+                                                                    data-dnacalc="block-owner"
+                                                                    on:click=move |_| show_source(owner, SkinId::Grid)
+                                                                >
+                                                                    "Open array anchor"
+                                                                </button>
+                                                            }
+                                                        })}
+                                                    <div class="dc-array-preview">
+                                                        {d
+                                                            .cells
+                                                            .into_iter()
+                                                            .map(|c| {
+                                                                view! {
+                                                                    <span>
+                                                                        {format!("{}: {}", cells::address(c.at.2, c.at.3), c.text)}
+                                                                    </span>
+                                                                }
+                                                            })
+                                                            .collect_view()}
+                                                    </div>
+                                                    {d
+                                                        .blockers
+                                                        .into_iter()
+                                                        .map(|key| {
+                                                            view! {
+                                                                <button
+                                                                    data-dnacalc="block-spill-blocker"
+                                                                    on:click=move |_| {
+                                                                        if let Some(area) = key.area() {
+                                                                            show_source(area.first(), SkinId::Grid);
+                                                                        }
+                                                                    }
+                                                                >
+                                                                    {format!(
+                                                                        "Open blocker {}",
+                                                                        key
+                                                                            .area()
+                                                                            .map(|a| {
+                                                                                format!(
+                                                                                    "{}:{}",
+                                                                                    cells::address(a.first().row(), a.first().column()),
+                                                                                    cells::address(a.last().row(), a.last().column()),
+                                                                                )
+                                                                            })
+                                                                            .unwrap_or_default(),
+                                                                    )}
+                                                                </button>
+                                                            }
+                                                        })
+                                                        .collect_view()}
+                                                }
+                                            })
+                                    }}
+                                </div>
+                            }
+                        })
+                }}
+            </article>
+        }.into_any()
     }).collect_view()
     };
-    view! {<section class="dc-notebook" data-skin="notebook" node_ref=root>
-        <div class="dc-nb-tools"><label>"Cell or range "<input data-dnacalc="notebook-address" placeholder="A1 or A1:B3" prop:value=move ||address.get() on:input=move |ev|address.set(event_target_value(&ev))/></label><label>"Kind "<select data-dnacalc="notebook-kind" on:change=move |ev|prose.set(event_target_value(&ev)=="prose")><option value="calculation" selected=move ||!prose.get()>"Calculation"</option><option value="prose" selected=move ||prose.get()>"Prose"</option></select></label><button data-dnacalc="notebook-link" on:click=move |_|link(false)>"Link existing cells"</button><details data-dnacalc="notebook-insert-tools"><summary>"Insert into an empty cell"</summary><label>"Content "<textarea data-dnacalc="notebook-content" prop:value=move ||insert_text.get() on:input=move |ev|insert_text.set(event_target_value(&ev))></textarea></label><button data-dnacalc="notebook-insert" on:click=move |_|link(true)>"Insert and link"</button></details></div>
-        <details class="dc-nb-guide"><summary>"About linked blocks"</summary><p class="dc-nb-caption">"Linked blocks keep their own order. Formulas calculate from worksheet dependencies."</p></details>
-        <div class="dc-nb-pager"><button data-dnacalc="notebook-previous" disabled=move ||notebook.get().page==0||pending.get() on:click=move |_|{controller.carry_edit_to_bar();reveal.set(None);if let Some(s)=controller.sheet.get_untracked(){state.pages.update(|p|{p.insert(s,notebook.get_untracked().page.saturating_sub(1) as usize);});}}>"Previous"</button><span data-dnacalc="notebook-page">{move ||{let n=notebook.get();format!("{} blocks; page {} of {}",n.total,n.page+1,n.total.div_ceil(PAGE as u64).max(1))}}</span><button data-dnacalc="notebook-next" disabled=move ||{let n=notebook.get();pending.get()||(n.page+1)*PAGE as u64>=n.total} on:click=move |_|{controller.carry_edit_to_bar();reveal.set(None);if let Some(s)=controller.sheet.get_untracked(){state.pages.update(|p|{p.insert(s,notebook.get_untracked().page as usize+1);});}}>"Next"</button></div>
-        <div class="dc-nb-blocks">{blocks}{move ||(notebook.get().total==0&&!pending.get()).then(||view!{<p data-dnacalc="notebook-empty">"Start with an ordinary worksheet cell: insert text or a formula above, or link a cell by address."</p>})}</div>
-        {move ||(notebook.get().omitted>0).then(||view!{<p data-dnacalc="notebook-omitted">{format!("{} occupied child cells outside this window; open their source in Grid.",notebook.get().omitted)}</p>})}
-    </section>}
+    view! {
+        <section class="dc-notebook" data-skin="notebook" node_ref=root>
+            <div class="dc-nb-tools">
+                <label>
+                    "Cell or range "
+                    <input
+                        data-dnacalc="notebook-address"
+                        placeholder="A1 or A1:B3"
+                        prop:value=move || address.get()
+                        on:input=move |ev| address.set(event_target_value(&ev))
+                    />
+                </label>
+                <label>
+                    "Kind "
+                    <select
+                        data-dnacalc="notebook-kind"
+                        on:change=move |ev| prose.set(event_target_value(&ev) == "prose")
+                    >
+                        <option value="calculation" selected=move || !prose.get()>
+                            "Calculation"
+                        </option>
+                        <option value="prose" selected=move || prose.get()>
+                            "Prose"
+                        </option>
+                    </select>
+                </label>
+                <button data-dnacalc="notebook-link" on:click=move |_| link(false)>
+                    "Link existing cells"
+                </button>
+                <details data-dnacalc="notebook-insert-tools">
+                    <summary>"Insert into an empty cell"</summary>
+                    <label>
+                        "Content "
+                        <textarea
+                            data-dnacalc="notebook-content"
+                            prop:value=move || insert_text.get()
+                            on:input=move |ev| insert_text.set(event_target_value(&ev))
+                        ></textarea>
+                    </label>
+                    <button data-dnacalc="notebook-insert" on:click=move |_| link(true)>
+                        "Insert and link"
+                    </button>
+                </details>
+            </div>
+            <details class="dc-nb-guide">
+                <summary>"About linked blocks"</summary>
+                <p class="dc-nb-caption">
+                    "Linked blocks keep their own order. Formulas calculate from worksheet dependencies."
+                </p>
+            </details>
+            <div class="dc-nb-pager">
+                <button
+                    data-dnacalc="notebook-previous"
+                    disabled=move || notebook.get().page == 0 || pending.get()
+                    on:click=move |_| {
+                        controller.carry_edit_to_bar();
+                        reveal.set(None);
+                        if let Some(s) = controller.sheet.get_untracked() {
+                            state
+                                .pages
+                                .update(|p| {
+                                    p.insert(
+                                        s,
+                                        notebook.get_untracked().page.saturating_sub(1) as usize,
+                                    );
+                                });
+                        }
+                    }
+                >
+                    "Previous"
+                </button>
+                <span data-dnacalc="notebook-page">
+                    {move || {
+                        let n = notebook.get();
+                        format!(
+                            "{} blocks; page {} of {}",
+                            n.total,
+                            n.page + 1,
+                            n.total.div_ceil(PAGE as u64).max(1),
+                        )
+                    }}
+                </span>
+                <button
+                    data-dnacalc="notebook-next"
+                    disabled=move || {
+                        let n = notebook.get();
+                        pending.get() || (n.page + 1) * PAGE as u64 >= n.total
+                    }
+                    on:click=move |_| {
+                        controller.carry_edit_to_bar();
+                        reveal.set(None);
+                        if let Some(s) = controller.sheet.get_untracked() {
+                            state
+                                .pages
+                                .update(|p| {
+                                    p.insert(s, notebook.get_untracked().page as usize + 1);
+                                });
+                        }
+                    }
+                >
+                    "Next"
+                </button>
+            </div>
+            <div class="dc-nb-blocks">
+                {blocks}
+                {move || {
+                    (notebook.get().total == 0 && !pending.get())
+                        .then(|| {
+                            view! {
+                                <p data-dnacalc="notebook-empty">
+                                    "Start with an ordinary worksheet cell: insert text or a formula above, or link a cell by address."
+                                </p>
+                            }
+                        })
+                }}
+            </div>
+            {move || {
+                (notebook.get().omitted > 0)
+                    .then(|| {
+                        view! {
+                            <p data-dnacalc="notebook-omitted">
+                                {format!(
+                                    "{} occupied child cells outside this window; open their source in Grid.",
+                                    notebook.get().omitted,
+                                )}
+                            </p>
+                        }
+                    })
+            }}
+        </section>
+    }
 }
 
 #[cfg(target_arch = "wasm32")]

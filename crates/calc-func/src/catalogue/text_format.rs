@@ -6,16 +6,16 @@
 
 use super::kit::{fail, flag, grid, num, text_arg};
 use crate::call::EvalServices;
+use crate::coerce::{self, Numeric};
+use crate::format::{self, Failure};
+use crate::kernel::{Exit, Site, Step};
+use crate::locale::LocaleId;
+use crate::locale::{CalcEnvironment, FormatProfile};
 use crate::ported::text_kernels as tk;
 use crate::ported::text_more::{self as k, Delimited, Side};
 use crate::value::{ArrayShape, CalcArray, ExcelText};
-use crate::locale::LocaleId;
-use crate::format::{self, Failure};
-use crate::locale::{CalcEnvironment, FormatProfile};
-use crate::coerce::{self, Numeric};
-use crate::kernel::{Exit, Site, Step};
 use crate::value::{CalcValue, CoreRef, WorksheetErrorCode};
-use crate::value_text::{self, ReadContext, Reading, Unread, MAX_READER_TEXT};
+use crate::value_text::{self, MAX_READER_TEXT, ReadContext, Reading, Unread};
 
 use calc_catalogue::ported::text_format::{CODE, ENTRIES as DECLARATIONS};
 
@@ -93,9 +93,13 @@ fn text(site: &Site<'_>, a: &[CalcValue]) -> Step<CalcValue> {
         let code = text_arg(site, a, 1)?.to_string_lossy();
         if code.eq_ignore_ascii_case("general") || code == "@" {
             let default = crate::locale::format_profile(LocaleId::EnZa);
-            let profile = site.environment().and_then(|e| e.profile.as_ref()).unwrap_or(&default);
+            let profile = site
+                .environment()
+                .and_then(|e| e.profile.as_ref())
+                .unwrap_or(&default);
             return Ok(crate::catalogue::kit::text_value(&format::general(
-                profile, a[0].as_number().expect("qualified overflow number"),
+                profile,
+                a[0].as_number().expect("qualified overflow number"),
             )));
         }
         return fail(WorksheetErrorCode::Value);
@@ -105,17 +109,20 @@ fn text(site: &Site<'_>, a: &[CalcValue]) -> Step<CalcValue> {
     {
         if environment.profile.is_none() {
             let number = site.number_argument(0, &a[0])?;
-            return rendered(site, format::text_declared_date_locale(
-                environment.date_system, number, &code.to_string_lossy(),
-            ));
+            return rendered(
+                site,
+                format::text_declared_date_locale(
+                    environment.date_system,
+                    number,
+                    &code.to_string_lossy(),
+                ),
+            );
         }
     }
     let (environment, profile) = profile(site)?;
     let code = text_arg(site, a, 1)?.to_string_lossy();
     let number = match a[0].core_ref() {
-        CoreRef::Number(_) | CoreRef::Empty | CoreRef::Missing => {
-            site.number_argument(0, &a[0])?
-        }
+        CoreRef::Number(_) | CoreRef::Empty | CoreRef::Missing => site.number_argument(0, &a[0])?,
         CoreRef::Error(code) => return fail(code),
         CoreRef::Logical(_) | CoreRef::Text(_) => {
             let as_number = if matches!(a[0].core_ref(), CoreRef::Text(_)) {
@@ -159,7 +166,9 @@ fn fixed(site: &Site<'_>, a: &[CalcValue]) -> Step<CalcValue> {
     let number = num(site, a, 0)?;
     let places = places(site, a)?;
     let no_commas = a.len() > 2 && flag(site, a, 2)?;
-    let profile = site.environment().and_then(|environment| environment.profile.as_ref());
+    let profile = site
+        .environment()
+        .and_then(|environment| environment.profile.as_ref());
     rendered(site, format::fixed(profile, number, places, no_commas))
 }
 
@@ -167,7 +176,11 @@ fn dollar(site: &Site<'_>, a: &[CalcValue]) -> Step<CalcValue> {
     let (_, profile) = profile(site)?;
     let number = num(site, a, 0)?;
     // W111 locale-profile 00193: unlike FIXED, an explicit placeholder means zero places.
-    let places = if a.get(1).is_some_and(CalcValue::is_missing) { 0 } else { places(site, a)? };
+    let places = if a.get(1).is_some_and(CalcValue::is_missing) {
+        0
+    } else {
+        places(site, a)?
+    };
     rendered(site, format::dollar(profile, number, places))
 }
 
@@ -211,7 +224,12 @@ fn delimiters(
     Ok(out)
 }
 
-fn text_delim(site: &Site<'_>, a: &[CalcValue], sv: &mut EvalServices<'_>, side: Side) -> Step<CalcValue> {
+fn text_delim(
+    site: &Site<'_>,
+    a: &[CalcValue],
+    sv: &mut EvalServices<'_>,
+    side: Side,
+) -> Step<CalcValue> {
     let text = text_arg(site, a, 0)?;
     let delimiters = delimiters(site, a, 1, sv)?;
     let instance = if given(a, 2) {
@@ -227,12 +245,20 @@ fn text_delim(site: &Site<'_>, a: &[CalcValue], sv: &mut EvalServices<'_>, side:
     let match_end = binary_flag(site, a, 4)?;
     // fn1 Excel 16.0.20527: an explicitly supplied instance is validated against the empty
     // input before fallback/match_end. An empty delimiter still returns empty text.
-    if given(a, 2) && text.len_utf16_code_units() == 0
+    if given(a, 2)
+        && text.len_utf16_code_units() == 0
         && !delimiters.iter().any(|d| d.len_utf16_code_units() == 0)
     {
         return fail(WorksheetErrorCode::Value);
     }
-    match k::delimited(side, &text, &delimiters, instance, case_insensitive, match_end) {
+    match k::delimited(
+        side,
+        &text,
+        &delimiters,
+        instance,
+        case_insensitive,
+        match_end,
+    ) {
         Delimited::Text(found) => Ok(CalcValue::text(found)),
         Delimited::BadInstance => fail(WorksheetErrorCode::Value),
         Delimited::NotFound if a.len() > 5 => Ok(if a[5].is_missing() {
@@ -312,9 +338,7 @@ fn textsplit(site: &Site<'_>, a: &[CalcValue], sv: &mut EvalServices<'_>) -> Ste
 /// A value's text as VALUETOTEXT and ARRAYTOTEXT write it, concise or strict (text quoted).
 fn value_text(site: &Site<'_>, index: usize, value: &CalcValue, strict: bool) -> Step<String> {
     Ok(match value.core_ref() {
-        CoreRef::Number(_) => {
-            String::from_utf16_lossy(&site.argument(index, coerce::text(value))?)
-        }
+        CoreRef::Number(_) => String::from_utf16_lossy(&site.argument(index, coerce::text(value))?),
         CoreRef::Text(t) if strict => format!("\"{}\"", t.to_string_lossy().replace('"', "\"\"")),
         CoreRef::Text(t) => t.to_string_lossy(),
         CoreRef::Logical(b) => if b { "TRUE" } else { "FALSE" }.to_owned(),
@@ -344,7 +368,10 @@ fn arraytotext(site: &Site<'_>, a: &[CalcValue], sv: &mut EvalServices<'_>) -> S
         parts.push(value_text(site, 0, value, strict)?);
     }
     let shown = if strict {
-        let rows: Vec<String> = parts.chunks(g.cols.max(1)).map(|row| row.join(",")).collect();
+        let rows: Vec<String> = parts
+            .chunks(g.cols.max(1))
+            .map(|row| row.join(","))
+            .collect();
         format!("{{{}}}", rows.join(";"))
     } else {
         parts.join(", ")
@@ -379,11 +406,17 @@ fn numbervalue(site: &Site<'_>, a: &[CalcValue]) -> Step<CalcValue> {
     };
     let decimal = separator(1, decimal_default)?;
     let group = separator(2, group_default)?;
-    let host_profile = site.environment().and_then(|environment| environment.profile.as_ref())
-        .filter(|profile| value_text::measured_host_reader(profile)
-            && decimal == Some('.') && group == Some(' '));
-    if host_profile.is_some_and(|profile| text.to_string_lossy().chars()
-        .any(|ch| value_text::measured_space(ch, profile))) {
+    let host_profile = site
+        .environment()
+        .and_then(|environment| environment.profile.as_ref())
+        .filter(|profile| {
+            value_text::measured_host_reader(profile) && decimal == Some('.') && group == Some(' ')
+        });
+    if host_profile.is_some_and(|profile| {
+        text.to_string_lossy()
+            .chars()
+            .any(|ch| value_text::measured_space(ch, profile))
+    }) {
         return fail(WorksheetErrorCode::Value);
     }
     let result = match k::numbervalue(&text, decimal, group) {
@@ -398,7 +431,11 @@ fn numbervalue(site: &Site<'_>, a: &[CalcValue]) -> Step<CalcValue> {
     // The measured host admits the same currency, digit and date grammar as
     // VALUE after ASCII spaces and trailing percents are removed. Keep the
     // existing numeric parser and its percent arithmetic for its prior forms.
-    let compact: String = text.to_string_lossy().chars().filter(|&ch| ch != ' ').collect();
+    let compact: String = text
+        .to_string_lossy()
+        .chars()
+        .filter(|&ch| ch != ' ')
+        .collect();
     // Slash/colon forms have no new service evidence; keep their prior route.
     if compact.contains(['/', ':']) {
         return out_number(site, result);
@@ -520,13 +557,21 @@ fn regexreplace(site: &Site<'_>, a: &[CalcValue]) -> Step<CalcValue> {
         // Group references in the replacement are not modelled.
         return Err(site.not_modelled(Some(2)));
     }
-    let occurrence = if given(a, 3) { num(site, a, 3)?.trunc() } else { 0.0 };
+    let occurrence = if given(a, 3) {
+        num(site, a, 3)?.trunc()
+    } else {
+        0.0
+    };
     let sensitive = case_sensitive(site, a, 4)?;
     let (chars, found) = regex(site, &text, &pattern, sensitive, false)?;
     let selected: Vec<(usize, usize)> = if occurrence == 0.0 {
         found
     } else if occurrence > 0.0 {
-        found.get(occurrence as usize - 1).copied().into_iter().collect()
+        found
+            .get(occurrence as usize - 1)
+            .copied()
+            .into_iter()
+            .collect()
     } else {
         let back = (-occurrence) as usize;
         found
@@ -553,10 +598,7 @@ fn regexreplace(site: &Site<'_>, a: &[CalcValue]) -> Step<CalcValue> {
 /// ja-JP, ko-KR and zh-CN profiles they are refused (bead dc-zsn.3).
 fn width_conversion(site: &Site<'_>, a: &[CalcValue]) -> Step<CalcValue> {
     let (_, profile) = profile(site)?;
-    if matches!(
-        profile.id,
-        LocaleId::JaJp | LocaleId::KoKr | LocaleId::ZhCn
-    ) {
+    if matches!(profile.id, LocaleId::JaJp | LocaleId::KoKr | LocaleId::ZhCn) {
         return Err(site.not_modelled(None));
     }
     Ok(CalcValue::text(text_arg(site, a, 0)?))
@@ -730,7 +772,8 @@ fn filterxml(site: &Site<'_>, a: &[CalcValue]) -> Step<CalcValue> {
             return fail(WorksheetErrorCode::Value);
         }
     }
-    let package = sxd_document::parser::parse(&xml).map_err(|_| value(WorksheetErrorCode::Value))?;
+    let package =
+        sxd_document::parser::parse(&xml).map_err(|_| value(WorksheetErrorCode::Value))?;
     let document = package.as_document();
     let expression = sxd_xpath::Factory::new()
         .build(&path)

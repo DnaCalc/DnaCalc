@@ -89,10 +89,9 @@ pub fn prepare_file_project_with_events(
     else {
         return Ok(None);
     };
-    let project =
-        calc_vba::read_office_project(&part.bytes).map_err(FileProjectError::Project)?;
-    let references = calc_vba::events::ProjectReferences::of(&project)
-        .map_err(FileProjectError::Preparation)?;
+    let project = calc_vba::read_office_project(&part.bytes).map_err(FileProjectError::Project)?;
+    let references =
+        calc_vba::events::ProjectReferences::of(&project).map_err(FileProjectError::Preparation)?;
     let mut documents = BTreeMap::new();
     for (name, sheet) in host
         .loaded()
@@ -118,7 +117,9 @@ pub fn prepare_file_project_with_events(
                 }
                 calc_vba::OfficeModuleKind::Document | calc_vba::OfficeModuleKind::Designer => {
                     match documents.get(&calc_value::fold_workbook_name(&module.name)) {
-                        Some(Some(sheet)) if module.kind == calc_vba::OfficeModuleKind::Document => {
+                        Some(Some(sheet))
+                            if module.kind == calc_vba::OfficeModuleKind::Document =>
+                        {
                             ModuleTarget::Worksheet(*sheet)
                         }
                         Some(None) if module.kind == calc_vba::OfficeModuleKind::Document => {
@@ -166,7 +167,11 @@ impl WorkbookEvents {
     pub fn functions(&self) -> calc_host::CallableTable {
         self.project.functions()
     }
-    pub fn install_with_registry(self: Rc<Self>, session: &mut calc_host::HostSession, functions: calc_host::CallableTable) {
+    pub fn install_with_registry(
+        self: Rc<Self>,
+        session: &mut calc_host::HostSession,
+        functions: calc_host::CallableTable,
+    ) {
         session.set_user_functions(functions);
         session.set_workbook_event_handler(Some(self));
     }
@@ -394,14 +399,20 @@ impl EventReadContext for Application<'_> {
     fn resolve_reference(&self, text: &str) -> Result<ReferenceLike, String> {
         let session = self.session.borrow();
         let host = session.host();
-        let sheet = session.selection().active.map(|at| at.sheet())
+        let sheet = session
+            .selection()
+            .active
+            .map(|at| at.sheet())
             .or_else(|| host.loaded().active_sheet())
             .filter(|sheet| host.model().sheet_by_id(*sheet).is_some())
             .ok_or("Range lookup has no active worksheet (dc-hsa5.12)")?;
         let origin = calc_value::CellKey::new(sheet, 1, 1).map_err(|e| e.to_string())?;
         match host.resolve_reference_text(origin, text) {
             calc_host::ReferenceTarget::Area(area) => Ok(ReferenceLike::area(area)),
-            _ => Err("application Range lookup outside a single local area is not modelled (dc-hsa5.12)".into()),
+            _ => Err(
+                "application Range lookup outside a single local area is not modelled (dc-hsa5.12)"
+                    .into(),
+            ),
         }
     }
     fn write_reference(&self, reference: &ReferenceLike, value: CalcValue) -> Result<(), String> {
@@ -415,8 +426,11 @@ impl EventReadContext for Application<'_> {
         let array = value.as_array();
         if let Some(array) = array
             && (array.shape().rows != area.row_count() as usize
-                || array.shape().cols != area.column_count() as usize) {
-            return Err("Range.Value2 array/target shape differences are not modelled (dc-hsa5.12)".into());
+                || array.shape().cols != area.column_count() as usize)
+        {
+            return Err(
+                "Range.Value2 array/target shape differences are not modelled (dc-hsa5.12)".into(),
+            );
         }
         // Validate every element before dispatch. One Automation edit owns the
         // complete rectangle, its calculation and its nested Change event.
@@ -428,25 +442,49 @@ impl EventReadContext for Application<'_> {
             for row in 0..area.row_count() {
                 for column in 0..area.column_count() {
                     let input = if let Some(array) = array {
-                        value_input(array.get(row as usize, column as usize).expect("validated rectangle"))?
-                    } else { scalar.as_ref().expect("scalar input").clone() };
-                    let at = calc_value::CellKey::new(area.sheet(), area.first().row() + row,
-                        area.first().column() + column).map_err(|e| e.to_string())?;
+                        value_input(
+                            array
+                                .get(row as usize, column as usize)
+                                .expect("validated rectangle"),
+                        )?
+                    } else {
+                        scalar.as_ref().expect("scalar input").clone()
+                    };
+                    let at = calc_value::CellKey::new(
+                        area.sheet(),
+                        area.first().row() + row,
+                        area.first().column() + column,
+                    )
+                    .map_err(|e| e.to_string())?;
                     edits.push(match input {
                         Some(input) => calc_host::CellEdit::Set { at, input },
-                        None => calc_host::CellEdit::Clear { area: GridArea::cell(at) },
+                        None => calc_host::CellEdit::Clear {
+                            area: GridArea::cell(at),
+                        },
                     });
                 }
             }
             edits
         };
-        let receipt = self.session.borrow_mut().dispatch_from(calc_host::CommandIngress::Automation,
-            calc_host::SkinIntent::Edit { edits });
+        let receipt = self.session.borrow_mut().dispatch_from(
+            calc_host::CommandIngress::Automation,
+            calc_host::SkinIntent::Edit { edits },
+        );
         match receipt.recalc {
-            Some(calc_host::HostProgress::Failed(error)) => return Err(format!("calculation after a macro write failed: {error:?} (dc-hsa5.12)")),
-            Some(calc_host::HostProgress::Waiting { .. }) => return Err("calculation after a macro write is waiting for a provider (dc-hsa5.12)".into()),
-            Some(calc_host::HostProgress::Cancelled) => return Err("calculation after a macro write was cancelled (dc-hsa5.12)".into()),
-            _ => {},
+            Some(calc_host::HostProgress::Failed(error)) => {
+                return Err(format!(
+                    "calculation after a macro write failed: {error:?} (dc-hsa5.12)"
+                ));
+            }
+            Some(calc_host::HostProgress::Waiting { .. }) => {
+                return Err(
+                    "calculation after a macro write is waiting for a provider (dc-hsa5.12)".into(),
+                );
+            }
+            Some(calc_host::HostProgress::Cancelled) => {
+                return Err("calculation after a macro write was cancelled (dc-hsa5.12)".into());
+            }
+            _ => {}
         }
         if self.session.borrow().has_unfinished_calculation() {
             return Err("calculation after a macro write is unfinished (dc-hsa5.12)".into());
@@ -461,13 +499,20 @@ impl EventReadContext for Application<'_> {
         use calc_vba::events::CalculationCommand as C;
         let intent = match command {
             C::Dirty => SkinIntent::Recalculate,
-            C::Full => SkinIntent::Calculate { scope: CalcScope::Workbook, selection: EvalSelection::ForceAll },
+            C::Full => SkinIntent::Calculate {
+                scope: CalcScope::Workbook,
+                selection: EvalSelection::ForceAll,
+            },
             C::Rebuild => SkinIntent::Rebuild,
-            C::Range(reference) => SkinIntent::CalculateRange { areas: reference.areas().to_vec() },
+            C::Range(reference) => SkinIntent::CalculateRange {
+                areas: reference.areas().to_vec(),
+            },
         };
         let mut session = self.session.borrow_mut();
         let receipt = session.dispatch_from(calc_host::CommandIngress::Automation, intent);
-        if let Some(error) = receipt.error { return Err(error.to_string()); }
+        if let Some(error) = receipt.error {
+            return Err(error.to_string());
+        }
         let mut progress = receipt.recalc;
         loop {
             match progress {
@@ -478,8 +523,13 @@ impl EventReadContext for Application<'_> {
             }
             if !session.has_pending_calculation() {
                 return if session.has_unfinished_calculation() {
-                    Err("a synchronous macro calculation has unfinished provider work (dc-hsa5.12)".into())
-                } else { Ok(()) };
+                    Err(
+                        "a synchronous macro calculation has unfinished provider work (dc-hsa5.12)"
+                            .into(),
+                    )
+                } else {
+                    Ok(())
+                };
             }
             progress = Some(session.advance_calculation());
         }
@@ -488,17 +538,25 @@ impl EventReadContext for Application<'_> {
         Ok(self.session.borrow().workbook_events_enabled())
     }
     fn set_events_enabled(&self, enabled: bool) -> Result<(), String> {
-        self.session.borrow_mut().set_workbook_events_enabled(enabled);
+        self.session
+            .borrow_mut()
+            .set_workbook_events_enabled(enabled);
         Ok(())
     }
 }
 fn value_input(value: &CalcValue) -> Result<Option<calc_host::CellInput>, String> {
-    use calc_value::CoreRef;
     use calc_host::{CellInput, CellText, FiniteNumber};
+    use calc_value::CoreRef;
     Ok(Some(match value.core_ref() {
         CoreRef::Empty => return Ok(None),
-        CoreRef::Number(n) => CellInput::Number(FiniteNumber::new(n).ok_or("nonfinite Range.Value2 write is not modelled (dc-hsa5.12)")?),
-        CoreRef::Text(t) => CellInput::Text(CellText::new(t.clone()).ok_or("Range.Value2 text exceeds the cell limit (dc-hsa5.12)")?),
+        CoreRef::Number(n) => CellInput::Number(
+            FiniteNumber::new(n)
+                .ok_or("nonfinite Range.Value2 write is not modelled (dc-hsa5.12)")?,
+        ),
+        CoreRef::Text(t) => CellInput::Text(
+            CellText::new(t.clone())
+                .ok_or("Range.Value2 text exceeds the cell limit (dc-hsa5.12)")?,
+        ),
         CoreRef::Logical(b) => CellInput::Logical(b),
         CoreRef::Error(e) => CellInput::Error(e),
         _ => return Err("a nonscalar Range.Value2 element is not modelled (dc-hsa5.12)".into()),
@@ -513,7 +571,13 @@ impl WorkbookEventHandler for WorkbookEvents {
     fn workbook_open(&self, session: &mut calc_host::HostSession) -> Result<(), String> {
         self.require_automatic_events()?;
         if let Some(source) = &self.book {
-            source.open(&Application { session: RefCell::new(session), file_project: self.file_project }, self.max_steps)?;
+            source.open(
+                &Application {
+                    session: RefCell::new(session),
+                    file_project: self.file_project,
+                },
+                self.max_steps,
+            )?;
         }
         Ok(())
     }
@@ -527,23 +591,47 @@ impl WorkbookEventHandler for WorkbookEvents {
         if let Some(source) = self.sheets.get(&sheet) {
             source.change(
                 ReferenceLike::from_areas(target.to_vec()).map_err(|e| e.to_string())?,
-                &Application { session: RefCell::new(session), file_project: self.file_project },
+                &Application {
+                    session: RefCell::new(session),
+                    file_project: self.file_project,
+                },
                 self.max_steps,
             )?;
         }
         Ok(())
     }
-    fn worksheet_calculate(&self, session: &mut calc_host::HostSession, sheet: SheetId) -> Result<(), String> {
+    fn worksheet_calculate(
+        &self,
+        session: &mut calc_host::HostSession,
+        sheet: SheetId,
+    ) -> Result<(), String> {
         self.require_automatic_events()?;
         if let Some(source) = self.sheets.get(&sheet) {
-            source.calculate(&Application { session: RefCell::new(session), file_project: self.file_project }, self.max_steps)?;
+            source.calculate(
+                &Application {
+                    session: RefCell::new(session),
+                    file_project: self.file_project,
+                },
+                self.max_steps,
+            )?;
         }
         Ok(())
     }
-    fn before_save(&self, session: &mut calc_host::HostSession, operation: SaveOperation) -> Result<BeforeSaveOutcome, String> {
+    fn before_save(
+        &self,
+        session: &mut calc_host::HostSession,
+        operation: SaveOperation,
+    ) -> Result<BeforeSaveOutcome, String> {
         self.require_automatic_events()?;
         let cancel = if let Some(source) = &self.book {
-            source.before_save(operation == SaveOperation::SaveAsDialog, &Application { session: RefCell::new(session), file_project: self.file_project }, self.max_steps)?
+            source.before_save(
+                operation == SaveOperation::SaveAsDialog,
+                &Application {
+                    session: RefCell::new(session),
+                    file_project: self.file_project,
+                },
+                self.max_steps,
+            )?
         } else {
             false
         };

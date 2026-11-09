@@ -13,10 +13,10 @@
 //! pass can retain user-function effects across yields without publishing a cell;
 //! ordinary detached contexts and diagnostics keep their existing read-only policy.
 
-#[path = "detached_name.rs"]
-mod name_inspection;
 #[path = "detached_work.rs"]
 mod calculation;
+#[path = "detached_name.rs"]
+mod name_inspection;
 pub use calculation::{NameCalculationProgress, NameCalculationResult, NameCalculationWork};
 
 use crate::read::{Progress, RecalcView, SnapshotCatalog, WorkbookReader};
@@ -408,12 +408,21 @@ impl DetachedFormula {
         context: &DetachedEvaluationContext<'_>,
         at: CellKey,
     ) -> Result<(), NotModeled> {
-        self.validate_inputs(context.state, context.inputs, at,
-            context.policy == DetachedReadPolicy::CurrentValues)
+        self.validate_inputs(
+            context.state,
+            context.inputs,
+            at,
+            context.policy == DetachedReadPolicy::CurrentValues,
+        )
     }
 
-    fn validate_inputs(&self, state: &EngineState, inputs: &ModelRoot, at: CellKey,
-        current: bool) -> Result<(), NotModeled> {
+    fn validate_inputs(
+        &self,
+        state: &EngineState,
+        inputs: &ModelRoot,
+        at: CellKey,
+        current: bool,
+    ) -> Result<(), NotModeled> {
         if state.revision() != inputs.revision()
             || !inputs.same_lineage(&self.compiled_inputs)
             || inputs.sheet_by_id(at.sheet()).is_none()
@@ -491,18 +500,44 @@ impl DetachedFormula {
     }
 }
 
-fn name_pass(state: &EngineState, definition: calc_fml::reference::BoundName, at: CellKey)
-    -> (crate::contract::NameInvocationId, crate::random::RecordedRandom) {
-    use crate::contract::{CalcCommandId, CalcPassId, InvocationId, NameEvaluationLocus,
-        PassReason, ReevaluationReason};
+fn name_pass(
+    state: &EngineState,
+    definition: calc_fml::reference::BoundName,
+    at: CellKey,
+) -> (
+    crate::contract::NameInvocationId,
+    crate::random::RecordedRandom,
+) {
+    use crate::contract::{
+        CalcCommandId, CalcPassId, InvocationId, NameEvaluationLocus, PassReason,
+        ReevaluationReason,
+    };
     let workbook = state.workbook_instance();
     let sequence = state.allocate_tick();
-    (InvocationId {
-        pass: CalcPassId { command: CalcCommandId { domain_incarnation: workbook.document,
-            sequence }, ordinal: 0, reason: PassReason::Initial },
-        workbook, locus: NameEvaluationLocus { definition, caller: at },
-        evaluation: 0, call_site: 0, occurrence: Vec::new(),
-        reason: ReevaluationReason::NewCommandDemand,
-    }, crate::random::RecordedRandom::new(crate::random::RandomStream::new(
-        state.random_seed, sequence, at)))
+    (
+        InvocationId {
+            pass: CalcPassId {
+                command: CalcCommandId {
+                    domain_incarnation: workbook.document,
+                    sequence,
+                },
+                ordinal: 0,
+                reason: PassReason::Initial,
+            },
+            workbook,
+            locus: NameEvaluationLocus {
+                definition,
+                caller: at,
+            },
+            evaluation: 0,
+            call_site: 0,
+            occurrence: Vec::new(),
+            reason: ReevaluationReason::NewCommandDemand,
+        },
+        crate::random::RecordedRandom::new(crate::random::RandomStream::new(
+            state.random_seed,
+            sequence,
+            at,
+        )),
+    )
 }

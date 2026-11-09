@@ -31,7 +31,7 @@ pub(super) struct Context<'a> {
 
 /// One sheet's cells as read: the inputs for the model and the records kept beside it.
 pub(super) struct SheetLoad {
-    pub(super) pivots:super::pivot::SheetPivots,
+    pub(super) pivots: super::pivot::SheetPivots,
     pub(super) page_setup: calc_doc_model::PageSetup,
     pub(super) conditional_sources: Vec<calc_doc_model::ConditionalRuleSource>,
     pub(super) review: super::SheetReview,
@@ -624,9 +624,15 @@ impl Sheet<'_> {
                 Ok(CachedValue::Error(code)) => Some(CellInput::Error(code)),
                 // A picture with no formula is no input the model holds.
                 Ok(CachedValue::Image(_)) => {
-                    self.unloaded_rich(row, column, kind, &text, UnloadedCell::RichValue {
-                        structure: "_webimage".to_owned(),
-                    });
+                    self.unloaded_rich(
+                        row,
+                        column,
+                        kind,
+                        &text,
+                        UnloadedCell::RichValue {
+                            structure: "_webimage".to_owned(),
+                        },
+                    );
                     None
                 }
                 Err(why) => {
@@ -1035,7 +1041,7 @@ pub(super) fn load_sheet(
         id,
         part: Arc::clone(&source),
         load: SheetLoad {
-            pivots:Default::default(),
+            pivots: Default::default(),
             page_setup: super::page_setup::read(&xml)?,
             conditional_sources: Vec::new(),
             review: super::review::read(package, part, id),
@@ -1089,9 +1095,21 @@ pub(super) fn load_sheet(
                     &mut sheet.load.validations,
                 )?;
                 if conditional_extensions {
-                    sheet.load.review.conditional_extension_areas = if sheet.load.review.conditional_extensions {
-                        sheet.load.review.conditional_extension_areas.take().zip(ranges).map(|(mut old, next)| { old.extend(next); old })
-                    } else { ranges };
+                    sheet.load.review.conditional_extension_areas =
+                        if sheet.load.review.conditional_extensions {
+                            sheet
+                                .load
+                                .review
+                                .conditional_extension_areas
+                                .take()
+                                .zip(ranges)
+                                .map(|(mut old, next)| {
+                                    old.extend(next);
+                                    old
+                                })
+                        } else {
+                            ranges
+                        };
                     sheet.load.review.conditional_extensions = true;
                 }
                 if unread > 0 {
@@ -1107,7 +1125,9 @@ pub(super) fn load_sheet(
                 let read = super::validation::read_validations(&mut events)?;
                 sheet.load.validations.extend(read);
             }
-            Some(XmlEvent::Start(element)) if element.name.is(MAIN_NAMESPACE, "pivotParts") => {super::pivot::read_parts(package,part,id,&mut events,&mut sheet.load.pivots)?;}
+            Some(XmlEvent::Start(element)) if element.name.is(MAIN_NAMESPACE, "pivotParts") => {
+                super::pivot::read_parts(package, part, id, &mut events, &mut sheet.load.pivots)?;
+            }
             Some(XmlEvent::Start(element)) if element.name.is(MAIN_NAMESPACE, "sheetData") => {
                 if sheet_data {
                     return Err(events.invalid("a worksheet with two sheetData elements"));
@@ -1117,7 +1137,8 @@ pub(super) fn load_sheet(
             }
             Some(XmlEvent::Start(element)) if element.name.is(MAIN_NAMESPACE, "autoFilter") => {
                 sheet.load.auto_filter = element.attribute("ref").and_then(address::area);
-                (sheet.load.filter,sheet.load.filter_manual)=super::filter::read(&mut events,&element,id)?;
+                (sheet.load.filter, sheet.load.filter_manual) =
+                    super::filter::read(&mut events, &element, id)?;
             }
             Some(XmlEvent::Start(element)) if element.name.is(MAIN_NAMESPACE, "sheetViews") => {
                 sheet.load.view = read_view(&mut events)?;
@@ -1192,9 +1213,14 @@ pub(super) fn load_sheet(
     sheet.load.formulas = std::mem::take(&mut sheet.formulas).into_iter().collect();
     sheet.load.styles = std::mem::take(&mut sheet.styles).into_iter().collect();
     let mut load = sheet.load;
-    super::pivot::read_related(package,part,id,&mut load.pivots);
+    super::pivot::read_related(package, part, id, &mut load.pivots);
     super::outline::read(&xml, &mut load.geometry)?;
-    if load.geometry.outline_unsupported {load.review.unsupported.push("Imported outline metadata cannot be edited here (dc-971p.39); its source is retained".into());}
+    if load.geometry.outline_unsupported {
+        load.review.unsupported.push(
+            "Imported outline metadata cannot be edited here (dc-971p.39); its source is retained"
+                .into(),
+        );
+    }
     let unread = bars
         .keys()
         .filter(|id| {
@@ -1218,9 +1244,20 @@ pub(super) fn load_sheet(
             })?;
     }
     if !load.validations.is_empty() {
-        let sources = crate::save::validation::sources(&xml).map_err(|_| LoadError::InvalidPart { part: part.to_owned(), detail: "validation source could not be retained" })?;
-        if sources.len() != load.validations.len() { return Err(LoadError::InvalidPart { part: part.to_owned(), detail: "validation source count differs" }); }
-        for (rule,source) in load.validations.iter_mut().zip(sources) { rule.source=Some(source); }
+        let sources =
+            crate::save::validation::sources(&xml).map_err(|_| LoadError::InvalidPart {
+                part: part.to_owned(),
+                detail: "validation source could not be retained",
+            })?;
+        if sources.len() != load.validations.len() {
+            return Err(LoadError::InvalidPart {
+                part: part.to_owned(),
+                detail: "validation source count differs",
+            });
+        }
+        for (rule, source) in load.validations.iter_mut().zip(sources) {
+            rule.source = Some(source);
+        }
     }
     Ok(load)
 }
@@ -1229,9 +1266,17 @@ pub(super) fn load_sheet(
 /// start tag was just read (dc-uar). The active cell is the `activeCell` of the `<selection>`
 /// of the pane `<pane activePane>` names (the top left pane when it names none); a value that is
 /// not a cell reference is passed over.
-pub(crate) fn view_from_xml(xml:&crate::xml::XmlPart)->Result<super::geometry::SheetView,LoadError> {
-    let mut events=Events::new(xml);
-    while let Some(event)=events.next()? {if let XmlEvent::Start(e)=event {if e.name.is(MAIN_NAMESPACE,"sheetViews") {return read_view(&mut events);}}}
+pub(crate) fn view_from_xml(
+    xml: &crate::xml::XmlPart,
+) -> Result<super::geometry::SheetView, LoadError> {
+    let mut events = Events::new(xml);
+    while let Some(event) = events.next()? {
+        if let XmlEvent::Start(e) = event {
+            if e.name.is(MAIN_NAMESPACE, "sheetViews") {
+                return read_view(&mut events);
+            }
+        }
+    }
     Ok(Default::default())
 }
 
@@ -1244,7 +1289,10 @@ fn read_view(events: &mut Events<'_>) -> Result<super::geometry::SheetView, Load
                 if first && element.name.is(MAIN_NAMESPACE, "sheetView") =>
             {
                 first = false;
-                view.zoom=element.attribute("zoomScale").and_then(|s|s.parse::<u16>().ok()).filter(|n|(10..=400).contains(n));
+                view.zoom = element
+                    .attribute("zoomScale")
+                    .and_then(|s| s.parse::<u16>().ok())
+                    .filter(|n| (10..=400).contains(n));
                 view.top_left = element.attribute("topLeftCell").and_then(address::cell);
                 let mut active_pane = "topLeft".to_owned();
                 let mut selections: Vec<(String, Option<(u32, u32)>)> = Vec::new();
@@ -1356,21 +1404,28 @@ mod origin_tests {
     #[cfg_attr(not(target_arch = "wasm32"), test)]
     #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
     fn shared_cell_callee_text_and_template_operands_move_together() {
-        use calc_fml::reference::{FormulaAnchor, template_key};
         use calc_doc_model::value::{IdAllocator, SheetId};
+        use calc_fml::reference::{FormulaAnchor, template_key};
         let mut ids: IdAllocator<SheetId> = IdAllocator::new();
         let sheet = ids.issue().unwrap();
         let master = CellKey::new(sheet, 1, 2).unwrap();
         let member = CellKey::new(sheet, 1, 3).unwrap();
         let text = "A1(2)+Module1.A1(2)+LOG10(100)";
-        let source = SharedSource::from_source(master,
-            ExcelText::from_utf16_code_units(text.encode_utf16().collect())).unwrap();
+        let source = SharedSource::from_source(
+            master,
+            ExcelText::from_utf16_code_units(text.encode_utf16().collect()),
+        )
+        .unwrap();
         let moved = source.try_render(member).unwrap().to_string_lossy();
         assert_eq!(moved, "B1(2)+Module1.A1(2)+LOG10(100)");
-        assert_eq!(template_key(text, FormulaAnchor::new(master)),
-            template_key(&moved, FormulaAnchor::new(member)));
-        assert_ne!(template_key(text, FormulaAnchor::new(master)),
-            template_key(text, FormulaAnchor::new(member)));
+        assert_eq!(
+            template_key(text, FormulaAnchor::new(master)),
+            template_key(&moved, FormulaAnchor::new(member))
+        );
+        assert_ne!(
+            template_key(text, FormulaAnchor::new(master)),
+            template_key(text, FormulaAnchor::new(member))
+        );
     }
 
     #[cfg_attr(not(target_arch = "wasm32"), test)]

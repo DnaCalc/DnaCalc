@@ -8,10 +8,12 @@
 //! changed where Excel measurement required it. The licence text is in
 //! `deploy/notices/ported.txt`. The rest of the file is our own work.
 
-use crate::locale::{DateSystem as WorkbookDateSystem, excel_serial_from_ymd, ymd_from_excel_serial};
+use crate::locale::{
+    DateSystem as WorkbookDateSystem, excel_serial_from_ymd, ymd_from_excel_serial,
+};
+use crate::ported::excel_numeric::crt_pow;
 use crate::value::CalcValue;
 use crate::value::WorksheetErrorCode;
-use crate::ported::excel_numeric::crt_pow;
 
 #[derive(Debug, Clone, PartialEq)]
 pub enum OddBondEvalError {
@@ -650,8 +652,9 @@ pub fn oddfyield_kernel(
     // Excel20527 gives NUM for zero serials, and requires first_coupon to be
     // on maturity's schedule. All820 independent date-grid calls agree with
     // the public COUPPCD test, including clamped and month-end dates.
-    let date = |value| parse_date_serial(value)
-        .map_err(|_| OddBondEvalError::Domain(WorksheetErrorCode::Num));
+    let date = |value| {
+        parse_date_serial(value).map_err(|_| OddBondEvalError::Domain(WorksheetErrorCode::Num))
+    };
     let settlement = date(settlement)? as f64;
     let maturity = date(maturity)? as f64;
     let issue = date(issue)? as f64;
@@ -659,8 +662,9 @@ pub fn oddfyield_kernel(
     if !(issue < settlement && settlement < first_coupon && first_coupon < maturity) {
         return Err(OddBondEvalError::Domain(WorksheetErrorCode::Num));
     }
-    let previous = crate::ported::coupon_family::couppcd_kernel(
-        first_coupon, maturity, frequency, basis).map_err(OddBondEvalError::Domain)?;
+    let previous =
+        crate::ported::coupon_family::couppcd_kernel(first_coupon, maturity, frequency, basis)
+            .map_err(OddBondEvalError::Domain)?;
     if previous != first_coupon {
         return Err(OddBondEvalError::Domain(WorksheetErrorCode::Num));
     }
@@ -770,9 +774,9 @@ pub fn map_odd_bond_error_to_ws(error: &OddBondEvalError) -> WorksheetErrorCode 
 
 #[cfg(test)]
 mod tests {
+    use super::*;
     #[allow(unused_imports)]
     use crate::value::{CalcArray, CalcValue, CoreValue, ExcelText};
-    use super::*;
 
     fn serial(year: i64, month: i64, day: i64) -> f64 {
         excel_serial_from_ymd(WorkbookDateSystem::System1900, year, month, day).unwrap()

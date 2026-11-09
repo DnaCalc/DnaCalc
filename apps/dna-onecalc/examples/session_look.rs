@@ -2,10 +2,10 @@
 //! `cargo run -p dna-onecalc --example session_look -- <out.xlsx>`.
 //! The session: `=A1:C4` (a 4 x 3 array result of numbers, text, a blank and an error) at K4, a
 //! Formatting panel style, and one Conditional Formatting rule of each kind.
+use dna_onecalc::Session;
 use dna_onecalc::cf::{CellStyle, CfRuleSpec};
 use dna_onecalc::file;
 use dna_onecalc::shown::{Authored, evaluate};
-use dna_onecalc::Session;
 
 fn main() {
     let out = std::env::args().nth(1).expect("an output path");
@@ -16,10 +16,18 @@ fn main() {
     // Row by row over A1:C4 (the grid is 8 columns wide).
     let columns = dna_onecalc::grid::COLUMNS as usize;
     let cells = [
-        (0, 0, "5"), (0, 1, "abc"), (0, 2, "12"),
-        (1, 0, "-3"), (1, 1, "a \"q\" b"), (1, 2, "40"),
-        (2, 0, "8"), (2, 1, "TRUE"), (2, 2, "#N/A"),
-        (3, 0, "5"), (3, 1, "xyz"), (3, 2, "100"),
+        (0, 0, "5"),
+        (0, 1, "abc"),
+        (0, 2, "12"),
+        (1, 0, "-3"),
+        (1, 1, "a \"q\" b"),
+        (1, 2, "40"),
+        (2, 0, "8"),
+        (2, 1, "TRUE"),
+        (2, 2, "#N/A"),
+        (3, 0, "5"),
+        (3, 1, "xyz"),
+        (3, 2, "100"),
     ];
     for (row, column, text) in cells {
         state.grid[row * columns + column] = text.to_owned();

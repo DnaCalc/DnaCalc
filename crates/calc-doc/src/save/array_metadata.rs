@@ -275,11 +275,11 @@ const WEB_IMAGE_RELATIONSHIP: &str =
 const WEB_IMAGE_CONTENT_TYPE: &str = "application/vnd.ms-excel.rdrichvaluewebimage+xml";
 const WEB_IMAGE_NAMESPACE: &str =
     "http://schemas.microsoft.com/office/spreadsheetml/2020/richdatawebimage";
-const RELATIONSHIPS_NAMESPACE: &str = "http://schemas.openxmlformats.org/package/2006/relationships";
+const RELATIONSHIPS_NAMESPACE: &str =
+    "http://schemas.openxmlformats.org/package/2006/relationships";
 const OFFICE_RELATIONSHIPS: &str =
     "http://schemas.openxmlformats.org/officeDocument/2006/relationships";
-const RELATIONSHIPS_CONTENT_TYPE: &str =
-    "application/vnd.openxmlformats-package.relationships+xml";
+const RELATIONSHIPS_CONTENT_TYPE: &str = "application/vnd.openxmlformats-package.relationships+xml";
 
 const RICH_VALUE_RELATIONSHIP: &str =
     "http://schemas.microsoft.com/office/2017/06/relationships/rdRichValue";
@@ -413,7 +413,9 @@ pub(super) fn plan(
     };
     let part_name = part.clone().unwrap_or_else(|| "xl/metadata.xml".to_owned());
     if !errors.is_empty() || !images.is_empty() {
-        add_rich_values(package, workbook, &part_name, &mut text, &errors, images, &mut out)?;
+        add_rich_values(
+            package, workbook, &part_name, &mut text, &errors, images, &mut out,
+        )?;
     }
     match part {
         Some(part) => {
@@ -488,25 +490,28 @@ fn add_rich_values(
     };
     // A structure, found or appended (0-based `s`): an `_error` holding errorType alone, and a
     // `_webimage` of each shape the pictures take.
-    let structure_index = |structures_text: &mut String, wanted: &str| {
-        match position_of(structures_text, "rvStructures", "s", |_| true)
-            .and_then(|_| structures_text.find(wanted))
-        {
-            Some(at) => {
-                let mut index = 0;
-                let mut from = s_root + "<rvStructures".len();
-                while let Some(found) = start_tag(&structures_text[from..at], "s") {
-                    index += 1;
-                    from += found + 2;
-                }
-                index
+    let structure_index = |structures_text: &mut String, wanted: &str| match position_of(
+        structures_text,
+        "rvStructures",
+        "s",
+        |_| true,
+    )
+    .and_then(|_| structures_text.find(wanted))
+    {
+        Some(at) => {
+            let mut index = 0;
+            let mut from = s_root + "<rvStructures".len();
+            while let Some(found) = start_tag(&structures_text[from..at], "s") {
+                index += 1;
+                from += found + 2;
             }
-            None => {
-                let index = children(structures_text, s_root, "rvStructures", "s");
-                append(structures_text, s_root, "rvStructures", wanted);
-                set_count(structures_text, s_root, index + 1);
-                index
-            }
+            index
+        }
+        None => {
+            let index = children(structures_text, s_root, "rvStructures", "s");
+            append(structures_text, s_root, "rvStructures", wanted);
+            set_count(structures_text, s_root, index + 1);
+            index
         }
     };
     // The metadata type XLRICHVALUE, found or appended (1-based `t`).
@@ -731,7 +736,11 @@ fn add_web_images(
     let mut entries = String::new();
     let mut relationships = String::new();
     let parent = workbook.rsplit_once('/').map_or("", |(parent, _)| parent);
-    let media_stem = if parent.is_empty() { "media/image" } else { "/media/image" };
+    let media_stem = if parent.is_empty() {
+        "media/image"
+    } else {
+        "/media/image"
+    };
     let mut media_number = package
         .parts()
         .iter()
@@ -754,10 +763,14 @@ fn add_web_images(
             .push((media, image.bytes.to_vec(), image.format.content_type()));
     }
     let close = "</webImagesSrd>";
-    let at = part_text.rfind(close).ok_or_else(|| invalid(&name, "a web image part without its end tag"))?;
+    let at = part_text
+        .rfind(close)
+        .ok_or_else(|| invalid(&name, "a web image part without its end tag"))?;
     part_text.insert_str(at, &entries);
     let close = "</Relationships>";
-    let at = rels_text.rfind(close).ok_or_else(|| invalid(&rels_name, "a relationships part without its end tag"))?;
+    let at = rels_text
+        .rfind(close)
+        .ok_or_else(|| invalid(&rels_name, "a relationships part without its end tag"))?;
     rels_text.insert_str(at, &relationships);
     match existing {
         Some(part) => out.rewritten.push((part, part_text.into_bytes())),
@@ -772,8 +785,11 @@ fn add_web_images(
     if held.is_some() {
         out.rewritten.push((rels_name, rels_text.into_bytes()));
     } else {
-        out.unrelated
-            .push((rels_name, rels_text.into_bytes(), RELATIONSHIPS_CONTENT_TYPE));
+        out.unrelated.push((
+            rels_name,
+            rels_text.into_bytes(),
+            RELATIONSHIPS_CONTENT_TYPE,
+        ));
     }
     Ok(())
 }

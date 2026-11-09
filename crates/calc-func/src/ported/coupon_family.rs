@@ -1,4 +1,6 @@
-use crate::locale::{DateSystem as WorkbookDateSystem, excel_serial_from_ymd, ymd_from_excel_serial};
+use crate::locale::{
+    DateSystem as WorkbookDateSystem, excel_serial_from_ymd, ymd_from_excel_serial,
+};
 use crate::value::CalcValue;
 use crate::value::WorksheetErrorCode;
 
@@ -85,8 +87,9 @@ fn calendar_days360(
 ) -> Result<f64, WorksheetErrorCode> {
     let (sy, sm, mut sd) = ymd_from_excel_serial(WorkbookDateSystem::System1900, start as f64)
         .ok_or(WorksheetErrorCode::Value)?;
-    let (mut ey, mut em, mut ed) = ymd_from_excel_serial(WorkbookDateSystem::System1900, end as f64)
-        .ok_or(WorksheetErrorCode::Value)?;
+    let (mut ey, mut em, mut ed) =
+        ymd_from_excel_serial(WorkbookDateSystem::System1900, end as f64)
+            .ok_or(WorksheetErrorCode::Value)?;
     if matches!(adjustment, CalendarDayAdjustment::CouponAccrued) {
         let start_last_feb = sm == 2 && sd == days_in_month(sy, sm);
         let end_last_feb = em == 2 && ed == days_in_month(ey, em);
@@ -111,13 +114,15 @@ fn calendar_days360(
     }
     if sd == 31
         || (matches!(adjustment, CalendarDayAdjustment::CouponPeriod)
-            && sm == 2 && sd == days_in_month(sy, sm))
+            && sm == 2
+            && sd == days_in_month(sy, sm))
     {
         sd = 30;
     }
     if ed == 31
         || (matches!(adjustment, CalendarDayAdjustment::CouponPeriod)
-            && em == 2 && ed == days_in_month(ey, em))
+            && em == 2
+            && ed == days_in_month(ey, em))
     {
         ed = 30;
     }
@@ -149,9 +154,7 @@ fn accrued_or_remaining_days(
     basis: CouponBasis,
 ) -> Result<f64, WorksheetErrorCode> {
     match basis {
-        CouponBasis::Us30_360 => {
-            calendar_days360(start, end, CalendarDayAdjustment::CouponAccrued)
-        }
+        CouponBasis::Us30_360 => calendar_days360(start, end, CalendarDayAdjustment::CouponAccrued),
         CouponBasis::ActualActual | CouponBasis::Actual360 | CouponBasis::Actual365 => {
             Ok(actual_days(start, end))
         }
@@ -236,7 +239,11 @@ fn parse_coupon_context(
 /// gives month-end coupons. Chaining off an already-clamped date drifted to month ends after
 /// the first short month (maturity 2046-08-28 quarterly gave a next coupon of 2045-05-31
 /// where Excel gives 2045-05-28). Live Excel 20430, W111-5 G8-08.
-fn coupon_date_before_maturity(ctx: CouponContext, periods: i64, preserve_month_end: bool) -> Option<i64> {
+fn coupon_date_before_maturity(
+    ctx: CouponContext,
+    periods: i64,
+    preserve_month_end: bool,
+) -> Option<i64> {
     let months_per_coupon = 12 / ctx.frequency;
     let (year, month, day) =
         ymd_from_excel_serial(WorkbookDateSystem::System1900, ctx.maturity as f64)?;
@@ -306,11 +313,11 @@ pub fn coupdays_kernel(
         // R24 finite Gregorian study. No numerical tolerance enters this rule.
         let mut next = ctx;
         loop {
-            let previous = coupon_date_before_maturity(next, 1, false)
-                .ok_or(WorksheetErrorCode::Num)?;
+            let previous =
+                coupon_date_before_maturity(next, 1, false).ok_or(WorksheetErrorCode::Num)?;
             if previous <= ctx.settlement {
-                let start = coupon_date_before_maturity(next, 1, true)
-                    .ok_or(WorksheetErrorCode::Num)?;
+                let start =
+                    coupon_date_before_maturity(next, 1, true).ok_or(WorksheetErrorCode::Num)?;
                 return Ok(actual_days(start, next.maturity));
             }
             next.maturity = previous;
@@ -336,7 +343,9 @@ pub fn coupdaysnc_kernel(
         // Fn7 paired date/accrual/remaining-day controls cover calendar zero, fictitious
         // February 29 and independent month-end schedules; all readings are retained.
         let coupon_days = calendar_days360(
-            period.previous, period.next, CalendarDayAdjustment::CouponPeriod,
+            period.previous,
+            period.next,
+            CalendarDayAdjustment::CouponPeriod,
         )?;
         let accrued = accrued_or_remaining_days(period.previous, ctx.settlement, ctx.basis)?;
         return Ok(coupon_days - accrued);
@@ -391,9 +400,9 @@ pub fn map_coupon_error_to_ws(error: &CouponEvalError) -> WorksheetErrorCode {
 
 #[cfg(test)]
 mod tests {
+    use super::*;
     #[allow(unused_imports)]
     use crate::value::{CalcArray, CalcValue, CoreValue, ExcelText};
-    use super::*;
 
     struct NoResolver;
 

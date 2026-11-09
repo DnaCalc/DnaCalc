@@ -64,26 +64,46 @@ fn a1(area: GridArea) -> String {
     if f == l {
         return format!("{}{}", letters(f.column()), f.row());
     }
-    format!("{}{}:{}{}", letters(f.column()), f.row(), letters(l.column()), l.row())
+    format!(
+        "{}{}:{}{}",
+        letters(f.column()),
+        f.row(),
+        letters(l.column()),
+        l.row()
+    )
 }
 fn at(sheet: SheetId, address: &str) -> CellKey {
     let split = address.find(|c: char| c.is_ascii_digit()).unwrap();
     let (l, d) = address.split_at(split);
-    CellKey::new(sheet, d.parse().unwrap(), l.bytes().fold(0u32, |n, b| n * 26 + u32::from(b - b'A' + 1))).unwrap()
+    CellKey::new(
+        sheet,
+        d.parse().unwrap(),
+        l.bytes()
+            .fold(0u32, |n, b| n * 26 + u32::from(b - b'A' + 1)),
+    )
+    .unwrap()
 }
 fn open(bytes: &[u8]) -> HostSession {
     let source: Arc<dyn PackageRead> = Arc::new(MemorySource::new(bytes.to_vec()));
-    let mut book = HostSession::open(source, &OpenPolicy::default(), HostOptions::default()).unwrap();
+    let mut book =
+        HostSession::open(source, &OpenPolicy::default(), HostOptions::default()).unwrap();
     assert!(book.dispatch(SkinIntent::Recalculate).accepted());
     book
 }
 fn sheet(book: &HostSession, name: &str) -> SheetId {
-    book.host().sheets().iter().find(|s| s.name().text().to_string_lossy() == name).unwrap().id()
+    book.host()
+        .sheets()
+        .iter()
+        .find(|s| s.name().text().to_string_lossy() == name)
+        .unwrap()
+        .id()
 }
 /// `m5@C4:H9@Src!R2C2:R14C5` as DNA Calc holds it: the output area and the cache source in Excel's spelling.
 fn pivot_now(book: &HostSession) -> String {
     let state = book.host().model().definitions().pivots();
-    let Some(table) = state.tables().next() else { return "-".into() };
+    let Some(table) = state.tables().next() else {
+        return "-".into();
+    };
     let cache = &state.caches.caches[&table.cache_id];
     let source = match (&cache.source_name, &cache.source_sheet, &cache.source_range) {
         (Some(name), _, _) => name.clone(),
@@ -91,14 +111,21 @@ fn pivot_now(book: &HostSession) -> String {
             let (a, b) = range.split_once(':').unwrap_or((range, range));
             let rc = |cell: &str| {
                 let split = cell.find(|c: char| c.is_ascii_digit()).unwrap();
-                let col = cell[..split].bytes().fold(0u32, |n, b| n * 26 + u32::from(b - b'A' + 1));
+                let col = cell[..split]
+                    .bytes()
+                    .fold(0u32, |n, b| n * 26 + u32::from(b - b'A' + 1));
                 format!("R{}C{}", &cell[split..], col)
             };
             format!("{sheet}!{}:{}", rc(a), rc(b))
         }
         _ => "?".into(),
     };
-    format!("{}@{}@{}", table.name.trim_start_matches("pvt_"), a1(table.area), source)
+    format!(
+        "{}@{}@{}",
+        table.name.trim_start_matches("pvt_"),
+        a1(table.area),
+        source
+    )
 }
 fn refresh(book: &mut HostSession) -> Result<(), String> {
     let (sheet, part) = {
@@ -106,12 +133,18 @@ fn refresh(book: &mut HostSession) -> Result<(), String> {
         let table = state.tables().next().unwrap();
         (table.area.sheet(), table.part.clone())
     };
-    let receipt = book.dispatch(SkinIntent::Command(calc_host::WorkbookCommand::PivotRefresh {
-        sheet,
-        revision: book.host().revision().get(),
-        part,
-    }));
-    if receipt.accepted() { Ok(()) } else { Err(format!("{:?}", receipt.error)) }
+    let receipt = book.dispatch(SkinIntent::Command(
+        calc_host::WorkbookCommand::PivotRefresh {
+            sheet,
+            revision: book.host().revision().get(),
+            part,
+        },
+    ));
+    if receipt.accepted() {
+        Ok(())
+    } else {
+        Err(format!("{:?}", receipt.error))
+    }
 }
 /// The non-empty cells of `Out` inside `area`, as Excel's capture spells them.
 fn dna_cells(book: &HostSession, area: GridArea) -> BTreeMap<String, String> {
@@ -122,7 +155,13 @@ fn dna_cells(book: &HostSession, area: GridArea) -> BTreeMap<String, String> {
             keys.push(CellKey::new(out, r, c).unwrap());
         }
     }
-    let page = project(book.host(), &ProjectionRequest { cells: keys.clone() }).unwrap();
+    let page = project(
+        book.host(),
+        &ProjectionRequest {
+            cells: keys.clone(),
+        },
+    )
+    .unwrap();
     let mut cells = BTreeMap::new();
     for (key, cell) in keys.iter().zip(page.cells()) {
         let value = match cell.value() {
@@ -147,7 +186,12 @@ fn excel_cells_at(id: &str, stage: &str, area: GridArea) -> BTreeMap<String, Str
     excel_cells_in(CELLS, id, stage, area)
 }
 fn excel_cells_in(data: &str, id: &str, stage: &str, area: GridArea) -> BTreeMap<String, String> {
-    let (top, bottom, left, right) = (area.first().row(), area.last().row(), area.first().column(), area.last().column());
+    let (top, bottom, left, right) = (
+        area.first().row(),
+        area.last().row(),
+        area.first().column(),
+        area.last().column(),
+    );
     let mut cells = BTreeMap::new();
     for line in data.lines().skip(1) {
         let f: Vec<&str> = line.splitn(6, '\t').collect();
@@ -155,7 +199,9 @@ fn excel_cells_in(data: &str, id: &str, stage: &str, area: GridArea) -> BTreeMap
             continue;
         }
         let split = f[3].find(|c: char| c.is_ascii_digit()).unwrap();
-        let col = f[3][..split].bytes().fold(0u32, |n, b| n * 26 + u32::from(b - b'A' + 1));
+        let col = f[3][..split]
+            .bytes()
+            .fold(0u32, |n, b| n * 26 + u32::from(b - b'A' + 1));
         let row: u32 = f[3][split..].parse().unwrap();
         if (top..=bottom).contains(&row) && (left..=right).contains(&col) {
             let value = if f[4] == "n" {
@@ -165,8 +211,15 @@ fn excel_cells_in(data: &str, id: &str, stage: &str, area: GridArea) -> BTreeMap
                 // The capture holds Excel's raw error code (HRESULT 0x800A0000 + the CVErr number).
                 let code = f[5].parse::<i64>().unwrap() + (1 << 32) - 0x800A_0000;
                 let name = match code {
-                    2000 => "#NULL!", 2007 => "#DIV/0!", 2015 => "#VALUE!", 2023 => "#REF!", 2029 => "#NAME?",
-                    2036 => "#NUM!", 2042 => "#N/A", 2045 => "#SPILL!", other => panic!("error code {other}"),
+                    2000 => "#NULL!",
+                    2007 => "#DIV/0!",
+                    2015 => "#VALUE!",
+                    2023 => "#REF!",
+                    2029 => "#NAME?",
+                    2036 => "#NUM!",
+                    2042 => "#N/A",
+                    2045 => "#SPILL!",
+                    other => panic!("error code {other}"),
                 };
                 format!("e\t{name}")
             } else {
@@ -228,11 +281,24 @@ const EDITS: &[(&str, &str, char, char, u32, u32)] = &[
     ("src-del-col-after", "Src", 'c', 'd', 6, 1),
 ];
 
-fn edit(book: &mut HostSession, case: &(&str, &str, char, char, u32, u32)) -> calc_host::IntentReceipt {
+fn edit(
+    book: &mut HostSession,
+    case: &(&str, &str, char, char, u32, u32),
+) -> calc_host::IntentReceipt {
     let target = sheet(book, case.1);
-    let axis = if case.2 == 'r' { Axis::Rows } else { Axis::Columns };
-    let change = if case.3 == 'i' { AxisChange::Insert } else { AxisChange::Delete };
-    book.dispatch(SkinIntent::EditAxis(AxisEdit::new(target, axis, change, case.4, case.5).unwrap()))
+    let axis = if case.2 == 'r' {
+        Axis::Rows
+    } else {
+        Axis::Columns
+    };
+    let change = if case.3 == 'i' {
+        AxisChange::Insert
+    } else {
+        AxisChange::Delete
+    };
+    book.dispatch(SkinIntent::EditAxis(
+        AxisEdit::new(target, axis, change, case.4, case.5).unwrap(),
+    ))
 }
 
 #[test]
@@ -250,18 +316,32 @@ fn dc_8wp_16__row_and_column_edits_place_pivot_outputs_and_sources_as_excel_does
             if receipt.accepted() {
                 failures.push(format!("{}: Excel refused, DNA Calc accepted", case.0));
             } else if !format!("{receipt:?}").contains("will affect a PivotTable") {
-                failures.push(format!("{}: refused without Excel's text: {receipt:?}", case.0));
+                failures.push(format!(
+                    "{}: refused without Excel's text: {receipt:?}",
+                    case.0
+                ));
             }
-            assert_eq!(pivot_now(&book), before, "{}: a refused edit changes nothing", case.0);
+            assert_eq!(
+                pivot_now(&book),
+                before,
+                "{}: a refused edit changes nothing",
+                case.0
+            );
             continue;
         }
         if !receipt.accepted() {
-            failures.push(format!("{}: Excel accepted, DNA Calc refused: {receipt:?}", case.0));
+            failures.push(format!(
+                "{}: Excel accepted, DNA Calc refused: {receipt:?}",
+                case.0
+            ));
             continue;
         }
         let moved = pivot_now(&book);
         if moved != want.pivots[1] {
-            failures.push(format!("{}: after the edit want {} got {moved}", case.0, want.pivots[1]));
+            failures.push(format!(
+                "{}: after the edit want {} got {moved}",
+                case.0, want.pivots[1]
+            ));
         }
         // The refresh (a source edit moves what is read; an output edit must keep the pivot refreshable).
         let result = refresh(&mut book);
@@ -269,20 +349,32 @@ fn dc_8wp_16__row_and_column_edits_place_pivot_outputs_and_sources_as_excel_does
         let want_after = &want.pivots[2];
         let area = area_on(want_after, sheet(&book, "Out"));
         match result {
-            Err(why) => failures.push(format!("{}: refresh refused ({why}); Excel gave {want_after}", case.0)),
+            Err(why) => failures.push(format!(
+                "{}: refresh refused ({why}); Excel gave {want_after}",
+                case.0
+            )),
             Ok(()) => {
                 if &after != want_after {
-                    failures.push(format!("{}: after the refresh want {want_after} got {after}", case.0));
+                    failures.push(format!(
+                        "{}: after the refresh want {want_after} got {after}",
+                        case.0
+                    ));
                 } else {
                     let (d, e) = (dna_cells(&book, area), excel_cells(case.0, area));
                     if d != e {
-                        failures.push(format!("{}: refreshed cells differ ({} vs {})", case.0, d.len(), e.len()));
+                        failures.push(format!(
+                            "{}: refreshed cells differ ({} vs {})",
+                            case.0,
+                            d.len(),
+                            e.len()
+                        ));
                     }
                 }
             }
         }
         // The save a person would make: kept for the Excel replay when DNACALC_PIVOT_SAVES names a folder.
-        if let Some(folder) = std::env::var_os("DNACALC_PIVOT_SAVES").map(std::path::PathBuf::from) {
+        if let Some(folder) = std::env::var_os("DNACALC_PIVOT_SAVES").map(std::path::PathBuf::from)
+        {
             let mut package = Vec::new();
             if book.save(&SavePolicy::default(), &mut package).is_ok() {
                 std::fs::create_dir_all(&folder).unwrap();
@@ -291,9 +383,15 @@ fn dc_8wp_16__row_and_column_edits_place_pivot_outputs_and_sources_as_excel_does
                     .into_iter()
                     .map(|(a, v)| format!("Out	{a}	{v}"))
                     .collect();
-                std::fs::write(folder.join(format!("p8-{}.dna.tsv", case.0)), lines.join("
-") + "
-").unwrap();
+                std::fs::write(
+                    folder.join(format!("p8-{}.dna.tsv", case.0)),
+                    lines.join(
+                        "
+",
+                    ) + "
+",
+                )
+                .unwrap();
             }
         }
         // Save and reopen keeps what the edit made.
@@ -302,13 +400,23 @@ fn dc_8wp_16__row_and_column_edits_place_pivot_outputs_and_sources_as_excel_does
             Ok(_) => {
                 let reopened = open(&saved);
                 if pivot_now(&reopened) != after {
-                    failures.push(format!("{}: reopened {} want {after}", case.0, pivot_now(&reopened)));
+                    failures.push(format!(
+                        "{}: reopened {} want {after}",
+                        case.0,
+                        pivot_now(&reopened)
+                    ));
                 }
             }
             Err(why) => failures.push(format!("{}: save refused: {why:?}", case.0)),
         }
     }
-    assert!(failures.is_empty(), "{} of {} scenarios differ:\n{}", failures.len(), EDITS.len(), failures.join("\n"));
+    assert!(
+        failures.is_empty(),
+        "{} of {} scenarios differ:\n{}",
+        failures.len(),
+        EDITS.len(),
+        failures.join("\n")
+    );
 }
 
 #[test]
@@ -316,29 +424,47 @@ fn dc_8wp_16__row_and_column_edits_place_pivot_outputs_and_sources_as_excel_does
 fn dc_8wp_16__deleting_all_of_an_output_removes_the_pivot_as_excel_does() {
     // out-del-rows-all and out-del-cols-all: Excel removes the pivot (no table is left on the sheet) and the rows or
     // columns go with the other cells of the sheet, which move up or left.
-    for (id, axis, first, count) in [("out-del-rows-all", Axis::Rows, 4, 6), ("out-del-cols-all", Axis::Columns, 3, 6)] {
+    for (id, axis, first, count) in [
+        ("out-del-rows-all", Axis::Rows, 4, 6),
+        ("out-del-cols-all", Axis::Columns, 3, 6),
+    ] {
         let want = excel(id);
         assert_eq!(want.pivots[0], "m5@C4:H9@Src!R2C2:R14C5", "{id}");
         assert_eq!(want.pivots[1], "-", "{id}");
         let mut book = open(BASE_RANGE);
         let out = sheet(&book, "Out");
-        let receipt = book.dispatch(SkinIntent::EditAxis(AxisEdit::new(out, axis, AxisChange::Delete, first, count).unwrap()));
+        let receipt = book.dispatch(SkinIntent::EditAxis(
+            AxisEdit::new(out, axis, AxisChange::Delete, first, count).unwrap(),
+        ));
         assert!(receipt.accepted(), "{id}: {receipt:?}");
         assert_eq!(pivot_now(&book), want.pivots[1], "{id}");
         let sheet_area = GridArea::new(at(out, "A1"), at(out, "P40")).unwrap();
-        assert_eq!(dna_cells(&book, sheet_area), excel_cells_at(id, "1", sheet_area), "{id}: the other cells of the sheet");
+        assert_eq!(
+            dna_cells(&book, sheet_area),
+            excel_cells_at(id, "1", sheet_area),
+            "{id}: the other cells of the sheet"
+        );
         // There is nothing left to refresh, and the save carries no pivot table.
         let mut saved = Vec::new();
-        book.save(&SavePolicy::default(), &mut saved).unwrap_or_else(|why| panic!("{id}: save refused: {why:?}"));
-        if let Some(folder) = std::env::var_os("DNACALC_PIVOT_SAVES").map(std::path::PathBuf::from) {
+        book.save(&SavePolicy::default(), &mut saved)
+            .unwrap_or_else(|why| panic!("{id}: save refused: {why:?}"));
+        if let Some(folder) = std::env::var_os("DNACALC_PIVOT_SAVES").map(std::path::PathBuf::from)
+        {
             std::fs::create_dir_all(&folder).unwrap();
             std::fs::write(folder.join(format!("p8-{id}.xlsx")), &saved).unwrap();
         }
         let reopened = open(&saved);
         assert_eq!(pivot_now(&reopened), "-", "{id}: reopened");
-        assert_eq!(dna_cells(&reopened, sheet_area), excel_cells_at(id, "1", sheet_area), "{id}: reopened cells");
+        assert_eq!(
+            dna_cells(&reopened, sheet_area),
+            excel_cells_at(id, "1", sheet_area),
+            "{id}: reopened cells"
+        );
         let text = String::from_utf8_lossy(&saved);
-        assert!(!text.contains("pivotTables/pivotTable"), "{id}: the saved package still names a pivot table part");
+        assert!(
+            !text.contains("pivotTables/pivotTable"),
+            "{id}: the saved package still names a pivot table part"
+        );
     }
 }
 
@@ -349,8 +475,19 @@ fn dc_8wp_16__table_source_grows_with_its_table_and_the_next_refresh_reads_the_n
     let want = excel("tbl-resize-grow");
     let mut book = open(BASE_TABLE);
     let src = sheet(&book, "Src");
-    for (address, text) in [("B15", "West"), ("C15", "Alpha"), ("D15", "500"), ("E15", "9")] {
-        assert!(book.dispatch(SkinIntent::EnterCell { at: at(src, address), text: text.into() }).accepted());
+    for (address, text) in [
+        ("B15", "West"),
+        ("C15", "Alpha"),
+        ("D15", "500"),
+        ("E15", "9"),
+    ] {
+        assert!(
+            book.dispatch(SkinIntent::EnterCell {
+                at: at(src, address),
+                text: text.into()
+            })
+            .accepted()
+        );
     }
     let (part, area) = {
         let table = &book.host().model().definitions().tables()[0];
@@ -387,11 +524,21 @@ fn dc_8wp_16__table_source_follows_row_edits_on_its_sheet() {
         let want = excel(id);
         let mut book = open(BASE_TABLE);
         let src = sheet(&book, "Src");
-        let axis = if id.contains("-col-") { Axis::Columns } else { Axis::Rows };
-        let receipt = book.dispatch(SkinIntent::EditAxis(AxisEdit::new(src, axis, change, first, count).unwrap()));
+        let axis = if id.contains("-col-") {
+            Axis::Columns
+        } else {
+            Axis::Rows
+        };
+        let receipt = book.dispatch(SkinIntent::EditAxis(
+            AxisEdit::new(src, axis, change, first, count).unwrap(),
+        ));
         assert!(receipt.accepted(), "{id}: {receipt:?}");
         let table = &book.host().model().definitions().tables()[0];
-        assert_eq!(format!("{}={}", table.name, a1(table.area)), want.tables[1], "{id}");
+        assert_eq!(
+            format!("{}={}", table.name, a1(table.area)),
+            want.tables[1],
+            "{id}"
+        );
         assert_eq!(pivot_now(&book), want.pivots[1], "{id}");
         refresh(&mut book).unwrap_or_else(|why| panic!("{id}: {why}"));
         assert_eq!(pivot_now(&book), want.pivots[2], "{id}");
@@ -408,7 +555,9 @@ fn dc_8wp_16__deleting_every_column_of_a_table_is_still_refused_by_the_table_rul
     let mut book = open(BASE_TABLE);
     let src = sheet(&book, "Src");
     let before = book.host().revision();
-    let receipt = book.dispatch(SkinIntent::EditAxis(AxisEdit::new(src, Axis::Columns, AxisChange::Delete, 2, 4).unwrap()));
+    let receipt = book.dispatch(SkinIntent::EditAxis(
+        AxisEdit::new(src, Axis::Columns, AxisChange::Delete, 2, 4).unwrap(),
+    ));
     assert!(!receipt.accepted());
     assert!(format!("{receipt:?}").contains("TablePart"), "{receipt:?}");
     assert_eq!(book.host().revision(), before);
@@ -416,17 +565,42 @@ fn dc_8wp_16__deleting_every_column_of_a_table_is_still_refused_by_the_table_rul
 
 fn enter(book: &mut HostSession, sheet_name: &str, address: &str, text: &str) {
     let target = sheet(book, sheet_name);
-    assert!(book.dispatch(SkinIntent::EnterCell { at: at(target, address), text: text.into() }).accepted(), "{address}");
+    assert!(
+        book.dispatch(SkinIntent::EnterCell {
+            at: at(target, address),
+            text: text.into()
+        })
+        .accepted(),
+        "{address}"
+    );
 }
 fn set_layout(book: &mut HostSession, rows: Vec<i32>, columns: Vec<i32>) -> Result<(), String> {
     let (sheet, part) = {
-        let table = book.host().model().definitions().pivots().tables().next().unwrap().clone();
+        let table = book
+            .host()
+            .model()
+            .definitions()
+            .pivots()
+            .tables()
+            .next()
+            .unwrap()
+            .clone();
         (table.area.sheet(), table.part)
     };
-    let receipt = book.dispatch(SkinIntent::Command(calc_host::WorkbookCommand::PivotSetLayout {
-        sheet, revision: book.host().revision().get(), part, rows, columns,
-    }));
-    if receipt.accepted() { Ok(()) } else { Err(format!("{:?}", receipt.error)) }
+    let receipt = book.dispatch(SkinIntent::Command(
+        calc_host::WorkbookCommand::PivotSetLayout {
+            sheet,
+            revision: book.host().revision().get(),
+            part,
+            rows,
+            columns,
+        },
+    ));
+    if receipt.accepted() {
+        Ok(())
+    } else {
+        Err(format!("{:?}", receipt.error))
+    }
 }
 
 #[test]
@@ -437,14 +611,29 @@ fn dc_8wp_16__output_growing_into_nonblank_cells_collapses_to_one_error_cell_as_
     // stay. (Decision D4 chose a confirmation; the capture shows Excel has none, so the capture rules.)
     type Setup = fn(&mut HostSession);
     let cases: [(&str, &str, Setup); 6] = [
-        ("ovl-nonblank-right", "refresh", |b| { enter(b, "Out", "I5", "blocker-I5"); enter(b, "Src", "C14", "Epsilon"); }),
-        ("ovl-nonblank-below", "refresh", |b| { enter(b, "Out", "C10", "blocker-C10"); enter(b, "Src", "B14", "West"); }),
-        ("ovl-nonblank-below-two", "refresh", |b| {
-            enter(b, "Out", "C11", "blocker-C11"); enter(b, "Src", "B14", "West"); enter(b, "Src", "B13", "Far");
+        ("ovl-nonblank-right", "refresh", |b| {
+            enter(b, "Out", "I5", "blocker-I5");
+            enter(b, "Src", "C14", "Epsilon");
         }),
-        ("ovl-nonblank-formula", "refresh", |b| { enter(b, "Out", "I5", "=1+1"); enter(b, "Src", "C14", "Epsilon"); }),
-        ("ovl-layout-two-rows-into-nonblank", "layout", |b| { enter(b, "Out", "C14", "blocker-C14"); }),
-        ("ovl-layout-into-nonblank-right", "layout", |b| { enter(b, "Out", "K5", "blocker-K5"); }),
+        ("ovl-nonblank-below", "refresh", |b| {
+            enter(b, "Out", "C10", "blocker-C10");
+            enter(b, "Src", "B14", "West");
+        }),
+        ("ovl-nonblank-below-two", "refresh", |b| {
+            enter(b, "Out", "C11", "blocker-C11");
+            enter(b, "Src", "B14", "West");
+            enter(b, "Src", "B13", "Far");
+        }),
+        ("ovl-nonblank-formula", "refresh", |b| {
+            enter(b, "Out", "I5", "=1+1");
+            enter(b, "Src", "C14", "Epsilon");
+        }),
+        ("ovl-layout-two-rows-into-nonblank", "layout", |b| {
+            enter(b, "Out", "C14", "blocker-C14");
+        }),
+        ("ovl-layout-into-nonblank-right", "layout", |b| {
+            enter(b, "Out", "K5", "blocker-K5");
+        }),
     ];
     let mut failures = Vec::new();
     for (id, how, setup) in cases {
@@ -453,10 +642,18 @@ fn dc_8wp_16__output_growing_into_nonblank_cells_collapses_to_one_error_cell_as_
         setup(&mut book);
         assert_eq!(pivot_now(&book), want.pivots[0], "{id}: the start");
         let (stage, result) = if how == "refresh" {
-            assert_eq!(pivot_now(&book), want.pivots[1], "{id}: edits alone do not move the pivot");
+            assert_eq!(
+                pivot_now(&book),
+                want.pivots[1],
+                "{id}: edits alone do not move the pivot"
+            );
             (2, refresh(&mut book))
         } else {
-            let columns = if id.ends_with("right") { vec![3] } else { vec![] };
+            let columns = if id.ends_with("right") {
+                vec![3]
+            } else {
+                vec![]
+            };
             (1, set_layout(&mut book, vec![0, 1], columns))
         };
         if let Err(why) = result {
@@ -470,14 +667,33 @@ fn dc_8wp_16__output_growing_into_nonblank_cells_collapses_to_one_error_cell_as_
         }
         let out = sheet(&book, "Out");
         let area = GridArea::new(at(out, "A1"), at(out, "P40")).unwrap();
-        let (dna, excel) = (dna_cells(&book, area), excel_cells_at(id, &stage.to_string(), area));
+        let (dna, excel) = (
+            dna_cells(&book, area),
+            excel_cells_at(id, &stage.to_string(), area),
+        );
         if dna != excel {
-            failures.push(format!("{id}: cells differ\n  dna   {dna:?}\n  excel {excel:?}"));
+            failures.push(format!(
+                "{id}: cells differ\n  dna   {dna:?}\n  excel {excel:?}"
+            ));
         }
-        let table = book.host().model().definitions().pivots().tables().next().unwrap().clone();
+        let table = book
+            .host()
+            .model()
+            .definitions()
+            .pivots()
+            .tables()
+            .next()
+            .unwrap()
+            .clone();
         assert!(table.collapsed, "{id}");
     }
-    assert!(failures.is_empty(), "{} of {} differ:\n{}", failures.len(), cases.len(), failures.join("\n"));
+    assert!(
+        failures.is_empty(),
+        "{} of {} differ:\n{}",
+        failures.len(),
+        cases.len(),
+        failures.join("\n")
+    );
 }
 
 #[test]
@@ -491,7 +707,8 @@ fn dc_8wp_16__a_collapsed_pivot_expands_when_room_is_made_and_saves_as_excel_sav
     // The file shape is Excel's (m7-names col-*): the pivot's location is its one cell with no header row, data
     // row or data column, and the fields and items stay; the output cell holds an error.
     let mut saved = Vec::new();
-    book.save(&SavePolicy::default(), &mut saved).expect("a collapsed pivot saves");
+    book.save(&SavePolicy::default(), &mut saved)
+        .expect("a collapsed pivot saves");
     if let Some(folder) = std::env::var_os("DNACALC_PIVOT_SAVES").map(std::path::PathBuf::from) {
         std::fs::create_dir_all(&folder).unwrap();
         std::fs::write(folder.join("m7-collapsed-refresh.xlsx"), &saved).unwrap();
@@ -499,55 +716,114 @@ fn dc_8wp_16__a_collapsed_pivot_expands_when_room_is_made_and_saves_as_excel_sav
     let definition = pivot_part(&saved);
     let location = &definition[definition.find("<location").expect("a location")..];
     let location = &location[..location.find("/>").expect("an empty element")];
-    for attribute in ["ref=\"C4\"", "firstHeaderRow=\"0\"", "firstDataRow=\"0\"", "firstDataCol=\"0\""] {
+    for attribute in [
+        "ref=\"C4\"",
+        "firstHeaderRow=\"0\"",
+        "firstDataRow=\"0\"",
+        "firstDataCol=\"0\"",
+    ] {
         assert!(location.contains(attribute), "{attribute} in {location}");
     }
-    assert!(definition.contains("<rowFields") && definition.contains("<colFields") && definition.contains("<dataFields"), "{definition}");
+    assert!(
+        definition.contains("<rowFields")
+            && definition.contains("<colFields")
+            && definition.contains("<dataFields"),
+        "{definition}"
+    );
     // Reopened, it is the same collapsed pivot with the same corner.
     let mut again = open(&saved);
     assert_eq!(pivot_now(&again), "m5@C4@Src!R2C2:R14C5");
-    assert!(again.host().model().definitions().pivots().tables().next().unwrap().collapsed);
+    assert!(
+        again
+            .host()
+            .model()
+            .definitions()
+            .pivots()
+            .tables()
+            .next()
+            .unwrap()
+            .collapsed
+    );
     let out = sheet(&again, "Out");
     let corner = dna_cells(&again, GridArea::new(at(out, "C4"), at(out, "C4")).unwrap());
     assert_eq!(corner.get("C4").map(String::as_str), Some("e	#SPILL!"));
-    assert_eq!(dna_cells(&again, GridArea::new(at(out, "I5"), at(out, "I5")).unwrap()).get("I5").map(String::as_str), Some("s	blocker-I5"));
+    assert_eq!(
+        dna_cells(&again, GridArea::new(at(out, "I5"), at(out, "I5")).unwrap())
+            .get("I5")
+            .map(String::as_str),
+        Some("s	blocker-I5")
+    );
     // Clearing the blocker makes room: the next refresh gives the pivot its whole output again.
     enter(&mut again, "Out", "I5", "");
     refresh(&mut again).unwrap();
-    let table = again.host().model().definitions().pivots().tables().next().unwrap().clone();
+    let table = again
+        .host()
+        .model()
+        .definitions()
+        .pivots()
+        .tables()
+        .next()
+        .unwrap()
+        .clone();
     assert!(!table.collapsed);
     assert_eq!(a1(table.area), "C4:I9");
     let mut saved = Vec::new();
-    again.save(&SavePolicy::default(), &mut saved).expect("an expanded pivot saves");
+    again
+        .save(&SavePolicy::default(), &mut saved)
+        .expect("an expanded pivot saves");
 }
 
 /// The text of the first pivot definition part of a saved package.
 fn pivot_part(package: &[u8]) -> String {
     let source: Arc<dyn PackageRead> = Arc::new(MemorySource::new(package.to_vec()));
     let document = calc_doc::open(source, &OpenPolicy::default()).expect("a package");
-    String::from_utf8(document.package().read_part("xl/pivotTables/pivotTable1.xml").expect("its pivot part")).unwrap()
+    String::from_utf8(
+        document
+            .package()
+            .read_part("xl/pivotTables/pivotTable1.xml")
+            .expect("its pivot part"),
+    )
+    .unwrap()
 }
 
 #[test]
 /// Native-only: opens the Excel-saved workbook file of the fixture set.
-fn dc_8wp_16__a_new_pivot_takes_one_cell_when_nonblank_cells_are_in_its_way_and_is_refused_over_a_pivot() {
+fn dc_8wp_16__a_new_pivot_takes_one_cell_when_nonblank_cells_are_in_its_way_and_is_refused_over_a_pivot()
+ {
     // ovl-create-onto-nonblank: Row Region, Column Product, Sum of Units at C21 with a blocker in E22.
     let want = excel("ovl-create-onto-nonblank");
-    assert!(want.pivots[1].starts_with("other@C21@"), "{}", want.pivots[1]);
+    assert!(
+        want.pivots[1].starts_with("other@C21@"),
+        "{}",
+        want.pivots[1]
+    );
     let mut book = open(BASE_RANGE);
     enter(&mut book, "Out", "E22", "blocker-E22");
     let (src, out) = (sheet(&book, "Src"), sheet(&book, "Out"));
     let source = GridArea::new(at(src, "B2"), at(src, "E14")).unwrap();
     let create = |book: &mut HostSession, destination: &str| {
-        let receipt = book.dispatch(SkinIntent::Command(calc_host::WorkbookCommand::PivotCreateLayout {
-            revision: book.host().revision().get(), source, destination: destination.into(),
-            rows: vec![0], columns: vec![1], values: vec![(3, "sum".into())],
-        }));
-        if receipt.accepted() { Ok(()) } else { Err(format!("{:?}", receipt.error)) }
+        let receipt = book.dispatch(SkinIntent::Command(
+            calc_host::WorkbookCommand::PivotCreateLayout {
+                revision: book.host().revision().get(),
+                source,
+                destination: destination.into(),
+                rows: vec![0],
+                columns: vec![1],
+                values: vec![(3, "sum".into())],
+            },
+        ));
+        if receipt.accepted() {
+            Ok(())
+        } else {
+            Err(format!("{:?}", receipt.error))
+        }
     };
     create(&mut book, "Out!C21").unwrap();
     let state = book.host().model().definitions().pivots();
-    let other = state.tables().find(|t| t.area.first() == at(out, "C21")).expect("the new pivot");
+    let other = state
+        .tables()
+        .find(|t| t.area.first() == at(out, "C21"))
+        .expect("the new pivot");
     assert!(other.collapsed);
     assert_eq!(a1(other.area), "C21");
     let area = GridArea::new(at(out, "A1"), at(out, "P40")).unwrap();
@@ -559,7 +835,11 @@ fn dc_8wp_16__a_new_pivot_takes_one_cell_when_nonblank_cells_are_in_its_way_and_
     let mut book = open(BASE_RANGE);
     let before = book.host().revision();
     let why = create(&mut book, "Out!E6").unwrap_err();
-    assert!(why.replace("\\\"", "\"").contains(&want.act), "want {:?}, got {why}", want.act);
+    assert!(
+        why.replace("\\\"", "\"").contains(&want.act),
+        "want {:?}, got {why}",
+        want.act
+    );
     assert_eq!(book.host().revision(), before);
 }
 
@@ -582,20 +862,33 @@ const COLUMN_EDITS: &[(&str, bool, char, u32, u32)] = &[
 
 #[test]
 /// Native-only: opens the Excel-saved workbook files of the fixture set and saves them to packages.
-fn dc_8wp_16__a_source_column_inserted_or_deleted_remaps_the_pivot_fields_on_refresh_as_excel_does() {
+fn dc_8wp_16__a_source_column_inserted_or_deleted_remaps_the_pivot_fields_on_refresh_as_excel_does()
+{
     let mut failures = Vec::new();
     for &(id, table, change, first, count) in COLUMN_EDITS {
         let want = excel(id);
         let mut book = open(if table { BASE_TABLE } else { BASE_RANGE });
         let src = sheet(&book, "Src");
-        let change = if change == 'i' { AxisChange::Insert } else { AxisChange::Delete };
-        let receipt = book.dispatch(SkinIntent::EditAxis(AxisEdit::new(src, Axis::Columns, change, first, count).unwrap()));
+        let change = if change == 'i' {
+            AxisChange::Insert
+        } else {
+            AxisChange::Delete
+        };
+        let receipt = book.dispatch(SkinIntent::EditAxis(
+            AxisEdit::new(src, Axis::Columns, change, first, count).unwrap(),
+        ));
         if !receipt.accepted() {
-            failures.push(format!("{id}: Excel accepted, DNA Calc refused: {receipt:?}"));
+            failures.push(format!(
+                "{id}: Excel accepted, DNA Calc refused: {receipt:?}"
+            ));
             continue;
         }
         if pivot_now(&book) != want.pivots[1] {
-            failures.push(format!("{id}: after the edit want {} got {}", want.pivots[1], pivot_now(&book)));
+            failures.push(format!(
+                "{id}: after the edit want {} got {}",
+                want.pivots[1],
+                pivot_now(&book)
+            ));
             continue;
         }
         if table {
@@ -607,30 +900,43 @@ fn dc_8wp_16__a_source_column_inserted_or_deleted_remaps_the_pivot_fields_on_ref
             }
         }
         if let Err(why) = refresh(&mut book) {
-            failures.push(format!("{id}: refresh refused ({why}); Excel gave {}", want.pivots[2]));
+            failures.push(format!(
+                "{id}: refresh refused ({why}); Excel gave {}",
+                want.pivots[2]
+            ));
             continue;
         }
         let after = pivot_now(&book);
         if after != want.pivots[2] {
-            failures.push(format!("{id}: after the refresh want {} got {after}", want.pivots[2]));
+            failures.push(format!(
+                "{id}: after the refresh want {} got {after}",
+                want.pivots[2]
+            ));
             continue;
         }
         let area = area_on(&want.pivots[2], sheet(&book, "Out"));
         let (dna, excel) = (dna_cells(&book, area), excel_cells(id, area));
         if dna != excel {
-            failures.push(format!("{id}: refreshed cells differ\n  dna   {dna:?}\n  excel {excel:?}"));
+            failures.push(format!(
+                "{id}: refreshed cells differ\n  dna   {dna:?}\n  excel {excel:?}"
+            ));
         }
         // The save a person would make reopens to the same pivot and cells.
         let mut saved = Vec::new();
         match book.save(&SavePolicy::default(), &mut saved) {
             Ok(_) => {
-                if let Some(folder) = std::env::var_os("DNACALC_PIVOT_SAVES").map(std::path::PathBuf::from) {
+                if let Some(folder) =
+                    std::env::var_os("DNACALC_PIVOT_SAVES").map(std::path::PathBuf::from)
+                {
                     std::fs::create_dir_all(&folder).unwrap();
                     std::fs::write(folder.join(format!("p8-{id}.xlsx")), &saved).unwrap();
                 }
                 let reopened = open(&saved);
                 if pivot_now(&reopened) != after {
-                    failures.push(format!("{id}: reopened {} want {after}", pivot_now(&reopened)));
+                    failures.push(format!(
+                        "{id}: reopened {} want {after}",
+                        pivot_now(&reopened)
+                    ));
                 } else if dna_cells(&reopened, area) != excel {
                     failures.push(format!("{id}: reopened cells differ"));
                 }
@@ -638,19 +944,31 @@ fn dc_8wp_16__a_source_column_inserted_or_deleted_remaps_the_pivot_fields_on_ref
             Err(why) => failures.push(format!("{id}: save refused: {why:?}")),
         }
     }
-    assert!(failures.is_empty(), "{} of {} scenarios differ:\n{}", failures.len(), COLUMN_EDITS.len(), failures.join("\n"));
+    assert!(
+        failures.is_empty(),
+        "{} of {} scenarios differ:\n{}",
+        failures.len(),
+        COLUMN_EDITS.len(),
+        failures.join("\n")
+    );
 }
 
 #[test]
 /// Native-only: opens the Excel-saved workbook file of the fixture set.
-fn dc_8wp_16__a_source_that_leaves_no_value_field_refreshes_to_the_one_cell_error_stub_as_excel_does() {
+fn dc_8wp_16__a_source_that_leaves_no_value_field_refreshes_to_the_one_cell_error_stub_as_excel_does()
+ {
     // src-del-cols-all, src-clear-all, src-del-row-header: the refresh is accepted and the pivot is its top-left cell
     // holding an error; the cells around it stay.
     type Setup = fn(&mut HostSession);
     let cases: [(&str, Setup); 3] = [
         ("src-del-cols-all", |b| {
             let src = sheet(b, "Src");
-            assert!(b.dispatch(SkinIntent::EditAxis(AxisEdit::new(src, Axis::Columns, AxisChange::Delete, 2, 4).unwrap())).accepted());
+            assert!(
+                b.dispatch(SkinIntent::EditAxis(
+                    AxisEdit::new(src, Axis::Columns, AxisChange::Delete, 2, 4).unwrap()
+                ))
+                .accepted()
+            );
         }),
         ("src-clear-all", |b| {
             for row in 2..=14u32 {
@@ -661,7 +979,12 @@ fn dc_8wp_16__a_source_that_leaves_no_value_field_refreshes_to_the_one_cell_erro
         }),
         ("src-del-row-header", |b| {
             let src = sheet(b, "Src");
-            assert!(b.dispatch(SkinIntent::EditAxis(AxisEdit::new(src, Axis::Rows, AxisChange::Delete, 2, 1).unwrap())).accepted());
+            assert!(
+                b.dispatch(SkinIntent::EditAxis(
+                    AxisEdit::new(src, Axis::Rows, AxisChange::Delete, 2, 1).unwrap()
+                ))
+                .accepted()
+            );
         }),
     ];
     let mut failures = Vec::new();
@@ -670,7 +993,11 @@ fn dc_8wp_16__a_source_that_leaves_no_value_field_refreshes_to_the_one_cell_erro
         let mut book = open(BASE_RANGE);
         setup(&mut book);
         if pivot_now(&book) != want.pivots[1] {
-            failures.push(format!("{id}: after the edit want {} got {}", want.pivots[1], pivot_now(&book)));
+            failures.push(format!(
+                "{id}: after the edit want {} got {}",
+                want.pivots[1],
+                pivot_now(&book)
+            ));
             continue;
         }
         if let Err(why) = refresh(&mut book) {
@@ -678,27 +1005,45 @@ fn dc_8wp_16__a_source_that_leaves_no_value_field_refreshes_to_the_one_cell_erro
             continue;
         }
         if pivot_now(&book) != want.pivots[2] {
-            failures.push(format!("{id}: want {} got {}", want.pivots[2], pivot_now(&book)));
+            failures.push(format!(
+                "{id}: want {} got {}",
+                want.pivots[2],
+                pivot_now(&book)
+            ));
             continue;
         }
         let out = sheet(&book, "Out");
         let area = GridArea::new(at(out, "A1"), at(out, "P40")).unwrap();
         let (dna, excel) = (dna_cells(&book, area), excel_cells(id, area));
         if dna != excel {
-            failures.push(format!("{id}: cells differ\n  dna   {dna:?}\n  excel {excel:?}"));
+            failures.push(format!(
+                "{id}: cells differ\n  dna   {dna:?}\n  excel {excel:?}"
+            ));
         }
     }
-    assert!(failures.is_empty(), "{} of {} differ:\n{}", failures.len(), cases.len(), failures.join("\n"));
+    assert!(
+        failures.is_empty(),
+        "{} of {} differ:\n{}",
+        failures.len(),
+        cases.len(),
+        failures.join("\n")
+    );
 }
 
 #[test]
 /// Native-only: opens the Excel-saved workbook file of the fixture set.
-fn dc_8wp_16__a_source_cut_to_its_header_row_refuses_the_refresh_with_excels_text_and_changes_nothing() {
+fn dc_8wp_16__a_source_cut_to_its_header_row_refuses_the_refresh_with_excels_text_and_changes_nothing()
+ {
     // src-del-rows-all-data: the range is left as the header row alone.
     let want = excel("src-del-rows-all-data");
     let mut book = open(BASE_RANGE);
     let src = sheet(&book, "Src");
-    assert!(book.dispatch(SkinIntent::EditAxis(AxisEdit::new(src, Axis::Rows, AxisChange::Delete, 3, 12).unwrap())).accepted());
+    assert!(
+        book.dispatch(SkinIntent::EditAxis(
+            AxisEdit::new(src, Axis::Rows, AxisChange::Delete, 3, 12).unwrap()
+        ))
+        .accepted()
+    );
     assert_eq!(pivot_now(&book), want.pivots[1]);
     let before = book.host().revision();
     let why = refresh(&mut book).unwrap_err();
@@ -708,7 +1053,10 @@ fn dc_8wp_16__a_source_cut_to_its_header_row_refuses_the_refresh_with_excels_tex
     assert_eq!(pivot_now(&book), want.pivots[2]);
     let out = sheet(&book, "Out");
     let area = GridArea::new(at(out, "A1"), at(out, "P40")).unwrap();
-    assert_eq!(dna_cells(&book, area), excel_cells("src-del-rows-all-data", area));
+    assert_eq!(
+        dna_cells(&book, area),
+        excel_cells("src-del-rows-all-data", area)
+    );
 }
 
 // ---- M7: names and saves that M5 took from memory (bead dc-8wp, tests/fixtures/pivot/m7-names) ----
@@ -717,7 +1065,12 @@ fn dc_8wp_16__a_source_cut_to_its_header_row_refuses_the_refresh_with_excels_tex
 fn cache_field_names(book: &HostSession) -> String {
     let state = book.host().model().definitions().pivots();
     let table = state.tables().next().expect("a pivot");
-    state.caches.caches[&table.cache_id].fields.iter().map(|f| f.name.clone()).collect::<Vec<_>>().join("|")
+    state.caches.caches[&table.cache_id]
+        .fields
+        .iter()
+        .map(|f| f.name.clone())
+        .collect::<Vec<_>>()
+        .join("|")
 }
 
 #[test]
@@ -734,7 +1087,12 @@ fn dc_8wp_16__a_blank_source_header_is_the_field_named_by_its_position_as_excel_
         ("hdr-blank-then-column-before", |b| {
             enter(b, "Src", "E2", "");
             let src = sheet(b, "Src");
-            assert!(b.dispatch(SkinIntent::EditAxis(AxisEdit::new(src, Axis::Columns, AxisChange::Insert, 1, 1).unwrap())).accepted());
+            assert!(
+                b.dispatch(SkinIntent::EditAxis(
+                    AxisEdit::new(src, Axis::Columns, AxisChange::Insert, 1, 1).unwrap()
+                ))
+                .accepted()
+            );
         }),
         ("hdr-space", |b| enter(b, "Src", "E2", " ")),
         ("hdr-number", |b| enter(b, "Src", "E2", "42")),
@@ -746,7 +1104,10 @@ fn dc_8wp_16__a_blank_source_header_is_the_field_named_by_its_position_as_excel_
         let mut book = open(BASE_RANGE);
         act(&mut book);
         if let Err(why) = refresh(&mut book) {
-            failures.push(format!("{id}: refresh refused ({why}); Excel gave {}", want.pivots[2]));
+            failures.push(format!(
+                "{id}: refresh refused ({why}); Excel gave {}",
+                want.pivots[2]
+            ));
             continue;
         }
         let now = format!("{}@{}", pivot_now(&book), cache_field_names(&book));
@@ -755,12 +1116,23 @@ fn dc_8wp_16__a_blank_source_header_is_the_field_named_by_its_position_as_excel_
             continue;
         }
         let area = area_on(&want.pivots[2], sheet(&book, "Out"));
-        let (dna, excel) = (dna_cells(&book, area), excel_cells_in(M7_CELLS, id, "2", area));
+        let (dna, excel) = (
+            dna_cells(&book, area),
+            excel_cells_in(M7_CELLS, id, "2", area),
+        );
         if dna != excel {
-            failures.push(format!("{id}: cells differ\n  dna   {dna:?}\n  excel {excel:?}"));
+            failures.push(format!(
+                "{id}: cells differ\n  dna   {dna:?}\n  excel {excel:?}"
+            ));
         }
     }
-    assert!(failures.is_empty(), "{} of {} differ:\n{}", failures.len(), cases.len(), failures.join("\n"));
+    assert!(
+        failures.is_empty(),
+        "{} of {} differ:\n{}",
+        failures.len(),
+        cases.len(),
+        failures.join("\n")
+    );
 }
 
 #[test]
@@ -774,14 +1146,28 @@ fn dc_8wp_16__a_source_that_keeps_row_fields_but_loses_its_value_fields_is_refus
     let cases: [(&str, bool, Act); 5] = [
         ("stub-delete-value-column", false, |b| {
             let src = sheet(b, "Src");
-            assert!(b.dispatch(SkinIntent::EditAxis(AxisEdit::new(src, Axis::Columns, AxisChange::Delete, 4, 1).unwrap())).accepted());
+            assert!(
+                b.dispatch(SkinIntent::EditAxis(
+                    AxisEdit::new(src, Axis::Columns, AxisChange::Delete, 4, 1).unwrap()
+                ))
+                .accepted()
+            );
         }),
-        ("stub-rename-value-header", false, |b| enter(b, "Src", "D2", "Total")),
+        ("stub-rename-value-header", false, |b| {
+            enter(b, "Src", "D2", "Total")
+        }),
         ("stub-table-delete-value-column", true, |b| {
             let src = sheet(b, "Src");
-            assert!(b.dispatch(SkinIntent::EditAxis(AxisEdit::new(src, Axis::Columns, AxisChange::Delete, 4, 1).unwrap())).accepted());
+            assert!(
+                b.dispatch(SkinIntent::EditAxis(
+                    AxisEdit::new(src, Axis::Columns, AxisChange::Delete, 4, 1).unwrap()
+                ))
+                .accepted()
+            );
         }),
-        ("hdr-blank-used-amount", false, |b| enter(b, "Src", "D2", "")),
+        ("hdr-blank-used-amount", false, |b| {
+            enter(b, "Src", "D2", "")
+        }),
         ("hdr-blank-two", false, |b| {
             enter(b, "Src", "D2", "");
             enter(b, "Src", "E2", "");
@@ -789,7 +1175,10 @@ fn dc_8wp_16__a_source_that_keeps_row_fields_but_loses_its_value_fields_is_refus
     ];
     for (id, table, act) in cases {
         let want = excel_in(M7_NAMES, id);
-        assert!(want.pivots[2].contains("@Region|") || want.pivots[2].contains("@Region"), "{id}: Excel kept the Region field");
+        assert!(
+            want.pivots[2].contains("@Region|") || want.pivots[2].contains("@Region"),
+            "{id}: Excel kept the Region field"
+        );
         let mut book = open(if table { BASE_TABLE } else { BASE_RANGE });
         act(&mut book);
         let before = book.host().revision();
@@ -801,7 +1190,8 @@ fn dc_8wp_16__a_source_that_keeps_row_fields_but_loses_its_value_fields_is_refus
 
 #[test]
 /// Native-only: opens the Excel-saved workbook files of the fixture set.
-fn dc_8wp_16__a_source_that_loses_every_field_gives_the_empty_pivot_frame_unless_cells_are_in_the_way() {
+fn dc_8wp_16__a_source_that_loses_every_field_gives_the_empty_pivot_frame_unless_cells_are_in_the_way()
+ {
     // Excel (m7-names stub-clear-source, stub-delete-all-columns, markers far away): the pivot has no field left and
     // is the frame C4:E21 of empty cells. The M5 scenarios src-clear-all and src-del-cols-all had markers in the
     // frame, which is why Excel gave one error cell there (tested above).
@@ -816,7 +1206,12 @@ fn dc_8wp_16__a_source_that_loses_every_field_gives_the_empty_pivot_frame_unless
         }),
         ("stub-delete-all-columns", |b| {
             let src = sheet(b, "Src");
-            assert!(b.dispatch(SkinIntent::EditAxis(AxisEdit::new(src, Axis::Columns, AxisChange::Delete, 2, 4).unwrap())).accepted());
+            assert!(
+                b.dispatch(SkinIntent::EditAxis(
+                    AxisEdit::new(src, Axis::Columns, AxisChange::Delete, 2, 4).unwrap()
+                ))
+                .accepted()
+            );
         }),
     ];
     for (id, act) in cases {
@@ -832,27 +1227,46 @@ fn dc_8wp_16__a_source_that_loses_every_field_gives_the_empty_pivot_frame_unless
         refresh(&mut book).unwrap_or_else(|why| panic!("{id}: {why}"));
         let now = format!("{}@{}", pivot_now(&book), cache_field_names(&book));
         assert_eq!(now, want.pivots[2], "{id}");
-        let table = book.host().model().definitions().pivots().tables().next().unwrap().clone();
+        let table = book
+            .host()
+            .model()
+            .definitions()
+            .pivots()
+            .tables()
+            .next()
+            .unwrap()
+            .clone();
         assert!(!table.collapsed, "{id}");
         assert_eq!(a1(table.area), "C4:E21", "{id}");
         let out = sheet(&book, "Out");
         let area = GridArea::new(at(out, "A1"), at(out, "P40")).unwrap();
-        assert_eq!(dna_cells(&book, area), excel_cells_in(M7_CELLS, id, "2", area), "{id}");
+        assert_eq!(
+            dna_cells(&book, area),
+            excel_cells_in(M7_CELLS, id, "2", area),
+            "{id}"
+        );
         // The frame saves, and the file reopens to the same empty pivot.
         let mut saved = Vec::new();
-        book.save(&SavePolicy::default(), &mut saved).unwrap_or_else(|why| panic!("{id}: {why:?}"));
-        if let Some(folder) = std::env::var_os("DNACALC_PIVOT_SAVES").map(std::path::PathBuf::from) {
+        book.save(&SavePolicy::default(), &mut saved)
+            .unwrap_or_else(|why| panic!("{id}: {why:?}"));
+        if let Some(folder) = std::env::var_os("DNACALC_PIVOT_SAVES").map(std::path::PathBuf::from)
+        {
             std::fs::create_dir_all(&folder).unwrap();
             std::fs::write(folder.join(format!("m7-{id}.xlsx")), &saved).unwrap();
         }
         let again = open(&saved);
-        assert_eq!(format!("{}@{}", pivot_now(&again), cache_field_names(&again)), want.pivots[2], "{id}: reopened");
+        assert_eq!(
+            format!("{}@{}", pivot_now(&again), cache_field_names(&again)),
+            want.pivots[2],
+            "{id}: reopened"
+        );
     }
 }
 
 #[test]
 /// Native-only: reads the m7 capture of the collapsed pivot's corner.
-fn dc_8wp_16__the_collapsed_corner_is_spill_live_and_reopened_and_value_in_the_file_as_excel_has_it() {
+fn dc_8wp_16__the_collapsed_corner_is_spill_live_and_reopened_and_value_in_the_file_as_excel_has_it()
+ {
     // m7-names corners.tsv: in every stage of every collapsed scenario (built, refreshed, saved and reopened,
     // reopened and refreshed) the corner reads Value2 -2146826243 (2045, #SPILL!), Text and Formula "#SPILL!". The
     // `#VALUE!` the UI28 capture holds for it is how Excel's file spells the corner (`t="e"`, `<v>#VALUE!</v>` and
@@ -864,7 +1278,11 @@ fn dc_8wp_16__the_collapsed_corner_is_spill_live_and_reopened_and_value_in_the_f
             continue;
         }
         collapsed += 1;
-        assert_eq!((f[3], f[4], f[5]), ("e", "-2146826243", "#SPILL!"), "{line}");
+        assert_eq!(
+            (f[3], f[4], f[5]),
+            ("e", "-2146826243", "#SPILL!"),
+            "{line}"
+        );
     }
     assert!(collapsed >= 20, "{collapsed}");
 }
@@ -890,12 +1308,18 @@ fn dc_8wp_16__a_column_inserted_into_a_table_is_named_after_its_left_neighbour_a
         let mut book = open(BASE_TABLE);
         let src = sheet(&book, "Src");
         for column in inserts {
-            let receipt = book.dispatch(SkinIntent::EditAxis(AxisEdit::new(src, Axis::Columns, AxisChange::Insert, *column, 1).unwrap()));
+            let receipt = book.dispatch(SkinIntent::EditAxis(
+                AxisEdit::new(src, Axis::Columns, AxisChange::Insert, *column, 1).unwrap(),
+            ));
             assert!(receipt.accepted(), "{id}: {receipt:?}");
         }
         assert_eq!(table_now(&book), want.tables[1], "{id}: after the edit");
         refresh(&mut book).unwrap_or_else(|why| panic!("{id}: {why}"));
-        assert_eq!(format!("{}@{}", pivot_now(&book), cache_field_names(&book)), want.pivots[2], "{id}: refreshed");
+        assert_eq!(
+            format!("{}@{}", pivot_now(&book), cache_field_names(&book)),
+            want.pivots[2],
+            "{id}: refreshed"
+        );
     }
 }
 
@@ -906,7 +1330,16 @@ fn dc_8wp_16__blank_headers_of_a_new_table_take_the_smallest_free_column_numbers
     // (m7-names hdr-table-*, tbln-blank-*; the rule itself is tested in calc-doc-model's table_names). Creating a
     // table over blank headers was not captured: it follows the same rule here, and was `Column<position>`.
     let mut book = open(BASE_RANGE);
-    for (cell, text) in [("G5", "a"), ("H5", ""), ("I5", "Column1"), ("J5", ""), ("G6", "1"), ("H6", "2"), ("I6", "3"), ("J6", "4")] {
+    for (cell, text) in [
+        ("G5", "a"),
+        ("H5", ""),
+        ("I5", "Column1"),
+        ("J5", ""),
+        ("G6", "1"),
+        ("H6", "2"),
+        ("I6", "3"),
+        ("J6", "4"),
+    ] {
         enter(&mut book, "Src", cell, text);
     }
     let src = sheet(&book, "Src");
@@ -914,9 +1347,20 @@ fn dc_8wp_16__blank_headers_of_a_new_table_take_the_smallest_free_column_numbers
     let revision = book.host().revision().get();
     let receipt = book.dispatch(SkinIntent::Command(calc_host::WorkbookCommand::Table {
         revision,
-        change: calc_host::TableChange::Create { area, name: "TblNew".into() },
+        change: calc_host::TableChange::Create {
+            area,
+            name: "TblNew".into(),
+        },
     }));
     assert!(receipt.accepted(), "{receipt:?}");
-    let table = book.host().model().definitions().tables().iter().find(|t| t.name == "TblNew").unwrap().clone();
+    let table = book
+        .host()
+        .model()
+        .definitions()
+        .tables()
+        .iter()
+        .find(|t| t.name == "TblNew")
+        .unwrap()
+        .clone();
     assert_eq!(table.columns.join("|"), "a|Column2|Column1|Column3");
 }

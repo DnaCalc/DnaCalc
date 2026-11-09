@@ -55,19 +55,22 @@
 
 mod actions;
 mod page_setup;
+pub use calc_doc_model::{PageBreak, PageSetup};
 pub use page_setup::{PageSetupChange, print_name, print_references};
-pub use calc_doc_model::{PageSetup, PageBreak};
-mod templates;
 mod outline;
+mod templates;
 pub use outline::OutlineChange;
-mod format;
 mod filter;
-pub use filter::{AutoFilter,FilterCriteria,FilterOperator,FilterPredicate,FilterChange,filter_values,filter_values_for};
-mod names;
+mod format;
+pub use filter::{
+    AutoFilter, FilterChange, FilterCriteria, FilterOperator, FilterPredicate, filter_values,
+    filter_values_for,
+};
 mod name_calculation;
-pub use name_calculation::{NameCalculation, NameCalculationProgress, NameCalculationResult};
+mod names;
 pub use facts::alignment as style_alignment;
 pub use format::{BorderPatch, FormatPatch, format_regions, format_samples, patched_style};
+pub use name_calculation::{NameCalculation, NameCalculationProgress, NameCalculationResult};
 pub use names::{NameDiagnosticEvaluation, NameEdit, NameInvocationView};
 pub mod chart;
 mod command;
@@ -75,12 +78,16 @@ mod domain;
 pub use domain::{CalculationDomain, DomainError, DomainProgress, DomainSaveId, DomainWorkbookId};
 mod envelope;
 mod events;
-pub use events::{WorkbookEvent, WorkbookEventFailure, WorkbookEventFailures, WorkbookEventHandler};
 pub use envelope::{CommandJournal, CommandRefusal, CommandStamp};
-mod paste;
+pub use events::{
+    WorkbookEvent, WorkbookEventFailure, WorkbookEventFailures, WorkbookEventHandler,
+};
 mod flash_fill;
+mod paste;
 pub mod search;
-pub use actions::{ConditionalChange, SheetChange, SortKey, SortOptions, WorkbookCommand, stored_axis_size};
+pub use actions::{
+    ConditionalChange, SheetChange, SortKey, SortOptions, WorkbookCommand, stored_axis_size,
+};
 pub use paste::{PastePlan, PasteSource, matrix_shape, prepare_paste, prepare_paste_oriented};
 pub mod conditional;
 mod copy;
@@ -119,19 +126,19 @@ pub use save_calculation::{
     begin_calculated_save,
 };
 pub use session::{
-    CommandIngress,
-    DeltaCause, DeltaGap, DeltaMirror, DeltaSink, HostDelta, HostSession, INTENT_LOG_LIMIT,
-    IntentError, IntentReceipt, IntentRecord, Interest, ReplayOutcome, SkinIntent, SubscriptionId,
-    UNDO_LIMIT, replay,
+    CommandIngress, DeltaCause, DeltaGap, DeltaMirror, DeltaSink, HostDelta, HostSession,
+    INTENT_LOG_LIMIT, IntentError, IntentReceipt, IntentRecord, Interest, ReplayOutcome,
+    SkinIntent, SubscriptionId, UNDO_LIMIT, replay,
 };
 pub use state::{HostOptions, HostState, OpenFailure, RecalcContext};
-pub use validation::{ErrorStyle, ValidationFailure, ValidationRule, ValidationScan, ValidationStatus,
+pub use validation::{
+    ErrorStyle, ValidationFailure, ValidationRule, ValidationScan, ValidationStatus,
 };
 
 pub use calc_doc::{
     CalcMode, CellError, EditError, FormulaSourceBudget, LoadError, MemorySource, OpenError,
-    OpenPolicy, PackageRead, PackageWrite, RegroupedFormulaSources, SpreadsheetFormat, SaveFormat, SavePolicy, SaveViews,
-    SaveReceipt, SaveRefusal, VbaProjectPart, VbaReadError,
+    OpenPolicy, PackageRead, PackageWrite, RegroupedFormulaSources, SaveFormat, SavePolicy,
+    SaveReceipt, SaveRefusal, SaveViews, SpreadsheetFormat, VbaProjectPart, VbaReadError,
     VbaReadPolicy, WriteError,
 };
 pub use calc_doc::{ColumnSpan, LoadedSheet, LoadedWorkbook, RowFormat, SheetGeometry, SheetView};
@@ -143,10 +150,10 @@ pub use calc_doc_model::value;
 pub use calc_doc_model::{
     ArrayFormula, ArrayKind, AuthoredRevision, Axis, AxisChange, AxisEdit, AxisEditError,
     AxisFormat, AxisFormatEdit, AxisLayouts, BlockId, BlockKind, CachedValue, CellInput, CellText,
-    DefinedName, Definitions, FileCached, FiniteNumber, FormulaForm, FormulaText, FrozenPanes, PaneLayout, SplitPanes,
-    IterationSettings, ModelRoot, NameScope, PlacementId, ReviewNote, ReviewSource, RowHidden, SheetEdit, SheetEntry,
-    SheetKey, SheetName, SheetVisibility, SkinLayoutEdit, SourcePart, Spot, StyleColor, StyleTable,
-    UnloadedCell, ViewKind,
+    DefinedName, Definitions, FileCached, FiniteNumber, FormulaForm, FormulaText, FrozenPanes,
+    IterationSettings, ModelRoot, NameScope, PaneLayout, PlacementId, ReviewNote, ReviewSource,
+    RowHidden, SheetEdit, SheetEntry, SheetKey, SheetName, SheetVisibility, SkinLayoutEdit,
+    SourcePart, SplitPanes, Spot, StyleColor, StyleTable, UnloadedCell, ViewKind,
 };
 pub use calc_engine::{
     CacheWithoutFormula, CalcTick, Calculation, LinkedWorkbookSnapshot, NotModeled, PrepareError,
@@ -154,7 +161,10 @@ pub use calc_engine::{
     ValueDelta, WorkBudget,
 };
 pub use calc_fml::reference::CellRun;
-pub use calc_fml::{CallableHandle, CallableTable, FormatProfile, NameResultKind, RtdConnection, RtdConnector, RtdLease, TopicKey};
+pub use calc_fml::{
+    CallableHandle, CallableTable, FormatProfile, NameResultKind, RtdConnection, RtdConnector,
+    RtdLease, TopicKey,
+};
 
 /// The existing reference-text binder's typed result, exposed to host consumers.
 pub use calc_fml::reference::TextReference as ReferenceTarget;
@@ -175,8 +185,8 @@ pub use calc_engine::contract::{AsyncDisposition, AsyncRejection, AsyncToken, Re
 mod tables;
 pub use tables::TableChange;
 mod review;
-pub use review::ReviewAction;
 pub use calc_doc_model::NoteStylePatch;
+pub use review::ReviewAction;
 
 mod copy_metadata;
 

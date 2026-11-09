@@ -154,12 +154,7 @@ fn column_device(px: f64) -> f64 {
 /// Page and margin sizes: 600 dpi device pixels per CSS pixel.
 const PAGE_DEVICE_PER_PX: f64 = 600. / 96.;
 /// Bands in device pixels at one print scale, indexed like the pixel metrics.
-fn device_metrics(
-    m: &GridMetrics,
-    geometry: &Geometry,
-    scale: f64,
-    last_row: u32,
-) -> GridMetrics {
+fn device_metrics(m: &GridMetrics, geometry: &Geometry, scale: f64, last_row: u32) -> GridMetrics {
     let round = |v: f64| (v * scale).round();
     let row_default = geometry.default_row_height.unwrap_or(15.) * ROW_DEVICE_PER_POINT;
     let col_default = column_device(m.col_width);
@@ -443,7 +438,11 @@ pub fn paginate(
         let rb = breaks(true, area)?;
         let cb = breaks(false, area)?;
         let d = device_metrics(&m, geometry, scale, a.last().row());
-        let (hw, hh) = if headings { (d.header_w, d.header_h) } else { (0., 0.) };
+        let (hw, hh) = if headings {
+            (d.header_w, d.header_h)
+        } else {
+            (0., 0.)
+        };
         Ok((
             slices(
                 &m,
@@ -490,7 +489,11 @@ pub fn paginate(
                     .max()
                     .unwrap_or(1);
                 let d = device_metrics(&m, geometry, s, last_row);
-                let (hw, hh) = if headings { (d.header_w, d.header_h) } else { (0., 0.) };
+                let (hw, hh) = if headings {
+                    (d.header_w, d.header_h)
+                } else {
+                    (0., 0.)
+                };
                 areas
                     .iter()
                     .all(|a| {
@@ -1040,6 +1043,6 @@ mod tests {
 }
 
 #[cfg(test)]
-mod ui27_cases;
-#[cfg(test)]
 mod ui27;
+#[cfg(test)]
+mod ui27_cases;

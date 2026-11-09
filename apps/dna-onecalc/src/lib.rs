@@ -26,10 +26,10 @@
 pub mod bridge;
 pub mod cf;
 pub mod display;
-#[cfg(test)]
-mod format_oracle;
 pub mod file;
 mod fixture;
+#[cfg(test)]
+mod format_oracle;
 pub mod grid;
 pub mod panels;
 pub mod port;
@@ -43,6 +43,6 @@ pub mod web;
 
 pub use fixture::{Read, ReadRun, RunCells};
 pub use session::{
-    AddinRef, Calculation, Diagnostic, ExternalReturns, InputError, InputValue, MacroState, ProjectReport,
-    Session, SessionOptions, SessionProject, SheetError,
+    AddinRef, Calculation, Diagnostic, ExternalReturns, InputError, InputValue, MacroState,
+    ProjectReport, Session, SessionOptions, SessionProject, SheetError,
 };

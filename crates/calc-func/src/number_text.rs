@@ -64,7 +64,9 @@ pub(crate) fn text(x: f64) -> Option<String> {
 /// The shared first15 significant digits. The unresolved near-tie departures
 /// documented above apply to formatting as well as concatenation (dc-b1l.25).
 pub(crate) fn decimal(x: f64) -> ExactDecimal {
-    if x == 0.0 || x.is_subnormal() { return ExactDecimal::read(0.0); }
+    if x == 0.0 || x.is_subnormal() {
+        return ExactDecimal::read(0.0);
+    }
     let (digits, exponent) = first_precision(x.abs());
     ExactDecimal {
         negative: x < 0.0,
@@ -79,7 +81,10 @@ fn first_precision(x: f64) -> (Vec<u8>, i32) {
     let length = i32::try_from(all.len()).expect("a digit count");
     let exponent = length - 1 + exact.exponent;
     let up = !near_tie(&exact.coefficient, &all)
-        && all.as_bytes().get(SIGNIFICANT_DIGITS).is_some_and(|&d| d >= b'5');
+        && all
+            .as_bytes()
+            .get(SIGNIFICANT_DIGITS)
+            .is_some_and(|&d| d >= b'5');
     first_rounding(all.as_bytes(), exponent, up)
 }
 

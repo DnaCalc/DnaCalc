@@ -139,7 +139,10 @@ impl FunctionCallTarget<'_> {
     /// What Excel's entry accepts in argument `index`, or `None` when the arity admits no
     /// argument there.
     pub fn entry_class(self, index: usize) -> Option<EntryClass> {
-        if matches!(self.entry.kernel, super::Kernel::NotHeld { .. } | super::Kernel::Deferred { .. }) {
+        if matches!(
+            self.entry.kernel,
+            super::Kernel::NotHeld { .. } | super::Kernel::Deferred { .. }
+        ) {
             return None;
         }
         (index < self.entry.arity.max).then(|| self.entry.entry_class(index))
@@ -153,7 +156,10 @@ impl FunctionCallTarget<'_> {
             return Err(EntryRule::MacroSheetOnly);
         }
         // An unheld entry's handbook signature is not an Excel entry measurement.
-        if matches!(entry.kernel, super::Kernel::NotHeld { .. } | super::Kernel::Deferred { .. }) {
+        if matches!(
+            entry.kernel,
+            super::Kernel::NotHeld { .. } | super::Kernel::Deferred { .. }
+        ) {
             return Ok(());
         }
         if operands.len() < entry.arity.min {
@@ -169,8 +175,7 @@ impl FunctionCallTarget<'_> {
             return Err(EntryRule::IncompleteGroup);
         }
         for (index, operand) in operands.iter().enumerate() {
-            if entry.entry_class(index) == EntryClass::Reference
-                && !operand.fills_reference_place()
+            if entry.entry_class(index) == EntryClass::Reference && !operand.fills_reference_place()
             {
                 return Err(EntryRule::ReferenceRequired { index });
             }
@@ -180,7 +185,10 @@ impl FunctionCallTarget<'_> {
 
     /// Whether Excel's entry takes a call postfix after a call of this entry.
     pub fn check_called(self) -> Result<(), EntryRule> {
-        if matches!(self.entry.kernel, super::Kernel::NotHeld { .. } | super::Kernel::Deferred { .. }) {
+        if matches!(
+            self.entry.kernel,
+            super::Kernel::NotHeld { .. } | super::Kernel::Deferred { .. }
+        ) {
             return Ok(());
         }
         if self.entry.result.may_be_reference_or_callable() {
@@ -211,7 +219,12 @@ mod tests {
     #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
     fn unheld_entries_do_not_claim_unmeasured_entry_rules() {
         let rtd = target("RTD");
-        assert_eq!(rtd.implementation(), crate::Implementation::NotHeld { owner: "dc-snz.23.4" });
+        assert_eq!(
+            rtd.implementation(),
+            crate::Implementation::NotHeld {
+                owner: "dc-snz.23.4"
+            }
+        );
         assert_eq!(rtd.result_form(), ResultForm::Unknown);
         assert_eq!(rtd.parameter_class(0), None);
         assert_eq!(rtd.entry_class(0), None);
@@ -220,7 +233,12 @@ mod tests {
 
         let has = target("HAS");
         assert_eq!(has.availability(), crate::Availability::ListsInCellsBeta);
-        assert_eq!(has.implementation(), crate::Implementation::Deferred { class: crate::Deferral::ListsInCells });
+        assert_eq!(
+            has.implementation(),
+            crate::Implementation::Deferred {
+                class: crate::Deferral::ListsInCells
+            }
+        );
         assert_eq!(has.check_entry(&[]), Ok(()));
     }
 
@@ -232,8 +250,18 @@ mod tests {
         for spelling in ["CALL", "REGISTER.ID"] {
             let entry = target(spelling);
             assert_eq!(entry.availability(), crate::Availability::MacroSheetOnly);
-            for operands in [vec![], vec![OperandForm::Constant], vec![OperandForm::Constant; 3], vec![OperandForm::Constant; 9]] {
-                assert_eq!(entry.check_entry(&operands), Err(EntryRule::MacroSheetOnly), "{spelling}/{}", operands.len());
+            for operands in [
+                vec![],
+                vec![OperandForm::Constant],
+                vec![OperandForm::Constant; 3],
+                vec![OperandForm::Constant; 9],
+            ] {
+                assert_eq!(
+                    entry.check_entry(&operands),
+                    Err(EntryRule::MacroSheetOnly),
+                    "{spelling}/{}",
+                    operands.len()
+                );
             }
         }
     }
@@ -243,10 +271,17 @@ mod tests {
     #[cfg_attr(not(target_arch = "wasm32"), test)]
     #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
     fn absent_and_unloaded_names_answer_name_error() {
-        assert_eq!(target("JIS").availability(), crate::Availability::AbsentOnWindows);
+        assert_eq!(
+            target("JIS").availability(),
+            crate::Availability::AbsentOnWindows
+        );
         assert!(catalogue().is_unloaded_addin_export("euroconvert"));
         assert!(!catalogue().is_unloaded_addin_export("SUM"));
-        assert!(catalogue().resolve_surface(Notation::Call, "EUROCONVERT").is_err());
+        assert!(
+            catalogue()
+                .resolve_surface(Notation::Call, "EUROCONVERT")
+                .is_err()
+        );
     }
 
     /// Native and browser: the measured COUNTBLANK cases of the module documentation.
@@ -401,8 +436,18 @@ mod tests {
     #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
     fn the_measured_result_forms() {
         let measured = [
-            "CHOOSE", "DROP", "IF", "IFS", "INDEX", "INDIRECT", "OFFSET", "REDUCE", "SWITCH",
-            "TAKE", "TRIMRANGE", "XLOOKUP",
+            "CHOOSE",
+            "DROP",
+            "IF",
+            "IFS",
+            "INDEX",
+            "INDIRECT",
+            "OFFSET",
+            "REDUCE",
+            "SWITCH",
+            "TAKE",
+            "TRIMRANGE",
+            "XLOOKUP",
         ];
         let found: Vec<&str> = catalogue()
             .targets()
@@ -414,7 +459,10 @@ mod tests {
             sorted.sort_by_key(|spelling| target(spelling).id());
             sorted
         });
-        assert_eq!(target("IFERROR").check_called(), Err(EntryRule::ResultNotCallable));
+        assert_eq!(
+            target("IFERROR").check_called(),
+            Err(EntryRule::ResultNotCallable)
+        );
         assert_eq!(target("IF").check_called(), Ok(()));
     }
 }
