@@ -9,52 +9,144 @@ use calc_func::{ImportFunction, ImportRoute, UserFunction};
 use std::rc::Rc;
 
 const FILES: &[(&str, &[u8])] = &[
-    ("basic.csv", include_bytes!("fixtures/import/files/basic.csv")),
+    (
+        "basic.csv",
+        include_bytes!("fixtures/import/files/basic.csv"),
+    ),
     // Windows resolves this spelling to the same file; keep the distinct path in the test.
-    ("basic.csv ", include_bytes!("fixtures/import/files/basic.csv")),
+    (
+        "basic.csv ",
+        include_bytes!("fixtures/import/files/basic.csv"),
+    ),
     ("big.csv", include_bytes!("fixtures/import/files/big.csv")),
-    ("blank.csv", include_bytes!("fixtures/import/files/blank.csv")),
+    (
+        "blank.csv",
+        include_bytes!("fixtures/import/files/blank.csv"),
+    ),
     ("bom.csv", include_bytes!("fixtures/import/files/bom.csv")),
-    ("bools.csv", include_bytes!("fixtures/import/files/bools.csv")),
+    (
+        "bools.csv",
+        include_bytes!("fixtures/import/files/bools.csv"),
+    ),
     ("cr.csv", include_bytes!("fixtures/import/files/cr.csv")),
     ("crlf.csv", include_bytes!("fixtures/import/files/crlf.csv")),
-    ("crlfq.csv", include_bytes!("fixtures/import/files/crlfq.csv")),
-    ("dates.csv", include_bytes!("fixtures/import/files/dates.csv")),
+    (
+        "crlfq.csv",
+        include_bytes!("fixtures/import/files/crlfq.csv"),
+    ),
+    (
+        "dates.csv",
+        include_bytes!("fixtures/import/files/dates.csv"),
+    ),
     ("de.csv", include_bytes!("fixtures/import/files/de.csv")),
     ("de2.csv", include_bytes!("fixtures/import/files/de2.csv")),
-    ("de2_ok.csv", include_bytes!("fixtures/import/files/de2_ok.csv")),
-    ("dec_ok.csv", include_bytes!("fixtures/import/files/dec_ok.csv")),
-    ("empty.csv", include_bytes!("fixtures/import/files/empty.csv")),
-    ("enc1252.txt", include_bytes!("fixtures/import/files/enc1252.txt")),
-    ("fixed.txt", include_bytes!("fixtures/import/files/fixed.txt")),
-    ("fixed2.txt", include_bytes!("fixtures/import/files/fixed2.txt")),
+    (
+        "de2_ok.csv",
+        include_bytes!("fixtures/import/files/de2_ok.csv"),
+    ),
+    (
+        "dec_ok.csv",
+        include_bytes!("fixtures/import/files/dec_ok.csv"),
+    ),
+    (
+        "empty.csv",
+        include_bytes!("fixtures/import/files/empty.csv"),
+    ),
+    (
+        "enc1252.txt",
+        include_bytes!("fixtures/import/files/enc1252.txt"),
+    ),
+    (
+        "fixed.txt",
+        include_bytes!("fixtures/import/files/fixed.txt"),
+    ),
+    (
+        "fixed2.txt",
+        include_bytes!("fixtures/import/files/fixed2.txt"),
+    ),
     ("fr.csv", include_bytes!("fixtures/import/files/fr.csv")),
-    ("latin1.csv", include_bytes!("fixtures/import/files/latin1.csv")),
-    ("lonelyquote.csv", include_bytes!("fixtures/import/files/lonelyquote.csv")),
-    ("mixed_nl.csv", include_bytes!("fixtures/import/files/mixed_nl.csv")),
+    (
+        "latin1.csv",
+        include_bytes!("fixtures/import/files/latin1.csv"),
+    ),
+    (
+        "lonelyquote.csv",
+        include_bytes!("fixtures/import/files/lonelyquote.csv"),
+    ),
+    (
+        "mixed_nl.csv",
+        include_bytes!("fixtures/import/files/mixed_nl.csv"),
+    ),
     ("nonl.csv", include_bytes!("fixtures/import/files/nonl.csv")),
-    ("num_ok.csv", include_bytes!("fixtures/import/files/num_ok.csv")),
-    ("onlyhdr.csv", include_bytes!("fixtures/import/files/onlyhdr.csv")),
-    ("pipe2.txt", include_bytes!("fixtures/import/files/pipe2.txt")),
+    (
+        "num_ok.csv",
+        include_bytes!("fixtures/import/files/num_ok.csv"),
+    ),
+    (
+        "onlyhdr.csv",
+        include_bytes!("fixtures/import/files/onlyhdr.csv"),
+    ),
+    (
+        "pipe2.txt",
+        include_bytes!("fixtures/import/files/pipe2.txt"),
+    ),
     ("qq.csv", include_bytes!("fixtures/import/files/qq.csv")),
-    ("quoted_hdr.csv", include_bytes!("fixtures/import/files/quoted_hdr.csv")),
-    ("quotes.csv", include_bytes!("fixtures/import/files/quotes.csv")),
-    ("ragged.csv", include_bytes!("fixtures/import/files/ragged.csv")),
-    ("ragged2.csv", include_bytes!("fixtures/import/files/ragged2.csv")),
-    ("ragged3.csv", include_bytes!("fixtures/import/files/ragged3.csv")),
+    (
+        "quoted_hdr.csv",
+        include_bytes!("fixtures/import/files/quoted_hdr.csv"),
+    ),
+    (
+        "quotes.csv",
+        include_bytes!("fixtures/import/files/quotes.csv"),
+    ),
+    (
+        "ragged.csv",
+        include_bytes!("fixtures/import/files/ragged.csv"),
+    ),
+    (
+        "ragged2.csv",
+        include_bytes!("fixtures/import/files/ragged2.csv"),
+    ),
+    (
+        "ragged3.csv",
+        include_bytes!("fixtures/import/files/ragged3.csv"),
+    ),
     ("semi.txt", include_bytes!("fixtures/import/files/semi.txt")),
-    ("spaces.csv", include_bytes!("fixtures/import/files/spaces.csv")),
-    ("spacesq.csv", include_bytes!("fixtures/import/files/spacesq.csv")),
+    (
+        "spaces.csv",
+        include_bytes!("fixtures/import/files/spaces.csv"),
+    ),
+    (
+        "spacesq.csv",
+        include_bytes!("fixtures/import/files/spacesq.csv"),
+    ),
     ("tab.txt", include_bytes!("fixtures/import/files/tab.txt")),
-    ("tabtest.txt", include_bytes!("fixtures/import/files/tabtest.txt")),
-    ("trail.csv", include_bytes!("fixtures/import/files/trail.csv")),
-    ("types.csv", include_bytes!("fixtures/import/files/types.csv")),
-    ("utf16.csv", include_bytes!("fixtures/import/files/utf16.csv")),
-    ("utf16be.csv", include_bytes!("fixtures/import/files/utf16be.csv")),
-    ("utf8acc.csv", include_bytes!("fixtures/import/files/utf8acc.csv")),
+    (
+        "tabtest.txt",
+        include_bytes!("fixtures/import/files/tabtest.txt"),
+    ),
+    (
+        "trail.csv",
+        include_bytes!("fixtures/import/files/trail.csv"),
+    ),
+    (
+        "types.csv",
+        include_bytes!("fixtures/import/files/types.csv"),
+    ),
+    (
+        "utf16.csv",
+        include_bytes!("fixtures/import/files/utf16.csv"),
+    ),
+    (
+        "utf16be.csv",
+        include_bytes!("fixtures/import/files/utf16be.csv"),
+    ),
+    (
+        "utf8acc.csv",
+        include_bytes!("fixtures/import/files/utf8acc.csv"),
+    ),
     ("wide.csv", include_bytes!("fixtures/import/files/wide.csv")),
 ];
-
 
 #[derive(Debug)]
 struct Files;
@@ -62,7 +154,10 @@ struct Files;
 impl ImportRoute for Files {
     fn read(&self, path: &str) -> Option<Vec<u8>> {
         let name = path.strip_prefix("C:\\data\\")?;
-        FILES.iter().find(|(file, _)| *file == name).map(|(_, bytes)| bytes.to_vec())
+        FILES
+            .iter()
+            .find(|(file, _)| *file == name)
+            .map(|(_, bytes)| bytes.to_vec())
     }
 }
 
@@ -103,7 +198,10 @@ fn argument(json: &serde_json::Value) -> CalcValue {
         return CalcValue::error(error(code.as_str().unwrap()));
     }
     let rows = json["a"].as_array().expect("an argument form");
-    let rows = rows.iter().map(|row| row.as_array().unwrap().iter().map(argument).collect()).collect();
+    let rows = rows
+        .iter()
+        .map(|row| row.as_array().unwrap().iter().map(argument).collect())
+        .collect();
     CalcValue::array(CalcArray::from_rows(rows).expect("a rectangular array"))
 }
 
@@ -144,27 +242,50 @@ fn imports_match_excels_answers() {
     for case in cases {
         let name = case["function"].as_str().unwrap();
         let function = ImportFunction::new(name, route.clone()).expect("an import function");
-        let arguments: Vec<CalcValue> = case["args"].as_array().unwrap().iter().map(argument).collect();
+        let arguments: Vec<CalcValue> = case["args"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .map(argument)
+            .collect();
         let want: Vec<Vec<String>> = case["excel"]
             .as_array()
             .unwrap()
             .iter()
             .map(|row| row.as_array().unwrap().iter().map(expected).collect())
             .collect();
-        let got: Result<Vec<Vec<String>>, String> = function.call(&arguments).map(|value| match value.as_array() {
-            Some(array) => {
-                let shape = array.shape();
-                (0..shape.rows)
-                    .map(|r| (0..shape.cols).map(|c| shown(array.get(r, c).unwrap())).collect())
-                    .collect()
-            }
-            None => vec![vec![shown(&value)]],
-        });
+        let got: Result<Vec<Vec<String>>, String> =
+            function
+                .call(&arguments)
+                .map(|value| match value.as_array() {
+                    Some(array) => {
+                        let shape = array.shape();
+                        (0..shape.rows)
+                            .map(|r| {
+                                (0..shape.cols)
+                                    .map(|c| shown(array.get(r, c).unwrap()))
+                                    .collect()
+                            })
+                            .collect()
+                    }
+                    None => vec![vec![shown(&value)]],
+                });
         if got.as_ref() != Ok(&want) {
-            differ.push(format!("{} {}: Excel {want:?}, here {got:?}", case["id"], case["formula"]));
+            differ.push(format!(
+                "{} {}: Excel {want:?}, here {got:?}",
+                case["id"], case["formula"]
+            ));
         }
     }
-    assert!(differ.is_empty(), "{} of {} differ:
-{}", differ.len(), cases.len(), differ.join("
-"));
+    assert!(
+        differ.is_empty(),
+        "{} of {} differ:
+{}",
+        differ.len(),
+        cases.len(),
+        differ.join(
+            "
+"
+        )
+    );
 }

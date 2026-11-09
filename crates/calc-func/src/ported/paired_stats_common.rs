@@ -95,7 +95,7 @@ pub fn rsq_from_pairs(pairs: &[(f64, f64)]) -> Result<f64, WorksheetErrorCode> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    
+
     fn assert_bits(actual: f64, expected: f64) {
         assert_eq!(
             actual.to_bits(),

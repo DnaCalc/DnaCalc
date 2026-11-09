@@ -41,7 +41,10 @@ mod tests {
     /// it back (an everyday build has none).
     #[test]
     fn the_message_has_the_link_and_an_embedded_page_reads() {
-        assert!(missing_runtime_message().contains("https://developer.microsoft.com/microsoft-edge/webview2"));
+        assert!(
+            missing_runtime_message()
+                .contains("https://developer.microsoft.com/microsoft-edge/webview2")
+        );
         if has_page() {
             let page = page().unwrap();
             assert!(page.get("index.html").is_some() && page.get("boot.js").is_some());

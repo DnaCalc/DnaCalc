@@ -1,15 +1,15 @@
 // Growth helpers, logarithms and stored arithmetic remain separate stages.
 // Paired worksheet calls constrain each stage independently of its producers.
+use crate::ported::excel_numeric::crt_pow;
 use crate::ported::excel_numeric::{
     excel_expm1, excel_expm1_internal, excel_log1p, excel_log1p_atanh, excel_pow_chain,
-    excel_pow_x87_direct,
-    excel_x87_add, excel_x87_div, excel_x87_mul, excel_x87_recip, excel_x87_sub, exp_portable,
+    excel_pow_x87_direct, excel_x87_add, excel_x87_div, excel_x87_mul, excel_x87_recip,
+    excel_x87_sub, exp_portable,
 };
 use crate::ported::power_fn::power_kernel;
 use crate::value::WorksheetErrorCode;
 use crate::value::{CalcValue, CoreValue};
 use std::fmt;
-use crate::ported::excel_numeric::crt_pow;
 
 const EPSILON: f64 = 1e-12;
 const RATE_TOLERANCE: f64 = 1e-7;
@@ -129,7 +129,10 @@ pub fn pv(
     if factor == 0.0 {
         return Err(FinancialError::Div0);
     }
-    let result = -excel_x87_div(excel_x87_add(future_value, excel_x87_mul(payment_value, term)), factor);
+    let result = -excel_x87_div(
+        excel_x87_add(future_value, excel_x87_mul(payment_value, term)),
+        factor,
+    );
     if result.is_finite() {
         Ok(result)
     } else {
@@ -271,7 +274,10 @@ pub fn pmt(
             // of the pole check above: 20 of the 21 rows that missed by a unit here.
             match timing {
                 PaymentTiming::EndOfPeriod => excel_x87_mul(future_value, periodic_rate),
-                PaymentTiming::BeginningOfPeriod => excel_x87_div(future_value, excel_x87_add(1.0, excel_x87_recip(periodic_rate))),
+                PaymentTiming::BeginningOfPeriod => excel_x87_div(
+                    future_value,
+                    excel_x87_add(1.0, excel_x87_recip(periodic_rate)),
+                ),
             }
         } else {
             let scaled = (future_value / tf) * periodic_rate;
@@ -284,7 +290,11 @@ pub fn pmt(
                 future_value * (periodic_rate / tf)
             }
         };
-        return if result.is_finite() { Ok(result) } else { Err(FinancialError::Num) };
+        return if result.is_finite() {
+            Ok(result)
+        } else {
+            Err(FinancialError::Num)
+        };
     }
     // Both arms store the quotient from PC64 (dc-j9k.12). With pv varied at fixed (rate, nper),
     // fv 0 and type 0, q = RN53(RN64(pv / em)) followed by RN53(RN64(q * rate)) admits one
@@ -297,7 +307,10 @@ pub fn pmt(
         // this fold matches all192 paired future-value calls for each rate sign.
         // Separate negative-rate ties distinguish each addition (84 and114 readings).
         // Forming pv + fv*(1+em) loses those recorded roundings.
-        excel_x87_add(discounted_balance(present_value, future_value, em), future_value)
+        excel_x87_add(
+            discounted_balance(present_value, future_value, em),
+            future_value,
+        )
     } else {
         let inv_factor = 1.0 + em;
         let numerator = present_value + future_value * inv_factor;
@@ -417,8 +430,15 @@ pub fn rate(
     timing: PaymentTiming,
     guess: Option<f64>,
 ) -> Result<f64, FinancialError> {
-    rate_secant(periods, payment_value, present_value, future_value, timing, guess.unwrap_or(0.1))
-        .ok_or(FinancialError::Num)
+    rate_secant(
+        periods,
+        payment_value,
+        present_value,
+        future_value,
+        timing,
+        guess.unwrap_or(0.1),
+    )
+    .ok_or(FinancialError::Num)
 }
 
 /// RATE's search as IRR's (`irr_discount_secant`), in the rate itself: the secant from the guess and
@@ -454,9 +474,15 @@ fn rate_secant(
             return None;
         }
         let factor = growth_from_base(base, periods).ok()?;
-        let term = excel_x87_mul(excel_x87_div(excel_x87_sub(factor, 1.0), rate), timing.factor(rate));
+        let term = excel_x87_mul(
+            excel_x87_div(excel_x87_sub(factor, 1.0), rate),
+            timing.factor(rate),
+        );
         Some(excel_x87_add(
-            excel_x87_add(excel_x87_mul(present_value, factor), excel_x87_mul(payment_value, term)),
+            excel_x87_add(
+                excel_x87_mul(present_value, factor),
+                excel_x87_mul(payment_value, term),
+            ),
             future_value,
         ))
     };
@@ -475,7 +501,10 @@ fn rate_secant(
             // RATE(2^-1022,-100,1000,0,0,0.5) and RATE(FALSE,-200,8000) are #NUM!).
             return None;
         }
-        let next = excel_x87_sub(current, excel_x87_div(excel_x87_mul(value, excel_x87_sub(current, before)), change));
+        let next = excel_x87_sub(
+            current,
+            excel_x87_div(excel_x87_mul(value, excel_x87_sub(current, before)), change),
+        );
         let step = excel_x87_sub(next, current).abs();
         (before, value_before) = (current, value);
         current = next;
@@ -585,11 +614,15 @@ fn period_components(
     if periodic_rate > 0.0 {
         // Keep h=(pv+fv)/em_n before PMT adds fv. The interest component is
         // h*em_m-fv and principal h*u_m, with a store after every operation.
-        (-excel_x87_sub(excel_x87_mul(quotient, em), future_value),
-            excel_x87_mul(quotient, u))
+        (
+            -excel_x87_sub(excel_x87_mul(quotient, em), future_value),
+            excel_x87_mul(quotient, u),
+        )
     } else {
-        (-excel_x87_sub(excel_x87_mul(quotient, em), excel_x87_mul(future_value, u)),
-            excel_x87_mul(excel_x87_sub(quotient, future_value), u))
+        (
+            -excel_x87_sub(excel_x87_mul(quotient, em), excel_x87_mul(future_value, u)),
+            excel_x87_mul(excel_x87_sub(quotient, future_value), u),
+        )
     }
 }
 
@@ -603,14 +636,22 @@ fn end_payment_parts(
     timing: PaymentTiming,
 ) -> (f64, f64) {
     let (interest, principal) = period_components(
-        periodic_rate, period_index, periods, future_value, log_growth, quotient,
+        periodic_rate,
+        period_index,
+        periods,
+        future_value,
+        log_growth,
+        quotient,
     );
     let factor = if matches!(timing, PaymentTiming::BeginningOfPeriod) {
         due_coefficient(periodic_rate)
     } else {
         periodic_rate
     };
-    (excel_x87_mul(interest, factor), excel_x87_mul(principal, factor))
+    (
+        excel_x87_mul(interest, factor),
+        excel_x87_mul(principal, factor),
+    )
 }
 
 /// IPMT on the correctly-rounded numeric core (W108 Bead C). Interest portion of
@@ -660,9 +701,19 @@ pub fn ipmt(
             end_payment_quotient(periodic_rate, periods, present_value, future_value)
     {
         let (interest, _) = end_payment_parts(
-            periodic_rate, period_index, periods, future_value, log_growth, quotient, timing,
+            periodic_rate,
+            period_index,
+            periods,
+            future_value,
+            log_growth,
+            quotient,
+            timing,
         );
-        return if interest.is_finite() { Ok(interest) } else { Err(FinancialError::Num) };
+        return if interest.is_finite() {
+            Ok(interest)
+        } else {
+            Err(FinancialError::Num)
+        };
     }
     let tf = timing.factor(periodic_rate); // 1 + r·type
     let type_is_beginning = matches!(timing, PaymentTiming::BeginningOfPeriod);
@@ -719,7 +770,9 @@ pub fn ppmt(
         future_value,
         timing,
     )?;
-    if periodic_rate == 0.0 || (period_index <= 1.0 && matches!(timing, PaymentTiming::BeginningOfPeriod)) {
+    if periodic_rate == 0.0
+        || (period_index <= 1.0 && matches!(timing, PaymentTiming::BeginningOfPeriod))
+    {
         return Ok(payment - interest);
     }
     // dc-j9k.12: payments at the end of a period take Excel's own pieces: the principal is
@@ -733,9 +786,19 @@ pub fn ppmt(
             end_payment_quotient(periodic_rate, periods, present_value, future_value)
     {
         let (_, principal) = end_payment_parts(
-            periodic_rate, period_index, periods, future_value, log_growth, quotient, timing,
+            periodic_rate,
+            period_index,
+            periods,
+            future_value,
+            log_growth,
+            quotient,
+            timing,
         );
-        return if principal.is_finite() { Ok(principal) } else { Err(FinancialError::Num) };
+        return if principal.is_finite() {
+            Ok(principal)
+        } else {
+            Err(FinancialError::Num)
+        };
     }
     // Excel does not subtract the interest from the payment, which cancels when the interest
     // is nearly the whole payment (dc-j9k: PPMT(0.1809,1,375,57755.66,635.76) is -8.79e-24 in
@@ -744,7 +807,12 @@ pub fn ppmt(
     // periods left: v^m * (pmt - fv*r), and v^m * (pmt - fv*r/(1 + r)) for payments at the
     // start of a period. The catalogue oracle's PPMT readings hold it.
     let result = discounted_payment_principal(
-        periodic_rate, period_index, periods, payment, future_value, timing,
+        periodic_rate,
+        period_index,
+        periods,
+        payment,
+        future_value,
+        timing,
     );
     if result.is_finite() {
         Ok(result)
@@ -1035,9 +1103,9 @@ pub fn map_financial_time_value_error_to_ws(
 
 #[cfg(test)]
 mod tests {
+    use super::*;
     #[allow(unused_imports)]
     use crate::value::{CalcArray, CalcValue, CoreValue, ExcelText};
-    use super::*;
 
     fn assert_close(actual: f64, expected: f64, tolerance: f64) {
         let delta = (actual - expected).abs();
@@ -1258,7 +1326,14 @@ mod tests {
         for periods in [0.0, f64::MIN_POSITIVE] {
             for (payment, present, guess) in [(-100.0, 1000.0, Some(0.5)), (-200.0, 8000.0, None)] {
                 assert_eq!(
-                    rate(periods, payment, present, 0.0, PaymentTiming::EndOfPeriod, guess),
+                    rate(
+                        periods,
+                        payment,
+                        present,
+                        0.0,
+                        PaymentTiming::EndOfPeriod,
+                        guess
+                    ),
                     Err(FinancialError::Num)
                 );
             }

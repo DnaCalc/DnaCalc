@@ -70,10 +70,16 @@ use std::{fmt, rc::Rc, sync::Arc};
 pub use calc_catalogue::{FETCH_PROVIDER, FetchKind};
 /// The functions that use the route, by catalogue spelling.
 pub const FETCH_FUNCTIONS: [&str; 2] = [
-    calc_catalogue::ported::find(calc_catalogue::ported::fetching::ENTRIES,
-        calc_catalogue::FunctionId::new(calc_catalogue::ported::fetching::CODE, 1)).spelling,
-    calc_catalogue::ported::find(calc_catalogue::ported::fetching::ENTRIES,
-        calc_catalogue::FunctionId::new(calc_catalogue::ported::fetching::CODE, 2)).spelling,
+    calc_catalogue::ported::find(
+        calc_catalogue::ported::fetching::ENTRIES,
+        calc_catalogue::FunctionId::new(calc_catalogue::ported::fetching::CODE, 1),
+    )
+    .spelling,
+    calc_catalogue::ported::find(
+        calc_catalogue::ported::fetching::ENTRIES,
+        calc_catalogue::FunctionId::new(calc_catalogue::ported::fetching::CODE, 2),
+    )
+    .spelling,
 ];
 
 /// The most characters of a URL Excel requests.
@@ -320,9 +326,7 @@ pub(crate) fn prepare_text(url: &CalcValue) -> Prepared {
     };
     let trimmed = text.trim_matches(' ');
     let allowed = match scheme(trimmed) {
-        Some(scheme) => {
-            scheme.eq_ignore_ascii_case("http") || scheme.eq_ignore_ascii_case("https")
-        }
+        Some(scheme) => scheme.eq_ignore_ascii_case("http") || scheme.eq_ignore_ascii_case("https"),
         None => names_a_port(trimmed),
     };
     if text.is_empty() || text.chars().count() > URL_LIMIT || !allowed {
@@ -432,9 +436,19 @@ pub struct FetchFunction {
 impl FetchFunction {
     /// The function of [`FETCH_FUNCTIONS`] spelled `spelling`, on `route`.
     pub fn new(spelling: &str, route: Rc<dyn FetchRoute>) -> Option<Self> {
-        let target = crate::catalogue().resolve_surface(crate::Notation::Call, spelling).ok()?;
-        if target.spelling() != spelling { return None; }
-        let crate::EntryKind::HostRoute { route: crate::HostRouteKind::Fetch(kind), .. } = target.kind() else { return None; };
+        let target = crate::catalogue()
+            .resolve_surface(crate::Notation::Call, spelling)
+            .ok()?;
+        if target.spelling() != spelling {
+            return None;
+        }
+        let crate::EntryKind::HostRoute {
+            route: crate::HostRouteKind::Fetch(kind),
+            ..
+        } = target.kind()
+        else {
+            return None;
+        };
         Some(Self { kind, route })
     }
 }
@@ -633,20 +647,30 @@ mod tests {
     #[cfg_attr(not(target_arch = "wasm32"), test)]
     #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
     fn the_longest_text_is_excels() {
-        assert_eq!(decode_body(&[b'x'; 32767]).map(|text| text.len()), Some(32767));
+        assert_eq!(
+            decode_body(&[b'x'; 32767]).map(|text| text.len()),
+            Some(32767)
+        );
         assert_eq!(decode_body(&[b'x'; 32768]), None);
     }
 
     /// A scripted transport: each URL answers from the table, and a miss is no response.
-    fn follow(kind: FetchKind, url: &str, table: &[(&str, u16, Option<&str>, &str)]) -> (FetchReply, usize) {
+    fn follow(
+        kind: FetchKind,
+        url: &str,
+        table: &[(&str, u16, Option<&str>, &str)],
+    ) -> (FetchReply, usize) {
         let mut asked = 0;
         let reply = fetch_following(kind, url, &mut |asked_url| {
             asked += 1;
-            table.iter().find(|row| row.0 == asked_url).map(|row| RawResponse {
-                status: row.1,
-                location: row.2.map(str::to_owned),
-                body: row.3.as_bytes().to_vec(),
-            })
+            table
+                .iter()
+                .find(|row| row.0 == asked_url)
+                .map(|row| RawResponse {
+                    status: row.1,
+                    location: row.2.map(str::to_owned),
+                    body: row.3.as_bytes().to_vec(),
+                })
         });
         (reply, asked)
     }
@@ -665,7 +689,11 @@ mod tests {
             ("next#frag", Some("https://example.org/a/next")),
             ("ftp://example.org/x", None),
         ] {
-            assert_eq!(resolve_location(base, location).as_deref(), expected, "{location}");
+            assert_eq!(
+                resolve_location(base, location).as_deref(),
+                expected,
+                "{location}"
+            );
         }
     }
 
@@ -683,18 +711,45 @@ mod tests {
             ("http://a.test/plain", 302, None, "body"),
         ];
         // A redirect is followed, relative to the URL that asked.
-        assert_eq!(follow(FetchKind::Text, "http://a.test/one", &table), (FetchReply::Body(b"ok".to_vec()), 2));
+        assert_eq!(
+            follow(FetchKind::Text, "http://a.test/one", &table),
+            (FetchReply::Body(b"ok".to_vec()), 2)
+        );
         // WEBSERVICE stops at https to http and answers the empty body; IMAGE follows.
-        assert_eq!(follow(FetchKind::Text, "https://a.test/secure", &table), (FetchReply::Body(Vec::new()), 1));
-        assert_eq!(follow(FetchKind::Picture, "https://a.test/secure", &table), (FetchReply::Body(b"ok".to_vec()), 2));
-        assert_eq!(follow(FetchKind::Text, "https://a.test/gone", &table).0, FetchReply::Status(404));
-        assert_eq!(follow(FetchKind::Text, "https://a.test/empty", &table).0, FetchReply::Body(Vec::new()));
+        assert_eq!(
+            follow(FetchKind::Text, "https://a.test/secure", &table),
+            (FetchReply::Body(Vec::new()), 1)
+        );
+        assert_eq!(
+            follow(FetchKind::Picture, "https://a.test/secure", &table),
+            (FetchReply::Body(b"ok".to_vec()), 2)
+        );
+        assert_eq!(
+            follow(FetchKind::Text, "https://a.test/gone", &table).0,
+            FetchReply::Status(404)
+        );
+        assert_eq!(
+            follow(FetchKind::Text, "https://a.test/empty", &table).0,
+            FetchReply::Body(Vec::new())
+        );
         // 25 redirects are followed; the 26th response ends the fetch as failed.
-        assert_eq!(follow(FetchKind::Text, "http://a.test/loop", &table), (FetchReply::Failed, REDIRECT_LIMIT + 1));
-        assert_eq!(follow(FetchKind::Text, "http://a.test/odd", &table).0, FetchReply::Failed);
+        assert_eq!(
+            follow(FetchKind::Text, "http://a.test/loop", &table),
+            (FetchReply::Failed, REDIRECT_LIMIT + 1)
+        );
+        assert_eq!(
+            follow(FetchKind::Text, "http://a.test/odd", &table).0,
+            FetchReply::Failed
+        );
         // A redirect status with no Location is a final response.
-        assert_eq!(follow(FetchKind::Text, "http://a.test/plain", &table).0, FetchReply::Body(b"body".to_vec()));
+        assert_eq!(
+            follow(FetchKind::Text, "http://a.test/plain", &table).0,
+            FetchReply::Body(b"body".to_vec())
+        );
         // No response at all is a failed fetch.
-        assert_eq!(follow(FetchKind::Text, "http://nowhere.test/", &table), (FetchReply::Failed, 1));
+        assert_eq!(
+            follow(FetchKind::Text, "http://nowhere.test/", &table),
+            (FetchReply::Failed, 1)
+        );
     }
 }

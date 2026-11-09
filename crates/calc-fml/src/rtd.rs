@@ -184,7 +184,9 @@ impl calc_func::UserFunction for RtdFunction {
             });
         }
         if values.len() < 3 {
-            return Err(context.refuse_by("RTD without a ProgID, a server and a topic", "dc-snz.23"));
+            return Err(
+                context.refuse_by("RTD without a ProgID, a server and a topic", "dc-snz.23")
+            );
         }
         if values.len() - 2 > MAX_TOPIC_STRINGS {
             return Ok(CalcValue::error(WorksheetErrorCode::Value));
@@ -320,8 +322,14 @@ mod tests {
         );
         // Representation, not IEEE, equality: minus zero for zero at one sequence conflicts.
         let (zero, _) = admit(&empty, update("z", 1, 1, 0.0));
-        assert_eq!(admit(&zero, update("z", 1, 1, 0.0)).1, RtdDisposition::Duplicate);
-        assert_eq!(admit(&zero, update("z", 1, 1, -0.0)).1, RtdDisposition::ConflictingSequence);
+        assert_eq!(
+            admit(&zero, update("z", 1, 1, 0.0)).1,
+            RtdDisposition::Duplicate
+        );
+        assert_eq!(
+            admit(&zero, update("z", 1, 1, -0.0)).1,
+            RtdDisposition::ConflictingSequence
+        );
         let (two, verdict) = admit(&one, update("a", 1, 2, 40.0));
         assert_eq!(verdict, RtdDisposition::Accepted);
         assert_eq!(
@@ -386,7 +394,9 @@ mod tests {
         ) -> Result<calc_func::RtdConnection, String> {
             Ok(calc_func::RtdConnection {
                 lease: RtdLease(self.1),
-                provisional: self.0.map(|(sequence, value)| (sequence, CalcValue::number(value))),
+                provisional: self
+                    .0
+                    .map(|(sequence, value)| (sequence, CalcValue::number(value))),
             })
         }
     }
@@ -400,11 +410,24 @@ mod tests {
         let empty = RtdLedger::default();
         let t = topic("a");
         // A new connection: ConnectData's value shows at once, read at sequence 1.
-        let (seen, read) =
-            read_topic(Some(&empty), Some(&Connector(Some((1, 7.0)), 3)), &t, caller(), false).unwrap();
+        let (seen, read) = read_topic(
+            Some(&empty),
+            Some(&Connector(Some((1, 7.0)), 3)),
+            &t,
+            caller(),
+            false,
+        )
+        .unwrap();
         assert_eq!(seen.lease, RtdLease(3));
         assert_eq!(seen.value, Some((1, CalcValue::number(7.0))));
-        assert_eq!(read, RtdRead { topic: t.clone(), lease: RtdLease(3), sequence: 1 });
+        assert_eq!(
+            read,
+            RtdRead {
+                topic: t.clone(),
+                lease: RtdLease(3),
+                sequence: 1
+            }
+        );
         // Once the owner admitted sequence 1, the admitted value is used.
         let (admitted, _) = admit(&empty, update("a", 3, 1, 7.0));
         let (seen, read) = read_topic(
@@ -424,7 +447,8 @@ mod tests {
         assert_eq!(read.sequence, 0);
         // A cut entry of another incarnation is not this lease's.
         let (old, _) = admit(&empty, update("a", 2, 9, 1.0));
-        let (seen, _) = read_topic(Some(&old), Some(&Connector(None, 3)), &t, caller(), false).unwrap();
+        let (seen, _) =
+            read_topic(Some(&old), Some(&Connector(None, 3)), &t, caller(), false).unwrap();
         assert_eq!(seen.value, None);
     }
 
@@ -443,7 +467,10 @@ mod tests {
         assert_ne!(key("Dna.Prog", "", &["abc"]), key("Dna.Prog", "", &["ABC"]));
         assert_ne!(key("Dna.Prog", "", &["t"]), key("Dna.Prog", "", &[" t"]));
         // Two strings are not one.
-        assert_ne!(key("Dna.Prog", "", &["x", "y"]), key("Dna.Prog", "", &["x"]));
+        assert_ne!(
+            key("Dna.Prog", "", &["x", "y"]),
+            key("Dna.Prog", "", &["x"])
+        );
     }
 
     #[cfg_attr(not(target_arch = "wasm32"), test)]

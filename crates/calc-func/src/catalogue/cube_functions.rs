@@ -15,7 +15,8 @@ fn failed<T>(site: &Site<'_>, failure: CubeFailure) -> Step<T> {
         CubeFailure::Error(code) => Err(Exit::Error(code)),
         CubeFailure::NotModelled => Err(site.not_modelled(None)),
         CubeFailure::CrossTableNotModelled => Err(Exit::Fault(crate::FunctionFault::NotHeld {
-            id: site.id(), owner: "dc-8wp.19",
+            id: site.id(),
+            owner: "dc-8wp.19",
         })),
     }
 }
@@ -77,21 +78,24 @@ fn held_value(model: &CubeModel, tuples: &[Vec<CubeMember>], set: bool) -> CubeV
         connection: model.connection.clone(),
         tuples: tuples
             .iter()
-            .map(|tuple| tuple.iter().map(|member| model.unique_name(member)).collect())
+            .map(|tuple| {
+                tuple
+                    .iter()
+                    .map(|member| model.unique_name(member))
+                    .collect()
+            })
             .collect(),
         set,
     }
 }
 
 fn given(arguments: &[CalcValue], index: usize) -> bool {
-    arguments.get(index).is_some_and(|value| !value.is_missing())
+    arguments
+        .get(index)
+        .is_some_and(|value| !value.is_missing())
 }
 
-fn cubemember(
-    site: &Site<'_>,
-    a: &[CalcValue],
-    sv: &mut EvalServices<'_>,
-) -> Step<CalcValue> {
+fn cubemember(site: &Site<'_>, a: &[CalcValue], sv: &mut EvalServices<'_>) -> Step<CalcValue> {
     let model = model(site, a, sv)?;
     let mut tuple: Vec<CubeMember> = Vec::new();
     for cell in cells(site, a, 1, sv)? {
@@ -110,7 +114,10 @@ fn cubemember(
             _ => return fail(WorksheetErrorCode::NA),
         };
         for member in members {
-            if tuple.iter().any(|held| CubeModel::same_hierarchy(held, &member)) {
+            if tuple
+                .iter()
+                .any(|held| CubeModel::same_hierarchy(held, &member))
+            {
                 return fail(WorksheetErrorCode::NA);
             }
             tuple.push(member);
@@ -119,7 +126,10 @@ fn cubemember(
     let shown = if given(a, 2) {
         caption_text(&single(site, a, 2, sv)?).unwrap_or_default()
     } else {
-        tuple.last().map(|member| model.caption(member)).unwrap_or_default()
+        tuple
+            .last()
+            .map(|member| model.caption(member))
+            .unwrap_or_default()
     };
     let held = held_value(&model, &[tuple], false);
     Ok(CalcValue::cube(text_value(&shown), held))
@@ -132,7 +142,10 @@ fn value_argument(
     cell: &CalcValue,
 ) -> Step<Option<Vec<Vec<CubeMember>>>> {
     if let Some(held) = cell.cube_value() {
-        return model.held(held).map(Some).or_else(|failure| failed(site, failure));
+        return model
+            .held(held)
+            .map(Some)
+            .or_else(|failure| failed(site, failure));
     }
     match cell.core_ref() {
         CoreRef::Text(text) => match model.member(&text.to_string_lossy()) {
@@ -159,7 +172,9 @@ fn cubevalue(site: &Site<'_>, a: &[CalcValue], sv: &mut EvalServices<'_>) -> Ste
             }
         }
     }
-    model.value_over(&filters).or_else(|failure| failed(site, failure))
+    model
+        .value_over(&filters)
+        .or_else(|failure| failed(site, failure))
 }
 
 fn cubeset(site: &Site<'_>, a: &[CalcValue], sv: &mut EvalServices<'_>) -> Step<CalcValue> {
@@ -247,7 +262,10 @@ fn cuberankedmember(
     let shown = if given(a, 3) {
         caption_text(&single(site, a, 3, sv)?).unwrap_or_default()
     } else {
-        tuple.last().map(|member| model.caption(member)).unwrap_or_default()
+        tuple
+            .last()
+            .map(|member| model.caption(member))
+            .unwrap_or_default()
     };
     let held = held_value(&model, &[tuple], false);
     Ok(CalcValue::cube(text_value(&shown), held))

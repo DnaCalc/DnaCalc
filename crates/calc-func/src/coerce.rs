@@ -89,7 +89,11 @@ impl Decimal {
         let significant = digits.trim_start_matches('0').len() as i64;
         let magnitude = crate::value_text::decimal(&digits, position - significant)
             .ok_or(Stop::Error(WorksheetErrorCode::Value))?;
-        let n = if self.0.starts_with('-') { -magnitude } else { magnitude };
+        let n = if self.0.starts_with('-') {
+            -magnitude
+        } else {
+            magnitude
+        };
         if n == 0.0 || n.is_subnormal() {
             Ok(0.0)
         } else {
@@ -218,7 +222,9 @@ pub(crate) fn text(value: &CalcValue) -> Result<Cow<'_, [u16]>, Stop> {
         CoreRef::Text(text) => Ok(Cow::Borrowed(text.utf16_code_units())),
         CoreRef::Number(n) if value.is_excel_overflow() => {
             let profile = crate::locale::format_profile(crate::locale::LocaleId::EnZa);
-            Ok(Cow::Owned(crate::format::general(&profile, n).encode_utf16().collect()))
+            Ok(Cow::Owned(
+                crate::format::general(&profile, n).encode_utf16().collect(),
+            ))
         }
         CoreRef::Number(n) if n.is_finite() => number_text::text(n)
             .map(|text| Cow::Owned(text.encode_utf16().collect()))
@@ -227,9 +233,7 @@ pub(crate) fn text(value: &CalcValue) -> Result<Cow<'_, [u16]>, Stop> {
         CoreRef::Logical(false) => Ok(Cow::Borrowed(&FALSE_TEXT)),
         CoreRef::Empty | CoreRef::Missing => Ok(Cow::Borrowed(&[])),
         CoreRef::Error(code) => Err(Stop::Error(code)),
-        CoreRef::Number(_) | CoreRef::Array(_) | CoreRef::Reference(_) => {
-            Err(Stop::NotModelled)
-        }
+        CoreRef::Number(_) | CoreRef::Array(_) | CoreRef::Reference(_) => Err(Stop::NotModelled),
     }
 }
 

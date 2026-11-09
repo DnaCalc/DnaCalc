@@ -71,13 +71,20 @@ pub enum PrepareError {
     },
     /// The batch's base is the last revision the counter holds, so the edit has no next one.
     RevisionExhausted,
-    PivotRefresh { operation:usize },
+    PivotRefresh {
+        operation: usize,
+    },
     /// The operation at this index of the batch names a sheet the snapshot does not hold.
-    UnknownSheet { operation: usize, sheet: SheetId },
+    UnknownSheet {
+        operation: usize,
+        sheet: SheetId,
+    },
     /// The operation at this index inserts or deletes rows or columns or inserts, renames, moves
     /// or removes a sheet, in a batch that also sets or clears cells. A structural edit is staged
     /// without cell operations (L3, dc-m3u): they would name cells before or after it moves them.
-    StructuralEdit { operation: usize },
+    StructuralEdit {
+        operation: usize,
+    },
 }
 
 impl fmt::Display for PrepareError {
@@ -94,7 +101,10 @@ impl fmt::Display for PrepareError {
                 engine.get(),
                 inputs.get()
             ),
-            PrepareError::PivotRefresh{operation}=>write!(f,"operation {operation} contains an unmodelled pivot refresh (dc-8wp)"),
+            PrepareError::PivotRefresh { operation } => write!(
+                f,
+                "operation {operation} contains an unmodelled pivot refresh (dc-8wp)"
+            ),
             PrepareError::RevisionExhausted => {
                 f.write_str("the batch's base revision has no next revision")
             }
@@ -139,7 +149,7 @@ pub struct PreparedEngineChange<'s, 'r> {
     /// become pending when it commits.
     iteration_changed: bool,
     dimensions_pending: Option<BTreeSet<NodeId>>,
-    pivot_results:Option<crate::pivot::PivotResults>,
+    pivot_results: Option<crate::pivot::PivotResults>,
 }
 
 impl<'r> PreparedEngineChange<'_, 'r> {
@@ -244,25 +254,52 @@ pub fn prepare_edit<'s, 'r>(
             names_changed: false,
             iteration_changed: false,
             dimensions_pending: None,
-            pivot_results:None,
+            pivot_results: None,
         });
     }
 
-    let pivot_results=change.operations.iter().enumerate().rev().find_map(|(operation,op)|match op {WorkbookOp::SetPivots(pivots)=>Some((operation,pivots)),_=>None}).map(|(operation,pivots)|{
-        let next_model = change.operations.iter().rev().find_map(|op| match op {
-            WorkbookOp::SetDataModel(model) => Some(model.as_ref()), _ => None,
-        }).or_else(|| inputs.definitions().data_model().map(Arc::as_ref));
-        for (id, cache) in &pivots.caches.caches {
-            if let Some(snapshot) = cache.snapshot.as_deref() {
-                let previous = inputs.definitions().pivots().caches.caches.get(id).and_then(|cache| cache.snapshot.as_deref());
-                if !crate::pivot::valid_model_snapshot(snapshot, next_model, previous, None) {
-                    return Err(PrepareError::PivotRefresh { operation });
+    let pivot_results = change
+        .operations
+        .iter()
+        .enumerate()
+        .rev()
+        .find_map(|(operation, op)| match op {
+            WorkbookOp::SetPivots(pivots) => Some((operation, pivots)),
+            _ => None,
+        })
+        .map(|(operation, pivots)| {
+            let next_model = change
+                .operations
+                .iter()
+                .rev()
+                .find_map(|op| match op {
+                    WorkbookOp::SetDataModel(model) => Some(model.as_ref()),
+                    _ => None,
+                })
+                .or_else(|| inputs.definitions().data_model().map(Arc::as_ref));
+            for (id, cache) in &pivots.caches.caches {
+                if let Some(snapshot) = cache.snapshot.as_deref() {
+                    let previous = inputs
+                        .definitions()
+                        .pivots()
+                        .caches
+                        .caches
+                        .get(id)
+                        .and_then(|cache| cache.snapshot.as_deref());
+                    if !crate::pivot::valid_model_snapshot(snapshot, next_model, previous, None) {
+                        return Err(PrepareError::PivotRefresh { operation });
+                    }
                 }
             }
-        }
-        let results=crate::pivot::calculate(pivots,crate::CalcTick::new(state.allocate_tick()));
-        if results.issues.is_empty(){Ok(results)}else{Err(PrepareError::PivotRefresh{operation})}
-    }).transpose()?;
+            let results =
+                crate::pivot::calculate(pivots, crate::CalcTick::new(state.allocate_tick()));
+            if results.issues.is_empty() {
+                Ok(results)
+            } else {
+                Err(PrepareError::PivotRefresh { operation })
+            }
+        })
+        .transpose()?;
     // What each cell the batch can change holds after the batch (`None` for empty). A cleared
     // area adds every cell of it that holds an input in the snapshot or a formula node in the
     // state, so a cell is missing here only when the batch leaves it as the snapshot has it.
@@ -340,7 +377,8 @@ pub fn prepare_edit<'s, 'r>(
             WorkbookOp::SetAutoFilter { sheet, .. }
             | WorkbookOp::SetPageSetup { sheet, .. }
             | WorkbookOp::SetValidations { sheet, .. }
-            | WorkbookOp::SetCharts {sheet,..} | WorkbookOp::SetReviewLinks { sheet, .. }
+            | WorkbookOp::SetCharts { sheet, .. }
+            | WorkbookOp::SetReviewLinks { sheet, .. }
             | WorkbookOp::SetReviewNotes { sheet, .. }
             | WorkbookOp::SetConditionalRules { sheet, .. }
             | WorkbookOp::SetPaneLayout { sheet, .. }
@@ -496,15 +534,18 @@ pub fn prepare_edit<'s, 'r>(
         .any(|op| {
             matches!(
                 op,
-                WorkbookOp::SetAxisFormat(_) | WorkbookOp::SetAutoFilter { .. } | WorkbookOp::SetDataModel(_)
+                WorkbookOp::SetAxisFormat(_)
+                    | WorkbookOp::SetAutoFilter { .. }
+                    | WorkbookOp::SetDataModel(_)
             )
         })
         .then(|| state.nodes().map(|node| node.id()).collect());
-    let schema_changed = change
-        .operations
-        .iter()
-        .any(|op| matches!(op, WorkbookOp::SetIteration(_) | WorkbookOp::SetPivots(_)
-            | WorkbookOp::SetDataModel(_)));
+    let schema_changed = change.operations.iter().any(|op| {
+        matches!(
+            op,
+            WorkbookOp::SetIteration(_) | WorkbookOp::SetPivots(_) | WorkbookOp::SetDataModel(_)
+        )
+    });
     // Preview text only. Allocation of a name identity/version belongs to ModelRoot::apply.
     let mut name_after = BTreeMap::<NameKey, Option<&str>>::new();
     let mut name_keys = BTreeSet::new();
@@ -569,9 +610,33 @@ pub fn prepare_edit<'s, 'r>(
             _ => None,
         })
         .collect();
-    if pivot_results.is_some(){
-        for area in inputs.definitions().pivots().tables().map(|t|t.area).chain(change.operations.iter().filter_map(|op|if let WorkbookOp::SetPivots(p)=op{Some(p)}else{None}).flat_map(|p|p.tables().map(|t|t.area))){
-            let mut users=BTreeSet::new();state.index.dependents_of_area(inputs,area,&mut users);seeds.push(InputSeed::Area{area,dependents:users.into_iter().collect()});regions.push(area);
+    if pivot_results.is_some() {
+        for area in inputs
+            .definitions()
+            .pivots()
+            .tables()
+            .map(|t| t.area)
+            .chain(
+                change
+                    .operations
+                    .iter()
+                    .filter_map(|op| {
+                        if let WorkbookOp::SetPivots(p) = op {
+                            Some(p)
+                        } else {
+                            None
+                        }
+                    })
+                    .flat_map(|p| p.tables().map(|t| t.area)),
+            )
+        {
+            let mut users = BTreeSet::new();
+            state.index.dependents_of_area(inputs, area, &mut users);
+            seeds.push(InputSeed::Area {
+                area,
+                dependents: users.into_iter().collect(),
+            });
+            regions.push(area);
         }
     }
     let mut certificate_candidates = BTreeSet::new();
@@ -670,16 +735,21 @@ fn structural_moves(
                 | WorkbookOp::SetArray { .. }
                 | WorkbookOp::SetFormat { .. }
                 | WorkbookOp::SetStyles(_)
-            | WorkbookOp::SetPivots(_)
-            | WorkbookOp::SetDataModel(_)
-            | WorkbookOp::SetTables(_)
+                | WorkbookOp::SetPivots(_)
+                | WorkbookOp::SetDataModel(_)
+                | WorkbookOp::SetTables(_)
                 | WorkbookOp::SetNameFormula { .. }
                 | WorkbookOp::RestoreNames(_)
                 | WorkbookOp::SetIteration(_)
                 | WorkbookOp::SetAxisFormat(_)
                 | WorkbookOp::SetPageSetup { .. }
                 | WorkbookOp::SetValidations { .. }
-                | WorkbookOp::SetCharts {sheet: _,charts: _} | WorkbookOp::SetReviewLinks { .. } | WorkbookOp::SetReviewNotes { .. }
+                | WorkbookOp::SetCharts {
+                    sheet: _,
+                    charts: _
+                }
+                | WorkbookOp::SetReviewLinks { .. }
+                | WorkbookOp::SetReviewNotes { .. }
                 | WorkbookOp::SetConditionalRules { .. }
                 | WorkbookOp::SetAutoFilter { .. }
                 | WorkbookOp::SetPaneLayout { .. }
@@ -710,8 +780,13 @@ fn structural_moves(
             | WorkbookOp::SetIteration(_)
             | WorkbookOp::SetAxisFormat(_)
             | WorkbookOp::SetPageSetup { .. }
-                | WorkbookOp::SetValidations { .. }
-                | WorkbookOp::SetCharts {sheet: _,charts: _} | WorkbookOp::SetReviewLinks { .. } | WorkbookOp::SetReviewNotes { .. }
+            | WorkbookOp::SetValidations { .. }
+            | WorkbookOp::SetCharts {
+                sheet: _,
+                charts: _,
+            }
+            | WorkbookOp::SetReviewLinks { .. }
+            | WorkbookOp::SetReviewNotes { .. }
             | WorkbookOp::SetConditionalRules { .. }
             | WorkbookOp::SetAutoFilter { .. }
             | WorkbookOp::SetPaneLayout { .. }
@@ -787,7 +862,10 @@ impl CommitReceipt {
 pub fn commit_edit(mut change: PreparedEngineChange<'_, '_>) -> CommitReceipt {
     let node_changes = std::mem::take(&mut change.node_changes);
     let state = &mut *change.state;
-    if let Some(results)=change.pivot_results.take(){state.pivot_results=results;state.advance_view();}
+    if let Some(results) = change.pivot_results.take() {
+        state.pivot_results = results;
+        state.advance_view();
+    }
     state
         .certificate_candidates
         .extend(std::mem::take(&mut change.certificate_candidates));

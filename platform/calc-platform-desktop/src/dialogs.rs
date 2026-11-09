@@ -7,8 +7,8 @@ use std::path::PathBuf;
 use windows_sys::Win32::{
     Foundation::HWND,
     UI::Controls::Dialogs::{
-        CommDlgExtendedError, GetOpenFileNameW, GetSaveFileNameW, OFN_EXPLORER,
-        OFN_FILEMUSTEXIST, OFN_NOCHANGEDIR, OFN_OVERWRITEPROMPT, OFN_PATHMUSTEXIST, OPENFILENAMEW,
+        CommDlgExtendedError, GetOpenFileNameW, GetSaveFileNameW, OFN_EXPLORER, OFN_FILEMUSTEXIST,
+        OFN_NOCHANGEDIR, OFN_OVERWRITEPROMPT, OFN_PATHMUSTEXIST, OPENFILENAMEW,
     },
 };
 
@@ -93,7 +93,9 @@ fn run(
         };
     }
     let length = buffer.iter().position(|&c| c == 0).unwrap_or(buffer.len());
-    Ok(Some(PathBuf::from(String::from_utf16_lossy(&buffer[..length]))))
+    Ok(Some(PathBuf::from(String::from_utf16_lossy(
+        &buffer[..length],
+    ))))
 }
 
 /// What a [`message`] box offers.
@@ -125,7 +127,11 @@ pub fn message(owner: HWND, title: &str, text: &str, buttons: Buttons, warning: 
         Buttons::Ok => MB_OK,
         Buttons::YesNo => MB_YESNO,
         Buttons::YesNoCancel => MB_YESNOCANCEL,
-    } | if warning { MB_ICONERROR } else { MB_ICONQUESTION };
+    } | if warning {
+        MB_ICONERROR
+    } else {
+        MB_ICONQUESTION
+    };
     let answer = unsafe { MessageBoxW(owner, wide(text).as_ptr(), wide(title).as_ptr(), kind) };
     match answer {
         IDOK => Pressed::Ok,
@@ -159,10 +165,18 @@ mod tests {
     #[test]
     fn filters_become_a_double_null_terminated_list() {
         let text = filter_text(&[
-            FileFilter { name: "Add-ins", patterns: "*.xll;*.xlam" },
-            FileFilter { name: "All", patterns: "*.*" },
+            FileFilter {
+                name: "Add-ins",
+                patterns: "*.xll;*.xlam",
+            },
+            FileFilter {
+                name: "All",
+                patterns: "*.*",
+            },
         ]);
-        let expected: Vec<u16> = "Add-ins\0*.xll;*.xlam\0All\0*.*\0\0".encode_utf16().collect();
+        let expected: Vec<u16> = "Add-ins\0*.xll;*.xlam\0All\0*.*\0\0"
+            .encode_utf16()
+            .collect();
         assert_eq!(text, expected);
         assert_eq!(filter_text(&[]), [0]);
     }

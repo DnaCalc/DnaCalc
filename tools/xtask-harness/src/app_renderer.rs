@@ -241,7 +241,8 @@ pub(super) fn core_observation(
             .filter(|c| *c != char::from(34) && *c != char::from(39))
             .collect::<String>();
         let cell = paint.contains("[data-dnacalc=cell]")
-            || (matches!(check, Check::Style(..) | Check::Computed(..)) && paint.ends_with(" .dc-cell-text"));
+            || (matches!(check, Check::Style(..) | Check::Computed(..))
+                && paint.ends_with(" .dc-cell-text"));
         let decoration = paint.contains("[data-dnacalc=cell-decoration]")
             || paint.contains("[data-dnacalc=cell-borders]");
         if !cell && !decoration {
@@ -281,21 +282,52 @@ fn inspect(session: &Session, spec: &Value) -> Result<Option<Value>, String> {
 pub(super) fn cell_rect(app: &App, session: &Session, name: &str) -> Result<Option<Value>, String> {
     let selector = select(app, name);
     let plain = selector.replace(['\'', '"'], "");
-    if !plain.contains("[data-dnacalc=cell]") || !plain.contains("data-cell=") { return Ok(None); }
+    if !plain.contains("[data-dnacalc=cell]") || !plain.contains("data-cell=") {
+        return Ok(None);
+    }
     let value = inspect(session, &json!({"op":"rect","selector":selector}))?;
-    if value.as_ref().is_some_and(|v| !v["width"].is_number() || !v["height"].is_number()) {
-        return Err(format!("Canvas cell {name} has no current drawn rectangle: {value:?}"));
+    if value
+        .as_ref()
+        .is_some_and(|v| !v["width"].is_number() || !v["height"].is_number())
+    {
+        return Err(format!(
+            "Canvas cell {name} has no current drawn rectangle: {value:?}"
+        ));
     }
     Ok(value)
 }
 
-pub(super) fn click_cell(app: &App, session: &Session, name: &str, double: bool) -> Result<bool, String> {
-    let Some(rect) = cell_rect(app, session, name)? else { return Ok(false); };
-    if rect["reachable"] != true { return Err(format!("Canvas cell {name} is obscured or clipped: {rect}")); }
-    let x=rect["visible_point"][0].as_f64().ok_or("missing cell x")?.round() as i64;
-    let y=rect["visible_point"][1].as_f64().ok_or("missing cell y")?.round() as i64;
-    let mut actions=vec![json!({"type":"pointerMove","duration":0,"origin":"viewport","x":x,"y":y}),json!({"type":"pointerDown","button":0}),json!({"type":"pointerUp","button":0})];
-    if double { actions.extend([json!({"type":"pointerDown","button":0}),json!({"type":"pointerUp","button":0})]); }
+pub(super) fn click_cell(
+    app: &App,
+    session: &Session,
+    name: &str,
+    double: bool,
+) -> Result<bool, String> {
+    let Some(rect) = cell_rect(app, session, name)? else {
+        return Ok(false);
+    };
+    if rect["reachable"] != true {
+        return Err(format!("Canvas cell {name} is obscured or clipped: {rect}"));
+    }
+    let x = rect["visible_point"][0]
+        .as_f64()
+        .ok_or("missing cell x")?
+        .round() as i64;
+    let y = rect["visible_point"][1]
+        .as_f64()
+        .ok_or("missing cell y")?
+        .round() as i64;
+    let mut actions = vec![
+        json!({"type":"pointerMove","duration":0,"origin":"viewport","x":x,"y":y}),
+        json!({"type":"pointerDown","button":0}),
+        json!({"type":"pointerUp","button":0}),
+    ];
+    if double {
+        actions.extend([
+            json!({"type":"pointerDown","button":0}),
+            json!({"type":"pointerUp","button":0}),
+        ]);
+    }
     session.post("/actions",json!({"actions":[{"type":"pointer","id":"mouse","parameters":{"pointerType":"mouse"},"actions":actions}]}))?;
     Ok(true)
 }

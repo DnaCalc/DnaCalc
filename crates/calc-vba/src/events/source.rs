@@ -34,7 +34,9 @@ pub trait EventReadContext {
 }
 scoped_tls_hkt::scoped_thread_local!(static READ: for<'a> (&'a (dyn EventReadContext + 'a), u64, &'a RefCell<Option<String>>));
 
-pub(crate) fn callback_active() -> bool { READ.is_set() }
+pub(crate) fn callback_active() -> bool {
+    READ.is_set()
+}
 
 pub(crate) fn object_type(object: &oxvba_runtime::ObjectRef) -> Option<&'static str> {
     let object = api::HostObject::from_object_ref(object)?;
@@ -45,48 +47,84 @@ pub(crate) fn object_type(object: &oxvba_runtime::ObjectRef) -> Option<&'static 
     }
 }
 
-fn event_operation<T>(call: impl FnOnce(&dyn EventReadContext) -> Result<T, String>) -> Result<T, i32> {
+fn event_operation<T>(
+    call: impl FnOnce(&dyn EventReadContext) -> Result<T, String>,
+) -> Result<T, i32> {
     if !READ.is_set() || !crate::runtime::spreadsheet::event_view_active() {
-        crate::runtime::spreadsheet::record_capability_refusal("an application command outside its admitted document event");
+        crate::runtime::spreadsheet::record_capability_refusal(
+            "an application command outside its admitted document event",
+        );
         return Err(1004);
     }
-    READ.with(|(context, _, refused)| call(context).map_err(|reason| {
-        refused.borrow_mut().get_or_insert(reason);
-        1004
-    }))
+    READ.with(|(context, _, refused)| {
+        call(context).map_err(|reason| {
+            refused.borrow_mut().get_or_insert(reason);
+            1004
+        })
+    })
 }
 
 /// Persistent identity only. Every slot resolves its authority from the current
 /// scoped event loan; no workbook borrow or budget is retained in an object.
 pub(crate) fn application_object() -> Result<api::HostObject, String> {
     use api::{HostSlot, Value, ValueSlot, ValueType};
-    let mut slots = vec![HostSlot::typed(vec![ValueType::String], ValueType::Interface(types::RANGE), |_, args| {
-        let [ValueSlot::String(text)] = args else { return Err(13); };
-        let text = text.as_str();
-        let reference = event_operation(|context| context.resolve_reference(&text))?;
-        let lease = READ.with(|(_, lease, _)| lease);
-        Ok(Value::Object(Some(event_range(reference, lease).map_err(|_| 1004)?)))
-    }).map_err(|e| e.to_string())?];
-    for command in [super::CalculationCommand::Dirty, super::CalculationCommand::Full, super::CalculationCommand::Rebuild] {
-        slots.push(HostSlot::typed(vec![], ValueType::Variant, move |budget, _| {
-            api::with_native_call(budget, || event_operation(|context| context.calculate(command.clone())))?;
-            Ok(Value::Variant(api::Variant::empty()))
-        }).map_err(|e| e.to_string())?);
+    let mut slots = vec![
+        HostSlot::typed(
+            vec![ValueType::String],
+            ValueType::Interface(types::RANGE),
+            |_, args| {
+                let [ValueSlot::String(text)] = args else {
+                    return Err(13);
+                };
+                let text = text.as_str();
+                let reference = event_operation(|context| context.resolve_reference(&text))?;
+                let lease = READ.with(|(_, lease, _)| lease);
+                Ok(Value::Object(Some(
+                    event_range(reference, lease).map_err(|_| 1004)?,
+                )))
+            },
+        )
+        .map_err(|e| e.to_string())?,
+    ];
+    for command in [
+        super::CalculationCommand::Dirty,
+        super::CalculationCommand::Full,
+        super::CalculationCommand::Rebuild,
+    ] {
+        slots.push(
+            HostSlot::typed(vec![], ValueType::Variant, move |budget, _| {
+                api::with_native_call(budget, || {
+                    event_operation(|context| context.calculate(command.clone()))
+                })?;
+                Ok(Value::Variant(api::Variant::empty()))
+            })
+            .map_err(|e| e.to_string())?,
+        );
     }
-    slots.push(HostSlot::typed(vec![], ValueType::Boolean, |_, _| {
-        event_operation(|context| context.events_enabled()).map(Value::Boolean)
-    }).map_err(|e| e.to_string())?);
-    slots.push(HostSlot::typed(vec![ValueType::Boolean], ValueType::Variant, |_, args| {
-        let [ValueSlot::Boolean(enabled)] = args else { return Err(13); };
-        event_operation(|context| context.set_events_enabled(*enabled))?;
-        Ok(Value::Variant(api::Variant::empty()))
-    }).map_err(|e| e.to_string())?);
+    slots.push(
+        HostSlot::typed(vec![], ValueType::Boolean, |_, _| {
+            event_operation(|context| context.events_enabled()).map(Value::Boolean)
+        })
+        .map_err(|e| e.to_string())?,
+    );
+    slots.push(
+        HostSlot::typed(vec![ValueType::Boolean], ValueType::Variant, |_, args| {
+            let [ValueSlot::Boolean(enabled)] = args else {
+                return Err(13);
+            };
+            event_operation(|context| context.set_events_enabled(*enabled))?;
+            Ok(Value::Variant(api::Variant::empty()))
+        })
+        .map_err(|e| e.to_string())?,
+    );
     Ok(api::HostObject::new(types::APP, slots))
 }
 
 struct EventSpreadsheet;
 impl crate::runtime::SpreadsheetContext for EventSpreadsheet {
-    fn event_view(&self) -> bool { true }
+    fn event_view(&self) -> bool {
+        true
+    }
     fn refuse(&self, reason: &'static str) -> String {
         if READ.is_set() {
             READ.with(|(_, _, refused)| {
@@ -175,7 +213,10 @@ impl HostObjectServices for Services {
     ) -> Result<api::Variant, api::TypedFault> {
         if matches!(call.kind, api::object::DynamicMemberKind::Get)
             && arguments.is_empty()
-            && call.name.as_deref().is_some_and(|name| name.eq_ignore_ascii_case("Name"))
+            && call
+                .name
+                .as_deref()
+                .is_some_and(|name| name.eq_ignore_ascii_case("Name"))
         {
             return Ok(api::Variant::from_string(self.1.borrow().clone()));
         }
@@ -208,10 +249,19 @@ impl HostObjectServices for Services {
         } else if self.0.iid == types::BOOK {
             descriptor.interface == types::BOOK_EVENTS
                 && match descriptor.dispatch_id {
-                    1 => descriptor.name.eq_ignore_ascii_case("BeforeSave")
-                        && descriptor.parameters == [EventParameter::Boolean, EventParameter::BooleanByRef],
-                    2 => descriptor.name.eq_ignore_ascii_case("Open") && descriptor.parameters.is_empty(),
-                    3 => descriptor.name.eq_ignore_ascii_case("AddinInstall") && descriptor.parameters.is_empty(),
+                    1 => {
+                        descriptor.name.eq_ignore_ascii_case("BeforeSave")
+                            && descriptor.parameters
+                                == [EventParameter::Boolean, EventParameter::BooleanByRef]
+                    }
+                    2 => {
+                        descriptor.name.eq_ignore_ascii_case("Open")
+                            && descriptor.parameters.is_empty()
+                    }
+                    3 => {
+                        descriptor.name.eq_ignore_ascii_case("AddinInstall")
+                            && descriptor.parameters.is_empty()
+                    }
                     _ => false,
                 }
         } else {
@@ -299,9 +349,12 @@ impl EventSource {
         if callback_active() {
             return api::with_native_callback_context(|budget| {
                 self.raise_in_context(name, arguments, context, budget, lease, true)
-            }).map_err(|e| format!("nested event context (dc-hsa5.12): {e}"))?;
+            })
+            .map_err(|e| format!("nested event context (dc-hsa5.12): {e}"))?;
         }
-        let mut budget = api::TypedContext { remaining_blocks: max_steps };
+        let mut budget = api::TypedContext {
+            remaining_blocks: max_steps,
+        };
         self.raise_in_context(name, arguments, context, &mut budget, lease, false)
     }
     fn raise_in_context(
@@ -352,11 +405,18 @@ impl EventSource {
         // triggering VBA call cannot catch it and continue. Only the outer event
         // boundary drains it before a later top-level event receives a new budget.
         let fault = api::take_unhandled_event_fault(budget);
-        let fault_reason = fault.as_ref().map(|fault| format!(
-            "VBA {name} event failed ({}: {}{}, dc-hsa5.12)",
-            fault.number, fault.description,
-            fault.source.as_ref().map(|source| format!(" [{source}]")).unwrap_or_default(),
-        ));
+        let fault_reason = fault.as_ref().map(|fault| {
+            format!(
+                "VBA {name} event failed ({}: {}{}, dc-hsa5.12)",
+                fault.number,
+                fault.description,
+                fault
+                    .source
+                    .as_ref()
+                    .map(|source| format!(" [{source}]"))
+                    .unwrap_or_default(),
+            )
+        });
         if nested && let Some(fault) = fault {
             api::publish_unhandled_event_fault(budget, fault);
         }
@@ -485,26 +545,55 @@ fn event_range(reference: ReferenceLike, lease: u64) -> Result<api::HostObject, 
         })
         .map_err(|e| e.to_string())?,
     );
-    slots.push(api::HostSlot::typed(vec![api::ValueType::Variant], api::ValueType::Variant, move |budget, args| {
-        let [api::ValueSlot::Variant(value)] = args else { return Err(13); };
-        let value = event_operation(|_| crate::runtime::from_variant(value, false)
-            .map_err(|e| e.to_string()).and_then(crate::from_vba))?;
-        api::with_native_call(budget, || in_lease(lease, |context| {
-            context.write_reference(&write_reference, value).map_err(|reason| {
-                READ.with(|(_, _, refused)| { refused.borrow_mut().get_or_insert(reason); });
-                1004
-            })?;
-            Ok(api::Value::Variant(api::Variant::empty()))
-        }))
-    }).map_err(|e| e.to_string())?);
-    slots.push(api::HostSlot::typed(vec![], api::ValueType::Variant, move |budget, _| {
-        api::with_native_call(budget, || in_lease(lease, |context| {
-            context.calculate(super::CalculationCommand::Range(calculation_reference.clone())).map_err(|reason| {
-                READ.with(|(_, _, refused)| { refused.borrow_mut().get_or_insert(reason); });
-                1004
-            })?;
-            Ok(api::Value::Variant(api::Variant::empty()))
-        }))
-    }).map_err(|e| e.to_string())?);
+    slots.push(
+        api::HostSlot::typed(
+            vec![api::ValueType::Variant],
+            api::ValueType::Variant,
+            move |budget, args| {
+                let [api::ValueSlot::Variant(value)] = args else {
+                    return Err(13);
+                };
+                let value = event_operation(|_| {
+                    crate::runtime::from_variant(value, false)
+                        .map_err(|e| e.to_string())
+                        .and_then(crate::from_vba)
+                })?;
+                api::with_native_call(budget, || {
+                    in_lease(lease, |context| {
+                        context
+                            .write_reference(&write_reference, value)
+                            .map_err(|reason| {
+                                READ.with(|(_, _, refused)| {
+                                    refused.borrow_mut().get_or_insert(reason);
+                                });
+                                1004
+                            })?;
+                        Ok(api::Value::Variant(api::Variant::empty()))
+                    })
+                })
+            },
+        )
+        .map_err(|e| e.to_string())?,
+    );
+    slots.push(
+        api::HostSlot::typed(vec![], api::ValueType::Variant, move |budget, _| {
+            api::with_native_call(budget, || {
+                in_lease(lease, |context| {
+                    context
+                        .calculate(super::CalculationCommand::Range(
+                            calculation_reference.clone(),
+                        ))
+                        .map_err(|reason| {
+                            READ.with(|(_, _, refused)| {
+                                refused.borrow_mut().get_or_insert(reason);
+                            });
+                            1004
+                        })?;
+                    Ok(api::Value::Variant(api::Variant::empty()))
+                })
+            })
+        })
+        .map_err(|e| e.to_string())?,
+    );
     Ok(api::HostObject::new(types::RANGE, slots))
 }

@@ -77,15 +77,27 @@ mod tests {
     fn an_added_column_is_named_as_excel_names_it() {
         let base = ["Region", "Product", "Amount", "Units"];
         let case = |list: &[&str], at: usize, want: &str| {
-            assert_eq!(added_column_name(&names(list), at), want, "{list:?} at {at}");
+            assert_eq!(
+                added_column_name(&names(list), at),
+                want,
+                "{list:?} at {at}"
+            );
         };
         // tbl-col-add-end, -pos1, -pos3, -twice
         case(&base, 4, "Column1");
         case(&base, 0, "Column1");
         case(&base, 2, "Column1");
-        case(&["Region", "Product", "Amount", "Units", "Column1"], 5, "Column2");
+        case(
+            &["Region", "Product", "Amount", "Units", "Column1"],
+            5,
+            "Column2",
+        );
         // tbl-col-add-three-at-1: each new first column takes the next free number
-        case(&["Column1", "Region", "Product", "Amount", "Units"], 0, "Column2");
+        case(
+            &["Column1", "Region", "Product", "Amount", "Units"],
+            0,
+            "Column2",
+        );
         case(&["Column2", "Column1", "Region"], 0, "Column3");
         // tbl-col-sheet-insert-first: a second column inserted after Region, Column1 being there
         case(&["Region", "Column1", "Product"], 1, "Column2");
@@ -115,10 +127,24 @@ mod tests {
     #[cfg_attr(not(target_arch = "wasm32"), test)]
     #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
     fn a_blank_header_is_the_smallest_free_column_number() {
-        assert_eq!(free_column_name(&names(&["Region", "Product", "Amount"])), "Column1");
-        assert_eq!(free_column_name(&names(&["Region", "Product", "Amount", "Column1"])), "Column2");
-        assert_eq!(free_column_name(&names(&["Region", "Column5", "Amount", "Column1", "Column2"])), "Column3");
-        assert_eq!(free_column_name(&names(&["Region", "Column1", "Column2", "Column5"])), "Column3");
+        assert_eq!(
+            free_column_name(&names(&["Region", "Product", "Amount"])),
+            "Column1"
+        );
+        assert_eq!(
+            free_column_name(&names(&["Region", "Product", "Amount", "Column1"])),
+            "Column2"
+        );
+        assert_eq!(
+            free_column_name(&names(&[
+                "Region", "Column5", "Amount", "Column1", "Column2"
+            ])),
+            "Column3"
+        );
+        assert_eq!(
+            free_column_name(&names(&["Region", "Column1", "Column2", "Column5"])),
+            "Column3"
+        );
         assert_eq!(free_column_name(&names(&["COLUMN1"])), "Column2");
     }
 
@@ -126,7 +152,13 @@ mod tests {
     #[cfg_attr(not(target_arch = "wasm32"), test)]
     #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
     fn a_repeated_header_takes_the_smallest_number_from_two() {
-        assert_eq!(numbered_duplicate("Region", &names(&["Region", "Product"])), "Region2");
-        assert_eq!(numbered_duplicate("Region", &names(&["Region", "Product", "Region2"])), "Region3");
+        assert_eq!(
+            numbered_duplicate("Region", &names(&["Region", "Product"])),
+            "Region2"
+        );
+        assert_eq!(
+            numbered_duplicate("Region", &names(&["Region", "Product", "Region2"])),
+            "Region3"
+        );
     }
 }

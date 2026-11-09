@@ -67,8 +67,8 @@ use crate::call::{EvalServices, FunctionFault};
 use crate::coerce;
 use crate::kernel::{Exit, Site, Step};
 use crate::value::{
-    CalcValue, CellKey, CoreRef, ExcelText, GridArea, MAX_COLUMNS, MAX_ROWS,
-    ReferenceLike, WorksheetErrorCode,
+    CalcValue, CellKey, CoreRef, ExcelText, GridArea, MAX_COLUMNS, MAX_ROWS, ReferenceLike,
+    WorksheetErrorCode,
 };
 use std::cmp::Ordering;
 
@@ -77,7 +77,10 @@ use std::cmp::Ordering;
 /// SUMIF and COUNTIF say they return incorrect results beyond 255 characters.
 const LONGEST_TEXT: usize = 255;
 
-use calc_catalogue::conditional::{CODE, ENTRIES as DECLARATIONS, COUNTIF, COUNTIFS, SUMIF, SUMIFS, AVERAGEIF, AVERAGEIFS, MAXIFS, MINIFS};
+use calc_catalogue::conditional::{
+    AVERAGEIF, AVERAGEIFS, CODE, COUNTIF, COUNTIFS, ENTRIES as DECLARATIONS, MAXIFS, MINIFS, SUMIF,
+    SUMIFS,
+};
 
 attach_eager_family! {
     code: CODE; declarations: DECLARATIONS;
@@ -591,9 +594,7 @@ fn used(site: &Site<'_>, index: usize, value: &CalcValue) -> Step<Option<Used>> 
             site.argument(index, coerce::operand(n))?,
         ))),
         CoreRef::Error(code) => Ok(Some(Used::Error(code))),
-        CoreRef::Text(_) | CoreRef::Logical(_) | CoreRef::Empty | CoreRef::Missing => {
-            Ok(None)
-        }
+        CoreRef::Text(_) | CoreRef::Logical(_) | CoreRef::Empty | CoreRef::Missing => Ok(None),
         CoreRef::Array(_) | CoreRef::Reference(_) => Err(site.not_modelled(Some(index))),
     }
 }

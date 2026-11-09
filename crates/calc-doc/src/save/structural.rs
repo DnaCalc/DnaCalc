@@ -80,7 +80,13 @@ const CHART_CONTENT_TYPE: &str =
 const RELATIONSHIPS: &str = "http://schemas.openxmlformats.org/officeDocument/2006/relationships/";
 
 /// The relationship types of a worksheet whose targets hold no position of its cells.
-const HELD_KINDS: [&str; 5] = ["printerSettings", "hyperlink", "image", "customProperty", "pivotTable"];
+const HELD_KINDS: [&str; 5] = [
+    "printerSettings",
+    "hyperlink",
+    "image",
+    "customProperty",
+    "pivotTable",
+];
 const THREADED_COMMENT_KIND: &str =
     "http://schemas.microsoft.com/office/2017/10/relationships/threadedComment";
 
@@ -1639,8 +1645,12 @@ fn part_pass(
 }
 
 /// Move newly authored frames through the same anchor pass as imported drawing parts.
-pub(super) fn drawing_pass(xml:&XmlPart,edit:AxisEdit,rewrite:&Rewrite<'_>)->Result<Option<Vec<u8>>,SaveRefusal>{
-    part_pass(xml,edit,rewrite,PartPass::Drawing)
+pub(super) fn drawing_pass(
+    xml: &XmlPart,
+    edit: AxisEdit,
+    rewrite: &Rewrite<'_>,
+) -> Result<Option<Vec<u8>>, SaveRefusal> {
+    part_pass(xml, edit, rewrite, PartPass::Drawing)
 }
 
 /// A chart part's series formulas (`c:f`) rewritten for `edit`; `None` when none changes.

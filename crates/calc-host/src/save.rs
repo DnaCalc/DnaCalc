@@ -172,7 +172,9 @@ fn cached(value: &calc_value::CalcValue) -> Option<CachedValue> {
         return Some(CachedValue::Image(image.clone()));
     }
     match value.core_ref() {
-        CoreRef::Number(_) if value.is_excel_overflow() => Some(CachedValue::Error(calc_value::WorksheetErrorCode::Num)),
+        CoreRef::Number(_) if value.is_excel_overflow() => {
+            Some(CachedValue::Error(calc_value::WorksheetErrorCode::Num))
+        }
         CoreRef::Number(number) => FiniteNumber::new(number).map(CachedValue::Number),
         CoreRef::Text(text) => CellText::new(text.clone()).map(CachedValue::Text),
         CoreRef::Logical(logical) => Some(CachedValue::Logical(logical)),
@@ -198,8 +200,10 @@ fn cached(value: &calc_value::CalcValue) -> Option<CachedValue> {
 /// as opened; the permitted-cache profile writes its pinned cache values and flags.
 pub fn prepare_save(host: &HostState, policy: &SavePolicy) -> Result<PreparedSave, SaveFailed> {
     let cache_policy = if host.calc_mode() == calc_doc::CalcMode::Manual
-        && matches!(policy.format,calc_doc::SaveFormat::Xml|calc_doc::SaveFormat::Spreadsheet(_))
-    {
+        && matches!(
+            policy.format,
+            calc_doc::SaveFormat::Xml | calc_doc::SaveFormat::Spreadsheet(_)
+        ) {
         SaveCachePolicy::PreservePermittedCaches
     } else {
         SaveCachePolicy::CurrentCalculatedOnly
@@ -258,17 +262,43 @@ pub(crate) fn prepare_image(
     // The package writer preserves the embedded model bytes. Refuse to save a changed
     // snapshot until those bytes can be updated to agree with the calculated cells.
     let initial = crate::facts::initial_model(loaded.model());
-    fn rows(root: &calc_doc_model::ModelRoot) -> Option<Vec<(&str, &[String], &[Vec<Option<CachedValue>>])>> {
-        Some(root.definitions().data_model()?.snapshot.as_ref()?.tables.iter()
-            .map(|table| (table.name.as_str(), table.columns.as_slice(), table.rows.as_slice())).collect())
+    fn rows(
+        root: &calc_doc_model::ModelRoot,
+    ) -> Option<Vec<(&str, &[String], &[Vec<Option<CachedValue>>])>> {
+        Some(
+            root.definitions()
+                .data_model()?
+                .snapshot
+                .as_ref()?
+                .tables
+                .iter()
+                .map(|table| {
+                    (
+                        table.name.as_str(),
+                        table.columns.as_slice(),
+                        table.rows.as_slice(),
+                    )
+                })
+                .collect(),
+        )
     }
     let source_now = crate::facts::initial_model(model);
-    let removed_source = model.definitions().data_model().is_some_and(|data| data.tables.iter().any(|name| {
-        let has_table = |root: &calc_doc_model::ModelRoot| root.definitions().tables().iter().any(|table| calc_value::workbook_names_equal(&table.name, name) || calc_value::workbook_names_equal(&table.display_name, name));
-        has_table(&initial) && !has_table(model)
-    }));
+    let removed_source = model.definitions().data_model().is_some_and(|data| {
+        data.tables.iter().any(|name| {
+            let has_table = |root: &calc_doc_model::ModelRoot| {
+                root.definitions().tables().iter().any(|table| {
+                    calc_value::workbook_names_equal(&table.name, name)
+                        || calc_value::workbook_names_equal(&table.display_name, name)
+                })
+            };
+            has_table(&initial) && !has_table(model)
+        })
+    });
     if rows(model) != rows(&initial) || rows(model) != rows(&source_now) || removed_source {
-        return Err(SaveFailed::Operation { owner: "dc-8wp.20", reason: "Saving changed data model source rows is not yet supported".into() });
+        return Err(SaveFailed::Operation {
+            owner: "dc-8wp.20",
+            reason: "Saving changed data model source rows is not yet supported".into(),
+        });
     }
     let cache_policy = pin.cache_policy;
     // Serialization may share proven-equal sources without changing the live authored
@@ -375,8 +405,20 @@ pub(crate) fn prepare_image(
                     !matches!(input, CellInput::Formula(_)) || values.contains_key(&at)
                 })
         });
-    if let Some(issue)=engine.pivot_results().issues.first(){return Err(SaveFailed::Operation{owner:issue.owner,reason:issue.detail.clone()});}
-    let pivot_outputs=Arc::new(engine.pivot_results().cells.iter().map(|(at,(value,_))|(*at,value.clone())).collect());
+    if let Some(issue) = engine.pivot_results().issues.first() {
+        return Err(SaveFailed::Operation {
+            owner: issue.owner,
+            reason: issue.detail.clone(),
+        });
+    }
+    let pivot_outputs = Arc::new(
+        engine
+            .pivot_results()
+            .cells
+            .iter()
+            .map(|(at, (value, _))| (*at, value.clone()))
+            .collect(),
+    );
     let snapshot = loaded
         .snapshot_with_results(model, values, spills)
         .with_pivot_outputs(pivot_outputs)

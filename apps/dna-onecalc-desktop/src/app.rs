@@ -86,7 +86,11 @@ fn options(args: &[String]) -> Result<Options, String> {
                     "save" => CloseChoice::Save,
                     "discard" => CloseChoice::Discard,
                     "cancel" => CloseChoice::Cancel,
-                    other => return Err(format!("--close-answer is save, discard or cancel, not {other}")),
+                    other => {
+                        return Err(format!(
+                            "--close-answer is save, discard or cancel, not {other}"
+                        ));
+                    }
                 })
             }
             "--debug-port" => {
@@ -104,7 +108,10 @@ fn options(args: &[String]) -> Result<Options, String> {
         }
     }
     if o.url.is_none() && o.assets.is_none() && !crate::embedded::has_page() {
-        return Err("app mode needs --assets DIR (the built page) or --url URL: this build carries no page".into());
+        return Err(
+            "app mode needs --assets DIR (the built page) or --url URL: this build carries no page"
+                .into(),
+        );
     }
     Ok(o)
 }
@@ -113,7 +120,11 @@ impl Options {
     /// Whether a test flag is present: such a run reports on stderr and by its exit code, and
     /// shows no box that waits for a click.
     fn scripted(&self) -> bool {
-        self.debug_port.is_some() || self.close_answer.is_some() || self.data_dir.is_some() || self.save_dir.is_some() || self.message_file.is_some()
+        self.debug_port.is_some()
+            || self.close_answer.is_some()
+            || self.data_dir.is_some()
+            || self.save_dir.is_some()
+            || self.message_file.is_some()
     }
 }
 
@@ -240,7 +251,9 @@ impl Files for Dialogs {
             return answer;
         }
         if self.scripted {
-            eprintln!("dna-onecalc-desktop: unsaved changes in {name}; no --close-answer given, the window stays open");
+            eprintln!(
+                "dna-onecalc-desktop: unsaved changes in {name}; no --close-answer given, the window stays open"
+            );
             return CloseChoice::Cancel;
         }
         match dialogs::message(
@@ -256,10 +269,20 @@ impl Files for Dialogs {
         }
     }
 
-    fn open_in_dna_calc(&mut self, path: Option<&Path>, name: &str, bytes: &[u8]) -> Result<(), String> {
+    fn open_in_dna_calc(
+        &mut self,
+        path: Option<&Path>,
+        name: &str,
+        bytes: &[u8],
+    ) -> Result<(), String> {
         let Some(exe) = &self.dna_calc else {
             let text = "OneCalc cannot open this file, and DNA Calc (dna-calc-desktop.exe) is not in the folder with OneCalc. Put it there to open such files in DNA Calc from here, or open the file in DNA Calc yourself.".to_owned();
-            say(self.owner, self.message_file.as_deref(), self.scripted, &text);
+            say(
+                self.owner,
+                self.message_file.as_deref(),
+                self.scripted,
+                &text,
+            );
             return Err(text);
         };
         // A file the page read has no path: a copy goes in the app's data folder.
@@ -267,7 +290,8 @@ impl Files for Dialogs {
             Some(path) => path.to_owned(),
             None => {
                 let folder = self.settings.borrow().folder().join("refused");
-                std::fs::create_dir_all(&folder).map_err(|e| format!("{}: {e}", folder.display()))?;
+                std::fs::create_dir_all(&folder)
+                    .map_err(|e| format!("{}: {e}", folder.display()))?;
                 let copy = folder.join(name);
                 std::fs::write(&copy, bytes).map_err(|e| format!("{}: {e}", copy.display()))?;
                 copy
@@ -295,9 +319,17 @@ impl Files for Dialogs {
             return Ok(Some(path.display().to_string()));
         }
         // A session with a VBA project is an .xlsm.
-        let extension = if suggested.ends_with(".xlsm") { "xlsm" } else { "xlsx" };
-        let Some(path) =
-            dialogs::save_file(self.owner.cast(), "Save the session", &SESSION_FILES, extension)?
+        let extension = if suggested.ends_with(".xlsm") {
+            "xlsm"
+        } else {
+            "xlsx"
+        };
+        let Some(path) = dialogs::save_file(
+            self.owner.cast(),
+            "Save the session",
+            &SESSION_FILES,
+            extension,
+        )?
         else {
             return Ok(None);
         };
@@ -430,7 +462,10 @@ impl Libraries for Addins {
         project: &calc_vba::OfficeProject,
         install: bool,
     ) -> Result<Vec<String>, String> {
-        let load = self.set.borrow_mut().load_vba_addin(path, project, install)?;
+        let load = self
+            .set
+            .borrow_mut()
+            .load_vba_addin(path, project, install)?;
         Ok(load.notes)
     }
 
@@ -487,7 +522,12 @@ impl Libraries for Addins {
     }
 
     fn registration_names(&self) -> Vec<String> {
-        self.set.borrow().registrations().iter().map(|r| r.name.clone()).collect()
+        self.set
+            .borrow()
+            .registrations()
+            .iter()
+            .map(|r| r.name.clone())
+            .collect()
     }
 
     fn poll_rtd(&mut self, evaluating: bool) -> Vec<RtdInput> {
@@ -647,7 +687,12 @@ pub fn run(args: &[String]) -> Result<(), String> {
     // WebView2 is the app's window: say clearly what is missing and where to get it.
     if calc_platform_desktop::runtime_version().is_none() {
         let text = crate::embedded::missing_runtime_message();
-        say(std::ptr::null_mut(), o.message_file.as_deref(), o.scripted(), &text);
+        say(
+            std::ptr::null_mut(),
+            o.message_file.as_deref(),
+            o.scripted(),
+            &text,
+        );
         if !o.scripted()
             && dialogs::message(
                 std::ptr::null_mut(),
@@ -662,7 +707,10 @@ pub fn run(args: &[String]) -> Result<(), String> {
         return Err(text);
     }
     per_monitor_dpi_aware();
-    let data_dir = o.data_dir.clone().unwrap_or_else(crate::settings::default_folder);
+    let data_dir = o
+        .data_dir
+        .clone()
+        .unwrap_or_else(crate::settings::default_folder);
     let settings = Rc::new(RefCell::new(Settings::load(&data_dir)));
     let shell = Shell::new("DNA OneCalc")?;
     let frame = shell.workbook_hwnd();
@@ -697,8 +745,10 @@ pub fn run(args: &[String]) -> Result<(), String> {
         .sheets()
         .map(|(name, id)| (id, name.to_owned()))
         .collect();
-    let sheet_refs: Vec<(calc_value::SheetId, &str)> =
-        sheets.iter().map(|(id, name)| (*id, name.as_str())).collect();
+    let sheet_refs: Vec<(calc_value::SheetId, &str)> = sheets
+        .iter()
+        .map(|(id, name)| (*id, name.as_str()))
+        .collect();
     // The add-in set always exists: the page loads add-ins into it whenever the person asks.
     let set = Rc::new(RefCell::new(AddinHost::new(
         &shell,
@@ -738,7 +788,12 @@ pub fn run(args: &[String]) -> Result<(), String> {
         }) {
             Reply::Addins(_) => {}
             Reply::Refused { message } => return Err(message),
-            other => return Err(format!("unexpected answer loading {}: {other:?}", xll.display())),
+            other => {
+                return Err(format!(
+                    "unexpected answer loading {}: {other:?}",
+                    xll.display()
+                ));
+            }
         }
     }
     // Declared after the shell so that it drops first: the add-ins close while their windows exist.
@@ -763,7 +818,8 @@ pub fn run(args: &[String]) -> Result<(), String> {
     }
     // The window's title follows the page's: the session's name and a mark for unsaved changes.
     let root = shell.hwnd();
-    app.web.on_title_changed(move |title| calc_platform_desktop::set_window_title(root, &title))?;
+    app.web
+        .on_title_changed(move |title| calc_platform_desktop::set_window_title(root, &title))?;
     {
         let weak = Rc::downgrade(&app);
         shell.set_close_handler(Some(Rc::new(move || {
@@ -806,19 +862,42 @@ mod tests {
     #[test]
     fn app_options_need_a_page() {
         let args = |list: &[&str]| list.iter().map(|s| s.to_string()).collect::<Vec<_>>();
-        assert_eq!(options(&args(&["--app"])).is_err(), !crate::embedded::has_page());
+        assert_eq!(
+            options(&args(&["--app"])).is_err(),
+            !crate::embedded::has_page()
+        );
         let o = options(&args(&[
             "--app", "--assets", "dist", "--size", "800x600", "--xll", "a.xll",
         ]))
         .unwrap();
         assert_eq!((o.size, o.xlls.len()), (Some((800, 600)), 1));
         let o = options(&args(&[
-            "--app", "--url", "http://x/", "--data-dir", "d", "--close-answer", "save", "--message-file", "m.txt",
+            "--app",
+            "--url",
+            "http://x/",
+            "--data-dir",
+            "d",
+            "--close-answer",
+            "save",
+            "--message-file",
+            "m.txt",
         ]))
         .unwrap();
         assert_eq!(o.close_answer, Some(CloseChoice::Save));
-        assert_eq!((o.data_dir, o.message_file), (Some("d".into()), Some("m.txt".into())));
-        assert!(options(&args(&["--app", "--url", "http://x/", "--close-answer", "maybe"])).is_err());
+        assert_eq!(
+            (o.data_dir, o.message_file),
+            (Some("d".into()), Some("m.txt".into()))
+        );
+        assert!(
+            options(&args(&[
+                "--app",
+                "--url",
+                "http://x/",
+                "--close-answer",
+                "maybe"
+            ]))
+            .is_err()
+        );
         assert!(options(&args(&["--app", "--url", "http://127.0.0.1:1/"])).is_ok());
         assert!(options(&args(&["--app", "--bogus"])).is_err());
     }
@@ -831,7 +910,10 @@ mod zone_tests {
     /// The `Zone.Identifier` stream of a downloaded file (Windows writes `ZoneId` under `[ZoneTransfer]`).
     #[test]
     fn the_zone_is_read_from_the_stream_text() {
-        assert_eq!(zone_of("[ZoneTransfer]\r\nZoneId=3\r\nReferrerUrl=https://example.test/\r\n"), Some(3));
+        assert_eq!(
+            zone_of("[ZoneTransfer]\r\nZoneId=3\r\nReferrerUrl=https://example.test/\r\n"),
+            Some(3)
+        );
         assert_eq!(zone_of("[ZoneTransfer]\nZoneId=4"), Some(4));
         assert_eq!(zone_of("[ZoneTransfer]\r\nZoneId=x\r\n"), None);
         assert_eq!(zone_of(""), None);
@@ -847,7 +929,11 @@ mod zone_tests {
         assert_eq!(super::mark_of_the_web(&file), None);
         let mut stream = file.as_os_str().to_owned();
         stream.push(":Zone.Identifier");
-        std::fs::write(std::path::PathBuf::from(stream), "[ZoneTransfer]\r\nZoneId=3\r\n").unwrap();
+        std::fs::write(
+            std::path::PathBuf::from(stream),
+            "[ZoneTransfer]\r\nZoneId=3\r\n",
+        )
+        .unwrap();
         assert_eq!(super::mark_of_the_web(&file), Some(3));
         std::fs::remove_dir_all(&dir).unwrap();
     }

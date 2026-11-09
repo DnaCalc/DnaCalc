@@ -86,7 +86,6 @@ const DEFAULT_OUT: &str = "target/corpus";
 /// One workbook's census/capture/comparison budget; the largest Ofgem capture took most of an hour.
 const DEFAULT_TIMEOUT_S: u64 = 3 * 3600;
 
-
 #[derive(Clone, Debug, PartialEq)]
 pub(crate) struct Args {
     pub(crate) dir: Option<PathBuf>,
@@ -158,11 +157,15 @@ pub(crate) fn parse_args(args: &[String]) -> Result<Args, String> {
             "--resume" => parsed.resume = true,
             "--minimize" => parsed.minimize = true,
             "--trusted-code" => {
-                if parsed.trusted_code.is_some() { return Err("--trusted-code is given twice".into()); }
+                if parsed.trusted_code.is_some() {
+                    return Err("--trusted-code is given twice".into());
+                }
                 parsed.trusted_code = Some(PathBuf::from(value("--trusted-code")?));
             }
             "--saved-excel" => {
-                if parsed.saved_excel.is_some() { return Err("--saved-excel is given twice".into()); }
+                if parsed.saved_excel.is_some() {
+                    return Err("--saved-excel is given twice".into());
+                }
                 parsed.saved_excel = Some(PathBuf::from(value("--saved-excel")?));
             }
             "--dna-only" => {
@@ -598,9 +601,13 @@ pub(crate) fn compare_program(profile: Option<&str>) -> Result<(PathBuf, String)
         let exe = xtask::harness::profile_executable(&ws, profile)?;
         return Ok((exe, format!("xtask-harness built with profile {profile}")));
     }
-    let exe = std::env::current_exe()
-        .map_err(|e| format!("cannot name this xtask's executable: {e}"))?;
-    let mode = if cfg!(debug_assertions) { "debug" } else { "optimised" };
+    let exe =
+        std::env::current_exe().map_err(|e| format!("cannot name this xtask's executable: {e}"))?;
+    let mode = if cfg!(debug_assertions) {
+        "debug"
+    } else {
+        "optimised"
+    };
     Ok((exe, format!("this xtask-harness ({mode})")))
 }
 
@@ -760,11 +767,13 @@ fn compare_one(
     let started = Instant::now();
     let attempt = || -> Result<Value, String> {
         fs::create_dir_all(out).map_err(|e| format!("cannot create {}: {e}", out.display()))?;
-        let mut key = crate::corpus_batch::key(&entry.path, capture, program_digest, args.minimize)?;
+        let mut key =
+            crate::corpus_batch::key(&entry.path, capture, program_digest, args.minimize)?;
         if key["fixture"].as_str() != Some(snapshot) {
             return Err("workbook bytes changed after inventory admission".into());
         }
-        let (input_identity, capture_source) = crate::corpus_batch::input_identity(&entry.path, &entry.name, snapshot);
+        let (input_identity, capture_source) =
+            crate::corpus_batch::input_identity(&entry.path, &entry.name, snapshot);
         if entry.batch_input_identity.as_deref() != Some(input_identity.as_str()) {
             return Err("authored inputs changed after batch inventory admission".into());
         }
@@ -776,11 +785,27 @@ fn compare_one(
         key["input_identity"] = json!(input_identity);
         key["comparison_source"] = json!(comparison_source);
         key["trusted_code"] = json!(trusted_code_digest);
-        if args.trusted_code.as_ref().map(|path|crate::corpus_batch::file_digest(path)).transpose().map_err(|e|e.to_string())?.as_deref() != trusted_code_digest {
+        if args
+            .trusted_code
+            .as_ref()
+            .map(|path| crate::corpus_batch::file_digest(path))
+            .transpose()
+            .map_err(|e| e.to_string())?
+            .as_deref()
+            != trusted_code_digest
+        {
             return Err("trusted-code manifest changed after corpus admission".into());
         }
         key["saved_excel"] = json!(saved_excel_digest);
-        if args.saved_excel.as_ref().map(|path|crate::corpus_batch::file_digest(path)).transpose().map_err(|e|e.to_string())?.as_deref() != saved_excel_digest {
+        if args
+            .saved_excel
+            .as_ref()
+            .map(|path| crate::corpus_batch::file_digest(path))
+            .transpose()
+            .map_err(|e| e.to_string())?
+            .as_deref()
+            != saved_excel_digest
+        {
             return Err("Excel-save provenance changed after corpus admission".into());
         }
         if args.resume
@@ -820,9 +845,15 @@ fn compare_one(
         if args.minimize {
             command.arg("--minimize");
         }
-        if let Some(path) = &args.saved_excel { command.arg("--saved-excel").arg(path); }
+        if let Some(path) = &args.saved_excel {
+            command.arg("--saved-excel").arg(path);
+        }
         if let Some(path) = &args.trusted_code {
-            command.arg("--trusted-code").arg(path).arg("--trusted-code-sha256").arg(trusted_code_digest.ok_or("missing admitted trusted manifest digest")?);
+            command
+                .arg("--trusted-code")
+                .arg(path)
+                .arg("--trusted-code-sha256")
+                .arg(trusted_code_digest.ok_or("missing admitted trusted manifest digest")?);
         }
         let result = crate::corpus_batch::bounded(&mut command, &log, args.timeout);
         let outcome = match &result {
@@ -861,7 +892,9 @@ fn compare_one(
             return Err("comparison source differs from the admitted inputs".into());
         }
         if triage["saved_excel_provenance_sha256"] != key["saved_excel"] {
-            return Err("comparison used different Excel-save provenance than the admitted manifest".into());
+            return Err(
+                "comparison used different Excel-save provenance than the admitted manifest".into(),
+            );
         }
         if triage["trusted_code_sha256"] != key["trusted_code"] {
             return Err("comparison used different trusted code than the admitted manifest".into());
@@ -887,13 +920,29 @@ fn run_corpus(args: &Args) -> u8 {
     }
     let started = Instant::now();
     let repository = repository_revision();
-    let saved_excel_digest = match args.saved_excel.as_ref().map(|path|crate::corpus_batch::file_digest(path)).transpose() {
+    let saved_excel_digest = match args
+        .saved_excel
+        .as_ref()
+        .map(|path| crate::corpus_batch::file_digest(path))
+        .transpose()
+    {
         Ok(digest) => digest,
-        Err(error) => { eprintln!("xtask corpus: cannot hash Excel-save provenance: {error}"); return EXIT_FAILED; }
+        Err(error) => {
+            eprintln!("xtask corpus: cannot hash Excel-save provenance: {error}");
+            return EXIT_FAILED;
+        }
     };
-    let trusted_code_digest = match args.trusted_code.as_ref().map(|path|crate::trusted_code::Manifest::read(path,None).map(|m|m.digest)).transpose() {
+    let trusted_code_digest = match args
+        .trusted_code
+        .as_ref()
+        .map(|path| crate::trusted_code::Manifest::read(path, None).map(|m| m.digest))
+        .transpose()
+    {
         Ok(digest) => digest,
-        Err(error) => { eprintln!("xtask corpus: {error}"); return EXIT_FAILED; }
+        Err(error) => {
+            eprintln!("xtask corpus: {error}");
+            return EXIT_FAILED;
+        }
     };
     let cache = Cache {
         root: args.cache.clone(),
@@ -950,7 +999,10 @@ fn run_corpus(args: &Args) -> u8 {
         }
     };
 
-    let _copy = args.profile.as_ref().map(|_| xtask::harness::CopyCleanup(program.clone()));
+    let _copy = args
+        .profile
+        .as_ref()
+        .map(|_| xtask::harness::CopyCleanup(program.clone()));
     let (entries, inventory) = crate::corpus_batch::select(entries, args.shard);
     if let Err(e) = fs::write(
         args.out.join("inventory.json"),
@@ -1185,7 +1237,8 @@ fn one_workbook(run: &mut Run<'_>, program: &Path, entry: &Entry, out: &Path) ->
         });
         return workbook;
     }
-    let (input_identity, capture_source) = crate::corpus_batch::input_identity(&entry.path, &entry.name, &sha256);
+    let (input_identity, capture_source) =
+        crate::corpus_batch::input_identity(&entry.path, &entry.name, &sha256);
     let inputs_changed = entry.batch_input_identity.as_deref() != Some(input_identity.as_str());
     if let Some(case) = &entry.oracle {
         let bytes = bytes.as_deref().expect("committed oracle bytes read above");
@@ -1195,22 +1248,32 @@ fn one_workbook(run: &mut Run<'_>, program: &Path, entry: &Entry, out: &Path) ->
             .map(|sections| sections.iter().map(|s| s.formula_cells).sum());
         if inputs_changed {
             workbook.failure_key = Some("SourceChanged".into());
-            workbook.outcome = Err(NotCompared { stage: "capture".into(),
-                reason: "authored inputs no longer match the batch inventory".into() });
+            workbook.outcome = Err(NotCompared {
+                stage: "capture".into(),
+                reason: "authored inputs no longer match the batch inventory".into(),
+            });
             return workbook;
         }
         let capture_sha256 = match &capture_source {
             Ok(hash) => hash,
             Err(reason) => {
-                workbook.capture = Some(format!("awaiting capture: invalid capture inputs: {reason}"));
+                workbook.capture = Some(format!(
+                    "awaiting capture: invalid capture inputs: {reason}"
+                ));
                 workbook.outcome = awaiting(bytes, reason);
                 return workbook;
             }
         };
         if case.sectioned() {
             if capture_sha256 != &sha256 {
-                workbook.capture = Some("awaiting capture: authored-entry fixtures require whole-workbook captures".to_owned());
-                workbook.outcome = awaiting(bytes, "authored-entry fixtures require whole-workbook captures");
+                workbook.capture = Some(
+                    "awaiting capture: authored-entry fixtures require whole-workbook captures"
+                        .to_owned(),
+                );
+                workbook.outcome = awaiting(
+                    bytes,
+                    "authored-entry fixtures require whole-workbook captures",
+                );
                 return workbook;
             }
             sectioned_workbook(
@@ -1262,8 +1325,10 @@ fn one_workbook(run: &mut Run<'_>, program: &Path, entry: &Entry, out: &Path) ->
     workbook.inventory_formula_cells = Some(inventory.formulas.len() as u64);
     if inputs_changed {
         workbook.failure_key = Some("SourceChanged".into());
-        workbook.outcome = Err(NotCompared { stage: "capture".into(),
-            reason: "authored inputs no longer match the batch inventory".into() });
+        workbook.outcome = Err(NotCompared {
+            stage: "capture".into(),
+            reason: "authored inputs no longer match the batch inventory".into(),
+        });
         return workbook;
     }
     let capture_sha256 = match capture_source {
@@ -1376,16 +1441,27 @@ fn awaiting(bytes: &[u8], reason: &str) -> Result<Compared, NotCompared> {
 
 fn section_group(record: &CaptureRecord) -> (String, String, String, Option<String>) {
     let session = record.session.as_ref();
-    let path = record.environment.as_ref().and_then(|environment| {
-        environment.settings.iter().find(|(name, _)| name == "workbook_path")
-            .map(|(_, value)| value.clone())
-    }).unwrap_or_default();
+    let path = record
+        .environment
+        .as_ref()
+        .and_then(|environment| {
+            environment
+                .settings
+                .iter()
+                .find(|(name, _)| name == "workbook_path")
+                .map(|(_, value)| value.clone())
+        })
+        .unwrap_or_default();
     let mapping = match &record.acquisition {
         Acquisition::FunctionQuestions { entry } => Some(entry.clone()),
         _ => None,
     };
-    (session.map(|s| s.input_package.clone()).unwrap_or_default(),
-        session.map(|s| s.tool.clone()).unwrap_or_default(), path, mapping)
+    (
+        session.map(|s| s.input_package.clone()).unwrap_or_default(),
+        session.map(|s| s.tool.clone()).unwrap_or_default(),
+        path,
+        mapping,
+    )
 }
 
 /// Compares a workbook captured per section: each session or scalar question mapping's valid records
@@ -1451,7 +1527,11 @@ fn sectioned_workbook(
         let Some(merged) = merged_record(records, &case.case, &format!("sha256:{sha256}")) else {
             continue;
         };
-        let kind = if matches!(merged.acquisition, Acquisition::FunctionQuestions { .. }) { "questions" } else { "session" };
+        let kind = if matches!(merged.acquisition, Acquisition::FunctionQuestions { .. }) {
+            "questions"
+        } else {
+            "session"
+        };
         let stem = format!("{kind}-{}", n + 1);
         let path = dir.join(format!("{stem}.capture.json"));
         let written = merged
@@ -1509,9 +1589,19 @@ fn sectioned_workbook(
         );
     }
     let captured = states.iter().filter(|s| s.capture.is_some()).count();
-    let with_sessions = groups.values().filter(|records| records[0].session.is_some()).count();
-    let question_maps = groups.values().filter(|records|
-        matches!(records[0].acquisition, Acquisition::FunctionQuestions { .. })).count();
+    let with_sessions = groups
+        .values()
+        .filter(|records| records[0].session.is_some())
+        .count();
+    let question_maps = groups
+        .values()
+        .filter(|records| {
+            matches!(
+                records[0].acquisition,
+                Acquisition::FunctionQuestions { .. }
+            )
+        })
+        .count();
     workbook.capture = Some(format!(
         "{captured} committed section records in {} comparison group(s): {with_sessions} with workbook sessions, {question_maps} with scalar question mappings; {} section(s) awaiting capture{}",
         groups.len(),

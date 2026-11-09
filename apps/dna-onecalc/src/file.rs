@@ -31,9 +31,9 @@
 //! into a session without a project has no project part to go into, so such a session is not
 //! saved until the module is unloaded.
 
+use crate::cf::{CellStyle, CfRuleSpec};
 use crate::grid;
 use crate::session::{AddinRef, InputValue, Session, SessionOptions};
-use crate::cf::{CellStyle, CfRuleSpec};
 use calc_doc::{
     CustomXmlItem, SessionArray, SessionConstant, SessionFile, SessionFormula, SessionLook,
     SessionValue, XmlEvent, XmlPart, read_session, write_session,
@@ -114,8 +114,18 @@ pub fn open(bytes: &[u8]) -> Result<(Session, Option<calc_doc::SessionVba>), Ope
             a1(look.row, look.column)
         }
         None => {
-            let taken = file.constants.iter().any(|c| (c.row, c.column) == (1, grid::COLUMNS));
-            a1(1, if taken { grid::COLUMNS + 2 } else { grid::COLUMNS })
+            let taken = file
+                .constants
+                .iter()
+                .any(|c| (c.row, c.column) == (1, grid::COLUMNS));
+            a1(
+                1,
+                if taken {
+                    grid::COLUMNS + 2
+                } else {
+                    grid::COLUMNS
+                },
+            )
         }
     };
     session.set_formula_cell(&anchor).map_err(|_| {
@@ -146,18 +156,23 @@ pub fn open(bytes: &[u8]) -> Result<(Session, Option<calc_doc::SessionVba>), Ope
         }
         let input = match value {
             SessionValue::Number(number) => InputValue::number(*number).map_err(|_| {
-                outside(format!("the number in {} is not one a cell holds", a1(*row, *column)))
+                outside(format!(
+                    "the number in {} is not one a cell holds",
+                    a1(*row, *column)
+                ))
             })?,
-            SessionValue::Text(text) => InputValue::text(text).map_err(|_| {
-                outside(format!("the text in {} is too long", a1(*row, *column)))
-            })?,
+            SessionValue::Text(text) => InputValue::text(text)
+                .map_err(|_| outside(format!("the text in {} is too long", a1(*row, *column))))?,
             SessionValue::Logical(value) => InputValue::logical(*value),
             SessionValue::Error(code) => InputValue::error(*code),
         };
         let cell = CellKey::new(sheet, *row, *column).expect("a cell of the grid");
-        session
-            .set_input_at(cell, input)
-            .map_err(|_| outside(format!("{} holds the formula and a constant", a1(*row, *column))))?;
+        session.set_input_at(cell, input).map_err(|_| {
+            outside(format!(
+                "{} holds the formula and a constant",
+                a1(*row, *column)
+            ))
+        })?;
     }
     let (mut options, addins) = match &file.custom {
         Some(item) => read_item(&item.content).map_err(outside)?,
@@ -184,7 +199,11 @@ pub fn open(bytes: &[u8]) -> Result<(Session, Option<calc_doc::SessionVba>), Ope
                     .map_err(|why| outside(format!("conditional format {}: {why}", index + 1)))?,
             );
         }
-        let style = look.format.as_ref().map(CellStyle::of_session_format).unwrap_or_default();
+        let style = look
+            .format
+            .as_ref()
+            .map(CellStyle::of_session_format)
+            .unwrap_or_default();
         session.set_look(style, rules);
     }
     Ok((session, file.vba))
@@ -245,7 +264,10 @@ pub fn save(session: &mut Session) -> Result<Vec<u8>, String> {
         // The cells the result fills: the window the panels draw and test the rules over.
         if let Some(CoreValue::Array(array)) = calculation.result.as_ref().map(CalcValue::core) {
             let s = array.shape();
-            let columns = s.cols.min(dna_formula_ui::result::MAX_SCROLL_WINDOW_COLS).max(1);
+            let columns = s
+                .cols
+                .min(dna_formula_ui::result::MAX_SCROLL_WINDOW_COLS)
+                .max(1);
             let rows = s
                 .rows
                 .min(dna_formula_ui::result::MAX_SCROLL_WINDOW_ROWS)
@@ -261,11 +283,17 @@ pub fn save(session: &mut Session) -> Result<Vec<u8>, String> {
     let look = if style.is_default() && specs.is_empty() {
         None
     } else {
-        let (dr, dc) = (i64::from(formula_cell.row()) - 1, i64::from(formula_cell.column()) - 1);
+        let (dr, dc) = (
+            i64::from(formula_cell.row()) - 1,
+            i64::from(formula_cell.column()) - 1,
+        );
         let mut rules = Vec::new();
         for (index, spec) in specs.iter().enumerate() {
             rules.push(spec.session_rule(index as i64 + 1, dr, dc).map_err(|why| {
-                format!("Conditional format {} cannot be saved: {why}. Complete or remove it first.", index + 1)
+                format!(
+                    "Conditional format {} cannot be saved: {why}. Complete or remove it first.",
+                    index + 1
+                )
             })?);
         }
         Some(SessionLook {
@@ -422,7 +450,14 @@ mod tests {
         let mut session = Session::new("Sheet1").unwrap();
         session.set_formula("=SUM(A1:A3)+LEN(B1)");
         session.set_formula_cell("H1").unwrap();
-        for (address, text) in [("A1", "1.5"), ("A2", "2"), ("B1", "'12"), ("B2", "TRUE"), ("B3", "#N/A"), ("C1", "é & < >")] {
+        for (address, text) in [
+            ("A1", "1.5"),
+            ("A2", "2"),
+            ("B1", "'12"),
+            ("B2", "TRUE"),
+            ("B3", "#N/A"),
+            ("C1", "é & < >"),
+        ] {
             let grid::Entry::Value(value) = grid::entry(text) else {
                 panic!("{text}")
             };
@@ -486,8 +521,16 @@ mod tests {
                 array: SessionArray::Plain,
             }),
             constants: vec![
-                SessionConstant { row: 1, column: 1, value: SessionValue::Number(3.0) },
-                SessionConstant { row: 2, column: 1, value: SessionValue::Number(4.0) },
+                SessionConstant {
+                    row: 1,
+                    column: 1,
+                    value: SessionValue::Number(3.0),
+                },
+                SessionConstant {
+                    row: 2,
+                    column: 1,
+                    value: SessionValue::Number(4.0),
+                },
             ],
             custom: None,
             date_1904: false,
@@ -515,7 +558,11 @@ mod tests {
     fn a_session_with_a_vba_module_refuses_to_save_naming_the_bead() {
         let mut original = session();
         original
-            .load_vba_module("Module1", calc_vba::EXAMPLE_MODULE, calc_vba::DEFAULT_STEP_BUDGET)
+            .load_vba_module(
+                "Module1",
+                calc_vba::EXAMPLE_MODULE,
+                calc_vba::DEFAULT_STEP_BUDGET,
+            )
             .unwrap();
         let refusal = save(&mut original).unwrap_err();
         assert!(refusal.contains(VBA_BEAD), "{refusal}");
@@ -525,7 +572,10 @@ mod tests {
     #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
     fn a_file_outside_the_constraints_offers_dna_calc() {
         let refusal = open(b"not a workbook").unwrap_err();
-        assert!(refusal.to_string().ends_with("Open in DNA Calc."), "{refusal}");
+        assert!(
+            refusal.to_string().ends_with("Open in DNA Calc."),
+            "{refusal}"
+        );
         // A constant outside the scratch grid is refused, naming the cell.
         let file = SessionFile {
             sheet: "Sheet1".into(),
@@ -548,7 +598,10 @@ mod tests {
     #[cfg_attr(not(target_arch = "wasm32"), test)]
     #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
     fn grid_entries_read_back_from_inputs() {
-        for text in ["1.5", "-2", "1e21", "0.1", "TRUE", "FALSE", "#N/A", "abc", "'12", "'TRUE", "'=1", "'#N/A", "'1e3"] {
+        for text in [
+            "1.5", "-2", "1e21", "0.1", "TRUE", "FALSE", "#N/A", "abc", "'12", "'TRUE", "'=1",
+            "'#N/A", "'1e3",
+        ] {
             let grid::Entry::Value(value) = grid::entry(text) else {
                 panic!("{text}")
             };
@@ -665,16 +718,42 @@ mod tests {
             &calc_doc::OpenPolicy::default(),
         )
         .unwrap();
-        let sheet = String::from_utf8(document.package().read_part("xl/worksheets/sheet1.xml").unwrap()).unwrap();
+        let sheet = String::from_utf8(
+            document
+                .package()
+                .read_part("xl/worksheets/sheet1.xml")
+                .unwrap(),
+        )
+        .unwrap();
         assert!(sheet.contains("sqref=\"K4:L6\""), "{sheet}");
         for cell in ["K4", "L4", "K5", "L5", "K6", "L6"] {
-            assert!(sheet.contains(&format!("<c r=\"{cell}\" s=\"1\"")), "{cell}: {sheet}");
+            assert!(
+                sheet.contains(&format!("<c r=\"{cell}\" s=\"1\"")),
+                "{cell}: {sheet}"
+            );
         }
         // A rule's formula is stored for the range's first cell: the panel's A1 is K4.
-        assert!(sheet.contains("<formula>AND(K4&gt;2,L4&lt;$C$3,\"A1\"&lt;&gt;\"\")</formula>"), "{sheet}");
-        assert!(sheet.contains("<formula>LEFT(K4,LEN(\"a \"\"q\"\" &amp; b\"))=\"a \"\"q\"\" &amp; b\"</formula>"), "{sheet}");
-        let custom = String::from_utf8(document.package().read_part("customXml/item1.xml").unwrap_or_default()).unwrap();
-        assert!(!custom.contains("cfRule") && !custom.contains("Consolas"), "{custom}");
+        assert!(
+            sheet.contains("<formula>AND(K4&gt;2,L4&lt;$C$3,\"A1\"&lt;&gt;\"\")</formula>"),
+            "{sheet}"
+        );
+        assert!(
+            sheet.contains(
+                "<formula>LEFT(K4,LEN(\"a \"\"q\"\" &amp; b\"))=\"a \"\"q\"\" &amp; b\"</formula>"
+            ),
+            "{sheet}"
+        );
+        let custom = String::from_utf8(
+            document
+                .package()
+                .read_part("customXml/item1.xml")
+                .unwrap_or_default(),
+        )
+        .unwrap();
+        assert!(
+            !custom.contains("cfRule") && !custom.contains("Consolas"),
+            "{custom}"
+        );
 
         // Saved again, the same file content.
         let mut again = open(&bytes).unwrap().0;
@@ -683,10 +762,17 @@ mod tests {
 
     #[cfg_attr(not(target_arch = "wasm32"), test)]
     #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
-    fn a_scalar_result_and_an_empty_session_keep_their_look_and_an_unfinished_rule_is_not_dropped() {
+    fn a_scalar_result_and_an_empty_session_keep_their_look_and_an_unfinished_rule_is_not_dropped()
+    {
         let mut scalar = Session::new("Sheet1").unwrap();
         scalar.set_formula("=1+1");
-        scalar.set_look(CellStyle { bold: true, ..CellStyle::default() }, vec![CfRuleSpec::new("duplicates")]);
+        scalar.set_look(
+            CellStyle {
+                bold: true,
+                ..CellStyle::default()
+            },
+            vec![CfRuleSpec::new("duplicates")],
+        );
         let reopened = open(&save(&mut scalar).unwrap()).unwrap().0;
         assert!(reopened.look().0.bold);
         assert_eq!(reopened.look().1.len(), 1);
@@ -694,21 +780,42 @@ mod tests {
         // No formula yet: the look stays on the formula's cell.
         let mut empty = Session::new("Sheet1").unwrap();
         empty.set_formula_cell("C7").unwrap();
-        empty.set_look(CellStyle { fill: "#ff0000".into(), ..CellStyle::default() }, Vec::new());
+        empty.set_look(
+            CellStyle {
+                fill: "#ff0000".into(),
+                ..CellStyle::default()
+            },
+            Vec::new(),
+        );
         let reopened = open(&save(&mut empty).unwrap()).unwrap().0;
         assert_eq!(reopened.look().0.fill, "#ff0000");
-        assert_eq!(crate::file::a1(reopened.formula_cell().row(), reopened.formula_cell().column()), "C7");
+        assert_eq!(
+            crate::file::a1(
+                reopened.formula_cell().row(),
+                reopened.formula_cell().column()
+            ),
+            "C7"
+        );
 
         // A rule that is not finished (it needs a value) stops the save with its reason.
         let mut unfinished = Session::new("Sheet1").unwrap();
         unfinished.set_formula("=1");
         unfinished.set_look(CellStyle::default(), vec![CfRuleSpec::new("cellIs")]);
         let refusal = save(&mut unfinished).unwrap_err();
-        assert!(refusal.contains("Conditional format 1 cannot be saved"), "{refusal}");
+        assert!(
+            refusal.contains("Conditional format 1 cannot be saved"),
+            "{refusal}"
+        );
         // So does a solid data bar, which the standard rule cannot hold.
         let mut solid = Session::new("Sheet1").unwrap();
         solid.set_formula("=1");
-        solid.set_look(CellStyle::default(), vec![CfRuleSpec { gradient: false, ..CfRuleSpec::new("dataBar") }]);
+        solid.set_look(
+            CellStyle::default(),
+            vec![CfRuleSpec {
+                gradient: false,
+                ..CfRuleSpec::new("dataBar")
+            }],
+        );
         assert!(save(&mut solid).unwrap_err().contains("gradient"));
     }
 
@@ -716,8 +823,14 @@ mod tests {
     #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
     fn rule_formulas_move_with_their_range_and_back() {
         use crate::cf::shift_formula;
-        assert_eq!(shift_formula("A1>B$2+$C3+$D$4", 3, 10).unwrap(), "K4>L$2+$C6+$D$4");
-        assert_eq!(shift_formula("K4>L$2+$C6+$D$4", -3, -10).unwrap(), "A1>B$2+$C3+$D$4");
+        assert_eq!(
+            shift_formula("A1>B$2+$C3+$D$4", 3, 10).unwrap(),
+            "K4>L$2+$C6+$D$4"
+        );
+        assert_eq!(
+            shift_formula("K4>L$2+$C6+$D$4", -3, -10).unwrap(),
+            "A1>B$2+$C3+$D$4"
+        );
         // Text, function names that look like cells, names and a sheet's references.
         assert_eq!(
             shift_formula("LOG10(A1)+\"A1\"&'My A1'!B2+Sheet1!C3+x1y", 1, 1).unwrap(),

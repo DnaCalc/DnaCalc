@@ -61,15 +61,20 @@ fn caller_comes_from_the_formula_instance() {
 /// Callers supply matching form/environment/qualified inputs. Selected formulas must not depend
 /// on the source sheet's name; the session supplies their captured row and column.
 fn check_captured_questions(
-    bytes: &[u8], session: &mut Session,
-    include: impl Fn(&calc_verdict::FormulaCell) -> bool, expected_count: usize,
+    bytes: &[u8],
+    session: &mut Session,
+    include: impl Fn(&calc_verdict::FormulaCell) -> bool,
+    expected_count: usize,
 ) {
     let capture = calc_verdict::CaptureRecord::decode(bytes).unwrap();
     let mut failures = Vec::new();
     let mut compared = 0;
     for entry in capture.formulas.iter().filter(|entry| include(entry)) {
         let formula = entry.formula.as_ref().expect("a retained formula");
-        let observation = capture.observations.iter().find(|o| o.cell == entry.cell)
+        let observation = capture
+            .observations
+            .iter()
+            .find(|o| o.cell == entry.cell)
             .expect("every selected question was observed");
         let calc_verdict::Observation::ExcelRaw(expected) = &observation.observation else {
             panic!("a selected question needs a raw Excel reading");
@@ -88,12 +93,24 @@ fn check_captured_questions(
         });
         compared += 1;
         if published.as_ref() != Some(expected) || !calculated.diagnostics.is_empty() {
-            failures.push(format!("{} {formula}: expected {expected:?}, actual {:?}; {:?}",
-                entry.cell.sheet(), calculated.result, calculated.diagnostics));
+            failures.push(format!(
+                "{} {formula}: expected {expected:?}, actual {:?}; {:?}",
+                entry.cell.sheet(),
+                calculated.result,
+                calculated.diagnostics
+            ));
         }
     }
-    assert_eq!(compared, expected_count, "all selected retained questions must run");
-    assert!(failures.is_empty(), "{} of {compared} readings differ:\n{}", failures.len(), failures.join("\n"));
+    assert_eq!(
+        compared, expected_count,
+        "all selected retained questions must run"
+    );
+    assert!(
+        failures.is_empty(),
+        "{} of {compared} readings differ:\n{}",
+        failures.len(),
+        failures.join("\n")
+    );
 }
 
 /// Fn3/fn7 scalar readings retain the original typed inputs and Excel results.
@@ -103,51 +120,104 @@ fn check_captured_questions(
 fn delivered_scalar_readings_follow_the_application_route() {
     let readings: [&[u8]; 38] = [
         include_bytes!("../../../crates/calc-func/tests/captures/fn3_questions/LOWER.reading.json"),
-        include_bytes!("../../../crates/calc-func/tests/captures/fn3_questions/PROPER.reading.json"),
-        include_bytes!("../../../crates/calc-func/tests/captures/fn3_questions/REGEXTEST.reading.json"),
+        include_bytes!(
+            "../../../crates/calc-func/tests/captures/fn3_questions/PROPER.reading.json"
+        ),
+        include_bytes!(
+            "../../../crates/calc-func/tests/captures/fn3_questions/REGEXTEST.reading.json"
+        ),
         include_bytes!("../../../crates/calc-func/tests/captures/fn4_questions/SQRT.reading.json"),
-        include_bytes!("../../../crates/calc-func/tests/captures/fn4_questions/DATEVALUE.reading.json"),
-        include_bytes!("../../../crates/calc-func/tests/captures/fn4_questions/COUPNUM.reading.json"),
-        include_bytes!("../../../crates/calc-func/tests/captures/fn4_questions/COUPDAYSNC.reading.json"),
-        include_bytes!("../../../crates/calc-func/tests/captures/fn4_questions/COUPDAYBS.reading.json"),
+        include_bytes!(
+            "../../../crates/calc-func/tests/captures/fn4_questions/DATEVALUE.reading.json"
+        ),
+        include_bytes!(
+            "../../../crates/calc-func/tests/captures/fn4_questions/COUPNUM.reading.json"
+        ),
+        include_bytes!(
+            "../../../crates/calc-func/tests/captures/fn4_questions/COUPDAYSNC.reading.json"
+        ),
+        include_bytes!(
+            "../../../crates/calc-func/tests/captures/fn4_questions/COUPDAYBS.reading.json"
+        ),
         include_bytes!("../../../crates/calc-func/tests/captures/fn4_questions/MODE.reading.json"),
-        include_bytes!("../../../crates/calc-func/tests/captures/fn4_questions/MODE.SNGL.reading.json"),
+        include_bytes!(
+            "../../../crates/calc-func/tests/captures/fn4_questions/MODE.SNGL.reading.json"
+        ),
         include_bytes!("../../../crates/calc-func/tests/captures/fn4_questions/DISC.reading.json"),
-        include_bytes!("../../../crates/calc-func/tests/captures/fn4_questions/INTRATE.reading.json"),
-        include_bytes!("../../../crates/calc-func/tests/captures/fn4_questions/RECEIVED.reading.json"),
-        include_bytes!("../../../crates/calc-func/tests/captures/fn4_questions/PRICEDISC.reading.json"),
-        include_bytes!("../../../crates/calc-func/tests/captures/fn4_questions/ACCRINTM.reading.json"),
-        include_bytes!("../../../crates/calc-func/tests/captures/fn4_questions/WORKDAY.INTL.reading.json"),
-        include_bytes!("../../../crates/calc-func/tests/captures/fn4_questions/NETWORKDAYS.INTL.reading.json"),
+        include_bytes!(
+            "../../../crates/calc-func/tests/captures/fn4_questions/INTRATE.reading.json"
+        ),
+        include_bytes!(
+            "../../../crates/calc-func/tests/captures/fn4_questions/RECEIVED.reading.json"
+        ),
+        include_bytes!(
+            "../../../crates/calc-func/tests/captures/fn4_questions/PRICEDISC.reading.json"
+        ),
+        include_bytes!(
+            "../../../crates/calc-func/tests/captures/fn4_questions/ACCRINTM.reading.json"
+        ),
+        include_bytes!(
+            "../../../crates/calc-func/tests/captures/fn4_questions/WORKDAY.INTL.reading.json"
+        ),
+        include_bytes!(
+            "../../../crates/calc-func/tests/captures/fn4_questions/NETWORKDAYS.INTL.reading.json"
+        ),
         include_bytes!("../../../crates/calc-func/tests/captures/fn4_questions/DELTA.reading.json"),
-        include_bytes!("../../../crates/calc-func/tests/captures/fn4_questions/GESTEP.reading.json"),
-        include_bytes!("../../../crates/calc-func/tests/captures/fn4_questions/MULTINOMIAL.reading.json"),
-        include_bytes!("../../../crates/calc-func/tests/captures/fn4_questions/NETWORKDAYS.reading.json"),
-        include_bytes!("../../../crates/calc-func/tests/captures/fn4_questions/WORKDAY.reading.json"),
-        include_bytes!("../../../crates/calc-func/tests/captures/fn4_questions/YEARFRAC.reading.json"),
-        include_bytes!("../../../crates/calc-func/tests/captures/fn4_questions/TBILLEQ.reading.json"),
-        include_bytes!("../../../crates/calc-func/tests/captures/fn4_questions/TBILLPRICE.reading.json"),
-        include_bytes!("../../../crates/calc-func/tests/captures/fn4_questions/TBILLYIELD.reading.json"),
+        include_bytes!(
+            "../../../crates/calc-func/tests/captures/fn4_questions/GESTEP.reading.json"
+        ),
+        include_bytes!(
+            "../../../crates/calc-func/tests/captures/fn4_questions/MULTINOMIAL.reading.json"
+        ),
+        include_bytes!(
+            "../../../crates/calc-func/tests/captures/fn4_questions/NETWORKDAYS.reading.json"
+        ),
+        include_bytes!(
+            "../../../crates/calc-func/tests/captures/fn4_questions/WORKDAY.reading.json"
+        ),
+        include_bytes!(
+            "../../../crates/calc-func/tests/captures/fn4_questions/YEARFRAC.reading.json"
+        ),
+        include_bytes!(
+            "../../../crates/calc-func/tests/captures/fn4_questions/TBILLEQ.reading.json"
+        ),
+        include_bytes!(
+            "../../../crates/calc-func/tests/captures/fn4_questions/TBILLPRICE.reading.json"
+        ),
+        include_bytes!(
+            "../../../crates/calc-func/tests/captures/fn4_questions/TBILLYIELD.reading.json"
+        ),
         include_bytes!("../../../crates/calc-func/tests/captures/fn4_questions/ERF.reading.json"),
-        include_bytes!("../../../crates/calc-func/tests/captures/fn4_questions/SERIESSUM.reading.json"),
+        include_bytes!(
+            "../../../crates/calc-func/tests/captures/fn4_questions/SERIESSUM.reading.json"
+        ),
         include_bytes!("../../../crates/calc-func/tests/captures/fn4_questions/IRR.reading.json"),
         include_bytes!("../../../crates/calc-func/tests/captures/fn4_questions/TEXT.reading.json"),
-        include_bytes!("../../../crates/calc-func/tests/captures/fn4_questions/CUMIPMT.reading.json"),
-        include_bytes!("../../../crates/calc-func/tests/captures/fn4_questions/CUMPRINC.reading.json"),
+        include_bytes!(
+            "../../../crates/calc-func/tests/captures/fn4_questions/CUMIPMT.reading.json"
+        ),
+        include_bytes!(
+            "../../../crates/calc-func/tests/captures/fn4_questions/CUMPRINC.reading.json"
+        ),
         include_bytes!("../../../crates/calc-func/tests/captures/fn4_questions/YIELD.reading.json"),
-        include_bytes!("../../../crates/calc-func/tests/captures/fn4_questions/ODDFYIELD.reading.json"),
+        include_bytes!(
+            "../../../crates/calc-func/tests/captures/fn4_questions/ODDFYIELD.reading.json"
+        ),
         include_bytes!("../../../crates/calc-func/tests/captures/fn4_questions/FIXED.reading.json"),
         include_bytes!("../../../crates/calc-func/tests/captures/fn4_questions/VALUE.reading.json"),
-        include_bytes!("../../../crates/calc-func/tests/captures/fn4_questions/NUMBERVALUE.reading.json"),
-        include_bytes!("../../../crates/calc-func/tests/captures/fn4_questions/SEARCH.reading.json"),
-
-
+        include_bytes!(
+            "../../../crates/calc-func/tests/captures/fn4_questions/NUMBERVALUE.reading.json"
+        ),
+        include_bytes!(
+            "../../../crates/calc-func/tests/captures/fn4_questions/SEARCH.reading.json"
+        ),
     ];
     let mut failures = Vec::new();
     let mut count = 0;
     for bytes in readings {
         let reading: serde_json::Value = serde_json::from_slice(bytes).unwrap();
-        for (witness_index, witness) in reading["witnesses"].as_array().unwrap().iter().enumerate() {
+        for (witness_index, witness) in reading["witnesses"].as_array().unwrap().iter().enumerate()
+        {
             let mut session = Session::new("Sheet1").unwrap();
             session.set_formula_cell("J20").unwrap();
             if reading.get("service_response").is_some() {
@@ -156,10 +226,16 @@ fn delivered_scalar_readings_follow_the_application_route() {
                     profile: if witness["without_profile"].as_bool() == Some(true) {
                         None
                     } else {
-                        Some(format_profile(LocaleId::EnZa).with_separators(".", " ").unwrap())
+                        Some(
+                            format_profile(LocaleId::EnZa)
+                                .with_separators(".", " ")
+                                .unwrap(),
+                        )
                     },
-                    compatibility_version: witness["compatibility_version"].as_u64()
-                        .or_else(|| reading["compatibility_version"].as_u64()).unwrap_or(1) as u32,
+                    compatibility_version: witness["compatibility_version"]
+                        .as_u64()
+                        .or_else(|| reading["compatibility_version"].as_u64())
+                        .unwrap_or(1) as u32,
                     ..CalcEnvironment::dates(DateSystem::System1900)
                 }));
             }
@@ -178,7 +254,8 @@ fn delivered_scalar_readings_follow_the_application_route() {
                     };
                     InputValue::error(code)
                 } else if let Some(bits) = text.strip_prefix("0x") {
-                    InputValue::number(f64::from_bits(u64::from_str_radix(bits, 16).unwrap())).unwrap()
+                    InputValue::number(f64::from_bits(u64::from_str_radix(bits, 16).unwrap()))
+                        .unwrap()
                 } else {
                     InputValue::text(text).unwrap()
                 };
@@ -191,20 +268,35 @@ fn delivered_scalar_readings_follow_the_application_route() {
                     } else {
                         format!("\"{}\"", text.replace('"', "\"\""))
                     }
-                } else { at });
+                } else {
+                    at
+                });
             }
-            let formula = format!("={}({})", reading["function"].as_str().unwrap(), arguments.join(","));
+            let formula = format!(
+                "={}({})",
+                reading["function"].as_str().unwrap(),
+                arguments.join(",")
+            );
             session.set_formula(&formula);
             let result = session.calculate();
-            let expected = calc_verdict::decode_result(witness["expected_bits"].as_str().unwrap()).unwrap();
+            let expected =
+                calc_verdict::decode_result(witness["expected_bits"].as_str().unwrap()).unwrap();
             count += 1;
             if result.result.as_ref() != Some(&expected) || !result.diagnostics.is_empty() {
-                failures.push(format!("{} {formula}: expected {expected:?}, actual {:?}; {:?}", witness["id"], result.result, result.diagnostics));
+                failures.push(format!(
+                    "{} {formula}: expected {expected:?}, actual {:?}; {:?}",
+                    witness["id"], result.result, result.diagnostics
+                ));
             }
         }
     }
     assert_eq!(count, 3908);
-    assert!(failures.is_empty(), "{} of{count} readings differ:\n{}", failures.len(), failures.join("\n"));
+    assert!(
+        failures.is_empty(),
+        "{} of{count} readings differ:\n{}",
+        failures.len(),
+        failures.join("\n")
+    );
 }
 
 /// Fn7 preserves Excel's ASCII-prefix pass beside non-ASCII contexts, iteration
@@ -214,12 +306,18 @@ fn delivered_scalar_readings_follow_the_application_route() {
 #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
 fn dc_zsn2__fn7_iteration_context_comparisons() {
     let mut session = Session::new("Sheet1").unwrap();
-    check_captured_questions(include_bytes!(
-        "../../../crates/calc-func/tests/captures/fn7_collation_context/oracle.capture.json"
-    ), &mut session, |entry| {
-        entry.cell.row() == 20 && entry.cell.column() == 10
-            && !entry.formula.as_ref().unwrap().contains("SORT(")
-    }, 210);
+    check_captured_questions(
+        include_bytes!(
+            "../../../crates/calc-func/tests/captures/fn7_collation_context/oracle.capture.json"
+        ),
+        &mut session,
+        |entry| {
+            entry.cell.row() == 20
+                && entry.cell.column() == 10
+                && !entry.formula.as_ref().unwrap().contains("SORT(")
+        },
+        210,
+    );
 }
 
 /// Fn6 distinguishes a trailing ignorable, a combining accent and an ordinary
@@ -229,9 +327,14 @@ fn dc_zsn2__fn7_iteration_context_comparisons() {
 #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
 fn dc_zsn2__identical_jamo_prefix_suffixes() {
     let mut session = Session::new("Sheet1").unwrap();
-    check_captured_questions(include_bytes!(
-        "../../../crates/calc-func/tests/captures/fn6_jamo_suffix/oracle.capture.json"
-    ), &mut session, |entry| entry.cell.row() == 20 && entry.cell.column() == 10, 24);
+    check_captured_questions(
+        include_bytes!(
+            "../../../crates/calc-func/tests/captures/fn6_jamo_suffix/oracle.capture.json"
+        ),
+        &mut session,
+        |entry| entry.cell.row() == 20 && entry.cell.column() == 10,
+        24,
+    );
 }
 
 /// Fn6's bare-Jamo boundaries and the contextual comparisons around them, decided by the
@@ -240,9 +343,14 @@ fn dc_zsn2__identical_jamo_prefix_suffixes() {
 #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
 fn dc_zsn25__fn6_iteration_primary_boundaries() {
     let mut session = Session::new("Sheet1").unwrap();
-    check_captured_questions(include_bytes!(
-        "../../../crates/calc-func/tests/captures/fn6_iteration_primary/oracle.capture.json"
-    ), &mut session, |entry| entry.cell.row() == 20 && entry.cell.column() == 10, 60);
+    check_captured_questions(
+        include_bytes!(
+            "../../../crates/calc-func/tests/captures/fn6_iteration_primary/oracle.capture.json"
+        ),
+        &mut session,
+        |entry| entry.cell.row() == 20 && entry.cell.column() == 10,
+        60,
+    );
     for (formula, expected) in [
         ("=\"ᄀ\"=\"ㄱ\"", false),
         ("=\"ᄃ\"<\"a\"", false),
@@ -256,8 +364,16 @@ fn dc_zsn25__fn6_iteration_primary_boundaries() {
     ] {
         session.set_formula(formula);
         let calculated = session.calculate();
-        assert_eq!(calculated.result, Some(CalcValue::logical(expected)), "{formula}");
-        assert!(calculated.diagnostics.is_empty(), "{formula}: {:?}", calculated.diagnostics);
+        assert_eq!(
+            calculated.result,
+            Some(CalcValue::logical(expected)),
+            "{formula}"
+        );
+        assert!(
+            calculated.diagnostics.is_empty(),
+            "{formula}: {:?}",
+            calculated.diagnostics
+        );
     }
 }
 
@@ -268,14 +384,33 @@ fn dc_zsn25__fn6_iteration_primary_boundaries() {
 #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
 fn dc_zsn26__ordinary_prefix_before_jamo() {
     let mut session = Session::new("Sheet1").unwrap();
-    check_captured_questions(include_bytes!(
-        "../../../crates/calc-func/tests/captures/fn7_collation_contractions/oracle.capture.json"
-    ), &mut session, |entry| {
-        entry.cell.row() == 20 && entry.cell.column() == 10
-            && matches!(entry.cell.sheet(), "q035" | "q036" | "q039" | "q040"
-                | "q043" | "q044" | "q047" | "q048" | "q055" | "q056"
-                | "q096" | "q097" | "q098")
-    }, 13);
+    check_captured_questions(
+        include_bytes!(
+            "../../../crates/calc-func/tests/captures/fn7_collation_contractions/oracle.capture.json"
+        ),
+        &mut session,
+        |entry| {
+            entry.cell.row() == 20
+                && entry.cell.column() == 10
+                && matches!(
+                    entry.cell.sheet(),
+                    "q035"
+                        | "q036"
+                        | "q039"
+                        | "q040"
+                        | "q043"
+                        | "q044"
+                        | "q047"
+                        | "q048"
+                        | "q055"
+                        | "q056"
+                        | "q096"
+                        | "q097"
+                        | "q098"
+                )
+        },
+        13,
+    );
     for (formula, expected) in [
         ("=\"ᅡᄀ\"<\"ᅡ\"", false),
         ("=\"αᅡᄀ\"<\"α가\"", false),
@@ -284,8 +419,16 @@ fn dc_zsn26__ordinary_prefix_before_jamo() {
     ] {
         session.set_formula(formula);
         let calculated = session.calculate();
-        assert_eq!(calculated.result, Some(CalcValue::logical(expected)), "{formula}");
-        assert!(calculated.diagnostics.is_empty(), "{formula}: {:?}", calculated.diagnostics);
+        assert_eq!(
+            calculated.result,
+            Some(CalcValue::logical(expected)),
+            "{formula}"
+        );
+        assert!(
+            calculated.diagnostics.is_empty(),
+            "{formula}: {:?}",
+            calculated.diagnostics
+        );
     }
 }
 
@@ -295,16 +438,48 @@ fn dc_zsn26__ordinary_prefix_before_jamo() {
 #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
 fn dc_zsn28__jamo_leading_primaries() {
     let mut session = Session::new("Sheet1").unwrap();
-    check_captured_questions(include_bytes!(
-        "../../../crates/calc-func/tests/captures/fn7_collation_contractions/oracle.capture.json"
-    ), &mut session, |entry| {
-        entry.cell.row() == 20 && entry.cell.column() == 10
-            && matches!(entry.cell.sheet(), "q017" | "q018" | "q019" | "q020"
-                | "q021" | "q022" | "q023" | "q024" | "q025" | "q026"
-                | "q027" | "q028" | "q029" | "q030" | "q031" | "q032"
-                | "q081" | "q082" | "q083" | "q084" | "q085" | "q086"
-                | "q087" | "q088" | "q089" | "q093" | "q094" | "q095")
-    }, 28);
+    check_captured_questions(
+        include_bytes!(
+            "../../../crates/calc-func/tests/captures/fn7_collation_contractions/oracle.capture.json"
+        ),
+        &mut session,
+        |entry| {
+            entry.cell.row() == 20
+                && entry.cell.column() == 10
+                && matches!(
+                    entry.cell.sheet(),
+                    "q017"
+                        | "q018"
+                        | "q019"
+                        | "q020"
+                        | "q021"
+                        | "q022"
+                        | "q023"
+                        | "q024"
+                        | "q025"
+                        | "q026"
+                        | "q027"
+                        | "q028"
+                        | "q029"
+                        | "q030"
+                        | "q031"
+                        | "q032"
+                        | "q081"
+                        | "q082"
+                        | "q083"
+                        | "q084"
+                        | "q085"
+                        | "q086"
+                        | "q087"
+                        | "q088"
+                        | "q089"
+                        | "q093"
+                        | "q094"
+                        | "q095"
+                )
+        },
+        28,
+    );
     for (formula, expected) in [
         ("=\"ᄀz\"<\"ㄱz\"", true),
         ("=\"αᄀz\"<\"αㄱz\"", true),
@@ -320,8 +495,16 @@ fn dc_zsn28__jamo_leading_primaries() {
     ] {
         session.set_formula(formula);
         let calculated = session.calculate();
-        assert_eq!(calculated.result, Some(CalcValue::logical(expected)), "{formula}");
-        assert!(calculated.diagnostics.is_empty(), "{formula}: {:?}", calculated.diagnostics);
+        assert_eq!(
+            calculated.result,
+            Some(CalcValue::logical(expected)),
+            "{formula}"
+        );
+        assert!(
+            calculated.diagnostics.is_empty(),
+            "{formula}: {:?}",
+            calculated.diagnostics
+        );
     }
 }
 
@@ -333,18 +516,36 @@ fn dc_zsn28__jamo_leading_primaries() {
 fn dc_b1l40_and42__surrogate_length_and_wildcard_units() {
     use calc_func::locale::{CalcEnvironment, DateSystem};
     let captures: [(&[u8], u32); 3] = [
-        (include_bytes!("../../../crates/calc-func/tests/captures/fn6_utf16_needles/oracle.capture.json"), 1),
-        (include_bytes!("../../../crates/calc-func/tests/captures/fn6_utf16_needles_compat1/oracle.capture.json"), 1),
-        (include_bytes!("../../../crates/calc-func/tests/captures/fn6_utf16_needles_compat2/oracle.capture.json"), 2),
+        (
+            include_bytes!(
+                "../../../crates/calc-func/tests/captures/fn6_utf16_needles/oracle.capture.json"
+            ),
+            1,
+        ),
+        (
+            include_bytes!(
+                "../../../crates/calc-func/tests/captures/fn6_utf16_needles_compat1/oracle.capture.json"
+            ),
+            1,
+        ),
+        (
+            include_bytes!(
+                "../../../crates/calc-func/tests/captures/fn6_utf16_needles_compat2/oracle.capture.json"
+            ),
+            2,
+        ),
     ];
     let mut session = Session::new("Sheet1").unwrap();
     for (capture, version) in captures {
         let mut environment = CalcEnvironment::dates(DateSystem::System1900);
         environment.compatibility_version = version;
         session.set_environment(Some(environment));
-        check_captured_questions(capture, &mut session, |entry| {
-            entry.cell.row() == 20 && entry.cell.column() == 10
-        }, 16);
+        check_captured_questions(
+            capture,
+            &mut session,
+            |entry| entry.cell.row() == 20 && entry.cell.column() == 10,
+            16,
+        );
     }
 }
 
@@ -357,12 +558,18 @@ fn dc_b1l37__financial_admission_uses_original_r24_answers() {
     session.set_environment(Some(calc_func::locale::CalcEnvironment::dates(
         calc_func::locale::DateSystem::System1900,
     )));
-    check_captured_questions(include_bytes!(
-        "../../../crates/calc-func/tests/captures/dcztvv_r24/oracle.capture.json"
-    ), &mut session, |f| f.cell.sheet() == "dcztvv_r24" && matches!(f.cell.row(),
-        3040..=3042 | 3065..=3067 | 3287..=3289 | 3312..=3314 |
-        3455..=3457 | 3480..=3482 | 3564..=3566 | 3589..=3591
-    ), 24);
+    check_captured_questions(
+        include_bytes!("../../../crates/calc-func/tests/captures/dcztvv_r24/oracle.capture.json"),
+        &mut session,
+        |f| {
+            f.cell.sheet() == "dcztvv_r24"
+                && matches!(f.cell.row(),
+                    3040..=3042 | 3065..=3067 | 3287..=3289 | 3312..=3314 |
+                    3455..=3457 | 3480..=3482 | 3564..=3566 | 3589..=3591
+                )
+        },
+        24,
+    );
 }
 
 /// Fn4 qd225..qd236 use literal dates at the start of the 1900 calendar.
@@ -374,11 +581,23 @@ fn delivered_fn4_coupon_counts_at_calendar_start() {
     session.set_environment(Some(calc_func::locale::CalcEnvironment::dates(
         calc_func::locale::DateSystem::System1900,
     )));
-    check_captured_questions(include_bytes!(
-        "../../../crates/calc-func/tests/captures/fn4_questions/functions-fn4-date-domain.capture.json"
-    ), &mut session, |entry| entry.cell.row() == 20 && entry.cell.column() == 10
-        && entry.cell.sheet().strip_prefix("qd").and_then(|s| s.parse::<usize>().ok())
-            .is_some_and(|n| (225..=236).contains(&n)), 12);
+    check_captured_questions(
+        include_bytes!(
+            "../../../crates/calc-func/tests/captures/fn4_questions/functions-fn4-date-domain.capture.json"
+        ),
+        &mut session,
+        |entry| {
+            entry.cell.row() == 20
+                && entry.cell.column() == 10
+                && entry
+                    .cell
+                    .sheet()
+                    .strip_prefix("qd")
+                    .and_then(|s| s.parse::<usize>().ok())
+                    .is_some_and(|n| (225..=236).contains(&n))
+        },
+        12,
+    );
 }
 
 /// All twelve months and seven weekdays per tag, plus the captured era boundaries.
@@ -386,17 +605,25 @@ fn delivered_fn4_coupon_counts_at_calendar_start() {
 #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
 fn locale_tagged_date_names_follow_the_retained_fn3_readings() {
     use calc_func::locale::{CalcEnvironment, DateSystem, LocaleId, format_profile};
-    let profile = format_profile(LocaleId::EnZa).with_separators(".", " ").unwrap();
+    let profile = format_profile(LocaleId::EnZa)
+        .with_separators(".", " ")
+        .unwrap();
     let mut session = Session::new("Sheet1").unwrap();
     // The tag supplies the names in all170 original readings. Their date-only
     // fields and spaces never read a host separator or AM/PM designator.
     for profile in [Some(profile), None] {
         session.set_environment(Some(CalcEnvironment {
-            profile, ..CalcEnvironment::dates(DateSystem::System1900)
+            profile,
+            ..CalcEnvironment::dates(DateSystem::System1900)
         }));
-        check_captured_questions(include_bytes!(
-            "../../../crates/calc-func/tests/captures/fn3_questions/oracle.capture.json"
-        ), &mut session, |f| f.cell.sheet() == "fn3_text", 170);
+        check_captured_questions(
+            include_bytes!(
+                "../../../crates/calc-func/tests/captures/fn3_questions/oracle.capture.json"
+            ),
+            &mut session,
+            |f| f.cell.sheet() == "fn3_text",
+            170,
+        );
     }
     for formula in [
         "=TEXT(45000,\"0.00\")",
@@ -408,7 +635,10 @@ fn locale_tagged_date_names_follow_the_retained_fn3_readings() {
         "=FIXED(1.25,2,TRUE)",
     ] {
         session.set_formula(formula);
-        assert!(session.calculate().result.is_none(), "{formula} still needs host context");
+        assert!(
+            session.calculate().result.is_none(),
+            "{formula} still needs host context"
+        );
     }
 }
 
@@ -419,21 +649,39 @@ fn locale_tagged_date_names_follow_the_retained_fn3_readings() {
 fn delivered_fn4_digit_scripts_and_numeric_date_widths() {
     use calc_func::locale::{CalcEnvironment, DateSystem, LocaleId, format_profile};
     let mut session = Session::new("Sheet1").unwrap();
-    let profile = format_profile(LocaleId::EnZa).with_separators(".", " ").unwrap();
+    let profile = format_profile(LocaleId::EnZa)
+        .with_separators(".", " ")
+        .unwrap();
     session.set_environment(Some(CalcEnvironment {
-        profile: Some(profile), ..CalcEnvironment::dates(DateSystem::System1900)
+        profile: Some(profile),
+        ..CalcEnvironment::dates(DateSystem::System1900)
     }));
     let primary = |entry: &calc_verdict::FormulaCell, low: usize, high: usize| {
-        entry.cell.row() == 20 && entry.cell.column() == 10
-            && entry.cell.sheet().get(2..).and_then(|s| s.parse::<usize>().ok())
+        entry.cell.row() == 20
+            && entry.cell.column() == 10
+            && entry
+                .cell
+                .sheet()
+                .get(2..)
+                .and_then(|s| s.parse::<usize>().ok())
                 .is_some_and(|n| (low..=high).contains(&n))
     };
-    check_captured_questions(include_bytes!(
-        "../../../crates/calc-func/tests/captures/fn4_questions/functions-fn4-text-controls.capture.json"
-    ), &mut session, |entry| primary(entry, 31, 96), 66);
-    check_captured_questions(include_bytes!(
-        "../../../crates/calc-func/tests/captures/fn4_questions/functions-fn4-list-controls.capture.json"
-    ), &mut session, |entry| primary(entry, 41, 85), 45);
+    check_captured_questions(
+        include_bytes!(
+            "../../../crates/calc-func/tests/captures/fn4_questions/functions-fn4-text-controls.capture.json"
+        ),
+        &mut session,
+        |entry| primary(entry, 31, 96),
+        66,
+    );
+    check_captured_questions(
+        include_bytes!(
+            "../../../crates/calc-func/tests/captures/fn4_questions/functions-fn4-list-controls.capture.json"
+        ),
+        &mut session,
+        |entry| primary(entry, 41, 85),
+        45,
+    );
 }
 
 /// Fn4 qt001..qt030 distinguish General display, active @ and quoted @.
@@ -442,15 +690,30 @@ fn delivered_fn4_digit_scripts_and_numeric_date_widths() {
 fn delivered_fn4_numeric_text_placeholders_use_general_display() {
     use calc_func::locale::{CalcEnvironment, DateSystem, LocaleId, format_profile};
     let mut session = Session::new("Sheet1").unwrap();
-    let profile = format_profile(LocaleId::EnZa).with_separators(".", " ").unwrap();
+    let profile = format_profile(LocaleId::EnZa)
+        .with_separators(".", " ")
+        .unwrap();
     session.set_environment(Some(CalcEnvironment {
-        profile: Some(profile), ..CalcEnvironment::dates(DateSystem::System1900)
+        profile: Some(profile),
+        ..CalcEnvironment::dates(DateSystem::System1900)
     }));
-    check_captured_questions(include_bytes!(
-        "../../../crates/calc-func/tests/captures/fn4_questions/functions-fn4-text-controls.capture.json"
-    ), &mut session, |entry| entry.cell.row() == 20 && entry.cell.column() == 10
-        && entry.cell.sheet().strip_prefix("qt").and_then(|s| s.parse::<usize>().ok())
-            .is_some_and(|n| (1..=30).contains(&n)), 30);
+    check_captured_questions(
+        include_bytes!(
+            "../../../crates/calc-func/tests/captures/fn4_questions/functions-fn4-text-controls.capture.json"
+        ),
+        &mut session,
+        |entry| {
+            entry.cell.row() == 20
+                && entry.cell.column() == 10
+                && entry
+                    .cell
+                    .sheet()
+                    .strip_prefix("qt")
+                    .and_then(|s| s.parse::<usize>().ok())
+                    .is_some_and(|n| (1..=30).contains(&n))
+        },
+        30,
+    );
 }
 
 /// Fn4 ql104..ql133 distinguish MODE's ignored direct text/logicals from numbers.
@@ -458,11 +721,23 @@ fn delivered_fn4_numeric_text_placeholders_use_general_display() {
 #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
 fn delivered_fn4_mode_ignores_text_and_logicals() {
     let mut session = Session::new("Sheet1").unwrap();
-    check_captured_questions(include_bytes!(
-        "../../../crates/calc-func/tests/captures/fn4_questions/functions-fn4-list-controls.capture.json"
-    ), &mut session, |entry| entry.cell.row() == 20 && entry.cell.column() == 10
-        && entry.cell.sheet().strip_prefix("ql").and_then(|s| s.parse::<usize>().ok())
-            .is_some_and(|n| (104..=133).contains(&n)), 30);
+    check_captured_questions(
+        include_bytes!(
+            "../../../crates/calc-func/tests/captures/fn4_questions/functions-fn4-list-controls.capture.json"
+        ),
+        &mut session,
+        |entry| {
+            entry.cell.row() == 20
+                && entry.cell.column() == 10
+                && entry
+                    .cell
+                    .sheet()
+                    .strip_prefix("ql")
+                    .and_then(|s| s.parse::<usize>().ok())
+                    .is_some_and(|n| (104..=133).contains(&n))
+        },
+        30,
+    );
 }
 
 /// Fn4 argument questions retain literal, held logical and error-order controls.
@@ -476,12 +751,45 @@ fn delivered_fn4_scalar_logical_positions_and_error_order() {
     )));
     session.set_input("B1", InputValue::logical(true)).unwrap();
     session.set_input("B2", InputValue::logical(false)).unwrap();
-    check_captured_questions(include_bytes!(
-        "../../../crates/calc-func/tests/captures/fn4_questions/functions-fn4-arguments.capture.json"
-    ), &mut session, |entry| entry.cell.row() == 20 && entry.cell.column() == 10
-        && entry.cell.sheet().strip_prefix("qa").and_then(|s| s.parse::<usize>().ok())
-            .is_some_and(|n| n <= 148 && !matches!(n,
-                4 | 12 | 16 | 24 | 32 | 40 | 50 | 54 | 62 | 72 | 82 | 92 | 102 | 112 | 120 | 124 | 128 | 132)), 130);
+    check_captured_questions(
+        include_bytes!(
+            "../../../crates/calc-func/tests/captures/fn4_questions/functions-fn4-arguments.capture.json"
+        ),
+        &mut session,
+        |entry| {
+            entry.cell.row() == 20
+                && entry.cell.column() == 10
+                && entry
+                    .cell
+                    .sheet()
+                    .strip_prefix("qa")
+                    .and_then(|s| s.parse::<usize>().ok())
+                    .is_some_and(|n| {
+                        n <= 148
+                            && !matches!(
+                                n,
+                                4 | 12
+                                    | 16
+                                    | 24
+                                    | 32
+                                    | 40
+                                    | 50
+                                    | 54
+                                    | 62
+                                    | 72
+                                    | 82
+                                    | 92
+                                    | 102
+                                    | 112
+                                    | 120
+                                    | 124
+                                    | 128
+                                    | 132
+                            )
+                    })
+        },
+        130,
+    );
 }
 
 /// The original fn4 blank-reference questions use genuine empty cells, not missing inputs.
@@ -493,12 +801,44 @@ fn delivered_fn4_blank_date_references_read_serial_zero() {
         calc_func::locale::DateSystem::System1900,
     )));
     session.set_input("B1", InputValue::blank()).unwrap();
-    check_captured_questions(include_bytes!(
-        "../../../crates/calc-func/tests/captures/fn4_questions/functions-fn4-arguments.capture.json"
-    ), &mut session, |entry| entry.cell.row() == 20 && entry.cell.column() == 10
-        && entry.cell.sheet().strip_prefix("qa").and_then(|s| s.parse::<usize>().ok())
-            .is_some_and(|n| matches!(n,
-                4 | 12 | 16 | 24 | 32 | 40 | 50 | 54 | 62 | 72 | 82 | 92 | 102 | 112 | 120 | 124 | 128 | 132)), 18);
+    check_captured_questions(
+        include_bytes!(
+            "../../../crates/calc-func/tests/captures/fn4_questions/functions-fn4-arguments.capture.json"
+        ),
+        &mut session,
+        |entry| {
+            entry.cell.row() == 20
+                && entry.cell.column() == 10
+                && entry
+                    .cell
+                    .sheet()
+                    .strip_prefix("qa")
+                    .and_then(|s| s.parse::<usize>().ok())
+                    .is_some_and(|n| {
+                        matches!(
+                            n,
+                            4 | 12
+                                | 16
+                                | 24
+                                | 32
+                                | 40
+                                | 50
+                                | 54
+                                | 62
+                                | 72
+                                | 82
+                                | 92
+                                | 102
+                                | 112
+                                | 120
+                                | 124
+                                | 128
+                                | 132
+                        )
+                    })
+        },
+        18,
+    );
 }
 
 /// Fn4 q093..q096 read a genuine typed #BUSY! input and retain Excel's four results.
@@ -507,12 +847,26 @@ fn delivered_fn4_blank_date_references_read_serial_zero() {
 #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
 fn delivered_fn4_busy_error_is_typed_through_the_application() {
     let mut session = Session::new("Sheet1").unwrap();
-    session.set_input("B1", InputValue::error(WorksheetErrorCode::Busy)).unwrap();
-    check_captured_questions(include_bytes!(
-        "../../../crates/calc-func/tests/captures/fn4_questions/functions-fn4.capture.json"
-    ), &mut session, |entry| entry.cell.row() == 20 && entry.cell.column() == 10
-        && entry.cell.sheet().get(1..).and_then(|s| s.parse::<usize>().ok())
-            .is_some_and(|n| (93..=96).contains(&n)), 4);
+    session
+        .set_input("B1", InputValue::error(WorksheetErrorCode::Busy))
+        .unwrap();
+    check_captured_questions(
+        include_bytes!(
+            "../../../crates/calc-func/tests/captures/fn4_questions/functions-fn4.capture.json"
+        ),
+        &mut session,
+        |entry| {
+            entry.cell.row() == 20
+                && entry.cell.column() == 10
+                && entry
+                    .cell
+                    .sheet()
+                    .get(1..)
+                    .and_then(|s| s.parse::<usize>().ok())
+                    .is_some_and(|n| (93..=96).contains(&n))
+        },
+        4,
+    );
 }
 
 /// Fn2 roots 001..010 and 232..239 retain direct errors, actual one-cell arrays,
@@ -523,16 +877,32 @@ fn scalar_errors_keep_their_array_argument_origins() {
     let mut session = Session::new("Sheet1").unwrap();
     session.set_form(calc_fml::FormulaForm::Dynamic);
     session.add_sheet("Data").unwrap();
-    session.set_input("Data!B1", InputValue::text("x").unwrap()).unwrap();
-    session.set_input("Data!B2", InputValue::text("y").unwrap()).unwrap();
-    session.set_input("Data!B3", InputValue::text("x").unwrap()).unwrap();
-    session.set_input("Data!C1", InputValue::error(WorksheetErrorCode::NA)).unwrap();
-    check_captured_questions(include_bytes!(
-        "../../../crates/calc-func/tests/captures/fn2_questions/oracle.capture.json"
-    ), &mut session, |f| {
-        f.cell.sheet().strip_prefix("fn2_q").and_then(|n| n.parse::<u32>().ok())
-            .is_some_and(|n| matches!(n, 1..=10 | 232..=239))
-    }, 18);
+    session
+        .set_input("Data!B1", InputValue::text("x").unwrap())
+        .unwrap();
+    session
+        .set_input("Data!B2", InputValue::text("y").unwrap())
+        .unwrap();
+    session
+        .set_input("Data!B3", InputValue::text("x").unwrap())
+        .unwrap();
+    session
+        .set_input("Data!C1", InputValue::error(WorksheetErrorCode::NA))
+        .unwrap();
+    check_captured_questions(
+        include_bytes!(
+            "../../../crates/calc-func/tests/captures/fn2_questions/oracle.capture.json"
+        ),
+        &mut session,
+        |f| {
+            f.cell
+                .sheet()
+                .strip_prefix("fn2_q")
+                .and_then(|n| n.parse::<u32>().ok())
+                .is_some_and(|n| matches!(n, 1..=10 | 232..=239))
+        },
+        18,
+    );
 }
 
 /// Fn3 records all three directions for seven exact prefixes, three punctuation units and
@@ -544,13 +914,27 @@ fn measured_iteration_suffixes_follow_their_exact_prefixes() {
     let mut session = Session::new("Sheet1").unwrap();
     session.set_form(calc_fml::FormulaForm::Dynamic);
     session.set_environment(Some(CalcEnvironment {
-        profile: Some(format_profile(LocaleId::EnZa).with_separators(".", " ").unwrap()),
+        profile: Some(
+            format_profile(LocaleId::EnZa)
+                .with_separators(".", " ")
+                .unwrap(),
+        ),
         ..CalcEnvironment::dates(DateSystem::System1900)
     }));
-    check_captured_questions(include_bytes!(
-        "../../../crates/calc-func/tests/captures/fn3_questions/oracle.capture.json"
-    ), &mut session, |f| f.cell.sheet() == "fn3_collation"
-        && matches!(f.cell.row(), 1 | 2 | 15 | 16 | 31 | 32 | 47 | 48 | 101..=289), 197);
+    check_captured_questions(
+        include_bytes!(
+            "../../../crates/calc-func/tests/captures/fn3_questions/oracle.capture.json"
+        ),
+        &mut session,
+        |f| {
+            f.cell.sheet() == "fn3_collation"
+                && matches!(
+                    f.cell.row(),
+                    1 | 2 | 15 | 16 | 31 | 32 | 47 | 48 | 101..=289
+                )
+        },
+        197,
+    );
 }
 
 /// Consequences of fn7's measured positive punctuation primary: an exact
@@ -573,23 +957,40 @@ fn measured_iteration_primary_and_unmeasured_contexts() {
     ] {
         session.set_formula(formula);
         let calculated = session.calculate();
-        assert_eq!(calculated.result, Some(CalcValue::logical(expected)), "{formula}");
-        assert!(calculated.diagnostics.is_empty(), "{formula}: {:?}", calculated.diagnostics);
+        assert_eq!(
+            calculated.result,
+            Some(CalcValue::logical(expected)),
+            "{formula}"
+        );
+        assert!(
+            calculated.diagnostics.is_empty(),
+            "{formula}: {:?}",
+            calculated.diagnostics
+        );
     }
     for formula in [
-        "=\"時-́ゝ\"<\"時-\"",     // A mark separates punctuation and iteration.
+        "=\"時-́ゝ\"<\"時-\"", // A mark separates punctuation and iteration.
         "=\"時‐́ゝ\"<\"時‐\"",
-        "=\"時–ゝ\"<\"時–\"",     // Unmeasured punctuation.
-        "=\"時-ゞ\"<\"時-\"",     // Unmeasured iteration after punctuation.
-        "=\"時-­ゝ\"<\"時-\"",     // An ignorable separates the two units.
-        "=\"時-ゝゝ\"<\"時-\"",    // Two iterations after punctuation.
+        "=\"時–ゝ\"<\"時–\"",   // Unmeasured punctuation.
+        "=\"時-ゞ\"<\"時-\"",   // Unmeasured iteration after punctuation.
+        "=\"時-­ゝ\"<\"時-\"",   // An ignorable separates the two units.
+        "=\"時-ゝゝ\"<\"時-\"", // Two iterations after punctuation.
     ] {
         session.set_formula(formula);
         let calculated = session.calculate();
-        assert!(calculated.result.is_none(), "{formula}: {:?}", calculated.result);
-        assert!(calculated.diagnostics.iter().any(|diagnostic| matches!(diagnostic,
-            Diagnostic::Eval(EvalFault::Function(FunctionFault::NotImplemented { .. }))
-        )), "{formula}: {:?}", calculated.diagnostics);
+        assert!(
+            calculated.result.is_none(),
+            "{formula}: {:?}",
+            calculated.result
+        );
+        assert!(
+            calculated.diagnostics.iter().any(|diagnostic| matches!(
+                diagnostic,
+                Diagnostic::Eval(EvalFault::Function(FunctionFault::NotImplemented { .. }))
+            )),
+            "{formula}: {:?}",
+            calculated.diagnostics
+        );
     }
 }
 
@@ -603,13 +1004,26 @@ fn recorded_choose_array_selector_materializes_blank_references() {
     session.add_sheet("Data").unwrap();
     session.set_input("Data!Z1", InputValue::blank()).unwrap();
     session.set_input("Data!Z2", InputValue::blank()).unwrap();
-    check_captured_questions(include_bytes!(
-        "../../../crates/calc-func/tests/captures/fn2_questions/oracle.capture.json"
-    ), &mut session, |f| f.cell.sheet() == "fn2_q193", 1);
-    for formula in ["=ISBLANK(CHOOSE(1,Data!Z1,Data!Z2))", "=ISREF(CHOOSE(1,Data!Z1,Data!Z2))"] {
+    check_captured_questions(
+        include_bytes!(
+            "../../../crates/calc-func/tests/captures/fn2_questions/oracle.capture.json"
+        ),
+        &mut session,
+        |f| f.cell.sheet() == "fn2_q193",
+        1,
+    );
+    for formula in [
+        "=ISBLANK(CHOOSE(1,Data!Z1,Data!Z2))",
+        "=ISREF(CHOOSE(1,Data!Z1,Data!Z2))",
+    ] {
         session.set_formula(formula);
         let calculated = session.calculate();
-        assert_eq!(calculated.result, Some(CalcValue::logical(true)), "{formula}: {:?}", calculated.diagnostics);
+        assert_eq!(
+            calculated.result,
+            Some(CalcValue::logical(true)),
+            "{formula}: {:?}",
+            calculated.diagnostics
+        );
     }
 }
 
@@ -620,13 +1034,23 @@ fn recorded_choose_array_selector_materializes_blank_references() {
 fn recorded_countblank_optional_lambda_omission_is_a_value_error() {
     let mut session = Session::new("Sheet1").unwrap();
     session.set_form(calc_fml::FormulaForm::Dynamic);
-    check_captured_questions(include_bytes!(
-        "../../../crates/calc-func/tests/captures/fn2_questions/oracle.capture.json"
-    ), &mut session, |f| f.cell.sheet() == "fn2_q187", 1);
+    check_captured_questions(
+        include_bytes!(
+            "../../../crates/calc-func/tests/captures/fn2_questions/oracle.capture.json"
+        ),
+        &mut session,
+        |f| f.cell.sheet() == "fn2_q187",
+        1,
+    );
     session.set_input("A1", InputValue::blank()).unwrap();
     session.set_formula("=COUNTBLANK(A1)");
     let reference = session.calculate();
-    assert_eq!(reference.result, Some(CalcValue::number(1.0)), "{:?}", reference.diagnostics);
+    assert_eq!(
+        reference.result,
+        Some(CalcValue::number(1.0)),
+        "{:?}",
+        reference.diagnostics
+    );
 }
 
 /// Implementation contract: selectors transport the chosen closure and its lexical bindings.
@@ -640,23 +1064,49 @@ fn selected_callables_keep_identity_before_cell_publication() {
     for selector in ["IFS(TRUE,ff)", "SWITCH(1,1,ff)"] {
         session.set_formula(&format!("=LET(ss,11,ff,LAMBDA(xx,ss+xx),{selector})"));
         let raw = session.calculate();
-        assert!(raw.diagnostics.is_empty(), "{selector}: {:?}", raw.diagnostics);
+        assert!(
+            raw.diagnostics.is_empty(),
+            "{selector}: {:?}",
+            raw.diagnostics
+        );
         assert!(raw.result.as_ref().unwrap().callable_value().is_some());
-        session.set_formula(&format!("=LET(ss,11,ff,LAMBDA(xx,ss+xx),gg,{selector},gg(7))"));
+        session.set_formula(&format!(
+            "=LET(ss,11,ff,LAMBDA(xx,ss+xx),gg,{selector},gg(7))"
+        ));
         let called = session.calculate();
-        assert_eq!(called.result, Some(CalcValue::number(18.0)), "{selector}: {:?}", called.diagnostics);
+        assert_eq!(
+            called.result,
+            Some(CalcValue::number(18.0)),
+            "{selector}: {:?}",
+            called.diagnostics
+        );
         assert!(called.diagnostics.is_empty());
     }
     for selector in ["IFS(TRUE,HSTACK(ff,ff))", "SWITCH(1,1,HSTACK(ff,ff))"] {
         session.set_formula(&format!("=LET(ss,11,ff,LAMBDA(xx,ss+xx),{selector})"));
         let raw = session.calculate();
-        assert!(raw.diagnostics.is_empty(), "{selector}: {:?}", raw.diagnostics);
+        assert!(
+            raw.diagnostics.is_empty(),
+            "{selector}: {:?}",
+            raw.diagnostics
+        );
         let array = raw.result.as_ref().unwrap().as_array().unwrap();
         assert_eq!((array.shape().rows, array.shape().cols), (1, 2));
-        assert!(array.iter_row_major().all(|value| value.callable_value().is_some()));
-        session.set_formula(&format!("=LET(ss,11,ff,LAMBDA(xx,ss+xx),gg,INDEX({selector},1,2),gg(7))"));
+        assert!(
+            array
+                .iter_row_major()
+                .all(|value| value.callable_value().is_some())
+        );
+        session.set_formula(&format!(
+            "=LET(ss,11,ff,LAMBDA(xx,ss+xx),gg,INDEX({selector},1,2),gg(7))"
+        ));
         let called = session.calculate();
-        assert_eq!(called.result, Some(CalcValue::number(18.0)), "{selector}: {:?}", called.diagnostics);
+        assert_eq!(
+            called.result,
+            Some(CalcValue::number(18.0)),
+            "{selector}: {:?}",
+            called.diagnostics
+        );
         assert!(called.diagnostics.is_empty());
     }
 }
@@ -669,7 +1119,9 @@ fn wrapping_keeps_short_vectors_and_validates_counts_and_shapes() {
     let mut session = Session::new("Sheet1").unwrap();
     session.set_form(calc_fml::FormulaForm::Dynamic);
     session.add_sheet("Data").unwrap();
-    session.set_input("Data!B1", InputValue::text("x").unwrap()).unwrap();
+    session
+        .set_input("Data!B1", InputValue::text("x").unwrap())
+        .unwrap();
     let mut cases = Vec::new();
     for (formula, expected) in [
         ("=ROWS(WRAPCOLS({1,2,3},5,\"pad\"))", 3.0),
@@ -682,30 +1134,49 @@ fn wrapping_keeps_short_vectors_and_validates_counts_and_shapes() {
         ("=COLUMNS(WRAPCOLS(Data!B1,2,\"pad\"))", 1.0),
         ("=ROWS(WRAPCOLS({1,2,3},2))", 2.0),
         ("=COLUMNS(WRAPCOLS({1,2,3},2))", 2.0),
-    ] { cases.push((formula, CalcValue::number(expected))); }
+    ] {
+        cases.push((formula, CalcValue::number(expected)));
+    }
     for formula in [
-        "=WRAPCOLS(\"2\",0,\"pad\")", "=WRAPROWS(\"2\",0,\"pad\")",
-        "=WRAPCOLS({1,2},-1)", "=WRAPROWS({1;2},-1)",
-        "=WRAPCOLS({1,2},0.5)", "=WRAPROWS({1;2},0.5)",
-    ] { cases.push((formula, CalcValue::error(WorksheetErrorCode::Num))); }
+        "=WRAPCOLS(\"2\",0,\"pad\")",
+        "=WRAPROWS(\"2\",0,\"pad\")",
+        "=WRAPCOLS({1,2},-1)",
+        "=WRAPROWS({1;2},-1)",
+        "=WRAPCOLS({1,2},0.5)",
+        "=WRAPROWS({1;2},0.5)",
+    ] {
+        cases.push((formula, CalcValue::error(WorksheetErrorCode::Num)));
+    }
     for formula in ["=WRAPCOLS({1,2;3,4},2)", "=WRAPROWS({1,2;3,4},2)"] {
         cases.push((formula, CalcValue::error(WorksheetErrorCode::Value)));
     }
-    for formula in ["=INDEX(WRAPCOLS({1,2,3},2),2,2)", "=INDEX(WRAPROWS({1,2,3},2),2,2)"] {
+    for formula in [
+        "=INDEX(WRAPCOLS({1,2,3},2),2,2)",
+        "=INDEX(WRAPROWS({1,2,3},2),2,2)",
+    ] {
         cases.push((formula, CalcValue::error(WorksheetErrorCode::NA)));
     }
-    cases.push(("=INDEX(WRAPCOLS(Data!B1,2,\"pad\"),1,1)",
-        CalcValue::text(calc_func::value::ExcelText::from_interop_assignment("x"))));
+    cases.push((
+        "=INDEX(WRAPCOLS(Data!B1,2,\"pad\"),1,1)",
+        CalcValue::text(calc_func::value::ExcelText::from_interop_assignment("x")),
+    ));
     let mut failures = Vec::new();
     for (formula, expected) in cases {
         session.set_formula(formula);
         let calculated = session.calculate();
         if calculated.result != Some(expected.clone()) || !calculated.diagnostics.is_empty() {
-            failures.push(format!("{formula}: expected {expected:?}, got {:?}; {:?}",
-                calculated.result, calculated.diagnostics));
+            failures.push(format!(
+                "{formula}: expected {expected:?}, got {:?}; {:?}",
+                calculated.result, calculated.diagnostics
+            ));
         }
     }
-    assert!(failures.is_empty(), "{} wrapping differences:\n{}", failures.len(), failures.join("\n"));
+    assert!(
+        failures.is_empty(),
+        "{} wrapping differences:\n{}",
+        failures.len(),
+        failures.join("\n")
+    );
 }
 
 /// Captured fn2 helper controls distinguish first/later scalar source errors, reference/array
@@ -716,13 +1187,23 @@ fn lambda_helpers_follow_the_retained_source_and_result_rules() {
     let mut session = Session::new("Sheet1").unwrap();
     session.set_form(calc_fml::FormulaForm::Dynamic);
     session.add_sheet("Data").unwrap();
-    session.set_input("Data!C1", InputValue::error(WorksheetErrorCode::NA)).unwrap();
-    check_captured_questions(include_bytes!(
-        "../../../crates/calc-func/tests/captures/fn2_questions/oracle.capture.json"
-    ), &mut session, |f| {
-        f.cell.sheet().strip_prefix("fn2_q").and_then(|n| n.parse::<u32>().ok())
-            .is_some_and(|n| matches!(n, 31 | 33..=42 | 88..=92))
-    }, 16);
+    session
+        .set_input("Data!C1", InputValue::error(WorksheetErrorCode::NA))
+        .unwrap();
+    check_captured_questions(
+        include_bytes!(
+            "../../../crates/calc-func/tests/captures/fn2_questions/oracle.capture.json"
+        ),
+        &mut session,
+        |f| {
+            f.cell
+                .sheet()
+                .strip_prefix("fn2_q")
+                .and_then(|n| n.parse::<u32>().ok())
+                .is_some_and(|n| matches!(n, 31 | 33..=42 | 88..=92))
+        },
+        16,
+    );
 }
 
 /// Fn2 root165 preserves a formed later argument error before a zero-dimension result;
@@ -732,12 +1213,20 @@ fn lambda_helpers_follow_the_retained_source_and_result_rules() {
 fn sequence_argument_errors_precede_shape_validation() {
     let mut session = Session::new("Sheet1").unwrap();
     session.set_form(calc_fml::FormulaForm::Dynamic);
-    check_captured_questions(include_bytes!(
-        "../../../crates/calc-func/tests/captures/fn2_questions/oracle.capture.json"
-    ), &mut session, |f| {
-        f.cell.sheet().strip_prefix("fn2_q").and_then(|n| n.parse::<u32>().ok())
-            .is_some_and(|n| matches!(n, 61..=65 | 80..=85 | 137 | 164..=165 | 173..=175))
-    }, 17);
+    check_captured_questions(
+        include_bytes!(
+            "../../../crates/calc-func/tests/captures/fn2_questions/oracle.capture.json"
+        ),
+        &mut session,
+        |f| {
+            f.cell
+                .sheet()
+                .strip_prefix("fn2_q")
+                .and_then(|n| n.parse::<u32>().ok())
+                .is_some_and(|n| matches!(n, 61..=65 | 80..=85 | 137 | 164..=165 | 173..=175))
+        },
+        17,
+    );
 }
 
 /// Fn2 roots022/208 distinguish expression errors and an already selected scalar result
@@ -749,12 +1238,17 @@ fn scalar_selection_keeps_its_shape_before_unused_arrays() {
     session.set_form(calc_fml::FormulaForm::Dynamic);
     session.add_sheet("Data").unwrap();
     session.set_input("Data!Z1", InputValue::blank()).unwrap();
-    check_captured_questions(include_bytes!(
-        "../../../crates/calc-func/tests/captures/fn2_questions/oracle.capture.json"
-    ), &mut session, |f| {
-        f.cell.sheet().strip_prefix("fn2_q").and_then(|n| n.parse::<u32>().ok())
+    check_captured_questions(
+        include_bytes!(
+            "../../../crates/calc-func/tests/captures/fn2_questions/oracle.capture.json"
+        ),
+        &mut session,
+        |f| {
+            f.cell.sheet().strip_prefix("fn2_q").and_then(|n| n.parse::<u32>().ok())
             .is_some_and(|n| matches!(n, 16 | 21..=22 | 84..=85 | 153 | 170..=171 | 194..=195 | 208..=209))
-    }, 12);
+        },
+        12,
+    );
 }
 
 /// Fn2 roots078/079 retain the first match of each lifted all-match result and
@@ -764,9 +1258,14 @@ fn scalar_selection_keeps_its_shape_before_unused_arrays() {
 fn regexextract_retains_the_captured_lifted_results() {
     let mut session = Session::new("Sheet1").unwrap();
     session.set_form(calc_fml::FormulaForm::Dynamic);
-    check_captured_questions(include_bytes!(
-        "../../../crates/calc-func/tests/captures/fn2_questions/oracle.capture.json"
-    ), &mut session, |f| matches!(f.cell.sheet(), "fn2_q078" | "fn2_q079"), 2);
+    check_captured_questions(
+        include_bytes!(
+            "../../../crates/calc-func/tests/captures/fn2_questions/oracle.capture.json"
+        ),
+        &mut session,
+        |f| matches!(f.cell.sheet(), "fn2_q078" | "fn2_q079"),
+        2,
+    );
 }
 
 /// Fn5 establishes horizontal all-match results and one outer capture. Group-free
@@ -779,22 +1278,48 @@ fn regexextract_publishes_all_matches_and_keeps_unmeasured_modes_refused() {
     let text = |s| CalcValue::text(calc_func::value::ExcelText::from_interop_assignment(s));
     let mut failures = Vec::new();
     for (formula, expected) in [
-        ("=ROWS(REGEXEXTRACT(\"DylanWilliams\",\"[A-Z][a-z]+\",1))", CalcValue::number(1.0)),
-        ("=COLUMNS(REGEXEXTRACT(\"DylanWilliams\",\"[A-Z][a-z]+\",1))", CalcValue::number(2.0)),
-        ("=INDEX(REGEXEXTRACT(\"DylanWilliams\",\"[A-Z][a-z]+\",1),1,2)", text("Williams")),
-        ("=REGEXEXTRACT(\"DylanWilliams\",\"[A-Z][a-z]+\")", text("Dylan")),
+        (
+            "=ROWS(REGEXEXTRACT(\"DylanWilliams\",\"[A-Z][a-z]+\",1))",
+            CalcValue::number(1.0),
+        ),
+        (
+            "=COLUMNS(REGEXEXTRACT(\"DylanWilliams\",\"[A-Z][a-z]+\",1))",
+            CalcValue::number(2.0),
+        ),
+        (
+            "=INDEX(REGEXEXTRACT(\"DylanWilliams\",\"[A-Z][a-z]+\",1),1,2)",
+            text("Williams"),
+        ),
+        (
+            "=REGEXEXTRACT(\"DylanWilliams\",\"[A-Z][a-z]+\")",
+            text("Dylan"),
+        ),
         ("=REGEXEXTRACT(\"Dylan\",\"[A-Z][a-z]+\",1)", text("Dylan")),
-        ("=REGEXEXTRACT(\"123\",\"[A-Z][a-z]+\",1)", CalcValue::error(WorksheetErrorCode::NA)),
-        ("=REGEXEXTRACT(\"a12b34\",\"[0-9]+\",2)", CalcValue::error(WorksheetErrorCode::Value)),
-        ("=REGEXEXTRACT(\"a12b34\",\"[0-9]+\",3)", CalcValue::error(WorksheetErrorCode::Value)),
-        ("=REGEXEXTRACT(\"abc\",\"[0-9]+\",2)", CalcValue::error(WorksheetErrorCode::Value)),
+        (
+            "=REGEXEXTRACT(\"123\",\"[A-Z][a-z]+\",1)",
+            CalcValue::error(WorksheetErrorCode::NA),
+        ),
+        (
+            "=REGEXEXTRACT(\"a12b34\",\"[0-9]+\",2)",
+            CalcValue::error(WorksheetErrorCode::Value),
+        ),
+        (
+            "=REGEXEXTRACT(\"a12b34\",\"[0-9]+\",3)",
+            CalcValue::error(WorksheetErrorCode::Value),
+        ),
+        (
+            "=REGEXEXTRACT(\"abc\",\"[0-9]+\",2)",
+            CalcValue::error(WorksheetErrorCode::Value),
+        ),
         ("=REGEXEXTRACT(\"a12b\",\"([0-9]+)\",2)", text("12")),
     ] {
         session.set_formula(formula);
         let calculated = session.calculate();
         if calculated.result != Some(expected.clone()) || !calculated.diagnostics.is_empty() {
-            failures.push(format!("{formula}: expected {expected:?}, got {:?}; {:?}",
-                calculated.result, calculated.diagnostics));
+            failures.push(format!(
+                "{formula}: expected {expected:?}, got {:?}; {:?}",
+                calculated.result, calculated.diagnostics
+            ));
         }
     }
     for formula in [
@@ -804,12 +1329,26 @@ fn regexextract_publishes_all_matches_and_keeps_unmeasured_modes_refused() {
     ] {
         session.set_formula(formula);
         let calculated = session.calculate();
-        assert!(calculated.result.is_none(), "{formula}: {:?}", calculated.result);
-        assert!(calculated.diagnostics.iter().any(|d| matches!(d,
-            Diagnostic::Eval(EvalFault::Function(FunctionFault::NotImplemented { .. }))
-        )), "{formula}: {:?}", calculated.diagnostics);
+        assert!(
+            calculated.result.is_none(),
+            "{formula}: {:?}",
+            calculated.result
+        );
+        assert!(
+            calculated.diagnostics.iter().any(|d| matches!(
+                d,
+                Diagnostic::Eval(EvalFault::Function(FunctionFault::NotImplemented { .. }))
+            )),
+            "{formula}: {:?}",
+            calculated.diagnostics
+        );
     }
-    assert!(failures.is_empty(), "{} extraction differences:\n{}", failures.len(), failures.join("\n"));
+    assert!(
+        failures.is_empty(),
+        "{} extraction differences:\n{}",
+        failures.len(),
+        failures.join("\n")
+    );
 }
 
 /// Recorded POISSON branch/control answers from OxFunc-Evidence's
@@ -821,14 +1360,23 @@ fn poisson_validates_raw_counts_before_the_zero_count_exponential() {
     for function in ["POISSON.DIST", "POISSON"] {
         for flag in ["FALSE", "TRUE"] {
             for (count, mean, expected) in [
-                ("0", "-1", CalcValue::number(f64::from_bits(0x4005_bf0a_8b14_5769))),
+                (
+                    "0",
+                    "-1",
+                    CalcValue::number(f64::from_bits(0x4005_bf0a_8b14_5769)),
+                ),
                 ("-0.5", "0", CalcValue::error(WorksheetErrorCode::Num)),
                 ("1", "-1", CalcValue::error(WorksheetErrorCode::Num)),
             ] {
                 let formula = format!("={function}({count},{mean},{flag})");
                 session.set_formula(&formula);
                 let calculated = session.calculate();
-                assert_eq!(calculated.result, Some(expected), "{formula}: {:?}", calculated.diagnostics);
+                assert_eq!(
+                    calculated.result,
+                    Some(expected),
+                    "{formula}: {:?}",
+                    calculated.diagnostics
+                );
                 assert!(calculated.diagnostics.is_empty());
             }
         }
@@ -842,10 +1390,15 @@ fn poisson_validates_raw_counts_before_the_zero_count_exponential() {
 fn distribution_cumulative_flags_read_logical_text() {
     let mut session = Session::new("Sheet1").unwrap();
     session.set_formula_cell("J20").unwrap();
-    session.set_input("A100", InputValue::number(0.0).unwrap()).unwrap();
+    session
+        .set_input("A100", InputValue::number(0.0).unwrap())
+        .unwrap();
     for (flag, expected) in [
         ("TrUe", CalcValue::number(0.5)),
-        ("FAlSE", CalcValue::number(f64::from_bits(0x3fd9_8845_33d4_3651))),
+        (
+            "FAlSE",
+            CalcValue::number(f64::from_bits(0x3fd9_8845_33d4_3651)),
+        ),
         ("00", CalcValue::error(WorksheetErrorCode::Value)),
         ("+0", CalcValue::error(WorksheetErrorCode::Value)),
         ("1.0", CalcValue::error(WorksheetErrorCode::Value)),
@@ -855,19 +1408,30 @@ fn distribution_cumulative_flags_read_logical_text() {
         ("\u{2003}TRUE", CalcValue::error(WorksheetErrorCode::Value)),
         ("FAL\u{17f}E", CalcValue::error(WorksheetErrorCode::Value)),
     ] {
-        session.set_input("C4", InputValue::text(flag).unwrap()).unwrap();
+        session
+            .set_input("C4", InputValue::text(flag).unwrap())
+            .unwrap();
         for argument in [format!("\"{flag}\""), "C4".to_owned()] {
             let formula = format!("=NORM.S.DIST(A100,{argument})");
             session.set_formula(&formula);
             let calculated = session.calculate();
-            assert_eq!(calculated.result, Some(expected.clone()), "{formula:?}: {:?}", calculated.diagnostics);
+            assert_eq!(
+                calculated.result,
+                Some(expected.clone()),
+                "{formula:?}: {:?}",
+                calculated.diagnostics
+            );
             assert!(calculated.diagnostics.is_empty());
         }
     }
     session.set_formula("=NORM.S.DIST(A100,CHOOSE({1;2},TRUE,\"TrUe\"))");
-    let expected = CalcValue::array(calc_func::value::CalcArray::from_rows(vec![
-        vec![CalcValue::number(0.5)], vec![CalcValue::number(0.5)],
-    ]).unwrap());
+    let expected = CalcValue::array(
+        calc_func::value::CalcArray::from_rows(vec![
+            vec![CalcValue::number(0.5)],
+            vec![CalcValue::number(0.5)],
+        ])
+        .unwrap(),
+    );
     assert_eq!(session.calculate().result, Some(expected));
 }
 
@@ -884,15 +1448,23 @@ fn recorded_parenthesized_percent_text_keeps_its_suffix() {
     let mut session = Session::new("Sheet1").unwrap();
     session.set_formula_cell("J20").unwrap();
     session.set_environment(Some(CalcEnvironment {
-        profile: Some(profile), ..CalcEnvironment::dates(DateSystem::System1900)
+        profile: Some(profile),
+        ..CalcEnvironment::dates(DateSystem::System1900)
     }));
     for text in ["(19.811671778304706)%", "(2e-2)%", "(2e-2) %", "(200e-2)%"] {
-        session.set_input("B1", InputValue::text(text).unwrap()).unwrap();
+        session
+            .set_input("B1", InputValue::text(text).unwrap())
+            .unwrap();
         for argument in [format!("\"{text}\""), "B1".to_owned()] {
             let formula = format!("=INT({argument})");
             session.set_formula(&formula);
             let calculated = session.calculate();
-            assert_eq!(calculated.result, Some(CalcValue::number(-1.0)), "{formula}: {:?}", calculated.diagnostics);
+            assert_eq!(
+                calculated.result,
+                Some(CalcValue::number(-1.0)),
+                "{formula}: {:?}",
+                calculated.diagnostics
+            );
             assert!(calculated.diagnostics.is_empty());
         }
     }
@@ -916,10 +1488,19 @@ fn recorded_bahttext_retains_the_sign_of_a_negative_amount() {
         (0x3f74_7ae1_47ae_147b, "หนึ่งสตางค์"),
         (0xbf74_7ae1_47ae_147b, "ลบหนึ่งสตางค์"),
     ] {
-        session.set_input("B1", InputValue::number(f64::from_bits(bits)).unwrap()).unwrap();
+        session
+            .set_input("B1", InputValue::number(f64::from_bits(bits)).unwrap())
+            .unwrap();
         let calculated = session.calculate();
-        let expected = CalcValue::text(calc_func::value::ExcelText::from_interop_assignment(expected));
-        assert_eq!(calculated.result, Some(expected), "{bits:#018x}: {:?}", calculated.diagnostics);
+        let expected = CalcValue::text(calc_func::value::ExcelText::from_interop_assignment(
+            expected,
+        ));
+        assert_eq!(
+            calculated.result,
+            Some(expected),
+            "{bits:#018x}: {:?}",
+            calculated.diagnostics
+        );
         assert!(calculated.diagnostics.is_empty());
     }
 }
@@ -947,17 +1528,28 @@ fn recorded_logical_scalar_admission() {
         ("SERIESSUM", ",1,2,{1,2}", 0x4032_0000_0000_0000),
     ];
     // Run every retained logical case before the assertion, so a red run records each one.
-    let mut actuals: Vec<_> = cases.iter().map(|(name, rest, _)| {
-        session.set_formula(&format!("={name}(TRUE{rest})"));
-        (name, session.calculate().result)
-    }).collect();
-    let mut expected: Vec<_> = cases.iter().map(|(name, _, _)| {
-        (name, Some(CalcValue::error(WorksheetErrorCode::Value)))
-    }).collect();
+    let mut actuals: Vec<_> = cases
+        .iter()
+        .map(|(name, rest, _)| {
+            session.set_formula(&format!("={name}(TRUE{rest})"));
+            (name, session.calculate().result)
+        })
+        .collect();
+    let mut expected: Vec<_> = cases
+        .iter()
+        .map(|(name, _, _)| (name, Some(CalcValue::error(WorksheetErrorCode::Value))))
+        .collect();
     // ERFC("2") has a retained numeric mismatch owned by the numeric lane. Its exact
     // expected bits stay in the replay; these controls cover logical admission only.
-    let more = [("TBILLEQ", ",2,2"), ("TBILLPRICE", ",2,2"), ("TBILLYIELD", ",2,2"),
-        ("NETWORKDAYS.INTL", ",2"), ("WORKDAY.INTL", ",2"), ("ERFC", ""), ("ERFC.PRECISE", "")];
+    let more = [
+        ("TBILLEQ", ",2,2"),
+        ("TBILLPRICE", ",2,2"),
+        ("TBILLYIELD", ",2,2"),
+        ("NETWORKDAYS.INTL", ",2"),
+        ("WORKDAY.INTL", ",2"),
+        ("ERFC", ""),
+        ("ERFC.PRECISE", ""),
+    ];
     for (name, rest) in &more {
         session.set_formula(&format!("={name}(TRUE{rest})"));
         actuals.push((name, session.calculate().result));
@@ -967,12 +1559,24 @@ fn recorded_logical_scalar_admission() {
     for (name, rest, bits) in cases {
         let formula = format!("={name}(\"2\"{rest})");
         session.set_formula(&formula);
-        assert_eq!(session.calculate().result, Some(CalcValue::number(f64::from_bits(bits))), "{formula}");
+        assert_eq!(
+            session.calculate().result,
+            Some(CalcValue::number(f64::from_bits(bits))),
+            "{formula}"
+        );
     }
-    let row = CalcValue::array(calc_func::value::CalcArray::from_rows(vec![vec![
-        CalcValue::error(WorksheetErrorCode::Value), CalcValue::error(WorksheetErrorCode::Value),
-    ]]).unwrap());
-    for arguments in ["{TRUE,TRUE},1,2,{1,2}", "TRUE,{1,1},2,{1,2}", "TRUE,1,{2,2},{1,2}"] {
+    let row = CalcValue::array(
+        calc_func::value::CalcArray::from_rows(vec![vec![
+            CalcValue::error(WorksheetErrorCode::Value),
+            CalcValue::error(WorksheetErrorCode::Value),
+        ]])
+        .unwrap(),
+    );
+    for arguments in [
+        "{TRUE,TRUE},1,2,{1,2}",
+        "TRUE,{1,1},2,{1,2}",
+        "TRUE,1,{2,2},{1,2}",
+    ] {
         session.set_formula(&format!("=SERIESSUM({arguments})"));
         assert_eq!(session.calculate().result, Some(row.clone()));
     }
@@ -985,23 +1589,41 @@ fn recorded_logical_scalar_admission() {
 fn recorded_address_omitted_column_differs_from_blank() {
     let mut session = Session::new("Sheet1").unwrap();
     session.set_formula_cell("J70").unwrap();
-    session.set_input("A1", InputValue::number(3.0).unwrap()).unwrap();
+    session
+        .set_input("A1", InputValue::number(3.0).unwrap())
+        .unwrap();
     session.set_input("A2", InputValue::blank()).unwrap();
-    session.set_input("A11", InputValue::number(2.0).unwrap()).unwrap();
+    session
+        .set_input("A11", InputValue::number(2.0).unwrap())
+        .unwrap();
     session.set_input("A12", InputValue::blank()).unwrap();
-    session.set_input("A21", InputValue::number(4.0).unwrap()).unwrap();
-    session.set_input("A31", InputValue::logical(false)).unwrap();
-    session.set_input("A41", InputValue::text("Alpha").unwrap()).unwrap();
+    session
+        .set_input("A21", InputValue::number(4.0).unwrap())
+        .unwrap();
+    session
+        .set_input("A31", InputValue::logical(false))
+        .unwrap();
+    session
+        .set_input("A41", InputValue::text("Alpha").unwrap())
+        .unwrap();
     session.set_formula("=ADDRESS(A1,,A21,A31,A41)");
-    assert_eq!(session.calculate().result, Some(CalcValue::error(WorksheetErrorCode::Value)));
+    assert_eq!(
+        session.calculate().result,
+        Some(CalcValue::error(WorksheetErrorCode::Value))
+    );
     for (formula, expected) in [
         ("=ADDRESS(,A11,A21,A31,A41)", "Alpha!RC[2]"),
         ("=ADDRESS(A2,A11,A21,A31,A41)", "Alpha!RC[2]"),
         ("=ADDRESS(A1,A12,A21,A31,A41)", "Alpha!R[3]C"),
     ] {
         session.set_formula(formula);
-        assert_eq!(session.calculate().result, Some(CalcValue::text(
-            calc_func::value::ExcelText::from_interop_assignment(expected))), "{formula}");
+        assert_eq!(
+            session.calculate().result,
+            Some(CalcValue::text(
+                calc_func::value::ExcelText::from_interop_assignment(expected)
+            )),
+            "{formula}"
+        );
     }
 }
 
@@ -1014,54 +1636,97 @@ fn fixed_requires_a_profile_only_for_emitted_separators() {
     use calc_func::locale::{CalcEnvironment, DateSystem};
     let set = calc_verdict::WitnessSet::decode(include_bytes!(
         "../../../crates/calc-func/tests/witnesses/FIXED.json"
-    )).unwrap();
+    ))
+    .unwrap();
     let mut count = 0;
     let mut failures = Vec::new();
     for environment in [None, Some(CalcEnvironment::dates(DateSystem::System1900))] {
         for row in &set.witnesses {
-            let args: Vec<_> = row.args.iter().map(|value|
-                calc_verdict::decode_argument(value, "FIXED").unwrap()
-            ).collect();
-            let numbers: Vec<_> = args.iter().map(|value| value.as_number().unwrap()).collect();
-            if numbers.len() != 3 || numbers[1].trunc() > 0.0 || numbers[2] == 0.0 { continue; }
+            let args: Vec<_> = row
+                .args
+                .iter()
+                .map(|value| calc_verdict::decode_argument(value, "FIXED").unwrap())
+                .collect();
+            let numbers: Vec<_> = args
+                .iter()
+                .map(|value| value.as_number().unwrap())
+                .collect();
+            if numbers.len() != 3 || numbers[1].trunc() > 0.0 || numbers[2] == 0.0 {
+                continue;
+            }
             let mut session = Session::new("Sheet1").unwrap();
             session.set_environment(environment);
             session.set_formula_cell("J20").unwrap();
             for (cell, value) in ["A1", "B1", "C1"].into_iter().zip(numbers) {
-                session.set_input(cell, InputValue::number(value).unwrap()).unwrap();
+                session
+                    .set_input(cell, InputValue::number(value).unwrap())
+                    .unwrap();
             }
             session.set_formula("=FIXED(A1,B1,C1)");
             let expected = calc_verdict::decode_result(&row.expected).unwrap();
             let result = session.calculate();
             count += 1;
             if result.result.as_ref() != Some(&expected) || !result.diagnostics.is_empty() {
-                failures.push(format!("{}: expected {expected:?}, calculated {:?}; {:?}",
-                    row.id, result.result, result.diagnostics));
+                failures.push(format!(
+                    "{}: expected {expected:?}, calculated {:?}; {:?}",
+                    row.id, result.result, result.diagnostics
+                ));
             }
         }
     }
-    assert_eq!(count, 44, "all 22 retained inputs in both absent-profile contexts must run");
-    assert!(failures.is_empty(), "{} of {count} readings differ:\n{}", failures.len(), failures.join("\n"));
+    assert_eq!(
+        count, 44,
+        "all 22 retained inputs in both absent-profile contexts must run"
+    );
+    assert!(
+        failures.is_empty(),
+        "{} of {count} readings differ:\n{}",
+        failures.len(),
+        failures.join("\n")
+    );
     for environment in [None, Some(CalcEnvironment::dates(DateSystem::System1900))] {
         let mut session = Session::new("Sheet1").unwrap();
         session.set_environment(environment);
-        for formula in ["=FIXED(1.5,1,TRUE)", "=FIXED(1000,0,FALSE)",
-            "=FIXED(999.5,0,FALSE)", "=FIXED(\"1,5\",0,TRUE)", "=DOLLAR(1,0)"] {
+        for formula in [
+            "=FIXED(1.5,1,TRUE)",
+            "=FIXED(1000,0,FALSE)",
+            "=FIXED(999.5,0,FALSE)",
+            "=FIXED(\"1,5\",0,TRUE)",
+            "=DOLLAR(1,0)",
+        ] {
             session.set_formula(formula);
             let result = session.calculate();
             assert!(result.result.is_none(), "{formula}: {:?}", result.result);
-            let [Diagnostic::Eval(EvalFault::Function(FunctionFault::NotImplemented { id, .. }))]
-                = result.diagnostics.as_slice() else {
-                panic!("{formula} needs its typed function refusal: {:?}", result.diagnostics);
+            let [Diagnostic::Eval(EvalFault::Function(FunctionFault::NotImplemented { id, .. }))] =
+                result.diagnostics.as_slice()
+            else {
+                panic!(
+                    "{formula} needs its typed function refusal: {:?}",
+                    result.diagnostics
+                );
             };
-            let name = if formula.starts_with("=DOLLAR") { "DOLLAR" } else { "FIXED" };
-            assert_eq!(*id, catalogue().resolve_surface(Notation::Call, name).unwrap().id());
+            let name = if formula.starts_with("=DOLLAR") {
+                "DOLLAR"
+            } else {
+                "FIXED"
+            };
+            assert_eq!(
+                *id,
+                catalogue()
+                    .resolve_surface(Notation::Call, name)
+                    .unwrap()
+                    .id()
+            );
         }
         // Contract control, not a new Excel reading: grouping needs rounded whole digits.
         // A three-digit result has no separator.
         session.set_formula("=FIXED(999.4,0,FALSE)");
-        assert_eq!(session.calculate().result, Some(CalcValue::text(
-            calc_func::value::ExcelText::from_interop_assignment("999"))));
+        assert_eq!(
+            session.calculate().result,
+            Some(CalcValue::text(
+                calc_func::value::ExcelText::from_interop_assignment("999")
+            ))
+        );
     }
 }
 
@@ -1076,24 +1741,43 @@ fn recorded_optional_placeholders_are_supplied_values() {
     profile.thousands_separator = " ";
     let mut session = Session::new("Sheet1").unwrap();
     session.set_environment(Some(CalcEnvironment {
-        profile: Some(profile), ..CalcEnvironment::dates(DateSystem::System1900)
+        profile: Some(profile),
+        ..CalcEnvironment::dates(DateSystem::System1900)
     }));
-    let formulas = ["=WEEKDAY(0,)", "=WEEKDAY(1,)", "=WEEKDAY(FALSE,)",
-        "=WEEKDAY(TRUE,)", "=WEEKDAY(\"1\",)", "=WEEKDAY(,)",
-        "=DB(1000,100,10,2,)", "=DDB(1000,100,10,2,)"];
-    let mut actuals: Vec<_> = formulas.iter().map(|formula| {
-        session.set_formula(formula);
-        (*formula, session.calculate().result)
-    }).collect();
-    let mut expected: Vec<_> = formulas.iter().map(|formula| {
-        (*formula, Some(CalcValue::error(WorksheetErrorCode::Num)))
-    }).collect();
+    let formulas = [
+        "=WEEKDAY(0,)",
+        "=WEEKDAY(1,)",
+        "=WEEKDAY(FALSE,)",
+        "=WEEKDAY(TRUE,)",
+        "=WEEKDAY(\"1\",)",
+        "=WEEKDAY(,)",
+        "=DB(1000,100,10,2,)",
+        "=DDB(1000,100,10,2,)",
+    ];
+    let mut actuals: Vec<_> = formulas
+        .iter()
+        .map(|formula| {
+            session.set_formula(formula);
+            (*formula, session.calculate().result)
+        })
+        .collect();
+    let mut expected: Vec<_> = formulas
+        .iter()
+        .map(|formula| (*formula, Some(CalcValue::error(WorksheetErrorCode::Num))))
+        .collect();
     // Recorded missing-argument controls differ between these two format functions.
-    for (formula, shown) in [("=DOLLAR(1234.5,)", "R1 235"), ("=FIXED(1234.5,)", "1 234.50")] {
+    for (formula, shown) in [
+        ("=DOLLAR(1234.5,)", "R1 235"),
+        ("=FIXED(1234.5,)", "1 234.50"),
+    ] {
         session.set_formula(formula);
         actuals.push((formula, session.calculate().result));
-        expected.push((formula, Some(CalcValue::text(
-            calc_func::value::ExcelText::from_interop_assignment(shown)))));
+        expected.push((
+            formula,
+            Some(CalcValue::text(
+                calc_func::value::ExcelText::from_interop_assignment(shown),
+            )),
+        ));
     }
     assert_eq!(actuals, expected);
     // Leaving the return type out still uses WEEKDAY's default.
@@ -1111,17 +1795,27 @@ fn recorded_dollar_retains_a_negative_sign_after_rounding() {
     profile.thousands_separator = " ";
     let mut session = Session::new("Sheet1").unwrap();
     session.set_environment(Some(CalcEnvironment {
-        profile: Some(profile), ..CalcEnvironment::dates(DateSystem::System1900)
+        profile: Some(profile),
+        ..CalcEnvironment::dates(DateSystem::System1900)
     }));
     for (bits, places, expected) in [
-        (0xbf74_7ae1_47ae_147b, 0, "-R0"), (0xbf74_7ae1_47ae_147b, 1, "-R0.0"),
-        (0xc005_6666_6666_6666, -3, "R0"), (0xc005_6666_6666_6666, -1, "R0"),
-        (0xbf74_7ae1_47ae_147b, -3, "R0"), (0xbf74_7ae1_47ae_147b, -1, "R0"),
+        (0xbf74_7ae1_47ae_147b, 0, "-R0"),
+        (0xbf74_7ae1_47ae_147b, 1, "-R0.0"),
+        (0xc005_6666_6666_6666, -3, "R0"),
+        (0xc005_6666_6666_6666, -1, "R0"),
+        (0xbf74_7ae1_47ae_147b, -3, "R0"),
+        (0xbf74_7ae1_47ae_147b, -1, "R0"),
     ] {
-        session.set_input("A100", InputValue::number(f64::from_bits(bits)).unwrap()).unwrap();
+        session
+            .set_input("A100", InputValue::number(f64::from_bits(bits)).unwrap())
+            .unwrap();
         session.set_formula(&format!("=DOLLAR(A100,{places})"));
-        assert_eq!(session.calculate().result, Some(CalcValue::text(
-            calc_func::value::ExcelText::from_interop_assignment(expected))));
+        assert_eq!(
+            session.calculate().result,
+            Some(CalcValue::text(
+                calc_func::value::ExcelText::from_interop_assignment(expected)
+            ))
+        );
     }
 }
 
@@ -1135,15 +1829,27 @@ fn recorded_text_at_format_reads_numbers() {
     profile.thousands_separator = " ";
     let mut session = Session::new("Sheet1").unwrap();
     session.set_environment(Some(CalcEnvironment {
-        profile: Some(profile), ..CalcEnvironment::dates(DateSystem::System1900)
+        profile: Some(profile),
+        ..CalcEnvironment::dates(DateSystem::System1900)
     }));
     session.set_formula("=TEXT(A100,\"@\")");
-    for (bits, expected) in [(0, "0"), (0x3ff0_0000_0000_0000, "1"),
-        (0xbff0_0000_0000_0000, "-1"), (0x4093_4a44_9ba5_e354, "1234.567"),
-        (0x40e6_1212_0000_0000, "45200.5625")] {
-        session.set_input("A100", InputValue::number(f64::from_bits(bits)).unwrap()).unwrap();
-        assert_eq!(session.calculate().result, Some(CalcValue::text(
-            calc_func::value::ExcelText::from_interop_assignment(expected))), "{bits:#018x}");
+    for (bits, expected) in [
+        (0, "0"),
+        (0x3ff0_0000_0000_0000, "1"),
+        (0xbff0_0000_0000_0000, "-1"),
+        (0x4093_4a44_9ba5_e354, "1234.567"),
+        (0x40e6_1212_0000_0000, "45200.5625"),
+    ] {
+        session
+            .set_input("A100", InputValue::number(f64::from_bits(bits)).unwrap())
+            .unwrap();
+        assert_eq!(
+            session.calculate().result,
+            Some(CalcValue::text(
+                calc_func::value::ExcelText::from_interop_assignment(expected)
+            )),
+            "{bits:#018x}"
+        );
     }
 }
 
@@ -1159,11 +1865,17 @@ fn recorded_text_at_precision_uses_general_display() {
         profile: Some(format_profile(LocaleId::CurrentExcelHost)),
         ..CalcEnvironment::dates(DateSystem::System1900)
     }));
-    session.set_input("A1", InputValue::number(123456789012345.0).unwrap()).unwrap();
+    session
+        .set_input("A1", InputValue::number(123456789012345.0).unwrap())
+        .unwrap();
     session.set_formula("=TEXT(A1,\"@\")");
     let result = session.calculate();
-    assert_eq!(result.result, Some(CalcValue::text(
-        calc_func::value::ExcelText::from_interop_assignment("1.23457E+14"))));
+    assert_eq!(
+        result.result,
+        Some(CalcValue::text(
+            calc_func::value::ExcelText::from_interop_assignment("1.23457E+14")
+        ))
+    );
     assert!(result.diagnostics.is_empty());
 }
 
@@ -1179,22 +1891,33 @@ fn recorded_zero_percentage_exponents_are_validated() {
         profile: Some(format_profile(LocaleId::CurrentExcelHost)),
         ..CalcEnvironment::dates(DateSystem::System1900)
     }));
-    let forms = |coefficient: &str, exponent: i32| [
-        format!("{coefficient}e{exponent}%"), format!("% {coefficient}e{exponent}"),
-        format!("( {coefficient}e{exponent} % )"),
-    ];
+    let forms = |coefficient: &str, exponent: i32| {
+        [
+            format!("{coefficient}e{exponent}%"),
+            format!("% {coefficient}e{exponent}"),
+            format!("( {coefficient}e{exponent} % )"),
+        ]
+    };
     for coefficient in ["0", "00", "0.0", "0.00"] {
         for exponent in -311..=-307 {
             for text in forms(coefficient, exponent) {
                 session.set_formula(&format!("=ABS(\"{text}\")"));
-                assert_eq!(session.calculate().result, Some(CalcValue::error(WorksheetErrorCode::Value)), "{text}");
+                assert_eq!(
+                    session.calculate().result,
+                    Some(CalcValue::error(WorksheetErrorCode::Value)),
+                    "{text}"
+                );
             }
         }
     }
     for coefficient in ["0", "00"] {
         for text in forms(coefficient, 311) {
             session.set_formula(&format!("=ABS(\"{text}\")"));
-            assert_eq!(session.calculate().result, Some(CalcValue::error(WorksheetErrorCode::Value)), "{text}");
+            assert_eq!(
+                session.calculate().result,
+                Some(CalcValue::error(WorksheetErrorCode::Value)),
+                "{text}"
+            );
         }
     }
     for (coefficient, exponent) in [("0", 310), ("00", 310), ("0.0", 311), ("0.00", 311)] {
@@ -1214,17 +1937,35 @@ fn recorded_zero_percentage_exponents_are_validated() {
 fn recorded_paired_statistics_skip_nonnumeric_scalar_items() {
     let mut session = Session::new("Sheet1").unwrap();
     let mut results = Vec::new();
-    for function in ["CORREL", "COVARIANCE.P", "COVARIANCE.S", "INTERCEPT", "PEARSON", "RSQ", "SLOPE"] {
+    for function in [
+        "CORREL",
+        "COVARIANCE.P",
+        "COVARIANCE.S",
+        "INTERCEPT",
+        "PEARSON",
+        "RSQ",
+        "SLOPE",
+    ] {
         for argument in ["\"\"", "\"2\"", "TRUE"] {
             let formula = format!("={function}({argument},2)");
             session.set_formula(&formula);
-            results.push((formula, session.calculate(), CalcValue::error(WorksheetErrorCode::Div0)));
+            results.push((
+                formula,
+                session.calculate(),
+                CalcValue::error(WorksheetErrorCode::Div0),
+            ));
         }
         for (argument, expected) in [
             ("{2;3}", CalcValue::error(WorksheetErrorCode::NA)),
             ("NA()", CalcValue::error(WorksheetErrorCode::NA)),
-            ("2", if function == "COVARIANCE.P" { CalcValue::number(0.0) }
-                else { CalcValue::error(WorksheetErrorCode::Div0) }),
+            (
+                "2",
+                if function == "COVARIANCE.P" {
+                    CalcValue::number(0.0)
+                } else {
+                    CalcValue::error(WorksheetErrorCode::Div0)
+                },
+            ),
         ] {
             let formula = format!("={function}({argument},2)");
             session.set_formula(&formula);
@@ -1232,7 +1973,12 @@ fn recorded_paired_statistics_skip_nonnumeric_scalar_items() {
         }
     }
     for (formula, result, expected) in results {
-        assert_eq!(result.result, Some(expected), "{formula}: {:?}", result.diagnostics);
+        assert_eq!(
+            result.result,
+            Some(expected),
+            "{formula}: {:?}",
+            result.diagnostics
+        );
         assert!(result.diagnostics.is_empty());
     }
 }
@@ -1244,26 +1990,49 @@ fn recorded_paired_statistics_skip_nonnumeric_scalar_items() {
 fn recorded_number_text_above_the_tie_band_rounds_up() {
     let mut session = Session::new("Sheet1").unwrap();
     session.set_formula_cell("J20").unwrap();
-    session.set_input("A100", InputValue::number(f64::from_bits(0x4449_4efd_9aa8_09c8)).unwrap()).unwrap();
+    session
+        .set_input(
+            "A100",
+            InputValue::number(f64::from_bits(0x4449_4efd_9aa8_09c8)).unwrap(),
+        )
+        .unwrap();
     session.set_formula("=EXACT(A100,\"9.33720954786629E+20\")");
     let positive = session.calculate();
     for at in ["A100", "A101", "A103", "B200"] {
-        session.set_input(at, InputValue::number(f64::from_bits(0xc449_4efd_9aa8_09c8)).unwrap()).unwrap();
+        session
+            .set_input(
+                at,
+                InputValue::number(f64::from_bits(0xc449_4efd_9aa8_09c8)).unwrap(),
+            )
+            .unwrap();
     }
-    session.set_input("A102", InputValue::number(0.0).unwrap()).unwrap();
+    session
+        .set_input("A102", InputValue::number(0.0).unwrap())
+        .unwrap();
     session.set_formula("=EXACT(B200,\"-9.33720954786629E+20\")");
     let negative = session.calculate();
     session.set_formula("=EXACT(CHOOSE({1,2;3,4},A100,A101,A102,A103),\"-9.33720954786629E+20\")");
     let array = session.calculate();
     for result in [positive, negative] {
-        assert_eq!(result.result, Some(CalcValue::logical(true)), "{:?}", result.diagnostics);
+        assert_eq!(
+            result.result,
+            Some(CalcValue::logical(true)),
+            "{:?}",
+            result.diagnostics
+        );
         assert!(result.diagnostics.is_empty());
     }
     let expected = calc_func::value::CalcArray::from_rows(vec![
         vec![CalcValue::logical(true), CalcValue::logical(true)],
         vec![CalcValue::logical(false), CalcValue::logical(true)],
-    ]).unwrap();
-    assert_eq!(array.result, Some(CalcValue::array(expected)), "{:?}", array.diagnostics);
+    ])
+    .unwrap();
+    assert_eq!(
+        array.result,
+        Some(CalcValue::array(expected)),
+        "{:?}",
+        array.diagnostics
+    );
     assert!(array.diagnostics.is_empty());
 }
 
@@ -1275,19 +2044,34 @@ fn recorded_floor_zero_identity_precedes_its_multiple_error() {
     let mut session = Session::new("Sheet1").unwrap();
     session.set_formula_cell("J20").unwrap();
     for zero in [0x0000_0000_0000_0000, 0x8000_0000_0000_0000] {
-        session.set_input("A1", InputValue::number(f64::from_bits(zero)).unwrap()).unwrap();
+        session
+            .set_input("A1", InputValue::number(f64::from_bits(zero)).unwrap())
+            .unwrap();
         for multiple in [0.0, 0.1, 2.0, -0.1, -2.0] {
-            session.set_input("B1", InputValue::number(multiple).unwrap()).unwrap();
+            session
+                .set_input("B1", InputValue::number(multiple).unwrap())
+                .unwrap();
             session.set_formula("=FLOOR(A1,B1)");
             let result = session.calculate();
-            assert_eq!(result.result, Some(CalcValue::number(0.0)), "{zero:#018x}, {multiple}: {:?}", result.diagnostics);
-            assert_eq!(result.result.unwrap().as_number().map(f64::to_bits), Some(0));
+            assert_eq!(
+                result.result,
+                Some(CalcValue::number(0.0)),
+                "{zero:#018x}, {multiple}: {:?}",
+                result.diagnostics
+            );
+            assert_eq!(
+                result.result.unwrap().as_number().map(f64::to_bits),
+                Some(0)
+            );
             assert!(result.diagnostics.is_empty());
         }
     }
     for number in [1, -1] {
         session.set_formula(&format!("=FLOOR({number},0)"));
-        assert_eq!(session.calculate().result, Some(CalcValue::error(WorksheetErrorCode::Div0)));
+        assert_eq!(
+            session.calculate().result,
+            Some(CalcValue::error(WorksheetErrorCode::Div0))
+        );
     }
 }
 
@@ -1307,36 +2091,85 @@ fn recorded_gcd_lcm_admit_the_exact_operand_boundary() {
         (limit + 2.0, 0.0, None, None),
         (limit - 1.0, limit, Some(1.0), None),
     ] {
-        session.set_input("A1", InputValue::number(left).unwrap()).unwrap();
-        session.set_input("B1", InputValue::number(right).unwrap()).unwrap();
+        session
+            .set_input("A1", InputValue::number(left).unwrap())
+            .unwrap();
+        session
+            .set_input("B1", InputValue::number(right).unwrap())
+            .unwrap();
         for (function, expected) in [("GCD", gcd), ("LCM", lcm)] {
             let formula = format!("={function}(A1,B1)");
             session.set_formula(&formula);
             let result = session.calculate();
-            let expected = expected.map(CalcValue::number).unwrap_or_else(|| CalcValue::error(WorksheetErrorCode::Num));
-            assert_eq!(result.result, Some(expected), "{formula}, {left}, {right}: {:?}", result.diagnostics);
+            let expected = expected
+                .map(CalcValue::number)
+                .unwrap_or_else(|| CalcValue::error(WorksheetErrorCode::Num));
+            assert_eq!(
+                result.result,
+                Some(expected),
+                "{formula}, {left}, {right}: {:?}",
+                result.diagnostics
+            );
             assert!(result.diagnostics.is_empty());
         }
     }
-    for (cell, bits) in [("A100", 0x416f_4961_e000_0000), ("B200", 0x416f_4961_e000_0000),
-        ("A101", 0x4340_0000_0000_0000), ("C200", 0x4340_0000_0000_0000)] {
-        session.set_input(cell, InputValue::number(f64::from_bits(bits)).unwrap()).unwrap();
+    for (cell, bits) in [
+        ("A100", 0x416f_4961_e000_0000),
+        ("B200", 0x416f_4961_e000_0000),
+        ("A101", 0x4340_0000_0000_0000),
+        ("C200", 0x4340_0000_0000_0000),
+    ] {
+        session
+            .set_input(cell, InputValue::number(f64::from_bits(bits)).unwrap())
+            .unwrap();
     }
-    for formula in ["=GCD(A100,A101)", "=GCD(CHOOSE({1,2},A100,A101))", "=GCD(B200:C200)"] {
+    for formula in [
+        "=GCD(A100,A101)",
+        "=GCD(CHOOSE({1,2},A100,A101))",
+        "=GCD(B200:C200)",
+    ] {
         session.set_formula(formula);
-        assert_eq!(session.calculate().result, Some(CalcValue::number(1.0)), "{formula}");
+        assert_eq!(
+            session.calculate().result,
+            Some(CalcValue::number(1.0)),
+            "{formula}"
+        );
     }
-    for (cells, bits) in [(["A100", "B200"], 0x4340_0000_0000_0000),
-        (["A101", "C200"], 0x4008_0000_0000_0000), (["A102", "D200"], 0x4325_5555_5555_5556)] {
-        for cell in cells { session.set_input(cell, InputValue::number(f64::from_bits(bits)).unwrap()).unwrap(); }
+    for (cells, bits) in [
+        (["A100", "B200"], 0x4340_0000_0000_0000),
+        (["A101", "C200"], 0x4008_0000_0000_0000),
+        (["A102", "D200"], 0x4325_5555_5555_5556),
+    ] {
+        for cell in cells {
+            session
+                .set_input(cell, InputValue::number(f64::from_bits(bits)).unwrap())
+                .unwrap();
+        }
     }
-    session.set_input("B201", InputValue::number(3.0).unwrap()).unwrap();
-    session.set_input("B202", InputValue::number(f64::from_bits(0x4325_5555_5555_5556)).unwrap()).unwrap();
-    for formula in ["=LCM(A100,A101,A102)", "=LCM(CHOOSE({1,2,3},A100,A101,A102))",
-        "=LCM(B200:D200)", "=LCM(CHOOSE({1;2;3},A100,A101,A102))", "=LCM(B200:B202)", "=LCM(CHOOSE({1,2},A100,A101),A102)",
-        "=LCM(A100,CHOOSE({1,2},A101,A102))"] {
+    session
+        .set_input("B201", InputValue::number(3.0).unwrap())
+        .unwrap();
+    session
+        .set_input(
+            "B202",
+            InputValue::number(f64::from_bits(0x4325_5555_5555_5556)).unwrap(),
+        )
+        .unwrap();
+    for formula in [
+        "=LCM(A100,A101,A102)",
+        "=LCM(CHOOSE({1,2,3},A100,A101,A102))",
+        "=LCM(B200:D200)",
+        "=LCM(CHOOSE({1;2;3},A100,A101,A102))",
+        "=LCM(B200:B202)",
+        "=LCM(CHOOSE({1,2},A100,A101),A102)",
+        "=LCM(A100,CHOOSE({1,2},A101,A102))",
+    ] {
         session.set_formula(formula);
-        assert_eq!(session.calculate().result, Some(CalcValue::number(limit)), "{formula}");
+        assert_eq!(
+            session.calculate().result,
+            Some(CalcValue::number(limit)),
+            "{formula}"
+        );
     }
 }
 
@@ -1347,59 +2180,209 @@ fn recorded_gcd_lcm_admit_the_exact_operand_boundary() {
 fn recorded_db_ddb_coercion_precedes_later_padding() {
     use calc_func::value::CalcArray;
     let cases: &[(&str, &str, &[f64], u64, WorksheetErrorCode)] = &[
-        ("original-00033", "=DB(CHOOSE({1,2,3;4,5,6},A100,A101,\"bad\",A102,A103,\"bad\"),CHOOSE({1,2;3,4},A104,A105,A106,A107),A108,A109,A110)",
-            &[1000.0, 1000.0, 1000.0, 1000.0, 100.0, 100.0, 100.0, 100.0, 10.0, 2.0, 6.0], 0x4067190624dd2f1a, WorksheetErrorCode::Value),
-        ("original-00038", "=DB(CHOOSE({1,2,3;4,5,6},A100,A101,\"bad\",A102,A103,\"bad\"),A104,CHOOSE({1,2;3,4},A105,A106,A107,A108),A109,A110)",
-            &[1000.0, 1000.0, 1000.0, 1000.0, 100.0, 10.0, 10.0, 10.0, 10.0, 2.0, 6.0], 0x4067190624dd2f1a, WorksheetErrorCode::Value),
-        ("original-00043", "=DB(A100,CHOOSE({1,2,3;4,5,6},A101,A102,\"bad\",A103,A104,\"bad\"),CHOOSE({1,2;3,4},A105,A106,A107,A108),A109,A110)",
-            &[1000.0, 100.0, 100.0, 100.0, 100.0, 10.0, 10.0, 10.0, 10.0, 2.0, 6.0], 0x4067190624dd2f1a, WorksheetErrorCode::Value),
-        ("original-00048", "=DDB(CHOOSE({1,2,3;4,5,6},A100,A101,\"bad\",A102,A103,\"bad\"),CHOOSE({1,2;3,4},A104,A105,A106,A107),A108,A109,A110)",
-            &[1000.0, 1000.0, 1000.0, 1000.0, 100.0, 100.0, 100.0, 100.0, 10.0, 2.0, 2.0], 0x4064000000000000, WorksheetErrorCode::Value),
-        ("original-00053", "=DDB(CHOOSE({1,2,3;4,5,6},A100,A101,\"bad\",A102,A103,\"bad\"),A104,CHOOSE({1,2;3,4},A105,A106,A107,A108),A109,A110)",
-            &[1000.0, 1000.0, 1000.0, 1000.0, 100.0, 10.0, 10.0, 10.0, 10.0, 2.0, 2.0], 0x4064000000000000, WorksheetErrorCode::Value),
-        ("original-00058", "=DDB(A100,CHOOSE({1,2,3;4,5,6},A101,A102,\"bad\",A103,A104,\"bad\"),CHOOSE({1,2;3,4},A105,A106,A107,A108),A109,A110)",
-            &[1000.0, 100.0, 100.0, 100.0, 100.0, 10.0, 10.0, 10.0, 10.0, 2.0, 2.0], 0x4064000000000000, WorksheetErrorCode::Value),
-        ("independent-00209", "=DB(CHOOSE({1,2;3,4},A100,A101,A102,A103),A104,A105,A106,CHOOSE({1,2,3;4,5,6},A107,A108,#NULL!,A109,A110,#NULL!))",
-            &[1375.0, 1375.0, 1375.0, 1375.0, 125.0, 9.75, 3.125, 4.5, 4.5, 4.5, 4.5], 0x406b2be01a63a02a, WorksheetErrorCode::NA),
-        ("independent-00219", "=DB(CHOOSE({1,2,3;4,5,6},A100,A101,\"invalid\",A102,A103,\"invalid\"),A104,A105,A106,CHOOSE({1,2;3,4},A107,A108,A109,A110))",
-            &[1375.0, 1375.0, 1375.0, 1375.0, 125.0, 9.75, 3.125, 4.5, 4.5, 4.5, 4.5], 0x406b2be01a63a02a, WorksheetErrorCode::Value),
-        ("independent-00221", "=DB(CHOOSE({1,2;3,4},A100,A101,A102,A103),A104,A105,A106,CHOOSE({1,2,3;4,5,6},A107,A108,\"invalid\",A109,A110,\"invalid\"))",
-            &[1375.0, 1375.0, 1375.0, 1375.0, 125.0, 9.75, 3.125, 4.5, 4.5, 4.5, 4.5], 0x406b2be01a63a02a, WorksheetErrorCode::NA),
-        ("independent-00259", "=DB(A100,CHOOSE({1,2,3;4,5,6},A101,A102,\"invalid\",A103,A104,\"invalid\"),A105,A106,CHOOSE({1,2;3,4},A107,A108,A109,A110))",
-            &[1375.0, 125.0, 125.0, 125.0, 125.0, 9.75, 3.125, 4.5, 4.5, 4.5, 4.5], 0x406b2be01a63a02a, WorksheetErrorCode::Value),
-        ("independent-00261", "=DB(A100,CHOOSE({1,2;3,4},A101,A102,A103,A104),A105,A106,CHOOSE({1,2,3;4,5,6},A107,A108,\"invalid\",A109,A110,\"invalid\"))",
-            &[1375.0, 125.0, 125.0, 125.0, 125.0, 9.75, 3.125, 4.5, 4.5, 4.5, 4.5], 0x406b2be01a63a02a, WorksheetErrorCode::NA),
-        ("independent-00299", "=DB(A100,A101,A102,CHOOSE({1,2,3;4,5,6},A103,A104,\"invalid\",A105,A106,\"invalid\"),CHOOSE({1,2;3,4},A107,A108,A109,A110))",
-            &[1375.0, 125.0, 9.75, 3.125, 3.125, 3.125, 3.125, 4.5, 4.5, 4.5, 4.5], 0x406b2be01a63a02a, WorksheetErrorCode::Value),
-        ("independent-00301", "=DB(A100,A101,A102,CHOOSE({1,2;3,4},A103,A104,A105,A106),CHOOSE({1,2,3;4,5,6},A107,A108,\"invalid\",A109,A110,\"invalid\"))",
-            &[1375.0, 125.0, 9.75, 3.125, 3.125, 3.125, 3.125, 4.5, 4.5, 4.5, 4.5], 0x406b2be01a63a02a, WorksheetErrorCode::NA),
-        ("independent-00334", "=DDB(CHOOSE({1,2;3,4},A100,A101,A102,A103),A104,A105,A106,CHOOSE({1,2,3;4,5,6},A107,A108,#NULL!,A109,A110,#NULL!))",
-            &[1375.0, 1375.0, 1375.0, 1375.0, 125.0, 9.75, 3.125, 1.5, 1.5, 1.5, 1.5], 0x40628a73e06e783b, WorksheetErrorCode::NA),
-        ("independent-00344", "=DDB(CHOOSE({1,2,3;4,5,6},A100,A101,\"invalid\",A102,A103,\"invalid\"),A104,A105,A106,CHOOSE({1,2;3,4},A107,A108,A109,A110))",
-            &[1375.0, 1375.0, 1375.0, 1375.0, 125.0, 9.75, 3.125, 1.5, 1.5, 1.5, 1.5], 0x40628a73e06e783b, WorksheetErrorCode::Value),
-        ("independent-00346", "=DDB(CHOOSE({1,2;3,4},A100,A101,A102,A103),A104,A105,A106,CHOOSE({1,2,3;4,5,6},A107,A108,\"invalid\",A109,A110,\"invalid\"))",
-            &[1375.0, 1375.0, 1375.0, 1375.0, 125.0, 9.75, 3.125, 1.5, 1.5, 1.5, 1.5], 0x40628a73e06e783b, WorksheetErrorCode::NA),
-        ("independent-00384", "=DDB(A100,CHOOSE({1,2,3;4,5,6},A101,A102,\"invalid\",A103,A104,\"invalid\"),A105,A106,CHOOSE({1,2;3,4},A107,A108,A109,A110))",
-            &[1375.0, 125.0, 125.0, 125.0, 125.0, 9.75, 3.125, 1.5, 1.5, 1.5, 1.5], 0x40628a73e06e783b, WorksheetErrorCode::Value),
-        ("independent-00386", "=DDB(A100,CHOOSE({1,2;3,4},A101,A102,A103,A104),A105,A106,CHOOSE({1,2,3;4,5,6},A107,A108,\"invalid\",A109,A110,\"invalid\"))",
-            &[1375.0, 125.0, 125.0, 125.0, 125.0, 9.75, 3.125, 1.5, 1.5, 1.5, 1.5], 0x40628a73e06e783b, WorksheetErrorCode::NA),
-        ("independent-00424", "=DDB(A100,A101,A102,CHOOSE({1,2,3;4,5,6},A103,A104,\"invalid\",A105,A106,\"invalid\"),CHOOSE({1,2;3,4},A107,A108,A109,A110))",
-            &[1375.0, 125.0, 9.75, 3.125, 3.125, 3.125, 3.125, 1.5, 1.5, 1.5, 1.5], 0x40628a73e06e783b, WorksheetErrorCode::Value),
-        ("independent-00426", "=DDB(A100,A101,A102,CHOOSE({1,2;3,4},A103,A104,A105,A106),CHOOSE({1,2,3;4,5,6},A107,A108,\"invalid\",A109,A110,\"invalid\"))",
-            &[1375.0, 125.0, 9.75, 3.125, 3.125, 3.125, 3.125, 1.5, 1.5, 1.5, 1.5], 0x40628a73e06e783b, WorksheetErrorCode::NA),
+        (
+            "original-00033",
+            "=DB(CHOOSE({1,2,3;4,5,6},A100,A101,\"bad\",A102,A103,\"bad\"),CHOOSE({1,2;3,4},A104,A105,A106,A107),A108,A109,A110)",
+            &[
+                1000.0, 1000.0, 1000.0, 1000.0, 100.0, 100.0, 100.0, 100.0, 10.0, 2.0, 6.0,
+            ],
+            0x4067190624dd2f1a,
+            WorksheetErrorCode::Value,
+        ),
+        (
+            "original-00038",
+            "=DB(CHOOSE({1,2,3;4,5,6},A100,A101,\"bad\",A102,A103,\"bad\"),A104,CHOOSE({1,2;3,4},A105,A106,A107,A108),A109,A110)",
+            &[
+                1000.0, 1000.0, 1000.0, 1000.0, 100.0, 10.0, 10.0, 10.0, 10.0, 2.0, 6.0,
+            ],
+            0x4067190624dd2f1a,
+            WorksheetErrorCode::Value,
+        ),
+        (
+            "original-00043",
+            "=DB(A100,CHOOSE({1,2,3;4,5,6},A101,A102,\"bad\",A103,A104,\"bad\"),CHOOSE({1,2;3,4},A105,A106,A107,A108),A109,A110)",
+            &[
+                1000.0, 100.0, 100.0, 100.0, 100.0, 10.0, 10.0, 10.0, 10.0, 2.0, 6.0,
+            ],
+            0x4067190624dd2f1a,
+            WorksheetErrorCode::Value,
+        ),
+        (
+            "original-00048",
+            "=DDB(CHOOSE({1,2,3;4,5,6},A100,A101,\"bad\",A102,A103,\"bad\"),CHOOSE({1,2;3,4},A104,A105,A106,A107),A108,A109,A110)",
+            &[
+                1000.0, 1000.0, 1000.0, 1000.0, 100.0, 100.0, 100.0, 100.0, 10.0, 2.0, 2.0,
+            ],
+            0x4064000000000000,
+            WorksheetErrorCode::Value,
+        ),
+        (
+            "original-00053",
+            "=DDB(CHOOSE({1,2,3;4,5,6},A100,A101,\"bad\",A102,A103,\"bad\"),A104,CHOOSE({1,2;3,4},A105,A106,A107,A108),A109,A110)",
+            &[
+                1000.0, 1000.0, 1000.0, 1000.0, 100.0, 10.0, 10.0, 10.0, 10.0, 2.0, 2.0,
+            ],
+            0x4064000000000000,
+            WorksheetErrorCode::Value,
+        ),
+        (
+            "original-00058",
+            "=DDB(A100,CHOOSE({1,2,3;4,5,6},A101,A102,\"bad\",A103,A104,\"bad\"),CHOOSE({1,2;3,4},A105,A106,A107,A108),A109,A110)",
+            &[
+                1000.0, 100.0, 100.0, 100.0, 100.0, 10.0, 10.0, 10.0, 10.0, 2.0, 2.0,
+            ],
+            0x4064000000000000,
+            WorksheetErrorCode::Value,
+        ),
+        (
+            "independent-00209",
+            "=DB(CHOOSE({1,2;3,4},A100,A101,A102,A103),A104,A105,A106,CHOOSE({1,2,3;4,5,6},A107,A108,#NULL!,A109,A110,#NULL!))",
+            &[
+                1375.0, 1375.0, 1375.0, 1375.0, 125.0, 9.75, 3.125, 4.5, 4.5, 4.5, 4.5,
+            ],
+            0x406b2be01a63a02a,
+            WorksheetErrorCode::NA,
+        ),
+        (
+            "independent-00219",
+            "=DB(CHOOSE({1,2,3;4,5,6},A100,A101,\"invalid\",A102,A103,\"invalid\"),A104,A105,A106,CHOOSE({1,2;3,4},A107,A108,A109,A110))",
+            &[
+                1375.0, 1375.0, 1375.0, 1375.0, 125.0, 9.75, 3.125, 4.5, 4.5, 4.5, 4.5,
+            ],
+            0x406b2be01a63a02a,
+            WorksheetErrorCode::Value,
+        ),
+        (
+            "independent-00221",
+            "=DB(CHOOSE({1,2;3,4},A100,A101,A102,A103),A104,A105,A106,CHOOSE({1,2,3;4,5,6},A107,A108,\"invalid\",A109,A110,\"invalid\"))",
+            &[
+                1375.0, 1375.0, 1375.0, 1375.0, 125.0, 9.75, 3.125, 4.5, 4.5, 4.5, 4.5,
+            ],
+            0x406b2be01a63a02a,
+            WorksheetErrorCode::NA,
+        ),
+        (
+            "independent-00259",
+            "=DB(A100,CHOOSE({1,2,3;4,5,6},A101,A102,\"invalid\",A103,A104,\"invalid\"),A105,A106,CHOOSE({1,2;3,4},A107,A108,A109,A110))",
+            &[
+                1375.0, 125.0, 125.0, 125.0, 125.0, 9.75, 3.125, 4.5, 4.5, 4.5, 4.5,
+            ],
+            0x406b2be01a63a02a,
+            WorksheetErrorCode::Value,
+        ),
+        (
+            "independent-00261",
+            "=DB(A100,CHOOSE({1,2;3,4},A101,A102,A103,A104),A105,A106,CHOOSE({1,2,3;4,5,6},A107,A108,\"invalid\",A109,A110,\"invalid\"))",
+            &[
+                1375.0, 125.0, 125.0, 125.0, 125.0, 9.75, 3.125, 4.5, 4.5, 4.5, 4.5,
+            ],
+            0x406b2be01a63a02a,
+            WorksheetErrorCode::NA,
+        ),
+        (
+            "independent-00299",
+            "=DB(A100,A101,A102,CHOOSE({1,2,3;4,5,6},A103,A104,\"invalid\",A105,A106,\"invalid\"),CHOOSE({1,2;3,4},A107,A108,A109,A110))",
+            &[
+                1375.0, 125.0, 9.75, 3.125, 3.125, 3.125, 3.125, 4.5, 4.5, 4.5, 4.5,
+            ],
+            0x406b2be01a63a02a,
+            WorksheetErrorCode::Value,
+        ),
+        (
+            "independent-00301",
+            "=DB(A100,A101,A102,CHOOSE({1,2;3,4},A103,A104,A105,A106),CHOOSE({1,2,3;4,5,6},A107,A108,\"invalid\",A109,A110,\"invalid\"))",
+            &[
+                1375.0, 125.0, 9.75, 3.125, 3.125, 3.125, 3.125, 4.5, 4.5, 4.5, 4.5,
+            ],
+            0x406b2be01a63a02a,
+            WorksheetErrorCode::NA,
+        ),
+        (
+            "independent-00334",
+            "=DDB(CHOOSE({1,2;3,4},A100,A101,A102,A103),A104,A105,A106,CHOOSE({1,2,3;4,5,6},A107,A108,#NULL!,A109,A110,#NULL!))",
+            &[
+                1375.0, 1375.0, 1375.0, 1375.0, 125.0, 9.75, 3.125, 1.5, 1.5, 1.5, 1.5,
+            ],
+            0x40628a73e06e783b,
+            WorksheetErrorCode::NA,
+        ),
+        (
+            "independent-00344",
+            "=DDB(CHOOSE({1,2,3;4,5,6},A100,A101,\"invalid\",A102,A103,\"invalid\"),A104,A105,A106,CHOOSE({1,2;3,4},A107,A108,A109,A110))",
+            &[
+                1375.0, 1375.0, 1375.0, 1375.0, 125.0, 9.75, 3.125, 1.5, 1.5, 1.5, 1.5,
+            ],
+            0x40628a73e06e783b,
+            WorksheetErrorCode::Value,
+        ),
+        (
+            "independent-00346",
+            "=DDB(CHOOSE({1,2;3,4},A100,A101,A102,A103),A104,A105,A106,CHOOSE({1,2,3;4,5,6},A107,A108,\"invalid\",A109,A110,\"invalid\"))",
+            &[
+                1375.0, 1375.0, 1375.0, 1375.0, 125.0, 9.75, 3.125, 1.5, 1.5, 1.5, 1.5,
+            ],
+            0x40628a73e06e783b,
+            WorksheetErrorCode::NA,
+        ),
+        (
+            "independent-00384",
+            "=DDB(A100,CHOOSE({1,2,3;4,5,6},A101,A102,\"invalid\",A103,A104,\"invalid\"),A105,A106,CHOOSE({1,2;3,4},A107,A108,A109,A110))",
+            &[
+                1375.0, 125.0, 125.0, 125.0, 125.0, 9.75, 3.125, 1.5, 1.5, 1.5, 1.5,
+            ],
+            0x40628a73e06e783b,
+            WorksheetErrorCode::Value,
+        ),
+        (
+            "independent-00386",
+            "=DDB(A100,CHOOSE({1,2;3,4},A101,A102,A103,A104),A105,A106,CHOOSE({1,2,3;4,5,6},A107,A108,\"invalid\",A109,A110,\"invalid\"))",
+            &[
+                1375.0, 125.0, 125.0, 125.0, 125.0, 9.75, 3.125, 1.5, 1.5, 1.5, 1.5,
+            ],
+            0x40628a73e06e783b,
+            WorksheetErrorCode::NA,
+        ),
+        (
+            "independent-00424",
+            "=DDB(A100,A101,A102,CHOOSE({1,2,3;4,5,6},A103,A104,\"invalid\",A105,A106,\"invalid\"),CHOOSE({1,2;3,4},A107,A108,A109,A110))",
+            &[
+                1375.0, 125.0, 9.75, 3.125, 3.125, 3.125, 3.125, 1.5, 1.5, 1.5, 1.5,
+            ],
+            0x40628a73e06e783b,
+            WorksheetErrorCode::Value,
+        ),
+        (
+            "independent-00426",
+            "=DDB(A100,A101,A102,CHOOSE({1,2;3,4},A103,A104,A105,A106),CHOOSE({1,2,3;4,5,6},A107,A108,\"invalid\",A109,A110,\"invalid\"))",
+            &[
+                1375.0, 125.0, 9.75, 3.125, 3.125, 3.125, 3.125, 1.5, 1.5, 1.5, 1.5,
+            ],
+            0x40628a73e06e783b,
+            WorksheetErrorCode::NA,
+        ),
     ];
     for (id, formula, inputs, bits, error) in cases {
         let mut session = Session::new("Sheet1").unwrap();
         session.set_formula_cell("J20").unwrap();
         for (index, number) in inputs.iter().enumerate() {
-            session.set_input(&format!("A{}", 100 + index), InputValue::number(*number).unwrap()).unwrap();
+            session
+                .set_input(
+                    &format!("A{}", 100 + index),
+                    InputValue::number(*number).unwrap(),
+                )
+                .unwrap();
         }
         session.set_formula(formula);
         let calculated = session.calculate();
         let number = CalcValue::number(f64::from_bits(*bits));
         let row = vec![number.clone(), number, CalcValue::error(*error)];
         let expected = CalcValue::array(CalcArray::from_rows(vec![row.clone(), row]).unwrap());
-        assert_eq!(calculated.result, Some(expected), "{id}: {formula}: {:?}", calculated.diagnostics);
+        assert_eq!(
+            calculated.result,
+            Some(expected),
+            "{id}: {formula}: {:?}",
+            calculated.diagnostics
+        );
         assert!(calculated.diagnostics.is_empty());
     }
 }
@@ -1411,55 +2394,355 @@ fn recorded_db_ddb_coercion_precedes_later_padding() {
 fn recorded_vdb_coercion_precedes_later_padding() {
     use calc_func::value::CalcArray;
     let cases: &[(&str, &str, &[u64], usize, usize, u64, WorksheetErrorCode)] = &[
-        ("w111dep-padding-00063-vdb-earlier-0-later-padding-1-badtext", "=VDB(CHOOSE({1,2,3;4,5,6},A100,A101,\"bad\",A102,A103,\"bad\"),CHOOSE({1,2;3,4},A104,A105,A106,A107),A108,A109,A110,A111,TRUE)",
-            &[0x408f400000000000, 0x408f400000000000, 0x408f400000000000, 0x408f400000000000, 0x4059000000000000, 0x4059000000000000, 0x4059000000000000, 0x4059000000000000, 0x4024000000000000, 0x3ff0000000000000, 0x4000000000000000, 0x4000000000000000], 2, 3, 0x4064000000000000, WorksheetErrorCode::Value),
-        ("w111dep-padding-00068-vdb-earlier-0-later-padding-2-badtext", "=VDB(CHOOSE({1,2,3;4,5,6},A100,A101,\"bad\",A102,A103,\"bad\"),A104,CHOOSE({1,2;3,4},A105,A106,A107,A108),A109,A110,A111,TRUE)",
-            &[0x408f400000000000, 0x408f400000000000, 0x408f400000000000, 0x408f400000000000, 0x4059000000000000, 0x4024000000000000, 0x4024000000000000, 0x4024000000000000, 0x4024000000000000, 0x3ff0000000000000, 0x4000000000000000, 0x4000000000000000], 2, 3, 0x4064000000000000, WorksheetErrorCode::Value),
-        ("w111dep-padding-00073-vdb-earlier-1-later-padding-2-badtext", "=VDB(A100,CHOOSE({1,2,3;4,5,6},A101,A102,\"bad\",A103,A104,\"bad\"),CHOOSE({1,2;3,4},A105,A106,A107,A108),A109,A110,A111,TRUE)",
-            &[0x408f400000000000, 0x4059000000000000, 0x4059000000000000, 0x4059000000000000, 0x4059000000000000, 0x4024000000000000, 0x4024000000000000, 0x4024000000000000, 0x4024000000000000, 0x3ff0000000000000, 0x4000000000000000, 0x4000000000000000], 2, 3, 0x4064000000000000, WorksheetErrorCode::Value),
-        ("w111dep-padding-independent-00469-vdb-independent-padding-0-6-False-badtext-False-False", "=VDB(CHOOSE({1,2,3;4,5,6},A100,A101,\"invalid\",A102,A103,\"invalid\"),A104,A105,A106,A107,A108,CHOOSE({1,2;3,4},TRUE,TRUE,TRUE,TRUE))",
-            &[0x40957c0000000000, 0x40957c0000000000, 0x40957c0000000000, 0x40957c0000000000, 0x405f400000000000, 0x4023800000000000, 0x3ff2000000000000, 0x400b000000000000, 0x3ff8000000000000], 2, 3, 0x40764227a2b5d435, WorksheetErrorCode::Value),
-        ("w111dep-padding-independent-00470-vdb-independent-padding-0-6-False-badtext-False-True", "=VDB(CHOOSE({1,2,3;4,5,6},A100,A101,\"invalid\",A102,A103,\"invalid\"),CHOOSE({1},A104),A105,A106,A107,A108,CHOOSE({1,2;3,4},TRUE,TRUE,TRUE,TRUE))",
-            &[0x40957c0000000000, 0x40957c0000000000, 0x40957c0000000000, 0x40957c0000000000, 0x405f400000000000, 0x4023800000000000, 0x3ff2000000000000, 0x400b000000000000, 0x3ff8000000000000], 2, 3, 0x40764227a2b5d435, WorksheetErrorCode::Value),
-        ("w111dep-padding-independent-00471-vdb-independent-padding-0-6-False-badtext-True-False", "=VDB(CHOOSE({1,2;3,4},A100,A101,A102,A103),A104,A105,A106,A107,A108,CHOOSE({1,2,3;4,5,6},TRUE,TRUE,\"invalid\",TRUE,TRUE,\"invalid\"))",
-            &[0x40957c0000000000, 0x40957c0000000000, 0x40957c0000000000, 0x40957c0000000000, 0x405f400000000000, 0x4023800000000000, 0x3ff2000000000000, 0x400b000000000000, 0x3ff8000000000000], 2, 3, 0x40764227a2b5d435, WorksheetErrorCode::NA),
-        ("w111dep-padding-independent-00489-vdb-independent-padding-0-6-True-badtext-False-False", "=VDB(CHOOSE({1,2;3,4;5,6},A100,A101,A102,A103,\"invalid\",\"invalid\"),A104,A105,A106,A107,A108,CHOOSE({1,2;3,4},TRUE,TRUE,TRUE,TRUE))",
-            &[0x40957c0000000000, 0x40957c0000000000, 0x40957c0000000000, 0x40957c0000000000, 0x405f400000000000, 0x4023800000000000, 0x3ff2000000000000, 0x400b000000000000, 0x3ff8000000000000], 3, 2, 0x40764227a2b5d435, WorksheetErrorCode::Value),
-        ("w111dep-padding-independent-00491-vdb-independent-padding-0-6-True-badtext-True-False", "=VDB(CHOOSE({1,2;3,4},A100,A101,A102,A103),A104,A105,A106,A107,A108,CHOOSE({1,2;3,4;5,6},TRUE,TRUE,TRUE,TRUE,\"invalid\",\"invalid\"))",
-            &[0x40957c0000000000, 0x40957c0000000000, 0x40957c0000000000, 0x40957c0000000000, 0x405f400000000000, 0x4023800000000000, 0x3ff2000000000000, 0x400b000000000000, 0x3ff8000000000000], 3, 2, 0x40764227a2b5d435, WorksheetErrorCode::NA),
-        ("w111dep-padding-independent-00509-vdb-independent-padding-1-6-False-badtext-False-False", "=VDB(A100,CHOOSE({1,2,3;4,5,6},A101,A102,\"invalid\",A103,A104,\"invalid\"),A105,A106,A107,A108,CHOOSE({1,2;3,4},TRUE,TRUE,TRUE,TRUE))",
-            &[0x40957c0000000000, 0x405f400000000000, 0x405f400000000000, 0x405f400000000000, 0x405f400000000000, 0x4023800000000000, 0x3ff2000000000000, 0x400b000000000000, 0x3ff8000000000000], 2, 3, 0x40764227a2b5d435, WorksheetErrorCode::Value),
-        ("w111dep-padding-independent-00511-vdb-independent-padding-1-6-False-badtext-True-False", "=VDB(A100,CHOOSE({1,2;3,4},A101,A102,A103,A104),A105,A106,A107,A108,CHOOSE({1,2,3;4,5,6},TRUE,TRUE,\"invalid\",TRUE,TRUE,\"invalid\"))",
-            &[0x40957c0000000000, 0x405f400000000000, 0x405f400000000000, 0x405f400000000000, 0x405f400000000000, 0x4023800000000000, 0x3ff2000000000000, 0x400b000000000000, 0x3ff8000000000000], 2, 3, 0x40764227a2b5d435, WorksheetErrorCode::NA),
-        ("w111dep-padding-independent-00529-vdb-independent-padding-1-6-True-badtext-False-False", "=VDB(A100,CHOOSE({1,2;3,4;5,6},A101,A102,A103,A104,\"invalid\",\"invalid\"),A105,A106,A107,A108,CHOOSE({1,2;3,4},TRUE,TRUE,TRUE,TRUE))",
-            &[0x40957c0000000000, 0x405f400000000000, 0x405f400000000000, 0x405f400000000000, 0x405f400000000000, 0x4023800000000000, 0x3ff2000000000000, 0x400b000000000000, 0x3ff8000000000000], 3, 2, 0x40764227a2b5d435, WorksheetErrorCode::Value),
-        ("w111dep-padding-independent-00531-vdb-independent-padding-1-6-True-badtext-True-False", "=VDB(A100,CHOOSE({1,2;3,4},A101,A102,A103,A104),A105,A106,A107,A108,CHOOSE({1,2;3,4;5,6},TRUE,TRUE,TRUE,TRUE,\"invalid\",\"invalid\"))",
-            &[0x40957c0000000000, 0x405f400000000000, 0x405f400000000000, 0x405f400000000000, 0x405f400000000000, 0x4023800000000000, 0x3ff2000000000000, 0x400b000000000000, 0x3ff8000000000000], 3, 2, 0x40764227a2b5d435, WorksheetErrorCode::NA),
-        ("w111dep-padding-independent-00549-vdb-independent-padding-5-6-False-badtext-False-False", "=VDB(A100,A101,A102,A103,A104,CHOOSE({1,2,3;4,5,6},A105,A106,\"invalid\",A107,A108,\"invalid\"),CHOOSE({1,2;3,4},TRUE,TRUE,TRUE,TRUE))",
-            &[0x40957c0000000000, 0x405f400000000000, 0x4023800000000000, 0x3ff2000000000000, 0x400b000000000000, 0x3ff8000000000000, 0x3ff8000000000000, 0x3ff8000000000000, 0x3ff8000000000000], 2, 3, 0x40764227a2b5d435, WorksheetErrorCode::Value),
-        ("w111dep-padding-independent-00551-vdb-independent-padding-5-6-False-badtext-True-False", "=VDB(A100,A101,A102,A103,A104,CHOOSE({1,2;3,4},A105,A106,A107,A108),CHOOSE({1,2,3;4,5,6},TRUE,TRUE,\"invalid\",TRUE,TRUE,\"invalid\"))",
-            &[0x40957c0000000000, 0x405f400000000000, 0x4023800000000000, 0x3ff2000000000000, 0x400b000000000000, 0x3ff8000000000000, 0x3ff8000000000000, 0x3ff8000000000000, 0x3ff8000000000000], 2, 3, 0x40764227a2b5d435, WorksheetErrorCode::NA),
-        ("w111dep-padding-independent-00569-vdb-independent-padding-5-6-True-badtext-False-False", "=VDB(A100,A101,A102,A103,A104,CHOOSE({1,2;3,4;5,6},A105,A106,A107,A108,\"invalid\",\"invalid\"),CHOOSE({1,2;3,4},TRUE,TRUE,TRUE,TRUE))",
-            &[0x40957c0000000000, 0x405f400000000000, 0x4023800000000000, 0x3ff2000000000000, 0x400b000000000000, 0x3ff8000000000000, 0x3ff8000000000000, 0x3ff8000000000000, 0x3ff8000000000000], 3, 2, 0x40764227a2b5d435, WorksheetErrorCode::Value),
-        ("w111dep-padding-independent-00571-vdb-independent-padding-5-6-True-badtext-True-False", "=VDB(A100,A101,A102,A103,A104,CHOOSE({1,2;3,4},A105,A106,A107,A108),CHOOSE({1,2;3,4;5,6},TRUE,TRUE,TRUE,TRUE,\"invalid\",\"invalid\"))",
-            &[0x40957c0000000000, 0x405f400000000000, 0x4023800000000000, 0x3ff2000000000000, 0x400b000000000000, 0x3ff8000000000000, 0x3ff8000000000000, 0x3ff8000000000000, 0x3ff8000000000000], 3, 2, 0x40764227a2b5d435, WorksheetErrorCode::NA),
+        (
+            "w111dep-padding-00063-vdb-earlier-0-later-padding-1-badtext",
+            "=VDB(CHOOSE({1,2,3;4,5,6},A100,A101,\"bad\",A102,A103,\"bad\"),CHOOSE({1,2;3,4},A104,A105,A106,A107),A108,A109,A110,A111,TRUE)",
+            &[
+                0x408f400000000000,
+                0x408f400000000000,
+                0x408f400000000000,
+                0x408f400000000000,
+                0x4059000000000000,
+                0x4059000000000000,
+                0x4059000000000000,
+                0x4059000000000000,
+                0x4024000000000000,
+                0x3ff0000000000000,
+                0x4000000000000000,
+                0x4000000000000000,
+            ],
+            2,
+            3,
+            0x4064000000000000,
+            WorksheetErrorCode::Value,
+        ),
+        (
+            "w111dep-padding-00068-vdb-earlier-0-later-padding-2-badtext",
+            "=VDB(CHOOSE({1,2,3;4,5,6},A100,A101,\"bad\",A102,A103,\"bad\"),A104,CHOOSE({1,2;3,4},A105,A106,A107,A108),A109,A110,A111,TRUE)",
+            &[
+                0x408f400000000000,
+                0x408f400000000000,
+                0x408f400000000000,
+                0x408f400000000000,
+                0x4059000000000000,
+                0x4024000000000000,
+                0x4024000000000000,
+                0x4024000000000000,
+                0x4024000000000000,
+                0x3ff0000000000000,
+                0x4000000000000000,
+                0x4000000000000000,
+            ],
+            2,
+            3,
+            0x4064000000000000,
+            WorksheetErrorCode::Value,
+        ),
+        (
+            "w111dep-padding-00073-vdb-earlier-1-later-padding-2-badtext",
+            "=VDB(A100,CHOOSE({1,2,3;4,5,6},A101,A102,\"bad\",A103,A104,\"bad\"),CHOOSE({1,2;3,4},A105,A106,A107,A108),A109,A110,A111,TRUE)",
+            &[
+                0x408f400000000000,
+                0x4059000000000000,
+                0x4059000000000000,
+                0x4059000000000000,
+                0x4059000000000000,
+                0x4024000000000000,
+                0x4024000000000000,
+                0x4024000000000000,
+                0x4024000000000000,
+                0x3ff0000000000000,
+                0x4000000000000000,
+                0x4000000000000000,
+            ],
+            2,
+            3,
+            0x4064000000000000,
+            WorksheetErrorCode::Value,
+        ),
+        (
+            "w111dep-padding-independent-00469-vdb-independent-padding-0-6-False-badtext-False-False",
+            "=VDB(CHOOSE({1,2,3;4,5,6},A100,A101,\"invalid\",A102,A103,\"invalid\"),A104,A105,A106,A107,A108,CHOOSE({1,2;3,4},TRUE,TRUE,TRUE,TRUE))",
+            &[
+                0x40957c0000000000,
+                0x40957c0000000000,
+                0x40957c0000000000,
+                0x40957c0000000000,
+                0x405f400000000000,
+                0x4023800000000000,
+                0x3ff2000000000000,
+                0x400b000000000000,
+                0x3ff8000000000000,
+            ],
+            2,
+            3,
+            0x40764227a2b5d435,
+            WorksheetErrorCode::Value,
+        ),
+        (
+            "w111dep-padding-independent-00470-vdb-independent-padding-0-6-False-badtext-False-True",
+            "=VDB(CHOOSE({1,2,3;4,5,6},A100,A101,\"invalid\",A102,A103,\"invalid\"),CHOOSE({1},A104),A105,A106,A107,A108,CHOOSE({1,2;3,4},TRUE,TRUE,TRUE,TRUE))",
+            &[
+                0x40957c0000000000,
+                0x40957c0000000000,
+                0x40957c0000000000,
+                0x40957c0000000000,
+                0x405f400000000000,
+                0x4023800000000000,
+                0x3ff2000000000000,
+                0x400b000000000000,
+                0x3ff8000000000000,
+            ],
+            2,
+            3,
+            0x40764227a2b5d435,
+            WorksheetErrorCode::Value,
+        ),
+        (
+            "w111dep-padding-independent-00471-vdb-independent-padding-0-6-False-badtext-True-False",
+            "=VDB(CHOOSE({1,2;3,4},A100,A101,A102,A103),A104,A105,A106,A107,A108,CHOOSE({1,2,3;4,5,6},TRUE,TRUE,\"invalid\",TRUE,TRUE,\"invalid\"))",
+            &[
+                0x40957c0000000000,
+                0x40957c0000000000,
+                0x40957c0000000000,
+                0x40957c0000000000,
+                0x405f400000000000,
+                0x4023800000000000,
+                0x3ff2000000000000,
+                0x400b000000000000,
+                0x3ff8000000000000,
+            ],
+            2,
+            3,
+            0x40764227a2b5d435,
+            WorksheetErrorCode::NA,
+        ),
+        (
+            "w111dep-padding-independent-00489-vdb-independent-padding-0-6-True-badtext-False-False",
+            "=VDB(CHOOSE({1,2;3,4;5,6},A100,A101,A102,A103,\"invalid\",\"invalid\"),A104,A105,A106,A107,A108,CHOOSE({1,2;3,4},TRUE,TRUE,TRUE,TRUE))",
+            &[
+                0x40957c0000000000,
+                0x40957c0000000000,
+                0x40957c0000000000,
+                0x40957c0000000000,
+                0x405f400000000000,
+                0x4023800000000000,
+                0x3ff2000000000000,
+                0x400b000000000000,
+                0x3ff8000000000000,
+            ],
+            3,
+            2,
+            0x40764227a2b5d435,
+            WorksheetErrorCode::Value,
+        ),
+        (
+            "w111dep-padding-independent-00491-vdb-independent-padding-0-6-True-badtext-True-False",
+            "=VDB(CHOOSE({1,2;3,4},A100,A101,A102,A103),A104,A105,A106,A107,A108,CHOOSE({1,2;3,4;5,6},TRUE,TRUE,TRUE,TRUE,\"invalid\",\"invalid\"))",
+            &[
+                0x40957c0000000000,
+                0x40957c0000000000,
+                0x40957c0000000000,
+                0x40957c0000000000,
+                0x405f400000000000,
+                0x4023800000000000,
+                0x3ff2000000000000,
+                0x400b000000000000,
+                0x3ff8000000000000,
+            ],
+            3,
+            2,
+            0x40764227a2b5d435,
+            WorksheetErrorCode::NA,
+        ),
+        (
+            "w111dep-padding-independent-00509-vdb-independent-padding-1-6-False-badtext-False-False",
+            "=VDB(A100,CHOOSE({1,2,3;4,5,6},A101,A102,\"invalid\",A103,A104,\"invalid\"),A105,A106,A107,A108,CHOOSE({1,2;3,4},TRUE,TRUE,TRUE,TRUE))",
+            &[
+                0x40957c0000000000,
+                0x405f400000000000,
+                0x405f400000000000,
+                0x405f400000000000,
+                0x405f400000000000,
+                0x4023800000000000,
+                0x3ff2000000000000,
+                0x400b000000000000,
+                0x3ff8000000000000,
+            ],
+            2,
+            3,
+            0x40764227a2b5d435,
+            WorksheetErrorCode::Value,
+        ),
+        (
+            "w111dep-padding-independent-00511-vdb-independent-padding-1-6-False-badtext-True-False",
+            "=VDB(A100,CHOOSE({1,2;3,4},A101,A102,A103,A104),A105,A106,A107,A108,CHOOSE({1,2,3;4,5,6},TRUE,TRUE,\"invalid\",TRUE,TRUE,\"invalid\"))",
+            &[
+                0x40957c0000000000,
+                0x405f400000000000,
+                0x405f400000000000,
+                0x405f400000000000,
+                0x405f400000000000,
+                0x4023800000000000,
+                0x3ff2000000000000,
+                0x400b000000000000,
+                0x3ff8000000000000,
+            ],
+            2,
+            3,
+            0x40764227a2b5d435,
+            WorksheetErrorCode::NA,
+        ),
+        (
+            "w111dep-padding-independent-00529-vdb-independent-padding-1-6-True-badtext-False-False",
+            "=VDB(A100,CHOOSE({1,2;3,4;5,6},A101,A102,A103,A104,\"invalid\",\"invalid\"),A105,A106,A107,A108,CHOOSE({1,2;3,4},TRUE,TRUE,TRUE,TRUE))",
+            &[
+                0x40957c0000000000,
+                0x405f400000000000,
+                0x405f400000000000,
+                0x405f400000000000,
+                0x405f400000000000,
+                0x4023800000000000,
+                0x3ff2000000000000,
+                0x400b000000000000,
+                0x3ff8000000000000,
+            ],
+            3,
+            2,
+            0x40764227a2b5d435,
+            WorksheetErrorCode::Value,
+        ),
+        (
+            "w111dep-padding-independent-00531-vdb-independent-padding-1-6-True-badtext-True-False",
+            "=VDB(A100,CHOOSE({1,2;3,4},A101,A102,A103,A104),A105,A106,A107,A108,CHOOSE({1,2;3,4;5,6},TRUE,TRUE,TRUE,TRUE,\"invalid\",\"invalid\"))",
+            &[
+                0x40957c0000000000,
+                0x405f400000000000,
+                0x405f400000000000,
+                0x405f400000000000,
+                0x405f400000000000,
+                0x4023800000000000,
+                0x3ff2000000000000,
+                0x400b000000000000,
+                0x3ff8000000000000,
+            ],
+            3,
+            2,
+            0x40764227a2b5d435,
+            WorksheetErrorCode::NA,
+        ),
+        (
+            "w111dep-padding-independent-00549-vdb-independent-padding-5-6-False-badtext-False-False",
+            "=VDB(A100,A101,A102,A103,A104,CHOOSE({1,2,3;4,5,6},A105,A106,\"invalid\",A107,A108,\"invalid\"),CHOOSE({1,2;3,4},TRUE,TRUE,TRUE,TRUE))",
+            &[
+                0x40957c0000000000,
+                0x405f400000000000,
+                0x4023800000000000,
+                0x3ff2000000000000,
+                0x400b000000000000,
+                0x3ff8000000000000,
+                0x3ff8000000000000,
+                0x3ff8000000000000,
+                0x3ff8000000000000,
+            ],
+            2,
+            3,
+            0x40764227a2b5d435,
+            WorksheetErrorCode::Value,
+        ),
+        (
+            "w111dep-padding-independent-00551-vdb-independent-padding-5-6-False-badtext-True-False",
+            "=VDB(A100,A101,A102,A103,A104,CHOOSE({1,2;3,4},A105,A106,A107,A108),CHOOSE({1,2,3;4,5,6},TRUE,TRUE,\"invalid\",TRUE,TRUE,\"invalid\"))",
+            &[
+                0x40957c0000000000,
+                0x405f400000000000,
+                0x4023800000000000,
+                0x3ff2000000000000,
+                0x400b000000000000,
+                0x3ff8000000000000,
+                0x3ff8000000000000,
+                0x3ff8000000000000,
+                0x3ff8000000000000,
+            ],
+            2,
+            3,
+            0x40764227a2b5d435,
+            WorksheetErrorCode::NA,
+        ),
+        (
+            "w111dep-padding-independent-00569-vdb-independent-padding-5-6-True-badtext-False-False",
+            "=VDB(A100,A101,A102,A103,A104,CHOOSE({1,2;3,4;5,6},A105,A106,A107,A108,\"invalid\",\"invalid\"),CHOOSE({1,2;3,4},TRUE,TRUE,TRUE,TRUE))",
+            &[
+                0x40957c0000000000,
+                0x405f400000000000,
+                0x4023800000000000,
+                0x3ff2000000000000,
+                0x400b000000000000,
+                0x3ff8000000000000,
+                0x3ff8000000000000,
+                0x3ff8000000000000,
+                0x3ff8000000000000,
+            ],
+            3,
+            2,
+            0x40764227a2b5d435,
+            WorksheetErrorCode::Value,
+        ),
+        (
+            "w111dep-padding-independent-00571-vdb-independent-padding-5-6-True-badtext-True-False",
+            "=VDB(A100,A101,A102,A103,A104,CHOOSE({1,2;3,4},A105,A106,A107,A108),CHOOSE({1,2;3,4;5,6},TRUE,TRUE,TRUE,TRUE,\"invalid\",\"invalid\"))",
+            &[
+                0x40957c0000000000,
+                0x405f400000000000,
+                0x4023800000000000,
+                0x3ff2000000000000,
+                0x400b000000000000,
+                0x3ff8000000000000,
+                0x3ff8000000000000,
+                0x3ff8000000000000,
+                0x3ff8000000000000,
+            ],
+            3,
+            2,
+            0x40764227a2b5d435,
+            WorksheetErrorCode::NA,
+        ),
     ];
     for (id, formula, inputs, rows, cols, bits, error) in cases {
         let mut session = Session::new("Sheet1").unwrap();
         session.set_formula_cell("J20").unwrap();
         for (index, bits) in inputs.iter().enumerate() {
-            session.set_input(&format!("A{}", 100 + index), InputValue::number(f64::from_bits(*bits)).unwrap()).unwrap();
+            session
+                .set_input(
+                    &format!("A{}", 100 + index),
+                    InputValue::number(f64::from_bits(*bits)).unwrap(),
+                )
+                .unwrap();
         }
         session.set_formula(formula);
         let calculated = session.calculate();
-        let expected = CalcArray::from_rows((0..*rows).map(|row| (0..*cols).map(|col| {
-            if (*rows == 3 && row == 2) || (*cols == 3 && col == 2) {
-                CalcValue::error(*error)
-            } else {
-                CalcValue::number(f64::from_bits(*bits))
-            }
-        }).collect()).collect()).unwrap();
-        assert_eq!(calculated.result, Some(CalcValue::array(expected)), "{id}: {formula}: {:?}", calculated.diagnostics);
+        let expected = CalcArray::from_rows(
+            (0..*rows)
+                .map(|row| {
+                    (0..*cols)
+                        .map(|col| {
+                            if (*rows == 3 && row == 2) || (*cols == 3 && col == 2) {
+                                CalcValue::error(*error)
+                            } else {
+                                CalcValue::number(f64::from_bits(*bits))
+                            }
+                        })
+                        .collect()
+                })
+                .collect(),
+        )
+        .unwrap();
+        assert_eq!(
+            calculated.result,
+            Some(CalcValue::array(expected)),
+            "{id}: {formula}: {:?}",
+            calculated.diagnostics
+        );
         assert!(calculated.diagnostics.is_empty());
     }
 }
@@ -1472,23 +2755,60 @@ fn recorded_vdb_explicit_missing_factor_is_zero() {
     let mut session = Session::new("Sheet1").unwrap();
     session.set_formula_cell("J20").unwrap();
     for (index, value) in [1000.0, 100.0, 10.0, 1.0, 2.0].into_iter().enumerate() {
-        session.set_input(&format!("A{}", 100 + index), InputValue::number(value).unwrap()).unwrap();
+        session
+            .set_input(
+                &format!("A{}", 100 + index),
+                InputValue::number(value).unwrap(),
+            )
+            .unwrap();
     }
     session.set_input("A105", InputValue::blank()).unwrap();
     for (formula, expected) in [
-        ("=VDB(2400,300,120,6,18)", CalcValue::number(f64::from_bits(0x4078c4e5981baf06))),
-        ("=VDB(A100,A101,A102,A103,A104,,FALSE)", CalcValue::number(f64::from_bits(0x4056800000000000))),
-        ("=VDB(A100,A101,A102,A103,A104,A105,FALSE)", CalcValue::number(f64::from_bits(0x4056800000000000))),
-        ("=VDB(A100,A101,A102,A103,A104,\"\",FALSE)", CalcValue::error(WorksheetErrorCode::Value)),
-        ("=VDB(A100,A101,A102,A103,A104,\"2\",FALSE)", CalcValue::number(f64::from_bits(0x4064000000000000))),
-        ("=VDB(A100,A101,A102,A103,A104,\"TRUE\",FALSE)", CalcValue::error(WorksheetErrorCode::Value)),
-        ("=VDB(A100,A101,A102,A103,A104,\"FALSE\",FALSE)", CalcValue::error(WorksheetErrorCode::Value)),
-        ("=VDB(A100,A101,A102,A103,A104,TRUE,FALSE)", CalcValue::number(f64::from_bits(0x4056800000000000))),
-        ("=VDB(A100,A101,A102,A103,A104,#N/A,FALSE)", CalcValue::error(WorksheetErrorCode::NA)),
+        (
+            "=VDB(2400,300,120,6,18)",
+            CalcValue::number(f64::from_bits(0x4078c4e5981baf06)),
+        ),
+        (
+            "=VDB(A100,A101,A102,A103,A104,,FALSE)",
+            CalcValue::number(f64::from_bits(0x4056800000000000)),
+        ),
+        (
+            "=VDB(A100,A101,A102,A103,A104,A105,FALSE)",
+            CalcValue::number(f64::from_bits(0x4056800000000000)),
+        ),
+        (
+            "=VDB(A100,A101,A102,A103,A104,\"\",FALSE)",
+            CalcValue::error(WorksheetErrorCode::Value),
+        ),
+        (
+            "=VDB(A100,A101,A102,A103,A104,\"2\",FALSE)",
+            CalcValue::number(f64::from_bits(0x4064000000000000)),
+        ),
+        (
+            "=VDB(A100,A101,A102,A103,A104,\"TRUE\",FALSE)",
+            CalcValue::error(WorksheetErrorCode::Value),
+        ),
+        (
+            "=VDB(A100,A101,A102,A103,A104,\"FALSE\",FALSE)",
+            CalcValue::error(WorksheetErrorCode::Value),
+        ),
+        (
+            "=VDB(A100,A101,A102,A103,A104,TRUE,FALSE)",
+            CalcValue::number(f64::from_bits(0x4056800000000000)),
+        ),
+        (
+            "=VDB(A100,A101,A102,A103,A104,#N/A,FALSE)",
+            CalcValue::error(WorksheetErrorCode::NA),
+        ),
     ] {
         session.set_formula(formula);
         let calculated = session.calculate();
-        assert_eq!(calculated.result, Some(expected), "{formula}: {:?}", calculated.diagnostics);
+        assert_eq!(
+            calculated.result,
+            Some(expected),
+            "{formula}: {:?}",
+            calculated.diagnostics
+        );
         assert!(calculated.diagnostics.is_empty());
     }
 }
@@ -1505,11 +2825,20 @@ fn hypergeometric_validates_raw_counts_and_admits_an_empty_population() {
             ("0,0,0,0", CalcValue::number(1.0)),
             ("1,0,0,0", CalcValue::number(0.0)),
         ] {
-            let tail = if function == "HYPGEOM.DIST" { ",FALSE" } else { "" };
+            let tail = if function == "HYPGEOM.DIST" {
+                ",FALSE"
+            } else {
+                ""
+            };
             let formula = format!("={function}({arguments}{tail})");
             session.set_formula(&formula);
             let calculated = session.calculate();
-            assert_eq!(calculated.result, Some(expected), "{formula}: {:?}", calculated.diagnostics);
+            assert_eq!(
+                calculated.result,
+                Some(expected),
+                "{formula}: {:?}",
+                calculated.diagnostics
+            );
             assert!(calculated.diagnostics.is_empty());
         }
     }
@@ -1533,7 +2862,12 @@ fn lifted_textsplit_preserves_the_recorded_spill() {
         ]])
         .unwrap(),
     );
-    assert_eq!(calculated.result, Some(expected), "{:?}", calculated.diagnostics);
+    assert_eq!(
+        calculated.result,
+        Some(expected),
+        "{:?}",
+        calculated.diagnostics
+    );
     assert!(calculated.diagnostics.is_empty());
 }
 
@@ -1565,13 +2899,33 @@ fn selected_reference_results_publish_recorded_blank_zeros() {
             "=IF(A1:A1,F1:I3,CHOOSE({1;2;3;4},#NUM!,A100,A101,\"0\"))",
             -2.0,
             vec![
-                vec![text(""), text("1"), text("0"), error(WorksheetErrorCode::Div0)],
-                vec![text("FALSE "), text("fAlSe"), error(WorksheetErrorCode::Div0), error(WorksheetErrorCode::Num)],
+                vec![
+                    text(""),
+                    text("1"),
+                    text("0"),
+                    error(WorksheetErrorCode::Div0),
+                ],
+                vec![
+                    text("FALSE "),
+                    text("fAlSe"),
+                    error(WorksheetErrorCode::Div0),
+                    error(WorksheetErrorCode::Num),
+                ],
                 vec![text("0"), CalcValue::empty(), text("1"), text("")],
             ],
             vec![
-                vec![text(""), text("1"), text("0"), error(WorksheetErrorCode::Div0)],
-                vec![text("FALSE "), text("fAlSe"), error(WorksheetErrorCode::Div0), error(WorksheetErrorCode::Num)],
+                vec![
+                    text(""),
+                    text("1"),
+                    text("0"),
+                    error(WorksheetErrorCode::Div0),
+                ],
+                vec![
+                    text("FALSE "),
+                    text("fAlSe"),
+                    error(WorksheetErrorCode::Div0),
+                    error(WorksheetErrorCode::Num),
+                ],
                 vec![text("0"), CalcValue::number(0.0), text("1"), text("")],
             ],
         ),
@@ -1580,24 +2934,42 @@ fn selected_reference_results_publish_recorded_blank_zeros() {
         let mut session = Session::new("Sheet1").unwrap();
         session.set_form(calc_fml::FormulaForm::Dynamic);
         session.set_formula_cell("J20").unwrap();
-        session.set_input("A1", InputValue::number(condition).unwrap()).unwrap();
-        session.set_input("A100", InputValue::number(-2.0).unwrap()).unwrap();
-        session.set_input("A101", InputValue::number(0.25).unwrap()).unwrap();
+        session
+            .set_input("A1", InputValue::number(condition).unwrap())
+            .unwrap();
+        session
+            .set_input("A100", InputValue::number(-2.0).unwrap())
+            .unwrap();
+        session
+            .set_input("A101", InputValue::number(0.25).unwrap())
+            .unwrap();
         for (row, values) in cells.iter().enumerate() {
             for (column, value) in values.iter().enumerate() {
                 let input = match value.core_ref() {
-                    calc_func::value::CoreRef::Text(t) => InputValue::text(&t.to_string_lossy()).unwrap(),
+                    calc_func::value::CoreRef::Text(t) => {
+                        InputValue::text(&t.to_string_lossy()).unwrap()
+                    }
                     calc_func::value::CoreRef::Error(e) => InputValue::error(e),
                     calc_func::value::CoreRef::Empty => InputValue::blank(),
                     _ => unreachable!("the two retained fixtures contain text, errors and blanks"),
                 };
-                session.set_input(&format!("{}{}", char::from(b'F' + column as u8), row + 1), input).unwrap();
+                session
+                    .set_input(
+                        &format!("{}{}", char::from(b'F' + column as u8), row + 1),
+                        input,
+                    )
+                    .unwrap();
             }
         }
         let expected = CalcValue::array(CalcArray::from_rows(expected).unwrap());
         session.set_formula(formula);
         let calculated = session.calculate();
-        assert_eq!(calculated.result, Some(expected), "{formula}: {:?}", calculated.diagnostics);
+        assert_eq!(
+            calculated.result,
+            Some(expected),
+            "{formula}: {:?}",
+            calculated.diagnostics
+        );
         assert!(calculated.diagnostics.is_empty());
     }
 }
@@ -1610,7 +2982,9 @@ fn selected_reference_results_publish_recorded_blank_zeros() {
 fn plain_input_facts_reach_the_existing_reference_functions() {
     let mut session = Session::new("Sheet1").unwrap();
     session.set_formula_cell("J10").unwrap();
-    session.set_input("A1", InputValue::number(7.0).unwrap()).unwrap();
+    session
+        .set_input("A1", InputValue::number(7.0).unwrap())
+        .unwrap();
     for (formula, expected) in [
         ("=ISFORMULA(A1)", CalcValue::logical(false)),
         ("=FORMULATEXT(A1)", CalcValue::error(WorksheetErrorCode::NA)),
@@ -1618,49 +2992,92 @@ fn plain_input_facts_reach_the_existing_reference_functions() {
     ] {
         session.set_formula(formula);
         let calculated = session.calculate();
-        assert_eq!(calculated.result, Some(expected), "{formula}: {:?}", calculated.diagnostics);
+        assert_eq!(
+            calculated.result,
+            Some(expected),
+            "{formula}: {:?}",
+            calculated.diagnostics
+        );
         assert!(calculated.diagnostics.is_empty());
     }
     for row in 1..=4 {
-        session.set_input(&format!("A{row}"), InputValue::number(row as f64).unwrap()).unwrap();
+        session
+            .set_input(&format!("A{row}"), InputValue::number(row as f64).unwrap())
+            .unwrap();
     }
     for formula in ["=SUBTOTAL(9,A1:A4)", "=AGGREGATE(9,0,A1:A4)"] {
         session.set_formula(formula);
         let calculated = session.calculate();
-        assert_eq!(calculated.result, Some(CalcValue::number(10.0)),
-            "{formula}: {:?}", calculated.diagnostics);
+        assert_eq!(
+            calculated.result,
+            Some(CalcValue::number(10.0)),
+            "{formula}: {:?}",
+            calculated.diagnostics
+        );
         assert!(calculated.diagnostics.is_empty());
     }
     session.set_formula("=A1#");
     let calculated = session.calculate();
-    assert_eq!(calculated.result, Some(CalcValue::error(WorksheetErrorCode::Ref)),
-        "{:?}", calculated.diagnostics);
+    assert_eq!(
+        calculated.result,
+        Some(CalcValue::error(WorksheetErrorCode::Ref)),
+        "{:?}",
+        calculated.diagnostics
+    );
     assert!(calculated.diagnostics.is_empty());
     session.set_formula_cell("J20").unwrap();
-    session.set_input("A2", InputValue::text("2").unwrap()).unwrap();
+    session
+        .set_input("A2", InputValue::text("2").unwrap())
+        .unwrap();
     session.set_input("A3", InputValue::logical(true)).unwrap();
     session.set_input("A4", InputValue::blank()).unwrap();
-    session.set_input("A5", InputValue::number(4.0).unwrap()).unwrap();
-    for (selector, expected) in [(1.0, 2.5), (2.0, 2.0), (3.0, 4.0), (4.0, 4.0), (5.0, 1.0), (9.0, 5.0)] {
-        session.set_input("A100", InputValue::number(selector).unwrap()).unwrap();
+    session
+        .set_input("A5", InputValue::number(4.0).unwrap())
+        .unwrap();
+    for (selector, expected) in [
+        (1.0, 2.5),
+        (2.0, 2.0),
+        (3.0, 4.0),
+        (4.0, 4.0),
+        (5.0, 1.0),
+        (9.0, 5.0),
+    ] {
+        session
+            .set_input("A100", InputValue::number(selector).unwrap())
+            .unwrap();
         session.set_formula("=SUBTOTAL(A100,A1:A5)");
         let calculated = session.calculate();
-        assert_eq!(calculated.result, Some(CalcValue::number(expected)),
-            "SUBTOTAL {selector}: {:?}", calculated.diagnostics);
+        assert_eq!(
+            calculated.result,
+            Some(CalcValue::number(expected)),
+            "SUBTOTAL {selector}: {:?}",
+            calculated.diagnostics
+        );
         assert!(calculated.diagnostics.is_empty());
     }
     // Missing values still stop evaluation. A session has no workbook metadata for an
     // unset input, and this change does not infer the current formula's own cell kind.
-    for formula in ["=ISFORMULA(J20)", "=FORMULATEXT(Z99)", "=SUBTOTAL(9,A1:J20)", "=J20#", "=Z99#"] {
+    for formula in [
+        "=ISFORMULA(J20)",
+        "=FORMULATEXT(Z99)",
+        "=SUBTOTAL(9,A1:J20)",
+        "=J20#",
+        "=Z99#",
+    ] {
         session.set_formula(formula);
         assert!(session.calculate().result.is_none(), "{formula}");
     }
     session.set_formula("=SUBTOTAL(9,A1:A6)");
     let calculated = session.calculate();
     assert!(calculated.result.is_none());
-    assert!(calculated.diagnostics.iter().any(|d| matches!(d,
-        Diagnostic::Eval(EvalFault::MissingInput { .. })
-    )), "{:?}", calculated.diagnostics);
+    assert!(
+        calculated
+            .diagnostics
+            .iter()
+            .any(|d| matches!(d, Diagnostic::Eval(EvalFault::MissingInput { .. }))),
+        "{:?}",
+        calculated.diagnostics
+    );
 }
 
 /// W111 independent depreciation cases 00108/00111/00113/00114 and
@@ -1685,7 +3102,9 @@ fn recorded_scalar_errors_precede_depreciation_options() {
                     arguments.push("#N/A".to_owned());
                 } else {
                     let address = format!("A{cell}");
-                    session.set_input(&address, InputValue::number(f64::from_bits(*bits)).unwrap()).unwrap();
+                    session
+                        .set_input(&address, InputValue::number(f64::from_bits(*bits)).unwrap())
+                        .unwrap();
                     arguments.push(address);
                     cell += 1;
                 }
@@ -1694,8 +3113,12 @@ fn recorded_scalar_errors_precede_depreciation_options() {
             let formula = format!("={function}({})", arguments.join(","));
             session.set_formula(&formula);
             let calculated = session.calculate();
-            assert_eq!(calculated.result, Some(CalcValue::error(WorksheetErrorCode::NA)),
-                "{formula}: {:?}", calculated.diagnostics);
+            assert_eq!(
+                calculated.result,
+                Some(CalcValue::error(WorksheetErrorCode::NA)),
+                "{formula}: {:?}",
+                calculated.diagnostics
+            );
             assert!(calculated.diagnostics.is_empty());
         }
     }
@@ -1710,13 +3133,24 @@ fn recorded_scalar_values_survive_trimrange() {
     for (formula, expected) in [
         ("=TRIMRANGE(NA())", CalcValue::error(WorksheetErrorCode::NA)),
         ("=TRIMRANGE(2)", CalcValue::number(2.0)),
-        ("=TRIMRANGE(\"\")", CalcValue::text(calc_func::value::ExcelText::from_interop_assignment(""))),
-        ("=TRIMRANGE(\"2\")", CalcValue::text(calc_func::value::ExcelText::from_interop_assignment("2"))),
+        (
+            "=TRIMRANGE(\"\")",
+            CalcValue::text(calc_func::value::ExcelText::from_interop_assignment("")),
+        ),
+        (
+            "=TRIMRANGE(\"2\")",
+            CalcValue::text(calc_func::value::ExcelText::from_interop_assignment("2")),
+        ),
         ("=TRIMRANGE(TRUE)", CalcValue::logical(true)),
     ] {
         session.set_formula(formula);
         let calculated = session.calculate();
-        assert_eq!(calculated.result, Some(expected), "{formula}: {:?}", calculated.diagnostics);
+        assert_eq!(
+            calculated.result,
+            Some(expected),
+            "{formula}: {:?}",
+            calculated.diagnostics
+        );
         assert!(calculated.diagnostics.is_empty());
     }
 }
@@ -1737,34 +3171,55 @@ fn measured_unicode_numeric_text_spaces_return_value_errors() {
     }));
     session.set_formula_cell("J70").unwrap();
     for space in ['\u{00a0}', '\u{2003}', '\u{3000}'] {
-        for text in [format!("{space}1"), format!("1{space}"), format!("{space}1{space}"),
-            format!("1{space}%"), format!("({space}1)")] {
-            session.set_input("A1", InputValue::text(&text).unwrap()).unwrap();
+        for text in [
+            format!("{space}1"),
+            format!("1{space}"),
+            format!("{space}1{space}"),
+            format!("1{space}%"),
+            format!("({space}1)"),
+        ] {
+            session
+                .set_input("A1", InputValue::text(&text).unwrap())
+                .unwrap();
             for argument in ["A1".to_owned(), format!("\"{text}\"")] {
                 let formula = format!("=ADDRESS({argument},2,4,FALSE,\"Alpha\")");
                 session.set_formula(&formula);
                 let calculated = session.calculate();
-                assert_eq!(calculated.result, Some(CalcValue::error(WorksheetErrorCode::Value)),
-                    "{formula}: {:?}", calculated.diagnostics);
+                assert_eq!(
+                    calculated.result,
+                    Some(CalcValue::error(WorksheetErrorCode::Value)),
+                    "{formula}: {:?}",
+                    calculated.diagnostics
+                );
                 assert!(calculated.diagnostics.is_empty());
             }
         }
     }
     for text in ["\u{00a0}2", "2\u{00a0}"] {
-        session.set_input("A1", InputValue::text(text).unwrap()).unwrap();
+        session
+            .set_input("A1", InputValue::text(text).unwrap())
+            .unwrap();
         for argument in ["A1".to_owned(), format!("\"{text}\"")] {
             session.set_formula(&format!("=ABS({argument})"));
             let calculated = session.calculate();
-            assert_eq!(calculated.result, Some(CalcValue::error(WorksheetErrorCode::Value)),
-                "ABS({argument}): {:?}", calculated.diagnostics);
+            assert_eq!(
+                calculated.result,
+                Some(CalcValue::error(WorksheetErrorCode::Value)),
+                "ABS({argument}): {:?}",
+                calculated.diagnostics
+            );
             assert!(calculated.diagnostics.is_empty());
         }
     }
     for formula in ["=VALUE(\"1\u{00a0}234.5\")", "=VALUE(\"1\u{202f}234.5\")"] {
         session.set_formula(formula);
         let calculated = session.calculate();
-        assert_eq!(calculated.result, Some(CalcValue::error(WorksheetErrorCode::Value)),
-            "{formula}: {:?}", calculated.diagnostics);
+        assert_eq!(
+            calculated.result,
+            Some(CalcValue::error(WorksheetErrorCode::Value)),
+            "{formula}: {:?}",
+            calculated.diagnostics
+        );
         assert!(calculated.diagnostics.is_empty());
     }
 }
@@ -2931,32 +4386,80 @@ fn workbook_compatibility_version_controls_only_the_five_text_counters() {
         environment.compatibility_version = version;
         session.set_environment(Some(environment));
         for (formula, expected) in [
-            ("=LEN(\"A😀B\")", CalcValue::number(if version == 1 { 4.0 } else { 3.0 })),
-            ("=LEN(\"👩‍💻\")", CalcValue::number(if version == 1 { 5.0 } else { 3.0 })),
+            (
+                "=LEN(\"A😀B\")",
+                CalcValue::number(if version == 1 { 4.0 } else { 3.0 }),
+            ),
+            (
+                "=LEN(\"👩‍💻\")",
+                CalcValue::number(if version == 1 { 5.0 } else { 3.0 }),
+            ),
             ("=LENB(\"A😀B\")", CalcValue::number(4.0)),
-            ("=MID(\"A😀B\",2,1)", if version == 1 { units(&[0xD83D]) } else { units(&[0xD83D, 0xDE00]) }),
-            ("=MID(\"A😀B\",3,1)", if version == 1 { units(&[0xDE00]) } else { units(&[66]) }),
+            (
+                "=MID(\"A😀B\",2,1)",
+                if version == 1 {
+                    units(&[0xD83D])
+                } else {
+                    units(&[0xD83D, 0xDE00])
+                },
+            ),
+            (
+                "=MID(\"A😀B\",3,1)",
+                if version == 1 {
+                    units(&[0xDE00])
+                } else {
+                    units(&[66])
+                },
+            ),
             ("=MIDB(\"A😀B\",2,1)", units(&[0xD83D])),
-            ("=FIND(\"B\",\"A😀B\")", CalcValue::number(if version == 1 { 4.0 } else { 3.0 })),
+            (
+                "=FIND(\"B\",\"A😀B\")",
+                CalcValue::number(if version == 1 { 4.0 } else { 3.0 }),
+            ),
             ("=FINDB(\"B\",\"A😀B\")", CalcValue::number(4.0)),
-            ("=SEARCH(\"?B\",\"A😀B\",2)", if version == 1 { CalcValue::number(3.0) } else { CalcValue::error(calc_func::value::WorksheetErrorCode::Value) }),
+            (
+                "=SEARCH(\"?B\",\"A😀B\",2)",
+                if version == 1 {
+                    CalcValue::number(3.0)
+                } else {
+                    CalcValue::error(calc_func::value::WorksheetErrorCode::Value)
+                },
+            ),
             ("=SEARCH(\"??B\",\"A😀B\",2)", CalcValue::number(2.0)),
             ("=SEARCHB(\"?B\",\"A😀B\",2)", CalcValue::number(3.0)),
-            ("=REPLACE(\"A😀B\",2,1,\"x\")", if version == 1 { units(&[65,120,0xDE00,66]) } else { units(&[65,120,66]) }),
-            ("=REPLACEB(\"A😀B\",2,1,\"x\")", units(&[65,120,0xDE00,66])),
-            ("=LEFT(\"A😀B\",2)", units(&[65,0xD83D,0xDE00])),
-            ("=RIGHT(\"A😀B\",2)", units(&[0xD83D,0xDE00,66])),
+            (
+                "=REPLACE(\"A😀B\",2,1,\"x\")",
+                if version == 1 {
+                    units(&[65, 120, 0xDE00, 66])
+                } else {
+                    units(&[65, 120, 66])
+                },
+            ),
+            (
+                "=REPLACEB(\"A😀B\",2,1,\"x\")",
+                units(&[65, 120, 0xDE00, 66]),
+            ),
+            ("=LEFT(\"A😀B\",2)", units(&[65, 0xD83D, 0xDE00])),
+            ("=RIGHT(\"A😀B\",2)", units(&[0xD83D, 0xDE00, 66])),
         ] {
             session.set_formula(formula);
             let calculated = session.calculate();
-            assert_eq!(calculated.result, Some(expected), "version{version} {formula}: {:?}", calculated.diagnostics);
+            assert_eq!(
+                calculated.result,
+                Some(expected),
+                "version{version} {formula}: {:?}",
+                calculated.diagnostics
+            );
         }
     }
     let mut unsupported = CalcEnvironment::dates(DateSystem::System1900);
     unsupported.compatibility_version = 3;
     session.set_environment(Some(unsupported));
     session.set_formula("=LEN(\"A😀B\")");
-    assert!(session.calculate().result.is_none(), "an unsupported version must not choose an inferred counting policy");
+    assert!(
+        session.calculate().result.is_none(),
+        "an unsupported version must not choose an inferred counting policy"
+    );
 }
 
 /// Original W111 POWER width and reciprocal captures: every base-minus-one reading
@@ -2969,7 +4472,8 @@ fn recorded_power_unit_boundaries_use_the_kernel() {
     use calc_func::locale::{CalcEnvironment, DateSystem};
     let set = calc_verdict::WitnessSet::decode(include_bytes!(
         "../../../crates/calc-func/tests/witnesses/POWER.json"
-    )).unwrap();
+    ))
+    .unwrap();
     let mut environment = CalcEnvironment::dates(DateSystem::System1900);
     environment.compatibility_version = 2;
     let mut session = Session::new("Sheet1").unwrap();
@@ -2979,31 +4483,58 @@ fn recorded_power_unit_boundaries_use_the_kernel() {
     let mut subnormal_rows = 0;
     let mut failures = Vec::new();
     for row in &set.witnesses {
-        let args: Vec<_> = row.args.iter().map(|value|
-            calc_verdict::decode_argument(value, "POWER").unwrap().as_number().unwrap()
-        ).collect();
+        let args: Vec<_> = row
+            .args
+            .iter()
+            .map(|value| {
+                calc_verdict::decode_argument(value, "POWER")
+                    .unwrap()
+                    .as_number()
+                    .unwrap()
+            })
+            .collect();
         let expected = calc_verdict::decode_result(&row.expected).unwrap();
-        let unit_boundary = args[0] == -1.0
-            || (matches!(row.reading.as_str(), "r1" | "r3") && args[1] == -1.0);
+        let unit_boundary =
+            args[0] == -1.0 || (matches!(row.reading.as_str(), "r1" | "r3") && args[1] == -1.0);
         let subnormal_result = expected.as_number().is_some_and(|n| n.is_subnormal());
-        if !unit_boundary && !subnormal_result { continue; }
+        if !unit_boundary && !subnormal_result {
+            continue;
+        }
         assert!(!(unit_boundary && subnormal_result));
-        if unit_boundary { rows += 1; } else { subnormal_rows += 1; }
-        session.set_input("A1", InputValue::number(args[0]).unwrap()).unwrap();
-        session.set_input("B1", InputValue::number(args[1]).unwrap()).unwrap();
+        if unit_boundary {
+            rows += 1;
+        } else {
+            subnormal_rows += 1;
+        }
+        session
+            .set_input("A1", InputValue::number(args[0]).unwrap())
+            .unwrap();
+        session
+            .set_input("B1", InputValue::number(args[1]).unwrap())
+            .unwrap();
         for formula in ["=POWER(A1,B1)", "=A1^B1"] {
             session.set_formula(formula);
             let result = session.calculate();
             if result.result.as_ref() != Some(&expected) || !result.diagnostics.is_empty() {
-                failures.push(format!("{} {formula}: expected {expected:?}, calculated {:?}; {:?}",
-                    row.id, result.result, result.diagnostics));
+                failures.push(format!(
+                    "{} {formula}: expected {expected:?}, calculated {:?}; {:?}",
+                    row.id, result.result, result.diagnostics
+                ));
             }
         }
     }
     assert_eq!(rows, 1098, "all unchanged source observations must run");
-    assert_eq!(subnormal_rows, 4, "all original r3 subnormal observations must run");
-    assert!(failures.is_empty(), "{} of {} application checks differ:\n{}",
-        failures.len(), 2 * (rows + subnormal_rows), failures.join("\n"));
+    assert_eq!(
+        subnormal_rows, 4,
+        "all original r3 subnormal observations must run"
+    );
+    assert!(
+        failures.is_empty(),
+        "{} of {} application checks differ:\n{}",
+        failures.len(),
+        2 * (rows + subnormal_rows),
+        failures.join("\n")
+    );
 }
 
 /// Original W111 MEDIAN cancellation results from normal inputs, including every
@@ -3013,34 +4544,52 @@ fn recorded_power_unit_boundaries_use_the_kernel() {
 fn recorded_median_subnormal_results_use_the_kernel() {
     let set = calc_verdict::WitnessSet::decode(include_bytes!(
         "../../../crates/calc-func/tests/witnesses/MEDIAN.json"
-    )).unwrap();
+    ))
+    .unwrap();
     let mut session = Session::new("Sheet1").unwrap();
     session.set_formula_cell("J20").unwrap();
     let mut rows = 0;
     let mut failures = Vec::new();
     for row in &set.witnesses {
         let expected = calc_verdict::decode_result(&row.expected).unwrap();
-        if !expected.as_number().is_some_and(|n| n.is_subnormal()) { continue; }
+        if !expected.as_number().is_some_and(|n| n.is_subnormal()) {
+            continue;
+        }
         assert_eq!(row.args.len(), 2);
         for (cell, argument) in ["A1", "B1"].into_iter().zip(&row.args) {
             let number = calc_verdict::decode_argument(argument, "MEDIAN")
-                .unwrap().as_number().unwrap();
-            assert!(number.is_normal(), "{}: normal inputs distinguish publication", row.id);
-            session.set_input(cell, InputValue::number(number).unwrap()).unwrap();
+                .unwrap()
+                .as_number()
+                .unwrap();
+            assert!(
+                number.is_normal(),
+                "{}: normal inputs distinguish publication",
+                row.id
+            );
+            session
+                .set_input(cell, InputValue::number(number).unwrap())
+                .unwrap();
         }
         rows += 1;
         for formula in ["=MEDIAN(A1,B1)", "=MEDIAN(A1:B1)", "=MEDIAN(HSTACK(A1,B1))"] {
             session.set_formula(formula);
             let result = session.calculate();
             if result.result.as_ref() != Some(&expected) || !result.diagnostics.is_empty() {
-                failures.push(format!("{} {formula}: expected {expected:?}, calculated {:?}; {:?}",
-                    row.id, result.result, result.diagnostics));
+                failures.push(format!(
+                    "{} {formula}: expected {expected:?}, calculated {:?}; {:?}",
+                    row.id, result.result, result.diagnostics
+                ));
             }
         }
     }
     assert_eq!(rows, 167, "every original subnormal observation must run");
-    assert!(failures.is_empty(), "{} of {} application checks differ:\n{}",
-        failures.len(), 3 * rows, failures.join("\n"));
+    assert!(
+        failures.is_empty(),
+        "{} of {} application checks differ:\n{}",
+        failures.len(),
+        3 * rows,
+        failures.join("\n")
+    );
 }
 
 /// All original real-axis tangent/cotangent readings and the independently
@@ -3050,10 +4599,22 @@ fn recorded_median_subnormal_results_use_the_kernel() {
 fn recorded_complex_real_axes_use_the_scalar_primitives() {
     use calc_func::value::CoreRef;
     let sets: &[(&str, &[u8])] = &[
-        ("IMTAN", include_bytes!("../../../crates/calc-func/tests/witnesses/IMTAN.json")),
-        ("IMCOT", include_bytes!("../../../crates/calc-func/tests/witnesses/IMCOT.json")),
-        ("IMLOG10", include_bytes!("../../../crates/calc-func/tests/witnesses/IMLOG10.json")),
-        ("IMLOG2", include_bytes!("../../../crates/calc-func/tests/witnesses/IMLOG2.json")),
+        (
+            "IMTAN",
+            include_bytes!("../../../crates/calc-func/tests/witnesses/IMTAN.json"),
+        ),
+        (
+            "IMCOT",
+            include_bytes!("../../../crates/calc-func/tests/witnesses/IMCOT.json"),
+        ),
+        (
+            "IMLOG10",
+            include_bytes!("../../../crates/calc-func/tests/witnesses/IMLOG10.json"),
+        ),
+        (
+            "IMLOG2",
+            include_bytes!("../../../crates/calc-func/tests/witnesses/IMLOG2.json"),
+        ),
     ];
     let mut session = Session::new("Sheet1").unwrap();
     session.set_formula_cell("J20").unwrap();
@@ -3075,14 +4636,23 @@ fn recorded_complex_real_axes_use_the_scalar_primitives() {
             let result = session.calculate();
             rows += 1;
             if result.result.as_ref() != Some(&expected) || !result.diagnostics.is_empty() {
-                failures.push(format!("{}: expected {expected:?}, calculated {:?}; {:?}",
-                    row.id, result.result, result.diagnostics));
+                failures.push(format!(
+                    "{}: expected {expected:?}, calculated {:?}; {:?}",
+                    row.id, result.result, result.diagnostics
+                ));
             }
         }
     }
-    assert_eq!(rows, 5270, "every unchanged source observation and new control must run");
-    assert!(failures.is_empty(), "{} of {rows} application checks differ:\n{}",
-        failures.len(), failures.join("\n"));
+    assert_eq!(
+        rows, 5270,
+        "every unchanged source observation and new control must run"
+    );
+    assert!(
+        failures.is_empty(),
+        "{} of {rows} application checks differ:\n{}",
+        failures.len(),
+        failures.join("\n")
+    );
 }
 
 /// Normal inputs distinguish EXP's measured output publication from input handling.
@@ -3091,30 +4661,43 @@ fn recorded_complex_real_axes_use_the_scalar_primitives() {
 fn recorded_exp_subnormal_results_use_the_kernel() {
     let set = calc_verdict::WitnessSet::decode(include_bytes!(
         "../../../crates/calc-func/tests/witnesses/EXP.json"
-    )).unwrap();
+    ))
+    .unwrap();
     let mut session = Session::new("Sheet1").unwrap();
     session.set_formula_cell("J20").unwrap();
     session.set_formula("=EXP(A1)");
     let mut rows = 0;
     let mut failures = Vec::new();
     for row in &set.witnesses {
-        if !row.reading.starts_with("fn10-") { continue; }
+        if !row.reading.starts_with("fn10-") {
+            continue;
+        }
         assert_eq!(row.args.len(), 1);
         let input = calc_verdict::decode_argument(&row.args[0], "EXP")
-            .unwrap().as_number().unwrap();
+            .unwrap()
+            .as_number()
+            .unwrap();
         assert!(input == 0.0 || input.is_normal());
-        session.set_input("A1", InputValue::number(input).unwrap()).unwrap();
+        session
+            .set_input("A1", InputValue::number(input).unwrap())
+            .unwrap();
         let expected = calc_verdict::decode_result(&row.expected).unwrap();
         let result = session.calculate();
         rows += 1;
         if result.result.as_ref() != Some(&expected) || !result.diagnostics.is_empty() {
-            failures.push(format!("{}: expected {expected:?}, calculated {:?}; {:?}",
-                row.id, result.result, result.diagnostics));
+            failures.push(format!(
+                "{}: expected {expected:?}, calculated {:?}; {:?}",
+                row.id, result.result, result.diagnostics
+            ));
         }
     }
     assert_eq!(rows, 59, "all original outputs and fresh controls must run");
-    assert!(failures.is_empty(), "{} of {rows} application checks differ:\n{}",
-        failures.len(), failures.join("\n"));
+    assert!(
+        failures.is_empty(),
+        "{} of {rows} application checks differ:\n{}",
+        failures.len(),
+        failures.join("\n")
+    );
 }
 
 /// Equal positive inputs retain their common value, including the original
@@ -3124,23 +4707,30 @@ fn recorded_exp_subnormal_results_use_the_kernel() {
 fn recorded_geomean_equal_inputs_keep_their_value() {
     let set = calc_verdict::WitnessSet::decode(include_bytes!(
         "../../../crates/calc-func/tests/witnesses/GEOMEAN.json"
-    )).unwrap();
+    ))
+    .unwrap();
     let mut session = Session::new("Sheet1").unwrap();
     session.set_formula_cell("J20").unwrap();
     let mut rows = 0;
     let mut failures = Vec::new();
     for row in &set.witnesses {
-        if !row.reading.starts_with("fn10-equal-") { continue; }
+        if !row.reading.starts_with("fn10-equal-") {
+            continue;
+        }
         let expected = calc_verdict::decode_result(&row.expected).unwrap();
         let common = expected.as_number().unwrap();
         assert!(common.is_normal() && common > 0.0);
         let mut cells = Vec::new();
         for (index, argument) in row.args.iter().enumerate() {
             let number = calc_verdict::decode_argument(argument, "GEOMEAN")
-                .unwrap().as_number().unwrap();
+                .unwrap()
+                .as_number()
+                .unwrap();
             assert_eq!(number.to_bits(), common.to_bits());
             let cell = format!("A{}", index + 1);
-            session.set_input(&cell, InputValue::number(number).unwrap()).unwrap();
+            session
+                .set_input(&cell, InputValue::number(number).unwrap())
+                .unwrap();
             cells.push(cell);
         }
         let arguments = cells.join(",");
@@ -3152,15 +4742,25 @@ fn recorded_geomean_equal_inputs_keep_their_value() {
             session.set_formula(&formula);
             let result = session.calculate();
             if result.result.as_ref() != Some(&expected) || !result.diagnostics.is_empty() {
-                failures.push(format!("{} {formula}: expected {expected:?}, calculated {:?}; {:?}",
-                    row.id, result.result, result.diagnostics));
+                failures.push(format!(
+                    "{} {formula}: expected {expected:?}, calculated {:?}; {:?}",
+                    row.id, result.result, result.diagnostics
+                ));
             }
         }
         rows += 1;
     }
-    assert_eq!(rows, 176, "every original equal-positive observation and fresh control must run");
-    assert!(failures.is_empty(), "{} of {} application checks differ:\n{}",
-        failures.len(), 3 * rows, failures.join("\n"));
+    assert_eq!(
+        rows, 176,
+        "every original equal-positive observation and fresh control must run"
+    );
+    assert!(
+        failures.is_empty(),
+        "{} of {} application checks differ:\n{}",
+        failures.len(),
+        3 * rows,
+        failures.join("\n")
+    );
 }
 
 /// Original zero, signed-unit and overflowing finite-real controls distinguish
@@ -3169,10 +4769,22 @@ fn recorded_geomean_equal_inputs_keep_their_value() {
 #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
 fn recorded_complex_hyperbolics_keep_the_real_axis() {
     let sets: &[(&str, &[u8])] = &[
-        ("IMSINH", include_bytes!("../../../crates/calc-func/tests/witnesses/IMSINH.json")),
-        ("IMCOSH", include_bytes!("../../../crates/calc-func/tests/witnesses/IMCOSH.json")),
-        ("IMCSCH", include_bytes!("../../../crates/calc-func/tests/witnesses/IMCSCH.json")),
-        ("IMSECH", include_bytes!("../../../crates/calc-func/tests/witnesses/IMSECH.json")),
+        (
+            "IMSINH",
+            include_bytes!("../../../crates/calc-func/tests/witnesses/IMSINH.json"),
+        ),
+        (
+            "IMCOSH",
+            include_bytes!("../../../crates/calc-func/tests/witnesses/IMCOSH.json"),
+        ),
+        (
+            "IMCSCH",
+            include_bytes!("../../../crates/calc-func/tests/witnesses/IMCSCH.json"),
+        ),
+        (
+            "IMSECH",
+            include_bytes!("../../../crates/calc-func/tests/witnesses/IMSECH.json"),
+        ),
     ];
     let mut session = Session::new("Sheet1").unwrap();
     session.set_formula_cell("J20").unwrap();
@@ -3182,25 +4794,50 @@ fn recorded_complex_hyperbolics_keep_the_real_axis() {
         let set = calc_verdict::WitnessSet::decode(bytes).unwrap();
         session.set_formula(&format!("={function}(A1)"));
         for row in &set.witnesses {
-            if !["fn10-hyperbolic-original", "fn11-hyperbolic-overflow"].contains(&row.reading.as_str()) { continue; }
+            if !["fn10-hyperbolic-original", "fn11-hyperbolic-overflow"]
+                .contains(&row.reading.as_str())
+            {
+                continue;
+            }
             let input = calc_verdict::decode_argument(&row.args[0], function)
-                .unwrap().as_number().unwrap();
+                .unwrap()
+                .as_number()
+                .unwrap();
             if row.reading == "fn10-hyperbolic-original"
-                && ![0.0_f64.to_bits(), 1.0_f64.to_bits(), (-1.0_f64).to_bits(), 1e100_f64.to_bits()]
-                .contains(&input.to_bits()) { continue; }
-            session.set_input("A1", InputValue::number(input).unwrap()).unwrap();
+                && ![
+                    0.0_f64.to_bits(),
+                    1.0_f64.to_bits(),
+                    (-1.0_f64).to_bits(),
+                    1e100_f64.to_bits(),
+                ]
+                .contains(&input.to_bits())
+            {
+                continue;
+            }
+            session
+                .set_input("A1", InputValue::number(input).unwrap())
+                .unwrap();
             let expected = calc_verdict::decode_result(&row.expected).unwrap();
             let result = session.calculate();
             rows += 1;
             if result.result.as_ref() != Some(&expected) || !result.diagnostics.is_empty() {
-                failures.push(format!("{}: expected {expected:?}, calculated {:?}; {:?}",
-                    row.id, result.result, result.diagnostics));
+                failures.push(format!(
+                    "{}: expected {expected:?}, calculated {:?}; {:?}",
+                    row.id, result.result, result.diagnostics
+                ));
             }
         }
     }
-    assert_eq!(rows, 168, "sixteen original and152 overflow controls must run");
-    assert!(failures.is_empty(), "{} of {rows} application checks differ:\n{}",
-        failures.len(), failures.join("\n"));
+    assert_eq!(
+        rows, 168,
+        "sixteen original and152 overflow controls must run"
+    );
+    assert!(
+        failures.is_empty(),
+        "{} of {rows} application checks differ:\n{}",
+        failures.len(),
+        failures.join("\n")
+    );
 }
 
 /// The original coefficient-publication arrays distinguish LOGEST's retained
@@ -3210,8 +4847,14 @@ fn recorded_complex_hyperbolics_keep_the_real_axis() {
 fn recorded_regression_publication_keeps_each_output_cell() {
     use calc_func::value::CoreRef;
     let sets: &[(&str, &[u8])] = &[
-        ("LOGEST", include_bytes!("../../../crates/calc-func/tests/witnesses/LOGEST.json")),
-        ("GROWTH", include_bytes!("../../../crates/calc-func/tests/witnesses/GROWTH.json")),
+        (
+            "LOGEST",
+            include_bytes!("../../../crates/calc-func/tests/witnesses/LOGEST.json"),
+        ),
+        (
+            "GROWTH",
+            include_bytes!("../../../crates/calc-func/tests/witnesses/GROWTH.json"),
+        ),
     ];
     let mut session = Session::new("Sheet1").unwrap();
     session.set_formula_cell("J20").unwrap();
@@ -3220,7 +4863,9 @@ fn recorded_regression_publication_keeps_each_output_cell() {
     for &(function, bytes) in sets {
         let set = calc_verdict::WitnessSet::decode(bytes).unwrap();
         for row in &set.witnesses {
-            if row.reading != "fn10-coefficient-publication" { continue; }
+            if row.reading != "fn10-coefficient-publication" {
+                continue;
+            }
             let mut references = Vec::new();
             for (index, argument) in row.args.iter().enumerate() {
                 let value = calc_verdict::decode_argument(argument, function).unwrap();
@@ -3229,7 +4874,9 @@ fn recorded_regression_publication_keeps_each_output_cell() {
                 match value.core_ref() {
                     CoreRef::Number(n) => {
                         assert!(n == 0.0 || n.is_normal());
-                        session.set_input(&first, InputValue::number(n).unwrap()).unwrap();
+                        session
+                            .set_input(&first, InputValue::number(n).unwrap())
+                            .unwrap();
                         references.push(first);
                     }
                     CoreRef::Array(array) => {
@@ -3239,10 +4886,16 @@ fn recorded_regression_publication_keeps_each_output_cell() {
                                 let n = cell.as_number().unwrap();
                                 assert!(n == 0.0 || n.is_normal());
                                 let address = format!("{}{}", char::from(column + c as u8), r + 1);
-                                session.set_input(&address, InputValue::number(n).unwrap()).unwrap();
+                                session
+                                    .set_input(&address, InputValue::number(n).unwrap())
+                                    .unwrap();
                             }
                         }
-                        let last = format!("{}{}", char::from(column + array.shape().cols as u8 - 1), array.shape().rows);
+                        let last = format!(
+                            "{}{}",
+                            char::from(column + array.shape().cols as u8 - 1),
+                            array.shape().rows
+                        );
                         references.push(format!("{first}:{last}"));
                     }
                     other => panic!("unexpected source argument {other:?}"),
@@ -3250,19 +4903,30 @@ fn recorded_regression_publication_keeps_each_output_cell() {
             }
             session.set_formula(&format!("={function}({})", references.join(",")));
             let result = session.calculate();
-            let actual = result.result.as_ref()
+            let actual = result
+                .result
+                .as_ref()
                 .and_then(|value| calc_verdict::select_result(value, row.result_index));
             let expected = calc_verdict::decode_result(&row.expected).unwrap();
             rows += 1;
             if actual.as_ref() != Some(&expected) || !result.diagnostics.is_empty() {
-                failures.push(format!("{}: expected {expected:?}, calculated {actual:?}; {:?}",
-                    row.id, result.diagnostics));
+                failures.push(format!(
+                    "{}: expected {expected:?}, calculated {actual:?}; {:?}",
+                    row.id, result.diagnostics
+                ));
             }
         }
     }
-    assert_eq!(rows, 9, "all original coefficient and forecast output cells must run");
-    assert!(failures.is_empty(), "{} of {rows} application checks differ:\n{}",
-        failures.len(), failures.join("\n"));
+    assert_eq!(
+        rows, 9,
+        "all original coefficient and forecast output cells must run"
+    );
+    assert!(
+        failures.is_empty(),
+        "{} of {rows} application checks differ:\n{}",
+        failures.len(),
+        failures.join("\n")
+    );
 }
 
 /// The four fresh normal-boundary matrices retain exact inputs, every typed Excel answer,
@@ -3279,33 +4943,59 @@ fn recorded_directed_initial_underflow_uses_the_kernel() {
     let mut rows = 0;
     let mut failures = Vec::new();
     for (function, bytes) in [
-        ("ROUND", include_bytes!("../../../crates/calc-func/tests/witnesses/ROUND.json").as_slice()),
-        ("ROUNDUP", include_bytes!("../../../crates/calc-func/tests/witnesses/ROUNDUP.json").as_slice()),
-        ("ROUNDDOWN", include_bytes!("../../../crates/calc-func/tests/witnesses/ROUNDDOWN.json").as_slice()),
-        ("TRUNC", include_bytes!("../../../crates/calc-func/tests/witnesses/TRUNC.json").as_slice()),
+        (
+            "ROUND",
+            include_bytes!("../../../crates/calc-func/tests/witnesses/ROUND.json").as_slice(),
+        ),
+        (
+            "ROUNDUP",
+            include_bytes!("../../../crates/calc-func/tests/witnesses/ROUNDUP.json").as_slice(),
+        ),
+        (
+            "ROUNDDOWN",
+            include_bytes!("../../../crates/calc-func/tests/witnesses/ROUNDDOWN.json").as_slice(),
+        ),
+        (
+            "TRUNC",
+            include_bytes!("../../../crates/calc-func/tests/witnesses/TRUNC.json").as_slice(),
+        ),
     ] {
         let set = calc_verdict::WitnessSet::decode(bytes).unwrap();
         session.set_formula(&format!("={function}(A1,B1)"));
-        for row in set.witnesses.iter().filter(|r| r.reading == "fn12-normal-boundary-live") {
+        for row in set
+            .witnesses
+            .iter()
+            .filter(|r| r.reading == "fn12-normal-boundary-live")
+        {
             assert_eq!(row.args.len(), 2);
             for (cell, argument) in ["A1", "B1"].into_iter().zip(&row.args) {
                 let number = calc_verdict::decode_argument(argument, function)
-                    .unwrap().as_number().unwrap();
+                    .unwrap()
+                    .as_number()
+                    .unwrap();
                 assert!(number == 0.0 || number.is_normal());
-                session.set_input(cell, InputValue::number(number).unwrap()).unwrap();
+                session
+                    .set_input(cell, InputValue::number(number).unwrap())
+                    .unwrap();
             }
             let expected = calc_verdict::decode_result(&row.expected).unwrap();
             let result = session.calculate();
             rows += 1;
             if result.result.as_ref() != Some(&expected) || !result.diagnostics.is_empty() {
-                failures.push(format!("{}: expected {expected:?}, calculated {:?}; {:?}",
-                    row.id, result.result, result.diagnostics));
+                failures.push(format!(
+                    "{}: expected {expected:?}, calculated {:?}; {:?}",
+                    row.id, result.result, result.diagnostics
+                ));
             }
         }
     }
     assert_eq!(rows, 1664, "every original service answer must run");
-    assert!(failures.is_empty(), "{} of {rows} application checks differ:\n{}",
-        failures.len(), failures.join("\n"));
+    assert!(
+        failures.is_empty(),
+        "{} of {rows} application checks differ:\n{}",
+        failures.len(),
+        failures.join("\n")
+    );
 }
 
 /// Qualified Excel answers cover the reciprocal payment pole, first-period interest,
@@ -3322,34 +5012,60 @@ fn recorded_financial_ordering_uses_the_kernel() {
     let mut rows = 0;
     let mut failures = Vec::new();
     for (function, bytes) in [
-        ("PMT", include_bytes!("../../../crates/calc-func/tests/witnesses/PMT.json").as_slice()),
-        ("IPMT", include_bytes!("../../../crates/calc-func/tests/witnesses/IPMT.json").as_slice()),
-        ("PPMT", include_bytes!("../../../crates/calc-func/tests/witnesses/PPMT.json").as_slice()),
+        (
+            "PMT",
+            include_bytes!("../../../crates/calc-func/tests/witnesses/PMT.json").as_slice(),
+        ),
+        (
+            "IPMT",
+            include_bytes!("../../../crates/calc-func/tests/witnesses/IPMT.json").as_slice(),
+        ),
+        (
+            "PPMT",
+            include_bytes!("../../../crates/calc-func/tests/witnesses/PPMT.json").as_slice(),
+        ),
     ] {
         let set = calc_verdict::WitnessSet::decode(bytes).unwrap();
         let count = if function == "PMT" { 5 } else { 6 };
         let cells = ["A1", "B1", "C1", "D1", "E1", "F1"];
         session.set_formula(&format!("={function}({})", cells[..count].join(",")));
-        for row in set.witnesses.iter().filter(|r| r.reading.starts_with("fn12-financial-ordering-")) {
+        for row in set
+            .witnesses
+            .iter()
+            .filter(|r| r.reading.starts_with("fn12-financial-ordering-"))
+        {
             assert_eq!(row.args.len(), count);
             for (cell, argument) in cells.into_iter().zip(&row.args) {
                 let number = calc_verdict::decode_argument(argument, function)
-                    .unwrap().as_number().unwrap();
+                    .unwrap()
+                    .as_number()
+                    .unwrap();
                 assert!(number == 0.0 || number.is_normal());
-                session.set_input(cell, InputValue::number(number).unwrap()).unwrap();
+                session
+                    .set_input(cell, InputValue::number(number).unwrap())
+                    .unwrap();
             }
             let expected = calc_verdict::decode_result(&row.expected).unwrap();
             let result = session.calculate();
             rows += 1;
             if result.result.as_ref() != Some(&expected) || !result.diagnostics.is_empty() {
-                failures.push(format!("{}: expected {expected:?}, calculated {:?}; {:?}",
-                    row.id, result.result, result.diagnostics));
+                failures.push(format!(
+                    "{}: expected {expected:?}, calculated {:?}; {:?}",
+                    row.id, result.result, result.diagnostics
+                ));
             }
         }
     }
-    assert_eq!(rows, 198, "every selected financial service answer must run");
-    assert!(failures.is_empty(), "{} of {rows} application checks differ:\n{}",
-        failures.len(), failures.join("\n"));
+    assert_eq!(
+        rows, 198,
+        "every selected financial service answer must run"
+    );
+    assert!(
+        failures.is_empty(),
+        "{} of {rows} application checks differ:\n{}",
+        failures.len(),
+        failures.join("\n")
+    );
 }
 
 /// Every input-selected NUMBERVALUE grammar and conversion control runs through
@@ -3362,30 +5078,46 @@ fn recorded_numbervalue_scientific_grammar_uses_the_kernel() {
     let mut session = Session::new("Sheet1").unwrap();
     let mut environment = CalcEnvironment::dates(DateSystem::System1900);
     environment.compatibility_version = 2;
-    environment.profile = Some(format_profile(LocaleId::EnZa).with_separators(".", " ").unwrap());
+    environment.profile = Some(
+        format_profile(LocaleId::EnZa)
+            .with_separators(".", " ")
+            .unwrap(),
+    );
     session.set_environment(Some(environment));
     session.set_formula_cell("J20").unwrap();
     session.set_formula("=NUMBERVALUE(A1,B1,C1)");
     let set = calc_verdict::WitnessSet::decode(include_bytes!(
         "../../../crates/calc-func/tests/witnesses/NUMBERVALUE.json"
-    )).unwrap();
+    ))
+    .unwrap();
     let mut rows = 0;
     let mut failures = Vec::new();
     for row in &set.witnesses {
         assert_eq!(row.args.len(), 3);
         for (cell, argument) in ["A1", "B1", "C1"].into_iter().zip(&row.args) {
-            session.set_input(cell, InputValue::text(argument.as_str().unwrap()).unwrap()).unwrap();
+            session
+                .set_input(cell, InputValue::text(argument.as_str().unwrap()).unwrap())
+                .unwrap();
         }
         let pinned = row.calc_func.as_deref().unwrap_or(&row.expected);
         let expected = calc_verdict::decode_result(pinned).unwrap();
         let result = session.calculate();
         rows += 1;
         if result.result.as_ref() != Some(&expected) || !result.diagnostics.is_empty() {
-            failures.push(format!("{}: Excel {}, pinned {pinned}, calculated {:?}; {:?}",
-                row.id, row.expected, result.result, result.diagnostics));
+            failures.push(format!(
+                "{}: Excel {}, pinned {pinned}, calculated {:?}; {:?}",
+                row.id, row.expected, result.result, result.diagnostics
+            ));
         }
     }
-    assert_eq!(rows, 366, "every selected NUMBERVALUE service answer must run");
-    assert!(failures.is_empty(), "{} of {rows} application pins differ:\n{}",
-        failures.len(), failures.join("\n"));
+    assert_eq!(
+        rows, 366,
+        "every selected NUMBERVALUE service answer must run"
+    );
+    assert!(
+        failures.is_empty(),
+        "{} of {rows} application pins differ:\n{}",
+        failures.len(),
+        failures.join("\n")
+    );
 }

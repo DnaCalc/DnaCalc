@@ -17,19 +17,19 @@
 //! refuses one. OFFSET's result is a reference that the formula's own references do not name:
 //! the caller learns what it read from the evaluator, as for INDIRECT.
 
-use super::{CatalogueEntry, Family, Kernel};
 #[cfg(test)]
 use super::FunctionId;
+use super::{CatalogueEntry, Family, Kernel};
 use crate::call::{EvalServices, FunctionFault};
 use crate::kernel::{Exit, Site, Step};
 use crate::value::{
-    CalcArray, CalcValue, CellKey, CoreRef, GridArea, MAX_COLUMNS, MAX_ROWS,
-    ReferenceLike, WorksheetErrorCode,
+    CalcArray, CalcValue, CellKey, CoreRef, GridArea, MAX_COLUMNS, MAX_ROWS, ReferenceLike,
+    WorksheetErrorCode,
 };
 use std::ops::ControlFlow;
 
-use calc_catalogue::offset::{CODE, ENTRIES as DECLARATIONS, ISOMITTED, OFFSET, TRIMRANGE};
 use calc_catalogue::WorksheetDeclaration;
+use calc_catalogue::offset::{CODE, ENTRIES as DECLARATIONS, ISOMITTED, OFFSET, TRIMRANGE};
 
 const fn attach(data: WorksheetDeclaration) -> CatalogueEntry {
     let kernel = match data.id.raw() {
@@ -39,16 +39,31 @@ const fn attach(data: WorksheetDeclaration) -> CatalogueEntry {
         _ => panic!("a worksheet declaration has no attached kernel or refusal"),
     };
     CatalogueEntry {
-        id: data.id, spelling: data.spelling, notation: data.notation,
-        kind: data.kind, availability: data.availability,
-        arity: data.arity, groups: data.groups, parameters: data.parameters,
-        result: data.result, demand: data.demand, traits: data.traits, kernel,
+        id: data.id,
+        spelling: data.spelling,
+        notation: data.notation,
+        kind: data.kind,
+        availability: data.availability,
+        arity: data.arity,
+        groups: data.groups,
+        parameters: data.parameters,
+        result: data.result,
+        demand: data.demand,
+        traits: data.traits,
+        kernel,
     }
 }
 
-const ENTRIES: [CatalogueEntry; 3] = [attach(DECLARATIONS[0]), attach(DECLARATIONS[1]), attach(DECLARATIONS[2])];
+const ENTRIES: [CatalogueEntry; 3] = [
+    attach(DECLARATIONS[0]),
+    attach(DECLARATIONS[1]),
+    attach(DECLARATIONS[2]),
+];
 const _: () = assert!(DECLARATIONS.len() == ENTRIES.len());
-pub(super) const FAMILY: Family = Family { code: CODE, entries: &ENTRIES };
+pub(super) const FAMILY: Family = Family {
+    code: CODE,
+    entries: &ENTRIES,
+};
 
 fn offset(
     arguments: &[CalcValue],
@@ -157,7 +172,10 @@ fn trimrange(
         };
         let (rows, cols) = (mode(1)?, mode(2)?);
         // The retained unswept scalar controls keep their number, text or logical value.
-        if matches!(arguments[0].core_ref(), CoreRef::Number(_) | CoreRef::Text(_) | CoreRef::Logical(_)) {
+        if matches!(
+            arguments[0].core_ref(),
+            CoreRef::Number(_) | CoreRef::Text(_) | CoreRef::Logical(_)
+        ) {
             return Ok(Err(Ok(arguments[0].clone())));
         }
         if let CoreRef::Array(array) = arguments[0].core_ref() {
@@ -379,11 +397,27 @@ mod declaration_equivalence {
     fn original_entries_equal_shared_declarations() {
         let mut actual = String::new();
         for member in 1..=3 {
-            let t = catalogue().resolve(FunctionId::from_raw((40 << 16) | member)).unwrap();
-            actual.push_str(&format!("{}\t{}\t{:?}\t{:?}\t{:?}\t{:?}\t{:?}\t{:?}\t{:?}\t{:?}\t{:?}\n",
-                t.id().raw(), t.spelling(), t.notation(), t.kind(), t.availability(), t.implementation(),
-                t.arity(), t.result_form(), t.argument_demand(), t.traits(), t.signature_help()));
+            let t = catalogue()
+                .resolve(FunctionId::from_raw((40 << 16) | member))
+                .unwrap();
+            actual.push_str(&format!(
+                "{}\t{}\t{:?}\t{:?}\t{:?}\t{:?}\t{:?}\t{:?}\t{:?}\t{:?}\t{:?}\n",
+                t.id().raw(),
+                t.spelling(),
+                t.notation(),
+                t.kind(),
+                t.availability(),
+                t.implementation(),
+                t.arity(),
+                t.result_form(),
+                t.argument_demand(),
+                t.traits(),
+                t.signature_help()
+            ));
         }
-        assert_eq!(actual, include_str!("../../../calc-catalogue/tests/fixtures/offset-before.tsv"));
+        assert_eq!(
+            actual,
+            include_str!("../../../calc-catalogue/tests/fixtures/offset-before.tsv")
+        );
     }
 }

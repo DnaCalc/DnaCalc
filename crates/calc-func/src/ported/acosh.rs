@@ -12,7 +12,9 @@ pub fn acosh_kernel(n: f64) -> Result<f64, WorksheetErrorCode> {
     if !(n * n).is_finite() {
         return Err(WorksheetErrorCode::Num);
     }
-    Ok(crate::ported::excel_numeric::excel_log(n + (n * n - 1.0).sqrt()))
+    Ok(crate::ported::excel_numeric::excel_log(
+        n + (n * n - 1.0).sqrt(),
+    ))
 }
 
 #[cfg(test)]

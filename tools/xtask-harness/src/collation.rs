@@ -66,33 +66,68 @@ struct ProbePair {
 }
 
 fn probe_pairs(value: &serde_json::Value) -> Result<Vec<ProbePair>, String> {
-    let entries = value.as_array().filter(|a| !a.is_empty() && a.len() <= 10_000)
+    let entries = value
+        .as_array()
+        .filter(|a| !a.is_empty() && a.len() <= 10_000)
         .ok_or("expected 1..10000 pairs")?;
     let mut ids = std::collections::BTreeSet::new();
-    entries.iter().map(|entry| {
-        let fields = entry.as_object().ok_or("expected a pair object")?;
-        if fields.len() != 3 || !["id", "left_utf16", "right_utf16"].iter().all(|key| fields.contains_key(*key)) {
-            return Err("expected only id, left_utf16 and right_utf16".to_owned());
-        }
-        let id = entry["id"].as_str().filter(|s| !s.is_empty())
-            .ok_or("expected a nonempty question id")?;
-        if !ids.insert(id) { return Err(format!("duplicate question id: {id}")); }
-        let units = |field: &str| -> Result<Vec<u16>, String> {
-            entry[field].as_array().filter(|a| !a.is_empty() && a.len() <= 128)
-                .ok_or_else(|| format!("{id}: {field} needs 1..128 UTF-16 code units"))?
-                .iter().map(|unit| unit.as_u64().and_then(|n| u16::try_from(n).ok())
-                    .ok_or_else(|| format!("{id}: {field} needs unsigned UTF-16 code units"))).collect()
-        };
-        Ok(ProbePair { id: id.to_owned(), left: units("left_utf16")?, right: units("right_utf16")? })
-    }).collect()
+    entries
+        .iter()
+        .map(|entry| {
+            let fields = entry.as_object().ok_or("expected a pair object")?;
+            if fields.len() != 3
+                || !["id", "left_utf16", "right_utf16"]
+                    .iter()
+                    .all(|key| fields.contains_key(*key))
+            {
+                return Err("expected only id, left_utf16 and right_utf16".to_owned());
+            }
+            let id = entry["id"]
+                .as_str()
+                .filter(|s| !s.is_empty())
+                .ok_or("expected a nonempty question id")?;
+            if !ids.insert(id) {
+                return Err(format!("duplicate question id: {id}"));
+            }
+            let units = |field: &str| -> Result<Vec<u16>, String> {
+                entry[field]
+                    .as_array()
+                    .filter(|a| !a.is_empty() && a.len() <= 128)
+                    .ok_or_else(|| format!("{id}: {field} needs 1..128 UTF-16 code units"))?
+                    .iter()
+                    .map(|unit| {
+                        unit.as_u64()
+                            .and_then(|n| u16::try_from(n).ok())
+                            .ok_or_else(|| {
+                                format!("{id}: {field} needs unsigned UTF-16 code units")
+                            })
+                    })
+                    .collect()
+            };
+            Ok(ProbePair {
+                id: id.to_owned(),
+                left: units("left_utf16")?,
+                right: units("right_utf16")?,
+            })
+        })
+        .collect()
 }
 
 /// Number of matching ASCII code units consumed by the first pass. A shorter text ending at
 /// this position makes the pass decide by length; otherwise Windows receives both suffixes.
 #[cfg_attr(not(any(windows, test)), allow(dead_code))]
 fn ascii_prefix_len(a: &[u16], b: &[u16]) -> usize {
-    let fold = |unit: u16| if (0x61..=0x7a).contains(&unit) { unit - 0x20 } else { unit };
-    a.iter().zip(b).take_while(|(x, y)| **x <= 0x7a && **y <= 0x7a && fold(**x) == fold(**y)).count()
+    let fold = |unit: u16| {
+        if (0x61..=0x7a).contains(&unit) {
+            unit - 0x20
+        } else {
+            unit
+        }
+    };
+    a.iter()
+        .zip(b)
+        .take_while(|(x, y)| **x <= 0x7a && **y <= 0x7a && fold(**x) == fold(**y))
+        .count()
 }
 
 fn probe(input: &str, output: &str) -> Result<ExitCode, String> {
@@ -115,7 +150,10 @@ pub fn run(raw: &[String]) -> ExitCode {
         Some((command, rest)) if command == "probe" => match rest {
             [input, flag, output] if flag == "--out" => match probe(input, output) {
                 Ok(code) => code,
-                Err(error) => { eprintln!("xtask collation probe: {error}"); ExitCode::FAILURE }
+                Err(error) => {
+                    eprintln!("xtask collation probe: {error}");
+                    ExitCode::FAILURE
+                }
             },
             _ => usage(),
         },
@@ -220,10 +258,18 @@ mod windows {
 
     /// Native observations only. Excel's workbook readings select the applicable comparison;
     /// the current two-pass hypothesis is not recorded as an Excel answer.
-    pub fn probe(pairs: &[super::ProbePair], input: &str, output: &str) -> Result<ExitCode, String> {
-        use std::io::Write;
+    pub fn probe(
+        pairs: &[super::ProbePair],
+        input: &str,
+        output: &str,
+    ) -> Result<ExitCode, String> {
         use serde_json::json;
-        let order = |value: Ordering| match value { Ordering::Less => -1, Ordering::Equal => 0, Ordering::Greater => 1 };
+        use std::io::Write;
+        let order = |value: Ordering| match value {
+            Ordering::Less => -1,
+            Ordering::Equal => 0,
+            Ordering::Greater => 1,
+        };
         let measure = |left: &[u16], right: &[u16]| {
             let left_key = key(left);
             let right_key = key(right);
@@ -263,11 +309,18 @@ mod windows {
             "rows": rows,
         });
         let bytes = serde_json::to_vec_pretty(&observation).map_err(|e| e.to_string())?;
-        let mut file = std::fs::OpenOptions::new().write(true).create_new(true).open(output)
+        let mut file = std::fs::OpenOptions::new()
+            .write(true)
+            .create_new(true)
+            .open(output)
             .map_err(|e| format!("{output}: {e}"))?;
-        file.write_all(&bytes).and_then(|()| file.write_all(b"\n"))
+        file.write_all(&bytes)
+            .and_then(|()| file.write_all(b"\n"))
             .map_err(|e| format!("{output}: {e}"))?;
-        println!("xtask collation probe: wrote {} native NLS pair observations to {output}; no Excel observations", pairs.len());
+        println!(
+            "xtask collation probe: wrote {} native NLS pair observations to {output}; no Excel observations",
+            pairs.len()
+        );
         Ok(ExitCode::SUCCESS)
     }
 
@@ -1770,7 +1823,8 @@ mod probe_tests {
     /// Native-only: this command reads native NLS evidence and is part of xtask-harness.
     #[test]
     fn probe_input_preserves_raw_units_and_rejects_ambiguous_pairs() {
-        let pair = serde_json::json!({"id":"q1", "left_utf16":[55296, 0, 4352], "right_utf16":[44032]});
+        let pair =
+            serde_json::json!({"id":"q1", "left_utf16":[55296, 0, 4352], "right_utf16":[44032]});
         let parsed = probe_pairs(&serde_json::json!([pair])).unwrap();
         assert_eq!(parsed[0].id, "q1");
         assert_eq!(parsed[0].left, [0xd800, 0, 0x1100]);

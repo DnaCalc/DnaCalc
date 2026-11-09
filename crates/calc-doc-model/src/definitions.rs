@@ -161,17 +161,17 @@ pub struct ModelMeasure {
 /// A table (ListObject) of a sheet, as its table part declares it.
 #[derive(Clone, Debug, PartialEq, Eq, Hash)]
 pub struct Table {
-    pub id:u32,
-    pub style:TableStyle,
-    pub filter:Option<crate::AutoFilter>,
-    pub totals_functions:Vec<Option<String>>,
-    pub totals_labels:Vec<Option<String>>,
+    pub id: u32,
+    pub style: TableStyle,
+    pub filter: Option<crate::AutoFilter>,
+    pub totals_functions: Vec<Option<String>>,
+    pub totals_labels: Vec<Option<String>>,
     /// Calculated columns and other unmodelled table children retain their source.
-    pub opaque:bool,
+    pub opaque: bool,
     /// Imported metadata whose axis references cannot be kept consistent.
-    pub axis_opaque:bool,
+    pub axis_opaque: bool,
     /// Calculated-column sources, anchored at the first data row.
-    pub column_formulas:Vec<Option<String>>,
+    pub column_formulas: Vec<Option<String>>,
     /// The table's `name`.
     pub name: String,
     /// The table's `displayName`, the name structured references use.
@@ -189,14 +189,21 @@ pub struct Table {
     pub columns: Vec<String>,
 }
 
-#[derive(Clone,Debug,Default,PartialEq,Eq,Hash)]
-pub struct TableStyle {pub name:Option<String>,pub first_column:bool,pub last_column:bool,pub row_stripes:bool,pub column_stripes:bool}
+#[derive(Clone, Debug, Default, PartialEq, Eq, Hash)]
+pub struct TableStyle {
+    pub name: Option<String>,
+    pub first_column: bool,
+    pub last_column: bool,
+    pub row_stripes: bool,
+    pub column_stripes: bool,
+}
 impl TableStyle {
     /// The six accent variants of the supported medium band/header preset.
     pub fn medium_accent_theme(&self) -> Option<u32> {
         let name = self.name.as_deref()?;
         let index = name.strip_prefix("TableStyleMedium")?.parse::<u32>().ok()?;
-        ((2..=7).contains(&index) && name == format!("TableStyleMedium{index}")).then_some(index + 2)
+        ((2..=7).contains(&index) && name == format!("TableStyleMedium{index}"))
+            .then_some(index + 2)
     }
 }
 
@@ -379,7 +386,7 @@ pub struct Definitions {
     review: BTreeMap<SheetId, Vec<crate::ReviewNote>>,
     links: BTreeMap<SheetId, Vec<crate::ReviewLink>>,
     page_setups: BTreeMap<SheetId, crate::PageSetup>,
-    charts: BTreeMap<SheetId,std::sync::Arc<[crate::Chart]>>,
+    charts: BTreeMap<SheetId, std::sync::Arc<[crate::Chart]>>,
     pivots: std::sync::Arc<crate::pivot::PivotState>,
     data_model: Option<std::sync::Arc<DataModel>>,
     axis_layouts: crate::AxisLayouts,
@@ -405,7 +412,9 @@ pub struct Definitions {
 }
 
 impl Definitions {
-    pub fn pivots(&self)->&std::sync::Arc<crate::pivot::PivotState>{&self.pivots}
+    pub fn pivots(&self) -> &std::sync::Arc<crate::pivot::PivotState> {
+        &self.pivots
+    }
     pub fn data_model(&self) -> Option<&std::sync::Arc<DataModel>> {
         self.data_model.as_ref()
     }
@@ -417,15 +426,45 @@ impl Definitions {
         self.data_model = Some(model);
         self
     }
-    pub fn with_pivots(mut self,state:std::sync::Arc<crate::pivot::PivotState>)->Self{self.pivots=state;self}
+    pub fn with_pivots(mut self, state: std::sync::Arc<crate::pivot::PivotState>) -> Self {
+        self.pivots = state;
+        self
+    }
 
-    pub fn page_setup(&self, sheet: SheetId) -> crate::PageSetup { self.page_setups.get(&sheet).cloned().unwrap_or_default() }
-    pub fn page_setups(&self) -> impl Iterator<Item=(SheetId, &crate::PageSetup)> { self.page_setups.iter().map(|(s,p)| (*s,p)) }
-    pub fn with_page_setup(mut self, sheet: SheetId, setup: crate::PageSetup) -> Self { if setup == crate::PageSetup::default() { self.page_setups.remove(&sheet); } else { self.page_setups.insert(sheet,setup); } self }
+    pub fn page_setup(&self, sheet: SheetId) -> crate::PageSetup {
+        self.page_setups.get(&sheet).cloned().unwrap_or_default()
+    }
+    pub fn page_setups(&self) -> impl Iterator<Item = (SheetId, &crate::PageSetup)> {
+        self.page_setups.iter().map(|(s, p)| (*s, p))
+    }
+    pub fn with_page_setup(mut self, sheet: SheetId, setup: crate::PageSetup) -> Self {
+        if setup == crate::PageSetup::default() {
+            self.page_setups.remove(&sheet);
+        } else {
+            self.page_setups.insert(sheet, setup);
+        }
+        self
+    }
 
-    pub fn charts(&self,sheet:SheetId)->&[crate::Chart] {self.charts.get(&sheet).map(|charts|charts.as_ref()).unwrap_or(&[])}
-    pub fn all_charts(&self)->impl Iterator<Item=(SheetId,&[crate::Chart])> {self.charts.iter().map(|(sheet,charts)|(*sheet,charts.as_ref()))}
-    pub fn with_charts(mut self,sheet:SheetId,charts:Vec<crate::Chart>)->Self {if charts.is_empty(){self.charts.remove(&sheet);}else{self.charts.insert(sheet,charts.into());}self}
+    pub fn charts(&self, sheet: SheetId) -> &[crate::Chart] {
+        self.charts
+            .get(&sheet)
+            .map(|charts| charts.as_ref())
+            .unwrap_or(&[])
+    }
+    pub fn all_charts(&self) -> impl Iterator<Item = (SheetId, &[crate::Chart])> {
+        self.charts
+            .iter()
+            .map(|(sheet, charts)| (*sheet, charts.as_ref()))
+    }
+    pub fn with_charts(mut self, sheet: SheetId, charts: Vec<crate::Chart>) -> Self {
+        if charts.is_empty() {
+            self.charts.remove(&sheet);
+        } else {
+            self.charts.insert(sheet, charts.into());
+        }
+        self
+    }
 
     pub fn styles(&self) -> &std::sync::Arc<crate::StyleTable> {
         &self.styles
@@ -436,25 +475,35 @@ impl Definitions {
     }
 
     pub fn validations(&self, sheet: SheetId) -> &[crate::Validation] {
-        self.validations.get(&sheet).map(Vec::as_slice).unwrap_or(&[])
+        self.validations
+            .get(&sheet)
+            .map(Vec::as_slice)
+            .unwrap_or(&[])
     }
     pub fn all_validations(&self) -> impl Iterator<Item = (SheetId, &[crate::Validation])> {
         self.validations.iter().map(|(s, v)| (*s, v.as_slice()))
     }
     pub fn with_validations(mut self, sheet: SheetId, rules: Vec<crate::Validation>) -> Self {
-        if rules.is_empty() { self.validations.remove(&sheet); }
-        else { self.validations.insert(sheet, rules); }
+        if rules.is_empty() {
+            self.validations.remove(&sheet);
+        } else {
+            self.validations.insert(sheet, rules);
+        }
         self
     }
 
     pub fn review_links(&self, sheet: SheetId) -> &[crate::ReviewLink] {
         self.links.get(&sheet).map(Vec::as_slice).unwrap_or(&[])
     }
-    pub fn all_review_links(&self) -> impl Iterator<Item=(SheetId,&[crate::ReviewLink])> {
-        self.links.iter().map(|(s,links)|(*s,links.as_slice()))
+    pub fn all_review_links(&self) -> impl Iterator<Item = (SheetId, &[crate::ReviewLink])> {
+        self.links.iter().map(|(s, links)| (*s, links.as_slice()))
     }
-    pub fn with_review_links(mut self, sheet:SheetId, links:Vec<crate::ReviewLink>)->Self {
-        if links.is_empty(){self.links.remove(&sheet);}else{self.links.insert(sheet,links);}
+    pub fn with_review_links(mut self, sheet: SheetId, links: Vec<crate::ReviewLink>) -> Self {
+        if links.is_empty() {
+            self.links.remove(&sheet);
+        } else {
+            self.links.insert(sheet, links);
+        }
         self
     }
     pub fn review_notes(&self, sheet: SheetId) -> &[crate::ReviewNote] {
@@ -502,73 +551,128 @@ impl Definitions {
     pub fn with_axis_format(self, edit: crate::AxisFormatEdit) -> Self {
         self.with_axis_formats([edit])
     }
-    pub fn with_axis_formats(mut self, edits: impl IntoIterator<Item=crate::AxisFormatEdit>) -> Self {
-        let mut rows=std::collections::BTreeSet::new();
-        let mut outline_sheets=std::collections::BTreeSet::new();
+    pub fn with_axis_formats(
+        mut self,
+        edits: impl IntoIterator<Item = crate::AxisFormatEdit>,
+    ) -> Self {
+        let mut rows = std::collections::BTreeSet::new();
+        let mut outline_sheets = std::collections::BTreeSet::new();
         for edit in edits {
-            if edit.axis()==crate::Axis::Rows {
-                let old=self.axis_layouts.get(edit.sheet(),edit.axis(),edit.index());
-                rows.insert((edit.sheet(),edit.index()));
-                if old.outline_level()!=edit.format().outline_level() || old.collapsed()!=edit.format().collapsed() || edit.summary_after().is_some() {
+            if edit.axis() == crate::Axis::Rows {
+                let old = self
+                    .axis_layouts
+                    .get(edit.sheet(), edit.axis(), edit.index());
+                rows.insert((edit.sheet(), edit.index()));
+                if old.outline_level() != edit.format().outline_level()
+                    || old.collapsed() != edit.format().collapsed()
+                    || edit.summary_after().is_some()
+                {
                     outline_sheets.insert(edit.sheet());
                 }
             }
             self.axis_layouts.set(edit);
         }
         for sheet in outline_sheets {
-            rows.extend(self.axis_layouts.bands(sheet,crate::Axis::Rows).map(|(r,_)|(sheet,r)));
-            rows.extend(self.hidden_rows.range((sheet,1)..=(sheet,1048576)).map(|(key,_)|*key));
+            rows.extend(
+                self.axis_layouts
+                    .bands(sheet, crate::Axis::Rows)
+                    .map(|(r, _)| (sheet, r)),
+            );
+            rows.extend(
+                self.hidden_rows
+                    .range((sheet, 1)..=(sheet, 1048576))
+                    .map(|(key, _)| *key),
+            );
         }
-        let outlined=self.axis_layouts.outlined();
-        for (sheet,row) in rows {
-            if self.filters.get(&sheet).is_some_and(|f|f.filtered_rows.contains(&row)) || (self.hidden_rows.get(&(sheet,row))==Some(&RowHidden::Filtered) && self.tables().iter().any(|t|t.sheet==sheet && row>t.area.first().row() && row<=t.area.last().row())) {
-                self.hidden_rows.insert((sheet,row),RowHidden::Filtered);
-            } else if outlined.get(sheet,crate::Axis::Rows,row).hidden() {
-                self.hidden_rows.insert((sheet,row),RowHidden::Manual);
-            } else { self.hidden_rows.remove(&(sheet,row)); }
+        let outlined = self.axis_layouts.outlined();
+        for (sheet, row) in rows {
+            if self
+                .filters
+                .get(&sheet)
+                .is_some_and(|f| f.filtered_rows.contains(&row))
+                || (self.hidden_rows.get(&(sheet, row)) == Some(&RowHidden::Filtered)
+                    && self.tables().iter().any(|t| {
+                        t.sheet == sheet && row > t.area.first().row() && row <= t.area.last().row()
+                    }))
+            {
+                self.hidden_rows.insert((sheet, row), RowHidden::Filtered);
+            } else if outlined.get(sheet, crate::Axis::Rows, row).hidden() {
+                self.hidden_rows.insert((sheet, row), RowHidden::Manual);
+            } else {
+                self.hidden_rows.remove(&(sheet, row));
+            }
         }
         self
     }
 
-    pub fn auto_filter(&self, sheet: SheetId) -> Option<&crate::AutoFilter> { self.filters.get(&sheet) }
-    pub fn auto_filters(&self) -> impl Iterator<Item=(SheetId, &crate::AutoFilter)> { self.filters.iter().map(|(s,f)|(*s,f)) }
+    pub fn auto_filter(&self, sheet: SheetId) -> Option<&crate::AutoFilter> {
+        self.filters.get(&sheet)
+    }
+    pub fn auto_filters(&self) -> impl Iterator<Item = (SheetId, &crate::AutoFilter)> {
+        self.filters.iter().map(|(s, f)| (*s, f))
+    }
     pub fn with_auto_filter(mut self, sheet: SheetId, filter: Option<crate::AutoFilter>) -> Self {
-        let outlined=self.axis_layouts.outlined();
+        let outlined = self.axis_layouts.outlined();
         if let Some(old) = self.filters.remove(&sheet) {
             for row in old.filtered_rows {
-                let key=(sheet,row);
-                if self.tables.iter().filter(|t|t.sheet==sheet).any(|t|t.filter.as_ref().is_some_and(|f|f.filtered_rows.contains(&row))){self.hidden_rows.insert(key,RowHidden::Filtered);}else if outlined.get(sheet, crate::Axis::Rows, row).hidden() { self.hidden_rows.insert(key, RowHidden::Manual); }
-                else { self.hidden_rows.remove(&key); }
+                let key = (sheet, row);
+                if self.tables.iter().filter(|t| t.sheet == sheet).any(|t| {
+                    t.filter
+                        .as_ref()
+                        .is_some_and(|f| f.filtered_rows.contains(&row))
+                }) {
+                    self.hidden_rows.insert(key, RowHidden::Filtered);
+                } else if outlined.get(sheet, crate::Axis::Rows, row).hidden() {
+                    self.hidden_rows.insert(key, RowHidden::Manual);
+                } else {
+                    self.hidden_rows.remove(&key);
+                }
             }
         }
         if let Some(filter) = filter {
-            for row in &filter.filtered_rows { self.hidden_rows.insert((sheet,*row), RowHidden::Filtered); }
+            for row in &filter.filtered_rows {
+                self.hidden_rows.insert((sheet, *row), RowHidden::Filtered);
+            }
             self.filters.insert(sheet, filter);
         }
         self
     }
     /// Physical visibility includes filtering; the authored axis table retains manual hiding.
     pub fn visible_axis_layouts(&self) -> crate::AxisLayouts {
-        let mut layouts=self.axis_layouts.outlined();
-        for ((sheet,row),why) in &self.hidden_rows {
+        let mut layouts = self.axis_layouts.outlined();
+        for ((sheet, row), why) in &self.hidden_rows {
             if *why == RowHidden::Filtered {
-                let format=layouts.get(*sheet,crate::Axis::Rows,*row).with_hidden(true);
-                layouts.set(crate::AxisFormatEdit::new(*sheet,crate::Axis::Rows,*row,format).expect("valid hidden row"));
+                let format = layouts
+                    .get(*sheet, crate::Axis::Rows, *row)
+                    .with_hidden(true);
+                layouts.set(
+                    crate::AxisFormatEdit::new(*sheet, crate::Axis::Rows, *row, format)
+                        .expect("valid hidden row"),
+                );
             }
         }
         layouts
     }
     pub fn frozen_panes(&self, sheet: SheetId) -> Option<crate::FrozenPanes> {
-        match self.pane_layout(sheet) {Some(crate::PaneLayout::Frozen(p))=>Some(p),_=>None}
+        match self.pane_layout(sheet) {
+            Some(crate::PaneLayout::Frozen(p)) => Some(p),
+            _ => None,
+        }
     }
     pub fn panes(&self) -> impl Iterator<Item = (SheetId, crate::FrozenPanes)> + '_ {
-        self.panes.iter().filter_map(|(&s,&p)| match p {crate::PaneLayout::Frozen(p)=>Some((s,p)),_=>None})
+        self.panes.iter().filter_map(|(&s, &p)| match p {
+            crate::PaneLayout::Frozen(p) => Some((s, p)),
+            _ => None,
+        })
     }
     pub fn with_panes(
         mut self,
         panes: impl IntoIterator<Item = (SheetId, crate::FrozenPanes)>,
     ) -> Self {
-        self.panes = panes.into_iter().map(|(s,p)|(s,crate::PaneLayout::Frozen(p))).collect();
+        self.panes = panes
+            .into_iter()
+            .map(|(s, p)| (s, crate::PaneLayout::Frozen(p)))
+            .collect();
         self
     }
     pub fn with_frozen_panes(mut self, sheet: SheetId, panes: Option<crate::FrozenPanes>) -> Self {
@@ -579,11 +683,26 @@ impl Definitions {
         }
         self
     }
-    pub fn pane_layout(&self, sheet:SheetId)->Option<crate::PaneLayout> {self.panes.get(&sheet).copied()}
-    pub fn pane_layouts(&self)->impl Iterator<Item=(SheetId,crate::PaneLayout)>+'_ {self.panes.iter().map(|(&s,&p)|(s,p))}
-    pub fn with_pane_layouts(mut self, panes:impl IntoIterator<Item=(SheetId,crate::PaneLayout)>)->Self {self.panes=panes.into_iter().collect();self}
-    pub fn with_pane_layout(mut self, sheet:SheetId, layout:Option<crate::PaneLayout>)->Self {
-        if let Some(layout)=layout {self.panes.insert(sheet,layout);}else{self.panes.remove(&sheet);} self
+    pub fn pane_layout(&self, sheet: SheetId) -> Option<crate::PaneLayout> {
+        self.panes.get(&sheet).copied()
+    }
+    pub fn pane_layouts(&self) -> impl Iterator<Item = (SheetId, crate::PaneLayout)> + '_ {
+        self.panes.iter().map(|(&s, &p)| (s, p))
+    }
+    pub fn with_pane_layouts(
+        mut self,
+        panes: impl IntoIterator<Item = (SheetId, crate::PaneLayout)>,
+    ) -> Self {
+        self.panes = panes.into_iter().collect();
+        self
+    }
+    pub fn with_pane_layout(mut self, sheet: SheetId, layout: Option<crate::PaneLayout>) -> Self {
+        if let Some(layout) = layout {
+            self.panes.insert(sheet, layout);
+        } else {
+            self.panes.remove(&sheet);
+        }
+        self
     }
     pub fn new(
         arrays: impl IntoIterator<Item = ArrayFormula>,
@@ -808,7 +927,9 @@ impl Definitions {
         self.review.remove(&sheet);
         self.links.remove(&sheet);
         self.charts.remove(&sheet);
-        std::sync::Arc::make_mut(&mut self.pivots).sheets.remove(&sheet);
+        std::sync::Arc::make_mut(&mut self.pivots)
+            .sheets
+            .remove(&sheet);
         self.page_setups.remove(&sheet);
         if self.styles.runs.iter().any(|r| r.area.sheet() == sheet) {
             let mut styles = (*self.styles).clone();
@@ -846,7 +967,8 @@ impl Definitions {
         self.review.is_empty()
             && self.links.is_empty()
             && self.charts.is_empty()
-            && self.pivots.tables().next().is_none() && self.pivots.caches.caches.is_empty()
+            && self.pivots.tables().next().is_none()
+            && self.pivots.caches.caches.is_empty()
             && self.page_setups.is_empty()
             && self.validations.is_empty()
             && self.conditional.is_empty()
@@ -900,12 +1022,33 @@ impl Definitions {
         self.names.as_slice()
     }
 
-    pub fn with_tables(mut self,tables:Vec<Table>)->Self {
-        let mut rows=std::collections::BTreeSet::new();
-        for t in self.tables.iter().chain(tables.iter()){if let Some(f)=&t.filter{rows.extend(f.filtered_rows.iter().map(|r|(t.sheet,*r)));}}
-        self.tables=tables;
-        let outlined=self.axis_layouts.outlined();
-        for (sheet,row) in rows {let filtered=self.filters.get(&sheet).is_some_and(|f|f.filtered_rows.contains(&row))||self.tables.iter().filter(|t|t.sheet==sheet).any(|t|t.filter.as_ref().is_some_and(|f|f.filtered_rows.contains(&row)));if filtered{self.hidden_rows.insert((sheet,row),RowHidden::Filtered);}else if outlined.get(sheet,crate::Axis::Rows,row).hidden(){self.hidden_rows.insert((sheet,row),RowHidden::Manual);}else{self.hidden_rows.remove(&(sheet,row));}}
+    pub fn with_tables(mut self, tables: Vec<Table>) -> Self {
+        let mut rows = std::collections::BTreeSet::new();
+        for t in self.tables.iter().chain(tables.iter()) {
+            if let Some(f) = &t.filter {
+                rows.extend(f.filtered_rows.iter().map(|r| (t.sheet, *r)));
+            }
+        }
+        self.tables = tables;
+        let outlined = self.axis_layouts.outlined();
+        for (sheet, row) in rows {
+            let filtered = self
+                .filters
+                .get(&sheet)
+                .is_some_and(|f| f.filtered_rows.contains(&row))
+                || self.tables.iter().filter(|t| t.sheet == sheet).any(|t| {
+                    t.filter
+                        .as_ref()
+                        .is_some_and(|f| f.filtered_rows.contains(&row))
+                });
+            if filtered {
+                self.hidden_rows.insert((sheet, row), RowHidden::Filtered);
+            } else if outlined.get(sheet, crate::Axis::Rows, row).hidden() {
+                self.hidden_rows.insert((sheet, row), RowHidden::Manual);
+            } else {
+                self.hidden_rows.remove(&(sheet, row));
+            }
+        }
         self
     }
     pub fn tables(&self) -> &[Table] {

@@ -32,7 +32,6 @@ pub fn lcm_int(a: i64, b: i64) -> Result<i64, WorksheetErrorCode> {
 mod tests {
     use super::*;
 
-
     #[cfg_attr(not(target_arch = "wasm32"), test)]
     #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
     fn gcd_and_lcm_basic_lanes() {

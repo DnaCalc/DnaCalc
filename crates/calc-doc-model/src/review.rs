@@ -3,11 +3,14 @@ use crate::value::{CellKey, GridArea};
 
 #[derive(Clone, Debug, PartialEq, Eq, Hash)]
 pub enum ReviewSource {
-    NewNote { part:String, id:String },
+    NewNote {
+        part: String,
+        id: String,
+    },
     Note {
         part: String,
         origin: CellKey,
-        uid:Option<String>,
+        uid: Option<String>,
     },
     Thread {
         part: String,
@@ -21,7 +24,9 @@ pub enum ReviewSource {
 impl ReviewSource {
     pub fn part(&self) -> &str {
         match self {
-            Self::Note { part, .. } | Self::Thread { part, .. } | Self::NewNote {part,..} => part,
+            Self::Note { part, .. } | Self::Thread { part, .. } | Self::NewNote { part, .. } => {
+                part
+            }
         }
     }
     pub fn threaded(&self) -> bool {
@@ -39,7 +44,7 @@ pub struct ReviewNote {
     /// Text carrying mentions or unsupported annotations is preserved until their offsets can move.
     pub editable: bool,
     /// Text annotations whose offsets this editor cannot transform.
-    pub annotated:bool,
+    pub annotated: bool,
     /// Legacy compatibility text for a threaded comment, retained but not a second annotation.
     pub compatibility: bool,
 }
@@ -213,7 +218,9 @@ impl ReviewNote {
     }
 }
 pub fn note_segments(note: &ReviewNote) -> Vec<(String, NoteStyle)> {
-    if !note.valid_spans(){return vec![(note.text.clone(),NoteStyle::default())];}
+    if !note.valid_spans() {
+        return vec![(note.text.clone(), NoteStyle::default())];
+    }
     let units: Vec<_> = note.text.encode_utf16().collect();
     let mut out = Vec::new();
     let mut at = 0usize;

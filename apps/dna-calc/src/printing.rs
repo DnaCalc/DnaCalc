@@ -130,12 +130,74 @@ fn Region(
         })
         .collect::<Vec<_>>()
         .join("; ");
-    let chart_views=document.charts.iter().filter_map(|chart|{
-        let (x,y,width,height)=match &chart.place {wire::ChartPlace::Cells{from,to}=>{let x=metrics.col_start(from.0.3)+from.1;let y=metrics.row_start(from.0.2)+from.2;(x,y,metrics.col_start(to.0.3)+to.1-x,metrics.row_start(to.0.2)+to.2-y)},wire::ChartPlace::Sized{from,width,height}=>(metrics.col_start(from.0.3)+from.1,metrics.row_start(from.0.2)+from.2,*width,*height),wire::ChartPlace::Absolute{x,y,width,height}=>(*x,*y,*width,*height)};
-        let x=x-viewport.scroll_x;let y=y-viewport.scroll_y;if x+width<=0.||y+height<=0.||x>=region.width||y>=region.height{return None;}
-        let style=format!("position:absolute;left:{x}px;top:{y}px;width:{width}px;height:{height}px");Some(view!{<div role="img" aria-label=chart.name.clone() use:css=style inner_html=chart.svg.clone()></div>})
-    }).collect_view();
-    view! {<div class="dc-print-region" data-dnacalc="print-region" data-range=address(region.area) use:css=style><canvas node_ref=canvas role="img" aria-label=format!("Worksheet cells {}. First shown values: {sample}",address(region.area)) use:css=format!("width:{}px;height:{}px",region.width,region.height)></canvas>{chart_views}</div>}
+    let chart_views = document
+        .charts
+        .iter()
+        .filter_map(|chart| {
+            let (x, y, width, height) = match &chart.place {
+                wire::ChartPlace::Cells { from, to } => {
+                    let x = metrics.col_start(from.0.3) + from.1;
+                    let y = metrics.row_start(from.0.2) + from.2;
+                    (
+                        x,
+                        y,
+                        metrics.col_start(to.0.3) + to.1 - x,
+                        metrics.row_start(to.0.2) + to.2 - y,
+                    )
+                }
+                wire::ChartPlace::Sized {
+                    from,
+                    width,
+                    height,
+                } => (
+                    metrics.col_start(from.0.3) + from.1,
+                    metrics.row_start(from.0.2) + from.2,
+                    *width,
+                    *height,
+                ),
+                wire::ChartPlace::Absolute {
+                    x,
+                    y,
+                    width,
+                    height,
+                } => (*x, *y, *width, *height),
+            };
+            let x = x - viewport.scroll_x;
+            let y = y - viewport.scroll_y;
+            if x + width <= 0. || y + height <= 0. || x >= region.width || y >= region.height {
+                return None;
+            }
+            let style =
+                format!("position:absolute;left:{x}px;top:{y}px;width:{width}px;height:{height}px");
+            Some(view! {
+                <div
+                    role="img"
+                    aria-label=chart.name.clone()
+                    use:css=style
+                    inner_html=chart.svg.clone()
+                ></div>
+            })
+        })
+        .collect_view();
+    view! {
+        <div
+            class="dc-print-region"
+            data-dnacalc="print-region"
+            data-range=address(region.area)
+            use:css=style
+        >
+            <canvas
+                node_ref=canvas
+                role="img"
+                aria-label=format!(
+                    "Worksheet cells {}. First shown values: {sample}",
+                    address(region.area),
+                )
+                use:css=format!("width:{}px;height:{}px", region.width, region.height)
+            ></canvas>
+            {chart_views}
+        </div>
+    }
 }
 fn header_view(
     document: &PrintDocument,
@@ -177,9 +239,55 @@ fn header_view(
         if footer { "bottom" } else { "top" },
         document.plan.margins[if footer { 5 } else { 4 }]
     );
-    Ok(view!{<div class=if footer{"dc-print-footer"}else{"dc-print-header"} data-dnacalc=if footer{"print-footer"}else{"print-header"} use:css=style>{runs.into_iter().map(|runs|view!{<span>{runs.into_iter().map(|r|{
-        let style=format!("font-family:{};font-size:{}pt;font-weight:{};font-style:{};color:{};text-decoration-line:{};text-decoration-style:{};vertical-align:{}",crate::grid::print_family(&r.font),r.points*factor,if r.bold{"700"}else{"400"},if r.italic{"italic"}else{"normal"},r.color,if r.underline>0&&r.strike{"underline line-through"}else if r.underline>0{"underline"}else if r.strike{"line-through"}else{"none"},if r.underline==2{"double"}else{"solid"},if r.script>0{"super"}else if r.script<0{"sub"}else{"baseline"});view!{<span use:css=style>{r.text}</span>}
-    }).collect_view()}</span>}).collect_view()}</div>}.into_any())
+    Ok(view! {
+        <div
+            class=if footer { "dc-print-footer" } else { "dc-print-header" }
+            data-dnacalc=if footer { "print-footer" } else { "print-header" }
+            use:css=style
+        >
+            {runs
+                .into_iter()
+                .map(|runs| {
+                    view! {
+                        <span>
+                            {runs
+                                .into_iter()
+                                .map(|r| {
+                                    let style = format!(
+                                        "font-family:{};font-size:{}pt;font-weight:{};font-style:{};\
+                                        color:{};text-decoration-line:{};text-decoration-style:{};vertical-align:{}",
+                                        crate::grid::print_family(&r.font),
+                                        r.points * factor,
+                                        if r.bold { "700" } else { "400" },
+                                        if r.italic { "italic" } else { "normal" },
+                                        r.color,
+                                        if r.underline > 0 && r.strike {
+                                            "underline line-through"
+                                        } else if r.underline > 0 {
+                                            "underline"
+                                        } else if r.strike {
+                                            "line-through"
+                                        } else {
+                                            "none"
+                                        },
+                                        if r.underline == 2 { "double" } else { "solid" },
+                                        if r.script > 0 {
+                                            "super"
+                                        } else if r.script < 0 {
+                                            "sub"
+                                        } else {
+                                            "baseline"
+                                        },
+                                    );
+                                    view! { <span use:css=style>{r.text}</span> }
+                                })
+                                .collect_view()}
+                        </span>
+                    }
+                })
+                .collect_view()}
+        </div>
+    }.into_any())
 }
 #[component]
 fn Paper(
@@ -206,9 +314,9 @@ fn Paper(
         page.offset_x, page.offset_y, page.width, page.height, document.plan.scale
     );
     let header = header_view(&document, &page, index, false, &date, &time)
-        .unwrap_or_else(|e| view! {<p role="alert">{e}</p>}.into_any());
+        .unwrap_or_else(|e| view! { <p role="alert">{e}</p> }.into_any());
     let footer = header_view(&document, &page, index, true, &date, &time)
-        .unwrap_or_else(|e| view! {<p role="alert">{e}</p>}.into_any());
+        .unwrap_or_else(|e| view! { <p role="alert">{e}</p> }.into_any());
     let headings = document.settings.flag("printOptions", "headings", false);
     let m = sheet_metrics(Some(&document.geometry));
     let mut labels = Vec::new();
@@ -223,9 +331,11 @@ fn Paper(
                             region.y + m.row_start(row) - m.row_start(region.area.0.2),
                             m.header_w
                         );
-                        labels.push(
-                            view! {<span class="dc-print-heading" use:css=style>{row.to_string()}</span>},
-                        );
+                        labels.push(view! {
+                            <span class="dc-print-heading" use:css=style>
+                                {row.to_string()}
+                            </span>
+                        });
                     }
                 }
             }
@@ -238,7 +348,11 @@ fn Paper(
                             region.x + m.col_start(col) - m.col_start(region.area.0.3),
                             m.header_h
                         );
-                        labels.push(view!{<span class="dc-print-heading" use:css=style>{dna_formula_ui::display::column_letters(col)}</span>});
+                        labels.push(view! {
+                            <span class="dc-print-heading" use:css=style>
+                                {dna_formula_ui::display::column_letters(col)}
+                            </span>
+                        });
                     }
                 }
             }
@@ -246,7 +360,39 @@ fn Paper(
     }
     let regions = page.regions.clone();
     let range = address(page.body);
-    view! {<section class="dc-print-page-wrap" data-dnacalc="print-page-wrap"><p class="dc-print-page-label">{format!("Page {}",page.number)}</p><article class="dc-print-page" data-dnacalc="print-page" data-page=page.number.to_string() data-range=range.clone() aria-label=format!("Page {}, {range}",page.number) use:css=style>{header}<div class="dc-print-content" use:css=body>{regions.into_iter().map(|r|view!{<Region document=Arc::clone(&document) region=r fonts=fonts error=error/>}).collect_view()}{labels.collect_view()}</div>{footer}</article><p class="dc-print-range">{range}</p></section>}
+    view! {
+        <section class="dc-print-page-wrap" data-dnacalc="print-page-wrap">
+            <p class="dc-print-page-label">{format!("Page {}", page.number)}</p>
+            <article
+                class="dc-print-page"
+                data-dnacalc="print-page"
+                data-page=page.number.to_string()
+                data-range=range.clone()
+                aria-label=format!("Page {}, {range}", page.number)
+                use:css=style
+            >
+                {header}
+                <div class="dc-print-content" use:css=body>
+                    {regions
+                        .into_iter()
+                        .map(|r| {
+                            view! {
+                                <Region
+                                    document=Arc::clone(&document)
+                                    region=r
+                                    fonts=fonts
+                                    error=error
+                                />
+                            }
+                        })
+                        .collect_view()}
+                    {labels.collect_view()}
+                </div>
+                {footer}
+            </article>
+            <p class="dc-print-range">{range}</p>
+        </section>
+    }
 }
 #[cfg(target_arch = "wasm32")]
 fn print_pages(
@@ -555,12 +701,110 @@ fn Preview(controller: Controller, breaks: bool) -> impl IntoView {
     };
     let dates = date.clone();
     let times = time.clone();
-    view! {<div class="dc-print-workspace" data-dnacalc="print-workspace" data-print-epoch=move ||loaded_epoch.get().map(|(d,c)|format!("{d}:{c}")) tabindex="0"><div class="dc-print-controls"><button type="button" data-dnacalc="print-browser" disabled=move ||!error.get().is_empty()||data.with(|d|d.as_ref().is_none_or(|d|d.plan.pages.is_empty())) on:click=print>"Print / Save PDF…"</button><button type="button" data-dnacalc="print-refresh" on:click=move |_|refresh.update(|n|*n+=1)>"Refresh"</button><span data-dnacalc="print-page-count">{move ||data.with(|d|d.as_ref().map(|d|format!("{} {} · {:.0}%",d.plan.pages.len(),if d.plan.pages.len()==1 {"page"}else{"pages"},d.plan.scale*100.)).unwrap_or_default())}</span></div><p role="status" data-dnacalc="print-message">{move ||error.get()}</p><p class="dc-print-note">"Switch to Normal view to edit cells. In the browser print dialog, use the matching paper size, no margins, 100% scale, and turn off browser headers and footers."</p>
-    {move ||data.get().map(|d|view!{<>{d.notices.iter().cloned().map(|text|view!{<p class="dc-print-note">{text}</p>}).collect_view()}</>})}
-    <div class="dc-print-pages" data-dnacalc="print-pages" node_ref=pages>{move ||data.get().map(|d|{
-        if breaks {return break_map(Arc::clone(&d),controller.font_revision.get(),error).into_any();}
-        let date=dates.clone();let time=times.clone();d.plan.pages.iter().cloned().enumerate().map(|(i,p)|view!{<Paper document=Arc::clone(&d) page=p index=i date=date.clone() time=time.clone() fonts=controller.font_revision.get() error=error/>}).collect_view().into_any()
-    })}</div></div>}
+    view! {
+        <div
+            class="dc-print-workspace"
+            data-dnacalc="print-workspace"
+            data-print-epoch=move || loaded_epoch.get().map(|(d, c)| format!("{d}:{c}"))
+            tabindex="0"
+        >
+            <div class="dc-print-controls">
+                <button
+                    type="button"
+                    data-dnacalc="print-browser"
+                    disabled=move || {
+                        !error.get().is_empty()
+                            || data.with(|d| d.as_ref().is_none_or(|d| d.plan.pages.is_empty()))
+                    }
+                    on:click=print
+                >
+                    "Print / Save PDF…"
+                </button>
+                <button
+                    type="button"
+                    data-dnacalc="print-refresh"
+                    on:click=move |_| refresh.update(|n| *n += 1)
+                >
+                    "Refresh"
+                </button>
+                <span data-dnacalc="print-page-count">
+                    {move || {
+                        data.with(|d| {
+                            d.as_ref()
+                                .map(|d| {
+                                    format!(
+                                        "{} {} · {:.0}%",
+                                        d.plan.pages.len(),
+                                        if d.plan.pages.len() == 1 { "page" } else { "pages" },
+                                        d.plan.scale * 100.,
+                                    )
+                                })
+                                .unwrap_or_default()
+                        })
+                    }}
+                </span>
+            </div>
+            <p role="status" data-dnacalc="print-message">
+                {move || error.get()}
+            </p>
+            <p class="dc-print-note">
+                "Switch to Normal view to edit cells. In the browser print dialog, use the matching paper size, "
+                "no margins, 100% scale, and turn off browser headers and footers."
+            </p>
+            {move || {
+                data.get()
+                    .map(|d| {
+                        view! {
+                            <>
+                                {d
+                                    .notices
+                                    .iter()
+                                    .cloned()
+                                    .map(|text| view! { <p class="dc-print-note">{text}</p> })
+                                    .collect_view()}
+                            </>
+                        }
+                    })
+            }}
+            <div class="dc-print-pages" data-dnacalc="print-pages" node_ref=pages>
+                {move || {
+                    data.get()
+                        .map(|d| {
+                            if breaks {
+                                return break_map(
+                                        Arc::clone(&d),
+                                        controller.font_revision.get(),
+                                        error,
+                                    )
+                                    .into_any();
+                            }
+                            let date = dates.clone();
+                            let time = times.clone();
+                            d.plan
+                                .pages
+                                .iter()
+                                .cloned()
+                                .enumerate()
+                                .map(|(i, p)| {
+                                    view! {
+                                        <Paper
+                                            document=Arc::clone(&d)
+                                            page=p
+                                            index=i
+                                            date=date.clone()
+                                            time=time.clone()
+                                            fonts=controller.font_revision.get()
+                                            error=error
+                                        />
+                                    }
+                                })
+                                .collect_view()
+                                .into_any()
+                        })
+                }}
+            </div>
+        </div>
+    }
 }
 fn break_map(document: Arc<PrintDocument>, fonts: u64, error: RwSignal<String>) -> AnyView {
     let m = sheet_metrics(Some(&document.geometry));
@@ -596,18 +840,114 @@ fn break_map(document: Arc<PrintDocument>, fonts: u64, error: RwSignal<String>) 
     let width = (m.col_start(right + 1) - m.col_start(left)) * scale;
     let height = (m.row_start(bottom + 1) - m.row_start(top)) * scale;
     let style = format!("width:{width}px;height:{height}px");
-    let pages=document.plan.pages.iter().map(|p|{let w=m.col_start(p.body.1.3+1)-m.col_start(p.body.0.3);let h=m.row_start(p.body.1.2+1)-m.row_start(p.body.0.2);let style=format!("left:{}px;top:{}px;width:{w}px;height:{h}px;transform-origin:top left;transform:scale({scale})",(m.col_start(p.body.0.3)-m.col_start(left))*scale,(m.row_start(p.body.0.2)-m.row_start(top))*scale);let region=PrintRegion{area:p.body,x:0.,y:0.,width:w,height:h};view!{<div class="dc-print-break-page" class:manual-bottom=p.manual_bottom class:manual-right=p.manual_right data-dnacalc="print-break-page" data-range=address(p.body) use:css=style><Region document=Arc::clone(&document) region=region fonts=fonts error=error/><span class="dc-print-break-label">{format!("Page {}",p.number)}</span></div>}}).collect_view();
-    view!{<div class="dc-print-break-map" data-dnacalc="print-break-map" use:css=style>{pages}</div>}.into_any()
+    let pages = document
+        .plan
+        .pages
+        .iter()
+        .map(|p| {
+            let w = m.col_start(p.body.1.3 + 1) - m.col_start(p.body.0.3);
+            let h = m.row_start(p.body.1.2 + 1) - m.row_start(p.body.0.2);
+            let left_px = (m.col_start(p.body.0.3) - m.col_start(left)) * scale;
+            let top_px = (m.row_start(p.body.0.2) - m.row_start(top)) * scale;
+            let style = format!(
+                "left:{left_px}px;top:{top_px}px;width:{w}px;height:{h}px;\
+                transform-origin:top left;transform:scale({scale})"
+            );
+            let region = PrintRegion {
+                area: p.body,
+                x: 0.0,
+                y: 0.0,
+                width: w,
+                height: h,
+            };
+            view! {
+                <div
+                    class="dc-print-break-page"
+                    class:manual-bottom=p.manual_bottom
+                    class:manual-right=p.manual_right
+                    data-dnacalc="print-break-page"
+                    data-range=address(p.body)
+                    use:css=style
+                >
+                    <Region document=Arc::clone(&document) region=region fonts=fonts error=error />
+                    <span class="dc-print-break-label">{format!("Page {}", p.number)}</span>
+                </div>
+            }
+        })
+        .collect_view();
+    view! {
+        <div class="dc-print-break-map" data-dnacalc="print-break-map" use:css=style>
+            {pages}
+        </div>
+    }
+    .into_any()
 }
 #[inline(never)]
 pub fn toolbar(controller: Controller) -> AnyView {
     let mode = controller.tool_field(|s| &s.page.view, |s| &mut s.page.view);
-    view!{<div class="dc-page-toolbar"><button type="button" data-dnacalc="page-setup" disabled=move ||controller.sheet.get().is_none() on:click=move |_|controller.command(dna_calc_model::Command::PageSetup)>"Page Setup…"</button><button type="button" data-dnacalc="print-preview" disabled=move ||controller.sheet.get().is_none() on:click=move |_|controller.command(dna_calc_model::Command::PrintPreview)>"Print preview…"</button><label><span class="dc-page-view-label">"Worksheet view"</span><select data-dnacalc="page-view" prop:value=move ||{let m=mode.get();if m.is_empty(){"normal".into()}else{m}} on:change=move |ev|{let next=event_target_value(&ev);controller.after_input(move ||{mode.set(next);controller.command(dna_calc_model::Command::SwitchSkin(dna_calc_model::SkinId::Grid));});}><option value="normal">"Normal"</option><option value="breaks">"Page Break Preview"</option><option value="layout">"Page Layout"</option></select></label></div>}.into_any()
+    view! {
+        <div class="dc-page-toolbar">
+            <button
+                type="button"
+                data-dnacalc="page-setup"
+                disabled=move || controller.sheet.get().is_none()
+                on:click=move |_| controller.command(dna_calc_model::Command::PageSetup)
+            >
+                "Page Setup…"
+            </button>
+            <button
+                type="button"
+                data-dnacalc="print-preview"
+                disabled=move || controller.sheet.get().is_none()
+                on:click=move |_| controller.command(dna_calc_model::Command::PrintPreview)
+            >
+                "Print preview…"
+            </button>
+            <label>
+                <span class="dc-page-view-label">"Worksheet view"</span>
+                <select
+                    data-dnacalc="page-view"
+                    prop:value=move || {
+                        let m = mode.get();
+                        if m.is_empty() { "normal".into() } else { m }
+                    }
+                    on:change=move |ev| {
+                        let next = event_target_value(&ev);
+                        controller
+                            .after_input(move || {
+                                mode.set(next);
+                                controller
+                                    .command(
+                                        dna_calc_model::Command::SwitchSkin(
+                                            dna_calc_model::SkinId::Grid,
+                                        ),
+                                    );
+                            });
+                    }
+                >
+                    <option value="normal">"Normal"</option>
+                    <option value="breaks">"Page Break Preview"</option>
+                    <option value="layout">"Page Layout"</option>
+                </select>
+            </label>
+        </div>
+    }
+    .into_any()
 }
 #[inline(never)]
 pub fn grid_workspace(controller: Controller) -> AnyView {
     let mode = controller.tool_field(|s| &s.page.view, |s| &mut s.page.view);
-    view!{ {move ||{let mode=mode.get();if mode.is_empty()||mode=="normal"{crate::grid::grid_workspace(controller).into_any()}else{view!{<Preview controller=controller breaks=mode=="breaks"/>}.into_any()}}} }.into_any()
+    view! {
+        {move || {
+            let mode = mode.get();
+            if mode.is_empty() || mode == "normal" {
+                crate::grid::grid_workspace(controller).into_any()
+            } else {
+                view! { <Preview controller=controller breaks=mode == "breaks" /> }.into_any()
+            }
+        }}
+    }
+    .into_any()
 }
 #[inline(never)]
 pub fn controls(controller: Controller) -> AnyView {
@@ -628,7 +968,25 @@ pub fn controls(controller: Controller) -> AnyView {
         open.set(false);
         controller.focus_active_skin();
     };
-    view!{<dialog class="dc-print-dialog" data-dnacalc="print-preview-dialog" node_ref=dialog aria-labelledby="dc-print-title" on:cancel=move |ev:leptos::ev::Event|{ev.prevent_default();close();}><h2 id="dc-print-title">"Print preview"</h2><button type="button" data-dnacalc="print-close" on:click=move |_|close()>"Close preview"</button>{move ||open.get().then(||view!{<Preview controller=controller breaks=false/>})}</dialog>}.into_any()
+    view! {
+        <dialog
+            class="dc-print-dialog"
+            data-dnacalc="print-preview-dialog"
+            node_ref=dialog
+            aria-labelledby="dc-print-title"
+            on:cancel=move |ev: leptos::ev::Event| {
+                ev.prevent_default();
+                close();
+            }
+        >
+            <h2 id="dc-print-title">"Print preview"</h2>
+            <button type="button" data-dnacalc="print-close" on:click=move |_| close()>
+                "Close preview"
+            </button>
+            {move || open.get().then(|| view! { <Preview controller=controller breaks=false /> })}
+        </dialog>
+    }
+    .into_any()
 }
 
 #[cfg(test)]

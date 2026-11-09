@@ -22,8 +22,7 @@ mod tests {
     #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
     fn exp_overflow_maps_to_num() {
         assert_eq!(
-            ExcelRealPolicy::FINITE
-                .publish(1000.0, exp_kernel(1000.0)),
+            ExcelRealPolicy::FINITE.publish(1000.0, exp_kernel(1000.0)),
             Err(WorksheetErrorCode::Num)
         );
         assert_eq!(

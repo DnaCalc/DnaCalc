@@ -170,7 +170,11 @@ fn patch(
                         .filter(|b| !b.manual)
                         .collect::<Vec<_>>();
                     for text in value.split([',', ';', ' ']).filter(|s| !s.is_empty()) {
-                        let n=text.parse::<u32>().ok().filter(|n|(2..=max).contains(n)).ok_or("Manual breaks need row or column numbers from 2 to the worksheet limit")?;
+                        let n = text
+                            .parse::<u32>()
+                            .ok()
+                            .filter(|n| (2..=max).contains(n))
+                            .ok_or("Manual breaks need row or column numbers from 2 to the worksheet limit")?;
                         breaks.retain(|b| b.id != n - 1 || b.manual);
                         let retained = old
                             .iter()
@@ -237,7 +241,22 @@ fn patch(
 fn input(controller: Controller, key: &'static str, label: &'static str) -> AnyView {
     let draft = controller.tool_field(|s| &s.page.draft, |s| &mut s.page.draft);
     let id = format!("page-{}", key.replace('.', "-"));
-    view!{<label>{label}<input data-dnacalc=id prop:value=move ||draft.with(|d|d.get(key).cloned().unwrap_or_default()) on:input=move |ev|draft.update(|d|{d.insert(key.into(),event_target_value(&ev));})/></label>}.into_any()
+    view! {
+        <label>
+            {label}
+            <input
+                data-dnacalc=id
+                prop:value=move || draft.with(|d| d.get(key).cloned().unwrap_or_default())
+                on:input=move |ev| {
+                    draft
+                        .update(|d| {
+                            d.insert(key.into(), event_target_value(&ev));
+                        })
+                }
+            />
+        </label>
+    }
+    .into_any()
 }
 fn attribute(controller: Controller, key: &'static str, label: &'static str) -> AnyView {
     let draft = controller.tool_field(|s| &s.page.draft, |s| &mut s.page.draft);
@@ -277,7 +296,37 @@ fn attribute(controller: Controller, key: &'static str, label: &'static str) -> 
         _ => &[],
     };
     if !options.is_empty() {
-        return view!{<label>{label}<select data-dnacalc=id prop:value=move ||draft.with(|d|d.get(key).cloned().unwrap_or_default()) on:change=move |ev|draft.update(|d|{d.insert(key.into(),event_target_value(&ev));})>{options.iter().map(|(v,label)|view!{<option value=*v>{*label}</option>}).collect_view()}{move ||{let value=draft.with(|d|d.get(key).cloned().unwrap_or_default());(!options.iter().any(|(v,_)|*v==value)).then(||view!{<option value=value.clone()>{format!("Imported setting ({value})")}</option>})}}</select></label>}.into_any();
+        return view! {
+            <label>
+                {label}
+                <select
+                    data-dnacalc=id
+                    prop:value=move || draft.with(|d| d.get(key).cloned().unwrap_or_default())
+                    on:change=move |ev| {
+                        draft
+                            .update(|d| {
+                                d.insert(key.into(), event_target_value(&ev));
+                            })
+                    }
+                >
+                    {options
+                        .iter()
+                        .map(|(v, label)| view! { <option value=*v>{*label}</option> })
+                        .collect_view()}
+                    {move || {
+                        let value = draft.with(|d| d.get(key).cloned().unwrap_or_default());
+                        (!options.iter().any(|(v, _)| *v == value))
+                            .then(|| {
+                                view! {
+                                    <option value=value
+                                        .clone()>{format!("Imported setting ({value})")}</option>
+                                }
+                            })
+                    }}
+                </select>
+            </label>
+        }
+        .into_any();
     }
     if matches!(
         name,
@@ -294,7 +343,26 @@ fn attribute(controller: Controller, key: &'static str, label: &'static str) -> 
             | "blackAndWhite"
             | "draft"
     ) {
-        return view!{<label class="dc-page-check"><input type="checkbox" data-dnacalc=id prop:checked=move ||draft.with(|d|d.get(key).is_some_and(|v|v=="1")) on:change=move |ev|draft.update(|d|{d.insert(key.into(),if event_target_checked(&ev){"1"}else{"0"}.into());})/>{label}</label>}.into_any();
+        return view! {
+            <label class="dc-page-check">
+                <input
+                    type="checkbox"
+                    data-dnacalc=id
+                    prop:checked=move || draft.with(|d| d.get(key).is_some_and(|v| v == "1"))
+                    on:change=move |ev| {
+                        draft
+                            .update(|d| {
+                                d.insert(
+                                    key.into(),
+                                    if event_target_checked(&ev) { "1" } else { "0" }.into(),
+                                );
+                            })
+                    }
+                />
+                {label}
+            </label>
+        }
+        .into_any();
     }
     input(controller, key, label)
 }
@@ -387,24 +455,182 @@ pub fn controls(controller: Controller) -> AnyView {
         }
         pending.set(true);
         let request = epoch.get_value();
-        controller.after_input(move ||{
-            if controller.generation.get_untracked()!=generation||controller.sheet.get_untracked().map(wire::Sheet::of)!=Some(sheet)||controller.summary.get_untracked().revision!=state.revision {pending.set(false);message.set("The workbook changed; cancel and reopen Page Setup".into());return;}
-            controller.dispatch(wire::Intent::PageSetup{sheet,revision:state.revision,change},move |outcome|{if epoch.try_get_value()!=Some(request)||controller.generation.get_untracked()!=generation||controller.sheet.get_untracked().map(wire::Sheet::of)!=Some(sheet){return;}pending.set(false);if outcome.accepted{open.set(false);controller.say("Page setup updated",false);controller.focus_active_skin();}else{message.set("Page setup was refused; see the action message. Your draft is retained.".into());}});
+        controller.after_input(move || {
+            if controller.generation.get_untracked() != generation
+                || controller.sheet.get_untracked().map(wire::Sheet::of) != Some(sheet)
+                || controller.summary.get_untracked().revision != state.revision
+            {
+                pending.set(false);
+                message.set("The workbook changed; cancel and reopen Page Setup".into());
+                return;
+            }
+            controller.dispatch(
+                wire::Intent::PageSetup {
+                    sheet,
+                    revision: state.revision,
+                    change,
+                },
+                move |outcome| {
+                    if epoch.try_get_value() != Some(request)
+                        || controller.generation.get_untracked() != generation
+                        || controller.sheet.get_untracked().map(wire::Sheet::of) != Some(sheet)
+                    {
+                        return;
+                    }
+                    pending.set(false);
+                    if outcome.accepted {
+                        open.set(false);
+                        controller.say("Page setup updated", false);
+                        controller.focus_active_skin();
+                    } else {
+                        message.set(
+                            "Page setup was refused; see the action message. Your draft is retained.".into(),
+                        );
+                    }
+                },
+            );
         });
     };
-    view!{<dialog class="dc-page-dialog" data-dnacalc="page-setup-dialog" node_ref=dialog aria-labelledby="dc-page-setup-title" on:cancel=move |ev:leptos::ev::Event|{ev.prevent_default();cancel();}>
-        <form on:submit=move |ev|{ev.prevent_default();apply();}>
-        <h2 id="dc-page-setup-title">"Page Setup"</h2>
-        <fieldset class="dc-page-all" disabled=move ||source.get().is_none()||pending.get()>
-        <fieldset><legend>"Page"</legend><div class="dc-page-fields">{ATTRIBUTES[..9].iter().map(|(k,l,_)|attribute(controller,k,l)).collect_view()}</div></fieldset>
-        <details open><summary>"Margins"</summary><div class="dc-page-fields">{ATTRIBUTES[9..17].iter().map(|(k,l,_)|attribute(controller,k,l)).collect_view()}</div></details>
-        <details data-dnacalc="page-headers"><summary>"Headers and footers"</summary><p>"Use &L, &C and &R for left, centre and right; &P for page, &N for total pages, &A for sheet and &F for file. Use && for an ampersand."</p><div class="dc-page-fields">{HEADERS.iter().map(|(key,label)|input(controller,match *key {"oddHeader"=>"header.oddHeader","oddFooter"=>"header.oddFooter","evenHeader"=>"header.evenHeader","evenFooter"=>"header.evenFooter","firstHeader"=>"header.firstHeader",_=>"header.firstFooter"},label)).collect_view()}{ATTRIBUTES[17..21].iter().map(|(k,l,_)|attribute(controller,k,l)).collect_view()}</div></details>
-        <details open><summary>"Sheet"</summary><div class="dc-page-fields">{input(controller,"print_area","Print area (comma-separated ranges)")}{input(controller,"print_titles","Rows / columns to repeat (for example 1:2,A:B)")}{input(controller,"row_breaks","Break before rows (for example 21,41)")}{input(controller,"column_breaks","Break before columns (numbers; E is 5)")}{ATTRIBUTES[21..].iter().map(|(k,l,_)|attribute(controller,k,l)).collect_view()}</div>
-        <button type="button" data-dnacalc="page-use-selection" on:click=move |_|{let areas=controller.areas.get_untracked();let text=areas.iter().map(|a|format!("{}{}:{}{}",dna_formula_ui::display::column_letters(a.first().column()),a.first().row(),dna_formula_ui::display::column_letters(a.last().column()),a.last().row())).collect::<Vec<_>>().join(",");draft.update(|d|{d.insert("print_area".into(),text);});}>"Use current selection as print area"</button></details>
-        </fieldset>
-        <p role="status" data-dnacalc="page-setup-message">{move ||message.get()}</p>
-        <div class="dc-dialog-actions"><button type="submit" data-dnacalc="page-setup-apply" disabled=move ||source.get().is_none()||pending.get()>"Apply"</button><button type="button" data-dnacalc="page-setup-cancel" on:click=move |_|cancel()>"Cancel"</button></div>
-        </form></dialog>}.into_any()
+    view! {
+        <dialog
+            class="dc-page-dialog"
+            data-dnacalc="page-setup-dialog"
+            node_ref=dialog
+            aria-labelledby="dc-page-setup-title"
+            on:cancel=move |ev: leptos::ev::Event| {
+                ev.prevent_default();
+                cancel();
+            }
+        >
+            <form on:submit=move |ev| {
+                ev.prevent_default();
+                apply();
+            }>
+                <h2 id="dc-page-setup-title">"Page Setup"</h2>
+                <fieldset
+                    class="dc-page-all"
+                    disabled=move || source.get().is_none() || pending.get()
+                >
+                    <fieldset>
+                        <legend>"Page"</legend>
+                        <div class="dc-page-fields">
+                            {ATTRIBUTES[..9]
+                                .iter()
+                                .map(|(k, l, _)| attribute(controller, k, l))
+                                .collect_view()}
+                        </div>
+                    </fieldset>
+                    <details open>
+                        <summary>"Margins"</summary>
+                        <div class="dc-page-fields">
+                            {ATTRIBUTES[9..17]
+                                .iter()
+                                .map(|(k, l, _)| attribute(controller, k, l))
+                                .collect_view()}
+                        </div>
+                    </details>
+                    <details data-dnacalc="page-headers">
+                        <summary>"Headers and footers"</summary>
+                        <p>
+                            "Use &L, &C and &R for left, centre and right; &P for page, &N for total pages, "
+                            "&A for sheet and &F for file. Use && for an ampersand."
+                        </p>
+                        <div class="dc-page-fields">
+                            {HEADERS
+                                .iter()
+                                .map(|(key, label)| input(
+                                    controller,
+                                    match *key {
+                                        "oddHeader" => "header.oddHeader",
+                                        "oddFooter" => "header.oddFooter",
+                                        "evenHeader" => "header.evenHeader",
+                                        "evenFooter" => "header.evenFooter",
+                                        "firstHeader" => "header.firstHeader",
+                                        _ => "header.firstFooter",
+                                    },
+                                    label,
+                                ))
+                                .collect_view()}
+                            {ATTRIBUTES[17..21]
+                                .iter()
+                                .map(|(k, l, _)| attribute(controller, k, l))
+                                .collect_view()}
+                        </div>
+                    </details>
+                    <details open>
+                        <summary>"Sheet"</summary>
+                        <div class="dc-page-fields">
+                            {input(controller, "print_area", "Print area (comma-separated ranges)")}
+                            {input(
+                                controller,
+                                "print_titles",
+                                "Rows / columns to repeat (for example 1:2,A:B)",
+                            )}
+                            {input(
+                                controller,
+                                "row_breaks",
+                                "Break before rows (for example 21,41)",
+                            )}
+                            {input(
+                                controller,
+                                "column_breaks",
+                                "Break before columns (numbers; E is 5)",
+                            )}
+                            {ATTRIBUTES[21..]
+                                .iter()
+                                .map(|(k, l, _)| attribute(controller, k, l))
+                                .collect_view()}
+                        </div>
+                        <button
+                            type="button"
+                            data-dnacalc="page-use-selection"
+                            on:click=move |_| {
+                                let areas = controller.areas.get_untracked();
+                                let text = areas
+                                    .iter()
+                                    .map(|a| {
+                                        format!(
+                                            "{}{}:{}{}",
+                                            dna_formula_ui::display::column_letters(a.first().column()),
+                                            a.first().row(),
+                                            dna_formula_ui::display::column_letters(a.last().column()),
+                                            a.last().row(),
+                                        )
+                                    })
+                                    .collect::<Vec<_>>()
+                                    .join(",");
+                                draft
+                                    .update(|d| {
+                                        d.insert("print_area".into(), text);
+                                    });
+                            }
+                        >
+                            "Use current selection as print area"
+                        </button>
+                    </details>
+                </fieldset>
+                <p role="status" data-dnacalc="page-setup-message">
+                    {move || message.get()}
+                </p>
+                <div class="dc-dialog-actions">
+                    <button
+                        type="submit"
+                        data-dnacalc="page-setup-apply"
+                        disabled=move || source.get().is_none() || pending.get()
+                    >
+                        "Apply"
+                    </button>
+                    <button
+                        type="button"
+                        data-dnacalc="page-setup-cancel"
+                        on:click=move |_| cancel()
+                    >
+                        "Cancel"
+                    </button>
+                </div>
+            </form>
+        </dialog>
+    }.into_any()
 }
 
 #[cfg(test)]

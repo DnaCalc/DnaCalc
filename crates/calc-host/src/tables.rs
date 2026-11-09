@@ -28,8 +28,16 @@ pub enum TableChange {
         column: u32,
         function: String,
     },
-    RenameColumn { part: String, column: u32, name: String },
-    CalculatedColumn { part: String, column: u32, formula: Option<String> },
+    RenameColumn {
+        part: String,
+        column: u32,
+        name: String,
+    },
+    CalculatedColumn {
+        part: String,
+        column: u32,
+        formula: Option<String>,
+    },
 }
 fn refusal(s: &str) -> String {
     format!("{s} (dc-971p.41); nothing changed")
@@ -49,10 +57,17 @@ fn cell_text(host: &HostState, at: CellKey) -> Result<String, String> {
         }
     };
     if matches!(value.core_ref(), CoreRef::Number(_) | CoreRef::Text(_)) {
-        let code = host.number_format(at).ok_or_else(|| refusal("The header's number format is unavailable"))?;
+        let code = host
+            .number_format(at)
+            .ok_or_else(|| refusal("The header's number format is unavailable"))?;
         if let Some(profile) = host.options().locale.as_ref() {
-            let system = if host.declared_date1904() { calc_func::locale::DateSystem::System1904 } else { calc_func::locale::DateSystem::System1900 };
-            return calc_func::cell_text(profile, system, value, code).map_err(|_| refusal("The header's number format cannot be rendered"));
+            let system = if host.declared_date1904() {
+                calc_func::locale::DateSystem::System1904
+            } else {
+                calc_func::locale::DateSystem::System1900
+            };
+            return calc_func::cell_text(profile, system, value, code)
+                .map_err(|_| refusal("The header's number format cannot be rendered"));
         } else if !code.eq_ignore_ascii_case("General") {
             return Err(refusal("Formatted headers need the workbook's locale"));
         }
@@ -145,93 +160,245 @@ fn quoted_column(name: &str) -> String {
 }
 
 fn formula_text(source: &str) -> Result<FormulaText, String> {
-    FormulaText::with_form(ExcelText::from_utf16_code_units(source.encode_utf16().collect()),calc_doc_model::FormulaForm::Legacy).map_err(|_| refusal("Enter a column formula"))
+    FormulaText::with_form(
+        ExcelText::from_utf16_code_units(source.encode_utf16().collect()),
+        calc_doc_model::FormulaForm::Legacy,
+    )
+    .map_err(|_| refusal("Enter a column formula"))
 }
 fn column_index(table: &Table, column: u32) -> Result<usize, String> {
-    column.checked_sub(table.area.first().column()).filter(|i| *i < table.area.column_count()).map(|i| i as usize).ok_or_else(|| refusal("Choose a table column"))
+    column
+        .checked_sub(table.area.first().column())
+        .filter(|i| *i < table.area.column_count())
+        .map(|i| i as usize)
+        .ok_or_else(|| refusal("Choose a table column"))
 }
-fn calculated_input(host: &HostState, table: &Table, index: usize, row: u32) -> Result<CellInput, String> {
-    let source = table.column_formulas[index].as_deref().ok_or_else(|| refusal("This column has no formula rule"))?;
-    let first = CellKey::new(table.sheet, table.area.first().row() + table.header_rows, table.area.first().column() + index as u32).unwrap();
+fn calculated_input(
+    host: &HostState,
+    table: &Table,
+    index: usize,
+    row: u32,
+) -> Result<CellInput, String> {
+    let source = table.column_formulas[index]
+        .as_deref()
+        .ok_or_else(|| refusal("This column has no formula rule"))?;
+    let first = CellKey::new(
+        table.sheet,
+        table.area.first().row() + table.header_rows,
+        table.area.first().column() + index as u32,
+    )
+    .unwrap();
     let target = CellKey::new(table.sheet, row, first.column()).unwrap();
     let formula = formula_text(source)?;
-    let formula = if first == target { formula } else {
-        calc_engine::relocate_formula(host.model(), &formula, first, target).ok_or_else(|| refusal("This calculated-column formula cannot be copied"))?
+    let formula = if first == target {
+        formula
+    } else {
+        calc_engine::relocate_formula(host.model(), &formula, first, target)
+            .ok_or_else(|| refusal("This calculated-column formula cannot be copied"))?
     };
     Ok(CellInput::Formula(formula))
 }
-fn column_writes(host: &HostState, table: &Table, index: usize, first: u32, edits: &mut Vec<CellEdit>) -> Result<(), String> {
+fn column_writes(
+    host: &HostState,
+    table: &Table,
+    index: usize,
+    first: u32,
+    edits: &mut Vec<CellEdit>,
+) -> Result<(), String> {
     for row in first..=table.area.last().row() - table.totals_rows {
-        let at = CellKey::new(table.sheet, row, table.area.first().column() + index as u32).unwrap();
-        edits.push(CellEdit::Set { at, input: calculated_input(host, table, index, row)? });
+        let at =
+            CellKey::new(table.sheet, row, table.area.first().column() + index as u32).unwrap();
+        edits.push(CellEdit::Set {
+            at,
+            input: calculated_input(host, table, index, row)?,
+        });
     }
     Ok(())
 }
-fn renamed(host: &HostState, at: Option<CellKey>, source: &str, table: &str, old: &str, new: &str) -> Result<String, String> {
+fn renamed(
+    host: &HostState,
+    at: Option<CellKey>,
+    source: &str,
+    table: &str,
+    old: &str,
+    new: &str,
+) -> Result<String, String> {
     use calc_fml::reference::TableColumnContext as C;
-    let context = at.map_or(C::Name, |at| C::Cell(host.model().definitions().tables().iter().find(|t| t.area.contains(at)).map(|t| t.display_name.as_str())));
-    let columns = &host.model().definitions().tables().iter().find(|t| calc_value::workbook_names_equal(&t.display_name,table)).ok_or_else(|| refusal("The table is unavailable"))?.columns;
-    calc_fml::reference::rename_table_column(source, table, columns, old, new, context, &|name| host.sheets().iter().any(|s| calc_value::workbook_names_equal(&s.name().text().to_string_lossy(), name))).map_err(refusal)
+    let context = at.map_or(C::Name, |at| {
+        C::Cell(
+            host.model()
+                .definitions()
+                .tables()
+                .iter()
+                .find(|t| t.area.contains(at))
+                .map(|t| t.display_name.as_str()),
+        )
+    });
+    let columns = &host
+        .model()
+        .definitions()
+        .tables()
+        .iter()
+        .find(|t| calc_value::workbook_names_equal(&t.display_name, table))
+        .ok_or_else(|| refusal("The table is unavailable"))?
+        .columns;
+    calc_fml::reference::rename_table_column(source, table, columns, old, new, context, &|name| {
+        host.sheets()
+            .iter()
+            .any(|s| calc_value::workbook_names_equal(&s.name().text().to_string_lossy(), name))
+    })
+    .map_err(refusal)
 }
-fn rename_references(host: &HostState, tables: &mut [Table], table: &str, old: &str, new: &str, edits: &mut Vec<CellEdit>) -> Result<(), String> {
+fn rename_references(
+    host: &HostState,
+    tables: &mut [Table],
+    table: &str,
+    old: &str,
+    new: &str,
+    edits: &mut Vec<CellEdit>,
+) -> Result<(), String> {
     for sheet in host.sheets() {
-        if host.loaded().sheet(sheet.id()).is_some_and(|s| s.conditional_formats().iter().any(|b| b.unread_container)) {
-            return Err(refusal("A conditional-format extension cannot be checked for this column rename"));
+        if host
+            .loaded()
+            .sheet(sheet.id())
+            .is_some_and(|s| s.conditional_formats().iter().any(|b| b.unread_container))
+        {
+            return Err(refusal(
+                "A conditional-format extension cannot be checked for this column rename",
+            ));
         }
         let charts = host.loaded().sheet(sheet.id()).map(|s| s.charts());
         if let Some(charts) = charts {
-            if charts.unread > 0 { return Err(refusal("An unread chart cannot be checked for this column rename")); }
+            if charts.unread > 0 {
+                return Err(refusal(
+                    "An unread chart cannot be checked for this column rename",
+                ));
+            }
             for chart in &charts.charts {
-                for source in chart.title_formula.iter().map(String::as_str).chain(chart.plots.iter().flat_map(|p| &p.series).flat_map(|s| [s.name.as_ref(), s.categories.as_ref(), s.values.as_ref()]).flatten().filter_map(|d| d.formula.as_deref())) {
-                    if renamed(host, None, source, table, old, new)? != source { return Err(refusal("A chart source uses this column; chart formula authoring is unavailable")); }
+                for source in chart.title_formula.iter().map(String::as_str).chain(
+                    chart
+                        .plots
+                        .iter()
+                        .flat_map(|p| &p.series)
+                        .flat_map(|s| [s.name.as_ref(), s.categories.as_ref(), s.values.as_ref()])
+                        .flatten()
+                        .filter_map(|d| d.formula.as_deref()),
+                ) {
+                    if renamed(host, None, source, table, old, new)? != source {
+                        return Err(refusal(
+                            "A chart source uses this column; chart formula authoring is unavailable",
+                        ));
+                    }
                 }
             }
         }
         for (at, input) in host.model().sheet_cells(sheet.id()).into_iter().flatten() {
             if let CellInput::Formula(formula) = input {
-                let source = String::from_utf16(formula.text().utf16_code_units()).map_err(|_| refusal("A formula's Unicode text cannot be checked for this rename"))?;
+                let source =
+                    String::from_utf16(formula.text().utf16_code_units()).map_err(|_| {
+                        refusal("A formula's Unicode text cannot be checked for this rename")
+                    })?;
                 let next = renamed(host, Some(at), &source, table, old, new)?;
                 if next != source {
                     let next = ExcelText::from_utf16_code_units(next.encode_utf16().collect());
-                    let formula = if formula.is_form_explicit() { FormulaText::with_form(next, formula.form()) } else { FormulaText::new(next) }.map_err(|_| refusal("The renamed formula is empty"))?;
-                    if let Some(array) = host.model().definitions().arrays().find(|a| a.anchor() == at) {
-                        edits.push(CellEdit::SetArray { array: *array, formula });
-                    } else { edits.push(CellEdit::Set { at, input: CellInput::Formula(formula) }); }
+                    let formula = if formula.is_form_explicit() {
+                        FormulaText::with_form(next, formula.form())
+                    } else {
+                        FormulaText::new(next)
+                    }
+                    .map_err(|_| refusal("The renamed formula is empty"))?;
+                    if let Some(array) = host
+                        .model()
+                        .definitions()
+                        .arrays()
+                        .find(|a| a.anchor() == at)
+                    {
+                        edits.push(CellEdit::SetArray {
+                            array: *array,
+                            formula,
+                        });
+                    } else {
+                        edits.push(CellEdit::Set {
+                            at,
+                            input: CellInput::Formula(formula),
+                        });
+                    }
                 }
             }
         }
-        let mut rules = host.model().definitions().conditional_rules(sheet.id()).to_vec();
+        let mut rules = host
+            .model()
+            .definitions()
+            .conditional_rules(sheet.id())
+            .to_vec();
         let mut changed = false;
         for rule in &mut rules {
             let at = rule.origin();
             for source in rule.formulas.iter_mut().chain(&mut rule.threshold_formulas) {
                 let next = renamed(host, at, source, table, old, new)?;
-                if next != *source { *source = next; changed = true; }
+                if next != *source {
+                    *source = next;
+                    changed = true;
+                }
             }
         }
-        if changed { edits.push(CellEdit::ConditionalRules { sheet: sheet.id(), rules }); }
+        if changed {
+            edits.push(CellEdit::ConditionalRules {
+                sheet: sheet.id(),
+                rules,
+            });
+        }
         let mut rules = host.model().definitions().validations(sheet.id()).to_vec();
         let mut changed = false;
         for rule in &mut rules {
-            let at = rule.areas.first().and_then(|&(r,c,_,_)| CellKey::new(sheet.id(),r,c).ok());
-            for source in [&mut rule.formula1, &mut rule.formula2].into_iter().flatten() {
+            let at = rule
+                .areas
+                .first()
+                .and_then(|&(r, c, _, _)| CellKey::new(sheet.id(), r, c).ok());
+            for source in [&mut rule.formula1, &mut rule.formula2]
+                .into_iter()
+                .flatten()
+            {
                 let next = renamed(host, at, source, table, old, new)?;
-                if next != *source { *source = next; changed = true; }
+                if next != *source {
+                    *source = next;
+                    changed = true;
+                }
             }
         }
-        if changed { edits.push(CellEdit::Validations { sheet: sheet.id(), rules }); }
+        if changed {
+            edits.push(CellEdit::Validations {
+                sheet: sheet.id(),
+                rules,
+            });
+        }
     }
     for name in host.model().definitions().names() {
         let next = renamed(host, None, &name.formula, table, old, new)?;
-        if next != name.formula { edits.push(CellEdit::SetName { name: name.name.clone(), scope: name.scope, formula: Some(next) }); }
+        if next != name.formula {
+            edits.push(CellEdit::SetName {
+                name: name.name.clone(),
+                scope: name.scope,
+                formula: Some(next),
+            });
+        }
     }
     for t in tables {
         for index in 0..t.columns.len() {
             if let Some(source) = &t.column_formulas[index] {
-                let at = CellKey::new(t.sheet, t.area.first().row()+t.header_rows, t.area.first().column()+index as u32).unwrap();
+                let at = CellKey::new(
+                    t.sheet,
+                    t.area.first().row() + t.header_rows,
+                    t.area.first().column() + index as u32,
+                )
+                .unwrap();
                 let next = renamed(host, Some(at), source, table, old, new)?;
                 if next != *source {
-                    if t.axis_opaque { return Err(refusal("An imported calculated column has unsupported metadata")); }
+                    if t.axis_opaque {
+                        return Err(refusal(
+                            "An imported calculated column has unsupported metadata",
+                        ));
+                    }
                     t.column_formulas[index] = Some(next);
                 }
             }
@@ -441,9 +608,13 @@ pub(crate) fn prepare(
             let mut total_column = None;
             match change {
                 TableChange::Resize { area, .. } => {
-                    if area != old.area && old.column_formulas.iter().any(Option::is_some)
-                        && old.filter.as_ref().is_some_and(|f| !f.columns.is_empty()) {
-                        return Err(refusal("Clear the table's filters before resizing calculated columns"));
+                    if area != old.area
+                        && old.column_formulas.iter().any(Option::is_some)
+                        && old.filter.as_ref().is_some_and(|f| !f.columns.is_empty())
+                    {
+                        return Err(refusal(
+                            "Clear the table's filters before resizing calculated columns",
+                        ));
                     }
                     if old.axis_opaque {
                         return Err(refusal(
@@ -501,7 +672,9 @@ pub(crate) fn prepare(
                     }
                     let first_new_row = old.area.last().row() - old.totals_rows + 1;
                     for i in 0..table.columns.len() {
-                        if table.column_formulas[i].is_some() { column_writes(host, &table, i, first_new_row, &mut edits)?; }
+                        if table.column_formulas[i].is_some() {
+                            column_writes(host, &table, i, first_new_row, &mut edits)?;
+                        }
                     }
                 }
                 TableChange::Options {
@@ -521,7 +694,13 @@ pub(crate) fn prepare(
                             "This imported table's header and total metadata is preserved",
                         ));
                     }
-                    if !style.is_empty() && (TableStyle { name: Some(style.clone()), ..Default::default() }).medium_accent_theme().is_none()
+                    if !style.is_empty()
+                        && (TableStyle {
+                            name: Some(style.clone()),
+                            ..Default::default()
+                        })
+                        .medium_accent_theme()
+                        .is_none()
                         && old.style.name.as_deref() != Some(style.as_str())
                     {
                         return Err(refusal("Choose a supported table style"));
@@ -629,37 +808,84 @@ pub(crate) fn prepare(
                     table.totals_labels[i] = None;
                 }
                 TableChange::RenameColumn { column, name, .. } => {
-                    if old.axis_opaque { return Err(refusal("This imported table's column metadata is preserved")); }
-                    let i = column_index(&old, column)?;
-                    if name.trim().is_empty() || name.encode_utf16().count() > 255 || name.chars().any(char::is_control)
-                        || old.columns.iter().enumerate().any(|(j,c)| j != i && calc_value::workbook_names_equal(c, &name)) {
-                        return Err(refusal("Use a nonempty, unique column name of at most 255 UTF-16 units"));
+                    if old.axis_opaque {
+                        return Err(refusal(
+                            "This imported table's column metadata is preserved",
+                        ));
                     }
-                    if name == old.columns[i] { return Ok(Vec::new()); }
-                    rename_references(host, &mut tables, &old.display_name, &old.columns[i], &name, &mut edits)?;
+                    let i = column_index(&old, column)?;
+                    if name.trim().is_empty()
+                        || name.encode_utf16().count() > 255
+                        || name.chars().any(char::is_control)
+                        || old
+                            .columns
+                            .iter()
+                            .enumerate()
+                            .any(|(j, c)| j != i && calc_value::workbook_names_equal(c, &name))
+                    {
+                        return Err(refusal(
+                            "Use a nonempty, unique column name of at most 255 UTF-16 units",
+                        ));
+                    }
+                    if name == old.columns[i] {
+                        return Ok(Vec::new());
+                    }
+                    rename_references(
+                        host,
+                        &mut tables,
+                        &old.display_name,
+                        &old.columns[i],
+                        &name,
+                        &mut edits,
+                    )?;
                     table = tables[index].clone();
                     table.columns[i] = name.clone();
                     if table.header_rows > 0 {
-                        edits.push(CellEdit::Set { at: CellKey::new(table.sheet,table.area.first().row(),column).unwrap(), input: text(&name) });
+                        edits.push(CellEdit::Set {
+                            at: CellKey::new(table.sheet, table.area.first().row(), column)
+                                .unwrap(),
+                            input: text(&name),
+                        });
                     }
                 }
-                TableChange::CalculatedColumn { column, formula, .. } => {
-                    if old.axis_opaque { return Err(refusal("This imported table's calculated metadata is preserved")); }
-                    if formula.is_some() && old.filter.as_ref().is_some_and(|f| !f.columns.is_empty()) {
-                        return Err(refusal("Clear the table's filters before filling a calculated column"));
+                TableChange::CalculatedColumn {
+                    column, formula, ..
+                } => {
+                    if old.axis_opaque {
+                        return Err(refusal(
+                            "This imported table's calculated metadata is preserved",
+                        ));
+                    }
+                    if formula.is_some()
+                        && old.filter.as_ref().is_some_and(|f| !f.columns.is_empty())
+                    {
+                        return Err(refusal(
+                            "Clear the table's filters before filling a calculated column",
+                        ));
                     }
                     let i = column_index(&old, column)?;
                     let formula = formula.map(|s| s.strip_prefix('=').unwrap_or(&s).to_owned());
                     if let Some(source) = &formula {
                         let parsed = calc_fml::parse_formula(source);
-                        if source.encode_utf16().count() > 8192 || parsed.expression().is_none() || !parsed.diagnostics().is_empty() {
-                            return Err(refusal("Enter a complete supported column formula of at most 8192 UTF-16 units"));
+                        if source.encode_utf16().count() > 8192
+                            || parsed.expression().is_none()
+                            || !parsed.diagnostics().is_empty()
+                        {
+                            return Err(refusal(
+                                "Enter a complete supported column formula of at most 8192 UTF-16 units",
+                            ));
                         }
                     }
                     table.column_formulas[i] = formula;
                     table.opaque = table.column_formulas.iter().any(Option::is_some);
                     if table.column_formulas[i].is_some() {
-                        column_writes(host, &table, i, table.area.first().row()+table.header_rows, &mut edits)?;
+                        column_writes(
+                            host,
+                            &table,
+                            i,
+                            table.area.first().row() + table.header_rows,
+                            &mut edits,
+                        )?;
                     }
                 }
                 _ => unreachable!(),
@@ -836,7 +1062,9 @@ pub(crate) fn validate(host: &HostState, tables: &[Table]) -> Result<(), String>
                 || old.sheet != table.sheet
                 || old.axis_opaque != table.axis_opaque
                 || (old.axis_opaque && old.column_formulas != table.column_formulas)
-                || (old.opaque != table.opaque && (old.axis_opaque || table.opaque != table.column_formulas.iter().any(Option::is_some)))
+                || (old.opaque != table.opaque
+                    && (old.axis_opaque
+                        || table.opaque != table.column_formulas.iter().any(Option::is_some)))
                 || (old.axis_opaque
                     && (old.area != table.area
                         || old.columns != table.columns
@@ -924,17 +1152,22 @@ pub(crate) fn validate_cells(
     let mut clears = Vec::new();
     for (index, op) in batch.operations.iter().enumerate() {
         match op {
-            O::SetCell { at, input } => { writes.insert(*at,(index,input)); }
-            O::Clear { area } => clears.push((index,*area)), _ => {}
+            O::SetCell { at, input } => {
+                writes.insert(*at, (index, input));
+            }
+            O::Clear { area } => clears.push((index, *area)),
+            _ => {}
         }
     }
     let proposed_at = |at: CellKey| -> Option<Option<&CellInput>> {
         let write = writes.get(&at);
-        let clear = clears.iter().rev().find(|(_,area)|area.contains(at));
-        if let Some((index,_)) = clear {
-            if write.is_none_or(|(written,_)|index>written) { return Some(None); }
+        let clear = clears.iter().rev().find(|(_, area)| area.contains(at));
+        if let Some((index, _)) = clear {
+            if write.is_none_or(|(written, _)| index > written) {
+                return Some(None);
+            }
         }
-        write.map(|(_,input)|Some(*input))
+        write.map(|(_, input)| Some(*input))
     };
     let authored = batch.operations.iter().rev().find_map(|op| match op {
         O::SetTables(t) => Some(t.as_slice()),
@@ -945,7 +1178,11 @@ pub(crate) fn validate_cells(
     }
     let tables = authored.unwrap_or(host.model().definitions().tables());
     for table in tables {
-        if batch.operations.iter().any(|op|matches!(op,O::SetArray{array,..}if array.area().intersection(table.area).is_some())){return Err(refusal("Table data cannot contain array formulas"));}
+        if batch.operations.iter().any(|op| {
+            matches!(op, O::SetArray { array, .. } if array.area().intersection(table.area).is_some())
+        }) {
+            return Err(refusal("Table data cannot contain array formulas"));
+        }
         let old = host
             .model()
             .definitions()
@@ -965,18 +1202,39 @@ pub(crate) fn validate_cells(
         });
         for index in 0..table.columns.len().min(table.area.column_count() as usize) {
             if table.column_formulas[index].is_some() {
-                let changed = old.is_none_or(|t| t.column_formulas.get(index) != table.column_formulas.get(index));
+                let changed = old.is_none_or(|t| {
+                    t.column_formulas.get(index) != table.column_formulas.get(index)
+                });
                 let first = table.area.first().row() + table.header_rows;
                 let last = table.area.last().row() - table.totals_rows;
-                let bounds_changed = old.is_none_or(|t| first != t.area.first().row()+t.header_rows || last != t.area.last().row()-t.totals_rows);
-                if changed || bounds_changed { for row in first..=last {
-                    let added = old.is_none_or(|t| row < t.area.first().row()+t.header_rows || row > t.area.last().row()-t.totals_rows);
-                    if !changed && !added { continue; }
-                    let at = CellKey::new(table.sheet,row,table.area.first().column()+index as u32).unwrap();
-                    let expected = calculated_input(host,table,index,row)?;
-                    let proposed = proposed_at(at).unwrap_or(host.model().cell(at));
-                    if proposed != Some(&expected) { return Err(refusal("Calculated-column metadata and its data formulas must change together")); }
-                } }
+                let bounds_changed = old.is_none_or(|t| {
+                    first != t.area.first().row() + t.header_rows
+                        || last != t.area.last().row() - t.totals_rows
+                });
+                if changed || bounds_changed {
+                    for row in first..=last {
+                        let added = old.is_none_or(|t| {
+                            row < t.area.first().row() + t.header_rows
+                                || row > t.area.last().row() - t.totals_rows
+                        });
+                        if !changed && !added {
+                            continue;
+                        }
+                        let at = CellKey::new(
+                            table.sheet,
+                            row,
+                            table.area.first().column() + index as u32,
+                        )
+                        .unwrap();
+                        let expected = calculated_input(host, table, index, row)?;
+                        let proposed = proposed_at(at).unwrap_or(host.model().cell(at));
+                        if proposed != Some(&expected) {
+                            return Err(refusal(
+                                "Calculated-column metadata and its data formulas must change together",
+                            ));
+                        }
+                    }
+                }
             }
             for header in [true, false] {
                 if (header && table.header_rows == 0) || (!header && table.totals_rows == 0) {

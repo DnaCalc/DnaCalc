@@ -48,7 +48,11 @@ fn from_1900(system: DateSystem, serial: f64) -> Result<f64, W> {
         DateSystem::System1900 => Ok(serial),
         DateSystem::System1904 => {
             let serial = serial - OFFSET_1904;
-            if serial < 0.0 { Err(W::Num) } else { Ok(serial) }
+            if serial < 0.0 {
+                Err(W::Num)
+            } else {
+                Ok(serial)
+            }
         }
     }
 }
@@ -168,7 +172,12 @@ fn holidays(
     Ok(found)
 }
 
-fn workday(site: &Site<'_>, a: &[CalcValue], sv: &mut EvalServices<'_>, intl: bool) -> Step<CalcValue> {
+fn workday(
+    site: &Site<'_>,
+    a: &[CalcValue],
+    sv: &mut EvalServices<'_>,
+    intl: bool,
+) -> Step<CalcValue> {
     reject_logical(&a[0])?;
     let start = super::kit::checked_date_serial(to_1900(system(site)?, present_num(site, a, 0)?))?;
     reject_logical(&a[1])?;

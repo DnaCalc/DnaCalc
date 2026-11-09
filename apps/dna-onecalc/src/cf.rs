@@ -13,9 +13,9 @@
 //! Nothing here computes the formula's value; it lays a look over a value that was calculated.
 
 use crate::session::{InputValue, Session};
-use calc_doc::look::{self, Applied, Appearance, CellLook, LookColor, RuleStats};
-use calc_doc::{ColorScale, ConditionalRule, DataBar, IconSet, Threshold};
+use calc_doc::look::{self, Appearance, Applied, CellLook, LookColor, RuleStats};
 use calc_doc::model::StyleColor;
+use calc_doc::{ColorScale, ConditionalRule, DataBar, IconSet, Threshold};
 use calc_func::value::{CalcArray, CalcValue, CellKey, CoreRef};
 use serde::{Deserialize, Serialize};
 
@@ -117,7 +117,10 @@ impl CellStyle {
         if self.wrap {
             put("white-space", "normal".into());
         }
-        let border = format!("1px solid {}", hex_color(&self.border_color).unwrap_or_else(|| "#000000".into()));
+        let border = format!(
+            "1px solid {}",
+            hex_color(&self.border_color).unwrap_or_else(|| "#000000".into())
+        );
         for (on, side) in [
             (self.border_top, "top"),
             (self.border_bottom, "bottom"),
@@ -295,15 +298,29 @@ pub fn shift_formula(formula: &str, rows: i64, columns: i64) -> Result<String, S
                 k += 1;
             }
             let digits = &chars[digits_start..k];
-            let next_is_word = chars.get(k).is_some_and(|&n| is_word(n) || n == '(' || n == '!');
+            let next_is_word = chars
+                .get(k)
+                .is_some_and(|&n| is_word(n) || n == '(' || n == '!');
             if (1..=3).contains(&letters.len()) && !digits.is_empty() && !next_is_word {
-                let column = letters
+                let column = letters.iter().fold(0u64, |n, c| {
+                    n * 26 + u64::from(c.to_ascii_uppercase() as u8 - b'A' + 1)
+                });
+                let row: u64 = digits
                     .iter()
-                    .fold(0u64, |n, c| n * 26 + u64::from(c.to_ascii_uppercase() as u8 - b'A' + 1));
-                let row: u64 = digits.iter().collect::<String>().parse().unwrap_or(u64::MAX);
+                    .collect::<String>()
+                    .parse()
+                    .unwrap_or(u64::MAX);
                 if (1..=16_384).contains(&column) && (1..=1_048_576).contains(&row) {
-                    let column = if col_abs { column as i64 } else { column as i64 + columns };
-                    let row = if row_abs { row as i64 } else { row as i64 + rows };
+                    let column = if col_abs {
+                        column as i64
+                    } else {
+                        column as i64 + columns
+                    };
+                    let row = if row_abs {
+                        row as i64
+                    } else {
+                        row as i64 + rows
+                    };
                     if !(1..=16_384).contains(&column) || !(1..=1_048_576).contains(&row) {
                         return Err(format!("a reference in {formula} would leave the sheet"));
                     }
@@ -471,7 +488,11 @@ impl CfRuleSpec {
             "cellIs" => match self.operator.as_str() {
                 "between" | "notBetween" => format!(
                     "Cell value {} {o1} and {}",
-                    if self.operator == "between" { "between" } else { "not between" },
+                    if self.operator == "between" {
+                        "between"
+                    } else {
+                        "not between"
+                    },
                     self.operand2.trim()
                 ),
                 op => format!(
@@ -486,25 +507,46 @@ impl CfRuleSpec {
                     }
                 ),
             },
-            "text" => format!("Text {} \"{o1}\"", match self.operator.as_str() {
-                "notContainsText" => "does not contain",
-                "beginsWith" => "begins with",
-                "endsWith" => "ends with",
-                _ => "contains",
-            }),
-            "blanks" => if self.operator == "noBlanks" { "Cell is not blank" } else { "Cell is blank" }.to_owned(),
-            "errors" => if self.operator == "noErrors" { "Cell has no error" } else { "Cell has an error" }.to_owned(),
+            "text" => format!(
+                "Text {} \"{o1}\"",
+                match self.operator.as_str() {
+                    "notContainsText" => "does not contain",
+                    "beginsWith" => "begins with",
+                    "endsWith" => "ends with",
+                    _ => "contains",
+                }
+            ),
+            "blanks" => if self.operator == "noBlanks" {
+                "Cell is not blank"
+            } else {
+                "Cell is blank"
+            }
+            .to_owned(),
+            "errors" => if self.operator == "noErrors" {
+                "Cell has no error"
+            } else {
+                "Cell has an error"
+            }
+            .to_owned(),
             "dates" => format!("Date is {}", self.operator),
             "expression" => format!("Formula {o1}"),
             "rank" => format!(
                 "{} {}{}",
-                if self.operator == "bottom" { "Bottom" } else { "Top" },
+                if self.operator == "bottom" {
+                    "Bottom"
+                } else {
+                    "Top"
+                },
                 self.rank,
                 if self.percent { "%" } else { "" }
             ),
             "average" => format!(
                 "{} average{}",
-                if self.operator == "below" { "Below" } else { "Above" },
+                if self.operator == "below" {
+                    "Below"
+                } else {
+                    "Above"
+                },
                 if self.equal { " or equal" } else { "" }
             ),
             "duplicates" => "Duplicate values".to_owned(),
@@ -578,13 +620,31 @@ impl CfRuleSpec {
             }
             "blanks" => {
                 let not = self.operator == "noBlanks";
-                rule.kind = if not { "notContainsBlanks" } else { "containsBlanks" }.into();
-                rule.formulas.push(format!("LEN(TRIM(A1)){}0", if not { ">" } else { "=" }));
+                rule.kind = if not {
+                    "notContainsBlanks"
+                } else {
+                    "containsBlanks"
+                }
+                .into();
+                rule.formulas
+                    .push(format!("LEN(TRIM(A1)){}0", if not { ">" } else { "=" }));
             }
             "errors" => {
                 let not = self.operator == "noErrors";
-                rule.kind = if not { "notContainsErrors" } else { "containsErrors" }.into();
-                rule.formulas.push(if not { "NOT(ISERROR(A1))" } else { "ISERROR(A1)" }.into());
+                rule.kind = if not {
+                    "notContainsErrors"
+                } else {
+                    "containsErrors"
+                }
+                .into();
+                rule.formulas.push(
+                    if not {
+                        "NOT(ISERROR(A1))"
+                    } else {
+                        "ISERROR(A1)"
+                    }
+                    .into(),
+                );
             }
             "dates" => {
                 rule.kind = "timePeriod".into();
@@ -611,7 +671,10 @@ impl CfRuleSpec {
             }
             "rank" => {
                 if self.rank == 0 || (self.percent && self.rank > 100) {
-                    return Err(format!("{} needs a count of 1 or more (at most 100 percent)", self.title()));
+                    return Err(format!(
+                        "{} needs a count of 1 or more (at most 100 percent)",
+                        self.title()
+                    ));
                 }
                 rule.kind = "top10".into();
                 rule.rank = Some(self.rank);
@@ -637,7 +700,10 @@ impl CfRuleSpec {
                 colors.push(self.high.as_str());
                 let colors = colors
                     .into_iter()
-                    .map(|c| style_color(c).ok_or_else(|| format!("{} needs colours as #rrggbb", self.title())))
+                    .map(|c| {
+                        style_color(c)
+                            .ok_or_else(|| format!("{} needs colours as #rrggbb", self.title()))
+                    })
                     .collect::<Result<Vec<_>, _>>()?;
                 rule.color_scale = Some(ColorScale { thresholds, colors });
             }
@@ -665,7 +731,12 @@ impl CfRuleSpec {
                     .ok_or_else(|| format!("{} is not an icon set", self.icon_set))?
                     as usize;
                 let thresholds = (0..count)
-                    .map(|i| threshold("percent", Some(&((100 * i + count / 2) / count).to_string())))
+                    .map(|i| {
+                        threshold(
+                            "percent",
+                            Some(&((100 * i + count / 2) / count).to_string()),
+                        )
+                    })
                     .collect();
                 rule.icon_set = Some(IconSet {
                     name: self.icon_set.clone(),
@@ -683,7 +754,8 @@ impl CfRuleSpec {
             italic: self.italic.then_some(true),
             underline: self.underline.then_some(true),
             strike: self.strike.then_some(true),
-            number_format: (!self.number_format.trim().is_empty()).then(|| self.number_format.trim().to_owned()),
+            number_format: (!self.number_format.trim().is_empty())
+                .then(|| self.number_format.trim().to_owned()),
         };
         Ok((rule, appearance))
     }
@@ -694,7 +766,12 @@ impl CfRuleSpec {
 
     /// The rule as the session file holds it, for the range that starts `rows` below and
     /// `columns` right of A1: its formulas moved there, its look as a differential format.
-    pub fn session_rule(&self, priority: i64, rows: i64, columns: i64) -> Result<calc_doc::SessionRule, String> {
+    pub fn session_rule(
+        &self,
+        priority: i64,
+        rows: i64,
+        columns: i64,
+    ) -> Result<calc_doc::SessionRule, String> {
         let (mut rule, appearance) = self.rule(priority)?;
         for formula in &mut rule.formulas {
             *formula = shift_formula(formula, rows, columns)?;
@@ -713,12 +790,19 @@ impl CfRuleSpec {
             number_format: appearance.number_format.clone(),
         };
         let visual = matches!(self.kind.as_str(), "colorScale" | "dataBar" | "iconSet");
-        Ok(calc_doc::SessionRule { rule, dxf: (!visual).then_some(dxf) })
+        Ok(calc_doc::SessionRule {
+            rule,
+            dxf: (!visual).then_some(dxf),
+        })
     }
 
     /// The panel's rule a file's rule is. `rows` and `columns` are the amounts the file's formulas
     /// are moved back by. A rule the panel cannot hold is refused with its reason.
-    pub fn of_session_rule(rule: &calc_doc::SessionRule, rows: i64, columns: i64) -> Result<CfRuleSpec, String> {
+    pub fn of_session_rule(
+        rule: &calc_doc::SessionRule,
+        rows: i64,
+        columns: i64,
+    ) -> Result<CfRuleSpec, String> {
         let r = &rule.rule;
         let back = |index: usize| -> Result<String, String> {
             r.formulas
@@ -749,8 +833,14 @@ impl CfRuleSpec {
                 spec.operator = r.operator.clone().unwrap_or_default();
                 if !matches!(
                     spec.operator.as_str(),
-                    "between" | "notBetween" | "equal" | "notEqual" | "greaterThan" | "lessThan"
-                        | "greaterThanOrEqual" | "lessThanOrEqual"
+                    "between"
+                        | "notBetween"
+                        | "equal"
+                        | "notEqual"
+                        | "greaterThan"
+                        | "lessThan"
+                        | "greaterThanOrEqual"
+                        | "lessThanOrEqual"
                 ) {
                     return refuse("with a comparison the panel does not offer");
                 }
@@ -761,13 +851,26 @@ impl CfRuleSpec {
             }
             "containsText" | "notContainsText" | "beginsWith" | "endsWith" => {
                 spec.operator = r.kind.clone();
-                spec.operand1 = r.text.clone().ok_or_else(|| format!("a {} rule has no text", r.kind))?;
+                spec.operand1 = r
+                    .text
+                    .clone()
+                    .ok_or_else(|| format!("a {} rule has no text", r.kind))?;
             }
             "containsBlanks" | "notContainsBlanks" => {
-                spec.operator = if r.kind == "containsBlanks" { "blanks" } else { "noBlanks" }.into()
+                spec.operator = if r.kind == "containsBlanks" {
+                    "blanks"
+                } else {
+                    "noBlanks"
+                }
+                .into()
             }
             "containsErrors" | "notContainsErrors" => {
-                spec.operator = if r.kind == "containsErrors" { "errors" } else { "noErrors" }.into()
+                spec.operator = if r.kind == "containsErrors" {
+                    "errors"
+                } else {
+                    "noErrors"
+                }
+                .into()
             }
             "timePeriod" => spec.operator = r.time_period.clone().unwrap_or_default(),
             "expression" => spec.operand1 = back(0)?,
@@ -784,7 +887,9 @@ impl CfRuleSpec {
                 spec.equal = r.equal_average;
             }
             "colorScale" => {
-                let Some(scale) = &r.color_scale else { return refuse("without its scale") };
+                let Some(scale) = &r.color_scale else {
+                    return refuse("without its scale");
+                };
                 let kinds: Vec<&str> = scale.thresholds.iter().map(|t| t.kind.as_str()).collect();
                 let mid = scale.thresholds.get(1).and_then(|t| t.value.as_deref());
                 let ok = match kinds.as_slice() {
@@ -793,22 +898,41 @@ impl CfRuleSpec {
                     _ => false,
                 };
                 if !ok || scale.colors.len() != scale.thresholds.len() {
-                    return refuse("with thresholds other than lowest, 50th percentile and highest");
+                    return refuse(
+                        "with thresholds other than lowest, 50th percentile and highest",
+                    );
                 }
                 let color = |c: &StyleColor| {
-                    c.rgb.as_deref().filter(|v| v.len() == 8).map(|v| format!("#{}", v[2..].to_ascii_lowercase()))
+                    c.rgb
+                        .as_deref()
+                        .filter(|v| v.len() == 8)
+                        .map(|v| format!("#{}", v[2..].to_ascii_lowercase()))
                 };
                 let colors: Option<Vec<String>> = scale.colors.iter().map(color).collect();
-                let Some(colors) = colors else { return refuse("with a colour that is not RGB") };
+                let Some(colors) = colors else {
+                    return refuse("with a colour that is not RGB");
+                };
                 spec.low = colors[0].clone();
-                spec.mid = if colors.len() == 3 { colors[1].clone() } else { String::new() };
+                spec.mid = if colors.len() == 3 {
+                    colors[1].clone()
+                } else {
+                    String::new()
+                };
                 spec.high = colors[colors.len() - 1].clone();
             }
             "dataBar" => {
-                let Some(bar) = &r.data_bar else { return refuse("without its bar") };
+                let Some(bar) = &r.data_bar else {
+                    return refuse("without its bar");
+                };
                 let kinds: Vec<&str> = bar.thresholds.iter().map(|t| t.kind.as_str()).collect();
-                if kinds != ["min", "max"] || bar.min_length != 0 || bar.max_length != 100 || !bar.show_value {
-                    return refuse("with thresholds, lengths or a hidden value the panel does not offer");
+                if kinds != ["min", "max"]
+                    || bar.min_length != 0
+                    || bar.max_length != 100
+                    || !bar.show_value
+                {
+                    return refuse(
+                        "with thresholds, lengths or a hidden value the panel does not offer",
+                    );
                 }
                 let Some(hex) = bar.color.rgb.as_deref().filter(|v| v.len() == 8) else {
                     return refuse("with a colour that is not RGB");
@@ -817,12 +941,22 @@ impl CfRuleSpec {
                 spec.gradient = bar.gradient;
             }
             "iconSet" => {
-                let Some(set) = &r.icon_set else { return refuse("without its icons") };
-                let mine = CfRuleSpec { icon_set: set.name.clone(), ..CfRuleSpec::new("iconSet") };
-                let (expected, _) = mine.rule(1).map_err(|e| format!("a {} rule: {e}", r.kind))?;
+                let Some(set) = &r.icon_set else {
+                    return refuse("without its icons");
+                };
+                let mine = CfRuleSpec {
+                    icon_set: set.name.clone(),
+                    ..CfRuleSpec::new("iconSet")
+                };
+                let (expected, _) = mine
+                    .rule(1)
+                    .map_err(|e| format!("a {} rule: {e}", r.kind))?;
                 let same = expected.icon_set.as_ref().is_some_and(|e| {
                     e.thresholds.len() == set.thresholds.len()
-                        && e.thresholds.iter().zip(&set.thresholds).all(|(a, b)| a.kind == b.kind && a.value == b.value && a.gte == b.gte)
+                        && e.thresholds
+                            .iter()
+                            .zip(&set.thresholds)
+                            .all(|(a, b)| a.kind == b.kind && a.value == b.value && a.gte == b.gte)
                 });
                 if !same || !set.show_value {
                     return refuse("with thresholds or a hidden value the panel does not offer");
@@ -878,7 +1012,13 @@ pub fn icon_glyph(set: &str, index: usize) -> (&'static str, &'static str) {
     const GREY: &str = "#707070";
     let three = |a: [(&'static str, &'static str); 3]| a[index.min(2)];
     if set.contains("Arrows") {
-        let all = [("\u{2193}", RED), ("\u{2198}", AMBER), ("\u{2192}", AMBER), ("\u{2197}", GREEN), ("\u{2191}", GREEN)];
+        let all = [
+            ("\u{2193}", RED),
+            ("\u{2198}", AMBER),
+            ("\u{2192}", AMBER),
+            ("\u{2197}", GREEN),
+            ("\u{2191}", GREEN),
+        ];
         let grey = set.contains("Gray");
         let pick = match count {
             3 => [0, 2, 4][index.min(2)],
@@ -890,7 +1030,12 @@ pub fn icon_glyph(set: &str, index: usize) -> (&'static str, &'static str) {
     }
     if set.contains("TrafficLights") || set.contains("RedToBlack") {
         if count == 4 {
-            return [("\u{25CF}", "#202020"), ("\u{25CF}", RED), ("\u{25CF}", AMBER), ("\u{25CF}", GREEN)][index.min(3)];
+            return [
+                ("\u{25CF}", "#202020"),
+                ("\u{25CF}", RED),
+                ("\u{25CF}", AMBER),
+                ("\u{25CF}", GREEN),
+            ][index.min(3)];
         }
         return three([("\u{25CF}", RED), ("\u{25CF}", AMBER), ("\u{25CF}", GREEN)]);
     }
@@ -904,10 +1049,22 @@ pub fn icon_glyph(set: &str, index: usize) -> (&'static str, &'static str) {
         return three([("\u{2691}", RED), ("\u{2691}", AMBER), ("\u{2691}", GREEN)]);
     }
     if set.contains("Quarters") {
-        return [("\u{25CB}", GREY), ("\u{25D4}", GREY), ("\u{25D1}", GREY), ("\u{25D5}", GREY), ("\u{25CF}", GREY)][index.min(4)];
+        return [
+            ("\u{25CB}", GREY),
+            ("\u{25D4}", GREY),
+            ("\u{25D1}", GREY),
+            ("\u{25D5}", GREY),
+            ("\u{25CF}", GREY),
+        ][index.min(4)];
     }
     // Ratings: bars of growing height.
-    [("\u{2581}", GREY), ("\u{2583}", GREY), ("\u{2585}", GREY), ("\u{2587}", GREY), ("\u{2588}", GREY)][index.min(4)]
+    [
+        ("\u{2581}", GREY),
+        ("\u{2583}", GREY),
+        ("\u{2585}", GREY),
+        ("\u{2587}", GREY),
+        ("\u{2588}", GREY),
+    ][index.min(4)]
 }
 
 /// What the rules gave a result: a look for each cell of its window, and a line for each rule.
@@ -968,14 +1125,17 @@ pub fn evaluate(
                     held: 0,
                 });
             }
-            Err(why) => outcome.notes.push(format!("{}. {why}; the rule is not applied", index + 1)),
+            Err(why) => outcome
+                .notes
+                .push(format!("{}. {why}; the rule is not applied", index + 1)),
         }
     }
     if prepared.is_empty() {
         return outcome;
     }
     // The range statistics, over every cell of the result.
-    let needs_stats = |p: &Prepared| look::is_aggregate(&p.rule.kind) && p.rule.kind != "aboveAverage";
+    let needs_stats =
+        |p: &Prepared| look::is_aggregate(&p.rule.kind) && p.rule.kind != "aboveAverage";
     let mut stats = RuleStats::default();
     if prepared.iter().any(needs_stats) {
         for r in 0..shape.rows {
@@ -990,7 +1150,9 @@ pub fn evaluate(
     // The session that tests formulas: the result's cells from A1.
     let placed = shape.rows * shape.cols <= MAX_PLACED_CELLS;
     let mut scratch = None;
-    let formula_rules = prepared.iter().any(|p| !look::is_aggregate(&p.rule.kind) || p.rule.kind == "aboveAverage");
+    let formula_rules = prepared
+        .iter()
+        .any(|p| !look::is_aggregate(&p.rule.kind) || p.rule.kind == "aboveAverage");
     if formula_rules && placed {
         let mut session = Session::new("Sheet1").expect("Sheet1 is a sheet name");
         session.set_environment(environment);
@@ -1000,15 +1162,23 @@ pub fn evaluate(
         if let Some(sheet) = first_sheet {
             for r in 0..shape.rows {
                 for c in 0..shape.cols {
-                    let Some(value) = array.get(r, c) else { continue };
-                    let Ok(cell) = CellKey::new(sheet, r as u32 + 1, c as u32 + 1) else { continue };
+                    let Some(value) = array.get(r, c) else {
+                        continue;
+                    };
+                    let Ok(cell) = CellKey::new(sheet, r as u32 + 1, c as u32 + 1) else {
+                        continue;
+                    };
                     let _ = session.set_input_at(cell, input_of(value));
                 }
             }
         }
         scratch = Some(session);
     }
-    let range = format!("$A$1:${}${}", look::a1(1, shape.cols as u32).trim_end_matches(char::is_numeric), shape.rows);
+    let range = format!(
+        "$A$1:${}${}",
+        look::a1(1, shape.cols as u32).trim_end_matches(char::is_numeric),
+        shape.rows
+    );
     for p in &mut prepared {
         match p.rule.kind.as_str() {
             "colorScale" | "dataBar" | "iconSet" | "top10" | "duplicateValues" | "uniqueValues" => {
@@ -1018,7 +1188,10 @@ pub fn evaluate(
                 p.average = Some(match scratch.as_mut() {
                     Some(session) => {
                         session.set_formula_cell("A1").ok();
-                        let result = session.calculate_text(&format!("={}", look::average_formula(&p.rule, &range)));
+                        let result = session.calculate_text(&format!(
+                            "={}",
+                            look::average_formula(&p.rule, &range)
+                        ));
                         match result.result.as_ref().and_then(look::number_of) {
                             Some(n) => Ok(n),
                             None => Err(()),
@@ -1036,7 +1209,9 @@ pub fn evaluate(
     let mut skipped = false;
     for r in 0..rows {
         for c in 0..cols {
-            let Some(value) = array.get(r, c) else { continue };
+            let Some(value) = array.get(r, c) else {
+                continue;
+            };
             let mut cell_look = CellLook::default();
             for &(_, i) in &order {
                 let p = &mut prepared[i];
@@ -1080,17 +1255,23 @@ pub fn evaluate(
                                 false
                             } else {
                                 tested += 1;
-                                let result = session.calculate_relative(&format!("={text}"), &origin);
+                                let result =
+                                    session.calculate_relative(&format!("={text}"), &origin);
                                 match result.result {
-                                    Some(value) if look::truth(&value) => look::dress(&mut cell_look, &p.appearance),
+                                    Some(value) if look::truth(&value) => {
+                                        look::dress(&mut cell_look, &p.appearance)
+                                    }
                                     Some(_) => false,
                                     None => {
                                         outcome.refused += 1;
                                         if outcome.first_refusal.is_none() {
-                                            outcome.first_refusal = result
-                                                .diagnostics
-                                                .first()
-                                                .map(|d| format!("={text}: {}", crate::display::diagnostic(session, d)));
+                                            outcome.first_refusal =
+                                                result.diagnostics.first().map(|d| {
+                                                    format!(
+                                                        "={text}: {}",
+                                                        crate::display::diagnostic(session, d)
+                                                    )
+                                                });
                                         }
                                         false
                                     }
@@ -1138,7 +1319,11 @@ pub fn evaluate(
         outcome.notes.push(format!(
             "{} test(s) could not be calculated and did not hold; a rule formula may be wrong{}.",
             outcome.refused,
-            outcome.first_refusal.as_ref().map(|why| format!(" ({why})")).unwrap_or_default()
+            outcome
+                .first_refusal
+                .as_ref()
+                .map(|why| format!(" ({why})"))
+                .unwrap_or_default()
         ));
     }
     outcome
@@ -1152,7 +1337,9 @@ fn formula_rule(rule: &ConditionalRule) -> bool {
 fn input_of(value: &CalcValue) -> InputValue {
     match value.core_ref() {
         CoreRef::Number(n) => InputValue::number(n).unwrap_or_else(|_| InputValue::blank()),
-        CoreRef::Text(t) => InputValue::text(&t.to_string_lossy()).unwrap_or_else(|_| InputValue::blank()),
+        CoreRef::Text(t) => {
+            InputValue::text(&t.to_string_lossy()).unwrap_or_else(|_| InputValue::blank())
+        }
         CoreRef::Logical(b) => InputValue::logical(b),
         CoreRef::Error(e) => InputValue::error(e),
         _ => InputValue::blank(),
@@ -1201,7 +1388,11 @@ impl LookWire {
     /// The wire form of a look, with the colour a number format gave the text (`format_color`) in
     /// place of the rules' font colour, as Excel's number-format colours take precedence over the
     /// font's. `None` for a cell nothing changes.
-    pub fn of(look: &CellLook, format_color: Option<&str>, text: Option<String>) -> Option<LookWire> {
+    pub fn of(
+        look: &CellLook,
+        format_color: Option<&str>,
+        text: Option<String>,
+    ) -> Option<LookWire> {
         let rgb = |color: &Option<LookColor>| match color {
             Some(LookColor::Rgb(text)) => text.clone(),
             _ => String::new(),

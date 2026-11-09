@@ -278,7 +278,8 @@ impl Moves {
                 let cell_call = kind(at + 1) == Some(TokenKind::LParen)
                     && !qualifier_target(at)
                     && calc_fml::reference::is_cell_callee(
-                        tokens[at].text(), calc_fml::reference::ReferenceNotation::A1,
+                        tokens[at].text(),
+                        calc_fml::reference::ReferenceNotation::A1,
                     );
                 *named = !cell_call;
             }
@@ -482,8 +483,12 @@ mod tests {
             ("LOG10(A1)+LOG10", 1, 0, "LOG10(A2)+LOG11"),
             // Shared-source consistency with the binder's callee token sites;
             // broader Excel call-copy observations remain eng17 questions.
-            ("A1(2)+$A$1(2)+Module1.A1(2)+LOG10(100)", 1, 0,
-                "A2(2)+$A$1(2)+Module1.A1(2)+LOG10(100)"),
+            (
+                "A1(2)+$A$1(2)+Module1.A1(2)+LOG10(100)",
+                1,
+                0,
+                "A2(2)+$A$1(2)+Module1.A1(2)+LOG10(100)",
+            ),
             ("'Book.xlsm'!A1(2)", 1, 0, "'Book.xlsm'!A1(2)"),
             (
                 "_xlfn.XLOOKUP(A1,B:B,C:C)",

@@ -39,7 +39,8 @@ impl HostFacts {
             && Arc::ptr_eq(&self.styles, host.styles())
             && Arc::ptr_eq(&self.sheets, &host.loaded.shared_sheets())
             && self.axis_edits.as_ref() == host.axis_edits.as_slice()
-            && self.file == host.file && self.application == host.application
+            && self.file == host.file
+            && self.application == host.application
             && self.calc_mode == host.calc_mode()
             && self.active_sheet == host.loaded.active_sheet()
     }
@@ -139,47 +140,91 @@ impl HostFacts {
 }
 
 /// Capture source rows at a known revision. Formula cells must have a current calculated value.
-fn model_snapshot(model: &ModelRoot, host: Option<&HostState>) -> Option<calc_doc_model::ModelSnapshot> {
-    use calc_doc_model::{CachedValue, CellInput, CellText, FiniteNumber, ModelSnapshot, ModelSnapshotTable};
+fn model_snapshot(
+    model: &ModelRoot,
+    host: Option<&HostState>,
+) -> Option<calc_doc_model::ModelSnapshot> {
+    use calc_doc_model::{
+        CachedValue, CellInput, CellText, FiniteNumber, ModelSnapshot, ModelSnapshotTable,
+    };
     let data = model.definitions().data_model()?;
-    let fed = |name: &String| data.tables.iter().any(|n| calc_value::workbook_names_equal(n, name));
-    if data.tables.is_empty() || !data.model_tables.iter().all(fed) { return None; }
+    let fed = |name: &String| {
+        data.tables
+            .iter()
+            .any(|n| calc_value::workbook_names_equal(n, name))
+    };
+    if data.tables.is_empty() || !data.model_tables.iter().all(fed) {
+        return None;
+    }
     let mut tables = Vec::new();
     for name in &data.tables {
-        let table = model.definitions().tables().iter().find(|t| calc_value::workbook_names_equal(&t.name, name) || calc_value::workbook_names_equal(&t.display_name, name));
+        let table = model.definitions().tables().iter().find(|t| {
+            calc_value::workbook_names_equal(&t.name, name)
+                || calc_value::workbook_names_equal(&t.display_name, name)
+        });
         let Some(table) = table else {
             // The model retains its existing copy when its worksheet table is removed.
-            let previous = data.snapshot.as_ref()?.tables.iter().find(|t| calc_value::workbook_names_equal(&t.name, name))?;
+            let previous = data
+                .snapshot
+                .as_ref()?
+                .tables
+                .iter()
+                .find(|t| calc_value::workbook_names_equal(&t.name, name))?;
             tables.push(previous.clone());
             continue;
         };
         let last = table.area.last().row().checked_sub(table.totals_rows)?;
         let first = table.area.first().row().checked_add(table.header_rows)?;
-        if table.area.cell_count() > 1_000_000 { return None; }
+        if table.area.cell_count() > 1_000_000 {
+            return None;
+        }
         let projected = if let Some(host) = host {
-            let cells = (first..=last).flat_map(|row| (0..table.columns.len()).map(move |offset| {
-                CellKey::new(table.sheet, row, table.area.first().column() + offset as u32).ok()
-            })).collect::<Option<Vec<_>>>()?;
+            let cells = (first..=last)
+                .flat_map(|row| {
+                    (0..table.columns.len()).map(move |offset| {
+                        CellKey::new(
+                            table.sheet,
+                            row,
+                            table.area.first().column() + offset as u32,
+                        )
+                        .ok()
+                    })
+                })
+                .collect::<Option<Vec<_>>>()?;
             Some(crate::project(host, &crate::ProjectionRequest { cells }).ok()?)
-        } else { None };
+        } else {
+            None
+        };
         let mut rows = Vec::new();
         for row in first..=last {
             let mut values = Vec::new();
             for offset in 0..table.columns.len() {
-                let at = CellKey::new(table.sheet, row, table.area.first().column() + offset as u32).ok()?;
+                let at = CellKey::new(
+                    table.sheet,
+                    row,
+                    table.area.first().column() + offset as u32,
+                )
+                .ok()?;
                 let value = if let Some(page) = &projected {
                     let index = (row - first) as usize * table.columns.len() + offset;
                     match page.cells().get(index)?.value() {
                         crate::ProjectedValue::Empty => None,
                         crate::ProjectedValue::Literal(value) => Some(value.clone()),
-                        crate::ProjectedValue::Calculated { value, calculation } if !calculation.reads_external_links() && !calculation.held_by_circular_rule() => Some(value.clone()),
+                        crate::ProjectedValue::Calculated { value, calculation }
+                            if !calculation.reads_external_links()
+                                && !calculation.held_by_circular_rule() =>
+                        {
+                            Some(value.clone())
+                        }
                         _ => return None,
                     }
                 } else {
                     match model.cell(at) {
                         None => None,
                         Some(CellInput::Number(n)) => Some(calc_value::CalcValue::number(n.get())),
-                        Some(CellInput::Text(t)) => Some(calc_value::CalcValue::text(t.text().clone())),
+                        Some(CellInput::Text(t)) => {
+                            Some(calc_value::CalcValue::text(t.text().clone()))
+                        }
                         Some(CellInput::Logical(b)) => Some(calc_value::CalcValue::logical(*b)),
                         Some(CellInput::Error(e)) => Some(calc_value::CalcValue::error(*e)),
                         Some(CellInput::Formula(_)) => return None,
@@ -187,8 +232,12 @@ fn model_snapshot(model: &ModelRoot, host: Option<&HostState>) -> Option<calc_do
                 };
                 values.push(match value.as_ref().map(|v| v.core_ref()) {
                     None | Some(calc_value::CoreRef::Empty) => None,
-                    Some(calc_value::CoreRef::Number(n)) => Some(CachedValue::Number(FiniteNumber::new(n)?)),
-                    Some(calc_value::CoreRef::Text(t)) => Some(CachedValue::Text(CellText::new(t.clone())?)),
+                    Some(calc_value::CoreRef::Number(n)) => {
+                        Some(CachedValue::Number(FiniteNumber::new(n)?))
+                    }
+                    Some(calc_value::CoreRef::Text(t)) => {
+                        Some(CachedValue::Text(CellText::new(t.clone())?))
+                    }
                     Some(calc_value::CoreRef::Logical(b)) => Some(CachedValue::Logical(b)),
                     Some(calc_value::CoreRef::Error(e)) => Some(CachedValue::Error(e)),
                     _ => return None,
@@ -196,34 +245,72 @@ fn model_snapshot(model: &ModelRoot, host: Option<&HostState>) -> Option<calc_do
             }
             rows.push(values);
         }
-        tables.push(ModelSnapshotTable { provenance: calc_doc_model::ModelSnapshotProvenance::WorksheetTables { revision: model.revision().get() }, name: name.clone(), columns: table.columns.clone(), rows });
+        tables.push(ModelSnapshotTable {
+            provenance: calc_doc_model::ModelSnapshotProvenance::WorksheetTables {
+                revision: model.revision().get(),
+            },
+            name: name.clone(),
+            columns: table.columns.clone(),
+            rows,
+        });
     }
     Some(ModelSnapshot { tables })
 }
 
 pub(crate) fn initial_model(model: &Arc<ModelRoot>) -> Arc<ModelRoot> {
-    let Some(data) = model.definitions().data_model() else { return model.clone(); };
+    let Some(data) = model.definitions().data_model() else {
+        return model.clone();
+    };
     let mut data = (**data).clone();
     data.snapshot = model_snapshot(model, None);
     model.with_initial_data_model(data)
 }
 
-pub(crate) fn prepare_model_refresh(host: &HostState, revision: u64) -> Result<Vec<crate::CellEdit>, String> {
-    if revision != host.revision().get() { return Err("The workbook changed before Refresh All (dc-8wp.18)".into()); }
-    let Some(data) = host.model.definitions().data_model() else { return Err("The workbook has no data model (dc-8wp.18)".into()); };
-    if !data.other_connections.is_empty() { return Err("Refresh All includes external connections that are not modelled (dc-8wp.21)".into()); }
+pub(crate) fn prepare_model_refresh(
+    host: &HostState,
+    revision: u64,
+) -> Result<Vec<crate::CellEdit>, String> {
+    if revision != host.revision().get() {
+        return Err("The workbook changed before Refresh All (dc-8wp.18)".into());
+    }
+    let Some(data) = host.model.definitions().data_model() else {
+        return Err("The workbook has no data model (dc-8wp.18)".into());
+    };
+    if !data.other_connections.is_empty() {
+        return Err(
+            "Refresh All includes external connections that are not modelled (dc-8wp.21)".into(),
+        );
+    }
     let mut data = (**data).clone();
-    data.snapshot = Some(model_snapshot(&host.model, Some(host)).ok_or("The data model source is unavailable or has uncalculated values (dc-8wp.18)")?);
+    data.snapshot = Some(
+        model_snapshot(&host.model, Some(host))
+            .ok_or("The data model source is unavailable or has uncalculated values (dc-8wp.18)")?,
+    );
     let data = Arc::new(data);
     let pivots = host.model.definitions().pivots();
     let mut tables = pivots.tables();
     let mut edits = vec![crate::CellEdit::DataModel(data.clone())];
     if let Some(table) = tables.next() {
-        if tables.next().is_some() || !pivots.caches.issues.is_empty() || pivots.sheets.values().any(|sheet| !sheet.issues.is_empty()) {
-            return Err("Refresh All cannot yet refresh this set of pivot tables (dc-8wp.19)".into());
+        if tables.next().is_some()
+            || !pivots.caches.issues.is_empty()
+            || pivots.sheets.values().any(|sheet| !sheet.issues.is_empty())
+        {
+            return Err(
+                "Refresh All cannot yet refresh this set of pivot tables (dc-8wp.19)".into(),
+            );
         }
-        let cache = pivots.caches.caches.get(&table.cache_id).ok_or("The model-pivot cache is unavailable (dc-8wp.19)")?;
-        edits.extend(crate::pivot::prepare_model_pivot_refresh(host, pivots, table, cache, data.clone())?);
+        let cache = pivots
+            .caches
+            .caches
+            .get(&table.cache_id)
+            .ok_or("The model-pivot cache is unavailable (dc-8wp.19)")?;
+        edits.extend(crate::pivot::prepare_model_pivot_refresh(
+            host,
+            pivots,
+            table,
+            cache,
+            data.clone(),
+        )?);
     }
     let mut admitted = host.admitted_model_snapshots.borrow_mut();
     admitted.retain(|entry| entry.strong_count() != 0);
@@ -237,9 +324,23 @@ fn build_cube(data: &calc_doc_model::DataModel) -> calc_func::CubeLookup {
 
 impl WorkbookFacts for HostFacts {
     fn cube_model(&self, connection: &str) -> calc_func::CubeLookup {
-        let Some(model) = self.model.definitions().data_model() else { return calc_func::CubeLookup::NoConnection; };
-        if !model.connections.iter().any(|name| calc_value::workbook_names_equal(name, connection)) { return calc_func::CubeLookup::NoConnection; }
-        if model.model_connection.as_ref().is_none_or(|name| !calc_value::workbook_names_equal(name, connection)) { return calc_func::CubeLookup::NotReadable; }
+        let Some(model) = self.model.definitions().data_model() else {
+            return calc_func::CubeLookup::NoConnection;
+        };
+        if !model
+            .connections
+            .iter()
+            .any(|name| calc_value::workbook_names_equal(name, connection))
+        {
+            return calc_func::CubeLookup::NoConnection;
+        }
+        if model
+            .model_connection
+            .as_ref()
+            .is_none_or(|name| !calc_value::workbook_names_equal(name, connection))
+        {
+            return calc_func::CubeLookup::NotReadable;
+        }
         self.cube.clone()
     }
 
@@ -350,7 +451,9 @@ impl WorkbookFacts for HostFacts {
 impl HostState {
     /// The snapshot of the workbook facts at the current revision (see the module documentation).
     pub(crate) fn workbook_facts(&self) -> Arc<dyn WorkbookFacts> {
-        if let Some(facts) = &self.current_facts && facts.matches(self) {
+        if let Some(facts) = &self.current_facts
+            && facts.matches(self)
+        {
             return facts.clone();
         }
         self.capture_workbook_facts()
@@ -359,11 +462,16 @@ impl HostState {
     fn capture_workbook_facts(&self) -> Arc<HostFacts> {
         let cube = if let Some(data) = self.model.definitions().data_model() {
             let mut cache = self.cube_cache.borrow_mut();
-            if cache.as_ref().is_none_or(|(old, _)| !Arc::ptr_eq(old, data)) {
+            if cache
+                .as_ref()
+                .is_none_or(|(old, _)| !Arc::ptr_eq(old, data))
+            {
                 *cache = Some((data.clone(), build_cube(data)));
             }
             cache.as_ref().unwrap().1.clone()
-        } else { calc_func::CubeLookup::NoConnection };
+        } else {
+            calc_func::CubeLookup::NoConnection
+        };
         Arc::new(HostFacts {
             cube,
             model: Arc::clone(&self.model),
@@ -379,7 +487,9 @@ impl HostState {
 
     /// Share the existing owner snapshot while all of its sources still match.
     pub(crate) fn refresh_workbook_facts(&mut self) -> Arc<HostFacts> {
-        if let Some(facts) = &self.current_facts && facts.matches(self) {
+        if let Some(facts) = &self.current_facts
+            && facts.matches(self)
+        {
             return facts.clone();
         }
         self.renew_workbook_facts()
@@ -394,7 +504,9 @@ impl HostState {
     }
 
     pub(crate) fn revoke_calculation_handles(&mut self) {
-        self.calculation_authority = self.calculation_authority.checked_add(1)
+        self.calculation_authority = self
+            .calculation_authority
+            .checked_add(1)
             .expect("owner calculation authority exhausted");
     }
 
@@ -402,14 +514,18 @@ impl HostState {
     /// another sheet in CELL("address") name: its folder (with its trailing separator) and file
     /// name; a folder of `None` for a workbook never saved. `None` refuses them again.
     pub fn set_file(&mut self, file: Option<WorkbookFile>) {
-        if self.file != file { self.revoke_calculation_handles(); }
+        if self.file != file {
+            self.revoke_calculation_handles();
+        }
         self.file = file;
     }
 
     /// Sets the facts about the application and its platform that INFO reads (`release`,
     /// `osversion`, `system`, `directory`); `None` refuses them again.
     pub fn set_application(&mut self, application: Option<ApplicationFacts>) {
-        if self.application != application { self.revoke_calculation_handles(); }
+        if self.application != application {
+            self.revoke_calculation_handles();
+        }
         self.application = application;
     }
 }

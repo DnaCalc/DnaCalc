@@ -10,9 +10,9 @@
 //! reads any formula of a SpreadsheetML package.
 
 use super::commands::COMMANDS;
-use calc_catalogue::EXCEL_FUNCTION_IDS as FUNCTIONS;
 use super::records::{Cursor, Malformed, Read, text};
 use crate::save::file_form::function_file_name;
+use calc_catalogue::EXCEL_FUNCTION_IDS as FUNCTIONS;
 use std::collections::BTreeMap;
 
 /// One XTI (2.5.173): a supporting workbook and a range of its sheets.
@@ -759,7 +759,9 @@ fn external_name(ixti: u16, index: u32, context: &Context<'_>) -> Read<String> {
 /// `_xludf.` before it; any other name as it is.
 fn call_name(name: &str) -> String {
     if let Some(base) = name.strip_prefix(calc_catalogue::FUTURE_FUNCTION_PREFIX) {
-        let base = base.strip_prefix(calc_catalogue::WORKSHEET_FUNCTION_PREFIX).unwrap_or(base);
+        let base = base
+            .strip_prefix(calc_catalogue::WORKSHEET_FUNCTION_PREFIX)
+            .unwrap_or(base);
         if base.eq_ignore_ascii_case(calc_catalogue::FIELD_ACCESS_FILE_NAME) {
             return base.to_owned();
         }
@@ -771,7 +773,8 @@ fn call_name(name: &str) -> String {
     let known = FUNCTIONS
         .iter()
         .any(|(_, known, _)| known.eq_ignore_ascii_case(name))
-        || function_file_name(name).is_some_and(|written| written.starts_with(calc_catalogue::FUTURE_FUNCTION_PREFIX));
+        || function_file_name(name)
+            .is_some_and(|written| written.starts_with(calc_catalogue::FUTURE_FUNCTION_PREFIX));
     if !name.contains(['!', '[']) && known {
         return format!("{}{name}", calc_catalogue::USER_DEFINED_FUNCTION_PREFIX);
     }

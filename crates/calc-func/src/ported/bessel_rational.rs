@@ -12,8 +12,8 @@
 //! Copyright NumFOCUS, at 311b7060ef39e371f3cd209ec135284ff5fde735.
 //! Their scalar operations use the existing RN53(RN64(operation)) helpers.
 use super::excel_numeric::{
-    excel_cos, excel_exp, excel_log, excel_sin, excel_sqrt_staged,
-    excel_x87_add, excel_x87_div, excel_x87_mul,
+    excel_cos, excel_exp, excel_log, excel_sin, excel_sqrt_staged, excel_x87_add, excel_x87_div,
+    excel_x87_mul,
 };
 
 const J0_NUM: &[f64] = &[
@@ -274,7 +274,10 @@ pub(super) fn i0(x: f64, small: &[f64], large: &[f64]) -> f64 {
     } else {
         let reduced = excel_x87_div(3.75, magnitude);
         let scale = excel_x87_div(excel_exp(magnitude), excel_sqrt_staged(magnitude));
-        excel_x87_mul(scale, polynomial_with(reduced, large, excel_x87_mul, excel_x87_add))
+        excel_x87_mul(
+            scale,
+            polynomial_with(reduced, large, excel_x87_mul, excel_x87_add),
+        )
     }
 }
 

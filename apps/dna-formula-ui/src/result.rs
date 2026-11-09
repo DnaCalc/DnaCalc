@@ -124,7 +124,15 @@ pub fn array_window(
     col_count: usize,
     profile: Option<&FormatProfile>,
 ) -> Result<ArrayWindow, ArrayWindowError> {
-    window_within(array, row_offset, col_offset, row_count, col_count, profile, MAX_ARRAY_WINDOW_CELLS)
+    window_within(
+        array,
+        row_offset,
+        col_offset,
+        row_count,
+        col_count,
+        profile,
+        MAX_ARRAY_WINDOW_CELLS,
+    )
 }
 
 fn window_within(
@@ -487,7 +495,10 @@ mod tests {
         assert!(!scrolling_window(&small, None).truncated());
         assert!(matches!(
             ResultView::windowed(Some(&CalcValue::array(tall)), None, Windowing::Scrolling),
-            ResultView::Array(ArrayWindow { total_rows: 30_000, .. })
+            ResultView::Array(ArrayWindow {
+                total_rows: 30_000,
+                ..
+            })
         ));
     }
 }
@@ -537,7 +548,11 @@ pub fn format_choices(profile: &FormatProfile) -> Vec<FormatChoice> {
         choice("Percent", "Percent, two decimals", format!("0{d}00%")),
         choice("Scientific", "Scientific", format!("0{d}00E+00")),
         choice("Currency", "Dollar", format!("$#{t}##0{d}00")),
-        choice("Currency", "Dollar, negatives in red", format!("$#{t}##0{d}00;[Red]-$#{t}##0{d}00")),
+        choice(
+            "Currency",
+            "Dollar, negatives in red",
+            format!("$#{t}##0{d}00;[Red]-$#{t}##0{d}00"),
+        ),
         choice("Date", "Year-month-day", "yyyy-mm-dd".to_owned()),
         choice("Date", "Day/month/year", "d/m/yyyy".to_owned()),
         choice("Date", "Day month-name year", "dd-mmm-yy".to_owned()),
@@ -545,10 +560,17 @@ pub fn format_choices(profile: &FormatProfile) -> Vec<FormatChoice> {
         choice("Time", "Time", "h:mm:ss".to_owned()),
         choice("Time", "Time, 12-hour", "h:mm AM/PM".to_owned()),
         choice("Time", "Elapsed hours", "[h]:mm:ss".to_owned()),
-        choice("Date and time", "Date and time", "yyyy-mm-dd hh:mm:ss".to_owned()),
+        choice(
+            "Date and time",
+            "Date and time",
+            "yyyy-mm-dd hh:mm:ss".to_owned(),
+        ),
         choice("Text", "Text", "@".to_owned()),
     ];
-    let at = choices.iter().position(|c| c.group == "Date").unwrap_or(choices.len());
+    let at = choices
+        .iter()
+        .position(|c| c.group == "Date")
+        .unwrap_or(choices.len());
     choices.splice(at..at, fractions);
     choices
 }
@@ -574,7 +596,9 @@ pub fn formatted_text(
         return Ok(shown(value, Some(profile)));
     }
     calc_func::cell_text_localized(profile, date_system, value, code).map_err(|e| match e {
-        calc_func::CellFormatError::Unshowable => "This value cannot be shown in that format".to_owned(),
+        calc_func::CellFormatError::Unshowable => {
+            "This value cannot be shown in that format".to_owned()
+        }
         calc_func::CellFormatError::NotModelled => "This number format is not modelled".to_owned(),
     })
 }
@@ -638,7 +662,13 @@ mod formatted_results {
             );
             for code in ["0", "0.00E+00", "yyyy-mm-dd", "@"] {
                 assert!(
-                    formatted_view(Some(&value), Some(&profile), code, calc_func::locale::DateSystem::System1900).is_err(),
+                    formatted_view(
+                        Some(&value),
+                        Some(&profile),
+                        code,
+                        calc_func::locale::DateSystem::System1900
+                    )
+                    .is_err(),
                     "{code}"
                 );
             }
@@ -657,19 +687,31 @@ mod formatted_results {
                     calc_func::locale::DateSystem::System1904,
                 ] {
                     let view = formatted_view(Some(&value), Some(&profile), &choice.code, system);
-                    assert!(view.is_ok(), "{culture} {} {:?}: {view:?}", choice.label, choice.code);
+                    assert!(
+                        view.is_ok(),
+                        "{culture} {} {:?}: {view:?}",
+                        choice.label,
+                        choice.code
+                    );
                 }
             }
         }
         // The date system moves the date a serial number is.
         let profile = FormatProfile::for_culture("en-US").unwrap();
         let value = CalcValue::number(43860.0);
-        let show = |system| match formatted_view(Some(&value), Some(&profile), "yyyy-mm-dd", system) {
+        let show = |system| match formatted_view(Some(&value), Some(&profile), "yyyy-mm-dd", system)
+        {
             Ok(ResultView::Value { text, .. }) => text,
             other => panic!("{other:?}"),
         };
-        assert_eq!(show(calc_func::locale::DateSystem::System1904), "2024-01-31");
-        assert_eq!(show(calc_func::locale::DateSystem::System1900), "2020-01-30");
+        assert_eq!(
+            show(calc_func::locale::DateSystem::System1904),
+            "2024-01-31"
+        );
+        assert_eq!(
+            show(calc_func::locale::DateSystem::System1900),
+            "2020-01-30"
+        );
     }
 
     #[cfg_attr(not(target_arch = "wasm32"), test)]
@@ -684,9 +726,13 @@ mod formatted_results {
             CalcArray::from_rows(vec![vec![CalcValue::number(1.0), CalcValue::number(2.5)]])
                 .unwrap(),
         );
-        let ResultView::Array(window) =
-            formatted_view(Some(&array), Some(&profile), "0,00", calc_func::locale::DateSystem::System1900).unwrap()
-        else {
+        let ResultView::Array(window) = formatted_view(
+            Some(&array),
+            Some(&profile),
+            "0,00",
+            calc_func::locale::DateSystem::System1900,
+        )
+        .unwrap() else {
             panic!("array view")
         };
         assert_eq!(
@@ -698,7 +744,12 @@ mod formatted_results {
         );
         let error = CalcValue::error(WorksheetErrorCode::Div0);
         assert!(matches!(
-            formatted_view(Some(&error), Some(&profile), "0,00", calc_func::locale::DateSystem::System1900),
+            formatted_view(
+                Some(&error),
+                Some(&profile),
+                "0,00",
+                calc_func::locale::DateSystem::System1900
+            ),
             Ok(ResultView::Error {
                 code: "#DIV/0!",
                 ..

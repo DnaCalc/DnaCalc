@@ -103,7 +103,10 @@ const VALUE: CubeFailure = CubeFailure::Error(WorksheetErrorCode::Value);
 #[derive(Clone, Debug, PartialEq)]
 pub enum CubeMember {
     Measure(usize),
-    All { table: usize, column: usize },
+    All {
+        table: usize,
+        column: usize,
+    },
     Key {
         table: usize,
         column: usize,
@@ -241,23 +244,38 @@ impl CubeModel {
     /// Resolve an MDX measure spelling for a model-pivot query.
     pub fn pivot_measure(&self, text: &str) -> Result<CubeMember, CubeFailure> {
         let missing = CubeFailure::Error(WorksheetErrorCode::Ref);
-        if text.trim_end().ends_with('.') { return Err(missing); }
-        let parts = name_parts(text).ok_or(missing)?;
-        if parts.len() != 2 || parts.iter().any(|(_, key)| *key) || !folded_eq(&parts[0].0, "Measures") {
+        if text.trim_end().ends_with('.') {
             return Err(missing);
         }
-        self.measure(&parts[1].0).map(CubeMember::Measure).ok_or(missing)
+        let parts = name_parts(text).ok_or(missing)?;
+        if parts.len() != 2
+            || parts.iter().any(|(_, key)| *key)
+            || !folded_eq(&parts[0].0, "Measures")
+        {
+            return Err(missing);
+        }
+        self.measure(&parts[1].0)
+            .map(CubeMember::Measure)
+            .ok_or(missing)
     }
 
     /// Resolve a hierarchy and its unique key with the same member parser as CUBE formulas.
     pub fn pivot_key(&self, hierarchy: &str, text: &str) -> Result<CubeMember, CubeFailure> {
         let missing = CubeFailure::Error(WorksheetErrorCode::Ref);
-        if hierarchy.trim_end().ends_with('.') || text.trim_end().ends_with('.') { return Err(missing); }
+        if hierarchy.trim_end().ends_with('.') || text.trim_end().ends_with('.') {
+            return Err(missing);
+        }
         let field = name_parts(hierarchy).ok_or(missing)?;
         let key = name_parts(text).ok_or(missing)?;
-        if field.len() != 2 || field.iter().any(|(_, marked)| *marked)
-            || key.len() != 3 || key[0].1 || key[1].1 || !key[2].1
-            || !folded_eq(&field[0].0, &key[0].0) || !folded_eq(&field[1].0, &key[1].0) {
+        if field.len() != 2
+            || field.iter().any(|(_, marked)| *marked)
+            || key.len() != 3
+            || key[0].1
+            || key[1].1
+            || !key[2].1
+            || !folded_eq(&field[0].0, &key[0].0)
+            || !folded_eq(&field[1].0, &key[1].0)
+        {
             return Err(missing);
         }
         match self.member(text) {
@@ -334,7 +352,11 @@ impl CubeModel {
         if text.contains('(') {
             return Err(CubeFailure::NotModelled);
         }
-        for (suffix, whole) in [(".Children", false), (".AllMembers", true), (".Members", true)] {
+        for (suffix, whole) in [
+            (".Children", false),
+            (".AllMembers", true),
+            (".Members", true),
+        ] {
             if upper.ends_with(&suffix.to_ascii_uppercase()) {
                 return self.hierarchy_set(&text[..text.len() - suffix.len()], whole);
             }
@@ -364,13 +386,11 @@ impl CubeModel {
         if whole {
             tuples.push(vec![CubeMember::All { table, column }]);
         }
-        tuples.extend(self.keys(table, column).into_iter().map(|key| {
-            vec![CubeMember::Key {
-                table,
-                column,
-                key,
-            }]
-        }));
+        tuples.extend(
+            self.keys(table, column)
+                .into_iter()
+                .map(|key| vec![CubeMember::Key { table, column, key }]),
+        );
         Ok(tuples)
     }
 
@@ -396,7 +416,11 @@ impl CubeModel {
         for a in &left {
             for b in &right {
                 let tuple: Vec<CubeMember> = a.iter().chain(b).cloned().collect();
-                if self.value(std::slice::from_ref(&tuple))?.as_number().is_some() {
+                if self
+                    .value(std::slice::from_ref(&tuple))?
+                    .as_number()
+                    .is_some()
+                {
                     joined.push(tuple);
                 }
             }
@@ -465,7 +489,9 @@ impl CubeModel {
         sort_by: Option<&str>,
     ) -> Result<Vec<Vec<CubeMember>>, CubeFailure> {
         let caption = |tuple: &Vec<CubeMember>| {
-            crate::value::fold_workbook_name(&tuple.last().map(|m| self.caption(m)).unwrap_or_default())
+            crate::value::fold_workbook_name(
+                &tuple.last().map(|m| self.caption(m)).unwrap_or_default(),
+            )
         };
         match sort_order {
             0 | 5 => Ok(tuples),
@@ -531,8 +557,9 @@ impl CubeModel {
         // Relationships between model tables are not decoded yet. Silently ignoring a member
         // from another table would publish an unfiltered measure as if it had been filtered.
         // This check also covers every alternative in a set and All members.
-        if arguments.iter().flatten().flatten().any(|member|
-            Self::hierarchy(member).is_some_and(|(member_table, _)| member_table != table)) {
+        if arguments.iter().flatten().flatten().any(|member| {
+            Self::hierarchy(member).is_some_and(|(member_table, _)| member_table != table)
+        }) {
             return Err(CubeFailure::CrossTableNotModelled);
         }
         let rows = self.tables[table]
@@ -540,7 +567,11 @@ impl CubeModel {
             .first()
             .map_or(0, |column| column.cells.len());
         let selected: Vec<usize> = (0..rows)
-            .filter(|row| arguments.iter().all(|argument| self.row_in(table, *row, argument)))
+            .filter(|row| {
+                arguments
+                    .iter()
+                    .all(|argument| self.row_in(table, *row, argument))
+            })
             .collect();
         let Some(measure) = measure else {
             return Ok(if selected.is_empty() {
@@ -573,7 +604,11 @@ impl CubeModel {
                 return Ok(table);
             }
         }
-        if self.tables.is_empty() { Err(CubeFailure::NotModelled) } else { Ok(0) }
+        if self.tables.is_empty() {
+            Err(CubeFailure::NotModelled)
+        } else {
+            Ok(0)
+        }
     }
 
     fn row_in(&self, table: usize, row: usize, argument: &[Vec<CubeMember>]) -> bool {
@@ -644,7 +679,11 @@ impl CubeModel {
                 .map(|cell| (*cell).clone())
                 .collect();
             texts.sort_by(key_order);
-            let chosen = if function == "MIN" { texts.first() } else { texts.last() };
+            let chosen = if function == "MIN" {
+                texts.first()
+            } else {
+                texts.last()
+            };
             return Ok(chosen.cloned().unwrap_or_else(empty_text));
         }
         if numbers.is_empty() {
@@ -654,7 +693,8 @@ impl CubeModel {
         // outside the selected rows can determine whether a SUM uses scaled integers or binary64
         // addition. A sliced column with seven decimal places has not yet been captured.
         let sum = || {
-            let all_numbers: Vec<f64> = held.cells.iter().filter_map(CalcValue::as_number).collect();
+            let all_numbers: Vec<f64> =
+                held.cells.iter().filter_map(CalcValue::as_number).collect();
             if scaled_sum(&all_numbers).is_some() {
                 scaled_sum(&numbers).unwrap_or_else(|| numbers.iter().sum())
             } else {
@@ -732,7 +772,14 @@ fn parse_measure(expression: &str) -> Result<(String, String, Option<String>), C
     let function = text[..open].trim().to_ascii_uppercase();
     if !matches!(
         function.as_str(),
-        "SUM" | "COUNT" | "COUNTA" | "COUNTBLANK" | "AVERAGE" | "MIN" | "MAX" | "DISTINCTCOUNT"
+        "SUM"
+            | "COUNT"
+            | "COUNTA"
+            | "COUNTBLANK"
+            | "AVERAGE"
+            | "MIN"
+            | "MAX"
+            | "DISTINCTCOUNT"
             | "COUNTROWS"
     ) || inner.contains('(')
     {
@@ -754,7 +801,9 @@ mod tests {
     use super::*;
 
     fn text(value: &str) -> CalcValue {
-        CalcValue::text(ExcelText::from_utf16_code_units(value.encode_utf16().collect()))
+        CalcValue::text(ExcelText::from_utf16_code_units(
+            value.encode_utf16().collect(),
+        ))
     }
 
     /// The table of the measured workbook.
@@ -778,7 +827,10 @@ mod tests {
                 columns: vec![
                     column("Region", rows.iter().map(|r| text(r.0)).collect()),
                     column("Product", rows.iter().map(|r| text(r.1)).collect()),
-                    column("Amount", rows.iter().map(|r| CalcValue::number(r.2)).collect()),
+                    column(
+                        "Amount",
+                        rows.iter().map(|r| CalcValue::number(r.2)).collect(),
+                    ),
                 ],
             }],
             measures: [
@@ -813,20 +865,45 @@ mod tests {
         let model = model();
         let total = model.pivot_measure("[Measures].[TotalAmount]").unwrap();
         assert_eq!(total, model.member("[Measures].[TotalAmount]").unwrap());
-        let east = model.pivot_key("[Table1].[Region]", "[Table1].[Region].&[East]").unwrap();
-        let product = model.pivot_key("[Table1].[Product]", "[Table1].[Product].&[A]").unwrap();
+        let east = model
+            .pivot_key("[Table1].[Region]", "[Table1].[Region].&[East]")
+            .unwrap();
+        let product = model
+            .pivot_key("[Table1].[Product]", "[Table1].[Product].&[A]")
+            .unwrap();
         assert_eq!(east, model.member("[Table1].[Region].&[East]").unwrap());
         assert_eq!(product, model.member("[Table1].[Product].&[A]").unwrap());
         let missing = CubeFailure::Error(WorksheetErrorCode::Ref);
         assert_eq!(model.pivot_measure("TotalAmount"), Err(missing));
-        assert_eq!(model.pivot_measure("[Measures].[TotalAmount]."), Err(missing));
+        assert_eq!(
+            model.pivot_measure("[Measures].[TotalAmount]."),
+            Err(missing)
+        );
         assert_eq!(model.pivot_measure("[Measures].[Missing]"), Err(missing));
         assert_eq!(model.pivot_key("[Table1].[Region]", "East"), Err(missing));
-        assert_eq!(model.pivot_key("[Table1].[Region].", "[Table1].[Region].&[East]"), Err(missing));
-        assert_eq!(model.pivot_key("[Table1].[Region]", "[Table1].[Region].&[East]."), Err(missing));
-        assert_eq!(model.pivot_key("[Table1].[Region]", "[Table1].[Region].&[Nowhere]"), Err(missing));
-        assert_eq!(model.pivot_key("[Table1].[Region]", "[Table1].[Product].&[A]"), Err(missing));
-        assert_eq!(model.pivot_key("[Table1].[Region].[Region]", "[Table1].[Region].[Region].&[East]"), Err(missing));
+        assert_eq!(
+            model.pivot_key("[Table1].[Region].", "[Table1].[Region].&[East]"),
+            Err(missing)
+        );
+        assert_eq!(
+            model.pivot_key("[Table1].[Region]", "[Table1].[Region].&[East]."),
+            Err(missing)
+        );
+        assert_eq!(
+            model.pivot_key("[Table1].[Region]", "[Table1].[Region].&[Nowhere]"),
+            Err(missing)
+        );
+        assert_eq!(
+            model.pivot_key("[Table1].[Region]", "[Table1].[Product].&[A]"),
+            Err(missing)
+        );
+        assert_eq!(
+            model.pivot_key(
+                "[Table1].[Region].[Region]",
+                "[Table1].[Region].[Region].&[East]"
+            ),
+            Err(missing)
+        );
     }
 
     /// Unmodelled relationships cannot silently turn a cross-table slice into an unfiltered sum.
@@ -834,17 +911,33 @@ mod tests {
     #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
     fn dc_8wp_19__cross_table_members_refuse_without_relationships() {
         let mut model = model();
-        model.tables.push(CubeTable { name: "Other".into(), columns: vec![CubeColumn {
-            name: "Region".into(), cells: vec![text("East"), text("West")],
-        }] });
+        model.tables.push(CubeTable {
+            name: "Other".into(),
+            columns: vec![CubeColumn {
+                name: "Region".into(),
+                cells: vec![text("East"), text("West")],
+            }],
+        });
         let total = model.member("[Measures].[TotalAmount]").unwrap();
         let east = model.member("[Table1].[Region].&[East]").unwrap();
         let other_east = model.member("[Other].[Region].&[East]").unwrap();
         let other_all = model.member("[Other].[Region].[All]").unwrap();
-        assert_eq!(model.value(&[vec![total.clone()], vec![east.clone()]]), Ok(CalcValue::number(15.2)));
-        assert_eq!(model.value(&[vec![total.clone()], vec![other_east.clone()]]), Err(CubeFailure::CrossTableNotModelled));
-        assert_eq!(model.value(&[vec![total.clone()], vec![other_all]]), Err(CubeFailure::CrossTableNotModelled));
-        assert_eq!(model.value_over(&[vec![vec![total]], vec![vec![east], vec![other_east]]]), Err(CubeFailure::CrossTableNotModelled));
+        assert_eq!(
+            model.value(&[vec![total.clone()], vec![east.clone()]]),
+            Ok(CalcValue::number(15.2))
+        );
+        assert_eq!(
+            model.value(&[vec![total.clone()], vec![other_east.clone()]]),
+            Err(CubeFailure::CrossTableNotModelled)
+        );
+        assert_eq!(
+            model.value(&[vec![total.clone()], vec![other_all]]),
+            Err(CubeFailure::CrossTableNotModelled)
+        );
+        assert_eq!(
+            model.value_over(&[vec![vec![total]], vec![vec![east], vec![other_east]]]),
+            Err(CubeFailure::CrossTableNotModelled)
+        );
         model.tables.clear();
         assert_eq!(model.value(&[vec![]]), Err(CubeFailure::NotModelled));
     }
@@ -865,11 +958,26 @@ mod tests {
             tables: vec![CubeTable {
                 name: "Table1".to_owned(),
                 columns: vec![
-                    column("Region", vec![text("East"), text("West"), text("east"), blank(), text("North")]),
-                    column("Year", vec![n(2024.0), n(2023.0), n(2024.0), n(2022.0), n(10.0)]),
+                    column(
+                        "Region",
+                        vec![
+                            text("East"),
+                            text("West"),
+                            text("east"),
+                            blank(),
+                            text("North"),
+                        ],
+                    ),
+                    column(
+                        "Year",
+                        vec![n(2024.0), n(2023.0), n(2024.0), n(2022.0), n(10.0)],
+                    ),
                     column("Flag", vec![l(true), l(false), l(true), l(false), blank()]),
                     column("Amount", vec![n(10.0), n(20.0), n(5.0), n(7.0), blank()]),
-                    column("Note", vec![text("a"), blank(), text("b"), text("a"), text("c")]),
+                    column(
+                        "Note",
+                        vec![text("a"), blank(), text("b"), text("a"), text("c")],
+                    ),
                 ],
             }],
             measures: [
@@ -905,10 +1013,19 @@ mod tests {
                 .map(|tuple| model.caption(&tuple[0]))
                 .collect()
         };
-        assert_eq!(shown("[Table1].[Year].Children"), ["10", "2022", "2023", "2024"]);
+        assert_eq!(
+            shown("[Table1].[Year].Children"),
+            ["10", "2022", "2023", "2024"]
+        );
         assert_eq!(shown("[Table1].[Flag].Children"), ["", "False", "True"]);
-        assert_eq!(shown("[Table1].[Region].Children"), ["", "East", "North", "West"]);
-        assert_eq!(shown("[Table1].[Amount].Children"), ["", "5", "7", "10", "20"]);
+        assert_eq!(
+            shown("[Table1].[Region].Children"),
+            ["", "East", "North", "West"]
+        );
+        assert_eq!(
+            shown("[Table1].[Amount].Children"),
+            ["", "5", "7", "10", "20"]
+        );
         let east = "[Table1].[Region].&[East]";
         for (measure, all, in_east) in [
             ("[Measures].[S]", n(42.0), n(15.0)),
@@ -924,7 +1041,11 @@ mod tests {
             ("[Measures].[CB]", n(1.0), empty_text()),
         ] {
             assert_eq!(value(&model, &[measure]), Ok(all), "{measure}");
-            assert_eq!(value(&model, &[east, measure]), Ok(in_east), "{measure} East");
+            assert_eq!(
+                value(&model, &[east, measure]),
+                Ok(in_east),
+                "{measure} East"
+            );
         }
         assert_eq!(
             value(&model, &["[Table1].[Year].&[2024]", "[Measures].[S]"]),
@@ -950,7 +1071,10 @@ mod tests {
         for (members, expected) in [
             (vec![EAST, "[Measures].[TotalAmount]"], n(15.2)),
             (vec!["East", "[Measures].[TotalAmount]"], n(15.2)),
-            (vec!["[Table1].[Region].[East]", "[Measures].[TotalAmount]"], n(15.2)),
+            (
+                vec!["[Table1].[Region].[East]", "[Measures].[TotalAmount]"],
+                n(15.2),
+            ),
             (vec![EAST, A, "[Measures].[TotalAmount]"], n(10.2)),
             (vec![EAST], n(1.0)),
             (vec!["[Table1].[Region].[All]"], n(1.0)),
@@ -974,10 +1098,20 @@ mod tests {
         }
         assert_eq!(model.value_over(&[]), Ok(empty_text()));
         assert_eq!(
-            value(&model, &["[Measures].[TotalAmount]", EAST, "[Table1].[Region].&[West]"]),
+            value(
+                &model,
+                &[
+                    "[Measures].[TotalAmount]",
+                    EAST,
+                    "[Table1].[Region].&[West]"
+                ]
+            ),
             Err(VALUE)
         );
-        assert_eq!(value(&model, &[EAST, EAST, "[Measures].[TotalAmount]"]), Err(VALUE));
+        assert_eq!(
+            value(&model, &[EAST, EAST, "[Measures].[TotalAmount]"]),
+            Err(VALUE)
+        );
         assert_eq!(model.member("[NoSuch].[X]"), Err(NA));
         assert_eq!(model.member("[Table1].[Region].&[Nope]"), Err(NA));
         assert_eq!(model.member("[Measures].[Sum of Amount]"), Err(NA));
@@ -1001,7 +1135,11 @@ mod tests {
         let mut model = model();
         model.tables[0].columns[0].cells = vec![text("East"), text("East"), text("West")];
         model.tables[0].columns[1].cells = vec![text("A"), text("A"), text("B")];
-        model.tables[0].columns[2].cells = vec![CalcValue::number(0.1), CalcValue::number(0.2), CalcValue::number(0.0000001)];
+        model.tables[0].columns[2].cells = vec![
+            CalcValue::number(0.1),
+            CalcValue::number(0.2),
+            CalcValue::number(0.0000001),
+        ];
         let members = ["[Measures].[TotalAmount]", "[Table1].[Region].&[East]"];
         assert_eq!(value(&model, &members), Ok(CalcValue::number(0.1 + 0.2)));
         model.tables[0].columns[2].cells[2] = CalcValue::number(0.000001);
@@ -1013,7 +1151,10 @@ mod tests {
     fn sets_are_excels() {
         let model = model();
         let captions = |tuples: Vec<Vec<CubeMember>>| -> Vec<String> {
-            tuples.iter().map(|tuple| model.caption(&tuple[0])).collect()
+            tuples
+                .iter()
+                .map(|tuple| model.caption(&tuple[0]))
+                .collect()
         };
         let children = "[Table1].[Region].Children";
         let by = Some("[Measures].[TotalAmount]");
@@ -1026,37 +1167,60 @@ mod tests {
             (5, ["East", "North", "West"]),
             (6, ["West", "North", "East"]),
         ] {
-            let set = model.ordered(model.set(children).unwrap(), order, by).unwrap();
+            let set = model
+                .ordered(model.set(children).unwrap(), order, by)
+                .unwrap();
             assert_eq!(captions(set), expected, "sort {order}");
         }
         assert_eq!(model.ordered(model.set(children).unwrap(), 7, by), Err(NA));
         assert_eq!(model.ordered(model.set(children).unwrap(), -1, by), Err(NA));
-        assert_eq!(model.ordered(model.set(children).unwrap(), 1, None), Err(VALUE));
+        assert_eq!(
+            model.ordered(model.set(children).unwrap(), 1, None),
+            Err(VALUE)
+        );
         for (expression, count) in [
             ("[Table1].[Region].Members", 4),
             ("[Table1].[Region].[Region].Members", 3),
             ("[Table1].[Region].AllMembers", 4),
             ("{[Table1].[Region].&[East]}", 1),
             ("[Table1].[Product].Children", 3),
-            ("TOPCOUNT([Table1].[Region].Children,1,[Measures].[TotalAmount])", 1),
+            (
+                "TOPCOUNT([Table1].[Region].Children,1,[Measures].[TotalAmount])",
+                1,
+            ),
             ("[Measures].Members", 0),
-            ("FILTER([Table1].[Region].Children,[Measures].[TotalAmount]>10)", 2),
-            ("CROSSJOIN([Table1].[Region].Children,[Table1].[Product].Children)", 5),
+            (
+                "FILTER([Table1].[Region].Children,[Measures].[TotalAmount]>10)",
+                2,
+            ),
+            (
+                "CROSSJOIN([Table1].[Region].Children,[Table1].[Product].Children)",
+                5,
+            ),
             ("[Table1].[Region].[All].Children", 3),
         ] {
-            assert_eq!(model.set(expression).map(|set| set.len()), Ok(count), "{expression}");
+            assert_eq!(
+                model.set(expression).map(|set| set.len()),
+                Ok(count),
+                "{expression}"
+            );
         }
         assert_eq!(
             model.set("HEAD([Table1].[Region].Children,1)"),
             Err(CubeFailure::NotModelled)
         );
-        let members = model.set("{[Table1].[Region].&[East],[Table1].[Region].&[West]}").unwrap();
+        let members = model
+            .set("{[Table1].[Region].&[East],[Table1].[Region].&[West]}")
+            .unwrap();
         let measure = vec![vec![model.member("[Measures].[TotalAmount]").unwrap()]];
         assert_eq!(
             model.value_over(&[members, measure.clone()]),
             Ok(CalcValue::number(35.3))
         );
         let all = model.set("[Table1].[Region].Members").unwrap();
-        assert_eq!(model.value_over(&[all, measure]), Ok(CalcValue::number(42.3)));
+        assert_eq!(
+            model.value_over(&[all, measure]),
+            Ok(CalcValue::number(42.3))
+        );
     }
 }

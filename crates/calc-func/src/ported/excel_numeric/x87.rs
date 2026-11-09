@@ -58,7 +58,9 @@ pub(super) fn atan(x: f64) -> f64 {
 /// FPATAN takes the two operands directly, so no rounded reciprocal is introduced.
 pub(super) fn atan_reduced(x: f64) -> f64 {
     let magnitude = x.abs();
-    if magnitude <= 1.0 { return atan(x); }
+    if magnitude <= 1.0 {
+        return atan(x);
+    }
     let mut result = 0.0_f64;
     let mut cw_save = 0_u16;
     let cw_core = CW_CORE;

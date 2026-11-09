@@ -96,7 +96,10 @@ fn exp_compensated<F: Fpu>(start: f64, terms: &[f64]) -> f64 {
         let next = F::store(&F::sub(&load(stored), &load(*term), CW), CW);
         // `(a - s) - b`, not `(a - b) - s`: a row whose register difference lost `b`'s low bits sits
         // on a tie of `1 + dropped`, and Excel's answer there is not that tie's.
-        let dropped = F::store(&F::sub(&F::sub(&load(stored), &load(next), CW), &load(*term), CW), CW);
+        let dropped = F::store(
+            &F::sub(&F::sub(&load(stored), &load(next), CW), &load(*term), CW),
+            CW,
+        );
         *factor = F::store(&F::add(&ext_one(), &load(dropped), CW), CW);
         stored = next;
     }
@@ -123,7 +126,10 @@ fn exp_running<F: Fpu>(start: f64, terms: &[f64]) -> f64 {
     }
     let dropped = F::store(&F::sub(&registers, &load(stored), CW), CW);
     let factor = F::store(&F::add(&ext_one(), &load(dropped), CW), CW);
-    F::store(&F::mul(&load(exp_with::<F>(stored, CW)), &load(factor), CW), CW)
+    F::store(
+        &F::mul(&load(exp_with::<F>(stored, CW)), &load(factor), CW),
+        CW,
+    )
 }
 
 /// `exp(-(start + terms[0] + terms[1] ...))` as LOGNORM.DIST's density forms it. The sum is stored
@@ -147,7 +153,10 @@ fn exp_of_sum<F: Fpu>(start: f64, terms: &[f64]) -> f64 {
     }
     let dropped = F::store(&F::sub(&registers, &load(stored), CW), CW);
     let factor = F::store(&F::add(&ext_one(), &load(dropped), CW), CW);
-    F::store(&F::mul(&load(exp_with::<F>(-stored, CW)), &load(factor), CW), CW)
+    F::store(
+        &F::mul(&load(exp_with::<F>(-stored, CW)), &load(factor), CW),
+        CW,
+    )
 }
 
 /// `stirling_error(n)` from its asymptotic series, ten terms in the registers, stored once. Ten terms
@@ -211,7 +220,10 @@ fn log1p_times<F: Fpu>(c: &Ext80, u: f64) -> f64 {
     let product = if u.abs() < 0.375 {
         let q = F::store(&F::add(&load(2.0), &load(u), CW), CW);
         let v = F::div(&load(u), &load(q), CW);
-        let sum = F::store(&F::add(&load(F::store(&v, CW)), &atanh_tail::<F>(&v), CW), CW);
+        let sum = F::store(
+            &F::add(&load(F::store(&v, CW)), &atanh_tail::<F>(&v), CW),
+            CW,
+        );
         F::mul(c, &F::mul(&load(2.0), &load(sum), CW), CW)
     } else {
         let log = log_with::<F>(F::store(&F::add(&ext_one(), &load(u), CW), CW), &ext_ln2());
@@ -237,7 +249,10 @@ fn atanh_tail<F: Fpu>(v: &Ext80) -> Ext80 {
     let (mut tail, mut power, mut j) = (load(0.0), stored, 1.0);
     loop {
         power = load(F::store(&F::mul(&power, &w, CW), CW));
-        let next = load(F::store(&F::add(&tail, &F::div(&power, &load(2.0 * j + 1.0), CW), CW), CW));
+        let next = load(F::store(
+            &F::add(&tail, &F::div(&power, &load(2.0 * j + 1.0), CW), CW),
+            CW,
+        ));
         if next.0 == tail.0 {
             return tail;
         }
@@ -263,7 +278,11 @@ pub(crate) fn excel_deviance_in_series(x: f64, np: f64) -> bool {
 fn in_series<F: Fpu>(x: f64, np: f64) -> bool {
     let (fx, fnp) = (load(x), load(np));
     let d = F::sub(&fx, &fnp, CW);
-    let d = if d.0[9] & 0x80 != 0 { ext_chs(&d, CW) } else { d };
+    let d = if d.0[9] & 0x80 != 0 {
+        ext_chs(&d, CW)
+    } else {
+        d
+    };
     let gap = F::sub(&F::mul(&load(0.2), &F::add(&fx, &fnp, CW), CW), &d, CW);
     gap.0[9] & 0x80 == 0 && gap.0[..8].iter().any(|&byte| byte != 0)
 }
@@ -337,7 +356,11 @@ fn deviance_series<F: Fpu>(x: f64, np: f64) -> f64 {
     let twice_x = load(2.0 * x);
     let gap = load(F::store(&F::sub(&fnp, &fx, CW), CW));
     let near = F::add(&gap, &load(F::store(&F::mul(&twice_x, &sum, CW), CW)), CW);
-    let near = F::sub(&near, &load(F::store(&F::mul(&twice_x, &quotient, CW), CW)), CW);
+    let near = F::sub(
+        &near,
+        &load(F::store(&F::mul(&twice_x, &quotient, CW), CW)),
+        CW,
+    );
     let near = F::add(&near, &load(d), CW);
     let product = F::store(&F::mul(&load(d), &quotient, CW), CW);
     F::store(&F::add(&near, &load(product), CW), CW)
@@ -427,8 +450,14 @@ mod tests {
         assert_eq!(pow_direct::<Soft>(2.0, 10.0), 1024.0);
         assert_eq!(root::<Soft>(16.0, 2), 4.0);
         assert!(exp_with::<Soft>(1.5, CW_RZ) <= exp_with::<Soft>(1.5, CW));
-        assert_eq!(exp_compensated::<Soft>(1.5, &[0.25]), exp_with::<Soft>(1.25, CW));
-        assert_eq!(exp_running::<Soft>(1.5, &[0.25]), exp_with::<Soft>(1.25, CW));
+        assert_eq!(
+            exp_compensated::<Soft>(1.5, &[0.25]),
+            exp_with::<Soft>(1.25, CW)
+        );
+        assert_eq!(
+            exp_running::<Soft>(1.5, &[0.25]),
+            exp_with::<Soft>(1.25, CW)
+        );
         let exact = 4.0 * (4.0_f64 / 3.0).ln() + 3.0 - 4.0;
         assert!((deviance_series::<Soft>(4.0, 3.0) - exact).abs() < 1e-15);
     }

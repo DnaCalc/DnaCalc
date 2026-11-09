@@ -28,7 +28,10 @@ pub const SETS: &[(&str, &str)] = &[
     ("BIN2DEC.json", include_str!("BIN2DEC.json")),
     ("BIN2HEX.json", include_str!("BIN2HEX.json")),
     ("BIN2OCT.json", include_str!("BIN2OCT.json")),
-    ("BINOM.DIST.RANGE.json", include_str!("BINOM.DIST.RANGE.json")),
+    (
+        "BINOM.DIST.RANGE.json",
+        include_str!("BINOM.DIST.RANGE.json"),
+    ),
     ("BINOM.DIST.json", include_str!("BINOM.DIST.json")),
     ("BINOM.INV.json", include_str!("BINOM.INV.json")),
     ("BITAND.json", include_str!("BITAND.json")),
@@ -190,7 +193,10 @@ pub const SETS: &[(&str, &str)] = &[
     ("NA.json", include_str!("NA.json")),
     ("NEGBINOM.DIST.json", include_str!("NEGBINOM.DIST.json")),
     ("NEGBINOMDIST.json", include_str!("NEGBINOMDIST.json")),
-    ("NETWORKDAYS.INTL.json", include_str!("NETWORKDAYS.INTL.json")),
+    (
+        "NETWORKDAYS.INTL.json",
+        include_str!("NETWORKDAYS.INTL.json"),
+    ),
     ("NETWORKDAYS.json", include_str!("NETWORKDAYS.json")),
     ("NOMINAL.json", include_str!("NOMINAL.json")),
     ("NORM.DIST.json", include_str!("NORM.DIST.json")),

@@ -1,5 +1,8 @@
 //! Declaration data for the existing sum and related worksheet functions.
-use super::{ArgumentDemand, Availability, EntryKind, FunctionId, Notation, Parameter, ResultForm, WorksheetDeclaration};
+use super::{
+    ArgumentDemand, Availability, EntryKind, FunctionId, Notation, Parameter, ResultForm,
+    WorksheetDeclaration,
+};
 use calc_value::CallableArityShape;
 pub const CODE: u16 = 4;
 
@@ -21,7 +24,8 @@ pub const MAXA: FunctionId = FunctionId::new(CODE, 13);
 // SUMPRODUCT(SUM(A1:A3*2)) is 12, and SUMPRODUCT(SUM(ABS(A1:A3))) intersects inside ABS.
 const NUMBERS: &[Parameter] = &[
     Parameter::value_or_reference("number1").legacy(super::LegacyPlace::AggregateUnderArray),
-    Parameter::value_or_reference("number2").legacy(super::LegacyPlace::AggregateUnderArrayRepeated),
+    Parameter::value_or_reference("number2")
+        .legacy(super::LegacyPlace::AggregateUnderArrayRepeated),
 ];
 const VALUES: &[Parameter] = &[
     Parameter::value_or_reference("value1").legacy(super::LegacyPlace::AggregateAtRoot),
@@ -48,13 +52,12 @@ const ARRAYS: &[Parameter] = &[
 const RANGE: &[Parameter] =
     &[Parameter::value_or_reference("range").entry(super::EntryClass::Reference)];
 
-
 /// An eager named call that takes 1 to 255 arguments, the last parameter repeating.
 const fn aggregate(
     id: FunctionId,
     spelling: &'static str,
     parameters: &'static [Parameter],
-    ) -> WorksheetDeclaration {
+) -> WorksheetDeclaration {
     WorksheetDeclaration {
         localized_names: None,
         context_facilities: None,
@@ -74,32 +77,47 @@ const fn aggregate(
 
 // 3-D positions: dc-10y, Excel 16.0.20430, 2026-10-25; catalogue oracle ThreeD sheet.
 pub const ENTRIES: &[WorksheetDeclaration] = &[
-        aggregate(SUM, "SUM", NUMBERS).with_three_d(super::ThreeD::new(Some(&[]), None, None)).with_traits(super::EntryTraits::NONE.take_reference_array()),
-        aggregate(PRODUCT, "PRODUCT", NUMBERS).with_three_d(super::ThreeD::new(Some(&[]), None, None)),
-        aggregate(SUMSQ, "SUMSQ", NUMBERS).with_three_d(super::ThreeD::new(Some(&[]), None, None)),
-        aggregate(SUMPRODUCT, "SUMPRODUCT", ARRAYS).with_three_d(super::ThreeD::new(None, None, Some(&[]))),
-        aggregate(COUNT, "COUNT", COUNT_VALUES).with_three_d(super::ThreeD::new(Some(&[]), None, None)).with_traits(super::EntryTraits::NONE.take_reference_array()),
-        aggregate(COUNTA, "COUNTA", COUNT_VALUES).with_three_d(super::ThreeD::new(Some(&[]), None, None)).with_traits(super::EntryTraits::NONE.take_reference_array()),
-        WorksheetDeclaration {
-            localized_names: None,
-            context_facilities: None,
-            id: COUNTBLANK,
-            spelling: "COUNTBLANK",
-            notation: Notation::Call,
-            kind: EntryKind::Worksheet,
-            availability: Availability::Unspecified,
-            arity: CallableArityShape::exact(1),
-            groups: None,
-            parameters: RANGE,
-            result: ResultForm::Value,
-            demand: ArgumentDemand::Eager,
-            // W111 and w089: a computed array lifts; a reference is consumed whole.
-            traits: super::EntryTraits::NONE.lift_computed_array(),
-        }.with_three_d(super::ThreeD::new(None, Some(&[]), None)),
-        aggregate(AVERAGE, "AVERAGE", NUMBERS).with_three_d(super::ThreeD::new(Some(&[]), None, None)).with_traits(super::EntryTraits::NONE.take_reference_array()),
-        aggregate(AVERAGEA, "AVERAGEA", VALUES).with_three_d(super::ThreeD::new(Some(&[]), None, None)),
-        aggregate(MIN, "MIN", NUMBERS).with_three_d(super::ThreeD::new(Some(&[]), None, None)),
-        aggregate(MAX, "MAX", NUMBERS).with_three_d(super::ThreeD::new(Some(&[]), None, None)).with_traits(super::EntryTraits::NONE.take_reference_array()),
-        aggregate(MINA, "MINA", VALUES).with_three_d(super::ThreeD::new(Some(&[]), None, None)),
-        aggregate(MAXA, "MAXA", VALUES).with_three_d(super::ThreeD::new(Some(&[]), None, None)),
+    aggregate(SUM, "SUM", NUMBERS)
+        .with_three_d(super::ThreeD::new(Some(&[]), None, None))
+        .with_traits(super::EntryTraits::NONE.take_reference_array()),
+    aggregate(PRODUCT, "PRODUCT", NUMBERS).with_three_d(super::ThreeD::new(Some(&[]), None, None)),
+    aggregate(SUMSQ, "SUMSQ", NUMBERS).with_three_d(super::ThreeD::new(Some(&[]), None, None)),
+    aggregate(SUMPRODUCT, "SUMPRODUCT", ARRAYS).with_three_d(super::ThreeD::new(
+        None,
+        None,
+        Some(&[]),
+    )),
+    aggregate(COUNT, "COUNT", COUNT_VALUES)
+        .with_three_d(super::ThreeD::new(Some(&[]), None, None))
+        .with_traits(super::EntryTraits::NONE.take_reference_array()),
+    aggregate(COUNTA, "COUNTA", COUNT_VALUES)
+        .with_three_d(super::ThreeD::new(Some(&[]), None, None))
+        .with_traits(super::EntryTraits::NONE.take_reference_array()),
+    WorksheetDeclaration {
+        localized_names: None,
+        context_facilities: None,
+        id: COUNTBLANK,
+        spelling: "COUNTBLANK",
+        notation: Notation::Call,
+        kind: EntryKind::Worksheet,
+        availability: Availability::Unspecified,
+        arity: CallableArityShape::exact(1),
+        groups: None,
+        parameters: RANGE,
+        result: ResultForm::Value,
+        demand: ArgumentDemand::Eager,
+        // W111 and w089: a computed array lifts; a reference is consumed whole.
+        traits: super::EntryTraits::NONE.lift_computed_array(),
+    }
+    .with_three_d(super::ThreeD::new(None, Some(&[]), None)),
+    aggregate(AVERAGE, "AVERAGE", NUMBERS)
+        .with_three_d(super::ThreeD::new(Some(&[]), None, None))
+        .with_traits(super::EntryTraits::NONE.take_reference_array()),
+    aggregate(AVERAGEA, "AVERAGEA", VALUES).with_three_d(super::ThreeD::new(Some(&[]), None, None)),
+    aggregate(MIN, "MIN", NUMBERS).with_three_d(super::ThreeD::new(Some(&[]), None, None)),
+    aggregate(MAX, "MAX", NUMBERS)
+        .with_three_d(super::ThreeD::new(Some(&[]), None, None))
+        .with_traits(super::EntryTraits::NONE.take_reference_array()),
+    aggregate(MINA, "MINA", VALUES).with_three_d(super::ThreeD::new(Some(&[]), None, None)),
+    aggregate(MAXA, "MAXA", VALUES).with_three_d(super::ThreeD::new(Some(&[]), None, None)),
 ];

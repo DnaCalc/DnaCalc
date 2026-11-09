@@ -53,9 +53,9 @@ impl OfficeReference {
     /// The name VBA code qualifies the library's types with (`Scripting`, `stdole`).
     pub fn name(&self) -> &str {
         match self {
-            Self::TypeLibrary { name, .. } | Self::Project { name, .. } | Self::Control { name } => {
-                name
-            }
+            Self::TypeLibrary { name, .. }
+            | Self::Project { name, .. }
+            | Self::Control { name } => name,
         }
     }
     /// The library's GUID, upper case without braces, for a registered type library.

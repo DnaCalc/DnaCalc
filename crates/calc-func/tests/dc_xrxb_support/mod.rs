@@ -69,7 +69,9 @@ const ORACLES: [Oracle; 3] = [
         name: "catalogue",
         case: "catalogue__prefix_metadata",
         workbook: include_bytes!("../fixtures/catalogue/oracle.xlsx"),
-        capture: Some(include_bytes!("../captures/catalogue/sections/prefix_metadata.capture.json")),
+        capture: Some(include_bytes!(
+            "../captures/catalogue/sections/prefix_metadata.capture.json"
+        )),
         saved: include_bytes!("../captures/catalogue/sections/prefix_metadata.saved.xml"),
         section: true,
         command: "cargo xtask capture --pending",
@@ -132,13 +134,22 @@ pub fn catalogue_context_captures_stay_valid() {
     let parts = package_parts(include_bytes!("../fixtures/catalogue/oracle.xlsx"));
     let sections = workbook_sections(&parts).unwrap();
     for (sheet, bytes) in [
-        ("prefix_metadata", include_bytes!("../captures/catalogue/sections/prefix_metadata.capture.json").as_slice()),
-        ("dcuar_cell", include_bytes!("../captures/catalogue/sections/dcuar_cell.capture.json").as_slice()),
+        (
+            "prefix_metadata",
+            include_bytes!("../captures/catalogue/sections/prefix_metadata.capture.json")
+                .as_slice(),
+        ),
+        (
+            "dcuar_cell",
+            include_bytes!("../captures/catalogue/sections/dcuar_cell.capture.json").as_slice(),
+        ),
     ] {
         let capture = CaptureRecord::decode(bytes).unwrap();
         let section = sections.iter().find(|s| s.sheet == sheet).unwrap();
-        assert_eq!(section.key, capture.source,
-            "{sheet}: put research questions in a separate workbook to preserve captured context");
+        assert_eq!(
+            section.key, capture.source,
+            "{sheet}: put research questions in a separate workbook to preserve captured context"
+        );
     }
 }
 
@@ -296,7 +307,10 @@ fn catalogue_generated() -> (Vec<u8>, Vec<u8>) {
         .join("tests")
         .join("fixtures")
         .join("make-catalogue-fixtures.ps1");
-    let out = std::env::temp_dir().join(format!("calc-func-catalogue-fixtures-{}", std::process::id()));
+    let out = std::env::temp_dir().join(format!(
+        "calc-func-catalogue-fixtures-{}",
+        std::process::id()
+    ));
     let _ = std::fs::remove_dir_all(&out);
     let system_root = std::env::var_os("SystemRoot").expect("SystemRoot is set on Windows");
     let powershell = Path::new(&system_root)
@@ -326,8 +340,10 @@ fn catalogue_generated() -> (Vec<u8>, Vec<u8>) {
         String::from_utf8_lossy(&ran.stdout),
         String::from_utf8_lossy(&ran.stderr)
     );
-    let bytes = std::fs::read(out.join("catalogue").join("oracle.xlsx")).expect("the catalogue workbook");
-    let ets = std::fs::read(out.join("dcj9k_r38_ets").join("oracle.xlsx")).expect("the ETS workbook");
+    let bytes =
+        std::fs::read(out.join("catalogue").join("oracle.xlsx")).expect("the catalogue workbook");
+    let ets =
+        std::fs::read(out.join("dcj9k_r38_ets").join("oracle.xlsx")).expect("the ETS workbook");
     let _ = std::fs::remove_dir_all(&out);
     (bytes, ets)
 }
@@ -338,7 +354,10 @@ fn catalogue_generated() -> (Vec<u8>, Vec<u8>) {
 fn checked_capture(oracle: &Oracle) -> Result<(CaptureRecord, BTreeMap<String, String>), String> {
     let bytes = oracle.capture.ok_or_else(|| "no Excel saved-formula capture has been taken; scalar function replies do not certify file spelling".to_owned())?;
     let capture = CaptureRecord::decode(bytes).unwrap_or_else(|e| {
-        panic!("the capture record does not decode ({}): {e}", oracle.command)
+        panic!(
+            "the capture record does not decode ({}): {e}",
+            oracle.command
+        )
     });
     assert_eq!(capture.case, oracle.case);
     assert_eq!(capture.acquisition, Acquisition::LiveCapture);
@@ -361,7 +380,9 @@ fn checked_capture(oracle: &Oracle) -> Result<(CaptureRecord, BTreeMap<String, S
         }
         let xml = std::str::from_utf8(oracle.saved).expect("the saved worksheet is UTF-8");
         if !xml.contains(&format!("<!-- dnacalc section key: {key} -->")) {
-            return Err("the saved worksheet kept beside the capture is of another section".to_owned());
+            return Err(
+                "the saved worksheet kept beside the capture is of another section".to_owned(),
+            );
         }
         formulas(xml)
     } else {
@@ -440,8 +461,10 @@ pub fn prefix_metadata_matches_excel() {
             catalogue == ORACLES[1].workbook,
             "the committed catalogue/oracle.xlsx differs from make-catalogue-fixtures.ps1's output"
         );
-        assert!(ets == ORACLES[2].workbook,
-            "the committed ETS oracle differs from make-catalogue-fixtures.ps1's output");
+        assert!(
+            ets == ORACLES[2].workbook,
+            "the committed ETS oracle differs from make-catalogue-fixtures.ps1's output"
+        );
         note!(
             "ACCEPT-NOTE: {CASE}: the committed generators wrote {} workbooks and catalogue/oracle.xlsx; dc_xrxb/oracle.xlsx (sha256 {}) and catalogue/oracle.xlsx (sha256 {}) equal the committed fixtures byte for byte",
             generated.len(),
@@ -500,9 +523,9 @@ pub fn prefix_metadata_matches_excel() {
     // Reuse the original saved-formula measurements already used by CalcDoc. These establish
     // prefix spelling only; existing oracle rows still require every A/B value assertion below.
     let bytes = include_bytes!("../../../calc-doc/tests/fixtures/d1/excel-prefixes.json");
-    let measured: serde_json::Value = serde_json::from_slice(
-        bytes.strip_prefix(&[0xEF, 0xBB, 0xBF]).unwrap_or(bytes)
-    ).expect("the original Excel saved-formula measurements");
+    let measured: serde_json::Value =
+        serde_json::from_slice(bytes.strip_prefix(&[0xEF, 0xBB, 0xBF]).unwrap_or(bytes))
+            .expect("the original Excel saved-formula measurements");
     assert_eq!(measured["excel"], "16.0 build 20430");
     let measured_rows = measured["rows"].as_array().expect("measurement rows");
     for target in &named {
@@ -510,12 +533,23 @@ pub fn prefix_metadata_matches_excel() {
         let Some(&(oracle, row)) = by_function.get(name) else {
             let matches: Vec<_> = measured_rows.iter().filter(|row| row[0] == name).collect();
             if let [row] = matches.as_slice() {
-                assert_eq!(row.as_array().unwrap().len(), 3, "{name}: measurement shape");
+                assert_eq!(
+                    row.as_array().unwrap().len(),
+                    3,
+                    "{name}: measurement shape"
+                );
                 let entered = row[1].as_str().expect("entered formula");
                 let saved = row[2].as_str().expect("saved formula");
-                assert!(entered.starts_with(&format!("={name}(")), "{name}: {entered}");
+                assert!(
+                    entered.starts_with(&format!("={name}(")),
+                    "{name}: {entered}"
+                );
                 let prefix = target.file_prefix().expect("a catalogued file prefix");
-                assert_eq!(saved, format!("{}{}", prefix.text(), &entered[1..]), "{name}");
+                assert_eq!(
+                    saved,
+                    format!("{}{}", prefix.text(), &entered[1..]),
+                    "{name}"
+                );
                 prefix_only.push(name);
                 continue;
             }
@@ -606,7 +640,8 @@ pub fn prefix_metadata_matches_excel() {
     if !prefix_only.is_empty() {
         note!(
             "ACCEPT-NOTE: {CASE}: {} additional names have prefix-only evidence in the original CalcDoc Excel 16.0 build 20430 saved-formula measurements: {}; no A/B rewriting or raw-value equivalence is claimed for these names",
-            prefix_only.len(), prefix_only.join(", ")
+            prefix_only.len(),
+            prefix_only.join(", ")
         );
     }
     if !awaiting.is_empty() {
@@ -616,7 +651,5 @@ pub fn prefix_metadata_matches_excel() {
             awaiting.join(", ")
         );
     }
-    note!(
-        "ACCEPT-NOTE: {CASE}: every operator has no file prefix"
-    );
+    note!("ACCEPT-NOTE: {CASE}: every operator has no file prefix");
 }

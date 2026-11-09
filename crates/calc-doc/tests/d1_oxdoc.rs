@@ -327,16 +327,28 @@ fn dc_bctq__template_conversion_preserves_every_package_part_and_declares_kind()
         let mut current = original.to_vec();
         for kind in [F::Xltm, F::Xlsm, F::Xltm] {
             let document = open(&current);
-            let policy = SavePolicy { format: SaveFormat::Spreadsheet(kind), ..Default::default() };
+            let policy = SavePolicy {
+                format: SaveFormat::Spreadsheet(kind),
+                ..Default::default()
+            };
             let plan = calc_doc::prepare_save(&document.snapshot(), &policy).unwrap();
             let mut output = Vec::new();
             calc_doc::write(plan, &mut output).unwrap();
             let saved = open(&output);
             assert_eq!(load(&output).spreadsheet_format(), kind);
-            assert_eq!(saved.package().parts().len(), source.package().parts().len());
+            assert_eq!(
+                saved.package().parts().len(),
+                source.package().parts().len()
+            );
             for p in source.package().parts() {
                 if p.name() != "[Content_Types].xml" {
-                    assert_eq!(saved.package().read_part(p.name()).unwrap(),source.package().read_part(p.name()).unwrap(),"{:?}: {}",kind,p.name());
+                    assert_eq!(
+                        saved.package().read_part(p.name()).unwrap(),
+                        source.package().read_part(p.name()).unwrap(),
+                        "{:?}: {}",
+                        kind,
+                        p.name()
+                    );
                 }
             }
             current = output;
@@ -346,12 +358,29 @@ fn dc_bctq__template_conversion_preserves_every_package_part_and_declares_kind()
     for kind in [F::Xltx, F::Xlsx, F::Xltx, F::Xltm, F::Xltx] {
         let document = open(&current);
         let mut output = Vec::new();
-        calc_doc::write(calc_doc::prepare_save(&document.snapshot(), &SavePolicy {format:SaveFormat::Spreadsheet(kind),..Default::default()}).unwrap(), &mut output).unwrap();
-        let loaded=load(&output);
-        assert_eq!(loaded.spreadsheet_format(),kind);
-        assert_eq!(loaded.spreadsheet_format().is_template(),matches!(kind,F::Xltx|F::Xltm));
-        assert_eq!(loaded.model().definitions().macro_enabled(),kind.macro_enabled());
-        current=output;
+        calc_doc::write(
+            calc_doc::prepare_save(
+                &document.snapshot(),
+                &SavePolicy {
+                    format: SaveFormat::Spreadsheet(kind),
+                    ..Default::default()
+                },
+            )
+            .unwrap(),
+            &mut output,
+        )
+        .unwrap();
+        let loaded = load(&output);
+        assert_eq!(loaded.spreadsheet_format(), kind);
+        assert_eq!(
+            loaded.spreadsheet_format().is_template(),
+            matches!(kind, F::Xltx | F::Xltm)
+        );
+        assert_eq!(
+            loaded.model().definitions().macro_enabled(),
+            kind.macro_enabled()
+        );
+        current = output;
     }
 }
 
@@ -359,10 +388,19 @@ fn dc_bctq__template_conversion_preserves_every_package_part_and_declares_kind()
 #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
 fn dc_bctq__macro_free_save_refuses_before_writing() {
     use calc_doc::{SaveFormat, SavePolicy, SpreadsheetFormat as F};
-    let bytes=oxdoc_package("c1-preservation");
-    let document=open(&bytes);
-    for kind in [F::Xlsx,F::Xltx] {
-        assert!(matches!(calc_doc::prepare_save(&document.snapshot(), &SavePolicy {format:SaveFormat::Spreadsheet(kind),..Default::default()}),Err(calc_doc::SaveRefusal::MacroLoss {owner:"dc-bctq"})));
+    let bytes = oxdoc_package("c1-preservation");
+    let document = open(&bytes);
+    for kind in [F::Xlsx, F::Xltx] {
+        assert!(matches!(
+            calc_doc::prepare_save(
+                &document.snapshot(),
+                &SavePolicy {
+                    format: SaveFormat::Spreadsheet(kind),
+                    ..Default::default()
+                }
+            ),
+            Err(calc_doc::SaveRefusal::MacroLoss { owner: "dc-bctq" })
+        ));
     }
-    assert_eq!(save_untouched(&bytes),bytes);
+    assert_eq!(save_untouched(&bytes), bytes);
 }

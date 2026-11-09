@@ -61,14 +61,18 @@ pub fn syd_kernel(cost: f64, salvage: f64, life: f64, per: f64) -> Result<f64, W
         }
     };
     let life_plus_one = crate::ported::excel_numeric::excel_x87_add(life, 1.0);
-    let denominator = stage_or_zero(crate::ported::excel_numeric::excel_x87_mul(life, life_plus_one) / 2.0);
+    let denominator =
+        stage_or_zero(crate::ported::excel_numeric::excel_x87_mul(life, life_plus_one) / 2.0);
     if denominator == 0.0 {
         return Err(WorksheetErrorCode::Div0);
     }
     let basis = publish_depreciation(crate::ported::excel_numeric::excel_x87_sub(cost, salvage))?;
     let remaining = crate::ported::excel_numeric::excel_x87_sub(life_plus_one, per);
     let numerator = crate::ported::excel_numeric::excel_x87_mul(basis, remaining);
-    publish_depreciation(crate::ported::excel_numeric::excel_x87_div(numerator, denominator))
+    publish_depreciation(crate::ported::excel_numeric::excel_x87_div(
+        numerator,
+        denominator,
+    ))
 }
 
 fn publish_depreciation(value: f64) -> Result<f64, WorksheetErrorCode> {
@@ -110,11 +114,7 @@ fn db_rate(cost: f64, salvage: f64, life: f64) -> Result<f64, WorksheetErrorCode
     let power = if integer_power {
         // DB's integer dispatch is narrower than the worksheet POWER wrapper.
         let value = depreciation_integer_power(ratio, exponent as u32);
-        if value.is_finite() {
-            value
-        } else {
-            0.0
-        }
+        if value.is_finite() { value } else { 0.0 }
     } else if ratio == 0.0 {
         0.0
     } else {
@@ -208,7 +208,8 @@ pub fn db_kernel(
         // published amounts too: later multiplication must not recover a
         // subnormal intermediate (W111 minimum-normal final-year probes).
         let quotient = publish_depreciation(book / 12.0)?;
-        let product = publish_depreciation(crate::ported::excel_numeric::excel_x87_mul(quotient, rate))?;
+        let product =
+            publish_depreciation(crate::ported::excel_numeric::excel_x87_mul(quotient, rate))?;
         dep = product * (12.0 - month);
     }
     publish_depreciation(dep)
@@ -246,8 +247,10 @@ fn declining_interval_depreciation(
             let final_fraction = 1.0 - ((year + 1.0) - end_period).max(0.0);
             // Both products pass through an extended-precision store. Their
             // separate rounding is visible when adjacent endpoints cancel.
-            let final_part =
-                publish_depreciation(crate::ported::excel_numeric::excel_x87_mul(dep, final_fraction))?;
+            let final_part = publish_depreciation(crate::ported::excel_numeric::excel_x87_mul(
+                dep,
+                final_fraction,
+            ))?;
             let initial_part = publish_depreciation(crate::ported::excel_numeric::excel_x87_mul(
                 dep,
                 (start_period - year).max(0.0),
@@ -468,12 +471,11 @@ pub fn vdb_kernel(
     )
 }
 
-
 #[cfg(test)]
 mod tests {
+    use super::*;
     #[allow(unused_imports)]
     use crate::value::{CalcArray, CalcValue, CoreValue, ExcelText};
-    use super::*;
 
     struct NoRefResolver;
 

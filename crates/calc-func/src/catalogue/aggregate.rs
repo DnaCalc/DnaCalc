@@ -36,12 +36,14 @@ use crate::call::{CellReader, EvalServices, FunctionFault, Unreadable};
 use crate::coerce::{self, Numeric, Stop};
 use crate::kernel::{Exit, Site, Step};
 use crate::value::{
-    CalcArray, CalcValue, CellKey, CoreRef, GridArea, ReferenceLike,
-    WorksheetErrorCode,
+    CalcArray, CalcValue, CellKey, CoreRef, GridArea, ReferenceLike, WorksheetErrorCode,
 };
 use std::ops::ControlFlow;
 
-use calc_catalogue::aggregate::{CODE, ENTRIES as DECLARATIONS, SUM, PRODUCT, SUMSQ, SUMPRODUCT, COUNT, COUNTA, COUNTBLANK, AVERAGE, AVERAGEA, MIN, MAX, MINA, MAXA};
+use calc_catalogue::aggregate::{
+    AVERAGE, AVERAGEA, CODE, COUNT, COUNTA, COUNTBLANK, ENTRIES as DECLARATIONS, MAX, MAXA, MIN,
+    MINA, PRODUCT, SUM, SUMPRODUCT, SUMSQ,
+};
 
 attach_eager_family! {
     code: CODE; declarations: DECLARATIONS;
@@ -252,20 +254,34 @@ fn extreme(
         } else {
             number_of(&site, held, index, origin, value)?
         };
-        let Some(n) = n else { return Ok(()); };
+        let Some(n) = n else {
+            return Ok(());
+        };
         let replace = if let Some(best) = &best
             && (best.is_excel_overflow() || value.is_excel_overflow())
         {
-            let order = super::comparison::overflow_numbers(&site, n, best.as_number().expect("selected number"))?;
-            if id == MIN || id == MINA { order.is_lt() } else { order.is_gt() }
+            let order = super::comparison::overflow_numbers(
+                &site,
+                n,
+                best.as_number().expect("selected number"),
+            )?;
+            if id == MIN || id == MINA {
+                order.is_lt()
+            } else {
+                order.is_gt()
+            }
         } else {
             best.as_ref().is_none_or(|best| {
-            let prior = best.as_number().expect("selected number");
-            replaces(n, prior)
+                let prior = best.as_number().expect("selected number");
+                replaces(n, prior)
             })
         };
         if replace {
-            best = Some(if value.is_excel_overflow() { value.clone() } else { CalcValue::number(n) });
+            best = Some(if value.is_excel_overflow() {
+                value.clone()
+            } else {
+                CalcValue::number(n)
+            });
         }
         Ok(())
     });
@@ -583,7 +599,9 @@ fn times(site: &Site<'_>, a: f64, b: f64) -> Step<f64> {
 fn holds_held_arrays(arguments: &[CalcValue]) -> bool {
     arguments.iter().any(|argument| {
         argument.callable_value().is_none()
-            && argument.as_array().is_some_and(|array| array.holds_arrays())
+            && argument
+                .as_array()
+                .is_some_and(|array| array.holds_arrays())
     })
 }
 
@@ -667,7 +685,9 @@ fn read_held_references(
                 continue;
             };
             cells.push(match how {
-                HeldReference::NoNumber => CalcValue::text(crate::value::ExcelText::from_utf16_code_units(Vec::new())),
+                HeldReference::NoNumber => {
+                    CalcValue::text(crate::value::ExcelText::from_utf16_code_units(Vec::new()))
+                }
                 HeldReference::Counted => CalcValue::logical(true),
                 HeldReference::FirstCell => {
                     let first = reference.areas()[0].first();
@@ -679,7 +699,10 @@ fn read_held_references(
                             ControlFlow::Break(())
                         })
                         .map_err(|Unreadable| {
-                            Exit::Fault(FunctionFault::ReferenceUnreadable { id: site.id(), index })
+                            Exit::Fault(FunctionFault::ReferenceUnreadable {
+                                id: site.id(),
+                                index,
+                            })
                         })?;
                     value
                 }
@@ -744,7 +767,9 @@ pub(super) fn number_of(
         return site.number_argument(index, value).map(Some);
     }
     match (held, value.core_ref()) {
-        (_, CoreRef::Number(_)) if value.is_excel_overflow() => Err(Exit::Error(WorksheetErrorCode::Num)),
+        (_, CoreRef::Number(_)) if value.is_excel_overflow() => {
+            Err(Exit::Error(WorksheetErrorCode::Num))
+        }
         (_, CoreRef::Number(n)) => site.argument(index, coerce::operand(n)).map(Some),
         (_, CoreRef::Error(code)) => Err(Exit::Error(code)),
         (Held::AverageValues, CoreRef::Text(_)) => Ok(Some(0.0)),
@@ -804,7 +829,8 @@ fn read_values(
         match argument.core_ref() {
             CoreRef::Reference(reference) => {
                 let cells = reader(site, services, index)?;
-                if scalar_references && matches!(reference.areas(), [area]
+                if scalar_references
+                    && matches!(reference.areas(), [area]
                     if area.row_count() == 1 && area.column_count() == 1)
                 {
                     let mut value = CalcValue::empty();

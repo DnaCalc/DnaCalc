@@ -22,12 +22,18 @@ impl Total {
             calc_value::CoreRef::Number(n) => {
                 self.sum += n;
                 self.squares += n * n;
-                self.product = if self.numbers == 0 { n } else { self.product * n };
+                self.product = if self.numbers == 0 {
+                    n
+                } else {
+                    self.product * n
+                };
                 self.product_overflowed |= !self.product.is_finite();
                 self.has_zero |= n == 0.0;
-                self.unsafe_integer_product |= n.fract() != 0.0 || !self.product.is_finite()
+                self.unsafe_integer_product |= n.fract() != 0.0
+                    || !self.product.is_finite()
                     || self.product.abs() > 9_007_199_254_740_992.0;
-                self.unsafe_moment |= !n.is_finite() || n.abs() > 67_108_864.0 || (n * 4.0).fract() != 0.0;
+                self.unsafe_moment |=
+                    !n.is_finite() || n.abs() > 67_108_864.0 || (n * 4.0).fract() != 0.0;
                 self.numbers += 1;
                 self.nonempty += 1;
                 self.min = Some(self.min.map_or(n, |a| a.min(n)));
@@ -45,16 +51,24 @@ impl Total {
     /// The captured formulas below are admitted only where quarter-unit inputs and the raw
     /// moments fit exactly in binary64. Other numeric inputs need more Excel measurements.
     pub(super) fn supports(&self, kind: &str) -> bool {
-        if !matches!(kind, "product" | "stdDev" | "stdDevp" | "var" | "varp") || self.error.is_some() {
+        if !matches!(kind, "product" | "stdDev" | "stdDevp" | "var" | "varp")
+            || self.error.is_some()
+        {
             return true;
         }
-        if kind == "product" && self.product_overflowed { return true; }
-        if self.numbers == 0 || self.unsafe_moment { return false; }
+        if kind == "product" && self.product_overflowed {
+            return true;
+        }
+        if self.numbers == 0 || self.unsafe_moment {
+            return false;
+        }
         if kind == "product" {
             return self.product.is_finite() && (self.product != 0.0 || self.has_zero);
         }
         let n = self.numbers as f64;
-        if self.squares * 16.0 * n > 9_007_199_254_740_992.0 { return false; }
+        if self.squares * 16.0 * n > 9_007_199_254_740_992.0 {
+            return false;
+        }
         let square_total = self.sum * self.sum;
         let numerator = if matches!(kind, "stdDev" | "var") {
             self.squares - square_total / n
@@ -103,7 +117,11 @@ impl Total {
                 } else {
                     (count * self.squares - square_total) / (count * count)
                 };
-                if matches!(kind, "stdDev" | "stdDevp") { variance.sqrt() } else { variance }
+                if matches!(kind, "stdDev" | "stdDevp") {
+                    variance.sqrt()
+                } else {
+                    variance
+                }
             }
             _ => self.sum,
         };

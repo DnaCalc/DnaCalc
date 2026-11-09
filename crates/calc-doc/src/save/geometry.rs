@@ -19,8 +19,11 @@ fn attributes(format: AxisFormat, row: bool) -> Vec<(&'static str, Option<String
             format.custom().then(|| "1".to_owned()),
         ),
         ("hidden", format.hidden().then(|| "1".to_owned())),
-        ("outlineLevel", (format.outline_level()!=0).then(||format.outline_level().to_string())),
-        ("collapsed", (format.collapsed()!=0).then(||"1".into())),
+        (
+            "outlineLevel",
+            (format.outline_level() != 0).then(|| format.outline_level().to_string()),
+        ),
+        ("collapsed", (format.collapsed() != 0).then(|| "1".into())),
     ]
 }
 fn row_tag(

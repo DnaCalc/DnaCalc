@@ -1489,15 +1489,30 @@ mod tests {
     #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
     fn trim_references_parse_as_trim_ranges() {
         for (formula, argument) in [
-            ("=SUM(A1.:B10)", "TrimRangeExpr(IdentifierExpr(A1) . : IdentifierExpr(B10))"),
-            ("=SUM(A1:.B10)", "TrimRangeExpr(IdentifierExpr(A1) : . IdentifierExpr(B10))"),
+            (
+                "=SUM(A1.:B10)",
+                "TrimRangeExpr(IdentifierExpr(A1) . : IdentifierExpr(B10))",
+            ),
+            (
+                "=SUM(A1:.B10)",
+                "TrimRangeExpr(IdentifierExpr(A1) : . IdentifierExpr(B10))",
+            ),
             (
                 "=SUM(A1.:.B10)",
                 "TrimRangeExpr(IdentifierExpr(A1) . : . IdentifierExpr(B10))",
             ),
-            ("=SUM(A:.A)", "TrimRangeExpr(IdentifierExpr(A) : . IdentifierExpr(A))"),
-            ("=SUM(1:.3)", "TrimRangeExpr(NumberLiteralExpr(1) : . NumberLiteralExpr(3))"),
-            ("=SUM(1.:3)", "TrimRangeExpr(NumberLiteralExpr(1) . : NumberLiteralExpr(3))"),
+            (
+                "=SUM(A:.A)",
+                "TrimRangeExpr(IdentifierExpr(A) : . IdentifierExpr(A))",
+            ),
+            (
+                "=SUM(1:.3)",
+                "TrimRangeExpr(NumberLiteralExpr(1) : . NumberLiteralExpr(3))",
+            ),
+            (
+                "=SUM(1.:3)",
+                "TrimRangeExpr(NumberLiteralExpr(1) . : NumberLiteralExpr(3))",
+            ),
             (
                 "=SUM(Sheet1!A1.:B10)",
                 "TrimRangeExpr(QualifiedReferenceExpr(Sheet1 ! IdentifierExpr(A1)) . : IdentifierExpr(B10))",
@@ -1505,7 +1520,11 @@ mod tests {
         ] {
             let tree = parse_formula(formula);
             assert_eq!(tree.source_text(), formula);
-            assert!(tree.diagnostics().is_empty(), "{formula}: {:?}", tree.diagnostics());
+            assert!(
+                tree.diagnostics().is_empty(),
+                "{formula}: {:?}",
+                tree.diagnostics()
+            );
             assert_eq!(shape(first_argument(&tree)), argument, "{formula}");
             assert!(
                 !contains_kind(tree.root(), SyntaxKind::RangeExpr),

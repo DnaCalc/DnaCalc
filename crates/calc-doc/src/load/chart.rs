@@ -19,7 +19,9 @@ const CHART_NAMESPACE: &str = "http://schemas.openxmlformats.org/drawingml/2006/
 const RELATIONSHIP_ATTRIBUTES: &str =
     "http://schemas.openxmlformats.org/officeDocument/2006/relationships";
 
-pub use calc_doc_model::{DrawingPoint,ChartAnchor,ChartData,ChartSeries,ChartPlot,Chart,SheetCharts};
+pub use calc_doc_model::{
+    Chart, ChartAnchor, ChartData, ChartPlot, ChartSeries, DrawingPoint, SheetCharts,
+};
 
 fn relationship_id(element: &XmlElement) -> Option<&str> {
     element
@@ -215,10 +217,15 @@ fn read_chart(
     anchor: ChartAnchor,
 ) -> Result<Chart, LoadError> {
     let xml = read_xml(package, part)?;
-    read_chart_xml(&xml,part,name,anchor)
+    read_chart_xml(&xml, part, name, anchor)
 }
 
-fn read_chart_xml(xml:&XmlPart,part:&str,name:String,anchor:ChartAnchor)->Result<Chart,LoadError>{
+fn read_chart_xml(
+    xml: &XmlPart,
+    part: &str,
+    name: String,
+    anchor: ChartAnchor,
+) -> Result<Chart, LoadError> {
     let mut events = Events::new(xml);
     events.root(
         CHART_NAMESPACE,
@@ -235,14 +242,21 @@ fn read_chart_xml(xml:&XmlPart,part:&str,name:String,anchor:ChartAnchor)->Result
         legend: None,
         plots: Vec::new(),
         axes: Vec::new(),
-        text_style:Default::default(),element_text:Default::default(),element_text_complex:Default::default(),
+        text_style: Default::default(),
+        element_text: Default::default(),
+        element_text_complex: Default::default(),
     };
     // The path of local names below chartSpace, and where in a series the reading is.
     let mut path: Vec<String> = Vec::new();
     let mut slot: Option<Slot> = None;
     let mut point: Option<usize> = None;
-    let (mut title_default,mut title_run,mut title_end)=(calc_doc_model::ChartTextStyle::default(),calc_doc_model::ChartTextStyle::default(),calc_doc_model::ChartTextStyle::default());
-    let mut title_paragraphs=0;let mut title_runs=0;
+    let (mut title_default, mut title_run, mut title_end) = (
+        calc_doc_model::ChartTextStyle::default(),
+        calc_doc_model::ChartTextStyle::default(),
+        calc_doc_model::ChartTextStyle::default(),
+    );
+    let mut title_paragraphs = 0;
+    let mut title_runs = 0;
     let mut title = String::new();
     let mut title_cache: Option<String> = None;
     loop {
@@ -267,40 +281,134 @@ fn read_chart_xml(xml:&XmlPart,part:&str,name:String,anchor:ChartAnchor)->Result
         let parent = path.last().map(String::as_str);
         let in_title = path.len() >= 2 && path[0] == "chart" && path[1] == "title";
         let val = element.attribute("val").map(str::to_owned);
-        if path.is_empty()&&element.name.is(CHART_NAMESPACE,"txPr"){chart.text_style=read_text_style(&mut events)?;continue;}
-        if element.name.is(CHART_NAMESPACE,"txPr"){
-            let target=match path.iter().map(String::as_str).collect::<Vec<_>>().as_slice(){["chart","title"]=>Some("title".to_owned()),["chart","legend"]=>Some("legend".to_owned()),["chart","plotArea",axis] if axis.ends_with("Ax")=>chart.axes.last().map(|a|format!("axis:{}",a.id)),_=>None};
-            if let Some(target)=target{let (style,complex,_)=read_text_style_shape(&mut events)?;if complex{chart.element_text_complex.insert(target.clone());}if style!=Default::default(){merge_font(chart.element_text.entry(target).or_default(),style);}continue;}
+        if path.is_empty() && element.name.is(CHART_NAMESPACE, "txPr") {
+            chart.text_style = read_text_style(&mut events)?;
+            continue;
         }
-        if in_title&&element.name.namespace.as_deref()==Some("http://schemas.openxmlformats.org/drawingml/2006/main"){
-            let names=path.iter().skip(2).map(String::as_str).collect::<Vec<_>>();
-            if matches!((names.as_slice(),local.as_str()),(["tx","rich"],"p")){title_paragraphs+=1;}
-            if matches!((names.as_slice(),local.as_str()),(["tx","rich","p"],"r")){title_runs+=1;}
-            if title_paragraphs>1||title_runs>1||matches!((names.as_slice(),local.as_str()),(["tx","rich","p"],"fld"|"br")){chart.element_text_complex.insert("title".into());}
-            let run=matches!(names.as_slice(),["tx","rich","p","pPr","defRPr"]|["tx","rich","p","r","rPr"]|["tx","rich","p","endParaRPr"]);
-            let properties=matches!((names.as_slice(),local.as_str()),(["tx","rich","p","pPr"],"defRPr")|(["tx","rich","p","r"],"rPr")|(["tx","rich","p"],"endParaRPr"));
-            let layer=if names.iter().any(|n|*n=="r"){&mut title_run}else if names.last()==Some(&"endParaRPr")||local=="endParaRPr"{&mut title_end}else{&mut title_default};
-            if properties{font_attributes(layer,&element);}
-            if local=="latin"&&run{layer.family=element.attribute("typeface").map(str::to_owned);}
-            if matches!(local.as_str(),"srgbClr"|"schemeClr")&&names.last()==Some(&"solidFill")&&matches!(&names[..names.len()-1],["tx","rich","p","pPr","defRPr"]|["tx","rich","p","r","rPr"]|["tx","rich","p","endParaRPr"]){layer.color=element.attribute("val").map(str::to_owned);}
+        if element.name.is(CHART_NAMESPACE, "txPr") {
+            let target = match path
+                .iter()
+                .map(String::as_str)
+                .collect::<Vec<_>>()
+                .as_slice()
+            {
+                ["chart", "title"] => Some("title".to_owned()),
+                ["chart", "legend"] => Some("legend".to_owned()),
+                ["chart", "plotArea", axis] if axis.ends_with("Ax") => {
+                    chart.axes.last().map(|a| format!("axis:{}", a.id))
+                }
+                _ => None,
+            };
+            if let Some(target) = target {
+                let (style, complex, _) = read_text_style_shape(&mut events)?;
+                if complex {
+                    chart.element_text_complex.insert(target.clone());
+                }
+                if style != Default::default() {
+                    merge_font(chart.element_text.entry(target).or_default(), style);
+                }
+                continue;
+            }
+        }
+        if in_title
+            && element.name.namespace.as_deref()
+                == Some("http://schemas.openxmlformats.org/drawingml/2006/main")
+        {
+            let names = path.iter().skip(2).map(String::as_str).collect::<Vec<_>>();
+            if matches!((names.as_slice(), local.as_str()), (["tx", "rich"], "p")) {
+                title_paragraphs += 1;
+            }
+            if matches!(
+                (names.as_slice(), local.as_str()),
+                (["tx", "rich", "p"], "r")
+            ) {
+                title_runs += 1;
+            }
+            if title_paragraphs > 1
+                || title_runs > 1
+                || matches!(
+                    (names.as_slice(), local.as_str()),
+                    (["tx", "rich", "p"], "fld" | "br")
+                )
+            {
+                chart.element_text_complex.insert("title".into());
+            }
+            let run = matches!(
+                names.as_slice(),
+                ["tx", "rich", "p", "pPr", "defRPr"]
+                    | ["tx", "rich", "p", "r", "rPr"]
+                    | ["tx", "rich", "p", "endParaRPr"]
+            );
+            let properties = matches!(
+                (names.as_slice(), local.as_str()),
+                (["tx", "rich", "p", "pPr"], "defRPr")
+                    | (["tx", "rich", "p", "r"], "rPr")
+                    | (["tx", "rich", "p"], "endParaRPr")
+            );
+            let layer = if names.iter().any(|n| *n == "r") {
+                &mut title_run
+            } else if names.last() == Some(&"endParaRPr") || local == "endParaRPr" {
+                &mut title_end
+            } else {
+                &mut title_default
+            };
+            if properties {
+                font_attributes(layer, &element);
+            }
+            if local == "latin" && run {
+                layer.family = element.attribute("typeface").map(str::to_owned);
+            }
+            if matches!(local.as_str(), "srgbClr" | "schemeClr")
+                && names.last() == Some(&"solidFill")
+                && matches!(
+                    &names[..names.len() - 1],
+                    ["tx", "rich", "p", "pPr", "defRPr"]
+                        | ["tx", "rich", "p", "r", "rPr"]
+                        | ["tx", "rich", "p", "endParaRPr"]
+                )
+            {
+                layer.color = element.attribute("val").map(str::to_owned);
+            }
         }
         let plot = chart.plots.last_mut();
         match (parent, local.as_str()) {
-            (Some("plotArea"), "valAx"|"catAx"|"dateAx"|"serAx") if element.name.namespace.as_deref()==Some(CHART_NAMESPACE) => {
-                chart.axes.push(calc_doc_model::ChartAxis{kind:local.clone(),..Default::default()});
+            (Some("plotArea"), "valAx" | "catAx" | "dateAx" | "serAx")
+                if element.name.namespace.as_deref() == Some(CHART_NAMESPACE) =>
+            {
+                chart.axes.push(calc_doc_model::ChartAxis {
+                    kind: local.clone(),
+                    ..Default::default()
+                });
             }
-            (Some("valAx"|"catAx"|"dateAx"|"serAx"), "axId"|"crossAx"|"axPos"|"majorUnit"|"crossBetween") if element.name.namespace.as_deref()==Some(CHART_NAMESPACE) => {
-                if let Some(axis)=chart.axes.last_mut(){match local.as_str(){
-                    "axId"=>axis.id=val.and_then(|s|s.parse().ok()).unwrap_or(0),
-                    "axPos"=>axis.position=val,"crossBetween"=>axis.cross_between=val,
-                    "crossAx"=>axis.cross_axis=val.and_then(|s|s.parse().ok()),
-                    _=>axis.major_unit=val,
-                }}
+            (
+                Some("valAx" | "catAx" | "dateAx" | "serAx"),
+                "axId" | "crossAx" | "axPos" | "majorUnit" | "crossBetween",
+            ) if element.name.namespace.as_deref() == Some(CHART_NAMESPACE) => {
+                if let Some(axis) = chart.axes.last_mut() {
+                    match local.as_str() {
+                        "axId" => axis.id = val.and_then(|s| s.parse().ok()).unwrap_or(0),
+                        "axPos" => axis.position = val,
+                        "crossBetween" => axis.cross_between = val,
+                        "crossAx" => axis.cross_axis = val.and_then(|s| s.parse().ok()),
+                        _ => axis.major_unit = val,
+                    }
+                }
             }
-            (Some("scaling"), "min"|"max"|"orientation"|"logBase") if element.name.namespace.as_deref()==Some(CHART_NAMESPACE) && path.len()==4 && path[0]=="chart" && path[1]=="plotArea" && path[2].ends_with("Ax") => {
-                if let Some(axis)=chart.axes.last_mut(){match local.as_str(){
-                    "min"=>axis.minimum=val,"max"=>axis.maximum=val,"orientation"=>axis.reversed=val.as_deref()==Some("maxMin"),_=>axis.log_base=val,
-                }}
+            (Some("scaling"), "min" | "max" | "orientation" | "logBase")
+                if element.name.namespace.as_deref() == Some(CHART_NAMESPACE)
+                    && path.len() == 4
+                    && path[0] == "chart"
+                    && path[1] == "plotArea"
+                    && path[2].ends_with("Ax") =>
+            {
+                if let Some(axis) = chart.axes.last_mut() {
+                    match local.as_str() {
+                        "min" => axis.minimum = val,
+                        "max" => axis.maximum = val,
+                        "orientation" => axis.reversed = val.as_deref() == Some("maxMin"),
+                        _ => axis.log_base = val,
+                    }
+                }
             }
             (Some("chart"), "autoTitleDeleted") => {
                 chart.auto_title_deleted = matches!(val.as_deref(), Some("1" | "true"));
@@ -313,8 +421,13 @@ fn read_chart_xml(xml:&XmlPart,part:&str,name:String,anchor:ChartAnchor)->Result
                     ..ChartPlot::default()
                 });
             }
-            (Some(p), "axId") if p.ends_with("Chart") && element.name.namespace.as_deref()==Some(CHART_NAMESPACE) => {
-                if let (Some(plot),Some(id))=(plot,val.and_then(|s|s.parse().ok())) {plot.axis_ids.push(id);}
+            (Some(p), "axId")
+                if p.ends_with("Chart")
+                    && element.name.namespace.as_deref() == Some(CHART_NAMESPACE) =>
+            {
+                if let (Some(plot), Some(id)) = (plot, val.and_then(|s| s.parse().ok())) {
+                    plot.axis_ids.push(id);
+                }
             }
             (Some(p), "barDir") if p.ends_with("Chart") => {
                 if let Some(plot) = plot {
@@ -351,17 +464,23 @@ fn read_chart_xml(xml:&XmlPart,part:&str,name:String,anchor:ChartAnchor)->Result
             (Some("solidFill"), "srgbClr" | "schemeClr")
                 if path.len() >= 3
                     && path[path.len() - 2] == "spPr"
-                    && path[path.len() - 3] == "ser"
-                    =>
+                    && path[path.len() - 3] == "ser" =>
             {
                 if let Some(series) = plot.and_then(|plot| plot.series.last_mut()) {
                     series.fill = val;
                 }
             }
             (Some("solidFill"), "srgbClr" | "schemeClr")
-                if path.len()>=4 && path[path.len()-4..]==["ser","spPr","ln","solidFill"] => {
-                if let Some(plot)=plot && matches!(plot.kind.as_str(),"lineChart"|"scatterChart")
-                    && let Some(series)=plot.series.last_mut() && series.fill.is_none(){series.fill=val;}
+                if path.len() >= 4
+                    && path[path.len() - 4..] == ["ser", "spPr", "ln", "solidFill"] =>
+            {
+                if let Some(plot) = plot
+                    && matches!(plot.kind.as_str(), "lineChart" | "scatterChart")
+                    && let Some(series) = plot.series.last_mut()
+                    && series.fill.is_none()
+                {
+                    series.fill = val;
+                }
             }
             (_, "f") if in_title => {
                 chart.title_formula = Some(events.text()?);
@@ -423,8 +542,23 @@ fn read_chart_xml(xml:&XmlPart,part:&str,name:String,anchor:ChartAnchor)->Result
     } else {
         title_cache
     };
-    if title_runs==0{merge_font(chart.element_text.entry("title".into()).or_default(),title_end);}merge_font(chart.element_text.entry("title".into()).or_default(),title_default);merge_font(chart.element_text.entry("title".into()).or_default(),title_run);
-    chart.element_text.retain(|_,style|*style!=Default::default());
+    if title_runs == 0 {
+        merge_font(
+            chart.element_text.entry("title".into()).or_default(),
+            title_end,
+        );
+    }
+    merge_font(
+        chart.element_text.entry("title".into()).or_default(),
+        title_default,
+    );
+    merge_font(
+        chart.element_text.entry("title".into()).or_default(),
+        title_run,
+    );
+    chart
+        .element_text
+        .retain(|_, style| *style != Default::default());
     Ok(chart)
 }
 
@@ -441,50 +575,203 @@ fn data_of(plots: &mut [ChartPlot], slot: Option<Slot>) -> Option<&mut ChartData
 
 #[cfg(test)]
 mod tests {
- use super::*;
- #[cfg_attr(not(target_arch="wasm32"),test)]
- #[cfg_attr(target_arch="wasm32",wasm_bindgen_test::wasm_bindgen_test)]
- fn outline_colours_do_not_replace_shape_fills(){
-   for kind in ["barChart","areaChart","pieChart","lineChart","scatterChart"] {
-    for shape in [true,false] {
-     let fill=if shape{r#"<a:solidFill><a:srgbClr val="FF0000"/></a:solidFill>"#}else{""};
-     let text=format!(r#"<c:chartSpace xmlns:c="{CHART_NAMESPACE}" xmlns:a="http://schemas.openxmlformats.org/drawingml/2006/main"><c:chart><c:plotArea><c:{kind}><c:ser><c:idx val="0"/><c:spPr>{fill}<a:ln><a:solidFill><a:srgbClr val="0000FF"/></a:solidFill></a:ln></c:spPr></c:ser></c:{kind}></c:plotArea></c:chart></c:chartSpace>"#);
-     let xml=XmlPart::new("chart.xml".into(),text.into_bytes(),crate::xml::XmlLimits::default());
-     let chart=read_chart_xml(&xml,"chart.xml","Chart".into(),ChartAnchor::Absolute{x:0,y:0,width:100,height:100}).unwrap();
-     assert_eq!(chart.plots[0].series[0].fill.as_deref(),if shape{Some("FF0000")}else if matches!(kind,"lineChart"|"scatterChart"){Some("0000FF")}else{None},"{kind}, shape={shape}");
-    }
-   }
- }
-}
-
-fn read_text_style(events:&mut Events<'_>)->Result<calc_doc_model::ChartTextStyle,LoadError>{read_text_style_shape(events).map(|(_,_,legacy)|legacy)}
-fn read_text_style_shape(events:&mut Events<'_>)->Result<(calc_doc_model::ChartTextStyle,bool,calc_doc_model::ChartTextStyle),LoadError>{
-    let (mut default_font,mut run_font,mut end_font)=(calc_doc_model::ChartTextStyle::default(),calc_doc_model::ChartTextStyle::default(),calc_doc_model::ChartTextStyle::default());
-    let mut paragraphs=0;let mut runs=0;let mut complex=false;
-    let mut style=calc_doc_model::ChartTextStyle::default();let mut path=Vec::<String>::new();
-    let run=|p:&[String]|matches!(p.iter().map(String::as_str).collect::<Vec<_>>().as_slice(),["p","pPr","defRPr"]|["p","r","rPr"]|["p","endParaRPr"]);
-    loop{match events.next()?{
-        Some(XmlEvent::Start(e))=>{
-            if e.name.namespace.as_deref()!=Some("http://schemas.openxmlformats.org/drawingml/2006/main"){events.skip()?;continue;}
-            let local=e.name.local.as_str();let names=path.iter().map(String::as_str).collect::<Vec<_>>();
-            if names.is_empty()&&local=="p"{paragraphs+=1;}if names==["p"]&&local=="r"{runs+=1;}complex|=paragraphs>1||runs>1||(names==["p"]&&matches!(local,"fld"|"br"));
-            let properties=matches!((names.as_slice(),local),(["p","pPr"],"defRPr")|(["p","r"],"rPr")|(["p"],"endParaRPr"));
-            let layer=if path.iter().any(|p|p=="r"){&mut run_font}else if path.last().is_some_and(|p|p=="endParaRPr")||local=="endParaRPr"{&mut end_font}else{&mut default_font};
-            if properties{font_attributes(layer,&e);
-                if let Some(size)=e.attribute("sz").and_then(|s|s.parse().ok()){style.size=Some(size);}
-                for (key,target) in [("b",&mut style.bold),("i",&mut style.italic)]{if let Some(v)=e.attribute(key){*target=match v{"1"|"true"=>Some(true),"0"|"false"=>Some(false),_=>None};}}
+    use super::*;
+    #[cfg_attr(not(target_arch = "wasm32"), test)]
+    #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+    fn outline_colours_do_not_replace_shape_fills() {
+        for kind in [
+            "barChart",
+            "areaChart",
+            "pieChart",
+            "lineChart",
+            "scatterChart",
+        ] {
+            for shape in [true, false] {
+                let fill = if shape {
+                    r#"<a:solidFill><a:srgbClr val="FF0000"/></a:solidFill>"#
+                } else {
+                    ""
+                };
+                let text = format!(
+                    r#"<c:chartSpace xmlns:c="{CHART_NAMESPACE}" xmlns:a="http://schemas.openxmlformats.org/drawingml/2006/main"><c:chart><c:plotArea><c:{kind}><c:ser><c:idx val="0"/><c:spPr>{fill}<a:ln><a:solidFill><a:srgbClr val="0000FF"/></a:solidFill></a:ln></c:spPr></c:ser></c:{kind}></c:plotArea></c:chart></c:chartSpace>"#
+                );
+                let xml = XmlPart::new(
+                    "chart.xml".into(),
+                    text.into_bytes(),
+                    crate::xml::XmlLimits::default(),
+                );
+                let chart = read_chart_xml(
+                    &xml,
+                    "chart.xml",
+                    "Chart".into(),
+                    ChartAnchor::Absolute {
+                        x: 0,
+                        y: 0,
+                        width: 100,
+                        height: 100,
+                    },
+                )
+                .unwrap();
+                assert_eq!(
+                    chart.plots[0].series[0].fill.as_deref(),
+                    if shape {
+                        Some("FF0000")
+                    } else if matches!(kind, "lineChart" | "scatterChart") {
+                        Some("0000FF")
+                    } else {
+                        None
+                    },
+                    "{kind}, shape={shape}"
+                );
             }
-            if local=="latin"&&run(&path){style.family=e.attribute("typeface").map(str::to_owned);layer.family=style.family.clone();events.skip()?;continue;}
-            if matches!(local,"srgbClr"|"schemeClr")&&path.last().is_some_and(|p|p=="solidFill")&&run(&path[..path.len()-1]){style.color=e.attribute("val").map(str::to_owned);layer.color=style.color.clone();events.skip()?;continue;}
-            if properties||matches!((names.as_slice(),local),([],"p")|(["p"],"pPr"|"r"))||(local=="solidFill"&&run(&path)){path.push(local.into());}else{events.skip()?;}
-        },Some(XmlEvent::End(_))=>{if path.pop().is_none(){let mut layered=if runs==0{end_font}else{Default::default()};merge_font(&mut layered,default_font);merge_font(&mut layered,run_font);return Ok((layered,complex,style));}},Some(XmlEvent::Text(_))=>{},None=>return Err(events.invalid("The chart text defaults end before their close")),
-    }}
+        }
+    }
 }
 
-fn font_attributes(style:&mut calc_doc_model::ChartTextStyle,element:&XmlElement){
-    if let Some(size)=element.attribute("sz").and_then(|s|s.parse().ok()){style.size=Some(size);}
-    for (key,target)in [("b",&mut style.bold),("i",&mut style.italic)]{if let Some(v)=element.attribute(key){*target=match v{"1"|"true"=>Some(true),"0"|"false"=>Some(false),_=>None};}}
+fn read_text_style(events: &mut Events<'_>) -> Result<calc_doc_model::ChartTextStyle, LoadError> {
+    read_text_style_shape(events).map(|(_, _, legacy)| legacy)
 }
-fn merge_font(base:&mut calc_doc_model::ChartTextStyle,style:calc_doc_model::ChartTextStyle){
-    if style.family.is_some(){base.family=style.family;}if style.size.is_some(){base.size=style.size;}if style.bold.is_some(){base.bold=style.bold;}if style.italic.is_some(){base.italic=style.italic;}if style.color.is_some(){base.color=style.color;}
+fn read_text_style_shape(
+    events: &mut Events<'_>,
+) -> Result<
+    (
+        calc_doc_model::ChartTextStyle,
+        bool,
+        calc_doc_model::ChartTextStyle,
+    ),
+    LoadError,
+> {
+    let (mut default_font, mut run_font, mut end_font) = (
+        calc_doc_model::ChartTextStyle::default(),
+        calc_doc_model::ChartTextStyle::default(),
+        calc_doc_model::ChartTextStyle::default(),
+    );
+    let mut paragraphs = 0;
+    let mut runs = 0;
+    let mut complex = false;
+    let mut style = calc_doc_model::ChartTextStyle::default();
+    let mut path = Vec::<String>::new();
+    let run = |p: &[String]| {
+        matches!(
+            p.iter().map(String::as_str).collect::<Vec<_>>().as_slice(),
+            ["p", "pPr", "defRPr"] | ["p", "r", "rPr"] | ["p", "endParaRPr"]
+        )
+    };
+    loop {
+        match events.next()? {
+            Some(XmlEvent::Start(e)) => {
+                if e.name.namespace.as_deref()
+                    != Some("http://schemas.openxmlformats.org/drawingml/2006/main")
+                {
+                    events.skip()?;
+                    continue;
+                }
+                let local = e.name.local.as_str();
+                let names = path.iter().map(String::as_str).collect::<Vec<_>>();
+                if names.is_empty() && local == "p" {
+                    paragraphs += 1;
+                }
+                if names == ["p"] && local == "r" {
+                    runs += 1;
+                }
+                complex |=
+                    paragraphs > 1 || runs > 1 || (names == ["p"] && matches!(local, "fld" | "br"));
+                let properties = matches!(
+                    (names.as_slice(), local),
+                    (["p", "pPr"], "defRPr") | (["p", "r"], "rPr") | (["p"], "endParaRPr")
+                );
+                let layer = if path.iter().any(|p| p == "r") {
+                    &mut run_font
+                } else if path.last().is_some_and(|p| p == "endParaRPr") || local == "endParaRPr" {
+                    &mut end_font
+                } else {
+                    &mut default_font
+                };
+                if properties {
+                    font_attributes(layer, &e);
+                    if let Some(size) = e.attribute("sz").and_then(|s| s.parse().ok()) {
+                        style.size = Some(size);
+                    }
+                    for (key, target) in [("b", &mut style.bold), ("i", &mut style.italic)] {
+                        if let Some(v) = e.attribute(key) {
+                            *target = match v {
+                                "1" | "true" => Some(true),
+                                "0" | "false" => Some(false),
+                                _ => None,
+                            };
+                        }
+                    }
+                }
+                if local == "latin" && run(&path) {
+                    style.family = e.attribute("typeface").map(str::to_owned);
+                    layer.family = style.family.clone();
+                    events.skip()?;
+                    continue;
+                }
+                if matches!(local, "srgbClr" | "schemeClr")
+                    && path.last().is_some_and(|p| p == "solidFill")
+                    && run(&path[..path.len() - 1])
+                {
+                    style.color = e.attribute("val").map(str::to_owned);
+                    layer.color = style.color.clone();
+                    events.skip()?;
+                    continue;
+                }
+                if properties
+                    || matches!((names.as_slice(), local), ([], "p") | (["p"], "pPr" | "r"))
+                    || (local == "solidFill" && run(&path))
+                {
+                    path.push(local.into());
+                } else {
+                    events.skip()?;
+                }
+            }
+            Some(XmlEvent::End(_)) => {
+                if path.pop().is_none() {
+                    let mut layered = if runs == 0 {
+                        end_font
+                    } else {
+                        Default::default()
+                    };
+                    merge_font(&mut layered, default_font);
+                    merge_font(&mut layered, run_font);
+                    return Ok((layered, complex, style));
+                }
+            }
+            Some(XmlEvent::Text(_)) => {}
+            None => return Err(events.invalid("The chart text defaults end before their close")),
+        }
+    }
+}
+
+fn font_attributes(style: &mut calc_doc_model::ChartTextStyle, element: &XmlElement) {
+    if let Some(size) = element.attribute("sz").and_then(|s| s.parse().ok()) {
+        style.size = Some(size);
+    }
+    for (key, target) in [("b", &mut style.bold), ("i", &mut style.italic)] {
+        if let Some(v) = element.attribute(key) {
+            *target = match v {
+                "1" | "true" => Some(true),
+                "0" | "false" => Some(false),
+                _ => None,
+            };
+        }
+    }
+}
+fn merge_font(base: &mut calc_doc_model::ChartTextStyle, style: calc_doc_model::ChartTextStyle) {
+    if style.family.is_some() {
+        base.family = style.family;
+    }
+    if style.size.is_some() {
+        base.size = style.size;
+    }
+    if style.bold.is_some() {
+        base.bold = style.bold;
+    }
+    if style.italic.is_some() {
+        base.italic = style.italic;
+    }
+    if style.color.is_some() {
+        base.color = style.color;
+    }
 }

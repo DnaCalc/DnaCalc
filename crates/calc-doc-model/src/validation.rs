@@ -3,7 +3,7 @@
 #[derive(Clone, Debug, PartialEq, Eq, Hash)]
 pub struct Validation {
     /// Copied rules omit imported revision IDs while retaining their original source bytes.
-    pub authored_copy:bool,
+    pub authored_copy: bool,
     /// Original worksheet fragment retaining namespaces and unedited rule attributes.
     pub source: Option<std::sync::Arc<[u8]>>,
     /// The areas, as (top, left, bottom, right).

@@ -42,8 +42,8 @@ use crate::reference::{
     qualified_sheet_call,
 };
 use crate::syntax::{SyntaxChild, SyntaxKind, SyntaxNode, SyntaxTree, TextSpan, Token, TokenKind};
-use calc_func::value::{CellKey, ExcelText, SheetId, WorksheetErrorCode};
 use calc_catalogue::{FIELD_ACCESS_FILE_NAME as FIELD_ACCESS, FilePrefix};
+use calc_func::value::{CellKey, ExcelText, SheetId, WorksheetErrorCode};
 use calc_func::{Notation, ParameterClass, catalogue};
 use std::collections::HashMap;
 use std::sync::Arc;
@@ -422,7 +422,10 @@ type Site = (Result<ReferenceOperand, BindError>, bool);
 type Sites = HashMap<TextSpan, Site>;
 
 #[derive(Clone, Copy)]
-enum Position { Call, Value }
+enum Position {
+    Call,
+    Value,
+}
 
 enum Resolved {
     BuiltIn(calc_func::FunctionCallTarget<'static>),
@@ -532,24 +535,47 @@ enum Task<'t> {
 impl<'c> Lowering<'c> {
     /// Resolve one name through the catalogue and the caller-owned layers in Excel's order.
     fn resolve(&mut self, text: &str, position: Position, span: TextSpan) -> Resolved {
-        let function = catalogue().resolve_surface(Notation::Call, file_function(text)).ok();
+        let function = catalogue()
+            .resolve_surface(Notation::Call, file_function(text))
+            .ok();
         if matches!(position, Position::Call) {
-            if let Some(target) = function { return Resolved::BuiltIn(target); }
-            if file_unprefixed(text).len() != text.len() { return Resolved::Unknown; }
-            if self.sites.contains_key(&span) { return Resolved::Reference; }
+            if let Some(target) = function {
+                return Resolved::BuiltIn(target);
+            }
+            if file_unprefixed(text).len() != text.len() {
+                return Resolved::Unknown;
+            }
+            if self.sites.contains_key(&span) {
+                return Resolved::Reference;
+            }
         }
-        if let Some(slot) = self.local(&parameter_key(text)) { return Resolved::Local(slot); }
+        if let Some(slot) = self.local(&parameter_key(text)) {
+            return Resolved::Local(slot);
+        }
         let scope = NameScope::Formula(self.name_context.lookup_sheet());
         let definition = self.lookup_name(text, scope, span);
-        if !matches!(definition, NameDefinition::Unknown) { return Resolved::Defined(definition); }
+        if !matches!(definition, NameDefinition::Unknown) {
+            return Resolved::Defined(definition);
+        }
         if matches!(position, Position::Value) {
             let table = self.catalog.table(text);
-            if matches!(table, TableLookup::Found(_)) { return Resolved::Table(table); }
+            if matches!(table, TableLookup::Found(_)) {
+                return Resolved::Table(table);
+            }
         }
-        if matches!(position, Position::Call) { self.watch_callable(None, text); }
-        if let Some(handle) = self.functions.and_then(|functions| functions.bind(None, text)) { return Resolved::Registered(handle); }
+        if matches!(position, Position::Call) {
+            self.watch_callable(None, text);
+        }
+        if let Some(handle) = self
+            .functions
+            .and_then(|functions| functions.bind(None, text))
+        {
+            return Resolved::Registered(handle);
+        }
         if matches!(position, Position::Value) && !self.loaded {
-            if let Some(target) = function { return Resolved::BuiltIn(target); }
+            if let Some(target) = function {
+                return Resolved::BuiltIn(target);
+            }
         }
         Resolved::Unknown
     }
@@ -705,7 +731,9 @@ impl<'c> Lowering<'c> {
                                     self.blocks[block].push(Instruction::Function(Target(target)));
                                     return Ok(());
                                 }
-                                Resolved::Table(table) => { debug_assert!(matches!(table, TableLookup::Found(_))); }
+                                Resolved::Table(table) => {
+                                    debug_assert!(matches!(table, TableLookup::Found(_)));
+                                }
                                 _ => {}
                             }
                         }
@@ -852,10 +880,7 @@ impl<'c> Lowering<'c> {
             }
             SyntaxKind::OmittedArgExpr => self.blocks[block].push(Instruction::Omitted),
             SyntaxKind::GroupingExpr => {
-                let inner = node
-                    .child_nodes()
-                    .next()
-                    .ok_or(syntax(span))?;
+                let inner = node.child_nodes().next().ok_or(syntax(span))?;
                 tasks.push(Task::Lower {
                     node: inner,
                     tail: false,
@@ -1108,7 +1133,14 @@ impl<'c> Lowering<'c> {
         let target = match resolved {
             Resolved::BuiltIn(target) => Target(target),
             other => {
-                return self.named_call(name, unknown(name.span(), name.text().to_owned()), other, &arguments, block, tasks);
+                return self.named_call(
+                    name,
+                    unknown(name.span(), name.text().to_owned()),
+                    other,
+                    &arguments,
+                    block,
+                    tasks,
+                );
             }
         };
         if self.loaded && unknown_on_load(name.text(), target) {
@@ -1217,8 +1249,14 @@ impl<'c> Lowering<'c> {
                 }
                 if self.form == FormulaForm::Legacy
                     && match target.0.legacy_place(index) {
-                        Some(calc_func::LegacyPlace::IntersectReferenceAlways | calc_func::LegacyPlace::AggregateAlwaysIntersectReference) => true,
-                        Some(calc_func::LegacyPlace::IntersectReference | calc_func::LegacyPlace::AggregateIntersectReference) => place != Place::Array,
+                        Some(
+                            calc_func::LegacyPlace::IntersectReferenceAlways
+                            | calc_func::LegacyPlace::AggregateAlwaysIntersectReference,
+                        ) => true,
+                        Some(
+                            calc_func::LegacyPlace::IntersectReference
+                            | calc_func::LegacyPlace::AggregateIntersectReference,
+                        ) => place != Place::Array,
                         _ => false,
                     }
                 {
@@ -1296,7 +1334,10 @@ impl<'c> Lowering<'c> {
             return Err(unknown);
         }
         if let Resolved::Reference = resolved {
-            let (operand, this_row) = self.sites.remove(&name.span()).expect("the resolved reference");
+            let (operand, this_row) = self
+                .sites
+                .remove(&name.span())
+                .expect("the resolved reference");
             // Use the existing reference invocation route: it produces #REF!
             // without looking up a same-spelled VBA procedure or dereferencing
             // a cell to seek a closure. Keep the ordinary argument lowering.
@@ -1318,7 +1359,11 @@ impl<'c> Lowering<'c> {
                 // 3); else a VBA or add-in function might have the name, and the call is refused.
                 // The arguments are not evaluated: Excel's #NAME? comes from the name alone.
                 Resolved::Registered(handle) => {
-                    debug_assert_eq!(self.functions.and_then(|functions| functions.bind(None, spelling)), Some(handle));
+                    debug_assert_eq!(
+                        self.functions
+                            .and_then(|functions| functions.bind(None, spelling)),
+                        Some(handle)
+                    );
                     self.user_call(spelling, None, arguments, block, tasks);
                     return Ok(());
                 }
@@ -1389,19 +1434,12 @@ impl<'c> Lowering<'c> {
         tasks: &mut Vec<Task<'t>>,
     ) -> Result<(), CompileError> {
         let span = call.span();
-        let name = call
-            .tokens()
-            .into_iter()
-            .next()
-            .ok_or(syntax(span))?;
+        let name = call.tokens().into_iter().next().ok_or(syntax(span))?;
         // A name edit replaces the complete qualifier and callee, leaving its
         // argument list in place. Recording only the token would duplicate the
         // sheet qualifier when the existing rewrite supplies a qualified name.
         let name_span = TextSpan::covering(qualified_span, name.span());
-        let list = call
-            .child_nodes()
-            .next()
-            .ok_or(syntax(span))?;
+        let list = call.child_nodes().next().ok_or(syntax(span))?;
         let arguments: Vec<_> = list.child_nodes().collect();
         let own = book == ExternalBookRef::Number(0)
             || match &book {
@@ -1434,9 +1472,9 @@ impl<'c> Lowering<'c> {
             )
         };
         if own || sheet.is_some() {
-            let scope = sheet.map(NameScope::Sheet).unwrap_or_else(|| {
-                NameScope::Formula(self.name_context.lookup_sheet())
-            });
+            let scope = sheet
+                .map(NameScope::Sheet)
+                .unwrap_or_else(|| NameScope::Formula(self.name_context.lookup_sheet()));
             match self.lookup_name(name.text(), scope, name_span) {
                 NameDefinition::Formula(definition) => {
                     let name_block = self.name_block(name.text(), &definition, name_span)?;
@@ -1461,7 +1499,11 @@ impl<'c> Lowering<'c> {
                     return Err(unsupported(
                         span,
                         "a qualified function name",
-                        if sheet.is_some() { "dc-hsa5.6" } else { "dc-snz.9" },
+                        if sheet.is_some() {
+                            "dc-hsa5.6"
+                        } else {
+                            "dc-snz.9"
+                        },
                     ));
                 }
                 NameDefinition::Unknown if sheet.is_some() => {
@@ -1474,7 +1516,10 @@ impl<'c> Lowering<'c> {
                 NameDefinition::Unknown => {}
             }
         }
-        if let Some(addin) = target.as_deref().and_then(|library| catalogue().resolve_addin(library, name.text())) {
+        if let Some(addin) = target
+            .as_deref()
+            .and_then(|library| catalogue().resolve_addin(library, name.text()))
+        {
             tasks.push(Task::Emit {
                 block,
                 instruction: Instruction::Call {
@@ -2118,12 +2163,21 @@ fn call_target(name: &Token) -> Result<Target, CompileError> {
         .resolve_surface(Notation::Call, file_function(name.text()))
         .map_err(|_| unknown(name.span(), name.text().to_owned()))?;
     let gap = match target.implementation() {
-        calc_func::Implementation::NotHeld { owner } => Some(Gap::Construct { construct: "an unheld built-in function", owner }),
-        calc_func::Implementation::Deferred { class } => Some(Gap::Construct { construct: "a deferred built-in function", owner: class.owner() }),
+        calc_func::Implementation::NotHeld { owner } => Some(Gap::Construct {
+            construct: "an unheld built-in function",
+            owner,
+        }),
+        calc_func::Implementation::Deferred { class } => Some(Gap::Construct {
+            construct: "a deferred built-in function",
+            owner: class.owner(),
+        }),
         _ => None,
     };
     match gap {
-        Some(gap) => Err(CompileError::NotModelled { span: name.span(), gap }),
+        Some(gap) => Err(CompileError::NotModelled {
+            span: name.span(),
+            gap,
+        }),
         None => Ok(Target(target)),
     }
 }
@@ -2158,7 +2212,11 @@ pub(crate) enum BindingCall {
 
 /// Calls which introduce local bindings rather than dispatching through the catalogue.
 pub(crate) fn binding_call(spelling: &str) -> Option<BindingCall> {
-    match catalogue().resolve_surface(Notation::Call, spelling).ok()?.kind() {
+    match catalogue()
+        .resolve_surface(Notation::Call, spelling)
+        .ok()?
+        .kind()
+    {
         calc_func::EntryKind::Binding(calc_func::BindingForm::Let) => Some(BindingCall::Let),
         calc_func::EntryKind::Binding(calc_func::BindingForm::Lambda) => Some(BindingCall::Lambda),
         _ => None,
@@ -2298,9 +2356,7 @@ fn significant_digits(text: &str) -> (usize, bool) {
 /// A string literal's text: inside its quotes, each doubled quote one quote.
 fn text(node: &SyntaxNode) -> Result<Literal, CompileError> {
     let span = node.span();
-    let quoted = only_token(node)
-        .map(Token::text)
-        .ok_or(syntax(span))?;
+    let quoted = only_token(node).map(Token::text).ok_or(syntax(span))?;
     let inner = quoted
         .strip_prefix('"')
         .and_then(|rest| rest.strip_suffix('"'))
@@ -2633,7 +2689,9 @@ mod tests {
     #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
     fn field_access_file_alias_uses_the_shared_id() {
         assert_eq!(file_function("_fV"), "FIELDVALUE");
-        let target = catalogue().resolve_surface(Notation::Call, file_function("_FV")).unwrap();
+        let target = catalogue()
+            .resolve_surface(Notation::Call, file_function("_FV"))
+            .unwrap();
         assert_eq!(target.id(), calc_catalogue::FIELD_ACCESS_ID);
     }
 

@@ -29,7 +29,9 @@ impl PartEvaluator for SessionEvaluator<'_> {
     }
 
     fn profile(&self) -> Option<FormatProfile> {
-        self.0.environment().and_then(|environment| environment.profile)
+        self.0
+            .environment()
+            .and_then(|environment| environment.profile)
     }
 }
 
@@ -41,7 +43,12 @@ pub fn evaluate_part(
     len: usize,
 ) -> Result<PartValue, String> {
     prepare(session, authored);
-    dna_formula_ui::parts::evaluate_part(&mut SessionEvaluator(session), &authored.formula, start, len)
+    dna_formula_ui::parts::evaluate_part(
+        &mut SessionEvaluator(session),
+        &authored.formula,
+        start,
+        len,
+    )
 }
 
 /// The evaluation trace of `authored`'s formula: every part with its value, innermost first.
@@ -76,26 +83,64 @@ mod tests {
     #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
     fn a_selected_part_gives_its_value_as_formula_text() {
         let mut session = Session::new("Sheet1").unwrap();
-        let state = authored("=SUM(A1:A2)*2+LEN(\"ab\")", &[(0, "1.5"), (grid::COLUMNS as usize, "2")]);
+        let state = authored(
+            "=SUM(A1:A2)*2+LEN(\"ab\")",
+            &[(0, "1.5"), (grid::COLUMNS as usize, "2")],
+        );
         let (start, len) = span_of(&state.formula, "SUM(A1:A2)");
         let part = evaluate_part(&mut session, &state, start, len).unwrap();
-        assert_eq!((part.literal.as_str(), part.shown.as_str()), ("3.5", "number 3.5"));
+        assert_eq!(
+            (part.literal.as_str(), part.shown.as_str()),
+            ("3.5", "number 3.5")
+        );
         let (start, len) = span_of(&state.formula, "LEN(\"ab\")");
-        assert_eq!(evaluate_part(&mut session, &state, start, len).unwrap().literal, "2");
+        assert_eq!(
+            evaluate_part(&mut session, &state, start, len)
+                .unwrap()
+                .literal,
+            "2"
+        );
         // A range is an array constant, a text keeps its quotes, an error is its spelling.
         let (start, len) = span_of(&state.formula, "A1:A2");
-        assert_eq!(evaluate_part(&mut session, &state, start, len).unwrap().literal, "{1.5;2}");
+        assert_eq!(
+            evaluate_part(&mut session, &state, start, len)
+                .unwrap()
+                .literal,
+            "{1.5;2}"
+        );
         let state = authored("=\"a\"&\"b\"&1/0", &[]);
         let (start, len) = span_of(&state.formula, "\"a\"&\"b\"");
-        assert_eq!(evaluate_part(&mut session, &state, start, len).unwrap().literal, "\"ab\"");
+        assert_eq!(
+            evaluate_part(&mut session, &state, start, len)
+                .unwrap()
+                .literal,
+            "\"ab\""
+        );
         let (start, len) = span_of(&state.formula, "1/0");
-        assert_eq!(evaluate_part(&mut session, &state, start, len).unwrap().literal, "#DIV/0!");
+        assert_eq!(
+            evaluate_part(&mut session, &state, start, len)
+                .unwrap()
+                .literal,
+            "#DIV/0!"
+        );
         // The whole formula, with its `=`; and nothing selected is a request to select.
         let (_, whole) = span_of(&state.formula, &state.formula);
-        assert!(evaluate_part(&mut session, &state, 0, whole).unwrap().literal.starts_with('#'));
-        assert!(evaluate_part(&mut session, &state, 2, 0).unwrap_err().starts_with("Select"));
+        assert!(
+            evaluate_part(&mut session, &state, 0, whole)
+                .unwrap()
+                .literal
+                .starts_with('#')
+        );
+        assert!(
+            evaluate_part(&mut session, &state, 2, 0)
+                .unwrap_err()
+                .starts_with("Select")
+        );
         // An unknown function is #NAME?, a value like any other.
-        assert!(evaluate_part(&mut session, &authored("=NOSUCH(1)+1", &[]), 1, 9).is_ok_and(|v| v.literal == "#NAME?"));
+        assert!(
+            evaluate_part(&mut session, &authored("=NOSUCH(1)+1", &[]), 1, 9)
+                .is_ok_and(|v| v.literal == "#NAME?")
+        );
     }
 
     #[cfg_attr(not(target_arch = "wasm32"), test)]
@@ -104,9 +149,19 @@ mod tests {
         let mut session = Session::new("Sheet1").unwrap();
         let state = authored("=LET(a,2,b,a*10,b+a)", &[]);
         let (start, len) = span_of(&state.formula, "b+a");
-        assert_eq!(evaluate_part(&mut session, &state, start, len).unwrap().literal, "22");
+        assert_eq!(
+            evaluate_part(&mut session, &state, start, len)
+                .unwrap()
+                .literal,
+            "22"
+        );
         let (start, len) = span_of(&state.formula, "a*10");
-        assert_eq!(evaluate_part(&mut session, &state, start, len).unwrap().literal, "20");
+        assert_eq!(
+            evaluate_part(&mut session, &state, start, len)
+                .unwrap()
+                .literal,
+            "20"
+        );
         let state = authored("=MAP({1,2},LAMBDA(x,x*3))", &[]);
         let (start, len) = span_of(&state.formula, "x*3");
         let refusal = evaluate_part(&mut session, &state, start, len).unwrap_err();
@@ -117,7 +172,10 @@ mod tests {
     #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
     fn the_trace_lists_every_part_innermost_first_with_its_value() {
         let mut session = Session::new("Sheet1").unwrap();
-        let state = authored("=SUM(A1:A2)*2", &[(0, "1.5"), (grid::COLUMNS as usize, "2")]);
+        let state = authored(
+            "=SUM(A1:A2)*2",
+            &[(0, "1.5"), (grid::COLUMNS as usize, "2")],
+        );
         let traced = trace(&mut session, &state);
         let steps: Vec<(&str, &str, usize)> = traced
             .steps
@@ -126,7 +184,11 @@ mod tests {
             .collect();
         assert_eq!(
             steps,
-            [("A1:A2", "{1.5;2}", 2), ("SUM(A1:A2)", "3.5", 1), ("SUM(A1:A2)*2", "7", 0)]
+            [
+                ("A1:A2", "{1.5;2}", 2),
+                ("SUM(A1:A2)", "3.5", 1),
+                ("SUM(A1:A2)*2", "7", 0)
+            ]
         );
         // The names a LET declares have no step; its values and body do, with the bindings.
         let state = authored("=LET(a,2,a*5)", &[]);
@@ -136,7 +198,16 @@ mod tests {
         assert_eq!(traced.steps[0].value, "2");
         assert_eq!(traced.steps[2].value, "10");
         // A constant formula is its own step; a syntax error is no trace.
-        assert_eq!(super::trace(&mut session, &authored("=42", &[])).steps.len(), 1);
-        assert!(super::trace(&mut session, &authored("=1+", &[])).steps.is_empty());
+        assert_eq!(
+            super::trace(&mut session, &authored("=42", &[]))
+                .steps
+                .len(),
+            1
+        );
+        assert!(
+            super::trace(&mut session, &authored("=1+", &[]))
+                .steps
+                .is_empty()
+        );
     }
 }

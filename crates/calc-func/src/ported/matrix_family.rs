@@ -1,5 +1,5 @@
-use crate::value::WorksheetErrorCode;
 use crate::ported::excel_numeric::{excel_x87_div, excel_x87_mul, excel_x87_sub};
+use crate::value::WorksheetErrorCode;
 
 pub(crate) fn determinant_kernel(matrix: &[Vec<f64>]) -> Result<f64, WorksheetErrorCode> {
     let n = matrix.len();

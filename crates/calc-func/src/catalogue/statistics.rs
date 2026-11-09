@@ -12,9 +12,12 @@
 //! holds no number, and lists of different sizes are #N/A.
 
 use super::aggregate::Held;
-use super::kit::{fail, given, grid, num, numbers, opt, out, out_matrix, out_with_subnormal, pairs, PairScalars};
+use super::kit::{
+    PairScalars, fail, given, grid, num, numbers, opt, out, out_matrix, out_with_subnormal, pairs,
+};
 use crate::call::EvalServices;
 use crate::kernel::{Exit, Site, Step};
+use crate::ported::excel_numeric::{crt_exp, crt_log};
 use crate::ported::paired_stats_common::{self as paired, CovarianceDivisor};
 use crate::ported::percentrank_common::{PercentRankMode, percentrank};
 use crate::ported::rank_common::{RankOrder, rank_avg, rank_eq};
@@ -22,7 +25,6 @@ use crate::ported::variance_common::{VarianceDivisor, stdev_from_values, varianc
 use crate::ported::{self as k};
 use crate::value::{CalcArray, CalcValue, CoreRef, WorksheetErrorCode};
 use std::collections::BTreeMap;
-use crate::ported::excel_numeric::{crt_exp, crt_log};
 
 use calc_catalogue::ported::statistics::{CODE, ENTRIES as DECLARATIONS};
 
@@ -34,7 +36,12 @@ fn all(site: &Site<'_>, a: &[CalcValue], sv: &mut EvalServices<'_>, held: Held) 
 }
 
 /// Argument `index`'s numbers by the aggregate rule for numbers.
-fn list(site: &Site<'_>, a: &[CalcValue], index: usize, sv: &mut EvalServices<'_>) -> Step<Vec<f64>> {
+fn list(
+    site: &Site<'_>,
+    a: &[CalcValue],
+    index: usize,
+    sv: &mut EvalServices<'_>,
+) -> Step<Vec<f64>> {
     numbers(site, a, index, index + 1, sv, Held::Numbers)
 }
 
@@ -42,7 +49,10 @@ fn list(site: &Site<'_>, a: &[CalcValue], index: usize, sv: &mut EvalServices<'_
 /// any held error, as MEDIAN, DEVSQ and HARMEAN order them.
 fn direct_first(site: &Site<'_>, a: &[CalcValue]) -> Step<()> {
     for (index, argument) in a.iter().enumerate() {
-        if !matches!(argument.core_ref(), CoreRef::Reference(_) | CoreRef::Array(_)) {
+        if !matches!(
+            argument.core_ref(),
+            CoreRef::Reference(_) | CoreRef::Array(_)
+        ) {
             site.number_argument(index, argument)?;
         }
     }
@@ -55,7 +65,12 @@ fn sorted(mut values: Vec<f64>) -> Vec<f64> {
 }
 
 /// The k-th largest (`largest`) or smallest number of argument 0.
-fn nth(site: &Site<'_>, a: &[CalcValue], sv: &mut EvalServices<'_>, largest: bool) -> Step<CalcValue> {
+fn nth(
+    site: &Site<'_>,
+    a: &[CalcValue],
+    sv: &mut EvalServices<'_>,
+    largest: bool,
+) -> Step<CalcValue> {
     let values = list(site, a, 0, sv)?;
     let k = num(site, a, 1)?.trunc();
     if k < 1.0 || k > values.len() as f64 {
@@ -77,7 +92,12 @@ fn rank_number(a: &[CalcValue]) -> Step<f64> {
     }
 }
 
-fn rank(site: &Site<'_>, a: &[CalcValue], sv: &mut EvalServices<'_>, average: bool) -> Step<CalcValue> {
+fn rank(
+    site: &Site<'_>,
+    a: &[CalcValue],
+    sv: &mut EvalServices<'_>,
+    average: bool,
+) -> Step<CalcValue> {
     let number = rank_number(a)?;
     let values = list(site, a, 1, sv)?;
     let order = if given(a, 2) && num(site, a, 2)?.trunc() != 0.0 {
@@ -93,7 +113,12 @@ fn rank(site: &Site<'_>, a: &[CalcValue], sv: &mut EvalServices<'_>, average: bo
     out(site, r)
 }
 
-fn percentile(site: &Site<'_>, a: &[CalcValue], sv: &mut EvalServices<'_>, exclusive: bool) -> Step<CalcValue> {
+fn percentile(
+    site: &Site<'_>,
+    a: &[CalcValue],
+    sv: &mut EvalServices<'_>,
+    exclusive: bool,
+) -> Step<CalcValue> {
     let mut values = list(site, a, 0, sv)?;
     let p = num(site, a, 1)?;
     out(
@@ -106,7 +131,12 @@ fn percentile(site: &Site<'_>, a: &[CalcValue], sv: &mut EvalServices<'_>, exclu
     )
 }
 
-fn quartile(site: &Site<'_>, a: &[CalcValue], sv: &mut EvalServices<'_>, exclusive: bool) -> Step<CalcValue> {
+fn quartile(
+    site: &Site<'_>,
+    a: &[CalcValue],
+    sv: &mut EvalServices<'_>,
+    exclusive: bool,
+) -> Step<CalcValue> {
     let mut values = list(site, a, 0, sv)?;
     let q = num(site, a, 1)?.trunc();
     let admitted = if exclusive { 1.0..=3.0 } else { 0.0..=4.0 };
@@ -123,14 +153,26 @@ fn quartile(site: &Site<'_>, a: &[CalcValue], sv: &mut EvalServices<'_>, exclusi
     )
 }
 
-fn percent_rank(site: &Site<'_>, a: &[CalcValue], sv: &mut EvalServices<'_>, mode: PercentRankMode) -> Step<CalcValue> {
+fn percent_rank(
+    site: &Site<'_>,
+    a: &[CalcValue],
+    sv: &mut EvalServices<'_>,
+    mode: PercentRankMode,
+) -> Step<CalcValue> {
     let mut values = list(site, a, 0, sv)?;
     let x = num(site, a, 1)?;
     let significance = opt(site, a, 2, 3.0)?.trunc() as i64;
     out(site, percentrank(&mut values, x, significance, mode))
 }
 
-fn variance(site: &Site<'_>, a: &[CalcValue], sv: &mut EvalServices<'_>, held: Held, divisor: VarianceDivisor, root: bool) -> Step<CalcValue> {
+fn variance(
+    site: &Site<'_>,
+    a: &[CalcValue],
+    sv: &mut EvalServices<'_>,
+    held: Held,
+    divisor: VarianceDivisor,
+    root: bool,
+) -> Step<CalcValue> {
     let values = all(site, a, sv, held)?;
     out(
         site,
@@ -492,7 +534,9 @@ fn regression(
     // subnormal coefficient row from GROWTH's zero forecasts. Statistics rows
     // keep the existing number rule; normal and nonfinite outputs do too.
     let number = |n: f64, first_row: bool| match publication {
-        RegressionNumbers::Coefficients if first_row && n.is_subnormal() => out_with_subnormal(site, Ok(n)),
+        RegressionNumbers::Coefficients if first_row && n.is_subnormal() => {
+            out_with_subnormal(site, Ok(n))
+        }
         RegressionNumbers::Forecast if n.is_subnormal() => site.number(0.0),
         _ => site.number(n),
     };
@@ -524,7 +568,12 @@ fn regression(
 
 /// PROB's lists: every cell must hold a number (an error cell is the result, anything else
 /// #VALUE!).
-fn strict_numbers(site: &Site<'_>, a: &[CalcValue], index: usize, sv: &mut EvalServices<'_>) -> Step<Vec<f64>> {
+fn strict_numbers(
+    site: &Site<'_>,
+    a: &[CalcValue],
+    index: usize,
+    sv: &mut EvalServices<'_>,
+) -> Step<Vec<f64>> {
     let g = grid(site, a, index, sv)?;
     let mut found = Vec::with_capacity(g.cells.len());
     for cell in &g.cells {

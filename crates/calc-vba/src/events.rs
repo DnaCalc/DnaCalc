@@ -87,7 +87,11 @@ impl ProjectReferences {
             // A reference to another VBA project is refused on every platform.
             project.compiler_references()?;
             return Ok(Self {
-                unavailable: project.com_references().iter().map(|reference| reference.name().to_owned()).collect(),
+                unavailable: project
+                    .com_references()
+                    .iter()
+                    .map(|reference| reference.name().to_owned())
+                    .collect(),
                 ..Self::none()
             });
         }
@@ -241,7 +245,11 @@ pub fn load_office_project(
             }
         };
         if module.kind == K::Document {
-            let prefix = if kind == ModuleKind::Workbook { "Workbook_" } else { "Worksheet_" };
+            let prefix = if kind == ModuleKind::Workbook {
+                "Workbook_"
+            } else {
+                "Worksheet_"
+            };
             for handler in event_handlers(&module.source, prefix) {
                 let delivered = kind == ModuleKind::Workbook
                     && DELIVERED_WORKBOOK_EVENTS

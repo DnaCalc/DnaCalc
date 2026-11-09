@@ -108,7 +108,9 @@ fn hex_of(color: &StyleColor) -> Option<String> {
         6 => value,
         _ => return None,
     };
-    hex.bytes().all(|b| b.is_ascii_hexdigit()).then(|| format!("#{}", hex.to_ascii_lowercase()))
+    hex.bytes()
+        .all(|b| b.is_ascii_hexdigit())
+        .then(|| format!("#{}", hex.to_ascii_lowercase()))
 }
 
 fn escape(text: &str) -> String {
@@ -146,9 +148,16 @@ fn color_xml(out: &mut String, color: &StyleColor) -> Result<(), SessionRefusal>
 }
 
 /// The worksheet fragment holding one rule over `sqref`.
-fn rule_source(sqref: &str, rule: &ConditionalRule, dxf: Option<u32>, priority: i64) -> Result<String, SessionRefusal> {
+fn rule_source(
+    sqref: &str,
+    rule: &ConditionalRule,
+    dxf: Option<u32>,
+    priority: i64,
+) -> Result<String, SessionRefusal> {
     if rule.unread {
-        return Err(write_refused("a rule with fields this version does not write"));
+        return Err(write_refused(
+            "a rule with fields this version does not write",
+        ));
     }
     let mut attributes = format!(" type=\"{}\"", escape(&rule.kind));
     if let Some(id) = dxf {
@@ -176,7 +185,10 @@ fn rule_source(sqref: &str, rule: &ConditionalRule, dxf: Option<u32>, priority: 
         ));
     }
     if rule.kind == "aboveAverage" {
-        attributes.push_str(&format!(" aboveAverage=\"{}\"", u8::from(rule.above_average)));
+        attributes.push_str(&format!(
+            " aboveAverage=\"{}\"",
+            u8::from(rule.above_average)
+        ));
         if rule.equal_average {
             attributes.push_str(" equalAverage=\"1\"");
         }
@@ -193,7 +205,15 @@ fn rule_source(sqref: &str, rule: &ConditionalRule, dxf: Option<u32>, priority: 
         }
         body.push_str("</colorScale>");
     }
-    if let Some(DataBar { thresholds, color, min_length, max_length, gradient, show_value }) = &rule.data_bar {
+    if let Some(DataBar {
+        thresholds,
+        color,
+        min_length,
+        max_length,
+        gradient,
+        show_value,
+    }) = &rule.data_bar
+    {
         if !gradient {
             return Err(write_refused(
                 "a data bar without a gradient is an Excel 2010 extension that this version does not write; use the gradient bar",
@@ -207,7 +227,13 @@ fn rule_source(sqref: &str, rule: &ConditionalRule, dxf: Option<u32>, priority: 
         color_xml(&mut body, color)?;
         body.push_str("</dataBar>");
     }
-    if let Some(IconSet { name, thresholds, reverse, show_value }) = &rule.icon_set {
+    if let Some(IconSet {
+        name,
+        thresholds,
+        reverse,
+        show_value,
+    }) = &rule.icon_set
+    {
         body.push_str(&format!(
             "<iconSet iconSet=\"{}\"{}{}>",
             escape(name),
@@ -231,7 +257,9 @@ fn dxf_of(
     dxf: &SessionDxf,
     existing: &[DifferentialFormat],
 ) -> Result<DifferentialFormat, SessionRefusal> {
-    let color = |text: &str, what: &str| rgb(text).ok_or_else(|| write_refused(format!("the {what} colour {text:?} is not #rrggbb")));
+    let color = |text: &str, what: &str| {
+        rgb(text).ok_or_else(|| write_refused(format!("the {what} colour {text:?} is not #rrggbb")))
+    };
     let mut out = DifferentialFormat::default();
     if dxf.bold || dxf.italic || dxf.underline || dxf.strike || dxf.font_color.is_some() {
         out.font = Some(Font {
@@ -239,7 +267,11 @@ fn dxf_of(
             italic: dxf.italic,
             underline: dxf.underline.then(|| "single".to_owned()),
             strike: dxf.strike,
-            color: dxf.font_color.as_deref().map(|c| color(c, "font")).transpose()?,
+            color: dxf
+                .font_color
+                .as_deref()
+                .map(|c| color(c, "font"))
+                .transpose()?,
             ..Default::default()
         });
     }
@@ -258,7 +290,10 @@ fn dxf_of(
             .find(|f| &f.code == code)
             .map(|f| f.id)
             .unwrap_or_else(|| known.map(|f| f.id).max().map_or(164, |m| m + 1).max(164));
-        out.number_format = Some(NumberFormat { id, code: code.clone() });
+        out.number_format = Some(NumberFormat {
+            id,
+            code: code.clone(),
+        });
     }
     Ok(out)
 }
@@ -266,12 +301,22 @@ fn dxf_of(
 /// The cell format `format` as records added to `table`: the index of the new cell format.
 fn add_format(table: &mut StyleTable, format: &SessionFormat) -> Result<u32, SessionRefusal> {
     if table.fonts.is_empty() {
-        table.fonts.push(Font { name: Some("Calibri".into()), size: Some("11".into()), ..Default::default() });
+        table.fonts.push(Font {
+            name: Some("Calibri".into()),
+            size: Some("11".into()),
+            ..Default::default()
+        });
     }
     if table.fills.is_empty() {
         table.fills.extend([
-            Fill { pattern_type: Some("none".into()), ..Default::default() },
-            Fill { pattern_type: Some("gray125".into()), ..Default::default() },
+            Fill {
+                pattern_type: Some("none".into()),
+                ..Default::default()
+            },
+            Fill {
+                pattern_type: Some("gray125".into()),
+                ..Default::default()
+            },
         ]);
     }
     if table.borders.is_empty() {
@@ -293,10 +338,15 @@ fn add_format(table: &mut StyleTable, format: &SessionFormat) -> Result<u32, Ses
         if text.is_empty() {
             Ok(None)
         } else {
-            rgb(text).map(Some).ok_or_else(|| write_refused(format!("the {what} colour {text:?} is not #rrggbb")))
+            rgb(text)
+                .map(Some)
+                .ok_or_else(|| write_refused(format!("the {what} colour {text:?} is not #rrggbb")))
         }
     };
-    let mut xf = CellFormat { xf_id: Some(0), ..Default::default() };
+    let mut xf = CellFormat {
+        xf_id: Some(0),
+        ..Default::default()
+    };
     let base = table.fonts[0].clone();
     let mut font = base.clone();
     if !format.font_family.is_empty() {
@@ -326,7 +376,10 @@ fn add_format(table: &mut StyleTable, format: &SessionFormat) -> Result<u32, Ses
         table.fills.push(Fill {
             pattern_type: Some("solid".into()),
             fg_color: Some(c),
-            bg_color: Some(StyleColor { indexed: Some("64".into()), ..Default::default() }),
+            bg_color: Some(StyleColor {
+                indexed: Some("64".into()),
+                ..Default::default()
+            }),
             ..Default::default()
         });
         xf.fill_id = Some(table.fills.len() as u32 - 1);
@@ -334,9 +387,16 @@ fn add_format(table: &mut StyleTable, format: &SessionFormat) -> Result<u32, Ses
     }
     xf.border_id = Some(0);
     if format.border_top || format.border_bottom || format.border_left || format.border_right {
-        let edge_color = color(&format.border_color, "border")?
-            .unwrap_or_else(|| StyleColor { rgb: Some("FF000000".into()), ..Default::default() });
-        let edge = |on: bool| on.then(|| BorderEdge { style: Some("thin".into()), color: Some(edge_color.clone()) });
+        let edge_color = color(&format.border_color, "border")?.unwrap_or_else(|| StyleColor {
+            rgb: Some("FF000000".into()),
+            ..Default::default()
+        });
+        let edge = |on: bool| {
+            on.then(|| BorderEdge {
+                style: Some("thin".into()),
+                color: Some(edge_color.clone()),
+            })
+        };
         table.borders.push(Border {
             left: edge(format.border_left),
             right: edge(format.border_right),
@@ -368,7 +428,8 @@ pub(crate) fn look_operations(
 ) -> Result<Vec<calc_doc_model::WorkbookOp>, SessionRefusal> {
     use calc_doc_model::WorkbookOp;
     let cell = |row: u32, column: u32| {
-        CellKey::new(sheet, row, column).map_err(|_| write_refused("the look's cells are outside the sheet"))
+        CellKey::new(sheet, row, column)
+            .map_err(|_| write_refused("the look's cells are outside the sheet"))
     };
     if look.rows == 0 || look.columns == 0 {
         return Err(write_refused("the look covers no cells"));
@@ -382,7 +443,10 @@ pub(crate) fn look_operations(
     let mut operations = Vec::new();
     if let Some(format) = look.format.as_ref().filter(|f| !f.is_default()) {
         let index = add_format(&mut table, format)?;
-        table.runs.assign(StyleRun { area, format: index });
+        table.runs.assign(StyleRun {
+            area,
+            format: index,
+        });
     }
     let mut sources = Vec::new();
     let sqref = if look.rows * look.columns == 1 {
@@ -398,15 +462,23 @@ pub(crate) fn look_operations(
         let dxf = match rule.dxf.as_ref().filter(|d| !d.is_empty()) {
             Some(dxf) => {
                 let converted = dxf_of(dxf, &table.differential_formats)?;
-                let id = table.differential_formats.iter().position(|d| *d == converted).unwrap_or_else(|| {
-                    table.differential_formats.push(converted);
-                    table.differential_formats.len() - 1
-                });
+                let id = table
+                    .differential_formats
+                    .iter()
+                    .position(|d| *d == converted)
+                    .unwrap_or_else(|| {
+                        table.differential_formats.push(converted);
+                        table.differential_formats.len() - 1
+                    });
                 Some(id as u32)
             }
             None => None,
         };
-        let priority = if rule.rule.priority > 0 { rule.rule.priority } else { index as i64 + 1 };
+        let priority = if rule.rule.priority > 0 {
+            rule.rule.priority
+        } else {
+            index as i64 + 1
+        };
         let source = rule_source(&sqref, &rule.rule, dxf, priority)?;
         sources.push(ConditionalRuleSource {
             source: source.into_bytes().into(),
@@ -422,7 +494,10 @@ pub(crate) fn look_operations(
         operations.push(WorkbookOp::SetStyles(Arc::new(table)));
     }
     if !sources.is_empty() {
-        operations.push(WorkbookOp::SetConditionalRules { sheet, rules: sources });
+        operations.push(WorkbookOp::SetConditionalRules {
+            sheet,
+            rules: sources,
+        });
     }
     Ok(operations)
 }
@@ -462,7 +537,11 @@ pub(crate) fn read_format(table: &StyleTable, index: u32) -> Option<SessionForma
                 format.font_family = font.name.clone().unwrap_or_default();
             }
             if font.size.as_ref() != default_font.and_then(|f| f.size.as_ref()) {
-                format.font_size = font.size.as_deref().and_then(|s| s.parse::<f64>().ok()).map_or(0, |s| s.round() as u32);
+                format.font_size = font
+                    .size
+                    .as_deref()
+                    .and_then(|s| s.parse::<f64>().ok())
+                    .map_or(0, |s| s.round() as u32);
             }
             format.bold = font.bold;
             format.italic = font.italic;
@@ -479,7 +558,10 @@ pub(crate) fn read_format(table: &StyleTable, index: u32) -> Option<SessionForma
         }
     }
     if let Some(border) = xf.border_id.and_then(|id| table.borders.get(id as usize)) {
-        let on = |edge: &Option<BorderEdge>| edge.as_ref().is_some_and(|e| e.style.as_deref().is_some_and(|s| s != "none"));
+        let on = |edge: &Option<BorderEdge>| {
+            edge.as_ref()
+                .is_some_and(|e| e.style.as_deref().is_some_and(|s| s != "none"))
+        };
         format.border_top = on(&border.top);
         format.border_bottom = on(&border.bottom);
         format.border_left = on(&border.left);
@@ -513,10 +595,18 @@ pub(crate) fn read_dxf(table: &StyleTable, index: u32) -> Option<SessionDxf> {
             }?;
             hex_of(color)
         }),
-        font_color: d.font.as_ref().and_then(|f| f.color.as_ref()).and_then(hex_of),
+        font_color: d
+            .font
+            .as_ref()
+            .and_then(|f| f.color.as_ref())
+            .and_then(hex_of),
         bold: d.font.as_ref().is_some_and(|f| f.bold),
         italic: d.font.as_ref().is_some_and(|f| f.italic),
-        underline: d.font.as_ref().and_then(|f| f.underline.as_ref()).is_some_and(|u| u != "none"),
+        underline: d
+            .font
+            .as_ref()
+            .and_then(|f| f.underline.as_ref())
+            .is_some_and(|u| u != "none"),
         strike: d.font.as_ref().is_some_and(|f| f.strike),
         number_format: d.number_format.as_ref().map(|n| n.code.clone()),
     };

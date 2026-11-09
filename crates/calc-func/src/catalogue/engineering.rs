@@ -15,9 +15,9 @@ use crate::ported::complex_family::{
     ParsedComplex, format_complex_text, normalize_zero, parse_complex_text, suffix_from_operands,
 };
 use crate::ported::engineering_radix_family as radix;
+use crate::ported::excel_numeric::crt_log;
 use crate::ported::{self as k};
 use crate::value::{CalcValue, CoreRef, ExcelText, WorksheetErrorCode};
-use crate::ported::excel_numeric::crt_log;
 
 use calc_catalogue::ported::engineering::{CODE, ENTRIES as DECLARATIONS};
 
@@ -54,7 +54,11 @@ fn from_decimal(
     out_text(kernel(n, p))
 }
 
-fn to_decimal(site: &Site<'_>, a: &[CalcValue], kernel: fn(&str) -> Result<f64, WorksheetErrorCode>) -> Step<CalcValue> {
+fn to_decimal(
+    site: &Site<'_>,
+    a: &[CalcValue],
+    kernel: fn(&str) -> Result<f64, WorksheetErrorCode>,
+) -> Step<CalcValue> {
     radix_kind(a, 0)?;
     let t = text(site, a, 0)?;
     out(site, kernel(&t))
@@ -87,7 +91,10 @@ fn complex_of(site: &Site<'_>, index: usize, value: &CalcValue) -> Step<ParsedCo
 }
 
 /// A complex-number result as its text, with the suffix the operands use.
-fn complex_text(value: Result<ParsedComplex, WorksheetErrorCode>, operands: &[ParsedComplex]) -> Step<CalcValue> {
+fn complex_text(
+    value: Result<ParsedComplex, WorksheetErrorCode>,
+    operands: &[ParsedComplex],
+) -> Step<CalcValue> {
     let suffix = suffix_from_operands(operands).map_err(Exit::Error)?;
     let value = value.map_err(Exit::Error)?;
     let text = format_complex_text(value, suffix).map_err(Exit::Error)?;
@@ -122,7 +129,11 @@ fn coefficient(site: &Site<'_>, a: &[CalcValue], index: usize) -> Step<f64> {
 }
 
 /// Every value of IMSUM's and IMPRODUCT's arguments as a complex number.
-fn complexes(site: &Site<'_>, a: &[CalcValue], sv: &mut crate::call::EvalServices<'_>) -> Step<Vec<ParsedComplex>> {
+fn complexes(
+    site: &Site<'_>,
+    a: &[CalcValue],
+    sv: &mut crate::call::EvalServices<'_>,
+) -> Step<Vec<ParsedComplex>> {
     let mut found = Vec::new();
     values(site, a, 0, a.len(), sv, &mut |_, value| {
         found.push(complex_of(site, 0, value)?);
@@ -131,15 +142,28 @@ fn complexes(site: &Site<'_>, a: &[CalcValue], sv: &mut crate::call::EvalService
     Ok(found)
 }
 
-fn bessel(site: &Site<'_>, a: &[CalcValue], kernel: fn(f64, f64) -> Result<f64, WorksheetErrorCode>, checked_kinds: bool) -> Step<CalcValue> {
-    if checked_kinds { radix_kind(a, 0)?; }
+fn bessel(
+    site: &Site<'_>,
+    a: &[CalcValue],
+    kernel: fn(f64, f64) -> Result<f64, WorksheetErrorCode>,
+    checked_kinds: bool,
+) -> Step<CalcValue> {
+    if checked_kinds {
+        radix_kind(a, 0)?;
+    }
     let x = num(site, a, 0)?;
-    if checked_kinds { radix_kind(a, 1)?; }
+    if checked_kinds {
+        radix_kind(a, 1)?;
+    }
     let n = num(site, a, 1)?;
     out(site, kernel(x, n))
 }
 
-fn bits(site: &Site<'_>, a: &[CalcValue], kernel: fn(f64, f64) -> Result<f64, WorksheetErrorCode>) -> Step<CalcValue> {
+fn bits(
+    site: &Site<'_>,
+    a: &[CalcValue],
+    kernel: fn(f64, f64) -> Result<f64, WorksheetErrorCode>,
+) -> Step<CalcValue> {
     let x = num(site, a, 0)?;
     let y = num(site, a, 1)?;
     out(site, kernel(x, y))

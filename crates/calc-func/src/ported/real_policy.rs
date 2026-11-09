@@ -1,5 +1,5 @@
-use crate::value::WorksheetErrorCode;
 use crate::ported::excel_numeric::crt_exp;
+use crate::value::WorksheetErrorCode;
 
 pub(crate) fn excel_underflow_to_zero(value: f64) -> f64 {
     if value.is_finite() && value != 0.0 && value.abs() < f64::MIN_POSITIVE {

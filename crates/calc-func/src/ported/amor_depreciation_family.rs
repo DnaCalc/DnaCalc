@@ -1,4 +1,6 @@
-use crate::locale::{DateSystem as WorkbookDateSystem, excel_serial_from_ymd, ymd_from_excel_serial};
+use crate::locale::{
+    DateSystem as WorkbookDateSystem, excel_serial_from_ymd, ymd_from_excel_serial,
+};
 use crate::value::{CalcValue, CoreValue, WorksheetErrorCode};
 const EPSILON: f64 = 1.0e-12;
 
@@ -295,9 +297,9 @@ pub fn map_amor_depreciation_error_to_ws(error: &AmorDepreciationEvalError) -> W
 
 #[cfg(test)]
 mod tests {
+    use super::*;
     #[allow(unused_imports)]
     use crate::value::{CalcArray, CalcValue, CoreValue, ExcelText};
-    use super::*;
 
     struct NoRefResolver;
 

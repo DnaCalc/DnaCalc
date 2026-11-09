@@ -63,10 +63,7 @@ fn currency_literal<'a>(profile: &FormatProfile, text: &'a str) -> &'a str {
 
 /// The AM or PM designator of a locale.
 pub(crate) fn designator(profile: &FormatProfile, am: bool) -> &'static str {
-    let lower = matches!(
-        profile.id,
-        LocaleId::EnZa | LocaleId::CurrentExcelHost
-    );
+    let lower = matches!(profile.id, LocaleId::EnZa | LocaleId::CurrentExcelHost);
     match (am, lower) {
         (true, true) => "am",
         (false, true) => "pm",
@@ -100,11 +97,17 @@ fn split(decimal: &ExactDecimal, places: usize) -> (String, String) {
     let digits = decimal.coefficient.digits();
     let exponent = decimal.exponent;
     let (whole, fraction) = if exponent >= 0 {
-        (format!("{digits}{}", "0".repeat(exponent as usize)), String::new())
+        (
+            format!("{digits}{}", "0".repeat(exponent as usize)),
+            String::new(),
+        )
     } else {
         let point = digits.len() as i64 + exponent as i64;
         if point <= 0 {
-            (String::new(), format!("{}{digits}", "0".repeat((-point) as usize)))
+            (
+                String::new(),
+                format!("{}{digits}", "0".repeat((-point) as usize)),
+            )
         } else {
             let point = point as usize;
             (digits[..point].to_owned(), digits[point..].to_owned())
@@ -143,7 +146,12 @@ fn grouped(whole: &str, separator: &str) -> String {
 
 /// FIXED: the number rounded to `places`, grouped unless `no_commas`.
 /// A missing profile refuses only when the output would contain a locale separator.
-pub(crate) fn fixed(profile: Option<&FormatProfile>, value: f64, places: i32, no_commas: bool) -> Rendered {
+pub(crate) fn fixed(
+    profile: Option<&FormatProfile>,
+    value: f64,
+    places: i32,
+    no_commas: bool,
+) -> Rendered {
     let decimal_separator = if places > 0 {
         Some(profile.ok_or(Failure::NotModelled)?.decimal_separator)
     } else {
@@ -151,11 +159,18 @@ pub(crate) fn fixed(profile: Option<&FormatProfile>, value: f64, places: i32, no
     };
     let (whole, fraction) = digits(value, places);
     let negative = value < 0.0 && (whole.chars().chain(fraction.chars()).any(|c| c != '0'));
-    let whole = if whole.is_empty() { "0".to_owned() } else { whole };
+    let whole = if whole.is_empty() {
+        "0".to_owned()
+    } else {
+        whole
+    };
     let whole = if no_commas || whole.len() <= 3 {
         whole
     } else {
-        grouped(&whole, profile.ok_or(Failure::NotModelled)?.thousands_separator)
+        grouped(
+            &whole,
+            profile.ok_or(Failure::NotModelled)?.thousands_separator,
+        )
     };
     let mut out = String::new();
     if negative {
@@ -182,7 +197,8 @@ pub(crate) fn dollar(profile: &FormatProfile, value: f64, places: i32) -> Render
         CurrencyPlacement::Before => format!("{symbol}{spacing}{magnitude}"),
         CurrencyPlacement::After => format!("{magnitude}{spacing}{symbol}"),
     };
-    let negative = value < 0.0 && (places >= 0 || magnitude.chars().any(|c| c.is_ascii_digit() && c != '0'));
+    let negative =
+        value < 0.0 && (places >= 0 || magnitude.chars().any(|c| c.is_ascii_digit() && c != '0'));
     if !negative {
         return Ok(body);
     }
@@ -213,7 +229,11 @@ pub fn general(profile: &FormatProfile, value: f64) -> String {
         let (mantissa, carry) = significant(&exact, 2);
         let (head, tail) = mantissa.split_at(1);
         let tail = tail.trim_end_matches('0');
-        let point = if tail.is_empty() { "" } else { profile.decimal_separator };
+        let point = if tail.is_empty() {
+            ""
+        } else {
+            profile.decimal_separator
+        };
         return format!("{head}{point}{tail}E+{}", i64::from(exponent) + carry);
     }
     if value == 0.0 || value.is_subnormal() {
@@ -234,7 +254,11 @@ pub fn general(profile: &FormatProfile, value: f64) -> String {
         };
         let (whole, fraction) = digits(magnitude, places as i32);
         let fraction = fraction.trim_end_matches('0');
-        let whole = if whole.is_empty() { "0".to_owned() } else { whole };
+        let whole = if whole.is_empty() {
+            "0".to_owned()
+        } else {
+            whole
+        };
         if whole.len() as i64 <= WIDTH && (whole != "0" || !fraction.is_empty()) {
             let mut out = format!("{sign}{whole}");
             if !fraction.is_empty() {
@@ -418,7 +442,8 @@ fn strip_tokens(section: &str) -> Result<(String, Option<crate::locale::LocaleId
                     if !locale.is_empty() {
                         locale_declared = true;
                         use crate::locale::LocaleId;
-                        name_locale = u16::from_str_radix(locale, 16).ok()
+                        name_locale = u16::from_str_radix(locale, 16)
+                            .ok()
                             .and_then(LocaleId::from_excel_lcid)
                             .or_else(|| LocaleId::from_bcp47_language_tag(locale));
                     }
@@ -427,9 +452,7 @@ fn strip_tokens(section: &str) -> Result<(String, Option<crate::locale::LocaleId
                         out.push_str(symbol);
                         out.push('"');
                     }
-                } else if is_condition(&token)
-                    || token.chars().all(|c| c.is_ascii_alphanumeric())
-                {
+                } else if is_condition(&token) || token.chars().all(|c| c.is_ascii_alphanumeric()) {
                     // A color ([Red], [Color10]) or a condition.
                 } else {
                     return Err(Failure::NotModelled);
@@ -578,7 +601,8 @@ fn items(section: &str, profile: &FormatProfile) -> Result<Vec<Item>, Failure> {
             c if c.is_ascii_alphabetic() => {
                 // A letter that is a token in some other format (dates, eras, A/P) is not modelled.
                 if "ymdhsbegYMDHSBEG".contains(c)
-                    || (matches!(c, 'a' | 'A') && !measured_host(profile)) {
+                    || (matches!(c, 'a' | 'A') && !measured_host(profile))
+                {
                     return Err(Failure::NotModelled);
                 }
                 literal(&mut out, &c.to_string());
@@ -594,12 +618,7 @@ fn items(section: &str, profile: &FormatProfile) -> Result<Vec<Item>, Failure> {
 }
 
 /// Renders a number with a numeric section's items.
-fn numeric(
-    profile: &FormatProfile,
-    value: f64,
-    items: &[Item],
-    show_minus: bool,
-) -> Rendered {
+fn numeric(profile: &FormatProfile, value: f64, items: &[Item], show_minus: bool) -> Rendered {
     let first = items
         .iter()
         .position(|i| matches!(i, Item::Digit(_)))
@@ -610,9 +629,7 @@ fn numeric(
         .expect("a digit placeholder");
     let exponent_at = items.iter().position(|i| matches!(i, Item::Exponent(_)));
     let mantissa_end = exponent_at.unwrap_or(last + 1);
-    let point_at = items[..mantissa_end]
-        .iter()
-        .position(|i| *i == Item::Point);
+    let point_at = items[..mantissa_end].iter().position(|i| *i == Item::Point);
     // Group separators right after the last mantissa placeholder divide by 1000 each.
     let mut scale_groups = 0;
     let mut cursor = items[..mantissa_end]
@@ -677,10 +694,12 @@ fn numeric(
     if !fraction_literals.is_empty() && fraction.iter().any(|c| *c != '0') {
         return Err(Failure::NotModelled);
     }
-    let grouping = integer
-        .iter()
-        .enumerate()
-        .any(|(at, i)| **i == Item::Group && integer[at + 1..].iter().any(|j| matches!(j, Item::Digit(_))));
+    let grouping = integer.iter().enumerate().any(|(at, i)| {
+        **i == Item::Group
+            && integer[at + 1..]
+                .iter()
+                .any(|j| matches!(j, Item::Digit(_)))
+    });
     let prefix: String = items[..first]
         .iter()
         .map(|i| literal_text(i, profile))
@@ -732,7 +751,9 @@ fn literal_text(item: &Item, profile: &FormatProfile) -> Result<String, Failure>
         Item::Percent => "%".to_owned(),
         Item::Group => profile.thousands_separator.to_owned(),
         Item::Point => profile.decimal_separator.to_owned(),
-        Item::Digit(_) | Item::Exponent(_) | Item::TextPlaceholder => return Err(Failure::NotModelled),
+        Item::Digit(_) | Item::Exponent(_) | Item::TextPlaceholder => {
+            return Err(Failure::NotModelled);
+        }
     })
 }
 
@@ -921,10 +942,18 @@ fn scientific(
         let mantissa = format!(
             "{}{}{}",
             "0".repeat(whole_places.len()),
-            if fraction.is_empty() { "" } else { profile.decimal_separator },
+            if fraction.is_empty() {
+                ""
+            } else {
+                profile.decimal_separator
+            },
             "0".repeat(fraction.len())
         );
-        let exponent = format!("E{}{}", if plus { "+" } else { "" }, "0".repeat(exponent_digits.len()));
+        let exponent = format!(
+            "E{}{}",
+            if plus { "+" } else { "" },
+            "0".repeat(exponent_digits.len())
+        );
         return Ok((format!("{mantissa}{exponent}"), false));
     }
     let first = fifteen(value);
@@ -1032,7 +1061,10 @@ enum FractionToken {
 /// The fraction `section` writes, if it is one: `Ok(None)` when it has no `/` outside quotes and
 /// escapes, `Value` for a code Excel refuses (two fractions, a decimal point, an exponent), and
 /// `NotModelled` for the shapes not measured.
-fn fraction_layout(section: &str, profile: &FormatProfile) -> Result<Option<FractionLayout>, Failure> {
+fn fraction_layout(
+    section: &str,
+    profile: &FormatProfile,
+) -> Result<Option<FractionLayout>, Failure> {
     let decimal = profile.format_code_decimal_token;
     let group = profile.format_code_group_token;
     let chars: Vec<char> = section.chars().collect();
@@ -1103,7 +1135,9 @@ fn fraction_layout(section: &str, profile: &FormatProfile) -> Result<Option<Frac
                 at += group.chars().count();
             }
             c if c.is_ascii_alphabetic() => {
-                if "ymdhsbegYMDHSBEG".contains(c) || (matches!(c, 'a' | 'A') && !measured_host(profile)) {
+                if "ymdhsbegYMDHSBEG".contains(c)
+                    || (matches!(c, 'a' | 'A') && !measured_host(profile))
+                {
                     refusal.get_or_insert(Failure::NotModelled);
                 }
                 push_literal(&mut tokens, &c.to_string());
@@ -1130,7 +1164,8 @@ fn fraction_layout(section: &str, profile: &FormatProfile) -> Result<Option<Frac
         return Err(refusal);
     }
     let mut numerator_from = slash;
-    while numerator_from > 0 && matches!(tokens[numerator_from - 1], FractionToken::Placeholder(_)) {
+    while numerator_from > 0 && matches!(tokens[numerator_from - 1], FractionToken::Placeholder(_))
+    {
         numerator_from -= 1;
     }
     let numerator: Vec<char> = tokens[numerator_from..slash]
@@ -1179,7 +1214,10 @@ fn fraction_layout(section: &str, profile: &FormatProfile) -> Result<Option<Frac
     }
     let mut integer_from = separator_from;
     while integer_from > 0
-        && matches!(head[integer_from - 1], FractionToken::Placeholder(_) | FractionToken::Group)
+        && matches!(
+            head[integer_from - 1],
+            FractionToken::Placeholder(_) | FractionToken::Group
+        )
     {
         integer_from -= 1;
     }
@@ -1189,7 +1227,11 @@ fn fraction_layout(section: &str, profile: &FormatProfile) -> Result<Option<Frac
             .iter()
             .any(|t| matches!(t, FractionToken::Placeholder(_)));
     let (prefix_to, integer_range, separator_range) = if has_integer {
-        (integer_from, integer_from..separator_from, separator_from..head.len())
+        (
+            integer_from,
+            integer_from..separator_from,
+            separator_from..head.len(),
+        )
     } else {
         (head.len(), 0..0, 0..0)
     };
@@ -1276,7 +1318,11 @@ impl FractionLayout {
             return Err(Failure::Value);
         }
         let mixed = !self.integer.is_empty();
-        let (whole, rest) = if mixed { (x.floor(), x - x.floor()) } else { (0.0, x) };
+        let (whole, rest) = if mixed {
+            (x.floor(), x - x.floor())
+        } else {
+            (0.0, x)
+        };
         let (mut numerator, denominator) = match &self.denominator {
             Denominator::Fixed(d) => {
                 let (n, _) = digits(rest * *d as f64, 0);
@@ -1293,7 +1339,11 @@ impl FractionLayout {
             Denominator::Places(places) => self.approximate(rest, places.len(), mixed)?,
             Denominator::Zeros(width) => self.approximate(rest, *width, mixed)?,
         };
-        let mut whole_text = if whole > 0.0 { digits(whole, 0).0 } else { String::new() };
+        let mut whole_text = if whole > 0.0 {
+            digits(whole, 0).0
+        } else {
+            String::new()
+        };
         if mixed && numerator == denominator {
             // The fraction rounded up to 1: it carries into the whole number.
             whole_text = digits(whole + 1.0, 0).0;
@@ -1334,7 +1384,11 @@ impl FractionLayout {
             String::new()
         };
         let body = if blank {
-            let anywhere = self.integer.iter().chain(&self.numerator).any(|c| *c == '?')
+            let anywhere = self
+                .integer
+                .iter()
+                .chain(&self.numerator)
+                .any(|c| *c == '?')
                 || matches!(&self.denominator, Denominator::Places(p) if p.contains(&'?'));
             if anywhere {
                 let one = match &self.denominator {
@@ -1356,7 +1410,10 @@ impl FractionLayout {
                 self.denominator_text(denominator)
             )
         };
-        Ok(format!("{minus}{}{integer_text}{body}{}", self.prefix, self.suffix))
+        Ok(format!(
+            "{minus}{}{integer_text}{body}{}",
+            self.prefix, self.suffix
+        ))
     }
 
     /// The last convergent of `rest` whose denominator has at most `width` digits.
@@ -1456,10 +1513,10 @@ pub fn cell_text(
 ) -> Result<String, CellFormatError> {
     // OOXML cell formats use invariant punctuation. Their output separators still
     // come from the host. Formula TEXT retains its separate localized-code contract.
-    let profile=&FormatProfile {
-        format_code_decimal_token:".",
-        format_code_group_token:",",
-        format_code_token_policy:crate::locale::FormatCodeTokenPolicy::InvariantExcel,
+    let profile = &FormatProfile {
+        format_code_decimal_token: ".",
+        format_code_group_token: ",",
+        format_code_token_policy: crate::locale::FormatCodeTokenPolicy::InvariantExcel,
         ..*profile
     };
     render_cell_text(profile, system, value, code)
@@ -1601,30 +1658,47 @@ pub fn cell_color(code: &str, value: &crate::value::CalcValue) -> Option<FormatC
 /// that never read them, then use the same formatter with the locale the code names.
 pub(crate) fn text_declared_date_locale(system: DateSystem, value: f64, code: &str) -> Rendered {
     let sections = sections(code);
-    if sections.iter().any(|section| condition_of(section).is_some()) {
+    if sections
+        .iter()
+        .any(|section| condition_of(section).is_some())
+    {
         return Err(Failure::NotModelled);
     }
     let (section, _) = choose(&sections, value).map_err(|_| Failure::NotModelled)?;
     let (stripped, name_locale, _) = strip_tokens(&section).map_err(|_| Failure::NotModelled)?;
     let locale = name_locale.ok_or(Failure::NotModelled)?;
-    if stripped.trim().is_empty() || !stripped.chars().all(|c| matches!(c,
-        'y' | 'Y' | 'm' | 'M' | 'd' | 'D' | 'g' | 'G' | 'e' | 'E' | ' ')) {
+    if stripped.trim().is_empty()
+        || !stripped.chars().all(|c| {
+            matches!(
+                c,
+                'y' | 'Y' | 'm' | 'M' | 'd' | 'D' | 'g' | 'G' | 'e' | 'E' | ' '
+            )
+        })
+    {
         return Err(Failure::NotModelled);
     }
     text(&crate::locale::format_profile(locale), system, value, code)
 }
 
 /// TEXT of a number under `code`.
-pub(crate) fn text(profile: &FormatProfile, system: DateSystem, value: f64, code: &str) -> Rendered {
-    render_text(&localized_code_profile(profile),system,value,code)
+pub(crate) fn text(
+    profile: &FormatProfile,
+    system: DateSystem,
+    value: f64,
+    code: &str,
+) -> Rendered {
+    render_text(&localized_code_profile(profile), system, value, code)
 }
 
 // Formula TEXT reads host punctuation in its code; cell_text supplies invariant tokens.
 // Both call the same section parser and value renderer.
-fn localized_code_profile(profile:&FormatProfile)->FormatProfile {
-    FormatProfile{format_code_decimal_token:profile.decimal_separator,
-        format_code_group_token:profile.thousands_separator,
-        format_code_token_policy:crate::locale::FormatCodeTokenPolicy::LocalizedExcel,..*profile}
+fn localized_code_profile(profile: &FormatProfile) -> FormatProfile {
+    FormatProfile {
+        format_code_decimal_token: profile.decimal_separator,
+        format_code_group_token: profile.thousands_separator,
+        format_code_token_policy: crate::locale::FormatCodeTokenPolicy::LocalizedExcel,
+        ..*profile
+    }
 }
 
 fn render_text(profile: &FormatProfile, system: DateSystem, value: f64, code: &str) -> Rendered {
@@ -1642,7 +1716,11 @@ fn render_text(profile: &FormatProfile, system: DateSystem, value: f64, code: &s
     if !locale_declared && measured_host(profile) && datetime::has_invalid_exponent(&stripped) {
         return Err(Failure::Value);
     }
-    let code_decimal = profile.format_code_decimal_token.chars().next().unwrap_or('.');
+    let code_decimal = profile
+        .format_code_decimal_token
+        .chars()
+        .next()
+        .unwrap_or('.');
     if datetime::looks_like_datetime_format(&stripped, code_decimal) {
         if value < 0.0 {
             return Err(Failure::Value);
@@ -1652,14 +1730,24 @@ fn render_text(profile: &FormatProfile, system: DateSystem, value: f64, code: &s
         }
         if datetime::without_subseconds(&stripped, code_decimal)
             .chars()
-            .any(|c| matches!(c, 'b' | 'B' | '0') ||
-                (matches!(c, 'e' | 'g' | 'G') && name_locale != Some(crate::locale::LocaleId::JaJp)
-                    && !(!locale_declared && measured_host(profile))))
+            .any(|c| {
+                matches!(c, 'b' | 'B' | '0')
+                    || (matches!(c, 'e' | 'g' | 'G')
+                        && name_locale != Some(crate::locale::LocaleId::JaJp)
+                        && !(!locale_declared && measured_host(profile)))
+            })
         {
             return Err(Failure::NotModelled);
         }
-        return datetime::render_with_datetime_tokens(profile, system, value, &stripped, name_locale, !locale_declared)
-            .ok_or(Failure::NotModelled);
+        return datetime::render_with_datetime_tokens(
+            profile,
+            system,
+            value,
+            &stripped,
+            name_locale,
+            !locale_declared,
+        )
+        .ok_or(Failure::NotModelled);
     }
     if mixed_fraction_under_space_grouping(&stripped, profile) {
         return Err(Failure::Value);
@@ -1674,17 +1762,25 @@ fn render_text(profile: &FormatProfile, system: DateSystem, value: f64, code: &s
         if measured_host(profile) && profile.format_code_group_token == " " {
             items.dedup_by(|a, b| *a == Item::Group && *b == Item::Group);
             for item in &mut items {
-                if *item == Item::Group { *item = Item::Literal(" ".to_owned()); }
+                if *item == Item::Group {
+                    *item = Item::Literal(" ".to_owned());
+                }
             }
         }
         // A section of literals alone writes them (an empty one writes nothing).
-        if items.iter().any(|i| matches!(i, Item::Point | Item::Group | Item::Exponent(_))) {
+        if items
+            .iter()
+            .any(|i| matches!(i, Item::Point | Item::Group | Item::Exponent(_)))
+        {
             return Err(Failure::NotModelled);
         }
         if items.iter().any(|i| matches!(i, Item::TextPlaceholder)) {
             // Fn4 qt001..qt030: active @ and @! select General for numbers,
             // including values whose full numeric text has different precision.
-            return Ok(general(profile, if signed_section { value.abs() } else { value }));
+            return Ok(general(
+                profile,
+                if signed_section { value.abs() } else { value },
+            ));
         }
         let literal = items
             .iter()
@@ -1707,7 +1803,7 @@ fn render_text(profile: &FormatProfile, system: DateSystem, value: f64, code: &s
 /// TEXT of a text value under `code`: the fourth section, or a first section holding `@`, with
 /// `@` written as the text; otherwise the text as it is.
 pub(crate) fn text_of_text(text: &str, code: &str, profile: &FormatProfile) -> Rendered {
-    render_text_of_text(text,code,&localized_code_profile(profile))
+    render_text_of_text(text, code, &localized_code_profile(profile))
 }
 fn render_text_of_text(text: &str, code: &str, profile: &FormatProfile) -> Rendered {
     let sections = sections(code);
@@ -1748,13 +1844,37 @@ mod tests {
     #[cfg_attr(not(target_arch = "wasm32"), test)]
     #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
     fn stored_cell_formats_keep_invariant_tokens_under_localized_formula_separators() {
-        let value=crate::value::CalcValue::number(1234567.891);
-        assert_eq!(cell_text(&host(),DateSystem::System1900,&value,"#,##0.00"),Ok("1 234 567.89".into()));
-        assert_eq!(t(1234567.891,"#,##0"),Ok("1234,568".into()));
-        let german=format_profile(LocaleId::DeDe).with_separators(",",".").unwrap();
-        assert_eq!(cell_text(&german,DateSystem::System1900,&value,"#,##0.00"),Ok("1.234.567,89".into()));
-        assert_eq!(cell_text(&german,DateSystem::System1900,&crate::value::CalcValue::number(45234.567),"dd.mm.yyyy"),Ok("04.11.2023".into()));
-        assert_eq!(cell_text(&german,DateSystem::System1900,&crate::value::CalcValue::number(12.5),"\"v1.2,3 \"0.00"),Ok("v1.2,3 12,50".into()));
+        let value = crate::value::CalcValue::number(1234567.891);
+        assert_eq!(
+            cell_text(&host(), DateSystem::System1900, &value, "#,##0.00"),
+            Ok("1 234 567.89".into())
+        );
+        assert_eq!(t(1234567.891, "#,##0"), Ok("1234,568".into()));
+        let german = format_profile(LocaleId::DeDe)
+            .with_separators(",", ".")
+            .unwrap();
+        assert_eq!(
+            cell_text(&german, DateSystem::System1900, &value, "#,##0.00"),
+            Ok("1.234.567,89".into())
+        );
+        assert_eq!(
+            cell_text(
+                &german,
+                DateSystem::System1900,
+                &crate::value::CalcValue::number(45234.567),
+                "dd.mm.yyyy"
+            ),
+            Ok("04.11.2023".into())
+        );
+        assert_eq!(
+            cell_text(
+                &german,
+                DateSystem::System1900,
+                &crate::value::CalcValue::number(12.5),
+                "\"v1.2,3 \"0.00"
+            ),
+            Ok("v1.2,3 12,50".into())
+        );
     }
 
     /// Fraction codes as Excel 16.0.20430 showed them (`Range.Text` of a cell, en-US separators;
@@ -1764,7 +1884,12 @@ mod tests {
     fn fractions_render_as_excel_did() {
         let profile = format_profile(LocaleId::EnUs);
         let cell = |value: f64, code: &str| {
-            cell_text(&profile, DateSystem::System1900, &crate::value::CalcValue::number(value), code)
+            cell_text(
+                &profile,
+                DateSystem::System1900,
+                &crate::value::CalcValue::number(value),
+                code,
+            )
         };
         let rows: &[(f64, &str, &str)] = &[
             // The fraction alone: improper, the last convergent within the denominator's digits.
@@ -1838,7 +1963,11 @@ mod tests {
             (-1234.5, "[<1]?/?;# ?/?", "-2469/2"),
         ];
         for (value, code, expected) in rows {
-            assert_eq!(cell(*value, code), Ok((*expected).to_owned()), "{value} under {code}");
+            assert_eq!(
+                cell(*value, code),
+                Ok((*expected).to_owned()),
+                "{value} under {code}"
+            );
         }
         // A cell Excel fills with `#`, which TEXT gives as #VALUE!.
         for (value, code) in [
@@ -1848,7 +1977,11 @@ mod tests {
             (123456789.125, "?/8"),
             (32767.0, "?/64"),
         ] {
-            assert_eq!(cell(value, code), Err(CellFormatError::Unshowable), "{value} under {code}");
+            assert_eq!(
+                cell(value, code),
+                Err(CellFormatError::Unshowable),
+                "{value} under {code}"
+            );
         }
         // Codes Excel refuses to store: TEXT gives #VALUE!.
         for code in ["0.0 ?/?", "# ?/? ?/?", "# ?/?E+0", "#,##0.00 ?/?"] {
@@ -1904,7 +2037,11 @@ mod tests {
             (5.0, "[Red]0.00", ok("5.00")),
             (150.0, "[>100]\"big\";\"small\"", ok("big")),
             (45000.0, "yyyy-mm-dd", ok("2023-03-15")),
-            (45000.0, "dddd, mmmm d, yyyy", ok("Wednesday, March 15, 2023")),
+            (
+                45000.0,
+                "dddd, mmmm d, yyyy",
+                ok("Wednesday, March 15, 2023"),
+            ),
             (45000.75, "hh:mm AM/PM", ok("06:00 pm")),
             (45000.75, "h:mm:ss", ok("18:00:00")),
             (1.5, "[h]:mm", ok("36:00")),
@@ -1936,7 +2073,10 @@ mod tests {
         assert_eq!(fixed(Some(&p), 1234.567, 1, true).unwrap(), "1234.6");
         assert_eq!(fixed(Some(&p), 0.5, 0, false).unwrap(), "1");
         assert_eq!(fixed(Some(&p), 1.005, 2, false).unwrap(), "1.01");
-        assert_eq!(fixed(Some(&p), 1E+20, 2, false).unwrap(), "100 000 000 000 000 000 000.00");
+        assert_eq!(
+            fixed(Some(&p), 1E+20, 2, false).unwrap(),
+            "100 000 000 000 000 000 000.00"
+        );
         assert_eq!(dollar(&p, 1234.567, 2).unwrap(), "R1 234.57");
         assert_eq!(dollar(&p, -1234.567, 2).unwrap(), "-R1 234.57");
         assert_eq!(dollar(&p, 1234.567, -2).unwrap(), "R1 200");
@@ -1949,13 +2089,27 @@ mod tests {
         use crate::value::CalcValue;
         let code = "#,##0;[Red]-#,##0;[Blue]0;[Green]@";
         assert_eq!(cell_color(code, &CalcValue::number(5.0)), None);
-        assert_eq!(cell_color(code, &CalcValue::number(-5.0)), Some(FormatColor::Red));
-        assert_eq!(cell_color(code, &CalcValue::number(0.0)), Some(FormatColor::Blue));
         assert_eq!(
-            cell_color(code, &CalcValue::text(crate::value::ExcelText::from_utf16_code_units("x".encode_utf16().collect()))),
+            cell_color(code, &CalcValue::number(-5.0)),
+            Some(FormatColor::Red)
+        );
+        assert_eq!(
+            cell_color(code, &CalcValue::number(0.0)),
+            Some(FormatColor::Blue)
+        );
+        assert_eq!(
+            cell_color(
+                code,
+                &CalcValue::text(crate::value::ExcelText::from_utf16_code_units(
+                    "x".encode_utf16().collect()
+                ))
+            ),
             Some(FormatColor::Green)
         );
-        assert_eq!(cell_color("[>100][Magenta]0;0", &CalcValue::number(500.0)), Some(FormatColor::Magenta));
+        assert_eq!(
+            cell_color("[>100][Magenta]0;0", &CalcValue::number(500.0)),
+            Some(FormatColor::Magenta)
+        );
         assert_eq!(FormatColor::Red.rgb(), "#ff0000");
         assert_eq!(
             cell_color("0;[Color10]-0", &CalcValue::number(-5.0)),
@@ -1966,5 +2120,4 @@ mod tests {
         assert_eq!(FormatColor::Palette(53).rgb(), "#993300");
         assert_eq!(cell_color("[Color57]0", &CalcValue::number(1.0)), None);
     }
-
 }

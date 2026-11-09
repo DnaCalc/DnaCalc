@@ -22,9 +22,7 @@
 //! S1!D5, in F5 and D11 #VALUE!; `=@{7,8}` is 7; `=@S1!A1:A10` in row 5 over a blank S1!A5 is 0.
 //! OxFunc gave #VALUE! for every area of more than one row and column; Excel does not.
 
-use calc_func::value::{
-    CalcValue, CellKey, CoreRef, GridArea, ReferenceLike, WorksheetErrorCode,
-};
+use calc_func::value::{CalcValue, CellKey, CoreRef, GridArea, ReferenceLike, WorksheetErrorCode};
 
 /// An operand of a reference operator: its reference, or the error value that is the result.
 fn reference(operand: &CalcValue) -> Result<&ReferenceLike, CalcValue> {

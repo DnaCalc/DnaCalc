@@ -67,7 +67,7 @@ pub use calc_value as value;
 pub use capture::{
     Acquisition, CAPTURE_FORMAT, CAPTURE_VERSION, CacheCellType, CaptureRecord, CellAddress,
     CellObservation, EncodeError, EntryForm, ExcelEnvironment, FormulaCell, FormulaKind,
-    Observation, STAGE_ENTRY, SETTING_COM_ADD_INS_CONNECTED, SavedCache, SheetEntry,
+    Observation, SETTING_COM_ADD_INS_CONNECTED, STAGE_ENTRY, SavedCache, SheetEntry,
     SheetVisibility,
 };
 pub use evaluations::{

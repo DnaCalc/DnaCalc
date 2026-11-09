@@ -1,8 +1,8 @@
 //! The lossless lexer: every character of the input lands in exactly one token, whitespace
 //! included, so the tokens reproduce the input; spans are UTF-16 code units.
 
-use calc_func::value::is_combining_mark;
 use super::token::{ERROR_LITERALS, TextSpan, Token, TokenKind};
+use calc_func::value::is_combining_mark;
 
 /// Splits `input` into tokens, ending with one [`TokenKind::Eof`] token whose span is empty at
 /// the end of the input. Unterminated quoted text runs to the end of the input as one token; the

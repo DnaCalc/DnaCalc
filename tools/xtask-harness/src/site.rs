@@ -254,14 +254,12 @@ pub fn run(raw: &[String]) -> ExitCode {
             "--allow-dirty" | "--dry-run" | "--local" => {
                 flags.insert(arg.clone());
             }
-            "--release" | "--port" | "--browser" | "--url" | "--live" => {
-                match args.next() {
-                    Some(value) => {
-                        options.insert(arg.clone(), value.clone());
-                    }
-                    None => return usage(raw),
+            "--release" | "--port" | "--browser" | "--url" | "--live" => match args.next() {
+                Some(value) => {
+                    options.insert(arg.clone(), value.clone());
                 }
-            }
+                None => return usage(raw),
+            },
             _ => return usage(raw),
         }
     }
@@ -637,21 +635,33 @@ pub fn tar(entries: &[(String, Option<Vec<u8>>)], mtime: u64) -> Result<Vec<u8>,
 
 /// Match Cargo's target-specific package list to metadata. Reject ambiguous name/version
 /// pairs rather than silently attributing a notice to the wrong source.
-fn notice_packages(packages: &BTreeMap<String, &Value>, listing: &str) -> Result<BTreeSet<String>, String> {
+fn notice_packages(
+    packages: &BTreeMap<String, &Value>,
+    listing: &str,
+) -> Result<BTreeSet<String>, String> {
     let mut seen = BTreeSet::new();
     for line in listing.lines().filter(|line| !line.trim().is_empty()) {
         let mut words = line.split_whitespace();
         let name = words.next().ok_or("cargo tree omitted a package name")?;
-        let version = words.next().and_then(|s| s.strip_prefix('v'))
+        let version = words
+            .next()
+            .and_then(|s| s.strip_prefix('v'))
             .ok_or_else(|| format!("cargo tree omitted the version: {line}"))?;
-        let matches = packages.iter().filter(|(_, p)| p["name"] == name && p["version"] == version)
+        let matches = packages
+            .iter()
+            .filter(|(_, p)| p["name"] == name && p["version"] == version)
             .collect::<Vec<_>>();
         if matches.len() != 1 {
-            return Err(format!("cargo tree package {line:?} has {} metadata identities; its notice cannot be attributed", matches.len()));
+            return Err(format!(
+                "cargo tree package {line:?} has {} metadata identities; its notice cannot be attributed",
+                matches.len()
+            ));
         }
         seen.insert(matches[0].0.clone());
     }
-    if seen.is_empty() { return Err("cargo tree listed no application packages".into()); }
+    if seen.is_empty() {
+        return Err("cargo tree listed no application packages".into());
+    }
     Ok(seen)
 }
 
@@ -690,17 +700,31 @@ fn notices(ws: &Workspace, app: &App) -> Result<String, String> {
     // Cargo tree resolves these roots for the actual target, omitting host-only build scripts
     // and procedural macros. Metadata still supplies the exact manifests and licence files.
     let mut command = Command::new(cargo::cargo_program());
-    command.args([
-        "tree", "--locked", "--target", cargo::WASM_TARGET,
-        "--edges", "normal,no-proc-macro", "--prefix", "none", "--format", "{p}",
-        "--color", "never",
-    ]).current_dir(&ws.root);
+    command
+        .args([
+            "tree",
+            "--locked",
+            "--target",
+            cargo::WASM_TARGET,
+            "--edges",
+            "normal,no-proc-macro",
+            "--prefix",
+            "none",
+            "--format",
+            "{p}",
+            "--color",
+            "never",
+        ])
+        .current_dir(&ws.root);
     for root in std::iter::once(app.package).chain(app.worker.map(|(package, _)| package)) {
         command.args(["--package", root]);
     }
     let out = cargo::output(&mut command)?;
     if !out.status.success() {
-        return Err(format!("cargo tree failed: {}", cargo::tail(&out.stderr, 20)));
+        return Err(format!(
+            "cargo tree failed: {}",
+            cargo::tail(&out.stderr, 20)
+        ));
     }
     let listing = std::str::from_utf8(&out.stdout)
         .map_err(|e| format!("cargo tree printed invalid UTF-8: {e}"))?;
@@ -1268,11 +1292,16 @@ mod tests {
         let normal = json!({"name":"normal","version":"2.0.0"});
         let native = json!({"name":"cranelift-assembler-x64","version":"0.133.3"});
         let packages = BTreeMap::from([
-            ("page".into(), &page), ("worker".into(), &worker),
-            ("normal".into(), &normal), ("native".into(), &native),
+            ("page".into(), &page),
+            ("worker".into(), &worker),
+            ("normal".into(), &normal),
+            ("native".into(), &native),
         ]);
         let seen = notice_packages(&packages, "page v1.0.0 (/workspace/page)\nnormal v2.0.0\nworker v1.0.0 (/workspace/worker)\nnormal v2.0.0 (*)\n").unwrap();
-        assert_eq!(seen, BTreeSet::from(["page".into(), "worker".into(), "normal".into()]));
+        assert_eq!(
+            seen,
+            BTreeSet::from(["page".into(), "worker".into(), "normal".into()])
+        );
         assert!(notice_packages(&packages, "unknown v1.0.0").is_err());
         assert!(notice_packages(&packages, "").is_err());
         let mut ambiguous = packages;
@@ -1317,15 +1346,25 @@ mod tests {
         let (home, root) = (base.join("home"), base.join("root"));
         fs::create_dir_all(home.join("bin")).unwrap();
         fs::create_dir_all(root.join("deploy/host")).unwrap();
-        fs::write(root.join(RECEIVER_SOURCE), b"#!/usr/bin/env python3\n# v2\n").unwrap();
+        fs::write(
+            root.join(RECEIVER_SOURCE),
+            b"#!/usr/bin/env python3\n# v2\n",
+        )
+        .unwrap();
         let missing = installed_receiver(&home, &root, true).unwrap_err();
         assert!(missing.contains("no receiver at"), "{missing}");
         fs::write(home.join(RECEIVER), b"#!/usr/bin/env python3\n# v1\n").unwrap();
         let stale = installed_receiver(&home, &root, true).unwrap_err();
         assert!(stale.contains("is not this checkout's"), "{stale}");
-        assert_eq!(installed_receiver(&home, &root, false).unwrap(), home.join(RECEIVER));
+        assert_eq!(
+            installed_receiver(&home, &root, false).unwrap(),
+            home.join(RECEIVER)
+        );
         fs::copy(root.join(RECEIVER_SOURCE), home.join(RECEIVER)).unwrap();
-        assert_eq!(installed_receiver(&home, &root, true).unwrap(), home.join(RECEIVER));
+        assert_eq!(
+            installed_receiver(&home, &root, true).unwrap(),
+            home.join(RECEIVER)
+        );
         let _ = fs::remove_dir_all(&base);
     }
 

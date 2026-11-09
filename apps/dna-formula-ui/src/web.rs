@@ -184,7 +184,9 @@ pub fn serial_clock() -> Option<f64> {
         serial_from_local_ms(now.get_time() - now.get_timezone_offset() * 60_000.0)
     }
     #[cfg(not(target_arch = "wasm32"))]
-    { None }
+    {
+        None
+    }
 }
 
 #[cfg(any(test, target_arch = "wasm32"))]

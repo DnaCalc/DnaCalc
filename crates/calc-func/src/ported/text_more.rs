@@ -87,12 +87,21 @@ fn chars_equal(lhs: char, rhs: char, case_sensitive: bool) -> bool {
     }
 }
 
-fn range_contains(ch: char, start: char, end: char, folded: &Option<Vec<char>>, case_sensitive: bool) -> bool {
+fn range_contains(
+    ch: char,
+    start: char,
+    end: char,
+    folded: &Option<Vec<char>>,
+    case_sensitive: bool,
+) -> bool {
     if case_sensitive {
         ch >= start && ch <= end
     } else {
-        folded.as_ref().is_some_and(|range|
-            range.binary_search(&calc_value::unicode_simple_case_fold(ch)).is_ok())
+        folded.as_ref().is_some_and(|range| {
+            range
+                .binary_search(&calc_value::unicode_simple_case_fold(ch))
+                .is_ok()
+        })
     }
 }
 
@@ -115,7 +124,9 @@ fn folded_range(start: char, end: char) -> Option<Vec<char>> {
 fn class_item_matches(item: &RegexClassItem, ch: char, case_sensitive: bool) -> bool {
     match item {
         RegexClassItem::Single(expected) => chars_equal(ch, *expected, case_sensitive),
-        RegexClassItem::Range(start, end, folded) => range_contains(ch, *start, *end, folded, case_sensitive),
+        RegexClassItem::Range(start, end, folded) => {
+            range_contains(ch, *start, *end, folded, case_sensitive)
+        }
         RegexClassItem::Digit => ch.is_ascii_digit(),
         RegexClassItem::Word => is_word_char(ch),
         RegexClassItem::Space => ch.is_whitespace(),
@@ -329,10 +340,7 @@ fn parse_escape_atom(chars: &[char], index: &mut usize) -> Result<RegexAtom, Uns
     })
 }
 
-fn parse_class_piece(
-    chars: &[char],
-    index: &mut usize,
-) -> Result<RegexClassPiece, Unsupported> {
+fn parse_class_piece(chars: &[char], index: &mut usize) -> Result<RegexClassPiece, Unsupported> {
     let Some(ch) = chars.get(*index).copied() else {
         return Err(Unsupported);
     };
@@ -393,7 +401,11 @@ fn parse_char_class(chars: &[char], index: &mut usize) -> Result<RegexAtom, Unsu
                 RegexClassPiece::Literal(end),
             ) = (&pieces[i], &pieces[i + 1], &pieces[i + 2])
             {
-                items.push(RegexClassItem::Range(*start, *end, folded_range(*start, *end)));
+                items.push(RegexClassItem::Range(
+                    *start,
+                    *end,
+                    folded_range(*start, *end),
+                ));
                 i += 3;
                 continue;
             }
@@ -471,7 +483,6 @@ fn parse_regex_pattern(pattern: &str) -> Result<Vec<RegexToken>, Unsupported> {
     Ok(tokens)
 }
 
-
 /// The matches' character positions, for REGEXEXTRACT, REGEXTEST and REGEXREPLACE.
 pub(crate) fn regex_matches(
     text: &str,
@@ -483,12 +494,15 @@ pub(crate) fn regex_matches(
     let tokens = parse_regex_pattern(pattern)?;
     // The fn3 readings admit Unicode range closure through the same simple fold as
     // literals. A range beyond the bounded table remains a typed refusal.
-    if !case_sensitive && tokens.iter().any(|token| match &token.atom {
-        RegexAtom::Class(class) => class.items.iter().any(|item| {
-            matches!(item, RegexClassItem::Range(_, _, None))
-        }),
-        _ => false,
-    }) {
+    if !case_sensitive
+        && tokens.iter().any(|token| match &token.atom {
+            RegexAtom::Class(class) => class
+                .items
+                .iter()
+                .any(|item| matches!(item, RegexClassItem::Range(_, _, None))),
+            _ => false,
+        })
+    {
         return Err(Unsupported);
     }
     let found = if first_only {
@@ -581,14 +595,24 @@ pub(crate) fn numbervalue(
         if matches!(exponent, "" | "+" | "-") {
             return Err(NumberValueError::Syntax);
         }
-        (mantissa, exponent.parse::<i64>().map_err(|_| NumberValueError::Range)?)
+        (
+            mantissa,
+            exponent
+                .parse::<i64>()
+                .map_err(|_| NumberValueError::Range)?,
+        )
     } else {
         (normalized.as_str(), 0)
     };
-    let fraction_digits = mantissa.split_once('.').map_or(0, |(_, fraction)| fraction.len());
+    let fraction_digits = mantissa
+        .split_once('.')
+        .map_or(0, |(_, fraction)| fraction.len());
     let digits = mantissa.replace('.', "");
-    let scale = exponent.checked_sub(fraction_digits as i64).ok_or(NumberValueError::Range)?;
-    let position = scale.checked_add(digits.trim_start_matches('0').len() as i64)
+    let scale = exponent
+        .checked_sub(fraction_digits as i64)
+        .ok_or(NumberValueError::Range)?;
+    let position = scale
+        .checked_add(digits.trim_start_matches('0').len() as i64)
         .ok_or(NumberValueError::Range)?;
     // NUMBERVALUE checks this range even for an all-zero coefficient and before
     // applying trailing percents (fn12's explicit-separator Excel controls).
@@ -809,14 +833,35 @@ mod tests {
     fn delimiters_before_and_after() {
         let text = t("a-b-c");
         let dash = [t("-")];
-        assert_eq!(delimited(Side::Before, &text, &dash, 1, false, false), Delimited::Text(t("a")));
-        assert_eq!(delimited(Side::After, &text, &dash, -1, false, false), Delimited::Text(t("c")));
-        assert_eq!(delimited(Side::Before, &text, &dash, 3, false, false), Delimited::NotFound);
-        assert_eq!(delimited(Side::Before, &text, &dash, 3, false, true), Delimited::Text(t("a-b-c")));
-        assert_eq!(delimited(Side::Before, &text, &dash, 0, false, false), Delimited::BadInstance);
-        assert_eq!(split(&t("a,b,,c"), &[t(",")], true, false), vec![t("a"), t("b"), t("c")]);
+        assert_eq!(
+            delimited(Side::Before, &text, &dash, 1, false, false),
+            Delimited::Text(t("a"))
+        );
+        assert_eq!(
+            delimited(Side::After, &text, &dash, -1, false, false),
+            Delimited::Text(t("c"))
+        );
+        assert_eq!(
+            delimited(Side::Before, &text, &dash, 3, false, false),
+            Delimited::NotFound
+        );
+        assert_eq!(
+            delimited(Side::Before, &text, &dash, 3, false, true),
+            Delimited::Text(t("a-b-c"))
+        );
+        assert_eq!(
+            delimited(Side::Before, &text, &dash, 0, false, false),
+            Delimited::BadInstance
+        );
+        assert_eq!(
+            split(&t("a,b,,c"), &[t(",")], true, false),
+            vec![t("a"), t("b"), t("c")]
+        );
         assert_eq!(split(&t("a,b,,c"), &[t(",")], false, false).len(), 4);
-        assert_eq!(numbervalue(&t("2.500,27"), Some(','), Some('.')), Ok(2500.27));
+        assert_eq!(
+            numbervalue(&t("2.500,27"), Some(','), Some('.')),
+            Ok(2500.27)
+        );
         assert_eq!(numbervalue(&t("3.5%"), Some('.'), Some(',')), Ok(0.035));
     }
 }

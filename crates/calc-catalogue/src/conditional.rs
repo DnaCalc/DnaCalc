@@ -1,5 +1,8 @@
 //! Declaration data for the existing conditional worksheet functions.
-use super::{ArgumentDemand, ArgumentGroups, Availability, EntryClass, EntryKind, FunctionId, Notation, Parameter, ResultForm, WorksheetDeclaration};
+use super::{
+    ArgumentDemand, ArgumentGroups, Availability, EntryClass, EntryKind, FunctionId, Notation,
+    Parameter, ResultForm, WorksheetDeclaration,
+};
 use calc_value::CallableArityShape;
 pub const CODE: u16 = 7;
 
@@ -12,7 +15,6 @@ pub const AVERAGEIFS: FunctionId = FunctionId::new(CODE, 6);
 pub const MAXIFS: FunctionId = FunctionId::new(CODE, 7);
 pub const MINIFS: FunctionId = FunctionId::new(CODE, 8);
 
-
 // Formula entry (dc-mx3x, Excel 16.0.20527, 2026-11-07, Formula2 and Formula alike): every range
 // below takes only an operand that may give a reference. `=COUNTIF(2,1)`, `=COUNTIF({1,2},1)`,
 // `=COUNTIF(1+1,1)` and `=COUNTIF(,1)` are refused and `=COUNTIF(B1:B3,1)` and
@@ -21,11 +23,15 @@ pub const MINIFS: FunctionId = FunctionId::new(CODE, 8);
 // range and each criteria range of SUMIFS, AVERAGEIFS, MAXIFS and MINIFS
 // (`=SUMIFS(B1:B3,B1:B3,1,2,1)` is refused). A criterion takes any operand.
 const RANGE_CRITERIA: &[Parameter] = &[
-    Parameter::reference("range").entry(EntryClass::Reference).legacy(super::LegacyPlace::ArrayAlwaysLiftReferences),
+    Parameter::reference("range")
+        .entry(EntryClass::Reference)
+        .legacy(super::LegacyPlace::ArrayAlwaysLiftReferences),
     Parameter::value_or_reference("criteria"),
 ];
 const SUM_RANGE: &[Parameter] = &[
-    Parameter::reference("range").entry(EntryClass::Reference).legacy(super::LegacyPlace::ArrayAlwaysLiftReferences),
+    Parameter::reference("range")
+        .entry(EntryClass::Reference)
+        .legacy(super::LegacyPlace::ArrayAlwaysLiftReferences),
     Parameter::value_or_reference("criteria"),
     Parameter::reference("sum_range").entry(EntryClass::Reference),
 ];
@@ -77,7 +83,7 @@ const fn conditional(
     spelling: &'static str,
     (min, max): (usize, usize),
     parameters: &'static [Parameter],
-    ) -> WorksheetDeclaration {
+) -> WorksheetDeclaration {
     WorksheetDeclaration {
         localized_names: None,
         context_facilities: None,
@@ -101,17 +107,29 @@ const fn conditional(
 // SUMIFS, AVERAGEIFS, MAXIFS and MINIFS 3, 5 and 7.
 // 3-D positions: dc-10y, Excel 16.0.20430, 2026-10-25; catalogue oracle ThreeD sheet.
 pub const ENTRIES: &[WorksheetDeclaration] = &[
-        conditional(COUNTIF, "COUNTIF", (2, 2), RANGE_CRITERIA).with_three_d(super::ThreeD::new(None, Some(&[0]), None)).with_traits(super::EntryTraits::NONE.lift_dynamic_references()),
-        conditional(COUNTIFS, "COUNTIFS", (2, 254), COUNT_PAIRS).with_three_d(super::ThreeD::new(None, Some(&[0]), None))
-            .with_groups(ArgumentGroups::new(0, 2, 0)),
-        conditional(SUMIF, "SUMIF", (2, 3), SUM_RANGE).with_three_d(super::ThreeD::new(None, Some(&[0, 2]), None)).with_traits(super::EntryTraits::NONE.lift_dynamic_references()),
-        conditional(SUMIFS, "SUMIFS", (3, 255), SUM_PAIRS).with_three_d(super::ThreeD::new(None, Some(&[0, 1]), None))
-            .with_groups(ArgumentGroups::new(1, 2, 0)).with_traits(super::EntryTraits::NONE.lift_dynamic_references()),
-        conditional(AVERAGEIF, "AVERAGEIF", (2, 3), AVERAGE_RANGE).with_three_d(super::ThreeD::new(None, Some(&[0, 2]), Some(&[1]))).with_traits(super::EntryTraits::NONE.lift_dynamic_references()),
-        conditional(AVERAGEIFS, "AVERAGEIFS", (3, 255), AVERAGE_PAIRS).with_three_d(super::ThreeD::new(None, Some(&[0, 1]), Some(&[2])))
+    conditional(COUNTIF, "COUNTIF", (2, 2), RANGE_CRITERIA)
+        .with_three_d(super::ThreeD::new(None, Some(&[0]), None))
+        .with_traits(super::EntryTraits::NONE.lift_dynamic_references()),
+    conditional(COUNTIFS, "COUNTIFS", (2, 254), COUNT_PAIRS)
+        .with_three_d(super::ThreeD::new(None, Some(&[0]), None))
+        .with_groups(ArgumentGroups::new(0, 2, 0)),
+    conditional(SUMIF, "SUMIF", (2, 3), SUM_RANGE)
+        .with_three_d(super::ThreeD::new(None, Some(&[0, 2]), None))
+        .with_traits(super::EntryTraits::NONE.lift_dynamic_references()),
+    conditional(SUMIFS, "SUMIFS", (3, 255), SUM_PAIRS)
+        .with_three_d(super::ThreeD::new(None, Some(&[0, 1]), None))
+        .with_groups(ArgumentGroups::new(1, 2, 0))
+        .with_traits(super::EntryTraits::NONE.lift_dynamic_references()),
+    conditional(AVERAGEIF, "AVERAGEIF", (2, 3), AVERAGE_RANGE)
+        .with_three_d(super::ThreeD::new(None, Some(&[0, 2]), Some(&[1])))
+        .with_traits(super::EntryTraits::NONE.lift_dynamic_references()),
+    conditional(AVERAGEIFS, "AVERAGEIFS", (3, 255), AVERAGE_PAIRS)
+        .with_three_d(super::ThreeD::new(None, Some(&[0, 1]), Some(&[2])))
         .with_groups(ArgumentGroups::new(1, 2, 0)),
-        conditional(MAXIFS, "MAXIFS", (3, 255), MAX_PAIRS).with_three_d(super::ThreeD::new(None, Some(&[0, 1]), None))
-            .with_groups(ArgumentGroups::new(1, 2, 0)),
-        conditional(MINIFS, "MINIFS", (3, 255), MIN_PAIRS).with_three_d(super::ThreeD::new(None, Some(&[0, 1]), None))
-            .with_groups(ArgumentGroups::new(1, 2, 0)),
+    conditional(MAXIFS, "MAXIFS", (3, 255), MAX_PAIRS)
+        .with_three_d(super::ThreeD::new(None, Some(&[0, 1]), None))
+        .with_groups(ArgumentGroups::new(1, 2, 0)),
+    conditional(MINIFS, "MINIFS", (3, 255), MIN_PAIRS)
+        .with_three_d(super::ThreeD::new(None, Some(&[0, 1]), None))
+        .with_groups(ArgumentGroups::new(1, 2, 0)),
 ];

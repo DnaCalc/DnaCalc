@@ -65,7 +65,11 @@ fn options(args: &[String]) -> Result<Options, String> {
     };
     let mut args = args.iter().enumerate();
     while let Some((position, arg)) = args.next() {
-        let mut value = || args.next().map(|(_, v)| v.clone()).ok_or(format!("{arg} needs a value"));
+        let mut value = || {
+            args.next()
+                .map(|(_, v)| v.clone())
+                .ok_or(format!("{arg} needs a value"))
+        };
         match arg.as_str() {
             "--app" => {}
             "--url" => o.url = Some(value()?),
@@ -89,7 +93,9 @@ fn options(args: &[String]) -> Result<Options, String> {
                 );
             }
             // A file path as the first argument, as a double-click or a shell association passes it.
-            other if position == 0 && !other.starts_with("--") => o.open = Some(PathBuf::from(other)),
+            other if position == 0 && !other.starts_with("--") => {
+                o.open = Some(PathBuf::from(other))
+            }
             other => return Err(format!("unknown app argument: {other}")),
         }
     }
@@ -145,7 +151,6 @@ fn channel_of(message: &str) -> (u32, &str) {
         .unwrap_or((0, message))
 }
 
-
 /// The page starts by asking for an empty workbook (`New`, or `OpenTemplate` with a stored
 /// default). When a file was named on the command line, that first request becomes the Open of the
 /// file, in the page's own command envelope, so the page installs it as it installs any opened
@@ -156,10 +161,15 @@ fn startup_open(text: &str, opening: &(String, Vec<u8>)) -> Option<String> {
     let Request::Command(envelope) = &mut message.request else {
         return None;
     };
-    if !matches!(*envelope.request, Request::New | Request::OpenTemplate { .. }) {
+    if !matches!(
+        *envelope.request,
+        Request::New | Request::OpenTemplate { .. }
+    ) {
         return None;
     }
-    *envelope.request = Request::Open { name: opening.0.clone() };
+    *envelope.request = Request::Open {
+        name: opening.0.clone(),
+    };
     Some(wire::encode(&message))
 }
 
@@ -182,7 +192,8 @@ impl App {
         let result = if channel == 0 {
             self.web.post(text, bytes)
         } else {
-            self.web.post(&format!("@{channel}{CHANNEL_MARK}{text}"), bytes)
+            self.web
+                .post(&format!("@{channel}{CHANNEL_MARK}{text}"), bytes)
         };
         if let Err(why) = result {
             eprintln!("dna-calc-desktop: {why}");
@@ -235,9 +246,13 @@ impl App {
         for channel in channels {
             let events = {
                 let mut extras = self.extras.borrow_mut();
-                let Some(server) = extras.get_mut(&channel) else { continue };
+                let Some(server) = extras.get_mut(&channel) else {
+                    continue;
+                };
                 let started = Instant::now();
-                while server.has_pending_calculation() && started.elapsed() < Duration::from_millis(6) {
+                while server.has_pending_calculation()
+                    && started.elapsed() < Duration::from_millis(6)
+                {
                     server.advance_calculation();
                 }
                 server.take_events()
@@ -291,11 +306,10 @@ impl App {
         let (text, bytes) = split_message(message);
         let mut text = text.to_owned();
         let mut bytes = bytes;
-        let substitute = self
-            .opening
-            .borrow()
-            .as_ref()
-            .and_then(|opening| startup_open(&text, opening).map(|open| (open, opening.1.clone())));
+        let substitute =
+            self.opening.borrow().as_ref().and_then(|opening| {
+                startup_open(&text, opening).map(|open| (open, opening.1.clone()))
+            });
         if let Some((open, package)) = substitute {
             self.opening.borrow_mut().take();
             text = open;
@@ -394,9 +408,11 @@ pub fn run(args: &[String]) -> Result<(), String> {
             && calc_platform_desktop::dialogs::message(
                 std::ptr::null_mut(),
                 "DNA Calc",
-                &format!("{text}
+                &format!(
+                    "{text}
 
-Open the download page now?"),
+Open the download page now?"
+                ),
                 calc_platform_desktop::dialogs::Buttons::YesNo,
                 false,
             ) == calc_platform_desktop::dialogs::Pressed::Yes
@@ -451,9 +467,17 @@ Open the download page now?"),
             .host()
             .sheets()
             .iter()
-            .map(|sheet| (sheet.id(), sheet.name().text().to_string_lossy().to_string()))
+            .map(|sheet| {
+                (
+                    sheet.id(),
+                    sheet.name().text().to_string_lossy().to_string(),
+                )
+            })
             .collect();
-        let sheet_refs: Vec<_> = sheets.iter().map(|(id, name)| (*id, name.as_str())).collect();
+        let sheet_refs: Vec<_> = sheets
+            .iter()
+            .map(|(id, name)| (*id, name.as_str()))
+            .collect();
         let mut set = AddinHost::new(
             &shell,
             &Document {
@@ -501,8 +525,11 @@ Open the download page now?"),
     let target = if o.probe.is_some() {
         let folder = std::env::temp_dir().join("dnacalc-probe");
         std::fs::create_dir_all(&folder).map_err(|e| e.to_string())?;
-        std::fs::write(folder.join("webgpu.html"), include_str!("../probe/webgpu.html"))
-            .map_err(|e| e.to_string())?;
+        std::fs::write(
+            folder.join("webgpu.html"),
+            include_str!("../probe/webgpu.html"),
+        )
+        .map_err(|e| e.to_string())?;
         app.web.map_folder("dnacalc.app", &folder)?;
         "https://dnacalc.app/webgpu.html".to_owned()
     } else if let Some(url) = &o.url {
@@ -544,7 +571,10 @@ mod tests {
     fn app_options_need_a_page() {
         let args = |list: &[&str]| list.iter().map(|s| s.to_string()).collect::<Vec<_>>();
         assert!(options(&args(&["--app"])).is_err());
-        let o = options(&args(&["--app", "--assets", "dist", "--size", "800x600", "--xll", "a.xll"])).unwrap();
+        let o = options(&args(&[
+            "--app", "--assets", "dist", "--size", "800x600", "--xll", "a.xll",
+        ]))
+        .unwrap();
         assert_eq!((o.size, o.xlls.len()), ((800, 600), 1));
         assert!(options(&args(&["--app", "--probe", "p.json"])).is_ok());
         assert!(options(&args(&["--app", "--bogus"])).is_err());
@@ -560,9 +590,17 @@ mod tests {
         let first = options(&args(&["b.xlsx", "--assets", "dist"])).unwrap();
         assert_eq!(first.open.as_deref(), Some(std::path::Path::new("b.xlsx")));
         let after_app = options(&args(&["--app", "--assets", "dist", "c.xlsx"]));
-        assert!(after_app.is_err(), "a later bare argument is not a file to open");
+        assert!(
+            after_app.is_err(),
+            "a later bare argument is not a file to open"
+        );
         assert!(options(&args(&["--open"])).is_err());
-        assert!(options(&args(&["--assets", "dist"])).unwrap().open.is_none());
+        assert!(
+            options(&args(&["--assets", "dist"]))
+                .unwrap()
+                .open
+                .is_none()
+        );
     }
 
     /// Native-only: the page's first request for an empty workbook (New, or the stored default
@@ -577,25 +615,61 @@ mod tests {
         let file = folder.join("named.xlsx");
         std::fs::write(&file, bytes).unwrap();
         let opening = read_open_file(&file).unwrap();
-        assert_eq!((opening.0.as_str(), opening.1.len()), ("named.xlsx", bytes.len()));
+        assert_eq!(
+            (opening.0.as_str(), opening.1.len()),
+            ("named.xlsx", bytes.len())
+        );
         assert!(read_open_file(&folder.join("missing.xlsx")).is_err());
         std::fs::remove_dir_all(&folder).unwrap();
 
         let mut server = Server::new();
         let blank = server.workbook_id();
         let page = |server: &Server, request: Request| {
-            wire::encode(&ToServer { id: 1, request: server.envelope(request) })
+            wire::encode(&ToServer {
+                id: 1,
+                request: server.envelope(request),
+            })
         };
         // A request that is not the startup one is left alone.
-        assert!(startup_open(&wire::encode(&ToServer { id: 2, request: Request::Summary }), &opening).is_none());
-        assert!(startup_open(&page(&server, Request::OpenForEditing { name: "t.xltx".into() }), &opening).is_none());
+        assert!(
+            startup_open(
+                &wire::encode(&ToServer {
+                    id: 2,
+                    request: Request::Summary
+                }),
+                &opening
+            )
+            .is_none()
+        );
+        assert!(
+            startup_open(
+                &page(
+                    &server,
+                    Request::OpenForEditing {
+                        name: "t.xltx".into()
+                    }
+                ),
+                &opening
+            )
+            .is_none()
+        );
         assert!(startup_open("not json", &opening).is_none());
-        for startup in [Request::New, Request::OpenTemplate { name: "Book.xltx".into() }] {
+        for startup in [
+            Request::New,
+            Request::OpenTemplate {
+                name: "Book.xltx".into(),
+            },
+        ] {
             let text = startup_open(&page(&server, startup), &opening).expect("substituted");
             let decoded: ToServer = wire::decode(&text).unwrap();
             match decoded.request {
                 Request::Command(envelope) => {
-                    assert_eq!(*envelope.request, Request::Open { name: "named.xlsx".into() });
+                    assert_eq!(
+                        *envelope.request,
+                        Request::Open {
+                            name: "named.xlsx".into()
+                        }
+                    );
                     assert_eq!(envelope.id, 1, "the page's own command identity is kept");
                 }
                 other => panic!("not a command: {other:?}"),
@@ -605,16 +679,30 @@ mod tests {
         let (reply, _) = server::answer_text(&mut server, &text, Some(opening.1.clone()));
         let reply: FromServer = wire::decode(&reply).unwrap();
         match reply {
-            FromServer::Reply { reply: wire::Reply::Done { outcome, opened, .. }, .. } => {
+            FromServer::Reply {
+                reply: wire::Reply::Done {
+                    outcome, opened, ..
+                },
+                ..
+            } => {
                 assert_eq!(outcome.error, None);
                 assert!(opened.is_some(), "an open, not a new workbook");
             }
             other => panic!("not an open: {other:?}"),
         }
-        assert_ne!(server.workbook_id(), blank, "the file replaced the blank workbook");
+        assert_ne!(
+            server.workbook_id(),
+            blank,
+            "the file replaced the blank workbook"
+        );
         let reference = {
             let mut other = Server::new();
-            let answer = other.execute_current(Request::Open { name: "x.xlsx".into() }, Some(bytes.to_vec()));
+            let answer = other.execute_current(
+                Request::Open {
+                    name: "x.xlsx".into(),
+                },
+                Some(bytes.to_vec()),
+            );
             assert!(answer.reply.is_ok());
             other.book().host().sheets().len()
         };

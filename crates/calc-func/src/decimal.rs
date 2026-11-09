@@ -399,7 +399,11 @@ impl ExactDecimal {
             coefficient.times_pow5(power.unsigned_abs());
             power
         };
-        ExactDecimal { negative, coefficient, exponent }
+        ExactDecimal {
+            negative,
+            coefficient,
+            exponent,
+        }
     }
 
     /// Decimal publication scales the normalized integer coefficient by signed
@@ -412,17 +416,23 @@ impl ExactDecimal {
         let decimal = self.clone().normalized();
         let mut magnitude = decimal.exponent.unsigned_abs();
         let mut shift = 0;
-        let (mut kept, mut power) = round_to_64_bits(
-            &decimal.coefficient, 0, &Natural::from_u64(1));
+        let (mut kept, mut power) =
+            round_to_64_bits(&decimal.coefficient, 0, &Natural::from_u64(1));
         while magnitude != 0 {
             let part = (magnitude & 15) << shift;
             if part != 0 {
                 let exponent = i32::try_from(part).expect("a decimal exponent");
-                let factor = Self::unit(if decimal.exponent < 0 { -exponent } else { exponent });
+                let factor = Self::unit(if decimal.exponent < 0 {
+                    -exponent
+                } else {
+                    exponent
+                });
                 let (factor_kept, factor_power) = factor.pc64_parts();
                 (kept, power) = round_to_64_bits(
-                    &Natural::from_u128(kept * factor_kept), power + factor_power,
-                    &Natural::from_u64(1));
+                    &Natural::from_u128(kept * factor_kept),
+                    power + factor_power,
+                    &Natural::from_u64(1),
+                );
             }
             magnitude >>= 4;
             shift += 4;
@@ -471,7 +481,8 @@ impl ExactDecimal {
             round_to_64_bits(&numerator, exponent, &denominator)
         } else {
             let one = Natural::from_u64(1);
-            let (scale, scale_power) = round_to_64_bits(&Natural::pow10(shift.unsigned_abs()), 0, &one);
+            let (scale, scale_power) =
+                round_to_64_bits(&Natural::pow10(shift.unsigned_abs()), 0, &one);
             let scale = Natural::from_u128(scale);
             let start = Natural::from_u64(mantissa);
             if shift > 0 {

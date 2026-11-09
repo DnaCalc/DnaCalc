@@ -56,36 +56,63 @@ pub(crate) fn sources(
     Ok(out)
 }
 pub(crate) fn rich_spans(xml: &XmlPart) -> Result<Vec<NoteSpan>, SaveRefusal> {
-    let properties=super::reader::element_sources(xml,|e|e.name.is(MAIN_NAMESPACE,"rPr"))?;
-    let mut properties=properties.into_iter();
-    let mut events=crate::load::Events::new(xml);
-    let invalid=|e:crate::load::LoadError|SaveRefusal::InvalidPart{part:xml.name().into(),detail:e.to_string()};
-    let mut parents=Vec::new();let mut spans=Vec::new();let mut offset=0u32;let mut style=NoteStyle::default();
-    while let Some(event)=events.next().map_err(&invalid)? {
+    let properties = super::reader::element_sources(xml, |e| e.name.is(MAIN_NAMESPACE, "rPr"))?;
+    let mut properties = properties.into_iter();
+    let mut events = crate::load::Events::new(xml);
+    let invalid = |e: crate::load::LoadError| SaveRefusal::InvalidPart {
+        part: xml.name().into(),
+        detail: e.to_string(),
+    };
+    let mut parents = Vec::new();
+    let mut spans = Vec::new();
+    let mut offset = 0u32;
+    let mut style = NoteStyle::default();
+    while let Some(event) = events.next().map_err(&invalid)? {
         match event {
-            XmlEvent::Start(e) if e.name.is(MAIN_NAMESPACE,"rPr")=>{
+            XmlEvent::Start(e) if e.name.is(MAIN_NAMESPACE, "rPr") => {
                 // Consume the same source record even when it belongs to an opaque subtree.
-                let source=properties.next().ok_or_else(||SaveRefusal::InvalidPart{part:xml.name().into(),detail:"Note run properties are missing".into()})?;
-                if parents==["comment","text","r"] {style=read_style(&source)?;}
+                let source = properties.next().ok_or_else(|| SaveRefusal::InvalidPart {
+                    part: xml.name().into(),
+                    detail: "Note run properties are missing".into(),
+                })?;
+                if parents == ["comment", "text", "r"] {
+                    style = read_style(&source)?;
+                }
                 events.skip().map_err(&invalid)?;
             }
-            XmlEvent::Start(e) if e.name.is(MAIN_NAMESPACE,"t")=>{
-                let text=events.text().map_err(&invalid)?;
-                if parents==["comment","text"]||parents==["comment","text","r"] {
-                    let len=crate::load::strings::decode(&text).len() as u32;
-                    if parents.len()==3&&len>0&&style!=NoteStyle::default(){spans.push(NoteSpan{start:offset,end:offset+len,style:style.clone()});}
-                    offset+=len;
+            XmlEvent::Start(e) if e.name.is(MAIN_NAMESPACE, "t") => {
+                let text = events.text().map_err(&invalid)?;
+                if parents == ["comment", "text"] || parents == ["comment", "text", "r"] {
+                    let len = crate::load::strings::decode(&text).len() as u32;
+                    if parents.len() == 3 && len > 0 && style != NoteStyle::default() {
+                        spans.push(NoteSpan {
+                            start: offset,
+                            end: offset + len,
+                            style: style.clone(),
+                        });
+                    }
+                    offset += len;
                 }
             }
-            XmlEvent::Start(e)=>{
-                if (parents==["comment","text"]&&!e.name.is(MAIN_NAMESPACE,"r"))||parents==["comment","text","r"] {
+            XmlEvent::Start(e) => {
+                if (parents == ["comment", "text"] && !e.name.is(MAIN_NAMESPACE, "r"))
+                    || parents == ["comment", "text", "r"]
+                {
                     return Err(SaveRefusal::InvalidPart{part:xml.name().into(),detail:"This note has text annotations whose offsets are not modelled; its source is retained".into()});
                 }
-                if e.name.is(MAIN_NAMESPACE,"r")&&parents==["comment","text"]{style=NoteStyle::default();}
-                parents.push(if e.name.namespace.as_deref()==Some(MAIN_NAMESPACE){e.name.local.to_string()}else{String::new()});
+                if e.name.is(MAIN_NAMESPACE, "r") && parents == ["comment", "text"] {
+                    style = NoteStyle::default();
+                }
+                parents.push(if e.name.namespace.as_deref() == Some(MAIN_NAMESPACE) {
+                    e.name.local.to_string()
+                } else {
+                    String::new()
+                });
             }
-            XmlEvent::End(_)=>{parents.pop();},
-            _=>{}
+            XmlEvent::End(_) => {
+                parents.pop();
+            }
+            _ => {}
         }
     }
     Ok(spans)
@@ -100,18 +127,23 @@ fn read_style(bytes: &[u8]) -> Result<NoteStyle, SaveRefusal> {
     reader.root("rPr")?;
     loop {
         match reader.expect()? {
-            (XmlEvent::Start(e),_)=>{
-                if e.name.namespace.as_deref()==Some(MAIN_NAMESPACE){
-                    let flag=!matches!(e.attribute("val"),Some("0"|"false"|"none"));
-                    match e.name.local.as_str(){
-                        "b"=>style.bold=flag,"i"=>style.italic=flag,"u"=>style.underline=flag,"strike"=>style.strike=flag,
-                        "color"=>style.color=e.attribute("rgb").map(str::to_owned),"sz"=>style.size=e.attribute("val").map(str::to_owned),_=>{}
+            (XmlEvent::Start(e), _) => {
+                if e.name.namespace.as_deref() == Some(MAIN_NAMESPACE) {
+                    let flag = !matches!(e.attribute("val"), Some("0" | "false" | "none"));
+                    match e.name.local.as_str() {
+                        "b" => style.bold = flag,
+                        "i" => style.italic = flag,
+                        "u" => style.underline = flag,
+                        "strike" => style.strike = flag,
+                        "color" => style.color = e.attribute("rgb").map(str::to_owned),
+                        "sz" => style.size = e.attribute("val").map(str::to_owned),
+                        _ => {}
                     }
                 }
                 reader.element_end()?;
             }
-            (XmlEvent::End(_),_)=>break,
-            _=>{}
+            (XmlEvent::End(_), _) => break,
+            _ => {}
         }
     }
     Ok(style)
@@ -158,7 +190,9 @@ fn style_xml(style: &NoteStyle) -> Result<Vec<u8>, SaveRefusal> {
                         }
                     } else if e.name.is(MAIN_NAMESPACE, "color") {
                         seen.insert("color".into());
-                        if style.color.is_none() && e.attribute("rgb").is_some() {splice.replace((span.0,end),&[]);}
+                        if style.color.is_none() && e.attribute("rgb").is_some() {
+                            splice.replace((span.0, end), &[]);
+                        }
                         if let Some(color) = &style.color
                             && e.attribute("rgb") != Some(color.as_str())
                         {
@@ -363,15 +397,29 @@ fn render_note(
             .expect("revision prefix");
         values.push((format!("xmlns:{prefix}"), Some(XR.into())));
         values.push((format!("{prefix}:uid"), Some(id.clone())));
-        const MC:&str="http://schemas.openxmlformats.org/markup-compatibility/2006";
-        let raw_names=tag.attribute_names().filter(|n|*n!=b"xmlns"&&!n.starts_with(b"xmlns:")).collect::<Vec<_>>();
-        if let Some((attribute,name))=e.attributes.iter().zip(raw_names).find(|(a,_)|a.name.is(MC,"Ignorable")) {
-            values.push((String::from_utf8_lossy(name).into_owned(),Some(format!("{} {prefix}",attribute.value))));
-        }else{
-            let mc=(0u32..).map(|n|format!("dnaMc{n}")).find(|p|!tag.has(&format!("xmlns:{p}"))).expect("compatibility prefix");
-            values.push((format!("xmlns:{mc}"),Some(MC.into())));values.push((format!("{mc}:Ignorable"),Some(prefix.clone())));
+        const MC: &str = "http://schemas.openxmlformats.org/markup-compatibility/2006";
+        let raw_names = tag
+            .attribute_names()
+            .filter(|n| *n != b"xmlns" && !n.starts_with(b"xmlns:"))
+            .collect::<Vec<_>>();
+        if let Some((attribute, name)) = e
+            .attributes
+            .iter()
+            .zip(raw_names)
+            .find(|(a, _)| a.name.is(MC, "Ignorable"))
+        {
+            values.push((
+                String::from_utf8_lossy(name).into_owned(),
+                Some(format!("{} {prefix}", attribute.value)),
+            ));
+        } else {
+            let mc = (0u32..)
+                .map(|n| format!("dnaMc{n}"))
+                .find(|p| !tag.has(&format!("xmlns:{p}")))
+                .expect("compatibility prefix");
+            values.push((format!("xmlns:{mc}"), Some(MC.into())));
+            values.push((format!("{mc}:Ignorable"), Some(prefix.clone())));
         }
-
     }
     let changes = values
         .iter()
@@ -677,7 +725,7 @@ pub(super) fn finish(
                     Some(note.at)
                 }
             });
-            if let Some(at) = at.or_else(||source.threaded().then_some(note.at)) {
+            if let Some(at) = at.or_else(|| source.threaded().then_some(note.at)) {
                 old.entry(source.part().into())
                     .or_default()
                     .push((note, at));
@@ -826,17 +874,35 @@ pub(super) fn finish(
                 }
             })
             .collect::<BTreeSet<_>>();
-        let mut shape_moves=BTreeMap::new();
-        for old in base.definitions().review_notes(sheet.id()).iter().filter(|n|!n.source.as_ref().is_some_and(ReviewSource::threaded)) {
-            if let Some(new)=notes.iter().find(|n|identity_matches(old,n)) {
-                let (r,c)=(old.at.row(),old.at.column());
-                let origin=if let Some(m)=&moves[index]{m.area((r,c,r,c)).map(|a|(a.0,a.1))}else{Some((r,c))};
-                let Some(origin)=origin else {return Err(SaveRefusal::InvalidPart{part:sheet.part().name().into(),detail:"The original box of a moved note was deleted by an axis edit (dc-971p.38)".into()});};
-                if origin!=(new.at.row(),new.at.column()){shape_moves.insert(origin,(new.at.row(),new.at.column()));}
+        let mut shape_moves = BTreeMap::new();
+        for old in base
+            .definitions()
+            .review_notes(sheet.id())
+            .iter()
+            .filter(|n| !n.source.as_ref().is_some_and(ReviewSource::threaded))
+        {
+            if let Some(new) = notes.iter().find(|n| identity_matches(old, n)) {
+                let (r, c) = (old.at.row(), old.at.column());
+                let origin = if let Some(m) = &moves[index] {
+                    m.area((r, c, r, c)).map(|a| (a.0, a.1))
+                } else {
+                    Some((r, c))
+                };
+                let Some(origin) = origin else {
+                    return Err(SaveRefusal::InvalidPart{part:sheet.part().name().into(),detail:"The original box of a moved note was deleted by an axis edit (dc-971p.38)".into()});
+                };
+                if origin != (new.at.row(), new.at.column()) {
+                    shape_moves.insert(origin, (new.at.row(), new.at.column()));
+                }
             }
         }
-        if !shape_moves.is_empty() && moves[index].is_some() {return Err(SaveRefusal::InvalidPart{part:sheet.part().name().into(),detail:"Note box permutations combined with row or column edits are not modelled (dc-971p.38); save and reopen between them".into()});}
-        let previous_positions=previous_positions.into_iter().map(|at|shape_moves.get(&at).copied().unwrap_or(at)).collect::<BTreeSet<_>>();
+        if !shape_moves.is_empty() && moves[index].is_some() {
+            return Err(SaveRefusal::InvalidPart{part:sheet.part().name().into(),detail:"Note box permutations combined with row or column edits are not modelled (dc-971p.38); save and reopen between them".into()});
+        }
+        let previous_positions = previous_positions
+            .into_iter()
+            .map(|at| shape_moves.get(&at).copied().unwrap_or(at))
+            .collect::<BTreeSet<_>>();
         if desired_positions != previous_positions || !shape_moves.is_empty() {
             let removed = previous_positions
                 .difference(&desired_positions)
@@ -861,14 +927,19 @@ fn finish_vml(
     sheet: &str,
     notes: &[&ReviewNote],
     removed: &BTreeSet<(u32, u32)>,
-    moves: &BTreeMap<(u32,u32),(u32,u32)>,
+    moves: &BTreeMap<(u32, u32), (u32, u32)>,
     out: &mut Changes,
 ) -> Result<(), SaveRefusal> {
     let name = related(package, sheet, "/vmlDrawing")
         .unwrap_or_else(|| new_part(package, out, workbook, "drawings", "vml"));
     let empty=b"<xml xmlns:v=\"urn:schemas-microsoft-com:vml\" xmlns:o=\"urn:schemas-microsoft-com:office:office\" xmlns:x=\"urn:schemas-microsoft-com:office:excel\"></xml>";
     let xml = parts::current_part(package, out, &name, empty)?;
-    let xml=if moves.is_empty(){xml}else{let moved=move_note_shapes(&xml,moves)?;xml.with_bytes(moved)};
+    let xml = if moves.is_empty() {
+        xml
+    } else {
+        let moved = move_note_shapes(&xml, moves)?;
+        xml.with_bytes(moved)
+    };
     let mut shape_sources =
         super::reader::element_sources(&xml, |e| e.name.is(VML, "shape"))?.into_iter();
     let mut reader = Reader::new(&xml);
@@ -960,7 +1031,9 @@ fn finish_vml(
             let row = note.at.row() - 1;
             let col = note.at.column() - 1;
             let top = row.min(calc_doc_model::value::MAX_ROWS - 4);
-            let left = col.saturating_add(1).min(calc_doc_model::value::MAX_COLUMNS - 4);
+            let left = col
+                .saturating_add(1)
+                .min(calc_doc_model::value::MAX_COLUMNS - 4);
             added.extend(format!("<v:shape xmlns:v=\"{VML}\" xmlns:o=\"urn:schemas-microsoft-com:office:office\" xmlns:x=\"{EXCEL}\" id=\"{id}\" type=\"#{type_id}\" style=\"position:absolute;width:144pt;height:72pt;visibility:hidden\" fillcolor=\"#ffffe1\" o:insetmode=\"auto\"><v:fill color2=\"#ffffe1\"/><v:shadow on=\"t\" color=\"black\" obscured=\"t\"/><v:path o:connecttype=\"none\"/><v:textbox style=\"mso-direction-alt:auto\"><div style=\"text-align:left\"/></v:textbox><x:ClientData ObjectType=\"Note\"><x:MoveWithCells/><x:SizeWithCells/><x:Anchor>{left}, 15, {top}, 2, {}, 31, {}, 9</x:Anchor><x:AutoFill>False</x:AutoFill><x:Row>{row}</x:Row><x:Column>{col}</x:Column></x:ClientData></v:shape>",left+3,top+3).as_bytes());
         }
     }
@@ -1343,46 +1416,138 @@ pub(crate) fn sorted_links(
     links: &[calc_doc_model::ReviewLink],
 ) -> Result<Vec<u8>, SaveRefusal> {
     use crate::load::manifest::tree;
-    let invalid=||SaveRefusal::InvalidPart{part:original.name().into(),detail:"The original hyperlink fields cannot follow sorting (dc-971p.38)".into()};
-    let root=tree(original).map_err(|_|invalid())?;
-    let containers=root.children.iter().filter(|n|n.element.name.is(MAIN_NAMESPACE,"hyperlinks")).collect::<Vec<_>>();
-    if containers.len()>1 || links.len()>10000{return Err(invalid());}
-    let nodes=containers.first().map(|n|n.children.as_slice()).unwrap_or(&[]);
-    if containers.first().is_some_and(|n|!n.element.attributes.is_empty()||n.text)
-        || nodes.len()!=before.len(){return Err(invalid());}
-    for (index,node) in nodes.iter().enumerate(){
-        if !node.element.name.is(MAIN_NAMESPACE,"hyperlink") || !node.children.is_empty() || node.text
-            || node.element.attributes.iter().any(|a|!(a.name.is(REL_ATTR,"id") || a.name.namespace.is_none() && matches!(a.name.local.as_str(),"ref"|"location"|"display"|"tooltip")))
-            || before[index].source as usize!=index
-            || node.element.attributes.iter().any(|a|a.name.is(REL_ATTR,"id")) && before[index].target.is_none()
-            || before[index].target.is_none() && before[index].location.is_none(){return Err(invalid());}
+    let invalid = || SaveRefusal::InvalidPart {
+        part: original.name().into(),
+        detail: "The original hyperlink fields cannot follow sorting (dc-971p.38)".into(),
+    };
+    let root = tree(original).map_err(|_| invalid())?;
+    let containers = root
+        .children
+        .iter()
+        .filter(|n| n.element.name.is(MAIN_NAMESPACE, "hyperlinks"))
+        .collect::<Vec<_>>();
+    if containers.len() > 1 || links.len() > 10000 {
+        return Err(invalid());
     }
-    let fragments=super::reader::element_sources(original,|e|e.name.is(MAIN_NAMESPACE,"hyperlink"))?;
-    if fragments.len()!=nodes.len(){return Err(invalid());}
-    let mut body=Vec::new();
+    let nodes = containers
+        .first()
+        .map(|n| n.children.as_slice())
+        .unwrap_or(&[]);
+    if containers
+        .first()
+        .is_some_and(|n| !n.element.attributes.is_empty() || n.text)
+        || nodes.len() != before.len()
+    {
+        return Err(invalid());
+    }
+    for (index, node) in nodes.iter().enumerate() {
+        if !node.element.name.is(MAIN_NAMESPACE, "hyperlink")
+            || !node.children.is_empty()
+            || node.text
+            || node.element.attributes.iter().any(|a| {
+                !(a.name.is(REL_ATTR, "id")
+                    || a.name.namespace.is_none()
+                        && matches!(
+                            a.name.local.as_str(),
+                            "ref" | "location" | "display" | "tooltip"
+                        ))
+            })
+            || before[index].source as usize != index
+            || node
+                .element
+                .attributes
+                .iter()
+                .any(|a| a.name.is(REL_ATTR, "id"))
+                && before[index].target.is_none()
+            || before[index].target.is_none() && before[index].location.is_none()
+        {
+            return Err(invalid());
+        }
+    }
+    let fragments =
+        super::reader::element_sources(original, |e| e.name.is(MAIN_NAMESPACE, "hyperlink"))?;
+    if fragments.len() != nodes.len() {
+        return Err(invalid());
+    }
+    let mut body = Vec::new();
     for link in links {
-        let index=link.source as usize;
-        let source=before.get(index).ok_or_else(invalid)?;
-        let mut expected=source.clone();expected.area=link.area;
-        if &expected!=link || source.area.sheet()!=link.area.sheet(){return Err(invalid());}
-        let bytes=&fragments[index];
-        let x=XmlPart::new("hyperlink-source".into(),bytes.clone(),Default::default());
-        let node=tree(&x).map_err(|_|invalid())?;
-        let label=|at:CellKey|format!("{}{}",crate::load::address::column_letters(at.column()),at.row());
-        let area=if link.area.first()==link.area.last(){label(link.area.first())}else{format!("{}:{}",label(link.area.first()),label(link.area.last()))};
-        let tag=RawTag::parse(&x.bytes()[node.start_tag.0..node.start_tag.1]);
-        body.extend(tag.rebuilt(&[("ref",Some(&area))],tag.is_empty()));
+        let index = link.source as usize;
+        let source = before.get(index).ok_or_else(invalid)?;
+        let mut expected = source.clone();
+        expected.area = link.area;
+        if &expected != link || source.area.sheet() != link.area.sheet() {
+            return Err(invalid());
+        }
+        let bytes = &fragments[index];
+        let x = XmlPart::new("hyperlink-source".into(), bytes.clone(), Default::default());
+        let node = tree(&x).map_err(|_| invalid())?;
+        let label = |at: CellKey| {
+            format!(
+                "{}{}",
+                crate::load::address::column_letters(at.column()),
+                at.row()
+            )
+        };
+        let area = if link.area.first() == link.area.last() {
+            label(link.area.first())
+        } else {
+            format!("{}:{}", label(link.area.first()), label(link.area.last()))
+        };
+        let tag = RawTag::parse(&x.bytes()[node.start_tag.0..node.start_tag.1]);
+        body.extend(tag.rebuilt(&[("ref", Some(&area))], tag.is_empty()));
         body.extend_from_slice(&x.bytes()[node.start_tag.1..node.end_tag.1]);
     }
-    let mut replacement=Vec::new();
-    if !body.is_empty(){replacement.extend_from_slice(format!("<hyperlinks xmlns=\"{MAIN_NAMESPACE}\">").as_bytes());replacement.extend(body);replacement.extend_from_slice(b"</hyperlinks>");}
-    let root=tree(current).map_err(|_|invalid())?;
-    let existing=root.children.iter().filter(|n|n.element.name.is(MAIN_NAMESPACE,"hyperlinks")).collect::<Vec<_>>();
-    if existing.len()>1{return Err(invalid());}
-    let mut out=Splice::new(current.bytes());
-    if let Some(node)=existing.first(){out.replace(node.whole(),&replacement);}else if !replacement.is_empty(){
-        let position=root.children.iter().find(|n|n.element.name.namespace.as_deref()==Some(MAIN_NAMESPACE) && matches!(n.element.name.local.as_str(),"printOptions"|"pageMargins"|"pageSetup"|"headerFooter"|"rowBreaks"|"colBreaks"|"customProperties"|"cellWatches"|"ignoredErrors"|"smartTags"|"drawing"|"legacyDrawing"|"legacyDrawingHF"|"picture"|"oleObjects"|"controls"|"webPublishItems"|"tableParts"|"extLst")).map(|n|n.start_tag.0).unwrap_or(root.end_tag.0);
-        out.replace((position,position),&replacement);
+    let mut replacement = Vec::new();
+    if !body.is_empty() {
+        replacement
+            .extend_from_slice(format!("<hyperlinks xmlns=\"{MAIN_NAMESPACE}\">").as_bytes());
+        replacement.extend(body);
+        replacement.extend_from_slice(b"</hyperlinks>");
+    }
+    let root = tree(current).map_err(|_| invalid())?;
+    let existing = root
+        .children
+        .iter()
+        .filter(|n| n.element.name.is(MAIN_NAMESPACE, "hyperlinks"))
+        .collect::<Vec<_>>();
+    if existing.len() > 1 {
+        return Err(invalid());
+    }
+    let mut out = Splice::new(current.bytes());
+    if let Some(node) = existing.first() {
+        out.replace(node.whole(), &replacement);
+    } else if !replacement.is_empty() {
+        let position = root
+            .children
+            .iter()
+            .find(|n| {
+                n.element.name.namespace.as_deref() == Some(MAIN_NAMESPACE)
+                    && matches!(
+                        n.element.name.local.as_str(),
+                        "printOptions"
+                            | "pageMargins"
+                            | "pageSetup"
+                            | "headerFooter"
+                            | "rowBreaks"
+                            | "colBreaks"
+                            | "customProperties"
+                            | "cellWatches"
+                            | "ignoredErrors"
+                            | "smartTags"
+                            | "drawing"
+                            | "legacyDrawing"
+                            | "legacyDrawingHF"
+                            | "picture"
+                            | "oleObjects"
+                            | "controls"
+                            | "webPublishItems"
+                            | "tableParts"
+                            | "extLst"
+                    )
+            })
+            .map(|n| n.start_tag.0)
+            .unwrap_or(root.end_tag.0);
+        out.replace((position, position), &replacement);
     }
     Ok(out.finish())
 }

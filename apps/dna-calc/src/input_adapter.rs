@@ -6,7 +6,14 @@ use dna_calc_model::{ClipboardOwner, SurfaceDescriptor, SurfaceId};
 
 #[cfg(target_arch = "wasm32")]
 fn native_control(target: &web_sys::Element) -> bool {
-    target.closest("input, textarea, select, button, a[href], summary, [contenteditable=true], [role=button], [role=combobox], [role=slider]").ok().flatten().is_some()
+    target
+        .closest(
+            "input, textarea, select, button, a[href], summary, [contenteditable=true], \
+            [role=button], [role=combobox], [role=slider]",
+        )
+        .ok()
+        .flatten()
+        .is_some()
 }
 #[cfg(target_arch = "wasm32")]
 fn text_selection(field: &web_sys::HtmlTextAreaElement) -> dna_calc_model::TextSelection {

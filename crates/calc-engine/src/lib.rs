@@ -72,9 +72,10 @@ mod spill;
 mod state;
 mod structural;
 
-pub use detached::{DetachedEvaluationContext, DetachedFormula, DetachedNameEvaluation, DetachedReadPolicy};
+pub use detached::{
+    DetachedEvaluationContext, DetachedFormula, DetachedNameEvaluation, DetachedReadPolicy,
+};
 pub use detached::{NameCalculationProgress, NameCalculationResult, NameCalculationWork};
-pub use random::{MAX_RECORDED_RANDOM_DRAWS, RandomDrawEvidence};
 pub use edit::{
     CommitReceipt, InputSeed, NodeChange, PrepareError, PreparedEngineChange, commit_edit,
     prepare_edit,
@@ -82,6 +83,7 @@ pub use edit::{
 pub use external::AsyncReturns;
 pub use graph::{AxisInterval, Prerequisite, SheetSpan};
 pub use pinned::PinnedCalculation;
+pub use random::{MAX_RECORDED_RANDOM_DRAWS, RandomDrawEvidence};
 pub use read::{
     CachedReadLease, ObservedEvaluation, ReadObserver, Unobserved, resolve_reference_text,
 };
@@ -97,7 +99,8 @@ pub use result::{
 pub use spill::Spill;
 pub use state::{CalculationInputVersion, EngineState, FormulaNode, PrerequisiteError};
 pub use structural::{
-    ReferenceRewriter, move_name, move_references, relocate_formula, relocate_formula_losslessly, shift_formula,
+    ReferenceRewriter, move_name, move_references, relocate_formula, relocate_formula_losslessly,
+    shift_formula,
 };
 
 pub use contract::{

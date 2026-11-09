@@ -8,24 +8,52 @@ pub fn text_style(
 ) -> TextStyle {
     let mut shown = text_style_for(host, at, width, host.styles(), host.cell_style(at));
     shown.display_number_format = host.pivot_display_number_format(at);
-    if host.model().definitions().pivots().sheet(at.sheet()).is_some_and(|sheet|
-        sheet.tables.iter().any(|table| table.area.contains(at) && (table.style.is_some() || !table.formats.is_empty()))) {
-        shown.unsupported.get_or_insert_with(|| "Some pivot style effects are not painted (dc-8wp.12)".into());
+    if host
+        .model()
+        .definitions()
+        .pivots()
+        .sheet(at.sheet())
+        .is_some_and(|sheet| {
+            sheet.tables.iter().any(|table| {
+                table.area.contains(at) && (table.style.is_some() || !table.formats.is_empty())
+            })
+        })
+    {
+        shown
+            .unsupported
+            .get_or_insert_with(|| "Some pivot style effects are not painted (dc-8wp.12)".into());
     }
     if let Some(pivot) = host.pivot_style_look(at) {
-        if let Some(bold) = pivot.bold { shown.bold = bold; }
-        if let Some(color) = pivot.font_color.as_ref().and_then(|color| crate::cells::style_color(host, color)) {
+        if let Some(bold) = pivot.bold {
+            shown.bold = bold;
+        }
+        if let Some(color) = pivot
+            .font_color
+            .as_ref()
+            .and_then(|color| crate::cells::style_color(host, color))
+        {
             shown.font_color = Some(color);
         }
-        if let Some(fill) = pivot.fill.as_ref().and_then(|color| crate::cells::style_color(host, color)) {
+        if let Some(fill) = pivot
+            .fill
+            .as_ref()
+            .and_then(|color| crate::cells::style_color(host, color))
+        {
             shown.fill = Some(fill);
             shown.brush = None;
         }
         for (source, destination) in [(0, 0), (1, 2), (2, 3), (3, 1)] {
             if let Some(edge) = &pivot.borders[source] {
-                shown.borders[destination] = edge.style.as_ref().map(|style| dna_calc_model::projection::BorderShown {
-                    style: style.clone(), color: edge.color.as_ref().and_then(|color| crate::cells::style_color(host, color)),
-                });
+                shown.borders[destination] =
+                    edge.style
+                        .as_ref()
+                        .map(|style| dna_calc_model::projection::BorderShown {
+                            style: style.clone(),
+                            color: edge
+                                .color
+                                .as_ref()
+                                .and_then(|color| crate::cells::style_color(host, color)),
+                        });
             }
         }
     }
@@ -45,7 +73,14 @@ pub fn text_style_for(
         if index != 0 {
             out.unsupported = Some("The cell style is unavailable".into());
         }
-        return table_style(host,at,out,if index==0{0}else{u32::MAX},if index==0{0}else{u32::MAX},index==0);
+        return table_style(
+            host,
+            at,
+            out,
+            if index == 0 { 0 } else { u32::MAX },
+            if index == 0 { 0 } else { u32::MAX },
+            index == 0,
+        );
     };
     let parent = format
         .xf_id
@@ -56,8 +91,13 @@ pub fn text_style_for(
         .unwrap_or(0);
     let mut automatic_font = false;
     if let Some(font) = styles.fonts.get(font_id as usize) {
-        automatic_font = font.color.as_ref().is_none_or(|c|
-            c.auto && c.rgb.is_none() && c.indexed.is_none() && c.theme.is_none() && c.tint.is_none());
+        automatic_font = font.color.as_ref().is_none_or(|c| {
+            c.auto
+                && c.rgb.is_none()
+                && c.indexed.is_none()
+                && c.theme.is_none()
+                && c.tint.is_none()
+        });
         out.family = font.name.clone();
         let size = font
             .size
@@ -71,7 +111,7 @@ pub fn text_style_for(
         }
         out.bold = font.bold;
         out.italic = font.italic;
-        out.underline = matches!(font.underline.as_deref(),Some("single"|"double"));
+        out.underline = matches!(font.underline.as_deref(), Some("single" | "double"));
         out.underline_style = font.underline.clone();
         out.strike = font.strike;
         if !font.other_children.is_empty()
@@ -256,10 +296,7 @@ pub fn text_style_for(
                 Ok(n @ 0..=90) => out.rotation = -n,
                 Ok(n @ 91..=180) => out.rotation = n - 90,
                 Ok(255) => out.rotation = 255,
-                _ => {
-                    out.unsupported =
-                        Some("This text rotation is unavailable".into())
-                }
+                _ => out.unsupported = Some("This text rotation is unavailable".into()),
             }
         }
         if a.shrink_to_fit
@@ -275,11 +312,18 @@ pub fn text_style_for(
             out.unsupported = Some("AutoFit combining wrapping and rotation is unavailable".into());
         }
     }
-    if out.shrink && (out.wrap || out.rotation!=0 || host.merged_areas(at.sheet()).iter().any(|a|a.contains(at))
-        || matches!(out.horizontal.as_deref(),Some("fill"|"justify"|"distributed"|"centerContinuous"))) {
+    if out.shrink
+        && (out.wrap
+            || out.rotation != 0
+            || host.merged_areas(at.sheet()).iter().any(|a| a.contains(at))
+            || matches!(
+                out.horizontal.as_deref(),
+                Some("fill" | "justify" | "distributed" | "centerContinuous")
+            ))
+    {
         out.unsupported=Some("Shrink-to-fit with wrapping, rotation, merged cells or special horizontal alignment is preserved but not painted (dc-971p.6)".into());
     }
-    table_style(host,at,out,font_id,fill_id,automatic_font)
+    table_style(host, at, out, font_id, fill_id, automatic_font)
 }
 fn table_style(
     host: &calc_host::HostState,
@@ -289,30 +333,54 @@ fn table_style(
     fill_id: u32,
     automatic_font: bool,
 ) -> TextStyle {
-    if let Some(table) = host.model().definitions().tables().iter().find(|t| t.area.contains(at)) {
+    if let Some(table) = host
+        .model()
+        .definitions()
+        .tables()
+        .iter()
+        .find(|t| t.area.contains(at))
+    {
         let style = &table.style;
         if let Some(theme) = style.medium_accent_theme() {
             let header = table.header_rows > 0 && at.row() == table.area.first().row();
             let total = table.totals_rows > 0 && at.row() == table.area.last().row();
-            let emphasis = header || total
+            let emphasis = header
+                || total
                 || (style.first_column && at.column() == table.area.first().column())
                 || (style.last_column && at.column() == table.area.last().column());
             let striped = (style.row_stripes
-                && (at.row() - table.area.first().row()).saturating_sub(u32::from(table.header_rows > 0)) % 2 == 0)
+                && (at.row() - table.area.first().row())
+                    .saturating_sub(u32::from(table.header_rows > 0))
+                    % 2
+                    == 0)
                 || (style.column_stripes && (at.column() - table.area.first().column()) % 2 == 0);
             let mut table_fill = false;
-            if fill_id == 0 && out.fill.is_none() && out.brush.is_none() && (header || total || striped) {
+            if fill_id == 0
+                && out.fill.is_none()
+                && out.brush.is_none()
+                && (header || total || striped)
+            {
                 let color = calc_host::StyleColor {
-                    rgb: host.theme_accent((theme - 4) as usize).map(|s| format!("FF{s}")),
-                    tint: if header { None } else { Some(if total { "0.6" } else { "0.8" }.into()) },
+                    rgb: host
+                        .theme_accent((theme - 4) as usize)
+                        .map(|s| format!("FF{s}")),
+                    tint: if header {
+                        None
+                    } else {
+                        Some(if total { "0.6" } else { "0.8" }.into())
+                    },
                     ..Default::default()
                 };
                 out.fill = crate::cells::style_color(host, &color);
                 table_fill = out.fill.is_some();
             }
             if font_id == 0 {
-                if emphasis { out.bold = true; }
-                if header { out.font_color = Some("#ffffff".into()); }
+                if emphasis {
+                    out.bold = true;
+                }
+                if header {
+                    out.font_color = Some("#ffffff".into());
+                }
             }
             // A preset's pale bands and totals need a foreground independent of the UI theme.
             // Cell font overrides and manually supplied body fills retain their own styling.
@@ -320,7 +388,9 @@ fn table_style(
                 out.font_color = Some(if header { "#ffffff" } else { "#000000" }.into());
             }
         } else if style.name.is_some() {
-            out.unsupported.get_or_insert("This table style is preserved; its table effects are not painted".into());
+            out.unsupported.get_or_insert(
+                "This table style is preserved; its table effects are not painted".into(),
+            );
         }
     }
     out
@@ -334,34 +404,90 @@ mod tests {
     #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
     fn dc_8wp_12__pivot_display_number_code_reaches_the_grid() {
         use calc_host::value::CellKey;
-        let workbook = crate::workbook::Workbook::open("w2.xlsx", include_bytes!("../../../crates/calc-host/tests/fixtures/pivot/m2-formatting/built.xlsx").to_vec()).unwrap();
-        let table = workbook.host().model().definitions().pivots().tables().find(|table| table.name == "pvt_numfmt_percent").unwrap();
+        let workbook = crate::workbook::Workbook::open(
+            "w2.xlsx",
+            include_bytes!(
+                "../../../crates/calc-host/tests/fixtures/pivot/m2-formatting/built.xlsx"
+            )
+            .to_vec(),
+        )
+        .unwrap();
+        let table = workbook
+            .host()
+            .model()
+            .definitions()
+            .pivots()
+            .tables()
+            .find(|table| table.name == "pvt_numfmt_percent")
+            .unwrap();
         let at = CellKey::new(table.area.first().sheet(), 11, 2).unwrap();
         let cell = workbook.cell(at).unwrap();
         let shown = workbook.shown(&cell);
-        let capture = include_str!("../../../crates/calc-host/tests/fixtures/pivot/m2-formatting/formats.tsv").lines()
-            .map(|line| line.split('\t').collect::<Vec<_>>()).find(|fields| fields[0] == "numfmt-percent" && fields[1] == "B11").unwrap();
-        assert_eq!(shown.style.display_number_format.as_deref(), Some(capture[4]));
+        let capture = include_str!(
+            "../../../crates/calc-host/tests/fixtures/pivot/m2-formatting/formats.tsv"
+        )
+        .lines()
+        .map(|line| line.split('\t').collect::<Vec<_>>())
+        .find(|fields| fields[0] == "numfmt-percent" && fields[1] == "B11")
+        .unwrap();
+        assert_eq!(
+            shown.style.display_number_format.as_deref(),
+            Some(capture[4])
+        );
         assert_eq!(shown.text, capture[5]);
         assert_ne!(workbook.host().number_format(at), Some(capture[4]));
         let wire = crate::wire::cell_of(&shown, String::new(), String::new(), &cell);
-        assert_eq!(wire.style.display_number_format.as_deref(), Some(capture[4]));
+        assert_eq!(
+            wire.style.display_number_format.as_deref(),
+            Some(capture[4])
+        );
     }
     /// The grid consumes the same pivot style layer as the W2 property comparison, and an
     /// explicit data-cell fill remains above it.
     #[cfg_attr(not(target_arch = "wasm32"), test)]
     #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
     fn dc_8wp_12__pivot_styles_reach_grid_and_keep_direct_fill() {
-        use calc_host::{HostSession, MemorySource, SkinIntent, WorkbookCommand, FormatPatch};
         use calc_host::value::{CellKey, GridArea};
-        let source = std::sync::Arc::new(MemorySource::new(include_bytes!("../../../crates/calc-host/tests/fixtures/pivot/m2-formatting/built.xlsx").to_vec()));
+        use calc_host::{FormatPatch, HostSession, MemorySource, SkinIntent, WorkbookCommand};
+        let source = std::sync::Arc::new(MemorySource::new(
+            include_bytes!(
+                "../../../crates/calc-host/tests/fixtures/pivot/m2-formatting/built.xlsx"
+            )
+            .to_vec(),
+        ));
         let mut book = HostSession::open(source, &Default::default(), Default::default()).unwrap();
-        let table = book.host().model().definitions().pivots().tables().find(|table| table.name == "pvt_option_light16_column_stripes").unwrap();
+        let table = book
+            .host()
+            .model()
+            .definitions()
+            .pivots()
+            .tables()
+            .find(|table| table.name == "pvt_option_light16_column_stripes")
+            .unwrap();
         let sheet = table.area.first().sheet();
         let part = table.part.clone();
-        let area_table = book.host().model().definitions().pivots().tables().find(|table| table.name == "pvt_area_data_body").unwrap();
-        assert!(book.host().pivot_style_look(area_table.area.first()).is_none(), "area-format precedence needs separate support");
-        let medium = book.host().model().definitions().pivots().tables().find(|table| table.name == "pvt_style_cols_PivotStyleMedium9").unwrap();
+        let area_table = book
+            .host()
+            .model()
+            .definitions()
+            .pivots()
+            .tables()
+            .find(|table| table.name == "pvt_area_data_body")
+            .unwrap();
+        assert!(
+            book.host()
+                .pivot_style_look(area_table.area.first())
+                .is_none(),
+            "area-format precedence needs separate support"
+        );
+        let medium = book
+            .host()
+            .model()
+            .definitions()
+            .pivots()
+            .tables()
+            .find(|table| table.name == "pvt_style_cols_PivotStyleMedium9")
+            .unwrap();
         let medium_sheet = medium.area.first().sheet();
         let medium_header = text_style(book.host(), CellKey::new(medium_sheet, 3, 1).unwrap(), 64.);
         assert!(medium_header.bold);
@@ -375,16 +501,54 @@ mod tests {
             ("pvt_style_rows_PivotStyleMedium9", Some("#c0e6f5")),
             ("pvt_style_rows_PivotStyleMedium14", Some("#daf2d0")),
         ] {
-            let sheet = book.host().model().definitions().pivots().tables().find(|table| table.name == name).unwrap().area.first().sheet();
+            let sheet = book
+                .host()
+                .model()
+                .definitions()
+                .pivots()
+                .tables()
+                .find(|table| table.name == name)
+                .unwrap()
+                .area
+                .first()
+                .sheet();
             let subtotal = text_style(book.host(), CellKey::new(sheet, 4, 2).unwrap(), 64.);
             assert!(subtotal.bold, "{name}");
             assert_eq!(subtotal.fill.as_deref(), fill, "{name}");
-            assert!(!text_style(book.host(), CellKey::new(sheet, 5, 2).unwrap(), 64.).bold, "{name}");
+            assert!(
+                !text_style(book.host(), CellKey::new(sheet, 5, 2).unwrap(), 64.).bold,
+                "{name}"
+            );
         }
-        let dark = book.host().model().definitions().pivots().tables().find(|table| table.name == "pvt_style_rows_PivotStyleDark1").unwrap().area.first().sheet();
-        let dark11 = book.host().model().definitions().pivots().tables().find(|table| table.name == "pvt_style_rows_PivotStyleDark11").unwrap();
-        assert!(book.host().pivot_style_look(dark11.area.first()).is_none(), "the Dark11 tint is not modelled");
-        assert!(text_style(book.host(), dark11.area.first(), 64.).unsupported.as_deref().is_some_and(|note| note.contains("dc-8wp.12")));
+        let dark = book
+            .host()
+            .model()
+            .definitions()
+            .pivots()
+            .tables()
+            .find(|table| table.name == "pvt_style_rows_PivotStyleDark1")
+            .unwrap()
+            .area
+            .first()
+            .sheet();
+        let dark11 = book
+            .host()
+            .model()
+            .definitions()
+            .pivots()
+            .tables()
+            .find(|table| table.name == "pvt_style_rows_PivotStyleDark11")
+            .unwrap();
+        assert!(
+            book.host().pivot_style_look(dark11.area.first()).is_none(),
+            "the Dark11 tint is not modelled"
+        );
+        assert!(
+            text_style(book.host(), dark11.area.first(), 64.)
+                .unsupported
+                .as_deref()
+                .is_some_and(|note| note.contains("dc-8wp.12"))
+        );
         let dark_header = text_style(book.host(), CellKey::new(dark, 3, 1).unwrap(), 64.);
         assert_eq!(dark_header.font_color.as_deref(), Some("#ffffff"));
         assert_eq!(dark_header.fill.as_deref(), Some("#808080"));
@@ -394,40 +558,99 @@ mod tests {
         let dark_body = text_style(book.host(), CellKey::new(dark, 5, 2).unwrap(), 64.);
         assert!(!dark_body.bold);
         assert_eq!(dark_body.fill.as_deref(), Some("#bfbfbf"));
-        for (name, fill) in [("pvt_style_rows_PivotStyleMedium1", Some("#a6a6a6")), ("pvt_style_rows_PivotStyleMedium2", None)] {
-            let sheet = book.host().model().definitions().pivots().tables().find(|table| table.name == name).unwrap().area.first().sheet();
+        for (name, fill) in [
+            ("pvt_style_rows_PivotStyleMedium1", Some("#a6a6a6")),
+            ("pvt_style_rows_PivotStyleMedium2", None),
+        ] {
+            let sheet = book
+                .host()
+                .model()
+                .definitions()
+                .pivots()
+                .tables()
+                .find(|table| table.name == name)
+                .unwrap()
+                .area
+                .first()
+                .sheet();
             let subtotal = text_style(book.host(), CellKey::new(sheet, 4, 2).unwrap(), 64.);
             assert!(!subtotal.bold, "{name}");
-            if fill.is_some() { assert_eq!(subtotal.font_color.as_deref(), Some("#ffffff"), "{name}"); }
-            else { assert_ne!(subtotal.font_color.as_deref(), Some("#ffffff"), "{name}"); }
+            if fill.is_some() {
+                assert_eq!(subtotal.font_color.as_deref(), Some("#ffffff"), "{name}");
+            } else {
+                assert_ne!(subtotal.font_color.as_deref(), Some("#ffffff"), "{name}");
+            }
             assert_eq!(subtotal.fill.as_deref(), fill, "{name}");
         }
         let at = |row, column| CellKey::new(sheet, row, column).unwrap();
         let header = text_style(book.host(), at(3, 1), 64.);
         assert!(header.bold);
         assert_eq!(header.fill.as_deref(), Some("#c0e6f5"));
-        assert!(header.unsupported.as_deref().is_some_and(|note| note.contains("dc-8wp.12")));
+        assert!(
+            header
+                .unsupported
+                .as_deref()
+                .is_some_and(|note| note.contains("dc-8wp.12"))
+        );
         let stripe = text_style(book.host(), at(5, 2), 64.);
         assert!(!stripe.bold);
         assert_eq!(stripe.fill.as_deref(), Some("#d9d9d9"));
-        assert_eq!(stripe.borders[0].as_ref().and_then(|edge| edge.color.as_deref()), Some("#bfbfbf"));
+        assert_eq!(
+            stripe.borders[0]
+                .as_ref()
+                .and_then(|edge| edge.color.as_deref()),
+            Some("#bfbfbf")
+        );
         let total = text_style(book.host(), at(10, 2), 64.);
         assert!(total.bold);
         assert_eq!(total.fill.as_deref(), Some("#c0e6f5"));
         let receipt = book.dispatch(SkinIntent::Command(WorkbookCommand::FormatCells {
             areas: vec![GridArea::cell(at(5, 2))],
-            patch: FormatPatch { fill: Some("#ffff00".into()), ..Default::default() },
+            patch: FormatPatch {
+                fill: Some("#ffff00".into()),
+                ..Default::default()
+            },
         }));
         assert!(receipt.accepted(), "{receipt:?}");
-        assert_eq!(text_style(book.host(), at(5, 2), 64.).fill.as_deref(), Some("#ffff00"));
-        let receipt = book.dispatch(SkinIntent::Command(WorkbookCommand::PivotRefresh { sheet, revision: book.host().revision().get(), part }));
+        assert_eq!(
+            text_style(book.host(), at(5, 2), 64.).fill.as_deref(),
+            Some("#ffff00")
+        );
+        let receipt = book.dispatch(SkinIntent::Command(WorkbookCommand::PivotRefresh {
+            sheet,
+            revision: book.host().revision().get(),
+            part,
+        }));
         assert!(receipt.accepted(), "{receipt:?}");
-        assert_eq!(text_style(book.host(), at(5, 2), 64.).fill.as_deref(), Some("#ffff00"));
+        assert_eq!(
+            text_style(book.host(), at(5, 2), 64.).fill.as_deref(),
+            Some("#ffff00")
+        );
         let mut saved = Vec::new();
         book.save(&Default::default(), &mut saved).unwrap();
-        let reopened = HostSession::open(std::sync::Arc::new(MemorySource::new(saved)), &Default::default(), Default::default()).unwrap();
-        let sheet = reopened.host().model().definitions().pivots().tables().find(|table| table.name == "pvt_option_light16_column_stripes").unwrap().area.first().sheet();
-        assert_eq!(text_style(reopened.host(), CellKey::new(sheet, 5, 2).unwrap(), 64.).fill.as_deref(), Some("#ffff00"));
+        let reopened = HostSession::open(
+            std::sync::Arc::new(MemorySource::new(saved)),
+            &Default::default(),
+            Default::default(),
+        )
+        .unwrap();
+        let sheet = reopened
+            .host()
+            .model()
+            .definitions()
+            .pivots()
+            .tables()
+            .find(|table| table.name == "pvt_option_light16_column_stripes")
+            .unwrap()
+            .area
+            .first()
+            .sheet();
+        assert_eq!(
+            text_style(reopened.host(), CellKey::new(sheet, 5, 2).unwrap(), 64.)
+                .fill
+                .as_deref(),
+            Some("#ffff00")
+        );
     }
     #[cfg_attr(not(target_arch = "wasm32"), test)]
     #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
@@ -435,13 +658,16 @@ mod tests {
         use calc_host::{HostSession, SkinIntent, TableChange, WorkbookCommand};
         let mut book = HostSession::open(
             std::sync::Arc::new(calc_host::MemorySource::new(calc_host::blank_package())),
-            &Default::default(), Default::default(),
-        ).unwrap();
+            &Default::default(),
+            Default::default(),
+        )
+        .unwrap();
         let sheet = book.host().sheets()[0].id();
         let at = |row| calc_host::value::CellKey::new(sheet, row, 1).unwrap();
         let revision = book.host().revision().get();
         let receipt = book.dispatch(SkinIntent::Command(WorkbookCommand::Table {
-            revision, change: TableChange::Create {
+            revision,
+            change: TableChange::Create {
                 area: calc_host::value::GridArea::new(at(1), at(4)).unwrap(),
                 name: "Contrast".into(),
             },
@@ -456,23 +682,70 @@ mod tests {
         assert_eq!(band.font_color.as_deref(), Some("#000000"));
         // A changed font family still has automatic colour.
         let mut styles = (**host.styles()).clone();
-        let index = calc_host::patched_style(&mut styles, 0, &calc_host::FormatPatch {
-            font_name: Some("monospace".into()), ..Default::default()
-        }).unwrap();
-        assert_eq!(text_style_for(host, at(2), 64., &styles, index).font_color.as_deref(), Some("#000000"));
-        let normal = TextStyle { font_color: Some("#000000".into()), ..Default::default() };
-        assert_eq!(table_style(host, at(1), normal, 0, 0, false).font_color.as_deref(), Some("#ffffff"));
-        let explicit = TextStyle { font_color: Some("#123456".into()), ..Default::default() };
-        assert_eq!(table_style(host, at(1), explicit, 1, 0, false).font_color.as_deref(), Some("#123456"));
+        let index = calc_host::patched_style(
+            &mut styles,
+            0,
+            &calc_host::FormatPatch {
+                font_name: Some("monospace".into()),
+                ..Default::default()
+            },
+        )
+        .unwrap();
+        assert_eq!(
+            text_style_for(host, at(2), 64., &styles, index)
+                .font_color
+                .as_deref(),
+            Some("#000000")
+        );
+        let normal = TextStyle {
+            font_color: Some("#000000".into()),
+            ..Default::default()
+        };
+        assert_eq!(
+            table_style(host, at(1), normal, 0, 0, false)
+                .font_color
+                .as_deref(),
+            Some("#ffffff")
+        );
+        let explicit = TextStyle {
+            font_color: Some("#123456".into()),
+            ..Default::default()
+        };
+        assert_eq!(
+            table_style(host, at(1), explicit, 1, 0, false)
+                .font_color
+                .as_deref(),
+            Some("#123456")
+        );
         let font = styles.cell_formats[index as usize].font_id.unwrap() as usize;
-        styles.fonts[font].color = Some(calc_host::StyleColor { theme: Some("99".into()), ..Default::default() });
+        styles.fonts[font].color = Some(calc_host::StyleColor {
+            theme: Some("99".into()),
+            ..Default::default()
+        });
         let unresolved = text_style_for(host, at(2), 64., &styles, index);
         assert!(unresolved.fill.is_some());
-        assert_eq!(unresolved.font_color, None, "An unresolved explicit font is not automatic");
-        styles.fonts[font].color = Some(calc_host::StyleColor { auto: true, ..Default::default() });
-        assert_eq!(text_style_for(host, at(2), 64., &styles, index).font_color.as_deref(), Some("#000000"));
-        let manual = TextStyle { fill: Some("#101010".into()), ..Default::default() };
-        assert_eq!(table_style(host, at(2), manual, 0, 1, true).font_color, None);
+        assert_eq!(
+            unresolved.font_color, None,
+            "An unresolved explicit font is not automatic"
+        );
+        styles.fonts[font].color = Some(calc_host::StyleColor {
+            auto: true,
+            ..Default::default()
+        });
+        assert_eq!(
+            text_style_for(host, at(2), 64., &styles, index)
+                .font_color
+                .as_deref(),
+            Some("#000000")
+        );
+        let manual = TextStyle {
+            fill: Some("#101010".into()),
+            ..Default::default()
+        };
+        assert_eq!(
+            table_style(host, at(2), manual, 0, 1, true).font_color,
+            None
+        );
         assert_eq!(text_style(host, at(3), 64.).font_color, None);
     }
     #[cfg_attr(not(target_arch = "wasm32"), test)]

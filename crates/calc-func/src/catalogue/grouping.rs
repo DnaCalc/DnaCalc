@@ -75,7 +75,11 @@ fn table(site: &Site<'_>, a: &[CalcValue], index: usize, sv: &mut EvalServices<'
         }
         CoreRef::Array(array) => {
             let shape = array.shape();
-            (shape.rows, shape.cols, array.iter_row_major().cloned().collect())
+            (
+                shape.rows,
+                shape.cols,
+                array.iter_row_major().cloned().collect(),
+            )
         }
         CoreRef::Error(code) => return fail(code),
         _ => (1, 1, vec![a[index].clone()]),
@@ -232,7 +236,11 @@ fn same(site: &Site<'_>, x: &CalcValue, y: &CalcValue) -> Step<bool> {
 
 /// `keys` with each field shown as the first spelling met of the values equal to it in its
 /// column (`east` shown as `East` where `East` comes first), as Excel shows a group's fields.
-fn canonical(site: &Site<'_>, keys: &[Vec<CalcValue>], rows: &[usize]) -> Step<Vec<Vec<CalcValue>>> {
+fn canonical(
+    site: &Site<'_>,
+    keys: &[Vec<CalcValue>],
+    rows: &[usize],
+) -> Step<Vec<Vec<CalcValue>>> {
     let mut out = keys.to_vec();
     let width = keys.first().map_or(0, Vec::len);
     for column in 0..width {
@@ -257,7 +265,11 @@ fn canonical(site: &Site<'_>, keys: &[Vec<CalcValue>], rows: &[usize]) -> Step<V
 
 /// The groups of `keys` (one key row per data row, among `rows`): each the first key met and the
 /// rows that share it, in the order first met.
-fn group(site: &Site<'_>, keys: &[Vec<CalcValue>], rows: &[usize]) -> Step<Vec<(Vec<CalcValue>, Vec<usize>)>> {
+fn group(
+    site: &Site<'_>,
+    keys: &[Vec<CalcValue>],
+    rows: &[usize],
+) -> Step<Vec<(Vec<CalcValue>, Vec<usize>)>> {
     let mut groups: Vec<(Vec<CalcValue>, Vec<usize>)> = Vec::new();
     for &row in rows {
         let key = &keys[row];
@@ -312,8 +324,14 @@ fn call(
         return Err(site.not_modelled(None));
     };
     match calls {
-        Calls::Direct => invoker.call(f, args).map_err(|CallAbandoned| site.not_modelled(None)),
-        Calls::Replay { done, next, stopped } => {
+        Calls::Direct => invoker
+            .call(f, args)
+            .map_err(|CallAbandoned| site.not_modelled(None)),
+        Calls::Replay {
+            done,
+            next,
+            stopped,
+        } => {
             if let Some(value) = done.get(*next) {
                 *next += 1;
                 return Ok(value.clone());
@@ -380,11 +398,7 @@ impl KernelTask for GroupingTask {
     }
 }
 
-fn grouping_task(
-    site: &Site<'_>,
-    a: &[CalcValue],
-    pivot: bool,
-) -> Step<Box<dyn KernelTask>> {
+fn grouping_task(site: &Site<'_>, a: &[CalcValue], pivot: bool) -> Step<Box<dyn KernelTask>> {
     Ok(Box::new(GroupingTask {
         id: site.id(),
         pivot,
@@ -393,17 +407,29 @@ fn grouping_task(
     }))
 }
 
-fn groupby_task(site: &Site<'_>, a: &[CalcValue], _: &mut EvalServices<'_>) -> Step<Box<dyn KernelTask>> {
+fn groupby_task(
+    site: &Site<'_>,
+    a: &[CalcValue],
+    _: &mut EvalServices<'_>,
+) -> Step<Box<dyn KernelTask>> {
     grouping_task(site, a, false)
 }
 
-fn pivotby_task(site: &Site<'_>, a: &[CalcValue], _: &mut EvalServices<'_>) -> Step<Box<dyn KernelTask>> {
+fn pivotby_task(
+    site: &Site<'_>,
+    a: &[CalcValue],
+    _: &mut EvalServices<'_>,
+) -> Step<Box<dyn KernelTask>> {
     grouping_task(site, a, true)
 }
 
 fn column(values: Vec<CalcValue>) -> CalcValue {
     let rows = values.len().max(1);
-    let cells = if values.is_empty() { vec![CalcValue::empty()] } else { values };
+    let cells = if values.is_empty() {
+        vec![CalcValue::empty()]
+    } else {
+        values
+    };
     CalcValue::array(
         CalcArray::new(ArrayShape { rows, cols: 1 }, cells).expect("a column of its own length"),
     )
@@ -563,7 +589,12 @@ fn result(rows: Vec<Vec<CalcValue>>) -> Step<CalcValue> {
     ))
 }
 
-fn groupby(site: &Site<'_>, a: &[CalcValue], sv: &mut EvalServices<'_>, calls: &mut Calls) -> Step<CalcValue> {
+fn groupby(
+    site: &Site<'_>,
+    a: &[CalcValue],
+    sv: &mut EvalServices<'_>,
+    calls: &mut Calls,
+) -> Step<CalcValue> {
     let fields = table(site, a, 0, sv)?;
     let values = table(site, a, 1, sv)?;
     let functions = functions(a, 2)?;
@@ -595,13 +626,24 @@ fn groupby(site: &Site<'_>, a: &[CalcValue], sv: &mut EvalServices<'_>, calls: &
     }
     let count = values.height() - start;
     let keep = filter(site, a, 6, count, values.height(), sv)?;
-    let rows: Vec<usize> = (start..values.height()).filter(|r| keep[r - start]).collect();
+    let rows: Vec<usize> = (start..values.height())
+        .filter(|r| keep[r - start])
+        .collect();
     let mut groups = Vec::new();
     let keys = canonical(site, &fields.rows, &rows)?;
     for (key, members) in group(site, &keys, &rows)? {
         let mut aggregates = Vec::with_capacity(pairs.len());
         for &(v, f) in &pairs {
-            aggregates.push(aggregate(site, sv, calls, &functions[f], &values, v, &members, &rows)?);
+            aggregates.push(aggregate(
+                site,
+                sv,
+                calls,
+                &functions[f],
+                &values,
+                v,
+                &members,
+                &rows,
+            )?);
         }
         groups.push((key, members, aggregates));
     }
@@ -610,7 +652,13 @@ fn groupby(site: &Site<'_>, a: &[CalcValue], sv: &mut EvalServices<'_>, calls: &
     let mut out: Vec<Vec<CalcValue>> = Vec::new();
     if show {
         let mut header: Vec<CalcValue> = (0..k)
-            .map(|c| if has_header { fields.rows[0][c].clone() } else { text(&format!("Row Field {}", c + 1)) })
+            .map(|c| {
+                if has_header {
+                    fields.rows[0][c].clone()
+                } else {
+                    text(&format!("Row Field {}", c + 1))
+                }
+            })
             .collect();
         for &(v, f) in &pairs {
             header.push(if functions.len() > 1 {
@@ -627,7 +675,13 @@ fn groupby(site: &Site<'_>, a: &[CalcValue], sv: &mut EvalServices<'_>, calls: &
         header.extend(pairs.iter().map(|&(_, f)| function_name(&functions[f])));
         out.push(header);
     }
-    let totals = |site: &Site<'_>, sv: &mut EvalServices<'_>, calls: &mut Calls, label: &str, prefix: Option<&CalcValue>, members: &[usize]| -> Step<Vec<CalcValue>> {
+    let totals = |site: &Site<'_>,
+                  sv: &mut EvalServices<'_>,
+                  calls: &mut Calls,
+                  label: &str,
+                  prefix: Option<&CalcValue>,
+                  members: &[usize]|
+     -> Step<Vec<CalcValue>> {
         let mut row = vec![text(""); width];
         match prefix {
             Some(key) => row[0] = key.clone(),
@@ -638,7 +692,11 @@ fn groupby(site: &Site<'_>, a: &[CalcValue], sv: &mut EvalServices<'_>, calls: &
         }
         Ok(row)
     };
-    let grand_label = if depth.abs() == 2 { "Grand Total" } else { "Total" };
+    let grand_label = if depth.abs() == 2 {
+        "Grand Total"
+    } else {
+        "Total"
+    };
     if depth < 0 {
         out.push(totals(site, sv, calls, grand_label, None, &rows)?);
     }
@@ -650,9 +708,19 @@ fn groupby(site: &Site<'_>, a: &[CalcValue], sv: &mut EvalServices<'_>, calls: &
                 end += 1;
             }
         }
-        let members: Vec<usize> = groups[at..end].iter().flat_map(|g| g.1.iter().copied()).collect();
+        let members: Vec<usize> = groups[at..end]
+            .iter()
+            .flat_map(|g| g.1.iter().copied())
+            .collect();
         if depth == -2 {
-            out.push(totals(site, sv, calls, "", Some(&groups[at].0[0]), &members)?);
+            out.push(totals(
+                site,
+                sv,
+                calls,
+                "",
+                Some(&groups[at].0[0]),
+                &members,
+            )?);
         }
         for g in &groups[at..end] {
             let mut row = g.0.clone();
@@ -660,7 +728,14 @@ fn groupby(site: &Site<'_>, a: &[CalcValue], sv: &mut EvalServices<'_>, calls: &
             out.push(row);
         }
         if depth == 2 {
-            out.push(totals(site, sv, calls, "", Some(&groups[at].0[0]), &members)?);
+            out.push(totals(
+                site,
+                sv,
+                calls,
+                "",
+                Some(&groups[at].0[0]),
+                &members,
+            )?);
         }
         at = end;
     }
@@ -766,7 +841,12 @@ fn subtotalled(
     Ok(())
 }
 
-fn pivotby(site: &Site<'_>, a: &[CalcValue], sv: &mut EvalServices<'_>, calls: &mut Calls) -> Step<CalcValue> {
+fn pivotby(
+    site: &Site<'_>,
+    a: &[CalcValue],
+    sv: &mut EvalServices<'_>,
+    calls: &mut Calls,
+) -> Step<CalcValue> {
     let row_fields = table(site, a, 0, sv)?;
     let col_fields = table(site, a, 1, sv)?;
     let values = table(site, a, 2, sv)?;
@@ -796,23 +876,29 @@ fn pivotby(site: &Site<'_>, a: &[CalcValue], sv: &mut EvalServices<'_>, calls: &
     }
     let count = values.height() - start;
     let keep = filter(site, a, 9, count, values.height(), sv)?;
-    let rows: Vec<usize> = (start..values.height()).filter(|r| keep[r - start]).collect();
+    let rows: Vec<usize> = (start..values.height())
+        .filter(|r| keep[r - start])
+        .collect();
     let row_keys = canonical(site, &row_fields.rows, &rows)?;
     let col_keys = canonical(site, &col_fields.rows, &rows)?;
-    let mut row_groups: Vec<(Vec<CalcValue>, Vec<usize>, Vec<CalcValue>)> = group(site, &row_keys, &rows)?
-        .into_iter()
-        .map(|(k, m)| (k, m, Vec::new()))
-        .collect();
-    let mut col_groups: Vec<(Vec<CalcValue>, Vec<usize>, Vec<CalcValue>)> = group(site, &col_keys, &rows)?
-        .into_iter()
-        .map(|(k, m)| (k, m, Vec::new()))
-        .collect();
+    let mut row_groups: Vec<(Vec<CalcValue>, Vec<usize>, Vec<CalcValue>)> =
+        group(site, &row_keys, &rows)?
+            .into_iter()
+            .map(|(k, m)| (k, m, Vec::new()))
+            .collect();
+    let mut col_groups: Vec<(Vec<CalcValue>, Vec<usize>, Vec<CalcValue>)> =
+        group(site, &col_keys, &rows)?
+            .into_iter()
+            .map(|(k, m)| (k, m, Vec::new()))
+            .collect();
     sort_groups(site, &mut row_groups, kr, &row_entries, false)?;
     sort_groups(site, &mut col_groups, kc, &col_entries, false)?;
     let np = pairs.len();
     // The rows each cell of the result aggregates, and the rows its two-argument function is
     // relative to.
-    let intersect = |x: &[usize], y: &[usize]| -> Vec<usize> { x.iter().copied().filter(|r| y.contains(r)).collect() };
+    let intersect = |x: &[usize], y: &[usize]| -> Vec<usize> {
+        x.iter().copied().filter(|r| y.contains(r)).collect()
+    };
     let relative = |row_members: &[usize], col_members: &[usize]| -> Vec<usize> {
         match relative_to {
             1 | 3 => row_members.to_vec(),
@@ -830,7 +916,11 @@ fn pivotby(site: &Site<'_>, a: &[CalcValue], sv: &mut EvalServices<'_>, calls: &
         for level in 0..kc {
             let mut header = vec![text(""); kr];
             if level == 0 {
-                header.push(if has_header { col_fields.rows[0][0].clone() } else { text("Column Field 1") });
+                header.push(if has_header {
+                    col_fields.rows[0][0].clone()
+                } else {
+                    text("Column Field 1")
+                });
                 header.extend(std::iter::repeat_n(text(""), columns.len() * np - 1));
             } else {
                 header.extend(std::iter::repeat_n(text(""), columns.len() * np));
@@ -849,7 +939,13 @@ fn pivotby(site: &Site<'_>, a: &[CalcValue], sv: &mut EvalServices<'_>, calls: &
     }
     if show {
         let mut header: Vec<CalcValue> = (0..kr)
-            .map(|c| if has_header { row_fields.rows[0][c].clone() } else { text(&format!("Row Field {}", c + 1)) })
+            .map(|c| {
+                if has_header {
+                    row_fields.rows[0][c].clone()
+                } else {
+                    text(&format!("Row Field {}", c + 1))
+                }
+            })
             .collect();
         for _ in &columns {
             for &(v, f) in &pairs {
@@ -870,7 +966,12 @@ fn pivotby(site: &Site<'_>, a: &[CalcValue], sv: &mut EvalServices<'_>, calls: &
         }
         out.push(header);
     }
-    let body = |site: &Site<'_>, sv: &mut EvalServices<'_>, calls: &mut Calls, label: Vec<CalcValue>, row_members: &[usize]| -> Step<Vec<CalcValue>> {
+    let body = |site: &Site<'_>,
+                sv: &mut EvalServices<'_>,
+                calls: &mut Calls,
+                label: Vec<CalcValue>,
+                row_members: &[usize]|
+     -> Step<Vec<CalcValue>> {
         let mut row = label;
         for column in &columns {
             let col_members = &column.members;
@@ -885,7 +986,16 @@ fn pivotby(site: &Site<'_>, a: &[CalcValue], sv: &mut EvalServices<'_>, calls: &
                     continue;
                 }
                 let rel = relative(row_members, col_members);
-                row.push(aggregate(site, sv, calls, &functions[f], &values, v, &members, &rel)?);
+                row.push(aggregate(
+                    site,
+                    sv,
+                    calls,
+                    &functions[f],
+                    &values,
+                    v,
+                    &members,
+                    &rel,
+                )?);
             }
         }
         Ok(row)

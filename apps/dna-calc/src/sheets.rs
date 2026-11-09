@@ -90,9 +90,16 @@ pub fn controls(controller: Controller) -> (impl IntoView, impl Fn(calc_value::S
         } else {
             text
         };
-        let done=move |accepted|if accepted{add.set(String::new());};
-        if let Some((_,bytes))=crate::files::default_template("Sheet") {controller.insert_template(bytes,Some(name),done);}
-        else {controller.sheet_command(None, SheetChange::Add{name},done);}
+        let done = move |accepted| {
+            if accepted {
+                add.set(String::new());
+            }
+        };
+        if let Some((_, bytes)) = crate::files::default_template("Sheet") {
+            controller.insert_template(bytes, Some(name), done);
+        } else {
+            controller.sheet_command(None, SheetChange::Add { name }, done);
+        }
     };
     let request_rename = move |sheet| {
         let generation = controller.generation.get_untracked();
@@ -103,68 +110,271 @@ pub fn controls(controller: Controller) -> (impl IntoView, impl Fn(calc_value::S
                 return;
             }
             if controller.editing.get_untracked().is_some() {
-                controller.say("Enter or cancel the current edit before renaming a worksheet", true);
+                controller.say(
+                    "Enter or cancel the current edit before renaming a worksheet",
+                    true,
+                );
                 controller.focus_editor();
                 return;
             }
             let Some(name) = controller.summary.with_untracked(|summary| {
-                summary.sheets.iter().find(|(id, _)| id.id() == sheet).map(|(_, name)| name.clone())
-            }) else { return; };
+                summary
+                    .sheets
+                    .iter()
+                    .find(|(id, _)| id.id() == sheet)
+                    .map(|(_, name)| name.clone())
+            }) else {
+                return;
+            };
             rename.set(name);
             if let Some(details) = tools.get_untracked() {
                 details.set_open(true);
             }
-            set_timeout(move || {
-                if controller.generation.try_get_untracked() != Some(generation)
-                    || controller.sheet.try_get_untracked().flatten() != Some(sheet)
-                    || controller.editing.try_get_untracked().flatten().is_some()
-                    || !tools.get_untracked().is_some_and(|details| details.open())
-                {
-                    return;
-                }
-                if let Some(input) = rename_input.get_untracked() {
-                    let _ = input.focus();
-                    input.select();
-                }
-            }, std::time::Duration::ZERO);
+            set_timeout(
+                move || {
+                    if controller.generation.try_get_untracked() != Some(generation)
+                        || controller.sheet.try_get_untracked().flatten() != Some(sheet)
+                        || controller.editing.try_get_untracked().flatten().is_some()
+                        || !tools.get_untracked().is_some_and(|details| details.open())
+                    {
+                        return;
+                    }
+                    if let Some(input) = rename_input.get_untracked() {
+                        let _ = input.focus();
+                        input.select();
+                    }
+                },
+                std::time::Duration::ZERO,
+            );
         });
     };
     let rendered = view! {
-        <details class="dc-sheet-tools" data-dnacalc="sheet-tools" node_ref=tools on:keydown=move |ev:leptos::ev::KeyboardEvent| {
-            if ev.key()=="Escape" {ev.prevent_default();if let Some(tools)=tools.get_untracked(){tools.set_open(false);}crate::grid::focus_grid();}
-        }>
+        <details
+            class="dc-sheet-tools"
+            data-dnacalc="sheet-tools"
+            node_ref=tools
+            on:keydown=move |ev: leptos::ev::KeyboardEvent| {
+                if ev.key() == "Escape" {
+                    ev.prevent_default();
+                    if let Some(tools) = tools.get_untracked() {
+                        tools.set_open(false);
+                    }
+                    crate::grid::focus_grid();
+                }
+            }
+        >
             <summary>"Sheets"</summary>
             <div class="dc-sheet-body">
                 <h2>"Worksheets"</h2>
-                <label>"Go to sheet"<select data-dnacalc="sheet-jump" prop:value=move || controller.sheet.get().map(|s| format!("{}:{}",s.slot(),s.generation())).unwrap_or_default()
-                    on:change=move |ev| { let value=event_target_value(&ev); if let Some(sheet)=controller.sheets().into_iter().find(|s| format!("{}:{}",s.id.slot(),s.id.generation()) == value) { controller.show_sheet(sheet.id); } }>
-                    {move || controller.sheets().into_iter().map(|s|view!{<option value=format!("{}:{}",s.id.slot(),s.id.generation())>{s.name}</option>}).collect_view()}
-                </select></label>
-                <label>"New sheet name"<input data-dnacalc="sheet-new-name" placeholder="Automatic name" prop:value=move ||add.get() on:input=move |ev|add.set(event_target_value(&ev)) on:keydown=move |ev:leptos::ev::KeyboardEvent|{if ev.key()=="Enter" {ev.prevent_default();add_sheet();}}/></label>
-                <button data-dnacalc="sheet-add" on:click=move |_|add_sheet()>"Add worksheet"</button>
-                <label>"Current sheet name"<input data-dnacalc="sheet-rename-name" node_ref=rename_input prop:value=move ||rename.get() on:input=move |ev|rename.set(event_target_value(&ev)) on:keydown=move |ev:leptos::ev::KeyboardEvent|{if ev.key()=="Enter" {ev.prevent_default();rename_sheet();}}/></label>
-                <button data-dnacalc="sheet-rename" on:click=move |_|rename_sheet()>"Rename worksheet"</button>
-                <label>"Position in workbook"<input data-dnacalc="sheet-position" inputmode="numeric" prop:value=move ||position.get() on:input=move |ev|position.set(event_target_value(&ev))/></label>
-                <button data-dnacalc="sheet-move" on:click=move |_| { match position.get_untracked().parse::<u32>() { Ok(position) => controller.sheet_command(current(),SheetChange::Move { position },|_|{}), Err(_) => controller.say("Type a worksheet position",true) } }>"Move worksheet"</button>
+                <label>
+                    "Go to sheet"
+                    <select
+                        data-dnacalc="sheet-jump"
+                        prop:value=move || {
+                            controller
+                                .sheet
+                                .get()
+                                .map(|s| format!("{}:{}", s.slot(), s.generation()))
+                                .unwrap_or_default()
+                        }
+                        on:change=move |ev| {
+                            let value = event_target_value(&ev);
+                            if let Some(sheet) = controller
+                                .sheets()
+                                .into_iter()
+                                .find(|s| format!("{}:{}", s.id.slot(), s.id.generation()) == value)
+                            {
+                                controller.show_sheet(sheet.id);
+                            }
+                        }
+                    >
+                        {move || {
+                            controller
+                                .sheets()
+                                .into_iter()
+                                .map(|s| {
+                                    view! {
+                                        <option value=format!(
+                                            "{}:{}",
+                                            s.id.slot(),
+                                            s.id.generation(),
+                                        )>{s.name}</option>
+                                    }
+                                })
+                                .collect_view()
+                        }}
+                    </select>
+                </label>
+                <label>
+                    "New sheet name"
+                    <input
+                        data-dnacalc="sheet-new-name"
+                        placeholder="Automatic name"
+                        prop:value=move || add.get()
+                        on:input=move |ev| add.set(event_target_value(&ev))
+                        on:keydown=move |ev: leptos::ev::KeyboardEvent| {
+                            if ev.key() == "Enter" {
+                                ev.prevent_default();
+                                add_sheet();
+                            }
+                        }
+                    />
+                </label>
+                <button data-dnacalc="sheet-add" on:click=move |_| add_sheet()>
+                    "Add worksheet"
+                </button>
+                <label>
+                    "Current sheet name"
+                    <input
+                        data-dnacalc="sheet-rename-name"
+                        node_ref=rename_input
+                        prop:value=move || rename.get()
+                        on:input=move |ev| rename.set(event_target_value(&ev))
+                        on:keydown=move |ev: leptos::ev::KeyboardEvent| {
+                            if ev.key() == "Enter" {
+                                ev.prevent_default();
+                                rename_sheet();
+                            }
+                        }
+                    />
+                </label>
+                <button data-dnacalc="sheet-rename" on:click=move |_| rename_sheet()>
+                    "Rename worksheet"
+                </button>
+                <label>
+                    "Position in workbook"
+                    <input
+                        data-dnacalc="sheet-position"
+                        inputmode="numeric"
+                        prop:value=move || position.get()
+                        on:input=move |ev| position.set(event_target_value(&ev))
+                    />
+                </label>
+                <button
+                    data-dnacalc="sheet-move"
+                    on:click=move |_| {
+                        match position.get_untracked().parse::<u32>() {
+                            Ok(position) => {
+                                controller
+                                    .sheet_command(
+                                        current(),
+                                        SheetChange::Move { position },
+                                        |_| {},
+                                    )
+                            }
+                            Err(_) => controller.say("Type a worksheet position", true),
+                        }
+                    }
+                >
+                    "Move worksheet"
+                </button>
                 <div class="dc-command-row">
-                    <button data-dnacalc="sheet-hide" on:click=move |_|controller.sheet_command(current(),SheetChange::Hide,|_|{})>"Hide worksheet"</button>
-                    <button data-dnacalc="sheet-delete" on:click=move |_|delete.set(true)>"Delete worksheet…"</button>
+                    <button
+                        data-dnacalc="sheet-hide"
+                        on:click=move |_| {
+                            controller.sheet_command(current(), SheetChange::Hide, |_| {})
+                        }
+                    >
+                        "Hide worksheet"
+                    </button>
+                    <button data-dnacalc="sheet-delete" on:click=move |_| delete.set(true)>
+                        "Delete worksheet…"
+                    </button>
                 </div>
                 <h3>"Hidden worksheets"</h3>
-                <div data-dnacalc="hidden-sheets">{move || {
-                    let hidden=controller.summary.get().hidden_sheets.clone();
-                    if hidden.is_empty() {return view!{<p>"No hidden worksheets"</p>}.into_any();}
-                    hidden.into_iter().map(|(sheet,name,very)|view!{
-                        <div class="dc-hidden-sheet"><span>{name}</span><button data-dnacalc="sheet-unhide" data-sheet=format!("{}:{}",sheet.0,sheet.1) disabled=very title=if very {"VeryHidden sheets cannot be shown here"} else {"Show this worksheet"}
-                            on:click=move |_|controller.sheet_command(Some(sheet.id()),SheetChange::Show,move |ok|{if ok {controller.show_sheet(sheet.id());}})>{if very {"VeryHidden"} else {"Unhide"}}</button></div>
-                    }).collect_view().into_any()
-                }}</div>
+                <div data-dnacalc="hidden-sheets">
+                    {move || {
+                        let hidden = controller.summary.get().hidden_sheets.clone();
+                        if hidden.is_empty() {
+                            return view! { <p>"No hidden worksheets"</p> }.into_any();
+                        }
+                        hidden
+                            .into_iter()
+                            .map(|(sheet, name, very)| {
+                                view! {
+                                    <div class="dc-hidden-sheet">
+                                        <span>{name}</span>
+                                        <button
+                                            data-dnacalc="sheet-unhide"
+                                            data-sheet=format!("{}:{}", sheet.0, sheet.1)
+                                            disabled=very
+                                            title=if very {
+                                                "VeryHidden sheets cannot be shown here"
+                                            } else {
+                                                "Show this worksheet"
+                                            }
+                                            on:click=move |_| {
+                                                controller
+                                                    .sheet_command(
+                                                        Some(sheet.id()),
+                                                        SheetChange::Show,
+                                                        move |ok| {
+                                                            if ok {
+                                                                controller.show_sheet(sheet.id());
+                                                            }
+                                                        },
+                                                    )
+                                            }
+                                        >
+                                            {if very { "VeryHidden" } else { "Unhide" }}
+                                        </button>
+                                    </div>
+                                }
+                            })
+                            .collect_view()
+                            .into_any()
+                    }}
+                </div>
             </div>
         </details>
-        <dialog class="dc-replace" node_ref=dialog data-dnacalc="sheet-delete-dialog" aria-labelledby="dc-sheet-delete-title" on:cancel=move |ev: leptos::ev::Event|{ev.prevent_default();cancel();}>
+        <dialog
+            class="dc-replace"
+            node_ref=dialog
+            data-dnacalc="sheet-delete-dialog"
+            aria-labelledby="dc-sheet-delete-title"
+            on:cancel=move |ev: leptos::ev::Event| {
+                ev.prevent_default();
+                cancel();
+            }
+        >
             <h2 id="dc-sheet-delete-title">"Delete worksheet?"</h2>
-            <p>{move ||format!("Delete {} and its contents? References to it become #REF!. You can Undo this change.",controller.summary.get().sheets.iter().find(|(s,_)|Some(s.id())==controller.sheet.get()).map(|(_,n)|n.as_str()).unwrap_or("this worksheet"))}</p>
-            <div class="dc-dialog-actions"><button data-dnacalc="sheet-delete-cancel" on:click=move |_|cancel()>"Keep worksheet"</button><button data-dnacalc="sheet-delete-confirm" on:click=move |_|controller.sheet_command(current(),SheetChange::Remove,move |ok|{if ok {cancel();}})>"Delete worksheet"</button></div>
+            <p>
+                {move || {
+                    format!(
+                        "Delete {} and its contents? References to it become #REF!. You can Undo this change.",
+                        controller
+                            .summary
+                            .get()
+                            .sheets
+                            .iter()
+                            .find(|(s, _)| Some(s.id()) == controller.sheet.get())
+                            .map(|(_, n)| n.as_str())
+                            .unwrap_or("this worksheet"),
+                    )
+                }}
+            </p>
+            <div class="dc-dialog-actions">
+                <button data-dnacalc="sheet-delete-cancel" on:click=move |_| cancel()>
+                    "Keep worksheet"
+                </button>
+                <button
+                    data-dnacalc="sheet-delete-confirm"
+                    on:click=move |_| {
+                        controller
+                            .sheet_command(
+                                current(),
+                                SheetChange::Remove,
+                                move |ok| {
+                                    if ok {
+                                        cancel();
+                                    }
+                                },
+                            )
+                    }
+                >
+                    "Delete worksheet"
+                </button>
+            </div>
         </dialog>
     };
     (rendered, request_rename)

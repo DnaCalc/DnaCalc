@@ -31,7 +31,13 @@ pub enum StructuralChange {
 /// and the model does not. Each method is given the root before the change.
 pub trait FormulaRewriter {
     /// Copy a relative rule from one formula origin to another before a structural edit.
-    fn relocate(&self, root: &ModelRoot, formula: &FormulaText, from: CellKey, to: CellKey) -> Option<FormulaText>;
+    fn relocate(
+        &self,
+        root: &ModelRoot,
+        formula: &FormulaText,
+        from: CellKey,
+        to: CellKey,
+    ) -> Option<FormulaText>;
 
     /// The text `change` leaves of `formula`, in the cell `at` of `root`; `None` when the change
     /// leaves it as it is.
@@ -226,16 +232,28 @@ impl ModelRoot {
             let next = match op {
                 WorkbookOp::EditAxis(edit) => {
                     current.require_sheet(operation, edit.sheet())?;
-                    let pivots = current.pivots_after_axis_edit(*edit).map_err(|reason| ApplyError::PivotStructural { operation, reason: reason.message() })?;
+                    let pivots = current.pivots_after_axis_edit(*edit).map_err(|reason| {
+                        ApplyError::PivotStructural {
+                            operation,
+                            reason: reason.message(),
+                        }
+                    })?;
                     current.axis_edit(*edit, rewriter, pivots)
                 }
                 WorkbookOp::EditSheet(edit) => {
                     let sheet = match edit {
                         SheetEdit::Insert { .. } => None,
-                        SheetEdit::Rename { sheet, .. } | SheetEdit::Move { sheet, .. }
-                        | SheetEdit::Remove { sheet } | SheetEdit::SetVisibility { sheet, .. } => Some(*sheet),
+                        SheetEdit::Rename { sheet, .. }
+                        | SheetEdit::Move { sheet, .. }
+                        | SheetEdit::Remove { sheet }
+                        | SheetEdit::SetVisibility { sheet, .. } => Some(*sheet),
                     };
-                    if sheet.is_some_and(|sheet| current.pivot_uses_sheet(sheet)) { return Err(ApplyError::PivotStructural { operation, reason: "Structural edits on pivot output or source sheets need measured transforms (dc-8wp.16)" }); }
+                    if sheet.is_some_and(|sheet| current.pivot_uses_sheet(sheet)) {
+                        return Err(ApplyError::PivotStructural {
+                            operation,
+                            reason: "Structural edits on pivot output or source sheets need measured transforms (dc-8wp.16)",
+                        });
+                    }
                     current.sheet_edit(operation, edit, rewriter, issue_sheet)?
                 }
                 other => {
@@ -263,19 +281,42 @@ impl ModelRoot {
     // reference is known, while allowing edits on unrelated sheets for direct and table sources.
     fn pivot_uses_sheet(&self, sheet: SheetId) -> bool {
         let pivots = self.definitions().pivots();
-        if !pivots.caches.issues.is_empty() || pivots.sheets.values().any(|s| !s.issues.is_empty())
-            || (pivots.tables().next().is_some() && self.definitions().data_model().is_some()) { return true; }
-        let Some(name) = self.sheet_by_id(sheet).map(|s| s.name().text().to_string_lossy()) else { return false; };
+        if !pivots.caches.issues.is_empty()
+            || pivots.sheets.values().any(|s| !s.issues.is_empty())
+            || (pivots.tables().next().is_some() && self.definitions().data_model().is_some())
+        {
+            return true;
+        }
+        let Some(name) = self
+            .sheet_by_id(sheet)
+            .map(|s| s.name().text().to_string_lossy())
+        else {
+            return false;
+        };
         pivots.tables().any(|table| {
-            if table.area.sheet() == sheet { return true; }
-            let Some(cache) = pivots.caches.caches.get(&table.cache_id) else { return true; };
-            if cache.source_type != "worksheet" { return true; }
-            if let Some(source) = &cache.source_name {
-                return self.definitions().tables().iter().find(|t| t.name.eq_ignore_ascii_case(source)
-                    || t.display_name.eq_ignore_ascii_case(source)).is_none_or(|t| t.sheet == sheet);
+            if table.area.sheet() == sheet {
+                return true;
             }
-            cache.source_sheet.as_ref().is_none_or(|source| !source.is_ascii() || !name.is_ascii()
-                || source.eq_ignore_ascii_case(&name))
+            let Some(cache) = pivots.caches.caches.get(&table.cache_id) else {
+                return true;
+            };
+            if cache.source_type != "worksheet" {
+                return true;
+            }
+            if let Some(source) = &cache.source_name {
+                return self
+                    .definitions()
+                    .tables()
+                    .iter()
+                    .find(|t| {
+                        t.name.eq_ignore_ascii_case(source)
+                            || t.display_name.eq_ignore_ascii_case(source)
+                    })
+                    .is_none_or(|t| t.sheet == sheet);
+            }
+            cache.source_sheet.as_ref().is_none_or(|source| {
+                !source.is_ascii() || !name.is_ascii() || source.eq_ignore_ascii_case(&name)
+            })
         })
     }
 
@@ -324,7 +365,12 @@ impl ModelRoot {
             .collect()
     }
 
-    fn axis_edit(&self, edit: AxisEdit, rewriter: &dyn FormulaRewriter, pivots: Option<Arc<crate::pivot::PivotState>>) -> Arc<ModelRoot> {
+    fn axis_edit(
+        &self,
+        edit: AxisEdit,
+        rewriter: &dyn FormulaRewriter,
+        pivots: Option<Arc<crate::pivot::PivotState>>,
+    ) -> Arc<ModelRoot> {
         let change = StructuralChange::Axis(edit);
         let parts = self.parts();
         let cells = self.rewritten_cells(rewriter, &change, parts.cells);
@@ -354,21 +400,47 @@ impl ModelRoot {
             .filter_map(|table| {
                 let area = moved_area(edit, table.area)?;
                 let before = table.area;
-                let mut table=table.clone();table.area=area;
+                let mut table = table.clone();
+                table.area = area;
                 if edit.axis() == Axis::Columns && table.sheet == edit.sheet() {
                     for (position, name) in edit_table_columns(edit, before, &mut table) {
-                        headers.push((CellKey::new(table.sheet, table.area.first().row(), position).expect("a header cell"), name));
+                        headers.push((
+                            CellKey::new(table.sheet, table.area.first().row(), position)
+                                .expect("a header cell"),
+                            name,
+                        ));
                     }
                 }
-                if table.sheet==edit.sheet(){if let Some(f)=&mut table.filter{f.area=moved_area(edit,f.area)?;if edit.axis()==Axis::Rows{f.filtered_rows=f.filtered_rows.iter().filter_map(|r|moved_position(edit,*r)).collect();}else{f.columns=std::mem::take(&mut f.columns).into_iter().filter_map(|(c,v)|Some((moved_position(edit,c)?,v))).collect();}}}
+                if table.sheet == edit.sheet() {
+                    if let Some(f) = &mut table.filter {
+                        f.area = moved_area(edit, f.area)?;
+                        if edit.axis() == Axis::Rows {
+                            f.filtered_rows = f
+                                .filtered_rows
+                                .iter()
+                                .filter_map(|r| moved_position(edit, *r))
+                                .collect();
+                        } else {
+                            f.columns = std::mem::take(&mut f.columns)
+                                .into_iter()
+                                .filter_map(|(c, v)| Some((moved_position(edit, c)?, v)))
+                                .collect();
+                        }
+                    }
+                }
                 Some(table)
             })
             .collect();
         // The header cell of a column inserted into a table holds its name.
         let mut cells = cells;
         for (at, name) in headers {
-            if let Some(text) = crate::input::CellText::new(ExcelText::from_utf16_code_units(name.encode_utf16().collect())) {
-                cells.entry(at.sheet()).or_default().insert(at, CellInput::Text(text));
+            if let Some(text) = crate::input::CellText::new(ExcelText::from_utf16_code_units(
+                name.encode_utf16().collect(),
+            )) {
+                cells
+                    .entry(at.sheet())
+                    .or_default()
+                    .insert(at, CellInput::Text(text));
             }
         }
         let unloaded: Vec<_> = definitions
@@ -426,61 +498,148 @@ impl ModelRoot {
         // Chart anchors and references keep their source coordinate basis; the host and save
         // apply the existing structural transforms when they project or write them.
         for (sheet, setup) in definitions.page_setups() {
-            let mut setup=setup.clone();
-            if sheet==edit.sheet() {
-                let same=if edit.axis()==Axis::Rows {&mut setup.row_breaks}else{&mut setup.column_breaks};
-                *same=same.iter().filter_map(|b|{let mut b=*b;b.id=if b.id==0 {0}else{moved_position(edit,b.id)?};Some(b)}).collect();
+            let mut setup = setup.clone();
+            if sheet == edit.sheet() {
+                let same = if edit.axis() == Axis::Rows {
+                    &mut setup.row_breaks
+                } else {
+                    &mut setup.column_breaks
+                };
+                *same = same
+                    .iter()
+                    .filter_map(|b| {
+                        let mut b = *b;
+                        b.id = if b.id == 0 {
+                            0
+                        } else {
+                            moved_position(edit, b.id)?
+                        };
+                        Some(b)
+                    })
+                    .collect();
             }
-            next=next.with_page_setup(sheet,setup);
+            next = next.with_page_setup(sheet, setup);
         }
-        for (sheet,charts) in definitions.all_charts() {next=next.with_charts(sheet,charts.to_vec());}
-        for (sheet,filter) in definitions.auto_filters() {
-            let mut filter=filter.clone();
-            if sheet==edit.sheet() {
-                let Some(area)=moved_area(edit,filter.area) else {continue;}; filter.area=area;
-                if edit.axis()==Axis::Rows {filter.filtered_rows=filter.filtered_rows.iter().filter_map(|r|moved_position(edit,*r)).filter(|r|*r>area.first().row() && *r<=area.last().row()).collect();}
-                else {filter.columns=filter.columns.into_iter().filter_map(|(c,v)|Some((moved_position(edit,c)?,v))).collect();}
+        for (sheet, charts) in definitions.all_charts() {
+            next = next.with_charts(sheet, charts.to_vec());
+        }
+        for (sheet, filter) in definitions.auto_filters() {
+            let mut filter = filter.clone();
+            if sheet == edit.sheet() {
+                let Some(area) = moved_area(edit, filter.area) else {
+                    continue;
+                };
+                filter.area = area;
+                if edit.axis() == Axis::Rows {
+                    filter.filtered_rows = filter
+                        .filtered_rows
+                        .iter()
+                        .filter_map(|r| moved_position(edit, *r))
+                        .filter(|r| *r > area.first().row() && *r <= area.last().row())
+                        .collect();
+                } else {
+                    filter.columns = filter
+                        .columns
+                        .into_iter()
+                        .filter_map(|(c, v)| Some((moved_position(edit, c)?, v)))
+                        .collect();
+                }
             }
-            next=next.with_auto_filter(sheet,Some(filter));
+            next = next.with_auto_filter(sheet, Some(filter));
         }
 
-        if edit.axis()==Axis::Rows {
-            let edits:Vec<_>=next.axis_layouts().bands(edit.sheet(),Axis::Rows).map(|(i,f)|crate::AxisFormatEdit::new(edit.sheet(),Axis::Rows,i,f).unwrap()).collect();
-            next=next.with_axis_formats(edits);
+        if edit.axis() == Axis::Rows {
+            let edits: Vec<_> = next
+                .axis_layouts()
+                .bands(edit.sheet(), Axis::Rows)
+                .map(|(i, f)| crate::AxisFormatEdit::new(edit.sheet(), Axis::Rows, i, f).unwrap())
+                .collect();
+            next = next.with_axis_formats(edits);
         }
         for (sheet, rules) in definitions.all_validations() {
-            let rules = rules.iter().filter_map(|rule| {
-                let &(t,l,_,_) = rule.areas.first()?;
-                let old = CellKey::new(sheet,t,l).ok()?;
-                let mut rule = rule.clone();
-                rule.areas = rule.areas.iter().filter_map(|&(t,l,b,r)| {
-                    let area = GridArea::new(CellKey::new(sheet,t,l).ok()?,CellKey::new(sheet,b,r).ok()?).ok()?;
-                    let area = moved_area(edit,area)?;
-                    Some((area.first().row(),area.first().column(),area.last().row(),area.last().column()))
-                }).collect();
-                if rule.areas.is_empty() { return None; }
-                let &(t,l,_,_) = rule.areas.first()?;
-                let new = CellKey::new(sheet,t,l).ok()?;
-                let survivor = if sheet == edit.sheet() {
-                    let row = if edit.axis()==Axis::Rows {source_position(edit,new.row())?}else{new.row()};
-                    let column = if edit.axis()==Axis::Columns {source_position(edit,new.column())?}else{new.column()};
-                    CellKey::new(sheet,row,column).ok()?
-                } else {new};
-                for formula in [&mut rule.formula1,&mut rule.formula2].into_iter().flatten() {
-                    if let Ok(mut text) = FormulaText::new(ExcelText::from_utf16_code_units(formula.encode_utf16().collect())) {
-                        if survivor != old {text = rewriter.relocate(self,&text,old,survivor).unwrap_or(text);}
-                        text = rewriter.formula(self,&text,survivor,&change).unwrap_or(text);
-                        *formula = text.text().to_string_lossy().trim_start_matches('=').to_owned();
+            let rules = rules
+                .iter()
+                .filter_map(|rule| {
+                    let &(t, l, _, _) = rule.areas.first()?;
+                    let old = CellKey::new(sheet, t, l).ok()?;
+                    let mut rule = rule.clone();
+                    rule.areas = rule
+                        .areas
+                        .iter()
+                        .filter_map(|&(t, l, b, r)| {
+                            let area = GridArea::new(
+                                CellKey::new(sheet, t, l).ok()?,
+                                CellKey::new(sheet, b, r).ok()?,
+                            )
+                            .ok()?;
+                            let area = moved_area(edit, area)?;
+                            Some((
+                                area.first().row(),
+                                area.first().column(),
+                                area.last().row(),
+                                area.last().column(),
+                            ))
+                        })
+                        .collect();
+                    if rule.areas.is_empty() {
+                        return None;
                     }
-                }
-                Some(rule)
-            }).collect();
-            next = next.with_validations(sheet,rules);
+                    let &(t, l, _, _) = rule.areas.first()?;
+                    let new = CellKey::new(sheet, t, l).ok()?;
+                    let survivor = if sheet == edit.sheet() {
+                        let row = if edit.axis() == Axis::Rows {
+                            source_position(edit, new.row())?
+                        } else {
+                            new.row()
+                        };
+                        let column = if edit.axis() == Axis::Columns {
+                            source_position(edit, new.column())?
+                        } else {
+                            new.column()
+                        };
+                        CellKey::new(sheet, row, column).ok()?
+                    } else {
+                        new
+                    };
+                    for formula in [&mut rule.formula1, &mut rule.formula2]
+                        .into_iter()
+                        .flatten()
+                    {
+                        if let Ok(mut text) = FormulaText::new(ExcelText::from_utf16_code_units(
+                            formula.encode_utf16().collect(),
+                        )) {
+                            if survivor != old {
+                                text = rewriter
+                                    .relocate(self, &text, old, survivor)
+                                    .unwrap_or(text);
+                            }
+                            text = rewriter
+                                .formula(self, &text, survivor, &change)
+                                .unwrap_or(text);
+                            *formula = text
+                                .text()
+                                .to_string_lossy()
+                                .trim_start_matches('=')
+                                .to_owned();
+                        }
+                    }
+                    Some(rule)
+                })
+                .collect();
+            next = next.with_validations(sheet, rules);
         }
         for (sheet, links) in definitions.all_review_links() {
-            next=next.with_review_links(sheet,links.iter().filter_map(|l|{
-                let mut l=l.clone();l.area=moved_area(edit,l.area)?;Some(l)
-            }).collect());
+            next = next.with_review_links(
+                sheet,
+                links
+                    .iter()
+                    .filter_map(|l| {
+                        let mut l = l.clone();
+                        l.area = moved_area(edit, l.area)?;
+                        Some(l)
+                    })
+                    .collect(),
+            );
         }
         for (sheet, notes) in definitions.all_review_notes() {
             let notes = notes
@@ -537,25 +696,49 @@ impl ModelRoot {
         )
     }
 
-    fn rewritten_rules(&self, rewriter:&dyn FormulaRewriter, change:&StructuralChange, mut definitions:Definitions)->Definitions {
-        let formula=|text:&mut String,at:CellKey| {
-            if let Ok(f)=FormulaText::new(ExcelText::from_utf16_code_units(text.encode_utf16().collect()))
-                && let Some(next)=rewriter.formula(self,&f,at,change) {
-                *text=next.text().to_string_lossy().trim_start_matches('=').to_owned();
+    fn rewritten_rules(
+        &self,
+        rewriter: &dyn FormulaRewriter,
+        change: &StructuralChange,
+        mut definitions: Definitions,
+    ) -> Definitions {
+        let formula = |text: &mut String, at: CellKey| {
+            if let Ok(f) = FormulaText::new(ExcelText::from_utf16_code_units(
+                text.encode_utf16().collect(),
+            )) && let Some(next) = rewriter.formula(self, &f, at, change)
+            {
+                *text = next
+                    .text()
+                    .to_string_lossy()
+                    .trim_start_matches('=')
+                    .to_owned();
             }
         };
-        for (sheet,rules) in self.definitions().all_validations() {
-            let mut rules=rules.to_vec();for rule in &mut rules {
-                if let Some(&(r,c,_,_))=rule.areas.first() {
-                    let at=CellKey::new(sheet,r,c).expect("validation origin");
-                    for text in [&mut rule.formula1,&mut rule.formula2].into_iter().flatten(){formula(text,at);}
+        for (sheet, rules) in self.definitions().all_validations() {
+            let mut rules = rules.to_vec();
+            for rule in &mut rules {
+                if let Some(&(r, c, _, _)) = rule.areas.first() {
+                    let at = CellKey::new(sheet, r, c).expect("validation origin");
+                    for text in [&mut rule.formula1, &mut rule.formula2]
+                        .into_iter()
+                        .flatten()
+                    {
+                        formula(text, at);
+                    }
                 }
             }
-            definitions=definitions.with_validations(sheet,rules);
+            definitions = definitions.with_validations(sheet, rules);
         }
-        for (sheet,rules) in self.definitions().all_conditional_rules() {
-            let mut rules=rules.to_vec();for rule in &mut rules {if let Some(at)=rule.origin(){for text in rule.formulas.iter_mut().chain(&mut rule.threshold_formulas){formula(text,at);}}}
-            definitions=definitions.with_conditional_rules(sheet,rules);
+        for (sheet, rules) in self.definitions().all_conditional_rules() {
+            let mut rules = rules.to_vec();
+            for rule in &mut rules {
+                if let Some(at) = rule.origin() {
+                    for text in rule.formulas.iter_mut().chain(&mut rule.threshold_formulas) {
+                        formula(text, at);
+                    }
+                }
+            }
+            definitions = definitions.with_conditional_rules(sheet, rules);
         }
         definitions
     }
@@ -597,7 +780,8 @@ impl ModelRoot {
                 };
                 parts.cells = self.rewritten_cells(rewriter, &change, parts.cells);
                 let names = self.rewritten_names(rewriter, &change, parts.definitions.names());
-                parts.definitions = self.rewritten_rules(rewriter,&change,parts.definitions.with_names(names));
+                parts.definitions =
+                    self.rewritten_rules(rewriter, &change, parts.definitions.with_names(names));
                 let entry = &parts.sheets[at];
                 parts.sheets[at] =
                     SheetEntry::new(entry.id(), entry.key(), name.clone(), entry.visibility());
@@ -614,7 +798,9 @@ impl ModelRoot {
                 parts.cells = self.rewritten_cells(rewriter, &change, parts.cells);
                 parts.cells.remove(sheet);
                 let names = self.rewritten_names(rewriter, &change, parts.definitions.names());
-                parts.definitions = self.rewritten_rules(rewriter,&change,parts.definitions.with_names(names)).without_sheet(*sheet);
+                parts.definitions = self
+                    .rewritten_rules(rewriter, &change, parts.definitions.with_names(names))
+                    .without_sheet(*sheet);
                 parts.sheets.remove(at);
                 parts.layout = parts
                     .layout
@@ -645,7 +831,15 @@ mod tests {
     struct Unchanged;
 
     impl FormulaRewriter for Unchanged {
-        fn relocate(&self, _: &ModelRoot, formula: &FormulaText, _: CellKey, _: CellKey) -> Option<FormulaText> {Some(formula.clone())}
+        fn relocate(
+            &self,
+            _: &ModelRoot,
+            formula: &FormulaText,
+            _: CellKey,
+            _: CellKey,
+        ) -> Option<FormulaText> {
+            Some(formula.clone())
+        }
 
         fn formula(
             &self,
@@ -681,7 +875,15 @@ mod tests {
         let formula = CellInput::Formula(
             FormulaText::new(ExcelText::from_interop_assignment("{1;2}")).unwrap(),
         );
-        let table = Table {id:1,style:Default::default(),filter:None,totals_functions:vec![],totals_labels:vec![],opaque:false,axis_opaque:false,column_formulas:vec![],
+        let table = Table {
+            id: 1,
+            style: Default::default(),
+            filter: None,
+            totals_functions: vec![],
+            totals_labels: vec![],
+            opaque: false,
+            axis_opaque: false,
+            column_formulas: vec![],
             name: "T".into(),
             display_name: "T".into(),
             part: "t".into(),
@@ -770,11 +972,14 @@ mod tests {
     }
 }
 
-
 /// A table's column lists after columns are inserted into (strictly inside its span) or deleted from it. Returns the
 /// columns inserted, as (worksheet column, name); `check_axis_edit` in calc-doc admits these edits only for tables
 /// whose columns are plain.
-fn edit_table_columns(edit: AxisEdit, before: GridArea, table: &mut crate::definitions::Table) -> Vec<(u32, String)> {
+fn edit_table_columns(
+    edit: AxisEdit,
+    before: GridArea,
+    table: &mut crate::definitions::Table,
+) -> Vec<(u32, String)> {
     let (left, right) = (before.first().column(), before.last().column());
     let mut inserted = Vec::new();
     match edit.change() {
@@ -841,8 +1046,12 @@ impl PivotEditRefusal {
     /// The text a person is told; the second is Excel's own (16.0.20527).
     pub fn message(&self) -> &'static str {
         match self {
-            PivotEditRefusal::Unplaceable => "Structural edits on this pivot's sheet need a source this layer can place (dc-8wp.16)",
-            PivotEditRefusal::InsideOutput { .. } => "We can't make this change for the selected cells because it will affect a PivotTable. Use the field list to change the report. If you are trying to insert or delete cells, move the PivotTable and try again.",
+            PivotEditRefusal::Unplaceable => {
+                "Structural edits on this pivot's sheet need a source this layer can place (dc-8wp.16)"
+            }
+            PivotEditRefusal::InsideOutput { .. } => {
+                "We can't make this change for the selected cells because it will affect a PivotTable. Use the field list to change the report. If you are trying to insert or delete cells, move the PivotTable and try again."
+            }
         }
     }
 }
@@ -857,7 +1066,8 @@ fn parse_source_range(text: &str) -> Option<(u32, u32, u32, u32)> {
             return None;
         }
         let column = letters.bytes().try_fold(0u32, |n, b| {
-            n.checked_mul(26)?.checked_add(u32::from(b.to_ascii_uppercase() - b'A') + 1)
+            n.checked_mul(26)?
+                .checked_add(u32::from(b.to_ascii_uppercase() - b'A') + 1)
         })?;
         let row: u32 = digits.parse().ok()?;
         (row >= 1 && column >= 1).then_some((row, column))
@@ -893,7 +1103,10 @@ impl ModelRoot {
         {
             return Err(PivotEditRefusal::Unplaceable);
         }
-        let Some(name) = self.sheet_by_id(edit.sheet()).map(|s| s.name().text().to_string_lossy()) else {
+        let Some(name) = self
+            .sheet_by_id(edit.sheet())
+            .map(|s| s.name().text().to_string_lossy())
+        else {
             return Ok(None);
         };
         let mut next = (**pivots).clone();
@@ -923,7 +1136,9 @@ impl ModelRoot {
                     }
                 };
                 if inside {
-                    return Err(PivotEditRefusal::InsideOutput { table: table.name.clone() });
+                    return Err(PivotEditRefusal::InsideOutput {
+                        table: table.name.clone(),
+                    });
                 }
                 if let Some(area) = moved_area(edit, table.area)
                     && area != table.area
@@ -948,7 +1163,8 @@ impl ModelRoot {
             }
             if let Some(source) = &cache.source_name {
                 let known = self.definitions().tables().iter().any(|t| {
-                    t.name.eq_ignore_ascii_case(source) || t.display_name.eq_ignore_ascii_case(source)
+                    t.name.eq_ignore_ascii_case(source)
+                        || t.display_name.eq_ignore_ascii_case(source)
                 });
                 if !known {
                     return Err(PivotEditRefusal::Unplaceable);
@@ -964,13 +1180,16 @@ impl ModelRoot {
             if !sheet.eq_ignore_ascii_case(&name) {
                 continue;
             }
-            let (top, left, bottom, right) = parse_source_range(range).ok_or(PivotEditRefusal::Unplaceable)?;
+            let (top, left, bottom, right) =
+                parse_source_range(range).ok_or(PivotEditRefusal::Unplaceable)?;
             let (start, end) = match edit.axis() {
                 Axis::Rows => (top, bottom),
                 Axis::Columns => (left, right),
             };
             // All of the range deleted: the text stays and a refresh finds nothing, as in Excel.
-            let Some((start, end)) = moved_run(edit, start, end) else { continue };
+            let Some((start, end)) = moved_run(edit, start, end) else {
+                continue;
+            };
             let (top, bottom, left, right) = match edit.axis() {
                 Axis::Rows => (start, end, left, right),
                 Axis::Columns => (top, bottom, start, end),
@@ -978,7 +1197,13 @@ impl ModelRoot {
             let text = if (top, left) == (bottom, right) && !range.contains(':') {
                 format!("{}{}", column_letters(left), top)
             } else {
-                format!("{}{}:{}{}", column_letters(left), top, column_letters(right), bottom)
+                format!(
+                    "{}{}:{}{}",
+                    column_letters(left),
+                    top,
+                    column_letters(right),
+                    bottom
+                )
             };
             if &text != range {
                 let mut moved = (**cache).clone();

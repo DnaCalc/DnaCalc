@@ -7,7 +7,7 @@ pub fn geometry_of(geometry: &calc_host::SheetGeometry) -> Geometry {
         summary_right: geometry.summary_right.unwrap_or(true),
         coverage: Vec::new(),
         auto_filter: None,
-        tables:Vec::new(),
+        tables: Vec::new(),
         merges: Vec::new(),
         edit_refusal: None,
         zoom: None,

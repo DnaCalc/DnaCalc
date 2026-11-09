@@ -1,8 +1,8 @@
+use crate::ported::excel_numeric::crt_log10;
+use crate::ported::excel_numeric::crt_pow;
+use crate::ported::excel_numeric::{excel_x87_div, excel_x87_mul};
 use crate::value::ExcelText;
 use crate::value::WorksheetErrorCode;
-use crate::ported::excel_numeric::{excel_x87_div, excel_x87_mul};
-use crate::ported::excel_numeric::crt_pow;
-use crate::ported::excel_numeric::crt_log10;
 
 const THAI_DIGITS: [&str; 10] = [
     "ศูนย์",
@@ -97,7 +97,11 @@ fn bahttext_satang(magnitude: f64) -> u128 {
     }
     let divisor = 10u128.pow((-shift) as u32);
     let (quotient, remainder) = (digits / divisor, digits % divisor);
-    if remainder * 2 >= divisor { quotient + 1 } else { quotient }
+    if remainder * 2 >= divisor {
+        quotient + 1
+    } else {
+        quotient
+    }
 }
 
 pub fn bahttext_kernel(value: f64) -> Result<ExcelText, WorksheetErrorCode> {

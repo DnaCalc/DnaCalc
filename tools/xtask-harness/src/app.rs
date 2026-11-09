@@ -52,15 +52,15 @@
 use crate::accept::{BROWSERS, Browser, find_on_path, variable_file};
 use crate::cargo::{self, WASM_TARGET, Workspace};
 use crate::site::SiteHeaders;
-#[path = "app_renderer.rs"]
-mod renderer;
-#[path = "app_paint.rs"]
-mod paint;
-#[path = "app_xll.rs"]
-mod xll;
 #[cfg(windows)]
 #[path = "app_clean.rs"]
 pub(crate) mod clean;
+#[path = "app_paint.rs"]
+mod paint;
+#[path = "app_renderer.rs"]
+mod renderer;
+#[path = "app_xll.rs"]
+mod xll;
 use serde_json::{Value, json};
 use std::fs;
 use std::io::{Read, Write};
@@ -256,10 +256,19 @@ const SETTLE_SECONDS: u64 = 8;
 static DESKTOP_SETTLE: std::sync::atomic::AtomicBool = std::sync::atomic::AtomicBool::new(false);
 fn settle() -> Duration {
     // `DNACALC_SETTLE_SECONDS` lengthens every wait, to tell a slow page from a stuck one.
-    if let Some(seconds) = std::env::var("DNACALC_SETTLE_SECONDS").ok().and_then(|v| v.parse().ok()) {
+    if let Some(seconds) = std::env::var("DNACALC_SETTLE_SECONDS")
+        .ok()
+        .and_then(|v| v.parse().ok())
+    {
         return Duration::from_secs(seconds);
     }
-    Duration::from_secs(if DESKTOP_SETTLE.load(std::sync::atomic::Ordering::Relaxed) { 4 * SETTLE_SECONDS } else { SETTLE_SECONDS })
+    Duration::from_secs(
+        if DESKTOP_SETTLE.load(std::sync::atomic::Ordering::Relaxed) {
+            4 * SETTLE_SECONDS
+        } else {
+            SETTLE_SECONDS
+        },
+    )
 }
 
 /// How long a step over a workbook from outside the repository may take.
@@ -994,17 +1003,27 @@ impl Session {
 
 /// Starts `browser`'s driver and a headless session in it.
 fn open(browser: &Browser, download_root: &Path) -> Result<(DriverProcess, Session), String> {
-    open_locale(browser,download_root,None)
+    open_locale(browser, download_root, None)
 }
 
-fn open_locale(browser:&Browser,download_root:&Path,locale:Option<&str>)->Result<(DriverProcess,Session),String> {
-    open_attached(browser,download_root,locale,None,None)
+fn open_locale(
+    browser: &Browser,
+    download_root: &Path,
+    locale: Option<&str>,
+) -> Result<(DriverProcess, Session), String> {
+    open_attached(browser, download_root, locale, None, None)
 }
 
 /// Like [`open_locale`]; with `attach` (a `host:port` DevTools address) the driver attaches to the
 /// browser already running there, as the WebView2 of `dna-calc-desktop --app --debug-port` is,
 /// instead of starting a headless one.
-pub(crate) fn open_attached(browser:&Browser,download_root:&Path,locale:Option<&str>,attach:Option<&str>,save_dir:Option<&Path>)->Result<(DriverProcess,Session),String> {
+pub(crate) fn open_attached(
+    browser: &Browser,
+    download_root: &Path,
+    locale: Option<&str>,
+    attach: Option<&str>,
+    save_dir: Option<&Path>,
+) -> Result<(DriverProcess, Session), String> {
     let program = variable_file(browser.variable)
         .or_else(|| find_on_path(browser.program))
         .ok_or_else(|| {
@@ -1024,7 +1043,9 @@ pub(crate) fn open_attached(browser:&Browser,download_root:&Path,locale:Option<&
             while bidi_port == port {
                 bidi_port = free_port()?;
             }
-            command.args(["--port", &port.to_string(),
+            command.args([
+                "--port",
+                &port.to_string(),
                 "--websocket-port",
                 &bidi_port.to_string(),
                 "--allow-system-access",
@@ -1055,14 +1076,20 @@ pub(crate) fn open_attached(browser:&Browser,download_root:&Path,locale:Option<&
     // Keep actual downloads on the workspace filesystem. A full /tmp on this
     // Linux host left empty JSON files even when Firefox reported a completed
     // download. Reading and importing the real file remains part of the smoke.
-    let downloads = save_dir.map(Path::to_path_buf).unwrap_or_else(|| download_root.join(format!("{}-{port}", std::process::id())));
+    let downloads = save_dir
+        .map(Path::to_path_buf)
+        .unwrap_or_else(|| download_root.join(format!("{}-{port}", std::process::id())));
     fs::create_dir_all(&downloads)
         .map_err(|error| format!("cannot create smoke download folder: {error}"))?;
     let downloads = downloads.canonicalize().map_err(|e| e.to_string())?;
     // Browser preferences require an absolute native path. Windows canonical paths carry a
     // Win32 prefix which Chrome/Firefox preferences do not accept.
     let download_text = downloads.to_string_lossy();
-    let downloads = PathBuf::from(download_text.strip_prefix(r"\\?\").unwrap_or(&download_text));
+    let downloads = PathBuf::from(
+        download_text
+            .strip_prefix(r"\\?\")
+            .unwrap_or(&download_text),
+    );
     let mut capabilities = match browser.name {
         "firefox" => json!({
             "browserName": "firefox",
@@ -1077,14 +1104,22 @@ pub(crate) fn open_attached(browser:&Browser,download_root:&Path,locale:Option<&
             "goog:chromeOptions": { "args": ["--headless=new", "--disable-gpu", "--window-size=1280,1000"], "prefs": {"download.default_directory":downloads,"download.prompt_for_download":false} }
         }),
     };
-    if let Some(address)=attach {
-        capabilities=json!({"browserName":"chrome","goog:chromeOptions":{"debuggerAddress":address}});
+    if let Some(address) = attach {
+        capabilities =
+            json!({"browserName":"chrome","goog:chromeOptions":{"debuggerAddress":address}});
     }
-    if let Some(locale)=locale {
-        let options=if browser.name=="firefox" {"moz:firefoxOptions"}else{"goog:chromeOptions"};
-        capabilities[options]["prefs"]["intl.accept_languages"]=json!(locale);
-        if browser.name!="firefox" {
-            capabilities[options]["args"].as_array_mut().unwrap().push(json!(format!("--lang={locale}")));
+    if let Some(locale) = locale {
+        let options = if browser.name == "firefox" {
+            "moz:firefoxOptions"
+        } else {
+            "goog:chromeOptions"
+        };
+        capabilities[options]["prefs"]["intl.accept_languages"] = json!(locale);
+        if browser.name != "firefox" {
+            capabilities[options]["args"]
+                .as_array_mut()
+                .unwrap()
+                .push(json!(format!("--lang={locale}")));
         }
     }
     let created = webdriver(
@@ -1562,7 +1597,9 @@ fn satisfied(check: &Check, seen: &Value) -> bool {
         | Check::MergedCell(..)
         | Check::Editability(..)
         | Check::FontReflow(_) => seen.get("ok").and_then(Value::as_bool) == Some(true),
-        Check::MaxWidth(_,width) => seen.as_f64().is_some_and(|n|n>0.&&n<=f64::from(*width)),
+        Check::MaxWidth(_, width) => seen
+            .as_f64()
+            .is_some_and(|n| n > 0. && n <= f64::from(*width)),
         Check::FitsText(_) => seen.as_array().is_some_and(|v| {
             v[0].as_f64()
                 .zip(v[1].as_f64())
@@ -1676,8 +1713,12 @@ fn describe(check: &Check) -> String {
         Check::PrintDocument(pages) => format!(
             "the completed application print document has {pages} physical pages and decoded drawings"
         ),
-        Check::Rendered(name, expected) => format!("the browser reports {name} rendered: {expected}"),
-        Check::DownloadedSession(name, field, expected) => format!("download {name} {field} is {expected:?}"),
+        Check::Rendered(name, expected) => {
+            format!("the browser reports {name} rendered: {expected}")
+        }
+        Check::DownloadedSession(name, field, expected) => {
+            format!("download {name} {field} is {expected:?}")
+        }
         Check::PlanCell(address, field, expected) => {
             format!("RenderPlan {address}.{field} is {expected:?}")
         }
@@ -1719,8 +1760,12 @@ fn describe(check: &Check) -> String {
         Check::Spill(name, first, last) => {
             format!("{name} text clips between columns {first} and {last}")
         }
-        Check::MinHeight(name, pixels) => format!("{name} keeps at least {pixels} pixels of visible height"),
-        Check::HeaderHeightRetained => "the workbook title retains the header's measured height".to_owned(),
+        Check::MinHeight(name, pixels) => {
+            format!("{name} keeps at least {pixels} pixels of visible height")
+        }
+        Check::HeaderHeightRetained => {
+            "the workbook title retains the header's measured height".to_owned()
+        }
         Check::Before(first, last) => format!("{first} precedes {last} in the rendered layout"),
         Check::Text(name, expected) => format!("{name} is {expected:?}"),
         Check::Starts(name, prefix) => format!("{name} starts with {prefix:?}"),
@@ -1729,7 +1774,9 @@ fn describe(check: &Check) -> String {
         Check::Contains(name, wanted) => format!("{name} has an item starting {wanted:?}"),
         Check::Absent(name) => format!("no {name}"),
         Check::Value(name, expected) => format!("the field {name} holds {expected:?}"),
-        Check::SelectedText(name, expected) => format!("the native selection in {name} holds {expected:?}"),
+        Check::SelectedText(name, expected) => {
+            format!("the native selection in {name} holds {expected:?}")
+        }
         Check::Focused(name) => format!("{name} owns keyboard focus"),
         Check::Role(name, value) => format!("{name} has computed accessibility role {value}"),
         Check::Name(name, value) => format!("{name} has computed accessible name {value}"),
@@ -1744,7 +1791,7 @@ fn describe(check: &Check) -> String {
         }
         Check::TextBounds(name) => format!("{name}'s rendered text fits within its cell"),
         Check::FitsText(name) => format!("{name} displays its complete text"),
-        Check::MaxWidth(name,width) => format!("{name} is no wider than {width}px"),
+        Check::MaxWidth(name, width) => format!("{name} is no wider than {width}px"),
         Check::DragExtended => {
             "selection extends beyond the initial viewport after a real out-of-view drag".to_owned()
         }
@@ -1800,8 +1847,13 @@ fn act(ws: &Workspace, app: &App, session: &Session, action: &Action) -> Result<
             Ok(())
         }
         Action::Reload => {
-            let url=session.script("return window.location.href;")?.as_str().ok_or("No page URL")?.to_owned();
-            session.post("/url",json!({"url":url}))?;Ok(())
+            let url = session
+                .script("return window.location.href;")?
+                .as_str()
+                .ok_or("No page URL")?
+                .to_owned();
+            session.post("/url", json!({"url":url}))?;
+            Ok(())
         }
         Action::RememberView(name) => {
             // Name-box navigation resolves through the worker. Capture the selected view only
@@ -1815,7 +1867,7 @@ fn act(ws: &Workspace, app: &App, session: &Session, action: &Action) -> Result<
                 return Err(reason);
             }
             let selector = serde_json::to_string(&select(app, name)).unwrap();
-            let canvas_rect=renderer::cell_rect(app,session,name)?.unwrap_or(Value::Null);
+            let canvas_rect = renderer::cell_rect(app, session, name)?.unwrap_or(Value::Null);
             session.script(&format!(r#"var g=document.querySelector('[data-dnacalc=grid]'),e=document.querySelector({selector}),r=e?e.getBoundingClientRect():{canvas_rect},b=g.getBoundingClientRect(),key=document.querySelector('[data-dnacalc=sheet-tab][aria-selected=true]').dataset.sheet;window.__dcViews=window.__dcViews||{{}};window.__dcViews[key]={{selector:{selector},x:r.left-b.left,y:r.top-b.top,w:r.width,h:r.height,left:g.scrollLeft,top:g.scrollTop,zoom:document.querySelector('[data-dnacalc=zoom]').textContent,address:document.querySelector('[data-dnacalc=name-box]').value}};return null;"#))?;
             Ok(())
         }
@@ -1986,7 +2038,7 @@ fn act(ws: &Workspace, app: &App, session: &Session, action: &Action) -> Result<
                 let height = info["height"].as_f64().ok_or("Print paper height")? * 2.54 / 96.;
                 // WebDriver Print is for headless Chrome; the desktop exe's WebView2 is headful, and
                 // answers the DevTools command that WebDriver Print itself is built on.
-                let pdf=if session.attached {
+                let pdf = if session.attached {
                     session.post("/goog/cdp/execute",json!({"cmd":"Page.printToPDF","params":{"printBackground":true,"scale":1,"landscape":false,
                         "paperWidth":width/2.54,"paperHeight":height/2.54,"marginTop":0,"marginBottom":0,"marginLeft":0,"marginRight":0,"preferCSSPageSize":false}}))?["data"].clone()
                 } else {
@@ -2022,7 +2074,8 @@ fn act(ws: &Workspace, app: &App, session: &Session, action: &Action) -> Result<
         | Action::ViewDownloadFixture(_)
         | Action::ViewDownloadFixtureFor(_, _)
         | Action::StyledFixture
-        | Action::AlignmentFixture | Action::ValidationFixture(_) => {
+        | Action::AlignmentFixture
+        | Action::ValidationFixture(_) => {
             #[cfg(target_arch = "wasm32")]
             {
                 Err("Package fixture preparation is native-only".to_owned())
@@ -2036,7 +2089,10 @@ fn act(ws: &Workspace, app: &App, session: &Session, action: &Action) -> Result<
                     ws.root
                         .join("crates/calc-doc/tests/fixtures/dc_5sr/features.xlsx")
                 } else {
-                    session.downloads.join(match action {Action::ViewDownloadFixtureFor(name,_)=>*name,_=>"Book1.xlsx"})
+                    session.downloads.join(match action {
+                        Action::ViewDownloadFixtureFor(name, _) => *name,
+                        _ => "Book1.xlsx",
+                    })
                 };
                 let bytes = downloaded_bytes(&path)?;
                 if matches!(action, Action::AlignmentFixture) {
@@ -2048,31 +2104,62 @@ fn act(ws: &Workspace, app: &App, session: &Session, action: &Action) -> Result<
                 }
                 let parts = crate::oracle_cases::package_parts(&bytes)?;
                 if let Action::ValidationFixture(kind) = action {
-                    if matches!(*kind,"sort"|"sort-pointwise"|"sort-links"|"sort-periods") {return fs::write(session.downloads.join(format!("validation-{kind}.xlsx")),calc_cases::fixtures::sort_metadata(&bytes,kind)?).map_err(|e|e.to_string());}
+                    if matches!(
+                        *kind,
+                        "sort" | "sort-pointwise" | "sort-links" | "sort-periods"
+                    ) {
+                        return fs::write(
+                            session.downloads.join(format!("validation-{kind}.xlsx")),
+                            calc_cases::fixtures::sort_metadata(&bytes, kind)?,
+                        )
+                        .map_err(|e| e.to_string());
+                    }
                     let name = "xl/worksheets/sheet1.xml";
                     let xml =
                         std::str::from_utf8(parts.get(name).ok_or("no validation worksheet")?)
                             .map_err(|e| e.to_string())?;
                     if *kind != "list" {
-                        let mut xml=xml.to_owned();
-                        if *kind=="audit" {
-                            let cell="<c r=\"A1\"><f>1</f><v>1</v></c>";
-                            if let Some(start)=xml.find("<c r=\"A1\"") {
-                                let end=start+xml[start..].find("</c>").ok_or("unclosed A1")?+4;
-                                xml.replace_range(start..end,cell);
-                            } else if let Some(row)=xml.find("<row r=\"1\"") {
-                                let start=row+xml[row..].find('>').ok_or("unclosed row")?+1;
-                                xml.insert_str(start,cell);
+                        let mut xml = xml.to_owned();
+                        if *kind == "audit" {
+                            let cell = "<c r=\"A1\"><f>1</f><v>1</v></c>";
+                            if let Some(start) = xml.find("<c r=\"A1\"") {
+                                let end =
+                                    start + xml[start..].find("</c>").ok_or("unclosed A1")? + 4;
+                                xml.replace_range(start..end, cell);
+                            } else if let Some(row) = xml.find("<row r=\"1\"") {
+                                let start = row + xml[row..].find('>').ok_or("unclosed row")? + 1;
+                                xml.insert_str(start, cell);
                             } else {
-                                let start=xml.find("<sheetData>").ok_or("no sheet data")?+"<sheetData>".len();
-                                xml.insert_str(start,&format!("<row r=\"1\">{cell}</row>"));
+                                let start = xml.find("<sheetData>").ok_or("no sheet data")?
+                                    + "<sheetData>".len();
+                                xml.insert_str(start, &format!("<row r=\"1\">{cell}</row>"));
                             }
-                        } else if *kind=="candidate" {
-                            let rule=r#"<dataValidation type="custom" allowBlank="1" showErrorMessage="1" errorTitle="Positive only" error="Enter a positive result" sqref="M1:M5"><formula1>M1&gt;0</formula1></dataValidation>"#;
-                            xml=xml.replace("<dataValidations count=\"8\">","<dataValidations count=\"9\">").replace("</dataValidations>",&format!("{rule}</dataValidations>"));
-                        } else {return Err("Unknown validation fixture variation".into());}
-                        let bytes=crate::oracle_cases::replace_package_parts(&bytes,&std::collections::BTreeMap::from([(name.to_owned(),xml.into_bytes())]))?;
-                        return fs::write(session.downloads.join(format!("validation-{kind}.xlsx")),bytes).map_err(|e|e.to_string());
+                        } else if *kind == "candidate" {
+                            let rule = r#"<dataValidation type="custom" allowBlank="1" showErrorMessage="1" errorTitle="Positive only" error="Enter a positive result" sqref="M1:M5"><formula1>M1&gt;0</formula1></dataValidation>"#;
+                            xml = xml
+                                .replace(
+                                    "<dataValidations count=\"8\">",
+                                    "<dataValidations count=\"9\">",
+                                )
+                                .replace(
+                                    "</dataValidations>",
+                                    &format!("{rule}</dataValidations>"),
+                                );
+                        } else {
+                            return Err("Unknown validation fixture variation".into());
+                        }
+                        let bytes = crate::oracle_cases::replace_package_parts(
+                            &bytes,
+                            &std::collections::BTreeMap::from([(
+                                name.to_owned(),
+                                xml.into_bytes(),
+                            )]),
+                        )?;
+                        return fs::write(
+                            session.downloads.join(format!("validation-{kind}.xlsx")),
+                            bytes,
+                        )
+                        .map_err(|e| e.to_string());
                     }
                     if !xml.contains("\"Red,Green,Blue\"") {
                         return Err("The retained validation list fixture changed".into());
@@ -2094,7 +2181,12 @@ fn act(ws: &Workspace, app: &App, session: &Session, action: &Action) -> Result<
                     return fs::write(session.downloads.join("validation-list.xlsx"), bytes)
                         .map_err(|e| e.to_string());
                 }
-                if let Some(view)=match action {Action::ViewDownloadFixture(view)|Action::ViewDownloadFixtureFor(_,view)=>Some(view),_=>None} {
+                if let Some(view) = match action {
+                    Action::ViewDownloadFixture(view) | Action::ViewDownloadFixtureFor(_, view) => {
+                        Some(view)
+                    }
+                    _ => None,
+                } {
                     let name = "xl/worksheets/sheet1.xml";
                     let xml = std::str::from_utf8(parts.get(name).ok_or("no worksheet part")?)
                         .map_err(|e| e.to_string())?;
@@ -2222,8 +2314,16 @@ fn act(ws: &Workspace, app: &App, session: &Session, action: &Action) -> Result<
                     array: calc_doc::SessionArray::Plain,
                 }),
                 constants: vec![
-                    calc_doc::SessionConstant { row: 1, column: 1, value: calc_doc::SessionValue::Number(3.0) },
-                    calc_doc::SessionConstant { row: 2, column: 1, value: calc_doc::SessionValue::Number(4.0) },
+                    calc_doc::SessionConstant {
+                        row: 1,
+                        column: 1,
+                        value: calc_doc::SessionValue::Number(3.0),
+                    },
+                    calc_doc::SessionConstant {
+                        row: 2,
+                        column: 1,
+                        value: calc_doc::SessionValue::Number(4.0),
+                    },
                 ],
                 custom: None,
                 date_1904: false,
@@ -2260,7 +2360,16 @@ fn act(ws: &Workspace, app: &App, session: &Session, action: &Action) -> Result<
             upload(
                 app,
                 session,
-                match action { Action::UploadDownloadTo(_,role)=>role,_=>if app.key=="onecalc" {"file-input"}else{"open-file"} },
+                match action {
+                    Action::UploadDownloadTo(_, role) => role,
+                    _ => {
+                        if app.key == "onecalc" {
+                            "file-input"
+                        } else {
+                            "open-file"
+                        }
+                    }
+                },
                 &path,
             )
         }
@@ -2280,8 +2389,15 @@ fn act(ws: &Workspace, app: &App, session: &Session, action: &Action) -> Result<
                     // action that follows (opening a details panel, choosing in a list) must act on
                     // the new workbook: on the old page it is lost when the page is replaced
                     // (a reopened chart case found its chart tools closed, dc-0f1k.11.3).
-                    if let Some(failure) = wait_for(app, session, &Check::Absent("[data-dnacalc=app][inert]"), settle()) {
-                        return Err(format!("the replacement workbook did not become interactive: {failure}"));
+                    if let Some(failure) = wait_for(
+                        app,
+                        session,
+                        &Check::Absent("[data-dnacalc=app][inert]"),
+                        settle(),
+                    ) {
+                        return Err(format!(
+                            "the replacement workbook did not become interactive: {failure}"
+                        ));
                     }
                     return Ok(());
                 }
@@ -2291,11 +2407,13 @@ fn act(ws: &Workspace, app: &App, session: &Session, action: &Action) -> Result<
         }
         Action::Click(name) => act_click(app, session, name),
         Action::CtrlClick(name) => {
-            if renderer::cell_rect(app,session,name)?.is_some() {
+            if renderer::cell_rect(app, session, name)?.is_some() {
                 session.post("/actions",json!({"actions":[{"type":"key","id":"modifiers","actions":[{"type":"keyDown","value":"\u{E009}"}]}]}))?;
-                let clicked=renderer::click_cell(app,session,name,false);
+                let clicked = renderer::click_cell(app, session, name, false);
                 let released=session.post("/actions",json!({"actions":[{"type":"key","id":"modifiers","actions":[{"type":"keyUp","value":"\u{E009}"}]}]}));
-                clicked?; released?; return Ok(());
+                clicked?;
+                released?;
+                return Ok(());
             }
             let element = session.element(&select(app, name))?;
             session.post("/actions",json!({"actions":[
@@ -2305,10 +2423,30 @@ fn act(ws: &Workspace, app: &App, session: &Session, action: &Action) -> Result<
             Ok(())
         }
         Action::DragOutside(name) => {
-            let (origin,start_x,start_y)=if let Some(rect)=renderer::cell_rect(app,session,name)? {
-                if rect["reachable"]!=true {return Err(format!("Canvas drag source is obscured or clipped: {rect}"));}
-                (json!("viewport"),rect["visible_point"][0].as_f64().ok_or("missing drag x")?.round() as i64,rect["visible_point"][1].as_f64().ok_or("missing drag y")?.round() as i64)
-            }else{(json!({"element-6066-11e4-a52e-4f735466cecf":session.element(&select(app,name))?}),0,0)};
+            let (origin, start_x, start_y) = if let Some(rect) =
+                renderer::cell_rect(app, session, name)?
+            {
+                if rect["reachable"] != true {
+                    return Err(format!("Canvas drag source is obscured or clipped: {rect}"));
+                }
+                (
+                    json!("viewport"),
+                    rect["visible_point"][0]
+                        .as_f64()
+                        .ok_or("missing drag x")?
+                        .round() as i64,
+                    rect["visible_point"][1]
+                        .as_f64()
+                        .ok_or("missing drag y")?
+                        .round() as i64,
+                )
+            } else {
+                (
+                    json!({"element-6066-11e4-a52e-4f735466cecf":session.element(&select(app,name))?}),
+                    0,
+                    0,
+                )
+            };
             let coordinates=session.script("var r=document.querySelector('[data-dnacalc=grid]').getBoundingClientRect();return [Math.round(r.left+90),Math.min(innerHeight-2,Math.round(r.bottom+24))];")?;
             let x = coordinates[0].as_i64().ok_or("drag x")?;
             let y = coordinates[1].as_i64().ok_or("drag y")?;
@@ -2356,7 +2494,9 @@ fn act(ws: &Workspace, app: &App, session: &Session, action: &Action) -> Result<
             Ok(())
         }
         Action::DoubleClick(name) => {
-            if renderer::click_cell(app,session,name,true)? { return Ok(()); }
+            if renderer::click_cell(app, session, name, true)? {
+                return Ok(());
+            }
             let element = session.element(&select(app, name))?;
             session.post("/actions", json!({"actions":[{"type":"pointer","id":"mouse","parameters":{"pointerType":"mouse"},"actions":[
                 {"type":"pointerMove","duration":0,"origin":{"element-6066-11e4-a52e-4f735466cecf":element},"x":0,"y":0},
@@ -2366,17 +2506,25 @@ fn act(ws: &Workspace, app: &App, session: &Session, action: &Action) -> Result<
             Ok(())
         }
         Action::Drag(from, to) => {
-            let point=|name:&str| -> Result<Value,String> {
-                if let Some(rect)=renderer::cell_rect(app,session,name)? {
-                    if rect["reachable"]!=true {return Err(format!("Canvas drag endpoint is obscured or clipped: {rect}"));}
-                    Ok(json!({"type":"pointerMove","duration":200,"origin":"viewport","x":rect["visible_point"][0].as_f64().ok_or("missing drag x")?.round() as i64,"y":rect["visible_point"][1].as_f64().ok_or("missing drag y")?.round() as i64}))
+            let point = |name: &str| -> Result<Value, String> {
+                if let Some(rect) = renderer::cell_rect(app, session, name)? {
+                    if rect["reachable"] != true {
+                        return Err(format!(
+                            "Canvas drag endpoint is obscured or clipped: {rect}"
+                        ));
+                    }
+                    Ok(
+                        json!({"type":"pointerMove","duration":200,"origin":"viewport","x":rect["visible_point"][0].as_f64().ok_or("missing drag x")?.round() as i64,"y":rect["visible_point"][1].as_f64().ok_or("missing drag y")?.round() as i64}),
+                    )
                 } else {
-                    Ok(json!({"type":"pointerMove","duration":200,"origin":{"element-6066-11e4-a52e-4f735466cecf":session.element(&select(app,name))?},"x":0,"y":0}))
+                    Ok(
+                        json!({"type":"pointerMove","duration":200,"origin":{"element-6066-11e4-a52e-4f735466cecf":session.element(&select(app,name))?},"x":0,"y":0}),
+                    )
                 }
             };
-            let mut start=point(from)?;
-            start["duration"]=json!(0);
-            let end=point(to)?;
+            let mut start = point(from)?;
+            start["duration"] = json!(0);
+            let end = point(to)?;
             session.post("/actions", json!({"actions":[{"type":"pointer","id":"mouse","parameters":{"pointerType":"mouse"},"actions":[
                 start,
                 {"type":"pointerDown","button":0},
@@ -2420,12 +2568,21 @@ fn act(ws: &Workspace, app: &App, session: &Session, action: &Action) -> Result<
                 session.keys(&select(app, "grid"), "\u{E00C}")?;
             }
             session.post("/actions",json!({"actions":[{"type":"pointer","id":"mouse","parameters":{"pointerType":"mouse"},"actions":[{"type":"pointerUp","button":0}]}]}))?;
-            println!("{} RESIZE {}: {}",app.label,name,session.script("return window.__dcResizeTrace;")?);
+            println!(
+                "{} RESIZE {}: {}",
+                app.label,
+                name,
+                session.script("return window.__dcResizeTrace;")?
+            );
             Ok(())
         }
         Action::DragSelectionToCell(row, col, copy, cancel) => {
             let xy = session.script(&format!("var s=document.querySelector('[data-dnacalc=selection]').getBoundingClientRect();var c=document.querySelector('[data-dnacalc=column-header][data-column=\"{col}\"]').getBoundingClientRect();var r=document.querySelector('[data-dnacalc=row-header][data-row=\"{row}\"]').getBoundingClientRect();return [Math.round(s.left+4),Math.round(s.top+3),Math.round(c.left+c.width/2),Math.round(r.top+r.height/2)];"))?;
-            let modifier = if *copy {json!({"type":"keyDown","value":"\u{E009}"})} else {json!({"type":"pause","duration":0})};
+            let modifier = if *copy {
+                json!({"type":"keyDown","value":"\u{E009}"})
+            } else {
+                json!({"type":"pause","duration":0})
+            };
             let result = (|| -> Result<(), String> {
                 session.post("/actions",json!({"actions":[
                     {"type":"key","id":"range-modifier","actions":[modifier,{"type":"pause","duration":0},{"type":"pause","duration":0}]},
@@ -2436,13 +2593,22 @@ fn act(ws: &Workspace, app: &App, session: &Session, action: &Action) -> Result<
                     ]}
                 ]}))?;
                 if *cancel {
-                    if let Some(reason)=wait_for(app,session,&Check::Rendered("move-preview",true),Duration::from_secs(5)) {return Err(reason);}
+                    if let Some(reason) = wait_for(
+                        app,
+                        session,
+                        &Check::Rendered("move-preview", true),
+                        Duration::from_secs(5),
+                    ) {
+                        return Err(reason);
+                    }
                     session.post("/actions",json!({"actions":[{"type":"key","id":"range-cancel","actions":[{"type":"keyDown","value":"\u{E00C}"},{"type":"keyUp","value":"\u{E00C}"}]}]}))?;
                 }
                 Ok(())
             })();
             let release = session.post("/actions",json!({"actions":[{"type":"pointer","id":"mouse","parameters":{"pointerType":"mouse"},"actions":[{"type":"pointerUp","button":0}]}]}));
-            if *copy {session.post("/actions",json!({"actions":[{"type":"key","id":"range-modifier","actions":[{"type":"keyUp","value":"\u{E009}"}]}]}))?;}
+            if *copy {
+                session.post("/actions",json!({"actions":[{"type":"key","id":"range-modifier","actions":[{"type":"keyUp","value":"\u{E009}"}]}]}))?;
+            }
             result?;
             release?;
             Ok(())
@@ -2450,10 +2616,19 @@ fn act(ws: &Workspace, app: &App, session: &Session, action: &Action) -> Result<
         Action::DragToCell(from, row, col) => {
             // Like RememberView, wait for name-box navigation to finish before reading
             // geometry: the old handle can exist while the new target headers do not.
-            if let Some(reason)=wait_for(app,session,&Check::Absent("[data-dnacalc=skin-grid][disabled]"),settle()){return Err(reason);}
-            if let Some(reason)=wait_for(app,session,&Check::PlanReady,settle()){return Err(reason);}
-            let started=Instant::now();
-            let xy=loop {
+            if let Some(reason) = wait_for(
+                app,
+                session,
+                &Check::Absent("[data-dnacalc=skin-grid][disabled]"),
+                settle(),
+            ) {
+                return Err(reason);
+            }
+            if let Some(reason) = wait_for(app, session, &Check::PlanReady, settle()) {
+                return Err(reason);
+            }
+            let started = Instant::now();
+            let xy = loop {
                 let xy=session.script(&format!(r#"
                     var g=document.querySelector('[data-dnacalc=grid]'),b=g.getBoundingClientRect();
                     var c=document.querySelector('[data-dnacalc=column-header][data-column="{col}"]'),r=document.querySelector('[data-dnacalc=row-header][data-row="{row}"]');
@@ -2465,11 +2640,25 @@ fn act(ws: &Workspace, app: &App, session: &Session, action: &Action) -> Result<
                     if(cr&&rr&&cr.width>0&&rr.height>0&&!dx&&!dy)return [Math.round(x),Math.round(y)];
                     return {{dx,dy}};
                 "#))?;
-                if xy.is_array(){break xy;}
-                if started.elapsed()>=settle(){return Err(format!("Fill target {col}{row} did not acquire rendered headers"));}
+                if xy.is_array() {
+                    break xy;
+                }
+                if started.elapsed() >= settle() {
+                    return Err(format!(
+                        "Fill target {col}{row} did not acquire rendered headers"
+                    ));
+                }
                 // Use the same real wheel action as ScrollGrid, without changing selection.
-                let dx=8 * xy["dx"].as_i64().unwrap_or(0) as i32;let dy=8 * xy["dy"].as_i64().unwrap_or(0) as i32;
-                if dx!=0||dy!=0{act(ws,app,session,&Action::ScrollGrid(dx,dy))?;if let Some(reason)=wait_for(app,session,&Check::PlanReady,settle()){return Err(reason);}}else{thread::sleep(Duration::from_millis(20));}
+                let dx = 8 * xy["dx"].as_i64().unwrap_or(0) as i32;
+                let dy = 8 * xy["dy"].as_i64().unwrap_or(0) as i32;
+                if dx != 0 || dy != 0 {
+                    act(ws, app, session, &Action::ScrollGrid(dx, dy))?;
+                    if let Some(reason) = wait_for(app, session, &Check::PlanReady, settle()) {
+                        return Err(reason);
+                    }
+                } else {
+                    thread::sleep(Duration::from_millis(20));
+                }
             };
             let from = session.element(&select(app, from))?;
             session.post("/actions",json!({"actions":[{"type":"pointer","id":"mouse","parameters":{"pointerType":"mouse"},"actions":[{"type":"pointerMove","duration":0,"origin":{"element-6066-11e4-a52e-4f735466cecf":from},"x":0,"y":0},{"type":"pointerDown","button":0},{"type":"pointerMove","duration":200,"origin":"viewport","x":xy[0],"y":xy[1]},{"type":"pointerUp","button":0}]}]}))?;
@@ -2511,11 +2700,17 @@ fn act(ws: &Workspace, app: &App, session: &Session, action: &Action) -> Result<
             if let Some(reason) = wait_for(app, session, &Check::PlanReady, settle()) {
                 return Err(reason);
             }
-            let started=Instant::now();
+            let started = Instant::now();
             loop {
                 let current=session.script(&format!("{READ_PLANS}var p=plans[0],g=document.querySelector('[data-dnacalc=grid][data-grid-active=true]');return !!p&&!p.pending&&!!g&&p.plan.viewport.width===g.clientWidth&&p.plan.viewport.height===g.clientHeight;"))?;
-                if current.as_bool()==Some(true) {break;}
-                if started.elapsed()>settle() {return Err("The committed viewport does not match the actual active grid".into());}
+                if current.as_bool() == Some(true) {
+                    break;
+                }
+                if started.elapsed() > settle() {
+                    return Err(
+                        "The committed viewport does not match the actual active grid".into(),
+                    );
+                }
                 thread::sleep(Duration::from_millis(100));
             }
             session.script(&format!(
@@ -2569,11 +2764,11 @@ fn act(ws: &Workspace, app: &App, session: &Session, action: &Action) -> Result<
             upload(app, session, name, &path)
         }
         Action::UploadAs(name, path, filename) => {
-            if Path::new(filename).file_name().and_then(|n|n.to_str()) != Some(filename) {
+            if Path::new(filename).file_name().and_then(|n| n.to_str()) != Some(filename) {
                 return Err("Use one test filename".into());
             }
             let target = session.downloads.join(filename);
-            fs::copy(ws.root.join(path), &target).map_err(|e|e.to_string())?;
+            fs::copy(ws.root.join(path), &target).map_err(|e| e.to_string())?;
             upload(app, session, name, &target)
         }
         Action::ScrollTo(name, top, left) => {
@@ -2611,7 +2806,11 @@ fn session_field(bytes: &[u8], field: &str) -> Result<String, String> {
             .unwrap_or_default()
     };
     Ok(match field {
-        "/formula" => file.formula.as_ref().map(|f| f.text.clone()).unwrap_or_default(),
+        "/formula" => file
+            .formula
+            .as_ref()
+            .map(|f| f.text.clone())
+            .unwrap_or_default(),
         "/array" => file
             .formula
             .as_ref()
@@ -2621,14 +2820,22 @@ fn session_field(bytes: &[u8], field: &str) -> Result<String, String> {
         "/locale" => option("locale"),
         "/number-format" => option("numberFormat"),
         "/date-system" => if file.date_1904 { "1904" } else { "1900" }.to_owned(),
-        "/cached" => file.cached.as_ref().map(|v| format!("{v:?}")).unwrap_or_default(),
+        "/cached" => file
+            .cached
+            .as_ref()
+            .map(|v| format!("{v:?}"))
+            .unwrap_or_default(),
         other => {
-            let address = other.strip_prefix("/cell/").ok_or(format!("no field {other}"))?;
-            let split = address.find(|c: char| c.is_ascii_digit()).ok_or("an address")?;
+            let address = other
+                .strip_prefix("/cell/")
+                .ok_or(format!("no field {other}"))?;
+            let split = address
+                .find(|c: char| c.is_ascii_digit())
+                .ok_or("an address")?;
             let (letters, digits) = address.split_at(split);
-            let column = letters
-                .bytes()
-                .fold(0u32, |n, b| n * 26 + u32::from(b.to_ascii_uppercase() - b'A' + 1));
+            let column = letters.bytes().fold(0u32, |n, b| {
+                n * 26 + u32::from(b.to_ascii_uppercase() - b'A' + 1)
+            });
             let row: u32 = digits.parse().map_err(|_| "a row")?;
             match file
                 .constants
@@ -2669,7 +2876,11 @@ fn read_download_once(path: &Path) -> Result<Vec<u8>, String> {
 fn saved_download(dir: &Path, name: &str) -> Result<PathBuf, String> {
     let path = Path::new(name);
     let stem = path.file_stem().and_then(|s| s.to_str()).unwrap_or(name);
-    let ext = path.extension().and_then(|s| s.to_str()).map(|e| format!(".{e}")).unwrap_or_default();
+    let ext = path
+        .extension()
+        .and_then(|s| s.to_str())
+        .map(|e| format!(".{e}"))
+        .unwrap_or_default();
     let started = Instant::now();
     loop {
         let mut candidates: Vec<(std::time::SystemTime, PathBuf)> = fs::read_dir(dir)
@@ -2683,9 +2894,18 @@ fn saved_download(dir: &Path, name: &str) -> Result<PathBuf, String> {
                                 .strip_prefix(stem)
                                 .and_then(|rest| rest.strip_suffix(&ext))
                                 .and_then(|rest| rest.strip_prefix('(')?.strip_suffix(')'))
-                                .is_some_and(|n| !n.is_empty() && n.bytes().all(|b| b.is_ascii_digit()))
+                                .is_some_and(|n| {
+                                    !n.is_empty() && n.bytes().all(|b| b.is_ascii_digit())
+                                })
                     })
-                    .map(|e| (e.metadata().and_then(|m| m.modified()).unwrap_or(std::time::UNIX_EPOCH), e.path()))
+                    .map(|e| {
+                        (
+                            e.metadata()
+                                .and_then(|m| m.modified())
+                                .unwrap_or(std::time::UNIX_EPOCH),
+                            e.path(),
+                        )
+                    })
                     .collect()
             })
             .unwrap_or_default();
@@ -2710,7 +2930,12 @@ fn downloaded_bytes(path: &Path) -> Result<Vec<u8>, String> {
         let result = read_download_once(path);
         match result {
             Ok(bytes) => return Ok(bytes),
-            Err(error) if started.elapsed() >= settle() => return Err(format!("download {} is incomplete: {error}", path.display())),
+            Err(error) if started.elapsed() >= settle() => {
+                return Err(format!(
+                    "download {} is incomplete: {error}",
+                    path.display()
+                ));
+            }
             Err(_) => thread::sleep(Duration::from_millis(50)),
         }
     }
@@ -2742,8 +2967,13 @@ fn wait_for(app: &App, session: &Session, check: &Check, settle: Duration) -> Op
                 session.script(&format!("var e=document.querySelector('{}');return {{viewport:[innerWidth,innerHeight],scroll:[scrollX,scrollY],rect:e?.getBoundingClientRect().toJSON(),ancestors:e?Array.from((function*(n){{for(;n;n=n.parentElement)yield n;}})(e)).slice(0,8).map(n=>({{tag:n.tagName,role:n.getAttribute('data-dnacalc'),rect:n.getBoundingClientRect().toJSON(),overflow:getComputedStyle(n).overflow}})):[]}};",select(app,name))).map(|v|format!("; geometry {v}")).unwrap_or_default()
             } else if matches!(check, Check::PlanCell(..) | Check::PlanAbsent(_)) {
                 session.script(&format!(r#"{READ_PLANS}return {{held:window.__dcViews,active:document.querySelector('[data-dnacalc=name-box]')?.value,status:document.querySelector('[data-dnacalc=status]')?.textContent,plans:plans.map(p=>({{pane:p.pane,pending:p.pending,viewport:p.plan.viewport,scale:p.plan.scale,range:[p.plan.cells[0]?.address,p.plan.cells.at(-1)?.address],cells:p.plan.cells.filter(c=>c.shown.text).slice(-16).map(c=>[c.address,c.shown.text,c.shown.provenance])}}))}};"#)).map(|v|format!("; rendered state {v}")).unwrap_or_default()
-            } else { String::new() };
-            return Some(format!("expected {}; saw {last}{geometry}", describe(check)));
+            } else {
+                String::new()
+            };
+            return Some(format!(
+                "expected {}; saw {last}{geometry}",
+                describe(check)
+            ));
         }
         thread::sleep(Duration::from_millis(100));
     }
@@ -2751,7 +2981,14 @@ fn wait_for(app: &App, session: &Session, check: &Check, settle: Duration) -> Op
 
 /// A step that took over a second is named, so a slow late-run case shows which step is slow
 /// (dc-0f1k.11.3) rather than only that its wait ran out.
-fn note_slow_step(app: &App, session: &Session, case: &Case, kind: &str, number: usize, started: Instant) {
+fn note_slow_step(
+    app: &App,
+    session: &Session,
+    case: &Case,
+    kind: &str,
+    number: usize,
+    started: Instant,
+) {
     let elapsed = started.elapsed();
     if elapsed >= Duration::from_secs(1) {
         // The page's own diagnostics line separates the worker's time from the browser's:
@@ -2766,7 +3003,12 @@ fn note_slow_step(app: &App, session: &Session, case: &Case, kind: &str, number:
             .ok()
             .and_then(|v| v.as_str().map(str::to_owned))
             .unwrap_or_default();
-        println!("{} SLOW {kind} {number} of \"{}\": {:.0} ms; main-thread stalls [start ms, length ms] {stalls}; {worker}", app.label, case.name, elapsed.as_secs_f64() * 1000.);
+        println!(
+            "{} SLOW {kind} {number} of \"{}\": {:.0} ms; main-thread stalls [start ms, length ms] {stalls}; {worker}",
+            app.label,
+            case.name,
+            elapsed.as_secs_f64() * 1000.
+        );
     }
 }
 
@@ -2786,7 +3028,7 @@ fn run_case(ws: &Workspace, app: &App, session: &Session, case: &Case) -> Vec<St
                     failures.push(format!("keyboard page state: {state}"));
                 }
             }
-            record_input_trace(session,&mut failures);
+            record_input_trace(session, &mut failures);
             return failures;
         }
     }
@@ -2796,7 +3038,9 @@ fn run_case(ws: &Workspace, app: &App, session: &Session, case: &Case) -> Vec<St
         note_slow_step(app, session, case, "check", index + 1, step_started);
         if let Some(failure) = checked {
             failures.push(failure);
-            if !rendered_state_recorded && matches!(check, Check::PlanCell(..) | Check::PlanAbsent(_)) {
+            if !rendered_state_recorded
+                && matches!(check, Check::PlanCell(..) | Check::PlanAbsent(_))
+            {
                 rendered_state_recorded = true;
                 if let Ok(state) = session.script(&format!(r#"{READ_PLANS}return {{window:[innerWidth,innerHeight],active:document.querySelector('[data-dnacalc=name-box]')?.value,status:document.querySelector('[data-dnacalc=status]')?.textContent,grids:Array.from(document.querySelectorAll('[data-dnacalc=grid]')).map(g=>({{rect:g.getBoundingClientRect().toJSON(),scroll:[g.scrollLeft,g.scrollTop]}})),plans:plans.map(p=>({{pane:p.pane,pending:p.pending,viewport:p.plan.viewport,publication:p.plan.publication,range:[p.plan.cells[0]?.address,p.plan.cells.at(-1)?.address],formulas:p.plan.cells.filter(c=>c.shown.formula).slice(0,32).map(c=>[c.address,c.shown.text,c.shown.formula,c.shown.provenance])}}))}};"#)) {
                     failures.push(format!("rendered page state: {state}"));
@@ -2814,13 +3058,15 @@ fn run_case(ws: &Workspace, app: &App, session: &Session, case: &Case) -> Vec<St
         Ok(list) => failures.extend(list.into_iter().map(|f| format!("page fault: {f}"))),
         Err(e) => failures.push(format!("cannot read the fault record: {e}")),
     }
-    record_input_trace(session,&mut failures);
+    record_input_trace(session, &mut failures);
     failures
 }
 
 /// Optional diagnostics from a locally instrumented bundle; ordinary pages have no trace.
-fn record_input_trace(session:&Session,failures:&mut Vec<String>){
-    if failures.is_empty(){return;}
+fn record_input_trace(session: &Session, failures: &mut Vec<String>) {
+    if failures.is_empty() {
+        return;
+    }
     if let Ok(state)=session.script(&format!(r#"if(!window.__dcInputTrace)return null;{READ_PLANS}return {{trace:window.__dcInputTrace.slice(-3000),focus:document.activeElement?.getAttribute('data-dnacalc'),active:document.querySelector('[data-dnacalc=name-box]')?.value,grids:Array.from(document.querySelectorAll('[data-dnacalc=grid]')).map(g=>({{rect:g.getBoundingClientRect().toJSON(),scroll:[g.scrollLeft,g.scrollTop]}})),plans:plans.map(p=>({{pane:p.pane,pending:p.pending,viewport:p.plan.viewport,publication:p.plan.publication,range:[p.plan.cells[0]?.address,p.plan.cells.at(-1)?.address],cells:p.plan.cells.filter(c=>c.shown.text||c.shown.formula).slice(0,24).map(c=>[c.address,c.shown.text,c.shown.formula])}}))}};"#)){
         if !state.is_null(){failures.push(format!("input trace: {state}"));}
     }
@@ -3133,12 +3379,15 @@ fn reveal(session: &Session, css: &str) -> Result<(), String> {
 }
 
 fn act_click(app: &App, session: &Session, name: &str) -> Result<(), String> {
-    if renderer::click_cell(app,session,name,false)? { return Ok(()); }
+    if renderer::click_cell(app, session, name, false)? {
+        return Ok(());
+    }
     let selector = select(app, name);
     if app.role_attribute == "data-onecalc" {
         reveal(session, &selector)?;
     }
-    if name.starts_with("skin-") || matches!(name, "save" | "new" | "name-manager" | "format-apply") {
+    if name.starts_with("skin-") || matches!(name, "save" | "new" | "name-manager" | "format-apply")
+    {
         // These buttons are disabled until earlier workbook input has answered. WebDriver
         // reports a successful click on a disabled button without dispatching it. Wait for
         // the same availability a person sees before making the ordinary pointer click.
@@ -3230,12 +3479,16 @@ fn start_group(app: &App, session: &Session, page: &str) -> Result<(), String> {
 fn desktop_skip(app: &App, group: &CaseGroup, _selected: &[usize]) -> Option<&'static str> {
     // OneCalc's desktop saves through its own native dialog, which needs a person.
     if app.key == "onecalc" && group.name.ends_with("-browser") {
-        return Some("the native save dialog needs a person; the browser's own download folder is read");
+        return Some(
+            "the native save dialog needs a person; the browser's own download folder is read",
+        );
     }
     // The fault page serves a worker script that fails to start; the desktop's worker is the native
     // server and has no script to fail, so the browser's Worker startup error cannot occur there.
     if app.key == "calc" && group.name == "worker-fault" {
-        return Some("a browser Worker whose script fails to start has no desktop equivalent: the desktop worker is native");
+        return Some(
+            "a browser Worker whose script fails to start has no desktop equivalent: the desktop worker is native",
+        );
     }
     None
 }
@@ -3275,9 +3528,18 @@ fn run_browser(
                 if let Some(reason) = desktop_skip(app, group, &selected) {
                     skipped += selected.len();
                     for &index in &selected {
-                        println!("{} SMOKE {} skipped: {} ({reason})", app.label, browser.name, app.cases[index].name);
+                        println!(
+                            "{} SMOKE {} skipped: {} ({reason})",
+                            app.label, browser.name, app.cases[index].name
+                        );
                     }
-                    println!("{} GROUP {} {}: {} skipped ({reason})", app.label, browser.name, group.name, selected.len());
+                    println!(
+                        "{} GROUP {} {}: {} skipped ({reason})",
+                        app.label,
+                        browser.name,
+                        group.name,
+                        selected.len()
+                    );
                     continue;
                 }
             }
@@ -3329,7 +3591,11 @@ fn run_browser(
                             println!("{} OPEN DIALOGS AT FAILURE: {dialogs}",app.label);
                         }
                     }
-                    if case.actions.iter().any(|action|matches!(action,Action::ResizeHeader(..))) {
+                    if case
+                        .actions
+                        .iter()
+                        .any(|action| matches!(action, Action::ResizeHeader(..)))
+                    {
                         if let Ok(context)=session.script(r#"return {resize:window.__dcResizeTrace,active:document.querySelector('[data-dnacalc=name-box]')?.value,status:document.querySelector('[data-dnacalc=status]')?.textContent,focus:document.activeElement?.getAttribute('data-dnacalc'),zoom:document.querySelector('[data-dnacalc=zoom]')?.textContent};"#) {
                             println!("{} RESIZE FAILURE CONTEXT: {context}",app.label);
                         }
@@ -3412,31 +3678,36 @@ fn smoke_selected(
         core: 0,
         setup: &[],
     }];
-    const LATENCY_GROUPS: [CaseGroup; 4] = [CaseGroup {
-        name: "worker-latency",
-        start: 0,
-        end: 22,
-        core: 0,
-        setup: &[],
-    }, CaseGroup {
-        name: "array-detail-latency",
-        start: 22,
-        end: 24,
-        core: 0,
-        setup: &[],
-    }, CaseGroup {
-        name: "review-latency",
-        start: 24,
-        end: 27,
-        core: 0,
-        setup: &[],
-    }, CaseGroup {
-        name: "namebox-latency",
-        start: 27,
-        end: CALC_LATENCY_CASES.len(),
-        core: 0,
-        setup: &[],
-    }];
+    const LATENCY_GROUPS: [CaseGroup; 4] = [
+        CaseGroup {
+            name: "worker-latency",
+            start: 0,
+            end: 22,
+            core: 0,
+            setup: &[],
+        },
+        CaseGroup {
+            name: "array-detail-latency",
+            start: 22,
+            end: 24,
+            core: 0,
+            setup: &[],
+        },
+        CaseGroup {
+            name: "review-latency",
+            start: 24,
+            end: 27,
+            core: 0,
+            setup: &[],
+        },
+        CaseGroup {
+            name: "namebox-latency",
+            start: 27,
+            end: CALC_LATENCY_CASES.len(),
+            core: 0,
+            setup: &[],
+        },
+    ];
     let mut fault_app = app.clone();
     fault_app.cases = CALC_WORKER_FAULT_CASES;
     fault_app.groups = &FAULT_GROUPS;
@@ -3530,7 +3801,10 @@ fn smoke_selected(
     // The desktop exe's WebView2, started here and stopped when this function ends.
     let mut desktop_app = None;
     let attached;
-    DESKTOP_SETTLE.store(selection.desktop.is_some(), std::sync::atomic::Ordering::Relaxed);
+    DESKTOP_SETTLE.store(
+        selection.desktop.is_some(),
+        std::sync::atomic::Ordering::Relaxed,
+    );
     let selection = if let Some(exe) = &selection.desktop {
         let upstream = match free_port() {
             Ok(port) => port,
@@ -3541,7 +3815,9 @@ fn smoke_selected(
         };
         // DNA Calc saves through a download; the desktop exe writes it here instead of asking.
         let save_dir = (app.key == "calc").then(|| {
-            ws.root.join("target/app-smoke-downloads").join(format!("desktop-{}", std::process::id()))
+            ws.root
+                .join("target/app-smoke-downloads")
+                .join(format!("desktop-{}", std::process::id()))
         });
         if let Some(dir) = &save_dir {
             if let Err(e) = fs::create_dir_all(dir) {
@@ -3550,21 +3826,29 @@ fn smoke_selected(
             }
         }
         let mut command = Command::new(exe);
-        command.args(["--app", "--url", &page, "--debug-port", &upstream.to_string(), "--size", "1280x1000"]);
+        command.args([
+            "--app",
+            "--url",
+            &page,
+            "--debug-port",
+            &upstream.to_string(),
+            "--size",
+            "1280x1000",
+        ]);
         if let Some(dir) = &save_dir {
             command.arg("--save-dir").arg(dir).arg("--no-print-ui");
         }
-        let child = match command
-            .stdin(Stdio::null())
-            .spawn()
-        {
+        let child = match command.stdin(Stdio::null()).spawn() {
             Ok(child) => child,
             Err(e) => {
                 println!("{} DESKTOP cannot start {}: {e}", app.label, exe.display());
                 return ExitCode::from(1);
             }
         };
-        desktop_app = Some(DriverProcess { child, port: upstream });
+        desktop_app = Some(DriverProcess {
+            child,
+            port: upstream,
+        });
         let started = Instant::now();
         while TcpStream::connect(("127.0.0.1", upstream)).is_err() {
             if started.elapsed() > Duration::from_secs(60) {
@@ -3595,7 +3879,11 @@ fn smoke_selected(
     } else {
         selection
     };
-    let only = if selection.desktop.is_some() { Some("chromium") } else { only };
+    let only = if selection.desktop.is_some() {
+        Some("chromium")
+    } else {
+        only
+    };
     for browser in BROWSERS
         .iter()
         .filter(|b| only.is_none_or(|name| b.name == name))
@@ -3624,7 +3912,11 @@ fn smoke_selected(
                 summary.push(format!(
                     "{}: {passed} passed, {failed} failed{}, {:.3} s",
                     browser.name,
-                    if skipped > 0 { format!(", {skipped} skipped") } else { String::new() },
+                    if skipped > 0 {
+                        format!(", {skipped} skipped")
+                    } else {
+                        String::new()
+                    },
                     started.elapsed().as_secs_f64()
                 ));
             }
@@ -3713,12 +4005,41 @@ mod tests {
                 app.cases.len()
             );
         }
-        let current_total: usize = APPS.iter().map(|app|SmokeSelection::default().count(app)).sum();
-        let total: usize = APPS.iter().flat_map(|app|app.groups).filter(|group|!matches!(group.name,"chart-formatting"|"chart-text"|"chart-category-combos"|"chart-multi-plot"|"chart-element-text"|"saved-pivots")).map(|group|group.core).sum();
+        let current_total: usize = APPS
+            .iter()
+            .map(|app| SmokeSelection::default().count(app))
+            .sum();
+        let total: usize = APPS
+            .iter()
+            .flat_map(|app| app.groups)
+            .filter(|group| {
+                !matches!(
+                    group.name,
+                    "chart-formatting"
+                        | "chart-text"
+                        | "chart-category-combos"
+                        | "chart-multi-plot"
+                        | "chart-element-text"
+                        | "saved-pivots"
+                )
+            })
+            .map(|group| group.core)
+            .sum();
         let inherited_total: usize = APPS
             .iter()
             .flat_map(|app| app.groups)
-            .filter(|group| !matches!(group.name,"page-layout"|"chart-formatting"|"chart-text"|"chart-category-combos"|"chart-multi-plot"|"chart-element-text"|"saved-pivots"))
+            .filter(|group| {
+                !matches!(
+                    group.name,
+                    "page-layout"
+                        | "chart-formatting"
+                        | "chart-text"
+                        | "chart-category-combos"
+                        | "chart-multi-plot"
+                        | "chart-element-text"
+                        | "saved-pivots"
+                )
+            })
             .map(|group| group.core)
             .sum();
         assert_eq!(
@@ -3729,7 +4050,10 @@ mod tests {
             total, 401,
             "the twelve page-layout cases extend all 389 inherited core cases"
         );
-        assert_eq!(current_total,439,"eight chart and eleven pivot cases extend all 420 inherited core cases, including the nineteen chart and saved-pivot cases");
+        assert_eq!(
+            current_total, 439,
+            "eight chart and eleven pivot cases extend all 420 inherited core cases, including the nineteen chart and saved-pivot cases"
+        );
     }
 
     /// dc-0f1k.9: the stack check passes a stack of the size the bundle asks for with half of it
@@ -3738,12 +4062,30 @@ mod tests {
     #[test]
     fn the_stack_margin_check_fails_a_thin_or_missing_stack() {
         let check = Check::StackMargin("__dnacalcMemory", 8_000_000);
-        assert!(satisfied(&check, &serde_json::json!([8_388_531u64, 1_041_051u64])));
-        assert!(satisfied(&check, &serde_json::json!([8_388_531u64, 4_194_265u64])));
-        assert!(!satisfied(&check, &serde_json::json!([8_388_531u64, 4_194_267u64])));
-        assert!(!satisfied(&check, &serde_json::json!([1_048_531u64, 1_038_408u64])), "the 1 MiB stack the mount crashed on");
-        assert!(!satisfied(&check, &serde_json::json!([1_048_531u64, 100_000u64])), "a stack the build did not enlarge");
-        assert!(!satisfied(&check, &Value::Null), "no memory or stack top in the page");
+        assert!(satisfied(
+            &check,
+            &serde_json::json!([8_388_531u64, 1_041_051u64])
+        ));
+        assert!(satisfied(
+            &check,
+            &serde_json::json!([8_388_531u64, 4_194_265u64])
+        ));
+        assert!(!satisfied(
+            &check,
+            &serde_json::json!([8_388_531u64, 4_194_267u64])
+        ));
+        assert!(
+            !satisfied(&check, &serde_json::json!([1_048_531u64, 1_038_408u64])),
+            "the 1 MiB stack the mount crashed on"
+        );
+        assert!(
+            !satisfied(&check, &serde_json::json!([1_048_531u64, 100_000u64])),
+            "a stack the build did not enlarge"
+        );
+        assert!(
+            !satisfied(&check, &Value::Null),
+            "no memory or stack top in the page"
+        );
     }
 
     #[test]

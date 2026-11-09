@@ -7,15 +7,11 @@
 //! array given to a value parameter and use a binary64 arithmetic site, as before the split.
 
 use super::aggregate::{self, Held, Origin};
-use super::{
-    Parameter, ParameterClass,
-};
+use super::{Parameter, ParameterClass};
 use crate::call::EvalServices;
 use crate::coerce;
 use crate::kernel::{Exit, Site, Step};
-use crate::value::{
-    CalcArray, CalcValue, CoreRef, ExcelText, WorksheetErrorCode,
-};
+use crate::value::{CalcArray, CalcValue, CoreRef, ExcelText, WorksheetErrorCode};
 
 /// Attaches existing kernels to the shared declarations by stable ID.
 macro_rules! attach_family {
@@ -147,7 +143,11 @@ pub(super) fn reject_logical(value: &CalcValue) -> Step<()> {
 }
 
 /// Number coercion at a position whose measured admission excludes logicals.
-pub(super) fn num_without_logical(site: &Site<'_>, arguments: &[CalcValue], index: usize) -> Step<f64> {
+pub(super) fn num_without_logical(
+    site: &Site<'_>,
+    arguments: &[CalcValue],
+    index: usize,
+) -> Step<f64> {
     reject_logical(&arguments[index])?;
     num(site, arguments, index)
 }

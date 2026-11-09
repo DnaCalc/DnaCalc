@@ -36,7 +36,9 @@ impl TracePanel {
             if let Some((_, trace)) = run
                 && let Some(step) = trace.steps.get(index)
             {
-                assist.focus().set(Some(TextSpan::new(step.start, step.len)));
+                assist
+                    .focus()
+                    .set(Some(TextSpan::new(step.start, step.len)));
                 self.at.set(index);
             }
         });
@@ -64,40 +66,110 @@ impl TracePanel {
             }));
         };
         let fresh = move || {
-            panel
-                .run
-                .with(|run| run.as_ref().is_some_and(|(asked, _)| *asked == identity.with_value(|identity| identity())))
+            panel.run.with(|run| {
+                run.as_ref()
+                    .is_some_and(|(asked, _)| *asked == identity.with_value(|identity| identity()))
+            })
         };
         view! {
             <section class="oc-trace" data-onecalc="trace-panel" aria-labelledby="oc-trace-title">
-                <header><h2 id="oc-trace-title">"Evaluation trace"</h2>
-                    <button type="button" data-onecalc="trace-start" on:click=begin>"Trace the formula"</button>
-                    <button type="button" data-onecalc="trace-previous" on:click=move |_| panel.show_step(assist, panel.at.get_untracked().saturating_sub(1))>"Previous step"</button>
-                    <button type="button" data-onecalc="trace-next" on:click=move |_| panel.show_step(assist, panel.at.get_untracked() + 1)>"Next step"</button>
+                <header>
+                    <h2 id="oc-trace-title">"Evaluation trace"</h2>
+                    <button type="button" data-onecalc="trace-start" on:click=begin>
+                        "Trace the formula"
+                    </button>
+                    <button
+                        type="button"
+                        data-onecalc="trace-previous"
+                        on:click=move |_| {
+                            panel.show_step(assist, panel.at.get_untracked().saturating_sub(1))
+                        }
+                    >
+                        "Previous step"
+                    </button>
+                    <button
+                        type="button"
+                        data-onecalc="trace-next"
+                        on:click=move |_| panel.show_step(assist, panel.at.get_untracked() + 1)
+                    >
+                        "Next step"
+                    </button>
                 </header>
-                <p class="oc-prov" role="status" data-onecalc="trace-status">{move || if panel.run.with(Option::is_none) {
-                    "Select part of the formula and press F9 to see its value; Escape restores the formula. Or trace the whole formula, part by part.".to_owned()
-                } else if !fresh() {
-                    "The formula or its inputs changed since this trace. Trace it again.".to_owned()
-                } else {
-                    panel.run.with(|run| run.as_ref().map(|(_, t)| format!("Step {} of {}", panel.at.get() + 1, t.steps.len())).unwrap_or_default())
-                }}</p>
-                <ol class="oc-trace-steps" data-onecalc="trace-steps">{move || {
-                    if !fresh() { return Vec::new(); }
-                    let current = panel.at.get();
-                    panel.run.with(|run| run.as_ref().map(|(_, t)| t.steps.iter().enumerate().map(|(index, step)| {
-                        let class = format!(
-                            "oc-depth-{}{}",
-                            step.depth.min(8),
-                            if index == current { " oc-trace-current" } else { "" }
-                        );
-                        let (text, kind, value) = (step.text.clone(), step.kind.clone(), step.value.clone());
-                        view! { <li class=class data-onecalc="trace-step" on:click=move |_| panel.show_step(assist, index)>
-                            <code data-onecalc="trace-part">{text}</code>" = "<span data-onecalc="trace-value" data-kind=kind>{value}</span>
-                        </li> }
-                    }).collect::<Vec<_>>()).unwrap_or_default())
-                }}</ol>
-                <p class="oc-prov" data-onecalc="trace-note">{move || panel.run.with(|run| run.as_ref().map(|(_, t)| t.note.clone()).unwrap_or_default())}</p>
+                <p class="oc-prov" role="status" data-onecalc="trace-status">
+                    {move || {
+                        if panel.run.with(Option::is_none) {
+                            "Select part of the formula and press F9 to see its value; Escape restores the formula. Or trace the whole formula, part by part."
+                                .to_owned()
+                        } else if !fresh() {
+                            "The formula or its inputs changed since this trace. Trace it again."
+                                .to_owned()
+                        } else {
+                            panel
+                                .run
+                                .with(|run| {
+                                    run.as_ref()
+                                        .map(|(_, t)| {
+                                            format!("Step {} of {}", panel.at.get() + 1, t.steps.len())
+                                        })
+                                        .unwrap_or_default()
+                                })
+                        }
+                    }}
+                </p>
+                <ol class="oc-trace-steps" data-onecalc="trace-steps">
+                    {move || {
+                        if !fresh() {
+                            return Vec::new();
+                        }
+                        let current = panel.at.get();
+                        panel
+                            .run
+                            .with(|run| {
+                                run.as_ref()
+                                    .map(|(_, t)| {
+                                        t.steps
+                                            .iter()
+                                            .enumerate()
+                                            .map(|(index, step)| {
+                                                let class = format!(
+                                                    "oc-depth-{}{}",
+                                                    step.depth.min(8),
+                                                    if index == current { " oc-trace-current" } else { "" },
+                                                );
+                                                let (text, kind, value) = (
+                                                    step.text.clone(),
+                                                    step.kind.clone(),
+                                                    step.value.clone(),
+                                                );
+                                                view! {
+                                                    <li
+                                                        class=class
+                                                        data-onecalc="trace-step"
+                                                        on:click=move |_| panel.show_step(assist, index)
+                                                    >
+                                                        <code data-onecalc="trace-part">{text}</code>
+                                                        " = "
+                                                        <span data-onecalc="trace-value" data-kind=kind>
+                                                            {value}
+                                                        </span>
+                                                    </li>
+                                                }
+                                            })
+                                            .collect::<Vec<_>>()
+                                    })
+                                    .unwrap_or_default()
+                            })
+                    }}
+                </ol>
+                <p class="oc-prov" data-onecalc="trace-note">
+                    {move || {
+                        panel
+                            .run
+                            .with(|run| {
+                                run.as_ref().map(|(_, t)| t.note.clone()).unwrap_or_default()
+                            })
+                    }}
+                </p>
             </section>
         }
     }

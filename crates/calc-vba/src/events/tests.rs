@@ -27,52 +27,129 @@ fn module(name: &str, kind: ModuleKind, source: &str) -> ProjectModule {
 #[cfg_attr(not(target_arch = "wasm32"), test)]
 #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
 fn file_private_worksheet_entries_keep_defaults_byref_state_and_vba_visibility() {
-    let modules = [module("Api", ModuleKind::Standard,
-        "Private Count As Long\nPrivate Function Secret(Optional ByRef x As Double = 3) As Double\n Count = Count + 1\n x = x + 10\n Secret = x + Count\nEnd Function\nPublic Function Internal() As Double\n Internal = Secret(1)\nEnd Function\nPublic Function DnaCalcWorksheetPrivate0() As Long\n DnaCalcWorksheetPrivate0 = 71\nEnd Function\nPrivate Function MissingArgument(Optional x As Variant) As Boolean\n MissingArgument = IsMissing(x)\nEnd Function\n")];
+    let modules = [module(
+        "Api",
+        ModuleKind::Standard,
+        "Private Count As Long\nPrivate Function Secret(Optional ByRef x As Double = 3) As Double\n Count = Count + 1\n x = x + 10\n Secret = x + Count\nEnd Function\nPublic Function Internal() As Double\n Internal = Secret(1)\nEnd Function\nPublic Function DnaCalcWorksheetPrivate0() As Long\n DnaCalcWorksheetPrivate0 = 71\nEnd Function\nPrivate Function MissingArgument(Optional x As Variant) As Boolean\n MissingArgument = IsMissing(x)\nEnd Function\n",
+    )];
     for backend in backends() {
         let explicit = load_project(&modules, 10000, Some(backend)).unwrap();
         assert!(!explicit.functions().contains("Secret"));
         let project = load_file_project(&modules, 10000, Some(backend)).unwrap();
         let functions = project.functions();
-        assert_eq!(functions.call("DnaCalcWorksheetPrivate0", &[]).unwrap().as_number(), Some(71.));
+        assert_eq!(
+            functions
+                .call("DnaCalcWorksheetPrivate0", &[])
+                .unwrap()
+                .as_number(),
+            Some(71.)
+        );
         assert!(!functions.contains("DnaCalcWorksheetPrivate1"));
-        assert_eq!(functions.call("Secret", &[]).unwrap().as_number(), Some(14.));
-        assert_eq!(functions.call("Api.Secret", &[CalcValue::number(2.)]).unwrap().as_number(), Some(14.));
-        assert_eq!(functions.call("Internal", &[]).unwrap().as_number(), Some(14.));
-        assert_eq!(functions.call("MissingArgument", &[]).unwrap().as_logical(), Some(true));
-        assert_eq!(functions.call("MissingArgument", &[CalcValue::number(1.)]).unwrap().as_logical(), Some(false));
+        assert_eq!(
+            functions.call("Secret", &[]).unwrap().as_number(),
+            Some(14.)
+        );
+        assert_eq!(
+            functions
+                .call("Api.Secret", &[CalcValue::number(2.)])
+                .unwrap()
+                .as_number(),
+            Some(14.)
+        );
+        assert_eq!(
+            functions.call("Internal", &[]).unwrap().as_number(),
+            Some(14.)
+        );
+        assert_eq!(
+            functions.call("MissingArgument", &[]).unwrap().as_logical(),
+            Some(true)
+        );
+        assert_eq!(
+            functions
+                .call("MissingArgument", &[CalcValue::number(1.)])
+                .unwrap()
+                .as_logical(),
+            Some(false)
+        );
         project.reset().unwrap();
-        assert_eq!(functions.call("Secret", &[]).unwrap().as_number(), Some(14.));
+        assert_eq!(
+            functions.call("Secret", &[]).unwrap().as_number(),
+            Some(14.)
+        );
         // A second project gets fresh state even when immutable code is reused.
         let other = load_file_project(&modules, 10000, Some(backend)).unwrap();
-        assert_eq!(other.functions().call("Secret", &[]).unwrap().as_number(), Some(14.));
+        assert_eq!(
+            other.functions().call("Secret", &[]).unwrap().as_number(),
+            Some(14.)
+        );
     }
-    let invisible = [modules[0].clone(), module("Other", ModuleKind::Standard,
-        "Public Function Bad() As Double\n Bad = Api.Secret(2)\nEnd Function\n")];
-    assert!(load_file_project(&invisible, 10000, Some(Backend::Interpreter)).is_err(),
-        "worksheet admission cannot make a private procedure visible to another VBA module");
-    let unsupported = [module("Api", ModuleKind::Standard,
-        "Private Function Secret(ParamArray x() As Variant) As Double\n Secret = 1\nEnd Function\n")];
+    let invisible = [
+        modules[0].clone(),
+        module(
+            "Other",
+            ModuleKind::Standard,
+            "Public Function Bad() As Double\n Bad = Api.Secret(2)\nEnd Function\n",
+        ),
+    ];
+    assert!(
+        load_file_project(&invisible, 10000, Some(Backend::Interpreter)).is_err(),
+        "worksheet admission cannot make a private procedure visible to another VBA module"
+    );
+    let unsupported = [module(
+        "Api",
+        ModuleKind::Standard,
+        "Private Function Secret(ParamArray x() As Variant) As Double\n Secret = 1\nEnd Function\n",
+    )];
     let project = load_file_project(&unsupported, 10000, Some(Backend::Interpreter)).unwrap();
     assert!(project.functions().contains("Secret") && project.functions().contains("Api.Secret"));
     let refusal = project.functions().call("Secret", &[]).unwrap_err();
-    assert!(refusal.contains("private worksheet entry") && refusal.contains("dc-snz.15"), "{refusal}");
+    assert!(
+        refusal.contains("private worksheet entry") && refusal.contains("dc-snz.15"),
+        "{refusal}"
+    );
 }
 
 #[cfg_attr(not(target_arch = "wasm32"), test)]
 #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
 fn unsupported_document_events_refuse_admission_and_inactive_source_stays_inactive() {
-    for (kind, name) in [(ModuleKind::Workbook, "Workbook_Activate"), (ModuleKind::Worksheet, "Worksheet_SelectionChange")] {
+    for (kind, name) in [
+        (ModuleKind::Workbook, "Workbook_Activate"),
+        (ModuleKind::Worksheet, "Worksheet_SelectionChange"),
+    ] {
         let source = format!("Private Sub {name}()\nEnd Sub\n");
-        let refusal = load_project(&[module("Doc", kind, &source)], 10000, Some(Backend::Interpreter)).err().unwrap();
-        assert!(refusal.contains(name) && refusal.contains("dc-hsa5.12"), "{refusal}");
+        let refusal = load_project(
+            &[module("Doc", kind, &source)],
+            10000,
+            Some(Backend::Interpreter),
+        )
+        .err()
+        .unwrap();
+        assert!(
+            refusal.contains(name) && refusal.contains("dc-hsa5.12"),
+            "{refusal}"
+        );
         let inactive = format!("#Const IncludeEvent = 0\n#If IncludeEvent Then\n{source}#End If\n");
-        assert!(load_project(&[module("Doc", kind, &inactive)], 10000, Some(Backend::Interpreter)).is_ok());
+        assert!(
+            load_project(
+                &[module("Doc", kind, &inactive)],
+                10000,
+                Some(Backend::Interpreter)
+            )
+            .is_ok()
+        );
     }
-    let renamed = module("Doc", ModuleKind::Workbook,
-        "Attribute VB_Name = \"Other\"\nPrivate Sub Workbook_Open()\nEnd Sub\n");
-    let refusal = load_project(&[renamed], 10000, Some(Backend::Interpreter)).err().unwrap();
-    assert!(refusal.contains("directory identity") && refusal.contains("dc-snz.15"), "{refusal}");
+    let renamed = module(
+        "Doc",
+        ModuleKind::Workbook,
+        "Attribute VB_Name = \"Other\"\nPrivate Sub Workbook_Open()\nEnd Sub\n",
+    );
+    let refusal = load_project(&[renamed], 10000, Some(Backend::Interpreter))
+        .err()
+        .unwrap();
+    assert!(
+        refusal.contains("directory identity") && refusal.contains("dc-snz.15"),
+        "{refusal}"
+    );
 }
 #[cfg_attr(not(target_arch = "wasm32"), test)]
 #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]

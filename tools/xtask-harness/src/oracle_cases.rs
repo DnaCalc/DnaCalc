@@ -391,37 +391,56 @@ mod tests {
     /// Native-only: changes private capture and sidecar files; never starts Excel.
     #[test]
     fn whole_capture_validity_tracks_authored_input_changes_and_removal() {
-        let root = std::env::temp_dir().join(format!("dnacalc-entry-state-{}-{}",std::process::id(),std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).unwrap().as_nanos()));
+        let root = std::env::temp_dir().join(format!(
+            "dnacalc-entry-state-{}-{}",
+            std::process::id(),
+            std::time::SystemTime::now()
+                .duration_since(std::time::UNIX_EPOCH)
+                .unwrap()
+                .as_nanos()
+        ));
         fs::create_dir(&root).unwrap();
         let fixture = root.join("oracle.xlsx");
-        fs::write(&fixture,b"workbook bytes").unwrap();
+        fs::write(&fixture, b"workbook bytes").unwrap();
         let captures = root.join("captures");
         fs::create_dir(&captures).unwrap();
-        let case = super::OracleCase {name:"entry".into(),case:"entry".into(),fixture:fixture.clone(),captures:captures.clone()};
+        let case = super::OracleCase {
+            name: "entry".into(),
+            case: "entry".into(),
+            fixture: fixture.clone(),
+            captures: captures.clone(),
+        };
         let sha = calc_verdict::sha256_hex(b"workbook bytes");
         let mut record = serde_json::json!({"format":"dnacalc-capture-record","version":1,"case":"entry","source":format!("sha256:{sha}"),"acquisition":{"kind":"file_cache_replay"},"environment":null,"sheets":[],"formulas":[],"observations":[]});
         let capture = case.whole_capture();
-        let write_record = |r: &serde_json::Value| fs::write(&capture,serde_json::to_vec(r).unwrap()).unwrap();
+        let write_record =
+            |r: &serde_json::Value| fs::write(&capture, serde_json::to_vec(r).unwrap()).unwrap();
         write_record(&record);
-        assert!(super::whole_state(&case,&sha).is_ok());
+        assert!(super::whole_state(&case, &sha).is_ok());
         let sidecar = fixture.with_extension("entries.json");
         let mut layout = serde_json::json!({"questions":[{"question_id":"q","source_sheet":"S","source_cell":"J20","formula_form":"Dynamic","formula_text":"=1+2","stored_formula_text":"1+2"}]});
-        let write_layout = |l: &serde_json::Value| fs::write(&sidecar,serde_json::to_vec(l).unwrap()).unwrap();
+        let write_layout =
+            |l: &serde_json::Value| fs::write(&sidecar, serde_json::to_vec(l).unwrap()).unwrap();
         write_layout(&layout);
-        assert!(super::whole_state(&case,&sha).is_err());
-        record["source"] = serde_json::json!(format!("sha256:{}",calc_oracle_excel::capture_source_sha256(&fixture,&sha).unwrap()));
+        assert!(super::whole_state(&case, &sha).is_err());
+        record["source"] = serde_json::json!(format!(
+            "sha256:{}",
+            calc_oracle_excel::capture_source_sha256(&fixture, &sha).unwrap()
+        ));
         write_record(&record);
-        assert!(super::whole_state(&case,&sha).is_ok());
+        assert!(super::whole_state(&case, &sha).is_ok());
         layout["file_form_provenance"] = serde_json::json!("different build, same question");
         write_layout(&layout);
-        assert!(super::whole_state(&case,&sha).is_ok());
+        assert!(super::whole_state(&case, &sha).is_ok());
         layout["questions"][0]["source_cell"] = serde_json::json!("J2");
         write_layout(&layout);
-        assert!(super::whole_state(&case,&sha).is_err());
+        assert!(super::whole_state(&case, &sha).is_err());
         fs::remove_file(&sidecar).unwrap();
-        assert!(super::whole_state(&case,&sha).is_err());
-        fs::remove_file(capture).unwrap();fs::remove_file(fixture).unwrap();
-        fs::remove_dir(captures).unwrap();fs::remove_dir(root).unwrap();
+        assert!(super::whole_state(&case, &sha).is_err());
+        fs::remove_file(capture).unwrap();
+        fs::remove_file(fixture).unwrap();
+        fs::remove_dir(captures).unwrap();
+        fs::remove_dir(root).unwrap();
     }
     use super::*;
 

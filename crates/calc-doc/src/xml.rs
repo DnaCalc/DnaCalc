@@ -92,7 +92,10 @@ impl XmlStr {
     /// The namespace URI `bytes` spells: from the table when it is one of the common ones, else
     /// checked as UTF-8 and owned.
     fn namespace(bytes: &[u8], position: u64) -> Result<XmlStr, XmlError> {
-        if let Some(name) = COMMON_NAMESPACES.iter().find(|name| name.as_bytes() == bytes) {
+        if let Some(name) = COMMON_NAMESPACES
+            .iter()
+            .find(|name| name.as_bytes() == bytes)
+        {
             return Ok(XmlStr(Cow::Borrowed(name)));
         }
         utf8(bytes, position).map(|text| XmlStr(Cow::Owned(text)))
@@ -675,14 +678,34 @@ mod tests {
             };
             seen.push(format!(
                 "{}{}",
-                name.namespace.as_deref().map(|n| format!("{{{n}}}")).unwrap_or_default(),
+                name.namespace
+                    .as_deref()
+                    .map(|n| format!("{{{n}}}"))
+                    .unwrap_or_default(),
                 name.local
             ));
         }
         let expected = [
-            "{urn:one}a", "{urn:one}b", "{urn:one}b", "{urn:two}c", "{urn:two}d", "{urn:two}d",
-            "{urn:two}c", "{urn:one}e", "{urn:one}e", "f", "g", "g", "f", "{urn:three}h",
-            "{urn:one}i", "{urn:one}i", "{urn:three}h", "{urn:one}j", "{urn:one}j", "{urn:one}a",
+            "{urn:one}a",
+            "{urn:one}b",
+            "{urn:one}b",
+            "{urn:two}c",
+            "{urn:two}d",
+            "{urn:two}d",
+            "{urn:two}c",
+            "{urn:one}e",
+            "{urn:one}e",
+            "f",
+            "g",
+            "g",
+            "f",
+            "{urn:three}h",
+            "{urn:one}i",
+            "{urn:one}i",
+            "{urn:three}h",
+            "{urn:one}j",
+            "{urn:one}j",
+            "{urn:one}a",
         ];
         assert_eq!(seen, expected);
     }

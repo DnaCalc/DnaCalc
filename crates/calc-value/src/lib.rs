@@ -80,10 +80,8 @@ pub use id::{
 pub use numeric::{NumericMode, NumericTargetId};
 pub use value::{
     ArrayShape, CalcArray, CalcValue, CallableArityShape, CallableValue, CoreRef, CoreValue,
-    CubeValue,
-    EXCEL_TEXT_MAX_UTF16_CODE_UNITS, ExcelText, ImageFormat, ImageValue, OpaqueCallable,
-    ReferenceError, ReferenceLike,
-    WorksheetErrorCode,
+    CubeValue, EXCEL_TEXT_MAX_UTF16_CODE_UNITS, ExcelText, ImageFormat, ImageValue, OpaqueCallable,
+    ReferenceError, ReferenceLike, WorksheetErrorCode,
 };
 
 /// Maximum cells in one clipboard table.

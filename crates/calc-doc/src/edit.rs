@@ -300,7 +300,10 @@ fn columns_followed(table: &calc_doc_model::Table) -> bool {
         && table.column_formulas.iter().all(Option::is_none)
         && table.totals_functions.iter().all(Option::is_none)
         && table.totals_labels.iter().all(Option::is_none)
-        && table.filter.as_ref().is_none_or(|filter| !filter.unsupported)
+        && table
+            .filter
+            .as_ref()
+            .is_none_or(|filter| !filter.unsupported)
 }
 
 /// Refuses an axis edit Excel refuses on `root` (see [`prepare_structural_edit`]).
@@ -332,9 +335,13 @@ fn check_axis_edit(root: &ModelRoot, operation: usize, edit: AxisEdit) -> Result
         let (top, bottom) = span(table.area, Axis::Rows);
         let (left, right) = span(table.area, Axis::Columns);
         let refused = match (edit.axis(), edit.change()) {
-            (Axis::Columns, AxisChange::Insert) => left < first && first <= right && !columns_followed(table),
+            (Axis::Columns, AxisChange::Insert) => {
+                left < first && first <= right && !columns_followed(table)
+            }
             (Axis::Columns, AxisChange::Delete) => {
-                first <= right && left <= last && (!columns_followed(table) || (first <= left && right <= last))
+                first <= right
+                    && left <= last
+                    && (!columns_followed(table) || (first <= left && right <= last))
             }
             (Axis::Rows, AxisChange::Insert) => {
                 // Inside the data rows the table grows; a row inserted at its header or between

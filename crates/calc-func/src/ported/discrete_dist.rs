@@ -34,8 +34,9 @@
 //!   `1 + u` (`excel_log1p_times`), all 11,901 rows of the bank.
 
 use crate::ported::excel_numeric::{
-    excel_deviance_in_series, excel_deviance_series, excel_exp, excel_exp_compensated, excel_exp_running, excel_expm1_spilled, excel_log, excel_log1p_times, excel_stirling_series, excel_stirling_step, excel_x87_add, excel_x87_div,
-    excel_x87_mul, excel_x87_sub, gammaln_excel,
+    excel_deviance_in_series, excel_deviance_series, excel_exp, excel_exp_compensated,
+    excel_exp_running, excel_expm1_spilled, excel_log, excel_log1p_times, excel_stirling_series,
+    excel_stirling_step, excel_x87_add, excel_x87_div, excel_x87_mul, excel_x87_sub, gammaln_excel,
 };
 use crate::value::WorksheetErrorCode;
 
@@ -85,7 +86,10 @@ fn deviance(x: f64, np: f64) -> f64 {
     if excel_deviance_in_series(x, np) {
         return excel_deviance_series(x, np);
     }
-    excel_x87_add(excel_x87_mul(x, excel_log(excel_x87_div(x, np))), excel_x87_sub(np, x))
+    excel_x87_add(
+        excel_x87_mul(x, excel_log(excel_x87_div(x, np))),
+        excel_x87_sub(np, x),
+    )
 }
 
 /// The binomial mass of `x` successes in `n` trials, `0 < p < 1` (Loader's saddle-point form).
@@ -121,7 +125,12 @@ fn binom_exponent(x: f64, n: f64, p: f64, q: f64) -> f64 {
 /// `sqrt(n / (2 pi x (n - x)))` as halves of stored logarithms, in this order: outside the series
 /// range 41,430 of 41,437 bank and live rows.
 fn binom_normalizer(x: f64, n: f64) -> [f64; 4] {
-    [-excel_log(n) / 2.0, excel_log(x) / 2.0, excel_log(n - x) / 2.0, LN_SQRT_2PI]
+    [
+        -excel_log(n) / 2.0,
+        excel_log(x) / 2.0,
+        excel_log(n - x) / 2.0,
+        LN_SQRT_2PI,
+    ]
 }
 
 /// The Poisson mass at `x` for `lambda > 0`, with `x` not necessarily whole: it is also GAMMA.DIST's
@@ -148,7 +157,10 @@ pub(crate) fn poisson_mass(x: f64, lambda: f64) -> f64 {
         return excel_exp_compensated(t, &[lambda, gammaln_excel(x + 1.0)]);
     }
     let exponent = excel_x87_sub(-stirling_error(x), deviance(x, lambda));
-    excel_x87_div(excel_exp(exponent), (2.0 * core::f64::consts::PI * x).sqrt())
+    excel_x87_div(
+        excel_exp(exponent),
+        (2.0 * core::f64::consts::PI * x).sqrt(),
+    )
 }
 
 /// A finite result, with a subnormal one flushed to zero as Excel computes (EXPON.DIST(745,1,FALSE)
@@ -176,7 +188,11 @@ pub fn expon_dist_kernel(x: f64, lambda: f64, cumulative: bool) -> R {
     if t.is_subnormal() {
         t = 0.0;
     }
-    finite(if cumulative { -excel_expm1_spilled(-t) } else { excel_x87_mul(lambda, excel_exp(-t)) })
+    finite(if cumulative {
+        -excel_expm1_spilled(-t)
+    } else {
+        excel_x87_mul(lambda, excel_exp(-t))
+    })
 }
 
 /// `BINOM.DIST(number_s, trials, probability_s, cumulative)`.
@@ -252,13 +268,21 @@ pub fn binom_dist_range_kernel(trials: f64, p: f64, number_s: f64, number_s2: Op
             mass(s)
         } else {
             let (first, last) = if p == 0.0 { (0.0, 0.0) } else { (n, n) };
-            if s <= first && first <= s2 && last <= s2 { 1.0 } else { 0.0 }
+            if s <= first && first <= s2 && last <= s2 {
+                1.0
+            } else {
+                0.0
+            }
         });
     }
     // Live: the difference of the two tails on 383 of 421 rows, against 20 for the sum of masses.
     let q = 1.0 - p;
     let upper = binom_cumulative(s2, n, p, q);
-    finite(if s == 0.0 { upper } else { excel_x87_sub(upper, binom_cumulative(s - 1.0, n, p, q)) })
+    finite(if s == 0.0 {
+        upper
+    } else {
+        excel_x87_sub(upper, binom_cumulative(s - 1.0, n, p, q))
+    })
 }
 
 /// `BINOM.INV(trials, probability_s, alpha)`: the smallest count whose cumulative binomial
@@ -273,9 +297,17 @@ pub fn binom_inv_kernel(trials: f64, p: f64, alpha: f64) -> R {
     let mut k = 0.0;
     // The forward recurrence starts at the larger-probability endpoint; use the existing
     // mass calculation when that endpoint is the upper tail or its starting mass underflows.
-    let mut mass = if p <= q { crate::ported::excel_numeric::crt_pow(q, n) } else { 0.0 };
+    let mut mass = if p <= q {
+        crate::ported::excel_numeric::crt_pow(q, n)
+    } else {
+        0.0
+    };
     while k < n {
-        sum += if mass == 0.0 { binom_mass(k, n, p, q) } else { mass };
+        sum += if mass == 0.0 {
+            binom_mass(k, n, p, q)
+        } else {
+            mass
+        };
         if sum > alpha {
             return Ok(k);
         }
@@ -310,7 +342,10 @@ pub fn poisson_dist_kernel(x: f64, mean: f64, cumulative: bool) -> R {
     }
     // P(X <= x) = Q(x + 1, mean), the regularized upper incomplete gamma function (A&S 6.5.13,
     // 26.4.21): measured, Excel's POISSON.DIST(k, x/2, TRUE) equals its CHIDIST(x, 2(k+1)).
-    finite(crate::ported::special_math_common::regularized_gamma_q(x + 1.0, mean))
+    finite(crate::ported::special_math_common::regularized_gamma_q(
+        x + 1.0,
+        mean,
+    ))
 }
 
 /// The hypergeometric mass: `s` successes in a sample of `n` from `big_n` holding `k` successes,
@@ -320,7 +355,11 @@ fn hypergeom_mass(s: f64, n: f64, k: f64, big_n: f64) -> f64 {
         return 0.0;
     }
     if n == 0.0 || n == big_n {
-        return if s == (if n == 0.0 { 0.0 } else { k }) { 1.0 } else { 0.0 };
+        return if s == (if n == 0.0 { 0.0 } else { k }) {
+            1.0
+        } else {
+            0.0
+        };
     }
     let p = n / big_n;
     let q = (big_n - n) / big_n;
@@ -331,13 +370,24 @@ fn hypergeom_mass(s: f64, n: f64, k: f64, big_n: f64) -> f64 {
 }
 
 /// `HYPGEOM.DIST(sample_s, number_sample, population_s, number_pop, cumulative)`.
-pub fn hypergeom_dist_kernel(sample_s: f64, number_sample: f64, population_s: f64, number_pop: f64, cumulative: bool) -> R {
+pub fn hypergeom_dist_kernel(
+    sample_s: f64,
+    number_sample: f64,
+    population_s: f64,
+    number_pop: f64,
+    cumulative: bool,
+) -> R {
     // W111 fractional-support controls validate the original signs. Truncating
     // first would turn a negative count between -1 and 0 into a valid zero.
     if sample_s < 0.0 || number_sample < 0.0 || population_s < 0.0 || number_pop < 0.0 {
         return Err(NUM);
     }
-    let (s, n, k, big_n) = (sample_s.trunc(), number_sample.trunc(), population_s.trunc(), number_pop.trunc());
+    let (s, n, k, big_n) = (
+        sample_s.trunc(),
+        number_sample.trunc(),
+        population_s.trunc(),
+        number_pop.trunc(),
+    );
     if n > big_n || k > big_n {
         return Err(NUM);
     }
@@ -407,7 +457,11 @@ pub fn negbinom_dist_kernel(number_f: f64, number_s: f64, p: f64, cumulative: bo
     // sum (`fresh-negbinom.dist-00113`) where masses through EXP cannot, and at `p = 1/8` it stands
     // 13 units off it. `I_p(s, f + 1)` holds the exact row and more of the 141 rows than the sum
     // (73 against 70). The stages belong to the incomplete beta, still open.
-    finite(crate::ported::special_math_common::regularized_beta(p, s, f + 1.0))
+    finite(crate::ported::special_math_common::regularized_beta(
+        p,
+        s,
+        f + 1.0,
+    ))
 }
 
 #[cfg(test)]
@@ -419,7 +473,10 @@ mod tests {
     #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
     fn poisson_tail_keeps_the_truncated_fraction() {
         let mean = (128159288.0 * 67108864.0 + 59652325.0) / 70368744177664.0;
-        assert_eq!(poisson_dist_kernel(100.0, mean, true).unwrap().to_bits(), 0x3f96_a06a_3c48_3193);
+        assert_eq!(
+            poisson_dist_kernel(100.0, mean, true).unwrap().to_bits(),
+            0x3f96_a06a_3c48_3193
+        );
     }
 
     /// BINOM.DIST(n - 1, n, p, TRUE) with 1 - p below 0.1 is -expm1(n * log1p(p - 1)) with a

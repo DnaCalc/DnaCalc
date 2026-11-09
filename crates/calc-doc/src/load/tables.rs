@@ -81,9 +81,13 @@ fn read_table(
                                     if e.name.is(MAIN_NAMESPACE, "calculatedColumnFormula") =>
                                 {
                                     opaque = true;
-                                    axis_opaque |= e.attribute("array").is_some_and(|v| !matches!(v, "0" | "false"));
+                                    axis_opaque |= e
+                                        .attribute("array")
+                                        .is_some_and(|v| !matches!(v, "0" | "false"));
                                     let formula = events.text()?;
-                                    axis_opaque |= !calc_fml::parse_formula(&decode(&formula)).diagnostics().is_empty();
+                                    axis_opaque |= !calc_fml::parse_formula(&decode(&formula))
+                                        .diagnostics()
+                                        .is_empty();
                                     *column_formulas.last_mut().unwrap() = Some(decode(&formula));
                                 }
                                 Some(XmlEvent::Start(_)) => {

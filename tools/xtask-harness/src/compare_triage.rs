@@ -338,12 +338,16 @@ pub(crate) fn refusal_of(
                     Class::NotModelled,
                     spelling(*id),
                     "Evaluation:Function:NotHeld",
-                ).owned_by(*owner).about(spelling(*id)),
+                )
+                .owned_by(*owner)
+                .about(spelling(*id)),
                 FunctionFault::Deferred { id, class } => Refusal::new(
                     Class::NotModelled,
                     spelling(*id),
                     "Evaluation:Function:Deferred",
-                ).owned_by(class.owner()).about(spelling(*id)),
+                )
+                .owned_by(class.owner())
+                .about(spelling(*id)),
                 // The catalogue holds the function and its kernel refuses this call: not
                 // modelled, under the package that owns the function, never a missing function.
                 FunctionFault::NotImplemented { id, argument } => {
@@ -975,12 +979,14 @@ pub(crate) fn triage(
         let cell = &report.cells[i];
         let kept = retained.get(&cell.formula.cell);
         let difference = difference_of(cell, kept);
-        let entry_failure = kept.and_then(|kept|kept.entry_failure.as_ref());
-        let read = entry_failure.cloned().or_else(||kept.and_then(|kept| {
-            kept.reads
-                .iter()
-                .find_map(|read| first_differing(&differing, read, &cell.formula.cell))
-        }));
+        let entry_failure = kept.and_then(|kept| kept.entry_failure.as_ref());
+        let read = entry_failure.cloned().or_else(|| {
+            kept.and_then(|kept| {
+                kept.reads
+                    .iter()
+                    .find_map(|read| first_differing(&differing, read, &cell.formula.cell))
+            })
+        });
         match read.and_then(|read| index.get(&read).copied()) {
             Some(read) => {
                 parent[i] = Some(read);
@@ -1305,7 +1311,13 @@ impl Triage {
         map.insert("column".to_owned(), json!(address.column()));
         map.insert("cell".to_owned(), json!(address.a1()));
         map.insert("verdict".to_owned(), json!(verdict.verdict.name()));
-        map.insert("live_excel_observation".into(), json!(matches!(verdict.observation, Some(calc_verdict::Observation::ExcelRaw(_)))));
+        map.insert(
+            "live_excel_observation".into(),
+            json!(matches!(
+                verdict.observation,
+                Some(calc_verdict::Observation::ExcelRaw(_))
+            )),
+        );
         if verdict.external_links {
             // Calculated from values another workbook's link caches hold (dc-ylr): the corpus
             // summary counts a match among them apart from plain passes.

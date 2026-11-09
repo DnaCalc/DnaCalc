@@ -35,7 +35,11 @@ fn basis(site: &Site<'_>, a: &[CalcValue], index: usize) -> Step<Option<f64>> {
 
 /// An optional argument at `index`, or `default` when it is omitted.
 fn or(site: &Site<'_>, a: &[CalcValue], index: usize, default: f64) -> Step<f64> {
-    if given(a, index) { num(site, a, index) } else { Ok(default) }
+    if given(a, index) {
+        num(site, a, index)
+    } else {
+        Ok(default)
+    }
 }
 
 /// The bill functions admit and validate each date before reading the next scalar.
@@ -63,7 +67,10 @@ fn bond_out(site: &Site<'_>, result: Result<f64, bond::BondCoreEvalError>) -> St
     }
 }
 
-fn bill_out(site: &Site<'_>, result: Result<f64, bill::DiscountBillYearfracEvalError>) -> Step<CalcValue> {
+fn bill_out(
+    site: &Site<'_>,
+    result: Result<f64, bill::DiscountBillYearfracEvalError>,
+) -> Step<CalcValue> {
     match result {
         Ok(n) => site.number(n),
         Err(error) => fail(bill::map_discount_bill_yearfrac_error_to_ws(&error)),
@@ -86,7 +93,11 @@ fn coupon_out(site: &Site<'_>, result: Result<f64, WorksheetErrorCode>) -> Step<
 
 /// A 1900-system serial the kernel returned as a date, in the call's date system: before
 /// 1 January 1904 is #NUM! in the 1904 system.
-fn date_out(site: &Site<'_>, sv: &EvalServices<'_>, result: Result<f64, WorksheetErrorCode>) -> Step<CalcValue> {
+fn date_out(
+    site: &Site<'_>,
+    sv: &EvalServices<'_>,
+    result: Result<f64, WorksheetErrorCode>,
+) -> Step<CalcValue> {
     let serial = match result {
         Ok(serial) => serial,
         Err(code) => return fail(code),

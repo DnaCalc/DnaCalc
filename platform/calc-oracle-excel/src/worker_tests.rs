@@ -94,7 +94,11 @@ fn raw_value_metadata_keeps_numeric_nan_and_error_distinct_with_one_getter_read(
     );
     let out = powershell(&["-Command", &command]);
     let _ = std::fs::remove_dir_all(&dir);
-    assert!(out.status.success(), "{}", String::from_utf8_lossy(&out.stderr));
+    assert!(
+        out.status.success(),
+        "{}",
+        String::from_utf8_lossy(&out.stderr)
+    );
     assert_eq!(
         serde_json::from_slice::<Value>(&out.stdout).unwrap(),
         json!({
@@ -126,7 +130,10 @@ fn the_witness_worker_parses_and_reads_a_one_based_matrix_in_windows_powershell(
         "witness parser/column reader: {}",
         String::from_utf8_lossy(&out.stderr)
     );
-    assert_eq!(serde_json::from_slice::<Value>(&out.stdout).unwrap(), json!([1.25, -3]));
+    assert_eq!(
+        serde_json::from_slice::<Value>(&out.stdout).unwrap(),
+        json!([1.25, -3])
+    );
 }
 
 /// What the worker's package reader reads from `package`, the refusals it gives, and the failures

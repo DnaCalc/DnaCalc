@@ -6,24 +6,36 @@
 //!
 //! POWER is the `^` operator's rule ([`super::arithmetic::raise`]).
 
-use super::kit::{Grid, fail, given, grid, num, num_with_subnormal, out, out_matrix, out_text, out_with_subnormal, reject_logical, text, values};
+use super::kit::{
+    Grid, fail, given, grid, num, num_with_subnormal, out, out_matrix, out_text,
+    out_with_subnormal, reject_logical, text, values,
+};
 use crate::kernel::{Exit, Site, Step};
+use crate::ported::excel_numeric::crt_pow;
 use crate::ported::real_policy::ExcelRealPolicy;
 use crate::ported::{self as k};
 use crate::value::{CalcValue, CoreRef, ExcelText, WorksheetErrorCode};
-use crate::ported::excel_numeric::crt_pow;
 
 /// F1's families take codes from 100 up, clear of the other lanes' families.
 use calc_catalogue::ported::math::{CODE, ENTRIES as DECLARATIONS};
 
 /// A one-argument kernel whose raw result Excel publishes under `policy`.
-fn raw(site: &Site<'_>, a: &[CalcValue], policy: ExcelRealPolicy, kernel: fn(f64) -> f64) -> Step<CalcValue> {
+fn raw(
+    site: &Site<'_>,
+    a: &[CalcValue],
+    policy: ExcelRealPolicy,
+    kernel: fn(f64) -> f64,
+) -> Step<CalcValue> {
     let x = num(site, a, 0)?;
     out(site, policy.publish(x, kernel(x)))
 }
 
 /// A one-argument kernel that publishes its own result.
-fn unary(site: &Site<'_>, a: &[CalcValue], kernel: fn(f64) -> Result<f64, WorksheetErrorCode>) -> Step<CalcValue> {
+fn unary(
+    site: &Site<'_>,
+    a: &[CalcValue],
+    kernel: fn(f64) -> Result<f64, WorksheetErrorCode>,
+) -> Step<CalcValue> {
     let x = num(site, a, 0)?;
     out(site, kernel(x))
 }

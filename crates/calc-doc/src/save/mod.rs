@@ -11,27 +11,29 @@
 //! view manifest ([`manifest`]) and adds or removes its blocks' locator names. [`write`] streams
 //! the plan to the sink entry by entry.
 
-pub(crate) mod pivot;
 mod array_metadata;
 mod author;
 pub(crate) mod chart;
 pub(crate) mod conditional;
+pub(crate) mod pivot;
+pub use conditional::{
+    conditional_rule, conditional_with_dxf, copied_conditional_source, new_condition_rule,
+    new_conditional_rule,
+};
 pub use validation::copied_validation_source;
-pub use conditional::{copied_conditional_source,conditional_with_dxf,conditional_rule, new_condition_rule, new_conditional_rule};
 mod diff;
 pub(crate) mod file_form;
-mod geometry;
-mod outline;
 mod filter;
+mod geometry;
 mod manifest;
-mod panes;
+mod outline;
 pub(crate) mod page_setup;
+mod panes;
 mod parts;
 mod reader;
-mod tables;
 pub(crate) mod review;
+mod tables;
 pub(crate) use author::available_part_name;
-pub(crate) mod validation;
 mod sheet;
 pub(crate) mod sheets;
 mod strings;
@@ -39,7 +41,8 @@ mod structural;
 mod styles;
 mod template_merge;
 mod template_styles;
-pub use template_merge::{merge as merge_template_sheets,rename_sheet as rename_template_sheet};
+pub(crate) mod validation;
+pub use template_merge::{merge as merge_template_sheets, rename_sheet as rename_template_sheet};
 #[cfg(test)]
 mod tests;
 pub(crate) mod text;
@@ -97,13 +100,21 @@ pub(crate) struct Edited {
     /// package's rows, columns and what lies on them by ([`DocumentSnapshot::with_structural_edits`]).
     structural: Option<StructuralEdits>,
     cache_state: Option<CalculationCacheState>,
-    pivot_outputs:Arc<BTreeMap<CellKey,calc_doc_model::value::CalcValue>>,
+    pivot_outputs: Arc<BTreeMap<CellKey, calc_doc_model::value::CalcValue>>,
     /// Custom XML items the save writes (added, or replacing the item of the same namespace).
     custom_xml: Vec<crate::CustomXmlItem>,
 }
 
 impl DocumentSnapshot {
-    pub fn with_pivot_outputs(mut self,values:Arc<BTreeMap<CellKey,calc_doc_model::value::CalcValue>>)->Self{if let Some(edit)=self.edit.as_mut(){edit.pivot_outputs=values;}self}
+    pub fn with_pivot_outputs(
+        mut self,
+        values: Arc<BTreeMap<CellKey, calc_doc_model::value::CalcValue>>,
+    ) -> Self {
+        if let Some(edit) = self.edit.as_mut() {
+            edit.pivot_outputs = values;
+        }
+        self
+    }
 
     pub(crate) fn new(package: Arc<Package>) -> Self {
         DocumentSnapshot {
@@ -134,7 +145,7 @@ impl DocumentSnapshot {
                 spills,
                 structural: None,
                 cache_state: None,
-                pivot_outputs:Default::default(),
+                pivot_outputs: Default::default(),
                 custom_xml: Vec::new(),
             }),
         }
@@ -211,23 +222,43 @@ impl DocumentSnapshot {
 
 /// SpreadsheetML's workbook kind. The main-part content type is its template flag.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub enum SpreadsheetFormat { Xlsx, Xlsm, Xltx, Xltm }
+pub enum SpreadsheetFormat {
+    Xlsx,
+    Xlsm,
+    Xltx,
+    Xltm,
+}
 impl SpreadsheetFormat {
-    pub fn is_template(self) -> bool { matches!(self, Self::Xltx | Self::Xltm) }
-    pub fn macro_enabled(self) -> bool { matches!(self, Self::Xlsm | Self::Xltm) }
+    pub fn is_template(self) -> bool {
+        matches!(self, Self::Xltx | Self::Xltm)
+    }
+    pub fn macro_enabled(self) -> bool {
+        matches!(self, Self::Xlsm | Self::Xltm)
+    }
     pub fn extension(self) -> &'static str {
-        match self { Self::Xlsx=>"xlsx", Self::Xlsm=>"xlsm", Self::Xltx=>"xltx", Self::Xltm=>"xltm" }
+        match self {
+            Self::Xlsx => "xlsx",
+            Self::Xlsm => "xlsm",
+            Self::Xltx => "xltx",
+            Self::Xltm => "xltm",
+        }
     }
     pub fn content_type(self) -> &'static str {
         match self {
-            Self::Xlsx=>"application/vnd.openxmlformats-officedocument.spreadsheetml.sheet.main+xml",
-            Self::Xlsm=>"application/vnd.ms-excel.sheet.macroEnabled.main+xml",
-            Self::Xltx=>"application/vnd.openxmlformats-officedocument.spreadsheetml.template.main+xml",
-            Self::Xltm=>"application/vnd.ms-excel.template.macroEnabled.main+xml",
+            Self::Xlsx => {
+                "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet.main+xml"
+            }
+            Self::Xlsm => "application/vnd.ms-excel.sheet.macroEnabled.main+xml",
+            Self::Xltx => {
+                "application/vnd.openxmlformats-officedocument.spreadsheetml.template.main+xml"
+            }
+            Self::Xltm => "application/vnd.ms-excel.template.macroEnabled.main+xml",
         }
     }
     pub fn from_content_type(content_type: &str) -> Option<Self> {
-        [Self::Xlsx, Self::Xlsm, Self::Xltx, Self::Xltm].into_iter().find(|f|f.content_type()==content_type)
+        [Self::Xlsx, Self::Xlsm, Self::Xltx, Self::Xltm]
+            .into_iter()
+            .find(|f| f.content_type() == content_type)
     }
 }
 
@@ -278,30 +309,60 @@ pub struct SaveViews {
 /// revision the caller holds.
 #[derive(Debug, PartialEq, Eq)]
 pub enum SaveRefusal {
-    PivotNotModelled {part:String,detail:String,owner:&'static str},
-    ChartNotModelled {part:String,detail:String,owner:&'static str},
-    TemplateNotModelled { detail: String, owner: &'static str },
+    PivotNotModelled {
+        part: String,
+        detail: String,
+        owner: &'static str,
+    },
+    ChartNotModelled {
+        part: String,
+        detail: String,
+        owner: &'static str,
+    },
+    TemplateNotModelled {
+        detail: String,
+        owner: &'static str,
+    },
     /// Macro-free output would discard active content. Choose a macro-enabled format.
-    MacroLoss { owner: &'static str },
-    OutlineNotModelled { part:String, owner: &'static str },
-    WindowView { detail: String, owner: &'static str },
+    MacroLoss {
+        owner: &'static str,
+    },
+    OutlineNotModelled {
+        part: String,
+        owner: &'static str,
+    },
+    WindowView {
+        detail: String,
+        owner: &'static str,
+    },
     /// This rectangular style plane still needs too many individual blank-cell XML records.
     /// Row and column defaults have already been compacted; no bytes have been written.
-    StyleExpansionNotModelled { cells: u64, owner: &'static str },
+    StyleExpansionNotModelled {
+        cells: u64,
+        owner: &'static str,
+    },
     /// XLSB output needs the validated original binary package (dc-snz.14).
     BinarySourceRequired,
     /// The XML authoring route found part rewrites, for which no binary writer exists yet.
-    BinaryChangesNotModelled { owner: &'static str },
+    BinaryChangesNotModelled {
+        owner: &'static str,
+    },
     /// The snapshot's model is not a revision of the loaded workbook: it is not of the lineage of
     /// the model the load made (a model another load made, of the same file or with the same
     /// sheet IDs, included), or its sheets differ from the loaded ones.
     ForeignModel,
     /// A part the save rewrites could not be read from the source, such as a payload changed
     /// since the package was opened.
-    Part { part: String, error: PartReadError },
+    Part {
+        part: String,
+        error: PartReadError,
+    },
     /// A part the save rewrites is not shaped as this writer rewrites it, such as a workbook part
     /// with two `calcPr` elements.
-    InvalidPart { part: String, detail: String },
+    InvalidPart {
+        part: String,
+        detail: String,
+    },
     /// A changed cell lies in the header row or the totals row of a table (ListObject) of its
     /// sheet. The table part records the names of its header row and the functions of its totals
     /// row, which the change could contradict; authoring tables is not built (no bead owns it
@@ -314,12 +375,16 @@ pub enum SaveRefusal {
         column: u32,
     },
     /// Two sheets of the workbook are this one part, which the save would rewrite for one of them.
-    SharedSheetPart { part: String },
+    SharedSheetPart {
+        part: String,
+    },
     /// The revision changes a cell, a format or the rows or columns of an Excel 4.0 macro sheet
     /// (`part`), whose part this writer does not rewrite, or inserts or deletes rows or columns
     /// of a workbook with one, whose formulas' references the save cannot move: a macro sheet is
     /// saved as it was read (dc-xuw).
-    MacroSheetChanged { part: String },
+    MacroSheetChanged {
+        part: String,
+    },
     /// A formula the revision sets in a cell (of the worksheet part `part`) is longer than
     /// [`crate::FORMULA_MAX_UTF16_CODE_UNITS`], so [`crate::load`] would refuse the saved package.
     /// [`crate::prepare_edit`] refuses such a formula; this refuses one in a revision made
@@ -350,13 +415,22 @@ pub enum SaveRefusal {
     /// at `part` was not read ([`crate::LayoutWarning`]): the save would have to overwrite a
     /// manifest this codec does not read. A save that leaves the layout as loaded copies the
     /// manifest's parts as they are.
-    LayoutNotWritable { part: String },
+    LayoutNotWritable {
+        part: String,
+    },
     /// A block the revision creates has the locator name `name`, which the workbook part `part`
     /// already holds as a workbook-scoped defined name, compared ignoring ASCII case.
-    LocatorNameTaken { part: String, name: String },
+    LocatorNameTaken {
+        part: String,
+        name: String,
+    },
     /// A value given to save as a cached result (of the worksheet part `part`) is for a cell the
     /// revision holds no formula in.
-    ValueWithoutFormula { part: String, row: u32, column: u32 },
+    ValueWithoutFormula {
+        part: String,
+        row: u32,
+        column: u32,
+    },
     /// A formula the revision sets in a cell (of the worksheet part `part`) has no file form
     /// here ([`crate::FileFormError`]): its text is not readable, or it nests deeper than the
     /// converter walks.
@@ -377,22 +451,41 @@ pub enum SaveRefusal {
     /// Rows or columns were inserted or deleted, and the part `part` holds `what`, which names
     /// positions of an edited sheet that the save does not move
     /// ([`DocumentSnapshot::with_structural_edits`]): it would be written where it was.
-    StructuralNotMoved { part: String, what: String },
+    StructuralNotMoved {
+        part: String,
+        what: String,
+    },
 }
 
 impl fmt::Display for SaveRefusal {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
-            Self::PivotNotModelled {part,detail,owner}=>write!(f,"{part}: {detail} ({owner})"),
-            Self::ChartNotModelled {part,detail,owner}=>write!(f,"{part}: {detail} ({owner})"),
-            Self::TemplateNotModelled { detail, owner } => write!(f, "{detail} ({owner}); nothing changed"),
-            Self::WindowView {detail,owner}=>write!(f,"{detail} ({owner})"),
-            Self::OutlineNotModelled {part,owner} => write!(f,"Outline metadata in {part} cannot be rewritten ({owner}); no bytes written"),
+            Self::PivotNotModelled {
+                part,
+                detail,
+                owner,
+            } => write!(f, "{part}: {detail} ({owner})"),
+            Self::ChartNotModelled {
+                part,
+                detail,
+                owner,
+            } => write!(f, "{part}: {detail} ({owner})"),
+            Self::TemplateNotModelled { detail, owner } => {
+                write!(f, "{detail} ({owner}); nothing changed")
+            }
+            Self::WindowView { detail, owner } => write!(f, "{detail} ({owner})"),
+            Self::OutlineNotModelled { part, owner } => write!(
+                f,
+                "Outline metadata in {part} cannot be rewritten ({owner}); no bytes written"
+            ),
             Self::StyleExpansionNotModelled { cells, owner } => write!(
                 f,
                 "Saving this formatting needs {cells} individual blank-cell records; larger style expansion is not modelled ({owner})"
             ),
-            Self::MacroLoss { owner } => write!(f, "VBA or Excel macro sheets would be lost; choose .xlsm or .xltm ({owner})"),
+            Self::MacroLoss { owner } => write!(
+                f,
+                "VBA or Excel macro sheets would be lost; choose .xlsm or .xltm ({owner})"
+            ),
             Self::BinarySourceRequired => {
                 f.write_str("XLSB output requires an original XLSB package (dc-snz.14)")
             }
@@ -825,20 +918,56 @@ pub fn prepare_save(
     let converted = &snapshot.package;
     let mut changes = match &snapshot.edit {
         Some(edit) => author::plan(converted, edit, policy.views.as_deref())?,
-        None if policy.views.is_some()=>return Err(SaveRefusal::WindowView{detail:"Window saving needs a loaded model".into(),owner:"dc-971p.16"}),
+        None if policy.views.is_some() => {
+            return Err(SaveRefusal::WindowView {
+                detail: "Window saving needs a loaded model".into(),
+                owner: "dc-971p.16",
+            });
+        }
         None => author::Changes::default(),
     };
     if let SaveFormat::Spreadsheet(format) = policy.format {
-        let relationship = converted.relationships_of(None).and_then(|r|r.items().iter().find(|r|r.kind.ends_with("/officeDocument")))
-            .and_then(|r|r.resolved.as_deref()).ok_or_else(||SaveRefusal::InvalidPart {part:"_rels/.rels".into(),detail:"missing workbook relationship".into()})?;
-        if !format.macro_enabled() && (crate::vba::has_project(converted,relationship) || converted.parts().iter().any(|p|p.content_type().is_some_and(|t|t.to_ascii_lowercase().contains("macrosheet") || t.to_ascii_lowercase().contains("vbaproject")))) {
-            return Err(SaveRefusal::MacroLoss {owner:"dc-bctq"});
+        let relationship = converted
+            .relationships_of(None)
+            .and_then(|r| {
+                r.items()
+                    .iter()
+                    .find(|r| r.kind.ends_with("/officeDocument"))
+            })
+            .and_then(|r| r.resolved.as_deref())
+            .ok_or_else(|| SaveRefusal::InvalidPart {
+                part: "_rels/.rels".into(),
+                detail: "missing workbook relationship".into(),
+            })?;
+        if !format.macro_enabled()
+            && (crate::vba::has_project(converted, relationship)
+                || converted.parts().iter().any(|p| {
+                    p.content_type().is_some_and(|t| {
+                        t.to_ascii_lowercase().contains("macrosheet")
+                            || t.to_ascii_lowercase().contains("vbaproject")
+                    })
+                }))
+        {
+            return Err(SaveRefusal::MacroLoss { owner: "dc-bctq" });
         }
         let xml = match changes.content_types.take() {
-            Some(bytes)=>crate::xml::XmlPart::new(crate::opc::CONTENT_TYPES_ENTRY.into(),bytes,crate::xml::XmlLimits::default()),
-            None=>converted.content_types_xml().map_err(|error|SaveRefusal::Part {part:crate::opc::CONTENT_TYPES_ENTRY.into(),error})?,
+            Some(bytes) => crate::xml::XmlPart::new(
+                crate::opc::CONTENT_TYPES_ENTRY.into(),
+                bytes,
+                crate::xml::XmlLimits::default(),
+            ),
+            None => converted
+                .content_types_xml()
+                .map_err(|error| SaveRefusal::Part {
+                    part: crate::opc::CONTENT_TYPES_ENTRY.into(),
+                    error,
+                })?,
         };
-        changes.content_types=Some(parts::content_types(&xml,Some(relationship),&[(relationship,format.content_type())])?);
+        changes.content_types = Some(parts::content_types(
+            &xml,
+            Some(relationship),
+            &[(relationship, format.content_type())],
+        )?);
     }
     let package = match policy.format {
         SaveFormat::Xml | SaveFormat::Spreadsheet(_) => converted,

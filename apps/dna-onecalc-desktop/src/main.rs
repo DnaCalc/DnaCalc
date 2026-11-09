@@ -187,7 +187,11 @@ fn run() -> Result<(), String> {
     } else {
         None
     };
-    let tests = if rtd_output.is_some() { Vec::new() } else { tests };
+    let tests = if rtd_output.is_some() {
+        Vec::new()
+    } else {
+        tests
+    };
     let mut results = Vec::new();
     for case in tests {
         let formula = case["formula"].as_str().ok_or("case needs formula")?;
@@ -345,9 +349,19 @@ fn main() -> std::process::ExitCode {
                 // A run with a test flag only reports on stderr and by its exit code: no box waits
                 // for a click.
                 let scripted = std::env::args().any(|a| {
-                    ["--debug-port", "--close-answer", "--message-file", "--save-dir", "--data-dir"].contains(&a.as_str())
+                    [
+                        "--debug-port",
+                        "--close-answer",
+                        "--message-file",
+                        "--save-dir",
+                        "--data-dir",
+                    ]
+                    .contains(&a.as_str())
                 });
-                if embedded::has_page() && !scripted && !why.starts_with("DNA OneCalc shows its window") {
+                if embedded::has_page()
+                    && !scripted
+                    && !why.starts_with("DNA OneCalc shows its window")
+                {
                     calc_platform_desktop::dialogs::message(
                         std::ptr::null_mut(),
                         "DNA OneCalc",

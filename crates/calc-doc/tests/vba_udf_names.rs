@@ -22,14 +22,21 @@ fn xml_fragment<'a>(xml: &'a str, tag: &str) -> &'a str {
 /// Windows-1252 text of a committed source file, as the project's code page stores it.
 fn code_page_1252(bytes: &[u8]) -> String {
     const HIGH: [char; 32] = [
-        '\u{20ac}', '\u{81}', '\u{201a}', '\u{192}', '\u{201e}', '\u{2026}', '\u{2020}', '\u{2021}',
-        '\u{2c6}', '\u{2030}', '\u{160}', '\u{2039}', '\u{152}', '\u{8d}', '\u{17d}', '\u{8f}',
-        '\u{90}', '\u{2018}', '\u{2019}', '\u{201c}', '\u{201d}', '\u{2022}', '\u{2013}', '\u{2014}',
-        '\u{2dc}', '\u{2122}', '\u{161}', '\u{203a}', '\u{153}', '\u{9d}', '\u{17e}', '\u{178}',
+        '\u{20ac}', '\u{81}', '\u{201a}', '\u{192}', '\u{201e}', '\u{2026}', '\u{2020}',
+        '\u{2021}', '\u{2c6}', '\u{2030}', '\u{160}', '\u{2039}', '\u{152}', '\u{8d}', '\u{17d}',
+        '\u{8f}', '\u{90}', '\u{2018}', '\u{2019}', '\u{201c}', '\u{201d}', '\u{2022}', '\u{2013}',
+        '\u{2014}', '\u{2dc}', '\u{2122}', '\u{161}', '\u{203a}', '\u{153}', '\u{9d}', '\u{17e}',
+        '\u{178}',
     ];
     bytes
         .iter()
-        .map(|&b| if (0x80..0xa0).contains(&b) { HIGH[usize::from(b - 0x80)] } else { char::from(b) })
+        .map(|&b| {
+            if (0x80..0xa0).contains(&b) {
+                HIGH[usize::from(b - 0x80)]
+            } else {
+                char::from(b)
+            }
+        })
         .collect()
 }
 
@@ -864,21 +871,40 @@ fn dc_snz_15__project_attributes_and_read_limits() {
         .unwrap();
     assert_eq!(
         module.source,
-        code_page_1252(include_bytes!("fixtures/vba_udf_names/Metadata-custom-vba.bas"))
+        code_page_1252(include_bytes!(
+            "fixtures/vba_udf_names/Metadata-custom-vba.bas"
+        ))
     );
     assert!(module.source.contains("Attribute MetaFunc.VB_Description"));
     // The part's size is calc-doc's limit; what is inside it is CalcVBA's.
     assert!(matches!(
-        loaded.vba_project(&calc_doc::VbaReadPolicy { max_project_bytes: 1 }),
+        loaded.vba_project(&calc_doc::VbaReadPolicy {
+            max_project_bytes: 1
+        }),
         Err(calc_doc::VbaReadError::Limit(_))
     ));
     let defaults = calc_vba::OfficeReadLimits::default;
     for limits in [
-        calc_vba::OfficeReadLimits { project_bytes: 1, ..defaults() },
-        calc_vba::OfficeReadLimits { directory_bytes: 1, ..defaults() },
-        calc_vba::OfficeReadLimits { modules: 1, ..defaults() },
-        calc_vba::OfficeReadLimits { module_bytes: 1, ..defaults() },
-        calc_vba::OfficeReadLimits { total_source_bytes: 1, ..defaults() },
+        calc_vba::OfficeReadLimits {
+            project_bytes: 1,
+            ..defaults()
+        },
+        calc_vba::OfficeReadLimits {
+            directory_bytes: 1,
+            ..defaults()
+        },
+        calc_vba::OfficeReadLimits {
+            modules: 1,
+            ..defaults()
+        },
+        calc_vba::OfficeReadLimits {
+            module_bytes: 1,
+            ..defaults()
+        },
+        calc_vba::OfficeReadLimits {
+            total_source_bytes: 1,
+            ..defaults()
+        },
     ] {
         let refused = calc_vba::read_office_project_with(&part.bytes, &limits).unwrap_err();
         assert!(refused.contains("limit"), "{refused}");

@@ -93,10 +93,10 @@ pub struct Chart {
     pub legend: Option<String>,
     pub plots: Vec<ChartPlot>,
     pub axes: Vec<ChartAxis>,
-    pub text_style:ChartTextStyle,
+    pub text_style: ChartTextStyle,
     /// Multiple rich runs or paragraphs need a text-range editing model.
-    pub element_text_complex:std::collections::BTreeSet<String>,
-    pub element_text:std::collections::BTreeMap<String,ChartTextStyle>,
+    pub element_text_complex: std::collections::BTreeSet<String>,
+    pub element_text: std::collections::BTreeMap<String, ChartTextStyle>,
 }
 
 /// A sheet's charts and how many the reading left out.
@@ -109,26 +109,26 @@ pub struct SheetCharts {
 /// Retained linear-axis settings. Numeric source text is preserved until explicitly edited.
 #[derive(Clone, Debug, Default, PartialEq, Eq, Hash)]
 pub struct ChartAxis {
-    pub id:u32,
-    pub cross_axis:Option<u32>,
-    pub kind:String,
-    pub position:Option<String>,
-    pub minimum:Option<String>,
-    pub maximum:Option<String>,
-    pub major_unit:Option<String>,
-    pub reversed:bool,
-    pub log_base:Option<String>,
-    pub cross_between:Option<String>,
+    pub id: u32,
+    pub cross_axis: Option<u32>,
+    pub kind: String,
+    pub position: Option<String>,
+    pub minimum: Option<String>,
+    pub maximum: Option<String>,
+    pub major_unit: Option<String>,
+    pub reversed: bool,
+    pub log_base: Option<String>,
+    pub cross_between: Option<String>,
 }
 
-
 /// Known chart text properties; unrelated DrawingML remains in source.
-#[derive(Clone,Debug,Default,PartialEq,Eq,Hash)]
+#[derive(Clone, Debug, Default, PartialEq, Eq, Hash)]
 pub struct ChartTextStyle {
-    pub family:Option<String>,
+    pub family: Option<String>,
     /// Hundredths of a point, as DrawingML stores `sz`.
-    pub size:Option<u32>,
-    pub bold:Option<bool>,pub italic:Option<bool>,
+    pub size: Option<u32>,
+    pub bold: Option<bool>,
+    pub italic: Option<bool>,
     /// RGB or a stored theme colour name.
-    pub color:Option<String>,
+    pub color: Option<String>,
 }

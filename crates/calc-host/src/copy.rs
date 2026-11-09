@@ -248,10 +248,25 @@ impl CopySnapshot {
 
     /// Sort cell inputs/styles through the clipboard relocator. The complete permutation
     /// applies metadata once, after every source row has been read from immutable snapshots.
-    pub(crate) fn sorted_row_edits(&self,host:&HostState,to:GridArea)->Result<Vec<CellEdit>,CopyRefusal>{
-        let to=self.target(to)?;
-        check_destination(host,to,PasteMode::All)?;
-        copy_edits_from(host,self.from,to,false,Some(self),PasteMode::All,None,false,false,false)
+    pub(crate) fn sorted_row_edits(
+        &self,
+        host: &HostState,
+        to: GridArea,
+    ) -> Result<Vec<CellEdit>, CopyRefusal> {
+        let to = self.target(to)?;
+        check_destination(host, to, PasteMode::All)?;
+        copy_edits_from(
+            host,
+            self.from,
+            to,
+            false,
+            Some(self),
+            PasteMode::All,
+            None,
+            false,
+            false,
+            false,
+        )
     }
 
     pub(crate) fn edits_oriented(
@@ -266,7 +281,14 @@ impl CopySnapshot {
         if transpose && cut {
             return Err(CopyRefusal::TransposeCut);
         }
-        if transpose && self.model.definitions().tables().iter().any(|t|t.area.intersection(self.from).is_some()) {
+        if transpose
+            && self
+                .model
+                .definitions()
+                .tables()
+                .iter()
+                .any(|t| t.area.intersection(self.from).is_some())
+        {
             return Err(CopyRefusal::TransposeTable);
         }
         if transpose
@@ -856,17 +878,51 @@ fn copy_edits_from(
                         continue;
                     }
                 }
-                if let Some((prefix,suffix,width,first))=numbered_text(source_model.cell(seed_at(0))) {
-                    let step=if n>1 {numbered_text(source_model.cell(seed_at(1))).and_then(|(_,_,_,v)|v.checked_sub(first)).ok_or(CopyRefusal::Series)?}else{1};
+                if let Some((prefix, suffix, width, first)) =
+                    numbered_text(source_model.cell(seed_at(0)))
+                {
+                    let step = if n > 1 {
+                        numbered_text(source_model.cell(seed_at(1)))
+                            .and_then(|(_, _, _, v)| v.checked_sub(first))
+                            .ok_or(CopyRefusal::Series)?
+                    } else {
+                        1
+                    };
                     for i in 0..n {
-                        let (p,s,_,v)=numbered_text(source_model.cell(seed_at(i))).ok_or(CopyRefusal::Series)?;
-                        if p!=prefix || s!=suffix || Some(v)!=step.checked_mul(i128::from(i)).and_then(|v|first.checked_add(v)){return Err(CopyRefusal::Series);}
+                        let (p, s, _, v) = numbered_text(source_model.cell(seed_at(i)))
+                            .ok_or(CopyRefusal::Series)?;
+                        if p != prefix
+                            || s != suffix
+                            || Some(v)
+                                != step
+                                    .checked_mul(i128::from(i))
+                                    .and_then(|v| first.checked_add(v))
+                        {
+                            return Err(CopyRefusal::Series);
+                        }
                     }
-                    let index=if down {i128::from(row)-i128::from(from.first().row())}else{i128::from(column)-i128::from(from.first().column())};
-                    let value=step.checked_mul(index).and_then(|v|first.checked_add(v)).filter(|v|*v>=0).ok_or(CopyRefusal::Series)?;
-                    let mut units=prefix;units.extend(format!("{value:0width$}").encode_utf16());units.extend(suffix);
-                    let input=CellText::new(calc_doc_model::value::ExcelText::from_utf16_code_units(units)).ok_or(CopyRefusal::Series)?;
-                    edits.push(CellEdit::Set{at:target,input:CellInput::Text(input)});continue;
+                    let index = if down {
+                        i128::from(row) - i128::from(from.first().row())
+                    } else {
+                        i128::from(column) - i128::from(from.first().column())
+                    };
+                    let value = step
+                        .checked_mul(index)
+                        .and_then(|v| first.checked_add(v))
+                        .filter(|v| *v >= 0)
+                        .ok_or(CopyRefusal::Series)?;
+                    let mut units = prefix;
+                    units.extend(format!("{value:0width$}").encode_utf16());
+                    units.extend(suffix);
+                    let input = CellText::new(
+                        calc_doc_model::value::ExcelText::from_utf16_code_units(units),
+                    )
+                    .ok_or(CopyRefusal::Series)?;
+                    edits.push(CellEdit::Set {
+                        at: target,
+                        input: CellInput::Text(input),
+                    });
+                    continue;
                 }
             }
             if let Some(array) = legacy.iter().find(|array| array.area().contains(source)) {
@@ -1030,7 +1086,18 @@ fn copy_edits_from(
             }
         }
     }
-    if include_metadata {crate::copy_metadata::append(host,source_model,from,to,mode,cut,transpose,&mut edits)?;}
+    if include_metadata {
+        crate::copy_metadata::append(
+            host,
+            source_model,
+            from,
+            to,
+            mode,
+            cut,
+            transpose,
+            &mut edits,
+        )?;
+    }
     Ok(edits)
 }
 
@@ -1048,13 +1115,32 @@ fn uses_name(text: &str, name: &str) -> bool {
 }
 
 /// The last ASCII digit run, retaining all other UTF-16 units and any leading zero width.
-fn numbered_text(input:Option<&CellInput>)->Option<(Vec<u16>,Vec<u16>,usize,i128)>{
-    let CellInput::Text(text)=input? else{return None;};let units=text.text().utf16_code_units();
-    let digit=|u:&u16|(u16::from(b'0')..=u16::from(b'9')).contains(u);
-    let end=units.iter().rposition(digit)?+1;
-    let start=units[..end].iter().rposition(|u|!digit(u)).map_or(0,|i|i+1);
-    let mut number=0i128;
-    for &unit in &units[start..end] {number=number.checked_mul(10)?.checked_add(i128::from(unit-u16::from(b'0')))?;}
-    let width=if end-start>1 && units[start]==u16::from(b'0'){end-start}else{0};
-    Some((units[..start].to_vec(),units[end..].to_vec(),width,number))
+fn numbered_text(input: Option<&CellInput>) -> Option<(Vec<u16>, Vec<u16>, usize, i128)> {
+    let CellInput::Text(text) = input? else {
+        return None;
+    };
+    let units = text.text().utf16_code_units();
+    let digit = |u: &u16| (u16::from(b'0')..=u16::from(b'9')).contains(u);
+    let end = units.iter().rposition(digit)? + 1;
+    let start = units[..end]
+        .iter()
+        .rposition(|u| !digit(u))
+        .map_or(0, |i| i + 1);
+    let mut number = 0i128;
+    for &unit in &units[start..end] {
+        number = number
+            .checked_mul(10)?
+            .checked_add(i128::from(unit - u16::from(b'0')))?;
+    }
+    let width = if end - start > 1 && units[start] == u16::from(b'0') {
+        end - start
+    } else {
+        0
+    };
+    Some((
+        units[..start].to_vec(),
+        units[end..].to_vec(),
+        width,
+        number,
+    ))
 }

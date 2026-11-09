@@ -188,8 +188,13 @@ pub enum FormulaResult {
 
 impl FormulaResult {
     /// Keep a historical display value without carrying a reusable read certificate.
-    pub(crate) fn without_stamp(mut self)->Self {
-        match &mut self {Self::Calculated{calculation,..}|Self::NotModeled{calculation,..}=>calculation.stamp=None,Self::FileCached(_)=>{}}
+    pub(crate) fn without_stamp(mut self) -> Self {
+        match &mut self {
+            Self::Calculated { calculation, .. } | Self::NotModeled { calculation, .. } => {
+                calculation.stamp = None
+            }
+            Self::FileCached(_) => {}
+        }
         self
     }
     pub fn stamp(&self) -> Option<&crate::contract::ResultStamp> {

@@ -46,13 +46,19 @@ pub enum Notation {
     Postfix,
 }
 
-
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub enum BindingForm { Let, Lambda }
+pub enum BindingForm {
+    Let,
+    Lambda,
+}
 
 /// A deferred implementation category and its owner.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub enum Deferral { ExternalService, Python, ListsInCells }
+pub enum Deferral {
+    ExternalService,
+    Python,
+    ListsInCells,
+}
 
 impl Deferral {
     pub const fn owner(self) -> &'static str {
@@ -98,11 +104,22 @@ pub enum PairedResult {
 }
 
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
-pub enum WholeResultPolicy { #[default] None, Conditions, Selector }
+pub enum WholeResultPolicy {
+    #[default]
+    None,
+    Conditions,
+    Selector,
+}
 
 /// The measured treatment of a 3-D reference at an argument position.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub enum ThreeDPlace { Unknown, Take, Spread, ValueError, ReferenceError }
+pub enum ThreeDPlace {
+    Unknown,
+    Take,
+    Spread,
+    ValueError,
+    ReferenceError,
+}
 
 /// dc-10y: Excel 16.0.20430, 2026-10-25, `Range.Formula`, three sheets with 1, 2 and 3 in A1.
 /// `SUM(Ja:Ma!A1)` takes the three sheet values; `INDEX(Ja:Ma!A1,1)` gives #VALUE!;
@@ -116,13 +133,27 @@ pub struct ThreeD {
 }
 
 impl Default for ThreeD {
-    fn default() -> Self { Self::NONE }
+    fn default() -> Self {
+        Self::NONE
+    }
 }
 
 impl ThreeD {
-    const NONE: Self = Self { take: None, value: None, reference: None };
-    pub const fn new(take: Option<&'static [usize]>, value: Option<&'static [usize]>, reference: Option<&'static [usize]>) -> Self {
-        Self { take, value, reference }
+    const NONE: Self = Self {
+        take: None,
+        value: None,
+        reference: None,
+    };
+    pub const fn new(
+        take: Option<&'static [usize]>,
+        value: Option<&'static [usize]>,
+        reference: Option<&'static [usize]>,
+    ) -> Self {
+        Self {
+            take,
+            value,
+            reference,
+        }
     }
     fn has(positions: Option<&[usize]>, index: usize) -> bool {
         match positions {
@@ -140,11 +171,19 @@ impl ThreeD {
         }
     }
     pub fn at(self, index: usize) -> ThreeDPlace {
-        if Self::has(self.value, index) { ThreeDPlace::ValueError }
-        else if Self::has(self.reference, index) { ThreeDPlace::ReferenceError }
-        else if Self::has(self.take, index) {
-            if Self::is_tail(self.take, index) { ThreeDPlace::Spread } else { ThreeDPlace::Take }
-        } else { ThreeDPlace::Unknown }
+        if Self::has(self.value, index) {
+            ThreeDPlace::ValueError
+        } else if Self::has(self.reference, index) {
+            ThreeDPlace::ReferenceError
+        } else if Self::has(self.take, index) {
+            if Self::is_tail(self.take, index) {
+                ThreeDPlace::Spread
+            } else {
+                ThreeDPlace::Take
+            }
+        } else {
+            ThreeDPlace::Unknown
+        }
     }
 }
 
@@ -174,14 +213,26 @@ pub enum ImportKind {
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum EntryKind {
     Worksheet,
-    Operator { file_spelling: Option<&'static str> },
+    Operator {
+        file_spelling: Option<&'static str>,
+    },
     Binding(BindingForm),
-    AddIn { library: &'static str, export: &'static str },
-    HostRoute { provider: &'static str, route: HostRouteKind },
+    AddIn {
+        library: &'static str,
+        export: &'static str,
+    },
+    HostRoute {
+        provider: &'static str,
+        route: HostRouteKind,
+    },
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub enum HostRouteKind { Fetch(FetchKind), Import(ImportKind), Rtd }
+pub enum HostRouteKind {
+    Fetch(FetchKind),
+    Import(ImportKind),
+    Rtd,
+}
 
 /// Measured behavior of a catalogue entry that is independent of its parameter classes.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
@@ -238,22 +289,72 @@ impl EntryTraits {
         three_d: ThreeD::NONE,
     };
 
-    pub const fn intersect_legacy_result(mut self) -> Self { self.intersect_legacy_result = true; self }
-    pub const fn reject_multi_cell_reference(mut self) -> Self { self.reject_multi_cell_reference = true; self }
-    pub const fn padding_precedes_call(mut self) -> Self { self.padding_precedes_call = true; self }
-    pub const fn skip_nested_subtotals(mut self) -> Self { self.can_skip_nested_subtotals = true; self.is_subtotal = true; self }
-    pub const fn lift_dynamic_references(mut self) -> Self { self.lift_dynamic_references = true; self }
-    pub const fn take_reference_array(mut self) -> Self { self.take_reference_array = true; self }
-    pub const fn lift_computed_array(mut self) -> Self { self.lift_computed_array = true; self }
-    pub const fn if_blanks(mut self) -> Self { self.zero_array_blanks = true; self.zero_lifted_blank = true; self }
-    pub const fn choose_blanks(mut self) -> Self { self.zero_dynamic_lifted_blank = true; self }
-    pub const fn paired_result(mut self, paired: PairedResult) -> Self { self.paired_result = paired; self }
-    pub const fn whole_result(mut self, policy: WholeResultPolicy) -> Self { self.whole_result_policy = policy; self }
-    pub const fn volatile(mut self) -> Self { self.volatile = true; self }
-    pub const fn flush_subnormal_inputs(mut self) -> Self { self.flush_subnormal_inputs = true; self }
-    pub const fn retain_overflow_number(mut self) -> Self { self.retain_overflow_number = true; self }
-    pub const fn retain_subnormal_output(mut self) -> Self { self.retain_subnormal_output = true; self }
-    pub const fn strict_number_arguments(mut self) -> Self { self.strict_number_arguments = true; self }
+    pub const fn intersect_legacy_result(mut self) -> Self {
+        self.intersect_legacy_result = true;
+        self
+    }
+    pub const fn reject_multi_cell_reference(mut self) -> Self {
+        self.reject_multi_cell_reference = true;
+        self
+    }
+    pub const fn padding_precedes_call(mut self) -> Self {
+        self.padding_precedes_call = true;
+        self
+    }
+    pub const fn skip_nested_subtotals(mut self) -> Self {
+        self.can_skip_nested_subtotals = true;
+        self.is_subtotal = true;
+        self
+    }
+    pub const fn lift_dynamic_references(mut self) -> Self {
+        self.lift_dynamic_references = true;
+        self
+    }
+    pub const fn take_reference_array(mut self) -> Self {
+        self.take_reference_array = true;
+        self
+    }
+    pub const fn lift_computed_array(mut self) -> Self {
+        self.lift_computed_array = true;
+        self
+    }
+    pub const fn if_blanks(mut self) -> Self {
+        self.zero_array_blanks = true;
+        self.zero_lifted_blank = true;
+        self
+    }
+    pub const fn choose_blanks(mut self) -> Self {
+        self.zero_dynamic_lifted_blank = true;
+        self
+    }
+    pub const fn paired_result(mut self, paired: PairedResult) -> Self {
+        self.paired_result = paired;
+        self
+    }
+    pub const fn whole_result(mut self, policy: WholeResultPolicy) -> Self {
+        self.whole_result_policy = policy;
+        self
+    }
+    pub const fn volatile(mut self) -> Self {
+        self.volatile = true;
+        self
+    }
+    pub const fn flush_subnormal_inputs(mut self) -> Self {
+        self.flush_subnormal_inputs = true;
+        self
+    }
+    pub const fn retain_overflow_number(mut self) -> Self {
+        self.retain_overflow_number = true;
+        self
+    }
+    pub const fn retain_subnormal_output(mut self) -> Self {
+        self.retain_subnormal_output = true;
+        self
+    }
+    pub const fn strict_number_arguments(mut self) -> Self {
+        self.strict_number_arguments = true;
+        self
+    }
 }
 
 /// What a parameter admits at the call interface.
@@ -398,7 +499,6 @@ impl Parameter {
     }
 }
 
-
 /// What Excel's formula entry accepts in a parameter. The default is [`EntryClass::Any`].
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
 pub enum EntryClass {
@@ -472,7 +572,15 @@ pub struct LocalizedDisplayName {
 
 /// A service a kernel may use when it evaluates a call.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub enum ContextFacility { NumericMode, Cells, Random, ReferenceText, Environment, Host, Callables }
+pub enum ContextFacility {
+    NumericMode,
+    Cells,
+    Random,
+    ReferenceText,
+    Environment,
+    Host,
+    Callables,
+}
 
 /// Data for a worksheet function whose executable kernel is attached by the caller.
 #[derive(Clone, Copy, Debug)]

@@ -29,7 +29,6 @@ pub struct PivotLayout {
     pub number_formats: BTreeMap<CellKey, u32>,
 }
 
-
 mod aggregate;
 mod axis;
 mod formula;
@@ -38,15 +37,18 @@ mod records;
 mod render;
 use aggregate::Total;
 use axis::render_axes;
-use records::{compare, field_groups, page_allows, page_field_items, resolve};
-pub use records::item_value;
-use render::{Form, label_text, truthy};
-pub use model::{cube_model, valid_model_snapshot};
 pub(crate) use model::data_cell as model_data_cell;
+pub use model::{cube_model, valid_model_snapshot};
+pub use records::item_value;
+use records::{compare, field_groups, page_allows, page_field_items, resolve};
+use render::{Form, label_text, truthy};
 
 /// Calculate a pivot from its retained worksheet records or data-model snapshot.
 pub fn layout(table: &PivotTable, cache: &PivotCache) -> Result<PivotLayout, PivotIssue> {
-    if matches!(cache.snapshot.as_ref().map(|snapshot| &snapshot.origin), Some(PivotSnapshotOrigin::DataModel { .. })) {
+    if matches!(
+        cache.snapshot.as_ref().map(|snapshot| &snapshot.origin),
+        Some(PivotSnapshotOrigin::DataModel { .. })
+    ) {
         model::layout(table, cache)
     } else {
         render::layout(table, cache)
@@ -76,7 +78,10 @@ pub(crate) fn calculate(state: &PivotState, tick: CalcTick) -> PivotResults {
                 tick,
                 snapshot.numeric.clone(),
             );
-            out.cells.insert(table.area.first(), (CalcValue::error(WorksheetErrorCode::Spill), calculation));
+            out.cells.insert(
+                table.area.first(),
+                (CalcValue::error(WorksheetErrorCode::Spill), calculation),
+            );
             continue;
         }
         if table.row_fields.is_empty()

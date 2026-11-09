@@ -238,12 +238,22 @@ impl GridMetrics {
             return out;
         }
         let snap = |size: f64| {
-            if size == 0.0 { 0.0 } else { (size * device_scale).round().max(1.0) / device_scale }
+            if size == 0.0 {
+                0.0
+            } else {
+                (size * device_scale).round().max(1.0) / device_scale
+            }
         };
         let row_height = snap(out.row_height);
         let col_width = snap(out.col_width);
-        out.rows = Sizes::new(row_height, out.rows.sized.iter().map(|&(i, size)| (i, snap(size))));
-        out.cols = Sizes::new(col_width, out.cols.sized.iter().map(|&(i, size)| (i, snap(size))));
+        out.rows = Sizes::new(
+            row_height,
+            out.rows.sized.iter().map(|&(i, size)| (i, snap(size))),
+        );
+        out.cols = Sizes::new(
+            col_width,
+            out.cols.sized.iter().map(|&(i, size)| (i, snap(size))),
+        );
         out.row_height = row_height;
         out.col_width = col_width;
         out.header_h = snap(out.header_h);
@@ -280,7 +290,11 @@ impl GridMetrics {
         self.cols.visible(self.col_width, index, forward, limit)
     }
 
-    pub fn col_at(&self, offset:f64, limit:u32)->u32 { self.cols.band_at(self.col_width,offset.max(0.0),limit).unwrap_or(limit) }
+    pub fn col_at(&self, offset: f64, limit: u32) -> u32 {
+        self.cols
+            .band_at(self.col_width, offset.max(0.0), limit)
+            .unwrap_or(limit)
+    }
 
     pub fn row_at(&self, offset: f64, limit: u32) -> u32 {
         self.rows
@@ -988,19 +1002,37 @@ mod paint_metric_tests {
     fn excel_column_units_and_row_points_use_whole_base_pixels() {
         let widths = [0.5, 1., 2., 8.43, 8.7109375, 12., 20.];
         let geometry = crate::projection::Geometry {
-            columns: widths.iter().enumerate().map(|(i, &w)| ((i + 1) as u32, (i + 1) as u32, Some(w), false)).collect(),
-            rows: vec![(1, Some(23.), false), (2, Some(32.), false), (3, Some(20.), false)],
+            columns: widths
+                .iter()
+                .enumerate()
+                .map(|(i, &w)| ((i + 1) as u32, (i + 1) as u32, Some(w), false))
+                .collect(),
+            rows: vec![
+                (1, Some(23.), false),
+                (2, Some(32.), false),
+                (3, Some(20.), false),
+            ],
             ..Default::default()
         };
         let metrics = sheet_metrics(Some(&geometry));
-        assert_eq!((1..=7).map(|c| metrics.width(c)).collect::<Vec<_>>(), [3., 7., 14., 59., 61., 84., 140.]);
-        assert_eq!((1..=3).map(|r| metrics.height(r)).collect::<Vec<_>>(), [30., 42., 26.]);
+        assert_eq!(
+            (1..=7).map(|c| metrics.width(c)).collect::<Vec<_>>(),
+            [3., 7., 14., 59., 61., 84., 140.]
+        );
+        assert_eq!(
+            (1..=3).map(|r| metrics.height(r)).collect::<Vec<_>>(),
+            [30., 42., 26.]
+        );
     }
 
     #[cfg_attr(not(target_arch = "wasm32"), test)]
     #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
     fn display_zoom_retains_pixel_bands_and_cell_hit_targets() {
-        let mut base = GridMetrics { row_height: 30., col_width: 77., ..Default::default() };
+        let mut base = GridMetrics {
+            row_height: 30.,
+            col_width: 77.,
+            ..Default::default()
+        };
         base.rows = Sizes::new(30., [(2, 26.), (3, 0.)]);
         for (zoom, row, col) in [(0.75, 23., 58.), (1., 30., 77.), (1.5, 45., 116.)] {
             let m = base.scaled_for_display(zoom, 1.);
@@ -1011,13 +1043,20 @@ mod paint_metric_tests {
         for zoom in [0.1, 0.75, 1., 1.5] {
             for dpr in [1., 1.25, 2.] {
                 let m = base.scaled_for_display(zoom, dpr);
-                let v = Viewport { width: 2000., height: 2000., ..Default::default() };
+                let v = Viewport {
+                    width: 2000.,
+                    height: 2000.,
+                    ..Default::default()
+                };
                 for row in [1, 2, 4, 18] {
                     let rect = cell_rect(&m, &v, row, 10);
                     for edge in [rect.x, rect.y, rect.w, rect.h] {
                         assert!((edge * dpr - (edge * dpr).round()).abs() < 1e-9);
                     }
-                    assert_eq!(hit_test(&m, &v, 100, 100, rect.x + rect.w / 2., rect.y + rect.h / 2.), HitTarget::Cell { row, col: 10 });
+                    assert_eq!(
+                        hit_test(&m, &v, 100, 100, rect.x + rect.w / 2., rect.y + rect.h / 2.),
+                        HitTarget::Cell { row, col: 10 }
+                    );
                 }
             }
         }
@@ -1028,7 +1067,8 @@ pub fn sheet_metrics(geometry: Option<&crate::projection::Geometry>) -> GridMetr
     // Stored OOXML widths already include the cell margins. Keep the existing Calibri-11
     // digit-width assumption; use the standard's truncation, including half-pixel cases.
     // https://learn.microsoft.com/dotnet/api/documentformat.openxml.spreadsheet.column
-    let column_px = |chars: f64| (((256. * chars + (128. / DIGIT_PX).floor()) / 256.) * DIGIT_PX).floor();
+    let column_px =
+        |chars: f64| (((256. * chars + (128. / DIGIT_PX).floor()) / 256.) * DIGIT_PX).floor();
     // Excel's captured 23/32/20-point rows occupy 30/42/26 pixels at 96 DPI.
     let row_px = |points: f64| (points * 96.0 / 72.0).floor();
     let col_width = geometry
@@ -1070,8 +1110,28 @@ pub fn sheet_metrics(geometry: Option<&crate::projection::Geometry>) -> GridMetr
         scale: 1.0,
         row_height,
         col_width,
-        header_h: 22.0 + geometry.map_or(0.,|g|f64::from(g.outline.iter().filter(|g|!g.rows).map(|g|g.level).max().unwrap_or(0))*16.),
-        header_w: 64.0 + geometry.map_or(0.,|g|f64::from(g.outline.iter().filter(|g|g.rows).map(|g|g.level).max().unwrap_or(0))*16.),
+        header_h: 22.0
+            + geometry.map_or(0., |g| {
+                f64::from(
+                    g.outline
+                        .iter()
+                        .filter(|g| !g.rows)
+                        .map(|g| g.level)
+                        .max()
+                        .unwrap_or(0),
+                ) * 16.
+            }),
+        header_w: 64.0
+            + geometry.map_or(0., |g| {
+                f64::from(
+                    g.outline
+                        .iter()
+                        .filter(|g| g.rows)
+                        .map(|g| g.level)
+                        .max()
+                        .unwrap_or(0),
+                ) * 16.
+            }),
         rows: Sizes::new(row_height, rows),
         cols: Sizes::new(col_width, columns),
     }
@@ -1083,41 +1143,91 @@ mod outline_tests {
     #[cfg_attr(not(target_arch = "wasm32"), test)]
     #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
     fn outline_gutters_leave_cell_sizes_text_metrics_and_zoom_unchanged() {
-        let (plain,grouped)=outline_metrics();
-        for scale in [0.5,1.,1.75,4.] {
-            let a=plain.scaled(scale);let b=grouped.scaled(scale);
-            assert_eq!(a.scale,b.scale);assert_eq!(a.width(2),b.width(2));assert_eq!(a.height(2),b.height(2));
-            assert_eq!(crate::render_plan::text_width("outline typography",&a),crate::render_plan::text_width("outline typography",&b));
-            assert_eq!(b.header_h-a.header_h,112.*scale);assert_eq!(b.header_w-a.header_w,48.*scale);
+        let (plain, grouped) = outline_metrics();
+        for scale in [0.5, 1., 1.75, 4.] {
+            let a = plain.scaled(scale);
+            let b = grouped.scaled(scale);
+            assert_eq!(a.scale, b.scale);
+            assert_eq!(a.width(2), b.width(2));
+            assert_eq!(a.height(2), b.height(2));
+            assert_eq!(
+                crate::render_plan::text_width("outline typography", &a),
+                crate::render_plan::text_width("outline typography", &b)
+            );
+            assert_eq!(b.header_h - a.header_h, 112. * scale);
+            assert_eq!(b.header_w - a.header_w, 48. * scale);
         }
     }
     fn outline_metrics() -> (GridMetrics, GridMetrics) {
         use crate::projection::{Geometry, OutlineGroup};
-        let geometry=Geometry{outline:vec![OutlineGroup{rows:false,first:2,last:4,summary:5,level:7,collapsed:false},OutlineGroup{rows:true,first:2,last:4,summary:5,level:3,collapsed:false}],..Geometry::default()};
-        (sheet_metrics(None),sheet_metrics(Some(&geometry)))
+        let geometry = Geometry {
+            outline: vec![
+                OutlineGroup {
+                    rows: false,
+                    first: 2,
+                    last: 4,
+                    summary: 5,
+                    level: 7,
+                    collapsed: false,
+                },
+                OutlineGroup {
+                    rows: true,
+                    first: 2,
+                    last: 4,
+                    summary: 5,
+                    level: 3,
+                    collapsed: false,
+                },
+            ],
+            ..Geometry::default()
+        };
+        (sheet_metrics(None), sheet_metrics(Some(&geometry)))
     }
     #[cfg_attr(not(target_arch = "wasm32"), test)]
     #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
     fn low_zoom_outline_gutters_preserve_sizes_and_cell_hit_targets() {
-        let (plain,grouped)=outline_metrics();
-        let viewport=Viewport::default();
-        for scale in [0.1,0.25] {
-            let a=plain.scaled(scale);let b=grouped.scaled(scale);
-            assert_eq!(a.scale,b.scale);
-            assert_eq!(crate::render_plan::text_width("outline typography",&a),crate::render_plan::text_width("outline typography",&b));
-            for row in [1,2,10] { for column in [1,2,10] {
-                let first=cell_rect(&a,&viewport,row,column);let second=cell_rect(&b,&viewport,row,column);
-                assert_eq!(first.w,second.w);assert_eq!(first.h,second.h);
-                for (metrics,rect) in [(&a,first),(&b,second)] {
-                    assert_eq!(hit_test(metrics,&viewport,100,100,rect.x+rect.w/2.,rect.y+rect.h/2.),HitTarget::Cell{row,col:column});
+        let (plain, grouped) = outline_metrics();
+        let viewport = Viewport::default();
+        for scale in [0.1, 0.25] {
+            let a = plain.scaled(scale);
+            let b = grouped.scaled(scale);
+            assert_eq!(a.scale, b.scale);
+            assert_eq!(
+                crate::render_plan::text_width("outline typography", &a),
+                crate::render_plan::text_width("outline typography", &b)
+            );
+            for row in [1, 2, 10] {
+                for column in [1, 2, 10] {
+                    let first = cell_rect(&a, &viewport, row, column);
+                    let second = cell_rect(&b, &viewport, row, column);
+                    assert_eq!(first.w, second.w);
+                    assert_eq!(first.h, second.h);
+                    for (metrics, rect) in [(&a, first), (&b, second)] {
+                        assert_eq!(
+                            hit_test(
+                                metrics,
+                                &viewport,
+                                100,
+                                100,
+                                rect.x + rect.w / 2.,
+                                rect.y + rect.h / 2.
+                            ),
+                            HitTarget::Cell { row, col: column }
+                        );
+                    }
                 }
-            }}
+            }
             // Adding scaled headers and then subtracting them can round one ULP
             // differently from scaling the gutter alone. Cell sizes above stay exact.
-            for (actual,expected) in [(b.header_h-a.header_h,112.*scale),(b.header_w-a.header_w,48.*scale)] {
-                assert!((actual-expected).abs() <= expected.abs()*f64::EPSILON*4.,"{actual} != {expected}");
+            for (actual, expected) in [
+                (b.header_h - a.header_h, 112. * scale),
+                (b.header_w - a.header_w, 48. * scale),
+            ] {
+                assert!(
+                    (actual - expected).abs() <= expected.abs() * f64::EPSILON * 4.,
+                    "{actual} != {expected}"
+                );
             }
         }
     }
-
 }

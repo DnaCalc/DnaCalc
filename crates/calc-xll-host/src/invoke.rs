@@ -292,11 +292,14 @@ impl XllFunction {
                         // native signal is queued for normal P07 admission; its
                         // cached UDF output cannot publish ahead of that input.
                         let admitted = context.rtd_value(&topic, lease)?;
-                        let newer_initial = service
-                            .initial_value(&topic, lease)
-                            .is_some_and(|(sequence, _)| {
-                                admitted.as_ref().is_none_or(|held| sequence > held.sequence)
-                            });
+                        let newer_initial =
+                            service
+                                .initial_value(&topic, lease)
+                                .is_some_and(|(sequence, _)| {
+                                    admitted
+                                        .as_ref()
+                                        .is_none_or(|held| sequence > held.sequence)
+                                });
                         if admitted.is_none() || newer_initial {
                             result = Ok(NativeReturn::Value(
                                 CalcValue::error(WorksheetErrorCode::NA),

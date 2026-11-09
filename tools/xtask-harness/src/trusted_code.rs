@@ -465,7 +465,11 @@ mod tests {
                 live_capture: None,
             },
         );
-        let original = host.loaded().vba_project(&Default::default()).unwrap().unwrap();
+        let original = host
+            .loaded()
+            .vba_project(&Default::default())
+            .unwrap()
+            .unwrap();
         let admitted = manifest
             .prepare(&host, "probe.xlsm", &capture, &hash, None, false)
             .unwrap();
@@ -477,12 +481,34 @@ mod tests {
         admitted.install(&mut session);
         assert!(!session.workbook_events_enabled());
         assert!(session.take_workbook_event_failures().failures.is_empty());
-        assert_eq!(original, session.host().loaded().vba_project(&Default::default()).unwrap().unwrap());
+        assert_eq!(
+            original,
+            session
+                .host()
+                .loaded()
+                .vba_project(&Default::default())
+                .unwrap()
+                .unwrap()
+        );
         manifest.entries.get_mut(&hash).unwrap().events = true;
-        let error = manifest.prepare(session.host(), "probe.xlsm", &capture, &hash, None, false).err().expect("unsupported automatic events still refuse before installation");
+        let error = manifest
+            .prepare(session.host(), "probe.xlsm", &capture, &hash, None, false)
+            .err()
+            .expect("unsupported automatic events still refuse before installation");
         assert_eq!(error.key, "VbaProject:dc-snz.15");
-        assert!(error.message.contains("unsupported automatic-event prefix"), "{error:?}");
-        assert_eq!(original, session.host().loaded().vba_project(&Default::default()).unwrap().unwrap());
+        assert!(
+            error.message.contains("unsupported automatic-event prefix"),
+            "{error:?}"
+        );
+        assert_eq!(
+            original,
+            session
+                .host()
+                .loaded()
+                .vba_project(&Default::default())
+                .unwrap()
+                .unwrap()
+        );
     }
     #[test]
     fn native_capture_attestation_and_linked_owner_are_checked_before_loading() {

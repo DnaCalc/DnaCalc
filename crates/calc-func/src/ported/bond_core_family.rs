@@ -11,9 +11,13 @@
 //! and changed where Excel measurement required it. The licence text is in
 //! `deploy/notices/ported.txt`. The rest of the file is our own work.
 
-use crate::locale::{DateSystem as WorkbookDateSystem, excel_serial_from_ymd, ymd_from_excel_serial};
+use crate::locale::{
+    DateSystem as WorkbookDateSystem, excel_serial_from_ymd, ymd_from_excel_serial,
+};
+use crate::ported::excel_numeric::{
+    crt_pow, excel_x87_add, excel_x87_div, excel_x87_mul, excel_x87_sub,
+};
 use crate::value::{CalcValue, CoreValue, WorksheetErrorCode};
-use crate::ported::excel_numeric::{crt_pow, excel_x87_add, excel_x87_div, excel_x87_mul, excel_x87_sub};
 
 #[derive(Debug, Clone, PartialEq)]
 pub enum BondCoreEvalError {
@@ -423,7 +427,10 @@ fn solve(
         }
         if mp > target { lo = mid } else { hh = mid }
     }
-    let (lo_res, hi_res) = (fun(lo).map(|v| (v - target).abs()), fun(hh).map(|v| (v - target).abs()));
+    let (lo_res, hi_res) = (
+        fun(lo).map(|v| (v - target).abs()),
+        fun(hh).map(|v| (v - target).abs()),
+    );
     Ok(match (lo_res, hi_res) {
         (Ok(a), Ok(b)) if a < b => lo,
         (Ok(_), Err(_)) => lo,
@@ -475,7 +482,10 @@ pub fn pricemat_kernel(
     let dim = days_between_num(issue, maturity, basis_)?;
     let a = days_between_num(issue, settlement, basis_)?;
     let dsm = excel_x87_sub(dim, a);
-    let future = excel_x87_add(100.0, excel_x87_mul(excel_x87_mul(excel_x87_div(dim, b), rate_), 100.0));
+    let future = excel_x87_add(
+        100.0,
+        excel_x87_mul(excel_x87_mul(excel_x87_div(dim, b), rate_), 100.0),
+    );
     let accrued = excel_x87_mul(excel_x87_mul(excel_x87_div(a, b), rate_), 100.0);
     let den = excel_x87_add(1.0, excel_x87_mul(excel_x87_div(dsm, b), yld));
     if den <= 0.0 {
@@ -506,7 +516,9 @@ pub fn yieldmat_kernel(
     // formula's association: `term1 = (1 + DIM/B·rate) - term2`, reusing
     // `term2 = price/100 + A/B·rate` (the former F#-style left chain
     // `dim/b*rate + 1 - price/100 - a/b*rate` is 1-2 ULP off and ruled out).
-    use crate::ported::excel_numeric::{excel_x87_add, excel_x87_div, excel_x87_mul, excel_x87_sub};
+    use crate::ported::excel_numeric::{
+        excel_x87_add, excel_x87_div, excel_x87_mul, excel_x87_sub,
+    };
     let b = days_in_year_for_mat(issue, settlement, basis_)?;
     let dim = dd(issue, maturity, basis_)?;
     let a = dd(issue, settlement, basis_)?;
@@ -574,7 +586,8 @@ pub fn yield_kernel(
     let c = ctx(settlement, maturity, frequency, basis_).map_err(|error| {
         // Finite invalid date serials are NUM in YIELD. Preserve the direct
         // numeric API's VALUE result for nonfinite inputs.
-        if settlement.is_finite() && maturity.is_finite()
+        if settlement.is_finite()
+            && maturity.is_finite()
             && error == derr(WorksheetErrorCode::Value)
         {
             derr(WorksheetErrorCode::Num)
@@ -592,7 +605,10 @@ pub fn yield_kernel(
     // Return that exact algebraic root before the iterative price inversion.
     // Preserve the existing coupon-overflow route. The build 20228 bank has
     // both short and long par observations; wider Excel coverage stays open.
-    if p.n > 1 && c.settlement == p.prev && price == 100.0 && red == 100.0
+    if p.n > 1
+        && c.settlement == p.prev
+        && price == 100.0
+        && red == 100.0
         && (100.0 * rate_ / c.frequency as f64).is_finite()
     {
         return Ok(rate_);
@@ -1006,9 +1022,9 @@ pub fn map_bond_core_error_to_ws(e: &BondCoreEvalError) -> WorksheetErrorCode {
 
 #[cfg(test)]
 mod tests {
+    use super::*;
     #[allow(unused_imports)]
     use crate::value::{CalcArray, CalcValue, CoreValue, ExcelText};
-    use super::*;
 
     fn serial(y: i64, m: i64, d: i64) -> f64 {
         excel_serial_from_ymd(WorkbookDateSystem::System1900, y, m, d).unwrap()
@@ -1747,13 +1763,33 @@ mod tests {
         // Excel 16.0.20527, 2026-11-07: PRICE at a 5% yield for maturities on the 30th and the
         // 28th, where the coupon before them falls in February.
         let cases = [
-            (44617.0, 45899.0, 0.0895, 100.0, 2.0, 1.0, 112.56619226472357),
+            (
+                44617.0,
+                45899.0,
+                0.0895,
+                100.0,
+                2.0,
+                1.0,
+                112.56619226472357,
+            ),
             (37099.0, 39081.0, 0.046, 100.0, 2.0, 1.0, 98.11585064820228),
-            (36417.0, 37769.0, 0.1049, 100.0, 4.0, 2.0, 118.45016379152898),
+            (
+                36417.0,
+                37769.0,
+                0.1049,
+                100.0,
+                4.0,
+                2.0,
+                118.45016379152898,
+            ),
         ];
         for (s, m, rate, red, f, b, excel) in cases {
             let price = price_kernel(s, m, rate, 0.05, red, f, Some(b)).unwrap();
-            assert_eq!(price.to_bits(), f64::to_bits(excel), "PRICE({s},{m}) = {price}, Excel {excel}");
+            assert_eq!(
+                price.to_bits(),
+                f64::to_bits(excel),
+                "PRICE({s},{m}) = {price}, Excel {excel}"
+            );
         }
     }
 
@@ -1784,11 +1820,20 @@ mod tests {
     #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
     fn accrintm_actual_actual_and_edges_match_excel() {
         // 2036-10-31 .. 2037-02-13: 105 days over a 365-day year
-        let v = accrintm_kernel(49979.0, 50084.0, 0.13139245608065744, Some(100.0), Some(1.0)).unwrap();
+        let v = accrintm_kernel(
+            49979.0,
+            50084.0,
+            0.13139245608065744,
+            Some(100.0),
+            Some(1.0),
+        )
+        .unwrap();
         assert_eq!(v, 100.0 * 0.13139245608065744 * (105.0 / 365.0));
-        assert_eq!(accrintm_kernel(40000.0, 40000.0, 0.05, Some(1000.0), Some(0.0)).unwrap(), 0.0);
+        assert_eq!(
+            accrintm_kernel(40000.0, 40000.0, 0.05, Some(1000.0), Some(0.0)).unwrap(),
+            0.0
+        );
         assert!(accrintm_kernel(40001.0, 40000.0, 0.05, Some(1000.0), Some(0.0)).is_err());
         assert!(accrintm_kernel(40000.0, 40100.0, 0.0, Some(1000.0), Some(0.0)).is_err());
     }
-
 }

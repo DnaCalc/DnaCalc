@@ -3,7 +3,11 @@ use crate::value::WorksheetErrorCode;
 pub fn sech_kernel(n: f64) -> Result<f64, WorksheetErrorCode> {
     // Live Excel 16.0 b20326: SECH(x)=1/COSH(x) 40/40 on the COSH EXP-pair grid.
     let result = crate::ported::excel_numeric::excel_x87_recip(crate::ported::cosh::cosh_kernel(n));
-    Ok(if result.abs() < f64::MIN_POSITIVE { 0.0 } else { result })
+    Ok(if result.abs() < f64::MIN_POSITIVE {
+        0.0
+    } else {
+        result
+    })
 }
 
 #[cfg(test)]

@@ -74,7 +74,10 @@ pub(crate) fn mid_start(n: f64) -> Result<usize, WorksheetErrorCode> {
 
 fn unit_width(units: &[u16], offset: usize) -> usize {
     if (0xD800..=0xDBFF).contains(&units[offset])
-        && units.get(offset + 1).is_some_and(|next| (0xDC00..=0xDFFF).contains(next)) {
+        && units
+            .get(offset + 1)
+            .is_some_and(|next| (0xDC00..=0xDFFF).contains(next))
+    {
         2
     } else {
         1
@@ -130,10 +133,19 @@ pub(crate) fn take_right(text: &ExcelText, count: usize) -> ExcelText {
 }
 
 /// MID counts valid surrogate pairs once in Version 2; MIDB keeps its UTF-16 unit policy.
-pub(crate) fn take_mid(text: &ExcelText, start_one_based: usize, count: usize, pairs: bool) -> ExcelText {
+pub(crate) fn take_mid(
+    text: &ExcelText,
+    start_one_based: usize,
+    count: usize,
+    pairs: bool,
+) -> ExcelText {
     let units = text.utf16_code_units();
     let first = start_one_based.saturating_sub(1);
-    let start = if pairs { character_boundary(text, first) } else { first };
+    let start = if pairs {
+        character_boundary(text, first)
+    } else {
+        first
+    };
     if count == 0 || start >= units.len() {
         return ExcelText::from_utf16_code_units(Vec::new());
     }
@@ -241,7 +253,11 @@ pub(crate) fn replace(
 ) -> ExcelText {
     let units = old_text.utf16_code_units();
     let first = start_num.saturating_sub(1);
-    let start_index = if pairs { character_boundary(old_text, first) } else { first.min(units.len()) };
+    let start_index = if pairs {
+        character_boundary(old_text, first)
+    } else {
+        first.min(units.len())
+    };
     let end_index = if pairs {
         character_boundary(old_text, first.saturating_add(num_chars))
     } else {
@@ -267,13 +283,21 @@ pub(crate) fn find(
     // Fn6 distinguishes a lone high surrogate from a lone low surrogate: in
     // Version2 FIND the high has the same admitted starts as an empty needle.
     if needle.is_empty() || (pairs && len_character_count(find_text) == 0) {
-        let length = if pairs { slice_character_count(within_text) } else { hay.len() };
+        let length = if pairs {
+            slice_character_count(within_text)
+        } else {
+            hay.len()
+        };
         if start_num <= length + 1 {
             return Ok(start_num as f64);
         }
         return Err(WorksheetErrorCode::Value);
     }
-    let mut index = if pairs { character_boundary(within_text, start_num - 1) } else { start_num - 1 };
+    let mut index = if pairs {
+        character_boundary(within_text, start_num - 1)
+    } else {
+        start_num - 1
+    };
     let mut position = start_num;
     while index < hay.len() && needle.len() <= hay.len() - index {
         if &hay[index..index + needle.len()] == needle {
@@ -292,7 +316,14 @@ fn search_pattern_matches_prefix(pattern: &[u16], text: &[u16]) -> bool {
     // memo[p * (t_len + 1) + t]: 0 unknown, 1 false, 2 true.
     let width = text.len() + 1;
     let mut memo = vec![0u8; (pattern.len() + 1) * width];
-    fn rec(pattern: &[u16], text: &[u16], p: usize, t: usize, memo: &mut [u8], width: usize) -> bool {
+    fn rec(
+        pattern: &[u16],
+        text: &[u16],
+        p: usize,
+        t: usize,
+        memo: &mut [u8],
+        width: usize,
+    ) -> bool {
         let slot = p * width + t;
         if memo[slot] != 0 {
             return memo[slot] == 2;
@@ -307,8 +338,12 @@ fn search_pattern_matches_prefix(pattern: &[u16], text: &[u16]) -> bool {
                     } else {
                         let mut next = t;
                         loop {
-                            if rec(pattern, text, p + 1, next, memo, width) { break true; }
-                            if next == text.len() { break false; }
+                            if rec(pattern, text, p + 1, next, memo, width) {
+                                break true;
+                            }
+                            if next == text.len() {
+                                break false;
+                            }
                             next += 1;
                         }
                     }
@@ -344,13 +379,21 @@ pub(crate) fn search(
         if hay.is_empty() && start_num == 1 {
             return Ok(1.0);
         }
-        let length = if pairs { slice_character_count(within_text) } else { hay.len() };
+        let length = if pairs {
+            slice_character_count(within_text)
+        } else {
+            hay.len()
+        };
         if start_num <= length {
             return Ok(start_num as f64);
         }
         return Err(WorksheetErrorCode::Value);
     }
-    let mut index = if pairs { character_boundary(within_text, start_num - 1) } else { start_num - 1 };
+    let mut index = if pairs {
+        character_boundary(within_text, start_num - 1)
+    } else {
+        start_num - 1
+    };
     let mut position = start_num;
     while index < hay.len() {
         if search_pattern_matches_prefix(pattern, &hay[index..]) {
@@ -367,9 +410,9 @@ pub(crate) fn search(
 /// Code page 1252's characters at 0x80..=0x9F; an undefined position maps to the C1 control of
 /// the same number, as Windows' conversion does.
 const CP1252_HIGH: [u16; 32] = [
-    0x20AC, 0x0081, 0x201A, 0x0192, 0x201E, 0x2026, 0x2020, 0x2021, 0x02C6, 0x2030, 0x0160,
-    0x2039, 0x0152, 0x008D, 0x017D, 0x008F, 0x0090, 0x2018, 0x2019, 0x201C, 0x201D, 0x2022,
-    0x2013, 0x2014, 0x02DC, 0x2122, 0x0161, 0x203A, 0x0153, 0x009D, 0x017E, 0x0178,
+    0x20AC, 0x0081, 0x201A, 0x0192, 0x201E, 0x2026, 0x2020, 0x2021, 0x02C6, 0x2030, 0x0160, 0x2039,
+    0x0152, 0x008D, 0x017D, 0x008F, 0x0090, 0x2018, 0x2019, 0x201C, 0x201D, 0x2022, 0x2013, 0x2014,
+    0x02DC, 0x2122, 0x0161, 0x203A, 0x0153, 0x009D, 0x017E, 0x0178,
 ];
 
 /// CHAR: the character with code `n` (truncated) of code page 1252, 1 to 255.
@@ -475,7 +518,11 @@ pub(crate) fn clean(text: &ExcelText) -> ExcelText {
 
 // --- casing (excel_casing.rs) ------------------------------------------------------------------
 
-fn push_singleton_or_original(out: &mut String, mapped: impl Iterator<Item = char>, original: char) {
+fn push_singleton_or_original(
+    out: &mut String,
+    mapped: impl Iterator<Item = char>,
+    original: char,
+) {
     let mut chars = mapped;
     match (chars.next(), chars.next()) {
         (Some(single), None) => out.push(single),
@@ -544,8 +591,11 @@ pub(crate) fn lower(text: &ExcelText) -> ExcelText {
     for (index, ch) in chars.iter().copied().enumerate() {
         // The fn1 sigma controls skip preceding marks, while a following mark keeps the
         // nonfinal form even at the end: ΆΣ -> άς; ΑΣ́ -> ασ́.
-        let is_final_sigma = ch == 'Σ' && previous_letter && !chars.get(index + 1)
-            .is_some_and(|&c| c.is_alphabetic() || calc_value::is_combining_mark(c));
+        let is_final_sigma = ch == 'Σ'
+            && previous_letter
+            && !chars
+                .get(index + 1)
+                .is_some_and(|&c| c.is_alphabetic() || calc_value::is_combining_mark(c));
         push_lower(&mut out, ch, is_final_sigma);
         if !calc_value::is_combining_mark(ch) {
             previous_letter = ch.is_alphabetic();
@@ -566,8 +616,9 @@ pub(crate) fn proper(text: &ExcelText) -> ExcelText {
             } else {
                 let is_final_sigma = ch == 'Σ'
                     && adjacent_letter(&chars, index, -1)
-                    && !chars.get(index + 1).is_some_and(|&next|
-                        next.is_alphabetic() || calc_value::is_combining_mark(next));
+                    && !chars.get(index + 1).is_some_and(|&next| {
+                        next.is_alphabetic() || calc_value::is_combining_mark(next)
+                    });
                 push_lower(&mut out, ch, is_final_sigma);
             }
             start_of_word = false;
@@ -605,7 +656,10 @@ mod tests {
         assert_eq!(search(&t("σ"), &t("ΑΣ"), 1, false), Ok(2.0));
         assert_eq!(search(&t("b*d"), &t("abcde"), 1, false), Ok(2.0));
         assert_eq!(search(&t("~*"), &t("a*b"), 1, false), Ok(2.0));
-        assert_eq!(find(&t("B"), &t("abc"), 1, false), Err(WorksheetErrorCode::Value));
+        assert_eq!(
+            find(&t("B"), &t("abc"), 1, false),
+            Err(WorksheetErrorCode::Value)
+        );
     }
 
     #[cfg_attr(not(target_arch = "wasm32"), test)]

@@ -32,7 +32,10 @@ use calc_catalogue::ported::text_functions::{CODE, ENTRIES as DECLARATIONS};
 /// https://support.microsoft.com/en-gb/excel/compatibility-versions
 /// Missing legacy services retain Version 1. An explicit unsupported version is a typed refusal.
 fn count_surrogate_pairs(site: &Site<'_>) -> Step<bool> {
-    match site.environment().map_or(1, |environment| environment.compatibility_version) {
+    match site
+        .environment()
+        .map_or(1, |environment| environment.compatibility_version)
+    {
         1 => Ok(false),
         2 => Ok(true),
         _ => Err(site.not_modelled(None)),
@@ -89,7 +92,12 @@ fn mid(site: &Site<'_>, a: &[CalcValue], bytes: bool) -> Step<CalcValue> {
     let count = num(site, a, 2)?;
     let start = k::mid_start(start).map_err(Exit::Error)?;
     let count = k::nonnegative_count(count, false).map_err(Exit::Error)?;
-    Ok(CalcValue::text(k::take_mid(&text, start, count, !bytes && count_surrogate_pairs(site)?)))
+    Ok(CalcValue::text(k::take_mid(
+        &text,
+        start,
+        count,
+        !bytes && count_surrogate_pairs(site)?,
+    )))
 }
 
 /// The optional start of FIND and SEARCH: 1 when the call does not reach it or leaves it empty.
@@ -108,14 +116,20 @@ fn find(site: &Site<'_>, a: &[CalcValue], bytes: bool) -> Step<CalcValue> {
     let needle = text_arg(site, a, 0)?;
     let hay = text_arg(site, a, 1)?;
     let start = start(site, a)?;
-    out(site, k::find(&needle, &hay, start, !bytes && count_surrogate_pairs(site)?))
+    out(
+        site,
+        k::find(&needle, &hay, start, !bytes && count_surrogate_pairs(site)?),
+    )
 }
 
 fn search(site: &Site<'_>, a: &[CalcValue], bytes: bool) -> Step<CalcValue> {
     let needle = text_arg(site, a, 0)?;
     let hay = text_arg(site, a, 1)?;
     let start = start(site, a)?;
-    out(site, k::search(&needle, &hay, start, !bytes && count_surrogate_pairs(site)?))
+    out(
+        site,
+        k::search(&needle, &hay, start, !bytes && count_surrogate_pairs(site)?),
+    )
 }
 
 fn replace(site: &Site<'_>, a: &[CalcValue], bytes: bool) -> Step<CalcValue> {
@@ -125,7 +139,16 @@ fn replace(site: &Site<'_>, a: &[CalcValue], bytes: bool) -> Step<CalcValue> {
     let count = num(site, a, 2)?;
     let count = k::nonnegative(count).map_err(Exit::Error)?;
     let new = text_arg(site, a, 3)?;
-    capped(k::replace(&old, start, count, &new, !bytes && count_surrogate_pairs(site)?), WorksheetErrorCode::Value)
+    capped(
+        k::replace(
+            &old,
+            start,
+            count,
+            &new,
+            !bytes && count_surrogate_pairs(site)?,
+        ),
+        WorksheetErrorCode::Value,
+    )
 }
 
 /// A text result, or `code` when it is longer than a cell holds.
@@ -138,19 +161,30 @@ fn capped(text: ExcelText, code: WorksheetErrorCode) -> Step<CalcValue> {
 
 /// The cells an argument of CONCAT or TEXTJOIN gives, in row-major order: a reference's cells
 /// (a blank cell as Empty) or an array's elements, or the argument itself.
-fn cells(site: &Site<'_>, a: &[CalcValue], index: usize, sv: &mut crate::call::EvalServices<'_>) -> Step<Grid> {
+fn cells(
+    site: &Site<'_>,
+    a: &[CalcValue],
+    index: usize,
+    sv: &mut crate::call::EvalServices<'_>,
+) -> Step<Grid> {
     grid(site, a, index, sv)
 }
 
 /// One cell's text for CONCAT and TEXTJOIN.
 fn cell_text(site: &Site<'_>, index: usize, value: &CalcValue) -> Step<Vec<u16>> {
-    if value.callable_value().is_some() || matches!(value.core_ref(), CoreRef::Array(_) | CoreRef::Reference(_)) {
+    if value.callable_value().is_some()
+        || matches!(value.core_ref(), CoreRef::Array(_) | CoreRef::Reference(_))
+    {
         return Err(site.not_modelled(Some(index)));
     }
     Ok(site.argument(index, coerce::text(value))?.into_owned())
 }
 
-fn concat(site: &Site<'_>, a: &[CalcValue], sv: &mut crate::call::EvalServices<'_>) -> Step<CalcValue> {
+fn concat(
+    site: &Site<'_>,
+    a: &[CalcValue],
+    sv: &mut crate::call::EvalServices<'_>,
+) -> Step<CalcValue> {
     let mut joined: Vec<u16> = Vec::new();
     for index in 0..a.len() {
         let g = cells(site, a, index, sv)?;
@@ -184,12 +218,18 @@ fn concatenate(site: &Site<'_>, a: &[CalcValue]) -> Step<CalcValue> {
 /// 2026-10-25, dc-6au, sheets Ja, Fe and Ma holding 1, 2, 3 in A1 and 100, 200, 300 in A2:
 /// `=TEXTJOIN(Ja:Ma!A1,1,"a","b")` "a1b", `=TEXTJOIN(Ja:Ma!A1:A2,1,"a","b","c")` "a1b100c",
 /// `=TEXTJOIN(Fe:Ma!A1,1,"a","b","c")` "a2b3c").
-fn delimiters(site: &Site<'_>, a: &[CalcValue], sv: &mut crate::call::EvalServices<'_>) -> Step<Vec<Vec<u16>>> {
+fn delimiters(
+    site: &Site<'_>,
+    a: &[CalcValue],
+    sv: &mut crate::call::EvalServices<'_>,
+) -> Step<Vec<Vec<u16>>> {
     let mut found = Vec::new();
     match a[0].core_ref() {
         CoreRef::Reference(reference) => {
             for &area in reference.areas() {
-                let one = [CalcValue::reference(crate::value::ReferenceLike::area(area))];
+                let one = [CalcValue::reference(crate::value::ReferenceLike::area(
+                    area,
+                ))];
                 for value in &grid(site, &one, 0, sv)?.cells {
                     found.push(cell_text(site, 0, value)?);
                 }
@@ -205,7 +245,11 @@ fn delimiters(site: &Site<'_>, a: &[CalcValue], sv: &mut crate::call::EvalServic
     Ok(found)
 }
 
-fn textjoin(site: &Site<'_>, a: &[CalcValue], sv: &mut crate::call::EvalServices<'_>) -> Step<CalcValue> {
+fn textjoin(
+    site: &Site<'_>,
+    a: &[CalcValue],
+    sv: &mut crate::call::EvalServices<'_>,
+) -> Step<CalcValue> {
     let delimiters = delimiters(site, a, sv)?;
     let ignore_empty = num(site, a, 1)? != 0.0;
     let mut joined: Vec<u16> = Vec::new();

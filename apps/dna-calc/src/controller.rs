@@ -70,16 +70,16 @@ type ValidationCallback = Box<dyn FnOnce(Result<Outcome, String>)>;
 
 #[derive(Clone, Copy)]
 struct ReviewFields {
-    edit:ModelField<Option<dna_calc_model::ReviewDraft>>,
-    circles:ModelField<std::collections::BTreeSet<SheetId>>,
-    scan:ModelField<Option<Result<wire::ValidationScan,String>>>,
-    epoch:ModelField<u64>,
+    edit: ModelField<Option<dna_calc_model::ReviewDraft>>,
+    circles: ModelField<std::collections::BTreeSet<SheetId>>,
+    scan: ModelField<Option<Result<wire::ValidationScan, String>>>,
+    epoch: ModelField<u64>,
 }
 
 #[derive(Clone, Copy)]
 pub struct Controller {
     model: RwSignal<Model>,
-    review:StoredValue<ReviewFields>,
+    review: StoredValue<ReviewFields>,
     service: StoredValue<std::rc::Rc<dyn dna_calc_model::WorkbookTransport>, LocalStorage>,
     skin_registry: StoredValue<crate::skin::SkinRegistry>,
     #[cfg(target_arch = "wasm32")]
@@ -157,17 +157,48 @@ pub struct Controller {
 }
 
 impl Controller {
-    pub fn review_edit(&self)->ModelField<Option<dna_calc_model::ReviewDraft>> {self.review.get_value().edit}
-    pub fn begin_review_create(&self,at:wire::Key,revision:u64,index:u32,threaded:bool,parent:Option<u32>){
-        let timestamp=js_sys::Date::new_0().to_iso_string().as_string().unwrap_or_default();
-        self.model.update(|m|m.runtime.begin_review_create(at,revision,index,threaded,parent,timestamp));
+    pub fn review_edit(&self) -> ModelField<Option<dna_calc_model::ReviewDraft>> {
+        self.review.get_value().edit
     }
-    pub fn begin_review_edit(&self, at:wire::Key, revision:u64, index:u32, text:String, threaded:bool) {
-        self.model.update(|m|m.runtime.begin_review_edit(at,revision,index,text,threaded));
+    pub fn begin_review_create(
+        &self,
+        at: wire::Key,
+        revision: u64,
+        index: u32,
+        threaded: bool,
+        parent: Option<u32>,
+    ) {
+        let timestamp = js_sys::Date::new_0()
+            .to_iso_string()
+            .as_string()
+            .unwrap_or_default();
+        self.model.update(|m| {
+            m.runtime
+                .begin_review_create(at, revision, index, threaded, parent, timestamp)
+        });
     }
-    pub fn validation_circles(&self)->ModelField<std::collections::BTreeSet<SheetId>> {self.review.get_value().circles}
-    pub fn validation_scan(&self)->ModelField<Option<Result<wire::ValidationScan,String>>> {self.review.get_value().scan}
-    pub fn validation_epoch(&self)->ModelField<u64> {self.review.get_value().epoch}
+    pub fn begin_review_edit(
+        &self,
+        at: wire::Key,
+        revision: u64,
+        index: u32,
+        text: String,
+        threaded: bool,
+    ) {
+        self.model.update(|m| {
+            m.runtime
+                .begin_review_edit(at, revision, index, text, threaded)
+        });
+    }
+    pub fn validation_circles(&self) -> ModelField<std::collections::BTreeSet<SheetId>> {
+        self.review.get_value().circles
+    }
+    pub fn validation_scan(&self) -> ModelField<Option<Result<wire::ValidationScan, String>>> {
+        self.review.get_value().scan
+    }
+    pub fn validation_epoch(&self) -> ModelField<u64> {
+        self.review.get_value().epoch
+    }
 
     /// A controller over a new workbook.
     pub fn new() -> Controller {
@@ -208,11 +239,27 @@ impl Controller {
                 .state_binding(),
             },
         );
-        let review=StoredValue::new(ReviewFields {
-            edit:Field::new(model,|m|&m.runtime.review_edit,|m|&mut m.runtime.review_edit),
-            circles:Field::new(model,|m|&m.runtime.validation_circles,|m|&mut m.runtime.validation_circles),
-            scan:Field::new(model,|m|&m.runtime.validation_scan,|m|&mut m.runtime.validation_scan),
-            epoch:Field::new(model,|m|&m.runtime.validation_epoch,|m|&mut m.runtime.validation_epoch),
+        let review = StoredValue::new(ReviewFields {
+            edit: Field::new(
+                model,
+                |m| &m.runtime.review_edit,
+                |m| &mut m.runtime.review_edit,
+            ),
+            circles: Field::new(
+                model,
+                |m| &m.runtime.validation_circles,
+                |m| &mut m.runtime.validation_circles,
+            ),
+            scan: Field::new(
+                model,
+                |m| &m.runtime.validation_scan,
+                |m| &mut m.runtime.validation_scan,
+            ),
+            epoch: Field::new(
+                model,
+                |m| &m.runtime.validation_epoch,
+                |m| &mut m.runtime.validation_epoch,
+            ),
         });
         let controller = Controller {
             model,
@@ -371,7 +418,7 @@ impl Controller {
                 |m| &m.runtime.pending_actions,
                 |m| &mut m.runtime.pending_actions,
             ),
-            saving: Field::new(model,|m|&m.runtime.saving,|m|&mut m.runtime.saving),
+            saving: Field::new(model, |m| &m.runtime.saving, |m| &mut m.runtime.saving),
             replacing: Field::new(
                 model,
                 |m| &m.runtime.replacing,
@@ -442,8 +489,15 @@ impl Controller {
         controller.ask_result(Request::Summary, move |reply| match reply {
             Ok(Reply::Summary(summary)) => {
                 controller.summary.set(summary.into());
-                if let Some((name,bytes))=crate::files::default_template("Book") {controller.open_template(&name,bytes,move |accepted|if !accepted{controller.new_workbook();});}
-                else {controller.new_workbook();}
+                if let Some((name, bytes)) = crate::files::default_template("Book") {
+                    controller.open_template(&name, bytes, move |accepted| {
+                        if !accepted {
+                            controller.new_workbook();
+                        }
+                    });
+                } else {
+                    controller.new_workbook();
+                }
             }
             Err(message) => controller.say(format!("New workbook failed: {message}"), true),
             _ => controller.say("New workbook did not answer", true),
@@ -606,7 +660,9 @@ impl Controller {
     }
 
     /// The sheets, in workbook order.
-    pub fn all_sheets(&self)->Vec<SheetTab>{self.summary.with(|summary|summary.all_sheets())}
+    pub fn all_sheets(&self) -> Vec<SheetTab> {
+        self.summary.with(|summary| summary.all_sheets())
+    }
 
     pub fn sheets(&self) -> Vec<SheetTab> {
         self.summary.with(|summary| {
@@ -650,9 +706,20 @@ impl Controller {
     /// Projection controls bracket binary fragments. Only a closed transaction and its
     /// completion barrier replace the root a skin can read.
     fn receive(&self, event: Event) {
-        if let Event::WorkbookEventFailed { workbook, event, reason, omitted, .. } = &event {
+        if let Event::WorkbookEventFailed {
+            workbook,
+            event,
+            reason,
+            omitted,
+            ..
+        } = &event
+        {
             if self.summary.with_untracked(|current| current.workbook) == *workbook {
-                let omitted = if *omitted == 0 { String::new() } else { format!("; {omitted} earlier handler failures") };
+                let omitted = if *omitted == 0 {
+                    String::new()
+                } else {
+                    format!("; {omitted} earlier handler failures")
+                };
                 self.say(format!("{event}: {reason}{omitted}"), true);
             }
             return;
@@ -771,7 +838,8 @@ impl Controller {
             }
             if matches!(
                 receipt,
-                wire::CalculationEvent::Admitted { .. } | wire::CalculationEvent::Published(_)
+                wire::CalculationEvent::Admitted { .. }
+                    | wire::CalculationEvent::Published(_)
                     | wire::CalculationEvent::Completed { .. }
             ) {
                 self.validation_epoch().update(|epoch| {
@@ -822,7 +890,9 @@ impl Controller {
             Event::Tiles(b) => b.stamp.id,
             Event::TileCompletion(b) => b.id,
             Event::ProjectionFailed { id, .. } => *id,
-            Event::Calculation { .. } | Event::SaveReady { .. } | Event::WorkbookEventFailed { .. } => {
+            Event::Calculation { .. }
+            | Event::SaveReady { .. }
+            | Event::WorkbookEventFailed { .. } => {
                 unreachable!("owner controls are handled above")
             }
         };
@@ -836,7 +906,9 @@ impl Controller {
             Event::TileAdmission(stamp) => mirror.admit(*stamp),
             Event::Tiles(batch) => mirror.stage(batch),
             Event::TileCompletion(barrier) => mirror.complete(*barrier),
-            Event::Calculation { .. } | Event::SaveReady { .. } | Event::WorkbookEventFailed { .. } => {
+            Event::Calculation { .. }
+            | Event::SaveReady { .. }
+            | Event::WorkbookEventFailed { .. } => {
                 unreachable!("owner controls are handled above")
             }
             Event::ProjectionFailed { .. } => {
@@ -891,7 +963,12 @@ impl Controller {
         self.save_download.set_value(None);
         self.grid_geometry.update_value(|all| all.clear());
         self.mirrors.update_value(BTreeMap::clear);
-        let first = summary.initial_cell.and_then(Key::cell).map(|at|at.sheet()).filter(|id|summary.sheets.iter().any(|(s,_)|s.id()==*id)).or_else(||summary.sheets.first().map(|(sheet,_)|sheet.id()));
+        let first = summary
+            .initial_cell
+            .and_then(Key::cell)
+            .map(|at| at.sheet())
+            .filter(|id| summary.sheets.iter().any(|(s, _)| s.id() == *id))
+            .or_else(|| summary.sheets.first().map(|(sheet, _)| sheet.id()));
         let initial = summary
             .initial_cell
             .and_then(Key::cell)
@@ -1029,15 +1106,37 @@ impl Controller {
     /// Opens a package's bytes under `name`; the current workbook stays when it is refused.
     /// `opened` hears whether it opened.
     pub fn open(&self, name: &str, bytes: Vec<u8>, opened: impl FnOnce(bool) + 'static) {
-        self.open_mode(name,bytes,false,opened);
+        self.open_mode(name, bytes, false, opened);
     }
-    pub fn open_mode(&self,name:&str,bytes:Vec<u8>,edit_template:bool,opened:impl FnOnce(bool)+'static) {self.open_kind(name,bytes,edit_template,false,opened);}
-    pub fn open_template(&self,name:&str,bytes:Vec<u8>,opened:impl FnOnce(bool)+'static) {self.open_kind(name,bytes,false,true,opened);}
-    pub fn edit_personal_template(&self,name:String,bytes:Vec<u8>) {
-        let controller=*self;let owned=name.clone();
-        self.open_mode(&name,bytes,true,move |accepted|if accepted{controller.personal_template.set_value(Some(owned));});
+    pub fn open_mode(
+        &self,
+        name: &str,
+        bytes: Vec<u8>,
+        edit_template: bool,
+        opened: impl FnOnce(bool) + 'static,
+    ) {
+        self.open_kind(name, bytes, edit_template, false, opened);
     }
-    fn open_kind(&self,name:&str,bytes:Vec<u8>,edit_template:bool,template_only:bool,opened:impl FnOnce(bool)+'static) {
+    pub fn open_template(&self, name: &str, bytes: Vec<u8>, opened: impl FnOnce(bool) + 'static) {
+        self.open_kind(name, bytes, false, true, opened);
+    }
+    pub fn edit_personal_template(&self, name: String, bytes: Vec<u8>) {
+        let controller = *self;
+        let owned = name.clone();
+        self.open_mode(&name, bytes, true, move |accepted| {
+            if accepted {
+                controller.personal_template.set_value(Some(owned));
+            }
+        });
+    }
+    fn open_kind(
+        &self,
+        name: &str,
+        bytes: Vec<u8>,
+        edit_template: bool,
+        template_only: bool,
+        opened: impl FnOnce(bool) + 'static,
+    ) {
         if self.replacing.get_untracked() {
             return;
         }
@@ -1048,8 +1147,15 @@ impl Controller {
         let controller = *self;
         let size = bytes.len();
         let name = name.to_owned();
+        let request = if template_only {
+            Request::OpenTemplate { name: name.clone() }
+        } else if edit_template {
+            Request::OpenForEditing { name: name.clone() }
+        } else {
+            Request::Open { name: name.clone() }
+        };
         self.send_command(
-            if template_only {Request::OpenTemplate{name:name.clone()}} else if edit_template { Request::OpenForEditing {name:name.clone()} } else {Request::Open { name: name.clone() }},
+            request,
             Some(bytes),
             move |reply, _| {
                 controller
@@ -1071,7 +1177,8 @@ impl Controller {
                                 elapsed - calculated
                             ),
                             None if outcome.summary.manual => format!(
-                                "Opened {name}: {size} bytes in {elapsed:.0} ms; the file calculates manually, so its formulas show the values it stored until Calculate"
+                                "Opened {name}: {size} bytes in {elapsed:.0} ms; the file calculates manually, \
+                                so its formulas show the values it stored until Calculate"
                             ),
                             None => format!("Opened {name}: {size} bytes in {elapsed:.0} ms; calculation continues in the worker"),
                         };
@@ -1541,7 +1648,11 @@ impl Controller {
     // Construct this small adapter on demand. Keeping it out of the copied Controller avoids
     // multiplying its size through every retained view closure on the wasm stack.
     pub fn paste_transpose(&self) -> ModelField<bool> {
-        Field::new(self.model, |m| &m.runtime.paste_transpose, |m| &mut m.runtime.paste_transpose)
+        Field::new(
+            self.model,
+            |m| &m.runtime.paste_transpose,
+            |m| &mut m.runtime.paste_transpose,
+        )
     }
 
     fn chosen_paste_mode(&self) -> wire::PasteMode {
@@ -1555,7 +1666,14 @@ impl Controller {
 
     /// Move or copy a rectangle through the same captured, revision-bound paste as the clipboard.
     /// A drag owns no system clipboard data and leaves an existing copied snapshot available.
-    pub fn drag_range(&self, from: GridArea, to: GridArea, copy: bool, generation: u64, revision: u64) {
+    pub fn drag_range(
+        &self,
+        from: GridArea,
+        to: GridArea,
+        copy: bool,
+        generation: u64,
+        revision: u64,
+    ) {
         let controller = *self;
         self.after_input(move || {
             if generation != controller.generation.get_untracked()
@@ -1563,38 +1681,67 @@ impl Controller {
                 || controller.selected_area_untracked() != Some(from)
                 || controller.editing.get_untracked().is_some()
             {
-                controller.say("The workbook or selection changed during the drag; drag again", true);
+                controller.say(
+                    "The workbook or selection changed during the drag; drag again",
+                    true,
+                );
                 return;
             }
-            if from == to { return; }
+            if from == to {
+                return;
+            }
             controller.pending_actions.update(|n| *n += 1);
             controller.pending_changes.update(|n| *n += 1);
             let keep = controller.copied.get_untracked().map(|c| c.token);
             let epoch = controller.selection_epoch.get_value();
-            controller.call(Request::Capture { area: Area::of(from), keep }, None, move |reply, _| {
-                controller.pending_actions.update(|n| *n = n.saturating_sub(1));
-                controller.pending_changes.update(|n| *n = n.saturating_sub(1));
-                if generation != controller.generation.get_untracked() { return; }
-                if epoch != controller.selection_epoch.get_value() || controller.editing.get_untracked().is_some() {
-                    controller.say("The selection changed during the drag; drag again", true);
-                    return;
-                }
-                if revision != controller.summary.get_untracked().revision {
-                    controller.say("The workbook changed during the drag; drag again", true);
-                    return;
-                }
-                match reply {
-                    Ok(Reply::Clipboard(payload)) if payload.revision == revision => {
-                        controller.prepare_paste_at_mode(
-                            wire::PasteSource::Internal { token: payload.token, cut: !copy },
-                            to, false, wire::PasteMode::All, false, true,
-                        );
+            controller.call(
+                Request::Capture {
+                    area: Area::of(from),
+                    keep,
+                },
+                None,
+                move |reply, _| {
+                    controller
+                        .pending_actions
+                        .update(|n| *n = n.saturating_sub(1));
+                    controller
+                        .pending_changes
+                        .update(|n| *n = n.saturating_sub(1));
+                    if generation != controller.generation.get_untracked() {
+                        return;
                     }
-                    Ok(Reply::Clipboard(_)) => controller.say("The drag source changed; drag again", true),
-                    Err(reason) => controller.say(reason, true),
-                    _ => controller.say("The drag snapshot did not answer", true),
-                }
-            });
+                    if epoch != controller.selection_epoch.get_value()
+                        || controller.editing.get_untracked().is_some()
+                    {
+                        controller.say("The selection changed during the drag; drag again", true);
+                        return;
+                    }
+                    if revision != controller.summary.get_untracked().revision {
+                        controller.say("The workbook changed during the drag; drag again", true);
+                        return;
+                    }
+                    match reply {
+                        Ok(Reply::Clipboard(payload)) if payload.revision == revision => {
+                            controller.prepare_paste_at_mode(
+                                wire::PasteSource::Internal {
+                                    token: payload.token,
+                                    cut: !copy,
+                                },
+                                to,
+                                false,
+                                wire::PasteMode::All,
+                                false,
+                                true,
+                            );
+                        }
+                        Ok(Reply::Clipboard(_)) => {
+                            controller.say("The drag source changed; drag again", true)
+                        }
+                        Err(reason) => controller.say(reason, true),
+                        _ => controller.say("The drag snapshot did not answer", true),
+                    }
+                },
+            );
         });
     }
 
@@ -1633,13 +1780,23 @@ impl Controller {
                 let result=crate::clipboard::read_system().await;
                 controller.pending_actions.update(|n|*n=n.saturating_sub(1));
                 controller.pending_changes.update(|n|*n=n.saturating_sub(1));
-                if generation!=controller.generation.get_untracked() {return;}
+                if generation != controller.generation.get_untracked() {
+                    return;
+                }
                 match result {
-                    Ok((text,html))=>match controller.clipboard_source(&text,&html) {
-                        Ok(source)=>controller.prepare_paste_at_mode(source,to,false,mode,transpose,false),
-                        Err(reason)=>controller.say(reason,true),
+                    Ok((text, html)) => match controller.clipboard_source(&text, &html) {
+                        Ok(source) => {
+                            controller.prepare_paste_at_mode(source, to, false, mode, transpose, false)
+                        }
+                        Err(reason) => controller.say(reason, true),
                     },
-                    Err(_)=>{controller.clipboard_fallback.set(Some(false));controller.say("Browser clipboard access was denied. Paste table text in the dialog, or use Paste copied cells.",true);}
+                    Err(_) => {
+                        controller.clipboard_fallback.set(Some(false));
+                        controller.say(
+                            "Browser clipboard access was denied. Paste table text in the dialog, or use Paste copied cells.",
+                            true,
+                        );
+                    }
                 }
             });
         });
@@ -1699,7 +1856,14 @@ impl Controller {
     }
 
     pub fn prepare_paste_at(&self, source: wire::PasteSource, to: GridArea, force_preview: bool) {
-        self.prepare_paste_at_mode(source, to, force_preview, self.chosen_paste_mode(), self.model.with_untracked(|m| m.runtime.paste_transpose), false);
+        self.prepare_paste_at_mode(
+            source,
+            to,
+            force_preview,
+            self.chosen_paste_mode(),
+            self.model.with_untracked(|m| m.runtime.paste_transpose),
+            false,
+        );
     }
 
     fn prepare_paste_at_mode(
@@ -1718,13 +1882,21 @@ impl Controller {
         let mode = if matches!(source, wire::PasteSource::Fill { .. }) {
             wire::PasteMode::All
         } else {
-            if matches!(source,wire::PasteSource::FlashFill){wire::PasteMode::Values}else{chosen_mode}
+            if matches!(source, wire::PasteSource::FlashFill) {
+                wire::PasteMode::Values
+            } else {
+                chosen_mode
+            }
         };
         self.pending_actions.update(|n| *n += 1);
         self.pending_changes.update(|n| *n += 1);
         self.call(
             Request::PreparePaste {
-                transpose: transpose && !matches!(source, wire::PasteSource::Fill { .. }|wire::PasteSource::FlashFill),
+                transpose: transpose
+                    && !matches!(
+                        source,
+                        wire::PasteSource::Fill { .. } | wire::PasteSource::FlashFill
+                    ),
                 source,
                 to: Area::of(to),
                 mode,
@@ -1740,7 +1912,10 @@ impl Controller {
                 if generation != controller.generation.get_untracked() {
                     return;
                 }
-                if drag && (selection_epoch != controller.selection_epoch.get_value() || controller.editing.get_untracked().is_some()) {
+                if drag
+                    && (selection_epoch != controller.selection_epoch.get_value()
+                        || controller.editing.get_untracked().is_some())
+                {
                     controller.say("The selection changed during the drag; drag again", true);
                     return;
                 }
@@ -1776,11 +1951,22 @@ impl Controller {
     }
 
     /// Infer basic text extraction from examples, then use the ordinary paste preview.
-    pub fn flash_fill(&self){let controller=*self;self.after_input(move ||{
-        if controller.editing.get_untracked().is_some(){controller.say("Finish or cancel the current entry before Flash Fill",true);return;}
-        if controller.areas.with_untracked(|areas|areas.len()!=1){controller.say("Select one output column for Flash Fill",true);return;}
-        if let Some(to)=controller.selected_area_untracked(){controller.prepare_paste_at(wire::PasteSource::FlashFill,to,true);}
-    });}
+    pub fn flash_fill(&self) {
+        let controller = *self;
+        self.after_input(move || {
+            if controller.editing.get_untracked().is_some() {
+                controller.say("Finish or cancel the current entry before Flash Fill", true);
+                return;
+            }
+            if controller.areas.with_untracked(|areas| areas.len() != 1) {
+                controller.say("Select one output column for Flash Fill", true);
+                return;
+            }
+            if let Some(to) = controller.selected_area_untracked() {
+                controller.prepare_paste_at(wire::PasteSource::FlashFill, to, true);
+            }
+        });
+    }
 
     /// Keyboard equivalent of the handle: the end cell is resolved by the workbook catalogue.
     pub fn fill_through(&self, text: String) {
@@ -1898,31 +2084,90 @@ impl Controller {
     }
 
     /// Validate personal-template package content without changing the current workbook.
-    pub fn inspect_template(&self,bytes:Vec<u8>,done:impl FnOnce(Result<wire::FileFormat,String>)+'static) {
-        self.call(Request::InspectTemplate,Some(bytes),move |reply,_|done(match reply{Ok(Reply::TemplateFormat(f))=>Ok(f),Err(e)=>Err(e),_=>Err("Template inspection did not answer".into())}));
-    }
-    pub fn insert_template(&self,bytes:Vec<u8>,name:Option<String>,done:impl FnOnce(bool)+'static) {
-        if self.waiting_input(){let controller=*self;self.enqueue_admitted(move |accepted|if accepted{controller.insert_template(bytes,name,done)}else{done(false)});return;}
-        if self.editing.get_untracked().is_some(){self.say("Enter or cancel the current edit before inserting worksheets",true);done(false);return;}
-        let controller=*self;
-        let before:Vec<_>=self.sheets().into_iter().map(|s|s.id).collect();
-        let revision=self.summary.get_untracked().revision;
-        let epoch=self.selection_epoch.get_value();
-        self.pending_changes.update(|n|*n+=1);self.pending_actions.update(|n|*n+=1);
-        self.send_command(Request::InsertTemplate{name,revision},Some(bytes),move |reply,_|{
-            controller.pending_changes.update(|n|*n=n.saturating_sub(1));controller.pending_actions.update(|n|*n=n.saturating_sub(1));
-            match reply {
-                Ok(Reply::Done{outcome,..})=>{
-                    controller.applied(&outcome,epoch==controller.selection_epoch.get_value());
-                    let accepted=outcome.accepted;
-                    controller.perform(move ||{
-                        if accepted{if let Some(sheet)=controller.sheets().into_iter().find(|s|!before.contains(&s.id)){controller.show_sheet(sheet.id);}controller.say("Inserted template worksheets",false);}
-                        done(accepted);
-                    });
-                }
-                Err(e)=>{controller.say(e,true);controller.perform(move ||done(false));},_=>{controller.say("Template insertion did not answer",true);controller.perform(move ||done(false));}
-            }
+    pub fn inspect_template(
+        &self,
+        bytes: Vec<u8>,
+        done: impl FnOnce(Result<wire::FileFormat, String>) + 'static,
+    ) {
+        self.call(Request::InspectTemplate, Some(bytes), move |reply, _| {
+            done(match reply {
+                Ok(Reply::TemplateFormat(f)) => Ok(f),
+                Err(e) => Err(e),
+                _ => Err("Template inspection did not answer".into()),
+            })
         });
+    }
+    pub fn insert_template(
+        &self,
+        bytes: Vec<u8>,
+        name: Option<String>,
+        done: impl FnOnce(bool) + 'static,
+    ) {
+        if self.waiting_input() {
+            let controller = *self;
+            self.enqueue_admitted(move |accepted| {
+                if accepted {
+                    controller.insert_template(bytes, name, done)
+                } else {
+                    done(false)
+                }
+            });
+            return;
+        }
+        if self.editing.get_untracked().is_some() {
+            self.say(
+                "Enter or cancel the current edit before inserting worksheets",
+                true,
+            );
+            done(false);
+            return;
+        }
+        let controller = *self;
+        let before: Vec<_> = self.sheets().into_iter().map(|s| s.id).collect();
+        let revision = self.summary.get_untracked().revision;
+        let epoch = self.selection_epoch.get_value();
+        self.pending_changes.update(|n| *n += 1);
+        self.pending_actions.update(|n| *n += 1);
+        self.send_command(
+            Request::InsertTemplate { name, revision },
+            Some(bytes),
+            move |reply, _| {
+                controller
+                    .pending_changes
+                    .update(|n| *n = n.saturating_sub(1));
+                controller
+                    .pending_actions
+                    .update(|n| *n = n.saturating_sub(1));
+                match reply {
+                    Ok(Reply::Done { outcome, .. }) => {
+                        controller
+                            .applied(&outcome, epoch == controller.selection_epoch.get_value());
+                        let accepted = outcome.accepted;
+                        controller.perform(move || {
+                            if accepted {
+                                if let Some(sheet) = controller
+                                    .sheets()
+                                    .into_iter()
+                                    .find(|s| !before.contains(&s.id))
+                                {
+                                    controller.show_sheet(sheet.id);
+                                }
+                                controller.say("Inserted template worksheets", false);
+                            }
+                            done(accepted);
+                        });
+                    }
+                    Err(e) => {
+                        controller.say(e, true);
+                        controller.perform(move || done(false));
+                    }
+                    _ => {
+                        controller.say("Template insertion did not answer", true);
+                        controller.perform(move || done(false));
+                    }
+                }
+            },
+        );
     }
 
     /// A worksheet command through the same worker/history path as cell commands.
@@ -2055,7 +2300,7 @@ impl Controller {
     }
     pub fn outline_geometry(&self) -> Option<wire::Geometry> {
         self.grid_geometry.track();
-        self.sheet.get().and_then(|sheet|self.grid_geometry(sheet))
+        self.sheet.get().and_then(|sheet| self.grid_geometry(sheet))
     }
     pub fn grid_geometry(&self, sheet: SheetId) -> Option<wire::Geometry> {
         self.grid_geometry
@@ -2087,26 +2332,56 @@ impl Controller {
             all.insert((sheet, index), view);
         });
     }
-    pub fn outline(&self, rows:bool, change:wire::OutlineChange) {
-        let controller=*self;
+    pub fn outline(&self, rows: bool, change: wire::OutlineChange) {
+        let controller = *self;
         self.after_input(move || {
-            if controller.editing.get_untracked().is_some() {controller.say("Finish or cancel the current entry before outlining",true);return;}
-            let Some(sheet)=controller.sheet.get_untracked() else{return;};
-            controller.dispatch(Intent::Outline {sheet:wire::Sheet::of(sheet),rows,revision:controller.summary.get_untracked().revision,change},move |outcome|{if outcome.accepted {controller.say("Outline updated",false);}});
+            if controller.editing.get_untracked().is_some() {
+                controller.say("Finish or cancel the current entry before outlining", true);
+                return;
+            }
+            let Some(sheet) = controller.sheet.get_untracked() else {
+                return;
+            };
+            controller.dispatch(
+                Intent::Outline {
+                    sheet: wire::Sheet::of(sheet),
+                    rows,
+                    revision: controller.summary.get_untracked().revision,
+                    change,
+                },
+                move |outcome| {
+                    if outcome.accepted {
+                        controller.say("Outline updated", false);
+                    }
+                },
+            );
         });
     }
-    pub fn outline_selection(&self, rows:bool, action:u8) {
-        let controller=*self;
+    pub fn outline_selection(&self, rows: bool, action: u8) {
+        let controller = *self;
         self.after_input(move || {
-            let areas=controller.areas.get_untracked();
-            if areas.len()!=1 {controller.say("Choose one rectangle before outlining",true);return;}
-            let area=areas[0];
-            let (first,last)=if rows {(area.first().row(),area.last().row())}else{(area.first().column(),area.last().column())};
-            let change=match action {
-                0=>wire::OutlineChange::Group{first,last},1=>wire::OutlineChange::Ungroup{first,last},
-                _=>wire::OutlineChange::Detail{first,last,level:None,show:action==3},
+            let areas = controller.areas.get_untracked();
+            if areas.len() != 1 {
+                controller.say("Choose one rectangle before outlining", true);
+                return;
+            }
+            let area = areas[0];
+            let (first, last) = if rows {
+                (area.first().row(), area.last().row())
+            } else {
+                (area.first().column(), area.last().column())
             };
-            controller.outline(rows,change);
+            let change = match action {
+                0 => wire::OutlineChange::Group { first, last },
+                1 => wire::OutlineChange::Ungroup { first, last },
+                _ => wire::OutlineChange::Detail {
+                    first,
+                    last,
+                    level: None,
+                    show: action == 3,
+                },
+            };
+            controller.outline(rows, change);
         });
     }
     pub fn axis_format(&self, rows: bool, size: Option<String>, hidden: Option<bool>) {
@@ -2333,41 +2608,102 @@ impl Controller {
         );
     }
 
-
-    pub fn table_view(&self)->Option<wire::TableView>{let at=self.active_key()?;self.grid_geometry.with(|all|all.get(&at.sheet()).and_then(|g|g.tables.iter().find(|t|t.area.area().is_some_and(|a|a.contains(at))).cloned()))}
-    pub fn filter_view(&self)->Option<wire::FilterView>{if let Some(table)=self.table_view(){return table.filter;}let sheet=self.sheet.get()?;self.grid_geometry.with(|all|all.get(&sheet).and_then(|g|g.auto_filter.clone()))}
-    pub fn filter_command(&self,change:wire::FilterChange) {self.filter_command_revision(change,None);}
-    fn filter_command_revision(&self,change:wire::FilterChange,expected:Option<u64>) {
-        let controller=*self;
-        let generation=self.generation.get_untracked(); let target=self.sheet.get_untracked();let table=self.table_view().map(|t|t.part);
+    pub fn table_view(&self) -> Option<wire::TableView> {
+        let at = self.active_key()?;
+        self.grid_geometry.with(|all| {
+            all.get(&at.sheet()).and_then(|g| {
+                g.tables
+                    .iter()
+                    .find(|t| t.area.area().is_some_and(|a| a.contains(at)))
+                    .cloned()
+            })
+        })
+    }
+    pub fn filter_view(&self) -> Option<wire::FilterView> {
+        if let Some(table) = self.table_view() {
+            return table.filter;
+        }
+        let sheet = self.sheet.get()?;
+        self.grid_geometry
+            .with(|all| all.get(&sheet).and_then(|g| g.auto_filter.clone()))
+    }
+    pub fn filter_command(&self, change: wire::FilterChange) {
+        self.filter_command_revision(change, None);
+    }
+    fn filter_command_revision(&self, change: wire::FilterChange, expected: Option<u64>) {
+        let controller = *self;
+        let generation = self.generation.get_untracked();
+        let target = self.sheet.get_untracked();
+        let table = self.table_view().map(|t| t.part);
         self.after_input(move || {
-            if controller.generation.get_untracked()!=generation || controller.sheet.get_untracked()!=target || controller.table_view().map(|t|t.part)!=table {controller.say("The filter target changed; reopen it",true);return;}
-            if controller.editing.get_untracked().is_some(){controller.say("Finish the entry before filtering",true);return;}
-            let Some(sheet)=controller.sheet.get_untracked()else{return;};
-            let revision=controller.summary.get_untracked().revision;
-            if expected.is_some_and(|r|r!=revision){controller.say("The filter draft is out of date; load its values again",true);return;}
-            controller.dispatch(Intent::AutoFilter{sheet:Sheet::of(sheet),revision,table,change},move |outcome|{
-                if outcome.accepted {
-                    controller.model.update(|m|{m.runtime.tools.filter.loaded=false;m.runtime.tools.filter.epoch+=1;});
-                    controller.say("AutoFilter updated",false);
-                }
-            });
+            if controller.generation.get_untracked() != generation
+                || controller.sheet.get_untracked() != target
+                || controller.table_view().map(|t| t.part) != table
+            {
+                controller.say("The filter target changed; reopen it", true);
+                return;
+            }
+            if controller.editing.get_untracked().is_some() {
+                controller.say("Finish the entry before filtering", true);
+                return;
+            }
+            let Some(sheet) = controller.sheet.get_untracked() else {
+                return;
+            };
+            let revision = controller.summary.get_untracked().revision;
+            if expected.is_some_and(|r| r != revision) {
+                controller.say(
+                    "The filter draft is out of date; load its values again",
+                    true,
+                );
+                return;
+            }
+            controller.dispatch(
+                Intent::AutoFilter {
+                    sheet: Sheet::of(sheet),
+                    revision,
+                    table,
+                    change,
+                },
+                move |outcome| {
+                    if outcome.accepted {
+                        controller.model.update(|m| {
+                            m.runtime.tools.filter.loaded = false;
+                            m.runtime.tools.filter.epoch += 1;
+                        });
+                        controller.say("AutoFilter updated", false);
+                    }
+                },
+            );
         });
     }
     pub fn enable_filter(&self) {
-        let areas=self.areas.get_untracked();
-        let [area]=areas.as_slice()else{self.say("Select one rectangle including its header",true);return;};
+        let areas = self.areas.get_untracked();
+        let [area] = areas.as_slice() else {
+            self.say("Select one rectangle including its header", true);
+            return;
+        };
         self.filter_command(wire::FilterChange::Enable(Area::of(*area)));
     }
-    pub fn open_filter(&self,column:u32) {
-        let Some(sheet)=self.sheet.get_untracked()else{return;};
-        let Some(filter)=self.filter_view()else{return;};
-        let Some(area)=filter.area.area()else{return;};
-        self.model.update(|m|{let f=&mut m.runtime.tools.filter;f.column=(column-area.first().column()+1).to_string();f.open=true;});
+    pub fn open_filter(&self, column: u32) {
+        let Some(sheet) = self.sheet.get_untracked() else {
+            return;
+        };
+        let Some(filter) = self.filter_view() else {
+            return;
+        };
+        let Some(area) = filter.area.area() else {
+            return;
+        };
+        self.model.update(|m| {
+            let f = &mut m.runtime.tools.filter;
+            f.column = (column - area.first().column() + 1).to_string();
+            f.open = true;
+        });
         self.load_filter_values();
     }
     pub fn load_filter_values(&self) {
-        let controller=*self;
+        let controller = *self;
         self.after_input(move || {
             let Some(sheet)=controller.sheet.get_untracked()else{return;};
             let Some(filter)=controller.filter_view()else{return;};
@@ -2377,93 +2713,323 @@ impl Controller {
             if relative==0 || relative>area.column_count(){controller.say("The filter column must be within its range",true);return;}
             let column=area.first().column()+relative-1;
             let generation=controller.generation.get_untracked();
-            let epoch=controller.model.try_update(|m|{let f=&mut m.runtime.tools.filter;f.epoch+=1;f.loaded=false;f.message="Loading values…".into();f.epoch}).unwrap();
-            let table=filter.table.clone();
-            controller.call(Request::FilterValues{sheet:Sheet::of(sheet),table:table.clone(),column},None,move |reply,_|{
-                if controller.generation.get_untracked()!=generation || controller.sheet.get_untracked()!=Some(sheet) || controller.filter_view().and_then(|f|f.table)!=table || controller.model.with_untracked(|m|m.runtime.tools.filter.epoch!=epoch || m.runtime.tools.filter.column.parse::<u32>().ok()!=Some(relative)){return;}
-                controller.model.update(|m|{
-                    let f=&mut m.runtime.tools.filter;
-                    match reply {
-                        Ok(Reply::FilterValues{revision,values:Ok((values,blank)),criteria}) if revision==m.runtime.summary.revision=>{
-                            f.table=table.clone();f.sheet=Some(Sheet::of(sheet));f.revision=revision;
-                            f.values=values;
-                            f.blank=blank;
-                            f.operator="equal".into(); f.value.clear(); f.operator2.clear(); f.value2.clear(); f.and=true;
-                            if let Some(wire::FilterChange::Custom{and,predicates,..})=criteria {f.and=and;if let Some((op,v))=predicates.first(){f.operator=op.clone();f.value=v.clone();}if let Some((op,v))=predicates.get(1){f.operator2=op.clone();f.value2=v.clone();}}
-                            f.loaded=true;f.search.clear();f.message="Choose values, then Apply. All values in the range are listed.".into();
-                        },
-                        Ok(Reply::FilterValues{values:Err(e),..})|Err(e)=>f.message=e,
-                        _=>f.message="The workbook changed; load its values again".into(),
+            let epoch = controller
+                .model
+                .try_update(|m| {
+                    let f = &mut m.runtime.tools.filter;
+                    f.epoch += 1;
+                    f.loaded = false;
+                    f.message = "Loading values…".into();
+                    f.epoch
+                })
+                .unwrap();
+            let table = filter.table.clone();
+            controller.call(
+                Request::FilterValues { sheet: Sheet::of(sheet), table: table.clone(), column },
+                None,
+                move |reply, _| {
+                    if controller.generation.get_untracked() != generation
+                        || controller.sheet.get_untracked() != Some(sheet)
+                        || controller.filter_view().and_then(|f| f.table) != table
+                        || controller.model.with_untracked(|m| {
+                            m.runtime.tools.filter.epoch != epoch
+                                || m.runtime.tools.filter.column.parse::<u32>().ok() != Some(relative)
+                        })
+                    {
+                        return;
                     }
-                });
-            });
+                    controller.model.update(|m| {
+                        let f = &mut m.runtime.tools.filter;
+                        match reply {
+                            Ok(Reply::FilterValues { revision, values: Ok((values, blank)), criteria })
+                                if revision == m.runtime.summary.revision =>
+                            {
+                                f.table = table.clone();
+                                f.sheet = Some(Sheet::of(sheet));
+                                f.revision = revision;
+                                f.values = values;
+                                f.blank = blank;
+                                f.operator = "equal".into();
+                                f.value.clear();
+                                f.operator2.clear();
+                                f.value2.clear();
+                                f.and = true;
+                                if let Some(wire::FilterChange::Custom { and, predicates, .. }) = criteria {
+                                    f.and = and;
+                                    if let Some((op, v)) = predicates.first() {
+                                        f.operator = op.clone();
+                                        f.value = v.clone();
+                                    }
+                                    if let Some((op, v)) = predicates.get(1) {
+                                        f.operator2 = op.clone();
+                                        f.value2 = v.clone();
+                                    }
+                                }
+                                f.loaded = true;
+                                f.search.clear();
+                                f.message = "Choose values, then Apply. All values in the range are listed.".into();
+                            }
+                            Ok(Reply::FilterValues { values: Err(e), .. }) | Err(e) => f.message = e,
+                            _ => f.message = "The workbook changed; load its values again".into(),
+                        }
+                    });
+                },
+            );
         });
     }
-    pub fn apply_filter(&self,custom:bool) {
-        let Some(sheet)=self.sheet.get_untracked()else{return;};
-        let Some(filter)=self.filter_view()else{return;};
-        let Some(area)=filter.area.area()else{return;};
-        let f=self.model.with_untracked(|m|m.runtime.tools.filter.clone());
-        let Some(column)=f.column.parse::<u32>().ok().filter(|c|*c>0 && *c<=area.column_count()).map(|c|area.first().column()+c-1)else{self.say("Choose a column within the filter range",true);return;};
-        let change=if custom {
-            let mut predicates=vec![(f.operator,f.value)];
-            if !f.operator2.is_empty(){predicates.push((f.operator2,f.value2));}
-            wire::FilterChange::Custom{column,and:f.and,predicates}
-        }else{
-            if !f.loaded || f.table!=filter.table || f.sheet!=Some(Sheet::of(sheet)) || f.revision!=self.summary.get_untracked().revision {self.say("The filter list is out of date; load its values again",true);return;}
-            wire::FilterChange::Values{column,values:f.values.into_iter().filter(|(_,checked)|*checked).map(|(v,_)|v).collect(),blank:f.blank}
+    pub fn apply_filter(&self, custom: bool) {
+        let Some(sheet) = self.sheet.get_untracked() else {
+            return;
         };
-        self.filter_command_revision(change,Some(self.summary.get_untracked().revision));
+        let Some(filter) = self.filter_view() else {
+            return;
+        };
+        let Some(area) = filter.area.area() else {
+            return;
+        };
+        let f = self
+            .model
+            .with_untracked(|m| m.runtime.tools.filter.clone());
+        let Some(column) = f
+            .column
+            .parse::<u32>()
+            .ok()
+            .filter(|c| *c > 0 && *c <= area.column_count())
+            .map(|c| area.first().column() + c - 1)
+        else {
+            self.say("Choose a column within the filter range", true);
+            return;
+        };
+        let change = if custom {
+            let mut predicates = vec![(f.operator, f.value)];
+            if !f.operator2.is_empty() {
+                predicates.push((f.operator2, f.value2));
+            }
+            wire::FilterChange::Custom {
+                column,
+                and: f.and,
+                predicates,
+            }
+        } else {
+            if !f.loaded
+                || f.table != filter.table
+                || f.sheet != Some(Sheet::of(sheet))
+                || f.revision != self.summary.get_untracked().revision
+            {
+                self.say(
+                    "The filter list is out of date; load its values again",
+                    true,
+                );
+                return;
+            }
+            wire::FilterChange::Values {
+                column,
+                values: f
+                    .values
+                    .into_iter()
+                    .filter(|(_, checked)| *checked)
+                    .map(|(v, _)| v)
+                    .collect(),
+                blank: f.blank,
+            }
+        };
+        self.filter_command_revision(change, Some(self.summary.get_untracked().revision));
     }
-    pub fn color_filter(&self,cell_color:bool,color:String) {
-        let Some(sheet)=self.sheet.get_untracked()else{return;};
-        let Some(area)=self.filter_view().and_then(|f|f.area.area())else{return;};
-        if let Some(column)=self.model.with_untracked(|m|m.runtime.tools.filter.column.parse::<u32>().ok()).filter(|c|*c>0 && *c<=area.column_count()).map(|c|area.first().column()+c-1) {self.filter_command_revision(wire::FilterChange::Color{column,cell_color,color},Some(self.summary.get_untracked().revision));}else{self.say("Choose a column within the filter range",true);}
+    pub fn color_filter(&self, cell_color: bool, color: String) {
+        let Some(sheet) = self.sheet.get_untracked() else {
+            return;
+        };
+        let Some(area) = self.filter_view().and_then(|f| f.area.area()) else {
+            return;
+        };
+        if let Some(column) = self
+            .model
+            .with_untracked(|m| m.runtime.tools.filter.column.parse::<u32>().ok())
+            .filter(|c| *c > 0 && *c <= area.column_count())
+            .map(|c| area.first().column() + c - 1)
+        {
+            self.filter_command_revision(
+                wire::FilterChange::Color {
+                    column,
+                    cell_color,
+                    color,
+                },
+                Some(self.summary.get_untracked().revision),
+            );
+        } else {
+            self.say("Choose a column within the filter range", true);
+        }
     }
-    pub fn special_filter(&self, date:Option<String>, top:bool, percent:bool, value:String, blank:bool) {
-        let Some(sheet)=self.sheet.get_untracked()else{return;};
-        let Some(area)=self.filter_view().and_then(|f|f.area.area())else{return;};
-        let Some(column)=self.model.with_untracked(|m|m.runtime.tools.filter.column.parse::<u32>().ok()).filter(|c|*c>0 && *c<=area.column_count()).map(|c|area.first().column()+c-1)else{self.say("Choose a column within the filter range",true);return;};
-        let change=if let Some(date)=date {
-            let groups=date.lines().filter(|s|!s.trim().is_empty()).map(|s|s.trim().split(['-','T',':']).map(str::parse::<u16>).collect::<Result<Vec<_>,_>>()).collect::<Result<Vec<_>,_>>();
-            let Ok(groups)=groups else{self.say("Enter years such as 2026, months such as 2026-11, or dates such as 2026-11-03T14:30",true);return;};
-            if groups.is_empty(){self.say("Enter at least one date group",true);return;}
-            wire::FilterChange::Dates{column,groups,values:Vec::new(),blank}
-        }else{wire::FilterChange::Top{column,top,percent,value}};
-        self.filter_command_revision(change,Some(self.summary.get_untracked().revision));
+    pub fn special_filter(
+        &self,
+        date: Option<String>,
+        top: bool,
+        percent: bool,
+        value: String,
+        blank: bool,
+    ) {
+        let Some(sheet) = self.sheet.get_untracked() else {
+            return;
+        };
+        let Some(area) = self.filter_view().and_then(|f| f.area.area()) else {
+            return;
+        };
+        let Some(column) = self
+            .model
+            .with_untracked(|m| m.runtime.tools.filter.column.parse::<u32>().ok())
+            .filter(|c| *c > 0 && *c <= area.column_count())
+            .map(|c| area.first().column() + c - 1)
+        else {
+            self.say("Choose a column within the filter range", true);
+            return;
+        };
+        let change = if let Some(date) = date {
+            let groups = date
+                .lines()
+                .filter(|s| !s.trim().is_empty())
+                .map(|s| {
+                    s.trim()
+                        .split(['-', 'T', ':'])
+                        .map(str::parse::<u16>)
+                        .collect::<Result<Vec<_>, _>>()
+                })
+                .collect::<Result<Vec<_>, _>>();
+            let Ok(groups) = groups else {
+                self.say("Enter years such as 2026, months such as 2026-11, or dates such as 2026-11-03T14:30",true);
+                return;
+            };
+            if groups.is_empty() {
+                self.say("Enter at least one date group", true);
+                return;
+            }
+            wire::FilterChange::Dates {
+                column,
+                groups,
+                values: Vec::new(),
+                blank,
+            }
+        } else {
+            wire::FilterChange::Top {
+                column,
+                top,
+                percent,
+                value,
+            }
+        };
+        self.filter_command_revision(change, Some(self.summary.get_untracked().revision));
     }
     pub fn clear_filter_column(&self) {
-        let Some(sheet)=self.sheet.get_untracked()else{return;};
-        let Some(filter)=self.filter_view()else{return;};
-        let Some(area)=filter.area.area()else{return;};
-        if let Some(c)=self.model.with_untracked(|m|m.runtime.tools.filter.column.parse::<u32>().ok()).filter(|c|*c>0 && *c<=area.column_count()) {self.filter_command(wire::FilterChange::ClearColumn(area.first().column()+c-1));}
+        let Some(sheet) = self.sheet.get_untracked() else {
+            return;
+        };
+        let Some(filter) = self.filter_view() else {
+            return;
+        };
+        let Some(area) = filter.area.area() else {
+            return;
+        };
+        if let Some(c) = self
+            .model
+            .with_untracked(|m| m.runtime.tools.filter.column.parse::<u32>().ok())
+            .filter(|c| *c > 0 && *c <= area.column_count())
+        {
+            self.filter_command(wire::FilterChange::ClearColumn(
+                area.first().column() + c - 1,
+            ));
+        }
     }
 
     pub fn sort_rows(&self, descending: bool) {
-        let controller=*self;
+        let controller = *self;
         self.after_input(move || {
-            if controller.editing.get_untracked().is_some() {return;}
-            let areas=controller.areas.get_untracked();
-            let [area]=areas.as_slice() else {
-                controller.say("Select one rectangular range to sort",true);return;
-            };
-            let area=*area;
-            let column=controller.model.with_untracked(|m|m.runtime.tools.sort_column.parse::<u32>());
-            let Ok(column)=column else {controller.say("Enter a column number within the selection",true);return;};
-            if column==0 || column>area.column_count() {controller.say("The sort column must be within the selected range (1 is its first column)",true);return;}
-            let (header,levels)=controller.model.with_untracked(|m|(m.runtime.tools.sort_header,m.runtime.tools.sort_levels.clone()));
-            let mut keys=vec![(area.first().column()+column-1,descending)];
-            for (text,reverse) in levels {
-                let Some(column)=text.parse::<u32>().ok().filter(|c|*c>0 && *c<=area.column_count()) else {controller.say("Every sort key must be a column within the selection",true);return;};
-                keys.push((area.first().column()+column-1,reverse));
+            if controller.editing.get_untracked().is_some() {
+                return;
             }
-            let (case_sensitive,custom_order)=controller.model.with_untracked(|m|(m.runtime.tools.sort_case_sensitive,m.runtime.tools.sort_custom_order.clone()));
-            let custom_order:Vec<String>=if custom_order.is_empty(){Vec::new()}else{custom_order.lines().map(str::to_owned).collect()};
-            let revision=controller.summary.get_untracked().revision;
-            let custom_sort=!custom_order.is_empty();
-            let intent=if case_sensitive||!custom_order.is_empty(){Intent::SortRowsWithOptions{area:Area::of(area),keys,header,revision,case_sensitive,custom_order}}else{Intent::SortRows{area:Area::of(area),keys,header,revision}};
-            controller.dispatch(intent,move |outcome| {
-                if outcome.accepted {controller.say(format!("Sorted {} {}",controller.area_label(area),if custom_sort {"in custom list order"}else if descending {"largest to smallest"}else{"smallest to largest"}),false);}
+            let areas = controller.areas.get_untracked();
+            let [area] = areas.as_slice() else {
+                controller.say("Select one rectangular range to sort", true);
+                return;
+            };
+            let area = *area;
+            let column = controller
+                .model
+                .with_untracked(|m| m.runtime.tools.sort_column.parse::<u32>());
+            let Ok(column) = column else {
+                controller.say("Enter a column number within the selection", true);
+                return;
+            };
+            if column == 0 || column > area.column_count() {
+                controller.say(
+                    "The sort column must be within the selected range (1 is its first column)",
+                    true,
+                );
+                return;
+            }
+            let (header, levels) = controller.model.with_untracked(|m| {
+                (
+                    m.runtime.tools.sort_header,
+                    m.runtime.tools.sort_levels.clone(),
+                )
+            });
+            let mut keys = vec![(area.first().column() + column - 1, descending)];
+            for (text, reverse) in levels {
+                let Some(column) = text
+                    .parse::<u32>()
+                    .ok()
+                    .filter(|c| *c > 0 && *c <= area.column_count())
+                else {
+                    controller.say("Every sort key must be a column within the selection", true);
+                    return;
+                };
+                keys.push((area.first().column() + column - 1, reverse));
+            }
+            let (case_sensitive, custom_order) = controller.model.with_untracked(|m| {
+                (
+                    m.runtime.tools.sort_case_sensitive,
+                    m.runtime.tools.sort_custom_order.clone(),
+                )
+            });
+            let custom_order: Vec<String> = if custom_order.is_empty() {
+                Vec::new()
+            } else {
+                custom_order.lines().map(str::to_owned).collect()
+            };
+            let revision = controller.summary.get_untracked().revision;
+            let custom_sort = !custom_order.is_empty();
+            let intent = if case_sensitive || !custom_order.is_empty() {
+                Intent::SortRowsWithOptions {
+                    area: Area::of(area),
+                    keys,
+                    header,
+                    revision,
+                    case_sensitive,
+                    custom_order,
+                }
+            } else {
+                Intent::SortRows {
+                    area: Area::of(area),
+                    keys,
+                    header,
+                    revision,
+                }
+            };
+            controller.dispatch(intent, move |outcome| {
+                if outcome.accepted {
+                    controller.say(
+                        format!(
+                            "Sorted {} {}",
+                            controller.area_label(area),
+                            if custom_sort {
+                                "in custom list order"
+                            } else if descending {
+                                "largest to smallest"
+                            } else {
+                                "smallest to largest"
+                            }
+                        ),
+                        false,
+                    );
+                }
             });
         });
     }
@@ -2768,9 +3334,9 @@ impl Controller {
     fn offer_defined_names(&self) {
         let controller = *self;
         let generation = self.generation.get_untracked();
-        let shown = self.summary.with_untracked(|s| {
-            s.sheets.iter().map(|(sheet, _)| (*sheet, 0)).collect()
-        });
+        let shown = self
+            .summary
+            .with_untracked(|s| s.sheets.iter().map(|(sheet, _)| (*sheet, 0)).collect());
         self.ask(
             wire::Request::Outline {
                 shown,
@@ -3431,28 +3997,48 @@ impl Controller {
     /// Saves the workbook as a package's bytes; `saved` gets its name and bytes, and the status
     /// line says how it went.
     pub fn save(&self, saved: impl FnOnce(String, Vec<u8>) + 'static) {
-        self.save_choice(None,saved);
+        self.save_choice(None, saved);
     }
-    pub fn prepare_save_as(&self, ready: impl FnOnce()+'static) {
-        let controller=*self;
+    pub fn prepare_save_as(&self, ready: impl FnOnce() + 'static) {
+        let controller = *self;
         self.after_input(move || {
-            if controller.editing.get_untracked().is_none() {ready();}
-            else {controller.commit_edit(move |accepted|if accepted {ready();});}
+            if controller.editing.get_untracked().is_none() {
+                ready();
+            } else {
+                controller.commit_edit(move |accepted| {
+                    if accepted {
+                        ready();
+                    }
+                });
+            }
         });
     }
-    pub fn save_as(&self,name:String,format:wire::FileFormat,saved:impl FnOnce(String,Vec<u8>)+'static) {
+    pub fn save_as(
+        &self,
+        name: String,
+        format: wire::FileFormat,
+        saved: impl FnOnce(String, Vec<u8>) + 'static,
+    ) {
         // The modal opens only after its preceding cell entry has committed. A later
         // pending input needs a fresh user action, never an abandoned modal continuation.
         if self.waiting_input() || self.editing.get_untracked().is_some() {
-            self.say("Finish the current cell entry before Save As",true);return;
+            self.say("Finish the current cell entry before Save As", true);
+            return;
         }
-        if let Some(reason)=self.model.with_untracked(|m|m.views.pending_reason()) {self.say(reason,true);return;}
-        self.save_package(Some((name,format)),saved);
+        if let Some(reason) = self.model.with_untracked(|m| m.views.pending_reason()) {
+            self.say(reason, true);
+            return;
+        }
+        self.save_package(Some((name, format)), saved);
     }
-    fn save_choice(&self,target:Option<(String,wire::FileFormat)>,saved:impl FnOnce(String,Vec<u8>)+'static) {
+    fn save_choice(
+        &self,
+        target: Option<(String, wire::FileFormat)>,
+        saved: impl FnOnce(String, Vec<u8>) + 'static,
+    ) {
         if self.waiting_input() {
             let controller = *self;
-            self.enqueue(move || controller.save_choice(target,saved));
+            self.enqueue(move || controller.save_choice(target, saved));
             return;
         }
         if let Some(reason) = self.model.with_untracked(|m| m.views.pending_reason()) {
@@ -3463,17 +4049,21 @@ impl Controller {
         if self.editing.get_untracked().is_some() {
             self.commit_edit(move |accepted| {
                 if accepted {
-                    controller.save_package(target,saved);
+                    controller.save_package(target, saved);
                 } else {
                     controller.focus_editor();
                 }
             });
         } else {
-            self.save_package(target,saved);
+            self.save_package(target, saved);
         }
     }
 
-    fn save_package(&self, target:Option<(String,wire::FileFormat)>, saved: impl FnOnce(String, Vec<u8>) + 'static) {
+    fn save_package(
+        &self,
+        target: Option<(String, wire::FileFormat)>,
+        saved: impl FnOnce(String, Vec<u8>) + 'static,
+    ) {
         if self.save_download.with_value(|pending| pending.is_some()) {
             self.say("A workbook save is still being prepared", false);
             return;
@@ -3517,16 +4107,26 @@ impl Controller {
                 })
                 .collect()
         });
-        let views=Some(wire::SaveWindow {
-                revision: self.summary.get_untracked().revision,
-                active_sheet: wire::Sheet::of(active_sheet),
-                sheets: views,
-            });
+        let views = Some(wire::SaveWindow {
+            revision: self.summary.get_untracked().revision,
+            active_sheet: wire::Sheet::of(active_sheet),
+            sheets: views,
+        });
         // Applying the worker reply updates Summary before this callback runs. Keep the
         // download's original protection here, including saves which finish asynchronously.
-        let unconfirmed = target.is_some()
-            || self.summary.with_untracked(|s| s.changed || s.unsaved);
-        let request=match target {Some((name,format))=>Request::SaveAs{name,format,views},None=>Request::SaveWithContext {calculate_before_save:false,views}};
+        let unconfirmed =
+            target.is_some() || self.summary.with_untracked(|s| s.changed || s.unsaved);
+        let request = match target {
+            Some((name, format)) => Request::SaveAs {
+                name,
+                format,
+                views,
+            },
+            None => Request::SaveWithContext {
+                calculate_before_save: false,
+                views,
+            },
+        };
         self.saving.set(true);
         self.send_command(request, None, move |reply, bytes| {
             if controller.generation.get_untracked() == generation {
@@ -3534,10 +4134,21 @@ impl Controller {
                     if unconfirmed {
                         controller.download_unconfirmed.set(true);
                     }
-                    let personal=controller.personal_template.get_value().filter(|old|old.eq_ignore_ascii_case(&name));
-                    let updated=personal.map(|_|crate::files::update_personal_template(&name,&bytes));
+                    let personal = controller
+                        .personal_template
+                        .get_value()
+                        .filter(|old| old.eq_ignore_ascii_case(&name));
+                    let updated = personal.map(|_| crate::files::update_personal_template(&name, &bytes));
                     saved(name, bytes);
-                    if let Some(Err(error))=updated{controller.say(format!("The download was prepared, but the personal template was not updated: {error}. Add the downloaded template again."),true);}
+                    if let Some(Err(error)) = updated {
+                        controller.say(
+                            format!(
+                                "The download was prepared, but the personal template was not updated: {error}. \
+                                Add the downloaded template again."
+                            ),
+                            true,
+                        );
+                    }
                 }));
             }
         });
@@ -3548,7 +4159,8 @@ impl Controller {
         bytes: Option<Vec<u8>>,
         saved: SaveDownload,
     ) {
-        self.saving.set(matches!(&reply,Ok(Reply::SavePending {..})));
+        self.saving
+            .set(matches!(&reply, Ok(Reply::SavePending { .. })));
         let controller = *self;
         controller.revision.update(|n| *n += 1);
         match (reply, bytes) {
@@ -3568,7 +4180,10 @@ impl Controller {
                 }),
                 Some(bytes),
             ) => {
-                if controller.summary.with_untracked(|s|s.changed || s.unsaved) {
+                if controller
+                    .summary
+                    .with_untracked(|s| s.changed || s.unsaved)
+                {
                     controller.download_unconfirmed.set(true);
                 }
                 controller.summary.set(outcome.summary.into());
@@ -3798,9 +4413,11 @@ impl Controller {
             Ok(CommandEffect::FlashFill) => self.flash_fill(),
             Ok(CommandEffect::Recalculate) => self.dispatch(Intent::Recalculate, |_| {}),
             Ok(CommandEffect::Dialog) => self.focus_command_dialog(),
-            Ok(CommandEffect::PageSetup
+            Ok(
+                CommandEffect::PageSetup
                 | CommandEffect::PrintPreview
-                | CommandEffect::FormatCells | CommandEffect::NameManager,
+                | CommandEffect::FormatCells
+                | CommandEffect::NameManager,
             ) => {}
             Ok(CommandEffect::FocusSkin { skin, ticket }) => {
                 // The model already transferred the edit; only the ticketed effect may focus it.
@@ -3937,46 +4554,122 @@ mod projection_lifetime_tests {
             let root = Owner::new();
             root.with(|| {
                 let mut server = dna_calc_worker::server::Server::new();
-                server.execute_current(Request::Open { name:"tables.xlsx".into() }, Some(include_bytes!("../../../crates/calc-engine/tests/fixtures/dc_10y/oracle.xlsx").to_vec())).reply.unwrap();
-                while server.has_pending_calculation() { server.advance_calculation(); }
-                let s = server.book().host().sheets().iter().find(|s| s.name().text().to_string_lossy()=="DT").unwrap().id();
-                server.book_mut().dispatch(SkinIntent::SetCalcMode(CalcMode::AutomaticExceptTables));
-                for (row,column,text) in [(1,26,"1"),(3,2,"=B1*Z1"),(4,1,"2"),(5,1,"3")] {
-                    server.book_mut().dispatch(SkinIntent::EnterCell { at:CellKey::new(s,row,column).unwrap(),text:text.into() });
-                    while server.has_pending_calculation() { server.advance_calculation(); }
+                server
+                    .execute_current(
+                        Request::Open {
+                            name: "tables.xlsx".into(),
+                        },
+                        Some(
+                            include_bytes!(
+                                "../../../crates/calc-engine/tests/fixtures/dc_10y/oracle.xlsx"
+                            )
+                            .to_vec(),
+                        ),
+                    )
+                    .reply
+                    .unwrap();
+                while server.has_pending_calculation() {
+                    server.advance_calculation();
+                }
+                let s = server
+                    .book()
+                    .host()
+                    .sheets()
+                    .iter()
+                    .find(|s| s.name().text().to_string_lossy() == "DT")
+                    .unwrap()
+                    .id();
+                server
+                    .book_mut()
+                    .dispatch(SkinIntent::SetCalcMode(CalcMode::AutomaticExceptTables));
+                for (row, column, text) in
+                    [(1, 26, "1"), (3, 2, "=B1*Z1"), (4, 1, "2"), (5, 1, "3")]
+                {
+                    server.book_mut().dispatch(SkinIntent::EnterCell {
+                        at: CellKey::new(s, row, column).unwrap(),
+                        text: text.into(),
+                    });
+                    while server.has_pending_calculation() {
+                        server.advance_calculation();
+                    }
                 }
                 server.book_mut().dispatch(SkinIntent::Recalculate);
-                while server.has_pending_calculation() { server.advance_calculation(); }
-                server.book_mut().dispatch(SkinIntent::EnterCell { at:CellKey::new(s,1,26).unwrap(),text:"10".into() });
-                while server.has_pending_calculation() { server.advance_calculation(); }
+                while server.has_pending_calculation() {
+                    server.advance_calculation();
+                }
+                server.book_mut().dispatch(SkinIntent::EnterCell {
+                    at: CellKey::new(s, 1, 26).unwrap(),
+                    text: "10".into(),
+                });
+                while server.has_pending_calculation() {
+                    server.advance_calculation();
+                }
                 server.set_calculation_budget(WorkBudget::evaluations(1));
-                let (package,_) = server.book_mut().save().unwrap();
-                let transport=std::rc::Rc::new(dna_calc_worker::transport::InProcessTransport::default());
-                let controller=Controller::with_transport(transport.clone());
-                controller.open("tables.xlsx",package,|opened| assert!(opened));
-                let images=std::rc::Rc::new(std::cell::RefCell::new(Vec::new()));
-                let target=images.clone();
-                controller.save(move |name,bytes| target.borrow_mut().push((name,bytes)));
-                assert!(images.borrow().is_empty(), "a pending save has no package bytes");
-                let pending=controller.save_download.with_value(|p| p.as_ref().map(|(book,token,_)| (*book,*token))).expect("retained download callback");
+                let (package, _) = server.book_mut().save().unwrap();
+                let transport =
+                    std::rc::Rc::new(dna_calc_worker::transport::InProcessTransport::default());
+                let controller = Controller::with_transport(transport.clone());
+                controller.open("tables.xlsx", package, |opened| assert!(opened));
+                let images = std::rc::Rc::new(std::cell::RefCell::new(Vec::new()));
+                let target = images.clone();
+                controller.save(move |name, bytes| target.borrow_mut().push((name, bytes)));
+                assert!(
+                    images.borrow().is_empty(),
+                    "a pending save has no package bytes"
+                );
+                let pending = controller
+                    .save_download
+                    .with_value(|p| p.as_ref().map(|(book, token, _)| (*book, *token)))
+                    .expect("retained download callback");
                 if reopen {
                     controller.new_workbook();
-                    controller.receive(Event::SaveReady { workbook:pending.0,token:pending.1 });
+                    controller.receive(Event::SaveReady {
+                        workbook: pending.0,
+                        token: pending.1,
+                    });
                     assert!(controller.save_download.with_value(|p| p.is_none()));
                     assert!(images.borrow().is_empty());
                 } else {
                     for _ in 0..1000 {
-                        assert!(!matches!(transport.advance_calculation().unwrap(),HostProgress::Failed(_)));
-                        if !images.borrow().is_empty() { break; }
+                        assert!(!matches!(
+                            transport.advance_calculation().unwrap(),
+                            HostProgress::Failed(_)
+                        ));
+                        if !images.borrow().is_empty() {
+                            break;
+                        }
                     }
-                    assert_eq!(images.borrow().len(),1);
+                    assert_eq!(images.borrow().len(), 1);
                     assert!(controller.save_download.with_value(|p| p.is_none()));
-                    let bytes=images.borrow()[0].1.clone();
-                    let reopened=calc_host::HostState::open(std::sync::Arc::new(calc_host::MemorySource::new(bytes)),&calc_host::OpenPolicy::default(),calc_host::HostOptions { calc_mode:Some(CalcMode::Manual),..Default::default() }).unwrap();
-                    let s=reopened.sheets().iter().find(|s| s.name().text().to_string_lossy()=="DT").unwrap().id();
-                    for (row,expected) in [(4,20.0),(5,30.0)] {
-                        let page=calc_host::project(&reopened,&calc_host::ProjectionRequest { cells:vec![CellKey::new(s,row,2).unwrap()] }).unwrap();
-                        assert!(matches!(page.cells()[0].value(),calc_host::ProjectedValue::FileCached(cache) if cache.value().to_value().as_number()==Some(expected)));
+                    let bytes = images.borrow()[0].1.clone();
+                    let reopened = calc_host::HostState::open(
+                        std::sync::Arc::new(calc_host::MemorySource::new(bytes)),
+                        &calc_host::OpenPolicy::default(),
+                        calc_host::HostOptions {
+                            calc_mode: Some(CalcMode::Manual),
+                            ..Default::default()
+                        },
+                    )
+                    .unwrap();
+                    let s = reopened
+                        .sheets()
+                        .iter()
+                        .find(|s| s.name().text().to_string_lossy() == "DT")
+                        .unwrap()
+                        .id();
+                    for (row, expected) in [(4, 20.0), (5, 30.0)] {
+                        let page = calc_host::project(
+                            &reopened,
+                            &calc_host::ProjectionRequest {
+                                cells: vec![CellKey::new(s, row, 2).unwrap()],
+                            },
+                        )
+                        .unwrap();
+                        assert!(matches!(
+                            page.cells()[0].value(),
+                            calc_host::ProjectedValue::FileCached(cache)
+                                if cache.value().to_value().as_number() == Some(expected)
+                        ));
                     }
                 }
             });
@@ -4184,7 +4877,8 @@ mod projection_lifetime_tests {
                     summary: Some((*summary).clone()),
                     failed_projections: if client_failure { Vec::new() } else { vec![11] },
                 });
-                assert!(controller.validation_epoch().get_untracked() > published_epoch,
+                assert!(
+                    controller.validation_epoch().get_untracked() > published_epoch,
                     "Completion refreshes a preview refused during calculation"
                 );
                 assert_eq!(controller.revision.get_untracked(), display_epoch);
@@ -4204,115 +4898,269 @@ mod template_lifecycle_tests {
     use dna_calc_model::WorkbookTransport;
     #[derive(Default)]
     struct HeldTransport {
-        inner:dna_calc_worker::transport::InProcessTransport,
-        hold:std::cell::Cell<bool>,
-        hold_paste:std::cell::Cell<bool>,
-        hold_drag_query:std::cell::Cell<u8>,
-        pending:std::cell::RefCell<Vec<(Request,Option<Vec<u8>>,dna_calc_model::TransportAnswer)>>,
+        inner: dna_calc_worker::transport::InProcessTransport,
+        hold: std::cell::Cell<bool>,
+        hold_paste: std::cell::Cell<bool>,
+        hold_drag_query: std::cell::Cell<u8>,
+        pending:
+            std::cell::RefCell<Vec<(Request, Option<Vec<u8>>, dna_calc_model::TransportAnswer)>>,
     }
     impl dna_calc_model::WorkbookTransport for HeldTransport {
-        fn start(&self){self.inner.start();}
-        fn set_events(&self,h:std::rc::Rc<dyn Fn(Event)>){self.inner.set_events(h);}
-        fn set_health(&self,h:std::rc::Rc<dyn Fn(port::Health)>){self.inner.set_health(h);}
-        fn call(&self,r:Request,b:Option<Vec<u8>>,a:dna_calc_model::TransportAnswer){
-            let inner=match &r {Request::Command(envelope)=>envelope.request.as_ref(),_=>&r};
-            let query=matches!((self.hold_drag_query.get(),inner),(1,Request::Capture {..})|(2,Request::PreparePaste {..}));
-            if self.hold.get() || query || (self.hold_paste.get() && matches!(inner,Request::Intent(Intent::ApplyPaste { .. }))){self.pending.borrow_mut().push((r,b,a));}else{self.inner.call(r,b,a);}
+        fn start(&self) {
+            self.inner.start();
+        }
+        fn set_events(&self, h: std::rc::Rc<dyn Fn(Event)>) {
+            self.inner.set_events(h);
+        }
+        fn set_health(&self, h: std::rc::Rc<dyn Fn(port::Health)>) {
+            self.inner.set_health(h);
+        }
+        fn call(&self, r: Request, b: Option<Vec<u8>>, a: dna_calc_model::TransportAnswer) {
+            let inner = match &r {
+                Request::Command(envelope) => envelope.request.as_ref(),
+                _ => &r,
+            };
+            let query = matches!(
+                (self.hold_drag_query.get(), inner),
+                (1, Request::Capture { .. }) | (2, Request::PreparePaste { .. })
+            );
+            if self.hold.get()
+                || query
+                || (self.hold_paste.get()
+                    && matches!(inner, Request::Intent(Intent::ApplyPaste { .. })))
+            {
+                self.pending.borrow_mut().push((r, b, a));
+            } else {
+                self.inner.call(r, b, a);
+            }
         }
     }
-    #[cfg_attr(not(target_arch="wasm32"),test)]
-    #[cfg_attr(target_arch="wasm32",wasm_bindgen_test::wasm_bindgen_test)]
+    #[cfg_attr(not(target_arch = "wasm32"), test)]
+    #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
     fn dc_q327__navigation_during_drag_preparation_cancels_the_stale_drag() {
         use std::rc::Rc;
-        for stage in [1,2] {
-            let root=Owner::new();root.with(|| {
-                let transport=Rc::new(HeldTransport::default());
-                let controller=Controller::with_transport(transport.clone());
-                let source=controller.active_key_untracked().unwrap();
-                let destination=CellKey::new(source.sheet(),3,4).unwrap();
-                controller.dispatch(Intent::EnterCell {at:Key::of(source),text:"5".into()},|outcome|assert!(outcome.accepted));
-                let revision=controller.summary.get_untracked().revision;
+        for stage in [1, 2] {
+            let root = Owner::new();
+            root.with(|| {
+                let transport = Rc::new(HeldTransport::default());
+                let controller = Controller::with_transport(transport.clone());
+                let source = controller.active_key_untracked().unwrap();
+                let destination = CellKey::new(source.sheet(), 3, 4).unwrap();
+                controller.dispatch(
+                    Intent::EnterCell {
+                        at: Key::of(source),
+                        text: "5".into(),
+                    },
+                    |outcome| assert!(outcome.accepted),
+                );
+                let revision = controller.summary.get_untracked().revision;
                 transport.hold_drag_query.set(stage);
-                controller.drag_range(GridArea::cell(source),GridArea::cell(destination),false,controller.generation.get_untracked(),revision);
-                assert_eq!(transport.pending.borrow().len(),1);
-                controller.navigate(crate::grid::selection::Navigation::Step(NavAction::Right),false,20);
+                controller.drag_range(
+                    GridArea::cell(source),
+                    GridArea::cell(destination),
+                    false,
+                    controller.generation.get_untracked(),
+                    revision,
+                );
+                assert_eq!(transport.pending.borrow().len(), 1);
+                controller.navigate(
+                    crate::grid::selection::Navigation::Step(NavAction::Right),
+                    false,
+                    20,
+                );
                 transport.hold_drag_query.set(0);
-                let pending=std::mem::take(&mut *transport.pending.borrow_mut());
-                for(r,b,a)in pending{transport.inner.call(r,b,a);}
-                while let Some(action)=controller.deferred.try_update_value(|q|q.pop_front()).flatten(){controller.perform(action);}
-                assert_eq!(controller.active_key_untracked(),Some(CellKey::new(source.sheet(),1,2).unwrap()));
-                assert_eq!(controller.summary.get_untracked().revision,revision);
+                let pending = std::mem::take(&mut *transport.pending.borrow_mut());
+                for (r, b, a) in pending {
+                    transport.inner.call(r, b, a);
+                }
+                while let Some(action) = controller
+                    .deferred
+                    .try_update_value(|q| q.pop_front())
+                    .flatten()
+                {
+                    controller.perform(action);
+                }
+                assert_eq!(
+                    controller.active_key_untracked(),
+                    Some(CellKey::new(source.sheet(), 1, 2).unwrap())
+                );
+                assert_eq!(controller.summary.get_untracked().revision, revision);
                 assert!(controller.paste_preview.get_untracked().is_none());
                 assert!(controller.status.get_untracked().refused);
-                assert_eq!(controller.pending_actions.get_untracked(),0);
-                assert_eq!(controller.pending_changes.get_untracked(),0);
+                assert_eq!(controller.pending_actions.get_untracked(), 0);
+                assert_eq!(controller.pending_changes.get_untracked(), 0);
             });
         }
     }
-    #[cfg_attr(not(target_arch="wasm32"),test)]
-    #[cfg_attr(target_arch="wasm32",wasm_bindgen_test::wasm_bindgen_test)]
+    #[cfg_attr(not(target_arch = "wasm32"), test)]
+    #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
     fn dc_q327__drag_selection_is_undoable_and_a_late_paste_preserves_newer_navigation() {
         use std::rc::Rc;
         for delayed in [false, true] {
-            let root=Owner::new();root.with(|| {
-                let transport=Rc::new(HeldTransport::default());
-                let controller=Controller::with_transport(transport.clone());
-                let source=controller.active_key_untracked().unwrap();
-                let destination=CellKey::new(source.sheet(),3,4).unwrap();
-                controller.dispatch(Intent::EnterCell {at:Key::of(source),text:"5".into()},|outcome|assert!(outcome.accepted));
+            let root = Owner::new();
+            root.with(|| {
+                let transport = Rc::new(HeldTransport::default());
+                let controller = Controller::with_transport(transport.clone());
+                let source = controller.active_key_untracked().unwrap();
+                let destination = CellKey::new(source.sheet(), 3, 4).unwrap();
+                controller.dispatch(
+                    Intent::EnterCell {
+                        at: Key::of(source),
+                        text: "5".into(),
+                    },
+                    |outcome| assert!(outcome.accepted),
+                );
                 transport.hold_paste.set(delayed);
-                controller.drag_range(GridArea::cell(source),GridArea::cell(destination),false,controller.generation.get_untracked(),controller.summary.get_untracked().revision);
+                controller.drag_range(
+                    GridArea::cell(source),
+                    GridArea::cell(destination),
+                    false,
+                    controller.generation.get_untracked(),
+                    controller.summary.get_untracked().revision,
+                );
                 if delayed {
-                    assert_eq!(transport.pending.borrow().len(),1);
-                    controller.navigate(crate::grid::selection::Navigation::Step(NavAction::Right),false,20);
+                    assert_eq!(transport.pending.borrow().len(), 1);
+                    controller.navigate(
+                        crate::grid::selection::Navigation::Step(NavAction::Right),
+                        false,
+                        20,
+                    );
                     transport.hold_paste.set(false);
-                    let pending=std::mem::take(&mut *transport.pending.borrow_mut());
-                    for(r,b,a)in pending{transport.inner.call(r,b,a);}
-                    while let Some(action)=controller.deferred.try_update_value(|q|q.pop_front()).flatten(){controller.perform(action);}
-                    assert_eq!(controller.active_key_untracked(),Some(CellKey::new(source.sheet(),3,5).unwrap()));
+                    let pending = std::mem::take(&mut *transport.pending.borrow_mut());
+                    for (r, b, a) in pending {
+                        transport.inner.call(r, b, a);
+                    }
+                    while let Some(action) = controller
+                        .deferred
+                        .try_update_value(|q| q.pop_front())
+                        .flatten()
+                    {
+                        controller.perform(action);
+                    }
+                    assert_eq!(
+                        controller.active_key_untracked(),
+                        Some(CellKey::new(source.sheet(), 3, 5).unwrap())
+                    );
                 } else {
-                    assert_eq!(controller.selected_area_untracked(),Some(GridArea::cell(destination)));
-                    controller.dispatch(Intent::Undo,|outcome|assert!(outcome.accepted));
-                    assert_eq!(controller.selected_area_untracked(),Some(GridArea::cell(source)));
-                    controller.dispatch(Intent::Redo,|outcome|assert!(outcome.accepted));
-                    assert_eq!(controller.selected_area_untracked(),Some(GridArea::cell(destination)));
+                    assert_eq!(
+                        controller.selected_area_untracked(),
+                        Some(GridArea::cell(destination))
+                    );
+                    controller.dispatch(Intent::Undo, |outcome| assert!(outcome.accepted));
+                    assert_eq!(
+                        controller.selected_area_untracked(),
+                        Some(GridArea::cell(source))
+                    );
+                    controller.dispatch(Intent::Redo, |outcome| assert!(outcome.accepted));
+                    assert_eq!(
+                        controller.selected_area_untracked(),
+                        Some(GridArea::cell(destination))
+                    );
                 }
-                assert_eq!(controller.pending_actions.get_untracked(),0);
-                assert_eq!(controller.pending_changes.get_untracked(),0);
+                assert_eq!(controller.pending_actions.get_untracked(), 0);
+                assert_eq!(controller.pending_changes.get_untracked(), 0);
             });
         }
     }
-    #[cfg_attr(not(target_arch="wasm32"),test)]
-    #[cfg_attr(target_arch="wasm32",wasm_bindgen_test::wasm_bindgen_test)]
+    #[cfg_attr(not(target_arch = "wasm32"), test)]
+    #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
     fn dc_bctq__pending_insertion_protects_replacement_and_applies_its_summary() {
-        use std::{cell::Cell,rc::Rc};use dna_calc_model::WorkbookTransport;
-        let root=Owner::new();root.with(||{
-            let transport=Rc::new(HeldTransport::default());let controller=Controller::with_transport(transport.clone());
-            let mut source=dna_calc_worker::server::Server::new();let bytes=source.execute_current(Request::SaveAs{name:"Sheet.xltx".into(),format:wire::FileFormat::Xltx,views:None},None).bytes.unwrap();
-            transport.hold.set(true);let accepted=Rc::new(Cell::new(false));let answer=accepted.clone();controller.insert_template(bytes,None,move |ok|answer.set(ok));
-            assert!(controller.has_dirty_work());assert!(controller.input_pending());assert_eq!(controller.pending_changes.get_untracked(),1);
-            let later=Rc::new(Cell::new(false));let out=later.clone();controller.after_input(move ||out.set(true));assert!(!later.get());
-            transport.hold.set(false);let pending=std::mem::take(&mut *transport.pending.borrow_mut());for(r,b,a)in pending{transport.inner.call(r,b,a);}
-            assert!(accepted.get());assert_eq!(controller.summary.get_untracked().sheets.len(),2);assert!(controller.summary.get_untracked().changed);assert_eq!(controller.pending_changes.get_untracked(),0);assert_eq!(controller.pending_actions.get_untracked(),0);
-            while let Some(action)=controller.deferred.try_update_value(|q|q.pop_front()).flatten(){controller.perform(action);}assert!(later.get());
+        use dna_calc_model::WorkbookTransport;
+        use std::{cell::Cell, rc::Rc};
+        let root = Owner::new();
+        root.with(|| {
+            let transport = Rc::new(HeldTransport::default());
+            let controller = Controller::with_transport(transport.clone());
+            let mut source = dna_calc_worker::server::Server::new();
+            let bytes = source
+                .execute_current(
+                    Request::SaveAs {
+                        name: "Sheet.xltx".into(),
+                        format: wire::FileFormat::Xltx,
+                        views: None,
+                    },
+                    None,
+                )
+                .bytes
+                .unwrap();
+            transport.hold.set(true);
+            let accepted = Rc::new(Cell::new(false));
+            let answer = accepted.clone();
+            controller.insert_template(bytes, None, move |ok| answer.set(ok));
+            assert!(controller.has_dirty_work());
+            assert!(controller.input_pending());
+            assert_eq!(controller.pending_changes.get_untracked(), 1);
+            let later = Rc::new(Cell::new(false));
+            let out = later.clone();
+            controller.after_input(move || out.set(true));
+            assert!(!later.get());
+            transport.hold.set(false);
+            let pending = std::mem::take(&mut *transport.pending.borrow_mut());
+            for (r, b, a) in pending {
+                transport.inner.call(r, b, a);
+            }
+            assert!(accepted.get());
+            assert_eq!(controller.summary.get_untracked().sheets.len(), 2);
+            assert!(controller.summary.get_untracked().changed);
+            assert_eq!(controller.pending_changes.get_untracked(), 0);
+            assert_eq!(controller.pending_actions.get_untracked(), 0);
+            while let Some(action) = controller
+                .deferred
+                .try_update_value(|q| q.pop_front())
+                .flatten()
+            {
+                controller.perform(action);
+            }
+            assert!(later.get());
         });
     }
-    #[cfg_attr(not(target_arch="wasm32"),test)]
-    #[cfg_attr(target_arch="wasm32",wasm_bindgen_test::wasm_bindgen_test)]
+    #[cfg_attr(not(target_arch = "wasm32"), test)]
+    #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
     fn dc_bctq__idle_save_as_opens_and_an_unsaved_template_keeps_download_protection() {
-        use std::{cell::Cell,rc::Rc};
-        let root=Owner::new();root.with(|| {
-            let controller=Controller::with_transport(Rc::new(dna_calc_worker::transport::InProcessTransport::default()));
-            let opened=Rc::new(Cell::new(false));let out=opened.clone();
-            controller.prepare_save_as(move ||out.set(true));assert!(opened.get(),"idle Save As must open without an editor target");
-            let mut source=dna_calc_worker::server::Server::new();
-            let bytes=source.execute_current(Request::SaveAs{name:"Template.xltx".into(),format:wire::FileFormat::Xltx,views:None},None).bytes.unwrap();
-            controller.open("Template.xltx",bytes,|ok|assert!(ok));
-            assert!(controller.summary.get_untracked().unsaved);assert!(!controller.summary.get_untracked().changed);
-            let downloaded=Rc::new(Cell::new(false));let out=downloaded.clone();
-            controller.save_as("New.xlsx".into(),wire::FileFormat::Xlsx,move |name,bytes|{assert_eq!(name,"New.xlsx");assert!(!bytes.is_empty());out.set(true);});
-            assert!(downloaded.get());assert!(!controller.saving.get_untracked());assert!(!controller.summary.get_untracked().unsaved);
-            assert!(controller.download_unconfirmed.get_untracked());assert!(controller.has_dirty_work());
+        use std::{cell::Cell, rc::Rc};
+        let root = Owner::new();
+        root.with(|| {
+            let controller = Controller::with_transport(Rc::new(
+                dna_calc_worker::transport::InProcessTransport::default(),
+            ));
+            let opened = Rc::new(Cell::new(false));
+            let out = opened.clone();
+            controller.prepare_save_as(move || out.set(true));
+            assert!(
+                opened.get(),
+                "idle Save As must open without an editor target"
+            );
+            let mut source = dna_calc_worker::server::Server::new();
+            let bytes = source
+                .execute_current(
+                    Request::SaveAs {
+                        name: "Template.xltx".into(),
+                        format: wire::FileFormat::Xltx,
+                        views: None,
+                    },
+                    None,
+                )
+                .bytes
+                .unwrap();
+            controller.open("Template.xltx", bytes, |ok| assert!(ok));
+            assert!(controller.summary.get_untracked().unsaved);
+            assert!(!controller.summary.get_untracked().changed);
+            let downloaded = Rc::new(Cell::new(false));
+            let out = downloaded.clone();
+            controller.save_as(
+                "New.xlsx".into(),
+                wire::FileFormat::Xlsx,
+                move |name, bytes| {
+                    assert_eq!(name, "New.xlsx");
+                    assert!(!bytes.is_empty());
+                    out.set(true);
+                },
+            );
+            assert!(downloaded.get());
+            assert!(!controller.saving.get_untracked());
+            assert!(!controller.summary.get_untracked().unsaved);
+            assert!(controller.download_unconfirmed.get_untracked());
+            assert!(controller.has_dirty_work());
         });
     }
 }

@@ -42,14 +42,13 @@ pub use eval::{
     CompileError, CompiledPlan, ContinuationProgress, EntryRejection, EvalContinuation, EvalFault,
     EvalFrame, EvalScratch, EvalStep, EvaluationObserver, EvaluationReport, ExecutedCall,
     FactInvalidation, FactRead, FactSubject, FormulaEvaluationContext, FormulaForm,
-    FormulaInstance, Gap, GrammarRule, MAX_CALL_DEPTH,
-    MAX_RECORDED_NAME_INVOCATIONS, NameAnalysis, NameInvocation, NameMemoBlocker,
-    NameMemoCandidate, NameMemoEligibility, NameResultKind, ObservableFacets, PassServices,
-    PlanCache, PlanCacheStats, ReadDenial, ReadPolicy, ReadPurpose, ReadRequest, ResolvedReference,
-    SemanticEnvironment, UdfVolatility, UserCallRecord, UserFunctionEffects, UserFunctionSource,
-    Rejection, analyze_loaded_names, check_entry, compile, compile_loaded, compile_loaded_with,
-    compile_loaded_with_bindings, compile_loaded_with_functions, compile_with,
-    compile_with_functions, evaluate, instantiate,
+    FormulaInstance, Gap, GrammarRule, MAX_CALL_DEPTH, MAX_RECORDED_NAME_INVOCATIONS, NameAnalysis,
+    NameInvocation, NameMemoBlocker, NameMemoCandidate, NameMemoEligibility, NameResultKind,
+    ObservableFacets, PassServices, PlanCache, PlanCacheStats, ReadDenial, ReadPolicy, ReadPurpose,
+    ReadRequest, Rejection, ResolvedReference, SemanticEnvironment, UdfVolatility, UserCallRecord,
+    UserFunctionEffects, UserFunctionSource, analyze_loaded_names, check_entry, compile,
+    compile_loaded, compile_loaded_with, compile_loaded_with_bindings,
+    compile_loaded_with_functions, compile_with, compile_with_functions, evaluate, instantiate,
 };
 pub use reference::{ReferenceCatalog, ReferenceReader, bind_references, read_cells};
 pub use syntax::parse_formula;
@@ -57,18 +56,20 @@ pub use syntax::parse_formula;
 /// calc-func's random source and SUBTOTAL exclusions, which a caller of [`evaluate`] supplies
 /// through [`FormulaEvaluationContext::with_random`] and [`ReferenceReader::subtotal_exclusions`].
 pub use calc_func::locale::{CalcEnvironment, DateSystem, FormatProfile};
-pub use calc_func::{read_number_text,text_order};
 /// The host's workbook facts CELL and INFO read ([`HostFacts::workbook_facts`], dc-uar).
 pub use calc_func::{
     ApplicationFacts, CalculationMode, CellFormatFacts, ColumnWidth, HorizontalAlignment,
     WorkbookFacts, WorkbookFile,
 };
 pub use calc_func::{HostFacts, PivotLookup, RandomSource, SubtotalExclusions};
+pub use calc_func::{read_number_text, text_order};
 // The engine uses the same model member parser as the CUBE functions for model-pivot requests.
-pub use calc_func::{CubeColumn, CubeFailure, CubeLookup, CubeMeasure, CubeMember, CubeModel, CubeTable};
+pub use calc_func::{
+    CubeColumn, CubeFailure, CubeLookup, CubeMeasure, CubeMember, CubeModel, CubeTable,
+};
 
-pub mod rtd;
 mod callable;
+pub mod rtd;
 pub use calc_func::{
     UserFunction, UserFunctionContext, UserFunctionInvocation, UserFunctionStep,
     UserInvocationFrame, UserReevaluationReason,

@@ -44,7 +44,9 @@ pub use read::{
     CellRead, CellRun, ReadContractError, ReferenceReader, SpillExtent, read_cell_by_area,
     read_cells,
 };
-pub use structured::{TableColumnContext, TableInfo, TableLookup, quote_table_column, rename_table_column};
+pub use structured::{
+    TableColumnContext, TableInfo, TableLookup, quote_table_column, rename_table_column,
+};
 pub use template::{template_key, template_key_of_chars};
 pub use text::bind_text;
 pub use transform::{

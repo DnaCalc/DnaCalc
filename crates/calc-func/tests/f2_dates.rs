@@ -50,7 +50,9 @@ fn dates_without_an_environment_are_refused() {
 #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
 fn weeknum_stable_invalid_types_and_input_boundaries() {
     let e = host();
-    for kind in [0.0, 3.0, 4.0, 5.0, 6.0, 7.0, 8.0, 9.0, 10.0, 18.0, 19.0, 20.0] {
+    for kind in [
+        0.0, 3.0, 4.0, 5.0, 6.0, 7.0, 8.0, 9.0, 10.0, 18.0, 19.0, 20.0,
+    ] {
         error(c(&e, "WEEKNUM", vec![n(43835.0), n(kind)]), Num);
     }
     exact(c(&e, "WEEKNUM", vec![n(43835.0), n(11.0 - 2.3e-7)]), 1.0);
@@ -59,8 +61,22 @@ fn weeknum_stable_invalid_types_and_input_boundaries() {
         refused(c(&e, "WEEKNUM", vec![n(43835.0), n(kind)]));
     }
     error(c(&e, "WEEKNUM", vec![n(-1.0), n(22.0)]), Num);
-    exact(c(&e, "WEEKNUM", vec![n(f64::from_bits(0x40e5_6780_0000_0000)), n(2.0)]), 2.0);
-    exact(c(&e, "WEEKNUM", vec![n(f64::from_bits(0x40e5_677f_ffff_ffff)), n(2.0)]), 1.0);
+    exact(
+        c(
+            &e,
+            "WEEKNUM",
+            vec![n(f64::from_bits(0x40e5_6780_0000_0000)), n(2.0)],
+        ),
+        2.0,
+    );
+    exact(
+        c(
+            &e,
+            "WEEKNUM",
+            vec![n(f64::from_bits(0x40e5_677f_ffff_ffff)), n(2.0)],
+        ),
+        1.0,
+    );
 }
 
 #[cfg_attr(not(target_arch = "wasm32"), test)]
@@ -408,7 +424,14 @@ struct Host {
 }
 
 impl HostFacts for Host {
-    fn pivot_data_cell(&mut self,_:&str,_:&[calc_func::value::GridArea],_:&[(String,calc_func::value::CalcValue)])->calc_func::PivotLookup{calc_func::PivotLookup::NotModelled}
+    fn pivot_data_cell(
+        &mut self,
+        _: &str,
+        _: &[calc_func::value::GridArea],
+        _: &[(String, calc_func::value::CalcValue)],
+    ) -> calc_func::PivotLookup {
+        calc_func::PivotLookup::NotModelled
+    }
 
     fn is_external_sheet(&mut self, _: SheetId) -> bool {
         false

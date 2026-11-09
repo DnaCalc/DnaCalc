@@ -270,7 +270,9 @@ impl AddinHost {
         &self,
         early_execution: &[u64],
     ) -> Result<CallableTable, String> {
-        let mut table = self.native.functions_with_early_execution(early_execution)?;
+        let mut table = self
+            .native
+            .functions_with_early_execution(early_execution)?;
         let addins: Vec<CallableTable> = self
             .vba_addins
             .iter()
@@ -410,14 +412,22 @@ mod tests {
     fn vba_modules_share_the_one_callable_table() {
         let (_shell, mut host) = shell_and_host();
         assert_eq!(host.callables().unwrap().names().count(), 0);
-        host.load_vba_module("Module1", calc_vba::EXAMPLE_MODULE, calc_vba::DEFAULT_STEP_BUDGET)
-            .unwrap();
+        host.load_vba_module(
+            "Module1",
+            calc_vba::EXAMPLE_MODULE,
+            calc_vba::DEFAULT_STEP_BUDGET,
+        )
+        .unwrap();
         let table = host.callables().unwrap();
         assert!(table.contains("Add2") && table.contains("Module1.Add2"));
         let before = table.names().count();
         // The same module again replaces; it does not duplicate.
-        host.load_vba_module("Module1", calc_vba::EXAMPLE_MODULE, calc_vba::DEFAULT_STEP_BUDGET)
-            .unwrap();
+        host.load_vba_module(
+            "Module1",
+            calc_vba::EXAMPLE_MODULE,
+            calc_vba::DEFAULT_STEP_BUDGET,
+        )
+        .unwrap();
         assert_eq!(host.callables().unwrap().names().count(), before);
         assert!(host.load_vba_module("Broken", "Function (", 1000).is_err());
         assert_eq!(host.vba_modules().collect::<Vec<_>>(), ["Module1"]);
@@ -436,8 +446,12 @@ mod tests {
     #[test]
     fn a_restart_keeps_the_vba_modules_and_forgets_the_xlls() {
         let (shell, mut host) = shell_and_host();
-        host.load_vba_module("Module1", calc_vba::EXAMPLE_MODULE, calc_vba::DEFAULT_STEP_BUDGET)
-            .unwrap();
+        host.load_vba_module(
+            "Module1",
+            calc_vba::EXAMPLE_MODULE,
+            calc_vba::DEFAULT_STEP_BUDGET,
+        )
+        .unwrap();
         host.enable_rtd().unwrap();
         assert!(host.rtd().is_some());
         let document = Document {

@@ -3,7 +3,10 @@
 fn main() -> Result<(), String> {
     use dna_onecalc::{InputValue, Session};
     let args: Vec<String> = std::env::args().collect();
-    let formula = args.get(1).map(String::as_str).unwrap_or("=Module1.Add2(A1,2)");
+    let formula = args
+        .get(1)
+        .map(String::as_str)
+        .unwrap_or("=Module1.Add2(A1,2)");
     let source = match args.get(2) {
         Some(path) => std::fs::read_to_string(path).map_err(|e| e.to_string())?,
         None => calc_vba::EXAMPLE_MODULE.to_owned(),

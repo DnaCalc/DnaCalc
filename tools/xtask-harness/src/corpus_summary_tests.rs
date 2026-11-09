@@ -75,7 +75,10 @@ fn a_timed_out_workbook_keeps_its_known_formula_denominator() {
         .unwrap();
     assert_eq!(unknown["key"], "Workbook:Cell:overlapping array footprint");
     assert_eq!(unknown["cells"], 0);
-    assert_eq!(report["workbooks"][1]["not_compared"]["key"], unknown["key"]);
+    assert_eq!(
+        report["workbooks"][1]["not_compared"]["key"],
+        unknown["key"]
+    );
     assert_eq!(report["workbooks"][0]["counts"]["fail"], 17);
     assert_eq!(
         summary

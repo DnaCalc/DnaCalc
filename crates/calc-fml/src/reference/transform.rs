@@ -1067,7 +1067,10 @@ pub fn convert_notation(
         // through a copy. Converting its bound area would freeze it to old cells.
         if super::structured::is_selector(selector)
             && !(from == ReferenceNotation::R1C1
-                && selector.split(':').all(|end| notation::r1c1(end.trim()).is_some())) {
+                && selector
+                    .split(':')
+                    .all(|end| notation::r1c1(end.trim()).is_some()))
+        {
             continue;
         }
         let body = match to {
@@ -1841,10 +1844,15 @@ mod tests {
         let text = "A1(2)+Module1.A1(2)+LOG10(100)";
         let converted = convert_notation(text, at, A1, R1C1, &catalog).unwrap();
         assert_eq!(converted, "R[-4]C[-2](2)+Module1.A1(2)+LOG10(100)");
-        assert_eq!(convert_notation(&converted, at, R1C1, A1, &catalog).as_deref(), Some(text));
+        assert_eq!(
+            convert_notation(&converted, at, R1C1, A1, &catalog).as_deref(),
+            Some(text)
+        );
         let edit = axis(one, EditAxis::Rows, true, 1);
-        assert_eq!(transform_formula(text, at, &edit, &catalog).as_deref(),
-            Some("A2(2)+Module1.A1(2)+LOG10(100)"));
+        assert_eq!(
+            transform_formula(text, at, &edit, &catalog).as_deref(),
+            Some("A2(2)+Module1.A1(2)+LOG10(100)")
+        );
     }
 
     #[cfg_attr(not(target_arch = "wasm32"), test)]

@@ -21,13 +21,28 @@ pub enum CellEdit {
     Pivots(Arc<calc_doc_model::pivot::PivotState>),
     DataModel(Arc<calc_doc_model::DataModel>),
     Styles(Arc<calc_doc_model::StyleTable>),
-    PageSetup {sheet:calc_value::SheetId,setup:calc_doc_model::PageSetup},
-    Charts {sheet:calc_value::SheetId,charts:Vec<calc_doc_model::Chart>},
-    AutoFilter { sheet: calc_doc_model::value::SheetId, filter: Option<calc_doc_model::AutoFilter> },
+    PageSetup {
+        sheet: calc_value::SheetId,
+        setup: calc_doc_model::PageSetup,
+    },
+    Charts {
+        sheet: calc_value::SheetId,
+        charts: Vec<calc_doc_model::Chart>,
+    },
+    AutoFilter {
+        sheet: calc_doc_model::value::SheetId,
+        filter: Option<calc_doc_model::AutoFilter>,
+    },
     /// Document layout metadata, independent of cell contents.
     Layout(calc_doc_model::SkinLayoutEdit),
-    Validations { sheet: calc_value::SheetId, rules: Vec<calc_doc_model::Validation> },
-    ReviewLinks { sheet:calc_value::SheetId, links:Vec<calc_doc_model::ReviewLink> },
+    Validations {
+        sheet: calc_value::SheetId,
+        rules: Vec<calc_doc_model::Validation>,
+    },
+    ReviewLinks {
+        sheet: calc_value::SheetId,
+        links: Vec<calc_doc_model::ReviewLink>,
+    },
     ReviewNotes {
         sheet: calc_doc_model::value::SheetId,
         notes: Vec<calc_doc_model::ReviewNote>,
@@ -42,15 +57,23 @@ pub enum CellEdit {
     /// Changes a physical row height, column width or hidden flag.
     AxisFormat(calc_doc_model::AxisFormatEdit),
     /// Changes a worksheet window's frozen leading bands without changing cells.
-    PaneLayout { sheet: calc_value::SheetId, layout: Option<calc_doc_model::PaneLayout> },
+    PaneLayout {
+        sheet: calc_value::SheetId,
+        layout: Option<calc_doc_model::PaneLayout>,
+    },
     FrozenPanes {
         sheet: calc_doc_model::value::SheetId,
         panes: Option<calc_doc_model::FrozenPanes>,
     },
     /// Sets a cell of an existing sheet to a value or a formula.
-    Set { at: CellKey, input: CellInput },
+    Set {
+        at: CellKey,
+        input: CellInput,
+    },
     /// Removes the contents of every cell of an area of an existing sheet.
-    Clear { area: GridArea },
+    Clear {
+        area: GridArea,
+    },
     /// Authors an array formula: the rest of the array's area is emptied and its anchor holds
     /// the formula ([`calc_doc_model::WorkbookOp::SetArray`]). A dynamic array over its anchor
     /// alone is what Excel stores for a formula entered into one cell that can return an array;
@@ -66,7 +89,10 @@ pub enum CellEdit {
     /// Gives a cell a cell format: an index into the workbook's cell formats (a cell's `s`), or
     /// `None` to return it to the format the file gave it ([`calc_doc_model::WorkbookOp::SetFormat`],
     /// dc-09v). It changes no input and no value.
-    SetFormat { at: CellKey, format: Option<u32> },
+    SetFormat {
+        at: CellKey,
+        format: Option<u32>,
+    },
     /// Gives the defined name `name` of `scope` the formula `formula`
     /// ([`calc_doc_model::WorkbookOp::SetNameFormula`], dc-gf0). Scoped graph watches rebind
     /// its users without changing the authored formulas or their generations.
@@ -88,11 +114,11 @@ pub enum CellEdit {
 impl CellEdit {
     fn operation(self) -> WorkbookOp {
         match self {
-            CellEdit::DataModel(state)=>WorkbookOp::SetDataModel(state),
-            CellEdit::Pivots(state)=>WorkbookOp::SetPivots(state),
-            CellEdit::Tables(tables)=>WorkbookOp::SetTables(tables),
-            CellEdit::PageSetup {sheet,setup}=>WorkbookOp::SetPageSetup {sheet,setup},
-            CellEdit::Charts {sheet,charts}=>WorkbookOp::SetCharts {sheet,charts},
+            CellEdit::DataModel(state) => WorkbookOp::SetDataModel(state),
+            CellEdit::Pivots(state) => WorkbookOp::SetPivots(state),
+            CellEdit::Tables(tables) => WorkbookOp::SetTables(tables),
+            CellEdit::PageSetup { sheet, setup } => WorkbookOp::SetPageSetup { sheet, setup },
+            CellEdit::Charts { sheet, charts } => WorkbookOp::SetCharts { sheet, charts },
             CellEdit::Styles(styles) => WorkbookOp::SetStyles(styles),
             CellEdit::AutoFilter { sheet, filter } => WorkbookOp::SetAutoFilter { sheet, filter },
             CellEdit::Layout(edit) => WorkbookOp::EditSkinLayout(edit),
@@ -104,7 +130,7 @@ impl CellEdit {
             }
             CellEdit::Sheet(edit) => WorkbookOp::EditSheet(edit),
             CellEdit::AxisFormat(edit) => WorkbookOp::SetAxisFormat(edit),
-            CellEdit::PaneLayout {sheet,layout}=>WorkbookOp::SetPaneLayout {sheet,layout},
+            CellEdit::PaneLayout { sheet, layout } => WorkbookOp::SetPaneLayout { sheet, layout },
             CellEdit::FrozenPanes { sheet, panes } => WorkbookOp::SetFrozenPanes { sheet, panes },
             CellEdit::Set { at, input } => WorkbookOp::SetCell { at, input },
             CellEdit::Clear { area } => WorkbookOp::Clear { area },
@@ -282,58 +308,128 @@ pub fn dispatch(
         operations: command.edits.into_iter().map(CellEdit::operation).collect(),
     };
 
-    let pivot_change=batch.operations.iter().any(|op|matches!(op,WorkbookOp::SetPivots(_)));
-    let refuse=|message:&str|CommandError::Document(EditError::SheetOperation(format!("{message} (dc-8wp)")));
-    if !pivot_change && batch.operations.iter().any(|op|match op {
-        WorkbookOp::SetCell{at,..}=>host.model.definitions().pivots().contains(*at),
-        WorkbookOp::Clear{area}=>host.model.definitions().pivots().tables().any(|t|t.area.intersection(*area).is_some()),
-        WorkbookOp::SetArray{array,..}=>host.model.definitions().pivots().tables().any(|t|t.area.intersection(array.area()).is_some()),_=>false,
-    }){return Err(refuse("Pivot output is owned by its table; edit its source data and refresh"));}
+    let pivot_change = batch
+        .operations
+        .iter()
+        .any(|op| matches!(op, WorkbookOp::SetPivots(_)));
+    let refuse = |message: &str| {
+        CommandError::Document(EditError::SheetOperation(format!("{message} (dc-8wp)")))
+    };
+    if !pivot_change
+        && batch.operations.iter().any(|op| match op {
+            WorkbookOp::SetCell { at, .. } => host.model.definitions().pivots().contains(*at),
+            WorkbookOp::Clear { area } => host
+                .model
+                .definitions()
+                .pivots()
+                .tables()
+                .any(|t| t.area.intersection(*area).is_some()),
+            WorkbookOp::SetArray { array, .. } => host
+                .model
+                .definitions()
+                .pivots()
+                .tables()
+                .any(|t| t.area.intersection(array.area()).is_some()),
+            _ => false,
+        })
+    {
+        return Err(refuse(
+            "Pivot output is owned by its table; edit its source data and refresh",
+        ));
+    }
     let pivots = host.model.definitions().pivots();
     for op in &batch.operations {
         let sheet = match op {
             // Row and column edits are placed (or refused with Excel's text) by the model: ModelRoot::pivots_after_axis_edit.
-            WorkbookOp::EditSheet(calc_doc_model::SheetEdit::Rename { sheet, .. }
+            WorkbookOp::EditSheet(
+                calc_doc_model::SheetEdit::Rename { sheet, .. }
                 | calc_doc_model::SheetEdit::Move { sheet, .. }
                 | calc_doc_model::SheetEdit::Remove { sheet }
-                | calc_doc_model::SheetEdit::SetVisibility { sheet, .. }) => Some(*sheet),
+                | calc_doc_model::SheetEdit::SetVisibility { sheet, .. },
+            ) => Some(*sheet),
             _ => None,
         };
-        let Some(sheet) = sheet else { continue; };
-        if !pivots.caches.issues.is_empty() || pivots.sheets.values().any(|s| !s.issues.is_empty())
+        let Some(sheet) = sheet else {
+            continue;
+        };
+        if !pivots.caches.issues.is_empty()
+            || pivots.sheets.values().any(|s| !s.issues.is_empty())
             || pivots.tables().any(|table| {
-                table.area.sheet() == sheet || pivots.caches.caches.get(&table.cache_id)
-                    .and_then(|cache| crate::pivot::source_area(host, cache, table.area.first()).ok())
-                    .is_none_or(|area| area.sheet() == sheet)
-            }) {
-            return Err(refuse("Structural edits on pivot output or source sheets need measured transforms"));
+                table.area.sheet() == sheet
+                    || pivots
+                        .caches
+                        .caches
+                        .get(&table.cache_id)
+                        .and_then(|cache| {
+                            crate::pivot::source_area(host, cache, table.area.first()).ok()
+                        })
+                        .is_none_or(|area| area.sheet() == sheet)
+            })
+        {
+            return Err(refuse(
+                "Structural edits on pivot output or source sheets need measured transforms",
+            ));
         }
     }
     for op in &batch.operations {
         if let WorkbookOp::SetDataModel(next) = op {
-            let Some(current) = host.model.definitions().data_model() else { return Err(refuse("No data model to refresh")); };
+            let Some(current) = host.model.definitions().data_model() else {
+                return Err(refuse("No data model to refresh"));
+            };
             let mut expected = (**current).clone();
             expected.snapshot = next.snapshot.clone();
-            if !host.admitted_model_snapshots.borrow().iter().filter_map(std::sync::Weak::upgrade).any(|model| model.snapshot == next.snapshot) || expected != **next || next.snapshot.as_ref().is_some_and(|snapshot| snapshot.tables.iter().any(|table| table.rows.iter().any(|row| row.len() != table.columns.len()))) {
+            if !host
+                .admitted_model_snapshots
+                .borrow()
+                .iter()
+                .filter_map(std::sync::Weak::upgrade)
+                .any(|model| model.snapshot == next.snapshot)
+                || expected != **next
+                || next.snapshot.as_ref().is_some_and(|snapshot| {
+                    snapshot.tables.iter().any(|table| {
+                        table
+                            .rows
+                            .iter()
+                            .any(|row| row.len() != table.columns.len())
+                    })
+                })
+            {
                 return Err(refuse("Invalid data model snapshot"));
             }
         }
     }
-    let next_model = batch.operations.iter().rev().find_map(|op| match op {
-        WorkbookOp::SetDataModel(model) => Some(model.as_ref()), _ => None,
-    }).or_else(|| host.model.definitions().data_model().map(Arc::as_ref));
+    let next_model = batch
+        .operations
+        .iter()
+        .rev()
+        .find_map(|op| match op {
+            WorkbookOp::SetDataModel(model) => Some(model.as_ref()),
+            _ => None,
+        })
+        .or_else(|| host.model.definitions().data_model().map(Arc::as_ref));
     let numeric = host.recalc_context().numeric;
     for op in &batch.operations {
         if let WorkbookOp::SetPivots(state) = op {
             for (id, cache) in &state.caches.caches {
                 if let Some(snapshot) = cache.snapshot.as_deref() {
-                    let previous = pivots.caches.caches.get(id).and_then(|cache| cache.snapshot.as_deref());
-                    if !calc_engine::pivot::valid_model_snapshot(snapshot, next_model, previous, Some(&numeric)) {
+                    let previous = pivots
+                        .caches
+                        .caches
+                        .get(id)
+                        .and_then(|cache| cache.snapshot.as_deref());
+                    if !calc_engine::pivot::valid_model_snapshot(
+                        snapshot,
+                        next_model,
+                        previous,
+                        Some(&numeric),
+                    ) {
                         return Err(refuse("Invalid model-pivot snapshot"));
                     }
                 }
             }
-            host.loaded.check_pivot_state(state).map_err(|e|refuse(&e.to_string()))?;
+            host.loaded
+                .check_pivot_state(state)
+                .map_err(|e| refuse(&e.to_string()))?;
         }
     }
     let transformed_scope = if batch
@@ -372,34 +468,107 @@ pub fn dispatch(
             _ => None,
         })
         .collect();
-    let mut outline_layouts=host.model.definitions().axis_layouts().clone();
-    let mut filter_areas=host.model.definitions().auto_filters().map(|(s,f)|(s,f.area)).collect::<std::collections::BTreeMap<_,_>>();
+    let mut outline_layouts = host.model.definitions().axis_layouts().clone();
+    let mut filter_areas = host
+        .model
+        .definitions()
+        .auto_filters()
+        .map(|(s, f)| (s, f.area))
+        .collect::<std::collections::BTreeMap<_, _>>();
     for edit in &axis_edits {
-        if crate::review::has_sorted_imported_notes(host,edit.sheet()) {
-            return Err(CommandError::Document(EditError::SheetOperation("Row or column edits with sorted notes are not modelled (dc-971p.38); save and reopen first; nothing changed".into())));
+        if crate::review::has_sorted_imported_notes(host, edit.sheet()) {
+            return Err(CommandError::Document(EditError::SheetOperation(
+                "Row or column edits with sorted notes are not modelled (dc-971p.38); save and reopen first; nothing changed"
+                    .into(),
+            )));
         }
     }
     for edit in &axis_edits {
-        if host.loaded.sheet(edit.sheet()).is_some_and(|s|s.geometry().outline_unsupported) {return Err(CommandError::Document(EditError::SheetOperation("Structural edits of imported outline metadata are not modelled (dc-971p.39); nothing changed".into())));}
-        let next_outlines=outline_layouts.moved(*edit);
-        let next_groups=next_outlines.outline_groups(edit.sheet(),edit.axis());
-        if next_groups.iter().any(|g|g.summary<1 || g.summary>edit.axis().size()) {return Err(CommandError::Document(EditError::SheetOperation("This edit moves an outline summary outside the worksheet (dc-971p.39); nothing changed".into())));}
-        for group in outline_layouts.outline_groups(edit.sheet(),edit.axis()).into_iter().filter(|g|g.collapsed) {
-            if let Some((first,mut last))=calc_doc_model::moved_run(*edit,group.first,group.last) {
-                if edit.change()==calc_doc_model::AxisChange::Insert && edit.first()==group.last+1 {last=last.saturating_add(edit.count()).min(edit.axis().size());}
-                if !next_groups.iter().any(|g|g.first==first && g.last==last && g.level==group.level && g.collapsed) {return Err(CommandError::Document(EditError::SheetOperation("This edit merges or clips collapsed outline groups (dc-971p.39); expand them first; nothing changed".into())));}
+        if host
+            .loaded
+            .sheet(edit.sheet())
+            .is_some_and(|s| s.geometry().outline_unsupported)
+        {
+            return Err(CommandError::Document(EditError::SheetOperation(
+                "Structural edits of imported outline metadata are not modelled (dc-971p.39); nothing changed"
+                    .into(),
+            )));
+        }
+        let next_outlines = outline_layouts.moved(*edit);
+        let next_groups = next_outlines.outline_groups(edit.sheet(), edit.axis());
+        if next_groups
+            .iter()
+            .any(|g| g.summary < 1 || g.summary > edit.axis().size())
+        {
+            return Err(CommandError::Document(EditError::SheetOperation(
+                "This edit moves an outline summary outside the worksheet (dc-971p.39); nothing changed"
+                    .into(),
+            )));
+        }
+        for group in outline_layouts
+            .outline_groups(edit.sheet(), edit.axis())
+            .into_iter()
+            .filter(|g| g.collapsed)
+        {
+            if let Some((first, mut last)) =
+                calc_doc_model::moved_run(*edit, group.first, group.last)
+            {
+                if edit.change() == calc_doc_model::AxisChange::Insert
+                    && edit.first() == group.last + 1
+                {
+                    last = last.saturating_add(edit.count()).min(edit.axis().size());
+                }
+                if !next_groups.iter().any(|g| {
+                    g.first == first && g.last == last && g.level == group.level && g.collapsed
+                }) {
+                    return Err(CommandError::Document(EditError::SheetOperation(
+                        "This edit merges or clips collapsed outline groups (dc-971p.39); expand them first; nothing changed"
+                            .into(),
+                    )));
+                }
             }
         }
-        outline_layouts=next_outlines;
-        if edit.axis()==calc_doc_model::Axis::Rows && host.model.definitions().auto_filter(edit.sheet()).is_some_and(|f|f.unsupported && host.model.definitions().axis_layouts().bands(edit.sheet(),calc_doc_model::Axis::Rows).any(|(r,v)|r>f.area.first().row() && r<=f.area.last().row() && v.hidden())) {
-            return Err(CommandError::Document(EditError::SheetOperation("Row edits with independent manual hiding in an imported filter are not modelled (dc-971p.37); nothing changed".into())));
+        outline_layouts = next_outlines;
+        if edit.axis() == calc_doc_model::Axis::Rows
+            && host
+                .model
+                .definitions()
+                .auto_filter(edit.sheet())
+                .is_some_and(|f| {
+                    f.unsupported
+                        && host
+                            .model
+                            .definitions()
+                            .axis_layouts()
+                            .bands(edit.sheet(), calc_doc_model::Axis::Rows)
+                            .any(|(r, v)| {
+                                r > f.area.first().row() && r <= f.area.last().row() && v.hidden()
+                            })
+                })
+        {
+            return Err(CommandError::Document(EditError::SheetOperation(
+                "Row edits with independent manual hiding in an imported filter are not modelled (dc-971p.37); nothing changed"
+                    .into(),
+            )));
         }
-        if let Some(area)=filter_areas.get(&edit.sheet()).copied() {
-            if edit.axis()==calc_doc_model::Axis::Rows && edit.change()==calc_doc_model::AxisChange::Delete && edit.first()<=area.first().row() && edit.last()>=area.first().row() {
-                return Err(CommandError::Document(EditError::SheetOperation("Remove AutoFilter before deleting its header (dc-971p.37); nothing changed".into())));
+        if let Some(area) = filter_areas.get(&edit.sheet()).copied() {
+            if edit.axis() == calc_doc_model::Axis::Rows
+                && edit.change() == calc_doc_model::AxisChange::Delete
+                && edit.first() <= area.first().row()
+                && edit.last() >= area.first().row()
+            {
+                return Err(CommandError::Document(EditError::SheetOperation(
+                    "Remove AutoFilter before deleting its header (dc-971p.37); nothing changed"
+                        .into(),
+                )));
             }
-            let next=calc_doc_model::moved_area(*edit,area).ok_or_else(||CommandError::Document(EditError::SheetOperation("Remove AutoFilter before deleting or moving its entire range outside the grid (dc-971p.37); nothing changed".into())))?;
-            filter_areas.insert(edit.sheet(),next);
+            let next = calc_doc_model::moved_area(*edit, area).ok_or_else(|| {
+                CommandError::Document(EditError::SheetOperation(
+                    "Remove AutoFilter before deleting or moving its entire range outside the grid (dc-971p.37); nothing changed"
+                        .into(),
+                ))
+            })?;
+            filter_areas.insert(edit.sheet(), next);
         }
     }
     for edit in &axis_edits {
@@ -425,7 +594,10 @@ pub fn dispatch(
                 })
             })
         {
-            return Err(CommandError::Document(EditError::SheetOperation("Structural edits with shared review parts are unavailable (dc-971p.40); nothing changed".into())));
+            return Err(CommandError::Document(EditError::SheetOperation(
+                "Structural edits with shared review parts are unavailable (dc-971p.40); nothing changed"
+                    .into(),
+            )));
         }
     }
     for edit in &axis_edits {
@@ -446,61 +618,177 @@ pub fn dispatch(
                 && count > 0
                 && edit.first() <= origin.saturating_add(count).saturating_sub(1)
             {
-                return Err(CommandError::Document(EditError::SheetOperation("Unfreeze this imported view before inserting or deleting these bands (dc-971p.16)".into())));
+                return Err(CommandError::Document(EditError::SheetOperation(
+                    "Unfreeze this imported view before inserting or deleting these bands (dc-971p.16)"
+                        .into(),
+                )));
             }
         }
     }
-    if batch.operations.iter().filter_map(|op|if let WorkbookOp::EditAxis(e)=op{Some(*e)}else{None}).any(|edit|host.model.definitions().tables().iter().any(|t|!crate::tables::axis_compatible(host,t,edit))){return Err(CommandError::Document(EditError::SheetOperation("Axis edits with unsupported imported table metadata are not modelled (dc-971p.41); nothing changed".into())));}
-    for op in &batch.operations {if let WorkbookOp::SetAxisFormat(edit)=op {if edit.axis()==calc_doc_model::Axis::Rows&&host.model.definitions().tables().iter().any(|t|t.sheet==edit.sheet()&&t.filter.as_ref().is_some_and(|f|f.unsupported&&edit.index()>f.area.first().row()&&edit.index()<=f.area.last().row())){return Err(CommandError::Document(EditError::SheetOperation("Row visibility with this imported table filter is not modelled (dc-971p.41); nothing changed".into())));}}}
-    crate::tables::validate_cells(host,&batch).map_err(|s|CommandError::Document(EditError::SheetOperation(s)))?;
+    if batch
+        .operations
+        .iter()
+        .filter_map(|op| {
+            if let WorkbookOp::EditAxis(e) = op {
+                Some(*e)
+            } else {
+                None
+            }
+        })
+        .any(|edit| {
+            host.model
+                .definitions()
+                .tables()
+                .iter()
+                .any(|t| !crate::tables::axis_compatible(host, t, edit))
+        })
+    {
+        return Err(CommandError::Document(EditError::SheetOperation(
+            "Axis edits with unsupported imported table metadata are not modelled (dc-971p.41); nothing changed"
+                .into(),
+        )));
+    }
     for op in &batch.operations {
-        if let WorkbookOp::SetTables(tables)=op {crate::tables::validate(host,tables).map_err(|s|CommandError::Document(EditError::SheetOperation(s)))?;}
+        if let WorkbookOp::SetAxisFormat(edit) = op {
+            if edit.axis() == calc_doc_model::Axis::Rows
+                && host.model.definitions().tables().iter().any(|t| {
+                    t.sheet == edit.sheet()
+                        && t.filter.as_ref().is_some_and(|f| {
+                            f.unsupported
+                                && edit.index() > f.area.first().row()
+                                && edit.index() <= f.area.last().row()
+                        })
+                })
+            {
+                return Err(CommandError::Document(EditError::SheetOperation(
+                    "Row visibility with this imported table filter is not modelled (dc-971p.41); nothing changed"
+                        .into(),
+                )));
+            }
+        }
+    }
+    crate::tables::validate_cells(host, &batch)
+        .map_err(|s| CommandError::Document(EditError::SheetOperation(s)))?;
+    for op in &batch.operations {
+        if let WorkbookOp::SetTables(tables) = op {
+            crate::tables::validate(host, tables)
+                .map_err(|s| CommandError::Document(EditError::SheetOperation(s)))?;
+        }
         if let WorkbookOp::SetValidations { sheet, rules } = op {
             let invalid = host.model.sheet_by_id(*sheet).is_none()
-                || host.loaded.sheet(*sheet).is_some_and(|s| s.protected() || s.is_macro_sheet())
+                || host
+                    .loaded
+                    .sheet(*sheet)
+                    .is_some_and(|s| s.protected() || s.is_macro_sheet())
                 || rules.len() > 4096
                 || rules.iter().any(|rule| {
-                    rule.areas.is_empty() || rule.areas.iter().any(|&(t,l,b,r)| {
-                        let (Ok(first),Ok(last)) = (CellKey::new(*sheet,t,l),CellKey::new(*sheet,b,r)) else {return true;};
-                        calc_value::GridArea::new(first,last).is_err() || t>b || l>r
-                    }) || rule.source.as_ref().is_some_and(|source| {
-                        // Range/formula transforms are authored, while source-backed alert
-                        // attributes retain their imported contract until an editor owns them.
-                        !host.loaded.sheets().iter().flat_map(|s|s.validations()).any(|old| {
-                            if old.source.as_ref()!=Some(source) || old.formula1.is_some()!=rule.formula1.is_some() || old.formula2.is_some()!=rule.formula2.is_some() {return false;}
-                            let mut expected=old.clone();expected.authored_copy=rule.authored_copy;expected.areas=rule.areas.clone();
-                            expected.formula1=rule.formula1.clone();expected.formula2=rule.formula2.clone();
-                            &expected==rule
+                    rule.areas.is_empty()
+                        || rule.areas.iter().any(|&(t, l, b, r)| {
+                            let (Ok(first), Ok(last)) =
+                                (CellKey::new(*sheet, t, l), CellKey::new(*sheet, b, r))
+                            else {
+                                return true;
+                            };
+                            calc_value::GridArea::new(first, last).is_err() || t > b || l > r
                         })
-                    })
+                        || rule.source.as_ref().is_some_and(|source| {
+                            // Range/formula transforms are authored, while source-backed alert
+                            // attributes retain their imported contract until an editor owns them.
+                            !host
+                                .loaded
+                                .sheets()
+                                .iter()
+                                .flat_map(|s| s.validations())
+                                .any(|old| {
+                                    if old.source.as_ref() != Some(source)
+                                        || old.formula1.is_some() != rule.formula1.is_some()
+                                        || old.formula2.is_some() != rule.formula2.is_some()
+                                    {
+                                        return false;
+                                    }
+                                    let mut expected = old.clone();
+                                    expected.authored_copy = rule.authored_copy;
+                                    expected.areas = rule.areas.clone();
+                                    expected.formula1 = rule.formula1.clone();
+                                    expected.formula2 = rule.formula2.clone();
+                                    &expected == rule
+                                })
+                        })
                 });
-            if invalid {return Err(CommandError::Document(EditError::SheetOperation("Validation edits need valid ranges on an editable sheet and must retain imported alert attributes (dc-971p.40)".into())));}
+            if invalid {
+                return Err(CommandError::Document(EditError::SheetOperation(
+                    "Validation edits need valid ranges on an editable sheet and must retain imported alert attributes (dc-971p.40)"
+                        .into(),
+                )));
+            }
         }
     }
     for op in &batch.operations {
-        if let WorkbookOp::SetPageSetup {sheet,setup}=op {
-            if host.model.sheet_by_id(*sheet).is_none() || host.loaded.sheet(*sheet).is_some_and(|s|s.protected()||s.is_macro_sheet()) {return Err(CommandError::Document(EditError::SheetOperation("Page setup needs an editable worksheet (dc-971p.56)".into())));}
-            host.loaded.check_page_setup(*sheet,&host.model.definitions().page_setup(*sheet),setup).map_err(|e|CommandError::Document(EditError::SheetOperation(e.to_string())))?;
+        if let WorkbookOp::SetPageSetup { sheet, setup } = op {
+            if host.model.sheet_by_id(*sheet).is_none()
+                || host
+                    .loaded
+                    .sheet(*sheet)
+                    .is_some_and(|s| s.protected() || s.is_macro_sheet())
+            {
+                return Err(CommandError::Document(EditError::SheetOperation(
+                    "Page setup needs an editable worksheet (dc-971p.56)".into(),
+                )));
+            }
+            host.loaded
+                .check_page_setup(*sheet, &host.model.definitions().page_setup(*sheet), setup)
+                .map_err(|e| CommandError::Document(EditError::SheetOperation(e.to_string())))?;
         }
-        if let WorkbookOp::SetCharts {sheet,charts}=op {
-            if host.loaded.sheet(*sheet).is_none_or(|s|s.protected()||s.is_macro_sheet()) {
-                return Err(CommandError::Document(EditError::SheetOperation("Chart editing requires an editable worksheet (dc-971p.49)".into())));
+        if let WorkbookOp::SetCharts { sheet, charts } = op {
+            if host
+                .loaded
+                .sheet(*sheet)
+                .is_none_or(|s| s.protected() || s.is_macro_sheet())
+            {
+                return Err(CommandError::Document(EditError::SheetOperation(
+                    "Chart editing requires an editable worksheet (dc-971p.49)".into(),
+                )));
             }
-            let mut parts=std::collections::BTreeSet::new();
-            for chart in charts.iter().chain(host.model.definitions().all_charts().filter(|(s,_)|s!=sheet).flat_map(|(_,cs)|cs)) {
-                if !parts.insert(chart.part.as_str()){return Err(CommandError::Document(EditError::SheetOperation("Chart frames need distinct part identities (dc-971p.49)".into())));}
+            let mut parts = std::collections::BTreeSet::new();
+            for chart in charts.iter().chain(
+                host.model
+                    .definitions()
+                    .all_charts()
+                    .filter(|(s, _)| s != sheet)
+                    .flat_map(|(_, cs)| cs),
+            ) {
+                if !parts.insert(chart.part.as_str()) {
+                    return Err(CommandError::Document(EditError::SheetOperation(
+                        "Chart frames need distinct part identities (dc-971p.49)".into(),
+                    )));
+                }
             }
-            host.loaded.check_chart_set(*sheet,charts).map_err(|e|CommandError::Document(EditError::SheetOperation(e.to_string())))?;
+            host.loaded
+                .check_chart_set(*sheet, charts)
+                .map_err(|e| CommandError::Document(EditError::SheetOperation(e.to_string())))?;
         }
-        if let WorkbookOp::SetReviewLinks{sheet,links}=op {
-            if host.loaded.sheet(*sheet).is_some_and(|s|s.protected()||s.is_macro_sheet()){
-                return Err(CommandError::Document(EditError::SheetOperation("Hyperlinks require an editable worksheet (dc-971p.38)".into())));
+        if let WorkbookOp::SetReviewLinks { sheet, links } = op {
+            if host
+                .loaded
+                .sheet(*sheet)
+                .is_some_and(|s| s.protected() || s.is_macro_sheet())
+            {
+                return Err(CommandError::Document(EditError::SheetOperation(
+                    "Hyperlinks require an editable worksheet (dc-971p.38)".into(),
+                )));
             }
-            host.loaded.check_sorted_links(*sheet,links).map_err(|e|CommandError::Document(EditError::SheetOperation(e.to_string())))?;
+            host.loaded
+                .check_sorted_links(*sheet, links)
+                .map_err(|e| CommandError::Document(EditError::SheetOperation(e.to_string())))?;
         }
     }
-    if batch.operations.iter().any(|op|matches!(op,WorkbookOp::SetReviewNotes{..})) {
-        crate::review::validate_batch(host,&batch).map_err(|message|CommandError::Document(EditError::SheetOperation(message)))?;
+    if batch
+        .operations
+        .iter()
+        .any(|op| matches!(op, WorkbookOp::SetReviewNotes { .. }))
+    {
+        crate::review::validate_batch(host, &batch)
+            .map_err(|message| CommandError::Document(EditError::SheetOperation(message)))?;
     }
     for op in &batch.operations {
         if let WorkbookOp::SetConditionalRules { sheet, rules } = op {
@@ -520,12 +808,29 @@ pub fn dispatch(
                         || calc_doc::conditional_rule(r).is_err()
                 });
             if invalid {
-                return Err(CommandError::Document(EditError::SheetOperation("Conditional rules require an editable worksheet, valid source, ranges and priorities (dc-971p.8)".into())));
+                return Err(CommandError::Document(EditError::SheetOperation(
+                    "Conditional rules require an editable worksheet, valid source, ranges and priorities (dc-971p.8)"
+                        .into(),
+                )));
             }
         }
     }
-    if batch.operations.iter().any(|op|matches!(op,WorkbookOp::EditAxis(edit) if host.model.definitions().all_conditional_rules().flat_map(|(_,r)|r).any(|r|r.origin().is_some_and(|at|calc_doc_model::moved_cell(*edit,at).is_none())))) {
-        return Err(CommandError::Document(EditError::SheetOperation("Deleting a conditional rule's formula origin is unavailable (dc-971p.8); edit its range first".into())));
+    if batch.operations.iter().any(|op| {
+        matches!(
+            op,
+            WorkbookOp::EditAxis(edit)
+                if host
+                    .model
+                    .definitions()
+                    .all_conditional_rules()
+                    .flat_map(|(_, r)| r)
+                    .any(|r| r.origin().is_some_and(|at| calc_doc_model::moved_cell(*edit, at).is_none()))
+        )
+    }) {
+        return Err(CommandError::Document(EditError::SheetOperation(
+            "Deleting a conditional rule's formula origin is unavailable (dc-971p.8); edit its range first"
+                .into(),
+        )));
     }
     if batch
         .operations
@@ -542,12 +847,13 @@ pub fn dispatch(
                 .all_conditional_rules()
                 .flat_map(|(_, r)| r)
                 .any(|source| {
-                    calc_doc::conditional_rule(source).is_ok_and(|r| {
-                        r.extension_id.is_some()
-                    })
+                    calc_doc::conditional_rule(source).is_ok_and(|r| r.extension_id.is_some())
                 }))
     {
-        return Err(CommandError::Document(EditError::SheetOperation("Axis edits with extension-backed conditional rules are unavailable (dc-971p.8); nothing changed".into())));
+        return Err(CommandError::Document(EditError::SheetOperation(
+            "Axis edits with extension-backed conditional rules are unavailable (dc-971p.8); nothing changed"
+                .into(),
+        )));
     }
     let sheet_edit = batch.operations.iter().find_map(|op| match op {
         WorkbookOp::EditSheet(edit) => Some(edit),
@@ -573,7 +879,10 @@ pub fn dispatch(
                     || !s.charts().charts.is_empty() || s.charts().unread != 0 || s.is_macro_sheet())
                 || (matches!(edit, calc_doc_model::SheetEdit::Remove { .. }) && host.model.definitions().macro_enabled())
             {
-                return Err(CommandError::Document(EditError::SheetOperation("Renaming or deleting sheets with layout, table, rule, chart or other package references is not modelled (dc-971p.7); nothing changed".to_owned())));
+                return Err(CommandError::Document(EditError::SheetOperation(
+                    "Renaming or deleting sheets with layout, table, rule, chart or other package references is not modelled (dc-971p.7); nothing changed"
+                        .to_owned(),
+                )));
             }
         }
         let identity = if let calc_doc_model::SheetEdit::Insert { key, .. } = edit {
@@ -593,13 +902,33 @@ pub fn dispatch(
     let engine = calc_engine::prepare_edit(&mut host.engine, &host.model, &batch)
         .map_err(CommandError::Engine)?;
 
-    let tables_changed=batch.operations.iter().any(|op|match op{WorkbookOp::SetTables(next)=>{let old=host.model.definitions().tables();old.len()!=next.len()||old.iter().zip(next).any(|(a,b)|a.name!=b.name||a.display_name!=b.display_name||a.sheet!=b.sheet||a.area!=b.area||a.header_rows!=b.header_rows||a.totals_rows!=b.totals_rows||a.columns!=b.columns||a.filter!=b.filter)},_=>false});
-    let facts_changed = batch
-        .operations
-        .iter()
-        .any(|op| matches!(op, WorkbookOp::SetAxisFormat(_) | WorkbookOp::SetAutoFilter { .. }));
-    let changes_inputs =
-        tables_changed || facts_changed || !engine.seeds().is_empty() || !engine.node_changes().is_empty();
+    let tables_changed = batch.operations.iter().any(|op| match op {
+        WorkbookOp::SetTables(next) => {
+            let old = host.model.definitions().tables();
+            old.len() != next.len()
+                || old.iter().zip(next).any(|(a, b)| {
+                    a.name != b.name
+                        || a.display_name != b.display_name
+                        || a.sheet != b.sheet
+                        || a.area != b.area
+                        || a.header_rows != b.header_rows
+                        || a.totals_rows != b.totals_rows
+                        || a.columns != b.columns
+                        || a.filter != b.filter
+                })
+        }
+        _ => false,
+    });
+    let facts_changed = batch.operations.iter().any(|op| {
+        matches!(
+            op,
+            WorkbookOp::SetAxisFormat(_) | WorkbookOp::SetAutoFilter { .. }
+        )
+    });
+    let changes_inputs = tables_changed
+        || facts_changed
+        || !engine.seeds().is_empty()
+        || !engine.node_changes().is_empty();
     let (mut added, mut replaced, mut removed) = (0usize, 0usize, 0usize);
     for change in engine.node_changes() {
         match change {
@@ -652,7 +981,9 @@ pub fn dispatch(
 
     let committed = calc_engine::commit_edit(engine);
     host.model = document.into_model();
-    if tables_changed {host.engine=host.engine.rebuilt(&host.model);}
+    if tables_changed {
+        host.engine = host.engine.rebuilt(&host.model);
+    }
     for edit in &axis_edits {
         host.references.apply(&axis_transform(*edit));
     }
@@ -691,12 +1022,16 @@ pub fn dispatch(
         revision: committed.revision(),
         changed_cells,
         cleared_areas,
-        input_writes: batch.operations.iter().filter_map(|op| match op {
-            WorkbookOp::SetCell { at, .. } => Some(GridArea::cell(*at)),
-            WorkbookOp::Clear { area } => Some(*area),
-            WorkbookOp::SetArray { array, .. } => Some(array.area()),
-            _ => None,
-        }).collect(),
+        input_writes: batch
+            .operations
+            .iter()
+            .filter_map(|op| match op {
+                WorkbookOp::SetCell { at, .. } => Some(GridArea::cell(*at)),
+                WorkbookOp::Clear { area } => Some(*area),
+                WorkbookOp::SetArray { array, .. } => Some(array.area()),
+                _ => None,
+            })
+            .collect(),
         pending,
         superseded_recalc,
     })
@@ -712,18 +1047,43 @@ pub(crate) fn restore(
     earlier: &Arc<ModelRoot>,
     axis_edits: Vec<AxisEdit>,
 ) -> Result<CommandReceipt, CommandError> {
-    restore_inner(host,earlier,axis_edits,None)
+    restore_inner(host, earlier, axis_edits, None)
 }
 
 /// Source rebasing leaves live coordinates unchanged and retains honest held values.
-pub(crate) fn restore_package_source(host:&mut HostState,earlier:&Arc<ModelRoot>,source:&calc_doc::LoadedWorkbook)->Result<CommandReceipt,CommandError>{
-    let caches=source.sheets().iter().filter(|s|host.model.sheet_by_id(s.id()).is_none()).flat_map(|sheet|{
-        sheet.formulas().filter_map(move |(r,c,record)|record.cache().map(|cache|(CellKey::new(sheet.id(),r,c).unwrap(),cache.clone())))
-            .chain(sheet.value_caches().filter_map(|(r,c,cache)|{let at=CellKey::new(sheet.id(),r,c).unwrap();(earlier.definitions().array_containing(at).is_some()&&earlier.definitions().unloaded(at).is_none()).then(||(at,cache.clone()))}))
-    }).collect();
-    restore_inner(host,earlier,host.axis_edits.clone(),Some(caches))
+pub(crate) fn restore_package_source(
+    host: &mut HostState,
+    earlier: &Arc<ModelRoot>,
+    source: &calc_doc::LoadedWorkbook,
+) -> Result<CommandReceipt, CommandError> {
+    let caches = source
+        .sheets()
+        .iter()
+        .filter(|s| host.model.sheet_by_id(s.id()).is_none())
+        .flat_map(|sheet| {
+            sheet
+                .formulas()
+                .filter_map(move |(r, c, record)| {
+                    record
+                        .cache()
+                        .map(|cache| (CellKey::new(sheet.id(), r, c).unwrap(), cache.clone()))
+                })
+                .chain(sheet.value_caches().filter_map(|(r, c, cache)| {
+                    let at = CellKey::new(sheet.id(), r, c).unwrap();
+                    (earlier.definitions().array_containing(at).is_some()
+                        && earlier.definitions().unloaded(at).is_none())
+                    .then(|| (at, cache.clone()))
+                }))
+        })
+        .collect();
+    restore_inner(host, earlier, host.axis_edits.clone(), Some(caches))
 }
-fn restore_inner(host:&mut HostState,earlier:&Arc<ModelRoot>,axis_edits:Vec<AxisEdit>,caches:Option<Vec<(CellKey,calc_doc_model::FileCached)>>)->Result<CommandReceipt,CommandError>{
+fn restore_inner(
+    host: &mut HostState,
+    earlier: &Arc<ModelRoot>,
+    axis_edits: Vec<AxisEdit>,
+    caches: Option<Vec<(CellKey, calc_doc_model::FileCached)>>,
+) -> Result<CommandReceipt, CommandError> {
     let transformed_scope = if host.scoped_calculation_active() {
         let mut before: Vec<_> = host.model.sheets().iter().map(|sheet| sheet.id()).collect();
         let mut after: Vec<_> = earlier.sheets().iter().map(|sheet| sheet.id()).collect();
@@ -816,9 +1176,13 @@ fn restore_inner(host:&mut HostState,earlier:&Arc<ModelRoot>,axis_edits:Vec<Axis
         .model
         .restored(earlier)
         .map_err(|error| CommandError::Document(EditError::Model(error)))?;
-    let engine = if let Some(caches)=caches {
-        host.engine.rebuilt_with_held_caches(&host.model,&model,caches).map_err(|e|CommandError::Document(EditError::SheetOperation(e.to_string())))?
-    }else{host.engine.rebuilt(&model)};
+    let engine = if let Some(caches) = caches {
+        host.engine
+            .rebuilt_with_held_caches(&host.model, &model, caches)
+            .map_err(|e| CommandError::Document(EditError::SheetOperation(e.to_string())))?
+    } else {
+        host.engine.rebuilt(&model)
+    };
     host.model = model;
     for edit in reference_edits {
         host.references.apply(&edit);

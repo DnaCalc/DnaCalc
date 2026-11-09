@@ -248,13 +248,21 @@ pub enum Verdict {
         reason: Option<String>,
     },
     /// Calculated, and Excel refused to enter the cell's formula: a mismatch.
-    EntryAccepted { actual: CalcValue },
+    EntryAccepted {
+        actual: CalcValue,
+    },
     /// The code under test rejects the formula by `rule`, and Excel refused it too.
-    AgreedRejection { rule: String },
+    AgreedRejection {
+        rule: String,
+    },
     /// The code under test rejects the formula by `rule`, and Excel took it: a mismatch.
-    EntryRejectedWrongly { rule: String },
+    EntryRejectedWrongly {
+        rule: String,
+    },
     /// The code under test rejects the formula by `rule`, and nothing was observed for the cell.
-    RejectionNotRun { rule: String },
+    RejectionNotRun {
+        rule: String,
+    },
 }
 
 impl Verdict {
@@ -1961,7 +1969,8 @@ mod tests {
     fn a_rejection_is_judged_against_excel_s_entry() {
         const REFUSED: &str = r#""entry_rejected": {"form": "dynamic"}"#;
         const TAKEN: &str = r#""excel_raw": {"number": "4000000000000000"}"#;
-        const REJECTED: &str = r#"{"rejected": {"rule": "COUNTBLANK: argument 1 requires a reference"}}"#;
+        const REJECTED: &str =
+            r#"{"rejected": {"rule": "COUNTBLANK: argument 1 requires a reference"}}"#;
         const CALCULATED: &str = r#"{"calculated": {"tick": 7, "revision": 3, "context": "k"}}"#;
         let capture = column_capture(&[REFUSED, TAKEN, REFUSED, TAKEN, REFUSED, ""]);
         let results = column_results(&[
@@ -1969,7 +1978,10 @@ mod tests {
             (REJECTED, ""),
             (CALCULATED, TWO),
             (CALCULATED, TWO),
-            (r#"{"not_modeled": {"feature": "f", "diagnostic": "d"}}"#, ""),
+            (
+                r#"{"not_modeled": {"feature": "f", "diagnostic": "d"}}"#,
+                "",
+            ),
             (REJECTED, ""),
         ]);
         let record = record_of(&[(3, 1, 7, 3, "k"), (4, 1, 7, 3, "k")]);

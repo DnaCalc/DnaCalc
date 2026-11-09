@@ -33,10 +33,10 @@
 //! row or column number of 0 and a call of a LAMBDA are dynamic too. A function Excel does not
 //! know is stored as a dynamic array (measured on unknown names).
 
+use calc_catalogue::FunctionFileForm;
 use calc_doc_model::{DefinedName, FormulaText};
 use calc_fml::syntax::{SyntaxChild, SyntaxKind, SyntaxNode, Token, TokenKind, parse_formula};
 use std::collections::BTreeMap;
-use calc_catalogue::FunctionFileForm;
 
 fn function(name: &str) -> Option<&'static FunctionFileForm> {
     calc_catalogue::file_form(&name.to_ascii_uppercase())
@@ -46,7 +46,15 @@ fn function(name: &str) -> Option<&'static FunctionFileForm> {
 /// prefix Excel writes before it (`_xlfn.XLOOKUP`, `_xlfn._xlws.FILTER`, `ISO.CEILING`), or `None`
 /// for a name that is not one of the functions measured.
 pub(crate) fn function_file_name(name: &str) -> Option<String> {
-    function(name).map(|entry| format!("{}{}", calc_catalogue::file_prefix(entry.name).expect("measured function prefix").text(), entry.name))
+    function(name).map(|entry| {
+        format!(
+            "{}{}",
+            calc_catalogue::file_prefix(entry.name)
+                .expect("measured function prefix")
+                .text(),
+            entry.name
+        )
+    })
 }
 
 /// A formula in file form.
@@ -335,8 +343,10 @@ impl Walk<'_, '_> {
                         let _ = shape;
                         let file_name = calc_catalogue::unheld::operator_file_spelling(
                             calc_catalogue::unheld::IMPLICIT_INTERSECTION_ID,
-                        ).expect("the implicit-intersection file spelling");
-                        self.edits.push((span.start, span.end(), format!("{file_name}(")));
+                        )
+                        .expect("the implicit-intersection file spelling");
+                        self.edits
+                            .push((span.start, span.end(), format!("{file_name}(")));
                         self.insert(operand.span().end(), ")");
                         multi(false)
                     }
@@ -363,7 +373,8 @@ impl Walk<'_, '_> {
                     // Inserted before the operand's own edits at the same place.
                     let file_name = calc_catalogue::unheld::operator_file_spelling(
                         calc_catalogue::unheld::SPILL_ID,
-                    ).expect("the spill file spelling");
+                    )
+                    .expect("the spill file spelling");
                     self.insert(operand.span().start, &format!("{file_name}("));
                     self.walk(operand, depth + 1)?;
                     self.edits.push((span.start, span.end(), ")".to_owned()));
@@ -409,8 +420,9 @@ impl Walk<'_, '_> {
                     })
                     .collect();
                 let operator: String = tokens.iter().map(|token| token.text()).collect();
-                let (prefix, name) = calc_catalogue::unheld::trim_reference_file_spelling(&operator)
-                    .ok_or(FileFormError::Unreadable)?;
+                let (prefix, name) =
+                    calc_catalogue::unheld::trim_reference_file_spelling(&operator)
+                        .ok_or(FileFormError::Unreadable)?;
                 let function = format!("{}{name}(", prefix.text());
                 let (Some(first), Some(last)) = (tokens.first(), tokens.last()) else {
                     return Err(FileFormError::Unreadable);
@@ -473,7 +485,14 @@ impl Walk<'_, '_> {
         let language_binding = (upper == "LET" || upper == "LAMBDA")
             && (!prefixed
                 || entry.is_some_and(|entry| {
-                    format!("{}{}", calc_catalogue::file_prefix(entry.name).expect("measured function prefix").text(), entry.name).eq_ignore_ascii_case(text)
+                    format!(
+                        "{}{}",
+                        calc_catalogue::file_prefix(entry.name)
+                            .expect("measured function prefix")
+                            .text(),
+                        entry.name
+                    )
+                    .eq_ignore_ascii_case(text)
                 }));
         if language_binding {
             if !prefixed {
@@ -482,7 +501,9 @@ impl Walk<'_, '_> {
             return self.binding(&upper, &arguments, depth);
         }
         if !prefixed && let Some(entry) = entry {
-            let prefix = calc_catalogue::file_prefix(entry.name).expect("measured function prefix").text();
+            let prefix = calc_catalogue::file_prefix(entry.name)
+                .expect("measured function prefix")
+                .text();
             if !prefix.is_empty() {
                 self.insert(name.span().start, prefix);
             }

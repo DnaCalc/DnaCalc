@@ -225,33 +225,43 @@ pub fn project(
         .iter()
         .map(|&at| {
             let input = host.model.cell(at).cloned();
-            let value = if let Some((value,calculation))=host.engine.pivot_results().cells.get(&at){ProjectedValue::Calculated{value:value.clone(),calculation:calculation.clone()}}else{match &input {
-                None => filled_value(host, at, &stale, cause),
-                Some(CellInput::Number(number)) => {
-                    ProjectedValue::Literal(CalcValue::number(number.get()))
-                }
-                Some(CellInput::Text(text)) => {
-                    ProjectedValue::Literal(CalcValue::text(text.text().clone()))
-                }
-                Some(CellInput::Logical(logical)) => {
-                    ProjectedValue::Literal(CalcValue::logical(*logical))
-                }
-                Some(CellInput::Error(code)) => ProjectedValue::Literal(CalcValue::error(*code)),
-                Some(input @ CellInput::Formula(_)) => {
-                    let is_stale = stale.binary_search(&at).is_ok();
-                    // Whether a file cache is the package's result for the formula now in the
-                    // cell: the loaded revision held that formula there.
-                    let formula_as_opened = host.loaded.model().cell(at) == Some(input);
-                    let file_cache_stands = !host.inputs_changed_since_open;
-                    formula_value(
-                        host.engine.result(at),
-                        is_stale,
-                        cause,
-                        formula_as_opened,
-                        file_cache_stands,
-                    )
-                }
-            }};
+            let value =
+                if let Some((value, calculation)) = host.engine.pivot_results().cells.get(&at) {
+                    ProjectedValue::Calculated {
+                        value: value.clone(),
+                        calculation: calculation.clone(),
+                    }
+                } else {
+                    match &input {
+                        None => filled_value(host, at, &stale, cause),
+                        Some(CellInput::Number(number)) => {
+                            ProjectedValue::Literal(CalcValue::number(number.get()))
+                        }
+                        Some(CellInput::Text(text)) => {
+                            ProjectedValue::Literal(CalcValue::text(text.text().clone()))
+                        }
+                        Some(CellInput::Logical(logical)) => {
+                            ProjectedValue::Literal(CalcValue::logical(*logical))
+                        }
+                        Some(CellInput::Error(code)) => {
+                            ProjectedValue::Literal(CalcValue::error(*code))
+                        }
+                        Some(input @ CellInput::Formula(_)) => {
+                            let is_stale = stale.binary_search(&at).is_ok();
+                            // Whether a file cache is the package's result for the formula now in the
+                            // cell: the loaded revision held that formula there.
+                            let formula_as_opened = host.loaded.model().cell(at) == Some(input);
+                            let file_cache_stands = !host.inputs_changed_since_open;
+                            formula_value(
+                                host.engine.result(at),
+                                is_stale,
+                                cause,
+                                formula_as_opened,
+                                file_cache_stands,
+                            )
+                        }
+                    }
+                };
             ProjectedCell {
                 at,
                 input,

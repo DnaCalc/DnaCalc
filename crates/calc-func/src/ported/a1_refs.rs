@@ -341,4 +341,3 @@ pub fn offset_reference(
         }),
     })
 }
-

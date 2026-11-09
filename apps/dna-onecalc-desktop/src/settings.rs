@@ -42,16 +42,26 @@ impl Settings {
             return settings;
         };
         if let Some(w) = json.get("window") {
-            let number = |key: &str| w.get(key).and_then(serde_json::Value::as_i64).map(|n| n as i32);
-            if let (Some(left), Some(top), Some(right), Some(bottom)) =
-                (number("left"), number("top"), number("right"), number("bottom"))
-            {
+            let number = |key: &str| {
+                w.get(key)
+                    .and_then(serde_json::Value::as_i64)
+                    .map(|n| n as i32)
+            };
+            if let (Some(left), Some(top), Some(right), Some(bottom)) = (
+                number("left"),
+                number("top"),
+                number("right"),
+                number("bottom"),
+            ) {
                 settings.window = Some(Placement {
                     left,
                     top,
                     right,
                     bottom,
-                    maximized: w.get("maximized").and_then(serde_json::Value::as_bool).unwrap_or(false),
+                    maximized: w
+                        .get("maximized")
+                        .and_then(serde_json::Value::as_bool)
+                        .unwrap_or(false),
                 });
             }
         }
@@ -103,7 +113,8 @@ mod tests {
     use super::*;
 
     fn folder(name: &str) -> PathBuf {
-        let folder = std::env::temp_dir().join(format!("onecalc-settings-{name}-{}", std::process::id()));
+        let folder =
+            std::env::temp_dir().join(format!("onecalc-settings-{name}-{}", std::process::id()));
         let _ = std::fs::remove_dir_all(&folder);
         folder
     }
@@ -115,7 +126,13 @@ mod tests {
         let folder = folder("round");
         assert!(Settings::load(&folder).window.is_none());
         let mut settings = Settings::load(&folder);
-        settings.window = Some(Placement { left: 10, top: -20, right: 810, bottom: 620, maximized: true });
+        settings.window = Some(Placement {
+            left: 10,
+            top: -20,
+            right: 810,
+            bottom: 620,
+            maximized: true,
+        });
         settings.push_recent("C:\\a\\one.xlsx");
         settings.push_recent("C:\\a\\two.xlsm");
         settings.save();
@@ -140,7 +157,14 @@ mod tests {
         assert_eq!(settings.recent[0], "C:\\f\\11.xlsx");
         settings.push_recent("c:\\F\\8.XLSX");
         assert_eq!(settings.recent[0], "c:\\F\\8.XLSX");
-        assert_eq!(settings.recent.iter().filter(|p| p.to_ascii_lowercase() == "c:\\f\\8.xlsx").count(), 1);
+        assert_eq!(
+            settings
+                .recent
+                .iter()
+                .filter(|p| p.to_ascii_lowercase() == "c:\\f\\8.xlsx")
+                .count(),
+            1
+        );
         assert_eq!(settings.recent.len(), MOST_RECENT);
     }
 }
