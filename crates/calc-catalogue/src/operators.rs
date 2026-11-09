@@ -3,6 +3,8 @@ use crate::{ArgumentDemand, Availability, EntryKind, EntryTraits, FunctionId, No
 
 const fn operator(id: FunctionId, spelling: &'static str, notation: Notation, parameters: &'static [Parameter]) -> WorksheetDeclaration {
     WorksheetDeclaration {
+        localized_names: None,
+        context_facilities: None,
         id, spelling, notation, parameters, kind: EntryKind::Operator { file_spelling: None },
         availability: Availability::Unspecified, arity: calc_value::CallableArityShape::exact(parameters.len()),
         groups: None, result: ResultForm::Value, demand: ArgumentDemand::Eager, traits: EntryTraits::NONE,

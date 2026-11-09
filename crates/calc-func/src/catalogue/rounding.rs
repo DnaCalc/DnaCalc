@@ -45,86 +45,32 @@
 //! FLOOR, or ODD's and EVEN's step to the next integer) is refused with ExactUnavailable; one that
 //! reaches none computes.
 
-use super::{ArgumentDemand, CatalogueEntry, Family, FunctionId, Kernel, Notation, Parameter};
-use crate::call::{EagerKernel, EvalServices, FunctionFault};
+use super::FunctionId;
+use crate::call::{EvalServices, FunctionFault};
 use crate::decimal::{self, Direction, ExactDecimal};
 use crate::kernel::{Exit, Site, Step};
-use crate::value::{CalcValue, CallableArityShape, CoreRef, WorksheetErrorCode};
+use crate::value::{CalcValue, CoreRef, WorksheetErrorCode};
 
-const CODE: u16 = 6;
+use calc_catalogue::rounding::{CODE, ENTRIES as DECLARATIONS, ABS, SIGN, INT, TRUNC, ROUND, ROUNDUP, ROUNDDOWN, MROUND, CEILING, FLOOR, MOD, QUOTIENT, EVEN, ODD, ECMA_CEILING};
 
-const ABS: FunctionId = FunctionId::new(CODE, 1);
-const SIGN: FunctionId = FunctionId::new(CODE, 2);
-const INT: FunctionId = FunctionId::new(CODE, 3);
-const TRUNC: FunctionId = FunctionId::new(CODE, 4);
-const ROUND: FunctionId = FunctionId::new(CODE, 5);
-const ROUNDUP: FunctionId = FunctionId::new(CODE, 6);
-const ROUNDDOWN: FunctionId = FunctionId::new(CODE, 7);
-const MROUND: FunctionId = FunctionId::new(CODE, 8);
-const CEILING: FunctionId = FunctionId::new(CODE, 9);
-const FLOOR: FunctionId = FunctionId::new(CODE, 10);
-const MOD: FunctionId = FunctionId::new(CODE, 11);
-const QUOTIENT: FunctionId = FunctionId::new(CODE, 12);
-const EVEN: FunctionId = FunctionId::new(CODE, 13);
-const ODD: FunctionId = FunctionId::new(CODE, 14);
-const ECMA_CEILING: FunctionId = FunctionId::new(CODE, 15);
-
-const NUMBER: &[Parameter] = &[Parameter::value("number")];
-const DIGITS: &[Parameter] = &[Parameter::value("number"), Parameter::value("num_digits")];
-const MULTIPLE: &[Parameter] = &[Parameter::value("number"), Parameter::value("multiple")];
-const SIGNIFICANCE: &[Parameter] = &[Parameter::value("number"), Parameter::value("significance")];
-const DIVISOR: &[Parameter] = &[Parameter::value("number"), Parameter::value("divisor")];
-const FRACTION: &[Parameter] = &[
-    Parameter::value("numerator"),
-    Parameter::value("denominator"),
-];
-
-/// An eager named call that takes from `min` to as many arguments as it names parameters.
-const fn call(
-    id: FunctionId,
-    spelling: &'static str,
-    min: usize,
-    parameters: &'static [Parameter],
-    kernel: EagerKernel,
-) -> CatalogueEntry {
-    CatalogueEntry {
-        id,
-        spelling,
-        notation: Notation::Call,
-        kind: super::EntryKind::Worksheet,
-        availability: super::Availability::Unspecified,
-        arity: CallableArityShape::range(min, parameters.len()),
-        groups: None,
-        parameters,
-        result: super::ResultForm::Value,
-        demand: ArgumentDemand::Eager,
-        traits: super::EntryTraits::NONE,
-        kernel: Kernel::Eager(kernel),
-    }
+attach_eager_family! {
+    code: CODE; declarations: DECLARATIONS;
+    ABS => abs;
+    SIGN => sign;
+    INT => int;
+    TRUNC => trunc;
+    ROUND => round;
+    ROUNDUP => roundup;
+    ROUNDDOWN => rounddown;
+    MROUND => mround;
+    CEILING => ceiling;
+    FLOOR => floor;
+    MOD => modulo;
+    QUOTIENT => quotient;
+    EVEN => even;
+    ODD => odd;
+    ECMA_CEILING => ecma_ceiling;
 }
-
-// 3-D positions: dc-10y, Excel 16.0.20430, 2026-10-25; catalogue oracle ThreeD sheet.
-pub(super) const FAMILY: Family = Family {
-    code: CODE,
-    entries: &[
-        call(ABS, "ABS", 1, NUMBER, abs).with_three_d(super::ThreeD::new(None, None, Some(&[]))),
-        call(SIGN, "SIGN", 1, NUMBER, sign).with_three_d(super::ThreeD::new(None, None, Some(&[]))),
-        call(INT, "INT", 1, NUMBER, int).with_three_d(super::ThreeD::new(None, None, Some(&[]))),
-        call(TRUNC, "TRUNC", 1, DIGITS, trunc).with_three_d(super::ThreeD::new(None, None, Some(&[]))).with_traits(super::EntryTraits::NONE.flush_subnormal_inputs().retain_overflow_number().retain_subnormal_output()),
-        call(ROUND, "ROUND", 2, DIGITS, round).with_three_d(super::ThreeD::new(None, None, Some(&[]))).with_traits(super::EntryTraits::NONE.flush_subnormal_inputs().retain_overflow_number()),
-        // W111 directed-rounding padding and multi-cell reference controls.
-        call(ROUNDUP, "ROUNDUP", 2, DIGITS, roundup).with_three_d(super::ThreeD::new(None, None, Some(&[]))).with_traits(super::EntryTraits::NONE.padding_precedes_call().flush_subnormal_inputs().retain_subnormal_output()),
-        call(ROUNDDOWN, "ROUNDDOWN", 2, DIGITS, rounddown).with_three_d(super::ThreeD::new(None, None, Some(&[]))).with_traits(super::EntryTraits::NONE.padding_precedes_call().flush_subnormal_inputs().retain_overflow_number().retain_subnormal_output()),
-        call(MROUND, "MROUND", 2, MULTIPLE, mround).with_three_d(super::ThreeD::new(None, Some(&[]), None)).with_traits(super::EntryTraits::NONE.reject_multi_cell_reference().strict_number_arguments()),
-        call(CEILING, "CEILING", 2, SIGNIFICANCE, ceiling).with_three_d(super::ThreeD::new(None, None, Some(&[]))),
-        call(FLOOR, "FLOOR", 2, SIGNIFICANCE, floor).with_three_d(super::ThreeD::new(None, None, Some(&[]))),
-        call(MOD, "MOD", 2, DIVISOR, modulo).with_three_d(super::ThreeD::new(None, None, Some(&[]))).with_traits(super::EntryTraits::NONE.flush_subnormal_inputs()),
-        call(QUOTIENT, "QUOTIENT", 2, FRACTION, quotient).with_three_d(super::ThreeD::new(None, Some(&[]), None)).with_traits(super::EntryTraits::NONE.reject_multi_cell_reference().strict_number_arguments()),
-        call(EVEN, "EVEN", 1, NUMBER, even).with_three_d(super::ThreeD::new(None, None, Some(&[]))),
-        call(ODD, "ODD", 1, NUMBER, odd).with_three_d(super::ThreeD::new(None, None, Some(&[]))),
-        call(ECMA_CEILING, "ECMA.CEILING", 2, SIGNIFICANCE, ecma_ceiling),
-    ],
-};
 
 /// Runs `compute` on the call's arguments, read as numbers in order, and publishes its number.
 fn numeric(

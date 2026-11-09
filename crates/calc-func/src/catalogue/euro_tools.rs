@@ -26,43 +26,20 @@
 //!   lifts: an array, a multi-cell range and any worksheet error are #VALUE!, as is a call with
 //!   fewer than three or more than five arguments. See [`amount`], [`flag`] and [`places`].
 
-use super::kit::{R, grid};
+use super::kit::grid;
 use super::rounding::nearest_digits_exact as nearest_digits;
-use super::{ArgumentDemand, CatalogueEntry, Family, FunctionId, Kernel, Notation, Parameter};
+
 use crate::call::{EvalServices, FunctionFault};
 use crate::kernel::{Exit, Site, Step};
-use crate::value::{CalcValue, CallableArityShape, CoreRef, WorksheetErrorCode};
+use crate::value::{CalcValue, CoreRef, WorksheetErrorCode};
 
-const CODE: u16 = 322;
-const EUROCONVERT: FunctionId = FunctionId::new(CODE, 1);
+use calc_catalogue::euro_tools::{CODE, ENTRIES as DECLARATIONS, EUROCONVERT};
+pub(super) use calc_catalogue::euro_tools::SURFACE;
 
-/// The catalogue spelling of the add-in's function, which only a library-qualified call reaches.
-pub(super) const SURFACE: &str = "_EUROTOOL.EUROCONVERT";
-
-pub(super) const FAMILY: Family = Family {
-    code: CODE,
-    entries: &[CatalogueEntry {
-        id: EUROCONVERT,
-        spelling: SURFACE,
-        notation: Notation::Call,
-        kind: super::EntryKind::AddIn { library: "EUROTOOL.XLAM", export: "EUROCONVERT" },
-        availability: super::Availability::Unspecified,
-        // The add-in's own check answers a wrong count: #VALUE!, not a refused entry.
-        arity: CallableArityShape::range(0, 255),
-        groups: None,
-        parameters: &[
-            Parameter::of("number", R),
-            Parameter::of("source", R),
-            Parameter::of("target", R),
-            Parameter::of("full_precision", R),
-            Parameter::of("triangulation_precision", R),
-        ],
-        result: super::ResultForm::Value,
-        demand: ArgumentDemand::Eager,
-        traits: super::EntryTraits::NONE,
-        kernel: Kernel::Eager(euroconvert),
-    }],
-};
+attach_family! {
+    code: CODE; declarations: DECLARATIONS;
+    EUROCONVERT => Eager(euroconvert);
+}
 
 /// Each unit's fixed rate to the euro and the places a converted amount rounds to.
 const UNITS: [(&str, f64, i32); 18] = [

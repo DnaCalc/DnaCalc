@@ -3024,7 +3024,7 @@ fn act_click(app: &App, session: &Session, name: &str) -> Result<(), String> {
     if app.role_attribute == "data-onecalc" {
         reveal(session, &selector)?;
     }
-    if name.starts_with("skin-") || matches!(name, "save" | "new" | "name-manager") {
+    if name.starts_with("skin-") || matches!(name, "save" | "new" | "name-manager" | "format-apply") {
         // These buttons are disabled until earlier workbook input has answered. WebDriver
         // reports a successful click on a disabled button without dispatching it. Wait for
         // the same availability a person sees before making the ordinary pointer click.

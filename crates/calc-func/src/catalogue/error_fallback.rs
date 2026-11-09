@@ -17,53 +17,18 @@
 //! argument 1, when it is asked for. A callable remains one value through selection; its visible
 //! #CALC! core becomes a worksheet error only when it reaches a cell (fn5 selection005/006).
 
-use super::{ArgumentDemand, CatalogueEntry, Family, FunctionId, Kernel, Notation, Parameter};
+use super::FunctionId;
 use crate::call::{EvalServices, FunctionFault, LazyArguments};
 use crate::kernel::Site;
-use crate::value::{CalcValue, CallableArityShape, CoreRef, WorksheetErrorCode};
+use crate::value::{CalcValue, CoreRef, WorksheetErrorCode};
 
-const CODE: u16 = 8;
+use calc_catalogue::error_fallback::{CODE, ENTRIES as DECLARATIONS, IFERROR, IFNA};
 
-const IFERROR: FunctionId = FunctionId::new(CODE, 1);
-const IFNA: FunctionId = FunctionId::new(CODE, 2);
-
-// 3-D positions: dc-10y, Excel 16.0.20430, 2026-10-25; catalogue oracle ThreeD sheet.
-pub(super) const FAMILY: Family = Family {
-    code: CODE,
-    entries: &[
-        CatalogueEntry {
-            id: IFERROR,
-            spelling: "IFERROR",
-            notation: Notation::Call,
-            kind: super::EntryKind::Worksheet,
-            availability: super::Availability::Unspecified,
-            arity: CallableArityShape::exact(2),
-            groups: None,
-            parameters: &[
-                Parameter::value("value"),
-                Parameter::value("value_if_error"),
-            ],
-            result: super::ResultForm::Value,
-            demand: ArgumentDemand::FallbackOnError,
-            traits: super::EntryTraits::NONE,
-            kernel: Kernel::Lazy(iferror_selected),
-        }.with_three_d(super::ThreeD::new(None, None, Some(&[0]))),
-        CatalogueEntry {
-            id: IFNA,
-            spelling: "IFNA",
-            notation: Notation::Call,
-            kind: super::EntryKind::Worksheet,
-            availability: super::Availability::Unspecified,
-            arity: CallableArityShape::exact(2),
-            groups: None,
-            parameters: &[Parameter::value("value"), Parameter::value("value_if_na")],
-            result: super::ResultForm::Value,
-            demand: ArgumentDemand::FallbackOnError,
-            traits: super::EntryTraits::NONE,
-            kernel: Kernel::Lazy(ifna_selected),
-        }.with_three_d(super::ThreeD::new(None, None, Some(&[0]))),
-    ],
-};
+attach_family! {
+    code: CODE; declarations: DECLARATIONS;
+    IFERROR => Lazy(iferror_selected);
+    IFNA => Lazy(ifna_selected);
+}
 
 /// IFERROR catches every worksheet error. Microsoft's page lists seven (#N/A, #VALUE!, #REF!,
 /// #DIV/0!, #NUM!, #NAME? and #NULL!); Excel 16.0.20430.20182 catches #GETTING_DATA, #CALC!,

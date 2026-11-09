@@ -10,36 +10,19 @@
 //! Microsoft's documentation of recalculation lists it among the volatile functions: a caller
 //! learns what an evaluation resolved from the evaluator, not from this entry.
 
-use super::{CatalogueEntry, Family, FunctionId, Notation, Parameter};
+#[cfg(test)]
+use super::Notation;
 use crate::call::{EvalServices, FunctionFault, TextReference};
 use crate::coerce;
 use crate::kernel::{Exit, Site, Step};
-use crate::value::{CalcValue, CallableArityShape, ReferenceLike, WorksheetErrorCode};
+use crate::value::{CalcValue, ReferenceLike, WorksheetErrorCode};
 
-const CODE: u16 = 11;
+use calc_catalogue::reference_text::{CODE, ENTRIES as DECLARATIONS, INDIRECT};
 
-const INDIRECT: FunctionId = FunctionId::new(CODE, 1);
-
-// 3-D positions: dc-10y, Excel 16.0.20430, 2026-10-25; catalogue oracle ThreeD sheet.
-pub(super) const FAMILY: Family = Family {
-    code: CODE,
-    entries: &[CatalogueEntry {
-        id: INDIRECT,
-        spelling: "INDIRECT",
-        notation: Notation::Call,
-        kind: super::EntryKind::Worksheet,
-        availability: super::Availability::Unspecified,
-        arity: CallableArityShape::range(1, 2),
-        groups: None,
-        parameters: &[Parameter::value("ref_text"), Parameter::value("a1")],
-        // A call may give a reference (dc-mx3x, Excel 16.0.20527, 2026-11-07):
-        // `=COUNTBLANK(INDIRECT("A1"))` enters, and so does `=INDIRECT("A1")(3)` (#REF!).
-        result: super::ResultForm::MayBeReference,
-        demand: super::ArgumentDemand::Eager,
-        traits: super::EntryTraits::NONE.volatile(),
-        kernel: super::Kernel::Eager(indirect),
-    }.with_three_d(super::ThreeD::new(None, None, Some(&[])))],
-};
+attach_family! {
+    code: CODE; declarations: DECLARATIONS;
+    INDIRECT => Eager(indirect);
+}
 
 fn indirect(
     arguments: &[CalcValue],

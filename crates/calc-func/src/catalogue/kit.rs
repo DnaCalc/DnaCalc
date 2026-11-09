@@ -17,15 +17,12 @@ use crate::value::{
     CalcArray, CalcValue, CoreRef, ExcelText, WorksheetErrorCode,
 };
 
-/// A value-or-reference parameter.
-pub(super) const R: ParameterClass = ParameterClass::ValueOrReference;
-
-/// Attaches existing eager kernels to the shared declarations by stable ID.
-macro_rules! attach_eager_family {
-    (code: $code:expr; declarations: $decl:path; $($id:ident => $kernel:ident;)*) => {
+/// Attaches existing kernels to the shared declarations by stable ID.
+macro_rules! attach_family {
+    (code: $code:expr; declarations: $decl:path; $($id:ident => $kind:ident($kernel:ident);)*) => {
         const fn attach(data: calc_catalogue::WorksheetDeclaration) -> super::CatalogueEntry {
             let kernel = match data.id.raw() {
-                $(x if x == $id.raw() => super::Kernel::Eager($kernel),)*
+                $(x if x == $id.raw() => super::Kernel::$kind($kernel),)*
                 _ => panic!("declaration has no attached kernel or refusal"),
             };
             super::CatalogueEntry {
@@ -35,7 +32,7 @@ macro_rules! attach_eager_family {
             }
         }
         const ENTRIES: [super::CatalogueEntry; $decl.len()] = {
-            assert!($decl.len() == <[()]>::len(&[$(attach_eager_family!(@count $id)),*]));
+            assert!($decl.len() == <[()]>::len(&[$(attach_family!(@count $id)),*]));
             let mut entries = [attach($decl[0]); $decl.len()];
             let mut i = 1;
             while i < entries.len() { entries[i] = attach($decl[i]); i += 1; }
@@ -44,6 +41,12 @@ macro_rules! attach_eager_family {
         pub(super) const FAMILY: super::Family = super::Family { code: $code, entries: &ENTRIES };
     };
     (@count $id:ident) => { () };
+}
+
+macro_rules! attach_eager_family {
+    (code: $code:expr; declarations: $decl:path; $($id:ident => $kernel:ident;)*) => {
+        attach_family! { code: $code; declarations: $decl; $($id => Eager($kernel);)* }
+    };
 }
 
 /// Attaches executable kernels to declarations owned by the shared data crate.
