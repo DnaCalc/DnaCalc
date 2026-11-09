@@ -14,6 +14,7 @@ Nothing here computes an expected value: every answer is a legacy reading, copie
 
   jnt_import.py rows    <batch> --repo <DnaCalc clone> --legacy <OxFunc clone> [--work <dir>]
   jnt_import.py capture <batch> --repo <DnaCalc clone> --legacy <OxFunc clone> [--work <dir>]
+  jnt_import.py environment <DnaCalc clone> <donor capture.json>   (after each `cargo xtask capture --split`)
 
 Rows are chosen per family (one function and formula shape): at most QUOTA rows by a seeded stride
 over the family's source classes (a class is one evidence file and one id tag), plus every boundary
@@ -911,7 +912,46 @@ def observation(sheet, row, expected):
     return {"sheet": sheet, "row": row, "column": 4, "excel_raw": raw}
 
 
+# Settings of a donor capture's environment that describe the donor's own workbook or clock, which the
+# jnt sections do not share.
+READ_BACK_SERIAL = 46335.0  # 2026-11-09, the day live Excel 16.0.20527 read the sheets back
+DONOR_ONLY_SETTINGS = ("calculation_clock", "workbook_path", "external_links", "ole_dde_links", "connections",
+                       "has_vb_project", "opened_read_only")
+
+
+def stamp_environment(repo, donor_path):
+    """Gives every jnt section capture the environment of Excel 16.0.20527 on this machine, as a live
+    capture of the catalogue recorded it (`donor_path`), with the clock of the read-back and without the
+    donor's workbook facts.
+
+    The sections come from function questions, whose records hold no environment, and the corpus harness
+    reads the locale profile (user culture and separators) that VALUE-style number text needs from the
+    environment: without it, text such as "50%" or "(2)" given to a number argument is refused as not
+    modelled. The answers are legacy readings that live Excel 16.0.20527 on this machine confirmed
+    (README.md), and the question service's Excel runs under the same user culture (en-ZA). Only the
+    environment line changes; no answer is touched."""
+    donor = json.load(open(donor_path, encoding="utf-8"))["environment"]
+    donor["settings"] = {k: v for k, v in donor["settings"].items() if k not in DONOR_ONLY_SETTINGS}
+    # Text such as "1/2" reads as 2 January of the clock's year (ADDRESS rows of jnt_w111_rounding read
+    # it as row 46024, the serial of 2 January 2026), so the clock is the day of the live read-back.
+    donor["settings"]["calculation_clock"] = struct.pack(">d", READ_BACK_SERIAL).hex()
+    text = json.dumps(donor, indent=2, ensure_ascii=False).replace("\n", "\n  ")
+    folder = os.path.join(repo, "crates/calc-func/tests/captures/jnt/sections")
+    for name in sorted(os.listdir(folder)):
+        path = os.path.join(folder, name)
+        raw = open(path, encoding="utf-8").read()
+        if '"environment": null,' not in raw:
+            print(name, "already has an environment")
+            continue
+        with open(path, "w", encoding="utf-8", newline="\n") as handle:
+            handle.write(raw.replace('"environment": null,', '"environment": ' + text + ",", 1))
+        print(name, "environment set")
+
+
 def main():
+    if len(sys.argv) == 4 and sys.argv[1] == "environment":
+        stamp_environment(sys.argv[2], sys.argv[3])
+        return
     parser = argparse.ArgumentParser()
     parser.add_argument("mode", choices=["rows", "capture"])
     parser.add_argument("batch")

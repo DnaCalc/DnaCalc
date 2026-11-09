@@ -26,3 +26,9 @@ or U+FFFF cannot be built this way and its rows are left out (each family's head
 
 The answers are the legacy Excel readings (OxFunc, build 20430), imported by
 `tools/excel-service/jnt_import.py` into `../../captures/jnt/sections/`; see its header.
+
+**Environment.** The section captures carry the environment of Excel 16.0.20527 on this machine (user culture
+en-ZA, its separators), copied from a catalogue live capture by `jnt_import.py environment` (run it after each
+`cargo xtask capture --split`), with a calculation clock of 2026-11-09, the day of the live read-back. The
+corpus harness builds the locale profile that number text needs from the environment: without it, a number
+argument given "50%", "(2)" or "1/2" is refused as not modelled (189 rows). The answers are untouched.
