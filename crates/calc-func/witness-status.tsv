@@ -454,10 +454,10 @@ RECEIVED	pinned	20430	120	120	-	exact	919dd43269+changes	0
 REGEXTEST	full	20527	6	6	-	exact	9fd77961e5	0
 ROUND	full	20430	36945	36921	14	numeric	9fd77961e5	0
 ROUND	pinned	20430,20527	536	536	-	exact	919dd43269+changes	0
-ROUNDDOWN	full	20430	59995	59549	86	numeric	9fd77961e5	0
-ROUNDDOWN	pinned	20430,20527	782	779	12	numeric	919dd43269+changes	0
-ROUNDUP	full	20430	52841	52395	86	numeric	9fd77961e5	0
-ROUNDUP	pinned	20430,20527	782	779	12	numeric	919dd43269+changes	0
+ROUNDDOWN	full	20430	59995	59893	10	numeric	9fd77961e5	0
+ROUNDDOWN	pinned	20430,20527	782	782	-	exact	919dd43269+changes	0
+ROUNDUP	full	20430	52841	52739	10	numeric	9fd77961e5	0
+ROUNDUP	pinned	20430,20527	782	782	-	exact	919dd43269+changes	0
 RRI	full	20228,?	5528	5528	-	exact	9fd77961e5	0
 RRI	pinned	20228,?	120	120	-	exact	2569cd9175+changes	0
 SEC	full	20131,20430,?	2138	2138	-	exact	9fd77961e5	0
@@ -532,8 +532,8 @@ TREND	full	20131	12	12	-	exact	9fd77961e5	0
 TREND	pinned	20131	12	12	-	exact	c3646c3637+changes	0
 TRUE	full	20430	1	1	-	exact	9fd77961e5	0
 TRUE	pinned	20430	1	1	-	exact	919dd43269+changes	0
-TRUNC	full	20430	51317	50873	86	numeric	9fd77961e5	0
-TRUNC	pinned	20430,20527	783	780	12	numeric	919dd43269+changes	0
+TRUNC	full	20430	51317	51217	10	numeric	9fd77961e5	0
+TRUNC	pinned	20430,20527	783	783	-	exact	919dd43269+changes	0
 TYPE	full	20430	1227	1227	-	exact	9fd77961e5	0
 TYPE	pinned	20430	120	120	-	exact	919dd43269+changes	0
 UPPER	full	20527	5	5	-	exact	9fd77961e5	0
