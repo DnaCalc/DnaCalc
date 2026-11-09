@@ -883,8 +883,14 @@ fn grid_pane(controller: Controller, ctx: PaneContext) -> impl IntoView {
                     }
                     queued.set_value(true);
                     request_animation_frame(move || {
+                        // The grid may have been left (another skin) before the frame came.
+                        if queued.is_disposed() {
+                            return;
+                        }
                         queued.set_value(false);
-                        let before = viewport.get_untracked();
+                        let Some(before) = viewport.try_get_untracked() else {
+                            return;
+                        };
                         measure();
                         let after = viewport.get_untracked();
                         if (before.width, before.height) != (after.width, after.height)
