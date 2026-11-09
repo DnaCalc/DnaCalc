@@ -2,8 +2,8 @@
 //!
 //! Timeline preparation, option errors, step statistics and the exact, nonseasonal
 //! zero-residual models and bounded nonseasonal fits are implemented. Short fits
-//! require exact moment regressions and phase extension. Rounded constant initialisation, the minimum-alpha forecast
-//! reset, nonzero seasonal fits, incomplete cycles and calendar inference still
+//! require exact moment regressions and phase extension. Rounded constant initialisation,
+//! nonzero seasonal fits, incomplete cycles and calendar inference still
 //! belong to dc-j9k. In particular,
 //! bit-identical input values do NOT justify returning that value: adjacent-load
 //! measurements expose rounding and changed optimisation even on constant data.
@@ -315,9 +315,19 @@ impl Model {
         let window = if y.len() <= 10 { y.len() } else { y.len().div_ceil(2) };
         let count = window - 1;
         let trends = &self.trends[self.trends.len() - count..];
-        let mean = trends.iter().fold(0.0, |sum, &v| sum + v) / count as f64;
-        let variance = trends.iter().fold(0.0, |sum, &v| sum + (v - mean) * (v - mean)) / count as f64;
-        let reset = mean.abs() < variance.sqrt() * window as f64 / count as f64;
+        use crate::ported::excel_numeric::{excel_x87_add as add, excel_x87_div as div,
+            excel_x87_mul as mul, excel_x87_sub as sub};
+        // R46 trend-shift questions separate the selected tail from the
+        // divisors. Odd histories retain ceil(n/2)-1 transitions but use
+        // floor(n/2)-1 in both raw moments. Centered variance is a different
+        // computation here, including its cancellation on near-flat trends.
+        let divisor_window = if y.len() <= 10 { y.len() } else { y.len() / 2 };
+        let divisor = (divisor_window - 1) as f64;
+        let total = trends.iter().fold(0.0, |sum, &v| add(sum, v));
+        let squares = trends.iter().fold(0.0, |sum, &v| add(sum, mul(v, v)));
+        let mean = div(total, divisor);
+        let variance = sub(div(squares, divisor), mul(mean, mean));
+        let reset = mean.abs() < div(mul(variance.sqrt(), divisor_window as f64), divisor);
         if reset {
             self.level = *y.last().unwrap() - self.seasons[(y.len() - 1) % 2];
             self.trend = initial_slope(y);
@@ -455,14 +465,10 @@ fn nonseasonal(site: &Site<'_>, y: &[f64], output: Output, statistic: f64, horiz
     let mut model = Model::run(y, alpha, beta, None);
     let squared_errors = model.squared_errors();
     let statistics = model.statistics(y);
-    let reset = model.finish(y, &mut beta);
+    model.finish(y, &mut beta);
     match output {
         Output::Forecast => {
             if horizon < 0.0 { return Err(unfinished(site)); }
-            // Validation at the raw minimum-alpha point has a separate postfit
-            // reset decision. Symmetric fresh histories refute the ordinary
-            // decision there; pre-reset errors and beta .001 remain identified.
-            if alpha == 0.002 && y.len() > 10 && reset { return Err(unfinished(site)); }
             let phase = ((y.len() - 1) as u64 + horizon as u64) % 2;
             // Fresh midpoint questions distinguish the final seasonal addition
             // at PC64 followed by a binary64 store from strict binary64 addition.
@@ -538,6 +544,12 @@ pub(super) fn evaluate(site: &Site<'_>, args: &[CalcValue], sv: &mut EvalService
     if output == Output::Statistic && statistic == 8.0 { return site.number(series.step); }
     if output == Output::Confidence && confidence == 0.0 { return site.number(0.0); }
     if !series.preparation_exact { return Err(unfinished(site)); }
+    // R46's adjacent/exponent controls identify the detector's minimum
+    // history: lag two first becomes available at five prepared observations.
+    // This does not identify the detector or fitted model for longer histories.
+    if output == Output::Seasonality && series.values.len() <= 4 {
+        return site.number(0.0);
+    }
     if season == 1.0 {
         match exact_seasonal(site, &series.values, 2, output, statistic, horizon, true) {
             Ok(value) => return Ok(value),
