@@ -8,12 +8,14 @@ macro_rules! data_family {
         $(groups ($gfrom:literal, $gsize:literal, $gtail:literal);)?
         $(result $result:ident;)? $(availability $availability:ident;)?
         $(traits $($traits:ident),+;)? $(volatile $volatility:literal;)?
+        $(host_route ($provider:expr, $fetch_kind:expr);)?
+        $(import_route ($iprovider:expr, $import_kind:expr);)?
         $(three_d ($take:expr, $value:expr, $reference:expr);)? ;
     )*) => {
         pub const ENTRIES: &[WorksheetDeclaration] = &[$({
             #[allow(unused_mut)]
             let mut item = WorksheetDeclaration {
-                id: FunctionId::new($code, $member), spelling: $spelling, notation: Notation::Call,
+                id: FunctionId::new($code, $member), kind: crate::EntryKind::Worksheet, spelling: $spelling, notation: Notation::Call,
                 availability: Availability::Unspecified, arity: calc_value::CallableArityShape::range($min, $max),
                 groups: None, parameters: &[$(Parameter::of($pname, data_family!(@class $class))$(.entry(EntryClass::$entry))?$(.legacy(LegacyPlace::$legacy))?),*],
                 result: ResultForm::Value, demand: ArgumentDemand::Eager, traits: EntryTraits::NONE,
@@ -22,6 +24,8 @@ macro_rules! data_family {
             $(item.result = ResultForm::$result;)? $(item.availability = Availability::$availability;)?
             $(item.traits = EntryTraits::NONE$(.$traits())+;)?
             $(item.traits.volatile = $volatility;)?
+            $(item.kind = crate::EntryKind::HostRoute { provider: $provider, route: crate::HostRouteKind::Fetch($fetch_kind) };)?
+            $(item.kind = crate::EntryKind::HostRoute { provider: $iprovider, route: crate::HostRouteKind::Import($import_kind) };)?
             $(item.traits.three_d = ThreeD::new($take, $value, $reference);)?
             item
         }),*];
@@ -617,6 +621,29 @@ pub mod cube_functions {
     6 "CUBEMEMBERPROPERTY" (3, 3) [R "connection", R "member_expression", R "property"]
     ;
     7 "CUBEKPIMEMBER" (3, 4) [R "connection", R "kpi_name", R "kpi_property", R "caption"]
+    ;
+    }
+}
+
+pub mod fetching {
+    use super::*;
+    pub const CODE: u16 = 323;
+    data_family! {
+        code: CODE;
+    1 "WEBSERVICE" (1, 1) [V "url"] volatile true; host_route (crate::FETCH_PROVIDER, crate::FetchKind::Text); ;
+    2 "IMAGE" (1, 5) [V "source", V "alt_text", V "sizing", V "height", V "width"] host_route (crate::FETCH_PROVIDER, crate::FetchKind::Picture);
+    ;
+    }
+}
+
+pub mod importing {
+    use super::*;
+    pub const CODE: u16 = 326;
+    data_family! {
+        code: CODE;
+    1 "IMPORTCSV" (1, 5) [V "path", V "skip_rows", V "take_rows", V "text_only", V "locale"] import_route (crate::IMPORT_PROVIDER, crate::ImportKind::Csv);
+    ;
+    2 "IMPORTTEXT" (1, 7) [V "path", V "delimiter", V "skip_rows", V "take_rows", V "encoding", V "text_only", V "locale"] import_route (crate::IMPORT_PROVIDER, crate::ImportKind::Text);
     ;
     }
 }

@@ -1,149 +1,49 @@
 //! What the family fragments ported from OxFunc share: the declaration macro
-//! [`ported_family!`], the argument readers, which coerce through [`crate::coerce`] like every
+//! [`ported_shared_family!`], the argument readers, which coerce through [`crate::coerce`] like every
 //! other kernel, and the publication of a ported kernel's result.
 //!
-//! A ported family declares each entry with its member number, kernel name, spelling, arity,
-//! parameters (`V` for a value, `R` for a value or reference, `F` for a reference, each followed
-//! by `@Reference` where Excel's formula entry takes only an operand that may give a reference),
-//! Each parameter may also declare its measured legacy place after `~`. The root-place
-//! declarations carry the dc-10y Excel 16.0.20430 `Range.Formula` readings from 2026-10-25:
-//! a range expression is intersected at an aggregate place and lifts at an array place.
-//! The nested cases cite their captures beside the declarations.
-//! Optionally an entry declares its repeating groups (`groups (from, size, tail);`) and result form
-//! (`result MayBeReference;`), and body. The macro generates the entry and its eager kernel. Every generated kernel refuses an array given
-//! to a value parameter, since a function of single values applied to an array lifts over its
-//! elements, which is not modelled here (L1 owns array lifting), and then reaches one binary64
-//! arithmetic site, so a call under the Exact numeric mode is refused, as for every other kernel.
+//! The shared data crate holds each ported family's parameter and call metadata. This module
+//! attaches kernels by stable ID and supplies the argument readers. Generated kernels refuse an
+//! array given to a value parameter and use a binary64 arithmetic site, as before the split.
 
 use super::aggregate::{self, Held, Origin};
 use super::{
-    ArgumentDemand, CatalogueEntry, FunctionId, Kernel, Notation, Parameter, ParameterClass,
+    Parameter, ParameterClass,
 };
-use crate::call::{EagerKernel, EvalServices};
+use crate::call::EvalServices;
 use crate::coerce;
 use crate::kernel::{Exit, Site, Step};
 use crate::value::{
-    CalcArray, CalcValue, CallableArityShape, CoreRef, ExcelText, WorksheetErrorCode,
+    CalcArray, CalcValue, CoreRef, ExcelText, WorksheetErrorCode,
 };
 
-/// A value parameter: the caller dereferences a reference first.
-pub(super) const V: ParameterClass = ParameterClass::Value;
-/// A value-or-reference parameter: a list the kernel reads itself.
+/// A value-or-reference parameter.
 pub(super) const R: ParameterClass = ParameterClass::ValueOrReference;
-/// A reference-only parameter.
-pub(super) const F: ParameterClass = ParameterClass::Reference;
 
-/// An eager named call of `min..=max` arguments.
-pub(super) const fn entry(
-    id: FunctionId,
-    spelling: &'static str,
-    min: usize,
-    max: usize,
-    parameters: &'static [Parameter],
-    kernel: EagerKernel,
-) -> CatalogueEntry {
-    CatalogueEntry {
-        id,
-        spelling,
-        notation: Notation::Call,
-        kind: super::EntryKind::Worksheet,
-        availability: super::Availability::Unspecified,
-        arity: CallableArityShape::range(min, max),
-        groups: None,
-        parameters,
-        result: super::ResultForm::Value,
-        demand: ArgumentDemand::Eager,
-        traits: super::EntryTraits::NONE,
-        kernel: Kernel::Eager(kernel),
-    }
-}
-
-/// Declares a ported family: its `FAMILY` fragment and one eager kernel per entry. See the module
-/// documentation.
-macro_rules! ported_family {
-    (
-        code: $code:expr;
-        $(
-            $member:literal $fname:ident $spelling:literal ($min:literal, $max:literal)
-            [$($class:ident $pname:literal $(@ $entry:ident)? $(~ $legacy:ident)?),*]
-            $(groups ($gfrom:literal, $gsize:literal, $gtail:literal);)?
-            $(result $result:ident;)?
-            $(availability $availability:ident;)?
-            $(traits $($traits:ident),+;)?
-            $(volatile $volatility:literal;)?
-            $(host_route ($provider:expr, $fetch_kind:expr);)?
-            $(import_route ($iprovider:expr, $import_kind:expr);)?
-            $(three_d ($take:expr, $value:expr, $reference:expr);)?
-            $(resume $resumer:ident => $resume:path;)?
-            |$s:ident, $a:ident, $sv:ident| $body:block
-        )*
-    ) => {
-        pub(super) const FAMILY: super::Family = super::Family {
-            code: $code,
-            entries: &[
-                $(
-                    super::kit::entry(
-                        super::FunctionId::new($code, $member),
-                        $spelling,
-                        $min,
-                        $max,
-                        &[$(super::Parameter::of($pname, super::kit::$class)$(.entry(super::EntryClass::$entry))?$(.legacy(super::LegacyPlace::$legacy))?),*],
-                        $fname,
-                    ).with_continuation(ported_family!(@resume $($resumer)?))
-                    $(.with_groups(super::ArgumentGroups::new($gfrom, $gsize, $gtail)))?
-                    $(.with_result(super::ResultForm::$result))?
-                    $(.with_availability(super::Availability::$availability))?
-                    $(.with_traits(super::EntryTraits::NONE$(.$traits())+))?
-                    $(.with_volatile_if($volatility))?
-                    $(.with_kind(super::EntryKind::HostRoute { provider: $provider, route: super::HostRouteKind::Fetch($fetch_kind) }))?
-                    $(.with_kind(super::EntryKind::HostRoute { provider: $iprovider, route: super::HostRouteKind::Import($import_kind) }))?
-                    $(.with_three_d(super::ThreeD::new($take, $value, $reference)))?,
-                )*
-            ],
-        };
-        $(
-            $(
-                fn $resumer(
-                    arguments: &[crate::value::CalcValue],
-                    services: &mut crate::call::EvalServices<'_>,
-                ) -> Result<Box<dyn crate::call::KernelTask>, crate::call::FunctionFault> {
-                    let site = crate::kernel::Site::new(super::FunctionId::new($code, $member), services);
-                    let outcome = (|| {
-                        let target = crate::catalogue::catalogue().resolve(super::FunctionId::new($code, $member)).expect("a declared entry");
-                        super::kit::scalars(&site, arguments, target.entry.parameters)?;
-                        site.binary64()?;
-                        $resume(&site, arguments, services)
-                    })();
-                    match outcome {
-                        Ok(task) => Ok(task),
-                        Err(crate::kernel::Exit::Error(code)) => Ok(Box::new(crate::call::ReadyTask(Some(crate::value::CalcValue::error(code))))),
-                        Err(crate::kernel::Exit::Fault(fault)) => Err(fault),
-                    }
-                }
-            )?
-            fn $fname(
-                arguments: &[crate::value::CalcValue],
-                services: &mut crate::call::EvalServices<'_>,
-            ) -> Result<crate::value::CalcValue, crate::call::FunctionFault> {
-                #[allow(unused_variables)]
-                fn body(
-                    $s: &crate::kernel::Site<'_>,
-                    $a: &[crate::value::CalcValue],
-                    $sv: &mut crate::call::EvalServices<'_>,
-                ) -> crate::kernel::Step<crate::value::CalcValue> {
-                    const PARAMETERS: &[super::Parameter] =
-                        &[$(super::Parameter::of($pname, super::kit::$class)$(.entry(super::EntryClass::$entry))?$(.legacy(super::LegacyPlace::$legacy))?),*];
-                    super::kit::scalars($s, $a, PARAMETERS)?;
-                    $s.binary64()?;
-                    $body
-                }
-                let site = crate::kernel::Site::new(super::FunctionId::new($code, $member), services);
-                crate::kernel::Site::finish(body(&site, arguments, services))
+/// Attaches existing eager kernels to the shared declarations by stable ID.
+macro_rules! attach_eager_family {
+    (code: $code:expr; declarations: $decl:path; $($id:ident => $kernel:ident;)*) => {
+        const fn attach(data: calc_catalogue::WorksheetDeclaration) -> super::CatalogueEntry {
+            let kernel = match data.id.raw() {
+                $(x if x == $id.raw() => super::Kernel::Eager($kernel),)*
+                _ => panic!("declaration has no attached kernel or refusal"),
+            };
+            super::CatalogueEntry {
+                id: data.id, spelling: data.spelling, notation: data.notation, kind: data.kind,
+                availability: data.availability, arity: data.arity, groups: data.groups,
+                parameters: data.parameters, result: data.result, demand: data.demand, traits: data.traits, kernel,
             }
-        )*
+        }
+        const ENTRIES: [super::CatalogueEntry; $decl.len()] = {
+            assert!($decl.len() == <[()]>::len(&[$(attach_eager_family!(@count $id)),*]));
+            let mut entries = [attach($decl[0]); $decl.len()];
+            let mut i = 1;
+            while i < entries.len() { entries[i] = attach($decl[i]); i += 1; }
+            entries
+        };
+        pub(super) const FAMILY: super::Family = super::Family { code: $code, entries: &ENTRIES };
     };
-    (@resume) => { None };
-    (@resume $resumer:ident) => { Some($resumer) };
+    (@count $id:ident) => { () };
 }
 
 /// Attaches executable kernels to declarations owned by the shared data crate.
@@ -158,7 +58,7 @@ macro_rules! ported_shared_family {
                 _ => panic!("declaration has no attached kernel or refusal"),
             };
             let entry = super::CatalogueEntry {
-                id: data.id, spelling: data.spelling, notation: data.notation, kind: super::EntryKind::Worksheet,
+                id: data.id, spelling: data.spelling, notation: data.notation, kind: data.kind,
                 availability: data.availability, arity: data.arity, groups: data.groups, parameters: data.parameters,
                 result: data.result, demand: data.demand, traits: data.traits, kernel,
             };

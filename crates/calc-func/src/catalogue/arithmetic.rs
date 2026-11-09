@@ -13,39 +13,25 @@
 //! Excel. The computed-subnormal probes in dc-1943 confirm that + and - retain such values,
 //! while * and / flush a subnormal result, and ^ flushes the probed subnormal results.
 
-use super::{CatalogueEntry, Family, FunctionId, Notation, Parameter};
+use super::FunctionId;
 use crate::call::{EvalServices, FunctionFault};
 use crate::coerce;
 use crate::kernel::{Exit, Site, Step};
 use crate::value::{CalcValue, CoreRef, WorksheetErrorCode};
 
-const CODE: u16 = 1;
+use calc_catalogue::operators::arithmetic::{CODE, ENTRIES as DECLARATIONS, PLUS, MINUS, TIMES, DIVIDE, POWER, NEGATE, UNARY_PLUS, PERCENT};
 
-const PLUS: FunctionId = FunctionId::new(CODE, 1);
-const MINUS: FunctionId = FunctionId::new(CODE, 2);
-const TIMES: FunctionId = FunctionId::new(CODE, 3);
-const DIVIDE: FunctionId = FunctionId::new(CODE, 4);
-const POWER: FunctionId = FunctionId::new(CODE, 5);
-const NEGATE: FunctionId = FunctionId::new(CODE, 6);
-const UNARY_PLUS: FunctionId = FunctionId::new(CODE, 7);
-const PERCENT: FunctionId = FunctionId::new(CODE, 8);
-
-const NUMBERS: &[Parameter] = &[Parameter::value("number1"), Parameter::value("number2")];
-const NUMBER: &[Parameter] = &[Parameter::value("number")];
-
-pub(super) const FAMILY: Family = Family {
-    code: CODE,
-    entries: &[
-        CatalogueEntry::operator(PLUS, "+", Notation::Infix, NUMBERS, plus),
-        CatalogueEntry::operator(MINUS, "-", Notation::Infix, NUMBERS, minus),
-        CatalogueEntry::operator(TIMES, "*", Notation::Infix, NUMBERS, times),
-        CatalogueEntry::operator(DIVIDE, "/", Notation::Infix, NUMBERS, divide),
-        CatalogueEntry::operator(POWER, "^", Notation::Infix, NUMBERS, power),
-        CatalogueEntry::operator(NEGATE, "-", Notation::Prefix, NUMBER, negate),
-        CatalogueEntry::operator(UNARY_PLUS, "+", Notation::Prefix, NUMBER, unary_plus),
-        CatalogueEntry::operator(PERCENT, "%", Notation::Postfix, NUMBER, percent),
-    ],
-};
+attach_eager_family! {
+    code: CODE; declarations: DECLARATIONS;
+    PLUS => plus;
+    MINUS => minus;
+    TIMES => times;
+    DIVIDE => divide;
+    POWER => power;
+    NEGATE => negate;
+    UNARY_PLUS => unary_plus;
+    PERCENT => percent;
+}
 
 fn plus(
     arguments: &[CalcValue],

@@ -409,16 +409,13 @@ impl Walk<'_, '_> {
                     })
                     .collect();
                 let operator: String = tokens.iter().map(|token| token.text()).collect();
-                let function = match operator.as_str() {
-                    ".:" => "_xlfn._TRO_LEADING(",
-                    ":." => "_xlfn._TRO_TRAILING(",
-                    ".:." => "_xlfn._TRO_ALL(",
-                    _ => return Err(FileFormError::Unreadable),
-                };
+                let (prefix, name) = calc_catalogue::unheld::trim_reference_file_spelling(&operator)
+                    .ok_or(FileFormError::Unreadable)?;
+                let function = format!("{}{name}(", prefix.text());
                 let (Some(first), Some(last)) = (tokens.first(), tokens.last()) else {
                     return Err(FileFormError::Unreadable);
                 };
-                self.insert(node.span().start, function);
+                self.insert(node.span().start, &function);
                 for child in node.child_nodes() {
                     self.walk(child, depth + 1)?;
                 }

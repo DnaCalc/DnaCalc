@@ -17,6 +17,7 @@ pub const ENTRIES: &[WorksheetDeclaration] = &[
     // `=COUNTBLANK(OFFSET(A1,0,0))` enters, and so does `=OFFSET(A1,0,0)(3)` (#REF!).
     WorksheetDeclaration {
         id: OFFSET,
+        kind: super::EntryKind::Worksheet,
         spelling: "OFFSET",
         notation: Notation::Call,
         availability: super::Availability::Unspecified,
@@ -36,6 +37,7 @@ pub const ENTRIES: &[WorksheetDeclaration] = &[
     .with_three_d(super::ThreeD::new(None, Some(&[0]), Some(&[1, usize::MAX]))),
     WorksheetDeclaration {
         id: ISOMITTED,
+        kind: super::EntryKind::Worksheet,
         spelling: "ISOMITTED",
         notation: Notation::Call,
         availability: super::Availability::Unspecified,
@@ -51,6 +53,7 @@ pub const ENTRIES: &[WorksheetDeclaration] = &[
     // `=TRIMRANGE(B1)(3)` enter. Its range takes any operand: `=TRIMRANGE(2)` enters.
     WorksheetDeclaration {
         id: TRIMRANGE,
+        kind: super::EntryKind::Worksheet,
         spelling: "TRIMRANGE",
         notation: Notation::Call,
         availability: super::Availability::Unspecified,

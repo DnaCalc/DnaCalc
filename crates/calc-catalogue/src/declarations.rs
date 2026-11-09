@@ -148,6 +148,41 @@ impl ThreeD {
     }
 }
 
+/// The provider keys of the host routes.
+pub const FETCH_PROVIDER: &str = "dnacalc:fetch";
+pub const IMPORT_PROVIDER: &str = "dnacalc:import";
+
+/// The kind of fetch performed for a worksheet call.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
+pub enum FetchKind {
+    /// WEBSERVICE: the body as worksheet text.
+    Text,
+    /// IMAGE: the body as a picture.
+    Picture,
+}
+
+/// The kind of file import performed for a worksheet call.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
+pub enum ImportKind {
+    /// IMPORTCSV: comma-delimited, UTF-8.
+    Csv,
+    /// IMPORTTEXT: any delimiter and encoding.
+    Text,
+}
+
+/// The owner and syntax of a catalogue entry.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum EntryKind {
+    Worksheet,
+    Operator { file_spelling: Option<&'static str> },
+    Binding(BindingForm),
+    AddIn { library: &'static str, export: &'static str },
+    HostRoute { provider: &'static str, route: HostRouteKind },
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum HostRouteKind { Fetch(FetchKind), Import(ImportKind), Rtd }
+
 /// Measured behavior of a catalogue entry that is independent of its parameter classes.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
 pub struct EntryTraits {
@@ -432,6 +467,7 @@ impl ArgumentGroups {
 #[derive(Clone, Copy, Debug)]
 pub struct WorksheetDeclaration {
     pub id: FunctionId,
+    pub kind: EntryKind,
     pub spelling: &'static str,
     pub notation: Notation,
     pub availability: Availability,

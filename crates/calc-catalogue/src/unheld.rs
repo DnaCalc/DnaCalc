@@ -52,6 +52,16 @@ pub fn operator_file_spelling(id: FunctionId) -> Option<&'static str> {
             _ => None,
         })
 }
+/// File form of a trim reference operator measured in the workbook format.
+pub fn trim_reference_file_spelling(operator: &str) -> Option<(crate::FilePrefix, &'static str)> {
+    let name = match operator {
+        ".:" => "_TRO_LEADING",
+        ":." => "_TRO_TRAILING",
+        ".:." => "_TRO_ALL",
+        _ => return None,
+    };
+    Some((crate::FilePrefix::Xlfn, name))
+}
 // Signature names and bounds are handbook seeds (calcfunc-catalogue 481f4ab85d3b);
 // entry does not claim they were measured in Excel.
 const CALL_ARGS: &[Parameter] = &[

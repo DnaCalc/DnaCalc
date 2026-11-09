@@ -31,7 +31,7 @@ mod root_collation;
 mod sort_key;
 mod windows_collation;
 
-use super::{CatalogueEntry, Family, FunctionId, Notation, Parameter};
+use super::FunctionId;
 use crate::call::{EvalServices, FunctionFault};
 use crate::coerce;
 use crate::decimal::{ExactDecimal, Natural};
@@ -39,34 +39,17 @@ use crate::kernel::{Exit, Site, Step};
 use crate::value::{CalcValue, CoreRef};
 use std::cmp::Ordering;
 
-const CODE: u16 = 2;
+use calc_catalogue::operators::comparison::{CODE, ENTRIES as DECLARATIONS, EQUAL, NOT_EQUAL, LESS, LESS_OR_EQUAL, GREATER, GREATER_OR_EQUAL};
 
-const EQUAL: FunctionId = FunctionId::new(CODE, 1);
-const NOT_EQUAL: FunctionId = FunctionId::new(CODE, 2);
-const LESS: FunctionId = FunctionId::new(CODE, 3);
-const LESS_OR_EQUAL: FunctionId = FunctionId::new(CODE, 4);
-const GREATER: FunctionId = FunctionId::new(CODE, 5);
-const GREATER_OR_EQUAL: FunctionId = FunctionId::new(CODE, 6);
-
-const VALUES: &[Parameter] = &[Parameter::value("value1"), Parameter::value("value2")];
-
-pub(super) const FAMILY: Family = Family {
-    code: CODE,
-    entries: &[
-        CatalogueEntry::operator(EQUAL, "=", Notation::Infix, VALUES, equal),
-        CatalogueEntry::operator(NOT_EQUAL, "<>", Notation::Infix, VALUES, not_equal),
-        CatalogueEntry::operator(LESS, "<", Notation::Infix, VALUES, less),
-        CatalogueEntry::operator(LESS_OR_EQUAL, "<=", Notation::Infix, VALUES, less_or_equal),
-        CatalogueEntry::operator(GREATER, ">", Notation::Infix, VALUES, greater),
-        CatalogueEntry::operator(
-            GREATER_OR_EQUAL,
-            ">=",
-            Notation::Infix,
-            VALUES,
-            greater_or_equal,
-        ),
-    ],
-};
+attach_eager_family! {
+    code: CODE; declarations: DECLARATIONS;
+    EQUAL => equal;
+    NOT_EQUAL => not_equal;
+    LESS => less;
+    LESS_OR_EQUAL => less_or_equal;
+    GREATER => greater;
+    GREATER_OR_EQUAL => greater_or_equal;
+}
 
 /// The share of the larger magnitude beyond which two numbers' differences are too wide for them
 /// to have the same 15-digit rounding: two such roundings lie within 1E-14 of it, and the margin

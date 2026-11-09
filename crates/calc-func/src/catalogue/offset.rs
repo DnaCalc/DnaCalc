@@ -40,7 +40,7 @@ const fn attach(data: WorksheetDeclaration) -> CatalogueEntry {
     };
     CatalogueEntry {
         id: data.id, spelling: data.spelling, notation: data.notation,
-        kind: super::EntryKind::Worksheet, availability: data.availability,
+        kind: data.kind, availability: data.availability,
         arity: data.arity, groups: data.groups, parameters: data.parameters,
         result: data.result, demand: data.demand, traits: data.traits, kernel,
     }

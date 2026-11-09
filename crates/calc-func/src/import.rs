@@ -55,18 +55,14 @@ use crate::value::{ArrayShape, CalcArray, CalcValue, CoreRef, ExcelText, Workshe
 use std::{fmt, rc::Rc};
 
 /// The provider key the import functions are registered under in a callable table.
-pub const IMPORT_PROVIDER: &str = "dnacalc:import";
+pub use calc_catalogue::{IMPORT_PROVIDER, ImportKind};
 /// The functions that use the route, by catalogue spelling.
-pub const IMPORT_FUNCTIONS: [&str; 2] = ["IMPORTCSV", "IMPORTTEXT"];
-
-/// Which function a call is, so its arguments are read in that function's order.
-#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
-pub enum ImportKind {
-    /// IMPORTCSV: comma-delimited, UTF-8.
-    Csv,
-    /// IMPORTTEXT: any delimiter and encoding.
-    Text,
-}
+pub const IMPORT_FUNCTIONS: [&str; 2] = [
+    calc_catalogue::ported::find(calc_catalogue::ported::importing::ENTRIES,
+        calc_catalogue::FunctionId::new(calc_catalogue::ported::importing::CODE, 1)).spelling,
+    calc_catalogue::ported::find(calc_catalogue::ported::importing::ENTRIES,
+        calc_catalogue::FunctionId::new(calc_catalogue::ported::importing::CODE, 2)).spelling,
+];
 
 /// A host's way to read a file: the whole file as bytes, for an absolute path (the `file:///`
 /// form already turned into one), or `None` when it cannot (missing, a folder, no access).
