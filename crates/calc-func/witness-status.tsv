@@ -529,7 +529,7 @@ TIME	pinned	20430	120	120	-	exact	919dd43269+changes	0
 TINV	full	20131,?	32	15	173	numeric	16d9d3dffd+changes	0
 TINV	pinned	20131	32	15	173	numeric	919dd43269+changes	0
 TREND	full	20131	12	10	2	last_bit	16d9d3dffd+changes	0
-TREND	pinned	20131	12	10	2	last_bit	919dd43269+changes	0
+TREND	pinned	20131	12	12	-	exact	c3646c3637+changes	0
 TRUE	full	20430	1	1	-	exact	16d9d3dffd+changes	0
 TRUE	pinned	20430	1	1	-	exact	919dd43269+changes	0
 TRUNC	full	20430	51317	50873	86	numeric	16d9d3dffd+changes	0

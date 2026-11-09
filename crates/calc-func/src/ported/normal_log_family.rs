@@ -84,8 +84,14 @@ fn validate_probability_open_unit(p: f64) -> Result<(), WorksheetErrorCode> {
 /// The tail of the inverse standard normal by the rational approximations of
 /// M. J. Wichura, "Algorithm AS 241: The Percentage Points of the Normal Distribution",
 /// Applied Statistics 37(3), 1988, pp. 477-484 (PPND16): the published coefficients of its
-/// tail approximations evaluated in `sqrt(-ln p)`.
+/// tail approximations evaluated in `sqrt(-ln p)`. Every Horner product and sum and the final
+/// quotient is stored to binary64 from precision 64 (R42: the lower windows near 6.4e-82 and
+/// 1.8e-26 separate it from strict binary64; the R39 upper answers agree with both).
 fn inverse_standard_normal_as241_tail(p: f64) -> f64 {
+    use crate::ported::excel_numeric::{excel_x87_add, excel_x87_div, excel_x87_mul};
+    let horner = |c: &[f64; 8], r: f64| {
+        c[..7].iter().rev().fold(c[7], |v, &a| excel_x87_add(excel_x87_mul(v, r), a))
+    };
     const C: [f64; 8] = [
         1.4234371107496835,
         4.630337846156546,
@@ -132,22 +138,10 @@ fn inverse_standard_normal_as241_tail(p: f64) -> f64 {
     let mut r = libm::sqrt(-crt_log(tail_p));
     let x = if r <= 5.0 {
         r -= 1.6;
-        let numerator =
-            ((((((C[7] * r + C[6]) * r + C[5]) * r + C[4]) * r + C[3]) * r + C[2]) * r + C[1]) * r
-                + C[0];
-        let denominator =
-            ((((((D[7] * r + D[6]) * r + D[5]) * r + D[4]) * r + D[3]) * r + D[2]) * r + D[1]) * r
-                + D[0];
-        numerator / denominator
+        excel_x87_div(horner(&C, r), horner(&D, r))
     } else {
         r -= 5.0;
-        let numerator =
-            ((((((E[7] * r + E[6]) * r + E[5]) * r + E[4]) * r + E[3]) * r + E[2]) * r + E[1]) * r
-                + E[0];
-        let denominator =
-            ((((((F[7] * r + F[6]) * r + F[5]) * r + F[4]) * r + F[3]) * r + F[2]) * r + F[1]) * r
-                + F[0];
-        numerator / denominator
+        excel_x87_div(horner(&E, r), horner(&F, r))
     };
 
     if q < 0.0 {
@@ -217,9 +211,11 @@ fn inverse_standard_normal_acklam_refined(p: f64) -> f64 {
 fn inverse_standard_normal(p: f64) -> Result<f64, WorksheetErrorCode> {
     validate_probability_open_unit(p)?;
 
-    // R39 single-bit regions separate the upper AS241 route at 15/16.
-    // The central and lower routes retain their existing numerical program.
-    Ok(if p > 15.0 / 16.0 { inverse_standard_normal_as241_tail(p) }
+    // R39 single-bit regions separate the upper AS241 route at 15/16. Below AS241's
+    // central bound (`p - 0.5 < -0.425`) Excel publishes the same AS241 tail evaluated at
+    // `p` itself (R42: 393,140 of 393,216 retained R41 answers there). The central route and
+    // the upper interval (0.925, 15/16] keep their existing numerical program.
+    Ok(if p > 15.0 / 16.0 || p - 0.5 < -0.425 { inverse_standard_normal_as241_tail(p) }
         else { inverse_standard_normal_acklam_refined(p) })
 }
 
@@ -428,9 +424,9 @@ mod tests {
     #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
     fn norm_inv_tail_records_known_gaps() {
         for (p, expected_bits, calculated_bits) in [
-            (0.0001_f64, 0xc00d_c08b_b712_893au64, 0xc00dc08bb712893b),
-            (0.001_f64, 0xc008_b8cb_b720_4470u64, 0xc008b8cbb7204471),
-            (0.01_f64, 0xc002_9c5c_4630_ff0eu64, 0xc0029c5c4630ff0f),
+            (0.0001_f64, 0xc00d_c08b_b712_893au64, 0xc00dc08bb712893a),
+            (0.001_f64, 0xc008_b8cb_b720_4470u64, 0xc008b8cbb7204470),
+            (0.01_f64, 0xc002_9c5c_4630_ff0eu64, 0xc0029c5c4630ff0e),
             (0.95_f64, 0x3ffa_5152_0967_6ab8u64, 0x3ffa515209676ab8),
             (0.975_f64, 0x3fff_5c03_31ee_ff82u64, 0x3fff5c0331eeff82),
             (0.97575_f64, 0x3fff_913f_9b7a_a942u64, 0x3fff913f9b7aa942),
@@ -513,6 +509,24 @@ mod tests {
         );
     }
     /// Fresh R39 upper-tail controls distinguish the CRT logarithm and full tables.
+    /// R42: below p - 0.5 = -0.425 Excel 16.0.20527 publishes the AS241 tail at p, its Horner
+    /// steps and quotient stored from precision 64 (R41 dense sweep, retained in
+    /// DnaCalc-Research). The first input is the last double below 0.075; the other two separate
+    /// the stored evaluation from strict binary64 by one ulp.
+    #[cfg_attr(not(target_arch = "wasm32"), test)]
+    #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+    fn norm_inv_lower_tail_is_stored_as241() {
+        for (p, expected) in [
+            (0x3fb3333333333332u64, 0xbff7085226d3e522u64),
+            (0x2f136cef52c0864du64, 0xc03322ac3e8e938du64),
+            (0x3a95b463aeea39cau64, 0xc0252b6664118c59u64),
+        ] {
+            let p = f64::from_bits(p);
+            assert_bits(norm_s_inv_kernel(p).unwrap(), expected);
+            assert_bits(norm_inv_kernel(p, 0.0, 1.0).unwrap(), expected);
+        }
+    }
+
     #[cfg_attr(not(target_arch = "wasm32"), test)]
     #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
     fn norm_inv_upper_as241_uses_full_coefficients_and_crt_log() {
