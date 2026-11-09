@@ -241,6 +241,18 @@ impl CalcArray {
     pub fn iter_row_major(&self) -> std::slice::Iter<'_, CalcValue> {
         self.cells.iter()
     }
+
+    /// Whether both arrays have one shape and exposure ([`Self::is_boxed`]) and
+    /// representation-equal cells ([`CalcValue::representation_eq`]).
+    pub fn representation_eq(&self, other: &Self) -> bool {
+        self.shape == other.shape
+            && self.boxed == other.boxed
+            && self
+                .cells
+                .iter()
+                .zip(other.cells.iter())
+                .all(|(left, right)| left.representation_eq(right))
+    }
 }
 
 /// Why [`ReferenceLike::from_areas`] refused its areas.
@@ -600,6 +612,29 @@ impl fmt::Debug for CalcValue {
     }
 }
 
+// Four relations between values are kept apart (dc-hsa5.19, Pro B1):
+//
+// 1. Worksheet comparison: Excel's `=`, `<` and the lookup rules, with coercion and the text
+//    collation. It lives in calc-func (`comparison`), never here, and a callable or cube value
+//    takes part in it through its worksheet-visible core.
+// 2. Runtime identity: two callables are the same callable when they share one handle
+//    ([`CalcValue::same_callable`], [`CallableValue`]'s `==`); deep equality of what a closure
+//    captured is never asked.
+// 3. Representation equality ([`CalcValue::representation_eq`]): the same worksheet-visible core
+//    (numbers by bit pattern, so `-0` and `0` differ and a NaN equals itself), the same
+//    qualification (callable identity, image, cube members, Excel's overflow number) and, for
+//    arrays, the same shape, exposure ([`CalcArray::is_boxed`]) and cells. A caller that decides
+//    whether a returned value is the one it already holds (a retransmitted RTD or asynchronous
+//    result) asks this.
+// 4. Reuse equivalence: whether a result may stand in for another for one observable facet
+//    (`ObservableFacets`, calc-fml). No code compares values to decide reuse or an early
+//    cutoff: the engine's certificates compare versions and epochs, never values, so there is
+//    no value-equality consumer of this kind. `PartialEq` is not that relation.
+//
+// `PartialEq for CalcValue` is structural equality over every qualification the value carries,
+// with plain numbers compared as IEEE numbers (`0.0 == -0.0`, `NaN != NaN`): what a test or a
+// derived `PartialEq` of a type that holds values needs. A qualification it left out would make
+// two different values equal, so it covers callable identity, image and cube members alike.
 impl PartialEq for CalcValue {
     fn eq(&self, other: &Self) -> bool {
         if self.is_excel_overflow() || other.is_excel_overflow() {
@@ -609,6 +644,7 @@ impl PartialEq for CalcValue {
             self.core == other.core
                 && self.callable_value() == other.callable_value()
                 && self.image_value() == other.image_value()
+                && self.cube_value() == other.cube_value()
         }
     }
 }
@@ -788,6 +824,36 @@ impl CalcValue {
             Some(ValueMetadata::Image(image)) => Some(image),
             _ => None,
         }
+    }
+
+    /// Whether both values are callables sharing one handle: runtime identity, the second of the
+    /// relations described above [`CalcValue`]'s `PartialEq`. A value that is not a callable is
+    /// never the same callable as anything.
+    pub fn same_callable(&self, other: &Self) -> bool {
+        matches!(
+            (self.callable_value(), other.callable_value()),
+            (Some(left), Some(right)) if left == right
+        )
+    }
+
+    /// Representation equality, the third of the relations described above [`CalcValue`]'s
+    /// `PartialEq`: the same worksheet-visible core with numbers equal by bit pattern, the same
+    /// callable identity, image, cube members and overflow qualification, and arrays of the same
+    /// shape and exposure whose cells are representation-equal in turn.
+    pub fn representation_eq(&self, other: &Self) -> bool {
+        let same_qualification = match (self.metadata.as_deref(), other.metadata.as_deref()) {
+            (None, None) | (Some(ValueMetadata::ExcelOverflow), Some(ValueMetadata::ExcelOverflow)) => true,
+            (Some(ValueMetadata::Callable(_)), Some(ValueMetadata::Callable(_))) => self.same_callable(other),
+            (Some(ValueMetadata::Image(left)), Some(ValueMetadata::Image(right))) => left == right,
+            (Some(ValueMetadata::Cube(left)), Some(ValueMetadata::Cube(right))) => left == right,
+            _ => false,
+        };
+        same_qualification
+            && match (self.core_ref(), other.core_ref()) {
+                (CoreRef::Number(left), CoreRef::Number(right)) => left.to_bits() == right.to_bits(),
+                (CoreRef::Array(left), CoreRef::Array(right)) => left.representation_eq(right),
+                (left, right) => left == right,
+            }
     }
 }
 
@@ -1051,6 +1117,95 @@ mod tests {
                 .is_none()
         );
         assert_ne!(CalcValue::error(WorksheetErrorCode::Calc), value);
+    }
+
+    /// dc-hsa5.19 (Pro B1): `CalcValue::eq` once left cube metadata out, so two different cube
+    /// members with one caption, and a cube value and plain text of that caption, compared equal.
+    #[cfg_attr(not(target_arch = "wasm32"), test)]
+    #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+    fn cube_members_with_one_caption_are_not_equal() {
+        let caption = ExcelText::from_interop_assignment("Europe");
+        let member = |unique: &str| {
+            CalcValue::cube(
+                caption.clone(),
+                CubeValue {
+                    connection: "Model".into(),
+                    tuples: vec![vec![unique.into()]],
+                    set: false,
+                },
+            )
+        };
+        let (a, b) = (member("[Geo].[Region].&[1]"), member("[Geo].[Region].&[2]"));
+        assert_ne!(a, b);
+        assert_eq!(a, member("[Geo].[Region].&[1]"));
+        let text = CalcValue::text(caption.clone());
+        assert_ne!(a, text);
+        assert_ne!(text, a);
+        // A set and a member of the same tuples differ too.
+        let set = CalcValue::cube(
+            caption.clone(),
+            CubeValue {
+                connection: "Model".into(),
+                tuples: vec![vec!["[Geo].[Region].&[1]".into()]],
+                set: true,
+            },
+        );
+        assert_ne!(a, set);
+        // The same holds inside an array and under representation equality.
+        let one = |value: CalcValue| CalcArray::from_scalar(value);
+        assert_ne!(CalcValue::array(one(a.clone())), CalcValue::array(one(b.clone())));
+        assert!(!a.representation_eq(&b));
+        assert!(!a.representation_eq(&text));
+        assert!(a.representation_eq(&member("[Geo].[Region].&[1]")));
+    }
+
+    /// The relations of the note above `PartialEq for CalcValue`: runtime identity, and
+    /// representation equality, which separates what `==` lets coincide.
+    #[cfg_attr(not(target_arch = "wasm32"), test)]
+    #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+    fn representation_equality_is_stricter_than_partial_eq() {
+        // Numbers: IEEE equality for `==`, bit patterns for representation equality.
+        let (zero, negative) = (CalcValue::number(0.0), CalcValue::number(-0.0));
+        assert_eq!(zero, negative);
+        assert!(!zero.representation_eq(&negative));
+        let nan = CalcValue::number(f64::NAN);
+        assert_ne!(nan, nan);
+        assert!(nan.representation_eq(&nan.clone()));
+        // The overflow number is qualified: an unqualified NaN of the same bits is another value.
+        let bits = f64::from_bits(0x7ff8_0000_0000_0001);
+        let overflow = CalcValue::excel_overflow_number(bits).expect("a NaN");
+        assert!(overflow.representation_eq(&overflow.clone()));
+        assert!(!overflow.representation_eq(&CalcValue::number(bits)));
+        // Callables: the same handle is the same callable, an equal-looking handle is not.
+        let handle: Arc<dyn OpaqueCallable> = Arc::new(TestCallable);
+        let make = |handle: &Arc<dyn OpaqueCallable>| {
+            CalcValue::callable(CallableValue::new(CallableArityShape::exact(1), "LAMBDA(x, x)", handle.clone()))
+        };
+        let (one, same) = (make(&handle), make(&handle));
+        let other = make(&(Arc::new(TestCallable) as Arc<dyn OpaqueCallable>));
+        assert!(one.same_callable(&same) && one.representation_eq(&same));
+        assert!(!one.same_callable(&other) && !one.representation_eq(&other));
+        assert!(!CalcValue::error(WorksheetErrorCode::Calc).same_callable(&CalcValue::error(WorksheetErrorCode::Calc)));
+        assert!(!one.representation_eq(&CalcValue::error(WorksheetErrorCode::Calc)));
+        // Arrays: shape, exposure and every cell count.
+        let cells = || vec![CalcValue::number(1.0), CalcValue::number(0.0)];
+        let row = CalcArray::new(ArrayShape { rows: 1, cols: 2 }, cells()).expect("a row");
+        let column = CalcArray::new(ArrayShape { rows: 2, cols: 1 }, cells()).expect("a column");
+        assert!(CalcValue::array(row.clone()).representation_eq(&CalcValue::array(row.clone())));
+        assert!(!CalcValue::array(row.clone()).representation_eq(&CalcValue::array(column)));
+        assert!(!CalcValue::array(row.clone()).representation_eq(&CalcValue::array(row.clone().boxed())));
+        let negated = CalcArray::new(
+            ArrayShape { rows: 1, cols: 2 },
+            vec![CalcValue::number(1.0), CalcValue::number(-0.0)],
+        )
+        .expect("a row");
+        assert_eq!(CalcValue::array(row.clone()), CalcValue::array(negated.clone()));
+        assert!(!CalcValue::array(row).representation_eq(&CalcValue::array(negated)));
+        // A picture is a value with its own qualification.
+        let picture = |bytes: &[u8]| CalcValue::image(ImageValue::picture(ImageFormat::Png, bytes.into()));
+        assert!(picture(b"a").representation_eq(&picture(b"a")));
+        assert!(!picture(b"a").representation_eq(&picture(b"b")));
+        assert!(!picture(b"a").representation_eq(&CalcValue::error(WorksheetErrorCode::Value)));
     }
 
     #[cfg_attr(not(target_arch = "wasm32"), test)]

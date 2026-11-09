@@ -107,7 +107,10 @@ pub fn admit(ledger: &RtdLedger, event: RtdEvent) -> (RtdLedger, RtdDisposition)
                         return (ledger.clone(), RtdDisposition::StaleSequence);
                     }
                     if sequence == held.sequence {
-                        let verdict = if held.value == value {
+                        // The same value in every qualification (representation equality,
+                        // dc-hsa5.19), so a cube member of another identity or minus zero for
+                        // zero is a conflict, not a retransmission.
+                        let verdict = if held.value.representation_eq(&value) {
                             RtdDisposition::Duplicate
                         } else {
                             RtdDisposition::ConflictingSequence
@@ -315,6 +318,10 @@ mod tests {
             admit(&one, update("a", 1, 1, 999.0)).1,
             RtdDisposition::ConflictingSequence
         );
+        // Representation, not IEEE, equality: minus zero for zero at one sequence conflicts.
+        let (zero, _) = admit(&empty, update("z", 1, 1, 0.0));
+        assert_eq!(admit(&zero, update("z", 1, 1, 0.0)).1, RtdDisposition::Duplicate);
+        assert_eq!(admit(&zero, update("z", 1, 1, -0.0)).1, RtdDisposition::ConflictingSequence);
         let (two, verdict) = admit(&one, update("a", 1, 2, 40.0));
         assert_eq!(verdict, RtdDisposition::Accepted);
         assert_eq!(

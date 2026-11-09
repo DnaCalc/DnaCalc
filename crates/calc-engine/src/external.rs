@@ -4,6 +4,13 @@ use calc_doc_model::ModelRoot;
 use calc_value::CalcValue;
 use std::collections::BTreeMap;
 
+/// Whether a delivered value is the one already returned: representation equality
+/// ([`CalcValue::representation_eq`]), since a retransmission is a duplicate only when it is the
+/// same value in every qualification, and a different one is a conflict (dc-hsa5.19).
+fn same_return(held: &CalcValue, delivered: &CalcValue) -> bool {
+    held.representation_eq(delivered)
+}
+
 #[derive(Debug)]
 struct AsyncRecord {
     token: AsyncToken,
@@ -24,7 +31,7 @@ impl AsyncReturns {
                     return Err(AsyncRejection::IdentityMismatch);
                 }
                 if let (Some(a), Some(b)) = (&existing.returned, &incoming.returned)
-                    && a != b
+                    && !same_return(a, b)
                 {
                     return Err(AsyncRejection::ConflictingDuplicate);
                 }
@@ -86,7 +93,7 @@ impl AsyncReturns {
             None => D::Rejected(R::UnknownToken),
             Some(record) if record.token != *token => D::Rejected(R::IdentityMismatch),
             Some(record) if record.returned.is_some() => {
-                if record.returned.as_ref() == Some(&value) {
+                if record.returned.as_ref().is_some_and(|held| same_return(held, &value)) {
                     D::Duplicate
                 } else {
                     D::Rejected(R::ConflictingDuplicate)
@@ -113,5 +120,29 @@ impl AsyncReturns {
                 }
             }
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::same_return;
+    use calc_value::{CalcValue, CubeValue, ExcelText};
+
+    /// A returned value is a duplicate only when it is the same value, qualifications included:
+    /// a cube member with another identity but one caption, or minus zero for zero, conflicts.
+    #[cfg_attr(not(target_arch = "wasm32"), test)]
+    #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+    fn a_duplicate_return_is_the_same_value_in_every_qualification() {
+        let member = |unique: &str| {
+            CalcValue::cube(
+                ExcelText::from_interop_assignment("Europe"),
+                CubeValue { connection: "Model".into(), tuples: vec![vec![unique.into()]], set: false },
+            )
+        };
+        assert!(same_return(&member("[Geo].&[1]"), &member("[Geo].&[1]")));
+        assert!(!same_return(&member("[Geo].&[1]"), &member("[Geo].&[2]")));
+        assert!(!same_return(&member("[Geo].&[1]"), &CalcValue::text(ExcelText::from_interop_assignment("Europe"))));
+        assert!(same_return(&CalcValue::number(2.0), &CalcValue::number(2.0)));
+        assert!(!same_return(&CalcValue::number(0.0), &CalcValue::number(-0.0)));
     }
 }
