@@ -101,6 +101,11 @@ impl FormatShown {
 /// system font; other families must be available in the browser before AutoFit can use them.
 #[derive(Clone, Debug, PartialEq, serde::Serialize, serde::Deserialize)]
 pub struct TextStyle {
+    /// A supported pivot DisplayFormat number-code override. When absent the cell code remains
+    /// in use; `unsupported` identifies appearance that has not been fully modelled. Text keeps
+    /// its usual cell and conditional-format rendering path, which can differ on pivot totals.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub display_number_format: Option<String>,
     pub font_color: Option<String>,
     pub fill: Option<String>,
     #[serde(default)]
@@ -137,6 +142,7 @@ pub struct BorderShown {
 impl Default for TextStyle {
     fn default() -> Self {
         Self {
+            display_number_format: None,
             font_color: None,
             fill: None,
             brush: None,

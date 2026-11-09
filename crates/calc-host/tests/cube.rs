@@ -454,3 +454,42 @@ fn dc_8wp_19__model_pivot_keeps_snapshot_and_rejects_forgery() {
         assert!(matches!(page.cells()[0].value(), ProjectedValue::Calculated { value, .. } if matches!(value.core_ref(), CoreRef::Error(e) if e.excel_spelling() == "#REF!")), "{:?}", page.cells()[0].value());
     }
 }
+
+/// Automatic calculation follows the published model-pivot snapshot through refresh and history.
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn dc_8wp_19__automatic_model_pivot_refresh_and_history_recalculate_mdx() {
+    use calc_host::{HostSession, SkinIntent, WorkbookCommand};
+    let source: Arc<dyn PackageRead> = Arc::new(MemorySource::new(include_bytes!("fixtures/pivot_cube/model-pivot.xlsx").to_vec()));
+    let mut book = HostSession::open(source, &OpenPolicy::default(), HostOptions { calc_mode: Some(CalcMode::Automatic), ..Default::default() }).unwrap();
+    while book.has_unfinished_calculation() { book.advance_calculation(); }
+    let sheet = |book: &HostSession, name: &str| book.host().sheets().iter().find(|s| String::from_utf16_lossy(s.name().text().utf16_code_units()) == name).unwrap().id();
+    let pivot_sheet = sheet(&book, "ModelPivot");
+    let part = book.host().model().definitions().pivots().sheet(pivot_sheet).unwrap().tables.iter().find(|table| table.name == "pvt_model").unwrap().part.clone();
+    let receipt = book.dispatch(SkinIntent::Command(WorkbookCommand::PivotRefresh { sheet: pivot_sheet, revision: book.host().revision().get(), part }));
+    assert!(receipt.accepted(), "{receipt:?}");
+    while book.has_unfinished_calculation() { book.advance_calculation(); }
+    let total = CellKey::new(pivot_sheet, 9, 6).unwrap();
+    let gpd = CellKey::new(sheet(&book, "GpdModel"), 1, 2).unwrap();
+    let check = |book: &HostSession, expected| {
+        let page = project(book.host(), &ProjectionRequest { cells: vec![total, gpd] }).unwrap();
+        for cell in page.cells() {
+            assert!(matches!(cell.value(), ProjectedValue::Calculated { value, .. } if value.as_number() == Some(expected)), "{:?}: {:?}", cell.at(), cell.value());
+        }
+    };
+    check(&book, 135.3);
+    let source_sheet = sheet(&book, "Sheet1");
+    assert!(book.dispatch(SkinIntent::EnterCell { at: CellKey::new(source_sheet, 2, 22).unwrap(), text: "999".into() }).accepted());
+    while book.has_unfinished_calculation() { book.advance_calculation(); }
+    check(&book, 135.3);
+    let receipt = book.dispatch(SkinIntent::Command(WorkbookCommand::RefreshAll { revision: book.host().revision().get() }));
+    assert!(receipt.accepted(), "{receipt:?}");
+    while book.has_unfinished_calculation() { book.advance_calculation(); }
+    check(&book, 1034.3);
+    assert!(book.dispatch(SkinIntent::Undo).accepted());
+    while book.has_unfinished_calculation() { book.advance_calculation(); }
+    check(&book, 135.3);
+    assert!(book.dispatch(SkinIntent::Redo).accepted());
+    while book.has_unfinished_calculation() { book.advance_calculation(); }
+    check(&book, 1034.3);
+}
