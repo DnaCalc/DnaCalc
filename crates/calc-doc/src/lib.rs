@@ -78,6 +78,7 @@ mod formula_sources;
 pub use formula_sources::{FormulaSourceBudget, RegroupedFormulaSources, regroup_formula_sources};
 mod error;
 mod load;
+pub mod look;
 pub use load::pivot;
 mod opc;
 mod policy;

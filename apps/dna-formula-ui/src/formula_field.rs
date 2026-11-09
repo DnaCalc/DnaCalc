@@ -562,6 +562,63 @@ impl FormulaAssist {
         cell_role: Option<&'static str>,
         label: String,
     ) -> impl IntoView {
+        self.field_inner(diagnostics, on_key, rows, placeholder, cell_role, label, false)
+    }
+
+    /// The same field with the completion list and the signature help drawn as a pop-up anchored
+    /// at the caret, inside the field, as Excel draws them under its formula bar. The owner then
+    /// places neither [`FormulaAssist::popup`] nor [`FormulaAssist::signature`]. The keys are the
+    /// field's own: arrows choose, Tab or Enter accept, Escape closes.
+    pub fn anchored_field(
+        self,
+        diagnostics: Signal<Vec<TextSpan>>,
+        on_key: Option<Callback<leptos::ev::KeyboardEvent>>,
+        rows: u32,
+        placeholder: &'static str,
+    ) -> impl IntoView {
+        self.field_inner(diagnostics, on_key, rows, placeholder, None, "Formula".into(), true)
+    }
+
+    /// An invisible copy of the text up to the caret, laid out exactly as the field lays out its
+    /// own, and a zero-width anchor after it: the pop-up is positioned from the anchor, so it
+    /// follows the caret through wrapped lines without measuring anything.
+    fn caret_overlay(self) -> impl IntoView {
+        let (text, caret) = (self.text, self.caret);
+        let before = move || {
+            let at = caret.get();
+            text.with(|text| {
+                let mut units = 0;
+                text.chars()
+                    .take_while(|c| {
+                        let more = units < at;
+                        units += c.len_utf16();
+                        more
+                    })
+                    .collect::<String>()
+            })
+        };
+        view! {
+            <div class="oc-mirror" data-onecalc="caret-overlay">
+                <span aria-hidden="true">{before}</span>
+                <div class="oc-anchor">
+                    <div class="oc-pop-down">{self.popup()}</div>
+                    <div class="oc-sig-up">{self.signature()}</div>
+                </div>
+            </div>
+        }
+    }
+
+    #[allow(clippy::too_many_arguments)]
+    fn field_inner(
+        self,
+        diagnostics: Signal<Vec<TextSpan>>,
+        on_key: Option<Callback<leptos::ev::KeyboardEvent>>,
+        rows: u32,
+        placeholder: &'static str,
+        cell_role: Option<&'static str>,
+        label: String,
+        anchored: bool,
+    ) -> impl IntoView {
         // The highlight and the bracket pair are this field's own: kept out of the struct, which
         // views copy into every closure (DNA Calc's command bar mounts near the wasm stack's size).
         let (caret, text_binding) = (self.caret, self.text);
@@ -656,6 +713,19 @@ impl FormulaAssist {
                             self.undo(redo);
                             return;
                         }
+                        // The anchored pop-up (DNA OneCalc) takes Enter too, as it takes Tab: the
+                        // field there has no worksheet Enter to commit. A modified Enter is the
+                        // owner's (Ctrl+Shift+Enter enters an array formula).
+                        if anchored
+                            && ev.key() == "Enter"
+                            && !(ev.ctrl_key() || ev.meta_key() || ev.alt_key() || ev.shift_key())
+                            && self.popup.with_untracked(Popup::is_open)
+                        {
+                            ev.prevent_default();
+                            ev.stop_propagation();
+                            self.accept();
+                            return;
+                        }
                         if self.popup_keydown(&ev) || self.point_keydown(&ev) {
                             ev.stop_propagation();
                         } else {
@@ -681,6 +751,7 @@ impl FormulaAssist {
                         self.sync_from_field(false)
                     }
                 ></textarea>
+                {anchored.then(|| self.caret_overlay())}
             </div>
         }
     }

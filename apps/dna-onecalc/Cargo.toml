@@ -37,7 +37,7 @@ wasm-bindgen = "=0.2.117"
 # The browser's clock for NOW and TODAY (src/surface.rs). 0.3.94 exactly, the release built on
 # that wasm-bindgen.
 js-sys = "=0.3.94"
-web-sys = { version = "=0.3.94", features = ["DataTransfer", "DragEvent", "File", "FileList", "HtmlElement", "HtmlInputElement", "HtmlTextAreaElement", "KeyboardEvent", "console", "Document", "Element", "Storage", "Window"] }
+web-sys = { version = "=0.3.94", features = ["CssStyleDeclaration", "DataTransfer", "DragEvent", "File", "FileList", "HtmlElement", "Node", "NodeList", "HtmlInputElement", "HtmlTextAreaElement", "KeyboardEvent", "console", "Document", "Element", "Storage", "Window"] }
 
 # Retained Excel readings use the existing portable capture codec in Session tests.
 [dev-dependencies]
