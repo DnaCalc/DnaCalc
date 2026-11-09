@@ -1,0 +1,13 @@
+## trial 1 error=None step=None
+formulas: A1 =HashTrue(); A2 =HashFalse(); A3 =XPlain()
+entry enter | udf:  | ctr: B1 B2 B3 | HashTrue#1@1,1:T=0,;HashFalse#1@2,1:F=0,;XPlain#1@3,1: 
+warm1 calc | udf:  | ctr: B1 B2 B3 | XPlain#2@3,1:;HashFalse#2@2,1:F=0,;HashTrue#2@1,1:T=0, 
+warm2 calc | udf:  | ctr: B1 | HashTrue#3@1,1:T=0, 
+clean1 calc | udf:  | ctr: B1 | HashTrue#4@1,1:T=0, 
+clean2 calc | udf:  | ctr: B1 | HashTrue#5@1,1:T=0, 
+xrun_hash_true xrun | udf:  | ctr:  | HashTrue#6@caller_type16:T=0, {'ret': '1', 'name': 'HashTrue'}
+xrun_hash_false xrun | udf:  | ctr:  | HashFalse#3@caller_type16:F=0, {'ret': '1', 'name': 'HashFalse'}
+xrun_ordinary xrun | udf:  | ctr:  | XTrue#1@caller_type16:T=0, {'ret': '1', 'name': 'XTrue'}
+evaluate_hash eval | udf:  | ctr:  |  {'ret': '1', 'expr': 'HashTrue()'}
+after1 calc | udf:  | ctr: B1 | HashTrue#7@1,1:T=0,;HashTrue#8@1,1:T=0,;HashTrue#9@1,1:T=0, 
+after2 calc | udf:  | ctr: B1 | HashTrue#10@1,1:T=0, 

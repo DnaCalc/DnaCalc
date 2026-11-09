@@ -1,0 +1,10 @@
+## trial 1 error=None step=None
+formulas: A1 =RAND(); A2 =IF(TRUE,1,RAND()); A3 =C9*0; A4 =C9+0; A5 =NOW()*0; C1 =Cnt(A1&""); D1 =Cnt(A1+0); C2 =Cnt(A2&""); D2 =Cnt(A2+0); C3 =Cnt(A3&""); D3 =Cnt(A3+0); C4 =Cnt(A4&""); D4 =Cnt(A4+0); C5 =Cnt(A5&""); D5 =Cnt(A5+0)
+entry enter | udf:  | ctr: B1 B2 B3 B4 B5 C1 C2 C3 C4 C5 D1 D2 D3 D4 D5 |  
+warm1 calc | udf:  | ctr: B1 B2 B3 B4 B5 C1 C2 C3 C4 C5 D1 D2 D3 D4 D5 |  
+warm2 calc | udf:  | ctr: C1 C2 C5 D1 D2 D5 |  
+clean1 calc | udf:  | ctr: C1 C2 C5 D1 D2 D5 |  
+clean2 calc | udf:  | ctr: C1 C2 C5 D1 D2 D5 |  
+edit1 calc | udf:  | ctr: B3 B4 C1 C2 C3 C4 C5 D1 D2 D3 D4 D5 |  
+clean3 calc | udf:  | ctr: C1 C2 C5 D1 D2 D5 |  
+clean4 calc | udf:  | ctr: C1 C2 C5 D1 D2 D5 |  

@@ -1,0 +1,48 @@
+# p3: Excel 16.0 build 20527, CalculationVersion 191029, MTC True/16, started 2026-11-09T21:29:24.9842006Z
+
+## probe p3: 3 trials
+  trial 1 entry_errors: ['A34: 0x800A03EC']
+  trial 2 entry_errors: ['A34: 0x800A03EC']
+  trial 3 entry_errors: ['A34: 0x800A03EC']
+cell | formula | counter per clean | own UDF calls per clean | final: tok,ca
+A1 | =Bang() | 1111 | 1,1,1,1 | n,1
+A2 | =BangClear() | 1111 | 1,1,1,1 | n,1
+A3 | =BangClearOnce() | 1111 | 1,1,1,1 | n,1
+A4 | =BangTrue() | 1111 | 1,1,1,1 | n,1
+A5 | =BangFT() | 1111 | 1,1,1,1 | n,1
+A6 | =BangSeq() | 1111 | 1,1,1,1 | n,1
+A7 | =Bang()+VPlain() | 1111 | 2,2,2,2 | n,1
+A8 | =VPlain()+Bang() | 1111 | 2,2,2,2 | n,1
+A9 | =Bang()+VFalse() | 0000 | 0,0,0,0 | n,0
+A10 | =VFalse()+Bang() | 1111 | 2,2,2,2 | n,1
+A11 | =BangClear()+Bang() | 1111 | 2,2,2,2 | n,1
+A12 | =Bang()+BangClear() | 1111 | 2,2,2,2 | n,1
+A13 | =Bang()+XFalse() | 1111 | 2,2,2,2 | n,1
+A14 | =XFalse()+Bang() | 1111 | 2,2,2,2 | n,1
+A15 | =Bang()+XTrue() | 1111 | 2,2,2,2 | n,1
+A16 | =Bang()+XPlain() | 1111 | 2,2,2,2 | n,1
+A17 | =XPlain()+Bang() | 1111 | 2,2,2,2 | n,1
+A18 | =BangClear()+XTrue() | 1111 | 2,2,2,2 | n,1
+A19 | =XTrue()+BangClear() | 1111 | 2,2,2,2 | n,1
+A20 | =BangClear()+RAND() | 1111 | 1,1,1,1 | Y,1
+A21 | =RAND()+BangClear() | 1111 | 1,1,1,1 | Y,1
+A22 | =IF(TRUE,BangClear(),RAND()) | 1111 | 1,1,1,1 | Y,1
+A23 | =IF(TRUE,1,Bang()) | 0000 | 0,0,0,0 | n,0
+A24 | =IF(FALSE,Bang(),1) | 0000 | 0,0,0,0 | n,0
+A25 | =BangClear()+0*BangClear() | 1111 | 2,2,2,2 | n,1
+A26 | =Bang()*0+BangClear() | 1111 | 2,2,2,2 | n,1
+A27 | =XFalse() | 0000 | 0,0,0,0 | n,0
+A28 | =HashFalse() | 0000 | 0,0,0,0 | n,0
+A29 | =DollarF() | 0000 | 0,0,0,0 | n,0
+A30 | =XTrue() | 0000 | 0,0,0,0 | n,0
+A31 | =HashTrue() | 1111 | 1,1,1,1 | n,1
+A32 | =DollarT() | 0000 | 0,0,0,0 | n,0
+A33 | =Hash() | 0000 | 0,0,0,0 | n,0
+A34 | =Dollar() | 0000 | 0,0,0,0 | n,-
+A35 | =XPlain() | 0000 | 0,0,0,0 | n,0
+A36 | =BangClear()+VFalse() | 0000 | 0,0,0,0 | n,0
+A37 | =VFalse()+BangClear() | 1111 | 2,2,2,2 | n,1
+A38 | =BangClearOnce()+VPlain() | 1111 | 2,2,2,2 | n,1
+A39 | =BangFT()+VPlain() | 1111 | 2,2,2,2 | n,1
+A40 | =VPlain()+BangFT() | 1111 | 2,2,2,2 | n,1
+names (first trial): {"final": {}}

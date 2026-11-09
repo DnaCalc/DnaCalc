@@ -1,0 +1,30 @@
+# p1d: Excel 16.0 build 20527, CalculationVersion 191029, MTC True/16, started 2026-11-09T21:21:33.1136710Z
+
+## probe p1d: 3 trials
+cell | formula | counter per clean | own UDF calls per clean | final: tok,ca
+A1 | =SUMIF(C1:C3,">1",D1:D3) | 000 | 0,0,0 | n,0
+A2 | =SUMIF(C1:C3,">1",D1:D2) | 111 | 0,0,0 | n,1
+A3 | =SUMIF(C1:C3,">1",D1:E3) | 000 | 0,0,0 | n,0
+A4 | =SUMIF(C1:C3,">1",D1) | 111 | 0,0,0 | n,1
+A5 | =SUMIF(C1:C3,">1") | 000 | 0,0,0 | n,0
+A6 | =SUMIF(C1:C3,">1",D2:D4) | 000 | 0,0,0 | n,0
+A7 | =SUMIF(C1:C3,">1",D1:D3)+0 | 000 | 0,0,0 | n,0
+A8 | =SUMIF(C1:D3,">1",D1:E3) | 000 | 0,0,0 | n,0
+A9 | =COUNTIF(C1:C3,">1") | 000 | 0,0,0 | n,0
+A10 | =AVERAGEIF(C1:C3,">1",D1:D3) | 000 | 0,0,0 | n,0
+A11 | =AVERAGEIF(C1:C3,">1",D1:D2) | 111 | 0,0,0 | n,1
+A12 | =AVERAGEIF(C1:C3,">1",D1) | 111 | 0,0,0 | n,1
+A13 | =SUMIFS(D1:D3,C1:C3,">1") | 000 | 0,0,0 | n,0
+A14 | =SUMIFS(D1:D2,C1:C3,">1") | 000 | 0,0,0 | n,0
+A15 | =COUNTIFS(C1:C3,">1",D1:D3,">10") | 000 | 0,0,0 | n,0
+A16 | =COUNTIFS(C1:C3,">1",D1:D2,">10") | 000 | 0,0,0 | n,0
+A17 | =SUMIF(C1:C3,">1",D1:D3)*0 | 000 | 0,0,0 | n,0
+A18 | =SUMIF(C1:C3,">1",D1:D1) | 111 | 0,0,0 | n,1
+A19 | =SUMIF(C1,">1",D1:D3) | 000 | 0,0,0 | n,0
+A20 | =SUMIF(C1:C1,">1",D1:D3) | 000 | 0,0,0 | n,0
+A21 | =SUMIF(INDEX(C:C,1):INDEX(C:C,3),">1",D1:D3) | 000 | 0,0,0 | n,0
+A22 | =SUMIF(C1:C3,">1",INDEX(D:D,1):INDEX(D:D,2)) | 111 | 0,0,0 | n,1
+A23 | =MAXIFS(D1:D3,C1:C3,">1") | 000 | 0,0,0 | n,0
+A24 | =MAXIFS(D1:D2,C1:C3,">1") | 000 | 0,0,0 | n,0
+A25 | =MINIFS(D1:D3,C1:C3,">1") | 000 | 0,0,0 | n,0
+names (first trial): {"final": {}}

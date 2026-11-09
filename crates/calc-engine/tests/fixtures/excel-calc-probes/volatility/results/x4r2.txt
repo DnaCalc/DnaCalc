@@ -1,0 +1,11 @@
+# x4: Excel 16.0 build 20527, CalculationVersion 191029, MTC True/16, started 2026-11-09T21:51:12.0415767Z
+
+## probe x4: 1 trials
+cell | formula | counter per clean | own UDF calls per clean | final: tok,ca
+A1 | =VAtOne()+E3 | 0 | 0 | n,0
+A2 | =VAtTwo()+E3 | 0 | 0 | n,0
+A3 | =VAtThree()+E3 | 0 | 0 | n,0
+A4 | =VAtFour()+E3 | 0 | 0 | n,0
+A5 | =VAtFive()+E3 | 0 | 0 | n,0
+A6 | =VAtTwoB()+0 | 0 | 0 | n,0
+names (first trial): {"final": {}}

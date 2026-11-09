@@ -1,0 +1,12 @@
+# x6: Excel 16.0 build 20527, CalculationVersion 191029, MTC True/16, started 2026-11-09T21:46:00.1958070Z
+
+## probe x6: 3 trials
+cell | formula | counter per clean | own UDF calls per clean | final: tok,ca | s_reopened: tok,ca
+A1 | =VTrue() | 11 | 1,1 | n,1 | n,1
+A2 | =VPlain() | 00 | 0,0 | n,0 | n,0
+A3 | =RAND() | 11 | 0,0 | Y,1 | Y,1
+A4 | =SUMIF(C1:C3,">1",D1:D2) | 11 | 0,0 | n,1 | n,1
+A5 | =Bang() | 11 | 1,1 | n,1 | n,1
+A6 | =VFalse()+Bang() | 11 | 2,2 | n,1 | n,1
+A7 | =Hu(C1) | 11 | 1,1 | n,1 | n,1
+names (first trial): {"final": {}, "s_reopened": {}}

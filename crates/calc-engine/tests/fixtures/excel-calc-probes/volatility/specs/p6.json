@@ -1,0 +1,258 @@
+{
+ "xll": "C:\\Work\\DnaCalc\\codex-runs\\vol-1\\work\\xll\\calc_xll_fixture.xll",
+ "probes": [
+  {
+   "id": "p6",
+   "trials": 3,
+   "xll_cfg": [],
+   "vba_cfg": [],
+   "consts": [
+    [
+     "C1",
+     1
+    ],
+    [
+     "C2",
+     2
+    ],
+    [
+     "C3",
+     3
+    ],
+    [
+     "D1",
+     10
+    ],
+    [
+     "D2",
+     20
+    ],
+    [
+     "D3",
+     30
+    ],
+    [
+     "D4",
+     40
+    ]
+   ],
+   "names": [
+    [
+     "NmRand",
+     "=RAND()"
+    ],
+    [
+     "NmVba",
+     "=VTrue()"
+    ],
+    [
+     "NmLam",
+     "=LAMBDA(RAND())"
+    ],
+    [
+     "NmOne",
+     "=1"
+    ],
+    [
+     "NmInd",
+     "=INDIRECT(\"C1\")"
+    ],
+    [
+     "NmIf",
+     "=IF(TRUE,1,RAND())"
+    ],
+    [
+     "NmVF",
+     "=VFalse()"
+    ],
+    [
+     "NmX",
+     "=C1+0"
+    ]
+   ],
+   "cells": [
+    [
+     "A1",
+     "=NmRand+VFalse()"
+    ],
+    [
+     "B1",
+     "=Cnt(A1&\"\")"
+    ],
+    [
+     "A2",
+     "=VFalse()+NmRand"
+    ],
+    [
+     "B2",
+     "=Cnt(A2&\"\")"
+    ],
+    [
+     "A3",
+     "=NmLam()+VFalse()"
+    ],
+    [
+     "B3",
+     "=Cnt(A3&\"\")"
+    ],
+    [
+     "A4",
+     "=VFalse()+NmLam()"
+    ],
+    [
+     "B4",
+     "=Cnt(A4&\"\")"
+    ],
+    [
+     "A5",
+     "=NmInd+VFalse()"
+    ],
+    [
+     "B5",
+     "=Cnt(A5&\"\")"
+    ],
+    [
+     "A6",
+     "=VFalse()+NmInd"
+    ],
+    [
+     "B6",
+     "=Cnt(A6&\"\")"
+    ],
+    [
+     "A7",
+     "=SUMIF(C1:C3,\">1\",D1:D2)+VFalse()"
+    ],
+    [
+     "B7",
+     "=Cnt(A7&\"\")"
+    ],
+    [
+     "A8",
+     "=VFalse()+SUMIF(C1:C3,\">1\",D1:D2)"
+    ],
+    [
+     "B8",
+     "=Cnt(A8&\"\")"
+    ],
+    [
+     "A9",
+     "=SUMIF(C1:C3,\">1\",D1:D2)+VTrue()"
+    ],
+    [
+     "B9",
+     "=Cnt(A9&\"\")"
+    ],
+    [
+     "A10",
+     "=VTrue()+SUMIF(C1:C3,\">1\",D1:D2)"
+    ],
+    [
+     "B10",
+     "=Cnt(A10&\"\")"
+    ],
+    [
+     "A11",
+     "=SUMIF(C1:C3,\">1\",D1:D2)+Hu(C1)"
+    ],
+    [
+     "B11",
+     "=Cnt(A11&\"\")"
+    ],
+    [
+     "A12",
+     "=NmVba+SUMIF(C1:C3,\">1\",D1:D2)"
+    ],
+    [
+     "B12",
+     "=Cnt(A12&\"\")"
+    ],
+    [
+     "A13",
+     "=VFalse()+IF(TRUE,SUMIF(C1:C3,\">1\",D1:D2),0)"
+    ],
+    [
+     "B13",
+     "=Cnt(A13&\"\")"
+    ],
+    [
+     "A14",
+     "=NmRand+IF(TRUE,1,RAND())"
+    ],
+    [
+     "B14",
+     "=Cnt(A14&\"\")"
+    ],
+    [
+     "A15",
+     "=VFalse()+NmRand+VFalse()"
+    ],
+    [
+     "B15",
+     "=Cnt(A15&\"\")"
+    ],
+    [
+     "A16",
+     "=NmVF+NmRand"
+    ],
+    [
+     "B16",
+     "=Cnt(A16&\"\")"
+    ],
+    [
+     "A17",
+     "=NmRand+NmVF"
+    ],
+    [
+     "B17",
+     "=Cnt(A17&\"\")"
+    ]
+   ],
+   "watch": [
+    "A1",
+    "A2",
+    "A3",
+    "A4",
+    "A5",
+    "A6",
+    "A7",
+    "A8",
+    "A9",
+    "A10",
+    "A11",
+    "A12",
+    "A13",
+    "A14",
+    "A15",
+    "A16",
+    "A17"
+   ],
+   "steps": [
+    {
+     "op": "calc",
+     "tag": "warm1"
+    },
+    {
+     "op": "calc",
+     "tag": "warm2"
+    },
+    {
+     "op": "calc",
+     "tag": "clean1"
+    },
+    {
+     "op": "calc",
+     "tag": "clean2"
+    },
+    {
+     "op": "calc",
+     "tag": "clean3"
+    },
+    {
+     "op": "save",
+     "tag": "final"
+    }
+   ]
+  }
+ ]
+}

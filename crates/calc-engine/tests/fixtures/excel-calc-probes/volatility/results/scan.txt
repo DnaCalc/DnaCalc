@@ -1,0 +1,7 @@
+# scan: Excel 16.0 build 20527, CalculationVersion 191029, MTC True/16, started 2026-11-09T21:31:41.4917701Z
+
+## probe scan: 1 trials
+cell | formula | counter per clean | own UDF calls per clean | 
+A1 | =VolScan(200,260) |  |  | 
+A2 | =VolScan(261,330) |  |  | 
+A3 | =VolScan(331,400) |  |  | 

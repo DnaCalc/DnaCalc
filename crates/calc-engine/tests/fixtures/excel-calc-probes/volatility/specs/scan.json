@@ -1,0 +1,34 @@
+{
+ "xll": "C:\\Work\\DnaCalc\\codex-runs\\vol-1\\work\\xll\\calc_xll_fixture.xll",
+ "probes": [
+  {
+   "id": "scan",
+   "trials": 1,
+   "cells": [
+    [
+     "A1",
+     "=VolScan(200,260)"
+    ],
+    [
+     "A2",
+     "=VolScan(261,330)"
+    ],
+    [
+     "A3",
+     "=VolScan(331,400)"
+    ]
+   ],
+   "watch": [
+    "A1",
+    "A2",
+    "A3"
+   ],
+   "steps": [
+    {
+     "op": "calc",
+     "tag": "c1"
+    }
+   ]
+  }
+ ]
+}

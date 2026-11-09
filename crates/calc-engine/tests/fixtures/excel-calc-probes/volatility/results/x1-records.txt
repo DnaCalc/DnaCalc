@@ -1,0 +1,31 @@
+## trial 1 error=None step=None
+formulas: A1 =VSeq(); A2 =RAND(); A3 =C1+0; A4 =VSeq()&""
+entry enter | udf: VSeq@A1=1 VSeq@A4=1 | ctr: B1 B2 B3 B4 |  
+w1 calc | udf: VSeq@A4=1 VSeq@A1=1 | ctr: B1 B2 B3 B4 |  
+w2 calc | udf: VSeq@A4=1 VSeq@A1=1 | ctr: B1 B2 B4 |  
+v1 calc | udf: VSeq@A4=1 VSeq@A1=1 | ctr: B1 B2 B4 |  
+v2 calc | udf: VSeq@A4=1 VSeq@A1=1 | ctr: B1 B2 B4 |  
+stop calc | udf: VSeq@A1=1 VSeq@A4=1 | ctr: B1 B2 B4 |  
+q1 calc | udf:  | ctr: B2 |  
+q2 calc | udf:  | ctr: B2 |  
+q_sheet sheet | udf:  | ctr: B2 |  
+q3 calc | udf:  | ctr: B2 |  
+q_range range A1 | udf: VSeq@A1=1 | ctr:  |  
+q4 calc | udf: VSeq@A1=1 | ctr: B1 B2 |  
+q_full full | udf: VSeq@A4=1 VSeq@A1=1 | ctr: B1 B2 B3 B4 |  
+q5 calc | udf:  | ctr: B2 |  
+q6 calc | udf:  | ctr: B2 |  
+q_rebuild rebuild | udf: VSeq@A4=1 VSeq@A1=1 | ctr: B1 B2 B3 B4 |  
+q7 calc | udf:  | ctr: B2 |  
+q8 calc | udf:  | ctr: B2 |  
+t0_nochange calc | udf:  | ctr: B2 |  
+t0b calc | udf:  | ctr: B2 |  
+t_full full | udf: VSeq@A4=1 VSeq@A1=1 | ctr: B1 B2 B3 B4 |  
+r1 calc | udf: VSeq@A4=1 VSeq@A1=1 | ctr: B1 B2 B4 |  
+r2 calc | udf: VSeq@A4=1 VSeq@A1=1 | ctr: B1 B2 B4 |  
+f0 calc | udf: VSeq@A4=1 VSeq@A1=1 | ctr: B1 B2 B4 |  
+f1 calc | udf:  | ctr: B2 |  
+f2 calc | udf:  | ctr: B2 |  
+to_auto auto | udf:  | ctr: B2 |  
+auto_edit_unrelated read | udf:  | ctr: B2 |  
+auto_edit_unrelated2 read | udf:  | ctr: B2 |  

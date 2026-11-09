@@ -1,0 +1,8 @@
+# x5x: Excel 16.0 build 20527, CalculationVersion 191029, MTC True/16, started 2026-11-09T21:45:33.7901866Z
+
+## probe x5x: 3 trials
+cell | formula | counter per clean | own UDF calls per clean | final: tok,ca
+A1 | =HashTrue() | 11 | 1,1 | n,1
+A2 | =HashFalse() | 00 | 0,0 | n,0
+A3 | =XPlain() | 00 | 0,0 | n,0
+names (first trial): {"final": {}}

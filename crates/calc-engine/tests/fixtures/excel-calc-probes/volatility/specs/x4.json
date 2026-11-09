@@ -1,0 +1,127 @@
+{
+ "xll": null,
+ "probes": [
+  {
+   "id": "x4",
+   "trials": 1,
+   "xll_cfg": [],
+   "vba_cfg": [],
+   "consts": [
+    [
+     "C1",
+     5
+    ]
+   ],
+   "names": [],
+   "cells": [
+    [
+     "A1",
+     "=VAtOne()+E3"
+    ],
+    [
+     "B1",
+     "=Cnt(A1&\"\")"
+    ],
+    [
+     "A2",
+     "=VAtTwo()+E3"
+    ],
+    [
+     "B2",
+     "=Cnt(A2&\"\")"
+    ],
+    [
+     "A3",
+     "=VAtThree()+E3"
+    ],
+    [
+     "B3",
+     "=Cnt(A3&\"\")"
+    ],
+    [
+     "A4",
+     "=VAtFour()+E3"
+    ],
+    [
+     "B4",
+     "=Cnt(A4&\"\")"
+    ],
+    [
+     "A5",
+     "=VAtFive()+E3"
+    ],
+    [
+     "B5",
+     "=Cnt(A5&\"\")"
+    ],
+    [
+     "A6",
+     "=VAtTwoB()+0"
+    ],
+    [
+     "B6",
+     "=Cnt(A6&\"\")"
+    ],
+    [
+     "E1",
+     "=C1*2"
+    ],
+    [
+     "E2",
+     "=E1+1"
+    ],
+    [
+     "E3",
+     "=E2+1"
+    ]
+   ],
+   "watch": [
+    "A1",
+    "A2",
+    "A3",
+    "A4",
+    "A5",
+    "A6"
+   ],
+   "steps": [
+    {
+     "op": "calc",
+     "tag": "warm1"
+    },
+    {
+     "op": "calc",
+     "tag": "warm2"
+    },
+    {
+     "op": "calc",
+     "tag": "warm3"
+    },
+    {
+     "op": "calc",
+     "tag": "clean1"
+    },
+    {
+     "op": "save",
+     "tag": "final"
+    },
+    {
+     "op": "set",
+     "addr": "C1",
+     "value": 6
+    },
+    {
+     "op": "calc",
+     "tag": "edit1"
+    },
+    {
+     "op": "calc",
+     "tag": "e1"
+    },
+    {
+     "op": "calc",
+     "tag": "e2"
+    }
+   ]
+  }
+ ]
+}

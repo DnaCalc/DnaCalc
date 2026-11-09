@@ -1,0 +1,9 @@
+# x1: Excel 16.0 build 20527, CalculationVersion 191029, MTC True/16, started 2026-11-09T21:35:52.5946242Z
+
+## probe x1: 3 trials
+cell | formula | counter per clean | own UDF calls per clean | s_vol: tok,ca | s_stopped: tok,ca | s_restarted: tok,ca | s_end: tok,ca
+A1 | =VSeq() |  |  | n,1 | n,0 | n,1 | n,0
+A2 | =RAND() |  |  | Y,1 | Y,1 | Y,1 | Y,1
+A3 | =C1+0 |  |  | n,0 | n,0 | n,0 | n,0
+A4 | =VSeq()&"" |  |  | n,1 | n,0 | n,1 | n,0
+names (first trial): {"s_vol": {}, "s_stopped": {}, "s_restarted": {}, "s_end": {}}

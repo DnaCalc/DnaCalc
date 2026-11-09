@@ -1,0 +1,19 @@
+# x3: Excel 16.0 build 20527, CalculationVersion 191029, MTC True/16, started 2026-11-09T21:44:59.8553708Z
+
+## probe x3: 3 trials
+cell | formula | counter per clean | own UDF calls per clean | final: tok,ca
+A1 | =AsyncPlain(1) | 0000 | 0,0,0,0 | n,0
+A2 | =AsyncT(1) | 0000 | 0,0,0,0 | n,0
+A3 | =AsyncF(1) | 0000 | 0,0,0,0 | n,0
+A4 | =AsyncBang(1) | 1111 | 1,1,1,1 | n,1
+A5 | =AsyncBangF(1) | 1111 | 1,1,1,1 | n,1
+A6 | =AsyncDollarT(1) | 0000 | 0,0,0,0 | n,0
+A7 | =AsyncDollarF(1) | 0000 | 0,0,0,0 | n,0
+A8 | =AsyncLate(1) | 0000 | 0,0,0,0 | n,0
+A9 | =RAND()+AsyncF(1) | 1111 | 1,1,1,1 | Y,1
+A10 | =AsyncF(1)+RAND() | 1111 | 1,1,1,1 | Y,1
+A11 | =DollarT() | 0000 | 0,0,0,0 | n,0
+A12 | =DollarF() | 0000 | 0,0,0,0 | n,0
+A13 | =DollarUT(C1) | 0000 | 0,0,0,0 | n,0
+A14 | =XTrue() | 0000 | 0,0,0,0 | n,0
+names (first trial): {"final": {}}

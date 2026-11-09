@@ -1,0 +1,27 @@
+# p5: Excel 16.0 build 20527, CalculationVersion 191029, MTC True/16, started 2026-11-09T21:52:40.0383070Z
+
+## probe p5: 3 trials
+  trial 2 ERROR at saveas: The remote procedure call failed. (0x800706BE)
+  trial 3 ERROR at add: You cannot call a method on a null-valued expression.
+cell | formula | counter per clean | own UDF calls per clean | s1: tok,ca | s2: tok,ca | s3: tok,ca
+A1 | =NmRand | 110011 | 0,0,0,0,0,0 | n,1 | n,0 | n,1  (x1)  //   |  | n,0 | n,- | n,-  (x2)
+A2 | =IF(TRUE,1,NmRand) | 000000 | 0,0,0,0,0,0 | n,0 | n,0 | n,0  (x1)  //   |  | n,0 | n,- | n,-  (x2)
+A3 | =IF(TRUE,1,NmVba) | 000000 | 0,0,0,0,0,0 | n,0 | n,0 | n,0  (x1)  //   |  | n,0 | n,- | n,-  (x2)
+A4 | =NmVba | 110011 | 1,1,0,0,1,1 | n,1 | n,0 | n,1  (x1)  //   |  | n,0 | n,- | n,-  (x2)
+A5 | =LET(f,NmLam,1) | 110011 | 0,0,0,0,0,0 | n,1 | n,0 | n,1  (x1)  //   |  | n,1 | n,- | n,-  (x2)
+A6 | =NmLam() | 110011 | 0,0,0,0,0,0 | n,1 | n,0 | n,1  (x1)  //   |  | n,1 | n,- | n,-  (x2)
+A7 | =NmOne | 000000 | 0,0,0,0,0,0 | n,0 | n,0 | n,0  (x1)  //   |  | n,0 | n,- | n,-  (x2)
+A8 | =NmRand*0 | 110011 | 0,0,0,0,0,0 | n,1 | n,0 | n,1  (x1)  //   |  | n,0 | n,- | n,-  (x2)
+A9 | =NmInd | 111111 | 0,0,0,0,0,0 | n,1 | n,1 | n,1  (x1)  //   |  | n,0 | n,- | n,-  (x2)
+A10 | =IF(FALSE,NmRand,1) | 000000 | 0,0,0,0,0,0 | n,0 | n,0 | n,0  (x1)  //   |  | n,0 | n,- | n,-  (x2)
+A11 | =NmIf | 111111 | 0,0,0,0,0,0 | n,1 | n,1 | n,1  (x1)  //   |  | n,0 | n,- | n,-  (x2)
+A12 | =NmVF | 000000 | 0,0,0,0,0,0 | n,0 | n,0 | n,0  (x1)  //   |  | n,0 | n,- | n,-  (x2)
+A13 | =NmVF+RAND() | 000000 | 0,0,0,0,0,0 | Y,0 | Y,0 | Y,0  (x1)  //   |  | Y,1 | n,- | n,-  (x2)
+A14 | =RAND()+NmVF | 000000 | 0,0,0,0,0,0 | Y,0 | Y,0 | Y,0  (x1)  //   |  | Y,1 | n,- | n,-  (x2)
+A15 | =NmX | 000000 | 0,0,0,0,0,0 | n,0 | n,0 | n,0  (x1)  //   |  | n,0 | n,- | n,-  (x2)
+A16 | =NmOne+0 | 000000 | 0,0,0,0,0,0 | n,0 | n,0 | n,0  (x1)  //   |  | n,0 | n,- | n,-  (x2)
+A17 | =NmVba+VFalse() | 000000 | 0,0,0,0,0,0 | n,0 | n,0 | n,0  (x1)  //   |  | n,0 | n,- | n,-  (x2)
+A18 | =VFalse()+NmVba | 110011 | 2,2,0,0,2,2 | n,1 | n,0 | n,1  (x1)  //   |  | n,0 | n,- | n,-  (x2)
+A19 | =IF(TRUE,1,NmLam()) | 000000 | 0,0,0,0,0,0 | n,0 | n,0 | n,0  (x1)  //   |  | n,0 | n,- | n,-  (x2)
+A20 | =LET(f,NmLam,f())*0 | 110011 | 0,0,0,0,0,0 | n,1 | n,0 | n,1  (x1)  //   |  | n,1 | n,- | n,-  (x2)
+names (first trial): {"s1": {"NmIf": "semi:1901", "NmInd": "semi:1901", "NmLam": "semi:1901", "NmOne": "-:1e01", "NmRand": "semi:1901", "NmVba": "-:230e", "NmVF": "-:230d", "NmX": "-:7a00"}, "s2": {"NmIf": "semi:1901", "NmInd": "semi:1901", "NmLam": "-:2301", "NmOne": "-:1e01", "NmRand": "-:1e01", "NmVba": "-:230e", "NmVF": "-:230d", "NmX": "-:7a00"}, "s3": {"NmIf": "semi:1901", "NmInd": "semi:1901", "NmLam": "semi:1901", "NmOne": "-:1e01", "NmRand": "semi:1901", "NmVba": "-:230e", "NmVF": "-:230d", "NmX": "-:7a00"}}

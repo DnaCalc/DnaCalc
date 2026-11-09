@@ -382,3 +382,28 @@ Dedup: A7 13 rows map to P01 (frontier), P02 (range), P03 (privileges, re-evalua
 
 Not invariants (A4): one invocation or one draw per formula per calculation; whole-SCC or whole-table atomic
 publication; sheet-name order beyond the measured shapes; a fixed volatile-spill retry count; volatiles always on open.
+
+## 4. Volatility probes (vol-1, measured 2026-11-10; bead dc-hsa5.21)
+
+Excel 16.0 build 20527 x64, Manual, MTC 16 threads, owned hidden sessions on a private desktop (0 windows on the
+owner's desktop), three trials each. Setup, instrument and files: `crates/calc-engine/tests/fixtures/excel-calc-probes/volatility/README.md`.
+Results and the model drawn from them: [VOLATILITY.md](VOLATILITY.md). Extends P17 (the VBA request rules of section 1
+stay as measured; the Calculate-kind rows of P17 are X1 here).
+
+| Probe | Setup and operations | Reading | Decides |
+|---|---|---|---|
+| Instrument (`cal1`, `instr`) | 12 known formulas, dependent counters, 3 clean Calculates, file readout of token and `ca` (XLSB and XLSX) | counters = `ca` on 36/36 cells; XLSB = XLSX on 72/72; token only on built-in volatile cells; a bare `=Cnt(A1)` is not recalculated by a volatile `A1` | readout trusted; counter form `Cnt(A&"")` |
+| P1 built-ins (`p1a`, `p1b`, `p1ca`-`p1cf`) | 53 built-ins and controls, 34 branch/LET/LAMBDA forms, CELL x12 types x3 forms, INFO x10 x2 forms | token and `ca` on RAND, RANDBETWEEN, RANDARRAY, NOW, TODAY, OFFSET, INDIRECT, CELL, INFO, FORMULATEXT, SHEET, SHEETS; token covers untaken branches and unused LET/LAMBDA; CELL/INFO volatile for every argument | S is syntactic over the whole formula; no ByArgument for CELL/INFO; hypothesis M confirmed |
+| P1 shapes (`p1d`, `p1e`, `p1f`) | SUMIF family with matched, smaller, larger sum ranges, built ranges, toggled shape; free and blocked spills | SUMIF/AVERAGEIF with a smaller sum range and a blocked spill: `ca` 1, no token, decided per evaluation; others 0 | ByArgument exists, decided at run time, no token (kills "every cell bit has a token") |
+| P2 one flag (`p2`, `p2x`, `p2h`, `p6`) | built-in with token and a function requesting false/true, both orders, 3-request formulas, VBA, ordinary XLL, `#` XLL | `RAND()+VFalse()` and `VFalse()+RAND()` both nonvolatile; last event wins; `IF(TRUE,RAND(),VFalse())` volatile | F2 holds; F1 and F3 killed |
+| P3 `!` (`p3`, `p2h`) | `Q!` functions with no request, clearing, clear-once; combinations with VBA, ordinary and `#` XLL | `!` default volatile, no token, an event at call start, cleared only by an accepted request of false (`Q!#`); `Bang()+VFalse()` not, `VFalse()+Bang()` is | default at call start, order dependent |
+| P3/X3 statuses (`p2x`, `p3`, `p4`, `x3`, `x5x`, `scan`, `scan2`) | Excel12(237) by registration class, in and outside a cell, from async entries | status 0 for `#` in a cell and for any registration outside a cell; 2 for ordinary, `!`, `$`, async; 32 after the async return | `BangClear` cannot clear; DNA's callback answer is wrong |
+| P4 `#` (`p4`) | `#`, plain, `!#`, `$` registrations with R, U, P, Q, B, UB, BU, RR, UU parameters, passed a reference, a range, a literal, an expression, an empty cell; coercing and ignoring | `#` volatile iff a reference is passed in an R/U parameter; no token; requests override | rule is "reference actually passed", not registration text alone |
+| P5 names (`p5` x3 runs, `p6`) | names with RAND, VBA request, LAMBDA, INDIRECT; used, untaken, in LET; redefined and restored without touching cells | no token from a name; executed use sets the body's flag as an event; untaken use nothing; `LET(f,NmLam,1)` volatile; redefinition re-decides at the next Calculate | S does not cross names; name use is an event |
+| X1 persistence (`x1`) | request stops/restarts; Calculate, sheet, range, Full, Rebuild, Automatic edit | stopping takes effect at the next evaluation; restart only after Full/Rebuild; Range.Calculate leaves its target dirty | each evaluation starts from S |
+| X2 lifted/repeated (`x2`, `x2b`) | Double-parameter function over ranges, arrays, MAP/BYROW; repeated calls | lifted multi-cell calls: no request honoured; MAP/BYROW per call, last wins | lifted calls record nothing |
+| X3 async/`$` (`x3`) | `>EX`, `>EX!`, `>EX$`, `$` registrations with requests | statuses 2/32, no effect except `!` | requests unavailable off `#` |
+| X4 abandoned attempt (`x4`, `x4r2`, `x4r3`) | three-level chain read by a cell entered first; request only in call 2 (abandoned) or 3 | abandoned attempt's request lost; completed attempt's kept | only completed events count |
+| X5 outside a cell (`x5`, `x5x`) | Sub, Run, Evaluate, `Application.Run` of `#` and ordinary XLL | no error, no cell effect; XLL ordinary status 0 | none to record |
+| X6 round trip (`x6`) | saved clean, reopened twice, Manual | `ca` written for all kinds; open calls nothing; first Calculate calls the `ca` cells only | seed from `ca` |
+| X7 dependents (`x7`) | dependents of volatile VBA/RAND/INDIRECT cells, then cleared | dependents carry `ca`, recalculate each Calculate, clear with the source; bare-reference UDF dependents do not | dependents need no state of their own |

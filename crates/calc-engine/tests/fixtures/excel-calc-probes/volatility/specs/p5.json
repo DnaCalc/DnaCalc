@@ -1,0 +1,343 @@
+{
+ "xll": null,
+ "probes": [
+  {
+   "id": "p5",
+   "trials": 3,
+   "xll_cfg": [],
+   "vba_cfg": [],
+   "consts": [
+    [
+     "C1",
+     1
+    ],
+    [
+     "C2",
+     2
+    ],
+    [
+     "C3",
+     3
+    ],
+    [
+     "D1",
+     10
+    ],
+    [
+     "D2",
+     20
+    ],
+    [
+     "D3",
+     30
+    ],
+    [
+     "D4",
+     40
+    ]
+   ],
+   "names": [
+    [
+     "NmRand",
+     "=RAND()"
+    ],
+    [
+     "NmVba",
+     "=VTrue()"
+    ],
+    [
+     "NmLam",
+     "=LAMBDA(RAND())"
+    ],
+    [
+     "NmOne",
+     "=1"
+    ],
+    [
+     "NmInd",
+     "=INDIRECT(\"C1\")"
+    ],
+    [
+     "NmIf",
+     "=IF(TRUE,1,RAND())"
+    ],
+    [
+     "NmVF",
+     "=VFalse()"
+    ],
+    [
+     "NmX",
+     "=C1+0"
+    ]
+   ],
+   "cells": [
+    [
+     "A1",
+     "=NmRand"
+    ],
+    [
+     "B1",
+     "=Cnt(A1&\"\")"
+    ],
+    [
+     "A2",
+     "=IF(TRUE,1,NmRand)"
+    ],
+    [
+     "B2",
+     "=Cnt(A2&\"\")"
+    ],
+    [
+     "A3",
+     "=IF(TRUE,1,NmVba)"
+    ],
+    [
+     "B3",
+     "=Cnt(A3&\"\")"
+    ],
+    [
+     "A4",
+     "=NmVba"
+    ],
+    [
+     "B4",
+     "=Cnt(A4&\"\")"
+    ],
+    [
+     "A5",
+     "=LET(f,NmLam,1)"
+    ],
+    [
+     "B5",
+     "=Cnt(A5&\"\")"
+    ],
+    [
+     "A6",
+     "=NmLam()"
+    ],
+    [
+     "B6",
+     "=Cnt(A6&\"\")"
+    ],
+    [
+     "A7",
+     "=NmOne"
+    ],
+    [
+     "B7",
+     "=Cnt(A7&\"\")"
+    ],
+    [
+     "A8",
+     "=NmRand*0"
+    ],
+    [
+     "B8",
+     "=Cnt(A8&\"\")"
+    ],
+    [
+     "A9",
+     "=NmInd"
+    ],
+    [
+     "B9",
+     "=Cnt(A9&\"\")"
+    ],
+    [
+     "A10",
+     "=IF(FALSE,NmRand,1)"
+    ],
+    [
+     "B10",
+     "=Cnt(A10&\"\")"
+    ],
+    [
+     "A11",
+     "=NmIf"
+    ],
+    [
+     "B11",
+     "=Cnt(A11&\"\")"
+    ],
+    [
+     "A12",
+     "=NmVF"
+    ],
+    [
+     "B12",
+     "=Cnt(A12&\"\")"
+    ],
+    [
+     "A13",
+     "=NmVF+RAND()"
+    ],
+    [
+     "B13",
+     "=Cnt(A13&\"\")"
+    ],
+    [
+     "A14",
+     "=RAND()+NmVF"
+    ],
+    [
+     "B14",
+     "=Cnt(A14&\"\")"
+    ],
+    [
+     "A15",
+     "=NmX"
+    ],
+    [
+     "B15",
+     "=Cnt(A15&\"\")"
+    ],
+    [
+     "A16",
+     "=NmOne+0"
+    ],
+    [
+     "B16",
+     "=Cnt(A16&\"\")"
+    ],
+    [
+     "A17",
+     "=NmVba+VFalse()"
+    ],
+    [
+     "B17",
+     "=Cnt(A17&\"\")"
+    ],
+    [
+     "A18",
+     "=VFalse()+NmVba"
+    ],
+    [
+     "B18",
+     "=Cnt(A18&\"\")"
+    ],
+    [
+     "A19",
+     "=IF(TRUE,1,NmLam())"
+    ],
+    [
+     "B19",
+     "=Cnt(A19&\"\")"
+    ],
+    [
+     "A20",
+     "=LET(f,NmLam,f())*0"
+    ],
+    [
+     "B20",
+     "=Cnt(A20&\"\")"
+    ]
+   ],
+   "watch": [
+    "A1",
+    "A2",
+    "A3",
+    "A4",
+    "A5",
+    "A6",
+    "A7",
+    "A8",
+    "A9",
+    "A10",
+    "A11",
+    "A12",
+    "A13",
+    "A14",
+    "A15",
+    "A16",
+    "A17",
+    "A18",
+    "A19",
+    "A20"
+   ],
+   "steps": [
+    {
+     "op": "calc",
+     "tag": "warm1"
+    },
+    {
+     "op": "calc",
+     "tag": "warm2"
+    },
+    {
+     "op": "calc",
+     "tag": "s1c1"
+    },
+    {
+     "op": "calc",
+     "tag": "s1c2"
+    },
+    {
+     "op": "save",
+     "tag": "s1"
+    },
+    {
+     "op": "name",
+     "name": "NmRand",
+     "refers": "=1"
+    },
+    {
+     "op": "name",
+     "name": "NmVba",
+     "refers": "=VPlain()"
+    },
+    {
+     "op": "name",
+     "name": "NmLam",
+     "refers": "=LAMBDA(1)"
+    },
+    {
+     "op": "calc",
+     "tag": "s2e"
+    },
+    {
+     "op": "calc",
+     "tag": "s2c1"
+    },
+    {
+     "op": "calc",
+     "tag": "s2c2"
+    },
+    {
+     "op": "save",
+     "tag": "s2"
+    },
+    {
+     "op": "name",
+     "name": "NmRand",
+     "refers": "=RAND()"
+    },
+    {
+     "op": "name",
+     "name": "NmVba",
+     "refers": "=VTrue()"
+    },
+    {
+     "op": "name",
+     "name": "NmLam",
+     "refers": "=LAMBDA(RAND())"
+    },
+    {
+     "op": "calc",
+     "tag": "s3e"
+    },
+    {
+     "op": "calc",
+     "tag": "s3c1"
+    },
+    {
+     "op": "calc",
+     "tag": "s3c2"
+    },
+    {
+     "op": "save",
+     "tag": "s3"
+    }
+   ]
+  }
+ ]
+}

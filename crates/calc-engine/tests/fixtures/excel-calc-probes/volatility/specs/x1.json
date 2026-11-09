@@ -1,0 +1,246 @@
+{
+ "xll": null,
+ "probes": [
+  {
+   "id": "x1",
+   "trials": 3,
+   "xll_cfg": [],
+   "vba_cfg": [
+    [
+     "VSeq",
+     "T"
+    ]
+   ],
+   "consts": [
+    [
+     "C1",
+     1
+    ],
+    [
+     "C2",
+     2
+    ],
+    [
+     "C3",
+     3
+    ],
+    [
+     "D1",
+     10
+    ],
+    [
+     "D2",
+     20
+    ],
+    [
+     "D3",
+     30
+    ],
+    [
+     "D4",
+     40
+    ]
+   ],
+   "names": [],
+   "cells": [
+    [
+     "A1",
+     "=VSeq()"
+    ],
+    [
+     "B1",
+     "=Cnt(A1&\"\")"
+    ],
+    [
+     "A2",
+     "=RAND()"
+    ],
+    [
+     "B2",
+     "=Cnt(A2&\"\")"
+    ],
+    [
+     "A3",
+     "=C1+0"
+    ],
+    [
+     "B3",
+     "=Cnt(A3&\"\")"
+    ],
+    [
+     "A4",
+     "=VSeq()&\"\""
+    ],
+    [
+     "B4",
+     "=Cnt(A4&\"\")"
+    ]
+   ],
+   "watch": [
+    "A1",
+    "A2",
+    "A3",
+    "A4"
+   ],
+   "steps": [
+    {
+     "op": "calc",
+     "tag": "w1"
+    },
+    {
+     "op": "calc",
+     "tag": "w2"
+    },
+    {
+     "op": "calc",
+     "tag": "v1"
+    },
+    {
+     "op": "calc",
+     "tag": "v2"
+    },
+    {
+     "op": "save",
+     "tag": "s_vol"
+    },
+    {
+     "op": "vcfg",
+     "name": "VSeq",
+     "script": ""
+    },
+    {
+     "op": "calc",
+     "tag": "stop"
+    },
+    {
+     "op": "calc",
+     "tag": "q1"
+    },
+    {
+     "op": "calc",
+     "tag": "q2"
+    },
+    {
+     "op": "save",
+     "tag": "s_stopped"
+    },
+    {
+     "op": "sheet",
+     "tag": "q_sheet"
+    },
+    {
+     "op": "calc",
+     "tag": "q3"
+    },
+    {
+     "op": "range",
+     "addr": "A1",
+     "tag": "q_range"
+    },
+    {
+     "op": "calc",
+     "tag": "q4"
+    },
+    {
+     "op": "full",
+     "tag": "q_full"
+    },
+    {
+     "op": "calc",
+     "tag": "q5"
+    },
+    {
+     "op": "calc",
+     "tag": "q6"
+    },
+    {
+     "op": "rebuild",
+     "tag": "q_rebuild"
+    },
+    {
+     "op": "calc",
+     "tag": "q7"
+    },
+    {
+     "op": "calc",
+     "tag": "q8"
+    },
+    {
+     "op": "vcfg",
+     "name": "VSeq",
+     "script": "T"
+    },
+    {
+     "op": "calc",
+     "tag": "t0_nochange"
+    },
+    {
+     "op": "calc",
+     "tag": "t0b"
+    },
+    {
+     "op": "full",
+     "tag": "t_full"
+    },
+    {
+     "op": "calc",
+     "tag": "r1"
+    },
+    {
+     "op": "calc",
+     "tag": "r2"
+    },
+    {
+     "op": "save",
+     "tag": "s_restarted"
+    },
+    {
+     "op": "vcfg",
+     "name": "VSeq",
+     "script": "F"
+    },
+    {
+     "op": "calc",
+     "tag": "f0"
+    },
+    {
+     "op": "calc",
+     "tag": "f1"
+    },
+    {
+     "op": "calc",
+     "tag": "f2"
+    },
+    {
+     "op": "save",
+     "tag": "s_end"
+    },
+    {
+     "op": "auto",
+     "tag": "to_auto"
+    },
+    {
+     "op": "set",
+     "addr": "C5",
+     "value": 7
+    },
+    {
+     "op": "read",
+     "tag": "auto_edit_unrelated"
+    },
+    {
+     "op": "set",
+     "addr": "C5",
+     "value": 8
+    },
+    {
+     "op": "read",
+     "tag": "auto_edit_unrelated2"
+    },
+    {
+     "op": "manual"
+    }
+   ]
+  }
+ ]
+}

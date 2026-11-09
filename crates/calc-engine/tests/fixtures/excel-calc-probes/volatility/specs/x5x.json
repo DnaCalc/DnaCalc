@@ -1,0 +1,123 @@
+{
+ "xll": "C:\\Work\\DnaCalc\\codex-runs\\vol-1\\work\\xll\\calc_xll_fixture.xll",
+ "probes": [
+  {
+   "id": "x5x",
+   "trials": 3,
+   "xll_cfg": [],
+   "vba_cfg": [],
+   "consts": [
+    [
+     "C1",
+     1
+    ],
+    [
+     "C2",
+     2
+    ],
+    [
+     "C3",
+     3
+    ],
+    [
+     "D1",
+     10
+    ],
+    [
+     "D2",
+     20
+    ],
+    [
+     "D3",
+     30
+    ],
+    [
+     "D4",
+     40
+    ]
+   ],
+   "names": [],
+   "cells": [
+    [
+     "A1",
+     "=HashTrue()"
+    ],
+    [
+     "B1",
+     "=Cnt(A1&\"\")"
+    ],
+    [
+     "A2",
+     "=HashFalse()"
+    ],
+    [
+     "B2",
+     "=Cnt(A2&\"\")"
+    ],
+    [
+     "A3",
+     "=XPlain()"
+    ],
+    [
+     "B3",
+     "=Cnt(A3&\"\")"
+    ]
+   ],
+   "watch": [
+    "A1",
+    "A2",
+    "A3"
+   ],
+   "steps": [
+    {
+     "op": "calc",
+     "tag": "warm1"
+    },
+    {
+     "op": "calc",
+     "tag": "warm2"
+    },
+    {
+     "op": "calc",
+     "tag": "clean1"
+    },
+    {
+     "op": "calc",
+     "tag": "clean2"
+    },
+    {
+     "op": "save",
+     "tag": "final"
+    },
+    {
+     "op": "xrun",
+     "name": "HashTrue",
+     "tag": "xrun_hash_true"
+    },
+    {
+     "op": "xrun",
+     "name": "HashFalse",
+     "tag": "xrun_hash_false"
+    },
+    {
+     "op": "xrun",
+     "name": "XTrue",
+     "tag": "xrun_ordinary"
+    },
+    {
+     "op": "eval",
+     "expr": "HashTrue()",
+     "tag": "evaluate_hash"
+    },
+    {
+     "op": "calc",
+     "tag": "after1"
+    },
+    {
+     "op": "calc",
+     "tag": "after2"
+    }
+   ]
+  }
+ ]
+}

@@ -1,0 +1,26 @@
+# x2: Excel 16.0 build 20527, CalculationVersion 191029, MTC True/16, started 2026-11-09T21:36:38.7742867Z
+
+## probe x2: 3 trials
+cell | formula | counter per clean | own UDF calls per clean | final: tok,ca
+A1 | =SUM(VElemD(C1:C3)) | 000 | 0,0,0 | n,0
+A2 | =SUM(VElemD(E1:E3)) | 000 | 0,0,0 | n,0
+A3 | =SUM(VElemD(TRANSPOSE(C1:C3))) | 000 | 0,0,0 | n,0
+A4 | =SUM(VElemD({1,2,3})) | 000 | 0,0,0 | n,0
+A5 | =SUM(VElemD({3,2,1})) | 000 | 0,0,0 | n,0
+A6 | =VElemD(2)+VElemD(1) | 000 | 0,0,0 | n,0
+A7 | =VElemD(1)+VElemD(2) | 111 | 2,2,2 | n,1
+A8 | =VTrue()+VFalse()+VTrue() | 111 | 3,3,3 | n,1
+A9 | =VTrue()+VFalse()+VFalse() | 000 | 0,0,0 | n,0
+A10 | =VFalse()+VTrue()+VTrue()+VFalse() | 000 | 0,0,0 | n,0
+A11 | =VTrue()+VTrue() | 111 | 2,2,2 | n,1
+A12 | =VFalse()+VFalse() | 000 | 0,0,0 | n,0
+A13 | =VTTF() | 000 | 0,0,0 | n,0
+A14 | =VTF() | 000 | 0,0,0 | n,0
+A15 | =SUM(VElemD(C1:D3)) | 000 | 0,0,0 | n,0
+A16 | =SUM(VElemD(C1:C3))+VFalse() | 000 | 0,0,0 | n,0
+A17 | =VFalse()+SUM(VElemD(C1:C3)) | 000 | 0,0,0 | n,0
+A18 | =MAP(C1:C3,LAMBDA(x,VElemD(x))) | 111 | 3,3,3 | n,1
+A19 | =SUM(MAP(C1:C3,LAMBDA(x,VElemD(x)))) | 111 | 3,3,3 | n,1
+A20 | =SUM(MAP(E1:E3,LAMBDA(x,VElemD(x)))) | 000 | 0,0,0 | n,0
+A21 | =SUM(BYROW(C1:C3,LAMBDA(r,VElemD(r)))) | 111 | 3,3,3 | n,1
+names (first trial): {"final": {}}

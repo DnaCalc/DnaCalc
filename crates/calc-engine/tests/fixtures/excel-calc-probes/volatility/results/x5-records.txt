@@ -1,0 +1,15 @@
+## trial 1 error=None step=None
+formulas: A1 =VPlain(); A2 =VTrue()
+entry enter | udf: VPlain@A1=1 VTrue@A2=1 | ctr: B1 B2 |  
+warm1 calc | udf: VPlain@A1=1 VTrue@A2=1 | ctr: B1 B2 |  
+warm2 calc | udf: VTrue@A2=1 | ctr: B2 |  
+clean1 calc | udf: VTrue@A2=1 | ctr: B2 |  
+clean2 calc | udf: VTrue@A2=1 | ctr: B2 |  
+run_function run | udf:  | ctr:  |  {'ret': 'err=0 ', 'macro': 'OutsideVolatile'}
+run_sub run | udf:  | ctr:  |  {'ret': '', 'macro': 'SubVolatile'}
+sub_status run | udf:  | ctr:  |  {'ret': 'sub:err=0;', 'macro': 'GetStatus'}
+evaluate_vtrue eval | udf: VTrue@A1=2 | ctr:  |  {'ret': '1', 'expr': 'VTrue()'}
+evaluate_vfalse eval | udf: VFalse@A1=2 | ctr:  |  {'ret': '1', 'expr': 'VFalse()'}
+evaluate_outside eval | udf:  | ctr:  |  {'ret': 'err=0 ', 'expr': 'OutsideVolatile()'}
+after1 calc | udf: VTrue@A2=1 | ctr: B2 |  
+after2 calc | udf: VTrue@A2=1 | ctr: B2 |  

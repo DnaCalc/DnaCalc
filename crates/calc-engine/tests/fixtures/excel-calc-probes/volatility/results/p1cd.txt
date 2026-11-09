@@ -1,0 +1,15 @@
+# p1cd: Excel 16.0 build 20527, CalculationVersion 191029, MTC True/16, started 2026-11-09T21:27:32.4380619Z
+
+## probe p1cd: 3 trials
+cell | formula | counter per clean | own UDF calls per clean | final: tok,ca
+A1 | =INFO("directory") | 111 | 0,0,0 | Y,1
+A2 | =INFO("numfile") | 111 | 0,0,0 | Y,1
+A3 | =INFO("origin") | 111 | 0,0,0 | Y,1
+A4 | =INFO("osversion") | 111 | 0,0,0 | Y,1
+A5 | =INFO("recalc") | 111 | 0,0,0 | Y,1
+A6 | =INFO("release") | 111 | 0,0,0 | Y,1
+A7 | =INFO("system") | 111 | 0,0,0 | Y,1
+A8 | =INFO("memavail") | 111 | 0,0,0 | Y,1
+A9 | =INFO("memused") | 111 | 0,0,0 | Y,1
+A10 | =INFO("totmem") | 111 | 0,0,0 | Y,1
+names (first trial): {"final": {}}

@@ -1,0 +1,15 @@
+# p1ce: Excel 16.0 build 20527, CalculationVersion 191029, MTC True/16, started 2026-11-09T21:27:46.0551298Z
+
+## probe p1ce: 3 trials
+cell | formula | counter per clean | own UDF calls per clean | final: tok,ca
+A1 | =INFO(G1) | 111 | 0,0,0 | Y,1
+A2 | =INFO(G2) | 111 | 0,0,0 | Y,1
+A3 | =INFO(G3) | 111 | 0,0,0 | Y,1
+A4 | =INFO(G4) | 111 | 0,0,0 | Y,1
+A5 | =INFO(G5) | 111 | 0,0,0 | Y,1
+A6 | =INFO(G6) | 111 | 0,0,0 | Y,1
+A7 | =INFO(G7) | 111 | 0,0,0 | Y,1
+A8 | =INFO(G8) | 111 | 0,0,0 | Y,1
+A9 | =INFO(G9) | 111 | 0,0,0 | Y,1
+A10 | =INFO(G10) | 111 | 0,0,0 | Y,1
+names (first trial): {"final": {}}

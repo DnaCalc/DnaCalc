@@ -1,0 +1,11 @@
+# p1f: Excel 16.0 build 20527, CalculationVersion 191029, MTC True/16, started 2026-11-09T21:52:10.5600836Z
+
+## probe p1f: 3 trials
+cell | formula | counter per clean | own UDF calls per clean | s_g2: tok,ca | s_g3: tok,ca | s_g2again: tok,ca
+A1 | =SUMIF(C1:C3,">1",D1:INDEX(D:D,G1)) |  |  | n,1 | n,0 | n,1
+A2 | =IF(TRUE,1,SUMIF(C1:C3,">1",D1:D2)) |  |  | n,0 | n,0 | n,0
+A3 | =IF(FALSE,1,SUMIF(C1:C3,">1",D1:D2)) |  |  | n,1 | n,1 | n,1
+A4 | =SUM(SUMIF(C1:C3,">1",D1:D2),1) |  |  | n,1 | n,1 | n,1
+A5 | =SUMIF(C1:C3,">1",D1:INDEX(D:D,G1))*0 |  |  | n,1 | n,0 | n,1
+A6 | =AVERAGEIF(C1:C3,">1",D1:INDEX(D:D,G1)) |  |  | n,1 | n,0 | n,1
+names (first trial): {"s_g2": {}, "s_g3": {}, "s_g2again": {}}

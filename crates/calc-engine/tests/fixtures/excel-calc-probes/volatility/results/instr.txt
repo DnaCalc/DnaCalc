@@ -1,0 +1,10 @@
+# instr: Excel 16.0 build 20527, CalculationVersion 191029, MTC True/16, started 2026-11-09T21:20:11.7425815Z
+
+## probe instr: 3 trials
+cell | formula | counter per clean | own UDF calls per clean | final: tok,ca
+A1 | =RAND() | 0000 | 0,0,0,0 | Y,1
+A2 | =IF(TRUE,1,RAND()) | 0000 | 0,0,0,0 | Y,1
+A3 | =C9*0 | 0000 | 0,0,0,0 | n,0
+A4 | =C9+0 | 0000 | 0,0,0,0 | n,0
+A5 | =NOW()*0 | 0000 | 0,0,0,0 | Y,1
+names (first trial): {"final": {}}

@@ -1,0 +1,49 @@
+# p2: Excel 16.0 build 20527, CalculationVersion 191029, MTC True/16, started 2026-11-09T21:22:15.2573809Z
+
+## probe p2: 3 trials
+cell | formula | counter per clean | own UDF calls per clean | final: tok,ca
+A1 | =RAND()+VFalse() | 000 | 0,0,0 | Y,0
+A2 | =VFalse()+RAND() | 000 | 0,0,0 | Y,0
+A3 | =IF(TRUE,VFalse(),RAND()) | 000 | 0,0,0 | Y,0
+A4 | =IF(TRUE,RAND(),VFalse()) | 111 | 0,0,0 | Y,1
+A5 | =INDIRECT("C1")+VFalse() | 000 | 0,0,0 | Y,0
+A6 | =VFalse()+INDIRECT("C1") | 000 | 0,0,0 | Y,0
+A7 | =NOW()+VTF() | 000 | 0,0,0 | Y,0
+A8 | =NOW()+VFT() | 111 | 1,1,1 | Y,1
+A9 | =VTF()+NOW() | 000 | 0,0,0 | Y,0
+A10 | =VFT()+NOW() | 111 | 1,1,1 | Y,1
+A11 | =RAND()+VTrue() | 111 | 1,1,1 | Y,1
+A12 | =VTrue()+RAND() | 111 | 1,1,1 | Y,1
+A13 | =VTrue()+1 | 111 | 1,1,1 | n,1
+A14 | =1+VTrue() | 111 | 1,1,1 | n,1
+A15 | =VTrue()+VFalse() | 000 | 0,0,0 | n,0
+A16 | =VFalse()+VTrue() | 111 | 2,2,2 | n,1
+A17 | =RAND()*0+VPlain() | 111 | 1,1,1 | Y,1
+A18 | =VPlain()+RAND() | 111 | 1,1,1 | Y,1
+A19 | =SUM(RAND(),VFalse()) | 000 | 0,0,0 | Y,0
+A20 | =SUM(VFalse(),RAND()) | 000 | 0,0,0 | Y,0
+A21 | =VFalse()+IF(TRUE,1,RAND()) | 000 | 0,0,0 | Y,0
+A22 | =IF(TRUE,1,RAND())+VFalse() | 000 | 0,0,0 | Y,0
+A23 | =VArgF(RAND()) | 000 | 0,0,0 | Y,0
+A24 | =VArgF(IF(TRUE,1,RAND())) | 000 | 0,0,0 | Y,0
+A25 | =VArgP(RAND()) | 111 | 1,1,1 | Y,1
+A26 | =VArgT(1) | 111 | 1,1,1 | n,1
+A27 | =VFalse()+0*VFalse() | 000 | 0,0,0 | n,0
+A28 | =VFalse() | 000 | 0,0,0 | n,0
+A29 | =VTrue() | 111 | 1,1,1 | n,1
+A30 | =VPlain() | 000 | 0,0,0 | n,0
+A31 | =VFalse()+VPlain() | 000 | 0,0,0 | n,0
+A32 | =VPlain()+VFalse() | 000 | 0,0,0 | n,0
+A33 | =VTrue()+VPlain() | 111 | 2,2,2 | n,1
+A34 | =VPlain()+VTrue() | 111 | 2,2,2 | n,1
+A35 | =VNoArg() | 111 | 1,1,1 | n,1
+A36 | =VHelper() | 111 | 2,2,2 | n,1
+A37 | =VFalse()+VHelper() | 111 | 3,3,3 | n,1
+A38 | =VHelper()+VFalse() | 000 | 0,0,0 | n,0
+A39 | =VSeq() | 000 | 0,0,0 | n,0
+A40 | =VOnceTrue() | 000 | 0,0,0 | n,0
+A41 | =VOnceFalse() | 000 | 0,0,0 | n,0
+A42 | =VTTF() | 000 | 0,0,0 | n,0
+A43 | =IF(VFalse()=1,RAND(),0) | 000 | 0,0,0 | Y,0
+A44 | =IF(RAND()>2,0,VFalse()) | 000 | 0,0,0 | Y,0
+names (first trial): {"final": {}}

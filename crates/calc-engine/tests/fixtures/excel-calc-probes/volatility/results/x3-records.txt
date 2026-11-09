@@ -1,0 +1,9 @@
+## trial 1 error=None step=None
+formulas: A1 =AsyncPlain(1); A2 =AsyncT(1); A3 =AsyncF(1); A4 =AsyncBang(1); A5 =AsyncBangF(1); A6 =AsyncDollarT(1); A7 =AsyncDollarF(1); A8 =AsyncLate(1); A9 =RAND()+AsyncF(1); A10 =AsyncF(1)+RAND(); A11 =DollarT(); A12 =DollarF(); A13 =DollarUT(C1); A14 =XTrue()
+entry enter | udf:  | ctr: B1 B10 B11 B12 B13 B14 B2 B3 B4 B5 B6 B7 B8 B9 | AsyncPlain#1@1,1 n1:;AsyncT#1@2,1 n1:T=2,;AsyncF#1@3,1 n1:F=2,;AsyncBang#1@4,1 n1:;AsyncBangF#1@5,1 n1:F=2,;AsyncDollarT#1@6,1 n1:T=2,;AsyncDollarF#1@7,1 n1:F=2,;AsyncLate#late:asyncreturn=0,T=32,;AsyncF#2@9,1 n1:F=2,;AsyncF#3@10,1 n1:F=2,;DollarT#1@11,1:T=2,;DollarF#1@12,1:F=2,;DollarUT#1@13,1 t400 
+warm1 calc | udf:  | ctr: B1 B10 B11 B12 B13 B14 B2 B3 B4 B5 B6 B7 B8 B9 | AsyncDollarT#2@6,1 n1:T=2,;DollarT#2@11,1:T=2,;AsyncDollarF#2@7,1 n1:F=2,;DollarUT#2@13,1 t400:T=2,;DollarF#2@12,1:F=2,;AsyncF#4@9,1 n1:F=2,;AsyncF#5@3,1 n1:F=2,;AsyncT#2@2,1 n1:T=2,;AsyncPlain#2@1,1 n1:;XTrue#2@14,1:T=2,;AsyncF#6@10,1 n1:F=2,;AsyncBangF#2@5,1 n1:F=2,;AsyncBang#2@4,1 n1:;AsyncLate#l 
+warm2 calc | udf:  | ctr: B10 B4 B5 B9 | AsyncF#7@10,1 n1:F=2,;AsyncF#8@9,1 n1:F=2,;AsyncBangF#3@5,1 n1:F=2,;AsyncBang#3@4,1 n1: 
+clean1 calc | udf:  | ctr: B10 B4 B5 B9 | AsyncF#9@10,1 n1:F=2,;AsyncBangF#4@5,1 n1:F=2,;AsyncF#10@9,1 n1:F=2,;AsyncBang#4@4,1 n1: 
+clean2 calc | udf:  | ctr: B10 B4 B5 B9 | AsyncF#11@10,1 n1:F=2,;AsyncF#12@9,1 n1:F=2,;AsyncBangF#5@5,1 n1:F=2,;AsyncBang#5@4,1 n1: 
+clean3 calc | udf:  | ctr: B10 B4 B5 B9 | AsyncF#13@10,1 n1:F=2,;AsyncF#14@9,1 n1:F=2,;AsyncBangF#6@5,1 n1:F=2,;AsyncBang#6@4,1 n1: 
+clean4 calc | udf:  | ctr: B10 B4 B5 B9 | AsyncF#15@10,1 n1:F=2,;AsyncBang#7@4,1 n1:;AsyncF#16@9,1 n1:F=2,;AsyncBangF#7@5,1 n1:F=2, 

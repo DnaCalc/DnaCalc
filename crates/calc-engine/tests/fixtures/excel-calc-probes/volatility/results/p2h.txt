@@ -1,0 +1,57 @@
+# p2h: Excel 16.0 build 20527, CalculationVersion 191029, MTC True/16, started 2026-11-09T21:34:00.2031777Z
+
+## probe p2h: 3 trials
+cell | formula | counter per clean | own UDF calls per clean | final: tok,ca
+A1 | =RAND()+HashFalse() | 0000 | 0,0,0,0 | Y,0
+A2 | =HashFalse()+RAND() | 0000 | 0,0,0,0 | Y,0
+A3 | =NOW()+HTF() | 0000 | 0,0,0,0 | Y,0
+A4 | =NOW()+HFT() | 1111 | 1,1,1,1 | Y,1
+A5 | =HTF()+NOW() | 0000 | 0,0,0,0 | Y,0
+A6 | =HFT()+NOW() | 1111 | 1,1,1,1 | Y,1
+A7 | =HashTrue()+VFalse() | 0000 | 0,0,0,0 | n,0
+A8 | =VFalse()+HashTrue() | 1111 | 2,2,2,2 | n,1
+A9 | =HashFalse()+VTrue() | 1111 | 2,2,2,2 | n,1
+A10 | =VTrue()+HashFalse() | 0000 | 0,0,0,0 | n,0
+A11 | =HashFalse()+HashTrue() | 1111 | 2,2,2,2 | n,1
+A12 | =HashTrue()+HashFalse() | 0000 | 0,0,0,0 | n,0
+A13 | =BangHash() | 1111 | 1,1,1,1 | n,1
+A14 | =BangHashClear() | 0000 | 0,0,0,0 | n,0
+A15 | =BangHashClearOnce() | 1111 | 1,1,1,1 | n,1
+A16 | =BangHashTrue() | 1111 | 1,1,1,1 | n,1
+A17 | =BangHashFT() | 1111 | 1,1,1,1 | n,1
+A18 | =BangHashSeq() | 0000 | 0,0,0,0 | n,0
+A19 | =BangHashClear()+Bang() | 1111 | 2,2,2,2 | n,1
+A20 | =Bang()+BangHashClear() | 0000 | 0,0,0,0 | n,0
+A21 | =BangHashClear()+VPlain() | 0000 | 0,0,0,0 | n,0
+A22 | =VPlain()+BangHashClear() | 0000 | 0,0,0,0 | n,0
+A23 | =BangHashClear()+RAND() | 0000 | 0,0,0,0 | Y,0
+A24 | =RAND()+BangHashClear() | 0000 | 0,0,0,0 | Y,0
+A25 | =IF(TRUE,BangHashClear(),RAND()) | 0000 | 0,0,0,0 | Y,0
+A26 | =BangHashClear()+BangHashClear() | 0000 | 0,0,0,0 | n,0
+A27 | =HuF(C1)+Bang() | 1111 | 2,2,2,2 | n,1
+A28 | =Bang()+HuF(C1) | 0000 | 0,0,0,0 | n,0
+A29 | =Hu(C1)+HashFalse() | 0000 | 0,0,0,0 | n,0
+A30 | =HashFalse()+Hu(C1) | 1111 | 2,2,2,2 | n,1
+A31 | =Hu(C1)+VFalse() | 0000 | 0,0,0,0 | n,0
+A32 | =VFalse()+Hu(C1) | 1111 | 2,2,2,2 | n,1
+A33 | =HuF(C1)+Hu(C1) | 1111 | 2,2,2,2 | n,1
+A34 | =Hu(C1)+HuF(C1) | 0000 | 0,0,0,0 | n,0
+A35 | =HuTF(C1) | 0000 | 0,0,0,0 | n,0
+A36 | =HuFT(C1) | 1111 | 1,1,1,1 | n,1
+A37 | =HuFT(1) | 1111 | 1,1,1,1 | n,1
+A38 | =HuTF(1) | 0000 | 0,0,0,0 | n,0
+A39 | =HOnceF() | 0000 | 0,0,0,0 | n,0
+A40 | =HOnceT() | 0000 | 0,0,0,0 | n,0
+A41 | =HSeq() | 1000 | 1,0,0,0 | n,0  (x2)  //  0000 | 0,0,0,0 | n,0  (x1)
+A42 | =HSeq()+HSeq() | 0000 | 0,0,0,0 | n,0  (x2)  //  1000 | 2,0,0,0 | n,0  (x1)
+A43 | =HSeq()+HSeq()+HSeq() | 0000 | 0,0,0,0 | n,0  (x2)  //  1000 | 3,0,0,0 | n,0  (x1)
+A44 | =HNoArg() | 1111 | 1,1,1,1 | n,1
+A45 | =HTTF() | 0000 | 0,0,0,0 | n,0
+A46 | =HTF() | 0000 | 0,0,0,0 | n,0
+A47 | =HFT() | 1111 | 1,1,1,1 | n,1
+A48 | =HuOnceF(C1) | 1111 | 1,1,1,1 | n,1
+A49 | =HuSeq(C1) | 0000 | 0,0,0,0 | n,0
+A50 | =HuSeq(1) | 1000 | 1,0,0,0 | n,0
+A51 | =Hu(C1)+0*Hu(1) | 1111 | 2,2,2,2 | n,1
+A52 | =BangHashSeq()+BangHashSeq() | 0000 | 0,0,0,0 | n,0
+names (first trial): {"final": {}}

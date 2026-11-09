@@ -1,0 +1,39 @@
+# p1b: Excel 16.0 build 20527, CalculationVersion 191029, MTC True/16, started 2026-11-09T21:21:07.1085047Z
+
+## probe p1b: 3 trials
+cell | formula | counter per clean | own UDF calls per clean | final: tok,ca
+A1 | =IF(TRUE,1,RAND()) | 111 | 0,0,0 | Y,1
+A2 | =IF(FALSE,RAND(),1) | 111 | 0,0,0 | Y,1
+A3 | =IF(C2=2,1,RAND()) | 111 | 0,0,0 | Y,1
+A4 | =CHOOSE(1,1,NOW()) | 111 | 0,0,0 | Y,1
+A5 | =CHOOSE(2,NOW(),1) | 111 | 0,0,0 | Y,1
+A6 | =IF(TRUE,1,INDIRECT("C1")) | 111 | 0,0,0 | Y,1
+A7 | =IF(TRUE,1,OFFSET(C1,0,0)) | 111 | 0,0,0 | Y,1
+A8 | =IFERROR(1,RAND()) | 111 | 0,0,0 | Y,1
+A9 | =IFNA(1,RAND()) | 111 | 0,0,0 | Y,1
+A10 | =IFS(TRUE,1,TRUE,RAND()) | 111 | 0,0,0 | Y,1
+A11 | =SWITCH(1,1,1,2,RAND()) | 111 | 0,0,0 | Y,1
+A12 | =AND(FALSE,RAND()>0.5) | 111 | 0,0,0 | Y,1
+A13 | =OR(TRUE,RAND()>0.5) | 111 | 0,0,0 | Y,1
+A14 | =LET(f,LAMBDA(RAND()),1) | 111 | 0,0,0 | Y,1
+A15 | =LET(x,RAND(),1) | 111 | 0,0,0 | Y,1
+A16 | =LET(x,RAND(),x*0) | 111 | 0,0,0 | Y,1
+A17 | =LET(x,1,IF(TRUE,x,RAND())) | 111 | 0,0,0 | Y,1
+A18 | =(LAMBDA(x,1))(RAND()) | 111 | 0,0,0 | Y,1
+A19 | =SUM(MAP(C1:C3,LAMBDA(x,x*RAND()))) | 111 | 0,0,0 | Y,1
+A20 | =SUM(MAP(C1:C3,LAMBDA(x,x))) | 000 | 0,0,0 | n,0
+A21 | =LET(f,LAMBDA(x,x+RAND()),1) | 111 | 0,0,0 | Y,1
+A22 | =LET(f,LAMBDA(x,x+RAND()),f(1)*0) | 111 | 0,0,0 | Y,1
+A23 | =IF(TRUE,1,SUM(RAND())) | 111 | 0,0,0 | Y,1
+A24 | =IF(TRUE,1,IF(TRUE,1,RAND())) | 111 | 0,0,0 | Y,1
+A25 | =1*IF(TRUE,1,RAND()) | 111 | 0,0,0 | Y,1
+A26 | =SUM(1,IF(TRUE,1,RAND())) | 111 | 0,0,0 | Y,1
+A27 | =IF(ISNUMBER(C1),1,NOW()) | 111 | 0,0,0 | Y,1
+A28 | =IF(C1=1,TODAY(),0)*0 | 111 | 0,0,0 | Y,1
+A29 | =IF(C1=2,TODAY(),0)*0 | 111 | 0,0,0 | Y,1
+A30 | =ISNUMBER(RAND()) | 111 | 0,0,0 | Y,1
+A31 | =N(RAND())*0 | 111 | 0,0,0 | Y,1
+A32 | =IF(TRUE,SUM(C1:C3),OFFSET(C1,0,0)) | 111 | 0,0,0 | Y,1
+A33 | =IF(FALSE,1,SUM(OFFSET(C1,0,0))) | 111 | 0,0,0 | Y,1
+A34 | =COUNT(RAND())*0+1 | 111 | 0,0,0 | Y,1
+names (first trial): {"final": {}}

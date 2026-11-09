@@ -1,0 +1,128 @@
+{
+ "xll": null,
+ "probes": [
+  {
+   "id": "x5",
+   "trials": 3,
+   "xll_cfg": [],
+   "vba_cfg": [],
+   "consts": [
+    [
+     "C1",
+     1
+    ],
+    [
+     "C2",
+     2
+    ],
+    [
+     "C3",
+     3
+    ],
+    [
+     "D1",
+     10
+    ],
+    [
+     "D2",
+     20
+    ],
+    [
+     "D3",
+     30
+    ],
+    [
+     "D4",
+     40
+    ]
+   ],
+   "names": [],
+   "cells": [
+    [
+     "A1",
+     "=VPlain()"
+    ],
+    [
+     "B1",
+     "=Cnt(A1&\"\")"
+    ],
+    [
+     "A2",
+     "=VTrue()"
+    ],
+    [
+     "B2",
+     "=Cnt(A2&\"\")"
+    ]
+   ],
+   "watch": [
+    "A1",
+    "A2"
+   ],
+   "steps": [
+    {
+     "op": "calc",
+     "tag": "warm1"
+    },
+    {
+     "op": "calc",
+     "tag": "warm2"
+    },
+    {
+     "op": "calc",
+     "tag": "clean1"
+    },
+    {
+     "op": "calc",
+     "tag": "clean2"
+    },
+    {
+     "op": "save",
+     "tag": "final"
+    },
+    {
+     "op": "run",
+     "macro": "OutsideVolatile",
+     "tag": "run_function"
+    },
+    {
+     "op": "run",
+     "macro": "SubVolatile",
+     "tag": "run_sub"
+    },
+    {
+     "op": "run",
+     "macro": "GetStatus",
+     "tag": "sub_status"
+    },
+    {
+     "op": "eval",
+     "expr": "VTrue()",
+     "tag": "evaluate_vtrue"
+    },
+    {
+     "op": "eval",
+     "expr": "VFalse()",
+     "tag": "evaluate_vfalse"
+    },
+    {
+     "op": "eval",
+     "expr": "OutsideVolatile()",
+     "tag": "evaluate_outside"
+    },
+    {
+     "op": "calc",
+     "tag": "after1"
+    },
+    {
+     "op": "calc",
+     "tag": "after2"
+    },
+    {
+     "op": "save",
+     "tag": "s_after"
+    }
+   ]
+  }
+ ]
+}

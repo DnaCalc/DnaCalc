@@ -1,0 +1,157 @@
+{
+ "xll": "C:\\Work\\DnaCalc\\codex-runs\\vol-1\\work\\xll\\calc_xll_fixture.xll",
+ "probes": [
+  {
+   "id": "x6",
+   "trials": 3,
+   "xll_cfg": [],
+   "vba_cfg": [],
+   "consts": [
+    [
+     "C1",
+     1
+    ],
+    [
+     "C2",
+     2
+    ],
+    [
+     "C3",
+     3
+    ],
+    [
+     "D1",
+     10
+    ],
+    [
+     "D2",
+     20
+    ],
+    [
+     "D3",
+     30
+    ],
+    [
+     "D4",
+     40
+    ]
+   ],
+   "names": [],
+   "cells": [
+    [
+     "A1",
+     "=VTrue()"
+    ],
+    [
+     "B1",
+     "=Cnt(A1&\"\")"
+    ],
+    [
+     "A2",
+     "=VPlain()"
+    ],
+    [
+     "B2",
+     "=Cnt(A2&\"\")"
+    ],
+    [
+     "A3",
+     "=RAND()"
+    ],
+    [
+     "B3",
+     "=Cnt(A3&\"\")"
+    ],
+    [
+     "A4",
+     "=SUMIF(C1:C3,\">1\",D1:D2)"
+    ],
+    [
+     "B4",
+     "=Cnt(A4&\"\")"
+    ],
+    [
+     "A5",
+     "=Bang()"
+    ],
+    [
+     "B5",
+     "=Cnt(A5&\"\")"
+    ],
+    [
+     "A6",
+     "=VFalse()+Bang()"
+    ],
+    [
+     "B6",
+     "=Cnt(A6&\"\")"
+    ],
+    [
+     "A7",
+     "=Hu(C1)"
+    ],
+    [
+     "B7",
+     "=Cnt(A7&\"\")"
+    ]
+   ],
+   "watch": [
+    "A1",
+    "A2",
+    "A3",
+    "A4",
+    "A5",
+    "A6",
+    "A7"
+   ],
+   "steps": [
+    {
+     "op": "calc",
+     "tag": "warm1"
+    },
+    {
+     "op": "calc",
+     "tag": "warm2"
+    },
+    {
+     "op": "calc",
+     "tag": "clean1"
+    },
+    {
+     "op": "calc",
+     "tag": "clean2"
+    },
+    {
+     "op": "save",
+     "tag": "final"
+    },
+    {
+     "op": "reopen",
+     "file": "final",
+     "tag": "open1"
+    },
+    {
+     "op": "calc",
+     "tag": "o1"
+    },
+    {
+     "op": "calc",
+     "tag": "o2"
+    },
+    {
+     "op": "save",
+     "tag": "s_reopened"
+    },
+    {
+     "op": "reopen",
+     "file": "s_reopened",
+     "tag": "open2"
+    },
+    {
+     "op": "calc",
+     "tag": "p1"
+    }
+   ]
+  }
+ ]
+}

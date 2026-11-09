@@ -1,0 +1,22 @@
+# p6: Excel 16.0 build 20527, CalculationVersion 191029, MTC True/16, started 2026-11-09T22:01:49.2012714Z
+
+## probe p6: 3 trials
+cell | formula | counter per clean | own UDF calls per clean | final: tok,ca
+A1 | =NmRand+VFalse() | 000 | 0,0,0 | n,0
+A2 | =VFalse()+NmRand | 111 | 1,1,1 | n,1
+A3 | =NmLam()+VFalse() | 000 | 0,0,0 | n,0
+A4 | =VFalse()+NmLam() | 111 | 1,1,1 | n,1
+A5 | =NmInd+VFalse() | 000 | 0,0,0 | n,0
+A6 | =VFalse()+NmInd | 111 | 1,1,1 | n,1
+A7 | =SUMIF(C1:C3,">1",D1:D2)+VFalse() | 000 | 0,0,0 | n,0
+A8 | =VFalse()+SUMIF(C1:C3,">1",D1:D2) | 111 | 1,1,1 | n,1
+A9 | =SUMIF(C1:C3,">1",D1:D2)+VTrue() | 111 | 1,1,1 | n,1
+A10 | =VTrue()+SUMIF(C1:C3,">1",D1:D2) | 111 | 1,1,1 | n,1
+A11 | =SUMIF(C1:C3,">1",D1:D2)+Hu(C1) | 111 | 1,1,1 | n,1
+A12 | =NmVba+SUMIF(C1:C3,">1",D1:D2) | 111 | 1,1,1 | n,1
+A13 | =VFalse()+IF(TRUE,SUMIF(C1:C3,">1",D1:D2),0) | 111 | 1,1,1 | n,1
+A14 | =NmRand+IF(TRUE,1,RAND()) | 111 | 0,0,0 | Y,1
+A15 | =VFalse()+NmRand+VFalse() | 000 | 0,0,0 | n,0
+A16 | =NmVF+NmRand | 111 | 1,1,1 | n,1
+A17 | =NmRand+NmVF | 000 | 0,0,0 | n,0
+names (first trial): {"final": {"NmIf": "semi:1901", "NmInd": "semi:1901", "NmLam": "semi:1901", "NmOne": "-:1e01", "NmRand": "semi:1901", "NmVba": "-:230c", "NmVF": "-:230b", "NmX": "-:7a00"}}

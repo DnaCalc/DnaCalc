@@ -1,0 +1,8 @@
+## trial 1 error=None step=None
+formulas: A1 =RAND(); A2 =NOW()*0; A3 =1+2; A4 =SUM(C1:C3); A5 =VTrue(); A6 =VPlain(); A7 =VFalse(); A8 =VOnceTrue(); A9 =IF(TRUE,1,RAND()); A10 =OFFSET(C1,0,0); A11 =INDIRECT("C1"); A12 =TODAY()*0
+entry enter | udf: VTrue@A5=1 VPlain@A6=1 VFalse@A7=1 VOnceTrue@A8=1 | ctr: B1 B10 B11 B12 B2 B3 B4 B5 B6 B7 B8 B9 |  
+warm1 calc | udf: VOnceTrue@A8=1 VPlain@A6=1 VTrue@A5=1 VFalse@A7=1 | ctr: B1 B10 B11 B12 B2 B3 B4 B5 B6 B7 B8 B9 |  
+warm2 calc | udf: VTrue@A5=1 | ctr: B1 B10 B11 B12 B2 B5 B9 |  
+clean1 calc | udf: VTrue@A5=1 | ctr: B1 B10 B11 B12 B2 B5 B9 |  
+clean2 calc | udf: VTrue@A5=1 | ctr: B1 B10 B11 B12 B2 B5 B9 |  
+clean3 calc | udf: VTrue@A5=1 | ctr: B1 B10 B11 B12 B2 B5 B9 |  

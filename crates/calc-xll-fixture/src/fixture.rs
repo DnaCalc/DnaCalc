@@ -9,6 +9,7 @@ use std::{
     },
 };
 
+mod volatility;
 #[link(name = "kernel32")]
 unsafe extern "system" {
     fn GetModuleHandleW(name: *const u16) -> *mut c_void;
@@ -352,6 +353,13 @@ pub unsafe extern "system" fn xlAutoOpen() -> i32 {
             register(&module, "MyUnsupported", "P$", "MyPoolUnsupportedAbi")
                 && register(&module, "MyAsync", ">CX", "MyAsyncUnsupportedAbi")
         } {
+            return 0;
+        }
+    }
+    if std::env::var_os("DNA_XLL_VOLATILITY_TESTS").is_some()
+        || directory.is_some_and(|path| path.join("volatility-tests.enable").is_file())
+    {
+        if !unsafe { volatility::register_all(&module) } {
             return 0;
         }
     }

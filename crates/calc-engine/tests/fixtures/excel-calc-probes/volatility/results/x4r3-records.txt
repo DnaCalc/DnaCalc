@@ -1,0 +1,10 @@
+## trial 1 error=None step=None
+formulas: A1 =VAtOne()+E3; A2 =VAtTwo()+E3; A3 =VAtThree()+E3; A4 =VAtFour()+E3; A5 =VAtFive()+E3; A6 =VAtTwoB()+0; E1 =C1*2; E2 =E1+1; E3 =E2+1
+entry enter | udf: VAtOne@A1=1 VAtTwo@A2=1 VAtThree@A3=1 VAtFour@A4=1 VAtFive@A5=1 VAtTwoB@A6=1 | ctr: B1 B2 B3 B4 B5 B6 |  
+warm1 calc | udf: VAtFive@A5=2 VAtThree@A3=2 VAtOne@A1=2 VAtTwoB@A6=1 VAtTwo@A2=2 VAtFour@A4=2 | ctr: B1 B2 B3 B4 B5 B6 |  
+warm2 calc | udf: VAtTwoB@A6=1 VAtThree@A3=1 | ctr: B3 B6 |  
+warm3 calc | udf:  | ctr:  |  
+clean1 calc | udf:  | ctr:  |  
+edit1 calc | udf: VAtFour@A4=1 VAtOne@A1=1 VAtFive@A5=1 VAtTwo@A2=1 VAtThree@A3=1 | ctr: B1 B2 B3 B4 B5 |  
+e1 calc | udf: VAtFour@A4=1 | ctr: B4 |  
+e2 calc | udf:  | ctr:  |  

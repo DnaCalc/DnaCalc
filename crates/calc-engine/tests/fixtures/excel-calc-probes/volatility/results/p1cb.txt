@@ -1,0 +1,17 @@
+# p1cb: Excel 16.0 build 20527, CalculationVersion 191029, MTC True/16, started 2026-11-09T21:27:03.2565247Z
+
+## probe p1cb: 3 trials
+cell | formula | counter per clean | own UDF calls per clean | final: tok,ca
+A1 | =CELL(F1,C1) | 111 | 0,0,0 | Y,1
+A2 | =CELL(F2,C1) | 111 | 0,0,0 | Y,1
+A3 | =CELL(F3,C1) | 111 | 0,0,0 | Y,1
+A4 | =CELL(F4,C1) | 111 | 0,0,0 | Y,1
+A5 | =CELL(F5,C1) | 111 | 0,0,0 | Y,1
+A6 | =CELL(F6,C1) | 111 | 0,0,0 | Y,1
+A7 | =CELL(F7,C1) | 111 | 0,0,0 | Y,1
+A8 | =CELL(F8,C1) | 111 | 0,0,0 | Y,1
+A9 | =CELL(F9,C1) | 111 | 0,0,0 | Y,1
+A10 | =CELL(F10,C1) | 111 | 0,0,0 | Y,1
+A11 | =CELL(F11,C1) | 111 | 0,0,0 | Y,1
+A12 | =CELL(F12,C1) | 111 | 0,0,0 | Y,1
+names (first trial): {"final": {}}

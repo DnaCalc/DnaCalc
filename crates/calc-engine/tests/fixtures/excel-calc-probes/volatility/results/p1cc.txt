@@ -1,0 +1,17 @@
+# p1cc: Excel 16.0 build 20527, CalculationVersion 191029, MTC True/16, started 2026-11-09T21:27:18.1369999Z
+
+## probe p1cc: 3 trials
+cell | formula | counter per clean | own UDF calls per clean | final: tok,ca
+A1 | =CELL("address") | 111 | 0,0,0 | Y,1
+A2 | =CELL("col") | 111 | 0,0,0 | Y,1
+A3 | =CELL("color") | 111 | 0,0,0 | Y,1
+A4 | =CELL("contents") | 111 | 0,0,0 | Y,1
+A5 | =CELL("filename") | 111 | 0,0,0 | Y,1
+A6 | =CELL("format") | 111 | 0,0,0 | Y,1
+A7 | =CELL("parentheses") | 111 | 0,0,0 | Y,1
+A8 | =CELL("prefix") | 111 | 0,0,0 | Y,1
+A9 | =CELL("protect") | 111 | 0,0,0 | Y,1
+A10 | =CELL("row") | 111 | 0,0,0 | Y,1
+A11 | =CELL("type") | 111 | 0,0,0 | Y,1
+A12 | =CELL("width") | 111 | 0,0,0 | Y,1
+names (first trial): {"final": {}}

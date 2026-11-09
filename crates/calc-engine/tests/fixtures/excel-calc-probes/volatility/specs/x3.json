@@ -1,0 +1,202 @@
+{
+ "xll": "C:\\Work\\DnaCalc\\codex-runs\\vol-1\\work\\xll\\calc_xll_fixture.xll",
+ "probes": [
+  {
+   "id": "x3",
+   "trials": 3,
+   "xll_cfg": [],
+   "vba_cfg": [],
+   "consts": [
+    [
+     "C1",
+     1
+    ],
+    [
+     "C2",
+     2
+    ],
+    [
+     "C3",
+     3
+    ],
+    [
+     "D1",
+     10
+    ],
+    [
+     "D2",
+     20
+    ],
+    [
+     "D3",
+     30
+    ],
+    [
+     "D4",
+     40
+    ]
+   ],
+   "names": [],
+   "cells": [
+    [
+     "A1",
+     "=AsyncPlain(1)"
+    ],
+    [
+     "B1",
+     "=Cnt(A1&\"\")"
+    ],
+    [
+     "A2",
+     "=AsyncT(1)"
+    ],
+    [
+     "B2",
+     "=Cnt(A2&\"\")"
+    ],
+    [
+     "A3",
+     "=AsyncF(1)"
+    ],
+    [
+     "B3",
+     "=Cnt(A3&\"\")"
+    ],
+    [
+     "A4",
+     "=AsyncBang(1)"
+    ],
+    [
+     "B4",
+     "=Cnt(A4&\"\")"
+    ],
+    [
+     "A5",
+     "=AsyncBangF(1)"
+    ],
+    [
+     "B5",
+     "=Cnt(A5&\"\")"
+    ],
+    [
+     "A6",
+     "=AsyncDollarT(1)"
+    ],
+    [
+     "B6",
+     "=Cnt(A6&\"\")"
+    ],
+    [
+     "A7",
+     "=AsyncDollarF(1)"
+    ],
+    [
+     "B7",
+     "=Cnt(A7&\"\")"
+    ],
+    [
+     "A8",
+     "=AsyncLate(1)"
+    ],
+    [
+     "B8",
+     "=Cnt(A8&\"\")"
+    ],
+    [
+     "A9",
+     "=RAND()+AsyncF(1)"
+    ],
+    [
+     "B9",
+     "=Cnt(A9&\"\")"
+    ],
+    [
+     "A10",
+     "=AsyncF(1)+RAND()"
+    ],
+    [
+     "B10",
+     "=Cnt(A10&\"\")"
+    ],
+    [
+     "A11",
+     "=DollarT()"
+    ],
+    [
+     "B11",
+     "=Cnt(A11&\"\")"
+    ],
+    [
+     "A12",
+     "=DollarF()"
+    ],
+    [
+     "B12",
+     "=Cnt(A12&\"\")"
+    ],
+    [
+     "A13",
+     "=DollarUT(C1)"
+    ],
+    [
+     "B13",
+     "=Cnt(A13&\"\")"
+    ],
+    [
+     "A14",
+     "=XTrue()"
+    ],
+    [
+     "B14",
+     "=Cnt(A14&\"\")"
+    ]
+   ],
+   "watch": [
+    "A1",
+    "A2",
+    "A3",
+    "A4",
+    "A5",
+    "A6",
+    "A7",
+    "A8",
+    "A9",
+    "A10",
+    "A11",
+    "A12",
+    "A13",
+    "A14"
+   ],
+   "steps": [
+    {
+     "op": "calc",
+     "tag": "warm1"
+    },
+    {
+     "op": "calc",
+     "tag": "warm2"
+    },
+    {
+     "op": "calc",
+     "tag": "clean1"
+    },
+    {
+     "op": "calc",
+     "tag": "clean2"
+    },
+    {
+     "op": "calc",
+     "tag": "clean3"
+    },
+    {
+     "op": "calc",
+     "tag": "clean4"
+    },
+    {
+     "op": "save",
+     "tag": "final"
+    }
+   ]
+  }
+ ]
+}

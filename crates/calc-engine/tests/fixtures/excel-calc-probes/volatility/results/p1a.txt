@@ -1,0 +1,58 @@
+# p1a: Excel 16.0 build 20527, CalculationVersion 191029, MTC True/16, started 2026-11-09T21:20:24.4754421Z
+
+## probe p1a: 3 trials
+cell | formula | counter per clean | own UDF calls per clean | final: tok,ca
+A1 | =RAND() | 111 | 0,0,0 | Y,1
+A2 | =RANDBETWEEN(1,10) | 111 | 0,0,0 | Y,1
+A3 | =SUM(RANDARRAY(1,1)) | 111 | 0,0,0 | Y,1
+A4 | =NOW() | 111 | 0,0,0 | Y,1
+A5 | =TODAY() | 111 | 0,0,0 | Y,1
+A6 | =OFFSET(C1,0,0) | 111 | 0,0,0 | Y,1
+A7 | =INDIRECT("C1") | 111 | 0,0,0 | Y,1
+A8 | =INDIRECT("R1C3",FALSE) | 111 | 0,0,0 | Y,1
+A9 | =SUM(OFFSET(C1,0,0,2,1)) | 111 | 0,0,0 | Y,1
+A10 | =SUM(INDIRECT("C1:C2")) | 111 | 0,0,0 | Y,1
+A11 | =1+2 | 000 | 0,0,0 | n,0
+A12 | =SUM(C1:C3) | 000 | 0,0,0 | n,0
+A13 | =ROW() | 000 | 0,0,0 | n,0
+A14 | =ROW(C1) | 000 | 0,0,0 | n,0
+A15 | =COLUMN() | 000 | 0,0,0 | n,0
+A16 | =ROWS(C1:C3) | 000 | 0,0,0 | n,0
+A17 | =COLUMNS(C1:C3) | 000 | 0,0,0 | n,0
+A18 | =AREAS(C1:C3) | 000 | 0,0,0 | n,0
+A19 | =AREAS((C1,C2)) | 000 | 0,0,0 | n,0
+A20 | =INDEX(C1:C3,2) | 000 | 0,0,0 | n,0
+A21 | =SUM(INDEX(C1:C3,2)) | 000 | 0,0,0 | n,0
+A22 | =SUM(C1:INDEX(C1:C3,2)) | 000 | 0,0,0 | n,0
+A23 | =SUM(INDEX(C1:C3,2):C3) | 000 | 0,0,0 | n,0
+A24 | =SUM(C1:INDEX(C:C,3)) | 000 | 0,0,0 | n,0
+A25 | =ISREF(C1) | 000 | 0,0,0 | n,0
+A26 | =ISFORMULA(C1) | 000 | 0,0,0 | n,0
+A27 | =FORMULATEXT(A1) | 111 | 0,0,0 | Y,1
+A28 | =SHEET() | 111 | 0,0,0 | Y,1
+A29 | =SHEETS() | 111 | 0,0,0 | Y,1
+A30 | =SUBTOTAL(9,C1:C3) | 000 | 0,0,0 | n,0
+A31 | =AGGREGATE(9,0,C1:C3) | 000 | 0,0,0 | n,0
+A32 | =N(C1) | 000 | 0,0,0 | n,0
+A33 | =T(C1) | 000 | 0,0,0 | n,0
+A34 | =ADDRESS(1,1) | 000 | 0,0,0 | n,0
+A35 | =CHOOSE(2,C1,C2) | 000 | 0,0,0 | n,0
+A36 | =SUM(CHOOSE({1,2},C1,C2)) | 000 | 0,0,0 | n,0
+A37 | =MATCH(2,C1:C3,0) | 000 | 0,0,0 | n,0
+A38 | =VLOOKUP(2,C1:D3,2,FALSE) | 000 | 0,0,0 | n,0
+A39 | =XLOOKUP(2,C1:C3,D1:D3) | 000 | 0,0,0 | n,0
+A40 | =HYPERLINK("x","y") | 000 | 0,0,0 | n,0
+A41 | =TEXT(1,"0") | 000 | 0,0,0 | n,0
+A42 | =DATE(2020,1,1) | 000 | 0,0,0 | n,0
+A43 | =EOMONTH(DATE(2020,1,1),1) | 000 | 0,0,0 | n,0
+A44 | =WORKDAY(DATE(2020,1,1),1) | 000 | 0,0,0 | n,0
+A45 | =ISBLANK(C9) | 000 | 0,0,0 | n,0
+A46 | =INDEX(C1:C3,0) | 111 | 0,0,0 | n,1
+A47 | =SUM(INDEX(C1:D3,0,1)) | 000 | 0,0,0 | n,0
+A48 | =ROW(INDIRECT("C1")) | 111 | 0,0,0 | Y,1
+A49 | =SUM(TRANSPOSE(C1:C3)) | 000 | 0,0,0 | n,0
+A50 | =SUMPRODUCT(C1:C3,D1:D3) | 000 | 0,0,0 | n,0
+A51 | =LOOKUP(2,C1:C3,D1:D3) | 000 | 0,0,0 | n,0
+A52 | =STDEV(C1:C3) | 000 | 0,0,0 | n,0
+A53 | =SUM(IF(C1:C3>1,1,0)) | 000 | 0,0,0 | n,0
+names (first trial): {"final": {}}

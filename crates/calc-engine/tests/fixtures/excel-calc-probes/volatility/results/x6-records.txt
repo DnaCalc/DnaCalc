@@ -1,0 +1,12 @@
+## trial 1 error=None step=None
+formulas: A1 =VTrue(); A2 =VPlain(); A3 =RAND(); A4 =SUMIF(C1:C3,">1",D1:D2); A5 =Bang(); A6 =VFalse()+Bang(); A7 =Hu(C1)
+entry enter | udf: VTrue@A1=1 VPlain@A2=1 VFalse@A6=1 | ctr: B1 B2 B3 B4 B5 B6 B7 | Bang#1@5,1:;Bang#2@6,1:;Hu#1@7,1 t400: 
+warm1 calc | udf: VFalse@A6=1 VPlain@A2=1 VTrue@A1=1 | ctr: B1 B2 B3 B4 B5 B6 B7 | Bang#3@5,1:;Hu#2@7,1 t400:;Bang#4@6,1: 
+warm2 calc | udf: VFalse@A6=1 VTrue@A1=1 | ctr: B1 B3 B4 B5 B6 B7 | Hu#3@7,1 t400:;Bang#5@6,1:;Bang#6@5,1: 
+clean1 calc | udf: VFalse@A6=1 VTrue@A1=1 | ctr: B1 B3 B4 B5 B6 B7 | Hu#4@7,1 t400:;Bang#7@6,1:;Bang#8@5,1: 
+clean2 calc | udf: VFalse@A6=1 VTrue@A1=1 | ctr: B1 B3 B4 B5 B6 B7 | Hu#5@7,1 t400:;Bang#9@6,1:;Bang#10@5,1: 
+open1 open | udf:  | ctr:  |  
+o1 calc | udf: VFalse@A6=1 VTrue@A1=1 | ctr: B1 B3 B4 B5 B6 B7 | Hu#6@7,1 t400:;Bang#11@6,1:;Bang#12@5,1: 
+o2 calc | udf: VFalse@A6=1 VTrue@A1=1 | ctr: B1 B3 B4 B5 B6 B7 | Hu#7@7,1 t400:;Bang#13@6,1:;Bang#14@5,1: 
+open2 open | udf:  | ctr:  |  
+p1 calc | udf: VFalse@A6=1 VTrue@A1=1 | ctr: B1 B3 B4 B5 B6 B7 | Hu#8@7,1 t400:;Bang#15@6,1:;Bang#16@5,1: 

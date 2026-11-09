@@ -1,0 +1,168 @@
+{
+ "xll": null,
+ "probes": [
+  {
+   "id": "p1f",
+   "trials": 3,
+   "xll_cfg": [],
+   "vba_cfg": [],
+   "consts": [
+    [
+     "C1",
+     1
+    ],
+    [
+     "C2",
+     2
+    ],
+    [
+     "C3",
+     3
+    ],
+    [
+     "D1",
+     10
+    ],
+    [
+     "D2",
+     20
+    ],
+    [
+     "D3",
+     30
+    ],
+    [
+     "D4",
+     40
+    ],
+    [
+     "G1",
+     2
+    ]
+   ],
+   "names": [],
+   "cells": [
+    [
+     "A1",
+     "=SUMIF(C1:C3,\">1\",D1:INDEX(D:D,G1))"
+    ],
+    [
+     "B1",
+     "=Cnt(A1&\"\")"
+    ],
+    [
+     "A2",
+     "=IF(TRUE,1,SUMIF(C1:C3,\">1\",D1:D2))"
+    ],
+    [
+     "B2",
+     "=Cnt(A2&\"\")"
+    ],
+    [
+     "A3",
+     "=IF(FALSE,1,SUMIF(C1:C3,\">1\",D1:D2))"
+    ],
+    [
+     "B3",
+     "=Cnt(A3&\"\")"
+    ],
+    [
+     "A4",
+     "=SUM(SUMIF(C1:C3,\">1\",D1:D2),1)"
+    ],
+    [
+     "B4",
+     "=Cnt(A4&\"\")"
+    ],
+    [
+     "A5",
+     "=SUMIF(C1:C3,\">1\",D1:INDEX(D:D,G1))*0"
+    ],
+    [
+     "B5",
+     "=Cnt(A5&\"\")"
+    ],
+    [
+     "A6",
+     "=AVERAGEIF(C1:C3,\">1\",D1:INDEX(D:D,G1))"
+    ],
+    [
+     "B6",
+     "=Cnt(A6&\"\")"
+    ]
+   ],
+   "watch": [
+    "A1",
+    "A2",
+    "A3",
+    "A4",
+    "A5",
+    "A6"
+   ],
+   "steps": [
+    {
+     "op": "calc",
+     "tag": "w1"
+    },
+    {
+     "op": "calc",
+     "tag": "w2"
+    },
+    {
+     "op": "calc",
+     "tag": "a1"
+    },
+    {
+     "op": "calc",
+     "tag": "a2"
+    },
+    {
+     "op": "save",
+     "tag": "s_g2"
+    },
+    {
+     "op": "set",
+     "addr": "G1",
+     "value": 3
+    },
+    {
+     "op": "calc",
+     "tag": "b0"
+    },
+    {
+     "op": "calc",
+     "tag": "b1"
+    },
+    {
+     "op": "calc",
+     "tag": "b2"
+    },
+    {
+     "op": "save",
+     "tag": "s_g3"
+    },
+    {
+     "op": "set",
+     "addr": "G1",
+     "value": 2
+    },
+    {
+     "op": "calc",
+     "tag": "c0"
+    },
+    {
+     "op": "calc",
+     "tag": "c1"
+    },
+    {
+     "op": "calc",
+     "tag": "c2"
+    },
+    {
+     "op": "save",
+     "tag": "s_g2again"
+    }
+   ]
+  }
+ ]
+}

@@ -1,0 +1,17 @@
+# cal1: Excel 16.0 build 20527, CalculationVersion 191029, MTC True/16, started 2026-11-09T21:19:41.4273142Z
+
+## probe cal1: 3 trials
+cell | formula | counter per clean | own UDF calls per clean | final: tok,ca
+A1 | =RAND() | 111 | 0,0,0 | Y,1
+A2 | =NOW()*0 | 111 | 0,0,0 | Y,1
+A3 | =1+2 | 000 | 0,0,0 | n,0
+A4 | =SUM(C1:C3) | 000 | 0,0,0 | n,0
+A5 | =VTrue() | 111 | 1,1,1 | n,1
+A6 | =VPlain() | 000 | 0,0,0 | n,0
+A7 | =VFalse() | 000 | 0,0,0 | n,0
+A8 | =VOnceTrue() | 000 | 0,0,0 | n,0
+A9 | =IF(TRUE,1,RAND()) | 111 | 0,0,0 | Y,1
+A10 | =OFFSET(C1,0,0) | 111 | 0,0,0 | Y,1
+A11 | =INDIRECT("C1") | 111 | 0,0,0 | Y,1
+A12 | =TODAY()*0 | 111 | 0,0,0 | Y,1
+names (first trial): {"final": {}}

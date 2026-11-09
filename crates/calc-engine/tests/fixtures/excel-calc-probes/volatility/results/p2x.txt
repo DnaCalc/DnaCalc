@@ -1,0 +1,34 @@
+# p2x: Excel 16.0 build 20527, CalculationVersion 191029, MTC True/16, started 2026-11-09T21:28:43.6715258Z
+
+## probe p2x: 3 trials
+cell | formula | counter per clean | own UDF calls per clean | final: tok,ca
+A1 | =RAND()+XFalse() | 111 | 1,1,1 | Y,1
+A2 | =XFalse()+RAND() | 111 | 1,1,1 | Y,1
+A3 | =INDIRECT("C1")+XFalse() | 111 | 1,1,1 | Y,1
+A4 | =XFalse()+INDIRECT("C1") | 111 | 1,1,1 | Y,1
+A5 | =NOW()+XTF() | 111 | 1,1,1 | Y,1
+A6 | =XTF()+NOW() | 111 | 1,1,1 | Y,1
+A7 | =NOW()+XFT() | 111 | 1,1,1 | Y,1
+A8 | =XFT()+NOW() | 111 | 1,1,1 | Y,1
+A9 | =RAND()+XTrue() | 111 | 1,1,1 | Y,1
+A10 | =XTrue()+RAND() | 111 | 1,1,1 | Y,1
+A11 | =XTrue() | 000 | 0,0,0 | n,0
+A12 | =XFalse() | 000 | 0,0,0 | n,0
+A13 | =XPlain() | 000 | 0,0,0 | n,0
+A14 | =XTF() | 000 | 0,0,0 | n,0
+A15 | =XFT() | 000 | 0,0,0 | n,0
+A16 | =XTTF() | 000 | 0,0,0 | n,0
+A17 | =XSeq() | 000 | 0,0,0 | n,0
+A18 | =XNoArg() | 000 | 0,0,0 | n,0
+A19 | =XFalse()+XTrue() | 000 | 0,0,0 | n,0
+A20 | =XTrue()+XFalse() | 000 | 0,0,0 | n,0
+A21 | =XPlain()+RAND() | 111 | 1,1,1 | Y,1
+A22 | =RAND()+XPlain() | 111 | 1,1,1 | Y,1
+A23 | =XFalse()+VFalse() | 000 | 0,0,0 | n,0
+A24 | =VFalse()+XFalse() | 000 | 0,0,0 | n,0
+A25 | =XTrue()+VFalse() | 000 | 0,0,0 | n,0
+A26 | =VFalse()+XTrue() | 000 | 0,0,0 | n,0
+A27 | =XFalse()+VTrue() | 111 | 2,2,2 | n,1
+A28 | =VTrue()+XFalse() | 111 | 2,2,2 | n,1
+A29 | =IF(TRUE,XFalse(),RAND()) | 111 | 1,1,1 | Y,1
+names (first trial): {"final": {}}

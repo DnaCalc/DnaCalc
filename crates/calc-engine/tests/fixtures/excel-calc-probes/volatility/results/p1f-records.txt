@@ -1,0 +1,13 @@
+## trial 1 error=None step=None
+formulas: A1 =SUMIF(C1:C3,">1",D1:INDEX(D:D,G1)); A2 =IF(TRUE,1,SUMIF(C1:C3,">1",D1:D2)); A3 =IF(FALSE,1,SUMIF(C1:C3,">1",D1:D2)); A4 =SUM(SUMIF(C1:C3,">1",D1:D2),1); A5 =SUMIF(C1:C3,">1",D1:INDEX(D:D,G1))*0; A6 =AVERAGEIF(C1:C3,">1",D1:INDEX(D:D,G1))
+entry enter | udf:  | ctr: B1 B2 B3 B4 B5 B6 |  
+w1 calc | udf:  | ctr: B1 B2 B3 B4 B5 B6 |  
+w2 calc | udf:  | ctr: B1 B3 B4 B5 B6 |  
+a1 calc | udf:  | ctr: B1 B3 B4 B5 B6 |  
+a2 calc | udf:  | ctr: B1 B3 B4 B5 B6 |  
+b0 calc | udf:  | ctr: B1 B3 B4 B5 B6 |  
+b1 calc | udf:  | ctr: B3 B4 |  
+b2 calc | udf:  | ctr: B3 B4 |  
+c0 calc | udf:  | ctr: B1 B3 B4 B5 B6 |  
+c1 calc | udf:  | ctr: B1 B3 B4 B5 B6 |  
+c2 calc | udf:  | ctr: B1 B3 B4 B5 B6 |  

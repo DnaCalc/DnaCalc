@@ -1,0 +1,7 @@
+# x5: Excel 16.0 build 20527, CalculationVersion 191029, MTC True/16, started 2026-11-09T21:38:42.5524313Z
+
+## probe x5: 3 trials
+cell | formula | counter per clean | own UDF calls per clean | final: tok,ca | s_after: tok,ca
+A1 | =VPlain() | 00 | 0,0 | n,0 | n,0
+A2 | =VTrue() | 11 | 1,1 | n,1 | n,1
+names (first trial): {"final": {}, "s_after": {}}

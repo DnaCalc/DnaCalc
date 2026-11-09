@@ -1,0 +1,13 @@
+## trial 1 error=None step=None
+formulas: A1 =NmRand; A2 =IF(TRUE,1,NmRand); A3 =IF(TRUE,1,NmVba); A4 =NmVba; A5 =LET(f,NmLam,1); A6 =NmLam(); A7 =NmOne; A8 =NmRand*0; A9 =NmInd; A10 =IF(FALSE,NmRand,1); A11 =NmIf; A12 =NmVF; A13 =NmVF+RAND(); A14 =RAND()+NmVF; A15 =NmX; A16 =NmOne+0; A17 =NmVba+VFalse(); A18 =VFalse()+NmVba; A19 =IF(TRUE,1,NmLam()); A20 =LET(f,NmLam,f())*0
+entry enter | udf: VTrue@A4=1 VFalse@A12=1 VFalse@A13=1 VFalse@A14=1 VTrue@A17=1 VFalse@A17=1 VFalse@A18=1 VTrue@A18=1 | ctr: B1 B10 B11 B12 B13 B14 B15 B16 B17 B18 B19 B2 B20 B3 B4 B5 B6 B7 B8 B9 |  
+warm1 calc | udf: VFalse@A18=1 VTrue@A18=1 VFalse@A13=1 VTrue@A17=1 VFalse@A17=1 VFalse@A14=1 VFalse@A12=1 VTrue@A4=1 | ctr: B1 B10 B11 B12 B13 B14 B15 B16 B17 B18 B19 B2 B20 B3 B4 B5 B6 B7 B8 B9 |  
+warm2 calc | udf: VFalse@A18=1 VTrue@A18=1 VTrue@A4=1 | ctr: B1 B11 B18 B20 B4 B5 B6 B8 B9 |  
+s1c1 calc | udf: VFalse@A18=1 VTrue@A18=1 VTrue@A4=1 | ctr: B1 B11 B18 B20 B4 B5 B6 B8 B9 |  
+s1c2 calc | udf: VFalse@A18=1 VTrue@A18=1 VTrue@A4=1 | ctr: B1 B11 B18 B20 B4 B5 B6 B8 B9 |  
+s2e calc | udf: VFalse@A18=1 VPlain@A18=1 VPlain@A17=1 VFalse@A17=1 VPlain@A4=1 | ctr: B1 B10 B11 B17 B18 B19 B2 B20 B3 B4 B5 B6 B8 B9 |  
+s2c1 calc | udf:  | ctr: B11 B9 |  
+s2c2 calc | udf:  | ctr: B11 B9 |  
+s3e calc | udf: VTrue@A17=1 VFalse@A17=1 VTrue@A4=1 VFalse@A18=1 VTrue@A18=1 | ctr: B1 B10 B11 B17 B18 B19 B2 B20 B3 B4 B5 B6 B8 B9 |  
+s3c1 calc | udf: VFalse@A18=1 VTrue@A18=1 VTrue@A4=1 | ctr: B1 B11 B18 B20 B4 B5 B6 B8 B9 |  
+s3c2 calc | udf: VFalse@A18=1 VTrue@A18=1 VTrue@A4=1 | ctr: B1 B11 B18 B20 B4 B5 B6 B8 B9 |  

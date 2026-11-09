@@ -1,0 +1,12 @@
+# x2b: Excel 16.0 build 20527, CalculationVersion 191029, MTC True/16, started 2026-11-09T21:41:51.6535957Z
+
+## probe x2b: 3 trials
+cell | formula | counter per clean | own UDF calls per clean | final: tok,ca
+A1 | =SUM(VElemD(F1:F3)) | 000 | 0,0,0 | n,0
+A2 | =SUM(VElemD(F1)) | 111 | 1,1,1 | n,1
+A3 | =VElemD(F1) | 111 | 1,1,1 | n,1
+A4 | =SUM(VElemD(C1:C3)) | 000 | 0,0,0 | n,0
+A5 | =SUM(VElemD(G1:G3)) | 000 | 0,0,0 | n,0
+A6 | =SUM(VElemD(H1:H3)) | 000 | 0,0,0 | n,0
+A7 | =SUM(VElemD(H3:H1)) | 000 | 0,0,0 | n,0
+names (first trial): {"final": {}}
