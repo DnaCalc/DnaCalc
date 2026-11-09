@@ -875,7 +875,18 @@ fn statistics_block(fit: &RegressionFit, use_const: bool, first: Vec<f64>) -> Ca
     let n = fit.observations;
     let p = fit.order.len();
     let predictors = p - usize::from(use_const);
-    let squares = |values: &[f64]| values.iter().fold(0.0, |sum, v| sum + v * v);
+    // R41 coordinate predictors leave the response tail unchanged, exposing
+    // the residual square and accumulation without an approximate QR factor.
+    // Both SSresid and SStotal use forward RN53(RN64) products and additions:
+    // 512 isolated squares, 225 distinguishing sums and 2,048 fresh selected
+    // results (lengths 3..32, one/two coordinate columns, response exponents
+    // -200..200) agree with independent rational predictions. Another 546
+    // fresh selections separate strict additions after the same PC64 products.
+    // Private QR and
+    // centring remain separate, unresolved producers.
+    let squares = |values: &[f64]| values.iter().fold(0.0, |sum, v| {
+        excel_numeric::excel_x87_add(sum, excel_numeric::excel_x87_mul(*v, *v))
+    });
     let ss_resid = squares(&fit.qty[p..]);
     let ss_total = squares(&fit.y);
     let ss_reg = ss_total - ss_resid;
@@ -1219,6 +1230,32 @@ mod tests {
         match value.core_ref() {
             CoreRef::Number(n) => n,
             other => panic!("expected scalar, got {other:?}"),
+        }
+    }
+
+    #[cfg_attr(not(target_arch = "wasm32"), test)]
+    #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+    fn coordinate_predictor_reads_stored_pc64_residual_squares_and_forward_sums() {
+        // Original question-service observations, Excel 16.0 build 20527,
+        // R41 residual-isolation and residual-sums. With X=e0 and no
+        // constant the reflector leaves every residual coordinate unchanged.
+        // These cases distinguish product precision, addition precision and
+        // forward order without conditioning on an approximate QR factor.
+        for (y, residual, regression) in [
+            (vec![0.0, 1.8975095069898755, 0.0], 0x400c_cde9_22fb_5e3c, 0),
+            (vec![2.750390944694963e-6, 0.0032663285051918933, 72054.06702097756,
+                0.005624079914020067], 0x41f3_5746_81e4_3792, 0),
+            (vec![50.85618900492427, 665182.4723075805, 501243.51410530537,
+                1020.9925815877413], 0x4264_3092_1d48_76cb, 0x40a4_34b4_4000_0000),
+            (vec![1.3874764646265145, 1302.388046265071, 6.7993072824179475,
+                1.8687740262216257e-5], 0x4139_e204_da87_bc76, 0x3ffe_cd2c_2840_0000),
+        ] {
+            let mut x = vec![0.0; y.len()];
+            x[0] = 1.0;
+            let got = eval_linest_surface(&[col(&y), col(&x), bool_arg(false), bool_arg(true)]).unwrap();
+            let CoreRef::Array(array) = got.core_ref() else { panic!("LINEST statistics array") };
+            assert_eq!(numeric_from_cell(array.get(4, 1).unwrap()).unwrap().to_bits(), residual);
+            assert_eq!(numeric_from_cell(array.get(4, 0).unwrap()).unwrap().to_bits(), regression);
         }
     }
 
