@@ -596,6 +596,7 @@ $JntSheets = @()
 $JntSheets += 'jnt_w111_elementary'
 $JntSheets += 'jnt_w111_rounding'
 $JntSheets += 'jnt_w111_text_dates'
+$JntSheets += 'jnt_dates_random'
 $jnt = @()
 foreach ($name in $JntSheets) {
     $expanded = Expand-SectionLines (Get-SectionLines ('sheet-' + $name + '.txt') 'jnt')
