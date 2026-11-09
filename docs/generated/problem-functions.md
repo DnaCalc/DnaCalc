@@ -8,7 +8,7 @@ python3 racer/corpus_cases.py problem-functions ../DnaCalc ../DnaCalc/docs/gener
 
 Last-bit: finite numeric mismatches <=16 ULP; larger numeric: >16 ULP. This split is triage, not a relaxed verdict. Every mismatch, refusal, unread, missing, pending, external and circular-policy cell remains an inclusive failure. Corpus labels follow exact single-cell aliases, infer calls from formula spelling and unwrap INDEX selections; unresolved references and infix operators remain explicit. Bank functions use canonical judge identities. Counts are observations per source; corpus and bank may overlap and must not be added as unique calls. Bank reference/locale context gaps remain failures, not proven numerical defects. Rows are ordered by corpus mismatches plus refusals, then corpus larger differences, then bank nonpasses.
 
-Corpus: 75,209/76,957 matched (97.72860%); 1,748 inclusive failures, including 108 pending.
+Corpus: 75,788/77,561 matched (97.71406%); 1,773 inclusive failures, including 108 pending.
 Bank: 3,887,883/3,910,773 matched (99.41469%); 22,890 failures, including 4 unread and 2,064 excluded.
 
 Larger numeric and last-bit columns count numeric mismatches; other columns count remaining mismatches. Corpus and bank refusals are separate inclusive failures. Missing corpus values and unread bank rows remain failures too.
@@ -30,10 +30,13 @@ Larger numeric and last-bit columns count numeric mismatches; other columns coun
 | LINEST | 7 | 11 | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 0 |
 | LOGEST | 7 | 6 | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 0 |
 | BETADIST | 0 | 12 | 0 | 0 | 17 | 137 | 0 | 0 | 0 | 0 |
+| VDB | 0 | 0 | 0 | 11 | 0 | 0 | 0 | 0 | 0 | 0 |
+| IMCOT | 0 | 0 | 10 | 0 | 0 | 0 | 0 | 0 | 0 | 0 |
 | IRR | 0 | 3 | 3 | 0 | 28 | 171 | 2 | 0 | 0 | 0 |
 | HYPGEOM.DIST | 3 | 2 | 0 | 0 | 2 | 87 | 0 | 0 | 0 | 0 |
 | HSTACK | 0 | 0 | 5 | 0 | 0 | 0 | 0 | 0 | 0 | 0 |
 | Infix & | 0 | 0 | 5 | 0 | 0 | 0 | 0 | 0 | 0 | 0 |
+| IMTAN | 0 | 0 | 4 | 0 | 0 | 0 | 0 | 0 | 0 | 0 |
 | SORT | 0 | 0 | 4 | 0 | 0 | 0 | 0 | 0 | 0 | 0 |
 | Infix + | 0 | 0 | 3 | 0 | 0 | 0 | 0 | 0 | 0 | 0 |
 | NEGBINOM.DIST | 1 | 1 | 0 | 0 | 12 | 48 | 0 | 0 | 0 | 0 |
