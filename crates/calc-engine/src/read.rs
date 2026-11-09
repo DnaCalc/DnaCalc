@@ -1964,7 +1964,7 @@ impl HostFacts for WorkbookReader<'_> {
             Some(CellInput::Formula(text)) => {
                 let text = String::from_utf16(text.text().utf16_code_units()).ok()?;
                 let lower = text.to_ascii_lowercase();
-                if ["_xlfn.", "_xlws.", "_xludf."]
+                if [calc_catalogue::FUTURE_FUNCTION_PREFIX, calc_catalogue::WORKSHEET_FUNCTION_PREFIX, calc_catalogue::USER_DEFINED_FUNCTION_PREFIX]
                     .iter()
                     .any(|p| lower.contains(p))
                 {

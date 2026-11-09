@@ -37,69 +37,7 @@
 use super::{FunctionCallTarget, FunctionId, catalogue};
 use std::fmt;
 
-/// What Excel's formula entry accepts in a parameter. The default is [`EntryClass::Any`].
-#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
-pub enum EntryClass {
-    /// Every operand form.
-    Any,
-    /// Only an operand that may give a reference ([`OperandForm::fills_reference_place`]).
-    Reference,
-}
-
-/// What a call of an entry may give, as Excel's formula entry reads it. The default is
-/// [`ResultForm::Value`]. Entry treats both other forms alike: such a call fills a reference
-/// place and may be called.
-#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
-pub enum ResultForm {
-    /// No measured result form is held for this entry.
-    Unknown,
-    /// A value: never a reference, never a LAMBDA.
-    Value,
-    /// A value or a reference (INDEX, OFFSET, INDIRECT, XLOOKUP).
-    MayBeReference,
-    /// A value, a reference or a LAMBDA: one of its arguments, as IF and CHOOSE return.
-    MayBeEither,
-}
-
-impl ResultForm {
-    /// Whether the result may be a reference or a LAMBDA.
-    pub const fn may_be_reference_or_callable(self) -> bool {
-        !matches!(self, ResultForm::Value)
-    }
-}
-
-/// An entry's repeating groups of arguments: from argument `from` on, the arguments come in groups
-/// of `size`, each argument taking the declared parameter at `from + (i - from) % size`, and at
-/// most `tail` arguments may follow the last complete group (SWITCH's default). The first group's
-/// completeness is the arity's: SORTBY takes `(array, by_array1)` without its sort order, but
-/// not a later group without one.
-#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
-pub struct ArgumentGroups {
-    pub(crate) from: usize,
-    pub(crate) size: usize,
-    pub(crate) tail: usize,
-}
-
-impl ArgumentGroups {
-    pub(crate) const fn new(from: usize, size: usize, tail: usize) -> Self {
-        ArgumentGroups { from, size, tail }
-    }
-
-    /// Whether `count` arguments end in an incomplete group.
-    pub(crate) const fn incomplete(self, count: usize) -> bool {
-        let rest = count.saturating_sub(self.from);
-        rest > self.size && rest % self.size > self.tail
-    }
-
-    /// The declared parameter argument `index` takes, when it lies in a group.
-    pub(crate) const fn parameter(self, index: usize) -> Option<usize> {
-        if index < self.from {
-            None
-        } else {
-            Some(self.from + (index - self.from) % self.size)
-        }
-    }
-}
+pub use calc_catalogue::{ArgumentGroups, EntryClass, ResultForm};
 
 /// What a formula's compiler knows of an operand from its syntax alone, in the form a
 /// [`FunctionCallTarget::check_entry`] reads. Parentheses are transparent.

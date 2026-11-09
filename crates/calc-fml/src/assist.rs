@@ -20,7 +20,7 @@ use calc_func::{FunctionCallTarget, Notation, catalogue};
 pub fn display_formula(text: &str) -> String {
     let bytes = text.as_bytes();
     let has = |prefix: &[u8]| bytes.windows(prefix.len()).any(|v| v.eq_ignore_ascii_case(prefix));
-    if !text.trim_start().starts_with('=') || !(has(b"_xlfn.") || has(b"_xlpm.") || has(b"_xlws.")) {
+    if !text.trim_start().starts_with('=') || !(has(calc_catalogue::FUTURE_FUNCTION_PREFIX.as_bytes()) || has(b"_xlpm.") || has(calc_catalogue::WORKSHEET_FUNCTION_PREFIX.as_bytes())) {
         return text.to_owned();
     }
     let tree = crate::parse_formula(text);
@@ -36,7 +36,7 @@ pub fn display_formula(text: &str) -> String {
             let spelling = token.text();
             // `_xlws.` can also stand alone before a worksheet function the file stores with it.
             let named = crate::eval::file_unprefixed(spelling);
-            let friendly = crate::eval::without_prefix(named, "_xlws.").unwrap_or(named);
+            let friendly = crate::eval::without_prefix(named, calc_catalogue::WORKSHEET_FUNCTION_PREFIX).unwrap_or(named);
             if friendly != spelling
                 && (function_named(friendly).is_some()
                     || crate::eval::binding_call(friendly).is_some())

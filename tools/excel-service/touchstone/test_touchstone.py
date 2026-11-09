@@ -77,6 +77,19 @@ class ProtocolTests(unittest.TestCase):
         self.assertIn("opts", frames[0])
 
 
+class PendingEnvironmentTests(unittest.TestCase):
+    def test_environment_is_retained_for_each_answer_position(self):
+        import importlib.util
+        spec = importlib.util.spec_from_file_location("touchstone.client", HERE / "client.py")
+        module = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(module)
+        pending = module.Pending("id", 3, [], {}, {}, "host")
+        pending.on_answer({"env": "a", "g": [{"i": [2, 0], "ty": "nn", "v": [TWO, ONE]}]})
+        pending.on_answer({"env": "b", "g": [{"o": 1, "ty": "n", "v": [ONE]}]})
+        self.assertEqual(pending.env_by_position, ["a", "b", "a"])
+        self.assertEqual(pending.env_ids, {"a", "b"})
+
+
 class FakeConn:
     def __init__(self, origin):
         self.origin = origin

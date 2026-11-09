@@ -160,7 +160,7 @@ pub fn rename_table_column(
 ) -> Result<String, &'static str> {
     use crate::syntax::{SyntaxKind, Token};
     let tree = crate::parse_formula(source);
-    let lambda = tree.tokens().iter().any(|t| t.text().eq_ignore_ascii_case("LAMBDA") || t.text().eq_ignore_ascii_case("_xlfn.LAMBDA"));
+    let lambda = tree.tokens().iter().any(|t| t.text().eq_ignore_ascii_case("LAMBDA") || crate::eval::without_prefix(t.text(), calc_catalogue::FUTURE_FUNCTION_PREFIX).is_some_and(|name| name.eq_ignore_ascii_case("LAMBDA")));
     let old_index = columns.iter().position(|c| same_name(c, old)).ok_or("The original table column is unavailable")?;
     let mut next_columns = columns.to_vec();
     next_columns[old_index] = new.into();

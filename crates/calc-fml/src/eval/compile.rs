@@ -2140,7 +2140,7 @@ fn call_target(name: &Token) -> Result<Target, CompileError> {
 /// ([`file_unprefixed`]). An entry whose file prefix is not known is read by its plain name.
 pub(super) fn unknown_on_load(spelling: &str, target: Target) -> bool {
     !spelling.eq_ignore_ascii_case(FIELD_ACCESS)
-        && without_prefix(spelling, "_xlfn.").is_none()
+        && without_prefix(spelling, calc_catalogue::FUTURE_FUNCTION_PREFIX).is_none()
         && match target.0.file_prefix() {
             Some(FilePrefix::Xlfn | FilePrefix::XlfnXlws) => true,
             Some(FilePrefix::Bare) | None => false,
@@ -2183,8 +2183,8 @@ pub(crate) fn binding_call(spelling: &str) -> Option<BindingCall> {
 /// `_xlfn._xlfn.` and `_xlws._xlfn.`. A formula a user enters may spell a function a file stores
 /// with a prefix without it (`MAXIFS`); a file that does is read by [`unknown_on_load`].
 pub(crate) fn file_unprefixed(spelling: &str) -> &str {
-    match without_prefix(spelling, "_xlfn.") {
-        Some(rest) => without_prefix(rest, "_xlws.").unwrap_or(rest),
+    match without_prefix(spelling, calc_catalogue::FUTURE_FUNCTION_PREFIX) {
+        Some(rest) => without_prefix(rest, calc_catalogue::WORKSHEET_FUNCTION_PREFIX).unwrap_or(rest),
         None => spelling,
     }
 }

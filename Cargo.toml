@@ -5,6 +5,7 @@ resolver = "3"
 # for wasm32.
 members = [
     "crates/calc-value",
+    "crates/calc-catalogue",
     "crates/calc-func",
     "crates/calc-fml",
     "crates/calc-syntax",

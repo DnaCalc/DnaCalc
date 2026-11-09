@@ -87,7 +87,7 @@ use std::panic::{AssertUnwindSafe, catch_unwind};
 use std::path::{Path, PathBuf};
 use std::process::{Command, ExitCode};
 
-pub const USAGE: &str = "cargo xtask witness judge [--func <F>] [--bank pinned|full] [--release | --profile dev|release|perf] [--report <json>] [--trace <path>] [--values-only] | cargo xtask witness compare --before <trace> --after <trace> | cargo xtask witness refresh [--func <F>] [--context] [--classified-losses <tsv>] | cargo xtask witness pin [--func <F>] [--rows <N>] | cargo xtask witness read --func <F>[,<F>...] [--timeout <s>] [--inputs <json> [--new-only] [--repeat-calls]]";
+pub const USAGE: &str = "cargo xtask witness judge [--func <F>] [--bank pinned|full] [--release | --profile dev|release|perf] [--report <json>] [--trace <path>] [--values-only] | cargo xtask witness compare --before <trace> --after <trace> | cargo xtask witness refresh [--func <F>] [--context] [--classified-losses <tsv>] | cargo xtask witness pin [--func <F>] [--rows <N>] | cargo xtask witness read --func <F>[,<F>...] [--timeout <s>] [--inputs <json> [--new-only] [--repeat-calls]] | cargo xtask witness export --report <jsonl> [--func <F>]";
 
 use crate::evidence::CHECKOUT;
 const MANIFESTS: [&str; 2] = ["manifest.tsv", "w109-manifest.tsv"];
@@ -116,6 +116,7 @@ enum Verb {
     Refresh,
     Pin,
     Read,
+    Export,
 }
 
 struct Request {
@@ -145,12 +146,13 @@ fn parse_args(raw: &[String]) -> Result<Request, String> {
         "refresh" => Verb::Refresh,
         "pin" => Verb::Pin,
         "read" => Verb::Read,
+        "export" => Verb::Export,
         other => return Err(format!("unknown subcommand {other}")),
     };
     let mut request = Request {
         verb,
         function: None,
-        bank: if verb == Verb::Pin { Bank::Full } else { Bank::Pinned },
+        bank: if matches!(verb, Verb::Pin | Verb::Export) { Bank::Full } else { Bank::Pinned },
         rows: 120,
         timeout: 600,
         trace: None,
@@ -177,7 +179,7 @@ fn parse_args(raw: &[String]) -> Result<Request, String> {
             "--repeat-calls" if verb == Verb::Read => request.repeat_calls = true,
             "--context" if verb == Verb::Refresh => request.refresh_context = true,
             "--classified-losses" if verb == Verb::Refresh => request.classified_losses = Some(PathBuf::from(value()?)),
-            "--report" if verb == Verb::Judge => request.report = Some(PathBuf::from(value()?)),
+            "--report" if matches!(verb, Verb::Judge | Verb::Export) => request.report = Some(PathBuf::from(value()?)),
             "--release" if verb == Verb::Judge && request.profile.is_none() => request.profile = Some("release".into()),
             "--profile" if verb == Verb::Judge && request.profile.is_none() => {
                 let profile = value()?;
@@ -207,6 +209,9 @@ fn parse_args(raw: &[String]) -> Result<Request, String> {
             }
             other => return Err(format!("unknown argument {other}")),
         }
+    }
+    if verb == Verb::Export && request.report.is_none() {
+        return Err("export needs --report <jsonl>".into());
     }
     if verb == Verb::Read && request.function.is_none() {
         return Err("read needs --func".to_owned());
@@ -2010,6 +2015,26 @@ fn run_request(request: &Request) -> Result<ExitCode, String> {
             (banks, Vec::new())
         }
     };
+    if request.verb == Verb::Export {
+        let path = request.report.as_ref().expect("validated export path");
+        let mut out = BufWriter::new(fs::File::create(path).map_err(|e| format!("{}: {e}", path.display()))?);
+        for r in &banks.readings {
+            let source = &banks.sources[r.source];
+            let value = serde_json::json!({
+                "function": r.function, "id": r.id, "args": r.args,
+                "result_index": r.index, "expected": r.expected,
+                "source": source.path, "build": source.env.excel_build,
+                "cpu": source.env.cpu, "invocation": source.env.invocation.as_ref().map(|v| v.to_json()),
+                "exclusion": exclusion_reason(r, source),
+            });
+            serde_json::to_writer(&mut out, &value).map_err(|e| e.to_string())?;
+            out.write_all(b"\n").map_err(|e| e.to_string())?;
+        }
+        out.flush().map_err(|e| e.to_string())?;
+        println!("xtask witness export: {} readings, {} unread records, {} files; {}", banks.readings.len(), unread.len(), banks.files_read, path.display());
+        for line in &unread { eprintln!("xtask witness export: unread: {line}"); }
+        return Ok(ExitCode::SUCCESS);
+    }
     println!(
         "xtask witness: {} readings of {} bank files",
         banks.readings.len(),
@@ -2774,6 +2799,9 @@ mod tests {
         assert!(parse_args(&args("judge --rows 3")).is_err());
         assert!(parse_args(&args("pin --trace rows.jsonl")).is_err());
         assert!(parse_args(&args("read --func GAMMA --trace rows.jsonl")).is_err());
+        assert!(parse_args(&args("export")).is_err());
+        let export = parse_args(&args("export --report rows.jsonl")).unwrap();
+        assert!(export.verb == Verb::Export && export.bank == Bank::Full);
         assert!(parse_args(&args("race")).is_err());
         let r = parse_args(&args("compare --before old.jsonl --after new.jsonl")).unwrap();
         assert_eq!(r.verb, Verb::Compare);
