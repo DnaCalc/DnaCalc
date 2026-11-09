@@ -358,9 +358,18 @@ fn start_worker() -> Result<WorkerLink, String> {
         .map_err(|e| format!("the worker did not start: {e:?}"))?;
     let on_message = Closure::<dyn FnMut(web_sys::MessageEvent)>::new(receive);
     worker.set_onmessage(Some(on_message.as_ref().unchecked_ref()));
-    let on_error = Closure::<dyn FnMut(web_sys::ErrorEvent)>::new(|event: web_sys::ErrorEvent| {
+    // A script that throws gives an ErrorEvent with a message; a script that cannot be fetched
+    // gives a plain Event of the same type with none, and reading `message()` on it threw a
+    // TypeError inside this handler instead of reporting the failure (found in a Chromium
+    // smoke run, dc-0f1k.11.3).
+    let on_error = Closure::<dyn FnMut(web_sys::Event)>::new(|event: web_sys::Event| {
         event.prevent_default();
-        fail(event.message());
+        let message = js_sys::Reflect::get(&event, &"message".into())
+            .ok()
+            .and_then(|value| value.as_string())
+            .filter(|text| !text.is_empty())
+            .unwrap_or_else(|| "the worker script did not load or run (the browser gave no message)".to_owned());
+        fail(message);
     });
     worker.set_onerror(Some(on_error.as_ref().unchecked_ref()));
     on_error.forget();

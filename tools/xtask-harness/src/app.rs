@@ -2259,6 +2259,13 @@ fn act(ws: &Workspace, app: &App, session: &Session, action: &Action) -> Result<
                 {
                     let element = session.element(&select(app, "discard-work"))?;
                     session.post(&format!("/element/{element}/click"), json!({}))?;
+                    // The replacement finishes asynchronously and the app is inert until it does. An
+                    // action that follows (opening a details panel, choosing in a list) must act on
+                    // the new workbook: on the old page it is lost when the page is replaced
+                    // (a reopened chart case found its chart tools closed, dc-0f1k.11.3).
+                    if let Some(failure) = wait_for(app, session, &Check::Absent("[data-dnacalc=app][inert]"), settle()) {
+                        return Err(format!("the replacement workbook did not become interactive: {failure}"));
+                    }
                     return Ok(());
                 }
                 thread::sleep(Duration::from_millis(50));
