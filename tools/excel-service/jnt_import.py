@@ -157,6 +157,22 @@ BATCHES = {
         ],
         families=[],
     ),
+    "J8": dict(
+        bead="dc-jnt.12",
+        sheet="jnt_text_formats",
+        hand=True,
+        title="Text, regex, and formats: REGEX*, TEXTBEFORE/AFTER/SPLIT, NUMBERVALUE, VALUE, VALUETOTEXT, ARRAYTOTEXT, FIXED, DOLLAR*, CLEAN, EXACT, CONCAT, TEXTJOIN, CONCATENATE, LEFT, RIGHT, MID, LEN, FIND, SEARCH, REPLACE, SUBSTITUTE, UPPER, LOWER, PROPER, TRIM, REPT, CHAR, CODE, UNICHAR, UNICODE, B-functions, ENCODEURL, FILTERXML, and TEXT format strings",
+        tests=[
+            "array_text_split_family.rs", "clean_fn.rs", "dollar_fn.rs", "dollar_fraction_family.rs",
+            "exact_fn.rs", "fixed_fn.rs", "number_regex_translate_family.rs", "numeric_text.rs",
+            "text_b_compat_family.rs", "text_compat_locale_family.rs", "text_delim_family.rs",
+            "text_fn.rs", "text_scalar_misc.rs", "text_search_replace_family.rs", "text_slice_family.rs",
+            "text_unicode_fn.rs", "textjoin.rs", "web_text_xml_family.rs",
+            "format_time_fraction_accounting_tests.rs", "ftc_0654_fraction_format_engine_tests.rs",
+            "locale_format_expansion_tests.rs",
+        ],
+        families=[],
+    ),
     "J11": dict(
         bead="dc-jnt.15",
         sheet="jnt_operators",
@@ -657,7 +673,10 @@ def prefixed_functions(repo):
     # Functions the prefix files do not list but Excel stores with the prefix (live Excel read them as
     # #NAME? without it, dc-jnt.7).
     found |= {"IFNA", "IFS", "SWITCH", "XOR", "CONCAT", "TEXTJOIN", "MAXIFS", "MINIFS", "DAYS", "ISFORMULA",
-              "FORMULATEXT", "SHEET", "SHEETS", "ISOMITTED", "XMATCH", "XLOOKUP"}
+              "FORMULATEXT", "SHEET", "SHEETS", "ISOMITTED", "XMATCH", "XLOOKUP",
+              "ARRAYTOTEXT", "ENCODEURL", "FILTERXML", "NUMBERVALUE", "REGEXEXTRACT",
+              "REGEXREPLACE", "REGEXTEST", "TEXTAFTER", "TEXTBEFORE", "TEXTSPLIT",
+              "UNICHAR", "UNICODE", "VALUETOTEXT"}
     _prefixed = found
     return found
 
@@ -977,7 +996,7 @@ def expected_of_token(token):
 
 
 ERROR_LITERAL_WIRE = {"null": "#NULL!", "div0": "#DIV/0!", "value": "#VALUE!", "ref": "#REF!", "name": "#NAME?",
-                      "num": "#NUM!", "na": "#N/A"}
+                      "num": "#NUM!", "na": "#N/A", "spill": "#SPILL!", "calc": "#CALC!"}
 
 
 def token_of(expected):

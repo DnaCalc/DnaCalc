@@ -1,0 +1,407 @@
+[
+{
+"formula": "_xlfn.TEXTBEFORE(\"hello-world\",\"WORLD\",1.0,1.0)",
+"inputs": [],
+"source": "text_delim_family.rs textbefore_case_insensitive",
+"legacy": [
+"text",
+"hello"
+],
+"excel": [
+"text",
+"hello-"
+],
+"excel_build": "20527",
+"reason": "the legacy unit-test expectation differs from Excel's answer"
+},
+{
+"formula": "_xlfn.TEXTAFTER(\"hello-world\",\"HELLO\",1.0,1.0)",
+"inputs": [],
+"source": "text_delim_family.rs textafter_case_insensitive",
+"legacy": [
+"text",
+"world"
+],
+"excel": [
+"text",
+"-world"
+],
+"excel_build": "20527",
+"reason": "the legacy unit-test expectation differs from Excel's answer"
+},
+{
+"formula": "_xlfn.TEXTSPLIT(\"a-b-c\",\"-\")",
+"inputs": [],
+"source": "array_text_split_family.rs textsplit_first_cell",
+"legacy": [
+"text",
+"a"
+],
+"excel": [
+"error",
+"spill"
+],
+"excel_build": "20527",
+"reason": "the legacy unit-test expectation differs from Excel's answer"
+},
+{
+"formula": "FIXED(1234.567)",
+"inputs": [],
+"source": "fixed_fn.rs fixed_default_decimals",
+"legacy": [
+"text",
+"1,234.57"
+],
+"excel": [
+"text",
+"1 234.57"
+],
+"excel_build": "20527",
+"reason": "the legacy unit-test expectation differs from Excel's answer"
+},
+{
+"formula": "FIXED(1234.567,1.0)",
+"inputs": [],
+"source": "fixed_fn.rs fixed_1_decimal",
+"legacy": [
+"text",
+"1,234.6"
+],
+"excel": [
+"text",
+"1 234.6"
+],
+"excel_build": "20527",
+"reason": "the legacy unit-test expectation differs from Excel's answer"
+},
+{
+"formula": "FIXED(1234.567,0.0)",
+"inputs": [],
+"source": "fixed_fn.rs fixed_0_decimals",
+"legacy": [
+"text",
+"1,235"
+],
+"excel": [
+"text",
+"1 235"
+],
+"excel_build": "20527",
+"reason": "the legacy unit-test expectation differs from Excel's answer"
+},
+{
+"formula": "FIXED(1234.567,-1.0)",
+"inputs": [],
+"source": "fixed_fn.rs fixed_neg_decimal",
+"legacy": [
+"text",
+"1,230"
+],
+"excel": [
+"text",
+"1 230"
+],
+"excel_build": "20527",
+"reason": "the legacy unit-test expectation differs from Excel's answer"
+},
+{
+"formula": "FIXED(1234.567,2.0,FALSE)",
+"inputs": [],
+"source": "fixed_fn.rs fixed_with_commas",
+"legacy": [
+"text",
+"1,234.57"
+],
+"excel": [
+"text",
+"1 234.57"
+],
+"excel_build": "20527",
+"reason": "the legacy unit-test expectation differs from Excel's answer"
+},
+{
+"formula": "FIXED(-1234.567,2.0)",
+"inputs": [],
+"source": "fixed_fn.rs fixed_negative",
+"legacy": [
+"text",
+"-1,234.57"
+],
+"excel": [
+"text",
+"-1 234.57"
+],
+"excel_build": "20527",
+"reason": "the legacy unit-test expectation differs from Excel's answer"
+},
+{
+"formula": "DOLLAR(1234.567)",
+"inputs": [],
+"source": "dollar_fn.rs dollar_default",
+"legacy": [
+"text",
+"$1,234.57"
+],
+"excel": [
+"text",
+"R1 234.57"
+],
+"excel_build": "20527",
+"reason": "the legacy unit-test expectation differs from Excel's answer"
+},
+{
+"formula": "DOLLAR(1234.567,2.0)",
+"inputs": [],
+"source": "dollar_fn.rs dollar_2_decimals",
+"legacy": [
+"text",
+"$1,234.57"
+],
+"excel": [
+"text",
+"R1 234.57"
+],
+"excel_build": "20527",
+"reason": "the legacy unit-test expectation differs from Excel's answer"
+},
+{
+"formula": "DOLLAR(1234.567,0.0)",
+"inputs": [],
+"source": "dollar_fn.rs dollar_0_decimals",
+"legacy": [
+"text",
+"$1,235"
+],
+"excel": [
+"text",
+"R1 235"
+],
+"excel_build": "20527",
+"reason": "the legacy unit-test expectation differs from Excel's answer"
+},
+{
+"formula": "DOLLAR(1234.567,-2.0)",
+"inputs": [],
+"source": "dollar_fn.rs dollar_neg_decimals",
+"legacy": [
+"text",
+"$1,200"
+],
+"excel": [
+"text",
+"R1 200"
+],
+"excel_build": "20527",
+"reason": "the legacy unit-test expectation differs from Excel's answer"
+},
+{
+"formula": "DOLLAR(-1234.567,2.0)",
+"inputs": [],
+"source": "dollar_fn.rs dollar_negative",
+"legacy": [
+"text",
+"($1,234.57)"
+],
+"excel": [
+"text",
+"-R1 234.57"
+],
+"excel_build": "20527",
+"reason": "the legacy unit-test expectation differs from Excel's answer"
+},
+{
+"formula": "DOLLARDE(1.02,0.0)",
+"inputs": [],
+"source": "dollar_fraction_family.rs dollarde_zero_fraction",
+"legacy": [
+"error",
+"num"
+],
+"excel": [
+"error",
+"div0"
+],
+"excel_build": "20527",
+"reason": "the legacy unit-test expectation differs from Excel's answer"
+},
+{
+"formula": "DOLLARFR(1.125,0.0)",
+"inputs": [],
+"source": "dollar_fraction_family.rs dollarfr_zero_fraction",
+"legacy": [
+"error",
+"num"
+],
+"excel": [
+"error",
+"div0"
+],
+"excel_build": "20527",
+"reason": "the legacy unit-test expectation differs from Excel's answer"
+},
+{
+"formula": "EXACT(123.0,\"123\")",
+"inputs": [],
+"source": "exact_fn.rs exact_number_vs_text",
+"legacy": [
+"logical",
+false
+],
+"excel": [
+"logical",
+true
+],
+"excel_build": "20527",
+"reason": "the legacy unit-test expectation differs from Excel's answer"
+},
+{
+"formula": "EXACT(TRUE,\"TRUE\")",
+"inputs": [],
+"source": "exact_fn.rs exact_bool_vs_text",
+"legacy": [
+"logical",
+false
+],
+"excel": [
+"logical",
+true
+],
+"excel_build": "20527",
+"reason": "the legacy unit-test expectation differs from Excel's answer"
+},
+{
+"formula": "SUBSTITUTE(\"banana\",\"a\",\"o\",2.0)",
+"inputs": [],
+"source": "text_search_replace_family.rs substitute_instance_2",
+"legacy": [
+"text",
+"baona"
+],
+"excel": [
+"text",
+"banona"
+],
+"excel_build": "20527",
+"reason": "the legacy unit-test expectation differs from Excel's answer"
+},
+{
+"formula": "SUBSTITUTE(\"banana\",\"a\",\"o\",3.0)",
+"inputs": [],
+"source": "text_search_replace_family.rs substitute_instance_3",
+"legacy": [
+"text",
+"banoa"
+],
+"excel": [
+"text",
+"banano"
+],
+"excel_build": "20527",
+"reason": "the legacy unit-test expectation differs from Excel's answer"
+},
+{
+"formula": "TEXT(0.625,\"h:mm AM/PM\")",
+"inputs": [],
+"source": "format_time_fraction_accounting_tests.rs text_ampm",
+"legacy": [
+"text",
+"3:00 PM"
+],
+"excel": [
+"text",
+"3:00 pm"
+],
+"excel_build": "20527",
+"reason": "the legacy unit-test expectation differs from Excel's answer"
+},
+{
+"formula": "TEXT(0.0,\"h:mm AM/PM\")",
+"inputs": [],
+"source": "format_time_fraction_accounting_tests.rs text_midnight",
+"legacy": [
+"text",
+"12:00 AM"
+],
+"excel": [
+"text",
+"12:00 am"
+],
+"excel_build": "20527",
+"reason": "the legacy unit-test expectation differs from Excel's answer"
+},
+{
+"formula": "TEXT(0.5,\"h:mm AM/PM\")",
+"inputs": [],
+"source": "format_time_fraction_accounting_tests.rs text_noon",
+"legacy": [
+"text",
+"12:00 PM"
+],
+"excel": [
+"text",
+"12:00 pm"
+],
+"excel_build": "20527",
+"reason": "the legacy unit-test expectation differs from Excel's answer"
+},
+{
+"formula": "TEXT(0.25,\"# ?/?\")",
+"inputs": [],
+"source": "ftc_0654_fraction_format_engine_tests.rs text_fraction_quarter",
+"legacy": [
+"text",
+" 1/4"
+],
+"excel": [
+"error",
+"value"
+],
+"excel_build": "20527",
+"reason": "the legacy unit-test expectation differs from Excel's answer"
+},
+{
+"formula": "TEXT(0.5,\"# ?/?\")",
+"inputs": [],
+"source": "ftc_0654_fraction_format_engine_tests.rs text_fraction_half",
+"legacy": [
+"text",
+" 1/2"
+],
+"excel": [
+"error",
+"value"
+],
+"excel_build": "20527",
+"reason": "the legacy unit-test expectation differs from Excel's answer"
+},
+{
+"formula": "TEXT(-12.34,\"$#,##0.00;($#,##0.00);\"\"-\"\"\")",
+"inputs": [],
+"source": "locale_format_expansion_tests.rs text_accounting_negative",
+"legacy": [
+"text",
+"($12.34)"
+],
+"excel": [
+"text",
+"($,12.34)"
+],
+"excel_build": "20527",
+"reason": "the legacy unit-test expectation differs from Excel's answer"
+},
+{
+"formula": "TEXT(1234567.0,\"#,, \"\"M\"\"\")",
+"inputs": [],
+"source": "locale_format_expansion_tests.rs text_scale_millions",
+"legacy": [
+"text",
+"1 M"
+],
+"excel": [
+"text",
+"1234567,, M"
+],
+"excel_build": "20527",
+"reason": "the legacy unit-test expectation differs from Excel's answer"
+}
+]
