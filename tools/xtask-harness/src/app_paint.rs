@@ -273,7 +273,7 @@ fn execute(ws: &Workspace, app: &App, raw: &[String]) -> Result<(), String> {
             "driver_version":driver_version,"webview2_product":"read from /json/version of the running runtime"});
     }
     for (label, mode, attach) in passes {
-        let (_driver, session) = open_attached(browser, &out.join("downloads"), locale.as_deref(), attach.as_deref())?;
+        let (_driver, session) = open_attached(browser, &out.join("downloads"), locale.as_deref(), attach.as_deref(), None)?;
         let result = (|| {
             for (book, input) in books.iter().zip(&inputs) {
                 start_group(app, &session, &renderer::page(&url, Some(mode)))?;

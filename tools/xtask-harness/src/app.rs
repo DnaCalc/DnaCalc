@@ -89,6 +89,9 @@ pub(crate) struct SmokeSelection {
     desktop: Option<PathBuf>,
     /// The DevTools address of that running WebView2 (set by the run itself).
     attach: Option<String>,
+    /// The folder the desktop exe saves downloads into without its save dialog (`--save-dir`);
+    /// the session reads its downloads from there, as a browser session reads its own folder.
+    save_dir: Option<PathBuf>,
     suite: Option<String>,
     groups: Vec<String>,
     cases: Vec<String>,
@@ -235,7 +238,13 @@ const BINDGEN_VERSION: &str = "wasm-bindgen 0.2.117";
 const PROFILE: &str = "web";
 
 /// How long a check waits for the page to show what it expects.
-const SETTLE: Duration = Duration::from_secs(8);
+const SETTLE_SECONDS: u64 = 8;
+/// A run in the desktop exe's WebView2 waits longer: its native worker is the workspace's debug
+/// build (the calculation crates unoptimised), where the browsers run an optimised wasm module.
+static DESKTOP_SETTLE: std::sync::atomic::AtomicBool = std::sync::atomic::AtomicBool::new(false);
+fn settle() -> Duration {
+    Duration::from_secs(if DESKTOP_SETTLE.load(std::sync::atomic::Ordering::Relaxed) { 4 * SETTLE_SECONDS } else { SETTLE_SECONDS })
+}
 
 /// How long a step over a workbook from outside the repository may take.
 const WORKBOOK_SETTLE: Duration = Duration::from_secs(900);
@@ -713,8 +722,19 @@ fn answer(
 /// One HTTP request to a WebDriver server on 127.0.0.1; the response's JSON `value`, or the
 /// error the server reported.
 fn webdriver(port: u16, method: &str, path: &str, body: Option<&Value>) -> Result<Value, String> {
-    let mut stream = TcpStream::connect(("127.0.0.1", port))
-        .map_err(|e| format!("cannot reach the driver on port {port}: {e}"))?;
+    // Thousands of short connections can use up Windows' ephemeral ports for a moment: connect
+    // again when the system says the address is in use, which is not the driver refusing.
+    let mut attempts = 0;
+    let mut stream = loop {
+        match TcpStream::connect(("127.0.0.1", port)) {
+            Ok(stream) => break stream,
+            Err(e) if e.kind() == std::io::ErrorKind::AddrInUse && attempts < 40 => {
+                attempts += 1;
+                thread::sleep(Duration::from_millis(250));
+            }
+            Err(e) => return Err(format!("cannot reach the driver on port {port}: {e}")),
+        }
+    };
     stream
         .set_read_timeout(Some(Duration::from_secs(120)))
         .map_err(|e| e.to_string())?;
@@ -831,6 +851,8 @@ struct Session {
     downloads: PathBuf,
     driver_pid: u32,
     bidi: Option<String>,
+    /// Attached to a browser already running (the desktop exe's WebView2), not a headless one.
+    attached: bool,
 }
 
 impl Session {
@@ -958,13 +980,13 @@ fn open(browser: &Browser, download_root: &Path) -> Result<(DriverProcess, Sessi
 }
 
 fn open_locale(browser:&Browser,download_root:&Path,locale:Option<&str>)->Result<(DriverProcess,Session),String> {
-    open_attached(browser,download_root,locale,None)
+    open_attached(browser,download_root,locale,None,None)
 }
 
 /// Like [`open_locale`]; with `attach` (a `host:port` DevTools address) the driver attaches to the
 /// browser already running there, as the WebView2 of `dna-calc-desktop --app --debug-port` is,
 /// instead of starting a headless one.
-fn open_attached(browser:&Browser,download_root:&Path,locale:Option<&str>,attach:Option<&str>)->Result<(DriverProcess,Session),String> {
+fn open_attached(browser:&Browser,download_root:&Path,locale:Option<&str>,attach:Option<&str>,save_dir:Option<&Path>)->Result<(DriverProcess,Session),String> {
     let program = variable_file(browser.variable)
         .or_else(|| find_on_path(browser.program))
         .ok_or_else(|| {
@@ -1015,7 +1037,7 @@ fn open_attached(browser:&Browser,download_root:&Path,locale:Option<&str>,attach
     // Keep actual downloads on the workspace filesystem. A full /tmp on this
     // Linux host left empty JSON files even when Firefox reported a completed
     // download. Reading and importing the real file remains part of the smoke.
-    let downloads = download_root.join(format!("{}-{port}", std::process::id()));
+    let downloads = save_dir.map(Path::to_path_buf).unwrap_or_else(|| download_root.join(format!("{}-{port}", std::process::id())));
     fs::create_dir_all(&downloads)
         .map_err(|error| format!("cannot create smoke download folder: {error}"))?;
     let downloads = downloads.canonicalize().map_err(|e| e.to_string())?;
@@ -1063,6 +1085,7 @@ fn open_attached(browser:&Browser,download_root:&Path,locale:Option<&str>,attach
         id,
         downloads,
         driver_pid: driver.child.id(),
+        attached: attach.is_some(),
         bidi: created
             .pointer("/capabilities/webSocketUrl")
             .and_then(Value::as_str)
@@ -1753,7 +1776,7 @@ fn act(ws: &Workspace, app: &App, session: &Session, action: &Action) -> Result<
                 app,
                 session,
                 &Check::Absent("[data-dnacalc=skin-grid][disabled]"),
-                SETTLE,
+                settle(),
             ) {
                 return Err(reason);
             }
@@ -1768,7 +1791,7 @@ fn act(ws: &Workspace, app: &App, session: &Session, action: &Action) -> Result<
             let start = Instant::now();
             let mut stable = Instant::now();
             let mut last = Value::Null;
-            while start.elapsed() < SETTLE {
+            while start.elapsed() < settle() {
                 let after=session.script("var g=document.querySelector('[data-dnacalc=grid]'),r=g.querySelector('[data-dnacalc=active-cell]')?.getBoundingClientRect();return [g.scrollLeft,g.scrollTop,r?.left,r?.top];")?;
                 if last != after {
                     stable = Instant::now();
@@ -1801,7 +1824,7 @@ fn act(ws: &Workspace, app: &App, session: &Session, action: &Action) -> Result<
                 app,
                 session,
                 &Check::Absent("[data-dnacalc=skin-grid][disabled]"),
-                SETTLE,
+                settle(),
             ) {
                 return Err(reason);
             }
@@ -1813,7 +1836,7 @@ fn act(ws: &Workspace, app: &App, session: &Session, action: &Action) -> Result<
             session.script("var p=document.createElement('textarea');p.id='dc-external-clipboard-probe';document.body.appendChild(p);window.__dcExternalPaste=function(e){if(document.activeElement===p){window.__dcExternalSeen={text:e.clipboardData.getData('text/plain'),html:e.clipboardData.getData('text/html')};e.preventDefault();}};document.addEventListener('paste',window.__dcExternalPaste,true);return null;")?;
             let started = Instant::now();
             let mut settled = false;
-            while started.elapsed() < SETTLE {
+            while started.elapsed() < settle() {
                 session.keys("#dc-external-clipboard-probe", "\u{E009}v\u{E000}")?;
                 let seen = session.script("return window.__dcExternalSeen || null;")?;
                 let plain = seen.get("text").and_then(Value::as_str).unwrap_or("");
@@ -1926,7 +1949,14 @@ fn act(ws: &Workspace, app: &App, session: &Session, action: &Action) -> Result<
                 }
                 let width = info["width"].as_f64().ok_or("Print paper width")? * 2.54 / 96.;
                 let height = info["height"].as_f64().ok_or("Print paper height")? * 2.54 / 96.;
-                let pdf=session.post("/print",json!({"background":true,"shrinkToFit":false,"scale":1,"orientation":"portrait","page":{"width":width,"height":height},"margin":{"top":0,"bottom":0,"left":0,"right":0}}))?;
+                // WebDriver Print is for headless Chrome; the desktop exe's WebView2 is headful, and
+                // answers the DevTools command that WebDriver Print itself is built on.
+                let pdf=if session.attached {
+                    session.post("/goog/cdp/execute",json!({"cmd":"Page.printToPDF","params":{"printBackground":true,"scale":1,"landscape":false,
+                        "paperWidth":width/2.54,"paperHeight":height/2.54,"marginTop":0,"marginBottom":0,"marginLeft":0,"marginRight":0,"preferCSSPageSize":false}}))?["data"].clone()
+                } else {
+                    session.post("/print",json!({"background":true,"shrinkToFit":false,"scale":1,"orientation":"portrait","page":{"width":width,"height":height},"margin":{"top":0,"bottom":0,"left":0,"right":0}}))?
+                };
                 let encoded = pdf
                     .as_str()
                     .filter(|s| s.starts_with("JVBERi0") && s.len() <= 48_000_000)
@@ -2359,8 +2389,8 @@ fn act(ws: &Workspace, app: &App, session: &Session, action: &Action) -> Result<
         Action::DragToCell(from, row, col) => {
             // Like RememberView, wait for name-box navigation to finish before reading
             // geometry: the old handle can exist while the new target headers do not.
-            if let Some(reason)=wait_for(app,session,&Check::Absent("[data-dnacalc=skin-grid][disabled]"),SETTLE){return Err(reason);}
-            if let Some(reason)=wait_for(app,session,&Check::PlanReady,SETTLE){return Err(reason);}
+            if let Some(reason)=wait_for(app,session,&Check::Absent("[data-dnacalc=skin-grid][disabled]"),settle()){return Err(reason);}
+            if let Some(reason)=wait_for(app,session,&Check::PlanReady,settle()){return Err(reason);}
             let started=Instant::now();
             let xy=loop {
                 let xy=session.script(&format!(r#"
@@ -2375,10 +2405,10 @@ fn act(ws: &Workspace, app: &App, session: &Session, action: &Action) -> Result<
                     return {{dx,dy}};
                 "#))?;
                 if xy.is_array(){break xy;}
-                if started.elapsed()>=SETTLE{return Err(format!("Fill target {col}{row} did not acquire rendered headers"));}
+                if started.elapsed()>=settle(){return Err(format!("Fill target {col}{row} did not acquire rendered headers"));}
                 // Use the same real wheel action as ScrollGrid, without changing selection.
                 let dx=8 * xy["dx"].as_i64().unwrap_or(0) as i32;let dy=8 * xy["dy"].as_i64().unwrap_or(0) as i32;
-                if dx!=0||dy!=0{act(ws,app,session,&Action::ScrollGrid(dx,dy))?;if let Some(reason)=wait_for(app,session,&Check::PlanReady,SETTLE){return Err(reason);}}else{thread::sleep(Duration::from_millis(20));}
+                if dx!=0||dy!=0{act(ws,app,session,&Action::ScrollGrid(dx,dy))?;if let Some(reason)=wait_for(app,session,&Check::PlanReady,settle()){return Err(reason);}}else{thread::sleep(Duration::from_millis(20));}
             };
             let from = session.element(&select(app, from))?;
             session.post("/actions",json!({"actions":[{"type":"pointer","id":"mouse","parameters":{"pointerType":"mouse"},"actions":[{"type":"pointerMove","duration":0,"origin":{"element-6066-11e4-a52e-4f735466cecf":from},"x":0,"y":0},{"type":"pointerDown","button":0},{"type":"pointerMove","duration":200,"origin":"viewport","x":xy[0],"y":xy[1]},{"type":"pointerUp","button":0}]}]}))?;
@@ -2410,21 +2440,21 @@ fn act(ws: &Workspace, app: &App, session: &Session, action: &Action) -> Result<
                 app,
                 session,
                 &Check::Attr("grid", "data-painter", mode),
-                SETTLE,
+                settle(),
             ) {
                 return Err(reason);
             }
             session.keys(&select(app, "grid"), ESCAPE)
         }
         Action::RememberPresentation => {
-            if let Some(reason) = wait_for(app, session, &Check::PlanReady, SETTLE) {
+            if let Some(reason) = wait_for(app, session, &Check::PlanReady, settle()) {
                 return Err(reason);
             }
             let started=Instant::now();
             loop {
                 let current=session.script(&format!("{READ_PLANS}var p=plans[0],g=document.querySelector('[data-dnacalc=grid][data-grid-active=true]');return !!p&&!p.pending&&!!g&&p.plan.viewport.width===g.clientWidth&&p.plan.viewport.height===g.clientHeight;"))?;
                 if current.as_bool()==Some(true) {break;}
-                if started.elapsed()>SETTLE {return Err("The committed viewport does not match the actual active grid".into());}
+                if started.elapsed()>settle() {return Err("The committed viewport does not match the actual active grid".into());}
                 thread::sleep(Duration::from_millis(100));
             }
             session.script(&format!(
@@ -2466,7 +2496,7 @@ fn act(ws: &Workspace, app: &App, session: &Session, action: &Action) -> Result<
             println!("{} FONT completion: {result}", app.label);
             Ok(())
         }
-        Action::Wait(check) => wait_for(app, session, check, SETTLE).map_or(Ok(()), Err),
+        Action::Wait(check) => wait_for(app, session, check, settle()).map_or(Ok(()), Err),
         Action::Choose(name, value) => {
             let option =
                 session.element(&format!("{} option[value=\"{value}\"]", select(app, name)))?;
@@ -2564,7 +2594,7 @@ fn downloaded_bytes(path: &Path) -> Result<Vec<u8>, String> {
         });
         match result {
             Ok(bytes) => return Ok(bytes),
-            Err(error) if started.elapsed() >= SETTLE => return Err(format!("download {} is incomplete: {error}", path.display())),
+            Err(error) if started.elapsed() >= settle() => return Err(format!("download {} is incomplete: {error}", path.display())),
             Err(_) => thread::sleep(Duration::from_millis(50)),
         }
     }
@@ -2603,7 +2633,7 @@ fn wait_for(app: &App, session: &Session, check: &Check, settle: Duration) -> Op
     }
 }
 
-/// Runs one case: its actions, then each check until it holds or [`SETTLE`] passes, then the fault
+/// Runs one case: its actions, then each check until it holds or [`settle()`] passes, then the fault
 /// record. Returns the failures.
 fn run_case(ws: &Workspace, app: &App, session: &Session, case: &Case) -> Vec<String> {
     let mut failures = Vec::new();
@@ -2621,7 +2651,7 @@ fn run_case(ws: &Workspace, app: &App, session: &Session, case: &Case) -> Vec<St
         }
     }
     for check in case.checks {
-        if let Some(failure) = wait_for(app, session, check, SETTLE) {
+        if let Some(failure) = wait_for(app, session, check, settle()) {
             failures.push(failure);
             if !rendered_state_recorded && matches!(check, Check::PlanCell(..) | Check::PlanAbsent(_)) {
                 rendered_state_recorded = true;
@@ -2958,7 +2988,7 @@ fn act_click(app: &App, session: &Session, name: &str) -> Result<(), String> {
             {
                 break;
             }
-            if started.elapsed() >= SETTLE {
+            if started.elapsed() >= settle() {
                 return Err(format!("{name} did not become enabled before the click"));
             }
             waited = true;
@@ -3027,6 +3057,22 @@ fn start_group(app: &App, session: &Session, page: &str) -> Result<(), String> {
     }
 }
 
+/// Why a group cannot run in the desktop exe's WebView2 (the app's own page is the same; only the
+/// harness's need for a browser feature the exe's window does not have differs), or `None` when it
+/// runs. The reason names what the browsers have and the WebView2 window lacks.
+fn desktop_skip(app: &App, group: &CaseGroup, _selected: &[usize]) -> Option<&'static str> {
+    // OneCalc's desktop saves through its own native dialog, which needs a person.
+    if app.key == "onecalc" && group.name.ends_with("-browser") {
+        return Some("the native save dialog needs a person; the browser's own download folder is read");
+    }
+    // The fault page serves a worker script that fails to start; the desktop's worker is the native
+    // server and has no script to fail, so the browser's Worker startup error cannot occur there.
+    if app.key == "calc" && group.name == "worker-fault" {
+        return Some("a browser Worker whose script fails to start has no desktop equivalent: the desktop worker is native");
+    }
+    None
+}
+
 fn run_browser(
     ws: &Workspace,
     app: &App,
@@ -3034,32 +3080,40 @@ fn run_browser(
     page: &str,
     workbook: Option<&WorkbookRun>,
     selection: &SmokeSelection,
-) -> Result<(usize, usize), String> {
+) -> Result<(usize, usize, usize), String> {
     if let Some(run) = workbook.filter(|r| r.renderer_report.is_some()) {
-        return renderer::run_measurements(ws, app, browser, page, run);
+        return renderer::run_measurements(ws, app, browser, page, run).map(|(p, f)| (p, f, 0));
     }
     let (_driver, session) = open_attached(
         browser,
         &ws.root.join("target/app-smoke-downloads"),
         None,
         selection.attach.as_deref(),
+        selection.save_dir.as_deref(),
     )?;
     let page = renderer::page(page, selection.renderer.as_deref());
     let page = page.as_str();
     let outcome = (|| {
-        let (mut passed, mut failed) = (0, 0);
+        let (mut passed, mut failed, mut skipped) = (0, 0, 0);
         for group in app.groups {
-            // The desktop exe saves through a native dialog, which needs a person: groups that
-            // read the browser's own download are left out of its run.
-            if selection.attach.is_some() && group.name.ends_with("-browser") {
-                continue;
-            }
             let selected: Vec<usize> = (group.start..group.end)
                 .filter(|&i| selection.selected(group, i, &app.cases[i]))
                 .collect();
             let Some(&last) = selected.last() else {
                 continue;
             };
+            // A run in the desktop exe's WebView2 reports what only a browser can do as skipped,
+            // with the reason, and counts it: never as a pass.
+            if selection.attach.is_some() {
+                if let Some(reason) = desktop_skip(app, group, &selected) {
+                    skipped += selected.len();
+                    for &index in &selected {
+                        println!("{} SMOKE {} skipped: {} ({reason})", app.label, browser.name, app.cases[index].name);
+                    }
+                    println!("{} GROUP {} {}: {} skipped ({reason})", app.label, browser.name, group.name, selected.len());
+                    continue;
+                }
+            }
             let started = Instant::now();
             start_group(app, &session, page)?;
             for action in group.setup {
@@ -3134,7 +3188,7 @@ fn run_browser(
                 started.elapsed().as_secs_f64()
             );
         }
-        Ok((passed, failed))
+        Ok((passed, failed, skipped))
     })();
     session.end();
     outcome
@@ -3301,6 +3355,7 @@ fn smoke_selected(
     // The desktop exe's WebView2, started here and stopped when this function ends.
     let mut desktop_app = None;
     let attached;
+    DESKTOP_SETTLE.store(selection.desktop.is_some(), std::sync::atomic::Ordering::Relaxed);
     let selection = if let Some(exe) = &selection.desktop {
         let upstream = match free_port() {
             Ok(port) => port,
@@ -3309,8 +3364,22 @@ fn smoke_selected(
                 return ExitCode::from(1);
             }
         };
-        let child = match Command::new(exe)
-            .args(["--app", "--url", &page, "--debug-port", &upstream.to_string(), "--size", "1280x1000"])
+        // DNA Calc saves through a download; the desktop exe writes it here instead of asking.
+        let save_dir = (app.key == "calc").then(|| {
+            ws.root.join("target/app-smoke-downloads").join(format!("desktop-{}", std::process::id()))
+        });
+        if let Some(dir) = &save_dir {
+            if let Err(e) = fs::create_dir_all(dir) {
+                println!("{} DESKTOP cannot make {}: {e}", app.label, dir.display());
+                return ExitCode::from(1);
+            }
+        }
+        let mut command = Command::new(exe);
+        command.args(["--app", "--url", &page, "--debug-port", &upstream.to_string(), "--size", "1280x1000"]);
+        if let Some(dir) = &save_dir {
+            command.arg("--save-dir").arg(dir).arg("--no-print-ui");
+        }
+        let child = match command
             .stdin(Stdio::null())
             .spawn()
         {
@@ -3344,6 +3413,7 @@ fn smoke_selected(
         };
         attached = SmokeSelection {
             attach: Some(format!("127.0.0.1:{proxy}")),
+            save_dir: save_dir.clone(),
             ..selection.clone()
         };
         &attached
@@ -3357,28 +3427,29 @@ fn smoke_selected(
     {
         let started = Instant::now();
         let result = run_browser(ws, app, browser, &page, workbook, selection)
-            .and_then(|(passed, failed)| {
+            .and_then(|(passed, failed, skipped)| {
                 if let Some(page) = fault_page.as_deref() {
                     run_browser(ws, &fault_app, browser, page, None, selection)
-                        .map(|(p, f)| (passed + p, failed + f))
+                        .map(|(p, f, k)| (passed + p, failed + f, skipped + k))
                 } else {
-                    Ok((passed, failed))
+                    Ok((passed, failed, skipped))
                 }
             })
-            .and_then(|(passed, failed)| {
+            .and_then(|(passed, failed, skipped)| {
                 if let Some(page) = latency_page.as_deref() {
                     run_browser(ws, &latency_app, browser, page, None, selection)
-                        .map(|(p, f)| (passed + p, failed + f))
+                        .map(|(p, f, k)| (passed + p, failed + f, skipped + k))
                 } else {
-                    Ok((passed, failed))
+                    Ok((passed, failed, skipped))
                 }
             });
         match result {
-            Ok((passed, failed)) => {
+            Ok((passed, failed, skipped)) => {
                 all_passed &= failed == 0;
                 summary.push(format!(
-                    "{}: {passed} passed, {failed} failed, {:.3} s",
+                    "{}: {passed} passed, {failed} failed{}, {:.3} s",
                     browser.name,
+                    if skipped > 0 { format!(", {skipped} skipped") } else { String::new() },
                     started.elapsed().as_secs_f64()
                 ));
             }

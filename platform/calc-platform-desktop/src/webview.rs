@@ -245,11 +245,85 @@ impl WebView {
             .map_err(|e| format!("post to page failed: {e}"))
     }
 
+    /// Saves every download the page starts into `folder`, under the name the browser proposed,
+    /// without asking: the save path of a run that has no person to choose a file (the smoke
+    /// suite's `--save-dir`). A file of the same name is replaced.
+    pub fn save_downloads_to(&self, folder: &Path) -> Result<(), String> {
+        let view = self.view.cast::<ICoreWebView2_4>().map_err(|e| e.to_string())?;
+        // WebView2 wants a full backslash path, not a canonical verbatim one.
+        let folder = folder.canonicalize().map_err(|e| e.to_string())?;
+        let text = folder.to_string_lossy();
+        let folder = std::path::PathBuf::from(text.strip_prefix(r"\\?\").unwrap_or(&text));
+        let mut token = 0i64;
+        unsafe {
+            view.add_DownloadStarting(
+                &DownloadStartingEventHandler::create(Box::new(move |_, args| {
+                    if let Some(args) = args {
+                        let mut proposed = PWSTR::null();
+                        if args.ResultFilePath(&mut proposed).is_ok() {
+                            let proposed = take_pwstr(proposed);
+                            let name = proposed_name(Path::new(&proposed));
+                            if let Some(name) = name {
+                                let target = folder.join(name);
+                                let _ = std::fs::remove_file(&target);
+                                let wide = CoTaskMemPWSTR::from(target.to_string_lossy().as_ref());
+                                if let Err(why) = args.SetResultFilePath(*wide.as_ref().as_pcwstr()) {
+                                    eprintln!("dna-calc-desktop: cannot save to {}: {why}", target.display());
+                                }
+                                let _ = args.SetHandled(true);
+                            }
+                        }
+                    }
+                    Ok(())
+                })),
+                &mut token,
+            )
+            .map_err(|e| e.to_string())
+        }
+    }
+
     /// Loads `url` (a web address or a mapped folder's).
     pub fn navigate(&self, url: &str) -> Result<(), String> {
         let wide = CoTaskMemPWSTR::from(url);
         unsafe { self.view.Navigate(*wide.as_ref().as_pcwstr()) }.map_err(|e| e.to_string())
     }
+}
+
+/// The name the page gave a download. WebView2 proposes a path that does not clash with a file in
+/// the user's Downloads folder, so "Book1.xlsx" arrives as "Book1 (1).xlsx" when that exists: the
+/// number is taken off again when the unnumbered name is a file beside it.
+fn proposed_name(proposed: &Path) -> Option<std::ffi::OsString> {
+    let name = proposed.file_name()?.to_string_lossy().into_owned();
+    let (stem, extension) = match name.rfind('.') {
+        Some(dot) => (&name[..dot], &name[dot..]),
+        None => (name.as_str(), ""),
+    };
+    // Edge numbers a clash with a timestamp: "Book1 - 2026-11-09T011151.319.xlsx".
+    if let Some(at) = stem.rfind(" - ") {
+        if is_clash_stamp(&stem[at + 3..]) {
+            return Some(format!("{}{extension}", &stem[..at]).into());
+        }
+    }
+    if let Some(open) = stem.rfind(" (") {
+        let number = &stem[open + 2..];
+        if let Some(digits) = number.strip_suffix(')') {
+            let plain = format!("{}{extension}", &stem[..open]);
+            if !digits.is_empty()
+                && digits.bytes().all(|b| b.is_ascii_digit())
+                && proposed.with_file_name(&plain).exists()
+            {
+                return Some(plain.into());
+            }
+        }
+    }
+    Some(name.into())
+}
+
+/// Whether `text` is `YYYY-MM-DDThhmmss.mmm`, the stamp Edge appends to a name already taken.
+fn is_clash_stamp(text: &str) -> bool {
+    let shape = b"dddd-dd-ddTdddddd.ddd";
+    text.len() == shape.len()
+        && text.bytes().zip(shape).all(|(b, &p)| if p == b'd' { b.is_ascii_digit() } else { b == p })
 }
 
 /// Makes the process render at each display's real scale. Call before the first window.
@@ -261,20 +335,41 @@ pub fn per_monitor_dpi_aware() {
     }
 }
 
-/// A repeating timer on the calling thread, whose `WM_TIMER` carries `id` and no window.
+/// A repeating timer on the calling thread, whose `WM_TIMER` is reported as `Timer(id)`.
+///
+/// `SetTimer` ignores the id it is given when it has no window and returns one of its own, which is
+/// the `wParam` the thread then receives; so the id asked for is remembered against the one
+/// returned and [`run_message_loop`] reports the former.
 pub struct ThreadTimer(usize);
+
+thread_local! {
+    /// The ids `SetTimer` gave this thread's timers, with the ids they were started with.
+    static TIMER_IDS: std::cell::RefCell<Vec<(usize, usize)>> = const { std::cell::RefCell::new(Vec::new()) };
+}
 
 impl ThreadTimer {
     pub fn start(id: usize, milliseconds: u32) -> Self {
-        unsafe { SetTimer(std::ptr::null_mut(), id, milliseconds, None) };
-        Self(id)
+        let given = unsafe { SetTimer(std::ptr::null_mut(), id, milliseconds, None) };
+        TIMER_IDS.with(|ids| ids.borrow_mut().push((given, id)));
+        Self(given)
     }
 }
 
 impl Drop for ThreadTimer {
     fn drop(&mut self) {
         unsafe { KillTimer(std::ptr::null_mut(), self.0) };
+        TIMER_IDS.with(|ids| ids.borrow_mut().retain(|(given, _)| *given != self.0));
     }
+}
+
+/// The id a timer was started with, from the one the system sent.
+fn timer_id(given: usize) -> usize {
+    TIMER_IDS.with(|ids| {
+        ids.borrow()
+            .iter()
+            .find(|(g, _)| *g == given)
+            .map_or(given, |(_, asked)| *asked)
+    })
 }
 
 /// A message posted to the thread itself, not to a window.
@@ -296,7 +391,7 @@ pub fn run_message_loop(mut stop: impl FnMut() -> bool, mut on_thread_message: i
     while !stop() && unsafe { GetMessageW(&mut message, std::ptr::null_mut(), 0, 0) } > 0 {
         if message.hwnd.is_null() {
             on_thread_message(match message.message {
-                WM_TIMER => ThreadMessage::Timer(message.wParam),
+                WM_TIMER => ThreadMessage::Timer(timer_id(message.wParam)),
                 crate::WM_BACKGROUND => ThreadMessage::Background,
                 other => ThreadMessage::Other(other),
             });
@@ -314,6 +409,30 @@ mod tests {
     use super::*;
 
     /// Native-only: the carrier's base64 must agree with the page's atob/btoa framing.
+    /// Native-only: a name WebView2 made unique is given back as the page named it.
+    #[test]
+    fn dc_0f1k_11_2__a_numbered_or_stamped_download_name_is_the_pages_own() {
+        let name = |p: &str| proposed_name(Path::new(p)).unwrap().to_string_lossy().into_owned();
+        assert_eq!(name(r"C:\d\Book1 - 2026-11-09T011151.319.xlsx"), "Book1.xlsx");
+        assert_eq!(name(r"C:\d\Book1.xlsx"), "Book1.xlsx");
+        assert_eq!(name(r"C:\d\a - b.xlsx"), "a - b.xlsx");
+        assert_eq!(name(r"C:\d\Book (1).xlsx"), "Book (1).xlsx");
+    }
+
+    /// Native-only: a timer started with no window reports the id it was started with, not the
+    /// one `SetTimer` chose (the desktop apps' tick compared against the former and never ran).
+    #[test]
+    fn dc_0f1k_11_1__a_thread_timer_reports_the_id_it_was_started_with() {
+        let timer = ThreadTimer::start(0x444e41, 10);
+        let seen = std::cell::RefCell::new(Vec::new());
+        run_message_loop(
+            || seen.borrow().len() >= 2,
+            |message| seen.borrow_mut().push(message),
+        );
+        drop(timer);
+        assert!(seen.borrow().iter().all(|m| *m == ThreadMessage::Timer(0x444e41)), "{:?}", seen.borrow());
+    }
+
     #[test]
     fn bytes_cross_the_bridge_exactly() {
         for length in [0usize, 1, 2, 3, 4, 5, 255, 256, 1000] {

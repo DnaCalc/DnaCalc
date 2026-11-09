@@ -82,7 +82,23 @@ fn sample_browser_clock(session: &mut HostSession) {
     #[cfg(target_arch = "wasm32")]
     session.set_clock(dna_formula_ui::web::serial_clock());
     #[cfg(not(target_arch = "wasm32"))]
-    let _ = session; // Keep a native embedding's explicitly supplied clock.
+    if let Some(source) = NATIVE_CLOCK.with(|c| c.get()) {
+        // A native embedding that hosts the page (the desktop) supplies the wall clock a browser
+        // would; one that supplies none keeps the clock it set itself.
+        session.set_clock(source());
+    }
+}
+
+#[cfg(not(target_arch = "wasm32"))]
+thread_local! {
+    static NATIVE_CLOCK: std::cell::Cell<Option<fn() -> Option<f64>>> = const { std::cell::Cell::new(None) };
+}
+
+/// A native embedding's wall clock (a 1900-system Excel serial), sampled where the browser worker
+/// samples `Date`: when a workbook opens and on Calculate Now. The thread that runs the worker sets it.
+#[cfg(not(target_arch = "wasm32"))]
+pub fn set_native_clock(source: fn() -> Option<f64>) {
+    NATIVE_CLOCK.with(|c| c.set(Some(source)));
 }
 
 /// The linear memory reserved before a workbook is opened in the browser, per byte of its

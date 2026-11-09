@@ -427,7 +427,7 @@ fn start_page(
         .and_then(|text| text.split_whitespace().nth(1).map(str::to_owned))
         .unwrap_or_default();
     let proxy = paint::devtools_proxy(upstream, format!("Chrome/{version}"))?;
-    let (driver, session) = open_attached(browser, &out.join("downloads"), None, Some(&format!("127.0.0.1:{proxy}")))?;
+    let (driver, session) = open_attached(browser, &out.join("downloads"), None, Some(&format!("127.0.0.1:{proxy}")), None)?;
     Ok((app, driver, session))
 }
 
