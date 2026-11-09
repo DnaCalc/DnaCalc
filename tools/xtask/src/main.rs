@@ -9,6 +9,7 @@ fn main() -> ExitCode {
     match args.split_first() {
         Some((command, rest)) if command == "check" => xtask::check::run(rest),
         Some((command, rest)) if command == "keep" => xtask::keep::run(rest),
+        Some((command, rest)) if command == "health" => xtask::health::run(rest),
         _ => harness::run(&args),
     }
 }

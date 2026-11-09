@@ -165,6 +165,7 @@ and what is left.
 
 - Keepers run about every ten minutes in their own clones and target directories, in tmux on Linux and a background process on Windows.
 - They run dependent checks since last green, full checks every 20 commits or two hours, and a nightly Windows sweep; findings are keeper-owned `master-red` P0 beads.
+- The Windows keeper runs `cargo xtask health` weekly during its nightly sweep. When any formatting, line-length (>160 chars) or clone-lint count has grown since the previous report, it files or updates one keeper-owned P2 bead 'Code health drift' with the table (never a P0, never master-red). It is never a per-commit check.
 - Keep pushing after the light check; an exact test named for this platform in an open keeper-owned bead is printed as failed, known red. Full checks and keepers never excuse it.
 - Fix forward within about an hour, with the causing lane or a repair lane citing the bead. The keeper closes the bead when green.
 - Revert only for a major blunder: a platform cannot compile and has no fix within 30 minutes; secrets, unlicensed source or bulk corpus committed; corrupted evidence; or four hours red with no repair under way.

@@ -6,6 +6,7 @@ pub mod arch;
 pub mod cargo;
 pub mod check;
 pub mod harness;
+pub mod health;
 pub mod licence;
 pub mod keep;
 pub mod rust_source;

@@ -164,6 +164,98 @@ fn record_flaky_command(ws: &Workspace, name: &str, sha: &str) -> Result<bool, S
     Ok(true)
 }
 
+fn has_health_drift(new_report: &Value, previous: &Value) -> bool {
+    if previous.is_null() {
+        return false;
+    }
+    let Some(new_packages) = new_report["packages"].as_array() else {
+        return false;
+    };
+    let Some(old_packages) = previous["packages"].as_array() else {
+        return false;
+    };
+    for new_pkg in new_packages {
+        let name = new_pkg["package"].as_str().unwrap_or_default();
+        if let Some(old_pkg) = old_packages.iter().find(|p| p["package"] == name) {
+            for metric in [
+                "rustfmt",
+                "leptosfmt",
+                "lines_over_160",
+                "redundant_clone",
+                "needless_pass_by_value",
+                "clone_on_copy",
+                "unnecessary_to_owned",
+            ] {
+                let new_val = new_pkg[metric].as_u64().unwrap_or(0);
+                let old_val = old_pkg[metric].as_u64().unwrap_or(0);
+                if new_val > old_val {
+                    return true;
+                }
+            }
+        } else {
+            for metric in [
+                "rustfmt",
+                "leptosfmt",
+                "lines_over_160",
+                "redundant_clone",
+                "needless_pass_by_value",
+                "clone_on_copy",
+                "unnecessary_to_owned",
+            ] {
+                if new_pkg[metric].as_u64().unwrap_or(0) > 0 {
+                    return true;
+                }
+            }
+        }
+    }
+    false
+}
+
+fn update_health_drift_bead(ws: &Workspace, report: &Value) -> Result<bool, String> {
+    let table = report["table"].as_str().unwrap_or("");
+    let body = format!("Code health drift detected during weekly review:\n\n{table}");
+    let existing = list(&ws.root, "code-health")?;
+    let found = check::issues(&existing).into_iter().find(|i| {
+        own(i) && i["title"].as_str() == Some("Code health drift")
+    });
+    if let Some(issue) = found {
+        let id = issue["id"].as_str().ok_or("bead has no id")?;
+        check::br(
+            &ws.root,
+            &[
+                "update",
+                id,
+                "--description",
+                &body,
+                "--force",
+            ],
+        )?;
+        Ok(true)
+    } else {
+        check::br(
+            &ws.root,
+            &[
+                "create",
+                "--title",
+                "Code health drift",
+                "--type",
+                "task",
+                "--priority",
+                "2",
+                "--labels",
+                "code-health,keeper",
+                "--owner",
+                &format!("keeper-{}", check::platform()),
+                "--assignee",
+                &format!("keeper-{}", check::platform()),
+                "--description",
+                &body,
+            ],
+        )?;
+        Ok(true)
+    }
+}
+
 /// Retry the exact test through its real Cargo target. Zero tests is unavailable, never green.
 fn retry(ws: &Workspace, failure: &Failure, log: &Path) -> Result<Option<bool>, String> {
     retry_probe(ws, &failure.json(), log)
@@ -765,6 +857,29 @@ fn once(ws: &Workspace) -> Result<bool, String> {
         if !sweep_passed {
             report.passed = false;
             report.errors.push("nightly sweep".into());
+        } else if cfg!(windows) {
+            let health_due = state["health_at"].as_u64().is_none()
+                || now().saturating_sub(state["health_at"].as_u64().unwrap_or(0)) >= 7 * 86400;
+            if health_due {
+                let executable = crate::harness::profile_executable(ws, "dev")?;
+                let _copy = crate::harness::CopyCleanup(executable.clone());
+                let (_code, _) = check::run_logged(
+                    &ws.root,
+                    &mut crate::harness::command(&executable, &["health".into()]),
+                    &report.log,
+                )?;
+                let health_file = ws.root.join("target/health.json");
+                if health_file.exists() {
+                    if let Ok(new_report) = read_json(&health_file) {
+                        let previous = &state["health_report"];
+                        if has_health_drift(&new_report, previous) {
+                            tracker_changed |= update_health_drift_bead(ws, &new_report)?;
+                        }
+                        state["health_report"] = new_report;
+                        state["health_at"] = json!(now());
+                    }
+                }
+            }
         }
     }
     let bead = if report.passed {
