@@ -9,7 +9,7 @@ python3 racer/corpus_cases.py problem-functions ../DnaCalc ../DnaCalc/docs/gener
 Last-bit: finite numeric mismatches <=16 ULP; larger numeric: >16 ULP. This split is triage, not a relaxed verdict. Every mismatch, refusal, unread, missing, pending, external and circular-policy cell remains an inclusive failure. Corpus labels follow exact single-cell aliases, infer calls from formula spelling and unwrap INDEX selections; unresolved references and infix operators remain explicit. Bank functions use canonical judge identities. Counts are observations per source; corpus and bank may overlap and must not be added as unique calls. Bank reference/locale context gaps remain failures, not proven numerical defects. Rows are ordered by corpus mismatches plus refusals, then corpus larger differences, then bank nonpasses.
 
 Corpus: 75,209/76,957 matched (97.72860%); 1,748 inclusive failures, including 108 pending.
-Bank: 3,887,881/3,910,773 matched (99.41464%); 22,892 failures, including 4 unread and 2,064 excluded.
+Bank: 3,887,883/3,910,773 matched (99.41469%); 22,890 failures, including 4 unread and 2,064 excluded.
 
 Larger numeric and last-bit columns count numeric mismatches; other columns count remaining mismatches. Corpus and bank refusals are separate inclusive failures. Missing corpus values and unread bank rows remain failures too.
 
@@ -18,9 +18,9 @@ Larger numeric and last-bit columns count numeric mismatches; other columns coun
 | XLFN.FORECAST.ETS.SEASONALITY | 0 | 0 | 0 | 368 | 0 | 0 | 0 | 0 | 0 | 0 |
 | XLFN.FORECAST.ETS.CONFINT | 0 | 12 | 0 | 256 | 0 | 0 | 0 | 0 | 0 | 0 |
 | XLFN.FORECAST.ETS | 0 | 10 | 0 | 256 | 0 | 0 | 0 | 0 | 0 | 0 |
-| CUMPRINC | 13 | 155 | 0 | 0 | 0 | 356 | 0 | 0 | 0 | 0 |
+| CUMPRINC | 11 | 157 | 0 | 0 | 0 | 356 | 0 | 0 | 0 | 0 |
 | XLFN.FORECAST.ETS.STAT | 0 | 9 | 0 | 72 | 0 | 0 | 0 | 0 | 0 | 0 |
-| CUMIPMT | 1 | 51 | 0 | 0 | 15 | 10 | 0 | 0 | 0 | 0 |
+| CUMIPMT | 0 | 52 | 0 | 0 | 15 | 10 | 0 | 0 | 0 | 0 |
 | BINOM.DIST | 27 | 24 | 0 | 0 | 8 | 21 | 0 | 0 | 0 | 0 |
 | POISSON.DIST | 4 | 46 | 0 | 0 | 0 | 551 | 0 | 0 | 4 | 0 |
 | DATE | 0 | 0 | 47 | 0 | 0 | 0 | 0 | 0 | 0 | 0 |
@@ -95,7 +95,6 @@ Larger numeric and last-bit columns count numeric mismatches; other columns coun
 | NEGBINOMDIST | 0 | 0 | 0 | 0 | 0 | 3 | 0 | 0 | 0 | 0 |
 | SINH | 0 | 0 | 0 | 0 | 0 | 3 | 0 | 0 | 0 | 0 |
 | TANH | 0 | 0 | 0 | 0 | 0 | 3 | 0 | 0 | 0 | 0 |
-| SWITCH | 0 | 0 | 0 | 0 | 2 | 0 | 0 | 0 | 0 | 0 |
 | FV | 0 | 0 | 0 | 0 | 1 | 1 | 0 | 0 | 0 | 0 |
 | INT | 0 | 0 | 0 | 0 | 0 | 2 | 0 | 0 | 0 | 0 |
 | PV | 0 | 0 | 0 | 0 | 0 | 2 | 0 | 0 | 0 | 0 |
