@@ -354,9 +354,9 @@ pub(crate) fn prepare(
             revision,
             source,
             &destination,
-            rows,
-            columns,
-            values,
+            &rows,
+            &columns,
+            &values,
         ),
         WorkbookCommand::PivotRefresh {
             sheet,

@@ -29,7 +29,7 @@
 //! `src/dnacalc-skin-ir/src/session_channel.rs` (`apply_delta`). Left behind: node and tree
 //! identities, candidates, scenarios, sweeps, personas and Leptos signals.
 
-use crate::command::{CellEdit, CommandError, CommandReceipt, HostCommand, dispatch};
+use crate::command::{CellEdit, CommandError, CommandReceipt, dispatch_slice};
 use crate::entry::{EntryRefusal, interpret_entry_in};
 use crate::history::{History, Inverse, Irreversible, Selection, Step, inverse};
 use crate::project::{ProjectedCell, ProjectedValue, ProjectionRequest, project};
@@ -1354,7 +1354,7 @@ impl HostSession {
     ) -> Result<(), IntentError> {
         let before = self.selection.clone();
         let inverse = inverse(&self.host.model, &self.host.axis_edits, &edits);
-        self.commit_coordinates(edits.clone(), coordinates.as_ref(), receipt)?;
+        self.commit_coordinates(&edits, coordinates.as_ref(), receipt)?;
         if let Some(selection) = after_selection {
             self.select_quietly(selection, receipt);
         }
@@ -1372,7 +1372,7 @@ impl HostSession {
 
     fn commit_coordinates(
         &mut self,
-        edits: Vec<CellEdit>,
+        edits: &[CellEdit],
         coordinates: Option<&calc_fml::reference::StructuralEdit>,
         receipt: &mut IntentReceipt,
     ) -> Result<(), IntentError> {
@@ -1390,7 +1390,7 @@ impl HostSession {
         });
         let base = self.host.revision();
         let committed =
-            dispatch(&mut self.host, HostCommand { base, edits }).map_err(IntentError::Command)?;
+            dispatch_slice(&mut self.host, base, edits).map_err(IntentError::Command)?;
         if let Some(edit) = coordinates {
             self.host.references.apply(edit);
         }
@@ -1506,7 +1506,7 @@ impl HostSession {
         };
         let undone = match inverse {
             Inverse::Edits(edits) => self.commit_coordinates(
-                edits,
+                &edits,
                 step.coordinates
                     .as_ref()
                     .map(crate::history::inverse_coordinates)
@@ -1556,7 +1556,7 @@ impl HostSession {
         let result = if let Some(source) = &step.imported {
             self.restore_template_source(source.clone(), receipt)
         } else {
-            self.commit_coordinates(step.forward.clone(), step.coordinates.as_ref(), receipt)
+            self.commit_coordinates(&step.forward, step.coordinates.as_ref(), receipt)
         };
         if let Err(error) = result {
             self.history.restore_redo(step);

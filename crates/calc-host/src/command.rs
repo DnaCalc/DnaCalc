@@ -112,45 +112,76 @@ pub enum CellEdit {
 }
 
 impl CellEdit {
-    fn operation(self) -> WorkbookOp {
+    fn to_operation(&self) -> WorkbookOp {
         match self {
-            CellEdit::DataModel(state) => WorkbookOp::SetDataModel(state),
-            CellEdit::Pivots(state) => WorkbookOp::SetPivots(state),
-            CellEdit::Tables(tables) => WorkbookOp::SetTables(tables),
-            CellEdit::PageSetup { sheet, setup } => WorkbookOp::SetPageSetup { sheet, setup },
-            CellEdit::Charts { sheet, charts } => WorkbookOp::SetCharts { sheet, charts },
-            CellEdit::Styles(styles) => WorkbookOp::SetStyles(styles),
-            CellEdit::AutoFilter { sheet, filter } => WorkbookOp::SetAutoFilter { sheet, filter },
-            CellEdit::Layout(edit) => WorkbookOp::EditSkinLayout(edit),
-            CellEdit::Validations { sheet, rules } => WorkbookOp::SetValidations { sheet, rules },
-            CellEdit::ReviewLinks { sheet, links } => WorkbookOp::SetReviewLinks { sheet, links },
-            CellEdit::ReviewNotes { sheet, notes } => WorkbookOp::SetReviewNotes { sheet, notes },
-            CellEdit::ConditionalRules { sheet, rules } => {
-                WorkbookOp::SetConditionalRules { sheet, rules }
-            }
-            CellEdit::Sheet(edit) => WorkbookOp::EditSheet(edit),
-            CellEdit::AxisFormat(edit) => WorkbookOp::SetAxisFormat(edit),
-            CellEdit::PaneLayout { sheet, layout } => WorkbookOp::SetPaneLayout { sheet, layout },
-            CellEdit::FrozenPanes { sheet, panes } => WorkbookOp::SetFrozenPanes { sheet, panes },
-            CellEdit::Set { at, input } => WorkbookOp::SetCell { at, input },
-            CellEdit::Clear { area } => WorkbookOp::Clear { area },
-            CellEdit::SetArray { array, formula } => WorkbookOp::SetArray {
-                array,
-                input: CellInput::Formula(formula),
+            CellEdit::DataModel(state) => WorkbookOp::SetDataModel(state.clone()),
+            CellEdit::Pivots(state) => WorkbookOp::SetPivots(state.clone()),
+            CellEdit::Tables(tables) => WorkbookOp::SetTables(tables.clone()),
+            CellEdit::PageSetup { sheet, setup } => WorkbookOp::SetPageSetup {
+                sheet: *sheet,
+                setup: setup.clone(),
             },
-            CellEdit::Axis(edit) => WorkbookOp::EditAxis(edit),
-            CellEdit::SetFormat { at, format } => WorkbookOp::SetFormat { at, format },
+            CellEdit::Charts { sheet, charts } => WorkbookOp::SetCharts {
+                sheet: *sheet,
+                charts: charts.clone(),
+            },
+            CellEdit::Styles(styles) => WorkbookOp::SetStyles(styles.clone()),
+            CellEdit::AutoFilter { sheet, filter } => WorkbookOp::SetAutoFilter {
+                sheet: *sheet,
+                filter: filter.clone(),
+            },
+            CellEdit::Layout(edit) => WorkbookOp::EditSkinLayout(edit.clone()),
+            CellEdit::Validations { sheet, rules } => WorkbookOp::SetValidations {
+                sheet: *sheet,
+                rules: rules.clone(),
+            },
+            CellEdit::ReviewLinks { sheet, links } => WorkbookOp::SetReviewLinks {
+                sheet: *sheet,
+                links: links.clone(),
+            },
+            CellEdit::ReviewNotes { sheet, notes } => WorkbookOp::SetReviewNotes {
+                sheet: *sheet,
+                notes: notes.clone(),
+            },
+            CellEdit::ConditionalRules { sheet, rules } => WorkbookOp::SetConditionalRules {
+                sheet: *sheet,
+                rules: rules.clone(),
+            },
+            CellEdit::Sheet(edit) => WorkbookOp::EditSheet(edit.clone()),
+            CellEdit::AxisFormat(edit) => WorkbookOp::SetAxisFormat(edit.clone()),
+            CellEdit::PaneLayout { sheet, layout } => WorkbookOp::SetPaneLayout {
+                sheet: *sheet,
+                layout: *layout,
+            },
+            CellEdit::FrozenPanes { sheet, panes } => WorkbookOp::SetFrozenPanes {
+                sheet: *sheet,
+                panes: *panes,
+            },
+            CellEdit::Set { at, input } => WorkbookOp::SetCell {
+                at: *at,
+                input: input.clone(),
+            },
+            CellEdit::Clear { area } => WorkbookOp::Clear { area: *area },
+            CellEdit::SetArray { array, formula } => WorkbookOp::SetArray {
+                array: *array,
+                input: CellInput::Formula(formula.clone()),
+            },
+            CellEdit::Axis(edit) => WorkbookOp::EditAxis(edit.clone()),
+            CellEdit::SetFormat { at, format } => WorkbookOp::SetFormat {
+                at: *at,
+                format: format.clone(),
+            },
             CellEdit::SetName {
                 name,
                 scope,
                 formula,
             } => WorkbookOp::SetNameFormula {
-                name,
-                scope,
-                formula,
+                name: name.clone(),
+                scope: *scope,
+                formula: formula.clone(),
             },
-            CellEdit::RestoreNames(names) => WorkbookOp::RestoreNames(names),
-            CellEdit::SetIteration(settings) => WorkbookOp::SetIteration(settings),
+            CellEdit::RestoreNames(names) => WorkbookOp::RestoreNames(names.clone()),
+            CellEdit::SetIteration(settings) => WorkbookOp::SetIteration(settings.clone()),
         }
     }
 }
@@ -293,19 +324,27 @@ pub fn dispatch(
     host: &mut HostState,
     command: HostCommand,
 ) -> Result<CommandReceipt, CommandError> {
-    if command.edits.is_empty() {
+    dispatch_slice(host, command.base, &command.edits)
+}
+
+pub fn dispatch_slice(
+    host: &mut HostState,
+    base: AuthoredRevision,
+    edits: &[CellEdit],
+) -> Result<CommandReceipt, CommandError> {
+    if edits.is_empty() {
         return Err(CommandError::NoEdits);
     }
     let current = host.model.revision();
-    if command.base != current {
+    if base != current {
         return Err(CommandError::StaleBase {
-            command: command.base,
+            command: base,
             current,
         });
     }
     let batch = OpBatch {
-        base: command.base,
-        operations: command.edits.into_iter().map(CellEdit::operation).collect(),
+        base,
+        operations: edits.iter().map(CellEdit::to_operation).collect(),
     };
 
     let pivot_change = batch
@@ -1018,7 +1057,7 @@ pub fn dispatch(
     }
     pending.sort_unstable();
     Ok(CommandReceipt {
-        base: command.base,
+        base,
         revision: committed.revision(),
         changed_cells,
         cleared_areas,

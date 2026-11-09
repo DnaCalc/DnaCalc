@@ -522,7 +522,7 @@ impl EngineState {
             .iter()
             .map(|(at, node)| (*node, (*at, self.result_group(*node, *at))))
             .collect();
-        self.results.compact(assignments);
+        self.results.compact(&assignments);
         Some(self.results.stats())
     }
 

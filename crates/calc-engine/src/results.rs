@@ -203,7 +203,7 @@ impl Results {
     }
     pub(crate) fn compact(
         &mut self,
-        assignments: BTreeMap<NodeId, (CellKey, Option<ResultGroup>)>,
+        assignments: &BTreeMap<NodeId, (CellKey, Option<ResultGroup>)>,
     ) {
         let old = std::mem::take(self);
         for column in old.columns {

@@ -3305,7 +3305,7 @@ pub(crate) fn dirty_closure(
     roots: BTreeSet<NodeId>,
     areas: &dyn Fn(NodeId) -> Vec<GridArea>,
 ) -> Closure {
-    closure_with(state, inputs, roots, None, areas)
+    closure_with(state, inputs, &roots, None, areas)
 }
 
 /// What the readers of every node depend on beside the node itself: the graph's edges, the
@@ -3422,7 +3422,7 @@ impl ReadersCache {
 fn closure_with(
     state: &EngineState,
     inputs: &ModelRoot,
-    roots: BTreeSet<NodeId>,
+    roots: &BTreeSet<NodeId>,
     mut cache: Option<&mut ReadersCache>,
     areas: &dyn Fn(NodeId) -> Vec<GridArea>,
 ) -> Closure {
@@ -3431,7 +3431,7 @@ fn closure_with(
     let mut readers = crate::slots::Slots::new(slots, roots.len());
     let mut edges: Vec<NodeId> = Vec::new();
     let mut members: Vec<NodeId> = Vec::with_capacity(roots.len());
-    for node in &roots {
+    for node in roots {
         member.insert(node.slot(), ());
         members.push(*node);
     }
@@ -3506,7 +3506,7 @@ fn schedule(
             if every && let Some(kept) = &cache.full_order {
                 #[cfg(debug_assertions)]
                 {
-                    let closure = dirty_closure(state, inputs, roots.clone(), areas);
+                    let closure = dirty_closure(state, inputs, roots, areas);
                     let fresh = order(
                         &closure,
                         |node| live_anchor(state, node),
@@ -3516,7 +3516,7 @@ fn schedule(
                 }
                 return acyclic(kept.clone());
             }
-            let closure = closure_with(state, inputs, roots, Some(&mut *cache), areas);
+            let closure = closure_with(state, inputs, &roots, Some(&mut *cache), areas);
             let ordered = order(
                 &closure,
                 |node| cache.rank(node),

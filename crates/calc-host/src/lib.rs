@@ -105,7 +105,7 @@ mod state;
 pub mod validation;
 
 pub use chart::{ChartCorner, ChartKind, ChartPlace, ChartView, PlotView, SeriesView};
-pub use command::{CellEdit, CommandError, CommandReceipt, HostCommand, dispatch};
+pub use command::{CellEdit, CommandError, CommandReceipt, HostCommand, dispatch, dispatch_slice};
 pub use conditional::{BarLook, CellLook, ConditionalFormats, IconLook, LookColor};
 pub use copy::{COPY_LIMIT, CopyRefusal, CopySnapshot, PasteMode, check_destination};
 pub use entry::{EntryRefusal, interpret_entry, interpret_entry_in};

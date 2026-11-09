@@ -374,7 +374,7 @@ impl DetachedFormula {
         .and_then(|context| {
             self.validate_context(&context, at)?;
             let mut random = self.selected_name.as_ref().map(|definition| {
-                let (identity, random) = name_pass(state, definition.clone(), at);
+                let (identity, random) = name_pass(state, *definition, at);
                 root = Some(identity);
                 random
             });

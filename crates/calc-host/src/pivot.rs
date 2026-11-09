@@ -441,7 +441,7 @@ fn snapshot(
         records,
         origin: PivotSnapshotOrigin::SourceRead,
         source_revision: host.revision().get(),
-        numeric: host.recalc_context().numeric.clone(),
+        numeric: host.recalc_context().numeric,
     }));
     Ok(cache)
 }
@@ -859,7 +859,7 @@ pub(crate) fn prepare_set_layout(
             records: saved.records,
             origin: PivotSnapshotOrigin::FileRecords { part },
             source_revision: revision,
-            numeric: host.recalc_context().numeric.clone(),
+            numeric: host.recalc_context().numeric,
         }));
     }
     // A field outside the saved axes can be stored inline. Give its records shared-item
@@ -1020,7 +1020,7 @@ pub(crate) fn prepare_model_pivot_refresh(
         records: Vec::new(),
         origin: PivotSnapshotOrigin::DataModel { model: data },
         source_revision,
-        numeric: host.recalc_context().numeric.clone(),
+        numeric: host.recalc_context().numeric,
     }));
     let layout = calc_engine::pivot::layout(selected, &refreshed)
         .map_err(|issue| format!("{} ({})", issue.detail, issue.owner))?;
@@ -1651,9 +1651,9 @@ pub(crate) fn prepare_create(
         revision,
         source,
         destination,
-        vec![row],
-        Vec::new(),
-        vec![(value, subtotal.into())],
+        &[row],
+        &[],
+        &[(value, subtotal.into())],
     )
 }
 pub(crate) fn prepare_create_layout(
@@ -1661,9 +1661,9 @@ pub(crate) fn prepare_create_layout(
     revision: u64,
     source: GridArea,
     destination: &str,
-    rows: Vec<u32>,
-    columns: Vec<u32>,
-    values: Vec<(u32, String)>,
+    rows: &[u32],
+    columns: &[u32],
+    values: &[(u32, String)],
 ) -> Result<Vec<CellEdit>, String> {
     if revision != host.revision().get() {
         return Err(fail("The source changed; choose its fields again"));
@@ -1684,18 +1684,18 @@ pub(crate) fn prepare_create_layout(
         || values.is_empty()
         || rows
             .iter()
-            .chain(&columns)
+            .chain(columns)
             .any(|&i| i as usize >= names.len())
         || values.iter().any(|(i, _)| *i as usize >= names.len())
     {
         return Err(fail("Choose source row and value fields"));
     }
     let mut unique = std::collections::BTreeSet::new();
-    if rows.iter().chain(&columns).any(|i| !unique.insert(*i)) {
+    if rows.iter().chain(columns).any(|i| !unique.insert(*i)) {
         return Err(fail("Choose distinct row and column fields"));
     }
     let mut data_fields = Vec::new();
-    for (value, subtotal) in &values {
+    for (value, subtotal) in values {
         let operation = match subtotal.as_str() {
             "sum" => "Sum",
             "count" => "Count",
@@ -1833,7 +1833,7 @@ pub(crate) fn prepare_create_layout(
             }
         })
         .collect();
-    let mut column_fields: Vec<i32> = columns.into_iter().map(|i| i as i32).collect();
+    let mut column_fields: Vec<i32> = columns.iter().map(|&i| i as i32).collect();
     if data_fields.len() > 1 {
         column_fields.push(-2);
     }
@@ -1843,7 +1843,7 @@ pub(crate) fn prepare_create_layout(
         cache_id,
         area: GridArea::cell(destination),
         collapsed: false,
-        row_fields: rows.into_iter().map(|i| i as i32).collect(),
+        row_fields: rows.iter().map(|&i| i as i32).collect(),
         column_fields,
         page_fields: Vec::new(),
         filters: Vec::new(),

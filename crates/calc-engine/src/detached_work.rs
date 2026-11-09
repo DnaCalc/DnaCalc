@@ -83,7 +83,7 @@ impl DetachedFormula {
             numeric,
         )?;
         self.validate_context(&context, at)?;
-        let definition = self.selected_name.clone().ok_or_else(|| {
+        let definition = self.selected_name.ok_or_else(|| {
             refused("effect-capable calculation without a selected name identity")
         })?;
         let (root, random) = super::name_pass(state, definition, at);

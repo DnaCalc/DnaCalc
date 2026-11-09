@@ -950,6 +950,7 @@ fn areas_meet(a: GridArea, b: GridArea) -> bool {
 /// Why [`WorkbookReader::formula_lookup`] gives no value for a formula cell, where reading it has
 /// an effect: the evaluation waits for the node, or (iteration off) it reads a formula a circular
 /// reference left uncalculated.
+#[derive(Clone, Copy)]
 enum Unread {
     Waits(NodeId),
     Kept,
