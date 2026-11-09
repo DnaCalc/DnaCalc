@@ -21,6 +21,7 @@ import socket
 import subprocess
 import sys
 import time
+from datetime import datetime, timezone
 from concurrent.futures import ThreadPoolExecutor
 
 HERE = Path(__file__).resolve().parent
@@ -47,6 +48,15 @@ RECYCLE_CALLS = 5_000_000
 RECYCLE_SECONDS = 4 * 3600
 RECYCLE_BATCHES = 10_000
 WORKER_MT = (4, 4, 0)             # threads per worker; 0 = multithreaded calculation off (the serial worker)
+# Self-healing: a down worker is retried after a cool-down, at most RESTART_CAP restarts per worker per window
+# (a restart is any new Excel for that worker after the first: crash, lost, timeout, failed start, heal).
+HEAL_COOLDOWN = 120.0
+RESTART_CAP = 3
+RESTART_WINDOW = 3600.0
+HEALTH_SECONDS = 30.0
+RESERVE_WORKERS = 1               # workers bulk may never fill while bulk is queued: interactive work always has one
+PROBE_DEADLINE_MS = 20000         # a batch with a function never measured may be slow: wait this long before a kill
+COSTS_SAVE_SECONDS = 60.0
 
 
 class OpenAdmission:
@@ -162,6 +172,12 @@ class Slot:
         self.crashes = 0
         self.restarts = 0
         self.since = {"time": time.time(), "calls": 0, "batches": 0}   # since this Excel started
+        self.attempts = collections.deque()      # time.time() of each restart or failed start (the hourly cap)
+        self.retry_at = 0.0
+        self.down_reason = None
+        self.down_since = None
+        self.capped_noted = False
+        self.running = None                      # "bulk", "interactive", "serial" while busy
 
 
 class Broker:
@@ -194,6 +210,14 @@ class Broker:
         self.machine = socket.gethostname()
         self.cpu = None
         self.conns = []
+        self.last_answer = None
+        self.last_health = 0.0
+        self.last_costs_save = time.monotonic()
+        self.costs_saved = None
+
+    def opt(self, name, default):
+        value = getattr(self.options, name, None)
+        return default if value is None else value
 
     # ---- setup ------------------------------------------------------------------------
     def prepare(self):
@@ -202,6 +226,40 @@ class Broker:
         self.batch_log = logs.BatchLog(self.state_dir / "log")
         self.waits = logs.WaitsLog(self.state_dir / "log" / "waits.jsonl")
         self.envs = logs.EnvLog(self.state_dir / "envs.jsonl")
+        self.load_persisted()
+
+    def load_persisted(self):
+        """Isolated functions (with their crash counts) and learnt costs survive a restart."""
+        try:
+            data = json.loads((self.state_dir / "isolated.json").read_text(encoding="ascii"))
+            self.batcher.isolate.update(data.get("isolated", []))
+            self.crash_counts.update({k: int(v) for k, v in data.get("crash_counts", {}).items()})
+        except (OSError, ValueError):
+            pass
+        try:
+            costs = json.loads((self.state_dir / "costs.json").read_text(encoding="ascii"))
+            self.batcher.costs.update({k: float(v) for k, v in costs.items()})
+            self.costs_saved = dict(self.batcher.costs)
+        except (OSError, ValueError):
+            pass
+
+    def save_isolated(self):
+        data = {"isolated": sorted(self.batcher.isolate), "crash_counts": self.crash_counts}
+        self.write_atomic(self.state_dir / "isolated.json", json.dumps(data))
+
+    def save_costs(self, force=False):
+        if self.batcher.costs != self.costs_saved or force:
+            self.write_atomic(self.state_dir / "costs.json", json.dumps({k: round(v, 3) for k, v in self.batcher.costs.items()}))
+            self.costs_saved = dict(self.batcher.costs)
+
+    @staticmethod
+    def write_atomic(path, text):
+        tmp = path.with_name(path.name + ".tmp")
+        tmp.write_text(text, encoding="ascii")
+        try:
+            os.replace(tmp, path)
+        except OSError:
+            path.write_text(text, encoding="ascii")      # a reader holds the file open (Windows)
 
     def cpu_name(self):
         try:
@@ -229,19 +287,90 @@ class Broker:
         count = self.options.workers
         for i in range(count):
             mt = WORKER_MT[i] if i < len(WORKER_MT) else 4
-            self.slots.append(Slot(f"w{i + 1}", mt, self.state_dir, self.state_dir / "excel", self.state_dir / "excel" / "worker-logs", self.worker_exe))
-        await asyncio.gather(*(self.start_slot(s) for s in self.slots))
+            slot = Slot(f"w{i + 1}", mt, self.state_dir, self.state_dir / "excel", self.state_dir / "excel" / "worker-logs", self.worker_exe)
+            slot.proc.sweep_leftovers = self.opt("sweep_orphans", True)
+            self.slots.append(slot)
+        await asyncio.gather(*(self.start_slot(s, initial=True) for s in self.slots))
 
-    async def start_slot(self, slot):
+    def new_process(self, slot):
+        proc = engine.WorkerProcess(slot.proc.root, slot.name, mt=slot.mt, log_dir=slot.proc.log_dir, exe=slot.proc.exe)
+        proc.sweep_leftovers = slot.proc.sweep_leftovers
+        return proc
+
+    async def start_slot(self, slot, initial=False):
+        """Start the slot's worker.  The first start of a broker is free; every later start counts against the
+        hourly cap, and a failed start (even the first) leaves the worker down until the next cool-down window."""
+        if not initial:
+            slot.attempts.append(time.time())
         try:
             hello = await self.loop.run_in_executor(self.executor, slot.proc.start)
         except Exception as error:
-            slot.state = "down"
-            self.waits.add("worker-down", worker=slot.name, seconds=0.0, detail=str(error)[:300])
-            self.log_event("worker-down", worker=slot.name, detail=str(error)[:300])
+            if initial:
+                slot.attempts.append(time.time())
+            self.mark_down(slot, str(error))
             return False
         self.adopt_hello(slot, hello)
         return True
+
+    # ---- self-healing -----------------------------------------------------------------
+    def window_attempts(self, slot):
+        cutoff = time.time() - self.opt("restart_window", RESTART_WINDOW)
+        while slot.attempts and slot.attempts[0] < cutoff:
+            slot.attempts.popleft()
+        return len(slot.attempts)
+
+    def cap_reached(self, slot):
+        return self.window_attempts(slot) >= self.opt("restart_cap", RESTART_CAP)
+
+    def mark_down(self, slot, reason):
+        """The worker stays down until its cool-down passes; the status and the waits log say why."""
+        now = time.time()
+        slot.state = "down"
+        slot.running = None
+        slot.down_reason = str(reason)[:300]
+        slot.down_since = now
+        slot.retry_at = now + self.opt("cooldown", HEAL_COOLDOWN)
+        self.waits.add("worker-down", worker=slot.name, seconds=0.0, detail=slot.down_reason[:300])
+        self.log_event("worker-down", worker=slot.name, detail=slot.down_reason, retry_after=round(slot.retry_at, 1))
+
+    def heal(self):
+        """Called every tick: a down worker is started again after its cool-down, within the hourly cap."""
+        trigger = self.state_dir / "heal-now"
+        now = time.time()
+        if trigger.exists():
+            trigger.unlink(missing_ok=True)
+            for slot in self.slots:
+                if slot.state == "down":
+                    slot.attempts.clear()
+                    slot.retry_at = 0.0
+                    slot.capped_noted = False
+        window = self.opt("restart_window", RESTART_WINDOW)
+        for slot in self.slots:
+            if slot.state != "down" or now < slot.retry_at:
+                continue
+            if self.cap_reached(slot):
+                slot.retry_at = slot.attempts[0] + window
+                when = time.strftime("%H:%M:%SZ", time.gmtime(slot.retry_at))
+                slot.down_reason = (f"restart cap reached ({self.opt('restart_cap', RESTART_CAP)} per {int(window // 60)} min); "
+                                    f"next attempt after {when}; last: {(slot.down_reason or '')[:120]}")
+                if not slot.capped_noted:
+                    slot.capped_noted = True
+                    self.waits.add("worker-down", worker=slot.name, seconds=0.0, detail=slot.down_reason[:300])
+                    self.log_event("worker-capped", worker=slot.name, detail=slot.down_reason)
+                continue
+            slot.capped_noted = False
+            slot.state = "new"
+            asyncio.create_task(self.heal_slot(slot))
+
+    async def heal_slot(self, slot):
+        await self.loop.run_in_executor(self.executor, slot.proc.kill)
+        slot.proc = self.new_process(slot)
+        slot.restarts += 1
+        ok = await self.start_slot(slot)
+        self.log_event("worker-healed" if ok else "worker-heal-failed", worker=slot.name)
+        if ok:
+            slot.down_reason = None
+        self.kick()
 
     def adopt_hello(self, slot, hello):
         env = dict(hello["env"])
@@ -345,6 +474,8 @@ class Broker:
             return
         serial = req.serial or any(g["f"] in self.registry for g in groups)
         piece = batcher.Piece(conn, rid, seq, groups, bool(body.get("last")), req.priority, req.echo, serial)
+        if req.client is not None:
+            piece.fair = f"{conn.origin}/{req.client}"          # clients behind one relay share fairly, too
         if serial and seq == 0:
             piece.primer = [dict(g, p=True) for g in req.primer]
         req.pieces[seq] = piece
@@ -366,10 +497,22 @@ class Broker:
                 if slot is not None:
                     batch = self.batcher.next_serial_batch()
                     slot.state = "busy"
+                    slot.running = "serial"
                     asyncio.create_task(self.run_batch(slot, batch))
         keep_free = self.batcher.serial_pending()
+        reserve = self.opt("reserve", RESERVE_WORKERS)
         while self.batcher.has_work():
-            slot = next((s for s in self.slots if s.state == "idle" and not (keep_free and s.serial)), None)
+            interactive = not self.batcher.interactive.empty()
+            idle = [s for s in self.slots if s.state == "idle" and not (keep_free and s.serial)]
+            if not interactive:
+                # Bulk never fills the last `reserve` workers: interactive questions always find one free.
+                up = [s for s in self.slots if s.state in ("idle", "busy")]
+                bulk_busy = sum(1 for s in up if s.state == "busy" and s.running == "bulk")
+                if len(up) > reserve and bulk_busy >= len(up) - reserve:
+                    return
+            # the serial worker (calculation off the thread pool) is the last choice for ordinary work
+            idle.sort(key=lambda s: s.serial)
+            slot = idle[0] if idle else None
             if slot is None:
                 if self.slots and all(s.state == "down" for s in self.slots):
                     self.fail_all("no worker is up")
@@ -378,6 +521,7 @@ class Broker:
             if batch is None:
                 return
             slot.state = "busy"
+            slot.running = "interactive" if batch.interactive else "serial" if batch.serial else "bulk"
             asyncio.create_task(self.run_batch(slot, batch))
         self.run_pending_checks()
         self.maybe_recycle()
@@ -426,7 +570,9 @@ class Broker:
         self.batch_no += 1
         number = self.batch_no
         calls = batch.calls
-        deadline_ms = BASE_DEADLINE_MS + DEADLINE_MS_PER_CALL * calls
+        deadline_ms = BASE_DEADLINE_MS + max(DEADLINE_MS_PER_CALL * calls, 4 * batch.est_ms)
+        if any(g["f"] not in self.batcher.costs for g in batch.groups):
+            deadline_ms = max(deadline_ms, PROBE_DEADLINE_MS)        # never measured: allow a slow first batch
         message = {"id": number, "groups": [*batch.primer, *batch.groups], "deadline_ms": deadline_ms, "echo": batch.echo,
                    "serial": batch.serial}
         t_dispatch = time.monotonic()
@@ -446,7 +592,7 @@ class Broker:
                 # nothing ran: give the work back to the queue
                 self.batcher.requeue(batch)
                 self.log_event("drift-before", worker=slot.name, detail=detail)
-                await self.recycle_after_worker_event(slot)
+                await self.finish_restart(slot)
                 self.kick()
                 return
             failure = (error, detail)
@@ -457,6 +603,7 @@ class Broker:
                     self.crash_counts[item_f] = self.crash_counts.get(item_f, 0) + 1
                     if self.crash_counts[item_f] >= 2:
                         self.batcher.isolate.add(item_f)
+                self.save_isolated()
         if failure is not None:
             self.fail_batch(batch, failure[0], failure[1])
             self.log_batch(slot, number, batch, None, t_dispatch, t_back, error=failure[0])
@@ -489,27 +636,34 @@ class Broker:
         self.kick()
 
     async def recycle_after_worker_event(self, slot):
-        # The worker recycled its Excel itself (drift); it announces a new hello.
+        # The worker recycled its Excel itself (drift or crash); it announces a new hello, or a failed start.
         try:
             hello = await self.loop.run_in_executor(self.executor, slot.proc.await_restart)
             self.adopt_hello(slot, hello)
         except Exception as error:
-            slot.state = "down"
-            self.waits.add("worker-down", worker=slot.name, seconds=0.0, detail=str(error)[:300])
+            await self.loop.run_in_executor(self.executor, slot.proc.kill)
+            self.mark_down(slot, str(error))
 
     async def finish_restart(self, slot):
+        """The worker restarts its own Excel after a crash; that is a restart, so it counts against the hourly cap."""
+        if self.cap_reached(slot):
+            await self.loop.run_in_executor(self.executor, slot.proc.kill)
+            self.mark_down(slot, f"restart cap reached ({self.opt('restart_cap', RESTART_CAP)} per hour) after a crash")
+            return
+        slot.attempts.append(time.time())
+        slot.restarts += 1
         await self.recycle_after_worker_event(slot)
 
     async def restart_slot(self, slot):
-        """After a missed deadline or a lost worker process: start it once more; a failed start leaves it down."""
+        """After a missed deadline or a lost worker process: start it once more, within the cap; a failed start
+        leaves it down until its cool-down passes."""
+        await self.loop.run_in_executor(self.executor, slot.proc.kill)
+        if self.cap_reached(slot):
+            self.mark_down(slot, f"restart cap reached ({self.opt('restart_cap', RESTART_CAP)} per hour)")
+            return
         slot.restarts += 1
         slot.state = "new"
-        await self.loop.run_in_executor(self.executor, slot.proc.kill)
-        if slot.restarts > 6:
-            slot.state = "down"
-            self.waits.add("worker-down", worker=slot.name, seconds=0.0, detail="too many restarts")
-            return
-        slot.proc = engine.WorkerProcess(slot.proc.root, slot.name, mt=slot.mt, log_dir=slot.proc.log_dir, exe=slot.proc.exe)
+        slot.proc = self.new_process(slot)
         await self.start_slot(slot)
 
     # ---- reversed-order and fresh-Excel checks ---------------------------------------------
@@ -661,6 +815,7 @@ class Broker:
         conn.send(protocol.ANSWER, frame, piece.priority == "interactive")
 
     def respond(self, batch, result, slot):
+        self.last_answer = time.time()
         env_id = result["env_id"]
         groups = result["groups"]
         for sl in batch.slices:
@@ -879,12 +1034,47 @@ class Broker:
                     self.fresh_running = False
             asyncio.create_task(run())
 
+    def oldest_queued_seconds(self):
+        oldest = self.batcher.oldest_queued()
+        return 0.0 if oldest is None else max(0.0, time.monotonic() - oldest)
+
+    def health_line(self):
+        """One line the orchestrator's monitor reads: OK, DEGRADED or DOWN, then the facts."""
+        up = [x for x in self.slots if x.state in ("idle", "busy")]
+        down = [x for x in self.slots if x.state == "down"]
+        starting = [x for x in self.slots if x.state == "new"]
+        oldest = self.oldest_queued_seconds()
+        if not up and not starting:
+            word = "DOWN"
+        elif down or oldest > 10:
+            word = "DEGRADED"
+        else:
+            word = "OK"
+        age = "never" if self.last_answer is None else f"{time.time() - self.last_answer:.0f}s ago"
+        line = (f"{word} workers_up={len(up)}/{len(self.slots)} down={len(down)} starting={len(starting)} "
+                f"queue_calls={self.batcher.queued_calls()} oldest_queued_s={oldest:.1f} last_answer={age} "
+                f"utc={logs.utc().isoformat(timespec='seconds')}")
+        if down:
+            line += " | " + "; ".join(f"{x.name}: {(x.down_reason or 'down')[:100]}" for x in down)
+        return line
+
+    def write_health(self):
+        self.write_atomic(self.state_dir / "health.txt", self.health_line() + "\n")
+        self.last_health = time.monotonic()
+
     def write_status(self):
         status = {"pid": os.getpid(), "running": True, "utc": logs.utc().isoformat(timespec="seconds"),
+                  "health": self.health_line(), "oldest_queued_s": round(self.oldest_queued_seconds(), 2),
+                  "last_answer_utc": None if self.last_answer is None else
+                  datetime.fromtimestamp(self.last_answer, timezone.utc).isoformat(timespec="seconds"),
                   "queued_calls": self.batcher.queued_calls(), "counters": self.counters,
                   "workers": [{"name": s.name, "state": s.state, "batches": s.batches, "calls": s.calls,
                                "pid": (s.hello or {}).get("pid"), "env": (s.hello or {}).get("env_id"),
-                               "mt": s.mt, "crashes": s.crashes} for s in self.slots],
+                               "mt": s.mt, "crashes": s.crashes, "restarts": s.restarts,
+                               "restarts_in_window": self.window_attempts(s), "running": s.running if s.state == "busy" else None,
+                               "down_reason": s.down_reason if s.state == "down" else None,
+                               "retry_at_utc": datetime.fromtimestamp(s.retry_at, timezone.utc).isoformat(timespec="seconds")
+                               if s.state == "down" else None} for s in self.slots],
                   "isolated_functions": sorted(self.batcher.isolate), "answer_cache_bytes": self.cache_bytes,
                   "leak_checks": self.leak_checks, "pending_leak_checks": len(self.pending_checks), "serial_registry": sorted(self.registry)}
         tmp = self.state_dir / "status.json.tmp"
@@ -905,6 +1095,10 @@ class Broker:
             stop.unlink(missing_ok=True)
             tasks = []
             try:
+                if self.opt("sweep_orphans", True):
+                    stopped = await self.loop.run_in_executor(self.executor, engine.stop_orphans, self.state_dir)
+                    if stopped:
+                        self.log_event("orphans-stopped", excel=[[pid, outcome] for pid, outcome in stopped])
                 await self.start_pool()
                 server = await self.tcp_endpoint()
                 tasks.append(asyncio.create_task(self.v1_scan(self.options.local_queue)))
@@ -915,10 +1109,17 @@ class Broker:
                     tasks.append(asyncio.create_task(self.peers.run()))
                 self.log_event("started", pid=os.getpid(), workers=[s.name + ":" + s.state for s in self.slots])
                 self.note_build()
+                self.write_health()
                 while not stop.exists():
                     self.write_status()
                     self.evict()
+                    self.heal()
                     self.schedule_fresh()
+                    if time.monotonic() - self.last_health >= self.opt("health_seconds", HEALTH_SECONDS):
+                        self.write_health()
+                    if time.monotonic() - self.last_costs_save >= COSTS_SAVE_SECONDS:
+                        self.last_costs_save = time.monotonic()
+                        self.save_costs()
                     await asyncio.sleep(0.5)
             finally:
                 self.stopping = True
@@ -931,14 +1132,25 @@ class Broker:
                     await self.loop.run_in_executor(self.executor, slot.proc.stop)
                 self.log_event("stopped", pid=os.getpid())
                 self.batch_log.close()
-                status = {"pid": os.getpid(), "running": False, "utc": logs.utc().isoformat(timespec="seconds")}
+                try:
+                    self.save_costs()
+                except OSError:
+                    pass
+                stopped_at = logs.utc().isoformat(timespec="seconds")
+                status = {"pid": os.getpid(), "running": False, "utc": stopped_at, "health": f"DOWN broker stopped utc={stopped_at}"}
                 (self.state_dir / "status.json").write_text(json.dumps(status), encoding="ascii")
+                self.write_atomic(self.state_dir / "health.txt", status["health"] + "\n")
 
 
 def command_start(options):
     """Launch the broker detached, on its own private desktop (never on the owner's desktop)."""
     state = options.state
     state.mkdir(parents=True, exist_ok=True)
+    try:
+        if engine.ensure_worker_built():
+            print("built the Excel worker (dotnet build -c Release)")
+    except (RuntimeError, OSError, subprocess.SubprocessError) as error:
+        raise SystemExit("broker not started: " + str(error))
     for stale in ("status.json", "endpoint.json"):
         (state / stale).unlink(missing_ok=True)
     guard = HERE.parents[1] / "excel-session" / "on-private-desktop.ps1"
@@ -951,6 +1163,10 @@ def command_start(options):
     if options.registry is not None:
         run += " --registry " + " ".join(options.registry)
     run += f" --leak-every {options.leak_every}"
+    if options.cooldown is not None:
+        run += f" --cooldown {options.cooldown}"
+    if options.restart_cap is not None:
+        run += f" --restart-cap {options.restart_cap}"
     subprocess.Popen(["pwsh", "-NoProfile", "-File", str(guard), "-Command", run, "-Log", str(state / "console.log"),
                       "-GuardOut", str(state / "guard.json"), "-SessionRoot", str(state / "excel"),
                       "-DesktopName", options.desktop],
@@ -966,6 +1182,29 @@ def command_start(options):
                 return
         time.sleep(0.5)
     raise TimeoutError("broker start not confirmed; see " + str(state / "console.log"))
+
+
+def command_status(options):
+    """One line: OK, DEGRADED or DOWN with workers, queue, oldest queued age and last answer.  --json for the rest."""
+    path = options.state / "status.json"
+    try:
+        text = path.read_text(encoding="ascii")
+        data = json.loads(text)
+    except (OSError, ValueError) as error:
+        print(f"DOWN no readable status.json ({error})")
+        raise SystemExit(2)
+    if options.json:
+        print(text)
+        return
+    if not data.get("running"):
+        print(data.get("health") or "DOWN broker stopped")
+        raise SystemExit(2)
+    age = (datetime.now(timezone.utc) - datetime.fromisoformat(data["utc"])).total_seconds()
+    if age > 15:
+        print(f"DOWN broker status is {age:.0f}s old (pid {data.get('pid')} not updating) | last: {data.get('health')}")
+        raise SystemExit(2)
+    print(data.get("health"))
+    raise SystemExit(0 if str(data.get("health")).startswith("OK") else 1)
 
 
 def command_stop(options):
@@ -1002,7 +1241,7 @@ def parse_since(text):
 
 def main():
     parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
-    parser.add_argument("command", choices=["start", "stop", "run", "status", "stats", "waits"])
+    parser.add_argument("command", choices=["start", "stop", "run", "status", "stats", "waits", "heal"])
     parser.add_argument("--state", type=Path, default=DEFAULT_STATE)
     parser.add_argument("--workers", type=int, default=3)
     parser.add_argument("--local-queue", type=Path, default=None,
@@ -1016,17 +1255,28 @@ def main():
     parser.add_argument("--leak-every", type=int, default=100, help="reversed-order check on one batch in this many")
     parser.add_argument("--admission", default=None, help="module:factory of the admission plug-in")
     parser.add_argument("--desktop", default="DnaCalcExcelV2")
+    parser.add_argument("--json", action="store_true", help="status: the full status.json instead of the one-line health")
+    parser.add_argument("--cooldown", type=float, default=None, help=f"seconds a down worker waits before a restart (default {HEAL_COOLDOWN:.0f})")
+    parser.add_argument("--restart-cap", type=int, default=None, help=f"restarts per worker per hour (default {RESTART_CAP})")
     parser.add_argument("--since", default=None, help="e.g. 24h, 7d or an ISO time")
     options = parser.parse_args()
     options.local_queue = options.local_queue or options.state / "queue"
     if options.command == "run":
+        if not getattr(options, "worker_command", None):
+            try:
+                engine.ensure_worker_built()
+            except (RuntimeError, OSError, subprocess.SubprocessError) as error:
+                raise SystemExit("broker not started: " + str(error))
         asyncio.run(Broker(options).run())
     elif options.command == "start":
         command_start(options)
     elif options.command == "stop":
         command_stop(options)
     elif options.command == "status":
-        print((options.state / "status.json").read_text())
+        command_status(options)
+    elif options.command == "heal":
+        (options.state / "heal-now").touch()
+        print("asked the running broker to retry its down workers now (restart caps cleared)")
     elif options.command == "stats":
         print(json.dumps(logs.stats(options.state / "log", parse_since(options.since)), indent=1))
     elif options.command == "waits":

@@ -26,27 +26,26 @@ NUMERIC_ARRAYS = REGRESSION | ETS
 
 
 def catalogue_names(root):
-    directory = Path(root) / "crates/calc-func/src/catalogue"
+    """Names the admission policy exposes, read from the data-only calc-catalogue crate's export.
+
+    The export (crates/calc-catalogue/tests/fixtures/admission-families.tsv) is generated from the
+    declarations and checked by the calc-catalogue test admission_export_is_current.
+    """
+    export = Path(root) / "crates/calc-catalogue/tests/fixtures/admission-families.tsv"
+    by_family = {}
+    for line in export.read_text(encoding="utf-8").splitlines():
+        family, _, name = line.partition("	")
+        if family and name:
+            by_family.setdefault(family, set()).add(name)
     names = set()
-    for family in FAMILIES:
-        source = (directory / (family + ".rs")).read_text(encoding="utf-8")
-        # Only ported_family! declaration rows, never comments, test strings or kernels.
-        source = source.split("ported_family! {", 1)[-1] if "ported_family! {" in source else ""
-        names.update(re.findall(r'^\s*\d+\s+\w+\s+"([A-Z][A-Z0-9.]*)"\s+\(', source, re.M))
+    for family in FAMILIES + ["rounding", "aggregate"]:
+        names |= by_family.get(family, set())
     # Numeric text/formatting kernels are scalar for scalar arguments. Select only
     # these entries from their family, which also contains array and hyperlink calls.
-    source = (directory / "text_format.rs").read_text(encoding="utf-8")
-    declared = set(re.findall(r'^\s*\d+\s+\w+\s+"([A-Z][A-Z0-9.]*)"\s+\(', source, re.M))
-    names.update(declared & {"FIXED", "DOLLAR", "TEXT", "VALUE", "NUMBERVALUE",
-                             "VALUETOTEXT", "ASC", "DBCS"})
-    # The base rounding family uses explicit call declarations, rather than the
-    # ported_family rows above. Its functions also return scalar values.
-    source = (directory / "rounding.rs").read_text(encoding="utf-8")
-    names.update(re.findall(r'^\s*call\(\w+,\s*"([A-Z][A-Z0-9.]*)",', source, re.M))
-    source = (directory / "aggregate.rs").read_text(encoding="utf-8")
-    names.update(re.findall(r'aggregate\(\w+, "([A-Z]+)"', source))
+    names |= by_family.get("text_format", set()) & {"FIXED", "DOLLAR", "TEXT", "VALUE", "NUMBERVALUE",
+                                                    "VALUETOTEXT", "ASC", "DBCS"}
     if "ERF.PRECISE" not in names or "SUM" not in names:
-        raise ValueError("Catalogue declaration format changed; review admission")
+        raise ValueError("Catalogue declaration export changed; regenerate admission-families.tsv")
     return (names | ETS) - DENY
 
 

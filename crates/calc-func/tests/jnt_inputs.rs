@@ -20,6 +20,8 @@ const WORKBOOK: &[u8] = include_bytes!("fixtures/jnt/oracle.xlsx");
 const SECTIONS: &[(&str, &str)] = &[
     ("jnt_w111_elementary", include_str!("fixtures/jnt/sheet-jnt_w111_elementary.txt")),
     ("jnt_w111_text_dates", include_str!("fixtures/jnt/sheet-jnt_w111_text_dates.txt")),
+    ("jnt_dates_random", include_str!("fixtures/jnt/sheet-jnt_dates_random.txt")),
+    ("jnt_operators", include_str!("fixtures/jnt/sheet-jnt_operators.txt")),
 ];
 
 fn unescape(text: &str) -> String {

@@ -14,7 +14,7 @@ WORKER_EXE = HERE.parent / "engines" / "excel" / "bin" / "excel-worker.exe"
 FILETIME_TO_TICKS = 504911232000000000   # 1601-01-01 -> 0001-01-01 in 100 ns ticks
 PROCESS_TERMINATE = 0x0001
 PROCESS_QUERY_LIMITED_INFORMATION = 0x1000
-PROTECTED_PIDS = {3144}
+PROTECTED_PIDS = set()
 
 
 def process_identity(pid):
@@ -83,6 +83,7 @@ class WorkerProcess:
         self.events = []
         self.log_dir = Path(log_dir) if log_dir else self.root / "worker-logs"
         self.lock = threading.Lock()
+        self.sweep_leftovers = True      # after a kill, stop an Excel this worker started that never reported
 
     # framing -----------------------------------------------------------------------
     def _read_exact(self, count):
@@ -148,8 +149,12 @@ class WorkerProcess:
     def alive(self):
         return self.process is not None and self.process.poll() is None
 
-    def kill(self):
-        """Stop this worker and the one Excel it owns, nothing else."""
+    def kill(self, sweep=None):
+        """Stop this worker and the Excel it owns, nothing else.
+
+        A worker that was restarting its Excel when it was killed may leave a new Excel the broker never heard
+        of; with `sweep` that one is found by its command line (this state folder, this worker's launch files)
+        and stopped by PID and start ticks."""
         outcome = None
         hello = self.hello
         if hello:
@@ -160,7 +165,22 @@ class WorkerProcess:
                 self.process.wait(10)
             except Exception:
                 pass
+        if self.sweep_leftovers if sweep is None else sweep:
+            try:
+                self.sweep()
+            except Exception:
+                pass
         return outcome
+
+    def sweep(self):
+        marker = ("\\launches\\" + self.name + "-").lower()
+        stopped = []
+        for pid, ticks, command in list_excel_processes():
+            if names_state(command, self.root) and marker in command.lower().replace("/", "\\"):
+                identity = process_identity(pid)
+                if identity and abs(identity[1] - ticks) <= 10_000:
+                    stopped.append((pid, kill_owned_excel(pid, identity[1])))
+        return stopped
 
     def stop(self):
         if self.alive():
@@ -169,7 +189,7 @@ class WorkerProcess:
                 self.process.wait(15)
             except Exception:
                 pass
-        self.kill()
+        self.kill(sweep=self.sweep_leftovers and self.alive())
 
     # work --------------------------------------------------------------------------
     def run(self, message, timeout):
@@ -219,3 +239,88 @@ class WorkerProcess:
         """After an excel-crashed result the worker restarts its Excel once and sends a new hello (or a fatal X)."""
         self.hello = self._expect_hello(self.startup_seconds + 30)
         return self.hello
+
+
+
+# ---- orphans and the build --------------------------------------------------------------
+def list_excel_processes():
+    """[(pid, start_ticks, command line)] of every Excel on this machine (read-only query)."""
+    script = ("Get-CimInstance Win32_Process -Filter \"Name='EXCEL.EXE'\" | ForEach-Object { "
+              "[pscustomobject]@{pid=$_.ProcessId; ticks=$_.CreationDate.ToUniversalTime().Ticks; cmd=$_.CommandLine} } "
+              "| ConvertTo-Json -Compress")
+    out = subprocess.run(["pwsh", "-NoProfile", "-NonInteractive", "-Command", script], capture_output=True, text=True,
+                         timeout=60, creationflags=subprocess.CREATE_NO_WINDOW)
+    text = out.stdout.strip()
+    if not text:
+        return []
+    data = json.loads(text)
+    if isinstance(data, dict):
+        data = [data]
+    return [(int(d["pid"]), int(d["ticks"]), d.get("cmd") or "") for d in data]
+
+
+def names_state(command_line, state_dir):
+    """True when an Excel command line names this service's state folder (the folder itself, not a sibling
+    whose name merely starts the same)."""
+    low = command_line.lower().replace("/", "\\")
+    for form in {str(Path(state_dir)), str(Path(state_dir).resolve())}:
+        if form.lower().rstrip("\\") + "\\" in low:
+            return True
+    return False
+
+
+def stop_orphans(state_dir, processes=None, kill=None):
+    """Stop worker Excels left behind by an earlier broker: only those whose command line names state_dir.
+
+    Each is stopped by PID and start ticks through kill_owned_excel (refused when the identity changed).
+    Returns [(pid, outcome)].  `processes` and `kill` are test seams."""
+    kill = kill or kill_owned_excel
+    found = []
+    for pid, ticks, command in (list_excel_processes() if processes is None else processes):
+        if not names_state(command, state_dir):
+            continue
+        identity = process_identity(pid) if processes is None else ("excel.exe", ticks)
+        if identity is None:
+            continue
+        # CIM keeps microseconds, the process times keep 100 ns: the same instant within a millisecond
+        if abs(identity[1] - ticks) > 10_000:
+            found.append((pid, "start time differs; left alone"))
+            continue
+        found.append((pid, kill(pid, identity[1])))
+    return found
+
+
+def worker_sources_newest(project):
+    newest = 0
+    for path in Path(project).rglob("*"):
+        if path.suffix in (".cs", ".csproj") and "obj" not in path.parts and "bin" not in path.parts:
+            newest = max(newest, path.stat().st_mtime_ns)
+    return newest
+
+
+def worker_is_stale(project=None):
+    project = Path(project) if project else WORKER_EXE.parent.parent
+    dll = project / "bin" / "excel-worker.dll"
+    exe = project / "bin" / "excel-worker.exe"
+    if not dll.exists() or not exe.exists():
+        return True
+    return worker_sources_newest(project) > dll.stat().st_mtime_ns
+
+
+def ensure_worker_built(project=None, command=None):
+    """Build the C# worker (dotnet build -c Release) when bin/ is missing or older than its sources.
+
+    Fails loudly (RuntimeError with the build output) when the build fails or leaves no worker behind."""
+    project = Path(project) if project else WORKER_EXE.parent.parent
+    if not worker_is_stale(project):
+        return False
+    command = command or ["dotnet", "build", "-c", "Release", "--nologo", "-v", "q"]
+    result = subprocess.run(command, cwd=str(project), capture_output=True, text=True, timeout=900,
+                            creationflags=subprocess.CREATE_NO_WINDOW)
+    tail = (result.stdout + result.stderr)[-3000:]
+    if result.returncode != 0:
+        raise RuntimeError(f"worker build failed (exit {result.returncode}) in {project}:\n{tail}")
+    if worker_is_stale(project):
+        raise RuntimeError(f"worker build reported success but {project / 'bin'} holds no current "
+                           f"excel-worker.exe and .dll:\n{tail}")
+    return True

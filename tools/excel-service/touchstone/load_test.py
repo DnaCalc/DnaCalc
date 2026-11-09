@@ -1,6 +1,10 @@
 r"""WP2 proof: three bulk clients and one interactive client against a running broker.
 
     py -3 load_test.py --state C:\Work\DnaCalc\codex-runs\excel-service-v2 [--mix sample|numeric] [--out FILE]
+
+Round 2 proof (excel-v2-2): `--mix sample --calls 333334 --bulk-clients 3` is a 1M-call mixed replay of the
+188-function baseline sample while an interactive prober asks one call every 100 ms with a 15 s timeout;
+the report counts probes over 1 s and probe timeouts.
 """
 import argparse
 import json
@@ -73,6 +77,8 @@ def main():
     parser.add_argument("--calls", type=int, default=50000)
     parser.add_argument("--bulk-clients", type=int, default=3)
     parser.add_argument("--out", type=Path)
+    parser.add_argument("--probe-timeout", type=float, default=15.0, help="seconds before a one-call probe counts as timed out")
+    parser.add_argument("--probe-functions", nargs="*", default=["ERF.PRECISE", "SQRT", "GAMMALN", "ABS"])
     options = parser.parse_args()
     sample = json.loads((options.sample or options.state / "wp0-sample.json").read_text())
     if options.mix == "numeric":
@@ -87,14 +93,23 @@ def main():
     latencies, errors = [], []
     probe_value = "3ff0000000000000"
 
+    timeouts = []
+
     def interactive():
+        n = 0
         while not stop.is_set():
             t0 = time.monotonic()
+            function = options.probe_functions[n % len(options.probe_functions)]
+            n += 1
             try:
-                p = inter.submit_groups([{"f": "ERF.PRECISE", "k": "n", "n": 1, "v": [probe_value]}])
-                p.raw(30)
+                p = inter.submit_groups([{"f": function, "k": "n", "n": 1, "v": [probe_value]}])
+                p.raw(options.probe_timeout)
                 latencies.append(time.monotonic() - t0)
+            except TimeoutError as error:
+                timeouts.append(function)
             except Exception as error:
+                if "timed out" in str(error) or "timeout" in str(error).lower():
+                    timeouts.append(function)
                 errors.append(str(error))
             stop.wait(max(0, 0.1 - (time.monotonic() - t0)))
 
@@ -126,7 +141,8 @@ def main():
     latencies.sort()
     report = {"mix": options.mix, "bulk_clients": len(bulk), "calls": total_calls, "wall_seconds": round(wall, 3),
               "calls_per_second": round(total_calls / wall), "matched": matched, "mismatched": mismatched, "number_or_error_answers": typed_ok,
-              "interactive_count": len(latencies), "interactive_errors": errors[:3],
+              "interactive_count": len(latencies), "interactive_errors": errors[:3], "interactive_error_count": len(errors),
+              "interactive_timeouts": len(timeouts), "interactive_over_1s": sum(1 for x in latencies if x > 1.0),
               "interactive_ms_p50": round(1000 * latencies[len(latencies) // 2], 1) if latencies else None,
               "interactive_ms_p99": round(1000 * latencies[min(len(latencies) - 1, int(len(latencies) * .99))], 1) if latencies else None,
               "interactive_ms_max": round(1000 * latencies[-1], 1) if latencies else None,

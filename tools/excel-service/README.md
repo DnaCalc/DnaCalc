@@ -63,7 +63,7 @@ route); they are not part of this service.
 ```powershell
 py -3 tools/excel-service/touchstone/broker.py start --hosts dna-firehorse dna-koderbot `
     --local-queue "$HOME\excel-queue" --relay-v1-queue "~/excel-queue"
-py -3 tools/excel-service/touchstone/broker.py status | stats --since 24h | waits --since 24h | stop
+py -3 tools/excel-service/touchstone/broker.py status | stats --since 24h | waits --since 24h | heal | stop
 ```
 Cutover: the v1 loop was stopped on 2026-11-09 at 01:05 and the broker started with the command above, so the existing
 lane clients (the v1 file queue on both Linux hosts and on Windows) are answered by the broker unchanged. Roll back by
@@ -74,8 +74,30 @@ The broker and every Excel it starts run on the private desktop `DnaCalcExcelV2`
 `windows_on_user_desktop: 0`. State folder: `C:\Work\DnaCalc\codex-runs\excel-service-v2` (`--state`). Three workers
 by default (two with 4-thread multithreaded calculation, one with it off, which is the serial worker). A worker is
 one C# process (`engines/excel`, `dotnet build -c Release`) that owns one Excel, bound through that process's own
-window and checked by PID and start time. A missed batch deadline (5 s + 0.1 ms per call) kills only that Excel;
-a failed start leaves the worker down (no retry loop). `service.py stats|waits` read the same logs.
+window and checked by PID and start time. A missed batch deadline (5 s + 0.1 ms per call, or four times the batch's
+estimated cost, or 20 s while a function has never been measured) kills only that Excel. `service.py stats|waits` read
+the same logs.
+
+Self-healing (excel-v2-2). A down worker (a crash, a lost worker process, a missed deadline or a failed start) is
+started again after a cool-down (`--cooldown`, default 120 s), at most 3 restarts per worker per hour (`--restart-cap`);
+a failed start leaves it down until the next cool-down window, so an Excel that cannot start is never hammered. At the
+cap the worker stays down with the reason and the time of the next allowed attempt in `status --json`, and a
+`worker-down` entry in `log/waits.jsonl`; `broker.py heal` clears the caps and retries at once. Functions that crashed
+Excel twice are isolated (one-call batches); the list and the crash counts live in `<state>/isolated.json`, the learnt
+per-function costs in `<state>/costs.json`, both read at start. `broker.py start` runs `dotnet build -c Release` on the
+C# worker when `engines/excel/bin` is missing or older than its sources, and refuses to start (with the build output)
+when that fails. On start the broker also stops worker Excels left behind by an earlier broker: only processes whose
+command line names this state folder, each by PID and start ticks.
+
+Health: `broker.py status` prints one line, `OK|DEGRADED|DOWN workers_up=n/m down=k starting=s queue_calls=q
+oldest_queued_s=t last_answer=...`, exit 0 for OK, 1 for DEGRADED, 2 for DOWN (including a status file older than
+15 s); `status --json` gives the whole record. The broker rewrites `<state>/health.txt` with the same line every 30 s.
+
+Capacity and fairness: interactive requests (up to 100 calls, or `priority="interactive"`) are taken first and bulk never
+fills the last worker, so a one-call question always finds a free Excel; bulk is shared per client (per relay client
+behind a relay) by estimated Excel time, not call count; a batch is cut to about 0.8 s of estimated work (a batch also
+pays ~150 ms of fixed fingerprint and COM time under load). A function never measured runs alone as a 50-call probe
+that sets its cost.
 
 Logs: `log/YYYY-MM-DD.jsonl.gz` (one compact record per batch: worker, `env_id`, calls, cells, millisecond stages),
 `envs.jsonl` (one entry per Excel environment: version, build, file version, bitness, OS, CPU, multithreaded
