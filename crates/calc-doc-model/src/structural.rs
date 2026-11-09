@@ -761,8 +761,8 @@ mod tests {
 // - the output moves with a row or column inserted at or before its first row or column, or deleted wholly
 //   before it; an edit after it leaves it; an insert from its second row or column to its last, or a delete
 //   that overlaps part of it, is refused (Excel: "We can't make this change for the selected cells because it
-//   will affect a PivotTable."); deleting exactly its rows or columns removes the pivot in Excel, which is not
-//   modelled here (refused);
+//   will affect a PivotTable."); a delete that covers all of its rows or columns removes the pivot, its cache
+//   staying, as Excel does;
 // - a worksheet-range source follows the edit as a reference range does ([`moved_run`]); a range all of which
 //   is deleted keeps its text (a refresh then fails, as in Excel); a table source follows its table.
 // Anything this cannot place (a defined-name source, load issues, a data model) keeps the old refusal.
@@ -774,8 +774,6 @@ pub enum PivotEditRefusal {
     Unplaceable,
     /// The edit lands inside a pivot's output.
     InsideOutput { table: String },
-    /// The edit deletes all of a pivot's output, which Excel answers by removing the pivot.
-    RemovesOutput { table: String },
 }
 
 impl PivotEditRefusal {
@@ -784,7 +782,6 @@ impl PivotEditRefusal {
         match self {
             PivotEditRefusal::Unplaceable => "Structural edits on this pivot's sheet need a source this layer can place (dc-8wp.16)",
             PivotEditRefusal::InsideOutput { .. } => "We can't make this change for the selected cells because it will affect a PivotTable. Use the field list to change the report. If you are trying to insert or delete cells, move the PivotTable and try again.",
-            PivotEditRefusal::RemovesOutput { .. } => "Deleting all of a PivotTable's output removes the pivot, which is not modelled yet (dc-8wp.16)",
         }
     }
 }
@@ -842,7 +839,8 @@ impl ModelRoot {
         let mut changed = false;
         // Outputs.
         for sheet in next.sheets.values_mut() {
-            for table in &mut sheet.tables {
+            let mut removed = Vec::new();
+            for (position, table) in sheet.tables.iter_mut().enumerate() {
                 if table.area.sheet() != edit.sheet() {
                     continue;
                 }
@@ -856,7 +854,9 @@ impl ModelRoot {
                     AxisChange::Delete => {
                         let overlaps = edit.first() <= hi && edit.last() >= lo;
                         if overlaps && edit.first() <= lo && edit.last() >= hi {
-                            return Err(PivotEditRefusal::RemovesOutput { table: table.name.clone() });
+                            // All of the output goes with its rows or columns: Excel removes the pivot.
+                            removed.push(position);
+                            continue;
                         }
                         overlaps
                     }
@@ -870,6 +870,10 @@ impl ModelRoot {
                     table.area = area;
                     changed = true;
                 }
+            }
+            for position in removed.into_iter().rev() {
+                sheet.tables.remove(position);
+                changed = true;
             }
         }
         // Sources.

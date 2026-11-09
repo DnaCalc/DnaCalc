@@ -53,6 +53,9 @@ fn letters(mut column: u32) -> String {
 }
 fn a1(area: GridArea) -> String {
     let (f, l) = (area.first(), area.last());
+    if f == l {
+        return format!("{}{}", letters(f.column()), f.row());
+    }
     format!("{}{}:{}{}", letters(f.column()), f.row(), letters(l.column()), l.row())
 }
 fn at(sheet: SheetId, address: &str) -> CellKey {
@@ -130,11 +133,14 @@ fn dna_cells(book: &HostSession, area: GridArea) -> BTreeMap<String, String> {
     cells
 }
 fn excel_cells(id: &str, area: GridArea) -> BTreeMap<String, String> {
+    excel_cells_at(id, "2", area)
+}
+fn excel_cells_at(id: &str, stage: &str, area: GridArea) -> BTreeMap<String, String> {
     let (top, bottom, left, right) = (area.first().row(), area.last().row(), area.first().column(), area.last().column());
     let mut cells = BTreeMap::new();
     for line in CELLS.lines().skip(1) {
         let f: Vec<&str> = line.splitn(6, '\t').collect();
-        if f[0] != id || f[1] != "2" || f[2] != "Out" {
+        if f[0] != id || f[1] != stage || f[2] != "Out" {
             continue;
         }
         let split = f[3].find(|c: char| c.is_ascii_digit()).unwrap();
@@ -144,6 +150,14 @@ fn excel_cells(id: &str, area: GridArea) -> BTreeMap<String, String> {
             let value = if f[4] == "n" {
                 // Excel's repr of a float, compared as a number below.
                 format!("n\t{}", f[5].parse::<f64>().unwrap())
+            } else if f[4] == "e" {
+                // The capture holds Excel's raw error code (HRESULT 0x800A0000 + the CVErr number).
+                let code = f[5].parse::<i64>().unwrap() + (1 << 32) - 0x800A_0000;
+                let name = match code {
+                    2000 => "#NULL!", 2007 => "#DIV/0!", 2015 => "#VALUE!", 2023 => "#REF!", 2029 => "#NAME?",
+                    2036 => "#NUM!", 2042 => "#N/A", 2045 => "#SPILL!", other => panic!("error code {other}"),
+                };
+                format!("e\t{name}")
             } else {
                 format!("{}\t{}", f[4], f[5])
             };
@@ -287,18 +301,29 @@ fn dc_8wp_16__row_and_column_edits_place_pivot_outputs_and_sources_as_excel_does
 }
 
 #[test]
-/// Native-only: opens the Excel-saved workbook file of the fixture set.
-fn dc_8wp_16__deleting_all_of_an_output_is_refused_where_excel_removes_the_pivot() {
-    // Open item: Excel removes the pivot (scenarios out-del-rows-all and out-del-cols-all); DNA Calc refuses.
-    assert_eq!(excel("out-del-rows-all").pivots[1], "-");
-    for (axis, first, count) in [(Axis::Rows, 4, 6), (Axis::Columns, 3, 6)] {
+/// Native-only: opens the Excel-saved workbook file of the fixture set and saves it to a package.
+fn dc_8wp_16__deleting_all_of_an_output_removes_the_pivot_as_excel_does() {
+    // out-del-rows-all and out-del-cols-all: Excel removes the pivot (no table is left on the sheet) and the rows or
+    // columns go with the other cells of the sheet, which move up or left.
+    for (id, axis, first, count) in [("out-del-rows-all", Axis::Rows, 4, 6), ("out-del-cols-all", Axis::Columns, 3, 6)] {
+        let want = excel(id);
+        assert_eq!(want.pivots[0], "m5@C4:H9@Src!R2C2:R14C5", "{id}");
+        assert_eq!(want.pivots[1], "-", "{id}");
         let mut book = open(BASE_RANGE);
-        let target = sheet(&book, "Out");
-        let before = book.host().revision();
-        let receipt = book.dispatch(SkinIntent::EditAxis(AxisEdit::new(target, axis, AxisChange::Delete, first, count).unwrap()));
-        assert!(!receipt.accepted());
-        assert!(format!("{receipt:?}").contains("removes the pivot"), "{receipt:?}");
-        assert_eq!(book.host().revision(), before);
+        let out = sheet(&book, "Out");
+        let receipt = book.dispatch(SkinIntent::EditAxis(AxisEdit::new(out, axis, AxisChange::Delete, first, count).unwrap()));
+        assert!(receipt.accepted(), "{id}: {receipt:?}");
+        assert_eq!(pivot_now(&book), want.pivots[1], "{id}");
+        let sheet_area = GridArea::new(at(out, "A1"), at(out, "P40")).unwrap();
+        assert_eq!(dna_cells(&book, sheet_area), excel_cells_at(id, "1", sheet_area), "{id}: the other cells of the sheet");
+        // There is nothing left to refresh, and the save carries no pivot table.
+        let mut saved = Vec::new();
+        book.save(&SavePolicy::default(), &mut saved).unwrap_or_else(|why| panic!("{id}: save refused: {why:?}"));
+        let reopened = open(&saved);
+        assert_eq!(pivot_now(&reopened), "-", "{id}: reopened");
+        assert_eq!(dna_cells(&reopened, sheet_area), excel_cells_at(id, "1", sheet_area), "{id}: reopened cells");
+        let text = String::from_utf8_lossy(&saved);
+        assert!(!text.contains("pivotTables/pivotTable"), "{id}: the saved package still names a pivot table part");
     }
 }
 
@@ -384,4 +409,129 @@ fn dc_8wp_16__open_items_a_changed_source_field_count_and_table_column_edits_are
     let receipt = book.dispatch(SkinIntent::EditAxis(AxisEdit::new(src, Axis::Columns, AxisChange::Delete, 5, 1).unwrap()));
     assert!(!receipt.accepted());
     assert!(format!("{receipt:?}").contains("TablePart"), "{receipt:?}");
+}
+
+fn enter(book: &mut HostSession, sheet_name: &str, address: &str, text: &str) {
+    let target = sheet(book, sheet_name);
+    assert!(book.dispatch(SkinIntent::EnterCell { at: at(target, address), text: text.into() }).accepted(), "{address}");
+}
+fn set_layout(book: &mut HostSession, rows: Vec<i32>, columns: Vec<i32>) -> Result<(), String> {
+    let (sheet, part) = {
+        let table = book.host().model().definitions().pivots().tables().next().unwrap().clone();
+        (table.area.sheet(), table.part)
+    };
+    let receipt = book.dispatch(SkinIntent::Command(calc_host::WorkbookCommand::PivotSetLayout {
+        sheet, revision: book.host().revision().get(), part, rows, columns,
+    }));
+    if receipt.accepted() { Ok(()) } else { Err(format!("{:?}", receipt.error)) }
+}
+
+#[test]
+/// Native-only: opens the Excel-saved workbook file of the fixture set.
+fn dc_8wp_16__output_growing_into_nonblank_cells_collapses_to_one_error_cell_as_excel_does() {
+    // Excel (alerts on or off, no dialog over COM) shows the pivot as its top-left cell holding an error when a
+    // refresh or a layout change needs cells that are not blank; the pivot keeps its fields and the blocking cells
+    // stay. (Decision D4 chose a confirmation; the capture shows Excel has none, so the capture rules.)
+    type Setup = fn(&mut HostSession);
+    let cases: [(&str, &str, Setup); 6] = [
+        ("ovl-nonblank-right", "refresh", |b| { enter(b, "Out", "I5", "blocker-I5"); enter(b, "Src", "C14", "Epsilon"); }),
+        ("ovl-nonblank-below", "refresh", |b| { enter(b, "Out", "C10", "blocker-C10"); enter(b, "Src", "B14", "West"); }),
+        ("ovl-nonblank-below-two", "refresh", |b| {
+            enter(b, "Out", "C11", "blocker-C11"); enter(b, "Src", "B14", "West"); enter(b, "Src", "B13", "Far");
+        }),
+        ("ovl-nonblank-formula", "refresh", |b| { enter(b, "Out", "I5", "=1+1"); enter(b, "Src", "C14", "Epsilon"); }),
+        ("ovl-layout-two-rows-into-nonblank", "layout", |b| { enter(b, "Out", "C14", "blocker-C14"); }),
+        ("ovl-layout-into-nonblank-right", "layout", |b| { enter(b, "Out", "K5", "blocker-K5"); }),
+    ];
+    let mut failures = Vec::new();
+    for (id, how, setup) in cases {
+        let want = excel(id);
+        let mut book = open(BASE_RANGE);
+        setup(&mut book);
+        assert_eq!(pivot_now(&book), want.pivots[0], "{id}: the start");
+        let (stage, result) = if how == "refresh" {
+            assert_eq!(pivot_now(&book), want.pivots[1], "{id}: edits alone do not move the pivot");
+            (2, refresh(&mut book))
+        } else {
+            let columns = if id.ends_with("right") { vec![3] } else { vec![] };
+            (1, set_layout(&mut book, vec![0, 1], columns))
+        };
+        if let Err(why) = result {
+            failures.push(format!("{id}: refused where Excel collapsed: {why}"));
+            continue;
+        }
+        let want_now = &want.pivots[stage];
+        if &pivot_now(&book) != want_now {
+            failures.push(format!("{id}: want {want_now} got {}", pivot_now(&book)));
+            continue;
+        }
+        let out = sheet(&book, "Out");
+        let area = GridArea::new(at(out, "A1"), at(out, "P40")).unwrap();
+        let (dna, excel) = (dna_cells(&book, area), excel_cells_at(id, &stage.to_string(), area));
+        if dna != excel {
+            failures.push(format!("{id}: cells differ\n  dna   {dna:?}\n  excel {excel:?}"));
+        }
+        let table = book.host().model().definitions().pivots().tables().next().unwrap().clone();
+        assert!(table.collapsed, "{id}");
+    }
+    assert!(failures.is_empty(), "{} of {} differ:\n{}", failures.len(), cases.len(), failures.join("\n"));
+}
+
+#[test]
+/// Native-only: opens the Excel-saved workbook file of the fixture set.
+fn dc_8wp_16__a_collapsed_pivot_expands_when_room_is_made_and_is_not_saved_collapsed() {
+    let mut book = open(BASE_RANGE);
+    enter(&mut book, "Out", "I5", "blocker-I5");
+    enter(&mut book, "Src", "C14", "Epsilon");
+    refresh(&mut book).unwrap();
+    assert_eq!(pivot_now(&book), "m5@C4@Src!R2C2:R14C5");
+    // The file Excel writes for such a pivot was not captured: the save refuses (its output cell is an error).
+    let mut saved = Vec::new();
+    let why = book.save(&SavePolicy::default(), &mut saved).unwrap_err();
+    assert!(format!("{why:?}").contains("Spill"), "{why:?}");
+    // Clearing the blocker makes room: the next refresh gives the pivot its whole output again.
+    let out = sheet(&book, "Out");
+    enter(&mut book, "Out", "I5", "");
+    let _ = out;
+    refresh(&mut book).unwrap();
+    let table = book.host().model().definitions().pivots().tables().next().unwrap().clone();
+    assert!(!table.collapsed);
+    assert_eq!(a1(table.area), "C4:I9");
+    let mut saved = Vec::new();
+    book.save(&SavePolicy::default(), &mut saved).expect("an expanded pivot saves");
+}
+
+#[test]
+/// Native-only: opens the Excel-saved workbook file of the fixture set.
+fn dc_8wp_16__a_new_pivot_takes_one_cell_when_nonblank_cells_are_in_its_way_and_is_refused_over_a_pivot() {
+    // ovl-create-onto-nonblank: Row Region, Column Product, Sum of Units at C21 with a blocker in E22.
+    let want = excel("ovl-create-onto-nonblank");
+    assert!(want.pivots[1].starts_with("other@C21@"), "{}", want.pivots[1]);
+    let mut book = open(BASE_RANGE);
+    enter(&mut book, "Out", "E22", "blocker-E22");
+    let (src, out) = (sheet(&book, "Src"), sheet(&book, "Out"));
+    let source = GridArea::new(at(src, "B2"), at(src, "E14")).unwrap();
+    let create = |book: &mut HostSession, destination: &str| {
+        let receipt = book.dispatch(SkinIntent::Command(calc_host::WorkbookCommand::PivotCreateLayout {
+            revision: book.host().revision().get(), source, destination: destination.into(),
+            rows: vec![0], columns: vec![1], values: vec![(3, "sum".into())],
+        }));
+        if receipt.accepted() { Ok(()) } else { Err(format!("{:?}", receipt.error)) }
+    };
+    create(&mut book, "Out!C21").unwrap();
+    let state = book.host().model().definitions().pivots();
+    let other = state.tables().find(|t| t.area.first() == at(out, "C21")).expect("the new pivot");
+    assert!(other.collapsed);
+    assert_eq!(a1(other.area), "C21");
+    let area = GridArea::new(at(out, "A1"), at(out, "P40")).unwrap();
+    let cells = dna_cells(&book, area);
+    assert_eq!(cells.get("C21").map(String::as_str), Some("e\t#SPILL!"));
+    assert_eq!(cells.get("E22").map(String::as_str), Some("s\tblocker-E22"));
+    // ovl-create-onto-pivot: the destination is inside pvt_m5.
+    let want = excel("ovl-create-onto-pivot");
+    let mut book = open(BASE_RANGE);
+    let before = book.host().revision();
+    let why = create(&mut book, "Out!E6").unwrap_err();
+    assert!(why.replace("\\\"", "\"").contains(&want.act), "want {:?}, got {why}", want.act);
+    assert_eq!(book.host().revision(), before);
 }

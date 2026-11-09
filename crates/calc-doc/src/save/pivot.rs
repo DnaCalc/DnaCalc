@@ -647,11 +647,18 @@ pub(super) fn finish<S:Borrow<crate::load::LoadedSheet>>(
     after: &PivotState,
     out: &mut Changes,
     workbook:&str,sheets:&[S],
+    saving: bool,
 ) -> Result<(), SaveRefusal> {
     if before == after {
         return Ok(());
     }
-    if before.tables().any(|old|!after.tables().any(|t|t.part==old.part))||before.caches.caches.keys().any(|id|!after.caches.caches.contains_key(id)){return Err(bad("pivot tables","Removing imported pivots or caches is not modelled"));}
+    // Excel's file for a pivot that took one cell for lack of room was not captured: it is not written yet. The
+    // command preflight (`check`) admits such a pivot; the save does not.
+    if saving && let Some(table) = after.tables().find(|t| t.collapsed) {
+        return Err(bad(&table.part, "A pivot reduced to one cell for lack of room cannot be saved yet; make room and refresh"));
+    }
+    if before.caches.caches.keys().any(|id|!after.caches.caches.contains_key(id)){return Err(bad("pivot tables","Removing imported pivot caches is not modelled"));}
+    remove_tables(package,before,after,out,sheets)?;
     for cache in after
         .caches
         .caches
@@ -722,6 +729,7 @@ pub(super) fn finish<S:Borrow<crate::load::LoadedSheet>>(
         }
         let mut retained = table.clone();
         retained.area = old.area;
+        retained.collapsed = old.collapsed;
         retained.location = old.location.clone();
         retained.fields = old.fields.clone();
         retained.row_items = old.row_items.clone();
@@ -865,12 +873,68 @@ pub(super) fn finish<S:Borrow<crate::load::LoadedSheet>>(
     Ok(())
 }
 
+/// A pivot table the model no longer holds (all of its output was deleted, as Excel removes it): its part, its
+/// own relationships, the worksheet's relationship to it and its content type go. Its cache stays in the workbook.
+fn remove_tables<S: Borrow<crate::load::LoadedSheet>>(
+    package: &Package,
+    before: &PivotState,
+    after: &PivotState,
+    out: &mut Changes,
+    sheets: &[S],
+) -> Result<(), SaveRefusal> {
+    use super::parts;
+    for old in before.tables().filter(|old| !after.tables().any(|t| t.part == old.part)) {
+        if before.tables().filter(|t| t.part == old.part).count() != 1 {
+            return Err(bad(&old.part, "A pivot definition shared between worksheets cannot be removed"));
+        }
+        let sheet = sheets.iter().map(Borrow::borrow).find(|s| s.id() == old.area.sheet())
+            .ok_or_else(|| bad(&old.part, "The removed pivot's worksheet is unavailable"))?;
+        let sheet_part = sheet.part().name().to_owned();
+        let (parent, file) = sheet_part.rsplit_once('/').unwrap_or(("", sheet_part.as_str()));
+        let rels = if parent.is_empty() { format!("_rels/{file}.rels") } else { format!("{parent}/_rels/{file}.rels") };
+        let empty = format!("<Relationships xmlns=\"http://schemas.openxmlformats.org/package/2006/relationships\"/>");
+        let xml = parts::current_part(package, out, &rels, empty.as_bytes())?;
+        let mut reader = Reader::new(&xml);
+        let mut splice = Splice::new(xml.bytes());
+        let mut found = false;
+        while let Some((event, span)) = reader.next()? {
+            if let XmlEvent::Start(e) = event
+                && e.name.local == "Relationship"
+                && e.attribute("TargetMode") != Some("External")
+                && e.attribute("Type").is_some_and(|t| t.ends_with("/pivotTable"))
+                && e.attribute("Target").is_some_and(|target| {
+                    package.relationships_of(Some(&sheet_part)).into_iter().flat_map(|r| r.items())
+                        .any(|r| r.target == target && r.resolved.as_deref() == Some(old.part.as_str()))
+                })
+            {
+                let end = reader.element_end()?;
+                splice.replace((span.0, end), &[]);
+                found = true;
+            }
+        }
+        if !found {
+            return Err(bad(&old.part, "The worksheet has no relationship to the removed pivot"));
+        }
+        parts::put_part(package, out, &rels, splice.finish());
+        let content = match &out.content_types {
+            Some(bytes) => XmlPart::new(crate::opc::CONTENT_TYPES_ENTRY.into(), bytes.clone(), crate::xml::XmlLimits::default()),
+            None => package.content_types_xml().map_err(|error| SaveRefusal::Part { part: crate::opc::CONTENT_TYPES_ENTRY.into(), error })?,
+        };
+        out.content_types = Some(parts::content_types(&content, Some(&old.part), &[])?);
+        if let Some(own) = package.relationships_of(Some(&old.part)) {
+            out.removed.push(own.part().to_owned());
+        }
+        out.rewritten.remove(&old.part);
+        out.removed.push(old.part.clone());
+    }
+    Ok(())
+}
 pub(crate) fn check(
     package: &Package,
     before: &PivotState,
     after: &PivotState,workbook:&str,sheets:&[crate::load::LoadedSheet],
 ) -> Result<(), SaveRefusal> {
-    finish(package, before, after, &mut Changes::default(),workbook,sheets)
+    finish(package, before, after, &mut Changes::default(),workbook,sheets,false)
 }
 
 const REL:&str="http://schemas.openxmlformats.org/officeDocument/2006/relationships";

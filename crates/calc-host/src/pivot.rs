@@ -310,13 +310,16 @@ fn snapshot(host: &HostState, cache: &PivotCache, area: GridArea, reconciled_axe
 fn overlaps(a: GridArea, b: GridArea) -> bool {
     a.intersection(b).is_some()
 }
-fn preflight_output(
+/// Checks where each pivot of the cache will sit. A hard problem (protection, the source, a table, an array, a
+/// spill, merged cells) is an error. Output that would grow over another pivot or over nonblank cells is not: Excel
+/// lets the pivot take one cell, so those pivots are returned with the reason, for [`collapse`].
+fn preflight_output_collapsing(
     host: &HostState,
     before: &PivotState,
     after: &PivotState,
     source: GridArea,
     cache_id: u32,
-) -> Result<(), String> {
+) -> Result<Vec<(String, String)>, String> {
     if after
         .tables()
         .filter(|t| {
@@ -338,21 +341,12 @@ fn preflight_output(
         .tables()
         .filter(|t| t.cache_id == cache_id)
         .collect::<Vec<_>>();
+    let mut blocked = Vec::new();
     for (index, table) in changed.iter().enumerate() {
         let area = table.area;
         crate::can_edit(host, area.first())?;
         if overlaps(area, source) {
             return Err(fail("Pivot output cannot overlap its source data"));
-        }
-        if changed
-            .iter()
-            .skip(index + 1)
-            .any(|t| overlaps(area, t.area))
-            || after
-                .tables()
-                .any(|t| t.cache_id != cache_id && overlaps(area, t.area))
-        {
-            return Err(fail("There is not enough space between pivot tables"));
         }
         if host
             .model()
@@ -379,6 +373,17 @@ fn preflight_output(
         {
             return Err(fail("Pivot output cannot cross merged cells"));
         }
+        if changed
+            .iter()
+            .skip(index + 1)
+            .any(|t| overlaps(area, t.area))
+            || after
+                .tables()
+                .any(|t| t.cache_id != cache_id && overlaps(area, t.area))
+        {
+            blocked.push((table.part.clone(), fail("There is not enough space between pivot tables")));
+            continue;
+        }
         let old = before
             .tables()
             .find(|t| t.part == table.part)
@@ -390,12 +395,38 @@ fn preflight_output(
             .flatten()
             .any(|(at, _)| old.is_none_or(|a| !a.contains(at)))
         {
-            return Err(fail(
-                "Move the cells beside this pivot before refreshing into a larger range",
+            blocked.push((
+                table.part.clone(),
+                fail("Move the cells beside this pivot before refreshing into a larger range"),
             ));
         }
     }
-    Ok(())
+    Ok(blocked)
+}
+/// [`preflight_output_collapsing`] for callers that cannot collapse a pivot: any blocked pivot is an error.
+fn preflight_output(
+    host: &HostState,
+    before: &PivotState,
+    after: &PivotState,
+    source: GridArea,
+    cache_id: u32,
+) -> Result<(), String> {
+    match preflight_output_collapsing(host, before, after, source, cache_id)?.into_iter().next() {
+        Some((_, reason)) => Err(reason),
+        None => Ok(()),
+    }
+}
+/// Excel's answer to a pivot that has no room for its output: it shows one cell, the top-left, holding an error, and
+/// keeps its fields. The pivots named by `blocked` (their parts) are reduced to that cell in `after`.
+fn collapse(after: &mut PivotState, blocked: &[(String, String)]) {
+    for tables in after.sheets.values_mut() {
+        for table in &mut tables.tables {
+            if blocked.iter().any(|(part, _)| *part == table.part) {
+                table.area = GridArea::cell(table.area.first());
+                table.collapsed = true;
+            }
+        }
+    }
 }
 // The captured no-preservation refresh removes direct fills from data cells. Apply this to
 // known point-style coordinates; other formatting and ranges without point records remain open.
@@ -581,7 +612,9 @@ pub(crate) fn prepare_set_layout(host: &HostState, sheet: SheetId, revision: u64
             }
         }
     }
-    preflight_output(host, before, &after, area, cache.id)?;
+    let blocked = preflight_output_collapsing(host, before, &after, area, cache.id)?;
+    collapse(&mut after, &blocked);
+    formats.retain(|at, _| after.tables().any(|t| t.area.contains(*at)));
     host.loaded().check_pivot_state(&after).map_err(|e| e.to_string())?;
     let mut edits = before.tables().filter(|t| t.cache_id == cache.id).map(|t| CellEdit::Clear { area: t.area }).collect::<Vec<_>>();
     append_number_formats(host, &formats, &mut edits)?;
@@ -740,7 +773,9 @@ pub(crate) fn prepare_refresh(
             }
         }
     }
-    preflight_output(host, before, &after, area, cache.id)?;
+    let blocked = preflight_output_collapsing(host, before, &after, area, cache.id)?;
+    collapse(&mut after, &blocked);
+    formats.retain(|at, _| after.tables().any(|t| t.area.contains(*at)));
     host.loaded()
         .check_pivot_state(&after)
         .map_err(|e| e.to_string())?;
@@ -800,12 +835,20 @@ pub(crate) fn prepare_create_layout(host:&HostState,revision:u64,source:GridArea
     let fields=(0..names.len()).map(|i|{let mut attributes=BTreeMap::from([("showAll".into(),"0".into())]);if rows.contains(&(i as u32)){attributes.insert("axis".into(),"axisRow".into());}if columns.contains(&(i as u32)){attributes.insert("axis".into(),"axisCol".into());}if values.iter().any(|(field,_)| *field as usize==i){attributes.insert("dataField".into(),"1".into());}PivotField{attributes,items:Vec::new(),sort_measure:None}}).collect();
     let mut column_fields: Vec<i32> = columns.into_iter().map(|i| i as i32).collect();
     if data_fields.len() > 1 { column_fields.push(-2); }
-    let table=PivotTable{name:name.clone(),part,cache_id,area:GridArea::cell(destination),row_fields:rows.into_iter().map(|i|i as i32).collect(),column_fields,page_fields:Vec::new(),filters:Vec::new(),data_fields,attributes:BTreeMap::from([("name".into(),name),("cacheId".into(),cache_id.to_string()),("dataCaption".into(),"Values".into()),("compact".into(),"1".into()),("outline".into(),"0".into()),("rowGrandTotals".into(),"1".into()),("colGrandTotals".into(),"1".into())]),location:BTreeMap::from([("firstHeaderRow".into(),"1".into()),("firstDataRow".into(),"1".into()),("firstDataCol".into(),"1".into())]),fields,col_items:Vec::new(),row_items:Vec::new(),style:Some(PivotStyle { attributes: BTreeMap::from([("name".into(), "PivotStyleLight16".into()), ("showRowHeaders".into(), "1".into()), ("showColHeaders".into(), "1".into()), ("showRowStripes".into(), "0".into()), ("showColStripes".into(), "0".into()), ("showLastColumn".into(), "1".into())]) }),formats:Vec::new(),unsupported:Vec::new()};
+    let table=PivotTable{name:name.clone(),part,cache_id,area:GridArea::cell(destination),collapsed:false,row_fields:rows.into_iter().map(|i|i as i32).collect(),column_fields,page_fields:Vec::new(),filters:Vec::new(),data_fields,attributes:BTreeMap::from([("name".into(),name),("cacheId".into(),cache_id.to_string()),("dataCaption".into(),"Values".into()),("compact".into(),"1".into()),("outline".into(),"0".into()),("rowGrandTotals".into(),"1".into()),("colGrandTotals".into(),"1".into())]),location:BTreeMap::from([("firstHeaderRow".into(),"1".into()),("firstDataRow".into(),"1".into()),("firstDataCol".into(),"1".into())]),fields,col_items:Vec::new(),row_items:Vec::new(),style:Some(PivotStyle { attributes: BTreeMap::from([("name".into(), "PivotStyleLight16".into()), ("showRowHeaders".into(), "1".into()), ("showColHeaders".into(), "1".into()), ("showRowStripes".into(), "0".into()), ("showColStripes".into(), "0".into()), ("showLastColumn".into(), "1".into())]) }),formats:Vec::new(),unsupported:Vec::new()};
+    // Excel refuses a pivot whose first cell lies in another pivot, with this text (measured, ovl-create-onto-pivot).
+    if let Some(existing)=before.tables().find(|t|t.area.contains(destination)){
+        let destination_sheet=host.model().sheet_by_id(destination.sheet()).map(|s|s.name().text().to_string_lossy()).unwrap_or_default();
+        return Err(format!("We couldn't insert your PivotTable at the selected location in the sheet \"{destination_sheet}\" because there's already a PivotTable \"{}\" there. Make space and try again.",existing.name));
+    }
     let layout=calc_engine::pivot::layout(&table,&cache).map_err(|e|fail(e.detail))?;
     let mut after=(**before).clone();after.caches.caches.insert(cache_id,cache);after.sheets.entry(destination.sheet()).or_default().tables.push(layout.table);
-    preflight_output(host,before,&after,source,cache_id)?;host.loaded().check_pivot_state(&after).map_err(|e|e.to_string())?;
+    // Nonblank cells or another pivot in the way: the new pivot takes its one corner cell (measured, ovl-create-onto-nonblank).
+    let blocked=preflight_output_collapsing(host,before,&after,source,cache_id)?;collapse(&mut after,&blocked);
+    let mut number_formats=layout.number_formats;number_formats.retain(|at,_|after.tables().any(|t|t.area.contains(*at)));
+    host.loaded().check_pivot_state(&after).map_err(|e|e.to_string())?;
     let mut edits = Vec::new();
-    append_number_formats(host, &layout.number_formats, &mut edits)?;
+    append_number_formats(host, &number_formats, &mut edits)?;
     edits.push(CellEdit::Pivots(Arc::new(after)));
     Ok(edits)
 }

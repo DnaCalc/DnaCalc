@@ -780,6 +780,7 @@ fn read_table(package: &Package, part: &str, sheet: SheetId) -> Result<PivotTabl
         part: part.into(),
         cache_id,
         area: location.ok_or_else(|| events.invalid("The pivot has no saved location"))?,
+        collapsed: false,
         row_fields,
         column_fields,
         page_fields,
