@@ -87,6 +87,48 @@ def dirsrc(path):
 
 
 BATCHES = {
+    "J4": dict(
+        bead="dc-jnt.8",
+        sheet="jnt_parity_complex",
+        hand=True,
+        title="Dated Excel parity and complex numbers: DB, DDB, VDB, SYD, SLN, bitwise, AGGREGATE prepared, depreciation padding; complex numbers and IM* functions",
+        tests=[
+            "aggregate_prepared_excel_parity_20260929.rs", "bitwise_excel_parity_20260929.rs",
+            "db_ddb_excel_parity_20260929.rs", "depreciation_padding_excel_parity_20260929.rs",
+            "sln_excel_parity_20260929.rs", "syd_excel_parity_20260929.rs",
+            "vdb_switched_excel_parity_20260929.rs", "w111_complex_live_replay.rs",
+            "w111_complex_kernel_live_replay.rs", "complex_family.rs",
+        ],
+        families=[
+            fam("DB", "DB", [hexsrc("depreciation/answers-db.json")], quota=20),
+            fam("DDB", "DDB", [hexsrc("depreciation/answers-ddb.json")], quota=20),
+            fam("SYD", "SYD", [hexsrc("depreciation/discriminator-syd-answers.json")], quota=20),
+            fam("SLN", "SLN", [hexsrc("sln/discovery-answers.json")], quota=20),
+            fam("bitwise", None, [dirsrc("bitwise/discovery")], multi=True, quota=20),
+            fam("COMPLEX", "COMPLEX", [
+                hexsrc("complex/format-complex.json"),
+                hexsrc("complex/extremes-complex.json"),
+                hexsrc("complex/ties-complex.json"),
+            ], quota=20),
+            fam("IMCONJUGATE", "IMCONJUGATE", [hexsrc("complex/format-imconjugate.json")], quota=20),
+            fam("IMSUM", "IMSUM", [hexsrc("complex/format-imsum.json")], quota=20),
+            fam("IMPRODUCT", "IMPRODUCT", [hexsrc("complex/format-improduct.json")], quota=20),
+            fam("IMDIV", "IMDIV", [
+                hexsrc("complex-kernels/extended-imdiv.json"),
+                hexsrc("complex-kernels/extremes-imdiv.json"),
+            ], quota=20),
+            fam("IMSQRT", "IMSQRT", [
+                hexsrc("complex-kernels/extended-imsqrt.json"),
+                hexsrc("complex-kernels/extremes-imsqrt.json"),
+            ], quota=20),
+            fam("complex trig", None, [
+                pairsrc("complex-kernels/trig-cases.json", "complex-kernels/trig-excel.jsonl"),
+            ], multi=True, quota=20),
+            fam("complex parser", None, [
+                pairsrc("complex-kernels/parser-cases.json", "complex-kernels/parser-excel.jsonl"),
+            ], multi=True, quota=20),
+        ],
+    ),
     "J11": dict(
         bead="dc-jnt.15",
         sheet="jnt_operators",
@@ -772,6 +814,10 @@ def hand_rows(batch, repo, work):
         tokens, parts, asked = [], [], []
         for arg in args:
             kind = arg[0]
+            if kind == "lit":
+                parts.append(str(arg[1]))
+                asked.append(number(arg[1]))
+                continue
             if kind == "s":
                 parts.append('"' + arg[1].replace('"', '""') + '"')
                 asked.append(text(arg[1], literal=True))
@@ -801,6 +847,8 @@ def hand_rows(batch, repo, work):
             expected = ("error", wire_of_literal[answer["code"]])
         elif answer["type"] == "boolean":
             expected = ("logical", bool(answer["value"]))
+        elif answer["type"] == "text":
+            expected = ("text", answer["value"])
         else:
             sys.exit("the service did not answer %s: %r" % (line, answer))
         lines.append(line)
@@ -811,6 +859,10 @@ def hand_rows(batch, repo, work):
                 hypothesis = ("number", "%016x" % struct.unpack(">Q", struct.pack(">d", legacy[1]))[0])
             elif legacy[0] == "error":
                 hypothesis = ("error", legacy[1])
+            elif legacy[0] == "text":
+                hypothesis = ("text", legacy[1])
+            elif legacy[0] == "logical":
+                hypothesis = ("logical", legacy[1])
             agrees = True
             if legacy[0] == "approx":
                 got = struct.unpack(">d", bytes.fromhex(expected[1]))[0] if expected[0] == "number" else None
@@ -969,38 +1021,41 @@ def main():
     os.makedirs(work, exist_ok=True)
     fixtures = os.path.join(arguments.repo, "crates/calc-func/tests/fixtures/jnt")
     section = os.path.join(fixtures, "sheet-%s.txt" % batch["sheet"])
-    hand = batch.get("hand", False)
-    if hand and arguments.mode == "rows":
-        lines, cases, contradicted, entry = hand_rows(batch, arguments.repo, work)
+    has_families = bool(batch.get("families"))
+    has_hand = bool(batch.get("hand"))
+    if has_families:
+        lines, cases, report, hashes = build_rows(batch, arguments.legacy, arguments.repo)
+    else:
+        lines, cases, report, hashes = [], [], [], {}
+
+    hand_contradicted = []
+    hand_entry = None
+    if has_hand and arguments.mode == "rows":
+        h_lines, h_cases, hand_contradicted, hand_entry = hand_rows(batch, arguments.repo, work)
+        lines.extend(h_lines)
+        cases.extend(h_cases)
+        with open(os.path.join(work, batch["sheet"] + ".meta.json"), "w") as handle:
+            json.dump({"entry": hand_entry, "contradicted": hand_contradicted}, handle)
+
+    if arguments.mode == "rows":
+        hdr = hand_header(batch) if (has_hand and not has_families) else header(batch)
         with open(section, "w", encoding="utf-8", newline="\n") as handle:
-            handle.write("\n".join(hand_header(batch) + lines) + "\n")
+            handle.write("\n".join(hdr + lines) + "\n")
         with open(os.path.join(work, batch["sheet"] + ".cases.json"), "w") as handle:
             json.dump(cases, handle)
-        with open(os.path.join(work, batch["sheet"] + ".meta.json"), "w") as handle:
-            json.dump({"entry": entry}, handle)
         path_contra = os.path.join(fixtures, "contradicted-%s.json" % batch["sheet"])
-        if contradicted:
+        if hand_contradicted:
             with open(path_contra, "w") as handle:
-                json.dump(contradicted, handle, indent=0)
+                json.dump(hand_contradicted, handle, indent=0)
                 handle.write("\n")
         elif os.path.exists(path_contra):
             os.remove(path_contra)
-        print("%s: %d rows asked of Excel, %d legacy expectations Excel contradicted; %s" % (
-            batch["sheet"], len(cases), len(contradicted), entry[:160]))
-        return
-    if hand:
-        lines, cases, report, hashes = [], [], [], {}
-    else:
-        lines, cases, report, hashes = build_rows(batch, arguments.legacy, arguments.repo)
-    if arguments.mode == "rows":
-        with open(section, "w", encoding="utf-8", newline="\n") as handle:
-            handle.write("\n".join(header(batch) + lines) + "\n")
-        with open(os.path.join(work, batch["sheet"] + ".cases.json"), "w") as handle:
-            json.dump(cases, handle)
-        for name, rows, usable, classes, extra, skipped in report:
-            print("%-16s rows %4d  usable %7d  classes %2d  boundary extra %3d  left out %s" % (
-                name, rows, usable, classes, extra, skipped))
-        print("section %s: %d rows" % (section, len(cases)))
+        if report:
+            for name, r_rows, usable, classes, extra, skipped in report:
+                print("%-16s rows %4d  usable %7d  classes %2d  boundary extra %3d  left out %s" % (
+                    name, r_rows, usable, classes, extra, skipped))
+        print("section %s: %d rows (hand %d, contradicted %d)" % (
+            section, len(cases), len(h_cases) if has_hand else 0, len(hand_contradicted)))
         return
     # capture: the whole-workbook question capture of the catalogue, rows of this sheet only
     workbook_path = os.path.join(fixtures, "oracle.xlsx")
@@ -1012,13 +1067,22 @@ def main():
     if [c["line"] for c in saved] != actual:
         sys.exit("the section file is not the rows this tool chose: run `rows` again")
     sheet = batch["sheet"]
-    if hand:
+    contradicted = []
+    if has_families and has_hand:
+        hand_meta = json.load(open(os.path.join(work, batch["sheet"] + ".meta.json")))
+        hand_entry = hand_meta["entry"]
+        entry = "OxFunc@05196c39:%s (%s);sha256:%s; %s" % (
+            EVIDENCE.rstrip("/"), "Excel " + EXCEL_BUILD,
+            hashlib.sha256("".join(k + hashes[k] for k in sorted(hashes)).encode()).hexdigest(),
+            hand_entry)
+        contradicted.extend(hand_meta.get("contradicted", []))
+    elif has_hand:
         entry = json.load(open(os.path.join(work, batch["sheet"] + ".meta.json")))["entry"]
     else:
         entry = "OxFunc@05196c39:%s (%s);sha256:%s" % (
             EVIDENCE.rstrip("/"), "Excel " + EXCEL_BUILD,
             hashlib.sha256("".join(k + hashes[k] for k in sorted(hashes)).encode()).hexdigest())
-    formulas, observations, contradicted = [], [], []
+    formulas, observations = [], []
     live = None
     if arguments.live:
         if any(c["expected"] is None for c in saved):
@@ -1082,7 +1146,7 @@ def main():
             json.dump(contradicted, handle, indent=0)
             handle.write("\n")
         print("wrote", path_contra, len(contradicted))
-    elif os.path.exists(path_contra) and not hand:
+    elif os.path.exists(path_contra) and not has_hand:
         os.remove(path_contra)
     record = {"format": "dnacalc-capture-record", "version": 3, "case": "jnt__" + sheet,
               "source": "sha256:" + digest,
