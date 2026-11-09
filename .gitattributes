@@ -13,3 +13,5 @@ crates/calc-engine/tests/fixtures/excel-calc-probes/P14/eng15-20261104/traces/**
 crates/calc-func/tests/fixtures/import/files/** -text
 # br writes issues.jsonl with LF; a CRLF checkout made every export differ byte for byte.
 .beads/issues.jsonl text eol=lf
+# The frozen pre-split catalogue tables and help hashes (dc-zsn.5) are compared byte for byte with generated text: LF in every checkout.
+crates/calc-catalogue/tests/fixtures/** text eol=lf
