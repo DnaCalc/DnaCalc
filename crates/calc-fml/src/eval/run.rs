@@ -19,6 +19,13 @@
 //! A physical yield unwinds Rust frames while keeping those cursors; resumption restores
 //! the same lexical frames. LAMBDA/name descent is bounded by [`MAX_CALL_DEPTH`]. Kernels
 //! invoking helper LAMBDAs retain the helper's item cursor and the same child frame.
+//!
+//! A read of a cell whose producer the engine has admitted but not yet evaluated suspends the
+//! evaluation at the instruction that read it, which runs again from its start once the
+//! producer is done; what ran before it is kept and never runs again ([`ResumePoint`],
+//! `docs/architecture/EVALUATOR_SUSPENSION.md`). Excel instead abandons the formula and
+//! calculates it again from the start later in its chain; the two differ only in how often user
+//! functions and volatile functions before the read are entered.
 
 use super::cells::{ReaderCells, ReaderHost, SharedReader};
 use super::closure::Closure;
@@ -175,6 +182,40 @@ struct BlockCursor {
     lazy: Option<Box<PendingLazy>>,
     result: Option<CalcValue>,
     waiting_input: Option<CellKey>,
+}
+
+/// Where an instruction started, kept for the one case in which it does not finish: it needs a
+/// cell whose producer this calculation has admitted but not yet evaluated (the reader says
+/// [`EvalFault::MissingInput`] and `pending_producer`), and no user function has been entered
+/// since it started. The instruction then waits: the cursor stays on it, the engine evaluates
+/// the producer, and the instruction runs again from its start on the same operands
+/// (docs/architecture/EVALUATOR_SUSPENSION.md). Earlier instructions are never run again, so
+/// their calls, draws and user-function effects happen once.
+///
+/// Rewinding takes no copy of the operands because the instructions that can wait
+/// ([`waits_for_inputs`]) read their operands in place and pop them only when they complete:
+/// a waiting instruction leaves the operand stack exactly as it found it. `depth` checks that in
+/// debug builds.
+#[derive(Clone, Copy, Debug)]
+struct ResumePoint {
+    /// The operand stack's length when the instruction started.
+    depth: usize,
+    /// User-function calls made in this evaluation before the instruction started; a wait is
+    /// allowed only when the fault leaves it unchanged.
+    user_calls: usize,
+}
+
+/// The instructions that may wait for a pending producer: an eager call (its arguments' values
+/// or its kernel's reads), a lazy call (an argument's admission or its kernel's reads) and a call
+/// of a function value. Their lazy arguments and LAMBDA bodies run in child blocks whose own
+/// instructions wait in place, so a wait never discards a child's progress. A spill reference
+/// reads occupancy, not values, and a user function or defined name waits inside its own frame
+/// or not at all; any other instruction reads no cell.
+fn waits_for_inputs(instruction: &Instruction) -> bool {
+    matches!(
+        instruction,
+        Instruction::Call { .. } | Instruction::LazyCall { .. } | Instruction::Invoke { .. }
+    )
 }
 
 #[derive(Debug)]
@@ -926,20 +967,13 @@ impl Run<'_, '_> {
                 *remaining -= 1;
             }
             at += 1;
-            // Only a pure read instruction may be retried. Its operands stay intact;
-            // completed calls and child frames remain behind this instruction cursor.
-            let operands = matches!(
-                instruction,
-                Instruction::Call { .. }
-                    | Instruction::Spill
-                    | Instruction::LazyCall { .. }
-                    | Instruction::Invoke { .. }
-            )
-            .then(|| self.stack.clone());
-            let effects_before = self
-                .user_function_effects
-                .as_ref()
-                .map_or(0, |effects| effects.calls);
+            let resume = ResumePoint {
+                depth: self.stack.len(),
+                user_calls: self
+                    .user_function_effects
+                    .as_ref()
+                    .map_or(0, |effects| effects.calls),
+            };
             let step = (|| {
                 match instruction {
                     Instruction::Literal(literal) => {
@@ -1010,10 +1044,9 @@ impl Run<'_, '_> {
                                     *remaining = 0;
                                 }
                             }
-                            Err(fault) => {
-                                self.stack.truncate(base);
-                                return Err(fault);
-                            }
+                            // The operands are still in place: the fault path below decides
+                            // between a wait at this instruction and a fault of the block.
+                            Err(fault) => return Err(fault),
                         }
                         Ok(())
                     }
@@ -1159,18 +1192,28 @@ impl Run<'_, '_> {
             }
             if let Err(fault) = step {
                 if let EvalFault::MissingInput { cell } = fault
+                    && waits_for_inputs(instruction)
                     && self.reader.pending_producer(cell)
                     && self
                         .user_function_effects
                         .as_ref()
                         .map_or(0, |effects| effects.calls)
-                        == effects_before
-                    && let Some(operands) = operands
+                        == resume.user_calls
                 {
-                    *self.stack = operands;
-                    cursor.waiting_input = Some(cell);
-                    cursor.at = at - 1;
-                    return Ok(None);
+                    // A waiting instruction faults with its operands where it found them, so
+                    // the wait rewinds the cursor only (docs/architecture/EVALUATOR_SUSPENSION.md).
+                    // Were they gone, the fault would end the evaluation instead, and the engine
+                    // evaluates the formula again from its start once the producer is done.
+                    debug_assert_eq!(
+                        self.stack.len(),
+                        resume.depth,
+                        "{instruction:?} consumed operands before it completed"
+                    );
+                    if self.stack.len() == resume.depth {
+                        cursor.waiting_input = Some(cell);
+                        cursor.at = at - 1;
+                        return Ok(None);
+                    }
                 }
                 self.stack.truncate(base);
                 return Err(fault);
@@ -1290,12 +1333,49 @@ impl Run<'_, '_> {
         if let Some(call) = pending.take() {
             return self.advance_call(call, pending, quantum);
         }
+        // The arguments are read where they lie and admitted into the call's own argument list;
+        // the stack loses them only when the call completes (see [`ResumePoint`]).
         let start = self.stack.len() - argc;
+        let mut arguments = std::mem::take(&mut *self.arguments);
+        arguments.clear();
+        let admitted = self.admit_arguments(target, start, argc, admission, &mut arguments);
+        let (lifted, computed_blank_results) = match admitted {
+            Ok(admitted) => admitted,
+            Err(fault) => {
+                arguments.clear();
+                *self.arguments = arguments;
+                return Err(fault);
+            }
+        };
+        self.call_admitted(
+            target,
+            arguments,
+            lifted,
+            computed_blank_results,
+            retain,
+            synthetic,
+            start,
+            pending,
+            quantum,
+        )
+    }
+
+    /// Admits the `argc` arguments of `target` that start at `start` on the stack into
+    /// `arguments`, leaving the stack as it is. Gives whether the call is lifted and the
+    /// paired-result positions whose argument was a computed blank.
+    fn admit_arguments(
+        &self,
+        target: Target,
+        start: usize,
+        argc: usize,
+        admission: Admission,
+        arguments: &mut Vec<CalcValue>,
+    ) -> Result<(bool, Vec<usize>), EvalFault> {
         let mut lifted = false;
         let form = self.instance.plan.form;
         let mut computed_blank_results = Vec::new();
         for index in 0..argc {
-            let mut value = std::mem::replace(&mut self.stack[start + index], CalcValue::missing());
+            let mut value = self.stack[start + index].clone();
             // dc-b1l: a legacy formula gives a function that does not run once per reference of
             // an array of references its first reference.
             if form == FormulaForm::Legacy
@@ -1325,10 +1405,9 @@ impl Run<'_, '_> {
             }
             let admitted = self.admit(target, index, value, admission)?;
             lifted |= is_lifted(target, self.instance.plan.form, index, &admitted);
-            self.stack[start + index] = admitted;
+            arguments.push(admitted);
         }
-        for index in 0..argc {
-            let value = &self.stack[start + index];
+        for (index, value) in arguments.iter().enumerate() {
             if reference_array(value)
                 && target.0.parameter_class(index) != Some(ParameterClass::Value)
                 && !lifts_over_references(target, form)
@@ -1340,21 +1419,32 @@ impl Run<'_, '_> {
                 ));
             }
         }
-        let mut arguments = std::mem::take(&mut *self.arguments);
-        arguments.clear();
-        // A call that does not keep its arguments on the stack moves them out instead of copying
-        // them (dc-dxm); a failed call's arguments are gone either way, as `block` truncates the
-        // stack on a fault.
-        if retain {
-            arguments.extend_from_slice(&self.stack[start..]);
-        } else {
-            arguments.extend(self.stack.drain(start..));
-        }
+        Ok((lifted, computed_blank_results))
+    }
+
+    /// Runs `target` on its admitted `arguments`, whose operands still start at `start` on the
+    /// stack. On completion the operands are popped, or with `retain` replaced by the admitted
+    /// arguments, and the result is pushed; on a fault or suspension the stack is unchanged.
+    #[allow(clippy::too_many_arguments)]
+    fn call_admitted(
+        &mut self,
+        target: Target,
+        mut arguments: Vec<CalcValue>,
+        mut lifted: bool,
+        computed_blank_results: Vec<usize>,
+        retain: bool,
+        synthetic: bool,
+        start: usize,
+        pending: &mut Option<Box<PendingCall>>,
+        quantum: usize,
+    ) -> Result<bool, EvalFault> {
         // A scalar IFS/SWITCH selection returns the chosen result whole. Unused result
         // arrays must not enlarge it (the recorded w090 successor cases).
         let whole_result = (lifted || !computed_blank_results.is_empty())
             && target.0.selects_whole_result(&arguments, self.numeric);
         if whole_result {
+            // Only a final infix `+` or `-` retains its arguments, and it selects no result.
+            debug_assert!(!retain, "a whole-result selection retains no arguments");
             lifted = false;
             for index in computed_blank_results {
                 arguments[index] = CalcValue::number(0.0);
@@ -1377,14 +1467,27 @@ impl Run<'_, '_> {
         } else {
             self.eager(target, &arguments, synthetic)
         };
+        let completed = value.map(|value| self.complete_call(start, retain, &arguments, value));
         arguments.clear();
         *self.arguments = arguments;
-        let value = value?;
-        if !retain {
+        completed.map(|()| true)
+    }
+
+    /// A call's completion: its operands from `start` on are popped, or with `retain` replaced
+    /// by its admitted `arguments` (the final-sum check reads them), and `value` is pushed.
+    fn complete_call(
+        &mut self,
+        start: usize,
+        retain: bool,
+        arguments: &[CalcValue],
+        value: CalcValue,
+    ) {
+        if retain {
+            self.stack[start..].clone_from_slice(arguments);
+        } else {
             self.stack.truncate(start);
         }
         self.stack.push(value);
-        Ok(true)
     }
 
     fn advance_call(
@@ -1405,15 +1508,14 @@ impl Run<'_, '_> {
             *pending = Some(call);
             return Ok(false);
         }
+        let completed = result.map(|value| {
+            let value = value.expect("terminal call has a result");
+            self.complete_call(call.start, call.retain, &call.arguments, value)
+        });
         call.arguments.clear();
         *self.arguments = call.arguments;
         self.calls.push(call.scratch);
-        let value = result?.expect("terminal call has a result");
-        if !call.retain {
-            self.stack.truncate(call.start);
-        }
-        self.stack.push(value);
-        Ok(true)
+        completed.map(|()| true)
     }
 
     /// Runs the eager entry `target` on `arguments` once.
@@ -1899,6 +2001,24 @@ impl Run<'_, '_> {
     ) -> Result<bool, EvalFault> {
         if pending.is_none() {
             let start = self.stack.len() - argc;
+            // A function value is called on its arguments where they lie, below them its callee,
+            // which is removed when the call completes: like an eager call, the call may wait
+            // (see [`ResumePoint`]). A LAMBDA's arguments move into its frame; its body's
+            // instructions wait inside that frame.
+            if let Some(target) =
+                super::closure::FunctionValue::of(&self.stack[start - 1]).map(|f| f.target)
+            {
+                if !target.0.arity().accepts(argc) {
+                    self.stack.truncate(start - 1);
+                    self.stack.push(CalcValue::error(WorksheetErrorCode::Value));
+                    return Ok(true);
+                }
+                self.call(target, argc, false, false, Admission::Lift)?;
+                let value = self.stack.pop().expect("the call's result");
+                self.stack.pop().expect("callee");
+                self.stack.push(value);
+                return Ok(true);
+            }
             let arguments = self.stack.drain(start..).collect();
             let callee = self.stack.pop().expect("callee");
             match self.prepare_closure(&callee, arguments)? {
@@ -3664,6 +3784,169 @@ mod tests {
             assert_eq!(actual, expected, "{formula}");
             assert_eq!(sliced_shown.calls, direct_shown.calls, "{formula}");
             assert_eq!(sliced_shown.outcomes, direct_shown.outcomes, "{formula}");
+        }
+    }
+
+    /// Every cell holds 5 except `pending`, whose producer is admitted and not yet evaluated
+    /// until `ready` is set: it reads as missing and the reader names its producer as pending.
+    struct PendingProducer {
+        pending: CellKey,
+        ready: bool,
+    }
+
+    impl ReferenceReader for PendingProducer {
+        fn pending_producer(&self, at: CellKey) -> bool {
+            at == self.pending && !self.ready
+        }
+
+        fn read_denial(&self) -> Option<crate::ReadDenial> {
+            None
+        }
+
+        fn read_fact(&mut self, _fact: crate::FactRead) {}
+
+        fn spill_extent(&mut self, _: calc_func::value::CellKey) -> crate::reference::SpillExtent {
+            crate::reference::SpillExtent::NotModelled
+        }
+
+        fn subtotal_exclusions(
+            &mut self,
+            _: calc_func::value::GridArea,
+        ) -> Option<calc_func::SubtotalExclusions> {
+            None
+        }
+
+        fn read_area(
+            &mut self,
+            _request: crate::ReadRequest,
+            area: GridArea,
+            sink: &mut dyn FnMut(CellRun<'_>) -> ControlFlow<()>,
+        ) {
+            if area.contains(self.pending) && !self.ready {
+                let _ = sink(CellRun::Missing(area.cell_count()));
+                return;
+            }
+            let five = CalcValue::number(5.0);
+            for _ in 0..area.cell_count() {
+                if sink(CellRun::Values(std::slice::from_ref(&five))).is_break() {
+                    return;
+                }
+            }
+        }
+    }
+
+    /// A read of a cell whose producer is pending suspends the evaluation at the instruction
+    /// that read it, with nothing consumed; once the producer is done that instruction runs
+    /// again and nothing before it does (docs/architecture/EVALUATOR_SUSPENSION.md). The user
+    /// function before the read is entered once and RAND draws once per occurrence, where Excel
+    /// 16.0.20527 abandons the formula and enters the earlier calls again (`=Tk("pre",1)+
+    /// INDIRECT("B3")+Tk("post",2)` with B3 two producers deep: pre, pre, post), drawing
+    /// RAND again; the first attempt's draws are discarded.
+    #[cfg_attr(not(target_arch = "wasm32"), test)]
+    #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+    fn a_pending_producer_suspends_the_reading_instruction_and_keeps_its_prefix() {
+        #[derive(Debug)]
+        struct Counting(std::cell::Cell<usize>);
+        impl calc_func::UserFunction for Counting {
+            fn call(&self, _: &[CalcValue]) -> Result<CalcValue, String> {
+                self.0.set(self.0.get() + 1);
+                Ok(CalcValue::number(42.0))
+            }
+        }
+        struct Draws(usize);
+        impl RandomSource for Draws {
+            fn next_unit(&mut self) -> f64 {
+                self.0 += 1;
+                0.25
+            }
+        }
+        // Formula, user calls before the wait, user calls in all, draws in all, result.
+        for (formula, before, calls, draws, result) in [
+            ("=CounterUdf()+B3+CounterUdf()", 1, 2, 0, 89.0),
+            ("=SUM(CounterUdf(),B3,CounterUdf())", 2, 2, 0, 89.0),
+            ("=IF(CounterUdf()>0,B3,0)+CounterUdf()", 2, 2, 0, 47.0),
+            ("=LET(x,CounterUdf(),x+B3+CounterUdf())", 1, 2, 0, 89.0),
+            ("=LET(f,SUM,f(CounterUdf(),B3)+CounterUdf())", 1, 2, 0, 89.0),
+            ("=B3-CounterUdf()", 1, 1, 0, -37.0),
+            ("=RAND()+B3+RAND()", 0, 0, 2, 5.5),
+        ] {
+            let counter = std::rc::Rc::new(Counting(std::cell::Cell::new(0)));
+            let mut functions = crate::CallableTable::new();
+            functions.register("CounterUdf", counter.clone()).unwrap();
+            let anchor = observed_anchor();
+            let pending = CellKey::new(anchor.cell().sheet(), 3, 2).unwrap();
+            let plan = crate::compile_with_functions(
+                &parse_formula(formula),
+                ReferenceNotation::A1,
+                anchor,
+                &NoSheets,
+                &mut PlanCache::new(),
+                FormulaForm::Dynamic,
+                &functions,
+            )
+            .unwrap();
+            let instance = instantiate(&plan, anchor);
+            let mut activation = EvalContinuation::new(&instance, EvalScratch::new());
+            let mut reader = PendingProducer {
+                pending,
+                ready: false,
+            };
+            let mut effects = super::super::UserFunctionEffects::default();
+            let mut random = Draws(0);
+            let mut shown = Shown::default();
+            let advance = |activation: &mut EvalContinuation,
+                           reader: &mut PendingProducer,
+                           effects: &mut super::super::UserFunctionEffects,
+                           random: &mut Draws,
+                           shown: &mut Shown| {
+                activation.advance(
+                    &mut FormulaEvaluationContext::new(
+                        &NumericMode::Fast,
+                        reader,
+                        None,
+                        None,
+                        crate::ReadRequest::DEPENDENCY,
+                    )
+                    .with_functions(&functions)
+                    .with_user_function_effects(effects)
+                    .with_random(random)
+                    .observed_by(shown),
+                    usize::MAX,
+                )
+            };
+            let step = advance(
+                &mut activation,
+                &mut reader,
+                &mut effects,
+                &mut random,
+                &mut shown,
+            );
+            assert!(
+                matches!(step, EvalStep::Suspended(_)),
+                "{formula}: {step:?}"
+            );
+            assert_eq!(activation.waiting_input(), Some(pending), "{formula}");
+            assert_eq!(counter.0.get(), before, "{formula}: calls before the wait");
+            assert!(
+                shown.outcomes.is_empty(),
+                "{formula}: no outcome before the wait"
+            );
+            reader.ready = true;
+            let step = advance(
+                &mut activation,
+                &mut reader,
+                &mut effects,
+                &mut random,
+                &mut shown,
+            );
+            let EvalStep::Complete(outcome) = step else {
+                panic!("{formula}: the producer is done, yet {step:?}");
+            };
+            assert_eq!(outcome, Ok(CalcValue::number(result)), "{formula}");
+            assert_eq!(counter.0.get(), calls, "{formula}: calls in all");
+            assert_eq!(effects.calls(), calls, "{formula}: recorded calls");
+            assert_eq!(random.0, draws, "{formula}: draws");
+            assert_eq!(shown.outcomes.len(), 1, "{formula}: one outcome");
         }
     }
 }

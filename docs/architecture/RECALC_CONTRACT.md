@@ -439,6 +439,9 @@ declared non-preemptible interval with a counter. **Pure physical retry** (today
 calculated read, `recalc.rs:9-17,611-614`, `read.rs:84-90`) keeps the evaluation ordinal and the draws, which is
 today's random behaviour (`calc-engine/src/random.rs:4-8`); it is allowed only for cones without effectful callables.
 An effectful cone takes one of the reasons above or waits.
+Implementation update (2026-11-09): a pure wait now resumes at the instruction that read the cell, with the
+operands it found and nothing before it run again; restarting the formula is the fallback. Excel restarts the formula
+and re-enters earlier UDFs (measured); see EVALUATOR_SUSPENSION.md.
 
 P03 (O, 20527 safe mode) observed native status 64 followed by a second entry under ordinary and `$`
 registrations in every reversed-area trial, with the counter increment before each coercion. `#` succeeded

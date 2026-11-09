@@ -42,6 +42,7 @@ named unsupported outcome for both, and iteration order is partly measured. Targ
 | Iteration on: cell order within a sheet, sheets by name ignoring case, Gauss-Seidel visibility, seeds from held values; iteration off: circular cells keep held values, entered ones show 0 | `calc-engine/src/recalc.rs:36-67`; fixtures `dc_86f`, `dc_10y`, `dc_10y_iteration`, `dc_y2o` | P14 |
 | On open Excel shows a file's `<v>` without recalculating, calculates an ordinary formula lacking `<v>`, an array lacking `<v>` only under `fullCalcOnLoad` (16.0.20430) | `calc-doc/tests/fixtures/d1/excel-open.json`, `calc-doc/src/save/author.rs:712-723` | P06, P24 |
 | File form of formulas entered through `Formula2` (prefixes, dynamic-array storage) | `calc-doc/src/save/file_form.rs:1-30`, `tests/fixtures/d1/measure-file-form.ps1` | P09 |
+| A formula reading a cell its calc chain has not calculated is abandoned at the read and calculated again from its start later: UDFs before the read run again, RAND is drawn again and only the second draws count; seen with a three-level producer on the first calculation after entry, static, INDIRECT and OFFSET alike, never with a one-level producer (20527, 615 workbooks) | `calc-engine/tests/fixtures/excel-calc-probes/suspension/`, `EVALUATOR_SUSPENSION.md` | P03, P23 |
 | Structural edits, cut and external-link storage of entered formulas | `calc-host/tests/fixtures/d2`, `dc_gf0`, `dc_ylr` | P11, P25 |
 
 ## 2. Catalogue
