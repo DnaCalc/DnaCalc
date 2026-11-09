@@ -189,6 +189,7 @@
   "allowed": {}
  },
  "files": [
+  {"path": "crates/calc-catalogue/src/ported.rs", "class": "own-work", "reason": "Function declaration metadata moved from the existing DnaCalc catalogue families."},
   {"path": "crates/calc-catalogue/src/offset.rs", "class": "own-work", "reason": "Worksheet declaration data moved from the existing DnaCalc reference-offset family."},
   {"path": "crates/calc-catalogue/src/unheld.rs", "class": "own-work", "reason": "Catalogue declarations moved from the existing DnaCalc owner rulings and tracker."},
   {"path": "crates/calc-func/src/catalogue/unheld.rs", "class": "own-work", "reason": "Adapter attaches the shared declarations to binding and refusal implementations."},

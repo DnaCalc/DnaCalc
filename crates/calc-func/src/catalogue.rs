@@ -784,3 +784,42 @@ impl<'c> FunctionCallTarget<'c> {
         Some(formula)
     }
 }
+
+#[cfg(test)]
+mod shared_declaration_equivalence {
+    // Snapshot of every entry at 9edc9030, before moving the ported family declarations.
+    #[cfg_attr(not(target_arch = "wasm32"), test)]
+    #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+    fn original_catalogue_equals_shared_declarations() {
+        let mut entries: Vec<_> = super::catalogue().entries().collect();
+        entries.sort_by_key(|entry| entry.id().raw());
+        let mut actual = String::new();
+        for entry in entries {
+            actual.push_str(&format!("{}\t{}\t{:?}\t{:?}\t{:?}\t{:?}\t{:?}\t{:?}\t{:?}\t{:?}\t{:?}\n",
+                entry.id().raw(), entry.spelling(), entry.notation(), entry.kind(), entry.availability(),
+                entry.implementation(), entry.arity(), entry.result_form(), entry.argument_demand(),
+                entry.traits(), entry.signature_help()));
+        }
+        assert_eq!(actual, include_str!("../../calc-catalogue/tests/fixtures/catalogue-before-ported.tsv"));
+    }
+
+    // Parameter behavior captured from the earlier compiled catalogue; the source declarations
+    // for these families did not change before their move into the data crate.
+    #[cfg_attr(not(target_arch = "wasm32"), test)]
+    #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+    fn original_parameter_rules_equal_shared_declarations() {
+        let expected = include_str!("../../calc-catalogue/tests/fixtures/ported-parameters-before.tsv");
+        let mut actual = String::new();
+        for line in expected.lines() {
+            let id: u32 = line.split('\t').next().unwrap().parse().unwrap();
+            let entry = super::catalogue().resolve(super::FunctionId::from_raw(id)).unwrap();
+            let count = entry.signature_help().parameters.len() + 4;
+            let positions: Vec<_> = (0..count).chain(std::iter::once(254))
+                .map(|i| (i, entry.parameter_class(i), entry.entry_class(i), entry.legacy_place(i)))
+                .collect();
+            actual.push_str(&format!("{}\t{:?}\t{:?}\n", id, entry.argument_groups(), positions));
+        }
+        assert_eq!(actual, expected);
+    }
+
+}

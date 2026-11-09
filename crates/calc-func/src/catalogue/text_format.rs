@@ -17,7 +17,7 @@ use crate::kernel::{Exit, Site, Step};
 use crate::value::{CalcValue, CoreRef, WorksheetErrorCode};
 use crate::value_text::{self, ReadContext, Reading, Unread, MAX_READER_TEXT};
 
-const CODE: u16 = 202;
+use calc_catalogue::ported::text_format::{CODE, ENTRIES as DECLARATIONS};
 
 /// Text argument `index` read as VALUE reads it under the call's locale profile
 /// ([`crate::value_text`]): #VALUE! for text the grammar does not read and for a value that is
@@ -917,34 +917,35 @@ fn fifteen_digits(text: &str) -> String {
 }
 
 // 3-D positions: dc-10y, Excel 16.0.20430, 2026-10-25; catalogue oracle ThreeD sheet.
-ported_family! {
+ported_shared_family! {
     code: CODE;
-    1 value_fn "VALUE" (1, 1) [V "text"] three_d (None, None, Some(&[])); |s, a, sv| { value(s, a) }
-    2 text_fn "TEXT" (2, 2) [V "value", V "format_text"] three_d (None, None, Some(&[])); |s, a, sv| { text(s, a) }
-    3 fixed_fn "FIXED" (1, 3) [V "number", V "decimals", V "no_commas"] three_d (None, None, Some(&[])); |s, a, sv| { fixed(s, a) }
-    4 dollar_fn "DOLLAR" (1, 2) [V "number", V "decimals"] three_d (None, None, Some(&[])); |s, a, sv| { dollar(s, a) }
-    5 numbervalue_fn "NUMBERVALUE" (1, 3) [V "text", V "decimal_separator", V "group_separator"] three_d (None, None, Some(&[])); |s, a, sv| { numbervalue(s, a) }
-    6 valuetotext_fn "VALUETOTEXT" (1, 2) [V "value", V "format"] three_d (None, None, Some(&[])); |s, a, sv| { valuetotext(s, a) }
-    7 arraytotext_fn "ARRAYTOTEXT" (1, 2) [R "array" ~ ArrayAtRoot, V "format"] three_d (None, None, Some(&[])); |s, a, sv| { arraytotext(s, a, sv) }
-    8 bahttext_fn "BAHTTEXT" (1, 1) [V "number"] three_d (None, None, Some(&[])); |s, a, sv| { bahttext(s, a) }
-    9 asc_fn "ASC" (1, 1) [V "text"] three_d (None, None, Some(&[])); |s, a, sv| { width_conversion(s, a) }
-    10 dbcs_fn "DBCS" (1, 1) [V "text"] three_d (None, None, Some(&[])); |s, a, sv| { width_conversion(s, a) }
+    declarations: DECLARATIONS;
+    1 value_fn |s, a, sv| { value(s, a) }
+    2 text_fn |s, a, sv| { text(s, a) }
+    3 fixed_fn |s, a, sv| { fixed(s, a) }
+    4 dollar_fn |s, a, sv| { dollar(s, a) }
+    5 numbervalue_fn |s, a, sv| { numbervalue(s, a) }
+    6 valuetotext_fn |s, a, sv| { valuetotext(s, a) }
+    7 arraytotext_fn |s, a, sv| { arraytotext(s, a, sv) }
+    8 bahttext_fn |s, a, sv| { bahttext(s, a) }
+    9 asc_fn |s, a, sv| { width_conversion(s, a) }
+    10 dbcs_fn |s, a, sv| { width_conversion(s, a) }
     // JIS: Excel 16.0.20527 for Windows answers #NAME? to every call (the fn1-jis bank rows,
     // text, number, logical and empty arguments alike), so the name is held as absent. JIS is not in the dispatch table (Excel holds no such name), and
     // its member number sits apart from the table's so that no neighbouring ID resolves to an
     // entry the table does not admit.
-    100 jis_fn "JIS" (1, 1) [V "text"] availability AbsentOnWindows; |s, a, sv| { fail(WorksheetErrorCode::Name) }
+    100 jis_fn |s, a, sv| { fail(WorksheetErrorCode::Name) }
     // PHONETIC's reference takes only an operand that may give one (dc-mx3x, Excel 16.0.20527,
     // 2026-11-07, Formula2 and Formula alike): `=PHONETIC(2)`, `=PHONETIC({1,2})` and
     // `=PHONETIC(1+1)` are refused, `=PHONETIC(B1)` and `=PHONETIC(INDEX(B1:B3,0))` enter.
-    12 phonetic_fn "PHONETIC" (1, 1) [F "reference" @Reference] three_d (None, Some(&[]), None); |s, a, sv| { phonetic(s, a, sv) }
-    13 textbefore_fn "TEXTBEFORE" (2, 6) [V "text", R "delimiter" ~ AggregateAtRoot, V "instance_num", V "match_mode", V "match_end", V "if_not_found"] three_d (None, None, Some(&[])); |s, a, sv| { text_delim(s, a, sv, Side::Before) }
-    14 textafter_fn "TEXTAFTER" (2, 6) [V "text", R "delimiter" ~ AggregateAtRoot, V "instance_num", V "match_mode", V "match_end", V "if_not_found"] three_d (None, None, Some(&[])); |s, a, sv| { text_delim(s, a, sv, Side::After) }
-    15 textsplit_fn "TEXTSPLIT" (2, 6) [V "text", R "col_delimiter" ~ AggregateAtRoot, R "row_delimiter" ~ AggregateAtRoot, V "ignore_empty", V "match_mode", V "pad_with"] three_d (None, None, Some(&[])); |s, a, sv| { textsplit(s, a, sv) }
-    16 regextest_fn "REGEXTEST" (2, 3) [V "text", V "pattern", V "case_sensitivity"] three_d (None, None, Some(&[])); |s, a, sv| { regextest(s, a) }
-    17 regexextract_fn "REGEXEXTRACT" (2, 4) [V "text", V "pattern", V "return_mode", V "case_sensitivity"] three_d (None, None, Some(&[])); |s, a, sv| { regexextract(s, a) }
-    18 regexreplace_fn "REGEXREPLACE" (3, 5) [V "text", V "pattern", V "replacement", V "occurrence", V "case_sensitivity"] three_d (None, None, Some(&[])); |s, a, sv| { regexreplace(s, a) }
-    19 encodeurl_fn "ENCODEURL" (1, 1) [V "text"] |s, a, sv| { encodeurl(s, a) }
-    20 filterxml_fn "FILTERXML" (2, 2) [V "xml", V "xpath"] traits intersect_legacy_result; |s, a, sv| { filterxml(s, a) }
-    21 hyperlink_fn "HYPERLINK" (1, 2) [V "link_location", V "friendly_name"] |s, a, sv| { hyperlink(s, a) }
+    12 phonetic_fn |s, a, sv| { phonetic(s, a, sv) }
+    13 textbefore_fn |s, a, sv| { text_delim(s, a, sv, Side::Before) }
+    14 textafter_fn |s, a, sv| { text_delim(s, a, sv, Side::After) }
+    15 textsplit_fn |s, a, sv| { textsplit(s, a, sv) }
+    16 regextest_fn |s, a, sv| { regextest(s, a) }
+    17 regexextract_fn |s, a, sv| { regexextract(s, a) }
+    18 regexreplace_fn |s, a, sv| { regexreplace(s, a) }
+    19 encodeurl_fn |s, a, sv| { encodeurl(s, a) }
+    20 filterxml_fn |s, a, sv| { filterxml(s, a) }
+    21 hyperlink_fn |s, a, sv| { hyperlink(s, a) }
 }

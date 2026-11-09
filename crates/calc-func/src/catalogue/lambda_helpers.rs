@@ -26,7 +26,7 @@ use crate::value::{ArrayShape, CalcArray, CalcValue, CoreRef, WorksheetErrorCode
 
 type W = WorksheetErrorCode;
 
-const CODE: u16 = 311;
+use calc_catalogue::ported::lambda_helpers::{CODE, ENTRIES as DECLARATIONS};
 
 /// Argument `index` as the helper reads it: a reference to one cell as the cell's value, a larger
 /// reference as the array of its values, anything else as it is.
@@ -450,18 +450,19 @@ fn run(
 }
 
 // 3-D positions: dc-10y, Excel 16.0.20430, 2026-10-25; catalogue oracle ThreeD sheet.
-ported_family! {
+ported_shared_family! {
     code: CODE;
-    1 map_fn "MAP" (2, 254) [R "array1" ~ ArrayAtRoot, R "lambda_or_array2" ~ AggregateAtRootTwice] three_d (None, Some(&[0]), Some(&[1, usize::MAX])); resume map_resume => map_task; |s, a, sv| { run(s, map_task(s, a, sv), sv) }
+    declarations: DECLARATIONS;
+    1 map_fn resume map_resume => map_task; |s, a, sv| { run(s, map_task(s, a, sv), sv) }
     // A call of REDUCE gives what its LAMBDA gives, which may be a reference or a LAMBDA
     // (dc-mx3x, Excel 16.0.20527, 2026-11-07): `=COUNTBLANK(REDUCE(B1,B1,B1))` and
     // `=REDUCE(B1,B1,B1)(3)` enter; MAP's, SCAN's, BYROW's, BYCOL's and MAKEARRAY's do not.
-    2 reduce_fn "REDUCE" (3, 3) [R "initial_value" ~ AggregateAtRoot, R "array" ~ ArrayAtRoot, R "lambda" ~ AggregateAtRoot] result MayBeEither; three_d (None, Some(&[1]), Some(&[0, 2])); resume reduce_resume => reduce_start; |s, a, sv| { run(s, reduce_start(s, a, sv), sv) }
-    3 scan_fn "SCAN" (3, 3) [R "initial_value" ~ AggregateAtRoot, R "array" ~ ArrayAtRoot, R "lambda" ~ AggregateAtRoot] three_d (None, Some(&[1]), Some(&[0, 2])); resume scan_resume => scan_start; |s, a, sv| { run(s, scan_start(s, a, sv), sv) }
+    2 reduce_fn resume reduce_resume => reduce_start; |s, a, sv| { run(s, reduce_start(s, a, sv), sv) }
+    3 scan_fn resume scan_resume => scan_start; |s, a, sv| { run(s, scan_start(s, a, sv), sv) }
     // BYROW and BYCOL take 1 or 2 arguments (dc-mx3x, Excel 16.0.20527, 2026-11-07, Formula2 and
     // Formula alike): `=BYROW(B1:B3)` and `=BYCOL(B1:B3)` enter and give #CALC!, while
     // `=MAP({1})`, `=REDUCE(0,{1})`, `=SCAN(0,{1})` and `=MAKEARRAY(1,1)` are refused.
-    4 byrow_fn "BYROW" (1, 2) [R "array" ~ ArrayAtRoot, R "lambda" ~ AggregateAtRoot] three_d (None, Some(&[0]), Some(&[1])); resume byrow_resume => byrow_start; |s, a, sv| { run(s, byrow_start(s, a, sv), sv) }
-    5 bycol_fn "BYCOL" (1, 2) [R "array" ~ ArrayAtRoot, R "lambda" ~ AggregateAtRoot] three_d (None, Some(&[0]), Some(&[1])); resume bycol_resume => bycol_start; |s, a, sv| { run(s, bycol_start(s, a, sv), sv) }
-    6 makearray_fn "MAKEARRAY" (3, 3) [V "rows", V "cols", R "lambda" ~ AggregateAtRoot] three_d (None, None, Some(&[])); resume makearray_resume => makearray_task; |s, a, sv| { run(s, makearray_task(s, a, sv), sv) }
+    4 byrow_fn resume byrow_resume => byrow_start; |s, a, sv| { run(s, byrow_start(s, a, sv), sv) }
+    5 bycol_fn resume bycol_resume => bycol_start; |s, a, sv| { run(s, bycol_start(s, a, sv), sv) }
+    6 makearray_fn resume makearray_resume => makearray_task; |s, a, sv| { run(s, makearray_task(s, a, sv), sv) }
 }
