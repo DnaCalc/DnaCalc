@@ -27,14 +27,14 @@ def main():
     parser.add_argument("--out", type=Path, required=True)
     parser.add_argument("--session", type=Path, required=True)
     parser.add_argument("--timeout", type=int, default=1800)
-    parser.add_argument("--extra", default="{}", help="JSON merged into every request")
+    parser.add_argument("--extra", default="{}", help="JSON (or @FILE holding JSON) merged into every request")
     parser.add_argument("cases", nargs="+")
     options = parser.parse_args()
-    extra = json.loads(options.extra)
+    extra = json.loads(Path(options.extra[1:]).read_text(encoding="utf-8-sig")) if options.extra.startswith("@") else json.loads(options.extra)
     status_all = []
     for case in options.cases:
         kind, _, scenario = case.partition(":")
-        ident = case.replace(":", "-")
+        ident = case.replace(":", "-").replace("*", "-all")
         directory = options.out / "observations" / ident
         files = options.out / "files" / ident
         if directory.exists():

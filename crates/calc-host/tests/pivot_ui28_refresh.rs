@@ -425,3 +425,143 @@ fn dc_8wp_15__add_a_column_axis_to_a_saved_pivot() {
     assert_eq!(book.host().model().definitions().pivots().sheet(pivot).unwrap().tables[0].column_fields, vec![1]);
     verify(&book);
 }
+
+/// Every number, text and error DNA Calc holds on the sheets named, as `sheet<TAB>address<TAB>kind<TAB>value`.
+fn dump_cells(book: &HostSession, names: &[&str]) -> Vec<String> {
+    let mut lines = Vec::new();
+    for sheet in book.host().sheets().iter() {
+        let name = sheet.name().text().to_string_lossy().to_string();
+        if !names.contains(&name.as_str()) {
+            continue;
+        }
+        let mut cells = Vec::new();
+        for r in 1..=80 {
+            for c in 1..=14 {
+                cells.push(CellKey::new(sheet.id(), r, c).unwrap());
+            }
+        }
+        let page = project(book.host(), &ProjectionRequest { cells: cells.clone() }).unwrap();
+        for (key, cell) in cells.iter().zip(page.cells()) {
+            let value = match cell.value() {
+                ProjectedValue::Literal(v) => v.clone(),
+                ProjectedValue::Calculated { value, .. } => value.clone(),
+                _ => continue,
+            };
+            let at = address(key.column(), key.row());
+            match value.core_ref() {
+                CoreRef::Number(n) => lines.push(format!("{name}\t{at}\tn\t{n}")),
+                CoreRef::Text(t) => lines.push(format!("{name}\t{at}\ts\t{}", String::from_utf16_lossy(t.utf16_code_units()))),
+                CoreRef::Error(e) => lines.push(format!("{name}\t{at}\te\t{}", e.excel_spelling())),
+                _ => {}
+            }
+        }
+    }
+    lines
+}
+
+#[test]
+/// Native-only: saves the workbooks DNA Calc creates and edits pivots in; when DNACALC_PIVOT_SAVES
+/// names a folder it keeps them there with the values DNA Calc holds (for the Excel replay in
+/// tools/excel-session/pivot-job.ps1 kind `open`), and always checks each save reopens to the same cells.
+fn dc_8wp_15__saves_for_the_excel_replay_reopen_to_the_same_cells() {
+    type Saved = Vec<(&'static str, Vec<u8>, Vec<String>)>;
+    let bytes = include_bytes!("fixtures/pivot_getpivotdata/oracle.xlsx");
+    let open = |bytes: Vec<u8>| {
+        let source: Arc<dyn PackageRead> = Arc::new(MemorySource::new(bytes));
+        HostSession::open(source, &OpenPolicy::default(), HostOptions::default()).unwrap()
+    };
+    let sheet = |book: &HostSession, name: &str| book.host().sheets().iter()
+        .find(|s| s.name().text().to_string_lossy() == name).unwrap().id();
+    let part = |book: &HostSession, sheet| book.host().model().definitions().pivots().sheets[&sheet].tables[0].part.clone();
+    let mut saves: Saved = Vec::new();
+    let save = |name: &'static str, book: &mut HostSession, sheets: &[&str], saves: &mut Saved| {
+        assert!(book.dispatch(SkinIntent::Recalculate).accepted());
+        let mut out = Vec::new();
+        book.save(&SavePolicy::default(), &mut out).unwrap();
+        saves.push((name, out, dump_cells(book, sheets)));
+    };
+    // Untouched round trip of the Excel-made oracle (what DNA Calc writes without any pivot edit).
+    let mut book = open(bytes.to_vec());
+    save("p7-roundtrip", &mut book, &["PvOne", "PvRowCol", "GPD"], &mut saves);
+    // P7: a layout set from saved records after a source edit, with the axes swapped.
+    let mut book = open(bytes.to_vec());
+    let (source, pivot) = (sheet(&book, "Source"), sheet(&book, "PvRowCol"));
+    let p = part(&book, pivot);
+    assert!(book.dispatch(SkinIntent::EnterCell { at: at(source, "D2"), text: "999999".into() }).accepted());
+    let receipt = book.dispatch(SkinIntent::Command(calc_host::WorkbookCommand::PivotSetLayout {
+        sheet: pivot, revision: book.host().revision().get(), part: p, rows: vec![1], columns: vec![0],
+    }));
+    assert!(receipt.accepted(), "{receipt:?}");
+    save("p7-layout-swapped-after-source-edit", &mut book, &["PvRowCol", "GPD"], &mut saves);
+    // P7: add a column axis to a row-only pivot, and remove it again.
+    let mut book = open(bytes.to_vec());
+    let one = sheet(&book, "PvOne");
+    let p = part(&book, one);
+    let receipt = book.dispatch(SkinIntent::Command(calc_host::WorkbookCommand::PivotSetLayout {
+        sheet: one, revision: book.host().revision().get(), part: p.clone(), rows: vec![0], columns: vec![1],
+    }));
+    assert!(receipt.accepted(), "{receipt:?}");
+    save("p7-column-axis-added", &mut book, &["PvOne"], &mut saves);
+    let receipt = book.dispatch(SkinIntent::Command(calc_host::WorkbookCommand::PivotSetLayout {
+        sheet: one, revision: book.host().revision().get(), part: p, rows: vec![0], columns: vec![],
+    }));
+    assert!(receipt.accepted(), "{receipt:?}");
+    save("p7-column-axis-removed", &mut book, &["PvOne"], &mut saves);
+    // P7: creation with two axes and two values, and with one row field and one value.
+    let creations: [(&'static str, Vec<u32>, Vec<u32>, Vec<(u32, String)>); 2] = [
+        ("p7-created-two-axes-two-values", vec![0], vec![1], vec![(3, "sum".into()), (4, "sum".into())]),
+        ("p7-created-one-row-one-value", vec![0], vec![], vec![(3, "sum".into())]),
+    ];
+    for (name, rows, columns, values) in creations {
+        let mut book = open(bytes.to_vec());
+        let source = sheet(&book, "Source");
+        let range = calc_host::value::GridArea::new(at(source, "A1"), at(source, "E36")).unwrap();
+        let receipt = book.dispatch(SkinIntent::Command(calc_host::WorkbookCommand::PivotCreateLayout {
+            revision: book.host().revision().get(), source: range, destination: "GPD!H150".into(),
+            rows, columns, values,
+        }));
+        assert!(receipt.accepted(), "{receipt:?}");
+        save(name, &mut book, &["GPD"], &mut saves);
+    }
+    // P8 phase one: an axis edit on an unrelated sheet leaves the pivots intact.
+    let mut book = open(bytes.to_vec());
+    let unrelated = sheet(&book, "GPD");
+    let edit = calc_host::AxisEdit::new(unrelated, calc_host::Axis::Rows, calc_host::AxisChange::Insert, 200, 1).unwrap();
+    assert!(book.dispatch(SkinIntent::EditAxis(edit)).accepted());
+    save("p8-unrelated-row-inserted", &mut book, &["PvOne", "PvRowCol", "GPD"], &mut saves);
+    // Refresh of two pivots after a source edit (the DNA-refreshed save).
+    let mut book = open(bytes.to_vec());
+    let source = sheet(&book, "Source");
+    assert!(book.dispatch(SkinIntent::EnterCell { at: at(source, "D2"), text: "123".into() }).accepted());
+    for name in ["PvOne", "PvRowCol"] {
+        let s = sheet(&book, name);
+        let p = part(&book, s);
+        let receipt = book.dispatch(SkinIntent::Command(calc_host::WorkbookCommand::PivotRefresh {
+            sheet: s, revision: book.host().revision().get(), part: p,
+        }));
+        assert!(receipt.accepted(), "{receipt:?}");
+    }
+    save("refresh-after-source-edit", &mut book, &["PvOne", "PvRowCol"], &mut saves);
+
+    let folder = std::env::var_os("DNACALC_PIVOT_SAVES").map(std::path::PathBuf::from);
+    if let Some(folder) = &folder {
+        std::fs::create_dir_all(folder).unwrap();
+    }
+    // Excel refuses a package whose shared-formula `ref` spans cells carrying other formulas; the
+    // oracle's equal GETPIVOTDATA formulas in B2 and B20 must be written individually.
+    for (name, package, _) in &saves {
+        if *name != "p7-roundtrip" {
+            assert!(!part_text(package, "xl/worksheets/sheet17.xml").contains("t=\"shared\""), "{name}");
+        }
+    }
+    for (name, package, cells) in &saves {
+        let mut reopened = open(package.clone());
+        assert!(reopened.dispatch(SkinIntent::Recalculate).accepted());
+        let names: Vec<&str> = cells.iter().filter_map(|l| l.split('\t').next()).collect::<std::collections::BTreeSet<_>>().into_iter().collect();
+        assert_eq!(&dump_cells(&reopened, &names), cells, "{name} reopens to the cells it was saved with");
+        if let Some(folder) = &folder {
+            std::fs::write(folder.join(format!("{name}.xlsx")), package).unwrap();
+            std::fs::write(folder.join(format!("{name}.dna.tsv")), cells.join("\n") + "\n").unwrap();
+        }
+    }
+}
