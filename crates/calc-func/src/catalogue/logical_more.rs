@@ -5,9 +5,11 @@
 //!
 //! IFS reads each condition as IF does (worksheet logical coercion, an error is the result) and
 //! gives the value of the first TRUE condition's pair; no TRUE condition is #N/A. SWITCH compares
-//! its expression with each case as the `=` operator does ([`super::comparison::order`]); an
-//! error in the expression is the result, the first matching case's value is the result, then the
-//! default, and #N/A when there is none. An omitted selected value is 0, as IF's is.
+//! its expression with each case as the `=` operator does ([`super::comparison::order`]), except
+//! that a number whose fifteen-digit reading overflows matches every number (measured for SWITCH,
+//! `reading_overflow_pair`); an error in the expression is the result, the first matching case's
+//! value is the result, then the default, and #N/A when there is none. An omitted selected value
+//! is 0, as IF's is.
 
 use super::comparison::{Want, order};
 use super::kit::{fail, flag};
@@ -146,6 +148,9 @@ fn switch_index(site: &Site<'_>, arguments: &[CalcValue]) -> Step<Option<usize>>
     let cases = arguments.len() - usize::from(has_default);
     let mut at = 1;
     while at + 1 < cases {
+        if reading_overflow_pair(&arguments[0], &arguments[at]) {
+            return Ok(Some(at + 1));
+        }
         let pair = [arguments[0].clone(), arguments[at].clone()];
         if order(site, &pair, Want::Equality)? == Ordering::Equal {
             return Ok(Some(at + 1));
@@ -153,4 +158,26 @@ fn switch_index(site: &Site<'_>, arguments: &[CalcValue]) -> Step<Option<usize>>
         at += 2;
     }
     Ok(has_default.then_some(arguments.len() - 1))
+}
+
+/// The smallest magnitude whose fifteen-digit reading, 1.79769313486232E+308, lies past
+/// binary64's range: DBL_MAX less three units (ROUND(x,-293) publishes the overflow pattern
+/// 0x7ff000000000000a from here up, and 0x7fefffffffffffe2 at DBL_MAX less four units).
+const READING_OVERFLOW: f64 = f64::from_bits(0x7fef_ffff_ffff_fffc);
+
+/// Excel 16.0.20527's SWITCH finds a number at or past [`READING_OVERFLOW`] in magnitude equal
+/// to every number and to a blank, either sign and either side: SWITCH(x, y, 1, 0) is 1 for x
+/// DBL_MAX, DBL_MAX less one, two or three units and every y tried (1, -1, 0.5, 2, 1E-300,
+/// 1E+300, -DBL_MAX, a blank), and 0 at DBL_MAX less four units, 1.7E+308 and 1E+308; text and a
+/// logical case do not match. Only SWITCH is measured; the = operator is not changed here.
+fn reading_overflow_pair(expression: &CalcValue, case: &CalcValue) -> bool {
+    let magnitude = |value: &CalcValue| match value.core_ref() {
+        CoreRef::Number(n) if !value.is_excel_overflow() && n.is_finite() => Some(n.abs()),
+        CoreRef::Empty | CoreRef::Missing => Some(0.0),
+        _ => None,
+    };
+    match (magnitude(expression), magnitude(case)) {
+        (Some(a), Some(b)) => a >= READING_OVERFLOW || b >= READING_OVERFLOW,
+        _ => false,
+    }
 }

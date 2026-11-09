@@ -208,6 +208,16 @@ fn ifs_and_switch() {
     error(call("SWITCH", vec![n(3.0), n(1.0), t("a")]), NA);
     text(call("SWITCH", vec![t("A"), t("a"), t("hit"), t("miss")]), "hit");
     error(call("SWITCH", vec![e(Div0), n(1.0), t("a")]), Div0);
+    // Excel 16.0.20527: a number whose fifteen-digit reading overflows matches every number,
+    // from DBL_MAX less three units up; less four units does not; text does not match.
+    let max = f64::MAX;
+    let three_below = f64::from_bits(max.to_bits() - 3);
+    let four_below = f64::from_bits(max.to_bits() - 4);
+    text(call("SWITCH", vec![n(max), n(1.0), t("hit"), t("miss")]), "hit");
+    text(call("SWITCH", vec![n(-max), n(-1.0), t("hit"), t("miss")]), "hit");
+    text(call("SWITCH", vec![n(1.0), n(three_below), t("hit"), t("miss")]), "hit");
+    text(call("SWITCH", vec![n(four_below), n(1.0), t("hit"), t("miss")]), "miss");
+    text(call("SWITCH", vec![n(max), t("a"), t("hit"), t("miss")]), "miss");
 }
 
 /// Folded in from dc-fwpz and cfunc-m1.2: digit text in a logical position is #VALUE! (Excel:
