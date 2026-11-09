@@ -12,6 +12,8 @@ compile_error!("dna-calc-desktop is native-only");
 #[cfg(windows)]
 mod app;
 #[cfg(windows)]
+mod embedded;
+#[cfg(windows)]
 mod engine;
 #[cfg(windows)]
 mod fetch;

@@ -1,15 +1,17 @@
-//! `cargo xtask package onecalc [--out <dir>] [--no-zip]`: DNA OneCalc as one folder that runs on a
-//! clean Windows machine (milestone 7, dc-0f1k.13), and a zip of it.
+//! `cargo xtask package onecalc [--out <dir>] [--no-zip] [--without-calc]`: DNA OneCalc as one folder that
+//! runs on a clean Windows machine (milestone 7, dc-0f1k.13), and a zip of it.
 //!
 //! The command
 //! 1. builds OneCalc's page (`cargo xtask app bundle onecalc`) and packs its files into one block
-//!    (`calc_platform_desktop::assets`);
-//! 2. builds `dna-onecalc-desktop` and the `XLCALL32.DLL` companion in the release profile with the
-//!    C runtime linked statically (`-C target-feature=+crt-static`, so the folder needs no Visual C++
-//!    redistributable) and the block embedded in the executable (`DNACALC_ONECALC_PAGE`, read by the
-//!    executable's `build.rs`, which also makes it a window program);
-//! 3. checks the executable's import table: it must name no C++ runtime DLL;
-//! 4. assembles `<out>/DNA-OneCalc/` (the executable, `XLCALL32.DLL`, `README.txt`, `LICENSE`), writes
+//!    (`calc_platform_desktop::assets`); DNA Calc's page likewise (`cargo xtask app bundle calc`), unless
+//!    `--without-calc`;
+//! 2. builds `dna-onecalc-desktop`, `dna-calc-desktop` (the optional companion OneCalc's "Open in DNA
+//!    Calc" starts) and the `XLCALL32.DLL` companion in the release profile with the C runtime linked
+//!    statically (`-C target-feature=+crt-static`, so the folder needs no Visual C++ redistributable) and
+//!    each page embedded in its executable (`DNACALC_ONECALC_PAGE`, `DNACALC_CALC_PAGE`, read by the
+//!    executables' `build.rs`, which also make them window programs);
+//! 3. checks the executables' import tables: they must name no C++ runtime DLL;
+//! 4. assembles `<out>/DNA-OneCalc/` (the executables, `XLCALL32.DLL`, `README.txt`, `LICENSE`), writes
 //!    `<out>/DNA-OneCalc-<version>-win-x64.zip` of it, and records every file's size and SHA-256, the
 //!    zip's, the page's files, the executable's imports and the commit in
 //!    `<out>/package-manifest.json`.
@@ -25,13 +27,15 @@ use std::fs;
 use std::path::{Path, PathBuf};
 use std::process::{Command, ExitCode};
 
-pub const USAGE: &str = "usage: cargo xtask package onecalc [--out <dir>] [--no-zip]\n       cargo xtask package onecalc-clean-run --package <DNA-OneCalc folder> --work <empty dir> --out <dir> [--fixtures <dir>] [--x5 <X5Native64.xll>]";
+pub const USAGE: &str = "usage: cargo xtask package onecalc [--out <dir>] [--no-zip] [--without-calc]\n       cargo xtask package onecalc-clean-run --package <DNA-OneCalc folder> --work <empty dir> --out <dir> [--fixtures <dir>] [--x5 <X5Native64.xll>]";
 
 /// The folder the zip holds, and the executable's name in it.
 pub const FOLDER: &str = "DNA-OneCalc";
 pub const EXE: &str = "dna-onecalc-desktop.exe";
+/// The optional companion: DNA Calc, which OneCalc starts for a file it cannot open as a session.
+pub const CALC_EXE: &str = "dna-calc-desktop.exe";
 
-const README: &str = "DNA OneCalc\r\n\r\nOne Excel formula at a time, with the inputs it needs, on your desktop. Run dna-onecalc-desktop.exe.\r\n\r\nThis folder is the whole program:\r\n  dna-onecalc-desktop.exe  the application; its page is inside it\r\n  XLCALL32.DLL             lets Excel add-ins (.xll) find the application, as they find Excel\r\n  LICENSE                  MIT licence\r\n\r\nIt needs the Microsoft Edge WebView2 Runtime (the Evergreen runtime, already part of Windows 11 and\r\nof current Microsoft Edge installations). If it is missing the application says so and gives the\r\ndownload page: https://developer.microsoft.com/microsoft-edge/webview2/\r\n\r\nExcel add-ins (.xll, .xlam) load from the Add-ins panel. A file OneCalc cannot open as a session can\r\nbe opened in DNA Calc when dna-calc-desktop.exe is in this folder.\r\n\r\nThe application keeps its settings (window place, recent files) and its browser profile under\r\n%LOCALAPPDATA%\\DNA OneCalc. Delete that folder to forget them.\r\n";
+const README: &str = "DNA OneCalc\r\n\r\nOne Excel formula at a time, with the inputs it needs, on your desktop. Run dna-onecalc-desktop.exe.\r\n\r\nThis folder is the whole program:\r\n  dna-onecalc-desktop.exe  the application; its page is inside it\r\n  dna-calc-desktop.exe     DNA Calc, the workbook application; its page is inside it\r\n  XLCALL32.DLL             lets Excel add-ins (.xll) find the application, as they find Excel\r\n  LICENSE                  MIT licence\r\n\r\nIt needs the Microsoft Edge WebView2 Runtime (the Evergreen runtime, already part of Windows 11 and\r\nof current Microsoft Edge installations). If it is missing the application says so and gives the\r\ndownload page: https://developer.microsoft.com/microsoft-edge/webview2/\r\n\r\nExcel add-ins (.xll, .xlam) load from the Add-ins panel. A file OneCalc cannot open as a session can\r\nbe opened in DNA Calc when dna-calc-desktop.exe is in this folder.\r\n\r\nThe application keeps its settings (window place, recent files) and its browser profile under\r\n%LOCALAPPDATA%\\DNA OneCalc. Delete that folder to forget them.\r\n";
 
 pub fn run(raw: &[String]) -> ExitCode {
     match raw.split_first() {
@@ -53,11 +57,13 @@ pub fn run(raw: &[String]) -> ExitCode {
 fn build(raw: &[String]) -> ExitCode {
     let mut out = None;
     let mut zip = true;
+    let mut calc = true;
     let mut args = raw.iter();
     while let Some(arg) = args.next() {
         match arg.as_str() {
             "--out" => out = args.next().map(PathBuf::from),
             "--no-zip" => zip = false,
+            "--without-calc" => calc = false,
             _ => {
                 eprintln!("{USAGE}");
                 return ExitCode::from(2);
@@ -69,7 +75,7 @@ fn build(raw: &[String]) -> ExitCode {
         .and_then(|cwd| Workspace::load(&cwd))
         .and_then(|ws| {
             let out = out.unwrap_or_else(|| ws.root.join("target/onecalc-package"));
-            package(&ws, &out, zip)
+            package(&ws, &out, zip, calc)
         });
     match result {
         Ok(manifest) => {
@@ -83,7 +89,7 @@ fn build(raw: &[String]) -> ExitCode {
     }
 }
 
-fn package(ws: &Workspace, out: &Path, zip: bool) -> Result<Value, String> {
+fn package(ws: &Workspace, out: &Path, zip: bool, calc: bool) -> Result<Value, String> {
     let io = |what: &str, path: &Path, e: std::io::Error| format!("{what} {}: {e}", path.display());
     fs::create_dir_all(out).map_err(|e| io("cannot create", out, e))?;
     let out = out.canonicalize().map_err(|e| io("cannot resolve", out, e))?;
@@ -101,15 +107,34 @@ fn package(ws: &Workspace, out: &Path, zip: bool) -> Result<Value, String> {
     }
     let block = out.join("page.block");
     fs::write(&block, assets::pack(&packed)).map_err(|e| io("cannot write", &block, e))?;
+    // DNA Calc's page, for the companion.
+    let calc_block = out.join("calc-page.block");
+    let calc_files = if calc {
+        let calc_dir = out.join("calc-page");
+        let _ = fs::remove_dir_all(&calc_dir);
+        let files = bundle(ws, &APPS[1], &calc_dir)?;
+        let mut packed = Vec::new();
+        for (name, _) in &files {
+            let path = calc_dir.join(name);
+            packed.push((name.clone(), fs::read(&path).map_err(|e| io("cannot read", &path, e))?));
+        }
+        fs::write(&calc_block, assets::pack(&packed)).map_err(|e| io("cannot write", &calc_block, e))?;
+        files
+    } else {
+        Vec::new()
+    };
 
     // 2. The executable and the companion, release, the C runtime static, the page embedded.
-    println!("ONECALC PACKAGE building release (crt-static, page embedded)");
+    println!("ONECALC PACKAGE building release (crt-static, pages embedded)");
     let mut build = Command::new(cargo::cargo_program());
     build
         .current_dir(&ws.root)
         .args(["build", "--release", "--locked", "-p", "dna-onecalc-desktop", "-p", "calc-xll-shim"])
         .env("RUSTFLAGS", "-C target-feature=+crt-static")
         .env("DNACALC_ONECALC_PAGE", &block);
+    if calc {
+        build.args(["-p", "dna-calc-desktop"]).env("DNACALC_CALC_PAGE", &calc_block);
+    }
     let built = cargo::output(&mut build)?;
     if !built.status.success() {
         return Err(format!("cargo build failed:\n{}", cargo::tail(&built.stderr, 40)));
@@ -117,10 +142,19 @@ fn package(ws: &Workspace, out: &Path, zip: bool) -> Result<Value, String> {
     let release = ws.target_dir().join("release");
     let exe = fs::read(release.join(EXE)).map_err(|e| io("cannot read", &release.join(EXE), e))?;
     let shim = fs::read(release.join("xlcall32.dll")).map_err(|e| io("cannot read", &release.join("xlcall32.dll"), e))?;
+    let calc_exe = if calc {
+        Some(fs::read(release.join(CALC_EXE)).map_err(|e| io("cannot read", &release.join(CALC_EXE), e))?)
+    } else {
+        None
+    };
 
     // 3. What the executable and the companion link to.
     let mut imports = json!({});
-    for (name, bytes) in [(EXE, &exe), ("XLCALL32.DLL", &shim)] {
+    let mut checked = vec![(EXE, &exe), ("XLCALL32.DLL", &shim)];
+    if let Some(bytes) = &calc_exe {
+        checked.push((CALC_EXE, bytes));
+    }
+    for (name, bytes) in checked {
         let list = pe_imports(bytes)?;
         if let Some(runtime) = list.iter().find(|dll| needs_redistributable(dll)) {
             return Err(format!("{name} imports {runtime}: the folder would need the Visual C++ redistributable"));
@@ -133,12 +167,15 @@ fn package(ws: &Workspace, out: &Path, zip: bool) -> Result<Value, String> {
     let _ = fs::remove_dir_all(&folder);
     fs::create_dir_all(&folder).map_err(|e| io("cannot create", &folder, e))?;
     let licence = fs::read(ws.root.join("LICENSE")).map_err(|e| format!("LICENSE: {e}"))?;
-    let files: Vec<(String, Vec<u8>)> = vec![
-        (EXE.to_owned(), exe),
+    let mut files: Vec<(String, Vec<u8>)> = vec![(EXE.to_owned(), exe)];
+    if let Some(bytes) = calc_exe {
+        files.push((CALC_EXE.to_owned(), bytes));
+    }
+    files.extend([
         ("XLCALL32.DLL".to_owned(), shim),
-        ("README.txt".to_owned(), README.as_bytes().to_vec()),
+        ("README.txt".to_owned(), readme(calc).into_bytes()),
         ("LICENSE".to_owned(), licence),
-    ];
+    ]);
     let mut listed = Vec::new();
     for (name, bytes) in &files {
         fs::write(folder.join(name), bytes).map_err(|e| io("cannot write", &folder.join(name), e))?;
@@ -154,6 +191,8 @@ fn package(ws: &Workspace, out: &Path, zip: bool) -> Result<Value, String> {
         "files": listed,
         "page": page_files.iter().map(|(name, size)| json!({"name": name, "bytes": size})).collect::<Vec<_>>(),
         "page_block_bytes": fs::metadata(&block).map(|m| m.len()).unwrap_or(0),
+        "calc_page": calc_files.iter().map(|(name, size)| json!({"name": name, "bytes": size})).collect::<Vec<_>>(),
+        "calc_page_block_bytes": fs::metadata(&calc_block).map(|m| m.len()).unwrap_or(0),
         "imports": imports,
     });
     let folder_bytes: usize = files.iter().map(|(_, b)| b.len()).sum();
@@ -178,6 +217,17 @@ fn package(ws: &Workspace, out: &Path, zip: bool) -> Result<Value, String> {
     }
     println!("ONECALC PACKAGE record {}", record.display());
     Ok(manifest)
+}
+
+/// The folder's README: the line about DNA Calc names it only when it is in the folder.
+fn readme(calc: bool) -> String {
+    if calc {
+        README.to_owned()
+    } else {
+        README
+            .replace("  dna-calc-desktop.exe     DNA Calc, the workbook application; its page is inside it\r\n", "")
+            .replace("when dna-calc-desktop.exe is in this folder", "when dna-calc-desktop.exe is put in this folder")
+    }
 }
 
 /// The import table's DLL names of a PE image (lower case).
