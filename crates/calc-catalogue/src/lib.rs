@@ -36,6 +36,7 @@ pub use help::{FunctionHelp, HELP, description_of, description_of_id, help_of, h
 mod file_function_ids;
 pub use file_function_ids::EXCEL_FUNCTION_IDS;
 
+pub mod admission;
 pub mod aggregate;
 pub mod logical;
 pub mod logical_more;
