@@ -1,0 +1,5354 @@
+{
+  "counts": {
+    "agree": 6056117,
+    "different": 5067,
+    "excluded": 4543,
+    "incomplete_reply": 0,
+    "input_changed": 2495,
+    "service_failure": 9,
+    "spill_layout_unconfirmed": 84,
+    "unrecognised_answer": 0,
+    "unsupported_input": 0,
+    "unsupported_request": 0,
+    "wrong_build": 0
+  },
+  "different_records": "version-observations.jsonl.gz in the cited R2 evidence prefix",
+  "different_records_sha256": "ad9b76300d6be2e8dd7c13a66ca2a9c81352e9fa4e3672445f50636eac777d18",
+  "elapsed_wall_seconds_approx_including_service_pauses": 4489,
+  "environment_batch_counts": {
+    "61204adffdb6": 458,
+    "f3269992527c": 7295,
+    "fc33a7df6016": 1095
+  },
+  "environments": {
+    "61204adffdb6": {
+      "addins_installed": [
+        "McpExcel-AddIn64.xll",
+        "TestCrashGuard-AddIn64.xll"
+      ],
+      "automation_security": 1,
+      "build": "20527",
+      "calculation": -4135,
+      "com_addins_connected": [
+        "VS15ExcelAdaptor"
+      ],
+      "compatibility_version": 2,
+      "cpu": "AMD Ryzen 7 4800H with Radeon Graphics",
+      "cpu_id": "AMD64 Family 23 Model 96 Stepping 1, AuthenticAMD",
+      "date1904": false,
+      "decimal_separator": ".",
+      "engine": "excel",
+      "file_version": "16.0.20527.20150",
+      "iteration": false,
+      "logical_cpus": 16,
+      "machine": "x86-64",
+      "max_change": "3f50624dd2f1a9fc",
+      "max_iterations": 100,
+      "mt_calc": "off",
+      "mt_enabled": false,
+      "mt_threads_reported": 1,
+      "os": "Microsoft Windows NT 10.0.26200.0",
+      "precision_as_displayed": false,
+      "scratch_sheets": "S,A,Q",
+      "thousands_separator": "\u00a0",
+      "use_system_separators": true,
+      "version": "16.0"
+    },
+    "f3269992527c": {
+      "addins_installed": [
+        "McpExcel-AddIn64.xll",
+        "TestCrashGuard-AddIn64.xll"
+      ],
+      "automation_security": 1,
+      "build": "20527",
+      "calculation": -4135,
+      "com_addins_connected": [
+        "VS15ExcelAdaptor"
+      ],
+      "compatibility_version": 2,
+      "cpu": "AMD Ryzen 7 4800H with Radeon Graphics",
+      "cpu_id": "AMD64 Family 23 Model 96 Stepping 1, AuthenticAMD",
+      "date1904": false,
+      "decimal_separator": ".",
+      "engine": "excel",
+      "file_version": "16.0.20527.20150",
+      "iteration": false,
+      "logical_cpus": 16,
+      "machine": "x86-64",
+      "max_change": "3f50624dd2f1a9fc",
+      "max_iterations": 100,
+      "mt_calc": "manual:4",
+      "mt_enabled": true,
+      "mt_threads_reported": 4,
+      "os": "Microsoft Windows NT 10.0.26200.0",
+      "precision_as_displayed": false,
+      "scratch_sheets": "S,A,Q",
+      "thousands_separator": "\u00a0",
+      "use_system_separators": true,
+      "version": "16.0"
+    },
+    "fc33a7df6016": {
+      "addins_installed": [
+        "TestCrashGuard-AddIn64.xll"
+      ],
+      "automation_security": 1,
+      "build": "20527",
+      "calculation": -4135,
+      "com_addins_connected": [
+        "VS15ExcelAdaptor"
+      ],
+      "compatibility_version": 2,
+      "cpu": "AMD Ryzen 7 4800H with Radeon Graphics",
+      "cpu_id": "AMD64 Family 23 Model 96 Stepping 1, AuthenticAMD",
+      "date1904": false,
+      "decimal_separator": ".",
+      "engine": "excel",
+      "file_version": "16.0.20527.20150",
+      "iteration": false,
+      "logical_cpus": 16,
+      "machine": "x86-64",
+      "max_change": "3f50624dd2f1a9fc",
+      "max_iterations": 100,
+      "mt_calc": "off",
+      "mt_enabled": false,
+      "mt_threads_reported": 1,
+      "os": "Microsoft Windows NT 10.0.26200.0",
+      "precision_as_displayed": false,
+      "scratch_sheets": "S,A,Q",
+      "thousands_separator": "\u00a0",
+      "use_system_separators": true,
+      "version": "16.0"
+    }
+  },
+  "evidence_r2": "dnacalc-evidence/excel/20261109-drift1-0034z/",
+  "exported_observations": 6068315,
+  "format": "dnacalc-excel-build-comparison/1",
+  "functions": {
+    "ABS": {
+      "agree": 6120,
+      "different": 0,
+      "incomplete_reply": 0,
+      "input_changed": 6,
+      "source_build_counts": {
+        "20430": 6126
+      },
+      "source_cpu_counts": {
+        "unknown": 6126
+      },
+      "unrecognised_answer": 0,
+      "unsupported_input": 0,
+      "unsupported_request": 0,
+      "wrong_build": 0
+    },
+    "ACCRINT": {
+      "agree": 293088,
+      "different": 0,
+      "incomplete_reply": 0,
+      "input_changed": 0,
+      "source_build_counts": {
+        "20131": 145458,
+        "20228": 1230,
+        "unknown": 146400
+      },
+      "source_cpu_counts": {
+        "AMD Ryzen 7 4800H with Radeon Graphics": 145458,
+        "unknown": 147630
+      },
+      "unrecognised_answer": 0,
+      "unsupported_input": 0,
+      "unsupported_request": 0,
+      "wrong_build": 0
+    },
+    "ACCRINTM": {
+      "agree": 3612,
+      "different": 0,
+      "incomplete_reply": 0,
+      "input_changed": 0,
+      "source_build_counts": {
+        "20430": 3612
+      },
+      "source_cpu_counts": {
+        "AMD Ryzen 7 4800H with Radeon Graphics": 3612
+      },
+      "unrecognised_answer": 0,
+      "unsupported_input": 0,
+      "unsupported_request": 0,
+      "wrong_build": 0
+    },
+    "ACOS": {
+      "agree": 14230,
+      "different": 0,
+      "incomplete_reply": 0,
+      "input_changed": 2,
+      "source_build_counts": {
+        "20430": 14232
+      },
+      "source_cpu_counts": {
+        "unknown": 14232
+      },
+      "unrecognised_answer": 0,
+      "unsupported_input": 0,
+      "unsupported_request": 0,
+      "wrong_build": 0
+    },
+    "ACOSH": {
+      "agree": 10636,
+      "different": 0,
+      "incomplete_reply": 0,
+      "input_changed": 0,
+      "source_build_counts": {
+        "20430": 10636
+      },
+      "source_cpu_counts": {
+        "AMD Ryzen 7 4800H with Radeon Graphics": 4516,
+        "unknown": 6120
+      },
+      "unrecognised_answer": 0,
+      "unsupported_input": 0,
+      "unsupported_request": 0,
+      "wrong_build": 0
+    },
+    "ACOT": {
+      "agree": 22040,
+      "different": 0,
+      "incomplete_reply": 0,
+      "input_changed": 2,
+      "source_build_counts": {
+        "20430": 22042
+      },
+      "source_cpu_counts": {
+        "unknown": 22042
+      },
+      "unrecognised_answer": 0,
+      "unsupported_input": 0,
+      "unsupported_request": 0,
+      "wrong_build": 0
+    },
+    "ACOTH": {
+      "agree": 275298,
+      "different": 0,
+      "incomplete_reply": 0,
+      "input_changed": 0,
+      "source_build_counts": {
+        "20131": 56,
+        "20228": 269122,
+        "20430": 6120
+      },
+      "source_cpu_counts": {
+        "AMD Ryzen 7 4800H with Radeon Graphics": 56,
+        "unknown": 275242
+      },
+      "unrecognised_answer": 0,
+      "unsupported_input": 0,
+      "unsupported_request": 0,
+      "wrong_build": 0
+    },
+    "ADDRESS": {
+      "agree": 6420,
+      "different": 0,
+      "incomplete_reply": 0,
+      "input_changed": 0,
+      "source_build_counts": {
+        "20430": 6420
+      },
+      "source_cpu_counts": {
+        "unknown": 6420
+      },
+      "unrecognised_answer": 0,
+      "unsupported_input": 0,
+      "unsupported_request": 0,
+      "wrong_build": 0
+    },
+    "AND": {
+      "agree": 6050,
+      "different": 0,
+      "incomplete_reply": 0,
+      "input_changed": 4,
+      "source_build_counts": {
+        "20430": 6054
+      },
+      "source_cpu_counts": {
+        "unknown": 6054
+      },
+      "unrecognised_answer": 0,
+      "unsupported_input": 0,
+      "unsupported_request": 0,
+      "wrong_build": 0
+    },
+    "ASIN": {
+      "agree": 27085,
+      "different": 0,
+      "incomplete_reply": 0,
+      "input_changed": 3,
+      "source_build_counts": {
+        "20430": 27088
+      },
+      "source_cpu_counts": {
+        "unknown": 27088
+      },
+      "unrecognised_answer": 0,
+      "unsupported_input": 0,
+      "unsupported_request": 0,
+      "wrong_build": 0
+    },
+    "ASINH": {
+      "agree": 4528,
+      "different": 0,
+      "incomplete_reply": 0,
+      "input_changed": 6,
+      "source_build_counts": {
+        "20430": 4534
+      },
+      "source_cpu_counts": {
+        "AMD Ryzen 7 4800H with Radeon Graphics": 4534
+      },
+      "unrecognised_answer": 0,
+      "unsupported_input": 0,
+      "unsupported_request": 0,
+      "wrong_build": 0
+    },
+    "ATAN": {
+      "agree": 186405,
+      "different": 0,
+      "incomplete_reply": 0,
+      "input_changed": 0,
+      "source_build_counts": {
+        "20430": 186405
+      },
+      "source_cpu_counts": {
+        "unknown": 186405
+      },
+      "unrecognised_answer": 0,
+      "unsupported_input": 0,
+      "unsupported_request": 0,
+      "wrong_build": 0
+    },
+    "ATANH": {
+      "agree": 26894,
+      "different": 0,
+      "incomplete_reply": 0,
+      "input_changed": 1038,
+      "source_build_counts": {
+        "20131": 350,
+        "20228": 21462,
+        "20430": 6120
+      },
+      "source_cpu_counts": {
+        "AMD Ryzen 7 4800H with Radeon Graphics": 350,
+        "unknown": 27582
+      },
+      "unrecognised_answer": 0,
+      "unsupported_input": 0,
+      "unsupported_request": 0,
+      "wrong_build": 0
+    },
+    "AVEDEV": {
+      "agree": 6050,
+      "different": 0,
+      "incomplete_reply": 0,
+      "input_changed": 4,
+      "source_build_counts": {
+        "20430": 6054
+      },
+      "source_cpu_counts": {
+        "unknown": 6054
+      },
+      "unrecognised_answer": 0,
+      "unsupported_input": 0,
+      "unsupported_request": 0,
+      "wrong_build": 0
+    },
+    "AVERAGE": {
+      "agree": 6066,
+      "different": 0,
+      "incomplete_reply": 0,
+      "input_changed": 4,
+      "source_build_counts": {
+        "20430": 6054,
+        "20527": 16
+      },
+      "source_cpu_counts": {
+        "AMD Ryzen 7 4800H with Radeon Graphics         ": 16,
+        "unknown": 6054
+      },
+      "unrecognised_answer": 0,
+      "unsupported_input": 0,
+      "unsupported_request": 0,
+      "wrong_build": 0
+    },
+    "AVERAGEA": {
+      "agree": 6050,
+      "different": 0,
+      "incomplete_reply": 0,
+      "input_changed": 4,
+      "source_build_counts": {
+        "20430": 6054
+      },
+      "source_cpu_counts": {
+        "unknown": 6054
+      },
+      "unrecognised_answer": 0,
+      "unsupported_input": 0,
+      "unsupported_request": 0,
+      "wrong_build": 0
+    },
+    "BAHTTEXT": {
+      "agree": 2591,
+      "different": 0,
+      "incomplete_reply": 0,
+      "input_changed": 1,
+      "source_build_counts": {
+        "20430": 2592
+      },
+      "source_cpu_counts": {
+        "AMD Ryzen 7 4800H with Radeon Graphics": 2592
+      },
+      "unrecognised_answer": 0,
+      "unsupported_input": 0,
+      "unsupported_request": 0,
+      "wrong_build": 0
+    },
+    "BASE": {
+      "agree": 8585,
+      "different": 0,
+      "incomplete_reply": 0,
+      "input_changed": 0,
+      "source_build_counts": {
+        "20430": 8585
+      },
+      "source_cpu_counts": {
+        "unknown": 8585
+      },
+      "unrecognised_answer": 0,
+      "unsupported_input": 0,
+      "unsupported_request": 0,
+      "wrong_build": 0
+    },
+    "BESSELI": {
+      "agree": 6356,
+      "different": 0,
+      "incomplete_reply": 0,
+      "input_changed": 0,
+      "source_build_counts": {
+        "20430": 6180,
+        "20527": 176
+      },
+      "source_cpu_counts": {
+        "AMD Ryzen 7 4800H with Radeon Graphics         ": 176,
+        "unknown": 6180
+      },
+      "unrecognised_answer": 0,
+      "unsupported_input": 0,
+      "unsupported_request": 0,
+      "wrong_build": 0
+    },
+    "BESSELJ": {
+      "agree": 1039,
+      "different": 0,
+      "incomplete_reply": 0,
+      "input_changed": 0,
+      "source_build_counts": {
+        "20228": 794,
+        "20527": 245
+      },
+      "source_cpu_counts": {
+        "AMD Ryzen 7 4800H with Radeon Graphics         ": 245,
+        "unknown": 794
+      },
+      "unrecognised_answer": 0,
+      "unsupported_input": 0,
+      "unsupported_request": 0,
+      "wrong_build": 0
+    },
+    "BESSELK": {
+      "agree": 6180,
+      "different": 0,
+      "incomplete_reply": 0,
+      "input_changed": 0,
+      "source_build_counts": {
+        "20430": 6180
+      },
+      "source_cpu_counts": {
+        "unknown": 6180
+      },
+      "unrecognised_answer": 0,
+      "unsupported_input": 0,
+      "unsupported_request": 0,
+      "wrong_build": 0
+    },
+    "BESSELY": {
+      "agree": 69,
+      "different": 0,
+      "incomplete_reply": 0,
+      "input_changed": 0,
+      "source_build_counts": {
+        "20527": 69
+      },
+      "source_cpu_counts": {
+        "AMD Ryzen 7 4800H with Radeon Graphics         ": 69
+      },
+      "unrecognised_answer": 0,
+      "unsupported_input": 0,
+      "unsupported_request": 0,
+      "wrong_build": 0
+    },
+    "BETA.DIST": {
+      "agree": 5653,
+      "different": 0,
+      "incomplete_reply": 0,
+      "input_changed": 0,
+      "source_build_counts": {
+        "20131": 2805,
+        "20430": 20,
+        "unknown": 2828
+      },
+      "source_cpu_counts": {
+        "AMD Ryzen 7 4800H with Radeon Graphics": 2805,
+        "unknown": 2848
+      },
+      "unrecognised_answer": 0,
+      "unsupported_input": 0,
+      "unsupported_request": 0,
+      "wrong_build": 0
+    },
+    "BETADIST": {
+      "agree": 588,
+      "different": 0,
+      "incomplete_reply": 0,
+      "input_changed": 0,
+      "source_build_counts": {
+        "20131": 294,
+        "unknown": 294
+      },
+      "source_cpu_counts": {
+        "AMD Ryzen 7 4800H with Radeon Graphics": 294,
+        "unknown": 294
+      },
+      "unrecognised_answer": 0,
+      "unsupported_input": 0,
+      "unsupported_request": 0,
+      "wrong_build": 0
+    },
+    "BETAINV": {
+      "agree": 124,
+      "different": 0,
+      "incomplete_reply": 0,
+      "input_changed": 0,
+      "source_build_counts": {
+        "20131": 62,
+        "unknown": 62
+      },
+      "source_cpu_counts": {
+        "AMD Ryzen 7 4800H with Radeon Graphics": 62,
+        "unknown": 62
+      },
+      "unrecognised_answer": 0,
+      "unsupported_input": 0,
+      "unsupported_request": 0,
+      "wrong_build": 0
+    },
+    "BIN2DEC": {
+      "agree": 6040,
+      "different": 0,
+      "incomplete_reply": 0,
+      "input_changed": 0,
+      "source_build_counts": {
+        "20430": 6040
+      },
+      "source_cpu_counts": {
+        "unknown": 6040
+      },
+      "unrecognised_answer": 0,
+      "unsupported_input": 0,
+      "unsupported_request": 0,
+      "wrong_build": 0
+    },
+    "BIN2HEX": {
+      "agree": 6130,
+      "different": 0,
+      "incomplete_reply": 0,
+      "input_changed": 0,
+      "source_build_counts": {
+        "20430": 6130
+      },
+      "source_cpu_counts": {
+        "unknown": 6130
+      },
+      "unrecognised_answer": 0,
+      "unsupported_input": 0,
+      "unsupported_request": 0,
+      "wrong_build": 0
+    },
+    "BIN2OCT": {
+      "agree": 6130,
+      "different": 0,
+      "incomplete_reply": 0,
+      "input_changed": 0,
+      "source_build_counts": {
+        "20430": 6130
+      },
+      "source_cpu_counts": {
+        "unknown": 6130
+      },
+      "unrecognised_answer": 0,
+      "unsupported_input": 0,
+      "unsupported_request": 0,
+      "wrong_build": 0
+    },
+    "BINOM.DIST": {
+      "agree": 141358,
+      "different": 0,
+      "incomplete_reply": 0,
+      "input_changed": 0,
+      "source_build_counts": {
+        "20131": 70201,
+        "20527": 156,
+        "unknown": 71001
+      },
+      "source_cpu_counts": {
+        "AMD Ryzen 7 4800H with Radeon Graphics": 70201,
+        "AMD Ryzen 7 4800H with Radeon Graphics         ": 156,
+        "unknown": 71001
+      },
+      "unrecognised_answer": 0,
+      "unsupported_input": 0,
+      "unsupported_request": 0,
+      "wrong_build": 0
+    },
+    "BINOM.DIST.RANGE": {
+      "agree": 6120,
+      "different": 0,
+      "incomplete_reply": 0,
+      "input_changed": 0,
+      "source_build_counts": {
+        "20430": 6120
+      },
+      "source_cpu_counts": {
+        "unknown": 6120
+      },
+      "unrecognised_answer": 0,
+      "unsupported_input": 0,
+      "unsupported_request": 0,
+      "wrong_build": 0
+    },
+    "BINOM.INV": {
+      "agree": 7415,
+      "different": 0,
+      "incomplete_reply": 0,
+      "input_changed": 0,
+      "source_build_counts": {
+        "20430": 7226,
+        "20527": 189
+      },
+      "source_cpu_counts": {
+        "AMD Ryzen 7 4800H with Radeon Graphics": 189,
+        "unknown": 7226
+      },
+      "unrecognised_answer": 0,
+      "unsupported_input": 0,
+      "unsupported_request": 0,
+      "wrong_build": 0
+    },
+    "BITAND": {
+      "agree": 10931,
+      "different": 0,
+      "incomplete_reply": 0,
+      "input_changed": 33,
+      "source_build_counts": {
+        "20430": 10964
+      },
+      "source_cpu_counts": {
+        "unknown": 10964
+      },
+      "unrecognised_answer": 0,
+      "unsupported_input": 0,
+      "unsupported_request": 0,
+      "wrong_build": 0
+    },
+    "BITLSHIFT": {
+      "agree": 13218,
+      "different": 0,
+      "incomplete_reply": 0,
+      "input_changed": 42,
+      "source_build_counts": {
+        "20430": 13260
+      },
+      "source_cpu_counts": {
+        "unknown": 13260
+      },
+      "unrecognised_answer": 0,
+      "unsupported_input": 0,
+      "unsupported_request": 0,
+      "wrong_build": 0
+    },
+    "BITOR": {
+      "agree": 10931,
+      "different": 0,
+      "incomplete_reply": 0,
+      "input_changed": 33,
+      "source_build_counts": {
+        "20430": 10964
+      },
+      "source_cpu_counts": {
+        "unknown": 10964
+      },
+      "unrecognised_answer": 0,
+      "unsupported_input": 0,
+      "unsupported_request": 0,
+      "wrong_build": 0
+    },
+    "BITRSHIFT": {
+      "agree": 13215,
+      "different": 0,
+      "incomplete_reply": 0,
+      "input_changed": 42,
+      "source_build_counts": {
+        "20430": 13257
+      },
+      "source_cpu_counts": {
+        "unknown": 13257
+      },
+      "unrecognised_answer": 0,
+      "unsupported_input": 0,
+      "unsupported_request": 0,
+      "wrong_build": 0
+    },
+    "BITXOR": {
+      "agree": 10931,
+      "different": 0,
+      "incomplete_reply": 0,
+      "input_changed": 33,
+      "source_build_counts": {
+        "20430": 10964
+      },
+      "source_cpu_counts": {
+        "unknown": 10964
+      },
+      "unrecognised_answer": 0,
+      "unsupported_input": 0,
+      "unsupported_request": 0,
+      "wrong_build": 0
+    },
+    "CEILING": {
+      "agree": 6600,
+      "different": 0,
+      "incomplete_reply": 0,
+      "input_changed": 30,
+      "source_build_counts": {
+        "20430": 6630
+      },
+      "source_cpu_counts": {
+        "unknown": 6630
+      },
+      "unrecognised_answer": 0,
+      "unsupported_input": 0,
+      "unsupported_request": 0,
+      "wrong_build": 0
+    },
+    "CEILING.MATH": {
+      "agree": 6720,
+      "different": 0,
+      "incomplete_reply": 0,
+      "input_changed": 36,
+      "source_build_counts": {
+        "20430": 6756
+      },
+      "source_cpu_counts": {
+        "unknown": 6756
+      },
+      "unrecognised_answer": 0,
+      "unsupported_input": 0,
+      "unsupported_request": 0,
+      "wrong_build": 0
+    },
+    "CEILING.PRECISE": {
+      "agree": 6600,
+      "different": 0,
+      "incomplete_reply": 0,
+      "input_changed": 30,
+      "source_build_counts": {
+        "20430": 6630
+      },
+      "source_cpu_counts": {
+        "unknown": 6630
+      },
+      "unrecognised_answer": 0,
+      "unsupported_input": 0,
+      "unsupported_request": 0,
+      "wrong_build": 0
+    },
+    "CHIDIST": {
+      "agree": 802,
+      "different": 0,
+      "incomplete_reply": 0,
+      "input_changed": 0,
+      "source_build_counts": {
+        "20131": 388,
+        "unknown": 414
+      },
+      "source_cpu_counts": {
+        "AMD Ryzen 7 4800H with Radeon Graphics": 388,
+        "unknown": 414
+      },
+      "unrecognised_answer": 0,
+      "unsupported_input": 0,
+      "unsupported_request": 0,
+      "wrong_build": 0
+    },
+    "CHIINV": {
+      "agree": 200,
+      "different": 0,
+      "incomplete_reply": 0,
+      "input_changed": 0,
+      "source_build_counts": {
+        "20131": 100,
+        "unknown": 100
+      },
+      "source_cpu_counts": {
+        "AMD Ryzen 7 4800H with Radeon Graphics": 100,
+        "unknown": 100
+      },
+      "unrecognised_answer": 0,
+      "unsupported_input": 0,
+      "unsupported_request": 0,
+      "wrong_build": 0
+    },
+    "CHISQ.DIST.RT": {
+      "agree": 12,
+      "different": 0,
+      "incomplete_reply": 0,
+      "input_changed": 0,
+      "source_build_counts": {
+        "20131": 6,
+        "unknown": 6
+      },
+      "source_cpu_counts": {
+        "AMD Ryzen 7 4800H with Radeon Graphics": 6,
+        "unknown": 6
+      },
+      "unrecognised_answer": 0,
+      "unsupported_input": 0,
+      "unsupported_request": 0,
+      "wrong_build": 0
+    },
+    "CHISQ.INV": {
+      "agree": 80,
+      "different": 0,
+      "incomplete_reply": 0,
+      "input_changed": 0,
+      "source_build_counts": {
+        "20131": 40,
+        "unknown": 40
+      },
+      "source_cpu_counts": {
+        "AMD Ryzen 7 4800H with Radeon Graphics": 40,
+        "unknown": 40
+      },
+      "unrecognised_answer": 0,
+      "unsupported_input": 0,
+      "unsupported_request": 0,
+      "wrong_build": 0
+    },
+    "CHISQ.TEST": {
+      "agree": 5,
+      "different": 0,
+      "incomplete_reply": 0,
+      "input_changed": 0,
+      "source_build_counts": {
+        "20131": 5
+      },
+      "source_cpu_counts": {
+        "AMD Ryzen 7 4800H with Radeon Graphics": 5
+      },
+      "unrecognised_answer": 0,
+      "unsupported_input": 0,
+      "unsupported_request": 0,
+      "wrong_build": 0
+    },
+    "COMBIN": {
+      "agree": 31093,
+      "different": 0,
+      "incomplete_reply": 0,
+      "input_changed": 51,
+      "service_failure": 6,
+      "source_build_counts": {
+        "20131": 503,
+        "20228": 23932,
+        "20430": 6210,
+        "unknown": 505
+      },
+      "source_cpu_counts": {
+        "AMD Ryzen 7 4800H with Radeon Graphics": 503,
+        "unknown": 30647
+      },
+      "unrecognised_answer": 0,
+      "unsupported_input": 0,
+      "unsupported_request": 0,
+      "wrong_build": 0
+    },
+    "COMBINA": {
+      "agree": 46393,
+      "different": 0,
+      "incomplete_reply": 0,
+      "input_changed": 144,
+      "service_failure": 3,
+      "source_build_counts": {
+        "20228": 40330,
+        "20430": 6210
+      },
+      "source_cpu_counts": {
+        "unknown": 46540
+      },
+      "unrecognised_answer": 0,
+      "unsupported_input": 0,
+      "unsupported_request": 0,
+      "wrong_build": 0
+    },
+    "COMPLEX": {
+      "agree": 15913,
+      "different": 0,
+      "incomplete_reply": 0,
+      "input_changed": 81,
+      "source_build_counts": {
+        "20430": 15994
+      },
+      "source_cpu_counts": {
+        "unknown": 15994
+      },
+      "unrecognised_answer": 0,
+      "unsupported_input": 0,
+      "unsupported_request": 0,
+      "wrong_build": 0
+    },
+    "CONCAT": {
+      "agree": 35,
+      "different": 0,
+      "incomplete_reply": 0,
+      "input_changed": 0,
+      "source_build_counts": {
+        "20527": 35
+      },
+      "source_cpu_counts": {
+        "AMD Ryzen 7 4800H with Radeon Graphics         ": 35
+      },
+      "unrecognised_answer": 0,
+      "unsupported_input": 0,
+      "unsupported_request": 0,
+      "wrong_build": 0
+    },
+    "CONCATENATE": {
+      "agree": 20,
+      "different": 0,
+      "incomplete_reply": 0,
+      "input_changed": 0,
+      "source_build_counts": {
+        "20527": 20
+      },
+      "source_cpu_counts": {
+        "AMD Ryzen 7 4800H with Radeon Graphics         ": 20
+      },
+      "unrecognised_answer": 0,
+      "unsupported_input": 0,
+      "unsupported_request": 0,
+      "wrong_build": 0
+    },
+    "CONVERT": {
+      "agree": 41220,
+      "different": 0,
+      "incomplete_reply": 0,
+      "input_changed": 0,
+      "source_build_counts": {
+        "20228": 41220
+      },
+      "source_cpu_counts": {
+        "unknown": 41220
+      },
+      "unrecognised_answer": 0,
+      "unsupported_input": 0,
+      "unsupported_request": 0,
+      "wrong_build": 0
+    },
+    "COS": {
+      "agree": 10897,
+      "different": 0,
+      "incomplete_reply": 0,
+      "input_changed": 0,
+      "source_build_counts": {
+        "20131": 913,
+        "20228": 1569,
+        "20430": 6120,
+        "20527": 7,
+        "unknown": 2288
+      },
+      "source_cpu_counts": {
+        "AMD Ryzen 7 4800H with Radeon Graphics": 913,
+        "AMD Ryzen 7 4800H with Radeon Graphics         ": 7,
+        "unknown": 9977
+      },
+      "unrecognised_answer": 0,
+      "unsupported_input": 0,
+      "unsupported_request": 0,
+      "wrong_build": 0
+    },
+    "COSH": {
+      "agree": 38454,
+      "different": 0,
+      "incomplete_reply": 0,
+      "input_changed": 0,
+      "source_build_counts": {
+        "20430": 38454
+      },
+      "source_cpu_counts": {
+        "unknown": 38454
+      },
+      "unrecognised_answer": 0,
+      "unsupported_input": 0,
+      "unsupported_request": 0,
+      "wrong_build": 0
+    },
+    "COT": {
+      "agree": 8262,
+      "different": 0,
+      "incomplete_reply": 0,
+      "input_changed": 0,
+      "source_build_counts": {
+        "20131": 906,
+        "20430": 6120,
+        "unknown": 1236
+      },
+      "source_cpu_counts": {
+        "AMD Ryzen 7 4800H with Radeon Graphics": 906,
+        "unknown": 7356
+      },
+      "unrecognised_answer": 0,
+      "unsupported_input": 0,
+      "unsupported_request": 0,
+      "wrong_build": 0
+    },
+    "COTH": {
+      "agree": 45352,
+      "different": 0,
+      "incomplete_reply": 0,
+      "input_changed": 0,
+      "source_build_counts": {
+        "20430": 45352
+      },
+      "source_cpu_counts": {
+        "unknown": 45352
+      },
+      "unrecognised_answer": 0,
+      "unsupported_input": 0,
+      "unsupported_request": 0,
+      "wrong_build": 0
+    },
+    "COUNT": {
+      "agree": 6050,
+      "different": 0,
+      "incomplete_reply": 0,
+      "input_changed": 4,
+      "source_build_counts": {
+        "20430": 6054
+      },
+      "source_cpu_counts": {
+        "unknown": 6054
+      },
+      "unrecognised_answer": 0,
+      "unsupported_input": 0,
+      "unsupported_request": 0,
+      "wrong_build": 0
+    },
+    "COUNTA": {
+      "agree": 6050,
+      "different": 0,
+      "incomplete_reply": 0,
+      "input_changed": 4,
+      "source_build_counts": {
+        "20430": 6054
+      },
+      "source_cpu_counts": {
+        "unknown": 6054
+      },
+      "unrecognised_answer": 0,
+      "unsupported_input": 0,
+      "unsupported_request": 0,
+      "wrong_build": 0
+    },
+    "COUPDAYBS": {
+      "agree": 6644,
+      "different": 0,
+      "incomplete_reply": 0,
+      "input_changed": 0,
+      "source_build_counts": {
+        "20131": 1060,
+        "20430": 4524,
+        "unknown": 1060
+      },
+      "source_cpu_counts": {
+        "AMD Ryzen 7 4800H with Radeon Graphics": 5584,
+        "unknown": 1060
+      },
+      "unrecognised_answer": 0,
+      "unsupported_input": 0,
+      "unsupported_request": 0,
+      "wrong_build": 0
+    },
+    "COUPDAYS": {
+      "agree": 6644,
+      "different": 0,
+      "incomplete_reply": 0,
+      "input_changed": 0,
+      "source_build_counts": {
+        "20131": 1060,
+        "20430": 4524,
+        "unknown": 1060
+      },
+      "source_cpu_counts": {
+        "AMD Ryzen 7 4800H with Radeon Graphics": 5584,
+        "unknown": 1060
+      },
+      "unrecognised_answer": 0,
+      "unsupported_input": 0,
+      "unsupported_request": 0,
+      "wrong_build": 0
+    },
+    "COUPDAYSNC": {
+      "agree": 6644,
+      "different": 0,
+      "incomplete_reply": 0,
+      "input_changed": 0,
+      "source_build_counts": {
+        "20131": 1060,
+        "20430": 4524,
+        "unknown": 1060
+      },
+      "source_cpu_counts": {
+        "AMD Ryzen 7 4800H with Radeon Graphics": 5584,
+        "unknown": 1060
+      },
+      "unrecognised_answer": 0,
+      "unsupported_input": 0,
+      "unsupported_request": 0,
+      "wrong_build": 0
+    },
+    "COUPNCD": {
+      "agree": 6644,
+      "different": 0,
+      "incomplete_reply": 0,
+      "input_changed": 0,
+      "source_build_counts": {
+        "20131": 1060,
+        "20430": 4524,
+        "unknown": 1060
+      },
+      "source_cpu_counts": {
+        "AMD Ryzen 7 4800H with Radeon Graphics": 5584,
+        "unknown": 1060
+      },
+      "unrecognised_answer": 0,
+      "unsupported_input": 0,
+      "unsupported_request": 0,
+      "wrong_build": 0
+    },
+    "COUPNUM": {
+      "agree": 6644,
+      "different": 0,
+      "incomplete_reply": 0,
+      "input_changed": 0,
+      "source_build_counts": {
+        "20131": 1060,
+        "20430": 4524,
+        "unknown": 1060
+      },
+      "source_cpu_counts": {
+        "AMD Ryzen 7 4800H with Radeon Graphics": 5584,
+        "unknown": 1060
+      },
+      "unrecognised_answer": 0,
+      "unsupported_input": 0,
+      "unsupported_request": 0,
+      "wrong_build": 0
+    },
+    "COUPPCD": {
+      "agree": 6644,
+      "different": 0,
+      "incomplete_reply": 0,
+      "input_changed": 0,
+      "source_build_counts": {
+        "20131": 1060,
+        "20430": 4524,
+        "unknown": 1060
+      },
+      "source_cpu_counts": {
+        "AMD Ryzen 7 4800H with Radeon Graphics": 5584,
+        "unknown": 1060
+      },
+      "unrecognised_answer": 0,
+      "unsupported_input": 0,
+      "unsupported_request": 0,
+      "wrong_build": 0
+    },
+    "CRITBINOM": {
+      "agree": 6509,
+      "different": 0,
+      "incomplete_reply": 0,
+      "input_changed": 0,
+      "source_build_counts": {
+        "20430": 6320,
+        "20527": 189
+      },
+      "source_cpu_counts": {
+        "AMD Ryzen 7 4800H with Radeon Graphics": 189,
+        "unknown": 6320
+      },
+      "unrecognised_answer": 0,
+      "unsupported_input": 0,
+      "unsupported_request": 0,
+      "wrong_build": 0
+    },
+    "CSC": {
+      "agree": 8274,
+      "different": 0,
+      "incomplete_reply": 0,
+      "input_changed": 0,
+      "source_build_counts": {
+        "20131": 912,
+        "20430": 6120,
+        "unknown": 1242
+      },
+      "source_cpu_counts": {
+        "AMD Ryzen 7 4800H with Radeon Graphics": 912,
+        "unknown": 7362
+      },
+      "unrecognised_answer": 0,
+      "unsupported_input": 0,
+      "unsupported_request": 0,
+      "wrong_build": 0
+    },
+    "CSCH": {
+      "agree": 38210,
+      "different": 0,
+      "incomplete_reply": 0,
+      "input_changed": 0,
+      "source_build_counts": {
+        "20430": 38210
+      },
+      "source_cpu_counts": {
+        "unknown": 38210
+      },
+      "unrecognised_answer": 0,
+      "unsupported_input": 0,
+      "unsupported_request": 0,
+      "wrong_build": 0
+    },
+    "CUMIPMT": {
+      "agree": 62,
+      "different": 0,
+      "incomplete_reply": 0,
+      "input_changed": 0,
+      "source_build_counts": {
+        "20527": 62
+      },
+      "source_cpu_counts": {
+        "AMD Ryzen 7 4800H with Radeon Graphics         ": 62
+      },
+      "unrecognised_answer": 0,
+      "unsupported_input": 0,
+      "unsupported_request": 0,
+      "wrong_build": 0
+    },
+    "CUMPRINC": {
+      "agree": 642,
+      "different": 0,
+      "incomplete_reply": 0,
+      "input_changed": 0,
+      "source_build_counts": {
+        "20228": 540,
+        "20527": 102
+      },
+      "source_cpu_counts": {
+        "AMD Ryzen 7 4800H with Radeon Graphics         ": 102,
+        "unknown": 540
+      },
+      "unrecognised_answer": 0,
+      "unsupported_input": 0,
+      "unsupported_request": 0,
+      "wrong_build": 0
+    },
+    "DATE": {
+      "agree": 22609,
+      "different": 5067,
+      "incomplete_reply": 0,
+      "input_changed": 0,
+      "source_build_counts": {
+        "20430": 27676
+      },
+      "source_cpu_counts": {
+        "unknown": 27676
+      },
+      "unrecognised_answer": 0,
+      "unsupported_input": 0,
+      "unsupported_request": 0,
+      "wrong_build": 0
+    },
+    "DAY": {
+      "agree": 15072,
+      "different": 0,
+      "incomplete_reply": 0,
+      "input_changed": 0,
+      "source_build_counts": {
+        "20430": 15072
+      },
+      "source_cpu_counts": {
+        "unknown": 15072
+      },
+      "unrecognised_answer": 0,
+      "unsupported_input": 0,
+      "unsupported_request": 0,
+      "wrong_build": 0
+    },
+    "DAYS": {
+      "agree": 14887,
+      "different": 0,
+      "incomplete_reply": 0,
+      "input_changed": 0,
+      "source_build_counts": {
+        "20430": 14887
+      },
+      "source_cpu_counts": {
+        "unknown": 14887
+      },
+      "unrecognised_answer": 0,
+      "unsupported_input": 0,
+      "unsupported_request": 0,
+      "wrong_build": 0
+    },
+    "DAYS360": {
+      "agree": 4564,
+      "different": 0,
+      "incomplete_reply": 0,
+      "input_changed": 0,
+      "source_build_counts": {
+        "20430": 4564
+      },
+      "source_cpu_counts": {
+        "AMD Ryzen 7 4800H with Radeon Graphics": 4564
+      },
+      "unrecognised_answer": 0,
+      "unsupported_input": 0,
+      "unsupported_request": 0,
+      "wrong_build": 0
+    },
+    "DB": {
+      "agree": 6858,
+      "different": 0,
+      "incomplete_reply": 0,
+      "input_changed": 0,
+      "source_build_counts": {
+        "20430": 6858
+      },
+      "source_cpu_counts": {
+        "unknown": 6858
+      },
+      "unrecognised_answer": 0,
+      "unsupported_input": 0,
+      "unsupported_request": 0,
+      "wrong_build": 0
+    },
+    "DDB": {
+      "agree": 6585,
+      "different": 0,
+      "incomplete_reply": 0,
+      "input_changed": 0,
+      "source_build_counts": {
+        "20430": 6585
+      },
+      "source_cpu_counts": {
+        "unknown": 6585
+      },
+      "unrecognised_answer": 0,
+      "unsupported_input": 0,
+      "unsupported_request": 0,
+      "wrong_build": 0
+    },
+    "DEC2BIN": {
+      "agree": 9785,
+      "different": 0,
+      "incomplete_reply": 0,
+      "input_changed": 0,
+      "source_build_counts": {
+        "20430": 9785
+      },
+      "source_cpu_counts": {
+        "unknown": 9785
+      },
+      "unrecognised_answer": 0,
+      "unsupported_input": 0,
+      "unsupported_request": 0,
+      "wrong_build": 0
+    },
+    "DEC2HEX": {
+      "agree": 9785,
+      "different": 0,
+      "incomplete_reply": 0,
+      "input_changed": 0,
+      "source_build_counts": {
+        "20430": 9785
+      },
+      "source_cpu_counts": {
+        "unknown": 9785
+      },
+      "unrecognised_answer": 0,
+      "unsupported_input": 0,
+      "unsupported_request": 0,
+      "wrong_build": 0
+    },
+    "DEC2OCT": {
+      "agree": 9785,
+      "different": 0,
+      "incomplete_reply": 0,
+      "input_changed": 0,
+      "source_build_counts": {
+        "20430": 9785
+      },
+      "source_cpu_counts": {
+        "unknown": 9785
+      },
+      "unrecognised_answer": 0,
+      "unsupported_input": 0,
+      "unsupported_request": 0,
+      "wrong_build": 0
+    },
+    "DECIMAL": {
+      "agree": 6150,
+      "different": 0,
+      "incomplete_reply": 0,
+      "input_changed": 0,
+      "source_build_counts": {
+        "20430": 6150
+      },
+      "source_cpu_counts": {
+        "unknown": 6150
+      },
+      "unrecognised_answer": 0,
+      "unsupported_input": 0,
+      "unsupported_request": 0,
+      "wrong_build": 0
+    },
+    "DEGREES": {
+      "agree": 6120,
+      "different": 0,
+      "incomplete_reply": 0,
+      "input_changed": 6,
+      "source_build_counts": {
+        "20430": 6126
+      },
+      "source_cpu_counts": {
+        "unknown": 6126
+      },
+      "unrecognised_answer": 0,
+      "unsupported_input": 0,
+      "unsupported_request": 0,
+      "wrong_build": 0
+    },
+    "DELTA": {
+      "agree": 6240,
+      "different": 0,
+      "incomplete_reply": 0,
+      "input_changed": 12,
+      "source_build_counts": {
+        "20430": 6252
+      },
+      "source_cpu_counts": {
+        "unknown": 6252
+      },
+      "unrecognised_answer": 0,
+      "unsupported_input": 0,
+      "unsupported_request": 0,
+      "wrong_build": 0
+    },
+    "DEVSQ": {
+      "agree": 27956,
+      "different": 0,
+      "incomplete_reply": 0,
+      "input_changed": 4,
+      "source_build_counts": {
+        "20430": 27940,
+        "20527": 20
+      },
+      "source_cpu_counts": {
+        "AMD Ryzen 7 4800H with Radeon Graphics         ": 20,
+        "unknown": 27940
+      },
+      "unrecognised_answer": 0,
+      "unsupported_input": 0,
+      "unsupported_request": 0,
+      "wrong_build": 0
+    },
+    "DISC": {
+      "agree": 2400,
+      "different": 0,
+      "incomplete_reply": 0,
+      "input_changed": 0,
+      "source_build_counts": {
+        "20430": 2400
+      },
+      "source_cpu_counts": {
+        "AMD Ryzen 7 4800H with Radeon Graphics": 2400
+      },
+      "unrecognised_answer": 0,
+      "unsupported_input": 0,
+      "unsupported_request": 0,
+      "wrong_build": 0
+    },
+    "DOLLARDE": {
+      "agree": 9785,
+      "different": 0,
+      "incomplete_reply": 0,
+      "input_changed": 2,
+      "source_build_counts": {
+        "20430": 9787
+      },
+      "source_cpu_counts": {
+        "AMD Ryzen 7 4800H with Radeon Graphics": 3612,
+        "unknown": 6175
+      },
+      "unrecognised_answer": 0,
+      "unsupported_input": 0,
+      "unsupported_request": 0,
+      "wrong_build": 0
+    },
+    "DOLLARFR": {
+      "agree": 8580,
+      "different": 0,
+      "incomplete_reply": 0,
+      "input_changed": 1,
+      "source_build_counts": {
+        "20430": 8581
+      },
+      "source_cpu_counts": {
+        "AMD Ryzen 7 4800H with Radeon Graphics": 2406,
+        "unknown": 6175
+      },
+      "unrecognised_answer": 0,
+      "unsupported_input": 0,
+      "unsupported_request": 0,
+      "wrong_build": 0
+    },
+    "DURATION": {
+      "agree": 15504,
+      "different": 0,
+      "incomplete_reply": 0,
+      "input_changed": 0,
+      "source_build_counts": {
+        "20131": 7620,
+        "20228": 264,
+        "unknown": 7620
+      },
+      "source_cpu_counts": {
+        "AMD Ryzen 7 4800H with Radeon Graphics": 7620,
+        "unknown": 7884
+      },
+      "unrecognised_answer": 0,
+      "unsupported_input": 0,
+      "unsupported_request": 0,
+      "wrong_build": 0
+    },
+    "ECMA.CEILING": {
+      "agree": 6,
+      "different": 0,
+      "incomplete_reply": 0,
+      "input_changed": 0,
+      "source_build_counts": {
+        "20527": 6
+      },
+      "source_cpu_counts": {
+        "AMD Ryzen 7 4800H with Radeon Graphics         ": 6
+      },
+      "unrecognised_answer": 0,
+      "unsupported_input": 0,
+      "unsupported_request": 0,
+      "wrong_build": 0
+    },
+    "EDATE": {
+      "agree": 15174,
+      "different": 0,
+      "incomplete_reply": 0,
+      "input_changed": 0,
+      "source_build_counts": {
+        "20430": 15174
+      },
+      "source_cpu_counts": {
+        "unknown": 15174
+      },
+      "unrecognised_answer": 0,
+      "unsupported_input": 0,
+      "unsupported_request": 0,
+      "wrong_build": 0
+    },
+    "EFFECT": {
+      "agree": 7529,
+      "different": 0,
+      "incomplete_reply": 0,
+      "input_changed": 0,
+      "source_build_counts": {
+        "20228": 1030,
+        "20430": 6175,
+        "unknown": 324
+      },
+      "source_cpu_counts": {
+        "unknown": 7529
+      },
+      "unrecognised_answer": 0,
+      "unsupported_input": 0,
+      "unsupported_request": 0,
+      "wrong_build": 0
+    },
+    "EOMONTH": {
+      "agree": 15174,
+      "different": 0,
+      "incomplete_reply": 0,
+      "input_changed": 0,
+      "source_build_counts": {
+        "20430": 15174
+      },
+      "source_cpu_counts": {
+        "unknown": 15174
+      },
+      "unrecognised_answer": 0,
+      "unsupported_input": 0,
+      "unsupported_request": 0,
+      "wrong_build": 0
+    },
+    "ERF.PRECISE": {
+      "agree": 1028843,
+      "different": 0,
+      "incomplete_reply": 0,
+      "input_changed": 0,
+      "source_build_counts": {
+        "20131": 409213,
+        "20527": 4096,
+        "unknown": 615534
+      },
+      "source_cpu_counts": {
+        "AMD Ryzen 7 4800H with Radeon Graphics": 409213,
+        "AMD Ryzen 7 4800H with Radeon Graphics         ": 4096,
+        "unknown": 615534
+      },
+      "unrecognised_answer": 0,
+      "unsupported_input": 0,
+      "unsupported_request": 0,
+      "wrong_build": 0
+    },
+    "ERFC": {
+      "agree": 544,
+      "different": 0,
+      "incomplete_reply": 0,
+      "input_changed": 0,
+      "source_build_counts": {
+        "20430": 544
+      },
+      "source_cpu_counts": {
+        "unknown": 544
+      },
+      "unrecognised_answer": 0,
+      "unsupported_input": 0,
+      "unsupported_request": 0,
+      "wrong_build": 0
+    },
+    "ERFC.PRECISE": {
+      "agree": 2824,
+      "different": 0,
+      "incomplete_reply": 0,
+      "input_changed": 0,
+      "source_build_counts": {
+        "20131": 935,
+        "20430": 928,
+        "unknown": 961
+      },
+      "source_cpu_counts": {
+        "AMD Ryzen 7 4800H with Radeon Graphics": 935,
+        "unknown": 1889
+      },
+      "unrecognised_answer": 0,
+      "unsupported_input": 0,
+      "unsupported_request": 0,
+      "wrong_build": 0
+    },
+    "ERROR.TYPE": {
+      "agree": 6120,
+      "different": 0,
+      "incomplete_reply": 0,
+      "input_changed": 6,
+      "source_build_counts": {
+        "20430": 6126
+      },
+      "source_cpu_counts": {
+        "unknown": 6126
+      },
+      "unrecognised_answer": 0,
+      "unsupported_input": 0,
+      "unsupported_request": 0,
+      "wrong_build": 0
+    },
+    "EUROCONVERT": {
+      "agree": 13,
+      "different": 0,
+      "incomplete_reply": 0,
+      "input_changed": 0,
+      "source_build_counts": {
+        "20527": 13
+      },
+      "source_cpu_counts": {
+        "AMD Ryzen 7 4800H with Radeon Graphics         ": 13
+      },
+      "unrecognised_answer": 0,
+      "unsupported_input": 0,
+      "unsupported_request": 0,
+      "wrong_build": 0
+    },
+    "EVEN": {
+      "agree": 6120,
+      "different": 0,
+      "incomplete_reply": 0,
+      "input_changed": 6,
+      "source_build_counts": {
+        "20430": 6126
+      },
+      "source_cpu_counts": {
+        "unknown": 6126
+      },
+      "unrecognised_answer": 0,
+      "unsupported_input": 0,
+      "unsupported_request": 0,
+      "wrong_build": 0
+    },
+    "EXP": {
+      "agree": 8091,
+      "different": 0,
+      "incomplete_reply": 0,
+      "input_changed": 0,
+      "source_build_counts": {
+        "20131": 734,
+        "20228": 90,
+        "20430": 6508,
+        "20527": 20,
+        "unknown": 739
+      },
+      "source_cpu_counts": {
+        "AMD Ryzen 7 4800H with Radeon Graphics": 734,
+        "AMD Ryzen 7 4800H with Radeon Graphics         ": 20,
+        "unknown": 7337
+      },
+      "unrecognised_answer": 0,
+      "unsupported_input": 0,
+      "unsupported_request": 0,
+      "wrong_build": 0
+    },
+    "EXPON.DIST": {
+      "agree": 93718,
+      "different": 0,
+      "incomplete_reply": 0,
+      "input_changed": 0,
+      "source_build_counts": {
+        "20131": 39412,
+        "20430": 14894,
+        "unknown": 39412
+      },
+      "source_cpu_counts": {
+        "AMD Ryzen 7 4800H with Radeon Graphics": 39412,
+        "unknown": 54306
+      },
+      "unrecognised_answer": 0,
+      "unsupported_input": 0,
+      "unsupported_request": 0,
+      "wrong_build": 0
+    },
+    "EXPONDIST": {
+      "agree": 14700,
+      "different": 0,
+      "incomplete_reply": 0,
+      "input_changed": 0,
+      "source_build_counts": {
+        "20430": 14700
+      },
+      "source_cpu_counts": {
+        "unknown": 14700
+      },
+      "unrecognised_answer": 0,
+      "unsupported_input": 0,
+      "unsupported_request": 0,
+      "wrong_build": 0
+    },
+    "F.DIST": {
+      "agree": 369,
+      "different": 0,
+      "incomplete_reply": 0,
+      "input_changed": 0,
+      "source_build_counts": {
+        "20228": 369
+      },
+      "source_cpu_counts": {
+        "unknown": 369
+      },
+      "unrecognised_answer": 0,
+      "unsupported_input": 0,
+      "unsupported_request": 0,
+      "wrong_build": 0
+    },
+    "F.DIST.RT": {
+      "agree": 12,
+      "different": 0,
+      "incomplete_reply": 0,
+      "input_changed": 0,
+      "source_build_counts": {
+        "20131": 6,
+        "unknown": 6
+      },
+      "source_cpu_counts": {
+        "AMD Ryzen 7 4800H with Radeon Graphics": 6,
+        "unknown": 6
+      },
+      "unrecognised_answer": 0,
+      "unsupported_input": 0,
+      "unsupported_request": 0,
+      "wrong_build": 0
+    },
+    "F.TEST": {
+      "agree": 78,
+      "different": 0,
+      "incomplete_reply": 0,
+      "input_changed": 0,
+      "source_build_counts": {
+        "20131": 3,
+        "20228": 75
+      },
+      "source_cpu_counts": {
+        "AMD Ryzen 7 4800H with Radeon Graphics": 3,
+        "unknown": 75
+      },
+      "unrecognised_answer": 0,
+      "unsupported_input": 0,
+      "unsupported_request": 0,
+      "wrong_build": 0
+    },
+    "FACT": {
+      "agree": 7554,
+      "different": 0,
+      "incomplete_reply": 0,
+      "input_changed": 0,
+      "source_build_counts": {
+        "20430": 7554
+      },
+      "source_cpu_counts": {
+        "unknown": 7554
+      },
+      "unrecognised_answer": 0,
+      "unsupported_input": 0,
+      "unsupported_request": 0,
+      "wrong_build": 0
+    },
+    "FACTDOUBLE": {
+      "agree": 7560,
+      "different": 0,
+      "incomplete_reply": 0,
+      "input_changed": 0,
+      "source_build_counts": {
+        "20430": 7560
+      },
+      "source_cpu_counts": {
+        "unknown": 7560
+      },
+      "unrecognised_answer": 0,
+      "unsupported_input": 0,
+      "unsupported_request": 0,
+      "wrong_build": 0
+    },
+    "FALSE": {
+      "agree": 5,
+      "different": 0,
+      "incomplete_reply": 0,
+      "input_changed": 0,
+      "source_build_counts": {
+        "20430": 5
+      },
+      "source_cpu_counts": {
+        "unknown": 5
+      },
+      "unrecognised_answer": 0,
+      "unsupported_input": 0,
+      "unsupported_request": 0,
+      "wrong_build": 0
+    },
+    "FDIST": {
+      "agree": 4481,
+      "different": 0,
+      "incomplete_reply": 0,
+      "input_changed": 0,
+      "source_build_counts": {
+        "20131": 75,
+        "20228": 4349,
+        "unknown": 57
+      },
+      "source_cpu_counts": {
+        "AMD Ryzen 7 4800H with Radeon Graphics": 75,
+        "unknown": 4406
+      },
+      "unrecognised_answer": 0,
+      "unsupported_input": 0,
+      "unsupported_request": 0,
+      "wrong_build": 0
+    },
+    "FINV": {
+      "agree": 64,
+      "different": 0,
+      "incomplete_reply": 0,
+      "input_changed": 0,
+      "source_build_counts": {
+        "20131": 32,
+        "unknown": 32
+      },
+      "source_cpu_counts": {
+        "AMD Ryzen 7 4800H with Radeon Graphics": 32,
+        "unknown": 32
+      },
+      "unrecognised_answer": 0,
+      "unsupported_input": 0,
+      "unsupported_request": 0,
+      "wrong_build": 0
+    },
+    "FISHER": {
+      "agree": 39070,
+      "different": 0,
+      "incomplete_reply": 0,
+      "input_changed": 0,
+      "source_build_counts": {
+        "20430": 39070
+      },
+      "source_cpu_counts": {
+        "unknown": 39070
+      },
+      "unrecognised_answer": 0,
+      "unsupported_input": 0,
+      "unsupported_request": 0,
+      "wrong_build": 0
+    },
+    "FIXED": {
+      "agree": 989,
+      "different": 0,
+      "incomplete_reply": 0,
+      "input_changed": 0,
+      "source_build_counts": {
+        "20430": 989
+      },
+      "source_cpu_counts": {
+        "AMD Ryzen 7 4800H with Radeon Graphics": 989
+      },
+      "unrecognised_answer": 0,
+      "unsupported_input": 0,
+      "unsupported_request": 0,
+      "wrong_build": 0
+    },
+    "FLOOR": {
+      "agree": 6600,
+      "different": 0,
+      "incomplete_reply": 0,
+      "input_changed": 30,
+      "source_build_counts": {
+        "20430": 6630
+      },
+      "source_cpu_counts": {
+        "unknown": 6630
+      },
+      "unrecognised_answer": 0,
+      "unsupported_input": 0,
+      "unsupported_request": 0,
+      "wrong_build": 0
+    },
+    "FLOOR.MATH": {
+      "agree": 6720,
+      "different": 0,
+      "incomplete_reply": 0,
+      "input_changed": 36,
+      "source_build_counts": {
+        "20430": 6756
+      },
+      "source_cpu_counts": {
+        "unknown": 6756
+      },
+      "unrecognised_answer": 0,
+      "unsupported_input": 0,
+      "unsupported_request": 0,
+      "wrong_build": 0
+    },
+    "FLOOR.PRECISE": {
+      "agree": 6600,
+      "different": 0,
+      "incomplete_reply": 0,
+      "input_changed": 30,
+      "source_build_counts": {
+        "20430": 6630
+      },
+      "source_cpu_counts": {
+        "unknown": 6630
+      },
+      "unrecognised_answer": 0,
+      "unsupported_input": 0,
+      "unsupported_request": 0,
+      "wrong_build": 0
+    },
+    "FORECAST": {
+      "agree": 70,
+      "different": 0,
+      "incomplete_reply": 0,
+      "input_changed": 0,
+      "source_build_counts": {
+        "20131": 70
+      },
+      "source_cpu_counts": {
+        "AMD Ryzen 7 4800H with Radeon Graphics": 70
+      },
+      "unrecognised_answer": 0,
+      "unsupported_input": 0,
+      "unsupported_request": 0,
+      "wrong_build": 0
+    },
+    "FV": {
+      "agree": 8275,
+      "different": 0,
+      "incomplete_reply": 0,
+      "input_changed": 0,
+      "source_build_counts": {
+        "20131": 789,
+        "20228": 512,
+        "20430": 6150,
+        "20527": 30,
+        "unknown": 794
+      },
+      "source_cpu_counts": {
+        "AMD Ryzen 7 4800H with Radeon Graphics": 789,
+        "AMD Ryzen 7 4800H with Radeon Graphics         ": 30,
+        "unknown": 7456
+      },
+      "unrecognised_answer": 0,
+      "unsupported_input": 0,
+      "unsupported_request": 0,
+      "wrong_build": 0
+    },
+    "GAMMA": {
+      "agree": 24927,
+      "different": 0,
+      "incomplete_reply": 0,
+      "input_changed": 0,
+      "source_build_counts": {
+        "20131": 12312,
+        "20527": 291,
+        "unknown": 12324
+      },
+      "source_cpu_counts": {
+        "AMD Ryzen 7 4800H with Radeon Graphics": 12312,
+        "AMD Ryzen 7 4800H with Radeon Graphics         ": 291,
+        "unknown": 12324
+      },
+      "unrecognised_answer": 0,
+      "unsupported_input": 0,
+      "unsupported_request": 0,
+      "wrong_build": 0
+    },
+    "GAMMA.DIST": {
+      "agree": 155718,
+      "different": 0,
+      "incomplete_reply": 0,
+      "input_changed": 0,
+      "source_build_counts": {
+        "20131": 77653,
+        "20430": 194,
+        "20527": 128,
+        "unknown": 77743
+      },
+      "source_cpu_counts": {
+        "AMD Ryzen 7 4800H with Radeon Graphics": 77653,
+        "AMD Ryzen 7 4800H with Radeon Graphics         ": 128,
+        "unknown": 77937
+      },
+      "unrecognised_answer": 0,
+      "unsupported_input": 0,
+      "unsupported_request": 0,
+      "wrong_build": 0
+    },
+    "GAMMA.INV": {
+      "agree": 408,
+      "different": 0,
+      "incomplete_reply": 0,
+      "input_changed": 0,
+      "source_build_counts": {
+        "20131": 204,
+        "unknown": 204
+      },
+      "source_cpu_counts": {
+        "AMD Ryzen 7 4800H with Radeon Graphics": 204,
+        "unknown": 204
+      },
+      "unrecognised_answer": 0,
+      "unsupported_input": 0,
+      "unsupported_request": 0,
+      "wrong_build": 0
+    },
+    "GAMMADIST": {
+      "agree": 12,
+      "different": 0,
+      "incomplete_reply": 0,
+      "input_changed": 0,
+      "source_build_counts": {
+        "20131": 6,
+        "unknown": 6
+      },
+      "source_cpu_counts": {
+        "AMD Ryzen 7 4800H with Radeon Graphics": 6,
+        "unknown": 6
+      },
+      "unrecognised_answer": 0,
+      "unsupported_input": 0,
+      "unsupported_request": 0,
+      "wrong_build": 0
+    },
+    "GAMMALN": {
+      "agree": 9410,
+      "different": 0,
+      "incomplete_reply": 0,
+      "input_changed": 26,
+      "source_build_counts": {
+        "20131": 4450,
+        "20228": 88,
+        "unknown": 4898
+      },
+      "source_cpu_counts": {
+        "AMD Ryzen 7 4800H with Radeon Graphics": 4450,
+        "unknown": 4986
+      },
+      "unrecognised_answer": 0,
+      "unsupported_input": 0,
+      "unsupported_request": 0,
+      "wrong_build": 0
+    },
+    "GAMMALN.PRECISE": {
+      "agree": 28533,
+      "different": 0,
+      "incomplete_reply": 0,
+      "input_changed": 16,
+      "source_build_counts": {
+        "20131": 14262,
+        "20228": 16,
+        "unknown": 14271
+      },
+      "source_cpu_counts": {
+        "AMD Ryzen 7 4800H with Radeon Graphics": 14262,
+        "unknown": 14287
+      },
+      "unrecognised_answer": 0,
+      "unsupported_input": 0,
+      "unsupported_request": 0,
+      "wrong_build": 0
+    },
+    "GAUSS": {
+      "agree": 9622,
+      "different": 0,
+      "incomplete_reply": 0,
+      "input_changed": 106,
+      "source_build_counts": {
+        "20228": 9216,
+        "20430": 512
+      },
+      "source_cpu_counts": {
+        "unknown": 9728
+      },
+      "unrecognised_answer": 0,
+      "unsupported_input": 0,
+      "unsupported_request": 0,
+      "wrong_build": 0
+    },
+    "GCD": {
+      "agree": 12906,
+      "different": 0,
+      "incomplete_reply": 0,
+      "input_changed": 0,
+      "source_build_counts": {
+        "20430": 12906
+      },
+      "source_cpu_counts": {
+        "unknown": 12906
+      },
+      "unrecognised_answer": 0,
+      "unsupported_input": 0,
+      "unsupported_request": 0,
+      "wrong_build": 0
+    },
+    "GEOMEAN": {
+      "agree": 6063,
+      "different": 0,
+      "incomplete_reply": 0,
+      "input_changed": 4,
+      "source_build_counts": {
+        "20430": 6054,
+        "20527": 13
+      },
+      "source_cpu_counts": {
+        "AMD Ryzen 7 4800H with Radeon Graphics         ": 13,
+        "unknown": 6054
+      },
+      "unrecognised_answer": 0,
+      "unsupported_input": 0,
+      "unsupported_request": 0,
+      "wrong_build": 0
+    },
+    "GESTEP": {
+      "agree": 6240,
+      "different": 0,
+      "incomplete_reply": 0,
+      "input_changed": 12,
+      "source_build_counts": {
+        "20430": 6252
+      },
+      "source_cpu_counts": {
+        "unknown": 6252
+      },
+      "unrecognised_answer": 0,
+      "unsupported_input": 0,
+      "unsupported_request": 0,
+      "wrong_build": 0
+    },
+    "GROWTH": {
+      "agree": 1260,
+      "different": 0,
+      "incomplete_reply": 0,
+      "input_changed": 0,
+      "source_build_counts": {
+        "20228": 1260
+      },
+      "source_cpu_counts": {
+        "unknown": 1260
+      },
+      "unrecognised_answer": 0,
+      "unsupported_input": 0,
+      "unsupported_request": 0,
+      "wrong_build": 0
+    },
+    "HARMEAN": {
+      "agree": 24054,
+      "different": 0,
+      "incomplete_reply": 0,
+      "input_changed": 4,
+      "source_build_counts": {
+        "20430": 24058
+      },
+      "source_cpu_counts": {
+        "unknown": 24058
+      },
+      "unrecognised_answer": 0,
+      "unsupported_input": 0,
+      "unsupported_request": 0,
+      "wrong_build": 0
+    },
+    "HEX2BIN": {
+      "agree": 6130,
+      "different": 0,
+      "incomplete_reply": 0,
+      "input_changed": 0,
+      "source_build_counts": {
+        "20430": 6130
+      },
+      "source_cpu_counts": {
+        "unknown": 6130
+      },
+      "unrecognised_answer": 0,
+      "unsupported_input": 0,
+      "unsupported_request": 0,
+      "wrong_build": 0
+    },
+    "HEX2DEC": {
+      "agree": 6040,
+      "different": 0,
+      "incomplete_reply": 0,
+      "input_changed": 0,
+      "source_build_counts": {
+        "20430": 6040
+      },
+      "source_cpu_counts": {
+        "unknown": 6040
+      },
+      "unrecognised_answer": 0,
+      "unsupported_input": 0,
+      "unsupported_request": 0,
+      "wrong_build": 0
+    },
+    "HEX2OCT": {
+      "agree": 6130,
+      "different": 0,
+      "incomplete_reply": 0,
+      "input_changed": 0,
+      "source_build_counts": {
+        "20430": 6130
+      },
+      "source_cpu_counts": {
+        "unknown": 6130
+      },
+      "unrecognised_answer": 0,
+      "unsupported_input": 0,
+      "unsupported_request": 0,
+      "wrong_build": 0
+    },
+    "HOUR": {
+      "agree": 19566,
+      "different": 0,
+      "incomplete_reply": 0,
+      "input_changed": 0,
+      "source_build_counts": {
+        "20430": 19566
+      },
+      "source_cpu_counts": {
+        "unknown": 19566
+      },
+      "unrecognised_answer": 0,
+      "unsupported_input": 0,
+      "unsupported_request": 0,
+      "wrong_build": 0
+    },
+    "HYPGEOM.DIST": {
+      "agree": 3805,
+      "different": 0,
+      "incomplete_reply": 0,
+      "input_changed": 0,
+      "source_build_counts": {
+        "20430": 3797,
+        "20527": 8
+      },
+      "source_cpu_counts": {
+        "AMD Ryzen 7 4800H with Radeon Graphics         ": 8,
+        "unknown": 3797
+      },
+      "unrecognised_answer": 0,
+      "unsupported_input": 0,
+      "unsupported_request": 0,
+      "wrong_build": 0
+    },
+    "HYPGEOMDIST": {
+      "agree": 6,
+      "different": 0,
+      "incomplete_reply": 0,
+      "input_changed": 0,
+      "source_build_counts": {
+        "20131": 3,
+        "unknown": 3
+      },
+      "source_cpu_counts": {
+        "AMD Ryzen 7 4800H with Radeon Graphics": 3,
+        "unknown": 3
+      },
+      "unrecognised_answer": 0,
+      "unsupported_input": 0,
+      "unsupported_request": 0,
+      "wrong_build": 0
+    },
+    "IFS": {
+      "agree": 6050,
+      "different": 0,
+      "incomplete_reply": 0,
+      "input_changed": 4,
+      "source_build_counts": {
+        "20430": 6054
+      },
+      "source_cpu_counts": {
+        "unknown": 6054
+      },
+      "unrecognised_answer": 0,
+      "unsupported_input": 0,
+      "unsupported_request": 0,
+      "wrong_build": 0
+    },
+    "IMABS": {
+      "agree": 6045,
+      "different": 0,
+      "incomplete_reply": 0,
+      "input_changed": 0,
+      "source_build_counts": {
+        "20430": 6045
+      },
+      "source_cpu_counts": {
+        "unknown": 6045
+      },
+      "unrecognised_answer": 0,
+      "unsupported_input": 0,
+      "unsupported_request": 0,
+      "wrong_build": 0
+    },
+    "IMAGINARY": {
+      "agree": 6045,
+      "different": 0,
+      "incomplete_reply": 0,
+      "input_changed": 0,
+      "source_build_counts": {
+        "20430": 6045
+      },
+      "source_cpu_counts": {
+        "unknown": 6045
+      },
+      "unrecognised_answer": 0,
+      "unsupported_input": 0,
+      "unsupported_request": 0,
+      "wrong_build": 0
+    },
+    "IMARGUMENT": {
+      "agree": 6045,
+      "different": 0,
+      "incomplete_reply": 0,
+      "input_changed": 0,
+      "source_build_counts": {
+        "20430": 6045
+      },
+      "source_cpu_counts": {
+        "unknown": 6045
+      },
+      "unrecognised_answer": 0,
+      "unsupported_input": 0,
+      "unsupported_request": 0,
+      "wrong_build": 0
+    },
+    "IMCONJUGATE": {
+      "agree": 8088,
+      "different": 0,
+      "incomplete_reply": 0,
+      "input_changed": 1,
+      "source_build_counts": {
+        "20430": 8089
+      },
+      "source_cpu_counts": {
+        "unknown": 8089
+      },
+      "unrecognised_answer": 0,
+      "unsupported_input": 0,
+      "unsupported_request": 0,
+      "wrong_build": 0
+    },
+    "IMCOS": {
+      "agree": 6045,
+      "different": 0,
+      "incomplete_reply": 0,
+      "input_changed": 0,
+      "source_build_counts": {
+        "20430": 6045
+      },
+      "source_cpu_counts": {
+        "unknown": 6045
+      },
+      "unrecognised_answer": 0,
+      "unsupported_input": 0,
+      "unsupported_request": 0,
+      "wrong_build": 0
+    },
+    "IMCOSH": {
+      "agree": 6045,
+      "different": 0,
+      "incomplete_reply": 0,
+      "input_changed": 0,
+      "source_build_counts": {
+        "20430": 6045
+      },
+      "source_cpu_counts": {
+        "unknown": 6045
+      },
+      "unrecognised_answer": 0,
+      "unsupported_input": 0,
+      "unsupported_request": 0,
+      "wrong_build": 0
+    },
+    "IMCOT": {
+      "agree": 6045,
+      "different": 0,
+      "incomplete_reply": 0,
+      "input_changed": 0,
+      "source_build_counts": {
+        "20430": 6045
+      },
+      "source_cpu_counts": {
+        "unknown": 6045
+      },
+      "unrecognised_answer": 0,
+      "unsupported_input": 0,
+      "unsupported_request": 0,
+      "wrong_build": 0
+    },
+    "IMCSC": {
+      "agree": 6045,
+      "different": 0,
+      "incomplete_reply": 0,
+      "input_changed": 0,
+      "source_build_counts": {
+        "20430": 6045
+      },
+      "source_cpu_counts": {
+        "unknown": 6045
+      },
+      "unrecognised_answer": 0,
+      "unsupported_input": 0,
+      "unsupported_request": 0,
+      "wrong_build": 0
+    },
+    "IMCSCH": {
+      "agree": 6045,
+      "different": 0,
+      "incomplete_reply": 0,
+      "input_changed": 0,
+      "source_build_counts": {
+        "20430": 6045
+      },
+      "source_cpu_counts": {
+        "unknown": 6045
+      },
+      "unrecognised_answer": 0,
+      "unsupported_input": 0,
+      "unsupported_request": 0,
+      "wrong_build": 0
+    },
+    "IMDIV": {
+      "agree": 6926,
+      "different": 0,
+      "incomplete_reply": 0,
+      "input_changed": 6,
+      "source_build_counts": {
+        "20430": 6932
+      },
+      "source_cpu_counts": {
+        "unknown": 6932
+      },
+      "unrecognised_answer": 0,
+      "unsupported_input": 0,
+      "unsupported_request": 0,
+      "wrong_build": 0
+    },
+    "IMLN": {
+      "agree": 6045,
+      "different": 0,
+      "incomplete_reply": 0,
+      "input_changed": 0,
+      "source_build_counts": {
+        "20430": 6045
+      },
+      "source_cpu_counts": {
+        "unknown": 6045
+      },
+      "unrecognised_answer": 0,
+      "unsupported_input": 0,
+      "unsupported_request": 0,
+      "wrong_build": 0
+    },
+    "IMLOG10": {
+      "agree": 6045,
+      "different": 0,
+      "incomplete_reply": 0,
+      "input_changed": 0,
+      "source_build_counts": {
+        "20430": 6045
+      },
+      "source_cpu_counts": {
+        "unknown": 6045
+      },
+      "unrecognised_answer": 0,
+      "unsupported_input": 0,
+      "unsupported_request": 0,
+      "wrong_build": 0
+    },
+    "IMLOG2": {
+      "agree": 6045,
+      "different": 0,
+      "incomplete_reply": 0,
+      "input_changed": 0,
+      "source_build_counts": {
+        "20430": 6045
+      },
+      "source_cpu_counts": {
+        "unknown": 6045
+      },
+      "unrecognised_answer": 0,
+      "unsupported_input": 0,
+      "unsupported_request": 0,
+      "wrong_build": 0
+    },
+    "IMPRODUCT": {
+      "agree": 8123,
+      "different": 0,
+      "incomplete_reply": 0,
+      "input_changed": 1,
+      "source_build_counts": {
+        "20430": 8124
+      },
+      "source_cpu_counts": {
+        "unknown": 8124
+      },
+      "unrecognised_answer": 0,
+      "unsupported_input": 0,
+      "unsupported_request": 0,
+      "wrong_build": 0
+    },
+    "IMREAL": {
+      "agree": 6045,
+      "different": 0,
+      "incomplete_reply": 0,
+      "input_changed": 0,
+      "source_build_counts": {
+        "20430": 6045
+      },
+      "source_cpu_counts": {
+        "unknown": 6045
+      },
+      "unrecognised_answer": 0,
+      "unsupported_input": 0,
+      "unsupported_request": 0,
+      "wrong_build": 0
+    },
+    "IMSECH": {
+      "agree": 6045,
+      "different": 0,
+      "incomplete_reply": 0,
+      "input_changed": 0,
+      "source_build_counts": {
+        "20430": 6045
+      },
+      "source_cpu_counts": {
+        "unknown": 6045
+      },
+      "unrecognised_answer": 0,
+      "unsupported_input": 0,
+      "unsupported_request": 0,
+      "wrong_build": 0
+    },
+    "IMSIN": {
+      "agree": 6045,
+      "different": 0,
+      "incomplete_reply": 0,
+      "input_changed": 0,
+      "source_build_counts": {
+        "20430": 6045
+      },
+      "source_cpu_counts": {
+        "unknown": 6045
+      },
+      "unrecognised_answer": 0,
+      "unsupported_input": 0,
+      "unsupported_request": 0,
+      "wrong_build": 0
+    },
+    "IMSINH": {
+      "agree": 6045,
+      "different": 0,
+      "incomplete_reply": 0,
+      "input_changed": 0,
+      "source_build_counts": {
+        "20430": 6045
+      },
+      "source_cpu_counts": {
+        "unknown": 6045
+      },
+      "unrecognised_answer": 0,
+      "unsupported_input": 0,
+      "unsupported_request": 0,
+      "wrong_build": 0
+    },
+    "IMSQRT": {
+      "agree": 6866,
+      "different": 0,
+      "incomplete_reply": 0,
+      "input_changed": 6,
+      "source_build_counts": {
+        "20430": 6872
+      },
+      "source_cpu_counts": {
+        "unknown": 6872
+      },
+      "unrecognised_answer": 0,
+      "unsupported_input": 0,
+      "unsupported_request": 0,
+      "wrong_build": 0
+    },
+    "IMSUB": {
+      "agree": 6080,
+      "different": 0,
+      "incomplete_reply": 0,
+      "input_changed": 0,
+      "source_build_counts": {
+        "20430": 6080
+      },
+      "source_cpu_counts": {
+        "unknown": 6080
+      },
+      "unrecognised_answer": 0,
+      "unsupported_input": 0,
+      "unsupported_request": 0,
+      "wrong_build": 0
+    },
+    "IMSUM": {
+      "agree": 8123,
+      "different": 0,
+      "incomplete_reply": 0,
+      "input_changed": 1,
+      "source_build_counts": {
+        "20430": 8124
+      },
+      "source_cpu_counts": {
+        "unknown": 8124
+      },
+      "unrecognised_answer": 0,
+      "unsupported_input": 0,
+      "unsupported_request": 0,
+      "wrong_build": 0
+    },
+    "IMTAN": {
+      "agree": 6045,
+      "different": 0,
+      "incomplete_reply": 0,
+      "input_changed": 0,
+      "source_build_counts": {
+        "20430": 6045
+      },
+      "source_cpu_counts": {
+        "unknown": 6045
+      },
+      "unrecognised_answer": 0,
+      "unsupported_input": 0,
+      "unsupported_request": 0,
+      "wrong_build": 0
+    },
+    "INT": {
+      "agree": 129349,
+      "different": 0,
+      "incomplete_reply": 0,
+      "input_changed": 6,
+      "source_build_counts": {
+        "20430": 129355
+      },
+      "source_cpu_counts": {
+        "unknown": 129355
+      },
+      "unrecognised_answer": 0,
+      "unsupported_input": 0,
+      "unsupported_request": 0,
+      "wrong_build": 0
+    },
+    "INTERCEPT": {
+      "agree": 4,
+      "different": 0,
+      "incomplete_reply": 0,
+      "input_changed": 0,
+      "source_build_counts": {
+        "20131": 4
+      },
+      "source_cpu_counts": {
+        "AMD Ryzen 7 4800H with Radeon Graphics": 4
+      },
+      "unrecognised_answer": 0,
+      "unsupported_input": 0,
+      "unsupported_request": 0,
+      "wrong_build": 0
+    },
+    "INTRATE": {
+      "agree": 2400,
+      "different": 0,
+      "incomplete_reply": 0,
+      "input_changed": 0,
+      "source_build_counts": {
+        "20430": 2400
+      },
+      "source_cpu_counts": {
+        "AMD Ryzen 7 4800H with Radeon Graphics": 2400
+      },
+      "unrecognised_answer": 0,
+      "unsupported_input": 0,
+      "unsupported_request": 0,
+      "wrong_build": 0
+    },
+    "IPMT": {
+      "agree": 88,
+      "different": 0,
+      "incomplete_reply": 0,
+      "input_changed": 0,
+      "source_build_counts": {
+        "20131": 31,
+        "20527": 26,
+        "unknown": 31
+      },
+      "source_cpu_counts": {
+        "AMD Ryzen 7 4800H with Radeon Graphics": 31,
+        "AMD Ryzen 7 4800H with Radeon Graphics         ": 26,
+        "unknown": 31
+      },
+      "unrecognised_answer": 0,
+      "unsupported_input": 0,
+      "unsupported_request": 0,
+      "wrong_build": 0
+    },
+    "IRR": {
+      "agree": 746,
+      "different": 0,
+      "incomplete_reply": 0,
+      "input_changed": 0,
+      "source_build_counts": {
+        "20131": 217,
+        "20228": 300,
+        "unknown": 229
+      },
+      "source_cpu_counts": {
+        "AMD Ryzen 7 4800H with Radeon Graphics": 217,
+        "unknown": 529
+      },
+      "unrecognised_answer": 0,
+      "unsupported_input": 0,
+      "unsupported_request": 0,
+      "wrong_build": 0
+    },
+    "ISBLANK": {
+      "agree": 6120,
+      "different": 0,
+      "incomplete_reply": 0,
+      "input_changed": 6,
+      "source_build_counts": {
+        "20430": 6126
+      },
+      "source_cpu_counts": {
+        "unknown": 6126
+      },
+      "unrecognised_answer": 0,
+      "unsupported_input": 0,
+      "unsupported_request": 0,
+      "wrong_build": 0
+    },
+    "ISERR": {
+      "agree": 6120,
+      "different": 0,
+      "incomplete_reply": 0,
+      "input_changed": 6,
+      "source_build_counts": {
+        "20430": 6126
+      },
+      "source_cpu_counts": {
+        "unknown": 6126
+      },
+      "unrecognised_answer": 0,
+      "unsupported_input": 0,
+      "unsupported_request": 0,
+      "wrong_build": 0
+    },
+    "ISERROR": {
+      "agree": 6120,
+      "different": 0,
+      "incomplete_reply": 0,
+      "input_changed": 6,
+      "source_build_counts": {
+        "20430": 6126
+      },
+      "source_cpu_counts": {
+        "unknown": 6126
+      },
+      "unrecognised_answer": 0,
+      "unsupported_input": 0,
+      "unsupported_request": 0,
+      "wrong_build": 0
+    },
+    "ISEVEN": {
+      "agree": 62465,
+      "different": 0,
+      "incomplete_reply": 0,
+      "input_changed": 6,
+      "source_build_counts": {
+        "20430": 62471
+      },
+      "source_cpu_counts": {
+        "unknown": 62471
+      },
+      "unrecognised_answer": 0,
+      "unsupported_input": 0,
+      "unsupported_request": 0,
+      "wrong_build": 0
+    },
+    "ISLOGICAL": {
+      "agree": 6120,
+      "different": 0,
+      "incomplete_reply": 0,
+      "input_changed": 6,
+      "source_build_counts": {
+        "20430": 6126
+      },
+      "source_cpu_counts": {
+        "unknown": 6126
+      },
+      "unrecognised_answer": 0,
+      "unsupported_input": 0,
+      "unsupported_request": 0,
+      "wrong_build": 0
+    },
+    "ISNA": {
+      "agree": 6120,
+      "different": 0,
+      "incomplete_reply": 0,
+      "input_changed": 6,
+      "source_build_counts": {
+        "20430": 6126
+      },
+      "source_cpu_counts": {
+        "unknown": 6126
+      },
+      "unrecognised_answer": 0,
+      "unsupported_input": 0,
+      "unsupported_request": 0,
+      "wrong_build": 0
+    },
+    "ISNONTEXT": {
+      "agree": 6120,
+      "different": 0,
+      "incomplete_reply": 0,
+      "input_changed": 6,
+      "source_build_counts": {
+        "20430": 6126
+      },
+      "source_cpu_counts": {
+        "unknown": 6126
+      },
+      "unrecognised_answer": 0,
+      "unsupported_input": 0,
+      "unsupported_request": 0,
+      "wrong_build": 0
+    },
+    "ISNUMBER": {
+      "agree": 6120,
+      "different": 0,
+      "incomplete_reply": 0,
+      "input_changed": 6,
+      "source_build_counts": {
+        "20430": 6126
+      },
+      "source_cpu_counts": {
+        "unknown": 6126
+      },
+      "unrecognised_answer": 0,
+      "unsupported_input": 0,
+      "unsupported_request": 0,
+      "wrong_build": 0
+    },
+    "ISO.CEILING": {
+      "agree": 6600,
+      "different": 0,
+      "incomplete_reply": 0,
+      "input_changed": 30,
+      "source_build_counts": {
+        "20430": 6630
+      },
+      "source_cpu_counts": {
+        "unknown": 6630
+      },
+      "unrecognised_answer": 0,
+      "unsupported_input": 0,
+      "unsupported_request": 0,
+      "wrong_build": 0
+    },
+    "ISODD": {
+      "agree": 62415,
+      "different": 0,
+      "incomplete_reply": 0,
+      "input_changed": 6,
+      "source_build_counts": {
+        "20430": 62421
+      },
+      "source_cpu_counts": {
+        "unknown": 62421
+      },
+      "unrecognised_answer": 0,
+      "unsupported_input": 0,
+      "unsupported_request": 0,
+      "wrong_build": 0
+    },
+    "ISOWEEKNUM": {
+      "agree": 15072,
+      "different": 0,
+      "incomplete_reply": 0,
+      "input_changed": 0,
+      "source_build_counts": {
+        "20430": 15072
+      },
+      "source_cpu_counts": {
+        "unknown": 15072
+      },
+      "unrecognised_answer": 0,
+      "unsupported_input": 0,
+      "unsupported_request": 0,
+      "wrong_build": 0
+    },
+    "ISREF": {
+      "agree": 2448,
+      "different": 0,
+      "incomplete_reply": 0,
+      "input_changed": 6,
+      "source_build_counts": {
+        "20430": 2454
+      },
+      "source_cpu_counts": {
+        "unknown": 2454
+      },
+      "unrecognised_answer": 0,
+      "unsupported_input": 0,
+      "unsupported_request": 0,
+      "wrong_build": 0
+    },
+    "ISTEXT": {
+      "agree": 6120,
+      "different": 0,
+      "incomplete_reply": 0,
+      "input_changed": 6,
+      "source_build_counts": {
+        "20430": 6126
+      },
+      "source_cpu_counts": {
+        "unknown": 6126
+      },
+      "unrecognised_answer": 0,
+      "unsupported_input": 0,
+      "unsupported_request": 0,
+      "wrong_build": 0
+    },
+    "JIS": {
+      "agree": 8,
+      "different": 0,
+      "incomplete_reply": 0,
+      "input_changed": 0,
+      "source_build_counts": {
+        "20527": 8
+      },
+      "source_cpu_counts": {
+        "AMD Ryzen 7 4800H with Radeon Graphics         ": 8
+      },
+      "unrecognised_answer": 0,
+      "unsupported_input": 0,
+      "unsupported_request": 0,
+      "wrong_build": 0
+    },
+    "KURT": {
+      "agree": 4508,
+      "different": 0,
+      "incomplete_reply": 0,
+      "input_changed": 0,
+      "source_build_counts": {
+        "20430": 4508
+      },
+      "source_cpu_counts": {
+        "AMD Ryzen 7 4800H with Radeon Graphics": 4508
+      },
+      "unrecognised_answer": 0,
+      "unsupported_input": 0,
+      "unsupported_request": 0,
+      "wrong_build": 0
+    },
+    "LCM": {
+      "agree": 12906,
+      "different": 0,
+      "incomplete_reply": 0,
+      "input_changed": 0,
+      "source_build_counts": {
+        "20430": 12906
+      },
+      "source_cpu_counts": {
+        "unknown": 12906
+      },
+      "unrecognised_answer": 0,
+      "unsupported_input": 0,
+      "unsupported_request": 0,
+      "wrong_build": 0
+    },
+    "LN": {
+      "agree": 6977,
+      "different": 0,
+      "incomplete_reply": 0,
+      "input_changed": 0,
+      "source_build_counts": {
+        "20131": 349,
+        "20228": 90,
+        "20430": 6125,
+        "20527": 19,
+        "unknown": 394
+      },
+      "source_cpu_counts": {
+        "AMD Ryzen 7 4800H with Radeon Graphics": 349,
+        "AMD Ryzen 7 4800H with Radeon Graphics         ": 19,
+        "unknown": 6609
+      },
+      "unrecognised_answer": 0,
+      "unsupported_input": 0,
+      "unsupported_request": 0,
+      "wrong_build": 0
+    },
+    "LOG": {
+      "agree": 30644,
+      "different": 0,
+      "incomplete_reply": 0,
+      "input_changed": 0,
+      "source_build_counts": {
+        "20430": 30644
+      },
+      "source_cpu_counts": {
+        "unknown": 30644
+      },
+      "unrecognised_answer": 0,
+      "unsupported_input": 0,
+      "unsupported_request": 0,
+      "wrong_build": 0
+    },
+    "LOG10": {
+      "agree": 7729,
+      "different": 0,
+      "incomplete_reply": 0,
+      "input_changed": 0,
+      "source_build_counts": {
+        "20430": 7729
+      },
+      "source_cpu_counts": {
+        "unknown": 7729
+      },
+      "unrecognised_answer": 0,
+      "unsupported_input": 0,
+      "unsupported_request": 0,
+      "wrong_build": 0
+    },
+    "LOGEST": {
+      "agree": 360,
+      "different": 0,
+      "incomplete_reply": 0,
+      "input_changed": 0,
+      "source_build_counts": {
+        "20228": 360
+      },
+      "source_cpu_counts": {
+        "unknown": 360
+      },
+      "unrecognised_answer": 0,
+      "unsupported_input": 0,
+      "unsupported_request": 0,
+      "wrong_build": 0
+    },
+    "LOGNORM.DIST": {
+      "agree": 11107,
+      "different": 0,
+      "incomplete_reply": 0,
+      "input_changed": 2,
+      "source_build_counts": {
+        "20131": 3299,
+        "20430": 4510,
+        "unknown": 3300
+      },
+      "source_cpu_counts": {
+        "AMD Ryzen 7 4800H with Radeon Graphics": 7809,
+        "unknown": 3300
+      },
+      "unrecognised_answer": 0,
+      "unsupported_input": 0,
+      "unsupported_request": 0,
+      "wrong_build": 0
+    },
+    "LOGNORMDIST": {
+      "agree": 6599,
+      "different": 0,
+      "incomplete_reply": 0,
+      "input_changed": 0,
+      "source_build_counts": {
+        "20131": 3299,
+        "unknown": 3300
+      },
+      "source_cpu_counts": {
+        "AMD Ryzen 7 4800H with Radeon Graphics": 3299,
+        "unknown": 3300
+      },
+      "unrecognised_answer": 0,
+      "unsupported_input": 0,
+      "unsupported_request": 0,
+      "wrong_build": 0
+    },
+    "LOWER": {
+      "agree": 12,
+      "different": 0,
+      "incomplete_reply": 0,
+      "input_changed": 0,
+      "source_build_counts": {
+        "20527": 12
+      },
+      "source_cpu_counts": {
+        "AMD Ryzen 7 4800H with Radeon Graphics         ": 12
+      },
+      "unrecognised_answer": 0,
+      "unsupported_input": 0,
+      "unsupported_request": 0,
+      "wrong_build": 0
+    },
+    "MATCH": {
+      "agree": 13,
+      "different": 0,
+      "incomplete_reply": 0,
+      "input_changed": 0,
+      "source_build_counts": {
+        "20527": 13
+      },
+      "source_cpu_counts": {
+        "AMD Ryzen 7 4800H with Radeon Graphics         ": 13
+      },
+      "unrecognised_answer": 0,
+      "unsupported_input": 0,
+      "unsupported_request": 0,
+      "wrong_build": 0
+    },
+    "MAX": {
+      "agree": 6050,
+      "different": 0,
+      "incomplete_reply": 0,
+      "input_changed": 4,
+      "source_build_counts": {
+        "20430": 6054
+      },
+      "source_cpu_counts": {
+        "unknown": 6054
+      },
+      "unrecognised_answer": 0,
+      "unsupported_input": 0,
+      "unsupported_request": 0,
+      "wrong_build": 0
+    },
+    "MAXA": {
+      "agree": 6050,
+      "different": 0,
+      "incomplete_reply": 0,
+      "input_changed": 4,
+      "source_build_counts": {
+        "20430": 6054
+      },
+      "source_cpu_counts": {
+        "unknown": 6054
+      },
+      "unrecognised_answer": 0,
+      "unsupported_input": 0,
+      "unsupported_request": 0,
+      "wrong_build": 0
+    },
+    "MDURATION": {
+      "agree": 2520,
+      "different": 0,
+      "incomplete_reply": 0,
+      "input_changed": 0,
+      "source_build_counts": {
+        "20131": 1260,
+        "unknown": 1260
+      },
+      "source_cpu_counts": {
+        "AMD Ryzen 7 4800H with Radeon Graphics": 1260,
+        "unknown": 1260
+      },
+      "unrecognised_answer": 0,
+      "unsupported_input": 0,
+      "unsupported_request": 0,
+      "wrong_build": 0
+    },
+    "MEDIAN": {
+      "agree": 48251,
+      "different": 0,
+      "incomplete_reply": 0,
+      "input_changed": 4,
+      "source_build_counts": {
+        "20430": 48255
+      },
+      "source_cpu_counts": {
+        "unknown": 48255
+      },
+      "unrecognised_answer": 0,
+      "unsupported_input": 0,
+      "unsupported_request": 0,
+      "wrong_build": 0
+    },
+    "MIN": {
+      "agree": 6050,
+      "different": 0,
+      "incomplete_reply": 0,
+      "input_changed": 4,
+      "source_build_counts": {
+        "20430": 6054
+      },
+      "source_cpu_counts": {
+        "unknown": 6054
+      },
+      "unrecognised_answer": 0,
+      "unsupported_input": 0,
+      "unsupported_request": 0,
+      "wrong_build": 0
+    },
+    "MINA": {
+      "agree": 6050,
+      "different": 0,
+      "incomplete_reply": 0,
+      "input_changed": 4,
+      "source_build_counts": {
+        "20430": 6054
+      },
+      "source_cpu_counts": {
+        "unknown": 6054
+      },
+      "unrecognised_answer": 0,
+      "unsupported_input": 0,
+      "unsupported_request": 0,
+      "wrong_build": 0
+    },
+    "MINUTE": {
+      "agree": 19566,
+      "different": 0,
+      "incomplete_reply": 0,
+      "input_changed": 0,
+      "source_build_counts": {
+        "20430": 19566
+      },
+      "source_cpu_counts": {
+        "unknown": 19566
+      },
+      "unrecognised_answer": 0,
+      "unsupported_input": 0,
+      "unsupported_request": 0,
+      "wrong_build": 0
+    },
+    "MINVERSE": {
+      "agree": 2047,
+      "different": 0,
+      "excluded": 112,
+      "incomplete_reply": 0,
+      "input_changed": 0,
+      "source_build_counts": {
+        "20131": 803,
+        "20228": 992,
+        "20527": 448
+      },
+      "source_cpu_counts": {
+        "AMD Ryzen 7 4800H with Radeon Graphics": 1251,
+        "unknown": 992
+      },
+      "spill_layout_unconfirmed": 84,
+      "unrecognised_answer": 0,
+      "unsupported_input": 0,
+      "unsupported_request": 0,
+      "wrong_build": 0
+    },
+    "MOD": {
+      "agree": 158158,
+      "different": 0,
+      "incomplete_reply": 0,
+      "input_changed": 36,
+      "source_build_counts": {
+        "20430": 158194
+      },
+      "source_cpu_counts": {
+        "unknown": 158194
+      },
+      "unrecognised_answer": 0,
+      "unsupported_input": 0,
+      "unsupported_request": 0,
+      "wrong_build": 0
+    },
+    "MONTH": {
+      "agree": 15072,
+      "different": 0,
+      "incomplete_reply": 0,
+      "input_changed": 0,
+      "source_build_counts": {
+        "20430": 15072
+      },
+      "source_cpu_counts": {
+        "unknown": 15072
+      },
+      "unrecognised_answer": 0,
+      "unsupported_input": 0,
+      "unsupported_request": 0,
+      "wrong_build": 0
+    },
+    "MROUND": {
+      "agree": 56143,
+      "different": 0,
+      "incomplete_reply": 0,
+      "input_changed": 0,
+      "source_build_counts": {
+        "20430": 56143
+      },
+      "source_cpu_counts": {
+        "AMD Ryzen 7 4800H with Radeon Graphics": 1999,
+        "unknown": 54144
+      },
+      "unrecognised_answer": 0,
+      "unsupported_input": 0,
+      "unsupported_request": 0,
+      "wrong_build": 0
+    },
+    "N": {
+      "agree": 6120,
+      "different": 0,
+      "incomplete_reply": 0,
+      "input_changed": 6,
+      "source_build_counts": {
+        "20430": 6126
+      },
+      "source_cpu_counts": {
+        "unknown": 6126
+      },
+      "unrecognised_answer": 0,
+      "unsupported_input": 0,
+      "unsupported_request": 0,
+      "wrong_build": 0
+    },
+    "NA": {
+      "agree": 5,
+      "different": 0,
+      "incomplete_reply": 0,
+      "input_changed": 0,
+      "source_build_counts": {
+        "20430": 5
+      },
+      "source_cpu_counts": {
+        "unknown": 5
+      },
+      "unrecognised_answer": 0,
+      "unsupported_input": 0,
+      "unsupported_request": 0,
+      "wrong_build": 0
+    },
+    "NEGBINOM.DIST": {
+      "agree": 519,
+      "different": 0,
+      "incomplete_reply": 0,
+      "input_changed": 0,
+      "source_build_counts": {
+        "20430": 519
+      },
+      "source_cpu_counts": {
+        "unknown": 519
+      },
+      "unrecognised_answer": 0,
+      "unsupported_input": 0,
+      "unsupported_request": 0,
+      "wrong_build": 0
+    },
+    "NEGBINOMDIST": {
+      "agree": 3608,
+      "different": 0,
+      "incomplete_reply": 0,
+      "input_changed": 0,
+      "source_build_counts": {
+        "20131": 1804,
+        "unknown": 1804
+      },
+      "source_cpu_counts": {
+        "AMD Ryzen 7 4800H with Radeon Graphics": 1804,
+        "unknown": 1804
+      },
+      "unrecognised_answer": 0,
+      "unsupported_input": 0,
+      "unsupported_request": 0,
+      "wrong_build": 0
+    },
+    "NETWORKDAYS": {
+      "agree": 3600,
+      "different": 0,
+      "incomplete_reply": 0,
+      "input_changed": 0,
+      "source_build_counts": {
+        "20430": 3600
+      },
+      "source_cpu_counts": {
+        "AMD Ryzen 7 4800H with Radeon Graphics": 3600
+      },
+      "unrecognised_answer": 0,
+      "unsupported_input": 0,
+      "unsupported_request": 0,
+      "wrong_build": 0
+    },
+    "NETWORKDAYS.INTL": {
+      "agree": 3600,
+      "different": 0,
+      "incomplete_reply": 0,
+      "input_changed": 0,
+      "source_build_counts": {
+        "20430": 3600
+      },
+      "source_cpu_counts": {
+        "AMD Ryzen 7 4800H with Radeon Graphics": 3600
+      },
+      "unrecognised_answer": 0,
+      "unsupported_input": 0,
+      "unsupported_request": 0,
+      "wrong_build": 0
+    },
+    "NOMINAL": {
+      "agree": 7027,
+      "different": 0,
+      "incomplete_reply": 0,
+      "input_changed": 0,
+      "source_build_counts": {
+        "20228": 852,
+        "20430": 6175
+      },
+      "source_cpu_counts": {
+        "unknown": 7027
+      },
+      "unrecognised_answer": 0,
+      "unsupported_input": 0,
+      "unsupported_request": 0,
+      "wrong_build": 0
+    },
+    "NORM.DIST": {
+      "agree": 25306,
+      "different": 0,
+      "incomplete_reply": 0,
+      "input_changed": 28,
+      "source_build_counts": {
+        "20430": 25334
+      },
+      "source_cpu_counts": {
+        "unknown": 25334
+      },
+      "unrecognised_answer": 0,
+      "unsupported_input": 0,
+      "unsupported_request": 0,
+      "wrong_build": 0
+    },
+    "NORM.S.DIST": {
+      "agree": 44455,
+      "different": 0,
+      "incomplete_reply": 0,
+      "input_changed": 0,
+      "source_build_counts": {
+        "20131": 16495,
+        "20430": 11441,
+        "20527": 24,
+        "unknown": 16495
+      },
+      "source_cpu_counts": {
+        "AMD Ryzen 7 4800H with Radeon Graphics": 16495,
+        "AMD Ryzen 7 4800H with Radeon Graphics         ": 24,
+        "unknown": 27936
+      },
+      "unrecognised_answer": 0,
+      "unsupported_input": 0,
+      "unsupported_request": 0,
+      "wrong_build": 0
+    },
+    "NORMDIST": {
+      "agree": 4508,
+      "different": 0,
+      "incomplete_reply": 0,
+      "input_changed": 2,
+      "source_build_counts": {
+        "20430": 4510
+      },
+      "source_cpu_counts": {
+        "AMD Ryzen 7 4800H with Radeon Graphics": 4510
+      },
+      "unrecognised_answer": 0,
+      "unsupported_input": 0,
+      "unsupported_request": 0,
+      "wrong_build": 0
+    },
+    "NOT": {
+      "agree": 6120,
+      "different": 0,
+      "incomplete_reply": 0,
+      "input_changed": 6,
+      "source_build_counts": {
+        "20430": 6126
+      },
+      "source_cpu_counts": {
+        "unknown": 6126
+      },
+      "unrecognised_answer": 0,
+      "unsupported_input": 0,
+      "unsupported_request": 0,
+      "wrong_build": 0
+    },
+    "NPER": {
+      "agree": 9208,
+      "different": 0,
+      "incomplete_reply": 0,
+      "input_changed": 2,
+      "source_build_counts": {
+        "20131": 1291,
+        "20430": 6050,
+        "20527": 8,
+        "unknown": 1861
+      },
+      "source_cpu_counts": {
+        "AMD Ryzen 7 4800H with Radeon Graphics": 1291,
+        "AMD Ryzen 7 4800H with Radeon Graphics         ": 8,
+        "unknown": 7911
+      },
+      "unrecognised_answer": 0,
+      "unsupported_input": 0,
+      "unsupported_request": 0,
+      "wrong_build": 0
+    },
+    "NPV": {
+      "agree": 284,
+      "different": 0,
+      "incomplete_reply": 0,
+      "input_changed": 0,
+      "source_build_counts": {
+        "20131": 142,
+        "unknown": 142
+      },
+      "source_cpu_counts": {
+        "AMD Ryzen 7 4800H with Radeon Graphics": 142,
+        "unknown": 142
+      },
+      "unrecognised_answer": 0,
+      "unsupported_input": 0,
+      "unsupported_request": 0,
+      "wrong_build": 0
+    },
+    "OCT2BIN": {
+      "agree": 6130,
+      "different": 0,
+      "incomplete_reply": 0,
+      "input_changed": 0,
+      "source_build_counts": {
+        "20430": 6130
+      },
+      "source_cpu_counts": {
+        "unknown": 6130
+      },
+      "unrecognised_answer": 0,
+      "unsupported_input": 0,
+      "unsupported_request": 0,
+      "wrong_build": 0
+    },
+    "OCT2DEC": {
+      "agree": 6040,
+      "different": 0,
+      "incomplete_reply": 0,
+      "input_changed": 0,
+      "source_build_counts": {
+        "20430": 6040
+      },
+      "source_cpu_counts": {
+        "unknown": 6040
+      },
+      "unrecognised_answer": 0,
+      "unsupported_input": 0,
+      "unsupported_request": 0,
+      "wrong_build": 0
+    },
+    "OCT2HEX": {
+      "agree": 6130,
+      "different": 0,
+      "incomplete_reply": 0,
+      "input_changed": 0,
+      "source_build_counts": {
+        "20430": 6130
+      },
+      "source_cpu_counts": {
+        "unknown": 6130
+      },
+      "unrecognised_answer": 0,
+      "unsupported_input": 0,
+      "unsupported_request": 0,
+      "wrong_build": 0
+    },
+    "ODD": {
+      "agree": 6120,
+      "different": 0,
+      "incomplete_reply": 0,
+      "input_changed": 6,
+      "source_build_counts": {
+        "20430": 6126
+      },
+      "source_cpu_counts": {
+        "unknown": 6126
+      },
+      "unrecognised_answer": 0,
+      "unsupported_input": 0,
+      "unsupported_request": 0,
+      "wrong_build": 0
+    },
+    "OR": {
+      "agree": 6050,
+      "different": 0,
+      "incomplete_reply": 0,
+      "input_changed": 4,
+      "source_build_counts": {
+        "20430": 6054
+      },
+      "source_cpu_counts": {
+        "unknown": 6054
+      },
+      "unrecognised_answer": 0,
+      "unsupported_input": 0,
+      "unsupported_request": 0,
+      "wrong_build": 0
+    },
+    "PDURATION": {
+      "agree": 6025,
+      "different": 0,
+      "incomplete_reply": 0,
+      "input_changed": 0,
+      "source_build_counts": {
+        "20430": 6025
+      },
+      "source_cpu_counts": {
+        "unknown": 6025
+      },
+      "unrecognised_answer": 0,
+      "unsupported_input": 0,
+      "unsupported_request": 0,
+      "wrong_build": 0
+    },
+    "PERMUT": {
+      "agree": 9084,
+      "different": 0,
+      "incomplete_reply": 0,
+      "input_changed": 0,
+      "source_build_counts": {
+        "20131": 702,
+        "20430": 7680,
+        "unknown": 702
+      },
+      "source_cpu_counts": {
+        "AMD Ryzen 7 4800H with Radeon Graphics": 702,
+        "unknown": 8382
+      },
+      "unrecognised_answer": 0,
+      "unsupported_input": 0,
+      "unsupported_request": 0,
+      "wrong_build": 0
+    },
+    "PERMUTATIONA": {
+      "agree": 76969,
+      "different": 0,
+      "incomplete_reply": 0,
+      "input_changed": 0,
+      "source_build_counts": {
+        "20430": 76969
+      },
+      "source_cpu_counts": {
+        "unknown": 76969
+      },
+      "unrecognised_answer": 0,
+      "unsupported_input": 0,
+      "unsupported_request": 0,
+      "wrong_build": 0
+    },
+    "PHI": {
+      "agree": 20194,
+      "different": 0,
+      "incomplete_reply": 0,
+      "input_changed": 0,
+      "source_build_counts": {
+        "20131": 764,
+        "20430": 18543,
+        "unknown": 887
+      },
+      "source_cpu_counts": {
+        "AMD Ryzen 7 4800H with Radeon Graphics": 764,
+        "unknown": 19430
+      },
+      "unrecognised_answer": 0,
+      "unsupported_input": 0,
+      "unsupported_request": 0,
+      "wrong_build": 0
+    },
+    "PI": {
+      "agree": 5,
+      "different": 0,
+      "incomplete_reply": 0,
+      "input_changed": 0,
+      "source_build_counts": {
+        "20430": 5
+      },
+      "source_cpu_counts": {
+        "unknown": 5
+      },
+      "unrecognised_answer": 0,
+      "unsupported_input": 0,
+      "unsupported_request": 0,
+      "wrong_build": 0
+    },
+    "PMT": {
+      "agree": 609534,
+      "different": 0,
+      "incomplete_reply": 0,
+      "input_changed": 0,
+      "source_build_counts": {
+        "20131": 289642,
+        "20228": 2076,
+        "20527": 300,
+        "unknown": 317516
+      },
+      "source_cpu_counts": {
+        "AMD Ryzen 7 4800H with Radeon Graphics": 289642,
+        "AMD Ryzen 7 4800H with Radeon Graphics         ": 300,
+        "unknown": 319592
+      },
+      "unrecognised_answer": 0,
+      "unsupported_input": 0,
+      "unsupported_request": 0,
+      "wrong_build": 0
+    },
+    "POISSON.DIST": {
+      "agree": 95773,
+      "different": 0,
+      "incomplete_reply": 0,
+      "input_changed": 0,
+      "source_build_counts": {
+        "20131": 45997,
+        "20430": 3584,
+        "20527": 195,
+        "unknown": 45997
+      },
+      "source_cpu_counts": {
+        "AMD Ryzen 7 4800H with Radeon Graphics": 45997,
+        "AMD Ryzen 7 4800H with Radeon Graphics         ": 195,
+        "unknown": 49581
+      },
+      "unrecognised_answer": 0,
+      "unsupported_input": 0,
+      "unsupported_request": 0,
+      "wrong_build": 0
+    },
+    "POWER": {
+      "agree": 69469,
+      "different": 0,
+      "incomplete_reply": 0,
+      "input_changed": 0,
+      "source_build_counts": {
+        "20131": 697,
+        "20430": 68057,
+        "20527": 12,
+        "unknown": 703
+      },
+      "source_cpu_counts": {
+        "AMD Ryzen 7 4800H with Radeon Graphics": 697,
+        "AMD Ryzen 7 4800H with Radeon Graphics         ": 12,
+        "unknown": 68760
+      },
+      "unrecognised_answer": 0,
+      "unsupported_input": 0,
+      "unsupported_request": 0,
+      "wrong_build": 0
+    },
+    "PPMT": {
+      "agree": 72,
+      "different": 0,
+      "incomplete_reply": 0,
+      "input_changed": 0,
+      "source_build_counts": {
+        "20131": 7,
+        "20527": 58,
+        "unknown": 7
+      },
+      "source_cpu_counts": {
+        "AMD Ryzen 7 4800H with Radeon Graphics": 7,
+        "AMD Ryzen 7 4800H with Radeon Graphics         ": 58,
+        "unknown": 7
+      },
+      "unrecognised_answer": 0,
+      "unsupported_input": 0,
+      "unsupported_request": 0,
+      "wrong_build": 0
+    },
+    "PRICE": {
+      "agree": 17570,
+      "different": 0,
+      "incomplete_reply": 0,
+      "input_changed": 0,
+      "source_build_counts": {
+        "20131": 8417,
+        "20228": 736,
+        "unknown": 8417
+      },
+      "source_cpu_counts": {
+        "AMD Ryzen 7 4800H with Radeon Graphics": 8417,
+        "unknown": 9153
+      },
+      "unrecognised_answer": 0,
+      "unsupported_input": 0,
+      "unsupported_request": 0,
+      "wrong_build": 0
+    },
+    "PRICEDISC": {
+      "agree": 2400,
+      "different": 0,
+      "incomplete_reply": 0,
+      "input_changed": 0,
+      "source_build_counts": {
+        "20430": 2400
+      },
+      "source_cpu_counts": {
+        "AMD Ryzen 7 4800H with Radeon Graphics": 2400
+      },
+      "unrecognised_answer": 0,
+      "unsupported_input": 0,
+      "unsupported_request": 0,
+      "wrong_build": 0
+    },
+    "PRICEMAT": {
+      "agree": 3608,
+      "different": 0,
+      "incomplete_reply": 0,
+      "input_changed": 0,
+      "source_build_counts": {
+        "20430": 3608
+      },
+      "source_cpu_counts": {
+        "AMD Ryzen 7 4800H with Radeon Graphics": 3608
+      },
+      "unrecognised_answer": 0,
+      "unsupported_input": 0,
+      "unsupported_request": 0,
+      "wrong_build": 0
+    },
+    "PRODUCT": {
+      "agree": 6050,
+      "different": 0,
+      "incomplete_reply": 0,
+      "input_changed": 4,
+      "source_build_counts": {
+        "20430": 6054
+      },
+      "source_cpu_counts": {
+        "unknown": 6054
+      },
+      "unrecognised_answer": 0,
+      "unsupported_input": 0,
+      "unsupported_request": 0,
+      "wrong_build": 0
+    },
+    "PROPER": {
+      "agree": 7,
+      "different": 0,
+      "incomplete_reply": 0,
+      "input_changed": 0,
+      "source_build_counts": {
+        "20527": 7
+      },
+      "source_cpu_counts": {
+        "AMD Ryzen 7 4800H with Radeon Graphics         ": 7
+      },
+      "unrecognised_answer": 0,
+      "unsupported_input": 0,
+      "unsupported_request": 0,
+      "wrong_build": 0
+    },
+    "PV": {
+      "agree": 6276,
+      "different": 0,
+      "incomplete_reply": 0,
+      "input_changed": 0,
+      "source_build_counts": {
+        "20131": 48,
+        "20430": 6150,
+        "20527": 30,
+        "unknown": 48
+      },
+      "source_cpu_counts": {
+        "AMD Ryzen 7 4800H with Radeon Graphics": 48,
+        "AMD Ryzen 7 4800H with Radeon Graphics         ": 30,
+        "unknown": 6198
+      },
+      "unrecognised_answer": 0,
+      "unsupported_input": 0,
+      "unsupported_request": 0,
+      "wrong_build": 0
+    },
+    "QUOTIENT": {
+      "agree": 6720,
+      "different": 0,
+      "incomplete_reply": 0,
+      "input_changed": 36,
+      "source_build_counts": {
+        "20430": 6756
+      },
+      "source_cpu_counts": {
+        "unknown": 6756
+      },
+      "unrecognised_answer": 0,
+      "unsupported_input": 0,
+      "unsupported_request": 0,
+      "wrong_build": 0
+    },
+    "RADIANS": {
+      "agree": 37820,
+      "different": 0,
+      "incomplete_reply": 0,
+      "input_changed": 6,
+      "source_build_counts": {
+        "20430": 37826
+      },
+      "source_cpu_counts": {
+        "unknown": 37826
+      },
+      "unrecognised_answer": 0,
+      "unsupported_input": 0,
+      "unsupported_request": 0,
+      "wrong_build": 0
+    },
+    "RATE": {
+      "agree": 493,
+      "different": 0,
+      "incomplete_reply": 0,
+      "input_changed": 0,
+      "source_build_counts": {
+        "20131": 105,
+        "20228": 256,
+        "20527": 16,
+        "unknown": 116
+      },
+      "source_cpu_counts": {
+        "AMD Ryzen 7 4800H with Radeon Graphics": 105,
+        "AMD Ryzen 7 4800H with Radeon Graphics         ": 16,
+        "unknown": 372
+      },
+      "unrecognised_answer": 0,
+      "unsupported_input": 0,
+      "unsupported_request": 0,
+      "wrong_build": 0
+    },
+    "RECEIVED": {
+      "agree": 2400,
+      "different": 0,
+      "incomplete_reply": 0,
+      "input_changed": 0,
+      "source_build_counts": {
+        "20430": 2400
+      },
+      "source_cpu_counts": {
+        "AMD Ryzen 7 4800H with Radeon Graphics": 2400
+      },
+      "unrecognised_answer": 0,
+      "unsupported_input": 0,
+      "unsupported_request": 0,
+      "wrong_build": 0
+    },
+    "REGEXTEST": {
+      "agree": 18,
+      "different": 0,
+      "incomplete_reply": 0,
+      "input_changed": 0,
+      "source_build_counts": {
+        "20527": 18
+      },
+      "source_cpu_counts": {
+        "AMD Ryzen 7 4800H with Radeon Graphics         ": 18
+      },
+      "unrecognised_answer": 0,
+      "unsupported_input": 0,
+      "unsupported_request": 0,
+      "wrong_build": 0
+    },
+    "ROUND": {
+      "agree": 36953,
+      "different": 0,
+      "incomplete_reply": 0,
+      "input_changed": 24,
+      "source_build_counts": {
+        "20430": 36977
+      },
+      "source_cpu_counts": {
+        "AMD Ryzen 7 4800H with Radeon Graphics": 4071,
+        "unknown": 32906
+      },
+      "unrecognised_answer": 0,
+      "unsupported_input": 0,
+      "unsupported_request": 0,
+      "wrong_build": 0
+    },
+    "ROUNDDOWN": {
+      "agree": 60868,
+      "different": 0,
+      "incomplete_reply": 0,
+      "input_changed": 24,
+      "source_build_counts": {
+        "20430": 60892
+      },
+      "source_cpu_counts": {
+        "AMD Ryzen 7 4800H with Radeon Graphics": 3454,
+        "unknown": 57438
+      },
+      "unrecognised_answer": 0,
+      "unsupported_input": 0,
+      "unsupported_request": 0,
+      "wrong_build": 0
+    },
+    "ROUNDUP": {
+      "agree": 53284,
+      "different": 0,
+      "incomplete_reply": 0,
+      "input_changed": 24,
+      "source_build_counts": {
+        "20430": 53308
+      },
+      "source_cpu_counts": {
+        "AMD Ryzen 7 4800H with Radeon Graphics": 3454,
+        "unknown": 49854
+      },
+      "unrecognised_answer": 0,
+      "unsupported_input": 0,
+      "unsupported_request": 0,
+      "wrong_build": 0
+    },
+    "RRI": {
+      "agree": 5482,
+      "different": 0,
+      "incomplete_reply": 0,
+      "input_changed": 54,
+      "source_build_counts": {
+        "20228": 5376,
+        "unknown": 160
+      },
+      "source_cpu_counts": {
+        "unknown": 5536
+      },
+      "unrecognised_answer": 0,
+      "unsupported_input": 0,
+      "unsupported_request": 0,
+      "wrong_build": 0
+    },
+    "SEC": {
+      "agree": 8278,
+      "different": 0,
+      "incomplete_reply": 0,
+      "input_changed": 0,
+      "source_build_counts": {
+        "20131": 914,
+        "20430": 6120,
+        "unknown": 1244
+      },
+      "source_cpu_counts": {
+        "AMD Ryzen 7 4800H with Radeon Graphics": 914,
+        "unknown": 7364
+      },
+      "unrecognised_answer": 0,
+      "unsupported_input": 0,
+      "unsupported_request": 0,
+      "wrong_build": 0
+    },
+    "SECH": {
+      "agree": 35320,
+      "different": 0,
+      "incomplete_reply": 0,
+      "input_changed": 0,
+      "source_build_counts": {
+        "20430": 35320
+      },
+      "source_cpu_counts": {
+        "unknown": 35320
+      },
+      "unrecognised_answer": 0,
+      "unsupported_input": 0,
+      "unsupported_request": 0,
+      "wrong_build": 0
+    },
+    "SECOND": {
+      "agree": 19566,
+      "different": 0,
+      "incomplete_reply": 0,
+      "input_changed": 0,
+      "source_build_counts": {
+        "20430": 19566
+      },
+      "source_cpu_counts": {
+        "unknown": 19566
+      },
+      "unrecognised_answer": 0,
+      "unsupported_input": 0,
+      "unsupported_request": 0,
+      "wrong_build": 0
+    },
+    "SIGN": {
+      "agree": 6120,
+      "different": 0,
+      "incomplete_reply": 0,
+      "input_changed": 6,
+      "source_build_counts": {
+        "20430": 6126
+      },
+      "source_cpu_counts": {
+        "unknown": 6126
+      },
+      "unrecognised_answer": 0,
+      "unsupported_input": 0,
+      "unsupported_request": 0,
+      "wrong_build": 0
+    },
+    "SIN": {
+      "agree": 8261,
+      "different": 0,
+      "incomplete_reply": 0,
+      "input_changed": 0,
+      "source_build_counts": {
+        "20131": 890,
+        "20228": 25,
+        "20430": 6120,
+        "20527": 6,
+        "unknown": 1220
+      },
+      "source_cpu_counts": {
+        "AMD Ryzen 7 4800H with Radeon Graphics": 890,
+        "AMD Ryzen 7 4800H with Radeon Graphics         ": 6,
+        "unknown": 7365
+      },
+      "unrecognised_answer": 0,
+      "unsupported_input": 0,
+      "unsupported_request": 0,
+      "wrong_build": 0
+    },
+    "SINH": {
+      "agree": 38454,
+      "different": 0,
+      "incomplete_reply": 0,
+      "input_changed": 0,
+      "source_build_counts": {
+        "20430": 38454
+      },
+      "source_cpu_counts": {
+        "unknown": 38454
+      },
+      "unrecognised_answer": 0,
+      "unsupported_input": 0,
+      "unsupported_request": 0,
+      "wrong_build": 0
+    },
+    "SKEW": {
+      "agree": 4508,
+      "different": 0,
+      "incomplete_reply": 0,
+      "input_changed": 0,
+      "source_build_counts": {
+        "20430": 4508
+      },
+      "source_cpu_counts": {
+        "AMD Ryzen 7 4800H with Radeon Graphics": 4508
+      },
+      "unrecognised_answer": 0,
+      "unsupported_input": 0,
+      "unsupported_request": 0,
+      "wrong_build": 0
+    },
+    "SLN": {
+      "agree": 6025,
+      "different": 0,
+      "incomplete_reply": 0,
+      "input_changed": 0,
+      "source_build_counts": {
+        "20430": 6025
+      },
+      "source_cpu_counts": {
+        "unknown": 6025
+      },
+      "unrecognised_answer": 0,
+      "unsupported_input": 0,
+      "unsupported_request": 0,
+      "wrong_build": 0
+    },
+    "SLOPE": {
+      "agree": 4,
+      "different": 0,
+      "incomplete_reply": 0,
+      "input_changed": 0,
+      "source_build_counts": {
+        "20131": 4
+      },
+      "source_cpu_counts": {
+        "AMD Ryzen 7 4800H with Radeon Graphics": 4
+      },
+      "unrecognised_answer": 0,
+      "unsupported_input": 0,
+      "unsupported_request": 0,
+      "wrong_build": 0
+    },
+    "SQRT": {
+      "agree": 47710,
+      "different": 0,
+      "incomplete_reply": 0,
+      "input_changed": 6,
+      "source_build_counts": {
+        "20430": 47716
+      },
+      "source_cpu_counts": {
+        "unknown": 47716
+      },
+      "unrecognised_answer": 0,
+      "unsupported_input": 0,
+      "unsupported_request": 0,
+      "wrong_build": 0
+    },
+    "SQRTPI": {
+      "agree": 6120,
+      "different": 0,
+      "incomplete_reply": 0,
+      "input_changed": 0,
+      "source_build_counts": {
+        "20430": 6120
+      },
+      "source_cpu_counts": {
+        "unknown": 6120
+      },
+      "unrecognised_answer": 0,
+      "unsupported_input": 0,
+      "unsupported_request": 0,
+      "wrong_build": 0
+    },
+    "STANDARDIZE": {
+      "agree": 15482,
+      "different": 0,
+      "incomplete_reply": 0,
+      "input_changed": 24,
+      "source_build_counts": {
+        "20430": 15506
+      },
+      "source_cpu_counts": {
+        "unknown": 15506
+      },
+      "unrecognised_answer": 0,
+      "unsupported_input": 0,
+      "unsupported_request": 0,
+      "wrong_build": 0
+    },
+    "STDEV": {
+      "agree": 6050,
+      "different": 0,
+      "incomplete_reply": 0,
+      "input_changed": 4,
+      "source_build_counts": {
+        "20430": 6054
+      },
+      "source_cpu_counts": {
+        "unknown": 6054
+      },
+      "unrecognised_answer": 0,
+      "unsupported_input": 0,
+      "unsupported_request": 0,
+      "wrong_build": 0
+    },
+    "STDEV.P": {
+      "agree": 6066,
+      "different": 0,
+      "incomplete_reply": 0,
+      "input_changed": 4,
+      "source_build_counts": {
+        "20430": 6054,
+        "20527": 16
+      },
+      "source_cpu_counts": {
+        "AMD Ryzen 7 4800H with Radeon Graphics         ": 16,
+        "unknown": 6054
+      },
+      "unrecognised_answer": 0,
+      "unsupported_input": 0,
+      "unsupported_request": 0,
+      "wrong_build": 0
+    },
+    "STDEV.S": {
+      "agree": 6066,
+      "different": 0,
+      "incomplete_reply": 0,
+      "input_changed": 4,
+      "source_build_counts": {
+        "20430": 6054,
+        "20527": 16
+      },
+      "source_cpu_counts": {
+        "AMD Ryzen 7 4800H with Radeon Graphics         ": 16,
+        "unknown": 6054
+      },
+      "unrecognised_answer": 0,
+      "unsupported_input": 0,
+      "unsupported_request": 0,
+      "wrong_build": 0
+    },
+    "STDEVA": {
+      "agree": 6050,
+      "different": 0,
+      "incomplete_reply": 0,
+      "input_changed": 4,
+      "source_build_counts": {
+        "20430": 6054
+      },
+      "source_cpu_counts": {
+        "unknown": 6054
+      },
+      "unrecognised_answer": 0,
+      "unsupported_input": 0,
+      "unsupported_request": 0,
+      "wrong_build": 0
+    },
+    "STDEVP": {
+      "agree": 6050,
+      "different": 0,
+      "incomplete_reply": 0,
+      "input_changed": 4,
+      "source_build_counts": {
+        "20430": 6054
+      },
+      "source_cpu_counts": {
+        "unknown": 6054
+      },
+      "unrecognised_answer": 0,
+      "unsupported_input": 0,
+      "unsupported_request": 0,
+      "wrong_build": 0
+    },
+    "STDEVPA": {
+      "agree": 6050,
+      "different": 0,
+      "incomplete_reply": 0,
+      "input_changed": 4,
+      "source_build_counts": {
+        "20430": 6054
+      },
+      "source_cpu_counts": {
+        "unknown": 6054
+      },
+      "unrecognised_answer": 0,
+      "unsupported_input": 0,
+      "unsupported_request": 0,
+      "wrong_build": 0
+    },
+    "SUM": {
+      "agree": 6050,
+      "different": 0,
+      "incomplete_reply": 0,
+      "input_changed": 4,
+      "source_build_counts": {
+        "20430": 6054
+      },
+      "source_cpu_counts": {
+        "unknown": 6054
+      },
+      "unrecognised_answer": 0,
+      "unsupported_input": 0,
+      "unsupported_request": 0,
+      "wrong_build": 0
+    },
+    "SUMSQ": {
+      "agree": 6050,
+      "different": 0,
+      "incomplete_reply": 0,
+      "input_changed": 4,
+      "source_build_counts": {
+        "20430": 6054
+      },
+      "source_cpu_counts": {
+        "unknown": 6054
+      },
+      "unrecognised_answer": 0,
+      "unsupported_input": 0,
+      "unsupported_request": 0,
+      "wrong_build": 0
+    },
+    "SWITCH": {
+      "agree": 6120,
+      "different": 0,
+      "incomplete_reply": 0,
+      "input_changed": 6,
+      "source_build_counts": {
+        "20430": 6126
+      },
+      "source_cpu_counts": {
+        "unknown": 6126
+      },
+      "unrecognised_answer": 0,
+      "unsupported_input": 0,
+      "unsupported_request": 0,
+      "wrong_build": 0
+    },
+    "SYD": {
+      "agree": 6035,
+      "different": 0,
+      "incomplete_reply": 0,
+      "input_changed": 0,
+      "source_build_counts": {
+        "20430": 6035
+      },
+      "source_cpu_counts": {
+        "unknown": 6035
+      },
+      "unrecognised_answer": 0,
+      "unsupported_input": 0,
+      "unsupported_request": 0,
+      "wrong_build": 0
+    },
+    "T": {
+      "agree": 6120,
+      "different": 0,
+      "incomplete_reply": 0,
+      "input_changed": 6,
+      "source_build_counts": {
+        "20430": 6126
+      },
+      "source_cpu_counts": {
+        "unknown": 6126
+      },
+      "unrecognised_answer": 0,
+      "unsupported_input": 0,
+      "unsupported_request": 0,
+      "wrong_build": 0
+    },
+    "T.DIST.RT": {
+      "agree": 12,
+      "different": 0,
+      "incomplete_reply": 0,
+      "input_changed": 0,
+      "source_build_counts": {
+        "20131": 6,
+        "unknown": 6
+      },
+      "source_cpu_counts": {
+        "AMD Ryzen 7 4800H with Radeon Graphics": 6,
+        "unknown": 6
+      },
+      "unrecognised_answer": 0,
+      "unsupported_input": 0,
+      "unsupported_request": 0,
+      "wrong_build": 0
+    },
+    "TAN": {
+      "agree": 8230,
+      "different": 0,
+      "incomplete_reply": 0,
+      "input_changed": 0,
+      "source_build_counts": {
+        "20131": 890,
+        "20430": 6120,
+        "unknown": 1220
+      },
+      "source_cpu_counts": {
+        "AMD Ryzen 7 4800H with Radeon Graphics": 890,
+        "unknown": 7340
+      },
+      "unrecognised_answer": 0,
+      "unsupported_input": 0,
+      "unsupported_request": 0,
+      "wrong_build": 0
+    },
+    "TANH": {
+      "agree": 39234,
+      "different": 0,
+      "incomplete_reply": 0,
+      "input_changed": 0,
+      "source_build_counts": {
+        "20430": 39234
+      },
+      "source_cpu_counts": {
+        "unknown": 39234
+      },
+      "unrecognised_answer": 0,
+      "unsupported_input": 0,
+      "unsupported_request": 0,
+      "wrong_build": 0
+    },
+    "TBILLEQ": {
+      "agree": 3600,
+      "different": 0,
+      "incomplete_reply": 0,
+      "input_changed": 0,
+      "source_build_counts": {
+        "20430": 3600
+      },
+      "source_cpu_counts": {
+        "AMD Ryzen 7 4800H with Radeon Graphics": 3600
+      },
+      "unrecognised_answer": 0,
+      "unsupported_input": 0,
+      "unsupported_request": 0,
+      "wrong_build": 0
+    },
+    "TBILLPRICE": {
+      "agree": 3600,
+      "different": 0,
+      "incomplete_reply": 0,
+      "input_changed": 0,
+      "source_build_counts": {
+        "20430": 3600
+      },
+      "source_cpu_counts": {
+        "AMD Ryzen 7 4800H with Radeon Graphics": 3600
+      },
+      "unrecognised_answer": 0,
+      "unsupported_input": 0,
+      "unsupported_request": 0,
+      "wrong_build": 0
+    },
+    "TBILLYIELD": {
+      "agree": 2400,
+      "different": 0,
+      "incomplete_reply": 0,
+      "input_changed": 0,
+      "source_build_counts": {
+        "20430": 2400
+      },
+      "source_cpu_counts": {
+        "AMD Ryzen 7 4800H with Radeon Graphics": 2400
+      },
+      "unrecognised_answer": 0,
+      "unsupported_input": 0,
+      "unsupported_request": 0,
+      "wrong_build": 0
+    },
+    "TDIST": {
+      "agree": 184,
+      "different": 0,
+      "incomplete_reply": 0,
+      "input_changed": 0,
+      "source_build_counts": {
+        "20131": 92,
+        "unknown": 92
+      },
+      "source_cpu_counts": {
+        "AMD Ryzen 7 4800H with Radeon Graphics": 92,
+        "unknown": 92
+      },
+      "unrecognised_answer": 0,
+      "unsupported_input": 0,
+      "unsupported_request": 0,
+      "wrong_build": 0
+    },
+    "TEXT": {
+      "agree": 7,
+      "different": 0,
+      "incomplete_reply": 0,
+      "input_changed": 0,
+      "source_build_counts": {
+        "20527": 7
+      },
+      "source_cpu_counts": {
+        "AMD Ryzen 7 4800H with Radeon Graphics         ": 7
+      },
+      "unrecognised_answer": 0,
+      "unsupported_input": 0,
+      "unsupported_request": 0,
+      "wrong_build": 0
+    },
+    "TEXTAFTER": {
+      "agree": 11,
+      "different": 0,
+      "incomplete_reply": 0,
+      "input_changed": 0,
+      "source_build_counts": {
+        "20527": 11
+      },
+      "source_cpu_counts": {
+        "AMD Ryzen 7 4800H with Radeon Graphics         ": 11
+      },
+      "unrecognised_answer": 0,
+      "unsupported_input": 0,
+      "unsupported_request": 0,
+      "wrong_build": 0
+    },
+    "TEXTBEFORE": {
+      "agree": 11,
+      "different": 0,
+      "incomplete_reply": 0,
+      "input_changed": 0,
+      "source_build_counts": {
+        "20527": 11
+      },
+      "source_cpu_counts": {
+        "AMD Ryzen 7 4800H with Radeon Graphics         ": 11
+      },
+      "unrecognised_answer": 0,
+      "unsupported_input": 0,
+      "unsupported_request": 0,
+      "wrong_build": 0
+    },
+    "TEXTSPLIT": {
+      "agree": 9,
+      "different": 0,
+      "excluded": 2,
+      "incomplete_reply": 0,
+      "input_changed": 0,
+      "source_build_counts": {
+        "20527": 11
+      },
+      "source_cpu_counts": {
+        "AMD Ryzen 7 4800H with Radeon Graphics": 6,
+        "AMD Ryzen 7 4800H with Radeon Graphics         ": 5
+      },
+      "unrecognised_answer": 0,
+      "unsupported_input": 0,
+      "unsupported_request": 0,
+      "wrong_build": 0
+    },
+    "TIME": {
+      "agree": 6480,
+      "different": 0,
+      "incomplete_reply": 0,
+      "input_changed": 0,
+      "source_build_counts": {
+        "20430": 6480
+      },
+      "source_cpu_counts": {
+        "unknown": 6480
+      },
+      "unrecognised_answer": 0,
+      "unsupported_input": 0,
+      "unsupported_request": 0,
+      "wrong_build": 0
+    },
+    "TINV": {
+      "agree": 64,
+      "different": 0,
+      "incomplete_reply": 0,
+      "input_changed": 0,
+      "source_build_counts": {
+        "20131": 32,
+        "unknown": 32
+      },
+      "source_cpu_counts": {
+        "AMD Ryzen 7 4800H with Radeon Graphics": 32,
+        "unknown": 32
+      },
+      "unrecognised_answer": 0,
+      "unsupported_input": 0,
+      "unsupported_request": 0,
+      "wrong_build": 0
+    },
+    "TREND": {
+      "agree": 12,
+      "different": 0,
+      "incomplete_reply": 0,
+      "input_changed": 0,
+      "source_build_counts": {
+        "20131": 12
+      },
+      "source_cpu_counts": {
+        "AMD Ryzen 7 4800H with Radeon Graphics": 12
+      },
+      "unrecognised_answer": 0,
+      "unsupported_input": 0,
+      "unsupported_request": 0,
+      "wrong_build": 0
+    },
+    "TRUE": {
+      "agree": 5,
+      "different": 0,
+      "incomplete_reply": 0,
+      "input_changed": 0,
+      "source_build_counts": {
+        "20430": 5
+      },
+      "source_cpu_counts": {
+        "unknown": 5
+      },
+      "unrecognised_answer": 0,
+      "unsupported_input": 0,
+      "unsupported_request": 0,
+      "wrong_build": 0
+    },
+    "TRUNC": {
+      "agree": 57296,
+      "different": 0,
+      "incomplete_reply": 0,
+      "input_changed": 36,
+      "source_build_counts": {
+        "20430": 57332
+      },
+      "source_cpu_counts": {
+        "unknown": 57332
+      },
+      "unrecognised_answer": 0,
+      "unsupported_input": 0,
+      "unsupported_request": 0,
+      "wrong_build": 0
+    },
+    "TYPE": {
+      "agree": 6120,
+      "different": 0,
+      "incomplete_reply": 0,
+      "input_changed": 6,
+      "source_build_counts": {
+        "20430": 6126
+      },
+      "source_cpu_counts": {
+        "unknown": 6126
+      },
+      "unrecognised_answer": 0,
+      "unsupported_input": 0,
+      "unsupported_request": 0,
+      "wrong_build": 0
+    },
+    "UPPER": {
+      "agree": 5,
+      "different": 0,
+      "incomplete_reply": 0,
+      "input_changed": 0,
+      "source_build_counts": {
+        "20527": 5
+      },
+      "source_cpu_counts": {
+        "AMD Ryzen 7 4800H with Radeon Graphics         ": 5
+      },
+      "unrecognised_answer": 0,
+      "unsupported_input": 0,
+      "unsupported_request": 0,
+      "wrong_build": 0
+    },
+    "VAR": {
+      "agree": 6050,
+      "different": 0,
+      "incomplete_reply": 0,
+      "input_changed": 4,
+      "source_build_counts": {
+        "20430": 6054
+      },
+      "source_cpu_counts": {
+        "unknown": 6054
+      },
+      "unrecognised_answer": 0,
+      "unsupported_input": 0,
+      "unsupported_request": 0,
+      "wrong_build": 0
+    },
+    "VAR.P": {
+      "agree": 6066,
+      "different": 0,
+      "incomplete_reply": 0,
+      "input_changed": 4,
+      "source_build_counts": {
+        "20430": 6054,
+        "20527": 16
+      },
+      "source_cpu_counts": {
+        "AMD Ryzen 7 4800H with Radeon Graphics         ": 16,
+        "unknown": 6054
+      },
+      "unrecognised_answer": 0,
+      "unsupported_input": 0,
+      "unsupported_request": 0,
+      "wrong_build": 0
+    },
+    "VAR.S": {
+      "agree": 6172,
+      "different": 0,
+      "incomplete_reply": 0,
+      "input_changed": 4,
+      "source_build_counts": {
+        "20228": 102,
+        "20430": 6054,
+        "20527": 20
+      },
+      "source_cpu_counts": {
+        "AMD Ryzen 7 4800H with Radeon Graphics         ": 20,
+        "unknown": 6156
+      },
+      "unrecognised_answer": 0,
+      "unsupported_input": 0,
+      "unsupported_request": 0,
+      "wrong_build": 0
+    },
+    "VARA": {
+      "agree": 6050,
+      "different": 0,
+      "incomplete_reply": 0,
+      "input_changed": 4,
+      "source_build_counts": {
+        "20430": 6054
+      },
+      "source_cpu_counts": {
+        "unknown": 6054
+      },
+      "unrecognised_answer": 0,
+      "unsupported_input": 0,
+      "unsupported_request": 0,
+      "wrong_build": 0
+    },
+    "VARP": {
+      "agree": 6050,
+      "different": 0,
+      "incomplete_reply": 0,
+      "input_changed": 4,
+      "source_build_counts": {
+        "20430": 6054
+      },
+      "source_cpu_counts": {
+        "unknown": 6054
+      },
+      "unrecognised_answer": 0,
+      "unsupported_input": 0,
+      "unsupported_request": 0,
+      "wrong_build": 0
+    },
+    "VARPA": {
+      "agree": 6050,
+      "different": 0,
+      "incomplete_reply": 0,
+      "input_changed": 4,
+      "source_build_counts": {
+        "20430": 6054
+      },
+      "source_cpu_counts": {
+        "unknown": 6054
+      },
+      "unrecognised_answer": 0,
+      "unsupported_input": 0,
+      "unsupported_request": 0,
+      "wrong_build": 0
+    },
+    "VDB": {
+      "agree": 7021,
+      "different": 0,
+      "incomplete_reply": 0,
+      "input_changed": 0,
+      "source_build_counts": {
+        "20430": 7021
+      },
+      "source_cpu_counts": {
+        "unknown": 7021
+      },
+      "unrecognised_answer": 0,
+      "unsupported_input": 0,
+      "unsupported_request": 0,
+      "wrong_build": 0
+    },
+    "WEEKDAY": {
+      "agree": 25344,
+      "different": 0,
+      "incomplete_reply": 0,
+      "input_changed": 0,
+      "source_build_counts": {
+        "20430": 25344
+      },
+      "source_cpu_counts": {
+        "unknown": 25344
+      },
+      "unrecognised_answer": 0,
+      "unsupported_input": 0,
+      "unsupported_request": 0,
+      "wrong_build": 0
+    },
+    "WEEKNUM": {
+      "agree": 16932,
+      "different": 0,
+      "excluded": 4429,
+      "incomplete_reply": 0,
+      "input_changed": 0,
+      "source_build_counts": {
+        "20430": 21361
+      },
+      "source_cpu_counts": {
+        "unknown": 21361
+      },
+      "unrecognised_answer": 0,
+      "unsupported_input": 0,
+      "unsupported_request": 0,
+      "wrong_build": 0
+    },
+    "WEIBULL.DIST": {
+      "agree": 62966,
+      "different": 0,
+      "incomplete_reply": 0,
+      "input_changed": 0,
+      "source_build_counts": {
+        "20131": 31483,
+        "unknown": 31483
+      },
+      "source_cpu_counts": {
+        "AMD Ryzen 7 4800H with Radeon Graphics": 31483,
+        "unknown": 31483
+      },
+      "unrecognised_answer": 0,
+      "unsupported_input": 0,
+      "unsupported_request": 0,
+      "wrong_build": 0
+    },
+    "WORKDAY": {
+      "agree": 3600,
+      "different": 0,
+      "incomplete_reply": 0,
+      "input_changed": 0,
+      "source_build_counts": {
+        "20430": 3600
+      },
+      "source_cpu_counts": {
+        "AMD Ryzen 7 4800H with Radeon Graphics": 3600
+      },
+      "unrecognised_answer": 0,
+      "unsupported_input": 0,
+      "unsupported_request": 0,
+      "wrong_build": 0
+    },
+    "WORKDAY.INTL": {
+      "agree": 6000,
+      "different": 0,
+      "input_changed": 0,
+      "source_build_counts": {
+        "20430": 6000
+      },
+      "source_cpu_counts": {
+        "AMD Ryzen 7 4800H with Radeon Graphics": 6000
+      }
+    },
+    "XMATCH": {
+      "agree": 13,
+      "different": 0,
+      "incomplete_reply": 0,
+      "input_changed": 0,
+      "source_build_counts": {
+        "20527": 13
+      },
+      "source_cpu_counts": {
+        "AMD Ryzen 7 4800H with Radeon Graphics         ": 13
+      },
+      "unrecognised_answer": 0,
+      "unsupported_input": 0,
+      "unsupported_request": 0,
+      "wrong_build": 0
+    },
+    "XNPV": {
+      "agree": 3747,
+      "different": 0,
+      "incomplete_reply": 0,
+      "input_changed": 2,
+      "source_build_counts": {
+        "20131": 1703,
+        "unknown": 2046
+      },
+      "source_cpu_counts": {
+        "AMD Ryzen 7 4800H with Radeon Graphics": 1703,
+        "unknown": 2046
+      },
+      "unrecognised_answer": 0,
+      "unsupported_input": 0,
+      "unsupported_request": 0,
+      "wrong_build": 0
+    },
+    "XOR": {
+      "agree": 6050,
+      "different": 0,
+      "incomplete_reply": 0,
+      "input_changed": 4,
+      "source_build_counts": {
+        "20430": 6054
+      },
+      "source_cpu_counts": {
+        "unknown": 6054
+      },
+      "unrecognised_answer": 0,
+      "unsupported_input": 0,
+      "unsupported_request": 0,
+      "wrong_build": 0
+    },
+    "YEAR": {
+      "agree": 15072,
+      "different": 0,
+      "incomplete_reply": 0,
+      "input_changed": 0,
+      "source_build_counts": {
+        "20430": 15072
+      },
+      "source_cpu_counts": {
+        "unknown": 15072
+      },
+      "unrecognised_answer": 0,
+      "unsupported_input": 0,
+      "unsupported_request": 0,
+      "wrong_build": 0
+    },
+    "YEARFRAC": {
+      "agree": 4506,
+      "different": 0,
+      "incomplete_reply": 0,
+      "input_changed": 0,
+      "source_build_counts": {
+        "20430": 4506
+      },
+      "source_cpu_counts": {
+        "AMD Ryzen 7 4800H with Radeon Graphics": 4506
+      },
+      "unrecognised_answer": 0,
+      "unsupported_input": 0,
+      "unsupported_request": 0,
+      "wrong_build": 0
+    },
+    "YIELD": {
+      "agree": 533,
+      "different": 0,
+      "incomplete_reply": 0,
+      "input_changed": 0,
+      "source_build_counts": {
+        "20228": 504,
+        "20527": 29
+      },
+      "source_cpu_counts": {
+        "AMD Ryzen 7 4800H with Radeon Graphics         ": 29,
+        "unknown": 504
+      },
+      "unrecognised_answer": 0,
+      "unsupported_input": 0,
+      "unsupported_request": 0,
+      "wrong_build": 0
+    },
+    "YIELDMAT": {
+      "agree": 2520,
+      "different": 0,
+      "incomplete_reply": 0,
+      "input_changed": 0,
+      "source_build_counts": {
+        "20131": 1085,
+        "unknown": 1435
+      },
+      "source_cpu_counts": {
+        "AMD Ryzen 7 4800H with Radeon Graphics": 1085,
+        "unknown": 1435
+      },
+      "unrecognised_answer": 0,
+      "unsupported_input": 0,
+      "unsupported_request": 0,
+      "wrong_build": 0
+    }
+  },
+  "interpretation": "Agreement requires matching typed input readback and bit-exact answer. Differences are paired observations, not a claim that build alone caused them. Changed inputs, exclusions, unread source records and service failures are not confirmations. Zero-axis MINVERSE selections require a whole-array replay; scalar scratch layout can produce a spill error or an accidental match.",
+  "source": "CalcFunc-Evidence via cargo xtask witness export",
+  "spill_layout_pending": "minverse-zero.jsonl in the cited R2 evidence prefix",
+  "stages": [
+    {
+      "calls": 5352000,
+      "calls_per_second": 2705.7633973710817,
+      "name": "drift1-live-small (interrupted; file timestamps, approximate)",
+      "seconds": 1978
+    },
+    {
+      "calls": 664082,
+      "calls_per_second": 2444.7563101699006,
+      "name": "drift1-normal-result",
+      "seconds": 271.63525347597897
+    },
+    {
+      "calls": 75690,
+      "calls_per_second": 49.16086204312756,
+      "name": "drift1-combin-result",
+      "seconds": 1539.6393971610814
+    },
+    {
+      "calls": 500,
+      "calls_per_second": 2.5194917371263426,
+      "name": "drift1-final-retry",
+      "seconds": 198.45272466354072
+    },
+    {
+      "calls": 9,
+      "calls_per_second": 0.31722700376773794,
+      "name": "drift1-nine-retry",
+      "seconds": 28.370850820094347
+    }
+  ],
+  "status": "partial: nine service failures and 84 spill-layout selections remain unconfirmed",
+  "target_build": "20527",
+  "unconfirmed_observations": [
+    {
+      "bank": {
+        "args": [
+          "0x41dfffffffb00000",
+          "0x41cffffffea00000"
+        ],
+        "build": "20228",
+        "cpu": null,
+        "exclusion": null,
+        "expected": "error:Num",
+        "function": "COMBIN",
+        "id": "combin-admission-heldout-large-central-n-max-admitted-frac-k-41cffffffea00000",
+        "invocation": {
+          "compatibility_version": "2",
+          "input_sheet_state": "visible-constant-inputs",
+          "input_transport": "cell_value2_bulk"
+        },
+        "result_index": null,
+        "source": "work/w109/G4-04-combina/answers-combin-admission-heldout-v1-excel.json"
+      },
+      "service_error": "excel-timeout: batch deadline passed; owned Excel terminated"
+    },
+    {
+      "bank": {
+        "args": [
+          "0x41dfffffffb00000",
+          "0x41cfffffff600000"
+        ],
+        "build": "20228",
+        "cpu": null,
+        "exclusion": null,
+        "expected": "error:Num",
+        "function": "COMBIN",
+        "id": "combin-admission-heldout-large-central-n-max-admitted-frac-k-41cfffffff600000",
+        "invocation": {
+          "compatibility_version": "2",
+          "input_sheet_state": "visible-constant-inputs",
+          "input_transport": "cell_value2_bulk"
+        },
+        "result_index": null,
+        "source": "work/w109/G4-04-combina/answers-combin-admission-heldout-v1-excel.json"
+      },
+      "service_error": "excel-timeout: batch deadline passed; owned Excel terminated"
+    },
+    {
+      "bank": {
+        "args": [
+          "0x41dfffffffb00000",
+          "0x41cfffffffa00000"
+        ],
+        "build": "20228",
+        "cpu": null,
+        "exclusion": null,
+        "expected": "error:Num",
+        "function": "COMBIN",
+        "id": "combin-admission-heldout-large-central-n-max-admitted-frac-k-41cfffffffa00000",
+        "invocation": {
+          "compatibility_version": "2",
+          "input_sheet_state": "visible-constant-inputs",
+          "input_transport": "cell_value2_bulk"
+        },
+        "result_index": null,
+        "source": "work/w109/G4-04-combina/answers-combin-admission-heldout-v1-excel.json"
+      },
+      "service_error": "worker-down: no worker is up"
+    },
+    {
+      "bank": {
+        "args": [
+          "0x41dfffffffb00000",
+          "0x41cfffffffe00000"
+        ],
+        "build": "20228",
+        "cpu": null,
+        "exclusion": null,
+        "expected": "error:Num",
+        "function": "COMBIN",
+        "id": "combin-admission-heldout-large-central-n-max-admitted-frac-k-41cfffffffe00000",
+        "invocation": {
+          "compatibility_version": "2",
+          "input_sheet_state": "visible-constant-inputs",
+          "input_transport": "cell_value2_bulk"
+        },
+        "result_index": null,
+        "source": "work/w109/G4-04-combina/answers-combin-admission-heldout-v1-excel.json"
+      },
+      "service_error": "worker-down: no worker is up"
+    },
+    {
+      "bank": {
+        "args": [
+          "0x41dfffffff880000",
+          "0x41cfffffff300000"
+        ],
+        "build": "20228",
+        "cpu": null,
+        "exclusion": null,
+        "expected": "error:Num",
+        "function": "COMBIN",
+        "id": "combin-admission-heldout-v2-complement-central-n-41dfffffff880000-k-41cfffffff300000",
+        "invocation": {
+          "compatibility_version": "2",
+          "input_sheet_state": "visible-constant-inputs",
+          "input_transport": "cell_value2_bulk"
+        },
+        "result_index": null,
+        "source": "work/w109/G4-04-combina/answers-combin-admission-heldout-v2-excel.json"
+      },
+      "service_error": "worker-down: no worker is up"
+    },
+    {
+      "bank": {
+        "args": [
+          "0x41dfffffffa80000",
+          "0x41cfffffffd00000"
+        ],
+        "build": "20228",
+        "cpu": null,
+        "exclusion": null,
+        "expected": "error:Num",
+        "function": "COMBIN",
+        "id": "combin-admission-heldout-v2-complement-central-n-41dfffffffa80000-k-41cfffffffd00000",
+        "invocation": {
+          "compatibility_version": "2",
+          "input_sheet_state": "visible-constant-inputs",
+          "input_transport": "cell_value2_bulk"
+        },
+        "result_index": null,
+        "source": "work/w109/G4-04-combina/answers-combin-admission-heldout-v2-excel.json"
+      },
+      "service_error": "worker-down: no worker is up"
+    },
+    {
+      "bank": {
+        "args": [
+          "0x41cfffffff300000",
+          "0x41d0000000280000"
+        ],
+        "build": "20228",
+        "cpu": null,
+        "exclusion": null,
+        "expected": "error:Num",
+        "function": "COMBINA",
+        "id": "combina-admission-heldout-v2-complement-central-n-41cfffffff300000-k-41d0000000280000",
+        "invocation": {
+          "compatibility_version": "2",
+          "input_sheet_state": "visible-constant-inputs",
+          "input_transport": "cell_value2_bulk"
+        },
+        "result_index": null,
+        "source": "work/w109/G4-04-combina/answers-combina-admission-heldout-v2-excel.json"
+      },
+      "service_error": "worker-down: no worker is up"
+    },
+    {
+      "bank": {
+        "args": [
+          "0x41cfffffffd00000",
+          "0x41cfffffffb00000"
+        ],
+        "build": "20228",
+        "cpu": null,
+        "exclusion": null,
+        "expected": "error:Num",
+        "function": "COMBINA",
+        "id": "combina-admission-heldout-v2-complement-central-n-41cfffffffd00000-k-41cfffffffb00000",
+        "invocation": {
+          "compatibility_version": "2",
+          "input_sheet_state": "visible-constant-inputs",
+          "input_transport": "cell_value2_bulk"
+        },
+        "result_index": null,
+        "source": "work/w109/G4-04-combina/answers-combina-admission-heldout-v2-excel.json"
+      },
+      "service_error": "worker-down: no worker is up"
+    },
+    {
+      "bank": {
+        "args": [
+          "0x41d0000000180000",
+          "0x41cfffffff500000"
+        ],
+        "build": "20228",
+        "cpu": null,
+        "exclusion": null,
+        "expected": "error:Num",
+        "function": "COMBINA",
+        "id": "combina-admission-heldout-v2-complement-central-n-41d0000000180000-k-41cfffffff500000",
+        "invocation": {
+          "compatibility_version": "2",
+          "input_sheet_state": "visible-constant-inputs",
+          "input_transport": "cell_value2_bulk"
+        },
+        "result_index": null,
+        "source": "work/w109/G4-04-combina/answers-combina-admission-heldout-v2-excel.json"
+      },
+      "service_error": "worker-down: no worker is up"
+    }
+  ],
+  "unread_source_records": 4,
+  "wait_counts_over_3_seconds": {
+    "drift1-combin-result": 38,
+    "drift1-final-retry": 9,
+    "drift1-live-small": 41,
+    "drift1-nine-retry": 2,
+    "drift1-normal-result": 0
+  },
+  "wait_reporting": "each completed service request over three seconds was sent to report_wait; interrupted and control waits were also reported"
+}

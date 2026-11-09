@@ -17,6 +17,7 @@ pub struct UnheldEntry {
     pub kind: UnheldKind,
     pub availability: Availability,
     pub arity: CallableArityShape,
+    pub groups: Option<crate::ArgumentGroups>,
     pub parameters: &'static [Parameter],
     pub result: ResultForm,
     pub demand: ArgumentDemand,
@@ -50,6 +51,16 @@ pub fn operator_file_spelling(id: FunctionId) -> Option<&'static str> {
             UnheldKind::Operator { file_spelling } => file_spelling,
             _ => None,
         })
+}
+/// File form of a trim reference operator measured in the workbook format.
+pub fn trim_reference_file_spelling(operator: &str) -> Option<(crate::FilePrefix, &'static str)> {
+    let name = match operator {
+        ".:" => "_TRO_LEADING",
+        ":." => "_TRO_TRAILING",
+        ".:." => "_TRO_ALL",
+        _ => return None,
+    };
+    Some((crate::FilePrefix::Xlfn, name))
 }
 // Signature names and bounds are handbook seeds (calcfunc-catalogue 481f4ab85d3b);
 // entry does not claim they were measured in Excel.
@@ -136,6 +147,7 @@ const fn entry(
         kind: UnheldKind::Worksheet,
         availability: Availability::Unspecified,
         arity: CallableArityShape::range(min, max),
+        groups: None,
         parameters,
         result: ResultForm::Unknown,
         demand: ArgumentDemand::Eager,

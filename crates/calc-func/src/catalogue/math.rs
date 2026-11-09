@@ -14,7 +14,7 @@ use crate::value::{CalcValue, CoreRef, ExcelText, WorksheetErrorCode};
 use crate::ported::excel_numeric::crt_pow;
 
 /// F1's families take codes from 100 up, clear of the other lanes' families.
-const CODE: u16 = 100;
+use calc_catalogue::ported::math::{CODE, ENTRIES as DECLARATIONS};
 
 /// A one-argument kernel whose raw result Excel publishes under `policy`.
 fn raw(site: &Site<'_>, a: &[CalcValue], policy: ExcelRealPolicy, kernel: fn(f64) -> f64) -> Step<CalcValue> {
@@ -40,64 +40,65 @@ fn binary(
 }
 
 // 3-D positions: dc-10y, Excel 16.0.20430, 2026-10-25; catalogue oracle ThreeD sheet.
-ported_family! {
+ported_shared_family! {
     code: CODE;
-    1 acos "ACOS" (1, 1) [V "number"] three_d (None, None, Some(&[])); |s, a, sv| { unary(s, a, k::acos::acos_kernel) }
-    2 acosh "ACOSH" (1, 1) [V "number"] three_d (None, None, Some(&[])); |s, a, sv| { unary(s, a, k::acosh::acosh_kernel) }
-    3 acot "ACOT" (1, 1) [V "number"] three_d (None, None, Some(&[])); |s, a, sv| { unary(s, a, k::acot::acot_kernel) }
-    4 acoth "ACOTH" (1, 1) [V "number"] three_d (None, None, Some(&[])); |s, a, sv| { unary(s, a, k::acoth::acoth_kernel) }
-    5 asin "ASIN" (1, 1) [V "number"] three_d (None, None, Some(&[])); |s, a, sv| { unary(s, a, k::asin::asin_kernel) }
+    declarations: DECLARATIONS;
+    1 acos |s, a, sv| { unary(s, a, k::acos::acos_kernel) }
+    2 acosh |s, a, sv| { unary(s, a, k::acosh::acosh_kernel) }
+    3 acot |s, a, sv| { unary(s, a, k::acot::acot_kernel) }
+    4 acoth |s, a, sv| { unary(s, a, k::acoth::acoth_kernel) }
+    5 asin |s, a, sv| { unary(s, a, k::asin::asin_kernel) }
     // Every subnormal rounds the ASINH identity to LN(1), hence positive zero.
-    6 asinh "ASINH" (1, 1) [V "number"] three_d (None, None, Some(&[])); |s, a, sv| { out(s, k::asinh::asinh_kernel(num_with_subnormal(s, a, 0)?)) }
-    7 atan "ATAN" (1, 1) [V "number"] three_d (None, None, Some(&[])); |s, a, sv| {
+    6 asinh |s, a, sv| { out(s, k::asinh::asinh_kernel(num_with_subnormal(s, a, 0)?)) }
+    7 atan |s, a, sv| {
         raw(s, a, ExcelRealPolicy::PASS, k::atan::atan_kernel)
     }
-    8 atan2 "ATAN2" (2, 2) [V "x_num", V "y_num"] three_d (None, None, Some(&[])); |s, a, sv| {
+    8 atan2 |s, a, sv| {
         binary(s, a, k::atan2::atan2_kernel)
     }
-    9 atanh "ATANH" (1, 1) [V "number"] three_d (None, None, Some(&[])); |s, a, sv| {
+    9 atanh |s, a, sv| {
         out(s, k::atanh::atanh_kernel(num_with_subnormal(s, a, 0)?))
     }
-    10 cos "COS" (1, 1) [V "number"] three_d (None, None, Some(&[])); |s, a, sv| {
+    10 cos |s, a, sv| {
         raw(s, a, ExcelRealPolicy::CIRCULAR_TRIG, k::cos::cos_kernel)
     }
-    11 cosh "COSH" (1, 1) [V "number"] three_d (None, None, Some(&[])); |s, a, sv| {
+    11 cosh |s, a, sv| {
         raw(s, a, ExcelRealPolicy::FINITE, k::cosh::cosh_kernel)
     }
-    12 cot "COT" (1, 1) [V "number"] three_d (None, None, Some(&[])); |s, a, sv| { unary(s, a, k::cot::cot_kernel) }
-    13 coth "COTH" (1, 1) [V "number"] three_d (None, None, Some(&[])); |s, a, sv| { unary(s, a, k::coth::coth_kernel) }
-    14 csc "CSC" (1, 1) [V "number"] three_d (None, None, Some(&[])); |s, a, sv| { unary(s, a, k::csc::csc_kernel) }
-    15 csch "CSCH" (1, 1) [V "number"] three_d (None, None, Some(&[])); |s, a, sv| { unary(s, a, k::csch::csch_kernel) }
-    16 sec "SEC" (1, 1) [V "number"] three_d (None, None, Some(&[])); |s, a, sv| { unary(s, a, k::sec::sec_kernel) }
-    17 sech "SECH" (1, 1) [V "number"] three_d (None, None, Some(&[])); |s, a, sv| { unary(s, a, k::sech::sech_kernel) }
-    18 sin "SIN" (1, 1) [V "number"] three_d (None, None, Some(&[])); |s, a, sv| {
+    12 cot |s, a, sv| { unary(s, a, k::cot::cot_kernel) }
+    13 coth |s, a, sv| { unary(s, a, k::coth::coth_kernel) }
+    14 csc |s, a, sv| { unary(s, a, k::csc::csc_kernel) }
+    15 csch |s, a, sv| { unary(s, a, k::csch::csch_kernel) }
+    16 sec |s, a, sv| { unary(s, a, k::sec::sec_kernel) }
+    17 sech |s, a, sv| { unary(s, a, k::sech::sech_kernel) }
+    18 sin |s, a, sv| {
         raw(s, a, ExcelRealPolicy::CIRCULAR_TRIG, k::sin::sin_kernel)
     }
-    19 sinh "SINH" (1, 1) [V "number"] three_d (None, None, Some(&[])); |s, a, sv| {
+    19 sinh |s, a, sv| {
         raw(s, a, ExcelRealPolicy::FINITE, k::sinh::sinh_kernel)
     }
-    20 tan "TAN" (1, 1) [V "number"] three_d (None, None, Some(&[])); |s, a, sv| {
+    20 tan |s, a, sv| {
         raw(s, a, ExcelRealPolicy::CIRCULAR_TRIG, k::tan::tan_kernel)
     }
-    21 tanh "TANH" (1, 1) [V "number"] three_d (None, None, Some(&[])); |s, a, sv| {
+    21 tanh |s, a, sv| {
         raw(s, a, ExcelRealPolicy::SATURATE_SIGN, k::tanh::tanh_kernel)
     }
-    22 degrees "DEGREES" (1, 1) [V "angle"] three_d (None, None, Some(&[])); |s, a, sv| {
+    22 degrees |s, a, sv| {
         let x = num_with_subnormal(s, a, 0)?;
         let result = k::degrees::degrees_kernel(x);
         out(s, ExcelRealPolicy::FINITE.publish(x, if result.is_subnormal() { 0.0 } else { result }))
     }
-    23 radians "RADIANS" (1, 1) [V "angle"] three_d (None, None, Some(&[])); |s, a, sv| {
+    23 radians |s, a, sv| {
         let x = num_with_subnormal(s, a, 0)?;
         out(s, ExcelRealPolicy::PASS.publish(x, k::radians::radians_kernel(x)))
     }
-    24 pi "PI" (0, 0) [] |s, a, sv| { s.number(std::f64::consts::PI) }
-    25 exp "EXP" (1, 1) [V "number"] three_d (None, None, Some(&[])); |s, a, sv| {
+    24 pi |s, a, sv| { s.number(std::f64::consts::PI) }
+    25 exp |s, a, sv| {
         let x = num(s, a, 0)?;
         out_with_subnormal(s, ExcelRealPolicy::FINITE.publish(x, k::exp_fn::exp_kernel(x)))
     }
-    26 ln "LN" (1, 1) [V "number"] three_d (None, None, Some(&[])); |s, a, sv| { unary(s, a, k::ln_fn::ln_kernel) }
-    27 log "LOG" (1, 2) [V "number", V "base"] three_d (None, None, Some(&[])); |s, a, sv| {
+    26 ln |s, a, sv| { unary(s, a, k::ln_fn::ln_kernel) }
+    27 log |s, a, sv| {
         // Omitting the base selects the decimal logarithm; a base left empty is 0.
         let x = num(s, a, 0)?;
         if a.len() == 1 {
@@ -107,43 +108,43 @@ ported_family! {
             out(s, k::log_fn::log_kernel(x, base))
         }
     }
-    28 log10 "LOG10" (1, 1) [V "number"] three_d (None, None, Some(&[])); |s, a, sv| { unary(s, a, k::log10_fn::log10_kernel) }
-    29 sqrt "SQRT" (1, 1) [V "number"] three_d (None, None, Some(&[])); |s, a, sv| { out(s, k::sqrt_fn::sqrt_kernel(num_with_subnormal(s, a, 0)?)) }
-    30 sqrtpi "SQRTPI" (1, 1) [V "number"] three_d (None, Some(&[]), None); |s, a, sv| {
+    28 log10 |s, a, sv| { unary(s, a, k::log10_fn::log10_kernel) }
+    29 sqrt |s, a, sv| { out(s, k::sqrt_fn::sqrt_kernel(num_with_subnormal(s, a, 0)?)) }
+    30 sqrtpi |s, a, sv| {
         reject_logical(&a[0])?;
         unary(s, a, k::sqrtpi::sqrtpi_kernel)
     }
-    31 power "POWER" (2, 2) [V "number", V "power"] three_d (None, None, Some(&[])); |s, a, sv| {
+    31 power |s, a, sv| {
         let x = num(s, a, 0)?;
         let y = num(s, a, 1)?;
         super::arithmetic::power_value(s, x, y)
     }
-    32 fact "FACT" (1, 1) [V "number"] three_d (None, None, Some(&[])); |s, a, sv| { unary(s, a, k::fact::fact_kernel) }
-    33 factdouble "FACTDOUBLE" (1, 1) [V "number"] three_d (None, Some(&[]), None); |s, a, sv| {
+    32 fact |s, a, sv| { unary(s, a, k::fact::fact_kernel) }
+    33 factdouble |s, a, sv| {
         reject_logical(&a[0])?;
         unary(s, a, k::factdouble::factdouble_kernel)
     }
-    34 combin "COMBIN" (2, 2) [V "number", V "number_chosen"] three_d (None, None, Some(&[])); |s, a, sv| {
+    34 combin |s, a, sv| {
         out(s, k::combin::combin_kernel(num_with_subnormal(s, a, 0)?, num_with_subnormal(s, a, 1)?))
     }
-    35 combina "COMBINA" (2, 2) [V "number", V "number_chosen"] three_d (None, None, Some(&[])); |s, a, sv| {
+    35 combina |s, a, sv| {
         out(s, k::combina::combina_kernel(num_with_subnormal(s, a, 0)?, num_with_subnormal(s, a, 1)?))
     }
-    36 permut "PERMUT" (2, 2) [V "number", V "number_chosen"] three_d (None, None, Some(&[])); |s, a, sv| {
+    36 permut |s, a, sv| {
         binary(s, a, k::permut_fn::permut_kernel)
     }
-    37 permutationa "PERMUTATIONA" (2, 2) [V "number", V "number_chosen"] three_d (None, None, Some(&[])); |s, a, sv| {
+    37 permutationa |s, a, sv| {
         binary(s, a, k::permutationa_fn::permutationa_kernel)
     }
-    38 gcd "GCD" (1, 255) [R "number1" ~ AggregateAtRoot, R "number2" ~ AggregateAtRootRepeated] three_d (None, Some(&[]), None); |s, a, sv| {
+    38 gcd |s, a, sv| {
         let items = integer_groups(s, a, sv)?;
         s.number(k::gcd_fn::gcd_kernel(&items))
     }
-    39 lcm "LCM" (1, 255) [R "number1" ~ AggregateAtRoot, R "number2" ~ AggregateAtRootRepeated] three_d (None, Some(&[]), None); |s, a, sv| {
+    39 lcm |s, a, sv| {
         let items = integer_groups(s, a, sv)?;
         out(s, k::lcm_fn::lcm_kernel(&items))
     }
-    40 multinomial "MULTINOMIAL" (1, 255) [R "number1" ~ AggregateAtRoot, R "number2" ~ AggregateAtRootRepeated] three_d (None, Some(&[]), None); |s, a, sv| {
+    40 multinomial |s, a, sv| {
         // Admission runs across every value before the numeric domain is checked.
         // Held blank cells are skipped; logicals are rejected in every origin.
         let mut numbers = Vec::new();
@@ -164,11 +165,11 @@ ported_family! {
         }
         out(s, k::multinomial::multinomial_kernel(&items))
     }
-    41 arabic "ARABIC" (1, 1) [V "text"] three_d (None, None, Some(&[])); |s, a, sv| {
+    41 arabic |s, a, sv| {
         let t = text(s, a, 0)?;
         out(s, k::arabic_fn::arabic_kernel(&ExcelText::from_interop_assignment(&t)))
     }
-    42 roman "ROMAN" (1, 2) [V "number", V "form"] three_d (None, None, Some(&[])); |s, a, sv| {
+    42 roman |s, a, sv| {
         let n = num(s, a, 0)?;
         let form = match a.get(1).map(CalcValue::core_ref) {
             None | Some(CoreRef::Missing | CoreRef::Empty | CoreRef::Logical(true)) => 0,
@@ -183,18 +184,18 @@ ported_family! {
         };
         out_text(k::roman_fn::roman_kernel(n, form))
     }
-    43 base "BASE" (2, 3) [V "number", V "radix", V "min_length"] three_d (None, None, Some(&[])); |s, a, sv| {
+    43 base |s, a, sv| {
         let n = num(s, a, 0)?;
         let radix = num(s, a, 1)?;
         let min_length = if given(a, 2) { Some(num(s, a, 2)?) } else { None };
         out_text(k::base_fn::base_kernel(n, radix, min_length))
     }
-    44 decimal "DECIMAL" (2, 2) [V "text", V "radix"] three_d (None, None, Some(&[])); |s, a, sv| {
+    44 decimal |s, a, sv| {
         let t = text(s, a, 0)?;
         let radix = num(s, a, 1)?;
         out(s, k::decimal_fn::decimal_kernel(&t, radix))
     }
-    45 seriessum "SERIESSUM" (4, 4) [V "x", V "n", V "m", R "coefficients" ~ AggregateAtRoot] three_d (None, Some(&[]), None); |s, a, sv| {
+    45 seriessum |s, a, sv| {
         let x = super::kit::num_without_logical(s, a, 0)?;
         let n = super::kit::num_without_logical(s, a, 1)?;
         let m = super::kit::num_without_logical(s, a, 2)?;
@@ -210,32 +211,32 @@ ported_family! {
         }
         s.number(sum)
     }
-    46 sumx2my2 "SUMX2MY2" (2, 2) [R "array_x" ~ ArrayAtRoot, R "array_y" ~ ArrayAtRoot] three_d (None, None, Some(&[])); |s, a, sv| {
+    46 sumx2my2 |s, a, sv| {
         sum_pairwise(s, a, sv, |x, y| x * x - y * y)
     }
-    47 sumx2py2 "SUMX2PY2" (2, 2) [R "array_x" ~ ArrayAtRoot, R "array_y" ~ ArrayAtRoot] three_d (None, None, Some(&[])); |s, a, sv| {
+    47 sumx2py2 |s, a, sv| {
         sum_pairwise(s, a, sv, |x, y| x * x + y * y)
     }
-    48 sumxmy2 "SUMXMY2" (2, 2) [R "array_x" ~ ArrayAtRoot, R "array_y" ~ ArrayAtRoot] three_d (None, None, Some(&[])); |s, a, sv| {
+    48 sumxmy2 |s, a, sv| {
         sum_pairwise(s, a, sv, |x, y| (x - y) * (x - y))
     }
-    49 mdeterm "MDETERM" (1, 1) [R "array" ~ ArrayAtRoot] three_d (None, None, Some(&[])); |s, a, sv| {
+    49 mdeterm |s, a, sv| {
         let m = matrix(s, a, 0, sv)?;
         out(s, k::matrix_family::determinant_kernel(&m))
     }
     // R26 legacy INDEX(MINVERSE(CHOOSE(...))) retains the two-column matrix.
-    50 minverse "MINVERSE" (1, 1) [R "array" ~ ArrayAlways] three_d (None, None, Some(&[])); |s, a, sv| {
+    50 minverse |s, a, sv| {
         let m = matrix(s, a, 0, sv)?;
         let inverse = k::matrix_family::inverse_kernel(&m).map_err(Exit::Error)?;
         out_matrix(s, &inverse)
     }
-    51 mmult "MMULT" (2, 2) [R "array1" ~ ArrayAtRoot, R "array2" ~ ArrayAtRoot] three_d (None, None, Some(&[])); |s, a, sv| {
+    51 mmult |s, a, sv| {
         let left = matrix(s, a, 0, sv)?;
         let right = matrix(s, a, 1, sv)?;
         let product = k::matrix_family::mmult_kernel(&left, &right).map_err(Exit::Error)?;
         out_matrix(s, &product)
     }
-    52 munit "MUNIT" (1, 1) [V "dimension"] three_d (None, None, Some(&[])); |s, a, sv| {
+    52 munit |s, a, sv| {
         let n = num(s, a, 0)?.trunc();
         if !(1.0..=1_048_576.0).contains(&n) {
             return fail(WorksheetErrorCode::Value);

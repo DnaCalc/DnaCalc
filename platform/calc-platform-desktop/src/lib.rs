@@ -64,6 +64,31 @@ pub fn physical_cores() -> usize {
     })
 }
 
+/// The machine's local wall clock as a 1900-system Excel serial (what the browser's
+/// `serial_clock` gives the web worker), so TODAY, NOW and date-based rules see the same day in the
+/// desktop as in a browser.
+#[cfg(windows)]
+pub fn local_serial_clock() -> Option<f64> {
+    use windows_sys::Win32::System::SystemInformation::GetLocalTime;
+    // SAFETY: GetLocalTime fills the SYSTEMTIME it is given.
+    let t = unsafe {
+        let mut t = std::mem::zeroed();
+        GetLocalTime(&mut t);
+        t
+    };
+    // Days from the civil date to 1970-01-01 (Howard Hinnant's algorithm), then to the serial epoch.
+    let (y, m, d) = (i64::from(t.wYear), i64::from(t.wMonth), i64::from(t.wDay));
+    let y = if m <= 2 { y - 1 } else { y };
+    let era = y.div_euclid(400);
+    let yoe = y - era * 400;
+    let doy = (153 * (if m > 2 { m - 3 } else { m + 9 }) + 2) / 5 + d - 1;
+    let doe = yoe * 365 + yoe / 4 - yoe / 100 + doy;
+    let days = era * 146_097 + doe - 719_468;
+    let seconds = f64::from(t.wHour) * 3600.0 + f64::from(t.wMinute) * 60.0 + f64::from(t.wSecond)
+        + f64::from(t.wMilliseconds) / 1000.0;
+    Some(days as f64 + 25_569.0 + seconds / 86_400.0)
+}
+
 /// The cores Windows lists for this process's processor group.
 #[cfg(windows)]
 fn cores_of_system() -> Option<usize> {
@@ -123,5 +148,25 @@ mod tests {
         let logical = std::thread::available_parallelism().map(usize::from).unwrap_or(1);
         assert!(cores <= logical, "{cores} cores, {logical} logical processors");
         assert_eq!(default_threads(), cores.min(MOST_DEFAULT_THREADS));
+    }
+}
+
+#[cfg(all(test, windows))]
+mod clock_tests {
+    use super::*;
+
+    /// Native-only: the machine's clock. The serial agrees with the UTC time of the system
+    /// within the largest time zone offset (a day), and names a date after 2026-01-01 (46023).
+    #[test]
+    fn dc_0f1k_11_1__the_local_clock_is_a_current_excel_serial() {
+        let serial = local_serial_clock().expect("a clock");
+        let utc_days = std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .unwrap()
+            .as_secs_f64()
+            / 86_400.0
+            + 25_569.0;
+        assert!(serial > 46_023.0);
+        assert!((serial - utc_days).abs() < 1.0, "{serial} against {utc_days}");
     }
 }

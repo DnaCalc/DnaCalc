@@ -29,7 +29,7 @@ use crate::value::{CalcArray, CalcValue, CoreRef, WorksheetErrorCode};
 
 type W = WorksheetErrorCode;
 
-const CODE: u16 = 300;
+use calc_catalogue::ported::financial::{CODE, ENTRIES as DECLARATIONS};
 
 /// The days from 1 January 1900 (serial 1 of the 1900 system, which counts a 29 February 1900)
 /// to 1 January 1904 (serial 0 of the 1904 system).
@@ -160,73 +160,74 @@ fn schedule(site: &Site<'_>, a: &[CalcValue], index: usize, sv: &mut EvalService
 }
 
 // 3-D positions: dc-10y, Excel 16.0.20430, 2026-10-25; catalogue oracle ThreeD sheet.
-ported_family! {
+ported_shared_family! {
     code: CODE;
-    1 pv_fn "PV" (3, 5) [V "rate", V "nper", V "pmt", V "fv", V "type"] three_d (None, None, Some(&[])); |s, a, sv| {
+    declarations: DECLARATIONS;
+    1 pv_fn |s, a, sv| {
         let t = timing(s, a, 4)?;
         tv_out(s, tv::pv(num(s, a, 0)?, num(s, a, 1)?, num(s, a, 2)?, opt(s, a, 3, 0.0)?, t))
     }
-    2 fv_fn "FV" (3, 5) [V "rate", V "nper", V "pmt", V "pv", V "type"] three_d (None, None, Some(&[])); |s, a, sv| {
+    2 fv_fn |s, a, sv| {
         let t = timing(s, a, 4)?;
         tv_out(s, tv::fv(num(s, a, 0)?, num(s, a, 1)?, num(s, a, 2)?, opt(s, a, 3, 0.0)?, t))
     }
-    3 pmt_fn "PMT" (3, 5) [V "rate", V "nper", V "pv", V "fv", V "type"] three_d (None, None, Some(&[])); |s, a, sv| {
+    3 pmt_fn |s, a, sv| {
         let t = timing(s, a, 4)?;
         tv_out(s, tv::pmt(num(s, a, 0)?, num(s, a, 1)?, num(s, a, 2)?, opt(s, a, 3, 0.0)?, t))
     }
-    4 nper_fn "NPER" (3, 5) [V "rate", V "pmt", V "pv", V "fv", V "type"] three_d (None, None, Some(&[])); |s, a, sv| {
+    4 nper_fn |s, a, sv| {
         let t = timing(s, a, 4)?;
         tv_out(s, tv::nper(num(s, a, 0)?, num(s, a, 1)?, num(s, a, 2)?, opt(s, a, 3, 0.0)?, t))
     }
-    5 rate_fn "RATE" (3, 6) [V "nper", V "pmt", V "pv", V "fv", V "type", V "guess"] three_d (None, None, Some(&[])); |s, a, sv| {
+    5 rate_fn |s, a, sv| {
         let t = timing(s, a, 4)?;
         let g = if a.len() > 5 { Some(num(s, a, 5)?) } else { None };
         tv_out(s, tv::rate(num(s, a, 0)?, num(s, a, 1)?, num(s, a, 2)?, opt(s, a, 3, 0.0)?, t, g))
     }
-    6 npv_fn "NPV" (2, 255) [V "rate" ~ AggregateAtRoot, R "value1" ~ AggregateAtRoot, R "value2" ~ AggregateAtRootRepeated] three_d (Some(&[1, usize::MAX]), None, Some(&[0])); |s, a, sv| {
+    6 npv_fn |s, a, sv| {
         let rate = num(s, a, 0)?;
         let values = numbers(s, a, 1, a.len(), sv, Held::Numbers)?;
         tv_out(s, tv::npv(rate, &values))
     }
-    7 ipmt_fn "IPMT" (4, 6) [V "rate", V "per", V "nper", V "pv", V "fv", V "type"] three_d (None, None, Some(&[])); |s, a, sv| {
+    7 ipmt_fn |s, a, sv| {
         let t = timing(s, a, 5)?;
         tv_out(s, tv::ipmt(num(s, a, 0)?, num(s, a, 1)?, num(s, a, 2)?, num(s, a, 3)?, opt(s, a, 4, 0.0)?, t))
     }
-    8 ppmt_fn "PPMT" (4, 6) [V "rate", V "per", V "nper", V "pv", V "fv", V "type"] three_d (None, None, Some(&[])); |s, a, sv| {
+    8 ppmt_fn |s, a, sv| {
         let t = timing(s, a, 5)?;
         tv_out(s, tv::ppmt(num(s, a, 0)?, num(s, a, 1)?, num(s, a, 2)?, num(s, a, 3)?, opt(s, a, 4, 0.0)?, t))
     }
-    9 ispmt_fn "ISPMT" (4, 4) [V "rate", V "per", V "nper", V "pv"] three_d (None, None, Some(&[])); |s, a, sv| {
+    9 ispmt_fn |s, a, sv| {
         tv_out(s, tv::ispmt(num(s, a, 0)?, num(s, a, 1)?, num(s, a, 2)?, num(s, a, 3)?))
     }
-    10 mirr_fn "MIRR" (3, 3) [R "values" ~ ArrayAtRoot, V "finance_rate", V "reinvest_rate"] three_d (Some(&[0]), None, Some(&[1, 2])); |s, a, sv| {
+    10 mirr_fn |s, a, sv| {
         let values = numbers(s, a, 0, 1, sv, Held::Numbers)?;
         tv_out(s, tv::mirr(&values, num(s, a, 1)?, num(s, a, 2)?))
     }
-    11 fvschedule_fn "FVSCHEDULE" (2, 2) [V "principal", R "schedule" ~ AggregateAtRoot] three_d (None, Some(&[]), None); |s, a, sv| {
+    11 fvschedule_fn |s, a, sv| {
         let principal = num(s, a, 0)?;
         let rates = schedule(s, a, 1, sv)?;
         tv_out(s, tv::fvschedule(principal, &rates))
     }
-    12 pduration_fn "PDURATION" (3, 3) [V "rate", V "pv", V "fv"] three_d (None, None, Some(&[])); |s, a, sv| {
+    12 pduration_fn |s, a, sv| {
         tv_out(s, tv::pduration(num(s, a, 0)?, num(s, a, 1)?, num(s, a, 2)?))
     }
-    13 rri_fn "RRI" (3, 3) [V "nper", V "pv", V "fv"] three_d (None, None, Some(&[])); |s, a, sv| {
+    13 rri_fn |s, a, sv| {
         tv_out(s, tv::rri(num(s, a, 0)?, num(s, a, 1)?, num(s, a, 2)?))
     }
-    14 nominal_fn "NOMINAL" (2, 2) [V "effect_rate", V "npery"] three_d (None, Some(&[]), None); |s, a, sv| {
+    14 nominal_fn |s, a, sv| {
         tv_out(s, tv::nominal(num(s, a, 0)?, num(s, a, 1)?))
     }
-    15 effect_fn "EFFECT" (2, 2) [V "nominal_rate", V "npery"] three_d (None, Some(&[]), None); |s, a, sv| {
+    15 effect_fn |s, a, sv| {
         tv_out(s, tv::effect(num(s, a, 0)?, num(s, a, 1)?))
     }
-    16 cumipmt_fn "CUMIPMT" (6, 6) [V "rate", V "nper", V "pv", V "start_period", V "end_period", V "type"] three_d (None, Some(&[]), None); |s, a, sv| {
+    16 cumipmt_fn |s, a, sv| {
         cumulative_out(s, cumulative::cumipmt_kernel(required_num(s, a, 0)?, required_num(s, a, 1)?, required_num(s, a, 2)?, required_num(s, a, 3)?, required_num(s, a, 4)?, required_num(s, a, 5)?))
     }
-    17 cumprinc_fn "CUMPRINC" (6, 6) [V "rate", V "nper", V "pv", V "start_period", V "end_period", V "type"] three_d (None, Some(&[]), None); |s, a, sv| {
+    17 cumprinc_fn |s, a, sv| {
         cumulative_out(s, cumulative::cumprinc_kernel(required_num(s, a, 0)?, required_num(s, a, 1)?, required_num(s, a, 2)?, required_num(s, a, 3)?, required_num(s, a, 4)?, required_num(s, a, 5)?))
     }
-    18 irr_fn "IRR" (1, 2) [R "values" ~ ArrayAtRoot, V "guess"] three_d (None, Some(&[0]), Some(&[1])); |s, a, sv| {
+    18 irr_fn |s, a, sv| {
         let mut values = resolved(s, a, 0, sv)?;
         // Fn7 scalar readings: held cells keep the collector's held-value rule,
         // even when the range is one cell. Direct text and logicals are ignored
@@ -250,7 +251,7 @@ ported_family! {
         }
         out(s, cash::irr_kernel(&cashflows, g))
     }
-    19 xnpv_fn "XNPV" (3, 3) [V "rate", R "values" ~ AggregateAtRoot, R "dates" ~ AggregateAtRoot] three_d (None, Some(&[]), None); |s, a, sv| {
+    19 xnpv_fn |s, a, sv| {
         let rate = match cash::scalar_number_from_eval(&a[0]) {
             Ok(n) => n,
             Err(error) => return cash_err(error),
@@ -267,7 +268,7 @@ ported_family! {
         };
         out(s, cash::xnpv_kernel(rate, &values, &dates))
     }
-    20 xirr_fn "XIRR" (2, 3) [R "values" ~ AggregateAtRoot, R "dates" ~ AggregateAtRoot, V "guess"] three_d (None, Some(&[]), None); |s, a, sv| {
+    20 xirr_fn |s, a, sv| {
         let values = resolved(s, a, 0, sv)?;
         let dates = resolved(s, a, 1, sv)?;
         let values = match cash::collect_numeric_vector_from_eval(&values) {
@@ -281,24 +282,24 @@ ported_family! {
         let g = guess(s, a, 2, sv)?;
         out(s, cash::xirr_kernel(&values, &dates, g))
     }
-    21 sln_fn "SLN" (3, 3) [V "cost", V "salvage", V "life"] three_d (None, None, Some(&[])); |s, a, sv| {
+    21 sln_fn |s, a, sv| {
         out(s, dep::sln_kernel(num(s, a, 0)?, num(s, a, 1)?, num(s, a, 2)?))
     }
-    22 syd_fn "SYD" (4, 4) [V "cost", V "salvage", V "life", V "per"] three_d (None, None, Some(&[])); |s, a, sv| {
+    22 syd_fn |s, a, sv| {
         out(s, dep::syd_kernel(num(s, a, 0)?, num(s, a, 1)?, num(s, a, 2)?, num(s, a, 3)?))
     }
-    23 db_fn "DB" (4, 5) [V "cost", V "salvage", V "life", V "period", V "month"] three_d (None, None, Some(&[])); |s, a, sv| {
+    23 db_fn |s, a, sv| {
         // W111 independent error-order controls: earlier required arguments precede month.
         let (cost, salvage, life, period) = (num(s, a, 0)?, num(s, a, 1)?, num(s, a, 2)?, num(s, a, 3)?);
         let month = if a.len() > 4 { num(s, a, 4)? } else { 12.0 };
         out(s, dep::db_kernel(cost, salvage, life, period, month))
     }
-    24 ddb_fn "DDB" (4, 5) [V "cost", V "salvage", V "life", V "period", V "factor"] three_d (None, None, Some(&[])); |s, a, sv| {
+    24 ddb_fn |s, a, sv| {
         let (cost, salvage, life, period) = (num(s, a, 0)?, num(s, a, 1)?, num(s, a, 2)?, num(s, a, 3)?);
         let factor = if a.len() > 4 { num(s, a, 4)? } else { 2.0 };
         out(s, dep::ddb_kernel(cost, salvage, life, period, factor))
     }
-    25 vdb_fn "VDB" (5, 7) [V "cost", V "salvage", V "life", V "start_period", V "end_period", V "factor", V "no_switch"] three_d (None, None, Some(&[])); |s, a, sv| {
+    25 vdb_fn |s, a, sv| {
         // W111 typed and padding controls read the required arguments, then factor,
         // then no_switch. An explicit empty factor slot coerces to zero; only an
         // absent trailing factor takes the default of two.
@@ -308,25 +309,25 @@ ported_family! {
         let no_switch = if given(a, 6) && !a[6].is_empty() { flag(s, a, 6)? } else { false };
         out(s, dep::vdb_kernel(cost, salvage, life, start, end, factor, no_switch))
     }
-    26 amorlinc_fn "AMORLINC" (6, 7) [V "cost", V "date_purchased", V "first_period", V "salvage", V "period", V "rate", V "basis"] three_d (None, Some(&[]), None); |s, a, sv| {
+    26 amorlinc_fn |s, a, sv| {
         let purchased = date_1900(s, a, 1, sv)?;
         let first = date_1900(s, a, 2, sv)?;
         let basis = if given(a, 6) { num(s, a, 6)? } else { 0.0 };
         amor_out(s, amor::amorlinc_kernel(num(s, a, 0)?, purchased, first, num(s, a, 3)?, num(s, a, 4)?, num(s, a, 5)?, Some(basis)))
     }
-    27 amordegrc_fn "AMORDEGRC" (6, 7) [V "cost", V "date_purchased", V "first_period", V "salvage", V "period", V "rate", V "basis"] three_d (None, Some(&[]), None); |s, a, sv| {
+    27 amordegrc_fn |s, a, sv| {
         let purchased = date_1900(s, a, 1, sv)?;
         let first = date_1900(s, a, 2, sv)?;
         let basis = if given(a, 6) { num(s, a, 6)? } else { 0.0 };
         amor_out(s, amor::amordegrc_kernel(num(s, a, 0)?, purchased, first, num(s, a, 3)?, num(s, a, 4)?, num(s, a, 5)?, Some(basis)))
     }
-    28 dollarde_fn "DOLLARDE" (2, 2) [V "fractional_dollar", V "fraction"] three_d (None, Some(&[]), None); |s, a, sv| {
+    28 dollarde_fn |s, a, sv| {
         if a.iter().any(CalcValue::is_missing) {
             return fail(W::NA);
         }
         out(s, dollar::dollarde_kernel(dollar_num(s, a, 0)?, dollar_num(s, a, 1)?))
     }
-    29 dollarfr_fn "DOLLARFR" (2, 2) [V "decimal_dollar", V "fraction"] three_d (None, Some(&[]), None); |s, a, sv| {
+    29 dollarfr_fn |s, a, sv| {
         if a.iter().any(CalcValue::is_missing) {
             return fail(W::NA);
         }

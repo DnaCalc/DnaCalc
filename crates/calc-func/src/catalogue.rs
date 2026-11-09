@@ -1,12 +1,10 @@
 //! The function catalogue: one logical, declarative catalogue assembled from per-family
 //! fragments, and the views generated from it.
 //!
-//! Each family fragment (the child modules declared below, one file per family) declares its
-//! entries with explicit stable [`FunctionId`]s: an entry's spelling and [`Notation`], arity,
-//! repeating groups, parameters (each with its [`ParameterClass`] and [`EntryClass`]), result
-//! form, [`ArgumentDemand`] and kernel, and holds the kernels themselves. What Excel's formula
-//! entry accepts ([`entry`]) is declared next to the kernel, each fact that is not the default
-//! with its Excel evidence. At compile time
+//! Family fragments attach kernels to stable [`FunctionId`]s. Shared declarations live in
+//! calc-catalogue; the families not yet moved retain their declarations here. Entry metadata
+//! includes spelling, notation, arity, groups, parameters, result and argument demand, with
+//! Excel evidence beside the declarations. At compile time
 //! the generator below combines the fragments into an ID-ordered dispatch table and a
 //! surface-ordered name table, and the build fails when two entries share an ID or a surface, or
 //! when an entry's declaration contradicts itself. Signature help and the oracle formula are
@@ -123,18 +121,7 @@ pub fn catalogue() -> &'static Catalogue {
     &CATALOGUE
 }
 
-/// The owner and syntax of a catalogue entry.
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub enum EntryKind {
-    Worksheet,
-    Operator { file_spelling: Option<&'static str> },
-    Binding(BindingForm),
-    AddIn { library: &'static str, export: &'static str },
-    HostRoute { provider: &'static str, route: HostRouteKind },
-}
-
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub enum HostRouteKind { Fetch(crate::FetchKind), Import(crate::ImportKind), Rtd }
+pub use calc_catalogue::{EntryKind, HostRouteKind};
 
 /// One entry as its family fragment declares it.
 #[derive(Clone, Copy, Debug)]
@@ -177,14 +164,6 @@ pub(crate) enum Kernel {
 }
 
 impl CatalogueEntry {
-    pub(crate) const fn with_availability(mut self, availability: Availability) -> Self {
-        self.availability = availability;
-        self
-    }
-    pub(crate) const fn with_kind(mut self, kind: EntryKind) -> Self {
-        self.kind = kind;
-        self
-    }
     pub(crate) const fn with_traits(mut self, traits: EntryTraits) -> Self {
         let three_d = self.traits.three_d;
         self.traits = traits;
@@ -197,10 +176,6 @@ impl CatalogueEntry {
         self
     }
 
-    pub(crate) const fn with_volatile_if(mut self, volatile: bool) -> Self {
-        self.traits.volatile = volatile;
-        self
-    }
     pub(crate) const fn with_continuation(mut self, start: Option<StartKernel>) -> Self {
         if let Some(start) = start {
             if let Kernel::Eager(run) = self.kernel {
@@ -222,30 +197,6 @@ impl CatalogueEntry {
     pub(crate) const fn with_result(mut self, result: ResultForm) -> Self {
         self.result = result;
         self
-    }
-
-    /// An eager operator, whose arity is its parameter count.
-    pub(crate) const fn operator(
-        id: FunctionId,
-        spelling: &'static str,
-        notation: Notation,
-        parameters: &'static [Parameter],
-        kernel: EagerKernel,
-    ) -> Self {
-        CatalogueEntry {
-            id,
-            spelling,
-            notation,
-            kind: EntryKind::Operator { file_spelling: None },
-            availability: Availability::Unspecified,
-            arity: CallableArityShape::exact(parameters.len()),
-            groups: None,
-            parameters,
-            result: ResultForm::Value,
-            demand: ArgumentDemand::Eager,
-            traits: EntryTraits::NONE,
-            kernel: Kernel::Eager(kernel),
-        }
     }
 
     /// The class of argument `index`, which the arity admits.
@@ -783,4 +734,43 @@ impl<'c> FunctionCallTarget<'c> {
         }
         Some(formula)
     }
+}
+
+#[cfg(test)]
+mod shared_declaration_equivalence {
+    // Snapshot of every entry at 9edc9030, before moving the ported family declarations.
+    #[cfg_attr(not(target_arch = "wasm32"), test)]
+    #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+    fn original_catalogue_equals_shared_declarations() {
+        let mut entries: Vec<_> = super::catalogue().entries().collect();
+        entries.sort_by_key(|entry| entry.id().raw());
+        let mut actual = String::new();
+        for entry in entries {
+            actual.push_str(&format!("{}\t{}\t{:?}\t{:?}\t{:?}\t{:?}\t{:?}\t{:?}\t{:?}\t{:?}\t{:?}\n",
+                entry.id().raw(), entry.spelling(), entry.notation(), entry.kind(), entry.availability(),
+                entry.implementation(), entry.arity(), entry.result_form(), entry.argument_demand(),
+                entry.traits(), entry.signature_help()));
+        }
+        assert_eq!(actual, include_str!("../../calc-catalogue/tests/fixtures/catalogue-before-ported.tsv"));
+    }
+
+    // Parameter behavior captured from the earlier compiled catalogue; the source declarations
+    // for these families did not change before their move into the data crate.
+    #[cfg_attr(not(target_arch = "wasm32"), test)]
+    #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+    fn original_parameter_rules_equal_shared_declarations() {
+        let expected = include_str!("../../calc-catalogue/tests/fixtures/ported-parameters-before.tsv");
+        let mut actual = String::new();
+        for line in expected.lines() {
+            let id: u32 = line.split('\t').next().unwrap().parse().unwrap();
+            let entry = super::catalogue().resolve(super::FunctionId::from_raw(id)).unwrap();
+            let count = entry.signature_help().parameters.len() + 4;
+            let positions: Vec<_> = (0..count).chain(std::iter::once(254))
+                .map(|i| (i, entry.parameter_class(i), entry.entry_class(i), entry.legacy_place(i)))
+                .collect();
+            actual.push_str(&format!("{}\t{:?}\t{:?}\n", id, entry.argument_groups(), positions));
+        }
+        assert_eq!(actual, expected);
+    }
+
 }

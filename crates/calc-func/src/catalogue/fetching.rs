@@ -7,7 +7,7 @@ use crate::fetch::{Prepared, prepare_picture, prepare_text};
 use crate::kernel::Step;
 use crate::value::{CalcValue, WorksheetErrorCode};
 
-const CODE: u16 = 323;
+use calc_catalogue::ported::fetching::{CODE, ENTRIES as DECLARATIONS};
 
 fn without_route(prepared: Prepared) -> Step<CalcValue> {
     match prepared {
@@ -16,9 +16,9 @@ fn without_route(prepared: Prepared) -> Step<CalcValue> {
     }
 }
 
-ported_family! {
+ported_shared_family! {
     code: CODE;
-    1 webservice_fn "WEBSERVICE" (1, 1) [V "url"] volatile true; host_route (crate::FETCH_PROVIDER, crate::FetchKind::Text); |s, a, sv| { without_route(prepare_text(&a[0])) }
-    2 image_fn "IMAGE" (1, 5) [V "source", V "alt_text", V "sizing", V "height", V "width"] host_route (crate::FETCH_PROVIDER, crate::FetchKind::Picture);
-    |s, a, sv| { without_route(prepare_picture(a)) }
+    declarations: DECLARATIONS;
+    1 webservice_fn |s, a, sv| { without_route(prepare_text(&a[0])) }
+    2 image_fn |s, a, sv| { without_route(prepare_picture(a)) }
 }

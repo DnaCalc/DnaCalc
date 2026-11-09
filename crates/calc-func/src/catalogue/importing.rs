@@ -6,12 +6,11 @@
 use super::kit::fail;
 use crate::value::WorksheetErrorCode;
 
-const CODE: u16 = 326;
+use calc_catalogue::ported::importing::{CODE, ENTRIES as DECLARATIONS};
 
-ported_family! {
+ported_shared_family! {
     code: CODE;
-    1 importcsv_fn "IMPORTCSV" (1, 5) [V "path", V "skip_rows", V "take_rows", V "text_only", V "locale"] import_route (crate::IMPORT_PROVIDER, crate::ImportKind::Csv);
-    |s, a, sv| { fail(WorksheetErrorCode::Value) }
-    2 importtext_fn "IMPORTTEXT" (1, 7) [V "path", V "delimiter", V "skip_rows", V "take_rows", V "encoding", V "text_only", V "locale"] import_route (crate::IMPORT_PROVIDER, crate::ImportKind::Text);
-    |s, a, sv| { fail(WorksheetErrorCode::Value) }
+    declarations: DECLARATIONS;
+    1 importcsv_fn |s, a, sv| { fail(WorksheetErrorCode::Value) }
+    2 importtext_fn |s, a, sv| { fail(WorksheetErrorCode::Value) }
 }
