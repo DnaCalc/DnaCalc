@@ -308,6 +308,8 @@ fn fields(table: &PivotTable) -> Vec<u8> {
 }
 /// The `dataFields` container from the model (a refresh that dropped a source column drops its value fields).
 fn data_fields(table: &PivotTable) -> Vec<u8> {
+    // A container with no entry is not written: Excel's own file for a pivot with no field has none.
+    if table.data_fields.is_empty() { return Vec::new(); }
     let mut out = format!("<dataFields xmlns=\"{M}\" count=\"{}\">", table.data_fields.len()).into_bytes();
     for data in &table.data_fields {
         out.extend_from_slice(b"<dataField");
@@ -330,6 +332,7 @@ fn axis_fields(name: &str, fields: &[i32]) -> Vec<u8> {
     out
 }
 fn col_items(table: &PivotTable) -> Vec<u8> {
+    if table.col_items.is_empty() { return Vec::new(); }
     let mut out = format!(
         "<colItems xmlns=\"{M}\" count=\"{}\">",
         table.col_items.len()
@@ -360,6 +363,7 @@ fn col_items(table: &PivotTable) -> Vec<u8> {
     out
 }
 fn row_items(table: &PivotTable) -> Vec<u8> {
+    if table.row_items.is_empty() { return Vec::new(); }
     let mut out = format!(
         "<rowItems xmlns=\"{M}\" count=\"{}\">",
         table.row_items.len()
@@ -388,14 +392,26 @@ fn row_items(table: &PivotTable) -> Vec<u8> {
 fn location(table: &PivotTable) -> Vec<u8> {
     let mut out = format!("<location xmlns=\"{M}\"").into_bytes();
     let mut a = table.location.clone();
+    if table.collapsed {
+        // Excel's file for a pivot that took one cell for lack of room (m7-names col-*, 16.0.20527): the
+        // location is that cell with no header, data row or data column; the fields and items stay.
+        for name in ["firstHeaderRow", "firstDataRow", "firstDataCol"] {
+            a.insert(name.into(), "0".into());
+        }
+    }
     let area = table.area;
+    // One cell is written as Excel writes it, `C4`, not `C4:C4`.
     a.insert(
         "ref".into(),
-        format!(
-            "{}:{}",
-            text::a1(area.first().row(), area.first().column()),
-            text::a1(area.last().row(), area.last().column())
-        ),
+        if area.first() == area.last() {
+            text::a1(area.first().row(), area.first().column())
+        } else {
+            format!(
+                "{}:{}",
+                text::a1(area.first().row(), area.first().column()),
+                text::a1(area.last().row(), area.last().column())
+            )
+        },
     );
     attrs(&a, &mut out);
     out.extend_from_slice(b"/>");
@@ -666,15 +682,9 @@ pub(super) fn finish<S:Borrow<crate::load::LoadedSheet>>(
     after: &PivotState,
     out: &mut Changes,
     workbook:&str,sheets:&[S],
-    saving: bool,
 ) -> Result<(), SaveRefusal> {
     if before == after {
         return Ok(());
-    }
-    // Excel's file for a pivot that took one cell for lack of room was not captured: it is not written yet. The
-    // command preflight (`check`) admits such a pivot; the save does not.
-    if saving && let Some(table) = after.tables().find(|t| t.collapsed) {
-        return Err(bad(&table.part, "A pivot reduced to one cell for lack of room cannot be saved yet; make room and refresh"));
     }
     if before.caches.caches.keys().any(|id|!after.caches.caches.contains_key(id)){return Err(bad("pivot tables","Removing imported pivot caches is not modelled"));}
     remove_tables(package,before,after,out,sheets)?;
@@ -963,7 +973,7 @@ pub(crate) fn check(
     before: &PivotState,
     after: &PivotState,workbook:&str,sheets:&[crate::load::LoadedSheet],
 ) -> Result<(), SaveRefusal> {
-    finish(package, before, after, &mut Changes::default(),workbook,sheets,false)
+    finish(package, before, after, &mut Changes::default(),workbook,sheets)
 }
 
 const REL:&str="http://schemas.openxmlformats.org/officeDocument/2006/relationships";

@@ -21,6 +21,10 @@ const SCENARIOS: &str = include_str!("fixtures/pivot/m5-structure/scenarios.tsv"
 const CELLS: &str = include_str!("fixtures/pivot/m5-structure/cells.tsv");
 const BASE_RANGE: &[u8] = include_bytes!("fixtures/pivot/m5-structure/base-range.xlsx");
 const BASE_TABLE: &[u8] = include_bytes!("fixtures/pivot/m5-structure/base-table.xlsx");
+// The M7 set (names and saves that M5 took from memory): the same two start workbooks.
+const M7_NAMES: &str = include_str!("fixtures/pivot/m7-names/names.tsv");
+const M7_CELLS: &str = include_str!("fixtures/pivot/m7-names/cells.tsv");
+const M7_CORNERS: &str = include_str!("fixtures/pivot/m7-names/corners.tsv");
 
 struct Excel {
     act: String,
@@ -29,8 +33,12 @@ struct Excel {
 }
 
 fn excel(id: &str) -> Excel {
-    let header: Vec<&str> = SCENARIOS.lines().next().unwrap().split('\t').collect();
-    let line = SCENARIOS
+    excel_in(SCENARIOS, id)
+}
+/// The scenario `id` of a scenarios table (m5's `scenarios.tsv` or m7's `names.tsv`).
+fn excel_in(table: &str, id: &str) -> Excel {
+    let header: Vec<&str> = table.lines().next().unwrap().split('\t').collect();
+    let line = table
         .lines()
         .find(|l| l.split('\t').next() == Some(id))
         .unwrap_or_else(|| panic!("no scenario {id}"));
@@ -136,9 +144,12 @@ fn excel_cells(id: &str, area: GridArea) -> BTreeMap<String, String> {
     excel_cells_at(id, "2", area)
 }
 fn excel_cells_at(id: &str, stage: &str, area: GridArea) -> BTreeMap<String, String> {
+    excel_cells_in(CELLS, id, stage, area)
+}
+fn excel_cells_in(data: &str, id: &str, stage: &str, area: GridArea) -> BTreeMap<String, String> {
     let (top, bottom, left, right) = (area.first().row(), area.last().row(), area.first().column(), area.last().column());
     let mut cells = BTreeMap::new();
-    for line in CELLS.lines().skip(1) {
+    for line in data.lines().skip(1) {
         let f: Vec<&str> = line.splitn(6, '\t').collect();
         if f[0] != id || f[1] != stage || f[2] != "Out" {
             continue;
@@ -471,26 +482,50 @@ fn dc_8wp_16__output_growing_into_nonblank_cells_collapses_to_one_error_cell_as_
 
 #[test]
 /// Native-only: opens the Excel-saved workbook file of the fixture set.
-fn dc_8wp_16__a_collapsed_pivot_expands_when_room_is_made_and_is_not_saved_collapsed() {
+fn dc_8wp_16__a_collapsed_pivot_expands_when_room_is_made_and_saves_as_excel_saves_it() {
     let mut book = open(BASE_RANGE);
     enter(&mut book, "Out", "I5", "blocker-I5");
     enter(&mut book, "Src", "C14", "Epsilon");
     refresh(&mut book).unwrap();
     assert_eq!(pivot_now(&book), "m5@C4@Src!R2C2:R14C5");
-    // The file Excel writes for such a pivot was not captured: the save refuses (its output cell is an error).
+    // The file shape is Excel's (m7-names col-*): the pivot's location is its one cell with no header row, data
+    // row or data column, and the fields and items stay; the output cell holds an error.
     let mut saved = Vec::new();
-    let why = book.save(&SavePolicy::default(), &mut saved).unwrap_err();
-    assert!(format!("{why:?}").contains("Spill"), "{why:?}");
+    book.save(&SavePolicy::default(), &mut saved).expect("a collapsed pivot saves");
+    if let Some(folder) = std::env::var_os("DNACALC_PIVOT_SAVES").map(std::path::PathBuf::from) {
+        std::fs::create_dir_all(&folder).unwrap();
+        std::fs::write(folder.join("m7-collapsed-refresh.xlsx"), &saved).unwrap();
+    }
+    let definition = pivot_part(&saved);
+    let location = &definition[definition.find("<location").expect("a location")..];
+    let location = &location[..location.find("/>").expect("an empty element")];
+    for attribute in ["ref=\"C4\"", "firstHeaderRow=\"0\"", "firstDataRow=\"0\"", "firstDataCol=\"0\""] {
+        assert!(location.contains(attribute), "{attribute} in {location}");
+    }
+    assert!(definition.contains("<rowFields") && definition.contains("<colFields") && definition.contains("<dataFields"), "{definition}");
+    // Reopened, it is the same collapsed pivot with the same corner.
+    let mut again = open(&saved);
+    assert_eq!(pivot_now(&again), "m5@C4@Src!R2C2:R14C5");
+    assert!(again.host().model().definitions().pivots().tables().next().unwrap().collapsed);
+    let out = sheet(&again, "Out");
+    let corner = dna_cells(&again, GridArea::new(at(out, "C4"), at(out, "C4")).unwrap());
+    assert_eq!(corner.get("C4").map(String::as_str), Some("e	#SPILL!"));
+    assert_eq!(dna_cells(&again, GridArea::new(at(out, "I5"), at(out, "I5")).unwrap()).get("I5").map(String::as_str), Some("s	blocker-I5"));
     // Clearing the blocker makes room: the next refresh gives the pivot its whole output again.
-    let out = sheet(&book, "Out");
-    enter(&mut book, "Out", "I5", "");
-    let _ = out;
-    refresh(&mut book).unwrap();
-    let table = book.host().model().definitions().pivots().tables().next().unwrap().clone();
+    enter(&mut again, "Out", "I5", "");
+    refresh(&mut again).unwrap();
+    let table = again.host().model().definitions().pivots().tables().next().unwrap().clone();
     assert!(!table.collapsed);
     assert_eq!(a1(table.area), "C4:I9");
     let mut saved = Vec::new();
-    book.save(&SavePolicy::default(), &mut saved).expect("an expanded pivot saves");
+    again.save(&SavePolicy::default(), &mut saved).expect("an expanded pivot saves");
+}
+
+/// The text of the first pivot definition part of a saved package.
+fn pivot_part(package: &[u8]) -> String {
+    let source: Arc<dyn PackageRead> = Arc::new(MemorySource::new(package.to_vec()));
+    let document = calc_doc::open(source, &OpenPolicy::default()).expect("a package");
+    String::from_utf8(document.package().read_part("xl/pivotTables/pivotTable1.xml").expect("its pivot part")).unwrap()
 }
 
 #[test]
@@ -674,4 +709,214 @@ fn dc_8wp_16__a_source_cut_to_its_header_row_refuses_the_refresh_with_excels_tex
     let out = sheet(&book, "Out");
     let area = GridArea::new(at(out, "A1"), at(out, "P40")).unwrap();
     assert_eq!(dna_cells(&book, area), excel_cells("src-del-rows-all-data", area));
+}
+
+// ---- M7: names and saves that M5 took from memory (bead dc-8wp, tests/fixtures/pivot/m7-names) ----
+
+/// `Field1|Field2|...` the cache's field names, as the m7 capture lists a pivot's fields.
+fn cache_field_names(book: &HostSession) -> String {
+    let state = book.host().model().definitions().pivots();
+    let table = state.tables().next().expect("a pivot");
+    state.caches.caches[&table.cache_id].fields.iter().map(|f| f.name.clone()).collect::<Vec<_>>().join("|")
+}
+
+#[test]
+/// Native-only: opens the Excel-saved workbook files of the fixture set.
+fn dc_8wp_16__a_blank_source_header_is_the_field_named_by_its_position_as_excel_names_it() {
+    // Excel (16.0.20527, m7-names hdr-*): a pivot over a range whose header cell is blank names that field
+    // `Field` and the column's position in the range, not `Column<n>`; a space is a name, a number is its text, and a
+    // header that repeats a name is that name with 2.
+    type Act = fn(&mut HostSession);
+    let cases: [(&str, Act); 7] = [
+        ("hdr-blank-unused-last", |b| enter(b, "Src", "E2", "")),
+        ("hdr-blank-used-product", |b| enter(b, "Src", "C2", "")),
+        ("hdr-blank-first", |b| enter(b, "Src", "B2", "")),
+        ("hdr-blank-then-column-before", |b| {
+            enter(b, "Src", "E2", "");
+            let src = sheet(b, "Src");
+            assert!(b.dispatch(SkinIntent::EditAxis(AxisEdit::new(src, Axis::Columns, AxisChange::Insert, 1, 1).unwrap())).accepted());
+        }),
+        ("hdr-space", |b| enter(b, "Src", "E2", " ")),
+        ("hdr-number", |b| enter(b, "Src", "E2", "42")),
+        ("hdr-duplicate-name", |b| enter(b, "Src", "E2", "Region")),
+    ];
+    let mut failures = Vec::new();
+    for (id, act) in cases {
+        let want = excel_in(M7_NAMES, id);
+        let mut book = open(BASE_RANGE);
+        act(&mut book);
+        if let Err(why) = refresh(&mut book) {
+            failures.push(format!("{id}: refresh refused ({why}); Excel gave {}", want.pivots[2]));
+            continue;
+        }
+        let now = format!("{}@{}", pivot_now(&book), cache_field_names(&book));
+        if now != want.pivots[2] {
+            failures.push(format!("{id}: want {} got {now}", want.pivots[2]));
+            continue;
+        }
+        let area = area_on(&want.pivots[2], sheet(&book, "Out"));
+        let (dna, excel) = (dna_cells(&book, area), excel_cells_in(M7_CELLS, id, "2", area));
+        if dna != excel {
+            failures.push(format!("{id}: cells differ\n  dna   {dna:?}\n  excel {excel:?}"));
+        }
+    }
+    assert!(failures.is_empty(), "{} of {} differ:\n{}", failures.len(), cases.len(), failures.join("\n"));
+}
+
+#[test]
+/// Native-only: opens the Excel-saved workbook files of the fixture set.
+fn dc_8wp_16__a_source_that_keeps_row_fields_but_loses_its_value_fields_is_refused_not_guessed() {
+    // Excel keeps the row and column fields and draws labels without values (m7-names stub-delete-value-column,
+    // stub-rename-value-header, stub-table-delete-value-column, hdr-blank-used-amount, hdr-blank-two). That layout is
+    // not modelled, so the refresh is refused with its reason and changes nothing; it used to give the one-cell
+    // stub, which Excel does not.
+    type Act = fn(&mut HostSession);
+    let cases: [(&str, bool, Act); 5] = [
+        ("stub-delete-value-column", false, |b| {
+            let src = sheet(b, "Src");
+            assert!(b.dispatch(SkinIntent::EditAxis(AxisEdit::new(src, Axis::Columns, AxisChange::Delete, 4, 1).unwrap())).accepted());
+        }),
+        ("stub-rename-value-header", false, |b| enter(b, "Src", "D2", "Total")),
+        ("stub-table-delete-value-column", true, |b| {
+            let src = sheet(b, "Src");
+            assert!(b.dispatch(SkinIntent::EditAxis(AxisEdit::new(src, Axis::Columns, AxisChange::Delete, 4, 1).unwrap())).accepted());
+        }),
+        ("hdr-blank-used-amount", false, |b| enter(b, "Src", "D2", "")),
+        ("hdr-blank-two", false, |b| {
+            enter(b, "Src", "D2", "");
+            enter(b, "Src", "E2", "");
+        }),
+    ];
+    for (id, table, act) in cases {
+        let want = excel_in(M7_NAMES, id);
+        assert!(want.pivots[2].contains("@Region|") || want.pivots[2].contains("@Region"), "{id}: Excel kept the Region field");
+        let mut book = open(if table { BASE_TABLE } else { BASE_RANGE });
+        act(&mut book);
+        let before = book.host().revision();
+        let why = refresh(&mut book).expect_err(id);
+        assert!(why.contains("labels without values"), "{id}: {why}");
+        assert_eq!(book.host().revision(), before, "{id}");
+    }
+}
+
+#[test]
+/// Native-only: opens the Excel-saved workbook files of the fixture set.
+fn dc_8wp_16__a_source_that_loses_every_field_gives_the_empty_pivot_frame_unless_cells_are_in_the_way() {
+    // Excel (m7-names stub-clear-source, stub-delete-all-columns, markers far away): the pivot has no field left and
+    // is the frame C4:E21 of empty cells. The M5 scenarios src-clear-all and src-del-cols-all had markers in the
+    // frame, which is why Excel gave one error cell there (tested above).
+    type Act = fn(&mut HostSession);
+    let cases: [(&str, Act); 2] = [
+        ("stub-clear-source", |b| {
+            for row in 2..=14u32 {
+                for column in ["B", "C", "D", "E"] {
+                    enter(b, "Src", &format!("{column}{row}"), "");
+                }
+            }
+        }),
+        ("stub-delete-all-columns", |b| {
+            let src = sheet(b, "Src");
+            assert!(b.dispatch(SkinIntent::EditAxis(AxisEdit::new(src, Axis::Columns, AxisChange::Delete, 2, 4).unwrap())).accepted());
+        }),
+    ];
+    for (id, act) in cases {
+        let want = excel_in(M7_NAMES, id);
+        let mut book = open(BASE_RANGE);
+        // The m7 start workbook has its markers far from the pivot.
+        for marker in ["C2", "B5", "J5", "C12"] {
+            enter(&mut book, "Out", marker, "");
+        }
+        enter(&mut book, "Out", "A60", "m-far-below");
+        enter(&mut book, "Out", "Z5", "m-far-right");
+        act(&mut book);
+        refresh(&mut book).unwrap_or_else(|why| panic!("{id}: {why}"));
+        let now = format!("{}@{}", pivot_now(&book), cache_field_names(&book));
+        assert_eq!(now, want.pivots[2], "{id}");
+        let table = book.host().model().definitions().pivots().tables().next().unwrap().clone();
+        assert!(!table.collapsed, "{id}");
+        assert_eq!(a1(table.area), "C4:E21", "{id}");
+        let out = sheet(&book, "Out");
+        let area = GridArea::new(at(out, "A1"), at(out, "P40")).unwrap();
+        assert_eq!(dna_cells(&book, area), excel_cells_in(M7_CELLS, id, "2", area), "{id}");
+        // The frame saves, and the file reopens to the same empty pivot.
+        let mut saved = Vec::new();
+        book.save(&SavePolicy::default(), &mut saved).unwrap_or_else(|why| panic!("{id}: {why:?}"));
+        if let Some(folder) = std::env::var_os("DNACALC_PIVOT_SAVES").map(std::path::PathBuf::from) {
+            std::fs::create_dir_all(&folder).unwrap();
+            std::fs::write(folder.join(format!("m7-{id}.xlsx")), &saved).unwrap();
+        }
+        let again = open(&saved);
+        assert_eq!(format!("{}@{}", pivot_now(&again), cache_field_names(&again)), want.pivots[2], "{id}: reopened");
+    }
+}
+
+#[test]
+/// Native-only: reads the m7 capture of the collapsed pivot's corner.
+fn dc_8wp_16__the_collapsed_corner_is_spill_live_and_reopened_and_value_in_the_file_as_excel_has_it() {
+    // m7-names corners.tsv: in every stage of every collapsed scenario (built, refreshed, saved and reopened,
+    // reopened and refreshed) the corner reads Value2 -2146826243 (2045, #SPILL!), Text and Formula "#SPILL!". The
+    // `#VALUE!` the UI28 capture holds for it is how Excel's file spells the corner (`t="e"`, `<v>#VALUE!</v>` and
+    // `vm`, with the value metadata of an `_error` rich value), which the UI28 comparison reads.
+    let mut collapsed = 0;
+    for line in M7_CORNERS.lines().skip(1) {
+        let f: Vec<&str> = line.split('\t').collect();
+        if !f[0].starts_with("col-") || f[6] != "#SPILL!" {
+            continue;
+        }
+        collapsed += 1;
+        assert_eq!((f[3], f[4], f[5]), ("e", "-2146826243", "#SPILL!"), "{line}");
+    }
+    assert!(collapsed >= 20, "{collapsed}");
+}
+
+/// `TblSrc=B2:F14=Region|Product|...` the first table of the workbook, as the m7 capture lists a table.
+fn table_now(book: &HostSession) -> String {
+    let t = &book.host().model().definitions().tables()[0];
+    format!("{}={}={}", t.name, a1(t.area), t.columns.join("|"))
+}
+
+#[test]
+/// Native-only: opens the Excel-saved workbook files of the fixture set.
+fn dc_8wp_16__a_column_inserted_into_a_table_is_named_after_its_left_neighbour_as_excel_names_it() {
+    // m7-names tbl-col-sheet-insert-*: Excel names the column `Column<n>` after the column on its left; the
+    // pivot over the table takes the name at its next refresh. (The naming rule over more neighbours is tested
+    // on the rule itself, calc-doc-model's table_names, from the same capture.)
+    let cases: [(&str, &[u32]); 2] = [
+        ("tbl-col-sheet-insert-inside", &[4]),
+        ("tbl-col-sheet-insert-first", &[3, 3]),
+    ];
+    for (id, inserts) in cases {
+        let want = excel_in(M7_NAMES, id);
+        let mut book = open(BASE_TABLE);
+        let src = sheet(&book, "Src");
+        for column in inserts {
+            let receipt = book.dispatch(SkinIntent::EditAxis(AxisEdit::new(src, Axis::Columns, AxisChange::Insert, *column, 1).unwrap()));
+            assert!(receipt.accepted(), "{id}: {receipt:?}");
+        }
+        assert_eq!(table_now(&book), want.tables[1], "{id}: after the edit");
+        refresh(&mut book).unwrap_or_else(|why| panic!("{id}: {why}"));
+        assert_eq!(format!("{}@{}", pivot_now(&book), cache_field_names(&book)), want.pivots[2], "{id}: refreshed");
+    }
+}
+
+#[test]
+/// Native-only: opens the Excel-saved workbook files of the fixture set.
+fn dc_8wp_16__blank_headers_of_a_new_table_take_the_smallest_free_column_numbers() {
+    // Excel names a cleared table header `Column` and the smallest number no other header has, in column order
+    // (m7-names hdr-table-*, tbln-blank-*; the rule itself is tested in calc-doc-model's table_names). Creating a
+    // table over blank headers was not captured: it follows the same rule here, and was `Column<position>`.
+    let mut book = open(BASE_RANGE);
+    for (cell, text) in [("G5", "a"), ("H5", ""), ("I5", "Column1"), ("J5", ""), ("G6", "1"), ("H6", "2"), ("I6", "3"), ("J6", "4")] {
+        enter(&mut book, "Src", cell, text);
+    }
+    let src = sheet(&book, "Src");
+    let area = GridArea::new(at(src, "G5"), at(src, "J6")).unwrap();
+    let revision = book.host().revision().get();
+    let receipt = book.dispatch(SkinIntent::Command(calc_host::WorkbookCommand::Table {
+        revision,
+        change: calc_host::TableChange::Create { area, name: "TblNew".into() },
+    }));
+    assert!(receipt.accepted(), "{receipt:?}");
+    let table = book.host().model().definitions().tables().iter().find(|t| t.name == "TblNew").unwrap().clone();
+    assert_eq!(table.columns.join("|"), "a|Column2|Column1|Column3");
 }

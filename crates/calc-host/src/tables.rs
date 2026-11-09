@@ -79,52 +79,66 @@ fn header_names(
     area: GridArea,
     existing: &[String],
 ) -> Result<Vec<String>, String> {
+    // Names are made in two passes, as Excel makes them (m7-names): headers with text first, a repeated
+    // name taking the smallest number from 2 that is free; then each blank header, which is `Column` and
+    // the smallest number from 1 that no other header has, in column order.
     let mut used = BTreeSet::new();
-    (0..area.column_count())
-        .map(|i| {
-            let mut name = if let Some(name) = existing.get(i as usize) {
-                name.clone()
-            } else {
-                cell_text(
-                    host,
-                    CellKey::new(area.sheet(), area.first().row(), area.first().column() + i)
-                        .unwrap(),
-                )?
-            };
-            if existing.get(i as usize).is_some() {
-                if !used.insert(fold_workbook_name(&name)) {
-                    return Err(refusal("Existing table column names must be unique"));
-                }
-                return Ok(name);
+    let mut names: Vec<Option<String>> = Vec::new();
+    for i in 0..area.column_count() {
+        let name = if let Some(name) = existing.get(i as usize) {
+            if !used.insert(fold_workbook_name(name)) {
+                return Err(refusal("Existing table column names must be unique"));
             }
-            name = name
+            names.push(Some(name.clone()));
+            continue;
+        } else {
+            cell_text(
+                host,
+                CellKey::new(area.sheet(), area.first().row(), area.first().column() + i).unwrap(),
+            )?
+        };
+        let name = name
+            .chars()
+            .scan(0, |n, c| {
+                *n += c.len_utf16();
+                (*n <= 255).then_some(c)
+            })
+            .collect::<String>();
+        if name.trim().is_empty() {
+            names.push(None);
+            continue;
+        }
+        let original = name.clone();
+        let mut name = name;
+        let mut n = 2;
+        while !used.insert(fold_workbook_name(&name)) {
+            let suffix = n.to_string();
+            let limit = 255 - suffix.len();
+            let prefix = original
                 .chars()
-                .scan(0, |n, c| {
-                    *n += c.len_utf16();
-                    (*n <= 255).then_some(c)
+                .scan(0, |count, c| {
+                    *count += c.len_utf16();
+                    (*count <= limit).then_some(c)
                 })
                 .collect::<String>();
-            if name.trim().is_empty() {
-                name = format!("Column{}", i + 1);
+            name = format!("{prefix}{suffix}");
+            n += 1;
+        }
+        names.push(Some(name));
+    }
+    let mut taken: Vec<String> = names.iter().flatten().cloned().collect();
+    let mut out = Vec::with_capacity(names.len());
+    for name in names {
+        out.push(match name {
+            Some(name) => name,
+            None => {
+                let blank = calc_doc_model::free_column_name(&taken);
+                taken.push(blank.clone());
+                blank
             }
-            let original = name.clone();
-            let mut n = 2;
-            while !used.insert(fold_workbook_name(&name)) {
-                let suffix = n.to_string();
-                let limit = 255 - suffix.len();
-                let prefix = original
-                    .chars()
-                    .scan(0, |count, c| {
-                        *count += c.len_utf16();
-                        (*count <= limit).then_some(c)
-                    })
-                    .collect::<String>();
-                name = format!("{prefix}{suffix}");
-                n += 1;
-            }
-            Ok(name)
-        })
-        .collect()
+        });
+    }
+    Ok(out)
 }
 fn quoted_column(name: &str) -> String {
     calc_fml::reference::quote_table_column(name)

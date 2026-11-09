@@ -142,10 +142,13 @@ fn check_tables(
 /// checked here. Only the changed cells are checked; every other formula is written as the file
 /// held it, or, for a member of a shared group written as an individual formula, as the loader
 /// moved it from the group's text.
-fn check_formulas(sheet_part: &str, changes: &SheetChanges) -> Result<(), SaveRefusal> {
+fn check_formulas(sheet_part: &str, changes: &SheetChanges, pivot_outputs: &BTreeSet<(u32, u32)>) -> Result<(), SaveRefusal> {
     for (&(row, column), input) in changes {
+        // A pivot output cell holds #SPILL! when the pivot took one cell for lack of room; Excel's file
+        // for it is `#VALUE!` with value metadata, which the cell writer gives it.
         if let Some(CellInput::Error(code)) = input
             && !crate::edit::error_constant_writable(*code)
+            && !(pivot_outputs.contains(&(row, column)) && array_metadata::rich_error_type(*code).is_some())
         {
             return Err(SaveRefusal::ErrorConstant {
                 part: sheet_part.to_owned(),
@@ -392,6 +395,7 @@ pub(super) fn plan(package: &Package, edit: &Edited, views:Option<&super::SaveVi
         })
         .collect();
     // Fresh pivot outputs come from the engine's pinned result view, never model cell inputs.
+    let mut pivot_output_cells: Vec<BTreeSet<(u32, u32)>> = vec![BTreeSet::new(); sheets.len()];
     for (at,value) in edit.pivot_outputs.iter(){
         let index=sheets.iter().position(|sheet|sheet.id()==at.sheet()).ok_or_else(||super::pivot::missing_output("The output worksheet is unavailable"))?;
         let input=match value.core_ref(){
@@ -400,8 +404,10 @@ pub(super) fn plan(package: &Package, edit: &Edited, views:Option<&super::SaveVi
             calc_doc_model::value::CoreRef::Logical(b)=>Some(CellInput::Logical(b)),calc_doc_model::value::CoreRef::Error(e)=>Some(CellInput::Error(e)),
             calc_doc_model::value::CoreRef::Empty=>None,_=>return Err(super::pivot::missing_output("A pivot output is not a scalar cell value")),
         };changes[index].insert((at.row(),at.column()),input);
+        pivot_output_cells[index].insert((at.row(), at.column()));
     }
-    for table in model.definitions().pivots().tables(){if model.definitions().pivots().caches.caches.get(&table.cache_id).is_some_and(|c|c.snapshot.is_some()){
+    // (The empty pivot, a frame with no field, has no output.)
+    for table in model.definitions().pivots().tables().filter(|t|!(t.row_fields.is_empty()&&t.column_fields.is_empty()&&t.page_fields.is_empty()&&t.data_fields.is_empty())){if model.definitions().pivots().caches.caches.get(&table.cache_id).is_some_and(|c|c.snapshot.is_some()){
         if (table.area.first().row()..=table.area.last().row()).any(|row|(table.area.first().column()..=table.area.last().column()).any(|column|!edit.pivot_outputs.contains_key(&calc_doc_model::value::CellKey::new(table.area.sheet(),row,column).expect("pivot bounds")))){return Err(super::pivot::missing_output("Refreshed pivot output is missing from the pinned engine view"));}
     }}
     // The cell formats edits gave each sheet's cells (dc-09v), by (row, column).
@@ -478,9 +484,9 @@ pub(super) fn plan(package: &Package, edit: &Edited, views:Option<&super::SaveVi
     let mut array_without_value = false;
     if cells_changed {
         let mut forms = Vec::with_capacity(sheets.len());
-        for ((sheet, changes), moves) in sheets.iter().zip(&changes).zip(&moves) {
+        for (index, ((sheet, changes), moves)) in sheets.iter().zip(&changes).zip(&moves).enumerate() {
             if !changes.is_empty() {
-                check_formulas(sheet.part().name(), changes)?;
+                check_formulas(sheet.part().name(), changes, &pivot_output_cells[index])?;
                 if !tables_changed {check_tables(package, sheet.part().name(), changes, moves.as_ref())?;}
             }
             forms.push(file_forms(
@@ -526,6 +532,17 @@ pub(super) fn plan(package: &Package, edit: &Edited, views:Option<&super::SaveVi
             vec![values.as_ref().map(|_| BTreeMap::new()); sheets.len()];
         let mut errors: Vec<WorksheetErrorCode> = Vec::new();
         let mut images: Vec<calc_doc_model::value::ImageValue> = Vec::new();
+        // A pivot output cell that holds a newer error is written with value metadata too.
+        for (changes, cells) in changes.iter().zip(&pivot_output_cells) {
+            for at in cells {
+                if let Some(Some(CellInput::Error(code))) = changes.get(at)
+                    && array_metadata::rich_error_type(*code).is_some()
+                    && !errors.contains(code)
+                {
+                    errors.push(*code);
+                }
+            }
+        }
         if let Some(values) = values {
             for (&at, value) in values.iter() {
                 let position = sheets.iter().position(|sheet| sheet.id() == at.sheet());
@@ -1246,7 +1263,7 @@ pub(super) fn plan(package: &Package, edit: &Edited, views:Option<&super::SaveVi
             out.rewritten.insert(sheet.part().name().into(),super::page_setup::rewrite(current,&natural,&after)?);
         }
     }
-    if pivots_changed {super::pivot::finish(package,base.definitions().pivots(),model.definitions().pivots(),&mut out,workbook_part,sheets,true)?;}
+    if pivots_changed {super::pivot::finish(package,base.definitions().pivots(),model.definitions().pivots(),&mut out,workbook_part,sheets)?;}
     if charts_changed {super::chart::finish(package,base,model,&mut out,&sheets,structural.as_ref())?;}
     if review_changed {super::review::finish(package,workbook_part,&sheets,base,model,&moves,&mut out)?;}
     if sheets_changed {

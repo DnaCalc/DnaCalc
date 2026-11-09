@@ -233,9 +233,12 @@ fn ui28__pivot_refresh_scenarios_against_excel() {
     // - add-row: Excel moves a range source that spans a table to the grown table (A1:E37 became
     //   A1:E38); DNA Calc does not grow a table when a cell is entered below it.
     // - overlap-nonblank: Excel collapses the pivot to its corner cell and so does DNA Calc now
-    //   (dc-8wp.16, tests/pivot_m5.rs); the one difference is the corner's error: this capture
-    //   holds #VALUE! (read from the saved file), the live Value2 in the m5 capture is code 2045,
-    //   #SPILL!, which DNA Calc shows.
+    //   (dc-8wp.16, tests/pivot_m5.rs); the one difference is the corner's error, and it is the
+    //   spelling in the file, not a different value (measured, tests/fixtures/pivot/m7-names): this
+    //   capture was read from the saved file, where Excel stores the corner as `t="e"` with
+    //   `<v>#VALUE!</v>` and the value metadata of an `_error` rich value (errorType 8, #SPILL!);
+    //   live, and after the file is reopened, Excel's Value2 is code 2045 and its Text `#SPILL!`,
+    //   which DNA Calc shows (and writes into its own saves the way Excel does).
     assert_eq!(
         other,
         [

@@ -140,23 +140,10 @@ fn snapshot(host: &HostState, cache: &PivotCache, area: GridArea, reconciled_axe
     if host.declared_date1904() && cache.fields.iter().any(|field| field.attributes.contains_key("formula")) {
         return Err(fail("Calculated pivot fields in the 1904 date system are not modelled"));
     }
-    let headers = read_row(host, area, area.first().row())?;
-    for (position, (header, field)) in headers.iter().zip(&cache.fields[..source_count]).enumerate() {
-        // A blank header is the field `Column<position>` (see `source_names`).
-        let blank_name: Vec<u16>;
-        let units: &[u16] = match header.core_ref() {
-            CoreRef::Text(text) if !text.utf16_code_units().is_empty() => text.utf16_code_units(),
-            CoreRef::Text(_) | CoreRef::Empty => {
-                blank_name = format!("Column{}", position + 1).encode_utf16().collect();
-                &blank_name
-            }
-            _ => return Err(fail("Every source column needs a text header")),
-        };
-        if calc_fml::text_order(
-            units,
-            &field.name.encode_utf16().collect::<Vec<_>>(),
-        ) != Some(std::cmp::Ordering::Equal)
-        {
+    // The names the source's headers give its fields, as Excel names them (see `source_names`).
+    let names = source_names(host, area)?;
+    for (name, field) in names.iter().zip(&cache.fields[..source_count]) {
+        if !text_equal(name, &field.name) {
             return Err(fail(
                 "The source header names changed; field remapping is not modelled",
             ));
@@ -663,24 +650,41 @@ pub(crate) fn prepare_model_pivot_refresh(host: &HostState, before: &PivotState,
 }
 
 
-/// The headers of the source as cache field names: text as it stands, and a blank header as Excel names it,
-/// `Column` and the column's position in the source.
+/// Excel's name for a pivot field whose source header is blank: `Field` and the column's position in the source
+/// (1 for the first column of the source range, whatever its worksheet column). Measured 2026-11-09 on 16.0.20527
+/// (m7-names hdr-blank-*, hdr-create-blank): creating a pivot over a blank header and refreshing after a header
+/// was cleared give the same names; two blank headers give `Field3` and `Field4`; a header made of a space is
+/// the space, a number header is its text. (A table source never has a blank header: the table names that column
+/// itself, `Column<n>`, see `calc_doc_model::new_table_column_name`.)
+fn blank_header_name(position: usize) -> String {
+    format!("Field{}", position + 1)
+}
+
+/// The headers of the source as cache field names: text as it stands, and a blank header as Excel names it
+/// ([`blank_header_name`]).
 fn source_names(host: &HostState, area: GridArea) -> Result<Vec<String>, String> {
-    let mut names = Vec::<String>::new();
+    let mut raw = Vec::<String>::new();
     for (position, value) in read_row(host, area, area.first().row())?.iter().enumerate() {
         let name = match value.core_ref() {
             CoreRef::Text(text) => String::from_utf16(text.utf16_code_units())
                 .map_err(|_| fail("The source header cannot be represented"))?,
-            CoreRef::Empty => format!("Column{}", position + 1),
+            CoreRef::Empty => blank_header_name(position),
             // Excel takes a number in the header row as text.
             CoreRef::Number(number) => format!("{number}"),
             _ => return Err(fail("Every source column needs a text header")),
         };
-        let name = if name.is_empty() { format!("Column{}", position + 1) } else { name };
-        if names.iter().any(|prior| text_equal(prior, &name)) {
-            return Err(fail("Source headers that repeat a name need measured field naming"));
+        raw.push(if name.is_empty() { blank_header_name(position) } else { name });
+    }
+    // A header that repeats an earlier name is that name with the smallest number from 2 that no header has
+    // (m7-names hdr-duplicate-name: `Region2`; a third repeat taking `Region3` follows the table capture, tbln-typed-duplicate-three).
+    let mut names = Vec::<String>::with_capacity(raw.len());
+    for name in &raw {
+        if names.iter().any(|prior| text_equal(prior, name)) {
+            let taken: Vec<String> = names.iter().chain(&raw).cloned().collect();
+            names.push(calc_doc_model::numbered_duplicate(name, &taken));
+        } else {
+            names.push(name.clone());
         }
-        names.push(name);
     }
     Ok(names)
 }
@@ -727,17 +731,23 @@ fn remap_fields(host: &HostState, before: &PivotState, cache: &PivotCache, area:
     remapped.fields = fields;
     remapped.snapshot = None;
     let mut after = before.clone();
-    // When no value field of a pivot has its column any more (the source was cleared, its columns or its header row
-    // deleted), Excel's refresh leaves the pivot as the one-cell error stub (src-clear-all, src-del-cols-all,
-    // src-del-row-header): the cache has the new fields and the pivot has no layout left.
-    let stub = before.tables().filter(|t| t.cache_id == cache.id).any(|t|
-        t.data_fields.iter().all(|d| map.get(d.field as usize).copied().flatten().is_none()));
-    if stub {
-        remapped.record_count = Some(0);
-        remapped.snapshot = Some(Arc::new(PivotSnapshot {
-            records: Vec::new(), origin: PivotSnapshotOrigin::SourceRead,
-            source_revision: host.revision().get(), numeric: host.recalc_context().numeric.clone(),
-        }));
+    // The fields a pivot uses that the new headers still have. When none of them has its column any more (the
+    // source was cleared, its columns or its header row deleted) Excel's refresh leaves the pivot with no field:
+    // the empty pivot, a frame of 3 columns by 18 rows from its first cell (m7-names stub-clear-source,
+    // stub-delete-all-columns), which takes only its first cell, holding #SPILL!, when the frame meets cells that
+    // are not blank (the m5 scenarios src-clear-all, src-del-cols-all and src-del-row-header have such cells).
+    // When only the value fields lost their column the rows and columns stay, with no values: a layout of labels
+    // that is not modelled, so the refresh is refused (stub-delete-value-column, stub-rename-value-header).
+    let survives = |field: i32| field >= 0 && map.get(field as usize).copied().flatten().is_some();
+    let tables: Vec<&PivotTable> = before.tables().filter(|t| t.cache_id == cache.id).collect();
+    let value_gone = tables.iter().any(|t| t.data_fields.iter().all(|d| !survives(d.field as i32)));
+    let stub = tables.iter().any(|t| {
+        !t.row_fields.iter().chain(&t.column_fields).any(|f| survives(*f))
+            && !t.page_fields.iter().any(|p| survives(p.field as i32))
+            && t.data_fields.iter().all(|d| !survives(d.field as i32))
+    });
+    if value_gone && !stub {
+        return Err(fail("A source that keeps the pivot's row or column fields but not its value fields refreshes to a layout of labels without values in Excel; that layout is not modelled"));
     }
     for tables in after.sheets.values_mut() {
         for table in tables.tables.iter_mut().filter(|t| t.cache_id == cache.id) {
@@ -764,8 +774,16 @@ fn stub_table(table: &PivotTable, width: usize) -> Result<PivotTable, String> {
     next.data_fields.clear();
     next.row_items.clear();
     next.col_items.clear();
-    next.area = GridArea::cell(table.area.first());
-    next.collapsed = true;
+    // The empty pivot's frame (m7-names stub-*): 3 columns by 18 rows, its location a header row and no data
+    // columns. `refresh` collapses it to its first cell when the frame meets cells that are not blank.
+    let first = table.area.first();
+    let last = CellKey::new(first.sheet(), (first.row() + 17).min(calc_value::MAX_ROWS), (first.column() + 2).min(calc_value::MAX_COLUMNS))
+        .map_err(|_| fail("The empty pivot frame leaves the sheet"))?;
+    next.area = GridArea::new(first, last).map_err(|_| fail("The empty pivot frame leaves the sheet"))?;
+    next.collapsed = false;
+    for (name, value) in [("firstHeaderRow", "1"), ("firstDataRow", "1"), ("firstDataCol", "0")] {
+        next.location.insert(name.into(), value.into());
+    }
     Ok(next)
 }
 
@@ -858,8 +876,18 @@ pub(crate) fn prepare_refresh(
     if stub {
         let mut edits = original.tables().filter(|t| t.cache_id == selected.cache_id)
             .map(|t| CellEdit::Clear { area: t.area }).collect::<Vec<_>>();
-        host.loaded().check_pivot_state(before).map_err(|e| e.to_string())?;
-        edits.push(CellEdit::Pivots(Arc::new(before.clone())));
+        let mut state = before.clone();
+        // The cache is read from the source as it stands, as Excel reads it (the cleared source's rows are
+        // records of blanks).
+        let read = {
+            let cache = state.caches.caches.get(&selected.cache_id).ok_or_else(|| fail("The source cache is unavailable"))?;
+            snapshot(host, cache, area, None)?
+        };
+        state.caches.caches.insert(selected.cache_id, Arc::new(read));
+        let blocked = preflight_output_collapsing(host, original, &state, area, selected.cache_id)?;
+        collapse(&mut state, &blocked);
+        host.loaded().check_pivot_state(&state).map_err(|e| e.to_string())?;
+        edits.push(CellEdit::Pivots(Arc::new(state)));
         return Ok(edits);
     }
     let selected = before.sheet(sheet).and_then(|s| s.tables.iter().find(|t| t.part == part))

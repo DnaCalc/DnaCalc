@@ -1,0 +1,1272 @@
+scenario	stage	sheet	address	kind	value
+col-collapsed-edit-field	2	Out	A1	s	m-a1
+col-collapsed-edit-field	2	Out	C4	e	-2146826243
+col-collapsed-edit-field	2	Out	C14	s	blocker-C14
+col-collapsed-then-room	2	Out	A1	s	m-a1
+col-collapsed-then-room	2	Out	C4	s	Row Labels
+col-collapsed-then-room	2	Out	D4	s	Sum Amount
+col-collapsed-then-room	2	Out	C5	s	East
+col-collapsed-then-room	2	Out	D5	n	280
+col-collapsed-then-room	2	Out	C6	s	Alpha
+col-collapsed-then-room	2	Out	D6	n	85
+col-collapsed-then-room	2	Out	C7	s	Beta
+col-collapsed-then-room	2	Out	D7	n	55
+col-collapsed-then-room	2	Out	C8	s	Delta
+col-collapsed-then-room	2	Out	D8	n	115
+col-collapsed-then-room	2	Out	C9	s	Gamma
+col-collapsed-then-room	2	Out	D9	n	25
+col-collapsed-then-room	2	Out	C10	s	North
+col-collapsed-then-room	2	Out	D10	n	200
+col-collapsed-then-room	2	Out	C11	s	Alpha
+col-collapsed-then-room	2	Out	D11	n	5
+col-collapsed-then-room	2	Out	C12	s	Beta
+col-collapsed-then-room	2	Out	D12	n	95
+col-collapsed-then-room	2	Out	C13	s	Delta
+col-collapsed-then-room	2	Out	D13	n	35
+col-collapsed-then-room	2	Out	C14	s	Gamma
+col-collapsed-then-room	2	Out	D14	n	65
+col-collapsed-then-room	2	Out	C15	s	South
+col-collapsed-then-room	2	Out	D15	n	240
+col-collapsed-then-room	2	Out	C16	s	Alpha
+col-collapsed-then-room	2	Out	D16	n	45
+col-collapsed-then-room	2	Out	C17	s	Beta
+col-collapsed-then-room	2	Out	D17	n	15
+col-collapsed-then-room	2	Out	C18	s	Delta
+col-collapsed-then-room	2	Out	D18	n	75
+col-collapsed-then-room	2	Out	C19	s	Gamma
+col-collapsed-then-room	2	Out	D19	n	105
+col-collapsed-then-room	2	Out	C20	s	Grand Total
+col-collapsed-then-room	2	Out	D20	n	720
+col-create-onto-nonblank	2	Out	A1	s	m-a1
+col-create-onto-nonblank	2	Out	C4	s	Sum Amount
+col-create-onto-nonblank	2	Out	D4	s	Column Labels
+col-create-onto-nonblank	2	Out	C5	s	Row Labels
+col-create-onto-nonblank	2	Out	D5	s	Alpha
+col-create-onto-nonblank	2	Out	E5	s	Beta
+col-create-onto-nonblank	2	Out	F5	s	Delta
+col-create-onto-nonblank	2	Out	G5	s	Gamma
+col-create-onto-nonblank	2	Out	H5	s	Grand Total
+col-create-onto-nonblank	2	Out	C6	s	East
+col-create-onto-nonblank	2	Out	D6	n	85
+col-create-onto-nonblank	2	Out	E6	n	55
+col-create-onto-nonblank	2	Out	F6	n	115
+col-create-onto-nonblank	2	Out	G6	n	25
+col-create-onto-nonblank	2	Out	H6	n	280
+col-create-onto-nonblank	2	Out	C7	s	North
+col-create-onto-nonblank	2	Out	D7	n	5
+col-create-onto-nonblank	2	Out	E7	n	95
+col-create-onto-nonblank	2	Out	F7	n	35
+col-create-onto-nonblank	2	Out	G7	n	65
+col-create-onto-nonblank	2	Out	H7	n	200
+col-create-onto-nonblank	2	Out	C8	s	South
+col-create-onto-nonblank	2	Out	D8	n	45
+col-create-onto-nonblank	2	Out	E8	n	15
+col-create-onto-nonblank	2	Out	F8	n	75
+col-create-onto-nonblank	2	Out	G8	n	105
+col-create-onto-nonblank	2	Out	H8	n	240
+col-create-onto-nonblank	2	Out	C9	s	Grand Total
+col-create-onto-nonblank	2	Out	D9	n	135
+col-create-onto-nonblank	2	Out	E9	n	165
+col-create-onto-nonblank	2	Out	F9	n	225
+col-create-onto-nonblank	2	Out	G9	n	195
+col-create-onto-nonblank	2	Out	H9	n	720
+col-create-onto-nonblank	2	Out	C21	e	-2146826243
+col-create-onto-nonblank	2	Out	E22	s	blocker-E22
+col-layout-growth-below	2	Out	A1	s	m-a1
+col-layout-growth-below	2	Out	C4	e	-2146826243
+col-layout-growth-below	2	Out	C14	s	blocker-C14
+col-layout-growth-right	2	Out	A1	s	m-a1
+col-layout-growth-right	2	Out	C4	s	Sum Amount
+col-layout-growth-right	2	Out	D4	s	Column Labels
+col-layout-growth-right	2	Out	C5	s	Row Labels
+col-layout-growth-right	2	Out	D5	n	1
+col-layout-growth-right	2	Out	E5	n	2
+col-layout-growth-right	2	Out	F5	n	3
+col-layout-growth-right	2	Out	G5	n	4
+col-layout-growth-right	2	Out	H5	n	5
+col-layout-growth-right	2	Out	I5	s	Grand Total
+col-layout-growth-right	2	Out	K5	s	blocker-K5
+col-layout-growth-right	2	Out	C6	s	East
+col-layout-growth-right	2	Out	D6	n	55
+col-layout-growth-right	2	Out	E6	n	115
+col-layout-growth-right	2	Out	F6	n	25
+col-layout-growth-right	2	Out	G6	n	85
+col-layout-growth-right	2	Out	I6	n	280
+col-layout-growth-right	2	Out	C7	s	Alpha
+col-layout-growth-right	2	Out	G7	n	85
+col-layout-growth-right	2	Out	I7	n	85
+col-layout-growth-right	2	Out	C8	s	Beta
+col-layout-growth-right	2	Out	D8	n	55
+col-layout-growth-right	2	Out	I8	n	55
+col-layout-growth-right	2	Out	C9	s	Delta
+col-layout-growth-right	2	Out	E9	n	115
+col-layout-growth-right	2	Out	I9	n	115
+col-layout-growth-right	2	Out	C10	s	Gamma
+col-layout-growth-right	2	Out	F10	n	25
+col-layout-growth-right	2	Out	I10	n	25
+col-layout-growth-right	2	Out	C11	s	North
+col-layout-growth-right	2	Out	D11	n	5
+col-layout-growth-right	2	Out	E11	n	65
+col-layout-growth-right	2	Out	G11	n	35
+col-layout-growth-right	2	Out	H11	n	95
+col-layout-growth-right	2	Out	I11	n	200
+col-layout-growth-right	2	Out	C12	s	Alpha
+col-layout-growth-right	2	Out	D12	n	5
+col-layout-growth-right	2	Out	I12	n	5
+col-layout-growth-right	2	Out	C13	s	Beta
+col-layout-growth-right	2	Out	H13	n	95
+col-layout-growth-right	2	Out	I13	n	95
+col-layout-growth-right	2	Out	C14	s	Delta
+col-layout-growth-right	2	Out	G14	n	35
+col-layout-growth-right	2	Out	I14	n	35
+col-layout-growth-right	2	Out	C15	s	Gamma
+col-layout-growth-right	2	Out	E15	n	65
+col-layout-growth-right	2	Out	I15	n	65
+col-layout-growth-right	2	Out	C16	s	South
+col-layout-growth-right	2	Out	D16	n	105
+col-layout-growth-right	2	Out	E16	n	15
+col-layout-growth-right	2	Out	F16	n	75
+col-layout-growth-right	2	Out	H16	n	45
+col-layout-growth-right	2	Out	I16	n	240
+col-layout-growth-right	2	Out	C17	s	Alpha
+col-layout-growth-right	2	Out	H17	n	45
+col-layout-growth-right	2	Out	I17	n	45
+col-layout-growth-right	2	Out	C18	s	Beta
+col-layout-growth-right	2	Out	E18	n	15
+col-layout-growth-right	2	Out	I18	n	15
+col-layout-growth-right	2	Out	C19	s	Delta
+col-layout-growth-right	2	Out	F19	n	75
+col-layout-growth-right	2	Out	I19	n	75
+col-layout-growth-right	2	Out	C20	s	Gamma
+col-layout-growth-right	2	Out	D20	n	105
+col-layout-growth-right	2	Out	I20	n	105
+col-layout-growth-right	2	Out	C21	s	Grand Total
+col-layout-growth-right	2	Out	D21	n	165
+col-layout-growth-right	2	Out	E21	n	195
+col-layout-growth-right	2	Out	F21	n	100
+col-layout-growth-right	2	Out	G21	n	120
+col-layout-growth-right	2	Out	H21	n	140
+col-layout-growth-right	2	Out	I21	n	720
+col-move-location	2	Out	A1	s	m-a1
+col-move-location	2	Out	M4	e	-2146826243
+col-move-location	2	Out	M5	s	blocker-M5
+col-refresh-growth-below	2	Out	A1	s	m-a1
+col-refresh-growth-below	2	Out	C4	e	-2146826243
+col-refresh-growth-below	2	Out	C10	s	blocker-C10
+col-refresh-growth-right	2	Out	A1	s	m-a1
+col-refresh-growth-right	2	Out	C4	e	-2146826243
+col-refresh-growth-right	2	Out	I5	s	blocker-I5
+hdr-blank-first	2	Out	A1	s	m-a1
+hdr-blank-first	2	Out	D4	s	Column Labels
+hdr-blank-first	2	Out	D5	s	Alpha
+hdr-blank-first	2	Out	E5	s	Beta
+hdr-blank-first	2	Out	F5	s	Delta
+hdr-blank-first	2	Out	G5	s	Gamma
+hdr-blank-first	2	Out	H5	s	Grand Total
+hdr-blank-first	2	Out	C6	s	Sum Amount
+hdr-blank-first	2	Out	D6	n	135
+hdr-blank-first	2	Out	E6	n	165
+hdr-blank-first	2	Out	F6	n	225
+hdr-blank-first	2	Out	G6	n	195
+hdr-blank-first	2	Out	H6	n	720
+hdr-blank-then-column-before	2	Out	A1	s	m-a1
+hdr-blank-then-column-before	2	Out	C4	s	Sum Amount
+hdr-blank-then-column-before	2	Out	D4	s	Column Labels
+hdr-blank-then-column-before	2	Out	C5	s	Row Labels
+hdr-blank-then-column-before	2	Out	D5	s	Alpha
+hdr-blank-then-column-before	2	Out	E5	s	Beta
+hdr-blank-then-column-before	2	Out	F5	s	Delta
+hdr-blank-then-column-before	2	Out	G5	s	Gamma
+hdr-blank-then-column-before	2	Out	H5	s	Grand Total
+hdr-blank-then-column-before	2	Out	C6	s	East
+hdr-blank-then-column-before	2	Out	D6	n	85
+hdr-blank-then-column-before	2	Out	E6	n	55
+hdr-blank-then-column-before	2	Out	F6	n	115
+hdr-blank-then-column-before	2	Out	G6	n	25
+hdr-blank-then-column-before	2	Out	H6	n	280
+hdr-blank-then-column-before	2	Out	C7	s	North
+hdr-blank-then-column-before	2	Out	D7	n	5
+hdr-blank-then-column-before	2	Out	E7	n	95
+hdr-blank-then-column-before	2	Out	F7	n	35
+hdr-blank-then-column-before	2	Out	G7	n	65
+hdr-blank-then-column-before	2	Out	H7	n	200
+hdr-blank-then-column-before	2	Out	C8	s	South
+hdr-blank-then-column-before	2	Out	D8	n	45
+hdr-blank-then-column-before	2	Out	E8	n	15
+hdr-blank-then-column-before	2	Out	F8	n	75
+hdr-blank-then-column-before	2	Out	G8	n	105
+hdr-blank-then-column-before	2	Out	H8	n	240
+hdr-blank-then-column-before	2	Out	C9	s	Grand Total
+hdr-blank-then-column-before	2	Out	D9	n	135
+hdr-blank-then-column-before	2	Out	E9	n	165
+hdr-blank-then-column-before	2	Out	F9	n	225
+hdr-blank-then-column-before	2	Out	G9	n	195
+hdr-blank-then-column-before	2	Out	H9	n	720
+hdr-blank-two	2	Out	A1	s	m-a1
+hdr-blank-two	2	Out	D4	s	Column Labels
+hdr-blank-two	2	Out	C5	s	Row Labels
+hdr-blank-two	2	Out	D5	s	Alpha
+hdr-blank-two	2	Out	E5	s	Beta
+hdr-blank-two	2	Out	F5	s	Delta
+hdr-blank-two	2	Out	G5	s	Gamma
+hdr-blank-two	2	Out	H5	s	Grand Total
+hdr-blank-two	2	Out	C6	s	East
+hdr-blank-two	2	Out	C7	s	North
+hdr-blank-two	2	Out	C8	s	South
+hdr-blank-two	2	Out	C9	s	Grand Total
+hdr-blank-unused-empty-string	2	Out	A1	s	m-a1
+hdr-blank-unused-empty-string	2	Out	C4	s	Sum Amount
+hdr-blank-unused-empty-string	2	Out	D4	s	Column Labels
+hdr-blank-unused-empty-string	2	Out	C5	s	Row Labels
+hdr-blank-unused-empty-string	2	Out	D5	s	Alpha
+hdr-blank-unused-empty-string	2	Out	E5	s	Beta
+hdr-blank-unused-empty-string	2	Out	F5	s	Delta
+hdr-blank-unused-empty-string	2	Out	G5	s	Gamma
+hdr-blank-unused-empty-string	2	Out	H5	s	Grand Total
+hdr-blank-unused-empty-string	2	Out	C6	s	East
+hdr-blank-unused-empty-string	2	Out	D6	n	85
+hdr-blank-unused-empty-string	2	Out	E6	n	55
+hdr-blank-unused-empty-string	2	Out	F6	n	115
+hdr-blank-unused-empty-string	2	Out	G6	n	25
+hdr-blank-unused-empty-string	2	Out	H6	n	280
+hdr-blank-unused-empty-string	2	Out	C7	s	North
+hdr-blank-unused-empty-string	2	Out	D7	n	5
+hdr-blank-unused-empty-string	2	Out	E7	n	95
+hdr-blank-unused-empty-string	2	Out	F7	n	35
+hdr-blank-unused-empty-string	2	Out	G7	n	65
+hdr-blank-unused-empty-string	2	Out	H7	n	200
+hdr-blank-unused-empty-string	2	Out	C8	s	South
+hdr-blank-unused-empty-string	2	Out	D8	n	45
+hdr-blank-unused-empty-string	2	Out	E8	n	15
+hdr-blank-unused-empty-string	2	Out	F8	n	75
+hdr-blank-unused-empty-string	2	Out	G8	n	105
+hdr-blank-unused-empty-string	2	Out	H8	n	240
+hdr-blank-unused-empty-string	2	Out	C9	s	Grand Total
+hdr-blank-unused-empty-string	2	Out	D9	n	135
+hdr-blank-unused-empty-string	2	Out	E9	n	165
+hdr-blank-unused-empty-string	2	Out	F9	n	225
+hdr-blank-unused-empty-string	2	Out	G9	n	195
+hdr-blank-unused-empty-string	2	Out	H9	n	720
+hdr-blank-unused-last	2	Out	A1	s	m-a1
+hdr-blank-unused-last	2	Out	C4	s	Sum Amount
+hdr-blank-unused-last	2	Out	D4	s	Column Labels
+hdr-blank-unused-last	2	Out	C5	s	Row Labels
+hdr-blank-unused-last	2	Out	D5	s	Alpha
+hdr-blank-unused-last	2	Out	E5	s	Beta
+hdr-blank-unused-last	2	Out	F5	s	Delta
+hdr-blank-unused-last	2	Out	G5	s	Gamma
+hdr-blank-unused-last	2	Out	H5	s	Grand Total
+hdr-blank-unused-last	2	Out	C6	s	East
+hdr-blank-unused-last	2	Out	D6	n	85
+hdr-blank-unused-last	2	Out	E6	n	55
+hdr-blank-unused-last	2	Out	F6	n	115
+hdr-blank-unused-last	2	Out	G6	n	25
+hdr-blank-unused-last	2	Out	H6	n	280
+hdr-blank-unused-last	2	Out	C7	s	North
+hdr-blank-unused-last	2	Out	D7	n	5
+hdr-blank-unused-last	2	Out	E7	n	95
+hdr-blank-unused-last	2	Out	F7	n	35
+hdr-blank-unused-last	2	Out	G7	n	65
+hdr-blank-unused-last	2	Out	H7	n	200
+hdr-blank-unused-last	2	Out	C8	s	South
+hdr-blank-unused-last	2	Out	D8	n	45
+hdr-blank-unused-last	2	Out	E8	n	15
+hdr-blank-unused-last	2	Out	F8	n	75
+hdr-blank-unused-last	2	Out	G8	n	105
+hdr-blank-unused-last	2	Out	H8	n	240
+hdr-blank-unused-last	2	Out	C9	s	Grand Total
+hdr-blank-unused-last	2	Out	D9	n	135
+hdr-blank-unused-last	2	Out	E9	n	165
+hdr-blank-unused-last	2	Out	F9	n	225
+hdr-blank-unused-last	2	Out	G9	n	195
+hdr-blank-unused-last	2	Out	H9	n	720
+hdr-blank-used-amount	2	Out	A1	s	m-a1
+hdr-blank-used-amount	2	Out	D4	s	Column Labels
+hdr-blank-used-amount	2	Out	C5	s	Row Labels
+hdr-blank-used-amount	2	Out	D5	s	Alpha
+hdr-blank-used-amount	2	Out	E5	s	Beta
+hdr-blank-used-amount	2	Out	F5	s	Delta
+hdr-blank-used-amount	2	Out	G5	s	Gamma
+hdr-blank-used-amount	2	Out	H5	s	Grand Total
+hdr-blank-used-amount	2	Out	C6	s	East
+hdr-blank-used-amount	2	Out	C7	s	North
+hdr-blank-used-amount	2	Out	C8	s	South
+hdr-blank-used-amount	2	Out	C9	s	Grand Total
+hdr-blank-used-product	2	Out	A1	s	m-a1
+hdr-blank-used-product	2	Out	C4	s	Row Labels
+hdr-blank-used-product	2	Out	D4	s	Sum Amount
+hdr-blank-used-product	2	Out	C5	s	East
+hdr-blank-used-product	2	Out	D5	n	280
+hdr-blank-used-product	2	Out	C6	s	North
+hdr-blank-used-product	2	Out	D6	n	200
+hdr-blank-used-product	2	Out	C7	s	South
+hdr-blank-used-product	2	Out	D7	n	240
+hdr-blank-used-product	2	Out	C8	s	Grand Total
+hdr-blank-used-product	2	Out	D8	n	720
+hdr-duplicate-name	2	Out	A1	s	m-a1
+hdr-duplicate-name	2	Out	C4	s	Sum Amount
+hdr-duplicate-name	2	Out	D4	s	Column Labels
+hdr-duplicate-name	2	Out	C5	s	Row Labels
+hdr-duplicate-name	2	Out	D5	s	Alpha
+hdr-duplicate-name	2	Out	E5	s	Beta
+hdr-duplicate-name	2	Out	F5	s	Delta
+hdr-duplicate-name	2	Out	G5	s	Gamma
+hdr-duplicate-name	2	Out	H5	s	Grand Total
+hdr-duplicate-name	2	Out	C6	s	East
+hdr-duplicate-name	2	Out	D6	n	85
+hdr-duplicate-name	2	Out	E6	n	55
+hdr-duplicate-name	2	Out	F6	n	115
+hdr-duplicate-name	2	Out	G6	n	25
+hdr-duplicate-name	2	Out	H6	n	280
+hdr-duplicate-name	2	Out	C7	s	North
+hdr-duplicate-name	2	Out	D7	n	5
+hdr-duplicate-name	2	Out	E7	n	95
+hdr-duplicate-name	2	Out	F7	n	35
+hdr-duplicate-name	2	Out	G7	n	65
+hdr-duplicate-name	2	Out	H7	n	200
+hdr-duplicate-name	2	Out	C8	s	South
+hdr-duplicate-name	2	Out	D8	n	45
+hdr-duplicate-name	2	Out	E8	n	15
+hdr-duplicate-name	2	Out	F8	n	75
+hdr-duplicate-name	2	Out	G8	n	105
+hdr-duplicate-name	2	Out	H8	n	240
+hdr-duplicate-name	2	Out	C9	s	Grand Total
+hdr-duplicate-name	2	Out	D9	n	135
+hdr-duplicate-name	2	Out	E9	n	165
+hdr-duplicate-name	2	Out	F9	n	225
+hdr-duplicate-name	2	Out	G9	n	195
+hdr-duplicate-name	2	Out	H9	n	720
+hdr-number	2	Out	A1	s	m-a1
+hdr-number	2	Out	C4	s	Sum Amount
+hdr-number	2	Out	D4	s	Column Labels
+hdr-number	2	Out	C5	s	Row Labels
+hdr-number	2	Out	D5	s	Alpha
+hdr-number	2	Out	E5	s	Beta
+hdr-number	2	Out	F5	s	Delta
+hdr-number	2	Out	G5	s	Gamma
+hdr-number	2	Out	H5	s	Grand Total
+hdr-number	2	Out	C6	s	East
+hdr-number	2	Out	D6	n	85
+hdr-number	2	Out	E6	n	55
+hdr-number	2	Out	F6	n	115
+hdr-number	2	Out	G6	n	25
+hdr-number	2	Out	H6	n	280
+hdr-number	2	Out	C7	s	North
+hdr-number	2	Out	D7	n	5
+hdr-number	2	Out	E7	n	95
+hdr-number	2	Out	F7	n	35
+hdr-number	2	Out	G7	n	65
+hdr-number	2	Out	H7	n	200
+hdr-number	2	Out	C8	s	South
+hdr-number	2	Out	D8	n	45
+hdr-number	2	Out	E8	n	15
+hdr-number	2	Out	F8	n	75
+hdr-number	2	Out	G8	n	105
+hdr-number	2	Out	H8	n	240
+hdr-number	2	Out	C9	s	Grand Total
+hdr-number	2	Out	D9	n	135
+hdr-number	2	Out	E9	n	165
+hdr-number	2	Out	F9	n	225
+hdr-number	2	Out	G9	n	195
+hdr-number	2	Out	H9	n	720
+hdr-space	2	Out	A1	s	m-a1
+hdr-space	2	Out	C4	s	Sum Amount
+hdr-space	2	Out	D4	s	Column Labels
+hdr-space	2	Out	C5	s	Row Labels
+hdr-space	2	Out	D5	s	Alpha
+hdr-space	2	Out	E5	s	Beta
+hdr-space	2	Out	F5	s	Delta
+hdr-space	2	Out	G5	s	Gamma
+hdr-space	2	Out	H5	s	Grand Total
+hdr-space	2	Out	C6	s	East
+hdr-space	2	Out	D6	n	85
+hdr-space	2	Out	E6	n	55
+hdr-space	2	Out	F6	n	115
+hdr-space	2	Out	G6	n	25
+hdr-space	2	Out	H6	n	280
+hdr-space	2	Out	C7	s	North
+hdr-space	2	Out	D7	n	5
+hdr-space	2	Out	E7	n	95
+hdr-space	2	Out	F7	n	35
+hdr-space	2	Out	G7	n	65
+hdr-space	2	Out	H7	n	200
+hdr-space	2	Out	C8	s	South
+hdr-space	2	Out	D8	n	45
+hdr-space	2	Out	E8	n	15
+hdr-space	2	Out	F8	n	75
+hdr-space	2	Out	G8	n	105
+hdr-space	2	Out	H8	n	240
+hdr-space	2	Out	C9	s	Grand Total
+hdr-space	2	Out	D9	n	135
+hdr-space	2	Out	E9	n	165
+hdr-space	2	Out	F9	n	225
+hdr-space	2	Out	G9	n	195
+hdr-space	2	Out	H9	n	720
+hdr-table-clear	2	Out	A1	s	m-a1
+hdr-table-clear	2	Out	C4	s	Sum Amount
+hdr-table-clear	2	Out	D4	s	Column Labels
+hdr-table-clear	2	Out	C5	s	Row Labels
+hdr-table-clear	2	Out	D5	s	Alpha
+hdr-table-clear	2	Out	E5	s	Beta
+hdr-table-clear	2	Out	F5	s	Delta
+hdr-table-clear	2	Out	G5	s	Gamma
+hdr-table-clear	2	Out	H5	s	Grand Total
+hdr-table-clear	2	Out	C6	s	East
+hdr-table-clear	2	Out	D6	n	85
+hdr-table-clear	2	Out	E6	n	55
+hdr-table-clear	2	Out	F6	n	115
+hdr-table-clear	2	Out	G6	n	25
+hdr-table-clear	2	Out	H6	n	280
+hdr-table-clear	2	Out	C7	s	North
+hdr-table-clear	2	Out	D7	n	5
+hdr-table-clear	2	Out	E7	n	95
+hdr-table-clear	2	Out	F7	n	35
+hdr-table-clear	2	Out	G7	n	65
+hdr-table-clear	2	Out	H7	n	200
+hdr-table-clear	2	Out	C8	s	South
+hdr-table-clear	2	Out	D8	n	45
+hdr-table-clear	2	Out	E8	n	15
+hdr-table-clear	2	Out	F8	n	75
+hdr-table-clear	2	Out	G8	n	105
+hdr-table-clear	2	Out	H8	n	240
+hdr-table-clear	2	Out	C9	s	Grand Total
+hdr-table-clear	2	Out	D9	n	135
+hdr-table-clear	2	Out	E9	n	165
+hdr-table-clear	2	Out	F9	n	225
+hdr-table-clear	2	Out	G9	n	195
+hdr-table-clear	2	Out	H9	n	720
+hdr-table-clear-middle	2	Out	A1	s	m-a1
+hdr-table-clear-middle	2	Out	C4	s	Row Labels
+hdr-table-clear-middle	2	Out	D4	s	Sum Amount
+hdr-table-clear-middle	2	Out	C5	s	East
+hdr-table-clear-middle	2	Out	D5	n	280
+hdr-table-clear-middle	2	Out	C6	s	North
+hdr-table-clear-middle	2	Out	D6	n	200
+hdr-table-clear-middle	2	Out	C7	s	South
+hdr-table-clear-middle	2	Out	D7	n	240
+hdr-table-clear-middle	2	Out	C8	s	Grand Total
+hdr-table-clear-middle	2	Out	D8	n	720
+hdr-table-clear-two	2	Out	A1	s	m-a1
+hdr-table-clear-two	2	Out	D4	s	Column Labels
+hdr-table-clear-two	2	Out	C5	s	Row Labels
+hdr-table-clear-two	2	Out	D5	s	Alpha
+hdr-table-clear-two	2	Out	E5	s	Beta
+hdr-table-clear-two	2	Out	F5	s	Delta
+hdr-table-clear-two	2	Out	G5	s	Gamma
+hdr-table-clear-two	2	Out	H5	s	Grand Total
+hdr-table-clear-two	2	Out	C6	s	East
+hdr-table-clear-two	2	Out	C7	s	North
+hdr-table-clear-two	2	Out	C8	s	South
+hdr-table-clear-two	2	Out	C9	s	Grand Total
+hdr-table-empty-string	2	Out	A1	s	m-a1
+hdr-table-empty-string	2	Out	C4	s	Sum Amount
+hdr-table-empty-string	2	Out	D4	s	Column Labels
+hdr-table-empty-string	2	Out	C5	s	Row Labels
+hdr-table-empty-string	2	Out	D5	s	Alpha
+hdr-table-empty-string	2	Out	E5	s	Beta
+hdr-table-empty-string	2	Out	F5	s	Delta
+hdr-table-empty-string	2	Out	G5	s	Gamma
+hdr-table-empty-string	2	Out	H5	s	Grand Total
+hdr-table-empty-string	2	Out	C6	s	East
+hdr-table-empty-string	2	Out	D6	n	85
+hdr-table-empty-string	2	Out	E6	n	55
+hdr-table-empty-string	2	Out	F6	n	115
+hdr-table-empty-string	2	Out	G6	n	25
+hdr-table-empty-string	2	Out	H6	n	280
+hdr-table-empty-string	2	Out	C7	s	North
+hdr-table-empty-string	2	Out	D7	n	5
+hdr-table-empty-string	2	Out	E7	n	95
+hdr-table-empty-string	2	Out	F7	n	35
+hdr-table-empty-string	2	Out	G7	n	65
+hdr-table-empty-string	2	Out	H7	n	200
+hdr-table-empty-string	2	Out	C8	s	South
+hdr-table-empty-string	2	Out	D8	n	45
+hdr-table-empty-string	2	Out	E8	n	15
+hdr-table-empty-string	2	Out	F8	n	75
+hdr-table-empty-string	2	Out	G8	n	105
+hdr-table-empty-string	2	Out	H8	n	240
+hdr-table-empty-string	2	Out	C9	s	Grand Total
+hdr-table-empty-string	2	Out	D9	n	135
+hdr-table-empty-string	2	Out	E9	n	165
+hdr-table-empty-string	2	Out	F9	n	225
+hdr-table-empty-string	2	Out	G9	n	195
+hdr-table-empty-string	2	Out	H9	n	720
+stub-clear-source	2	Out	A1	s	m-a1
+stub-delete-all-columns	2	Out	A1	s	m-a1
+stub-delete-value-column	2	Out	A1	s	m-a1
+stub-delete-value-column	2	Out	D4	s	Column Labels
+stub-delete-value-column	2	Out	C5	s	Row Labels
+stub-delete-value-column	2	Out	D5	s	Alpha
+stub-delete-value-column	2	Out	E5	s	Beta
+stub-delete-value-column	2	Out	F5	s	Delta
+stub-delete-value-column	2	Out	G5	s	Gamma
+stub-delete-value-column	2	Out	H5	s	Grand Total
+stub-delete-value-column	2	Out	C6	s	East
+stub-delete-value-column	2	Out	C7	s	North
+stub-delete-value-column	2	Out	C8	s	South
+stub-delete-value-column	2	Out	C9	s	Grand Total
+stub-rename-value-header	2	Out	A1	s	m-a1
+stub-rename-value-header	2	Out	D4	s	Column Labels
+stub-rename-value-header	2	Out	C5	s	Row Labels
+stub-rename-value-header	2	Out	D5	s	Alpha
+stub-rename-value-header	2	Out	E5	s	Beta
+stub-rename-value-header	2	Out	F5	s	Delta
+stub-rename-value-header	2	Out	G5	s	Gamma
+stub-rename-value-header	2	Out	H5	s	Grand Total
+stub-rename-value-header	2	Out	C6	s	East
+stub-rename-value-header	2	Out	C7	s	North
+stub-rename-value-header	2	Out	C8	s	South
+stub-rename-value-header	2	Out	C9	s	Grand Total
+stub-table-delete-value-column	2	Out	A1	s	m-a1
+stub-table-delete-value-column	2	Out	D4	s	Column Labels
+stub-table-delete-value-column	2	Out	C5	s	Row Labels
+stub-table-delete-value-column	2	Out	D5	s	Alpha
+stub-table-delete-value-column	2	Out	E5	s	Beta
+stub-table-delete-value-column	2	Out	F5	s	Delta
+stub-table-delete-value-column	2	Out	G5	s	Gamma
+stub-table-delete-value-column	2	Out	H5	s	Grand Total
+stub-table-delete-value-column	2	Out	C6	s	East
+stub-table-delete-value-column	2	Out	C7	s	North
+stub-table-delete-value-column	2	Out	C8	s	South
+stub-table-delete-value-column	2	Out	C9	s	Grand Total
+tbl-col-add-end	2	Out	A1	s	m-a1
+tbl-col-add-end	2	Out	C4	s	Sum Amount
+tbl-col-add-end	2	Out	D4	s	Column Labels
+tbl-col-add-end	2	Out	C5	s	Row Labels
+tbl-col-add-end	2	Out	D5	s	Alpha
+tbl-col-add-end	2	Out	E5	s	Beta
+tbl-col-add-end	2	Out	F5	s	Delta
+tbl-col-add-end	2	Out	G5	s	Gamma
+tbl-col-add-end	2	Out	H5	s	Grand Total
+tbl-col-add-end	2	Out	C6	s	East
+tbl-col-add-end	2	Out	D6	n	85
+tbl-col-add-end	2	Out	E6	n	55
+tbl-col-add-end	2	Out	F6	n	115
+tbl-col-add-end	2	Out	G6	n	25
+tbl-col-add-end	2	Out	H6	n	280
+tbl-col-add-end	2	Out	C7	s	North
+tbl-col-add-end	2	Out	D7	n	5
+tbl-col-add-end	2	Out	E7	n	95
+tbl-col-add-end	2	Out	F7	n	35
+tbl-col-add-end	2	Out	G7	n	65
+tbl-col-add-end	2	Out	H7	n	200
+tbl-col-add-end	2	Out	C8	s	South
+tbl-col-add-end	2	Out	D8	n	45
+tbl-col-add-end	2	Out	E8	n	15
+tbl-col-add-end	2	Out	F8	n	75
+tbl-col-add-end	2	Out	G8	n	105
+tbl-col-add-end	2	Out	H8	n	240
+tbl-col-add-end	2	Out	C9	s	Grand Total
+tbl-col-add-end	2	Out	D9	n	135
+tbl-col-add-end	2	Out	E9	n	165
+tbl-col-add-end	2	Out	F9	n	225
+tbl-col-add-end	2	Out	G9	n	195
+tbl-col-add-end	2	Out	H9	n	720
+tbl-col-add-pos1	2	Out	A1	s	m-a1
+tbl-col-add-pos1	2	Out	C4	s	Sum Amount
+tbl-col-add-pos1	2	Out	D4	s	Column Labels
+tbl-col-add-pos1	2	Out	C5	s	Row Labels
+tbl-col-add-pos1	2	Out	D5	s	Alpha
+tbl-col-add-pos1	2	Out	E5	s	Beta
+tbl-col-add-pos1	2	Out	F5	s	Delta
+tbl-col-add-pos1	2	Out	G5	s	Gamma
+tbl-col-add-pos1	2	Out	H5	s	Grand Total
+tbl-col-add-pos1	2	Out	C6	s	East
+tbl-col-add-pos1	2	Out	D6	n	85
+tbl-col-add-pos1	2	Out	E6	n	55
+tbl-col-add-pos1	2	Out	F6	n	115
+tbl-col-add-pos1	2	Out	G6	n	25
+tbl-col-add-pos1	2	Out	H6	n	280
+tbl-col-add-pos1	2	Out	C7	s	North
+tbl-col-add-pos1	2	Out	D7	n	5
+tbl-col-add-pos1	2	Out	E7	n	95
+tbl-col-add-pos1	2	Out	F7	n	35
+tbl-col-add-pos1	2	Out	G7	n	65
+tbl-col-add-pos1	2	Out	H7	n	200
+tbl-col-add-pos1	2	Out	C8	s	South
+tbl-col-add-pos1	2	Out	D8	n	45
+tbl-col-add-pos1	2	Out	E8	n	15
+tbl-col-add-pos1	2	Out	F8	n	75
+tbl-col-add-pos1	2	Out	G8	n	105
+tbl-col-add-pos1	2	Out	H8	n	240
+tbl-col-add-pos1	2	Out	C9	s	Grand Total
+tbl-col-add-pos1	2	Out	D9	n	135
+tbl-col-add-pos1	2	Out	E9	n	165
+tbl-col-add-pos1	2	Out	F9	n	225
+tbl-col-add-pos1	2	Out	G9	n	195
+tbl-col-add-pos1	2	Out	H9	n	720
+tbl-col-add-pos3	2	Out	A1	s	m-a1
+tbl-col-add-pos3	2	Out	C4	s	Sum Amount
+tbl-col-add-pos3	2	Out	D4	s	Column Labels
+tbl-col-add-pos3	2	Out	C5	s	Row Labels
+tbl-col-add-pos3	2	Out	D5	s	Alpha
+tbl-col-add-pos3	2	Out	E5	s	Beta
+tbl-col-add-pos3	2	Out	F5	s	Delta
+tbl-col-add-pos3	2	Out	G5	s	Gamma
+tbl-col-add-pos3	2	Out	H5	s	Grand Total
+tbl-col-add-pos3	2	Out	C6	s	East
+tbl-col-add-pos3	2	Out	D6	n	85
+tbl-col-add-pos3	2	Out	E6	n	55
+tbl-col-add-pos3	2	Out	F6	n	115
+tbl-col-add-pos3	2	Out	G6	n	25
+tbl-col-add-pos3	2	Out	H6	n	280
+tbl-col-add-pos3	2	Out	C7	s	North
+tbl-col-add-pos3	2	Out	D7	n	5
+tbl-col-add-pos3	2	Out	E7	n	95
+tbl-col-add-pos3	2	Out	F7	n	35
+tbl-col-add-pos3	2	Out	G7	n	65
+tbl-col-add-pos3	2	Out	H7	n	200
+tbl-col-add-pos3	2	Out	C8	s	South
+tbl-col-add-pos3	2	Out	D8	n	45
+tbl-col-add-pos3	2	Out	E8	n	15
+tbl-col-add-pos3	2	Out	F8	n	75
+tbl-col-add-pos3	2	Out	G8	n	105
+tbl-col-add-pos3	2	Out	H8	n	240
+tbl-col-add-pos3	2	Out	C9	s	Grand Total
+tbl-col-add-pos3	2	Out	D9	n	135
+tbl-col-add-pos3	2	Out	E9	n	165
+tbl-col-add-pos3	2	Out	F9	n	225
+tbl-col-add-pos3	2	Out	G9	n	195
+tbl-col-add-pos3	2	Out	H9	n	720
+tbl-col-add-three-at-1	2	Out	A1	s	m-a1
+tbl-col-add-three-at-1	2	Out	C4	s	Sum Amount
+tbl-col-add-three-at-1	2	Out	D4	s	Column Labels
+tbl-col-add-three-at-1	2	Out	C5	s	Row Labels
+tbl-col-add-three-at-1	2	Out	D5	s	Alpha
+tbl-col-add-three-at-1	2	Out	E5	s	Beta
+tbl-col-add-three-at-1	2	Out	F5	s	Delta
+tbl-col-add-three-at-1	2	Out	G5	s	Gamma
+tbl-col-add-three-at-1	2	Out	H5	s	Grand Total
+tbl-col-add-three-at-1	2	Out	C6	s	East
+tbl-col-add-three-at-1	2	Out	D6	n	85
+tbl-col-add-three-at-1	2	Out	E6	n	55
+tbl-col-add-three-at-1	2	Out	F6	n	115
+tbl-col-add-three-at-1	2	Out	G6	n	25
+tbl-col-add-three-at-1	2	Out	H6	n	280
+tbl-col-add-three-at-1	2	Out	C7	s	North
+tbl-col-add-three-at-1	2	Out	D7	n	5
+tbl-col-add-three-at-1	2	Out	E7	n	95
+tbl-col-add-three-at-1	2	Out	F7	n	35
+tbl-col-add-three-at-1	2	Out	G7	n	65
+tbl-col-add-three-at-1	2	Out	H7	n	200
+tbl-col-add-three-at-1	2	Out	C8	s	South
+tbl-col-add-three-at-1	2	Out	D8	n	45
+tbl-col-add-three-at-1	2	Out	E8	n	15
+tbl-col-add-three-at-1	2	Out	F8	n	75
+tbl-col-add-three-at-1	2	Out	G8	n	105
+tbl-col-add-three-at-1	2	Out	H8	n	240
+tbl-col-add-three-at-1	2	Out	C9	s	Grand Total
+tbl-col-add-three-at-1	2	Out	D9	n	135
+tbl-col-add-three-at-1	2	Out	E9	n	165
+tbl-col-add-three-at-1	2	Out	F9	n	225
+tbl-col-add-three-at-1	2	Out	G9	n	195
+tbl-col-add-three-at-1	2	Out	H9	n	720
+tbl-col-add-twice	2	Out	A1	s	m-a1
+tbl-col-add-twice	2	Out	C4	s	Sum Amount
+tbl-col-add-twice	2	Out	D4	s	Column Labels
+tbl-col-add-twice	2	Out	C5	s	Row Labels
+tbl-col-add-twice	2	Out	D5	s	Alpha
+tbl-col-add-twice	2	Out	E5	s	Beta
+tbl-col-add-twice	2	Out	F5	s	Delta
+tbl-col-add-twice	2	Out	G5	s	Gamma
+tbl-col-add-twice	2	Out	H5	s	Grand Total
+tbl-col-add-twice	2	Out	C6	s	East
+tbl-col-add-twice	2	Out	D6	n	85
+tbl-col-add-twice	2	Out	E6	n	55
+tbl-col-add-twice	2	Out	F6	n	115
+tbl-col-add-twice	2	Out	G6	n	25
+tbl-col-add-twice	2	Out	H6	n	280
+tbl-col-add-twice	2	Out	C7	s	North
+tbl-col-add-twice	2	Out	D7	n	5
+tbl-col-add-twice	2	Out	E7	n	95
+tbl-col-add-twice	2	Out	F7	n	35
+tbl-col-add-twice	2	Out	G7	n	65
+tbl-col-add-twice	2	Out	H7	n	200
+tbl-col-add-twice	2	Out	C8	s	South
+tbl-col-add-twice	2	Out	D8	n	45
+tbl-col-add-twice	2	Out	E8	n	15
+tbl-col-add-twice	2	Out	F8	n	75
+tbl-col-add-twice	2	Out	G8	n	105
+tbl-col-add-twice	2	Out	H8	n	240
+tbl-col-add-twice	2	Out	C9	s	Grand Total
+tbl-col-add-twice	2	Out	D9	n	135
+tbl-col-add-twice	2	Out	E9	n	165
+tbl-col-add-twice	2	Out	F9	n	225
+tbl-col-add-twice	2	Out	G9	n	195
+tbl-col-add-twice	2	Out	H9	n	720
+tbl-col-collide-end	2	Out	A1	s	m-a1
+tbl-col-collide-end	2	Out	C4	s	Sum Amount
+tbl-col-collide-end	2	Out	D4	s	Column Labels
+tbl-col-collide-end	2	Out	C5	s	Row Labels
+tbl-col-collide-end	2	Out	D5	s	Alpha
+tbl-col-collide-end	2	Out	E5	s	Beta
+tbl-col-collide-end	2	Out	F5	s	Delta
+tbl-col-collide-end	2	Out	G5	s	Gamma
+tbl-col-collide-end	2	Out	H5	s	Grand Total
+tbl-col-collide-end	2	Out	C6	s	East
+tbl-col-collide-end	2	Out	D6	n	85
+tbl-col-collide-end	2	Out	E6	n	55
+tbl-col-collide-end	2	Out	F6	n	115
+tbl-col-collide-end	2	Out	G6	n	25
+tbl-col-collide-end	2	Out	H6	n	280
+tbl-col-collide-end	2	Out	C7	s	North
+tbl-col-collide-end	2	Out	D7	n	5
+tbl-col-collide-end	2	Out	E7	n	95
+tbl-col-collide-end	2	Out	F7	n	35
+tbl-col-collide-end	2	Out	G7	n	65
+tbl-col-collide-end	2	Out	H7	n	200
+tbl-col-collide-end	2	Out	C8	s	South
+tbl-col-collide-end	2	Out	D8	n	45
+tbl-col-collide-end	2	Out	E8	n	15
+tbl-col-collide-end	2	Out	F8	n	75
+tbl-col-collide-end	2	Out	G8	n	105
+tbl-col-collide-end	2	Out	H8	n	240
+tbl-col-collide-end	2	Out	C9	s	Grand Total
+tbl-col-collide-end	2	Out	D9	n	135
+tbl-col-collide-end	2	Out	E9	n	165
+tbl-col-collide-end	2	Out	F9	n	225
+tbl-col-collide-end	2	Out	G9	n	195
+tbl-col-collide-end	2	Out	H9	n	720
+tbl-col-collide-pos	2	Out	A1	s	m-a1
+tbl-col-collide-pos	2	Out	C4	s	Row Labels
+tbl-col-collide-pos	2	Out	D4	s	Sum Amount
+tbl-col-collide-pos	2	Out	C5	s	East
+tbl-col-collide-pos	2	Out	D5	n	280
+tbl-col-collide-pos	2	Out	C6	s	North
+tbl-col-collide-pos	2	Out	D6	n	200
+tbl-col-collide-pos	2	Out	C7	s	South
+tbl-col-collide-pos	2	Out	D7	n	240
+tbl-col-collide-pos	2	Out	C8	s	Grand Total
+tbl-col-collide-pos	2	Out	D8	n	720
+tbl-col-collide-two	2	Out	A1	s	m-a1
+tbl-col-collide-two	2	Out	D4	s	Column Labels
+tbl-col-collide-two	2	Out	C5	s	Row Labels
+tbl-col-collide-two	2	Out	D5	s	Alpha
+tbl-col-collide-two	2	Out	E5	s	Beta
+tbl-col-collide-two	2	Out	F5	s	Delta
+tbl-col-collide-two	2	Out	G5	s	Gamma
+tbl-col-collide-two	2	Out	H5	s	Grand Total
+tbl-col-collide-two	2	Out	C6	s	East
+tbl-col-collide-two	2	Out	C7	s	North
+tbl-col-collide-two	2	Out	C8	s	South
+tbl-col-collide-two	2	Out	C9	s	Grand Total
+tbl-col-delete-then-add	2	Out	A1	s	m-a1
+tbl-col-delete-then-add	2	Out	C4	s	Sum Amount
+tbl-col-delete-then-add	2	Out	D4	s	Column Labels
+tbl-col-delete-then-add	2	Out	C5	s	Row Labels
+tbl-col-delete-then-add	2	Out	D5	s	Alpha
+tbl-col-delete-then-add	2	Out	E5	s	Beta
+tbl-col-delete-then-add	2	Out	F5	s	Delta
+tbl-col-delete-then-add	2	Out	G5	s	Gamma
+tbl-col-delete-then-add	2	Out	H5	s	Grand Total
+tbl-col-delete-then-add	2	Out	C6	s	East
+tbl-col-delete-then-add	2	Out	D6	n	85
+tbl-col-delete-then-add	2	Out	E6	n	55
+tbl-col-delete-then-add	2	Out	F6	n	115
+tbl-col-delete-then-add	2	Out	G6	n	25
+tbl-col-delete-then-add	2	Out	H6	n	280
+tbl-col-delete-then-add	2	Out	C7	s	North
+tbl-col-delete-then-add	2	Out	D7	n	5
+tbl-col-delete-then-add	2	Out	E7	n	95
+tbl-col-delete-then-add	2	Out	F7	n	35
+tbl-col-delete-then-add	2	Out	G7	n	65
+tbl-col-delete-then-add	2	Out	H7	n	200
+tbl-col-delete-then-add	2	Out	C8	s	South
+tbl-col-delete-then-add	2	Out	D8	n	45
+tbl-col-delete-then-add	2	Out	E8	n	15
+tbl-col-delete-then-add	2	Out	F8	n	75
+tbl-col-delete-then-add	2	Out	G8	n	105
+tbl-col-delete-then-add	2	Out	H8	n	240
+tbl-col-delete-then-add	2	Out	C9	s	Grand Total
+tbl-col-delete-then-add	2	Out	D9	n	135
+tbl-col-delete-then-add	2	Out	E9	n	165
+tbl-col-delete-then-add	2	Out	F9	n	225
+tbl-col-delete-then-add	2	Out	G9	n	195
+tbl-col-delete-then-add	2	Out	H9	n	720
+tbl-col-delete-two-then-add	2	Out	A1	s	m-a1
+tbl-col-delete-two-then-add	2	Out	D4	s	Column Labels
+tbl-col-delete-two-then-add	2	Out	C5	s	Row Labels
+tbl-col-delete-two-then-add	2	Out	D5	s	Alpha
+tbl-col-delete-two-then-add	2	Out	E5	s	Beta
+tbl-col-delete-two-then-add	2	Out	F5	s	Delta
+tbl-col-delete-two-then-add	2	Out	G5	s	Gamma
+tbl-col-delete-two-then-add	2	Out	H5	s	Grand Total
+tbl-col-delete-two-then-add	2	Out	C6	s	East
+tbl-col-delete-two-then-add	2	Out	C7	s	North
+tbl-col-delete-two-then-add	2	Out	C8	s	South
+tbl-col-delete-two-then-add	2	Out	C9	s	Grand Total
+tbl-col-sheet-insert-first	2	Out	A1	s	m-a1
+tbl-col-sheet-insert-first	2	Out	C4	s	Sum Amount
+tbl-col-sheet-insert-first	2	Out	D4	s	Column Labels
+tbl-col-sheet-insert-first	2	Out	C5	s	Row Labels
+tbl-col-sheet-insert-first	2	Out	D5	s	Alpha
+tbl-col-sheet-insert-first	2	Out	E5	s	Beta
+tbl-col-sheet-insert-first	2	Out	F5	s	Delta
+tbl-col-sheet-insert-first	2	Out	G5	s	Gamma
+tbl-col-sheet-insert-first	2	Out	H5	s	Grand Total
+tbl-col-sheet-insert-first	2	Out	C6	s	East
+tbl-col-sheet-insert-first	2	Out	D6	n	85
+tbl-col-sheet-insert-first	2	Out	E6	n	55
+tbl-col-sheet-insert-first	2	Out	F6	n	115
+tbl-col-sheet-insert-first	2	Out	G6	n	25
+tbl-col-sheet-insert-first	2	Out	H6	n	280
+tbl-col-sheet-insert-first	2	Out	C7	s	North
+tbl-col-sheet-insert-first	2	Out	D7	n	5
+tbl-col-sheet-insert-first	2	Out	E7	n	95
+tbl-col-sheet-insert-first	2	Out	F7	n	35
+tbl-col-sheet-insert-first	2	Out	G7	n	65
+tbl-col-sheet-insert-first	2	Out	H7	n	200
+tbl-col-sheet-insert-first	2	Out	C8	s	South
+tbl-col-sheet-insert-first	2	Out	D8	n	45
+tbl-col-sheet-insert-first	2	Out	E8	n	15
+tbl-col-sheet-insert-first	2	Out	F8	n	75
+tbl-col-sheet-insert-first	2	Out	G8	n	105
+tbl-col-sheet-insert-first	2	Out	H8	n	240
+tbl-col-sheet-insert-first	2	Out	C9	s	Grand Total
+tbl-col-sheet-insert-first	2	Out	D9	n	135
+tbl-col-sheet-insert-first	2	Out	E9	n	165
+tbl-col-sheet-insert-first	2	Out	F9	n	225
+tbl-col-sheet-insert-first	2	Out	G9	n	195
+tbl-col-sheet-insert-first	2	Out	H9	n	720
+tbl-col-sheet-insert-inside	2	Out	A1	s	m-a1
+tbl-col-sheet-insert-inside	2	Out	C4	s	Sum Amount
+tbl-col-sheet-insert-inside	2	Out	D4	s	Column Labels
+tbl-col-sheet-insert-inside	2	Out	C5	s	Row Labels
+tbl-col-sheet-insert-inside	2	Out	D5	s	Alpha
+tbl-col-sheet-insert-inside	2	Out	E5	s	Beta
+tbl-col-sheet-insert-inside	2	Out	F5	s	Delta
+tbl-col-sheet-insert-inside	2	Out	G5	s	Gamma
+tbl-col-sheet-insert-inside	2	Out	H5	s	Grand Total
+tbl-col-sheet-insert-inside	2	Out	C6	s	East
+tbl-col-sheet-insert-inside	2	Out	D6	n	85
+tbl-col-sheet-insert-inside	2	Out	E6	n	55
+tbl-col-sheet-insert-inside	2	Out	F6	n	115
+tbl-col-sheet-insert-inside	2	Out	G6	n	25
+tbl-col-sheet-insert-inside	2	Out	H6	n	280
+tbl-col-sheet-insert-inside	2	Out	C7	s	North
+tbl-col-sheet-insert-inside	2	Out	D7	n	5
+tbl-col-sheet-insert-inside	2	Out	E7	n	95
+tbl-col-sheet-insert-inside	2	Out	F7	n	35
+tbl-col-sheet-insert-inside	2	Out	G7	n	65
+tbl-col-sheet-insert-inside	2	Out	H7	n	200
+tbl-col-sheet-insert-inside	2	Out	C8	s	South
+tbl-col-sheet-insert-inside	2	Out	D8	n	45
+tbl-col-sheet-insert-inside	2	Out	E8	n	15
+tbl-col-sheet-insert-inside	2	Out	F8	n	75
+tbl-col-sheet-insert-inside	2	Out	G8	n	105
+tbl-col-sheet-insert-inside	2	Out	H8	n	240
+tbl-col-sheet-insert-inside	2	Out	C9	s	Grand Total
+tbl-col-sheet-insert-inside	2	Out	D9	n	135
+tbl-col-sheet-insert-inside	2	Out	E9	n	165
+tbl-col-sheet-insert-inside	2	Out	F9	n	225
+tbl-col-sheet-insert-inside	2	Out	G9	n	195
+tbl-col-sheet-insert-inside	2	Out	H9	n	720
+tbl-col-type-header-right	2	Out	A1	s	m-a1
+tbl-col-type-header-right	2	Out	C4	s	Sum Amount
+tbl-col-type-header-right	2	Out	D4	s	Column Labels
+tbl-col-type-header-right	2	Out	C5	s	Row Labels
+tbl-col-type-header-right	2	Out	D5	s	Alpha
+tbl-col-type-header-right	2	Out	E5	s	Beta
+tbl-col-type-header-right	2	Out	F5	s	Delta
+tbl-col-type-header-right	2	Out	G5	s	Gamma
+tbl-col-type-header-right	2	Out	H5	s	Grand Total
+tbl-col-type-header-right	2	Out	C6	s	East
+tbl-col-type-header-right	2	Out	D6	n	85
+tbl-col-type-header-right	2	Out	E6	n	55
+tbl-col-type-header-right	2	Out	F6	n	115
+tbl-col-type-header-right	2	Out	G6	n	25
+tbl-col-type-header-right	2	Out	H6	n	280
+tbl-col-type-header-right	2	Out	C7	s	North
+tbl-col-type-header-right	2	Out	D7	n	5
+tbl-col-type-header-right	2	Out	E7	n	95
+tbl-col-type-header-right	2	Out	F7	n	35
+tbl-col-type-header-right	2	Out	G7	n	65
+tbl-col-type-header-right	2	Out	H7	n	200
+tbl-col-type-header-right	2	Out	C8	s	South
+tbl-col-type-header-right	2	Out	D8	n	45
+tbl-col-type-header-right	2	Out	E8	n	15
+tbl-col-type-header-right	2	Out	F8	n	75
+tbl-col-type-header-right	2	Out	G8	n	105
+tbl-col-type-header-right	2	Out	H8	n	240
+tbl-col-type-header-right	2	Out	C9	s	Grand Total
+tbl-col-type-header-right	2	Out	D9	n	135
+tbl-col-type-header-right	2	Out	E9	n	165
+tbl-col-type-header-right	2	Out	F9	n	225
+tbl-col-type-header-right	2	Out	G9	n	195
+tbl-col-type-header-right	2	Out	H9	n	720
+tbl-col-type-right	2	Out	A1	s	m-a1
+tbl-col-type-right	2	Out	C4	s	Sum Amount
+tbl-col-type-right	2	Out	D4	s	Column Labels
+tbl-col-type-right	2	Out	C5	s	Row Labels
+tbl-col-type-right	2	Out	D5	s	Alpha
+tbl-col-type-right	2	Out	E5	s	Beta
+tbl-col-type-right	2	Out	F5	s	Delta
+tbl-col-type-right	2	Out	G5	s	Gamma
+tbl-col-type-right	2	Out	H5	s	Grand Total
+tbl-col-type-right	2	Out	C6	s	East
+tbl-col-type-right	2	Out	D6	n	85
+tbl-col-type-right	2	Out	E6	n	55
+tbl-col-type-right	2	Out	F6	n	115
+tbl-col-type-right	2	Out	G6	n	25
+tbl-col-type-right	2	Out	H6	n	280
+tbl-col-type-right	2	Out	C7	s	North
+tbl-col-type-right	2	Out	D7	n	5
+tbl-col-type-right	2	Out	E7	n	95
+tbl-col-type-right	2	Out	F7	n	35
+tbl-col-type-right	2	Out	G7	n	65
+tbl-col-type-right	2	Out	H7	n	200
+tbl-col-type-right	2	Out	C8	s	South
+tbl-col-type-right	2	Out	D8	n	45
+tbl-col-type-right	2	Out	E8	n	15
+tbl-col-type-right	2	Out	F8	n	75
+tbl-col-type-right	2	Out	G8	n	105
+tbl-col-type-right	2	Out	H8	n	240
+tbl-col-type-right	2	Out	C9	s	Grand Total
+tbl-col-type-right	2	Out	D9	n	135
+tbl-col-type-right	2	Out	E9	n	165
+tbl-col-type-right	2	Out	F9	n	225
+tbl-col-type-right	2	Out	G9	n	195
+tbl-col-type-right	2	Out	H9	n	720
+tbln-asc-pair	2	Out	A1	s	m-a1
+tbln-asc-pair	2	Out	D4	s	Column Labels
+tbln-asc-pair	2	Out	C5	s	Row Labels
+tbln-asc-pair	2	Out	D5	s	Alpha
+tbln-asc-pair	2	Out	E5	s	Beta
+tbln-asc-pair	2	Out	F5	s	Delta
+tbln-asc-pair	2	Out	G5	s	Gamma
+tbln-asc-pair	2	Out	H5	s	Grand Total
+tbln-asc-pair	2	Out	C6	s	East
+tbln-asc-pair	2	Out	C7	s	North
+tbln-asc-pair	2	Out	C8	s	South
+tbln-asc-pair	2	Out	C9	s	Grand Total
+tbln-blank-before-column5	2	Out	A1	s	m-a1
+tbln-blank-before-column5	2	Out	C4	s	Row Labels
+tbln-blank-before-column5	2	Out	D4	s	Sum Amount
+tbln-blank-before-column5	2	Out	C5	s	East
+tbln-blank-before-column5	2	Out	D5	n	280
+tbln-blank-before-column5	2	Out	C6	s	North
+tbln-blank-before-column5	2	Out	D6	n	200
+tbln-blank-before-column5	2	Out	C7	s	South
+tbln-blank-before-column5	2	Out	D7	n	240
+tbln-blank-before-column5	2	Out	C8	s	Grand Total
+tbln-blank-before-column5	2	Out	D8	n	720
+tbln-blank-before-column5-two	2	Out	A1	s	m-a1
+tbln-blank-before-column5-two	2	Out	C4	s	Row Labels
+tbln-blank-before-column5-two	2	Out	C5	s	East
+tbln-blank-before-column5-two	2	Out	C6	s	North
+tbln-blank-before-column5-two	2	Out	C7	s	South
+tbln-blank-before-column5-two	2	Out	C8	s	Grand Total
+tbln-blank-with-column1	2	Out	A1	s	m-a1
+tbln-blank-with-column1	2	Out	D4	s	Column Labels
+tbln-blank-with-column1	2	Out	C5	s	Row Labels
+tbln-blank-with-column1	2	Out	D5	s	Alpha
+tbln-blank-with-column1	2	Out	E5	s	Beta
+tbln-blank-with-column1	2	Out	F5	s	Delta
+tbln-blank-with-column1	2	Out	G5	s	Gamma
+tbln-blank-with-column1	2	Out	H5	s	Grand Total
+tbln-blank-with-column1	2	Out	C6	s	East
+tbln-blank-with-column1	2	Out	C7	s	North
+tbln-blank-with-column1	2	Out	C8	s	South
+tbln-blank-with-column1	2	Out	C9	s	Grand Total
+tbln-blank-with-column5	2	Out	A1	s	m-a1
+tbln-blank-with-column5	2	Out	D4	s	Column Labels
+tbln-blank-with-column5	2	Out	C5	s	Row Labels
+tbln-blank-with-column5	2	Out	D5	s	Alpha
+tbln-blank-with-column5	2	Out	E5	s	Beta
+tbln-blank-with-column5	2	Out	F5	s	Delta
+tbln-blank-with-column5	2	Out	G5	s	Gamma
+tbln-blank-with-column5	2	Out	H5	s	Grand Total
+tbln-blank-with-column5	2	Out	C6	s	East
+tbln-blank-with-column5	2	Out	C7	s	North
+tbln-blank-with-column5	2	Out	C8	s	South
+tbln-blank-with-column5	2	Out	C9	s	Grand Total
+tbln-desc-pair	2	Out	A1	s	m-a1
+tbln-desc-pair	2	Out	D4	s	Column Labels
+tbln-desc-pair	2	Out	C5	s	Row Labels
+tbln-desc-pair	2	Out	D5	s	Alpha
+tbln-desc-pair	2	Out	E5	s	Beta
+tbln-desc-pair	2	Out	F5	s	Delta
+tbln-desc-pair	2	Out	G5	s	Gamma
+tbln-desc-pair	2	Out	H5	s	Grand Total
+tbln-desc-pair	2	Out	C6	s	East
+tbln-desc-pair	2	Out	C7	s	North
+tbln-desc-pair	2	Out	C8	s	South
+tbln-desc-pair	2	Out	C9	s	Grand Total
+tbln-desc-pair-at1	2	Out	A1	s	m-a1
+tbln-desc-pair-at1	2	Out	D4	s	Column Labels
+tbln-desc-pair-at1	2	Out	C5	s	Row Labels
+tbln-desc-pair-at1	2	Out	D5	s	Alpha
+tbln-desc-pair-at1	2	Out	E5	s	Beta
+tbln-desc-pair-at1	2	Out	F5	s	Delta
+tbln-desc-pair-at1	2	Out	G5	s	Gamma
+tbln-desc-pair-at1	2	Out	H5	s	Grand Total
+tbln-desc-pair-at1	2	Out	C6	s	East
+tbln-desc-pair-at1	2	Out	C7	s	North
+tbln-desc-pair-at1	2	Out	C8	s	South
+tbln-desc-pair-at1	2	Out	C9	s	Grand Total
+tbln-lower-case	2	Out	A1	s	m-a1
+tbln-lower-case	2	Out	C4	s	Sum Amount
+tbln-lower-case	2	Out	D4	s	Column Labels
+tbln-lower-case	2	Out	C5	s	Row Labels
+tbln-lower-case	2	Out	D5	s	Alpha
+tbln-lower-case	2	Out	E5	s	Beta
+tbln-lower-case	2	Out	F5	s	Delta
+tbln-lower-case	2	Out	G5	s	Gamma
+tbln-lower-case	2	Out	H5	s	Grand Total
+tbln-lower-case	2	Out	C6	s	East
+tbln-lower-case	2	Out	D6	n	85
+tbln-lower-case	2	Out	E6	n	55
+tbln-lower-case	2	Out	F6	n	115
+tbln-lower-case	2	Out	G6	n	25
+tbln-lower-case	2	Out	H6	n	280
+tbln-lower-case	2	Out	C7	s	North
+tbln-lower-case	2	Out	D7	n	5
+tbln-lower-case	2	Out	E7	n	95
+tbln-lower-case	2	Out	F7	n	35
+tbln-lower-case	2	Out	G7	n	65
+tbln-lower-case	2	Out	H7	n	200
+tbln-lower-case	2	Out	C8	s	South
+tbln-lower-case	2	Out	D8	n	45
+tbln-lower-case	2	Out	E8	n	15
+tbln-lower-case	2	Out	F8	n	75
+tbln-lower-case	2	Out	G8	n	105
+tbln-lower-case	2	Out	H8	n	240
+tbln-lower-case	2	Out	C9	s	Grand Total
+tbln-lower-case	2	Out	D9	n	135
+tbln-lower-case	2	Out	E9	n	165
+tbln-lower-case	2	Out	F9	n	225
+tbln-lower-case	2	Out	G9	n	195
+tbln-lower-case	2	Out	H9	n	720
+tbln-nonadjacent	2	Out	A1	s	m-a1
+tbln-nonadjacent	2	Out	C4	s	Row Labels
+tbln-nonadjacent	2	Out	D4	s	Sum Amount
+tbln-nonadjacent	2	Out	C5	s	East
+tbln-nonadjacent	2	Out	D5	n	280
+tbln-nonadjacent	2	Out	C6	s	North
+tbln-nonadjacent	2	Out	D6	n	200
+tbln-nonadjacent	2	Out	C7	s	South
+tbln-nonadjacent	2	Out	D7	n	240
+tbln-nonadjacent	2	Out	C8	s	Grand Total
+tbln-nonadjacent	2	Out	D8	n	720
+tbln-other-prefix	2	Out	A1	s	m-a1
+tbln-other-prefix	2	Out	C4	s	Sum Amount
+tbln-other-prefix	2	Out	D4	s	Column Labels
+tbln-other-prefix	2	Out	C5	s	Row Labels
+tbln-other-prefix	2	Out	D5	s	Alpha
+tbln-other-prefix	2	Out	E5	s	Beta
+tbln-other-prefix	2	Out	F5	s	Delta
+tbln-other-prefix	2	Out	G5	s	Gamma
+tbln-other-prefix	2	Out	H5	s	Grand Total
+tbln-other-prefix	2	Out	C6	s	East
+tbln-other-prefix	2	Out	D6	n	85
+tbln-other-prefix	2	Out	E6	n	55
+tbln-other-prefix	2	Out	F6	n	115
+tbln-other-prefix	2	Out	G6	n	25
+tbln-other-prefix	2	Out	H6	n	280
+tbln-other-prefix	2	Out	C7	s	North
+tbln-other-prefix	2	Out	D7	n	5
+tbln-other-prefix	2	Out	E7	n	95
+tbln-other-prefix	2	Out	F7	n	35
+tbln-other-prefix	2	Out	G7	n	65
+tbln-other-prefix	2	Out	H7	n	200
+tbln-other-prefix	2	Out	C8	s	South
+tbln-other-prefix	2	Out	D8	n	45
+tbln-other-prefix	2	Out	E8	n	15
+tbln-other-prefix	2	Out	F8	n	75
+tbln-other-prefix	2	Out	G8	n	105
+tbln-other-prefix	2	Out	H8	n	240
+tbln-other-prefix	2	Out	C9	s	Grand Total
+tbln-other-prefix	2	Out	D9	n	135
+tbln-other-prefix	2	Out	E9	n	165
+tbln-other-prefix	2	Out	F9	n	225
+tbln-other-prefix	2	Out	G9	n	195
+tbln-other-prefix	2	Out	H9	n	720
+tbln-six-only	2	Out	A1	s	m-a1
+tbln-six-only	2	Out	C4	s	Sum Amount
+tbln-six-only	2	Out	D4	s	Column Labels
+tbln-six-only	2	Out	C5	s	Row Labels
+tbln-six-only	2	Out	D5	s	Alpha
+tbln-six-only	2	Out	E5	s	Beta
+tbln-six-only	2	Out	F5	s	Delta
+tbln-six-only	2	Out	G5	s	Gamma
+tbln-six-only	2	Out	H5	s	Grand Total
+tbln-six-only	2	Out	C6	s	East
+tbln-six-only	2	Out	D6	n	85
+tbln-six-only	2	Out	E6	n	55
+tbln-six-only	2	Out	F6	n	115
+tbln-six-only	2	Out	G6	n	25
+tbln-six-only	2	Out	H6	n	280
+tbln-six-only	2	Out	C7	s	North
+tbln-six-only	2	Out	D7	n	5
+tbln-six-only	2	Out	E7	n	95
+tbln-six-only	2	Out	F7	n	35
+tbln-six-only	2	Out	G7	n	65
+tbln-six-only	2	Out	H7	n	200
+tbln-six-only	2	Out	C8	s	South
+tbln-six-only	2	Out	D8	n	45
+tbln-six-only	2	Out	E8	n	15
+tbln-six-only	2	Out	F8	n	75
+tbln-six-only	2	Out	G8	n	105
+tbln-six-only	2	Out	H8	n	240
+tbln-six-only	2	Out	C9	s	Grand Total
+tbln-six-only	2	Out	D9	n	135
+tbln-six-only	2	Out	E9	n	165
+tbln-six-only	2	Out	F9	n	225
+tbln-six-only	2	Out	G9	n	195
+tbln-six-only	2	Out	H9	n	720
+tbln-sparse	2	Out	A1	s	m-a1
+tbln-sparse	2	Out	D4	s	Column Labels
+tbln-sparse	2	Out	C5	s	Row Labels
+tbln-sparse	2	Out	D5	s	Alpha
+tbln-sparse	2	Out	E5	s	Beta
+tbln-sparse	2	Out	F5	s	Delta
+tbln-sparse	2	Out	G5	s	Gamma
+tbln-sparse	2	Out	H5	s	Grand Total
+tbln-sparse	2	Out	C6	s	East
+tbln-sparse	2	Out	C7	s	North
+tbln-sparse	2	Out	C8	s	South
+tbln-sparse	2	Out	C9	s	Grand Total
+tbln-ten	2	Out	A1	s	m-a1
+tbln-ten	2	Out	C4	s	Sum Amount
+tbln-ten	2	Out	D4	s	Column Labels
+tbln-ten	2	Out	C5	s	Row Labels
+tbln-ten	2	Out	D5	s	Alpha
+tbln-ten	2	Out	E5	s	Beta
+tbln-ten	2	Out	F5	s	Delta
+tbln-ten	2	Out	G5	s	Gamma
+tbln-ten	2	Out	H5	s	Grand Total
+tbln-ten	2	Out	C6	s	East
+tbln-ten	2	Out	D6	n	85
+tbln-ten	2	Out	E6	n	55
+tbln-ten	2	Out	F6	n	115
+tbln-ten	2	Out	G6	n	25
+tbln-ten	2	Out	H6	n	280
+tbln-ten	2	Out	C7	s	North
+tbln-ten	2	Out	D7	n	5
+tbln-ten	2	Out	E7	n	95
+tbln-ten	2	Out	F7	n	35
+tbln-ten	2	Out	G7	n	65
+tbln-ten	2	Out	H7	n	200
+tbln-ten	2	Out	C8	s	South
+tbln-ten	2	Out	D8	n	45
+tbln-ten	2	Out	E8	n	15
+tbln-ten	2	Out	F8	n	75
+tbln-ten	2	Out	G8	n	105
+tbln-ten	2	Out	H8	n	240
+tbln-ten	2	Out	C9	s	Grand Total
+tbln-ten	2	Out	D9	n	135
+tbln-ten	2	Out	E9	n	165
+tbln-ten	2	Out	F9	n	225
+tbln-ten	2	Out	G9	n	195
+tbln-ten	2	Out	H9	n	720
+tbln-three-times-over-three	2	Out	A1	s	m-a1
+tbln-three-times-over-three	2	Out	C4	s	Sum Amount
+tbln-three-times-over-three	2	Out	D4	s	Column Labels
+tbln-three-times-over-three	2	Out	C5	s	Row Labels
+tbln-three-times-over-three	2	Out	D5	s	Alpha
+tbln-three-times-over-three	2	Out	E5	s	Beta
+tbln-three-times-over-three	2	Out	F5	s	Delta
+tbln-three-times-over-three	2	Out	G5	s	Gamma
+tbln-three-times-over-three	2	Out	H5	s	Grand Total
+tbln-three-times-over-three	2	Out	C6	s	East
+tbln-three-times-over-three	2	Out	D6	n	85
+tbln-three-times-over-three	2	Out	E6	n	55
+tbln-three-times-over-three	2	Out	F6	n	115
+tbln-three-times-over-three	2	Out	G6	n	25
+tbln-three-times-over-three	2	Out	H6	n	280
+tbln-three-times-over-three	2	Out	C7	s	North
+tbln-three-times-over-three	2	Out	D7	n	5
+tbln-three-times-over-three	2	Out	E7	n	95
+tbln-three-times-over-three	2	Out	F7	n	35
+tbln-three-times-over-three	2	Out	G7	n	65
+tbln-three-times-over-three	2	Out	H7	n	200
+tbln-three-times-over-three	2	Out	C8	s	South
+tbln-three-times-over-three	2	Out	D8	n	45
+tbln-three-times-over-three	2	Out	E8	n	15
+tbln-three-times-over-three	2	Out	F8	n	75
+tbln-three-times-over-three	2	Out	G8	n	105
+tbln-three-times-over-three	2	Out	H8	n	240
+tbln-three-times-over-three	2	Out	C9	s	Grand Total
+tbln-three-times-over-three	2	Out	D9	n	135
+tbln-three-times-over-three	2	Out	E9	n	165
+tbln-three-times-over-three	2	Out	F9	n	225
+tbln-three-times-over-three	2	Out	G9	n	195
+tbln-three-times-over-three	2	Out	H9	n	720
+tbln-typed-duplicate	2	Out	A1	s	m-a1
+tbln-typed-duplicate	2	Out	C4	s	Sum Amount
+tbln-typed-duplicate	2	Out	D4	s	Column Labels
+tbln-typed-duplicate	2	Out	C5	s	Row Labels
+tbln-typed-duplicate	2	Out	D5	s	Alpha
+tbln-typed-duplicate	2	Out	E5	s	Beta
+tbln-typed-duplicate	2	Out	F5	s	Delta
+tbln-typed-duplicate	2	Out	G5	s	Gamma
+tbln-typed-duplicate	2	Out	H5	s	Grand Total
+tbln-typed-duplicate	2	Out	C6	s	East
+tbln-typed-duplicate	2	Out	D6	n	85
+tbln-typed-duplicate	2	Out	E6	n	55
+tbln-typed-duplicate	2	Out	F6	n	115
+tbln-typed-duplicate	2	Out	G6	n	25
+tbln-typed-duplicate	2	Out	H6	n	280
+tbln-typed-duplicate	2	Out	C7	s	North
+tbln-typed-duplicate	2	Out	D7	n	5
+tbln-typed-duplicate	2	Out	E7	n	95
+tbln-typed-duplicate	2	Out	F7	n	35
+tbln-typed-duplicate	2	Out	G7	n	65
+tbln-typed-duplicate	2	Out	H7	n	200
+tbln-typed-duplicate	2	Out	C8	s	South
+tbln-typed-duplicate	2	Out	D8	n	45
+tbln-typed-duplicate	2	Out	E8	n	15
+tbln-typed-duplicate	2	Out	F8	n	75
+tbln-typed-duplicate	2	Out	G8	n	105
+tbln-typed-duplicate	2	Out	H8	n	240
+tbln-typed-duplicate	2	Out	C9	s	Grand Total
+tbln-typed-duplicate	2	Out	D9	n	135
+tbln-typed-duplicate	2	Out	E9	n	165
+tbln-typed-duplicate	2	Out	F9	n	225
+tbln-typed-duplicate	2	Out	G9	n	195
+tbln-typed-duplicate	2	Out	H9	n	720
+tbln-typed-duplicate-three	2	Out	A1	s	m-a1
+tbln-typed-duplicate-three	2	Out	D4	s	Column Labels
+tbln-typed-duplicate-three	2	Out	C5	s	Row Labels
+tbln-typed-duplicate-three	2	Out	D5	s	Alpha
+tbln-typed-duplicate-three	2	Out	E5	s	Beta
+tbln-typed-duplicate-three	2	Out	F5	s	Delta
+tbln-typed-duplicate-three	2	Out	G5	s	Gamma
+tbln-typed-duplicate-three	2	Out	H5	s	Grand Total
+tbln-typed-duplicate-three	2	Out	C6	s	East
+tbln-typed-duplicate-three	2	Out	C7	s	North
+tbln-typed-duplicate-three	2	Out	C8	s	South
+tbln-typed-duplicate-three	2	Out	C9	s	Grand Total
+tbln-zero	2	Out	A1	s	m-a1
+tbln-zero	2	Out	C4	s	Sum Amount
+tbln-zero	2	Out	D4	s	Column Labels
+tbln-zero	2	Out	C5	s	Row Labels
+tbln-zero	2	Out	D5	s	Alpha
+tbln-zero	2	Out	E5	s	Beta
+tbln-zero	2	Out	F5	s	Delta
+tbln-zero	2	Out	G5	s	Gamma
+tbln-zero	2	Out	H5	s	Grand Total
+tbln-zero	2	Out	C6	s	East
+tbln-zero	2	Out	D6	n	85
+tbln-zero	2	Out	E6	n	55
+tbln-zero	2	Out	F6	n	115
+tbln-zero	2	Out	G6	n	25
+tbln-zero	2	Out	H6	n	280
+tbln-zero	2	Out	C7	s	North
+tbln-zero	2	Out	D7	n	5
+tbln-zero	2	Out	E7	n	95
+tbln-zero	2	Out	F7	n	35
+tbln-zero	2	Out	G7	n	65
+tbln-zero	2	Out	H7	n	200
+tbln-zero	2	Out	C8	s	South
+tbln-zero	2	Out	D8	n	45
+tbln-zero	2	Out	E8	n	15
+tbln-zero	2	Out	F8	n	75
+tbln-zero	2	Out	G8	n	105
+tbln-zero	2	Out	H8	n	240
+tbln-zero	2	Out	C9	s	Grand Total
+tbln-zero	2	Out	D9	n	135
+tbln-zero	2	Out	E9	n	165
+tbln-zero	2	Out	F9	n	225
+tbln-zero	2	Out	G9	n	195
+tbln-zero	2	Out	H9	n	720

@@ -14,8 +14,8 @@ under `../ui28/` was re-run from it on 2026-11-08 (Excel 16.0.20527): the writer
 `pivots-refreshed.tsv` again with 0 differences over 669 cells. Raw run: R2
 `dnacalc-evidence/excel/pivot-w0b-20261108/` (13 files, 2132490 bytes, 0 differences).
 
-Sets: `m1-calculation/` (dc-8wp.9), `m2-formatting/` (dc-8wp.11), `m5-structure/` (structural edits, source growth, overlap, layout on an unrefreshed pivot), `../pivot_getpivotdata/` (dc-8wp.13) and
+Sets: `m1-calculation/` (dc-8wp.9), `m2-formatting/` (dc-8wp.11), `m5-structure/` (structural edits, source growth, overlap, layout on an unrefreshed pivot), `m6-followup/`, `m7-names/` (the names and saves M5 took from memory: blank source header, new table column, the collapsed corner, the saved file of a collapsed or empty pivot), `../pivot_getpivotdata/` (dc-8wp.13) and
 `../pivot_cube/` (dc-8wp.17); the last two are oracle workbooks (`fixtures/<case>/oracle.xlsx`) with their
 captures under `tests/captures/<case>/`, so `cargo xtask corpus --oracle` counts their formula cells (not
 calculated yet: file-cached, which is a failure in every statistic until the engine calculates them).
-`pivot-job.ps1` kinds: `pivots` and `refresh` (UI28 cases), `roundtrip`, `m1`, `m2`, `m3`, `m4`, `m5` (scenario ids by -like pattern, `dlg-` ones with `--extra '{"watch":true}'`) and `open` (replay of workbooks DNA Calc saved; `--extra @files.json`).
+`pivot-job.ps1` kinds: `pivots` and `refresh` (UI28 cases), `roundtrip`, `m1`, `m2`, `m3`, `m4`, `m5` (scenario ids by -like pattern, `dlg-` ones with `--extra '{"watch":true}'`), `m7` (the same, written by `pivot-fixtures.py m7`) and `open` (replay of workbooks DNA Calc saved; `--extra @files.json`).

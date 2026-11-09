@@ -1,0 +1,53 @@
+scenario	stage	corner	kind	value	text	formula	pivot_cell_type	pivot_table
+col-layout-growth-below	1	C4	e	-2146826243	#SPILL!	#SPILL!	0	pvt_m5
+col-layout-growth-below	2	C4	e	-2146826243	#SPILL!	#SPILL!	0	pvt_m5
+col-layout-growth-below	3	C4	e	-2146826243	#SPILL!	#SPILL!	0	pvt_m5
+col-layout-growth-below	4	C4	e	-2146826243	#SPILL!	#SPILL!	0	pvt_m5
+col-layout-growth-right	1	C4	s	Sum Amount	Sum Amount	Sum Amount	4	pvt_m5
+col-layout-growth-right	2	C4	s	Sum Amount	Sum Amount	Sum Amount	4	pvt_m5
+col-layout-growth-right	3	C4	s	Sum Amount	Sum Amount	Sum Amount	4	pvt_m5
+col-layout-growth-right	4	C4	s	Sum Amount	Sum Amount	Sum Amount	4	pvt_m5
+col-refresh-growth-right	1	C4	s	Sum Amount	Sum Amount	Sum Amount	4	pvt_m5
+col-refresh-growth-right	2	C4	e	-2146826243	#SPILL!	#SPILL!	0	pvt_m5
+col-refresh-growth-right	3	C4	e	-2146826243	#SPILL!	#SPILL!	0	pvt_m5
+col-refresh-growth-right	4	C4	e	-2146826243	#SPILL!	#SPILL!	0	pvt_m5
+col-refresh-growth-below	1	C4	s	Sum Amount	Sum Amount	Sum Amount	4	pvt_m5
+col-refresh-growth-below	2	C4	e	-2146826243	#SPILL!	#SPILL!	0	pvt_m5
+col-refresh-growth-below	3	C4	e	-2146826243	#SPILL!	#SPILL!	0	pvt_m5
+col-refresh-growth-below	4	C4	e	-2146826243	#SPILL!	#SPILL!	0	pvt_m5
+col-move-location	1	M4	e	-2146826243	#SPILL!	#SPILL!	0	pvt_m5
+col-move-location	2	M4	e	-2146826243	#SPILL!	#SPILL!	0	pvt_m5
+col-move-location	3	M4	e	-2146826243	#SPILL!	#SPILL!	0	pvt_m5
+col-move-location	4	M4	e	-2146826243	#SPILL!	#SPILL!	0	pvt_m5
+col-create-onto-nonblank	1	C21	e	-2146826243	#SPILL!	#SPILL!	0	pvt_other
+col-create-onto-nonblank	2	C21	e	-2146826243	#SPILL!	#SPILL!	0	pvt_other
+col-create-onto-nonblank	3	C21	e	-2146826243	#SPILL!	#SPILL!	0	pvt_other
+col-create-onto-nonblank	4	C21	e	-2146826243	#SPILL!	#SPILL!	0	pvt_other
+col-collapsed-then-room	1	C4	s	Row Labels	Row Labels	Row Labels	9	pvt_m5
+col-collapsed-then-room	2	C4	s	Row Labels	Row Labels	Row Labels	9	pvt_m5
+col-collapsed-then-room	3	C4	s	Row Labels	Row Labels	Row Labels	9	pvt_m5
+col-collapsed-then-room	4	C4	s	Row Labels	Row Labels	Row Labels	9	pvt_m5
+col-collapsed-edit-field	1	C4	e	-2146826243	#SPILL!	#SPILL!	0	pvt_m5
+col-collapsed-edit-field	2	C4	e	-2146826243	#SPILL!	#SPILL!	0	pvt_m5
+col-collapsed-edit-field	3	C4	e	-2146826243	#SPILL!	#SPILL!	0	pvt_m5
+col-collapsed-edit-field	4	C4	e	-2146826243	#SPILL!	#SPILL!	0	pvt_m5
+stub-delete-value-column	1	C4	s	Sum Amount	Sum Amount	Sum Amount	4	pvt_m5
+stub-delete-value-column	2	C4	empty				9	pvt_m5
+stub-delete-value-column	3	C4	empty				9	pvt_m5
+stub-delete-value-column	4	C4	empty				9	pvt_m5
+stub-delete-all-columns	1	C4	s	Sum Amount	Sum Amount	Sum Amount	4	pvt_m5
+stub-delete-all-columns	2	C4	empty				9	pvt_m5
+stub-delete-all-columns	3	C4	empty				9	pvt_m5
+stub-delete-all-columns	4	C4	empty				9	pvt_m5
+stub-clear-source	1	C4	s	Sum Amount	Sum Amount	Sum Amount	4	pvt_m5
+stub-clear-source	2	C4	empty				9	pvt_m5
+stub-clear-source	3	C4	empty				9	pvt_m5
+stub-clear-source	4	C4	empty				9	pvt_m5
+stub-rename-value-header	1	C4	s	Sum Amount	Sum Amount	Sum Amount	4	pvt_m5
+stub-rename-value-header	2	C4	empty				9	pvt_m5
+stub-rename-value-header	3	C4	empty				9	pvt_m5
+stub-rename-value-header	4	C4	empty				9	pvt_m5
+stub-table-delete-value-column	1	C4	s	Sum Amount	Sum Amount	Sum Amount	4	pvt_m5
+stub-table-delete-value-column	2	C4	empty				9	pvt_m5
+stub-table-delete-value-column	3	C4	empty				9	pvt_m5
+stub-table-delete-value-column	4	C4	empty				9	pvt_m5
