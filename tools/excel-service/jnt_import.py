@@ -87,6 +87,29 @@ def dirsrc(path):
 
 
 BATCHES = {
+    "J12": dict(
+        bead="dc-jnt.16",
+        sheet="jnt_parse_bind",
+        hand=True,
+        title="Parse, bind and entry facts: file-form prefixes, A1 dollar fidelity, entry literals, structured shape facts, diagnostic boundaries",
+        tests=[
+            "parse_bind_fixture_tests.rs",
+            "structured_reference_tests.rs",
+            "sheet_span_3d_reference_tests.rs",
+            "reference_a1_dollar_fidelity_tests.rs",
+            "w079_entry_time_diagnostic_tests.rs",
+            "w079_non_ascii_identifier_tests.rs",
+            "w079_authoring_surface_non_ascii_tests.rs",
+            "w079_excel_file_form_prefix_tests.rs",
+            "ms_oe376_review_tests.rs",
+            "ftc_0288_separator_context_tests.rs",
+            "binding/mod.rs",
+            "binding/excel_prefix.rs",
+            "syntax/combining_marks.rs",
+            "authored_input_tests.rs",
+        ],
+        families=[],
+    ),
     "J5": dict(
         bead="dc-jnt.9",
         sheet="jnt_evaluator_callables",
@@ -982,7 +1005,7 @@ def hand_rows(batch, repo, work):
 
 
 def hand_header(batch):
-    if batch["id"] == "J5":
+    if batch["id"] in ("J5", "J12"):
         return [
             "# %s %s: %s." % (batch["bead"], batch["id"], batch["title"]),
             "# Ported from OxFml@15daac5:crates/oxfml_core/tests/{%s} (unit tests)." % ",".join(batch["tests"]),

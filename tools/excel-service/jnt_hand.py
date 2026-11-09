@@ -1180,7 +1180,74 @@ J5 = [
     ("COLUMN", [n(7)], err("value"), "ftc_builtin_callable_collision_boundary_tests.rs eval_column_rejects_scalar"),
 ]
 
-CASES = {"J10": J10, "J11": J11, "J4": J4, "J5": J5, "J6": J6, "J7": J7, "J8": J8, "J9": J9}
+J12 = [
+    # --- Group 1: Modern file-form prefix functions ---
+    ("XLOOKUP", [n(2), arr_num([[1, 2, 3]]), arr_num([[10, 20, 30]])], num(20.0), "w079_excel_file_form_prefix_tests.rs xlookup_match"),
+    ("XLOOKUP", [n(5), arr_num([[1, 2, 3]]), arr_num([[10, 20, 30]]), lit(-1)], num(-1.0), "w079_excel_file_form_prefix_tests.rs xlookup_default"),
+    ("IFNA", [n(1), lit(2)], num(1.0), "w079_excel_file_form_prefix_tests.rs ifna_val"),
+    ("IFS", [b(True), lit(10), b(False), lit(20)], num(10.0), "w079_excel_file_form_prefix_tests.rs ifs_true"),
+    ("IFS", [b(False), lit(10), b(True), lit(20)], num(20.0), "w079_excel_file_form_prefix_tests.rs ifs_second"),
+    ("SWITCH", [n(2), lit(1), lit(10), lit(2), lit(20), lit(30)], num(20.0), "w079_excel_file_form_prefix_tests.rs switch_2"),
+    ("SWITCH", [n(9), lit(1), lit(10), lit(2), lit(20), lit(30)], num(30.0), "w079_excel_file_form_prefix_tests.rs switch_default"),
+    ("CONCAT", [s("a"), s("b"), s("c")], txt("abc"), "w079_excel_file_form_prefix_tests.rs concat_abc"),
+    ("CONCAT", [s(""), s("x")], txt("x"), "w079_excel_file_form_prefix_tests.rs concat_empty"),
+    ("TEXTJOIN", [s(","), b(True), s("a"), s("b")], txt("a,b"), "w079_excel_file_form_prefix_tests.rs textjoin_comma"),
+    ("TEXTJOIN", [s("-"), b(True), s("1"), s("2"), s("3")], txt("1-2-3"), "w079_excel_file_form_prefix_tests.rs textjoin_dash"),
+    ("STDEV.P", [n(1), n(2), n(3)], num(0.816496580927726), "w079_excel_file_form_prefix_tests.rs stdev_p"),
+    ("SEQUENCE", [lit(1), lit(1), lit(10), lit(1)], num(10.0), "w079_excel_file_form_prefix_tests.rs sequence_scalar"),
+    ("SINGLE", [n(42)], num(42.0), "w079_excel_file_form_prefix_tests.rs single_val"),
+
+    # --- Group 2: Reference inspection & A1 dollar fidelity ---
+    ("ISREF", [n(10)], T_, "reference_a1_dollar_fidelity_tests.rs isref_cell"),
+    ("ISREF", [EMPTY], T_, "reference_a1_dollar_fidelity_tests.rs isref_empty_cell"),
+    ("ISREF", [s("A1")], F_, "reference_a1_dollar_fidelity_tests.rs isref_text_literal"),
+    ("ISBLANK", [EMPTY], T_, "reference_a1_dollar_fidelity_tests.rs isblank_empty"),
+    ("ISBLANK", [n(0)], F_, "reference_a1_dollar_fidelity_tests.rs isblank_zero"),
+    ("ISBLANK", [s("")], F_, "reference_a1_dollar_fidelity_tests.rs isblank_empty_str"),
+    ("N", [n(42)], num(42.0), "parse_bind_fixture_tests.rs n_number"),
+    ("N", [cell_s("hello")], num(0.0), "parse_bind_fixture_tests.rs n_text"),
+    ("N", [b(True)], num(1.0), "parse_bind_fixture_tests.rs n_true"),
+    ("N", [b(False)], num(0.0), "parse_bind_fixture_tests.rs n_false"),
+    ("N", [EMPTY], num(0.0), "parse_bind_fixture_tests.rs n_empty"),
+    ("T", [cell_s("hello")], txt("hello"), "parse_bind_fixture_tests.rs t_text"),
+    ("T", [n(42)], txt(""), "parse_bind_fixture_tests.rs t_number"),
+    ("T", [b(True)], txt(""), "parse_bind_fixture_tests.rs t_boolean"),
+    ("T", [EMPTY], txt(""), "parse_bind_fixture_tests.rs t_empty"),
+
+    # --- Group 3: Cell entry literals (authored_input) ---
+    ("TYPE", [lit(123.4)], num(1.0), "authored_input_tests.rs type_number"),
+    ("TYPE", [s("123.4")], num(2.0), "authored_input_tests.rs type_text"),
+    ("TYPE", [b(True)], num(4.0), "authored_input_tests.rs type_boolean"),
+    ("TYPE", [arr_num([[1, 2]])], num(64.0), "authored_input_tests.rs type_array"),
+    ("VALUE", [s("123.4")], num(123.4), "authored_input_tests.rs value_num_text"),
+    ("VALUE", [s("0123")], num(123.0), "authored_input_tests.rs value_leading_zero"),
+    ("VALUE", [s("  45.6  ")], num(45.6), "authored_input_tests.rs value_whitespace"),
+    ("VALUE", [s("1e2")], num(100.0), "authored_input_tests.rs value_scientific"),
+
+    # --- Group 4: Array dimensions and structured shape facts ---
+    ("COLUMNS", [arr_num([[1, 2, 3]])], num(3.0), "structured_reference_tests.rs cols_1x3"),
+    ("COLUMNS", [arr_num([[1], [2], [3]])], num(1.0), "structured_reference_tests.rs cols_3x1"),
+    ("COLUMNS", [arr_num([[1, 2], [3, 4]])], num(2.0), "structured_reference_tests.rs cols_2x2"),
+    ("ROWS", [arr_num([[1, 2, 3]])], num(1.0), "structured_reference_tests.rs rows_1x3"),
+    ("ROWS", [arr_num([[1], [2], [3]])], num(3.0), "structured_reference_tests.rs rows_3x1"),
+    ("ROWS", [arr_num([[1, 2], [3, 4]])], num(2.0), "structured_reference_tests.rs rows_2x2"),
+    ("INDEX", [arr_num([[10, 20], [30, 40]]), lit(1), lit(2)], num(20.0), "structured_reference_tests.rs index_1_2"),
+    ("INDEX", [arr_num([[10, 20], [30, 40]]), lit(2), lit(1)], num(30.0), "structured_reference_tests.rs index_2_1"),
+    ("INDEX", [arr_num([[10, 20], [30, 40]]), lit(2), lit(2)], num(40.0), "structured_reference_tests.rs index_2_2"),
+
+    # --- Group 5: Diagnostic and boundary cases ---
+    ("IF", [b(True), omitted(), lit(20)], num(0.0), "w079_entry_time_diagnostic_tests.rs if_omitted_true"),
+    ("IF", [b(False), lit(10), omitted()], num(0.0), "w079_entry_time_diagnostic_tests.rs if_omitted_false"),
+    ("IF", [b(True), s(""), lit(20)], txt(""), "w079_entry_time_diagnostic_tests.rs if_empty_str_true"),
+    ("PRODUCT", [EMPTY, lit(5)], num(5.0), "parse_bind_fixture_tests.rs product_empty_cell"),
+    ("SUM", [EMPTY, lit(5)], num(5.0), "parse_bind_fixture_tests.rs sum_empty_cell"),
+    ("SUM", [n(1), lit(2)], num(3.0), "parse_bind_fixture_tests.rs sum_a1_2"),
+    ("AVERAGE", [n(10), lit(20)], num(15.0), "parse_bind_fixture_tests.rs average_a1_20"),
+    ("COUNT", [n(10), cell_s("x"), EMPTY, lit(20)], num(2.0), "parse_bind_fixture_tests.rs count_mixed"),
+    ("COUNTA", [n(10), cell_s("x"), EMPTY, lit(20)], num(3.0), "parse_bind_fixture_tests.rs counta_mixed"),
+]
+
+CASES = {"J10": J10, "J11": J11, "J12": J12, "J4": J4, "J5": J5, "J6": J6, "J7": J7, "J8": J8, "J9": J9}
 
 
 
