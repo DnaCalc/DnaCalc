@@ -32,6 +32,19 @@ def err(code):
     return ("error", code)
 
 
+def lit(v):
+    return ("lit", float(v))
+
+
+def txt(v):
+    return ("text", str(v))
+
+
+def f64_bits(b):
+    import struct
+    return struct.unpack(">d", struct.pack(">Q", b))[0]
+
+
 EMPTY = ("-",)
 T = ("b", True)
 F = ("b", False)
@@ -229,4 +242,125 @@ J11 = [
     f("(0.1+0.2)<0.3", None, OCC + " comparisons_use_excel_near_equal_numeric_ordering"),
 ]
 
-CASES = {"J10": J10, "J11": J11}
+PARITY_DB_DDB = 'db_ddb_excel_parity_20260929.rs'
+PARITY_VDB = 'vdb_switched_excel_parity_20260929.rs'
+PARITY_SYD = 'syd_excel_parity_20260929.rs'
+PARITY_SLN = 'sln_excel_parity_20260929.rs'
+PARITY_BITWISE = 'bitwise_excel_parity_20260929.rs'
+PARITY_AGG = 'aggregate_prepared_excel_parity_20260929.rs'
+COMPLEX_FN = 'complex_family.rs'
+
+J4 = [
+    ("VDB", [n(f64_bits(0x37ed6424f6a0cf14)), n(f64_bits(0x3815bce117a42154)), n(f64_bits(0x3fef45ede58066c6)), n(f64_bits(0x3fd56f481e27ec1c)), n(f64_bits(0x3feae91f71f3e6ab)), n(f64_bits(0x4000000000000000)), lit(0)], num(f64_bits(0xb8024839e169ef5c)), PARITY_VDB + " check_1"),
+    ("VDB", [n(f64_bits(0x4a1199fae464d8ef)), n(f64_bits(0x4a1199fae464d8ee)), n(f64_bits(0x3fe4ed5cecb52239)), n(f64_bits(0x3fbed55d0079ad30)), n(f64_bits(0x3fceb660f2210928)), n(f64_bits(0x0000000000000000)), lit(0)], num(f64_bits(0x46a7638891ffafe2)), PARITY_VDB + " check_2"),
+    ("VDB", [n(f64_bits(0x4937ad196b14dad2)), n(f64_bits(0x4933fcb6ed2a5d5e)), n(f64_bits(0x4041540fae6125ce)), n(f64_bits(0x3fe8290874c98230)), n(f64_bits(0x4022cfceb12002a8)), n(f64_bits(0x0000000000000000)), lit(0)], num(f64_bits(0x48ed77772288692e)), PARITY_VDB + " check_3"),
+    ("VDB", [n(f64_bits(0x30507accf46c7fa5)), n(f64_bits(0x30507accf46c7fa4)), n(f64_bits(0x403223af1474b00f)), n(f64_bits(0x3fdffe0b58e433bc)), n(f64_bits(0x402f3832997baf68)), n(f64_bits(0x40210a47ff6a7425)), lit(0)], num(f64_bits(0x0000000000000000)), PARITY_VDB + " check_4"),
+    ("VDB", [n(f64_bits(0x41c6a4abe3b9442a)), n(f64_bits(0x41c5f7f9d51118c3)), n(f64_bits(0x40379e7792105073)), n(f64_bits(0x3fed8673e0373101)), n(f64_bits(0x3ffec339f01b9881)), n(f64_bits(0x3fd0000000000000)), lit(0)], num(f64_bits(0x415e60de336f4b4a)), PARITY_VDB + " check_5"),
+    ("VDB", [n(f64_bits(0x3b3279d807a14e37)), n(f64_bits(0x3b4fb7e6e9aa9f5b)), n(f64_bits(0x4048cf3b7f3a4eed)), n(f64_bits(0x4045f8a92a4035dd)), n(f64_bits(0x4048c6a8db4d5a6d)), n(f64_bits(0x0000000000000000)), lit(0)], num(f64_bits(0x37ce1ea55cdb9aa3)), PARITY_VDB + " check_6"),
+    ("VDB", [n(f64_bits(0x362839702f5ec8db)), n(f64_bits(0x363f788b54a90925)), n(f64_bits(0x4049a1eef243509d)), n(f64_bits(0x40426dea9f901b59)), n(f64_bits(0x40434696906e04c1)), n(f64_bits(0x0000000000000000)), lit(0)], num(f64_bits(0x32a18ac0477e27d8)), PARITY_VDB + " check_7"),
+    ("VDB", [n(f64_bits(0x3afc74d6e67507da)), n(f64_bits(0x3b1bde61bc60c367)), n(f64_bits(0x4022ae0ea5e22607)), n(f64_bits(0x3fd6a2f34a48d964)), n(f64_bits(0x401c41b3ef7bccb2)), n(f64_bits(0x4000000000000000)), lit(0)], num(f64_bits(0xbb14c12c02c38171)), PARITY_VDB + " check_8"),
+    ("VDB", [n(f64_bits(0x3d892a343c22bf6e)), n(f64_bits(0x3da7f820739c6e3f)), n(f64_bits(0x4029526227df5474)), n(f64_bits(0x4021336336538e3f)), n(f64_bits(0x4021da2d7a69a01e)), n(f64_bits(0x0000000000000000)), lit(0)], num(f64_bits(0x3a0e28d44ba17614)), PARITY_VDB + " check_9"),
+    ("VDB", [n(f64_bits(0x48d6c325f46597cf)), n(f64_bits(0x48eeeee15b5b54c1)), n(f64_bits(0x404735b2a3f64f49)), n(f64_bits(0x3ff350c705499c93)), n(f64_bits(0x403e7b8b4a58a26c)), n(f64_bits(0x0000000000000000)), lit(0)], num(f64_bits(0x4594b86517481cf9)), PARITY_VDB + " check_10"),
+    ("VDB", [n(f64_bits(0x3a6b3cfed21cf476)), n(f64_bits(0x3a88a4bbde6dbb4f)), n(f64_bits(0x404c1f8bba3d2c96)), n(f64_bits(0x4048d85688e7d2f2)), n(f64_bits(0x404a46c1e94d6cdb)), n(f64_bits(0x0000000000000000)), lit(0)], num(f64_bits(0x36fadd8ba169dd60)), PARITY_VDB + " check_11"),
+    ("VDB", [n(f64_bits(0x001b00b3c87c2144)), n(f64_bits(0x0020fac6b213cb21)), n(f64_bits(0x5613a18b0163bf88)), n(f64_bits(0x0000000000000000)), n(f64_bits(0x408c200000000000)), n(f64_bits(0x402590a52fb5b809)), lit(0)], num(f64_bits(0x8006f4d99bab74fe)), PARITY_VDB + " check_12"),
+    ("VDB", [n(f64_bits(0x00bb9705d6aa16e7)), n(f64_bits(0x00bb9705d6aa16e6)), n(f64_bits(0x403e049552c3e7e1)), n(f64_bits(0x3fe9c085c9e9d59c)), n(f64_bits(0x4030fa455f21923a)), n(f64_bits(0x40163a25be2f6d65)), lit(0)], num(f64_bits(0x0000000000000400)), PARITY_VDB + " check_13"),
+    ("VDB", [n(f64_bits(0x00df155e0307a238)), n(f64_bits(0x0000000000000000)), n(f64_bits(0x407430734313c2e2)), n(f64_bits(0x40532bbd6b23d98c)), n(f64_bits(0x407430734313c2e2)), n(f64_bits(0x401486af7910d3b6)), lit(0)], num(f64_bits(0x00c2356f8ee55aea)), PARITY_VDB + " check_14"),
+    ("VDB", [n(f64_bits(0x00eab8f6acfa977f)), n(f64_bits(0x0000000000000000)), n(f64_bits(0x40f21f6a65d73429)), n(f64_bits(0x4081356f0128278d)), n(f64_bits(0x4086db5f85ccb3a6)), n(f64_bits(0x401f5cd2c3f51f67)), lit(0)], num(f64_bits(0x008e6481ed405ea3)), PARITY_VDB + " check_15"),
+    ("VDB", [n(f64_bits(0x012f6c3f495f93cc)), n(f64_bits(0x012f6c3f495f93cb)), n(f64_bits(0x405be86a1a2b9eb9)), n(f64_bits(0x0000000000000000)), n(f64_bits(0x3ff18cdf9648dbc4)), n(f64_bits(0x4011d5665dec0256)), lit(0)], num(f64_bits(0x0000000000020000)), PARITY_VDB + " check_16"),
+    ("VDB", [n(f64_bits(0x007efc36eeb4043f)), n(f64_bits(0x007efc36eeb4043e)), n(f64_bits(0x404f7544f411d469)), n(f64_bits(0x0000000000000000)), n(f64_bits(0x404f7544f411d469)), n(f64_bits(0x402575f6070c68af)), lit(0)], num(f64_bits(0x0000000000000040)), PARITY_VDB + " check_17"),
+    ("VDB", [n(f64_bits(0x0065712c8842e127)), n(f64_bits(0x0065712c8842e126)), n(f64_bits(0x4035864698fab518)), n(f64_bits(0x0000000000000000)), n(f64_bits(0x4013eb0b091ca752)), n(f64_bits(0x400cb8851866ef89)), lit(0)], num(f64_bits(0x0000000000000020)), PARITY_VDB + " check_18"),
+    ("VDB", [n(f64_bits(0x001af144dd21206e)), n(f64_bits(0x001bcc5df08ef736)), n(f64_bits(0x7cceef9b94f783e4)), n(f64_bits(0x0000000000000000)), n(f64_bits(0x408c200000000000)), n(f64_bits(0x012ba6aa80fd5065)), lit(0)], num(f64_bits(0x8000db19136dd6c8)), PARITY_VDB + " check_19"),
+    ("VDB", [n(f64_bits(0x00f370027b8c891e)), n(f64_bits(0x00f370027b8c891d)), n(f64_bits(0x407cc67148ef84d6)), n(f64_bits(0x0000000000000000)), n(f64_bits(0x407b3b9c8fd9a649)), n(f64_bits(0x4020a7ef605047eb)), lit(0)], num(f64_bits(0x0000000000004000)), PARITY_VDB + " check_20"),
+    ("VDB", [n(f64_bits(0x002ded34e2129a73)), n(f64_bits(0x002e30e740cf52c5)), n(f64_bits(0x4074b05ba21d5691)), n(f64_bits(0x0000000000000000)), n(f64_bits(0x406df902815c44b3)), n(f64_bits(0x0000000000000000)), lit(0)], num(f64_bits(0x80008764bd7970a4)), PARITY_VDB + " check_21"),
+    ("VDB", [n(f64_bits(0x008b7ae0197db747)), n(f64_bits(0x008b7ae0197db746)), n(f64_bits(0x40797dfa808c00e4)), n(f64_bits(0x0000000000000000)), n(f64_bits(0x4070b6f56e0858f5)), n(f64_bits(0x4008241dba679bb0)), lit(0)], num(f64_bits(0x0000000000000080)), PARITY_VDB + " check_22"),
+    ("VDB", [n(f64_bits(0x004a758ad516ab07)), n(f64_bits(0x004b6aba320406be)), n(f64_bits(0x7c785da870457170)), n(f64_bits(0x0000000000000000)), n(f64_bits(0x408c200000000000)), n(f64_bits(0x0000000000000000)), lit(0)], num(f64_bits(0x8007a97ae76addb8)), PARITY_VDB + " check_23"),
+    ("VDB", [n(f64_bits(0x018b3a4ff60c1689)), n(f64_bits(0x018b3a4ff60c1688)), n(f64_bits(0x40ce6723fefcd53b)), n(f64_bits(0x0000000000000000)), n(f64_bits(0x40888a68ae364256)), n(f64_bits(0x3fff6487ebe519be)), lit(0)], num(f64_bits(0x0000000000800000)), PARITY_VDB + " check_24"),
+    ("VDB", [n(f64_bits(0x7d163882a7a27e76)), n(f64_bits(0x7fefffffffffffff)), n(f64_bits(0x3ff16e863b64af6b)), n(f64_bits(0x3fc47b7ebc0bf9ee)), n(f64_bits(0x3fd44fe9cc953c8e)), n(f64_bits(0x4006621b9a6f48ff)), lit(0)], err("num"), PARITY_VDB + " check_25"),
+    ("VDB", [n(f64_bits(0x0030000000000000)), n(f64_bits(0x0000000000000000)), n(f64_bits(0x4000000000000000)), n(f64_bits(0x0000000000000000)), n(f64_bits(0x3ff0000000000000)), n(f64_bits(0x3feeffffffffffff)), lit(0)], num(f64_bits(0x0020000000000000)), PARITY_VDB + " check_26"),
+    ("VDB", [n(f64_bits(0x0030000000000000)), n(f64_bits(0x0000000000000000)), n(f64_bits(0x4000000000000000)), n(f64_bits(0x3fd0000000000000)), n(f64_bits(0x3ff4000000000000)), n(f64_bits(0x3feeffffffffffff)), lit(0)], num(f64_bits(0x0020000000000000)), PARITY_VDB + " check_27"),
+    ("VDB", [n(f64_bits(0x0030000000000000)), n(f64_bits(0x0000000000000000)), n(f64_bits(0x4000000000000000)), n(f64_bits(0x3ff0000000000000)), n(f64_bits(0x4000000000000000)), n(f64_bits(0x3feeffffffffffff)), lit(0)], num(f64_bits(0x0020000000000000)), PARITY_VDB + " check_28"),
+    ("VDB", [n(f64_bits(0x0030000000000000)), n(f64_bits(0x0000000000000000)), n(f64_bits(0x4000000000000000)), n(f64_bits(0x0000000000000000)), n(f64_bits(0x3ff0000000000000)), n(f64_bits(0x3fef000000000000)), lit(0)], num(f64_bits(0x0020000000000000)), PARITY_VDB + " check_29"),
+    ("VDB", [n(f64_bits(0x0030000000000000)), n(f64_bits(0x0000000000000000)), n(f64_bits(0x4000000000000000)), n(f64_bits(0x3fd0000000000000)), n(f64_bits(0x3ff4000000000000)), n(f64_bits(0x3fef000000000000)), lit(0)], num(f64_bits(0x0020000000000000)), PARITY_VDB + " check_30"),
+    ("VDB", [n(f64_bits(0x0030000000000000)), n(f64_bits(0x0000000000000000)), n(f64_bits(0x4000000000000000)), n(f64_bits(0x3ff0000000000000)), n(f64_bits(0x4000000000000000)), n(f64_bits(0x3fef000000000000)), lit(0)], num(f64_bits(0x0020000000000000)), PARITY_VDB + " check_31"),
+    ("VDB", [n(f64_bits(0x0030000000000000)), n(f64_bits(0x0000000000000000)), n(f64_bits(0x4000000000000000)), n(f64_bits(0x0000000000000000)), n(f64_bits(0x3ff0000000000000)), n(f64_bits(0x3fef000000000001)), lit(0)], num(f64_bits(0x001f000000000001)), PARITY_VDB + " check_32"),
+    ("VDB", [n(f64_bits(0x0030000000000000)), n(f64_bits(0x0000000000000000)), n(f64_bits(0x4000000000000000)), n(f64_bits(0x3fd0000000000000)), n(f64_bits(0x3ff4000000000000)), n(f64_bits(0x3fef000000000001)), lit(0)], num(f64_bits(0x0022492492492492)), PARITY_VDB + " check_33"),
+    ("VDB", [n(f64_bits(0x0030000000000000)), n(f64_bits(0x0000000000000000)), n(f64_bits(0x4000000000000000)), n(f64_bits(0x3ff0000000000000)), n(f64_bits(0x4000000000000000)), n(f64_bits(0x3fef000000000001)), lit(0)], num(f64_bits(0x0020800000000000)), PARITY_VDB + " check_34"),
+    ("VDB", [n(f64_bits(0x0030000000000000)), n(f64_bits(0x0000000000000000)), n(f64_bits(0x4000000000000000)), n(f64_bits(0x0000000000000000)), n(f64_bits(0x3ff0000000000000)), n(f64_bits(0x3feeffffffffe000)), lit(0)], num(f64_bits(0x0020000000000000)), PARITY_VDB + " check_35"),
+    ("VDB", [n(f64_bits(0x0030000000000000)), n(f64_bits(0x0000000000000000)), n(f64_bits(0x4000000000000000)), n(f64_bits(0x3fd0000000000000)), n(f64_bits(0x3ff4000000000000)), n(f64_bits(0x3feeffffffffe000)), lit(0)], num(f64_bits(0x0020000000000000)), PARITY_VDB + " check_36"),
+    ("VDB", [n(f64_bits(0x0030000000000000)), n(f64_bits(0x0000000000000000)), n(f64_bits(0x4000000000000000)), n(f64_bits(0x3ff0000000000000)), n(f64_bits(0x4000000000000000)), n(f64_bits(0x3feeffffffffe000)), lit(0)], num(f64_bits(0x0020000000000000)), PARITY_VDB + " check_37"),
+    ("VDB", [n(f64_bits(0x0030000000000000)), n(f64_bits(0x0000000000000000)), n(f64_bits(0x4000000000000000)), n(f64_bits(0x0000000000000000)), n(f64_bits(0x3ff0000000000000)), n(f64_bits(0x3fef000000002000)), lit(0)], num(f64_bits(0x001f000000002000)), PARITY_VDB + " check_38"),
+    ("VDB", [n(f64_bits(0x0030000000000000)), n(f64_bits(0x0000000000000000)), n(f64_bits(0x4000000000000000)), n(f64_bits(0x3fd0000000000000)), n(f64_bits(0x3ff4000000000000)), n(f64_bits(0x3fef000000002000)), lit(0)], num(f64_bits(0x0022492492492492)), PARITY_VDB + " check_39"),
+    ("VDB", [n(f64_bits(0x0030000000000000)), n(f64_bits(0x0000000000000000)), n(f64_bits(0x4000000000000000)), n(f64_bits(0x3ff0000000000000)), n(f64_bits(0x4000000000000000)), n(f64_bits(0x3fef000000002000)), lit(0)], num(f64_bits(0x00207ffffffff000)), PARITY_VDB + " check_40"),
+    ("VDB", [n(f64_bits(0x0170000000000000)), n(f64_bits(0x0000000000000000)), n(f64_bits(0x4010000000000000)), n(f64_bits(0x0000000000000000)), n(f64_bits(0x3ff0000000000000)), n(f64_bits(0x3fefffffffffffff)), lit(0)], num(f64_bits(0x014fffffffffffff)), PARITY_VDB + " check_41"),
+    ("VDB", [n(f64_bits(0x0170000000000000)), n(f64_bits(0x0000000000000000)), n(f64_bits(0x4010000000000000)), n(f64_bits(0x0000000000000000)), n(f64_bits(0x3ff0000000000000)), n(f64_bits(0x3ff0000000000000)), lit(0)], num(f64_bits(0x0150000000000000)), PARITY_VDB + " check_42"),
+    ("VDB", [n(f64_bits(0x0170000000000000)), n(f64_bits(0x0000000000000000)), n(f64_bits(0x4010000000000000)), n(f64_bits(0x0000000000000000)), n(f64_bits(0x3ff0000000000000)), n(f64_bits(0x3ff0000000000001)), lit(0)], num(f64_bits(0x0150000000000001)), PARITY_VDB + " check_43"),
+    ("VDB", [n(f64_bits(0x0170000000000000)), n(f64_bits(0x0000000000000000)), n(f64_bits(0x4010000000000000)), n(f64_bits(0x0000000000000000)), n(f64_bits(0x3ff0000000000000)), n(f64_bits(0x3fefffffff800000)), lit(0)], num(f64_bits(0x014fffffff800000)), PARITY_VDB + " check_44"),
+    # db_ddb_excel_parity_20260929.rs
+    ("DB", [n(1000), n(100), n(0.5), n(0.5), n(1)], num(f64_bits(0x4054a00000000000)), PARITY_DB_DDB + " db_period_month_and_book_value_graph"),
+    ("DB", [n(1000), n(100), n(0.5), n(1.99), n(1.5)], num(f64_bits(0x408a050ccccccccc)), PARITY_DB_DDB + " db_period_month_and_book_value_graph"),
+    ("DB", [n(1000), n(100), n(0.5), n(1), n(6)], num(f64_bits(0x406f3f3333333334)), PARITY_DB_DDB + " db_period_month_and_book_value_graph"),
+    ("DB", [n(1000), n(100), n(10), n(11), n(1)], num(f64_bits(0x40374721db621c07)), PARITY_DB_DDB + " db_period_month_and_book_value_graph"),
+    ("DB", [n(1), n(2000), n(10), n(10), n(12)], num(f64_bits(0xc09098da01837956)), PARITY_DB_DDB + " db_period_month_and_book_value_graph"),
+    ("DB", [n(0), n(2000), n(10), n(2), n(12)], num(0), PARITY_DB_DDB + " db_period_month_and_book_value_graph"),
+    ("DB", [n(1000), n(100), n(10), n(11), n(12)], err("num"), PARITY_DB_DDB + " db_period_month_and_book_value_graph"),
+    ("DB", [n(1000), n(100), n(10), n(1), n(0.5)], err("num"), PARITY_DB_DDB + " db_period_month_and_book_value_graph"),
+    ("DDB", [n(1000), n(100), n(10), n(0.5), n(2)], num(f64_bits(0x4069000000000000)), PARITY_DB_DDB + " ddb_fractional_period_and_integer_power_publication"),
+    ("DDB", [n(1000), n(100), n(10), n(10), n(2)], num(f64_bits(0x403ad7f29abcaf4f)), PARITY_DB_DDB + " ddb_fractional_period_and_integer_power_publication"),
+    ("DDB", [n(1000), n(100), n(10), n(10), n(0.5)], num(f64_bits(0x403f8331440a866c)), PARITY_DB_DDB + " ddb_fractional_period_and_integer_power_publication"),
+    ("DDB", [n(1000), n(100), n(10), n(10), n(1)], num(f64_bits(0x40435efb7556c434)), PARITY_DB_DDB + " ddb_fractional_period_and_integer_power_publication"),
+    ("DDB", [n(1), n(0), n(10), n(10), n(2)], num(f64_bits(0x3f9b7cdfd9d7bdc2)), PARITY_DB_DDB + " ddb_fractional_period_and_integer_power_publication"),
+    ("DDB", [n(1000), n(2000), n(10), n(1), n(2)], num(0), PARITY_DB_DDB + " ddb_fractional_period_and_integer_power_publication"),
+    # syd_excel_parity_20260929.rs
+    ("SYD", [n(-100), n(0), n(10), n(1)], num(f64_bits(0xc0322e8ba2e8ba2f)), PARITY_SYD + " syd_accepts_negative_cost_but_rejects_negative_salvage"),
+    ("SYD", [n(100), n(-20), n(10), n(1)], err("num"), PARITY_SYD + " syd_accepts_negative_cost_but_rejects_negative_salvage"),
+    ("SYD", [n(100), n(0), n(10), n(0)], err("num"), PARITY_SYD + " syd_accepts_negative_cost_but_rejects_negative_salvage"),
+    ("SYD", [n(100), n(0), n(1e154), n(1e154)], num(0), PARITY_SYD + " syd_publishes_internal_stages_before_the_quotient"),
+    ("SYD", [n(1e-300), n(0), n(1e-300), n(1e-300)], num(2), PARITY_SYD + " syd_publishes_internal_stages_before_the_quotient"),
+    # sln_excel_parity_20260929.rs
+    ("SLN", [n(100), n(0), n(-1)], num(-100), PARITY_SLN + " sln_signs_exact_zero_life_and_publication"),
+    ("SLN", [n(-3), n(7), n(2)], num(-5), PARITY_SLN + " sln_signs_exact_zero_life_and_publication"),
+    ("SLN", [n(1), n(0), n(1e-13)], num(1e13), PARITY_SLN + " sln_signs_exact_zero_life_and_publication"),
+    ("SLN", [n(1), n(0), n(0)], err("div0"), PARITY_SLN + " sln_signs_exact_zero_life_and_publication"),
+    ("SLN", [n(1), n(1), n(-1)], num(0), PARITY_SLN + " sln_signs_exact_zero_life_and_publication"),
+    # bitwise_excel_parity_20260929.rs
+    ("BITAND", [n(0.9), n(1.0)], err("num"), PARITY_BITWISE + " bitwise_dispatch_rejects_fractional_operands_on_both_sides"),
+    ("BITOR", [n(0.9), n(1.0)], err("num"), PARITY_BITWISE + " bitwise_dispatch_rejects_fractional_operands_on_both_sides"),
+    ("BITXOR", [n(0.9), n(1.0)], err("num"), PARITY_BITWISE + " bitwise_dispatch_rejects_fractional_operands_on_both_sides"),
+    ("BITLSHIFT", [n(0.9), n(0.0)], err("num"), PARITY_BITWISE + " bitwise_dispatch_rejects_fractional_operands_on_both_sides"),
+    ("BITRSHIFT", [n(0.9), n(0.0)], err("num"), PARITY_BITWISE + " bitwise_dispatch_rejects_fractional_operands_on_both_sides"),
+    ("BITLSHIFT", [n(1.0), n(47.0)], num(140737488355328.0), PARITY_BITWISE + " bitwise_dispatch_shift_direction_overflow_and_shortcuts"),
+    ("BITLSHIFT", [n(1.0), n(53.0)], num(0.0), PARITY_BITWISE + " bitwise_dispatch_shift_direction_overflow_and_shortcuts"),
+    ("BITRSHIFT", [n(1.0), n(-53.0)], num(0.0), PARITY_BITWISE + " bitwise_dispatch_shift_direction_overflow_and_shortcuts"),
+    ("BITLSHIFT", [n(197029275778236.0), n(-13.5)], num(24051425265.0), PARITY_BITWISE + " bitwise_dispatch_shift_direction_overflow_and_shortcuts"),
+    # aggregate_prepared_excel_parity_20260929.rs
+    ("HARMEAN", [EMPTY, n(8.0)], num(8.0), PARITY_AGG + " blank_cells_are_ignored_but_explicit_missing_contributes_zero"),
+    ("DEVSQ", [EMPTY, n(8.0)], num(0.0), PARITY_AGG + " blank_cells_are_ignored_but_explicit_missing_contributes_zero"),
+    ("HARMEAN", [EMPTY], err("na"), PARITY_AGG + " blank_cells_are_ignored_but_explicit_missing_contributes_zero"),
+    ("DEVSQ", [EMPTY], err("num"), PARITY_AGG + " blank_cells_are_ignored_but_explicit_missing_contributes_zero"),
+    # complex_family.rs
+    ("COMPLEX", [n(3), n(4)], txt("3+4i"), COMPLEX_FN + " complex_rendering_and_basic_arithmetic_match_observations"),
+    ("COMPLEX", [n(3), n(-4)], txt("3-4i"), COMPLEX_FN + " complex_rendering_and_basic_arithmetic_match_observations"),
+    ("COMPLEX", [n(0), n(1)], txt("i"), COMPLEX_FN + " complex_rendering_and_basic_arithmetic_match_observations"),
+    ("COMPLEX", [n(0), n(-1)], txt("-i"), COMPLEX_FN + " complex_rendering_and_basic_arithmetic_match_observations"),
+    ("COMPLEX", [n(3), n(0)], txt("3"), COMPLEX_FN + " complex_rendering_and_basic_arithmetic_match_observations"),
+    ("COMPLEX", [n(0), n(0)], txt("0"), COMPLEX_FN + " complex_rendering_and_basic_arithmetic_match_observations"),
+    ("IMCONJUGATE", [s("3+4i")], txt("3-4i"), COMPLEX_FN + " complex_rendering_and_basic_arithmetic_match_observations"),
+    ("IMCONJUGATE", [s("3+4j")], txt("3-4j"), COMPLEX_FN + " complex_rendering_and_basic_arithmetic_match_observations"),
+    ("IMABS", [s("3+4i")], num(5.0), COMPLEX_FN + " complex_rendering_and_basic_arithmetic_match_observations"),
+    ("IMREAL", [s("3+4i")], num(3.0), COMPLEX_FN + " complex_rendering_and_basic_arithmetic_match_observations"),
+    ("IMAGINARY", [s("3+4i")], num(4.0), COMPLEX_FN + " complex_rendering_and_basic_arithmetic_match_observations"),
+    ("IMDIV", [s("3+4i"), s("1-2i")], txt("-1+2i"), COMPLEX_FN + " complex_rendering_and_basic_arithmetic_match_observations"),
+    ("IMSUM", [s("3"), s("1+2j")], txt("4+2j"), COMPLEX_FN + " complex_rendering_and_basic_arithmetic_match_observations"),
+    ("IMPRODUCT", [s("3+4i"), s("1-2i")], txt("11-2i"), COMPLEX_FN + " complex_rendering_and_basic_arithmetic_match_observations"),
+    ("IMPOWER", [s("3+4i"), n(2)], txt("-7+24i"), COMPLEX_FN + " power_and_domain_lanes_match_excel_observations"),
+    ("IMPOWER", [s("3+4i"), n(0)], txt("1"), COMPLEX_FN + " power_and_domain_lanes_match_excel_observations"),
+    ("IMARGUMENT", [n(0)], err("div0"), COMPLEX_FN + " power_and_domain_lanes_match_excel_observations"),
+    ("IMDIV", [s("3+4i"), n(0)], err("num"), COMPLEX_FN + " power_and_domain_lanes_match_excel_observations"),
+    ("IMLN", [n(0)], err("num"), COMPLEX_FN + " power_and_domain_lanes_match_excel_observations"),
+    ("IMSUM", [s("3+4i"), T], err("value"), COMPLEX_FN + " power_and_domain_lanes_match_excel_observations"),
+    ("IMTAN", [s("3+4i")], txt("-0.000187346204629478+0.999355987381473i"), COMPLEX_FN + " tan_and_cot_use_excel_stable_identities"),
+    ("IMCOT", [s("3+4i")], txt("-0.000187587737983659-1.00064439247156i"), COMPLEX_FN + " tan_and_cot_use_excel_stable_identities"),
+]
+
+CASES = {"J10": J10, "J11": J11, "J4": J4}
+

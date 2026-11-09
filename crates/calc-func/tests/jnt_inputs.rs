@@ -20,6 +20,7 @@ const WORKBOOK: &[u8] = include_bytes!("fixtures/jnt/oracle.xlsx");
 const CAPTURES: &[(&str, &str)] = &[
     ("jnt_dates_random", include_str!("captures/jnt/sections/jnt_dates_random.capture.json")),
     ("jnt_operators", include_str!("captures/jnt/sections/jnt_operators.capture.json")),
+    ("jnt_parity_complex", include_str!("captures/jnt/sections/jnt_parity_complex.capture.json")),
     ("jnt_w111_elementary", include_str!("captures/jnt/sections/jnt_w111_elementary.capture.json")),
     ("jnt_w111_rounding", include_str!("captures/jnt/sections/jnt_w111_rounding.capture.json")),
     ("jnt_w111_text_dates", include_str!("captures/jnt/sections/jnt_w111_text_dates.capture.json")),
@@ -31,6 +32,7 @@ const SECTIONS: &[(&str, &str)] = &[
     ("jnt_w111_text_dates", include_str!("fixtures/jnt/sheet-jnt_w111_text_dates.txt")),
     ("jnt_dates_random", include_str!("fixtures/jnt/sheet-jnt_dates_random.txt")),
     ("jnt_operators", include_str!("fixtures/jnt/sheet-jnt_operators.txt")),
+    ("jnt_parity_complex", include_str!("fixtures/jnt/sheet-jnt_parity_complex.txt")),
 ];
 
 fn unescape(text: &str) -> String {
