@@ -102,3 +102,40 @@ html, body { margin: 0; background: var(--dna-paper); color: var(--dna-ink); }
 .oc-vba-panel{padding:10px;border:1px solid var(--dna-line);border-radius:6px}
 @media(max-width:850px){.oc{padding:12px}.oc-row{grid-template-columns:minmax(0,1fr)}.oc-head{padding:14px}.oc .oc-sub{padding:0 14px 14px}.oc .oc-inputs,.oc .oc-inputs tbody{display:block}.oc .oc-inputs thead{display:none}.oc .oc-inputs tr{display:grid;grid-template-columns:1fr 1fr;gap:4px;padding:8px 0;border-bottom:1px solid var(--dna-line)}.oc .oc-inputs td{display:block;padding:2px}.oc .oc-inputs td:nth-child(4){grid-column:1/-1;grid-row:3}.oc .oc-inputs td:nth-child(5){grid-column:2;grid-row:2;text-align:right}.oc .oc-inputs td:nth-child(1)::before{content:"Cell"}.oc .oc-inputs td:nth-child(2)::before{content:"Type"}.oc .oc-inputs td:nth-child(3)::before{content:"Value"}.oc .oc-inputs td::before{display:block;color:var(--dna-ink-2);font-size:11px;margin-bottom:3px}.oc-primary-result .oc-value{font-size:26px}}
 @media(pointer:coarse){.oc button,.oc select{min-height:36px}}
+
+/* The Inputs area: the scratch grid, collapsed until the formula reads cells (dc-0f1k). */
+.oc-inputs-panel{padding:8px 12px;border:1px solid var(--dna-line);border-radius:6px;background:var(--dna-paper-2)}
+.oc-inputs-panel>summary{cursor:pointer;font-weight:600;color:var(--dna-ink-2);font-size:13px}
+.oc-inputs-panel>summary span{font-weight:400;color:var(--dna-ink-3)}
+.oc-inputs-panel .oc-prov{line-height:1.45}
+
+/* The array result scrolls inside the result panel: fixed headers, rows drawn as they come into view. */
+.oc-array-scroll{max-height:min(360px,60vh);overflow:auto;overscroll-behavior:contain;border:1px solid var(--dna-line);border-radius:6px;margin:6px 0;max-width:100%;-webkit-overflow-scrolling:touch;background:var(--dna-paper)}
+.oc-array-scroll:focus-visible{outline:2px solid var(--dna-accent-ink);outline-offset:1px}
+.oc-array-scroll .oc-array{margin:0;border-collapse:separate;border-spacing:0}
+.oc-array-scroll .oc-array th,.oc-array-scroll .oc-array td{height:24px;box-sizing:border-box;line-height:16px;border-right:1px solid var(--dna-line);border-bottom:1px solid var(--dna-line);padding:3px 8px;white-space:nowrap}
+.oc-array-scroll .oc-array thead th{position:sticky;top:0;z-index:2;background:var(--dna-paper-2);color:var(--dna-ink-3);font-weight:400;text-align:center}
+.oc-array-scroll .oc-array tbody th{position:sticky;left:0;z-index:1;background:var(--dna-paper-2);color:var(--dna-ink-3);font-weight:400;text-align:right;min-width:36px}
+.oc-array-scroll .oc-array thead th.oc-corner{left:0;z-index:3}
+.oc-array-scroll .oc-array tr.oc-spacer td{padding:0;border:0}
+.oc-icon{display:inline-block;margin-right:4px;font-weight:700}
+.oc-primary-result{max-height:560px}
+
+/* The Effective Display, Formatting and Conditional Formatting panels. */
+.oc-effective{margin:8px 0;font-size:12px}
+.oc-effective summary{cursor:pointer;font-weight:600;color:var(--dna-ink-2)}
+.oc-effective ul{margin:6px 0;padding-left:20px;color:var(--dna-ink-2);line-height:1.5}
+.oc-fields{display:grid;grid-template-columns:repeat(auto-fill,minmax(min(150px,100%),1fr));gap:4px 12px;align-items:end}
+.oc-fields>*,.oc-cf-rule>*{min-width:0}
+.oc-fields input:not([type=checkbox]),.oc-fields select,.oc-cf-rule>label select{width:100%;max-width:100%}
+.oc-fields label{margin:6px 0}
+.oc-fields .oc-check{flex-direction:row;align-items:center;gap:6px;font-weight:400}
+.oc-fields .oc-check input{width:auto}
+.oc-cf-add{display:flex;flex-wrap:wrap;gap:8px;align-items:end}
+.oc-cf-rules{list-style:none;margin:10px 0 0;padding:0;display:grid;gap:8px}
+.oc-cf-rule{border:1px solid var(--dna-line);border-radius:6px;padding:8px 10px;background:var(--dna-paper)}
+.oc-cf-rule>header{display:flex;flex-wrap:wrap;gap:8px;align-items:center;justify-content:space-between;margin-bottom:4px}
+.oc-cf-rule>header button{padding:3px 8px;font-size:12px;margin-left:4px}
+.oc-help-details{margin:8px 0;padding:8px 10px;border:1px solid var(--dna-line);border-radius:6px}
+.oc-help-details>summary{cursor:pointer;font-weight:600;color:var(--dna-ink-2);font-size:13px}
+@media (max-width:700px){.oc-array-scroll{max-height:min(300px,55vh)}.oc-fields{grid-template-columns:minmax(0,1fr)}.oc-cf-rule,.oc-format-controls{min-width:0}}

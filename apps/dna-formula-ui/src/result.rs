@@ -60,6 +60,22 @@ impl ValueState {
 /// The most rows an array window shows at first.
 const FIRST_WINDOW_ROWS: usize = 32;
 
+/// The most cells a scrolling window holds (an app whose result panel scrolls and draws only the
+/// rows in view, DNA OneCalc), the most rows and the most columns.
+pub const MAX_SCROLL_WINDOW_CELLS: usize = 50_000;
+pub const MAX_SCROLL_WINDOW_ROWS: usize = 10_000;
+pub const MAX_SCROLL_WINDOW_COLS: usize = 200;
+
+/// How much of an array result a view holds.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub enum Windowing {
+    /// The first window: up to 32 rows within [`MAX_ARRAY_WINDOW_CELLS`] cells.
+    #[default]
+    First,
+    /// A window of up to [`MAX_SCROLL_WINDOW_CELLS`] cells for a panel that scrolls over it.
+    Scrolling,
+}
+
 /// One cell of an array window: its value type and its value as text.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct WindowCell {
@@ -108,13 +124,25 @@ pub fn array_window(
     col_count: usize,
     profile: Option<&FormatProfile>,
 ) -> Result<ArrayWindow, ArrayWindowError> {
+    window_within(array, row_offset, col_offset, row_count, col_count, profile, MAX_ARRAY_WINDOW_CELLS)
+}
+
+fn window_within(
+    array: &CalcArray,
+    row_offset: usize,
+    col_offset: usize,
+    row_count: usize,
+    col_count: usize,
+    profile: Option<&FormatProfile>,
+    limit: usize,
+) -> Result<ArrayWindow, ArrayWindowError> {
     if row_count == 0 || col_count == 0 {
         return Err(ArrayWindowError::Empty);
     }
     if row_count
         .checked_mul(col_count)
         .ok_or(ArrayWindowError::Overflow)?
-        > MAX_ARRAY_WINDOW_CELLS
+        > limit
     {
         return Err(ArrayWindowError::TooLarge);
     }
@@ -160,6 +188,19 @@ pub fn first_window(array: &CalcArray, profile: Option<&FormatProfile>) -> Array
         .cols
         .min((MAX_ARRAY_WINDOW_CELLS / rows.max(1)).max(1));
     array_window(array, 0, 0, rows, cols, profile).expect("the first window lies inside the array")
+}
+
+/// The window of `array` a scrolling panel draws from: up to [`MAX_SCROLL_WINDOW_ROWS`] rows and
+/// [`MAX_SCROLL_WINDOW_COLS`] columns within [`MAX_SCROLL_WINDOW_CELLS`] cells, from the top left.
+pub fn scrolling_window(array: &CalcArray, profile: Option<&FormatProfile>) -> ArrayWindow {
+    let shape = array.shape();
+    let cols = shape.cols.min(MAX_SCROLL_WINDOW_COLS).max(1);
+    let rows = shape
+        .rows
+        .min(MAX_SCROLL_WINDOW_ROWS)
+        .min((MAX_SCROLL_WINDOW_CELLS / cols).max(1));
+    window_within(array, 0, 0, rows, cols, profile, MAX_SCROLL_WINDOW_CELLS)
+        .expect("the scrolling window lies inside the array")
 }
 
 /// A value's type as the surface labels it.
@@ -259,10 +300,22 @@ impl ResultView {
     /// The view of a calculation's result (`None`: the diagnostics stopped it), numbers shown
     /// under `profile` as a cell shows them.
     pub fn of(result: Option<&CalcValue>, profile: Option<&FormatProfile>) -> ResultView {
+        Self::windowed(result, profile, Windowing::First)
+    }
+
+    /// [`ResultView::of`] with an array held as `windowing` says.
+    pub fn windowed(
+        result: Option<&CalcValue>,
+        profile: Option<&FormatProfile>,
+        windowing: Windowing,
+    ) -> ResultView {
         match result {
             None => ResultView::NotCalculated,
             Some(value) => match value.core() {
-                CoreValue::Array(array) => ResultView::Array(first_window(array, profile)),
+                CoreValue::Array(array) => ResultView::Array(match windowing {
+                    Windowing::First => first_window(array, profile),
+                    Windowing::Scrolling => scrolling_window(array, profile),
+                }),
                 CoreValue::Error(code) => ResultView::Error {
                     code: display::error_spelling(*code),
                     meaning: error_meaning(*code),
@@ -413,6 +466,30 @@ mod tests {
         let window = array_window(&large, 10, 20, 2, 3, None).expect("inside");
         assert_eq!(window.cells[1][2].text, (11 * 100 + 22).to_string());
     }
+
+    #[cfg_attr(not(target_arch = "wasm32"), test)]
+    #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+    fn a_scrolling_window_holds_thousands_of_rows_within_its_bounds() {
+        let tall = numbers(30_000, 3);
+        let window = scrolling_window(&tall, None);
+        assert_eq!(window.cells.len(), MAX_SCROLL_WINDOW_ROWS);
+        assert_eq!(window.cells[0].len(), 3);
+        assert_eq!(window.total_rows, 30_000);
+        assert!(window.truncated());
+        assert_eq!(window.cells[9_999][2].text, (9_999 * 3 + 2).to_string());
+        let wide = numbers(1_000, 1_000);
+        let window = scrolling_window(&wide, None);
+        assert_eq!(window.cells[0].len(), MAX_SCROLL_WINDOW_COLS);
+        assert!(window.cells.len() * window.cells[0].len() <= MAX_SCROLL_WINDOW_CELLS);
+        // The first window of the same array is unchanged: 32 rows within 4,096 cells.
+        assert_eq!(first_window(&wide, None).cells.len(), 32);
+        let small = numbers(2, 2);
+        assert!(!scrolling_window(&small, None).truncated());
+        assert!(matches!(
+            ResultView::windowed(Some(&CalcValue::array(tall)), None, Windowing::Scrolling),
+            ResultView::Array(ArrayWindow { total_rows: 30_000, .. })
+        ));
+    }
 }
 /// One entry of a format picker: the group it is listed under, its name, and its format code in the
 /// locale's separators (the form the format box takes).
@@ -483,32 +560,41 @@ pub fn formatted_view(
     code: &str,
     date_system: calc_func::locale::DateSystem,
 ) -> Result<ResultView, String> {
-    let mut view = ResultView::of(result, profile);
+    formatted_view_windowed(result, profile, code, date_system, Windowing::First)
+}
+
+/// A value as a cell shows it under the format `code` (see [`formatted_view`]).
+pub fn formatted_text(
+    value: &CalcValue,
+    profile: &FormatProfile,
+    code: &str,
+    date_system: calc_func::locale::DateSystem,
+) -> Result<String, String> {
+    if !matches!(value.core(), CoreValue::Number(_) | CoreValue::Text(_)) {
+        return Ok(shown(value, Some(profile)));
+    }
+    calc_func::cell_text_localized(profile, date_system, value, code).map_err(|e| match e {
+        calc_func::CellFormatError::Unshowable => "This value cannot be shown in that format".to_owned(),
+        calc_func::CellFormatError::NotModelled => "This number format is not modelled".to_owned(),
+    })
+}
+
+/// [`formatted_view`] with an array held as `windowing` says.
+pub fn formatted_view_windowed(
+    result: Option<&CalcValue>,
+    profile: Option<&FormatProfile>,
+    code: &str,
+    date_system: calc_func::locale::DateSystem,
+    windowing: Windowing,
+) -> Result<ResultView, String> {
+    let mut view = ResultView::windowed(result, profile, windowing);
     if code.trim().is_empty() || code.eq_ignore_ascii_case("General") {
         return Ok(view);
     }
     let Some(profile) = profile else {
         return Err("The selected number-format locale is unavailable".into());
     };
-    let format = |value: &CalcValue| {
-        if !matches!(value.core(), CoreValue::Number(_) | CoreValue::Text(_)) {
-            return Ok(shown(value, Some(profile)));
-        }
-        calc_func::cell_text_localized(
-            profile,
-            date_system,
-            value,
-            code,
-        )
-        .map_err(|e| match e {
-            calc_func::CellFormatError::Unshowable => {
-                "This value cannot be shown in that format".to_owned()
-            }
-            calc_func::CellFormatError::NotModelled => {
-                "This number format is not modelled".to_owned()
-            }
-        })
-    };
+    let format = |value: &CalcValue| formatted_text(value, profile, code, date_system);
     match (&mut view, result) {
         (ResultView::Value { text, exact, .. }, Some(value)) => {
             *text = format(value)?;

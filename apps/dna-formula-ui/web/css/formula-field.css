@@ -27,3 +27,13 @@
 .oc-trace{margin:8px 0}.oc-trace header{display:flex;gap:8px;align-items:center;flex-wrap:wrap}.oc-trace h2{margin:0;font-size:1rem}
 .oc-trace-steps{list-style:decimal;padding-left:2em;font:13px ui-monospace,Consolas,monospace}.oc-trace-steps li{cursor:pointer;padding:1px 4px}.oc-trace-steps li.oc-depth-1{margin-left:1em}.oc-trace-steps li.oc-depth-2{margin-left:2em}.oc-trace-steps li.oc-depth-3{margin-left:3em}.oc-trace-steps li.oc-depth-4{margin-left:4em}.oc-trace-steps li.oc-depth-5{margin-left:5em}.oc-trace-steps li.oc-depth-6{margin-left:6em}.oc-trace-steps li.oc-depth-7{margin-left:7em}.oc-trace-steps li.oc-depth-8{margin-left:8em}
 .oc-trace-steps li.oc-trace-current{background:var(--dna-amber-soft)}
+/* The completion list and signature help as a pop-up at the caret (anchored_field). */
+.oc-mirror{position:absolute;inset:0;margin:0;padding:8px 10px;box-sizing:border-box;white-space:pre-wrap;word-break:break-all;font:inherit;visibility:hidden;pointer-events:none;z-index:30}
+.oc-anchor{position:relative;display:inline-block;width:0;height:1.5em;vertical-align:top;visibility:visible}
+.oc-pop-down,.oc-sig-up{position:absolute;left:0;visibility:visible;pointer-events:auto;white-space:normal;word-break:normal;min-width:240px;max-width:min(440px,86vw)}
+.oc-pop-down{top:100%}
+.oc-sig-up{bottom:100%}
+.oc-pop-down .oc-pop{margin:2px 0 0;max-height:min(220px,40vh)}
+.oc-sig-up .oc-sig{margin:0 0 2px;box-shadow:0 2px 8px #0002}
+.oc-pop li{touch-action:manipulation}
+@media (max-width:700px){.oc-anchor{position:static}.oc-pop-down,.oc-sig-up{left:0;right:0;max-width:none}}
