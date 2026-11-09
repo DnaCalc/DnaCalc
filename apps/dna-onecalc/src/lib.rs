@@ -24,12 +24,14 @@
 //! recalculation order.
 
 pub mod bridge;
+pub mod cf;
 pub mod display;
 #[cfg(test)]
 mod format_oracle;
 pub mod file;
 mod fixture;
 pub mod grid;
+pub mod panels;
 pub mod port;
 pub mod result;
 pub mod rtd;

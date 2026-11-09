@@ -10,6 +10,7 @@ description = "The package for the CalcDoc codec: reading, writing and preservin
 portability = "portable"
 
 [dependencies]
+calc-catalogue = { path = "../calc-catalogue" }
 calc-doc-model = { path = "../calc-doc-model" }
 # The formula language's one lexer, which moves a shared formula's text to each of its members.
 calc-fml = { path = "../calc-fml" }

@@ -42,6 +42,7 @@ class Pending:
         self.inputs = {}
         self.error = None
         self.env_ids = set()
+        self.env_by_position = [None] * calls
         self.t_submit = time.monotonic()
         self.t_done = None
         self.rows, self.function, self.index = rows, function, result_index
@@ -53,6 +54,7 @@ class Pending:
         for g in frame["g"]:
             positions = range(g["o"], g["o"] + len(g["ty"])) if "o" in g else g["i"]
             for p, l, x in zip(positions, g["ty"], g["v"]):
+                self.env_by_position[p] = frame.get("env")
                 self.letters[p] = l
                 self.values[p] = x
             if "ity" in g:

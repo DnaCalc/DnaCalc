@@ -31,7 +31,9 @@
 //! from a memo, an effect or a view, where the browser smoke test (`cargo xtask app smoke
 //! onecalc`) sees it.
 
+use crate::cf::LookWire;
 use crate::grid;
+use crate::panels;
 use crate::port::{Link, LoadedAddin, LocalLink, LocalPort, MacrosView, Opened, Reply, Request};
 use crate::session::{AddinRef, Session, SessionOptions};
 use crate::shown::{Authored, Shown, ViewWire};
@@ -120,6 +122,14 @@ fn surface(link: Rc<dyn Link>) -> impl IntoView {
     let locale = RwSignal::new(initial.locale.clone());
     let number_format = RwSignal::new(initial.number_format.clone());
     let date_1904 = RwSignal::new(initial.date_1904);
+    // The Formatting and Conditional Formatting panels' state.
+    let style = RwSignal::new(initial.style.clone());
+    let cf_rules = RwSignal::new(initial.cf_rules.clone());
+    // The Inputs area (the scratch grid) is closed until the formula reads cells.
+    let inputs_open = RwSignal::new(false);
+    let function_help_open = RwSignal::new(false);
+    // Where the person was in the array result: kept while a diagnostic replaces it for a moment.
+    let array_scroll = RwSignal::new((0i32, 0i32));
     let shown = RwSignal::new(Shown::default());
 
     let braces = move || array_entry.with(Option::is_some);
@@ -134,6 +144,8 @@ fn surface(link: Rc<dyn Link>) -> impl IntoView {
         number_format: number_format.get(),
         date_1904: date_1904.get(),
         now: None,
+        style: style.get(),
+        cf_rules: cf_rules.get(),
     });
 
     // F9 on a selected part asks the session for that part's value over the authored state;
@@ -159,6 +171,37 @@ fn surface(link: Rc<dyn Link>) -> impl IntoView {
             .with_untracked(|text| dna_formula_ui::display::parse_address(text))
             .unwrap_or((1, grid::COLUMNS))
     });
+
+    // The Inputs area opens when the formula starts to name a cell (an edit that still names one
+    // leaves it as the person set it), and when point mode puts a
+    // reference to one in the formula; a person can open and close it by hand.
+    let names_a_cell = Memo::new(move |_| {
+        formula.with(|text| {
+            calc_fml::assist::highlight(text).iter().any(|run| {
+                run.role == calc_fml::assist::TokenRole::Name
+                    && dna_formula_ui::display::parse_address(&run.text.replace('$', "")).is_some()
+            })
+        })
+    });
+    Effect::new(move |previous: Option<bool>| {
+        let now = names_a_cell.get();
+        if now && previous != Some(true) {
+            inputs_open.set(true);
+        }
+        now
+    });
+    Effect::new(move |_| {
+        if assist.pointed_cells().is_some() {
+            inputs_open.set(true);
+        }
+    });
+    // F1 in the formula field opens the function help.
+    let help_key = move |ev: &leptos::ev::KeyboardEvent| {
+        if ev.key() == "F1" && !ev.ctrl_key() && !ev.alt_key() && !ev.meta_key() {
+            ev.prevent_default();
+            function_help_open.update(|open| *open = !*open);
+        }
+    };
 
     // The evaluation trace (dna-formula-ui's panel, which DNA Calc shows too): the steps the session
     // listed for the authored state it was asked about. It is stale once the state differs.
@@ -325,6 +368,8 @@ fn surface(link: Rc<dyn Link>) -> impl IntoView {
             locale.set(state.locale);
             number_format.set(state.number_format);
             date_1904.set(state.date_1904);
+            style.set(state.style);
+            cf_rules.set(state.cf_rules);
         });
     };
     let apply_opened = move |opened: Opened| {
@@ -603,6 +648,7 @@ fn surface(link: Rc<dyn Link>) -> impl IntoView {
         );
     };
     let on_key = Callback::new(move |ev: leptos::ev::KeyboardEvent| {
+        help_key(&ev);
         if ev.key() == "Enter" && (ev.ctrl_key() || ev.meta_key()) && ev.shift_key() {
             ev.prevent_default();
             array_entry.set(Some(formula.get_untracked()));
@@ -658,13 +704,47 @@ fn surface(link: Rc<dyn Link>) -> impl IntoView {
         })
     };
 
-    let result_view = move || {
+    // The result view is rebuilt only when the kind of result changes; an array result's panel stays
+    // mounted while the formula is edited, so that the person keeps their place in it.
+    let view_kind = Memo::new(move |_| {
         shown.with(|shown| match &shown.view {
-            ViewWire::NoFormula => view! {
-                <div class="oc-empty"><p>"Start with one Excel formula and supply the inputs it reads."</p><button data-onecalc="try-example" on:click=move |_| request.run(Pending::Example(Box::new(Authored::example_sum())))>"Try SUM with two inputs"</button></div>
-            }
-            .into_any(),
-            ViewWire::Value { kind, text, exact } => {
+            ViewWire::NoFormula => 0u8,
+            ViewWire::Value { .. } => 1,
+            ViewWire::Error { .. } => 2,
+            ViewWire::Array { .. } => 3,
+            ViewWire::NotCalculated => 4,
+        })
+    });
+    let look_attributes = |look: &Option<LookWire>| {
+        let fill = look.as_ref().map(|look| look.fill.clone()).unwrap_or_default();
+        let color = look.as_ref().map(|look| look.color.clone()).unwrap_or_default();
+        let bar = look
+            .as_ref()
+            .and_then(|look| look.bar)
+            .map(|bar| format!("{:.0}", bar * 100.0))
+            .unwrap_or_default();
+        (fill, color, bar)
+    };
+    // The result's looks are applied after each draw, through the CSS object model (the page's
+    // content policy refuses inline style attributes).
+    let primary = NodeRef::<leptos::html::Div>::new();
+    Effect::new(move |_| {
+        shown.track();
+        view_kind.track();
+        if let Some(root) = primary.get() {
+            panels::apply_data_css_soon(root.into());
+        }
+    });
+    let result_view = move || match view_kind.get() {
+        0 => view! {
+            <div class="oc-empty"><p>"Start with one Excel formula and supply the inputs it reads."</p><button data-onecalc="try-example" on:click=move |_| request.run(Pending::Example(Box::new(Authored::example_sum())))>"Try SUM with two inputs"</button></div>
+        }
+        .into_any(),
+        1 => (move || {
+            shown.with(|shown| {
+                let ViewWire::Value { kind, text, exact, look } = &shown.view else {
+                    return ().into_any();
+                };
                 let (kind, text) = (kind.clone(), text.clone());
                 let exact = exact.clone().map(|exact| {
                     view! {
@@ -673,77 +753,60 @@ fn surface(link: Rc<dyn Link>) -> impl IntoView {
                         </span></details>
                     }
                 });
+                let (fill, color, bar) = look_attributes(look);
+                let style_text = format!(
+                    "{}{}",
+                    shown.style_css,
+                    look.as_ref().map(LookWire::css).unwrap_or_default()
+                );
+                let icon = look.as_ref().and_then(|look| {
+                    look.icon_index.map(|_| {
+                        view! { <span class="oc-icon" data-onecalc="cell-icon" aria-hidden="true" data-css=format!("color:{}", look.icon_color)>{look.icon_glyph.clone()}</span> }
+                    })
+                });
                 view! {
                     <div>
                         <span class="oc-kind" data-onecalc="result-type">{kind}</span>
-                        <span class="oc-value" data-onecalc="result-value">{text}</span>
+                        <span class="oc-value" data-onecalc="result-value" data-css=style_text data-fill=fill data-color=color data-bar=bar>{icon}{text}</span>
                         {exact}
                     </div>
                 }
                 .into_any()
-            }
-            ViewWire::Error { code, meaning } => {
+            })
+        })
+        .into_any(),
+        2 => (move || {
+            shown.with(|shown| {
+                let ViewWire::Error { code, meaning, look } = &shown.view else {
+                    return ().into_any();
+                };
                 let (code, meaning) = (code.clone(), meaning.clone());
+                let (fill, color, bar) = look_attributes(look);
+                let style_text = format!(
+                    "{}{}",
+                    shown.style_css,
+                    look.as_ref().map(LookWire::css).unwrap_or_default()
+                );
                 view! {
                     <div>
                         <span class="oc-kind" data-onecalc="result-type">"error"</span>
-                        <span class="oc-value oc-err" data-onecalc="result-value">{code}</span>
+                        <span class="oc-value oc-err" data-onecalc="result-value" data-css=style_text data-fill=fill data-color=color data-bar=bar>{code}</span>
                         " "
                         <span class="oc-err" data-onecalc="result-error">{meaning}</span>
                     </div>
                 }
                 .into_any()
-            }
-            ViewWire::Array {
-                total_rows,
-                total_cols,
-                truncated,
-                cells,
-            } => {
-                let caption = format!(
-                    "{total_rows} x {total_cols} array{}",
-                    if *truncated {
-                        format!(
-                            ", first {} rows by {} columns shown",
-                            cells.len(),
-                            cells.first().map_or(0, Vec::len)
-                        )
-                    } else {
-                        String::new()
-                    }
-                );
-                let body = cells
-                    .iter()
-                    .map(|row| {
-                        let cells = row
-                            .iter()
-                            .map(|cell| {
-                                let (kind, text) = (cell.kind.clone(), cell.text.clone());
-                                view! { <td data-kind=kind.clone() title=kind>{text}</td> }
-                            })
-                            .collect_view();
-                        view! { <tr>{cells}</tr> }
-                    })
-                    .collect_view();
-                view! {
-                    <div>
-                        <span class="oc-kind" data-onecalc="result-type">"array"</span>
-                        <span data-onecalc="result-shape">{caption}</span>
-                        <table class="oc-array" data-onecalc="result-array" role="grid">
-                            <tbody>{body}</tbody>
-                        </table>
-                    </div>
-                }
-                .into_any()
-            }
-            ViewWire::NotCalculated => view! {
-                <div>
-                    <span class="oc-kind" data-onecalc="result-type">"no value"</span>
-                    <span class="oc-err">"The formula was not calculated; see below."</span>
-                </div>
-            }
-            .into_any(),
+            })
         })
+        .into_any(),
+        3 => panels::array_panel(shown, array_scroll).into_any(),
+        _ => view! {
+            <div>
+                <span class="oc-kind" data-onecalc="result-type">"no value"</span>
+                <span class="oc-err">"The formula was not calculated; see below."</span>
+            </div>
+        }
+        .into_any(),
     };
 
     let grid_header = (1..=grid::COLUMNS)
@@ -942,7 +1005,7 @@ fn surface(link: Rc<dyn Link>) -> impl IntoView {
             <div class="oc-row">
                 <div class="oc-col">
                     {assist
-                        .field(
+                        .anchored_field(
                             Signal::derive(move || {
                                 shown.with(|shown| {
                                     shown
@@ -956,8 +1019,6 @@ fn surface(link: Rc<dyn Link>) -> impl IntoView {
                             2,
                             "=SUM(A1:A3)",
                         )}
-                    {assist.popup()}
-                    {assist.signature()}
                     <p class="oc-prov" role="status" data-onecalc="part-status">{move || assist.part_status().get()}</p>
                     <p>
                         <span class="oc-prov" data-onecalc="array-formula" hidden=move || !braces()>
@@ -981,7 +1042,7 @@ fn surface(link: Rc<dyn Link>) -> impl IntoView {
                     </p>
                     <section class="oc-result" data-onecalc="result-panel" aria-labelledby="oc-result-title">
                         <header><h2 id="oc-result-title">"Result"</h2><span class="oc-result-state" data-onecalc="result-state">{move ||shown.with(|s|s.state.clone())}</span></header>
-                        <div class="oc-primary-result" data-onecalc="primary-result" aria-live="polite">{result_view}</div>
+                        <div class="oc-primary-result" data-onecalc="primary-result" aria-live="polite" node_ref=primary>{result_view}</div>
                         <p class="oc-format-note" data-onecalc="format-note">{move ||shown.with(|s|s.format_note.clone())}</p>
                         <ul class="oc-diags" data-onecalc="diagnostics">{move ||shown.with(|s|s.diagnostics.clone()).into_iter().map(|line|view!{<li>{line}</li>}).collect_view()}</ul>
                         <details class="oc-calculation-details" data-onecalc="result-details"><summary>"Calculation details"</summary>
@@ -991,6 +1052,7 @@ fn surface(link: Rc<dyn Link>) -> impl IntoView {
                             <ol class="oc-reads" data-onecalc="reads">{move ||shown.with(|s|s.reads.clone()).into_iter().map(|line|view!{<li>{line}</li>}).collect_view()}</ol>
                         </details>
                     </section>
+                    {panels::effective_panel(shown)}
                     {trace_panel.view(assist, trace_identity, trace_start)}
                     <details class="oc-format-controls" data-onecalc="format-controls"><summary data-onecalc="format-tools">"Format & locale"</summary>
                         <label>"Locale"<select data-onecalc="locale" prop:value=move ||locale.get() on:change=move |ev|locale.set(event_target_value(&ev))>{SessionOptions::LOCALES.into_iter().map(|name|view!{<option value=name>{name}</option>}).collect_view()}</select></label>
@@ -1026,18 +1088,31 @@ fn surface(link: Rc<dyn Link>) -> impl IntoView {
                         }}</p>
                         <p class="oc-prov">"Formulas use English function names, commas between arguments and a dot for decimals. Numeric inputs also use a dot. Ctrl+Shift+Enter enters the formula as a legacy array formula, {=...}, as in Excel."</p>
                     </details>
-                    {assist.help()}
+                    {panels::formatting_panel(style)}
+                    {panels::cf_panel(cf_rules)}
+                    {panels::colour_list()}
+                    <details class="oc-help-details" data-onecalc="function-help-details" prop:open=move || function_help_open.get()
+                        on:toggle=move |ev| function_help_open.set(event_target::<web_sys::HtmlElement>(&ev).has_attribute("open"))>
+                        <summary data-onecalc="function-help-tools">"Function help · F1 in the formula"</summary>
+                        <p class="oc-prov">"Help for the function the caret is in, or for the one chosen in the completion list."</p>
+                        {assist.help()}
+                    </details>
                 </div>
                 <div class="oc-col">
-                    <div class="oc-panel">
-                        <h2>{format!("Scratch grid: {FIRST_SHEET}!A1:{}", grid::address(grid::ROWS, grid::COLUMNS))}</h2>
+                    <details class="oc-panel oc-inputs-panel" data-onecalc="inputs" prop:open=move || inputs_open.get()
+                        on:toggle=move |ev| inputs_open.set(event_target::<web_sys::HtmlElement>(&ev).has_attribute("open"))>
+                        <summary data-onecalc="inputs-tools">"Inputs · "<span data-onecalc="inputs-count">{move || {
+                            let filled = entries.with(|entries| entries.iter().filter(|entry| !entry.trim().is_empty()).count());
+                            if filled == 0 { "no values entered".to_owned() } else { format!("{filled} cell(s) with values") }
+                        }}</span></summary>
+                        <p class="oc-prov" data-onecalc="inputs-note">{format!("The cells your formula can read: Sheet1!A1:{}. Type constants here, then refer to them, for example =SUM(A1:A3). With the caret in the formula, arrow keys or a click on a cell here put its reference in the formula. These cells are saved with the session file.", grid::address(grid::ROWS, grid::COLUMNS))}</p>
                         <div class="oc-gridwrap">
                             <table class="oc-grid" data-onecalc="grid">
                                 <thead><tr><th></th>{grid_header}</tr></thead>
                                 <tbody>{grid_body}</tbody>
                             </table>
                         </div>
-                    </div>
+                    </details>
                     <details class="oc-panel oc-vba-panel"><summary data-onecalc="vba-tools">"VBA functions"</summary>
                         <textarea
                             data-onecalc="vba-source"

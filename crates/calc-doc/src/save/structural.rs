@@ -25,7 +25,7 @@
 //! - Every chart's series formulas (`c:f`) are rewritten.
 //!
 //! What names the edited sheet's cells and is not moved here is refused
-//! ([`SaveRefusal::StructuralNotMoved`]): a pivot table or cache over the sheet, a relationship of
+//! ([`SaveRefusal::StructuralNotMoved`]): a relationship of
 //! the sheet of a kind not listed above, a worksheet element that holds positions this pass does
 //! not move (scenarios, OLE objects, controls, cell watches, custom sheet views, data
 //! consolidation, smart tags, web publishing items), an extension's item all of whose cells an
@@ -77,12 +77,10 @@ const THREADED_COMMENTS: &str =
     "http://schemas.microsoft.com/office/spreadsheetml/2018/threadedcomments";
 const CHART_CONTENT_TYPE: &str =
     "application/vnd.openxmlformats-officedocument.drawingml.chart+xml";
-const PIVOT_CACHE_CONTENT_TYPE: &str =
-    "application/vnd.openxmlformats-officedocument.spreadsheetml.pivotCacheDefinition+xml";
 const RELATIONSHIPS: &str = "http://schemas.openxmlformats.org/officeDocument/2006/relationships/";
 
 /// The relationship types of a worksheet whose targets hold no position of its cells.
-const HELD_KINDS: [&str; 4] = ["printerSettings", "hyperlink", "image", "customProperty"];
+const HELD_KINDS: [&str; 5] = ["printerSettings", "hyperlink", "image", "customProperty", "pivotTable"];
 const THREADED_COMMENT_KIND: &str =
     "http://schemas.microsoft.com/office/2017/10/relationships/threadedComment";
 
@@ -1858,31 +1856,8 @@ pub(super) fn moved(
             }
         }
     }
-    // A pivot cache over an edited sheet would keep its source range where it was.
-    for part in package.parts() {
-        if part.content_type() != Some(PIVOT_CACHE_CONTENT_TYPE) {
-            continue;
-        }
-        let bytes = package
-            .read_part(part.name())
-            .map_err(|error| SaveRefusal::Part {
-                part: part.name().to_owned(),
-                error,
-            })?;
-        for (sheet, moves) in base.sheets().iter().zip(&out.moves) {
-            if moves.is_none() {
-                continue;
-            }
-            let mut needle = b"sheet=".to_vec();
-            super::text::attribute_value(&sheet.name().text().to_string_lossy(), &mut needle);
-            if find(&bytes, 0, &needle).is_some() {
-                return Err(not_moved(
-                    part.name(),
-                    "a pivot cache whose source is an edited sheet",
-                ));
-            }
-        }
-    }
+    // A pivot cache over an edited sheet: its source range moved in the model (ModelRoot::pivots_after_axis_edit)
+    // and the pivot writer rewrites `cacheSource`; a pivot table's location is written from its area likewise.
     for (index, sheet) in sheets.iter().enumerate() {
         let mut current = read_part(package, sheet.part().name())?;
         let mut changed = false;

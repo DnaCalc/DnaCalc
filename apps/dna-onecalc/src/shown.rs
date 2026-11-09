@@ -7,6 +7,7 @@
 //! session that state, calculates, and says what to show. [`authored_of`] is the other direction:
 //! the state a session holds, for a surface to show after a file opens.
 
+use crate::cf::{self, CellStyle, CfRuleSpec, LookWire};
 use crate::display;
 use crate::grid::{self, Entry};
 use crate::result::{self, ResultView};
@@ -38,6 +39,12 @@ pub struct Authored {
     pub date_1904: bool,
     /// The clock (a serial date number) the page reads, for NOW and TODAY.
     pub now: Option<f64>,
+    /// The Formatting panel: how the result is drawn. Not saved in the session file.
+    #[serde(default)]
+    pub style: CellStyle,
+    /// The Conditional Formatting panel's rules, in priority order. Not saved in the session file.
+    #[serde(default)]
+    pub cf_rules: Vec<CfRuleSpec>,
 }
 
 impl Default for Authored {
@@ -53,6 +60,8 @@ impl Default for Authored {
             number_format: options.number_format,
             date_1904: options.date_1904,
             now: None,
+            style: CellStyle::default(),
+            cf_rules: Vec::new(),
         }
     }
 }
@@ -88,6 +97,9 @@ pub struct GridShown {
 pub struct WindowCellView {
     pub kind: String,
     pub text: String,
+    /// What the rules, the number format's colour and the Formatting panel give the cell.
+    #[serde(default)]
+    pub look: Option<LookWire>,
 }
 
 /// The result as the surface lays it out ([`ResultView`] with owned text, so it serialises).
@@ -99,10 +111,14 @@ pub enum ViewWire {
         kind: String,
         text: String,
         exact: Option<String>,
+        #[serde(default)]
+        look: Option<LookWire>,
     },
     Error {
         code: String,
         meaning: String,
+        #[serde(default)]
+        look: Option<LookWire>,
     },
     Array {
         total_rows: usize,
@@ -121,10 +137,12 @@ impl ViewWire {
                 kind: (*kind).to_owned(),
                 text: text.clone(),
                 exact: exact.clone(),
+                look: None,
             },
             ResultView::Error { code, meaning } => ViewWire::Error {
                 code: (*code).to_owned(),
                 meaning: (*meaning).to_owned(),
+                look: None,
             },
             ResultView::Array(window) => ViewWire::Array {
                 total_rows: window.total_rows,
@@ -138,6 +156,7 @@ impl ViewWire {
                             .map(|cell| WindowCellView {
                                 kind: cell.kind.to_owned(),
                                 text: cell.text.clone(),
+                                look: None,
                             })
                             .collect()
                     })
@@ -163,6 +182,13 @@ pub struct Shown {
     /// units.
     pub diagnostic_spans: Vec<(usize, usize)>,
     pub reads: Vec<String>,
+    /// The Effective Display panel: the number format, the Formatting panel's choices, what the
+    /// conditional formats did, and how the result is drawn.
+    #[serde(default)]
+    pub effective: Vec<String>,
+    /// The Formatting panel's CSS declarations for the result.
+    #[serde(default)]
+    pub style_css: String,
     /// Which table of registered functions (add-ins and a VBA module) the session calls with. The
     /// functions themselves come once per version, by [`crate::port::Request::FunctionDocs`]: a
     /// table of thousands of functions is not sent with every answer.
@@ -298,19 +324,25 @@ fn evaluate_authored(session: &mut Session, authored: &Authored) -> Shown {
     let profile = session
         .environment()
         .and_then(|environment| environment.profile);
-    let (view, format_note) = match result::formatted_view(
+    let date_system = if *date_1904 {
+        calc_func::locale::DateSystem::System1904
+    } else {
+        calc_func::locale::DateSystem::System1900
+    };
+    let (view, format_note) = match result::formatted_view_windowed(
         calculation.result.as_ref(),
         profile.as_ref(),
         number_format,
-        if *date_1904 {
-            calc_func::locale::DateSystem::System1904
-        } else {
-            calc_func::locale::DateSystem::System1900
-        },
+        date_system,
+        result::Windowing::Scrolling,
     ) {
         Ok(view) => (view, String::new()),
         Err(note) => (
-            ResultView::of(calculation.result.as_ref(), profile.as_ref()),
+            ResultView::windowed(
+                calculation.result.as_ref(),
+                profile.as_ref(),
+                result::Windowing::Scrolling,
+            ),
             format!("Format unavailable: {note}. General display is shown."),
         ),
     };
@@ -374,6 +406,14 @@ fn evaluate_authored(session: &mut Session, authored: &Authored) -> Shown {
             crate::Diagnostic::Eval(_) | crate::Diagnostic::UserFunction(_) => None,
         })
         .collect();
+    let (wire, effective) = present(
+        session,
+        authored,
+        calculation.result.as_ref(),
+        &view,
+        profile.as_ref(),
+        date_system,
+    );
     Shown {
         formula_cell,
         grid: shown_grid,
@@ -381,7 +421,9 @@ fn evaluate_authored(session: &mut Session, authored: &Authored) -> Shown {
             Some(value) => display::value(value),
             None => "not calculated".to_owned(),
         },
-        view: ViewWire::of(&view),
+        view: wire,
+        effective,
+        style_css: authored.style.css(),
         state: state.to_owned(),
         format_note,
         provenance: result::provenance(session, &calculation).unwrap_or_default(),
@@ -398,6 +440,114 @@ fn evaluate_authored(session: &mut Session, authored: &Authored) -> Shown {
             .collect(),
         functions_version: 0,
     }
+}
+
+/// The wire form of the result's view with each cell's look: what the number format's colour and
+/// the conditional-format rules give it, and the lines of the Effective Display panel.
+fn present(
+    session: &Session,
+    authored: &Authored,
+    result: Option<&calc_func::value::CalcValue>,
+    view: &ResultView,
+    profile: Option<&calc_func::locale::FormatProfile>,
+    date_system: calc_func::locale::DateSystem,
+) -> (ViewWire, Vec<String>) {
+    use calc_func::value::{CalcArray, CoreValue};
+    let mut wire = ViewWire::of(view);
+    let mut effective = Vec::new();
+    let code = authored.number_format.trim();
+    let general = code.is_empty() || code.eq_ignore_ascii_case("General");
+    effective.push(format!(
+        "Number format: {} ({})",
+        if general { "General" } else { code },
+        authored.locale
+    ));
+    effective.extend(authored.style.describe());
+    let Some(value) = result else {
+        return (wire, effective);
+    };
+    // The cells the result is a range of: an array's, or the one cell of a scalar.
+    let scalar;
+    let array: &CalcArray = match value.core() {
+        CoreValue::Array(array) => array,
+        _ => {
+            scalar = CalcArray::from_rows(vec![vec![value.clone()]]).expect("a 1 x 1 array");
+            &scalar
+        }
+    };
+    let (rows, cols) = match &wire {
+        ViewWire::Array { cells, .. } => (cells.len(), cells.first().map_or(0, Vec::len)),
+        _ => (1, 1),
+    };
+    if rows == 0 || cols == 0 {
+        return (wire, effective);
+    }
+    let outcome = if authored.cf_rules.is_empty() {
+        cf::Outcome::default()
+    } else {
+        cf::evaluate(&authored.cf_rules, array, rows, cols, session.environment())
+    };
+    let look_of = |row: usize, col: usize| -> Option<LookWire> {
+        let cell = array.get(row, col)?;
+        let rules = outcome
+            .looks
+            .get(row)
+            .and_then(|r| r.get(col))
+            .cloned()
+            .unwrap_or_default();
+        // A number format a rule gave shows the cell's text; the colour a number format names
+        // (the cell's own, or the rule's) is the font colour either way.
+        let text = match (&rules.number_format, profile) {
+            (Some(rule_code), Some(profile)) => {
+                result::formatted_text(cell, profile, rule_code, date_system).ok()
+            }
+            _ => None,
+        };
+        let format_code = rules.number_format.as_deref().unwrap_or(code);
+        let format_color = (!format_code.is_empty() && !format_code.eq_ignore_ascii_case("General"))
+            .then(|| calc_func::cell_color(format_code, cell))
+            .flatten()
+            .map(|color| color.rgb());
+        LookWire::of(&rules, format_color, text)
+    };
+    match &mut wire {
+        ViewWire::Array { cells, .. } => {
+            for (r, row) in cells.iter_mut().enumerate() {
+                for (c, cell) in row.iter_mut().enumerate() {
+                    cell.look = look_of(r, c);
+                    if let Some(text) = cell.look.as_ref().and_then(|look| look.text.clone()) {
+                        cell.text = text;
+                    }
+                }
+            }
+        }
+        ViewWire::Value { look, text, .. } => {
+            *look = look_of(0, 0);
+            if let Some(shown) = look.as_ref().and_then(|look| look.text.clone()) {
+                *text = shown;
+            }
+        }
+        ViewWire::Error { look, .. } => *look = look_of(0, 0),
+        _ => {}
+    }
+    effective.extend(outcome.notes.iter().cloned());
+    if !authored.cf_rules.is_empty() {
+        effective.push(format!(
+            "Conditional formats changed {} of {} cell(s) shown.",
+            outcome.changed,
+            rows * cols
+        ));
+    }
+    if rows == 1 && cols == 1 {
+        let look = match &wire {
+            ViewWire::Value { look, .. } | ViewWire::Error { look, .. } => look.clone(),
+            _ => None,
+        };
+        if let Some(look) = look {
+            effective.push(format!("Result drawn with {}.", look.describe()));
+        }
+    }
+    (wire, effective)
 }
 
 /// The authored state a session holds: what the surface shows after a file opens.
@@ -462,7 +612,8 @@ mod tests {
             ViewWire::Value {
                 kind: "number".to_owned(),
                 text: "7".to_owned(),
-                exact: None
+                exact: None,
+                look: None
             }
         );
         assert_eq!(shown.grid[7].kind, "formula");
@@ -498,7 +649,8 @@ mod tests {
             shown.view,
             ViewWire::Error {
                 code: "#DIV/0!".to_owned(),
-                meaning: "division by zero".to_owned()
+                meaning: "division by zero".to_owned(),
+                look: None
             }
         );
         // A syntax diagnostic points into the text.

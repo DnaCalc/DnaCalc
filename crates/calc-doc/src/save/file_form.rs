@@ -33,59 +33,20 @@
 //! row or column number of 0 and a call of a LAMBDA are dynamic too. A function Excel does not
 //! know is stored as a dynamic array (measured on unknown names).
 
-#[path = "file_form_table.rs"]
-mod table;
-
 use calc_doc_model::{DefinedName, FormulaText};
 use calc_fml::syntax::{SyntaxChild, SyntaxKind, SyntaxNode, Token, TokenKind, parse_formula};
 use std::collections::BTreeMap;
-use table::FUNCTIONS;
-
-/// The prefix Excel writes before a function's name.
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub(super) enum Prefix {
-    Bare,
-    Xlfn,
-    XlfnXlws,
-}
-
-impl Prefix {
-    fn text(self) -> &'static str {
-        match self {
-            Prefix::Bare => "",
-            Prefix::Xlfn => "_xlfn.",
-            Prefix::XlfnXlws => "_xlfn._xlws.",
-        }
-    }
-}
-
-/// One function's measured file form.
-pub(super) struct FunctionFileForm {
-    pub(super) name: &'static str,
-    pub(super) prefix: Prefix,
-    /// The argument count of the first base call measured.
-    pub(super) first_count: usize,
-    /// Whether the call with `first_count + i` single-cell arguments is stored as a dynamic
-    /// array.
-    pub(super) bases: &'static [bool],
-    /// Whether a range at argument position `i` makes the call a dynamic array; a position past
-    /// the end takes the last one's.
-    pub(super) positions: &'static [bool],
-}
+use calc_catalogue::FunctionFileForm;
 
 fn function(name: &str) -> Option<&'static FunctionFileForm> {
-    let upper = name.to_ascii_uppercase();
-    FUNCTIONS
-        .binary_search_by(|entry| entry.name.as_bytes().cmp(upper.as_bytes()))
-        .ok()
-        .map(|at| &FUNCTIONS[at])
+    calc_catalogue::file_form(&name.to_ascii_uppercase())
 }
 
 /// The name a call of the function `name` is written with in a formula's file form: with the
 /// prefix Excel writes before it (`_xlfn.XLOOKUP`, `_xlfn._xlws.FILTER`, `ISO.CEILING`), or `None`
 /// for a name that is not one of the functions measured.
 pub(crate) fn function_file_name(name: &str) -> Option<String> {
-    function(name).map(|entry| format!("{}{}", entry.prefix.text(), entry.name))
+    function(name).map(|entry| format!("{}{}", calc_catalogue::file_prefix(entry.name).expect("measured function prefix").text(), entry.name))
 }
 
 /// A formula in file form.
@@ -510,16 +471,16 @@ impl Walk<'_, '_> {
         let language_binding = (upper == "LET" || upper == "LAMBDA")
             && (!prefixed
                 || entry.is_some_and(|entry| {
-                    format!("{}{}", entry.prefix.text(), entry.name).eq_ignore_ascii_case(text)
+                    format!("{}{}", calc_catalogue::file_prefix(entry.name).expect("measured function prefix").text(), entry.name).eq_ignore_ascii_case(text)
                 }));
         if language_binding {
             if !prefixed {
-                self.insert(name.span().start, "_xlfn.");
+                self.insert(name.span().start, calc_catalogue::FUTURE_FUNCTION_PREFIX);
             }
             return self.binding(&upper, &arguments, depth);
         }
         if !prefixed && let Some(entry) = entry {
-            let prefix = entry.prefix.text();
+            let prefix = calc_catalogue::file_prefix(entry.name).expect("measured function prefix").text();
             if !prefix.is_empty() {
                 self.insert(name.span().start, prefix);
             }

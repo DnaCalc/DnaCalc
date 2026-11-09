@@ -1214,6 +1214,9 @@ pub enum Action {
     UploadAs(&'static str, &'static str, &'static str),
     /// Sets the browser window's size (WebDriver's Set Window Rect): a narrow screen (dc-xib).
     Window(u32, u32),
+    /// Scrolls the element to this top and left offset, as a person's wheel or finger would move it,
+    /// (the checks that follow wait for what the scroll event draws).
+    ScrollTo(&'static str, i32, i32),
 }
 
 /// What a case expects the page to show. A name is a role or a selector ([`select`]).
@@ -1311,6 +1314,10 @@ pub enum Check {
     Array(&'static [&'static [&'static str]]),
     /// DNA OneCalc: the text of the highlighted run with this role.
     Highlighted(&'static str, &'static str),
+    /// The element's scroll offset from the top, in whole pixels (`body` is the page).
+    ScrollTop(&'static str, i64),
+    /// A JavaScript expression of the page that is true, with what it asserts in words.
+    Js(&'static str, &'static str),
 }
 
 pub struct Case {
@@ -1516,12 +1523,17 @@ fn observe(app: &App, session: &Session, check: &Check) -> Result<Value, String>
             q(name)
         ),
         Check::Array(_) => format!(
-            "var e = {}; return e ? Array.from(e.querySelectorAll('tr')).map(function (r) {{ return Array.from(r.querySelectorAll('td')).map(function (c) {{ return c.textContent; }}); }}) : null;",
+            "var e = {}; return e ? Array.from(e.querySelectorAll('tbody tr:not([aria-hidden=true])')).map(function (r) {{ return Array.from(r.querySelectorAll('td')).map(function (c) {{ return c.textContent; }}); }}) : null;",
             q("result-array")
         ),
         Check::Highlighted(role_name, _) => format!(
             "return Array.from(document.querySelectorAll('[data-onecalc=\"highlight\"] [data-role=\"{role_name}\"]')).map(function (s) {{ return s.textContent; }});"
         ),
+        Check::ScrollTop(name, _) => format!(
+            "var e = {}; return e ? Math.round(e === document.body ? (document.scrollingElement || document.documentElement).scrollTop : e.scrollTop) : null;",
+            q(name)
+        ),
+        Check::Js(_, expression) => format!("return !!({expression});"),
     };
     session.script(&script)
 }
@@ -1636,6 +1648,8 @@ fn satisfied(check: &Check, seen: &Value) -> bool {
         Check::Highlighted(_, text) => seen
             .as_array()
             .is_some_and(|runs| runs.iter().any(|run| run.as_str() == Some(text))),
+        Check::ScrollTop(_, expected) => seen.as_i64() == Some(*expected),
+        Check::Js(..) => seen.as_bool() == Some(true),
     }
 }
 
@@ -1741,6 +1755,8 @@ fn describe(check: &Check) -> String {
         ),
         Check::Array(rows) => format!("result-array is {rows:?}"),
         Check::Highlighted(role_name, text) => format!("{text:?} is highlighted as {role_name}"),
+        Check::ScrollTop(name, top) => format!("{name} is scrolled {top} px from its top"),
+        Check::Js(what, _) => (*what).to_owned(),
     }
 }
 
@@ -1812,6 +1828,7 @@ fn act(ws: &Workspace, app: &App, session: &Session, action: &Action) -> Result<
         }
         Action::Grid(cell, text) => {
             let css = format!("{}[data-cell=\"{cell}\"]", select(app, "grid-cell"));
+            reveal(session, &css)?;
             session.clear(&css)?;
             session.keys(&css, text)
         }
@@ -2518,6 +2535,13 @@ fn act(ws: &Workspace, app: &App, session: &Session, action: &Action) -> Result<
             fs::copy(ws.root.join(path), &target).map_err(|e|e.to_string())?;
             upload(app, session, name, &target)
         }
+        Action::ScrollTo(name, top, left) => {
+            let quoted = serde_json::to_string(&select(app, name)).unwrap();
+            session.script(&format!(
+                "var e=document.querySelector({quoted});if(!e)return false;e.scrollTo({{top:{top},left:{left},behavior:'instant'}});return true;"
+            ))?;
+            Ok(())
+        }
         Action::Window(width, height) => {
             if *width >= 1000 {
                 session.post("/window/rect", json!({ "width": width, "height": height }))?;
@@ -2974,9 +2998,30 @@ fn measure_skins(
     Vec::new()
 }
 
+/// Opens, with a real click on its summary as a person would, the closed disclosure that holds the
+/// element, so that an action on a control inside one (DNA OneCalc's Inputs) reaches it.
+fn reveal(session: &Session, css: &str) -> Result<(), String> {
+    let quoted = serde_json::to_string(css).unwrap();
+    for _ in 0..4 {
+        let closed = session.script(&format!(
+            "var e=document.querySelector({quoted});if(!e)return false;if(e.tagName==='SUMMARY')e=e.parentElement.parentElement;if(!e)return false;var d=e.closest('details:not([open])');if(!d)return false;d.setAttribute('data-revealing','1');return true;"
+        ))?;
+        if closed != Value::Bool(true) {
+            return Ok(());
+        }
+        let summary = session.element("details[data-revealing=\"1\"] > summary")?;
+        session.post(&format!("/element/{summary}/click"), json!({}))?;
+        session.script("document.querySelectorAll('details[data-revealing]').forEach(function(d){d.removeAttribute('data-revealing');});return true;")?;
+    }
+    Ok(())
+}
+
 fn act_click(app: &App, session: &Session, name: &str) -> Result<(), String> {
     if renderer::click_cell(app,session,name,false)? { return Ok(()); }
     let selector = select(app, name);
+    if app.role_attribute == "data-onecalc" {
+        reveal(session, &selector)?;
+    }
     if name.starts_with("skin-") || matches!(name, "save" | "new" | "name-manager") {
         // These buttons are disabled until earlier workbook input has answered. WebDriver
         // reports a successful click on a disabled button without dispatching it. Wait for

@@ -15,6 +15,7 @@ portability = "portable"
 soft-x87 = []
 
 [dependencies]
+calc-catalogue = { path = "../calc-catalogue" }
 calc-value = { path = "../calc-value" }
 libm = "0.2"
 # FILTERXML parses its XML and evaluates its XPath 1.0 with these (pure Rust, MIT and
