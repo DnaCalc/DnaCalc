@@ -150,7 +150,11 @@ second copy is really needed, say why in the commit message.
 - Builds and tests share `target/debug`; only the lightweight xtask launcher uses `target/xtask`. The linked harness runs a temporary copy under `target/xtask/run` so Windows can rebuild its original.
 - Never commit `target/`, Excel lock files, secrets or bulk corpus files.
 - Commit messages end with the attribution line the harness asks for.
-- Only `br` writes `.beads/`.
+- Only `br` writes `.beads/`; never hand-edit `issues.jsonl`. Comment ids are numbered per clone (highest + 1), so two
+  lanes that comment between pulls reuse an id and the next import renumbers one ("PRIMARY KEY constraint failed").
+  Every tracker write: `git pull --no-rebase`, `br sync --import-only`, the `br` write, `br sync --flush-only`, then
+  commit and push at once. On a conflicted merge of `issues.jsonl` take theirs, import, redo your `br` writes.
+  On Windows set `RUST_MIN_STACK=67108864` for `br sync`; the default stack overflows.
 
 ## Writing
 
