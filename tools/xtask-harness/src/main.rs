@@ -130,6 +130,8 @@ mod compare_triage;
 #[cfg(not(target_arch = "wasm32"))]
 mod linked_workbooks;
 #[cfg(not(target_arch = "wasm32"))]
+mod name_tables;
+#[cfg(not(target_arch = "wasm32"))]
 mod trusted_code;
 // The corpus command takes captures through calc-oracle-excel, like the capture command.
 #[cfg(not(target_arch = "wasm32"))]
@@ -181,6 +183,7 @@ fn main() -> ExitCode {
         Some((command, rest)) if command == "check" => check::run(rest),
         Some((command, rest)) if command == "keep" => xtask::keep::run(rest),
         Some((command, rest)) if command == "sweep" => sweep::run(rest),
+        Some((command, rest)) if command == "name-tables" => name_tables::run(rest),
         Some((command, rest)) if command == "ci" => ci::run(rest),
         Some((command, rest)) if command == "ci-audit" => ci_audit::run(rest),
         Some((command, rest)) if command == "evidence" => evidence::run(rest),
@@ -209,6 +212,7 @@ fn main() -> ExitCode {
                 check::USAGE,
                 xtask::keep::USAGE,
                 sweep::USAGE,
+                name_tables::USAGE,
                 ci::USAGE,
                 ci_audit::USAGE,
                 evidence::USAGE,

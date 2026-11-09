@@ -463,9 +463,24 @@ impl ArgumentGroups {
     }
 }
 
+/// A translated display name with its locale identifier.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct LocalizedDisplayName {
+    pub locale: &'static str,
+    pub spelling: &'static str,
+}
+
+/// A service a kernel may use when it evaluates a call.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum ContextFacility { NumericMode, Cells, Random, ReferenceText, Environment, Host, Callables }
+
 /// Data for a worksheet function whose executable kernel is attached by the caller.
 #[derive(Clone, Copy, Debug)]
 pub struct WorksheetDeclaration {
+    /// `None` means translated names have not been recorded for this entry.
+    pub localized_names: Option<&'static [LocalizedDisplayName]>,
+    /// `None` means the complete set of facilities has not been classified.
+    pub context_facilities: Option<&'static [ContextFacility]>,
     pub id: FunctionId,
     pub kind: EntryKind,
     pub spelling: &'static str,
@@ -480,6 +495,20 @@ pub struct WorksheetDeclaration {
 }
 
 impl WorksheetDeclaration {
+    pub const fn with_result(mut self, result: ResultForm) -> Self {
+        self.result = result;
+        self
+    }
+    pub const fn with_groups(mut self, groups: ArgumentGroups) -> Self {
+        self.groups = Some(groups);
+        self
+    }
+    pub const fn with_traits(mut self, traits: EntryTraits) -> Self {
+        let three_d = self.traits.three_d;
+        self.traits = traits;
+        self.traits.three_d = three_d;
+        self
+    }
     pub const fn with_three_d(mut self, three_d: ThreeD) -> Self {
         self.traits.three_d = three_d;
         self

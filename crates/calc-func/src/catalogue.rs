@@ -17,7 +17,7 @@ use std::cmp::Ordering;
 pub use calc_catalogue::{ArgumentDemand, Availability, BindingForm, Deferral, EntryTraits,
     FunctionId, Implementation, LegacyPlace, Notation, PairedResult, ParameterClass,
     ThreeDPlace, WholeResultPolicy};
-pub(crate) use calc_catalogue::{Parameter, ThreeD};
+pub(crate) use calc_catalogue::Parameter;
 
 #[macro_use]
 mod kit;
@@ -163,19 +163,34 @@ pub(crate) enum Kernel {
     Deferred { class: Deferral },
 }
 
+// Every data declaration needs one attached kernel, binding, or explicit refusal. This
+// runs during constant evaluation, before the generated dispatch table can be built.
+const fn attachment_matches(entry: &CatalogueEntry) -> bool {
+    let Some(data) = calc_catalogue::declaration(entry.id) else { return false; };
+    matches!((data.implementation(), entry.kernel),
+        (Implementation::Held, Kernel::Eager(_) | Kernel::Resumable { .. } | Kernel::Lazy(_))
+        | (Implementation::Binding, Kernel::Binding)
+        | (Implementation::NotHeld { .. }, Kernel::NotHeld { .. })
+        | (Implementation::Deferred { .. }, Kernel::Deferred { .. }))
+}
+
+const fn check_attachments(families: &[&Family]) {
+    assert!(entry_count(families) == calc_catalogue::DECLARATION_COUNT,
+        "a catalogue declaration has no attachment");
+    let mut f = 0;
+    while f < families.len() {
+        let mut i = 0;
+        while i < families[f].entries.len() {
+            assert!(attachment_matches(&families[f].entries[i]),
+                "a catalogue attachment has no matching declaration or implementation");
+            i += 1;
+        }
+        f += 1;
+    }
+}
+const _: () = check_attachments(&FAMILIES);
+
 impl CatalogueEntry {
-    pub(crate) const fn with_traits(mut self, traits: EntryTraits) -> Self {
-        let three_d = self.traits.three_d;
-        self.traits = traits;
-        self.traits.three_d = three_d;
-        self
-    }
-
-    pub(crate) const fn with_three_d(mut self, three_d: ThreeD) -> Self {
-        self.traits.three_d = three_d;
-        self
-    }
-
     pub(crate) const fn with_continuation(mut self, start: Option<StartKernel>) -> Self {
         if let Some(start) = start {
             if let Kernel::Eager(run) = self.kernel {
@@ -184,18 +199,6 @@ impl CatalogueEntry {
                 panic!("only eager entries carry kernel continuations");
             }
         }
-        self
-    }
-
-    /// This entry with the repeating groups `groups`.
-    pub(crate) const fn with_groups(mut self, groups: ArgumentGroups) -> Self {
-        self.groups = Some(groups);
-        self
-    }
-
-    /// This entry with the result form `result`.
-    pub(crate) const fn with_result(mut self, result: ResultForm) -> Self {
-        self.result = result;
         self
     }
 
@@ -752,6 +755,43 @@ mod shared_declaration_equivalence {
                 entry.traits(), entry.signature_help()));
         }
         assert_eq!(actual, include_str!("../../calc-catalogue/tests/fixtures/catalogue-before-ported.tsv"));
+    }
+
+    #[cfg_attr(not(target_arch = "wasm32"), test)]
+    #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+    fn shared_lookup_matches_every_attached_entry() {
+        let entries: Vec<_> = calc_catalogue::declarations().collect();
+        let mut ids = std::collections::BTreeSet::new();
+        for data in &entries {
+            assert!(ids.insert(data.id()), "duplicate ID {:?}", data.id());
+            let target = super::catalogue().resolve(data.id()).unwrap();
+            assert_eq!(data.spelling(), target.spelling());
+            assert_eq!(data.notation(), target.notation());
+            assert_eq!(data.kind(), target.kind());
+            assert_eq!(data.availability(), target.availability());
+            assert_eq!(data.implementation(), target.implementation());
+            assert_eq!(data.arity(), target.arity());
+            assert_eq!(data.groups(), target.entry.groups);
+            assert_eq!(data.parameters(), target.entry.parameters);
+            assert_eq!(data.result(), target.result_form());
+            assert_eq!(data.demand(), target.argument_demand());
+            assert_eq!(data.traits(), target.traits());
+            assert_eq!(calc_catalogue::declaration(data.id()).unwrap().spelling(), target.spelling());
+        }
+        assert_eq!(entries.len(), super::catalogue().entries().count());
+    }
+
+    #[cfg_attr(not(target_arch = "wasm32"), test)]
+    #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+    fn missing_or_wrong_attachments_are_rejected() {
+        let mut entry = super::FAMILIES[0].entries[0];
+        assert!(super::attachment_matches(&entry));
+        let id = entry.id;
+        entry.id = super::FunctionId::from_raw(u32::MAX);
+        assert!(!super::attachment_matches(&entry));
+        entry.id = id;
+        entry.kernel = super::Kernel::Binding;
+        assert!(!super::attachment_matches(&entry));
     }
 
     // Parameter behavior captured from the earlier compiled catalogue; the source declarations

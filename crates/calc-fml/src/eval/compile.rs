@@ -43,7 +43,8 @@ use crate::reference::{
 };
 use crate::syntax::{SyntaxChild, SyntaxKind, SyntaxNode, SyntaxTree, TextSpan, Token, TokenKind};
 use calc_func::value::{CellKey, ExcelText, SheetId, WorksheetErrorCode};
-use calc_func::{ArgumentDemand, FilePrefix, Notation, ParameterClass, catalogue};
+use calc_catalogue::{FIELD_ACCESS_FILE_NAME as FIELD_ACCESS, FilePrefix};
+use calc_func::{ArgumentDemand, Notation, ParameterClass, catalogue};
 use std::collections::HashMap;
 use std::sync::Arc;
 
@@ -2147,16 +2148,11 @@ pub(super) fn unknown_on_load(spelling: &str, target: Target) -> bool {
         }
 }
 
-/// The name a file stores a field access (`A1.Price`, a linked data type's field) under:
-/// `_FV(A1,"Price")`, which Excel loads as FIELDVALUE (dc-ifc: Excel 16.0.20430 gives #FIELD! for
-/// `_FV(A1,"Price")` over a number, as for FIELDVALUE).
-const FIELD_ACCESS: &str = "_FV";
-
 /// The catalogue spelling a file's call written `spelling` names: FIELDVALUE for a field access
 /// ([`FIELD_ACCESS`]), otherwise the spelling without its file prefixes ([`file_unprefixed`]).
 pub(super) fn file_function(spelling: &str) -> &str {
     if spelling.eq_ignore_ascii_case(FIELD_ACCESS) {
-        "FIELDVALUE"
+        calc_catalogue::field_access_name()
     } else {
         file_unprefixed(spelling)
     }
@@ -2183,18 +2179,13 @@ pub(crate) fn binding_call(spelling: &str) -> Option<BindingCall> {
 /// `_xlfn._xlfn.` and `_xlws._xlfn.`. A formula a user enters may spell a function a file stores
 /// with a prefix without it (`MAXIFS`); a file that does is read by [`unknown_on_load`].
 pub(crate) fn file_unprefixed(spelling: &str) -> &str {
-    match without_prefix(spelling, calc_catalogue::FUTURE_FUNCTION_PREFIX) {
-        Some(rest) => without_prefix(rest, calc_catalogue::WORKSHEET_FUNCTION_PREFIX).unwrap_or(rest),
-        None => spelling,
-    }
+    calc_catalogue::file_unprefixed(spelling)
 }
 
 /// The rest of `text` when its first bytes are the ASCII `prefix` in any ASCII case. Bytes equal
 /// to ASCII bytes are ASCII themselves, so the rest starts on a character boundary.
 pub(crate) fn without_prefix<'t>(text: &'t str, prefix: &str) -> Option<&'t str> {
-    let n = prefix.len();
-    let starts = text.len() >= n && text.as_bytes()[..n].eq_ignore_ascii_case(prefix.as_bytes());
-    starts.then(|| &text[n..])
+    calc_catalogue::strip_ascii_prefix(text, prefix)
 }
 
 /// Appends the check of the formula's final `+` or `-`, written `operator`, after the call that
@@ -2609,6 +2600,14 @@ mod tests {
             refusal("=_xlfn.NOSUCH(1)"),
             unknown(TextSpan::new(1, 12), "_xlfn.NOSUCH".to_owned())
         );
+    }
+
+    #[cfg_attr(not(target_arch = "wasm32"), test)]
+    #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+    fn field_access_file_alias_uses_the_shared_id() {
+        assert_eq!(file_function("_fV"), "FIELDVALUE");
+        let target = catalogue().resolve_surface(Notation::Call, file_function("_FV")).unwrap();
+        assert_eq!(target.id(), calc_catalogue::FIELD_ACCESS_ID);
     }
 
     /// Read as a file stores it, a call that writes without `_xlfn.` a function a file stores with

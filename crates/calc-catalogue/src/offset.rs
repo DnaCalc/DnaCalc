@@ -16,6 +16,8 @@ pub const ENTRIES: &[WorksheetDeclaration] = &[
     // `=OFFSET(INDEX(B1:B3,0),0,0)` enter), and a call may give a reference:
     // `=COUNTBLANK(OFFSET(A1,0,0))` enters, and so does `=OFFSET(A1,0,0)(3)` (#REF!).
     WorksheetDeclaration {
+        localized_names: None,
+        context_facilities: None,
         id: OFFSET,
         kind: super::EntryKind::Worksheet,
         spelling: "OFFSET",
@@ -36,6 +38,8 @@ pub const ENTRIES: &[WorksheetDeclaration] = &[
     }
     .with_three_d(super::ThreeD::new(None, Some(&[0]), Some(&[1, usize::MAX]))),
     WorksheetDeclaration {
+        localized_names: None,
+        context_facilities: None,
         id: ISOMITTED,
         kind: super::EntryKind::Worksheet,
         spelling: "ISOMITTED",
@@ -52,6 +56,8 @@ pub const ENTRIES: &[WorksheetDeclaration] = &[
     // A call may give a reference (dc-mx3x): `=COUNTBLANK(TRIMRANGE(B1))` and
     // `=TRIMRANGE(B1)(3)` enter. Its range takes any operand: `=TRIMRANGE(2)` enters.
     WorksheetDeclaration {
+        localized_names: None,
+        context_facilities: None,
         id: TRIMRANGE,
         kind: super::EntryKind::Worksheet,
         spelling: "TRIMRANGE",

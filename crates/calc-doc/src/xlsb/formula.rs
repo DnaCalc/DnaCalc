@@ -760,7 +760,7 @@ fn external_name(ixti: u16, index: u32, context: &Context<'_>) -> Read<String> {
 fn call_name(name: &str) -> String {
     if let Some(base) = name.strip_prefix(calc_catalogue::FUTURE_FUNCTION_PREFIX) {
         let base = base.strip_prefix(calc_catalogue::WORKSHEET_FUNCTION_PREFIX).unwrap_or(base);
-        if base.eq_ignore_ascii_case("_FV") {
+        if base.eq_ignore_ascii_case(calc_catalogue::FIELD_ACCESS_FILE_NAME) {
             return base.to_owned();
         }
         return function_file_name(base).unwrap_or_else(|| name.to_owned());

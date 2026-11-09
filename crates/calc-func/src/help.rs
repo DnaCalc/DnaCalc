@@ -14,10 +14,10 @@ pub fn description(target: FunctionCallTarget<'_>) -> Option<&'static str> {
 /// The help of a named function, or `None` for an operator and for a function the table does not
 /// describe.
 pub fn help(target: FunctionCallTarget<'_>) -> Option<&'static FunctionHelp> {
-    if target.notation() != Notation::Call {
+    if target.notation() != Notation::Call || matches!(target.kind(), crate::EntryKind::AddIn { .. }) {
         return None;
     }
-    help_of(target.spelling())
+    calc_catalogue::help_of_id(target.id())
 }
 
 #[cfg(test)]
@@ -52,6 +52,15 @@ mod tests {
             .expect("+ is in the catalogue");
         assert_eq!(description(plus), None);
         assert_eq!(description_of("NOSUCHFUNCTION"), None);
+    }
+
+    #[cfg_attr(not(target_arch = "wasm32"), test)]
+    #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+    fn id_lookup_preserves_every_previous_help_result() {
+        for target in catalogue().entries() {
+            let previous = if target.notation() == Notation::Call { help_of(target.spelling()) } else { None };
+            assert_eq!(super::help(target), previous, "{}", target.spelling());
+        }
     }
 
     /// Microsoft's text is attributed: every Microsoft description has its support article, and

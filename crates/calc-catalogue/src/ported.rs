@@ -15,6 +15,8 @@ macro_rules! data_family {
         pub const ENTRIES: &[WorksheetDeclaration] = &[$({
             #[allow(unused_mut)]
             let mut item = WorksheetDeclaration {
+                localized_names: None,
+                context_facilities: None,
                 id: FunctionId::new($code, $member), kind: crate::EntryKind::Worksheet, spelling: $spelling, notation: Notation::Call,
                 availability: Availability::Unspecified, arity: calc_value::CallableArityShape::range($min, $max),
                 groups: None, parameters: &[$(Parameter::of($pname, data_family!(@class $class))$(.entry(EntryClass::$entry))?$(.legacy(LegacyPlace::$legacy))?),*],

@@ -26,118 +26,24 @@
 //! is no worksheet value (NaN, an infinity or a subnormal).
 
 use super::aggregate::{read_reference, reader};
-use super::{ArgumentDemand, CatalogueEntry, Family, FunctionId, Kernel, Notation, Parameter};
-use crate::call::{EagerKernel, EvalServices, FunctionFault, LazyArguments};
+use super::FunctionId;
+use crate::call::{EvalServices, FunctionFault, LazyArguments};
 use crate::coerce;
 use crate::kernel::{Exit, Site, Step};
-use crate::value::{CalcValue, CallableArityShape, CoreRef, WorksheetErrorCode};
+use crate::value::{CalcValue, CoreRef, WorksheetErrorCode};
 
-const CODE: u16 = 5;
+use calc_catalogue::logical::{CODE, ENTRIES as DECLARATIONS, IF, AND, OR, XOR, NOT, TRUE, FALSE};
 
-const IF: FunctionId = FunctionId::new(CODE, 1);
-const AND: FunctionId = FunctionId::new(CODE, 2);
-const OR: FunctionId = FunctionId::new(CODE, 3);
-const XOR: FunctionId = FunctionId::new(CODE, 4);
-const NOT: FunctionId = FunctionId::new(CODE, 5);
-const TRUE: FunctionId = FunctionId::new(CODE, 6);
-const FALSE: FunctionId = FunctionId::new(CODE, 7);
-
-const LOGICALS: &[Parameter] = &[
-    Parameter::value_or_reference("logical1").legacy(super::LegacyPlace::AggregateAtRoot),
-    Parameter::value_or_reference("logical2").legacy(super::LegacyPlace::AggregateAtRootRepeated),
-];
-
-/// An eager named call that takes 1 to `most` logicals, values or references, the last parameter
-/// repeating.
-const fn logicals(
-    id: FunctionId,
-    spelling: &'static str,
-    most: usize,
-    kernel: EagerKernel,
-) -> CatalogueEntry {
-    CatalogueEntry {
-        id,
-        spelling,
-        notation: Notation::Call,
-        kind: super::EntryKind::Worksheet,
-        availability: super::Availability::Unspecified,
-        arity: CallableArityShape::range(1, most),
-        groups: None,
-        parameters: LOGICALS,
-        result: super::ResultForm::Value,
-        demand: ArgumentDemand::Eager,
-        traits: super::EntryTraits::NONE,
-        kernel: Kernel::Eager(kernel),
-    }
+attach_family! {
+    code: CODE; declarations: DECLARATIONS;
+    IF => Lazy(if_selected);
+    AND => Eager(and);
+    OR => Eager(or);
+    XOR => Eager(xor);
+    NOT => Eager(not);
+    TRUE => Eager(true_value);
+    FALSE => Eager(false_value);
 }
-
-/// An eager named call that takes no argument.
-const fn constant(id: FunctionId, spelling: &'static str, kernel: EagerKernel) -> CatalogueEntry {
-    CatalogueEntry {
-        id,
-        spelling,
-        notation: Notation::Call,
-        kind: super::EntryKind::Worksheet,
-        availability: super::Availability::Unspecified,
-        arity: CallableArityShape::exact(0),
-        groups: None,
-        parameters: &[],
-        result: super::ResultForm::Value,
-        demand: ArgumentDemand::Eager,
-        traits: super::EntryTraits::NONE,
-        kernel: Kernel::Eager(kernel),
-    }
-}
-
-// 3-D positions: dc-10y, Excel 16.0.20430, 2026-10-25; catalogue oracle ThreeD sheet.
-pub(super) const FAMILY: Family = Family {
-    code: CODE,
-    entries: &[
-        // A call gives one of its values, which may be a reference or a LAMBDA (dc-mx3x, Excel
-        // 16.0.20527, 2026-11-07, Formula2 and Formula alike): `=COUNTBLANK(IF(TRUE,A1:A2))` is 1,
-        // and `=IF(TRUE,LAMBDA(x,x))(3)` and `=(IF(TRUE,LAMBDA(x,x)))(3)` are 3.
-        CatalogueEntry {
-            id: IF,
-            spelling: "IF",
-            notation: Notation::Call,
-            kind: super::EntryKind::Worksheet,
-            availability: super::Availability::Unspecified,
-            arity: CallableArityShape::range(2, 3),
-            groups: None,
-            parameters: &[
-                Parameter::value("logical_test"),
-                Parameter::value_or_reference("value_if_true"),
-                Parameter::value_or_reference("value_if_false"),
-            ],
-            result: super::ResultForm::MayBeEither,
-            demand: ArgumentDemand::BranchOnCondition,
-            // W111: IF materializes selected array blanks and lifted blanks as zero.
-            traits: super::EntryTraits::NONE.if_blanks(),
-            kernel: Kernel::Lazy(if_selected),
-        }.with_three_d(super::ThreeD::new(None, None, Some(&[0, 1]))),
-        logicals(AND, "AND", 255, and).with_three_d(super::ThreeD::new(Some(&[]), None, None)),
-        logicals(OR, "OR", 255, or).with_three_d(super::ThreeD::new(Some(&[]), None, None)),
-        // XOR takes one argument fewer than AND and OR: Microsoft's XOR page gives 1 to 254
-        // conditions.
-        logicals(XOR, "XOR", 254, xor).with_three_d(super::ThreeD::new(Some(&[]), None, None)),
-        CatalogueEntry {
-            id: NOT,
-            spelling: "NOT",
-            notation: Notation::Call,
-            kind: super::EntryKind::Worksheet,
-            availability: super::Availability::Unspecified,
-            arity: CallableArityShape::exact(1),
-            groups: None,
-            parameters: &[Parameter::value("logical")],
-            result: super::ResultForm::Value,
-            demand: ArgumentDemand::Eager,
-            traits: super::EntryTraits::NONE,
-            kernel: Kernel::Eager(not),
-        }.with_three_d(super::ThreeD::new(None, None, Some(&[]))),
-        constant(TRUE, "TRUE", true_value),
-        constant(FALSE, "FALSE", false_value),
-    ],
-};
 
 /// IF: the condition alone is asked for first and read as a logical; its error is the result.
 /// Then only the chosen branch is asked for, and it is the result as it is (a reference stays a

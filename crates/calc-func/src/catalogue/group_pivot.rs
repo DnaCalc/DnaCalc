@@ -7,35 +7,17 @@
 //! is #NUM! (PERCENTOF(C1,4) over C1 = #N/A, PERCENTOF({1,#N/A},4)), a direct error the error.
 
 use super::aggregate::{Held, direct_first, each_number};
-use super::{ArgumentDemand, CatalogueEntry, Family, FunctionId, Kernel, Notation, Parameter};
+
 use crate::call::{EvalServices, FunctionFault};
 use crate::kernel::{Exit, Site};
-use crate::value::{CalcValue, CallableArityShape, CoreRef, WorksheetErrorCode};
+use crate::value::{CalcValue, CoreRef, WorksheetErrorCode};
 
-const CODE: u16 = 320;
+use calc_catalogue::group_pivot::{CODE, ENTRIES as DECLARATIONS, PERCENTOF};
 
-const PERCENTOF: FunctionId = FunctionId::new(CODE, 1);
-
-pub(super) const FAMILY: Family = Family {
-    code: CODE,
-    entries: &[CatalogueEntry {
-        id: PERCENTOF,
-        spelling: "PERCENTOF",
-        notation: Notation::Call,
-        kind: super::EntryKind::Worksheet,
-        availability: super::Availability::Unspecified,
-        arity: CallableArityShape::exact(2),
-        groups: None,
-        parameters: &[
-            Parameter::value_or_reference("data_subset"),
-            Parameter::value_or_reference("data_all"),
-        ],
-        result: super::ResultForm::Value,
-        demand: ArgumentDemand::Eager,
-        traits: super::EntryTraits::NONE,
-        kernel: Kernel::Eager(percentof),
-    }],
-};
+attach_family! {
+    code: CODE; declarations: DECLARATIONS;
+    PERCENTOF => Eager(percentof);
+}
 
 /// PERCENTOF (dc-h9u): the sum of data_subset divided by the sum of data_all, each summed as SUM
 /// sums its one argument; #DIV/0! when the second sum is 0.
