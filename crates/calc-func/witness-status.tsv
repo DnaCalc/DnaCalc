@@ -82,7 +82,7 @@ CHIINV	full	20131,?	100	30	91	numeric	9fd77961e5	0
 CHIINV	pinned	20131	100	30	91	numeric	bab456b6f8+changes	0
 CHISQ.DIST.RT	full	20131,?	6	6	-	exact	9fd77961e5	0
 CHISQ.DIST.RT	pinned	20131	6	6	-	exact	481f4ab85d+changes	0
-CHISQ.INV	full	20131,?	40	13	20	numeric	9fd77961e5	0
+CHISQ.INV	full	20131,?	40	13	20	numeric	a793371acd+changes	0
 CHISQ.INV	pinned	20131	40	13	20	numeric	bab456b6f8+changes	0
 CHISQ.TEST	full	20131	5	4	1	last_bit	9fd77961e5	0
 CHISQ.TEST	pinned	20131	5	4	1	last_bit	bab456b6f8+changes	0
@@ -221,7 +221,7 @@ GAMMA	full	20131,20527,?	12603	8193	5	numeric	9fd77961e5	0
 GAMMA	pinned	20131	120	83	2	last_bit	2f906f7c9f+changes	0
 GAMMA.DIST	full	20131,20430,20527,?	77975	77804	8	numeric	9fd77961e5	0
 GAMMA.DIST	pinned	20131,20430	120	119	1	last_bit	bab456b6f8+changes	0
-GAMMA.INV	full	20131,?	204	59	55	numeric	9fd77961e5	0
+GAMMA.INV	full	20131,?	204	63	55	numeric	a793371acd+changes	0
 GAMMA.INV	pinned	20131	120	38	55	numeric	bab456b6f8+changes	0
 GAMMADIST	full	20131,?	6	6	-	exact	9fd77961e5	0
 GAMMADIST	pinned	20131	6	6	-	exact	bab456b6f8+changes	0

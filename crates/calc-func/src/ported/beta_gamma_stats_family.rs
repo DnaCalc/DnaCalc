@@ -171,17 +171,19 @@ pub fn gamma_inv_kernel(
     if probability == 0.0 {
         return Ok(0.0);
     }
-    let mut hi = beta * (alpha + 10.0 * alpha.sqrt() + 10.0).max(1.0);
+    // design/fable52-last-bit.md section 5 (Claude Fable 5.2), measured 300/300 on Excel:
+    // GAMMA.INV(p,a,b) = st(b * GAMMA.INV(p,a,1)), CHISQ.INV(p,2a) = GAMMA.INV(p,a,2): a
+    // unit-scale search followed by one stored multiply.
+    let mut hi = (alpha + 10.0 * alpha.sqrt() + 10.0).max(1.0);
     // bisect_inverse requires f(hi) >= target on entry.
     for _ in 0..200 {
-        if regularized_gamma_p(alpha, hi / beta) >= probability {
+        if regularized_gamma_p(alpha, hi) >= probability {
             break;
         }
         hi *= 2.0;
     }
-    let x = bisect_inverse(probability, 0.0, hi, |v| {
-        regularized_gamma_p(alpha, v / beta)
-    });
+    let unit = bisect_inverse(probability, 0.0, hi, |v| regularized_gamma_p(alpha, v));
+    let x = crate::ported::excel_numeric::excel_x87_mul(beta, unit);
     Ok(x)
 }
 
