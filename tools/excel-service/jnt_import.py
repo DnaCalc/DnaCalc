@@ -129,6 +129,21 @@ BATCHES = {
             ], multi=True, quota=20),
         ],
     ),
+    "J6": dict(
+        bead="dc-jnt.10",
+        sheet="jnt_logical_info",
+        hand=True,
+        title="Logical, information and coercion: blank-cell truth table, direct-text rules of AND/OR/XOR, laziness, IS*, TYPE, ERROR.TYPE, INFO, CELL, N, T",
+        tests=[
+            "and_fn.rs", "or_fn.rs", "xor_fn.rs", "not_fn.rs", "if_fn.rs",
+            "iferror.rs", "switch_fn.rs", "choose_ifs_family.rs",
+            "is_predicates_family.rs", "isnumber.rs", "type_fn.rs",
+            "error_type_fn.rs", "n_fn.rs", "t_fn.rs", "info_fn.rs", "cell.rs",
+            "blank_cell_coercion_truth_table.rs", "argument_laziness_golden.rs",
+            "coercion.rs", "excel_casing.rs", "misc_switch_info_family.rs",
+        ],
+        families=[],
+    ),
     "J11": dict(
         bead="dc-jnt.15",
         sheet="jnt_operators",
@@ -818,12 +833,19 @@ def hand_rows(batch, repo, work):
                 parts.append(str(arg[1]))
                 asked.append(number(arg[1]))
                 continue
+            if kind == "lit_b":
+                parts.append("TRUE" if arg[1] else "FALSE")
+                asked.append(boolean(arg[1], literal=True))
+                continue
             if kind == "s":
                 parts.append('"' + arg[1].replace('"', '""') + '"')
                 asked.append(text(arg[1], literal=True))
                 continue
             parts.append("{%s}" % "ABCEFG"[len(tokens)])
-            if kind == "n":
+            if kind == "cell_s":
+                tokens.append("s:" + arg[1])
+                asked.append(text(arg[1], literal=False))
+            elif kind == "n":
                 tokens.append("n:%016x" % struct.unpack(">Q", struct.pack(">d", arg[1]))[0])
                 asked.append(number(arg[1]))
             elif kind == "b":
@@ -1077,7 +1099,9 @@ def main():
             hand_entry)
         contradicted.extend(hand_meta.get("contradicted", []))
     elif has_hand:
-        entry = json.load(open(os.path.join(work, batch["sheet"] + ".meta.json")))["entry"]
+        hand_meta = json.load(open(os.path.join(work, batch["sheet"] + ".meta.json")))
+        entry = hand_meta["entry"]
+        contradicted.extend(hand_meta.get("contradicted", []))
     else:
         entry = "OxFunc@05196c39:%s (%s);sha256:%s" % (
             EVIDENCE.rstrip("/"), "Excel " + EXCEL_BUILD,

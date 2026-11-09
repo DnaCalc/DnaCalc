@@ -55,6 +55,26 @@ VALUE = "date_value_family.rs"
 WEEK = "date_week_family.rs"
 WORK = "workday_networkdays_family.rs"
 
+
+def cell_s(v):
+    return ("cell_s", str(v))
+
+
+def lit_b(v):
+    return ("lit_b", bool(v))
+
+
+def b(v):
+    return ("b", bool(v))
+
+
+def e(code):
+    return ("e", str(code))
+
+
+T_ = ("logical", True)
+F_ = ("logical", False)
+
 J10 = [
     # date_fn.rs
     ("DATE", [n(1900), n(1), n(1)], num(1), DATE_FN + " eval_date_handles_1900_serial_baselines"),
@@ -362,5 +382,205 @@ J4 = [
     ("IMCOT", [s("3+4i")], txt("-0.000187587737983659-1.00064439247156i"), COMPLEX_FN + " tan_and_cot_use_excel_stable_identities"),
 ]
 
-CASES = {"J10": J10, "J11": J11, "J4": J4}
+J6 = [
+    # --- blank_cell_coercion_truth_table.rs ---
+    ("SUM", [EMPTY], num(0), "blank_cell_coercion_truth_table.rs SUM(blank)"),
+    ("SUM", [EMPTY, n(1)], num(1), "blank_cell_coercion_truth_table.rs SUM(blank, 1)"),
+    ("ABS", [EMPTY], num(0), "blank_cell_coercion_truth_table.rs ABS(blank)"),
+    ("ROUND", [EMPTY, lit(2)], num(0), "blank_cell_coercion_truth_table.rs ROUND(blank, 2)"),
+    ("PRODUCT", [EMPTY, n(3)], num(3), "blank_cell_coercion_truth_table.rs PRODUCT(blank, 3)"),
+    ("AVERAGE", [EMPTY, n(2)], num(2), "blank_cell_coercion_truth_table.rs AVERAGE(blank, 2)"),
+    ("COUNT", [EMPTY], num(0), "blank_cell_coercion_truth_table.rs COUNT(blank)"),
+    ("COUNT", [EMPTY, n(1)], num(1), "blank_cell_coercion_truth_table.rs COUNT(blank, 1)"),
+    ("COUNTA", [EMPTY], num(0), "blank_cell_coercion_truth_table.rs COUNTA(blank)"),
+    ("COUNTA", [EMPTY, n(1)], num(1), "blank_cell_coercion_truth_table.rs COUNTA(blank, 1)"),
+    ("MAX", [EMPTY], num(0), "blank_cell_coercion_truth_table.rs MAX(blank)"),
+    ("MAX", [EMPTY, n(2)], num(2), "blank_cell_coercion_truth_table.rs MAX(blank, 2)"),
+    ("NOT", [EMPTY], T_, "blank_cell_coercion_truth_table.rs NOT(blank)"),
+    ("LEN", [EMPTY], num(0), "blank_cell_coercion_truth_table.rs LEN(blank)"),
+    ("EXACT", [EMPTY, s("")], T_, "blank_cell_coercion_truth_table.rs EXACT(blank, '')"),
+    ("EXACT", [EMPTY, n(0)], F_, "blank_cell_coercion_truth_table.rs EXACT(blank, 0)"),
+    ("ISBLANK", [EMPTY], T_, "blank_cell_coercion_truth_table.rs ISBLANK(blank)"),
+    ("ISNUMBER", [EMPTY], F_, "blank_cell_coercion_truth_table.rs ISNUMBER(blank)"),
+    ("ISTEXT", [EMPTY], F_, "blank_cell_coercion_truth_table.rs ISTEXT(blank)"),
+    ("ISNONTEXT", [EMPTY], T_, "blank_cell_coercion_truth_table.rs ISNONTEXT(blank)"),
+    ("ISLOGICAL", [EMPTY], F_, "blank_cell_coercion_truth_table.rs ISLOGICAL(blank)"),
+    ("ISERR", [EMPTY], F_, "blank_cell_coercion_truth_table.rs ISERR(blank)"),
+    ("ISERROR", [EMPTY], F_, "blank_cell_coercion_truth_table.rs ISERROR(blank)"),
+    ("ISNA", [EMPTY], F_, "blank_cell_coercion_truth_table.rs ISNA(blank)"),
+    ("TYPE", [EMPTY], num(1), "blank_cell_coercion_truth_table.rs TYPE(blank)"),
+    ("N", [EMPTY], num(0), "blank_cell_coercion_truth_table.rs N(blank)"),
+    ("T", [EMPTY], txt(""), "blank_cell_coercion_truth_table.rs T(blank)"),
+    ("CELL", [s("type"), EMPTY], txt("b"), "blank_cell_coercion_truth_table.rs CELL('type', blank)"),
+
+    # --- and_fn.rs ---
+    ("AND", [b(True), b(True)], T_, "and_fn.rs eval_and_returns_true_when_all_true"),
+    ("AND", [b(True), b(False)], F_, "and_fn.rs eval_and_returns_false_when_any_false"),
+    ("AND", [b(False), b(True)], F_, "and_fn.rs eval_and_returns_false_when_first_false"),
+    ("AND", [b(True), n(0)], F_, "and_fn.rs eval_and_returns_false_when_any_arg_is_zero"),
+    ("AND", [b(True), n(1)], T_, "and_fn.rs eval_and_treats_nonzero_numbers_as_true"),
+    ("AND", [n(1), n(2)], T_, "and_fn.rs eval_and_two_nonzero_numbers"),
+    ("AND", [n(0), n(1)], F_, "and_fn.rs eval_and_zero_and_nonzero"),
+    ("AND", [s("TRUE")], T_, "and_fn.rs eval_and_coerces_direct_logical_spellings TRUE"),
+    ("AND", [s("FALSE")], F_, "and_fn.rs eval_and_coerces_direct_logical_spellings FALSE"),
+    ("AND", [s("fAlSe")], F_, "and_fn.rs eval_and_coerces_direct_logical_spellings fAlSe"),
+    ("AND", [b(True), s("FALSE")], F_, "and_fn.rs eval_and_coerces_direct_logical_spellings TRUE, FALSE"),
+    ("AND", [b(True), s("x")], T_, "and_fn.rs eval_and_ignores_direct_text_that_is_not_a_logical_spelling TRUE, x"),
+    ("AND", [n(1), s("x")], T_, "and_fn.rs eval_and_ignores_direct_text_that_is_not_a_logical_spelling 1, x"),
+    ("AND", [b(True), s("0")], T_, "and_fn.rs eval_and_ignores_direct_text_that_is_not_a_logical_spelling TRUE, 0"),
+    ("AND", [s("1")], err("value"), "and_fn.rs eval_and_direct_text_is_value_error"),
+    ("AND", [s("x")], err("value"), "and_fn.rs eval_and_direct_text_no_logical_seen"),
+    ("AND", [b(False), e("#DIV/0!")], err("div0"), "and_fn.rs eval_and_eager_error_propagation"),
+    ("AND", [b(False), e("#N/A"), e("#DIV/0!")], err("na"), "and_fn.rs eval_and_first_error_wins"),
+    ("AND", [e("#DIV/0!"), e("#N/A")], err("div0"), "and_fn.rs eval_and_div0_first"),
+    ("AND", [e("#N/A"), e("#DIV/0!")], err("na"), "and_fn.rs eval_and_na_first"),
+    ("AND", [cell_s("x"), b(True)], T_, "and_fn.rs eval_and_ignores_reference_text"),
+
+    # --- or_fn.rs ---
+    ("OR", [b(False), b(False)], F_, "or_fn.rs eval_or_all_false"),
+    ("OR", [b(True), b(False)], T_, "or_fn.rs eval_or_one_true"),
+    ("OR", [n(0), n(0)], F_, "or_fn.rs eval_or_zeroes"),
+    ("OR", [n(0), n(1)], T_, "or_fn.rs eval_or_zero_and_one"),
+    ("OR", [s("TRUE")], T_, "or_fn.rs eval_or_coerces_direct_text_true"),
+    ("OR", [s("FALSE")], F_, "or_fn.rs eval_or_coerces_direct_text_false"),
+    ("OR", [b(False), s("TRUE")], T_, "or_fn.rs eval_or_coerces_direct_text_in_fold"),
+    ("OR", [b(False), s("x")], F_, "or_fn.rs eval_or_ignores_direct_text"),
+    ("OR", [b(False), s("1")], F_, "or_fn.rs eval_or_ignores_numeric_text"),
+    ("OR", [s("x")], err("value"), "or_fn.rs eval_or_no_values_error"),
+    ("OR", [b(True), e("#DIV/0!")], err("div0"), "or_fn.rs eval_or_eager_error_propagation"),
+    ("OR", [e("#DIV/0!"), e("#N/A")], err("div0"), "or_fn.rs eval_or_div0_first"),
+    ("OR", [e("#N/A"), e("#DIV/0!")], err("na"), "or_fn.rs eval_or_na_first"),
+
+    # --- xor_fn.rs ---
+    ("XOR", [b(True), b(False)], T_, "xor_fn.rs eval_xor_true_false"),
+    ("XOR", [b(True), b(True)], F_, "xor_fn.rs eval_xor_true_true"),
+    ("XOR", [b(False), b(False)], F_, "xor_fn.rs eval_xor_false_false"),
+    ("XOR", [n(1), n(0)], T_, "xor_fn.rs eval_xor_1_0"),
+    ("XOR", [n(1), n(1)], F_, "xor_fn.rs eval_xor_1_1"),
+    ("XOR", [s("TRUE"), s("FALSE")], T_, "xor_fn.rs eval_xor_coerces_text"),
+    ("XOR", [s("TRUE"), s("TRUE")], F_, "xor_fn.rs eval_xor_coerces_two_trues"),
+    ("XOR", [b(True), e("#DIV/0!")], err("div0"), "xor_fn.rs eval_xor_eager_error"),
+
+    # --- not_fn.rs ---
+    ("NOT", [b(True)], F_, "not_fn.rs eval_not_true"),
+    ("NOT", [b(False)], T_, "not_fn.rs eval_not_false"),
+    ("NOT", [n(1)], F_, "not_fn.rs eval_not_one"),
+    ("NOT", [n(0)], T_, "not_fn.rs eval_not_zero"),
+    ("NOT", [n(-5)], F_, "not_fn.rs eval_not_negative"),
+    ("NOT", [s("TRUE")], F_, "not_fn.rs eval_not_text_true"),
+    ("NOT", [s("FALSE")], T_, "not_fn.rs eval_not_text_false"),
+    ("NOT", [s("x")], err("value"), "not_fn.rs eval_not_text_x"),
+    ("NOT", [e("#N/A")], err("na"), "not_fn.rs eval_not_error"),
+
+    # --- if_fn.rs ---
+    ("IF", [b(True), n(1), n(2)], num(1), "if_fn.rs eval_if_true_branch"),
+    ("IF", [b(False), n(1), n(2)], num(2), "if_fn.rs eval_if_false_branch"),
+    ("IF", [n(1), s("yes"), s("no")], txt("yes"), "if_fn.rs eval_if_nonzero_condition"),
+    ("IF", [n(0), s("yes"), s("no")], txt("no"), "if_fn.rs eval_if_zero_condition"),
+    ("IF", [b(True), n(1)], num(1), "if_fn.rs eval_if_omitted_false_true_case"),
+    ("IF", [b(False), n(1)], F_, "if_fn.rs eval_if_omitted_false_false_case"),
+    ("IF", [s("x"), n(1), n(2)], err("value"), "if_fn.rs eval_if_invalid_condition_type"),
+    ("IF", [e("#N/A"), n(1), n(2)], err("na"), "if_fn.rs eval_if_error_condition"),
+
+    # --- iferror.rs ---
+    ("IFERROR", [n(10), n(99)], num(10), "iferror.rs eval_iferror_non_error"),
+    ("IFERROR", [e("#DIV/0!"), n(99)], num(99), "iferror.rs eval_iferror_catches_div0"),
+    ("IFERROR", [e("#N/A"), n(99)], num(99), "iferror.rs eval_iferror_catches_na"),
+    ("IFERROR", [e("#VALUE!"), n(99)], num(99), "iferror.rs eval_iferror_catches_value"),
+    ("IFERROR", [s("ok"), n(99)], txt("ok"), "iferror.rs eval_iferror_text_value"),
+    ("IFNA", [n(10), n(99)], num(10), "iferror.rs eval_ifna_non_error"),
+    ("IFNA", [e("#N/A"), n(99)], num(99), "iferror.rs eval_ifna_catches_na"),
+    ("IFNA", [e("#DIV/0!"), n(99)], err("div0"), "iferror.rs eval_ifna_does_not_catch_div0"),
+
+    # --- choose_ifs_family.rs ---
+    ("IFS", [b(True), n(1), b(True), n(2)], num(1), "choose_ifs_family.rs eval_ifs_first_true"),
+    ("IFS", [b(False), n(1), b(True), n(2)], num(2), "choose_ifs_family.rs eval_ifs_second_true"),
+    ("IFS", [b(False), n(1), b(False), n(2)], err("na"), "choose_ifs_family.rs eval_ifs_none_true"),
+    ("IFS", [e("#DIV/0!"), n(1), b(True), n(2)], err("div0"), "choose_ifs_family.rs eval_ifs_first_error"),
+    ("CHOOSE", [n(1), s("a"), s("b"), s("c")], txt("a"), "choose_ifs_family.rs eval_choose_1"),
+    ("CHOOSE", [n(2), s("a"), s("b"), s("c")], txt("b"), "choose_ifs_family.rs eval_choose_2"),
+    ("CHOOSE", [n(3), s("a"), s("b"), s("c")], txt("c"), "choose_ifs_family.rs eval_choose_3"),
+    ("CHOOSE", [n(0), s("a"), s("b")], err("value"), "choose_ifs_family.rs eval_choose_0"),
+    ("CHOOSE", [n(4), s("a"), s("b"), s("c")], err("value"), "choose_ifs_family.rs eval_choose_overflow"),
+    ("CHOOSE", [n(-1), s("a"), s("b")], err("value"), "choose_ifs_family.rs eval_choose_negative"),
+
+    # --- switch_fn.rs ---
+    ("SWITCH", [n(1), n(1), s("one"), n(2), s("two"), s("other")], txt("one"), "switch_fn.rs eval_switch_match_1"),
+    ("SWITCH", [n(2), n(1), s("one"), n(2), s("two"), s("other")], txt("two"), "switch_fn.rs eval_switch_match_2"),
+    ("SWITCH", [n(3), n(1), s("one"), n(2), s("two"), s("other")], txt("other"), "switch_fn.rs eval_switch_default"),
+    ("SWITCH", [n(3), n(1), s("one"), n(2), s("two")], err("na"), "switch_fn.rs eval_switch_no_match_no_default"),
+    ("SWITCH", [s("b"), s("a"), n(1), s("B"), n(2), n(3)], num(2), "switch_fn.rs eval_switch_case_insensitive"),
+    ("SWITCH", [s("c"), s("a"), n(1), s("B"), n(2), n(3)], num(3), "switch_fn.rs eval_switch_text_default"),
+    ("SWITCH", [e("#DIV/0!"), n(1), n(10), n(20)], err("div0"), "switch_fn.rs eval_switch_error_expression"),
+
+    # --- is_predicates_family.rs & isnumber.rs ---
+    ("ISBLANK", [s("")], F_, "is_predicates_family.rs isblank_empty_string"),
+    ("ISBLANK", [n(0)], F_, "is_predicates_family.rs isblank_zero"),
+    ("ISNUMBER", [n(1)], T_, "isnumber.rs isnumber_one"),
+    ("ISNUMBER", [n(0)], T_, "isnumber.rs isnumber_zero"),
+    ("ISNUMBER", [n(-3.14)], T_, "isnumber.rs isnumber_negative_float"),
+    ("ISNUMBER", [s("1")], F_, "isnumber.rs isnumber_numeric_text"),
+    ("ISNUMBER", [b(True)], F_, "isnumber.rs isnumber_boolean"),
+    ("ISNUMBER", [e("#N/A")], F_, "isnumber.rs isnumber_error"),
+    ("ISTEXT", [s("abc")], T_, "is_predicates_family.rs istext_string"),
+    ("ISTEXT", [s("")], T_, "is_predicates_family.rs istext_empty_string"),
+    ("ISTEXT", [n(123)], F_, "is_predicates_family.rs istext_number"),
+    ("ISNONTEXT", [n(123)], T_, "is_predicates_family.rs isnontext_number"),
+    ("ISNONTEXT", [b(True)], T_, "is_predicates_family.rs isnontext_logical"),
+    ("ISNONTEXT", [e("#N/A")], T_, "is_predicates_family.rs isnontext_error"),
+    ("ISNONTEXT", [s("x")], F_, "is_predicates_family.rs isnontext_text"),
+    ("ISLOGICAL", [b(True)], T_, "is_predicates_family.rs islogical_true"),
+    ("ISLOGICAL", [b(False)], T_, "is_predicates_family.rs islogical_false"),
+    ("ISLOGICAL", [n(1)], F_, "is_predicates_family.rs islogical_one"),
+    ("ISERR", [e("#DIV/0!")], T_, "is_predicates_family.rs iserr_div0"),
+    ("ISERR", [e("#N/A")], F_, "is_predicates_family.rs iserr_na"),
+    ("ISERROR", [e("#DIV/0!")], T_, "is_predicates_family.rs iserror_div0"),
+    ("ISERROR", [e("#N/A")], T_, "is_predicates_family.rs iserror_na"),
+    ("ISERROR", [n(1)], F_, "is_predicates_family.rs iserror_number"),
+    ("ISNA", [e("#N/A")], T_, "is_predicates_family.rs isna_na"),
+    ("ISNA", [e("#DIV/0!")], F_, "is_predicates_family.rs isna_div0"),
+    ("ISODD", [n(1)], T_, "is_predicates_family.rs isodd_1"),
+    ("ISODD", [n(2)], F_, "is_predicates_family.rs isodd_2"),
+    ("ISODD", [n(1.9)], T_, "is_predicates_family.rs isodd_1_9"),
+    ("ISODD", [n(-3)], T_, "is_predicates_family.rs isodd_neg3"),
+    ("ISEVEN", [n(0)], T_, "is_predicates_family.rs iseven_0"),
+    ("ISEVEN", [n(2)], T_, "is_predicates_family.rs iseven_2"),
+    ("ISEVEN", [n(3)], F_, "is_predicates_family.rs iseven_3"),
+    ("ISEVEN", [n(-4)], T_, "is_predicates_family.rs iseven_neg4"),
+
+    # --- type_fn.rs, error_type_fn.rs, n_fn.rs, t_fn.rs ---
+    ("TYPE", [n(1)], num(1), "type_fn.rs type_number"),
+    ("TYPE", [s("x")], num(2), "type_fn.rs type_text"),
+    ("TYPE", [s("")], num(2), "type_fn.rs type_empty_text"),
+    ("TYPE", [b(True)], num(4), "type_fn.rs type_logical_true"),
+    ("TYPE", [b(False)], num(4), "type_fn.rs type_logical_false"),
+    ("TYPE", [e("#DIV/0!")], num(16), "type_fn.rs type_error_div0"),
+    ("TYPE", [e("#N/A")], num(16), "type_fn.rs type_error_na"),
+    ("ERROR.TYPE", [e("#NULL!")], num(1), "error_type_fn.rs error_type_null"),
+    ("ERROR.TYPE", [e("#DIV/0!")], num(2), "error_type_fn.rs error_type_div0"),
+    ("ERROR.TYPE", [e("#VALUE!")], num(3), "error_type_fn.rs error_type_value"),
+    ("ERROR.TYPE", [e("#REF!")], num(4), "error_type_fn.rs error_type_ref"),
+    ("ERROR.TYPE", [e("#NAME?")], num(5), "error_type_fn.rs error_type_name"),
+    ("ERROR.TYPE", [e("#NUM!")], num(6), "error_type_fn.rs error_type_num"),
+    ("ERROR.TYPE", [e("#N/A")], num(7), "error_type_fn.rs error_type_na"),
+    ("ERROR.TYPE", [n(1)], err("na"), "error_type_fn.rs error_type_non_error"),
+    ("N", [n(7)], num(7), "n_fn.rs n_number"),
+    ("N", [b(True)], num(1), "n_fn.rs n_true"),
+    ("N", [b(False)], num(0), "n_fn.rs n_false"),
+    ("N", [s("text")], num(0), "n_fn.rs n_text"),
+    ("N", [e("#DIV/0!")], err("div0"), "n_fn.rs n_error"),
+    ("T", [s("hello")], txt("hello"), "t_fn.rs t_text"),
+    ("T", [n(123)], txt(""), "t_fn.rs t_number"),
+    ("T", [b(True)], txt(""), "t_fn.rs t_boolean"),
+    ("T", [e("#DIV/0!")], err("div0"), "t_fn.rs t_error"),
+    ("NA", [], err("na"), "misc_switch_info_family.rs na_call"),
+    ("EXACT", [s("abc"), s("ABC")], F_, "excel_casing.rs exact_case_mismatch"),
+    ("EXACT", [s("abc"), s("abc")], T_, "excel_casing.rs exact_identical"),
+    ("EXACT", [s("\u00df"), s("ss")], F_, "excel_casing.rs exact_eszett"),
+    ("CELL", [s("type"), cell_s("x")], txt("l"), "cell.rs cell_type_text"),
+    ("CELL", [s("type"), n(123)], txt("v"), "cell.rs cell_type_number"),
+]
+
+CASES = {"J10": J10, "J11": J11, "J4": J4, "J6": J6}
+
 

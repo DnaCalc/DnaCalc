@@ -1,0 +1,181 @@
+# dc-jnt.10 J6: Logical, information and coercion: blank-cell truth table, direct-text rules of AND/OR/XOR, laziness, IS*, TYPE, ERROR.TYPE, INFO, CELL, N, T.
+# Ported from OxFunc@05196c39:crates/oxfunc_core/src/functions/{and_fn.rs,or_fn.rs,xor_fn.rs,not_fn.rs,if_fn.rs,iferror.rs,switch_fn.rs,choose_ifs_family.rs,is_predicates_family.rs,isnumber.rs,type_fn.rs,error_type_fn.rs,n_fn.rs,t_fn.rs,info_fn.rs,cell.rs,blank_cell_coercion_truth_table.rs,argument_laziness_golden.rs,coercion.rs,excel_casing.rs,misc_switch_info_family.rs} (unit tests).
+# Each row is a call a legacy unit test asserts. The legacy expectation is a hypothesis: the answer in the
+# section capture is Excel's, asked through the question service (tools/excel-service) with the build
+# recorded in the capture entry; a difference is listed in contradicted-jnt_logical_info.json.
+# Numbers are exact cells (typed inputs); text arguments stay literals in the formula.
+SUM({A})	-
+SUM({A},{B})	-	n:3ff0000000000000
+ABS({A})	-
+ROUND({A},2.0)	-
+PRODUCT({A},{B})	-	n:4008000000000000
+AVERAGE({A},{B})	-	n:4000000000000000
+COUNT({A})	-
+COUNT({A},{B})	-	n:3ff0000000000000
+COUNTA({A})	-
+COUNTA({A},{B})	-	n:3ff0000000000000
+MAX({A})	-
+MAX({A},{B})	-	n:4000000000000000
+NOT({A})	-
+LEN({A})	-
+EXACT({A},"")	-
+EXACT({A},{B})	-	n:0000000000000000
+ISBLANK({A})	-
+ISNUMBER({A})	-
+ISTEXT({A})	-
+ISNONTEXT({A})	-
+ISLOGICAL({A})	-
+ISERR({A})	-
+ISERROR({A})	-
+ISNA({A})	-
+TYPE({A})	-
+N({A})	-
+T({A})	-
+CELL("type",{A})	-
+AND({A},{B})	b:TRUE	b:TRUE
+AND({A},{B})	b:TRUE	b:FALSE
+AND({A},{B})	b:FALSE	b:TRUE
+AND({A},{B})	b:TRUE	n:0000000000000000
+AND({A},{B})	b:TRUE	n:3ff0000000000000
+AND({A},{B})	n:3ff0000000000000	n:4000000000000000
+AND({A},{B})	n:0000000000000000	n:3ff0000000000000
+AND("TRUE")
+AND("FALSE")
+AND("fAlSe")
+AND({A},"FALSE")	b:TRUE
+AND({A},"x")	b:TRUE
+AND({A},"x")	n:3ff0000000000000
+AND({A},"0")	b:TRUE
+AND("1")
+AND("x")
+AND({A},{B})	b:FALSE	e:#DIV/0!
+AND({A},{B},{C})	b:FALSE	e:#N/A	e:#DIV/0!
+AND({A},{B})	e:#DIV/0!	e:#N/A
+AND({A},{B})	e:#N/A	e:#DIV/0!
+AND({A},{B})	s:x	b:TRUE
+OR({A},{B})	b:FALSE	b:FALSE
+OR({A},{B})	b:TRUE	b:FALSE
+OR({A},{B})	n:0000000000000000	n:0000000000000000
+OR({A},{B})	n:0000000000000000	n:3ff0000000000000
+OR("TRUE")
+OR("FALSE")
+OR({A},"TRUE")	b:FALSE
+OR({A},"x")	b:FALSE
+OR({A},"1")	b:FALSE
+OR("x")
+OR({A},{B})	b:TRUE	e:#DIV/0!
+OR({A},{B})	e:#DIV/0!	e:#N/A
+OR({A},{B})	e:#N/A	e:#DIV/0!
+_xlfn.XOR({A},{B})	b:TRUE	b:FALSE
+_xlfn.XOR({A},{B})	b:TRUE	b:TRUE
+_xlfn.XOR({A},{B})	b:FALSE	b:FALSE
+_xlfn.XOR({A},{B})	n:3ff0000000000000	n:0000000000000000
+_xlfn.XOR({A},{B})	n:3ff0000000000000	n:3ff0000000000000
+_xlfn.XOR("TRUE","FALSE")
+_xlfn.XOR("TRUE","TRUE")
+_xlfn.XOR({A},{B})	b:TRUE	e:#DIV/0!
+NOT({A})	b:TRUE
+NOT({A})	b:FALSE
+NOT({A})	n:3ff0000000000000
+NOT({A})	n:0000000000000000
+NOT({A})	n:c014000000000000
+NOT("TRUE")
+NOT("FALSE")
+NOT("x")
+NOT({A})	e:#N/A
+IF({A},{B},{C})	b:TRUE	n:3ff0000000000000	n:4000000000000000
+IF({A},{B},{C})	b:FALSE	n:3ff0000000000000	n:4000000000000000
+IF({A},"yes","no")	n:3ff0000000000000
+IF({A},"yes","no")	n:0000000000000000
+IF({A},{B})	b:TRUE	n:3ff0000000000000
+IF({A},{B})	b:FALSE	n:3ff0000000000000
+IF("x",{A},{B})	n:3ff0000000000000	n:4000000000000000
+IF({A},{B},{C})	e:#N/A	n:3ff0000000000000	n:4000000000000000
+IFERROR({A},{B})	n:4024000000000000	n:4058c00000000000
+IFERROR({A},{B})	e:#DIV/0!	n:4058c00000000000
+IFERROR({A},{B})	e:#N/A	n:4058c00000000000
+IFERROR({A},{B})	e:#VALUE!	n:4058c00000000000
+IFERROR("ok",{A})	n:4058c00000000000
+_xlfn.IFNA({A},{B})	n:4024000000000000	n:4058c00000000000
+_xlfn.IFNA({A},{B})	e:#N/A	n:4058c00000000000
+_xlfn.IFNA({A},{B})	e:#DIV/0!	n:4058c00000000000
+_xlfn.IFS({A},{B},{C},{E})	b:TRUE	n:3ff0000000000000	b:TRUE	n:4000000000000000
+_xlfn.IFS({A},{B},{C},{E})	b:FALSE	n:3ff0000000000000	b:TRUE	n:4000000000000000
+_xlfn.IFS({A},{B},{C},{E})	b:FALSE	n:3ff0000000000000	b:FALSE	n:4000000000000000
+_xlfn.IFS({A},{B},{C},{E})	e:#DIV/0!	n:3ff0000000000000	b:TRUE	n:4000000000000000
+CHOOSE({A},"a","b","c")	n:3ff0000000000000
+CHOOSE({A},"a","b","c")	n:4000000000000000
+CHOOSE({A},"a","b","c")	n:4008000000000000
+CHOOSE({A},"a","b")	n:0000000000000000
+CHOOSE({A},"a","b","c")	n:4010000000000000
+CHOOSE({A},"a","b")	n:bff0000000000000
+_xlfn.SWITCH({A},{B},"one",{C},"two","other")	n:3ff0000000000000	n:3ff0000000000000	n:4000000000000000
+_xlfn.SWITCH({A},{B},"one",{C},"two","other")	n:4000000000000000	n:3ff0000000000000	n:4000000000000000
+_xlfn.SWITCH({A},{B},"one",{C},"two","other")	n:4008000000000000	n:3ff0000000000000	n:4000000000000000
+_xlfn.SWITCH({A},{B},"one",{C},"two")	n:4008000000000000	n:3ff0000000000000	n:4000000000000000
+_xlfn.SWITCH("b","a",{A},"B",{B},{C})	n:3ff0000000000000	n:4000000000000000	n:4008000000000000
+_xlfn.SWITCH("c","a",{A},"B",{B},{C})	n:3ff0000000000000	n:4000000000000000	n:4008000000000000
+_xlfn.SWITCH({A},{B},{C},{E})	e:#DIV/0!	n:3ff0000000000000	n:4024000000000000	n:4034000000000000
+ISBLANK("")
+ISBLANK({A})	n:0000000000000000
+ISNUMBER({A})	n:3ff0000000000000
+ISNUMBER({A})	n:0000000000000000
+ISNUMBER({A})	n:c0091eb851eb851f
+ISNUMBER("1")
+ISNUMBER({A})	b:TRUE
+ISNUMBER({A})	e:#N/A
+ISTEXT("abc")
+ISTEXT("")
+ISTEXT({A})	n:405ec00000000000
+ISNONTEXT({A})	n:405ec00000000000
+ISNONTEXT({A})	b:TRUE
+ISNONTEXT({A})	e:#N/A
+ISNONTEXT("x")
+ISLOGICAL({A})	b:TRUE
+ISLOGICAL({A})	b:FALSE
+ISLOGICAL({A})	n:3ff0000000000000
+ISERR({A})	e:#DIV/0!
+ISERR({A})	e:#N/A
+ISERROR({A})	e:#DIV/0!
+ISERROR({A})	e:#N/A
+ISERROR({A})	n:3ff0000000000000
+ISNA({A})	e:#N/A
+ISNA({A})	e:#DIV/0!
+ISODD({A})	n:3ff0000000000000
+ISODD({A})	n:4000000000000000
+ISODD({A})	n:3ffe666666666666
+ISODD({A})	n:c008000000000000
+ISEVEN({A})	n:0000000000000000
+ISEVEN({A})	n:4000000000000000
+ISEVEN({A})	n:4008000000000000
+ISEVEN({A})	n:c010000000000000
+TYPE({A})	n:3ff0000000000000
+TYPE("x")
+TYPE("")
+TYPE({A})	b:TRUE
+TYPE({A})	b:FALSE
+TYPE({A})	e:#DIV/0!
+TYPE({A})	e:#N/A
+ERROR.TYPE({A})	e:#NULL!
+ERROR.TYPE({A})	e:#DIV/0!
+ERROR.TYPE({A})	e:#VALUE!
+ERROR.TYPE({A})	e:#REF!
+ERROR.TYPE({A})	e:#NAME?
+ERROR.TYPE({A})	e:#NUM!
+ERROR.TYPE({A})	e:#N/A
+ERROR.TYPE({A})	n:3ff0000000000000
+N({A})	n:401c000000000000
+N({A})	b:TRUE
+N({A})	b:FALSE
+N("text")
+N({A})	e:#DIV/0!
+T("hello")
+T({A})	n:405ec00000000000
+T({A})	b:TRUE
+T({A})	e:#DIV/0!
+NA()
+EXACT("abc","ABC")
+EXACT("abc","abc")
+EXACT("ß","ss")
+CELL("type",{A})	s:x
+CELL("type",{A})	n:405ec00000000000
