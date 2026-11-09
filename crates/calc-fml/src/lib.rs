@@ -46,7 +46,7 @@ pub use eval::{
     MAX_RECORDED_NAME_INVOCATIONS, NameAnalysis, NameInvocation, NameMemoBlocker,
     NameMemoCandidate, NameMemoEligibility, NameResultKind, ObservableFacets, PassServices,
     PlanCache, PlanCacheStats, ReadDenial, ReadPolicy, ReadPurpose, ReadRequest, ResolvedReference,
-    SemanticEnvironment, UserCallRecord, UserFunctionEffects, UserFunctionSource,
+    SemanticEnvironment, UdfVolatility, UserCallRecord, UserFunctionEffects, UserFunctionSource,
     Rejection, analyze_loaded_names, check_entry, compile, compile_loaded, compile_loaded_with,
     compile_loaded_with_bindings, compile_loaded_with_functions, compile_with,
     compile_with_functions, evaluate, instantiate,

@@ -400,12 +400,33 @@ pub struct UserFunctionSource {
     pub target: Option<String>,
 }
 
+/// What the user functions an evaluation ran asked of the formula's volatility
+/// (`Application.Volatile`, `xlfVolatile`): three states, because "asked for nothing" and "asked
+/// for nonvolatile" are different evidence, though both leave the formula nonvolatile
+/// (measured, EXCEL_CALC_PROBES.md P17: the last executed request wins, a branch not taken asks
+/// nothing, and a re-evaluation starts nonvolatile).
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash)]
+pub enum UdfVolatility {
+    /// No user function ran a request in this evaluation.
+    #[default]
+    NoRequest,
+    /// The last request executed: `true` volatile, `false` nonvolatile.
+    Set(bool),
+}
+
+impl UdfVolatility {
+    /// Whether the evaluation leaves the formula volatile: only a last request of `true` does.
+    pub const fn requests_volatile(self) -> bool {
+        matches!(self, UdfVolatility::Set(true))
+    }
+}
+
 /// Effects observed while evaluating one formula, separate from its immutable plan and result.
-/// Each evaluation starts nonvolatile; the last executed host request sets the final value.
+/// Each evaluation starts with no volatility request; the last executed host request sets it.
 #[derive(Clone, Debug, Default, PartialEq, Eq)]
 pub struct UserFunctionEffects {
     pub(crate) calls: usize,
-    pub(crate) volatile: bool,
+    pub(crate) volatility: UdfVolatility,
     pub(crate) invocations: Vec<UserCallRecord>,
     pub(crate) reevaluation: Option<calc_func::UserReevaluationReason>,
     pub(crate) callable_reads: Vec<crate::CallableBindingProof>,
@@ -463,7 +484,7 @@ impl UserFunctionEffects {
     /// Conservative callback/request evidence, excluding passive definition-body telemetry.
     pub fn has_observable_effects(&self) -> bool {
         self.calls != 0
-            || self.volatile
+            || self.volatility != UdfVolatility::NoRequest
             || !self.invocations.is_empty()
             || self.reevaluation.is_some()
             || !self.callable_reads.is_empty()
@@ -491,8 +512,13 @@ impl UserFunctionEffects {
     pub fn calls(&self) -> usize {
         self.calls
     }
+    /// What the evaluation's user functions asked of the formula's volatility.
+    pub fn volatility(&self) -> UdfVolatility {
+        self.volatility
+    }
+    /// Whether the evaluation left the formula volatile ([`UdfVolatility::requests_volatile`]).
     pub fn volatile(&self) -> bool {
-        self.volatile
+        self.volatility.requests_volatile()
     }
 }
 

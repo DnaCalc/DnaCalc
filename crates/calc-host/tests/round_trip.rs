@@ -7023,7 +7023,7 @@ fn contract_vba_volatile_spill_sizing_and_skipped_calls_use_executed_effects() {
         let mut book = session(&calc_host::blank_package());
         let s = book.host().sheets()[0].id();
         book.dispatch(SkinIntent::SetCalcMode(CalcMode::Manual));
-        book.set_user_functions(calc_vba::load_module_with_backend("Skipped","Public Function Mark() As Long\n Application.Volatile True\n Mark=7\nEnd Function\n",100_000,backend).unwrap());
+        book.set_user_functions(calc_vba::load_module_with_backend("Skipped","Public Function Mark() As Long\n Application.Volatile True\n Mark=7\nEnd Function\nPublic Function Quiet() As Long\n Application.Volatile False\n Quiet=1\nEnd Function\nPublic Function Plain() As Long\n Plain=2\nEnd Function\n",100_000,backend).unwrap());
         enter(&mut book, at(s, "A1"), "TRUE");
         enter(&mut book, at(s, "B1"), "=IF(A1,Mark(),2)");
         let force = |book: &mut HostSession| {
@@ -7040,8 +7040,34 @@ fn contract_vba_volatile_spill_sizing_and_skipped_calls_use_executed_effects() {
         let ProjectedValue::Calculated { calculation, .. } = value(book.host(), at(s, "B1")) else {
             panic!("calculated")
         };
-        assert_eq!(calculation.stamp().unwrap().reads.udf_volatile, Some(false));
+        // The branch not taken made no request: no request, which is not a request for nonvolatile.
+        assert_eq!(
+            calculation.stamp().unwrap().reads.udf_volatility,
+            Some(calc_fml::UdfVolatility::NoRequest)
+        );
         assert!(calculation.stamp().unwrap().reads.invocations.is_empty());
+        // The three states a user function leaves in the certificate (dc-hsa5.19, Pro A8).
+        enter(&mut book, at(s, "B2"), "=Quiet()");
+        enter(&mut book, at(s, "B3"), "=Plain()");
+        enter(&mut book, at(s, "B4"), "=Mark()");
+        enter(&mut book, at(s, "B5"), "=1+1");
+        book.dispatch(SkinIntent::CalculateRange {
+            areas: vec![GridArea::new(at(s, "B2"), at(s, "B5")).unwrap()],
+        });
+        while book.has_pending_calculation() {
+            book.advance_calculation();
+        }
+        for (cell, expected) in [
+            ("B2", Some(calc_fml::UdfVolatility::Set(false))),
+            ("B3", Some(calc_fml::UdfVolatility::NoRequest)),
+            ("B4", Some(calc_fml::UdfVolatility::Set(true))),
+            ("B5", None),
+        ] {
+            let ProjectedValue::Calculated { calculation, .. } = value(book.host(), at(s, cell)) else {
+                panic!("{cell} calculated")
+            };
+            assert_eq!(calculation.stamp().unwrap().reads.udf_volatility, expected, "{backend:?}: {cell}");
+        }
     }
 }
 

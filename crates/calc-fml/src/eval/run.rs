@@ -3053,6 +3053,23 @@ mod tests {
             assert!(value.as_number().is_some(), "{formula}");
             assert_eq!(effects.calls(), calls, "{formula}");
             assert_eq!(effects.volatile(), volatile, "{formula}");
+            // The request itself has three states (dc-hsa5.19, Pro A8): a branch not taken and a
+            // formula with no user call request nothing, which is not a request for nonvolatile,
+            // and the last request executed is the one kept.
+            use super::super::UdfVolatility::{NoRequest, Set};
+            let request = match formula {
+                "=TurnOn()+TurnOff()" | "=LastWins()" => Set(false),
+                "=TurnOff()+TurnOn()"
+                | "=TurnOn()+Plain()"
+                | "=IF(FALSE,Plain(),TurnOn())"
+                | "=IFERROR(VolFailure(),7)" => Set(true),
+                "=Plain()" | "=IF(TRUE,Plain(),TurnOn())" | "=IF(TRUE,Plain(),RAND())" | "=1" => {
+                    NoRequest
+                }
+                other => panic!("{other}: no expected request"),
+            };
+            assert_eq!(effects.volatility(), request, "{formula}");
+            assert_eq!(request.requests_volatile(), volatile, "{formula}");
         }
     }
 
@@ -4227,7 +4244,7 @@ impl calc_func::UserFunctionContext for UserCallContext<'_, '_, '_> {
 
     fn set_volatile(&mut self, volatile: bool) {
         if let Some(effects) = self.run.user_function_effects.as_deref_mut() {
-            effects.volatile = volatile;
+            effects.volatility = super::UdfVolatility::Set(volatile);
         }
     }
 

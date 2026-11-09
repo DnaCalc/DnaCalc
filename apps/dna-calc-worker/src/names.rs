@@ -288,7 +288,7 @@ pub fn calculated(
             })
             .collect(),
         omitted_observations: result.observations.len().saturating_sub(OBSERVATIONS),
-        udf_volatile: result.udf_volatile,
+        udf_volatile: result.udf_volatility.requests_volatile(),
     };
     let workbook = result
         .evaluation

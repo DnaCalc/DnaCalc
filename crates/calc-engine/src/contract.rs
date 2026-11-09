@@ -278,7 +278,10 @@ pub struct ReadDetails {
     /// Actual executed definition bodies, scoped by this result's producing invocation.
     pub name_invocations: Vec<calc_fml::NameInvocation>,
     pub omitted_name_invocations: u64,
-    pub udf_volatile: Option<bool>,
+    /// What the user functions this evaluation ran asked of the formula's volatility, when its
+    /// plan can run one: no request, the last request executed `false`, or `true`. `None` for a
+    /// plan with no user call.
+    pub udf_volatility: Option<calc_fml::UdfVolatility>,
     pub boundary_caches: Vec<BoundaryReadSpan>,
     pub facts: Vec<FactStamp>,
     pub absences: Vec<AbsenceProof>,
@@ -293,7 +296,7 @@ static EMPTY_READ_DETAILS: ReadDetails = ReadDetails {
     invocations: Vec::new(),
     name_invocations: Vec::new(),
     omitted_name_invocations: 0,
-    udf_volatile: None,
+    udf_volatility: None,
     boundary_caches: Vec::new(),
     facts: Vec::new(),
     absences: Vec::new(),
@@ -1380,12 +1383,12 @@ mod read_details_tests {
         let empty = ReadCertificate::default();
         assert!(empty.details.0.is_none());
         let mut used = empty.clone();
-        used.udf_volatile = Some(false);
+        used.udf_volatility = Some(calc_fml::UdfVolatility::Set(false));
         let retained = used.clone();
-        used.udf_volatile = None;
+        used.udf_volatility = None;
         assert!(used.details.0.is_some());
         assert_eq!(empty, used);
-        assert_eq!(retained.udf_volatile, Some(false));
+        assert_eq!(retained.udf_volatility, Some(calc_fml::UdfVolatility::Set(false)));
         let hash = |value: &ReadCertificate| {
             let mut state = std::collections::hash_map::DefaultHasher::new();
             value.hash(&mut state);

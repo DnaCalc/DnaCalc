@@ -24,7 +24,8 @@ pub struct NameCalculationResult {
     pub value_reads: Vec<(calc_fml::ReadRequest, GridArea)>,
     pub facts: Vec<calc_fml::FactRead>,
     pub external_inputs: Vec<calc_fml::RtdRead>,
-    pub udf_volatile: bool,
+    /// What the user functions the evaluation ran asked of volatility ([`calc_fml::UdfVolatility`]).
+    pub udf_volatility: calc_fml::UdfVolatility,
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -223,7 +224,7 @@ impl NameCalculationWork {
             value_reads: std::mem::take(&mut self.value_reads),
             facts: std::mem::take(&mut self.facts),
             external_inputs: self.effects.external_inputs().to_vec(),
-            udf_volatile: self.effects.volatile(),
+            udf_volatility: self.effects.volatility(),
         });
     }
 
