@@ -245,6 +245,11 @@ fn b4_with<F: super::Fpu>(x: f64) -> f64 {
 ///
 /// Read from 30,000 Excel 16.0.20527 answers at 6,000 random fractions: for `n = 3..=7` this
 /// identity holds 6,000 of 6,000 on the answers `GAMMALN(2+y)`. It takes no fitted constant.
+/// R49 independently confirms 1,348 more inputs in `(3,8)`, including adjacent integer
+/// boundaries. The endpoint `x=3` is excluded: its published answer is one ulp above
+/// `LN(2)`, and is handled by `b3`. This identity is conditional on the public lower
+/// answer; it does not identify the unresolved core table. The literal `0.7` join
+/// and this reduction were already implemented before the R49 recheck.
 fn recurrence(x: f64) -> f64 {
     recurrence_from(x, b3(2.0 + (x - x.floor())))
 }
