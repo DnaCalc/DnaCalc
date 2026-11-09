@@ -494,6 +494,7 @@ fn evaluate_slice(
         )
     });
     let mut run = Run {
+        held: None,
         current_name: None,
         random: random.as_ref(),
         instance,
@@ -612,6 +613,17 @@ struct Run<'a, 'r> {
     function_diagnostics: Option<&'a mut Vec<String>>,
     user_function_effects: Option<&'a mut super::UserFunctionEffects>,
     observer: Option<&'a mut dyn EvaluationObserver>,
+    /// Observer events a call lifted over several elements holds back until it completes: a wait
+    /// in a later element runs the whole call again, and an event shown for an element that ran
+    /// would be shown twice ([`Run::lifted`]).
+    held: Option<Vec<Held>>,
+}
+
+/// An observer event held back by [`Run::held`].
+#[derive(Clone, Copy)]
+enum Held {
+    Called { target: Target, synthetic: bool },
+    Resolved { target: Target, area: GridArea },
 }
 
 fn not_modelled(construct: &'static str) -> EvalFault {
@@ -1593,13 +1605,18 @@ impl Run<'_, '_> {
                 quantum,
             )
         };
-        for area in text.map(|text| text.resolved).unwrap_or_default() {
-            self.show_resolved(target, area);
+        let result = result.map_err(|fault| self.function_fault(fault));
+        // A call that waits runs again from its start: its events are shown when it completes,
+        // not on the attempt the wait ends (see [`ResumePoint`]).
+        if !matches!(&result, Err(fault) if self.would_wait(fault)) {
+            for area in text.map(|text| text.resolved).unwrap_or_default() {
+                self.show_resolved(target, area);
+            }
+            if !matches!(result, Ok(None)) {
+                self.show_call(target, synthetic);
+            }
         }
-        if !matches!(result, Ok(None)) {
-            self.show_call(target, synthetic);
-        }
-        result.map_err(|fault| self.function_fault(fault))
+        result
     }
 
     /// Runs the eager entry `target` once on `arguments`, of which at least one is a LAMBDA value,
@@ -1648,13 +1665,18 @@ impl Run<'_, '_> {
             )
         };
         let fault = callables.fault.take();
-        if !matches!(result, Ok(None)) {
+        let result = result.map_err(|fault| self.function_fault(fault));
+        let waits = match (&fault, &result) {
+            (Some(fault), _) | (None, Err(fault)) => self.would_wait(fault),
+            _ => false,
+        };
+        if !waits && !matches!(result, Ok(None)) {
             self.show_call(target, synthetic);
         }
         if let Some(fault) = fault {
             return Err(fault);
         }
-        result.map_err(|fault| self.function_fault(fault))
+        result
     }
 
     /// Runs `target` on each element of the arrays among `arguments` at its single-value
@@ -1662,6 +1684,28 @@ impl Run<'_, '_> {
     /// element no array is large enough for is #N/A. An array-valued result contributes its
     /// first cell. Reference results retain their references for the consumer.
     fn lifted(
+        &mut self,
+        target: Target,
+        arguments: &[CalcValue],
+        synthetic: bool,
+    ) -> Result<CalcValue, EvalFault> {
+        let outer = self.held.replace(Vec::new());
+        let result = self.lifted_elements(target, arguments, synthetic);
+        let held = std::mem::replace(&mut self.held, outer).unwrap_or_default();
+        // An element that waits ends the call, which then runs again from its first element: the
+        // events of the elements that ran are shown on the run that completes.
+        if !matches!(&result, Err(fault) if self.would_wait(fault)) {
+            for event in held {
+                match event {
+                    Held::Called { target, synthetic } => self.show_call(target, synthetic),
+                    Held::Resolved { target, area } => self.show_resolved(target, area),
+                }
+            }
+        }
+        result
+    }
+
+    fn lifted_elements(
         &mut self,
         target: Target,
         arguments: &[CalcValue],
@@ -1829,13 +1873,14 @@ impl Run<'_, '_> {
                     Ok(Some(value)) => value,
                     Ok(None) => return Ok(false),
                     Err(fault) => {
-                        if index == 0
-                            || !is_lifted(
+                        if !self.would_wait(&fault)
+                            && (index == 0
+                                || !is_lifted(
                                 target,
                                 self.instance.plan.form,
                                 0,
                                 call.values[0].as_ref().expect("first argument"),
-                            )
+                            ))
                         {
                             self.show_call(target, false);
                         }
@@ -2265,6 +2310,10 @@ impl Run<'_, '_> {
 
     /// Shows the observer, when there is one, that `target` ran.
     fn show_call(&mut self, target: Target, synthetic: bool) {
+        if let Some(held) = self.held.as_mut() {
+            held.push(Held::Called { target, synthetic });
+            return;
+        }
         if let Some(observer) = self.observer.as_deref_mut() {
             observer.called(ExecutedCall {
                 target: target.0,
@@ -2275,12 +2324,22 @@ impl Run<'_, '_> {
 
     /// Shows the observer, when there is one, that `target` resolved reference text to `area`.
     fn show_resolved(&mut self, target: Target, area: GridArea) {
+        if let Some(held) = self.held.as_mut() {
+            held.push(Held::Resolved { target, area });
+            return;
+        }
         if let Some(observer) = self.observer.as_deref_mut() {
             observer.resolved(ResolvedReference {
                 target: target.0,
                 area,
             });
         }
+    }
+
+    /// Whether `fault` is a read of a cell whose producer is pending, which a waiting instruction
+    /// answers by running again once the producer is done.
+    fn would_wait(&self, fault: &EvalFault) -> bool {
+        matches!(fault, EvalFault::MissingInput { cell } if self.reader.pending_producer(*cell))
     }
 
     /// A call's fault, with the reader's refusal when the kernel could not read a reference.
@@ -3949,6 +4008,8 @@ mod tests {
             assert_eq!(shown.outcomes.len(), 1, "{formula}: one outcome");
         }
     }
+
+    mod retry;
 }
 
 struct UserCallContext<'b, 'a, 'r> {
@@ -4312,6 +4373,7 @@ impl calc_func::UserFunctionContext for UserCallContext<'_, '_, '_> {
         let instance = super::instantiate(&plan, anchor);
         let mut scratch = super::EvalScratch::new();
         let mut child = Run {
+            held: None,
             current_name: self.run.current_name.clone(),
             instance: &instance,
             stack: &mut scratch.stack,

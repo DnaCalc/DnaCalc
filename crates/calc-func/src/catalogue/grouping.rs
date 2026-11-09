@@ -45,7 +45,8 @@
 
 use super::comparison::{self, Want};
 use super::kit::{fail, grid};
-use crate::call::{CallAbandoned, EvalServices};
+use crate::call::{CallAbandoned, EvalServices, FunctionFault, KernelTask};
+use crate::catalogue::FunctionId;
 use crate::kernel::{Exit, Site, Step};
 use crate::value::{ArrayShape, CalcArray, CalcValue, CoreRef, ExcelText, WorksheetErrorCode};
 use std::cmp::Ordering;
@@ -282,12 +283,122 @@ fn group(site: &Site<'_>, keys: &[Vec<CalcValue>], rows: &[usize]) -> Step<Vec<(
     Ok(groups)
 }
 
-/// Calls `f` through the services' invoker.
-fn call(site: &Site<'_>, sv: &mut EvalServices<'_>, f: &CalcValue, args: &[CalcValue]) -> Step<CalcValue> {
+/// How the kernel's calls of its function run.
+enum Calls {
+    /// Each call runs to its value through the invoker, which refuses a call that has to wait.
+    Direct,
+    /// The retained run (dc-hsa5.19, D2): the kernel's pass over the arguments is pure apart from
+    /// its calls, so a pass runs again from its start, taking the value of each call already made
+    /// from `done` and asking the invoker only for the next call, which it advances
+    /// ([`crate::call::CallableInvoker::call_slice`]) until it has a value. No call is made twice,
+    /// and a call that has to wait keeps its activation with the caller.
+    Replay {
+        done: Vec<CalcValue>,
+        next: usize,
+        /// The invoker kept the call in progress: the pass stops, and resumes at the same call.
+        stopped: bool,
+    },
+}
+
+/// Calls `f`, through the services' invoker.
+fn call(
+    site: &Site<'_>,
+    sv: &mut EvalServices<'_>,
+    calls: &mut Calls,
+    f: &CalcValue,
+    args: &[CalcValue],
+) -> Step<CalcValue> {
     let Some(invoker) = sv.callables() else {
         return Err(site.not_modelled(None));
     };
-    invoker.call(f, args).map_err(|CallAbandoned| site.not_modelled(None))
+    match calls {
+        Calls::Direct => invoker.call(f, args).map_err(|CallAbandoned| site.not_modelled(None)),
+        Calls::Replay { done, next, stopped } => {
+            if let Some(value) = done.get(*next) {
+                *next += 1;
+                return Ok(value.clone());
+            }
+            match invoker.call_slice(f, args) {
+                Ok(Some(value)) => {
+                    done.push(value.clone());
+                    *next += 1;
+                    Ok(value)
+                }
+                Ok(None) => {
+                    *stopped = true;
+                    // The pass ends here; the marker is never a result (see `GroupingTask`).
+                    Err(Exit::Error(W::Calc))
+                }
+                Err(CallAbandoned) => Err(site.not_modelled(None)),
+            }
+        }
+    }
+}
+
+/// GROUPBY or PIVOTBY as a kernel that retains its progress across a wait or a yield: the calls of
+/// its function made so far, and the arguments. A pass that stops at a call still in progress
+/// runs again from its start when the kernel is advanced, which repeats only pure work.
+#[derive(Debug)]
+struct GroupingTask {
+    id: FunctionId,
+    pivot: bool,
+    arguments: Vec<CalcValue>,
+    done: Vec<CalcValue>,
+}
+
+impl KernelTask for GroupingTask {
+    fn advance(
+        &mut self,
+        _elements: usize,
+        sv: &mut EvalServices<'_>,
+    ) -> Result<Option<CalcValue>, FunctionFault> {
+        let site = Site::new(self.id, sv);
+        let mut calls = Calls::Replay {
+            done: std::mem::take(&mut self.done),
+            next: 0,
+            stopped: false,
+        };
+        let outcome = if self.pivot {
+            pivotby(&site, &self.arguments, sv, &mut calls)
+        } else {
+            groupby(&site, &self.arguments, sv, &mut calls)
+        };
+        let Calls::Replay { done, stopped, .. } = calls else {
+            unreachable!("the retained run keeps its calls");
+        };
+        self.done = done;
+        match outcome {
+            Err(Exit::Error(_)) if stopped => Ok(None),
+            Ok(value) => Ok(Some(value)),
+            Err(Exit::Error(code)) => Ok(Some(CalcValue::error(code))),
+            Err(Exit::Fault(fault)) => Err(fault),
+        }
+    }
+
+    fn completed_elements(&self) -> usize {
+        self.done.len()
+    }
+}
+
+fn grouping_task(
+    site: &Site<'_>,
+    a: &[CalcValue],
+    pivot: bool,
+) -> Step<Box<dyn KernelTask>> {
+    Ok(Box::new(GroupingTask {
+        id: site.id(),
+        pivot,
+        arguments: a.to_vec(),
+        done: Vec::new(),
+    }))
+}
+
+fn groupby_task(site: &Site<'_>, a: &[CalcValue], _: &mut EvalServices<'_>) -> Step<Box<dyn KernelTask>> {
+    grouping_task(site, a, false)
+}
+
+fn pivotby_task(site: &Site<'_>, a: &[CalcValue], _: &mut EvalServices<'_>) -> Step<Box<dyn KernelTask>> {
+    grouping_task(site, a, true)
 }
 
 fn column(values: Vec<CalcValue>) -> CalcValue {
@@ -301,9 +412,11 @@ fn column(values: Vec<CalcValue>) -> CalcValue {
 /// One aggregate: `f` called with the values of `column_index` of `rows`, and, when `f` takes two
 /// arguments, those of `relative`; an array result is kept as the cell's value, a reference
 /// result is #VALUE!.
+#[allow(clippy::too_many_arguments)]
 fn aggregate(
     site: &Site<'_>,
     sv: &mut EvalServices<'_>,
+    calls: &mut Calls,
     f: &CalcValue,
     values: &Table,
     column_index: usize,
@@ -323,7 +436,7 @@ fn aggregate(
     if two {
         args.push(column(pick(relative)));
     }
-    let result = call(site, sv, f, &args)?;
+    let result = call(site, sv, calls, f, &args)?;
     if result.callable_value().is_some() {
         return Ok(CalcValue::error(W::Calc));
     }
@@ -450,7 +563,7 @@ fn result(rows: Vec<Vec<CalcValue>>) -> Step<CalcValue> {
     ))
 }
 
-fn groupby(site: &Site<'_>, a: &[CalcValue], sv: &mut EvalServices<'_>) -> Step<CalcValue> {
+fn groupby(site: &Site<'_>, a: &[CalcValue], sv: &mut EvalServices<'_>, calls: &mut Calls) -> Step<CalcValue> {
     let fields = table(site, a, 0, sv)?;
     let values = table(site, a, 1, sv)?;
     let functions = functions(a, 2)?;
@@ -488,7 +601,7 @@ fn groupby(site: &Site<'_>, a: &[CalcValue], sv: &mut EvalServices<'_>) -> Step<
     for (key, members) in group(site, &keys, &rows)? {
         let mut aggregates = Vec::with_capacity(pairs.len());
         for &(v, f) in &pairs {
-            aggregates.push(aggregate(site, sv, &functions[f], &values, v, &members, &rows)?);
+            aggregates.push(aggregate(site, sv, calls, &functions[f], &values, v, &members, &rows)?);
         }
         groups.push((key, members, aggregates));
     }
@@ -514,20 +627,20 @@ fn groupby(site: &Site<'_>, a: &[CalcValue], sv: &mut EvalServices<'_>) -> Step<
         header.extend(pairs.iter().map(|&(_, f)| function_name(&functions[f])));
         out.push(header);
     }
-    let totals = |site: &Site<'_>, sv: &mut EvalServices<'_>, label: &str, prefix: Option<&CalcValue>, members: &[usize]| -> Step<Vec<CalcValue>> {
+    let totals = |site: &Site<'_>, sv: &mut EvalServices<'_>, calls: &mut Calls, label: &str, prefix: Option<&CalcValue>, members: &[usize]| -> Step<Vec<CalcValue>> {
         let mut row = vec![text(""); width];
         match prefix {
             Some(key) => row[0] = key.clone(),
             None => row[0] = text(label),
         }
         for (at, &(v, f)) in pairs.iter().enumerate() {
-            row[k + at] = aggregate(site, sv, &functions[f], &values, v, members, &rows)?;
+            row[k + at] = aggregate(site, sv, calls, &functions[f], &values, v, members, &rows)?;
         }
         Ok(row)
     };
     let grand_label = if depth.abs() == 2 { "Grand Total" } else { "Total" };
     if depth < 0 {
-        out.push(totals(site, sv, grand_label, None, &rows)?);
+        out.push(totals(site, sv, calls, grand_label, None, &rows)?);
     }
     let mut at = 0;
     while at < groups.len() {
@@ -539,7 +652,7 @@ fn groupby(site: &Site<'_>, a: &[CalcValue], sv: &mut EvalServices<'_>) -> Step<
         }
         let members: Vec<usize> = groups[at..end].iter().flat_map(|g| g.1.iter().copied()).collect();
         if depth == -2 {
-            out.push(totals(site, sv, "", Some(&groups[at].0[0]), &members)?);
+            out.push(totals(site, sv, calls, "", Some(&groups[at].0[0]), &members)?);
         }
         for g in &groups[at..end] {
             let mut row = g.0.clone();
@@ -547,12 +660,12 @@ fn groupby(site: &Site<'_>, a: &[CalcValue], sv: &mut EvalServices<'_>) -> Step<
             out.push(row);
         }
         if depth == 2 {
-            out.push(totals(site, sv, "", Some(&groups[at].0[0]), &members)?);
+            out.push(totals(site, sv, calls, "", Some(&groups[at].0[0]), &members)?);
         }
         at = end;
     }
     if depth > 0 {
-        out.push(totals(site, sv, grand_label, None, &rows)?);
+        out.push(totals(site, sv, calls, grand_label, None, &rows)?);
     }
     for row in &mut out {
         for cell in row.iter_mut() {
@@ -653,7 +766,7 @@ fn subtotalled(
     Ok(())
 }
 
-fn pivotby(site: &Site<'_>, a: &[CalcValue], sv: &mut EvalServices<'_>) -> Step<CalcValue> {
+fn pivotby(site: &Site<'_>, a: &[CalcValue], sv: &mut EvalServices<'_>, calls: &mut Calls) -> Step<CalcValue> {
     let row_fields = table(site, a, 0, sv)?;
     let col_fields = table(site, a, 1, sv)?;
     let values = table(site, a, 2, sv)?;
@@ -757,7 +870,7 @@ fn pivotby(site: &Site<'_>, a: &[CalcValue], sv: &mut EvalServices<'_>) -> Step<
         }
         out.push(header);
     }
-    let body = |site: &Site<'_>, sv: &mut EvalServices<'_>, label: Vec<CalcValue>, row_members: &[usize]| -> Step<Vec<CalcValue>> {
+    let body = |site: &Site<'_>, sv: &mut EvalServices<'_>, calls: &mut Calls, label: Vec<CalcValue>, row_members: &[usize]| -> Step<Vec<CalcValue>> {
         let mut row = label;
         for column in &columns {
             let col_members = &column.members;
@@ -772,13 +885,13 @@ fn pivotby(site: &Site<'_>, a: &[CalcValue], sv: &mut EvalServices<'_>) -> Step<
                     continue;
                 }
                 let rel = relative(row_members, col_members);
-                row.push(aggregate(site, sv, &functions[f], &values, v, &members, &rel)?);
+                row.push(aggregate(site, sv, calls, &functions[f], &values, v, &members, &rel)?);
             }
         }
         Ok(row)
     };
     for line in lines(site, &row_groups, kr, row_depth, &rows)? {
-        out.push(body(site, sv, line.labels, &line.members)?);
+        out.push(body(site, sv, calls, line.labels, &line.members)?);
     }
     for row in &mut out {
         for cell in row.iter_mut() {
@@ -794,6 +907,6 @@ ported_shared_family! {
     code: CODE;
     declarations: DECLARATIONS;
     // dc-h9u: ROWS(GROUPBY(...)) and ROWS(PIVOTBY(...)) lift field and filter expressions.
-    1 groupby_fn |s, a, sv| { groupby(s, a, sv) }
-    2 pivotby_fn |s, a, sv| { pivotby(s, a, sv) }
+    1 groupby_fn resume groupby_resume => groupby_task; |s, a, sv| { groupby(s, a, sv, &mut Calls::Direct) }
+    2 pivotby_fn resume pivotby_resume => pivotby_task; |s, a, sv| { pivotby(s, a, sv, &mut Calls::Direct) }
 }
