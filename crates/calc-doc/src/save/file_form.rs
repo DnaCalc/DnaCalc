@@ -333,8 +333,10 @@ impl Walk<'_, '_> {
                     (Some((TokenKind::At, span)), Some(operand)) => {
                         let shape = self.walk(operand, depth + 1)?;
                         let _ = shape;
-                        self.edits
-                            .push((span.start, span.end(), "_xlfn.SINGLE(".to_owned()));
+                        let file_name = calc_catalogue::unheld::operator_file_spelling(
+                            calc_catalogue::unheld::IMPLICIT_INTERSECTION_ID,
+                        ).expect("the implicit-intersection file spelling");
+                        self.edits.push((span.start, span.end(), format!("{file_name}(")));
                         self.insert(operand.span().end(), ")");
                         multi(false)
                     }
@@ -359,7 +361,10 @@ impl Walk<'_, '_> {
                 };
                 if let Some((TokenKind::Hash, span)) = operator {
                     // Inserted before the operand's own edits at the same place.
-                    self.insert(operand.span().start, "_xlfn.ANCHORARRAY(");
+                    let file_name = calc_catalogue::unheld::operator_file_spelling(
+                        calc_catalogue::unheld::SPILL_ID,
+                    ).expect("the spill file spelling");
+                    self.insert(operand.span().start, &format!("{file_name}("));
                     self.walk(operand, depth + 1)?;
                     self.edits.push((span.start, span.end(), ")".to_owned()));
                     return multi(true);
