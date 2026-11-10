@@ -1,14 +1,14 @@
 {
-  "desktop": "DnaCalcX1t",
+  "desktop": "DnaCalcX1v",
   "session_root": "C:\\Work\\DnaCalc\\DnaCalc-win\\target\\excel-session-x13",
   "exit": 0,
-  "guard_samples": 1901,
+  "guard_samples": 1439,
   "owned_pids": [
-    40540
+    21968
   ],
   "windows_on_user_desktop": 0,
   "visible_on_user_desktop": 0,
   "foreground_hits": 0,
   "findings": [],
-  "finished_utc": "2026-11-10T21:47:46.5163446Z"
+  "finished_utc": "2026-11-10T22:09:51.6851973Z"
 }

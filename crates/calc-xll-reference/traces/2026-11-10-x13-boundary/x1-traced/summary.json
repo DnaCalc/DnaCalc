@@ -3,16 +3,17 @@
   "formula_cases": 289,
   "formula_matches_each_host": 289,
   "xlfree_operands_after_compared": 148,
-  "source_revision": "a967db0133381ed99796d5dfd45be8101189bd94",
+  "callback_contexts_compared": 599,
+  "source_revision": "c520b54e8b34ac043f491069579c3b6129c47771",
   "ordered_callback_sequence_matches": true,
   "trace_sha256": {
-    "excel": "A6210AF9C2702E286B6137BEF21622D6428F4554A1ED99868081DAB9E52B99AC",
-    "dna_calc": "4BD5944751AA2D79318A2288F7C2AD8EDC6449CA34B5F78316208EC28A874972"
+    "excel": "9D14D6EAB56D15C295EFAE2B53CD64944A2E7AF22D3F50CC186D85FBED746A01",
+    "dna_calc": "56BCC234781C68BCB8F8E329CBC283179B806F0E4546BC64BA50C310486E0930"
   },
   "excel_file_version": "16.0.20527.20150",
   "host_file_version": "16.0.0.1",
   "same_fixture_sha256": "A7194D47CD9226356040BCA0D85FCDE1F2116FDB9DBC24DEEDEFAB4993575F99",
-  "excel_trace_records": 2203,
+  "excel_trace_records": 2195,
   "host_trace_records": 2164,
   "c_api_calls_each_host": 599,
   "callback_return_codes": [
@@ -135,19 +136,19 @@
   "scope": "OneCalc controller in a minimal native executable; no Excel-DNA, COM object model or worker scheduling claim",
   "async_result_operand": "Excel direct callback leaves type zero; DNA Calc supplies the documented Boolean. Callback codes and published values match; this raw output difference remains recorded.",
   "excel_session_ownership": {
-    "C:\\Work\\DnaCalc\\codex-runs\\x13-boundary\\x1-trace\\excel-traced": {
-      "pid": 40540,
-      "start_ticks": 639299440389558801,
-      "launch": 19,
-      "job": "20261110T2147188244289-4eceed401bec413bbe7a80b05086087c",
+    "C:\\Work\\DnaCalc\\codex-runs\\x13-boundary\\x1-trace3\\excel-traced": {
+      "pid": 21968,
+      "start_ticks": 639299449158986985,
+      "launch": 24,
+      "job": "20261110T2209315332344-bae974e96c8f48229630d5043c7cbac7",
       "host_script_sha256": "CA04E1F2ED8CA422721AA3407D28E4A8B49681802F825FECA938248B163C0673",
       "scope": "Exact successful fresh-job receipt, launch tuple, pre-activation inventory, retained host/runner sources, security baseline and capture interval checked; raw environment remains unchanged."
     },
-    "C:\\Work\\DnaCalc\\codex-runs\\x13-boundary\\x1-trace\\excel-control": {
-      "pid": 40540,
-      "start_ticks": 639299440389558801,
-      "launch": 19,
-      "job": "20261110T2147371095537-bf385875c42a41bfb261eb527453b017",
+    "C:\\Work\\DnaCalc\\codex-runs\\x13-boundary\\x1-trace3\\excel-control": {
+      "pid": 21968,
+      "start_ticks": 639299449158986985,
+      "launch": 24,
+      "job": "20261110T2209447751448-6dd345405798491abbf3198db5d03439",
       "host_script_sha256": "CA04E1F2ED8CA422721AA3407D28E4A8B49681802F825FECA938248B163C0673",
       "scope": "Exact successful fresh-job receipt, launch tuple, pre-activation inventory, retained host/runner sources, security baseline and capture interval checked; raw environment remains unchanged."
     }

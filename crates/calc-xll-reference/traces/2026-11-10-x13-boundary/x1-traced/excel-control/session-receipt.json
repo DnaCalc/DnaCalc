@@ -1,12 +1,12 @@
 {
   "format": "dnacalc-excel-session-job/1",
-  "id": "20261110T2147371095537-bf385875c42a41bfb261eb527453b017",
-  "sequence": 23,
-  "environment": "xll:C:\\Work\\DnaCalc\\codex-runs\\x13-boundary\\x1-trace\\X1-fixture.dll",
+  "id": "20261110T2209447751448-6dd345405798491abbf3198db5d03439",
+  "sequence": 40,
+  "environment": "xll:C:\\Work\\DnaCalc\\codex-runs\\x13-boundary\\x1-trace3\\X1-fixture.dll",
   "fresh_required": false,
   "host_pid": 67104,
-  "started_utc": "2026-11-10T21:47:37.1683744Z",
-  "launches_before": 19,
+  "started_utc": "2026-11-10T22:09:44.8134101Z",
+  "launches_before": 24,
   "success": true,
   "error": null,
   "baseline_before": {
@@ -134,14 +134,14 @@
   "no_save_baseline": false,
   "script_sha256": "7ac92c831afc3fa0679549e060429fae3347f491a0ac5f35e164ec8a011c5a42",
   "job": {
-    "id": "20261110T2147371095537-bf385875c42a41bfb261eb527453b017",
+    "id": "20261110T2209447751448-6dd345405798491abbf3198db5d03439",
     "script": "C:\\Work\\DnaCalc\\DnaCalc-win\\crates\\calc-xll-reference\\run.ps1",
     "parameters": {
-      "X1Xll": "C:\\Work\\DnaCalc\\codex-runs\\x13-boundary\\x1-trace\\X1-fixture.dll",
-      "NoTrace": true,
-      "RunDirectory": "C:\\Work\\DnaCalc\\codex-runs\\x13-boundary\\x1-trace\\excel-control"
+      "RunDirectory": "C:\\Work\\DnaCalc\\codex-runs\\x13-boundary\\x1-trace3\\excel-control",
+      "X1Xll": "C:\\Work\\DnaCalc\\codex-runs\\x13-boundary\\x1-trace3\\X1-fixture.dll",
+      "NoTrace": true
     },
-    "environment": "xll:C:\\Work\\DnaCalc\\codex-runs\\x13-boundary\\x1-trace\\X1-fixture.dll",
+    "environment": "xll:C:\\Work\\DnaCalc\\codex-runs\\x13-boundary\\x1-trace3\\X1-fixture.dll",
     "working_directory": "C:\\Work\\DnaCalc\\DnaCalc-win",
     "fresh_required": false,
     "timeout_seconds": 1200,
@@ -207,14 +207,14 @@
     "registered_functions": null
   },
   "excel": {
-    "pid": 40540,
-    "start_ticks": 639299440389558801,
-    "command_line": "C:\\Program Files\\Microsoft Office\\root\\Office16\\EXCEL.EXE /x /automation /r \"C:\\Work\\DnaCalc\\DnaCalc-win\\target\\excel-session-x13\\launches\\19-bootstrap.csv\"",
-    "launch": 19
+    "pid": 21968,
+    "start_ticks": 639299449158986985,
+    "command_line": "C:\\Program Files\\Microsoft Office\\root\\Office16\\EXCEL.EXE /x /automation /r \"C:\\Work\\DnaCalc\\DnaCalc-win\\target\\excel-session-x13\\launches\\24-bootstrap.csv\"",
+    "launch": 24
   },
   "execution_script": "C:\\Work\\DnaCalc\\DnaCalc-win\\crates\\calc-xll-reference\\run.ps1",
   "execution_script_sha256": "7ac92c831afc3fa0679549e060429fae3347f491a0ac5f35e164ec8a011c5a42",
-  "result_sha256": "82304449690c8862dfaed2085d6a04d35e01f752ffbddb238691b8affafeee4b",
+  "result_sha256": "7fbd42faf833e66e2e0fefa55f0ca3a6272f8d24265e5a6e9a95c63fc1056aab",
   "observed_after_job": {
     "Visible": true,
     "DisplayAlerts": false,
@@ -273,7 +273,7 @@
     "registered_functions": null
   },
   "sampling_eligible": true,
-  "ordinary_sequence": 5,
-  "finished_utc": "2026-11-10T21:47:46.2642712Z",
-  "launches_after": 19
+  "ordinary_sequence": 17,
+  "finished_utc": "2026-11-10T22:09:51.4005768Z",
+  "launches_after": 24
 }

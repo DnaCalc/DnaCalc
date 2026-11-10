@@ -43,15 +43,18 @@ OneCalc comparisons before (31478370 build) and after the mask coercion: 61 and 
 17 remaining failures are OneCalc MissingInput refusals for cells other than A1. These host runs
 used `run-batch.ps1 -Direct`. See the hosting study, section 29.
 
-## X1 traced pair with xlFree operands (x1-args-after)
+## X1 traced pair: xlFree operands and callback contexts (x1-traced)
 
-The tracer (`native/trace.cpp`) now records xlFree's operands after the call (`args_after`), and
-`verify.py`'s X1 check compares them in order. One traced and one untraced X1 run each in Excel
-(owned session, private desktop) and in OneCalc (a967db01 build): `summary.json` verifies 289 of
-289 formulas, 599 ordered C API callbacks and status codes, and 148 xlFree calls whose operands
-afterwards agree. The same Excel traces against the old host (85ea49e5 build, traced and
-control) fail with "Operands after xlFree differ between Excel and DNA Calc"
-(`summary-old-host.json`), so the comparison sees the behaviour this bead changed.
+The tracer (`native/trace.cpp`) records xlFree's operands after the call (`args_after`) and,
+for every callback, the XLL export running on its thread (`within`); `verify.py`'s X1 check
+compares both in order. One traced and one untraced X1 run each in Excel (owned session,
+private desktop) and in OneCalc (a967db01 build), at c520b54e: `summary.json` verifies 289 of
+289 formulas, 599 ordered C API callbacks and status codes, the same running export for all 599
+callbacks, and 148 xlFree calls whose operands afterwards agree. An earlier pair with the
+args_after tracer against the old host (85ea49e5 build) failed with "Operands after xlFree
+differ between Excel and DNA Calc" (`summary-old-host.json`; its traces stay in
+`C:/Work/DnaCalc/codex-runs/x13-boundary/x1-trace`), so the comparison sees the behaviour this
+bead changed.
 
 ## x15 foundation operands
 
