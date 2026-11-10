@@ -269,7 +269,7 @@ enum Operator {
 fn operator_call(written: &str, loaded: bool) -> Option<Operator> {
     let spelling = file_unprefixed(written);
     let prefixed = spelling.len() != written.len();
-    if loaded && !prefixed {
+    if loaded && !prefixed && !spelling.eq_ignore_ascii_case("SINGLE") {
         return None;
     }
     if let Some(operator) = catalogue().resolve_operator_alias(spelling) {

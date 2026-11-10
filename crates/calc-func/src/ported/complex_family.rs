@@ -245,8 +245,8 @@ impl ParsedComplex {
         )
     }
     pub(crate) fn tan(self) -> Result<Self, WorksheetErrorCode> {
+        crate::ported::real_policy::ExcelRealPolicy::CIRCULAR_TRIG.check_arg(self.re)?;
         if self.im == 0.0 {
-            crate::ported::real_policy::ExcelRealPolicy::CIRCULAR_TRIG.check_arg(self.re)?;
             return Ok(Self::new(
                 crate::ported::excel_numeric::excel_tan(self.re),
                 0.0,
@@ -314,6 +314,7 @@ impl ParsedComplex {
                 None,
             ));
         }
+        crate::ported::real_policy::ExcelRealPolicy::CIRCULAR_TRIG.check_arg(self.re)?;
         let denom = crt_cosh(2.0 * self.im) - crt_cos(2.0 * self.re);
         if denom == 0.0 {
             return Err(WorksheetErrorCode::Num);

@@ -1068,7 +1068,7 @@ impl<'c> Lowering<'c> {
             }
             None => {}
         }
-        if let (true, Some(operator)) = (prefixed, catalogue().resolve_operator_alias(spelling)) {
+        if let Some(operator) = catalogue().resolve_operator_alias(spelling) {
             let [operand] = arguments[..] else {
                 return Err(syntax(span));
             };

@@ -40,49 +40,58 @@ fn held_values(
 ) -> Step<Vec<CalcValue>> {
     let mut found = Vec::new();
     for (index, argument) in a.iter().enumerate().skip(from) {
-        let CoreRef::Reference(reference) = argument.core_ref() else {
-            // SUBTOTAL and AGGREGATE's reference form read references only; an array here is
-            // not modelled.
-            return Err(site.not_modelled(Some(index)));
-        };
-        let needs_knowledge = rule.nested || rule.hidden || rule.filtered;
-        let mut excluded_cells = BTreeSet::new();
-        let mut excluded_rows = BTreeSet::new();
-        if needs_knowledge {
-            let reader = aggregate::reader(site, sv, index)?;
-            for &area in reference.areas() {
-                let Some(SubtotalExclusions {
-                    nested_subtotals,
-                    hidden_rows,
-                    filtered_rows,
-                }) = reader.subtotal_exclusions(area)
-                else {
-                    return Err(site.not_modelled(Some(index)));
-                };
-                if rule.nested {
-                    excluded_cells.extend(nested_subtotals.iter().map(|k| (k.row(), k.column())));
+        match argument.core_ref() {
+            CoreRef::Reference(reference) => {
+                let needs_knowledge = rule.nested || rule.hidden || rule.filtered;
+                let mut excluded_cells = BTreeSet::new();
+                let mut excluded_rows = BTreeSet::new();
+                if needs_knowledge {
+                    let reader = aggregate::reader(site, sv, index)?;
+                    for &area in reference.areas() {
+                        let Some(SubtotalExclusions {
+                            nested_subtotals,
+                            hidden_rows,
+                            filtered_rows,
+                        }) = reader.subtotal_exclusions(area)
+                        else {
+                            return Err(site.not_modelled(Some(index)));
+                        };
+                        if rule.nested {
+                            excluded_cells.extend(nested_subtotals.iter().map(|k| (k.row(), k.column())));
+                        }
+                        if rule.hidden {
+                            excluded_rows.extend(hidden_rows);
+                        }
+                        if rule.filtered {
+                            excluded_rows.extend(filtered_rows);
+                        }
+                    }
                 }
-                if rule.hidden {
-                    excluded_rows.extend(hidden_rows);
-                }
-                if rule.filtered {
-                    excluded_rows.extend(filtered_rows);
+                let reader = aggregate::reader(site, sv, index)?;
+                read_reference(site, reader, reference, index, &mut |_, key, value| {
+                    if excluded_rows.contains(&key.row())
+                        || excluded_cells.contains(&(key.row(), key.column()))
+                    {
+                        return Ok(());
+                    }
+                    if rule.errors && matches!(value.core_ref(), CoreRef::Error(_)) {
+                        return Ok(());
+                    }
+                    found.push(value.clone());
+                    Ok(())
+                })?;
+            }
+            CoreRef::Array(_) => {
+                return Err(Exit::Error(WorksheetErrorCode::Value));
+            }
+            _ => {
+                if rule.errors && matches!(argument.core_ref(), CoreRef::Error(_)) {
+                    // Ignored error under rule.errors
+                } else {
+                    found.push(argument.clone());
                 }
             }
         }
-        let reader = aggregate::reader(site, sv, index)?;
-        read_reference(site, reader, reference, index, &mut |_, key, value| {
-            if excluded_rows.contains(&key.row())
-                || excluded_cells.contains(&(key.row(), key.column()))
-            {
-                return Ok(());
-            }
-            if rule.errors && matches!(value.core_ref(), CoreRef::Error(_)) {
-                return Ok(());
-            }
-            found.push(value.clone());
-            Ok(())
-        })?;
     }
     Ok(found)
 }
@@ -229,16 +238,6 @@ ported_shared_family! {
             errors: matches!(options, 2 | 3 | 6 | 7),
         };
         if function <= 13 {
-            // The reference form reads references only: a value there (a number, an array) is
-            // #VALUE! (Excel 16.0.20430, 2026-10-25, dc-6au: `=AGGREGATE(1,1,{1,2})`,
-            // `=AGGREGATE(9,0,1)` and `=AGGREGATE(1,1,A1:A3*1)` are #VALUE!). An error value
-            // there is not measured and stays refused.
-            if a[2..].iter().any(|argument| {
-                !matches!(argument.core_ref(), CoreRef::Reference(_) | CoreRef::Error(_))
-                    && !argument.is_missing()
-            }) {
-                return fail(WorksheetErrorCode::Value);
-            }
             let values = held_values(s, a, 2, sv, rule)?;
             return compute(s, function, &values);
         }

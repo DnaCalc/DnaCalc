@@ -971,6 +971,8 @@ mod references {
         assert_eq!(book.dynamic_at("=@Sheet1!F1:F10", "Sheet2!A5"), n(0.0));
         // Excel: =@{7,8} is 7; the file form _xlfn.SINGLE is the same operator.
         assert_eq!(book.dynamic("=@{7,8}"), n(7.0));
+        assert_eq!(book.dynamic("=_xlfn.SINGLE({7,8})"), n(7.0));
+        assert_eq!(book.dynamic("=SINGLE({7,8})"), n(7.0));
         assert_eq!(
             book.dynamic_at("=_xlfn.SINGLE(Sheet1!C1:E10)", "Sheet2!D5"),
             n(504.0)
@@ -1255,6 +1257,8 @@ mod lambda {
         // The file form: Excel writes _xlfn.LET and _xlpm. before each name.
         assert_eq!(book.dynamic("=_xlfn.LET(_xlpm.x,3,_xlpm.x*2)"), n(6.0));
         assert_eq!(book.dynamic("=LET(a,{1,2,3},SUM(a*a))"), n(14.0));
+        assert_eq!(book.dynamic("=LET(a,LET(b,2,b),a)"), n(2.0));
+        assert_eq!(book.dynamic("=LET(x,1,y)"), e(W::Name));
         // A name that is no name, and an even number of arguments, do not compile.
         for refused in ["=LET(A1,1,A1)", "=LET(1,1,2)", "=LET(x,1)"] {
             assert!(

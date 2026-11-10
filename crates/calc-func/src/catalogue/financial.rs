@@ -15,7 +15,7 @@
 //! modelled.
 
 use super::aggregate::Held;
-use super::kit::{fail, flag, given, grid, num, numbers, opt, out, reject_logical};
+use super::kit::{fail, flag, given, grid, num, num_with_subnormal, numbers, opt, out, out_with_subnormal, reject_logical};
 use crate::call::EvalServices;
 use crate::kernel::{Site, Step};
 use crate::locale::DateSystem;
@@ -328,11 +328,16 @@ ported_shared_family! {
         // W111 typed and padding controls read the required arguments, then factor,
         // then no_switch. An explicit empty factor slot coerces to zero; only an
         // absent trailing factor takes the default of two.
-        let (cost, salvage, life, start, end) =
-            (num(s, a, 0)?, num(s, a, 1)?, num(s, a, 2)?, num(s, a, 3)?, num(s, a, 4)?);
-        let factor = if a.len() > 5 { num(s, a, 5)? } else { 2.0 };
+        let (cost, salvage, life, start, end) = (
+            num_with_subnormal(s, a, 0)?,
+            num_with_subnormal(s, a, 1)?,
+            num_with_subnormal(s, a, 2)?,
+            num_with_subnormal(s, a, 3)?,
+            num_with_subnormal(s, a, 4)?,
+        );
+        let factor = if a.len() > 5 { num_with_subnormal(s, a, 5)? } else { 2.0 };
         let no_switch = if given(a, 6) && !a[6].is_empty() { flag(s, a, 6)? } else { false };
-        out(s, dep::vdb_kernel(cost, salvage, life, start, end, factor, no_switch))
+        out_with_subnormal(s, dep::vdb_kernel(cost, salvage, life, start, end, factor, no_switch))
     }
     26 amorlinc_fn |s, a, sv| {
         let purchased = date_1900(s, a, 1, sv)?;

@@ -553,5 +553,17 @@ mod tests {
         let switched = vdb_kernel(2400.0, 300.0, 10.0, 6.0, 8.0, 2.0, false).unwrap();
         let pure_declining = vdb_kernel(2400.0, 300.0, 10.0, 6.0, 8.0, 2.0, true).unwrap();
         assert!((switched - pure_declining).abs() < 1.0e-12);
+        assert_eq!(
+            vdb_kernel(
+                f64::from_bits(0x001b00b3c87c2144),
+                f64::from_bits(0x0020fac6b213cb21),
+                f64::from_bits(0x5613a18b0163bf88),
+                0.0,
+                900.0,
+                f64::from_bits(0x402590a52fb5b809),
+                false,
+            ).unwrap().to_bits(),
+            0x8006f4d99bab74fe
+        );
     }
 }
