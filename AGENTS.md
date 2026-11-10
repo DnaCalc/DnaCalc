@@ -17,7 +17,7 @@ DnaTreeCalc, DnaOneCalc and the others) are read-only inputs: port from them, ne
 
 | Directory | Packages |
 |---|---|
-| `crates/` | `calc-value` and `calc-func` (CalcFunc); `calc-fml` (CalcFml); `calc-doc-model` and `calc-doc` (CalcDoc); `calc-engine` (CalcEngine); `calc-host` (CalcHost); `calc-addin-host` (the loaded add-in set both desktop applications share) |
+| `crates/` | `calc-value`, `calc-catalogue` and `calc-func` (CalcFunc); `calc-fml` (CalcFml); `calc-doc-model` and `calc-doc` (CalcDoc); `calc-engine` (CalcEngine); `calc-host` (CalcHost); `calc-addin-host` (the loaded add-in set both desktop applications share) |
 | `apps/` | `dna-onecalc`, `dna-calc`; `dna-onecalc-desktop` and `dna-calc-desktop` (the two Windows executables); `dna-formula-ui` (the formula UI both show) and `dna-strand` (design tokens) |
 | `platform/` | `calc-platform-desktop` (window chain, WebView2 host, WinHTTP, file dialogs; no product dependency), `calc-oracle-excel` (native-only adapters) |
 | `tools/` | `calc-verdict` (capture records and the verdict path), `xtask` (repository tooling) |

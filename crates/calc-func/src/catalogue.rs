@@ -1,8 +1,8 @@
 //! The function catalogue: one logical, declarative catalogue assembled from per-family
 //! fragments, and the views generated from it.
 //!
-//! Family fragments attach kernels to stable [`FunctionId`]s. Shared declarations live in
-//! calc-catalogue; the families not yet moved retain their declarations here. Entry metadata
+//! Shared declarations live in `calc-catalogue`; family fragments attach kernels to stable
+//! [`FunctionId`]s. Entry metadata
 //! includes spelling, notation, arity, groups, parameters, result and argument demand, with
 //! Excel evidence beside the declarations. At compile time
 //! the generator below combines the fragments into an ID-ordered dispatch table and a

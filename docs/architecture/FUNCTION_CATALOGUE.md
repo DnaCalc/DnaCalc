@@ -7,8 +7,8 @@ CalcFml implements the execution machinery for those declarations."
 ## The principle
 
 CalcFunc knows the functions. CalcFml knows the formula language. What is true of one function is declared once,
-in that function's family fragment (`crates/calc-func/src/catalogue/<family>.rs`), next to its kernel and the Excel
-evidence for it. CalcFml asks the catalogue and never tests a function's spelling. CalcFml's own vocabulary is the
+in `calc-catalogue` (`crates/calc-catalogue/src/`), with kernels attached in `crates/calc-func/src/catalogue/` next
+to the Excel evidence for them. CalcFml asks the catalogue and never tests a function's spelling. CalcFml's own vocabulary is the
 grammar: operators, literals (`TRUE`, `FALSE`, the error literals), references, names, and the two binding forms
 LET and LAMBDA as forms, not as spellings.
 
@@ -24,8 +24,8 @@ by the same table.
 
 A `CatalogueEntry` holds a stable `FunctionId`, spelling and notation, `EntryKind`,
 `Availability`, arity, optional repeating `ArgumentGroups`, parameters, `ResultForm`,
-`ArgumentDemand`, `EntryTraits` and a kernel. Family fragments declare these with `const fn`
-builders next to the implementation. The generated catalogue provides an ID table and a surface
+`ArgumentDemand`, `EntryTraits` and a kernel. Declarations are defined in `calc-catalogue` with `const fn`
+builders; family fragments in `calc-func` attach kernels to them next to the implementation. The generated catalogue provides an ID table and a surface
 table over the same entries. `entries()` includes bindings and unheld or deferred entries;
 `targets()` and `surfaces()` enumerate entries with executable kernels and omit the add-in's
 private surface.

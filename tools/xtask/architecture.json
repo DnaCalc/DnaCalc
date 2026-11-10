@@ -15,6 +15,35 @@
       "reason": "SYNTHESIS: neutral syntax identities cannot depend on authored workbooks or execution."
     },
     {
+      "package": "calc-value",
+      "scope": "closure",
+      "forbidden": [
+        "calc-catalogue",
+        "calc-func",
+        "calc-fml",
+        "calc-doc-model",
+        "calc-doc",
+        "calc-engine",
+        "calc-host",
+        "calc-vba"
+      ],
+      "reason": "plan 1.3: calc-value provides the lowest-layer value types and depends on no other calculation crate"
+    },
+    {
+      "package": "calc-catalogue",
+      "scope": "closure",
+      "forbidden": [
+        "calc-func",
+        "calc-fml",
+        "calc-doc-model",
+        "calc-doc",
+        "calc-engine",
+        "calc-host",
+        "calc-vba"
+      ],
+      "reason": "calc-catalogue contains only data declarations and depends only on calc-value"
+    },
+    {
       "package": "calc-func",
       "scope": "closure",
       "forbidden": [
@@ -87,6 +116,16 @@
         "calc-doc"
       ],
       "reason": "plan 1.3 and 2.1: CalcEngine may depend on CalcDoc's neutral model, and the model depends only on the CalcFunc value types and service contracts, never on CalcEngine, CalcFml, CalcHost or the CalcDoc codec"
+    },
+    {
+      "package": "calc-doc",
+      "scope": "closure",
+      "forbidden": [
+        "calc-engine",
+        "calc-host",
+        "calc-vba"
+      ],
+      "reason": "plan 1.3: CalcDoc cannot depend on CalcEngine, CalcHost or CalcVBA"
     },
     {
       "package": "calc-verdict",
