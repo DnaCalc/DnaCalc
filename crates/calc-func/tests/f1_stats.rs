@@ -251,12 +251,11 @@ fn ets_errors_and_unresolved_arithmetic_remain_distinct() {
             ..
         })
     ));
+    // The short-history extension (dc-6332.5) now computes this history; its
+    // value is not an Excel measurement, so only the calculated outcome is held.
     assert!(matches!(
         call("FORECAST.ETS", vec![n(5.0), y, t, n(0.0)]),
-        Err(calc_func::FunctionFault::NotHeld {
-            owner: "dc-j9k",
-            ..
-        })
+        Ok(_)
     ));
     // Excel keeps the unit in this duplicate reduction: mean=1/3, sum=1.
     // The private reduction is open; an accidentally zero local sum must not
@@ -3028,17 +3027,15 @@ fn ets_short_period_requests_use_the_nonseasonal_fit() {
             }
         }
     }
-    // Routing does not supply the still unidentified rounded initializer.
-    assert!(matches!(
+    // Explicit period two at four points is nonseasonal; the binary64 short
+    // initializer reproduces the recorded Excel forecast (dc-6332.5 harvest).
+    exact(
         call(
             "FORECAST.ETS",
-            vec![n(5.0), arr(vec![vec![2.0, 7.0, -1.0, 4.0]]), times, n(2.0)]
+            vec![n(5.0), arr(vec![vec![2.0, 7.0, -1.0, 4.0]]), times, n(2.0)],
         ),
-        Err(calc_func::FunctionFault::NotHeld {
-            owner: "dc-j9k",
-            ..
-        })
-    ));
+        1.5926883521785709,
+    );
 }
 
 /// R40 fresh Excel20527 selections. The short initializer extends the first
@@ -3155,8 +3152,9 @@ fn ets_exact_short_initialization_and_final_seasonal_addition() {
             );
         }
     }
-    // A non-dyadic initial quotient still needs the private regression's
-    // rounding; the newly proved region does not claim it.
+    // A non-dyadic initial quotient is now computed by the binary64 regression
+    // (dc-6332.5); no Excel value is recorded for this input, so only the
+    // calculated outcome is held.
     assert!(matches!(
         call(
             "FORECAST.ETS",
@@ -3167,10 +3165,7 @@ fn ets_exact_short_initialization_and_final_seasonal_addition() {
                 n(0.0)
             ]
         ),
-        Err(calc_func::FunctionFault::NotHeld {
-            owner: "dc-j9k",
-            ..
-        })
+        Ok(_)
     ));
     // One of 24 separately selected final-product midpoint questions. Strict
     // binary64 multiplication publishes ...e91, Excel's PC64 store ...e92.

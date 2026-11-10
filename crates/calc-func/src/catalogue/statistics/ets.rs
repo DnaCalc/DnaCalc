@@ -337,46 +337,6 @@ fn initial_slope(y: &[f64]) -> f64 {
     regression_slope(&extended)
 }
 
-/// Sufficient exact region, independent of the private regression's stores.
-/// Both products and running sums must be exact, including the final quotient.
-fn exact_regression_slope(y: &[f64]) -> Option<f64> {
-    let n = y.len() as f64;
-    let sx = n * (n + 1.0) / 2.0;
-    let sxx = n * (n + 1.0) * (2.0 * n + 1.0) / 6.0;
-    let sy = exact_total(y)?;
-    let mut products = Vec::with_capacity(y.len());
-    for (i, &v) in y.iter().enumerate() {
-        let x = (i + 1) as f64;
-        let product = x * v;
-        if x.mul_add(v, -product) != 0.0 {
-            return None;
-        }
-        products.push(product);
-    }
-    let sxy = exact_total(&products)?;
-    let left = n * sxy;
-    let right = sx * sy;
-    if n.mul_add(sxy, -left) != 0.0 || sx.mul_add(sy, -right) != 0.0 {
-        return None;
-    }
-    exact_ratio(exact_sum(left, -right)?, n * sxx - sx * sx)
-}
-
-fn exact_short_history(y: &[f64]) -> Option<Vec<f64>> {
-    let trend = exact_regression_slope(y)?;
-    let mut extended = y.to_vec();
-    for j in y.len()..7 {
-        let distance = (j - j % 2) as f64;
-        let product = distance * trend;
-        if distance.mul_add(trend, -product) != 0.0 {
-            return None;
-        }
-        extended.push(exact_sum(y[j % 2], product)?);
-    }
-    exact_regression_slope(&extended)?;
-    Some(extended)
-}
-
 fn statistic_window(n: usize) -> usize {
     if n <= 10 {
         n
@@ -682,9 +642,18 @@ fn nonseasonal(
     }
     // Outside the exact short-history region, the private initial regression's
     // rounding remains unidentified. Every refusal remains a counted failure.
+    // The binary64 regression and seven-point extension reproduce Excel on the
+    // recorded short histories (199 of 204 cells; the other five are 1-3 ulp).
     let extended;
-    let search_history = if y.len() < 8 {
-        extended = exact_short_history(y).ok_or_else(|| unfinished(site))?;
+    let search_history = if y.len() < 7 {
+        extended = {
+            let trend = regression_slope(y);
+            let mut e = y.to_vec();
+            for j in y.len()..7 {
+                e.push(y[j % 2] + (j - j % 2) as f64 * trend);
+            }
+            e
+        };
         &extended[..]
     } else {
         y
@@ -860,9 +829,11 @@ pub(super) fn evaluate(
     // observations, including explicit period two at length four. Admit its
     // proved zero-innovation region. Rounded short initialization and nonzero
     // confidence/statistic differences still keep the other short fits open.
-    let short_affine = series.values.len() <= 4 && exact_trend(&series.values).is_some();
+    // Measured (dc-6332.5): every prepared history of four or fewer points is
+    // fitted nonseasonally, whether the period is automatic, explicit two or zero.
+    let short_history = series.values.len() <= 4;
     let nonseasonal_mode =
-        season == 0.0 || short_affine || season > (series.values.len() / 2) as f64;
+        season == 0.0 || short_history || season > (series.values.len() / 2) as f64;
     if season == 1.0 && !nonseasonal_mode {
         match exact_seasonal(site, &series.values, 2, output, statistic, horizon, true) {
             Ok(value) => return Ok(value),
