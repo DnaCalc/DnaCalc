@@ -43,3 +43,6 @@ redirect
 *.db-*
 .br_recovery/
 *.db.fsqlite-*
+
+# br vacuum leftovers
+*.tmp-lock-*
