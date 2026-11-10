@@ -81,7 +81,7 @@ declarations such as `max_parallel_calls`, `cached_reads`. `UserFunctionInvocati
 ## 4. What it must never do
 - Touch `std::fs`, `std::process`, `std::os` or `std::net`, or stop building for wasm32 (AGENTS.md:26-29).
 - Depend on calc-fml, calc-engine, calc-host or calc-vba; parse reference text; evaluate a formula.
-- Add a file without its entry in `migration/licence-ledger.json` (`path`, `class`, `reason`; AGENTS.md:67-69).
+- Add a file that is not own work without its entry in `migration/licence-ledger.json` (`path`, `class`, `reason`; AGENTS.md:67-69); the ledger lists exceptions only.
 - Use a source outside its tier (`docs/plan/RESEARCH_SOURCES.md:11-16`): tier 3 gives facts only, through an
   analyst; tier 4 (Microsoft source and decompiled binaries) is never read. Measuring a DLL's outputs is allowed.
 - Hard-code an answer, weaken an assertion, regenerate a capture to force a pass, commit `todo!()`, or return

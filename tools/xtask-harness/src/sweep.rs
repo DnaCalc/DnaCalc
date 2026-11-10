@@ -6,8 +6,8 @@
 //! - `architecture`: four checks (`arch::run_all`): dependencies, os-imports,
 //!   wasm-refusal and tree-reference-tokens;
 //! - `name-tables`: flag separate worksheet-function name tables in shipped Rust sources;
-//! - `provenance`: the licence ledger's completeness (`licence::check`): every file under calc-func
-//!   and calc-value has a licence-ledger entry, and every entry names a tracked file;
+//! - `licence-ledger`: the licence ledger (`licence::check`): every path it lists is a tracked file
+//!   (the ledger lists exceptions only; a file it does not list counts as own work);
 //! - `ceiling`: the dependency ceiling on the host and wasm32: the resolved closures (normal and
 //!   build edges) of dna-onecalc and dna-formula-ui, the formula UI both apps show, hold neither
 //!   calc-engine nor calc-host (calc-doc is allowed: OneCalc's file is a constrained workbook read
@@ -39,12 +39,12 @@ use std::path::Path;
 use std::process::{Command, ExitCode};
 use std::time::Instant;
 
-pub const USAGE: &str = "usage: cargo xtask sweep [--skip architecture|name-tables|provenance|ceiling|wasm|app-smoke|acceptance|release]...";
+pub const USAGE: &str = "usage: cargo xtask sweep [--skip architecture|name-tables|licence-ledger|ceiling|wasm|app-smoke|acceptance|release]...";
 
 const STEPS: [&str; 8] = [
     "architecture",
     "name-tables",
-    "provenance",
+    "licence-ledger",
     "ceiling",
     "wasm",
     "app-smoke",
@@ -449,7 +449,7 @@ pub fn run(raw: &[String]) -> ExitCode {
                 (passed, lines.join(", "))
             }
             "name-tables" => crate::name_tables::check(&ws.root),
-            "provenance" => {
+            "licence-ledger" => {
                 let result = licence::check(&ws.root);
                 for finding in &result.findings {
                     println!("  {finding}");

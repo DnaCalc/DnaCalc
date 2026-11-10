@@ -24,8 +24,7 @@
 //! are, so the section's key in the copy is its key in the workbook, which is checked before Excel
 //! starts). A capture that fails, times out or is refused (an isolation failure, a file-cache
 //! replay the verdict refuses) is tried again, up to `--attempts` times (default 3), in a new work
-//! directory under `target/c/`; one that still fails is reported and the others go on. A file
-//! written under the licence ledger's roots gets its ledger entry. The timeout of one capture
+//! directory under `target/c/`; one that still fails is reported and the others go on. The timeout of one capture
 //! is `--timeout` seconds, or by default 120 s and half a second per formula cell.
 //!
 //! **What it writes.** A whole workbook's record to `oracle.capture.json` (and the package Excel
@@ -460,7 +459,6 @@ fn capture_whole(
     let path = case.whole_capture();
     write(&path, outcome.encoded.as_bytes()).map_err(Some)?;
     let mut written = vec![path.display().to_string()];
-    ensure_ledger_entries(root, &written).map_err(Some)?;
     let saved = case.captures.join("oracle.saved.xlsx");
     if saved.is_file() {
         let package = fs::read(&outcome.output_package).map_err(|e| {
@@ -554,62 +552,7 @@ fn capture_section(
         &[],
     )
     .map_err(Some)?;
-    ensure_ledger_entries(root, &written).map_err(Some)?;
     Ok(written)
-}
-
-/// The licence ledger (`migration/licence-ledger.json`) with an entry for each of `written` (paths
-/// the capture commands wrote) under its ledger roots that has none, as a capture's files are
-/// classed: own work, values read from live Excel.
-fn ensure_ledger_entries(root: &Path, written: &[String]) -> Result<(), String> {
-    let path = root.join(crate::licence::LEDGER_PATH);
-    let text =
-        fs::read_to_string(&path).map_err(|e| format!("cannot read {}: {e}", path.display()))?;
-    let ledger: serde_json::Value = serde_json::from_str(&text)
-        .map_err(|e| format!("{} does not parse: {e}", path.display()))?;
-    let roots: Vec<String> = ledger["scan"]["ledger_roots"]
-        .as_array()
-        .map(|roots| {
-            roots
-                .iter()
-                .filter_map(|r| r.as_str().map(|r| r.trim_end_matches('/').to_owned()))
-                .collect()
-        })
-        .unwrap_or_default();
-    let listed: BTreeSet<&str> = ledger["files"]
-        .as_array()
-        .map(|files| files.iter().filter_map(|f| f["path"].as_str()).collect())
-        .unwrap_or_default();
-    let newline = if text.contains("\r\n") { "\r\n" } else { "\n" };
-    let mut added = String::new();
-    for file in written {
-        let relative = Path::new(file)
-            .strip_prefix(root)
-            .unwrap_or(Path::new(file))
-            .to_string_lossy()
-            .replace('\\', "/");
-        let covered = roots.iter().any(|r| relative.starts_with(&format!("{r}/")));
-        if covered && !listed.contains(relative.as_str()) {
-            added.push_str(&format!(
-                ",{newline}  {{{newline}   \"path\": \"{relative}\",{newline}   \"class\": \"own-work\",{newline}   \"reason\": \"Excel capture: values read from live Excel by cargo xtask capture (measurement)\"{newline}  }}"
-            ));
-        }
-    }
-    if added.is_empty() {
-        return Ok(());
-    }
-    // The list closes with " ]" or, as the entries of later lanes leave it, "  ]".
-    let at = [
-        format!("{newline}  ]{newline}}}"),
-        format!("{newline} ]{newline}}}"),
-    ]
-    .iter()
-    .find_map(|end| text.rfind(end.as_str()))
-    .ok_or_else(|| format!("{} does not end with its files list", path.display()))?;
-    let updated = format!("{}{added}{}", &text[..at], &text[at..]);
-    serde_json::from_str::<serde_json::Value>(&updated)
-        .map_err(|e| format!("the updated ledger would not parse: {e}"))?;
-    fs::write(&path, updated).map_err(|e| format!("cannot write {}: {e}", path.display()))
 }
 
 #[derive(Debug, PartialEq)]
@@ -743,7 +686,6 @@ fn run_split(args: &SplitArgs) -> Result<Vec<String>, String> {
         saved.as_deref(),
         &args.keep_saved,
     )?;
-    ensure_ledger_entries(&root, &written)?;
     Ok(written)
 }
 

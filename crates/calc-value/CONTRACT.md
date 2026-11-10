@@ -95,7 +95,7 @@ All modules are private; the surface is the `pub use` list and root functions (`
 - Grant the overflow qualification to anything but the measured rounding conversion; an identical NaN
   built through `number` never has it (`:664-667`).
 - Honesty rules (AGENTS.md): no hard-coded answers; what is not modelled is a typed refusal raised by
-  the caller. A new source file needs an entry in `migration/licence-ledger.json`.
+  the caller. A source file that is not own work needs an entry in `migration/licence-ledger.json`.
 
 ## 5. Excel behaviours it owns (behaviour; code; evidence cited)
 - Grid of 1 048 576 by 16 384, 1-based: `grid.rs:9-13`; no measurement cited; exercised by

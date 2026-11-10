@@ -64,14 +64,15 @@ DnaTreeCalc, DnaOneCalc and the others) are read-only inputs: port from them, ne
    `#[cfg_attr(not(target_arch = "wasm32"), test)]` with
    `#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]`, and embed its data
    with `include_bytes!` in test code. A test that cannot (it drives Excel or the file system)
-   keeps `#[test]` and a `/// Native-only: <reason>` doc line. A new file under
-   `crates/calc-func` or `crates/calc-value` gets an entry in `migration/licence-ledger.json`
-   (`path`, `class`, `reason`). What you may read or port when working out how Excel computes a
+   keeps `#[test]` and a `/// Native-only: <reason>` doc line. A file under
+   `crates/calc-func` or `crates/calc-value` that is not own work (third-party code or data, or
+   unclear origin) gets an entry in `migration/licence-ledger.json` (`path`, `class`, `reason`);
+   the ledger lists exceptions only, and an unlisted file counts as own work. What you may read or port when working out how Excel computes a
    function is in `docs/plan/RESEARCH_SOURCES.md`: four source tiers, and an analyst/implementer
    split for sources whose code we may not use.
 
    `cargo xtask sweep` runs the slow and structural validation: the four architecture checks
-   (dependencies, os-imports, wasm-refusal, tree-reference-tokens), the licence ledger's completeness, the dependency ceiling (dna-onecalc and
+   (dependencies, os-imports, wasm-refusal, tree-reference-tokens), the licence ledger (every path it lists is a tracked file), the dependency ceiling (dna-onecalc and
    dna-formula-ui never reach calc-engine or calc-host, and may use calc-doc; dna-onecalc-desktop
    reaches no calc-host and no calc-engine; dna-calc does not depend on dna-onecalc, nor dna-calc-desktop), the portable packages' tests in headless Chrome and Firefox (a test that is
    neither run there nor marked `Native-only:` fails it), and xtask's acceptance suite. It takes
