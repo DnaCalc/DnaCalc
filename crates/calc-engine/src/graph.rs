@@ -778,3 +778,271 @@ impl<'a> IntoIterator for &'a NodeSet {
         self.iter()
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use calc_doc_model::{AuthoredRevision, SheetEntry, SheetKey, SheetName, SheetVisibility};
+    use calc_value::ExcelText;
+    use std::sync::Arc;
+
+    fn test_root(sheet_ids: &[SheetId]) -> Arc<ModelRoot> {
+        let entries = sheet_ids
+            .iter()
+            .enumerate()
+            .map(|(i, &id)| {
+                let name = SheetName::new(ExcelText::from_interop_assignment(&format!("Sheet{}", i + 1))).unwrap();
+                SheetEntry::new(
+                    id,
+                    SheetKey::new((i + 1) as u32),
+                    name,
+                    SheetVisibility::Visible,
+                )
+            })
+            .collect();
+        ModelRoot::new(AuthoredRevision::new(1), entries).unwrap()
+    }
+
+    #[cfg_attr(not(target_arch = "wasm32"), test)]
+    #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+    fn cell_edge_dependents_query_and_removal() {
+        let sheet = SheetId::from_parts(1, 1);
+        let root = test_root(&[sheet]);
+        let cell = CellKey::new(sheet, 2, 3).unwrap();
+        let other = CellKey::new(sheet, 2, 4).unwrap();
+        let node = NodeId::from_parts(10, 1);
+
+        let mut index = ReverseIndex::default();
+        index.insert(node, &[Prerequisite::Cell(cell)]);
+
+        let mut out = Vec::new();
+        index.dependents_of_cell(&root, cell, &mut out);
+        assert_eq!(out, vec![node]);
+
+        out.clear();
+        index.dependents_of_cell(&root, other, &mut out);
+        assert!(out.is_empty());
+
+        index.remove(node, &[Prerequisite::Cell(cell)]);
+        out.clear();
+        index.dependents_of_cell(&root, cell, &mut out);
+        assert!(out.is_empty());
+    }
+
+    #[cfg_attr(not(target_arch = "wasm32"), test)]
+    #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+    fn area_edge_dependents_query_and_containment() {
+        let sheet = SheetId::from_parts(1, 1);
+        let root = test_root(&[sheet]);
+        let area = GridArea::new(CellKey::new(sheet, 2, 2).unwrap(), CellKey::new(sheet, 4, 4).unwrap()).unwrap();
+        let node = NodeId::from_parts(20, 1);
+
+        let mut index = ReverseIndex::default();
+        index.insert(node, &[Prerequisite::Area(area)]);
+
+        let mut out = Vec::new();
+        index.dependents_of_cell(&root, CellKey::new(sheet, 3, 3).unwrap(), &mut out);
+        assert_eq!(out, vec![node]);
+
+        out.clear();
+        index.dependents_of_cell(&root, CellKey::new(sheet, 1, 1).unwrap(), &mut out);
+        assert!(out.is_empty());
+
+        let overlap = GridArea::new(CellKey::new(sheet, 3, 3).unwrap(), CellKey::new(sheet, 5, 5).unwrap()).unwrap();
+        out.clear();
+        index.dependents_of_area(&root, overlap, &mut out);
+        assert_eq!(out, vec![node]);
+    }
+
+    #[cfg_attr(not(target_arch = "wasm32"), test)]
+    #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+    fn axis_interval_row_edge_finds_dependents_on_row_hit() {
+        let sheet1 = SheetId::from_parts(1, 1);
+        let sheet2 = SheetId::from_parts(2, 1);
+        let root = test_root(&[sheet1, sheet2]);
+        let interval = AxisInterval::new(sheet1, Axis::Rows, 10, 20).unwrap();
+        let node = NodeId::from_parts(30, 1);
+
+        let mut index = ReverseIndex::default();
+        index.insert(node, &[Prerequisite::AxisValue(interval)]);
+
+        let mut out = Vec::new();
+        index.dependents_of_cell(&root, CellKey::new(sheet1, 15, 1).unwrap(), &mut out);
+        assert_eq!(out, vec![node]);
+
+        out.clear();
+        index.dependents_of_cell(&root, CellKey::new(sheet1, 9, 1).unwrap(), &mut out);
+        assert!(out.is_empty());
+
+        out.clear();
+        index.dependents_of_cell(&root, CellKey::new(sheet2, 15, 1).unwrap(), &mut out);
+        assert!(out.is_empty());
+    }
+
+    #[cfg_attr(not(target_arch = "wasm32"), test)]
+    #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+    fn axis_interval_column_edge_finds_dependents_on_column_hit() {
+        let sheet = SheetId::from_parts(1, 1);
+        let root = test_root(&[sheet]);
+        let interval = AxisInterval::new(sheet, Axis::Columns, 5, 8).unwrap();
+        let node = NodeId::from_parts(40, 1);
+
+        let mut index = ReverseIndex::default();
+        index.insert(node, &[Prerequisite::AxisValue(interval)]);
+
+        let mut out = Vec::new();
+        index.dependents_of_cell(&root, CellKey::new(sheet, 100, 6).unwrap(), &mut out);
+        assert_eq!(out, vec![node]);
+
+        out.clear();
+        index.dependents_of_cell(&root, CellKey::new(sheet, 100, 4).unwrap(), &mut out);
+        assert!(out.is_empty());
+    }
+
+    #[cfg_attr(not(target_arch = "wasm32"), test)]
+    #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+    fn sheet_span_edge_finds_dependents_on_all_member_sheets() {
+        let s1 = SheetId::from_parts(1, 1);
+        let s2 = SheetId::from_parts(2, 1);
+        let s3 = SheetId::from_parts(3, 1);
+        let root = test_root(&[s1, s2, s3]);
+        let target = GridArea::new(CellKey::new(s1, 2, 2).unwrap(), CellKey::new(s1, 3, 3).unwrap()).unwrap();
+        let span = SheetSpan::new(target, s3);
+        let node = NodeId::from_parts(50, 1);
+
+        let mut index = ReverseIndex::default();
+        index.insert(node, &[Prerequisite::SheetSpan(span)]);
+
+        let mut out = Vec::new();
+        index.dependents_of_cell(&root, CellKey::new(s1, 2, 2).unwrap(), &mut out);
+        assert_eq!(out, vec![node]);
+
+        out.clear();
+        index.dependents_of_cell(&root, CellKey::new(s2, 3, 3).unwrap(), &mut out);
+        assert_eq!(out, vec![node]);
+
+        out.clear();
+        index.dependents_of_cell(&root, CellKey::new(s3, 2, 3).unwrap(), &mut out);
+        assert_eq!(out, vec![node]);
+    }
+
+    #[cfg_attr(not(target_arch = "wasm32"), test)]
+    #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+    fn sheet_span_edge_ignores_sheet_outside_span() {
+        let s1 = SheetId::from_parts(1, 1);
+        let s2 = SheetId::from_parts(2, 1);
+        let s3 = SheetId::from_parts(3, 1);
+        let s4 = SheetId::from_parts(4, 1);
+        let root = test_root(&[s1, s2, s3, s4]);
+        let target = GridArea::new(CellKey::new(s1, 2, 2).unwrap(), CellKey::new(s1, 3, 3).unwrap()).unwrap();
+        let span = SheetSpan::new(target, s3);
+        let node = NodeId::from_parts(55, 1);
+
+        let mut index = ReverseIndex::default();
+        index.insert(node, &[Prerequisite::SheetSpan(span)]);
+
+        let mut out = Vec::new();
+        index.dependents_of_cell(&root, CellKey::new(s4, 2, 2).unwrap(), &mut out);
+        assert!(out.is_empty());
+    }
+
+    #[cfg_attr(not(target_arch = "wasm32"), test)]
+    #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+    fn name_edge_finds_dependents_of_dirtied_name() {
+        let name1 = NameId::from_parts(1, 1);
+        let name2 = NameId::from_parts(2, 1);
+        let node = NodeId::from_parts(60, 1);
+
+        let mut index = ReverseIndex::default();
+        index.insert(node, &[Prerequisite::Name(name1)]);
+
+        let mut out = Vec::new();
+        index.name_dependents(name1, &mut out);
+        assert_eq!(out, vec![node]);
+
+        out.clear();
+        index.name_dependents(name2, &mut out);
+        assert!(out.is_empty());
+    }
+
+    #[cfg_attr(not(target_arch = "wasm32"), test)]
+    #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+    fn reverse_index_clear_advances_epoch_and_drops_all_indexes() {
+        let sheet = SheetId::from_parts(1, 1);
+        let root = test_root(&[sheet]);
+        let cell = CellKey::new(sheet, 1, 1).unwrap();
+        let name = NameId::from_parts(1, 1);
+        let node = NodeId::from_parts(70, 1);
+
+        let mut index = ReverseIndex::default();
+        index.insert(node, &[Prerequisite::Cell(cell), Prerequisite::Name(name)]);
+        let epoch_before = index.epoch();
+
+        index.clear();
+        assert!(index.epoch() > epoch_before);
+
+        let mut out = Vec::new();
+        index.dependents_of_cell(&root, cell, &mut out);
+        assert!(out.is_empty());
+
+        out.clear();
+        index.name_dependents(name, &mut out);
+        assert!(out.is_empty());
+    }
+
+    #[cfg_attr(not(target_arch = "wasm32"), test)]
+    #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+    fn dependents_of_cells_in_area_filters_candidates_to_touched_cells() {
+        let sheet = SheetId::from_parts(1, 1);
+        let root = test_root(&[sheet]);
+        let area = GridArea::new(CellKey::new(sheet, 1, 1).unwrap(), CellKey::new(sheet, 2, 2).unwrap()).unwrap();
+        let node = NodeId::from_parts(80, 1);
+
+        let mut index = ReverseIndex::default();
+        index.insert(node, &[Prerequisite::Area(area)]);
+
+        let query_area = GridArea::new(CellKey::new(sheet, 1, 1).unwrap(), CellKey::new(sheet, 4, 4).unwrap()).unwrap();
+        let mut out = BTreeSet::new();
+
+        let touched_outside = [CellKey::new(sheet, 3, 3).unwrap(), CellKey::new(sheet, 4, 4).unwrap()];
+        index.dependents_of_cells_in_area(&root, query_area, &touched_outside, &mut out);
+        assert!(out.is_empty());
+
+        let touched_inside = [CellKey::new(sheet, 2, 2).unwrap()];
+        index.dependents_of_cells_in_area(&root, query_area, &touched_inside, &mut out);
+        assert_eq!(out.into_iter().collect::<Vec<_>>(), vec![node]);
+    }
+
+    #[cfg_attr(not(target_arch = "wasm32"), test)]
+    #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+    fn node_set_scaling_from_empty_to_one_to_many_is_sorted_and_deduplicated() {
+        let mut set = NodeSet::default();
+        assert_eq!(set, NodeSet::Empty);
+
+        let n5 = NodeId::from_parts(5, 1);
+        let n2 = NodeId::from_parts(2, 1);
+        let n8 = NodeId::from_parts(8, 1);
+
+        set.insert(n5);
+        assert_eq!(set, NodeSet::One(n5));
+        set.insert(n5);
+        assert_eq!(set, NodeSet::One(n5));
+
+        set.insert(n2);
+        assert_eq!(set, NodeSet::Many(vec![n2, n5]));
+
+        set.insert(n8);
+        assert_eq!(set, NodeSet::Many(vec![n2, n5, n8]));
+        set.insert(n5);
+        assert_eq!(set, NodeSet::Many(vec![n2, n5, n8]));
+
+        Members::take(&mut set, &n2);
+        assert_eq!(set, NodeSet::Many(vec![n5, n8]));
+
+        Members::take(&mut set, &n8);
+        assert_eq!(set, NodeSet::One(n5));
+
+        Members::take(&mut set, &n5);
+        assert_eq!(set, NodeSet::Empty);
+    }
+}
