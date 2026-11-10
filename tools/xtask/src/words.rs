@@ -284,6 +284,12 @@ fn files_under(dir: &Path, out: &mut Vec<std::path::PathBuf>) -> Result<(), Stri
     entries.sort();
     for path in entries {
         if path.is_dir() {
+            // Build output is never source: a nested fixture's target/ (for example
+            // tools/xtask/ci-browser-fixture/target) holds compiled dependencies whose bytes can
+            // contain any word.
+            if path.file_name().is_some_and(|name| name == "target") {
+                continue;
+            }
             files_under(&path, out)?;
         } else {
             out.push(path);
