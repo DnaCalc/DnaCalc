@@ -82,8 +82,7 @@ DnaTreeCalc, DnaOneCalc and the others) are read-only inputs: port from them, ne
    Corpus comparisons use debug by default; `--release` selects the speed build in `target/release`.
    Dev builds optimise external dependencies and calc-verdict (corpus hashing); the calculation crates stay unoptimised.
 5. **Close.**
-   - One read-only review agent checks the change against the honesty rules and checks the
-     close note against tool output.
+   - The close note's numbers come from tool output you ran, not from memory or a plan.
    - Close with `br close <id> --reason "<what works now; evidence: tests, corpus summary,
      commits; still open>"`.
    - Gaps go into the next package's notes or into one root-cause bead per batch of corpus
