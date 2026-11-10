@@ -1253,3 +1253,9 @@ errors, empty and non-empty text, a 2x3 array (rows at 8, columns at 12), and th
 one-area reference arrives as an SRef (count 1, rectangle at 4; also when sheet-qualified as
 `X0!A1`), a two-area union as a Ref on the current sheet with both rectangles at 16-byte stride.
 A second Excel run agreed on all 21.
+
+Owner-pump witness (D.21, first part; `fixture/x16-pump-cases.json`): two independent `QU$`
+cells meet at a barrier and each reads A1 through xlCoerce while the other is inside. Excel
+(manual Calculate, MTR) and DNA Calc's engine both give 8 and 8 with two calls in flight; in the
+engine each read is a request the owner thread serves, so this shows the owner serving two
+waiting workers at once. The lease, GIL and crash-containment parts of D.21 remain open.

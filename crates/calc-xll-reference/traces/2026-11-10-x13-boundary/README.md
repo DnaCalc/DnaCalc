@@ -71,3 +71,11 @@ guards in `m4-acceptance/guards.json`): X1 289 of 289; Excel-DNA net48 7/7, net8
 same three `Application.Range`/`Caller` failures as on 2026-11-08). All: 350 of 353, the
 2026-11-08 result. Every set loaded, unloaded, and reopened as before. The first xlOil Python
 Excel job failed in the session's reset ("Cannot access 'baseline.xlsx'") and was rerun alone.
+
+## x16 owner-pump witness (D.21, first part)
+
+`x16/`: `fixture/x16-pump-cases.json` through `run.ps1` in Excel (manual calculation, two
+independent `QU$` cells, MyOverlapReset before Calculate) and through `dna-calc-desktop --engine`
+(a967db01 build plus the new export): both give 8 and 8 with an overlap maximum of 2, so the
+engine's owner served both workers' reads while both were inside the native calls. Formula entry
+evaluates each cell alone first, which waits out the fixture's 10-second barrier in both hosts.

@@ -152,6 +152,39 @@ fn engine_pool_overlaps_independent_cells_in_one_workbook() {
     assert_eq!(result["live_callback_allocations"], 0);
 }
 
+/// Native-only: answer 13 D.21's owner-pump witness (x16, dc-6332.10). Two thread-safe cells
+/// meet at a barrier, then each reads A1 through xlCoerce, which the owner thread serves, while
+/// the other is also inside; Excel 16.0.20527 gives 8 and 8 with two calls in flight
+/// (`x16-pump-cases.json`), and so must the engine (a host that served one worker at a time
+/// would leave both at the second barrier and answer #VALUE!).
+#[test]
+fn engine_owner_serves_two_pool_readers_at_once() {
+    let fixture = new_fixture();
+    let cases = fixture.directory.join("pump.json");
+    std::fs::write(
+        &cases,
+        include_bytes!("../../../crates/calc-xll-reference/fixture/x16-pump-cases.json"),
+    )
+    .unwrap();
+    let result = checked(
+        fixture
+            .command()
+            .env("DNA_XLL_POOL_TESTS", "1")
+            .args(["--engine", "--cases"])
+            .arg(cases)
+            .output()
+            .unwrap(),
+    );
+    assert_eq!(result["results"][0]["value"], 8.);
+    assert_eq!(result["results"][0]["dependent"], 8.);
+    assert_eq!(result["results"][1]["value"], 2.);
+    assert_eq!(
+        result["results"][0]["provenance"]["cooperative_invocations"],
+        1
+    );
+    assert_eq!(result["live_callback_allocations"], 0);
+}
+
 /// Native-only: overlapping native array producers use the real engine and DLL-owned frees.
 #[test]
 fn engine_pool_overlaps_spill_producers_and_publishes_every_cell() {

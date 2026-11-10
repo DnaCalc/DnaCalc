@@ -1,0 +1,12 @@
+{"utc":"2026-11-10T22:17:28.5444958Z","operation":"RegisterXLL managed","value":true}
+{"utc":"2026-11-10T22:17:28.5519737Z","operation":"calculation mode =MyOverlapRead(A1)","value":{"requested":-4135,"actual":-4135}}
+{"utc":"2026-11-10T22:17:48.5888306Z","operation":"before Calculate MyOverlapReset","value":1.0}
+{"utc":"2026-11-10T22:17:48.6081656Z","operation":"=MyOverlapRead(A1)","value":8.0}
+{"utc":"2026-11-10T22:17:48.6177371Z","operation":"dependent =MyOverlapRead(A1)","value":8.0}
+{"utc":"2026-11-10T22:17:48.6265480Z","operation":"calculation mode =MyOverlapMax()","value":{"requested":-4135,"actual":-4135}}
+{"utc":"2026-11-10T22:17:48.6482386Z","operation":"=MyOverlapMax()","value":2.0}
+{"utc":"2026-11-10T22:17:48.6515246Z","operation":"dependent =MyOverlapMax()","value":0.0}
+{"utc":"2026-11-10T22:17:48.6625529Z","operation":"AutomationSecurity unchanged before teardown","value":true}
+{"utc":"2026-11-10T22:17:48.6757061Z","operation":"ExecuteExcel4Macro UNREGISTER(managed)","value":true}
+{"utc":"2026-11-10T22:17:48.6817038Z","operation":"AutomationSecurity unchanged","value":true}
+{"utc":"2026-11-10T22:17:49.4088612Z","operation":"cleanup","value":"Workbook closed; Excel returned to lane session host"}

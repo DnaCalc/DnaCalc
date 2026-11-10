@@ -1,0 +1,4 @@
+[
+  {"manual": true, "legacy": true, "formula": "=MyOverlapRead(A1)", "value": 8, "dependent": "=MyOverlapRead(A1)", "dependent_value": 8, "before_calculate": "MyOverlapReset", "before_calculate_value": 1},
+  {"manual": true, "legacy": true, "formula": "=MyOverlapMax()", "value": 2, "dependent": "=0", "dependent_value": 0}
+]
