@@ -415,6 +415,27 @@ pub fn execute(ws: &Workspace, options: &Options) -> Result<Report, String> {
     } else {
         touched.clone()
     };
+    let affects_build = |path: &String| {
+        path.starts_with(".cargo/") || path.starts_with("rust-toolchain") || path.ends_with(".rs")
+    };
+    if !options.all && touched.is_empty() && !paths.iter().any(affects_build) {
+        println!("CHECK note: no workspace package or build file changed; build and tests skipped");
+        let report = Report {
+            passed: errors.is_empty(),
+            failures: Vec::new(),
+            errors,
+            identified_test_failures: false,
+            log,
+            seconds: started.elapsed().as_secs_f64(),
+        };
+        fs::write(dir.join("results.json"), report.json().to_string()).map_err(|e| e.to_string())?;
+        println!(
+            "CHECK RESULT {}: {:.3}s",
+            if report.passed { "passed" } else { "failed" },
+            report.seconds
+        );
+        return Ok(report);
+    }
     let mut build = cargo_command(if options.all || options.dependents {
         "build"
     } else {
