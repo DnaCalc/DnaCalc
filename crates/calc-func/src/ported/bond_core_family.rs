@@ -589,7 +589,12 @@ fn near_par_seed(
     let n = p.n as f64;
     let cp = 100.0 * rate / f;
     let d = price - red;
-    let seed = f * ((n * cp - d) / (d * (n + 1.0) / 2.0 + n * red));
+    // Y2 association (answer 11 B1/C1): the total coupon is formed as
+    // S(S(S(n * rate) * 100) / f) and the denominator is split, so each partial
+    // sum is stored before the next is added.
+    let total_coupon = (n * rate * 100.0) / f;
+    let denominator = (n * red + (d * n) / 2.0) + d / 2.0;
+    let seed = f * ((total_coupon - d) / denominator);
     if !seed.is_finite() || seed <= -f {
         return Ok(None);
     }
@@ -631,20 +636,9 @@ pub fn yield_kernel(
     let rate_ = rate(rate_)?;
     let price = pos(price)?;
     let red = pos(red)?;
-    // On a coupon date, a multi-period bond priced and redeemed at its 100 face value
-    // has yield equal to its coupon rate. At y=rate, the geometric coupon
-    // sum 100*c*sum((1+c)^-k) plus redemption 100*(1+c)^-n is 100.
-    // Return that exact algebraic root before the iterative price inversion.
-    // Preserve the existing coupon-overflow route. The build 20228 bank has
-    // both short and long par observations; wider Excel coverage stays open.
-    if p.n > 1
-        && c.settlement == p.prev
-        && price == 100.0
-        && red == 100.0
-        && (100.0 * rate_ / c.frequency as f64).is_finite()
-    {
-        return Ok(rate_);
-    }
+    // A coupon-date bond priced and redeemed at 100 has yield equal to its coupon
+    // rate; Excel does not return that root directly but takes the same near-par
+    // seed as every other price near 100 (answer 11 B1 Y2), so no shortcut here.
     if p.n == 1 {
         // R33 paired COUP/DAYS360 controls isolate the documented normalized
         // formula. A and DSR share the existing numerator-position day rule;
