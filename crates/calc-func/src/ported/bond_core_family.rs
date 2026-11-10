@@ -574,6 +574,38 @@ pub fn price_kernel(
     // identified and swapping the price kernel under it would regress the current witnesses.
     Ok(pcomp_disc(rate(rate_)?, rate(yld)?, pos(red)?, c, p, true)?.0)
 }
+/// The near-par closed-form YIELD seed `f * i_a`,
+/// `i_a = (n cp - (price - R)) / ((price - R) (n + 1) / 2 + n R)`, returned when the Newton step
+/// `(P(y_a) - price) / P'(y_a)` at it is below 1e-10 (on a coupon date, so every discount
+/// exponent is a whole number of periods).
+fn near_par_seed(
+    rate: f64,
+    price: f64,
+    red: f64,
+    c: Ctx,
+    p: Period,
+) -> Result<Option<f64>, BondCoreEvalError> {
+    let f = c.frequency as f64;
+    let n = p.n as f64;
+    let cp = 100.0 * rate / f;
+    let d = price - red;
+    let seed = f * ((n * cp - d) / (d * (n + 1.0) / 2.0 + n * red));
+    if !seed.is_finite() || seed <= -f {
+        return Ok(None);
+    }
+    let Ok((value, ..)) = pcomp(rate, seed, red, c, p) else {
+        return Ok(None);
+    };
+    let base = 1.0 + seed / f;
+    let mut slope = 0.0;
+    for k in 1..=p.n {
+        slope += k as f64 * cp / crt_pow(base, (k + 1) as f64);
+    }
+    slope += n * red / crt_pow(base, n + 1.0);
+    slope = -slope / f;
+    let step = (value - price) / slope;
+    Ok((step.abs() < 1e-10).then_some(seed))
+}
 pub fn yield_kernel(
     settlement: f64,
     maturity: f64,
@@ -642,6 +674,17 @@ pub fn yield_kernel(
         let relative_gain = excel_x87_div(excel_x87_sub(cash, dirty), dirty);
         let annualization = excel_x87_div(excel_x87_mul(f, e), dsc);
         return Ok(excel_x87_mul(relative_gain, annualization));
+    }
+    // Near par on a coupon date with redemption 100, Excel returns the closed-form seed of its
+    // Newton iteration when the first Newton step there is below 1e-10 (pro-9 solvers prompt,
+    // B.3: the largest step among rows returning the seed is 8.8e-11, the smallest among rows
+    // iterating on 1.17e-10; 68 bank rows). The seed approximates the annuity factor of n unit
+    // payments at i = y/f by n / (1 + i (n + 1) / 2). Other designs (redemption not 100, off
+    // a coupon date) carry a seed that is not identified yet and keep the solver below.
+    if p.n > 1 && c.settlement == p.prev && red == 100.0 {
+        if let Some(seed) = near_par_seed(rate_, price, red, c, p)? {
+            return Ok(seed);
+        }
     }
     // Solve over candidate yields with `pcomp` directly. `price_kernel` rejects
     // `yld < 0` via `rate(yld)`, but the root-finder must probe negative candidate
@@ -1812,6 +1855,27 @@ mod tests {
             "the par yield is the recorded coupon rate"
         );
         assert_ne!(par.to_bits(), 0x3fa99999999999a1);
+    }
+
+    /// Near par on a coupon date Excel returns the closed-form seed while the Newton step there
+    /// is below 1e-10: Excel 20228 `answers-yield-near-seed-discovery-20260809.json` rows
+    /// oncoupon-short-030, oncoupon-long-039 and -040, and Excel 20527 `r18-YIELD.json` rows
+    /// 001 and 009 (price 100 + 1 ulp at a zero coupon). The bisection was 10^6 to 10^15 units off.
+    #[cfg_attr(not(target_arch = "wasm32"), test)]
+    #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+    fn yield_near_par_returns_the_closed_form_seed() {
+        let rows: [(f64, f64, f64, u64, f64, u64); 5] = [
+            (44013.0, 44562.0, 0.05, 0x4059000040000000, 2.0, 0x3fa9999604189993),
+            (44013.0, 46753.0, 0.05, 0x4058fffff4000004, 2.0, 0x3fa99999c0ebedf7),
+            (44013.0, 46753.0, 0.05, 0x405900000c000004, 2.0, 0x3fa9999972474536),
+            (44197.0, 45292.0, 0.0, 0x4059000000000001, 1.0, 0xbc8b4e81b4e81b4f),
+            (44013.0, 44562.0, 0.0, 0x4059000000000001, 2.0, 0xbc9b4e81b4e81b4f),
+        ];
+        for (s, m, rate, price, f, excel) in rows {
+            let price = f64::from_bits(price);
+            let y = yield_kernel(s, m, rate, price, 100.0, f, Some(0.0)).unwrap();
+            assert_eq!(y.to_bits(), excel, "YIELD({s}, {m}, {rate}, {price}, 100, {f}, 0)");
+        }
     }
 
     /// W111-5 G8-06, live Excel 20430: ACCRINTM basis 1 uses Excel's actual/actual rule,
