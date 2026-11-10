@@ -86,6 +86,7 @@ fn failing_line(failure: &Failure) -> String {
 }
 fn record_flaky(ws: &Workspace, failure: &Failure, sha: &str) -> Result<bool, String> {
     let marker = failing_line(failure);
+    refresh_tracker(&ws.root)?;
     let existing = list(&ws.root, "flaky")?;
     if check::issues(&existing).iter().any(|i| {
         own(i)
@@ -126,6 +127,7 @@ fn record_flaky(ws: &Workspace, failure: &Failure, sha: &str) -> Result<bool, St
 
 fn record_flaky_command(ws: &Workspace, name: &str, sha: &str) -> Result<bool, String> {
     let marker = format!("command: {} {name}", check::platform());
+    refresh_tracker(&ws.root)?;
     let existing = list(&ws.root, "flaky")?;
     if check::issues(&existing).iter().any(|i| {
         own(i)
@@ -214,6 +216,7 @@ fn has_health_drift(new_report: &Value, previous: &Value) -> bool {
 fn update_health_drift_bead(ws: &Workspace, report: &Value) -> Result<bool, String> {
     let table = report["table"].as_str().unwrap_or("");
     let body = format!("Code health drift detected during weekly review:\n\n{table}");
+    refresh_tracker(&ws.root)?;
     let existing = list(&ws.root, "code-health")?;
     let found = check::issues(&existing)
         .into_iter()
@@ -363,10 +366,9 @@ fn bisect(
             &dir.join("bisect.log"),
         )?;
         if code != Some(0) {
-            return Err(format!(
-                "bisection could not identify one commit: {}",
-                check::tail(&text, 20)
-            ));
+            // The log may list candidate commits; the bead names the range, never a culprit.
+            let _ = text;
+            return Err("bisection could not identify one commit (see target/keep/bisect.log)".into());
         }
         cargo::git(&ws.root, &["rev-parse", "refs/bisect/bad"]).map(|s| s.trim().to_owned())
     })();
@@ -399,6 +401,52 @@ fn find_good(ws: &Workspace, probe: &Value, bad: &str, dir: &Path) -> Result<Str
     result
 }
 
+/// The master-red text for a failure that bisection could not pin to one commit: the commit
+/// range, and that no single culprit was found. It never names a commit as the cause.
+fn no_culprit(good: Option<&str>, bad: &str, why: &str) -> String {
+    let range = match good {
+        Some(good) => format!("commit range {good}..{bad}"),
+        None => format!("commits up to {bad} (no passing endpoint was found)"),
+    };
+    format!("no single culprit found in the {range}; no commit is named as the cause.\nreason: {why}")
+}
+
+/// Bisect one probe: the diagnosis text for the bead, and the culprit commit when one was found.
+fn diagnose(
+    ws: &Workspace,
+    probe: &Value,
+    good: Option<&str>,
+    sha: &str,
+    dir: &Path,
+) -> (String, Option<String>) {
+    let endpoint = match good {
+        Some(good) => Ok(good.to_owned()),
+        None => find_good(ws, probe, sha, dir),
+    };
+    let good = match endpoint {
+        Ok(good) => good,
+        Err(e) => return (no_culprit(None, sha, &e), None),
+    };
+    match bisect(ws, probe, &good, sha, dir) {
+        Ok(first) => (
+            format!(
+                "first bad commit: {first}\nAgent-Log: {}",
+                attribution(&ws.root, &first)
+            ),
+            Some(first),
+        ),
+        Err(e) => (no_culprit(Some(&good), sha, &e), None),
+    }
+}
+
+/// Every tracker write starts here (AGENTS.md): pull, then import into br's database, so the
+/// write sees what other lanes pushed while the keeper checked.
+fn refresh_tracker(root: &Path) -> Result<(), String> {
+    cargo::git(root, &["pull", "--ff-only"])?;
+    check::br(root, &["sync", "--import-only"])?;
+    Ok(())
+}
+
 fn red_bead(
     ws: &Workspace,
     report: &Report,
@@ -420,63 +468,50 @@ fn red_bead(
             return Ok((issue["id"].as_str().ok_or("bead has no id")?.into(), false));
         }
     }
-    let mut assignee = log_trailer(&ws.root, sha);
+    // Only a bisected culprit's log names an assignee; the tip commit is not the culprit.
+    let mut assignee = String::new();
     let mut body = format!(
         "Keeper {} is red at {sha}. Fix forward; aim to repair within one hour.\n",
         check::platform()
     );
+    let mut diagnosed = false;
     for failure in &report.failures {
-        let endpoint = good
-            .map(str::to_owned)
-            .map(Ok)
-            .unwrap_or_else(|| find_good(ws, &failure.json(), sha, dir));
-        let diagnosis = match endpoint.and_then(|good| bisect(ws, &failure.json(), &good, sha, dir))
-        {
-            Ok(first) => {
-                let trailer = log_trailer(&ws.root, &first);
-                if !trailer.is_empty() {
-                    assignee = trailer;
-                }
-                format!(
-                    "first bad commit: {first}\nAgent-Log: {}",
-                    attribution(&ws.root, &first)
-                )
+        let (diagnosis, culprit) = diagnose(ws, &failure.json(), good, sha, dir);
+        if let Some(first) = &culprit {
+            let trailer = log_trailer(&ws.root, first);
+            if !trailer.is_empty() {
+                assignee = trailer;
             }
-            Err(e) => format!("bisection unavailable: {e}"),
-        };
+        }
+        diagnosed = true;
         body.push_str(&format!("{}\n{diagnosis}\n", failing_line(failure)));
     }
     if report.failures.is_empty() && report.errors.iter().any(|e| e == "workspace") {
         let probe = json!({"command":"workspace"});
-        let endpoint = good
-            .map(str::to_owned)
-            .map(Ok)
-            .unwrap_or_else(|| find_good(ws, &probe, sha, dir));
-        match endpoint.and_then(|good| bisect(ws, &probe, &good, sha, dir)) {
-            Ok(first) => {
-                let trailer = log_trailer(&ws.root, &first);
-                if !trailer.is_empty() {
-                    assignee = trailer;
-                }
-                body.push_str(&format!(
-                    "first bad commit: {first}\nAgent-Log: {}\n",
-                    attribution(&ws.root, &first)
-                ));
+        let (diagnosis, culprit) = diagnose(ws, &probe, good, sha, dir);
+        if let Some(first) = &culprit {
+            let trailer = log_trailer(&ws.root, first);
+            if !trailer.is_empty() {
+                assignee = trailer;
             }
-            Err(e) => body.push_str(&format!("bisection unavailable: {e}\n")),
         }
+        diagnosed = true;
+        body.push_str(&format!("{diagnosis}\n"));
     }
     if report.failures.is_empty() {
-        body.push_str(&format!(
-            "check errors: {:?}\nAgent-Log: {}\n",
-            report.errors,
-            attribution(&ws.root, sha)
-        ));
+        body.push_str(&format!("check errors: {:?}\n", report.errors));
+        if !diagnosed {
+            body.push_str(&no_culprit(good, sha, "these check errors have no exact test to bisect"));
+            body.push('\n');
+        }
     }
     if assignee.is_empty() {
         assignee = format!("keeper-{}", check::platform());
     }
     body.push_str(&format!("evidence: target/keep/{sha}.json\n"));
+    // Bisecting can take long: pull and import again right before the write.
+    refresh_tracker(&ws.root)?;
+    let existing = list(&ws.root, "master-red")?;
     if let Some(issue) = check::issues(&existing).iter().find(|i| own(i)) {
         let id = issue["id"].as_str().ok_or("bead has no id")?;
         if issue["description"].as_str() != Some(&body) {
@@ -524,6 +559,7 @@ fn red_bead(
     }
 }
 fn close_red(ws: &Workspace, sha: &str) -> Result<bool, String> {
+    refresh_tracker(&ws.root)?;
     let existing = list(&ws.root, "master-red")?;
     let mut changed = false;
     for issue in check::issues(&existing).iter().filter(|i| own(i)) {
@@ -604,7 +640,7 @@ fn validate_outgoing(root: &Path) -> Result<(), String> {
 
 fn tracker_message() -> String {
     format!(
-        "master-red: {} keeper findings\n\nAgent-Log: {}\nCo-Authored-By: GPT-6.1 Sol (Codex) <noreply@openai.com>",
+        "master-red: {} keeper findings\n\nAgent-Log: {}",
         check::platform(),
         std::env::var("DNACALC_AGENT_LOG")
             .unwrap_or_else(|_| format!("keeper-{}:~/keeper/keeper.log", check::platform()))
@@ -725,10 +761,9 @@ fn once(ws: &Workspace) -> Result<bool, String> {
     if !pending.trim().is_empty() {
         push_pending(&ws.root)?;
     }
-    cargo::git(&ws.root, &["pull", "--ff-only"])?;
     // Bring br's database up to the pulled tracker; otherwise a later flush of a keeper bead is
     // refused ("Refusing to export stale database: JSONL contains issues absent from the database").
-    check::br(&ws.root, &["sync", "--import-only"])?;
+    refresh_tracker(&ws.root)?;
     let updated_ws = Workspace::load(&ws.root).unwrap_or_else(|_| Workspace {
         root: ws.root.clone(),
         members: Vec::new(),
@@ -1020,6 +1055,36 @@ mod tests {
         ]);
         git(&["update-ref", "HEAD", ordinary.trim()]);
         assert!(validate_outgoing(&root).is_err());
+        fs::remove_dir_all(root).unwrap();
+    }
+    #[test]
+    fn a_failed_bisection_names_the_range_and_no_culprit() {
+        let body = no_culprit(Some("aaa1111"), "bbb2222", "bisection could not identify one commit");
+        assert!(body.contains("no single culprit found"), "{body}");
+        assert!(body.contains("aaa1111..bbb2222"), "{body}");
+        assert!(!body.contains("first bad commit"), "{body}");
+        let open = no_culprit(None, "bbb2222", "no passing exact-test endpoint");
+        assert!(open.contains("no single culprit found") && open.contains("bbb2222"), "{open}");
+        assert!(!open.contains("first bad commit"), "{open}");
+    }
+    #[test]
+    fn bisection_without_a_passing_endpoint_gives_no_culprit() {
+        let root = std::env::temp_dir().join(format!("xtask-keeper-bisect-{}", std::process::id()));
+        fs::create_dir_all(&root).unwrap();
+        let git = |args: &[&str]| cargo::git(&root, args).unwrap();
+        git(&["init", "--initial-branch=master"]);
+        git(&["config", "user.name", "Fixture"]);
+        git(&["config", "user.email", "fixture@example.invalid"]);
+        fs::write(root.join("a.txt"), "a").unwrap();
+        git(&["add", "a.txt"]);
+        git(&["commit", "-m", "only commit"]);
+        let sha = git(&["rev-parse", "HEAD"]).trim().to_owned();
+        let ws = Workspace { root: root.clone(), members: Vec::new() };
+        fs::create_dir_all(root.join("target/keep")).unwrap();
+        let (text, culprit) = diagnose(&ws, &json!({"command":"workspace"}), None, &sha, &root.join("target/keep"));
+        assert!(culprit.is_none(), "{text}");
+        assert!(text.contains("no single culprit found") && text.contains(&sha), "{text}");
+        assert!(!text.contains("first bad commit"), "{text}");
         fs::remove_dir_all(root).unwrap();
     }
     #[test]
