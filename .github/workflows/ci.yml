@@ -2,7 +2,7 @@
 # the run, builds with the toolchain rust-toolchain.toml pins, runs one repository command
 # (`cargo xtask ci <job>`, or `cargo xtask ci-audit` in the audit job) and uploads its record
 # whether that command passed or not: the windows, linux and wasm jobs upload target/ci,
-# target/accept and accept-receipts; the licenses and desktop jobs upload target/ci; the audit job
+# target/accept and target/accept-receipts; the licenses and desktop jobs upload target/ci; the audit job
 # uploads target/ci-audit. This file holds no test logic: what each job runs, and what counts as
 # executed, is in tools/xtask/src/ci.rs.
 #
@@ -78,7 +78,7 @@ jobs:
           path: |
             target/ci
             target/accept
-            accept-receipts
+            target/accept-receipts
           if-no-files-found: warn
 
   linux:
@@ -113,7 +113,7 @@ jobs:
           path: |
             target/ci
             target/accept
-            accept-receipts
+            target/accept-receipts
           if-no-files-found: warn
 
   wasm:
@@ -149,7 +149,7 @@ jobs:
           path: |
             target/ci
             target/accept
-            accept-receipts
+            target/accept-receipts
           if-no-files-found: warn
 
   licenses:

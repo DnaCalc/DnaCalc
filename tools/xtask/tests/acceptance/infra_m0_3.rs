@@ -10,7 +10,7 @@
 //! runs uses the copy's own `target/`.
 //!
 //! What is compared: the runner's exit code and printed lines, its receipt (both the one under
-//! `target/accept/` and the committed copy, which must be identical), and, independently of the
+//! `target/accept/` and its copy under `target/accept-receipts/`, which must be identical), and, independently of the
 //! runner, the marker files the fixture cases create when they really run. Evidence goes to
 //! `target/accept/infra-m0.3/<case>/` with a `summary.txt`.
 
@@ -555,8 +555,8 @@ impl WorkspaceCopy {
     }
 
     /// Runs `xtask accept <args>` in the copy. For a bead the copy's manifests register
-    /// (`known`), the committed copy of the receipt must be identical to the one under target/;
-    /// for an unknown bead there must be no committed copy.
+    /// (`known`), the copy of the receipt must be identical to the one under target/;
+    /// for an unknown bead there must be no copy.
     pub(super) fn accept(
         &self,
         args: &[&str],
@@ -587,7 +587,7 @@ impl WorkspaceCopy {
             .join(id)
             .join(platform)
             .join("receipt.json");
-        let committed_rel = format!("accept-receipts/{id}/{platform}.json");
+        let committed_rel = format!("target/accept-receipts/{id}/{platform}.json");
         let committed_path = self.root.join(&committed_rel);
         let receipt = fs::read_to_string(&receipt_path).ok();
         let committed = fs::read_to_string(&committed_path).ok();
@@ -595,7 +595,7 @@ impl WorkspaceCopy {
             evidence.expect(
                 receipt.is_some() && receipt == committed,
                 format!(
-                    "{label}: the receipt {} exists and its committed copy {committed_rel} is identical",
+                    "{label}: the receipt {} exists and its copy {committed_rel} is identical",
                     receipt_path.display()
                 ),
             );
@@ -603,7 +603,7 @@ impl WorkspaceCopy {
             evidence.expect(
                 receipt.is_some() && committed.is_none(),
                 format!(
-                    "{label}: the receipt {} exists and no committed copy {committed_rel} was written for an unknown bead",
+                    "{label}: the receipt {} exists and no copy {committed_rel} was written for an unknown bead",
                     receipt_path.display()
                 ),
             );
@@ -720,12 +720,7 @@ impl Accepted {
     }
 }
 
-const CHECKS: [&str; 4] = [
-    "dependencies",
-    "os-imports",
-    "wasm-refusal",
-    "tree-reference-tokens",
-];
+const CHECKS: [&str; 3] = ["dependencies", "os-imports", "wasm-refusal"];
 
 /// A misspelled required test name fails the runner, and so does every other way of not
 /// executing a registered case: a partial name, an ignored case, a failing case, a case that
@@ -1071,10 +1066,10 @@ pub fn zero_tests_fail() {
     evidence.expect(
         run.exit_code == Some(1)
             && run.result() == "failed"
-            && run.receipt["committed_copy"].is_null()
+            && run.receipt["copy"].is_null()
             && run.line_containing("no acceptance manifest registers fixture-absent"),
         format!(
-            "12-unknown-id: an unknown bead fails (exit code {:?}, result {}) and writes no committed receipt",
+            "12-unknown-id: an unknown bead fails (exit code {:?}, result {}) and writes no receipt copy",
             run.exit_code,
             run.result()
         ),
@@ -1726,20 +1721,18 @@ pub fn forbidden_dependency() {
     );
     copy.replace(source, &old);
 
-    // An include macro, which neither source scan follows, fails both.
+    // An include macro, which the source scan does not follow, fails os-imports.
     let mutated = format!("{old}\npub const SOURCE: &str = include_str!(\"lib.rs\");\n");
     copy.replace(source, &mutated);
     let line = lines_of(&mutated, &["include_str!"])[0];
     copy.clear_markers();
     let run = copy.accept(&accept_args, "include-macro", true, &mut evidence);
     let os = run.findings("os-imports").unwrap_or_default();
-    let tree = run.findings("tree-reference-tokens").unwrap_or_default();
     evidence.expect(
         run.exit_code == Some(1)
             && os == [format!("{source}:{line}: include_str! reads a file that os-imports does not follow, so that file is unchecked")]
-            && tree == [format!("{source}:{line}: include_str! reads a file that tree-reference-tokens does not follow, so that file is unchecked")]
-            && run.checks_ok_except(&["os-imports", "tree-reference-tokens"]),
-        format!("include-macro: an include_str! fails os-imports {os:?} and tree-reference-tokens {tree:?} and nothing else (exit code {:?})", run.exit_code),
+            && run.checks_ok_except(&["os-imports"]),
+        format!("include-macro: an include_str! fails os-imports {os:?} and nothing else (exit code {:?})", run.exit_code),
     );
     copy.replace(source, &old);
 

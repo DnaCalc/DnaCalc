@@ -1236,7 +1236,7 @@ fn run_accepts(
             "outcome": if exit_code == Some(0) { "passed" } else { "failed" },
             "result": result,
             "receipt": receipt,
-            "committed_copy": registered.then(|| format!("accept-receipts/{id}/{platform}.json")),
+            "copy": registered.then(|| format!("target/accept-receipts/{id}/{platform}.json")),
             "log": ws.rel(&log),
         }));
     }

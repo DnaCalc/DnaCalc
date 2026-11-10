@@ -21,7 +21,7 @@
 //!    prints are kept in its `notes`; they never change its outcome.
 //! 6. Writes the receipt to `target/accept/<bead>/<platform>/receipt.json`, beside one log per
 //!    cargo run, and, for a bead some manifest registers, copies it to
-//!    `accept-receipts/<bead>/<platform>.json`. Paths in the receipt are relative to the workspace
+//!    `target/accept-receipts/<bead>/<platform>.json`. Paths in the receipt are relative to the workspace
 //!    root; the toolchain, cargo home, home and temporary directories appear as `<rustup>`,
 //!    `<cargo-home>`, `<home>` and `<temp>`. The host record names the legacy root (the
 //!    directory holding the legacy repositories) as `..` (the workspace root's parent) or
@@ -75,8 +75,9 @@ const NOT_RUN_MARKER: &str = "ACCEPT-NOT-RUN: ";
 /// The prefix of a line a case prints for the receipt to keep in its `notes`.
 const NOTE_MARKER: &str = "ACCEPT-NOTE: ";
 
-/// The committed copies of the receipts, relative to the workspace root.
-const RECEIPTS_DIR: &str = "accept-receipts";
+/// The copies of the receipts by bead and platform, relative to the workspace root. They stay
+/// under `target/`: no receipt is committed.
+const RECEIPTS_DIR: &str = "target/accept-receipts";
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 enum Outcome {
@@ -984,8 +985,8 @@ pub(crate) fn utc_now() -> String {
     )
 }
 
-/// The host, toolchain and checkout this run measured. `own` is this run's committed receipt
-/// path, which is left out of the dirty paths: the run itself rewrites it.
+/// The host, toolchain and checkout this run measured. `own` is this run's receipt copy
+/// path, which is left out of the dirty paths.
 fn host_record(ws: &Workspace, own: &str, problems: &mut Vec<String>) -> Value {
     let rustc = cargo::rustc_version();
     if let Err(e) = &rustc {
@@ -1075,7 +1076,7 @@ fn check_json(check: &CheckResult) -> Value {
 }
 
 /// Rewrites the absolute paths in receipt strings: the workspace root becomes relative, and the
-/// toolchain, cargo home, home and temporary directories become placeholders, so a committed
+/// toolchain, cargo home, home and temporary directories become placeholders, so a stored
 /// receipt names no directory outside the workspace.
 pub(crate) struct Redactor {
     /// Normalised prefixes (forward slashes, lower case on Windows) with their replacements, most
@@ -1248,9 +1249,9 @@ pub fn run(raw: &[String]) -> ExitCode {
         cargo::TARGET_DIR
     );
 
-    let committed_rel = format!("{RECEIPTS_DIR}/{}/{platform}.json", args.id);
+    let copy_rel = format!("{RECEIPTS_DIR}/{}/{platform}.json", args.id);
     let mut problems = Vec::new();
-    let mut host = host_record(&ws, &committed_rel, &mut problems);
+    let mut host = host_record(&ws, &copy_rel, &mut problems);
     let manifests = manifest::load(&ws);
     problems.extend(manifests.errors.iter().map(|e| format!("manifest: {e}")));
 
@@ -1368,7 +1369,7 @@ pub fn run(raw: &[String]) -> ExitCode {
     };
 
     let receipt_path = out_dir.join("receipt.json");
-    let committed = ws.root.join(&committed_rel);
+    let copy = ws.root.join(&copy_rel);
     let command: Vec<String> = ["cargo", "xtask", "accept"]
         .iter()
         .map(|arg| (*arg).to_owned())
@@ -1417,16 +1418,16 @@ pub fn run(raw: &[String]) -> ExitCode {
         },
         "problems": problems,
         "receipt": ws.rel(&receipt_path),
-        "committed_copy": known.then(|| committed_rel.clone()),
+        "copy": known.then(|| copy_rel.clone()),
     });
     Redactor::new(&ws).apply_value(&mut receipt);
     let text = serde_json::to_string_pretty(&receipt).unwrap_or_default() + "\n";
     let mut written = fs::write(&receipt_path, &text).map_err(|e| e.to_string());
     if written.is_ok() && known {
-        written = committed
+        written = copy
             .parent()
             .map_or(Ok(()), fs::create_dir_all)
-            .and_then(|()| fs::write(&committed, &text))
+            .and_then(|()| fs::write(&copy, &text))
             .map_err(|e| e.to_string());
     }
     if let Err(e) = &written {
@@ -1453,9 +1454,9 @@ pub fn run(raw: &[String]) -> ExitCode {
         checks.len(),
         ws.rel(&receipt_path),
         if known {
-            format!(" (copy {committed_rel})")
+            format!(" (copy {copy_rel})")
         } else {
-            " (no committed copy for an unknown bead)".to_owned()
+            " (no copy for an unknown bead)".to_owned()
         }
     );
     ExitCode::from(exit_code)

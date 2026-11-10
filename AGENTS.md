@@ -71,8 +71,8 @@ DnaTreeCalc, DnaOneCalc and the others) are read-only inputs: port from them, ne
    function is in `docs/plan/RESEARCH_SOURCES.md`: four source tiers, and an analyst/implementer
    split for sources whose code we may not use.
 
-   `cargo xtask sweep` runs the slow and structural validation: the four architecture checks
-   (dependencies, os-imports, wasm-refusal, tree-reference-tokens), the licence ledger (every path it lists is a tracked file), the dependency ceiling (dna-onecalc and
+   `cargo xtask sweep` runs the slow and structural validation: the three architecture checks
+   (dependencies, os-imports, wasm-refusal), the licence ledger (every path it lists is a tracked file), the dependency ceiling (dna-onecalc and
    dna-formula-ui never reach calc-engine or calc-host, and may use calc-doc; dna-onecalc-desktop
    reaches no calc-host and no calc-engine; dna-calc does not depend on dna-onecalc, nor dna-calc-desktop), the portable packages' tests in headless Chrome and Firefox (a test that is
    neither run there nor marked `Native-only:` fails it), and xtask's acceptance suite. It takes
@@ -90,7 +90,7 @@ DnaTreeCalc, DnaOneCalc and the others) are read-only inputs: port from them, ne
      mismatches; never one bead per refusal.
 
 `cargo xtask accept --id <id> --platform <p>` still runs a bead's registered acceptance cases and
-writes a receipt under `accept-receipts/`. Use it where a package registers cases. It is not
+writes a receipt under `target/accept/` and a copy under `target/accept-receipts/`; receipts are not committed. Use it where a package registers cases. It is not
 required for every commit.
 
 ## Extend, never duplicate

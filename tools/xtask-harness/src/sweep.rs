@@ -3,8 +3,8 @@
 //! earlier one fails, then prints one summary line per step and one result line.
 //!
 //! The steps, by the name `--skip` takes:
-//! - `architecture`: four checks (`arch::run_all`): dependencies, os-imports,
-//!   wasm-refusal and tree-reference-tokens;
+//! - `architecture`: three checks (`arch::run_all`): dependencies, os-imports and
+//!   wasm-refusal;
 //! - `name-tables`: flag separate worksheet-function name tables in shipped Rust sources;
 //! - `licence-ledger`: the licence ledger (`licence::check`): every path it lists is a tracked file
 //!   (the ledger lists exceptions only; a file it does not list counts as own work);

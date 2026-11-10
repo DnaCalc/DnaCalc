@@ -1411,10 +1411,10 @@ fn workflow_checks(evidence: &mut Evidence) {
     let expected_uploads: [(&str, &[&str]); 6] = [
         (
             "windows",
-            &["target/ci", "target/accept", "accept-receipts"],
+            &["target/ci", "target/accept", "target/accept-receipts"],
         ),
-        ("linux", &["target/ci", "target/accept", "accept-receipts"]),
-        ("wasm", &["target/ci", "target/accept", "accept-receipts"]),
+        ("linux", &["target/ci", "target/accept", "target/accept-receipts"]),
+        ("wasm", &["target/ci", "target/accept", "target/accept-receipts"]),
         ("licenses", &["target/ci"]),
         ("desktop", &["target/ci"]),
         ("audit", &["target/ci-audit"]),
@@ -1445,7 +1445,7 @@ fn workflow_checks(evidence: &mut Evidence) {
     evidence.expect(
         uploads.iter().all(|(_, _, matches)| *matches),
         format!(
-            "workflow: each job uploads what AGENTS.md states (windows, linux and wasm: target/ci, target/accept, accept-receipts; licenses and desktop: target/ci; audit: target/ci-audit): {:?}",
+            "workflow: each job uploads what AGENTS.md states (windows, linux and wasm: target/ci, target/accept, target/accept-receipts; licenses and desktop: target/ci; audit: target/ci-audit): {:?}",
             uploads
                 .iter()
                 .map(|(name, paths, _)| format!("{name} {paths:?}"))

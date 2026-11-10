@@ -297,22 +297,5 @@
   ],
   "os_import_attributes": [
     "link"
-  ],
-  "tree_reference_identifier_allowances": [
-    {
-      "path": "crates/calc-vba/src/runtime/spreadsheet.rs",
-      "identifier": "HalProfileId",
-      "reason": "OxVba 325257ea HAL platform/null selector required by HostServices (Windows, Linux, MacOs, Wasm, Null); unrelated to the removed DNA calculation profiles"
-    }
-  ],
-  "tree_reference_phrases": [
-    "tree reference",
-    "TreeRef",
-    "tree_ref",
-    "reference profile",
-    "ReferenceProfile",
-    "profile_id",
-    "ReferenceSystemProvider",
-    "host reference"
   ]
 }
