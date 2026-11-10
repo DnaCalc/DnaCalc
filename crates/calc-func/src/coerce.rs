@@ -24,7 +24,7 @@
 //! A number read as text takes its text from [`number_text`]. A subnormal number reads as text as
 //! 0, since Excel holds none and reads a cell written as one back as +0; read as a number
 //! ([`operand`]) a subnormal is refused as not modelled, since Excel's arithmetic on one is not
-//! (dc-6qki owns subnormal numbers and makes the two readings agree). Near a tie at the 16th
+//! (dc-j9k owns subnormal numbers and makes the two readings agree). Near a tie at the 16th
 //! significant digit, [`number_text`] produces text under its documented rule, with measured
 //! mismatches still open under dc-b1l.25; these are calculated mismatches, not typed refusals.
 

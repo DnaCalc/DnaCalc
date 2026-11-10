@@ -17,7 +17,7 @@ pub fn shift_cell_edits(
     }
     let loaded = host.loaded().sheet(area.sheet());
     if loaded.is_some_and(|s| s.protected()) {
-        return Err("Cell shifts on protected worksheets are unavailable (dc-971p.7)".into());
+        return Err("Cell shifts on protected worksheets are unavailable (dc-971p)".into());
     }
     if area.cell_count() > 10000 {
         return Err("Shift at most 10000 selected cells at once".into());
@@ -81,7 +81,7 @@ pub fn shift_cell_edits(
             .next()
             .is_some()
     {
-        return Err("Shifting cells with merged, array, table, rule, chart, hidden or unloaded metadata is not modelled (dc-971p.7); nothing changed".into());
+        return Err("Shifting cells with merged, array, table, rule, chart, hidden or unloaded metadata is not modelled (dc-971p); nothing changed".into());
     }
     let edit = calc_fml::reference::StructuralEdit::ShiftCells { area, down, insert };
     let mut positions: BTreeSet<CellKey> = model

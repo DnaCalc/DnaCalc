@@ -634,7 +634,7 @@ pub fn dispatch_slice(
             })
         {
             return Err(CommandError::Document(EditError::SheetOperation(
-                "Structural edits with shared review parts are unavailable (dc-971p.40); nothing changed"
+                "Structural edits with shared review parts are unavailable (dc-971p); nothing changed"
                     .into(),
             )));
         }
@@ -756,7 +756,7 @@ pub fn dispatch_slice(
                 });
             if invalid {
                 return Err(CommandError::Document(EditError::SheetOperation(
-                    "Validation edits need valid ranges on an editable sheet and must retain imported alert attributes (dc-971p.40)"
+                    "Validation edits need valid ranges on an editable sheet and must retain imported alert attributes (dc-971p)"
                         .into(),
                 )));
             }
@@ -848,7 +848,7 @@ pub fn dispatch_slice(
                 });
             if invalid {
                 return Err(CommandError::Document(EditError::SheetOperation(
-                    "Conditional rules require an editable worksheet, valid source, ranges and priorities (dc-971p.8)"
+                    "Conditional rules require an editable worksheet, valid source, ranges and priorities (dc-971p)"
                         .into(),
                 )));
             }
@@ -867,7 +867,7 @@ pub fn dispatch_slice(
         )
     }) {
         return Err(CommandError::Document(EditError::SheetOperation(
-            "Deleting a conditional rule's formula origin is unavailable (dc-971p.8); edit its range first"
+            "Deleting a conditional rule's formula origin is unavailable (dc-971p); edit its range first"
                 .into(),
         )));
     }
@@ -890,7 +890,7 @@ pub fn dispatch_slice(
                 }))
     {
         return Err(CommandError::Document(EditError::SheetOperation(
-            "Axis edits with extension-backed conditional rules are unavailable (dc-971p.8); nothing changed"
+            "Axis edits with extension-backed conditional rules are unavailable (dc-971p); nothing changed"
                 .into(),
         )));
     }
@@ -919,7 +919,7 @@ pub fn dispatch_slice(
                 || (matches!(edit, calc_doc_model::SheetEdit::Remove { .. }) && host.model.definitions().macro_enabled())
             {
                 return Err(CommandError::Document(EditError::SheetOperation(
-                    "Renaming or deleting sheets with layout, table, rule, chart or other package references is not modelled (dc-971p.7); nothing changed"
+                    "Renaming or deleting sheets with layout, table, rule, chart or other package references is not modelled (dc-971p); nothing changed"
                         .to_owned(),
                 )));
             }
