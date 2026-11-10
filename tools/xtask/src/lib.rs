@@ -11,4 +11,3 @@ pub mod keep;
 pub mod licence;
 pub mod rust_source;
 pub mod test_output;
-pub mod text;
