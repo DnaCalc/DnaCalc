@@ -1185,19 +1185,19 @@ impl XllHost {
             XLOIL_0221_REMOVED.store(true, Ordering::Release);
         }
         let mut failures = Vec::new();
-        for entry in ["xlAutoRemove", "xlAutoClose"] {
-            if let Ok(address) = module.address(entry) {
-                let mut frame =
-                    crate::callbacks::Frame::lifecycle(self.state.clone(), module.clone());
-                let guard = unsafe { crate::callbacks::enter(&mut frame) };
-                // ubs:ignore -- xlAutoRemove/xlAutoClose use this fixed lifecycle ABI and a resolved, leased-module export.
-                let remove: unsafe extern "system" fn() -> i32 =
-                    unsafe { std::mem::transmute(address) };
-                if unsafe { remove() } as i16 == 0 {
-                    failures.push(format!("{entry} returned zero: {}", module.path.display()));
-                }
-                drop(guard);
+        // Unload and close are Excel's UNREGISTER route: the X2 AOT, net48 and net8 traces, the X3
+        // xlw/xlOil traces and the X4/X5 traces (crates/calc-xll-reference/traces) show Excel
+        // entering only xlAutoClose there. xlAutoRemove is the Add-in Manager's removal action
+        // (answer 13, A.3 #12) and belongs to a manager-removal route this host does not offer.
+        if let Ok(address) = module.address("xlAutoClose") {
+            let mut frame = crate::callbacks::Frame::lifecycle(self.state.clone(), module.clone());
+            let guard = unsafe { crate::callbacks::enter(&mut frame) };
+            // ubs:ignore -- xlAutoClose uses this fixed lifecycle ABI and a resolved, leased-module export.
+            let close: unsafe extern "system" fn() -> i32 = unsafe { std::mem::transmute(address) };
+            if unsafe { close() } as i16 == 0 {
+                failures.push(format!("xlAutoClose returned zero: {}", module.path.display()));
             }
+            drop(guard);
         }
         if failures.is_empty() {
             module.delay_cleanup.set(true);

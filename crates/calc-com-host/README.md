@@ -17,8 +17,10 @@ interface's callable slots. Unimplemented members fail with HRESULTs.
 
 The objects expose no type information yet. Managed callers tested here use
 IDispatch name lookup; early-bound tests call the measured slots directly.
-The AppEvents connection point retains subscriptions and supports Unadvise;
-this shell does not deliver workbook events. Subscription is not event parity.
+The AppEvents connection point retains subscriptions and supports Unadvise, and
+delivers two application events to its sinks: SheetChange (DISPID 0x61c, worksheet
+and range arguments in Excel's measured order, X4) and AfterCalculate (0xa34).
+Other workbook and application events are not delivered.
 
 The projection uses Windows' object-return mechanism and local objects only.
 It has no class factory, ROT entry, activation hook, registry-writing code or

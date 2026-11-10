@@ -89,6 +89,7 @@ unsafe fn register(module: &XlOper12, procedure: &str, signature: &str, name: &s
 
 #[unsafe(no_mangle)]
 pub unsafe extern "system" fn xlAutoOpen() -> i32 {
+    lifecycle_log("xlAutoOpen");
     let address = unsafe {
         GetProcAddress(
             GetModuleHandleW(std::ptr::null()),
@@ -371,8 +372,29 @@ pub unsafe extern "system" fn xlAutoOpen() -> i32 {
     }
     1
 }
+/// `DNA_XLL_LIFECYCLE_LOG=<file>` appends one line per lifecycle export entered, so a test can
+/// see which of them a host called after the module is gone.
+fn lifecycle_log(entry: &str) {
+    if let Some(path) = std::env::var_os("DNA_XLL_LIFECYCLE_LOG") {
+        use std::io::Write;
+        if let Ok(mut file) = std::fs::OpenOptions::new()
+            .create(true)
+            .append(true)
+            .open(path)
+        {
+            let _ = writeln!(file, "{entry}");
+        }
+    }
+}
+/// The Add-in Manager's removal action. Excel does not enter it on UNREGISTER or close.
+#[unsafe(no_mangle)]
+pub extern "system" fn xlAutoRemove() -> i32 {
+    lifecycle_log("xlAutoRemove");
+    1
+}
 #[unsafe(no_mangle)]
 pub unsafe extern "system" fn xlAutoClose() -> i32 {
+    lifecycle_log("xlAutoClose");
     for worker in std::mem::take(&mut *WORKERS.lock().unwrap()) {
         if worker.join().is_err() {
             return 0;

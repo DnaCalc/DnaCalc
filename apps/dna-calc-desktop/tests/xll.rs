@@ -224,6 +224,26 @@ fn overwritten_native_async_call_rejects_its_late_return() {
     assert_eq!(result["results"][3]["value"], 256.);
 }
 
+/// Native-only: CalcHost's teardown enters only xlAutoClose, as Excel's UNREGISTER does (X2 traces).
+#[test]
+fn engine_teardown_enters_only_xl_auto_close() {
+    let fixture = new_fixture();
+    let log = fixture.directory.join("lifecycle.log");
+    let result = checked(
+        fixture
+            .command()
+            .env("DNA_XLL_LIFECYCLE_LOG", &log)
+            .args(["--engine", "--formula", "=MyAdd(1,2)"])
+            .output()
+            .unwrap(),
+    );
+    assert_eq!(result["results"][0]["value"], 3.);
+    assert_eq!(
+        std::fs::read_to_string(&log).unwrap(),
+        "xlAutoOpen\nxlAutoClose\n"
+    );
+}
+
 /// Native-only: preparation failures in cooperative native routes remain counted refusals through IFERROR.
 #[test]
 fn cooperative_native_abi_refusals_cannot_be_swallowed() {

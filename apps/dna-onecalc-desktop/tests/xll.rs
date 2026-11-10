@@ -88,6 +88,27 @@ fn unmodelled_native_argument_conversion_cannot_be_hidden() {
     assert!(output.stdout.is_empty());
 }
 
+/// Native-only: closing the host enters only xlAutoClose, as Excel's UNREGISTER does (X2 traces);
+/// xlAutoRemove is the Add-in Manager's removal action and is not entered.
+#[test]
+fn closing_enters_only_xl_auto_close() {
+    let fixture = new_fixture();
+    let log = fixture.directory.join("lifecycle.log");
+    let result = checked(
+        fixture
+            .command()
+            .env("DNA_XLL_LIFECYCLE_LOG", &log)
+            .args(["--formula", "=MyAdd(1,2)"])
+            .output()
+            .unwrap(),
+    );
+    assert_eq!(result["results"][0]["value"], 3.);
+    assert_eq!(
+        std::fs::read_to_string(&log).unwrap(),
+        "xlAutoOpen\nxlAutoClose\n"
+    );
+}
+
 /// Native-only: registers ten thousand callable names in a native process, then invokes the last.
 #[test]
 fn ten_thousand_registrations_have_no_small_pool_limit() {
