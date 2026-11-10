@@ -442,8 +442,15 @@ def verify_x1(excel, excel_control, host, host_control):
               for enters in (excel_enters, host_enters)]
     if within[0] or within[1]:
         require(within[0] == within[1], "Callback contexts (the running export) differ between Excel and DNA Calc")
+    # C.1: the same verification reported as the four lanes (each check above already required
+    # every row to match, so a lane here is all pass or the verification failed).
+    lanes = ([{"lane": "value_cases", "outcome": "pass"}] * len(expected)
+             + [{"lane": "ordered_boundary_cases", "outcome": "pass"}] * len(sequence[0])
+             + [{"lane": "lifecycle_ownership_cases", "outcome": "pass"}] * (len(freed[0]) + sum(o["frees"] for o in ownership[:1])))
     return {
         "status": "verified X1 fixture boundary", "formula_cases": len(expected), "formula_matches_each_host": len(expected),
+        "counts": four_counts(lanes),
+        "manifest": comparison_manifest(environments[0], jsonl(excel / "controller.jsonl"), cases, environments[2:]),
         "xlfree_operands_after_compared": len(freed[0]), "callback_contexts_compared": len(within[0]),
         "source_revision": environments[0]["repository_commit"],
         "ordered_callback_sequence_matches": True,

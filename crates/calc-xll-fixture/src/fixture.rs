@@ -36,6 +36,8 @@ static REGISTRATIONS: Mutex<Vec<(f64, String)>> = Mutex::new(Vec::new());
 static WORKERS: Mutex<Vec<std::thread::JoinHandle<()>>> = Mutex::new(Vec::new());
 static OVERLAP: Mutex<(usize, usize, usize)> = Mutex::new((0, 0, 0));
 static OVERLAP_READY: std::sync::Condvar = std::sync::Condvar::new();
+/// MyOverlapRead's second barrier: how many calls have read their reference since the reset.
+static OVERLAP_READS: Mutex<usize> = Mutex::new(0);
 thread_local! {
     static RETURN:UnsafeCell<XlOper12>=UnsafeCell::new(XlOper12::default());
     static TEXT:UnsafeCell<Vec<u16>>=const{UnsafeCell::new(Vec::new())};
@@ -344,6 +346,7 @@ pub unsafe extern "system" fn xlAutoOpen() -> i32 {
                 && register(&module, "MyOverlapArray", "QE$", "MyOverlapArray")
                 && register(&module, "MyOverlapMax", "J", "MyOverlapMax")
                 && register(&module, "MyOverlapReset", "J#", "MyOverlapReset")
+                && register(&module, "MyOverlapRead", "QU$", "MyOverlapRead")
         } {
             return 0;
         }
@@ -467,6 +470,48 @@ pub unsafe extern "system" fn MyOverlap(value: *const f64) -> *mut XlOper12 {
         XlOper12::error(15)
     })
 }
+/// Answer 13 D.21 (owner-pump witness): two thread-safe calls meet at the barrier, then each
+/// coerces its reference while the other is also inside, and both wait until both have read.
+/// In the host each read is a request the owner thread serves; a host that serves one worker
+/// at a time leaves the other waiting at the second barrier and both time out (#VALUE!).
+#[unsafe(no_mangle)]
+pub unsafe extern "system" fn MyOverlapRead(reference: *mut XlOper12) -> *mut XlOper12 {
+    let arrived = {
+        let mut held = OVERLAP.lock().unwrap();
+        held.0 += 1;
+        held.1 += 1;
+        held.2 = held.2.max(held.0);
+        OVERLAP_READY.notify_all();
+        let (mut held, _) = OVERLAP_READY
+            .wait_timeout_while(held, std::time::Duration::from_secs(10), |s| s.1 < 2)
+            .unwrap();
+        let arrived = held.1 >= 2;
+        held.0 -= 1;
+        arrived
+    };
+    if !arrived {
+        return returned(XlOper12::error(15));
+    }
+    let mut kind = XlOper12::integer(XL_NUM as i32);
+    let mut value = XlOper12::default();
+    let code = unsafe { call(XL_COERCE, &[reference, &mut kind], &mut value) };
+    let both_read = {
+        let mut read = OVERLAP_READS.lock().unwrap();
+        *read += 1;
+        OVERLAP_READY.notify_all();
+        let (read, _) = OVERLAP_READY
+            .wait_timeout_while(read, std::time::Duration::from_secs(10), |n| *n < 2)
+            .unwrap();
+        *read >= 2
+    };
+    returned(
+        if both_read && code == SUCCESS && value.xltype & TYPE_MASK == XL_NUM {
+            XlOper12::number(unsafe { value.value.number } + 1.)
+        } else {
+            XlOper12::error(15)
+        },
+    )
+}
 #[unsafe(no_mangle)]
 pub unsafe extern "system" fn MyOverlapArray(value: *const f64) -> *mut XlOper12 {
     let entered = unsafe { MyOverlap(value) };
@@ -506,6 +551,7 @@ pub extern "system" fn MyOverlapReset() -> i32 {
         return 0;
     }
     *held = (0, 0, 0);
+    *OVERLAP_READS.lock().unwrap() = 0;
     1
 }
 #[unsafe(no_mangle)]
