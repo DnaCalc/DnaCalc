@@ -114,6 +114,9 @@ mismatched + refused + missing; the rate is over all cases of the set.
 | calcvba-udf generated add-in (15 exports) | 20 | 17 | 3 |
 | all | 353 | 350 | 3 (99.2%) |
 
+Re-run on 2026-11-11 after the dc-6332.10 callback-boundary changes (OneCalc a967db01): the same
+350 of 353, set by set (`crates/calc-xll-reference/traces/2026-11-10-x13-boundary/m4-acceptance`).
+
 The three failures are all in the generated add-in: `Native_ReferenceKind(A1)`,
 `Native_OptionalReference(A1)` and `Native_CallerRow()` return `#VALUE!` where Excel gives `"Range:1"`,
 `"Range"` and `3`. The generated code gets a `Range` object from `Application.Range(address)` and

@@ -61,3 +61,13 @@ bead changed.
 `x15/`: D.0's foundation operands (`fixture/x15-foundation-cases.json`, 21), Excel run, repeat
 (identical) and the OneCalc comparison (a967db01 build, `-Direct`): 19 of 21 match; the two
 failures are MissingInput reads of cells other than A1. See the hosting study, section 29.
+
+## Milestone 4 page acceptance after the host changes (m4-acceptance)
+
+`cargo xtask app xll-accept onecalc` through the page (OneCalc a967db01 build, bundle built
+here, Excel's answers from `m4-excel.ps1` in the owned session; both run on private desktops,
+guards in `m4-acceptance/guards.json`): X1 289 of 289; Excel-DNA net48 7/7, net8 7/7, AOT
+1/1, X2Pool 2/2; xlw 5/5 and 5/5; xlOil Utils/SQL 12/12, Python 5/5; calcvba-udf 17/20 (the
+same three `Application.Range`/`Caller` failures as on 2026-11-08). All: 350 of 353, the
+2026-11-08 result. Every set loaded, unloaded, and reopened as before. The first xlOil Python
+Excel job failed in the session's reset ("Cannot access 'baseline.xlsx'") and was rerun alone.

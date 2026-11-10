@@ -1,0 +1,2493 @@
+{
+  "cases": 289,
+  "matched": 289,
+  "sets": [
+    {
+      "cases_file": "C:\\Work\\DnaCalc\\DnaCalc-win\\crates/calc-xll-reference/fixture\\x1-cases.json",
+      "excel_record": "C:\\Work\\DnaCalc\\codex-runs\\x13-boundary\\m4-excel-all/x1-fixture/controller.jsonl",
+      "name": "x1-fixture",
+      "outcome": {
+        "case_values_stale": 0,
+        "count": 289,
+        "documented": [
+          {
+            "completion_prefix": "MyAd",
+            "completions": [
+              "MyAddMyAdd(arg1, arg2)"
+            ],
+            "description": "No description from the add-in.",
+            "function": "MyAdd",
+            "help_name": "MyAdd",
+            "help_signature": "MyAdd(arg1, arg2)",
+            "parameters": [
+              "arg1",
+              "arg2"
+            ],
+            "signature": "MyAdd(arg1, arg2)",
+            "status": "Registered function from xll m4-X1.xll; no category."
+          },
+          {
+            "completion_prefix": "MyEc",
+            "completions": [
+              "MyEchoMyEcho(arg1)"
+            ],
+            "description": "No description from the add-in.",
+            "function": "MyEcho",
+            "help_name": "MyEcho",
+            "help_signature": "MyEcho(arg1)",
+            "parameters": [
+              "arg1"
+            ],
+            "signature": "MyEcho(arg1)",
+            "status": "Registered function from xll m4-X1.xll; no category."
+          },
+          {
+            "completion_prefix": "MyOw",
+            "completions": [
+              "MyOwnedMyOwned()"
+            ],
+            "description": "No description from the add-in.",
+            "function": "MyOwned",
+            "help_name": "MyOwned",
+            "help_signature": "MyOwned()",
+            "parameters": [],
+            "signature": "MyOwned()",
+            "status": "Registered function from xll m4-X1.xll; no category."
+          },
+          {
+            "completion_prefix": "MyTh",
+            "completions": [
+              "MyThreadSafeMyThreadSafe(arg1)",
+              "MyThreeArgsMyThreeArgs(arg1, arg2, arg3)"
+            ],
+            "description": "No description from the add-in.",
+            "function": "MyThreadSafe",
+            "help_name": "MyThreadSafe",
+            "help_signature": "MyThreadSafe(arg1)",
+            "parameters": [
+              "arg1"
+            ],
+            "signature": "MyThreadSafe(arg1)",
+            "status": "Registered function from xll m4-X1.xll; no category; thread-safe."
+          },
+          {
+            "completion_prefix": "MyCa",
+            "completions": [
+              "MyCallbacksMyCallbacks(arg1, arg2)",
+              "MyCallerMyCaller()",
+              "MyCatAMyCatA(arg1, arg2)",
+              "MyCatCountedAMyCatCountedA(arg1, arg2)",
+              "MyCatCountedWMyCatCountedW(arg1, arg2)",
+              "MyCatWMyCatW(arg1, arg2)"
+            ],
+            "description": "No description from the add-in.",
+            "function": "MyCaller",
+            "help_name": "MyCaller",
+            "help_signature": "MyCaller()",
+            "parameters": [],
+            "signature": "MyCaller()",
+            "status": "Registered function from xll m4-X1.xll; no category."
+          },
+          {
+            "completion_prefix": "MyRe",
+            "completions": [
+              "MyReferenceMyReference(arg1)",
+              "MyRegIdCheckMyRegIdCheck(arg1, arg2, arg3, arg4)",
+              "MyRegIdRepeatMyRegIdRepeat(arg1, arg2, arg3, arg4)"
+            ],
+            "description": "No description from the add-in.",
+            "function": "MyReference",
+            "help_name": "MyReference",
+            "help_signature": "MyReference(arg1)",
+            "parameters": [
+              "arg1"
+            ],
+            "signature": "MyReference(arg1)",
+            "status": "Registered function from xll m4-X1.xll; no category; volatile."
+          },
+          {
+            "completion_prefix": "MyAs",
+            "completions": [
+              "MyAsyncMyAsync(arg1)"
+            ],
+            "description": "No description from the add-in.",
+            "function": "MyAsync",
+            "help_name": "MyAsync",
+            "help_signature": "MyAsync(arg1)",
+            "parameters": [
+              "arg1"
+            ],
+            "signature": "MyAsync(arg1)",
+            "status": "Registered function from xll m4-X1.xll; no category; asynchronous."
+          },
+          {
+            "completion_prefix": "MyCa",
+            "completions": [
+              "MyCallbacksMyCallbacks(arg1, arg2)",
+              "MyCallerMyCaller()",
+              "MyCatAMyCatA(arg1, arg2)",
+              "MyCatCountedAMyCatCountedA(arg1, arg2)",
+              "MyCatCountedWMyCatCountedW(arg1, arg2)",
+              "MyCatWMyCatW(arg1, arg2)"
+            ],
+            "description": "No description from the add-in.",
+            "function": "MyCallbacks",
+            "help_name": "MyCallbacks",
+            "help_signature": "MyCallbacks(arg1, arg2)",
+            "parameters": [
+              "arg1",
+              "arg2"
+            ],
+            "signature": "MyCallbacks(arg1, arg2)",
+            "status": "Registered function from xll m4-X1.xll; no category."
+          }
+        ],
+        "listed": [
+          "xll C:\\Work\\DnaCalc\\codex-runs\\x13-boundary\\m4-X1.xll (sha256:a7194d47cd9226356040bca0d85fcde1f2116fdb9dbc24deedefab4993575f99) - MyAdd, MyEcho, MyOwned, MyThreadSafe, MyCaller, MyReference, MyAsync, MyCallbacks, MyWide, MyFpSum, MyMix, MyVolatile, MyUnsupported, MyNonfiniteValue, MyNonfinitePointer, MyNonfiniteOper, MyXlf, MyXlfPlain, MyXlfRaw, MyRegIdCheck, MyRegIdRepeat, MyOpenProbe, MyStrInfoA, MyStrInfoW, MyCountedInfoA, MyCountedInfoW, MyBoolRaw, MyBoolEcho, MyShortAdd, MyUShortAdd, MyIntAdd, MyDoubleInc, MyIntInc, MyShortInc, MyBoolFlip, MyUpperA, MyUpperW, MyUpperCountedA, MyUpperCountedW, MyCatA, MyCatCountedA, MyCatW, MyCatCountedW, MyOperInfo, MyThreeArgs, MyDynamicA, MyDynamicB Unload"
+        ],
+        "load_seconds": 0.9762407,
+        "loaded": true,
+        "matched": 289,
+        "mismatched": 0,
+        "missing": 0,
+        "refused": 0,
+        "reopen": {
+          "answered": true,
+          "loaded_after_right_hash": 1,
+          "loaded_after_wrong_hash": 0,
+          "loaded_by_opening": 0,
+          "offered": [
+            "xll: C:\\Work\\DnaCalc\\codex-runs\\x13-boundary\\m4-X1.xll (sha256:0000000000000000000000000000000000000000000000000000000000000000) - listed by the session, not loaded Load",
+            "xll: C:\\Work\\DnaCalc\\codex-runs\\x13-boundary\\m4-X1.xll (sha256:a7194d47cd9226356040bca0d85fcde1f2116fdb9dbc24deedefab4993575f99) - listed by the session, not loaded Load"
+          ],
+          "right_hash_status": "Loaded C:\\Work\\DnaCalc\\codex-runs\\x13-boundary\\m4-X1.xll. 1 add-in(s) loaded.",
+          "wrong_hash_status": "C:\\Work\\DnaCalc\\codex-runs\\x13-boundary\\m4-X1.xll is not the file the session listed (it holds sha256:a7194d47cd9226356040bca0d85fcde1f2116fdb9dbc24deedefab4993575f99, the session listed sha256:0000000000000000000000000000000000000000000000000000000000000000); choose it with Load add-in to accept the change"
+        },
+        "results": [
+          {
+            "case_value_agrees_with_excel": true,
+            "detail": "number 3",
+            "excel": "number 3",
+            "formula": "=MyAdd(1,2)",
+            "seconds": 0.0748124,
+            "verdict": "matched"
+          },
+          {
+            "case_value_agrees_with_excel": true,
+            "detail": "number 5.5",
+            "excel": "number 5.5",
+            "formula": "=MyAdd(-4,9.5)",
+            "seconds": 0.0787214,
+            "verdict": "matched"
+          },
+          {
+            "case_value_agrees_with_excel": true,
+            "detail": "text \"hello 😀\"",
+            "excel": "text \"hello 😀\"",
+            "formula": "=MyEcho(\"hello 😀\")",
+            "seconds": 0.0844745,
+            "verdict": "matched"
+          },
+          {
+            "case_value_agrees_with_excel": true,
+            "detail": "number 10",
+            "excel": "number 10",
+            "formula": "=SUM(MyEcho({1,2;3,4}))",
+            "seconds": 0.0815582,
+            "verdict": "matched"
+          },
+          {
+            "case_value_agrees_with_excel": true,
+            "detail": "logical TRUE",
+            "excel": "logical TRUE",
+            "formula": "=MyEcho(TRUE)",
+            "seconds": 0.0719654,
+            "verdict": "matched"
+          },
+          {
+            "case_value_agrees_with_excel": true,
+            "detail": "error #N/A",
+            "excel": "error #N/A",
+            "formula": "=MyEcho(#N/A)",
+            "seconds": 0.0687278,
+            "verdict": "matched"
+          },
+          {
+            "case_value_agrees_with_excel": true,
+            "detail": "text \"native owned\"",
+            "excel": "text \"native owned\"",
+            "formula": "=MyOwned()",
+            "seconds": 0.0675872,
+            "verdict": "matched"
+          },
+          {
+            "case_value_agrees_with_excel": true,
+            "detail": "number 10",
+            "excel": "number 10",
+            "formula": "=MyThreadSafe(9)",
+            "seconds": 0.0737652,
+            "verdict": "matched"
+          },
+          {
+            "case_value_agrees_with_excel": true,
+            "detail": "text \"2,2,1,1\"",
+            "excel": "text \"2,2,1,1\"",
+            "formula": "=MyCaller()",
+            "seconds": 0.0718631,
+            "verdict": "matched"
+          },
+          {
+            "case_value_agrees_with_excel": true,
+            "detail": "number 7",
+            "excel": "number 7",
+            "formula": "=MyReference(A1)",
+            "seconds": 0.0696277,
+            "verdict": "matched"
+          },
+          {
+            "case_value_agrees_with_excel": true,
+            "detail": "number 42",
+            "excel": "number 42",
+            "formula": "=MyAsync(41)",
+            "seconds": 0.0821152,
+            "verdict": "matched"
+          },
+          {
+            "case_value_agrees_with_excel": true,
+            "detail": "number 15",
+            "excel": "number 15",
+            "formula": "=MyCallbacks(7,8)",
+            "seconds": 0.0735793,
+            "verdict": "matched"
+          },
+          {
+            "case_value_agrees_with_excel": true,
+            "detail": "text \"counted 😀\"",
+            "excel": "text \"counted 😀\"",
+            "formula": "=MyWide(\"counted 😀\")",
+            "seconds": 0.0805523,
+            "verdict": "matched"
+          },
+          {
+            "case_value_agrees_with_excel": true,
+            "detail": "number 10",
+            "excel": "number 10",
+            "formula": "=MyFpSum({1,2;3,4})",
+            "seconds": 0.0732229,
+            "verdict": "matched"
+          },
+          {
+            "case_value_agrees_with_excel": true,
+            "detail": "number 15",
+            "excel": "number 15",
+            "formula": "=MyMix(1,2,3,4,5)",
+            "seconds": 0.0749417,
+            "verdict": "matched"
+          },
+          {
+            "case_value_agrees_with_excel": true,
+            "detail": "number 6",
+            "excel": "number 6",
+            "formula": "=MyVolatile(5)",
+            "seconds": 0.0726155,
+            "verdict": "matched"
+          },
+          {
+            "case_value_agrees_with_excel": true,
+            "detail": "number 41",
+            "excel": "number 41",
+            "formula": "=MyDynamicA(40)",
+            "seconds": 0.0702538,
+            "verdict": "matched"
+          },
+          {
+            "case_value_agrees_with_excel": true,
+            "detail": "number 42",
+            "excel": "number 42",
+            "formula": "=MyDynamicB(40)",
+            "seconds": 0.0719873,
+            "verdict": "matched"
+          },
+          {
+            "case_value_agrees_with_excel": true,
+            "detail": "error #NUM!",
+            "excel": "error #NUM!",
+            "formula": "=MyNonfiniteValue()",
+            "seconds": 0.071892,
+            "verdict": "matched"
+          },
+          {
+            "case_value_agrees_with_excel": true,
+            "detail": "error #NUM!",
+            "excel": "error #NUM!",
+            "formula": "=MyNonfinitePointer()",
+            "seconds": 0.0784252,
+            "verdict": "matched"
+          },
+          {
+            "case_value_agrees_with_excel": true,
+            "detail": "error #NUM!",
+            "excel": "error #NUM!",
+            "formula": "=MyNonfiniteOper()",
+            "seconds": 0.0699736,
+            "verdict": "matched"
+          },
+          {
+            "case_value_agrees_with_excel": true,
+            "detail": "text \"0|num|3\"",
+            "excel": "text \"0|num|3\"",
+            "formula": "=MyOpenProbe(0)",
+            "seconds": 0.0718266,
+            "verdict": "matched"
+          },
+          {
+            "case_value_agrees_with_excel": true,
+            "detail": "text \"0|num|5\"",
+            "excel": "text \"0|num|5\"",
+            "formula": "=MyOpenProbe(1)",
+            "seconds": 0.0711835,
+            "verdict": "matched"
+          },
+          {
+            "case_value_agrees_with_excel": true,
+            "detail": "text \"0|num|same=true|integer=true\"",
+            "excel": "text \"0|num|same=true|integer=true\"",
+            "formula": "=MyOpenProbe(2)",
+            "seconds": 0.0707029,
+            "verdict": "matched"
+          },
+          {
+            "case_value_agrees_with_excel": true,
+            "detail": "text \"0|num|same=true|integer=true\"",
+            "excel": "text \"0|num|same=true|integer=true\"",
+            "formula": "=MyOpenProbe(3)",
+            "seconds": 0.0744796,
+            "verdict": "matched"
+          },
+          {
+            "case_value_agrees_with_excel": true,
+            "detail": "text \"0|num|3\"",
+            "excel": "text \"0|num|3\"",
+            "formula": "=MyXlf(150,\"@self\",\"MyAdd\",\"BBB\",1,2)",
+            "seconds": 0.077391,
+            "verdict": "matched"
+          },
+          {
+            "case_value_agrees_with_excel": true,
+            "detail": "text \"0|num|3\"",
+            "excel": "text \"0|num|3\"",
+            "formula": "=MyXlf(150,\"@selfname\",\"MyAdd\",\"BBB\",1,2)",
+            "seconds": 0.0763278,
+            "verdict": "matched"
+          },
+          {
+            "case_value_agrees_with_excel": true,
+            "detail": "text \"0|err|#VALUE!\"",
+            "excel": "text \"0|err|#VALUE!\"",
+            "formula": "=MyXlf(150,\"@selfstem\",\"MyAdd\",\"BBB\",1,2)",
+            "seconds": 0.0848957,
+            "verdict": "matched"
+          },
+          {
+            "case_value_agrees_with_excel": true,
+            "detail": "text \"0|num|3\"",
+            "excel": "text \"0|num|3\"",
+            "formula": "=MyXlf(150,\"@selfupper\",\"MyAdd\",\"BBB\",1,2)",
+            "seconds": 0.0776895,
+            "verdict": "matched"
+          },
+          {
+            "case_value_agrees_with_excel": true,
+            "detail": "text \"0|num|3\"",
+            "excel": "text \"0|num|3\"",
+            "formula": "=MyXlf(150,\"@selflower\",\"MyAdd\",\"BBB\",1,2)",
+            "seconds": 0.0734075,
+            "verdict": "matched"
+          },
+          {
+            "case_value_agrees_with_excel": true,
+            "detail": "text \"0|err|#VALUE!\"",
+            "excel": "text \"0|err|#VALUE!\"",
+            "formula": "=MyXlf(150,\"@self\",\"myadd\",\"BBB\",1,2)",
+            "seconds": 0.0706033,
+            "verdict": "matched"
+          },
+          {
+            "case_value_agrees_with_excel": true,
+            "detail": "text \"0|num|3\"",
+            "excel": "text \"0|num|3\"",
+            "formula": "=MyXlf(150,\"@self\",\"MyAdd\",\"bbb\",1,2)",
+            "seconds": 0.0689919,
+            "verdict": "matched"
+          },
+          {
+            "case_value_agrees_with_excel": true,
+            "detail": "text \"0|num|1\"",
+            "excel": "text \"0|num|1\"",
+            "formula": "=MyXlf(150,\"@self\",\"MyAdd\",\"BBB\",1)",
+            "seconds": 0.075093,
+            "verdict": "matched"
+          },
+          {
+            "case_value_agrees_with_excel": true,
+            "detail": "text \"0|num|0\"",
+            "excel": "text \"0|num|0\"",
+            "formula": "=MyXlf(150,\"@self\",\"MyAdd\",\"BBB\")",
+            "seconds": 0.0682333,
+            "verdict": "matched"
+          },
+          {
+            "case_value_agrees_with_excel": true,
+            "detail": "text \"0|err|#VALUE!\"",
+            "excel": "text \"0|err|#VALUE!\"",
+            "formula": "=MyXlf(150,\"@self\",\"MyAdd\",\"BBB\",1,2,3)",
+            "seconds": 0.0716859,
+            "verdict": "matched"
+          },
+          {
+            "case_value_agrees_with_excel": true,
+            "detail": "text \"0|num|3\"",
+            "excel": "text \"0|num|3\"",
+            "formula": "=MyXlf(150,\"@self\",\"MyAdd\",\"BBBB\",1,2)",
+            "seconds": 0.0717407,
+            "verdict": "matched"
+          },
+          {
+            "case_value_agrees_with_excel": true,
+            "detail": "text \"0|err|#VALUE!\"",
+            "excel": "text \"0|err|#VALUE!\"",
+            "formula": "=MyXlf(150,\"@self\",\"MyAdd\",\"BB\",1,2)",
+            "seconds": 0.073127,
+            "verdict": "matched"
+          },
+          {
+            "case_value_agrees_with_excel": true,
+            "detail": "text \"0|num|7\"",
+            "excel": "text \"0|num|7\"",
+            "formula": "=MyXlf(150,\"@self\",\"MyAdd\",\"BBB\",\"3\",4)",
+            "seconds": 0.071235,
+            "verdict": "matched"
+          },
+          {
+            "case_value_agrees_with_excel": true,
+            "detail": "text \"0|num|5\"",
+            "excel": "text \"0|num|5\"",
+            "formula": "=MyXlf(150,\"@self\",\"MyAdd\",\"BBB\",TRUE,4)",
+            "seconds": 0.0734821,
+            "verdict": "matched"
+          },
+          {
+            "case_value_agrees_with_excel": true,
+            "detail": "text \"0|err|#VALUE!\"",
+            "excel": "text \"0|err|#VALUE!\"",
+            "formula": "=MyXlf(150,\"@self\",\"MyAdd\",\"BBB\",\"x\",4)",
+            "seconds": 0.0749691,
+            "verdict": "matched"
+          },
+          {
+            "case_value_agrees_with_excel": true,
+            "detail": "text \"0|err|#VALUE!\"",
+            "excel": "text \"0|err|#VALUE!\"",
+            "formula": "=MyXlf(150,\"@self\",\"MyAdd\",\"BBB\",#N/A,4)",
+            "seconds": 0.0668401,
+            "verdict": "matched"
+          },
+          {
+            "case_value_agrees_with_excel": true,
+            "detail": "text \"0|num|4\"",
+            "excel": "text \"0|num|4\"",
+            "formula": "=MyXlf(150,\"@self\",\"MyAdd\",\"BBB\",,4)",
+            "seconds": 0.0687675,
+            "verdict": "matched"
+          },
+          {
+            "case_value_agrees_with_excel": true,
+            "detail": "text \"0|num|5\"",
+            "excel": "text \"0|num|5\"",
+            "formula": "=MyXlf(150,\"@self\",\"MyAdd\",\"BBB\",{1,2},4)",
+            "seconds": 0.0748704,
+            "verdict": "matched"
+          },
+          {
+            "case_value_agrees_with_excel": true,
+            "detail": "text \"0|num|11\"",
+            "excel": "text \"0|num|11\"",
+            "formula": "=MyXlf(150,\"@self\",\"MyAdd\",\"BBB\",A1,4)",
+            "seconds": 0.0730326,
+            "verdict": "matched"
+          },
+          {
+            "case_value_agrees_with_excel": true,
+            "detail": "text \"0|num|3.75\"",
+            "excel": "text \"0|num|3.75\"",
+            "formula": "=MyXlf(150,\"@self\",\"MyAdd\",\"BBB\",1.5,2.25)",
+            "seconds": 0.0737817,
+            "verdict": "matched"
+          },
+          {
+            "case_value_agrees_with_excel": true,
+            "detail": "text \"0|num|2000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000\"",
+            "excel": "text \"0|num|2000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000\"",
+            "formula": "=MyXlf(150,\"@self\",\"MyAdd\",\"BBB\",1E+300,1E+300)",
+            "seconds": 0.0754906,
+            "verdict": "matched"
+          },
+          {
+            "case_value_agrees_with_excel": true,
+            "detail": "text \"0|err|#VALUE!\"",
+            "excel": "text \"0|err|#VALUE!\"",
+            "formula": "=MyXlf(150,\"@self\",\"NoSuchProc\",\"BBB\",1,2)",
+            "seconds": 0.0719809,
+            "verdict": "matched"
+          },
+          {
+            "case_value_agrees_with_excel": true,
+            "detail": "text \"0|err|#VALUE!\"",
+            "excel": "text \"0|err|#VALUE!\"",
+            "formula": "=MyXlf(150,\"NoSuchModule\",\"MyAdd\",\"BBB\",1,2)",
+            "seconds": 0.0740954,
+            "verdict": "matched"
+          },
+          {
+            "case_value_agrees_with_excel": true,
+            "detail": "text \"0|num|5\"",
+            "excel": "text \"0|num|5\"",
+            "formula": "=MyXlf(150,\"kernel32\",\"lstrlenA\",\"JC\",\"hello\")",
+            "seconds": 0.0729499,
+            "verdict": "matched"
+          },
+          {
+            "case_value_agrees_with_excel": true,
+            "detail": "text \"0|num|5\"",
+            "excel": "text \"0|num|5\"",
+            "formula": "=MyXlf(150,\"kernel32.dll\",\"lstrlenA\",\"JC\",\"hello\")",
+            "seconds": 0.0762104,
+            "verdict": "matched"
+          },
+          {
+            "case_value_agrees_with_excel": true,
+            "detail": "text \"0|err|#VALUE!\"",
+            "excel": "text \"0|err|#VALUE!\"",
+            "formula": "=MyXlf(150,\"KERNEL32\",\"LSTRLENA\",\"JC\",\"hello\")",
+            "seconds": 0.0714967,
+            "verdict": "matched"
+          },
+          {
+            "case_value_agrees_with_excel": true,
+            "detail": "text \"0|num|0\"",
+            "excel": "text \"0|num|0\"",
+            "formula": "=MyXlf(150,\"kernel32\",\"lstrlenA\",\"JC\",\"\")",
+            "seconds": 0.0735016,
+            "verdict": "matched"
+          },
+          {
+            "case_value_agrees_with_excel": true,
+            "detail": "text \"0|num|5\"",
+            "excel": "text \"0|num|5\"",
+            "formula": "=MyXlf(150,\"kernel32\",\"lstrlenA\",\"JC\",\"héllo\")",
+            "seconds": 0.0758731,
+            "verdict": "matched"
+          },
+          {
+            "case_value_agrees_with_excel": true,
+            "detail": "text \"0|num|3\"",
+            "excel": "text \"0|num|3\"",
+            "formula": "=MyXlf(150,\"kernel32\",\"lstrlenA\",\"JC\",123)",
+            "seconds": 0.0791644,
+            "verdict": "matched"
+          },
+          {
+            "case_value_agrees_with_excel": true,
+            "detail": "text \"0|num|4\"",
+            "excel": "text \"0|num|4\"",
+            "formula": "=MyXlf(150,\"kernel32\",\"lstrlenA\",\"JC\",TRUE)",
+            "seconds": 0.0774883,
+            "verdict": "matched"
+          },
+          {
+            "case_value_agrees_with_excel": true,
+            "detail": "text \"0|num|5\"",
+            "excel": "text \"0|num|5\"",
+            "formula": "=MyXlf(150,\"kernel32\",\"lstrlenW\",\"JC%\",\"hello\")",
+            "seconds": 0.0783817,
+            "verdict": "matched"
+          },
+          {
+            "case_value_agrees_with_excel": true,
+            "detail": "text \"0|err|#VALUE!\"",
+            "excel": "text \"0|err|#VALUE!\"",
+            "formula": "=MyXlf(150,\"kernel32\",\"lstrlenA\",\"ZC\",\"hello\")",
+            "seconds": 0.0790856,
+            "verdict": "matched"
+          },
+          {
+            "case_value_agrees_with_excel": true,
+            "detail": "text \"0|err|#VALUE!\"",
+            "excel": "text \"0|err|#VALUE!\"",
+            "formula": "=MyXlf(150,\"kernel32\",\"lstrlenA\",\"JZ\",\"hello\")",
+            "seconds": 0.070635,
+            "verdict": "matched"
+          },
+          {
+            "case_value_agrees_with_excel": true,
+            "detail": "text \"0|err|#VALUE!\"",
+            "excel": "text \"0|err|#VALUE!\"",
+            "formula": "=MyXlf(150,\"kernel32\",\"lstrlenA\",\"\",\"hello\")",
+            "seconds": 0.0728026,
+            "verdict": "matched"
+          },
+          {
+            "case_value_agrees_with_excel": true,
+            "detail": "text \"0|err|#VALUE!\"",
+            "excel": "text \"0|err|#VALUE!\"",
+            "formula": "=MyXlf(150,\"kernel32\",\"lstrlenA\",5,\"hello\")",
+            "seconds": 0.0697274,
+            "verdict": "matched"
+          },
+          {
+            "case_value_agrees_with_excel": true,
+            "detail": "text \"0|err|#VALUE!\"",
+            "excel": "text \"0|err|#VALUE!\"",
+            "formula": "=MyXlf(150,\"kernel32\",\"lstrlenA\",,\"hello\")",
+            "seconds": 0.0728556,
+            "verdict": "matched"
+          },
+          {
+            "case_value_agrees_with_excel": true,
+            "detail": "text \"0|err|#VALUE!\"",
+            "excel": "text \"0|err|#VALUE!\"",
+            "formula": "=MyXlf(150,5,\"lstrlenA\",\"JC\",\"hello\")",
+            "seconds": 0.0740758,
+            "verdict": "matched"
+          },
+          {
+            "case_value_agrees_with_excel": true,
+            "detail": "text \"0|err|#VALUE!\"",
+            "excel": "text \"0|err|#VALUE!\"",
+            "formula": "=MyXlf(150,\"kernel32\",,\"JC\",\"hello\")",
+            "seconds": 0.0757335,
+            "verdict": "matched"
+          },
+          {
+            "case_value_agrees_with_excel": true,
+            "detail": "text \"4|err|#VALUE!\"",
+            "excel": "text \"4|err|#VALUE!\"",
+            "formula": "=MyXlf(150)",
+            "seconds": 0.0793352,
+            "verdict": "matched"
+          },
+          {
+            "case_value_agrees_with_excel": true,
+            "detail": "text \"0|err|#VALUE!\"",
+            "excel": "text \"0|err|#VALUE!\"",
+            "formula": "=MyXlf(150,\"@self\")",
+            "seconds": 0.0779618,
+            "verdict": "matched"
+          },
+          {
+            "case_value_agrees_with_excel": true,
+            "detail": "text \"0|num|0\"",
+            "excel": "text \"0|num|0\"",
+            "formula": "=MyXlf(150,\"@self\",\"MyAdd\")",
+            "seconds": 0.0740012,
+            "verdict": "matched"
+          },
+          {
+            "case_value_agrees_with_excel": true,
+            "detail": "text \"0|num|500104\"",
+            "excel": "text \"0|num|500104\"",
+            "formula": "=MyXlf(150,\"@self\",\"MyStrInfoA\",\"JC\",\"hello\")",
+            "seconds": 0.081218,
+            "verdict": "matched"
+          },
+          {
+            "case_value_agrees_with_excel": true,
+            "detail": "text \"0|num|500104\"",
+            "excel": "text \"0|num|500104\"",
+            "formula": "=MyXlf(150,\"@self\",\"MyStrInfoA\",\"JC\",\"héllo\")",
+            "seconds": 0.0836757,
+            "verdict": "matched"
+          },
+          {
+            "case_value_agrees_with_excel": true,
+            "detail": "text \"0|num|400049\"",
+            "excel": "text \"0|num|400049\"",
+            "formula": "=MyXlf(150,\"@self\",\"MyStrInfoA\",\"JC\",12.5)",
+            "seconds": 0.0774963,
+            "verdict": "matched"
+          },
+          {
+            "case_value_agrees_with_excel": true,
+            "detail": "text \"0|num|0\"",
+            "excel": "text \"0|num|0\"",
+            "formula": "=MyXlf(150,\"@self\",\"MyStrInfoA\",\"JC\",\"\")",
+            "seconds": 0.074109,
+            "verdict": "matched"
+          },
+          {
+            "case_value_agrees_with_excel": true,
+            "detail": "text \"0|num|500104\"",
+            "excel": "text \"0|num|500104\"",
+            "formula": "=MyXlf(150,\"@self\",\"MyStrInfoW\",\"JC%\",\"hello\")",
+            "seconds": 0.070549,
+            "verdict": "matched"
+          },
+          {
+            "case_value_agrees_with_excel": true,
+            "detail": "text \"0|num|700104\"",
+            "excel": "text \"0|num|700104\"",
+            "formula": "=MyXlf(150,\"@self\",\"MyStrInfoW\",\"JC%\",\"héllo😀\")",
+            "seconds": 0.0752449,
+            "verdict": "matched"
+          },
+          {
+            "case_value_agrees_with_excel": true,
+            "detail": "text \"0|num|500104\"",
+            "excel": "text \"0|num|500104\"",
+            "formula": "=MyXlf(150,\"@self\",\"MyCountedInfoA\",\"JD\",\"hello\")",
+            "seconds": 0.0728038,
+            "verdict": "matched"
+          },
+          {
+            "case_value_agrees_with_excel": true,
+            "detail": "text \"0|num|500104\"",
+            "excel": "text \"0|num|500104\"",
+            "formula": "=MyXlf(150,\"@self\",\"MyCountedInfoA\",\"JD\",\"héllo\")",
+            "seconds": 0.076164,
+            "verdict": "matched"
+          },
+          {
+            "case_value_agrees_with_excel": true,
+            "detail": "text \"0|num|500104\"",
+            "excel": "text \"0|num|500104\"",
+            "formula": "=MyXlf(150,\"@self\",\"MyCountedInfoW\",\"JD%\",\"hello\")",
+            "seconds": 0.0749045,
+            "verdict": "matched"
+          },
+          {
+            "case_value_agrees_with_excel": true,
+            "detail": "text \"0|num|700104\"",
+            "excel": "text \"0|num|700104\"",
+            "formula": "=MyXlf(150,\"@self\",\"MyCountedInfoW\",\"JD%\",\"héllo😀\")",
+            "seconds": 0.0765369,
+            "verdict": "matched"
+          },
+          {
+            "case_value_agrees_with_excel": true,
+            "detail": "text \"0|num|1\"",
+            "excel": "text \"0|num|1\"",
+            "formula": "=MyXlf(150,\"@self\",\"MyBoolRaw\",\"JA\",TRUE)",
+            "seconds": 0.0724622,
+            "verdict": "matched"
+          },
+          {
+            "case_value_agrees_with_excel": true,
+            "detail": "text \"0|num|0\"",
+            "excel": "text \"0|num|0\"",
+            "formula": "=MyXlf(150,\"@self\",\"MyBoolRaw\",\"JA\",FALSE)",
+            "seconds": 0.0746978,
+            "verdict": "matched"
+          },
+          {
+            "case_value_agrees_with_excel": true,
+            "detail": "text \"0|num|1\"",
+            "excel": "text \"0|num|1\"",
+            "formula": "=MyXlf(150,\"@self\",\"MyBoolRaw\",\"JA\",5)",
+            "seconds": 0.0786184,
+            "verdict": "matched"
+          },
+          {
+            "case_value_agrees_with_excel": true,
+            "detail": "text \"0|num|0\"",
+            "excel": "text \"0|num|0\"",
+            "formula": "=MyXlf(150,\"@self\",\"MyBoolRaw\",\"JA\",0)",
+            "seconds": 0.0757967,
+            "verdict": "matched"
+          },
+          {
+            "case_value_agrees_with_excel": true,
+            "detail": "text \"0|num|1\"",
+            "excel": "text \"0|num|1\"",
+            "formula": "=MyXlf(150,\"@self\",\"MyBoolRaw\",\"JA\",\"TRUE\")",
+            "seconds": 0.0756056,
+            "verdict": "matched"
+          },
+          {
+            "case_value_agrees_with_excel": true,
+            "detail": "text \"0|bool|TRUE\"",
+            "excel": "text \"0|bool|TRUE\"",
+            "formula": "=MyXlf(150,\"@self\",\"MyBoolEcho\",\"AA\",TRUE)",
+            "seconds": 0.0786946,
+            "verdict": "matched"
+          },
+          {
+            "case_value_agrees_with_excel": true,
+            "detail": "text \"0|bool|FALSE\"",
+            "excel": "text \"0|bool|FALSE\"",
+            "formula": "=MyXlf(150,\"@self\",\"MyBoolEcho\",\"AA\",0)",
+            "seconds": 0.0835834,
+            "verdict": "matched"
+          },
+          {
+            "case_value_agrees_with_excel": true,
+            "detail": "text \"0|num|3\"",
+            "excel": "text \"0|num|3\"",
+            "formula": "=MyXlf(150,\"@self\",\"MyShortAdd\",\"III\",1,2)",
+            "seconds": 0.0811414,
+            "verdict": "matched"
+          },
+          {
+            "case_value_agrees_with_excel": true,
+            "detail": "text \"0|num|-32768\"",
+            "excel": "text \"0|num|-32768\"",
+            "formula": "=MyXlf(150,\"@self\",\"MyShortAdd\",\"III\",32767,1)",
+            "seconds": 0.0788912,
+            "verdict": "matched"
+          },
+          {
+            "case_value_agrees_with_excel": true,
+            "detail": "text \"0|num|5\"",
+            "excel": "text \"0|num|5\"",
+            "formula": "=MyXlf(150,\"@self\",\"MyShortAdd\",\"III\",1.9,2.9)",
+            "seconds": 0.0837038,
+            "verdict": "matched"
+          },
+          {
+            "case_value_agrees_with_excel": true,
+            "detail": "text \"0|num|-2\"",
+            "excel": "text \"0|num|-2\"",
+            "formula": "=MyXlf(150,\"@self\",\"MyShortAdd\",\"III\",-1.9,0)",
+            "seconds": 0.0866106,
+            "verdict": "matched"
+          },
+          {
+            "case_value_agrees_with_excel": true,
+            "detail": "text \"0|err|#NUM!\"",
+            "excel": "text \"0|err|#NUM!\"",
+            "formula": "=MyXlf(150,\"@self\",\"MyShortAdd\",\"III\",40000,1)",
+            "seconds": 0.0708249,
+            "verdict": "matched"
+          },
+          {
+            "case_value_agrees_with_excel": true,
+            "detail": "text \"0|num|8\"",
+            "excel": "text \"0|num|8\"",
+            "formula": "=MyXlf(150,\"@self\",\"MyShortAdd\",\"III\",\"7\",1)",
+            "seconds": 0.0765219,
+            "verdict": "matched"
+          },
+          {
+            "case_value_agrees_with_excel": true,
+            "detail": "text \"0|num|3\"",
+            "excel": "text \"0|num|3\"",
+            "formula": "=MyXlf(150,\"@self\",\"MyUShortAdd\",\"HHH\",1,2)",
+            "seconds": 0.0693643,
+            "verdict": "matched"
+          },
+          {
+            "case_value_agrees_with_excel": true,
+            "detail": "text \"0|num|0\"",
+            "excel": "text \"0|num|0\"",
+            "formula": "=MyXlf(150,\"@self\",\"MyUShortAdd\",\"HHH\",65535,1)",
+            "seconds": 0.0704236,
+            "verdict": "matched"
+          },
+          {
+            "case_value_agrees_with_excel": true,
+            "detail": "text \"0|num|3\"",
+            "excel": "text \"0|num|3\"",
+            "formula": "=MyXlf(150,\"@self\",\"MyUShortAdd\",\"HHH\",-1,2)",
+            "seconds": 0.0768213,
+            "verdict": "matched"
+          },
+          {
+            "case_value_agrees_with_excel": true,
+            "detail": "text \"0|err|#NUM!\"",
+            "excel": "text \"0|err|#NUM!\"",
+            "formula": "=MyXlf(150,\"@self\",\"MyUShortAdd\",\"HHH\",70000,1)",
+            "seconds": 0.0725662,
+            "verdict": "matched"
+          },
+          {
+            "case_value_agrees_with_excel": true,
+            "detail": "text \"0|num|3\"",
+            "excel": "text \"0|num|3\"",
+            "formula": "=MyXlf(150,\"@self\",\"MyIntAdd\",\"JJJ\",1,2)",
+            "seconds": 0.069348,
+            "verdict": "matched"
+          },
+          {
+            "case_value_agrees_with_excel": true,
+            "detail": "text \"0|num|-2147483648\"",
+            "excel": "text \"0|num|-2147483648\"",
+            "formula": "=MyXlf(150,\"@self\",\"MyIntAdd\",\"JJJ\",2147483647,1)",
+            "seconds": 0.0745789,
+            "verdict": "matched"
+          },
+          {
+            "case_value_agrees_with_excel": true,
+            "detail": "text \"0|num|4\"",
+            "excel": "text \"0|num|4\"",
+            "formula": "=MyXlf(150,\"@self\",\"MyIntAdd\",\"JJJ\",1.9,2)",
+            "seconds": 0.0723437,
+            "verdict": "matched"
+          },
+          {
+            "case_value_agrees_with_excel": true,
+            "detail": "text \"0|num|-2\"",
+            "excel": "text \"0|num|-2\"",
+            "formula": "=MyXlf(150,\"@self\",\"MyIntAdd\",\"JJJ\",-1.9,0)",
+            "seconds": 0.0739838,
+            "verdict": "matched"
+          },
+          {
+            "case_value_agrees_with_excel": true,
+            "detail": "text \"0|err|#NUM!\"",
+            "excel": "text \"0|err|#NUM!\"",
+            "formula": "=MyXlf(150,\"@self\",\"MyIntAdd\",\"JJJ\",3000000000,1)",
+            "seconds": 0.0727048,
+            "verdict": "matched"
+          },
+          {
+            "case_value_agrees_with_excel": true,
+            "detail": "text \"0|num|6\"",
+            "excel": "text \"0|num|6\"",
+            "formula": "=MyXlf(150,\"@self\",\"MyDoubleInc\",\"BE\",5)",
+            "seconds": 0.0696454,
+            "verdict": "matched"
+          },
+          {
+            "case_value_agrees_with_excel": true,
+            "detail": "text \"0|num|6\"",
+            "excel": "text \"0|num|6\"",
+            "formula": "=MyXlf(150,\"@self\",\"MyDoubleInc\",\"BE\",\"5\")",
+            "seconds": 0.0709987,
+            "verdict": "matched"
+          },
+          {
+            "case_value_agrees_with_excel": true,
+            "detail": "text \"0|num|6\"",
+            "excel": "text \"0|num|6\"",
+            "formula": "=MyXlf(150,\"@self\",\"MyIntInc\",\"JN\",5)",
+            "seconds": 0.0748984,
+            "verdict": "matched"
+          },
+          {
+            "case_value_agrees_with_excel": true,
+            "detail": "text \"0|num|7\"",
+            "excel": "text \"0|num|7\"",
+            "formula": "=MyXlf(150,\"@self\",\"MyIntInc\",\"JN\",5.9)",
+            "seconds": 0.0714048,
+            "verdict": "matched"
+          },
+          {
+            "case_value_agrees_with_excel": true,
+            "detail": "text \"0|num|6\"",
+            "excel": "text \"0|num|6\"",
+            "formula": "=MyXlf(150,\"@self\",\"MyShortInc\",\"IM\",5)",
+            "seconds": 0.0724765,
+            "verdict": "matched"
+          },
+          {
+            "case_value_agrees_with_excel": true,
+            "detail": "text \"0|bool|FALSE\"",
+            "excel": "text \"0|bool|FALSE\"",
+            "formula": "=MyXlf(150,\"@self\",\"MyBoolFlip\",\"AL\",TRUE)",
+            "seconds": 0.0720034,
+            "verdict": "matched"
+          },
+          {
+            "case_value_agrees_with_excel": true,
+            "detail": "text \"0|bool|TRUE\"",
+            "excel": "text \"0|bool|TRUE\"",
+            "formula": "=MyXlf(150,\"@self\",\"MyBoolFlip\",\"AL\",FALSE)",
+            "seconds": 0.0713124,
+            "verdict": "matched"
+          },
+          {
+            "case_value_agrees_with_excel": true,
+            "detail": "text \"0|str|HELLO\"",
+            "excel": "text \"0|str|HELLO\"",
+            "formula": "=MyXlf(150,\"@self\",\"MyUpperA\",\"1F\",\"hello\")",
+            "seconds": 0.0813311,
+            "verdict": "matched"
+          },
+          {
+            "case_value_agrees_with_excel": true,
+            "detail": "text \"0|str|HELLO\"",
+            "excel": "text \"0|str|HELLO\"",
+            "formula": "=MyXlf(150,\"@self\",\"MyUpperW\",\"1F%\",\"hello\")",
+            "seconds": 0.0771867,
+            "verdict": "matched"
+          },
+          {
+            "case_value_agrees_with_excel": true,
+            "detail": "text \"0|str|HELLO\"",
+            "excel": "text \"0|str|HELLO\"",
+            "formula": "=MyXlf(150,\"@self\",\"MyUpperCountedA\",\"1G\",\"hello\")",
+            "seconds": 0.072539,
+            "verdict": "matched"
+          },
+          {
+            "case_value_agrees_with_excel": true,
+            "detail": "text \"0|str|HELLO\"",
+            "excel": "text \"0|str|HELLO\"",
+            "formula": "=MyXlf(150,\"@self\",\"MyUpperCountedW\",\"1G%\",\"hello\")",
+            "seconds": 0.0705058,
+            "verdict": "matched"
+          },
+          {
+            "case_value_agrees_with_excel": true,
+            "detail": "text \"0|str|abcd\"",
+            "excel": "text \"0|str|abcd\"",
+            "formula": "=MyXlf(150,\"@self\",\"MyCatA\",\"CCC\",\"ab\",\"cd\")",
+            "seconds": 0.0818804,
+            "verdict": "matched"
+          },
+          {
+            "case_value_agrees_with_excel": true,
+            "detail": "text \"0|str|éü\"",
+            "excel": "text \"0|str|éü\"",
+            "formula": "=MyXlf(150,\"@self\",\"MyCatA\",\"CCC\",\"é\",\"ü\")",
+            "seconds": 0.0734739,
+            "verdict": "matched"
+          },
+          {
+            "case_value_agrees_with_excel": true,
+            "detail": "text \"0|str|abcd\"",
+            "excel": "text \"0|str|abcd\"",
+            "formula": "=MyXlf(150,\"@self\",\"MyCatCountedA\",\"DDD\",\"ab\",\"cd\")",
+            "seconds": 0.0737728,
+            "verdict": "matched"
+          },
+          {
+            "case_value_agrees_with_excel": true,
+            "detail": "text \"0|str|abcd\"",
+            "excel": "text \"0|str|abcd\"",
+            "formula": "=MyXlf(150,\"@self\",\"MyCatW\",\"C%C%C%\",\"ab\",\"cd\")",
+            "seconds": 0.0729039,
+            "verdict": "matched"
+          },
+          {
+            "case_value_agrees_with_excel": true,
+            "detail": "text \"0|str|é😀ü\"",
+            "excel": "text \"0|str|é😀ü\"",
+            "formula": "=MyXlf(150,\"@self\",\"MyCatW\",\"C%C%C%\",\"é😀\",\"ü\")",
+            "seconds": 0.0905654,
+            "verdict": "matched"
+          },
+          {
+            "case_value_agrees_with_excel": true,
+            "detail": "text \"0|str|abcd\"",
+            "excel": "text \"0|str|abcd\"",
+            "formula": "=MyXlf(150,\"@self\",\"MyCatCountedW\",\"D%D%D%\",\"ab\",\"cd\")",
+            "seconds": 0.0730335,
+            "verdict": "matched"
+          },
+          {
+            "case_value_agrees_with_excel": true,
+            "detail": "text \"0|str|ab5\"",
+            "excel": "text \"0|str|ab5\"",
+            "formula": "=MyXlf(150,\"@self\",\"MyCatA\",\"CCC\",\"ab\",5)",
+            "seconds": 0.0721456,
+            "verdict": "matched"
+          },
+          {
+            "case_value_agrees_with_excel": true,
+            "detail": "text \"0|str|hi\"",
+            "excel": "text \"0|str|hi\"",
+            "formula": "=MyXlf(150,\"@self\",\"MyEcho\",\"QQ\",\"hi\")",
+            "seconds": 0.0721903,
+            "verdict": "matched"
+          },
+          {
+            "case_value_agrees_with_excel": true,
+            "detail": "text \"0|num|3.5\"",
+            "excel": "text \"0|num|3.5\"",
+            "formula": "=MyXlf(150,\"@self\",\"MyEcho\",\"QQ\",3.5)",
+            "seconds": 0.0725407,
+            "verdict": "matched"
+          },
+          {
+            "case_value_agrees_with_excel": true,
+            "detail": "text \"0|bool|TRUE\"",
+            "excel": "text \"0|bool|TRUE\"",
+            "formula": "=MyXlf(150,\"@self\",\"MyEcho\",\"QQ\",TRUE)",
+            "seconds": 0.0769359,
+            "verdict": "matched"
+          },
+          {
+            "case_value_agrees_with_excel": true,
+            "detail": "text \"0|err|#N/A\"",
+            "excel": "text \"0|err|#N/A\"",
+            "formula": "=MyXlf(150,\"@self\",\"MyEcho\",\"QQ\",#N/A)",
+            "seconds": 0.0726476,
+            "verdict": "matched"
+          },
+          {
+            "case_value_agrees_with_excel": true,
+            "detail": "text \"0|multi|2x2[num:1;num:2;num:3;num:4]\"",
+            "excel": "text \"0|multi|2x2[num:1;num:2;num:3;num:4]\"",
+            "formula": "=MyXlf(150,\"@self\",\"MyEcho\",\"QQ\",{1,2;3,4})",
+            "seconds": 0.0684055,
+            "verdict": "matched"
+          },
+          {
+            "case_value_agrees_with_excel": true,
+            "detail": "text \"0|num|7\"",
+            "excel": "text \"0|num|7\"",
+            "formula": "=MyXlf(150,\"@self\",\"MyEcho\",\"QQ\",A1)",
+            "seconds": 0.0765444,
+            "verdict": "matched"
+          },
+          {
+            "case_value_agrees_with_excel": true,
+            "detail": "text \"0|str|hello\"",
+            "excel": "text \"0|str|hello\"",
+            "formula": "=MyXlf(150,\"@self\",\"MyWide\",\"QD%\",\"hello\")",
+            "seconds": 0.0786731,
+            "verdict": "matched"
+          },
+          {
+            "case_value_agrees_with_excel": true,
+            "detail": "text \"0|str|str|hi\"",
+            "excel": "text \"0|str|str|hi\"",
+            "formula": "=MyXlf(150,\"@self\",\"MyOperInfo\",\"QQ\",\"hi\")",
+            "seconds": 0.0794776,
+            "verdict": "matched"
+          },
+          {
+            "case_value_agrees_with_excel": true,
+            "detail": "text \"0|str|num|3.5\"",
+            "excel": "text \"0|str|num|3.5\"",
+            "formula": "=MyXlf(150,\"@self\",\"MyOperInfo\",\"QQ\",3.5)",
+            "seconds": 0.0718973,
+            "verdict": "matched"
+          },
+          {
+            "case_value_agrees_with_excel": true,
+            "detail": "text \"0|str|bool|TRUE\"",
+            "excel": "text \"0|str|bool|TRUE\"",
+            "formula": "=MyXlf(150,\"@self\",\"MyOperInfo\",\"QQ\",TRUE)",
+            "seconds": 0.0725201,
+            "verdict": "matched"
+          },
+          {
+            "case_value_agrees_with_excel": true,
+            "detail": "text \"0|str|err|#N/A\"",
+            "excel": "text \"0|str|err|#N/A\"",
+            "formula": "=MyXlf(150,\"@self\",\"MyOperInfo\",\"QQ\",#N/A)",
+            "seconds": 0.0745596,
+            "verdict": "matched"
+          },
+          {
+            "case_value_agrees_with_excel": true,
+            "detail": "text \"0|str|multi|2x2[num:1;str:a;bool:TRUE;err:#N/A]\"",
+            "excel": "text \"0|str|multi|2x2[num:1;str:a;bool:TRUE;err:#N/A]\"",
+            "formula": "=MyXlf(150,\"@self\",\"MyOperInfo\",\"QQ\",{1,\"a\";TRUE,#N/A})",
+            "seconds": 0.0733945,
+            "verdict": "matched"
+          },
+          {
+            "case_value_agrees_with_excel": true,
+            "detail": "text \"0|str|num|7\"",
+            "excel": "text \"0|str|num|7\"",
+            "formula": "=MyXlf(150,\"@self\",\"MyOperInfo\",\"QQ\",A1)",
+            "seconds": 0.073381,
+            "verdict": "matched"
+          },
+          {
+            "case_value_agrees_with_excel": true,
+            "detail": "text \"0|str|num|7\"",
+            "excel": "text \"0|str|num|7\"",
+            "formula": "=MyXlf(150,\"@self\",\"MyOperInfo\",\"QU\",A1)",
+            "seconds": 0.0736755,
+            "verdict": "matched"
+          },
+          {
+            "case_value_agrees_with_excel": true,
+            "detail": "text \"0|num|10\"",
+            "excel": "text \"0|num|10\"",
+            "formula": "=MyXlf(150,\"@self\",\"MyFpSum\",\"BK%\",{1,2;3,4})",
+            "seconds": 0.0719496,
+            "verdict": "matched"
+          },
+          {
+            "case_value_agrees_with_excel": true,
+            "detail": "text \"0|num|5\"",
+            "excel": "text \"0|num|5\"",
+            "formula": "=MyXlf(150,\"@self\",\"MyFpSum\",\"BK%\",5)",
+            "seconds": 0.0698318,
+            "verdict": "matched"
+          },
+          {
+            "case_value_agrees_with_excel": true,
+            "detail": "text \"0|err|#VALUE!\"",
+            "excel": "text \"0|err|#VALUE!\"",
+            "formula": "=MyXlf(150,\"@self\",\"MyFpSum\",\"BK%\",\"x\")",
+            "seconds": 0.0746085,
+            "verdict": "matched"
+          },
+          {
+            "case_value_agrees_with_excel": true,
+            "detail": "text \"0|num|123\"",
+            "excel": "text \"0|num|123\"",
+            "formula": "=MyXlf(150,\"@self\",\"MyThreeArgs\",\"BBBB\",1,2,3)",
+            "seconds": 0.075837,
+            "verdict": "matched"
+          },
+          {
+            "case_value_agrees_with_excel": true,
+            "detail": "text \"0|num|15\"",
+            "excel": "text \"0|num|15\"",
+            "formula": "=MyXlf(150,\"@self\",\"MyMix\",\"BBQBQB\",1,2,3,4,5)",
+            "seconds": 0.0769547,
+            "verdict": "matched"
+          },
+          {
+            "case_value_agrees_with_excel": true,
+            "detail": "text \"0|num|3\"",
+            "excel": "text \"0|num|3\"",
+            "formula": "=MyXlf(150,MyXlfRaw(267,\"@self\",\"MyAdd\"),1,2)",
+            "seconds": 0.0717945,
+            "verdict": "matched"
+          },
+          {
+            "case_value_agrees_with_excel": true,
+            "detail": "text \"0|num|3\"",
+            "excel": "text \"0|num|3\"",
+            "formula": "=MyXlf(150,MyXlfRaw(267,\"@self\",\"MyAdd\",\"BBB\"),1,2)",
+            "seconds": 0.0801163,
+            "verdict": "matched"
+          },
+          {
+            "case_value_agrees_with_excel": true,
+            "detail": "text \"0|num|123\"",
+            "excel": "text \"0|num|123\"",
+            "formula": "=MyXlf(150,MyXlfRaw(267,\"@self\",\"MyThreeArgs\"),1,2,3)",
+            "seconds": 0.0815442,
+            "verdict": "matched"
+          },
+          {
+            "case_value_agrees_with_excel": true,
+            "detail": "text \"0|num|500104\"",
+            "excel": "text \"0|num|500104\"",
+            "formula": "=MyXlf(150,MyXlfRaw(267,\"@self\",\"MyStrInfoA\"),\"hello\")",
+            "seconds": 0.0741986,
+            "verdict": "matched"
+          },
+          {
+            "case_value_agrees_with_excel": true,
+            "detail": "text \"0|num|5\"",
+            "excel": "text \"0|num|5\"",
+            "formula": "=MyXlf(150,MyXlfRaw(267,\"kernel32\",\"lstrlenA\",\"JC\"),\"hello\")",
+            "seconds": 0.0772339,
+            "verdict": "matched"
+          },
+          {
+            "case_value_agrees_with_excel": true,
+            "detail": "text \"0|err|#VALUE!\"",
+            "excel": "text \"0|err|#VALUE!\"",
+            "formula": "=MyXlf(150,MyXlfRaw(267,\"kernel32\",\"lstrlenA\",\"JC\"),\"hello\",\"extra\")",
+            "seconds": 0.0688652,
+            "verdict": "matched"
+          },
+          {
+            "case_value_agrees_with_excel": true,
+            "detail": "text \"0|num|0\"",
+            "excel": "text \"0|num|0\"",
+            "formula": "=MyXlf(150,MyXlfRaw(267,\"kernel32\",\"lstrlenA\",\"JC\"))",
+            "seconds": 0.0745564,
+            "verdict": "matched"
+          },
+          {
+            "case_value_agrees_with_excel": true,
+            "detail": "text \"0|num|1\"",
+            "excel": "text \"0|num|1\"",
+            "formula": "=MyXlf(150,MyXlfRaw(267,\"@self\",\"MyAdd\"),1)",
+            "seconds": 0.0730277,
+            "verdict": "matched"
+          },
+          {
+            "case_value_agrees_with_excel": true,
+            "detail": "text \"0|num|7\"",
+            "excel": "text \"0|num|7\"",
+            "formula": "=MyXlf(150,MyXlfRaw(267,\"@self\",\"MyAdd\"),\"3\",4)",
+            "seconds": 0.0723391,
+            "verdict": "matched"
+          },
+          {
+            "case_value_agrees_with_excel": true,
+            "detail": "text \"0|err|#VALUE!\"",
+            "excel": "text \"0|err|#VALUE!\"",
+            "formula": "=MyXlf(150,12345,1,2)",
+            "seconds": 0.0755739,
+            "verdict": "matched"
+          },
+          {
+            "case_value_agrees_with_excel": true,
+            "detail": "text \"0|err|#VALUE!\"",
+            "excel": "text \"0|err|#VALUE!\"",
+            "formula": "=MyXlf(150,0,1,2)",
+            "seconds": 0.069249,
+            "verdict": "matched"
+          },
+          {
+            "case_value_agrees_with_excel": true,
+            "detail": "text \"0|err|#VALUE!\"",
+            "excel": "text \"0|err|#VALUE!\"",
+            "formula": "=MyXlf(150,-1,1,2)",
+            "seconds": 0.0751737,
+            "verdict": "matched"
+          },
+          {
+            "case_value_agrees_with_excel": true,
+            "detail": "text \"0|err|#VALUE!\"",
+            "excel": "text \"0|err|#VALUE!\"",
+            "formula": "=MyXlf(150,TRUE,1,2)",
+            "seconds": 0.0758701,
+            "verdict": "matched"
+          },
+          {
+            "case_value_agrees_with_excel": true,
+            "detail": "text \"0|err|#N/A\"",
+            "excel": "text \"0|err|#N/A\"",
+            "formula": "=MyXlf(150,#N/A,1,2)",
+            "seconds": 0.0736806,
+            "verdict": "matched"
+          },
+          {
+            "case_value_agrees_with_excel": true,
+            "detail": "number 3",
+            "excel": "number 3",
+            "formula": "=MyXlfRaw(150,\"@self\",\"MyAdd\",\"BBB\",1,2)",
+            "seconds": 0.0758486,
+            "verdict": "matched"
+          },
+          {
+            "case_value_agrees_with_excel": true,
+            "detail": "text \"abcd\"",
+            "excel": "text \"abcd\"",
+            "formula": "=MyXlfRaw(150,\"@self\",\"MyCatA\",\"CCC\",\"ab\",\"cd\")",
+            "seconds": 0.0696145,
+            "verdict": "matched"
+          },
+          {
+            "case_value_agrees_with_excel": true,
+            "detail": "text \"0|num|id integer=true\"",
+            "excel": "text \"0|num|id integer=true\"",
+            "formula": "=MyXlf(267,\"@self\",\"MyAdd\")",
+            "seconds": 0.0724912,
+            "verdict": "matched"
+          },
+          {
+            "case_value_agrees_with_excel": true,
+            "detail": "text \"0|num|id integer=true\"",
+            "excel": "text \"0|num|id integer=true\"",
+            "formula": "=MyXlf(267,\"@self\",\"MyAdd\",\"BBB\")",
+            "seconds": 0.074592,
+            "verdict": "matched"
+          },
+          {
+            "case_value_agrees_with_excel": true,
+            "detail": "text \"0|num|id integer=true\"",
+            "excel": "text \"0|num|id integer=true\"",
+            "formula": "=MyXlf(267,\"@self\",\"MyAdd\",\"BB\")",
+            "seconds": 0.0753298,
+            "verdict": "matched"
+          },
+          {
+            "case_value_agrees_with_excel": true,
+            "detail": "text \"4|err|#VALUE!\"",
+            "excel": "text \"4|err|#VALUE!\"",
+            "formula": "=MyXlf(267,\"@self\",\"MyAdd\",\"BBB\",1)",
+            "seconds": 0.0725799,
+            "verdict": "matched"
+          },
+          {
+            "case_value_agrees_with_excel": true,
+            "detail": "text \"0|num|id integer=true\"",
+            "excel": "text \"0|num|id integer=true\"",
+            "formula": "=MyXlf(267,\"@selfname\",\"MyAdd\")",
+            "seconds": 0.0719504,
+            "verdict": "matched"
+          },
+          {
+            "case_value_agrees_with_excel": true,
+            "detail": "text \"0|num|id integer=true\"",
+            "excel": "text \"0|num|id integer=true\"",
+            "formula": "=MyXlf(267,\"@selfupper\",\"MyAdd\")",
+            "seconds": 0.0781399,
+            "verdict": "matched"
+          },
+          {
+            "case_value_agrees_with_excel": true,
+            "detail": "text \"0|err|#VALUE!\"",
+            "excel": "text \"0|err|#VALUE!\"",
+            "formula": "=MyXlf(267,\"@self\",\"myadd\")",
+            "seconds": 0.0699473,
+            "verdict": "matched"
+          },
+          {
+            "case_value_agrees_with_excel": true,
+            "detail": "text \"0|err|#VALUE!\"",
+            "excel": "text \"0|err|#VALUE!\"",
+            "formula": "=MyXlf(267,\"@self\",\"NoSuchProc\")",
+            "seconds": 0.0680897,
+            "verdict": "matched"
+          },
+          {
+            "case_value_agrees_with_excel": true,
+            "detail": "text \"0|err|#VALUE!\"",
+            "excel": "text \"0|err|#VALUE!\"",
+            "formula": "=MyXlf(267,\"@self\",\"NoSuchProc\",\"BBB\")",
+            "seconds": 0.0721043,
+            "verdict": "matched"
+          },
+          {
+            "case_value_agrees_with_excel": true,
+            "detail": "text \"0|err|#VALUE!\"",
+            "excel": "text \"0|err|#VALUE!\"",
+            "formula": "=MyXlf(267,\"NoSuchModule\",\"MyAdd\")",
+            "seconds": 0.0739564,
+            "verdict": "matched"
+          },
+          {
+            "case_value_agrees_with_excel": true,
+            "detail": "text \"0|err|#VALUE!\"",
+            "excel": "text \"0|err|#VALUE!\"",
+            "formula": "=MyXlf(267,\"kernel32\",\"lstrlenA\",\"ZZ\")",
+            "seconds": 0.0695,
+            "verdict": "matched"
+          },
+          {
+            "case_value_agrees_with_excel": true,
+            "detail": "text \"0|num|id integer=true\"",
+            "excel": "text \"0|num|id integer=true\"",
+            "formula": "=MyXlf(267,\"kernel32\",\"lstrlenA\",\"\")",
+            "seconds": 0.0724492,
+            "verdict": "matched"
+          },
+          {
+            "case_value_agrees_with_excel": true,
+            "detail": "text \"4|err|#VALUE!\"",
+            "excel": "text \"4|err|#VALUE!\"",
+            "formula": "=MyXlf(267)",
+            "seconds": 0.0742997,
+            "verdict": "matched"
+          },
+          {
+            "case_value_agrees_with_excel": true,
+            "detail": "text \"4|err|#VALUE!\"",
+            "excel": "text \"4|err|#VALUE!\"",
+            "formula": "=MyXlf(267,\"@self\")",
+            "seconds": 0.0730161,
+            "verdict": "matched"
+          },
+          {
+            "case_value_agrees_with_excel": true,
+            "detail": "text \"0|err|#VALUE!\"",
+            "excel": "text \"0|err|#VALUE!\"",
+            "formula": "=MyXlf(267,5,\"MyAdd\")",
+            "seconds": 0.0700494,
+            "verdict": "matched"
+          },
+          {
+            "case_value_agrees_with_excel": true,
+            "detail": "text \"0|err|#VALUE!\"",
+            "excel": "text \"0|err|#VALUE!\"",
+            "formula": "=MyXlf(267,\"@self\",5)",
+            "seconds": 0.0723889,
+            "verdict": "matched"
+          },
+          {
+            "case_value_agrees_with_excel": true,
+            "detail": "text \"0|num|id integer=true\"",
+            "excel": "text \"0|num|id integer=true\"",
+            "formula": "=MyXlf(267,\"@self\",\"MyAdd\",5)",
+            "seconds": 0.0705409,
+            "verdict": "matched"
+          },
+          {
+            "case_value_agrees_with_excel": true,
+            "detail": "text \"0|num|same=true|integer=true\"",
+            "excel": "text \"0|num|same=true|integer=true\"",
+            "formula": "=MyRegIdCheck(\"MyAdd\",\"MyAdd\")",
+            "seconds": 0.0703517,
+            "verdict": "matched"
+          },
+          {
+            "case_value_agrees_with_excel": true,
+            "detail": "text \"0|num|same=true|integer=true\"",
+            "excel": "text \"0|num|same=true|integer=true\"",
+            "formula": "=MyRegIdCheck(\"MyAdd\",\"MyAdd\",\"BBB\")",
+            "seconds": 0.0747154,
+            "verdict": "matched"
+          },
+          {
+            "case_value_agrees_with_excel": true,
+            "detail": "text \"0|num|same=true|integer=true\"",
+            "excel": "text \"0|num|same=true|integer=true\"",
+            "formula": "=MyRegIdCheck(\"MyAdd\",\"MyAdd\",\"BB\")",
+            "seconds": 0.0744114,
+            "verdict": "matched"
+          },
+          {
+            "case_value_agrees_with_excel": true,
+            "detail": "text \"0|num|same=true|integer=true\"",
+            "excel": "text \"0|num|same=true|integer=true\"",
+            "formula": "=MyRegIdCheck(\"MyEcho\",\"MyEcho\")",
+            "seconds": 0.0721812,
+            "verdict": "matched"
+          },
+          {
+            "case_value_agrees_with_excel": true,
+            "detail": "text \"0|num|same=true|integer=true\"",
+            "excel": "text \"0|num|same=true|integer=true\"",
+            "formula": "=MyRegIdCheck(\"MyThreeArgs\",\"MyThreeArgs\")",
+            "seconds": 0.0707784,
+            "verdict": "matched"
+          },
+          {
+            "case_value_agrees_with_excel": true,
+            "detail": "text \"0|num|same=true|integer=true\"",
+            "excel": "text \"0|num|same=true|integer=true\"",
+            "formula": "=MyRegIdCheck(\"MyCatA\",\"MyCatA\",\"CCC\")",
+            "seconds": 0.0691799,
+            "verdict": "matched"
+          },
+          {
+            "case_value_agrees_with_excel": true,
+            "detail": "text \"0|num|same=true|integer=true\"",
+            "excel": "text \"0|num|same=true|integer=true\"",
+            "formula": "=MyRegIdCheck(\"DynamicSlot\",\"MyDynamicA\")",
+            "seconds": 0.0748047,
+            "verdict": "matched"
+          },
+          {
+            "case_value_agrees_with_excel": true,
+            "detail": "text \"0|num|same=false|integer=true\"",
+            "excel": "text \"0|num|same=false|integer=true\"",
+            "formula": "=MyRegIdCheck(\"DynamicSlot\",\"MyDynamicB\")",
+            "seconds": 0.0704239,
+            "verdict": "matched"
+          },
+          {
+            "case_value_agrees_with_excel": true,
+            "detail": "text \"0|num|same=true|integer=true\"",
+            "excel": "text \"0|num|same=true|integer=true\"",
+            "formula": "=MyRegIdCheck(\"MyAdd\",\"MyAdd\",,\"@selfname\")",
+            "seconds": 0.0716839,
+            "verdict": "matched"
+          },
+          {
+            "case_value_agrees_with_excel": true,
+            "detail": "text \"0|num|same=true|integer=true\"",
+            "excel": "text \"0|num|same=true|integer=true\"",
+            "formula": "=MyRegIdCheck(\"MyAdd\",\"MyAdd\",,\"@selfupper\")",
+            "seconds": 0.0814706,
+            "verdict": "matched"
+          },
+          {
+            "case_value_agrees_with_excel": true,
+            "detail": "text \"0|num|same=false|integer=true\"",
+            "excel": "text \"0|num|same=false|integer=true\"",
+            "formula": "=MyRegIdCheck(\"MyAdd\",\"MyHelperAdd\")",
+            "seconds": 0.0867904,
+            "verdict": "matched"
+          },
+          {
+            "case_value_agrees_with_excel": true,
+            "detail": "text \"0|num|same=false|integer=true\"",
+            "excel": "text \"0|num|same=false|integer=true\"",
+            "formula": "=MyRegIdCheck(\"MyAdd\",\"NoSuchName\")",
+            "seconds": 0.0809814,
+            "verdict": "matched"
+          },
+          {
+            "case_value_agrees_with_excel": true,
+            "detail": "text \"codes=0,0,0|first_repeat_same=true|case_same=true\"",
+            "excel": "text \"codes=0,0,0|first_repeat_same=true|case_same=true\"",
+            "formula": "=MyRegIdRepeat(\"@self\",\"MyAdd\")",
+            "seconds": 0.0842393,
+            "verdict": "matched"
+          },
+          {
+            "case_value_agrees_with_excel": true,
+            "detail": "text \"codes=0,0,0|first_repeat_same=true|case_same=true\"",
+            "excel": "text \"codes=0,0,0|first_repeat_same=true|case_same=true\"",
+            "formula": "=MyRegIdRepeat(\"@self\",\"MyAdd\",\"BBB\")",
+            "seconds": 0.0810425,
+            "verdict": "matched"
+          },
+          {
+            "case_value_agrees_with_excel": true,
+            "detail": "text \"codes=0,0,0|first_repeat_same=true|case_same=true\"",
+            "excel": "text \"codes=0,0,0|first_repeat_same=true|case_same=true\"",
+            "formula": "=MyRegIdRepeat(\"kernel32\",\"lstrlenA\",\"JC\")",
+            "seconds": 0.0766235,
+            "verdict": "matched"
+          },
+          {
+            "case_value_agrees_with_excel": true,
+            "detail": "text \"codes=0,0,0|first_repeat_same=true|case_same=true\"",
+            "excel": "text \"codes=0,0,0|first_repeat_same=true|case_same=true\"",
+            "formula": "=MyRegIdRepeat(\"kernel32\",\"lstrlenW\",\"JC%\")",
+            "seconds": 0.0733313,
+            "verdict": "matched"
+          },
+          {
+            "case_value_agrees_with_excel": true,
+            "detail": "text \"codes=0,0,0|first_repeat_same=true|case_same=true\"",
+            "excel": "text \"codes=0,0,0|first_repeat_same=true|case_same=true\"",
+            "formula": "=MyRegIdRepeat(\"@self\",\"MyThreadId\",\"J\")",
+            "seconds": 0.0717251,
+            "verdict": "matched"
+          },
+          {
+            "case_value_agrees_with_excel": true,
+            "detail": "text \"0|num|id integer=true\"",
+            "excel": "text \"0|num|id integer=true\"",
+            "formula": "=MyXlf(267,\"@self\",\"MyThreadId\")",
+            "seconds": 0.0758507,
+            "verdict": "matched"
+          },
+          {
+            "case_value_agrees_with_excel": true,
+            "detail": "text \"2|err|#VALUE!\"",
+            "excel": "text \"2|err|#VALUE!\"",
+            "formula": "=MyXlfPlain(150,\"@self\",\"MyAdd\",\"BBB\",1,2)",
+            "seconds": 0.073807,
+            "verdict": "matched"
+          },
+          {
+            "case_value_agrees_with_excel": true,
+            "detail": "text \"2|err|#VALUE!\"",
+            "excel": "text \"2|err|#VALUE!\"",
+            "formula": "=MyXlfPlain(267,\"@self\",\"MyAdd\")",
+            "seconds": 0.0784764,
+            "verdict": "matched"
+          },
+          {
+            "case_value_agrees_with_excel": true,
+            "detail": "number 4",
+            "excel": "number 4",
+            "formula": "=INDEX(MyXlfRaw(150,\"@self\",\"MyEcho\",\"QQ\",{1,2;3,4}),2,2)",
+            "seconds": 0.0862052,
+            "verdict": "matched"
+          },
+          {
+            "case_value_agrees_with_excel": true,
+            "detail": "text \"0|err|#VALUE!\"",
+            "excel": "text \"0|err|#VALUE!\"",
+            "formula": "=MyXlf(150,\"@self\",\"NoSuchProc\")",
+            "seconds": 0.0777983,
+            "verdict": "matched"
+          },
+          {
+            "case_value_agrees_with_excel": true,
+            "detail": "text \"0|num|0\"",
+            "excel": "text \"0|num|0\"",
+            "formula": "=MyXlf(150,\"kernel32\",\"lstrlenA\")",
+            "seconds": 0.086162,
+            "verdict": "matched"
+          },
+          {
+            "case_value_agrees_with_excel": true,
+            "detail": "text \"0|num|0\"",
+            "excel": "text \"0|num|0\"",
+            "formula": "=MyXlf(150,\"kernel32\",\"lstrlenA\",\"JC\")",
+            "seconds": 0.0844968,
+            "verdict": "matched"
+          },
+          {
+            "case_value_agrees_with_excel": true,
+            "detail": "text \"0|err|#VALUE!\"",
+            "excel": "text \"0|err|#VALUE!\"",
+            "formula": "=MyXlf(150,\"NoSuchModule\",\"MyAdd\")",
+            "seconds": 0.0846556,
+            "verdict": "matched"
+          },
+          {
+            "case_value_agrees_with_excel": true,
+            "detail": "text \"0|num|3.5\"",
+            "excel": "text \"0|num|3.5\"",
+            "formula": "=MyXlf(150,\"@self\",\"MyUnregAdd\",\"BBB\",1,2)",
+            "seconds": 0.0741693,
+            "verdict": "matched"
+          },
+          {
+            "case_value_agrees_with_excel": true,
+            "detail": "text \"0|num|0.5\"",
+            "excel": "text \"0|num|0.5\"",
+            "formula": "=MyXlf(150,\"@self\",\"MyUnregAdd\")",
+            "seconds": 0.0712282,
+            "verdict": "matched"
+          },
+          {
+            "case_value_agrees_with_excel": true,
+            "detail": "text \"0|num|3.5\"",
+            "excel": "text \"0|num|3.5\"",
+            "formula": "=MyXlf(150,MyXlfRaw(267,\"@self\",\"MyUnregAdd\"),1,2)",
+            "seconds": 0.0694866,
+            "verdict": "matched"
+          },
+          {
+            "case_value_agrees_with_excel": true,
+            "detail": "text \"0|num|12.25\"",
+            "excel": "text \"0|num|12.25\"",
+            "formula": "=MyXlf(150,MyXlfRaw(267,\"@self\",\"MyUnregMul\",\"BBB\"),3,4)",
+            "seconds": 0.0688862,
+            "verdict": "matched"
+          },
+          {
+            "case_value_agrees_with_excel": true,
+            "detail": "text \"0|err|#VALUE!\"",
+            "excel": "text \"0|err|#VALUE!\"",
+            "formula": "=MyXlf(150,MyXlfRaw(267,\"@self\",\"MyOverlapMax\"))",
+            "seconds": 0.0742266,
+            "verdict": "matched"
+          },
+          {
+            "case_value_agrees_with_excel": true,
+            "detail": "text \"0|err|#VALUE!\"",
+            "excel": "text \"0|err|#VALUE!\"",
+            "formula": "=MyXlf(150,MyXlfRaw(267,\"@self\",\"MyOverlapMax\"),1)",
+            "seconds": 0.0721541,
+            "verdict": "matched"
+          },
+          {
+            "case_value_agrees_with_excel": true,
+            "detail": "text \"0|err|same=false|integer=false\"",
+            "excel": "text \"0|err|same=false|integer=false\"",
+            "formula": "=MyRegIdCheck(\"MyOverlapMax\",\"none\")",
+            "seconds": 0.0715996,
+            "verdict": "matched"
+          },
+          {
+            "case_value_agrees_with_excel": true,
+            "detail": "text \"0|num|same=false|integer=true\"",
+            "excel": "text \"0|num|same=false|integer=true\"",
+            "formula": "=MyRegIdCheck(\"MyUnregAdd\",\"none\",\"BBB\")",
+            "seconds": 0.0664308,
+            "verdict": "matched"
+          },
+          {
+            "case_value_agrees_with_excel": true,
+            "detail": "text \"codes=0,0,0|first_repeat_same=false|case_same=false\"",
+            "excel": "text \"codes=0,0,0|first_repeat_same=false|case_same=false\"",
+            "formula": "=MyRegIdRepeat(\"@self\",\"MyOverlapMax\")",
+            "seconds": 0.0760178,
+            "verdict": "matched"
+          },
+          {
+            "case_value_agrees_with_excel": true,
+            "detail": "text \"0|err|#VALUE!\"",
+            "excel": "text \"0|err|#VALUE!\"",
+            "formula": "=MyXlf(267,\"@self\",\"MyAdd\",\"ZZ\")",
+            "seconds": 0.080639,
+            "verdict": "matched"
+          },
+          {
+            "case_value_agrees_with_excel": true,
+            "detail": "text \"0|num|id integer=true\"",
+            "excel": "text \"0|num|id integer=true\"",
+            "formula": "=MyXlf(267,\"@self\",\"MyAdd\",\"\")",
+            "seconds": 0.0839538,
+            "verdict": "matched"
+          },
+          {
+            "case_value_agrees_with_excel": true,
+            "detail": "text \"0|err|#VALUE!\"",
+            "excel": "text \"0|err|#VALUE!\"",
+            "formula": "=MyXlf(267,\"@self\",\"MyUnregMul\",\"ZZ\")",
+            "seconds": 0.0848987,
+            "verdict": "matched"
+          },
+          {
+            "case_value_agrees_with_excel": true,
+            "detail": "text \"0|num|200233\"",
+            "excel": "text \"0|num|200233\"",
+            "formula": "=MyXlf(150,\"@self\",\"MyStrInfoA\",\"JC\",\"éa\")",
+            "seconds": 0.0777316,
+            "verdict": "matched"
+          },
+          {
+            "case_value_agrees_with_excel": true,
+            "detail": "text \"0|num|200233\"",
+            "excel": "text \"0|num|200233\"",
+            "formula": "=MyXlf(150,\"@self\",\"MyStrInfoW\",\"JC%\",\"éa\")",
+            "seconds": 0.0692635,
+            "verdict": "matched"
+          },
+          {
+            "case_value_agrees_with_excel": true,
+            "detail": "text \"0|num|200063\"",
+            "excel": "text \"0|num|200063\"",
+            "formula": "=MyXlf(150,\"@self\",\"MyStrInfoA\",\"JC\",\"😀\")",
+            "seconds": 0.0741512,
+            "verdict": "matched"
+          },
+          {
+            "case_value_agrees_with_excel": true,
+            "detail": "text \"0|num|100128\"",
+            "excel": "text \"0|num|100128\"",
+            "formula": "=MyXlf(150,\"@self\",\"MyStrInfoA\",\"JC\",\"€\")",
+            "seconds": 0.0700479,
+            "verdict": "matched"
+          },
+          {
+            "case_value_agrees_with_excel": true,
+            "detail": "text \"0|num|100063\"",
+            "excel": "text \"0|num|100063\"",
+            "formula": "=MyXlf(150,\"@self\",\"MyStrInfoA\",\"JC\",\"Ā\")",
+            "seconds": 0.074724,
+            "verdict": "matched"
+          },
+          {
+            "case_value_agrees_with_excel": true,
+            "detail": "text \"0|num|200233\"",
+            "excel": "text \"0|num|200233\"",
+            "formula": "=MyXlf(150,\"@self\",\"MyCountedInfoA\",\"JD\",\"éa\")",
+            "seconds": 0.0732434,
+            "verdict": "matched"
+          },
+          {
+            "case_value_agrees_with_excel": true,
+            "detail": "text \"0|num|100063\"",
+            "excel": "text \"0|num|100063\"",
+            "formula": "=MyXlf(150,\"@self\",\"MyCountedInfoA\",\"JD\",\"Ā\")",
+            "seconds": 0.0745772,
+            "verdict": "matched"
+          },
+          {
+            "case_value_agrees_with_excel": true,
+            "detail": "text \"0|err|#VALUE!\"",
+            "excel": "text \"0|err|#VALUE!\"",
+            "formula": "=MyXlf(150,\"@self\",\"MyBoolRaw\",\"JA\",\"x\")",
+            "seconds": 0.072981,
+            "verdict": "matched"
+          },
+          {
+            "case_value_agrees_with_excel": true,
+            "detail": "text \"0|num|0\"",
+            "excel": "text \"0|num|0\"",
+            "formula": "=MyXlf(150,\"@self\",\"MyBoolRaw\",\"JA\",\"false\")",
+            "seconds": 0.0701305,
+            "verdict": "matched"
+          },
+          {
+            "case_value_agrees_with_excel": true,
+            "detail": "text \"0|err|#VALUE!\"",
+            "excel": "text \"0|err|#VALUE!\"",
+            "formula": "=MyXlf(150,\"@self\",\"MyBoolRaw\",\"JA\",\"0\")",
+            "seconds": 0.0759153,
+            "verdict": "matched"
+          },
+          {
+            "case_value_agrees_with_excel": true,
+            "detail": "text \"0|num|1\"",
+            "excel": "text \"0|num|1\"",
+            "formula": "=MyXlf(150,\"@self\",\"MyBoolRaw\",\"JA\",-3)",
+            "seconds": 0.0732422,
+            "verdict": "matched"
+          },
+          {
+            "case_value_agrees_with_excel": true,
+            "detail": "text \"0|num|1\"",
+            "excel": "text \"0|num|1\"",
+            "formula": "=MyXlf(150,\"@self\",\"MyBoolRaw\",\"JA\",{1,0})",
+            "seconds": 0.0774407,
+            "verdict": "matched"
+          },
+          {
+            "case_value_agrees_with_excel": true,
+            "detail": "text \"0|err|#VALUE!\"",
+            "excel": "text \"0|err|#VALUE!\"",
+            "formula": "=MyXlf(150,\"@self\",\"MyBoolRaw\",\"JA\",#N/A)",
+            "seconds": 0.0755172,
+            "verdict": "matched"
+          },
+          {
+            "case_value_agrees_with_excel": true,
+            "detail": "text \"0|bool|TRUE\"",
+            "excel": "text \"0|bool|TRUE\"",
+            "formula": "=MyXlf(150,\"@self\",\"MyBoolEcho\",\"AA\",2)",
+            "seconds": 0.0753391,
+            "verdict": "matched"
+          },
+          {
+            "case_value_agrees_with_excel": true,
+            "detail": "text \"0|num|5\"",
+            "excel": "text \"0|num|5\"",
+            "formula": "=MyXlf(150,\"@self\",\"MyUShortAdd\",\"HHH\",-5,0)",
+            "seconds": 0.0739546,
+            "verdict": "matched"
+          },
+          {
+            "case_value_agrees_with_excel": true,
+            "detail": "text \"0|num|2\"",
+            "excel": "text \"0|num|2\"",
+            "formula": "=MyXlf(150,\"@self\",\"MyUShortAdd\",\"HHH\",-1.5,0)",
+            "seconds": 0.079614,
+            "verdict": "matched"
+          },
+          {
+            "case_value_agrees_with_excel": true,
+            "detail": "text \"0|num|65535\"",
+            "excel": "text \"0|num|65535\"",
+            "formula": "=MyXlf(150,\"@self\",\"MyUShortAdd\",\"HHH\",-65535,0)",
+            "seconds": 0.0923404,
+            "verdict": "matched"
+          },
+          {
+            "case_value_agrees_with_excel": true,
+            "detail": "text \"0|num|65535\"",
+            "excel": "text \"0|num|65535\"",
+            "formula": "=MyXlf(150,\"@self\",\"MyUShortAdd\",\"HHH\",65535.4,0)",
+            "seconds": 0.0960055,
+            "verdict": "matched"
+          },
+          {
+            "case_value_agrees_with_excel": true,
+            "detail": "text \"0|err|#NUM!\"",
+            "excel": "text \"0|err|#NUM!\"",
+            "formula": "=MyXlf(150,\"@self\",\"MyUShortAdd\",\"HHH\",65535.6,0)",
+            "seconds": 0.0762825,
+            "verdict": "matched"
+          },
+          {
+            "case_value_agrees_with_excel": true,
+            "detail": "text \"0|num|32767\"",
+            "excel": "text \"0|num|32767\"",
+            "formula": "=MyXlf(150,\"@self\",\"MyShortAdd\",\"III\",32767.4,0)",
+            "seconds": 0.0741776,
+            "verdict": "matched"
+          },
+          {
+            "case_value_agrees_with_excel": true,
+            "detail": "text \"0|err|#NUM!\"",
+            "excel": "text \"0|err|#NUM!\"",
+            "formula": "=MyXlf(150,\"@self\",\"MyShortAdd\",\"III\",32767.6,0)",
+            "seconds": 0.0711681,
+            "verdict": "matched"
+          },
+          {
+            "case_value_agrees_with_excel": true,
+            "detail": "text \"0|num|-32768\"",
+            "excel": "text \"0|num|-32768\"",
+            "formula": "=MyXlf(150,\"@self\",\"MyShortAdd\",\"III\",-32768,0)",
+            "seconds": 0.0748319,
+            "verdict": "matched"
+          },
+          {
+            "case_value_agrees_with_excel": true,
+            "detail": "text \"0|num|-32768\"",
+            "excel": "text \"0|num|-32768\"",
+            "formula": "=MyXlf(150,\"@self\",\"MyShortAdd\",\"III\",-32768.4,0)",
+            "seconds": 0.0818578,
+            "verdict": "matched"
+          },
+          {
+            "case_value_agrees_with_excel": true,
+            "detail": "text \"0|err|#NUM!\"",
+            "excel": "text \"0|err|#NUM!\"",
+            "formula": "=MyXlf(150,\"@self\",\"MyShortAdd\",\"III\",-32769,0)",
+            "seconds": 0.0824877,
+            "verdict": "matched"
+          },
+          {
+            "case_value_agrees_with_excel": true,
+            "detail": "text \"0|num|1\"",
+            "excel": "text \"0|num|1\"",
+            "formula": "=MyXlf(150,\"@self\",\"MyShortAdd\",\"III\",0.5,0)",
+            "seconds": 0.0847264,
+            "verdict": "matched"
+          },
+          {
+            "case_value_agrees_with_excel": true,
+            "detail": "text \"0|num|2\"",
+            "excel": "text \"0|num|2\"",
+            "formula": "=MyXlf(150,\"@self\",\"MyShortAdd\",\"III\",1.5,0)",
+            "seconds": 0.0816479,
+            "verdict": "matched"
+          },
+          {
+            "case_value_agrees_with_excel": true,
+            "detail": "text \"0|num|3\"",
+            "excel": "text \"0|num|3\"",
+            "formula": "=MyXlf(150,\"@self\",\"MyShortAdd\",\"III\",2.5,0)",
+            "seconds": 0.0696365,
+            "verdict": "matched"
+          },
+          {
+            "case_value_agrees_with_excel": true,
+            "detail": "text \"0|num|0\"",
+            "excel": "text \"0|num|0\"",
+            "formula": "=MyXlf(150,\"@self\",\"MyShortAdd\",\"III\",-0.5,0)",
+            "seconds": 0.0764003,
+            "verdict": "matched"
+          },
+          {
+            "case_value_agrees_with_excel": true,
+            "detail": "text \"0|num|2147483647\"",
+            "excel": "text \"0|num|2147483647\"",
+            "formula": "=MyXlf(150,\"@self\",\"MyIntAdd\",\"JJJ\",2147483647.4,0)",
+            "seconds": 0.070863,
+            "verdict": "matched"
+          },
+          {
+            "case_value_agrees_with_excel": true,
+            "detail": "text \"0|err|#NUM!\"",
+            "excel": "text \"0|err|#NUM!\"",
+            "formula": "=MyXlf(150,\"@self\",\"MyIntAdd\",\"JJJ\",2147483647.5,0)",
+            "seconds": 0.0680804,
+            "verdict": "matched"
+          },
+          {
+            "case_value_agrees_with_excel": true,
+            "detail": "text \"0|num|-2147483648\"",
+            "excel": "text \"0|num|-2147483648\"",
+            "formula": "=MyXlf(150,\"@self\",\"MyIntAdd\",\"JJJ\",-2147483648,0)",
+            "seconds": 0.0722502,
+            "verdict": "matched"
+          },
+          {
+            "case_value_agrees_with_excel": true,
+            "detail": "text \"0|num|-2147483648\"",
+            "excel": "text \"0|num|-2147483648\"",
+            "formula": "=MyXlf(150,\"@self\",\"MyIntAdd\",\"JJJ\",-2147483648.5,0)",
+            "seconds": 0.0724013,
+            "verdict": "matched"
+          },
+          {
+            "case_value_agrees_with_excel": true,
+            "detail": "text \"0|num|1\"",
+            "excel": "text \"0|num|1\"",
+            "formula": "=MyXlf(150,\"@self\",\"MyIntAdd\",\"JJJ\",0.5,0)",
+            "seconds": 0.0710678,
+            "verdict": "matched"
+          },
+          {
+            "case_value_agrees_with_excel": true,
+            "detail": "text \"0|num|3\"",
+            "excel": "text \"0|num|3\"",
+            "formula": "=MyXlf(150,\"@self\",\"MyIntAdd\",\"JJJ\",2.5,0)",
+            "seconds": 0.0702252,
+            "verdict": "matched"
+          },
+          {
+            "case_value_agrees_with_excel": true,
+            "detail": "text \"0|num|1\"",
+            "excel": "text \"0|num|1\"",
+            "formula": "=MyXlf(150,\"@self\",\"MyIntAdd\",\"JJJ\",TRUE,0)",
+            "seconds": 0.0800584,
+            "verdict": "matched"
+          },
+          {
+            "case_value_agrees_with_excel": true,
+            "detail": "text \"0|num|3\"",
+            "excel": "text \"0|num|3\"",
+            "formula": "=MyXlf(150,\"@self\",\"MyIntAdd\",\"JJJ\",{3,4},0)",
+            "seconds": 0.0773237,
+            "verdict": "matched"
+          },
+          {
+            "case_value_agrees_with_excel": true,
+            "detail": "text \"0|num|6\"",
+            "excel": "text \"0|num|6\"",
+            "formula": "=MyXlf(150,\"@self\",\"MyDoubleInc\",\"BE\",{5,6})",
+            "seconds": 0.073051,
+            "verdict": "matched"
+          },
+          {
+            "case_value_agrees_with_excel": true,
+            "detail": "text \"0|num|2\"",
+            "excel": "text \"0|num|2\"",
+            "formula": "=MyXlf(150,\"@self\",\"MyDoubleInc\",\"BE\",TRUE)",
+            "seconds": 0.0769041,
+            "verdict": "matched"
+          },
+          {
+            "case_value_agrees_with_excel": true,
+            "detail": "text \"0|err|#VALUE!\"",
+            "excel": "text \"0|err|#VALUE!\"",
+            "formula": "=MyXlf(150,\"@self\",\"MyDoubleInc\",\"BE\",\"x\")",
+            "seconds": 0.087115,
+            "verdict": "matched"
+          },
+          {
+            "case_value_agrees_with_excel": true,
+            "detail": "text \"0|err|#VALUE!\"",
+            "excel": "text \"0|err|#VALUE!\"",
+            "formula": "=MyXlf(150,\"@self\",\"MyDoubleInc\",\"BE\",#N/A)",
+            "seconds": 0.087323,
+            "verdict": "matched"
+          },
+          {
+            "case_value_agrees_with_excel": true,
+            "detail": "text \"0|num|-2147483648\"",
+            "excel": "text \"0|num|-2147483648\"",
+            "formula": "=MyXlf(150,\"@self\",\"MyIntInc\",\"JN\",2147483647)",
+            "seconds": 0.0814932,
+            "verdict": "matched"
+          },
+          {
+            "case_value_agrees_with_excel": true,
+            "detail": "text \"0|err|#NUM!\"",
+            "excel": "text \"0|err|#NUM!\"",
+            "formula": "=MyXlf(150,\"@self\",\"MyIntInc\",\"JN\",3000000000)",
+            "seconds": 0.084754,
+            "verdict": "matched"
+          },
+          {
+            "case_value_agrees_with_excel": true,
+            "detail": "text \"0|num|-32768\"",
+            "excel": "text \"0|num|-32768\"",
+            "formula": "=MyXlf(150,\"@self\",\"MyShortInc\",\"IM\",32767)",
+            "seconds": 0.0882225,
+            "verdict": "matched"
+          },
+          {
+            "case_value_agrees_with_excel": true,
+            "detail": "text \"0|err|#NUM!\"",
+            "excel": "text \"0|err|#NUM!\"",
+            "formula": "=MyXlf(150,\"@self\",\"MyShortInc\",\"IM\",40000)",
+            "seconds": 0.0968573,
+            "verdict": "matched"
+          },
+          {
+            "case_value_agrees_with_excel": true,
+            "detail": "text \"0|bool|FALSE\"",
+            "excel": "text \"0|bool|FALSE\"",
+            "formula": "=MyXlf(150,\"@self\",\"MyBoolFlip\",\"AL\",5)",
+            "seconds": 0.0791328,
+            "verdict": "matched"
+          },
+          {
+            "case_value_agrees_with_excel": true,
+            "detail": "text \"0|str|123\"",
+            "excel": "text \"0|str|123\"",
+            "formula": "=MyXlf(150,\"@self\",\"MyUpperA\",\"1F\",123)",
+            "seconds": 0.094044,
+            "verdict": "matched"
+          },
+          {
+            "case_value_agrees_with_excel": true,
+            "detail": "text \"0|str|HéLLO\"",
+            "excel": "text \"0|str|HéLLO\"",
+            "formula": "=MyXlf(150,\"@self\",\"MyUpperA\",\"1F\",\"héllo\")",
+            "seconds": 0.0890043,
+            "verdict": "matched"
+          },
+          {
+            "case_value_agrees_with_excel": true,
+            "detail": "text \"0|str|HéLLO😀\"",
+            "excel": "text \"0|str|HéLLO😀\"",
+            "formula": "=MyXlf(150,\"@self\",\"MyUpperW\",\"1F%\",\"héllo😀\")",
+            "seconds": 0.0733756,
+            "verdict": "matched"
+          },
+          {
+            "case_value_agrees_with_excel": true,
+            "detail": "text \"0|str|\"",
+            "excel": "text \"0|str|\"",
+            "formula": "=MyXlf(150,\"@self\",\"MyUpperCountedA\",\"1G\",\"\")",
+            "seconds": 0.0757639,
+            "verdict": "matched"
+          },
+          {
+            "case_value_agrees_with_excel": true,
+            "detail": "text \"0|str|\"",
+            "excel": "text \"0|str|\"",
+            "formula": "=MyXlf(150,\"@self\",\"MyUpperA\",\"1F\",\"\")",
+            "seconds": 0.0907657,
+            "verdict": "matched"
+          },
+          {
+            "case_value_agrees_with_excel": true,
+            "detail": "text \"0|str|TRUEx\"",
+            "excel": "text \"0|str|TRUEx\"",
+            "formula": "=MyXlf(150,\"@self\",\"MyCatA\",\"CCC\",TRUE,\"x\")",
+            "seconds": 0.134853,
+            "verdict": "matched"
+          },
+          {
+            "case_value_agrees_with_excel": true,
+            "detail": "text \"0|err|#VALUE!\"",
+            "excel": "text \"0|err|#VALUE!\"",
+            "formula": "=MyXlf(150,\"@self\",\"MyCatA\",\"CCC\",\"a\",#N/A)",
+            "seconds": 0.1237931,
+            "verdict": "matched"
+          },
+          {
+            "case_value_agrees_with_excel": true,
+            "detail": "text \"0|str|ap\"",
+            "excel": "text \"0|str|ap\"",
+            "formula": "=MyXlf(150,\"@self\",\"MyCatA\",\"CCC\",\"a\",{\"p\",\"q\"})",
+            "seconds": 0.1467664,
+            "verdict": "matched"
+          },
+          {
+            "case_value_agrees_with_excel": true,
+            "detail": "text \"0|str|é?\"",
+            "excel": "text \"0|str|é?\"",
+            "formula": "=MyXlf(150,\"@self\",\"MyCatCountedA\",\"DDD\",\"é\",\"Ā\")",
+            "seconds": 0.0963794,
+            "verdict": "matched"
+          },
+          {
+            "case_value_agrees_with_excel": true,
+            "detail": "text \"0|str|\"",
+            "excel": "text \"0|str|\"",
+            "formula": "=MyXlf(150,\"@self\",\"MyCatW\",\"C%C%C%\",\"\",\"\")",
+            "seconds": 0.0979845,
+            "verdict": "matched"
+          },
+          {
+            "case_value_agrees_with_excel": true,
+            "detail": "text \"0|num|2\"",
+            "excel": "text \"0|num|2\"",
+            "formula": "=MyXlf(150,\"@self\",\"MyAdd\",\"BBB\",TRUE,TRUE)",
+            "seconds": 0.1159087,
+            "verdict": "matched"
+          },
+          {
+            "case_value_agrees_with_excel": true,
+            "detail": "text \"0|num|6\"",
+            "excel": "text \"0|num|6\"",
+            "formula": "=MyXlf(150,\"@self\",\"MyAdd\",\"BBB\",\" 5 \",1)",
+            "seconds": 0.1150454,
+            "verdict": "matched"
+          },
+          {
+            "case_value_agrees_with_excel": true,
+            "detail": "text \"0|err|#VALUE!\"",
+            "excel": "text \"0|err|#VALUE!\"",
+            "formula": "=MyXlf(150,\"@self\",\"MyAdd\",\"BBB\",\"\",1)",
+            "seconds": 0.0888003,
+            "verdict": "matched"
+          },
+          {
+            "case_value_agrees_with_excel": true,
+            "detail": "text \"0|num|id integer=true\"",
+            "excel": "text \"0|num|id integer=true\"",
+            "formula": "=MyXlf(267,\"@self\",\"MyUnregSub\",\"\")",
+            "seconds": 0.080655,
+            "verdict": "matched"
+          },
+          {
+            "case_value_agrees_with_excel": true,
+            "detail": "text \"0|num|id integer=true\"",
+            "excel": "text \"0|num|id integer=true\"",
+            "formula": "=MyXlf(267,\"@self\",\"MyUnregNeg\",5)",
+            "seconds": 0.0883787,
+            "verdict": "matched"
+          },
+          {
+            "case_value_agrees_with_excel": true,
+            "detail": "text \"0|bool|TRUE\"",
+            "excel": "text \"0|bool|TRUE\"",
+            "formula": "=MyXlf(150,\"@self\",\"MyUnregSub\")",
+            "seconds": 0.0820722,
+            "verdict": "matched"
+          },
+          {
+            "case_value_agrees_with_excel": true,
+            "detail": "text \"0|bool|TRUE\"",
+            "excel": "text \"0|bool|TRUE\"",
+            "formula": "=MyXlf(150,\"@self\",\"MyUnregNeg\")",
+            "seconds": 0.0704082,
+            "verdict": "matched"
+          },
+          {
+            "case_value_agrees_with_excel": true,
+            "detail": "text \"0|err|#VALUE!\"",
+            "excel": "text \"0|err|#VALUE!\"",
+            "formula": "=MyXlf(150,MyXlfRaw(267,\"@self\",\"MyUnregSub\"),1,2)",
+            "seconds": 0.0713077,
+            "verdict": "matched"
+          },
+          {
+            "case_value_agrees_with_excel": true,
+            "detail": "text \"0|num|3.125\"",
+            "excel": "text \"0|num|3.125\"",
+            "formula": "=MyXlf(150,\"@self\",\"MyUnregSub\",\"BBB\",5,2)",
+            "seconds": 0.0724129,
+            "verdict": "matched"
+          },
+          {
+            "case_value_agrees_with_excel": true,
+            "detail": "text \"0|num|id integer=true\"",
+            "excel": "text \"0|num|id integer=true\"",
+            "formula": "=MyXlf(267,\"@self\",\"MyUnregSub\")",
+            "seconds": 0.0740735,
+            "verdict": "matched"
+          },
+          {
+            "case_value_agrees_with_excel": true,
+            "detail": "text \"0|err|#NUM!\"",
+            "excel": "text \"0|err|#NUM!\"",
+            "formula": "=MyXlf(150,\"@self\",\"MyNonfiniteValue\",\"B\")",
+            "seconds": 0.0772403,
+            "verdict": "matched"
+          },
+          {
+            "case_value_agrees_with_excel": true,
+            "detail": "text \"0|err|#NUM!\"",
+            "excel": "text \"0|err|#NUM!\"",
+            "formula": "=MyXlf(150,\"@self\",\"MyNonfinitePointer\",\"E\")",
+            "seconds": 0.0867592,
+            "verdict": "matched"
+          },
+          {
+            "case_value_agrees_with_excel": true,
+            "detail": "text \"0|err|#NUM!\"",
+            "excel": "text \"0|err|#NUM!\"",
+            "formula": "=MyXlf(150,\"@self\",\"MyNonfiniteOper\",\"Q\")",
+            "seconds": 0.0894642,
+            "verdict": "matched"
+          },
+          {
+            "case_value_agrees_with_excel": true,
+            "detail": "text \"0|num|100\"",
+            "excel": "text \"0|num|100\"",
+            "formula": "=MyXlf(150,\"@self\",\"MyAdd\",\"BBB\",\"1e2\",0)",
+            "seconds": 0.0974972,
+            "verdict": "matched"
+          },
+          {
+            "case_value_agrees_with_excel": true,
+            "detail": "text \"0|err|#VALUE!\"",
+            "excel": "text \"0|err|#VALUE!\"",
+            "formula": "=MyXlf(150,\"@self\",\"MyAdd\",\"BBB\",\"0x10\",0)",
+            "seconds": 0.0891242,
+            "verdict": "matched"
+          },
+          {
+            "case_value_agrees_with_excel": true,
+            "detail": "text \"0|num|5\"",
+            "excel": "text \"0|num|5\"",
+            "formula": "=MyXlf(150,\"@self\",\"MyAdd\",\"BBB\",\"+5\",0)",
+            "seconds": 0.0857132,
+            "verdict": "matched"
+          },
+          {
+            "case_value_agrees_with_excel": true,
+            "detail": "text \"0|num|0.05\"",
+            "excel": "text \"0|num|0.05\"",
+            "formula": "=MyXlf(150,\"@self\",\"MyAdd\",\"BBB\",\"5%\",0)",
+            "seconds": 0.1005227,
+            "verdict": "matched"
+          },
+          {
+            "case_value_agrees_with_excel": true,
+            "detail": "text \"0|err|#VALUE!\"",
+            "excel": "text \"0|err|#VALUE!\"",
+            "formula": "=MyXlf(150,\"@self\",\"MyAdd\",\"BBB\",\"TRUE\",0)",
+            "seconds": 0.1001518,
+            "verdict": "matched"
+          },
+          {
+            "case_value_agrees_with_excel": true,
+            "detail": "text \"0|err|#VALUE!\"",
+            "excel": "text \"0|err|#VALUE!\"",
+            "formula": "=MyXlf(150,\"@self\",\"MyAdd\",\"BBB\",\"1 2\",0)",
+            "seconds": 0.100774,
+            "verdict": "matched"
+          },
+          {
+            "case_value_agrees_with_excel": true,
+            "detail": "text \"0|num|6\"",
+            "excel": "text \"0|num|6\"",
+            "formula": "=MyXlf(150,\"kernel32\",\"lstrlenA\",\"JC\",\"hello!\")",
+            "seconds": 0.106896,
+            "verdict": "matched"
+          },
+          {
+            "case_value_agrees_with_excel": true,
+            "detail": "text \"0|num|7\"",
+            "excel": "text \"0|num|7\"",
+            "formula": "=MyXlf(150,\"kernel32\",\"lstrlenA\",\"JC\",\"hello!!\")",
+            "seconds": 0.1036779,
+            "verdict": "matched"
+          },
+          {
+            "case_value_agrees_with_excel": true,
+            "detail": "text \"0|bool|TRUE\"",
+            "excel": "text \"0|bool|TRUE\"",
+            "formula": "=MyXlf(201,MyXlfRaw(267,\"kernel32\",\"lstrlenA\",\"JC\"))",
+            "seconds": 0.1052664,
+            "verdict": "matched"
+          },
+          {
+            "case_value_agrees_with_excel": true,
+            "detail": "text \"0|err|#VALUE!\"",
+            "excel": "text \"0|err|#VALUE!\"",
+            "formula": "=MyXlf(267,\"kernel32\",\"lstrlenA\")",
+            "seconds": 0.0934096,
+            "verdict": "matched"
+          },
+          {
+            "case_value_agrees_with_excel": true,
+            "detail": "text \"0|err|#VALUE!\"",
+            "excel": "text \"0|err|#VALUE!\"",
+            "formula": "=MyXlf(150,\"kernel32.dll\",\"lstrlenA\")",
+            "seconds": 0.0863984,
+            "verdict": "matched"
+          },
+          {
+            "case_value_agrees_with_excel": true,
+            "detail": "text \"0|err|#VALUE!\"",
+            "excel": "text \"0|err|#VALUE!\"",
+            "formula": "=MyXlf(150,MyXlfRaw(267,\"kernel32\",\"lstrlenA\"),\"abc\")",
+            "seconds": 0.0937304,
+            "verdict": "matched"
+          },
+          {
+            "case_value_agrees_with_excel": true,
+            "detail": "text \"0|num|8\"",
+            "excel": "text \"0|num|8\"",
+            "formula": "=MyXlf(150,\"kernel32\",\"lstrlenA\",\"JC\",\"hello!!!\")",
+            "seconds": 0.1010019,
+            "verdict": "matched"
+          },
+          {
+            "case_value_agrees_with_excel": true,
+            "detail": "text \"0|num|id integer=true\"",
+            "excel": "text \"0|num|id integer=true\"",
+            "formula": "=MyXlf(267,\"kernel32.dll\",\"lstrlenA\")",
+            "seconds": 0.0882461,
+            "verdict": "matched"
+          },
+          {
+            "case_value_agrees_with_excel": true,
+            "detail": "text \"0|bool|TRUE\"",
+            "excel": "text \"0|bool|TRUE\"",
+            "formula": "=MyXlf(201,MyXlfRaw(267,\"kernel32\",\"lstrlenA\"))",
+            "seconds": 0.0775721,
+            "verdict": "matched"
+          },
+          {
+            "case_value_agrees_with_excel": true,
+            "detail": "text \"0|bool|TRUE\"",
+            "excel": "text \"0|bool|TRUE\"",
+            "formula": "=MyXlf(201,MyXlfRaw(267,\"kernel32\",\"lstrlenW\",\"JC%\"))",
+            "seconds": 0.0785808,
+            "verdict": "matched"
+          }
+        ],
+        "status": "Loaded C:\\Work\\DnaCalc\\codex-runs\\x13-boundary\\m4-X1.xll. 1 add-in(s) loaded.",
+        "unload": {
+          "status": [
+            "Unloaded C:\\Work\\DnaCalc\\codex-runs\\x13-boundary\\m4-X1.xll. 0 add-in(s) loaded."
+          ],
+          "unloaded": true
+        }
+      },
+      "sheet": "X1",
+      "xll": "C:\\Work\\DnaCalc\\codex-runs\\x13-boundary\\m4-X1.xll",
+      "xll_sha256": "a7194d47cd9226356040bca0d85fcde1f2116fdb9dbc24deedefab4993575f99"
+    }
+  ]
+}
