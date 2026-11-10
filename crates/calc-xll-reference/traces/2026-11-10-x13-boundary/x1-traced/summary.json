@@ -2,6 +2,68 @@
   "status": "verified X1 fixture boundary",
   "formula_cases": 289,
   "formula_matches_each_host": 289,
+  "counts": {
+    "value_cases": {
+      "pass": 289,
+      "mismatched": 0,
+      "refused": 0,
+      "missing": 0,
+      "total": 289,
+      "fail": 0,
+      "pass_rate": 1.0
+    },
+    "ordered_boundary_cases": {
+      "pass": 599,
+      "mismatched": 0,
+      "refused": 0,
+      "missing": 0,
+      "total": 599,
+      "fail": 0,
+      "pass_rate": 1.0
+    },
+    "lifecycle_ownership_cases": {
+      "pass": 149,
+      "mismatched": 0,
+      "refused": 0,
+      "missing": 0,
+      "total": 149,
+      "fail": 0,
+      "pass_rate": 1.0
+    },
+    "framework_feature_lanes": {
+      "pass": 0,
+      "mismatched": 0,
+      "refused": 0,
+      "missing": 0,
+      "total": 0,
+      "fail": 0,
+      "pass_rate": null
+    }
+  },
+  "manifest": {
+    "excel_build": "16.0.20527.20150",
+    "bitness": 64,
+    "locale": "en-ZA",
+    "calculation_modes": [],
+    "mtr": {
+      "enabled": true,
+      "threads": 16
+    },
+    "trigger": "Formula2 entry into one cell, automatic recalculation",
+    "addin_files": null,
+    "workbook": "Book6",
+    "load_order": [
+      "RegisterXLL X1"
+    ],
+    "excel_mode": "debugger boundary trace",
+    "host_executables": [
+      "622C773980608366166A2D24095CB5267F2A22DC2AA9064B303C4C1474D67793"
+    ],
+    "host_process_identity": [],
+    "repository_commits": [
+      "c520b54e8b34ac043f491069579c3b6129c47771"
+    ]
+  },
   "xlfree_operands_after_compared": 148,
   "callback_contexts_compared": 599,
   "source_revision": "c520b54e8b34ac043f491069579c3b6129c47771",
