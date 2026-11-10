@@ -80,6 +80,8 @@ pub fn gamma(z: f64) -> f64 {
 const GRATIO_ALOG10: f64 = 2.30258509299405;
 const GRATIO_RT2PIN: f64 = 0.398942280401433;
 const GRATIO_RTPI: f64 = 1.77245385090552;
+// sqrt(pi) to binary64 for the half-integer finite sum (dc-ymjf.6).
+const GRATIO_RTPI_FULL: f64 = 1.772_453_850_905_516;
 const GRATIO_THIRD: f64 = 0.333333333333333;
 const GRATIO_E: f64 = 2.220446049250313e-16; // spmpar(1) = 2^-52
 const GRATIO_SPMPAR3: f64 = 1.7976931348623157e308;
@@ -563,7 +565,7 @@ pub fn gratio(a: f64, x: f64) -> (f64, f64) {
                 // DEVIATION 2: erfc1(0, sqrt(x)) == Q(0.5, x) == gratio(0.5, x).1
                 let rtx = x.sqrt();
                 summ = gratio(0.5, x).1;
-                t = crate::ported::excel_numeric::excel_exp(-x) / (GRATIO_RTPI * rtx);
+                t = crate::ported::excel_numeric::excel_exp(-x) / (GRATIO_RTPI_FULL * rtx);
                 n = 0i64;
                 c = -0.5;
             }
@@ -2539,6 +2541,21 @@ where
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    /// The half-integer finite sum with sqrt(pi) to binary64, against Excel build 20131's
+    /// answers (`cache/oracle/build-20131/CHIDIST.jsonl` oc65, `GAMMA.DIST.jsonl` oc73 and oc75).
+    /// With the 15-digit 1.77245385090552 they were 12, 6 and 4 units low.
+    #[cfg_attr(not(target_arch = "wasm32"), test)]
+    #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+    fn half_integer_finite_sum_uses_binary64_sqrt_pi() {
+        use crate::ported::beta_gamma_stats_family::gamma_dist_kernel;
+        use crate::ported::chi_f_t_family::chisq_dist_rt_kernel;
+        assert_eq!(chisq_dist_rt_kernel(8.0, 5.0).unwrap().to_bits(), 0x3fc3ff876f754b0e);
+        let p3 = gamma_dist_kernel(3.0, 2.5, 1.0, true).unwrap();
+        assert_eq!(p3.to_bits(), 0x3fe6337461fff386);
+        let p4 = gamma_dist_kernel(4.0, 2.5, 1.0, true).unwrap();
+        assert_eq!(p4.to_bits(), 0x3feb001e2422ad3c);
+    }
 
     #[cfg_attr(not(target_arch = "wasm32"), test)]
     #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]

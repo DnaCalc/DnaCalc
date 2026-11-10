@@ -1,10 +1,10 @@
 {
   "format": "dnacalc-witness-set/1",
   "function": "GAMMA.DIST",
-  "selection": "cargo xtask witness pin: of 77975 distinct readings in 2 bank files of OxFunc-Evidence, the first 4 rows of each bank and an evenly spaced sample of the rest, the budget of 120 rows shared by bank size; calc_func is the result calc-func calculated at pinning, on rows it did not match",
+  "selection": "cargo xtask witness pin: of 77975 distinct readings in 2 bank files of CalcFunc-Evidence, the first 4 rows of each bank and an evenly spaced sample of the rest, the budget of 120 rows shared by bank size; calc_func is the result calc-func calculated at pinning, on rows it did not match",
   "readings": [
-    {"bitness":null,"cpu":"AMD Ryzen 7 4800H with Radeon Graphics","excel_build":"20131","id":"r0","platform":"Windows","source":"OxFunc-Evidence cache/oracle/build-20131/GAMMA.DIST.jsonl"},
-    {"bitness":"64-bit","cpu":null,"excel_build":"20430","id":"r1","invocation":{"compatibility_version":"2","input_sheet_state":"visible-constant-inputs","input_transport":"cell_value2_bulk"},"platform":"Windows","source":"OxFunc-Evidence runs/w111-sinh-expm1-dependencies-20260929/answers-gamma.dist.json"}
+    {"bitness":null,"cpu":"AMD Ryzen 7 4800H with Radeon Graphics","excel_build":"20131","id":"r0","platform":"Windows","source":"CalcFunc-Evidence cache/oracle/build-20131/GAMMA.DIST.jsonl"},
+    {"bitness":"64-bit","cpu":null,"excel_build":"20430","id":"r1","invocation":{"compatibility_version":"2","input_sheet_state":"visible-constant-inputs","input_transport":"cell_value2_bulk"},"platform":"Windows","source":"CalcFunc-Evidence runs/w111-sinh-expm1-dependencies-20260929/answers-gamma.dist.json"}
   ],
   "witnesses": [
     {"args":["0x3d70000000000000","0x3fe0000000000000","0x3ff0000000000000","0x3ff0000000000000"],"expected_bits":"0x3eb20dd750429568","id":"oc129","reading":"r0"},
