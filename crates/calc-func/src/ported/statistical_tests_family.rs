@@ -1,4 +1,4 @@
-use crate::ported::chi_f_t_family::{chisq_dist_rt_kernel, f_dist_rt_kernel};
+use crate::ported::chi_f_t_family::chisq_dist_rt_kernel;
 use crate::ported::special_math_common::bratio;
 use crate::value::WorksheetErrorCode;
 
@@ -70,7 +70,18 @@ pub(crate) fn f_test_kernel(array1: &[f64], array2: &[f64]) -> Result<f64, Works
             (array1.len() - 1) as f64,
         )
     };
-    Ok((2.0 * f_dist_rt_kernel(ratio, df1, df2)?).min(1.0))
+    if !ratio.is_finite() {
+        return Err(WorksheetErrorCode::Num);
+    }
+    // Two-tailed: 2 * min(P(F > f), P(F <= f)), not min(2 * P(F > f), 1). With unequal degrees
+    // of freedom the right tail of the larger-first ratio can pass 1/2 (even at f = 1), where
+    // the old clamp returned 1 (13 gross F.TEST bank rows). Both tails come from the one
+    // bratio call of F.DIST.RT's staging; taking its own complement output, not 1 - p, holds
+    // two more bank rows (dc-ymjf.6).
+    let num = df1 * ratio;
+    let den = df2 + num;
+    let (p, q) = bratio(df2 / 2.0, df1 / 2.0, df2 / den, num / den);
+    Ok(2.0 * p.min(q))
 }
 
 pub(crate) fn t_test_paired_kernel(
@@ -135,4 +146,44 @@ pub(crate) fn t_test_unequal_variance_kernel(
     }
     let df = (term1 + term2) * (term1 + term2) / denom;
     t_probability(((mean1 - mean2) / se).abs(), df, tails)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    /// Excel's F.TEST answers (build 20228, `work/w109/G3-06-ftest-variance/
+    /// answers-ftest-wrapper-heldout-v1.json`) for equal variances with unequal sizes, where the
+    /// right tail of the larger-first ratio exceeds 1/2; the old `min(2 * p, 1)` returned 1.0.
+    #[cfg_attr(not(target_arch = "wasm32"), test)]
+    #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+    fn f_test_two_tailed_takes_the_smaller_tail() {
+        let rows: [(&[f64], &[f64], u64); 5] = [
+            (&[-1.0, -1.0, 0.0, 1.0, 1.0], &[-1.0, 0.0, 1.0], 0x3fec71c71c71c71c),
+            (&[-1.0, -1.0, -1.0, 0.0, 1.0, 1.0, 1.0], &[-1.0, 0.0, 1.0], 0x3feb000000000001),
+            (
+                &[-1.0, -1.0, -1.0, 0.0, 1.0, 1.0, 1.0],
+                &[-1.0, -1.0, 0.0, 1.0, 1.0],
+                0x3fee69ad42c3c9ee,
+            ),
+            (
+                &[-1.0, -1.0, -1.0, -1.0, 0.0, 1.0, 1.0, 1.0, 1.0],
+                &[-1.0, 0.0, 1.0],
+                0x3fea36e2eb1c432e,
+            ),
+            (
+                &[-1.0, -1.0, -1.0, -1.0, -1.0, 0.0, 1.0, 1.0, 1.0, 1.0, 1.0],
+                &[-1.0, 0.0, 1.0],
+                0x3fe9b85cb5339f15,
+            ),
+        ];
+        for (a, b, bits) in rows {
+            assert_eq!(f_test_kernel(a, b).unwrap().to_bits(), bits, "{a:?} {b:?}");
+        }
+        // ft-0 and oc3 (same source family), right tail below 1/2: unchanged.
+        let ft0 = f_test_kernel(&[6.0, 7.0, 9.0, 15.0, 21.0], &[20.0, 28.0, 31.0, 38.0, 40.0]);
+        assert_eq!(ft0.unwrap().to_bits(), 0x3fe4bf0511ab8322);
+        let oc3 = f_test_kernel(&[100.0, 101.0, 102.0], &[50.0, 60.0, 70.0, 80.0]);
+        assert_eq!(oc3.unwrap().to_bits(), 0x3f88742515bcb009);
+    }
 }
