@@ -2309,6 +2309,9 @@ pub fn bratio(a: f64, b: f64, x: f64, y: f64) -> (f64, f64) {
         return (0.0, 1.0);
     }
     let eps = eps0.max(1.0e-15);
+    // bgrat runs at `eps`, not TOMS 708's `15 * eps`: at 1.5e-14 its truncated positive series
+    // sat about 5 units low on average over the BETA.DIST bank (mean |ulp| 8.1, signed -5.3);
+    // at `eps` 3.9 and +0.3, with 31 rows gained and 8 lost (dc-ymjf.6).
     // The unit-shape arms, read from single-bit-stepped public calls (Excel 16.0 b20527). With
     // b = 1 and x <= 0.9 the answer is exp(a * log x), one rounding of each, on every x and shape
     // asked; b = 1 +- 1 ulp leaves this arm, and just above 0.9 the answer is the complement of
@@ -2396,12 +2399,12 @@ pub fn bratio(a: f64, b: f64, x: f64, y: f64) -> (f64, f64) {
                 let n = 20;
                 w1 = bratio_bup(b0, a0, y0, x0, n, eps);
                 b0 += n as f64;
-                let (nw1, _ie) = bratio_bgrat(b0, a0, y0, x0, w1, 15.0 * eps);
+                let (nw1, _ie) = bratio_bgrat(b0, a0, y0, x0, w1, eps);
                 w1 = nw1;
                 w = 0.5 + (0.5 - w1);
             }
             "bgrat_150" => {
-                let (nw1, _ie) = bratio_bgrat(b0, a0, y0, x0, w1, 15.0 * eps);
+                let (nw1, _ie) = bratio_bgrat(b0, a0, y0, x0, w1, eps);
                 w1 = nw1;
                 w = 0.5 + (0.5 - w1);
             }
@@ -2478,7 +2481,7 @@ pub fn bratio(a: f64, b: f64, x: f64, y: f64) -> (f64, f64) {
                     w += bratio_bup(a0, b0, x0, y0, nn, eps);
                     a0 += nn as f64;
                 }
-                let (nw, _ie) = bratio_bgrat(a0, b0, x0, y0, w, 15.0 * eps);
+                let (nw, _ie) = bratio_bgrat(a0, b0, x0, y0, w, eps);
                 w = nw;
                 w1 = 0.5 + (0.5 - w);
             }
@@ -2541,6 +2544,24 @@ where
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    /// bgrat at `eps`: Excel build 20131 BETA.DIST rows (`cache/oracle/build-20131/
+    /// BETA.DIST.jsonl` oc315, oc248, oc1424: a > 15, b <= 1, x > 0.5, the swapped bgrat arm),
+    /// 31, 33 and 13 units low at TOMS 708's 15 * eps.
+    #[cfg_attr(not(target_arch = "wasm32"), test)]
+    #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+    fn bgrat_runs_at_eps_on_the_large_a_small_b_arm() {
+        use crate::ported::beta_gamma_stats_family::beta_dist_kernel;
+        let rows = [
+            (0.9375, 20.45, 0.75, 0x3fc753be39b00d25_u64),
+            (0.96875, 61.0, 0.2, 0x3f8d6072e16929ad),
+            (0.984375, 320.0, 0.05, 0x3f1043f27e8b35ad),
+        ];
+        for (x, a, b, excel) in rows {
+            let v = beta_dist_kernel(x, a, b, true, 0.0, 1.0).unwrap();
+            assert_eq!(v.to_bits(), excel, "BETA.DIST({x}, {a}, {b}, TRUE)");
+        }
+    }
 
     /// The half-integer finite sum with sqrt(pi) to binary64, against Excel build 20131's
     /// answers (`cache/oracle/build-20131/CHIDIST.jsonl` oc65, `GAMMA.DIST.jsonl` oc73 and oc75).

@@ -1,9 +1,9 @@
 {
   "format": "dnacalc-witness-set/1",
   "function": "BETADIST",
-  "selection": "cargo xtask witness pin: of 294 distinct readings in 1 bank files of OxFunc-Evidence, the first 4 rows of each bank and an evenly spaced sample of the rest, the budget of 120 rows shared by bank size; calc_func is the result calc-func calculated at pinning, on rows it did not match",
+  "selection": "cargo xtask witness pin: of 294 distinct readings in 1 bank files of CalcFunc-Evidence, the first 4 rows of each bank and an evenly spaced sample of the rest, the budget of 120 rows shared by bank size; calc_func is the result calc-func calculated at pinning, on rows it did not match",
   "readings": [
-    {"bitness":null,"cpu":"AMD Ryzen 7 4800H with Radeon Graphics","excel_build":"20131","id":"r0","platform":"Windows","source":"OxFunc-Evidence cache/oracle/build-20131/BETADIST.jsonl"}
+    {"bitness":null,"cpu":"AMD Ryzen 7 4800H with Radeon Graphics","excel_build":"20131","id":"r0","platform":"Windows","source":"CalcFunc-Evidence cache/oracle/build-20131/BETADIST.jsonl"}
   ],
   "witnesses": [
     {"args":["0x3f9eb851eb851eb8","0x3fd6666666666666","0x3fd6666666666666"],"calc_func":"0x3fc5925457b70c75","expected_bits":"0x3fc5925457b70c76","id":"oc7","reading":"r0"},
@@ -25,7 +25,7 @@
     {"args":["0x3f9eb851eb851eb8","0x403b000000000000","0x4023000000000000"],"calc_func":"0x38f77ab0770fd4cd","expected_bits":"0x38f77ab0770fd4b6","id":"oc279","reading":"r0"},
     {"args":["0x3fbc28f5c28f5c29","0x3fd6666666666666","0x3fd6666666666666"],"calc_func":"0x3fd13d84204c39c8","expected_bits":"0x3fd13d84204c39c9","id":"oc8","reading":"r0"},
     {"args":["0x3fbc28f5c28f5c29","0x3fd6666666666666","0x4012666666666666"],"calc_func":"0x3fe8fbfb664f8e0f","expected_bits":"0x3fe8fbfb664f8e0e","id":"oc32","reading":"r0"},
-    {"args":["0x3fbc28f5c28f5c29","0x3fd6666666666666","0x403b000000000000"],"calc_func":"0x3fefc53da7b9c4a1","expected_bits":"0x3fefc53da7b9c4a0","id":"oc48","reading":"r0"},
+    {"args":["0x3fbc28f5c28f5c29","0x3fd6666666666666","0x403b000000000000"],"expected_bits":"0x3fefc53da7b9c4a0","id":"oc48","reading":"r0"},
     {"args":["0x3fbc28f5c28f5c29","0x3ffb333333333333","0x4002666666666666"],"calc_func":"0x3fb237df3d100999","expected_bits":"0x3fb237df3d100997","id":"oc72","reading":"r0"},
     {"args":["0x3fbc28f5c28f5c29","0x3ffb333333333333","0x4023000000000000"],"calc_func":"0x3fda82ac8ed32ac7","expected_bits":"0x3fda82ac8ed32ac2","id":"oc88","reading":"r0"},
     {"args":["0x3fbc28f5c28f5c29","0x4002666666666666","0x3ffb333333333333"],"calc_func":"0x3f8dbd1759458d42","expected_bits":"0x3f8dbd1759458d44","id":"oc112","reading":"r0"},
@@ -95,7 +95,7 @@
     {"args":["0x3fea8f5c28f5c28f","0x4023000000000000","0x3fd6666666666666"],"calc_func":"0x3fa40cd279247021","expected_bits":"0x3fa40cd279247026","id":"oc204","reading":"r0"},
     {"args":["0x3fea8f5c28f5c28f","0x4023000000000000","0x4002666666666666"],"calc_func":"0x3fe0d8d0ed00a6c0","expected_bits":"0x3fe0d8d0ed00a6be","id":"oc220","reading":"r0"},
     {"args":["0x3fea8f5c28f5c28f","0x4023000000000000","0x403b000000000000"],"expected_bits":"0x3fefffffffffff64","id":"oc244","reading":"r0"},
-    {"args":["0x3fea8f5c28f5c28f","0x403b000000000000","0x3ffb333333333333"],"calc_func":"0x3f986b2e5dfb1403","expected_bits":"0x3f986b2e5dfb1408","id":"oc260","reading":"r0"},
+    {"args":["0x3fea8f5c28f5c28f","0x403b000000000000","0x3ffb333333333333"],"calc_func":"0x3f986b2e5dfb1406","expected_bits":"0x3f986b2e5dfb1408","id":"oc260","reading":"r0"},
     {"args":["0x3fea8f5c28f5c28f","0x403b000000000000","0x4023000000000000"],"calc_func":"0x3fece4c08278d7d4","expected_bits":"0x3fece4c08278d7d2","id":"oc284","reading":"r0"},
     {"args":["0x3fec000000000000","0x4000000000000000","0x4008000000000000"],"expected_bits":"0x3fefc60000000000","id":"oc6","reading":"r0"},
     {"args":["0x3fee147ae147ae14","0x3fd6666666666666","0x4002666666666666"],"expected_bits":"0x3feffd2a69ee7df6","id":"oc29","reading":"r0"},
@@ -107,7 +107,7 @@
     {"args":["0x3fee147ae147ae14","0x4002666666666666","0x403b000000000000"],"expected_bits":"0x3ff0000000000000","id":"oc149","reading":"r0"},
     {"args":["0x3fee147ae147ae14","0x4012666666666666","0x3ffb333333333333"],"expected_bits":"0x3fedb85a860b55b2","id":"oc165","reading":"r0"},
     {"args":["0x3fee147ae147ae14","0x4012666666666666","0x4023000000000000"],"expected_bits":"0x3fefffffff6c1761","id":"oc189","reading":"r0"},
-    {"args":["0x3fee147ae147ae14","0x4023000000000000","0x3fd6666666666666"],"calc_func":"0x3fc9055b3161c32a","expected_bits":"0x3fc9055b3161c331","id":"oc205","reading":"r0"},
+    {"args":["0x3fee147ae147ae14","0x4023000000000000","0x3fd6666666666666"],"calc_func":"0x3fc9055b3161c332","expected_bits":"0x3fc9055b3161c331","id":"oc205","reading":"r0"},
     {"args":["0x3fee147ae147ae14","0x4023000000000000","0x4012666666666666"],"expected_bits":"0x3feff1e6bad5c413","id":"oc229","reading":"r0"},
     {"args":["0x3fee147ae147ae14","0x4023000000000000","0x403b000000000000"],"expected_bits":"0x3ff0000000000000","id":"oc245","reading":"r0"},
     {"args":["0x3fee147ae147ae14","0x403b000000000000","0x4002666666666666"],"expected_bits":"0x3fe28f09832f3498","id":"oc269","reading":"r0"},
