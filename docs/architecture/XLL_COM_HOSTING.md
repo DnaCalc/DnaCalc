@@ -25,8 +25,8 @@ xlw https://github.com/xlw/xlw (master; branch `2026-update` for Native AOT). Mi
 | | Excel-DNA | xlw 6 | xlOil |
 |---|---|---|---|
 | Callback route | `GetProcAddress(GetModuleHandle(NULL),"MdCallBack12")` (`ExcelDna.Loader/XlCallImpl.cs:84-88`); `SetExcel12EntryPt` fallback export | SDK-style `xlcall.cpp`, same lookup (`xlw/src/xlcall.cpp`) | SDK `XLCALL.CPP` (`external/Excel2013SDK/SRC`), same lookup |
-| XLCALL32.DLL | `[DllImport] XLCallVer()` (`XlAddIn.cs:177`, version = result/256); `LoadLibrary` + `LPenHelper` (`ExcelDna.Host.Shared/LPenHelper.cpp:13-15`) | `LoadLibrary("XLCALL32.DLL")` must succeed or `xlAutoOpen` returns 0 (`xlw/src/XlfExcel.cpp`); xlw 5 also needs `Excel4`/`Excel4v` | linked, probably not imported at run time [I] |
-| Excel4 / XLOPER | no | no (xlw 5: yes) | no |
+| XLCALL32.DLL | `[DllImport] XLCallVer()` (`XlAddIn.cs:177`, version = result/256); `LoadLibrary` + `LPenHelper` (`ExcelDna.Host.Shared/LPenHelper.cpp:13-15`) | `LoadLibrary("XLCALL32.DLL")` must succeed or `xlAutoOpen` returns 0 (`xlw/src/XlfExcel.cpp`); an xlw add-in needs `Excel4`/`Excel4v` only where it makes legacy calls or registers legacy signatures (XLOPER12, Unicode and MTR since xlw 3.0, x64 since 5.0) | linked, probably not imported at run time [I] |
+| Excel4 / XLOPER | no | no, unless the add-in itself calls Excel4 or registers legacy types (any xlw version) | no |
 | xll exports | `xlAutoOpen/Close/Remove`, `xlAutoFree12`, `xlAddInManagerInfo12`, `SetExcel12EntryPt`, `DllRegisterServer/Unregister/GetClassObject/CanUnloadNow`, `SyncMacro`, `RegistrationInfo`, `CalculationCanceled/Ended` (`ExcelDna.Host.Shared/exports.def`) plus 10,000 stubs `f0..f9999` jumping through a thunk table (`ExcelDna/JmpExports64.asm`) | `xlAutoOpen/Close/Remove`, `xlwGenDoc`, one `xl<Name>` per function; no `xlAutoFree12` | `xlAutoOpen/Close/Free12`, `xlAddInManagerInfo12`, `xlAutoAdd/Remove`, `xlHandleCalculationCancelled`; core `xlOil.dll` exports `xloil_stub`, `xloRunInXLLContext`, `localFunctionEntryPoint` |
 | UDF entry points | fixed pool `fN`, registered with the **full xll path** (`XlRegistration.cs:146-171`) | static exports | **one export `xloil_stub` rewritten in xlOil.dll's export table before each `xlfRegister`**, module given as bare file name (`src/xlOil-Dynamic/DynamicRegistration.cpp`) |
 | Runtime | .NET Framework via `CLRCreateInstance`/`ICorRuntimeHost`, AppDomain per add-in (`ExcelDna/ExcelDnaLoader.cpp:229-256`); .NET 6+ via `hostfxr_initialize_for_runtime_config` + `load_assembly_and_get_function_pointer` (`ExcelDna.Host/host.cpp:98-210`); Native AOT (`ExcelDna.Host.NativeAOT/host.cpp`) | C++; xlwDotNet is C++/CLI (Ijwhost) or Native AOT | C++ core, delay-loaded `xlOil.dll`, plugins by `LoadLibrary`, embedded CPython |
@@ -64,9 +64,19 @@ Ftab index through `calc-func-catalog` (SYNTHESIS 1.8) to the same kernel.
 - Codes used: Excel-DNA `Q U E D% K% L X` (`ExcelDna.Loader/XlTypes.cs:186-192`), return `Q`/`>`; suffixes `! # $ &`
   (`XlRegistration.cs:342-357`; `$` never with `#`; `&` never with `X`), commands with `>B` (SyncMacro, macro type 2).
   xlw: return `Q`, args `Q B K% U`, suffixes `! $ & #`, commands `A`. xlOil: `U Q K% X`, return `U K% A >` or digit
-  (in-place), one of `! # $`.
-- Excel rules: `#` and `$` exclusive; `#` + `R`/`U` arguments makes the function volatile by default; `X` with `>`
-  marks async; async and cluster-safe exclusive; up to 255 arguments [V xlfRegister page].
+  (in-place), suffixes `! # $`. These inventories are examples taken from the frameworks' code, not closed ABIs:
+  Excel-DNA also has exception-safe numeric/array paths and commands with return values, and xlOil documents in-place
+  FPArray returns; capture each add-in's emitted registration strings. The suffixes are not one exclusive choice:
+  `!` can accompany an execution class (measured `Q!#`, `>EX!`; our parser accepts `!` with `#` or `$`).
+- Excel rules: `#` and `$` exclusive; `#` and `&` exclusive too (macro-equivalent functions cannot be cluster-safe;
+  `Q#&`/`QU#&` rejection, its status and output are unmeasured, so the host does not invent a code; `Q$&` is a permitted
+  combination); `X` with `>` marks async; async and cluster-safe exclusive (`&` is not a synonym of `$`); a synchronous
+  `>` returns through its first argument, so `>` is not only an async marker; up to 255 arguments [V xlfRegister page].
+  Thread-safe async (`>...X$`) is a valid registration: refusing it is this host's limitation (`invoke.rs`), not an
+  Excel rule (the parser accepts `>EX$`).
+- `#` with an `R`/`U` parameter is not volatile as a property of the registration: in the measured profile it is a
+  call-start volatility event when an actual reference arrives in an `R`/`U` position (VOLATILITY.md, answer 13 A.3 #2).
+  The parser's static `volatile |= macro_equivalent && any R/U` (`signature.rs`) is to be replaced (dc-6332.11).
 - Types exchanged: Num, Str (counted UTF-16), Bool, Err, Multi, Missing, Nil, Ref (multi-area), SRef, Int, BigData
   (`xlGetInstPtr`, async handle), FP12. `xlbitDLLFree` returns: Excel copies, then calls `xlAutoFree12` of **the module
   named in `xlfRegister`** (xlOil: `xlOil.dll`, not the .xll) [V doc + xlOil]. xlw returns pool memory with no free bit,
@@ -78,29 +88,45 @@ Excel: `LoadLibrary` of the .xll, then `xlAutoOpen` on the main thread inside an
 points are resolved by name from the host exe [V xlcall.cpp]. For an **unmodified** xll DNA Calc must provide:
 
 1. **`MdCallBack12` exported from the main exe image** (`int __stdcall(int xlfn, int count, LPXLOPER12*, LPXLOPER12)`),
-   since every framework calls `GetModuleHandle(NULL)`. Rust: `#[no_mangle] extern "system"` plus `/EXPORT`. [V/I]
-2. **An `XLCALL32.DLL` shim** beside the exe (app directory wins the search order): `XLCallVer` returning 12*256,
+   since every framework we traced calls `GetModuleHandle(NULL)` (another binary may import a shim function or use an
+   older API route; check its route with the tracer). Rust: `#[no_mangle] extern "system"` plus `/EXPORT`. [V/I]
+2. **An `XLCALL32.DLL` shim** beside the exe: `XLCallVer` returning 12*256,
    `LPenHelper` (edit state; `xlModeReady` when not editing), `Excel4`/`Excel4v` (refuse with `xlretFailed` until legacy
-   XLOPER support exists), `Excel12`/`Excel12v` forwarding. [V needs; layout I]
+   XLOPER support exists), `Excel12`/`Excel12v` forwarding. [V needs; layout I] The application directory does not
+   unconditionally win DLL resolution: an already loaded module of that name, redirection and SxS come first, and the
+   host loads XLLs with `LOAD_LIBRARY_SEARCH_DLL_LOAD_DIR | LOAD_LIBRARY_SEARCH_DEFAULT_DIRS`, while an XLL that loads
+   XLCALL32 itself uses the normal search order. The hardening is to load the shim by full path before the first XLL
+   and check the bound path; the system's Excel files are never replaced.
 3. **Process identity**: version resource `FileMajorPart` >= 15 (Excel-DNA takes pre-15 paths otherwise,
    `Excel.cs:620-641`; cluster-safe needs >= 14, `LoaderHelpers.cs:41-67`); `xlfGetWorkspace(2)` = "16.0". Excel-DNA
    treats a process not named EXCEL or ET as an HPC cluster host unless `EXCELDNA_ASSUME_EXCEL_PROCESS=1`
    (`LoaderHelpers.cs:66-86`, `Host.Shared/utils.cpp:228-243`); that switch only exists since commit 51833b4a
    (2026-07-06), so older built add-ins see cluster mode in `dna-calc.exe` (effects found: cluster-safe flag, load
-   errors suppressed; full effect [P]).
+   errors suppressed; full effect [P]). The public classic loader's cluster path also uses the default AppDomain and
+   does not unload it [public code, unmeasured], so a renamed executable is not equivalent to Excel for older binaries.
 4. **Bitness**: x64 loads only x64 xlls. All three ship both builds; 32-bit DNA Calc is an owner decision (sec. 7).
-5. **A "current XLL" context per thread**: `xlGetName`, `xlEventRegister`, `xlfRegister` and the rest carry no module
-   argument, so the host tracks which module it called (xlAutoOpen, UDF, command, event, `Application.Run`) [I]. Calls
+5. **A "current XLL" context per thread**: `xlGetName` (16393, the current XLL's path; not the XLM `xlfGetName`, 107),
+   `xlEventRegister` and the rest carry no module argument, so the host tracks which module it called (xlAutoOpen,
+   UDF, command, event, `Application.Run`) [I]. `xlfRegister` does name a module, but the originating XLL is still
+   needed for module-relative operations and ownership. Calls
    outside any context must fail with Excel's exact codes: Excel-DNA probes with `xlGetName` (`Excel.cs:288-306`),
    xlOil with `xlStack` [P].
 6. **Registration semantics**: resolve `GetProcAddress` **at `xlfRegister` time** and keep the pointer per register ID
    (xlOil rewrites the export between registrations); accept full path (Excel-DNA) or bare name of an already loaded
    module (xlOil); hidden application-scope name per function so `xlfEvaluate("Name")` and `xlUDF` work.
 7. **No hostile process mitigations**: the CLR JIT, xlOil's `PAGE_EXECUTE_READ` thunks and export patching need
-   dynamic code and writable images: no Arbitrary Code Guard, no Microsoft-signed-only image policy. COM and OLE
+   dynamic code and writable images: no Arbitrary Code Guard, no Microsoft-signed-only image policy. What is needed
+   depends on the framework (a Native AOT-only profile has different needs); check the actual image and thunk
+   behaviour rather than disabling unrelated mitigations globally. COM and OLE
    initialised as STA on the main thread before `xlAutoOpen` [I].
-8. **CLR hosting needs nothing from DNA Calc** beyond the above: the xll hosts its own runtime. One .NET (Core) runtime
-   per process applies as in Excel; DNA Calc itself must not load a .NET runtime [I].
+8. **CLR hosting needs nothing from DNA Calc** beyond the above: the xll hosts its own runtime. The conflict is the
+   selection and configuration of one hosted CoreCLR per process; .NET Framework coexists with it under its own
+   side-by-side rules. DNA Calc itself must not load a .NET runtime, but another add-in or COM component can select
+   one first [I].
+9. **Lifecycle routes are distinct**: `xlAutoAdd`/`xlAutoRemove` are Add-in Manager actions, not part of every unload.
+   On UNREGISTER Excel enters only `xlAutoClose` (all X2, X3 and X4/X5 Excel traces); the host's unload and close call
+   only `xlAutoClose` since dc-6332.10 (they called `xlAutoRemove` first before). Excel-DNA's managed
+   `IExcelAddIn.AutoClose` is a separate contract from native `xlAutoClose`.
 
 **COM pieces the frameworks use** [V]:
 - **Application object**: Excel-DNA enumerates the main thread's `XLMAIN` windows, their `EXCEL7` children, and calls
@@ -268,7 +294,7 @@ honesty check; small first target); its host services refuse `xlSet`, commands a
   `xloRunInXLLContext`, `CoRegisterClassObject` servers.
 - **X5 concurrency and async**: `$` on the pool with the permission table; native async; RTD client; Excel-DNA
   `ExcelAsyncUtil.Run/Observe`; cancellation and events. **X6 UI**: COM add-in host, ribbon into commands, task panes.
-- **X7 later**: Excel4/XLOPER (xlw 5, old commercial XLLs), 32-bit build, cluster connector, PyXLL.
+- **X7 later**: Excel4/XLOPER (add-ins of any framework that call Excel4 or register legacy types, old commercial XLLs), 32-bit build, cluster connector, PyXLL.
 
 ### 6.5 Test list
 
@@ -540,7 +566,8 @@ the xlEventRegister result payload and Python registration order differ and rema
 in the summaries. Teardown actions differ between the Excel runner and host and
 are counted separately. An unprotected xlOil reload crashes; the exact measured
 loader now returns a typed refusal after teardown, across host instances in the
-same process. Safe reload remains dc-snz.21; Native AOT remains dc-snz.19.
+same process. That refusal is an intentional divergence from Excel (Excel crashes),
+not an equality result, and it counts as a failure. Safe reload remains dc-snz.21; Native AOT remains dc-snz.19.
 Delivered events, RTD, cancellation, workbook concurrency, UI/ribbon behavior,
 general COM, xlwDotNet, Excel4 and x86 have not been established by these cases.
 

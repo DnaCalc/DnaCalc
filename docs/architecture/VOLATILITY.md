@@ -98,7 +98,9 @@ status 0 from a function registered with `#` called from a cell, and from any re
 (`Application.Run`, no effect on any cell); status 2 (xlretInvXlfn) from a cell call of an ordinary, `!` or `$`
 registration, and from `>EX`/`>EX!`/`>EX$` entries; status 32 from the worker thread after the async return. So
 `BangClear` (`Q!`, requests false) stays volatile: the request is refused, not obeyed. `$` with `#` was not
-measured (DNA refuses the pair). DNA's `callbacks.rs` accepts it everywhere.
+measured (DNA refuses the pair). DNA's `callbacks.rs` now answers status 2 from any non-`#` registration
+(checked before the `$` rule) and 0 from a `#` cell call; lifecycle and command frames have no cell, so 0 and no
+effect.
 
 ## 5. Names (P5, `p5`, `p6`)
 
@@ -151,12 +153,12 @@ through names). The catalogue's `volatile` flag becomes S, with those three adde
 removed from it.
 Record per completed evaluation, in order, `VolatilityEvent { Request(bool), RegistrationDefault(true: `!`, `#`
 with a reference actually passed), NameUse(body flag), RunTime(true: SUMIF shape, spill block) }`; decide with one
-function: `flag = S; for e in events { flag = e.value }`. Replace `state.volatile`/the OR at
-`recalc.rs:2613-2619` and `5343-5346`; the bit belongs to the last completed evaluation, replaced at publication,
+function: `flag = S; for e in events { flag = e.value }`. Replace `state.volatile`/the OR at its four
+sites in `recalc.rs` (2694-2702, 2880-2890, 4842-4846, 5657-5661 at 90ea26fd); the bit belongs to the last completed evaluation, replaced at publication,
 carried when a result is reused, never taken from an abandoned or waiting attempt. A cell loaded from a file starts
 from its `ca` bit (X6). The registration default needs the arguments' reference-ness at call time. A request
 inside a lifted multi-cell call is dropped (X2). The user-function host must answer `xlfVolatile` with status 2
-outside `#` registrations and status 0 inside them and outside cells (DNA answers it everywhere).
+outside `#` registrations and status 0 inside them and outside cells (DNA does so: `callbacks.rs` dispatch preamble).
 Names: volatility is a fact of the body, joined at each executed use, plus the dirtying on redefinition; do not fold
 name bodies into S.
 Decided, closing the open items of the plan: F2 holds (F1, F3 dead); S is syntactic over the whole formula, not
