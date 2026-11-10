@@ -27,9 +27,10 @@
 //!   Reviewed foreign API identifiers may be excepted at an exact source path; literals, doc
 //!   comments and longer identifiers still undergo the whole phrase scan.
 //!
-//! Neither source scan follows `include!`, `include_str!` or `include_bytes!`: a portable package
-//! that uses one, in a shipped target or its build script, fails both `os-imports` and
-//! `tree-reference-tokens` until a bead extends them to read the included file.
+//! Neither source scan follows `include!` or `include_str!`: a portable package that uses one, in
+//! a shipped target or its build script, fails both `os-imports` and `tree-reference-tokens`
+//! until a bead extends them to read the included file. `include_bytes!` is allowed: raw bytes
+//! are data, never imports or identifiers, and the grid's GDI advance table is read that way.
 
 use crate::cargo::{self, Edge, Resolved, SHIPPED_TARGETS, WASM_TARGET, Workspace};
 use crate::rust_source::{self, SourceFile};
@@ -409,10 +410,11 @@ fn dependencies(ws: &Workspace, config: &Config, resolved: &ResolvedTargets) -> 
     CheckResult::new("dependencies", summary, findings, details)
 }
 
-/// The macros that read another file into the crate, which the source scans do not follow.
-const INCLUDE_MACROS: [&str; 3] = ["include", "include_str", "include_bytes"];
+/// The macros that read another file into the crate as code or text, which the source scans do
+/// not follow.
+const INCLUDE_MACROS: [&str; 2] = ["include", "include_str"];
 
-/// Every `include!`, `include_str!` or `include_bytes!` in one file's non-test tokens, with its
+/// Every `include!` or `include_str!` in one file's non-test tokens, with its
 /// line. `check` names the check whose scan the macro defeats.
 fn include_uses(file: &SourceFile, check: &str, found: &mut BTreeSet<(usize, String)>) {
     rust_source::each_level(file.syntax.to_token_stream(), &mut |tokens| {
@@ -561,7 +563,7 @@ fn idents_anywhere(stream: TokenStream) -> Vec<(String, usize)> {
 }
 
 /// What `os-imports` covers, recorded in every receipt.
-const OS_IMPORTS_SCOPE: &str = "the non-test code of the lib and bin targets of every portable package, as parsed, for denied std modules, ABIs and attributes and for include!, include_str! and include_bytes!; build scripts run on the build host and are scanned only for those include macros; plain comments, tests/, benches/, examples/ and #[cfg(test)] items are outside the scan; OS-binding crates are denied as direct normal or build dependencies of a portable package on every resolved target and anywhere in its wasm32-unknown-unknown closure of normal dependencies excluding host proc-macro trees, while a transitive one on a native target (libc or rustix under a std-only crate) is allowed";
+const OS_IMPORTS_SCOPE: &str = "the non-test code of the lib and bin targets of every portable package, as parsed, for denied std modules, ABIs and attributes and for include! and include_str! (include_bytes! reads data and is allowed); build scripts run on the build host and are scanned only for those include macros; plain comments, tests/, benches/, examples/ and #[cfg(test)] items are outside the scan; OS-binding crates are denied as direct normal or build dependencies of a portable package on every resolved target and anywhere in its wasm32-unknown-unknown closure of normal dependencies excluding host proc-macro trees, while a transitive one on a native target (libc or rustix under a std-only crate) is allowed";
 
 fn os_imports(
     ws: &Workspace,
@@ -877,7 +879,7 @@ pub fn tree_reference_findings(file: &SourceFile, config: &Config) -> Vec<String
 }
 
 /// What `tree-reference-tokens` covers, recorded in every receipt.
-const TREE_REFERENCE_SCOPE: &str = "identifiers, string literals and doc comments in the non-test code of every portable package's lib and bin targets and build script (build.rs), as parsed; reviewed identifiers are excepted only by full case-sensitive token and exact relative path, never in strings or docs; plain comments, tests/, benches/, examples/ and #[cfg(test)] items are outside its scope by design; include!, include_str! and include_bytes! are not followed, so any use of them fails this check";
+const TREE_REFERENCE_SCOPE: &str = "identifiers, string literals and doc comments in the non-test code of every portable package's lib and bin targets and build script (build.rs), as parsed; reviewed identifiers are excepted only by full case-sensitive token and exact relative path, never in strings or docs; plain comments, tests/, benches/, examples/ and #[cfg(test)] items are outside its scope by design; include! and include_str! are not followed, so any use of them fails this check; include_bytes! reads data and is allowed";
 
 fn tree_reference_tokens(
     ws: &Workspace,
@@ -993,7 +995,6 @@ mod tests {
             "src/lib.rs:33: include_str! reads a file that tree-reference-tokens does not follow, so that file is unchecked",
             "src/profiles.rs:3: identifier contains `ProfileIds` (denied phrase `profile id`)",
             "build.rs:5: string or doc comment contains `TREE_REF` (denied phrase `tree ref`)",
-            "build.rs:6: include_bytes! reads a file that tree-reference-tokens does not follow, so that file is unchecked",
         ];
         assert_eq!(found, expected, "{found:#?}");
     }
@@ -1052,7 +1053,6 @@ mod tests {
             "src/lib.rs:22: #[link] attribute",
             "src/lib.rs:23: extern \"system\"",
             "src/lib.rs:28: std::os",
-            "src/lib.rs:37: include_bytes! reads a file that os-imports does not follow, so that file is unchecked",
         ];
         assert_eq!(found, expected, "{found:#?}");
         let build: Vec<String> = build_script("os_imports")
