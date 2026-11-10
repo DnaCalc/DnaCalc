@@ -393,6 +393,49 @@ fn hypergeom_mass(s: f64, n: f64, k: f64, big_n: f64) -> f64 {
     excel_x87_mul(excel_x87_div(a, c), b)
 }
 
+/// Terms the one-by-one cumulative sum may take before the ratio route replaces it. One mass costs
+/// about 1.5 microseconds (measured, release build, 2026-11-11: N = 2*10^6, s = N/2 took 1.54 s),
+/// so the limit is about 0.2 s per cell; no banked row has so large a count.
+const HYPGEOM_SUM_LIMIT: f64 = 131072.0;
+
+/// The cumulative for a count past `HYPGEOM_SUM_LIMIT`, in work proportional to the standard
+/// deviation instead of `s`: the tail from `s` by the mass ratio recurrence, away from the mode
+/// until the terms are below 1e-18 of the sum (they fall off like a Gaussian), as `1 - upper`
+/// when `s` is at or above the mode. Not bit-matched to the one-by-one sum, which this replaces
+/// only where that sum takes over 0.2 s a cell.
+fn hypergeom_cumulative_by_ratios(s: f64, n: f64, k: f64, big_n: f64) -> f64 {
+    let lo = (n + k - big_n).max(0.0);
+    let hi = n.min(k);
+    let mode = (((n + 1.0) * (k + 1.0)) / (big_n + 2.0)).floor();
+    let mut sum = 0.0;
+    if s >= mode {
+        let mut i = s + 1.0;
+        if i <= hi {
+            let mut m = hypergeom_mass(i, n, k, big_n);
+            while m > 0.0 {
+                sum += m;
+                if i >= hi || m < 1e-18 * sum {
+                    break;
+                }
+                m *= (k - i) * (n - i) / ((i + 1.0) * (big_n - k - n + i + 1.0));
+                i += 1.0;
+            }
+        }
+        return (1.0 - sum).max(0.0);
+    }
+    let mut i = s;
+    let mut m = hypergeom_mass(i, n, k, big_n);
+    while m > 0.0 {
+        sum += m;
+        if i <= lo || m < 1e-18 * sum {
+            break;
+        }
+        m *= i * (big_n - k - n + i) / ((k - i + 1.0) * (n - i + 1.0));
+        i -= 1.0;
+    }
+    sum
+}
+
 /// `HYPGEOM.DIST(sample_s, number_sample, population_s, number_pop, cumulative)`.
 pub fn hypergeom_dist_kernel(
     sample_s: f64,
@@ -424,6 +467,9 @@ pub fn hypergeom_dist_kernel(
     // mass is 1). Beyond that count it is 1 for every probe: (1,1,0,2), (5,1,0,2), (3,2,1,5).
     if s > n.min(k) || (s == n.min(k) && s > 0.0) {
         return Ok(1.0);
+    }
+    if s + 1.0 > HYPGEOM_SUM_LIMIT {
+        return finite(hypergeom_cumulative_by_ratios(s, n, k, big_n));
     }
     let mut sum = 0.0;
     let mut i = 0.0;
@@ -546,5 +592,31 @@ mod tests {
         // The series arm against the definition's value at 8 and 100.
         assert!((stirling_error(8.0) - 0.010411265261972096).abs() < 1e-16);
         assert!((stirling_error(100.0) - 0.0008333305556349147).abs() < 1e-17);
+    }
+
+    /// A large-population cumulative takes bounded work: HYPGEOM.DIST(N/2, N-1, N, 2N, TRUE) at
+    /// N = 2^30 summed about 5*10^8 masses (minutes) before dc-6332.17. The ratio route agrees with
+    /// the one-by-one sum to 1e-12 where both can run.
+    /// Native-only: wall-clock bound.
+    #[test]
+    fn large_population_cumulative_is_bounded() {
+        let n = 1073741824.0;
+        let t = std::time::Instant::now();
+        let v = hypergeom_dist_kernel(n / 2.0, n - 1.0, n, 2.0 * n, true).unwrap();
+        let v2 = hypergeom_dist_kernel(n - 2.0, n - 1.0, n, n, true).unwrap_or(1.0);
+        assert!(t.elapsed().as_secs_f64() < 1.0, "took {:?}", t.elapsed());
+        assert!(v > 0.0 && v < 1.0 && v2 <= 1.0);
+        for (s, nn, k, bn) in [
+            (30000.0, 70000.0, 60000.0, 100000.0),
+            (45000.0, 70000.0, 60000.0, 100000.0),
+            (50000.0, 99999.0, 100000.0, 200000.0),
+            (20000.0, 50000.0, 40000.0, 100000.0),
+        ] {
+            let slow: f64 = (0..=(s as u64))
+                .map(|i| hypergeom_mass(i as f64, nn, k, bn))
+                .sum();
+            let fast = hypergeom_cumulative_by_ratios(s, nn, k, bn);
+            assert!((slow.min(1.0) - fast).abs() < 1e-12, "{s} {nn} {k} {bn}: {slow} {fast}");
+        }
     }
 }
