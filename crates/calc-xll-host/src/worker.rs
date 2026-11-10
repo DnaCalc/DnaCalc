@@ -63,9 +63,13 @@ impl Drop for Pool {
     }
 }
 type Reply = Sender<Result<CalcValue, String>>;
+type ReadReply = Sender<Result<calc_func::ReferenceRead, String>>;
 enum Request {
-    Read(ReferenceLike, Reply),
-    ArgumentRead(ReferenceLike, Reply),
+    /// A typed read: the owner answers `Pending` for a producer not yet calculated (status 64).
+    /// `true` asks for the typed read; `false` for the plain value read, answered as `Value`.
+    Read(ReferenceLike, bool, ReadReply),
+    ArgumentRead(ReferenceLike, bool, ReadReply),
+    Reevaluate(calc_func::UserReevaluationReason, Sender<Result<(), String>>),
     Worksheet(String, Vec<CalcValue>, &'static str, Reply),
     Refuse(&'static str, &'static str),
     Volatile(bool),
@@ -74,6 +78,25 @@ enum Request {
 struct Reader {
     sender: Sender<Request>,
     caller: Option<CellKey>,
+}
+impl Reader {
+    fn read(
+        &mut self,
+        request: impl FnOnce(ReadReply) -> Request,
+    ) -> Result<calc_func::ReferenceRead, String> {
+        let (reply, result) = mpsc::channel();
+        self.sender
+            .send(request(reply))
+            .map_err(|_| "XLL reader disconnected")?;
+        result.recv().map_err(|_| "XLL reader disconnected")?
+    }
+}
+/// A plain read's answer: the owner answers it with a value or a fault, never `Pending`.
+fn value_read(read: calc_func::ReferenceRead) -> Result<CalcValue, String> {
+    match read {
+        calc_func::ReferenceRead::Value(value) => Ok(value),
+        calc_func::ReferenceRead::Pending => Err("XLL plain read answered as pending".into()),
+    }
 }
 impl UserFunctionContext for Reader {
     fn caller(&self) -> Option<CellKey> {
@@ -90,16 +113,29 @@ impl UserFunctionContext for Reader {
         format!("{owner}: {reason}")
     }
     fn values_of(&mut self, reference: &ReferenceLike) -> Result<CalcValue, String> {
-        let (reply, result) = mpsc::channel();
-        self.sender
-            .send(Request::Read(reference.clone(), reply))
-            .map_err(|_| "XLL reader disconnected")?;
-        result.recv().map_err(|_| "XLL reader disconnected")?
+        self.read(|reply| Request::Read(reference.clone(), false, reply))
+            .and_then(value_read)
     }
     fn argument_values_of(&mut self, reference: &ReferenceLike) -> Result<CalcValue, String> {
+        self.read(|reply| Request::ArgumentRead(reference.clone(), false, reply))
+            .and_then(value_read)
+    }
+    fn read_reference(
+        &mut self,
+        reference: &ReferenceLike,
+    ) -> Result<calc_func::ReferenceRead, String> {
+        self.read(|reply| Request::Read(reference.clone(), true, reply))
+    }
+    fn read_argument(
+        &mut self,
+        reference: &ReferenceLike,
+    ) -> Result<calc_func::ReferenceRead, String> {
+        self.read(|reply| Request::ArgumentRead(reference.clone(), true, reply))
+    }
+    fn request_reevaluation(&mut self, reason: calc_func::UserReevaluationReason) -> Result<(), String> {
         let (reply, result) = mpsc::channel();
         self.sender
-            .send(Request::ArgumentRead(reference.clone(), reply))
+            .send(Request::Reevaluate(reason, reply))
             .map_err(|_| "XLL reader disconnected")?;
         result.recv().map_err(|_| "XLL reader disconnected")?
     }
@@ -259,18 +295,38 @@ impl PoolCall {
         context: &mut Option<&mut dyn UserFunctionContext>,
     ) -> Option<Result<CalcValue, String>> {
         match request {
-            Request::ArgumentRead(reference, reply) => {
+            Request::ArgumentRead(reference, typed, reply) => {
                 let result = context
                     .as_mut()
                     .ok_or("XLL has no formula reader".to_owned())
-                    .and_then(|c| c.argument_values_of(&reference));
+                    .and_then(|c| {
+                        if typed {
+                            c.read_argument(&reference)
+                        } else {
+                            c.argument_values_of(&reference)
+                                .map(calc_func::ReferenceRead::Value)
+                        }
+                    });
                 let _ = reply.send(result);
             }
-            Request::Read(reference, reply) => {
+            Request::Read(reference, typed, reply) => {
                 let result = context
                     .as_mut()
                     .ok_or("XLL has no formula reader".to_owned())
-                    .and_then(|c| c.values_of(&reference));
+                    .and_then(|c| {
+                        if typed {
+                            c.read_reference(&reference)
+                        } else {
+                            c.values_of(&reference).map(calc_func::ReferenceRead::Value)
+                        }
+                    });
+                let _ = reply.send(result);
+            }
+            Request::Reevaluate(reason, reply) => {
+                let result = context
+                    .as_mut()
+                    .ok_or("XLL has no formula reader".to_owned())
+                    .and_then(|c| c.request_reevaluation(reason));
                 let _ = reply.send(result);
             }
             Request::Worksheet(name, arguments, owner, reply) => {

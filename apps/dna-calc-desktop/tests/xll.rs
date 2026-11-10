@@ -185,6 +185,40 @@ fn engine_owner_serves_two_pool_readers_at_once() {
     assert_eq!(result["live_callback_allocations"], 0);
 }
 
+/// Native-only: answer 13 D.1/D.2's status 64 batch (x17, dc-6332.11) through the engine route.
+/// A reader calculated before its producer (`Range("B3,C3").Calculate`) gets status 64 from
+/// xlCoerce, its return is discarded and it is entered again after the producer; `#` reads the
+/// cached value; a value argument is prepared before entry. Every case's value is Excel's.
+#[test]
+fn engine_status_64_matches_excel() {
+    let fixture = new_fixture();
+    let cases = fixture.directory.join("uncalced.json");
+    let expected: Vec<serde_json::Value> = serde_json::from_slice(include_bytes!(
+        "../../../crates/calc-xll-reference/fixture/x17-uncalced-cases.json"
+    ))
+    .unwrap();
+    std::fs::write(&cases, serde_json::to_vec(&expected).unwrap()).unwrap();
+    let result = checked(
+        fixture
+            .command()
+            .env("DNA_XLL_UNCALCED_TESTS", "1")
+            .env("DNA_XLL_POOL_TESTS", "1")
+            .args(["--engine", "--cases"])
+            .arg(cases)
+            .output()
+            .unwrap(),
+    );
+    let results = result["results"].as_array().unwrap();
+    assert_eq!(results.len(), expected.len());
+    for (row, case) in results.iter().zip(&expected) {
+        match case["value"].as_f64() {
+            Some(number) => assert_eq!(row["value"].as_f64(), Some(number), "{}", case["formula"]),
+            None => assert_eq!(row["value"], case["value"], "{}", case["formula"]),
+        }
+    }
+    assert_eq!(result["live_callback_allocations"], 0);
+}
+
 /// Native-only: overlapping native array producers use the real engine and DLL-owned frees.
 #[test]
 fn engine_pool_overlaps_spill_producers_and_publishes_every_cell() {

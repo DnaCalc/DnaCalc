@@ -1321,7 +1321,7 @@ impl UserFunction for XllFunction {
         frame: calc_func::UserInvocationFrame,
         context: &mut dyn UserFunctionContext,
     ) -> Result<Option<Box<dyn calc_func::UserFunctionInvocation>>, String> {
-        if frame.formula_entry && !self.registration.info.signature.asynchronous {
+        if frame.owner_only() && !self.registration.info.signature.asynchronous {
             return Ok(None);
         }
         if !self.state.borrow().async_continuations {
@@ -1359,6 +1359,14 @@ impl UserFunction for XllFunction {
     }
     fn cached_reads(&self) -> bool {
         self.registration.info.signature.macro_equivalent
+    }
+    /// Ordinary and `$` worksheet registrations get status 64 for a reference whose producer is
+    /// not calculated yet, and are entered again after it (P03, x17). A `#` registration reads
+    /// the cached value instead; async registrations wait for D.7.
+    fn reevaluation_policy(&self) -> Option<calc_func::UserReevaluationReason> {
+        let info = &self.registration.info;
+        (!info.signature.macro_equivalent && !info.signature.asynchronous && info.macro_type != 2)
+            .then_some(calc_func::UserReevaluationReason::XllUncalcedUnwind)
     }
     fn call(&self, arguments: &[CalcValue]) -> Result<CalcValue, String> {
         self.invoke(arguments, None)

@@ -1,0 +1,9 @@
+{
+  "fixture_files": {
+    "uncalced-tests.enable": "E3B0C44298FC1C149AFBF4C8996FB92427AE41E4649B934CA495991B7852B855",
+    "X1.xll": "15C86653C72B6FE6FEB506B2906E0D3540E4E4B167A48C373E0C0621D3AEB8EC"
+  },
+  "executable_sha256": "62F277F59EC13591FC44B7A08C460D2B6B3D001FDDFF054184C33769706236A7",
+  "mode": "direct engine run: dna-calc-desktop --engine --cases",
+  "repository_commit": "02f38981bd24c3578cdd69d1a60bcea93ae99f11"
+}

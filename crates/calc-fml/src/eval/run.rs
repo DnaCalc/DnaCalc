@@ -670,6 +670,24 @@ fn zero_array_blanks(value: CalcValue) -> CalcValue {
 }
 
 impl Run<'_, '_> {
+    /// After a native call got status 64 the attempt ends at its return: the apparent result is
+    /// never published and nothing after the call runs. The engine sees the unwind request and
+    /// the pending read and evaluates the formula again after the producer (B.5 steps 5-6). The
+    /// fault is not a wait (a wait would resume this attempt), and it is a typed refusal should
+    /// no reevaluation follow.
+    fn end_unwound_call(&mut self) -> Result<(), EvalFault> {
+        match self
+            .user_function_effects
+            .as_deref()
+            .and_then(|effects| effects.unwound)
+        {
+            Some(_) => Err(EvalFault::NotModelled {
+                construct: "an attempt ended by status 64 that was not evaluated again",
+                owner: "dc-6332.11",
+            }),
+            None => Ok(()),
+        }
+    }
     fn finish_user(
         &mut self,
         name: &str,
@@ -787,6 +805,11 @@ impl Run<'_, '_> {
                 self.invocation
                     .as_ref()
                     .is_some_and(|frame| frame.formula_entry),
+            )
+            .with_single_threaded(
+                self.invocation
+                    .as_ref()
+                    .is_some_and(|frame| frame.single_threaded),
             );
             let id = frame.id;
             let record = self.user_function_effects.as_deref_mut().map(|effects| {
@@ -883,6 +906,7 @@ impl Run<'_, '_> {
                             .invocations[index]
                             .completed = true;
                     }
+                    self.end_unwound_call()?;
                     self.finish_user(name, result)?;
                     return Ok(true);
                 }
@@ -941,6 +965,7 @@ impl Run<'_, '_> {
                         .completed = true;
                 }
                 *pending = None;
+                self.end_unwound_call()?;
                 self.finish_user(
                     name,
                     result.map(|step| match step {
@@ -4038,6 +4063,38 @@ struct UserCallContext<'b, 'a, 'r> {
     frame: Option<calc_func::UserInvocationFrame>,
 }
 
+impl UserCallContext<'_, '_, '_> {
+    /// The status 64 read (answer 13 B.5): a valid reference whose producer is admitted in this
+    /// command but not yet calculated is `Pending`. The read requests the unwind, records the
+    /// cell for the call's return and stores no fault, so the formula is evaluated again after
+    /// the producer instead of becoming a refusal. Every other failure is the ordinary fault.
+    fn read_uncalced(
+        &mut self,
+        reference: &ReferenceLike,
+    ) -> Result<calc_func::ReferenceRead, String> {
+        match self.run.reader.values_of(reference) {
+            Ok(value) => Ok(calc_func::ReferenceRead::Value(value)),
+            Err(EvalFault::MissingInput { cell })
+                if self.run.user_function_effects.is_some()
+                    && self.run.reader.pending_producer(cell) =>
+            {
+                calc_func::UserFunctionContext::request_reevaluation(
+                    self,
+                    calc_func::UserReevaluationReason::XllUncalcedUnwind,
+                )?;
+                let effects = self.run.user_function_effects.as_deref_mut().unwrap();
+                effects.unwound.get_or_insert(cell);
+                Ok(calc_func::ReferenceRead::Pending)
+            }
+            Err(fault) => {
+                let text = format!("{fault:?}");
+                self.fault.get_or_insert(fault);
+                Err(text)
+            }
+        }
+    }
+}
+
 impl calc_func::UserFunctionContext for UserCallContext<'_, '_, '_> {
     fn user_view(&self) -> Option<calc_func::UserView> {
         self.run.user_view
@@ -4283,6 +4340,30 @@ impl calc_func::UserFunctionContext for UserCallContext<'_, '_, '_> {
                 Err(text)
             }
         }
+    }
+    fn read_reference(
+        &mut self,
+        reference: &ReferenceLike,
+    ) -> Result<calc_func::ReferenceRead, String> {
+        if self.cached
+            || self.reevaluation != Some(calc_func::UserReevaluationReason::XllUncalcedUnwind)
+        {
+            return self
+                .values_of(reference)
+                .map(calc_func::ReferenceRead::Value);
+        }
+        self.read_uncalced(reference)
+    }
+    fn read_argument(
+        &mut self,
+        reference: &ReferenceLike,
+    ) -> Result<calc_func::ReferenceRead, String> {
+        if self.reevaluation != Some(calc_func::UserReevaluationReason::XllUncalcedUnwind) {
+            return self
+                .argument_values_of(reference)
+                .map(calc_func::ReferenceRead::Value);
+        }
+        self.read_uncalced(reference)
     }
     fn values_of(&mut self, reference: &ReferenceLike) -> Result<CalcValue, String> {
         match (if self.cached {

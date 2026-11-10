@@ -9046,6 +9046,122 @@ mod async_contract {
         }
     }
 
+    /// An XLL-like reader with the status 64 policy: a typed read of its reference argument
+    /// either gives the value or `Pending` (the producer is not calculated yet).
+    #[derive(Debug)]
+    struct UncalcedRead {
+        parallel: usize,
+        entries: Rc<RefCell<Vec<(u64, Option<f64>)>>>,
+    }
+    impl UserFunction for UncalcedRead {
+        fn call(&self, _: &[CalcValue]) -> Result<CalcValue, String> {
+            panic!("reference context required")
+        }
+        fn max_parallel_calls(&self) -> usize {
+            self.parallel
+        }
+        fn reevaluation_policy(&self) -> Option<calc_fml::UserReevaluationReason> {
+            Some(calc_fml::UserReevaluationReason::XllUncalcedUnwind)
+        }
+        fn call_with_context(
+            &self,
+            args: &[CalcValue],
+            context: &mut dyn UserFunctionContext,
+        ) -> Result<CalcValue, String> {
+            let reference = args[0].as_reference().unwrap().clone();
+            let id = context.invocation().unwrap().id;
+            match context.read_reference(&reference)? {
+                calc_fml::ReferenceRead::Value(value) => {
+                    let n = value.as_number().unwrap();
+                    self.entries.borrow_mut().push((id, Some(n)));
+                    Ok(CalcValue::number(n))
+                }
+                calc_fml::ReferenceRead::Pending => {
+                    self.entries.borrow_mut().push((id, None));
+                    // The apparent result of an unwound attempt is never published.
+                    Ok(CalcValue::number(-1.0))
+                }
+            }
+        }
+    }
+    /// Answer 13 B.5 / P03: a reader entered before its producer (reversed range order) gets
+    /// `Pending`, records no refusal, and is evaluated again after the producer as a new semantic
+    /// evaluation; a reader whose producer is ready reads once. Pool parallelism stays on.
+    #[cfg_attr(not(target_arch = "wasm32"), test)]
+    #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+    fn contract_p03_status_64_reads_unwind_and_reenter_after_the_producer() {
+        for parallel in [1, 4] {
+            for reversed in [false, true] {
+                let mut book = session(&calc_host::blank_package());
+                let s = book.host().sheets()[0].id();
+                book.dispatch(SkinIntent::SetCalcMode(CalcMode::Manual));
+                let entries = Rc::new(RefCell::new(Vec::new()));
+                let mut functions = calc_fml::CallableTable::new();
+                functions
+                    .register(
+                        "UncalcedRead",
+                        Rc::new(UncalcedRead {
+                            parallel,
+                            entries: entries.clone(),
+                        }),
+                    )
+                    .unwrap();
+                let handle = functions.bind(None, "UncalcedRead").unwrap();
+                assert_eq!(functions.bindings().max_parallel_calls(handle), parallel);
+                book.set_user_functions(functions);
+                book.set_calculation_budget(WorkBudget::evaluations(1));
+                for (address, text) in [("A1", "1"), ("C1", "=A1+10"), ("B1", "=UncalcedRead(C1)")] {
+                    enter(&mut book, at(s, address), text);
+                }
+                book.dispatch(SkinIntent::Recalculate);
+                drain(&mut book);
+                assert_eq!(
+                    calculated(book.host(), at(s, "B1")),
+                    Some(CalcValue::number(11.0))
+                );
+                entries.borrow_mut().clear();
+                book.take_calculation_events();
+                enter(&mut book, at(s, "A1"), "2");
+                let areas = if reversed {
+                    vec![GridArea::cell(at(s, "B1")), GridArea::cell(at(s, "C1"))]
+                } else {
+                    vec![GridArea::cell(at(s, "C1")), GridArea::cell(at(s, "B1"))]
+                };
+                book.dispatch(SkinIntent::CalculateRange { areas });
+                for _ in 0..500 {
+                    if !book.has_pending_calculation() {
+                        break;
+                    }
+                    assert!(!matches!(
+                        book.advance_calculation(),
+                        HostProgress::Failed(_)
+                    ));
+                }
+                assert!(!book.has_pending_calculation(), "reversed={reversed}");
+                let shown = match value(book.host(), at(s, "B1")) {
+                    ProjectedValue::Calculated { value, .. } => Some(value),
+                    other => panic!("reversed={reversed}: {other:?}"),
+                };
+                assert_eq!(shown, Some(CalcValue::number(12.0)));
+                let entries = entries.borrow();
+                let reads: Vec<_> = entries.iter().map(|(_, n)| *n).collect();
+                if reversed {
+                    assert_eq!(reads, vec![None, Some(12.0)], "parallel={parallel}");
+                    assert_ne!(entries[0].0, entries[1].0);
+                } else {
+                    assert_eq!(reads, vec![Some(12.0)], "parallel={parallel}");
+                }
+                let reevaluations = book
+                    .take_calculation_events()
+                    .iter()
+                    .filter(|e| matches!(e, calc_engine::CalcEvent::Reevaluated { next, .. }
+                        if next.reason == calc_engine::contract::ReevaluationReason::XllUncalcedUnwind))
+                    .count();
+                assert_eq!(reevaluations, usize::from(reversed));
+            }
+        }
+    }
+
     #[derive(Debug)]
     struct Reentrant {
         allowed: bool,

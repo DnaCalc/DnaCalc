@@ -137,6 +137,18 @@ impl Default for CallableTable {
     }
 }
 
+/// Whether a reevaluation policy leaves pool parallelism and early execution as registered.
+/// Status 64 (`XllUncalcedUnwind`) only ends the attempt that met a pending producer, and a
+/// function that never gets 64 runs as before: Excel ran `$` reads concurrently (F.3, F.5) and
+/// gave 64 on worker threads (P03). Provisional arguments observe values that a later entry
+/// replaces, so those callables stay serial and late.
+fn keeps_measured_concurrency(policy: Option<calc_func::UserReevaluationReason>) -> bool {
+    !matches!(
+        policy,
+        Some(calc_func::UserReevaluationReason::ProvisionalArguments)
+    )
+}
+
 #[derive(Clone, Debug)]
 struct Registration {
     /// Retain the inventory spelling separately from its shared comparison key.
@@ -160,7 +172,7 @@ impl CallableTable {
                     (function.permits_early_execution()
                         && !function.cached_reads()
                         && function.state_lane().is_none()
-                        && function.reevaluation_policy().is_none()
+                        && keeps_measured_concurrency(function.reevaluation_policy())
                         && !function.permits_reentry())
                     .then_some(entry.handle)
                 })
@@ -185,13 +197,15 @@ impl CallableTable {
                 .iter()
                 .map(|(key, r)| (key.clone(), r.handle))
                 .collect(),
+            // A cached reader (an XLL `#` registration) may also be entered before a producer it
+            // names directly: Excel's `Range.Calculate` entered `QU#` once, first, and it read the
+            // producer's previous value without status 64 (P03 `BU#`, x17 MyUcReadMacro).
             provisional: self
                 .entries
                 .values()
                 .filter_map(|entry| {
-                    self.resolve(entry.handle)?
-                        .reevaluation_policy()
-                        .is_some()
+                    let function = self.resolve(entry.handle)?;
+                    (function.reevaluation_policy().is_some() || function.cached_reads())
                         .then_some(entry.handle)
                 })
                 .collect(),
@@ -285,7 +299,7 @@ impl CallableTable {
         };
         let parallel = if function.state_lane().is_none()
             && !function.cached_reads()
-            && function.reevaluation_policy().is_none()
+            && keeps_measured_concurrency(function.reevaluation_policy())
             && !function.permits_reentry()
         {
             function.max_parallel_calls().max(1)
@@ -532,6 +546,51 @@ mod tests {
             let current = table.bind(None, "F").unwrap();
             assert!(!table.bindings().permits_early_execution(current));
             assert_eq!(lease.permits_early_execution(), early);
+        }
+    }
+
+    #[derive(Debug)]
+    struct Unwinding(Option<calc_func::UserReevaluationReason>);
+    impl UserFunction for Unwinding {
+        fn permits_early_execution(&self) -> bool {
+            true
+        }
+        fn max_parallel_calls(&self) -> usize {
+            8
+        }
+        fn reevaluation_policy(&self) -> Option<calc_func::UserReevaluationReason> {
+            self.0
+        }
+        fn call(&self, _: &[CalcValue]) -> Result<CalcValue, String> {
+            Ok(CalcValue::number(1.0))
+        }
+    }
+    /// Answer 13 harvest trap: the status 64 policy must not switch off pool parallelism or
+    /// early execution (a `$` XLL that never meets a pending producer keeps both); provisional
+    /// arguments still do.
+    #[cfg_attr(not(target_arch = "wasm32"), test)]
+    #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+    fn the_status_64_policy_keeps_parallelism_and_early_execution() {
+        for (policy, parallel, early) in [
+            (None, 8, true),
+            (
+                Some(calc_func::UserReevaluationReason::XllUncalcedUnwind),
+                8,
+                true,
+            ),
+            (
+                Some(calc_func::UserReevaluationReason::ProvisionalArguments),
+                1,
+                false,
+            ),
+        ] {
+            let mut table = CallableTable::new();
+            table.register("F", Rc::new(Unwinding(policy))).unwrap();
+            let handle = table.bind(None, "F").unwrap();
+            let bindings = table.bindings();
+            assert_eq!(bindings.max_parallel_calls(handle), parallel, "{policy:?}");
+            assert_eq!(bindings.permits_early_execution(handle), early, "{policy:?}");
+            assert_eq!(bindings.permits_provisional(handle), policy.is_some());
         }
     }
 

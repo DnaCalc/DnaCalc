@@ -1259,3 +1259,34 @@ cells meet at a barrier and each reads A1 through xlCoerce while the other is in
 (manual Calculate, MTR) and DNA Calc's engine both give 8 and 8 with two calls in flight; in the
 engine each read is a request the owner thread serves, so this shows the owner serving two
 waiting workers at once. The lease, GIL and crash-containment parts of D.21 remain open.
+
+## 30. Status 64 batch x17: xlretUncalced, discarded attempts, `#` and value arguments (dc-6332.11)
+
+Answer 13's D.1 and D.2 with the X1 fixture's opt-in probes (`calc-xll-fixture/src/fixture/
+uncalced.rs`, marker `uncalced-tests.enable`), `fixture/x17-uncalced-cases.json` (25 cases with
+Excel's answers) and evidence in `crates/calc-xll-reference/traces/2026-11-11-x17-uncalced`.
+Each group calculates `Range("B3,C3")` with the reader B3 before its producer C3 (P03's
+reversed-area order). Two Excel runs agreed on all 25 rows. Measured in Excel 16.0.20527.20150:
+
+- xlCoerce of a valid reference whose producer is not calculated yet returns 64
+  (`xlretUncalced`) and writes #VALUE! into the result operand. Every later callback of that
+  attempt (a second xlCoerce, xlfCaller) returns 64 and leaves its result operand untouched.
+- The attempt's return is discarded, but a DLLFree result still goes to xlAutoFree12. After the
+  producer the procedure is entered again as a new entry and reads the new value.
+- xlUDF from a parent whose child gets 64 returns 64 with #VALUE!; both are entered again.
+- `QU#` reads the producer's previous value with status 0, in one entry.
+- `QQ`/`QQ$` value arguments are prepared before entry: one entry, after the producer.
+- Range.Calculate enters `QU$` on the main thread, the 64 attempt and the retry alike.
+
+Host and engine: the engine-neutral seam has a typed read (`UserFunctionContext::read_reference`,
+`read_argument` returning `ReferenceRead::{Value, Pending}`). A registration whose policy is
+`XllUncalcedUnwind` (ordinary and `$` XLL worksheet functions; not `#`, not async) gets `Pending`
+from CalcFml for an admitted, unfinished producer; the read requests the reevaluation and stores
+no refusal. The XLL host answers it as measured above (`frame.uncalced` latch, xlFree still
+served), discards the return (`UNCALCED_RETURN`) after running xlAutoFree12 for a DLLFree
+operand, and does not enter the procedure when a value argument is pending. The engine ends the
+attempt at the call's return and evaluates the formula again after the producer. The policy
+keeps pool parallelism and early execution (callable.rs `keeps_measured_concurrency`; only
+`ProvisionalArguments` makes a callable serial), cached readers may be entered before a direct
+producer in range order, and a range calculation enters native calls on the owner thread.
+DNA Calc's engine matches all 25 rows.

@@ -52,6 +52,11 @@ pub(crate) fn call_interface(signature: &XllSignature) -> Option<Cif> {
     Some(Cif::new(arguments, result))
 }
 
+/// What an attempt that met a pending producer returns instead of a value: its return (or, before
+/// entry, its argument preparation) is discarded, and the engine evaluates the formula again after
+/// the producer. A nested xlUDF answers its caller with status 64 on seeing it. It is never a
+/// refusal: no owner prefix (`dc-snz.`) is on it.
+pub(crate) const UNCALCED_RETURN: &str = "dc-6332.11: status 64; this attempt is discarded";
 impl XllFunction {
     pub(crate) fn invoke(
         &self,
@@ -73,7 +78,12 @@ impl XllFunction {
         {
             return Err("dc-snz.23: thread-safe native async entry is not modelled".into());
         }
-        if self.registration.info.signature.thread_safe && !formula_entry {
+        let owner_only = context.as_ref().is_some_and(|context| {
+            context
+                .invocation()
+                .is_some_and(|frame| frame.single_threaded)
+        });
+        if self.registration.info.signature.thread_safe && !formula_entry && !owner_only {
             let pool = self.state.borrow().workers.clone();
             if let Some(pool) = pool {
                 return crate::worker::invoke(self, &pool, arguments, context);
@@ -177,10 +187,20 @@ impl XllFunction {
             argument += 1;
             if !kind.allows_reference() {
                 if let Some(reference) = value.as_reference() {
-                    value = context
+                    // Argument preparation is separate from entry (answer 13 B.5 step 1): a value
+                    // argument whose producer is not calculated yet keeps the native procedure
+                    // from being entered at all in this evaluation. The read has asked for the
+                    // formula to be evaluated again after the producer; nothing here is kept.
+                    match context
                         .as_mut()
                         .ok_or("dc-snz.2: XLL reference needs a reader")?
-                        .argument_values_of(reference)?;
+                        .read_argument(reference)?
+                    {
+                        calc_func::ReferenceRead::Value(read) => value = read,
+                        calc_func::ReferenceRead::Pending => {
+                            return Err(UNCALCED_RETURN.into());
+                        }
+                    }
                 }
             }
             let scalar_kind = match kind {
@@ -249,6 +269,7 @@ impl XllFunction {
             provider,
             rtd_subscriptions: Default::default(),
             transient: Vec::new(),
+            uncalced: false,
         };
         let guard = unsafe { callbacks::enter(&mut frame) };
         let mut returned = Returned::default();
@@ -267,6 +288,27 @@ impl XllFunction {
         let mut auto_free = None;
         let mut result = if let Some(pending) = pending {
             Ok(NativeReturn::Pending(pending))
+        } else if frame.uncalced {
+            // A callback answered status 64: this attempt's return is discarded, never converted
+            // as a value (B.5 step 5). Only the measured cleanup runs: an operand the host
+            // allocated (xlbitXLFree) is released, and a DLLFree operand goes back to the add-in's
+            // xlAutoFree12, as Excel 16.0.20527 does after 64 (x17, D.2).
+            if matches!(signature.result, XllType::Oper12 | XllType::Oper12Reference)
+                && returned.word != 0
+            {
+                let pointer = returned.word as *mut XlOper12;
+                let flags = unsafe { pointer.read_unaligned().xltype };
+                if flags & DLL_FREE != 0 {
+                    auto_free = r
+                        .module
+                        .address("xlAutoFree12")
+                        .ok()
+                        .map(|address| (address, pointer));
+                } else if flags & XL_FREE != 0 {
+                    callbacks::free(&self.state, &unsafe { pointer.read_unaligned() });
+                }
+            }
+            Err(UNCALCED_RETURN.into())
         } else {
             let kind = match signature.result {
                 XllType::Oper12 | XllType::Oper12Reference if returned.word != 0 => unsafe {
@@ -303,6 +345,7 @@ impl XllFunction {
             frame.context = free_frame.context.take();
         }
         if matches!(&result, Ok(NativeReturn::Value(..)))
+            && !frame.uncalced
             && let Some(provider) = frame.provider
             && let Some(caller) = frame.context.as_ref().and_then(|context| context.caller())
         {

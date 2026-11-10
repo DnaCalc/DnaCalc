@@ -119,7 +119,7 @@ fn note(line: &str) {
 
 /// A result operand whose 28 defined bytes (value and type) are the sentinel. The four bytes of
 /// tail padding are not part of the ABI and are never compared.
-fn sentinel() -> XlOper12 {
+pub(super) fn sentinel() -> XlOper12 {
     XlOper12 {
         value: XlValue12 {
             storage: [SENTINEL; 24],
@@ -202,7 +202,7 @@ fn window(low: i32) -> String {
 }
 /// What a callback left in its result operand. Pointer values and paths that differ between
 /// processes are named by their relation (`@self`, `main`), never printed.
-unsafe fn output(oper: &XlOper12) -> String {
+pub(super) unsafe fn output(oper: &XlOper12) -> String {
     let raw = bytes(oper);
     if raw.iter().all(|&b| b == SENTINEL) {
         return "untouched".into();
@@ -333,7 +333,7 @@ unsafe fn probe(function: i32) -> String {
     }
     text
 }
-unsafe fn free_result(oper: &mut XlOper12) {
+pub(super) unsafe fn free_result(oper: &mut XlOper12) {
     unsafe {
         call(XL_FREE_FN, &[oper], std::ptr::null_mut());
     }

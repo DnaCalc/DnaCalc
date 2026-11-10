@@ -1834,6 +1834,59 @@ def verify_boundary(excel, hosts, cases_path, repeat=None):
     return result
 
 
+def verify_ordered(excel, host, cases_path, repeat=None):
+    """dc-6332.11 status 64 batch (x17): one case list run in Excel (run.ps1) and in the engine
+    (`dna-calc-desktop --engine --cases`, its stdout in `host/host.stdout.json`). Formulas repeat
+    (each group ends with `=MyUcLog()`), so rows compare by position, not by formula. A host
+    stop is a refusal for its case and missing for the rest; Excel's answers are the oracle."""
+    cases = json.loads(cases_path.read_text(encoding="utf-8-sig"))
+    env = json.loads((excel / "environment.json").read_text(encoding="utf-8-sig"))
+    rows_excel = jsonl(excel / "controller.jsonl")
+    observed = controller(excel)
+    answers = [r["value"] for r in rows_excel if r["operation"].startswith("=")]
+    formulas = [r["operation"] for r in rows_excel if r["operation"].startswith("=")]
+    require(formulas == [c["formula"] for c in cases], "Ordered case formulas differ from the Excel run")
+    owned = (observed.get("cleanup") == "Workbook closed; Excel returned to lane session host"
+             or env["pid"] not in env["preexisting_excel_pids"])
+    require(observed["AutomationSecurity unchanged"] is True and env["pid"] != 3144 and owned, "Excel ownership/security failed")
+    host_env = json.loads((host / "environment.json").read_text(encoding="utf-8-sig"))
+    require(host_env["fixture_files"]["X1.xll"] == env["fixture_files"]["X1.xll"], "Host and Excel loaded different fixture binaries")
+    status = json.loads((host / "host.exit.json").read_text(encoding="utf-8-sig"))
+    output = json.loads((host / "host.stdout.json").read_text(encoding="utf-8-sig")) if status.get("exit_code") == 0 else {"results": []}
+    error = (host / "host.stderr").read_text(encoding="utf-8-sig").strip() if (host / "host.stderr").exists() else ""
+    values = [row["value"] for row in output["results"]]
+    rows = []
+    for index, (case, excel_value) in enumerate(zip(cases, answers)):
+        if index < len(values):
+            host_value = values[index]
+            same = host_value == excel_value or (isinstance(host_value, (int, float)) and isinstance(excel_value, (int, float))
+                                                 and float(host_value) == float(excel_value))
+            outcome = "pass" if same else "mismatched"
+        else:
+            host_value = None
+            outcome = "refused" if index == len(values) and status.get("exit_code") != 0 else "missing"
+        lane = "ordered_boundary_cases" if case["formula"] in ("=MyUcLog()", "=MyUcThreads()") else "value_cases"
+        rows.append({"index": index, "group": case.get("group"), "formula": case["formula"], "lane": lane, "outcome": outcome,
+                     "excel": excel_value, "host": host_value, "host_error": error if outcome == "refused" else None,
+                     "recorded_value_agrees": case.get("value") is None or case["value"] == excel_value
+                     or (isinstance(case["value"], (int, float)) and isinstance(excel_value, (int, float)) and float(case["value"]) == float(excel_value))})
+    matched = sum(r["outcome"] == "pass" for r in rows)
+    refused = sum(r["outcome"] == "refused" for r in rows)
+    missing = sum(r["outcome"] == "missing" for r in rows)
+    result = {"status": "measured ordered batch; refusals remain failures", "cases": len(rows), "pass": matched,
+              "fail": len(rows) - matched, "mismatched": len(rows) - matched - refused - missing, "refused": refused,
+              "missing": missing, "pass_rate_all_cases": matched / len(rows), "counts": four_counts(rows),
+              "recorded_values_agree": all(r["recorded_value_agrees"] for r in rows),
+              "manifest": comparison_manifest(env, rows_excel, cases, [host_env]), "rows": rows,
+              "scope": "The fixture's own ordered log of entries, xlCoerce statuses, result-operand writes and xlAutoFree12 calls; the log rows are the ordered boundary lane, the cell values the other."}
+    if repeat:
+        again = [r["value"] for r in jsonl(repeat / "controller.jsonl") if r["operation"].startswith("=")]
+        differ = [i for i, (a, b) in enumerate(zip(answers, again)) if a != b] + list(range(len(again), len(answers)))
+        result["excel_repeat"] = {"cases": len(answers), "agree": len(answers) - len(differ), "differ": differ,
+                                  "scope": "A second Excel run of the same cases and binaries; a differing row is a nondeterministic Excel answer, never a host pass."}
+    return result
+
+
 def verify_x2_controls(excel, host, identity=False):
     """Additional controls, kept separate from traced UDF and corpus match counts."""
     envs = [json.loads((p / "environment.json").read_text(encoding="utf-8-sig")) for p in (excel, host)]
@@ -1959,6 +2012,7 @@ if __name__ == "__main__":
     parser.add_argument("--boundary-cases", type=Path)
     parser.add_argument("--boundary-host", type=Path, help="Host group directories of a run-batch.ps1 boundary batch; the first positional is the Excel run")
     parser.add_argument("--boundary-repeat", type=Path, help="A second Excel run of the same boundary cases (Excel-to-Excel control)")
+    parser.add_argument("--ordered-host", type=Path, help="An engine run (dna-calc-desktop --engine) of --boundary-cases, compared by position; the first positional is the Excel run")
     parser.add_argument("--source-publication", type=Path)
     parser.add_argument("--excel-session", type=Path, help="Retained session ledger for native X2/X3 and extended RTD ownership checks")
     parser.add_argument("--identity", action="store_true")
@@ -1967,7 +2021,9 @@ if __name__ == "__main__":
     excel_session_directory = args.excel_session
     failed = False
     try:
-        if args.boundary_host:
+        if args.ordered_host:
+            result = verify_ordered(args.traced, args.ordered_host, args.boundary_cases, args.boundary_repeat)
+        elif args.boundary_host:
             result = verify_boundary(args.traced, args.boundary_host, args.boundary_cases, args.boundary_repeat)
         elif args.permission_host:
             result = verify_permissions(args.traced, args.control, args.permission_host, args.permission_cases, args.source_publication)

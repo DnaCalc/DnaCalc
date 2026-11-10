@@ -429,6 +429,9 @@ pub struct UserFunctionEffects {
     pub(crate) volatility: UdfVolatility,
     pub(crate) invocations: Vec<UserCallRecord>,
     pub(crate) reevaluation: Option<calc_func::UserReevaluationReason>,
+    /// The cell whose pending producer made a native call get status 64 in this evaluation.
+    /// The call's apparent result is discarded and the evaluation ends at its return.
+    pub(crate) unwound: Option<calc_func::value::CellKey>,
     pub(crate) callable_reads: Vec<crate::CallableBindingProof>,
     pub(crate) external_inputs: Vec<calc_func::RtdRead>,
     pub(crate) next_name: u64,

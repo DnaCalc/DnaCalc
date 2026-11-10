@@ -1,0 +1,365 @@
+{
+  "status": "measured ordered batch; refusals remain failures",
+  "cases": 25,
+  "pass": 25,
+  "fail": 0,
+  "mismatched": 0,
+  "refused": 0,
+  "missing": 0,
+  "pass_rate_all_cases": 1.0,
+  "counts": {
+    "value_cases": {
+      "pass": 16,
+      "mismatched": 0,
+      "refused": 0,
+      "missing": 0,
+      "total": 16,
+      "fail": 0,
+      "pass_rate": 1.0
+    },
+    "ordered_boundary_cases": {
+      "pass": 9,
+      "mismatched": 0,
+      "refused": 0,
+      "missing": 0,
+      "total": 9,
+      "fail": 0,
+      "pass_rate": 1.0
+    },
+    "lifecycle_ownership_cases": {
+      "pass": 0,
+      "mismatched": 0,
+      "refused": 0,
+      "missing": 0,
+      "total": 0,
+      "fail": 0,
+      "pass_rate": null
+    },
+    "framework_feature_lanes": {
+      "pass": 0,
+      "mismatched": 0,
+      "refused": 0,
+      "missing": 0,
+      "total": 0,
+      "fail": 0,
+      "pass_rate": null
+    }
+  },
+  "recorded_values_agree": true,
+  "manifest": {
+    "excel_build": "16.0.20527.20150",
+    "bitness": 64,
+    "locale": "en-ZA",
+    "calculation_modes": [
+      {
+        "actual": -4135,
+        "requested": -4135
+      }
+    ],
+    "mtr": {
+      "enabled": true,
+      "threads": 16
+    },
+    "trigger": "Formula2 entry into one cell, then Application.Calculate for manual cases",
+    "addin_files": {
+      "uncalced-tests.enable": "E3B0C44298FC1C149AFBF4C8996FB92427AE41E4649B934CA495991B7852B855",
+      "X1.xll": "15C86653C72B6FE6FEB506B2906E0D3540E4E4B167A48C373E0C0621D3AEB8EC"
+    },
+    "workbook": "Book2",
+    "load_order": [
+      "RegisterXLL managed"
+    ],
+    "excel_mode": "control without debugger",
+    "host_executables": [
+      "62F277F59EC13591FC44B7A08C460D2B6B3D001FDDFF054184C33769706236A7"
+    ],
+    "host_process_identity": [],
+    "repository_commits": [
+      "02f38981bd24c3578cdd69d1a60bcea93ae99f11"
+    ]
+  },
+  "rows": [
+    {
+      "index": 0,
+      "group": "ord",
+      "formula": "=MyUcRead(C3)",
+      "lane": "value_cases",
+      "outcome": "pass",
+      "excel": "0|num:11",
+      "host": "0|num:11",
+      "host_error": null,
+      "recorded_value_agrees": true
+    },
+    {
+      "index": 1,
+      "group": "ord",
+      "formula": "=MyUcRead(C3)",
+      "lane": "value_cases",
+      "outcome": "pass",
+      "excel": "0|num:12",
+      "host": "0|num:12",
+      "host_error": null,
+      "recorded_value_agrees": true
+    },
+    {
+      "index": 2,
+      "group": "ord",
+      "formula": "=MyUcLog()",
+      "lane": "ordered_boundary_cases",
+      "outcome": "pass",
+      "excel": "read:64:err:#VALUE!;late:12;read:0:num:12",
+      "host": "read:64:err:#VALUE!;late:12;read:0:num:12",
+      "host_error": null,
+      "recorded_value_agrees": true
+    },
+    {
+      "index": 3,
+      "group": "safe",
+      "formula": "=MyUcReadSafe(C3)",
+      "lane": "value_cases",
+      "outcome": "pass",
+      "excel": "0|num:12",
+      "host": "0|num:12",
+      "host_error": null,
+      "recorded_value_agrees": true
+    },
+    {
+      "index": 4,
+      "group": "safe",
+      "formula": "=MyUcReadSafe(C3)",
+      "lane": "value_cases",
+      "outcome": "pass",
+      "excel": "0|num:13",
+      "host": "0|num:13",
+      "host_error": null,
+      "recorded_value_agrees": true
+    },
+    {
+      "index": 5,
+      "group": "safe",
+      "formula": "=MyUcLog()",
+      "lane": "ordered_boundary_cases",
+      "outcome": "pass",
+      "excel": "safe:64:err:#VALUE!;late:13;safe:0:num:13",
+      "host": "safe:64:err:#VALUE!;late:13;safe:0:num:13",
+      "host_error": null,
+      "recorded_value_agrees": true
+    },
+    {
+      "index": 6,
+      "group": "safe",
+      "formula": "=MyUcThreads()",
+      "lane": "ordered_boundary_cases",
+      "outcome": "pass",
+      "excel": "main;main;main",
+      "host": "main;main;main",
+      "host_error": null,
+      "recorded_value_agrees": true
+    },
+    {
+      "index": 7,
+      "group": "macro",
+      "formula": "=MyUcReadMacro(C3)",
+      "lane": "value_cases",
+      "outcome": "pass",
+      "excel": "0|num:13",
+      "host": "0|num:13",
+      "host_error": null,
+      "recorded_value_agrees": true
+    },
+    {
+      "index": 8,
+      "group": "macro",
+      "formula": "=MyUcReadMacro(C3)",
+      "lane": "value_cases",
+      "outcome": "pass",
+      "excel": "0|num:13",
+      "host": "0|num:13",
+      "host_error": null,
+      "recorded_value_agrees": true
+    },
+    {
+      "index": 9,
+      "group": "macro",
+      "formula": "=MyUcLog()",
+      "lane": "ordered_boundary_cases",
+      "outcome": "pass",
+      "excel": "macro:0:num:13;late:14",
+      "host": "macro:0:num:13;late:14",
+      "host_error": null,
+      "recorded_value_agrees": true
+    },
+    {
+      "index": 10,
+      "group": "value",
+      "formula": "=MyUcValue(C3)",
+      "lane": "value_cases",
+      "outcome": "pass",
+      "excel": "value|num:14",
+      "host": "value|num:14",
+      "host_error": null,
+      "recorded_value_agrees": true
+    },
+    {
+      "index": 11,
+      "group": "value",
+      "formula": "=MyUcValue(C3)",
+      "lane": "value_cases",
+      "outcome": "pass",
+      "excel": "value|num:15",
+      "host": "value|num:15",
+      "host_error": null,
+      "recorded_value_agrees": true
+    },
+    {
+      "index": 12,
+      "group": "value",
+      "formula": "=MyUcLog()",
+      "lane": "ordered_boundary_cases",
+      "outcome": "pass",
+      "excel": "late:15;value:num:15",
+      "host": "late:15;value:num:15",
+      "host_error": null,
+      "recorded_value_agrees": true
+    },
+    {
+      "index": 13,
+      "group": "valuesafe",
+      "formula": "=MyUcValueSafe(C3)",
+      "lane": "value_cases",
+      "outcome": "pass",
+      "excel": "valuesafe|num:15",
+      "host": "valuesafe|num:15",
+      "host_error": null,
+      "recorded_value_agrees": true
+    },
+    {
+      "index": 14,
+      "group": "valuesafe",
+      "formula": "=MyUcValueSafe(C3)",
+      "lane": "value_cases",
+      "outcome": "pass",
+      "excel": "valuesafe|num:16",
+      "host": "valuesafe|num:16",
+      "host_error": null,
+      "recorded_value_agrees": true
+    },
+    {
+      "index": 15,
+      "group": "valuesafe",
+      "formula": "=MyUcLog()",
+      "lane": "ordered_boundary_cases",
+      "outcome": "pass",
+      "excel": "late:16;valuesafe:num:16",
+      "host": "late:16;valuesafe:num:16",
+      "host_error": null,
+      "recorded_value_agrees": true
+    },
+    {
+      "index": 16,
+      "group": "owned",
+      "formula": "=MyUcOwned(C3)",
+      "lane": "value_cases",
+      "outcome": "pass",
+      "excel": 777.0,
+      "host": 777.0,
+      "host_error": null,
+      "recorded_value_agrees": true
+    },
+    {
+      "index": 17,
+      "group": "owned",
+      "formula": "=MyUcOwned(C3)",
+      "lane": "value_cases",
+      "outcome": "pass",
+      "excel": 777.0,
+      "host": 777.0,
+      "host_error": null,
+      "recorded_value_agrees": true
+    },
+    {
+      "index": 18,
+      "group": "owned",
+      "formula": "=MyUcLog()",
+      "lane": "ordered_boundary_cases",
+      "outcome": "pass",
+      "excel": "owned:64:err:#VALUE!;free;late:17;owned:0:num:17;free",
+      "host": "owned:64:err:#VALUE!;free;late:17;owned:0:num:17;free",
+      "host_error": null,
+      "recorded_value_agrees": true
+    },
+    {
+      "index": 19,
+      "group": "parent",
+      "formula": "=MyUcParent(C3)",
+      "lane": "value_cases",
+      "outcome": "pass",
+      "excel": "0|str:0|num:17",
+      "host": "0|str:0|num:17",
+      "host_error": null,
+      "recorded_value_agrees": true
+    },
+    {
+      "index": 20,
+      "group": "parent",
+      "formula": "=MyUcParent(C3)",
+      "lane": "value_cases",
+      "outcome": "pass",
+      "excel": "0|str:0|num:18",
+      "host": "0|str:0|num:18",
+      "host_error": null,
+      "recorded_value_agrees": true
+    },
+    {
+      "index": 21,
+      "group": "parent",
+      "formula": "=MyUcLog()",
+      "lane": "ordered_boundary_cases",
+      "outcome": "pass",
+      "excel": "read:64:err:#VALUE!;parent:64:err:#VALUE!;late:18;read:0:num:18;parent:0:str:0|num:18",
+      "host": "read:64:err:#VALUE!;parent:64:err:#VALUE!;late:18;read:0:num:18;parent:0:str:0|num:18",
+      "host_error": null,
+      "recorded_value_agrees": true
+    },
+    {
+      "index": 22,
+      "group": "again",
+      "formula": "=MyUcAgain(C3)",
+      "lane": "value_cases",
+      "outcome": "pass",
+      "excel": "0|num:18",
+      "host": "0|num:18",
+      "host_error": null,
+      "recorded_value_agrees": true
+    },
+    {
+      "index": 23,
+      "group": "again",
+      "formula": "=MyUcAgain(C3)",
+      "lane": "value_cases",
+      "outcome": "pass",
+      "excel": "0|num:19",
+      "host": "0|num:19",
+      "host_error": null,
+      "recorded_value_agrees": true
+    },
+    {
+      "index": 24,
+      "group": "again",
+      "formula": "=MyUcLog()",
+      "lane": "ordered_boundary_cases",
+      "outcome": "pass",
+      "excel": "again:64:err:#VALUE!|coerce=64:untouched|caller=64:untouched;late:19;again:0:num:19",
+      "host": "again:64:err:#VALUE!|coerce=64:untouched|caller=64:untouched;late:19;again:0:num:19",
+      "host_error": null,
+      "recorded_value_agrees": true
+    }
+  ],
+  "scope": "The fixture's own ordered log of entries, xlCoerce statuses, result-operand writes and xlAutoFree12 calls; the log rows are the ordered boundary lane, the cell values the other.",
+  "excel_repeat": {
+    "cases": 25,
+    "agree": 25,
+    "differ": [],
+    "scope": "A second Excel run of the same cases and binaries; a differing row is a nondeterministic Excel answer, never a host pass."
+  }
+}

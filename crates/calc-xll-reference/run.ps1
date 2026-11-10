@@ -345,7 +345,9 @@ try {
             # Assign the formula anchor directly, as the OneCalc controller does.
             # Excel removes the previous anchor's spill when replacing its formula.
             if ($case.PSObject.Properties['keep_formula'] -and $case.keep_formula) {
-                if ([string]$sheet.Range('B3').Formula2 -ne [string]$case.formula) { throw 'Retained formula differs from the selected case.' }
+                # A legacy-entered XLL call reads back from Formula2 with an implicit `@`.
+                $retained=if ($case.PSObject.Properties['legacy'] -and $case.legacy) { [string]$sheet.Range('B3').Formula } else { [string]$sheet.Range('B3').Formula2 }
+                if ($retained -ne [string]$case.formula) { throw 'Retained formula differs from the selected case.' }
             } elseif ($case.PSObject.Properties['legacy'] -and $case.legacy) { $sheet.Range('B3').Formula = ([string]$case.formula).Replace('{pid}',[string]$ownedExcelPid) }
             else { $sheet.Range('B3').Formula2 = ([string]$case.formula).Replace('{pid}',[string]$ownedExcelPid) }
             if ($case.PSObject.Properties['entry_wait_value']) {
@@ -360,7 +362,10 @@ try {
                 Note ('before Calculate ' + [string]$case.before_calculate) $commandValue
                 if ($commandValue -ne $case.before_calculate_value) { throw 'Precalculation command differs.' }
             }
-            if ($case.PSObject.Properties['manual'] -and $case.manual) { $excel.Calculate() }
+            # `range` calculates those cells in the listed order (Range.Calculate) instead of the
+            # workbook: P03's reversed-area order, which enters a reader before its producer.
+            if ($case.PSObject.Properties['range']) { [void]$sheet.Range([string]$case.range).Calculate() }
+            elseif ($case.PSObject.Properties['manual'] -and $case.manual) { $excel.Calculate() }
             if ($case.formula -match 'X0.Async') {
                 $deadline=[DateTime]::UtcNow.AddSeconds(60)
                 do { Start-Sleep -Milliseconds 100; $value=$sheet.Range('B3').Value2 } until ($value -eq 42 -or [DateTime]::UtcNow -gt $deadline)

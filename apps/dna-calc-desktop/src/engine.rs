@@ -359,7 +359,27 @@ pub fn run(
             commands.push(serde_json::json!({"command":command,"value":actual}));
         }
         let calculation = case["calculation"].as_str().unwrap_or("dirty");
+        // `range` ("B3,C3") calculates those cells in the listed order, as run.ps1's
+        // Range.Calculate does in Excel.
+        let range = match case["range"].as_str() {
+            Some(text) => {
+                let mut areas = Vec::new();
+                for address in text.split(',') {
+                    let calc_host::ReferenceTarget::Area(area) =
+                        book.host().resolve_reference_text(b, address.trim())
+                    else {
+                        return Err("range needs local cell references".into());
+                    };
+                    areas.push(area);
+                }
+                Some(areas)
+            }
+            None => None,
+        };
         let admission = book.dispatch(match calculation {
+            _ if range.is_some() => SkinIntent::CalculateRange {
+                areas: range.clone().unwrap(),
+            },
             "dirty" => SkinIntent::Recalculate,
             "full" => SkinIntent::Calculate {
                 scope: calc_host::CalcScope::Workbook,
@@ -480,7 +500,13 @@ pub fn run(
                     return Err("RTD idle observation ended with incomplete calculation".into());
                 }
             } else if Instant::now() > deadline {
-                return Err("engine native completion deadline expired".into());
+                return Err(format!(
+                    "engine native completion deadline expired (calculation pending {}, async {}, native calls {}, rtd inputs {})",
+                    book.has_pending_calculation(),
+                    book.host().pending_async().len(),
+                    addins.native().outstanding_native_calls(),
+                    rtd.has_pending_inputs()
+                ));
             }
             shell.pump_for(Duration::from_millis(2));
         }

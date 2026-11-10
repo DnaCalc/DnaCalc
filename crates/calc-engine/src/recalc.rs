@@ -5810,7 +5810,9 @@ fn evaluate_unstamped(
                     view: pin.clone(),
                 }),
             )
-            .with_formula_entry(shared.selection == EvalSelection::FormulaEntry),
+            .with_formula_entry(shared.selection == EvalSelection::FormulaEntry)
+            // Range.Calculate runs on one thread in Excel (x17: every `$` entry on main).
+            .with_single_threaded(matches!(shared.scope, CalcScope::Range(_))),
         );
         local.observation = Some(pin);
     }

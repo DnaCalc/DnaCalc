@@ -71,7 +71,7 @@ pub use calc_func::{
 mod callable;
 pub mod rtd;
 pub use calc_func::{
-    UserFunction, UserFunctionContext, UserFunctionInvocation, UserFunctionStep,
+    ReferenceRead, UserFunction, UserFunctionContext, UserFunctionInvocation, UserFunctionStep,
     UserInvocationFrame, UserReevaluationReason,
 };
 pub use callable::{

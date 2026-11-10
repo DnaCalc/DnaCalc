@@ -473,6 +473,7 @@ mod tests {
                 parent: Some(9),
                 read_view: Rc::new(40u64),
                 formula_entry: false,
+                single_threaded: false,
             };
             let weak = Rc::downgrade(&frame.read_view);
             let mut activation = function

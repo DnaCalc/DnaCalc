@@ -37,6 +37,9 @@ pub(crate) struct Frame<'a> {
     pub rtd_subscriptions: BTreeSet<calc_func::RtdLease>,
     /// Callback results Excel keeps valid until the calling function returns (xlfCall).
     pub transient: Vec<Arena>,
+    /// Set when a callback answered status 64 (`xlretUncalced`) in this attempt: the attempt's
+    /// return is discarded (answer 13 B.5), and from then on only xlFree is served.
+    pub uncalced: bool,
 }
 impl Frame<'_> {
     pub fn lifecycle(state: Shared, module: Rc<Module>) -> Self {
@@ -50,6 +53,7 @@ impl Frame<'_> {
             provider: None,
             rtd_subscriptions: BTreeSet::new(),
             transient: Vec::new(),
+            uncalced: false,
         }
     }
     /// The frame xlAutoFree12 runs in: the registration's modules, the calling formula's
@@ -70,6 +74,7 @@ impl Frame<'_> {
             provider: None,
             rtd_subscriptions: BTreeSet::new(),
             transient: Vec::new(),
+            uncalced: false,
         }
     }
 }
@@ -110,6 +115,14 @@ impl CallbackReply {
         Self {
             status: SUCCESS,
             write: ResultWrite::Operand(oper),
+            refusal: None,
+        }
+    }
+    /// The first status 64 of an attempt: #VALUE! in the result operand (x17), no refusal.
+    fn uncalced() -> Self {
+        Self {
+            status: UNCALCED,
+            write: ResultWrite::Error(15),
             refusal: None,
         }
     }
@@ -306,6 +319,12 @@ pub unsafe fn dispatch(
                     format!("dc-6332.13: callback {function} from xlAutoFree12 terminates Excel 16.0.20527"),
                 )
                 .apply(Some(frame), result);
+            }
+            if frame.uncalced && function != XL_FREE_FN {
+                // After status 64 an add-in may only free and return (Microsoft's xlretUncalced
+                // contract). Excel 16.0.20527 answers anything else with 64 again and leaves the
+                // result operand untouched (x17 MyUcAgain: a second xlCoerce and xlfCaller).
+                return CallbackReply::status(UNCALCED).apply(Some(frame), result);
             }
             if matches!(function, XLF_CALL | XLF_REGISTER_ID) {
                 return crate::call::dispatch(frame, function, args, result);
@@ -606,6 +625,13 @@ unsafe fn answer(
             Err(why) => CallbackReply::refused(FAILED, why),
         },
         Ok(None) => CallbackReply::status(SUCCESS),
+        // A nested call (xlUDF) whose own attempt got status 64: Excel 16.0.20527 answers the
+        // parent's xlUDF with 64 and #VALUE! and enters both again after the producer (x17
+        // MyUcParent). The parent's attempt is now unwound too.
+        Err((UNCALCED, _)) => {
+            frame.uncalced = true;
+            CallbackReply::uncalced()
+        }
         Err((code, why)) => CallbackReply::refused(code, why),
     }
 }
@@ -923,7 +949,13 @@ fn run(
                 Some(context) => adapter.invoke(&values[1..], Some(&mut **context)),
                 None => adapter.invoke(&values[1..], None),
             }
-            .map_err(err)?
+            .map_err(|why| {
+                if why == crate::invoke::UNCALCED_RETURN {
+                    (UNCALCED, why)
+                } else {
+                    err(why)
+                }
+            })?
         }
         XLF_RTD => {
             if values.len() < 3 {
@@ -1047,17 +1079,26 @@ unsafe fn coerce_callback(
         value = if reference.areas().len() > 1 {
             CalcValue::error(WorksheetErrorCode::Value)
         } else {
-            match frame.context.as_mut() {
-                Some(context) => match context.values_of(reference) {
-                    Ok(value) => value,
-                    Err(why) => return CallbackReply::refused(FAILED, why),
-                },
+            let read = match frame.context.as_mut() {
+                Some(context) => context.read_reference(reference),
                 None => {
                     return CallbackReply::refused(
                         FAILED,
                         "dc-snz.2: xlCoerce reference outside formula".into(),
                     );
                 }
+            };
+            match read {
+                Ok(calc_func::ReferenceRead::Value(value)) => value,
+                // Status 64: the producer is not calculated yet. The read has asked the engine to
+                // evaluate this formula again after it; the add-in must now return. Excel
+                // 16.0.20527 writes #VALUE! into the result operand (x17, every row), and nothing
+                // is refused.
+                Ok(calc_func::ReferenceRead::Pending) => {
+                    frame.uncalced = true;
+                    return CallbackReply::uncalced();
+                }
+                Err(why) => return CallbackReply::refused(FAILED, why),
             }
         };
     }

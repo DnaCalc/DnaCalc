@@ -105,6 +105,10 @@ pub struct UserInvocationFrame {
     pub read_view: Rc<dyn Any>,
     /// Formula assignment evaluates on its owner, including thread-safe native UDFs.
     pub formula_entry: bool,
+    /// A single-threaded calculation (Excel's `Range.Calculate`): thread-safe native UDFs are
+    /// entered on the owner too. Excel 16.0.20527 entered every `QU$` call on its main thread
+    /// there, the status 64 attempt and its retry alike (x17).
+    pub single_threaded: bool,
 }
 impl UserInvocationFrame {
     pub fn new(parent: Option<u64>, read_view: Rc<dyn Any>) -> Self {
@@ -121,11 +125,20 @@ impl UserInvocationFrame {
             parent,
             read_view,
             formula_entry: false,
+            single_threaded: false,
         }
     }
     pub fn with_formula_entry(mut self, entry: bool) -> Self {
         self.formula_entry = entry;
         self
+    }
+    pub fn with_single_threaded(mut self, single: bool) -> Self {
+        self.single_threaded = single;
+        self
+    }
+    /// Whether native calls of this invocation stay on the owner thread.
+    pub fn owner_only(&self) -> bool {
+        self.formula_entry || self.single_threaded
     }
 }
 impl fmt::Debug for UserInvocationFrame {
@@ -134,6 +147,7 @@ impl fmt::Debug for UserInvocationFrame {
             .field("id", &self.id)
             .field("parent", &self.parent)
             .field("formula_entry", &self.formula_entry)
+            .field("single_threaded", &self.single_threaded)
             .finish_non_exhaustive()
     }
 }
@@ -185,6 +199,18 @@ pub trait ReferenceHandles {
 pub enum UserReevaluationReason {
     XllUncalcedUnwind,
     ProvisionalArguments,
+}
+
+/// What a typed reference read gives an adapter: the value, or `Pending` when the reference is
+/// valid but a producer it covers has not been calculated yet in this command. Only a
+/// registration whose policy is [`UserReevaluationReason::XllUncalcedUnwind`] is told `Pending`
+/// (Excel's status 64, `xlretUncalced`); every other reader gets the value or a fault as before.
+/// A `Pending` read records no refusal: the adapter returns, the evaluation ends, and the engine
+/// evaluates the formula again after the producer.
+#[derive(Clone, Debug, PartialEq)]
+pub enum ReferenceRead {
+    Value(CalcValue),
+    Pending,
 }
 
 /// A user function. The default host entry reads references eagerly; adapters can instead
@@ -345,6 +371,16 @@ pub trait UserFunctionContext {
     /// Explicit scalar-argument readiness is a dependency, distinct from a VBA Range read.
     fn argument_values_of(&mut self, reference: &ReferenceLike) -> Result<CalcValue, String> {
         self.values_of(reference)
+    }
+    /// A read from inside the call (an XLL's xlCoerce) that tells a pending producer apart from
+    /// a value or a fault. The default never reports `Pending`.
+    fn read_reference(&mut self, reference: &ReferenceLike) -> Result<ReferenceRead, String> {
+        self.values_of(reference).map(ReferenceRead::Value)
+    }
+    /// The same for preparing a value argument before entry: `Pending` means the call must not
+    /// be entered in this evaluation. The default never reports `Pending`.
+    fn read_argument(&mut self, reference: &ReferenceLike) -> Result<ReferenceRead, String> {
+        self.argument_values_of(reference).map(ReferenceRead::Value)
     }
     /// Invoke the ordinary CalcFunc catalogue through the evaluator's existing call route.
     fn worksheet_function(
