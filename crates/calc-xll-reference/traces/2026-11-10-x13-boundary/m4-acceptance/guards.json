@@ -1,0 +1,56 @@
+{
+  "m4-guard.json": {
+    "desktop": "DnaCalcM4",
+    "session_root": "C:\\Work\\DnaCalc\\DnaCalc-win\\target\\excel-session-x13",
+    "exit": 0,
+    "guard_samples": 13493,
+    "owned_pids": [
+      24276,
+      51804,
+      56568
+    ],
+    "windows_on_user_desktop": 0,
+    "visible_on_user_desktop": 0,
+    "foreground_hits": 0,
+    "findings": [],
+    "finished_utc": "2026-11-10T21:59:16.3738617Z"
+  },
+  "m4-retry-guard.json": {
+    "desktop": "DnaCalcM4b",
+    "session_root": "C:\\Work\\DnaCalc\\DnaCalc-win\\target\\excel-session-x13",
+    "exit": 1,
+    "guard_samples": 1509,
+    "owned_pids": [
+      24276
+    ],
+    "windows_on_user_desktop": 0,
+    "visible_on_user_desktop": 0,
+    "foreground_hits": 0,
+    "findings": [],
+    "finished_utc": "2026-11-10T22:00:10.5168804Z"
+  },
+  "m4-accept-x1-guard.json": {
+    "desktop": "DnaCalcAccept",
+    "session_root": "C:\\Work\\DnaCalc\\codex-runs\\x13-boundary\\m4-accept-x1",
+    "exit": 0,
+    "guard_samples": 2510,
+    "owned_pids": [],
+    "windows_on_user_desktop": 0,
+    "visible_on_user_desktop": 0,
+    "foreground_hits": 0,
+    "findings": [],
+    "finished_utc": "2026-11-10T22:12:20.5740223Z"
+  },
+  "m4-accept-rest-guard.json": {
+    "desktop": "DnaCalcAccept2",
+    "session_root": "C:\\Work\\DnaCalc\\codex-runs\\x13-boundary",
+    "exit": 0,
+    "guard_samples": 9458,
+    "owned_pids": [],
+    "windows_on_user_desktop": 0,
+    "visible_on_user_desktop": 0,
+    "foreground_hits": 0,
+    "findings": [],
+    "finished_utc": "2026-11-10T22:14:58.4990579Z"
+  }
+}
