@@ -553,6 +553,13 @@ static void enter(const Entry& entry, DWORD thread, const CONTEXT& ctx) {
         fields+="],\"argument_addresses\":[";
         for(int i=0;i<c.count&&i<256;++i){if(i)fields+=",";fields+=hex(read<Address>(c.args+i*8));}
         fields+="],\"result_address\":"+hex(c.result);
+        // The callback's context: the innermost XLL export still running on this thread (an
+        // XLL function, lifecycle export or xlAutoFree12), or null outside every entry.
+        const Call* within=nullptr;
+        for(auto it=calls[thread].rbegin();it!=calls[thread].rend();++it)
+            if(it->entry.name.find("!MdCallBack12")==std::string::npos && it->entry.name.rfind("COM!",0)!=0){within=&*it;break;}
+        fields+=",\"within\":"+(within?quote(within->entry.name):std::string("null"));
+        if(within)fields+=",\"within_call\":"+std::to_string(within->id);
         registerEntry(c);
     } else fields+=",\"signature\":"+quote(entry.signature)+",\"args\":"+entryArgs(entry,ctx);
     emit(fields);

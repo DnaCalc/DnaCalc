@@ -436,9 +436,15 @@ def verify_x1(excel, excel_control, host, host_control):
              for events in (excel_events, host_events)]
     if freed[0] or freed[1]:
         require(freed[0] == freed[1], "Operands after xlFree differ between Excel and DNA Calc")
+    # Each callback's context: the export that was running when it was made (traces with "within").
+    within = [[(x["function"], x["within"].split("!", 1)[-1] if x["within"] else None) for x in enters.values()
+               if x["entry"].endswith("!MdCallBack12") and "within" in x]
+              for enters in (excel_enters, host_enters)]
+    if within[0] or within[1]:
+        require(within[0] == within[1], "Callback contexts (the running export) differ between Excel and DNA Calc")
     return {
         "status": "verified X1 fixture boundary", "formula_cases": len(expected), "formula_matches_each_host": len(expected),
-        "xlfree_operands_after_compared": len(freed[0]),
+        "xlfree_operands_after_compared": len(freed[0]), "callback_contexts_compared": len(within[0]),
         "source_revision": environments[0]["repository_commit"],
         "ordered_callback_sequence_matches": True,
         "trace_sha256": {"excel": digest(excel / "boundary.jsonl"), "dna_calc": digest(host / "boundary.jsonl")},
