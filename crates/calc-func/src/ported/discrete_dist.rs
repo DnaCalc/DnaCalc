@@ -65,7 +65,7 @@ const STIRLING_ERROR: [f64; 7] = [
 /// step stored into the running value. At `x` next to `a` the exponent is `-s(a)` alone, and that
 /// pins `s(a)` to a double: of 2,430 shapes from 1.1 to 7, 2,392 hold within two of 40 rows.
 /// The ten-term series at 6 is what puts the error of -3.6 units of 2^-53 just above each integer.
-fn stirling_error(n: f64) -> f64 {
+pub(crate) fn stirling_error(n: f64) -> f64 {
     if n == n.floor() && n < 7.0 {
         return STIRLING_ERROR[n as usize];
     }

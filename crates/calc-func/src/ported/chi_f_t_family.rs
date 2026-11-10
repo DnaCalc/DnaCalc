@@ -1,7 +1,9 @@
 use crate::ported::excel_numeric::crt_exp;
 use crate::ported::excel_numeric::crt_pow;
 use crate::ported::special_dist_family::erfc_of_sqrt_half_x;
-use crate::ported::special_math_common::{bisect_inverse, bratio, gamma, regularized_gamma_q};
+use crate::ported::special_math_common::{
+    bisect_inverse, bratio, gamma, regularized_beta, regularized_gamma_q,
+};
 use crate::value::WorksheetErrorCode;
 
 fn truncate_positive_integer(value: f64) -> Result<f64, WorksheetErrorCode> {
@@ -318,6 +320,21 @@ pub fn t_inv_2t_kernel(probability: f64, deg_freedom: f64) -> Result<f64, Worksh
     // worksheet BETA.INV, but production BETA.INV is still a few ULP off
     // Excel, so the composition is not landable yet. Keep the published
     // two-tail bratio inverter (W109 b19).
+    if p <= 0.85 {
+        // Excel reaches t through the beta coordinate z: on the bank's rows with p <= 0.85 its value
+        // lies in the image of SQRT(v * (1/z - 1)) over binary64 z, within about one ulp of z of the
+        // true root (TINV(0.85,25) is 176 ulps from the root's t only through that map). z is
+        // the lattice point of the beta inverse nearer to p of the two that bracket it.
+        let fz = |u: f64| regularized_beta(u, v / 2.0, 0.5);
+        let hi = bisect_inverse(p, 0.0, 1.0, fz);
+        let lo = f64::from_bits(hi.to_bits() - 1);
+        let z = if (p - fz(lo)).abs() < (fz(hi) - p).abs() {
+            lo
+        } else {
+            hi
+        };
+        return Ok((v * (1.0 / z - 1.0)).sqrt());
+    }
     let f = move |x: f64| {
         let t2 = x * x;
         let den = v + t2;
