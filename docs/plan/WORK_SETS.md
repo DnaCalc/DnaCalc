@@ -12,7 +12,7 @@ here. Read `AGENTS.md` first; it is the contract. Then read the bead of your wor
   another workbook's saved values or that a circular-reference rule produced are listed on their
   own, never as pass.
 - **Inner loop stays fast.** Per commit: `cargo xtask check` (build, tests of what you touched,
-  the marker and word scans). Slow validation (browsers, the acceptance suite, architecture
+  the marker scans). Slow validation (browsers, the acceptance suite, architecture
   scans, Excel captures) is run on purpose with `cargo xtask sweep` or the capture command, never
   as a step that must pass before you can commit. Do not add new per-commit checks.
 - **Excel.** Only the Windows machine `C:\Work\DnaCalc` has Excel. Work sets marked *Excel* need

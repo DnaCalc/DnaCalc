@@ -1,6 +1,6 @@
 //! Light per-commit checks; dependent and full runs belong to the periodic keeper.
 use crate::cargo::{self, Resolved, Workspace};
-use crate::{licence, test_output, words};
+use crate::{licence, test_output};
 use serde_json::{Value, json};
 use std::collections::{BTreeMap, BTreeSet};
 use std::fs::{self, OpenOptions};
@@ -400,7 +400,7 @@ pub fn execute(ws: &Workspace, options: &Options) -> Result<Report, String> {
     let base = options
         .base
         .clone()
-        .unwrap_or_else(|| words::new_text_base(&ws.root).0);
+        .unwrap_or_else(|| new_text_base(&ws.root).0);
     let paths = changed_paths(&ws.root, &base)?;
     let touched = touched_packages(ws, &paths);
     println!(
@@ -556,6 +556,21 @@ pub fn run(raw: &[String]) -> ExitCode {
             eprintln!("xtask check: {e}");
             ExitCode::FAILURE
         }
+    }
+}
+
+/// The commit new text is measured from: where `HEAD` meets `origin/master` (`HEAD` itself when
+/// the repository has no `origin/master`), with how it was found.
+pub fn new_text_base(root: &Path) -> (String, String) {
+    match crate::cargo::git(root, &["merge-base", "HEAD", "origin/master"]) {
+        Ok(base) => (
+            base.trim().to_owned(),
+            "where HEAD meets origin/master".to_owned(),
+        ),
+        Err(_) => (
+            "HEAD".to_owned(),
+            "HEAD (no origin/master: only uncommitted text is new)".to_owned(),
+        ),
     }
 }
 

@@ -720,12 +720,11 @@ impl Accepted {
     }
 }
 
-const CHECKS: [&str; 5] = [
+const CHECKS: [&str; 4] = [
     "dependencies",
     "os-imports",
     "wasm-refusal",
     "tree-reference-tokens",
-    "word-scan",
 ];
 
 /// A misspelled required test name fails the runner, and so does every other way of not

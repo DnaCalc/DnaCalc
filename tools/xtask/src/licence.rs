@@ -17,7 +17,6 @@
 
 use crate::arch::CheckResult;
 use crate::cargo;
-use crate::words::unhex;
 use serde_json::{Value, json};
 use std::collections::{BTreeMap, BTreeSet};
 use std::fs;
@@ -300,6 +299,23 @@ fn check_with(root: &Path, ledger: bool) -> CheckResult {
         "files": Value::Object(hits),
     });
     CheckResult::new(NAME, summary, findings, details)
+}
+
+/// The ASCII text whose bytes `hex` spells in hexadecimal.
+pub fn unhex(hex: &str) -> Result<String, String> {
+    let digits = hex.as_bytes();
+    if digits.is_empty() || !digits.len().is_multiple_of(2) {
+        return Err(format!("{hex:?} is not an even number of hex digits"));
+    }
+    let mut bytes = Vec::with_capacity(digits.len() / 2);
+    for pair in digits.chunks(2) {
+        let pair = std::str::from_utf8(pair).map_err(|_| format!("{hex:?} is not hex"))?;
+        bytes.push(u8::from_str_radix(pair, 16).map_err(|_| format!("{hex:?} is not hex"))?);
+    }
+    if !bytes.is_ascii() {
+        return Err(format!("{hex:?} does not spell ASCII text"));
+    }
+    String::from_utf8(bytes).map_err(|_| format!("{hex:?} does not spell ASCII text"))
 }
 
 #[cfg(test)]
