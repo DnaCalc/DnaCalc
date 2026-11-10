@@ -11,10 +11,12 @@
 //!
 //! Of the workbook part's other elements, the loaded workbook carries the date system its
 //! `workbookPr` names ([`DateSystem`]), the calculation mode `calcPr`'s `calcMode` names
-//! ([`CalcMode`]), and its `definedName` elements: a block's locator becomes the block's anchor,
-//! and every other defined name is counted and not loaded. Its `externalReference` elements name
-//! externalLink parts, whose cached books the definitions hold (`external`, dc-ylr). `calcPr`'s
-//! other attributes and every other element of the workbook part are not read.
+//! ([`CalcMode`]) along with its `iterate`, `iterateCount` and `iterateDelta` settings, and its
+//! `definedName` elements: a block's locator becomes the block's anchor, while defined names are
+//! loaded into the model's definitions (with resolved locators counted as not loaded). Its
+//! `externalReference` elements name externalLink parts, whose cached books the definitions hold
+//! (`external`, dc-ylr). Other `calcPr` attributes and unmodelled elements of the workbook part
+//! are not read.
 //!
 //! The package's DNA view manifest, when it holds one, is read into the model's skin layout
 //! ([`manifest`]): its blocks, each anchored where its locator refers, and its placements in the

@@ -26,8 +26,10 @@
 //!   cells are materialized. Each cell's style index and each formula's shared formula group and
 //!   cached result are kept beside the model; a cached result is [`model::FileCached`] with the
 //!   identity of the part it was read from. The loaded workbook also carries its
-//!   [`DateSystem`], its [`CalcMode`] (`calcPr`'s `calcMode`; no other `calcPr` attribute is read)
-//!   and the number of defined names it holds and does not load. A cell or formula it does not read is a typed refusal ([`LoadError`]). The package's
+//!   [`DateSystem`], its [`CalcMode`] (`calcPr`'s `calcMode`; its `iterate`, `iterateCount` and
+//!   `iterateDelta` are read into iteration settings), its defined names in the model's definitions,
+//!   and the count of defined names not loaded into the model (such as resolved locators). A cell
+//!   or formula it does not read is a typed refusal ([`LoadError`]). The package's
 //!   DNA view manifest, one custom XML part, is read into the model's skin layout
 //!   ([`model::SkinLayout`]): each block with its opaque ID, its kind and its locator, a hidden,
 //!   workbook-scoped defined name named `_dna.block.` and 32 hex digits whose reference becomes

@@ -25,7 +25,7 @@ pub enum LoadError {
     MissingPart { part: String },
     /// A part does not have the shape SpreadsheetML gives it.
     InvalidPart { part: String, detail: &'static str },
-    /// A sheet is a chart sheet, a dialog sheet, a macro sheet or another kind than a worksheet.
+    /// A sheet is a chart sheet, a dialog sheet or another kind than a worksheet or macro sheet.
     UnsupportedSheet { name: String, kind: String },
     /// A sheet's name is not a sheet name.
     InvalidSheetName { name: String, error: SheetNameError },

@@ -54,7 +54,7 @@ not been measured on, it says so; implementing SliceV1 is not evidence of Excel 
   only the unmeasured parts.
 - **Excel shows a file's `<v>` on open without recalculating** (variant `wrong-cache`, `calc-doc/tests/fixtures/d1/
   excel-open.json`, 16.0.20430), calculates an ordinary formula without `<v>`, and an array without `<v>` only under
-  `fullCalcOnLoad` (`calc-doc/src/save/author.rs:712-723`). This decides what a preserved stale cache means (8).
+  `fullCalcOnLoad` (`calc-doc/src/save/author.rs:903-916`). This decides what a preserved stale cache means (8).
 
 ## 2. Envelope types and invariants
 
@@ -675,14 +675,15 @@ ordering. A matching profile needs a typed provisional evaluation rather than me
 
 - `DropStaleCaches` remains the explicit current-only policy: a formula not in the stale set is written with its calculated value,
   every other formula without `<v>` (`calc-host/src/save.rs:46-103`), plus `fullCalcOnLoad` when an array lacks one
-  (`calc-doc/src/save/author.rs:712-723`). Excel recalculates those on open (1). Honest, but it makes Excel call a UDF
+  (`calc-doc/src/save/author.rs:903-916`). Excel recalculates those on open (1). Honest, but it makes Excel call a UDF
   on open that Excel itself might not have called.
 - `PreservePermittedCaches` is selected by P06 (O, 20527 safe mode) for ordinary Manual Save(false): old
   caches of the same formula instance survive with ca=1, calcCompleted=0 and calcOnSave=0. Do not infer freshness
   from absent flags: disabled-sheet cases can keep stale caches without ca or calcCompleted. Flags follow the
   measured file profile; they do not create a producing command or certificate.
-- `CalculateBeforeSave` becomes a `CalculationDomain` setting (absent today; only the xlsb converter reads `calcOnSave`,
-  `calc-doc/src/xlsb/workbook.rs:562`). True: admit a `PinnedSave` calculation of the workbook's dirty/volatile demand,
+- `CalculateBeforeSave` is a `CalculationDomain` setting (xlsb conversion at `calc-doc/src/xlsb/workbook.rs:658-660`,
+  and save writes `calcOnSave` from `calculate_before_save`, `calc-doc/src/save/parts.rs:490-499`, supplied by
+  `calc-host/src/save.rs:435`). True: admit a `PinnedSave` calculation of the workbook's dirty/volatile demand,
   pin its final view, serialize with the original model pin; waiting on pending async; cancel or failure gives an
   explicit save outcome, never a silent downgrade. A live in-flight effectful invocation the save needs is waited for,
   not shared; if it is superseded the save is `Incomplete`.
