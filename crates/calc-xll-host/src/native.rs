@@ -787,6 +787,33 @@ pub(crate) struct CallbackAllocation {
 unsafe impl Send for CallbackAllocation {}
 pub(crate) type Allocations = Arc<Mutex<HashMap<usize, CallbackAllocation>>>;
 
+/// Load the executable's own XLCALL32.DLL by full path, once, before any XLL: an XLL that
+/// then loads "XLCALL32.DLL" by name gets this module, whatever its own search order would
+/// find first (answer 13 A.3 #5: the application directory does not always win). Returns the
+/// path of the XLCALL32.DLL module the process holds (None when neither exists).
+fn bind_companion() -> Option<PathBuf> {
+    static BOUND: OnceLock<()> = OnceLock::new();
+    BOUND.get_or_init(|| {
+        if let Ok(exe) = std::env::current_exe() {
+            let companion = exe.with_file_name("XLCALL32.DLL");
+            if companion.is_file() {
+                let path = wide(companion.as_os_str());
+                // The handle stays loaded for the process lifetime, as Excel's own does.
+                unsafe { LoadLibraryExW(path.as_ptr(), std::ptr::null_mut(), 0) };
+            }
+        }
+    });
+    let name = "XLCALL32.DLL\0".encode_utf16().collect::<Vec<_>>();
+    let handle = unsafe { GetModuleHandleW(name.as_ptr()) };
+    if handle.is_null() {
+        return None;
+    }
+    let mut buffer = vec![0u16; 32768];
+    let length = unsafe { GetModuleFileNameW(handle, buffer.as_mut_ptr(), buffer.len() as u32) };
+    (length != 0 && (length as usize) < buffer.len())
+        .then(|| PathBuf::from(String::from_utf16_lossy(&buffer[..length as usize])))
+}
+
 /// Main-thread owned XLL set. Registrations are caller-owned and can be snapshotted into
 /// an existing OneCalc/CalcHost session. Each adapter leases its exact module and address.
 pub struct XllHost {
@@ -822,10 +849,16 @@ impl XllHost {
             })),
         }
     }
+    /// The XLCALL32.DLL module the process has bound, by full path: the executable's own
+    /// companion beside it, loaded before the first XLL, or None when there is none.
+    pub fn companion_path(&self) -> Option<PathBuf> {
+        bind_companion()
+    }
     pub fn load(&self, path: &Path) -> Result<(), String> {
         if self.state.borrow().closed {
             return Err("XLL host is closed".into());
         }
+        bind_companion();
         let module = Module::load(path)?;
         if self
             .state
@@ -1205,7 +1238,10 @@ impl XllHost {
             // ubs:ignore -- xlAutoClose uses this fixed lifecycle ABI and a resolved, leased-module export.
             let close: unsafe extern "system" fn() -> i32 = unsafe { std::mem::transmute(address) };
             if unsafe { close() } as i16 == 0 {
-                failures.push(format!("xlAutoClose returned zero: {}", module.path.display()));
+                failures.push(format!(
+                    "xlAutoClose returned zero: {}",
+                    module.path.display()
+                ));
             }
             drop(guard);
         }

@@ -21,6 +21,12 @@ fn real_executable_uses_onecalc_for_the_same_excel_fixture() {
     assert_eq!(result["duplicate_use_count"], 2);
     assert_eq!(result["live_callback_allocations"], 0);
     assert_eq!(result["closed_registration"], "#NAME?");
+    // The executable bound its own companion by full path before the first XLL (A.3 #5).
+    let companion = std::path::PathBuf::from(result["companion"].as_str().unwrap());
+    assert_eq!(
+        std::fs::canonicalize(&companion).unwrap(),
+        std::fs::canonicalize(fixture.directory.join("XLCALL32.DLL")).unwrap()
+    );
 }
 
 /// Native-only: invokes typed ABI entries through the application and real XLL.
