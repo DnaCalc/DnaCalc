@@ -1,7 +1,7 @@
 {
   "status": "measured ordered batch; refusals remain failures",
-  "cases": 25,
-  "pass": 25,
+  "cases": 28,
+  "pass": 28,
   "fail": 0,
   "mismatched": 0,
   "refused": 0,
@@ -9,20 +9,20 @@
   "pass_rate_all_cases": 1.0,
   "counts": {
     "value_cases": {
-      "pass": 16,
+      "pass": 18,
       "mismatched": 0,
       "refused": 0,
       "missing": 0,
-      "total": 16,
+      "total": 18,
       "fail": 0,
       "pass_rate": 1.0
     },
     "ordered_boundary_cases": {
-      "pass": 9,
+      "pass": 10,
       "mismatched": 0,
       "refused": 0,
       "missing": 0,
-      "total": 9,
+      "total": 10,
       "fail": 0,
       "pass_rate": 1.0
     },
@@ -63,7 +63,7 @@
     "trigger": "Formula2 entry into one cell, then Application.Calculate for manual cases",
     "addin_files": {
       "uncalced-tests.enable": "E3B0C44298FC1C149AFBF4C8996FB92427AE41E4649B934CA495991B7852B855",
-      "X1.xll": "15C86653C72B6FE6FEB506B2906E0D3540E4E4B167A48C373E0C0621D3AEB8EC"
+      "X1.xll": "577E28B2A3C6802D7E33372A34F342C5C21227745F0A906DEB1F0AB1882B9174"
     },
     "workbook": "Book2",
     "load_order": [
@@ -71,11 +71,11 @@
     ],
     "excel_mode": "control without debugger",
     "host_executables": [
-      "62F277F59EC13591FC44B7A08C460D2B6B3D001FDDFF054184C33769706236A7"
+      "0E251E06C3BE2DFF93C60A765E7E28B6944ADB7FA0C90A9E96990B8650F2B3B4"
     ],
     "host_process_identity": [],
     "repository_commits": [
-      "02f38981bd24c3578cdd69d1a60bcea93ae99f11"
+      "41cd4471117bbd44e0291e2562b8a334131ee31c"
     ]
   },
   "rows": [
@@ -353,12 +353,45 @@
       "host": "again:64:err:#VALUE!|coerce=64:untouched|caller=64:untouched;late:19;again:0:num:19",
       "host_error": null,
       "recorded_value_agrees": true
+    },
+    {
+      "index": 25,
+      "group": "mixed",
+      "formula": "=MyUcMixed(C3,C3)",
+      "lane": "value_cases",
+      "outcome": "pass",
+      "excel": "0|num:19",
+      "host": "0|num:19",
+      "host_error": null,
+      "recorded_value_agrees": true
+    },
+    {
+      "index": 26,
+      "group": "mixed",
+      "formula": "=MyUcMixed(C3,C3)",
+      "lane": "value_cases",
+      "outcome": "pass",
+      "excel": "0|num:20",
+      "host": "0|num:20",
+      "host_error": null,
+      "recorded_value_agrees": true
+    },
+    {
+      "index": 27,
+      "group": "mixed",
+      "formula": "=MyUcLog()",
+      "lane": "ordered_boundary_cases",
+      "outcome": "pass",
+      "excel": "late:20;mixed:num:20:0:num:20",
+      "host": "late:20;mixed:num:20:0:num:20",
+      "host_error": null,
+      "recorded_value_agrees": true
     }
   ],
   "scope": "The fixture's own ordered log of entries, xlCoerce statuses, result-operand writes and xlAutoFree12 calls; the log rows are the ordered boundary lane, the cell values the other.",
   "excel_repeat": {
-    "cases": 25,
-    "agree": 25,
+    "cases": 28,
+    "agree": 28,
     "differ": [],
     "scope": "A second Excel run of the same cases and binaries; a differing row is a nondeterministic Excel answer, never a host pass."
   }

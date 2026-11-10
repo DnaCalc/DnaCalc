@@ -23,5 +23,8 @@
   {"group":"parent","manual":true,"legacy":true,"formula":"=MyUcLog()","value":"read:64:err:#VALUE!;parent:64:err:#VALUE!;late:18;read:0:num:18;parent:0:str:0|num:18"},
   {"group":"again","manual":true,"legacy":true,"dependent":"=MyUcLate(A1+4)","dependent_value":18,"formula":"=MyUcAgain(C3)","value":"0|num:18"},
   {"group":"again","manual":true,"legacy":true,"keep_formula":true,"formula":"=MyUcAgain(C3)","edit":{"cell":"A1","value":15},"before_calculate":"MyUcReset","before_calculate_value":1,"range":"B3,C3","value":"0|num:19"},
-  {"group":"again","manual":true,"legacy":true,"formula":"=MyUcLog()","value":"again:64:err:#VALUE!|coerce=64:untouched|caller=64:untouched;late:19;again:0:num:19"}
+  {"group":"again","manual":true,"legacy":true,"formula":"=MyUcLog()","value":"again:64:err:#VALUE!|coerce=64:untouched|caller=64:untouched;late:19;again:0:num:19"},
+  {"group":"mixed","manual":true,"legacy":true,"dependent":"=MyUcLate(A1+4)","dependent_value":19,"formula":"=MyUcMixed(C3,C3)","value":"0|num:19"},
+  {"group":"mixed","manual":true,"legacy":true,"keep_formula":true,"formula":"=MyUcMixed(C3,C3)","edit":{"cell":"A1","value":16},"before_calculate":"MyUcReset","before_calculate_value":1,"range":"B3,C3","value":"0|num:20"},
+  {"group":"mixed","manual":true,"legacy":true,"formula":"=MyUcLog()","value":"late:20;mixed:num:20:0:num:20"}
 ]

@@ -1850,7 +1850,7 @@ def verify_ordered(excel, host, cases_path, repeat=None):
              or env["pid"] not in env["preexisting_excel_pids"])
     require(observed["AutomationSecurity unchanged"] is True and env["pid"] != 3144 and owned, "Excel ownership/security failed")
     host_env = json.loads((host / "environment.json").read_text(encoding="utf-8-sig"))
-    require(host_env["fixture_files"]["X1.xll"] == env["fixture_files"]["X1.xll"], "Host and Excel loaded different fixture binaries")
+    require(host_env["fixture_files"] == env["fixture_files"], "Host and Excel loaded different fixture files")
     status = json.loads((host / "host.exit.json").read_text(encoding="utf-8-sig"))
     output = json.loads((host / "host.stdout.json").read_text(encoding="utf-8-sig")) if status.get("exit_code") == 0 else {"results": []}
     error = (host / "host.stderr").read_text(encoding="utf-8-sig").strip() if (host / "host.stderr").exists() else ""

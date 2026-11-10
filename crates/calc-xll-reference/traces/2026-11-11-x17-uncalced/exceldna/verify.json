@@ -1,0 +1,223 @@
+{
+  "status": "measured ordered batch; refusals remain failures",
+  "cases": 12,
+  "pass": 12,
+  "fail": 0,
+  "mismatched": 0,
+  "refused": 0,
+  "missing": 0,
+  "pass_rate_all_cases": 1.0,
+  "counts": {
+    "value_cases": {
+      "pass": 12,
+      "mismatched": 0,
+      "refused": 0,
+      "missing": 0,
+      "total": 12,
+      "fail": 0,
+      "pass_rate": 1.0
+    },
+    "ordered_boundary_cases": {
+      "pass": 0,
+      "mismatched": 0,
+      "refused": 0,
+      "missing": 0,
+      "total": 0,
+      "fail": 0,
+      "pass_rate": null
+    },
+    "lifecycle_ownership_cases": {
+      "pass": 0,
+      "mismatched": 0,
+      "refused": 0,
+      "missing": 0,
+      "total": 0,
+      "fail": 0,
+      "pass_rate": null
+    },
+    "framework_feature_lanes": {
+      "pass": 0,
+      "mismatched": 0,
+      "refused": 0,
+      "missing": 0,
+      "total": 0,
+      "fail": 0,
+      "pass_rate": null
+    }
+  },
+  "recorded_values_agree": true,
+  "manifest": {
+    "excel_build": "16.0.20527.20150",
+    "bitness": 64,
+    "locale": "en-ZA",
+    "calculation_modes": [
+      {
+        "requested": -4135,
+        "actual": -4135
+      }
+    ],
+    "mtr": {
+      "enabled": true,
+      "threads": 16
+    },
+    "trigger": "Formula2 entry into one cell, then Application.Calculate for manual cases",
+    "addin_files": {
+      "X17Uncalced-AddIn64.dna": "6EF6325456DBD6F23ADFD53275111A499E2D05F59A0684F71310A3113199521F",
+      "X17Uncalced-AddIn64.xll": "143AB292856A6452CDF3602B19DC7E6E8AADD3128DF88EFB7FC71E27A249E649",
+      "X17Uncalced.dll": "E9751566966CCAC3EDE99D70789C94A5EAEE2B3E05705B625D1A7CA4CBB51C80"
+    },
+    "workbook": "Book2",
+    "load_order": [
+      "RegisterXLL managed"
+    ],
+    "excel_mode": "control without debugger",
+    "host_executables": [
+      "0E251E06C3BE2DFF93C60A765E7E28B6944ADB7FA0C90A9E96990B8650F2B3B4"
+    ],
+    "host_process_identity": [],
+    "repository_commits": [
+      "41cd4471117bbd44e0291e2562b8a334131ee31c"
+    ]
+  },
+  "rows": [
+    {
+      "index": 0,
+      "group": "try",
+      "formula": "=ED_TRY_READ(C3)",
+      "lane": "value_cases",
+      "outcome": "pass",
+      "excel": 11.0,
+      "host": 11.0,
+      "host_error": null,
+      "recorded_value_agrees": true
+    },
+    {
+      "index": 1,
+      "group": "try",
+      "formula": "=ED_TRY_READ(C3)",
+      "lane": "value_cases",
+      "outcome": "pass",
+      "excel": 12.0,
+      "host": 12.0,
+      "host_error": null,
+      "recorded_value_agrees": true
+    },
+    {
+      "index": 2,
+      "group": "try",
+      "formula": "=UC_LOG()",
+      "lane": "value_cases",
+      "outcome": "pass",
+      "excel": "try:64;late:12;try:0:num:12",
+      "host": "try:64;late:12;try:0:num:12",
+      "host_error": null,
+      "recorded_value_agrees": true
+    },
+    {
+      "index": 3,
+      "group": "trysafe",
+      "formula": "=ED_TRY_READ_SAFE(C3)",
+      "lane": "value_cases",
+      "outcome": "pass",
+      "excel": 12.0,
+      "host": 12.0,
+      "host_error": null,
+      "recorded_value_agrees": true
+    },
+    {
+      "index": 4,
+      "group": "trysafe",
+      "formula": "=ED_TRY_READ_SAFE(C3)",
+      "lane": "value_cases",
+      "outcome": "pass",
+      "excel": 13.0,
+      "host": 13.0,
+      "host_error": null,
+      "recorded_value_agrees": true
+    },
+    {
+      "index": 5,
+      "group": "trysafe",
+      "formula": "=UC_LOG()",
+      "lane": "value_cases",
+      "outcome": "pass",
+      "excel": "trysafe:64;late:13;trysafe:0:num:13",
+      "host": "trysafe:64;late:13;trysafe:0:num:13",
+      "host_error": null,
+      "recorded_value_agrees": true
+    },
+    {
+      "index": 6,
+      "group": "throw",
+      "formula": "=ED_THROW_READ(C3)",
+      "lane": "value_cases",
+      "outcome": "pass",
+      "excel": 13.0,
+      "host": 13.0,
+      "host_error": null,
+      "recorded_value_agrees": true
+    },
+    {
+      "index": 7,
+      "group": "throw",
+      "formula": "=ED_THROW_READ(C3)",
+      "lane": "value_cases",
+      "outcome": "pass",
+      "excel": 14.0,
+      "host": 14.0,
+      "host_error": null,
+      "recorded_value_agrees": true
+    },
+    {
+      "index": 8,
+      "group": "throw",
+      "formula": "=UC_LOG()",
+      "lane": "value_cases",
+      "outcome": "pass",
+      "excel": "throw:caught:64;late:14;throw:0:num:14",
+      "host": "throw:caught:64;late:14;throw:0:num:14",
+      "host_error": null,
+      "recorded_value_agrees": true
+    },
+    {
+      "index": 9,
+      "group": "throwsafe",
+      "formula": "=ED_THROW_READ_SAFE(C3)",
+      "lane": "value_cases",
+      "outcome": "pass",
+      "excel": 14.0,
+      "host": 14.0,
+      "host_error": null,
+      "recorded_value_agrees": true
+    },
+    {
+      "index": 10,
+      "group": "throwsafe",
+      "formula": "=ED_THROW_READ_SAFE(C3)",
+      "lane": "value_cases",
+      "outcome": "pass",
+      "excel": 15.0,
+      "host": 15.0,
+      "host_error": null,
+      "recorded_value_agrees": true
+    },
+    {
+      "index": 11,
+      "group": "throwsafe",
+      "formula": "=UC_LOG()",
+      "lane": "value_cases",
+      "outcome": "pass",
+      "excel": "throwsafe:caught:64;late:15;throwsafe:0:num:15",
+      "host": "throwsafe:caught:64;late:15;throwsafe:0:num:15",
+      "host_error": null,
+      "recorded_value_agrees": true
+    }
+  ],
+  "scope": "The fixture's own ordered log of entries, xlCoerce statuses, result-operand writes and xlAutoFree12 calls; the log rows are the ordered boundary lane, the cell values the other.",
+  "excel_repeat": {
+    "cases": 12,
+    "agree": 12,
+    "differ": [],
+    "scope": "A second Excel run of the same cases and binaries; a differing row is a nondeterministic Excel answer, never a host pass."
+  }
+}

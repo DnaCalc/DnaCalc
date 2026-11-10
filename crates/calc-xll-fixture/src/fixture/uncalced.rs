@@ -15,6 +15,7 @@
 //! - `MyUcParent(ref)` (`QU`): calls xlUDF("MyUcRead", ref) and logs the outer status and output.
 //! - `MyUcAgain(ref)` (`QU`): after a status 64 it calls xlCoerce on the same reference again
 //!   and then xlfCaller, against the documented contract, and logs both statuses.
+//! - `MyUcMixed(ref, x)` (`QUQ`): logs the prepared value argument, then reads the reference.
 //! - `MyUcLate(x)` (`BB`): the producer; logs `late:x` when x differs from its last call.
 //! - `MyUcThreads()` (`Q`): `main` or `worker` per logged entry, in order.
 use super::boundary::{free_result, output, sentinel};
@@ -41,6 +42,7 @@ pub(super) unsafe fn register_all(module: &XlOper12) -> bool {
         ("MyUcOwned", "QU", "MyUcOwned"),
         ("MyUcParent", "QU", "MyUcParent"),
         ("MyUcAgain", "QU", "MyUcAgain"),
+        ("MyUcMixed", "QUQ", "MyUcMixed"),
     ]
     .into_iter()
     .all(|(procedure, signature, name)| unsafe { register(module, procedure, signature, name) })
@@ -179,5 +181,13 @@ pub unsafe extern "system" fn MyUcAgain(reference: *mut XlOper12) -> *mut XlOper
         }
     }
     log(line);
+    returned_text(&format!("{code}|{shown}"))
+}
+/// D.1's mixed call: a reference and a value argument naming the same pending cell.
+#[unsafe(no_mangle)]
+pub unsafe extern "system" fn MyUcMixed(reference: *mut XlOper12, value: *mut XlOper12) -> *mut XlOper12 {
+    let prepared = unsafe { output(&*value) };
+    let (code, shown) = unsafe { read(reference) };
+    log(format!("mixed:{prepared}:{code}:{shown}"));
     returned_text(&format!("{code}|{shown}"))
 }

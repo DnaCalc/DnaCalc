@@ -1,0 +1,14 @@
+[
+  {"group":"try","manual":true,"legacy":true,"dependent":"=UC_LATE(A1+4)","dependent_value":11,"formula":"=ED_TRY_READ(C3)","value":11},
+  {"group":"try","manual":true,"legacy":true,"keep_formula":true,"formula":"=ED_TRY_READ(C3)","edit":{"cell":"A1","value":8},"before_calculate":"UC_RESET","before_calculate_value":1,"range":"B3,C3","value":12},
+  {"group":"try","manual":true,"legacy":true,"formula":"=UC_LOG()","value":"try:64;late:12;try:0:num:12"},
+  {"group":"trysafe","manual":true,"legacy":true,"dependent":"=UC_LATE(A1+4)","dependent_value":12,"formula":"=ED_TRY_READ_SAFE(C3)","value":12},
+  {"group":"trysafe","manual":true,"legacy":true,"keep_formula":true,"formula":"=ED_TRY_READ_SAFE(C3)","edit":{"cell":"A1","value":9},"before_calculate":"UC_RESET","before_calculate_value":1,"range":"B3,C3","value":13},
+  {"group":"trysafe","manual":true,"legacy":true,"formula":"=UC_LOG()","value":"trysafe:64;late:13;trysafe:0:num:13"},
+  {"group":"throw","manual":true,"legacy":true,"dependent":"=UC_LATE(A1+4)","dependent_value":13,"formula":"=ED_THROW_READ(C3)","value":13},
+  {"group":"throw","manual":true,"legacy":true,"keep_formula":true,"formula":"=ED_THROW_READ(C3)","edit":{"cell":"A1","value":10},"before_calculate":"UC_RESET","before_calculate_value":1,"range":"B3,C3","value":14},
+  {"group":"throw","manual":true,"legacy":true,"formula":"=UC_LOG()","value":"throw:caught:64;late:14;throw:0:num:14"},
+  {"group":"throwsafe","manual":true,"legacy":true,"dependent":"=UC_LATE(A1+4)","dependent_value":14,"formula":"=ED_THROW_READ_SAFE(C3)","value":14},
+  {"group":"throwsafe","manual":true,"legacy":true,"keep_formula":true,"formula":"=ED_THROW_READ_SAFE(C3)","edit":{"cell":"A1","value":11},"before_calculate":"UC_RESET","before_calculate_value":1,"range":"B3,C3","value":15},
+  {"group":"throwsafe","manual":true,"legacy":true,"formula":"=UC_LOG()","value":"throwsafe:caught:64;late:15;throwsafe:0:num:15"}
+]

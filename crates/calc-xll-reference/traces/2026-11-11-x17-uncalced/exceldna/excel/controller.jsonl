@@ -1,0 +1,37 @@
+{"utc":"2026-11-10T23:47:52.7500433Z","operation":"RegisterXLL managed","value":true}
+{"utc":"2026-11-10T23:47:53.0295252Z","operation":"calculation mode =ED_TRY_READ(C3)","value":{"requested":-4135,"actual":-4135}}
+{"utc":"2026-11-10T23:47:53.1169548Z","operation":"=ED_TRY_READ(C3)","value":11.0}
+{"utc":"2026-11-10T23:47:53.1223332Z","operation":"dependent =ED_TRY_READ(C3)","value":11.0}
+{"utc":"2026-11-10T23:47:53.1346409Z","operation":"calculation mode =ED_TRY_READ(C3)","value":{"requested":-4135,"actual":-4135}}
+{"utc":"2026-11-10T23:47:53.1791333Z","operation":"before Calculate UC_RESET","value":1.0}
+{"utc":"2026-11-10T23:47:53.1928392Z","operation":"=ED_TRY_READ(C3)","value":12.0}
+{"utc":"2026-11-10T23:47:53.1959879Z","operation":"calculation mode =UC_LOG()","value":{"requested":-4135,"actual":-4135}}
+{"utc":"2026-11-10T23:47:53.2165764Z","operation":"=UC_LOG()","value":"try:64;late:12;try:0:num:12"}
+{"utc":"2026-11-10T23:47:53.2197790Z","operation":"calculation mode =ED_TRY_READ_SAFE(C3)","value":{"requested":-4135,"actual":-4135}}
+{"utc":"2026-11-10T23:47:53.2462841Z","operation":"=ED_TRY_READ_SAFE(C3)","value":12.0}
+{"utc":"2026-11-10T23:47:53.2508212Z","operation":"dependent =ED_TRY_READ_SAFE(C3)","value":12.0}
+{"utc":"2026-11-10T23:47:53.2611065Z","operation":"calculation mode =ED_TRY_READ_SAFE(C3)","value":{"requested":-4135,"actual":-4135}}
+{"utc":"2026-11-10T23:47:53.2777462Z","operation":"before Calculate UC_RESET","value":1.0}
+{"utc":"2026-11-10T23:47:53.2906644Z","operation":"=ED_TRY_READ_SAFE(C3)","value":13.0}
+{"utc":"2026-11-10T23:47:53.2976217Z","operation":"calculation mode =UC_LOG()","value":{"requested":-4135,"actual":-4135}}
+{"utc":"2026-11-10T23:47:53.3187258Z","operation":"=UC_LOG()","value":"trysafe:64;late:13;trysafe:0:num:13"}
+{"utc":"2026-11-10T23:47:53.3255668Z","operation":"calculation mode =ED_THROW_READ(C3)","value":{"requested":-4135,"actual":-4135}}
+{"utc":"2026-11-10T23:47:53.3506306Z","operation":"=ED_THROW_READ(C3)","value":13.0}
+{"utc":"2026-11-10T23:47:53.3553571Z","operation":"dependent =ED_THROW_READ(C3)","value":13.0}
+{"utc":"2026-11-10T23:47:53.3683748Z","operation":"calculation mode =ED_THROW_READ(C3)","value":{"requested":-4135,"actual":-4135}}
+{"utc":"2026-11-10T23:47:53.3853974Z","operation":"before Calculate UC_RESET","value":1.0}
+{"utc":"2026-11-10T23:47:53.3988258Z","operation":"=ED_THROW_READ(C3)","value":14.0}
+{"utc":"2026-11-10T23:47:53.4047333Z","operation":"calculation mode =UC_LOG()","value":{"requested":-4135,"actual":-4135}}
+{"utc":"2026-11-10T23:47:53.4228637Z","operation":"=UC_LOG()","value":"throw:caught:64;late:14;throw:0:num:14"}
+{"utc":"2026-11-10T23:47:53.4309407Z","operation":"calculation mode =ED_THROW_READ_SAFE(C3)","value":{"requested":-4135,"actual":-4135}}
+{"utc":"2026-11-10T23:47:53.4550345Z","operation":"=ED_THROW_READ_SAFE(C3)","value":14.0}
+{"utc":"2026-11-10T23:47:53.4602298Z","operation":"dependent =ED_THROW_READ_SAFE(C3)","value":14.0}
+{"utc":"2026-11-10T23:47:53.4723032Z","operation":"calculation mode =ED_THROW_READ_SAFE(C3)","value":{"requested":-4135,"actual":-4135}}
+{"utc":"2026-11-10T23:47:53.4931596Z","operation":"before Calculate UC_RESET","value":1.0}
+{"utc":"2026-11-10T23:47:53.5043200Z","operation":"=ED_THROW_READ_SAFE(C3)","value":15.0}
+{"utc":"2026-11-10T23:47:53.5109491Z","operation":"calculation mode =UC_LOG()","value":{"requested":-4135,"actual":-4135}}
+{"utc":"2026-11-10T23:47:53.5298108Z","operation":"=UC_LOG()","value":"throwsafe:caught:64;late:15;throwsafe:0:num:15"}
+{"utc":"2026-11-10T23:47:53.5429636Z","operation":"AutomationSecurity unchanged before teardown","value":true}
+{"utc":"2026-11-10T23:47:53.6626371Z","operation":"ExecuteExcel4Macro UNREGISTER(managed)","value":true}
+{"utc":"2026-11-10T23:47:53.6657154Z","operation":"AutomationSecurity unchanged","value":true}
+{"utc":"2026-11-10T23:47:54.7042048Z","operation":"cleanup","value":"Workbook closed; Excel returned to lane session host"}

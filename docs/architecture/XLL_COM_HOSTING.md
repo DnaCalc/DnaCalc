@@ -1263,10 +1263,10 @@ waiting workers at once. The lease, GIL and crash-containment parts of D.21 rema
 ## 30. Status 64 batch x17: xlretUncalced, discarded attempts, `#` and value arguments (dc-6332.11)
 
 Answer 13's D.1 and D.2 with the X1 fixture's opt-in probes (`calc-xll-fixture/src/fixture/
-uncalced.rs`, marker `uncalced-tests.enable`), `fixture/x17-uncalced-cases.json` (25 cases with
+uncalced.rs`, marker `uncalced-tests.enable`), `fixture/x17-uncalced-cases.json` (28 cases with
 Excel's answers) and evidence in `crates/calc-xll-reference/traces/2026-11-11-x17-uncalced`.
 Each group calculates `Range("B3,C3")` with the reader B3 before its producer C3 (P03's
-reversed-area order). Two Excel runs agreed on all 25 rows. Measured in Excel 16.0.20527.20150:
+reversed-area order). Two Excel runs agreed on all 28 rows. Measured in Excel 16.0.20527.20150:
 
 - xlCoerce of a valid reference whose producer is not calculated yet returns 64
   (`xlretUncalced`) and writes #VALUE! into the result operand. Every later callback of that
@@ -1275,7 +1275,8 @@ reversed-area order). Two Excel runs agreed on all 25 rows. Measured in Excel 16
   producer the procedure is entered again as a new entry and reads the new value.
 - xlUDF from a parent whose child gets 64 returns 64 with #VALUE!; both are entered again.
 - `QU#` reads the producer's previous value with status 0, in one entry.
-- `QQ`/`QQ$` value arguments are prepared before entry: one entry, after the producer.
+- `QQ`/`QQ$` value arguments are prepared before entry: one entry, after the producer; so is
+  `QUQ` with the cell as both arguments.
 - Range.Calculate enters `QU$` on the main thread, the 64 attempt and the retry alike.
 
 Host and engine: the engine-neutral seam has a typed read (`UserFunctionContext::read_reference`,
@@ -1289,4 +1290,8 @@ attempt at the call's return and evaluates the formula again after the producer.
 keeps pool parallelism and early execution (callable.rs `keeps_measured_concurrency`; only
 `ProvisionalArguments` makes a callable serial), cached readers may be entered before a direct
 producer in range order, and a range calculation enters native calls on the owner thread.
-DNA Calc's engine matches all 25 rows.
+DNA Calc's engine matches all 28 rows.
+- Excel-DNA 1.9.0 (`fixture/X17Uncalced.csproj`): `XlCall.TryExcel(xlCoerce)` returns 64; the
+  throwing `XlCall.Excel` raises XlCallException with xlReturn 64, and a function that catches
+  it and returns -999 still gets a fresh entry; -999 is never the cell's value. The engine
+  matches all 12 rows.
