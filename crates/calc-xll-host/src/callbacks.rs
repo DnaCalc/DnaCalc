@@ -88,17 +88,18 @@ pub(crate) enum ResultWrite {
     ZeroAll,
     /// A result operand built by the host; its allocation is already registered.
     Operand(XlOper12),
-    /// A failed callback inside a frame: Excel 16.0.20527 writes xltypeErr #VALUE! into the
-    /// result operand for statuses 2, 32 and 128 (x13 boundary batch, every failed row in the
-    /// normal, `#`, `$` and xlAutoOpen contexts). Other statuses leave it untouched.
-    Failure,
+    /// A failed callback inside a frame: Excel 16.0.20527 writes an xltypeErr into the result
+    /// operand: #VALUE! for statuses 2, 32 and 128 (x13 boundary batch, every failed row in the
+    /// normal, `#`, `$` and xlAutoOpen contexts), the source's own error when xlCoerce fails on
+    /// an error value (x14). Other statuses leave it untouched.
+    Error(i32),
 }
 impl CallbackReply {
     fn status(status: i32) -> Self {
         Self {
             status,
             write: if matches!(status, INVALID_FUNCTION | FAILED | NOT_THREAD_SAFE) {
-                ResultWrite::Failure
+                ResultWrite::Error(15)
             } else {
                 ResultWrite::Unchanged
             },
@@ -137,8 +138,8 @@ impl CallbackReply {
                     std::ptr::write_bytes(result.cast::<u8>(), 0, std::mem::size_of::<XlOper12>());
                 },
                 ResultWrite::Operand(oper) => unsafe { result.write_unaligned(oper) },
-                ResultWrite::Failure => unsafe {
-                    result.write_unaligned(XlOper12::error(15));
+                ResultWrite::Error(code) => unsafe {
+                    result.write_unaligned(XlOper12::error(code));
                 },
             }
         }
@@ -595,6 +596,9 @@ unsafe fn answer(
     if matches!(function, XL_SHEET_ID | XL_SHEET_NM) {
         return unsafe { sheet_callback(frame, function, args) };
     }
+    if function == XL_COERCE {
+        return unsafe { coerce_callback(frame, args, no_result) };
+    }
     match run(frame, function, args) {
         Ok(Some(_)) if no_result => CallbackReply::status(SUCCESS),
         Ok(Some(value)) => match unsafe { publish(frame, function, args, &value) } {
@@ -720,30 +724,6 @@ fn run(
                 Some(c) => CalcValue::reference(ReferenceLike::cell(c)),
                 None => CalcValue::error(WorksheetErrorCode::Ref),
             }
-        }
-        XL_COERCE => {
-            if !(1..=2).contains(&args.len()) {
-                return Err((
-                    INVALID_COUNT,
-                    "xlCoerce expects one or two arguments".into(),
-                ));
-            }
-            let mut value = values[0].clone();
-            if let Some(reference) = value.as_reference() {
-                if args.len() == 2 && values[1].as_number() == Some(f64::from(XL_REF)) {
-                    return Ok(Some(value));
-                }
-                value = frame
-                    .context
-                    .as_mut()
-                    .ok_or_else(|| err("dc-snz.2: xlCoerce reference outside formula"))?
-                    .values_of(reference)
-                    .map_err(err)?;
-            }
-            if let Some(kind) = values.get(1).and_then(CalcValue::as_number) {
-                value = coerce(value, kind as u32)?;
-            }
-            value
         }
         XLF_GET_WORKSPACE => {
             require(1)?;
@@ -1009,6 +989,166 @@ fn run(
     Ok(Some(value))
 }
 
+/// xlCoerce as Excel 16.0.20527 answers it (x14 operand batch, `x14-operand-cases.json`): the
+/// second operand is a mask of acceptable types, not one type. A reference is returned as it
+/// is when the mask allows Ref, read otherwise (a multi-area reference reads as #VALUE!); an
+/// array is kept when the mask allows Multi, else its top-left element is used; a value whose
+/// kind the mask allows is returned unchanged; otherwise the first possible conversion in the
+/// order Num, Str, Bool, Int, Multi, Err is taken. Measured failures are status 32 with the
+/// source's error (an error value) or #VALUE! (a failed conversion) in the result operand, and
+/// never refuse the formula.
+unsafe fn coerce_callback(
+    frame: &mut Frame<'_>,
+    args: &[*mut XlOper12],
+    no_result: bool,
+) -> CallbackReply {
+    if !(1..=2).contains(&args.len()) {
+        return CallbackReply::refused(
+            INVALID_COUNT,
+            "xlCoerce expects one or two arguments".into(),
+        );
+    }
+    let values = {
+        let state = frame.state.borrow();
+        match args
+            .iter()
+            .map(|p| unsafe { from_oper(*p, &state.sheets, current_sheet(&frame.context)) })
+            .collect::<Result<Vec<_>, _>>()
+        {
+            Ok(values) => values,
+            Err(why) => return CallbackReply::refused(FAILED, why),
+        }
+    };
+    let mask = match values.get(1) {
+        None => None,
+        Some(kind) => match kind.as_number() {
+            Some(n) if n >= 0. && n.fract() == 0. && n <= f64::from(u16::MAX) => Some(n as u32),
+            _ => {
+                return CallbackReply::refused(
+                    FAILED,
+                    "dc-snz.2: xlCoerce with a non-numeric type operand is not modelled".into(),
+                );
+            }
+        },
+    };
+    if mask.is_some_and(|m| {
+        m & !(XL_NUM | XL_STR | XL_BOOL | XL_REF | XL_ERR | XL_MULTI | XL_INT) != 0
+    }) {
+        return CallbackReply::refused(
+            FAILED,
+            "dc-snz.2: xlCoerce to Missing, Nil, SRef or flow types is not modelled".into(),
+        );
+    }
+    let mut value = values[0].clone();
+    if let Some(reference) = value.as_reference() {
+        if mask.is_some_and(|m| m & XL_REF != 0) {
+            return reply_value(frame, args, value, false, no_result);
+        }
+        value = if reference.areas().len() > 1 {
+            CalcValue::error(WorksheetErrorCode::Value)
+        } else {
+            match frame.context.as_mut() {
+                Some(context) => match context.values_of(reference) {
+                    Ok(value) => value,
+                    Err(why) => return CallbackReply::refused(FAILED, why),
+                },
+                None => {
+                    return CallbackReply::refused(
+                        FAILED,
+                        "dc-snz.2: xlCoerce reference outside formula".into(),
+                    );
+                }
+            }
+        };
+    }
+    let Some(mask) = mask else {
+        return reply_value(frame, args, value, false, no_result);
+    };
+    match coerce_mask(value, mask) {
+        Ok((value, integer)) => reply_value(frame, args, value, integer, no_result),
+        Err(Coerced::Failed(code)) => CallbackReply {
+            status: FAILED,
+            write: ResultWrite::Error(code),
+            refusal: None,
+        },
+        Err(Coerced::NotModelled(why)) => CallbackReply::refused(FAILED, why),
+    }
+}
+enum Coerced {
+    /// Excel's status 32 with this error in the result operand.
+    Failed(i32),
+    NotModelled(String),
+}
+fn reply_value(
+    frame: &mut Frame<'_>,
+    args: &[*mut XlOper12],
+    value: CalcValue,
+    integer: bool,
+    no_result: bool,
+) -> CallbackReply {
+    if no_result {
+        return CallbackReply::status(SUCCESS);
+    }
+    if integer {
+        return CallbackReply::operand(XlOper12::integer(value.as_number().unwrap_or(0.) as i32));
+    }
+    match unsafe { publish(frame, XL_COERCE, &args[..1], &value) } {
+        Ok(oper) => CallbackReply::operand(oper),
+        Err(why) => CallbackReply::refused(FAILED, why),
+    }
+}
+/// One value against a type mask; the bool says the answer is an xltypeInt.
+fn coerce_mask(value: CalcValue, mask: u32) -> Result<(CalcValue, bool), Coerced> {
+    if value.as_array().is_some() && mask & XL_MULTI != 0 {
+        return Ok((value, false));
+    }
+    let value = match value.as_array() {
+        Some(array) => array.get(0, 0).cloned().unwrap_or_else(CalcValue::empty),
+        None => value,
+    };
+    let kind = match value.core_ref() {
+        CoreRef::Number(_) => XL_NUM,
+        CoreRef::Text(_) => XL_STR,
+        CoreRef::Logical(_) => XL_BOOL,
+        CoreRef::Error(_) => XL_ERR,
+        _ => 0,
+    };
+    if kind != 0 && mask & kind != 0 {
+        return Ok((value, false));
+    }
+    if let CoreRef::Error(code) = value.core_ref() {
+        // An error converts only into an array holding it (x14: #N/A and #VALUE! to Multi).
+        if mask & XL_MULTI != 0 {
+            return Ok((
+                CalcValue::array(calc_value::CalcArray::from_scalar(value)),
+                false,
+            ));
+        }
+        return Err(Coerced::Failed(error_operand_code(code)));
+    }
+    for target in [XL_NUM, XL_STR, XL_BOOL, XL_INT, XL_MULTI, XL_ERR] {
+        if mask & target == 0 {
+            continue;
+        }
+        if target == XL_ERR {
+            // Any non-error value coerces to #VALUE! with status 0.
+            return Ok((CalcValue::error(WorksheetErrorCode::Value), false));
+        }
+        match coerce(value.clone(), target) {
+            Ok(converted) => return Ok((converted, target == XL_INT)),
+            Err((_, why)) if why.starts_with("dc-snz.20:") => {
+                return Err(Coerced::NotModelled(why));
+            }
+            Err(_) => continue,
+        }
+    }
+    // Every allowed conversion failed (or the mask holds Ref alone for a value).
+    Err(Coerced::Failed(15))
+}
+/// The XLOPER12 error code of a worksheet error (#VALUE! for one without an Excel 12 code).
+fn error_operand_code(code: WorksheetErrorCode) -> i32 {
+    calc_xll_abi::error_number(code).unwrap_or(15)
+}
 pub(crate) fn coerce(value: CalcValue, kind: u32) -> Result<CalcValue, (i32, String)> {
     let matches = match kind {
         XL_NUM => value.as_number().is_some(),

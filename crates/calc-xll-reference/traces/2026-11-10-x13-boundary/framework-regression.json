@@ -100,9 +100,57 @@
       "results": 5
     }
   ],
+  "regress-x14": [
+    {
+      "set": "x1",
+      "exit": 0,
+      "results": 289
+    },
+    {
+      "set": "exceldna-net48",
+      "exit": 0,
+      "results": 7
+    },
+    {
+      "set": "exceldna-net8",
+      "exit": 0,
+      "results": 7
+    },
+    {
+      "set": "exceldna-aot",
+      "exit": 0,
+      "results": 1
+    },
+    {
+      "set": "exceldna-pool",
+      "exit": 0,
+      "results": 2
+    },
+    {
+      "set": "xlw",
+      "exit": 0,
+      "results": 5
+    },
+    {
+      "set": "xlw-types",
+      "exit": 0,
+      "results": 5
+    },
+    {
+      "set": "xloil-utils-sql",
+      "exit": 0,
+      "results": 12
+    },
+    {
+      "set": "xloil-python",
+      "exit": 0,
+      "results": 5
+    }
+  ],
   "host_executables": {
     "before": "58FE4E28F1A74D9F2A695CA6D74F42967DEA1010CC6A79A2C146BCBC07817863",
-    "final": "4274E3F281C1992AE10AA5E129D0FEC0F84DBACC9F7BC1A259F5CD7361991E17"
+    "final": "4274E3F281C1992AE10AA5E129D0FEC0F84DBACC9F7BC1A259F5CD7361991E17",
+    "x14": "06F1EB1A5CD3CF2C280BE77B0672E275902314ADC08E5F85A0B0032F3E819FC7"
   },
-  "scope": "run.ps1 -NoTrace -HostExecutable per framework set; the OneCalc exe checks each case value against Excel's recorded answer and exits 1 at the first difference. before = the 85ea49e5 build (its first xlOil Python run ended in an access violation, 0xC0000005; the repeat, regress-before2, passed); final = the dc-6332.10 host the x13 batch used."
+  "scope": "run.ps1 -NoTrace -HostExecutable per framework set; the OneCalc exe checks each case value against Excel's recorded answer and exits 1 at the first difference. before = the 85ea49e5 build (its first xlOil Python run ended in an access violation, 0xC0000005; the repeat, regress-before2, passed); final = the 31478370 host the x13 batch used; x14 = the 5e1eaaae host with the xlCoerce mask rules."
 }

@@ -1,0 +1,1543 @@
+{
+  "status": "measured boundary batch; refusals remain failures",
+  "cases": 145,
+  "pass": 128,
+  "fail": 17,
+  "mismatched": 0,
+  "refused": 17,
+  "missing": 0,
+  "pass_rate_all_cases": 0.8827586206896552,
+  "counts": {
+    "value_cases": {
+      "pass": 0,
+      "mismatched": 0,
+      "refused": 0,
+      "missing": 0,
+      "total": 0,
+      "fail": 0,
+      "pass_rate": null
+    },
+    "ordered_boundary_cases": {
+      "pass": 0,
+      "mismatched": 0,
+      "refused": 0,
+      "missing": 0,
+      "total": 0,
+      "fail": 0,
+      "pass_rate": null
+    },
+    "lifecycle_ownership_cases": {
+      "pass": 128,
+      "mismatched": 0,
+      "refused": 17,
+      "missing": 0,
+      "total": 145,
+      "fail": 17,
+      "pass_rate": 0.8827586206896552
+    },
+    "framework_feature_lanes": {
+      "pass": 0,
+      "mismatched": 0,
+      "refused": 0,
+      "missing": 0,
+      "total": 0,
+      "fail": 0,
+      "pass_rate": null
+    }
+  },
+  "manifest": {
+    "excel_build": "16.0.20527.20150",
+    "bitness": 64,
+    "locale": "en-ZA",
+    "calculation_modes": [
+      {
+        "requested": -4105,
+        "actual": -4105
+      }
+    ],
+    "mtr": {
+      "enabled": true,
+      "threads": 16
+    },
+    "trigger": "Formula2 entry into one cell, automatic recalculation",
+    "addin_files": {
+      "boundary-tests.enable": "E3B0C44298FC1C149AFBF4C8996FB92427AE41E4649B934CA495991B7852B855",
+      "X1.xll": "A7194D47CD9226356040BCA0D85FCDE1F2116FDB9DBC24DEEDEFAB4993575F99"
+    },
+    "workbook": "Book2",
+    "load_order": [
+      "RegisterXLL managed"
+    ],
+    "excel_mode": "control without debugger",
+    "host_executables": [
+      "06F1EB1A5CD3CF2C280BE77B0672E275902314ADC08E5F85A0B0032F3E819FC7"
+    ],
+    "host_process_identity": [],
+    "repository_commits": [
+      "8cbbe05429480789b399d2170b49b4ff07cc578e"
+    ]
+  },
+  "rows": [
+    {
+      "formula": "=MyCoerce(1,1)",
+      "lane": "lifecycle_ownership_cases",
+      "outcome": "pass",
+      "excel": "0|num:1",
+      "host": "0|num:1",
+      "host_refusal": null,
+      "matched": true,
+      "recorded_value_agrees": true
+    },
+    {
+      "formula": "=MyCoerce(1,2)",
+      "lane": "lifecycle_ownership_cases",
+      "outcome": "pass",
+      "excel": "0|str:1",
+      "host": "0|str:1",
+      "host_refusal": null,
+      "matched": true,
+      "recorded_value_agrees": true
+    },
+    {
+      "formula": "=MyCoerce(1,4)",
+      "lane": "lifecycle_ownership_cases",
+      "outcome": "pass",
+      "excel": "0|bool:TRUE",
+      "host": "0|bool:TRUE",
+      "host_refusal": null,
+      "matched": true,
+      "recorded_value_agrees": true
+    },
+    {
+      "formula": "=MyCoerce(1,16)",
+      "lane": "lifecycle_ownership_cases",
+      "outcome": "pass",
+      "excel": "0|err:#VALUE!",
+      "host": "0|err:#VALUE!",
+      "host_refusal": null,
+      "matched": true,
+      "recorded_value_agrees": true
+    },
+    {
+      "formula": "=MyCoerce(1,64)",
+      "lane": "lifecycle_ownership_cases",
+      "outcome": "pass",
+      "excel": "0|multi:1x1[num:1]",
+      "host": "0|multi:1x1[num:1]",
+      "host_refusal": null,
+      "matched": true,
+      "recorded_value_agrees": true
+    },
+    {
+      "formula": "=MyCoerce(1,2048)",
+      "lane": "lifecycle_ownership_cases",
+      "outcome": "pass",
+      "excel": "0|int:1",
+      "host": "0|int:1",
+      "host_refusal": null,
+      "matched": true,
+      "recorded_value_agrees": true
+    },
+    {
+      "formula": "=MyCoerce(1,3)",
+      "lane": "lifecycle_ownership_cases",
+      "outcome": "pass",
+      "excel": "0|num:1",
+      "host": "0|num:1",
+      "host_refusal": null,
+      "matched": true,
+      "recorded_value_agrees": true
+    },
+    {
+      "formula": "=MyCoerce(1,87)",
+      "lane": "lifecycle_ownership_cases",
+      "outcome": "pass",
+      "excel": "0|num:1",
+      "host": "0|num:1",
+      "host_refusal": null,
+      "matched": true,
+      "recorded_value_agrees": true
+    },
+    {
+      "formula": "=MyCoerce(1,8)",
+      "lane": "lifecycle_ownership_cases",
+      "outcome": "pass",
+      "excel": "32|err:#VALUE!",
+      "host": "32|err:#VALUE!",
+      "host_refusal": null,
+      "matched": true,
+      "recorded_value_agrees": true
+    },
+    {
+      "formula": "=MyCoerce(2.5,1)",
+      "lane": "lifecycle_ownership_cases",
+      "outcome": "pass",
+      "excel": "0|num:2.5",
+      "host": "0|num:2.5",
+      "host_refusal": null,
+      "matched": true,
+      "recorded_value_agrees": true
+    },
+    {
+      "formula": "=MyCoerce(2.5,2)",
+      "lane": "lifecycle_ownership_cases",
+      "outcome": "pass",
+      "excel": "0|str:2.5",
+      "host": "0|str:2.5",
+      "host_refusal": null,
+      "matched": true,
+      "recorded_value_agrees": true
+    },
+    {
+      "formula": "=MyCoerce(2.5,4)",
+      "lane": "lifecycle_ownership_cases",
+      "outcome": "pass",
+      "excel": "0|bool:TRUE",
+      "host": "0|bool:TRUE",
+      "host_refusal": null,
+      "matched": true,
+      "recorded_value_agrees": true
+    },
+    {
+      "formula": "=MyCoerce(2.5,16)",
+      "lane": "lifecycle_ownership_cases",
+      "outcome": "pass",
+      "excel": "0|err:#VALUE!",
+      "host": "0|err:#VALUE!",
+      "host_refusal": null,
+      "matched": true,
+      "recorded_value_agrees": true
+    },
+    {
+      "formula": "=MyCoerce(2.5,64)",
+      "lane": "lifecycle_ownership_cases",
+      "outcome": "pass",
+      "excel": "0|multi:1x1[num:2.5]",
+      "host": "0|multi:1x1[num:2.5]",
+      "host_refusal": null,
+      "matched": true,
+      "recorded_value_agrees": true
+    },
+    {
+      "formula": "=MyCoerce(2.5,2048)",
+      "lane": "lifecycle_ownership_cases",
+      "outcome": "pass",
+      "excel": "0|int:2",
+      "host": "0|int:2",
+      "host_refusal": null,
+      "matched": true,
+      "recorded_value_agrees": true
+    },
+    {
+      "formula": "=MyCoerce(2.5,3)",
+      "lane": "lifecycle_ownership_cases",
+      "outcome": "pass",
+      "excel": "0|num:2.5",
+      "host": "0|num:2.5",
+      "host_refusal": null,
+      "matched": true,
+      "recorded_value_agrees": true
+    },
+    {
+      "formula": "=MyCoerce(2.5,87)",
+      "lane": "lifecycle_ownership_cases",
+      "outcome": "pass",
+      "excel": "0|num:2.5",
+      "host": "0|num:2.5",
+      "host_refusal": null,
+      "matched": true,
+      "recorded_value_agrees": true
+    },
+    {
+      "formula": "=MyCoerce(2.5,8)",
+      "lane": "lifecycle_ownership_cases",
+      "outcome": "pass",
+      "excel": "32|err:#VALUE!",
+      "host": "32|err:#VALUE!",
+      "host_refusal": null,
+      "matched": true,
+      "recorded_value_agrees": true
+    },
+    {
+      "formula": "=MyCoerce(TRUE,1)",
+      "lane": "lifecycle_ownership_cases",
+      "outcome": "pass",
+      "excel": "0|num:1",
+      "host": "0|num:1",
+      "host_refusal": null,
+      "matched": true,
+      "recorded_value_agrees": true
+    },
+    {
+      "formula": "=MyCoerce(TRUE,2)",
+      "lane": "lifecycle_ownership_cases",
+      "outcome": "pass",
+      "excel": "0|str:TRUE",
+      "host": "0|str:TRUE",
+      "host_refusal": null,
+      "matched": true,
+      "recorded_value_agrees": true
+    },
+    {
+      "formula": "=MyCoerce(TRUE,4)",
+      "lane": "lifecycle_ownership_cases",
+      "outcome": "pass",
+      "excel": "0|bool:TRUE",
+      "host": "0|bool:TRUE",
+      "host_refusal": null,
+      "matched": true,
+      "recorded_value_agrees": true
+    },
+    {
+      "formula": "=MyCoerce(TRUE,16)",
+      "lane": "lifecycle_ownership_cases",
+      "outcome": "pass",
+      "excel": "0|err:#VALUE!",
+      "host": "0|err:#VALUE!",
+      "host_refusal": null,
+      "matched": true,
+      "recorded_value_agrees": true
+    },
+    {
+      "formula": "=MyCoerce(TRUE,64)",
+      "lane": "lifecycle_ownership_cases",
+      "outcome": "pass",
+      "excel": "0|multi:1x1[bool:TRUE]",
+      "host": "0|multi:1x1[bool:TRUE]",
+      "host_refusal": null,
+      "matched": true,
+      "recorded_value_agrees": true
+    },
+    {
+      "formula": "=MyCoerce(TRUE,2048)",
+      "lane": "lifecycle_ownership_cases",
+      "outcome": "pass",
+      "excel": "0|int:1",
+      "host": "0|int:1",
+      "host_refusal": null,
+      "matched": true,
+      "recorded_value_agrees": true
+    },
+    {
+      "formula": "=MyCoerce(TRUE,3)",
+      "lane": "lifecycle_ownership_cases",
+      "outcome": "pass",
+      "excel": "0|num:1",
+      "host": "0|num:1",
+      "host_refusal": null,
+      "matched": true,
+      "recorded_value_agrees": true
+    },
+    {
+      "formula": "=MyCoerce(TRUE,87)",
+      "lane": "lifecycle_ownership_cases",
+      "outcome": "pass",
+      "excel": "0|bool:TRUE",
+      "host": "0|bool:TRUE",
+      "host_refusal": null,
+      "matched": true,
+      "recorded_value_agrees": true
+    },
+    {
+      "formula": "=MyCoerce(TRUE,8)",
+      "lane": "lifecycle_ownership_cases",
+      "outcome": "pass",
+      "excel": "32|err:#VALUE!",
+      "host": "32|err:#VALUE!",
+      "host_refusal": null,
+      "matched": true,
+      "recorded_value_agrees": true
+    },
+    {
+      "formula": "=MyCoerce(\"a\",1)",
+      "lane": "lifecycle_ownership_cases",
+      "outcome": "pass",
+      "excel": "32|err:#VALUE!",
+      "host": "32|err:#VALUE!",
+      "host_refusal": null,
+      "matched": true,
+      "recorded_value_agrees": true
+    },
+    {
+      "formula": "=MyCoerce(\"a\",2)",
+      "lane": "lifecycle_ownership_cases",
+      "outcome": "pass",
+      "excel": "0|str:a",
+      "host": "0|str:a",
+      "host_refusal": null,
+      "matched": true,
+      "recorded_value_agrees": true
+    },
+    {
+      "formula": "=MyCoerce(\"a\",4)",
+      "lane": "lifecycle_ownership_cases",
+      "outcome": "pass",
+      "excel": "32|err:#VALUE!",
+      "host": "32|err:#VALUE!",
+      "host_refusal": null,
+      "matched": true,
+      "recorded_value_agrees": true
+    },
+    {
+      "formula": "=MyCoerce(\"a\",16)",
+      "lane": "lifecycle_ownership_cases",
+      "outcome": "pass",
+      "excel": "0|err:#VALUE!",
+      "host": "0|err:#VALUE!",
+      "host_refusal": null,
+      "matched": true,
+      "recorded_value_agrees": true
+    },
+    {
+      "formula": "=MyCoerce(\"a\",64)",
+      "lane": "lifecycle_ownership_cases",
+      "outcome": "pass",
+      "excel": "0|multi:1x1[str:a]",
+      "host": "0|multi:1x1[str:a]",
+      "host_refusal": null,
+      "matched": true,
+      "recorded_value_agrees": true
+    },
+    {
+      "formula": "=MyCoerce(\"a\",2048)",
+      "lane": "lifecycle_ownership_cases",
+      "outcome": "pass",
+      "excel": "32|err:#VALUE!",
+      "host": "32|err:#VALUE!",
+      "host_refusal": null,
+      "matched": true,
+      "recorded_value_agrees": true
+    },
+    {
+      "formula": "=MyCoerce(\"a\",3)",
+      "lane": "lifecycle_ownership_cases",
+      "outcome": "pass",
+      "excel": "0|str:a",
+      "host": "0|str:a",
+      "host_refusal": null,
+      "matched": true,
+      "recorded_value_agrees": true
+    },
+    {
+      "formula": "=MyCoerce(\"a\",87)",
+      "lane": "lifecycle_ownership_cases",
+      "outcome": "pass",
+      "excel": "0|str:a",
+      "host": "0|str:a",
+      "host_refusal": null,
+      "matched": true,
+      "recorded_value_agrees": true
+    },
+    {
+      "formula": "=MyCoerce(\"a\",8)",
+      "lane": "lifecycle_ownership_cases",
+      "outcome": "pass",
+      "excel": "32|err:#VALUE!",
+      "host": "32|err:#VALUE!",
+      "host_refusal": null,
+      "matched": true,
+      "recorded_value_agrees": true
+    },
+    {
+      "formula": "=MyCoerce(\"12\",1)",
+      "lane": "lifecycle_ownership_cases",
+      "outcome": "pass",
+      "excel": "0|num:12",
+      "host": "0|num:12",
+      "host_refusal": null,
+      "matched": true,
+      "recorded_value_agrees": true
+    },
+    {
+      "formula": "=MyCoerce(\"12\",2)",
+      "lane": "lifecycle_ownership_cases",
+      "outcome": "pass",
+      "excel": "0|str:12",
+      "host": "0|str:12",
+      "host_refusal": null,
+      "matched": true,
+      "recorded_value_agrees": true
+    },
+    {
+      "formula": "=MyCoerce(\"12\",4)",
+      "lane": "lifecycle_ownership_cases",
+      "outcome": "pass",
+      "excel": "32|err:#VALUE!",
+      "host": "32|err:#VALUE!",
+      "host_refusal": null,
+      "matched": true,
+      "recorded_value_agrees": true
+    },
+    {
+      "formula": "=MyCoerce(\"12\",16)",
+      "lane": "lifecycle_ownership_cases",
+      "outcome": "pass",
+      "excel": "0|err:#VALUE!",
+      "host": "0|err:#VALUE!",
+      "host_refusal": null,
+      "matched": true,
+      "recorded_value_agrees": true
+    },
+    {
+      "formula": "=MyCoerce(\"12\",64)",
+      "lane": "lifecycle_ownership_cases",
+      "outcome": "pass",
+      "excel": "0|multi:1x1[str:12]",
+      "host": "0|multi:1x1[str:12]",
+      "host_refusal": null,
+      "matched": true,
+      "recorded_value_agrees": true
+    },
+    {
+      "formula": "=MyCoerce(\"12\",2048)",
+      "lane": "lifecycle_ownership_cases",
+      "outcome": "pass",
+      "excel": "0|int:12",
+      "host": "0|int:12",
+      "host_refusal": null,
+      "matched": true,
+      "recorded_value_agrees": true
+    },
+    {
+      "formula": "=MyCoerce(\"12\",3)",
+      "lane": "lifecycle_ownership_cases",
+      "outcome": "pass",
+      "excel": "0|str:12",
+      "host": "0|str:12",
+      "host_refusal": null,
+      "matched": true,
+      "recorded_value_agrees": true
+    },
+    {
+      "formula": "=MyCoerce(\"12\",87)",
+      "lane": "lifecycle_ownership_cases",
+      "outcome": "pass",
+      "excel": "0|str:12",
+      "host": "0|str:12",
+      "host_refusal": null,
+      "matched": true,
+      "recorded_value_agrees": true
+    },
+    {
+      "formula": "=MyCoerce(\"12\",8)",
+      "lane": "lifecycle_ownership_cases",
+      "outcome": "pass",
+      "excel": "32|err:#VALUE!",
+      "host": "32|err:#VALUE!",
+      "host_refusal": null,
+      "matched": true,
+      "recorded_value_agrees": true
+    },
+    {
+      "formula": "=MyCoerce(\" 12 \",1)",
+      "lane": "lifecycle_ownership_cases",
+      "outcome": "pass",
+      "excel": "0|num:12",
+      "host": "0|num:12",
+      "host_refusal": null,
+      "matched": true,
+      "recorded_value_agrees": true
+    },
+    {
+      "formula": "=MyCoerce(\" 12 \",2)",
+      "lane": "lifecycle_ownership_cases",
+      "outcome": "pass",
+      "excel": "0|str: 12 ",
+      "host": "0|str: 12 ",
+      "host_refusal": null,
+      "matched": true,
+      "recorded_value_agrees": true
+    },
+    {
+      "formula": "=MyCoerce(\" 12 \",4)",
+      "lane": "lifecycle_ownership_cases",
+      "outcome": "pass",
+      "excel": "32|err:#VALUE!",
+      "host": "32|err:#VALUE!",
+      "host_refusal": null,
+      "matched": true,
+      "recorded_value_agrees": true
+    },
+    {
+      "formula": "=MyCoerce(\" 12 \",16)",
+      "lane": "lifecycle_ownership_cases",
+      "outcome": "pass",
+      "excel": "0|err:#VALUE!",
+      "host": "0|err:#VALUE!",
+      "host_refusal": null,
+      "matched": true,
+      "recorded_value_agrees": true
+    },
+    {
+      "formula": "=MyCoerce(\" 12 \",64)",
+      "lane": "lifecycle_ownership_cases",
+      "outcome": "pass",
+      "excel": "0|multi:1x1[str: 12 ]",
+      "host": "0|multi:1x1[str: 12 ]",
+      "host_refusal": null,
+      "matched": true,
+      "recorded_value_agrees": true
+    },
+    {
+      "formula": "=MyCoerce(\" 12 \",2048)",
+      "lane": "lifecycle_ownership_cases",
+      "outcome": "pass",
+      "excel": "0|int:12",
+      "host": "0|int:12",
+      "host_refusal": null,
+      "matched": true,
+      "recorded_value_agrees": true
+    },
+    {
+      "formula": "=MyCoerce(\" 12 \",3)",
+      "lane": "lifecycle_ownership_cases",
+      "outcome": "pass",
+      "excel": "0|str: 12 ",
+      "host": "0|str: 12 ",
+      "host_refusal": null,
+      "matched": true,
+      "recorded_value_agrees": true
+    },
+    {
+      "formula": "=MyCoerce(\" 12 \",87)",
+      "lane": "lifecycle_ownership_cases",
+      "outcome": "pass",
+      "excel": "0|str: 12 ",
+      "host": "0|str: 12 ",
+      "host_refusal": null,
+      "matched": true,
+      "recorded_value_agrees": true
+    },
+    {
+      "formula": "=MyCoerce(\" 12 \",8)",
+      "lane": "lifecycle_ownership_cases",
+      "outcome": "pass",
+      "excel": "32|err:#VALUE!",
+      "host": "32|err:#VALUE!",
+      "host_refusal": null,
+      "matched": true,
+      "recorded_value_agrees": true
+    },
+    {
+      "formula": "=MyCoerce(\"1e3\",1)",
+      "lane": "lifecycle_ownership_cases",
+      "outcome": "pass",
+      "excel": "0|num:1000",
+      "host": "0|num:1000",
+      "host_refusal": null,
+      "matched": true,
+      "recorded_value_agrees": true
+    },
+    {
+      "formula": "=MyCoerce(\"1e3\",2)",
+      "lane": "lifecycle_ownership_cases",
+      "outcome": "pass",
+      "excel": "0|str:1e3",
+      "host": "0|str:1e3",
+      "host_refusal": null,
+      "matched": true,
+      "recorded_value_agrees": true
+    },
+    {
+      "formula": "=MyCoerce(\"1e3\",4)",
+      "lane": "lifecycle_ownership_cases",
+      "outcome": "pass",
+      "excel": "32|err:#VALUE!",
+      "host": "32|err:#VALUE!",
+      "host_refusal": null,
+      "matched": true,
+      "recorded_value_agrees": true
+    },
+    {
+      "formula": "=MyCoerce(\"1e3\",16)",
+      "lane": "lifecycle_ownership_cases",
+      "outcome": "pass",
+      "excel": "0|err:#VALUE!",
+      "host": "0|err:#VALUE!",
+      "host_refusal": null,
+      "matched": true,
+      "recorded_value_agrees": true
+    },
+    {
+      "formula": "=MyCoerce(\"1e3\",64)",
+      "lane": "lifecycle_ownership_cases",
+      "outcome": "pass",
+      "excel": "0|multi:1x1[str:1e3]",
+      "host": "0|multi:1x1[str:1e3]",
+      "host_refusal": null,
+      "matched": true,
+      "recorded_value_agrees": true
+    },
+    {
+      "formula": "=MyCoerce(\"1e3\",2048)",
+      "lane": "lifecycle_ownership_cases",
+      "outcome": "pass",
+      "excel": "0|int:1000",
+      "host": "0|int:1000",
+      "host_refusal": null,
+      "matched": true,
+      "recorded_value_agrees": true
+    },
+    {
+      "formula": "=MyCoerce(\"1e3\",3)",
+      "lane": "lifecycle_ownership_cases",
+      "outcome": "pass",
+      "excel": "0|str:1e3",
+      "host": "0|str:1e3",
+      "host_refusal": null,
+      "matched": true,
+      "recorded_value_agrees": true
+    },
+    {
+      "formula": "=MyCoerce(\"1e3\",87)",
+      "lane": "lifecycle_ownership_cases",
+      "outcome": "pass",
+      "excel": "0|str:1e3",
+      "host": "0|str:1e3",
+      "host_refusal": null,
+      "matched": true,
+      "recorded_value_agrees": true
+    },
+    {
+      "formula": "=MyCoerce(\"1e3\",8)",
+      "lane": "lifecycle_ownership_cases",
+      "outcome": "pass",
+      "excel": "32|err:#VALUE!",
+      "host": "32|err:#VALUE!",
+      "host_refusal": null,
+      "matched": true,
+      "recorded_value_agrees": true
+    },
+    {
+      "formula": "=MyCoerce(\"\",1)",
+      "lane": "lifecycle_ownership_cases",
+      "outcome": "pass",
+      "excel": "32|err:#VALUE!",
+      "host": "32|err:#VALUE!",
+      "host_refusal": null,
+      "matched": true,
+      "recorded_value_agrees": true
+    },
+    {
+      "formula": "=MyCoerce(\"\",2)",
+      "lane": "lifecycle_ownership_cases",
+      "outcome": "pass",
+      "excel": "0|str:",
+      "host": "0|str:",
+      "host_refusal": null,
+      "matched": true,
+      "recorded_value_agrees": true
+    },
+    {
+      "formula": "=MyCoerce(\"\",4)",
+      "lane": "lifecycle_ownership_cases",
+      "outcome": "pass",
+      "excel": "32|err:#VALUE!",
+      "host": "32|err:#VALUE!",
+      "host_refusal": null,
+      "matched": true,
+      "recorded_value_agrees": true
+    },
+    {
+      "formula": "=MyCoerce(\"\",16)",
+      "lane": "lifecycle_ownership_cases",
+      "outcome": "pass",
+      "excel": "0|err:#VALUE!",
+      "host": "0|err:#VALUE!",
+      "host_refusal": null,
+      "matched": true,
+      "recorded_value_agrees": true
+    },
+    {
+      "formula": "=MyCoerce(\"\",64)",
+      "lane": "lifecycle_ownership_cases",
+      "outcome": "pass",
+      "excel": "0|multi:1x1[str:]",
+      "host": "0|multi:1x1[str:]",
+      "host_refusal": null,
+      "matched": true,
+      "recorded_value_agrees": true
+    },
+    {
+      "formula": "=MyCoerce(\"\",2048)",
+      "lane": "lifecycle_ownership_cases",
+      "outcome": "pass",
+      "excel": "32|err:#VALUE!",
+      "host": "32|err:#VALUE!",
+      "host_refusal": null,
+      "matched": true,
+      "recorded_value_agrees": true
+    },
+    {
+      "formula": "=MyCoerce(\"\",3)",
+      "lane": "lifecycle_ownership_cases",
+      "outcome": "pass",
+      "excel": "0|str:",
+      "host": "0|str:",
+      "host_refusal": null,
+      "matched": true,
+      "recorded_value_agrees": true
+    },
+    {
+      "formula": "=MyCoerce(\"\",87)",
+      "lane": "lifecycle_ownership_cases",
+      "outcome": "pass",
+      "excel": "0|str:",
+      "host": "0|str:",
+      "host_refusal": null,
+      "matched": true,
+      "recorded_value_agrees": true
+    },
+    {
+      "formula": "=MyCoerce(\"\",8)",
+      "lane": "lifecycle_ownership_cases",
+      "outcome": "pass",
+      "excel": "32|err:#VALUE!",
+      "host": "32|err:#VALUE!",
+      "host_refusal": null,
+      "matched": true,
+      "recorded_value_agrees": true
+    },
+    {
+      "formula": "=MyCoerce(NA(),1)",
+      "lane": "lifecycle_ownership_cases",
+      "outcome": "pass",
+      "excel": "32|err:#N/A",
+      "host": "32|err:#N/A",
+      "host_refusal": null,
+      "matched": true,
+      "recorded_value_agrees": true
+    },
+    {
+      "formula": "=MyCoerce(NA(),2)",
+      "lane": "lifecycle_ownership_cases",
+      "outcome": "pass",
+      "excel": "32|err:#N/A",
+      "host": "32|err:#N/A",
+      "host_refusal": null,
+      "matched": true,
+      "recorded_value_agrees": true
+    },
+    {
+      "formula": "=MyCoerce(NA(),4)",
+      "lane": "lifecycle_ownership_cases",
+      "outcome": "pass",
+      "excel": "32|err:#N/A",
+      "host": "32|err:#N/A",
+      "host_refusal": null,
+      "matched": true,
+      "recorded_value_agrees": true
+    },
+    {
+      "formula": "=MyCoerce(NA(),16)",
+      "lane": "lifecycle_ownership_cases",
+      "outcome": "pass",
+      "excel": "0|err:#N/A",
+      "host": "0|err:#N/A",
+      "host_refusal": null,
+      "matched": true,
+      "recorded_value_agrees": true
+    },
+    {
+      "formula": "=MyCoerce(NA(),64)",
+      "lane": "lifecycle_ownership_cases",
+      "outcome": "pass",
+      "excel": "0|multi:1x1[err:#N/A]",
+      "host": "0|multi:1x1[err:#N/A]",
+      "host_refusal": null,
+      "matched": true,
+      "recorded_value_agrees": true
+    },
+    {
+      "formula": "=MyCoerce(NA(),2048)",
+      "lane": "lifecycle_ownership_cases",
+      "outcome": "pass",
+      "excel": "32|err:#N/A",
+      "host": "32|err:#N/A",
+      "host_refusal": null,
+      "matched": true,
+      "recorded_value_agrees": true
+    },
+    {
+      "formula": "=MyCoerce(NA(),3)",
+      "lane": "lifecycle_ownership_cases",
+      "outcome": "pass",
+      "excel": "32|err:#N/A",
+      "host": "32|err:#N/A",
+      "host_refusal": null,
+      "matched": true,
+      "recorded_value_agrees": true
+    },
+    {
+      "formula": "=MyCoerce(NA(),87)",
+      "lane": "lifecycle_ownership_cases",
+      "outcome": "pass",
+      "excel": "0|err:#N/A",
+      "host": "0|err:#N/A",
+      "host_refusal": null,
+      "matched": true,
+      "recorded_value_agrees": true
+    },
+    {
+      "formula": "=MyCoerce(NA(),8)",
+      "lane": "lifecycle_ownership_cases",
+      "outcome": "pass",
+      "excel": "32|err:#N/A",
+      "host": "32|err:#N/A",
+      "host_refusal": null,
+      "matched": true,
+      "recorded_value_agrees": true
+    },
+    {
+      "formula": "=MyCoerce({1,2;3,4},1)",
+      "lane": "lifecycle_ownership_cases",
+      "outcome": "pass",
+      "excel": "0|num:1",
+      "host": "0|num:1",
+      "host_refusal": null,
+      "matched": true,
+      "recorded_value_agrees": true
+    },
+    {
+      "formula": "=MyCoerce({1,2;3,4},2)",
+      "lane": "lifecycle_ownership_cases",
+      "outcome": "pass",
+      "excel": "0|str:1",
+      "host": "0|str:1",
+      "host_refusal": null,
+      "matched": true,
+      "recorded_value_agrees": true
+    },
+    {
+      "formula": "=MyCoerce({1,2;3,4},4)",
+      "lane": "lifecycle_ownership_cases",
+      "outcome": "pass",
+      "excel": "0|bool:TRUE",
+      "host": "0|bool:TRUE",
+      "host_refusal": null,
+      "matched": true,
+      "recorded_value_agrees": true
+    },
+    {
+      "formula": "=MyCoerce({1,2;3,4},16)",
+      "lane": "lifecycle_ownership_cases",
+      "outcome": "pass",
+      "excel": "0|err:#VALUE!",
+      "host": "0|err:#VALUE!",
+      "host_refusal": null,
+      "matched": true,
+      "recorded_value_agrees": true
+    },
+    {
+      "formula": "=MyCoerce({1,2;3,4},64)",
+      "lane": "lifecycle_ownership_cases",
+      "outcome": "pass",
+      "excel": "0|multi:2x2[num:1;num:2;num:3;num:4]",
+      "host": "0|multi:2x2[num:1;num:2;num:3;num:4]",
+      "host_refusal": null,
+      "matched": true,
+      "recorded_value_agrees": true
+    },
+    {
+      "formula": "=MyCoerce({1,2;3,4},2048)",
+      "lane": "lifecycle_ownership_cases",
+      "outcome": "pass",
+      "excel": "0|int:1",
+      "host": "0|int:1",
+      "host_refusal": null,
+      "matched": true,
+      "recorded_value_agrees": true
+    },
+    {
+      "formula": "=MyCoerce({1,2;3,4},3)",
+      "lane": "lifecycle_ownership_cases",
+      "outcome": "pass",
+      "excel": "0|num:1",
+      "host": "0|num:1",
+      "host_refusal": null,
+      "matched": true,
+      "recorded_value_agrees": true
+    },
+    {
+      "formula": "=MyCoerce({1,2;3,4},87)",
+      "lane": "lifecycle_ownership_cases",
+      "outcome": "pass",
+      "excel": "0|multi:2x2[num:1;num:2;num:3;num:4]",
+      "host": "0|multi:2x2[num:1;num:2;num:3;num:4]",
+      "host_refusal": null,
+      "matched": true,
+      "recorded_value_agrees": true
+    },
+    {
+      "formula": "=MyCoerce({1,2;3,4},8)",
+      "lane": "lifecycle_ownership_cases",
+      "outcome": "pass",
+      "excel": "32|err:#VALUE!",
+      "host": "32|err:#VALUE!",
+      "host_refusal": null,
+      "matched": true,
+      "recorded_value_agrees": true
+    },
+    {
+      "formula": "=MyCoerceRef(A1,1)",
+      "lane": "lifecycle_ownership_cases",
+      "outcome": "pass",
+      "excel": "0|num:7",
+      "host": "0|num:7",
+      "host_refusal": null,
+      "matched": true,
+      "recorded_value_agrees": true
+    },
+    {
+      "formula": "=MyCoerceRef(A1,2)",
+      "lane": "lifecycle_ownership_cases",
+      "outcome": "pass",
+      "excel": "0|str:7",
+      "host": "0|str:7",
+      "host_refusal": null,
+      "matched": true,
+      "recorded_value_agrees": true
+    },
+    {
+      "formula": "=MyCoerceRef(A1,4)",
+      "lane": "lifecycle_ownership_cases",
+      "outcome": "pass",
+      "excel": "0|bool:TRUE",
+      "host": "0|bool:TRUE",
+      "host_refusal": null,
+      "matched": true,
+      "recorded_value_agrees": true
+    },
+    {
+      "formula": "=MyCoerceRef(A1,16)",
+      "lane": "lifecycle_ownership_cases",
+      "outcome": "pass",
+      "excel": "0|err:#VALUE!",
+      "host": "0|err:#VALUE!",
+      "host_refusal": null,
+      "matched": true,
+      "recorded_value_agrees": true
+    },
+    {
+      "formula": "=MyCoerceRef(A1,64)",
+      "lane": "lifecycle_ownership_cases",
+      "outcome": "pass",
+      "excel": "0|multi:1x1[num:7]",
+      "host": "0|multi:1x1[num:7]",
+      "host_refusal": null,
+      "matched": true,
+      "recorded_value_agrees": true
+    },
+    {
+      "formula": "=MyCoerceRef(A1,2048)",
+      "lane": "lifecycle_ownership_cases",
+      "outcome": "pass",
+      "excel": "0|int:7",
+      "host": "0|int:7",
+      "host_refusal": null,
+      "matched": true,
+      "recorded_value_agrees": true
+    },
+    {
+      "formula": "=MyCoerceRef(A1,3)",
+      "lane": "lifecycle_ownership_cases",
+      "outcome": "pass",
+      "excel": "0|num:7",
+      "host": "0|num:7",
+      "host_refusal": null,
+      "matched": true,
+      "recorded_value_agrees": true
+    },
+    {
+      "formula": "=MyCoerceRef(A1,87)",
+      "lane": "lifecycle_ownership_cases",
+      "outcome": "pass",
+      "excel": "0|num:7",
+      "host": "0|num:7",
+      "host_refusal": null,
+      "matched": true,
+      "recorded_value_agrees": true
+    },
+    {
+      "formula": "=MyCoerceRef(A1,8)",
+      "lane": "lifecycle_ownership_cases",
+      "outcome": "pass",
+      "excel": "0|ref:areas=1",
+      "host": "0|ref:areas=1",
+      "host_refusal": null,
+      "matched": true,
+      "recorded_value_agrees": true
+    },
+    {
+      "formula": "=MyCoerceRef(Z99,1)",
+      "lane": "lifecycle_ownership_cases",
+      "outcome": "refused",
+      "excel": "0|num:0",
+      "host": null,
+      "host_refusal": "dna-onecalc-desktop: =MyCoerceRef(Z99,1): [Eval(MissingInput { cell: CellKey { sheet: SheetId { slot: 0, generation: 0 }, row: 99, column: 26 } })]",
+      "matched": false,
+      "recorded_value_agrees": true
+    },
+    {
+      "formula": "=MyCoerceRef(Z99,2)",
+      "lane": "lifecycle_ownership_cases",
+      "outcome": "refused",
+      "excel": "0|str:",
+      "host": null,
+      "host_refusal": "dna-onecalc-desktop: =MyCoerceRef(Z99,2): [Eval(MissingInput { cell: CellKey { sheet: SheetId { slot: 0, generation: 0 }, row: 99, column: 26 } })]",
+      "matched": false,
+      "recorded_value_agrees": true
+    },
+    {
+      "formula": "=MyCoerceRef(Z99,4)",
+      "lane": "lifecycle_ownership_cases",
+      "outcome": "refused",
+      "excel": "0|bool:FALSE",
+      "host": null,
+      "host_refusal": "dna-onecalc-desktop: =MyCoerceRef(Z99,4): [Eval(MissingInput { cell: CellKey { sheet: SheetId { slot: 0, generation: 0 }, row: 99, column: 26 } })]",
+      "matched": false,
+      "recorded_value_agrees": true
+    },
+    {
+      "formula": "=MyCoerceRef(Z99,16)",
+      "lane": "lifecycle_ownership_cases",
+      "outcome": "refused",
+      "excel": "0|err:#VALUE!",
+      "host": null,
+      "host_refusal": "dna-onecalc-desktop: =MyCoerceRef(Z99,16): [Eval(MissingInput { cell: CellKey { sheet: SheetId { slot: 0, generation: 0 }, row: 99, column: 26 } })]",
+      "matched": false,
+      "recorded_value_agrees": true
+    },
+    {
+      "formula": "=MyCoerceRef(Z99,64)",
+      "lane": "lifecycle_ownership_cases",
+      "outcome": "refused",
+      "excel": "0|multi:1x1[nil:]",
+      "host": null,
+      "host_refusal": "dna-onecalc-desktop: =MyCoerceRef(Z99,64): [Eval(MissingInput { cell: CellKey { sheet: SheetId { slot: 0, generation: 0 }, row: 99, column: 26 } })]",
+      "matched": false,
+      "recorded_value_agrees": true
+    },
+    {
+      "formula": "=MyCoerceRef(Z99,2048)",
+      "lane": "lifecycle_ownership_cases",
+      "outcome": "refused",
+      "excel": "0|int:0",
+      "host": null,
+      "host_refusal": "dna-onecalc-desktop: =MyCoerceRef(Z99,2048): [Eval(MissingInput { cell: CellKey { sheet: SheetId { slot: 0, generation: 0 }, row: 99, column: 26 } })]",
+      "matched": false,
+      "recorded_value_agrees": true
+    },
+    {
+      "formula": "=MyCoerceRef(Z99,3)",
+      "lane": "lifecycle_ownership_cases",
+      "outcome": "refused",
+      "excel": "0|num:0",
+      "host": null,
+      "host_refusal": "dna-onecalc-desktop: =MyCoerceRef(Z99,3): [Eval(MissingInput { cell: CellKey { sheet: SheetId { slot: 0, generation: 0 }, row: 99, column: 26 } })]",
+      "matched": false,
+      "recorded_value_agrees": true
+    },
+    {
+      "formula": "=MyCoerceRef(Z99,87)",
+      "lane": "lifecycle_ownership_cases",
+      "outcome": "refused",
+      "excel": "0|num:0",
+      "host": null,
+      "host_refusal": "dna-onecalc-desktop: =MyCoerceRef(Z99,87): [Eval(MissingInput { cell: CellKey { sheet: SheetId { slot: 0, generation: 0 }, row: 99, column: 26 } })]",
+      "matched": false,
+      "recorded_value_agrees": true
+    },
+    {
+      "formula": "=MyCoerceRef(Z99,8)",
+      "lane": "lifecycle_ownership_cases",
+      "outcome": "pass",
+      "excel": "0|ref:areas=1",
+      "host": "0|ref:areas=1",
+      "host_refusal": null,
+      "matched": true,
+      "recorded_value_agrees": true
+    },
+    {
+      "formula": "=MyCoerceRef(A1:A2,1)",
+      "lane": "lifecycle_ownership_cases",
+      "outcome": "refused",
+      "excel": "0|num:7",
+      "host": null,
+      "host_refusal": "dna-onecalc-desktop: =MyCoerceRef(A1:A2,1): [Eval(MissingInput { cell: CellKey { sheet: SheetId { slot: 0, generation: 0 }, row: 2, column: 1 } })]",
+      "matched": false,
+      "recorded_value_agrees": true
+    },
+    {
+      "formula": "=MyCoerceRef(A1:A2,2)",
+      "lane": "lifecycle_ownership_cases",
+      "outcome": "refused",
+      "excel": "0|str:7",
+      "host": null,
+      "host_refusal": "dna-onecalc-desktop: =MyCoerceRef(A1:A2,2): [Eval(MissingInput { cell: CellKey { sheet: SheetId { slot: 0, generation: 0 }, row: 2, column: 1 } })]",
+      "matched": false,
+      "recorded_value_agrees": true
+    },
+    {
+      "formula": "=MyCoerceRef(A1:A2,4)",
+      "lane": "lifecycle_ownership_cases",
+      "outcome": "refused",
+      "excel": "0|bool:TRUE",
+      "host": null,
+      "host_refusal": "dna-onecalc-desktop: =MyCoerceRef(A1:A2,4): [Eval(MissingInput { cell: CellKey { sheet: SheetId { slot: 0, generation: 0 }, row: 2, column: 1 } })]",
+      "matched": false,
+      "recorded_value_agrees": true
+    },
+    {
+      "formula": "=MyCoerceRef(A1:A2,16)",
+      "lane": "lifecycle_ownership_cases",
+      "outcome": "refused",
+      "excel": "0|err:#VALUE!",
+      "host": null,
+      "host_refusal": "dna-onecalc-desktop: =MyCoerceRef(A1:A2,16): [Eval(MissingInput { cell: CellKey { sheet: SheetId { slot: 0, generation: 0 }, row: 2, column: 1 } })]",
+      "matched": false,
+      "recorded_value_agrees": true
+    },
+    {
+      "formula": "=MyCoerceRef(A1:A2,64)",
+      "lane": "lifecycle_ownership_cases",
+      "outcome": "refused",
+      "excel": "0|multi:2x1[num:7;nil:]",
+      "host": null,
+      "host_refusal": "dna-onecalc-desktop: =MyCoerceRef(A1:A2,64): [Eval(MissingInput { cell: CellKey { sheet: SheetId { slot: 0, generation: 0 }, row: 2, column: 1 } })]",
+      "matched": false,
+      "recorded_value_agrees": true
+    },
+    {
+      "formula": "=MyCoerceRef(A1:A2,2048)",
+      "lane": "lifecycle_ownership_cases",
+      "outcome": "refused",
+      "excel": "0|int:7",
+      "host": null,
+      "host_refusal": "dna-onecalc-desktop: =MyCoerceRef(A1:A2,2048): [Eval(MissingInput { cell: CellKey { sheet: SheetId { slot: 0, generation: 0 }, row: 2, column: 1 } })]",
+      "matched": false,
+      "recorded_value_agrees": true
+    },
+    {
+      "formula": "=MyCoerceRef(A1:A2,3)",
+      "lane": "lifecycle_ownership_cases",
+      "outcome": "refused",
+      "excel": "0|num:7",
+      "host": null,
+      "host_refusal": "dna-onecalc-desktop: =MyCoerceRef(A1:A2,3): [Eval(MissingInput { cell: CellKey { sheet: SheetId { slot: 0, generation: 0 }, row: 2, column: 1 } })]",
+      "matched": false,
+      "recorded_value_agrees": true
+    },
+    {
+      "formula": "=MyCoerceRef(A1:A2,87)",
+      "lane": "lifecycle_ownership_cases",
+      "outcome": "refused",
+      "excel": "0|multi:2x1[num:7;nil:]",
+      "host": null,
+      "host_refusal": "dna-onecalc-desktop: =MyCoerceRef(A1:A2,87): [Eval(MissingInput { cell: CellKey { sheet: SheetId { slot: 0, generation: 0 }, row: 2, column: 1 } })]",
+      "matched": false,
+      "recorded_value_agrees": true
+    },
+    {
+      "formula": "=MyCoerceRef(A1:A2,8)",
+      "lane": "lifecycle_ownership_cases",
+      "outcome": "pass",
+      "excel": "0|ref:areas=1",
+      "host": "0|ref:areas=1",
+      "host_refusal": null,
+      "matched": true,
+      "recorded_value_agrees": true
+    },
+    {
+      "formula": "=MyCoerceRef((A1,A2),1)",
+      "lane": "lifecycle_ownership_cases",
+      "outcome": "pass",
+      "excel": "32|err:#VALUE!",
+      "host": "32|err:#VALUE!",
+      "host_refusal": null,
+      "matched": true,
+      "recorded_value_agrees": true
+    },
+    {
+      "formula": "=MyCoerceRef((A1,A2),2)",
+      "lane": "lifecycle_ownership_cases",
+      "outcome": "pass",
+      "excel": "32|err:#VALUE!",
+      "host": "32|err:#VALUE!",
+      "host_refusal": null,
+      "matched": true,
+      "recorded_value_agrees": true
+    },
+    {
+      "formula": "=MyCoerceRef((A1,A2),4)",
+      "lane": "lifecycle_ownership_cases",
+      "outcome": "pass",
+      "excel": "32|err:#VALUE!",
+      "host": "32|err:#VALUE!",
+      "host_refusal": null,
+      "matched": true,
+      "recorded_value_agrees": true
+    },
+    {
+      "formula": "=MyCoerceRef((A1,A2),16)",
+      "lane": "lifecycle_ownership_cases",
+      "outcome": "pass",
+      "excel": "0|err:#VALUE!",
+      "host": "0|err:#VALUE!",
+      "host_refusal": null,
+      "matched": true,
+      "recorded_value_agrees": true
+    },
+    {
+      "formula": "=MyCoerceRef((A1,A2),64)",
+      "lane": "lifecycle_ownership_cases",
+      "outcome": "pass",
+      "excel": "0|multi:1x1[err:#VALUE!]",
+      "host": "0|multi:1x1[err:#VALUE!]",
+      "host_refusal": null,
+      "matched": true,
+      "recorded_value_agrees": true
+    },
+    {
+      "formula": "=MyCoerceRef((A1,A2),2048)",
+      "lane": "lifecycle_ownership_cases",
+      "outcome": "pass",
+      "excel": "32|err:#VALUE!",
+      "host": "32|err:#VALUE!",
+      "host_refusal": null,
+      "matched": true,
+      "recorded_value_agrees": true
+    },
+    {
+      "formula": "=MyCoerceRef((A1,A2),3)",
+      "lane": "lifecycle_ownership_cases",
+      "outcome": "pass",
+      "excel": "32|err:#VALUE!",
+      "host": "32|err:#VALUE!",
+      "host_refusal": null,
+      "matched": true,
+      "recorded_value_agrees": true
+    },
+    {
+      "formula": "=MyCoerceRef((A1,A2),87)",
+      "lane": "lifecycle_ownership_cases",
+      "outcome": "pass",
+      "excel": "0|err:#VALUE!",
+      "host": "0|err:#VALUE!",
+      "host_refusal": null,
+      "matched": true,
+      "recorded_value_agrees": true
+    },
+    {
+      "formula": "=MyCoerceRef((A1,A2),8)",
+      "lane": "lifecycle_ownership_cases",
+      "outcome": "pass",
+      "excel": "0|ref:areas=2",
+      "host": "0|ref:areas=2",
+      "host_refusal": null,
+      "matched": true,
+      "recorded_value_agrees": true
+    },
+    {
+      "formula": "=MyUnits(\"abc\")",
+      "lane": "lifecycle_ownership_cases",
+      "outcome": "pass",
+      "excel": "len=3|0061,0062,0063",
+      "host": "len=3|0061,0062,0063",
+      "host_refusal": null,
+      "matched": true,
+      "recorded_value_agrees": true
+    },
+    {
+      "formula": "=MyUnitsCounted(\"abc\")",
+      "lane": "lifecycle_ownership_cases",
+      "outcome": "pass",
+      "excel": "len=3|0061,0062,0063",
+      "host": "len=3|0061,0062,0063",
+      "host_refusal": null,
+      "matched": true,
+      "recorded_value_agrees": true
+    },
+    {
+      "formula": "=MyUnits(LEFT(UNICHAR(128512),1))",
+      "lane": "lifecycle_ownership_cases",
+      "outcome": "pass",
+      "excel": "len=2|d83d,de00",
+      "host": "len=2|d83d,de00",
+      "host_refusal": null,
+      "matched": true,
+      "recorded_value_agrees": true
+    },
+    {
+      "formula": "=MyUnitsCounted(LEFT(UNICHAR(128512),1))",
+      "lane": "lifecycle_ownership_cases",
+      "outcome": "pass",
+      "excel": "len=2|d83d,de00",
+      "host": "len=2|d83d,de00",
+      "host_refusal": null,
+      "matched": true,
+      "recorded_value_agrees": true
+    },
+    {
+      "formula": "=MyUnits(UNICHAR(128512))",
+      "lane": "lifecycle_ownership_cases",
+      "outcome": "pass",
+      "excel": "len=2|d83d,de00",
+      "host": "len=2|d83d,de00",
+      "host_refusal": null,
+      "matched": true,
+      "recorded_value_agrees": true
+    },
+    {
+      "formula": "=MyUnitsCounted(UNICHAR(128512))",
+      "lane": "lifecycle_ownership_cases",
+      "outcome": "pass",
+      "excel": "len=2|d83d,de00",
+      "host": "len=2|d83d,de00",
+      "host_refusal": null,
+      "matched": true,
+      "recorded_value_agrees": true
+    },
+    {
+      "formula": "=MyUnits(REPT(\"x\",300))",
+      "lane": "lifecycle_ownership_cases",
+      "outcome": "pass",
+      "excel": "len=300|0078,0078,0078,0078,0078,0078,0078,0078,0078,0078,0078,0078,0078,0078,0078,0078,0078,0078,0078,0078,0078,0078,0078,0078,0078,0078,0078,0078,0078,0078,0078,0078,0078,0078,0078,0078,0078,0078,0078,0078,0078,0078,0078,0078,0078,0078,0078,0078,0078,0078,0078,0078,0078,0078,0078,0078,0078,0078,0078,0078,0078,0078,0078,0078,0078,0078,0078,0078,0078,0078,0078,0078,0078,0078,0078,0078,0078,0078,0078,0078,0078,0078,0078,0078,0078,0078,0078,0078,0078,0078,0078,0078,0078,0078,0078,0078,0078,0078,0078,0078,0078,0078,0078,0078,0078,0078,0078,0078,0078,0078,0078,0078,0078,0078,0078,0078,0078,0078,0078,0078,0078,0078,0078,0078,0078,0078,0078,0078,0078,0078,0078,0078,0078,0078,0078,0078,0078,0078,0078,0078,0078,0078,0078,0078,0078,0078,0078,0078,0078,0078,0078,0078,0078,0078,0078,0078,0078,0078,0078,0078,0078,0078,0078,0078,0078,0078,0078,0078,0078,0078,0078,0078,0078,0078,0078,0078,0078,0078,0078,0078,0078,0078,0078,0078,0078,0078,0078,0078,0078,0078,0078,0078,0078,0078,0078,0078,0078,0078,0078,0078,0078,0078,0078,0078,0078,0078,0078,0078,0078,0078,0078,0078,0078,0078,0078,0078,0078,0078,0078,0078,0078,0078,0078,0078,0078,0078,0078,0078,0078,0078,0078,0078,0078,0078,0078,0078,0078,0078,0078,0078,0078,0078,0078,0078,0078,0078,0078,0078,0078,0078,0078,0078,0078,0078,0078,0078,0078,0078,0078,0078,0078,0078,0078,0078,0078,0078,0078,0078,0078,0078,0078,0078,0078,0078,0078,0078,0078,0078,0078,0078,0078,0078,0078,0078,0078,0078,0078,0078,0078,0078,0078,0078,0078,0078,0078,0078,0078,0078,0078,0078",
+      "host": "len=300|0078,0078,0078,0078,0078,0078,0078,0078,0078,0078,0078,0078,0078,0078,0078,0078,0078,0078,0078,0078,0078,0078,0078,0078,0078,0078,0078,0078,0078,0078,0078,0078,0078,0078,0078,0078,0078,0078,0078,0078,0078,0078,0078,0078,0078,0078,0078,0078,0078,0078,0078,0078,0078,0078,0078,0078,0078,0078,0078,0078,0078,0078,0078,0078,0078,0078,0078,0078,0078,0078,0078,0078,0078,0078,0078,0078,0078,0078,0078,0078,0078,0078,0078,0078,0078,0078,0078,0078,0078,0078,0078,0078,0078,0078,0078,0078,0078,0078,0078,0078,0078,0078,0078,0078,0078,0078,0078,0078,0078,0078,0078,0078,0078,0078,0078,0078,0078,0078,0078,0078,0078,0078,0078,0078,0078,0078,0078,0078,0078,0078,0078,0078,0078,0078,0078,0078,0078,0078,0078,0078,0078,0078,0078,0078,0078,0078,0078,0078,0078,0078,0078,0078,0078,0078,0078,0078,0078,0078,0078,0078,0078,0078,0078,0078,0078,0078,0078,0078,0078,0078,0078,0078,0078,0078,0078,0078,0078,0078,0078,0078,0078,0078,0078,0078,0078,0078,0078,0078,0078,0078,0078,0078,0078,0078,0078,0078,0078,0078,0078,0078,0078,0078,0078,0078,0078,0078,0078,0078,0078,0078,0078,0078,0078,0078,0078,0078,0078,0078,0078,0078,0078,0078,0078,0078,0078,0078,0078,0078,0078,0078,0078,0078,0078,0078,0078,0078,0078,0078,0078,0078,0078,0078,0078,0078,0078,0078,0078,0078,0078,0078,0078,0078,0078,0078,0078,0078,0078,0078,0078,0078,0078,0078,0078,0078,0078,0078,0078,0078,0078,0078,0078,0078,0078,0078,0078,0078,0078,0078,0078,0078,0078,0078,0078,0078,0078,0078,0078,0078,0078,0078,0078,0078,0078,0078,0078,0078,0078,0078,0078,0078",
+      "host_refusal": null,
+      "matched": true,
+      "recorded_value_agrees": true
+    },
+    {
+      "formula": "=MyUnitsCounted(REPT(\"x\",300))",
+      "lane": "lifecycle_ownership_cases",
+      "outcome": "pass",
+      "excel": "len=300|0078,0078,0078,0078,0078,0078,0078,0078,0078,0078,0078,0078,0078,0078,0078,0078,0078,0078,0078,0078,0078,0078,0078,0078,0078,0078,0078,0078,0078,0078,0078,0078,0078,0078,0078,0078,0078,0078,0078,0078,0078,0078,0078,0078,0078,0078,0078,0078,0078,0078,0078,0078,0078,0078,0078,0078,0078,0078,0078,0078,0078,0078,0078,0078,0078,0078,0078,0078,0078,0078,0078,0078,0078,0078,0078,0078,0078,0078,0078,0078,0078,0078,0078,0078,0078,0078,0078,0078,0078,0078,0078,0078,0078,0078,0078,0078,0078,0078,0078,0078,0078,0078,0078,0078,0078,0078,0078,0078,0078,0078,0078,0078,0078,0078,0078,0078,0078,0078,0078,0078,0078,0078,0078,0078,0078,0078,0078,0078,0078,0078,0078,0078,0078,0078,0078,0078,0078,0078,0078,0078,0078,0078,0078,0078,0078,0078,0078,0078,0078,0078,0078,0078,0078,0078,0078,0078,0078,0078,0078,0078,0078,0078,0078,0078,0078,0078,0078,0078,0078,0078,0078,0078,0078,0078,0078,0078,0078,0078,0078,0078,0078,0078,0078,0078,0078,0078,0078,0078,0078,0078,0078,0078,0078,0078,0078,0078,0078,0078,0078,0078,0078,0078,0078,0078,0078,0078,0078,0078,0078,0078,0078,0078,0078,0078,0078,0078,0078,0078,0078,0078,0078,0078,0078,0078,0078,0078,0078,0078,0078,0078,0078,0078,0078,0078,0078,0078,0078,0078,0078,0078,0078,0078,0078,0078,0078,0078,0078,0078,0078,0078,0078,0078,0078,0078,0078,0078,0078,0078,0078,0078,0078,0078,0078,0078,0078,0078,0078,0078,0078,0078,0078,0078,0078,0078,0078,0078,0078,0078,0078,0078,0078,0078,0078,0078,0078,0078,0078,0078,0078,0078,0078,0078,0078,0078,0078,0078,0078,0078,0078,0078",
+      "host": "len=300|0078,0078,0078,0078,0078,0078,0078,0078,0078,0078,0078,0078,0078,0078,0078,0078,0078,0078,0078,0078,0078,0078,0078,0078,0078,0078,0078,0078,0078,0078,0078,0078,0078,0078,0078,0078,0078,0078,0078,0078,0078,0078,0078,0078,0078,0078,0078,0078,0078,0078,0078,0078,0078,0078,0078,0078,0078,0078,0078,0078,0078,0078,0078,0078,0078,0078,0078,0078,0078,0078,0078,0078,0078,0078,0078,0078,0078,0078,0078,0078,0078,0078,0078,0078,0078,0078,0078,0078,0078,0078,0078,0078,0078,0078,0078,0078,0078,0078,0078,0078,0078,0078,0078,0078,0078,0078,0078,0078,0078,0078,0078,0078,0078,0078,0078,0078,0078,0078,0078,0078,0078,0078,0078,0078,0078,0078,0078,0078,0078,0078,0078,0078,0078,0078,0078,0078,0078,0078,0078,0078,0078,0078,0078,0078,0078,0078,0078,0078,0078,0078,0078,0078,0078,0078,0078,0078,0078,0078,0078,0078,0078,0078,0078,0078,0078,0078,0078,0078,0078,0078,0078,0078,0078,0078,0078,0078,0078,0078,0078,0078,0078,0078,0078,0078,0078,0078,0078,0078,0078,0078,0078,0078,0078,0078,0078,0078,0078,0078,0078,0078,0078,0078,0078,0078,0078,0078,0078,0078,0078,0078,0078,0078,0078,0078,0078,0078,0078,0078,0078,0078,0078,0078,0078,0078,0078,0078,0078,0078,0078,0078,0078,0078,0078,0078,0078,0078,0078,0078,0078,0078,0078,0078,0078,0078,0078,0078,0078,0078,0078,0078,0078,0078,0078,0078,0078,0078,0078,0078,0078,0078,0078,0078,0078,0078,0078,0078,0078,0078,0078,0078,0078,0078,0078,0078,0078,0078,0078,0078,0078,0078,0078,0078,0078,0078,0078,0078,0078,0078,0078,0078,0078,0078,0078,0078,0078,0078,0078,0078,0078,0078",
+      "host_refusal": null,
+      "matched": true,
+      "recorded_value_agrees": true
+    },
+    {
+      "formula": "=MyUnits(MyOddText(1))",
+      "lane": "lifecycle_ownership_cases",
+      "outcome": "pass",
+      "excel": "len=3|0061,0000,0062",
+      "host": "len=3|0061,0000,0062",
+      "host_refusal": null,
+      "matched": true,
+      "recorded_value_agrees": true
+    },
+    {
+      "formula": "=MyUnitsCounted(MyOddText(1))",
+      "lane": "lifecycle_ownership_cases",
+      "outcome": "pass",
+      "excel": "len=3|0061,0000,0062",
+      "host": "len=3|0061,0000,0062",
+      "host_refusal": null,
+      "matched": true,
+      "recorded_value_agrees": true
+    },
+    {
+      "formula": "=MyUnits(MyOddText(2))",
+      "lane": "lifecycle_ownership_cases",
+      "outcome": "pass",
+      "excel": "len=3|0061,d83d,0062",
+      "host": "len=3|0061,d83d,0062",
+      "host_refusal": null,
+      "matched": true,
+      "recorded_value_agrees": true
+    },
+    {
+      "formula": "=MyUnitsCounted(MyOddText(2))",
+      "lane": "lifecycle_ownership_cases",
+      "outcome": "pass",
+      "excel": "len=3|0061,d83d,0062",
+      "host": "len=3|0061,d83d,0062",
+      "host_refusal": null,
+      "matched": true,
+      "recorded_value_agrees": true
+    },
+    {
+      "formula": "=LEN(MyOddText(1))",
+      "lane": "lifecycle_ownership_cases",
+      "outcome": "pass",
+      "excel": 3.0,
+      "host": 3.0,
+      "host_refusal": null,
+      "matched": true,
+      "recorded_value_agrees": true
+    },
+    {
+      "formula": "=UNICODE(MID(MyOddText(1),2,1))",
+      "lane": "lifecycle_ownership_cases",
+      "outcome": "pass",
+      "excel": 0.0,
+      "host": 0.0,
+      "host_refusal": null,
+      "matched": true,
+      "recorded_value_agrees": true
+    },
+    {
+      "formula": "=LEN(MyOddText(2))",
+      "lane": "lifecycle_ownership_cases",
+      "outcome": "pass",
+      "excel": 3.0,
+      "host": 3.0,
+      "host_refusal": null,
+      "matched": true,
+      "recorded_value_agrees": true
+    },
+    {
+      "formula": "=UNICODE(MID(MyOddText(2),2,1))",
+      "lane": "lifecycle_ownership_cases",
+      "outcome": "pass",
+      "excel": {
+        "error": "#VALUE!"
+      },
+      "host": {
+        "error": "#VALUE!"
+      },
+      "host_refusal": null,
+      "matched": true,
+      "recorded_value_agrees": true
+    },
+    {
+      "formula": "=LET(a,{1,2;3,4},MySwapRows(a)&\"|\"&INDEX(a,1,1))",
+      "lane": "lifecycle_ownership_cases",
+      "outcome": "pass",
+      "excel": "3|1",
+      "host": "3|1",
+      "host_refusal": null,
+      "matched": true,
+      "recorded_value_agrees": true
+    },
+    {
+      "formula": "=MySwapRows(A1:B2)&\"|\"&A1",
+      "lane": "lifecycle_ownership_cases",
+      "outcome": "refused",
+      "excel": "|7",
+      "host": null,
+      "host_refusal": "dna-onecalc-desktop: =MySwapRows(A1:B2)&\"|\"&A1: [Eval(MissingInput { cell: CellKey { sheet: SheetId { slot: 0, generation: 0 }, row: 1, column: 2 } })]",
+      "matched": false,
+      "recorded_value_agrees": true
+    },
+    {
+      "formula": "=MyNestedName()",
+      "lane": "lifecycle_ownership_cases",
+      "outcome": "pass",
+      "excel": "before=0|str:@self|nested=0|str:0|main|num:42|same=true",
+      "host": "before=0|str:@self|nested=0|str:0|main|num:42|same=true",
+      "host_refusal": null,
+      "matched": true,
+      "recorded_value_agrees": true
+    }
+  ],
+  "scope": "Callback status, thread placement and output writes as reported by the fixture's own probes (sentinel-filled result operands); not a raw debugger trace.",
+  "excel_repeat": {
+    "cases": 145,
+    "agree": 145,
+    "differ": [],
+    "scope": "A second Excel run of the same cases and binaries; a differing row is a nondeterministic Excel answer, never a host pass."
+  }
+}

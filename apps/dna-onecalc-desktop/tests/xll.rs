@@ -177,6 +177,57 @@ fn boundary_probes_give_excel_answers() {
     }
 }
 
+/// Native-only: the x14 operand batch (dc-6332.10, answer 13 D.4 baseline and D.5) through
+/// OneCalc's executable: xlCoerce with type masks, errors and arrays, UTF-16 code units in and
+/// out (embedded NUL, lone surrogate), an add-in mutating its own input array, and the module
+/// name around a nested xlUDF all give Excel 16.0.20527's recorded answers (`x14-operand-cases.json`).
+/// The cases reading cells other than A1 stay OneCalc's MissingInput refusals: its scratch
+/// session has only that input.
+#[test]
+fn operand_probes_give_excel_answers() {
+    let cases: Vec<serde_json::Value> = serde_json::from_str(include_str!(
+        "../../../crates/calc-xll-reference/fixture/x14-operand-cases.json"
+    ))
+    .unwrap();
+    // A Ref target returns the reference without reading it, so those two cases are served.
+    let outside = |case: &serde_json::Value| {
+        let formula = case["formula"].as_str().unwrap();
+        ["Z99", "A1:A2", "A1:B2"]
+            .iter()
+            .any(|r| formula.contains(r))
+            && !formula.ends_with(",8)")
+    };
+    let served = cases
+        .iter()
+        .filter(|c| !outside(c))
+        .cloned()
+        .collect::<Vec<_>>();
+    assert_eq!((served.len(), cases.len()), (128, 145));
+    let fixture = new_fixture();
+    let path = fixture.directory.join("operands.json");
+    std::fs::write(&path, serde_json::to_vec(&served).unwrap()).unwrap();
+    let result = checked(
+        fixture
+            .command()
+            .env("DNA_XLL_BOUNDARY_TESTS", "1")
+            .args(["--sheet", "X0", "--cases"])
+            .arg(&path)
+            .output()
+            .unwrap(),
+    );
+    assert_eq!(result["results"].as_array().unwrap().len(), served.len());
+    assert_eq!(result["live_callback_allocations"], 0);
+    let fixture = new_fixture();
+    let output = fixture
+        .command()
+        .env("DNA_XLL_BOUNDARY_TESTS", "1")
+        .args(["--sheet", "X0", "--formula", "=MyCoerceRef(Z99,1)"])
+        .output()
+        .unwrap();
+    assert!(!output.status.success());
+    assert!(String::from_utf8_lossy(&output.stderr).contains("MissingInput"));
+}
+
 /// Native-only: registers ten thousand callable names in a native process, then invokes the last.
 #[test]
 fn ten_thousand_registrations_have_no_small_pool_limit() {
