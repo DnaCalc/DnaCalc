@@ -738,9 +738,10 @@ pub fn duration_kernel(
     // the W109 G6-03c b45 month-end break (the ~2.5e13-ULP FC-45747-b0 explosion).
     let a = days_between_num(p.prev, c.settlement, c.basis)?;
     let off = (e - a) / e;
-    if p.n == 1 {
-        return Ok((off / f).max(0.0));
-    }
+    // Excel's redemption time is S(S(off + n) - 1), not S(off + (n - 1)): the
+    // two differ whenever the sum crosses a binade (bank: every DURATION and
+    // MDURATION miss with n > 1 has them different). The n = 1 bond runs the
+    // same weighted ratio, so its answer depends on the yield.
     let base = 1.0 + yld / f;
     let mut num = 0.0;
     let mut den = 0.0;
@@ -751,7 +752,8 @@ pub fn duration_kernel(
         num = excel_x87_add(num, diff * coupon_pv);
         den = excel_x87_add(den, coupon_pv);
         if k + 1 == p.n {
-            num = excel_x87_add(num, excel_x87_div(diff * 100.0, disc));
+            let redemption_time = (off + p.n as f64) - 1.0;
+            num = excel_x87_add(num, excel_x87_div(redemption_time * 100.0, disc));
             den = excel_x87_add(den, excel_x87_div(100.0, disc));
         }
     }
