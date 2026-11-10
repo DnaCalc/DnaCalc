@@ -27,6 +27,10 @@
 //!   receive; `MyOddText(kind)` returns text with an embedded NUL (1) or a lone surrogate (2);
 //!   `MySwapRows(array)` (`QQ`) swaps its input's first two rows in place and returns the new
 //!   top-left; `MyNestedName()` (`Q#`) compares xlGetName before and after a nested xlUDF.
+//! - Foundation operands (D.0): `MyOperBytes(x)` (`QQ`) and `MyOperBytesRef(x)` (`QU#`) decode
+//!   the operand as received with the fixture's layout: kind and flag bits, scalar values,
+//!   array shape and elements, SRef count and rectangle, Ref sheet relation, area count and
+//!   rectangles. Excel builds these operands, so a layout error shows as a difference.
 //!
 //! The fixture shares calc-xll-abi with the host, so its layouts are no independent witness:
 //! these probes measure behaviour, and Excel's answers are the oracle.
@@ -87,6 +91,8 @@ pub(super) unsafe fn register_all(module: &XlOper12) -> bool {
         ("MyOddText", "QB", "MyOddText"),
         ("MySwapRows", "QQ", "MySwapRows"),
         ("MyNestedName", "Q#", "MyNestedName"),
+        ("MyOperBytes", "QQ", "MyOperBytes"),
+        ("MyOperBytesRef", "QU#", "MyOperBytesRef"),
     ]
     .into_iter()
     .all(|(procedure, signature, name)| {
@@ -620,4 +626,61 @@ pub unsafe extern "system" fn MyNestedName() -> *mut XlOper12 {
         "before={before}|nested={nested}|same={}",
         before == after
     ))
+}
+
+/// D.0: the operand as received, decoded with this crate's documented layout.
+#[unsafe(no_mangle)]
+pub unsafe extern "system" fn MyOperBytes(value: *mut XlOper12) -> *mut XlOper12 {
+    let text = unsafe { foundation(value) };
+    returned_text(&text)
+}
+#[unsafe(no_mangle)]
+pub unsafe extern "system" fn MyOperBytesRef(value: *mut XlOper12) -> *mut XlOper12 {
+    let text = unsafe { foundation(value) };
+    returned_text(&text)
+}
+unsafe fn foundation(value: *mut XlOper12) -> String {
+    let oper = unsafe { value.read_unaligned() };
+    let kind = oper.xltype & TYPE_MASK;
+    let head = format!("{}{}", type_name(kind), flag_text(oper.xltype & !TYPE_MASK));
+    let rect = |r: XlRef12| format!("{},{},{},{}", r.row_first, r.row_last, r.col_first, r.col_last);
+    let body = unsafe {
+        match kind {
+            XL_SREF => {
+                let s = std::ptr::addr_of!(oper.value.single_reference).read_unaligned();
+                format!("count={}|{}", s.count, rect(s.rectangle))
+            }
+            XL_REF => {
+                let reference = std::ptr::addr_of!(oper.value.reference).read_unaligned();
+                let mut current = sentinel();
+                let code = call(16388, &[], &mut current);
+                let sheet = if code == SUCCESS && current.xltype & TYPE_MASK == XL_REF {
+                    if current.value.reference.sheet == reference.sheet {
+                        "current"
+                    } else {
+                        "other"
+                    }
+                } else {
+                    "unknown"
+                };
+                if reference.table.is_null() {
+                    format!("sheet={sheet}|table=null")
+                } else {
+                    let count = std::ptr::addr_of!((*reference.table).count).read_unaligned();
+                    let first = std::ptr::addr_of!((*reference.table).rectangles).cast::<XlRef12>();
+                    let areas = (0..usize::from(count))
+                        .map(|i| rect(first.add(i).read_unaligned()))
+                        .collect::<Vec<_>>();
+                    format!("sheet={sheet}|areas={count}|{}", areas.join(";"))
+                }
+            }
+            XL_MULTI => {
+                let array = std::ptr::addr_of!(oper.value.array).read_unaligned();
+                format!("rows={}|columns={}|{}", array.rows, array.columns, describe_value(&oper))
+            }
+            XL_NUM => format!("bits={:016x}", oper.value.number.to_bits()),
+            _ => describe_value(&oper),
+        }
+    };
+    format!("{head}|{body}")
 }

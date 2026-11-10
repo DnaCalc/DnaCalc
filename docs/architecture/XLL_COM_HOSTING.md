@@ -1244,3 +1244,12 @@ measured failures with status 32 and the measured error, without refusing the fo
 Nil, SRef and flow targets and non-numeric type operands remain typed refusals. OneCalc before
 (the 31478370 build) matched 61 of 145, after 128 of 145; the 17 failures are OneCalc's
 MissingInput refusals for cells other than its one input A1 (its scratch-session design).
+
+Foundation operands (D.0, `fixture/x15-foundation-cases.json`, 21 cases, evidence `.../x15`):
+Excel-built operands decoded with calc-xll-abi's layout agree with the host's in 19 of 21 cases
+(the other two are OneCalc MissingInput reads of cells other than A1): exact double bits (1, 0.1,
+an underflow to +0), TRUE, Missing for an omitted argument, Nil for a blank cell through `Q`,
+errors, empty and non-empty text, a 2x3 array (rows at 8, columns at 12), and through `U`: a
+one-area reference arrives as an SRef (count 1, rectangle at 4; also when sheet-qualified as
+`X0!A1`), a two-area union as a Ref on the current sheet with both rectangles at 16-byte stride.
+A second Excel run agreed on all 21.

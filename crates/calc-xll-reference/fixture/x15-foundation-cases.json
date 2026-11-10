@@ -1,0 +1,23 @@
+[
+  {"formula": "=MyOperBytes(1)", "value": "num|bits=3ff0000000000000"},
+  {"formula": "=MyOperBytes(0.1)", "value": "num|bits=3fb999999999999a"},
+  {"formula": "=MyOperBytes(-1E-300*1E-300)", "value": "num|bits=0000000000000000"},
+  {"formula": "=MyOperBytes(TRUE)", "value": "bool|TRUE"},
+  {"formula": "=MyOperBytes()", "value": "missing|"},
+  {"formula": "=MyOperBytes(Z99)", "value": "nil|"},
+  {"formula": "=MyOperBytes(NA())", "value": "err|#N/A"},
+  {"formula": "=MyOperBytes(1/0)", "value": "err|#DIV/0!"},
+  {"formula": "=MyOperBytes(\"a\")", "value": "str|a"},
+  {"formula": "=MyOperBytes(\"\")", "value": "str|"},
+  {"formula": "=MyOperBytes({1,2,3;4,5,6})", "value": "multi|rows=2|columns=3|2x3[num:1;num:2;num:3;num:4;num:5;num:6]"},
+  {"formula": "=MyOperBytes(A1)", "value": "num|bits=401c000000000000"},
+  {"formula": "=MyOperBytes(A1:B2)", "value": "multi|rows=2|columns=2|2x2[num:7;nil:;nil:;nil:]"},
+  {"formula": "=MyOperBytesRef(A1)", "value": "sref|count=1|0,0,0,0"},
+  {"formula": "=MyOperBytesRef(X0!A1)", "value": "sref|count=1|0,0,0,0"},
+  {"formula": "=MyOperBytesRef(Z99)", "value": "sref|count=1|98,98,25,25"},
+  {"formula": "=MyOperBytesRef(A1:B2)", "value": "sref|count=1|0,1,0,1"},
+  {"formula": "=MyOperBytesRef((A1,B2))", "value": "ref|sheet=current|areas=2|0,0,0,0;1,1,1,1"},
+  {"formula": "=MyOperBytesRef(1)", "value": "num|bits=3ff0000000000000"},
+  {"formula": "=MyOperBytesRef(\"a\")", "value": "str|a"},
+  {"formula": "=MyOperBytesRef()", "value": "missing|"}
+]

@@ -1,0 +1,299 @@
+{
+  "status": "measured boundary batch; refusals remain failures",
+  "cases": 21,
+  "pass": 19,
+  "fail": 2,
+  "mismatched": 0,
+  "refused": 2,
+  "missing": 0,
+  "pass_rate_all_cases": 0.9047619047619048,
+  "counts": {
+    "value_cases": {
+      "pass": 0,
+      "mismatched": 0,
+      "refused": 0,
+      "missing": 0,
+      "total": 0,
+      "fail": 0,
+      "pass_rate": null
+    },
+    "ordered_boundary_cases": {
+      "pass": 0,
+      "mismatched": 0,
+      "refused": 0,
+      "missing": 0,
+      "total": 0,
+      "fail": 0,
+      "pass_rate": null
+    },
+    "lifecycle_ownership_cases": {
+      "pass": 19,
+      "mismatched": 0,
+      "refused": 2,
+      "missing": 0,
+      "total": 21,
+      "fail": 2,
+      "pass_rate": 0.9047619047619048
+    },
+    "framework_feature_lanes": {
+      "pass": 0,
+      "mismatched": 0,
+      "refused": 0,
+      "missing": 0,
+      "total": 0,
+      "fail": 0,
+      "pass_rate": null
+    }
+  },
+  "manifest": {
+    "excel_build": "16.0.20527.20150",
+    "bitness": 64,
+    "locale": "en-ZA",
+    "calculation_modes": [
+      {
+        "requested": -4105,
+        "actual": -4105
+      }
+    ],
+    "mtr": {
+      "enabled": true,
+      "threads": 16
+    },
+    "trigger": "Formula2 entry into one cell, automatic recalculation",
+    "addin_files": {
+      "boundary-tests.enable": "E3B0C44298FC1C149AFBF4C8996FB92427AE41E4649B934CA495991B7852B855",
+      "X1.xll": "5B951FE3E1EB250B58B80CAE4D5C515E8544D4228AE4DCA972553924BCE4F544"
+    },
+    "workbook": "Book6",
+    "load_order": [
+      "RegisterXLL managed"
+    ],
+    "excel_mode": "control without debugger",
+    "host_executables": [
+      "622C773980608366166A2D24095CB5267F2A22DC2AA9064B303C4C1474D67793"
+    ],
+    "host_process_identity": [],
+    "repository_commits": [
+      "7660ae446891a60442362cdd92f67fa5fbf914a0"
+    ]
+  },
+  "rows": [
+    {
+      "formula": "=MyOperBytes(1)",
+      "lane": "lifecycle_ownership_cases",
+      "outcome": "pass",
+      "excel": "num|bits=3ff0000000000000",
+      "host": "num|bits=3ff0000000000000",
+      "host_refusal": null,
+      "matched": true,
+      "recorded_value_agrees": true
+    },
+    {
+      "formula": "=MyOperBytes(0.1)",
+      "lane": "lifecycle_ownership_cases",
+      "outcome": "pass",
+      "excel": "num|bits=3fb999999999999a",
+      "host": "num|bits=3fb999999999999a",
+      "host_refusal": null,
+      "matched": true,
+      "recorded_value_agrees": true
+    },
+    {
+      "formula": "=MyOperBytes(-1E-300*1E-300)",
+      "lane": "lifecycle_ownership_cases",
+      "outcome": "pass",
+      "excel": "num|bits=0000000000000000",
+      "host": "num|bits=0000000000000000",
+      "host_refusal": null,
+      "matched": true,
+      "recorded_value_agrees": true
+    },
+    {
+      "formula": "=MyOperBytes(TRUE)",
+      "lane": "lifecycle_ownership_cases",
+      "outcome": "pass",
+      "excel": "bool|TRUE",
+      "host": "bool|TRUE",
+      "host_refusal": null,
+      "matched": true,
+      "recorded_value_agrees": true
+    },
+    {
+      "formula": "=MyOperBytes()",
+      "lane": "lifecycle_ownership_cases",
+      "outcome": "pass",
+      "excel": "missing|",
+      "host": "missing|",
+      "host_refusal": null,
+      "matched": true,
+      "recorded_value_agrees": true
+    },
+    {
+      "formula": "=MyOperBytes(Z99)",
+      "lane": "lifecycle_ownership_cases",
+      "outcome": "refused",
+      "excel": "nil|",
+      "host": null,
+      "host_refusal": "dna-onecalc-desktop: =MyOperBytes(Z99): [Eval(MissingInput { cell: CellKey { sheet: SheetId { slot: 0, generation: 0 }, row: 99, column: 26 } })]",
+      "matched": false,
+      "recorded_value_agrees": true
+    },
+    {
+      "formula": "=MyOperBytes(NA())",
+      "lane": "lifecycle_ownership_cases",
+      "outcome": "pass",
+      "excel": "err|#N/A",
+      "host": "err|#N/A",
+      "host_refusal": null,
+      "matched": true,
+      "recorded_value_agrees": true
+    },
+    {
+      "formula": "=MyOperBytes(1/0)",
+      "lane": "lifecycle_ownership_cases",
+      "outcome": "pass",
+      "excel": "err|#DIV/0!",
+      "host": "err|#DIV/0!",
+      "host_refusal": null,
+      "matched": true,
+      "recorded_value_agrees": true
+    },
+    {
+      "formula": "=MyOperBytes(\"a\")",
+      "lane": "lifecycle_ownership_cases",
+      "outcome": "pass",
+      "excel": "str|a",
+      "host": "str|a",
+      "host_refusal": null,
+      "matched": true,
+      "recorded_value_agrees": true
+    },
+    {
+      "formula": "=MyOperBytes(\"\")",
+      "lane": "lifecycle_ownership_cases",
+      "outcome": "pass",
+      "excel": "str|",
+      "host": "str|",
+      "host_refusal": null,
+      "matched": true,
+      "recorded_value_agrees": true
+    },
+    {
+      "formula": "=MyOperBytes({1,2,3;4,5,6})",
+      "lane": "lifecycle_ownership_cases",
+      "outcome": "pass",
+      "excel": "multi|rows=2|columns=3|2x3[num:1;num:2;num:3;num:4;num:5;num:6]",
+      "host": "multi|rows=2|columns=3|2x3[num:1;num:2;num:3;num:4;num:5;num:6]",
+      "host_refusal": null,
+      "matched": true,
+      "recorded_value_agrees": true
+    },
+    {
+      "formula": "=MyOperBytes(A1)",
+      "lane": "lifecycle_ownership_cases",
+      "outcome": "pass",
+      "excel": "num|bits=401c000000000000",
+      "host": "num|bits=401c000000000000",
+      "host_refusal": null,
+      "matched": true,
+      "recorded_value_agrees": true
+    },
+    {
+      "formula": "=MyOperBytes(A1:B2)",
+      "lane": "lifecycle_ownership_cases",
+      "outcome": "refused",
+      "excel": "multi|rows=2|columns=2|2x2[num:7;nil:;nil:;nil:]",
+      "host": null,
+      "host_refusal": "dna-onecalc-desktop: =MyOperBytes(A1:B2): [Eval(MissingInput { cell: CellKey { sheet: SheetId { slot: 0, generation: 0 }, row: 1, column: 2 } })]",
+      "matched": false,
+      "recorded_value_agrees": true
+    },
+    {
+      "formula": "=MyOperBytesRef(A1)",
+      "lane": "lifecycle_ownership_cases",
+      "outcome": "pass",
+      "excel": "sref|count=1|0,0,0,0",
+      "host": "sref|count=1|0,0,0,0",
+      "host_refusal": null,
+      "matched": true,
+      "recorded_value_agrees": true
+    },
+    {
+      "formula": "=MyOperBytesRef(X0!A1)",
+      "lane": "lifecycle_ownership_cases",
+      "outcome": "pass",
+      "excel": "sref|count=1|0,0,0,0",
+      "host": "sref|count=1|0,0,0,0",
+      "host_refusal": null,
+      "matched": true,
+      "recorded_value_agrees": true
+    },
+    {
+      "formula": "=MyOperBytesRef(Z99)",
+      "lane": "lifecycle_ownership_cases",
+      "outcome": "pass",
+      "excel": "sref|count=1|98,98,25,25",
+      "host": "sref|count=1|98,98,25,25",
+      "host_refusal": null,
+      "matched": true,
+      "recorded_value_agrees": true
+    },
+    {
+      "formula": "=MyOperBytesRef(A1:B2)",
+      "lane": "lifecycle_ownership_cases",
+      "outcome": "pass",
+      "excel": "sref|count=1|0,1,0,1",
+      "host": "sref|count=1|0,1,0,1",
+      "host_refusal": null,
+      "matched": true,
+      "recorded_value_agrees": true
+    },
+    {
+      "formula": "=MyOperBytesRef((A1,B2))",
+      "lane": "lifecycle_ownership_cases",
+      "outcome": "pass",
+      "excel": "ref|sheet=current|areas=2|0,0,0,0;1,1,1,1",
+      "host": "ref|sheet=current|areas=2|0,0,0,0;1,1,1,1",
+      "host_refusal": null,
+      "matched": true,
+      "recorded_value_agrees": true
+    },
+    {
+      "formula": "=MyOperBytesRef(1)",
+      "lane": "lifecycle_ownership_cases",
+      "outcome": "pass",
+      "excel": "num|bits=3ff0000000000000",
+      "host": "num|bits=3ff0000000000000",
+      "host_refusal": null,
+      "matched": true,
+      "recorded_value_agrees": true
+    },
+    {
+      "formula": "=MyOperBytesRef(\"a\")",
+      "lane": "lifecycle_ownership_cases",
+      "outcome": "pass",
+      "excel": "str|a",
+      "host": "str|a",
+      "host_refusal": null,
+      "matched": true,
+      "recorded_value_agrees": true
+    },
+    {
+      "formula": "=MyOperBytesRef()",
+      "lane": "lifecycle_ownership_cases",
+      "outcome": "pass",
+      "excel": "missing|",
+      "host": "missing|",
+      "host_refusal": null,
+      "matched": true,
+      "recorded_value_agrees": true
+    }
+  ],
+  "scope": "Callback status, thread placement and output writes as reported by the fixture's own probes (sentinel-filled result operands); not a raw debugger trace.",
+  "excel_repeat": {
+    "cases": 21,
+    "agree": 21,
+    "differ": [],
+    "scope": "A second Excel run of the same cases and binaries; a differing row is a nondeterministic Excel answer, never a host pass."
+  }
+}

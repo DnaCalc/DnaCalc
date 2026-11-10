@@ -1,0 +1,47 @@
+{"utc":"2026-11-10T21:52:35.5678209Z","operation":"RegisterXLL managed","value":true}
+{"utc":"2026-11-10T21:52:35.5823906Z","operation":"calculation mode =MyOperBytes(1)","value":{"requested":-4105,"actual":-4105}}
+{"utc":"2026-11-10T21:52:35.5888479Z","operation":"=MyOperBytes(1)","value":"num|bits=3ff0000000000000"}
+{"utc":"2026-11-10T21:52:35.5952115Z","operation":"calculation mode =MyOperBytes(0.1)","value":{"requested":-4105,"actual":-4105}}
+{"utc":"2026-11-10T21:52:35.6054301Z","operation":"=MyOperBytes(0.1)","value":"num|bits=3fb999999999999a"}
+{"utc":"2026-11-10T21:52:35.6096964Z","operation":"calculation mode =MyOperBytes(-1E-300*1E-300)","value":{"requested":-4105,"actual":-4105}}
+{"utc":"2026-11-10T21:52:35.6207252Z","operation":"=MyOperBytes(-1E-300*1E-300)","value":"num|bits=0000000000000000"}
+{"utc":"2026-11-10T21:52:35.6256216Z","operation":"calculation mode =MyOperBytes(TRUE)","value":{"requested":-4105,"actual":-4105}}
+{"utc":"2026-11-10T21:52:35.6365356Z","operation":"=MyOperBytes(TRUE)","value":"bool|TRUE"}
+{"utc":"2026-11-10T21:52:35.6397928Z","operation":"calculation mode =MyOperBytes()","value":{"requested":-4105,"actual":-4105}}
+{"utc":"2026-11-10T21:52:35.6524743Z","operation":"=MyOperBytes()","value":"missing|"}
+{"utc":"2026-11-10T21:52:35.6571436Z","operation":"calculation mode =MyOperBytes(Z99)","value":{"requested":-4105,"actual":-4105}}
+{"utc":"2026-11-10T21:52:35.6688982Z","operation":"=MyOperBytes(Z99)","value":"nil|"}
+{"utc":"2026-11-10T21:52:35.6737439Z","operation":"calculation mode =MyOperBytes(NA())","value":{"requested":-4105,"actual":-4105}}
+{"utc":"2026-11-10T21:52:35.6890398Z","operation":"=MyOperBytes(NA())","value":"err|#N/A"}
+{"utc":"2026-11-10T21:52:35.6916157Z","operation":"calculation mode =MyOperBytes(1/0)","value":{"requested":-4105,"actual":-4105}}
+{"utc":"2026-11-10T21:52:35.7030544Z","operation":"=MyOperBytes(1/0)","value":"err|#DIV/0!"}
+{"utc":"2026-11-10T21:52:35.7092997Z","operation":"calculation mode =MyOperBytes(\"a\")","value":{"requested":-4105,"actual":-4105}}
+{"utc":"2026-11-10T21:52:35.7221535Z","operation":"=MyOperBytes(\"a\")","value":"str|a"}
+{"utc":"2026-11-10T21:52:35.7263133Z","operation":"calculation mode =MyOperBytes(\"\")","value":{"requested":-4105,"actual":-4105}}
+{"utc":"2026-11-10T21:52:35.7388429Z","operation":"=MyOperBytes(\"\")","value":"str|"}
+{"utc":"2026-11-10T21:52:35.7433679Z","operation":"calculation mode =MyOperBytes({1,2,3;4,5,6})","value":{"requested":-4105,"actual":-4105}}
+{"utc":"2026-11-10T21:52:35.7562644Z","operation":"=MyOperBytes({1,2,3;4,5,6})","value":"multi|rows=2|columns=3|2x3[num:1;num:2;num:3;num:4;num:5;num:6]"}
+{"utc":"2026-11-10T21:52:35.7618229Z","operation":"calculation mode =MyOperBytes(A1)","value":{"requested":-4105,"actual":-4105}}
+{"utc":"2026-11-10T21:52:35.7745833Z","operation":"=MyOperBytes(A1)","value":"num|bits=401c000000000000"}
+{"utc":"2026-11-10T21:52:35.7790579Z","operation":"calculation mode =MyOperBytes(A1:B2)","value":{"requested":-4105,"actual":-4105}}
+{"utc":"2026-11-10T21:52:35.7928901Z","operation":"=MyOperBytes(A1:B2)","value":"multi|rows=2|columns=2|2x2[num:7;nil:;nil:;nil:]"}
+{"utc":"2026-11-10T21:52:35.7980373Z","operation":"calculation mode =MyOperBytesRef(A1)","value":{"requested":-4105,"actual":-4105}}
+{"utc":"2026-11-10T21:52:35.8105151Z","operation":"=MyOperBytesRef(A1)","value":"sref|count=1|0,0,0,0"}
+{"utc":"2026-11-10T21:52:35.8148383Z","operation":"calculation mode =MyOperBytesRef(X0!A1)","value":{"requested":-4105,"actual":-4105}}
+{"utc":"2026-11-10T21:52:35.8277409Z","operation":"=MyOperBytesRef(X0!A1)","value":"sref|count=1|0,0,0,0"}
+{"utc":"2026-11-10T21:52:35.8321530Z","operation":"calculation mode =MyOperBytesRef(Z99)","value":{"requested":-4105,"actual":-4105}}
+{"utc":"2026-11-10T21:52:35.8463513Z","operation":"=MyOperBytesRef(Z99)","value":"sref|count=1|98,98,25,25"}
+{"utc":"2026-11-10T21:52:35.8505265Z","operation":"calculation mode =MyOperBytesRef(A1:B2)","value":{"requested":-4105,"actual":-4105}}
+{"utc":"2026-11-10T21:52:35.8634421Z","operation":"=MyOperBytesRef(A1:B2)","value":"sref|count=1|0,1,0,1"}
+{"utc":"2026-11-10T21:52:35.8681938Z","operation":"calculation mode =MyOperBytesRef((A1,B2))","value":{"requested":-4105,"actual":-4105}}
+{"utc":"2026-11-10T21:52:35.8802516Z","operation":"=MyOperBytesRef((A1,B2))","value":"ref|sheet=current|areas=2|0,0,0,0;1,1,1,1"}
+{"utc":"2026-11-10T21:52:35.8872146Z","operation":"calculation mode =MyOperBytesRef(1)","value":{"requested":-4105,"actual":-4105}}
+{"utc":"2026-11-10T21:52:35.8988401Z","operation":"=MyOperBytesRef(1)","value":"num|bits=3ff0000000000000"}
+{"utc":"2026-11-10T21:52:35.9063044Z","operation":"calculation mode =MyOperBytesRef(\"a\")","value":{"requested":-4105,"actual":-4105}}
+{"utc":"2026-11-10T21:52:35.9236168Z","operation":"=MyOperBytesRef(\"a\")","value":"str|a"}
+{"utc":"2026-11-10T21:52:35.9259464Z","operation":"calculation mode =MyOperBytesRef()","value":{"requested":-4105,"actual":-4105}}
+{"utc":"2026-11-10T21:52:35.9406496Z","operation":"=MyOperBytesRef()","value":"missing|"}
+{"utc":"2026-11-10T21:52:35.9483124Z","operation":"AutomationSecurity unchanged before teardown","value":true}
+{"utc":"2026-11-10T21:52:36.0327452Z","operation":"ExecuteExcel4Macro UNREGISTER(managed)","value":true}
+{"utc":"2026-11-10T21:52:36.0349024Z","operation":"AutomationSecurity unchanged","value":true}
+{"utc":"2026-11-10T21:52:36.8164375Z","operation":"cleanup","value":"Workbook closed; Excel returned to lane session host"}

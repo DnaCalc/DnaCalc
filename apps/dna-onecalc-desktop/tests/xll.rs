@@ -183,7 +183,8 @@ fn boundary_probes_give_excel_answers() {
     }
 }
 
-/// Native-only: the x14 operand batch (dc-6332.10, answer 13 D.4 baseline and D.5) through
+/// Native-only: the x14 operand batch (dc-6332.10, answer 13 D.4 baseline and D.5) and the x15
+/// foundation operands (D.0) through
 /// OneCalc's executable: xlCoerce with type masks, errors and arrays, UTF-16 code units in and
 /// out (embedded NUL, lone surrogate), an add-in mutating its own input array, and the module
 /// name around a nested xlUDF all give Excel 16.0.20527's recorded answers (`x14-operand-cases.json`).
@@ -203,12 +204,29 @@ fn operand_probes_give_excel_answers() {
             .any(|r| formula.contains(r))
             && !formula.ends_with(",8)")
     };
-    let served = cases
+    let mut served = cases
         .iter()
         .filter(|c| !outside(c))
         .cloned()
         .collect::<Vec<_>>();
     assert_eq!((served.len(), cases.len()), (128, 145));
+    // x15: the D.0 foundation operands as Excel builds them, decoded with the same layout.
+    let foundation: Vec<serde_json::Value> = serde_json::from_str(include_str!(
+        "../../../crates/calc-xll-reference/fixture/x15-foundation-cases.json"
+    ))
+    .unwrap();
+    let before = served.len();
+    // Only the two Q-typed reads of other cells refuse; U-typed ones pass the reference itself.
+    served.extend(
+        foundation
+            .iter()
+            .filter(|c| {
+                !["=MyOperBytes(Z99)", "=MyOperBytes(A1:B2)"]
+                    .contains(&c["formula"].as_str().unwrap())
+            })
+            .cloned(),
+    );
+    assert_eq!(served.len() - before, 19);
     let fixture = new_fixture();
     let path = fixture.directory.join("operands.json");
     std::fs::write(&path, serde_json::to_vec(&served).unwrap()).unwrap();

@@ -52,3 +52,9 @@ The tracer (`native/trace.cpp`) now records xlFree's operands after the call (`a
 afterwards agree. The same Excel traces against the old host (85ea49e5 build, traced and
 control) fail with "Operands after xlFree differ between Excel and DNA Calc"
 (`summary-old-host.json`), so the comparison sees the behaviour this bead changed.
+
+## x15 foundation operands
+
+`x15/`: D.0's foundation operands (`fixture/x15-foundation-cases.json`, 21), Excel run, repeat
+(identical) and the OneCalc comparison (a967db01 build, `-Direct`): 19 of 21 match; the two
+failures are MissingInput reads of cells other than A1. See the hosting study, section 29.
