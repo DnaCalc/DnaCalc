@@ -169,6 +169,27 @@ const GRATIO_BIG: [f64; 3] = [20.0, 14.0, 10.0];
 const GRATIO_E00: [f64; 3] = [0.25e-3, 0.25e-1, 0.14];
 const GRATIO_X00: [f64; 3] = [31.0, 17.0, 9.7];
 
+// RN53(1/k!), k = 0..19. R35: each adjacent coefficient load is separated
+// by an original Excel question, conditional on the other loads and EXP.
+const GRATIO_RECIP_FACTORIAL: [u64; 20] = [
+    0x3ff0000000000000, 0x3ff0000000000000, 0x3fe0000000000000,
+    0x3fc5555555555555, 0x3fa5555555555555, 0x3f81111111111111,
+    0x3f56c16c16c16c17, 0x3f2a01a01a01a01a, 0x3efa01a01a01a01a,
+    0x3ec71de3a556c734, 0x3e927e4fb7789f5c, 0x3e5ae64567f544e4,
+    0x3e21eed8eff8d898, 0x3de6124613a86d09, 0x3da93974a8c07c9d,
+    0x3d6ae7f3e733b81f, 0x3d2ae7f3e733b81f, 0x3ce952c77030ad4a,
+    0x3ca6827863b97d97, 0x3c62f49b46814157,
+];
+
+fn gratio_integer_sum(a: usize, x: f64) -> f64 {
+    use crate::ported::excel_numeric::{excel_exp, excel_x87_add, excel_x87_mul};
+    let mut polynomial = f64::from_bits(GRATIO_RECIP_FACTORIAL[a - 1]);
+    for &coefficient in GRATIO_RECIP_FACTORIAL[..a - 1].iter().rev() {
+        polynomial = excel_x87_add(excel_x87_mul(polynomial, x), f64::from_bits(coefficient));
+    }
+    excel_x87_mul(excel_exp(-x), polynomial)
+}
+
 /// CR-quality normalizer Gamma(a) for the gratio prefactor. Identification
 /// (W109 agent-B normalizer sweep): Excel divides exp(t1) by a value equal to
 /// the correctly-rounded double Gamma(a) to within 1 ULP (= exp of its
@@ -530,9 +551,21 @@ pub fn gratio(a: f64, x: f64) -> (f64, f64) {
         return gratio_cf(a, x, r, e, acc);
     }
 
+    // Stored Horner with reciprocal-factorial loads, then EXP. Mapping and
+    // adjacent-double questions identify 2 <= integer a <= 20, a < x <= 30.
+    // Divided Horner, forward term sums and extension to a >= 21 refute.
+    if a <= 20.0 && a == a.floor() && a < x && x <= 30.0 {
+        let qans = gratio_integer_sum(a as usize, x);
+        return (0.5 + (0.5 - qans), qans);
+    }
+
     // a >= 1
     if a < GRATIO_BIG[iop - 1] {
-        if a > x || x >= x0 {
+        let integer_a = a == a.floor();
+        // Integer shapes use their finite polynomial only for a < x <= 30.
+        // Adjacent-double probes distinguish both boundaries; the half-integer
+        // finite sum retains its separate x < 31 region.
+        if a > x || x >= x0 || (integer_a && (a == x || x > 30.0)) {
             // statement 20.
             let m = poisson_mass(a, x);
             return gratio_after40(
@@ -554,21 +587,13 @@ pub fn gratio(a: f64, x: f64) -> (f64, f64) {
             let mut t;
             let mut n;
             let mut c;
-            if a == i as f64 {
-                // statement 210: integer a, finite sum
-                summ = crate::ported::excel_numeric::excel_exp(-x);
-                t = summ;
-                n = 1i64;
-                c = 0.0;
-            } else {
-                // statement 220: half-integer a, finite sum.
-                // DEVIATION 2: erfc1(0, sqrt(x)) == Q(0.5, x) == gratio(0.5, x).1
-                let rtx = x.sqrt();
-                summ = gratio(0.5, x).1;
-                t = crate::ported::excel_numeric::excel_exp(-x) / (GRATIO_RTPI_FULL * rtx);
-                n = 0i64;
-                c = -0.5;
-            }
+            // statement 220: half-integer a, finite sum.
+            // DEVIATION 2: erfc1(0, sqrt(x)) == Q(0.5, x) == gratio(0.5, x).1
+            let rtx = x.sqrt();
+            summ = gratio(0.5, x).1;
+            t = crate::ported::excel_numeric::excel_exp(-x) / (GRATIO_RTPI_FULL * rtx);
+            n = 0i64;
+            c = -0.5;
             while n != i {
                 n += 1;
                 c += 1.0;

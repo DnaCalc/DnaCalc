@@ -114,7 +114,7 @@
     {"args":["0x4040000000000000","0x4034000000000000"],"expected_bits":"0x3fa62b3265e2669c","id":"oc90","reading":"r0"},
     {"args":["0x4040c24000000000","0x3ff0000000000000"],"expected_bits":"0x3e3e5510173b9a4d","id":"oc303","reading":"r0"},
     {"args":["0x4041890000000000","0x3ff0000000000000"],"expected_bits":"0x3e2b512a1fb1d8fa","id":"oc306","reading":"r0"},
-    {"args":["0x4041b291260f88c2","0x4010000000000000"],"calc_func":"0x3e99dc1da08ec8c3","expected_bits":"0x3e99dc1da08ec8c2","id":"oc12","reading":"r0"},
+    {"args":["0x4041b291260f88c2","0x4010000000000000"],"expected_bits":"0x3e99dc1da08ec8c2","id":"oc12","reading":"r0"},
     {"args":["0x4041cc4000000000","0x3ff0000000000000"],"expected_bits":"0x3e24dbb989001d81","id":"oc307","reading":"r0"},
     {"args":["0x4042990000000000","0x3ff0000000000000"],"expected_bits":"0x3e125c354b26cb4d","id":"oc310","reading":"r0"},
     {"args":["0x4043b10000000000","0x3ff0000000000000"],"expected_bits":"0x3df7f03b935e8e37","id":"oc314","reading":"r0"},

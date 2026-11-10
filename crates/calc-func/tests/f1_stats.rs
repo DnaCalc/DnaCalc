@@ -1712,6 +1712,30 @@ fn poisson_cumulative_retains_the_temme_correction() {
     }
 }
 
+/// Fresh Excel20527 integer-gamma questions distinguish stored Horner from
+/// strict binary64, divided Horner and forward term summation.
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn integer_gamma_cumulative_uses_the_stored_factorial_polynomial() {
+    for (count, mean_bits, q_bits) in [
+        (7.0, 0x4031_f386_5d1f_64a2, 0x3f68_73f1_6c27_5115),
+        (12.0, 0x403a_a514_dfac_1d68, 0x3f54_6b80_ba3c_b6bf),
+        (12.0, 0x403b_ee7f_ee6b_86f4, 0x3f43_4258_9b45_3acf),
+        (17.0, 0x4033_fafd_a9fa_64ea, 0x3fd3_1ae6_0f88_303d),
+        (19.0, 0x4038_8815_3ea5_deb6, 0x3fc3_baf0_b382_440f),
+    ] {
+        let mean = f64::from_bits(mean_bits);
+        let q = f64::from_bits(q_bits);
+        for function in ["POISSON.DIST", "POISSON"] {
+            exact(call(function, vec![n(count), n(mean), b(true)]), q);
+        }
+        exact(call("CHIDIST", vec![n(2.0 * mean), n(2.0 * (count + 1.0))]), q);
+        for function in ["GAMMA.DIST", "GAMMADIST"] {
+            exact(call(function, vec![n(mean), n(count + 1.0), n(1.0), b(true)]), 0.5 + (0.5 - q));
+        }
+    }
+}
+
 /// Recorded lower-series rows from both argument halves: all four now agree with Excel.
 #[cfg_attr(not(target_arch = "wasm32"), test)]
 #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
