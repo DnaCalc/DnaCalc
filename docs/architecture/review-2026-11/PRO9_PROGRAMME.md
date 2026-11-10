@@ -28,6 +28,15 @@ Tracker: epic **dc-6332**. Children:
 | dc-6332.11 | Add-in hosting step 2: status 64 and ordered volatility | Opus (Windows) |
 | dc-6332.12 | Add-in hosting steps 3-4: COM, QueueAsMacro, exact RTD | Sonnet with Opus review (Windows) |
 | dc-6332.13 | Deferred parts, revisited each usage week | orchestrator |
+| dc-6332.14 | XLL invocation-time volatility events (split from .11; waits on dc-hsa5.20.2) | Opus (Windows) |
+| dc-6332.15 | Add-in surrogate: boundary design note | Opus |
+| dc-6332.16 | COM identity, apartments and a no-Office lane (deferred) | later |
+| dc-6332.17 | HYPGEOM.DIST cumulative: bound the per-call work at large populations | Sonnet |
+
+The careful reads (dc-6332.1, closed) are in `pro/harvest/<n>-harvest.md`: every section's disposition, each claim
+checked against our code, the experiments with call counts, and Python replays of candidates on the witness traces.
+Brief every lane with its answer's harvest file as well as the answer. Each child bead carries the work order from its
+harvest file as a comment.
 
 ## What the answers are
 
