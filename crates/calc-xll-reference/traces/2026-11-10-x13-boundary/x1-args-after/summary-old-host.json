@@ -1,0 +1,23 @@
+{
+  "status": "failed verification",
+  "error": "Operands after xlFree differ between Excel and DNA Calc",
+  "error_type": "AssertionError",
+  "excel_session_ownership": {
+    "C:\\Work\\DnaCalc\\codex-runs\\x13-boundary\\x1-trace\\excel-traced": {
+      "pid": 40540,
+      "start_ticks": 639299440389558801,
+      "launch": 19,
+      "job": "20261110T2147188244289-4eceed401bec413bbe7a80b05086087c",
+      "host_script_sha256": "CA04E1F2ED8CA422721AA3407D28E4A8B49681802F825FECA938248B163C0673",
+      "scope": "Exact successful fresh-job receipt, launch tuple, pre-activation inventory, retained host/runner sources, security baseline and capture interval checked; raw environment remains unchanged."
+    },
+    "C:\\Work\\DnaCalc\\codex-runs\\x13-boundary\\x1-trace\\excel-control": {
+      "pid": 40540,
+      "start_ticks": 639299440389558801,
+      "launch": 19,
+      "job": "20261110T2147371095537-bf385875c42a41bfb261eb527453b017",
+      "host_script_sha256": "CA04E1F2ED8CA422721AA3407D28E4A8B49681802F825FECA938248B163C0673",
+      "scope": "Exact successful fresh-job receipt, launch tuple, pre-activation inventory, retained host/runner sources, security baseline and capture interval checked; raw environment remains unchanged."
+    }
+  }
+}

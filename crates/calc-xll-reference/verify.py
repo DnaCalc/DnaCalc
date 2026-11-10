@@ -429,8 +429,16 @@ def verify_x1(excel, excel_control, host, host_control):
                  if x["event"] == "leave" and "return_code" in x] for events in (excel_events, host_events)]
     require(sequence[0] == sequence[1], "Ordered C API callback/return-code sequences differ")
     require(signatures[0] == signatures[1], "Registration signatures differ")
+    # What xlFree leaves in the caller's operands (dc-6332.10: Excel nulls the pointer and sets
+    # xltypeMissing). Traces before the tracer recorded args_after have none to compare.
+    freed = [[[normalize_x2(defined_boundary(arg)) for arg in x["args_after"]] for x in events
+              if x["event"] == "leave" and x.get("function") == 16384 and "args_after" in x]
+             for events in (excel_events, host_events)]
+    if freed[0] or freed[1]:
+        require(freed[0] == freed[1], "Operands after xlFree differ between Excel and DNA Calc")
     return {
         "status": "verified X1 fixture boundary", "formula_cases": len(expected), "formula_matches_each_host": len(expected),
+        "xlfree_operands_after_compared": len(freed[0]),
         "source_revision": environments[0]["repository_commit"],
         "ordered_callback_sequence_matches": True,
         "trace_sha256": {"excel": digest(excel / "boundary.jsonl"), "dna_calc": digest(host / "boundary.jsonl")},

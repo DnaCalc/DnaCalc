@@ -42,3 +42,13 @@ units, input mutation, nested xlGetName), Excel run and repeat (identical on all
 OneCalc comparisons before (31478370 build) and after the mask coercion: 61 and 128 of 145; the
 17 remaining failures are OneCalc MissingInput refusals for cells other than A1. These host runs
 used `run-batch.ps1 -Direct`. See the hosting study, section 29.
+
+## X1 traced pair with xlFree operands (x1-args-after)
+
+The tracer (`native/trace.cpp`) now records xlFree's operands after the call (`args_after`), and
+`verify.py`'s X1 check compares them in order. One traced and one untraced X1 run each in Excel
+(owned session, private desktop) and in OneCalc (a967db01 build): `summary.json` verifies 289 of
+289 formulas, 599 ordered C API callbacks and status codes, and 148 xlFree calls whose operands
+afterwards agree. The same Excel traces against the old host (85ea49e5 build, traced and
+control) fail with "Operands after xlFree differ between Excel and DNA Calc"
+(`summary-old-host.json`), so the comparison sees the behaviour this bead changed.
