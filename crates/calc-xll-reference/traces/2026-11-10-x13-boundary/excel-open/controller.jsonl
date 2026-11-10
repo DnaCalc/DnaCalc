@@ -1,0 +1,7 @@
+{"utc":"2026-11-10T20:58:21.8540960Z","operation":"RegisterXLL managed","value":true}
+{"utc":"2026-11-10T20:58:21.8713156Z","operation":"calculation mode =MyBoundaryOpen()","value":{"requested":-4105,"actual":-4105}}
+{"utc":"2026-11-10T20:58:21.8803854Z","operation":"=MyBoundaryOpen()","value":"16385:0|main|int:headroom-5x16KiB;16391:32|main|err:#VALUE!;16403:0|main|type2050:data=main|count=0;16392:0|main|hwnd:process=self|class=XLMAIN"}
+{"utc":"2026-11-10T20:58:21.8874428Z","operation":"AutomationSecurity unchanged before teardown","value":true}
+{"utc":"2026-11-10T20:58:21.9745658Z","operation":"ExecuteExcel4Macro UNREGISTER(managed)","value":true}
+{"utc":"2026-11-10T20:58:21.9830262Z","operation":"AutomationSecurity unchanged","value":true}
+{"utc":"2026-11-10T20:58:22.9137965Z","operation":"cleanup","value":"Workbook closed; Excel returned to lane session host"}

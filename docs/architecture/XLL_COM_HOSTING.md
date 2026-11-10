@@ -1145,3 +1145,65 @@ The 45 successful jobs verify 1 before/after; the two failed jobs lack after-bas
 readings. Only private test RTD classes are registered; all captured private names
 and CLSIDs are removed, with five preexisting names unchanged. The ownership
 audit finds all 33 owned Excel identities gone.
+
+## 28. Boundary batch x13: xlFree, failed-callback writes, xlGetInst, xlStack, auto-free (dc-6332.10)
+
+Answer 13's D.3, the D.22 rows 16385/16391/16403 and a sentinel pass over the X5 permission
+matrix, run as fixture probes (`calc-xll-fixture/src/fixture/boundary.rs`, opt-in marker
+`boundary-tests.enable`) through one untraced Excel control per run in the lane's owned session
+on a private desktop (Excel 16.0.20527.20150, x64, en-ZA, MTR on, 16 threads), and one OneCalc
+host process per case group. The cases and Excel's answers are
+`crates/calc-xll-reference/fixture/x13-boundary-cases.json`; runner, guard files and
+summaries are in `crates/calc-xll-reference/traces/2026-11-10-x13-boundary`. The probes fill
+each result operand with 0xA5 bytes and report status, thread and what the callback left there.
+
+Measured in Excel:
+
+- **Failed callbacks write #VALUE!.** Every failed callback in a frame (statuses 2, 32 and 128,
+  normal, `#`, `$` and xlAutoOpen) left xltypeErr 15 in the result operand; none left it
+  untouched. CALL and REGISTER.ID already did this in the host (`call.rs`).
+- **xlFree changes the caller's operand.** For Str and Multi results the pointer word becomes
+  null; for every kind (Str, Multi, Num, SRef, Ref) the type becomes xltypeMissing (0x80) and the
+  other value bytes stay. A second xlFree of the same operand returns 0.
+- **No XLFree bit on callback results.** The raw type of xlGetName, xlfCaller, xlCoerce to Str
+  and to Multi, xlSheetId, SUM and EVALUATE results carried no flag bit (answer 13 A.3 #3: do not
+  set it universally; the prompt's R3 premise is not what Excel does).
+- **xlGetInst (16391) fails with 32** in normal, `#`, `$` and xlAutoOpen contexts (A.3 #10).
+- **xlStack (16385) is not capped at 64 KiB** (A.3 #11 does not hold here): it answered the
+  caller's own headroom less 87,119 bytes on the main thread, a worker and in xlAutoOpen.
+- **xlGetInstPtr (16403)** is BigData with the main image handle and count 0 in every context;
+  **xlGetHwnd (16392)** is this process's XLMAIN window.
+- **Commands from worksheet functions**: ECHO (0x8000|141) answers 2 from a normal function,
+  0 and FALSE from `#`, 128 from `$`. MESSAGE from `#` answers 0 and FALSE.
+- **xlUDF from `$`** answers 32; **SET.NAME** answers 2 from normal and `$`, 0 from `#`;
+  **xlEventRegister from `$`** succeeds (0, with an Int payload that differs per process).
+- **Auto-free**: a DLLFree number result gets xlAutoFree12 on the main thread; xlFree inside it
+  returns 0; Excel terminated (RPC server died) when xlAutoFree12 called xlStack, xlGetName,
+  xlfCaller and SUM (one trial, not repeated; which of the four is unknown).
+- **Retained callback storage**: an xlGetName result kept past the return stays readable in the
+  next entry and frees with 0, on the main thread and on a worker.
+- `$` functions ran on a worker thread at formula entry in this run.
+- Excel keeps one registration per module and procedure: three `xlfRegister` calls of one export
+  with type texts `QB`, `QB#` and `QB$` under three names made all three names run as `QB$` (the
+  probes therefore use one export per registration). The host keeps three registrations; that is
+  a registration-identity difference for dc-6332.13.
+
+Host changes (dc-6332.10): callbacks answer through one `CallbackReply` (status, result write,
+refusal) applied in `dispatch`; failed 2/32/128 callbacks write #VALUE!; the measured denials
+above return Excel's status without refusing the formula (`measured_denial`, with its table);
+xlFree nulls the pointer and sets Missing; xlGetInst answers 32; xlStack keeps Excel's reserve;
+MESSAGE from `#` answers FALSE; xlAutoFree12 runs after the worksheet frame is left, in a
+free-only frame that serves xlFree and refuses anything else (`dc-6332.13`, since Excel
+crashes there); callback allocations live in one registry shared by the owner and its workers,
+so a worker's retained callback result is no longer a refusal. Still refused: commands and
+xlUDF with a cached-read change from `#`, xlEventRegister and RTD from `$` (events are dc-6332.13).
+
+Comparison (pass = matched Excel; fail = mismatched + refused + not run; `verify.py
+--boundary-host`, which also reports the C.1 manifest, the four counts and an Excel repeat):
+before the host changes 36 of 68 (30 of 52 ordered boundary cases, 6 of 16 lifecycle and
+ownership cases), after 65 of 68 (49 of 52 and 16 of 16; the three failures are the refusals
+above); the open-time xlGetInst case 0 of 1, then 1 of 1. A second Excel run agreed on 67 of 68
+(the xlEventRegister payload differs per process). The existing framework sets through the host
+route (`run.ps1 -HostExecutable`, values checked against Excel's recorded answers: X1 289,
+Excel-DNA net48 7, net8 7, AOT 1, X2Pool 2, xlw 5 and 5, xlOil Utils/SQL 12, xlOil Python 5)
+pass on the changed host.

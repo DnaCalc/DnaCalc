@@ -1,0 +1,3 @@
+[
+  {"formula": "=MyBoundaryOpen()", "value": "16385:0|main|int:headroom-5x16KiB;16391:32|main|err:#VALUE!;16403:0|main|type2050:data=main|count=0;16392:0|main|hwnd:process=self|class=XLMAIN"}
+]

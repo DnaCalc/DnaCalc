@@ -1,0 +1,121 @@
+{"utc":"2026-11-10T20:20:36.2825593Z","operation":"RegisterXLL managed","value":true}
+{"utc":"2026-11-10T20:20:36.5626711Z","operation":"calculation mode =MyBoundary(4)","value":{"requested":-4105,"actual":-4105}}
+{"utc":"2026-11-10T20:20:36.6320889Z","operation":"=MyBoundary(4)","value":"0|worker|num:42"}
+{"utc":"2026-11-10T20:20:36.6349051Z","operation":"calculation mode =MyBoundary(16393)","value":{"requested":-4105,"actual":-4105}}
+{"utc":"2026-11-10T20:20:36.6550097Z","operation":"=MyBoundary(16393)","value":"0|worker|str:@self"}
+{"utc":"2026-11-10T20:20:36.6602083Z","operation":"calculation mode =MyBoundary(16385)","value":{"requested":-4105,"actual":-4105}}
+{"utc":"2026-11-10T20:20:36.6726264Z","operation":"=MyBoundary(16385)","value":"0|worker|int:945649"}
+{"utc":"2026-11-10T20:20:36.6789378Z","operation":"calculation mode =MyBoundary(89)","value":{"requested":-4105,"actual":-4105}}
+{"utc":"2026-11-10T20:20:36.6917583Z","operation":"=MyBoundary(89)","value":"0|worker|sref:count=1|2,2,1,1"}
+{"utc":"2026-11-10T20:20:36.6960340Z","operation":"calculation mode =MyBoundary(16386)","value":{"requested":-4105,"actual":-4105}}
+{"utc":"2026-11-10T20:20:36.7082731Z","operation":"=MyBoundary(16386)","value":"0|worker|num:19"}
+{"utc":"2026-11-10T20:20:36.7138631Z","operation":"calculation mode =MyBoundary(16388)","value":{"requested":-4105,"actual":-4105}}
+{"utc":"2026-11-10T20:20:36.7266998Z","operation":"=MyBoundary(16388)","value":"0|worker|ref:table=null"}
+{"utc":"2026-11-10T20:20:36.7333371Z","operation":"calculation mode =MyBoundary(16389)","value":{"requested":-4105,"actual":-4105}}
+{"utc":"2026-11-10T20:20:36.7466113Z","operation":"=MyBoundary(16389)","value":"0|worker|str:[Book2]X0"}
+{"utc":"2026-11-10T20:20:36.7522899Z","operation":"calculation mode =MyBoundary(16392)","value":{"requested":-4105,"actual":-4105}}
+{"utc":"2026-11-10T20:20:36.7652507Z","operation":"=MyBoundary(16392)","value":"0|worker|hwnd:process=self|class=XLMAIN"}
+{"utc":"2026-11-10T20:20:36.7726164Z","operation":"calculation mode =MyBoundary(16403)","value":{"requested":-4105,"actual":-4105}}
+{"utc":"2026-11-10T20:20:36.7865835Z","operation":"=MyBoundary(16403)","value":"0|worker|type2050:data=main|count=0"}
+{"utc":"2026-11-10T20:20:36.7911643Z","operation":"calculation mode =MyBoundary(237)","value":{"requested":-4105,"actual":-4105}}
+{"utc":"2026-11-10T20:20:36.8041661Z","operation":"=MyBoundary(237)","value":"2|worker|err:#VALUE!"}
+{"utc":"2026-11-10T20:20:36.8105077Z","operation":"calculation mode =MyBoundary(186)","value":{"requested":-4105,"actual":-4105}}
+{"utc":"2026-11-10T20:20:36.8242057Z","operation":"=MyBoundary(186)","value":"2|worker|err:#VALUE!"}
+{"utc":"2026-11-10T20:20:36.8304399Z","operation":"calculation mode =MyBoundary(257)","value":{"requested":-4105,"actual":-4105}}
+{"utc":"2026-11-10T20:20:36.8442828Z","operation":"=MyBoundary(257)","value":"128|worker|err:#VALUE!"}
+{"utc":"2026-11-10T20:20:36.8499660Z","operation":"calculation mode =MyBoundary(32890)","value":{"requested":-4105,"actual":-4105}}
+{"utc":"2026-11-10T20:20:36.8668435Z","operation":"=MyBoundary(32890)","value":"128|worker|err:#VALUE!"}
+{"utc":"2026-11-10T20:20:36.8721730Z","operation":"calculation mode =MyBoundary(16391)","value":{"requested":-4105,"actual":-4105}}
+{"utc":"2026-11-10T20:20:36.8849081Z","operation":"=MyBoundary(16391)","value":"32|worker|err:#VALUE!"}
+{"utc":"2026-11-10T20:20:36.8901879Z","operation":"calculation mode =MyBoundary(32909)","value":{"requested":-4105,"actual":-4105}}
+{"utc":"2026-11-10T20:20:36.9039234Z","operation":"=MyBoundary(32909)","value":"128|worker|err:#VALUE!"}
+{"utc":"2026-11-10T20:20:36.9097672Z","operation":"calculation mode =MyBoundary(255)","value":{"requested":-4105,"actual":-4105}}
+{"utc":"2026-11-10T20:20:36.9248519Z","operation":"=MyBoundary(255)","value":"32|worker|err:#VALUE!"}
+{"utc":"2026-11-10T20:20:36.9294819Z","operation":"calculation mode =MyBoundary(88)","value":{"requested":-4105,"actual":-4105}}
+{"utc":"2026-11-10T20:20:36.9449569Z","operation":"=MyBoundary(88)","value":"2|worker|err:#VALUE!"}
+{"utc":"2026-11-10T20:20:36.9499560Z","operation":"calculation mode =MyBoundaryMacro(4)","value":{"requested":-4105,"actual":-4105}}
+{"utc":"2026-11-10T20:20:36.9735828Z","operation":"=MyBoundaryMacro(4)","value":"0|worker|num:42"}
+{"utc":"2026-11-10T20:20:36.9766721Z","operation":"calculation mode =MyBoundaryMacro(16393)","value":{"requested":-4105,"actual":-4105}}
+{"utc":"2026-11-10T20:20:36.9931141Z","operation":"=MyBoundaryMacro(16393)","value":"0|worker|str:@self"}
+{"utc":"2026-11-10T20:20:36.9985066Z","operation":"calculation mode =MyBoundaryMacro(16385)","value":{"requested":-4105,"actual":-4105}}
+{"utc":"2026-11-10T20:20:37.0118065Z","operation":"=MyBoundaryMacro(16385)","value":"0|worker|int:945649"}
+{"utc":"2026-11-10T20:20:37.0175347Z","operation":"calculation mode =MyBoundaryMacro(89)","value":{"requested":-4105,"actual":-4105}}
+{"utc":"2026-11-10T20:20:37.0317847Z","operation":"=MyBoundaryMacro(89)","value":"0|worker|sref:count=1|2,2,1,1"}
+{"utc":"2026-11-10T20:20:37.0381766Z","operation":"calculation mode =MyBoundaryMacro(16386)","value":{"requested":-4105,"actual":-4105}}
+{"utc":"2026-11-10T20:20:37.0509486Z","operation":"=MyBoundaryMacro(16386)","value":"0|worker|num:19"}
+{"utc":"2026-11-10T20:20:37.0590034Z","operation":"calculation mode =MyBoundaryMacro(16388)","value":{"requested":-4105,"actual":-4105}}
+{"utc":"2026-11-10T20:20:37.0732538Z","operation":"=MyBoundaryMacro(16388)","value":"0|worker|ref:table=null"}
+{"utc":"2026-11-10T20:20:37.0785837Z","operation":"calculation mode =MyBoundaryMacro(16389)","value":{"requested":-4105,"actual":-4105}}
+{"utc":"2026-11-10T20:20:37.0936860Z","operation":"=MyBoundaryMacro(16389)","value":"0|worker|str:[Book2]X0"}
+{"utc":"2026-11-10T20:20:37.0984296Z","operation":"calculation mode =MyBoundaryMacro(16392)","value":{"requested":-4105,"actual":-4105}}
+{"utc":"2026-11-10T20:20:37.1169312Z","operation":"=MyBoundaryMacro(16392)","value":"0|worker|hwnd:process=self|class=XLMAIN"}
+{"utc":"2026-11-10T20:20:37.1211308Z","operation":"calculation mode =MyBoundaryMacro(16403)","value":{"requested":-4105,"actual":-4105}}
+{"utc":"2026-11-10T20:20:37.1391533Z","operation":"=MyBoundaryMacro(16403)","value":"0|worker|type2050:data=main|count=0"}
+{"utc":"2026-11-10T20:20:37.1430904Z","operation":"calculation mode =MyBoundaryMacro(237)","value":{"requested":-4105,"actual":-4105}}
+{"utc":"2026-11-10T20:20:37.1592082Z","operation":"=MyBoundaryMacro(237)","value":"2|worker|err:#VALUE!"}
+{"utc":"2026-11-10T20:20:37.1682159Z","operation":"calculation mode =MyBoundaryMacro(186)","value":{"requested":-4105,"actual":-4105}}
+{"utc":"2026-11-10T20:20:37.1824994Z","operation":"=MyBoundaryMacro(186)","value":"2|worker|err:#VALUE!"}
+{"utc":"2026-11-10T20:20:37.1866951Z","operation":"calculation mode =MyBoundaryMacro(257)","value":{"requested":-4105,"actual":-4105}}
+{"utc":"2026-11-10T20:20:37.2065090Z","operation":"=MyBoundaryMacro(257)","value":"128|worker|err:#VALUE!"}
+{"utc":"2026-11-10T20:20:37.2093558Z","operation":"calculation mode =MyBoundaryMacro(32890)","value":{"requested":-4105,"actual":-4105}}
+{"utc":"2026-11-10T20:20:37.2245633Z","operation":"=MyBoundaryMacro(32890)","value":"128|worker|err:#VALUE!"}
+{"utc":"2026-11-10T20:20:37.2311396Z","operation":"calculation mode =MyBoundaryMacro(16391)","value":{"requested":-4105,"actual":-4105}}
+{"utc":"2026-11-10T20:20:37.2477227Z","operation":"=MyBoundaryMacro(16391)","value":"32|worker|err:#VALUE!"}
+{"utc":"2026-11-10T20:20:37.2545584Z","operation":"calculation mode =MyBoundaryMacro(32909)","value":{"requested":-4105,"actual":-4105}}
+{"utc":"2026-11-10T20:20:37.2699501Z","operation":"=MyBoundaryMacro(32909)","value":"128|worker|err:#VALUE!"}
+{"utc":"2026-11-10T20:20:37.2778547Z","operation":"calculation mode =MyBoundaryMacro(255)","value":{"requested":-4105,"actual":-4105}}
+{"utc":"2026-11-10T20:20:37.2944586Z","operation":"=MyBoundaryMacro(255)","value":"32|worker|err:#VALUE!"}
+{"utc":"2026-11-10T20:20:37.3018576Z","operation":"calculation mode =MyBoundaryMacro(88)","value":{"requested":-4105,"actual":-4105}}
+{"utc":"2026-11-10T20:20:37.3181784Z","operation":"=MyBoundaryMacro(88)","value":"2|worker|err:#VALUE!"}
+{"utc":"2026-11-10T20:20:37.3273791Z","operation":"calculation mode =MyBoundaryPool(4)","value":{"requested":-4105,"actual":-4105}}
+{"utc":"2026-11-10T20:20:37.3479673Z","operation":"=MyBoundaryPool(4)","value":"0|worker|num:42"}
+{"utc":"2026-11-10T20:20:37.3549502Z","operation":"calculation mode =MyBoundaryPool(16393)","value":{"requested":-4105,"actual":-4105}}
+{"utc":"2026-11-10T20:20:37.3739215Z","operation":"=MyBoundaryPool(16393)","value":"0|worker|str:@self"}
+{"utc":"2026-11-10T20:20:37.3790893Z","operation":"calculation mode =MyBoundaryPool(16385)","value":{"requested":-4105,"actual":-4105}}
+{"utc":"2026-11-10T20:20:37.3984618Z","operation":"=MyBoundaryPool(16385)","value":"0|worker|int:945649"}
+{"utc":"2026-11-10T20:20:37.4013341Z","operation":"calculation mode =MyBoundaryPool(89)","value":{"requested":-4105,"actual":-4105}}
+{"utc":"2026-11-10T20:20:37.4164985Z","operation":"=MyBoundaryPool(89)","value":"0|worker|sref:count=1|2,2,1,1"}
+{"utc":"2026-11-10T20:20:37.4227721Z","operation":"calculation mode =MyBoundaryPool(16386)","value":{"requested":-4105,"actual":-4105}}
+{"utc":"2026-11-10T20:20:37.4695203Z","operation":"=MyBoundaryPool(16386)","value":"0|worker|num:19"}
+{"utc":"2026-11-10T20:20:37.4724784Z","operation":"calculation mode =MyBoundaryPool(16388)","value":{"requested":-4105,"actual":-4105}}
+{"utc":"2026-11-10T20:20:37.4889588Z","operation":"=MyBoundaryPool(16388)","value":"0|worker|ref:table=null"}
+{"utc":"2026-11-10T20:20:37.4929773Z","operation":"calculation mode =MyBoundaryPool(16389)","value":{"requested":-4105,"actual":-4105}}
+{"utc":"2026-11-10T20:20:37.5072779Z","operation":"=MyBoundaryPool(16389)","value":"0|worker|str:[Book2]X0"}
+{"utc":"2026-11-10T20:20:37.5118379Z","operation":"calculation mode =MyBoundaryPool(16392)","value":{"requested":-4105,"actual":-4105}}
+{"utc":"2026-11-10T20:20:37.5333126Z","operation":"=MyBoundaryPool(16392)","value":"0|worker|hwnd:process=self|class=XLMAIN"}
+{"utc":"2026-11-10T20:20:37.5368822Z","operation":"calculation mode =MyBoundaryPool(16403)","value":{"requested":-4105,"actual":-4105}}
+{"utc":"2026-11-10T20:20:37.5536986Z","operation":"=MyBoundaryPool(16403)","value":"0|worker|type2050:data=main|count=0"}
+{"utc":"2026-11-10T20:20:37.5573610Z","operation":"calculation mode =MyBoundaryPool(237)","value":{"requested":-4105,"actual":-4105}}
+{"utc":"2026-11-10T20:20:37.5729806Z","operation":"=MyBoundaryPool(237)","value":"2|worker|err:#VALUE!"}
+{"utc":"2026-11-10T20:20:37.5794788Z","operation":"calculation mode =MyBoundaryPool(186)","value":{"requested":-4105,"actual":-4105}}
+{"utc":"2026-11-10T20:20:37.5927508Z","operation":"=MyBoundaryPool(186)","value":"2|worker|err:#VALUE!"}
+{"utc":"2026-11-10T20:20:37.6008299Z","operation":"calculation mode =MyBoundaryPool(257)","value":{"requested":-4105,"actual":-4105}}
+{"utc":"2026-11-10T20:20:37.6176567Z","operation":"=MyBoundaryPool(257)","value":"128|worker|err:#VALUE!"}
+{"utc":"2026-11-10T20:20:37.6238346Z","operation":"calculation mode =MyBoundaryPool(32890)","value":{"requested":-4105,"actual":-4105}}
+{"utc":"2026-11-10T20:20:37.6397001Z","operation":"=MyBoundaryPool(32890)","value":"128|worker|err:#VALUE!"}
+{"utc":"2026-11-10T20:20:37.6474748Z","operation":"calculation mode =MyBoundaryPool(16391)","value":{"requested":-4105,"actual":-4105}}
+{"utc":"2026-11-10T20:20:37.6778123Z","operation":"=MyBoundaryPool(16391)","value":"32|worker|err:#VALUE!"}
+{"utc":"2026-11-10T20:20:37.6805331Z","operation":"calculation mode =MyBoundaryPool(32909)","value":{"requested":-4105,"actual":-4105}}
+{"utc":"2026-11-10T20:20:37.6965321Z","operation":"=MyBoundaryPool(32909)","value":"128|worker|err:#VALUE!"}
+{"utc":"2026-11-10T20:20:37.7049686Z","operation":"calculation mode =MyBoundaryPool(255)","value":{"requested":-4105,"actual":-4105}}
+{"utc":"2026-11-10T20:20:37.7185285Z","operation":"=MyBoundaryPool(255)","value":"32|worker|err:#VALUE!"}
+{"utc":"2026-11-10T20:20:37.7256882Z","operation":"calculation mode =MyBoundaryPool(88)","value":{"requested":-4105,"actual":-4105}}
+{"utc":"2026-11-10T20:20:37.7406843Z","operation":"=MyBoundaryPool(88)","value":"2|worker|err:#VALUE!"}
+{"utc":"2026-11-10T20:20:37.7450339Z","operation":"calculation mode =MyFreeProbe(1)","value":{"requested":-4105,"actual":-4105}}
+{"utc":"2026-11-10T20:20:37.7615195Z","operation":"=MyFreeProbe(1)","value":"0|0x0002|free=0|words=zero,same,same,changed|again=0"}
+{"utc":"2026-11-10T20:20:37.7659632Z","operation":"calculation mode =MyFreeProbe(2)","value":{"requested":-4105,"actual":-4105}}
+{"utc":"2026-11-10T20:20:37.7806149Z","operation":"=MyFreeProbe(2)","value":"0|0x0400|free=0|words=same,same,same,changed|again=0"}
+{"utc":"2026-11-10T20:20:37.7868761Z","operation":"calculation mode =MyFreeProbe(3)","value":{"requested":-4105,"actual":-4105}}
+{"utc":"2026-11-10T20:20:37.8055389Z","operation":"=MyFreeProbe(3)","value":"0|0x0002|free=0|words=zero,same,same,changed|again=0"}
+{"utc":"2026-11-10T20:20:37.8095958Z","operation":"calculation mode =MyFreeProbe(4)","value":{"requested":-4105,"actual":-4105}}
+{"utc":"2026-11-10T20:20:37.8271532Z","operation":"=MyFreeProbe(4)","value":"0|0x0040|free=0|words=zero,same,same,changed|again=0"}
+{"utc":"2026-11-10T20:20:37.8334510Z","operation":"calculation mode =MyFreeProbe(5)","value":{"requested":-4105,"actual":-4105}}
+{"utc":"2026-11-10T20:20:37.8531895Z","operation":"=MyFreeProbe(5)","value":"0|0x0008|free=0|words=same,same,same,changed|again=0"}
+{"utc":"2026-11-10T20:20:37.8582174Z","operation":"calculation mode =MyFreeProbe(6)","value":{"requested":-4105,"actual":-4105}}
+{"utc":"2026-11-10T20:20:37.8746827Z","operation":"=MyFreeProbe(6)","value":"0|0x0001|free=0|words=same,same,same,changed|again=0"}
+{"utc":"2026-11-10T20:20:37.8823976Z","operation":"calculation mode =MyFreeProbe(7)","value":{"requested":-4105,"actual":-4105}}
+{"utc":"2026-11-10T20:20:37.9047249Z","operation":"=MyFreeProbe(7)","value":"0|0x0002|free=0|words=zero,same,same,changed|again=0"}
+{"utc":"2026-11-10T20:20:37.9081542Z","operation":"calculation mode =MyFreeFrame()","value":{"requested":-4105,"actual":-4105}}
+{"utc":"2026-11-10T20:20:52.4264878Z","operation":"failure","value":"System.Runtime.InteropServices.COMException (0x800706BE): The remote procedure call failed. (0x800706BE)\r\n   at System.Management.Automation.ComInterop.ComRuntimeHelpers.CheckThrowException(Int32 hresult, ExcepInfo& excepInfo, ComMethodDesc method, Object[] args, UInt32 argErr)\r\n   at CallSite.Target(Closure, CallSite, ComObject, Object)\r\n   at lambda_method389(Closure, Object[], StrongBox`1[], InterpretedFrame)"}
+{"utc":"2026-11-10T20:20:52.4382601Z","operation":"Close exception","value":"The RPC server is unavailable. (0x800706BA)"}
+{"utc":"2026-11-10T20:20:52.9809169Z","operation":"cleanup","value":"Workbook closed; Excel returned to lane session host"}

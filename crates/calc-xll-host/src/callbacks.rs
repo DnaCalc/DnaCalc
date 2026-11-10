@@ -13,7 +13,21 @@ use std::{
     time::Duration,
 };
 
+/// Bytes xlStack keeps back from the measured headroom: Excel's 87,119-byte shortfall below the
+/// caller's own headroom, less about 2 KiB of host frames between the add-in and this measure.
+const XL_STACK_RESERVE: usize = 85_000;
+/// What kind of entry a frame belongs to. The kind decides which callbacks are served.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(crate) enum FrameKind {
+    /// A registered function or command entered from a cell, a command or `Application.Run`.
+    Entry,
+    /// xlAutoOpen, xlAutoClose and the other lifecycle exports.
+    Lifecycle,
+    /// xlAutoFree12 releasing a DLLFree result: only xlFree is served.
+    FreeOnly,
+}
 pub(crate) struct Frame<'a> {
+    pub kind: FrameKind,
     pub state: Shared,
     pub module: Rc<Module>,
     pub origin: Rc<Module>,
@@ -27,6 +41,7 @@ pub(crate) struct Frame<'a> {
 impl Frame<'_> {
     pub fn lifecycle(state: Shared, module: Rc<Module>) -> Self {
         Self {
+            kind: FrameKind::Lifecycle,
             state,
             origin: module.clone(),
             module,
@@ -36,6 +51,98 @@ impl Frame<'_> {
             rtd_subscriptions: BTreeSet::new(),
             transient: Vec::new(),
         }
+    }
+    /// The frame xlAutoFree12 runs in: the registration's modules, the calling formula's
+    /// context (so a refused callback refuses that formula), no signature.
+    pub fn free_only<'b>(
+        state: Shared,
+        module: Rc<Module>,
+        origin: Rc<Module>,
+        context: Option<&'b mut dyn UserFunctionContext>,
+    ) -> Frame<'b> {
+        Frame {
+            kind: FrameKind::FreeOnly,
+            state,
+            module,
+            origin,
+            context,
+            signature: None,
+            provider: None,
+            rtd_subscriptions: BTreeSet::new(),
+            transient: Vec::new(),
+        }
+    }
+}
+
+/// What one callback answers: its exact status, what happens to the caller's result operand,
+/// and whether the calling formula becomes a typed refusal. `dispatch` applies it in one place.
+pub(crate) struct CallbackReply {
+    pub status: i32,
+    pub write: ResultWrite,
+    pub refusal: Option<String>,
+}
+pub(crate) enum ResultWrite {
+    /// The result operand is not touched.
+    Unchanged,
+    /// All 32 bytes are zeroed (xlAsyncReturn's accepted completion, Excel20527).
+    ZeroAll,
+    /// A result operand built by the host; its allocation is already registered.
+    Operand(XlOper12),
+    /// A failed callback inside a frame: Excel 16.0.20527 writes xltypeErr #VALUE! into the
+    /// result operand for statuses 2, 32 and 128 (x13 boundary batch, every failed row in the
+    /// normal, `#`, `$` and xlAutoOpen contexts). Other statuses leave it untouched.
+    Failure,
+}
+impl CallbackReply {
+    fn status(status: i32) -> Self {
+        Self {
+            status,
+            write: if matches!(status, INVALID_FUNCTION | FAILED | NOT_THREAD_SAFE) {
+                ResultWrite::Failure
+            } else {
+                ResultWrite::Unchanged
+            },
+            refusal: None,
+        }
+    }
+    fn operand(oper: XlOper12) -> Self {
+        Self {
+            status: SUCCESS,
+            write: ResultWrite::Operand(oper),
+            refusal: None,
+        }
+    }
+    fn refused(status: i32, why: String) -> Self {
+        Self {
+            refusal: Some(why),
+            ..Self::status(status)
+        }
+    }
+    unsafe fn apply(self, frame: Option<&mut Frame<'_>>, result: *mut XlOper12) -> i32 {
+        if let Some(frame) = frame {
+            if let Some(why) = &self.refusal {
+                refuse(frame, why);
+            }
+            if result.is_null()
+                && let ResultWrite::Operand(oper) = &self.write
+            {
+                // Nobody receives this operand, so nobody can free it.
+                free(&frame.state, oper);
+            }
+        }
+        if !result.is_null() {
+            match self.write {
+                ResultWrite::Unchanged => {}
+                ResultWrite::ZeroAll => unsafe {
+                    std::ptr::write_bytes(result.cast::<u8>(), 0, std::mem::size_of::<XlOper12>());
+                },
+                ResultWrite::Operand(oper) => unsafe { result.write_unaligned(oper) },
+                ResultWrite::Failure => unsafe {
+                    result.write_unaligned(XlOper12::error(15));
+                },
+            }
+        }
+        self.status
     }
 }
 thread_local! { static FRAME:Cell<*mut Frame<'static>>=const{Cell::new(std::ptr::null_mut())}; }
@@ -189,62 +296,21 @@ pub unsafe fn dispatch(
                 return FAILED;
             }
             let frame = &mut *ptr;
-            // These are modeled permission denials measured on Excel20527.
-            // They leave the result operand undefined and can be handled by
-            // the add-in; they are not absent-capability refusals.
-            if let Some(signature) = &frame.signature {
-                if matches!(function, 237 | 186) && !signature.macro_equivalent {
-                    return INVALID_FUNCTION;
-                }
-                if signature.thread_safe && matches!(function, XLF_EVALUATE | 32890) {
-                    return NOT_THREAD_SAFE;
-                }
-                if function == 32890 && !signature.macro_equivalent {
-                    return INVALID_FUNCTION;
-                }
-            }
-            if function == 16403 {
-                if count != 0 {
-                    return INVALID_COUNT;
-                }
-                if !result.is_null() {
-                    result.write_unaligned(XlOper12 {
-                        value: XlValue12 {
-                            big_data: XlBigData {
-                                data: crate::native::GetModuleHandleW(std::ptr::null()).cast(),
-                                byte_count: 0,
-                            },
-                        },
-                        xltype: XL_BIG_DATA,
-                    });
-                }
-                return SUCCESS;
-            }
-            if matches!(function, 16388 | 16389) {
-                return sheet_callback(frame, function, args, result);
+            if frame.kind == FrameKind::FreeOnly && function != XL_FREE_FN {
+                // Excel 16.0.20527 terminated when xlAutoFree12 called xlStack, xlGetName,
+                // xlfCaller and SUM (x13 batch, MyFreeFrame(2)); xlFree there returns 0. The host
+                // cannot crash in Excel's place: it fails the callback and refuses the formula.
+                return CallbackReply::refused(
+                    FAILED,
+                    format!("dc-6332.13: callback {function} from xlAutoFree12 terminates Excel 16.0.20527"),
+                )
+                .apply(Some(frame), result);
             }
             if matches!(function, XLF_CALL | XLF_REGISTER_ID) {
                 return crate::call::dispatch(frame, function, args, result);
             }
-            match run(frame, function, args) {
-                Ok(Some(value)) => {
-                    if result.is_null() {
-                        return SUCCESS;
-                    }
-                    match publish(frame, function, args, &value, result) {
-                        Ok(()) => SUCCESS,
-                        Err(why) => {
-                            refuse(frame, &why);
-                            FAILED
-                        }
-                    }
-                }
-                Ok(None) => SUCCESS,
-                Err((code, why)) => {
-                    refuse(frame, &why);
-                    code
-                }
-            }
+            let reply = answer(frame, function, args, result.is_null());
+            reply.apply(Some(frame), result)
         })
     }))
     .unwrap_or(FAILED)
@@ -263,6 +329,8 @@ fn refuse(frame: &mut Frame<'_>, why: &str) {
                 "dc-snz.23"
             } else if why.starts_with("dc-gh22:") {
                 "dc-gh22"
+            } else if why.starts_with("dc-6332.13:") {
+                "dc-6332.13"
             } else {
                 "dc-snz.2"
             },
@@ -277,10 +345,9 @@ unsafe fn sheet_callback(
     frame: &mut Frame<'_>,
     function: i32,
     args: &[*mut XlOper12],
-    result: *mut XlOper12,
-) -> i32 {
-    if args.len() > 1 || (function == 16389 && args.len() != 1) {
-        return INVALID_COUNT;
+) -> CallbackReply {
+    if args.len() > 1 || (function == XL_SHEET_NM && args.len() != 1) {
+        return CallbackReply::status(INVALID_COUNT);
     }
     let selected = current_sheet(&frame.context).or(frame.state.borrow().active_sheet);
     let sheet = if let Some(arg) = args.first() {
@@ -292,10 +359,10 @@ unsafe fn sheet_callback(
                 .borrow()
                 .sheets
                 .decode(unsafe { oper.value.reference.sheet }),
-            XL_STR if function == 16388 => {
+            XL_STR if function == XL_SHEET_ID => {
                 let value = unsafe { from_oper(*arg, &frame.state.borrow().sheets, selected) };
                 let Ok(name) = value.and_then(|v| text(&v).map_err(|(_, why)| why)) else {
-                    return INVALID_OPER;
+                    return CallbackReply::status(INVALID_OPER);
                 };
                 frame
                     .state
@@ -304,41 +371,36 @@ unsafe fn sheet_callback(
                     .iter()
                     .find_map(|(s, n)| n.eq_ignore_ascii_case(&name).then_some(*s))
             }
-            _ => return INVALID_OPER,
+            _ => return CallbackReply::status(INVALID_OPER),
         }
     } else {
         selected
     };
     let Some(sheet) = sheet else {
-        return FAILED;
+        return CallbackReply::status(FAILED);
     };
-    if result.is_null() {
-        return SUCCESS;
-    }
-    if function == 16388 {
+    if function == XL_SHEET_ID {
         let id = frame.state.borrow_mut().sheets.encode(sheet);
-        unsafe {
-            result.write_unaligned(XlOper12 {
-                value: XlValue12 {
-                    reference: XlReference12 {
-                        table: std::ptr::null_mut(),
-                        sheet: id,
-                    },
+        CallbackReply::operand(XlOper12 {
+            value: XlValue12 {
+                reference: XlReference12 {
+                    table: std::ptr::null_mut(),
+                    sheet: id,
                 },
-                xltype: XL_REF,
-            });
-        }
+            },
+            xltype: XL_REF,
+        })
     } else {
         let name = frame.state.borrow().sheet_names.get(&sheet).cloned();
         let Some(name) = name else {
-            return FAILED;
+            return CallbackReply::status(FAILED);
         };
         let value = CalcValue::text(ExcelText::from_interop_assignment(&name));
-        if unsafe { publish(frame, function, args, &value, result) }.is_err() {
-            return FAILED;
+        match unsafe { publish(frame, function, args, &value) } {
+            Ok(oper) => CallbackReply::operand(oper),
+            Err(_) => CallbackReply::status(FAILED),
         }
     }
-    SUCCESS
 }
 fn text(value: &CalcValue) -> Result<String, (i32, String)> {
     match value.core_ref() {
@@ -357,23 +419,21 @@ pub(crate) fn allocation_key(oper: &XlOper12) -> Option<usize> {
         }
     }
 }
+/// The result operand for a callback's value. Str/Multi/Ref storage is registered as a
+/// callback allocation until the add-in calls xlFree on it (or its module is removed).
 unsafe fn publish(
     frame: &mut Frame<'_>,
     function: i32,
     args: &[*mut XlOper12],
     value: &CalcValue,
-    result: *mut XlOper12,
-) -> Result<(), String> {
-    if function == 16392 {
-        unsafe {
-            result.write_unaligned(XlOper12 {
-                value: XlValue12 {
-                    integer: frame.state.borrow().hwnd as i32,
-                },
-                xltype: XL_INT,
-            });
-        }
-        return Ok(());
+) -> Result<XlOper12, String> {
+    if function == XL_GET_HWND {
+        return Ok(XlOper12 {
+            value: XlValue12 {
+                integer: frame.state.borrow().hwnd as i32,
+            },
+            xltype: XL_INT,
+        });
     }
     let integer_coercion = function == XL_COERCE
         && args.get(1).is_some_and(|p| {
@@ -384,37 +444,32 @@ unsafe fn publish(
                 _ => false,
             }
         });
-    if function == XL_STACK || function == 16401 || integer_coercion {
-        unsafe {
-            result.write_unaligned(XlOper12::integer(value.as_number().unwrap_or(0.) as i32));
-        }
-        return Ok(());
+    if function == XL_STACK || function == XL_EVENT_REGISTER || integer_coercion {
+        return Ok(XlOper12::integer(value.as_number().unwrap_or(0.) as i32));
     }
     if function == XLF_CALLER {
         if let Some(cell) = frame.context.as_ref().and_then(|c| c.caller()) {
-            unsafe {
-                result.write_unaligned(XlOper12 {
-                    value: XlValue12 {
-                        single_reference: XlSRef12 {
-                            count: 1,
-                            rectangle: XlRef12 {
-                                row_first: (cell.row() - 1) as i32,
-                                row_last: (cell.row() - 1) as i32,
-                                col_first: (cell.column() - 1) as i32,
-                                col_last: (cell.column() - 1) as i32,
-                            },
+            return Ok(XlOper12 {
+                value: XlValue12 {
+                    single_reference: XlSRef12 {
+                        count: 1,
+                        rectangle: XlRef12 {
+                            row_first: (cell.row() - 1) as i32,
+                            row_last: (cell.row() - 1) as i32,
+                            col_first: (cell.column() - 1) as i32,
+                            col_last: (cell.column() - 1) as i32,
                         },
                     },
-                    xltype: XL_SREF,
-                });
-            }
-            return Ok(());
+                },
+                xltype: XL_SREF,
+            });
         }
     }
     let mut arena = Arena::new();
     let oper = arena.oper(value, &mut frame.state.borrow_mut().sheets)?;
     if let Some(key) = allocation_key(&oper) {
-        frame.state.borrow_mut().allocations.insert(
+        let allocations = frame.state.borrow().allocations.clone();
+        allocations.lock().unwrap().insert(
             key,
             crate::native::CallbackAllocation {
                 owner: frame.origin.handle as usize,
@@ -422,14 +477,28 @@ unsafe fn publish(
             },
         );
     }
-    unsafe {
-        result.write_unaligned(oper);
-    }
-    Ok(())
+    Ok(oper)
 }
+/// Release the host storage behind one operand, if the host allocated it.
 pub(crate) fn free(state: &Shared, oper: &XlOper12) {
     if let Some(key) = allocation_key(oper) {
-        state.borrow_mut().allocations.remove(&key);
+        let allocations = state.borrow().allocations.clone();
+        allocations.lock().unwrap().remove(&key);
+    }
+}
+/// xlFree on the caller's own operand, as Excel 16.0.20527 does it (x13 batch, MyFreeProbe):
+/// the storage is released, the pointer word of a Str/Multi operand becomes null, the type
+/// becomes xltypeMissing for every kind (Num, SRef and Ref too), and the other value bytes are
+/// kept. A second xlFree of the same operand then succeeds and releases nothing. The Ref table
+/// pointer is nulled as the documentation says; the batch only saw Refs with a null table.
+unsafe fn free_operand(state: &Shared, pointer: *mut XlOper12) {
+    let oper = unsafe { pointer.read_unaligned() };
+    free(state, &oper);
+    unsafe {
+        if matches!(oper.xltype & TYPE_MASK, XL_STR | XL_MULTI | XL_REF) {
+            pointer.cast::<usize>().write_unaligned(0);
+        }
+        std::ptr::addr_of_mut!((*pointer).xltype).write_unaligned(XL_MISSING);
     }
 }
 
@@ -458,12 +527,83 @@ unsafe fn async_return(args: &[*mut XlOper12], result: *mut XlOper12) -> i32 {
     completion.ready.notify_one();
     // Excel20527 clears all result bytes on successful completion, including
     // an operand initially containing a number.
-    if !result.is_null() {
-        unsafe {
-            std::ptr::write_bytes(result.cast::<u8>(), 0, std::mem::size_of::<XlOper12>());
-        }
+    let reply = CallbackReply {
+        status: SUCCESS,
+        write: ResultWrite::ZeroAll,
+        refusal: None,
+    };
+    unsafe { reply.apply(None, result) }
+}
+
+/// Permission denials measured on Excel 16.0.20527: Excel's own answers to a worksheet
+/// function's callback, not missing host capabilities. The add-in sees the status (and #VALUE!
+/// in its result operand); the formula keeps the add-in's result and is never a refusal.
+///
+/// | callback | normal | `#` | `$` | evidence |
+/// |---|---|---|---|---|
+/// | 237 xlfVolatile, 186 GET.WORKSPACE | 2 | served | 2 | X5 matrix, x13 |
+/// | 257 EVALUATE | served | served | 128 | X5, x13 |
+/// | 32890 MESSAGE | 2 | served (FALSE) | 128 | X5, x13 |
+/// | other commands (`0x8000`, ECHO 32909) | 2 | refused: Excel runs them | 128 | x13 |
+/// | 255 xlUDF | served | served or refused (cached-read change) | 32 | x13 |
+/// | 88 SET.NAME | 2 | served | 2 | x13 |
+/// | 16391 xlGetInst | 32 | 32 | 32 | x13 (also 32 in xlAutoOpen) |
+///
+/// Still refused from `$` because Excel's answer is unmeasured or not modelled: 16401 event
+/// registration (Excel: 0), 379 RTD, 149 REGISTER, 201 UNREGISTER (see `run`).
+fn measured_denial(frame: &Frame<'_>, function: i32) -> Option<i32> {
+    if function == XL_GET_INST {
+        return Some(FAILED);
     }
-    SUCCESS
+    let signature = frame.signature.as_ref()?;
+    let (macro_equivalent, thread_safe) = (signature.macro_equivalent, signature.thread_safe);
+    match function {
+        XLF_VOLATILE | XLF_GET_WORKSPACE if !macro_equivalent => Some(INVALID_FUNCTION),
+        XLF_EVALUATE if thread_safe => Some(NOT_THREAD_SAFE),
+        f if f & XL_COMMAND != 0 && thread_safe => Some(NOT_THREAD_SAFE),
+        f if f & XL_COMMAND != 0 && !macro_equivalent => Some(INVALID_FUNCTION),
+        XL_UDF if thread_safe => Some(FAILED),
+        XLF_SET_NAME if !macro_equivalent => Some(INVALID_FUNCTION),
+        _ => None,
+    }
+}
+
+/// The reply to one callback inside a frame (xlfCall and REGISTER.ID excepted, `call.rs`).
+unsafe fn answer(
+    frame: &mut Frame<'_>,
+    function: i32,
+    args: &[*mut XlOper12],
+    no_result: bool,
+) -> CallbackReply {
+    if let Some(status) = measured_denial(frame, function) {
+        return CallbackReply::status(status);
+    }
+    if function == XL_GET_INST_PTR {
+        if !args.is_empty() {
+            return CallbackReply::status(INVALID_COUNT);
+        }
+        return CallbackReply::operand(XlOper12 {
+            value: XlValue12 {
+                big_data: XlBigData {
+                    data: unsafe { crate::native::GetModuleHandleW(std::ptr::null()) }.cast(),
+                    byte_count: 0,
+                },
+            },
+            xltype: XL_BIG_DATA,
+        });
+    }
+    if matches!(function, XL_SHEET_ID | XL_SHEET_NM) {
+        return unsafe { sheet_callback(frame, function, args) };
+    }
+    match run(frame, function, args) {
+        Ok(Some(_)) if no_result => CallbackReply::status(SUCCESS),
+        Ok(Some(value)) => match unsafe { publish(frame, function, args, &value) } {
+            Ok(oper) => CallbackReply::operand(oper),
+            Err(why) => CallbackReply::refused(FAILED, why),
+        },
+        Ok(None) => CallbackReply::status(SUCCESS),
+        Err((code, why)) => CallbackReply::refused(code, why),
+    }
 }
 
 fn run(
@@ -472,42 +612,35 @@ fn run(
     args: &[*mut XlOper12],
 ) -> Result<Option<CalcValue>, (i32, String)> {
     if function == XL_FREE_FN {
-        for pointer in args {
-            free(&frame.state, &unsafe { (*pointer).read_unaligned() });
+        for &pointer in args {
+            unsafe { free_operand(&frame.state, pointer) };
         }
         return Ok(None);
     }
-    if frame.signature.is_some()
-        && function & 0x8000 != 0
-        && !(function == 32890 && frame.signature.as_ref().is_some_and(|s| s.macro_equivalent))
-    {
+    // Measured denials were answered before `run` (`measured_denial`); what reaches here from a
+    // worksheet function is either served or a capability the host does not model.
+    if frame.signature.is_some() && function & XL_COMMAND != 0 && function != XLC_MESSAGE {
+        // Only `#` entries get here; Excel 16.0.20527 runs ECHO for them (x13: 0, FALSE).
         return Err((
             INVALID_FUNCTION,
-            "dc-snz.18: worksheet functions cannot call commands".into(),
+            "dc-snz.18: commands from a macro-equivalent worksheet function are not modelled"
+                .into(),
         ));
     }
-    if frame.signature.as_ref().is_some_and(|s| s.thread_safe) && function == 16401 {
+    if frame.signature.as_ref().is_some_and(|s| s.thread_safe) && function == XL_EVENT_REGISTER {
         return Err((
             NOT_THREAD_SAFE,
             "dc-snz.18: event registration from calculation workers is not modelled".into(),
         ));
     }
-    if frame.signature.as_ref().is_some_and(|s| s.thread_safe) && function == 379 {
+    if frame.signature.as_ref().is_some_and(|s| s.thread_safe) && function == XLF_RTD {
         return Err((
             NOT_THREAD_SAFE,
             "dc-snz.23: RTD requires the owning STA".into(),
         ));
     }
     if frame.signature.as_ref().is_some_and(|s| s.thread_safe)
-        && matches!(function, XL_UDF | XLF_EVALUATE)
-    {
-        return Err((
-            NOT_THREAD_SAFE,
-            "dc-snz.18: nested registered calls from calculation workers are not modelled".into(),
-        ));
-    }
-    if frame.signature.as_ref().is_some_and(|s| s.thread_safe)
-        && matches!(function, XLF_REGISTER | XLF_UNREGISTER | XLF_SET_NAME | 186)
+        && matches!(function, XLF_REGISTER | XLF_UNREGISTER)
     {
         return Err((
             NOT_THREAD_SAFE,
@@ -533,7 +666,7 @@ fn run(
         }
     };
     let value = match function {
-        32890 => {
+        XLC_MESSAGE => {
             if !(1..=2).contains(&args.len()) {
                 return Err((INVALID_COUNT, "MESSAGE expects one or two arguments".into()));
             }
@@ -545,7 +678,8 @@ fn run(
             } else {
                 None
             };
-            CalcValue::logical(true)
+            // Excel 16.0.20527 answers MESSAGE from a `#` function with status 0 and FALSE (x13).
+            CalcValue::logical(false)
         }
         XL_GET_NAME => {
             require(0)?;
@@ -570,7 +704,15 @@ fn run(
             if !(low..high).contains(&current) {
                 return Err(err("cannot establish current stack bounds"));
             }
-            CalcValue::number(current.saturating_sub(low).min(i32::MAX as usize) as f64)
+            // Excel 16.0.20527 answers the caller's raw headroom less 87,119 bytes in every
+            // context (main thread, worker, xlAutoOpen; x13 batch): no 64 KiB cap. The host
+            // measures here, below the add-in's frame, so it keeps the rest of that reserve.
+            CalcValue::number(
+                current
+                    .saturating_sub(low)
+                    .saturating_sub(XL_STACK_RESERVE)
+                    .min(i32::MAX as usize) as f64,
+            )
         }
         XLF_CALLER => {
             require(0)?;
@@ -603,7 +745,7 @@ fn run(
             }
             value
         }
-        186 => {
+        XLF_GET_WORKSPACE => {
             require(1)?;
             match values[0].as_number() {
                 Some(2.) => CalcValue::text(ExcelText::from_interop_assignment("16.0")),
@@ -616,15 +758,15 @@ fn run(
                 }
             }
         }
-        16392 => {
+        XL_GET_HWND => {
             require(0)?;
             CalcValue::number(frame.state.borrow().hwnd as f64)
         }
-        16402 => {
+        XL_RUNNING_ON_CLUSTER => {
             require(0)?;
             CalcValue::logical(false)
         }
-        237 => {
+        XLF_VOLATILE => {
             if args.len() > 1 {
                 return Err((
                     INVALID_COUNT,
@@ -644,7 +786,7 @@ fn run(
             CalcValue::logical(true)
         }
         XLF_REGISTER => return register(frame, &values).map(Some),
-        16401 => {
+        XL_EVENT_REGISTER => {
             require(2)?;
             let event = values[1]
                 .as_number()
@@ -693,7 +835,7 @@ fn run(
                 .remove(&calc_value::fold_workbook_name(&text(&values[0])?));
             CalcValue::logical(true)
         }
-        146 => {
+        XLF_REFTEXT => {
             // REFTEXT uses the same ADDRESS kernel and qualifier formatter as
             // worksheet formulas and the COM Range projection.
             require(2)?;
@@ -803,7 +945,7 @@ fn run(
             }
             .map_err(err)?
         }
-        379 => {
+        XLF_RTD => {
             if values.len() < 3 {
                 return Err((INVALID_COUNT, "RTD needs a ProgID, server and topic".into()));
             }
@@ -1268,6 +1410,103 @@ mod tests {
             assert_eq!(
                 value.value.big_data.data,
                 crate::native::GetModuleHandleW(std::ptr::null()).cast()
+            );
+        }
+        assert!(host.diagnostics().is_empty());
+    }
+    /// Native-only: xlFree changes the caller's operand as Excel 16.0.20527 does (x13 batch):
+    /// the string pointer becomes null, the type xltypeMissing, the rest stays; a second free of
+    /// the same operand succeeds and releases nothing.
+    #[test]
+    fn xl_free_nulls_the_pointer_and_marks_the_operand_missing() {
+        let host = crate::XllHost::new(0);
+        let module = Module::loaded(std::env::current_exe().unwrap().to_str().unwrap()).unwrap();
+        let mut frame = Frame::lifecycle(host.state.clone(), module);
+        let _guard = unsafe { enter(&mut frame) };
+        let mut result = XlOper12::default();
+        unsafe {
+            assert_eq!(
+                dispatch(XL_GET_NAME, 0, std::ptr::null(), &mut result),
+                SUCCESS
+            );
+        }
+        assert_eq!(result.xltype, XL_STR);
+        assert_eq!(host.live_callback_allocations(), 1);
+        let before: [u8; 24] = unsafe { result.value.storage };
+        let mut args = [&mut result as *mut XlOper12];
+        for _ in 0..2 {
+            assert_eq!(
+                unsafe { dispatch(XL_FREE_FN, 1, args.as_mut_ptr(), std::ptr::null_mut()) },
+                SUCCESS
+            );
+            let after: [u8; 24] = unsafe { result.value.storage };
+            assert_eq!(after[..8], [0; 8]);
+            assert_eq!(after[8..], before[8..]);
+            assert_eq!(result.xltype, XL_MISSING);
+            assert_eq!(host.live_callback_allocations(), 0);
+        }
+        // A number keeps its bits and becomes Missing too.
+        let mut number = XlOper12::number(42.);
+        let mut args = [&mut number as *mut XlOper12];
+        assert_eq!(
+            unsafe { dispatch(XL_FREE_FN, 1, args.as_mut_ptr(), std::ptr::null_mut()) },
+            SUCCESS
+        );
+        assert_eq!(
+            (number.xltype, unsafe { number.value.number }),
+            (XL_MISSING, 42.)
+        );
+        assert!(host.diagnostics().is_empty());
+    }
+    /// Native-only: inside xlAutoFree12 only xlFree is served; any other callback fails with a
+    /// typed refusal, because Excel 16.0.20527 terminated there (x13 MyFreeFrame(2)).
+    #[test]
+    fn free_only_frame_serves_only_xl_free() {
+        let host = crate::XllHost::new(0);
+        let module = Module::loaded(std::env::current_exe().unwrap().to_str().unwrap()).unwrap();
+        let mut frame = Frame::free_only(host.state.clone(), module.clone(), module, None);
+        let _guard = unsafe { enter(&mut frame) };
+        let mut nothing = XlOper12::default();
+        let mut args = [&mut nothing as *mut XlOper12];
+        assert_eq!(
+            unsafe { dispatch(XL_FREE_FN, 1, args.as_mut_ptr(), std::ptr::null_mut()) },
+            SUCCESS
+        );
+        assert!(host.diagnostics().is_empty());
+        let mut result = XlOper12::default();
+        assert_eq!(
+            unsafe { dispatch(XL_STACK, 0, std::ptr::null(), &mut result) },
+            FAILED
+        );
+        assert_eq!(result.xltype, XL_ERR);
+        assert_eq!(host.diagnostics().len(), 1);
+        assert!(host.diagnostics()[0].starts_with("dc-6332.13:"));
+    }
+    /// Native-only: a measured denial answers Excel's status and writes #VALUE! into the result
+    /// operand (x13: every failed 2/32/128 row), without refusing; xlGetInst answers 32.
+    #[test]
+    fn measured_denials_write_value_error_without_refusing() {
+        let host = crate::XllHost::new(0);
+        let module = Module::loaded(std::env::current_exe().unwrap().to_str().unwrap()).unwrap();
+        let mut frame = Frame::lifecycle(host.state.clone(), module);
+        frame.kind = FrameKind::Entry;
+        frame.signature = Some(XllSignature::parse("QB").unwrap());
+        let _guard = unsafe { enter(&mut frame) };
+        let mut flag = XlOper12::boolean(false);
+        let mut args = [&mut flag as *mut XlOper12];
+        for (function, count, status) in [
+            (XLF_VOLATILE, 1, INVALID_FUNCTION),
+            (XLF_SET_NAME, 1, INVALID_FUNCTION),
+            (XL_COMMAND | 141, 1, INVALID_FUNCTION),
+            (XL_GET_INST, 0, FAILED),
+        ] {
+            let mut result = XlOper12::number(7.);
+            let code = unsafe { dispatch(function, count, args.as_mut_ptr(), &mut result) };
+            assert_eq!(code, status, "{function}");
+            assert_eq!(
+                (result.xltype, unsafe { result.value.integer }),
+                (XL_ERR, 15),
+                "{function}"
             );
         }
         assert!(host.diagnostics().is_empty());

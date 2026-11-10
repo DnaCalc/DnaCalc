@@ -9,6 +9,7 @@ use std::{
     },
 };
 
+mod boundary;
 mod volatility;
 #[link(name = "kernel32")]
 unsafe extern "system" {
@@ -364,6 +365,13 @@ pub unsafe extern "system" fn xlAutoOpen() -> i32 {
             return 0;
         }
     }
+    if std::env::var_os("DNA_XLL_BOUNDARY_TESTS").is_some()
+        || directory.is_some_and(|path| path.join("boundary-tests.enable").is_file())
+    {
+        if !unsafe { boundary::register_all(&module) } {
+            return 0;
+        }
+    }
     unsafe {
         lifecycle_probes(&module_name);
     }
@@ -634,7 +642,7 @@ pub extern "system" fn MyOwned() -> *mut XlOper12 {
 }
 #[unsafe(no_mangle)]
 pub unsafe extern "system" fn xlAutoFree12(value: *mut XlOper12) {
-    if value.is_null() {
+    if value.is_null() || unsafe { boundary::free_frame(value) } {
         return;
     }
     FREES.fetch_add(1, Ordering::Relaxed);

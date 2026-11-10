@@ -240,6 +240,7 @@ impl XllFunction {
             None
         };
         let mut frame = Frame {
+            kind: callbacks::FrameKind::Entry,
             state: self.state.clone(),
             module: r.module.clone(),
             origin: r.origin.clone(),
@@ -263,6 +264,7 @@ impl XllFunction {
             }
             cif.call_return_into(CodePtr(r.info.address as *mut _), &ffi_arguments, output);
         }
+        let mut auto_free = None;
         let mut result = if let Some(pending) = pending {
             Ok(NativeReturn::Pending(pending))
         } else {
@@ -273,11 +275,33 @@ impl XllFunction {
                 XllType::Short | XllType::UShort | XllType::Int => XL_INT,
                 _ => XL_NUM,
             };
-            unsafe { self.convert_return(signature.result, &slots, returned, sheet) }
-                .map(normalize_return)
-                .map(|value| NativeReturn::Value(value, kind))
+            unsafe {
+                self.convert_return(signature.result, &slots, returned, sheet, &mut auto_free)
+            }
+            .map(normalize_return)
+            .map(|value| NativeReturn::Value(value, kind))
         };
         drop(guard);
+        if let Some((address, pointer)) = auto_free {
+            // The result is copied; xlAutoFree12 now runs on this thread, before any other
+            // entry, in its own free-only frame: only xlFree is served there (Excel 16.0.20527
+            // terminated on other callbacks; x13 MyFreeFrame). A refused callback refuses the
+            // calling formula through its context.
+            let context = frame.context.take();
+            let mut free_frame = Frame::free_only(
+                self.state.clone(),
+                r.module.clone(),
+                r.origin.clone(),
+                context,
+            );
+            let free_guard = unsafe { callbacks::enter(&mut free_frame) };
+            // ubs:ignore -- xlAutoFree12 has this fixed ABI and is a resolved export of the leased module.
+            let free: unsafe extern "system" fn(*mut XlOper12) =
+                unsafe { std::mem::transmute(address) };
+            unsafe { free(pointer) };
+            drop(free_guard);
+            frame.context = free_frame.context.take();
+        }
         if matches!(&result, Ok(NativeReturn::Value(..)))
             && let Some(provider) = frame.provider
             && let Some(caller) = frame.context.as_ref().and_then(|context| context.caller())
@@ -326,12 +350,15 @@ impl XllFunction {
         }
         result
     }
+    /// Copy a native return into a value. A DLLFree result's xlAutoFree12 is not called here:
+    /// `auto_free` receives its address and pointer for the caller's free-only frame.
     unsafe fn convert_return(
         &self,
         kind: XllType,
         slots: &[u64],
         result: Returned,
         sheet: Option<calc_value::SheetId>,
+        auto_free: &mut Option<(usize, *mut XlOper12)>,
     ) -> Result<CalcValue, String> {
         let r = &self.registration;
         let ptr = result.word as *mut XlOper12;
@@ -346,13 +373,7 @@ impl XllFunction {
                 let copy = unsafe { from_oper(ptr, &self.state.borrow().sheets, sheet) };
                 if flags & DLL_FREE != 0 {
                     match r.module.address("xlAutoFree12") {
-                        Ok(address) => {
-                            let free: unsafe extern "system" fn(*mut XlOper12) =
-                                unsafe { std::mem::transmute(address) };
-                            unsafe {
-                                free(ptr);
-                            }
-                        }
+                        Ok(address) => *auto_free = Some((address, ptr)),
                         Err(why) => {
                             return Err(format!(
                                 "dc-snz.2: DLLFree result has no xlAutoFree12: {why}"

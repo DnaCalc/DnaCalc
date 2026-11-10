@@ -636,6 +636,13 @@ static void leave(const Call& c,const CONTEXT& ctx) {
         fields+=",\"output_first_long\":"+std::to_string(read<int32_t>(c.raw[1]));
     }else if(c.entry.name.find("!MdCallBack12")!=std::string::npos) {
         fields+=",\"function\":"+std::to_string(c.fn)+",\"return_code\":"+std::to_string((int32_t)ctx.Rax)+",\"result_valid\":"+((int32_t)ctx.Rax==0?"true":"false")+",\"result\":"+oper(c.result);
+        if(c.fn==16384) {
+            // xlFree writes the caller's operands (Excel nulls the pointer, sets xltypeMissing):
+            // record them as the callback left them, beside their entry values.
+            fields+=",\"args_after\":[";
+            for(int i=0;i<c.count&&i<256;++i) { if(i)fields+=","; fields+=oper(read<Address>(c.args+i*8)); }
+            fields+="]";
+        }
     } else {
         auto parts=signatureParts(c.entry.signature);
         if(!parts.empty()) {

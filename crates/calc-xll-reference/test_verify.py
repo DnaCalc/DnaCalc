@@ -81,5 +81,36 @@ class BigDataBoundaryTests(unittest.TestCase):
         self.assertNotEqual(verify.defined_boundary(old)["value"]["byte_count"], 0)
 
 
+class FourCountTests(unittest.TestCase):
+    """C.1 of answer 13: four lanes, each pass vs mismatched + refused + missing."""
+
+    def test_lanes_stay_apart_and_refusals_fail(self):
+        rows = [{"lane": "value_cases", "outcome": "pass"}] * 289 + [
+            {"lane": "ordered_boundary_cases", "outcome": "refused"},
+            {"lane": "ordered_boundary_cases", "outcome": "pass"},
+            {"lane": "lifecycle_ownership_cases", "outcome": "missing"},
+        ]
+        counts = verify.four_counts(rows)
+        self.assertEqual(set(counts), set(verify.COUNT_LANES))
+        self.assertEqual(counts["value_cases"]["pass_rate"], 1.0)
+        self.assertEqual((counts["ordered_boundary_cases"]["pass"], counts["ordered_boundary_cases"]["fail"]), (1, 1))
+        self.assertEqual(counts["lifecycle_ownership_cases"]["fail"], 1)
+        self.assertIsNone(counts["framework_feature_lanes"]["pass_rate"])
+
+    def test_manifest_records_the_profile(self):
+        env = {"excel_file_version": "16.0.20527.20150", "process_bits": 64, "culture": "en-ZA",
+               "multi_threaded_enabled": True, "multi_thread_count": 16, "fixture_files": {"X1.xll": "AB"},
+               "workbook_name": "Book2", "mode": "control without debugger", "repository_commit": "c1"}
+        rows = [{"operation": "RegisterXLL managed", "value": True},
+                {"operation": "calculation mode =A()", "value": {"requested": -4105, "actual": -4105}},
+                {"operation": "calculation mode =B()", "value": {"requested": -4105, "actual": -4105}}]
+        manifest = verify.comparison_manifest(env, rows, [{"formula": "=A()"}], [{"executable_sha256": "E", "repository_commit": "c2"}])
+        self.assertEqual(manifest["calculation_modes"], [{"requested": -4105, "actual": -4105}])
+        self.assertEqual(manifest["load_order"], ["RegisterXLL managed"])
+        self.assertEqual(manifest["mtr"], {"enabled": True, "threads": 16})
+        self.assertEqual(manifest["repository_commits"], ["c1", "c2"])
+        self.assertIn("automatic", manifest["trigger"])
+
+
 if __name__ == "__main__":
     unittest.main()

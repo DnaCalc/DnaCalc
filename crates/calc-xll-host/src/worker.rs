@@ -5,7 +5,7 @@ use calc_func::UserFunctionContext;
 use calc_value::{CalcValue, CellKey, ReferenceLike};
 use std::{
     cell::{Cell, RefCell},
-    collections::{BTreeMap, HashMap},
+    collections::BTreeMap,
     rc::Rc,
     sync::{
         Arc, Mutex,
@@ -139,7 +139,7 @@ pub(crate) fn submit(
     let (sender, receiver) = mpsc::channel();
     let info = function.registration.info.clone();
     let uses = function.registration.uses.get();
-    let (sheets, sheet_names, active_sheet, hwnd, closed, main_thread) = {
+    let (sheets, sheet_names, active_sheet, hwnd, closed, main_thread, allocations) = {
         let state = function.state.borrow();
         (
             state.sheets.clone(),
@@ -148,6 +148,7 @@ pub(crate) fn submit(
             state.hwnd,
             state.closed,
             state.thread,
+            state.allocations.clone(),
         )
     };
     if main_thread != unsafe { crate::native::GetCurrentThreadId() } {
@@ -180,7 +181,9 @@ pub(crate) fn submit(
                     sheet_names,
                     active_sheet,
                     events: BTreeMap::new(),
-                    allocations: HashMap::new(),
+                    // The host's one registry: a callback result kept past this return stays
+                    // valid until the add-in frees it, as in Excel (x13 MyRetainPool).
+                    allocations,
                     diagnostics: Vec::new(),
                     hwnd,
                     thread: unsafe { crate::native::GetCurrentThreadId() },
@@ -215,9 +218,6 @@ pub(crate) fn submit(
                     if has_context { Some(&mut reader) } else { None },
                 );
                 let mut state = state.borrow_mut();
-                if !state.allocations.is_empty() {
-                    return Err("dc-snz.18: worker retained callback storage".into());
-                }
                 Ok((result, std::mem::take(&mut state.diagnostics)))
             }));
             let (result, diagnostics) = match run {

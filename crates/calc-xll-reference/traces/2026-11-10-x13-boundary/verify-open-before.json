@@ -1,0 +1,97 @@
+{
+  "status": "measured boundary batch; refusals remain failures",
+  "cases": 1,
+  "pass": 0,
+  "fail": 1,
+  "mismatched": 1,
+  "refused": 0,
+  "missing": 0,
+  "pass_rate_all_cases": 0.0,
+  "counts": {
+    "value_cases": {
+      "pass": 0,
+      "mismatched": 0,
+      "refused": 0,
+      "missing": 0,
+      "total": 0,
+      "fail": 0,
+      "pass_rate": null
+    },
+    "ordered_boundary_cases": {
+      "pass": 0,
+      "mismatched": 0,
+      "refused": 0,
+      "missing": 0,
+      "total": 0,
+      "fail": 0,
+      "pass_rate": null
+    },
+    "lifecycle_ownership_cases": {
+      "pass": 0,
+      "mismatched": 1,
+      "refused": 0,
+      "missing": 0,
+      "total": 1,
+      "fail": 1,
+      "pass_rate": 0.0
+    },
+    "framework_feature_lanes": {
+      "pass": 0,
+      "mismatched": 0,
+      "refused": 0,
+      "missing": 0,
+      "total": 0,
+      "fail": 0,
+      "pass_rate": null
+    }
+  },
+  "manifest": {
+    "excel_build": "16.0.20527.20150",
+    "bitness": 64,
+    "locale": "en-ZA",
+    "calculation_modes": [
+      {
+        "requested": -4105,
+        "actual": -4105
+      }
+    ],
+    "mtr": {
+      "enabled": true,
+      "threads": 16
+    },
+    "trigger": "Formula2 entry into one cell, automatic recalculation",
+    "addin_files": {
+      "boundary-open.enable": "E3B0C44298FC1C149AFBF4C8996FB92427AE41E4649B934CA495991B7852B855",
+      "boundary-tests.enable": "E3B0C44298FC1C149AFBF4C8996FB92427AE41E4649B934CA495991B7852B855",
+      "X1.xll": "2D1DD43EB6C5D15A77E0CECDE2F57555CAB381C0C688AD7E80D8EF3D6B50C6F4"
+    },
+    "workbook": "Book2",
+    "load_order": [
+      "RegisterXLL managed"
+    ],
+    "excel_mode": "control without debugger",
+    "host_executables": [
+      "58FE4E28F1A74D9F2A695CA6D74F42967DEA1010CC6A79A2C146BCBC07817863"
+    ],
+    "host_process_identity": [
+      "1 (set by the host before creating threads)"
+    ],
+    "repository_commits": [
+      "25f5a854ae829a4bd80c3b968dc1df366af26b18",
+      "85ea49e5926213f2061e464676a9d16ba4a5decd"
+    ]
+  },
+  "rows": [
+    {
+      "formula": "=MyBoundaryOpen()",
+      "lane": "lifecycle_ownership_cases",
+      "outcome": "mismatched",
+      "excel": "16385:0|main|int:headroom-5x16KiB;16391:32|main|err:#VALUE!;16403:0|main|type2050:data=main|count=0;16392:0|main|hwnd:process=self|class=XLMAIN",
+      "host": "16385:0|main|int:headroom-0x16KiB;16391:2|main|untouched;16403:0|main|type2050:data=main|count=0;16392:0|main|hwnd:process=self|class=XLMAIN",
+      "host_refusal": null,
+      "matched": false,
+      "recorded_value_agrees": true
+    }
+  ],
+  "scope": "Callback status, thread placement and output writes as reported by the fixture's own probes (sentinel-filled result operands); not a raw debugger trace."
+}

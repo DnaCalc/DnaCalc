@@ -109,6 +109,74 @@ fn closing_enters_only_xl_auto_close() {
     );
 }
 
+/// Native-only: the x13 boundary batch (dc-6332.10) through OneCalc's executable. Every case
+/// the host models gives Excel 16.0.20527's recorded answer (`x13-boundary-cases.json`: callback
+/// status, thread, #VALUE! in failed result operands, xlFree's operand change, xlGetInst 32,
+/// xlStack's reserve, callback storage kept across entries); the exe checks each value. The
+/// three it does not model stay typed refusals.
+#[test]
+fn boundary_probes_give_excel_answers() {
+    const REFUSED: [&str; 3] = [
+        "=MyBoundaryMacro(32909)",
+        "=MyBoundaryMacro(255)",
+        "=MyBoundaryPool(16401)",
+    ];
+    let cases: Vec<serde_json::Value> = serde_json::from_str(include_str!(
+        "../../../crates/calc-xll-reference/fixture/x13-boundary-cases.json"
+    ))
+    .unwrap();
+    let served = cases
+        .iter()
+        .filter(|case| !REFUSED.iter().any(|formula| case["formula"] == *formula))
+        .cloned()
+        .collect::<Vec<_>>();
+    assert_eq!(served.len(), cases.len() - REFUSED.len());
+    assert!(served.iter().all(|case| !case["value"].is_null()));
+    for (cases, open_inst) in [
+        (served, false),
+        (
+            serde_json::from_str(include_str!(
+                "../../../crates/calc-xll-reference/fixture/x13-boundary-open-cases.json"
+            ))
+            .unwrap(),
+            true,
+        ),
+    ] {
+        let fixture = new_fixture();
+        let path = fixture.directory.join("boundary.json");
+        std::fs::write(&path, serde_json::to_vec(&cases).unwrap()).unwrap();
+        let mut command = fixture.command();
+        command.env("DNA_XLL_BOUNDARY_TESTS", "1");
+        if open_inst {
+            command.env("DNA_XLL_BOUNDARY_OPEN_INST", "1");
+        }
+        let result = checked(
+            command
+                .args(["--sheet", "X0", "--cases"])
+                .arg(&path)
+                .output()
+                .unwrap(),
+        );
+        assert_eq!(result["results"].as_array().unwrap().len(), cases.len());
+        assert_eq!(result["live_callback_allocations"], 0);
+    }
+    for formula in REFUSED {
+        let fixture = new_fixture();
+        let output = fixture
+            .command()
+            .env("DNA_XLL_BOUNDARY_TESTS", "1")
+            .args(["--sheet", "X0", "--formula", formula])
+            .output()
+            .unwrap();
+        assert!(!output.status.success(), "{formula}");
+        let error = String::from_utf8_lossy(&output.stderr);
+        assert!(
+            error.contains("NotModelled") && error.contains("dc-snz.18"),
+            "{formula}: {error}"
+        );
+    }
+}
+
 /// Native-only: registers ten thousand callable names in a native process, then invokes the last.
 #[test]
 fn ten_thousand_registrations_have_no_small_pool_limit() {

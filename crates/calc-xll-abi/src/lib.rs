@@ -13,6 +13,7 @@ pub const XL_STR: u32 = 2;
 pub const XL_BOOL: u32 = 4;
 pub const XL_REF: u32 = 8;
 pub const XL_ERR: u32 = 16;
+pub const XL_FLOW: u32 = 32;
 pub const XL_MULTI: u32 = 64;
 pub const XL_MISSING: u32 = 128;
 pub const XL_NIL: u32 = 256;
@@ -23,13 +24,25 @@ pub const XL_FREE: u32 = 0x1000;
 pub const DLL_FREE: u32 = 0x4000;
 pub const TYPE_MASK: u32 = 0x0fff;
 
+/// Callback return codes: the published set, exact integers, never OR-ed together.
 pub const SUCCESS: i32 = 0;
+pub const ABORT: i32 = 1;
 pub const INVALID_FUNCTION: i32 = 2;
 pub const INVALID_COUNT: i32 = 4;
 pub const INVALID_OPER: i32 = 8;
+pub const STACK_OVERFLOW: i32 = 16;
 pub const FAILED: i32 = 32;
+pub const UNCALCED: i32 = 64;
 pub const NOT_THREAD_SAFE: i32 = 128;
 pub const INVALID_ASYNC: i32 = 256;
+pub const NOT_CLUSTER_SAFE: i32 = 512;
+
+/// Function-number flag bits: command (Cetab index), special (host service), international
+/// (`0x2000`) and prompt. A callback number keeps them; nothing strips them silently.
+pub const XL_COMMAND: i32 = 0x8000;
+pub const XL_SPECIAL: i32 = 0x4000;
+pub const XL_INTL: i32 = 0x2000;
+pub const XL_PROMPT: i32 = 0x1000;
 
 pub const XLF_REGISTER: i32 = 149;
 pub const XLF_CALL: i32 = 150;
@@ -38,13 +51,27 @@ pub const XLF_UNREGISTER: i32 = 201;
 pub const XLF_SET_NAME: i32 = 88;
 pub const XLF_CALLER: i32 = 89;
 pub const XLF_EVALUATE: i32 = 257;
+pub const XLF_REFTEXT: i32 = 146;
+pub const XLF_GET_WORKSPACE: i32 = 186;
+pub const XLF_VOLATILE: i32 = 237;
+pub const XLF_RTD: i32 = 379;
+pub const XLC_MESSAGE: i32 = XL_COMMAND | 122;
 pub const XL_UDF: i32 = 255;
 pub const XL_FREE_FN: i32 = 16384;
 pub const XL_STACK: i32 = 16385;
 pub const XL_COERCE: i32 = 16386;
+pub const XL_SET: i32 = 16387;
+pub const XL_SHEET_ID: i32 = 16388;
+pub const XL_SHEET_NM: i32 = 16389;
 pub const XL_ABORT: i32 = 16390;
+pub const XL_GET_INST: i32 = 16391;
+pub const XL_GET_HWND: i32 = 16392;
 pub const XL_GET_NAME: i32 = 16393;
+pub const XL_GET_FMLA_INFO: i32 = 16398;
 pub const XL_ASYNC_RETURN: i32 = 16400;
+pub const XL_EVENT_REGISTER: i32 = 16401;
+pub const XL_RUNNING_ON_CLUSTER: i32 = 16402;
+pub const XL_GET_INST_PTR: i32 = 16403;
 
 #[repr(C)]
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
@@ -173,10 +200,28 @@ mod tests {
         assert_eq!(std::mem::offset_of!(XlSRef12, rectangle), 4);
         assert_eq!(std::mem::size_of::<XlRef12>(), 16);
         assert_eq!(std::mem::offset_of!(Fp12, values), 8);
+        assert_eq!(std::mem::offset_of!(Fp12, columns), 4);
+        assert_eq!(std::mem::size_of::<XlSRef12>(), 20);
+        // XLMREF12 rectangles have a 16-byte stride after the 16-bit count.
+        assert_eq!(
+            std::mem::size_of::<XlMRef12>() - std::mem::offset_of!(XlMRef12, rectangles),
+            16
+        );
+        // BigData is a composite code that contains the Str bit: no code may test `& XL_STR`
+        // to recognise a string; base kinds compare with `xltype & TYPE_MASK == XL_STR`.
+        assert_ne!(XL_BIG_DATA & XL_STR, 0);
+        assert_ne!(XL_BIG_DATA, XL_STR);
+        assert_eq!(XLC_MESSAGE, 32890);
+        assert_eq!(
+            [ABORT, STACK_OVERFLOW, UNCALCED, NOT_CLUSTER_SAFE],
+            [1, 16, 64, 512]
+        );
         #[cfg(target_pointer_width = "64")]
         {
             assert_eq!(std::mem::size_of::<XlReference12>(), 16);
             assert_eq!(std::mem::offset_of!(XlArray12, rows), 8);
+            assert_eq!(std::mem::offset_of!(XlArray12, columns), 12);
+            assert_eq!(std::mem::offset_of!(XlReference12, sheet), 8);
             assert_eq!(std::mem::offset_of!(XlBigData, byte_count), 8);
             assert_eq!(std::mem::size_of::<XlBigData>(), 16);
             let data = XlBigData {

@@ -1,0 +1,120 @@
+{
+  "diag-guard.json": {
+    "desktop": "DnaCalcX13c",
+    "session_root": "C:\\Work\\DnaCalc\\DnaCalc-win\\target\\excel-session-x13",
+    "exit": 0,
+    "guard_samples": 791,
+    "owned_pids": [
+      62284
+    ],
+    "windows_on_user_desktop": 0,
+    "visible_on_user_desktop": 0,
+    "foreground_hits": 0,
+    "findings": [],
+    "finished_utc": "2026-11-10T20:25:05.5546423Z"
+  },
+  "run1-guard.json": {
+    "desktop": "DnaCalcX13",
+    "session_root": "C:\\Work\\DnaCalc\\DnaCalc-win\\target\\excel-session-x13",
+    "exit": 1,
+    "guard_samples": 2297,
+    "owned_pids": [
+      5416
+    ],
+    "windows_on_user_desktop": 0,
+    "visible_on_user_desktop": 0,
+    "foreground_hits": 0,
+    "findings": [],
+    "finished_utc": "2026-11-10T20:20:53.4892823Z"
+  },
+  "run2-guard.json": {
+    "desktop": "DnaCalcX13b",
+    "session_root": "C:\\Work\\DnaCalc\\DnaCalc-win\\target\\excel-session-x13",
+    "exit": 0,
+    "guard_samples": 3982,
+    "owned_pids": [
+      30032,
+      62284
+    ],
+    "windows_on_user_desktop": 0,
+    "visible_on_user_desktop": 0,
+    "foreground_hits": 0,
+    "findings": [],
+    "finished_utc": "2026-11-10T20:23:42.387982Z"
+  },
+  "run3-guard.json": {
+    "desktop": "DnaCalcX13d",
+    "session_root": "C:\\Work\\DnaCalc\\DnaCalc-win\\target\\excel-session-x13",
+    "exit": 1,
+    "guard_samples": 2102,
+    "owned_pids": [
+      57008,
+      62284
+    ],
+    "windows_on_user_desktop": 0,
+    "visible_on_user_desktop": 0,
+    "foreground_hits": 0,
+    "findings": [],
+    "finished_utc": "2026-11-10T20:26:01.523331Z"
+  },
+  "run4-guard.json": {
+    "desktop": "DnaCalcX13e",
+    "session_root": "C:\\Work\\DnaCalc\\DnaCalc-win\\target\\excel-session-x13",
+    "exit": 1,
+    "guard_samples": 2859,
+    "owned_pids": [
+      19792,
+      45836
+    ],
+    "windows_on_user_desktop": 0,
+    "visible_on_user_desktop": 0,
+    "foreground_hits": 0,
+    "findings": [],
+    "finished_utc": "2026-11-10T20:39:38.1620442Z"
+  },
+  "run5-guard.json": {
+    "desktop": "DnaCalcX13f",
+    "session_root": "C:\\Work\\DnaCalc\\DnaCalc-win\\target\\excel-session-x13",
+    "exit": 1,
+    "guard_samples": 2668,
+    "owned_pids": [
+      63772,
+      67964
+    ],
+    "windows_on_user_desktop": 0,
+    "visible_on_user_desktop": 0,
+    "foreground_hits": 0,
+    "findings": [],
+    "finished_utc": "2026-11-10T20:41:27.825099Z"
+  },
+  "run5-repeat-guard.json": {
+    "desktop": "DnaCalcX13g",
+    "session_root": "C:\\Work\\DnaCalc\\DnaCalc-win\\target\\excel-session-x13",
+    "exit": 1,
+    "guard_samples": 1456,
+    "owned_pids": [
+      24584
+    ],
+    "windows_on_user_desktop": 0,
+    "visible_on_user_desktop": 0,
+    "foreground_hits": 0,
+    "findings": [],
+    "finished_utc": "2026-11-10T20:52:14.460449Z"
+  },
+  "run6-guard.json": {
+    "desktop": "DnaCalcX13h",
+    "session_root": "C:\\Work\\DnaCalc\\DnaCalc-win\\target\\excel-session-x13",
+    "exit": 1,
+    "guard_samples": 3382,
+    "owned_pids": [
+      1112,
+      58308,
+      63304
+    ],
+    "windows_on_user_desktop": 0,
+    "visible_on_user_desktop": 0,
+    "foreground_hits": 0,
+    "findings": [],
+    "finished_utc": "2026-11-10T20:58:47.6630554Z"
+  }
+}

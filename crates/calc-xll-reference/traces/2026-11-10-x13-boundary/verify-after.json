@@ -1,0 +1,774 @@
+{
+  "status": "measured boundary batch; refusals remain failures",
+  "cases": 68,
+  "pass": 65,
+  "fail": 3,
+  "mismatched": 0,
+  "refused": 3,
+  "missing": 0,
+  "pass_rate_all_cases": 0.9558823529411765,
+  "counts": {
+    "value_cases": {
+      "pass": 0,
+      "mismatched": 0,
+      "refused": 0,
+      "missing": 0,
+      "total": 0,
+      "fail": 0,
+      "pass_rate": null
+    },
+    "ordered_boundary_cases": {
+      "pass": 49,
+      "mismatched": 0,
+      "refused": 3,
+      "missing": 0,
+      "total": 52,
+      "fail": 3,
+      "pass_rate": 0.9423076923076923
+    },
+    "lifecycle_ownership_cases": {
+      "pass": 16,
+      "mismatched": 0,
+      "refused": 0,
+      "missing": 0,
+      "total": 16,
+      "fail": 0,
+      "pass_rate": 1.0
+    },
+    "framework_feature_lanes": {
+      "pass": 0,
+      "mismatched": 0,
+      "refused": 0,
+      "missing": 0,
+      "total": 0,
+      "fail": 0,
+      "pass_rate": null
+    }
+  },
+  "manifest": {
+    "excel_build": "16.0.20527.20150",
+    "bitness": 64,
+    "locale": "en-ZA",
+    "calculation_modes": [
+      {
+        "requested": -4105,
+        "actual": -4105
+      }
+    ],
+    "mtr": {
+      "enabled": true,
+      "threads": 16
+    },
+    "trigger": "Formula2 entry into one cell, automatic recalculation",
+    "addin_files": {
+      "boundary-tests.enable": "E3B0C44298FC1C149AFBF4C8996FB92427AE41E4649B934CA495991B7852B855",
+      "X1.xll": "2D1DD43EB6C5D15A77E0CECDE2F57555CAB381C0C688AD7E80D8EF3D6B50C6F4"
+    },
+    "workbook": "Book2",
+    "load_order": [
+      "RegisterXLL managed"
+    ],
+    "excel_mode": "control without debugger",
+    "host_executables": [
+      "4274E3F281C1992AE10AA5E129D0FEC0F84DBACC9F7BC1A259F5CD7361991E17"
+    ],
+    "host_process_identity": [
+      "1 (set by the host before creating threads)"
+    ],
+    "repository_commits": [
+      "25f5a854ae829a4bd80c3b968dc1df366af26b18",
+      "85ea49e5926213f2061e464676a9d16ba4a5decd"
+    ]
+  },
+  "rows": [
+    {
+      "formula": "=MyBoundary(4)",
+      "lane": "ordered_boundary_cases",
+      "outcome": "pass",
+      "excel": "0|main|num:42",
+      "host": "0|main|num:42",
+      "host_refusal": null,
+      "matched": true,
+      "recorded_value_agrees": true
+    },
+    {
+      "formula": "=MyBoundary(16393)",
+      "lane": "ordered_boundary_cases",
+      "outcome": "pass",
+      "excel": "0|main|str:@self",
+      "host": "0|main|str:@self",
+      "host_refusal": null,
+      "matched": true,
+      "recorded_value_agrees": true
+    },
+    {
+      "formula": "=MyBoundary(16385)",
+      "lane": "ordered_boundary_cases",
+      "outcome": "pass",
+      "excel": "0|main|int:headroom-5x16KiB",
+      "host": "0|main|int:headroom-5x16KiB",
+      "host_refusal": null,
+      "matched": true,
+      "recorded_value_agrees": true
+    },
+    {
+      "formula": "=MyBoundary(89)",
+      "lane": "ordered_boundary_cases",
+      "outcome": "pass",
+      "excel": "0|main|sref:count=1|2,2,1,1",
+      "host": "0|main|sref:count=1|2,2,1,1",
+      "host_refusal": null,
+      "matched": true,
+      "recorded_value_agrees": true
+    },
+    {
+      "formula": "=MyBoundary(16386)",
+      "lane": "ordered_boundary_cases",
+      "outcome": "pass",
+      "excel": "0|main|num:19",
+      "host": "0|main|num:19",
+      "host_refusal": null,
+      "matched": true,
+      "recorded_value_agrees": true
+    },
+    {
+      "formula": "=MyBoundary(16388)",
+      "lane": "ordered_boundary_cases",
+      "outcome": "pass",
+      "excel": "0|main|ref:table=null",
+      "host": "0|main|ref:table=null",
+      "host_refusal": null,
+      "matched": true,
+      "recorded_value_agrees": true
+    },
+    {
+      "formula": "=MyBoundary(16389)",
+      "lane": "ordered_boundary_cases",
+      "outcome": "pass",
+      "excel": "0|main|str:[workbook]X0",
+      "host": "0|main|str:[workbook]X0",
+      "host_refusal": null,
+      "matched": true,
+      "recorded_value_agrees": true
+    },
+    {
+      "formula": "=MyBoundary(16392)",
+      "lane": "ordered_boundary_cases",
+      "outcome": "pass",
+      "excel": "0|main|hwnd:process=self|class=XLMAIN",
+      "host": "0|main|hwnd:process=self|class=XLMAIN",
+      "host_refusal": null,
+      "matched": true,
+      "recorded_value_agrees": true
+    },
+    {
+      "formula": "=MyBoundary(16403)",
+      "lane": "ordered_boundary_cases",
+      "outcome": "pass",
+      "excel": "0|main|type2050:data=main|count=0",
+      "host": "0|main|type2050:data=main|count=0",
+      "host_refusal": null,
+      "matched": true,
+      "recorded_value_agrees": true
+    },
+    {
+      "formula": "=MyBoundary(237)",
+      "lane": "ordered_boundary_cases",
+      "outcome": "pass",
+      "excel": "2|main|err:#VALUE!",
+      "host": "2|main|err:#VALUE!",
+      "host_refusal": null,
+      "matched": true,
+      "recorded_value_agrees": true
+    },
+    {
+      "formula": "=MyBoundary(186)",
+      "lane": "ordered_boundary_cases",
+      "outcome": "pass",
+      "excel": "2|main|err:#VALUE!",
+      "host": "2|main|err:#VALUE!",
+      "host_refusal": null,
+      "matched": true,
+      "recorded_value_agrees": true
+    },
+    {
+      "formula": "=MyBoundary(257)",
+      "lane": "ordered_boundary_cases",
+      "outcome": "pass",
+      "excel": "0|main|num:2",
+      "host": "0|main|num:2",
+      "host_refusal": null,
+      "matched": true,
+      "recorded_value_agrees": true
+    },
+    {
+      "formula": "=MyBoundary(32890)",
+      "lane": "ordered_boundary_cases",
+      "outcome": "pass",
+      "excel": "2|main|err:#VALUE!",
+      "host": "2|main|err:#VALUE!",
+      "host_refusal": null,
+      "matched": true,
+      "recorded_value_agrees": true
+    },
+    {
+      "formula": "=MyBoundary(16391)",
+      "lane": "ordered_boundary_cases",
+      "outcome": "pass",
+      "excel": "32|main|err:#VALUE!",
+      "host": "32|main|err:#VALUE!",
+      "host_refusal": null,
+      "matched": true,
+      "recorded_value_agrees": true
+    },
+    {
+      "formula": "=MyBoundary(32909)",
+      "lane": "ordered_boundary_cases",
+      "outcome": "pass",
+      "excel": "2|main|err:#VALUE!",
+      "host": "2|main|err:#VALUE!",
+      "host_refusal": null,
+      "matched": true,
+      "recorded_value_agrees": true
+    },
+    {
+      "formula": "=MyBoundary(255)",
+      "lane": "ordered_boundary_cases",
+      "outcome": "pass",
+      "excel": "0|main|num:3",
+      "host": "0|main|num:3",
+      "host_refusal": null,
+      "matched": true,
+      "recorded_value_agrees": true
+    },
+    {
+      "formula": "=MyBoundary(88)",
+      "lane": "ordered_boundary_cases",
+      "outcome": "pass",
+      "excel": "2|main|err:#VALUE!",
+      "host": "2|main|err:#VALUE!",
+      "host_refusal": null,
+      "matched": true,
+      "recorded_value_agrees": true
+    },
+    {
+      "formula": "=MyBoundaryMacro(4)",
+      "lane": "ordered_boundary_cases",
+      "outcome": "pass",
+      "excel": "0|main|num:42",
+      "host": "0|main|num:42",
+      "host_refusal": null,
+      "matched": true,
+      "recorded_value_agrees": true
+    },
+    {
+      "formula": "=MyBoundaryMacro(16393)",
+      "lane": "ordered_boundary_cases",
+      "outcome": "pass",
+      "excel": "0|main|str:@self",
+      "host": "0|main|str:@self",
+      "host_refusal": null,
+      "matched": true,
+      "recorded_value_agrees": true
+    },
+    {
+      "formula": "=MyBoundaryMacro(16385)",
+      "lane": "ordered_boundary_cases",
+      "outcome": "pass",
+      "excel": "0|main|int:headroom-5x16KiB",
+      "host": "0|main|int:headroom-5x16KiB",
+      "host_refusal": null,
+      "matched": true,
+      "recorded_value_agrees": true
+    },
+    {
+      "formula": "=MyBoundaryMacro(89)",
+      "lane": "ordered_boundary_cases",
+      "outcome": "pass",
+      "excel": "0|main|sref:count=1|2,2,1,1",
+      "host": "0|main|sref:count=1|2,2,1,1",
+      "host_refusal": null,
+      "matched": true,
+      "recorded_value_agrees": true
+    },
+    {
+      "formula": "=MyBoundaryMacro(16386)",
+      "lane": "ordered_boundary_cases",
+      "outcome": "pass",
+      "excel": "0|main|num:19",
+      "host": "0|main|num:19",
+      "host_refusal": null,
+      "matched": true,
+      "recorded_value_agrees": true
+    },
+    {
+      "formula": "=MyBoundaryMacro(16388)",
+      "lane": "ordered_boundary_cases",
+      "outcome": "pass",
+      "excel": "0|main|ref:table=null",
+      "host": "0|main|ref:table=null",
+      "host_refusal": null,
+      "matched": true,
+      "recorded_value_agrees": true
+    },
+    {
+      "formula": "=MyBoundaryMacro(16389)",
+      "lane": "ordered_boundary_cases",
+      "outcome": "pass",
+      "excel": "0|main|str:[workbook]X0",
+      "host": "0|main|str:[workbook]X0",
+      "host_refusal": null,
+      "matched": true,
+      "recorded_value_agrees": true
+    },
+    {
+      "formula": "=MyBoundaryMacro(16392)",
+      "lane": "ordered_boundary_cases",
+      "outcome": "pass",
+      "excel": "0|main|hwnd:process=self|class=XLMAIN",
+      "host": "0|main|hwnd:process=self|class=XLMAIN",
+      "host_refusal": null,
+      "matched": true,
+      "recorded_value_agrees": true
+    },
+    {
+      "formula": "=MyBoundaryMacro(16403)",
+      "lane": "ordered_boundary_cases",
+      "outcome": "pass",
+      "excel": "0|main|type2050:data=main|count=0",
+      "host": "0|main|type2050:data=main|count=0",
+      "host_refusal": null,
+      "matched": true,
+      "recorded_value_agrees": true
+    },
+    {
+      "formula": "=MyBoundaryMacro(237)",
+      "lane": "ordered_boundary_cases",
+      "outcome": "pass",
+      "excel": "0|main|bool:TRUE",
+      "host": "0|main|bool:TRUE",
+      "host_refusal": null,
+      "matched": true,
+      "recorded_value_agrees": true
+    },
+    {
+      "formula": "=MyBoundaryMacro(186)",
+      "lane": "ordered_boundary_cases",
+      "outcome": "pass",
+      "excel": "0|main|str:16.0",
+      "host": "0|main|str:16.0",
+      "host_refusal": null,
+      "matched": true,
+      "recorded_value_agrees": true
+    },
+    {
+      "formula": "=MyBoundaryMacro(257)",
+      "lane": "ordered_boundary_cases",
+      "outcome": "pass",
+      "excel": "0|main|num:2",
+      "host": "0|main|num:2",
+      "host_refusal": null,
+      "matched": true,
+      "recorded_value_agrees": true
+    },
+    {
+      "formula": "=MyBoundaryMacro(32890)",
+      "lane": "ordered_boundary_cases",
+      "outcome": "pass",
+      "excel": "0|main|bool:FALSE",
+      "host": "0|main|bool:FALSE",
+      "host_refusal": null,
+      "matched": true,
+      "recorded_value_agrees": true
+    },
+    {
+      "formula": "=MyBoundaryMacro(16391)",
+      "lane": "ordered_boundary_cases",
+      "outcome": "pass",
+      "excel": "32|main|err:#VALUE!",
+      "host": "32|main|err:#VALUE!",
+      "host_refusal": null,
+      "matched": true,
+      "recorded_value_agrees": true
+    },
+    {
+      "formula": "=MyBoundaryMacro(32909)",
+      "lane": "ordered_boundary_cases",
+      "outcome": "refused",
+      "excel": "0|main|bool:FALSE",
+      "host": null,
+      "host_refusal": "dna-onecalc-desktop: =MyBoundaryMacro(32909): [Eval(NotModelled { construct: \"an XLL callback is not modelled\", owner: \"dc-snz.18\" })]",
+      "matched": false,
+      "recorded_value_agrees": true
+    },
+    {
+      "formula": "=MyBoundaryMacro(255)",
+      "lane": "ordered_boundary_cases",
+      "outcome": "refused",
+      "excel": "0|main|num:3",
+      "host": null,
+      "host_refusal": "dna-onecalc-desktop: =MyBoundaryMacro(255): [Eval(NotModelled { construct: \"an XLL callback is not modelled\", owner: \"dc-snz.18\" })]",
+      "matched": false,
+      "recorded_value_agrees": true
+    },
+    {
+      "formula": "=MyBoundaryMacro(88)",
+      "lane": "ordered_boundary_cases",
+      "outcome": "pass",
+      "excel": "0|main|bool:TRUE",
+      "host": "0|main|bool:TRUE",
+      "host_refusal": null,
+      "matched": true,
+      "recorded_value_agrees": true
+    },
+    {
+      "formula": "=MyBoundaryPool(4)",
+      "lane": "ordered_boundary_cases",
+      "outcome": "pass",
+      "excel": "0|worker|num:42",
+      "host": "0|worker|num:42",
+      "host_refusal": null,
+      "matched": true,
+      "recorded_value_agrees": true
+    },
+    {
+      "formula": "=MyBoundaryPool(16393)",
+      "lane": "ordered_boundary_cases",
+      "outcome": "pass",
+      "excel": "0|worker|str:@self",
+      "host": "0|worker|str:@self",
+      "host_refusal": null,
+      "matched": true,
+      "recorded_value_agrees": true
+    },
+    {
+      "formula": "=MyBoundaryPool(16385)",
+      "lane": "ordered_boundary_cases",
+      "outcome": "pass",
+      "excel": "0|worker|int:headroom-5x16KiB",
+      "host": "0|worker|int:headroom-5x16KiB",
+      "host_refusal": null,
+      "matched": true,
+      "recorded_value_agrees": true
+    },
+    {
+      "formula": "=MyBoundaryPool(89)",
+      "lane": "ordered_boundary_cases",
+      "outcome": "pass",
+      "excel": "0|worker|sref:count=1|2,2,1,1",
+      "host": "0|worker|sref:count=1|2,2,1,1",
+      "host_refusal": null,
+      "matched": true,
+      "recorded_value_agrees": true
+    },
+    {
+      "formula": "=MyBoundaryPool(16386)",
+      "lane": "ordered_boundary_cases",
+      "outcome": "pass",
+      "excel": "0|worker|num:19",
+      "host": "0|worker|num:19",
+      "host_refusal": null,
+      "matched": true,
+      "recorded_value_agrees": true
+    },
+    {
+      "formula": "=MyBoundaryPool(16388)",
+      "lane": "ordered_boundary_cases",
+      "outcome": "pass",
+      "excel": "0|worker|ref:table=null",
+      "host": "0|worker|ref:table=null",
+      "host_refusal": null,
+      "matched": true,
+      "recorded_value_agrees": true
+    },
+    {
+      "formula": "=MyBoundaryPool(16389)",
+      "lane": "ordered_boundary_cases",
+      "outcome": "pass",
+      "excel": "0|worker|str:[workbook]X0",
+      "host": "0|worker|str:[workbook]X0",
+      "host_refusal": null,
+      "matched": true,
+      "recorded_value_agrees": true
+    },
+    {
+      "formula": "=MyBoundaryPool(16392)",
+      "lane": "ordered_boundary_cases",
+      "outcome": "pass",
+      "excel": "0|worker|hwnd:process=self|class=XLMAIN",
+      "host": "0|worker|hwnd:process=self|class=XLMAIN",
+      "host_refusal": null,
+      "matched": true,
+      "recorded_value_agrees": true
+    },
+    {
+      "formula": "=MyBoundaryPool(16403)",
+      "lane": "ordered_boundary_cases",
+      "outcome": "pass",
+      "excel": "0|worker|type2050:data=main|count=0",
+      "host": "0|worker|type2050:data=main|count=0",
+      "host_refusal": null,
+      "matched": true,
+      "recorded_value_agrees": true
+    },
+    {
+      "formula": "=MyBoundaryPool(237)",
+      "lane": "ordered_boundary_cases",
+      "outcome": "pass",
+      "excel": "2|worker|err:#VALUE!",
+      "host": "2|worker|err:#VALUE!",
+      "host_refusal": null,
+      "matched": true,
+      "recorded_value_agrees": true
+    },
+    {
+      "formula": "=MyBoundaryPool(186)",
+      "lane": "ordered_boundary_cases",
+      "outcome": "pass",
+      "excel": "2|worker|err:#VALUE!",
+      "host": "2|worker|err:#VALUE!",
+      "host_refusal": null,
+      "matched": true,
+      "recorded_value_agrees": true
+    },
+    {
+      "formula": "=MyBoundaryPool(257)",
+      "lane": "ordered_boundary_cases",
+      "outcome": "pass",
+      "excel": "128|worker|err:#VALUE!",
+      "host": "128|worker|err:#VALUE!",
+      "host_refusal": null,
+      "matched": true,
+      "recorded_value_agrees": true
+    },
+    {
+      "formula": "=MyBoundaryPool(32890)",
+      "lane": "ordered_boundary_cases",
+      "outcome": "pass",
+      "excel": "128|worker|err:#VALUE!",
+      "host": "128|worker|err:#VALUE!",
+      "host_refusal": null,
+      "matched": true,
+      "recorded_value_agrees": true
+    },
+    {
+      "formula": "=MyBoundaryPool(16391)",
+      "lane": "ordered_boundary_cases",
+      "outcome": "pass",
+      "excel": "32|worker|err:#VALUE!",
+      "host": "32|worker|err:#VALUE!",
+      "host_refusal": null,
+      "matched": true,
+      "recorded_value_agrees": true
+    },
+    {
+      "formula": "=MyBoundaryPool(32909)",
+      "lane": "ordered_boundary_cases",
+      "outcome": "pass",
+      "excel": "128|worker|err:#VALUE!",
+      "host": "128|worker|err:#VALUE!",
+      "host_refusal": null,
+      "matched": true,
+      "recorded_value_agrees": true
+    },
+    {
+      "formula": "=MyBoundaryPool(255)",
+      "lane": "ordered_boundary_cases",
+      "outcome": "pass",
+      "excel": "32|worker|err:#VALUE!",
+      "host": "32|worker|err:#VALUE!",
+      "host_refusal": null,
+      "matched": true,
+      "recorded_value_agrees": true
+    },
+    {
+      "formula": "=MyBoundaryPool(88)",
+      "lane": "ordered_boundary_cases",
+      "outcome": "pass",
+      "excel": "2|worker|err:#VALUE!",
+      "host": "2|worker|err:#VALUE!",
+      "host_refusal": null,
+      "matched": true,
+      "recorded_value_agrees": true
+    },
+    {
+      "formula": "=MyFreeProbe(1)",
+      "lane": "lifecycle_ownership_cases",
+      "outcome": "pass",
+      "excel": "0|0x0002|free=0|words=zero,same,same,changed|type_after=0x0080|again=0",
+      "host": "0|0x0002|free=0|words=zero,same,same,changed|type_after=0x0080|again=0",
+      "host_refusal": null,
+      "matched": true,
+      "recorded_value_agrees": true
+    },
+    {
+      "formula": "=MyFreeProbe(2)",
+      "lane": "lifecycle_ownership_cases",
+      "outcome": "pass",
+      "excel": "0|0x0400|free=0|words=same,same,same,changed|type_after=0x0080|again=0",
+      "host": "0|0x0400|free=0|words=same,same,same,changed|type_after=0x0080|again=0",
+      "host_refusal": null,
+      "matched": true,
+      "recorded_value_agrees": true
+    },
+    {
+      "formula": "=MyFreeProbe(3)",
+      "lane": "lifecycle_ownership_cases",
+      "outcome": "pass",
+      "excel": "0|0x0002|free=0|words=zero,same,same,changed|type_after=0x0080|again=0",
+      "host": "0|0x0002|free=0|words=zero,same,same,changed|type_after=0x0080|again=0",
+      "host_refusal": null,
+      "matched": true,
+      "recorded_value_agrees": true
+    },
+    {
+      "formula": "=MyFreeProbe(4)",
+      "lane": "lifecycle_ownership_cases",
+      "outcome": "pass",
+      "excel": "0|0x0040|free=0|words=zero,same,same,changed|type_after=0x0080|again=0",
+      "host": "0|0x0040|free=0|words=zero,same,same,changed|type_after=0x0080|again=0",
+      "host_refusal": null,
+      "matched": true,
+      "recorded_value_agrees": true
+    },
+    {
+      "formula": "=MyFreeProbe(5)",
+      "lane": "lifecycle_ownership_cases",
+      "outcome": "pass",
+      "excel": "0|0x0008|free=0|words=same,same,same,changed|type_after=0x0080|again=0",
+      "host": "0|0x0008|free=0|words=same,same,same,changed|type_after=0x0080|again=0",
+      "host_refusal": null,
+      "matched": true,
+      "recorded_value_agrees": true
+    },
+    {
+      "formula": "=MyFreeProbe(6)",
+      "lane": "lifecycle_ownership_cases",
+      "outcome": "pass",
+      "excel": "0|0x0001|free=0|words=same,same,same,changed|type_after=0x0080|again=0",
+      "host": "0|0x0001|free=0|words=same,same,same,changed|type_after=0x0080|again=0",
+      "host_refusal": null,
+      "matched": true,
+      "recorded_value_agrees": true
+    },
+    {
+      "formula": "=MyFreeProbe(7)",
+      "lane": "lifecycle_ownership_cases",
+      "outcome": "pass",
+      "excel": "0|0x0002|free=0|words=zero,same,same,changed|type_after=0x0080|again=0",
+      "host": "0|0x0002|free=0|words=zero,same,same,changed|type_after=0x0080|again=0",
+      "host_refusal": null,
+      "matched": true,
+      "recorded_value_agrees": true
+    },
+    {
+      "formula": "=MyFreeFrame(0)",
+      "lane": "lifecycle_ownership_cases",
+      "outcome": "pass",
+      "excel": 42.0,
+      "host": 42.0,
+      "host_refusal": null,
+      "matched": true,
+      "recorded_value_agrees": true
+    },
+    {
+      "formula": "=MyFreeFrameResult(0)",
+      "lane": "lifecycle_ownership_cases",
+      "outcome": "pass",
+      "excel": "thread=main",
+      "host": "thread=main",
+      "host_refusal": null,
+      "matched": true,
+      "recorded_value_agrees": true
+    },
+    {
+      "formula": "=MyFreeFrame(1)",
+      "lane": "lifecycle_ownership_cases",
+      "outcome": "pass",
+      "excel": 42.0,
+      "host": 42.0,
+      "host_refusal": null,
+      "matched": true,
+      "recorded_value_agrees": true
+    },
+    {
+      "formula": "=MyFreeFrameResult(1)",
+      "lane": "lifecycle_ownership_cases",
+      "outcome": "pass",
+      "excel": "thread=main;16384:0",
+      "host": "thread=main;16384:0",
+      "host_refusal": null,
+      "matched": true,
+      "recorded_value_agrees": true
+    },
+    {
+      "formula": "=MyRetain(1)",
+      "lane": "lifecycle_ownership_cases",
+      "outcome": "pass",
+      "excel": "0|main|kept",
+      "host": "0|main|kept",
+      "host_refusal": null,
+      "matched": true,
+      "recorded_value_agrees": true
+    },
+    {
+      "formula": "=MyRetain(2)",
+      "lane": "lifecycle_ownership_cases",
+      "outcome": "pass",
+      "excel": "main|read=str:@self|free=0",
+      "host": "main|read=str:@self|free=0",
+      "host_refusal": null,
+      "matched": true,
+      "recorded_value_agrees": true
+    },
+    {
+      "formula": "=MyRetainPool(1)",
+      "lane": "lifecycle_ownership_cases",
+      "outcome": "pass",
+      "excel": "0|worker|kept",
+      "host": "0|worker|kept",
+      "host_refusal": null,
+      "matched": true,
+      "recorded_value_agrees": true
+    },
+    {
+      "formula": "=MyRetainPool(2)",
+      "lane": "lifecycle_ownership_cases",
+      "outcome": "pass",
+      "excel": "worker|read=str:@self|free=0",
+      "host": "worker|read=str:@self|free=0",
+      "host_refusal": null,
+      "matched": true,
+      "recorded_value_agrees": true
+    },
+    {
+      "formula": "=MyBoundaryOpen()",
+      "lane": "lifecycle_ownership_cases",
+      "outcome": "pass",
+      "excel": "16385:0|main|int:headroom-5x16KiB;16403:0|main|type2050:data=main|count=0;16392:0|main|hwnd:process=self|class=XLMAIN",
+      "host": "16385:0|main|int:headroom-5x16KiB;16403:0|main|type2050:data=main|count=0;16392:0|main|hwnd:process=self|class=XLMAIN",
+      "host_refusal": null,
+      "matched": true,
+      "recorded_value_agrees": true
+    },
+    {
+      "formula": "=MyBoundaryPool(16401)",
+      "lane": "ordered_boundary_cases",
+      "outcome": "refused",
+      "excel": "0|worker|int:-150536192|unregister=0",
+      "host": null,
+      "host_refusal": "dna-onecalc-desktop: =MyBoundaryPool(16401): [Eval(NotModelled { construct: \"an XLL callback is not modelled\", owner: \"dc-snz.18\" })]",
+      "matched": false,
+      "recorded_value_agrees": true
+    }
+  ],
+  "scope": "Callback status, thread placement and output writes as reported by the fixture's own probes (sentinel-filled result operands); not a raw debugger trace.",
+  "excel_repeat": {
+    "cases": 68,
+    "agree": 67,
+    "differ": [
+      "=MyBoundaryPool(16401)"
+    ],
+    "scope": "A second Excel run of the same cases and binaries; a differing row is a nondeterministic Excel answer, never a host pass."
+  }
+}

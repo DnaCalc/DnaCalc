@@ -11,7 +11,7 @@ use std::{
     path::{Path, PathBuf},
     rc::Rc,
     sync::{
-        Mutex, OnceLock,
+        Arc, Mutex, OnceLock,
         atomic::{AtomicBool, AtomicUsize, Ordering},
     },
 };
@@ -757,7 +757,10 @@ pub(crate) struct State {
     pub sheet_names: BTreeMap<SheetId, String>,
     pub active_sheet: Option<SheetId>,
     pub events: BTreeMap<(usize, i32), usize>,
-    pub allocations: HashMap<usize, CallbackAllocation>,
+    /// Callback allocations of the whole host, shared by the owner and its calculation workers:
+    /// an add-in may keep a callback result past its return and free it in a later entry
+    /// (x13: Excel 16.0.20527 serves that on the main thread and on a worker).
+    pub allocations: Allocations,
     pub diagnostics: Vec<String>,
     pub hwnd: usize,
     pub thread: u32,
@@ -778,6 +781,11 @@ pub(crate) struct CallbackAllocation {
     pub owner: usize,
     pub _arena: Arena,
 }
+// SAFETY: the arena is plain heap storage that native code reaches only through the raw
+// pointers handed out with it; the host never dereferences them after publication. Moving the
+// owning boxes between threads under the registry's mutex does not move the storage itself.
+unsafe impl Send for CallbackAllocation {}
+pub(crate) type Allocations = Arc<Mutex<HashMap<usize, CallbackAllocation>>>;
 
 /// Main-thread owned XLL set. Registrations are caller-owned and can be snapshotted into
 /// an existing OneCalc/CalcHost session. Each adapter leases its exact module and address.
@@ -801,7 +809,7 @@ impl XllHost {
                 sheet_names: BTreeMap::new(),
                 active_sheet: None,
                 events: BTreeMap::new(),
-                allocations: HashMap::new(),
+                allocations: Allocations::default(),
                 diagnostics: Vec::new(),
                 hwnd,
                 thread: unsafe { GetCurrentThreadId() },
@@ -899,6 +907,8 @@ impl XllHost {
             .retain(|(owner, _), _| *owner != module.handle as usize);
         state
             .allocations
+            .lock()
+            .unwrap()
             .retain(|_, allocation| allocation.owner != module.handle as usize);
     }
     pub fn functions(&self) -> Result<UserFunctions, String> {
@@ -1063,7 +1073,7 @@ impl XllHost {
         self.state.borrow().status_message.clone()
     }
     pub fn live_callback_allocations(&self) -> usize {
-        self.state.borrow().allocations.len()
+        self.state.borrow().allocations.lock().unwrap().len()
     }
     pub fn runtime_delay_releases(&self) -> usize {
         XLOIL_DELAY_RELEASES.load(Ordering::Acquire)

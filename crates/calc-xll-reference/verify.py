@@ -536,9 +536,11 @@ def all_invocations(trace, name, defined=True):
 def framework_callbacks(trace, teardown=False):
     """Keep every callback before close; registration IDs and windows are identities.
 
-    xlFree has no defined output operand. Its raw buffer stays in the trace.
-    The close controllers use UNREGISTER(path) in Excel and Remove+Close in DNA
-    Calc, so their teardown calls are counted separately, not compared as one action.
+    xlFree has no defined output operand. Its raw buffer stays in the trace; the
+    operands it leaves (args_after, traces from dc-6332.10 on) are compared when both
+    traces record them. The close controllers use UNREGISTER(path) in Excel and the
+    host's close (xlAutoClose only since dc-6332.10; earlier host traces also show
+    xlAutoRemove first), so teardown calls are counted separately.
     """
     _, enters, leaves = trace
     close = min((x["seq"] for x in enters.values()
@@ -579,6 +581,8 @@ def framework_callbacks(trace, teardown=False):
                 if source and arg == source[0]:
                     arg["value"] = source[1]
             result = None
+            if "args_after" in end:
+                result = {"args_after": normalize_x2(defined_boundary(end["args_after"]))}
         elif fn == 201 and args and args[0].get("value") in ids:
             args[0]["value"] = "<registration:" + ids[args[0]["value"]] + ">"
         if fn != 16384:
@@ -928,7 +932,7 @@ def verify_x2(excel, excel_control, host, host_control, cases_path, publication_
                       "raw_callback_differences": differences, "ownership_excel_and_host": ownership,
                       "rewritten_export_registrations_each_host": [len(x) for x in dynamic],
                       "teardown_callbacks_excel_and_host": [framework_callbacks(trace, teardown=True) for trace in traces],
-                      "teardown_scope": "Excel UNREGISTER(path); DNA Calc xlAutoRemove then xlAutoClose. Different teardown actions stay separately counted."}
+                      "teardown_scope": "Excel UNREGISTER(path); the host's close enters xlAutoClose only since dc-6332.10 (retained earlier host traces show xlAutoRemove first). Teardown actions stay separately counted."}
     entry_cases = [case for case in cases if "entry_wait_value" in case]
     if entry_cases:
         for directory in (excel, excel_control):
@@ -1688,6 +1692,122 @@ def verify_permissions(excel, control, hosts, cases_path, publication_path):
             "scope": "13 callback requests across normal, # and $ registrations. Excel boundaries are traced and controlled; each host request uses an independent real executable and records its actual callback return code. The two successful EVALUATE result types and numeric bits are also compared. Broader expressions remain outside these requests; message state is checked, UI painting is unmeasured."}
 
 
+# C.1 of answer 13: every XLL comparison states its profile, and reports four counts side by
+# side, each as pass = matched Excel and fail = mismatched + refused + missing, so 289 own-fixture
+# value cases never hide a failing boundary, lifecycle or framework lane.
+COUNT_LANES = ("value_cases", "ordered_boundary_cases", "lifecycle_ownership_cases", "framework_feature_lanes")
+
+
+def comparison_manifest(excel_env, controller_rows, cases, host_envs):
+    """The comparison profile of one Excel run against its host runs (C.1)."""
+    modes = []
+    for row in controller_rows:
+        if row["operation"].startswith("calculation mode ") and row["value"] not in modes:
+            modes.append(row["value"])
+    manual = any(case.get("manual") for case in cases)
+    return {"excel_build": excel_env.get("excel_file_version"), "bitness": excel_env.get("process_bits"),
+            "locale": excel_env.get("culture"), "calculation_modes": modes,
+            "mtr": {"enabled": excel_env.get("multi_threaded_enabled"), "threads": excel_env.get("multi_thread_count")},
+            "trigger": "Formula2 entry into one cell" + (", then Application.Calculate for manual cases" if manual else ", automatic recalculation"),
+            "addin_files": excel_env.get("fixture_files"), "workbook": excel_env.get("workbook_name"),
+            "load_order": [row["operation"] for row in controller_rows if row["operation"].startswith("RegisterXLL")],
+            "excel_mode": excel_env.get("mode"),
+            "host_executables": sorted({e.get("executable_sha256") for e in host_envs if e.get("executable_sha256")}),
+            "host_process_identity": sorted({e.get("assume_excel_process") for e in host_envs if e.get("assume_excel_process")}),
+            "repository_commits": sorted({e.get("repository_commit") for e in [excel_env, *host_envs] if e.get("repository_commit")})}
+
+
+def four_counts(rows):
+    """Rows carry `lane` and `outcome` (pass, mismatched, refused, missing)."""
+    counts = {lane: {"pass": 0, "mismatched": 0, "refused": 0, "missing": 0} for lane in COUNT_LANES}
+    for row in rows:
+        counts[row["lane"]][row["outcome"]] += 1
+    for count in counts.values():
+        total = sum(count.values())
+        count.update(total=total, fail=total - count["pass"], pass_rate=count["pass"] / total if total else None)
+    return counts
+
+
+def verify_boundary(excel, hosts, cases_path, repeat=None):
+    """dc-6332.10 boundary batch: the probes report callback codes and output writes as text.
+
+    One untraced Excel control runs every case; each host group ran in its own OneCalc process
+    (run-batch.ps1). A host refusal is a failure, never a match; Excel's answers are the oracle.
+    """
+    cases = json.loads(cases_path.read_text(encoding="utf-8-sig"))
+    env = json.loads((excel / "environment.json").read_text(encoding="utf-8-sig"))
+    observed = controller(excel)
+    # The case file gains Excel's recorded answers after the run, so bind the formulas, in order.
+    formulas = [r["operation"] for r in jsonl(excel / "controller.jsonl") if r["operation"].startswith("=")]
+    require(formulas == [c["formula"] for c in cases], "Boundary case formulas differ from the Excel run")
+    # The lane's session host owns the Excel process (session-receipt.json), so it is running before the job.
+    owned = (observed.get("cleanup") == "Workbook closed; Excel returned to lane session host"
+             or env["pid"] not in env["preexisting_excel_pids"])
+    require(observed["AutomationSecurity unchanged"] is True and env["pid"] != 3144 and owned, "Excel ownership/security failed")
+    host_values = {}
+    host_envs = []
+    for directory in sorted(p for p in hosts.iterdir() if p.is_dir() and p.name != "cases"):
+        packet = json.loads((hosts / "cases" / f"{directory.name}.json").read_text(encoding="utf-8-sig"))
+        host_env = json.loads((directory / "environment.json").read_text(encoding="utf-8-sig"))
+        require(host_env["fixture_files"] == env["fixture_files"], "Host and Excel loaded different fixture files")
+        host_envs.append(host_env)
+        status = json.loads((directory / "host.exit.json").read_text(encoding="utf-8-sig"))
+        error = (directory / "host.stderr").read_text(encoding="utf-8-sig").strip()
+        if status == {"exit_code": 0, "finished": True}:
+            output = json.loads((directory / "host.stdout").read_text(encoding="utf-8-sig"))
+            for row in output["results"]:
+                host_values[row["formula"]] = {"value": row["value"], "refused": None}
+        else:
+            # The case runner stops at its first failure: a value that differs from the
+            # recorded answer is a mismatch with the host's value, anything else a refusal.
+            # Cases before the failing one passed the runner's own check against their recorded
+            # value; cases after it never ran (missing).
+            differs = re.fullmatch(r"dna-onecalc-desktop: (=.*): expected .*, calculated (.*)", error)
+            failing = re.match(r"dna-onecalc-desktop: (=[^:]*\)):", error)
+            failing = failing[1] if failing else None
+            reached = False
+            for case in packet:
+                if case["formula"] == failing:
+                    reached = True
+                    host_values[case["formula"]] = ({"value": json.loads(differs[2]), "refused": None} if differs
+                                                     else {"value": None, "refused": error})
+                elif failing and not reached and case.get("value") is not None:
+                    host_values[case["formula"]] = {"value": case["value"], "refused": None}
+                elif failing and reached:
+                    continue
+                else:
+                    host_values[case["formula"]] = {"value": None, "refused": error or json.dumps(status)}
+    rows = []
+    for case in cases:
+        formula = case["formula"]
+        require(formula in observed, "Excel did not record " + formula)
+        host = host_values.get(formula)
+        matched = host is not None and host["refused"] is None and host["value"] == observed[formula]
+        outcome = ("missing" if host is None else "refused" if host["refused"] is not None
+                   else "pass" if matched else "mismatched")
+        # The MyBoundary probes are callback boundary cases; the free, retain and open probes
+        # are ownership and lifecycle cases.
+        lane = "ordered_boundary_cases" if formula.startswith("=MyBoundary") and "Open" not in formula else "lifecycle_ownership_cases"
+        rows.append({"formula": formula, "lane": lane, "outcome": outcome, "excel": observed[formula],
+                     "host": None if host is None else host["value"], "host_refusal": None if host is None else host["refused"],
+                     "matched": matched, "recorded_value_agrees": case.get("value") is None or case["value"] == observed[formula]})
+    matched = sum(r["matched"] for r in rows)
+    refused = sum(r["outcome"] == "refused" for r in rows)
+    missing = sum(r["outcome"] == "missing" for r in rows)
+    require(all(r["recorded_value_agrees"] for r in rows), "A recorded case value differs from Excel's answer")
+    result = {"status": "measured boundary batch; refusals remain failures", "cases": len(rows), "pass": matched,
+              "fail": len(rows) - matched, "mismatched": len(rows) - matched - refused - missing, "refused": refused,
+              "missing": missing, "pass_rate_all_cases": matched / len(rows), "counts": four_counts(rows),
+              "manifest": comparison_manifest(env, jsonl(excel / "controller.jsonl"), cases, host_envs), "rows": rows,
+              "scope": "Callback status, thread placement and output writes as reported by the fixture's own probes (sentinel-filled result operands); not a raw debugger trace."}
+    if repeat:
+        again = controller(repeat)
+        differ = [c["formula"] for c in cases if again.get(c["formula"]) != observed[c["formula"]]]
+        result["excel_repeat"] = {"cases": len(cases), "agree": len(cases) - len(differ), "differ": differ,
+                                  "scope": "A second Excel run of the same cases and binaries; a differing row is a nondeterministic Excel answer, never a host pass."}
+    return result
+
+
 def verify_x2_controls(excel, host, identity=False):
     """Additional controls, kept separate from traced UDF and corpus match counts."""
     envs = [json.loads((p / "environment.json").read_text(encoding="utf-8-sig")) for p in (excel, host)]
@@ -1810,6 +1930,9 @@ if __name__ == "__main__":
     parser.add_argument("--workbook-pool-cases", type=Path)
     parser.add_argument("--permission-cases", type=Path)
     parser.add_argument("--permission-host", type=Path)
+    parser.add_argument("--boundary-cases", type=Path)
+    parser.add_argument("--boundary-host", type=Path, help="Host group directories of a run-batch.ps1 boundary batch; the first positional is the Excel run")
+    parser.add_argument("--boundary-repeat", type=Path, help="A second Excel run of the same boundary cases (Excel-to-Excel control)")
     parser.add_argument("--source-publication", type=Path)
     parser.add_argument("--excel-session", type=Path, help="Retained session ledger for native X2/X3 and extended RTD ownership checks")
     parser.add_argument("--identity", action="store_true")
@@ -1818,7 +1941,9 @@ if __name__ == "__main__":
     excel_session_directory = args.excel_session
     failed = False
     try:
-        if args.permission_host:
+        if args.boundary_host:
+            result = verify_boundary(args.traced, args.boundary_host, args.boundary_cases, args.boundary_repeat)
+        elif args.permission_host:
             result = verify_permissions(args.traced, args.control, args.permission_host, args.permission_cases, args.source_publication)
         elif args.identity or args.pool:
             result = verify_x2_controls(args.traced, args.control, args.identity)
