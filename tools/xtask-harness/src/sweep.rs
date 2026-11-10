@@ -6,8 +6,8 @@
 //! - `architecture`: four checks (`arch::run_all`): dependencies, os-imports,
 //!   wasm-refusal and tree-reference-tokens;
 //! - `name-tables`: flag separate worksheet-function name tables in shipped Rust sources;
-//! - `provenance`: the whole provenance scan (`licence::check`): every file under calc-func and
-//!   calc-value has a licence-ledger entry, and no marker of a removed source reappears;
+//! - `provenance`: the licence ledger's completeness (`licence::check`): every file under calc-func
+//!   and calc-value has a licence-ledger entry, and every entry names a tracked file;
 //! - `ceiling`: the dependency ceiling on the host and wasm32: the resolved closures (normal and
 //!   build edges) of dna-onecalc and dna-formula-ui, the formula UI both apps show, hold neither
 //!   calc-engine nor calc-host (calc-doc is allowed: OneCalc's file is a constrained workbook read

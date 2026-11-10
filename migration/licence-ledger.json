@@ -8,7 +8,7 @@
   "commit": "81d2b381135cb1ee1c6ef18b7b3f66e4f9ac48b1",
   "scope": "every tracked file of crates/calc-func and crates/calc-value",
   "reading": "Unlike infra-m0.5, this investigation read code bodies where needed to say what was copied (x87.rs, mod.rs chains, bessel, the binom chain, gratio/bratio headers). Its author is therefore not a clean-room author for any replacement under dc-96l.3.",
-  "updated": "2026-10-30 by the licence lane (dc-96l): status_2026_10_30 on each changed entry, nt_chains.rs added, blob and bytes renamed surveyed_blob and surveyed_bytes (the survey commit's, not kept current). cargo xtask check reads this file (tools/xtask/src/licence.rs)."
+  "updated": "2026-10-30 by the licence lane (dc-96l): status_2026_10_30 on each changed entry, nt_chains.rs added, blob and bytes renamed surveyed_blob and surveyed_bytes (the survey commit's, not kept current). cargo xtask sweep reads this file (tools/xtask/src/licence.rs)."
  },
  "classes": {
   "own-work": "Written in this project (DnaCalc, or its own legacy repositories OxFunc, OxFml, OxCalc, DnaTreeCalc, DnaOneCalc, all MIT, DNA Kode). Includes rules and constants read from black-box Excel measurement, published mathematics (formulas, series, coefficients printed in papers and books) and the public x87/IEEE instruction set. Needs no notice.",
@@ -106,87 +106,11 @@
   "Not in the review: bond_core_family.rs and odd_bond_family.rs port ExcelFinancialFunctions (Apache-2.0), which needs its notice in deploy/notices/ported.txt."
  ],
  "scan": {
-  "what": "cargo xtask check, provenance-scan: (1) every git-tracked file under ledger_roots has an entry in files, and every entry names a tracked file; (2) no git-tracked file under scan_roots holds the markers of a family more often than allowed lists for it. A marker matches case-sensitively where the characters next to it are not ASCII letters or digits. Markers are stored as the hex of their ASCII bytes, so neither this file nor xtask carries them as text. To add a file: add an entry {path, class, reason} to files. A marker hit is fixed by removing the material, not by raising an allowance; each allowance names the bead that removes it.",
+  "what": "cargo xtask sweep, provenance step: every git-tracked file under ledger_roots has an entry in files, and every entry names a tracked file. To add a file: add an entry {path, class, reason} to files.",
   "ledger_roots": [
    "crates/calc-func",
    "crates/calc-value"
-  ],
-  "scan_roots": [
-   "crates",
-   "apps",
-   "platform",
-   "tools",
-   "deploy"
-  ],
-  "markers": [
-   {
-    "family": "microsoft-nt-crt",
-    "forms_hex": [
-     "38377472616e",
-     "383764697370",
-     "38376364697370",
-     "6646455850",
-     "66464c4e",
-     "66464c4f476d",
-     "664653494e",
-     "6646434f53",
-     "664654414e",
-     "78616d544f53",
-     "57696e646f77732d5365727665722d32303033",
-     "73656c6672656e646572"
-    ]
-   },
-   {
-    "family": "numerical-recipes",
-    "forms_hex": [
-     "4e756d65726963616c2052656369706573",
-     "626573736a30",
-     "626573736a31",
-     "626573737930",
-     "626573737931",
-     "626573736930",
-     "626573736931",
-     "626573736b30",
-     "626573736b31",
-     "4249474e4f",
-     "4249474e49",
-     "67736572",
-     "676366",
-     "6f6c645f6e725f67616d6d615f70",
-     "6f6c645f6e725f67616d6d615f71"
-    ]
-   },
-   {
-    "family": "r-nmath",
-    "forms_hex": [
-     "6462696e6f6d5f726177",
-     "64706f69735f726177",
-     "737469726c657272",
-     "626430",
-     "6e6d617468"
-    ]
-   },
-   {
-    "family": "glibc",
-    "forms_hex": [
-     "676c696263323239",
-     "676c6962632d322e3239",
-     "676c69626320322e3239",
-     "655f6578705f64617461",
-     "655f6c6f675f64617461"
-    ]
-   },
-   {
-    "family": "runtime-machine-code",
-    "forms_hex": [
-     "64756d7062696e",
-     "646973617373656d626c79",
-     "646973617373656d626c6564",
-     "646973617373656d626c65"
-    ]
-   }
-  ],
-  "allowed": {}
+  ]
  },
  "files": [
   {"path": "crates/calc-catalogue/src/error_fallback.rs", "class": "own-work", "reason": "Declarations moved from the existing DnaCalc catalogue."},

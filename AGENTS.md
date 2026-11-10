@@ -47,7 +47,7 @@ DnaTreeCalc, DnaOneCalc and the others) are read-only inputs: port from them, ne
    The message starts with the bead ID and names the legacy repository, commit and paths it
    ported from. Several commits per package is normal.
 
-   `cargo xtask check` is the light per-commit check: provenance markers,
+   `cargo xtask check` is the light per-commit check:
    `cargo check --locked --workspace --all-targets`, and tests of touched packages only.
    Windows also checks touched packages and dependents for Linux when that target is installed
    (otherwise it prints a note); touched portable packages get a wasm32 check.

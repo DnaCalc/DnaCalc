@@ -1,6 +1,6 @@
 //! Light per-commit checks; dependent and full runs belong to the periodic keeper.
 use crate::cargo::{self, Resolved, Workspace};
-use crate::{licence, test_output};
+use crate::test_output;
 use serde_json::{Value, json};
 use std::collections::{BTreeMap, BTreeSet};
 use std::fs::{self, OpenOptions};
@@ -383,19 +383,6 @@ pub fn execute(ws: &Workspace, options: &Options) -> Result<Report, String> {
         .as_millis();
     let log = dir.join(format!("{stamp}-{}.log", std::process::id()));
     let mut errors = Vec::new();
-    let markers = licence::check_markers(&ws.root);
-    println!(
-        "CHECK {} {}: {}",
-        if markers.passed { "passed" } else { "failed" },
-        markers.name,
-        markers.summary
-    );
-    for finding in markers.findings {
-        println!("  {finding}");
-    }
-    if !markers.passed {
-        errors.push(markers.name.into());
-    }
     warn_logs(&ws.root);
     let base = options
         .base

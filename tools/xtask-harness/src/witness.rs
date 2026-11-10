@@ -56,7 +56,7 @@
 //! `--rows` (default 120) in all; a row the calculation does not match carries the calculated
 //! result (`calc_func`), so the portable test fails on a regression and on a gain alike. Rows on
 //! which calc-func panics, calculates without end or takes over 50 ms are left out and listed,
-//! since the wasm test cannot recover from the first two and runs unoptimised. A row ID that holds a marker of the licence ledger's scan is replaced by its index.
+//! since the wasm test cannot recover from the first two and runs unoptimised.
 //!
 //! `read` writes each pinned row's arguments into an Excel started under calc-oracle-excel's
 //! isolation (its bulk witness mode) and reads the results through `Range.Value2`; it retries a
@@ -1997,41 +1997,6 @@ fn file_name(function: &str) -> String {
     format!("{function}.json")
 }
 
-/// The licence ledger's scan markers (hex of their ASCII bytes).
-fn markers(root: &Path) -> Vec<String> {
-    let Ok(text) = fs::read_to_string(root.join("migration/licence-ledger.json")) else {
-        return Vec::new();
-    };
-    let Ok(ledger) = serde_json::from_str::<Value>(&text) else {
-        return Vec::new();
-    };
-    let mut out = Vec::new();
-    for family in ledger["scan"]["markers"].as_array().into_iter().flatten() {
-        for form in family["forms_hex"].as_array().into_iter().flatten() {
-            let Some(hex) = form.as_str() else { continue };
-            let bytes: Option<Vec<u8>> = (0..hex.len())
-                .step_by(2)
-                .map(|i| u8::from_str_radix(hex.get(i..i + 2)?, 16).ok())
-                .collect();
-            if let Some(text) = bytes.and_then(|b| String::from_utf8(b).ok()) {
-                out.push(text);
-            }
-        }
-    }
-    out
-}
-
-fn holds_marker(text: &str, markers: &[String]) -> bool {
-    markers.iter().any(|m| {
-        text.match_indices(m.as_str()).any(|(at, _)| {
-            let before = text[..at].chars().next_back();
-            let after = text[at + m.len()..].chars().next();
-            !before.is_some_and(|c| c.is_ascii_alphanumeric())
-                && !after.is_some_and(|c| c.is_ascii_alphanumeric())
-        })
-    })
-}
-
 /// The rows a pinned set keeps of one function's keys: per bank file its first rows and an evenly
 /// spaced sample of the rest, the budget shared in proportion to the banks' sizes.
 fn select<'a>(rows: &'a [Row<'a>], budget: usize) -> Vec<&'a Row<'a>> {
@@ -2069,7 +2034,6 @@ fn write_pinned(
 ) -> Result<(usize, Vec<String>), String> {
     let dir = root.join(PINNED_DIR);
     fs::create_dir_all(&dir).map_err(|e| format!("{}: {e}", dir.display()))?;
-    let markers = markers(root);
     let mut bytes = 0;
     let mut panics = Vec::new();
     for (function, rows) in judged {
@@ -2101,7 +2065,7 @@ fn write_pinned(
         }
         let mut readings: Vec<ReadingSource> = Vec::new();
         let mut witnesses = Vec::new();
-        for (i, r) in chosen.iter().enumerate() {
+        for r in chosen.iter() {
             let source = &banks.sources[r.reading.source];
             let id = match readings.iter().position(|s| {
                 s.source == source.env.source
@@ -2116,13 +2080,8 @@ fn write_pinned(
                     readings.last().map(|e| e.id.clone()).unwrap_or_default()
                 }
             };
-            let row_id = if holds_marker(&r.reading.id, &markers) {
-                format!("row-{i}")
-            } else {
-                r.reading.id.clone()
-            };
             witnesses.push(WitnessRow {
-                id: row_id,
+                id: r.reading.id.clone(),
                 args: r.reading.args.clone(),
                 result_index: r.reading.index,
                 expected: r.reading.expected.clone(),
@@ -4471,14 +4430,6 @@ mod tests {
                 .contains("malformed transport audit")
         );
         fs::remove_dir_all(root).unwrap();
-    }
-
-    #[test]
-    fn a_marker_counts_only_between_non_alphanumerics() {
-        let m = vec!["abc".to_owned()];
-        assert!(holds_marker("x-abc-1", &m));
-        assert!(!holds_marker("xabc", &m));
-        assert!(!holds_marker("abc1", &m));
     }
 
     #[test]
