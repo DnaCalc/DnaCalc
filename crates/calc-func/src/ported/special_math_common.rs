@@ -590,7 +590,9 @@ pub fn gratio(a: f64, x: f64) -> (f64, f64) {
             // statement 220: half-integer a, finite sum.
             // DEVIATION 2: erfc1(0, sqrt(x)) == Q(0.5, x) == gratio(0.5, x).1
             let rtx = x.sqrt();
-            summ = gratio(0.5, x).1;
+            // The start is the public ERFC.PRECISE value, Q(0.5, x) = erfc(sqrt(x)) (harvest 9, R4).
+            summ = crate::ported::special_dist_family::erfc_precise_kernel(rtx)
+                .unwrap_or_else(|_| gratio(0.5, x).1);
             t = crate::ported::excel_numeric::excel_exp(-x) / (GRATIO_RTPI_FULL * rtx);
             n = 0i64;
             c = -0.5;
