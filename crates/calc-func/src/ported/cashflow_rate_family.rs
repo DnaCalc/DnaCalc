@@ -490,8 +490,10 @@ fn irr_discount_secant(cashflows: &[f64], guess: f64) -> Option<f64> {
     };
     let mut before = div(1.0, add(1.0, guess));
     let mut value_before = npv(before)?;
+    // A zero at the first point returns the stored v converted back, not the
+    // guess: guesses that store the same v give the same answer (harvest 11).
     if value_before == 0.0 {
-        return Some(guess);
+        return Some(sub(div(1.0, before), 1.0));
     }
     let mut current = add(before, 0.001f64.copysign(value_before));
     let mut value = npv(current)?;
