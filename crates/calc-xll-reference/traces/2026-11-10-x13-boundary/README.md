@@ -34,3 +34,11 @@ registered functions; the session host keeps the outputs and recycles its Excel.
 the crash failed ("did not expose its worksheet native object model"); the next job got a fresh
 Excel. Raw host run directories (with executable copies) stay outside the repository under
 `C:/Work/DnaCalc/codex-runs/x13-boundary`.
+
+## x14 operand batch
+
+`x14/`: the operand batch (`fixture/x14-operand-cases.json`, 145 cases: xlCoerce masks, UTF-16
+units, input mutation, nested xlGetName), Excel run and repeat (identical on all 145) and the
+OneCalc comparisons before (31478370 build) and after the mask coercion: 61 and 128 of 145; the
+17 remaining failures are OneCalc MissingInput refusals for cells other than A1. These host runs
+used `run-batch.ps1 -Direct`. See the hosting study, section 29.

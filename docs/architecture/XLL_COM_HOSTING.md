@@ -1207,3 +1207,40 @@ above); the open-time xlGetInst case 0 of 1, then 1 of 1. A second Excel run agr
 route (`run.ps1 -HostExecutable`, values checked against Excel's recorded answers: X1 289,
 Excel-DNA net48 7, net8 7, AOT 1, X2Pool 2, xlw 5 and 5, xlOil Utils/SQL 12, xlOil Python 5)
 pass on the changed host.
+
+## 29. Operand batch x14: xlCoerce masks, UTF-16 units, input mutation (dc-6332.10)
+
+Answer 13's D.4 (as a baseline) and D.5, with the same fixture, runner and session as
+section 28: `fixture/x14-operand-cases.json` (145 cases with Excel's answers), evidence in
+`crates/calc-xll-reference/traces/2026-11-10-x13-boundary/x14`. A second Excel run agreed on
+all 145.
+
+Measured in Excel 16.0.20527.20150:
+
+- **xlCoerce's type operand is a mask.** A value whose kind the mask allows comes back
+  unchanged (TRUE with Num|Str|Bool|Err|Multi stays TRUE, "12" with Num|Str stays "12"); an
+  array is kept when Multi is allowed, else its top-left element is coerced; a reference is kept
+  when Ref is allowed and read otherwise; otherwise Num is preferred (TRUE with Num|Str gives 1).
+- Conversions: text to Num/Int parses (" 12 " and "1e3" convert; "a" and "" fail); 2.5 to Int
+  gives 2; text to Bool fails except TRUE/FALSE; any non-error to Err gives #VALUE! with status 0;
+  a scalar or an error to Multi gives a 1x1 array; a value to Ref fails; a blank cell reads as 0,
+  "", FALSE, Int 0 or a 1x1 Nil array.
+- **Failures**: status 32 with #VALUE! in the result operand for a failed conversion, and with
+  the source's own error (#N/A) when an error value cannot convert. A two-area reference reads as
+  #VALUE! (32 for value targets; Ref keeps both areas).
+- **Text**: UTF-16 code units arrive unchanged in Q and D% arguments (a surrogate pair stays two
+  units; LEFT(UNICHAR(128512),1) keeps both); returned text keeps an embedded NUL (LEN 3,
+  UNICODE 0) and a lone surrogate (LEN 3; UNICODE of it is #VALUE!).
+- **Input mutation**: an add-in that swaps the rows of its own Q array input changes only its
+  copy: `LET(a,{1,2;3,4},MySwapRows(a)&"|"&INDEX(a,1,1))` gives "3|1".
+- **Nested origin**: xlGetName before and after a nested xlUDF from a `#` function agree.
+- **Nil inside an expression**: `MySwapRows(A1:B2)&"|"&A1` (the swapped top-left is a blank
+  cell's Nil) gives "|7" in Excel; DNA Calc's engine gives "0|7", because a native Nil or
+  Missing result becomes 0 before it reaches the expression (`invoke.rs` `normalize_return`).
+  Recorded, not changed here.
+
+Host change: `coerce_callback` (callbacks.rs) implements the mask rules above and answers
+measured failures with status 32 and the measured error, without refusing the formula; Missing,
+Nil, SRef and flow targets and non-numeric type operands remain typed refusals. OneCalc before
+(the 31478370 build) matched 61 of 145, after 128 of 145; the 17 failures are OneCalc's
+MissingInput refusals for cells other than its one input A1 (its scratch-session design).

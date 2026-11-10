@@ -1777,12 +1777,17 @@ def verify_boundary(excel, hosts, cases_path, repeat=None):
                     continue
                 else:
                     host_values[case["formula"]] = {"value": None, "refused": error or json.dumps(status)}
+    # Value2 reports a worksheet error as its COM error code; the host reports {"error": name}.
+    excel_errors = {-2146826288: "#NULL!", -2146826281: "#DIV/0!", -2146826273: "#VALUE!", -2146826265: "#REF!",
+                    -2146826259: "#NAME?", -2146826252: "#NUM!", -2146826246: "#N/A", -2146826245: "#GETTING_DATA"}
+    def comparable(value):
+        return {"error": excel_errors[value]} if isinstance(value, int) and value in excel_errors else value
     rows = []
     for case in cases:
         formula = case["formula"]
         require(formula in observed, "Excel did not record " + formula)
         host = host_values.get(formula)
-        matched = host is not None and host["refused"] is None and host["value"] == observed[formula]
+        matched = host is not None and host["refused"] is None and comparable(host["value"]) == comparable(observed[formula])
         outcome = ("missing" if host is None else "refused" if host["refused"] is not None
                    else "pass" if matched else "mismatched")
         # The MyBoundary probes are callback boundary cases; the free, retain and open probes
@@ -1790,7 +1795,7 @@ def verify_boundary(excel, hosts, cases_path, repeat=None):
         lane = "ordered_boundary_cases" if formula.startswith("=MyBoundary") and "Open" not in formula else "lifecycle_ownership_cases"
         rows.append({"formula": formula, "lane": lane, "outcome": outcome, "excel": observed[formula],
                      "host": None if host is None else host["value"], "host_refusal": None if host is None else host["refused"],
-                     "matched": matched, "recorded_value_agrees": case.get("value") is None or case["value"] == observed[formula]})
+                     "matched": matched, "recorded_value_agrees": case.get("value") is None or comparable(case["value"]) == comparable(observed[formula])})
     matched = sum(r["matched"] for r in rows)
     refused = sum(r["outcome"] == "refused" for r in rows)
     missing = sum(r["outcome"] == "missing" for r in rows)

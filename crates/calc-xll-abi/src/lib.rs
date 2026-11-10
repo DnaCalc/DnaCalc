@@ -6,7 +6,7 @@ compile_error!("calc-xll-abi is native-only");
 mod signature;
 mod value;
 pub use signature::{XllSignature, XllType};
-pub use value::{Arena, SheetMap, from_oper};
+pub use value::{Arena, SheetMap, error_number, from_oper};
 
 pub const XL_NUM: u32 = 1;
 pub const XL_STR: u32 = 2;

@@ -21,6 +21,12 @@
 //! - `MyRetain(step)` (`QB`) and `MyRetainPool(step)` (`QB$`): step 1 keeps an xlGetName result
 //!   across the return, step 2 reads it in a later entry and frees it there.
 //! - `MyBoundaryOpen()` reports the same callbacks as answered inside xlAutoOpen.
+//! - Operands (answer 13 D.4 baseline, D.5): `MyCoerce(value, type)` (`QQB#`) and
+//!   `MyCoerceRef(ref, type)` (`QUB#`) report xlCoerce's status and output for a target type
+//!   mask; `MyUnits` (`QQ`) and `MyUnitsCounted` (`QD%`) report the UTF-16 code units they
+//!   receive; `MyOddText(kind)` returns text with an embedded NUL (1) or a lone surrogate (2);
+//!   `MySwapRows(array)` (`QQ`) swaps its input's first two rows in place and returns the new
+//!   top-left; `MyNestedName()` (`Q#`) compares xlGetName before and after a nested xlUDF.
 //!
 //! The fixture shares calc-xll-abi with the host, so its layouts are no independent witness:
 //! these probes measure behaviour, and Excel's answers are the oracle.
@@ -63,7 +69,6 @@ pub(super) unsafe fn register_all(module: &XlOper12) -> bool {
         .map(|&function| format!("{function}:{}", unsafe { probe(function) }))
         .collect::<Vec<_>>()
         .join(";");
-    note(&format!("open {}", OPEN_RESULTS.lock().unwrap()));
     [
         ("MyBoundary", "QB", "MyBoundary"),
         ("MyBoundaryMacro", "QB#", "MyBoundaryMacro"),
@@ -75,6 +80,13 @@ pub(super) unsafe fn register_all(module: &XlOper12) -> bool {
         ("MyRetainPool", "QB$", "MyRetainPool"),
         ("MyBoundaryOpen", "Q", "MyBoundaryOpen"),
         ("MyBoundarySink", "J", "MyBoundarySink"),
+        ("MyCoerce", "QQB#", "MyCoerce"),
+        ("MyCoerceRef", "QUB#", "MyCoerceRef"),
+        ("MyUnits", "QQ", "MyUnits"),
+        ("MyUnitsCounted", "QD%", "MyUnitsCounted"),
+        ("MyOddText", "QB", "MyOddText"),
+        ("MySwapRows", "QQ", "MySwapRows"),
+        ("MyNestedName", "Q#", "MyNestedName"),
     ]
     .into_iter()
     .all(|(procedure, signature, name)| {
@@ -492,4 +504,120 @@ unsafe fn retain(step: f64) -> *mut XlOper12 {
     };
     drop(retained);
     returned_text(&text)
+}
+
+/// D.4 baseline: xlCoerce of a value or a reference to a target type mask.
+#[unsafe(no_mangle)]
+pub unsafe extern "system" fn MyCoerce(value: *mut XlOper12, target: f64) -> *mut XlOper12 {
+    unsafe { coerce(value, target) }
+}
+#[unsafe(no_mangle)]
+pub unsafe extern "system" fn MyCoerceRef(value: *mut XlOper12, target: f64) -> *mut XlOper12 {
+    unsafe { coerce(value, target) }
+}
+unsafe fn coerce(value: *mut XlOper12, target: f64) -> *mut XlOper12 {
+    let mut kind = XlOper12::integer(target as i32);
+    let mut result = sentinel();
+    let code = unsafe { call(XL_COERCE, &[value, &mut kind], &mut result) };
+    let text = format!("{code}|{}", unsafe { output(&result) });
+    if code == SUCCESS {
+        unsafe { free_result(&mut result) };
+    }
+    returned_text(&text)
+}
+fn units(units: &[u16]) -> String {
+    let list = units.iter().map(|u| format!("{u:04x}")).collect::<Vec<_>>();
+    format!("len={}|{}", units.len(), list.join(","))
+}
+/// D.5: the code units of a text operand as received (no decoding).
+#[unsafe(no_mangle)]
+pub unsafe extern "system" fn MyUnits(value: *mut XlOper12) -> *mut XlOper12 {
+    let oper = unsafe { value.read_unaligned() };
+    let text = if oper.xltype & TYPE_MASK == XL_STR {
+        let pointer = unsafe { oper.value.string };
+        let length = usize::from(unsafe { *pointer });
+        units(unsafe { std::slice::from_raw_parts(pointer.add(1), length) })
+    } else {
+        format!("type={}", type_name(oper.xltype))
+    };
+    returned_text(&text)
+}
+#[unsafe(no_mangle)]
+pub unsafe extern "system" fn MyUnitsCounted(value: *const u16) -> *mut XlOper12 {
+    let length = usize::from(unsafe { *value });
+    let text = units(unsafe { std::slice::from_raw_parts(value.add(1), length) });
+    returned_text(&text)
+}
+/// D.5: returned text that a lossy UTF-8 round trip would change.
+#[unsafe(no_mangle)]
+pub extern "system" fn MyOddText(kind: f64) -> *mut XlOper12 {
+    let body: &[u16] = match kind as i32 {
+        1 => &[0x61, 0x00, 0x62],
+        2 => &[0x61, 0xd83d, 0x62],
+        _ => &[0x61],
+    };
+    TEXT.with(|p| unsafe {
+        let buffer = &mut *p.get();
+        buffer.clear();
+        buffer.push(body.len() as u16);
+        buffer.extend_from_slice(body);
+        returned(XlOper12 {
+            value: XlValue12 {
+                string: buffer.as_mut_ptr(),
+            },
+            xltype: XL_STR,
+        })
+    })
+}
+/// D.5 aliasing: the add-in mutates its own input array (as xlOil's xloSort does). The
+/// engine's value must stay as it was; only this call's copy changes.
+#[unsafe(no_mangle)]
+pub unsafe extern "system" fn MySwapRows(value: *mut XlOper12) -> *mut XlOper12 {
+    let oper = unsafe { value.read_unaligned() };
+    if oper.xltype & TYPE_MASK != XL_MULTI {
+        return returned(XlOper12::error(15));
+    }
+    let array = unsafe { oper.value.array };
+    if array.rows < 2 || array.columns < 1 {
+        return returned(XlOper12::error(15));
+    }
+    let columns = array.columns as usize;
+    unsafe {
+        for column in 0..columns {
+            let top = array.values.add(column);
+            let next = array.values.add(columns + column);
+            let swap = top.read_unaligned();
+            top.write_unaligned(next.read_unaligned());
+            next.write_unaligned(swap);
+        }
+        returned(array.values.read_unaligned())
+    }
+}
+/// The origin restores after a nested registered call: xlGetName before and after xlUDF.
+#[unsafe(no_mangle)]
+pub unsafe extern "system" fn MyNestedName() -> *mut XlOper12 {
+    let name = || {
+        let mut result = sentinel();
+        let code = unsafe { call(XL_GET_NAME, &[], &mut result) };
+        let text = format!("{code}|{}", unsafe { output(&result) });
+        if code == SUCCESS {
+            unsafe { free_result(&mut result) };
+        }
+        text
+    };
+    let before = name();
+    let mut arena = Arena::new();
+    let mut child = arena.text("MyBoundaryMacro").unwrap();
+    let mut argument = XlOper12::number(4.);
+    let mut result = sentinel();
+    let code = unsafe { call(XL_UDF, &[&mut child, &mut argument], &mut result) };
+    let nested = format!("{code}|{}", unsafe { output(&result) });
+    if code == SUCCESS {
+        unsafe { free_result(&mut result) };
+    }
+    let after = name();
+    returned_text(&format!(
+        "before={before}|nested={nested}|same={}",
+        before == after
+    ))
 }
