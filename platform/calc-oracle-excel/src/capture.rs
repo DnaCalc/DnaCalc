@@ -89,6 +89,17 @@ impl Default for CalculationPolicy {
     }
 }
 
+/// The macro policy of the capture's Excel instance (`Application.AutomationSecurity`, an application
+/// property, never a Trust Center setting; dc-vq5b).
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub enum MacroPolicy {
+    /// Keep the value the instance holds (the COM default 1, macros enabled, in an automation Excel).
+    #[default]
+    Preserve,
+    /// Set 3 (msoAutomationSecurityForceDisable) for the capture and restore the held value afterwards.
+    ForceDisabled,
+}
+
 /// One capture to take.
 #[derive(Clone, Debug)]
 pub struct CaptureRequest {
@@ -109,6 +120,8 @@ pub struct CaptureRequest {
     /// How long the worker may run before it and its Excel are terminated.
     pub timeout: Duration,
     pub policy: CalculationPolicy,
+    /// The macro policy; a corpus capture force-disables macros unless the file is listed for execution.
+    pub macros: MacroPolicy,
     /// The authored revision of the workbook and the operations that produced it from its source
     /// (0 and none for a fixture as authored).
     pub revision: u64,
@@ -496,6 +509,9 @@ pub fn capture(request: &CaptureRequest) -> Result<CaptureOutcome, CaptureError>
             "max_change": format!("{:016x}", policy.max_change.to_bits()),
         },
     });
+    if request.macros == MacroPolicy::ForceDisabled {
+        worker_request["automation_security"] = serde_json::json!(3);
+    }
     if let Some(copy) = &inventory_copy {
         worker_request["inventory"] = serde_json::json!(copy.to_string_lossy());
     }
@@ -888,6 +904,7 @@ mod tests {
             work_dir: std::env::temp_dir().join("calc-oracle-excel-unit-never-created"),
             timeout: Duration::from_secs(1),
             policy: CalculationPolicy::default(),
+            macros: MacroPolicy::Preserve,
             revision: 0,
             operations: Vec::new(),
             repository: None,

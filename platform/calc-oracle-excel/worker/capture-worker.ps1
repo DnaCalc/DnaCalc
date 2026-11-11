@@ -725,6 +725,22 @@ function Get-Channel {
 $Missing = [System.Type]::Missing
 $NoPassword = 'dnacalc-no-password'
 
+# The calculation mode the workbook's own calcPr declares (auto when it names none), read from its package.
+function Get-FileCalcMode([string]$Path) {
+    try {
+        $zip = [IO.Compression.ZipFile]::OpenRead($Path)
+        try {
+            $entry = $zip.GetEntry('xl/workbook.xml')
+            if ($null -eq $entry) { return 'unknown' }
+            $reader = New-Object IO.StreamReader($entry.Open())
+            try { $text = $reader.ReadToEnd() } finally { $reader.Dispose() }
+        } finally { $zip.Dispose() }
+        $found = [regex]::Match($text, '<calcPr[^>]*calcMode="([a-zA-Z]+)"')
+        if ($found.Success) { return $found.Groups[1].Value }
+        return 'auto'
+    } catch { return 'unknown' }
+}
+
 function Open-Workbook($Application, [string]$Path) {
     # FileName, UpdateLinks 0 (never), ReadOnly, Format, Password, WriteResPassword,
     # IgnoreReadOnlyRecommended, Origin, Delimiter, Editable, Notify, Converter, AddToMru, Local,
@@ -992,6 +1008,8 @@ $entryQuestions = @()
 $entryRejected = @{}
 $excel = $null
 $workbook = $null
+$securityBefore = $null
+$wantedSecurity = $null
 try {
     $req = [System.IO.File]::ReadAllText($Request, [System.Text.Encoding]::UTF8) | ConvertFrom-Json
     # An .xlsb input is inventoried from its Excel-saved SpreadsheetML twin (bead dc-5sr): this
@@ -1001,6 +1019,14 @@ try {
     $package = Read-Package $inventoryPath
     $Output.sheets = $package.sheets
     $Output.formulas = $package.formulas
+    # The values the input package saved for its formula cells, read before Excel starts (dc-vq5b): the
+    # saved side of the saved-versus-live comparison; the live values are the cells read after the rebuild.
+    $inputSaved = New-Object System.Collections.ArrayList
+    foreach ($entry in $package.formulas) {
+        $savedCache = $package.caches[(Get-Key $entry.sheet $entry.row $entry.column)]
+        if ($null -ne $savedCache) { [void]$inputSaved.Add([ordered]@{ sheet = $entry.sheet; row = $entry.row; column = $entry.column; t = $savedCache.t; v = (Get-Units $savedCache.v) }) }
+    }
+    $Output['input_saved'] = $inputSaved
     $inventory = @{}
     foreach ($entry in $package.formulas) { $inventory[(Get-Key $entry.sheet $entry.row $entry.column)] = $entry }
 
@@ -1023,7 +1049,16 @@ try {
     $securityBefore = Get-ComProperty $excel 'AutomationSecurity'
     if ($securityBefore -notin @(1, 2, 3)) { throw 'AutomationSecurity could not be read as a known value' }
     $Output['automation_security_before'] = $securityBefore
-    # Preserve the existing macro policy, including when the worker owns its application.
+    # The macro policy: preserved unless the request names one (dc-vq5b). A corpus capture asks for 3
+    # (msoAutomationSecurityForceDisable), an application property of this instance and not a Trust Center
+    # setting; it is restored to the value read above before the worker finishes, and the request's
+    # value is recorded as the setting macro_policy_requested.
+    $wantedSecurity = $securityBefore
+    if ($req.PSObject.Properties.Name -contains 'automation_security') {
+        $wantedSecurity = [int]$req.automation_security
+        if ($wantedSecurity -notin @(1, 2, 3)) { throw 'the requested AutomationSecurity is not 1, 2 or 3' }
+        $excel.AutomationSecurity = $wantedSecurity
+    }
     # The session settings (see the header): each belongs to this Excel instance alone.
     $excel.Visible = $false
     $excel.DisplayAlerts = $false
@@ -1031,7 +1066,7 @@ try {
     $excel.EnableEvents = $false
     $excel.Interactive = $false
     # Each read back through Get-ComProperty, so a read that fails is not taken for the value set.
-    $expected = [ordered]@{ DisplayAlerts = $false; EnableEvents = $false; Interactive = $false; AutomationSecurity = $securityBefore }
+    $expected = [ordered]@{ DisplayAlerts = $false; EnableEvents = $false; Interactive = $false; AutomationSecurity = $wantedSecurity }
     $notIsolated = New-Object System.Collections.ArrayList
     foreach ($name in $expected.Keys) {
         $want = $expected[$name]
@@ -1143,6 +1178,7 @@ try {
     if ((Get-ComProperty $excel 'MaxIterations') -ne $wantedCount) { $excel.MaxIterations = $wantedCount }
     if ((Get-ComProperty $excel 'MaxChange') -ne $wantedChange) { $excel.MaxChange = $wantedChange }
     $excel.CalculateFullRebuild()
+    $fileCalcMode = Get-FileCalcMode $openPath
     # Data-model mode: CUBE formulas query the in-file model asynchronously; wait for them. No refresh.
     if (Test-DataModelOnly $package) { $excel.CalculateUntilAsyncQueriesDone() }
     # XlCalculationState: xlDone 0, xlCalculating 1, xlPending 2. A read that fails throws, and a
@@ -1295,6 +1331,13 @@ try {
     Read-Setting 'precision_as_displayed' $workbook 'PrecisionAsDisplayed' 'flag'
     Read-Setting 'automation_security' $excel 'AutomationSecurity' 'integer'
     Read-Setting 'enable_events' $excel 'EnableEvents' 'flag'
+    # The capture's own opening and refresh policy (dc-vq5b): links never updated (Open's UpdateLinks 0),
+    # nothing refreshed, the file's own calcPr mode (read from its package) followed by a full rebuild.
+    Add-Setting 'macro_policy_requested' $(if ($wantedSecurity -ne $securityBefore) { "set to $wantedSecurity (was $securityBefore)" } else { "preserved ($securityBefore)" })
+    Add-Setting 'update_links' 'never (Workbooks.Open UpdateLinks 0)'
+    Add-Setting 'data_refresh' 'none (no connection, query or pivot cache is refreshed)'
+    Add-Setting 'calculation_file_mode' $fileCalcMode
+    Add-Setting 'calculation_full_rebuild' 'CalculateFullRebuild after the policy was set'
     Read-Setting 'interactive' $excel 'Interactive' 'flag'
     Read-Setting 'display_alerts' $excel 'DisplayAlerts' 'flag'
     # The owner's options as this instance reads them; the worker never sets either.
@@ -1508,12 +1551,14 @@ try {
     }
     $workbook.Close($false)
     $workbook = $null
+    if ($wantedSecurity -ne $securityBefore) { $excel.AutomationSecurity = $securityBefore }
     $Output['automation_security_after'] = Get-ComProperty $excel 'AutomationSecurity'
     if ($Output.automation_security_after -ne $securityBefore) { throw 'AutomationSecurity changed during capture' }
 } catch {
     $Output.fatal = "$($_.Exception.Message) (capture-worker.ps1 line $($_.InvocationInfo.ScriptLineNumber))"
 } finally {
     if ($null -ne $workbook) { try { $workbook.Close($false) } catch { } }
+    if ($null -ne $excel -and $null -ne $securityBefore -and $wantedSecurity -ne $securityBefore) { try { $excel.AutomationSecurity = $securityBefore } catch { } }
     if ($null -ne $excel -and $null -eq $OwnedExcel) {
         try { $excel.Quit() } catch { }
         try { [void][System.Runtime.InteropServices.Marshal]::FinalReleaseComObject($excel) } catch { }

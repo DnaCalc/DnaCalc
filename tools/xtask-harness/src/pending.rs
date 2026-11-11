@@ -240,6 +240,7 @@ fn capture_with_attempts(
             work_dir: work_dir.clone(),
             timeout,
             policy,
+            macros: calc_oracle_excel::MacroPolicy::Preserve,
             revision: 0,
             operations: Vec::new(),
             repository: repository_revision(),

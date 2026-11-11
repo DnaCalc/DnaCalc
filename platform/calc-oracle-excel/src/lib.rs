@@ -146,7 +146,7 @@ mod worker_tests;
 
 pub use calc_verdict::sha256_hex;
 pub use capture::{
-    CalculationMode, CalculationPolicy, CaptureOutcome, CaptureRequest, capture,
+    CalculationMode, CalculationPolicy, CaptureOutcome, CaptureRequest, MacroPolicy, capture,
     capture_source_sha256, capture_tool_revision, excel_available, isolation_failures,
     windows_powershell,
 };

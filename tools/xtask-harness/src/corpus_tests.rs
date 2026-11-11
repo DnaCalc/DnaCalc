@@ -274,6 +274,7 @@ fn arguments_have_their_defaults_and_refusals() {
             shard: None,
             resume: false,
             minimize: false,
+            capture_only: false,
             dna_only: false,
             merges: Vec::new(),
         }
