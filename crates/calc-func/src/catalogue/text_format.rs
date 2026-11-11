@@ -478,7 +478,10 @@ fn regex(
         case_sensitive,
         first_only,
     )
-    .map_err(|_| site.not_modelled(Some(1)))
+    .map_err(|error| match error {
+        k::PatternError::Invalid => Exit::Error(WorksheetErrorCode::Value),
+        k::PatternError::Unsupported => site.not_modelled(Some(1)),
+    })
 }
 
 fn regextest(site: &Site<'_>, a: &[CalcValue]) -> Step<CalcValue> {
