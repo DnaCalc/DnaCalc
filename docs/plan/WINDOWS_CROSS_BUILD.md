@@ -115,11 +115,35 @@ WebDriver to WebView2 and loads the add-ins). Two points:
 3. **Compile-time paths.** Test executables embed Linux paths (see above).
 4. **Debug builds only so far.** The commands above build the `dev` profile. A release or `perf`
    build is the same command with `--release` or `--profile perf`; its results are not recorded here.
-5. The Windows SDK/CRT files come from the `xwin` download, not from a Visual Studio install, so
+5. **libffi.** `libffi-sys` compiles its C and GNU-syntax assembly (`ffiw64.c`, `win64_gnu.S`) with clang-cl
+   in a cross build; a Windows build uses MSVC's flavour. See the open difference below.
+6. The Windows SDK/CRT files come from the `xwin` download, not from a Visual Studio install, so
    the binaries link against the redistributable CRT import libraries of that snapshot.
+
+## Results of the first trial (2026-11-11, Excel not started)
+
+Binaries and hashes: `C:\Work\DnaCalc\xwin-builds\20261111T092342Z\SHA256SUMS.txt`; all 16 hashes
+matched after the copy. Run on Windows from the cross-built files:
+- Unit tests: calc-addin-host 2, calc-com-host 13, calc-xll-abi 5, calc-xll-fixture 0, calc-xll-host 12,
+  xlcall32 1, dna-calc-desktop 6, dna-onecalc-desktop 19: all pass.
+- Integration tests (`xll-*.exe`): dna-calc-desktop 14 of 14, dna-onecalc-desktop 21 of 21 pass (after the
+  export-alignment fix above; before it, 0 of 21 and most of the 14 aborted).
+- OneCalc XLL page acceptance (`m4-acceptance.json`, all ten sets, recorded Excel answers):
+  352 of 353 matched; the known figure from the native build is 353 of 353. The framework host route
+  (333/333) was not run (it needs Excel sessions and a different harness route).
+
+**Open difference (not fixed).** Set `xloil-utils-sql`, case `=INDEX(xloSort({3;1;2}),1,1)`: the
+cross-built `dna-onecalc-desktop.exe` returns 3 (sorted descending); the native build returns 1 (the
+omitted direction argument is read as "D" instead of the default "A"). It is deterministic (3 of 3 runs),
+and an explicit `"a"` or `"d"` argument gives the right answer in both builds. A native exe with the
+cross-built `xlcall32.dll` is correct, a cross-built exe with the native `xlcall32.dll` is wrong, so
+the cause is in the exe. The 289 own-fixture cases and every other set match. Prime suspect: the
+libffi call path (item 5), the one native-code component built differently; not confirmed.
+Until it is resolved, do not take a cross-built acceptance as equal to a native one.
 
 ## What still needs a Windows-side build
 
-Nothing found so far for the add-in tests and the OneCalc page acceptance. `cargo xtask check`,
+The open difference above: a native Windows build is the reference until it is explained.
+Everything else in the add-in tests and the page acceptance ran from cross-built files. `cargo xtask check`,
 `sweep` and anything that starts cargo on Windows still need the Windows toolchain, and the xtask
 launcher (`xtask.exe`) builds the harness with cargo, so the harness is run directly as above.
