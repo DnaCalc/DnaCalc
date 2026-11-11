@@ -69,3 +69,16 @@ non-throwing call sees 64, the throwing one catches 64, and the caught -999 is n
 value. Measured, two Excel runs identical on all 12 rows: exactly that (`try:64`,
 `throw:caught:64`, then a fresh entry reading the new value). DNA Calc's engine: 12 of 12
 (`exceldna/verify.json`).
+
+## Regressions on this bead's host (`regressions.json`, `x1-traced-summary.json`)
+
+OneCalc built at 41cd4471: x13 65 of 68 (3 refused), x13 open 1 of 1, x14 128 of 145 (17
+refused), x15 19 of 21 (2 refused), against the committed Excel runs of
+`traces/2026-11-10-x13-boundary` (x13 rerun from a copy of its add-in directory whose fixture
+cannot write its open log, so every host group loads the same file set); framework host route
+333 of 333 (X1 289, Excel-DNA 7+7+1+2, xlw 5+5, xlOil 12+5); page acceptance
+(`xtask app xll-accept onecalc`, bundle built at 41cd4471, Excel answers from
+`codex-runs/x13-boundary/m4-excel-all`) 350 of 353, the same three calcvba-udf failures. X1
+traced pair at 8f346fe7 (Excel and OneCalc each traced and untraced): 289 of 289 formulas, 599
+ordered callbacks with the same contexts, 148 xlFree operands compared. All equal the previous
+lane's numbers.

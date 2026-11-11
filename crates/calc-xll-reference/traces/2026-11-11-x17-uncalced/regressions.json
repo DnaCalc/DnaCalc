@@ -1,0 +1,82 @@
+{
+  "host": "OneCalc built at 41cd4471 (codex-runs/x17-uncalced/onecalc-after)",
+  "x13": {
+    "cases": 68,
+    "pass": 65,
+    "mismatched": 0,
+    "refused": 3,
+    "missing": 0
+  },
+  "x13_open": {
+    "cases": 1,
+    "pass": 1,
+    "mismatched": 0,
+    "refused": 0,
+    "missing": 0
+  },
+  "x14": {
+    "cases": 145,
+    "pass": 128,
+    "mismatched": 0,
+    "refused": 17,
+    "missing": 0
+  },
+  "x15": {
+    "cases": 21,
+    "pass": 19,
+    "mismatched": 0,
+    "refused": 2,
+    "missing": 0
+  },
+  "framework_host_route": [
+    {
+      "set": "x1",
+      "exit": 0,
+      "results": 289
+    },
+    {
+      "set": "exceldna-net48",
+      "exit": 0,
+      "results": 7
+    },
+    {
+      "set": "exceldna-net8",
+      "exit": 0,
+      "results": 7
+    },
+    {
+      "set": "exceldna-aot",
+      "exit": 0,
+      "results": 1
+    },
+    {
+      "set": "exceldna-pool",
+      "exit": 0,
+      "results": 2
+    },
+    {
+      "set": "xlw",
+      "exit": 0,
+      "results": 5
+    },
+    {
+      "set": "xlw-types",
+      "exit": 0,
+      "results": 5
+    },
+    {
+      "set": "xloil-utils-sql",
+      "exit": 0,
+      "results": 12
+    },
+    {
+      "set": "xloil-python",
+      "exit": 0,
+      "results": 5
+    }
+  ],
+  "page_acceptance": {
+    "cases": 353,
+    "matched": 350
+  }
+}
