@@ -16,3 +16,10 @@ def window(center, half=512):
 def ulps(a, b):
     """signed distance a-b in ulps for same-sign positive doubles"""
     return a.view(np.int64) - b.view(np.int64)
+ip = np.ctypeslib.ndpointer(dtype=np.int32, flags="C_CONTIGUOUS")
+lib.b3m_batch.argtypes = [dp, dp, dp, dp, ctypes.c_int, ip]
+import fenv_consts
+def b3m(P, Q, xs, rm):
+    xs = np.ascontiguousarray(xs, dtype=np.float64); out = np.empty_like(xs)
+    lib.b3m_batch(np.ascontiguousarray(P,dtype=np.float64), np.ascontiguousarray(Q,dtype=np.float64), xs, out, len(xs), np.ascontiguousarray(rm,dtype=np.int32))
+    return out
