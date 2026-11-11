@@ -1,0 +1,56 @@
+{
+  "id": "vba-json",
+  "summary": "VBA-JSON (JsonConverter.bas) with VBA-Dictionary (which it needs), verbatim, plus an own worksheet wrapper JsonProbe.bas",
+  "origin": {
+    "class": "third-party",
+    "licence": "MIT",
+    "copyright": "Copyright (c) 2016-2019 Tim Hall",
+    "licence_file": "LICENSE",
+    "url": "https://github.com/VBA-tools/VBA-JSON",
+    "commit": "06b6c45a2e8086a7a761f00bead7460852d6b602",
+    "obtained": "downloaded 2026-11-11 (shallow clone, owner-approved); verbatim",
+    "also": "Dictionary.cls from https://github.com/VBA-tools/VBA-Dictionary commit 757aea9207648821dfc0c382c4a5431836749c3e, (c) 2020 Tim Hall, MIT; size of the clone 212 KB; JsonProbe.bas is own code, MIT (this repository)"
+  },
+  "route": "module",
+  "modules": [
+    {
+      "name": "JsonConverter",
+      "path": "modules/JsonConverter.bas",
+      "sha256": "6e50e9ee1cc9a42d2395762b00458e178a604c9bbab94877365d8ea9efb91913",
+      "kind": "standard"
+    },
+    {
+      "name": "Dictionary",
+      "path": "modules/Dictionary.cls",
+      "sha256": "4e8a89ce173fec397f42226032650d29c7ebd402df8e8a13d9df89f06c6c6fb9",
+      "kind": "class"
+    },
+    {
+      "name": "JsonProbe",
+      "path": "modules/JsonProbe.bas",
+      "sha256": "53b16e0e09494219ae3928e9399c4e612f28e498652c22cd295b08c651add606",
+      "kind": "standard"
+    }
+  ],
+  "primary": "JsonProbe",
+  "references": [],
+  "cases": "cases.json",
+  "tier": "W",
+  "needs": [
+    "class modules"
+  ],
+  "excel": {
+    "build": "16.0.20527",
+    "captured": "2026-11-11",
+    "route": "each formula entered in H1 of a fresh workbook with the modules imported from source (vba-job.ps1 -Action project, owned hidden session on the private desktop); Value2 recorded; nothing predicted",
+    "rows": "excel/rows.json",
+    "guard": "excel/guard.json",
+    "environment": {
+      "automation_security": 1,
+      "events": "not set by the job",
+      "safe_mode": "not recorded",
+      "calling_cell": "H1 of Sheet1",
+      "bitness_locale": "64-bit en-US"
+    }
+  }
+}

@@ -1,0 +1,100 @@
+[
+  {
+    "formula": "=JsonRoundTrip(\"{\"\"a\"\":1,\"\"b\"\":[true,false,null]}\")",
+    "value": "{\"a\":1,\"b\":[true,false,null]}"
+  },
+  {
+    "formula": "=JsonRoundTrip(\"[1,2.5,-3e2]\")",
+    "value": "[1,2.5,-300]"
+  },
+  {
+    "formula": "=JsonRoundTrip(\"\"\"x\ny\"\"\")",
+    "value": {
+      "error": "#VALUE!"
+    }
+  },
+  {
+    "formula": "=JsonRoundTrip(\"{\"\"k\"\":{\"\"n\"\":{}}}\")",
+    "value": "{\"k\":{\"n\":{}}}"
+  },
+  {
+    "formula": "=JsonRoundTrip(\"[]\")",
+    "value": "[]"
+  },
+  {
+    "formula": "=JsonRoundTrip(\"{}\")",
+    "value": "{}"
+  },
+  {
+    "formula": "=JsonRoundTrip(\" [ 1 , 2 ] \")",
+    "value": "[1,2]"
+  },
+  {
+    "formula": "=JsonRoundTrip(\"{\"\"a\"\":\"\"é\"\"}\")",
+    "value": "{\"a\":\"\\u00E9\"}"
+  },
+  {
+    "formula": "=JsonRoundTrip(\"{\"\"n\"\":123456789012345678}\")",
+    "value": "{\"n\":123456789012345678}"
+  },
+  {
+    "formula": "=JsonKey(\"{\"\"a\"\":1,\"\"b\"\":\"\"two\"\"}\",\"a\")",
+    "value": 1.0
+  },
+  {
+    "formula": "=JsonKey(\"{\"\"a\"\":1,\"\"b\"\":\"\"two\"\"}\",\"b\")",
+    "value": "two"
+  },
+  {
+    "formula": "=JsonKey(\"{\"\"a\"\":{\"\"x\"\":5}}\",\"a\")",
+    "value": {
+      "error": "#VALUE!"
+    }
+  },
+  {
+    "formula": "=JsonKey(\"{\"\"a\"\":1}\",\"z\")",
+    "value": 0.0
+  },
+  {
+    "formula": "=JsonCount(\"[1,2,3]\")",
+    "value": 3.0
+  },
+  {
+    "formula": "=JsonCount(\"{\"\"a\"\":1,\"\"b\"\":2}\")",
+    "value": 2.0
+  },
+  {
+    "formula": "=JsonItem(\"[10,20,30]\",2)",
+    "value": 20.0
+  },
+  {
+    "formula": "=JsonItem(\"[10,20,30]\",9)",
+    "value": {
+      "error": "#VALUE!"
+    }
+  },
+  {
+    "formula": "=JsonRoundTrip(\"{bad\")",
+    "value": {
+      "error": "#VALUE!"
+    }
+  },
+  {
+    "formula": "=JsonRoundTrip(\"\")",
+    "value": {
+      "error": "#VALUE!"
+    }
+  },
+  {
+    "formula": "=JsonRoundTrip(\"[1,]\")",
+    "value": {
+      "error": "#VALUE!"
+    }
+  },
+  {
+    "formula": "=JsonRoundTrip(\"tru\")",
+    "value": {
+      "error": "#VALUE!"
+    }
+  }
+]

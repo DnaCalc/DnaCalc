@@ -1,0 +1,198 @@
+{
+  "action": "project",
+  "excel_version": "16.0",
+  "excel_build": "20527",
+  "automation_security": 1,
+  "rows": [
+    {
+      "formula": "=JsonRoundTrip(\"{\"\"a\"\":1,\"\"b\"\":[true,false,null]}\")",
+      "excel": {
+        "type": "String",
+        "value": "{\"a\":1,\"b\":[true,false,null]}"
+      },
+      "text": "{\"a\":1,\"b\":[true,false,null]}"
+    },
+    {
+      "formula": "=JsonRoundTrip(\"[1,2.5,-3e2]\")",
+      "excel": {
+        "type": "String",
+        "value": "[1,2.5,-300]"
+      },
+      "text": "[1,2.5,-300]"
+    },
+    {
+      "formula": "=JsonRoundTrip(\"\"\"x\ny\"\"\")",
+      "excel": {
+        "error_code": -2146826273
+      },
+      "text": "#VALUE!"
+    },
+    {
+      "formula": "=JsonRoundTrip(\"{\"\"k\"\":{\"\"n\"\":{}}}\")",
+      "excel": {
+        "type": "String",
+        "value": "{\"k\":{\"n\":{}}}"
+      },
+      "text": "{\"k\":{\"n\":{}}}"
+    },
+    {
+      "formula": "=JsonRoundTrip(\"[]\")",
+      "excel": {
+        "type": "String",
+        "value": "[]"
+      },
+      "text": "[]"
+    },
+    {
+      "formula": "=JsonRoundTrip(\"{}\")",
+      "excel": {
+        "type": "String",
+        "value": "{}"
+      },
+      "text": "{}"
+    },
+    {
+      "formula": "=JsonRoundTrip(\" [ 1 , 2 ] \")",
+      "excel": {
+        "type": "String",
+        "value": "[1,2]"
+      },
+      "text": "[1,2]"
+    },
+    {
+      "formula": "=JsonRoundTrip(\"{\"\"a\"\":\"\"é\"\"}\")",
+      "excel": {
+        "type": "String",
+        "value": "{\"a\":\"\\u00E9\"}"
+      },
+      "text": "{\"a\":\"\\u00E9\"}"
+    },
+    {
+      "formula": "=JsonRoundTrip(\"{\"\"n\"\":123456789012345678}\")",
+      "excel": {
+        "type": "String",
+        "value": "{\"n\":123456789012345678}"
+      },
+      "text": "{\"n\":123456789012345678}"
+    },
+    {
+      "formula": "=JsonKey(\"{\"\"a\"\":1,\"\"b\"\":\"\"two\"\"}\",\"a\")",
+      "excel": {
+        "type": "Double",
+        "value": 1.0
+      },
+      "text": "1"
+    },
+    {
+      "formula": "=JsonKey(\"{\"\"a\"\":1,\"\"b\"\":\"\"two\"\"}\",\"b\")",
+      "excel": {
+        "type": "String",
+        "value": "two"
+      },
+      "text": "two"
+    },
+    {
+      "formula": "=JsonKey(\"{\"\"a\"\":{\"\"x\"\":5}}\",\"a\")",
+      "excel": {
+        "error_code": -2146826273
+      },
+      "text": "#VALUE!"
+    },
+    {
+      "formula": "=JsonKey(\"{\"\"a\"\":1}\",\"z\")",
+      "excel": {
+        "type": "Double",
+        "value": 0.0
+      },
+      "text": "0"
+    },
+    {
+      "formula": "=JsonCount(\"[1,2,3]\")",
+      "excel": {
+        "type": "Double",
+        "value": 3.0
+      },
+      "text": "3"
+    },
+    {
+      "formula": "=JsonCount(\"{\"\"a\"\":1,\"\"b\"\":2}\")",
+      "excel": {
+        "type": "Double",
+        "value": 2.0
+      },
+      "text": "2"
+    },
+    {
+      "formula": "=JsonItem(\"[10,20,30]\",2)",
+      "excel": {
+        "type": "Double",
+        "value": 20.0
+      },
+      "text": "20"
+    },
+    {
+      "formula": "=JsonItem(\"[10,20,30]\",9)",
+      "excel": {
+        "error_code": -2146826273
+      },
+      "text": "#VALUE!"
+    },
+    {
+      "formula": "=JsonRoundTrip(\"{bad\")",
+      "excel": {
+        "error_code": -2146826273
+      },
+      "text": "#VALUE!"
+    },
+    {
+      "formula": "=JsonRoundTrip(\"\")",
+      "excel": {
+        "error_code": -2146826273
+      },
+      "text": "#VALUE!"
+    },
+    {
+      "formula": "=JsonRoundTrip(\"[1,]\")",
+      "excel": {
+        "error_code": -2146826273
+      },
+      "text": "#VALUE!"
+    },
+    {
+      "formula": "=JsonRoundTrip(\"tru\")",
+      "excel": {
+        "error_code": -2146826273
+      },
+      "text": "#VALUE!"
+    }
+  ],
+  "errors": [],
+  "components": [
+    {
+      "name": "ThisWorkbook",
+      "type": 100,
+      "lines": 0
+    },
+    {
+      "name": "Sheet1",
+      "type": 100,
+      "lines": 0
+    },
+    {
+      "name": "JsonConverter",
+      "type": 1,
+      "lines": 1122
+    },
+    {
+      "name": "Dictionary",
+      "type": 2,
+      "lines": 435
+    },
+    {
+      "name": "JsonProbe",
+      "type": 1,
+      "lines": 19
+    }
+  ],
+  "sheet": "Sheet1"
+}

@@ -1,0 +1,50 @@
+{
+  "id": "vba-dictionary",
+  "summary": "VBA-Dictionary (Dictionary.cls) verbatim, plus an own worksheet wrapper DictProbe.bas",
+  "origin": {
+    "class": "third-party",
+    "licence": "MIT",
+    "copyright": "Copyright (c) 2020 Tim Hall",
+    "licence_file": "LICENSE",
+    "url": "https://github.com/VBA-tools/VBA-Dictionary",
+    "commit": "757aea9207648821dfc0c382c4a5431836749c3e",
+    "obtained": "downloaded 2026-11-11 (shallow clone, owner-approved); verbatim",
+    "also": "size of the clone 171 KB; DictProbe.bas is own code, MIT (this repository)"
+  },
+  "route": "module",
+  "modules": [
+    {
+      "name": "Dictionary",
+      "path": "modules/Dictionary.cls",
+      "sha256": "4e8a89ce173fec397f42226032650d29c7ebd402df8e8a13d9df89f06c6c6fb9",
+      "kind": "class"
+    },
+    {
+      "name": "DictProbe",
+      "path": "modules/DictProbe.bas",
+      "sha256": "e7add3efba1ca741ff97b45494f30d9f0740ac527b40f9ec824f0e5246827e17",
+      "kind": "standard"
+    }
+  ],
+  "primary": "DictProbe",
+  "references": [],
+  "cases": "cases.json",
+  "tier": "W",
+  "needs": [
+    "class modules"
+  ],
+  "excel": {
+    "build": "16.0.20527",
+    "captured": "2026-11-11",
+    "route": "each formula entered in H1 of a fresh workbook with the modules imported from source (vba-job.ps1 -Action project, owned hidden session on the private desktop); Value2 recorded; nothing predicted",
+    "rows": "excel/rows.json",
+    "guard": "excel/guard.json",
+    "environment": {
+      "automation_security": 1,
+      "events": "not set by the job",
+      "safe_mode": "not recorded",
+      "calling_cell": "H1 of Sheet1",
+      "bitness_locale": "64-bit en-US"
+    }
+  }
+}

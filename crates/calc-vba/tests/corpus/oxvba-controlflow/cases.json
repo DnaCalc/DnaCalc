@@ -1,0 +1,94 @@
+[
+  {
+    "formula": "=PROBE_cf_goto_forward()",
+    "value": "a;b;"
+  },
+  {
+    "formula": "=PROBE_cf_goto_backward()",
+    "value": "1;2;3;"
+  },
+  {
+    "formula": "=PROBE_cf_goto_out_of_for()",
+    "value": "s=1;2;3;i=3"
+  },
+  {
+    "formula": "=PROBE_cf_for_counter_after()",
+    "value": "loop=1;2;3;final_i=4"
+  },
+  {
+    "formula": "=PROBE_cf_for_step()",
+    "value": "loop=1;4;7;10;final_i=13"
+  },
+  {
+    "formula": "=PROBE_cf_for_step_neg()",
+    "value": "loop=5;3;1;final_i=-1"
+  },
+  {
+    "formula": "=PROBE_cf_for_never_runs()",
+    "value": "s=x;final_i=5"
+  },
+  {
+    "formula": "=PROBE_cf_for_bound_evaluated_once()",
+    "value": "loop=1;2;3;final_i=4"
+  },
+  {
+    "formula": "=PROBE_cf_for_modify_counter()",
+    "value": "loop=2;4;6;final_i=7"
+  },
+  {
+    "formula": "=PROBE_cf_exit_for()",
+    "value": "s=1;2;final_i=3"
+  },
+  {
+    "formula": "=PROBE_cf_nested_for_exit()",
+    "value": "s=1.1;2.1;i=3;j=2"
+  },
+  {
+    "formula": "=PROBE_cf_gosub_return()",
+    "value": "a;b;c;"
+  },
+  {
+    "formula": "=PROBE_cf_gosub_twice()",
+    "value": "x;x;"
+  },
+  {
+    "formula": "=PROBE_cf_on_n_goto()",
+    "value": "L2;"
+  },
+  {
+    "formula": "=PROBE_cf_on_n_goto_zero()",
+    "value": "fell;"
+  },
+  {
+    "formula": "=PROBE_cf_on_n_gosub()",
+    "value": "S2;end"
+  },
+  {
+    "formula": "=PROBE_cf_select_case()",
+    "value": "r=mid"
+  },
+  {
+    "formula": "=PROBE_cf_select_first_match_wins()",
+    "value": "r=A"
+  },
+  {
+    "formula": "=PROBE_cf_do_while()",
+    "value": "s=1;2;3;i=3"
+  },
+  {
+    "formula": "=PROBE_cf_do_loop_until()",
+    "value": "s=1;2;3;i=3"
+  },
+  {
+    "formula": "=PROBE_cf_exit_do()",
+    "value": "s=1;2;i=3"
+  },
+  {
+    "formula": "=PROBE_cf_while_wend()",
+    "value": "s=1;2;3;i=3"
+  },
+  {
+    "formula": "=PROBE_cf_for_each_array()",
+    "value": "s=10;20;30;"
+  }
+]

@@ -1,0 +1,61 @@
+{
+  "id": "dna-examples",
+  "summary": "DnaExamples.bas: 26 cases of the example add-in project (Range arguments, Application.Caller, WorksheetFunction, Static state, Scripting.Dictionary, ActiveSheet/Selection); needs Excel's object model and the Scripting Runtime",
+  "origin": {
+    "class": "own",
+    "licence": "MIT (this repository)",
+    "author": "DNA Kode / DNA Calc lane agents",
+    "files": [
+      "crates/calc-xll-reference/fixture/vba/DnaExamples.bas",
+      "crates/calc-xll-reference/fixture/vba/DnaCounter.cls"
+    ],
+    "note": "referenced in place"
+  },
+  "route": "module",
+  "modules": [
+    {
+      "name": "DnaExamples",
+      "path": "../../../../calc-xll-reference/fixture/vba/DnaExamples.bas",
+      "sha256": "184f51a070e9dfe71dd6f60cfe70ec44648a9079a820d7c7b9a764d4054a6265",
+      "kind": "standard"
+    },
+    {
+      "name": "DnaCounter",
+      "path": "../../../../calc-xll-reference/fixture/vba/DnaCounter.cls",
+      "sha256": "4767720b13e453d3b294b833f13012b8edac4d24e87833f35e867691de806782",
+      "kind": "class"
+    }
+  ],
+  "primary": "DnaExamples",
+  "references": [
+    {
+      "name": "Scripting",
+      "guid": "{420B2830-E718-11CF-893D-00A0C9054228}",
+      "major": 1,
+      "minor": 0
+    }
+  ],
+  "cases": "../../../../calc-xll-reference/fixture/vba/x9-vba-cases.json",
+  "excel": {
+    "build": "16.0.20527",
+    "captured": "2026-11-11",
+    "route": "formulas entered in a new workbook with DnaExamples.xlam open",
+    "rows": "../../../../calc-xll-reference/traces/2026-11-11-simple-udfs/excel/x9-xlam.controller.jsonl",
+    "environment": {
+      "automation_security": 1,
+      "events": "not set by the job (Excel's value in the owned session)",
+      "safe_mode": "not recorded",
+      "calling_cell": "H1 of Sheet1, formula entered as Formula2 then Application.Calculate",
+      "bitness_locale": "64-bit Excel 16.0.20527, en-US (not varied)"
+    }
+  },
+  "tier": "W",
+  "needs": [
+    "ActiveSheet/Selection",
+    "Excel object model",
+    "class modules",
+    "com:Scripting",
+    "reference:Scripting"
+  ],
+  "workbook": "../../../../calc-xll-reference/fixture/vba/DnaExamples.xlsm"
+}

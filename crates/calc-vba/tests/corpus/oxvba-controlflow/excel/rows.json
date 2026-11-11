@@ -1,0 +1,211 @@
+{
+  "action": "project",
+  "excel_version": "16.0",
+  "excel_build": "20527",
+  "automation_security": 1,
+  "rows": [
+    {
+      "formula": "=PROBE_cf_goto_forward()",
+      "excel": {
+        "type": "String",
+        "value": "a;b;"
+      },
+      "text": "a;b;"
+    },
+    {
+      "formula": "=PROBE_cf_goto_backward()",
+      "excel": {
+        "type": "String",
+        "value": "1;2;3;"
+      },
+      "text": "1;2;3;"
+    },
+    {
+      "formula": "=PROBE_cf_goto_out_of_for()",
+      "excel": {
+        "type": "String",
+        "value": "s=1;2;3;i=3"
+      },
+      "text": "s=1;2;3;i=3"
+    },
+    {
+      "formula": "=PROBE_cf_for_counter_after()",
+      "excel": {
+        "type": "String",
+        "value": "loop=1;2;3;final_i=4"
+      },
+      "text": "loop=1;2;3;final_i=4"
+    },
+    {
+      "formula": "=PROBE_cf_for_step()",
+      "excel": {
+        "type": "String",
+        "value": "loop=1;4;7;10;final_i=13"
+      },
+      "text": "loop=1;4;7;10;final_i=13"
+    },
+    {
+      "formula": "=PROBE_cf_for_step_neg()",
+      "excel": {
+        "type": "String",
+        "value": "loop=5;3;1;final_i=-1"
+      },
+      "text": "loop=5;3;1;final_i=-1"
+    },
+    {
+      "formula": "=PROBE_cf_for_never_runs()",
+      "excel": {
+        "type": "String",
+        "value": "s=x;final_i=5"
+      },
+      "text": "s=x;final_i=5"
+    },
+    {
+      "formula": "=PROBE_cf_for_bound_evaluated_once()",
+      "excel": {
+        "type": "String",
+        "value": "loop=1;2;3;final_i=4"
+      },
+      "text": "loop=1;2;3;final_i=4"
+    },
+    {
+      "formula": "=PROBE_cf_for_modify_counter()",
+      "excel": {
+        "type": "String",
+        "value": "loop=2;4;6;final_i=7"
+      },
+      "text": "loop=2;4;6;final_i=7"
+    },
+    {
+      "formula": "=PROBE_cf_exit_for()",
+      "excel": {
+        "type": "String",
+        "value": "s=1;2;final_i=3"
+      },
+      "text": "s=1;2;final_i=3"
+    },
+    {
+      "formula": "=PROBE_cf_nested_for_exit()",
+      "excel": {
+        "type": "String",
+        "value": "s=1.1;2.1;i=3;j=2"
+      },
+      "text": "s=1.1;2.1;i=3;j=2"
+    },
+    {
+      "formula": "=PROBE_cf_gosub_return()",
+      "excel": {
+        "type": "String",
+        "value": "a;b;c;"
+      },
+      "text": "a;b;c;"
+    },
+    {
+      "formula": "=PROBE_cf_gosub_twice()",
+      "excel": {
+        "type": "String",
+        "value": "x;x;"
+      },
+      "text": "x;x;"
+    },
+    {
+      "formula": "=PROBE_cf_on_n_goto()",
+      "excel": {
+        "type": "String",
+        "value": "L2;"
+      },
+      "text": "L2;"
+    },
+    {
+      "formula": "=PROBE_cf_on_n_goto_zero()",
+      "excel": {
+        "type": "String",
+        "value": "fell;"
+      },
+      "text": "fell;"
+    },
+    {
+      "formula": "=PROBE_cf_on_n_gosub()",
+      "excel": {
+        "type": "String",
+        "value": "S2;end"
+      },
+      "text": "S2;end"
+    },
+    {
+      "formula": "=PROBE_cf_select_case()",
+      "excel": {
+        "type": "String",
+        "value": "r=mid"
+      },
+      "text": "r=mid"
+    },
+    {
+      "formula": "=PROBE_cf_select_first_match_wins()",
+      "excel": {
+        "type": "String",
+        "value": "r=A"
+      },
+      "text": "r=A"
+    },
+    {
+      "formula": "=PROBE_cf_do_while()",
+      "excel": {
+        "type": "String",
+        "value": "s=1;2;3;i=3"
+      },
+      "text": "s=1;2;3;i=3"
+    },
+    {
+      "formula": "=PROBE_cf_do_loop_until()",
+      "excel": {
+        "type": "String",
+        "value": "s=1;2;3;i=3"
+      },
+      "text": "s=1;2;3;i=3"
+    },
+    {
+      "formula": "=PROBE_cf_exit_do()",
+      "excel": {
+        "type": "String",
+        "value": "s=1;2;i=3"
+      },
+      "text": "s=1;2;i=3"
+    },
+    {
+      "formula": "=PROBE_cf_while_wend()",
+      "excel": {
+        "type": "String",
+        "value": "s=1;2;3;i=3"
+      },
+      "text": "s=1;2;3;i=3"
+    },
+    {
+      "formula": "=PROBE_cf_for_each_array()",
+      "excel": {
+        "type": "String",
+        "value": "s=10;20;30;"
+      },
+      "text": "s=10;20;30;"
+    }
+  ],
+  "errors": [],
+  "components": [
+    {
+      "name": "ThisWorkbook",
+      "type": 100,
+      "lines": 0
+    },
+    {
+      "name": "Sheet1",
+      "type": 100,
+      "lines": 0
+    },
+    {
+      "name": "OracleProbesCF",
+      "type": 1,
+      "lines": 261
+    }
+  ],
+  "sheet": "Sheet1"
+}

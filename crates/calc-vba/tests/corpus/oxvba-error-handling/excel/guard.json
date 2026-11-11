@@ -1,0 +1,14 @@
+{
+  "desktop": "DnaCalcHiddenVba",
+  "session_root": "C:\\Work\\DnaCalc\\codex-runs\\vba-validation\\session",
+  "exit": 0,
+  "guard_samples": 232,
+  "owned_pids": [
+    45796
+  ],
+  "windows_on_user_desktop": 0,
+  "visible_on_user_desktop": 0,
+  "foreground_hits": 0,
+  "findings": [],
+  "finished_utc": "2026-11-11T12:26:09.0594393Z"
+}

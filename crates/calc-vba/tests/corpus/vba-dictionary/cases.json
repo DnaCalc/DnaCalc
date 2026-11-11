@@ -1,0 +1,66 @@
+[
+  {
+    "formula": "=DictCount(\"a=1,b=2,c=3\")",
+    "value": 3.0
+  },
+  {
+    "formula": "=DictCount(\"a=1,a=2\")",
+    "value": 1.0
+  },
+  {
+    "formula": "=DictCount(\"\")",
+    "value": 0.0
+  },
+  {
+    "formula": "=DictLookup(\"a=1,b=2\",\"b\")",
+    "value": "2"
+  },
+  {
+    "formula": "=DictLookup(\"a=1,b=2\",\"z\")",
+    "value": 0.0
+  },
+  {
+    "formula": "=DictLookup(\"a=1,b=2\",\"B\")",
+    "value": 0.0
+  },
+  {
+    "formula": "=DictLookupText(\"a=1,b=2\",\"B\")",
+    "value": {
+      "error": "#VALUE!"
+    }
+  },
+  {
+    "formula": "=DictExists(\"a=1\",\"a\")",
+    "value": true
+  },
+  {
+    "formula": "=DictExists(\"a=1\",\"b\")",
+    "value": false
+  },
+  {
+    "formula": "=DictExists(\"a=1\",\"A\")",
+    "value": false
+  },
+  {
+    "formula": "=DictKeysJoined(\"x=1,y=2,z=3\")",
+    "value": "x|y|z"
+  },
+  {
+    "formula": "=DictItemsJoined(\"x=1,y=2,z=3\")",
+    "value": "1|2|3"
+  },
+  {
+    "formula": "=DictKeysJoined(\"\")",
+    "value": ""
+  },
+  {
+    "formula": "=DictAfterRemove(\"x=1,y=2\",\"x\")",
+    "value": "y"
+  },
+  {
+    "formula": "=DictAfterRemove(\"x=1\",\"q\")",
+    "value": {
+      "error": "#VALUE!"
+    }
+  }
+]

@@ -1,0 +1,85 @@
+{
+  "id": "vba-web",
+  "summary": "VBA-Web v4.1.6 src/ verbatim (WebHelpers.bas and four classes plus an interface); the whole project is imported in Excel, the cases call the pure string helpers",
+  "origin": {
+    "class": "third-party",
+    "licence": "MIT",
+    "copyright": "Copyright (c) 2016-2019 Tim Hall",
+    "licence_file": "LICENSE",
+    "url": "https://github.com/VBA-tools/VBA-Web",
+    "commit": "9dbcc751d177099f20c96c5ee332ec10ef47423c",
+    "version": "v4.1.6",
+    "obtained": "local copy under C:/Work/DnaCalc/OxVba/.external/vba-corpus/vba-web (fetched 2026-05 by the OxVba lane); no new download"
+  },
+  "route": "module",
+  "modules": [
+    {
+      "name": "WebHelpers",
+      "path": "modules/WebHelpers.bas",
+      "sha256": "b66c0f424d67117ceb7bdd7724ed2fbb822d1d820d5b3bbc0368dd01213a469a",
+      "kind": "standard"
+    },
+    {
+      "name": "WebRequest",
+      "path": "modules/WebRequest.cls",
+      "sha256": "040059ae9581ad2315a5cba2e213fd886a81db117c0d01fedb7321a70decadb2",
+      "kind": "class"
+    },
+    {
+      "name": "WebResponse",
+      "path": "modules/WebResponse.cls",
+      "sha256": "56dd9734a064da77d59a830bc93cb89e37ea317ac7b7d2a021349aa3b5eaa555",
+      "kind": "class"
+    },
+    {
+      "name": "WebClient",
+      "path": "modules/WebClient.cls",
+      "sha256": "4a8b34c37283db1b038a7698fdafb85dd4782b3faee82ea96b742568b6332edd",
+      "kind": "class"
+    },
+    {
+      "name": "WebAsyncWrapper",
+      "path": "modules/WebAsyncWrapper.cls",
+      "sha256": "059376d810a43f6c788406551f8f38cec75616aca40660ef27cf485d3154e9ed",
+      "kind": "class"
+    },
+    {
+      "name": "IWebAuthenticator",
+      "path": "modules/IWebAuthenticator.cls",
+      "sha256": "a4ab6c22d9aea5650f9d23b13375afa61fb8f10d92408ef667ca672f1927a93b",
+      "kind": "class"
+    }
+  ],
+  "references": [
+    {
+      "name": "Scripting",
+      "guid": "{420B2830-E718-11CF-893D-00A0C9054228}",
+      "major": 1,
+      "minor": 0
+    }
+  ],
+  "cases": "cases.json",
+  "excel": {
+    "build": "16.0.20527",
+    "captured": "2026-11-11",
+    "route": "each formula entered in H1 of a fresh workbook with the project's modules imported from source and the Microsoft Scripting Runtime reference (vba-job.ps1 -Action project, owned hidden session on the private desktop); Value2 recorded; nothing predicted",
+    "rows": "excel/rows.json",
+    "guard": "excel/guard.json",
+    "environment": {
+      "automation_security": 1,
+      "events": "not set by the job (Excel's value in the owned session)",
+      "safe_mode": "not recorded",
+      "calling_cell": "H1 of Sheet1, formula entered as Formula2 then Application.Calculate",
+      "bitness_locale": "64-bit Excel 16.0.20527, en-US (not varied)"
+    }
+  },
+  "primary": "WebHelpers",
+  "tier": "W",
+  "needs": [
+    "Declare",
+    "class modules",
+    "com:Scripting",
+    "late-binding",
+    "reference:Scripting"
+  ]
+}

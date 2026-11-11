@@ -1,0 +1,40 @@
+{
+  "id": "oxvba-controlflow",
+  "summary": "GoTo, GoSub, On..GoTo, For/Next counter quirks, Exit, Select Case, Do/While probes; each Function returns one string",
+  "origin": {
+    "class": "own",
+    "licence": "MIT (this repository)",
+    "author": "DNA Kode",
+    "source": "OxVba oracle/ (C:/Work/DnaCalc/OxVba, commit 093d5654), written as Excel/VBA oracle probes",
+    "files": [
+      "oracle/probes_controlflow.bas"
+    ]
+  },
+  "route": "module",
+  "modules": [
+    {
+      "name": "OracleProbesCF",
+      "path": "modules/OracleProbes.bas",
+      "sha256": "f3af06fdf6b7bf6b77c20055a79eb5affcfa5bd04614580f58d480372a546359",
+      "kind": "standard"
+    }
+  ],
+  "references": [],
+  "cases": "cases.json",
+  "excel": {
+    "build": "16.0.20527",
+    "captured": "2026-11-11",
+    "route": "each formula entered in H1 of a fresh workbook with the modules imported (vba-job.ps1 -Action project, owned hidden session on the private desktop); Value2 recorded; nothing predicted",
+    "rows": "excel/rows.json",
+    "guard": "excel/guard.json",
+    "environment": {
+      "automation_security": 1,
+      "events": "not set by the job (Excel's value in the owned session)",
+      "safe_mode": "not recorded",
+      "calling_cell": "H1 of Sheet1, formula entered as Formula2 then Application.Calculate",
+      "bitness_locale": "64-bit Excel 16.0.20527, en-US (not varied)"
+    }
+  },
+  "tier": "W",
+  "needs": []
+}

@@ -1,0 +1,42 @@
+{
+  "id": "vba-web-excerpt",
+  "summary": "Self-contained verbatim excerpt of VBA-Web's WebHelpers (Obfuscate, UrlEncode, UrlDecode, JoinUrl, MethodToName and the enums they use)",
+  "origin": {
+    "class": "third-party",
+    "licence": "MIT",
+    "copyright": "Copyright (c) 2016-2019 Tim Hall",
+    "licence_file": "LICENSE",
+    "url": "https://github.com/VBA-tools/VBA-Web",
+    "commit": "9dbcc751d177099f20c96c5ee332ec10ef47423c",
+    "version": "v4.1.6",
+    "obtained": "local copy under C:/Work/DnaCalc/OxVba/.external/vba-corpus/vba-web (fetched 2026-05 by the OxVba lane); no new download",
+    "note": "verbatim excerpt of whole enums and functions of src/WebHelpers.bas (see the module header); same cases as vba-web"
+  },
+  "route": "module",
+  "modules": [
+    {
+      "name": "WebHelpersExcerpt",
+      "path": "modules/WebHelpersExcerpt.bas",
+      "sha256": "47baa136d5a0bad930434783c925db7f19bbc2e4680518593b3751246db41724",
+      "kind": "standard"
+    }
+  ],
+  "references": [],
+  "cases": "cases.json",
+  "excel": {
+    "build": "16.0.20527",
+    "captured": "2026-11-11",
+    "route": "each formula entered in H1 of a fresh workbook with the project's modules imported from source (vba-job.ps1 -Action project, owned hidden session on the private desktop); Value2 recorded; nothing predicted",
+    "rows": "excel/rows.json",
+    "guard": "excel/guard.json",
+    "environment": {
+      "automation_security": 1,
+      "events": "not set by the job (Excel's value in the owned session)",
+      "safe_mode": "not recorded",
+      "calling_cell": "H1 of Sheet1, formula entered as Formula2 then Application.Calculate",
+      "bitness_locale": "64-bit Excel 16.0.20527, en-US (not varied)"
+    }
+  },
+  "tier": "W",
+  "needs": []
+}

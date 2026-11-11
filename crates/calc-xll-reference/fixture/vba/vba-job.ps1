@@ -1,5 +1,5 @@
-param([ValidateSet('build','cases','reopen','activeobjects')][string]$Action, [string]$OutDirectory, [string]$AddIn,
-    [string]$Cases, [string[]]$Files, [string]$FormulaCell = 'H1', [bool]$InBook = $false, $OwnedExcel = $null)
+param([ValidateSet('build','cases','reopen','activeobjects','project')][string]$Action, [string]$OutDirectory, [string]$AddIn,
+    [string]$Cases, [string]$Project, [string[]]$Files, [string]$FormulaCell = 'H1', [bool]$InBook = $false, $OwnedExcel = $null)
 # The Excel side of OneCalc milestone 5 (dc-0f1k.4), in an owned hidden Excel session
 # (tools/excel-session). Run without -OwnedExcel, this script submits itself as one job; run it
 # through tools/excel-session/on-private-desktop.ps1 so no Excel window reaches the desktop.
@@ -14,6 +14,13 @@ param([ValidateSet('build','cases','reopen','activeobjects')][string]$Action, [s
 #           Selection, ActiveWorkbook and Application.Caller; their answers are recorded while the
 #           user's active sheet and selection differ from the calling cell's sheet and address
 #           (dc-0f1k.12).
+#   project: the VBA validation corpus (docs/plan/VBA_VALIDATION.md). -Project is a corpus
+#           project.json (crates/calc-vba/tests/corpus/<id>/): a new workbook gets the project's modules
+#           (standard and class, from source files) and listed references through the VBE object model,
+#           each formula of the project's cases file is entered in -FormulaCell and Value2 recorded.
+#           Nothing is opened from outside: the workbook is ours and fresh; third-party source is only
+#           imported, and only the functions its cases name are called. OutDirectory gets cases.json (the
+#           cases file with Excel's answers, no prediction) and project.json rows with types and text.
 #   reopen: opens each saved .xlsm of -Files, reads its formula and calculated value, and records
 #           whether Excel repaired it (the workbook name and the error*.xml repair logs in TEMP).
 # No Excel setting, Trust Center or macro-security value is read for change or written; the
@@ -203,6 +210,49 @@ End Function
                     $result.rows += $row
                 }
             }
+        } finally { Step 'close' { $book.Close($false) } }
+    }
+    'project' {
+        $manifest = Get-Content -LiteralPath $Project -Raw -Encoding utf8 | ConvertFrom-Json
+        $base = Split-Path -Parent (Resolve-Path -LiteralPath $Project)
+        $list = Get-Content -LiteralPath (Join-Path $base $manifest.cases) -Raw -Encoding utf8 | ConvertFrom-Json
+        $names = @{ -2146826288 = '#NULL!'; -2146826281 = '#DIV/0!'; -2146826273 = '#VALUE!'; -2146826265 = '#REF!'; -2146826259 = '#NAME?'; -2146826252 = '#NUM!'; -2146826246 = '#N/A' }
+        $book = $excel.Workbooks.Add()
+        try {
+            $temp = Join-Path $OutDirectory 'import'
+            New-Item -ItemType Directory -Force -Path $temp | Out-Null
+            foreach ($module in $manifest.modules) {
+                $copy = Join-Path $temp (Split-Path -Leaf $module.path)
+                [IO.File]::WriteAllText($copy, (Crlf (Join-Path $base $module.path)), [Text.Encoding]::GetEncoding(1252))
+                Step "import $($module.path)" { [void]$book.VBProject.VBComponents.Import($copy) }
+            }
+            foreach ($reference in @($manifest.references)) {
+                if ($reference) { Step "reference $($reference.name)" { [void]$book.VBProject.References.AddFromGuid($reference.guid, $reference.major, $reference.minor) } }
+            }
+            $components = @(); foreach ($c in $book.VBProject.VBComponents) { $components += [ordered]@{ name = $c.Name; type = $c.Type; lines = $c.CodeModule.CountOfLines } }
+            $result.components = $components
+            $sheet = $book.Worksheets.Item(1)
+            $result.sheet = $sheet.Name
+            $answers = @()
+            foreach ($case in $list) {
+                $row = [ordered]@{ formula = $case.formula }
+                $cell = $sheet.Range($FormulaCell)
+                $value = $null
+                try {
+                    $cell.Formula2 = $case.formula
+                    $excel.Calculate()
+                    $value = $cell.Value2
+                    $row.excel = Describe $value
+                    $row.text = [string]$cell.Text
+                } catch { $row.error = $_.Exception.Message }
+                $cell.ClearContents()
+                $result.rows += $row
+                if ($row.Contains('excel')) {
+                    $v = if ($row.excel.ContainsKey('error_code')) { @{ error = $names[[int]$row.excel.error_code] } } elseif ($row.excel.blank) { $null } else { $row.excel.value }
+                    $answers += [ordered]@{ formula = $case.formula; value = $v }
+                } else { $answers += [ordered]@{ formula = $case.formula; value = $null; excel_error = $row.error } }
+            }
+            ConvertTo-Json -InputObject @($answers) -Depth 6 | Set-Content -LiteralPath (Join-Path $OutDirectory 'cases.json') -Encoding utf8NoBOM
         } finally { Step 'close' { $book.Close($false) } }
     }
     'reopen' {

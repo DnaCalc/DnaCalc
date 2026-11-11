@@ -1,0 +1,29 @@
+{
+  "id": "riff",
+  "summary": "Riff audio engine (WASAPI, Media Foundation, vtable calls, machine-code thunks): admission only, no worksheet cases",
+  "origin": {
+    "class": "third-party",
+    "licence": "MIT",
+    "copyright": "Copyright (c) 2026 Ueslei Paim",
+    "licence_file": "LICENSE",
+    "url": "https://github.com/uesleibros/riff",
+    "commit": "cafe9bc01cba35f4e226e445d855ea0d701138e1",
+    "obtained": "local copy under C:/Work/DnaCalc/OxVba/.external/vba-corpus/riff (fetched 2026-05-29 by the OxVba lane); no new download"
+  },
+  "route": "admission",
+  "modules": [
+    {
+      "name": "Riff",
+      "path": "modules/Riff.bas",
+      "sha256": "d3fde0b020f4717f6095e4ec488579fa91fcf47938485c46dbb6e999c49b46c8",
+      "kind": "standard"
+    }
+  ],
+  "references": [],
+  "cases": null,
+  "excel": null,
+  "tier": "admission",
+  "needs": [
+    "Declare"
+  ]
+}

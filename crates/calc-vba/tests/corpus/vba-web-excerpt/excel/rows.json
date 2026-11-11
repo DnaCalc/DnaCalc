@@ -1,0 +1,386 @@
+{
+  "action": "project",
+  "excel_version": "16.0",
+  "excel_build": "20527",
+  "automation_security": 1,
+  "rows": [
+    {
+      "formula": "=Obfuscate(\"\")",
+      "excel": {
+        "type": "String",
+        "value": ""
+      },
+      "text": ""
+    },
+    {
+      "formula": "=Obfuscate(\"secret\")",
+      "excel": {
+        "type": "String",
+        "value": "******"
+      },
+      "text": "******"
+    },
+    {
+      "formula": "=Obfuscate(\"héllo\")",
+      "excel": {
+        "type": "String",
+        "value": "*****"
+      },
+      "text": "*****"
+    },
+    {
+      "formula": "=Obfuscate(\"secret\",\"#\")",
+      "excel": {
+        "type": "String",
+        "value": "######"
+      },
+      "text": "######"
+    },
+    {
+      "formula": "=Obfuscate(\"abc\",\"xy\")",
+      "excel": {
+        "type": "String",
+        "value": "xxx"
+      },
+      "text": "xxx"
+    },
+    {
+      "formula": "=UrlEncode(\"a b+c\")",
+      "excel": {
+        "type": "String",
+        "value": "a%20b%2Bc"
+      },
+      "text": "a%20b%2Bc"
+    },
+    {
+      "formula": "=UrlEncode(\"\")",
+      "excel": {
+        "type": "String",
+        "value": ""
+      },
+      "text": ""
+    },
+    {
+      "formula": "=UrlEncode(123)",
+      "excel": {
+        "type": "String",
+        "value": "123"
+      },
+      "text": "123"
+    },
+    {
+      "formula": "=UrlEncode(\"é\")",
+      "excel": {
+        "type": "String",
+        "value": "%E9"
+      },
+      "text": "%E9"
+    },
+    {
+      "formula": "=UrlEncode(\"a/b?c=d&e,f;g~h*i\")",
+      "excel": {
+        "type": "String",
+        "value": "a%2Fb%3Fc%3Dd%26e%2Cf%3Bg~h%2Ai"
+      },
+      "text": "a%2Fb%3Fc%3Dd%26e%2Cf%3Bg~h%2Ai"
+    },
+    {
+      "formula": "=UrlEncode(\"~\")",
+      "excel": {
+        "type": "String",
+        "value": "~"
+      },
+      "text": "~"
+    },
+    {
+      "formula": "=UrlEncode(TRUE)",
+      "excel": {
+        "type": "String",
+        "value": "True"
+      },
+      "text": "True"
+    },
+    {
+      "formula": "=UrlEncode(1.5)",
+      "excel": {
+        "type": "String",
+        "value": "1.5"
+      },
+      "text": "1.5"
+    },
+    {
+      "formula": "=UrlEncode(\"a b/c?d=e&f,g;h~i*j!k\",FALSE,TRUE,0)",
+      "excel": {
+        "type": "String",
+        "value": "a%20b%2Fc%3Fd%3De%26f%2Cg%3Bh~i%2Aj%21k"
+      },
+      "text": "a%20b%2Fc%3Fd%3De%26f%2Cg%3Bh~i%2Aj%21k"
+    },
+    {
+      "formula": "=UrlEncode(\"a b/c?d=e&f,g;h~i*j!k\",FALSE,TRUE,1)",
+      "excel": {
+        "type": "String",
+        "value": "a+b%2Fc%3Fd%3De%26f%2Cg%3Bh%7Ei*j%21k"
+      },
+      "text": "a+b%2Fc%3Fd%3De%26f%2Cg%3Bh%7Ei*j%21k"
+    },
+    {
+      "formula": "=UrlEncode(\"a b/c?d=e&f,g;h~i*j!k\",FALSE,TRUE,2)",
+      "excel": {
+        "type": "String",
+        "value": "a%20b%2Fc%3Fd%3De%26f%2Cg%3Bh%7Ei%2Aj%21k"
+      },
+      "text": "a%20b%2Fc%3Fd%3De%26f%2Cg%3Bh%7Ei%2Aj%21k"
+    },
+    {
+      "formula": "=UrlEncode(\"a b/c?d=e&f,g;h~i*j!k\",FALSE,TRUE,3)",
+      "excel": {
+        "type": "String",
+        "value": "a%20b/c?d=e&f%2Cg%3Bh~i*j!k"
+      },
+      "text": "a%20b/c?d=e&f%2Cg%3Bh~i*j!k"
+    },
+    {
+      "formula": "=UrlEncode(\"a b/c?d=e&f,g;h~i*j!k\",FALSE,TRUE,4)",
+      "excel": {
+        "type": "String",
+        "value": "a%20b%2Fc%3Fd=e&f,g;h~i*j!k"
+      },
+      "text": "a%20b%2Fc%3Fd=e&f,g;h~i*j!k"
+    },
+    {
+      "formula": "=UrlEncode(\"a b\",TRUE)",
+      "excel": {
+        "type": "String",
+        "value": "a+b"
+      },
+      "text": "a+b"
+    },
+    {
+      "formula": "=UrlEncode(\"a b\",FALSE,FALSE)",
+      "excel": {
+        "type": "String",
+        "value": "a%20b"
+      },
+      "text": "a%20b"
+    },
+    {
+      "formula": "=UrlDecode(\"a%20b%2Bc\")",
+      "excel": {
+        "type": "String",
+        "value": "a b+c"
+      },
+      "text": "a b+c"
+    },
+    {
+      "formula": "=UrlDecode(\"a+b\")",
+      "excel": {
+        "type": "String",
+        "value": "a b"
+      },
+      "text": "a b"
+    },
+    {
+      "formula": "=UrlDecode(\"\")",
+      "excel": {
+        "type": "String",
+        "value": ""
+      },
+      "text": ""
+    },
+    {
+      "formula": "=UrlDecode(\"100%\")",
+      "excel": {
+        "type": "String",
+        "value": "100%"
+      },
+      "text": "100%"
+    },
+    {
+      "formula": "=UrlDecode(\"%zz\")",
+      "excel": {
+        "error_code": -2146826273
+      },
+      "text": "#VALUE!"
+    },
+    {
+      "formula": "=UrlDecode(\"%41%42\")",
+      "excel": {
+        "type": "String",
+        "value": "AB"
+      },
+      "text": "AB"
+    },
+    {
+      "formula": "=UrlDecode(\"a%2\")",
+      "excel": {
+        "type": "String",
+        "value": "a%2"
+      },
+      "text": "a%2"
+    },
+    {
+      "formula": "=UrlDecode(\"%e9\")",
+      "excel": {
+        "type": "String",
+        "value": "é"
+      },
+      "text": "é"
+    },
+    {
+      "formula": "=UrlDecode(\"a+b\",FALSE)",
+      "excel": {
+        "type": "String",
+        "value": "a+b"
+      },
+      "text": "a+b"
+    },
+    {
+      "formula": "=UrlDecode(\"a+b\",FALSE,1)",
+      "excel": {
+        "type": "String",
+        "value": "a b"
+      },
+      "text": "a b"
+    },
+    {
+      "formula": "=UrlDecode(\"a+b\",FALSE,2)",
+      "excel": {
+        "type": "String",
+        "value": "a b"
+      },
+      "text": "a b"
+    },
+    {
+      "formula": "=JoinUrl(\"http://a.com/\",\"/b\")",
+      "excel": {
+        "type": "String",
+        "value": "http://a.com/b"
+      },
+      "text": "http://a.com/b"
+    },
+    {
+      "formula": "=JoinUrl(\"a\",\"\")",
+      "excel": {
+        "type": "String",
+        "value": "a"
+      },
+      "text": "a"
+    },
+    {
+      "formula": "=JoinUrl(\"\",\"b\")",
+      "excel": {
+        "type": "String",
+        "value": "b"
+      },
+      "text": "b"
+    },
+    {
+      "formula": "=JoinUrl(\"a\",\"b\")",
+      "excel": {
+        "type": "String",
+        "value": "a/b"
+      },
+      "text": "a/b"
+    },
+    {
+      "formula": "=JoinUrl(\"a//\",\"//b\")",
+      "excel": {
+        "type": "String",
+        "value": "a///b"
+      },
+      "text": "a///b"
+    },
+    {
+      "formula": "=JoinUrl(\"\",\"\")",
+      "excel": {
+        "type": "String",
+        "value": ""
+      },
+      "text": ""
+    },
+    {
+      "formula": "=MethodToName(0)",
+      "excel": {
+        "type": "String",
+        "value": "GET"
+      },
+      "text": "GET"
+    },
+    {
+      "formula": "=MethodToName(1)",
+      "excel": {
+        "type": "String",
+        "value": "POST"
+      },
+      "text": "POST"
+    },
+    {
+      "formula": "=MethodToName(2)",
+      "excel": {
+        "type": "String",
+        "value": "PUT"
+      },
+      "text": "PUT"
+    },
+    {
+      "formula": "=MethodToName(3)",
+      "excel": {
+        "type": "String",
+        "value": "DELETE"
+      },
+      "text": "DELETE"
+    },
+    {
+      "formula": "=MethodToName(4)",
+      "excel": {
+        "type": "String",
+        "value": "PATCH"
+      },
+      "text": "PATCH"
+    },
+    {
+      "formula": "=MethodToName(5)",
+      "excel": {
+        "type": "String",
+        "value": "HEAD"
+      },
+      "text": "HEAD"
+    },
+    {
+      "formula": "=MethodToName(9)",
+      "excel": {
+        "type": "String",
+        "value": ""
+      },
+      "text": ""
+    },
+    {
+      "formula": "=MethodToName(-1)",
+      "excel": {
+        "type": "String",
+        "value": ""
+      },
+      "text": ""
+    }
+  ],
+  "errors": [],
+  "components": [
+    {
+      "name": "ThisWorkbook",
+      "type": 100,
+      "lines": 0
+    },
+    {
+      "name": "Sheet1",
+      "type": 100,
+      "lines": 0
+    },
+    {
+      "name": "WebHelpersExcerpt",
+      "type": 1,
+      "lines": 238
+    }
+  ],
+  "sheet": "Sheet1"
+}

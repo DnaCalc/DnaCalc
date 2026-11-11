@@ -1,0 +1,150 @@
+{
+  "action": "project",
+  "excel_version": "16.0",
+  "excel_build": "20527",
+  "automation_security": 1,
+  "rows": [
+    {
+      "formula": "=DictCount(\"a=1,b=2,c=3\")",
+      "excel": {
+        "type": "Double",
+        "value": 3.0
+      },
+      "text": "3"
+    },
+    {
+      "formula": "=DictCount(\"a=1,a=2\")",
+      "excel": {
+        "type": "Double",
+        "value": 1.0
+      },
+      "text": "1"
+    },
+    {
+      "formula": "=DictCount(\"\")",
+      "excel": {
+        "type": "Double",
+        "value": 0.0
+      },
+      "text": "0"
+    },
+    {
+      "formula": "=DictLookup(\"a=1,b=2\",\"b\")",
+      "excel": {
+        "type": "String",
+        "value": "2"
+      },
+      "text": "2"
+    },
+    {
+      "formula": "=DictLookup(\"a=1,b=2\",\"z\")",
+      "excel": {
+        "type": "Double",
+        "value": 0.0
+      },
+      "text": "0"
+    },
+    {
+      "formula": "=DictLookup(\"a=1,b=2\",\"B\")",
+      "excel": {
+        "type": "Double",
+        "value": 0.0
+      },
+      "text": "0"
+    },
+    {
+      "formula": "=DictLookupText(\"a=1,b=2\",\"B\")",
+      "excel": {
+        "error_code": -2146826273
+      },
+      "text": "#VALUE!"
+    },
+    {
+      "formula": "=DictExists(\"a=1\",\"a\")",
+      "excel": {
+        "type": "Boolean",
+        "value": true
+      },
+      "text": "TRUE"
+    },
+    {
+      "formula": "=DictExists(\"a=1\",\"b\")",
+      "excel": {
+        "type": "Boolean",
+        "value": false
+      },
+      "text": "FALSE"
+    },
+    {
+      "formula": "=DictExists(\"a=1\",\"A\")",
+      "excel": {
+        "type": "Boolean",
+        "value": false
+      },
+      "text": "FALSE"
+    },
+    {
+      "formula": "=DictKeysJoined(\"x=1,y=2,z=3\")",
+      "excel": {
+        "type": "String",
+        "value": "x|y|z"
+      },
+      "text": "x|y|z"
+    },
+    {
+      "formula": "=DictItemsJoined(\"x=1,y=2,z=3\")",
+      "excel": {
+        "type": "String",
+        "value": "1|2|3"
+      },
+      "text": "1|2|3"
+    },
+    {
+      "formula": "=DictKeysJoined(\"\")",
+      "excel": {
+        "type": "String",
+        "value": ""
+      },
+      "text": ""
+    },
+    {
+      "formula": "=DictAfterRemove(\"x=1,y=2\",\"x\")",
+      "excel": {
+        "type": "String",
+        "value": "y"
+      },
+      "text": "y"
+    },
+    {
+      "formula": "=DictAfterRemove(\"x=1\",\"q\")",
+      "excel": {
+        "error_code": -2146826273
+      },
+      "text": "#VALUE!"
+    }
+  ],
+  "errors": [],
+  "components": [
+    {
+      "name": "ThisWorkbook",
+      "type": 100,
+      "lines": 0
+    },
+    {
+      "name": "Sheet1",
+      "type": 100,
+      "lines": 0
+    },
+    {
+      "name": "Dictionary",
+      "type": 2,
+      "lines": 435
+    },
+    {
+      "name": "DictProbe",
+      "type": 1,
+      "lines": 46
+    }
+  ],
+  "sheet": "Sheet1"
+}

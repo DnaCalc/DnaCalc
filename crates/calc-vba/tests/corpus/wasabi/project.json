@@ -1,0 +1,29 @@
+{
+  "id": "wasabi",
+  "summary": "Wasabi networking library (Win32 sockets, WebSocket, MQTT): admission only, no worksheet cases",
+  "origin": {
+    "class": "third-party",
+    "licence": "MIT",
+    "copyright": "Copyright (c) 2026 Ueslei Paim",
+    "licence_file": "LICENSE",
+    "url": "https://github.com/uesleibros/wasabi",
+    "commit": "36afb522a418a0b0e4495a8c03d8223cf5fe4023",
+    "obtained": "local copy under C:/Work/DnaCalc/OxVba/.external/vba-corpus/wasabi (fetched 2026-05-29 by the OxVba lane); no new download"
+  },
+  "route": "admission",
+  "modules": [
+    {
+      "name": "Wasabi",
+      "path": "modules/Wasabi.bas",
+      "sha256": "31a6be3e93dc9f288a195584d146e7cde71f7779412aeb30ba6410d727aff297",
+      "kind": "standard"
+    }
+  ],
+  "references": [],
+  "cases": null,
+  "excel": null,
+  "tier": "admission",
+  "needs": [
+    "Declare"
+  ]
+}

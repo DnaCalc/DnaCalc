@@ -1,0 +1,184 @@
+[
+  {
+    "formula": "=Obfuscate(\"\")",
+    "value": ""
+  },
+  {
+    "formula": "=Obfuscate(\"secret\")",
+    "value": "******"
+  },
+  {
+    "formula": "=Obfuscate(\"héllo\")",
+    "value": "*****"
+  },
+  {
+    "formula": "=Obfuscate(\"secret\",\"#\")",
+    "value": "######"
+  },
+  {
+    "formula": "=Obfuscate(\"abc\",\"xy\")",
+    "value": "xxx"
+  },
+  {
+    "formula": "=UrlEncode(\"a b+c\")",
+    "value": "a%20b%2Bc"
+  },
+  {
+    "formula": "=UrlEncode(\"\")",
+    "value": ""
+  },
+  {
+    "formula": "=UrlEncode(123)",
+    "value": "123"
+  },
+  {
+    "formula": "=UrlEncode(\"é\")",
+    "value": "%E9"
+  },
+  {
+    "formula": "=UrlEncode(\"a/b?c=d&e,f;g~h*i\")",
+    "value": "a%2Fb%3Fc%3Dd%26e%2Cf%3Bg~h%2Ai"
+  },
+  {
+    "formula": "=UrlEncode(\"~\")",
+    "value": "~"
+  },
+  {
+    "formula": "=UrlEncode(TRUE)",
+    "value": "True"
+  },
+  {
+    "formula": "=UrlEncode(1.5)",
+    "value": "1.5"
+  },
+  {
+    "formula": "=UrlEncode(\"a b/c?d=e&f,g;h~i*j!k\",FALSE,TRUE,0)",
+    "value": "a%20b%2Fc%3Fd%3De%26f%2Cg%3Bh~i%2Aj%21k"
+  },
+  {
+    "formula": "=UrlEncode(\"a b/c?d=e&f,g;h~i*j!k\",FALSE,TRUE,1)",
+    "value": "a+b%2Fc%3Fd%3De%26f%2Cg%3Bh%7Ei*j%21k"
+  },
+  {
+    "formula": "=UrlEncode(\"a b/c?d=e&f,g;h~i*j!k\",FALSE,TRUE,2)",
+    "value": "a%20b%2Fc%3Fd%3De%26f%2Cg%3Bh%7Ei%2Aj%21k"
+  },
+  {
+    "formula": "=UrlEncode(\"a b/c?d=e&f,g;h~i*j!k\",FALSE,TRUE,3)",
+    "value": "a%20b/c?d=e&f%2Cg%3Bh~i*j!k"
+  },
+  {
+    "formula": "=UrlEncode(\"a b/c?d=e&f,g;h~i*j!k\",FALSE,TRUE,4)",
+    "value": "a%20b%2Fc%3Fd=e&f,g;h~i*j!k"
+  },
+  {
+    "formula": "=UrlEncode(\"a b\",TRUE)",
+    "value": "a+b"
+  },
+  {
+    "formula": "=UrlEncode(\"a b\",FALSE,FALSE)",
+    "value": "a%20b"
+  },
+  {
+    "formula": "=UrlDecode(\"a%20b%2Bc\")",
+    "value": "a b+c"
+  },
+  {
+    "formula": "=UrlDecode(\"a+b\")",
+    "value": "a b"
+  },
+  {
+    "formula": "=UrlDecode(\"\")",
+    "value": ""
+  },
+  {
+    "formula": "=UrlDecode(\"100%\")",
+    "value": "100%"
+  },
+  {
+    "formula": "=UrlDecode(\"%zz\")",
+    "value": {
+      "error": "#VALUE!"
+    }
+  },
+  {
+    "formula": "=UrlDecode(\"%41%42\")",
+    "value": "AB"
+  },
+  {
+    "formula": "=UrlDecode(\"a%2\")",
+    "value": "a%2"
+  },
+  {
+    "formula": "=UrlDecode(\"%e9\")",
+    "value": "é"
+  },
+  {
+    "formula": "=UrlDecode(\"a+b\",FALSE)",
+    "value": "a+b"
+  },
+  {
+    "formula": "=UrlDecode(\"a+b\",FALSE,1)",
+    "value": "a b"
+  },
+  {
+    "formula": "=UrlDecode(\"a+b\",FALSE,2)",
+    "value": "a b"
+  },
+  {
+    "formula": "=JoinUrl(\"http://a.com/\",\"/b\")",
+    "value": "http://a.com/b"
+  },
+  {
+    "formula": "=JoinUrl(\"a\",\"\")",
+    "value": "a"
+  },
+  {
+    "formula": "=JoinUrl(\"\",\"b\")",
+    "value": "b"
+  },
+  {
+    "formula": "=JoinUrl(\"a\",\"b\")",
+    "value": "a/b"
+  },
+  {
+    "formula": "=JoinUrl(\"a//\",\"//b\")",
+    "value": "a///b"
+  },
+  {
+    "formula": "=JoinUrl(\"\",\"\")",
+    "value": ""
+  },
+  {
+    "formula": "=MethodToName(0)",
+    "value": "GET"
+  },
+  {
+    "formula": "=MethodToName(1)",
+    "value": "POST"
+  },
+  {
+    "formula": "=MethodToName(2)",
+    "value": "PUT"
+  },
+  {
+    "formula": "=MethodToName(3)",
+    "value": "DELETE"
+  },
+  {
+    "formula": "=MethodToName(4)",
+    "value": "PATCH"
+  },
+  {
+    "formula": "=MethodToName(5)",
+    "value": "HEAD"
+  },
+  {
+    "formula": "=MethodToName(9)",
+    "value": ""
+  },
+  {
+    "formula": "=MethodToName(-1)",
+    "value": ""
+  }
+]
