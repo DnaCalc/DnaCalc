@@ -1,0 +1,207 @@
+[
+ {
+  "file": "duplicate-sheetid-triple.xlsx",
+  "opened": true,
+  "dialogs": [
+   {
+    "utc": "2026-11-11T14:22:28.5537043Z",
+    "class": "NUIDialog",
+    "title": "Microsoft Excel",
+    "texts": [
+     "ControlType.Window: Microsoft Excel",
+     "ControlType.Text: We found a problem with some content in 'duplicate-sheetid-triple.xlsx'. Do you want us to try to recover as much as we can? If you trust the source of this workbook, click Yes."
+    ],
+    "buttons": [
+     "No",
+     "Yes"
+    ],
+    "clicked": "Yes"
+   },
+   {
+    "utc": "2026-11-11T14:22:32.6465616Z",
+    "class": "bosa_sdm_XL9",
+    "title": "Repairs to 'duplicate-sheetid-triple.xlsx'",
+    "texts": [
+     "ControlType.Document: RichEdit Control"
+    ],
+    "buttons": [],
+    "clicked": null
+   }
+  ],
+  "pid": 19072,
+  "main_window_title": "duplicate-sheetid-triple.xlsx  -  Repaired - Excel",
+  "workbook_name": "duplicate-sheetid-triple.xlsx",
+  "sheets": [
+   {
+    "index": 1,
+    "name": "One",
+    "visible": -1,
+    "cells": [
+     {
+      "address": "A1",
+      "formula": "2",
+      "value": 2.0,
+      "has_array": false
+     },
+     {
+      "address": "B1",
+      "formula": "3",
+      "value": 3.0,
+      "has_array": false
+     }
+    ]
+   },
+   {
+    "index": 2,
+    "name": "Two",
+    "visible": -1,
+    "cells": [
+     {
+      "address": "A1",
+      "formula": "5",
+      "value": 5.0,
+      "has_array": false
+     },
+     {
+      "address": "B1",
+      "formula": "=A1*2",
+      "value": 10.0,
+      "has_array": false
+     }
+    ]
+   },
+   {
+    "index": 3,
+    "name": "Three",
+    "visible": -1,
+    "cells": [
+     {
+      "address": "A1",
+      "formula": "2",
+      "value": 2.0,
+      "has_array": false
+     },
+     {
+      "address": "B1",
+      "formula": "3",
+      "value": 3.0,
+      "has_array": false
+     }
+    ]
+   }
+  ],
+  "saved_copy": "saved-duplicate-sheetid-triple.xlsx"
+ },
+ {
+  "file": "duplicate-sheetid-two-pairs.xlsx",
+  "opened": true,
+  "dialogs": [
+   {
+    "utc": "2026-11-11T14:24:03.8903778Z",
+    "class": "NUIDialog",
+    "title": "Microsoft Excel",
+    "texts": [
+     "ControlType.Window: Microsoft Excel",
+     "ControlType.Text: We found a problem with some content in 'duplicate-sheetid-two-pairs.xlsx'. Do you want us to try to recover as much as we can? If you trust the source of this workbook, click Yes."
+    ],
+    "buttons": [
+     "No",
+     "Yes"
+    ],
+    "clicked": "Yes"
+   },
+   {
+    "utc": "2026-11-11T14:24:07.7026963Z",
+    "class": "bosa_sdm_XL9",
+    "title": "Repairs to 'duplicate-sheetid-two-pairs.xlsx'",
+    "texts": [
+     "ControlType.Document: RichEdit Control"
+    ],
+    "buttons": [],
+    "clicked": null
+   }
+  ],
+  "pid": 5080,
+  "main_window_title": "duplicate-sheetid-two-pairs.xlsx  -  Repaired - Excel",
+  "workbook_name": "duplicate-sheetid-two-pairs.xlsx",
+  "sheets": [
+   {
+    "index": 1,
+    "name": "One",
+    "visible": -1,
+    "cells": [
+     {
+      "address": "A1",
+      "formula": "2",
+      "value": 2.0,
+      "has_array": false
+     },
+     {
+      "address": "B1",
+      "formula": "3",
+      "value": 3.0,
+      "has_array": false
+     }
+    ]
+   },
+   {
+    "index": 2,
+    "name": "Two",
+    "visible": -1,
+    "cells": [
+     {
+      "address": "A1",
+      "formula": "5",
+      "value": 5.0,
+      "has_array": false
+     },
+     {
+      "address": "B1",
+      "formula": "=A1*2",
+      "value": 10.0,
+      "has_array": false
+     }
+    ]
+   },
+   {
+    "index": 3,
+    "name": "Three",
+    "visible": -1,
+    "cells": [
+     {
+      "address": "A1",
+      "formula": "2",
+      "value": 2.0,
+      "has_array": false
+     },
+     {
+      "address": "B1",
+      "formula": "3",
+      "value": 3.0,
+      "has_array": false
+     }
+    ]
+   },
+   {
+    "index": 4,
+    "name": "Four",
+    "visible": -1,
+    "cells": [
+     {
+      "address": "A1",
+      "formula": "5",
+      "value": 5.0,
+      "has_array": false
+     },
+     {
+      "address": "B1",
+      "formula": "=A1*2",
+      "value": 10.0,
+      "has_array": false
+     }
+    ]
+   }
+  ],
+  "saved_copy": "saved-duplicate-sheetid-two-pairs.xlsx"
+ }
+]

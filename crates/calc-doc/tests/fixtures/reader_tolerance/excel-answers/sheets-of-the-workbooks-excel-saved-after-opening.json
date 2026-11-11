@@ -1,0 +1,67 @@
+{
+ "array-inner-empty-f.xlsx": [
+  "<sheet name=\"Arr\" sheetId=\"1\" r:id=\"rId1\"/>"
+ ],
+ "array-inner-formula-control.xlsx": [
+  "<sheet name=\"Arr\" sheetId=\"1\" r:id=\"rId1\"/>"
+ ],
+ "array-inner-formula.xlsx": [
+  "<sheet name=\"Arr\" sheetId=\"1\" r:id=\"rId1\"/>"
+ ],
+ "dangling-rid-control.xlsx": [
+  "<sheet name=\"One\" sheetId=\"1\" r:id=\"rId1\"/>",
+  "<sheet name=\"Two\" sheetId=\"2\" r:id=\"rId2\"/>"
+ ],
+ "dangling-rid.xlsx": [
+  "<sheet name=\"One\" sheetId=\"1\" r:id=\"rId1\"/>",
+  "<sheet name=\"Two\" sheetId=\"2\" r:id=\"rId2\"/>"
+ ],
+ "duplicate-sheetid-control.xlsx": [
+  "<sheet name=\"One\" sheetId=\"1\" r:id=\"rId1\"/>",
+  "<sheet name=\"Two\" sheetId=\"2\" r:id=\"rId2\"/>"
+ ],
+ "duplicate-sheetid-gap.xlsx": [
+  "<sheet name=\"One\" sheetId=\"1\" r:id=\"rId1\"/>",
+  "<sheet name=\"Two\" sheetId=\"109\" r:id=\"rId2\"/>",
+  "<sheet name=\"Three\" sheetId=\"110\" r:id=\"rId3\"/>"
+ ],
+ "duplicate-sheetid.xlsx": [
+  "<sheet name=\"One\" sheetId=\"1\" r:id=\"rId1\"/>",
+  "<sheet name=\"Two\" sheetId=\"2\" r:id=\"rId2\"/>"
+ ],
+ "empty-rid-control.xlsx": [
+  "<sheet name=\"One\" sheetId=\"1\" r:id=\"rId1\"/>",
+  "<sheet name=\"Two\" sheetId=\"2\" state=\"veryHidden\" r:id=\"rId2\"/>"
+ ],
+ "empty-rid-veryhidden.xlsx": [
+  "<sheet name=\"One\" sheetId=\"1\" r:id=\"rId1\"/>",
+  "<sheet name=\"Two\" sheetId=\"2\" state=\"veryHidden\" r:id=\"rId2\"/>"
+ ],
+ "empty-rid-visible.xlsx": [
+  "<sheet name=\"One\" sheetId=\"1\" r:id=\"rId1\"/>",
+  "<sheet name=\"Two\" sheetId=\"2\" r:id=\"rId2\"/>"
+ ],
+ "watcher-control-malformed-sheet.xlsx": [
+  "<sheet name=\"One\" sheetId=\"1\" r:id=\"rId1\"/>",
+  "<sheet name=\"Two\" sheetId=\"2\" r:id=\"rId2\"/>"
+ ],
+ "array-inner-formula-stale.xlsx": [
+  "<sheet name=\"Arr\" sheetId=\"1\" r:id=\"rId1\"/>"
+ ],
+ "duplicate-sheetid-lower.xlsx": [
+  "<sheet name=\"One\" sheetId=\"1\" r:id=\"rId1\"/>",
+  "<sheet name=\"Two\" sheetId=\"6\" r:id=\"rId2\"/>",
+  "<sheet name=\"Three\" sheetId=\"5\" r:id=\"rId3\"/>"
+ ],
+ "duplicate-sheetid-triple.xlsx": [
+  "<sheet name=\"One\" sheetId=\"1\" r:id=\"rId1\"/>",
+  "<sheet name=\"Two\" sheetId=\"2\" r:id=\"rId2\"/>",
+  "<sheet name=\"Three\" sheetId=\"3\" r:id=\"rId3\"/>"
+ ],
+ "duplicate-sheetid-two-pairs.xlsx": [
+  "<sheet name=\"One\" sheetId=\"2\" r:id=\"rId1\"/>",
+  "<sheet name=\"Two\" sheetId=\"4\" r:id=\"rId2\"/>",
+  "<sheet name=\"Three\" sheetId=\"3\" r:id=\"rId3\"/>",
+  "<sheet name=\"Four\" sheetId=\"5\" r:id=\"rId4\"/>"
+ ]
+}

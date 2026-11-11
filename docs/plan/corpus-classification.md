@@ -87,7 +87,12 @@ warnings.
   chart or dialog sheets (502 files have chart sheets, 75 have dialog sheets), 393 invalid parts, 108
   duplicate sheet keys, 7 malformed cells. After: 400 invalid parts (every one "a sheet's r:id names no
   relationship of the workbook part"; seven files were behind a chart sheet), 108 duplicate sheet keys,
-  7 malformed cells (a formula inside an array formula's area), and the 58 OLE2 files. 9,220 files have formulas, 20,746,884 formula cells in all, 13,584,088 of them
+  7 malformed cells (a formula inside an array formula's area), and the 58 OLE2 files. Bead dc-o41m
+  (2026-11-11): all 15,871 `.xlsx` open by the host route (15,871 of 15,929 files, 99.6%; before
+  15,356 = 96.8% of the `.xlsx`); the remaining 58 are OLE2 `.xls`. The 400 were `r:id=""` on
+  687 veryHidden sheets (VBA modules; Excel opens them silently as empty sheets), the 108 repeated
+  sheetIds are an Excel repair prompt, the 7 array files carry Excel's own `<f ca="1"/>` member
+  marker; Excel's answers are in `crates/calc-doc/tests/fixtures/reader_tolerance/excel-answers.md`. 9,220 files have formulas, 20,746,884 formula cells in all, 13,584,088 of them
   shared-formula members; every one of those has a cached value.
 
 ## Common structures

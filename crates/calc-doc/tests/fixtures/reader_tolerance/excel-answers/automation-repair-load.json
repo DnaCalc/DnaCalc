@@ -1,0 +1,576 @@
+[
+ {
+  "file": "array-inner-empty-f.xlsx",
+  "corrupt_load": "xlRepairFile",
+  "display_alerts": false,
+  "interactive": false,
+  "opened": true,
+  "error": null,
+  "dialogs": [],
+  "workbook_name": "array-inner-empty-f.xlsx",
+  "sheets": [
+   {
+    "index": 1,
+    "name": "Arr",
+    "visible": -1,
+    "cells": [
+     {
+      "address": "A1",
+      "formula": "=B1:B3*2",
+      "value": 2.0,
+      "has_array": true,
+      "array_range": "A1:A3",
+      "array_formula": "=B1:B3*2"
+     },
+     {
+      "address": "B1",
+      "formula": "1",
+      "value": 1.0,
+      "has_array": false
+     },
+     {
+      "address": "A2",
+      "formula": "=B1:B3*2",
+      "value": 4.0,
+      "has_array": true,
+      "array_range": "A1:A3",
+      "array_formula": "=B1:B3*2"
+     },
+     {
+      "address": "B2",
+      "formula": "2",
+      "value": 2.0,
+      "has_array": false
+     },
+     {
+      "address": "A3",
+      "formula": "=B1:B3*2",
+      "value": 6.0,
+      "has_array": true,
+      "array_range": "A1:A3",
+      "array_formula": "=B1:B3*2"
+     },
+     {
+      "address": "B3",
+      "formula": "3",
+      "value": 3.0,
+      "has_array": false
+     }
+    ]
+   }
+  ]
+ },
+ {
+  "file": "array-inner-formula-control.xlsx",
+  "corrupt_load": "xlRepairFile",
+  "display_alerts": false,
+  "interactive": false,
+  "opened": true,
+  "error": null,
+  "dialogs": [],
+  "workbook_name": "array-inner-formula-control.xlsx",
+  "sheets": [
+   {
+    "index": 1,
+    "name": "Arr",
+    "visible": -1,
+    "cells": [
+     {
+      "address": "A1",
+      "formula": "=B1:B3*2",
+      "value": 2.0,
+      "has_array": true,
+      "array_range": "A1:A3",
+      "array_formula": "=B1:B3*2"
+     },
+     {
+      "address": "B1",
+      "formula": "1",
+      "value": 1.0,
+      "has_array": false
+     },
+     {
+      "address": "A2",
+      "formula": "=B1:B3*2",
+      "value": 4.0,
+      "has_array": true,
+      "array_range": "A1:A3",
+      "array_formula": "=B1:B3*2"
+     },
+     {
+      "address": "B2",
+      "formula": "2",
+      "value": 2.0,
+      "has_array": false
+     },
+     {
+      "address": "A3",
+      "formula": "=B1:B3*2",
+      "value": 6.0,
+      "has_array": true,
+      "array_range": "A1:A3",
+      "array_formula": "=B1:B3*2"
+     },
+     {
+      "address": "B3",
+      "formula": "3",
+      "value": 3.0,
+      "has_array": false
+     }
+    ]
+   }
+  ]
+ },
+ {
+  "file": "array-inner-formula.xlsx",
+  "corrupt_load": "xlRepairFile",
+  "display_alerts": false,
+  "interactive": false,
+  "opened": true,
+  "error": null,
+  "dialogs": [],
+  "workbook_name": "array-inner-formula.xlsx",
+  "sheets": [
+   {
+    "index": 1,
+    "name": "Arr",
+    "visible": -1,
+    "cells": [
+     {
+      "address": "A1",
+      "formula": "=B1:B3*2",
+      "value": 2.0,
+      "has_array": true,
+      "array_range": "A1:A3",
+      "array_formula": "=B1:B3*2"
+     },
+     {
+      "address": "B1",
+      "formula": "1",
+      "value": 1.0,
+      "has_array": false
+     },
+     {
+      "address": "A2",
+      "formula": "=B1:B3*2",
+      "value": 4.0,
+      "has_array": true,
+      "array_range": "A1:A3",
+      "array_formula": "=B1:B3*2"
+     },
+     {
+      "address": "B2",
+      "formula": "2",
+      "value": 2.0,
+      "has_array": false
+     },
+     {
+      "address": "A3",
+      "formula": "=B1:B3*2",
+      "value": 6.0,
+      "has_array": true,
+      "array_range": "A1:A3",
+      "array_formula": "=B1:B3*2"
+     },
+     {
+      "address": "B3",
+      "formula": "3",
+      "value": 3.0,
+      "has_array": false
+     }
+    ]
+   }
+  ]
+ },
+ {
+  "file": "dangling-rid-control.xlsx",
+  "corrupt_load": "xlRepairFile",
+  "display_alerts": false,
+  "interactive": false,
+  "opened": true,
+  "error": null,
+  "dialogs": [],
+  "workbook_name": "dangling-rid-control.xlsx",
+  "sheets": [
+   {
+    "index": 1,
+    "name": "One",
+    "visible": -1,
+    "cells": [
+     {
+      "address": "A1",
+      "formula": "2",
+      "value": 2.0,
+      "has_array": false
+     },
+     {
+      "address": "B1",
+      "formula": "3",
+      "value": 3.0,
+      "has_array": false
+     }
+    ]
+   },
+   {
+    "index": 2,
+    "name": "Two",
+    "visible": -1,
+    "cells": [
+     {
+      "address": "A1",
+      "formula": "5",
+      "value": 5.0,
+      "has_array": false
+     },
+     {
+      "address": "B1",
+      "formula": "=A1*2",
+      "value": 10.0,
+      "has_array": false
+     }
+    ]
+   }
+  ]
+ },
+ {
+  "file": "dangling-rid.xlsx",
+  "corrupt_load": "xlRepairFile",
+  "display_alerts": false,
+  "interactive": false,
+  "opened": true,
+  "error": null,
+  "dialogs": [],
+  "workbook_name": "dangling-rid.xlsx",
+  "sheets": [
+   {
+    "index": 1,
+    "name": "One",
+    "visible": -1,
+    "cells": [
+     {
+      "address": "A1",
+      "formula": "2",
+      "value": 2.0,
+      "has_array": false
+     },
+     {
+      "address": "B1",
+      "formula": "3",
+      "value": 3.0,
+      "has_array": false
+     }
+    ]
+   },
+   {
+    "index": 2,
+    "name": "Two",
+    "visible": -1,
+    "cells": []
+   }
+  ]
+ },
+ {
+  "file": "duplicate-sheetid-control.xlsx",
+  "corrupt_load": "xlRepairFile",
+  "display_alerts": false,
+  "interactive": false,
+  "opened": true,
+  "error": null,
+  "dialogs": [],
+  "workbook_name": "duplicate-sheetid-control.xlsx",
+  "sheets": [
+   {
+    "index": 1,
+    "name": "One",
+    "visible": -1,
+    "cells": [
+     {
+      "address": "A1",
+      "formula": "2",
+      "value": 2.0,
+      "has_array": false
+     },
+     {
+      "address": "B1",
+      "formula": "3",
+      "value": 3.0,
+      "has_array": false
+     }
+    ]
+   },
+   {
+    "index": 2,
+    "name": "Two",
+    "visible": -1,
+    "cells": [
+     {
+      "address": "A1",
+      "formula": "5",
+      "value": 5.0,
+      "has_array": false
+     },
+     {
+      "address": "B1",
+      "formula": "=A1*2",
+      "value": 10.0,
+      "has_array": false
+     }
+    ]
+   }
+  ]
+ },
+ {
+  "file": "duplicate-sheetid-gap.xlsx",
+  "corrupt_load": "xlRepairFile",
+  "display_alerts": false,
+  "interactive": false,
+  "opened": true,
+  "error": null,
+  "dialogs": [],
+  "workbook_name": "duplicate-sheetid-gap.xlsx",
+  "sheets": [
+   {
+    "index": 1,
+    "name": "One",
+    "visible": -1,
+    "cells": [
+     {
+      "address": "A1",
+      "formula": "2",
+      "value": 2.0,
+      "has_array": false
+     },
+     {
+      "address": "B1",
+      "formula": "3",
+      "value": 3.0,
+      "has_array": false
+     }
+    ]
+   },
+   {
+    "index": 2,
+    "name": "Two",
+    "visible": -1,
+    "cells": [
+     {
+      "address": "A1",
+      "formula": "5",
+      "value": 5.0,
+      "has_array": false
+     },
+     {
+      "address": "B1",
+      "formula": "=A1*2",
+      "value": 10.0,
+      "has_array": false
+     }
+    ]
+   },
+   {
+    "index": 3,
+    "name": "Three",
+    "visible": -1,
+    "cells": [
+     {
+      "address": "A1",
+      "formula": "2",
+      "value": 2.0,
+      "has_array": false
+     },
+     {
+      "address": "B1",
+      "formula": "3",
+      "value": 3.0,
+      "has_array": false
+     }
+    ]
+   }
+  ]
+ },
+ {
+  "file": "duplicate-sheetid.xlsx",
+  "corrupt_load": "xlRepairFile",
+  "display_alerts": false,
+  "interactive": false,
+  "opened": true,
+  "error": null,
+  "dialogs": [],
+  "workbook_name": "duplicate-sheetid.xlsx",
+  "sheets": [
+   {
+    "index": 1,
+    "name": "One",
+    "visible": -1,
+    "cells": [
+     {
+      "address": "A1",
+      "formula": "2",
+      "value": 2.0,
+      "has_array": false
+     },
+     {
+      "address": "B1",
+      "formula": "3",
+      "value": 3.0,
+      "has_array": false
+     }
+    ]
+   },
+   {
+    "index": 2,
+    "name": "Two",
+    "visible": -1,
+    "cells": [
+     {
+      "address": "A1",
+      "formula": "5",
+      "value": 5.0,
+      "has_array": false
+     },
+     {
+      "address": "B1",
+      "formula": "=A1*2",
+      "value": 10.0,
+      "has_array": false
+     }
+    ]
+   }
+  ]
+ },
+ {
+  "file": "empty-rid-control.xlsx",
+  "corrupt_load": "xlRepairFile",
+  "display_alerts": false,
+  "interactive": false,
+  "opened": true,
+  "error": null,
+  "dialogs": [],
+  "workbook_name": "empty-rid-control.xlsx",
+  "sheets": [
+   {
+    "index": 1,
+    "name": "One",
+    "visible": -1,
+    "cells": [
+     {
+      "address": "A1",
+      "formula": "2",
+      "value": 2.0,
+      "has_array": false
+     },
+     {
+      "address": "B1",
+      "formula": "3",
+      "value": 3.0,
+      "has_array": false
+     }
+    ]
+   },
+   {
+    "index": 2,
+    "name": "Two",
+    "visible": 2,
+    "cells": [
+     {
+      "address": "A1",
+      "formula": "5",
+      "value": 5.0,
+      "has_array": false
+     },
+     {
+      "address": "B1",
+      "formula": "=A1*2",
+      "value": 10.0,
+      "has_array": false
+     }
+    ]
+   }
+  ]
+ },
+ {
+  "file": "empty-rid-veryhidden.xlsx",
+  "corrupt_load": "xlRepairFile",
+  "display_alerts": false,
+  "interactive": false,
+  "opened": true,
+  "error": null,
+  "dialogs": [],
+  "workbook_name": "empty-rid-veryhidden.xlsx",
+  "sheets": [
+   {
+    "index": 1,
+    "name": "One",
+    "visible": -1,
+    "cells": [
+     {
+      "address": "A1",
+      "formula": "2",
+      "value": 2.0,
+      "has_array": false
+     },
+     {
+      "address": "B1",
+      "formula": "3",
+      "value": 3.0,
+      "has_array": false
+     }
+    ]
+   },
+   {
+    "index": 2,
+    "name": "Two",
+    "visible": 2,
+    "cells": []
+   }
+  ]
+ },
+ {
+  "file": "empty-rid-visible.xlsx",
+  "corrupt_load": "xlRepairFile",
+  "display_alerts": false,
+  "interactive": false,
+  "opened": true,
+  "error": null,
+  "dialogs": [],
+  "workbook_name": "empty-rid-visible.xlsx",
+  "sheets": [
+   {
+    "index": 1,
+    "name": "One",
+    "visible": -1,
+    "cells": [
+     {
+      "address": "A1",
+      "formula": "2",
+      "value": 2.0,
+      "has_array": false
+     },
+     {
+      "address": "B1",
+      "formula": "3",
+      "value": 3.0,
+      "has_array": false
+     }
+    ]
+   },
+   {
+    "index": 2,
+    "name": "Two",
+    "visible": -1,
+    "cells": []
+   }
+  ]
+ },
+ {
+  "file": "watcher-control-malformed-sheet.xlsx",
+  "corrupt_load": "xlRepairFile",
+  "display_alerts": false,
+  "interactive": false,
+  "opened": false,
+  "error": "Exception calling \"InvokeMember\" with \"8\" argument(s): \"Open method of Workbooks class failed\"",
+  "hresult": "0x80131501",
+  "inner_error": "Open method of Workbooks class failed",
+  "dialogs": []
+ }
+]

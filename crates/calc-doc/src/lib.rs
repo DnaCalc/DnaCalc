@@ -102,8 +102,8 @@ pub use error::{OpenError, PartReadError, UnsafeName};
 pub use load::{
     CalcMode, CellError, Chart, ChartAnchor, ChartData, ChartPlot, ChartSeries, ColorScale,
     ColumnSpan, ConditionalFormat, ConditionalRule, DataBar, DateSystem, DrawingPoint,
-    FORMULA_MAX_UTF16_CODE_UNITS, FormulaRecord, IconSet, LayoutWarning, LoadError, LoadedSheet,
-    LoadedWorkbook, ReviewLink, ReviewNote, RowFormat, SharedFormula, SheetCharts, SheetGeometry,
+    FORMULA_MAX_UTF16_CODE_UNITS, FormulaRecord, IconSet, LayoutWarning, LoadError, LoadRepair,
+    LoadedSheet, LoadedWorkbook, ReviewLink, ReviewNote, RowFormat, SharedFormula, SheetCharts, SheetGeometry,
     SheetReview, SheetView, Threshold, Validation, load, load_preserving_sheet_ids,
 };
 pub use opc::{

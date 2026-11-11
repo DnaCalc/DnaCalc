@@ -394,6 +394,24 @@ pub enum CalcMode {
     Manual,
 }
 
+/// A defect Excel repairs when it opens the file, which prompts "We found a problem with some
+/// content" and then shows the repaired workbook. The load reads the same result and lists the
+/// repair ([`LoadedWorkbook::repairs`]). Measured against Excel in our own session on authored
+/// files (`tests/fixtures/reader_tolerance`); a defect Excel refuses is a [`LoadError`].
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub enum LoadRepair {
+    /// A sheet's `r:id` names no relationship of the workbook part: Excel keeps the sheet, empty,
+    /// with its name and visibility, and so does the load. (An empty `r:id=""` is not a repair:
+    /// Excel opens it without a prompt as the same empty sheet.)
+    SheetRelationshipMissing { sheet: SheetId, id: String },
+    /// A plain formula inside the area of an array formula: Excel drops it and shows the array's
+    /// result in that cell, and so does the load (the cell is a member of the array).
+    FormulaInsideArray { sheet: SheetId, row: u32, column: u32 },
+    /// A later sheet repeats an earlier sheet's `sheetId` (`id`): Excel keeps both sheets and gives
+    /// the later one a new id (`now`), the next above the highest the workbook part declares.
+    DuplicateSheetId { sheet: SheetId, id: u32, now: u32 },
+}
+
 /// A loaded workbook: the model root of its sheets, their cells and its skin layout at the
 /// document's first revision, each sheet's records beside it, and the package they were read
 /// from.
@@ -415,6 +433,7 @@ pub struct LoadedWorkbook {
     defined_names_not_loaded: usize,
     manifest: ManifestState,
     layout_warnings: Vec<LayoutWarning>,
+    repairs: Vec<LoadRepair>,
     /// The workbook-scoped defined names no layout save removes.
     fixed_names: Vec<String>,
 }
@@ -1066,6 +1085,12 @@ impl LoadedWorkbook {
         &self.layout_warnings
     }
 
+    /// The defects Excel would have repaired on opening the file, which the load repaired the
+    /// way Excel does ([`LoadRepair`]). Empty for a file Excel opens without a prompt.
+    pub fn repairs(&self) -> &[LoadRepair] {
+        &self.repairs
+    }
+
     /// Whether a save of this workbook can write the skin layout edits among `operations`,
     /// judged before they are applied, so a caller can refuse a layout edit before it joins cell
     /// edits in one revision: the refusal [`crate::prepare_save`] gives a revision that holds them.
@@ -1293,7 +1318,24 @@ struct DeclaredSheet {
     macro_sheet: bool,
     /// A chart sheet or a dialog sheet.
     preserved: Option<&'static str>,
+    /// A sheet whose `r:id` leads to no part (dc-hc85 follow-up): read as an empty sheet.
+    no_part: Option<NoPart>,
+    /// The `sheetId` this sheet repeated, which Excel repairs by giving the later sheet the next
+    /// id above every id the workbook part declares; `key` then holds that new id.
+    repeated_key: Option<u32>,
 }
+
+/// Why a declared sheet has no part.
+enum NoPart {
+    /// `r:id=""`, which Excel itself writes for a sheet that is a VBA module (687 sheets of the
+    /// Enron corpus) and opens without a prompt.
+    EmptyId,
+    /// An `r:id` that names no relationship of the workbook part; Excel repairs it to an empty sheet.
+    Missing(String),
+}
+
+/// The kind a sheet without a part is preserved as: it is carried as nothing, so an edit of it is refused.
+const PARTLESS_SHEET: &str = "sheet without a part";
 
 /// The type of the workbook part's relationship `id` and the part it targets.
 fn target(package: &Package, workbook: &str, id: &str) -> Result<(String, String), LoadError> {
@@ -1578,9 +1620,8 @@ fn read_workbook(package: &Package, workbook: &str) -> Result<WorkbookPart, Load
                 .attribute("sheetId")
                 .and_then(|text| text.parse().ok())
                 .ok_or(events.invalid("a sheet without a sheetId that is a number"))?;
-            if !keys.insert(key) {
-                return Err(LoadError::DuplicateSheetKey { key });
-            }
+            // A repeated sheetId is a defect Excel repairs (below), not a refusal.
+            let duplicate = !keys.insert(key);
             let visibility = match sheet.attribute("state") {
                 None | Some("visible") => SheetVisibility::Visible,
                 Some("hidden") => SheetVisibility::Hidden,
@@ -1594,6 +1635,30 @@ fn read_workbook(package: &Package, workbook: &str) -> Result<WorkbookPart, Load
             let relationship = relationship_attribute(&sheet, "id")
                 .ok_or(events.invalid("a sheet without an r:id"))?
                 .to_owned();
+            let no_part = if relationship.is_empty() {
+                Some(NoPart::EmptyId)
+            } else if package
+                .relationships_of(Some(workbook))
+                .is_none_or(|relationships| relationships.items().iter().all(|item| item.id != relationship))
+            {
+                Some(NoPart::Missing(relationship.clone()))
+            } else {
+                None
+            };
+            if no_part.is_some() {
+                declared.push(DeclaredSheet {
+                    name,
+                    key: SheetKey::new(key),
+                    visibility,
+                    relationship,
+                    part: String::new(),
+                    macro_sheet: false,
+                    preserved: Some(PARTLESS_SHEET),
+                    no_part,
+                    repeated_key: duplicate.then_some(key),
+                });
+                continue;
+            }
             let (kind, part) = target(package, workbook, &relationship)?;
             let macro_sheet = kind == MACRO_SHEET || kind == INTERNATIONAL_MACRO_SHEET;
             let preserved = match kind.as_str() {
@@ -1615,10 +1680,22 @@ fn read_workbook(package: &Package, workbook: &str) -> Result<WorkbookPart, Load
                 part,
                 macro_sheet,
                 preserved,
+                no_part: None,
+                repeated_key: duplicate.then_some(key),
             });
         }
     }
     events.end()?;
+    // Excel gives each later sheet that repeats a sheetId the next id above the highest in the
+    // workbook part (measured: ids 1, 109, 109 keep 109 for the first and give 110; 1, 1, 5 give 6),
+    // taking the sheets in order.
+    let mut highest = declared.iter().map(|sheet| sheet.key.get()).max().unwrap_or(0);
+    for sheet in declared.iter_mut().filter(|sheet| sheet.repeated_key.is_some()) {
+        highest = highest.checked_add(1).ok_or(LoadError::DuplicateSheetKey {
+            key: sheet.key.get(),
+        })?;
+        sheet.key = SheetKey::new(highest);
+    }
     Ok(WorkbookPart {
         sheets: declared,
         date_system: date_system.unwrap_or(DateSystem::Date1900),
@@ -1801,8 +1878,25 @@ pub fn load_preserving_sheet_ids(
     let mut conditional_sources = Vec::new();
     let mut data_tables = Vec::new();
     let mut hidden_rows: Vec<(SheetId, u32, Option<(u32, u32, u32, u32)>)> = Vec::new();
-    for (declared, &id) in declared.iter().zip(&issued) {
-        let loaded = if declared.preserved.is_some() {
+    let mut repairs = Vec::new();
+    for (index, (declared, &id)) in declared.iter().zip(&issued).enumerate() {
+        if let Some(was) = declared.repeated_key {
+            repairs.push(LoadRepair::DuplicateSheetId {
+                sheet: id,
+                id: was,
+                now: declared.key.get(),
+            });
+        }
+        let loaded = if declared.no_part.is_some() {
+            if let Some(NoPart::Missing(missing)) = &declared.no_part {
+                repairs.push(LoadRepair::SheetRelationshipMissing {
+                    sheet: id,
+                    id: missing.clone(),
+                });
+            }
+            let name = format!("(sheet {} has no part)", index + 1);
+            Ok((sheet::partless_sheet(&name), Vec::new()))
+        } else if declared.preserved.is_some() {
             sheet::preserved_sheet(package, &declared.part).map(|loaded| (loaded, Vec::new()))
         } else {
             sheet::load_sheet(package, &context, id, &declared.part, declared.macro_sheet)
@@ -1814,6 +1908,13 @@ pub fn load_preserving_sheet_ids(
                     conditional_sources.push((id, loaded.conditional_sources));
                 }
                 cells.extend(loaded.inputs);
+                repairs.extend(loaded.dropped_array_formulas.iter().map(|&(row, column)| {
+                    LoadRepair::FormulaInsideArray {
+                        sheet: id,
+                        row,
+                        column,
+                    }
+                }));
                 arrays.extend(loaded.arrays);
                 data_tables.extend(loaded.data_tables.iter().copied());
                 hidden_rows.extend(
@@ -2080,6 +2181,7 @@ pub fn load_preserving_sheet_ids(
         defined_names_not_loaded: defined_names.len() - layout.locators_resolved,
         manifest: layout.state,
         layout_warnings: layout.warnings,
+        repairs,
         fixed_names: layout.fixed_names,
     })
 }

@@ -66,6 +66,9 @@ pub(super) struct SheetLoad {
     pub(super) conditional_formats: Vec<super::conditional::ConditionalFormat>,
     /// The sheet's data validations (dc-6yw).
     pub(super) validations: Vec<super::validation::Validation>,
+    /// The cells (row, column) whose plain formula lay inside an array formula's area and was
+    /// dropped, as Excel repairs it ([`super::LoadRepair::FormulaInsideArray`]).
+    pub(super) dropped_array_formulas: Vec<(u32, u32)>,
 }
 
 /// An area some of whose cells are still to be read, whose cells are not inputs: what an array
@@ -531,16 +534,28 @@ impl Sheet<'_> {
             // Excel's P04/P06 saved spills carry `<f ca="1"/>` on members.
             // Only a proven dynamic footprint can own this empty cache marker;
             // a real expression or another formula declaration still overlaps.
-            let spill_cache_marker = dynamic_array
-                && formula.as_ref().is_some_and(|f| {
-                    f.calculate_always
-                        && f.text.is_empty()
-                        && matches!(f.kind.as_deref(), None | Some("normal"))
-                        && f.index.is_none()
-                        && f.area.is_none()
-                        && f.data_table.iter().all(Option::is_none)
-                });
-            if formula.is_some() && !spill_cache_marker {
+            // Excel writes the same marker on the members of a legacy multi-cell array formula, and
+            // opens the file without a prompt (measured, tests/fixtures/reader_tolerance).
+            let plain = |f: &Formula| {
+                matches!(f.kind.as_deref(), None | Some("normal"))
+                    && f.index.is_none()
+                    && f.area.is_none()
+                    && f.data_table.iter().all(Option::is_none)
+            };
+            let cache_marker = !data_table
+                && formula
+                    .as_ref()
+                    .is_some_and(|f| f.calculate_always && f.text.is_empty() && plain(f));
+            // A plain formula with text inside a legacy array's area is a defect Excel repairs by
+            // dropping the formula; the cell then shows the array's result.
+            let dropped = !data_table
+                && !dynamic_array
+                && formula
+                    .as_ref()
+                    .is_some_and(|f| !f.text.is_empty() && plain(f));
+            if dropped {
+                self.load.dropped_array_formulas.push((row, column));
+            } else if formula.is_some() && !cache_marker {
                 return Err(fail(CellError::Malformed {
                     detail: "a formula inside the area an array formula or data table fills",
                 }));
@@ -1009,12 +1024,21 @@ pub(super) fn preserved_sheet(package: &Package, part: &str) -> Result<SheetLoad
     let found = package.part(part).ok_or_else(|| LoadError::MissingPart {
         part: part.to_owned(),
     })?;
-    let source = Arc::new(SourcePart::new(
+    Ok(empty_load(Arc::new(SourcePart::new(
         found.name().to_owned(),
         found.crc32(),
         found.size(),
-    ));
-    Ok(SheetLoad {
+    ))))
+}
+
+/// The records of a sheet that has no part (`r:id=""`, or an `r:id` no relationship defines):
+/// an empty sheet, as Excel opens it. `name` stands for the part it has not.
+pub(super) fn partless_sheet(name: &str) -> SheetLoad {
+    empty_load(Arc::new(SourcePart::new(name.to_owned(), 0, 0)))
+}
+
+fn empty_load(source: Arc<SourcePart>) -> SheetLoad {
+    SheetLoad {
         pivots: Default::default(),
         page_setup: Default::default(),
         conditional_sources: Vec::new(),
@@ -1039,7 +1063,8 @@ pub(super) fn preserved_sheet(package: &Package, part: &str) -> Result<SheetLoad
         view: super::geometry::SheetView::default(),
         conditional_formats: Vec::new(),
         validations: Vec::new(),
-    })
+        dropped_array_formulas: Vec::new(),
+    }
 }
 
 pub(super) fn load_sheet(
@@ -1104,6 +1129,7 @@ pub(super) fn load_sheet(
             view: super::geometry::SheetView::default(),
             conditional_formats: Vec::new(),
             validations: Vec::new(),
+            dropped_array_formulas: Vec::new(),
         },
         groups: BTreeMap::new(),
         members: Vec::new(),

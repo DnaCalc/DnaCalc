@@ -1,0 +1,180 @@
+[
+ {
+  "file": "array-inner-formula-stale.xlsx",
+  "opened": true,
+  "dialogs": [
+   {
+    "utc": "2026-11-11T14:18:34.3938921Z",
+    "class": "NUIDialog",
+    "title": "Microsoft Excel",
+    "texts": [
+     "ControlType.Window: Microsoft Excel",
+     "ControlType.Text: We found a problem with some content in 'array-inner-formula-stale.xlsx'. Do you want us to try to recover as much as we can? If you trust the source of this workbook, click Yes."
+    ],
+    "buttons": [
+     "No",
+     "Yes"
+    ],
+    "clicked": "Yes"
+   },
+   {
+    "utc": "2026-11-11T14:18:37.7489506Z",
+    "class": "bosa_sdm_XL9",
+    "title": "Repairs to 'array-inner-formula-stale.xlsx'",
+    "texts": [
+     "ControlType.Document: RichEdit Control"
+    ],
+    "buttons": [],
+    "clicked": null
+   }
+  ],
+  "pid": 9408,
+  "main_window_title": "array-inner-formula-stale.xlsx  -  Repaired - Excel",
+  "workbook_name": "array-inner-formula-stale.xlsx",
+  "sheets": [
+   {
+    "index": 1,
+    "name": "Arr",
+    "visible": -1,
+    "cells": [
+     {
+      "address": "A1",
+      "formula": "=B1:B3*2",
+      "value": 2.0,
+      "has_array": true,
+      "array_range": "A1:A3",
+      "array_formula": "=B1:B3*2"
+     },
+     {
+      "address": "B1",
+      "formula": "1",
+      "value": 1.0,
+      "has_array": false
+     },
+     {
+      "address": "A2",
+      "formula": "=B1:B3*2",
+      "value": 4.0,
+      "has_array": true,
+      "array_range": "A1:A3",
+      "array_formula": "=B1:B3*2"
+     },
+     {
+      "address": "B2",
+      "formula": "2",
+      "value": 2.0,
+      "has_array": false
+     },
+     {
+      "address": "A3",
+      "formula": "=B1:B3*2",
+      "value": 6.0,
+      "has_array": true,
+      "array_range": "A1:A3",
+      "array_formula": "=B1:B3*2"
+     },
+     {
+      "address": "B3",
+      "formula": "3",
+      "value": 3.0,
+      "has_array": false
+     }
+    ]
+   }
+  ],
+  "saved_copy": "saved-array-inner-formula-stale.xlsx"
+ },
+ {
+  "file": "duplicate-sheetid-lower.xlsx",
+  "opened": true,
+  "dialogs": [
+   {
+    "utc": "2026-11-11T14:20:14.2163054Z",
+    "class": "NUIDialog",
+    "title": "Microsoft Excel",
+    "texts": [
+     "ControlType.Window: Microsoft Excel",
+     "ControlType.Text: We found a problem with some content in 'duplicate-sheetid-lower.xlsx'. Do you want us to try to recover as much as we can? If you trust the source of this workbook, click Yes."
+    ],
+    "buttons": [
+     "No",
+     "Yes"
+    ],
+    "clicked": "Yes"
+   },
+   {
+    "utc": "2026-11-11T14:20:17.4178035Z",
+    "class": "bosa_sdm_XL9",
+    "title": "Repairs to 'duplicate-sheetid-lower.xlsx'",
+    "texts": [
+     "ControlType.Document: RichEdit Control"
+    ],
+    "buttons": [],
+    "clicked": null
+   }
+  ],
+  "pid": 65116,
+  "main_window_title": "duplicate-sheetid-lower.xlsx  -  Repaired - Excel",
+  "workbook_name": "duplicate-sheetid-lower.xlsx",
+  "sheets": [
+   {
+    "index": 1,
+    "name": "One",
+    "visible": -1,
+    "cells": [
+     {
+      "address": "A1",
+      "formula": "2",
+      "value": 2.0,
+      "has_array": false
+     },
+     {
+      "address": "B1",
+      "formula": "3",
+      "value": 3.0,
+      "has_array": false
+     }
+    ]
+   },
+   {
+    "index": 2,
+    "name": "Two",
+    "visible": -1,
+    "cells": [
+     {
+      "address": "A1",
+      "formula": "5",
+      "value": 5.0,
+      "has_array": false
+     },
+     {
+      "address": "B1",
+      "formula": "=A1*2",
+      "value": 10.0,
+      "has_array": false
+     }
+    ]
+   },
+   {
+    "index": 3,
+    "name": "Three",
+    "visible": -1,
+    "cells": [
+     {
+      "address": "A1",
+      "formula": "2",
+      "value": 2.0,
+      "has_array": false
+     },
+     {
+      "address": "B1",
+      "formula": "3",
+      "value": 3.0,
+      "has_array": false
+     }
+    ]
+   }
+  ],
+  "saved_copy": "saved-duplicate-sheetid-lower.xlsx"
+ }
+]

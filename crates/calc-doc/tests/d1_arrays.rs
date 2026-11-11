@@ -74,8 +74,19 @@ fn dc_ztvv_2__empty_excel_spill_formula_markers_keep_cache_provenance() {
             "{marker}"
         );
     }
+    // The same array without its dynamic-array cell metadata is a legacy multi-cell array, whose
+    // members Excel also writes with the empty marker, and opens without a prompt (measured, see
+    // tests/fixtures/reader_tolerance/excel-answers.md).
+    let legacy = source.replace("<c r=\"F1\" cm=\"1\">", "<c r=\"F1\">");
+    assert_ne!(legacy, source);
+    let legacy = replace_part(bytes, "xl/worksheets/sheet1.xml", legacy.as_bytes());
+    let legacy = calc_doc::load(
+        &open(&legacy),
+        &mut calc_doc::model::value::IdAllocator::new(),
+    )
+    .expect("a legacy array's member marker loads");
+    assert!(legacy.repairs().is_empty());
     for xml in [
-        source.replace("<c r=\"F1\" cm=\"1\">", "<c r=\"F1\">"),
         source.replace("ref=\"F1:F2\"", "ref=\"F1\""),
         source.replace(
             "<f t=\"array\" aca=\"1\" ref=\"F1:F2\" ca=\"1\">_xlfn.SEQUENCE(2)</f>",
@@ -90,7 +101,7 @@ fn dc_ztvv_2__empty_excel_spill_formula_markers_keep_cache_provenance() {
                 &mut calc_doc::model::value::IdAllocator::new()
             )
             .is_err(),
-            "an empty marker requires its proven dynamic footprint"
+            "an empty marker requires an array area (not a data table, not a single cell)"
         );
     }
 }

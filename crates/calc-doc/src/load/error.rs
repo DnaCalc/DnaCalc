@@ -31,7 +31,8 @@ pub enum LoadError {
     InvalidSheetName { name: String, error: SheetNameError },
     /// Two sheets have this name, compared ignoring ASCII case.
     DuplicateSheetName { name: String },
-    /// Two sheets have this `sheetId`.
+    /// Repairing a repeated `sheetId` (Excel gives the later sheet the next id above the highest)
+    /// would need an id beyond `u32`; `key` is the repeated id.
     DuplicateSheetKey { key: u32 },
     /// The caller's allocator could not issue a sheet ID.
     SheetIds(IdError),

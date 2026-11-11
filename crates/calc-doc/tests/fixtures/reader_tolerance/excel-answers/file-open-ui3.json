@@ -1,0 +1,715 @@
+[
+ {
+  "file": "array-inner-empty-f.xlsx",
+  "opened": true,
+  "dialogs": [],
+  "pid": 48588,
+  "main_window_title": "array-inner-empty-f.xlsx - Excel",
+  "workbook_name": "array-inner-empty-f.xlsx",
+  "sheets": [
+   {
+    "index": 1,
+    "name": "Arr",
+    "visible": -1,
+    "cells": [
+     {
+      "address": "A1",
+      "formula": "=B1:B3*2",
+      "value": 2.0,
+      "has_array": true,
+      "array_range": "A1:A3",
+      "array_formula": "=B1:B3*2"
+     },
+     {
+      "address": "B1",
+      "formula": "1",
+      "value": 1.0,
+      "has_array": false
+     },
+     {
+      "address": "A2",
+      "formula": "=B1:B3*2",
+      "value": 4.0,
+      "has_array": true,
+      "array_range": "A1:A3",
+      "array_formula": "=B1:B3*2"
+     },
+     {
+      "address": "B2",
+      "formula": "2",
+      "value": 2.0,
+      "has_array": false
+     },
+     {
+      "address": "A3",
+      "formula": "=B1:B3*2",
+      "value": 6.0,
+      "has_array": true,
+      "array_range": "A1:A3",
+      "array_formula": "=B1:B3*2"
+     },
+     {
+      "address": "B3",
+      "formula": "3",
+      "value": 3.0,
+      "has_array": false
+     }
+    ]
+   }
+  ],
+  "saved_copy": "saved-array-inner-empty-f.xlsx"
+ },
+ {
+  "file": "array-inner-formula-control.xlsx",
+  "opened": true,
+  "dialogs": [],
+  "pid": 64264,
+  "main_window_title": "array-inner-formula-control.xlsx - Excel",
+  "workbook_name": "array-inner-formula-control.xlsx",
+  "sheets": [
+   {
+    "index": 1,
+    "name": "Arr",
+    "visible": -1,
+    "cells": [
+     {
+      "address": "A1",
+      "formula": "=B1:B3*2",
+      "value": 2.0,
+      "has_array": true,
+      "array_range": "A1:A3",
+      "array_formula": "=B1:B3*2"
+     },
+     {
+      "address": "B1",
+      "formula": "1",
+      "value": 1.0,
+      "has_array": false
+     },
+     {
+      "address": "A2",
+      "formula": "=B1:B3*2",
+      "value": 4.0,
+      "has_array": true,
+      "array_range": "A1:A3",
+      "array_formula": "=B1:B3*2"
+     },
+     {
+      "address": "B2",
+      "formula": "2",
+      "value": 2.0,
+      "has_array": false
+     },
+     {
+      "address": "A3",
+      "formula": "=B1:B3*2",
+      "value": 6.0,
+      "has_array": true,
+      "array_range": "A1:A3",
+      "array_formula": "=B1:B3*2"
+     },
+     {
+      "address": "B3",
+      "formula": "3",
+      "value": 3.0,
+      "has_array": false
+     }
+    ]
+   }
+  ],
+  "saved_copy": "saved-array-inner-formula-control.xlsx"
+ },
+ {
+  "file": "array-inner-formula.xlsx",
+  "opened": true,
+  "dialogs": [
+   {
+    "utc": "2026-11-11T14:08:53.0020550Z",
+    "class": "NUIDialog",
+    "title": "Microsoft Excel",
+    "texts": [
+     "ControlType.Window: Microsoft Excel",
+     "ControlType.Text: We found a problem with some content in 'array-inner-formula.xlsx'. Do you want us to try to recover as much as we can? If you trust the source of this workbook, click Yes."
+    ],
+    "buttons": [
+     "Yes",
+     "No"
+    ],
+    "clicked": "Yes"
+   },
+   {
+    "utc": "2026-11-11T14:08:56.8623234Z",
+    "class": "bosa_sdm_XL9",
+    "title": "Repairs to 'array-inner-formula.xlsx'",
+    "texts": [
+     "ControlType.Document: RichEdit Control"
+    ],
+    "buttons": [],
+    "clicked": null
+   }
+  ],
+  "pid": 67316,
+  "main_window_title": "array-inner-formula.xlsx  -  Repaired - Excel",
+  "workbook_name": "array-inner-formula.xlsx",
+  "sheets": [
+   {
+    "index": 1,
+    "name": "Arr",
+    "visible": -1,
+    "cells": [
+     {
+      "address": "A1",
+      "formula": "=B1:B3*2",
+      "value": 2.0,
+      "has_array": true,
+      "array_range": "A1:A3",
+      "array_formula": "=B1:B3*2"
+     },
+     {
+      "address": "B1",
+      "formula": "1",
+      "value": 1.0,
+      "has_array": false
+     },
+     {
+      "address": "A2",
+      "formula": "=B1:B3*2",
+      "value": 4.0,
+      "has_array": true,
+      "array_range": "A1:A3",
+      "array_formula": "=B1:B3*2"
+     },
+     {
+      "address": "B2",
+      "formula": "2",
+      "value": 2.0,
+      "has_array": false
+     },
+     {
+      "address": "A3",
+      "formula": "=B1:B3*2",
+      "value": 6.0,
+      "has_array": true,
+      "array_range": "A1:A3",
+      "array_formula": "=B1:B3*2"
+     },
+     {
+      "address": "B3",
+      "formula": "3",
+      "value": 3.0,
+      "has_array": false
+     }
+    ]
+   }
+  ],
+  "saved_copy": "saved-array-inner-formula.xlsx"
+ },
+ {
+  "file": "dangling-rid-control.xlsx",
+  "opened": true,
+  "dialogs": [],
+  "pid": 25704,
+  "main_window_title": "dangling-rid-control.xlsx - Excel",
+  "workbook_name": "dangling-rid-control.xlsx",
+  "sheets": [
+   {
+    "index": 1,
+    "name": "One",
+    "visible": -1,
+    "cells": [
+     {
+      "address": "A1",
+      "formula": "2",
+      "value": 2.0,
+      "has_array": false
+     },
+     {
+      "address": "B1",
+      "formula": "3",
+      "value": 3.0,
+      "has_array": false
+     }
+    ]
+   },
+   {
+    "index": 2,
+    "name": "Two",
+    "visible": -1,
+    "cells": [
+     {
+      "address": "A1",
+      "formula": "5",
+      "value": 5.0,
+      "has_array": false
+     },
+     {
+      "address": "B1",
+      "formula": "=A1*2",
+      "value": 10.0,
+      "has_array": false
+     }
+    ]
+   }
+  ],
+  "saved_copy": "saved-dangling-rid-control.xlsx"
+ },
+ {
+  "file": "dangling-rid.xlsx",
+  "opened": true,
+  "dialogs": [
+   {
+    "utc": "2026-11-11T14:10:45.7223481Z",
+    "class": "NUIDialog",
+    "title": "Microsoft Excel",
+    "texts": [
+     "ControlType.Window: Microsoft Excel",
+     "ControlType.Text: We found a problem with some content in 'dangling-rid.xlsx'. Do you want us to try to recover as much as we can? If you trust the source of this workbook, click Yes."
+    ],
+    "buttons": [
+     "Yes",
+     "No"
+    ],
+    "clicked": "Yes"
+   },
+   {
+    "utc": "2026-11-11T14:10:49.0153795Z",
+    "class": "bosa_sdm_XL9",
+    "title": "Repairs to 'dangling-rid.xlsx'",
+    "texts": [
+     "ControlType.Document: RichEdit Control"
+    ],
+    "buttons": [],
+    "clicked": null
+   }
+  ],
+  "pid": 45492,
+  "main_window_title": "dangling-rid.xlsx  -  Repaired - Excel",
+  "workbook_name": "dangling-rid.xlsx",
+  "sheets": [
+   {
+    "index": 1,
+    "name": "One",
+    "visible": -1,
+    "cells": [
+     {
+      "address": "A1",
+      "formula": "2",
+      "value": 2.0,
+      "has_array": false
+     },
+     {
+      "address": "B1",
+      "formula": "3",
+      "value": 3.0,
+      "has_array": false
+     }
+    ]
+   },
+   {
+    "index": 2,
+    "name": "Two",
+    "visible": -1,
+    "cells": []
+   }
+  ],
+  "saved_copy": "saved-dangling-rid.xlsx"
+ },
+ {
+  "file": "duplicate-sheetid-control.xlsx",
+  "opened": true,
+  "dialogs": [],
+  "pid": 25764,
+  "main_window_title": "duplicate-sheetid-control.xlsx - Excel",
+  "workbook_name": "duplicate-sheetid-control.xlsx",
+  "sheets": [
+   {
+    "index": 1,
+    "name": "One",
+    "visible": -1,
+    "cells": [
+     {
+      "address": "A1",
+      "formula": "2",
+      "value": 2.0,
+      "has_array": false
+     },
+     {
+      "address": "B1",
+      "formula": "3",
+      "value": 3.0,
+      "has_array": false
+     }
+    ]
+   },
+   {
+    "index": 2,
+    "name": "Two",
+    "visible": -1,
+    "cells": [
+     {
+      "address": "A1",
+      "formula": "5",
+      "value": 5.0,
+      "has_array": false
+     },
+     {
+      "address": "B1",
+      "formula": "=A1*2",
+      "value": 10.0,
+      "has_array": false
+     }
+    ]
+   }
+  ],
+  "saved_copy": "saved-duplicate-sheetid-control.xlsx"
+ },
+ {
+  "file": "duplicate-sheetid-gap.xlsx",
+  "opened": true,
+  "dialogs": [
+   {
+    "utc": "2026-11-11T14:12:40.7342286Z",
+    "class": "NUIDialog",
+    "title": "Microsoft Excel",
+    "texts": [
+     "ControlType.Window: Microsoft Excel",
+     "ControlType.Text: We found a problem with some content in 'duplicate-sheetid-gap.xlsx'. Do you want us to try to recover as much as we can? If you trust the source of this workbook, click Yes."
+    ],
+    "buttons": [
+     "Yes",
+     "No"
+    ],
+    "clicked": "Yes"
+   },
+   {
+    "utc": "2026-11-11T14:12:43.8662511Z",
+    "class": "bosa_sdm_XL9",
+    "title": "Repairs to 'duplicate-sheetid-gap.xlsx'",
+    "texts": [
+     "ControlType.Document: RichEdit Control"
+    ],
+    "buttons": [],
+    "clicked": null
+   }
+  ],
+  "pid": 54776,
+  "main_window_title": "duplicate-sheetid-gap.xlsx  -  Repaired - Excel",
+  "workbook_name": "duplicate-sheetid-gap.xlsx",
+  "sheets": [
+   {
+    "index": 1,
+    "name": "One",
+    "visible": -1,
+    "cells": [
+     {
+      "address": "A1",
+      "formula": "2",
+      "value": 2.0,
+      "has_array": false
+     },
+     {
+      "address": "B1",
+      "formula": "3",
+      "value": 3.0,
+      "has_array": false
+     }
+    ]
+   },
+   {
+    "index": 2,
+    "name": "Two",
+    "visible": -1,
+    "cells": [
+     {
+      "address": "A1",
+      "formula": "5",
+      "value": 5.0,
+      "has_array": false
+     },
+     {
+      "address": "B1",
+      "formula": "=A1*2",
+      "value": 10.0,
+      "has_array": false
+     }
+    ]
+   },
+   {
+    "index": 3,
+    "name": "Three",
+    "visible": -1,
+    "cells": [
+     {
+      "address": "A1",
+      "formula": "2",
+      "value": 2.0,
+      "has_array": false
+     },
+     {
+      "address": "B1",
+      "formula": "3",
+      "value": 3.0,
+      "has_array": false
+     }
+    ]
+   }
+  ],
+  "saved_copy": "saved-duplicate-sheetid-gap.xlsx"
+ },
+ {
+  "file": "duplicate-sheetid.xlsx",
+  "opened": true,
+  "dialogs": [
+   {
+    "utc": "2026-11-11T14:14:19.5775740Z",
+    "class": "NUIDialog",
+    "title": "Microsoft Excel",
+    "texts": [
+     "ControlType.Window: Microsoft Excel",
+     "ControlType.Text: We found a problem with some content in 'duplicate-sheetid.xlsx'. Do you want us to try to recover as much as we can? If you trust the source of this workbook, click Yes."
+    ],
+    "buttons": [
+     "Yes",
+     "No"
+    ],
+    "clicked": "Yes"
+   },
+   {
+    "utc": "2026-11-11T14:14:22.7071597Z",
+    "class": "bosa_sdm_XL9",
+    "title": "Repairs to 'duplicate-sheetid.xlsx'",
+    "texts": [
+     "ControlType.Document: RichEdit Control"
+    ],
+    "buttons": [],
+    "clicked": null
+   }
+  ],
+  "pid": 45892,
+  "main_window_title": "duplicate-sheetid.xlsx  -  Repaired - Excel",
+  "workbook_name": "duplicate-sheetid.xlsx",
+  "sheets": [
+   {
+    "index": 1,
+    "name": "One",
+    "visible": -1,
+    "cells": [
+     {
+      "address": "A1",
+      "formula": "2",
+      "value": 2.0,
+      "has_array": false
+     },
+     {
+      "address": "B1",
+      "formula": "3",
+      "value": 3.0,
+      "has_array": false
+     }
+    ]
+   },
+   {
+    "index": 2,
+    "name": "Two",
+    "visible": -1,
+    "cells": [
+     {
+      "address": "A1",
+      "formula": "5",
+      "value": 5.0,
+      "has_array": false
+     },
+     {
+      "address": "B1",
+      "formula": "=A1*2",
+      "value": 10.0,
+      "has_array": false
+     }
+    ]
+   }
+  ],
+  "saved_copy": "saved-duplicate-sheetid.xlsx"
+ },
+ {
+  "file": "empty-rid-control.xlsx",
+  "opened": true,
+  "dialogs": [],
+  "pid": 50104,
+  "main_window_title": "empty-rid-control.xlsx - Excel",
+  "workbook_name": "empty-rid-control.xlsx",
+  "sheets": [
+   {
+    "index": 1,
+    "name": "One",
+    "visible": -1,
+    "cells": [
+     {
+      "address": "A1",
+      "formula": "2",
+      "value": 2.0,
+      "has_array": false
+     },
+     {
+      "address": "B1",
+      "formula": "3",
+      "value": 3.0,
+      "has_array": false
+     }
+    ]
+   },
+   {
+    "index": 2,
+    "name": "Two",
+    "visible": 2,
+    "cells": [
+     {
+      "address": "A1",
+      "formula": "5",
+      "value": 5.0,
+      "has_array": false
+     },
+     {
+      "address": "B1",
+      "formula": "=A1*2",
+      "value": 10.0,
+      "has_array": false
+     }
+    ]
+   }
+  ],
+  "saved_copy": "saved-empty-rid-control.xlsx"
+ },
+ {
+  "file": "empty-rid-veryhidden.xlsx",
+  "opened": true,
+  "dialogs": [],
+  "pid": 29120,
+  "main_window_title": "empty-rid-veryhidden.xlsx - Excel",
+  "workbook_name": "empty-rid-veryhidden.xlsx",
+  "sheets": [
+   {
+    "index": 1,
+    "name": "One",
+    "visible": -1,
+    "cells": [
+     {
+      "address": "A1",
+      "formula": "2",
+      "value": 2.0,
+      "has_array": false
+     },
+     {
+      "address": "B1",
+      "formula": "3",
+      "value": 3.0,
+      "has_array": false
+     }
+    ]
+   },
+   {
+    "index": 2,
+    "name": "Two",
+    "visible": 2,
+    "cells": []
+   }
+  ],
+  "saved_copy": "saved-empty-rid-veryhidden.xlsx"
+ },
+ {
+  "file": "empty-rid-visible.xlsx",
+  "opened": true,
+  "dialogs": [],
+  "pid": 37320,
+  "main_window_title": "empty-rid-visible.xlsx - Excel",
+  "workbook_name": "empty-rid-visible.xlsx",
+  "sheets": [
+   {
+    "index": 1,
+    "name": "One",
+    "visible": -1,
+    "cells": [
+     {
+      "address": "A1",
+      "formula": "2",
+      "value": 2.0,
+      "has_array": false
+     },
+     {
+      "address": "B1",
+      "formula": "3",
+      "value": 3.0,
+      "has_array": false
+     }
+    ]
+   },
+   {
+    "index": 2,
+    "name": "Two",
+    "visible": -1,
+    "cells": []
+   }
+  ],
+  "saved_copy": "saved-empty-rid-visible.xlsx"
+ },
+ {
+  "file": "watcher-control-malformed-sheet.xlsx",
+  "opened": true,
+  "dialogs": [
+   {
+    "utc": "2026-11-11T14:16:45.0706938Z",
+    "class": "NUIDialog",
+    "title": "Microsoft Excel",
+    "texts": [
+     "ControlType.Window: Microsoft Excel",
+     "ControlType.Text: We found a problem with some content in 'watcher-control-malformed-sheet.xlsx'. Do you want us to try to recover as much as we can? If you trust the source of this workbook, click Yes."
+    ],
+    "buttons": [
+     "Yes",
+     "No"
+    ],
+    "clicked": "Yes"
+   },
+   {
+    "utc": "2026-11-11T14:16:48.2677681Z",
+    "class": "bosa_sdm_XL9",
+    "title": "Repairs to 'watcher-control-malformed-sheet.xlsx'",
+    "texts": [
+     "ControlType.Document: RichEdit Control"
+    ],
+    "buttons": [],
+    "clicked": null
+   }
+  ],
+  "pid": 47092,
+  "main_window_title": "watcher-control-malformed-sheet.xlsx  -  Repaired - Excel",
+  "workbook_name": "watcher-control-malformed-sheet.xlsx",
+  "sheets": [
+   {
+    "index": 1,
+    "name": "One",
+    "visible": -1,
+    "cells": [
+     {
+      "address": "A1",
+      "formula": "2",
+      "value": 2.0,
+      "has_array": false
+     },
+     {
+      "address": "B1",
+      "formula": "3",
+      "value": 3.0,
+      "has_array": false
+     }
+    ]
+   },
+   {
+    "index": 2,
+    "name": "Two",
+    "visible": -1,
+    "cells": []
+   }
+  ],
+  "saved_copy": "saved-watcher-control-malformed-sheet.xlsx"
+ }
+]
