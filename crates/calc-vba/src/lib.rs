@@ -8,6 +8,7 @@ use calc_func::{UserFunction, UserFunctionContext};
 pub use oxvba_embed::Backend;
 pub mod events;
 pub mod office;
+pub mod policy;
 mod runtime;
 pub use office::{
     OfficeModule, OfficeModuleKind, OfficeProject, OfficeReadLimits, OfficeReference,
@@ -51,6 +52,13 @@ pub enum Profile {
 
 /// The reason a values-only host gives for what needs a workbook.
 pub const NEEDS_A_WORKBOOK: &str = "needs a workbook: open in DNA Calc";
+
+/// The capabilities a standard module can request, predicted from its bound OxIR (the module is
+/// compiled, never run). Compare with the audit log of a run under `policy`.
+pub fn predict_module(name: &str, source: &str) -> Result<policy::Prediction, String> {
+    let module = Module::load_spreadsheet(name, source).map_err(|e| e.to_string())?;
+    Ok(module.predicted_capabilities())
+}
 
 pub const DEFAULT_STEP_BUDGET: u64 = 100_000;
 pub const EXAMPLE_MODULE: &str =

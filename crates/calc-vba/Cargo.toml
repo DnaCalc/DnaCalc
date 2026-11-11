@@ -12,23 +12,24 @@ portability = "portable"
 [dependencies]
 scoped-tls-hkt = "0.1.5"
 thiserror = "2"
-oxvba-oxir = { package = "calcvba-oxir", git = "https://github.com/DnaCalc/CalcVBA.git", rev = "4640a31786e61554dbcb52c2e9f532ba20486a68" }
-oxvba-eval = { package = "calcvba-eval", git = "https://github.com/DnaCalc/CalcVBA.git", rev = "4640a31786e61554dbcb52c2e9f532ba20486a68" }
-oxvba-bundle = { package = "calcvba-bundle", git = "https://github.com/DnaCalc/CalcVBA.git", rev = "4640a31786e61554dbcb52c2e9f532ba20486a68" }
-oxvba-symbol = { package = "calcvba-symbol", git = "https://github.com/DnaCalc/CalcVBA.git", rev = "4640a31786e61554dbcb52c2e9f532ba20486a68" }
-oxvba-syntax = { package = "calcvba-syntax", git = "https://github.com/DnaCalc/CalcVBA.git", rev = "4640a31786e61554dbcb52c2e9f532ba20486a68" }
-oxvba-hal = { package = "calcvba-hal", git = "https://github.com/DnaCalc/CalcVBA.git", rev = "4640a31786e61554dbcb52c2e9f532ba20486a68" }
-oxvba-com = { package = "calcvba-com", git = "https://github.com/DnaCalc/CalcVBA.git", rev = "4640a31786e61554dbcb52c2e9f532ba20486a68" }
-oxvba-runtime = { package = "calcvba-runtime", git = "https://github.com/DnaCalc/CalcVBA.git", rev = "4640a31786e61554dbcb52c2e9f532ba20486a68" }
-oxvba-office = { package = "calcvba-office", git = "https://github.com/DnaCalc/CalcVBA.git", rev = "4640a31786e61554dbcb52c2e9f532ba20486a68", default-features = false }
-calcvba-host-api = { git = "https://github.com/DnaCalc/CalcVBA.git", rev = "4640a31786e61554dbcb52c2e9f532ba20486a68" }
+oxvba-oxir = { package = "calcvba-oxir", git = "https://github.com/DnaCalc/CalcVBA.git", rev = "e42bf5bb71acc242b4f79b315a9def5defed3692" }
+oxvba-eval = { package = "calcvba-eval", git = "https://github.com/DnaCalc/CalcVBA.git", rev = "e42bf5bb71acc242b4f79b315a9def5defed3692" }
+oxvba-bundle = { package = "calcvba-bundle", git = "https://github.com/DnaCalc/CalcVBA.git", rev = "e42bf5bb71acc242b4f79b315a9def5defed3692" }
+oxvba-symbol = { package = "calcvba-symbol", git = "https://github.com/DnaCalc/CalcVBA.git", rev = "e42bf5bb71acc242b4f79b315a9def5defed3692" }
+oxvba-syntax = { package = "calcvba-syntax", git = "https://github.com/DnaCalc/CalcVBA.git", rev = "e42bf5bb71acc242b4f79b315a9def5defed3692" }
+oxvba-hal = { package = "calcvba-hal", git = "https://github.com/DnaCalc/CalcVBA.git", rev = "e42bf5bb71acc242b4f79b315a9def5defed3692" }
+oxvba-com = { package = "calcvba-com", git = "https://github.com/DnaCalc/CalcVBA.git", rev = "e42bf5bb71acc242b4f79b315a9def5defed3692" }
+oxvba-runtime = { package = "calcvba-runtime", git = "https://github.com/DnaCalc/CalcVBA.git", rev = "e42bf5bb71acc242b4f79b315a9def5defed3692" }
+oxvba-office = { package = "calcvba-office", git = "https://github.com/DnaCalc/CalcVBA.git", rev = "e42bf5bb71acc242b4f79b315a9def5defed3692", default-features = false }
+calcvba-host-api = { git = "https://github.com/DnaCalc/CalcVBA.git", rev = "e42bf5bb71acc242b4f79b315a9def5defed3692" }
+calcvba-lib = { git = "https://github.com/DnaCalc/CalcVBA.git", rev = "e42bf5bb71acc242b4f79b315a9def5defed3692" }
 calc-fml = { path = "../calc-fml" }
 calc-func = { path = "../calc-func" }
 # Reviewed embedding contract UDF_EMBEDDING_V1. Native selects JIT at admission.
-oxvba-embed = { package = "calcvba-host", git = "https://github.com/DnaCalc/CalcVBA.git", rev = "4640a31786e61554dbcb52c2e9f532ba20486a68", default-features = false }
+oxvba-embed = { package = "calcvba-host", git = "https://github.com/DnaCalc/CalcVBA.git", rev = "e42bf5bb71acc242b4f79b315a9def5defed3692", default-features = false }
 
 [target.'cfg(not(target_arch = "wasm32"))'.dependencies]
-oxvba-embed = { package = "calcvba-host", git = "https://github.com/DnaCalc/CalcVBA.git", rev = "4640a31786e61554dbcb52c2e9f532ba20486a68", default-features = false, features = ["jit"] }
+oxvba-embed = { package = "calcvba-host", git = "https://github.com/DnaCalc/CalcVBA.git", rev = "e42bf5bb71acc242b4f79b315a9def5defed3692", default-features = false, features = ["jit"] }
 
 [target.'cfg(target_arch = "wasm32")'.dev-dependencies]
 wasm-bindgen-test = "=0.3.67"

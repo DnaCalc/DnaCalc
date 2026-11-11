@@ -369,7 +369,7 @@ impl Module {
             ))
         });
         let engine = if let Some(host) = &spreadsheet {
-            engine.with_host(host.clone())
+            engine.with_host(crate::policy::wrap(host.clone()))
         } else {
             engine
         };
@@ -382,6 +382,9 @@ impl Module {
             com: references.com,
             late,
         })
+    }
+    pub fn predicted_capabilities(&self) -> calcvba_lib::Prediction {
+        self.engine.predicted_capabilities()
     }
     pub fn functions(&self) -> impl ExactSizeIterator<Item = &Function> {
         self.functions.iter().map(|(function, _)| function)
