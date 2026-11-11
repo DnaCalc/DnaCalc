@@ -1,0 +1,7 @@
+{"utc":"2026-11-11T01:53:08.6941972Z","operation":"RegisterXLL managed","value":true}
+{"utc":"2026-11-11T01:53:08.9026496Z","operation":"calculation mode =COM_PIA_VALUE2()","value":{"actual":-4105,"requested":-4105}}
+{"utc":"2026-11-11T01:53:08.9470534Z","operation":"=COM_PIA_VALUE2()","value":"Value2=array2"}
+{"utc":"2026-11-11T01:53:08.9551753Z","operation":"AutomationSecurity unchanged before teardown","value":true}
+{"utc":"2026-11-11T01:53:09.0383349Z","operation":"ExecuteExcel4Macro UNREGISTER(managed)","value":true}
+{"utc":"2026-11-11T01:53:09.0413822Z","operation":"AutomationSecurity unchanged","value":true}
+{"utc":"2026-11-11T01:53:09.9277065Z","operation":"cleanup","value":"Workbook closed; Excel returned to lane session host"}

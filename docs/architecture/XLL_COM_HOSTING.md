@@ -1346,7 +1346,12 @@ callers and the Index argument are refused. No `Value`, `Value2`, `Cells`, `Item
 typed refusals (ONECALC_ADDINS.md lines 51, 122, 156; the answer's command and `Range.Value2`
 suggestions are not implemented). The three calcvba-udf page failures pass: page acceptance 353 of
 353 (350 before), the 20 calcvba-udf cases 20 of 20, x13 65/68, x13-open 1/1, x14 128/145, x15
-19/21, x17 28/28 and the framework host route 333/333 unchanged. QueueAsMacro's transport
+19/21, x17 28/28 and the framework host route 333/333 unchanged. A real Excel-DNA client
+(`fixture/X19Com.csproj`) through the primary interop assembly (early-bound vtable) and through
+`dynamic` gets Excel's strings byte for byte (Version, Caller shape, Range metadata, Union, error
+1004 for another sheet); the PIA run found that `Caller` and `Union` take an `[lcid]` before the
+return value (the first host build crashed in `get_Caller`), and `Range.Value2` answers
+DISP_E_MEMBERNOTFOUND where Excel returns an array. QueueAsMacro's transport
 (`Application.Run` of `SyncMacro_<guid>`, returning R8 0) is the existing one and was not changed:
 OneCalc offers no commands (line 51), so an edit-aware command entry and `PermissionWrites`
 belong to DNA Calc (dc-6332.13).

@@ -1,0 +1,9 @@
+{"utc":"2026-11-11T01:51:00.8761028Z","operation":"RegisterXLL managed","value":true}
+{"utc":"2026-11-11T01:51:01.4027854Z","operation":"calculation mode =COM_PIA()","value":{"actual":-4105,"requested":-4105}}
+{"utc":"2026-11-11T01:51:01.5367733Z","operation":"=COM_PIA()","value":"acquire=Boolean:True;Version=String:16.0;CallerAddress=String:single-cell;CallerRowMatchesAddress=Boolean:True;CallerCount=Int32:1;RangeAddress=String:$A$1:$B$2;RangeCount=Int32:4;RowsCount=Int32:2;ColumnsCount=Int32:2;BoundingAddress=String:$B$2:$D$5;UnionAddress=String:$A$1:$A$2,$C$3;UnionCount=Int32:3;BadSheet=HRESULT:800A03EC"}
+{"utc":"2026-11-11T01:51:01.5426733Z","operation":"calculation mode =COM_DYNAMIC()","value":{"actual":-4105,"requested":-4105}}
+{"utc":"2026-11-11T01:51:01.9152990Z","operation":"=COM_DYNAMIC()","value":"acquire=Boolean:True;Version=String:16.0;CallerAddress=String:single-cell;CallerRowMatchesAddress=Boolean:True;CallerCount=Int32:1;RangeAddress=String:$A$1:$B$2;RangeCount=Int32:4;RowsCount=Int32:2;ColumnsCount=Int32:2;BoundingAddress=String:$B$2:$D$5;UnionAddress=String:$A$1:$A$2,$C$3;UnionCount=Int32:3;BadSheet=HRESULT:800A03EC"}
+{"utc":"2026-11-11T01:51:01.9289269Z","operation":"AutomationSecurity unchanged before teardown","value":true}
+{"utc":"2026-11-11T01:51:02.0910422Z","operation":"ExecuteExcel4Macro UNREGISTER(managed)","value":true}
+{"utc":"2026-11-11T01:51:02.0972445Z","operation":"AutomationSecurity unchanged","value":true}
+{"utc":"2026-11-11T01:51:03.1518535Z","operation":"cleanup","value":"Workbook closed; Excel returned to lane session host"}

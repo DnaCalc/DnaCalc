@@ -668,10 +668,13 @@ HRESULT WINAPI early_range(Object* object,VARIANT cell1,VARIANT cell2,IDispatch*
     HRESULT hr=valid(object); if(FAILED(hr)) return hr;
     hr=application_range(object,&params,&result,&error);
     SysFreeString(error.bstrSource); SysFreeString(error.bstrDescription);
+    // An early-bound call has no EXCEPINFO: Excel returns the error's own HRESULT (0x800A03EC).
+    if(hr==DISP_E_EXCEPTION && error.scode) hr=error.scode;
     if(SUCCEEDED(hr) && result.vt==VT_DISPATCH) *out=result.pdispVal;
     return hr;
 }
-HRESULT WINAPI early_caller(Object* object,VARIANT index,VARIANT* out) {
+// Caller and Union carry an [lcid] parameter before the return value (Excel's type library).
+HRESULT WINAPI early_caller(Object* object,VARIANT index,LONG,VARIANT* out) {
     if(!out) return E_POINTER;
     VariantInit(out);
     VARIANT args[]={index};
@@ -682,7 +685,7 @@ HRESULT WINAPI early_caller(Object* object,VARIANT index,VARIANT* out) {
 HRESULT WINAPI early_union(Object* object,IDispatch* a1,IDispatch* a2,
     VARIANT a3,VARIANT a4,VARIANT a5,VARIANT a6,VARIANT a7,VARIANT a8,VARIANT a9,VARIANT a10,
     VARIANT a11,VARIANT a12,VARIANT a13,VARIANT a14,VARIANT a15,VARIANT a16,VARIANT a17,VARIANT a18,VARIANT a19,VARIANT a20,
-    VARIANT a21,VARIANT a22,VARIANT a23,VARIANT a24,VARIANT a25,VARIANT a26,VARIANT a27,VARIANT a28,VARIANT a29,VARIANT a30,IDispatch** out) {
+    VARIANT a21,VARIANT a22,VARIANT a23,VARIANT a24,VARIANT a25,VARIANT a26,VARIANT a27,VARIANT a28,VARIANT a29,VARIANT a30,LONG,IDispatch** out) {
     if(!out) return E_POINTER;
     *out=nullptr;
     VARIANT first{},second{};
@@ -1024,12 +1027,28 @@ extern "C" HRESULT dna_com_test_ranges() noexcept {
         early.vt=VT_DISPATCH; early.pdispVal=made;
         if(SUCCEEDED(hr) && (!made || !address_is(early,L"$B$2:$C$3"))) hr=E_UNEXPECTED;
         VariantClear(&early);
+        auto elsewhere=text(L"Elsewhere!A1"); IDispatch* none=nullptr;
+        if(SUCCEEDED(hr) && range(app,elsewhere,missing,&none)!=static_cast<HRESULT>(0x800A03ECu)) hr=E_UNEXPECTED;
+        VariantClear(&elsewhere);
     }
     if(SUCCEEDED(hr)) {
-        auto early_caller_entry=reinterpret_cast<HRESULT(WINAPI*)(Object*,VARIANT,VARIANT*)>(app->vtable[74]);
+        auto early_caller_entry=reinterpret_cast<HRESULT(WINAPI*)(Object*,VARIANT,LONG,VARIANT*)>(app->vtable[74]);
         VARIANT missing{}; missing.vt=VT_ERROR; missing.scode=DISP_E_PARAMNOTFOUND;
-        hr=early_caller_entry(app,missing,&early);
+        hr=early_caller_entry(app,missing,0x409,&early);
         if(SUCCEEDED(hr) && !address_is(early,L"$C$2")) hr=E_UNEXPECTED;
+        VariantClear(&early);
+    }
+    if(SUCCEEDED(hr)) {
+        // Slot 50: Union(Arg1, Arg2, Arg3..Arg30, lcid, RHS), the lcid before the return value.
+        auto early_union_entry=reinterpret_cast<decltype(&early_union)>(app->vtable[50]);
+        VARIANT missing{}; missing.vt=VT_ERROR; missing.scode=DISP_E_PARAMNOTFOUND;
+        IDispatch* made=nullptr;
+        hr=early_union_entry(app,object_of(two)?reinterpret_cast<IDispatch*>(object_of(two)):nullptr,reinterpret_cast<IDispatch*>(object_of(cell)),
+            missing,missing,missing,missing,missing,missing,missing,missing,missing,missing,
+            missing,missing,missing,missing,missing,missing,missing,missing,missing,missing,
+            missing,missing,missing,missing,missing,missing,missing,missing,0x409,&made);
+        early.vt=VT_DISPATCH; early.pdispVal=made;
+        if(SUCCEEDED(hr) && (!made || !address_is(early,L"$A$1:$A$2,$C$3"))) hr=E_UNEXPECTED;
         VariantClear(&early);
     }
     VariantClear(&block); VariantClear(&cell); VariantClear(&rows); VariantClear(&columns); VariantClear(&pair);

@@ -1,0 +1,16 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <TargetFramework>net48</TargetFramework>
+    <EnableDefaultCompileItems>false</EnableDefaultCompileItems>
+    <UseWindowsForms>true</UseWindowsForms>
+    <ExcelDnaCreate32BitAddIn>false</ExcelDnaCreate32BitAddIn>
+    <ExcelDnaCreate64BitAddIn>true</ExcelDnaCreate64BitAddIn>
+    <ExcelDnaPackExcelDnaConfig>false</ExcelDnaPackExcelDnaConfig>
+  </PropertyGroup>
+  <ItemGroup>
+    <Compile Include="ComProbe.cs" />
+    <Reference Include="Microsoft.CSharp" />
+    <PackageReference Include="ExcelDna.AddIn" Version="1.9.0" />
+    <PackageReference Include="ExcelDna.Interop" Version="15.0.1" />
+  </ItemGroup>
+</Project>

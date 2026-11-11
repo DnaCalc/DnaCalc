@@ -1,0 +1,14 @@
+{
+  "desktop": "DnaCalcRtd2C19",
+  "session_root": "C:\\Work\\DnaCalc\\codex-runs\\rtd2\\x19b\\session",
+  "exit": 0,
+  "guard_samples": 1180,
+  "owned_pids": [
+    55324
+  ],
+  "windows_on_user_desktop": 0,
+  "visible_on_user_desktop": 0,
+  "foreground_hits": 0,
+  "findings": [],
+  "finished_utc": "2026-11-11T01:52:02.9876535Z"
+}

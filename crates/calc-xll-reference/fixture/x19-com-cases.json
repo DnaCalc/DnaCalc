@@ -1,0 +1,10 @@
+[
+ {
+  "formula": "=COM_PIA()",
+  "value": "acquire=Boolean:True;Version=String:16.0;CallerAddress=String:single-cell;CallerRowMatchesAddress=Boolean:True;CallerCount=Int32:1;RangeAddress=String:$A$1:$B$2;RangeCount=Int32:4;RowsCount=Int32:2;ColumnsCount=Int32:2;BoundingAddress=String:$B$2:$D$5;UnionAddress=String:$A$1:$A$2,$C$3;UnionCount=Int32:3;BadSheet=HRESULT:800A03EC"
+ },
+ {
+  "formula": "=COM_DYNAMIC()",
+  "value": "acquire=Boolean:True;Version=String:16.0;CallerAddress=String:single-cell;CallerRowMatchesAddress=Boolean:True;CallerCount=Int32:1;RangeAddress=String:$A$1:$B$2;RangeCount=Int32:4;RowsCount=Int32:2;ColumnsCount=Int32:2;BoundingAddress=String:$B$2:$D$5;UnionAddress=String:$A$1:$A$2,$C$3;UnionCount=Int32:3;BadSheet=HRESULT:800A03EC"
+ }
+]

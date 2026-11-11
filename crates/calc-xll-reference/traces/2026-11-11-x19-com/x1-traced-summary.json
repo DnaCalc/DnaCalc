@@ -1,0 +1,218 @@
+{
+  "status": "verified X1 fixture boundary",
+  "formula_cases": 289,
+  "formula_matches_each_host": 289,
+  "counts": {
+    "value_cases": {
+      "pass": 289,
+      "mismatched": 0,
+      "refused": 0,
+      "missing": 0,
+      "total": 289,
+      "fail": 0,
+      "pass_rate": 1.0
+    },
+    "ordered_boundary_cases": {
+      "pass": 599,
+      "mismatched": 0,
+      "refused": 0,
+      "missing": 0,
+      "total": 599,
+      "fail": 0,
+      "pass_rate": 1.0
+    },
+    "lifecycle_ownership_cases": {
+      "pass": 149,
+      "mismatched": 0,
+      "refused": 0,
+      "missing": 0,
+      "total": 149,
+      "fail": 0,
+      "pass_rate": 1.0
+    },
+    "framework_feature_lanes": {
+      "pass": 0,
+      "mismatched": 0,
+      "refused": 0,
+      "missing": 0,
+      "total": 0,
+      "fail": 0,
+      "pass_rate": null
+    }
+  },
+  "manifest": {
+    "excel_build": "16.0.20527.20150",
+    "bitness": 64,
+    "locale": "en-ZA",
+    "calculation_modes": [],
+    "mtr": {
+      "enabled": true,
+      "threads": 16
+    },
+    "trigger": "Formula2 entry into one cell, automatic recalculation",
+    "addin_files": null,
+    "workbook": "Book2",
+    "load_order": [
+      "RegisterXLL X1"
+    ],
+    "excel_mode": "debugger boundary trace",
+    "host_executables": [
+      "DB9C0B4F3AEF13B5ABFCAB1D8467E0713C5910F3677D36CD4D7D43F7EB65AE1F"
+    ],
+    "host_process_identity": [],
+    "repository_commits": [
+      "ecd1d6104d77758d6dd4471e1eb534d0d311858f"
+    ]
+  },
+  "xlfree_operands_after_compared": 148,
+  "callback_contexts_compared": 599,
+  "source_revision": "ecd1d6104d77758d6dd4471e1eb534d0d311858f",
+  "ordered_callback_sequence_matches": true,
+  "trace_sha256": {
+    "excel": "E4FD824627B2AFE86213A3CC36CF8774189AADB4C9486B6FEC62EEB44DFC3CAF",
+    "dna_calc": "13C8F0C276C87AA77E5464DB6917E91EF0A353C0C2B4315594E8709072E4465E"
+  },
+  "excel_file_version": "16.0.20527.20150",
+  "host_file_version": "16.0.0.1",
+  "same_fixture_sha256": "A7194D47CD9226356040BCA0D85FCDE1F2116FDB9DBC24DEEDEFAB4993575F99",
+  "excel_trace_records": 2203,
+  "host_trace_records": 2164,
+  "c_api_calls_each_host": 599,
+  "callback_return_codes": [
+    {
+      "function": 4,
+      "return_code": 0,
+      "calls_each_host": 1
+    },
+    {
+      "function": 88,
+      "return_code": 0,
+      "calls_each_host": 48
+    },
+    {
+      "function": 89,
+      "return_code": 0,
+      "calls_each_host": 1
+    },
+    {
+      "function": 89,
+      "return_code": 32,
+      "calls_each_host": 1
+    },
+    {
+      "function": 149,
+      "return_code": 0,
+      "calls_each_host": 48
+    },
+    {
+      "function": 150,
+      "return_code": 0,
+      "calls_each_host": 214
+    },
+    {
+      "function": 150,
+      "return_code": 2,
+      "calls_each_host": 1
+    },
+    {
+      "function": 150,
+      "return_code": 4,
+      "calls_each_host": 1
+    },
+    {
+      "function": 186,
+      "return_code": 0,
+      "calls_each_host": 1
+    },
+    {
+      "function": 201,
+      "return_code": 0,
+      "calls_each_host": 51
+    },
+    {
+      "function": 267,
+      "return_code": 0,
+      "calls_each_host": 75
+    },
+    {
+      "function": 267,
+      "return_code": 2,
+      "calls_each_host": 1
+    },
+    {
+      "function": 267,
+      "return_code": 4,
+      "calls_each_host": 3
+    },
+    {
+      "function": 16384,
+      "return_code": 0,
+      "calls_each_host": 147
+    },
+    {
+      "function": 16384,
+      "return_code": 32,
+      "calls_each_host": 1
+    },
+    {
+      "function": 16385,
+      "return_code": 32,
+      "calls_each_host": 1
+    },
+    {
+      "function": 16386,
+      "return_code": 0,
+      "calls_each_host": 1
+    },
+    {
+      "function": 16393,
+      "return_code": 0,
+      "calls_each_host": 1
+    },
+    {
+      "function": 16393,
+      "return_code": 32,
+      "calls_each_host": 1
+    },
+    {
+      "function": 16400,
+      "return_code": 0,
+      "calls_each_host": 1
+    }
+  ],
+  "ownership_excel_and_host": [
+    {
+      "returns": 1,
+      "frees": 1,
+      "same_pointer_and_thread": true
+    },
+    {
+      "returns": 1,
+      "frees": 1,
+      "same_pointer_and_thread": true
+    }
+  ],
+  "registration_time_address_lookup": true,
+  "controls_match": true,
+  "timing": "debugger timing; no uninstrumented scheduling or latency claim",
+  "scope": "OneCalc controller in a minimal native executable; no Excel-DNA, COM object model or worker scheduling claim",
+  "async_result_operand": "Excel direct callback leaves type zero; DNA Calc supplies the documented Boolean. Callback codes and published values match; this raw output difference remains recorded.",
+  "excel_session_ownership": {
+    "C:\\Work\\DnaCalc\\codex-runs\\rtd2\\x1p\\excel-traced": {
+      "pid": 19296,
+      "start_ticks": 639299580896246154,
+      "launch": 1,
+      "job": "20261111T0141293387448-f28699fe605c4ed7ba5fd664418b83d2",
+      "host_script_sha256": "CA04E1F2ED8CA422721AA3407D28E4A8B49681802F825FECA938248B163C0673",
+      "scope": "Exact successful fresh-job receipt, launch tuple, pre-activation inventory, retained host/runner sources, security baseline and capture interval checked; raw environment remains unchanged."
+    },
+    "C:\\Work\\DnaCalc\\codex-runs\\rtd2\\x1p\\excel-control": {
+      "pid": 19296,
+      "start_ticks": 639299580896246154,
+      "launch": 1,
+      "job": "20261111T0141576480692-98e548d90a2f427bb6954a30d55f00d5",
+      "host_script_sha256": "CA04E1F2ED8CA422721AA3407D28E4A8B49681802F825FECA938248B163C0673",
+      "scope": "Exact successful fresh-job receipt, launch tuple, pre-activation inventory, retained host/runner sources, security baseline and capture interval checked; raw environment remains unchanged."
+    }
+  }
+}

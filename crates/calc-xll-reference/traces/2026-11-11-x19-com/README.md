@@ -37,3 +37,31 @@ Not done, on purpose: `Range.Value`, `Value2`, `Cells`, `Item`, `Areas`, `Applic
 `ActiveCell`, commands and `Range.Value2` writes (the answer's suggestions conflict with
 ONECALC_ADDINS.md lines 51, 122 and 156); CSE, spill and name callers for `Caller`; the no-Office
 and second-apartment lanes (N5).
+
+## Real early-bound and late-bound clients (D.15's PIA and dispatch routes)
+
+`fixture/X19Com.csproj` + `ComProbe.cs` (Excel-DNA 1.9.0 net48, ExcelDna.Interop 15.0.1):
+`COM_PIA()` reaches the object model through the primary interop assembly (the early-bound
+`_Application` and `Range` vtables), `COM_DYNAMIC()` through `dynamic` (IDispatch); each returns
+one string with the observations in order: Version, Application.Caller (shape of its Address, Row
+agrees with it, Count), `Range("A1:B2")` Address/Count/Rows.Count/Columns.Count,
+`Range("D5","B2")`, `Union` Address and Count, and a range on another sheet. `COM_PIA_VALUE2()`
+reads `Range.Value2` (recorded only). Cases `fixture/x19-com-cases.json` (values are Excel's),
+`x19-com-value2-cases.json`. Excel twice (`com-clients/excel`, `excel-repeat`): identical; the
+host (`com-clients/host/host.stdout.json`): both strings equal Excel's, byte for byte, through
+the PIA and through dispatch, including `BadSheet=HRESULT:800A03EC` (error 1004) in both.
+
+The first host run of the PIA route crashed the process in `_Application.get_Caller`
+(AccessViolation): `Caller` and `Union` have an `[lcid]` parameter before the return value in
+Excel's type library, which the early-bound slots did not take (the C++ test had called them with
+the same wrong shape). Corrected from the type library's parameter flags; the test now calls
+slots 40, 50 and 74 with the lcid, and an early-bound bad address returns 0x800A03EC as Excel's
+vtable does (there is no EXCEPINFO on that route). `Range.Value2` through the PIA: Excel returns a
+2-D array (`excel-value2`); the host answers DISP_E_MEMBERNOTFOUND (`host/value2.stderr`), the
+typed refusal the owner's ruling prescribes.
+
+Also at this commit, on a clean tree against Excel captures of the same revision: the X1 traced
+pair 289 of 289 formulas, 599 ordered callbacks with the same contexts, 148 xlFree operands
+(`x1-traced-summary.json`); x13 65 of 68, x13-open 1 of 1, x14 128 of 145, x15 19 of 21, x17 28
+of 28 (ordered engine run), framework host route 333 of 333, all as before.
+
