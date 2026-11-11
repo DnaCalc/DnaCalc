@@ -1,0 +1,6 @@
+{
+ "format": "dnacalc-vba-policy-approvals",
+ "version": 1,
+ "note": "Every corpus project runs under CalcVBA's Safe policy unless listed here. An approval names the project id and its module sha256 list (as in its project.json) and records the review of its triage that allows unguarded (Full) execution. No project is approved.",
+ "approvals": []
+}

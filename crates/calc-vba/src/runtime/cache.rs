@@ -101,7 +101,7 @@ fn split_module(module: Module) -> SplitModule {
         ))
     });
     let engine = if let Some(host) = &spreadsheet {
-        module.engine.with_host(host.clone())
+        module.engine.with_host(crate::policy::wrap(host.clone()))
     } else {
         module.engine
     };

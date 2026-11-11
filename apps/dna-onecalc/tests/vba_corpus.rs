@@ -13,12 +13,23 @@
 //! caught. `DNACALC_VBA_CORPUS_REPORT=<file>` writes the per-case report (JSON);
 //! `DNACALC_VBA_CORPUS_UPDATE=1` rewrites the baseline from this run.
 //!
+//! Capability policy (dc-10un): every project loads and runs under CalcVBA's capability policy,
+//! `Safe` unless `corpus/policy-approvals.json` approves that exact project (its id and module
+//! hashes) for `Full` after review of its triage. Under `Safe` a host-reaching operation (files,
+//! processes, environment, settings, `Declare`, COM activation, `SendKeys`) raises a VBA error
+//! instead of running, and the audit log is drained per case: a case with any denied request is
+//! classed `refused (policy: <capability>)` and counts as refused, never as matched or
+//! mismatched. Each project also gets a predicted set P (CalcVBA triage, from bound OxIR for the
+//! module route, lexical for the others) and the observed set O (what the audit log saw,
+//! allowed or denied); `O minus P` must be empty, `P minus O` is unconfirmed, not wrong.
+//!
 //! Native-only: reads the corpus files from the checkout and uses a large stack.
 #![cfg(not(target_arch = "wasm32"))]
 
 use std::collections::BTreeMap;
 use std::path::{Path, PathBuf};
 
+use calc_vba::policy::{self, Capability, CapabilitySet, PolicyMode, Prediction};
 use dna_onecalc::{Session, display};
 use serde_json::{Value, json};
 
@@ -57,8 +68,50 @@ struct Outcome {
     matched: u32,
     mismatched: u32,
     refused: u32,
+    /// Of `refused`: cases with a denied policy request (a subset, not an extra class).
+    policy_denied: u32,
     missing: u32,
     details: Vec<Value>,
+    mode: PolicyMode,
+    predicted: CapabilitySet,
+    predicted_source: &'static str,
+    observed: CapabilitySet,
+    /// Cases run after the first denial: module state a denial left can change them.
+    after_first_denial: u32,
+}
+
+/// The policy approvals: a project runs `Full` only when its id and module hashes are listed.
+fn approved_full(id: &str, manifest: &Value) -> bool {
+    let path = corpus_dir().join("policy-approvals.json");
+    let Ok(text) = std::fs::read_to_string(&path) else {
+        return false;
+    };
+    let approvals: Value = serde_json::from_str(&text).unwrap();
+    let hashes: Vec<&str> = manifest["modules"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .map(|m| m["sha256"].as_str().unwrap_or(""))
+        .collect();
+    approvals["approvals"].as_array().is_some_and(|list| {
+        list.iter().any(|a| {
+            a["policy"] == "full"
+                && a["project"] == id
+                && a["module_sha256"].as_array().is_some_and(|h| {
+                    h.iter()
+                        .map(|v| v.as_str().unwrap_or(""))
+                        .eq(hashes.iter().copied())
+                })
+        })
+    })
+}
+
+fn capability_set(prediction: &Prediction) -> CapabilitySet {
+    CapabilitySet::of(&prediction.capabilities.iter().copied().collect::<Vec<_>>())
+}
+
+fn names(set: CapabilitySet) -> Vec<&'static str> {
+    set.iter().map(Capability::name).collect()
 }
 
 fn first_line(text: &str) -> String {
@@ -92,6 +145,37 @@ fn route_name(route: Route) -> &'static str {
 fn run_project(dir: &Path, route: Route) -> Option<Outcome> {
     let manifest: Value =
         serde_json::from_str(&std::fs::read_to_string(dir.join("project.json")).unwrap()).unwrap();
+    let id = dir.file_name().unwrap().to_string_lossy().into_owned();
+    let mode = if approved_full(&id, &manifest) {
+        PolicyMode::Full
+    } else {
+        PolicyMode::Safe
+    };
+    policy::set_thread_policy(Some(mode));
+    let sources: Vec<String> = manifest["modules"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .map(|m| read_source(&dir.join(m["path"].as_str().unwrap())))
+        .collect();
+    let (prediction, predicted_source) = match route {
+        Route::Module(_) => {
+            let modules = manifest["modules"].as_array().unwrap();
+            let primary = manifest["primary"].as_str();
+            let index = modules
+                .iter()
+                .position(|m| primary.is_none_or(|p| m["name"] == p))
+                .unwrap();
+            match calc_vba::predict_module(modules[index]["name"].as_str().unwrap(), &sources[index]) {
+                Ok(p) => (p, "bound"),
+                Err(_) => (policy::predict_lexical(&[sources[index].as_str()]), "lexical"),
+            }
+        }
+        _ => (
+            policy::predict_lexical(&sources.iter().map(String::as_str).collect::<Vec<_>>()),
+            "lexical",
+        ),
+    };
     let mut session = Session::new("Sheet1").unwrap();
     session.set_formula_cell("H1").unwrap();
     let loaded = match route {
@@ -163,9 +247,18 @@ fn run_project(dir: &Path, route: Route) -> Option<Outcome> {
         matched: 0,
         mismatched: 0,
         refused: 0,
+        policy_denied: 0,
         missing: 0,
         details: Vec::new(),
+        mode,
+        predicted: capability_set(&prediction),
+        predicted_source,
+        observed: CapabilitySet::EMPTY,
+        after_first_denial: 0,
     };
+    // Whatever the load itself asked the host for (module-level initialisers).
+    let load_audit = policy::drain_audit();
+    out.observed = out.observed.union(load_audit.requested());
     let Some(cases) = manifest["cases"].as_str() else {
         return Some(out);
     };
@@ -185,6 +278,27 @@ fn run_project(dir: &Path, route: Route) -> Option<Outcome> {
         }
         session.set_formula(formula);
         let calculation = session.calculate();
+        let audit = policy::drain_audit();
+        out.observed = out.observed.union(audit.requested());
+        if out.after_first_denial > 0 || audit.denied_any() {
+            out.after_first_denial += 1;
+        }
+        if audit.denied_any() {
+            // Counted by the value the case produced, as the reviewed baseline counts them; the
+            // denial is recorded beside it, because `On Error Resume Next` can swallow a denial
+            // and return an answer that merely equals Excel's.
+            out.policy_denied += 1;
+            let note = 
+                audit
+                    .counts
+                    .iter()
+                    .filter(|c| c.denied > 0)
+                    .map(|c| format!("{}: {}", c.capability.name(), c.detail))
+                    .collect::<Vec<_>>()
+                    .join("; ");
+            out.details
+                .push(json!({"formula": formula, "class": "policy_denied", "denied": note}));
+        }
         let why: Vec<String> = calculation
             .diagnostics
             .iter()
@@ -257,6 +371,7 @@ fn the_vba_corpus_runs_headless_and_its_counts_are_the_reviewed_ones() {
     let mut report = serde_json::Map::new();
     // Figures are per route and backend, never one pooled number (a case is counted once per route).
     let mut by_route: BTreeMap<String, (u32, u32)> = BTreeMap::new();
+    let mut triage_misses: Vec<String> = Vec::new();
     for (id, o) in &all {
         println!(
             "{id:34} load={:5} matched {:3} mismatched {:3} refused {:3} missing {:3}",
@@ -273,9 +388,33 @@ fn the_vba_corpus_runs_headless_and_its_counts_are_the_reviewed_ones() {
             id.clone(),
             json!({"route": o.route, "loaded": o.loaded.is_ok(), "matched": o.matched, "mismatched": o.mismatched, "refused": o.refused, "missing": o.missing}),
         );
+        let missed = o.observed.difference(o.predicted);
+        let unconfirmed = o.predicted.difference(o.observed);
+        println!(
+            "  policy {:4} P({}) {:?} O {:?} O-P {:?} P-O {:?} policy-denied {} cases-after-first-denial {}",
+            o.mode.name(),
+            o.predicted_source,
+            names(o.predicted),
+            names(o.observed),
+            names(missed),
+            names(unconfirmed),
+            o.policy_denied,
+            o.after_first_denial
+        );
+        triage_misses.extend(missed.iter().map(|c| format!("{id}: {}", c.name())));
         report.insert(
             id.clone(),
-            json!({"load_error": o.loaded.clone().err(), "cases": o.details}),
+            json!({
+                "load_error": o.loaded.clone().err(),
+                "policy": o.mode.name(),
+                "predicted": names(o.predicted), "predicted_from": o.predicted_source,
+                "observed": names(o.observed),
+                "observed_minus_predicted": names(missed),
+                "predicted_minus_observed": names(unconfirmed),
+                "policy_denied": o.policy_denied,
+                "cases_after_first_denial": o.after_first_denial,
+                "cases": o.details
+            }),
         );
     }
     for (route, (pass, fail)) in &by_route {
@@ -284,6 +423,10 @@ fn the_vba_corpus_runs_headless_and_its_counts_are_the_reviewed_ones() {
     if let Ok(path) = std::env::var("DNACALC_VBA_CORPUS_REPORT") {
         std::fs::write(path, serde_json::to_string_pretty(&report).unwrap()).unwrap();
     }
+    assert!(
+        triage_misses.is_empty(),
+        "observed capabilities that triage did not predict (each is a triage bug): {triage_misses:?}"
+    );
     let baseline_path = corpus_dir().join("baseline.json");
     let current = Value::Object(counts);
     if std::env::var("DNACALC_VBA_CORPUS_UPDATE").is_ok() {
