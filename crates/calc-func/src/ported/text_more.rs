@@ -4,15 +4,26 @@
 //! array_text_split_family.rs (TEXTSPLIT, ARRAYTOTEXT), with the OxFunc surface layer removed.
 //!
 //! The pattern engine reads literals, `.`, the classes `\d \D \w \W \s \S \h`, bracketed classes
-//! and ranges, the anchors `\A \Z \z \b \B` and the quantifiers `* + ?`. Any other pattern syntax
-//! (groups, alternation, `^`, `$`, counted repeats, other escapes) is a valid PCRE2 pattern that
-//! the engine does not read, and the call is refused as not modelled ([`Unsupported`]).
+//! and ranges, the anchors `^ $ \A \Z \z \b \B` and the quantifiers `* + ?`. Any other pattern
+//! syntax (groups, alternation, counted repeats, POSIX classes, other escapes) is a valid PCRE2
+//! pattern that the engine does not read, and the call is refused as not modelled
+//! ([`PatternError::Unsupported`]). A bracketed class the pattern never closes does not compile
+//! in PCRE2, and the call is `#VALUE!` ([`PatternError::Invalid`]): Excel 16.0.20527 gives
+//! `REGEXTEST("hello","[")`, `REGEXEXTRACT("abc","[")` and `REGEXREPLACE("abc","[","x")` as
+//! `#VALUE!`, and `REGEXTEST("","^$")` as TRUE (the jnt oracle, sheet jnt_text_formats, answered
+//! by the question service with the same formula text).
 
 use crate::value::{ExcelText, WorksheetErrorCode};
 
-/// A pattern the engine does not read: the REGEX call is refused as not modelled.
+/// Why a pattern gives no matches.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub(crate) struct Unsupported;
+pub(crate) enum PatternError {
+    /// A pattern the engine does not read: the REGEX call is refused as not modelled.
+    Unsupported,
+    /// A pattern PCRE2 does not compile (an unclosed bracketed class): the call is `#VALUE!`.
+    Invalid,
+}
+use PatternError::{Invalid, Unsupported};
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 enum RegexAtom {
@@ -27,6 +38,9 @@ enum RegexAtom {
     HorizontalSpace,
     StartOfText,
     EndOfText,
+    /// `$`: the end of the text, or before a newline that ends it (PCRE2 without multiline). A
+    /// text with a line break is refused before matching, so here it is the end of the text.
+    EndOfLine,
     WordBoundary,
     NotWordBoundary,
     Class(RegexClass),
@@ -147,7 +161,7 @@ fn is_word_boundary(chars: &[char], position: usize) -> bool {
 fn zero_width_atom_matches(atom: &RegexAtom, chars: &[char], position: usize) -> Option<bool> {
     Some(match atom {
         RegexAtom::StartOfText => position == 0,
-        RegexAtom::EndOfText => position == chars.len(),
+        RegexAtom::EndOfText | RegexAtom::EndOfLine => position == chars.len(),
         RegexAtom::WordBoundary => is_word_boundary(chars, position),
         RegexAtom::NotWordBoundary => !is_word_boundary(chars, position),
         _ => return None,
@@ -159,6 +173,7 @@ fn atom_consumes_input(atom: &RegexAtom) -> bool {
         atom,
         RegexAtom::StartOfText
             | RegexAtom::EndOfText
+            | RegexAtom::EndOfLine
             | RegexAtom::WordBoundary
             | RegexAtom::NotWordBoundary
     )
@@ -184,6 +199,7 @@ fn consuming_atom_matches(atom: &RegexAtom, ch: char, case_sensitive: bool) -> b
         }
         RegexAtom::StartOfText
         | RegexAtom::EndOfText
+        | RegexAtom::EndOfLine
         | RegexAtom::WordBoundary
         | RegexAtom::NotWordBoundary => false,
     }
@@ -312,7 +328,7 @@ fn escaped_literal_char(ch: char) -> Option<char> {
     })
 }
 
-fn parse_escape_atom(chars: &[char], index: &mut usize) -> Result<RegexAtom, Unsupported> {
+fn parse_escape_atom(chars: &[char], index: &mut usize) -> Result<RegexAtom, PatternError> {
     let Some(ch) = chars.get(*index).copied() else {
         return Err(Unsupported);
     };
@@ -340,7 +356,7 @@ fn parse_escape_atom(chars: &[char], index: &mut usize) -> Result<RegexAtom, Uns
     })
 }
 
-fn parse_class_piece(chars: &[char], index: &mut usize) -> Result<RegexClassPiece, Unsupported> {
+fn parse_class_piece(chars: &[char], index: &mut usize) -> Result<RegexClassPiece, PatternError> {
     let Some(ch) = chars.get(*index).copied() else {
         return Err(Unsupported);
     };
@@ -371,7 +387,7 @@ fn parse_class_piece(chars: &[char], index: &mut usize) -> Result<RegexClassPiec
     Ok(RegexClassPiece::Literal(ch))
 }
 
-fn parse_char_class(chars: &[char], index: &mut usize) -> Result<RegexAtom, Unsupported> {
+fn parse_char_class(chars: &[char], index: &mut usize) -> Result<RegexAtom, PatternError> {
     let mut negated = false;
     if matches!(chars.get(*index), Some('^')) {
         negated = true;
@@ -383,10 +399,20 @@ fn parse_char_class(chars: &[char], index: &mut usize) -> Result<RegexAtom, Unsu
         if ch == ']' {
             break;
         }
+        // `[:alpha:]`, `[.a.]` and `[=a=]` inside a class are POSIX forms the engine does not
+        // read, not literal characters.
+        if ch == '[' && matches!(chars.get(*index + 1), Some(':' | '.' | '=')) {
+            return Err(Unsupported);
+        }
         pieces.push(parse_class_piece(chars, index)?);
     }
 
-    if !matches!(chars.get(*index), Some(']')) || pieces.is_empty() {
+    if *index >= chars.len() {
+        // The pattern ends inside the class: PCRE2 does not compile it.
+        return Err(Invalid);
+    }
+    if pieces.is_empty() {
+        // A `]` first in a class is a literal there, which the engine does not read.
         return Err(Unsupported);
     }
     *index += 1;
@@ -423,7 +449,7 @@ fn parse_char_class(chars: &[char], index: &mut usize) -> Result<RegexAtom, Unsu
     Ok(RegexAtom::Class(RegexClass { negated, items }))
 }
 
-fn parse_regex_pattern(pattern: &str) -> Result<Vec<RegexToken>, Unsupported> {
+fn parse_regex_pattern(pattern: &str) -> Result<Vec<RegexToken>, PatternError> {
     let chars: Vec<char> = pattern.chars().collect();
     if chars.is_empty() {
         return Err(Unsupported);
@@ -445,7 +471,16 @@ fn parse_regex_pattern(pattern: &str) -> Result<Vec<RegexToken>, Unsupported> {
                 index += 1;
                 parse_char_class(&chars, &mut index)?
             }
-            '*' | '+' | '?' | '(' | ')' | '{' | '}' | '|' | '^' | '$' => {
+            // Without multiline, `^` is the start of the text.
+            '^' => {
+                index += 1;
+                RegexAtom::StartOfText
+            }
+            '$' => {
+                index += 1;
+                RegexAtom::EndOfLine
+            }
+            '*' | '+' | '?' | '(' | ')' | '{' | '}' | '|' => {
                 return Err(Unsupported);
             }
             other => {
@@ -489,9 +524,18 @@ pub(crate) fn regex_matches(
     pattern: &str,
     case_sensitive: bool,
     first_only: bool,
-) -> Result<(Vec<char>, Vec<(usize, usize)>), Unsupported> {
+) -> Result<(Vec<char>, Vec<(usize, usize)>), PatternError> {
     let haystack: Vec<char> = text.chars().collect();
     let tokens = parse_regex_pattern(pattern)?;
+    // Before a final newline `$` also matches, and which characters end a line depends on the
+    // newline convention Excel's PCRE2 was built with, which is not measured.
+    if tokens.iter().any(|token| token.atom == RegexAtom::EndOfLine)
+        && haystack
+            .iter()
+            .any(|&ch| matches!(ch, '\n' | '\r' | '\u{000b}' | '\u{000c}' | '\u{0085}' | '\u{2028}' | '\u{2029}'))
+    {
+        return Err(Unsupported);
+    }
     // The fn3 readings admit Unicode range closure through the same simple fold as
     // literals. A range beyond the bounded table remains a typed refusal.
     if !case_sensitive
@@ -824,7 +868,18 @@ mod tests {
         let found: Vec<String> = m.iter().map(|&(s, e)| h[s..e].iter().collect()).collect();
         assert_eq!(found, ["12", "345"]);
         assert_eq!(regex_matches("abc", "(a|b)", true, true), Err(Unsupported));
-        assert_eq!(regex_matches("abc", "^a", true, true), Err(Unsupported));
+        assert_eq!(regex_matches("abc", "^a", true, true).unwrap().1, [(0, 1)]);
+        assert_eq!(regex_matches("bab", "^a", true, true).unwrap().1, []);
+        // Excel 16.0.20527: REGEXTEST("","^$") is TRUE (the jnt oracle, jnt_text_formats).
+        assert_eq!(regex_matches("", "^$", true, true).unwrap().1, [(0, 0)]);
+        assert_eq!(regex_matches("ab", "b$", true, false).unwrap().1, [(1, 2)]);
+        assert_eq!(regex_matches("ab\n", "b$", true, true), Err(Unsupported));
+        // An unclosed class does not compile: #VALUE! (REGEXTEST("hello","[") in Excel).
+        assert_eq!(regex_matches("hello", "[", true, true), Err(Invalid));
+        assert_eq!(regex_matches("hello", "a[bc", true, true), Err(Invalid));
+        assert_eq!(regex_matches("hello", "[^", true, true), Err(Invalid));
+        assert_eq!(regex_matches("a]", "[]a]", true, true), Err(Unsupported));
+        assert_eq!(regex_matches("a", "[[:alpha:]]", true, true), Err(Unsupported));
         assert!(regex_matches("ABC", "b", false, true).unwrap().1.len() == 1);
     }
 
