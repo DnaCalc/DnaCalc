@@ -22,7 +22,7 @@ formula's only call, so no failure comes from another function or from a referen
 
 | Cause | Cells | Functions | State |
 |---|---:|---|---|
-| A. The jnt capture holds an answer to a different formula | 21 | SUM, SUBTOTAL, AGGREGATE, the six D-functions, ROW, COLUMN, XMATCH | open: needs a live read-back of the sheet, listed below |
+| A. The jnt capture holds an answer to a different formula | 21 | SUM, SUBTOTAL, AGGREGATE, the six D-functions, ROW, COLUMN, XMATCH | fixed (d51b17ce): live read-back, see the end of section A |
 | B. REGEX pattern engine: `^`, `$` and an unclosed class | 4 | REGEXTEST, REGEXEXTRACT, REGEXREPLACE | fixed |
 | C. IMTAN/IMCOT kernels off the real axis | 10 | IMTAN, IMCOT | open: research, Excel questions listed below |
 
@@ -31,7 +31,7 @@ text rules. The complex kernels of cause C use the software CRT functions (`crt_
 the x87 primitives, which run as the same instructions on x86_64 Linux and Windows; their
 failures are a different operation graph from Excel's, not a Linux leaf.
 
-## A. The jnt capture holds an answer to a different formula (21 cells, open)
+## A. The jnt capture holds an answer to a different formula (21 cells, fixed)
 
 The jnt rows written by hand from OxFunc unit tests (`tools/excel-service/jnt_hand.py`) were
 answered by the question service, not read back from `oracle.xlsx`.
@@ -85,6 +85,18 @@ AREAS) should take its answer from the live read-back, not the service. The same
 difference sits under rows that pass today and so are not yet evidence of what they claim: 117
 hand rows have an array argument, 49 call a position- or reference-sensitive function and 50
 have a blank-cell argument.
+
+**Fixed (d51b17ce).** The jnt hand rows whose asked formula differs from the row (446 of 925: number literals,
+array constants, omitted or blank arguments, ROW, COLUMN, ADDRESS, CELL, INDIRECT, OFFSET, ISREF, AREAS) were read
+back live in our own Excel 16.0.20527 (`tools/excel-session/jnt-readback-job.ps1`, each formula entered as
+written in its own cell, in the legacy and the dynamic form). Excel cannot open `oracle.xlsx` itself
+(`Workbooks.Open` fails with 0x800A03EC), so the job opens a copy without the formulas it enters. Of the 446, 425
+read back as the service had answered. The 21 cells: the 18 entry rows are refused by Excel in both forms (0x800A03EC),
+`ROW(A57)` is 57, `COLUMN(A58)` is 1, and the XMATCH row is 1 (the 15-digit literal reads as 0.3). The capture holds
+the refusals as `entry_rejected` observations (a version 3 record may now hold one); corpus: 18 cells
+entry_rejected_wrongly to agreed_rejection, 3 mismatched to matched, pass 76,773 to 76,794. The analysis counted
+117 array rows (matches), 49 position or reference rows and 50 blank-argument rows; the importer finds 29 hand rows
+calling a position or reference function, and counts a blank-cell argument (`-`) with the omitted ones.
 
 ## B. REGEX pattern engine (4 cells, fixed)
 
