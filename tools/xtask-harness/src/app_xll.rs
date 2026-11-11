@@ -666,6 +666,13 @@ fn run_session_set(
         .unwrap_or_default();
     let mut results = Vec::new();
     let (mut matched, mut mismatched, mut refused, mut missing, mut repaired) = (0, 0, 0, 0, 0);
+    // Cases that need a workbook are DNA Calc's: reported apart, neither matches nor failures
+    // (see run_set, dc-svqh).
+    let dnacalc_only: Vec<&str> = set["dnacalc_only"]
+        .as_array()
+        .map(|a| a.iter().filter_map(Value::as_str).collect())
+        .unwrap_or_default();
+    let mut dna_only = 0u64;
     for (formula, answer, saved) in &rows {
         let excel = saved.as_ref().and_then(|f| by_file.get(f));
         let theirs = excel.and_then(|r| excel_value(&r["excel"]));
@@ -698,10 +705,16 @@ fn run_session_set(
                 ),
             },
         };
+        let verdict = if dnacalc_only.contains(&formula.as_str()) {
+            "dnacalc_only"
+        } else {
+            verdict
+        };
         match verdict {
             "matched" => matched += 1,
             "mismatched" => mismatched += 1,
             "refused" => refused += 1,
+            "dnacalc_only" => dna_only += 1,
             _ => missing += 1,
         }
         results.push(json!({
@@ -715,7 +728,8 @@ fn run_session_set(
         "cases_file": cases_path.display().to_string(), "excel_record": excel_dir.join("reopen.json").display().to_string(),
         "excel_job_output": status,
         "outcome": {
-            "loaded": true, "opened": opened, "count": rows.len(), "matched": matched, "mismatched": mismatched,
+            "loaded": true, "opened": opened, "count": rows.len() as u64 - dna_only, "dnacalc_only": dna_only,
+            "matched": matched, "mismatched": mismatched,
             "refused": refused, "missing": missing, "repaired": repaired, "saved": files.len(), "results": results,
             "unload": {"unloaded": null}, "reopen": {"loaded_after_right_hash": null},
         },
@@ -774,6 +788,13 @@ fn run_set(
     let cases = read_json(&cases_path)?;
     let cases = cases.as_array().ok_or("cases are an array")?;
     let excel = excel_answers(&excel_path)?;
+    // Cases that need a workbook (a reference, the calling cell) are DNA Calc's, not OneCalc's:
+    // OneCalc hosts functions only and refuses them (dc-svqh). They run and are reported
+    // separately; they are neither matches nor failures.
+    let dnacalc_only: Vec<&str> = set["dnacalc_only"]
+        .as_array()
+        .map(|a| a.iter().filter_map(Value::as_str).collect())
+        .unwrap_or_default();
     let xll_bytes = fs::read(&xll).map_err(|e| format!("{}: {e}", xll.display()))?;
     let xll_hash = calc_verdict::sha256_hex(&xll_bytes);
     let (_app, _driver, session) = start_page(exe, bundle, sheet, name, out, &[])?;
@@ -841,6 +862,7 @@ fn run_set(
         let documented = describe_functions(&session, &listed);
         let mut results = Vec::new();
         let (mut matched, mut mismatched, mut refused, mut missing, mut stale) = (0, 0, 0, 0, 0);
+        let mut dna_only = 0u64;
         for case in cases {
             let formula = case["formula"].as_str().ok_or("a case needs a formula")?;
             let formula_sent = formula.replace("{pid}", "0");
@@ -878,15 +900,22 @@ fn run_set(
                     "Excel gave no answer for this formula".to_owned(),
                 ),
             };
+            let verdict = if dnacalc_only.contains(&formula) {
+                "dnacalc_only"
+            } else {
+                verdict
+            };
             match verdict {
                 "matched" => matched += 1,
                 "mismatched" => mismatched += 1,
                 "refused" => refused += 1,
+                "dnacalc_only" => dna_only += 1,
                 _ => missing += 1,
             }
             // The case file's own expectation against Excel's: a stale file shows here.
             // A case whose recorded value is null asserts nothing (a process-dependent result).
             let case_agrees = match (&mine, &theirs) {
+                _ if verdict == "dnacalc_only" => true,
                 _ if case.get("value").is_some_and(Value::is_null) => true,
                 (Some(a), Some(b)) => a.same(b),
                 _ => true,
@@ -928,7 +957,8 @@ fn run_set(
         Ok(json!({
             "loaded": true, "status": status, "listed": listed, "load_seconds": load_seconds, "reopen": reopen,
             "documented": documented,
-            "count": cases.len(), "matched": matched, "mismatched": mismatched, "refused": refused,
+            "count": cases.len() as u64 - dna_only, "dnacalc_only": dna_only,
+            "matched": matched, "mismatched": mismatched, "refused": refused,
             "missing": missing, "case_values_stale": stale, "unload": unload, "results": results,
         }))
     })();
@@ -993,7 +1023,7 @@ pub fn run(ws: &Workspace, raw: &[String]) -> ExitCode {
             })
             .collect();
         let mut reports = Vec::new();
-        let (mut total, mut matched) = (0u64, 0u64);
+        let (mut total, mut matched, mut dna_only) = (0u64, 0u64, 0u64);
         let mut clean = true;
         for set in sets {
             let run = if set.get("session").is_some() {
@@ -1010,13 +1040,14 @@ pub fn run(ws: &Workspace, raw: &[String]) -> ExitCode {
             let o = &report["outcome"];
             total += o["count"].as_u64().unwrap_or(0);
             matched += o["matched"].as_u64().unwrap_or(0);
+            dna_only += o["dnacalc_only"].as_u64().unwrap_or(0);
             let set_clean = o["loaded"].as_bool() == Some(true)
                 && o["mismatched"].as_u64() == Some(0)
                 && o["refused"].as_u64() == Some(0)
                 && o["missing"].as_u64() == Some(0);
             clean &= set_clean;
             println!(
-                "ONECALC XLL-ACCEPT {}: loaded {} matched {}/{} mismatched {} refused {} missing {} unload {} reopen {}",
+                "ONECALC XLL-ACCEPT {}: loaded {} matched {}/{} mismatched {} refused {} missing {} dnacalc-only {} unload {} reopen {}",
                 report["name"].as_str().unwrap_or("?"),
                 o["loaded"],
                 o["matched"],
@@ -1024,19 +1055,20 @@ pub fn run(ws: &Workspace, raw: &[String]) -> ExitCode {
                 o["mismatched"],
                 o["refused"],
                 o["missing"],
+                o["dnacalc_only"].as_u64().unwrap_or(0),
                 o["unload"]["unloaded"],
                 o["reopen"]["loaded_after_right_hash"],
             );
             reports.push(report);
         }
-        let summary = json!({"sets": reports, "cases": total, "matched": matched});
+        let summary = json!({"sets": reports, "cases": total, "matched": matched, "dnacalc_only": dna_only});
         fs::write(
             out.join("summary.json"),
             serde_json::to_string_pretty(&summary).map_err(|e| e.to_string())?,
         )
         .map_err(|e| e.to_string())?;
         println!(
-            "ONECALC XLL-ACCEPT total: matched {matched} of {total} cases; summary {}",
+            "ONECALC XLL-ACCEPT total: matched {matched} of {total} cases, {dna_only} DNA Calc-only (need a workbook); summary {}",
             out.join("summary.json").display()
         );
         Ok((summary, clean))

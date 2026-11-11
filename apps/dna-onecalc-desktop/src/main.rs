@@ -135,7 +135,7 @@ fn run() -> Result<(), String> {
         sheets: &sheet_refs,
     };
     // The add-in set is dropped before the shell, so add-ins close while their windows exist.
-    let mut addins = AddinHost::new(&shell, &document)?;
+    let mut addins = AddinHost::with_profile(&shell, &document, calc_vba::Profile::ValuesOnly)?;
     for xll in &xlls {
         addins.load(xll)?;
     }

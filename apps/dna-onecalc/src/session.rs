@@ -732,6 +732,7 @@ impl Session {
             &held.file_name,
             calc_vba::DEFAULT_STEP_BUDGET,
             None,
+            calc_vba::Profile::ValuesOnly,
         )?;
         let functions = load
             .project
@@ -853,7 +854,12 @@ impl Session {
         source: &str,
         max_steps: u64,
     ) -> Result<Vec<String>, String> {
-        let functions = calc_vba::load_module(name, source, max_steps)?;
+        let functions = calc_vba::load_module_with_profile(
+            name,
+            source,
+            max_steps,
+            calc_vba::Profile::ValuesOnly,
+        )?;
         let names = functions.names().map(str::to_owned).collect();
         self.set_user_functions(functions);
         self.vba_loaded = true;

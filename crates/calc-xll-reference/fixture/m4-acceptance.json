@@ -10,6 +10,7 @@
     {"name": "xlw-types", "xll": "{x3}/xlw-types-runtime/xlwTypes.xll", "sheet": "X0", "cases": "x3-xlw-types-cases.json", "excel": "{excel}/xlw-types/controller.jsonl"},
     {"name": "xloil-utils-sql", "xll": "{x3}/xloil-runtime/xlOil.xll", "sheet": "X0", "cases": "x3-xloil-cases.json", "excel": "{excel}/xloil-utils-sql/controller.jsonl"},
     {"name": "xloil-python", "xll": "{x3}/xloil-python-runtime/xlOil.xll", "sheet": "X0", "cases": "x3-xloil-python-cases.json", "excel": "{excel}/xloil-python/controller.jsonl"},
-    {"name": "calcvba-udf", "xll": "{cvba}/FunctionsUdf.xll", "sheet": "X0", "cases": "{m4}/calcvba-udf-cases.json", "excel": "{excel}/calcvba-udf/controller.jsonl"}
+    {"name": "calcvba-udf", "xll": "{cvba}/FunctionsUdf.xll", "sheet": "X0", "cases": "{m4}/calcvba-udf-cases.json",
+      "dnacalc_only": ["=Native_ReferenceKind(A1)", "=Native_OptionalReference(A1)", "=Native_CallerRow()"], "excel": "{excel}/calcvba-udf/controller.jsonl"}
   ]
 }

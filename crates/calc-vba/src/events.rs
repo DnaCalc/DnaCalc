@@ -126,6 +126,7 @@ pub fn load_project(
         backend,
         false,
         DocumentEvents::All,
+        crate::Profile::Full,
     )
 }
 
@@ -167,7 +168,15 @@ pub fn load_file_project_with(
     backend: Option<Backend>,
     events: DocumentEvents,
 ) -> Result<LoadedProject, String> {
-    load_project_impl(modules, references, max_steps, backend, true, events)
+    load_project_impl(
+        modules,
+        references,
+        max_steps,
+        backend,
+        true,
+        events,
+        crate::Profile::Full,
+    )
 }
 
 fn load_project_impl(
@@ -177,6 +186,7 @@ fn load_project_impl(
     backend: Option<Backend>,
     private_worksheet_lookup: bool,
     events: DocumentEvents,
+    profile: crate::Profile,
 ) -> Result<LoadedProject, String> {
     if modules.is_empty()
         || modules.len() > 1024
@@ -193,7 +203,7 @@ fn load_project_impl(
                 format!("document project (dc-hsa5.12): {e}; VBA references {} cannot be resolved on this platform (dc-0f1k.4)", references.unavailable.join(", "))
             }
         })?;
-    crate::prepare_project(module, max_steps, backend)
+    crate::prepare_project(module, max_steps, backend, profile)
         .map_err(|e| format!("document project (dc-hsa5.12): {e}"))
 }
 
@@ -220,6 +230,7 @@ pub fn load_office_project(
     workbook_name: &str,
     max_steps: u64,
     backend: Option<Backend>,
+    profile: crate::Profile,
 ) -> Result<OfficeLoad, String> {
     use crate::office::OfficeModuleKind as K;
     let references = ProjectReferences::of(project)?;
@@ -273,6 +284,7 @@ pub fn load_office_project(
         backend,
         true,
         DocumentEvents::Workbook,
+        profile,
     )?;
     let workbook = match workbook_module {
         Some(module) => {

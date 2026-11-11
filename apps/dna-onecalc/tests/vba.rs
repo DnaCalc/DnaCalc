@@ -167,27 +167,10 @@ fn vba_optional_paramarray_and_project_storage_use_the_controller_session() {
 
 #[cfg_attr(not(target_arch = "wasm32"), test)]
 #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
-fn vba_ranges_caller_and_worksheet_callbacks_use_live_controller_services() {
+fn vba_worksheet_callbacks_and_variant_arguments_use_the_values_only_profile() {
     let mut s = session();
     s.set_input("A2", InputValue::number(2.0).unwrap()).unwrap();
-    let source = r#"Private saved As Object
-Public Function RangeCount(r As Range)
- RangeCount = r.Count
-End Function
-Public Function CallerAddress()
- CallerAddress = Application.Caller.Address
-End Function
-Public Function RangeSum(r As Range)
- RangeSum = Application.WorksheetFunction.Sum(r)
-End Function
-Public Function SaveRange(r As Range)
- Set saved = r
- SaveRange = 1
-End Function
-Public Function ReadSaved()
- ReadSaved = saved.Cells(1, 1).Value2
-End Function
-Public Function CatchWorksheetError()
+    let source = r#"Public Function CatchWorksheetError()
  On Error GoTo Failed
  CatchWorksheetError = Application.WorksheetFunction.Match("missing", Array(1, 2), 0)
  Exit Function
@@ -220,36 +203,6 @@ End Function
     assert!(format!("{registrations:?}").contains(selected));
     s.load_vba_module("Grid", source, 1000).unwrap();
     assert_eq!(
-        result(&mut s, "=RangeCount(Z9:Z10)"),
-        CalcValue::number(2.0)
-    );
-    assert!(s.calculate().reads.is_empty());
-    assert_eq!(result(&mut s, "=RangeSum(A1:A2)"), CalcValue::number(42.0));
-    let reads = s.calculate().reads;
-    assert_eq!(reads.len(), 1);
-    assert_eq!(
-        reads[0].area,
-        calc_func::value::GridArea::new(s.cell("A1").unwrap(), s.cell("A2").unwrap()).unwrap()
-    );
-    assert_eq!(
-        result(&mut s, "=CallerAddress()"),
-        CalcValue::text(calc_func::value::ExcelText::from_utf16_code_units(
-            "$H$1".encode_utf16().collect()
-        ))
-    );
-    s.set_formula_cell("J10").unwrap();
-    assert_eq!(
-        result(&mut s, "=CallerAddress()"),
-        CalcValue::text(calc_func::value::ExcelText::from_utf16_code_units(
-            "$J$10".encode_utf16().collect()
-        ))
-    );
-    assert_eq!(result(&mut s, "=SaveRange(A1)"), CalcValue::number(1.0));
-    s.set_input("A1", InputValue::number(41.0).unwrap())
-        .unwrap();
-    assert_eq!(result(&mut s, "=ReadSaved()"), CalcValue::number(41.0));
-    assert_eq!(s.calculate().reads.len(), 1);
-    assert_eq!(
         result(&mut s, "=CatchWorksheetError()"),
         CalcValue::number(1004.0)
     );
@@ -276,14 +229,46 @@ End Function
         result(&mut s, "=TypedLong(NA())"),
         CalcValue::error(WorksheetErrorCode::Value)
     );
-    for formula in [
-        "=IFERROR(RangeSum(Z9:Z10),7)",
-        "=IFERROR(CatchVarType(Z9),7)",
-    ] {
+    s.set_formula("=IFERROR(CatchVarType(Z9),7)");
+    let missing = s.calculate();
+    assert!(missing.result.is_none());
+    assert!(format!("{:?}", missing.diagnostics).contains("MissingInput"));
+}
+
+/// dc-svqh: OneCalc hosts functions, DNA Calc hosts workbooks. A function with an `As Range`
+/// parameter is refused at registration, and `Application.Caller` is refused when it runs, both
+/// with "needs a workbook: open in DNA Calc"; the module's other functions load and run.
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn the_values_only_profile_refuses_range_parameters_and_caller() {
+    let mut s = session();
+    s.load_vba_module(
+        "Needs",
+        "Public Function RangeCount(r As Range)
+ RangeCount = r.Count
+End Function
+Public Function CallerAddress()
+ CallerAddress = Application.Caller.Address
+End Function
+Public Function Plain(x As Double) As Double
+ Plain = x + 1
+End Function
+",
+        1000,
+    )
+    .unwrap();
+    s.set_formula("=Plain(1)");
+    let plain = s.calculate();
+    assert_eq!(plain.result, Some(CalcValue::number(2.0)), "{:?}", plain.diagnostics);
+    for formula in ["=RangeCount(A1:A2)", "=CallerAddress()"] {
         s.set_formula(formula);
-        let missing = s.calculate();
-        assert!(missing.result.is_none());
-        assert!(format!("{:?}", missing.diagnostics).contains("MissingInput"));
+        let outcome = s.calculate();
+        assert!(outcome.result.is_none(), "{formula}: {outcome:?}");
+        assert!(
+            format!("{:?}", outcome.diagnostics).contains("needs a workbook: open in DNA Calc"),
+            "{formula}: {:?}",
+            outcome.diagnostics
+        );
     }
 }
 
@@ -311,15 +296,7 @@ fn vba_warm_code_reloads_fresh_state_and_cache_clear_keeps_live_calls_valid() {
 fn vba_callbacks_use_measured_methods_without_formula_lifting_or_swallowed_refusals() {
     let mut s = session();
     s.set_input("A2", InputValue::number(2.0).unwrap()).unwrap();
-    let source = r#"Public Function Summaries(r As Range)
- Summaries = Application.WorksheetFunction.Min(r) + Application.WorksheetFunction.Max(r) + Application.WorksheetFunction.Average(r)
-End Function
-Public Function CatchOffset(r As Object)
- On Error Resume Next
- CatchOffset = r.Offset(1, 0).Value2
- CatchOffset = 7
-End Function
-Public Function FindValue(x)
+    let source = r#"Public Function FindValue(x)
  FindValue = Application.WorksheetFunction.Match(x, Array(2, 40), 0)
 End Function
 Public Function UnsupportedCallback()
@@ -328,22 +305,10 @@ Public Function UnsupportedCallback()
  UnsupportedCallback = 7
 End Function
 "#;
-    // Verify admission of this exact host-object source: native results must exercise JIT,
-    // while the same portable cases exercise the interpreter in each browser.
-    let registrations = calc_vba::load_module("Callbacks", source, 1000).unwrap();
-    let selected = if cfg!(target_arch = "wasm32") {
-        "backend: Interpreter"
-    } else {
-        "backend: Jit"
-    };
-    assert!(format!("{registrations:?}").contains(selected));
     s.load_vba_module("Callbacks", source, 1000).unwrap();
-    assert_eq!(result(&mut s, "=Summaries(A1:A2)"), CalcValue::number(63.0));
     assert_eq!(result(&mut s, "=FindValue(A1)"), CalcValue::number(2.0));
     for formula in [
         "=IFERROR(UnsupportedCallback(),9)",
-        "=IFERROR(Summaries((A1,A2)),9)",
-        "=IFERROR(CatchOffset(A1),9)",
         "=IFERROR(FindValue(A1:A2),9)",
         "=IFERROR(FindValue({2,40}),9)",
     ] {
@@ -714,23 +679,6 @@ fn with_a_com_reference_new_works_and_createobject_is_refused() {
     );
 }
 
-/// dc-0f1k.4: inside a worksheet function a cell write is Excel's trappable error 1004 (measured).
-#[cfg_attr(not(target_arch = "wasm32"), test)]
-#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
-fn a_cell_write_in_a_worksheet_function_raises_1004() {
-    let mut s = session();
-    s.load_vba_module(
-        "Writes",
-        "Public Function TryWrite(r As Range)\n On Error Resume Next\n r.Value = 1\n TryWrite = Err.Number\nEnd Function\n",
-        1000,
-    )
-    .unwrap();
-    assert_eq!(
-        result(&mut s, "=Writes.TryWrite(A1)"),
-        CalcValue::number(1004.0)
-    );
-}
-
 /// dc-0f1k.4: after an edit, a module's reported source offset is the one the written blob has.
 #[cfg_attr(not(target_arch = "wasm32"), test)]
 #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
@@ -833,6 +781,16 @@ fn active_sheet_and_selection_are_the_users_as_excel_measured() {
     ] {
         s.set_formula(&format!("=Probe.{name}()"));
         let ours = s.calculate();
+        if name == "CallerAddr" {
+            // Excel answers "$H$1"; the values-only profile refuses Caller (dc-svqh).
+            assert!(
+                ours.result.is_none()
+                    && format!("{:?}", ours.diagnostics).contains("needs a workbook"),
+                "{:?}",
+                ours.diagnostics
+            );
+            continue;
+        }
         let excel = &answers[&format!("={name}()")];
         let ours_text = match ours.result.as_ref() {
             Some(value) => format!("{value:?}"),

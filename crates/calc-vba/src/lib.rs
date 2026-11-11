@@ -39,6 +39,19 @@ fn prepare_module(module: Module, backend: Backend) -> Result<OwnedSession, runt
     })
 }
 
+/// What a host does with worksheet functions that need a workbook. OneCalc hosts functions only:
+/// a `ValuesOnly` host registers a function with an `As Range` (object) parameter as a typed
+/// refusal. DNA Calc hosts workbooks and takes `Full` (dc-svqh).
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub enum Profile {
+    #[default]
+    Full,
+    ValuesOnly,
+}
+
+/// The reason a values-only host gives for what needs a workbook.
+pub const NEEDS_A_WORKBOOK: &str = "needs a workbook: open in DNA Calc";
+
 pub const DEFAULT_STEP_BUDGET: u64 = 100_000;
 pub const EXAMPLE_MODULE: &str =
     "Public Function Add2(a As Double, b As Double) As Double\n    Add2 = a + b\nEnd Function\n";
@@ -47,7 +60,18 @@ pub const EXAMPLE_MODULE: &str =
 /// Both bare and module-qualified public Function names are registered; Subs remain private
 /// to VBA. Single rectangular references remain live Range objects during each host call.
 pub fn load_module(name: &str, source: &str, max_steps: u64) -> Result<UserFunctions, String> {
-    load_module_selected(name, source, max_steps, None)
+    load_module_selected(name, source, max_steps, None, Profile::Full)
+}
+
+/// [`load_module`] for a host with a [`Profile`]: under `ValuesOnly`, functions with `As Range`
+/// parameters register as typed refusals and the others load.
+pub fn load_module_with_profile(
+    name: &str,
+    source: &str,
+    max_steps: u64,
+    profile: Profile,
+) -> Result<UserFunctions, String> {
+    load_module_selected(name, source, max_steps, None, profile)
 }
 
 /// Select an exact backend for parity tests and hosts that require one. An explicit JIT
@@ -58,7 +82,7 @@ pub fn load_module_with_backend(
     max_steps: u64,
     backend: Backend,
 ) -> Result<UserFunctions, String> {
-    load_module_selected(name, source, max_steps, Some(backend))
+    load_module_selected(name, source, max_steps, Some(backend), Profile::Full)
 }
 
 fn load_module_selected(
@@ -66,21 +90,35 @@ fn load_module_selected(
     source: &str,
     max_steps: u64,
     backend: Option<Backend>,
+    profile: Profile,
 ) -> Result<UserFunctions, String> {
     let module = Module::load_spreadsheet(name, source).map_err(|e| e.to_string())?;
-    Ok(prepare_project(module, max_steps, backend)?.functions)
+    Ok(prepare_project(module, max_steps, backend, profile)?.functions)
 }
 
 fn prepare_project(
     module: Module,
     max_steps: u64,
     backend: Option<Backend>,
+    profile: Profile,
 ) -> Result<events::LoadedProject, String> {
     let metadata = module.functions().cloned().collect::<Vec<_>>();
-    let refusals = module
+    let mut refusals = module
         .worksheet_refusals()
         .map(|(name, qualified, reason)| (name.to_owned(), qualified.to_owned(), reason))
         .collect::<Vec<_>>();
+    // A values-only host registers a function that takes a reference (an `As Range` parameter)
+    // as a refusal: it needs a workbook to read the reference from. The other functions keep
+    // their index in the module.
+    let needs_workbook = |f: &runtime::Function| {
+        profile == Profile::ValuesOnly && f.parameters.iter().any(|p| p.type_name == "Object")
+    };
+    refusals.extend(
+        metadata
+            .iter()
+            .filter(|f| needs_workbook(f))
+            .map(|f| (f.name.clone(), f.qualified_name.clone(), NEEDS_A_WORKBOOK)),
+    );
     let session = if let Some(backend) = backend {
         prepare_module(module, backend).map_err(|e| e.to_string())?
     } else {
@@ -102,9 +140,15 @@ fn prepare_project(
         }
     };
     let session = Rc::new(session);
-    let sheets = Rc::new(RefCell::new(Sheets::default()));
+    let sheets = Rc::new(RefCell::new(Sheets(
+        Vec::new(),
+        profile == Profile::ValuesOnly,
+    )));
     let mut functions = UserFunctions::new();
     for (index, metadata) in metadata.into_iter().enumerate() {
+        if needs_workbook(&metadata) {
+            continue;
+        }
         let function = Rc::new(VbaFunction {
             session: session.clone(),
             sheets: sheets.clone(),
@@ -140,12 +184,21 @@ impl fmt::Debug for RefusedVbaFunction {
             .finish()
     }
 }
+impl RefusedVbaFunction {
+    fn package(&self) -> &'static str {
+        if self.reason == NEEDS_A_WORKBOOK {
+            "dc-svqh"
+        } else {
+            "dc-snz.15"
+        }
+    }
+}
 impl UserFunction for RefusedVbaFunction {
     fn state_lane(&self) -> Option<u64> {
         Some(Rc::as_ptr(&self.session) as usize as u64)
     }
     fn call(&self, _: &[CalcValue]) -> Result<CalcValue, String> {
-        Err(format!("{}: {} (dc-snz.15)", self.name, self.reason))
+        Err(format!("{}: {} ({})", self.name, self.reason, self.package()))
     }
     fn call_with_context(
         &self,
@@ -154,7 +207,7 @@ impl UserFunction for RefusedVbaFunction {
     ) -> Result<CalcValue, String> {
         // A plain Err would become calculated #VALUE! and could be hidden by
         // IFERROR. The existing context refusal retains the owning work package.
-        Err(context.refuse_by(self.reason, "dc-snz.15"))
+        Err(context.refuse_by(self.reason, self.package()))
     }
 }
 
@@ -794,7 +847,8 @@ mod tests {
 }
 
 #[derive(Default)]
-struct Sheets(Vec<calc_func::StoredReference>);
+/// The references a call has handed to VBA, and whether the host is values-only.
+struct Sheets(Vec<calc_func::StoredReference>, bool);
 impl Sheets {
     fn insert(&mut self, reference: calc_func::StoredReference) -> Range {
         let id = self
@@ -971,6 +1025,11 @@ impl SpreadsheetContext for ContextBridge<'_> {
         ContextBridge::refuse(self, reason)
     }
     fn caller(&self) -> Option<Range> {
+        if self.sheets.borrow().1 {
+            // A values-only host has no calling cell to give: Application.Caller is refused.
+            runtime::spreadsheet::record_capability_refusal(NEEDS_A_WORKBOOK);
+            return None;
+        }
         let caller = self.context.try_borrow().ok()?.caller()?;
         self.range(&ReferenceLike::cell(caller)).ok()
     }
