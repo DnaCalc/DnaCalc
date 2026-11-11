@@ -38,7 +38,8 @@ use crate::parse_formula;
 use crate::reference::{
     BindError, BoundName, ExternalBookRef, ExternalOperand, FormulaAnchor, NameBindingProof,
     NameDefinition, NameScope, ReferenceCatalog, ReferenceNotation, ReferenceOperand, SheetTarget,
-    TableLookup, bind_references, external_operand, qualified_call, qualified_name,
+    TableLookup, bind_references, external_name_parts, external_operand, qualified_call,
+    qualified_name,
     qualified_sheet_call,
 };
 use crate::syntax::{SyntaxChild, SyntaxKind, SyntaxNode, SyntaxTree, TextSpan, Token, TokenKind};
@@ -754,6 +755,9 @@ impl<'c> Lowering<'c> {
                         let scope = NameScope::Formula(self.name_context.lookup_sheet());
                         self.defined_name(name.text(), scope, span, block)?;
                         return Ok(());
+                    }
+                    if let Some((book, sheet, name)) = external_name_parts(node) {
+                        return self.external_name(&book, sheet.as_deref(), &name, span, block);
                     }
                     let Some((sheet, name)) = qualified_name(node) else {
                         return Err(unsupported(span, "a sheet-qualified name", OWNER));
@@ -1755,6 +1759,54 @@ impl<'c> Lowering<'c> {
     /// Pushes onto block `block` the value of the defined name `name` seen from `scope`: its
     /// formula's block, #NAME? when the workbook holds no such name, or the refusal of a name the
     /// catalogue cannot say.
+    /// A defined name of another workbook (`[2]!Rate`, `'[2]Sheet'!Rate`, dc-9cyc, dc-x8v4): the
+    /// reference the workbook's link to that book lists for it, read from the link's cache like
+    /// any other external reference. A name the link does not list, or one that refers to
+    /// anything but one reference, stays refused.
+    fn external_name(
+        &mut self,
+        book: &ExternalBookRef,
+        sheet: Option<&str>,
+        name: &str,
+        span: TextSpan,
+        block: usize,
+    ) -> Result<(), CompileError> {
+        let refused = || unsupported(span, "a defined name of another workbook", OWNER);
+        let Some(refers) = self.catalog.external_name(book, sheet, name) else {
+            return Err(refused());
+        };
+        let refers = refers.strip_prefix('=').unwrap_or(&refers);
+        if refers.eq_ignore_ascii_case("#REF!") {
+            self.blocks[block].push(Instruction::Literal(Literal::Error(WorksheetErrorCode::Ref)));
+            return Ok(());
+        }
+        let spelled = match book {
+            ExternalBookRef::Number(number) => number.to_string(),
+            ExternalBookRef::File(file) => file.clone(),
+        };
+        let text = match refers.strip_prefix('\'') {
+            Some(rest) => format!("='[{spelled}]{rest}"),
+            None => format!("=[{spelled}]{refers}"),
+        };
+        let tree = parse_formula(&text);
+        if !tree.diagnostics().is_empty() {
+            return Err(refused());
+        }
+        let Some(expression) = tree.expression() else {
+            return Err(refused());
+        };
+        let a1 = CellKey::new(self.name_context.lookup_sheet(), 1, 1)
+            .expect("A1 lies on the grid");
+        match external_operand(expression, ReferenceNotation::A1, FormulaAnchor::new(a1)) {
+            Some(operand) => {
+                self.blocks[block].push(Instruction::External(self.externals.len()));
+                self.externals.push(operand);
+                Ok(())
+            }
+            None => Err(refused()),
+        }
+    }
+
     fn defined_name(
         &mut self,
         name: &str,

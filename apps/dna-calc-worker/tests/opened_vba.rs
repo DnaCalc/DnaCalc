@@ -406,7 +406,7 @@ End Function
 
 /// The macro security level (dc-15dk), end to end through the server's wire: a marked file offers
 /// Unblock and enable under Ask; Unguarded runs every file on open (a marked one with a notice);
-/// Safe (not available yet) holds a project like Off and says so; a pinned level cannot be changed.
+/// Safe runs it on open like Unguarded, under CalcVBA's Safe policy; a pinned level cannot be changed.
 #[cfg_attr(not(target_arch = "wasm32"), test)]
 #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
 fn the_macro_security_level_decides_what_runs_and_what_the_buttons_do() {
@@ -475,8 +475,7 @@ fn the_macro_security_level_decides_what_runs_and_what_the_buttons_do() {
     );
     assert_eq!(open(&mut server, FileOrigin::Network).macros, MacroStatus::Enabled);
 
-    // Safe is not available yet (dc-10un): it behaves as Off and the policy says so; the person
-    // can still enable the file.
+    // Safe (dc-10un) runs the project on open, a marked one too, under the Safe policy.
     server
         .execute_current(
             Request::SetMacroSecurity {
@@ -486,18 +485,10 @@ fn the_macro_security_level_decides_what_runs_and_what_the_buttons_do() {
         )
         .reply
         .unwrap();
-    let held = open(&mut server, FileOrigin::Local);
-    assert_eq!(held.macros, MacroStatus::Disabled);
-    assert_eq!(held.macro_policy.level(), MacroSecurity::Safe);
-    assert!(held.macro_policy.safe_notice().is_some());
-    assert_eq!(
-        summary(&server.execute_current(Request::EnableMacros, None).reply).macros,
-        MacroStatus::Enabled
-    );
-    assert!(matches!(
-        open(&mut server, FileOrigin::Zone(3)).macros,
-        MacroStatus::Blocked { .. }
-    ));
+    let safe = open(&mut server, FileOrigin::Local);
+    assert_eq!(safe.macros, MacroStatus::Enabled);
+    assert_eq!(safe.macro_policy.level(), MacroSecurity::Safe);
+    assert_eq!(open(&mut server, FileOrigin::Zone(3)).macros, MacroStatus::Enabled);
 
     // The flag, the variable or --macros pins a level: the page cannot choose another.
     let mut pinned = Server::new();

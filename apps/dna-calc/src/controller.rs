@@ -3926,20 +3926,14 @@ impl Controller {
     /// origin) and for one whose macros ran in spite of such an origin (an information notice).
     pub fn macro_bar(&self) -> Option<MacroBar> {
         self.summary.with(|summary| {
-            // Safe is not available yet: it behaves as Off and says so.
-            let safe = summary
-                .macro_policy
-                .safe_notice()
-                .map(|notice| format!("{notice}. "))
-                .unwrap_or_default();
             match &summary.macros {
                 wire::MacroStatus::Disabled => Some(MacroBar {
-                    text: format!("{safe}Macros are disabled for this workbook: its VBA project is held and saved with it, but nothing in it runs until you enable macros"),
+                    text: format!("Macros are disabled for this workbook: its VBA project is held and saved with it, but nothing in it runs until you enable macros"),
                     button: Some(MacroButton::Enable),
                 }),
                 wire::MacroStatus::Blocked { reason } => Some(MacroBar {
                     text: format!(
-                        "{safe}{reason}. Warning: unblocking lets its macros run with your access to files and the network; unblock only a file you trust"
+                        "{reason}. Warning: unblocking lets its macros run with your access to files and the network; unblock only a file you trust"
                     ),
                     button: Some(MacroButton::Unblock),
                 }),

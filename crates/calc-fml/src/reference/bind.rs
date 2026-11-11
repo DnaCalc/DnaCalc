@@ -97,6 +97,20 @@ pub trait ReferenceCatalog {
     /// The exact provider target of a workbook-qualified user call. Return the absolute
     /// target when retained by the file; never guess a provider from a procedure's name.
     fn external_function_target(&self, book: &ExternalBookRef) -> Option<String>;
+
+    /// What the defined name `name` of the book `book` refers to as the workbook's link to that
+    /// book lists it (`='COH'!$A$3:$IV$3`), for `[1]!Name` (`sheet` `None`) and `'[1]Sheet'!Name`
+    /// (the sheet the name is local to; a workbook-level name serves when the sheet holds none).
+    /// `None` when the link lists no such name (dc-9cyc).
+    fn external_name(
+        &self,
+        book: &ExternalBookRef,
+        sheet: Option<&str>,
+        name: &str,
+    ) -> Option<String> {
+        let _ = (book, sheet, name);
+        None
+    }
 }
 
 /// How a formula names another workbook (dc-ylr).
@@ -606,10 +620,15 @@ impl Binder<'_> {
                 shape: ReferenceShape::Deleted,
             }));
         }
+        // A quoted name of another workbook (`[2]!'NGc1 LAST'`, dc-x8v4) is a name, left to name
+        // binding like `[2]!Name`.
+        if qualifier == Qualifier::External && target.kind() == SyntaxKind::QuotedIdentifierExpr {
+            return None;
+        }
         let Some(token) = only_token(target) else {
             return Some(Err(BindError::QualifiedNonReference));
         };
-        qualified_site(token, self.alone(&qualifier, token))
+        qualified_site(&qualifier, token, self.alone(&qualifier, token))
     }
 
     /// The binding of one endpoint standing alone with `qualifier`, whose sheet is resolved only
@@ -723,7 +742,7 @@ impl Binder<'_> {
                 })
             })
         });
-        if let Some(binding) = qualified_site(token, binding) {
+        if let Some(binding) = qualified_site(&Qualifier::Unqualified, token, binding) {
             self.push(node.span(), binding);
         }
     }
@@ -780,12 +799,19 @@ fn visit_children<'t>(node: &'t SyntaxNode, pending: &mut Vec<Visit<'t>>) {
 /// reference alone, no site for a name (`Sheet2!TaxRate`, left to name binding) and
 /// [`BindError::QualifiedNonReference`] for anything else (`Sheet2!3`).
 fn qualified_site(
+    qualifier: &Qualifier,
     token: &Token,
     binding: Option<Result<ReferenceOperand, BindError>>,
 ) -> Option<Result<ReferenceOperand, BindError>> {
     match binding {
         Some(binding) => Some(binding),
         None if token.kind() == TokenKind::Identifier => None,
+        // A quoted name of another workbook (`[2]!'NGc1 LAST'`, dc-x8v4): a name, not a reference.
+        None if token.kind() == TokenKind::QuotedIdentifier
+            && *qualifier == Qualifier::External =>
+        {
+            None
+        }
         None => Some(Err(BindError::QualifiedNonReference)),
     }
 }
@@ -860,6 +886,52 @@ pub fn qualified_name(node: &SyntaxNode) -> Option<(String, &Token)> {
         _ => return None,
     };
     Some((sheet, token))
+}
+
+/// A defined name of another workbook (`[2]!Rate`, `[2]!'Rate A'`, `'[2]Sheet'!Rate`): the book,
+/// the sheet when the qualifier names one, and the name's text with a quoted name unquoted
+/// (dc-9cyc, dc-x8v4).
+pub(crate) fn external_name_parts(
+    node: &SyntaxNode,
+) -> Option<(ExternalBookRef, Option<String>, String)> {
+    if node.kind() != SyntaxKind::QualifiedReferenceExpr {
+        return None;
+    }
+    let SyntaxChild::Token(qualifier) = node.children().first()? else {
+        return None;
+    };
+    let target = node.child_nodes().next()?;
+    let name = match target.children() {
+        [SyntaxChild::Token(token)]
+            if matches!(
+                target.kind(),
+                SyntaxKind::IdentifierExpr | SyntaxKind::QuotedIdentifierExpr
+            ) =>
+        {
+            match token.kind() {
+                TokenKind::Identifier => token.text().to_owned(),
+                TokenKind::QuotedIdentifier => unquote(token.text()),
+                _ => return None,
+            }
+        }
+        _ => return None,
+    };
+    let text = match qualifier.kind() {
+        TokenKind::BracketedQualifier => qualifier.text().trim_end_matches('!').to_owned(),
+        TokenKind::QuotedIdentifier => unquote(qualifier.text()),
+        _ => return None,
+    };
+    let (folder, rest) = text.split_once('[')?;
+    let (book, sheet) = rest.split_once(']')?;
+    if book.is_empty() || sheet.contains(':') {
+        return None;
+    }
+    let book = match book.parse::<u32>() {
+        Ok(0) => return None,
+        Ok(number) if folder.is_empty() => ExternalBookRef::Number(number),
+        _ => ExternalBookRef::File(book.to_owned()),
+    };
+    Some((book, (!sheet.is_empty()).then(|| sheet.to_owned()), name))
 }
 
 pub(crate) fn qualified_sheet_call(node: &SyntaxNode) -> Option<(String, &SyntaxNode)> {

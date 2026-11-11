@@ -1341,19 +1341,13 @@ fn surface(link: Rc<dyn Link>) -> impl IntoView {
             }>
                 <p role="alert" data-onecalc="macros-bar">
                     {move || {
-                        // Safe is not available yet: it behaves as Off and says so.
-                        let safe = macro_policy
-                            .get()
-                            .safe_notice()
-                            .map(|notice| format!("{notice}. "))
-                            .unwrap_or_default();
                         match macros_view.get() {
                             MacrosView::Enabled => macro_notice.get(),
                             MacrosView::Blocked => format!(
-                                "{safe}Macros are blocked: this file came from the internet or another computer, so its VBA project is held and not run. Warning: unblocking lets its macros run with your access to files and the network; unblock only a file you trust."
+                                "Macros are blocked: this file came from the internet or another computer, so its VBA project is held and not run. Warning: unblocking lets its macros run with your access to files and the network; unblock only a file you trust."
                             ),
                             MacrosView::Disabled => format!(
-                                "{safe}Macros are disabled for this file: its VBA project is kept and saved, but nothing in it runs."
+                                "Macros are disabled for this file: its VBA project is kept and saved, but nothing in it runs."
                             ),
                         }
                     }}

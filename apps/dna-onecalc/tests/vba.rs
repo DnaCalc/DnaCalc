@@ -866,7 +866,7 @@ fn active_sheet_and_selection_are_the_users_as_excel_measured() {
 
 /// dc-15dk: the macro security level. Off offers Unblock and enable for a marked file (the plain
 /// Enable still refuses it); Unguarded runs every file on open, a marked one with a notice;
-/// Safe (not available yet) holds a project like Off and says so; a pinned level cannot be changed; the
+/// Safe runs it on open too, under CalcVBA's Safe policy; a pinned level cannot be changed; the
 /// level survives a new session and another file. (A project that cannot compile on this platform
 /// stays held and says why; the level's decisions are checked either way.)
 #[cfg_attr(not(target_arch = "wasm32"), test)]
@@ -934,14 +934,17 @@ fn the_macro_security_level_decides_what_runs_and_what_the_buttons_do() {
         };
         assert_eq!(fresh.macro_policy.level(), MacroSecurity::Unguarded);
 
-        // Safe is not available yet (dc-10un): the project is held as under Off, and the notes
-        // say so; the person can still enable the file.
+        // Safe (dc-10un): the project runs on open under the Safe policy, a marked file too.
         port.send(Request::SetMacroSecurity { level: MacroSecurity::Safe });
-        let held = open(&mut port, None).project.unwrap();
-        assert_eq!(held.macros, MacrosView::Disabled);
-        assert!(held.notes.join(" ").contains("not available yet"), "{held:?}");
-        assert_eq!(port.session().project().map(|p| p.is_running()), Some(false));
-        assert_eq!(open(&mut port, Some(3)).project.unwrap().macros, MacrosView::Blocked);
+        let safe = open(&mut port, None).project.unwrap();
+        let safe_marked = open(&mut port, Some(3)).project.unwrap();
+        if can_compile {
+            assert_eq!(safe.macros, MacrosView::Enabled, "{safe:?}");
+            assert_eq!(safe_marked.macros, MacrosView::Enabled, "{safe_marked:?}");
+            assert_eq!(port.session().project().map(|p| p.is_running()), Some(true));
+        } else {
+            assert_ne!(safe.macros, MacrosView::Enabled, "{safe:?}");
+        }
 
         // Pinned by the flag or the variable: Unguarded, and the page cannot choose another.
         let mut pinned = LocalPort::new(Session::new("Sheet1").unwrap());

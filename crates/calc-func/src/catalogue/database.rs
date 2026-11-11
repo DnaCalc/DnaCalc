@@ -19,7 +19,8 @@
 //! record order, each addition an arithmetic site.
 
 use super::conditional::{Criterion, Match, database_criterion};
-use super::kit::{Grid, fail, grid};
+use super::aggregate;
+use super::kit::{GRID_LIMIT, Grid, fail, grid};
 use crate::call::EvalServices;
 use crate::kernel::{Exit, Site, Step};
 use crate::ported::variance_common::{VarianceDivisor, stdev_from_values, variance_from_values};
@@ -162,6 +163,54 @@ fn criterion_verdict(site: &Site<'_>, criterion: &Criterion, cell: &CalcValue) -
     criterion.verdict(site, 0, cell)
 }
 
+/// The database argument as a grid. A database larger than the grid limit (a whole-column
+/// reference, `$E:$J`) is read as the rows down to its last held cell, when no all-blank record
+/// below can change the result: every kind with a field reads only numbers or non-blank cells of
+/// that column (dc-r526). DGET, and a count of records with no field, keep the refusal, since a
+/// blank record could match their criteria.
+fn database_grid(
+    site: &Site<'_>,
+    a: &[CalcValue],
+    sv: &mut EvalServices<'_>,
+    kind: Kind,
+) -> Step<Grid> {
+    let no_field = matches!(a[1].core_ref(), CoreRef::Missing | CoreRef::Empty);
+    if kind != Kind::Get
+        && !no_field
+        && let CoreRef::Reference(reference) = a[0].core_ref()
+        && let [area] = reference.areas()
+        && area.cell_count() > GRID_LIMIT
+    {
+        let first = area.first();
+        let cols = area.column_count() as usize;
+        let mut held: Vec<(usize, usize, CalcValue)> = Vec::new();
+        let reader = aggregate::reader(site, sv, 0)?;
+        aggregate::read_reference(site, reader, reference, 0, &mut |_, key, value| {
+            held.push((
+                (key.row() - first.row()) as usize,
+                (key.column() - first.column()) as usize,
+                value.clone(),
+            ));
+            Ok(())
+        })?;
+        let rows = held.iter().map(|(row, _, _)| row + 1).max().unwrap_or(1);
+        if (rows * cols) as u64 > GRID_LIMIT {
+            return Err(site.not_modelled(Some(0)));
+        }
+        let mut cells = vec![CalcValue::empty(); rows * cols];
+        for (row, column, value) in held {
+            cells[row * cols + column] = value;
+        }
+        return Ok(Grid {
+            rows,
+            cols,
+            cells,
+            held: true,
+        });
+    }
+    grid(site, a, 0, sv)
+}
+
 fn database(
     site: &Site<'_>,
     a: &[CalcValue],
@@ -174,7 +223,7 @@ fn database(
             _ => fail(W::Value),
         };
     }
-    let database = grid(site, a, 0, sv)?;
+    let database = database_grid(site, a, sv, kind)?;
     if database.rows == 0 || database.cols == 0 {
         return fail(W::Value);
     }
