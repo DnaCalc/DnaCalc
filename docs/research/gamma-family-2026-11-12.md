@@ -139,3 +139,33 @@ Predictions, frozen before asking:
 Inputs: t = 1 + y for the 2,048 y of E2; GAMMALN(t), then EXP of Excel's answer (two calls per t).
 Prediction, frozen before asking: if the seed is the public composition, EXP(GAMMALN(t)) equals
 GAMMA(t) (asked in E2) bit for bit at every t. Our stand-in seed matches GAMMA(t) at 749 of 2,048.
+
+### E4 result (asked 01:35)
+
+Refuted: EXP(GAMMALN(t)) equals GAMMA(t) at 736 of 2,048 t, with differences from -3 to +2 units. The
+seed is not the public composition.
+
+## E5. The GAMMA seed on [1, 2) (answer A.3 and B.5)
+
+Why: E2 shows that every miss of ours on (0, 10) away from the poles comes from the seed GAMMA(1+y):
+above one the stored product of Excel's own seed is exact, and on (0, 1) so is the one quotient s/y.
+That is 3,989 failing GAMMA rows of the bank ((0,1): 2,587; [1,10): 1,402), so the seed is worth more
+rows than any other gamma-family item.
+
+Inputs: 256 windows of 1,024 consecutive doubles centred at 1 + (i + 0.5)/256: 262,144 calls of
+GAMMA. Script `e5_seed.py`; predictions file `e5-predictions.tsv` (our stand-in seed, the Cody-Stoltz
+rational in plain double), SHA-256 `60981ff835029d547e1a9c7d59f35f039fca1da0d51ca1f0c9412b9f042560d1`.
+Truth for the analysis: `hpgamma.py` (Stirling at x+30 in 50-digit decimal arithmetic, recurrence down).
+
+Predictions, frozen before asking. The output keeps one binade on [1, 2) (0.8856 <= Gamma < 1), so
+the window means of (Excel - truth) in output ulps change only through the computation:
+
+1. Families (answer A.3): a chain that starts from binary64 sqrt(2 pi) has a mean relative bias near
+   +0.66 of 2^-53 that varies smoothly with y. A direct rational with no normalising constant has none.
+2. A stored intermediate that crosses a power of two inside [0, 1) moves the window mean at that y.
+   Lanczos with g = 7 has t = y + 7.5 crossing 8 at y = 0.5; g = 607/128 (t in [5.24, 6.24)) and
+   g = 6.0247 (t in [6.52, 7.52)) cross nothing; a Stirling value at y + k with recurrence down
+   crosses where y + k is a power of two (k = 7: y = 1 - nothing inside; k = 3, 7, 15: none inside;
+   k = 6: none). A level change at y = 0.5 alone favours g = 7; level changes elsewhere name other
+   intermediates and are listed, not fitted.
+3. Data check: our stand-in matches about a third of the inputs (the bank: 1,039 of 2,441 on [1, 10)).
