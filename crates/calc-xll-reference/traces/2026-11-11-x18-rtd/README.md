@@ -72,3 +72,19 @@ there after the RefreshData (the `MyStringObservable` row); (c) Excel calculates
 a shared topic before the main cell (its calc chain puts the newest formula first), the engine
 row-major; (d) Excel terminates and restarts the server when the last topic disconnects between
 two cases, the host keeps it while the next formula connects first.
+
+## 3. The other controlled-server conditions at this commit
+
+Fresh Excel captures (`rtd2/e2`, same tracer) against the host at the commit that carries this
+file, `verify.py` with source retention:
+
+- `x8-rtd-array-cases.json` (a 2x2 SAFEARRAY from RefreshData, shown as #N/A without a spill):
+  verified, 6 client calls matched 0 failed, 2 native entries matched 0 failed.
+- `x8-rtd-reuse-cases.json` (completed-topic reuse across edits of A1): fails the verifier's
+  assertion "Completed-topic reuse did not preserve ID and advance the input sequence" (it expects
+  the admissions 1,42,1,42; the host admits 1,42 only). The same failure occurs with the host's
+  adoption of ConnectData admissions switched off, so it is not caused by this lane's change; it
+  is recorded here and not fixed.
+- The signaling condition (`x5-rtd-cases.json`, xlOil Python): not re-run; the Excel capture of
+  the lane's xlOil Python runtime stopped at "xlOil built-in Python startup did not complete".
+  xlOil Python through the page (5 of 5) and the framework host route (5 of 5) pass.
