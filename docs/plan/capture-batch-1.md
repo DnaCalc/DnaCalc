@@ -4,6 +4,11 @@ The first ~500 corpus files for an Excel capture, chosen so that one Excel minut
 (function, argument shape) pairs and formula features. This is a selection, not a capture: no Excel
 ran, no corpus file was opened in Excel, and the batch waits for the owner's capture machine.
 
+Selection matters only while Excel time is short. The plan is an ongoing Excel evaluation environment
+that captures whole corpora (owner, 2026-11-11). Batch 1 is the first, fast-feedback slice, not the
+target. The same selection later gives a small representative regression set that runs on every
+change, while full corpora run on a schedule.
+
 * **Inputs.** The classifier's `files.jsonl` (`cargo xtask classify`, build of this commit's parent
   plus the shape keys) for Enron (15,929 files; R2 `dnacalc-corpus/sources/enron/20261111/`) and the
   library test sets (3,331 files; `sources/libs/20261111/`, one archive per library). A hash gives its

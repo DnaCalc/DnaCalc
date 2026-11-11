@@ -4,6 +4,15 @@ Run on 2026-11-11 with `cargo xtask classify` (`tools/xtask-harness/src/classify
 workbook content, no sheet names. Per-file path, size and SHA-256 of the public sets are in
 `docs/plan/corpus-manifests/`. The per-file JSON lines (`files.jsonl`) stay outside the repository.
 
+**What the profile is for.** Excel answers are short today only because no capture environment exists
+yet. The plan is an ongoing Excel evaluation environment that captures whole corpora (owner,
+2026-11-11; at about 3 s per file, Enron is about 13 hours on one Excel process). So the profile's
+lasting use is a coverage map and a stratifier. For each feature and each (function, argument shape),
+it gives cells present and cells matched, so mismatch rates can be reported per feature and coverage
+gaps are visible. Choosing files (`cargo xtask capture-select`) serves the first batches and a small
+regression set. Capture and comparison tooling should be built for whole-corpus runs: sharded,
+resumable, with results streamed out.
+
 ## The classifier
 
 `cargo xtask classify <dir>... [--recursive] [--out <dir>] [--jobs <n>] [--no-host] [--keep-names]`
