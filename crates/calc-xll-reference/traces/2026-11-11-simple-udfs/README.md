@@ -29,7 +29,8 @@ the rebuilt .xlam and is unchanged (`excel/x9-xlam.controller.jsonl`).
 | VBA .xlam, DnaExamples cases (26) | 26 / 0 / 0 | 23 / 0 / 3 refused |
 | VBA .xlsm, simple set (109) | 109 / 0 / 0 (DnaExamples.xlsm session) | 0 / 0 / 109 refused (DnaSimple.xlsm) |
 | VBA .xlsm, DnaExamples cases (26 + 1 module edit) | 27 / 0 / 0 | 0 / 0 / 26 refused |
-| XLL, own X1 fixture (289) | 289 / 0 / 0 (page acceptance, see below) | 289 / 0 / 0 |
+| XLL, own X1 fixture (289) | 289 / 0 / 0 (page acceptance) | 289 / 0 / 0 |
+| XLL, all OneCalc page sets (353: X1, Excel-DNA net48/net8/AOT/pool, xlw, xlOil, calcvba-udf) | 353 / 0 / 0 | not run (no DNA Calc page route) |
 
 Routes:
 - OneCalc: `cargo xtask app xll-accept onecalc` with `fixture/m5-acceptance.json` (sets
@@ -38,6 +39,11 @@ Routes:
   each formula in the formula field, Save; Excel then reopened each of the 136 saved .xlsm files:
   0 repaired, 0 repair logs, every one with its VBA project, Excel's value equal to the page's
   (`onecalc/m5-summary.json`, `onecalc/excel-reopen-*.json`).
+- OneCalc XLL: the same harness with `fixture/m4-acceptance.json` and Excel's records of
+  `codex-runs/x13-boundary/m4-excel-all`, after the last code change of this push
+  (`onecalc/m4-summary.json`): 353 of 353, as before it; reload refused as before for Native AOT
+  and xlOil Python. The page bundle used by both OneCalc runs was built at 06:45 from this push's
+  tree before the per-function file-project refusal (a DNA Calc document-project change).
 - DNA Calc: `run-dnacalc.py` runs `dna-calc-desktop --engine --xll <file>` (or `--workbook <file>`)
   `--formula <case>` once per case (the engine harness stops at its first refusal): CalcHost's
   checked route with calc-addin-host's add-in set, which app mode loads with the same `--xll`;
