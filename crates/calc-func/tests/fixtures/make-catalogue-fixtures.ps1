@@ -142,7 +142,7 @@ function Split-Ref([string]$Ref) {
 # dynamic-array formula over its one cell (cm="1", the metadata part's one cell metadata block, so
 # the workbook must be written with -DynamicArrays). Rows are written in order, each row's cells in
 # column order. $Before is written before sheetData (sheetViews, cols), as the schema orders it.
-function New-OracleSheet($Inputs, $Formulas, $Sources = @(), [string]$Before = '', [string]$FormulaColumn = 'D') {
+function New-OracleSheet($Inputs, $Formulas, $Sources = @(), [string]$Before = '', [string]$FormulaColumn = 'D', $TextFormulas = @()) {
     $rows = @{}
     foreach ($cell in $Inputs) {
         $place = Split-Ref $cell[0]
@@ -161,7 +161,13 @@ function New-OracleSheet($Inputs, $Formulas, $Sources = @(), [string]$Before = '
     foreach ($formula in $Formulas) {
         $number += 1
         if (-not $rows.ContainsKey($number)) { $rows[$number] = @{} }
-        $rows[$number][$FormulaColumn] = '<c r="' + $FormulaColumn + $number + '"><f>' + (Get-Escaped $formula) + '</f></c>'
+        if ($TextFormulas -contains $formula) {
+            # Excel refuses this formula at entry and cannot open a file that holds it: the cell is the formula's text
+            # (jnt/entry-refused.txt); the corpus judges it as the formula the capture records.
+            $rows[$number][$FormulaColumn] = '<c r="' + $FormulaColumn + $number + '" t="inlineStr"><is><t>=' + (Get-Escaped $formula) + '</t></is></c>'
+        } else {
+            $rows[$number][$FormulaColumn] = '<c r="' + $FormulaColumn + $number + '"><f>' + (Get-Escaped $formula) + '</f></c>'
+        }
     }
     $text = $Decl + '<worksheet xmlns="' + $Main + '" xmlns:r="' + $Rel + '">' + $Before + '<sheetData>'
     foreach ($row in ($rows.Keys | Sort-Object)) {
@@ -605,9 +611,12 @@ $JntSheets += 'jnt_text_formats'
 $JntSheets += 'jnt_aggregate_arrays'
 $JntSheets += 'jnt_evaluator_callables'
 $JntSheets += 'jnt_parse_bind'
+# Formulas Excel refuses at entry (<sheet><TAB><formula>): stored as the cell's text, as Excel cannot open a file that holds them.
+$JntRefused = Get-SectionLines 'entry-refused.txt' 'jnt'
 $jnt = @()
 foreach ($name in $JntSheets) {
     $expanded = Expand-SectionLines (Get-SectionLines ('sheet-' + $name + '.txt') 'jnt')
-    $jnt += , @($name, (New-OracleSheet $expanded.Inputs $expanded.Formulas))
+    $refusedHere = @($JntRefused | Where-Object { $_.StartsWith($name + [char]9) } | ForEach-Object { $_.Substring($name.Length + 1) })
+    $jnt += , @($name, (New-OracleSheet $expanded.Inputs $expanded.Formulas @() '' 'D' $refusedHere))
 }
 Write-Workbook (Join-Path $OutDir 'jnt/oracle.xlsx') $jnt

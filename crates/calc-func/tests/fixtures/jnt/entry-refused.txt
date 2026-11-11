@@ -1,0 +1,21 @@
+# Formulas Excel refuses at entry (0x800A03EC in the legacy and the dynamic form, dc-vdma): <sheet><TAB><formula as the sheet holds it>.
+# oracle.xlsx stores each as the cell's text, because Excel cannot open a file that holds one; the capture records Excel's refusal.
+# make-catalogue-fixtures.ps1 reads this file.
+jnt_aggregate_arrays	SUM()
+jnt_aggregate_arrays	SUBTOTAL(9.0,1.0,2.0,3.0,4.0)
+jnt_aggregate_arrays	SUBTOTAL(1.0,10.0,20.0,30.0)
+jnt_aggregate_arrays	SUBTOTAL(2.0,1.0,2.0,3.0)
+jnt_aggregate_arrays	SUBTOTAL(4.0,10.0,50.0,20.0)
+jnt_aggregate_arrays	SUBTOTAL(5.0,10.0,50.0,20.0)
+jnt_aggregate_arrays	SUBTOTAL(6.0,2.0,3.0,4.0)
+jnt_aggregate_arrays	_xlfn.AGGREGATE(9.0,4.0,1.0,2.0,3.0,4.0)
+jnt_aggregate_arrays	_xlfn.AGGREGATE(1.0,4.0,10.0,20.0,30.0)
+jnt_aggregate_arrays	_xlfn.AGGREGATE(4.0,4.0,10.0,50.0,20.0)
+jnt_aggregate_arrays	_xlfn.AGGREGATE(5.0,4.0,10.0,50.0,20.0)
+jnt_aggregate_arrays	_xlfn.AGGREGATE(6.0,4.0,2.0,3.0,4.0)
+jnt_aggregate_arrays	DSUM({1,2;3,4},1.0,{1})
+jnt_aggregate_arrays	DCOUNT({1,2;3,4},1.0,{1})
+jnt_aggregate_arrays	DAVERAGE({1,2;3,4},1.0,{1})
+jnt_aggregate_arrays	DMIN({1,2;3,4},1.0,{1})
+jnt_aggregate_arrays	DMAX({1,2;3,4},1.0,{1})
+jnt_aggregate_arrays	DPRODUCT({1,2;3,4},1.0,{1})

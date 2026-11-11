@@ -39,7 +39,8 @@ an array as `CHOOSE` over cells and an empty argument as a blank cell, and puts 
 position, so a row with a number literal, an array constant, an omitted or blank argument, or a position or
 reference function (ROW, COLUMN, ADDRESS, CELL, INDIRECT, OFFSET, ISREF, AREAS) takes its answer from the live
 read-back of the sheet instead (`tools/excel-session/jnt-readback-job.ps1`, read by `jnt_import.py capture --live
-<result.json>`): the formula is entered as written in its own cell. Excel cannot open `oracle.xlsx` itself (it
-refuses the entry of 18 of its formulas, and a file holding one fails to open), so the job opens a copy without the
-formulas it enters. A formula Excel refuses to enter is recorded as an `entry_rejected` observation (a claim about
+<result.json>`): the formula is entered as written in its own cell. Excel refuses the entry of 18 formulas of the sheet jnt_aggregate_arrays and cannot open a file that holds one, so
+`oracle.xlsx` stores those cells as their text (`entry-refused.txt` lists them; `make-catalogue-fixtures.ps1` writes
+them) and the corpus judges each as the formula the capture records, by the loader's entry check. The file opens in
+Excel as committed, and the job opens it read-only. A formula Excel refuses to enter is recorded as an `entry_rejected` observation (a claim about
 Excel, which a DNA Calc rejection at entry agrees with).

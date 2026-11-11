@@ -2,7 +2,7 @@
   "format": "dnacalc-capture-record",
   "version": 3,
   "case": "jnt__jnt_aggregate_arrays",
-  "source": "section:sha256:a37772cab9c1e365a2c20e6a8166f36cc056e1a5ff1a37b080d35704c1dbd75b",
+  "source": "section:sha256:e976ae5ce22603f8d5b6efc8b0993eb1ad34b0530b9b3cae89ebab43f2971bdd",
   "acquisition": {
     "kind": "function_questions",
     "entry": "OxFunc@05196c39:crates/oxfunc_core/src/functions unit tests (hypotheses); answers: question service touchstone/1, Excel 16.0.20527, env f3269992527c;sha256:2c4e32af0bed3fda01a3e73661713a51158ea1c2a309d71b130d3020c337c303; rows answered by the live Excel read-back of the sheet (operators, and hand rows whose asked formula differs from the row: dc-vdma), build 20527; 22 rows carry live Excel's answer where the legacy reading differs (contradicted-jnt_aggregate_arrays.json)"

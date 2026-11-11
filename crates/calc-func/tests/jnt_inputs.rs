@@ -16,6 +16,9 @@ const COLUMNS: [&str; 6] = ["A", "B", "C", "E", "F", "G"];
 
 const WORKBOOK: &[u8] = include_bytes!("fixtures/jnt/oracle.xlsx");
 
+/// The formulas Excel refuses at entry, which the workbook stores as text (`<sheet>	<formula>`).
+const REFUSED: &str = include_str!("fixtures/jnt/entry-refused.txt");
+
 /// The section captures (`captures/jnt/sections`), whose environment `jnt_import.py environment` sets.
 const CAPTURES: &[(&str, &str)] = &[
     (
@@ -194,14 +197,24 @@ fn typed_input_rows_reach_the_workbook_exactly() {
             for column in COLUMNS {
                 formula = formula.replace(&format!("{{{column}}}"), &format!("{column}{row}"));
             }
-            let written = cells
-                .get(&format!("D{row}"))
-                .and_then(|c| c.formula.clone());
-            assert_eq!(
-                written.as_deref(),
-                Some(formula.as_str()),
-                "{name} row {row}"
-            );
+            let cell_d = cells.get(&format!("D{row}"));
+            if REFUSED.lines().any(|l| l == format!("{name}	{formula}")) {
+                // Excel refuses this formula at entry and cannot open a file that holds it: the
+                // cell is its text (`fixtures/jnt/entry-refused.txt`).
+                assert_eq!(
+                    cell_d.and_then(|c| c.text.as_deref()),
+                    Some(format!("={formula}").as_str()),
+                    "{name} row {row}"
+                );
+                assert!(cell_d.unwrap().formula.is_none(), "{name} row {row}");
+            } else {
+                let written = cell_d.and_then(|c| c.formula.clone());
+                assert_eq!(
+                    written.as_deref(),
+                    Some(formula.as_str()),
+                    "{name} row {row}"
+                );
+            }
             for (k, column) in COLUMNS.iter().enumerate() {
                 let cell = cells.get(&format!("{column}{row}"));
                 let Some(token) = fields.get(k + 1) else {

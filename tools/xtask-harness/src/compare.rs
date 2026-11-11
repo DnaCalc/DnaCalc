@@ -1047,6 +1047,27 @@ fn run_workbook_with_code(
             dna.push(Dna::Rejected);
             continue;
         }
+        // A formula Excel refuses at entry that the file holds as the cell's text, because Excel
+        // cannot open a file that holds it (the jnt workbook, `jnt/entry-refused.txt`): the same
+        // entry check the loader runs, on the text the capture names as the cell's formula.
+        if let (ProjectedValue::Literal(literal), Some(asked)) =
+            (projected.value(), formula.formula.as_deref())
+            && let Some(text) = literal.as_text().map(|text| text.to_string_lossy())
+            && let Some(body) = text.strip_prefix('=')
+            && text.replace("_xlfn.", "") == asked.replace("_xlfn.", "")
+            && let Err(rejection) = calc_fml::check_entry(&calc_fml::parse_formula(body), true)
+            && rejection.rule.is_measured()
+        {
+            results.push(CellResult {
+                cell,
+                provenance: Provenance::Rejected {
+                    rule: rejection.rule.to_string(),
+                },
+                value: None,
+            });
+            dna.push(Dna::Rejected);
+            continue;
+        }
         let (provenance, value, fact) = match projected.value() {
             ProjectedValue::Empty => (
                 Provenance::Missing {
