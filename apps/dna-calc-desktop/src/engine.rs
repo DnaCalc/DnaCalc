@@ -196,31 +196,71 @@ pub fn run(
     cases: Option<PathBuf>,
     formula: String,
     early_execution: &[u64],
+    workbook: Option<&std::path::Path>,
 ) -> Result<serde_json::Value, String> {
+    // A named workbook (`--workbook`) opens as the page's worker opens one: its VBA project is
+    // prepared with calc-host-vba's open-time route and its functions join the add-ins' table.
+    let package = match workbook {
+        Some(path) => std::fs::read(path).map_err(|e| format!("{}: {e}", path.display()))?,
+        None => calc_host::blank_package(),
+    };
     let mut book = HostSession::open(
-        Arc::new(MemorySource::new(calc_host::blank_package())),
+        Arc::new(MemorySource::new(package)),
         &OpenPolicy::default(),
         HostOptions::default(),
     )
     .map_err(|e| format!("{e:?}"))?;
+    let project = match workbook {
+        Some(path) => {
+            let name = path
+                .file_name()
+                .map(|n| n.to_string_lossy().into_owned())
+                .unwrap_or_default();
+            calc_host_vba::prepare_file_project_with_events(
+                book.host(),
+                &name,
+                calc_vba::DEFAULT_STEP_BUDGET,
+                None,
+                book.workbook_events_enabled(),
+            )
+            .map_err(|e| format!("{}: {e}", path.display()))?
+        }
+        None => None,
+    };
     book.set_file_identity(workbook_name, false);
     book.dispatch(SkinIntent::SetCalcMode(CalcMode::Manual));
     let sheet = book.host().sheets()[0].id();
-    let rename = book.dispatch(SkinIntent::Command(WorkbookCommand::Sheet {
-        sheet: Some(sheet),
-        change: SheetChange::Rename {
-            name: sheet_name.into(),
-        },
-    }));
-    if !rename.accepted() {
-        return Err(format!("sheet rename: {:?}", rename.error));
-    }
+    // A named workbook keeps its own first sheet and its name; a blank one takes --sheet's.
+    let own_name;
+    let sheet_name = if workbook.is_some() {
+        own_name = book.host().sheets()[0].name().text().to_string_lossy().to_string();
+        own_name.as_str()
+    } else {
+        let rename = book.dispatch(SkinIntent::Command(WorkbookCommand::Sheet {
+            sheet: Some(sheet),
+            change: SheetChange::Rename {
+                name: sheet_name.into(),
+            },
+        }));
+        if !rename.accepted() {
+            return Err(format!("sheet rename: {:?}", rename.error));
+        }
+        sheet_name
+    };
     addins.bind_sheet(sheet, sheet_name);
     addins.set_active_sheet(sheet_name)?;
     addins.enable_async_continuations()?;
     let rtd = addins.enable_rtd()?;
     book.set_rtd_connector(rtd.clone());
-    book.set_user_functions(addins.callables_with_early_execution(early_execution)?);
+    let mut functions = addins.callables_with_early_execution(early_execution)?;
+    match &project {
+        Some(project) => {
+            functions.add_from(&project.functions())?;
+            project.clone().install_with_registry(&mut book, functions);
+            book.notify_workbook_open();
+        }
+        None => book.set_user_functions(functions),
+    }
     let bindings = book.host().user_function_bindings();
     let providers = addins
         .registrations()
@@ -599,13 +639,12 @@ pub fn run(
         return Err(format!("native refusals: {:?}", native.diagnostics()));
     }
     let retained = addins.callables_with_early_execution(early_execution)?;
+    // A run with only VBA add-ins (.xlam) has no native worksheet entry to check after close.
     let stale_name = addins
         .registrations()
         .iter()
         .find(|r| r.macro_type == 1)
-        .ok_or("no worksheet entry")?
-        .name
-        .clone();
+        .map(|r| r.name.clone());
     native.close()?;
     if !native.diagnostics().is_empty() || native.live_callback_allocations() != 0 {
         return Err(format!(
@@ -614,11 +653,14 @@ pub fn run(
             native.live_callback_allocations()
         ));
     }
-    if retained.call(&stale_name, &[])? != CalcValue::error(calc_value::WorksheetErrorCode::Name) {
+    if let Some(stale_name) = &stale_name
+        && retained.call(stale_name, &[])?
+            != CalcValue::error(calc_value::WorksheetErrorCode::Name)
+    {
         return Err("removed native entry still executes".into());
     }
     Ok(
-        serde_json::json!({"host":"DNA Calc / CalcHost P07","registrations":addins.registrations().len(),"early_execution_registrations":early_execution,"results":results,"formula_entries":formula_entries,"async_returns":returns,"revoked_tokens":revoked,"rtd_updates":rtd_updates,"rtd_retired":rtd_retired,"rtd_subscriptions_after_close":rtd.subscriptions(),"status_message":native.status_message(),
+        serde_json::json!({"host":"DNA Calc / CalcHost P07","workbook_project":project.is_some(),"registrations":addins.registrations().len(),"early_execution_registrations":early_execution,"results":results,"formula_entries":formula_entries,"async_returns":returns,"revoked_tokens":revoked,"rtd_updates":rtd_updates,"rtd_retired":rtd_retired,"rtd_subscriptions_after_close":rtd.subscriptions(),"status_message":native.status_message(),
         "reload_results":[],"commands":commands,"live_callback_allocations":native.live_callback_allocations(),"closed_registration":"#NAME?","closed_name":stale_name}),
     )
 }

@@ -190,6 +190,9 @@ pub struct Workbook {
     /// How long opening recalculated the workbook, in milliseconds of the browser's clock;
     /// `None` for manual mode or when the admitted calculation is still pending.
     calculated_on_open: Option<f64>,
+    /// The functions of the workbook's own VBA project, when it runs: a host's add-in functions
+    /// are published beside them, never instead of them.
+    project_functions: Option<calc_host::CallableTable>,
     /// Each sheet's conditional formats, prepared for the values as they stand; emptied when an
     /// intent commits an edit or recalculates (dc-6yw).
     display_metrics:
@@ -290,14 +293,16 @@ impl Workbook {
         }
         sample_browser_clock(&mut session);
         session.set_calculation_budget(budget);
+        let mut project_functions = None;
         if vba == VbaOpenPolicy::Run {
-            calc_host_vba::activate_file_project(
+            project_functions = calc_host_vba::open_file_project(
                 &mut session,
                 &name,
                 calc_vba::DEFAULT_STEP_BUDGET,
                 None,
             )
-            .map_err(OpenRefused::Vba)?;
+            .map_err(OpenRefused::Vba)?
+            .map(|project| project.functions());
         }
         let mut workbook = Workbook {
             session,
@@ -307,6 +312,7 @@ impl Workbook {
             output_format,
             inbox: Rc::default(),
             calculated_on_open: None,
+            project_functions,
             palette: None,
             conditional: RefCell::default(),
             display_metrics: RefCell::default(),
@@ -403,7 +409,13 @@ impl Workbook {
     }
 
     /// Native composition installs XLL/VBA/WIT adapters through one callable table.
-    pub fn set_user_functions(&mut self, functions: calc_host::CallableTable) {
+    pub fn set_user_functions(&mut self, mut functions: calc_host::CallableTable) {
+        if let Some(project) = &self.project_functions
+            && let Err(why) = functions.add_from(project)
+        {
+            // A name both the add-ins and the project register: the add-ins' table stands.
+            eprintln!("dna-calc: the workbook's VBA functions are not published: {why}");
+        }
         self.session.set_user_functions(functions);
     }
     /// A native host's capability to join or start RTD topics while this workbook evaluates.

@@ -185,19 +185,29 @@ pub fn activate_file_project(
     max_steps: u64,
     backend: Option<calc_vba::Backend>,
 ) -> Result<bool, FileProjectError> {
-    if let Some(project) = prepare_file_project_with_events(
+    open_file_project(session, name, max_steps, backend).map(|project| project.is_some())
+}
+
+/// [`activate_file_project`], returning the installed project, whose functions a host composes
+/// with its add-ins' when it later publishes their table to the session.
+pub fn open_file_project(
+    session: &mut calc_host::HostSession,
+    name: &str,
+    max_steps: u64,
+    backend: Option<calc_vba::Backend>,
+) -> Result<Option<Rc<WorkbookEvents>>, FileProjectError> {
+    let project = prepare_file_project_with_events(
         session.host(),
         name,
         max_steps,
         backend,
         session.workbook_events_enabled(),
-    )? {
-        project.install(session);
+    )?;
+    if let Some(project) = &project {
+        project.clone().install(session);
         session.notify_workbook_open();
-        Ok(true)
-    } else {
-        Ok(false)
     }
+    Ok(project)
 }
 
 pub fn prepare(

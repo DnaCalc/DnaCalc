@@ -319,6 +319,28 @@ impl CallableTable {
         Ok(())
     }
 
+    /// Registers every function of `other` here at its own provider target, as one table of a
+    /// host's native add-ins and a VBA project's functions is composed. A name both tables
+    /// register is refused ([`Self::register_for`]); nothing of `other` is registered then.
+    pub fn add_from(&mut self, other: &CallableTable) -> Result<(), String> {
+        let mut functions = Vec::new();
+        for (provider, name) in other.registrations() {
+            let function = other
+                .bind(provider, name)
+                .and_then(|handle| other.resolve(handle))
+                .ok_or("a registration lost its function")?;
+            let key = Self::key(provider, name);
+            if self.entries.contains_key(&key) {
+                return Err(format!("duplicate or empty user function: {name}"));
+            }
+            functions.push((provider.map(str::to_owned), name.to_owned(), Rc::clone(function)));
+        }
+        for (provider, name, function) in functions {
+            self.register_for(provider.as_deref(), &name, function)?;
+        }
+        Ok(())
+    }
+
     /// [`Self::register_for`] with the descriptor people see (completion, signature help, help).
     pub fn register_described(
         &mut self,

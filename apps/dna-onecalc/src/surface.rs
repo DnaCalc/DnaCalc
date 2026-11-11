@@ -1251,30 +1251,6 @@ fn surface(link: Rc<dyn Link>) -> impl IntoView {
                 <p role="status" data-onecalc="file-status">
                     {move || file_status.get()}
                 </p>
-                <Show when=move || macros_view.get() != MacrosView::Enabled>
-                    <p role="alert" data-onecalc="macros-bar">
-                        {move || {
-                            if macros_view.get() == MacrosView::Blocked {
-                                "Macros are blocked: this file came from the internet or another computer, so its VBA project is not run."
-                            } else {
-                                "Macros are disabled for this file: its VBA project is kept and saved, but nothing in it runs."
-                            }
-                        }}
-                        " "
-                        <Show when=move || macros_view.get() == MacrosView::Disabled>
-                            <button
-                                data-onecalc="macros-enable"
-                                type="button"
-                                on:click=move |_| call(
-                                    Request::EnableMacros,
-                                    Box::new(move |reply| on_reply.run(reply)),
-                                )
-                            >
-                                "Enable macros"
-                            </button>
-                        </Show>
-                    </p>
-                </Show>
                 <p data-onecalc="file-name">{move || file_name.get()}</p>
                 <ul data-onecalc="file-addins">{addin_list}</ul>
                 <div class="oc-examples">
@@ -1337,6 +1313,32 @@ fn surface(link: Rc<dyn Link>) -> impl IntoView {
                     </button>
                 </div>
             </details>
+            // Outside the collapsed file panel: a person who opens a macro file sees at once that its
+            // VBA does not run until enabled.
+            <Show when=move || macros_view.get() != MacrosView::Enabled>
+                <p role="alert" data-onecalc="macros-bar">
+                    {move || {
+                        if macros_view.get() == MacrosView::Blocked {
+                            "Macros are blocked: this file came from the internet or another computer, so its VBA project is not run."
+                        } else {
+                            "Macros are disabled for this file: its VBA project is kept and saved, but nothing in it runs."
+                        }
+                    }}
+                    " "
+                    <Show when=move || macros_view.get() == MacrosView::Disabled>
+                        <button
+                            data-onecalc="macros-enable"
+                            type="button"
+                            on:click=move |_| call(
+                                Request::EnableMacros,
+                                Box::new(move |reply| on_reply.run(reply)),
+                            )
+                        >
+                            "Enable macros"
+                        </button>
+                    </Show>
+                </p>
+            </Show>
             <dialog
                 class="oc-session-dialog"
                 node_ref=file_dialog

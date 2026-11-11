@@ -117,7 +117,11 @@ impl OwnedSession {
             } else {
                 value.clone()
             };
-            let converted = coerce_argument(to_variant(&value)?, &parameter.ty)?;
+            let converted = match coerce_argument(to_variant(&value)?, &parameter.ty) {
+                // The ordinary call answers an argument that does not fit (#NUM!).
+                Err(error) if super::super::is_overflow(&error) => return Ok(None),
+                converted => converted?,
+            };
             slots.push(match parameter.ty {
                 OxTy::Long => api::Slot::Long(converted.as_i32().expect("Long coercion")),
                 OxTy::Double => api::Slot::Double(converted.as_f64().expect("Double coercion")),

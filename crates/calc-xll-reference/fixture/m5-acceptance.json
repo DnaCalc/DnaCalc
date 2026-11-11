@@ -1,5 +1,5 @@
 {
-  "comment": "OneCalc milestone 5 acceptance (dc-0f1k.4), run by `cargo xtask app xll-accept onecalc`. dnaexamples-xlam: the VBA add-in loaded through the page (typed path, Load path), each case compared with Excel's answers with the same .xlam open in an owned hidden session (vba/vba-job.ps1 -Action cases, the `excel` record). dnaexamples-xlsm: the .xlsm opened as the session through the page's file input, each case entered, evaluated and saved through the page, every saved file reopened by Excel in the owned session (vba-job.ps1 -Action reopen) and compared, with Excel's repair state; then a module typed into the VBA panel goes into the file's project (an edit), and that changed project is saved and reopened by Excel the same way. Variables: {fixture} this folder, {excel} the folder of the Excel cases record.",
+  "comment": "OneCalc milestone 5 acceptance (dc-0f1k.4), run by `cargo xtask app xll-accept onecalc`. dnaexamples-xlam: the VBA add-in loaded through the page (typed path, Load path), each case compared with Excel's answers with the same .xlam open in an owned hidden session (vba/vba-job.ps1 -Action cases, the `excel` record). dnaexamples-xlsm: the .xlsm opened as the session through the page's file input, each case entered, evaluated and saved through the page, every saved file reopened by Excel in the owned session (vba-job.ps1 -Action reopen) and compared, with Excel's repair state; then a module typed into the VBA panel goes into the file's project (an edit), and that changed project is saved and reopened by Excel the same way. Variables: {fixture} this folder, {excel} the folder of the Excel cases record. simple-xlam and simple-xlsm (2026-11-11): the plain worksheet functions of DnaSimple.bas (numbers, text, logicals, Optional, ParamArray, arrays in and out, CVErr, Variant coercion, WorksheetFunction) with the same two routes; {simple} the folder of their Excel cases record.",
   "sets": [
     {
       "name": "dnaexamples-xlam",
@@ -20,6 +20,22 @@
         "source": "Public Function DnaTwice(ByVal x As Double) As Double\r\n    DnaTwice = 2 * x\r\nEnd Function\r\n",
         "formula": "=DnaTwice(21)+DnaAdd(0,0)"
       }
+    },
+    {
+      "name": "simple-xlam",
+      "xll": "{fixture}/vba/DnaExamples.xlam",
+      "sheet": "Sheet1",
+      "cell": "H1",
+      "cases": "vba/simple-udf-cases.json",
+      "excel": "{simple}/controller.jsonl"
+    },
+    {
+      "name": "simple-xlsm",
+      "session": "{fixture}/vba/DnaExamples.xlsm",
+      "sheet": "Sheet1",
+      "cell": "H1",
+      "cases": "vba/simple-udf-cases.json",
+      "excel_job": "{fixture}/vba/vba-job.ps1"
     }
   ]
 }

@@ -1,13 +1,15 @@
 param([ValidateSet('build','cases','reopen','activeobjects')][string]$Action, [string]$OutDirectory, [string]$AddIn,
-    [string]$Cases, [string[]]$Files, [string]$FormulaCell = 'H1', $OwnedExcel = $null)
+    [string]$Cases, [string[]]$Files, [string]$FormulaCell = 'H1', [bool]$InBook = $false, $OwnedExcel = $null)
 # The Excel side of OneCalc milestone 5 (dc-0f1k.4), in an owned hidden Excel session
 # (tools/excel-session). Run without -OwnedExcel, this script submits itself as one job; run it
 # through tools/excel-session/on-private-desktop.ps1 so no Excel window reaches the desktop.
-#   build:  a new workbook gets DnaExamples.bas, DnaCounter.cls, ThisWorkbook.txt and the
+#   build:  a new workbook gets DnaExamples.bas, DnaSimple.bas, DnaCounter.cls, ThisWorkbook.txt and the
 #           Microsoft Scripting Runtime reference through the VBE object model, and is saved as
-#           DnaExamples.xlsm and DnaExamples.xlam in -OutDirectory.
+#           DnaExamples.xlsm and DnaExamples.xlam in -OutDirectory; DnaSimple.bas alone is saved as
+#           DnaSimple.xlsm.
 #   cases:  opens the .xlam (-AddIn) as Excel opens an add-in file, enters each case formula of
-#           -Cases in -FormulaCell of a new workbook and records Value2, Text and its type.
+#           -Cases in -FormulaCell of a new workbook and records Value2, Text and its type; with
+#           -InBook, -AddIn is a macro workbook and the formulas go into its own first sheet.
 #   activeobjects: a new workbook with two sheets and a module of UDFs that read ActiveSheet,
 #           Selection, ActiveWorkbook and Application.Caller; their answers are recorded while the
 #           user's active sheet and selection differ from the calling cell's sheet and address
@@ -43,7 +45,7 @@ switch ($Action) {
             $project = $book.VBProject
             $temp = Join-Path $OutDirectory 'import'
             New-Item -ItemType Directory -Force -Path $temp | Out-Null
-            foreach ($name in 'DnaExamples.bas', 'DnaCounter.cls') {
+            foreach ($name in 'DnaExamples.bas', 'DnaSimple.bas', 'DnaCounter.cls') {
                 $copy = Join-Path $temp $name
                 [IO.File]::WriteAllText($copy, (Crlf (Join-Path $PSScriptRoot $name)), [Text.Encoding]::GetEncoding(1252))
                 Step "import $name" { [void]$project.VBComponents.Import($copy) }
@@ -61,7 +63,16 @@ switch ($Action) {
             Step 'save xlsm' { $book.SaveAs((Join-Path $OutDirectory 'DnaExamples.xlsm'), 52) }
             Step 'save xlam' { $book.SaveAs((Join-Path $OutDirectory 'DnaExamples.xlam'), 55) }
         } finally { Step 'close' { $book.Close($false) } }
-        foreach ($name in 'DnaExamples.xlsm', 'DnaExamples.xlam') {
+        # DnaSimple.xlsm: the plain worksheet functions alone (no Range parameters, no references
+        # beyond Excel's defaults), the macro workbook DNA Calc's file-project route can compile.
+        $simple = $excel.Workbooks.Add()
+        try {
+            $copy = Join-Path (Join-Path $OutDirectory 'import') 'DnaSimple.bas'
+            [IO.File]::WriteAllText($copy, (Crlf (Join-Path $PSScriptRoot 'DnaSimple.bas')), [Text.Encoding]::GetEncoding(1252))
+            Step 'import DnaSimple.bas alone' { [void]$simple.VBProject.VBComponents.Import($copy) }
+            Step 'save simple xlsm' { $simple.SaveAs((Join-Path $OutDirectory 'DnaSimple.xlsm'), 52) }
+        } finally { Step 'close simple' { $simple.Close($false) } }
+        foreach ($name in 'DnaExamples.xlsm', 'DnaExamples.xlam', 'DnaSimple.xlsm') {
             $path = Join-Path $OutDirectory $name
             if (Test-Path -LiteralPath $path) { $result.rows += [ordered]@{ file = $name; sha256 = (Get-FileHash -LiteralPath $path -Algorithm SHA256).Hash.ToLowerInvariant(); bytes = (Get-Item -LiteralPath $path).Length } }
         }
@@ -74,8 +85,9 @@ switch ($Action) {
             $excel.EnableEvents = $true
             $opened = $excel.Workbooks.Open($AddIn, 0, $true)
             $result.addin = [ordered]@{ name = $opened.Name; is_addin = $opened.IsAddin; full_name = $opened.FullName }
-            $book = $excel.Workbooks.Add()
-            $sheet = $book.Worksheets.Item(1)
+            # -InBook: the formulas go into the opened macro workbook's own first sheet, where its
+            # functions are called unqualified (an .xlsm); otherwise into a new workbook (an add-in).
+            if ($InBook) { $sheet = $opened.Worksheets.Item(1) } else { $book = $excel.Workbooks.Add(); $sheet = $book.Worksheets.Item(1) }
             $result.sheet = $sheet.Name
             foreach ($case in $list) {
                 $row = [ordered]@{ formula = $case.formula }

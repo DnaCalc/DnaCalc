@@ -512,8 +512,15 @@ impl TypeLibResolver for EventTypes {
                 ("xlCalculationSemiautomatic", 2),
                 ("xlOpenXMLWorkbookMacroEnabled", 52),
                 ("xlWBATWorksheet", -4167),
+                // XlCVError, the values CVErr takes in a worksheet function (Excel's type
+                // library).
+                ("xlErrNull", 2000),
+                ("xlErrDiv0", 2007),
                 ("xlErrValue", 2015),
                 ("xlErrRef", 2023),
+                ("xlErrName", 2029),
+                ("xlErrNum", 2036),
+                ("xlErrNA", 2042),
                 ("xlYes", 1),
                 ("xlSrcRange", 1),
                 ("xlThreadModeManual", 1),

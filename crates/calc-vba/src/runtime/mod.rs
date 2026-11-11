@@ -250,7 +250,7 @@ impl Module {
         }
         let mut engine =
             oxvba_embed::Module::load_project(&manifest, resolver).map_err(engine_error)?;
-        let entries = if private_worksheet_lookup {
+        let mut entries = if private_worksheet_lookup {
             let entries = worksheet::private_entries(&mut manifest, &engine)?;
             if !entries.bridges.is_empty() {
                 engine =
@@ -282,7 +282,7 @@ impl Module {
                 route.name
             )));
         }
-        let functions: Vec<_> = engine
+        let mut functions: Vec<_> = engine
             .procedures()
             .filter(|p| {
                 p.visibility == oxvba_embed::Visibility::Public
@@ -325,38 +325,39 @@ impl Module {
                 )
             })
             .collect();
-        if events
-            && automatic_events
-            && functions.iter().any(|(_, procedure)| {
-                procedure
+        if events && automatic_events {
+            // A worksheet function whose signature this route cannot carry is a typed refusal of
+            // its own; the project's other functions still load (dc-0f1k.4), as Excel runs every
+            // function it can.
+            let carried = |ty: &OxTy| {
+                matches!(
+                    ty,
+                    OxTy::Long | OxTy::Double | OxTy::Bool | OxTy::Str | OxTy::Variant
+                )
+            };
+            let (kept, refused): (Vec<_>, Vec<_>) =
+                functions.into_iter().partition(|(_, procedure)| {
+                    procedure.parameters.iter().all(|p| carried(&p.ty))
+                        && procedure.return_type.as_ref().is_some_and(carried)
+                });
+            for (function, procedure) in refused {
+                let object = procedure
                     .parameters
                     .iter()
-                    .any(|p| matches!(p.ty, OxTy::Object(_)))
-                    || procedure
-                        .return_type
-                        .as_ref()
-                        .is_some_and(|ty| matches!(ty, OxTy::Object(_)))
-            })
-        {
-            return Err(Error::UnsupportedSignature("object-valued worksheet UDF signatures in document projects require the shared Range projection (dc-hsa5.12)".into()));
-        }
-        if events
-            && automatic_events
-            && functions.iter().any(|(_, procedure)| {
-                procedure.parameters.iter().any(|p| {
-                    !matches!(
-                        p.ty,
-                        OxTy::Long | OxTy::Double | OxTy::Bool | OxTy::Str | OxTy::Variant
-                    )
-                }) || !procedure.return_type.as_ref().is_some_and(|ty| {
-                    matches!(
-                        ty,
-                        OxTy::Long | OxTy::Double | OxTy::Bool | OxTy::Str | OxTy::Variant
-                    )
-                })
-            })
-        {
-            return Err(Error::UnsupportedSignature("worksheet UDF signature outside the document project's owning value carriers (dc-hsa5.12)".into()));
+                    .map(|p| &p.ty)
+                    .chain(procedure.return_type.as_ref())
+                    .any(|ty| matches!(ty, OxTy::Object(_)));
+                entries.refusals.push(worksheet::Refusal {
+                    name: function.name,
+                    qualified_name: function.qualified_name,
+                    reason: if object {
+                        "object-valued worksheet UDF signatures in document projects require the shared Range projection (dc-hsa5.12)"
+                    } else {
+                        "worksheet UDF signature outside the document project's owning value carriers (dc-hsa5.12)"
+                    },
+                });
+            }
+            functions = kept;
         }
         let late =
             late_binding::LateBinding::of(manifest.modules.iter().map(|m| m.source.as_str()));
@@ -591,7 +592,7 @@ fn call_function(
                 Error::UnsupportedSignature("Range requires spreadsheet host objects".into())
             })?
             .range_variant(*range),
-        value => to_variant(value),
+        value => argument_variant(value),
     };
     let mut values = Vec::with_capacity(procedure.parameters.len());
     for (i, parameter) in procedure.parameters.iter().take(fixed).enumerate() {
@@ -617,7 +618,13 @@ fn call_function(
                 None => Variant::empty(),
             },
         };
-        values.push(coerce_argument(value, &parameter.ty)?);
+        match coerce_argument(value, &parameter.ty) {
+            // A number that does not fit the parameter's type is Excel's #NUM! (measured: a Long
+            // parameter given 3000000000, simple-udf-cases.json); the body's own overflow stays
+            // error 6, #VALUE!.
+            Err(error) if is_overflow(&error) => return Ok(Value::Error(2036)),
+            converted => values.push(converted?),
+        }
     }
     if variadic {
         values.push(Variant::from_safearray(SafeArray::from_variants(
@@ -680,6 +687,41 @@ fn coerce_argument(value: Variant, ty: &OxTy) -> Result<Variant, Error> {
         }
     };
     oxvba_eval::arith::coerce_numeric(&value, target).map_err(argument_error)
+}
+
+/// VBA's Overflow (error 6), raised by an argument's conversion to its parameter's type.
+pub(crate) fn is_overflow(error: &Error) -> bool {
+    matches!(error, Error::Runtime { number: 6, .. })
+}
+
+/// A worksheet value given to a VBA function's argument. A one-row array arrives as a
+/// one-dimensional array (1 To n), as Excel passes `{1,2,3}`; any other array as
+/// (1 To rows, 1 To columns) (measured, simple-udf-cases.json `SimpleDims`).
+pub(crate) fn argument_variant(value: &Value) -> Result<Variant, Error> {
+    if let Value::Array {
+        rows: 1,
+        columns,
+        cells,
+    } = value
+        && *columns > 0
+        && cells.len() == *columns as usize
+        && !cells.iter().any(|cell| matches!(cell, Value::Array { .. }))
+    {
+        let values = cells
+            .iter()
+            .map(to_variant)
+            .collect::<Result<Vec<_>, _>>()?;
+        let array = SafeArray::from_shape_and_variants(
+            vec![SafeArrayBound {
+                count: *columns,
+                lower: 1,
+            }],
+            values,
+        )
+        .map_err(Error::ValueConversion)?;
+        return Ok(Variant::from_safearray(array));
+    }
+    to_variant(value)
 }
 
 fn argument_error(error: oxvba_eval::arith::ArithError) -> Error {

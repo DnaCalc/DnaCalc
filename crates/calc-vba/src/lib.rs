@@ -552,6 +552,46 @@ mod tests {
         assert!(from_vba(Value::Text("x".repeat(32768))).is_err());
     }
 
+    /// Excel's answers: crates/calc-xll-reference/fixture/vba/simple-udf-cases.json (`SimpleDims`,
+    /// `SimpleAsLong`, `SimpleOverflow`, `SimpleNeg("x")`).
+    #[cfg_attr(not(target_arch = "wasm32"), test)]
+    #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+    fn one_row_array_arguments_are_one_dimensional_and_an_argument_that_does_not_fit_is_num() {
+        let source = "Public Function Dims(ByVal v As Variant) As String\n Dim text As String, upper2 As Long\n text = LBound(v, 1) & \"-\" & UBound(v, 1)\n On Error Resume Next\n upper2 = UBound(v, 2)\n If Err.Number = 0 Then text = text & \"x\" & upper2 Else text = text & \":1d\"\n Dims = text\nEnd Function\nPublic Function AsLong(ByVal x As Long) As Long\n AsLong = x\nEnd Function\nPublic Function Grow(ByVal x As Long) As Long\n Grow = x * 100000\nEnd Function\nPublic Function Neg(ByVal x As Double) As Double\n Neg = -x\nEnd Function\n";
+        let functions = load_module("Simple", source, 10_000).unwrap();
+        let numbers = |rows: &[&[f64]]| {
+            CalcValue::array(
+                CalcArray::from_rows(
+                    rows.iter()
+                        .map(|row| row.iter().map(|n| CalcValue::number(*n)).collect())
+                        .collect(),
+                )
+                .unwrap(),
+            )
+        };
+        let text = |s: &str| CalcValue::text(ExcelText::from_utf16_code_units(s.encode_utf16().collect()));
+        for (argument, expected) in [
+            (numbers(&[&[1.0, 2.0, 3.0]]), "1-3:1d"),
+            (numbers(&[&[1.0], &[2.0], &[3.0]]), "1-3x1"),
+            (numbers(&[&[1.0, 2.0], &[3.0, 4.0]]), "1-2x2"),
+        ] {
+            assert_eq!(functions.call("Dims", &[argument]).unwrap(), text(expected));
+        }
+        let num = CalcValue::error(WorksheetErrorCode::Num);
+        assert_eq!(functions.call("AsLong", &[CalcValue::number(3e9)]).unwrap(), num);
+        assert_eq!(functions.call("AsLong", &[CalcValue::number(-3e9)]).unwrap(), num);
+        assert_eq!(
+            functions.call("AsLong", &[CalcValue::number(2.5)]).unwrap(),
+            CalcValue::number(2.0)
+        );
+        // The body's own overflow and a text that is no number stay VBA errors, which the
+        // formula shows as #VALUE!.
+        let grow = functions.call("Grow", &[CalcValue::number(1e5)]).unwrap_err();
+        assert!(grow.contains("VBA error 6"), "{grow}");
+        let neg = functions.call("Neg", &[text("x")]).unwrap_err();
+        assert!(neg.contains("VBA error 13"), "{neg}");
+    }
+
     #[cfg_attr(not(target_arch = "wasm32"), test)]
     #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
     fn only_public_functions_are_registered_and_no_main_runs() {

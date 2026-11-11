@@ -457,3 +457,75 @@ fn call_and_register_id_match_the_measured_excel_answers() {
     }
     assert_eq!(result["live_callback_allocations"], 0);
 }
+
+/// The VBA add-in and macro workbook of the simple-UDF set (crates/calc-xll-reference/fixture/vba),
+/// copied beside the executable under test.
+fn vba_fixture(fixture: &Fixture, name: &str) -> std::path::PathBuf {
+    let source = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+        .join("../../crates/calc-xll-reference/fixture/vba")
+        .join(name);
+    let target = fixture.directory.join(name);
+    std::fs::copy(source, &target).unwrap();
+    target
+}
+
+/// Native-only: the executable loads a VBA .xlam through --xll (the option app mode takes too);
+/// Excel's answers are those of simple-udf-cases.json and x9-vba-cases.json.
+#[test]
+fn an_xlam_loads_through_the_addin_option_and_answers_as_excel() {
+    let fixture = new_fixture();
+    let xlam = vba_fixture(&fixture, "DnaExamples.xlam");
+    let cases = fixture.directory.join("vba-cases.json");
+    let expected = serde_json::json!([
+        {"formula":"=DnaAdd(40,2)","value":42.0},
+        {"formula":"=SimpleDims({1,2,3})","value":"Variant():1-3:1d"},
+        {"formula":"=SimpleDims({1;2;3})","value":"Variant():1-3x1-1"},
+        {"formula":"=SimpleAsLong(3000000000)","value":{"error":"#NUM!"}},
+        {"formula":"=SimpleOverflow(100000)","value":{"error":"#VALUE!"}},
+        {"formula":"=SimpleDiv(1,0)","value":{"error":"#DIV/0!"}},
+        {"formula":"=INDEX(SimpleGrid(),2,3)","value":23.0},
+        {"formula":"=DnaOpenCount()","value":1.0}
+    ]);
+    std::fs::write(&cases, serde_json::to_vec(&expected).unwrap()).unwrap();
+    let result = checked(
+        fixture
+            .command()
+            .arg("--xll")
+            .arg(&xlam)
+            .arg("--engine")
+            .arg("--cases")
+            .arg(&cases)
+            .output()
+            .unwrap(),
+    );
+    for (case, result) in expected.as_array().unwrap().iter().zip(result["results"].as_array().unwrap()) {
+        assert_eq!(result["value"], case["value"], "{}", case["formula"]);
+    }
+}
+
+/// Native-only: a macro workbook's own VBA functions answer beside a native add-in's, through the
+/// open-time route the page's worker takes (calc-host-vba). `local.xlsm`'s Module1.MyFunc is x+100
+/// (docs/plan/VBA_UDF_NAMES_IN_FILES.md); MyAdd is the X1 fixture's.
+#[test]
+fn a_macro_workbook_answers_its_own_functions_beside_a_native_addin() {
+    let fixture = new_fixture();
+    let xlsm = fixture.directory.join("local.xlsm");
+    std::fs::copy(
+        std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+            .join("../../crates/calc-doc/tests/fixtures/vba_udf_names/local.xlsm"),
+        &xlsm,
+    )
+    .unwrap();
+    let result = checked(
+        fixture
+            .command()
+            .arg("--engine")
+            .arg("--workbook")
+            .arg(&xlsm)
+            .args(["--formula", "=MyFunc(2)+MyAdd(1,2)"])
+            .output()
+            .unwrap(),
+    );
+    assert_eq!(result["workbook_project"], true);
+    assert_eq!(result["results"][0]["value"], 105.0);
+}

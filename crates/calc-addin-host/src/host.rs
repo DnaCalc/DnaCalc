@@ -233,6 +233,18 @@ impl AddinHost {
         Ok(VbaAddinLoad { functions, notes })
     }
 
+    /// [`Self::load_vba_addin`] from the add-in's `vbaProject.bin` bytes (the part as the file's
+    /// reader returns it), for a host that does not hold CalcVBA's project type itself.
+    pub fn load_vba_addin_part(
+        &mut self,
+        path: &Path,
+        part: &[u8],
+        install: bool,
+    ) -> Result<VbaAddinLoad, String> {
+        let project = calc_vba::read_office_project(part)?;
+        self.load_vba_addin(path, &project, install)
+    }
+
     /// Removes a VBA add-in's functions; `false` when none was loaded from `path`.
     pub fn unload_vba_addin(&mut self, path: &Path) -> bool {
         let before = self.vba_addins.len();
@@ -279,17 +291,7 @@ impl AddinHost {
             .map(|(_, load)| load.project.functions())
             .collect();
         for module in self.vba.iter().map(|(_, module)| module).chain(&addins) {
-            let registrations = module
-                .registrations()
-                .map(|(provider, name)| (provider.map(str::to_owned), name.to_owned()))
-                .collect::<Vec<_>>();
-            for (provider, name) in registrations {
-                let function = module
-                    .bind(provider.as_deref(), &name)
-                    .and_then(|handle| module.resolve(handle))
-                    .ok_or("a VBA registration lost its function")?;
-                table.register_for(provider.as_deref(), &name, Rc::clone(function))?;
-            }
+            table.add_from(module)?;
         }
         Ok(table)
     }

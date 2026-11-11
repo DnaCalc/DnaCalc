@@ -142,6 +142,8 @@ pub use calc_doc::{
     VbaReadPolicy, WriteError,
 };
 pub use calc_doc::{ColumnSpan, LoadedSheet, LoadedWorkbook, RowFormat, SheetGeometry, SheetView};
+/// An add-in file's (`.xlam`) VBA project part, for a desktop host that loads VBA add-ins.
+pub use calc_doc::{SessionVba, read_vba_file};
 pub use calc_doc::{
     blank_package, conditional_rule, convert_binary_workbook, file_form_with_links,
     new_conditional_rule,

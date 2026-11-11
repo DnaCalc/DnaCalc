@@ -487,7 +487,9 @@ Open the download page now?"
             },
         )?;
         for xll in &o.xlls {
-            set.load(xll)?;
+            for note in crate::load_addin(&mut set, xll)? {
+                eprintln!("dna-calc-desktop: {}: {note}", xll.display());
+            }
         }
         set.enable_async_continuations()?;
         let rtd = set.enable_rtd()?;

@@ -1,3 +1,9 @@
 * text eol=lf
 # Preserve raw captured text bytes, including the boundary trace's recorded hash.
 traces/** -text whitespace=blank-at-eol,blank-at-eof,space-before-tab,cr-at-eol
+# Office packages and native modules are zip or PE bytes: a CRLF pair inside one is data.
+*.xlsm binary
+*.xlam binary
+*.xlsx binary
+*.xll binary
+*.dll binary

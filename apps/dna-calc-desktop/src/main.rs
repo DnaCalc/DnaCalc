@@ -30,6 +30,33 @@ pub unsafe extern "system" fn MdCallBack12(
     unsafe { calc_xll_host::dispatch(function, count, args, result) }
 }
 
+/// Loads one add-in file into `set`: an `.xlam` (a VBA add-in: its project's public functions,
+/// installed as Excel's Add-ins dialog installs one, so `Workbook_Open` then
+/// `Workbook_AddinInstall` run) or else an `.xll`. Returns what the add-in's workbook events
+/// reported, for the caller to show.
+#[cfg(windows)]
+pub(crate) fn load_addin(
+    set: &mut calc_addin_host::AddinHost,
+    path: &std::path::Path,
+) -> Result<Vec<String>, String> {
+    let is_xlam = path
+        .extension()
+        .is_some_and(|extension| extension.eq_ignore_ascii_case("xlam"));
+    if !is_xlam {
+        set.load(path)?;
+        return Ok(Vec::new());
+    }
+    let named = |why: String| format!("{}: {why}", path.display());
+    let bytes = std::fs::read(path).map_err(|e| named(e.to_string()))?;
+    let vba = calc_host::read_vba_file(bytes)
+        .map_err(|refusal| named(refusal.to_string()))?
+        .ok_or_else(|| named("the add-in has no VBA project".to_owned()))?;
+    let load = set
+        .load_vba_addin_part(path, &vba.project, true)
+        .map_err(named)?;
+    Ok(load.notes)
+}
+
 #[cfg(windows)]
 fn run() -> Result<(), String> {
     use calc_addin_host::{AddinHost, Document};
@@ -54,6 +81,7 @@ fn run() -> Result<(), String> {
     let mut startup_ack = None;
     let mut finished = None;
     let mut release = None;
+    let mut workbook = None;
     let mut args = std::env::args().skip(1);
     while let Some(arg) = args.next() {
         match arg.as_str() {
@@ -71,6 +99,9 @@ fn run() -> Result<(), String> {
                 early_execution.push(args.next().ok_or("--early-execution needs a name")?)
             }
             "--engine" => engine = true,
+            "--workbook" => {
+                workbook = Some(PathBuf::from(args.next().ok_or("--workbook needs a path")?))
+            }
             "--ribbon-ui" => ribbon_ui = true,
             "--ready" => ready = Some(PathBuf::from(args.next().ok_or("--ready needs a path")?)),
             "--wait" => wait = Some(PathBuf::from(args.next().ok_or("--wait needs a path")?)),
@@ -87,7 +118,7 @@ fn run() -> Result<(), String> {
             }
             "--help" => {
                 println!(
-                    "dna-calc-desktop [FILE | --open FILE] --app (--assets DIR | --url URL | a `page` folder beside the executable) [--xll PATH ...] | --engine --xll PATH [--xll PATH ...] [--formula TEXT | --cases PATH] [--sheet NAME] [--workbook-name NAME] [--early-execution NAME]"
+                    "dna-calc-desktop [FILE | --open FILE] --app (--assets DIR | --url URL | a `page` folder beside the executable) [--xll PATH ...] | --engine --xll PATH [--xll PATH ...] (PATH an .xll or a VBA .xlam) [--workbook FILE] [--formula TEXT | --cases PATH] [--sheet NAME] [--workbook-name NAME] [--early-execution NAME]"
                 );
                 return Ok(());
             }
@@ -107,8 +138,8 @@ fn run() -> Result<(), String> {
                 .into(),
         );
     }
-    if xlls.is_empty() {
-        return Err("provide --xll PATH".into());
+    if xlls.is_empty() && workbook.is_none() {
+        return Err("provide --xll PATH or --workbook PATH".into());
     }
     let shell = Shell::new("DNA Calc")?;
     if let Some(path) = ready {
@@ -128,7 +159,9 @@ fn run() -> Result<(), String> {
         },
     )?;
     for xll in &xlls {
-        addins.load(xll)?;
+        for note in load_addin(&mut addins, xll)? {
+            eprintln!("dna-calc-desktop: {}: {note}", xll.display());
+        }
     }
     if let Some(path) = startup_ack {
         let deadline = std::time::Instant::now() + std::time::Duration::from_secs(120);
@@ -161,6 +194,7 @@ fn run() -> Result<(), String> {
         cases_file,
         formula,
         &early_execution,
+        workbook.as_deref(),
     )?;
     output["ribbons"] = serde_json::json!(ribbons);
     addins.close_addins()?;
