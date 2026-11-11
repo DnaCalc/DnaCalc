@@ -12,6 +12,11 @@ const STATE: &str = "Public Opens As Long\nPublic Changes As Long\nPublic Calcs 
 const SHEET: &str = "Private Sub Worksheet_Change(ByVal Target As Excel.Range)\n Changes = Changes + 1\nEnd Sub\nPrivate Sub Worksheet_Calculate()\n Calcs = Calcs + 1\nEnd Sub\n";
 const BOOK: &str = "Private Sub Workbook_Open()\n Opens = Opens + 1\nEnd Sub\nPrivate Sub Workbook_BeforeSave(ByVal SaveAsUI As Boolean, Cancel As Boolean)\n Saves = Saves + 1\n Cancel = True\nEnd Sub\n";
 
+/// The person enabled macros for these local test files.
+fn grant() -> calc_host_vba::ProjectGrant {
+    calc_host_vba::ProjectGrant::person_enabled(calc_host_vba::FileOrigin::Local).unwrap()
+}
+
 fn backends() -> Vec<calc_vba::Backend> {
     let mut backends = vec![calc_vba::Backend::Interpreter];
     #[cfg(not(target_arch = "wasm32"))]
@@ -1039,7 +1044,7 @@ fn original_recalculation_probe_project_is_admitted_without_source_removal() {
                 .kind,
             calc_vba::OfficeModuleKind::Class
         );
-        let project = calc_host_vba::prepare_file_project_with_events(
+        let project = calc_host_vba::prepare_file_project_with_events(&grant(), 
             session.host(),
             "probe.xlsm",
             1_000_000,
@@ -1093,7 +1098,7 @@ fn original_recalculation_probe_project_is_admitted_without_source_removal() {
                 .all(|f| f.reason.contains("dc-snz.15"))
         );
         assert!(
-            calc_host_vba::prepare_file_project(session.host(), "probe.xlsm", 1_000_000, backend)
+            calc_host_vba::prepare_file_project(&grant(), session.host(), "probe.xlsm", 1_000_000, backend)
                 .is_err()
         );
     }
@@ -1138,7 +1143,7 @@ fn file_classes_share_one_session_and_declared_unsupported_members_stay_refused(
         let mut session = opened(&bytes, "class.xlsm");
         session.dispatch(SkinIntent::SetCalcMode(calc_host::CalcMode::Manual));
         session.set_workbook_events_enabled(false);
-        calc_host_vba::activate_file_project(&mut session, "class.xlsm", 100_000, Some(backend))
+        calc_host_vba::activate_file_project(&grant(), &mut session, "class.xlsm", 100_000, Some(backend))
             .unwrap();
         enter(&mut session, 1, 4, "=NextCount()");
         full(&mut session);
@@ -1198,7 +1203,7 @@ fn project_class_declarations_cannot_admit_designers_or_conflicting_identities()
         let bytes =
             vba_project::replace_project_declaration(original, "Class=ProbeEvents", replacement);
         let session = opened(&bytes, "invalid.xlsm");
-        let error = calc_host_vba::prepare_file_project_with_events(
+        let error = calc_host_vba::prepare_file_project_with_events(&grant(), 
             session.host(),
             "invalid.xlsm",
             100_000,
@@ -1239,7 +1244,7 @@ fn dynamic_native_sinks_cannot_hide_an_unsupported_subscription_or_retry_a_prefi
         let mut session = opened(&bytes, "sink.xlsm");
         session.dispatch(SkinIntent::SetCalcMode(calc_host::CalcMode::Manual));
         session.set_workbook_events_enabled(false);
-        calc_host_vba::activate_file_project(&mut session, "sink.xlsm", 100_000, backend).unwrap();
+        calc_host_vba::activate_file_project(&grant(), &mut session, "sink.xlsm", 100_000, backend).unwrap();
         enter(&mut session, 1, 4, "=IFERROR(BindSink(),777)");
         full(&mut session);
         let at = calc_value::CellKey::new(session.host().sheets()[0].id(), 1, 4).unwrap();
@@ -1267,7 +1272,7 @@ fn dynamic_native_sinks_cannot_hide_an_unsupported_subscription_or_retry_a_prefi
     #[cfg(not(target_arch = "wasm32"))]
     {
         let session = opened(&bytes, "sink.xlsm");
-        let error = calc_host_vba::prepare_file_project_with_events(
+        let error = calc_host_vba::prepare_file_project_with_events(&grant(), 
             session.host(),
             "sink.xlsm",
             100_000,
@@ -1321,7 +1326,7 @@ fn events_off_admission_checks_each_source_identity_including_class_and_name_swa
     );
     for bytes in [renamed_class, swapped] {
         let session = opened(&bytes, "identity.xlsm");
-        let error = calc_host_vba::prepare_file_project_with_events(
+        let error = calc_host_vba::prepare_file_project_with_events(&grant(), 
             session.host(),
             "identity.xlsm",
             100_000,
@@ -1401,7 +1406,7 @@ fn original_probe_families_compile_as_complete_events_off_projects() {
     let mut failures = Vec::new();
     for (name, source) in sources {
         let session = opened(source, "probe.xlsm");
-        if let Err(error) = calc_host_vba::prepare_file_project_with_events(
+        if let Err(error) = calc_host_vba::prepare_file_project_with_events(&grant(), 
             session.host(),
             "probe.xlsm",
             100_000,
@@ -1434,7 +1439,7 @@ fn original_p01_p10_projects_keep_all_source_after_admission_and_save() {
             .vba_project(&Default::default())
             .unwrap()
             .unwrap();
-        let owner = calc_host_vba::prepare_file_project_with_events(
+        let owner = calc_host_vba::prepare_file_project_with_events(&grant(), 
             session.host(),
             "probe.xlsm",
             100_000,
@@ -1470,7 +1475,7 @@ fn original_p01_fresh_observer_keeps_its_uninitialized_object_error() {
     let mut session = opened(bytes, "probe.xlsm");
     session.dispatch(SkinIntent::SetCalcMode(calc_host::CalcMode::Manual));
     session.set_workbook_events_enabled(false);
-    let owner = calc_host_vba::prepare_file_project_with_events(
+    let owner = calc_host_vba::prepare_file_project_with_events(&grant(), 
         session.host(),
         "probe.xlsm",
         100_000,
@@ -1514,7 +1519,7 @@ fn original_p02_fresh_logger_raises_error_nine_and_keeps_its_source() {
             .vba_project(&Default::default())
             .unwrap()
             .unwrap();
-        let owner = calc_host_vba::prepare_file_project_with_events(
+        let owner = calc_host_vba::prepare_file_project_with_events(&grant(), 
             session.host(),
             "probe.xlsm",
             100_000,
@@ -1586,7 +1591,7 @@ fn original_p08_fresh_observers_raise_error_ninety_one_without_invented_setup() 
             .source;
         assert!(source.contains("Private observedSheet As Worksheet"));
         assert!(source.contains("Set observedSheet = ThisWorkbook.Worksheets(1)"));
-        let owner = calc_host_vba::prepare_file_project_with_events(
+        let owner = calc_host_vba::prepare_file_project_with_events(&grant(), 
             session.host(),
             "probe.xlsm",
             1_000_000,
@@ -1655,7 +1660,7 @@ fn events_off_file_range_arguments_keep_the_shared_projection_tokens() {
         let mut session = opened(&bytes, "range.xlsm");
         session.dispatch(SkinIntent::SetCalcMode(calc_host::CalcMode::Manual));
         session.set_workbook_events_enabled(false);
-        calc_host_vba::activate_file_project(&mut session, "range.xlsm", 100_000, Some(backend))
+        calc_host_vba::activate_file_project(&grant(), &mut session, "range.xlsm", 100_000, Some(backend))
             .unwrap();
         enter(&mut session, 1, 4, "=InspectRange(A1:B2)");
         full(&mut session);
@@ -1681,7 +1686,7 @@ fn file_project_sources_compile_with_their_exported_attributes() {
     ] {
         for backend in backends() {
             let mut session = opened(bytes, name);
-            calc_host_vba::activate_file_project(&mut session, name, 100_000, Some(backend))
+            calc_host_vba::activate_file_project(&grant(), &mut session, name, 100_000, Some(backend))
                 .unwrap();
             assert!(session.dispatch(SkinIntent::Recalculate).accepted());
             drain(&mut session);
@@ -1744,7 +1749,7 @@ fn file_project_sources_compile_with_their_exported_attributes() {
                     "internal worksheet entries must not alter saved VBA"
                 );
             }
-            calc_host_vba::activate_file_project(&mut reopened, name, 100_000, Some(backend))
+            calc_host_vba::activate_file_project(&grant(), &mut reopened, name, 100_000, Some(backend))
                 .unwrap();
             assert!(reopened.dispatch(SkinIntent::Recalculate).accepted());
             drain(&mut reopened);
@@ -1790,7 +1795,7 @@ fn unsupported_private_entries_refuse_only_their_calls_without_running_a_prefix(
                     .dispatch(SkinIntent::SetCalcMode(calc_host::CalcMode::Manual))
                     .accepted()
             );
-            calc_host_vba::activate_file_project(
+            calc_host_vba::activate_file_project(&grant(), 
                 &mut session,
                 "unsupported-private.xlsm",
                 100_000,
@@ -1854,7 +1859,7 @@ fn file_project_events_share_state_and_reopen_starts_a_new_session() {
     );
     for backend in backends() {
         let mut session = opened(&bytes, "file.xlsm");
-        calc_host_vba::activate_file_project(&mut session, "file.xlsm", 100_000, Some(backend))
+        calc_host_vba::activate_file_project(&grant(), &mut session, "file.xlsm", 100_000, Some(backend))
             .unwrap();
         session.notify_workbook_open(); // Repeated owner delivery does not enter the handler again.
         enter(&mut session, 1, 4, "=Probe()");
@@ -1882,7 +1887,7 @@ fn file_project_events_share_state_and_reopen_starts_a_new_session() {
         );
         assert!(session.take_workbook_event_failures().failures.is_empty());
         let mut reopened = opened(&bytes, "file.xlsm");
-        calc_host_vba::activate_file_project(&mut reopened, "file.xlsm", 100_000, Some(backend))
+        calc_host_vba::activate_file_project(&grant(), &mut reopened, "file.xlsm", 100_000, Some(backend))
             .unwrap();
         enter(&mut reopened, 1, 4, "=Probe()");
         reopened.dispatch(SkinIntent::Recalculate);
@@ -1911,7 +1916,7 @@ fn dc_bctq_save_as_keeps_project_state_and_refreshes_document_identity() {
     for backend in backends() {
         let mut session = opened(&bytes, "Old.xlsm");
         session.dispatch(SkinIntent::SetCalcMode(calc_host::CalcMode::Manual));
-        calc_host_vba::activate_file_project(&mut session, "Old.xlsm", 100_000, Some(backend))
+        calc_host_vba::activate_file_project(&grant(), &mut session, "Old.xlsm", 100_000, Some(backend))
             .unwrap();
         enter(&mut session, 1, 4, "=Probe()");
         let save = |session: &mut HostSession, operation| {
@@ -1980,7 +1985,7 @@ fn file_event_state_refuses_stale_target_values_even_when_vba_catches_the_error(
             // Enter before installing the owner, so setup raises no Change callback.
             enter(&mut session, 1, 4, "=Probe()");
             if file_project {
-                calc_host_vba::activate_file_project(
+                calc_host_vba::activate_file_project(&grant(), 
                     &mut session,
                     "file.xlsm",
                     100_000,
@@ -2102,7 +2107,7 @@ End Function
         let mut session = HostSession::new(host);
         session.dispatch(SkinIntent::SetCalcMode(calc_host::CalcMode::Manual));
         session.set_workbook_events_enabled(false);
-        calc_host_vba::activate_file_project(&mut session, "Old.xlsm", 100_000, Some(backend))
+        calc_host_vba::activate_file_project(&grant(), &mut session, "Old.xlsm", 100_000, Some(backend))
             .unwrap();
         for (row, formula) in [
             (1, "=Qualified()"),

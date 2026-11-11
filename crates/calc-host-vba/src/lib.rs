@@ -12,6 +12,9 @@ use std::{
     rc::Rc,
 };
 
+mod trust;
+pub use trust::{FileOrigin, GrantReason, MacroBlock, ProjectGrant};
+
 pub struct WorkbookEvents {
     project: LoadedProject,
     sheets: BTreeMap<SheetId, EventSource>,
@@ -19,6 +22,8 @@ pub struct WorkbookEvents {
     max_steps: u64,
     file_project: bool,
     automatic_events: bool,
+    /// Why a file's project runs; `None` for source modules a person loaded.
+    grant: Option<ProjectGrant>,
 }
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum ModuleTarget {
@@ -62,19 +67,22 @@ impl std::fmt::Display for FileProjectError {
 impl std::error::Error for FileProjectError {}
 
 /// Preparation executes no handlers or worksheet functions. Failure never publishes
-/// a partially loaded registry or substitutes the file's cached values.
+/// a partially loaded registry or substitutes the file's cached values. `grant` is the reason the
+/// file's project may run at all ([`ProjectGrant`]).
 pub fn prepare_file_project(
+    grant: &ProjectGrant,
     host: &HostState,
     name: &str,
     max_steps: u64,
     backend: Option<calc_vba::Backend>,
 ) -> Result<Option<Rc<WorkbookEvents>>, FileProjectError> {
-    prepare_file_project_with_events(host, name, max_steps, backend, true)
+    prepare_file_project_with_events(grant, host, name, max_steps, backend, true)
 }
 
 /// A disabled-events admission still compiles every module. Its owner refuses
 /// event delivery if a caller later enables events without preparing again.
 pub fn prepare_file_project_with_events(
+    grant: &ProjectGrant,
     host: &HostState,
     name: &str,
     max_steps: u64,
@@ -143,7 +151,7 @@ pub fn prepare_file_project_with_events(
         &references,
         max_steps,
         backend,
-        true,
+        Some(grant.clone()),
         automatic_events,
     )
     .map(Some)
@@ -163,6 +171,10 @@ impl WorkbookEvents {
         let functions = self.functions();
         self.install_with_registry(session, functions);
     }
+    /// Why the file's project runs ([`ProjectGrant`]); `None` for source modules a person loaded.
+    pub fn grant(&self) -> Option<&ProjectGrant> {
+        self.grant.as_ref()
+    }
     /// File providers may compose native entries before publishing the complete registry.
     pub fn functions(&self) -> calc_host::CallableTable {
         self.project.functions()
@@ -180,23 +192,26 @@ impl WorkbookEvents {
 /// Open-time activation is shared by the worker and native corpus runner. Source
 /// replacements use `prepare`/`install` and do not replay Workbook_Open.
 pub fn activate_file_project(
+    grant: &ProjectGrant,
     session: &mut calc_host::HostSession,
     name: &str,
     max_steps: u64,
     backend: Option<calc_vba::Backend>,
 ) -> Result<bool, FileProjectError> {
-    open_file_project(session, name, max_steps, backend).map(|project| project.is_some())
+    open_file_project(grant, session, name, max_steps, backend).map(|project| project.is_some())
 }
 
 /// [`activate_file_project`], returning the installed project, whose functions a host composes
 /// with its add-ins' when it later publishes their table to the session.
 pub fn open_file_project(
+    grant: &ProjectGrant,
     session: &mut calc_host::HostSession,
     name: &str,
     max_steps: u64,
     backend: Option<calc_vba::Backend>,
 ) -> Result<Option<Rc<WorkbookEvents>>, FileProjectError> {
     let project = prepare_file_project_with_events(
+        grant,
         session.host(),
         name,
         max_steps,
@@ -224,7 +239,7 @@ pub fn prepare(
         &calc_vba::events::ProjectReferences::none(),
         max_steps,
         backend,
-        false,
+        None,
         true,
     )
 }
@@ -237,9 +252,10 @@ fn prepare_project(
     references: &calc_vba::events::ProjectReferences,
     max_steps: u64,
     backend: Option<calc_vba::Backend>,
-    file_project: bool,
+    grant: Option<ProjectGrant>,
     automatic_events: bool,
 ) -> Result<Rc<WorkbookEvents>, String> {
+    let file_project = grant.is_some();
     let mut sheets = BTreeSet::new();
     let mut documents = Vec::new();
     let mut workbook = false;
@@ -295,6 +311,7 @@ fn prepare_project(
         max_steps,
         file_project,
         automatic_events,
+        grant,
     };
     // Attach all new identities before replacing any live registration. A failed
     // attachment drops only the new project; its handlers have never been raised.

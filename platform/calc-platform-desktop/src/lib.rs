@@ -10,7 +10,8 @@
 //!   message loop that drive it (`webview.rs`);
 //! - [`winhttp`]: one GET over WinHTTP, and [`Background`]: work on a thread whose result is
 //!   announced to the thread that asked (`winhttp.rs`, `background.rs`);
-//! - [`dialogs`]: the native file open and save dialogs (`dialogs.rs`).
+//! - [`dialogs`]: the native file open and save dialogs (`dialogs.rs`);
+//! - [`origin`]: a file's Mark of the Web and whether its path is on the network (`origin.rs`).
 
 #[cfg(target_arch = "wasm32")]
 compile_error!(
@@ -18,6 +19,7 @@ compile_error!(
 );
 
 pub mod assets;
+pub mod origin;
 #[cfg(windows)]
 mod background;
 #[cfg(windows)]

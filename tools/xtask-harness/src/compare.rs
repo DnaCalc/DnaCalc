@@ -590,47 +590,34 @@ fn capture_setting<'c>(capture: &'c CaptureRecord, name: &str) -> Option<&'c str
         .map(|(_, value)| value.as_str())
 }
 
-/// Captured macro policy is application-wide, including linked source workbooks.
-/// A disabled capture never admits source execution. Missing/interactive policy
-/// cannot certify a run that silently chooses to execute a file's project.
-pub(crate) fn prepare_captured_vba(
+/// The comparison route without a trusted-code manifest never runs a file's own VBA project
+/// (dc-0f1k.22): only `trusted_code.rs` holds a project grant (calc-host-vba's `ProjectGrant`), and only for a
+/// package whose exact bytes its manifest lists. Captured macro policy is application-wide,
+/// including linked source workbooks. A capture taken with macros disabled (AutomationSecurity 3)
+/// is compared with the project held, not run. One whose Excel could run the project (1) is
+/// refused here, naming the manifest route, and so is one that records no policy: not running the
+/// project could not certify either.
+pub(crate) fn refuse_untrusted_vba(
     host: &HostState,
-    name: &str,
     capture: &CaptureRecord,
-) -> Result<Option<(std::rc::Rc<calc_host_vba::WorkbookEvents>, bool)>, WorkbookFailure> {
+) -> Result<(), WorkbookFailure> {
     if !host.loaded().has_vba_project() {
-        return Ok(None);
+        return Ok(());
     }
     match capture_setting(capture, "automation_security") {
-        Some("3") => return Ok(None),
-        Some("1") => {}
-        _ => {
-            return Err(WorkbookFailure {
-                class: Class::Context,
-                key: "VbaPolicy:dc-snz.15".into(),
-                message: "the capture does not establish an enabled or disabled VBA project policy"
-                    .into(),
-            });
-        }
+        Some("3") => Ok(()),
+        Some("1") => Err(WorkbookFailure {
+            class: Class::Context,
+            key: "TrustedCodePolicy:dc-0f1k.22".into(),
+            message: "the capture's Excel ran this workbook's VBA project (AutomationSecurity 1); a file's project runs here only for a workbook the trusted-code manifest lists (--trusted-code)".into(),
+        }),
+        _ => Err(WorkbookFailure {
+            class: Class::Context,
+            key: "VbaPolicy:dc-snz.15".into(),
+            message: "the capture does not establish an enabled or disabled VBA project policy"
+                .into(),
+        }),
     }
-    let events = match capture_setting(capture, "enable_events") {
-        Some("true") => true,
-        Some("false") => false,
-        _ => {
-            return Err(WorkbookFailure {
-                class: Class::Context,
-                key: "VbaEventsPolicy:dc-hsa5.12".into(),
-                message: "the enabled-VBA capture does not establish its event policy".into(),
-            });
-        }
-    };
-    calc_host_vba::prepare_file_project_with_events(host, name, 100_000, None, events)
-        .map(|project| project.map(|project| (project, events)))
-        .map_err(|failure| WorkbookFailure {
-            class: Class::Doc,
-            key: "VbaProject:dc-snz.15".into(),
-            message: failure.to_string(),
-        })
 }
 
 /// The file Excel opened for `capture` (the setting workbook_path, its full name, dc-uar): its
@@ -803,14 +790,13 @@ fn run_workbook_with_code(
                         capture_digest,
                         false,
                     )
-                    .map(|code| (host, None, Some(code)))
+                    .map(|code| (host, Some(code)))
             } else {
-                prepare_captured_vba(&host, name.unwrap_or("Book1"), capture)
-                    .map(|project| (host, project, None))
+                refuse_untrusted_vba(&host, capture).map(|()| (host, None))
             }
         });
     let open_time = started.elapsed();
-    let (mut host, vba_project, trusted_owner) = match opened {
+    let (mut host, trusted_owner) = match opened {
         Ok(host) => host,
         Err(failure) => {
             let reason = failure.message.clone();
@@ -893,11 +879,6 @@ fn run_workbook_with_code(
     let options = host.options().clone();
     let mut domain = calc_host::CalculationDomain::new();
     let mut session = calc_host::HostSession::new(host);
-    if let Some((project, events)) = vba_project {
-        session.set_workbook_events_enabled(events);
-        project.install(&mut session);
-        session.notify_workbook_open();
-    }
     if let Some(code) = &trusted_owner {
         code.install(&mut session);
     }
@@ -2169,28 +2150,64 @@ mod tests {
             disabled.results.results[0].provenance,
             Provenance::NotModeled { .. }
         ));
-        let host = HostState::open(
-            Arc::new(MemorySource::new(bytes.to_vec())),
-            &OpenPolicy::default(),
-            HostOptions::default(),
-        )
-        .unwrap();
+        // A capture whose Excel ran the project (AutomationSecurity 1) is refused without the
+        // trusted-code manifest, events or not: the file's project never runs (dc-0f1k.22).
+        let dir = std::env::temp_dir().join(format!("xtask-untrusted-vba-{}", std::process::id()));
+        fs::create_dir_all(&dir).unwrap();
         for enabled in [false, true] {
             capture.environment.as_mut().unwrap().settings = vec![
                 ("automation_security".into(), "1".into()),
                 ("enable_events".into(), enabled.to_string()),
             ];
-            let (_, events) = prepare_captured_vba(&host, "local.xlsm", &capture)
-                .unwrap()
-                .unwrap();
-            assert_eq!(events, enabled);
-            let admitted = run_workbook(
+            let refused = run_workbook(
                 bytes,
                 Some("local.xlsm"),
                 None,
                 &capture,
                 NumericMode::Fast,
                 false,
+            )
+            .unwrap();
+            let failure = refused.workbook.as_ref().expect("refused before evaluation");
+            assert_eq!(failure.key, "TrustedCodePolicy:dc-0f1k.22");
+            assert_eq!(failure.class, Class::Context);
+            assert!(refused.record.evaluations.is_empty());
+            // A manifest that lists other bytes grants nothing: the project is held, not run.
+            let other = dir.join(format!("other-{enabled}.json"));
+            fs::write(&other, serde_json::to_vec(&json!({"format":"dnacalc-trusted-evidence-code","version":1,
+                "workbooks":{"0".repeat(64):{"vba":true,"events":enabled,"xlls":[],"evidence":"authored test control"}}})).unwrap()).unwrap();
+            let other = crate::trusted_code::Manifest::read(&other, None).unwrap();
+            let unlisted = run_workbook_with_code(
+                bytes,
+                Some("local.xlsm"),
+                None,
+                &capture,
+                NumericMode::Fast,
+                false,
+                None,
+                Some(&other),
+                None,
+            )
+            .unwrap();
+            assert!(matches!(
+                unlisted.results.results[0].provenance,
+                Provenance::NotModeled { .. }
+            ));
+            // The explicit route: the manifest lists these exact bytes with the project enabled.
+            let manifest = dir.join(format!("trusted-{enabled}.json"));
+            fs::write(&manifest, serde_json::to_vec(&json!({"format":"dnacalc-trusted-evidence-code","version":1,
+                "workbooks":{sha256_hex(bytes):{"vba":true,"events":enabled,"xlls":[],"evidence":"authored test control"}}})).unwrap()).unwrap();
+            let trusted = crate::trusted_code::Manifest::read(&manifest, None).unwrap();
+            let admitted = run_workbook_with_code(
+                bytes,
+                Some("local.xlsm"),
+                None,
+                &capture,
+                NumericMode::Fast,
+                false,
+                None,
+                Some(&trusted),
+                None,
             )
             .unwrap();
             assert!(admitted.workbook.is_none());
@@ -2207,14 +2224,50 @@ mod tests {
                 Some(102.)
             );
         }
+        let host = HostState::open(
+            Arc::new(MemorySource::new(bytes.to_vec())),
+            &OpenPolicy::default(),
+            HostOptions::default(),
+        )
+        .unwrap();
+        capture.environment.as_mut().unwrap().settings.pop();
         capture.environment.as_mut().unwrap().settings.pop();
         assert_eq!(
-            prepare_captured_vba(&host, "local.xlsm", &capture)
-                .err()
-                .unwrap()
-                .class,
-            Class::Context
+            refuse_untrusted_vba(&host, &capture).err().unwrap().key,
+            "VbaPolicy:dc-snz.15"
         );
+        fs::remove_dir_all(&dir).unwrap();
+    }
+
+    /// The harness runs a workbook file's own VBA project only through the trusted-code manifest
+    /// (dc-0f1k.22): `trusted_code.rs` is the one source file that uses calc-host-vba (so the one
+    /// that can make a project grant or reach a file-project route), and the grant it makes is the
+    /// manifest's.
+    #[test]
+    fn only_the_trusted_code_manifest_grants_a_file_project() {
+        let src = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("src");
+        let mut files = vec![src.clone()];
+        let mut granting = Vec::new();
+        while let Some(path) = files.pop() {
+            if path.is_dir() {
+                files.extend(fs::read_dir(&path).unwrap().map(|e| e.unwrap().path()));
+                continue;
+            }
+            if path.extension().is_none_or(|e| e != "rs") {
+                continue;
+            }
+            let text = fs::read_to_string(&path).unwrap();
+            // Any use of the crate counts, however it is imported (the name is split here so that
+            // this file does not count itself).
+            if text.contains(concat!("calc_host", "_vba")) {
+                granting.push(path.strip_prefix(&src).unwrap().to_string_lossy().into_owned());
+                if path.file_name().is_some_and(|n| n == "trusted_code.rs") {
+                    assert!(!text.contains("ProjectGrant::person_enabled"));
+                    assert_eq!(text.matches("ProjectGrant::evidence_manifest").count(), 1);
+                }
+            }
+        }
+        assert_eq!(granting, ["trusted_code.rs"]);
     }
 
     /// Native-only: resolves actual linked package files through the comparison route.

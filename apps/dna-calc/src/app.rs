@@ -962,6 +962,26 @@ pub fn app_with_transport(
                     {skin_buttons}
                 </nav>
             </header>
+            // Excel's "Macros are disabled" bar (dc-0f1k.22): an opened workbook's VBA project is
+            // held, not run, until the person enables macros; a blocked file says why.
+            <div
+                class="dc-macro-bar"
+                role="status"
+                data-dnacalc="macro-bar"
+                hidden=move || controller.macro_bar().is_none()
+            >
+                <span data-dnacalc="macro-status">
+                    {move || controller.macro_bar().map(|(text, _)| text).unwrap_or_default()}
+                </span>
+                <button
+                    type="button"
+                    data-dnacalc="enable-macros"
+                    hidden=move || !controller.macro_bar().is_some_and(|(_, enable)| enable)
+                    on:click=move |_| controller.enable_macros()
+                >
+                    "Enable macros"
+                </button>
+            </div>
             <div class="dc-bar">
                 <input
                     class="dc-namebox"

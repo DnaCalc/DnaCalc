@@ -137,6 +137,10 @@ struct App {
     extras: RefCell<std::collections::BTreeMap<u32, Server>>,
     /// The file named on the command line, given to the first worker the page starts.
     opening: RefCell<Option<(String, Vec<u8>)>>,
+    /// Where that file came from (its Mark of the Web, the network), which decides whether its
+    /// VBA project may be enabled (dc-0f1k.22). A file the page's own file input opens has no
+    /// path here, and opens with its project disabled.
+    opening_origin: Cell<Option<calc_host_vba::FileOrigin>>,
 }
 
 /// The bridge prefixes every message of a worker other than the page's first with `@N` and U+0002
@@ -312,6 +316,9 @@ impl App {
             });
         if let Some((open, package)) = substitute {
             self.opening.borrow_mut().take();
+            if let Some(origin) = self.opening_origin.take() {
+                self.server.borrow_mut().set_open_origin(origin);
+            }
             text = open;
             bytes = Some(package);
         }
@@ -409,6 +416,7 @@ fn default_data_dir() -> PathBuf {
 pub fn run(args: &[String]) -> Result<(), String> {
     let o = options(args)?;
     let opening = o.open.as_deref().map(read_open_file).transpose()?;
+    let opening_origin = o.open.as_deref().map(crate::origin::file_origin);
     // WebView2 is the app's window: say clearly what is missing and where to get it.
     if o.probe.is_none() && calc_platform_desktop::runtime_version().is_none() {
         let text = crate::embedded::missing_runtime_message();
@@ -522,6 +530,7 @@ Open the download page now?"
         functions: RefCell::new(functions),
         extras: RefCell::new(Default::default()),
         opening: RefCell::new(opening),
+        opening_origin: Cell::new(opening_origin),
     });
     {
         // The page's messages must not keep the app alive: a weak handle lets it drop at exit.

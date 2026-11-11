@@ -11,15 +11,16 @@ portability = "native-only"
 
 [dependencies]
 calc-func = { path = "../../crates/calc-func" }
+# Where an opened file came from (its Mark of the Web, the network), on every platform (origin.rs).
+calc-host-vba = { path = "../../crates/calc-host-vba" }
+calc-platform-desktop = { path = "../../platform/calc-platform-desktop" }
 
 [target.'cfg(windows)'.dependencies]
 calc-addin-host = { path = "../../crates/calc-addin-host" }
-calc-platform-desktop = { path = "../../platform/calc-platform-desktop" }
 calc-xll-host = { path = "../../crates/calc-xll-host" }
 calc-xll-abi = { path = "../../crates/calc-xll-abi" }
 calc-value = { path = "../../crates/calc-value" }
 calc-host = { path = "../../crates/calc-host" }
-calc-host-vba = { path = "../../crates/calc-host-vba" }
 calc-vba = { path = "../../crates/calc-vba" }
 serde_json = "=1.0.154"
 # The app mode hosts the page in WebView2 over the native workbook worker (M2 of the grid design).

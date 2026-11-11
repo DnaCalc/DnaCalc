@@ -907,6 +907,10 @@ pub enum Request {
     SetVbaEventsEnabled {
         enabled: bool,
     },
+    /// The person enabled macros for the open workbook (the page's "Macros are disabled" bar): its
+    /// own VBA project is compiled, its functions published and `Workbook_Open` raised. Refused
+    /// for a file whose Mark of the Web or network origin blocks its project (dc-0f1k.22).
+    EnableMacros,
     /// Saves the workbook: its bytes travel back beside the reply.
     Save,
     /// Ordinary live save with Excel's CalculateBeforeSave setting.
@@ -1049,8 +1053,25 @@ impl Request {
                 | Self::LoadVbaModule { .. }
                 | Self::LoadVbaProject { .. }
                 | Self::SetVbaEventsEnabled { .. }
+                | Self::EnableMacros
         )
     }
+}
+
+/// Whether an open workbook's own VBA project runs, as Excel's default has it: a macro workbook
+/// opens with its project held and saved back but not run until the person enables macros for it;
+/// a file with the Mark of the Web (zone 3 or 4) or from the network cannot be enabled.
+#[derive(Clone, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
+pub enum MacroStatus {
+    /// The workbook has no VBA project.
+    #[default]
+    None,
+    /// Held, not compiled, not run; [`Request::EnableMacros`] lets it run.
+    Disabled,
+    /// Held, not run, and not to be enabled; `reason` says why, in the bar's words.
+    Blocked { reason: String },
+    /// The person enabled macros: the project compiled and its events run.
+    Enabled,
 }
 
 /// The workbook as the page's shell shows it.
@@ -1066,6 +1087,9 @@ pub struct Summary {
     pub unsaved: bool,
     #[serde(default)]
     pub macro_enabled: bool,
+    /// Whether the workbook's own VBA project runs (dc-0f1k.22).
+    #[serde(default)]
+    pub macros: MacroStatus,
     #[serde(default)]
     pub template: bool,
     pub undo: usize,

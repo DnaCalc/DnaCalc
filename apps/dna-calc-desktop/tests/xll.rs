@@ -504,7 +504,8 @@ fn an_xlam_loads_through_the_addin_option_and_answers_as_excel() {
 }
 
 /// Native-only: a macro workbook's own VBA functions answer beside a native add-in's, through the
-/// open-time route the page's worker takes (calc-host-vba). `local.xlsm`'s Module1.MyFunc is x+100
+/// open-time route the page's worker takes (calc-host-vba), once the person enables macros
+/// (`--enable-macros`, dc-0f1k.22). `local.xlsm`'s Module1.MyFunc is x+100
 /// (docs/plan/VBA_UDF_NAMES_IN_FILES.md); MyAdd is the X1 fixture's.
 #[test]
 fn a_macro_workbook_answers_its_own_functions_beside_a_native_addin() {
@@ -522,10 +523,59 @@ fn a_macro_workbook_answers_its_own_functions_beside_a_native_addin() {
             .arg("--engine")
             .arg("--workbook")
             .arg(&xlsm)
+            .arg("--enable-macros")
             .args(["--formula", "=MyFunc(2)+MyAdd(1,2)"])
             .output()
             .unwrap(),
     );
     assert_eq!(result["workbook_project"], true);
     assert_eq!(result["results"][0]["value"], 105.0);
+}
+
+/// Native-only: without `--enable-macros` the workbook's project is held, not run, so its
+/// function does not answer; with the Mark of the Web (zone 3) enabling is refused (dc-0f1k.22).
+#[test]
+fn a_macro_workbook_runs_nothing_until_enabled_and_a_marked_one_never() {
+    let fixture = new_fixture();
+    let xlsm = fixture.directory.join("held.xlsm");
+    std::fs::copy(
+        std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+            .join("../../crates/calc-doc/tests/fixtures/vba_udf_names/local.xlsm"),
+        &xlsm,
+    )
+    .unwrap();
+    let held = checked(
+        fixture
+            .command()
+            .arg("--engine")
+            .arg("--workbook")
+            .arg(&xlsm)
+            .args(["--formula", "=MyFunc(2)"])
+            .output()
+            .unwrap(),
+    );
+    assert_eq!(held["workbook_project"], false);
+    assert_ne!(held["results"][0]["value"], 102.0, "{held}");
+    let mut stream = xlsm.as_os_str().to_owned();
+    stream.push(":Zone.Identifier");
+    std::fs::write(std::path::PathBuf::from(stream), "[ZoneTransfer]\r\nZoneId=3\r\n").unwrap();
+    let blocked = checked(
+        fixture
+            .command()
+            .arg("--engine")
+            .arg("--workbook")
+            .arg(&xlsm)
+            .arg("--enable-macros")
+            .args(["--formula", "=MyFunc(2)"])
+            .output()
+            .unwrap(),
+    );
+    assert_eq!(blocked["workbook_project"], false);
+    assert!(
+        blocked["macros_refused"]
+            .as_str()
+            .is_some_and(|why| why.contains("Mark of the Web")),
+        "{blocked}"
+    );
+    assert_ne!(blocked["results"][0]["value"], 102.0, "{blocked}");
 }
