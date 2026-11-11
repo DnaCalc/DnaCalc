@@ -1496,8 +1496,9 @@ mod tests {
         assert_eq!(loaded.len(), 1);
         assert_eq!(loaded[0].kind, "xlam");
         assert_eq!(loaded[0].functions, ["DnaAdd"]);
-        assert_eq!(loaded[0].notes, ["4 module(s)"]);
-        assert_eq!(host.libs.xlams, [(path.clone(), 4, true)]);
+        // ThisWorkbook, Sheet1, DnaExamples, DnaSimple and DnaCounter.
+        assert_eq!(loaded[0].notes, ["5 module(s)"]);
+        assert_eq!(host.libs.xlams, [(path.clone(), 5, true)]);
         assert_eq!(host.session().addins().len(), 1);
         assert_eq!(host.session().addins()[0].kind, "xlam");
         // Loading it twice is refused.
@@ -1521,7 +1522,7 @@ mod tests {
             path: path.display().to_string(),
             expected_hash: Some(hash),
         });
-        assert_eq!(host.libs.xlams, [(path.clone(), 4, false)]);
+        assert_eq!(host.libs.xlams, [(path.clone(), 5, false)]);
         // A file without a VBA project is refused, naming it.
         let empty = file_named("Empty.xlam", b"not a workbook");
         assert!(

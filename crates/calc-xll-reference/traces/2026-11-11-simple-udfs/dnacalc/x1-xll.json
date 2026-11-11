@@ -1,0 +1,1762 @@
+{
+ "route": "dna-calc-desktop --engine --xll X1.xll --sheet X1 --cases fixture/x1-cases.json (one process, every case)",
+ "xll": "calc_xll_fixture.dll built in target/debug at this tree, copied as X1.xll",
+ "excel_record": "C:/Work/DnaCalc/codex-runs/x13-boundary/m4-excel-all/x1-fixture/controller.jsonl (Excel 16.0.20527, 2026-11-10)",
+ "count": 289,
+ "matched": 289,
+ "mismatched": 0,
+ "refused": 0,
+ "missing": 0,
+ "rows": [
+  {
+   "formula": "=MyAdd(1,2)",
+   "excel": 3.0,
+   "dnacalc": 3.0,
+   "outcome": "matched"
+  },
+  {
+   "formula": "=MyAdd(-4,9.5)",
+   "excel": 5.5,
+   "dnacalc": 5.5,
+   "outcome": "matched"
+  },
+  {
+   "formula": "=MyEcho(\"hello 😀\")",
+   "excel": "hello 😀",
+   "dnacalc": "hello 😀",
+   "outcome": "matched"
+  },
+  {
+   "formula": "=SUM(MyEcho({1,2;3,4}))",
+   "excel": 10.0,
+   "dnacalc": 10.0,
+   "outcome": "matched"
+  },
+  {
+   "formula": "=MyEcho(TRUE)",
+   "excel": true,
+   "dnacalc": true,
+   "outcome": "matched"
+  },
+  {
+   "formula": "=MyEcho(#N/A)",
+   "excel": {
+    "error": "#N/A"
+   },
+   "dnacalc": {
+    "error": "#N/A"
+   },
+   "outcome": "matched"
+  },
+  {
+   "formula": "=MyOwned()",
+   "excel": "native owned",
+   "dnacalc": "native owned",
+   "outcome": "matched"
+  },
+  {
+   "formula": "=MyThreadSafe(9)",
+   "excel": 10.0,
+   "dnacalc": 10.0,
+   "outcome": "matched"
+  },
+  {
+   "formula": "=MyCaller()",
+   "excel": "2,2,1,1",
+   "dnacalc": "2,2,1,1",
+   "outcome": "matched"
+  },
+  {
+   "formula": "=MyReference(A1)",
+   "excel": 7.0,
+   "dnacalc": 7.0,
+   "outcome": "matched"
+  },
+  {
+   "formula": "=MyAsync(41)",
+   "excel": 42.0,
+   "dnacalc": 42.0,
+   "outcome": "matched"
+  },
+  {
+   "formula": "=MyCallbacks(7,8)",
+   "excel": 15.0,
+   "dnacalc": 15.0,
+   "outcome": "matched"
+  },
+  {
+   "formula": "=MyWide(\"counted 😀\")",
+   "excel": "counted 😀",
+   "dnacalc": "counted 😀",
+   "outcome": "matched"
+  },
+  {
+   "formula": "=MyFpSum({1,2;3,4})",
+   "excel": 10.0,
+   "dnacalc": 10.0,
+   "outcome": "matched"
+  },
+  {
+   "formula": "=MyMix(1,2,3,4,5)",
+   "excel": 15.0,
+   "dnacalc": 15.0,
+   "outcome": "matched"
+  },
+  {
+   "formula": "=MyVolatile(5)",
+   "excel": 6.0,
+   "dnacalc": 6.0,
+   "outcome": "matched"
+  },
+  {
+   "formula": "=MyDynamicA(40)",
+   "excel": 41.0,
+   "dnacalc": 41.0,
+   "outcome": "matched"
+  },
+  {
+   "formula": "=MyDynamicB(40)",
+   "excel": 42.0,
+   "dnacalc": 42.0,
+   "outcome": "matched"
+  },
+  {
+   "formula": "=MyNonfiniteValue()",
+   "excel": {
+    "error": "#NUM!"
+   },
+   "dnacalc": {
+    "error": "#NUM!"
+   },
+   "outcome": "matched"
+  },
+  {
+   "formula": "=MyNonfinitePointer()",
+   "excel": {
+    "error": "#NUM!"
+   },
+   "dnacalc": {
+    "error": "#NUM!"
+   },
+   "outcome": "matched"
+  },
+  {
+   "formula": "=MyNonfiniteOper()",
+   "excel": {
+    "error": "#NUM!"
+   },
+   "dnacalc": {
+    "error": "#NUM!"
+   },
+   "outcome": "matched"
+  },
+  {
+   "formula": "=MyOpenProbe(0)",
+   "excel": "0|num|3",
+   "dnacalc": "0|num|3",
+   "outcome": "matched"
+  },
+  {
+   "formula": "=MyOpenProbe(1)",
+   "excel": "0|num|5",
+   "dnacalc": "0|num|5",
+   "outcome": "matched"
+  },
+  {
+   "formula": "=MyOpenProbe(2)",
+   "excel": "0|num|same=true|integer=true",
+   "dnacalc": "0|num|same=true|integer=true",
+   "outcome": "matched"
+  },
+  {
+   "formula": "=MyOpenProbe(3)",
+   "excel": "0|num|same=true|integer=true",
+   "dnacalc": "0|num|same=true|integer=true",
+   "outcome": "matched"
+  },
+  {
+   "formula": "=MyXlf(150,\"@self\",\"MyAdd\",\"BBB\",1,2)",
+   "excel": "0|num|3",
+   "dnacalc": "0|num|3",
+   "outcome": "matched"
+  },
+  {
+   "formula": "=MyXlf(150,\"@selfname\",\"MyAdd\",\"BBB\",1,2)",
+   "excel": "0|num|3",
+   "dnacalc": "0|num|3",
+   "outcome": "matched"
+  },
+  {
+   "formula": "=MyXlf(150,\"@selfstem\",\"MyAdd\",\"BBB\",1,2)",
+   "excel": "0|err|#VALUE!",
+   "dnacalc": "0|err|#VALUE!",
+   "outcome": "matched"
+  },
+  {
+   "formula": "=MyXlf(150,\"@selfupper\",\"MyAdd\",\"BBB\",1,2)",
+   "excel": "0|num|3",
+   "dnacalc": "0|num|3",
+   "outcome": "matched"
+  },
+  {
+   "formula": "=MyXlf(150,\"@selflower\",\"MyAdd\",\"BBB\",1,2)",
+   "excel": "0|num|3",
+   "dnacalc": "0|num|3",
+   "outcome": "matched"
+  },
+  {
+   "formula": "=MyXlf(150,\"@self\",\"myadd\",\"BBB\",1,2)",
+   "excel": "0|err|#VALUE!",
+   "dnacalc": "0|err|#VALUE!",
+   "outcome": "matched"
+  },
+  {
+   "formula": "=MyXlf(150,\"@self\",\"MyAdd\",\"bbb\",1,2)",
+   "excel": "0|num|3",
+   "dnacalc": "0|num|3",
+   "outcome": "matched"
+  },
+  {
+   "formula": "=MyXlf(150,\"@self\",\"MyAdd\",\"BBB\",1)",
+   "excel": "0|num|1",
+   "dnacalc": "0|num|1",
+   "outcome": "matched"
+  },
+  {
+   "formula": "=MyXlf(150,\"@self\",\"MyAdd\",\"BBB\")",
+   "excel": "0|num|0",
+   "dnacalc": "0|num|0",
+   "outcome": "matched"
+  },
+  {
+   "formula": "=MyXlf(150,\"@self\",\"MyAdd\",\"BBB\",1,2,3)",
+   "excel": "0|err|#VALUE!",
+   "dnacalc": "0|err|#VALUE!",
+   "outcome": "matched"
+  },
+  {
+   "formula": "=MyXlf(150,\"@self\",\"MyAdd\",\"BBBB\",1,2)",
+   "excel": "0|num|3",
+   "dnacalc": "0|num|3",
+   "outcome": "matched"
+  },
+  {
+   "formula": "=MyXlf(150,\"@self\",\"MyAdd\",\"BB\",1,2)",
+   "excel": "0|err|#VALUE!",
+   "dnacalc": "0|err|#VALUE!",
+   "outcome": "matched"
+  },
+  {
+   "formula": "=MyXlf(150,\"@self\",\"MyAdd\",\"BBB\",\"3\",4)",
+   "excel": "0|num|7",
+   "dnacalc": "0|num|7",
+   "outcome": "matched"
+  },
+  {
+   "formula": "=MyXlf(150,\"@self\",\"MyAdd\",\"BBB\",TRUE,4)",
+   "excel": "0|num|5",
+   "dnacalc": "0|num|5",
+   "outcome": "matched"
+  },
+  {
+   "formula": "=MyXlf(150,\"@self\",\"MyAdd\",\"BBB\",\"x\",4)",
+   "excel": "0|err|#VALUE!",
+   "dnacalc": "0|err|#VALUE!",
+   "outcome": "matched"
+  },
+  {
+   "formula": "=MyXlf(150,\"@self\",\"MyAdd\",\"BBB\",#N/A,4)",
+   "excel": "0|err|#VALUE!",
+   "dnacalc": "0|err|#VALUE!",
+   "outcome": "matched"
+  },
+  {
+   "formula": "=MyXlf(150,\"@self\",\"MyAdd\",\"BBB\",,4)",
+   "excel": "0|num|4",
+   "dnacalc": "0|num|4",
+   "outcome": "matched"
+  },
+  {
+   "formula": "=MyXlf(150,\"@self\",\"MyAdd\",\"BBB\",{1,2},4)",
+   "excel": "0|num|5",
+   "dnacalc": "0|num|5",
+   "outcome": "matched"
+  },
+  {
+   "formula": "=MyXlf(150,\"@self\",\"MyAdd\",\"BBB\",A1,4)",
+   "excel": "0|num|11",
+   "dnacalc": "0|num|11",
+   "outcome": "matched"
+  },
+  {
+   "formula": "=MyXlf(150,\"@self\",\"MyAdd\",\"BBB\",1.5,2.25)",
+   "excel": "0|num|3.75",
+   "dnacalc": "0|num|3.75",
+   "outcome": "matched"
+  },
+  {
+   "formula": "=MyXlf(150,\"@self\",\"MyAdd\",\"BBB\",1E+300,1E+300)",
+   "excel": "0|num|2000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000",
+   "dnacalc": "0|num|2000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000",
+   "outcome": "matched"
+  },
+  {
+   "formula": "=MyXlf(150,\"@self\",\"NoSuchProc\",\"BBB\",1,2)",
+   "excel": "0|err|#VALUE!",
+   "dnacalc": "0|err|#VALUE!",
+   "outcome": "matched"
+  },
+  {
+   "formula": "=MyXlf(150,\"NoSuchModule\",\"MyAdd\",\"BBB\",1,2)",
+   "excel": "0|err|#VALUE!",
+   "dnacalc": "0|err|#VALUE!",
+   "outcome": "matched"
+  },
+  {
+   "formula": "=MyXlf(150,\"kernel32\",\"lstrlenA\",\"JC\",\"hello\")",
+   "excel": "0|num|5",
+   "dnacalc": "0|num|5",
+   "outcome": "matched"
+  },
+  {
+   "formula": "=MyXlf(150,\"kernel32.dll\",\"lstrlenA\",\"JC\",\"hello\")",
+   "excel": "0|num|5",
+   "dnacalc": "0|num|5",
+   "outcome": "matched"
+  },
+  {
+   "formula": "=MyXlf(150,\"KERNEL32\",\"LSTRLENA\",\"JC\",\"hello\")",
+   "excel": "0|err|#VALUE!",
+   "dnacalc": "0|err|#VALUE!",
+   "outcome": "matched"
+  },
+  {
+   "formula": "=MyXlf(150,\"kernel32\",\"lstrlenA\",\"JC\",\"\")",
+   "excel": "0|num|0",
+   "dnacalc": "0|num|0",
+   "outcome": "matched"
+  },
+  {
+   "formula": "=MyXlf(150,\"kernel32\",\"lstrlenA\",\"JC\",\"héllo\")",
+   "excel": "0|num|5",
+   "dnacalc": "0|num|5",
+   "outcome": "matched"
+  },
+  {
+   "formula": "=MyXlf(150,\"kernel32\",\"lstrlenA\",\"JC\",123)",
+   "excel": "0|num|3",
+   "dnacalc": "0|num|3",
+   "outcome": "matched"
+  },
+  {
+   "formula": "=MyXlf(150,\"kernel32\",\"lstrlenA\",\"JC\",TRUE)",
+   "excel": "0|num|4",
+   "dnacalc": "0|num|4",
+   "outcome": "matched"
+  },
+  {
+   "formula": "=MyXlf(150,\"kernel32\",\"lstrlenW\",\"JC%\",\"hello\")",
+   "excel": "0|num|5",
+   "dnacalc": "0|num|5",
+   "outcome": "matched"
+  },
+  {
+   "formula": "=MyXlf(150,\"kernel32\",\"lstrlenA\",\"ZC\",\"hello\")",
+   "excel": "0|err|#VALUE!",
+   "dnacalc": "0|err|#VALUE!",
+   "outcome": "matched"
+  },
+  {
+   "formula": "=MyXlf(150,\"kernel32\",\"lstrlenA\",\"JZ\",\"hello\")",
+   "excel": "0|err|#VALUE!",
+   "dnacalc": "0|err|#VALUE!",
+   "outcome": "matched"
+  },
+  {
+   "formula": "=MyXlf(150,\"kernel32\",\"lstrlenA\",\"\",\"hello\")",
+   "excel": "0|err|#VALUE!",
+   "dnacalc": "0|err|#VALUE!",
+   "outcome": "matched"
+  },
+  {
+   "formula": "=MyXlf(150,\"kernel32\",\"lstrlenA\",5,\"hello\")",
+   "excel": "0|err|#VALUE!",
+   "dnacalc": "0|err|#VALUE!",
+   "outcome": "matched"
+  },
+  {
+   "formula": "=MyXlf(150,\"kernel32\",\"lstrlenA\",,\"hello\")",
+   "excel": "0|err|#VALUE!",
+   "dnacalc": "0|err|#VALUE!",
+   "outcome": "matched"
+  },
+  {
+   "formula": "=MyXlf(150,5,\"lstrlenA\",\"JC\",\"hello\")",
+   "excel": "0|err|#VALUE!",
+   "dnacalc": "0|err|#VALUE!",
+   "outcome": "matched"
+  },
+  {
+   "formula": "=MyXlf(150,\"kernel32\",,\"JC\",\"hello\")",
+   "excel": "0|err|#VALUE!",
+   "dnacalc": "0|err|#VALUE!",
+   "outcome": "matched"
+  },
+  {
+   "formula": "=MyXlf(150)",
+   "excel": "4|err|#VALUE!",
+   "dnacalc": "4|err|#VALUE!",
+   "outcome": "matched"
+  },
+  {
+   "formula": "=MyXlf(150,\"@self\")",
+   "excel": "0|err|#VALUE!",
+   "dnacalc": "0|err|#VALUE!",
+   "outcome": "matched"
+  },
+  {
+   "formula": "=MyXlf(150,\"@self\",\"MyAdd\")",
+   "excel": "0|num|0",
+   "dnacalc": "0|num|0",
+   "outcome": "matched"
+  },
+  {
+   "formula": "=MyXlf(150,\"@self\",\"MyStrInfoA\",\"JC\",\"hello\")",
+   "excel": "0|num|500104",
+   "dnacalc": "0|num|500104",
+   "outcome": "matched"
+  },
+  {
+   "formula": "=MyXlf(150,\"@self\",\"MyStrInfoA\",\"JC\",\"héllo\")",
+   "excel": "0|num|500104",
+   "dnacalc": "0|num|500104",
+   "outcome": "matched"
+  },
+  {
+   "formula": "=MyXlf(150,\"@self\",\"MyStrInfoA\",\"JC\",12.5)",
+   "excel": "0|num|400049",
+   "dnacalc": "0|num|400049",
+   "outcome": "matched"
+  },
+  {
+   "formula": "=MyXlf(150,\"@self\",\"MyStrInfoA\",\"JC\",\"\")",
+   "excel": "0|num|0",
+   "dnacalc": "0|num|0",
+   "outcome": "matched"
+  },
+  {
+   "formula": "=MyXlf(150,\"@self\",\"MyStrInfoW\",\"JC%\",\"hello\")",
+   "excel": "0|num|500104",
+   "dnacalc": "0|num|500104",
+   "outcome": "matched"
+  },
+  {
+   "formula": "=MyXlf(150,\"@self\",\"MyStrInfoW\",\"JC%\",\"héllo😀\")",
+   "excel": "0|num|700104",
+   "dnacalc": "0|num|700104",
+   "outcome": "matched"
+  },
+  {
+   "formula": "=MyXlf(150,\"@self\",\"MyCountedInfoA\",\"JD\",\"hello\")",
+   "excel": "0|num|500104",
+   "dnacalc": "0|num|500104",
+   "outcome": "matched"
+  },
+  {
+   "formula": "=MyXlf(150,\"@self\",\"MyCountedInfoA\",\"JD\",\"héllo\")",
+   "excel": "0|num|500104",
+   "dnacalc": "0|num|500104",
+   "outcome": "matched"
+  },
+  {
+   "formula": "=MyXlf(150,\"@self\",\"MyCountedInfoW\",\"JD%\",\"hello\")",
+   "excel": "0|num|500104",
+   "dnacalc": "0|num|500104",
+   "outcome": "matched"
+  },
+  {
+   "formula": "=MyXlf(150,\"@self\",\"MyCountedInfoW\",\"JD%\",\"héllo😀\")",
+   "excel": "0|num|700104",
+   "dnacalc": "0|num|700104",
+   "outcome": "matched"
+  },
+  {
+   "formula": "=MyXlf(150,\"@self\",\"MyBoolRaw\",\"JA\",TRUE)",
+   "excel": "0|num|1",
+   "dnacalc": "0|num|1",
+   "outcome": "matched"
+  },
+  {
+   "formula": "=MyXlf(150,\"@self\",\"MyBoolRaw\",\"JA\",FALSE)",
+   "excel": "0|num|0",
+   "dnacalc": "0|num|0",
+   "outcome": "matched"
+  },
+  {
+   "formula": "=MyXlf(150,\"@self\",\"MyBoolRaw\",\"JA\",5)",
+   "excel": "0|num|1",
+   "dnacalc": "0|num|1",
+   "outcome": "matched"
+  },
+  {
+   "formula": "=MyXlf(150,\"@self\",\"MyBoolRaw\",\"JA\",0)",
+   "excel": "0|num|0",
+   "dnacalc": "0|num|0",
+   "outcome": "matched"
+  },
+  {
+   "formula": "=MyXlf(150,\"@self\",\"MyBoolRaw\",\"JA\",\"TRUE\")",
+   "excel": "0|num|1",
+   "dnacalc": "0|num|1",
+   "outcome": "matched"
+  },
+  {
+   "formula": "=MyXlf(150,\"@self\",\"MyBoolEcho\",\"AA\",TRUE)",
+   "excel": "0|bool|TRUE",
+   "dnacalc": "0|bool|TRUE",
+   "outcome": "matched"
+  },
+  {
+   "formula": "=MyXlf(150,\"@self\",\"MyBoolEcho\",\"AA\",0)",
+   "excel": "0|bool|FALSE",
+   "dnacalc": "0|bool|FALSE",
+   "outcome": "matched"
+  },
+  {
+   "formula": "=MyXlf(150,\"@self\",\"MyShortAdd\",\"III\",1,2)",
+   "excel": "0|num|3",
+   "dnacalc": "0|num|3",
+   "outcome": "matched"
+  },
+  {
+   "formula": "=MyXlf(150,\"@self\",\"MyShortAdd\",\"III\",32767,1)",
+   "excel": "0|num|-32768",
+   "dnacalc": "0|num|-32768",
+   "outcome": "matched"
+  },
+  {
+   "formula": "=MyXlf(150,\"@self\",\"MyShortAdd\",\"III\",1.9,2.9)",
+   "excel": "0|num|5",
+   "dnacalc": "0|num|5",
+   "outcome": "matched"
+  },
+  {
+   "formula": "=MyXlf(150,\"@self\",\"MyShortAdd\",\"III\",-1.9,0)",
+   "excel": "0|num|-2",
+   "dnacalc": "0|num|-2",
+   "outcome": "matched"
+  },
+  {
+   "formula": "=MyXlf(150,\"@self\",\"MyShortAdd\",\"III\",40000,1)",
+   "excel": "0|err|#NUM!",
+   "dnacalc": "0|err|#NUM!",
+   "outcome": "matched"
+  },
+  {
+   "formula": "=MyXlf(150,\"@self\",\"MyShortAdd\",\"III\",\"7\",1)",
+   "excel": "0|num|8",
+   "dnacalc": "0|num|8",
+   "outcome": "matched"
+  },
+  {
+   "formula": "=MyXlf(150,\"@self\",\"MyUShortAdd\",\"HHH\",1,2)",
+   "excel": "0|num|3",
+   "dnacalc": "0|num|3",
+   "outcome": "matched"
+  },
+  {
+   "formula": "=MyXlf(150,\"@self\",\"MyUShortAdd\",\"HHH\",65535,1)",
+   "excel": "0|num|0",
+   "dnacalc": "0|num|0",
+   "outcome": "matched"
+  },
+  {
+   "formula": "=MyXlf(150,\"@self\",\"MyUShortAdd\",\"HHH\",-1,2)",
+   "excel": "0|num|3",
+   "dnacalc": "0|num|3",
+   "outcome": "matched"
+  },
+  {
+   "formula": "=MyXlf(150,\"@self\",\"MyUShortAdd\",\"HHH\",70000,1)",
+   "excel": "0|err|#NUM!",
+   "dnacalc": "0|err|#NUM!",
+   "outcome": "matched"
+  },
+  {
+   "formula": "=MyXlf(150,\"@self\",\"MyIntAdd\",\"JJJ\",1,2)",
+   "excel": "0|num|3",
+   "dnacalc": "0|num|3",
+   "outcome": "matched"
+  },
+  {
+   "formula": "=MyXlf(150,\"@self\",\"MyIntAdd\",\"JJJ\",2147483647,1)",
+   "excel": "0|num|-2147483648",
+   "dnacalc": "0|num|-2147483648",
+   "outcome": "matched"
+  },
+  {
+   "formula": "=MyXlf(150,\"@self\",\"MyIntAdd\",\"JJJ\",1.9,2)",
+   "excel": "0|num|4",
+   "dnacalc": "0|num|4",
+   "outcome": "matched"
+  },
+  {
+   "formula": "=MyXlf(150,\"@self\",\"MyIntAdd\",\"JJJ\",-1.9,0)",
+   "excel": "0|num|-2",
+   "dnacalc": "0|num|-2",
+   "outcome": "matched"
+  },
+  {
+   "formula": "=MyXlf(150,\"@self\",\"MyIntAdd\",\"JJJ\",3000000000,1)",
+   "excel": "0|err|#NUM!",
+   "dnacalc": "0|err|#NUM!",
+   "outcome": "matched"
+  },
+  {
+   "formula": "=MyXlf(150,\"@self\",\"MyDoubleInc\",\"BE\",5)",
+   "excel": "0|num|6",
+   "dnacalc": "0|num|6",
+   "outcome": "matched"
+  },
+  {
+   "formula": "=MyXlf(150,\"@self\",\"MyDoubleInc\",\"BE\",\"5\")",
+   "excel": "0|num|6",
+   "dnacalc": "0|num|6",
+   "outcome": "matched"
+  },
+  {
+   "formula": "=MyXlf(150,\"@self\",\"MyIntInc\",\"JN\",5)",
+   "excel": "0|num|6",
+   "dnacalc": "0|num|6",
+   "outcome": "matched"
+  },
+  {
+   "formula": "=MyXlf(150,\"@self\",\"MyIntInc\",\"JN\",5.9)",
+   "excel": "0|num|7",
+   "dnacalc": "0|num|7",
+   "outcome": "matched"
+  },
+  {
+   "formula": "=MyXlf(150,\"@self\",\"MyShortInc\",\"IM\",5)",
+   "excel": "0|num|6",
+   "dnacalc": "0|num|6",
+   "outcome": "matched"
+  },
+  {
+   "formula": "=MyXlf(150,\"@self\",\"MyBoolFlip\",\"AL\",TRUE)",
+   "excel": "0|bool|FALSE",
+   "dnacalc": "0|bool|FALSE",
+   "outcome": "matched"
+  },
+  {
+   "formula": "=MyXlf(150,\"@self\",\"MyBoolFlip\",\"AL\",FALSE)",
+   "excel": "0|bool|TRUE",
+   "dnacalc": "0|bool|TRUE",
+   "outcome": "matched"
+  },
+  {
+   "formula": "=MyXlf(150,\"@self\",\"MyUpperA\",\"1F\",\"hello\")",
+   "excel": "0|str|HELLO",
+   "dnacalc": "0|str|HELLO",
+   "outcome": "matched"
+  },
+  {
+   "formula": "=MyXlf(150,\"@self\",\"MyUpperW\",\"1F%\",\"hello\")",
+   "excel": "0|str|HELLO",
+   "dnacalc": "0|str|HELLO",
+   "outcome": "matched"
+  },
+  {
+   "formula": "=MyXlf(150,\"@self\",\"MyUpperCountedA\",\"1G\",\"hello\")",
+   "excel": "0|str|HELLO",
+   "dnacalc": "0|str|HELLO",
+   "outcome": "matched"
+  },
+  {
+   "formula": "=MyXlf(150,\"@self\",\"MyUpperCountedW\",\"1G%\",\"hello\")",
+   "excel": "0|str|HELLO",
+   "dnacalc": "0|str|HELLO",
+   "outcome": "matched"
+  },
+  {
+   "formula": "=MyXlf(150,\"@self\",\"MyCatA\",\"CCC\",\"ab\",\"cd\")",
+   "excel": "0|str|abcd",
+   "dnacalc": "0|str|abcd",
+   "outcome": "matched"
+  },
+  {
+   "formula": "=MyXlf(150,\"@self\",\"MyCatA\",\"CCC\",\"é\",\"ü\")",
+   "excel": "0|str|éü",
+   "dnacalc": "0|str|éü",
+   "outcome": "matched"
+  },
+  {
+   "formula": "=MyXlf(150,\"@self\",\"MyCatCountedA\",\"DDD\",\"ab\",\"cd\")",
+   "excel": "0|str|abcd",
+   "dnacalc": "0|str|abcd",
+   "outcome": "matched"
+  },
+  {
+   "formula": "=MyXlf(150,\"@self\",\"MyCatW\",\"C%C%C%\",\"ab\",\"cd\")",
+   "excel": "0|str|abcd",
+   "dnacalc": "0|str|abcd",
+   "outcome": "matched"
+  },
+  {
+   "formula": "=MyXlf(150,\"@self\",\"MyCatW\",\"C%C%C%\",\"é😀\",\"ü\")",
+   "excel": "0|str|é😀ü",
+   "dnacalc": "0|str|é😀ü",
+   "outcome": "matched"
+  },
+  {
+   "formula": "=MyXlf(150,\"@self\",\"MyCatCountedW\",\"D%D%D%\",\"ab\",\"cd\")",
+   "excel": "0|str|abcd",
+   "dnacalc": "0|str|abcd",
+   "outcome": "matched"
+  },
+  {
+   "formula": "=MyXlf(150,\"@self\",\"MyCatA\",\"CCC\",\"ab\",5)",
+   "excel": "0|str|ab5",
+   "dnacalc": "0|str|ab5",
+   "outcome": "matched"
+  },
+  {
+   "formula": "=MyXlf(150,\"@self\",\"MyEcho\",\"QQ\",\"hi\")",
+   "excel": "0|str|hi",
+   "dnacalc": "0|str|hi",
+   "outcome": "matched"
+  },
+  {
+   "formula": "=MyXlf(150,\"@self\",\"MyEcho\",\"QQ\",3.5)",
+   "excel": "0|num|3.5",
+   "dnacalc": "0|num|3.5",
+   "outcome": "matched"
+  },
+  {
+   "formula": "=MyXlf(150,\"@self\",\"MyEcho\",\"QQ\",TRUE)",
+   "excel": "0|bool|TRUE",
+   "dnacalc": "0|bool|TRUE",
+   "outcome": "matched"
+  },
+  {
+   "formula": "=MyXlf(150,\"@self\",\"MyEcho\",\"QQ\",#N/A)",
+   "excel": "0|err|#N/A",
+   "dnacalc": "0|err|#N/A",
+   "outcome": "matched"
+  },
+  {
+   "formula": "=MyXlf(150,\"@self\",\"MyEcho\",\"QQ\",{1,2;3,4})",
+   "excel": "0|multi|2x2[num:1;num:2;num:3;num:4]",
+   "dnacalc": "0|multi|2x2[num:1;num:2;num:3;num:4]",
+   "outcome": "matched"
+  },
+  {
+   "formula": "=MyXlf(150,\"@self\",\"MyEcho\",\"QQ\",A1)",
+   "excel": "0|num|7",
+   "dnacalc": "0|num|7",
+   "outcome": "matched"
+  },
+  {
+   "formula": "=MyXlf(150,\"@self\",\"MyWide\",\"QD%\",\"hello\")",
+   "excel": "0|str|hello",
+   "dnacalc": "0|str|hello",
+   "outcome": "matched"
+  },
+  {
+   "formula": "=MyXlf(150,\"@self\",\"MyOperInfo\",\"QQ\",\"hi\")",
+   "excel": "0|str|str|hi",
+   "dnacalc": "0|str|str|hi",
+   "outcome": "matched"
+  },
+  {
+   "formula": "=MyXlf(150,\"@self\",\"MyOperInfo\",\"QQ\",3.5)",
+   "excel": "0|str|num|3.5",
+   "dnacalc": "0|str|num|3.5",
+   "outcome": "matched"
+  },
+  {
+   "formula": "=MyXlf(150,\"@self\",\"MyOperInfo\",\"QQ\",TRUE)",
+   "excel": "0|str|bool|TRUE",
+   "dnacalc": "0|str|bool|TRUE",
+   "outcome": "matched"
+  },
+  {
+   "formula": "=MyXlf(150,\"@self\",\"MyOperInfo\",\"QQ\",#N/A)",
+   "excel": "0|str|err|#N/A",
+   "dnacalc": "0|str|err|#N/A",
+   "outcome": "matched"
+  },
+  {
+   "formula": "=MyXlf(150,\"@self\",\"MyOperInfo\",\"QQ\",{1,\"a\";TRUE,#N/A})",
+   "excel": "0|str|multi|2x2[num:1;str:a;bool:TRUE;err:#N/A]",
+   "dnacalc": "0|str|multi|2x2[num:1;str:a;bool:TRUE;err:#N/A]",
+   "outcome": "matched"
+  },
+  {
+   "formula": "=MyXlf(150,\"@self\",\"MyOperInfo\",\"QQ\",A1)",
+   "excel": "0|str|num|7",
+   "dnacalc": "0|str|num|7",
+   "outcome": "matched"
+  },
+  {
+   "formula": "=MyXlf(150,\"@self\",\"MyOperInfo\",\"QU\",A1)",
+   "excel": "0|str|num|7",
+   "dnacalc": "0|str|num|7",
+   "outcome": "matched"
+  },
+  {
+   "formula": "=MyXlf(150,\"@self\",\"MyFpSum\",\"BK%\",{1,2;3,4})",
+   "excel": "0|num|10",
+   "dnacalc": "0|num|10",
+   "outcome": "matched"
+  },
+  {
+   "formula": "=MyXlf(150,\"@self\",\"MyFpSum\",\"BK%\",5)",
+   "excel": "0|num|5",
+   "dnacalc": "0|num|5",
+   "outcome": "matched"
+  },
+  {
+   "formula": "=MyXlf(150,\"@self\",\"MyFpSum\",\"BK%\",\"x\")",
+   "excel": "0|err|#VALUE!",
+   "dnacalc": "0|err|#VALUE!",
+   "outcome": "matched"
+  },
+  {
+   "formula": "=MyXlf(150,\"@self\",\"MyThreeArgs\",\"BBBB\",1,2,3)",
+   "excel": "0|num|123",
+   "dnacalc": "0|num|123",
+   "outcome": "matched"
+  },
+  {
+   "formula": "=MyXlf(150,\"@self\",\"MyMix\",\"BBQBQB\",1,2,3,4,5)",
+   "excel": "0|num|15",
+   "dnacalc": "0|num|15",
+   "outcome": "matched"
+  },
+  {
+   "formula": "=MyXlf(150,MyXlfRaw(267,\"@self\",\"MyAdd\"),1,2)",
+   "excel": "0|num|3",
+   "dnacalc": "0|num|3",
+   "outcome": "matched"
+  },
+  {
+   "formula": "=MyXlf(150,MyXlfRaw(267,\"@self\",\"MyAdd\",\"BBB\"),1,2)",
+   "excel": "0|num|3",
+   "dnacalc": "0|num|3",
+   "outcome": "matched"
+  },
+  {
+   "formula": "=MyXlf(150,MyXlfRaw(267,\"@self\",\"MyThreeArgs\"),1,2,3)",
+   "excel": "0|num|123",
+   "dnacalc": "0|num|123",
+   "outcome": "matched"
+  },
+  {
+   "formula": "=MyXlf(150,MyXlfRaw(267,\"@self\",\"MyStrInfoA\"),\"hello\")",
+   "excel": "0|num|500104",
+   "dnacalc": "0|num|500104",
+   "outcome": "matched"
+  },
+  {
+   "formula": "=MyXlf(150,MyXlfRaw(267,\"kernel32\",\"lstrlenA\",\"JC\"),\"hello\")",
+   "excel": "0|num|5",
+   "dnacalc": "0|num|5",
+   "outcome": "matched"
+  },
+  {
+   "formula": "=MyXlf(150,MyXlfRaw(267,\"kernel32\",\"lstrlenA\",\"JC\"),\"hello\",\"extra\")",
+   "excel": "0|err|#VALUE!",
+   "dnacalc": "0|err|#VALUE!",
+   "outcome": "matched"
+  },
+  {
+   "formula": "=MyXlf(150,MyXlfRaw(267,\"kernel32\",\"lstrlenA\",\"JC\"))",
+   "excel": "0|num|0",
+   "dnacalc": "0|num|0",
+   "outcome": "matched"
+  },
+  {
+   "formula": "=MyXlf(150,MyXlfRaw(267,\"@self\",\"MyAdd\"),1)",
+   "excel": "0|num|1",
+   "dnacalc": "0|num|1",
+   "outcome": "matched"
+  },
+  {
+   "formula": "=MyXlf(150,MyXlfRaw(267,\"@self\",\"MyAdd\"),\"3\",4)",
+   "excel": "0|num|7",
+   "dnacalc": "0|num|7",
+   "outcome": "matched"
+  },
+  {
+   "formula": "=MyXlf(150,12345,1,2)",
+   "excel": "0|err|#VALUE!",
+   "dnacalc": "0|err|#VALUE!",
+   "outcome": "matched"
+  },
+  {
+   "formula": "=MyXlf(150,0,1,2)",
+   "excel": "0|err|#VALUE!",
+   "dnacalc": "0|err|#VALUE!",
+   "outcome": "matched"
+  },
+  {
+   "formula": "=MyXlf(150,-1,1,2)",
+   "excel": "0|err|#VALUE!",
+   "dnacalc": "0|err|#VALUE!",
+   "outcome": "matched"
+  },
+  {
+   "formula": "=MyXlf(150,TRUE,1,2)",
+   "excel": "0|err|#VALUE!",
+   "dnacalc": "0|err|#VALUE!",
+   "outcome": "matched"
+  },
+  {
+   "formula": "=MyXlf(150,#N/A,1,2)",
+   "excel": "0|err|#N/A",
+   "dnacalc": "0|err|#N/A",
+   "outcome": "matched"
+  },
+  {
+   "formula": "=MyXlfRaw(150,\"@self\",\"MyAdd\",\"BBB\",1,2)",
+   "excel": 3.0,
+   "dnacalc": 3.0,
+   "outcome": "matched"
+  },
+  {
+   "formula": "=MyXlfRaw(150,\"@self\",\"MyCatA\",\"CCC\",\"ab\",\"cd\")",
+   "excel": "abcd",
+   "dnacalc": "abcd",
+   "outcome": "matched"
+  },
+  {
+   "formula": "=MyXlf(267,\"@self\",\"MyAdd\")",
+   "excel": "0|num|id integer=true",
+   "dnacalc": "0|num|id integer=true",
+   "outcome": "matched"
+  },
+  {
+   "formula": "=MyXlf(267,\"@self\",\"MyAdd\",\"BBB\")",
+   "excel": "0|num|id integer=true",
+   "dnacalc": "0|num|id integer=true",
+   "outcome": "matched"
+  },
+  {
+   "formula": "=MyXlf(267,\"@self\",\"MyAdd\",\"BB\")",
+   "excel": "0|num|id integer=true",
+   "dnacalc": "0|num|id integer=true",
+   "outcome": "matched"
+  },
+  {
+   "formula": "=MyXlf(267,\"@self\",\"MyAdd\",\"BBB\",1)",
+   "excel": "4|err|#VALUE!",
+   "dnacalc": "4|err|#VALUE!",
+   "outcome": "matched"
+  },
+  {
+   "formula": "=MyXlf(267,\"@selfname\",\"MyAdd\")",
+   "excel": "0|num|id integer=true",
+   "dnacalc": "0|num|id integer=true",
+   "outcome": "matched"
+  },
+  {
+   "formula": "=MyXlf(267,\"@selfupper\",\"MyAdd\")",
+   "excel": "0|num|id integer=true",
+   "dnacalc": "0|num|id integer=true",
+   "outcome": "matched"
+  },
+  {
+   "formula": "=MyXlf(267,\"@self\",\"myadd\")",
+   "excel": "0|err|#VALUE!",
+   "dnacalc": "0|err|#VALUE!",
+   "outcome": "matched"
+  },
+  {
+   "formula": "=MyXlf(267,\"@self\",\"NoSuchProc\")",
+   "excel": "0|err|#VALUE!",
+   "dnacalc": "0|err|#VALUE!",
+   "outcome": "matched"
+  },
+  {
+   "formula": "=MyXlf(267,\"@self\",\"NoSuchProc\",\"BBB\")",
+   "excel": "0|err|#VALUE!",
+   "dnacalc": "0|err|#VALUE!",
+   "outcome": "matched"
+  },
+  {
+   "formula": "=MyXlf(267,\"NoSuchModule\",\"MyAdd\")",
+   "excel": "0|err|#VALUE!",
+   "dnacalc": "0|err|#VALUE!",
+   "outcome": "matched"
+  },
+  {
+   "formula": "=MyXlf(267,\"kernel32\",\"lstrlenA\",\"ZZ\")",
+   "excel": "0|err|#VALUE!",
+   "dnacalc": "0|err|#VALUE!",
+   "outcome": "matched"
+  },
+  {
+   "formula": "=MyXlf(267,\"kernel32\",\"lstrlenA\",\"\")",
+   "excel": "0|num|id integer=true",
+   "dnacalc": "0|num|id integer=true",
+   "outcome": "matched"
+  },
+  {
+   "formula": "=MyXlf(267)",
+   "excel": "4|err|#VALUE!",
+   "dnacalc": "4|err|#VALUE!",
+   "outcome": "matched"
+  },
+  {
+   "formula": "=MyXlf(267,\"@self\")",
+   "excel": "4|err|#VALUE!",
+   "dnacalc": "4|err|#VALUE!",
+   "outcome": "matched"
+  },
+  {
+   "formula": "=MyXlf(267,5,\"MyAdd\")",
+   "excel": "0|err|#VALUE!",
+   "dnacalc": "0|err|#VALUE!",
+   "outcome": "matched"
+  },
+  {
+   "formula": "=MyXlf(267,\"@self\",5)",
+   "excel": "0|err|#VALUE!",
+   "dnacalc": "0|err|#VALUE!",
+   "outcome": "matched"
+  },
+  {
+   "formula": "=MyXlf(267,\"@self\",\"MyAdd\",5)",
+   "excel": "0|num|id integer=true",
+   "dnacalc": "0|num|id integer=true",
+   "outcome": "matched"
+  },
+  {
+   "formula": "=MyRegIdCheck(\"MyAdd\",\"MyAdd\")",
+   "excel": "0|num|same=true|integer=true",
+   "dnacalc": "0|num|same=true|integer=true",
+   "outcome": "matched"
+  },
+  {
+   "formula": "=MyRegIdCheck(\"MyAdd\",\"MyAdd\",\"BBB\")",
+   "excel": "0|num|same=true|integer=true",
+   "dnacalc": "0|num|same=true|integer=true",
+   "outcome": "matched"
+  },
+  {
+   "formula": "=MyRegIdCheck(\"MyAdd\",\"MyAdd\",\"BB\")",
+   "excel": "0|num|same=true|integer=true",
+   "dnacalc": "0|num|same=true|integer=true",
+   "outcome": "matched"
+  },
+  {
+   "formula": "=MyRegIdCheck(\"MyEcho\",\"MyEcho\")",
+   "excel": "0|num|same=true|integer=true",
+   "dnacalc": "0|num|same=true|integer=true",
+   "outcome": "matched"
+  },
+  {
+   "formula": "=MyRegIdCheck(\"MyThreeArgs\",\"MyThreeArgs\")",
+   "excel": "0|num|same=true|integer=true",
+   "dnacalc": "0|num|same=true|integer=true",
+   "outcome": "matched"
+  },
+  {
+   "formula": "=MyRegIdCheck(\"MyCatA\",\"MyCatA\",\"CCC\")",
+   "excel": "0|num|same=true|integer=true",
+   "dnacalc": "0|num|same=true|integer=true",
+   "outcome": "matched"
+  },
+  {
+   "formula": "=MyRegIdCheck(\"DynamicSlot\",\"MyDynamicA\")",
+   "excel": "0|num|same=true|integer=true",
+   "dnacalc": "0|num|same=true|integer=true",
+   "outcome": "matched"
+  },
+  {
+   "formula": "=MyRegIdCheck(\"DynamicSlot\",\"MyDynamicB\")",
+   "excel": "0|num|same=false|integer=true",
+   "dnacalc": "0|num|same=false|integer=true",
+   "outcome": "matched"
+  },
+  {
+   "formula": "=MyRegIdCheck(\"MyAdd\",\"MyAdd\",,\"@selfname\")",
+   "excel": "0|num|same=true|integer=true",
+   "dnacalc": "0|num|same=true|integer=true",
+   "outcome": "matched"
+  },
+  {
+   "formula": "=MyRegIdCheck(\"MyAdd\",\"MyAdd\",,\"@selfupper\")",
+   "excel": "0|num|same=true|integer=true",
+   "dnacalc": "0|num|same=true|integer=true",
+   "outcome": "matched"
+  },
+  {
+   "formula": "=MyRegIdCheck(\"MyAdd\",\"MyHelperAdd\")",
+   "excel": "0|num|same=false|integer=true",
+   "dnacalc": "0|num|same=false|integer=true",
+   "outcome": "matched"
+  },
+  {
+   "formula": "=MyRegIdCheck(\"MyAdd\",\"NoSuchName\")",
+   "excel": "0|num|same=false|integer=true",
+   "dnacalc": "0|num|same=false|integer=true",
+   "outcome": "matched"
+  },
+  {
+   "formula": "=MyRegIdRepeat(\"@self\",\"MyAdd\")",
+   "excel": "codes=0,0,0|first_repeat_same=true|case_same=true",
+   "dnacalc": "codes=0,0,0|first_repeat_same=true|case_same=true",
+   "outcome": "matched"
+  },
+  {
+   "formula": "=MyRegIdRepeat(\"@self\",\"MyAdd\",\"BBB\")",
+   "excel": "codes=0,0,0|first_repeat_same=true|case_same=true",
+   "dnacalc": "codes=0,0,0|first_repeat_same=true|case_same=true",
+   "outcome": "matched"
+  },
+  {
+   "formula": "=MyRegIdRepeat(\"kernel32\",\"lstrlenA\",\"JC\")",
+   "excel": "codes=0,0,0|first_repeat_same=true|case_same=true",
+   "dnacalc": "codes=0,0,0|first_repeat_same=true|case_same=true",
+   "outcome": "matched"
+  },
+  {
+   "formula": "=MyRegIdRepeat(\"kernel32\",\"lstrlenW\",\"JC%\")",
+   "excel": "codes=0,0,0|first_repeat_same=true|case_same=true",
+   "dnacalc": "codes=0,0,0|first_repeat_same=true|case_same=true",
+   "outcome": "matched"
+  },
+  {
+   "formula": "=MyRegIdRepeat(\"@self\",\"MyThreadId\",\"J\")",
+   "excel": "codes=0,0,0|first_repeat_same=true|case_same=true",
+   "dnacalc": "codes=0,0,0|first_repeat_same=true|case_same=true",
+   "outcome": "matched"
+  },
+  {
+   "formula": "=MyXlf(267,\"@self\",\"MyThreadId\")",
+   "excel": "0|num|id integer=true",
+   "dnacalc": "0|num|id integer=true",
+   "outcome": "matched"
+  },
+  {
+   "formula": "=MyXlfPlain(150,\"@self\",\"MyAdd\",\"BBB\",1,2)",
+   "excel": "2|err|#VALUE!",
+   "dnacalc": "2|err|#VALUE!",
+   "outcome": "matched"
+  },
+  {
+   "formula": "=MyXlfPlain(267,\"@self\",\"MyAdd\")",
+   "excel": "2|err|#VALUE!",
+   "dnacalc": "2|err|#VALUE!",
+   "outcome": "matched"
+  },
+  {
+   "formula": "=INDEX(MyXlfRaw(150,\"@self\",\"MyEcho\",\"QQ\",{1,2;3,4}),2,2)",
+   "excel": 4.0,
+   "dnacalc": 4.0,
+   "outcome": "matched"
+  },
+  {
+   "formula": "=MyXlf(150,\"@self\",\"NoSuchProc\")",
+   "excel": "0|err|#VALUE!",
+   "dnacalc": "0|err|#VALUE!",
+   "outcome": "matched"
+  },
+  {
+   "formula": "=MyXlf(150,\"kernel32\",\"lstrlenA\")",
+   "excel": "0|num|0",
+   "dnacalc": "0|num|0",
+   "outcome": "matched"
+  },
+  {
+   "formula": "=MyXlf(150,\"kernel32\",\"lstrlenA\",\"JC\")",
+   "excel": "0|num|0",
+   "dnacalc": "0|num|0",
+   "outcome": "matched"
+  },
+  {
+   "formula": "=MyXlf(150,\"NoSuchModule\",\"MyAdd\")",
+   "excel": "0|err|#VALUE!",
+   "dnacalc": "0|err|#VALUE!",
+   "outcome": "matched"
+  },
+  {
+   "formula": "=MyXlf(150,\"@self\",\"MyUnregAdd\",\"BBB\",1,2)",
+   "excel": "0|num|3.5",
+   "dnacalc": "0|num|3.5",
+   "outcome": "matched"
+  },
+  {
+   "formula": "=MyXlf(150,\"@self\",\"MyUnregAdd\")",
+   "excel": "0|num|0.5",
+   "dnacalc": "0|num|0.5",
+   "outcome": "matched"
+  },
+  {
+   "formula": "=MyXlf(150,MyXlfRaw(267,\"@self\",\"MyUnregAdd\"),1,2)",
+   "excel": "0|num|3.5",
+   "dnacalc": "0|num|3.5",
+   "outcome": "matched"
+  },
+  {
+   "formula": "=MyXlf(150,MyXlfRaw(267,\"@self\",\"MyUnregMul\",\"BBB\"),3,4)",
+   "excel": "0|num|12.25",
+   "dnacalc": "0|num|12.25",
+   "outcome": "matched"
+  },
+  {
+   "formula": "=MyXlf(150,MyXlfRaw(267,\"@self\",\"MyOverlapMax\"))",
+   "excel": "0|err|#VALUE!",
+   "dnacalc": "0|err|#VALUE!",
+   "outcome": "matched"
+  },
+  {
+   "formula": "=MyXlf(150,MyXlfRaw(267,\"@self\",\"MyOverlapMax\"),1)",
+   "excel": "0|err|#VALUE!",
+   "dnacalc": "0|err|#VALUE!",
+   "outcome": "matched"
+  },
+  {
+   "formula": "=MyRegIdCheck(\"MyOverlapMax\",\"none\")",
+   "excel": "0|err|same=false|integer=false",
+   "dnacalc": "0|err|same=false|integer=false",
+   "outcome": "matched"
+  },
+  {
+   "formula": "=MyRegIdCheck(\"MyUnregAdd\",\"none\",\"BBB\")",
+   "excel": "0|num|same=false|integer=true",
+   "dnacalc": "0|num|same=false|integer=true",
+   "outcome": "matched"
+  },
+  {
+   "formula": "=MyRegIdRepeat(\"@self\",\"MyOverlapMax\")",
+   "excel": "codes=0,0,0|first_repeat_same=false|case_same=false",
+   "dnacalc": "codes=0,0,0|first_repeat_same=false|case_same=false",
+   "outcome": "matched"
+  },
+  {
+   "formula": "=MyXlf(267,\"@self\",\"MyAdd\",\"ZZ\")",
+   "excel": "0|err|#VALUE!",
+   "dnacalc": "0|err|#VALUE!",
+   "outcome": "matched"
+  },
+  {
+   "formula": "=MyXlf(267,\"@self\",\"MyAdd\",\"\")",
+   "excel": "0|num|id integer=true",
+   "dnacalc": "0|num|id integer=true",
+   "outcome": "matched"
+  },
+  {
+   "formula": "=MyXlf(267,\"@self\",\"MyUnregMul\",\"ZZ\")",
+   "excel": "0|err|#VALUE!",
+   "dnacalc": "0|err|#VALUE!",
+   "outcome": "matched"
+  },
+  {
+   "formula": "=MyXlf(150,\"@self\",\"MyStrInfoA\",\"JC\",\"éa\")",
+   "excel": "0|num|200233",
+   "dnacalc": "0|num|200233",
+   "outcome": "matched"
+  },
+  {
+   "formula": "=MyXlf(150,\"@self\",\"MyStrInfoW\",\"JC%\",\"éa\")",
+   "excel": "0|num|200233",
+   "dnacalc": "0|num|200233",
+   "outcome": "matched"
+  },
+  {
+   "formula": "=MyXlf(150,\"@self\",\"MyStrInfoA\",\"JC\",\"😀\")",
+   "excel": "0|num|200063",
+   "dnacalc": "0|num|200063",
+   "outcome": "matched"
+  },
+  {
+   "formula": "=MyXlf(150,\"@self\",\"MyStrInfoA\",\"JC\",\"€\")",
+   "excel": "0|num|100128",
+   "dnacalc": "0|num|100128",
+   "outcome": "matched"
+  },
+  {
+   "formula": "=MyXlf(150,\"@self\",\"MyStrInfoA\",\"JC\",\"Ā\")",
+   "excel": "0|num|100063",
+   "dnacalc": "0|num|100063",
+   "outcome": "matched"
+  },
+  {
+   "formula": "=MyXlf(150,\"@self\",\"MyCountedInfoA\",\"JD\",\"éa\")",
+   "excel": "0|num|200233",
+   "dnacalc": "0|num|200233",
+   "outcome": "matched"
+  },
+  {
+   "formula": "=MyXlf(150,\"@self\",\"MyCountedInfoA\",\"JD\",\"Ā\")",
+   "excel": "0|num|100063",
+   "dnacalc": "0|num|100063",
+   "outcome": "matched"
+  },
+  {
+   "formula": "=MyXlf(150,\"@self\",\"MyBoolRaw\",\"JA\",\"x\")",
+   "excel": "0|err|#VALUE!",
+   "dnacalc": "0|err|#VALUE!",
+   "outcome": "matched"
+  },
+  {
+   "formula": "=MyXlf(150,\"@self\",\"MyBoolRaw\",\"JA\",\"false\")",
+   "excel": "0|num|0",
+   "dnacalc": "0|num|0",
+   "outcome": "matched"
+  },
+  {
+   "formula": "=MyXlf(150,\"@self\",\"MyBoolRaw\",\"JA\",\"0\")",
+   "excel": "0|err|#VALUE!",
+   "dnacalc": "0|err|#VALUE!",
+   "outcome": "matched"
+  },
+  {
+   "formula": "=MyXlf(150,\"@self\",\"MyBoolRaw\",\"JA\",-3)",
+   "excel": "0|num|1",
+   "dnacalc": "0|num|1",
+   "outcome": "matched"
+  },
+  {
+   "formula": "=MyXlf(150,\"@self\",\"MyBoolRaw\",\"JA\",{1,0})",
+   "excel": "0|num|1",
+   "dnacalc": "0|num|1",
+   "outcome": "matched"
+  },
+  {
+   "formula": "=MyXlf(150,\"@self\",\"MyBoolRaw\",\"JA\",#N/A)",
+   "excel": "0|err|#VALUE!",
+   "dnacalc": "0|err|#VALUE!",
+   "outcome": "matched"
+  },
+  {
+   "formula": "=MyXlf(150,\"@self\",\"MyBoolEcho\",\"AA\",2)",
+   "excel": "0|bool|TRUE",
+   "dnacalc": "0|bool|TRUE",
+   "outcome": "matched"
+  },
+  {
+   "formula": "=MyXlf(150,\"@self\",\"MyUShortAdd\",\"HHH\",-5,0)",
+   "excel": "0|num|5",
+   "dnacalc": "0|num|5",
+   "outcome": "matched"
+  },
+  {
+   "formula": "=MyXlf(150,\"@self\",\"MyUShortAdd\",\"HHH\",-1.5,0)",
+   "excel": "0|num|2",
+   "dnacalc": "0|num|2",
+   "outcome": "matched"
+  },
+  {
+   "formula": "=MyXlf(150,\"@self\",\"MyUShortAdd\",\"HHH\",-65535,0)",
+   "excel": "0|num|65535",
+   "dnacalc": "0|num|65535",
+   "outcome": "matched"
+  },
+  {
+   "formula": "=MyXlf(150,\"@self\",\"MyUShortAdd\",\"HHH\",65535.4,0)",
+   "excel": "0|num|65535",
+   "dnacalc": "0|num|65535",
+   "outcome": "matched"
+  },
+  {
+   "formula": "=MyXlf(150,\"@self\",\"MyUShortAdd\",\"HHH\",65535.6,0)",
+   "excel": "0|err|#NUM!",
+   "dnacalc": "0|err|#NUM!",
+   "outcome": "matched"
+  },
+  {
+   "formula": "=MyXlf(150,\"@self\",\"MyShortAdd\",\"III\",32767.4,0)",
+   "excel": "0|num|32767",
+   "dnacalc": "0|num|32767",
+   "outcome": "matched"
+  },
+  {
+   "formula": "=MyXlf(150,\"@self\",\"MyShortAdd\",\"III\",32767.6,0)",
+   "excel": "0|err|#NUM!",
+   "dnacalc": "0|err|#NUM!",
+   "outcome": "matched"
+  },
+  {
+   "formula": "=MyXlf(150,\"@self\",\"MyShortAdd\",\"III\",-32768,0)",
+   "excel": "0|num|-32768",
+   "dnacalc": "0|num|-32768",
+   "outcome": "matched"
+  },
+  {
+   "formula": "=MyXlf(150,\"@self\",\"MyShortAdd\",\"III\",-32768.4,0)",
+   "excel": "0|num|-32768",
+   "dnacalc": "0|num|-32768",
+   "outcome": "matched"
+  },
+  {
+   "formula": "=MyXlf(150,\"@self\",\"MyShortAdd\",\"III\",-32769,0)",
+   "excel": "0|err|#NUM!",
+   "dnacalc": "0|err|#NUM!",
+   "outcome": "matched"
+  },
+  {
+   "formula": "=MyXlf(150,\"@self\",\"MyShortAdd\",\"III\",0.5,0)",
+   "excel": "0|num|1",
+   "dnacalc": "0|num|1",
+   "outcome": "matched"
+  },
+  {
+   "formula": "=MyXlf(150,\"@self\",\"MyShortAdd\",\"III\",1.5,0)",
+   "excel": "0|num|2",
+   "dnacalc": "0|num|2",
+   "outcome": "matched"
+  },
+  {
+   "formula": "=MyXlf(150,\"@self\",\"MyShortAdd\",\"III\",2.5,0)",
+   "excel": "0|num|3",
+   "dnacalc": "0|num|3",
+   "outcome": "matched"
+  },
+  {
+   "formula": "=MyXlf(150,\"@self\",\"MyShortAdd\",\"III\",-0.5,0)",
+   "excel": "0|num|0",
+   "dnacalc": "0|num|0",
+   "outcome": "matched"
+  },
+  {
+   "formula": "=MyXlf(150,\"@self\",\"MyIntAdd\",\"JJJ\",2147483647.4,0)",
+   "excel": "0|num|2147483647",
+   "dnacalc": "0|num|2147483647",
+   "outcome": "matched"
+  },
+  {
+   "formula": "=MyXlf(150,\"@self\",\"MyIntAdd\",\"JJJ\",2147483647.5,0)",
+   "excel": "0|err|#NUM!",
+   "dnacalc": "0|err|#NUM!",
+   "outcome": "matched"
+  },
+  {
+   "formula": "=MyXlf(150,\"@self\",\"MyIntAdd\",\"JJJ\",-2147483648,0)",
+   "excel": "0|num|-2147483648",
+   "dnacalc": "0|num|-2147483648",
+   "outcome": "matched"
+  },
+  {
+   "formula": "=MyXlf(150,\"@self\",\"MyIntAdd\",\"JJJ\",-2147483648.5,0)",
+   "excel": "0|num|-2147483648",
+   "dnacalc": "0|num|-2147483648",
+   "outcome": "matched"
+  },
+  {
+   "formula": "=MyXlf(150,\"@self\",\"MyIntAdd\",\"JJJ\",0.5,0)",
+   "excel": "0|num|1",
+   "dnacalc": "0|num|1",
+   "outcome": "matched"
+  },
+  {
+   "formula": "=MyXlf(150,\"@self\",\"MyIntAdd\",\"JJJ\",2.5,0)",
+   "excel": "0|num|3",
+   "dnacalc": "0|num|3",
+   "outcome": "matched"
+  },
+  {
+   "formula": "=MyXlf(150,\"@self\",\"MyIntAdd\",\"JJJ\",TRUE,0)",
+   "excel": "0|num|1",
+   "dnacalc": "0|num|1",
+   "outcome": "matched"
+  },
+  {
+   "formula": "=MyXlf(150,\"@self\",\"MyIntAdd\",\"JJJ\",{3,4},0)",
+   "excel": "0|num|3",
+   "dnacalc": "0|num|3",
+   "outcome": "matched"
+  },
+  {
+   "formula": "=MyXlf(150,\"@self\",\"MyDoubleInc\",\"BE\",{5,6})",
+   "excel": "0|num|6",
+   "dnacalc": "0|num|6",
+   "outcome": "matched"
+  },
+  {
+   "formula": "=MyXlf(150,\"@self\",\"MyDoubleInc\",\"BE\",TRUE)",
+   "excel": "0|num|2",
+   "dnacalc": "0|num|2",
+   "outcome": "matched"
+  },
+  {
+   "formula": "=MyXlf(150,\"@self\",\"MyDoubleInc\",\"BE\",\"x\")",
+   "excel": "0|err|#VALUE!",
+   "dnacalc": "0|err|#VALUE!",
+   "outcome": "matched"
+  },
+  {
+   "formula": "=MyXlf(150,\"@self\",\"MyDoubleInc\",\"BE\",#N/A)",
+   "excel": "0|err|#VALUE!",
+   "dnacalc": "0|err|#VALUE!",
+   "outcome": "matched"
+  },
+  {
+   "formula": "=MyXlf(150,\"@self\",\"MyIntInc\",\"JN\",2147483647)",
+   "excel": "0|num|-2147483648",
+   "dnacalc": "0|num|-2147483648",
+   "outcome": "matched"
+  },
+  {
+   "formula": "=MyXlf(150,\"@self\",\"MyIntInc\",\"JN\",3000000000)",
+   "excel": "0|err|#NUM!",
+   "dnacalc": "0|err|#NUM!",
+   "outcome": "matched"
+  },
+  {
+   "formula": "=MyXlf(150,\"@self\",\"MyShortInc\",\"IM\",32767)",
+   "excel": "0|num|-32768",
+   "dnacalc": "0|num|-32768",
+   "outcome": "matched"
+  },
+  {
+   "formula": "=MyXlf(150,\"@self\",\"MyShortInc\",\"IM\",40000)",
+   "excel": "0|err|#NUM!",
+   "dnacalc": "0|err|#NUM!",
+   "outcome": "matched"
+  },
+  {
+   "formula": "=MyXlf(150,\"@self\",\"MyBoolFlip\",\"AL\",5)",
+   "excel": "0|bool|FALSE",
+   "dnacalc": "0|bool|FALSE",
+   "outcome": "matched"
+  },
+  {
+   "formula": "=MyXlf(150,\"@self\",\"MyUpperA\",\"1F\",123)",
+   "excel": "0|str|123",
+   "dnacalc": "0|str|123",
+   "outcome": "matched"
+  },
+  {
+   "formula": "=MyXlf(150,\"@self\",\"MyUpperA\",\"1F\",\"héllo\")",
+   "excel": "0|str|HéLLO",
+   "dnacalc": "0|str|HéLLO",
+   "outcome": "matched"
+  },
+  {
+   "formula": "=MyXlf(150,\"@self\",\"MyUpperW\",\"1F%\",\"héllo😀\")",
+   "excel": "0|str|HéLLO😀",
+   "dnacalc": "0|str|HéLLO😀",
+   "outcome": "matched"
+  },
+  {
+   "formula": "=MyXlf(150,\"@self\",\"MyUpperCountedA\",\"1G\",\"\")",
+   "excel": "0|str|",
+   "dnacalc": "0|str|",
+   "outcome": "matched"
+  },
+  {
+   "formula": "=MyXlf(150,\"@self\",\"MyUpperA\",\"1F\",\"\")",
+   "excel": "0|str|",
+   "dnacalc": "0|str|",
+   "outcome": "matched"
+  },
+  {
+   "formula": "=MyXlf(150,\"@self\",\"MyCatA\",\"CCC\",TRUE,\"x\")",
+   "excel": "0|str|TRUEx",
+   "dnacalc": "0|str|TRUEx",
+   "outcome": "matched"
+  },
+  {
+   "formula": "=MyXlf(150,\"@self\",\"MyCatA\",\"CCC\",\"a\",#N/A)",
+   "excel": "0|err|#VALUE!",
+   "dnacalc": "0|err|#VALUE!",
+   "outcome": "matched"
+  },
+  {
+   "formula": "=MyXlf(150,\"@self\",\"MyCatA\",\"CCC\",\"a\",{\"p\",\"q\"})",
+   "excel": "0|str|ap",
+   "dnacalc": "0|str|ap",
+   "outcome": "matched"
+  },
+  {
+   "formula": "=MyXlf(150,\"@self\",\"MyCatCountedA\",\"DDD\",\"é\",\"Ā\")",
+   "excel": "0|str|é?",
+   "dnacalc": "0|str|é?",
+   "outcome": "matched"
+  },
+  {
+   "formula": "=MyXlf(150,\"@self\",\"MyCatW\",\"C%C%C%\",\"\",\"\")",
+   "excel": "0|str|",
+   "dnacalc": "0|str|",
+   "outcome": "matched"
+  },
+  {
+   "formula": "=MyXlf(150,\"@self\",\"MyAdd\",\"BBB\",TRUE,TRUE)",
+   "excel": "0|num|2",
+   "dnacalc": "0|num|2",
+   "outcome": "matched"
+  },
+  {
+   "formula": "=MyXlf(150,\"@self\",\"MyAdd\",\"BBB\",\" 5 \",1)",
+   "excel": "0|num|6",
+   "dnacalc": "0|num|6",
+   "outcome": "matched"
+  },
+  {
+   "formula": "=MyXlf(150,\"@self\",\"MyAdd\",\"BBB\",\"\",1)",
+   "excel": "0|err|#VALUE!",
+   "dnacalc": "0|err|#VALUE!",
+   "outcome": "matched"
+  },
+  {
+   "formula": "=MyXlf(267,\"@self\",\"MyUnregSub\",\"\")",
+   "excel": "0|num|id integer=true",
+   "dnacalc": "0|num|id integer=true",
+   "outcome": "matched"
+  },
+  {
+   "formula": "=MyXlf(267,\"@self\",\"MyUnregNeg\",5)",
+   "excel": "0|num|id integer=true",
+   "dnacalc": "0|num|id integer=true",
+   "outcome": "matched"
+  },
+  {
+   "formula": "=MyXlf(150,\"@self\",\"MyUnregSub\")",
+   "excel": "0|bool|TRUE",
+   "dnacalc": "0|bool|TRUE",
+   "outcome": "matched"
+  },
+  {
+   "formula": "=MyXlf(150,\"@self\",\"MyUnregNeg\")",
+   "excel": "0|bool|TRUE",
+   "dnacalc": "0|bool|TRUE",
+   "outcome": "matched"
+  },
+  {
+   "formula": "=MyXlf(150,MyXlfRaw(267,\"@self\",\"MyUnregSub\"),1,2)",
+   "excel": "0|err|#VALUE!",
+   "dnacalc": "0|err|#VALUE!",
+   "outcome": "matched"
+  },
+  {
+   "formula": "=MyXlf(150,\"@self\",\"MyUnregSub\",\"BBB\",5,2)",
+   "excel": "0|num|3.125",
+   "dnacalc": "0|num|3.125",
+   "outcome": "matched"
+  },
+  {
+   "formula": "=MyXlf(267,\"@self\",\"MyUnregSub\")",
+   "excel": "0|num|id integer=true",
+   "dnacalc": "0|num|id integer=true",
+   "outcome": "matched"
+  },
+  {
+   "formula": "=MyXlf(150,\"@self\",\"MyNonfiniteValue\",\"B\")",
+   "excel": "0|err|#NUM!",
+   "dnacalc": "0|err|#NUM!",
+   "outcome": "matched"
+  },
+  {
+   "formula": "=MyXlf(150,\"@self\",\"MyNonfinitePointer\",\"E\")",
+   "excel": "0|err|#NUM!",
+   "dnacalc": "0|err|#NUM!",
+   "outcome": "matched"
+  },
+  {
+   "formula": "=MyXlf(150,\"@self\",\"MyNonfiniteOper\",\"Q\")",
+   "excel": "0|err|#NUM!",
+   "dnacalc": "0|err|#NUM!",
+   "outcome": "matched"
+  },
+  {
+   "formula": "=MyXlf(150,\"@self\",\"MyAdd\",\"BBB\",\"1e2\",0)",
+   "excel": "0|num|100",
+   "dnacalc": "0|num|100",
+   "outcome": "matched"
+  },
+  {
+   "formula": "=MyXlf(150,\"@self\",\"MyAdd\",\"BBB\",\"0x10\",0)",
+   "excel": "0|err|#VALUE!",
+   "dnacalc": "0|err|#VALUE!",
+   "outcome": "matched"
+  },
+  {
+   "formula": "=MyXlf(150,\"@self\",\"MyAdd\",\"BBB\",\"+5\",0)",
+   "excel": "0|num|5",
+   "dnacalc": "0|num|5",
+   "outcome": "matched"
+  },
+  {
+   "formula": "=MyXlf(150,\"@self\",\"MyAdd\",\"BBB\",\"5%\",0)",
+   "excel": "0|num|0.05",
+   "dnacalc": "0|num|0.05",
+   "outcome": "matched"
+  },
+  {
+   "formula": "=MyXlf(150,\"@self\",\"MyAdd\",\"BBB\",\"TRUE\",0)",
+   "excel": "0|err|#VALUE!",
+   "dnacalc": "0|err|#VALUE!",
+   "outcome": "matched"
+  },
+  {
+   "formula": "=MyXlf(150,\"@self\",\"MyAdd\",\"BBB\",\"1 2\",0)",
+   "excel": "0|err|#VALUE!",
+   "dnacalc": "0|err|#VALUE!",
+   "outcome": "matched"
+  },
+  {
+   "formula": "=MyXlf(150,\"kernel32\",\"lstrlenA\",\"JC\",\"hello!\")",
+   "excel": "0|num|6",
+   "dnacalc": "0|num|6",
+   "outcome": "matched"
+  },
+  {
+   "formula": "=MyXlf(150,\"kernel32\",\"lstrlenA\",\"JC\",\"hello!!\")",
+   "excel": "0|num|7",
+   "dnacalc": "0|num|7",
+   "outcome": "matched"
+  },
+  {
+   "formula": "=MyXlf(201,MyXlfRaw(267,\"kernel32\",\"lstrlenA\",\"JC\"))",
+   "excel": "0|bool|TRUE",
+   "dnacalc": "0|bool|TRUE",
+   "outcome": "matched"
+  },
+  {
+   "formula": "=MyXlf(267,\"kernel32\",\"lstrlenA\")",
+   "excel": "0|err|#VALUE!",
+   "dnacalc": "0|err|#VALUE!",
+   "outcome": "matched"
+  },
+  {
+   "formula": "=MyXlf(150,\"kernel32.dll\",\"lstrlenA\")",
+   "excel": "0|err|#VALUE!",
+   "dnacalc": "0|err|#VALUE!",
+   "outcome": "matched"
+  },
+  {
+   "formula": "=MyXlf(150,MyXlfRaw(267,\"kernel32\",\"lstrlenA\"),\"abc\")",
+   "excel": "0|err|#VALUE!",
+   "dnacalc": "0|err|#VALUE!",
+   "outcome": "matched"
+  },
+  {
+   "formula": "=MyXlf(150,\"kernel32\",\"lstrlenA\",\"JC\",\"hello!!!\")",
+   "excel": "0|num|8",
+   "dnacalc": "0|num|8",
+   "outcome": "matched"
+  },
+  {
+   "formula": "=MyXlf(267,\"kernel32.dll\",\"lstrlenA\")",
+   "excel": "0|num|id integer=true",
+   "dnacalc": "0|num|id integer=true",
+   "outcome": "matched"
+  },
+  {
+   "formula": "=MyXlf(201,MyXlfRaw(267,\"kernel32\",\"lstrlenA\"))",
+   "excel": "0|bool|TRUE",
+   "dnacalc": "0|bool|TRUE",
+   "outcome": "matched"
+  },
+  {
+   "formula": "=MyXlf(201,MyXlfRaw(267,\"kernel32\",\"lstrlenW\",\"JC%\"))",
+   "excel": "0|bool|TRUE",
+   "dnacalc": "0|bool|TRUE",
+   "outcome": "matched"
+  }
+ ]
+}

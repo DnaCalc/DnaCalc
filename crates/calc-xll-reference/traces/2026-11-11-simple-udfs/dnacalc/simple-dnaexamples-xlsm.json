@@ -1,0 +1,799 @@
+{
+ "exe": "C:\\Work\\DnaCalc\\codex-runs\\opus-addins\\dnacalc\\dna-calc-desktop.exe",
+ "addin": null,
+ "workbook": "C:\\Work\\DnaCalc\\DnaCalc-win\\crates\\calc-xll-reference\\fixture\\vba\\DnaExamples.xlsm",
+ "excel": "C:\\Work\\DnaCalc\\codex-runs\\opus-addins\\onecalc-m5\\excel-simple-xlsm\\reopen.json",
+ "cases_file": "crates\\calc-xll-reference\\fixture\\vba\\simple-udf-cases.json",
+ "count": 109,
+ "matched": 0,
+ "mismatched": 0,
+ "refused": 109,
+ "missing": 0,
+ "rows": [
+  {
+   "formula": "=SimpleNeg(2.5)",
+   "excel": -2.5,
+   "exit": 1,
+   "outcome": "refused",
+   "why": "dna-calc-desktop: C:\\Work\\DnaCalc\\DnaCalc-win\\crates\\calc-xll-reference\\fixture\\vba\\DnaExamples.xlsm: workbook VBA project (dc-snz.15): document project (dc-hsa5.12): compile: unresolved name `Value` (member assignment target)"
+  },
+  {
+   "formula": "=SimpleNeg(\"3\")",
+   "excel": -3.0,
+   "exit": 1,
+   "outcome": "refused",
+   "why": "dna-calc-desktop: C:\\Work\\DnaCalc\\DnaCalc-win\\crates\\calc-xll-reference\\fixture\\vba\\DnaExamples.xlsm: workbook VBA project (dc-snz.15): document project (dc-hsa5.12): compile: unresolved name `Value` (member assignment target)"
+  },
+  {
+   "formula": "=SimpleNeg(TRUE)",
+   "excel": 1.0,
+   "exit": 1,
+   "outcome": "refused",
+   "why": "dna-calc-desktop: C:\\Work\\DnaCalc\\DnaCalc-win\\crates\\calc-xll-reference\\fixture\\vba\\DnaExamples.xlsm: workbook VBA project (dc-snz.15): document project (dc-hsa5.12): compile: unresolved name `Value` (member assignment target)"
+  },
+  {
+   "formula": "=SimpleNeg(\"x\")",
+   "excel": {
+    "error": "#VALUE!"
+   },
+   "exit": 1,
+   "outcome": "refused",
+   "why": "dna-calc-desktop: C:\\Work\\DnaCalc\\DnaCalc-win\\crates\\calc-xll-reference\\fixture\\vba\\DnaExamples.xlsm: workbook VBA project (dc-snz.15): document project (dc-hsa5.12): compile: unresolved name `Value` (member assignment target)"
+  },
+  {
+   "formula": "=SimpleNeg()",
+   "excel": {
+    "error": "#VALUE!"
+   },
+   "exit": 1,
+   "outcome": "refused",
+   "why": "dna-calc-desktop: C:\\Work\\DnaCalc\\DnaCalc-win\\crates\\calc-xll-reference\\fixture\\vba\\DnaExamples.xlsm: workbook VBA project (dc-snz.15): document project (dc-hsa5.12): compile: unresolved name `Value` (member assignment target)"
+  },
+  {
+   "formula": "=SimpleHalf(7)",
+   "excel": 3.5,
+   "exit": 1,
+   "outcome": "refused",
+   "why": "dna-calc-desktop: C:\\Work\\DnaCalc\\DnaCalc-win\\crates\\calc-xll-reference\\fixture\\vba\\DnaExamples.xlsm: workbook VBA project (dc-snz.15): document project (dc-hsa5.12): compile: unresolved name `Value` (member assignment target)"
+  },
+  {
+   "formula": "=SimpleHalf(2.5)",
+   "excel": 1.0,
+   "exit": 1,
+   "outcome": "refused",
+   "why": "dna-calc-desktop: C:\\Work\\DnaCalc\\DnaCalc-win\\crates\\calc-xll-reference\\fixture\\vba\\DnaExamples.xlsm: workbook VBA project (dc-snz.15): document project (dc-hsa5.12): compile: unresolved name `Value` (member assignment target)"
+  },
+  {
+   "formula": "=SimpleHalf(3.5)",
+   "excel": 2.0,
+   "exit": 1,
+   "outcome": "refused",
+   "why": "dna-calc-desktop: C:\\Work\\DnaCalc\\DnaCalc-win\\crates\\calc-xll-reference\\fixture\\vba\\DnaExamples.xlsm: workbook VBA project (dc-snz.15): document project (dc-hsa5.12): compile: unresolved name `Value` (member assignment target)"
+  },
+  {
+   "formula": "=SimpleIsBig(150)",
+   "excel": true,
+   "exit": 1,
+   "outcome": "refused",
+   "why": "dna-calc-desktop: C:\\Work\\DnaCalc\\DnaCalc-win\\crates\\calc-xll-reference\\fixture\\vba\\DnaExamples.xlsm: workbook VBA project (dc-snz.15): document project (dc-hsa5.12): compile: unresolved name `Value` (member assignment target)"
+  },
+  {
+   "formula": "=SimpleIsBig(5)",
+   "excel": false,
+   "exit": 1,
+   "outcome": "refused",
+   "why": "dna-calc-desktop: C:\\Work\\DnaCalc\\DnaCalc-win\\crates\\calc-xll-reference\\fixture\\vba\\DnaExamples.xlsm: workbook VBA project (dc-snz.15): document project (dc-hsa5.12): compile: unresolved name `Value` (member assignment target)"
+  },
+  {
+   "formula": "=SimpleNot(TRUE)",
+   "excel": false,
+   "exit": 1,
+   "outcome": "refused",
+   "why": "dna-calc-desktop: C:\\Work\\DnaCalc\\DnaCalc-win\\crates\\calc-xll-reference\\fixture\\vba\\DnaExamples.xlsm: workbook VBA project (dc-snz.15): document project (dc-hsa5.12): compile: unresolved name `Value` (member assignment target)"
+  },
+  {
+   "formula": "=SimpleNot(0)",
+   "excel": true,
+   "exit": 1,
+   "outcome": "refused",
+   "why": "dna-calc-desktop: C:\\Work\\DnaCalc\\DnaCalc-win\\crates\\calc-xll-reference\\fixture\\vba\\DnaExamples.xlsm: workbook VBA project (dc-snz.15): document project (dc-hsa5.12): compile: unresolved name `Value` (member assignment target)"
+  },
+  {
+   "formula": "=SimpleNot(\"FALSE\")",
+   "excel": true,
+   "exit": 1,
+   "outcome": "refused",
+   "why": "dna-calc-desktop: C:\\Work\\DnaCalc\\DnaCalc-win\\crates\\calc-xll-reference\\fixture\\vba\\DnaExamples.xlsm: workbook VBA project (dc-snz.15): document project (dc-hsa5.12): compile: unresolved name `Value` (member assignment target)"
+  },
+  {
+   "formula": "=SimpleUpper(\"dna calc\")",
+   "excel": "DNA CALC",
+   "exit": 1,
+   "outcome": "refused",
+   "why": "dna-calc-desktop: C:\\Work\\DnaCalc\\DnaCalc-win\\crates\\calc-xll-reference\\fixture\\vba\\DnaExamples.xlsm: workbook VBA project (dc-snz.15): document project (dc-hsa5.12): compile: unresolved name `Value` (member assignment target)"
+  },
+  {
+   "formula": "=SimpleUpper(12.5)",
+   "excel": "12.5",
+   "exit": 1,
+   "outcome": "refused",
+   "why": "dna-calc-desktop: C:\\Work\\DnaCalc\\DnaCalc-win\\crates\\calc-xll-reference\\fixture\\vba\\DnaExamples.xlsm: workbook VBA project (dc-snz.15): document project (dc-hsa5.12): compile: unresolved name `Value` (member assignment target)"
+  },
+  {
+   "formula": "=SimpleLen(\"héllo\")",
+   "excel": 5.0,
+   "exit": 1,
+   "outcome": "refused",
+   "why": "dna-calc-desktop: C:\\Work\\DnaCalc\\DnaCalc-win\\crates\\calc-xll-reference\\fixture\\vba\\DnaExamples.xlsm: workbook VBA project (dc-snz.15): document project (dc-hsa5.12): compile: unresolved name `Value` (member assignment target)"
+  },
+  {
+   "formula": "=SimpleLen(\"\")",
+   "excel": 0.0,
+   "exit": 1,
+   "outcome": "refused",
+   "why": "dna-calc-desktop: C:\\Work\\DnaCalc\\DnaCalc-win\\crates\\calc-xll-reference\\fixture\\vba\\DnaExamples.xlsm: workbook VBA project (dc-snz.15): document project (dc-hsa5.12): compile: unresolved name `Value` (member assignment target)"
+  },
+  {
+   "formula": "=SimpleMid(\"abcdef\",2)",
+   "excel": "bc",
+   "exit": 1,
+   "outcome": "refused",
+   "why": "dna-calc-desktop: C:\\Work\\DnaCalc\\DnaCalc-win\\crates\\calc-xll-reference\\fixture\\vba\\DnaExamples.xlsm: workbook VBA project (dc-snz.15): document project (dc-hsa5.12): compile: unresolved name `Value` (member assignment target)"
+  },
+  {
+   "formula": "=SimpleMid(\"abcdef\",2,3)",
+   "excel": "bcd",
+   "exit": 1,
+   "outcome": "refused",
+   "why": "dna-calc-desktop: C:\\Work\\DnaCalc\\DnaCalc-win\\crates\\calc-xll-reference\\fixture\\vba\\DnaExamples.xlsm: workbook VBA project (dc-snz.15): document project (dc-hsa5.12): compile: unresolved name `Value` (member assignment target)"
+  },
+  {
+   "formula": "=SimpleKind(1)",
+   "excel": "Double",
+   "exit": 1,
+   "outcome": "refused",
+   "why": "dna-calc-desktop: C:\\Work\\DnaCalc\\DnaCalc-win\\crates\\calc-xll-reference\\fixture\\vba\\DnaExamples.xlsm: workbook VBA project (dc-snz.15): document project (dc-hsa5.12): compile: unresolved name `Value` (member assignment target)"
+  },
+  {
+   "formula": "=SimpleKind(\"a\")",
+   "excel": "String",
+   "exit": 1,
+   "outcome": "refused",
+   "why": "dna-calc-desktop: C:\\Work\\DnaCalc\\DnaCalc-win\\crates\\calc-xll-reference\\fixture\\vba\\DnaExamples.xlsm: workbook VBA project (dc-snz.15): document project (dc-hsa5.12): compile: unresolved name `Value` (member assignment target)"
+  },
+  {
+   "formula": "=SimpleKind(TRUE)",
+   "excel": "Boolean",
+   "exit": 1,
+   "outcome": "refused",
+   "why": "dna-calc-desktop: C:\\Work\\DnaCalc\\DnaCalc-win\\crates\\calc-xll-reference\\fixture\\vba\\DnaExamples.xlsm: workbook VBA project (dc-snz.15): document project (dc-hsa5.12): compile: unresolved name `Value` (member assignment target)"
+  },
+  {
+   "formula": "=SimpleKind(1/0)",
+   "excel": "Error",
+   "exit": 1,
+   "outcome": "refused",
+   "why": "dna-calc-desktop: C:\\Work\\DnaCalc\\DnaCalc-win\\crates\\calc-xll-reference\\fixture\\vba\\DnaExamples.xlsm: workbook VBA project (dc-snz.15): document project (dc-hsa5.12): compile: unresolved name `Value` (member assignment target)"
+  },
+  {
+   "formula": "=SimpleKind({1,2})",
+   "excel": "Variant()",
+   "exit": 1,
+   "outcome": "refused",
+   "why": "dna-calc-desktop: C:\\Work\\DnaCalc\\DnaCalc-win\\crates\\calc-xll-reference\\fixture\\vba\\DnaExamples.xlsm: workbook VBA project (dc-snz.15): document project (dc-hsa5.12): compile: unresolved name `Value` (member assignment target)"
+  },
+  {
+   "formula": "=SimpleKind(A1)",
+   "excel": "Range",
+   "exit": 1,
+   "outcome": "refused",
+   "why": "dna-calc-desktop: C:\\Work\\DnaCalc\\DnaCalc-win\\crates\\calc-xll-reference\\fixture\\vba\\DnaExamples.xlsm: workbook VBA project (dc-snz.15): document project (dc-hsa5.12): compile: unresolved name `Value` (member assignment target)"
+  },
+  {
+   "formula": "=SimpleVarType(1)",
+   "excel": 5.0,
+   "exit": 1,
+   "outcome": "refused",
+   "why": "dna-calc-desktop: C:\\Work\\DnaCalc\\DnaCalc-win\\crates\\calc-xll-reference\\fixture\\vba\\DnaExamples.xlsm: workbook VBA project (dc-snz.15): document project (dc-hsa5.12): compile: unresolved name `Value` (member assignment target)"
+  },
+  {
+   "formula": "=SimpleVarType(\"a\")",
+   "excel": 8.0,
+   "exit": 1,
+   "outcome": "refused",
+   "why": "dna-calc-desktop: C:\\Work\\DnaCalc\\DnaCalc-win\\crates\\calc-xll-reference\\fixture\\vba\\DnaExamples.xlsm: workbook VBA project (dc-snz.15): document project (dc-hsa5.12): compile: unresolved name `Value` (member assignment target)"
+  },
+  {
+   "formula": "=SimpleVarType(TRUE)",
+   "excel": 11.0,
+   "exit": 1,
+   "outcome": "refused",
+   "why": "dna-calc-desktop: C:\\Work\\DnaCalc\\DnaCalc-win\\crates\\calc-xll-reference\\fixture\\vba\\DnaExamples.xlsm: workbook VBA project (dc-snz.15): document project (dc-hsa5.12): compile: unresolved name `Value` (member assignment target)"
+  },
+  {
+   "formula": "=SimpleVarType(NA())",
+   "excel": 10.0,
+   "exit": 1,
+   "outcome": "refused",
+   "why": "dna-calc-desktop: C:\\Work\\DnaCalc\\DnaCalc-win\\crates\\calc-xll-reference\\fixture\\vba\\DnaExamples.xlsm: workbook VBA project (dc-snz.15): document project (dc-hsa5.12): compile: unresolved name `Value` (member assignment target)"
+  },
+  {
+   "formula": "=SimpleTwice(21)",
+   "excel": 42.0,
+   "exit": 1,
+   "outcome": "refused",
+   "why": "dna-calc-desktop: C:\\Work\\DnaCalc\\DnaCalc-win\\crates\\calc-xll-reference\\fixture\\vba\\DnaExamples.xlsm: workbook VBA project (dc-snz.15): document project (dc-hsa5.12): compile: unresolved name `Value` (member assignment target)"
+  },
+  {
+   "formula": "=SimpleTwice(\"ab\")",
+   "excel": "abab",
+   "exit": 1,
+   "outcome": "refused",
+   "why": "dna-calc-desktop: C:\\Work\\DnaCalc\\DnaCalc-win\\crates\\calc-xll-reference\\fixture\\vba\\DnaExamples.xlsm: workbook VBA project (dc-snz.15): document project (dc-hsa5.12): compile: unresolved name `Value` (member assignment target)"
+  },
+  {
+   "formula": "=SimpleTwice(TRUE)",
+   "excel": -2.0,
+   "exit": 1,
+   "outcome": "refused",
+   "why": "dna-calc-desktop: C:\\Work\\DnaCalc\\DnaCalc-win\\crates\\calc-xll-reference\\fixture\\vba\\DnaExamples.xlsm: workbook VBA project (dc-snz.15): document project (dc-hsa5.12): compile: unresolved name `Value` (member assignment target)"
+  },
+  {
+   "formula": "=SimpleAsDouble(\"12.5\")",
+   "excel": 12.5,
+   "exit": 1,
+   "outcome": "refused",
+   "why": "dna-calc-desktop: C:\\Work\\DnaCalc\\DnaCalc-win\\crates\\calc-xll-reference\\fixture\\vba\\DnaExamples.xlsm: workbook VBA project (dc-snz.15): document project (dc-hsa5.12): compile: unresolved name `Value` (member assignment target)"
+  },
+  {
+   "formula": "=SimpleAsDouble(TRUE)",
+   "excel": -1.0,
+   "exit": 1,
+   "outcome": "refused",
+   "why": "dna-calc-desktop: C:\\Work\\DnaCalc\\DnaCalc-win\\crates\\calc-xll-reference\\fixture\\vba\\DnaExamples.xlsm: workbook VBA project (dc-snz.15): document project (dc-hsa5.12): compile: unresolved name `Value` (member assignment target)"
+  },
+  {
+   "formula": "=SimpleAsLong(2.5)",
+   "excel": 2.0,
+   "exit": 1,
+   "outcome": "refused",
+   "why": "dna-calc-desktop: C:\\Work\\DnaCalc\\DnaCalc-win\\crates\\calc-xll-reference\\fixture\\vba\\DnaExamples.xlsm: workbook VBA project (dc-snz.15): document project (dc-hsa5.12): compile: unresolved name `Value` (member assignment target)"
+  },
+  {
+   "formula": "=SimpleAsLong(3.5)",
+   "excel": 4.0,
+   "exit": 1,
+   "outcome": "refused",
+   "why": "dna-calc-desktop: C:\\Work\\DnaCalc\\DnaCalc-win\\crates\\calc-xll-reference\\fixture\\vba\\DnaExamples.xlsm: workbook VBA project (dc-snz.15): document project (dc-hsa5.12): compile: unresolved name `Value` (member assignment target)"
+  },
+  {
+   "formula": "=SimpleAsLong(3000000000)",
+   "excel": {
+    "error": "#NUM!"
+   },
+   "exit": 1,
+   "outcome": "refused",
+   "why": "dna-calc-desktop: C:\\Work\\DnaCalc\\DnaCalc-win\\crates\\calc-xll-reference\\fixture\\vba\\DnaExamples.xlsm: workbook VBA project (dc-snz.15): document project (dc-hsa5.12): compile: unresolved name `Value` (member assignment target)"
+  },
+  {
+   "formula": "=SimpleAsString(1.5)",
+   "excel": "1.5",
+   "exit": 1,
+   "outcome": "refused",
+   "why": "dna-calc-desktop: C:\\Work\\DnaCalc\\DnaCalc-win\\crates\\calc-xll-reference\\fixture\\vba\\DnaExamples.xlsm: workbook VBA project (dc-snz.15): document project (dc-hsa5.12): compile: unresolved name `Value` (member assignment target)"
+  },
+  {
+   "formula": "=SimpleAsString(TRUE)",
+   "excel": "True",
+   "exit": 1,
+   "outcome": "refused",
+   "why": "dna-calc-desktop: C:\\Work\\DnaCalc\\DnaCalc-win\\crates\\calc-xll-reference\\fixture\\vba\\DnaExamples.xlsm: workbook VBA project (dc-snz.15): document project (dc-hsa5.12): compile: unresolved name `Value` (member assignment target)"
+  },
+  {
+   "formula": "=SimpleAsBool(0)",
+   "excel": "False",
+   "exit": 1,
+   "outcome": "refused",
+   "why": "dna-calc-desktop: C:\\Work\\DnaCalc\\DnaCalc-win\\crates\\calc-xll-reference\\fixture\\vba\\DnaExamples.xlsm: workbook VBA project (dc-snz.15): document project (dc-hsa5.12): compile: unresolved name `Value` (member assignment target)"
+  },
+  {
+   "formula": "=SimpleAsBool(2)",
+   "excel": "True",
+   "exit": 1,
+   "outcome": "refused",
+   "why": "dna-calc-desktop: C:\\Work\\DnaCalc\\DnaCalc-win\\crates\\calc-xll-reference\\fixture\\vba\\DnaExamples.xlsm: workbook VBA project (dc-snz.15): document project (dc-hsa5.12): compile: unresolved name `Value` (member assignment target)"
+  },
+  {
+   "formula": "=SimpleAsBool(\"true\")",
+   "excel": "True",
+   "exit": 1,
+   "outcome": "refused",
+   "why": "dna-calc-desktop: C:\\Work\\DnaCalc\\DnaCalc-win\\crates\\calc-xll-reference\\fixture\\vba\\DnaExamples.xlsm: workbook VBA project (dc-snz.15): document project (dc-hsa5.12): compile: unresolved name `Value` (member assignment target)"
+  },
+  {
+   "formula": "=SimplePower(3)",
+   "excel": 9.0,
+   "exit": 1,
+   "outcome": "refused",
+   "why": "dna-calc-desktop: C:\\Work\\DnaCalc\\DnaCalc-win\\crates\\calc-xll-reference\\fixture\\vba\\DnaExamples.xlsm: workbook VBA project (dc-snz.15): document project (dc-hsa5.12): compile: unresolved name `Value` (member assignment target)"
+  },
+  {
+   "formula": "=SimplePower(2,10)",
+   "excel": 1024.0,
+   "exit": 1,
+   "outcome": "refused",
+   "why": "dna-calc-desktop: C:\\Work\\DnaCalc\\DnaCalc-win\\crates\\calc-xll-reference\\fixture\\vba\\DnaExamples.xlsm: workbook VBA project (dc-snz.15): document project (dc-hsa5.12): compile: unresolved name `Value` (member assignment target)"
+  },
+  {
+   "formula": "=SimplePower(2,)",
+   "excel": 4.0,
+   "exit": 1,
+   "outcome": "refused",
+   "why": "dna-calc-desktop: C:\\Work\\DnaCalc\\DnaCalc-win\\crates\\calc-xll-reference\\fixture\\vba\\DnaExamples.xlsm: workbook VBA project (dc-snz.15): document project (dc-hsa5.12): compile: unresolved name `Value` (member assignment target)"
+  },
+  {
+   "formula": "=SimpleMissing()",
+   "excel": true,
+   "exit": 1,
+   "outcome": "refused",
+   "why": "dna-calc-desktop: C:\\Work\\DnaCalc\\DnaCalc-win\\crates\\calc-xll-reference\\fixture\\vba\\DnaExamples.xlsm: workbook VBA project (dc-snz.15): document project (dc-hsa5.12): compile: unresolved name `Value` (member assignment target)"
+  },
+  {
+   "formula": "=SimpleMissing(1)",
+   "excel": false,
+   "exit": 1,
+   "outcome": "refused",
+   "why": "dna-calc-desktop: C:\\Work\\DnaCalc\\DnaCalc-win\\crates\\calc-xll-reference\\fixture\\vba\\DnaExamples.xlsm: workbook VBA project (dc-snz.15): document project (dc-hsa5.12): compile: unresolved name `Value` (member assignment target)"
+  },
+  {
+   "formula": "=SimpleCount()",
+   "excel": 0.0,
+   "exit": 1,
+   "outcome": "refused",
+   "why": "dna-calc-desktop: C:\\Work\\DnaCalc\\DnaCalc-win\\crates\\calc-xll-reference\\fixture\\vba\\DnaExamples.xlsm: workbook VBA project (dc-snz.15): document project (dc-hsa5.12): compile: unresolved name `Value` (member assignment target)"
+  },
+  {
+   "formula": "=SimpleCount(1,\"a\",TRUE)",
+   "excel": 3.0,
+   "exit": 1,
+   "outcome": "refused",
+   "why": "dna-calc-desktop: C:\\Work\\DnaCalc\\DnaCalc-win\\crates\\calc-xll-reference\\fixture\\vba\\DnaExamples.xlsm: workbook VBA project (dc-snz.15): document project (dc-hsa5.12): compile: unresolved name `Value` (member assignment target)"
+  },
+  {
+   "formula": "=SimpleCount(1,,3)",
+   "excel": 3.0,
+   "exit": 1,
+   "outcome": "refused",
+   "why": "dna-calc-desktop: C:\\Work\\DnaCalc\\DnaCalc-win\\crates\\calc-xll-reference\\fixture\\vba\\DnaExamples.xlsm: workbook VBA project (dc-snz.15): document project (dc-hsa5.12): compile: unresolved name `Value` (member assignment target)"
+  },
+  {
+   "formula": "=SimpleConcat(\"-\",\"a\",1,TRUE)",
+   "excel": "a-1-True",
+   "exit": 1,
+   "outcome": "refused",
+   "why": "dna-calc-desktop: C:\\Work\\DnaCalc\\DnaCalc-win\\crates\\calc-xll-reference\\fixture\\vba\\DnaExamples.xlsm: workbook VBA project (dc-snz.15): document project (dc-hsa5.12): compile: unresolved name `Value` (member assignment target)"
+  },
+  {
+   "formula": "=SimpleConcat(\",\")",
+   "excel": "",
+   "exit": 1,
+   "outcome": "refused",
+   "why": "dna-calc-desktop: C:\\Work\\DnaCalc\\DnaCalc-win\\crates\\calc-xll-reference\\fixture\\vba\\DnaExamples.xlsm: workbook VBA project (dc-snz.15): document project (dc-hsa5.12): compile: unresolved name `Value` (member assignment target)"
+  },
+  {
+   "formula": "=INDEX(SimpleSeq(3),2,1)",
+   "excel": 20.0,
+   "exit": 1,
+   "outcome": "refused",
+   "why": "dna-calc-desktop: C:\\Work\\DnaCalc\\DnaCalc-win\\crates\\calc-xll-reference\\fixture\\vba\\DnaExamples.xlsm: workbook VBA project (dc-snz.15): document project (dc-hsa5.12): compile: unresolved name `Value` (member assignment target)"
+  },
+  {
+   "formula": "=ROWS(SimpleSeq(4))",
+   "excel": 4.0,
+   "exit": 1,
+   "outcome": "refused",
+   "why": "dna-calc-desktop: C:\\Work\\DnaCalc\\DnaCalc-win\\crates\\calc-xll-reference\\fixture\\vba\\DnaExamples.xlsm: workbook VBA project (dc-snz.15): document project (dc-hsa5.12): compile: unresolved name `Value` (member assignment target)"
+  },
+  {
+   "formula": "=COLUMNS(SimpleSeq(4))",
+   "excel": 1.0,
+   "exit": 1,
+   "outcome": "refused",
+   "why": "dna-calc-desktop: C:\\Work\\DnaCalc\\DnaCalc-win\\crates\\calc-xll-reference\\fixture\\vba\\DnaExamples.xlsm: workbook VBA project (dc-snz.15): document project (dc-hsa5.12): compile: unresolved name `Value` (member assignment target)"
+  },
+  {
+   "formula": "=SUM(SimpleSeq(3))",
+   "excel": 60.0,
+   "exit": 1,
+   "outcome": "refused",
+   "why": "dna-calc-desktop: C:\\Work\\DnaCalc\\DnaCalc-win\\crates\\calc-xll-reference\\fixture\\vba\\DnaExamples.xlsm: workbook VBA project (dc-snz.15): document project (dc-hsa5.12): compile: unresolved name `Value` (member assignment target)"
+  },
+  {
+   "formula": "=SimpleSeq(3)",
+   "excel": 10.0,
+   "exit": 1,
+   "outcome": "refused",
+   "why": "dna-calc-desktop: C:\\Work\\DnaCalc\\DnaCalc-win\\crates\\calc-xll-reference\\fixture\\vba\\DnaExamples.xlsm: workbook VBA project (dc-snz.15): document project (dc-hsa5.12): compile: unresolved name `Value` (member assignment target)"
+  },
+  {
+   "formula": "=INDEX(SimpleRow(3),1,3)",
+   "excel": 3.0,
+   "exit": 1,
+   "outcome": "refused",
+   "why": "dna-calc-desktop: C:\\Work\\DnaCalc\\DnaCalc-win\\crates\\calc-xll-reference\\fixture\\vba\\DnaExamples.xlsm: workbook VBA project (dc-snz.15): document project (dc-hsa5.12): compile: unresolved name `Value` (member assignment target)"
+  },
+  {
+   "formula": "=COLUMNS(SimpleRow(5))",
+   "excel": 5.0,
+   "exit": 1,
+   "outcome": "refused",
+   "why": "dna-calc-desktop: C:\\Work\\DnaCalc\\DnaCalc-win\\crates\\calc-xll-reference\\fixture\\vba\\DnaExamples.xlsm: workbook VBA project (dc-snz.15): document project (dc-hsa5.12): compile: unresolved name `Value` (member assignment target)"
+  },
+  {
+   "formula": "=ROWS(SimpleRow(5))",
+   "excel": 1.0,
+   "exit": 1,
+   "outcome": "refused",
+   "why": "dna-calc-desktop: C:\\Work\\DnaCalc\\DnaCalc-win\\crates\\calc-xll-reference\\fixture\\vba\\DnaExamples.xlsm: workbook VBA project (dc-snz.15): document project (dc-hsa5.12): compile: unresolved name `Value` (member assignment target)"
+  },
+  {
+   "formula": "=INDEX(SimpleMixed(),1,2)",
+   "excel": "two",
+   "exit": 1,
+   "outcome": "refused",
+   "why": "dna-calc-desktop: C:\\Work\\DnaCalc\\DnaCalc-win\\crates\\calc-xll-reference\\fixture\\vba\\DnaExamples.xlsm: workbook VBA project (dc-snz.15): document project (dc-hsa5.12): compile: unresolved name `Value` (member assignment target)"
+  },
+  {
+   "formula": "=INDEX(SimpleMixed(),1,3)",
+   "excel": true,
+   "exit": 1,
+   "outcome": "refused",
+   "why": "dna-calc-desktop: C:\\Work\\DnaCalc\\DnaCalc-win\\crates\\calc-xll-reference\\fixture\\vba\\DnaExamples.xlsm: workbook VBA project (dc-snz.15): document project (dc-hsa5.12): compile: unresolved name `Value` (member assignment target)"
+  },
+  {
+   "formula": "=INDEX(SimpleMixed(),1,4)",
+   "excel": {
+    "error": "#DIV/0!"
+   },
+   "exit": 1,
+   "outcome": "refused",
+   "why": "dna-calc-desktop: C:\\Work\\DnaCalc\\DnaCalc-win\\crates\\calc-xll-reference\\fixture\\vba\\DnaExamples.xlsm: workbook VBA project (dc-snz.15): document project (dc-hsa5.12): compile: unresolved name `Value` (member assignment target)"
+  },
+  {
+   "formula": "=INDEX(SimpleGrid(),2,3)",
+   "excel": 23.0,
+   "exit": 1,
+   "outcome": "refused",
+   "why": "dna-calc-desktop: C:\\Work\\DnaCalc\\DnaCalc-win\\crates\\calc-xll-reference\\fixture\\vba\\DnaExamples.xlsm: workbook VBA project (dc-snz.15): document project (dc-hsa5.12): compile: unresolved name `Value` (member assignment target)"
+  },
+  {
+   "formula": "=SUM(SimpleGrid())",
+   "excel": 102.0,
+   "exit": 1,
+   "outcome": "refused",
+   "why": "dna-calc-desktop: C:\\Work\\DnaCalc\\DnaCalc-win\\crates\\calc-xll-reference\\fixture\\vba\\DnaExamples.xlsm: workbook VBA project (dc-snz.15): document project (dc-hsa5.12): compile: unresolved name `Value` (member assignment target)"
+  },
+  {
+   "formula": "=COLUMNS(SimpleGrid())",
+   "excel": 3.0,
+   "exit": 1,
+   "outcome": "refused",
+   "why": "dna-calc-desktop: C:\\Work\\DnaCalc\\DnaCalc-win\\crates\\calc-xll-reference\\fixture\\vba\\DnaExamples.xlsm: workbook VBA project (dc-snz.15): document project (dc-hsa5.12): compile: unresolved name `Value` (member assignment target)"
+  },
+  {
+   "formula": "=INDEX(SimpleSplit(\"a,b,c\"),1,2)",
+   "excel": "b",
+   "exit": 1,
+   "outcome": "refused",
+   "why": "dna-calc-desktop: C:\\Work\\DnaCalc\\DnaCalc-win\\crates\\calc-xll-reference\\fixture\\vba\\DnaExamples.xlsm: workbook VBA project (dc-snz.15): document project (dc-hsa5.12): compile: unresolved name `Value` (member assignment target)"
+  },
+  {
+   "formula": "=COLUMNS(SimpleSplit(\"a,b,c\"))",
+   "excel": 3.0,
+   "exit": 1,
+   "outcome": "refused",
+   "why": "dna-calc-desktop: C:\\Work\\DnaCalc\\DnaCalc-win\\crates\\calc-xll-reference\\fixture\\vba\\DnaExamples.xlsm: workbook VBA project (dc-snz.15): document project (dc-hsa5.12): compile: unresolved name `Value` (member assignment target)"
+  },
+  {
+   "formula": "=SimpleArrSum({1,2;3,4})",
+   "excel": 10.0,
+   "exit": 1,
+   "outcome": "refused",
+   "why": "dna-calc-desktop: C:\\Work\\DnaCalc\\DnaCalc-win\\crates\\calc-xll-reference\\fixture\\vba\\DnaExamples.xlsm: workbook VBA project (dc-snz.15): document project (dc-hsa5.12): compile: unresolved name `Value` (member assignment target)"
+  },
+  {
+   "formula": "=SimpleArrSum({1,\"x\",TRUE,4})",
+   "excel": 5.0,
+   "exit": 1,
+   "outcome": "refused",
+   "why": "dna-calc-desktop: C:\\Work\\DnaCalc\\DnaCalc-win\\crates\\calc-xll-reference\\fixture\\vba\\DnaExamples.xlsm: workbook VBA project (dc-snz.15): document project (dc-hsa5.12): compile: unresolved name `Value` (member assignment target)"
+  },
+  {
+   "formula": "=SimpleArrSum(5)",
+   "excel": 5.0,
+   "exit": 1,
+   "outcome": "refused",
+   "why": "dna-calc-desktop: C:\\Work\\DnaCalc\\DnaCalc-win\\crates\\calc-xll-reference\\fixture\\vba\\DnaExamples.xlsm: workbook VBA project (dc-snz.15): document project (dc-hsa5.12): compile: unresolved name `Value` (member assignment target)"
+  },
+  {
+   "formula": "=SimpleDims({1,2;3,4})",
+   "excel": "Variant():1-2x1-2",
+   "exit": 1,
+   "outcome": "refused",
+   "why": "dna-calc-desktop: C:\\Work\\DnaCalc\\DnaCalc-win\\crates\\calc-xll-reference\\fixture\\vba\\DnaExamples.xlsm: workbook VBA project (dc-snz.15): document project (dc-hsa5.12): compile: unresolved name `Value` (member assignment target)"
+  },
+  {
+   "formula": "=SimpleDims({1,2,3})",
+   "excel": "Variant():1-3:1d",
+   "exit": 1,
+   "outcome": "refused",
+   "why": "dna-calc-desktop: C:\\Work\\DnaCalc\\DnaCalc-win\\crates\\calc-xll-reference\\fixture\\vba\\DnaExamples.xlsm: workbook VBA project (dc-snz.15): document project (dc-hsa5.12): compile: unresolved name `Value` (member assignment target)"
+  },
+  {
+   "formula": "=SimpleDims({1;2;3})",
+   "excel": "Variant():1-3x1-1",
+   "exit": 1,
+   "outcome": "refused",
+   "why": "dna-calc-desktop: C:\\Work\\DnaCalc\\DnaCalc-win\\crates\\calc-xll-reference\\fixture\\vba\\DnaExamples.xlsm: workbook VBA project (dc-snz.15): document project (dc-hsa5.12): compile: unresolved name `Value` (member assignment target)"
+  },
+  {
+   "formula": "=SimpleDims(7)",
+   "excel": "Double",
+   "exit": 1,
+   "outcome": "refused",
+   "why": "dna-calc-desktop: C:\\Work\\DnaCalc\\DnaCalc-win\\crates\\calc-xll-reference\\fixture\\vba\\DnaExamples.xlsm: workbook VBA project (dc-snz.15): document project (dc-hsa5.12): compile: unresolved name `Value` (member assignment target)"
+  },
+  {
+   "formula": "=SimpleCorner({1,2;3,4})",
+   "excel": 4.0,
+   "exit": 1,
+   "outcome": "refused",
+   "why": "dna-calc-desktop: C:\\Work\\DnaCalc\\DnaCalc-win\\crates\\calc-xll-reference\\fixture\\vba\\DnaExamples.xlsm: workbook VBA project (dc-snz.15): document project (dc-hsa5.12): compile: unresolved name `Value` (member assignment target)"
+  },
+  {
+   "formula": "=SimpleDims(SEQUENCE(1,3))",
+   "excel": "Variant():1-3:1d",
+   "exit": 1,
+   "outcome": "refused",
+   "why": "dna-calc-desktop: C:\\Work\\DnaCalc\\DnaCalc-win\\crates\\calc-xll-reference\\fixture\\vba\\DnaExamples.xlsm: workbook VBA project (dc-snz.15): document project (dc-hsa5.12): compile: unresolved name `Value` (member assignment target)"
+  },
+  {
+   "formula": "=SimpleDims(TRANSPOSE({1;2;3}))",
+   "excel": "Variant():1-3:1d",
+   "exit": 1,
+   "outcome": "refused",
+   "why": "dna-calc-desktop: C:\\Work\\DnaCalc\\DnaCalc-win\\crates\\calc-xll-reference\\fixture\\vba\\DnaExamples.xlsm: workbook VBA project (dc-snz.15): document project (dc-hsa5.12): compile: unresolved name `Value` (member assignment target)"
+  },
+  {
+   "formula": "=SimpleHalf(2147483648)",
+   "excel": {
+    "error": "#NUM!"
+   },
+   "exit": 1,
+   "outcome": "refused",
+   "why": "dna-calc-desktop: C:\\Work\\DnaCalc\\DnaCalc-win\\crates\\calc-xll-reference\\fixture\\vba\\DnaExamples.xlsm: workbook VBA project (dc-snz.15): document project (dc-hsa5.12): compile: unresolved name `Value` (member assignment target)"
+  },
+  {
+   "formula": "=SimpleAsLong(\"x\")",
+   "excel": {
+    "error": "#VALUE!"
+   },
+   "exit": 1,
+   "outcome": "refused",
+   "why": "dna-calc-desktop: C:\\Work\\DnaCalc\\DnaCalc-win\\crates\\calc-xll-reference\\fixture\\vba\\DnaExamples.xlsm: workbook VBA project (dc-snz.15): document project (dc-hsa5.12): compile: unresolved name `Value` (member assignment target)"
+  },
+  {
+   "formula": "=SimpleCount({1,2,3})",
+   "excel": 1.0,
+   "exit": 1,
+   "outcome": "refused",
+   "why": "dna-calc-desktop: C:\\Work\\DnaCalc\\DnaCalc-win\\crates\\calc-xll-reference\\fixture\\vba\\DnaExamples.xlsm: workbook VBA project (dc-snz.15): document project (dc-hsa5.12): compile: unresolved name `Value` (member assignment target)"
+  },
+  {
+   "formula": "=SimpleDiv(1,4)",
+   "excel": 0.25,
+   "exit": 1,
+   "outcome": "refused",
+   "why": "dna-calc-desktop: C:\\Work\\DnaCalc\\DnaCalc-win\\crates\\calc-xll-reference\\fixture\\vba\\DnaExamples.xlsm: workbook VBA project (dc-snz.15): document project (dc-hsa5.12): compile: unresolved name `Value` (member assignment target)"
+  },
+  {
+   "formula": "=SimpleDiv(1,0)",
+   "excel": {
+    "error": "#DIV/0!"
+   },
+   "exit": 1,
+   "outcome": "refused",
+   "why": "dna-calc-desktop: C:\\Work\\DnaCalc\\DnaCalc-win\\crates\\calc-xll-reference\\fixture\\vba\\DnaExamples.xlsm: workbook VBA project (dc-snz.15): document project (dc-hsa5.12): compile: unresolved name `Value` (member assignment target)"
+  },
+  {
+   "formula": "=SimpleNum()",
+   "excel": {
+    "error": "#NUM!"
+   },
+   "exit": 1,
+   "outcome": "refused",
+   "why": "dna-calc-desktop: C:\\Work\\DnaCalc\\DnaCalc-win\\crates\\calc-xll-reference\\fixture\\vba\\DnaExamples.xlsm: workbook VBA project (dc-snz.15): document project (dc-hsa5.12): compile: unresolved name `Value` (member assignment target)"
+  },
+  {
+   "formula": "=SimpleErrName(1/0)",
+   "excel": "Error 2007",
+   "exit": 1,
+   "outcome": "refused",
+   "why": "dna-calc-desktop: C:\\Work\\DnaCalc\\DnaCalc-win\\crates\\calc-xll-reference\\fixture\\vba\\DnaExamples.xlsm: workbook VBA project (dc-snz.15): document project (dc-hsa5.12): compile: unresolved name `Value` (member assignment target)"
+  },
+  {
+   "formula": "=SimpleErrName(NA())",
+   "excel": "Error 2042",
+   "exit": 1,
+   "outcome": "refused",
+   "why": "dna-calc-desktop: C:\\Work\\DnaCalc\\DnaCalc-win\\crates\\calc-xll-reference\\fixture\\vba\\DnaExamples.xlsm: workbook VBA project (dc-snz.15): document project (dc-hsa5.12): compile: unresolved name `Value` (member assignment target)"
+  },
+  {
+   "formula": "=SimpleErrName(5)",
+   "excel": "ok",
+   "exit": 1,
+   "outcome": "refused",
+   "why": "dna-calc-desktop: C:\\Work\\DnaCalc\\DnaCalc-win\\crates\\calc-xll-reference\\fixture\\vba\\DnaExamples.xlsm: workbook VBA project (dc-snz.15): document project (dc-hsa5.12): compile: unresolved name `Value` (member assignment target)"
+  },
+  {
+   "formula": "=SimpleNeg(1/0)",
+   "excel": {
+    "error": "#VALUE!"
+   },
+   "exit": 1,
+   "outcome": "refused",
+   "why": "dna-calc-desktop: C:\\Work\\DnaCalc\\DnaCalc-win\\crates\\calc-xll-reference\\fixture\\vba\\DnaExamples.xlsm: workbook VBA project (dc-snz.15): document project (dc-hsa5.12): compile: unresolved name `Value` (member assignment target)"
+  },
+  {
+   "formula": "=SimpleOverflow(100000)",
+   "excel": {
+    "error": "#VALUE!"
+   },
+   "exit": 1,
+   "outcome": "refused",
+   "why": "dna-calc-desktop: C:\\Work\\DnaCalc\\DnaCalc-win\\crates\\calc-xll-reference\\fixture\\vba\\DnaExamples.xlsm: workbook VBA project (dc-snz.15): document project (dc-hsa5.12): compile: unresolved name `Value` (member assignment target)"
+  },
+  {
+   "formula": "=SimpleRaise(1004)",
+   "excel": 1004.0,
+   "exit": 1,
+   "outcome": "refused",
+   "why": "dna-calc-desktop: C:\\Work\\DnaCalc\\DnaCalc-win\\crates\\calc-xll-reference\\fixture\\vba\\DnaExamples.xlsm: workbook VBA project (dc-snz.15): document project (dc-hsa5.12): compile: unresolved name `Value` (member assignment target)"
+  },
+  {
+   "formula": "=SimpleRaise(9)",
+   "excel": 9.0,
+   "exit": 1,
+   "outcome": "refused",
+   "why": "dna-calc-desktop: C:\\Work\\DnaCalc\\DnaCalc-win\\crates\\calc-xll-reference\\fixture\\vba\\DnaExamples.xlsm: workbook VBA project (dc-snz.15): document project (dc-hsa5.12): compile: unresolved name `Value` (member assignment target)"
+  },
+  {
+   "formula": "=SimpleEmpty()",
+   "excel": 0.0,
+   "exit": 1,
+   "outcome": "refused",
+   "why": "dna-calc-desktop: C:\\Work\\DnaCalc\\DnaCalc-win\\crates\\calc-xll-reference\\fixture\\vba\\DnaExamples.xlsm: workbook VBA project (dc-snz.15): document project (dc-hsa5.12): compile: unresolved name `Value` (member assignment target)"
+  },
+  {
+   "formula": "=SimpleBlankText()",
+   "excel": "",
+   "exit": 1,
+   "outcome": "refused",
+   "why": "dna-calc-desktop: C:\\Work\\DnaCalc\\DnaCalc-win\\crates\\calc-xll-reference\\fixture\\vba\\DnaExamples.xlsm: workbook VBA project (dc-snz.15): document project (dc-hsa5.12): compile: unresolved name `Value` (member assignment target)"
+  },
+  {
+   "formula": "=SimpleDate()",
+   "excel": 46337.0,
+   "exit": 1,
+   "outcome": "refused",
+   "why": "dna-calc-desktop: C:\\Work\\DnaCalc\\DnaCalc-win\\crates\\calc-xll-reference\\fixture\\vba\\DnaExamples.xlsm: workbook VBA project (dc-snz.15): document project (dc-hsa5.12): compile: unresolved name `Value` (member assignment target)"
+  },
+  {
+   "formula": "=SimpleMoney()",
+   "excel": 1.2346,
+   "exit": 1,
+   "outcome": "refused",
+   "why": "dna-calc-desktop: C:\\Work\\DnaCalc\\DnaCalc-win\\crates\\calc-xll-reference\\fixture\\vba\\DnaExamples.xlsm: workbook VBA project (dc-snz.15): document project (dc-hsa5.12): compile: unresolved name `Value` (member assignment target)"
+  },
+  {
+   "formula": "=SimpleRound(2.25)",
+   "excel": 2.2,
+   "exit": 1,
+   "outcome": "refused",
+   "why": "dna-calc-desktop: C:\\Work\\DnaCalc\\DnaCalc-win\\crates\\calc-xll-reference\\fixture\\vba\\DnaExamples.xlsm: workbook VBA project (dc-snz.15): document project (dc-hsa5.12): compile: unresolved name `Value` (member assignment target)"
+  },
+  {
+   "formula": "=SimpleRound(2.35)",
+   "excel": 2.4,
+   "exit": 1,
+   "outcome": "refused",
+   "why": "dna-calc-desktop: C:\\Work\\DnaCalc\\DnaCalc-win\\crates\\calc-xll-reference\\fixture\\vba\\DnaExamples.xlsm: workbook VBA project (dc-snz.15): document project (dc-hsa5.12): compile: unresolved name `Value` (member assignment target)"
+  },
+  {
+   "formula": "=SimpleFormat(3.14159)",
+   "excel": "3.14",
+   "exit": 1,
+   "outcome": "refused",
+   "why": "dna-calc-desktop: C:\\Work\\DnaCalc\\DnaCalc-win\\crates\\calc-xll-reference\\fixture\\vba\\DnaExamples.xlsm: workbook VBA project (dc-snz.15): document project (dc-hsa5.12): compile: unresolved name `Value` (member assignment target)"
+  },
+  {
+   "formula": "=SimpleGrade(95)",
+   "excel": "A",
+   "exit": 1,
+   "outcome": "refused",
+   "why": "dna-calc-desktop: C:\\Work\\DnaCalc\\DnaCalc-win\\crates\\calc-xll-reference\\fixture\\vba\\DnaExamples.xlsm: workbook VBA project (dc-snz.15): document project (dc-hsa5.12): compile: unresolved name `Value` (member assignment target)"
+  },
+  {
+   "formula": "=SimpleGrade(75)",
+   "excel": "B",
+   "exit": 1,
+   "outcome": "refused",
+   "why": "dna-calc-desktop: C:\\Work\\DnaCalc\\DnaCalc-win\\crates\\calc-xll-reference\\fixture\\vba\\DnaExamples.xlsm: workbook VBA project (dc-snz.15): document project (dc-hsa5.12): compile: unresolved name `Value` (member assignment target)"
+  },
+  {
+   "formula": "=SimpleGrade(10)",
+   "excel": "C",
+   "exit": 1,
+   "outcome": "refused",
+   "why": "dna-calc-desktop: C:\\Work\\DnaCalc\\DnaCalc-win\\crates\\calc-xll-reference\\fixture\\vba\\DnaExamples.xlsm: workbook VBA project (dc-snz.15): document project (dc-hsa5.12): compile: unresolved name `Value` (member assignment target)"
+  },
+  {
+   "formula": "=SimpleFact(10)",
+   "excel": 3628800.0,
+   "exit": 1,
+   "outcome": "refused",
+   "why": "dna-calc-desktop: C:\\Work\\DnaCalc\\DnaCalc-win\\crates\\calc-xll-reference\\fixture\\vba\\DnaExamples.xlsm: workbook VBA project (dc-snz.15): document project (dc-hsa5.12): compile: unresolved name `Value` (member assignment target)"
+  },
+  {
+   "formula": "=SimpleFact(20)",
+   "excel": 2.43290200817664e+18,
+   "exit": 1,
+   "outcome": "refused",
+   "why": "dna-calc-desktop: C:\\Work\\DnaCalc\\DnaCalc-win\\crates\\calc-xll-reference\\fixture\\vba\\DnaExamples.xlsm: workbook VBA project (dc-snz.15): document project (dc-hsa5.12): compile: unresolved name `Value` (member assignment target)"
+  },
+  {
+   "formula": "=SimpleWsMax(3,9,4)",
+   "excel": 9.0,
+   "exit": 1,
+   "outcome": "refused",
+   "why": "dna-calc-desktop: C:\\Work\\DnaCalc\\DnaCalc-win\\crates\\calc-xll-reference\\fixture\\vba\\DnaExamples.xlsm: workbook VBA project (dc-snz.15): document project (dc-hsa5.12): compile: unresolved name `Value` (member assignment target)"
+  },
+  {
+   "formula": "=SimpleWsMatch(\"b\")",
+   "excel": 2.0,
+   "exit": 1,
+   "outcome": "refused",
+   "why": "dna-calc-desktop: C:\\Work\\DnaCalc\\DnaCalc-win\\crates\\calc-xll-reference\\fixture\\vba\\DnaExamples.xlsm: workbook VBA project (dc-snz.15): document project (dc-hsa5.12): compile: unresolved name `Value` (member assignment target)"
+  },
+  {
+   "formula": "=SimpleWsMatch(\"z\")",
+   "excel": "Err 1004",
+   "exit": 1,
+   "outcome": "refused",
+   "why": "dna-calc-desktop: C:\\Work\\DnaCalc\\DnaCalc-win\\crates\\calc-xll-reference\\fixture\\vba\\DnaExamples.xlsm: workbook VBA project (dc-snz.15): document project (dc-hsa5.12): compile: unresolved name `Value` (member assignment target)"
+  },
+  {
+   "formula": "=SimpleWsMatchRaw(\"z\")",
+   "excel": {
+    "error": "#VALUE!"
+   },
+   "exit": 1,
+   "outcome": "refused",
+   "why": "dna-calc-desktop: C:\\Work\\DnaCalc\\DnaCalc-win\\crates\\calc-xll-reference\\fixture\\vba\\DnaExamples.xlsm: workbook VBA project (dc-snz.15): document project (dc-hsa5.12): compile: unresolved name `Value` (member assignment target)"
+  },
+  {
+   "formula": "=SimpleHidden(1)",
+   "excel": 1.0,
+   "exit": 1,
+   "outcome": "refused",
+   "why": "dna-calc-desktop: C:\\Work\\DnaCalc\\DnaCalc-win\\crates\\calc-xll-reference\\fixture\\vba\\DnaExamples.xlsm: workbook VBA project (dc-snz.15): document project (dc-hsa5.12): compile: unresolved name `Value` (member assignment target)"
+  },
+  {
+   "formula": "=DnaSimple.SimpleNeg(4)",
+   "excel": -4.0,
+   "exit": 1,
+   "outcome": "refused",
+   "why": "dna-calc-desktop: C:\\Work\\DnaCalc\\DnaCalc-win\\crates\\calc-xll-reference\\fixture\\vba\\DnaExamples.xlsm: workbook VBA project (dc-snz.15): document project (dc-hsa5.12): compile: unresolved name `Value` (member assignment target)"
+  }
+ ]
+}

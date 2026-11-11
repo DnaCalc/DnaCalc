@@ -1,0 +1,14 @@
+{
+  "desktop": "DnaCalcOpusAddins",
+  "session_root": "C:\\Work\\DnaCalc\\codex-runs\\opus-addins\\excel",
+  "exit": 0,
+  "guard_samples": 434,
+  "owned_pids": [
+    66004
+  ],
+  "windows_on_user_desktop": 0,
+  "visible_on_user_desktop": 0,
+  "foreground_hits": 0,
+  "findings": [],
+  "finished_utc": "2026-11-11T04:10:57.4609378Z"
+}

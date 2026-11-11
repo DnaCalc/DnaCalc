@@ -1,0 +1,1840 @@
+{
+  "action": "reopen",
+  "excel_version": "16.0",
+  "excel_build": "20527",
+  "automation_security": 1,
+  "rows": [
+    {
+      "file": "C:\\Work\\DnaCalc\\codex-runs\\opus-addins\\onecalc-m5\\saved-simple-xlsm\\1\\DnaExamples.xlsm",
+      "name": "DnaExamples.xlsm",
+      "repaired": false,
+      "has_vb_project": true,
+      "formula": "=SimpleNeg(2.5)",
+      "cached": {
+        "value": -2.5,
+        "type": "Double"
+      },
+      "excel": {
+        "value": -2.5,
+        "type": "Double"
+      },
+      "text": "-2.5",
+      "repair_logs": []
+    },
+    {
+      "file": "C:\\Work\\DnaCalc\\codex-runs\\opus-addins\\onecalc-m5\\saved-simple-xlsm\\2\\DnaExamples.xlsm",
+      "name": "DnaExamples.xlsm",
+      "repaired": false,
+      "has_vb_project": true,
+      "formula": "=SimpleNeg(\"3\")",
+      "cached": {
+        "value": -3.0,
+        "type": "Double"
+      },
+      "excel": {
+        "value": -3.0,
+        "type": "Double"
+      },
+      "text": "-3",
+      "repair_logs": []
+    },
+    {
+      "file": "C:\\Work\\DnaCalc\\codex-runs\\opus-addins\\onecalc-m5\\saved-simple-xlsm\\3\\DnaExamples.xlsm",
+      "name": "DnaExamples.xlsm",
+      "repaired": false,
+      "has_vb_project": true,
+      "formula": "=SimpleNeg(TRUE)",
+      "cached": {
+        "value": 1.0,
+        "type": "Double"
+      },
+      "excel": {
+        "value": 1.0,
+        "type": "Double"
+      },
+      "text": "1",
+      "repair_logs": []
+    },
+    {
+      "file": "C:\\Work\\DnaCalc\\codex-runs\\opus-addins\\onecalc-m5\\saved-simple-xlsm\\4\\DnaExamples.xlsm",
+      "name": "DnaExamples.xlsm",
+      "repaired": false,
+      "has_vb_project": true,
+      "formula": "=SimpleNeg(\"x\")",
+      "cached": {
+        "error_code": -2146826273
+      },
+      "excel": {
+        "error_code": -2146826273
+      },
+      "text": "#VALUE!",
+      "repair_logs": []
+    },
+    {
+      "file": "C:\\Work\\DnaCalc\\codex-runs\\opus-addins\\onecalc-m5\\saved-simple-xlsm\\5\\DnaExamples.xlsm",
+      "name": "DnaExamples.xlsm",
+      "repaired": false,
+      "has_vb_project": true,
+      "formula": "=SimpleNeg()",
+      "cached": {
+        "error_code": -2146826273
+      },
+      "excel": {
+        "error_code": -2146826273
+      },
+      "text": "#VALUE!",
+      "repair_logs": []
+    },
+    {
+      "file": "C:\\Work\\DnaCalc\\codex-runs\\opus-addins\\onecalc-m5\\saved-simple-xlsm\\6\\DnaExamples.xlsm",
+      "name": "DnaExamples.xlsm",
+      "repaired": false,
+      "has_vb_project": true,
+      "formula": "=SimpleHalf(7)",
+      "cached": {
+        "value": 3.5,
+        "type": "Double"
+      },
+      "excel": {
+        "value": 3.5,
+        "type": "Double"
+      },
+      "text": "3.5",
+      "repair_logs": []
+    },
+    {
+      "file": "C:\\Work\\DnaCalc\\codex-runs\\opus-addins\\onecalc-m5\\saved-simple-xlsm\\7\\DnaExamples.xlsm",
+      "name": "DnaExamples.xlsm",
+      "repaired": false,
+      "has_vb_project": true,
+      "formula": "=SimpleHalf(2.5)",
+      "cached": {
+        "value": 1.0,
+        "type": "Double"
+      },
+      "excel": {
+        "value": 1.0,
+        "type": "Double"
+      },
+      "text": "1",
+      "repair_logs": []
+    },
+    {
+      "file": "C:\\Work\\DnaCalc\\codex-runs\\opus-addins\\onecalc-m5\\saved-simple-xlsm\\8\\DnaExamples.xlsm",
+      "name": "DnaExamples.xlsm",
+      "repaired": false,
+      "has_vb_project": true,
+      "formula": "=SimpleHalf(3.5)",
+      "cached": {
+        "value": 2.0,
+        "type": "Double"
+      },
+      "excel": {
+        "value": 2.0,
+        "type": "Double"
+      },
+      "text": "2",
+      "repair_logs": []
+    },
+    {
+      "file": "C:\\Work\\DnaCalc\\codex-runs\\opus-addins\\onecalc-m5\\saved-simple-xlsm\\9\\DnaExamples.xlsm",
+      "name": "DnaExamples.xlsm",
+      "repaired": false,
+      "has_vb_project": true,
+      "formula": "=SimpleIsBig(150)",
+      "cached": {
+        "value": true,
+        "type": "Boolean"
+      },
+      "excel": {
+        "value": true,
+        "type": "Boolean"
+      },
+      "text": "TRUE",
+      "repair_logs": []
+    },
+    {
+      "file": "C:\\Work\\DnaCalc\\codex-runs\\opus-addins\\onecalc-m5\\saved-simple-xlsm\\10\\DnaExamples.xlsm",
+      "name": "DnaExamples.xlsm",
+      "repaired": false,
+      "has_vb_project": true,
+      "formula": "=SimpleIsBig(5)",
+      "cached": {
+        "value": false,
+        "type": "Boolean"
+      },
+      "excel": {
+        "value": false,
+        "type": "Boolean"
+      },
+      "text": "FALSE",
+      "repair_logs": []
+    },
+    {
+      "file": "C:\\Work\\DnaCalc\\codex-runs\\opus-addins\\onecalc-m5\\saved-simple-xlsm\\11\\DnaExamples.xlsm",
+      "name": "DnaExamples.xlsm",
+      "repaired": false,
+      "has_vb_project": true,
+      "formula": "=SimpleNot(TRUE)",
+      "cached": {
+        "value": false,
+        "type": "Boolean"
+      },
+      "excel": {
+        "value": false,
+        "type": "Boolean"
+      },
+      "text": "FALSE",
+      "repair_logs": []
+    },
+    {
+      "file": "C:\\Work\\DnaCalc\\codex-runs\\opus-addins\\onecalc-m5\\saved-simple-xlsm\\12\\DnaExamples.xlsm",
+      "name": "DnaExamples.xlsm",
+      "repaired": false,
+      "has_vb_project": true,
+      "formula": "=SimpleNot(0)",
+      "cached": {
+        "value": true,
+        "type": "Boolean"
+      },
+      "excel": {
+        "value": true,
+        "type": "Boolean"
+      },
+      "text": "TRUE",
+      "repair_logs": []
+    },
+    {
+      "file": "C:\\Work\\DnaCalc\\codex-runs\\opus-addins\\onecalc-m5\\saved-simple-xlsm\\13\\DnaExamples.xlsm",
+      "name": "DnaExamples.xlsm",
+      "repaired": false,
+      "has_vb_project": true,
+      "formula": "=SimpleNot(\"FALSE\")",
+      "cached": {
+        "value": true,
+        "type": "Boolean"
+      },
+      "excel": {
+        "value": true,
+        "type": "Boolean"
+      },
+      "text": "TRUE",
+      "repair_logs": []
+    },
+    {
+      "file": "C:\\Work\\DnaCalc\\codex-runs\\opus-addins\\onecalc-m5\\saved-simple-xlsm\\14\\DnaExamples.xlsm",
+      "name": "DnaExamples.xlsm",
+      "repaired": false,
+      "has_vb_project": true,
+      "formula": "=SimpleUpper(\"dna calc\")",
+      "cached": {
+        "value": "DNA CALC",
+        "type": "String"
+      },
+      "excel": {
+        "value": "DNA CALC",
+        "type": "String"
+      },
+      "text": "DNA CALC",
+      "repair_logs": []
+    },
+    {
+      "file": "C:\\Work\\DnaCalc\\codex-runs\\opus-addins\\onecalc-m5\\saved-simple-xlsm\\15\\DnaExamples.xlsm",
+      "name": "DnaExamples.xlsm",
+      "repaired": false,
+      "has_vb_project": true,
+      "formula": "=SimpleUpper(12.5)",
+      "cached": {
+        "value": "12.5",
+        "type": "String"
+      },
+      "excel": {
+        "value": "12.5",
+        "type": "String"
+      },
+      "text": "12.5",
+      "repair_logs": []
+    },
+    {
+      "file": "C:\\Work\\DnaCalc\\codex-runs\\opus-addins\\onecalc-m5\\saved-simple-xlsm\\16\\DnaExamples.xlsm",
+      "name": "DnaExamples.xlsm",
+      "repaired": false,
+      "has_vb_project": true,
+      "formula": "=SimpleLen(\"héllo\")",
+      "cached": {
+        "value": 5.0,
+        "type": "Double"
+      },
+      "excel": {
+        "value": 5.0,
+        "type": "Double"
+      },
+      "text": "5",
+      "repair_logs": []
+    },
+    {
+      "file": "C:\\Work\\DnaCalc\\codex-runs\\opus-addins\\onecalc-m5\\saved-simple-xlsm\\17\\DnaExamples.xlsm",
+      "name": "DnaExamples.xlsm",
+      "repaired": false,
+      "has_vb_project": true,
+      "formula": "=SimpleLen(\"\")",
+      "cached": {
+        "value": 0.0,
+        "type": "Double"
+      },
+      "excel": {
+        "value": 0.0,
+        "type": "Double"
+      },
+      "text": "0",
+      "repair_logs": []
+    },
+    {
+      "file": "C:\\Work\\DnaCalc\\codex-runs\\opus-addins\\onecalc-m5\\saved-simple-xlsm\\18\\DnaExamples.xlsm",
+      "name": "DnaExamples.xlsm",
+      "repaired": false,
+      "has_vb_project": true,
+      "formula": "=SimpleMid(\"abcdef\",2)",
+      "cached": {
+        "value": "bc",
+        "type": "String"
+      },
+      "excel": {
+        "value": "bc",
+        "type": "String"
+      },
+      "text": "bc",
+      "repair_logs": []
+    },
+    {
+      "file": "C:\\Work\\DnaCalc\\codex-runs\\opus-addins\\onecalc-m5\\saved-simple-xlsm\\19\\DnaExamples.xlsm",
+      "name": "DnaExamples.xlsm",
+      "repaired": false,
+      "has_vb_project": true,
+      "formula": "=SimpleMid(\"abcdef\",2,3)",
+      "cached": {
+        "value": "bcd",
+        "type": "String"
+      },
+      "excel": {
+        "value": "bcd",
+        "type": "String"
+      },
+      "text": "bcd",
+      "repair_logs": []
+    },
+    {
+      "file": "C:\\Work\\DnaCalc\\codex-runs\\opus-addins\\onecalc-m5\\saved-simple-xlsm\\20\\DnaExamples.xlsm",
+      "name": "DnaExamples.xlsm",
+      "repaired": false,
+      "has_vb_project": true,
+      "formula": "=SimpleKind(1)",
+      "cached": {
+        "value": "Double",
+        "type": "String"
+      },
+      "excel": {
+        "value": "Double",
+        "type": "String"
+      },
+      "text": "Double",
+      "repair_logs": []
+    },
+    {
+      "file": "C:\\Work\\DnaCalc\\codex-runs\\opus-addins\\onecalc-m5\\saved-simple-xlsm\\21\\DnaExamples.xlsm",
+      "name": "DnaExamples.xlsm",
+      "repaired": false,
+      "has_vb_project": true,
+      "formula": "=SimpleKind(\"a\")",
+      "cached": {
+        "value": "String",
+        "type": "String"
+      },
+      "excel": {
+        "value": "String",
+        "type": "String"
+      },
+      "text": "String",
+      "repair_logs": []
+    },
+    {
+      "file": "C:\\Work\\DnaCalc\\codex-runs\\opus-addins\\onecalc-m5\\saved-simple-xlsm\\22\\DnaExamples.xlsm",
+      "name": "DnaExamples.xlsm",
+      "repaired": false,
+      "has_vb_project": true,
+      "formula": "=SimpleKind(TRUE)",
+      "cached": {
+        "value": "Boolean",
+        "type": "String"
+      },
+      "excel": {
+        "value": "Boolean",
+        "type": "String"
+      },
+      "text": "Boolean",
+      "repair_logs": []
+    },
+    {
+      "file": "C:\\Work\\DnaCalc\\codex-runs\\opus-addins\\onecalc-m5\\saved-simple-xlsm\\23\\DnaExamples.xlsm",
+      "name": "DnaExamples.xlsm",
+      "repaired": false,
+      "has_vb_project": true,
+      "formula": "=SimpleKind(1/0)",
+      "cached": {
+        "value": "Error",
+        "type": "String"
+      },
+      "excel": {
+        "value": "Error",
+        "type": "String"
+      },
+      "text": "Error",
+      "repair_logs": []
+    },
+    {
+      "file": "C:\\Work\\DnaCalc\\codex-runs\\opus-addins\\onecalc-m5\\saved-simple-xlsm\\24\\DnaExamples.xlsm",
+      "name": "DnaExamples.xlsm",
+      "repaired": false,
+      "has_vb_project": true,
+      "formula": "=SimpleKind({1,2})",
+      "cached": {
+        "value": "Variant()",
+        "type": "String"
+      },
+      "excel": {
+        "value": "Variant()",
+        "type": "String"
+      },
+      "text": "Variant()",
+      "repair_logs": []
+    },
+    {
+      "file": "C:\\Work\\DnaCalc\\codex-runs\\opus-addins\\onecalc-m5\\saved-simple-xlsm\\25\\DnaExamples.xlsm",
+      "name": "DnaExamples.xlsm",
+      "repaired": false,
+      "has_vb_project": true,
+      "formula": "=SimpleKind(A1)",
+      "cached": {
+        "value": "Range",
+        "type": "String"
+      },
+      "excel": {
+        "value": "Range",
+        "type": "String"
+      },
+      "text": "Range",
+      "repair_logs": []
+    },
+    {
+      "file": "C:\\Work\\DnaCalc\\codex-runs\\opus-addins\\onecalc-m5\\saved-simple-xlsm\\26\\DnaExamples.xlsm",
+      "name": "DnaExamples.xlsm",
+      "repaired": false,
+      "has_vb_project": true,
+      "formula": "=SimpleVarType(1)",
+      "cached": {
+        "value": 5.0,
+        "type": "Double"
+      },
+      "excel": {
+        "value": 5.0,
+        "type": "Double"
+      },
+      "text": "5",
+      "repair_logs": []
+    },
+    {
+      "file": "C:\\Work\\DnaCalc\\codex-runs\\opus-addins\\onecalc-m5\\saved-simple-xlsm\\27\\DnaExamples.xlsm",
+      "name": "DnaExamples.xlsm",
+      "repaired": false,
+      "has_vb_project": true,
+      "formula": "=SimpleVarType(\"a\")",
+      "cached": {
+        "value": 8.0,
+        "type": "Double"
+      },
+      "excel": {
+        "value": 8.0,
+        "type": "Double"
+      },
+      "text": "8",
+      "repair_logs": []
+    },
+    {
+      "file": "C:\\Work\\DnaCalc\\codex-runs\\opus-addins\\onecalc-m5\\saved-simple-xlsm\\28\\DnaExamples.xlsm",
+      "name": "DnaExamples.xlsm",
+      "repaired": false,
+      "has_vb_project": true,
+      "formula": "=SimpleVarType(TRUE)",
+      "cached": {
+        "value": 11.0,
+        "type": "Double"
+      },
+      "excel": {
+        "value": 11.0,
+        "type": "Double"
+      },
+      "text": "11",
+      "repair_logs": []
+    },
+    {
+      "file": "C:\\Work\\DnaCalc\\codex-runs\\opus-addins\\onecalc-m5\\saved-simple-xlsm\\29\\DnaExamples.xlsm",
+      "name": "DnaExamples.xlsm",
+      "repaired": false,
+      "has_vb_project": true,
+      "formula": "=SimpleVarType(NA())",
+      "cached": {
+        "value": 10.0,
+        "type": "Double"
+      },
+      "excel": {
+        "value": 10.0,
+        "type": "Double"
+      },
+      "text": "10",
+      "repair_logs": []
+    },
+    {
+      "file": "C:\\Work\\DnaCalc\\codex-runs\\opus-addins\\onecalc-m5\\saved-simple-xlsm\\30\\DnaExamples.xlsm",
+      "name": "DnaExamples.xlsm",
+      "repaired": false,
+      "has_vb_project": true,
+      "formula": "=SimpleTwice(21)",
+      "cached": {
+        "value": 42.0,
+        "type": "Double"
+      },
+      "excel": {
+        "value": 42.0,
+        "type": "Double"
+      },
+      "text": "42",
+      "repair_logs": []
+    },
+    {
+      "file": "C:\\Work\\DnaCalc\\codex-runs\\opus-addins\\onecalc-m5\\saved-simple-xlsm\\31\\DnaExamples.xlsm",
+      "name": "DnaExamples.xlsm",
+      "repaired": false,
+      "has_vb_project": true,
+      "formula": "=SimpleTwice(\"ab\")",
+      "cached": {
+        "value": "abab",
+        "type": "String"
+      },
+      "excel": {
+        "value": "abab",
+        "type": "String"
+      },
+      "text": "abab",
+      "repair_logs": []
+    },
+    {
+      "file": "C:\\Work\\DnaCalc\\codex-runs\\opus-addins\\onecalc-m5\\saved-simple-xlsm\\32\\DnaExamples.xlsm",
+      "name": "DnaExamples.xlsm",
+      "repaired": false,
+      "has_vb_project": true,
+      "formula": "=SimpleTwice(TRUE)",
+      "cached": {
+        "value": -2.0,
+        "type": "Double"
+      },
+      "excel": {
+        "value": -2.0,
+        "type": "Double"
+      },
+      "text": "-2",
+      "repair_logs": []
+    },
+    {
+      "file": "C:\\Work\\DnaCalc\\codex-runs\\opus-addins\\onecalc-m5\\saved-simple-xlsm\\33\\DnaExamples.xlsm",
+      "name": "DnaExamples.xlsm",
+      "repaired": false,
+      "has_vb_project": true,
+      "formula": "=SimpleAsDouble(\"12.5\")",
+      "cached": {
+        "value": 12.5,
+        "type": "Double"
+      },
+      "excel": {
+        "value": 12.5,
+        "type": "Double"
+      },
+      "text": "12.5",
+      "repair_logs": []
+    },
+    {
+      "file": "C:\\Work\\DnaCalc\\codex-runs\\opus-addins\\onecalc-m5\\saved-simple-xlsm\\34\\DnaExamples.xlsm",
+      "name": "DnaExamples.xlsm",
+      "repaired": false,
+      "has_vb_project": true,
+      "formula": "=SimpleAsDouble(TRUE)",
+      "cached": {
+        "value": -1.0,
+        "type": "Double"
+      },
+      "excel": {
+        "value": -1.0,
+        "type": "Double"
+      },
+      "text": "-1",
+      "repair_logs": []
+    },
+    {
+      "file": "C:\\Work\\DnaCalc\\codex-runs\\opus-addins\\onecalc-m5\\saved-simple-xlsm\\35\\DnaExamples.xlsm",
+      "name": "DnaExamples.xlsm",
+      "repaired": false,
+      "has_vb_project": true,
+      "formula": "=SimpleAsLong(2.5)",
+      "cached": {
+        "value": 2.0,
+        "type": "Double"
+      },
+      "excel": {
+        "value": 2.0,
+        "type": "Double"
+      },
+      "text": "2",
+      "repair_logs": []
+    },
+    {
+      "file": "C:\\Work\\DnaCalc\\codex-runs\\opus-addins\\onecalc-m5\\saved-simple-xlsm\\36\\DnaExamples.xlsm",
+      "name": "DnaExamples.xlsm",
+      "repaired": false,
+      "has_vb_project": true,
+      "formula": "=SimpleAsLong(3.5)",
+      "cached": {
+        "value": 4.0,
+        "type": "Double"
+      },
+      "excel": {
+        "value": 4.0,
+        "type": "Double"
+      },
+      "text": "4",
+      "repair_logs": []
+    },
+    {
+      "file": "C:\\Work\\DnaCalc\\codex-runs\\opus-addins\\onecalc-m5\\saved-simple-xlsm\\37\\DnaExamples.xlsm",
+      "name": "DnaExamples.xlsm",
+      "repaired": false,
+      "has_vb_project": true,
+      "formula": "=SimpleAsLong(3000000000)",
+      "cached": {
+        "error_code": -2146826252
+      },
+      "excel": {
+        "error_code": -2146826252
+      },
+      "text": "#NUM!",
+      "repair_logs": []
+    },
+    {
+      "file": "C:\\Work\\DnaCalc\\codex-runs\\opus-addins\\onecalc-m5\\saved-simple-xlsm\\38\\DnaExamples.xlsm",
+      "name": "DnaExamples.xlsm",
+      "repaired": false,
+      "has_vb_project": true,
+      "formula": "=SimpleAsString(1.5)",
+      "cached": {
+        "value": "1.5",
+        "type": "String"
+      },
+      "excel": {
+        "value": "1.5",
+        "type": "String"
+      },
+      "text": "1.5",
+      "repair_logs": []
+    },
+    {
+      "file": "C:\\Work\\DnaCalc\\codex-runs\\opus-addins\\onecalc-m5\\saved-simple-xlsm\\39\\DnaExamples.xlsm",
+      "name": "DnaExamples.xlsm",
+      "repaired": false,
+      "has_vb_project": true,
+      "formula": "=SimpleAsString(TRUE)",
+      "cached": {
+        "value": "True",
+        "type": "String"
+      },
+      "excel": {
+        "value": "True",
+        "type": "String"
+      },
+      "text": "True",
+      "repair_logs": []
+    },
+    {
+      "file": "C:\\Work\\DnaCalc\\codex-runs\\opus-addins\\onecalc-m5\\saved-simple-xlsm\\40\\DnaExamples.xlsm",
+      "name": "DnaExamples.xlsm",
+      "repaired": false,
+      "has_vb_project": true,
+      "formula": "=SimpleAsBool(0)",
+      "cached": {
+        "value": "False",
+        "type": "String"
+      },
+      "excel": {
+        "value": "False",
+        "type": "String"
+      },
+      "text": "False",
+      "repair_logs": []
+    },
+    {
+      "file": "C:\\Work\\DnaCalc\\codex-runs\\opus-addins\\onecalc-m5\\saved-simple-xlsm\\41\\DnaExamples.xlsm",
+      "name": "DnaExamples.xlsm",
+      "repaired": false,
+      "has_vb_project": true,
+      "formula": "=SimpleAsBool(2)",
+      "cached": {
+        "value": "True",
+        "type": "String"
+      },
+      "excel": {
+        "value": "True",
+        "type": "String"
+      },
+      "text": "True",
+      "repair_logs": []
+    },
+    {
+      "file": "C:\\Work\\DnaCalc\\codex-runs\\opus-addins\\onecalc-m5\\saved-simple-xlsm\\42\\DnaExamples.xlsm",
+      "name": "DnaExamples.xlsm",
+      "repaired": false,
+      "has_vb_project": true,
+      "formula": "=SimpleAsBool(\"true\")",
+      "cached": {
+        "value": "True",
+        "type": "String"
+      },
+      "excel": {
+        "value": "True",
+        "type": "String"
+      },
+      "text": "True",
+      "repair_logs": []
+    },
+    {
+      "file": "C:\\Work\\DnaCalc\\codex-runs\\opus-addins\\onecalc-m5\\saved-simple-xlsm\\43\\DnaExamples.xlsm",
+      "name": "DnaExamples.xlsm",
+      "repaired": false,
+      "has_vb_project": true,
+      "formula": "=SimplePower(3)",
+      "cached": {
+        "value": 9.0,
+        "type": "Double"
+      },
+      "excel": {
+        "value": 9.0,
+        "type": "Double"
+      },
+      "text": "9",
+      "repair_logs": []
+    },
+    {
+      "file": "C:\\Work\\DnaCalc\\codex-runs\\opus-addins\\onecalc-m5\\saved-simple-xlsm\\44\\DnaExamples.xlsm",
+      "name": "DnaExamples.xlsm",
+      "repaired": false,
+      "has_vb_project": true,
+      "formula": "=SimplePower(2,10)",
+      "cached": {
+        "value": 1024.0,
+        "type": "Double"
+      },
+      "excel": {
+        "value": 1024.0,
+        "type": "Double"
+      },
+      "text": "1024",
+      "repair_logs": []
+    },
+    {
+      "file": "C:\\Work\\DnaCalc\\codex-runs\\opus-addins\\onecalc-m5\\saved-simple-xlsm\\45\\DnaExamples.xlsm",
+      "name": "DnaExamples.xlsm",
+      "repaired": false,
+      "has_vb_project": true,
+      "formula": "=SimplePower(2,)",
+      "cached": {
+        "value": 4.0,
+        "type": "Double"
+      },
+      "excel": {
+        "value": 4.0,
+        "type": "Double"
+      },
+      "text": "4",
+      "repair_logs": []
+    },
+    {
+      "file": "C:\\Work\\DnaCalc\\codex-runs\\opus-addins\\onecalc-m5\\saved-simple-xlsm\\46\\DnaExamples.xlsm",
+      "name": "DnaExamples.xlsm",
+      "repaired": false,
+      "has_vb_project": true,
+      "formula": "=SimpleMissing()",
+      "cached": {
+        "value": true,
+        "type": "Boolean"
+      },
+      "excel": {
+        "value": true,
+        "type": "Boolean"
+      },
+      "text": "TRUE",
+      "repair_logs": []
+    },
+    {
+      "file": "C:\\Work\\DnaCalc\\codex-runs\\opus-addins\\onecalc-m5\\saved-simple-xlsm\\47\\DnaExamples.xlsm",
+      "name": "DnaExamples.xlsm",
+      "repaired": false,
+      "has_vb_project": true,
+      "formula": "=SimpleMissing(1)",
+      "cached": {
+        "value": false,
+        "type": "Boolean"
+      },
+      "excel": {
+        "value": false,
+        "type": "Boolean"
+      },
+      "text": "FALSE",
+      "repair_logs": []
+    },
+    {
+      "file": "C:\\Work\\DnaCalc\\codex-runs\\opus-addins\\onecalc-m5\\saved-simple-xlsm\\48\\DnaExamples.xlsm",
+      "name": "DnaExamples.xlsm",
+      "repaired": false,
+      "has_vb_project": true,
+      "formula": "=SimpleCount()",
+      "cached": {
+        "value": 0.0,
+        "type": "Double"
+      },
+      "excel": {
+        "value": 0.0,
+        "type": "Double"
+      },
+      "text": "0",
+      "repair_logs": []
+    },
+    {
+      "file": "C:\\Work\\DnaCalc\\codex-runs\\opus-addins\\onecalc-m5\\saved-simple-xlsm\\49\\DnaExamples.xlsm",
+      "name": "DnaExamples.xlsm",
+      "repaired": false,
+      "has_vb_project": true,
+      "formula": "=SimpleCount(1,\"a\",TRUE)",
+      "cached": {
+        "value": 3.0,
+        "type": "Double"
+      },
+      "excel": {
+        "value": 3.0,
+        "type": "Double"
+      },
+      "text": "3",
+      "repair_logs": []
+    },
+    {
+      "file": "C:\\Work\\DnaCalc\\codex-runs\\opus-addins\\onecalc-m5\\saved-simple-xlsm\\50\\DnaExamples.xlsm",
+      "name": "DnaExamples.xlsm",
+      "repaired": false,
+      "has_vb_project": true,
+      "formula": "=SimpleCount(1,,3)",
+      "cached": {
+        "value": 3.0,
+        "type": "Double"
+      },
+      "excel": {
+        "value": 3.0,
+        "type": "Double"
+      },
+      "text": "3",
+      "repair_logs": []
+    },
+    {
+      "file": "C:\\Work\\DnaCalc\\codex-runs\\opus-addins\\onecalc-m5\\saved-simple-xlsm\\51\\DnaExamples.xlsm",
+      "name": "DnaExamples.xlsm",
+      "repaired": false,
+      "has_vb_project": true,
+      "formula": "=SimpleConcat(\"-\",\"a\",1,TRUE)",
+      "cached": {
+        "value": "a-1-True",
+        "type": "String"
+      },
+      "excel": {
+        "value": "a-1-True",
+        "type": "String"
+      },
+      "text": "a-1-True",
+      "repair_logs": []
+    },
+    {
+      "file": "C:\\Work\\DnaCalc\\codex-runs\\opus-addins\\onecalc-m5\\saved-simple-xlsm\\52\\DnaExamples.xlsm",
+      "name": "DnaExamples.xlsm",
+      "repaired": false,
+      "has_vb_project": true,
+      "formula": "=SimpleConcat(\",\")",
+      "cached": {
+        "value": "",
+        "type": "String"
+      },
+      "excel": {
+        "value": "",
+        "type": "String"
+      },
+      "text": "",
+      "repair_logs": []
+    },
+    {
+      "file": "C:\\Work\\DnaCalc\\codex-runs\\opus-addins\\onecalc-m5\\saved-simple-xlsm\\53\\DnaExamples.xlsm",
+      "name": "DnaExamples.xlsm",
+      "repaired": false,
+      "has_vb_project": true,
+      "formula": "=INDEX(SimpleSeq(3),2,1)",
+      "cached": {
+        "value": 20.0,
+        "type": "Double"
+      },
+      "excel": {
+        "value": 20.0,
+        "type": "Double"
+      },
+      "text": "20",
+      "repair_logs": []
+    },
+    {
+      "file": "C:\\Work\\DnaCalc\\codex-runs\\opus-addins\\onecalc-m5\\saved-simple-xlsm\\54\\DnaExamples.xlsm",
+      "name": "DnaExamples.xlsm",
+      "repaired": false,
+      "has_vb_project": true,
+      "formula": "=ROWS(SimpleSeq(4))",
+      "cached": {
+        "value": 4.0,
+        "type": "Double"
+      },
+      "excel": {
+        "value": 4.0,
+        "type": "Double"
+      },
+      "text": "4",
+      "repair_logs": []
+    },
+    {
+      "file": "C:\\Work\\DnaCalc\\codex-runs\\opus-addins\\onecalc-m5\\saved-simple-xlsm\\55\\DnaExamples.xlsm",
+      "name": "DnaExamples.xlsm",
+      "repaired": false,
+      "has_vb_project": true,
+      "formula": "=COLUMNS(SimpleSeq(4))",
+      "cached": {
+        "value": 1.0,
+        "type": "Double"
+      },
+      "excel": {
+        "value": 1.0,
+        "type": "Double"
+      },
+      "text": "1",
+      "repair_logs": []
+    },
+    {
+      "file": "C:\\Work\\DnaCalc\\codex-runs\\opus-addins\\onecalc-m5\\saved-simple-xlsm\\56\\DnaExamples.xlsm",
+      "name": "DnaExamples.xlsm",
+      "repaired": false,
+      "has_vb_project": true,
+      "formula": "=SUM(SimpleSeq(3))",
+      "cached": {
+        "value": 60.0,
+        "type": "Double"
+      },
+      "excel": {
+        "value": 60.0,
+        "type": "Double"
+      },
+      "text": "60",
+      "repair_logs": []
+    },
+    {
+      "file": "C:\\Work\\DnaCalc\\codex-runs\\opus-addins\\onecalc-m5\\saved-simple-xlsm\\57\\DnaExamples.xlsm",
+      "name": "DnaExamples.xlsm",
+      "repaired": false,
+      "has_vb_project": true,
+      "formula": "=SimpleSeq(3)",
+      "cached": {
+        "value": 10.0,
+        "type": "Double"
+      },
+      "excel": {
+        "value": 10.0,
+        "type": "Double"
+      },
+      "text": "10",
+      "repair_logs": []
+    },
+    {
+      "file": "C:\\Work\\DnaCalc\\codex-runs\\opus-addins\\onecalc-m5\\saved-simple-xlsm\\58\\DnaExamples.xlsm",
+      "name": "DnaExamples.xlsm",
+      "repaired": false,
+      "has_vb_project": true,
+      "formula": "=INDEX(SimpleRow(3),1,3)",
+      "cached": {
+        "value": 3.0,
+        "type": "Double"
+      },
+      "excel": {
+        "value": 3.0,
+        "type": "Double"
+      },
+      "text": "3",
+      "repair_logs": []
+    },
+    {
+      "file": "C:\\Work\\DnaCalc\\codex-runs\\opus-addins\\onecalc-m5\\saved-simple-xlsm\\59\\DnaExamples.xlsm",
+      "name": "DnaExamples.xlsm",
+      "repaired": false,
+      "has_vb_project": true,
+      "formula": "=COLUMNS(SimpleRow(5))",
+      "cached": {
+        "value": 5.0,
+        "type": "Double"
+      },
+      "excel": {
+        "value": 5.0,
+        "type": "Double"
+      },
+      "text": "5",
+      "repair_logs": []
+    },
+    {
+      "file": "C:\\Work\\DnaCalc\\codex-runs\\opus-addins\\onecalc-m5\\saved-simple-xlsm\\60\\DnaExamples.xlsm",
+      "name": "DnaExamples.xlsm",
+      "repaired": false,
+      "has_vb_project": true,
+      "formula": "=ROWS(SimpleRow(5))",
+      "cached": {
+        "value": 1.0,
+        "type": "Double"
+      },
+      "excel": {
+        "value": 1.0,
+        "type": "Double"
+      },
+      "text": "1",
+      "repair_logs": []
+    },
+    {
+      "file": "C:\\Work\\DnaCalc\\codex-runs\\opus-addins\\onecalc-m5\\saved-simple-xlsm\\61\\DnaExamples.xlsm",
+      "name": "DnaExamples.xlsm",
+      "repaired": false,
+      "has_vb_project": true,
+      "formula": "=INDEX(SimpleMixed(),1,2)",
+      "cached": {
+        "value": "two",
+        "type": "String"
+      },
+      "excel": {
+        "value": "two",
+        "type": "String"
+      },
+      "text": "two",
+      "repair_logs": []
+    },
+    {
+      "file": "C:\\Work\\DnaCalc\\codex-runs\\opus-addins\\onecalc-m5\\saved-simple-xlsm\\62\\DnaExamples.xlsm",
+      "name": "DnaExamples.xlsm",
+      "repaired": false,
+      "has_vb_project": true,
+      "formula": "=INDEX(SimpleMixed(),1,3)",
+      "cached": {
+        "value": true,
+        "type": "Boolean"
+      },
+      "excel": {
+        "value": true,
+        "type": "Boolean"
+      },
+      "text": "TRUE",
+      "repair_logs": []
+    },
+    {
+      "file": "C:\\Work\\DnaCalc\\codex-runs\\opus-addins\\onecalc-m5\\saved-simple-xlsm\\63\\DnaExamples.xlsm",
+      "name": "DnaExamples.xlsm",
+      "repaired": false,
+      "has_vb_project": true,
+      "formula": "=INDEX(SimpleMixed(),1,4)",
+      "cached": {
+        "error_code": -2146826281
+      },
+      "excel": {
+        "error_code": -2146826281
+      },
+      "text": "#DIV/0!",
+      "repair_logs": []
+    },
+    {
+      "file": "C:\\Work\\DnaCalc\\codex-runs\\opus-addins\\onecalc-m5\\saved-simple-xlsm\\64\\DnaExamples.xlsm",
+      "name": "DnaExamples.xlsm",
+      "repaired": false,
+      "has_vb_project": true,
+      "formula": "=INDEX(SimpleGrid(),2,3)",
+      "cached": {
+        "value": 23.0,
+        "type": "Double"
+      },
+      "excel": {
+        "value": 23.0,
+        "type": "Double"
+      },
+      "text": "23",
+      "repair_logs": []
+    },
+    {
+      "file": "C:\\Work\\DnaCalc\\codex-runs\\opus-addins\\onecalc-m5\\saved-simple-xlsm\\65\\DnaExamples.xlsm",
+      "name": "DnaExamples.xlsm",
+      "repaired": false,
+      "has_vb_project": true,
+      "formula": "=SUM(SimpleGrid())",
+      "cached": {
+        "value": 102.0,
+        "type": "Double"
+      },
+      "excel": {
+        "value": 102.0,
+        "type": "Double"
+      },
+      "text": "102",
+      "repair_logs": []
+    },
+    {
+      "file": "C:\\Work\\DnaCalc\\codex-runs\\opus-addins\\onecalc-m5\\saved-simple-xlsm\\66\\DnaExamples.xlsm",
+      "name": "DnaExamples.xlsm",
+      "repaired": false,
+      "has_vb_project": true,
+      "formula": "=COLUMNS(SimpleGrid())",
+      "cached": {
+        "value": 3.0,
+        "type": "Double"
+      },
+      "excel": {
+        "value": 3.0,
+        "type": "Double"
+      },
+      "text": "3",
+      "repair_logs": []
+    },
+    {
+      "file": "C:\\Work\\DnaCalc\\codex-runs\\opus-addins\\onecalc-m5\\saved-simple-xlsm\\67\\DnaExamples.xlsm",
+      "name": "DnaExamples.xlsm",
+      "repaired": false,
+      "has_vb_project": true,
+      "formula": "=INDEX(SimpleSplit(\"a,b,c\"),1,2)",
+      "cached": {
+        "value": "b",
+        "type": "String"
+      },
+      "excel": {
+        "value": "b",
+        "type": "String"
+      },
+      "text": "b",
+      "repair_logs": []
+    },
+    {
+      "file": "C:\\Work\\DnaCalc\\codex-runs\\opus-addins\\onecalc-m5\\saved-simple-xlsm\\68\\DnaExamples.xlsm",
+      "name": "DnaExamples.xlsm",
+      "repaired": false,
+      "has_vb_project": true,
+      "formula": "=COLUMNS(SimpleSplit(\"a,b,c\"))",
+      "cached": {
+        "value": 3.0,
+        "type": "Double"
+      },
+      "excel": {
+        "value": 3.0,
+        "type": "Double"
+      },
+      "text": "3",
+      "repair_logs": []
+    },
+    {
+      "file": "C:\\Work\\DnaCalc\\codex-runs\\opus-addins\\onecalc-m5\\saved-simple-xlsm\\69\\DnaExamples.xlsm",
+      "name": "DnaExamples.xlsm",
+      "repaired": false,
+      "has_vb_project": true,
+      "formula": "=SimpleArrSum({1,2;3,4})",
+      "cached": {
+        "value": 10.0,
+        "type": "Double"
+      },
+      "excel": {
+        "value": 10.0,
+        "type": "Double"
+      },
+      "text": "10",
+      "repair_logs": []
+    },
+    {
+      "file": "C:\\Work\\DnaCalc\\codex-runs\\opus-addins\\onecalc-m5\\saved-simple-xlsm\\70\\DnaExamples.xlsm",
+      "name": "DnaExamples.xlsm",
+      "repaired": false,
+      "has_vb_project": true,
+      "formula": "=SimpleArrSum({1,\"x\",TRUE,4})",
+      "cached": {
+        "value": 5.0,
+        "type": "Double"
+      },
+      "excel": {
+        "value": 5.0,
+        "type": "Double"
+      },
+      "text": "5",
+      "repair_logs": []
+    },
+    {
+      "file": "C:\\Work\\DnaCalc\\codex-runs\\opus-addins\\onecalc-m5\\saved-simple-xlsm\\71\\DnaExamples.xlsm",
+      "name": "DnaExamples.xlsm",
+      "repaired": false,
+      "has_vb_project": true,
+      "formula": "=SimpleArrSum(5)",
+      "cached": {
+        "value": 5.0,
+        "type": "Double"
+      },
+      "excel": {
+        "value": 5.0,
+        "type": "Double"
+      },
+      "text": "5",
+      "repair_logs": []
+    },
+    {
+      "file": "C:\\Work\\DnaCalc\\codex-runs\\opus-addins\\onecalc-m5\\saved-simple-xlsm\\72\\DnaExamples.xlsm",
+      "name": "DnaExamples.xlsm",
+      "repaired": false,
+      "has_vb_project": true,
+      "formula": "=SimpleDims({1,2;3,4})",
+      "cached": {
+        "value": "Variant():1-2x1-2",
+        "type": "String"
+      },
+      "excel": {
+        "value": "Variant():1-2x1-2",
+        "type": "String"
+      },
+      "text": "Variant():1-2x1-2",
+      "repair_logs": []
+    },
+    {
+      "file": "C:\\Work\\DnaCalc\\codex-runs\\opus-addins\\onecalc-m5\\saved-simple-xlsm\\73\\DnaExamples.xlsm",
+      "name": "DnaExamples.xlsm",
+      "repaired": false,
+      "has_vb_project": true,
+      "formula": "=SimpleDims({1,2,3})",
+      "cached": {
+        "value": "Variant():1-3:1d",
+        "type": "String"
+      },
+      "excel": {
+        "value": "Variant():1-3:1d",
+        "type": "String"
+      },
+      "text": "Variant():1-3:1d",
+      "repair_logs": []
+    },
+    {
+      "file": "C:\\Work\\DnaCalc\\codex-runs\\opus-addins\\onecalc-m5\\saved-simple-xlsm\\74\\DnaExamples.xlsm",
+      "name": "DnaExamples.xlsm",
+      "repaired": false,
+      "has_vb_project": true,
+      "formula": "=SimpleDims({1;2;3})",
+      "cached": {
+        "value": "Variant():1-3x1-1",
+        "type": "String"
+      },
+      "excel": {
+        "value": "Variant():1-3x1-1",
+        "type": "String"
+      },
+      "text": "Variant():1-3x1-1",
+      "repair_logs": []
+    },
+    {
+      "file": "C:\\Work\\DnaCalc\\codex-runs\\opus-addins\\onecalc-m5\\saved-simple-xlsm\\75\\DnaExamples.xlsm",
+      "name": "DnaExamples.xlsm",
+      "repaired": false,
+      "has_vb_project": true,
+      "formula": "=SimpleDims(7)",
+      "cached": {
+        "value": "Double",
+        "type": "String"
+      },
+      "excel": {
+        "value": "Double",
+        "type": "String"
+      },
+      "text": "Double",
+      "repair_logs": []
+    },
+    {
+      "file": "C:\\Work\\DnaCalc\\codex-runs\\opus-addins\\onecalc-m5\\saved-simple-xlsm\\76\\DnaExamples.xlsm",
+      "name": "DnaExamples.xlsm",
+      "repaired": false,
+      "has_vb_project": true,
+      "formula": "=SimpleCorner({1,2;3,4})",
+      "cached": {
+        "value": 4.0,
+        "type": "Double"
+      },
+      "excel": {
+        "value": 4.0,
+        "type": "Double"
+      },
+      "text": "4",
+      "repair_logs": []
+    },
+    {
+      "file": "C:\\Work\\DnaCalc\\codex-runs\\opus-addins\\onecalc-m5\\saved-simple-xlsm\\77\\DnaExamples.xlsm",
+      "name": "DnaExamples.xlsm",
+      "repaired": false,
+      "has_vb_project": true,
+      "formula": "=SimpleDims(SEQUENCE(1,3))",
+      "cached": {
+        "value": "Variant():1-3:1d",
+        "type": "String"
+      },
+      "excel": {
+        "value": "Variant():1-3:1d",
+        "type": "String"
+      },
+      "text": "Variant():1-3:1d",
+      "repair_logs": []
+    },
+    {
+      "file": "C:\\Work\\DnaCalc\\codex-runs\\opus-addins\\onecalc-m5\\saved-simple-xlsm\\78\\DnaExamples.xlsm",
+      "name": "DnaExamples.xlsm",
+      "repaired": false,
+      "has_vb_project": true,
+      "formula": "=SimpleDims(TRANSPOSE({1;2;3}))",
+      "cached": {
+        "value": "Variant():1-3:1d",
+        "type": "String"
+      },
+      "excel": {
+        "value": "Variant():1-3:1d",
+        "type": "String"
+      },
+      "text": "Variant():1-3:1d",
+      "repair_logs": []
+    },
+    {
+      "file": "C:\\Work\\DnaCalc\\codex-runs\\opus-addins\\onecalc-m5\\saved-simple-xlsm\\79\\DnaExamples.xlsm",
+      "name": "DnaExamples.xlsm",
+      "repaired": false,
+      "has_vb_project": true,
+      "formula": "=SimpleHalf(2147483648)",
+      "cached": {
+        "error_code": -2146826252
+      },
+      "excel": {
+        "error_code": -2146826252
+      },
+      "text": "#NUM!",
+      "repair_logs": []
+    },
+    {
+      "file": "C:\\Work\\DnaCalc\\codex-runs\\opus-addins\\onecalc-m5\\saved-simple-xlsm\\80\\DnaExamples.xlsm",
+      "name": "DnaExamples.xlsm",
+      "repaired": false,
+      "has_vb_project": true,
+      "formula": "=SimpleAsLong(\"x\")",
+      "cached": {
+        "error_code": -2146826273
+      },
+      "excel": {
+        "error_code": -2146826273
+      },
+      "text": "#VALUE!",
+      "repair_logs": []
+    },
+    {
+      "file": "C:\\Work\\DnaCalc\\codex-runs\\opus-addins\\onecalc-m5\\saved-simple-xlsm\\81\\DnaExamples.xlsm",
+      "name": "DnaExamples.xlsm",
+      "repaired": false,
+      "has_vb_project": true,
+      "formula": "=SimpleCount({1,2,3})",
+      "cached": {
+        "value": 1.0,
+        "type": "Double"
+      },
+      "excel": {
+        "value": 1.0,
+        "type": "Double"
+      },
+      "text": "1",
+      "repair_logs": []
+    },
+    {
+      "file": "C:\\Work\\DnaCalc\\codex-runs\\opus-addins\\onecalc-m5\\saved-simple-xlsm\\82\\DnaExamples.xlsm",
+      "name": "DnaExamples.xlsm",
+      "repaired": false,
+      "has_vb_project": true,
+      "formula": "=SimpleDiv(1,4)",
+      "cached": {
+        "value": 0.25,
+        "type": "Double"
+      },
+      "excel": {
+        "value": 0.25,
+        "type": "Double"
+      },
+      "text": "0.25",
+      "repair_logs": []
+    },
+    {
+      "file": "C:\\Work\\DnaCalc\\codex-runs\\opus-addins\\onecalc-m5\\saved-simple-xlsm\\83\\DnaExamples.xlsm",
+      "name": "DnaExamples.xlsm",
+      "repaired": false,
+      "has_vb_project": true,
+      "formula": "=SimpleDiv(1,0)",
+      "cached": {
+        "error_code": -2146826281
+      },
+      "excel": {
+        "error_code": -2146826281
+      },
+      "text": "#DIV/0!",
+      "repair_logs": []
+    },
+    {
+      "file": "C:\\Work\\DnaCalc\\codex-runs\\opus-addins\\onecalc-m5\\saved-simple-xlsm\\84\\DnaExamples.xlsm",
+      "name": "DnaExamples.xlsm",
+      "repaired": false,
+      "has_vb_project": true,
+      "formula": "=SimpleNum()",
+      "cached": {
+        "error_code": -2146826252
+      },
+      "excel": {
+        "error_code": -2146826252
+      },
+      "text": "#NUM!",
+      "repair_logs": []
+    },
+    {
+      "file": "C:\\Work\\DnaCalc\\codex-runs\\opus-addins\\onecalc-m5\\saved-simple-xlsm\\85\\DnaExamples.xlsm",
+      "name": "DnaExamples.xlsm",
+      "repaired": false,
+      "has_vb_project": true,
+      "formula": "=SimpleErrName(1/0)",
+      "cached": {
+        "value": "Error 2007",
+        "type": "String"
+      },
+      "excel": {
+        "value": "Error 2007",
+        "type": "String"
+      },
+      "text": "Error 2007",
+      "repair_logs": []
+    },
+    {
+      "file": "C:\\Work\\DnaCalc\\codex-runs\\opus-addins\\onecalc-m5\\saved-simple-xlsm\\86\\DnaExamples.xlsm",
+      "name": "DnaExamples.xlsm",
+      "repaired": false,
+      "has_vb_project": true,
+      "formula": "=SimpleErrName(NA())",
+      "cached": {
+        "value": "Error 2042",
+        "type": "String"
+      },
+      "excel": {
+        "value": "Error 2042",
+        "type": "String"
+      },
+      "text": "Error 2042",
+      "repair_logs": []
+    },
+    {
+      "file": "C:\\Work\\DnaCalc\\codex-runs\\opus-addins\\onecalc-m5\\saved-simple-xlsm\\87\\DnaExamples.xlsm",
+      "name": "DnaExamples.xlsm",
+      "repaired": false,
+      "has_vb_project": true,
+      "formula": "=SimpleErrName(5)",
+      "cached": {
+        "value": "ok",
+        "type": "String"
+      },
+      "excel": {
+        "value": "ok",
+        "type": "String"
+      },
+      "text": "ok",
+      "repair_logs": []
+    },
+    {
+      "file": "C:\\Work\\DnaCalc\\codex-runs\\opus-addins\\onecalc-m5\\saved-simple-xlsm\\88\\DnaExamples.xlsm",
+      "name": "DnaExamples.xlsm",
+      "repaired": false,
+      "has_vb_project": true,
+      "formula": "=SimpleNeg(1/0)",
+      "cached": {
+        "error_code": -2146826273
+      },
+      "excel": {
+        "error_code": -2146826273
+      },
+      "text": "#VALUE!",
+      "repair_logs": []
+    },
+    {
+      "file": "C:\\Work\\DnaCalc\\codex-runs\\opus-addins\\onecalc-m5\\saved-simple-xlsm\\89\\DnaExamples.xlsm",
+      "name": "DnaExamples.xlsm",
+      "repaired": false,
+      "has_vb_project": true,
+      "formula": "=SimpleOverflow(100000)",
+      "cached": {
+        "error_code": -2146826273
+      },
+      "excel": {
+        "error_code": -2146826273
+      },
+      "text": "#VALUE!",
+      "repair_logs": []
+    },
+    {
+      "file": "C:\\Work\\DnaCalc\\codex-runs\\opus-addins\\onecalc-m5\\saved-simple-xlsm\\90\\DnaExamples.xlsm",
+      "name": "DnaExamples.xlsm",
+      "repaired": false,
+      "has_vb_project": true,
+      "formula": "=SimpleRaise(1004)",
+      "cached": {
+        "value": 1004.0,
+        "type": "Double"
+      },
+      "excel": {
+        "value": 1004.0,
+        "type": "Double"
+      },
+      "text": "1004",
+      "repair_logs": []
+    },
+    {
+      "file": "C:\\Work\\DnaCalc\\codex-runs\\opus-addins\\onecalc-m5\\saved-simple-xlsm\\91\\DnaExamples.xlsm",
+      "name": "DnaExamples.xlsm",
+      "repaired": false,
+      "has_vb_project": true,
+      "formula": "=SimpleRaise(9)",
+      "cached": {
+        "value": 9.0,
+        "type": "Double"
+      },
+      "excel": {
+        "value": 9.0,
+        "type": "Double"
+      },
+      "text": "9",
+      "repair_logs": []
+    },
+    {
+      "file": "C:\\Work\\DnaCalc\\codex-runs\\opus-addins\\onecalc-m5\\saved-simple-xlsm\\92\\DnaExamples.xlsm",
+      "name": "DnaExamples.xlsm",
+      "repaired": false,
+      "has_vb_project": true,
+      "formula": "=SimpleEmpty()",
+      "cached": {
+        "value": 0.0,
+        "type": "Double"
+      },
+      "excel": {
+        "value": 0.0,
+        "type": "Double"
+      },
+      "text": "0",
+      "repair_logs": []
+    },
+    {
+      "file": "C:\\Work\\DnaCalc\\codex-runs\\opus-addins\\onecalc-m5\\saved-simple-xlsm\\93\\DnaExamples.xlsm",
+      "name": "DnaExamples.xlsm",
+      "repaired": false,
+      "has_vb_project": true,
+      "formula": "=SimpleBlankText()",
+      "cached": {
+        "value": "",
+        "type": "String"
+      },
+      "excel": {
+        "value": "",
+        "type": "String"
+      },
+      "text": "",
+      "repair_logs": []
+    },
+    {
+      "file": "C:\\Work\\DnaCalc\\codex-runs\\opus-addins\\onecalc-m5\\saved-simple-xlsm\\94\\DnaExamples.xlsm",
+      "name": "DnaExamples.xlsm",
+      "repaired": false,
+      "has_vb_project": true,
+      "formula": "=SimpleDate()",
+      "cached": {
+        "value": 46337.0,
+        "type": "Double"
+      },
+      "excel": {
+        "value": 46337.0,
+        "type": "Double"
+      },
+      "text": "46337",
+      "repair_logs": []
+    },
+    {
+      "file": "C:\\Work\\DnaCalc\\codex-runs\\opus-addins\\onecalc-m5\\saved-simple-xlsm\\95\\DnaExamples.xlsm",
+      "name": "DnaExamples.xlsm",
+      "repaired": false,
+      "has_vb_project": true,
+      "formula": "=SimpleMoney()",
+      "cached": {
+        "value": 1.2346,
+        "type": "Double"
+      },
+      "excel": {
+        "value": 1.2346,
+        "type": "Double"
+      },
+      "text": "1.2346",
+      "repair_logs": []
+    },
+    {
+      "file": "C:\\Work\\DnaCalc\\codex-runs\\opus-addins\\onecalc-m5\\saved-simple-xlsm\\96\\DnaExamples.xlsm",
+      "name": "DnaExamples.xlsm",
+      "repaired": false,
+      "has_vb_project": true,
+      "formula": "=SimpleRound(2.25)",
+      "cached": {
+        "value": 2.2,
+        "type": "Double"
+      },
+      "excel": {
+        "value": 2.2,
+        "type": "Double"
+      },
+      "text": "2.2",
+      "repair_logs": []
+    },
+    {
+      "file": "C:\\Work\\DnaCalc\\codex-runs\\opus-addins\\onecalc-m5\\saved-simple-xlsm\\97\\DnaExamples.xlsm",
+      "name": "DnaExamples.xlsm",
+      "repaired": false,
+      "has_vb_project": true,
+      "formula": "=SimpleRound(2.35)",
+      "cached": {
+        "value": 2.4,
+        "type": "Double"
+      },
+      "excel": {
+        "value": 2.4,
+        "type": "Double"
+      },
+      "text": "2.4",
+      "repair_logs": []
+    },
+    {
+      "file": "C:\\Work\\DnaCalc\\codex-runs\\opus-addins\\onecalc-m5\\saved-simple-xlsm\\98\\DnaExamples.xlsm",
+      "name": "DnaExamples.xlsm",
+      "repaired": false,
+      "has_vb_project": true,
+      "formula": "=SimpleFormat(3.14159)",
+      "cached": {
+        "value": "3.14",
+        "type": "String"
+      },
+      "excel": {
+        "value": "3.14",
+        "type": "String"
+      },
+      "text": "3.14",
+      "repair_logs": []
+    },
+    {
+      "file": "C:\\Work\\DnaCalc\\codex-runs\\opus-addins\\onecalc-m5\\saved-simple-xlsm\\99\\DnaExamples.xlsm",
+      "name": "DnaExamples.xlsm",
+      "repaired": false,
+      "has_vb_project": true,
+      "formula": "=SimpleGrade(95)",
+      "cached": {
+        "value": "A",
+        "type": "String"
+      },
+      "excel": {
+        "value": "A",
+        "type": "String"
+      },
+      "text": "A",
+      "repair_logs": []
+    },
+    {
+      "file": "C:\\Work\\DnaCalc\\codex-runs\\opus-addins\\onecalc-m5\\saved-simple-xlsm\\100\\DnaExamples.xlsm",
+      "name": "DnaExamples.xlsm",
+      "repaired": false,
+      "has_vb_project": true,
+      "formula": "=SimpleGrade(75)",
+      "cached": {
+        "value": "B",
+        "type": "String"
+      },
+      "excel": {
+        "value": "B",
+        "type": "String"
+      },
+      "text": "B",
+      "repair_logs": []
+    },
+    {
+      "file": "C:\\Work\\DnaCalc\\codex-runs\\opus-addins\\onecalc-m5\\saved-simple-xlsm\\101\\DnaExamples.xlsm",
+      "name": "DnaExamples.xlsm",
+      "repaired": false,
+      "has_vb_project": true,
+      "formula": "=SimpleGrade(10)",
+      "cached": {
+        "value": "C",
+        "type": "String"
+      },
+      "excel": {
+        "value": "C",
+        "type": "String"
+      },
+      "text": "C",
+      "repair_logs": []
+    },
+    {
+      "file": "C:\\Work\\DnaCalc\\codex-runs\\opus-addins\\onecalc-m5\\saved-simple-xlsm\\102\\DnaExamples.xlsm",
+      "name": "DnaExamples.xlsm",
+      "repaired": false,
+      "has_vb_project": true,
+      "formula": "=SimpleFact(10)",
+      "cached": {
+        "value": 3628800.0,
+        "type": "Double"
+      },
+      "excel": {
+        "value": 3628800.0,
+        "type": "Double"
+      },
+      "text": "3628800",
+      "repair_logs": []
+    },
+    {
+      "file": "C:\\Work\\DnaCalc\\codex-runs\\opus-addins\\onecalc-m5\\saved-simple-xlsm\\103\\DnaExamples.xlsm",
+      "name": "DnaExamples.xlsm",
+      "repaired": false,
+      "has_vb_project": true,
+      "formula": "=SimpleFact(20)",
+      "cached": {
+        "value": 2.43290200817664E+18,
+        "type": "Double"
+      },
+      "excel": {
+        "value": 2.43290200817664E+18,
+        "type": "Double"
+      },
+      "text": "2.43E+18",
+      "repair_logs": []
+    },
+    {
+      "file": "C:\\Work\\DnaCalc\\codex-runs\\opus-addins\\onecalc-m5\\saved-simple-xlsm\\104\\DnaExamples.xlsm",
+      "name": "DnaExamples.xlsm",
+      "repaired": false,
+      "has_vb_project": true,
+      "formula": "=SimpleWsMax(3,9,4)",
+      "cached": {
+        "value": 9.0,
+        "type": "Double"
+      },
+      "excel": {
+        "value": 9.0,
+        "type": "Double"
+      },
+      "text": "9",
+      "repair_logs": []
+    },
+    {
+      "file": "C:\\Work\\DnaCalc\\codex-runs\\opus-addins\\onecalc-m5\\saved-simple-xlsm\\105\\DnaExamples.xlsm",
+      "name": "DnaExamples.xlsm",
+      "repaired": false,
+      "has_vb_project": true,
+      "formula": "=SimpleWsMatch(\"b\")",
+      "cached": {
+        "value": 2.0,
+        "type": "Double"
+      },
+      "excel": {
+        "value": 2.0,
+        "type": "Double"
+      },
+      "text": "2",
+      "repair_logs": []
+    },
+    {
+      "file": "C:\\Work\\DnaCalc\\codex-runs\\opus-addins\\onecalc-m5\\saved-simple-xlsm\\106\\DnaExamples.xlsm",
+      "name": "DnaExamples.xlsm",
+      "repaired": false,
+      "has_vb_project": true,
+      "formula": "=SimpleWsMatch(\"z\")",
+      "cached": {
+        "value": "Err 1004",
+        "type": "String"
+      },
+      "excel": {
+        "value": "Err 1004",
+        "type": "String"
+      },
+      "text": "Err 1004",
+      "repair_logs": []
+    },
+    {
+      "file": "C:\\Work\\DnaCalc\\codex-runs\\opus-addins\\onecalc-m5\\saved-simple-xlsm\\107\\DnaExamples.xlsm",
+      "name": "DnaExamples.xlsm",
+      "repaired": false,
+      "has_vb_project": true,
+      "formula": "=SimpleWsMatchRaw(\"z\")",
+      "cached": {
+        "error_code": -2146826273
+      },
+      "excel": {
+        "error_code": -2146826273
+      },
+      "text": "#VALUE!",
+      "repair_logs": []
+    },
+    {
+      "file": "C:\\Work\\DnaCalc\\codex-runs\\opus-addins\\onecalc-m5\\saved-simple-xlsm\\108\\DnaExamples.xlsm",
+      "name": "DnaExamples.xlsm",
+      "repaired": false,
+      "has_vb_project": true,
+      "formula": "=SimpleHidden(1)",
+      "cached": {
+        "value": 1.0,
+        "type": "Double"
+      },
+      "excel": {
+        "value": 1.0,
+        "type": "Double"
+      },
+      "text": "1",
+      "repair_logs": []
+    },
+    {
+      "file": "C:\\Work\\DnaCalc\\codex-runs\\opus-addins\\onecalc-m5\\saved-simple-xlsm\\109\\DnaExamples.xlsm",
+      "name": "DnaExamples.xlsm",
+      "repaired": false,
+      "has_vb_project": true,
+      "formula": "=DnaSimple.SimpleNeg(4)",
+      "cached": {
+        "value": -4.0,
+        "type": "Double"
+      },
+      "excel": {
+        "value": -4.0,
+        "type": "Double"
+      },
+      "text": "-4",
+      "repair_logs": []
+    }
+  ],
+  "errors": []
+}

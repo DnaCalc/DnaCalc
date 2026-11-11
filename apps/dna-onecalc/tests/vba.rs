@@ -686,7 +686,8 @@ fn an_xlsm_session_saves_its_project_part_unchanged_and_an_edit_changes_it() {
                     .iter()
                     .any(|m| m.name == "Extra" && m.source.contains("DnaTwice = 2 * x"))
             );
-            assert_eq!(project.modules().len(), 5);
+            // ThisWorkbook, Sheet1, DnaExamples, DnaSimple, DnaCounter and the edit's Extra.
+            assert_eq!(project.modules().len(), 6);
         }
     }
 }

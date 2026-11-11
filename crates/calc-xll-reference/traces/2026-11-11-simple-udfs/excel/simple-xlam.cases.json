@@ -1,0 +1,876 @@
+{
+  "action": "cases",
+  "excel_version": "16.0",
+  "excel_build": "20527",
+  "automation_security": 1,
+  "rows": [
+    {
+      "formula": "=SimpleNeg(2.5)",
+      "excel": {
+        "value": -2.5,
+        "type": "Double"
+      },
+      "text": "-2.5"
+    },
+    {
+      "formula": "=SimpleNeg(\"3\")",
+      "excel": {
+        "value": -3.0,
+        "type": "Double"
+      },
+      "text": "-3"
+    },
+    {
+      "formula": "=SimpleNeg(TRUE)",
+      "excel": {
+        "value": 1.0,
+        "type": "Double"
+      },
+      "text": "1"
+    },
+    {
+      "formula": "=SimpleNeg(\"x\")",
+      "excel": {
+        "error_code": -2146826273
+      },
+      "text": "#VALUE!"
+    },
+    {
+      "formula": "=SimpleNeg()",
+      "excel": {
+        "error_code": -2146826273
+      },
+      "text": "#VALUE!"
+    },
+    {
+      "formula": "=SimpleHalf(7)",
+      "excel": {
+        "value": 3.5,
+        "type": "Double"
+      },
+      "text": "3.5"
+    },
+    {
+      "formula": "=SimpleHalf(2.5)",
+      "excel": {
+        "value": 1.0,
+        "type": "Double"
+      },
+      "text": "1"
+    },
+    {
+      "formula": "=SimpleHalf(3.5)",
+      "excel": {
+        "value": 2.0,
+        "type": "Double"
+      },
+      "text": "2"
+    },
+    {
+      "formula": "=SimpleIsBig(150)",
+      "excel": {
+        "value": true,
+        "type": "Boolean"
+      },
+      "text": "TRUE"
+    },
+    {
+      "formula": "=SimpleIsBig(5)",
+      "excel": {
+        "value": false,
+        "type": "Boolean"
+      },
+      "text": "FALSE"
+    },
+    {
+      "formula": "=SimpleNot(TRUE)",
+      "excel": {
+        "value": false,
+        "type": "Boolean"
+      },
+      "text": "FALSE"
+    },
+    {
+      "formula": "=SimpleNot(0)",
+      "excel": {
+        "value": true,
+        "type": "Boolean"
+      },
+      "text": "TRUE"
+    },
+    {
+      "formula": "=SimpleNot(\"FALSE\")",
+      "excel": {
+        "value": true,
+        "type": "Boolean"
+      },
+      "text": "TRUE"
+    },
+    {
+      "formula": "=SimpleUpper(\"dna calc\")",
+      "excel": {
+        "value": "DNA CALC",
+        "type": "String"
+      },
+      "text": "DNA CALC"
+    },
+    {
+      "formula": "=SimpleUpper(12.5)",
+      "excel": {
+        "value": "12.5",
+        "type": "String"
+      },
+      "text": "12.5"
+    },
+    {
+      "formula": "=SimpleLen(\"héllo\")",
+      "excel": {
+        "value": 5.0,
+        "type": "Double"
+      },
+      "text": "5"
+    },
+    {
+      "formula": "=SimpleLen(\"\")",
+      "excel": {
+        "value": 0.0,
+        "type": "Double"
+      },
+      "text": "0"
+    },
+    {
+      "formula": "=SimpleMid(\"abcdef\",2)",
+      "excel": {
+        "value": "bc",
+        "type": "String"
+      },
+      "text": "bc"
+    },
+    {
+      "formula": "=SimpleMid(\"abcdef\",2,3)",
+      "excel": {
+        "value": "bcd",
+        "type": "String"
+      },
+      "text": "bcd"
+    },
+    {
+      "formula": "=SimpleKind(1)",
+      "excel": {
+        "value": "Double",
+        "type": "String"
+      },
+      "text": "Double"
+    },
+    {
+      "formula": "=SimpleKind(\"a\")",
+      "excel": {
+        "value": "String",
+        "type": "String"
+      },
+      "text": "String"
+    },
+    {
+      "formula": "=SimpleKind(TRUE)",
+      "excel": {
+        "value": "Boolean",
+        "type": "String"
+      },
+      "text": "Boolean"
+    },
+    {
+      "formula": "=SimpleKind(1/0)",
+      "excel": {
+        "value": "Error",
+        "type": "String"
+      },
+      "text": "Error"
+    },
+    {
+      "formula": "=SimpleKind({1,2})",
+      "excel": {
+        "value": "Variant()",
+        "type": "String"
+      },
+      "text": "Variant()"
+    },
+    {
+      "formula": "=SimpleKind(A1)",
+      "excel": {
+        "value": "Range",
+        "type": "String"
+      },
+      "text": "Range"
+    },
+    {
+      "formula": "=SimpleVarType(1)",
+      "excel": {
+        "value": 5.0,
+        "type": "Double"
+      },
+      "text": "5"
+    },
+    {
+      "formula": "=SimpleVarType(\"a\")",
+      "excel": {
+        "value": 8.0,
+        "type": "Double"
+      },
+      "text": "8"
+    },
+    {
+      "formula": "=SimpleVarType(TRUE)",
+      "excel": {
+        "value": 11.0,
+        "type": "Double"
+      },
+      "text": "11"
+    },
+    {
+      "formula": "=SimpleVarType(NA())",
+      "excel": {
+        "value": 10.0,
+        "type": "Double"
+      },
+      "text": "10"
+    },
+    {
+      "formula": "=SimpleTwice(21)",
+      "excel": {
+        "value": 42.0,
+        "type": "Double"
+      },
+      "text": "42"
+    },
+    {
+      "formula": "=SimpleTwice(\"ab\")",
+      "excel": {
+        "value": "abab",
+        "type": "String"
+      },
+      "text": "abab"
+    },
+    {
+      "formula": "=SimpleTwice(TRUE)",
+      "excel": {
+        "value": -2.0,
+        "type": "Double"
+      },
+      "text": "-2"
+    },
+    {
+      "formula": "=SimpleAsDouble(\"12.5\")",
+      "excel": {
+        "value": 12.5,
+        "type": "Double"
+      },
+      "text": "12.5"
+    },
+    {
+      "formula": "=SimpleAsDouble(TRUE)",
+      "excel": {
+        "value": -1.0,
+        "type": "Double"
+      },
+      "text": "-1"
+    },
+    {
+      "formula": "=SimpleAsLong(2.5)",
+      "excel": {
+        "value": 2.0,
+        "type": "Double"
+      },
+      "text": "2"
+    },
+    {
+      "formula": "=SimpleAsLong(3.5)",
+      "excel": {
+        "value": 4.0,
+        "type": "Double"
+      },
+      "text": "4"
+    },
+    {
+      "formula": "=SimpleAsLong(3000000000)",
+      "excel": {
+        "error_code": -2146826252
+      },
+      "text": "#NUM!"
+    },
+    {
+      "formula": "=SimpleAsString(1.5)",
+      "excel": {
+        "value": "1.5",
+        "type": "String"
+      },
+      "text": "1.5"
+    },
+    {
+      "formula": "=SimpleAsString(TRUE)",
+      "excel": {
+        "value": "True",
+        "type": "String"
+      },
+      "text": "True"
+    },
+    {
+      "formula": "=SimpleAsBool(0)",
+      "excel": {
+        "value": "False",
+        "type": "String"
+      },
+      "text": "False"
+    },
+    {
+      "formula": "=SimpleAsBool(2)",
+      "excel": {
+        "value": "True",
+        "type": "String"
+      },
+      "text": "True"
+    },
+    {
+      "formula": "=SimpleAsBool(\"true\")",
+      "excel": {
+        "value": "True",
+        "type": "String"
+      },
+      "text": "True"
+    },
+    {
+      "formula": "=SimplePower(3)",
+      "excel": {
+        "value": 9.0,
+        "type": "Double"
+      },
+      "text": "9"
+    },
+    {
+      "formula": "=SimplePower(2,10)",
+      "excel": {
+        "value": 1024.0,
+        "type": "Double"
+      },
+      "text": "1024"
+    },
+    {
+      "formula": "=SimplePower(2,)",
+      "excel": {
+        "value": 4.0,
+        "type": "Double"
+      },
+      "text": "4"
+    },
+    {
+      "formula": "=SimpleMissing()",
+      "excel": {
+        "value": true,
+        "type": "Boolean"
+      },
+      "text": "TRUE"
+    },
+    {
+      "formula": "=SimpleMissing(1)",
+      "excel": {
+        "value": false,
+        "type": "Boolean"
+      },
+      "text": "FALSE"
+    },
+    {
+      "formula": "=SimpleCount()",
+      "excel": {
+        "value": 0.0,
+        "type": "Double"
+      },
+      "text": "0"
+    },
+    {
+      "formula": "=SimpleCount(1,\"a\",TRUE)",
+      "excel": {
+        "value": 3.0,
+        "type": "Double"
+      },
+      "text": "3"
+    },
+    {
+      "formula": "=SimpleCount(1,,3)",
+      "excel": {
+        "value": 3.0,
+        "type": "Double"
+      },
+      "text": "3"
+    },
+    {
+      "formula": "=SimpleConcat(\"-\",\"a\",1,TRUE)",
+      "excel": {
+        "value": "a-1-True",
+        "type": "String"
+      },
+      "text": "a-1-True"
+    },
+    {
+      "formula": "=SimpleConcat(\",\")",
+      "excel": {
+        "value": "",
+        "type": "String"
+      },
+      "text": ""
+    },
+    {
+      "formula": "=INDEX(SimpleSeq(3),2,1)",
+      "excel": {
+        "value": 20.0,
+        "type": "Double"
+      },
+      "text": "20"
+    },
+    {
+      "formula": "=ROWS(SimpleSeq(4))",
+      "excel": {
+        "value": 4.0,
+        "type": "Double"
+      },
+      "text": "4"
+    },
+    {
+      "formula": "=COLUMNS(SimpleSeq(4))",
+      "excel": {
+        "value": 1.0,
+        "type": "Double"
+      },
+      "text": "1"
+    },
+    {
+      "formula": "=SUM(SimpleSeq(3))",
+      "excel": {
+        "value": 60.0,
+        "type": "Double"
+      },
+      "text": "60"
+    },
+    {
+      "formula": "=SimpleSeq(3)",
+      "excel": {
+        "value": 10.0,
+        "type": "Double"
+      },
+      "text": "10"
+    },
+    {
+      "formula": "=INDEX(SimpleRow(3),1,3)",
+      "excel": {
+        "value": 3.0,
+        "type": "Double"
+      },
+      "text": "3"
+    },
+    {
+      "formula": "=COLUMNS(SimpleRow(5))",
+      "excel": {
+        "value": 5.0,
+        "type": "Double"
+      },
+      "text": "5"
+    },
+    {
+      "formula": "=ROWS(SimpleRow(5))",
+      "excel": {
+        "value": 1.0,
+        "type": "Double"
+      },
+      "text": "1"
+    },
+    {
+      "formula": "=INDEX(SimpleMixed(),1,2)",
+      "excel": {
+        "value": "two",
+        "type": "String"
+      },
+      "text": "two"
+    },
+    {
+      "formula": "=INDEX(SimpleMixed(),1,3)",
+      "excel": {
+        "value": true,
+        "type": "Boolean"
+      },
+      "text": "TRUE"
+    },
+    {
+      "formula": "=INDEX(SimpleMixed(),1,4)",
+      "excel": {
+        "error_code": -2146826281
+      },
+      "text": "#DIV/0!"
+    },
+    {
+      "formula": "=INDEX(SimpleGrid(),2,3)",
+      "excel": {
+        "value": 23.0,
+        "type": "Double"
+      },
+      "text": "23"
+    },
+    {
+      "formula": "=SUM(SimpleGrid())",
+      "excel": {
+        "value": 102.0,
+        "type": "Double"
+      },
+      "text": "102"
+    },
+    {
+      "formula": "=COLUMNS(SimpleGrid())",
+      "excel": {
+        "value": 3.0,
+        "type": "Double"
+      },
+      "text": "3"
+    },
+    {
+      "formula": "=INDEX(SimpleSplit(\"a,b,c\"),1,2)",
+      "excel": {
+        "value": "b",
+        "type": "String"
+      },
+      "text": "b"
+    },
+    {
+      "formula": "=COLUMNS(SimpleSplit(\"a,b,c\"))",
+      "excel": {
+        "value": 3.0,
+        "type": "Double"
+      },
+      "text": "3"
+    },
+    {
+      "formula": "=SimpleArrSum({1,2;3,4})",
+      "excel": {
+        "value": 10.0,
+        "type": "Double"
+      },
+      "text": "10"
+    },
+    {
+      "formula": "=SimpleArrSum({1,\"x\",TRUE,4})",
+      "excel": {
+        "value": 5.0,
+        "type": "Double"
+      },
+      "text": "5"
+    },
+    {
+      "formula": "=SimpleArrSum(5)",
+      "excel": {
+        "value": 5.0,
+        "type": "Double"
+      },
+      "text": "5"
+    },
+    {
+      "formula": "=SimpleDims({1,2;3,4})",
+      "excel": {
+        "value": "Variant():1-2x1-2",
+        "type": "String"
+      },
+      "text": "Variant():1-2x1-2"
+    },
+    {
+      "formula": "=SimpleDims({1,2,3})",
+      "excel": {
+        "value": "Variant():1-3:1d",
+        "type": "String"
+      },
+      "text": "Variant():1-3:1d"
+    },
+    {
+      "formula": "=SimpleDims({1;2;3})",
+      "excel": {
+        "value": "Variant():1-3x1-1",
+        "type": "String"
+      },
+      "text": "Variant():1-3x1-1"
+    },
+    {
+      "formula": "=SimpleDims(7)",
+      "excel": {
+        "value": "Double",
+        "type": "String"
+      },
+      "text": "Double"
+    },
+    {
+      "formula": "=SimpleCorner({1,2;3,4})",
+      "excel": {
+        "value": 4.0,
+        "type": "Double"
+      },
+      "text": "4"
+    },
+    {
+      "formula": "=SimpleDims(SEQUENCE(1,3))",
+      "excel": {
+        "value": "Variant():1-3:1d",
+        "type": "String"
+      },
+      "text": "Variant():1-3:1d"
+    },
+    {
+      "formula": "=SimpleDims(TRANSPOSE({1;2;3}))",
+      "excel": {
+        "value": "Variant():1-3:1d",
+        "type": "String"
+      },
+      "text": "Variant():1-3:1d"
+    },
+    {
+      "formula": "=SimpleHalf(2147483648)",
+      "excel": {
+        "error_code": -2146826252
+      },
+      "text": "#NUM!"
+    },
+    {
+      "formula": "=SimpleAsLong(\"x\")",
+      "excel": {
+        "error_code": -2146826273
+      },
+      "text": "#VALUE!"
+    },
+    {
+      "formula": "=SimpleCount({1,2,3})",
+      "excel": {
+        "value": 1.0,
+        "type": "Double"
+      },
+      "text": "1"
+    },
+    {
+      "formula": "=SimpleDiv(1,4)",
+      "excel": {
+        "value": 0.25,
+        "type": "Double"
+      },
+      "text": "0.25"
+    },
+    {
+      "formula": "=SimpleDiv(1,0)",
+      "excel": {
+        "error_code": -2146826281
+      },
+      "text": "#DIV/0!"
+    },
+    {
+      "formula": "=SimpleNum()",
+      "excel": {
+        "error_code": -2146826252
+      },
+      "text": "#NUM!"
+    },
+    {
+      "formula": "=SimpleErrName(1/0)",
+      "excel": {
+        "value": "Error 2007",
+        "type": "String"
+      },
+      "text": "Error 2007"
+    },
+    {
+      "formula": "=SimpleErrName(NA())",
+      "excel": {
+        "value": "Error 2042",
+        "type": "String"
+      },
+      "text": "Error 2042"
+    },
+    {
+      "formula": "=SimpleErrName(5)",
+      "excel": {
+        "value": "ok",
+        "type": "String"
+      },
+      "text": "ok"
+    },
+    {
+      "formula": "=SimpleNeg(1/0)",
+      "excel": {
+        "error_code": -2146826273
+      },
+      "text": "#VALUE!"
+    },
+    {
+      "formula": "=SimpleOverflow(100000)",
+      "excel": {
+        "error_code": -2146826273
+      },
+      "text": "#VALUE!"
+    },
+    {
+      "formula": "=SimpleRaise(1004)",
+      "excel": {
+        "value": 1004.0,
+        "type": "Double"
+      },
+      "text": "1004"
+    },
+    {
+      "formula": "=SimpleRaise(9)",
+      "excel": {
+        "value": 9.0,
+        "type": "Double"
+      },
+      "text": "9"
+    },
+    {
+      "formula": "=SimpleEmpty()",
+      "excel": {
+        "value": 0.0,
+        "type": "Double"
+      },
+      "text": "0"
+    },
+    {
+      "formula": "=SimpleBlankText()",
+      "excel": {
+        "value": "",
+        "type": "String"
+      },
+      "text": ""
+    },
+    {
+      "formula": "=SimpleDate()",
+      "excel": {
+        "value": 46337.0,
+        "type": "Double"
+      },
+      "text": "46337"
+    },
+    {
+      "formula": "=SimpleMoney()",
+      "excel": {
+        "value": 1.2346,
+        "type": "Double"
+      },
+      "text": "1.2346"
+    },
+    {
+      "formula": "=SimpleRound(2.25)",
+      "excel": {
+        "value": 2.2,
+        "type": "Double"
+      },
+      "text": "2.2"
+    },
+    {
+      "formula": "=SimpleRound(2.35)",
+      "excel": {
+        "value": 2.4,
+        "type": "Double"
+      },
+      "text": "2.4"
+    },
+    {
+      "formula": "=SimpleFormat(3.14159)",
+      "excel": {
+        "value": "3.14",
+        "type": "String"
+      },
+      "text": "3.14"
+    },
+    {
+      "formula": "=SimpleGrade(95)",
+      "excel": {
+        "value": "A",
+        "type": "String"
+      },
+      "text": "A"
+    },
+    {
+      "formula": "=SimpleGrade(75)",
+      "excel": {
+        "value": "B",
+        "type": "String"
+      },
+      "text": "B"
+    },
+    {
+      "formula": "=SimpleGrade(10)",
+      "excel": {
+        "value": "C",
+        "type": "String"
+      },
+      "text": "C"
+    },
+    {
+      "formula": "=SimpleFact(10)",
+      "excel": {
+        "value": 3628800.0,
+        "type": "Double"
+      },
+      "text": "3628800"
+    },
+    {
+      "formula": "=SimpleFact(20)",
+      "excel": {
+        "value": 2.43290200817664E+18,
+        "type": "Double"
+      },
+      "text": "2.43E+18"
+    },
+    {
+      "formula": "=SimpleWsMax(3,9,4)",
+      "excel": {
+        "value": 9.0,
+        "type": "Double"
+      },
+      "text": "9"
+    },
+    {
+      "formula": "=SimpleWsMatch(\"b\")",
+      "excel": {
+        "value": 2.0,
+        "type": "Double"
+      },
+      "text": "2"
+    },
+    {
+      "formula": "=SimpleWsMatch(\"z\")",
+      "excel": {
+        "value": "Err 1004",
+        "type": "String"
+      },
+      "text": "Err 1004"
+    },
+    {
+      "formula": "=SimpleWsMatchRaw(\"z\")",
+      "excel": {
+        "error_code": -2146826273
+      },
+      "text": "#VALUE!"
+    },
+    {
+      "formula": "=SimpleHidden(1)",
+      "excel": {
+        "value": 1.0,
+        "type": "Double"
+      },
+      "text": "1"
+    },
+    {
+      "formula": "=DnaSimple.SimpleNeg(4)",
+      "excel": {
+        "value": -4.0,
+        "type": "Double"
+      },
+      "text": "-4"
+    }
+  ],
+  "errors": [],
+  "addin": {
+    "name": "DnaExamples.xlam",
+    "is_addin": true,
+    "full_name": "C:\\Work\\DnaCalc\\DnaCalc-win\\crates\\calc-xll-reference\\fixture\\vba\\DnaExamples.xlam"
+  },
+  "sheet": "Sheet1"
+}

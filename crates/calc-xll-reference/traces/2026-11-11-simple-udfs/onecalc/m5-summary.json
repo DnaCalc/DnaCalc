@@ -1,0 +1,2822 @@
+{
+  "cases": 271,
+  "matched": 271,
+  "sets": [
+    {
+      "cases_file": "C:\\Work\\DnaCalc\\DnaCalc-win\\crates/calc-xll-reference/fixture\\vba/x9-vba-cases.json",
+      "excel_record": "C:\\Work\\DnaCalc\\codex-runs\\opus-addins\\excel-x9/controller.jsonl",
+      "name": "dnaexamples-xlam",
+      "outcome": {
+        "case_values_stale": 0,
+        "count": 26,
+        "documented": [
+          {
+            "completion_prefix": "DNAA",
+            "completions": [
+              "DNAADDregistered function",
+              "DNAARGSregistered function"
+            ],
+            "description": "",
+            "function": "DNAADD",
+            "help_name": "",
+            "help_signature": "",
+            "parameters": [],
+            "signature": "DNAADD is not a function in calc-func's catalogue",
+            "status": ""
+          },
+          {
+            "completion_prefix": "DNAA",
+            "completions": [
+              "DNAADDregistered function",
+              "DNAARGSregistered function"
+            ],
+            "description": "",
+            "function": "DNAARGS",
+            "help_name": "",
+            "help_signature": "",
+            "parameters": [],
+            "signature": "DNAARGS is not a function in calc-func's catalogue",
+            "status": ""
+          },
+          {
+            "completion_prefix": "DNAB",
+            "completions": [
+              "DNABOOKregistered function"
+            ],
+            "description": "",
+            "function": "DNABOOK",
+            "help_name": "",
+            "help_signature": "",
+            "parameters": [],
+            "signature": "DNABOOK is not a function in calc-func's catalogue",
+            "status": ""
+          },
+          {
+            "completion_prefix": "DNAC",
+            "completions": [
+              "DNACELLSregistered function",
+              "DNACOUNTEDregistered function",
+              "DNACOUNTERNAMEregistered function"
+            ],
+            "description": "",
+            "function": "DNACELLS",
+            "help_name": "",
+            "help_signature": "",
+            "parameters": [],
+            "signature": "DNACELLS is not a function in calc-func's catalogue",
+            "status": ""
+          },
+          {
+            "completion_prefix": "DNAC",
+            "completions": [
+              "DNACELLSregistered function",
+              "DNACOUNTEDregistered function",
+              "DNACOUNTERNAMEregistered function"
+            ],
+            "description": "",
+            "function": "DNACOUNTED",
+            "help_name": "",
+            "help_signature": "",
+            "parameters": [],
+            "signature": "DNACOUNTED is not a function in calc-func's catalogue",
+            "status": ""
+          },
+          {
+            "completion_prefix": "DNAC",
+            "completions": [
+              "DNACELLSregistered function",
+              "DNACOUNTEDregistered function",
+              "DNACOUNTERNAMEregistered function"
+            ],
+            "description": "",
+            "function": "DNACOUNTERNAME",
+            "help_name": "",
+            "help_signature": "",
+            "parameters": [],
+            "signature": "DNACOUNTERNAME is not a function in calc-func's catalogue",
+            "status": ""
+          },
+          {
+            "completion_prefix": "DNAD",
+            "completions": [
+              "DNADICTTYPEregistered function",
+              "DNADISTINCTregistered function"
+            ],
+            "description": "",
+            "function": "DNADICTTYPE",
+            "help_name": "",
+            "help_signature": "",
+            "parameters": [],
+            "signature": "DNADICTTYPE is not a function in calc-func's catalogue",
+            "status": ""
+          },
+          {
+            "completion_prefix": "DNAD",
+            "completions": [
+              "DNADICTTYPEregistered function",
+              "DNADISTINCTregistered function"
+            ],
+            "description": "",
+            "function": "DNADISTINCT",
+            "help_name": "",
+            "help_signature": "",
+            "parameters": [],
+            "signature": "DNADISTINCT is not a function in calc-func's catalogue",
+            "status": ""
+          }
+        ],
+        "listed": [
+          "xlam C:\\Work\\DnaCalc\\DnaCalc-win\\crates\\calc-xll-reference\\fixture\\vba\\DnaExamples.xlam (sha256:ad4205523e42634e3ae2bffb60018682e221fef6dbc94c7c513052058219bf56) - DNAADD, DNAARGS, DNABOOK, DNACELLS, DNACOUNTED, DNACOUNTERNAME, DNADICTTYPE, DNADISTINCT, DNAFAIL, DNAGREET, DNAJOIN, DNAKEYS, DNANA, DNAOPENCOUNT, DNASELECTION, DNASUM, DNATRYWRITE, DNATRYWRITEARG, DNAWASINSTALLED, DNAWHERE, DNAWRITE, DNAWRITEARG, DNAWSSUM, SIMPLEARRSUM, SIMPLEASBOOL, SIMPLEASDOUBLE, SIMPLEASLONG, SIMPLEASSTRING, SIMPLEBLANKTEXT, SIMPLECONCAT, SIMPLECORNER, SIMPLECOUNT, SIMPLEDATE, SIMPLEDIMS, SIMPLEDIV, SIMPLEEMPTY, SIMPLEERRNAME, SIMPLEFACT, SIMPLEFORMAT, SIMPLEGRADE, SIMPLEGRID, SIMPLEHALF, SIMPLEHIDDEN, SIMPLEISBIG, SIMPLEKIND, SIMPLELEN, SIMPLEMID, SIMPLEMISSING, SIMPLEMIXED, SIMPLEMONEY, SIMPLENEG, SIMPLENOT, SIMPLENUM, SIMPLEOVERFLOW, SIMPLEPOWER, SIMPLERAISE, SIMPLEROUND, SIMPLEROW, SIMPLESEQ, SIMPLESPLIT, SIMPLETWICE, SIMPLEUPPER, SIMPLEVARTYPE, SIMPLEWSMATCH, SIMPLEWSMATCHRAW, SIMPLEWSMAX Unload"
+        ],
+        "load_seconds": 2.3881817,
+        "loaded": true,
+        "matched": 26,
+        "mismatched": 0,
+        "missing": 0,
+        "refused": 0,
+        "reopen": {
+          "answered": true,
+          "loaded_after_right_hash": 1,
+          "loaded_after_wrong_hash": 0,
+          "loaded_by_opening": 0,
+          "offered": [
+            "xlam: C:/Work/DnaCalc/DnaCalc-win/crates/calc-xll-reference/fixture/vba/DnaExamples.xlam (sha256:0000000000000000000000000000000000000000000000000000000000000000) - listed by the session, not loaded Load",
+            "xlam: C:/Work/DnaCalc/DnaCalc-win/crates/calc-xll-reference/fixture/vba/DnaExamples.xlam (sha256:ad4205523e42634e3ae2bffb60018682e221fef6dbc94c7c513052058219bf56) - listed by the session, not loaded Load"
+          ],
+          "right_hash_status": "Loaded C:/Work/DnaCalc/DnaCalc-win/crates/calc-xll-reference/fixture/vba/DnaExamples.xlam. 1 add-in(s) loaded.",
+          "wrong_hash_status": "C:\\Work\\DnaCalc\\DnaCalc-win\\crates\\calc-xll-reference\\fixture\\vba\\DnaExamples.xlam is not the file the session listed (it holds sha256:ad4205523e42634e3ae2bffb60018682e221fef6dbc94c7c513052058219bf56, the session listed sha256:0000000000000000000000000000000000000000000000000000000000000000); choose it with Load add-in to accept the change"
+        },
+        "results": [
+          {
+            "case_value_agrees_with_excel": true,
+            "detail": "number 42",
+            "excel": "number 42",
+            "formula": "=DnaAdd(40,2)",
+            "seconds": 0.1173029,
+            "verdict": "matched"
+          },
+          {
+            "case_value_agrees_with_excel": true,
+            "detail": "text \"Hello, OneCalc\"",
+            "excel": "text \"Hello, OneCalc\"",
+            "formula": "=DnaGreet(\"OneCalc\")",
+            "seconds": 0.1269401,
+            "verdict": "matched"
+          },
+          {
+            "case_value_agrees_with_excel": true,
+            "detail": "text \"a-(none)\"",
+            "excel": "text \"a-(none)\"",
+            "formula": "=DnaJoin(\"a\")",
+            "seconds": 0.1475393,
+            "verdict": "matched"
+          },
+          {
+            "case_value_agrees_with_excel": true,
+            "detail": "text \"a+(none)\"",
+            "excel": "text \"a+(none)\"",
+            "formula": "=DnaJoin(\"a\",\"+\")",
+            "seconds": 0.1410456,
+            "verdict": "matched"
+          },
+          {
+            "case_value_agrees_with_excel": true,
+            "detail": "text \"a+7\"",
+            "excel": "text \"a+7\"",
+            "formula": "=DnaJoin(\"a\",\"+\",7)",
+            "seconds": 0.102981,
+            "verdict": "matched"
+          },
+          {
+            "case_value_agrees_with_excel": true,
+            "detail": "text \"a-7\"",
+            "excel": "text \"a-7\"",
+            "formula": "=DnaJoin(\"a\",,7)",
+            "seconds": 0.1152361,
+            "verdict": "matched"
+          },
+          {
+            "case_value_agrees_with_excel": true,
+            "detail": "number 6.5",
+            "excel": "number 6.5",
+            "formula": "=DnaSum(1,2,3.5)",
+            "seconds": 0.1353891,
+            "verdict": "matched"
+          },
+          {
+            "case_value_agrees_with_excel": true,
+            "detail": "number 0",
+            "excel": "number 0",
+            "formula": "=DnaSum()",
+            "seconds": 0.1358996,
+            "verdict": "matched"
+          },
+          {
+            "case_value_agrees_with_excel": true,
+            "detail": "text \"3:Double:missing:String\"",
+            "excel": "text \"3:Double:missing:String\"",
+            "formula": "=DnaArgs(1,,\"x\")",
+            "seconds": 0.1274213,
+            "verdict": "matched"
+          },
+          {
+            "case_value_agrees_with_excel": true,
+            "detail": "number 42",
+            "excel": "number 42",
+            "formula": "=DnaCounted(40,2)",
+            "seconds": 0.1321067,
+            "verdict": "matched"
+          },
+          {
+            "case_value_agrees_with_excel": true,
+            "detail": "text \"DnaCounter\"",
+            "excel": "text \"DnaCounter\"",
+            "formula": "=DnaCounterName()",
+            "seconds": 0.1294419,
+            "verdict": "matched"
+          },
+          {
+            "case_value_agrees_with_excel": true,
+            "detail": "number 3",
+            "excel": "number 3",
+            "formula": "=DnaDistinct(\"a\",\"b\",\"A\",\"c\")",
+            "seconds": 0.2209087,
+            "verdict": "matched"
+          },
+          {
+            "case_value_agrees_with_excel": true,
+            "detail": "text \"x,y|2\"",
+            "excel": "text \"x,y|2\"",
+            "formula": "=DnaKeys(\"x\",\"y\",\"x\")",
+            "seconds": 0.1883466,
+            "verdict": "matched"
+          },
+          {
+            "case_value_agrees_with_excel": true,
+            "detail": "text \"Dictionary\"",
+            "excel": "text \"Dictionary\"",
+            "formula": "=DnaDictType()",
+            "seconds": 0.1492188,
+            "verdict": "matched"
+          },
+          {
+            "case_value_agrees_with_excel": true,
+            "detail": "number 6",
+            "excel": "number 6",
+            "formula": "=DnaCells(A1:B3)",
+            "seconds": 0.1529008,
+            "verdict": "matched"
+          },
+          {
+            "case_value_agrees_with_excel": true,
+            "detail": "text \"$A$1:$B$3\"",
+            "excel": "text \"$A$1:$B$3\"",
+            "formula": "=DnaWhere(A1:B3)",
+            "seconds": 0.1231414,
+            "verdict": "matched"
+          },
+          {
+            "case_value_agrees_with_excel": true,
+            "detail": "number 3",
+            "excel": "number 3",
+            "formula": "=DnaWsSum(1,2)",
+            "seconds": 0.1338392,
+            "verdict": "matched"
+          },
+          {
+            "case_value_agrees_with_excel": true,
+            "detail": "error #N/A",
+            "excel": "error #N/A",
+            "formula": "=DnaNA()",
+            "seconds": 0.1699165,
+            "verdict": "matched"
+          },
+          {
+            "case_value_agrees_with_excel": true,
+            "detail": "error #VALUE!",
+            "excel": "error #VALUE!",
+            "formula": "=DnaFail()",
+            "seconds": 0.1753575,
+            "verdict": "matched"
+          },
+          {
+            "case_value_agrees_with_excel": true,
+            "detail": "number 1",
+            "excel": "number 1",
+            "formula": "=DnaOpenCount()",
+            "seconds": 0.3285669,
+            "verdict": "matched"
+          },
+          {
+            "case_value_agrees_with_excel": true,
+            "detail": "number 1004",
+            "excel": "number 1004",
+            "formula": "=DnaTryWrite()",
+            "seconds": 0.1721204,
+            "verdict": "matched"
+          },
+          {
+            "case_value_agrees_with_excel": true,
+            "detail": "error #VALUE!",
+            "excel": "error #VALUE!",
+            "formula": "=DnaWrite()",
+            "seconds": 0.2137833,
+            "verdict": "matched"
+          },
+          {
+            "case_value_agrees_with_excel": true,
+            "detail": "number 1004",
+            "excel": "number 1004",
+            "formula": "=DnaTryWriteArg(Z99)",
+            "seconds": 0.1499612,
+            "verdict": "matched"
+          },
+          {
+            "case_value_agrees_with_excel": true,
+            "detail": "error #VALUE!",
+            "excel": "error #VALUE!",
+            "formula": "=DnaWriteArg(Z99)",
+            "seconds": 0.1293356,
+            "verdict": "matched"
+          },
+          {
+            "case_value_agrees_with_excel": true,
+            "detail": "text \"Range\"",
+            "excel": "text \"Range\"",
+            "formula": "=DnaSelection()",
+            "seconds": 0.1211624,
+            "verdict": "matched"
+          },
+          {
+            "case_value_agrees_with_excel": true,
+            "detail": "text \"DnaExamples.xlam\"",
+            "excel": "text \"DnaExamples.xlam\"",
+            "formula": "=DnaBook()",
+            "seconds": 0.2372972,
+            "verdict": "matched"
+          }
+        ],
+        "status": "Loaded C:/Work/DnaCalc/DnaCalc-win/crates/calc-xll-reference/fixture/vba/DnaExamples.xlam. 1 add-in(s) loaded.",
+        "unload": {
+          "status": [
+            "Unloaded C:\\Work\\DnaCalc\\DnaCalc-win\\crates\\calc-xll-reference\\fixture\\vba\\DnaExamples.xlam. 0 add-in(s) loaded."
+          ],
+          "unloaded": true
+        }
+      },
+      "sheet": "Sheet1",
+      "xll": "C:/Work/DnaCalc/DnaCalc-win/crates/calc-xll-reference/fixture/vba/DnaExamples.xlam",
+      "xll_sha256": "ad4205523e42634e3ae2bffb60018682e221fef6dbc94c7c513052058219bf56"
+    },
+    {
+      "cases_file": "C:\\Work\\DnaCalc\\DnaCalc-win\\crates/calc-xll-reference/fixture\\vba/x9-vba-cases.json",
+      "excel_job_output": "dnacalc-excel-session/1 receipt C:\\Work\\DnaCalc\\codex-runs\\opus-addins\\excel\\completed\\20261111T0448472633346-5a0848df603142ba906c5c460083de8e\\receipt.json\r\n",
+      "excel_record": "C:\\Work\\DnaCalc\\codex-runs\\opus-addins\\onecalc-m5\\excel-dnaexamples-xlsm\\reopen.json",
+      "name": "dnaexamples-xlsm",
+      "outcome": {
+        "count": 27,
+        "loaded": true,
+        "matched": 27,
+        "mismatched": 0,
+        "missing": 0,
+        "opened": {
+          "edit": "Loaded: DNAADD, DNAARGS, DNABOOK, DNACELLS, DNACOUNTED, DNACOUNTERNAME, DNADICTTYPE, DNADISTINCT, DNAFAIL, DNAGREET, DNAJOIN, DNAKEYS, DNANA, DNAOPENCOUNT, DNASELECTION, DNASUM, DNATRYWRITE, DNATRYWRITEARG, DNATWICE, DNAWASINSTALLED, DNAWHERE, DNAWRITE, DNAWRITEARG, DNAWSSUM, SIMPLEARRSUM, SIMPLEASBOOL, SIMPLEASDOUBLE, SIMPLEASLONG, SIMPLEASSTRING, SIMPLEBLANKTEXT, SIMPLECONCAT, SIMPLECORNER, SIMPLECOUNT, SIMPLEDATE, SIMPLEDIMS, SIMPLEDIV, SIMPLEEMPTY, SIMPLEERRNAME, SIMPLEFACT, SIMPLEFORMAT, SIMPLEGRADE, SIMPLEGRID, SIMPLEHALF, SIMPLEHIDDEN, SIMPLEISBIG, SIMPLEKIND, SIMPLELEN, SIMPLEMID, SIMPLEMISSING, SIMPLEMIXED, SIMPLEMONEY, SIMPLENEG, SIMPLENOT, SIMPLENUM, SIMPLEOVERFLOW, SIMPLEPOWER, SIMPLERAISE, SIMPLEROUND, SIMPLEROW, SIMPLESEQ, SIMPLESPLIT, SIMPLETWICE, SIMPLEUPPER, SIMPLEVARTYPE, SIMPLEWSMATCH, SIMPLEWSMATCHRAW, SIMPLEWSMAX",
+          "project": "The file's VBA project is loaded: 66 function(s): DNAADD, DNAARGS, DNABOOK, DNACELLS, DNACOUNTED, DNACOUNTERNAME, DNADICTTYPE, DNADISTINCT, DNAFAIL, DNAGREET, DNAJOIN, DNAKEYS, DNANA, DNAOPENCOUNT, DNASELECTION, DNASUM, DNATRYWRITE, DNATRYWRITEARG, DNAWASINSTALLED, DNAWHERE, DNAWRITE, DNAWRITEARG, DNAWSSUM, SIMPLEARRSUM, SIMPLEASBOOL, SIMPLEASDOUBLE, SIMPLEASLONG, SIMPLEASSTRING, SIMPLEBLANKTEXT, SIMPLECONCAT, SIMPLECORNER, SIMPLECOUNT, SIMPLEDATE, SIMPLEDIMS, SIMPLEDIV, SIMPLEEMPTY, SIMPLEERRNAME, SIMPLEFACT, SIMPLEFORMAT, SIMPLEGRADE, SIMPLEGRID, SIMPLEHALF, SIMPLEHIDDEN, SIMPLEISBIG, SIMPLEKIND, SIMPLELEN, SIMPLEMID, SIMPLEMISSING, SIMPLEMIXED, SIMPLEMONEY, SIMPLENEG, SIMPLENOT, SIMPLENUM, SIMPLEOVERFLOW, SIMPLEPOWER, SIMPLERAISE, SIMPLEROUND, SIMPLEROW, SIMPLESEQ, SIMPLESPLIT, SIMPLETWICE, SIMPLEUPPER, SIMPLEVARTYPE, SIMPLEWSMATCH, SIMPLEWSMATCHRAW, SIMPLEWSMAX."
+        },
+        "refused": 0,
+        "reopen": {
+          "loaded_after_right_hash": null
+        },
+        "repaired": 0,
+        "results": [
+          {
+            "detail": "number 42",
+            "excel": "number 42",
+            "excel_formula": "=DnaAdd(40,2)",
+            "excel_name": "DnaExamples.xlsm",
+            "formula": "=DnaAdd(40,2)",
+            "repaired": false,
+            "saved": "C:\\Work\\DnaCalc\\codex-runs\\opus-addins\\onecalc-m5\\saved-dnaexamples-xlsm\\1\\DnaExamples.xlsm",
+            "verdict": "matched"
+          },
+          {
+            "detail": "text \"Hello, OneCalc\"",
+            "excel": "text \"Hello, OneCalc\"",
+            "excel_formula": "=DnaGreet(\"OneCalc\")",
+            "excel_name": "DnaExamples.xlsm",
+            "formula": "=DnaGreet(\"OneCalc\")",
+            "repaired": false,
+            "saved": "C:\\Work\\DnaCalc\\codex-runs\\opus-addins\\onecalc-m5\\saved-dnaexamples-xlsm\\2\\DnaExamples.xlsm",
+            "verdict": "matched"
+          },
+          {
+            "detail": "text \"a-(none)\"",
+            "excel": "text \"a-(none)\"",
+            "excel_formula": "=DnaJoin(\"a\")",
+            "excel_name": "DnaExamples.xlsm",
+            "formula": "=DnaJoin(\"a\")",
+            "repaired": false,
+            "saved": "C:\\Work\\DnaCalc\\codex-runs\\opus-addins\\onecalc-m5\\saved-dnaexamples-xlsm\\3\\DnaExamples.xlsm",
+            "verdict": "matched"
+          },
+          {
+            "detail": "text \"a+(none)\"",
+            "excel": "text \"a+(none)\"",
+            "excel_formula": "=DnaJoin(\"a\",\"+\")",
+            "excel_name": "DnaExamples.xlsm",
+            "formula": "=DnaJoin(\"a\",\"+\")",
+            "repaired": false,
+            "saved": "C:\\Work\\DnaCalc\\codex-runs\\opus-addins\\onecalc-m5\\saved-dnaexamples-xlsm\\4\\DnaExamples.xlsm",
+            "verdict": "matched"
+          },
+          {
+            "detail": "text \"a+7\"",
+            "excel": "text \"a+7\"",
+            "excel_formula": "=DnaJoin(\"a\",\"+\",7)",
+            "excel_name": "DnaExamples.xlsm",
+            "formula": "=DnaJoin(\"a\",\"+\",7)",
+            "repaired": false,
+            "saved": "C:\\Work\\DnaCalc\\codex-runs\\opus-addins\\onecalc-m5\\saved-dnaexamples-xlsm\\5\\DnaExamples.xlsm",
+            "verdict": "matched"
+          },
+          {
+            "detail": "text \"a-7\"",
+            "excel": "text \"a-7\"",
+            "excel_formula": "=DnaJoin(\"a\",,7)",
+            "excel_name": "DnaExamples.xlsm",
+            "formula": "=DnaJoin(\"a\",,7)",
+            "repaired": false,
+            "saved": "C:\\Work\\DnaCalc\\codex-runs\\opus-addins\\onecalc-m5\\saved-dnaexamples-xlsm\\6\\DnaExamples.xlsm",
+            "verdict": "matched"
+          },
+          {
+            "detail": "number 6.5",
+            "excel": "number 6.5",
+            "excel_formula": "=DnaSum(1,2,3.5)",
+            "excel_name": "DnaExamples.xlsm",
+            "formula": "=DnaSum(1,2,3.5)",
+            "repaired": false,
+            "saved": "C:\\Work\\DnaCalc\\codex-runs\\opus-addins\\onecalc-m5\\saved-dnaexamples-xlsm\\7\\DnaExamples.xlsm",
+            "verdict": "matched"
+          },
+          {
+            "detail": "number 0",
+            "excel": "number 0",
+            "excel_formula": "=DnaSum()",
+            "excel_name": "DnaExamples.xlsm",
+            "formula": "=DnaSum()",
+            "repaired": false,
+            "saved": "C:\\Work\\DnaCalc\\codex-runs\\opus-addins\\onecalc-m5\\saved-dnaexamples-xlsm\\8\\DnaExamples.xlsm",
+            "verdict": "matched"
+          },
+          {
+            "detail": "text \"3:Double:missing:String\"",
+            "excel": "text \"3:Double:missing:String\"",
+            "excel_formula": "=DnaArgs(1,,\"x\")",
+            "excel_name": "DnaExamples.xlsm",
+            "formula": "=DnaArgs(1,,\"x\")",
+            "repaired": false,
+            "saved": "C:\\Work\\DnaCalc\\codex-runs\\opus-addins\\onecalc-m5\\saved-dnaexamples-xlsm\\9\\DnaExamples.xlsm",
+            "verdict": "matched"
+          },
+          {
+            "detail": "number 42",
+            "excel": "number 42",
+            "excel_formula": "=DnaCounted(40,2)",
+            "excel_name": "DnaExamples.xlsm",
+            "formula": "=DnaCounted(40,2)",
+            "repaired": false,
+            "saved": "C:\\Work\\DnaCalc\\codex-runs\\opus-addins\\onecalc-m5\\saved-dnaexamples-xlsm\\10\\DnaExamples.xlsm",
+            "verdict": "matched"
+          },
+          {
+            "detail": "text \"DnaCounter\"",
+            "excel": "text \"DnaCounter\"",
+            "excel_formula": "=DnaCounterName()",
+            "excel_name": "DnaExamples.xlsm",
+            "formula": "=DnaCounterName()",
+            "repaired": false,
+            "saved": "C:\\Work\\DnaCalc\\codex-runs\\opus-addins\\onecalc-m5\\saved-dnaexamples-xlsm\\11\\DnaExamples.xlsm",
+            "verdict": "matched"
+          },
+          {
+            "detail": "number 3",
+            "excel": "number 3",
+            "excel_formula": "=DnaDistinct(\"a\",\"b\",\"A\",\"c\")",
+            "excel_name": "DnaExamples.xlsm",
+            "formula": "=DnaDistinct(\"a\",\"b\",\"A\",\"c\")",
+            "repaired": false,
+            "saved": "C:\\Work\\DnaCalc\\codex-runs\\opus-addins\\onecalc-m5\\saved-dnaexamples-xlsm\\12\\DnaExamples.xlsm",
+            "verdict": "matched"
+          },
+          {
+            "detail": "text \"x,y|2\"",
+            "excel": "text \"x,y|2\"",
+            "excel_formula": "=DnaKeys(\"x\",\"y\",\"x\")",
+            "excel_name": "DnaExamples.xlsm",
+            "formula": "=DnaKeys(\"x\",\"y\",\"x\")",
+            "repaired": false,
+            "saved": "C:\\Work\\DnaCalc\\codex-runs\\opus-addins\\onecalc-m5\\saved-dnaexamples-xlsm\\13\\DnaExamples.xlsm",
+            "verdict": "matched"
+          },
+          {
+            "detail": "text \"Dictionary\"",
+            "excel": "text \"Dictionary\"",
+            "excel_formula": "=DnaDictType()",
+            "excel_name": "DnaExamples.xlsm",
+            "formula": "=DnaDictType()",
+            "repaired": false,
+            "saved": "C:\\Work\\DnaCalc\\codex-runs\\opus-addins\\onecalc-m5\\saved-dnaexamples-xlsm\\14\\DnaExamples.xlsm",
+            "verdict": "matched"
+          },
+          {
+            "detail": "number 6",
+            "excel": "number 6",
+            "excel_formula": "=DnaCells(A1:B3)",
+            "excel_name": "DnaExamples.xlsm",
+            "formula": "=DnaCells(A1:B3)",
+            "repaired": false,
+            "saved": "C:\\Work\\DnaCalc\\codex-runs\\opus-addins\\onecalc-m5\\saved-dnaexamples-xlsm\\15\\DnaExamples.xlsm",
+            "verdict": "matched"
+          },
+          {
+            "detail": "text \"$A$1:$B$3\"",
+            "excel": "text \"$A$1:$B$3\"",
+            "excel_formula": "=DnaWhere(A1:B3)",
+            "excel_name": "DnaExamples.xlsm",
+            "formula": "=DnaWhere(A1:B3)",
+            "repaired": false,
+            "saved": "C:\\Work\\DnaCalc\\codex-runs\\opus-addins\\onecalc-m5\\saved-dnaexamples-xlsm\\16\\DnaExamples.xlsm",
+            "verdict": "matched"
+          },
+          {
+            "detail": "number 3",
+            "excel": "number 3",
+            "excel_formula": "=DnaWsSum(1,2)",
+            "excel_name": "DnaExamples.xlsm",
+            "formula": "=DnaWsSum(1,2)",
+            "repaired": false,
+            "saved": "C:\\Work\\DnaCalc\\codex-runs\\opus-addins\\onecalc-m5\\saved-dnaexamples-xlsm\\17\\DnaExamples.xlsm",
+            "verdict": "matched"
+          },
+          {
+            "detail": "error #N/A",
+            "excel": "error #N/A",
+            "excel_formula": "=DnaNA()",
+            "excel_name": "DnaExamples.xlsm",
+            "formula": "=DnaNA()",
+            "repaired": false,
+            "saved": "C:\\Work\\DnaCalc\\codex-runs\\opus-addins\\onecalc-m5\\saved-dnaexamples-xlsm\\18\\DnaExamples.xlsm",
+            "verdict": "matched"
+          },
+          {
+            "detail": "error #VALUE!",
+            "excel": "error #VALUE!",
+            "excel_formula": "=DnaFail()",
+            "excel_name": "DnaExamples.xlsm",
+            "formula": "=DnaFail()",
+            "repaired": false,
+            "saved": "C:\\Work\\DnaCalc\\codex-runs\\opus-addins\\onecalc-m5\\saved-dnaexamples-xlsm\\19\\DnaExamples.xlsm",
+            "verdict": "matched"
+          },
+          {
+            "detail": "number 1",
+            "excel": "number 1",
+            "excel_formula": "=DnaOpenCount()",
+            "excel_name": "DnaExamples.xlsm",
+            "formula": "=DnaOpenCount()",
+            "repaired": false,
+            "saved": "C:\\Work\\DnaCalc\\codex-runs\\opus-addins\\onecalc-m5\\saved-dnaexamples-xlsm\\20\\DnaExamples.xlsm",
+            "verdict": "matched"
+          },
+          {
+            "detail": "number 1004",
+            "excel": "number 1004",
+            "excel_formula": "=DnaTryWrite()",
+            "excel_name": "DnaExamples.xlsm",
+            "formula": "=DnaTryWrite()",
+            "repaired": false,
+            "saved": "C:\\Work\\DnaCalc\\codex-runs\\opus-addins\\onecalc-m5\\saved-dnaexamples-xlsm\\21\\DnaExamples.xlsm",
+            "verdict": "matched"
+          },
+          {
+            "detail": "error #VALUE!",
+            "excel": "error #VALUE!",
+            "excel_formula": "=DnaWrite()",
+            "excel_name": "DnaExamples.xlsm",
+            "formula": "=DnaWrite()",
+            "repaired": false,
+            "saved": "C:\\Work\\DnaCalc\\codex-runs\\opus-addins\\onecalc-m5\\saved-dnaexamples-xlsm\\22\\DnaExamples.xlsm",
+            "verdict": "matched"
+          },
+          {
+            "detail": "number 1004",
+            "excel": "number 1004",
+            "excel_formula": "=DnaTryWriteArg(Z99)",
+            "excel_name": "DnaExamples.xlsm",
+            "formula": "=DnaTryWriteArg(Z99)",
+            "repaired": false,
+            "saved": "C:\\Work\\DnaCalc\\codex-runs\\opus-addins\\onecalc-m5\\saved-dnaexamples-xlsm\\23\\DnaExamples.xlsm",
+            "verdict": "matched"
+          },
+          {
+            "detail": "error #VALUE!",
+            "excel": "error #VALUE!",
+            "excel_formula": "=DnaWriteArg(Z99)",
+            "excel_name": "DnaExamples.xlsm",
+            "formula": "=DnaWriteArg(Z99)",
+            "repaired": false,
+            "saved": "C:\\Work\\DnaCalc\\codex-runs\\opus-addins\\onecalc-m5\\saved-dnaexamples-xlsm\\24\\DnaExamples.xlsm",
+            "verdict": "matched"
+          },
+          {
+            "detail": "text \"Range\"",
+            "excel": "text \"Range\"",
+            "excel_formula": "=DnaSelection()",
+            "excel_name": "DnaExamples.xlsm",
+            "formula": "=DnaSelection()",
+            "repaired": false,
+            "saved": "C:\\Work\\DnaCalc\\codex-runs\\opus-addins\\onecalc-m5\\saved-dnaexamples-xlsm\\25\\DnaExamples.xlsm",
+            "verdict": "matched"
+          },
+          {
+            "detail": "text \"DnaExamples.xlsm\"",
+            "excel": "text \"DnaExamples.xlsm\"",
+            "excel_formula": "=DnaBook()",
+            "excel_name": "DnaExamples.xlsm",
+            "formula": "=DnaBook()",
+            "repaired": false,
+            "saved": "C:\\Work\\DnaCalc\\codex-runs\\opus-addins\\onecalc-m5\\saved-dnaexamples-xlsm\\26\\DnaExamples.xlsm",
+            "verdict": "matched"
+          },
+          {
+            "detail": "number 42",
+            "excel": "number 42",
+            "excel_formula": "=DnaTwice(21)+DnaAdd(0,0)",
+            "excel_name": "DnaExamples.xlsm",
+            "formula": "=DnaTwice(21)+DnaAdd(0,0)",
+            "repaired": false,
+            "saved": "C:\\Work\\DnaCalc\\codex-runs\\opus-addins\\onecalc-m5\\saved-dnaexamples-xlsm\\27\\DnaExamples.xlsm",
+            "verdict": "matched"
+          }
+        ],
+        "saved": 27,
+        "unload": {
+          "unloaded": null
+        }
+      },
+      "session": "C:/Work/DnaCalc/DnaCalc-win/crates/calc-xll-reference/fixture/vba/DnaExamples.xlsm",
+      "session_sha256": "17abb501c6497bd30ad49a426f4c32e39cbb16f626e4bf673ddc0ef351d8807d"
+    },
+    {
+      "cases_file": "C:\\Work\\DnaCalc\\DnaCalc-win\\crates/calc-xll-reference/fixture\\vba/simple-udf-cases.json",
+      "excel_record": "C:\\Work\\DnaCalc\\codex-runs\\opus-addins\\excel-simple/controller.jsonl",
+      "name": "simple-xlam",
+      "outcome": {
+        "case_values_stale": 0,
+        "count": 109,
+        "documented": [
+          {
+            "completion_prefix": "DNAA",
+            "completions": [
+              "DNAADDregistered function",
+              "DNAARGSregistered function"
+            ],
+            "description": "",
+            "function": "DNAADD",
+            "help_name": "",
+            "help_signature": "",
+            "parameters": [],
+            "signature": "DNAADD is not a function in calc-func's catalogue",
+            "status": ""
+          },
+          {
+            "completion_prefix": "DNAA",
+            "completions": [
+              "DNAADDregistered function",
+              "DNAARGSregistered function"
+            ],
+            "description": "",
+            "function": "DNAARGS",
+            "help_name": "",
+            "help_signature": "",
+            "parameters": [],
+            "signature": "DNAARGS is not a function in calc-func's catalogue",
+            "status": ""
+          },
+          {
+            "completion_prefix": "DNAB",
+            "completions": [
+              "DNABOOKregistered function"
+            ],
+            "description": "",
+            "function": "DNABOOK",
+            "help_name": "",
+            "help_signature": "",
+            "parameters": [],
+            "signature": "DNABOOK is not a function in calc-func's catalogue",
+            "status": ""
+          },
+          {
+            "completion_prefix": "DNAC",
+            "completions": [
+              "DNACELLSregistered function",
+              "DNACOUNTEDregistered function",
+              "DNACOUNTERNAMEregistered function"
+            ],
+            "description": "",
+            "function": "DNACELLS",
+            "help_name": "",
+            "help_signature": "",
+            "parameters": [],
+            "signature": "DNACELLS is not a function in calc-func's catalogue",
+            "status": ""
+          },
+          {
+            "completion_prefix": "DNAC",
+            "completions": [
+              "DNACELLSregistered function",
+              "DNACOUNTEDregistered function",
+              "DNACOUNTERNAMEregistered function"
+            ],
+            "description": "",
+            "function": "DNACOUNTED",
+            "help_name": "",
+            "help_signature": "",
+            "parameters": [],
+            "signature": "DNACOUNTED is not a function in calc-func's catalogue",
+            "status": ""
+          },
+          {
+            "completion_prefix": "DNAC",
+            "completions": [
+              "DNACELLSregistered function",
+              "DNACOUNTEDregistered function",
+              "DNACOUNTERNAMEregistered function"
+            ],
+            "description": "",
+            "function": "DNACOUNTERNAME",
+            "help_name": "",
+            "help_signature": "",
+            "parameters": [],
+            "signature": "DNACOUNTERNAME is not a function in calc-func's catalogue",
+            "status": ""
+          },
+          {
+            "completion_prefix": "DNAD",
+            "completions": [
+              "DNADICTTYPEregistered function",
+              "DNADISTINCTregistered function"
+            ],
+            "description": "",
+            "function": "DNADICTTYPE",
+            "help_name": "",
+            "help_signature": "",
+            "parameters": [],
+            "signature": "DNADICTTYPE is not a function in calc-func's catalogue",
+            "status": ""
+          },
+          {
+            "completion_prefix": "DNAD",
+            "completions": [
+              "DNADICTTYPEregistered function",
+              "DNADISTINCTregistered function"
+            ],
+            "description": "",
+            "function": "DNADISTINCT",
+            "help_name": "",
+            "help_signature": "",
+            "parameters": [],
+            "signature": "DNADISTINCT is not a function in calc-func's catalogue",
+            "status": ""
+          }
+        ],
+        "listed": [
+          "xlam C:\\Work\\DnaCalc\\DnaCalc-win\\crates\\calc-xll-reference\\fixture\\vba\\DnaExamples.xlam (sha256:ad4205523e42634e3ae2bffb60018682e221fef6dbc94c7c513052058219bf56) - DNAADD, DNAARGS, DNABOOK, DNACELLS, DNACOUNTED, DNACOUNTERNAME, DNADICTTYPE, DNADISTINCT, DNAFAIL, DNAGREET, DNAJOIN, DNAKEYS, DNANA, DNAOPENCOUNT, DNASELECTION, DNASUM, DNATRYWRITE, DNATRYWRITEARG, DNAWASINSTALLED, DNAWHERE, DNAWRITE, DNAWRITEARG, DNAWSSUM, SIMPLEARRSUM, SIMPLEASBOOL, SIMPLEASDOUBLE, SIMPLEASLONG, SIMPLEASSTRING, SIMPLEBLANKTEXT, SIMPLECONCAT, SIMPLECORNER, SIMPLECOUNT, SIMPLEDATE, SIMPLEDIMS, SIMPLEDIV, SIMPLEEMPTY, SIMPLEERRNAME, SIMPLEFACT, SIMPLEFORMAT, SIMPLEGRADE, SIMPLEGRID, SIMPLEHALF, SIMPLEHIDDEN, SIMPLEISBIG, SIMPLEKIND, SIMPLELEN, SIMPLEMID, SIMPLEMISSING, SIMPLEMIXED, SIMPLEMONEY, SIMPLENEG, SIMPLENOT, SIMPLENUM, SIMPLEOVERFLOW, SIMPLEPOWER, SIMPLERAISE, SIMPLEROUND, SIMPLEROW, SIMPLESEQ, SIMPLESPLIT, SIMPLETWICE, SIMPLEUPPER, SIMPLEVARTYPE, SIMPLEWSMATCH, SIMPLEWSMATCHRAW, SIMPLEWSMAX Unload"
+        ],
+        "load_seconds": 1.978067,
+        "loaded": true,
+        "matched": 109,
+        "mismatched": 0,
+        "missing": 0,
+        "refused": 0,
+        "reopen": {
+          "answered": true,
+          "loaded_after_right_hash": 1,
+          "loaded_after_wrong_hash": 0,
+          "loaded_by_opening": 0,
+          "offered": [
+            "xlam: C:/Work/DnaCalc/DnaCalc-win/crates/calc-xll-reference/fixture/vba/DnaExamples.xlam (sha256:0000000000000000000000000000000000000000000000000000000000000000) - listed by the session, not loaded Load",
+            "xlam: C:/Work/DnaCalc/DnaCalc-win/crates/calc-xll-reference/fixture/vba/DnaExamples.xlam (sha256:ad4205523e42634e3ae2bffb60018682e221fef6dbc94c7c513052058219bf56) - listed by the session, not loaded Load"
+          ],
+          "right_hash_status": "Loaded C:/Work/DnaCalc/DnaCalc-win/crates/calc-xll-reference/fixture/vba/DnaExamples.xlam. 1 add-in(s) loaded.",
+          "wrong_hash_status": "C:\\Work\\DnaCalc\\DnaCalc-win\\crates\\calc-xll-reference\\fixture\\vba\\DnaExamples.xlam is not the file the session listed (it holds sha256:ad4205523e42634e3ae2bffb60018682e221fef6dbc94c7c513052058219bf56, the session listed sha256:0000000000000000000000000000000000000000000000000000000000000000); choose it with Load add-in to accept the change"
+        },
+        "results": [
+          {
+            "case_value_agrees_with_excel": true,
+            "detail": "number -2.5",
+            "excel": "number -2.5",
+            "formula": "=SimpleNeg(2.5)",
+            "seconds": 0.1106033,
+            "verdict": "matched"
+          },
+          {
+            "case_value_agrees_with_excel": true,
+            "detail": "number -3",
+            "excel": "number -3",
+            "formula": "=SimpleNeg(\"3\")",
+            "seconds": 0.0992832,
+            "verdict": "matched"
+          },
+          {
+            "case_value_agrees_with_excel": true,
+            "detail": "number 1",
+            "excel": "number 1",
+            "formula": "=SimpleNeg(TRUE)",
+            "seconds": 0.11795,
+            "verdict": "matched"
+          },
+          {
+            "case_value_agrees_with_excel": true,
+            "detail": "error #VALUE!",
+            "excel": "error #VALUE!",
+            "formula": "=SimpleNeg(\"x\")",
+            "seconds": 0.4367362,
+            "verdict": "matched"
+          },
+          {
+            "case_value_agrees_with_excel": true,
+            "detail": "error #VALUE!",
+            "excel": "error #VALUE!",
+            "formula": "=SimpleNeg()",
+            "seconds": 0.5647961,
+            "verdict": "matched"
+          },
+          {
+            "case_value_agrees_with_excel": true,
+            "detail": "number 3.5",
+            "excel": "number 3.5",
+            "formula": "=SimpleHalf(7)",
+            "seconds": 0.333075,
+            "verdict": "matched"
+          },
+          {
+            "case_value_agrees_with_excel": true,
+            "detail": "number 1",
+            "excel": "number 1",
+            "formula": "=SimpleHalf(2.5)",
+            "seconds": 0.1993037,
+            "verdict": "matched"
+          },
+          {
+            "case_value_agrees_with_excel": true,
+            "detail": "number 2",
+            "excel": "number 2",
+            "formula": "=SimpleHalf(3.5)",
+            "seconds": 0.145039,
+            "verdict": "matched"
+          },
+          {
+            "case_value_agrees_with_excel": true,
+            "detail": "logical TRUE",
+            "excel": "logical TRUE",
+            "formula": "=SimpleIsBig(150)",
+            "seconds": 0.1143432,
+            "verdict": "matched"
+          },
+          {
+            "case_value_agrees_with_excel": true,
+            "detail": "logical FALSE",
+            "excel": "logical FALSE",
+            "formula": "=SimpleIsBig(5)",
+            "seconds": 0.114617,
+            "verdict": "matched"
+          },
+          {
+            "case_value_agrees_with_excel": true,
+            "detail": "logical FALSE",
+            "excel": "logical FALSE",
+            "formula": "=SimpleNot(TRUE)",
+            "seconds": 0.1238576,
+            "verdict": "matched"
+          },
+          {
+            "case_value_agrees_with_excel": true,
+            "detail": "logical TRUE",
+            "excel": "logical TRUE",
+            "formula": "=SimpleNot(0)",
+            "seconds": 0.1318441,
+            "verdict": "matched"
+          },
+          {
+            "case_value_agrees_with_excel": true,
+            "detail": "logical TRUE",
+            "excel": "logical TRUE",
+            "formula": "=SimpleNot(\"FALSE\")",
+            "seconds": 0.1086429,
+            "verdict": "matched"
+          },
+          {
+            "case_value_agrees_with_excel": true,
+            "detail": "text \"DNA CALC\"",
+            "excel": "text \"DNA CALC\"",
+            "formula": "=SimpleUpper(\"dna calc\")",
+            "seconds": 0.110692,
+            "verdict": "matched"
+          },
+          {
+            "case_value_agrees_with_excel": true,
+            "detail": "text \"12.5\"",
+            "excel": "text \"12.5\"",
+            "formula": "=SimpleUpper(12.5)",
+            "seconds": 0.1015112,
+            "verdict": "matched"
+          },
+          {
+            "case_value_agrees_with_excel": true,
+            "detail": "number 5",
+            "excel": "number 5",
+            "formula": "=SimpleLen(\"héllo\")",
+            "seconds": 0.1035724,
+            "verdict": "matched"
+          },
+          {
+            "case_value_agrees_with_excel": true,
+            "detail": "number 0",
+            "excel": "number 0",
+            "formula": "=SimpleLen(\"\")",
+            "seconds": 0.0938136,
+            "verdict": "matched"
+          },
+          {
+            "case_value_agrees_with_excel": true,
+            "detail": "text \"bc\"",
+            "excel": "text \"bc\"",
+            "formula": "=SimpleMid(\"abcdef\",2)",
+            "seconds": 0.0946532,
+            "verdict": "matched"
+          },
+          {
+            "case_value_agrees_with_excel": true,
+            "detail": "text \"bcd\"",
+            "excel": "text \"bcd\"",
+            "formula": "=SimpleMid(\"abcdef\",2,3)",
+            "seconds": 0.0975308,
+            "verdict": "matched"
+          },
+          {
+            "case_value_agrees_with_excel": true,
+            "detail": "text \"Double\"",
+            "excel": "text \"Double\"",
+            "formula": "=SimpleKind(1)",
+            "seconds": 0.0974279,
+            "verdict": "matched"
+          },
+          {
+            "case_value_agrees_with_excel": true,
+            "detail": "text \"String\"",
+            "excel": "text \"String\"",
+            "formula": "=SimpleKind(\"a\")",
+            "seconds": 0.0952294,
+            "verdict": "matched"
+          },
+          {
+            "case_value_agrees_with_excel": true,
+            "detail": "text \"Boolean\"",
+            "excel": "text \"Boolean\"",
+            "formula": "=SimpleKind(TRUE)",
+            "seconds": 0.099329,
+            "verdict": "matched"
+          },
+          {
+            "case_value_agrees_with_excel": true,
+            "detail": "text \"Error\"",
+            "excel": "text \"Error\"",
+            "formula": "=SimpleKind(1/0)",
+            "seconds": 0.0973211,
+            "verdict": "matched"
+          },
+          {
+            "case_value_agrees_with_excel": true,
+            "detail": "text \"Variant()\"",
+            "excel": "text \"Variant()\"",
+            "formula": "=SimpleKind({1,2})",
+            "seconds": 0.1030213,
+            "verdict": "matched"
+          },
+          {
+            "case_value_agrees_with_excel": true,
+            "detail": "text \"Range\"",
+            "excel": "text \"Range\"",
+            "formula": "=SimpleKind(A1)",
+            "seconds": 0.1045835,
+            "verdict": "matched"
+          },
+          {
+            "case_value_agrees_with_excel": true,
+            "detail": "number 5",
+            "excel": "number 5",
+            "formula": "=SimpleVarType(1)",
+            "seconds": 0.0946149,
+            "verdict": "matched"
+          },
+          {
+            "case_value_agrees_with_excel": true,
+            "detail": "number 8",
+            "excel": "number 8",
+            "formula": "=SimpleVarType(\"a\")",
+            "seconds": 0.0925697,
+            "verdict": "matched"
+          },
+          {
+            "case_value_agrees_with_excel": true,
+            "detail": "number 11",
+            "excel": "number 11",
+            "formula": "=SimpleVarType(TRUE)",
+            "seconds": 0.0922875,
+            "verdict": "matched"
+          },
+          {
+            "case_value_agrees_with_excel": true,
+            "detail": "number 10",
+            "excel": "number 10",
+            "formula": "=SimpleVarType(NA())",
+            "seconds": 0.0888812,
+            "verdict": "matched"
+          },
+          {
+            "case_value_agrees_with_excel": true,
+            "detail": "number 42",
+            "excel": "number 42",
+            "formula": "=SimpleTwice(21)",
+            "seconds": 0.0958778,
+            "verdict": "matched"
+          },
+          {
+            "case_value_agrees_with_excel": true,
+            "detail": "text \"abab\"",
+            "excel": "text \"abab\"",
+            "formula": "=SimpleTwice(\"ab\")",
+            "seconds": 0.0992256,
+            "verdict": "matched"
+          },
+          {
+            "case_value_agrees_with_excel": true,
+            "detail": "number -2",
+            "excel": "number -2",
+            "formula": "=SimpleTwice(TRUE)",
+            "seconds": 0.1025801,
+            "verdict": "matched"
+          },
+          {
+            "case_value_agrees_with_excel": true,
+            "detail": "number 12.5",
+            "excel": "number 12.5",
+            "formula": "=SimpleAsDouble(\"12.5\")",
+            "seconds": 0.0982975,
+            "verdict": "matched"
+          },
+          {
+            "case_value_agrees_with_excel": true,
+            "detail": "number -1",
+            "excel": "number -1",
+            "formula": "=SimpleAsDouble(TRUE)",
+            "seconds": 0.1009412,
+            "verdict": "matched"
+          },
+          {
+            "case_value_agrees_with_excel": true,
+            "detail": "number 2",
+            "excel": "number 2",
+            "formula": "=SimpleAsLong(2.5)",
+            "seconds": 0.0962011,
+            "verdict": "matched"
+          },
+          {
+            "case_value_agrees_with_excel": true,
+            "detail": "number 4",
+            "excel": "number 4",
+            "formula": "=SimpleAsLong(3.5)",
+            "seconds": 0.0982482,
+            "verdict": "matched"
+          },
+          {
+            "case_value_agrees_with_excel": true,
+            "detail": "error #NUM!",
+            "excel": "error #NUM!",
+            "formula": "=SimpleAsLong(3000000000)",
+            "seconds": 0.108059,
+            "verdict": "matched"
+          },
+          {
+            "case_value_agrees_with_excel": true,
+            "detail": "text \"1.5\"",
+            "excel": "text \"1.5\"",
+            "formula": "=SimpleAsString(1.5)",
+            "seconds": 0.1008703,
+            "verdict": "matched"
+          },
+          {
+            "case_value_agrees_with_excel": true,
+            "detail": "text \"True\"",
+            "excel": "text \"True\"",
+            "formula": "=SimpleAsString(TRUE)",
+            "seconds": 0.0926644,
+            "verdict": "matched"
+          },
+          {
+            "case_value_agrees_with_excel": true,
+            "detail": "text \"False\"",
+            "excel": "text \"False\"",
+            "formula": "=SimpleAsBool(0)",
+            "seconds": 0.0981528,
+            "verdict": "matched"
+          },
+          {
+            "case_value_agrees_with_excel": true,
+            "detail": "text \"True\"",
+            "excel": "text \"True\"",
+            "formula": "=SimpleAsBool(2)",
+            "seconds": 0.0994242,
+            "verdict": "matched"
+          },
+          {
+            "case_value_agrees_with_excel": true,
+            "detail": "text \"True\"",
+            "excel": "text \"True\"",
+            "formula": "=SimpleAsBool(\"true\")",
+            "seconds": 0.0989886,
+            "verdict": "matched"
+          },
+          {
+            "case_value_agrees_with_excel": true,
+            "detail": "number 9",
+            "excel": "number 9",
+            "formula": "=SimplePower(3)",
+            "seconds": 0.1053721,
+            "verdict": "matched"
+          },
+          {
+            "case_value_agrees_with_excel": true,
+            "detail": "number 1024",
+            "excel": "number 1024",
+            "formula": "=SimplePower(2,10)",
+            "seconds": 0.0993146,
+            "verdict": "matched"
+          },
+          {
+            "case_value_agrees_with_excel": true,
+            "detail": "number 4",
+            "excel": "number 4",
+            "formula": "=SimplePower(2,)",
+            "seconds": 0.1009135,
+            "verdict": "matched"
+          },
+          {
+            "case_value_agrees_with_excel": true,
+            "detail": "logical TRUE",
+            "excel": "logical TRUE",
+            "formula": "=SimpleMissing()",
+            "seconds": 0.0974401,
+            "verdict": "matched"
+          },
+          {
+            "case_value_agrees_with_excel": true,
+            "detail": "logical FALSE",
+            "excel": "logical FALSE",
+            "formula": "=SimpleMissing(1)",
+            "seconds": 0.1063119,
+            "verdict": "matched"
+          },
+          {
+            "case_value_agrees_with_excel": true,
+            "detail": "number 0",
+            "excel": "number 0",
+            "formula": "=SimpleCount()",
+            "seconds": 0.1024083,
+            "verdict": "matched"
+          },
+          {
+            "case_value_agrees_with_excel": true,
+            "detail": "number 3",
+            "excel": "number 3",
+            "formula": "=SimpleCount(1,\"a\",TRUE)",
+            "seconds": 0.1238572,
+            "verdict": "matched"
+          },
+          {
+            "case_value_agrees_with_excel": true,
+            "detail": "number 3",
+            "excel": "number 3",
+            "formula": "=SimpleCount(1,,3)",
+            "seconds": 0.1199915,
+            "verdict": "matched"
+          },
+          {
+            "case_value_agrees_with_excel": true,
+            "detail": "text \"a-1-True\"",
+            "excel": "text \"a-1-True\"",
+            "formula": "=SimpleConcat(\"-\",\"a\",1,TRUE)",
+            "seconds": 0.0890264,
+            "verdict": "matched"
+          },
+          {
+            "case_value_agrees_with_excel": true,
+            "detail": "text \"\"",
+            "excel": "text \"\"",
+            "formula": "=SimpleConcat(\",\")",
+            "seconds": 0.1757917,
+            "verdict": "matched"
+          },
+          {
+            "case_value_agrees_with_excel": true,
+            "detail": "number 20",
+            "excel": "number 20",
+            "formula": "=INDEX(SimpleSeq(3),2,1)",
+            "seconds": 0.1354034,
+            "verdict": "matched"
+          },
+          {
+            "case_value_agrees_with_excel": true,
+            "detail": "number 4",
+            "excel": "number 4",
+            "formula": "=ROWS(SimpleSeq(4))",
+            "seconds": 0.1022354,
+            "verdict": "matched"
+          },
+          {
+            "case_value_agrees_with_excel": true,
+            "detail": "number 1",
+            "excel": "number 1",
+            "formula": "=COLUMNS(SimpleSeq(4))",
+            "seconds": 0.0971439,
+            "verdict": "matched"
+          },
+          {
+            "case_value_agrees_with_excel": true,
+            "detail": "number 60",
+            "excel": "number 60",
+            "formula": "=SUM(SimpleSeq(3))",
+            "seconds": 0.1356434,
+            "verdict": "matched"
+          },
+          {
+            "case_value_agrees_with_excel": true,
+            "detail": "array of 3 rows by 1 columns",
+            "excel": "number 10",
+            "formula": "=SimpleSeq(3)",
+            "seconds": 0.164418,
+            "verdict": "matched"
+          },
+          {
+            "case_value_agrees_with_excel": true,
+            "detail": "number 3",
+            "excel": "number 3",
+            "formula": "=INDEX(SimpleRow(3),1,3)",
+            "seconds": 0.1121736,
+            "verdict": "matched"
+          },
+          {
+            "case_value_agrees_with_excel": true,
+            "detail": "number 5",
+            "excel": "number 5",
+            "formula": "=COLUMNS(SimpleRow(5))",
+            "seconds": 0.093054,
+            "verdict": "matched"
+          },
+          {
+            "case_value_agrees_with_excel": true,
+            "detail": "number 1",
+            "excel": "number 1",
+            "formula": "=ROWS(SimpleRow(5))",
+            "seconds": 0.098747,
+            "verdict": "matched"
+          },
+          {
+            "case_value_agrees_with_excel": true,
+            "detail": "text \"two\"",
+            "excel": "text \"two\"",
+            "formula": "=INDEX(SimpleMixed(),1,2)",
+            "seconds": 0.0964931,
+            "verdict": "matched"
+          },
+          {
+            "case_value_agrees_with_excel": true,
+            "detail": "logical TRUE",
+            "excel": "logical TRUE",
+            "formula": "=INDEX(SimpleMixed(),1,3)",
+            "seconds": 0.0834966,
+            "verdict": "matched"
+          },
+          {
+            "case_value_agrees_with_excel": true,
+            "detail": "error #DIV/0!",
+            "excel": "error #DIV/0!",
+            "formula": "=INDEX(SimpleMixed(),1,4)",
+            "seconds": 0.0983622,
+            "verdict": "matched"
+          },
+          {
+            "case_value_agrees_with_excel": true,
+            "detail": "number 23",
+            "excel": "number 23",
+            "formula": "=INDEX(SimpleGrid(),2,3)",
+            "seconds": 0.0946473,
+            "verdict": "matched"
+          },
+          {
+            "case_value_agrees_with_excel": true,
+            "detail": "number 102",
+            "excel": "number 102",
+            "formula": "=SUM(SimpleGrid())",
+            "seconds": 0.0956752,
+            "verdict": "matched"
+          },
+          {
+            "case_value_agrees_with_excel": true,
+            "detail": "number 3",
+            "excel": "number 3",
+            "formula": "=COLUMNS(SimpleGrid())",
+            "seconds": 0.0950717,
+            "verdict": "matched"
+          },
+          {
+            "case_value_agrees_with_excel": true,
+            "detail": "text \"b\"",
+            "excel": "text \"b\"",
+            "formula": "=INDEX(SimpleSplit(\"a,b,c\"),1,2)",
+            "seconds": 0.0951572,
+            "verdict": "matched"
+          },
+          {
+            "case_value_agrees_with_excel": true,
+            "detail": "number 3",
+            "excel": "number 3",
+            "formula": "=COLUMNS(SimpleSplit(\"a,b,c\"))",
+            "seconds": 0.0834248,
+            "verdict": "matched"
+          },
+          {
+            "case_value_agrees_with_excel": true,
+            "detail": "number 10",
+            "excel": "number 10",
+            "formula": "=SimpleArrSum({1,2;3,4})",
+            "seconds": 0.0927353,
+            "verdict": "matched"
+          },
+          {
+            "case_value_agrees_with_excel": true,
+            "detail": "number 5",
+            "excel": "number 5",
+            "formula": "=SimpleArrSum({1,\"x\",TRUE,4})",
+            "seconds": 0.0940954,
+            "verdict": "matched"
+          },
+          {
+            "case_value_agrees_with_excel": true,
+            "detail": "number 5",
+            "excel": "number 5",
+            "formula": "=SimpleArrSum(5)",
+            "seconds": 0.1017667,
+            "verdict": "matched"
+          },
+          {
+            "case_value_agrees_with_excel": true,
+            "detail": "text \"Variant():1-2x1-2\"",
+            "excel": "text \"Variant():1-2x1-2\"",
+            "formula": "=SimpleDims({1,2;3,4})",
+            "seconds": 0.1078122,
+            "verdict": "matched"
+          },
+          {
+            "case_value_agrees_with_excel": true,
+            "detail": "text \"Variant():1-3:1d\"",
+            "excel": "text \"Variant():1-3:1d\"",
+            "formula": "=SimpleDims({1,2,3})",
+            "seconds": 0.0934816,
+            "verdict": "matched"
+          },
+          {
+            "case_value_agrees_with_excel": true,
+            "detail": "text \"Variant():1-3x1-1\"",
+            "excel": "text \"Variant():1-3x1-1\"",
+            "formula": "=SimpleDims({1;2;3})",
+            "seconds": 0.0876872,
+            "verdict": "matched"
+          },
+          {
+            "case_value_agrees_with_excel": true,
+            "detail": "text \"Double\"",
+            "excel": "text \"Double\"",
+            "formula": "=SimpleDims(7)",
+            "seconds": 0.09437,
+            "verdict": "matched"
+          },
+          {
+            "case_value_agrees_with_excel": true,
+            "detail": "number 4",
+            "excel": "number 4",
+            "formula": "=SimpleCorner({1,2;3,4})",
+            "seconds": 0.0937439,
+            "verdict": "matched"
+          },
+          {
+            "case_value_agrees_with_excel": true,
+            "detail": "text \"Variant():1-3:1d\"",
+            "excel": "text \"Variant():1-3:1d\"",
+            "formula": "=SimpleDims(SEQUENCE(1,3))",
+            "seconds": 0.1036772,
+            "verdict": "matched"
+          },
+          {
+            "case_value_agrees_with_excel": true,
+            "detail": "text \"Variant():1-3:1d\"",
+            "excel": "text \"Variant():1-3:1d\"",
+            "formula": "=SimpleDims(TRANSPOSE({1;2;3}))",
+            "seconds": 0.1028186,
+            "verdict": "matched"
+          },
+          {
+            "case_value_agrees_with_excel": true,
+            "detail": "error #NUM!",
+            "excel": "error #NUM!",
+            "formula": "=SimpleHalf(2147483648)",
+            "seconds": 0.0926944,
+            "verdict": "matched"
+          },
+          {
+            "case_value_agrees_with_excel": true,
+            "detail": "error #VALUE!",
+            "excel": "error #VALUE!",
+            "formula": "=SimpleAsLong(\"x\")",
+            "seconds": 0.0899045,
+            "verdict": "matched"
+          },
+          {
+            "case_value_agrees_with_excel": true,
+            "detail": "number 1",
+            "excel": "number 1",
+            "formula": "=SimpleCount({1,2,3})",
+            "seconds": 0.0881278,
+            "verdict": "matched"
+          },
+          {
+            "case_value_agrees_with_excel": true,
+            "detail": "number 0.25",
+            "excel": "number 0.25",
+            "formula": "=SimpleDiv(1,4)",
+            "seconds": 0.0960704,
+            "verdict": "matched"
+          },
+          {
+            "case_value_agrees_with_excel": true,
+            "detail": "error #DIV/0!",
+            "excel": "error #DIV/0!",
+            "formula": "=SimpleDiv(1,0)",
+            "seconds": 0.0853723,
+            "verdict": "matched"
+          },
+          {
+            "case_value_agrees_with_excel": true,
+            "detail": "error #NUM!",
+            "excel": "error #NUM!",
+            "formula": "=SimpleNum()",
+            "seconds": 0.0967701,
+            "verdict": "matched"
+          },
+          {
+            "case_value_agrees_with_excel": true,
+            "detail": "text \"Error 2007\"",
+            "excel": "text \"Error 2007\"",
+            "formula": "=SimpleErrName(1/0)",
+            "seconds": 0.0976514,
+            "verdict": "matched"
+          },
+          {
+            "case_value_agrees_with_excel": true,
+            "detail": "text \"Error 2042\"",
+            "excel": "text \"Error 2042\"",
+            "formula": "=SimpleErrName(NA())",
+            "seconds": 0.0891772,
+            "verdict": "matched"
+          },
+          {
+            "case_value_agrees_with_excel": true,
+            "detail": "text \"ok\"",
+            "excel": "text \"ok\"",
+            "formula": "=SimpleErrName(5)",
+            "seconds": 0.0925947,
+            "verdict": "matched"
+          },
+          {
+            "case_value_agrees_with_excel": true,
+            "detail": "error #VALUE!",
+            "excel": "error #VALUE!",
+            "formula": "=SimpleNeg(1/0)",
+            "seconds": 0.1034992,
+            "verdict": "matched"
+          },
+          {
+            "case_value_agrees_with_excel": true,
+            "detail": "error #VALUE!",
+            "excel": "error #VALUE!",
+            "formula": "=SimpleOverflow(100000)",
+            "seconds": 0.1108228,
+            "verdict": "matched"
+          },
+          {
+            "case_value_agrees_with_excel": true,
+            "detail": "number 1004",
+            "excel": "number 1004",
+            "formula": "=SimpleRaise(1004)",
+            "seconds": 0.1084973,
+            "verdict": "matched"
+          },
+          {
+            "case_value_agrees_with_excel": true,
+            "detail": "number 9",
+            "excel": "number 9",
+            "formula": "=SimpleRaise(9)",
+            "seconds": 0.1110387,
+            "verdict": "matched"
+          },
+          {
+            "case_value_agrees_with_excel": true,
+            "detail": "number 0",
+            "excel": "number 0",
+            "formula": "=SimpleEmpty()",
+            "seconds": 0.1394637,
+            "verdict": "matched"
+          },
+          {
+            "case_value_agrees_with_excel": true,
+            "detail": "text \"\"",
+            "excel": "text \"\"",
+            "formula": "=SimpleBlankText()",
+            "seconds": 0.1070489,
+            "verdict": "matched"
+          },
+          {
+            "case_value_agrees_with_excel": true,
+            "detail": "number 46337",
+            "excel": "number 46337",
+            "formula": "=SimpleDate()",
+            "seconds": 0.1004746,
+            "verdict": "matched"
+          },
+          {
+            "case_value_agrees_with_excel": true,
+            "detail": "number 1.2346",
+            "excel": "number 1.2346",
+            "formula": "=SimpleMoney()",
+            "seconds": 0.0973648,
+            "verdict": "matched"
+          },
+          {
+            "case_value_agrees_with_excel": true,
+            "detail": "number 2.2",
+            "excel": "number 2.2",
+            "formula": "=SimpleRound(2.25)",
+            "seconds": 0.1118682,
+            "verdict": "matched"
+          },
+          {
+            "case_value_agrees_with_excel": true,
+            "detail": "number 2.4",
+            "excel": "number 2.4",
+            "formula": "=SimpleRound(2.35)",
+            "seconds": 0.09925,
+            "verdict": "matched"
+          },
+          {
+            "case_value_agrees_with_excel": true,
+            "detail": "text \"3.14\"",
+            "excel": "text \"3.14\"",
+            "formula": "=SimpleFormat(3.14159)",
+            "seconds": 0.1453207,
+            "verdict": "matched"
+          },
+          {
+            "case_value_agrees_with_excel": true,
+            "detail": "text \"A\"",
+            "excel": "text \"A\"",
+            "formula": "=SimpleGrade(95)",
+            "seconds": 0.1465277,
+            "verdict": "matched"
+          },
+          {
+            "case_value_agrees_with_excel": true,
+            "detail": "text \"B\"",
+            "excel": "text \"B\"",
+            "formula": "=SimpleGrade(75)",
+            "seconds": 0.1075784,
+            "verdict": "matched"
+          },
+          {
+            "case_value_agrees_with_excel": true,
+            "detail": "text \"C\"",
+            "excel": "text \"C\"",
+            "formula": "=SimpleGrade(10)",
+            "seconds": 0.102975,
+            "verdict": "matched"
+          },
+          {
+            "case_value_agrees_with_excel": true,
+            "detail": "number 3628800",
+            "excel": "number 3628800",
+            "formula": "=SimpleFact(10)",
+            "seconds": 0.1024702,
+            "verdict": "matched"
+          },
+          {
+            "case_value_agrees_with_excel": true,
+            "detail": "number 2432902008176640000",
+            "excel": "number 2432902008176640000",
+            "formula": "=SimpleFact(20)",
+            "seconds": 0.1187225,
+            "verdict": "matched"
+          },
+          {
+            "case_value_agrees_with_excel": true,
+            "detail": "number 9",
+            "excel": "number 9",
+            "formula": "=SimpleWsMax(3,9,4)",
+            "seconds": 0.1241583,
+            "verdict": "matched"
+          },
+          {
+            "case_value_agrees_with_excel": true,
+            "detail": "number 2",
+            "excel": "number 2",
+            "formula": "=SimpleWsMatch(\"b\")",
+            "seconds": 0.4876606,
+            "verdict": "matched"
+          },
+          {
+            "case_value_agrees_with_excel": true,
+            "detail": "text \"Err 1004\"",
+            "excel": "text \"Err 1004\"",
+            "formula": "=SimpleWsMatch(\"z\")",
+            "seconds": 0.1174464,
+            "verdict": "matched"
+          },
+          {
+            "case_value_agrees_with_excel": true,
+            "detail": "error #VALUE!",
+            "excel": "error #VALUE!",
+            "formula": "=SimpleWsMatchRaw(\"z\")",
+            "seconds": 0.121874,
+            "verdict": "matched"
+          },
+          {
+            "case_value_agrees_with_excel": true,
+            "detail": "number 1",
+            "excel": "number 1",
+            "formula": "=SimpleHidden(1)",
+            "seconds": 0.1126432,
+            "verdict": "matched"
+          },
+          {
+            "case_value_agrees_with_excel": true,
+            "detail": "number -4",
+            "excel": "number -4",
+            "formula": "=DnaSimple.SimpleNeg(4)",
+            "seconds": 0.1116034,
+            "verdict": "matched"
+          }
+        ],
+        "status": "Loaded C:/Work/DnaCalc/DnaCalc-win/crates/calc-xll-reference/fixture/vba/DnaExamples.xlam. 1 add-in(s) loaded.",
+        "unload": {
+          "status": [
+            "Unloaded C:\\Work\\DnaCalc\\DnaCalc-win\\crates\\calc-xll-reference\\fixture\\vba\\DnaExamples.xlam. 0 add-in(s) loaded."
+          ],
+          "unloaded": true
+        }
+      },
+      "sheet": "Sheet1",
+      "xll": "C:/Work/DnaCalc/DnaCalc-win/crates/calc-xll-reference/fixture/vba/DnaExamples.xlam",
+      "xll_sha256": "ad4205523e42634e3ae2bffb60018682e221fef6dbc94c7c513052058219bf56"
+    },
+    {
+      "cases_file": "C:\\Work\\DnaCalc\\DnaCalc-win\\crates/calc-xll-reference/fixture\\vba/simple-udf-cases.json",
+      "excel_job_output": "dnacalc-excel-session/1 receipt C:\\Work\\DnaCalc\\codex-runs\\opus-addins\\excel\\completed\\20261111T0450354847858-efcb68c726e9491a9ca8be5673384925\\receipt.json\r\n",
+      "excel_record": "C:\\Work\\DnaCalc\\codex-runs\\opus-addins\\onecalc-m5\\excel-simple-xlsm\\reopen.json",
+      "name": "simple-xlsm",
+      "outcome": {
+        "count": 109,
+        "loaded": true,
+        "matched": 109,
+        "mismatched": 0,
+        "missing": 0,
+        "opened": {
+          "edit": null,
+          "project": "The file's VBA project is loaded: 66 function(s): DNAADD, DNAARGS, DNABOOK, DNACELLS, DNACOUNTED, DNACOUNTERNAME, DNADICTTYPE, DNADISTINCT, DNAFAIL, DNAGREET, DNAJOIN, DNAKEYS, DNANA, DNAOPENCOUNT, DNASELECTION, DNASUM, DNATRYWRITE, DNATRYWRITEARG, DNAWASINSTALLED, DNAWHERE, DNAWRITE, DNAWRITEARG, DNAWSSUM, SIMPLEARRSUM, SIMPLEASBOOL, SIMPLEASDOUBLE, SIMPLEASLONG, SIMPLEASSTRING, SIMPLEBLANKTEXT, SIMPLECONCAT, SIMPLECORNER, SIMPLECOUNT, SIMPLEDATE, SIMPLEDIMS, SIMPLEDIV, SIMPLEEMPTY, SIMPLEERRNAME, SIMPLEFACT, SIMPLEFORMAT, SIMPLEGRADE, SIMPLEGRID, SIMPLEHALF, SIMPLEHIDDEN, SIMPLEISBIG, SIMPLEKIND, SIMPLELEN, SIMPLEMID, SIMPLEMISSING, SIMPLEMIXED, SIMPLEMONEY, SIMPLENEG, SIMPLENOT, SIMPLENUM, SIMPLEOVERFLOW, SIMPLEPOWER, SIMPLERAISE, SIMPLEROUND, SIMPLEROW, SIMPLESEQ, SIMPLESPLIT, SIMPLETWICE, SIMPLEUPPER, SIMPLEVARTYPE, SIMPLEWSMATCH, SIMPLEWSMATCHRAW, SIMPLEWSMAX."
+        },
+        "refused": 0,
+        "reopen": {
+          "loaded_after_right_hash": null
+        },
+        "repaired": 0,
+        "results": [
+          {
+            "detail": "number -2.5",
+            "excel": "number -2.5",
+            "excel_formula": "=SimpleNeg(2.5)",
+            "excel_name": "DnaExamples.xlsm",
+            "formula": "=SimpleNeg(2.5)",
+            "repaired": false,
+            "saved": "C:\\Work\\DnaCalc\\codex-runs\\opus-addins\\onecalc-m5\\saved-simple-xlsm\\1\\DnaExamples.xlsm",
+            "verdict": "matched"
+          },
+          {
+            "detail": "number -3",
+            "excel": "number -3",
+            "excel_formula": "=SimpleNeg(\"3\")",
+            "excel_name": "DnaExamples.xlsm",
+            "formula": "=SimpleNeg(\"3\")",
+            "repaired": false,
+            "saved": "C:\\Work\\DnaCalc\\codex-runs\\opus-addins\\onecalc-m5\\saved-simple-xlsm\\2\\DnaExamples.xlsm",
+            "verdict": "matched"
+          },
+          {
+            "detail": "number 1",
+            "excel": "number 1",
+            "excel_formula": "=SimpleNeg(TRUE)",
+            "excel_name": "DnaExamples.xlsm",
+            "formula": "=SimpleNeg(TRUE)",
+            "repaired": false,
+            "saved": "C:\\Work\\DnaCalc\\codex-runs\\opus-addins\\onecalc-m5\\saved-simple-xlsm\\3\\DnaExamples.xlsm",
+            "verdict": "matched"
+          },
+          {
+            "detail": "error #VALUE!",
+            "excel": "error #VALUE!",
+            "excel_formula": "=SimpleNeg(\"x\")",
+            "excel_name": "DnaExamples.xlsm",
+            "formula": "=SimpleNeg(\"x\")",
+            "repaired": false,
+            "saved": "C:\\Work\\DnaCalc\\codex-runs\\opus-addins\\onecalc-m5\\saved-simple-xlsm\\4\\DnaExamples.xlsm",
+            "verdict": "matched"
+          },
+          {
+            "detail": "error #VALUE!",
+            "excel": "error #VALUE!",
+            "excel_formula": "=SimpleNeg()",
+            "excel_name": "DnaExamples.xlsm",
+            "formula": "=SimpleNeg()",
+            "repaired": false,
+            "saved": "C:\\Work\\DnaCalc\\codex-runs\\opus-addins\\onecalc-m5\\saved-simple-xlsm\\5\\DnaExamples.xlsm",
+            "verdict": "matched"
+          },
+          {
+            "detail": "number 3.5",
+            "excel": "number 3.5",
+            "excel_formula": "=SimpleHalf(7)",
+            "excel_name": "DnaExamples.xlsm",
+            "formula": "=SimpleHalf(7)",
+            "repaired": false,
+            "saved": "C:\\Work\\DnaCalc\\codex-runs\\opus-addins\\onecalc-m5\\saved-simple-xlsm\\6\\DnaExamples.xlsm",
+            "verdict": "matched"
+          },
+          {
+            "detail": "number 1",
+            "excel": "number 1",
+            "excel_formula": "=SimpleHalf(2.5)",
+            "excel_name": "DnaExamples.xlsm",
+            "formula": "=SimpleHalf(2.5)",
+            "repaired": false,
+            "saved": "C:\\Work\\DnaCalc\\codex-runs\\opus-addins\\onecalc-m5\\saved-simple-xlsm\\7\\DnaExamples.xlsm",
+            "verdict": "matched"
+          },
+          {
+            "detail": "number 2",
+            "excel": "number 2",
+            "excel_formula": "=SimpleHalf(3.5)",
+            "excel_name": "DnaExamples.xlsm",
+            "formula": "=SimpleHalf(3.5)",
+            "repaired": false,
+            "saved": "C:\\Work\\DnaCalc\\codex-runs\\opus-addins\\onecalc-m5\\saved-simple-xlsm\\8\\DnaExamples.xlsm",
+            "verdict": "matched"
+          },
+          {
+            "detail": "logical TRUE",
+            "excel": "logical TRUE",
+            "excel_formula": "=SimpleIsBig(150)",
+            "excel_name": "DnaExamples.xlsm",
+            "formula": "=SimpleIsBig(150)",
+            "repaired": false,
+            "saved": "C:\\Work\\DnaCalc\\codex-runs\\opus-addins\\onecalc-m5\\saved-simple-xlsm\\9\\DnaExamples.xlsm",
+            "verdict": "matched"
+          },
+          {
+            "detail": "logical FALSE",
+            "excel": "logical FALSE",
+            "excel_formula": "=SimpleIsBig(5)",
+            "excel_name": "DnaExamples.xlsm",
+            "formula": "=SimpleIsBig(5)",
+            "repaired": false,
+            "saved": "C:\\Work\\DnaCalc\\codex-runs\\opus-addins\\onecalc-m5\\saved-simple-xlsm\\10\\DnaExamples.xlsm",
+            "verdict": "matched"
+          },
+          {
+            "detail": "logical FALSE",
+            "excel": "logical FALSE",
+            "excel_formula": "=SimpleNot(TRUE)",
+            "excel_name": "DnaExamples.xlsm",
+            "formula": "=SimpleNot(TRUE)",
+            "repaired": false,
+            "saved": "C:\\Work\\DnaCalc\\codex-runs\\opus-addins\\onecalc-m5\\saved-simple-xlsm\\11\\DnaExamples.xlsm",
+            "verdict": "matched"
+          },
+          {
+            "detail": "logical TRUE",
+            "excel": "logical TRUE",
+            "excel_formula": "=SimpleNot(0)",
+            "excel_name": "DnaExamples.xlsm",
+            "formula": "=SimpleNot(0)",
+            "repaired": false,
+            "saved": "C:\\Work\\DnaCalc\\codex-runs\\opus-addins\\onecalc-m5\\saved-simple-xlsm\\12\\DnaExamples.xlsm",
+            "verdict": "matched"
+          },
+          {
+            "detail": "logical TRUE",
+            "excel": "logical TRUE",
+            "excel_formula": "=SimpleNot(\"FALSE\")",
+            "excel_name": "DnaExamples.xlsm",
+            "formula": "=SimpleNot(\"FALSE\")",
+            "repaired": false,
+            "saved": "C:\\Work\\DnaCalc\\codex-runs\\opus-addins\\onecalc-m5\\saved-simple-xlsm\\13\\DnaExamples.xlsm",
+            "verdict": "matched"
+          },
+          {
+            "detail": "text \"DNA CALC\"",
+            "excel": "text \"DNA CALC\"",
+            "excel_formula": "=SimpleUpper(\"dna calc\")",
+            "excel_name": "DnaExamples.xlsm",
+            "formula": "=SimpleUpper(\"dna calc\")",
+            "repaired": false,
+            "saved": "C:\\Work\\DnaCalc\\codex-runs\\opus-addins\\onecalc-m5\\saved-simple-xlsm\\14\\DnaExamples.xlsm",
+            "verdict": "matched"
+          },
+          {
+            "detail": "text \"12.5\"",
+            "excel": "text \"12.5\"",
+            "excel_formula": "=SimpleUpper(12.5)",
+            "excel_name": "DnaExamples.xlsm",
+            "formula": "=SimpleUpper(12.5)",
+            "repaired": false,
+            "saved": "C:\\Work\\DnaCalc\\codex-runs\\opus-addins\\onecalc-m5\\saved-simple-xlsm\\15\\DnaExamples.xlsm",
+            "verdict": "matched"
+          },
+          {
+            "detail": "number 5",
+            "excel": "number 5",
+            "excel_formula": "=SimpleLen(\"héllo\")",
+            "excel_name": "DnaExamples.xlsm",
+            "formula": "=SimpleLen(\"héllo\")",
+            "repaired": false,
+            "saved": "C:\\Work\\DnaCalc\\codex-runs\\opus-addins\\onecalc-m5\\saved-simple-xlsm\\16\\DnaExamples.xlsm",
+            "verdict": "matched"
+          },
+          {
+            "detail": "number 0",
+            "excel": "number 0",
+            "excel_formula": "=SimpleLen(\"\")",
+            "excel_name": "DnaExamples.xlsm",
+            "formula": "=SimpleLen(\"\")",
+            "repaired": false,
+            "saved": "C:\\Work\\DnaCalc\\codex-runs\\opus-addins\\onecalc-m5\\saved-simple-xlsm\\17\\DnaExamples.xlsm",
+            "verdict": "matched"
+          },
+          {
+            "detail": "text \"bc\"",
+            "excel": "text \"bc\"",
+            "excel_formula": "=SimpleMid(\"abcdef\",2)",
+            "excel_name": "DnaExamples.xlsm",
+            "formula": "=SimpleMid(\"abcdef\",2)",
+            "repaired": false,
+            "saved": "C:\\Work\\DnaCalc\\codex-runs\\opus-addins\\onecalc-m5\\saved-simple-xlsm\\18\\DnaExamples.xlsm",
+            "verdict": "matched"
+          },
+          {
+            "detail": "text \"bcd\"",
+            "excel": "text \"bcd\"",
+            "excel_formula": "=SimpleMid(\"abcdef\",2,3)",
+            "excel_name": "DnaExamples.xlsm",
+            "formula": "=SimpleMid(\"abcdef\",2,3)",
+            "repaired": false,
+            "saved": "C:\\Work\\DnaCalc\\codex-runs\\opus-addins\\onecalc-m5\\saved-simple-xlsm\\19\\DnaExamples.xlsm",
+            "verdict": "matched"
+          },
+          {
+            "detail": "text \"Double\"",
+            "excel": "text \"Double\"",
+            "excel_formula": "=SimpleKind(1)",
+            "excel_name": "DnaExamples.xlsm",
+            "formula": "=SimpleKind(1)",
+            "repaired": false,
+            "saved": "C:\\Work\\DnaCalc\\codex-runs\\opus-addins\\onecalc-m5\\saved-simple-xlsm\\20\\DnaExamples.xlsm",
+            "verdict": "matched"
+          },
+          {
+            "detail": "text \"String\"",
+            "excel": "text \"String\"",
+            "excel_formula": "=SimpleKind(\"a\")",
+            "excel_name": "DnaExamples.xlsm",
+            "formula": "=SimpleKind(\"a\")",
+            "repaired": false,
+            "saved": "C:\\Work\\DnaCalc\\codex-runs\\opus-addins\\onecalc-m5\\saved-simple-xlsm\\21\\DnaExamples.xlsm",
+            "verdict": "matched"
+          },
+          {
+            "detail": "text \"Boolean\"",
+            "excel": "text \"Boolean\"",
+            "excel_formula": "=SimpleKind(TRUE)",
+            "excel_name": "DnaExamples.xlsm",
+            "formula": "=SimpleKind(TRUE)",
+            "repaired": false,
+            "saved": "C:\\Work\\DnaCalc\\codex-runs\\opus-addins\\onecalc-m5\\saved-simple-xlsm\\22\\DnaExamples.xlsm",
+            "verdict": "matched"
+          },
+          {
+            "detail": "text \"Error\"",
+            "excel": "text \"Error\"",
+            "excel_formula": "=SimpleKind(1/0)",
+            "excel_name": "DnaExamples.xlsm",
+            "formula": "=SimpleKind(1/0)",
+            "repaired": false,
+            "saved": "C:\\Work\\DnaCalc\\codex-runs\\opus-addins\\onecalc-m5\\saved-simple-xlsm\\23\\DnaExamples.xlsm",
+            "verdict": "matched"
+          },
+          {
+            "detail": "text \"Variant()\"",
+            "excel": "text \"Variant()\"",
+            "excel_formula": "=SimpleKind({1,2})",
+            "excel_name": "DnaExamples.xlsm",
+            "formula": "=SimpleKind({1,2})",
+            "repaired": false,
+            "saved": "C:\\Work\\DnaCalc\\codex-runs\\opus-addins\\onecalc-m5\\saved-simple-xlsm\\24\\DnaExamples.xlsm",
+            "verdict": "matched"
+          },
+          {
+            "detail": "text \"Range\"",
+            "excel": "text \"Range\"",
+            "excel_formula": "=SimpleKind(A1)",
+            "excel_name": "DnaExamples.xlsm",
+            "formula": "=SimpleKind(A1)",
+            "repaired": false,
+            "saved": "C:\\Work\\DnaCalc\\codex-runs\\opus-addins\\onecalc-m5\\saved-simple-xlsm\\25\\DnaExamples.xlsm",
+            "verdict": "matched"
+          },
+          {
+            "detail": "number 5",
+            "excel": "number 5",
+            "excel_formula": "=SimpleVarType(1)",
+            "excel_name": "DnaExamples.xlsm",
+            "formula": "=SimpleVarType(1)",
+            "repaired": false,
+            "saved": "C:\\Work\\DnaCalc\\codex-runs\\opus-addins\\onecalc-m5\\saved-simple-xlsm\\26\\DnaExamples.xlsm",
+            "verdict": "matched"
+          },
+          {
+            "detail": "number 8",
+            "excel": "number 8",
+            "excel_formula": "=SimpleVarType(\"a\")",
+            "excel_name": "DnaExamples.xlsm",
+            "formula": "=SimpleVarType(\"a\")",
+            "repaired": false,
+            "saved": "C:\\Work\\DnaCalc\\codex-runs\\opus-addins\\onecalc-m5\\saved-simple-xlsm\\27\\DnaExamples.xlsm",
+            "verdict": "matched"
+          },
+          {
+            "detail": "number 11",
+            "excel": "number 11",
+            "excel_formula": "=SimpleVarType(TRUE)",
+            "excel_name": "DnaExamples.xlsm",
+            "formula": "=SimpleVarType(TRUE)",
+            "repaired": false,
+            "saved": "C:\\Work\\DnaCalc\\codex-runs\\opus-addins\\onecalc-m5\\saved-simple-xlsm\\28\\DnaExamples.xlsm",
+            "verdict": "matched"
+          },
+          {
+            "detail": "number 10",
+            "excel": "number 10",
+            "excel_formula": "=SimpleVarType(NA())",
+            "excel_name": "DnaExamples.xlsm",
+            "formula": "=SimpleVarType(NA())",
+            "repaired": false,
+            "saved": "C:\\Work\\DnaCalc\\codex-runs\\opus-addins\\onecalc-m5\\saved-simple-xlsm\\29\\DnaExamples.xlsm",
+            "verdict": "matched"
+          },
+          {
+            "detail": "number 42",
+            "excel": "number 42",
+            "excel_formula": "=SimpleTwice(21)",
+            "excel_name": "DnaExamples.xlsm",
+            "formula": "=SimpleTwice(21)",
+            "repaired": false,
+            "saved": "C:\\Work\\DnaCalc\\codex-runs\\opus-addins\\onecalc-m5\\saved-simple-xlsm\\30\\DnaExamples.xlsm",
+            "verdict": "matched"
+          },
+          {
+            "detail": "text \"abab\"",
+            "excel": "text \"abab\"",
+            "excel_formula": "=SimpleTwice(\"ab\")",
+            "excel_name": "DnaExamples.xlsm",
+            "formula": "=SimpleTwice(\"ab\")",
+            "repaired": false,
+            "saved": "C:\\Work\\DnaCalc\\codex-runs\\opus-addins\\onecalc-m5\\saved-simple-xlsm\\31\\DnaExamples.xlsm",
+            "verdict": "matched"
+          },
+          {
+            "detail": "number -2",
+            "excel": "number -2",
+            "excel_formula": "=SimpleTwice(TRUE)",
+            "excel_name": "DnaExamples.xlsm",
+            "formula": "=SimpleTwice(TRUE)",
+            "repaired": false,
+            "saved": "C:\\Work\\DnaCalc\\codex-runs\\opus-addins\\onecalc-m5\\saved-simple-xlsm\\32\\DnaExamples.xlsm",
+            "verdict": "matched"
+          },
+          {
+            "detail": "number 12.5",
+            "excel": "number 12.5",
+            "excel_formula": "=SimpleAsDouble(\"12.5\")",
+            "excel_name": "DnaExamples.xlsm",
+            "formula": "=SimpleAsDouble(\"12.5\")",
+            "repaired": false,
+            "saved": "C:\\Work\\DnaCalc\\codex-runs\\opus-addins\\onecalc-m5\\saved-simple-xlsm\\33\\DnaExamples.xlsm",
+            "verdict": "matched"
+          },
+          {
+            "detail": "number -1",
+            "excel": "number -1",
+            "excel_formula": "=SimpleAsDouble(TRUE)",
+            "excel_name": "DnaExamples.xlsm",
+            "formula": "=SimpleAsDouble(TRUE)",
+            "repaired": false,
+            "saved": "C:\\Work\\DnaCalc\\codex-runs\\opus-addins\\onecalc-m5\\saved-simple-xlsm\\34\\DnaExamples.xlsm",
+            "verdict": "matched"
+          },
+          {
+            "detail": "number 2",
+            "excel": "number 2",
+            "excel_formula": "=SimpleAsLong(2.5)",
+            "excel_name": "DnaExamples.xlsm",
+            "formula": "=SimpleAsLong(2.5)",
+            "repaired": false,
+            "saved": "C:\\Work\\DnaCalc\\codex-runs\\opus-addins\\onecalc-m5\\saved-simple-xlsm\\35\\DnaExamples.xlsm",
+            "verdict": "matched"
+          },
+          {
+            "detail": "number 4",
+            "excel": "number 4",
+            "excel_formula": "=SimpleAsLong(3.5)",
+            "excel_name": "DnaExamples.xlsm",
+            "formula": "=SimpleAsLong(3.5)",
+            "repaired": false,
+            "saved": "C:\\Work\\DnaCalc\\codex-runs\\opus-addins\\onecalc-m5\\saved-simple-xlsm\\36\\DnaExamples.xlsm",
+            "verdict": "matched"
+          },
+          {
+            "detail": "error #NUM!",
+            "excel": "error #NUM!",
+            "excel_formula": "=SimpleAsLong(3000000000)",
+            "excel_name": "DnaExamples.xlsm",
+            "formula": "=SimpleAsLong(3000000000)",
+            "repaired": false,
+            "saved": "C:\\Work\\DnaCalc\\codex-runs\\opus-addins\\onecalc-m5\\saved-simple-xlsm\\37\\DnaExamples.xlsm",
+            "verdict": "matched"
+          },
+          {
+            "detail": "text \"1.5\"",
+            "excel": "text \"1.5\"",
+            "excel_formula": "=SimpleAsString(1.5)",
+            "excel_name": "DnaExamples.xlsm",
+            "formula": "=SimpleAsString(1.5)",
+            "repaired": false,
+            "saved": "C:\\Work\\DnaCalc\\codex-runs\\opus-addins\\onecalc-m5\\saved-simple-xlsm\\38\\DnaExamples.xlsm",
+            "verdict": "matched"
+          },
+          {
+            "detail": "text \"True\"",
+            "excel": "text \"True\"",
+            "excel_formula": "=SimpleAsString(TRUE)",
+            "excel_name": "DnaExamples.xlsm",
+            "formula": "=SimpleAsString(TRUE)",
+            "repaired": false,
+            "saved": "C:\\Work\\DnaCalc\\codex-runs\\opus-addins\\onecalc-m5\\saved-simple-xlsm\\39\\DnaExamples.xlsm",
+            "verdict": "matched"
+          },
+          {
+            "detail": "text \"False\"",
+            "excel": "text \"False\"",
+            "excel_formula": "=SimpleAsBool(0)",
+            "excel_name": "DnaExamples.xlsm",
+            "formula": "=SimpleAsBool(0)",
+            "repaired": false,
+            "saved": "C:\\Work\\DnaCalc\\codex-runs\\opus-addins\\onecalc-m5\\saved-simple-xlsm\\40\\DnaExamples.xlsm",
+            "verdict": "matched"
+          },
+          {
+            "detail": "text \"True\"",
+            "excel": "text \"True\"",
+            "excel_formula": "=SimpleAsBool(2)",
+            "excel_name": "DnaExamples.xlsm",
+            "formula": "=SimpleAsBool(2)",
+            "repaired": false,
+            "saved": "C:\\Work\\DnaCalc\\codex-runs\\opus-addins\\onecalc-m5\\saved-simple-xlsm\\41\\DnaExamples.xlsm",
+            "verdict": "matched"
+          },
+          {
+            "detail": "text \"True\"",
+            "excel": "text \"True\"",
+            "excel_formula": "=SimpleAsBool(\"true\")",
+            "excel_name": "DnaExamples.xlsm",
+            "formula": "=SimpleAsBool(\"true\")",
+            "repaired": false,
+            "saved": "C:\\Work\\DnaCalc\\codex-runs\\opus-addins\\onecalc-m5\\saved-simple-xlsm\\42\\DnaExamples.xlsm",
+            "verdict": "matched"
+          },
+          {
+            "detail": "number 9",
+            "excel": "number 9",
+            "excel_formula": "=SimplePower(3)",
+            "excel_name": "DnaExamples.xlsm",
+            "formula": "=SimplePower(3)",
+            "repaired": false,
+            "saved": "C:\\Work\\DnaCalc\\codex-runs\\opus-addins\\onecalc-m5\\saved-simple-xlsm\\43\\DnaExamples.xlsm",
+            "verdict": "matched"
+          },
+          {
+            "detail": "number 1024",
+            "excel": "number 1024",
+            "excel_formula": "=SimplePower(2,10)",
+            "excel_name": "DnaExamples.xlsm",
+            "formula": "=SimplePower(2,10)",
+            "repaired": false,
+            "saved": "C:\\Work\\DnaCalc\\codex-runs\\opus-addins\\onecalc-m5\\saved-simple-xlsm\\44\\DnaExamples.xlsm",
+            "verdict": "matched"
+          },
+          {
+            "detail": "number 4",
+            "excel": "number 4",
+            "excel_formula": "=SimplePower(2,)",
+            "excel_name": "DnaExamples.xlsm",
+            "formula": "=SimplePower(2,)",
+            "repaired": false,
+            "saved": "C:\\Work\\DnaCalc\\codex-runs\\opus-addins\\onecalc-m5\\saved-simple-xlsm\\45\\DnaExamples.xlsm",
+            "verdict": "matched"
+          },
+          {
+            "detail": "logical TRUE",
+            "excel": "logical TRUE",
+            "excel_formula": "=SimpleMissing()",
+            "excel_name": "DnaExamples.xlsm",
+            "formula": "=SimpleMissing()",
+            "repaired": false,
+            "saved": "C:\\Work\\DnaCalc\\codex-runs\\opus-addins\\onecalc-m5\\saved-simple-xlsm\\46\\DnaExamples.xlsm",
+            "verdict": "matched"
+          },
+          {
+            "detail": "logical FALSE",
+            "excel": "logical FALSE",
+            "excel_formula": "=SimpleMissing(1)",
+            "excel_name": "DnaExamples.xlsm",
+            "formula": "=SimpleMissing(1)",
+            "repaired": false,
+            "saved": "C:\\Work\\DnaCalc\\codex-runs\\opus-addins\\onecalc-m5\\saved-simple-xlsm\\47\\DnaExamples.xlsm",
+            "verdict": "matched"
+          },
+          {
+            "detail": "number 0",
+            "excel": "number 0",
+            "excel_formula": "=SimpleCount()",
+            "excel_name": "DnaExamples.xlsm",
+            "formula": "=SimpleCount()",
+            "repaired": false,
+            "saved": "C:\\Work\\DnaCalc\\codex-runs\\opus-addins\\onecalc-m5\\saved-simple-xlsm\\48\\DnaExamples.xlsm",
+            "verdict": "matched"
+          },
+          {
+            "detail": "number 3",
+            "excel": "number 3",
+            "excel_formula": "=SimpleCount(1,\"a\",TRUE)",
+            "excel_name": "DnaExamples.xlsm",
+            "formula": "=SimpleCount(1,\"a\",TRUE)",
+            "repaired": false,
+            "saved": "C:\\Work\\DnaCalc\\codex-runs\\opus-addins\\onecalc-m5\\saved-simple-xlsm\\49\\DnaExamples.xlsm",
+            "verdict": "matched"
+          },
+          {
+            "detail": "number 3",
+            "excel": "number 3",
+            "excel_formula": "=SimpleCount(1,,3)",
+            "excel_name": "DnaExamples.xlsm",
+            "formula": "=SimpleCount(1,,3)",
+            "repaired": false,
+            "saved": "C:\\Work\\DnaCalc\\codex-runs\\opus-addins\\onecalc-m5\\saved-simple-xlsm\\50\\DnaExamples.xlsm",
+            "verdict": "matched"
+          },
+          {
+            "detail": "text \"a-1-True\"",
+            "excel": "text \"a-1-True\"",
+            "excel_formula": "=SimpleConcat(\"-\",\"a\",1,TRUE)",
+            "excel_name": "DnaExamples.xlsm",
+            "formula": "=SimpleConcat(\"-\",\"a\",1,TRUE)",
+            "repaired": false,
+            "saved": "C:\\Work\\DnaCalc\\codex-runs\\opus-addins\\onecalc-m5\\saved-simple-xlsm\\51\\DnaExamples.xlsm",
+            "verdict": "matched"
+          },
+          {
+            "detail": "text \"\"",
+            "excel": "text \"\"",
+            "excel_formula": "=SimpleConcat(\",\")",
+            "excel_name": "DnaExamples.xlsm",
+            "formula": "=SimpleConcat(\",\")",
+            "repaired": false,
+            "saved": "C:\\Work\\DnaCalc\\codex-runs\\opus-addins\\onecalc-m5\\saved-simple-xlsm\\52\\DnaExamples.xlsm",
+            "verdict": "matched"
+          },
+          {
+            "detail": "number 20",
+            "excel": "number 20",
+            "excel_formula": "=INDEX(SimpleSeq(3),2,1)",
+            "excel_name": "DnaExamples.xlsm",
+            "formula": "=INDEX(SimpleSeq(3),2,1)",
+            "repaired": false,
+            "saved": "C:\\Work\\DnaCalc\\codex-runs\\opus-addins\\onecalc-m5\\saved-simple-xlsm\\53\\DnaExamples.xlsm",
+            "verdict": "matched"
+          },
+          {
+            "detail": "number 4",
+            "excel": "number 4",
+            "excel_formula": "=ROWS(SimpleSeq(4))",
+            "excel_name": "DnaExamples.xlsm",
+            "formula": "=ROWS(SimpleSeq(4))",
+            "repaired": false,
+            "saved": "C:\\Work\\DnaCalc\\codex-runs\\opus-addins\\onecalc-m5\\saved-simple-xlsm\\54\\DnaExamples.xlsm",
+            "verdict": "matched"
+          },
+          {
+            "detail": "number 1",
+            "excel": "number 1",
+            "excel_formula": "=COLUMNS(SimpleSeq(4))",
+            "excel_name": "DnaExamples.xlsm",
+            "formula": "=COLUMNS(SimpleSeq(4))",
+            "repaired": false,
+            "saved": "C:\\Work\\DnaCalc\\codex-runs\\opus-addins\\onecalc-m5\\saved-simple-xlsm\\55\\DnaExamples.xlsm",
+            "verdict": "matched"
+          },
+          {
+            "detail": "number 60",
+            "excel": "number 60",
+            "excel_formula": "=SUM(SimpleSeq(3))",
+            "excel_name": "DnaExamples.xlsm",
+            "formula": "=SUM(SimpleSeq(3))",
+            "repaired": false,
+            "saved": "C:\\Work\\DnaCalc\\codex-runs\\opus-addins\\onecalc-m5\\saved-simple-xlsm\\56\\DnaExamples.xlsm",
+            "verdict": "matched"
+          },
+          {
+            "detail": "array of 3 rows by 1 columns",
+            "excel": "number 10",
+            "excel_formula": "=SimpleSeq(3)",
+            "excel_name": "DnaExamples.xlsm",
+            "formula": "=SimpleSeq(3)",
+            "repaired": false,
+            "saved": "C:\\Work\\DnaCalc\\codex-runs\\opus-addins\\onecalc-m5\\saved-simple-xlsm\\57\\DnaExamples.xlsm",
+            "verdict": "matched"
+          },
+          {
+            "detail": "number 3",
+            "excel": "number 3",
+            "excel_formula": "=INDEX(SimpleRow(3),1,3)",
+            "excel_name": "DnaExamples.xlsm",
+            "formula": "=INDEX(SimpleRow(3),1,3)",
+            "repaired": false,
+            "saved": "C:\\Work\\DnaCalc\\codex-runs\\opus-addins\\onecalc-m5\\saved-simple-xlsm\\58\\DnaExamples.xlsm",
+            "verdict": "matched"
+          },
+          {
+            "detail": "number 5",
+            "excel": "number 5",
+            "excel_formula": "=COLUMNS(SimpleRow(5))",
+            "excel_name": "DnaExamples.xlsm",
+            "formula": "=COLUMNS(SimpleRow(5))",
+            "repaired": false,
+            "saved": "C:\\Work\\DnaCalc\\codex-runs\\opus-addins\\onecalc-m5\\saved-simple-xlsm\\59\\DnaExamples.xlsm",
+            "verdict": "matched"
+          },
+          {
+            "detail": "number 1",
+            "excel": "number 1",
+            "excel_formula": "=ROWS(SimpleRow(5))",
+            "excel_name": "DnaExamples.xlsm",
+            "formula": "=ROWS(SimpleRow(5))",
+            "repaired": false,
+            "saved": "C:\\Work\\DnaCalc\\codex-runs\\opus-addins\\onecalc-m5\\saved-simple-xlsm\\60\\DnaExamples.xlsm",
+            "verdict": "matched"
+          },
+          {
+            "detail": "text \"two\"",
+            "excel": "text \"two\"",
+            "excel_formula": "=INDEX(SimpleMixed(),1,2)",
+            "excel_name": "DnaExamples.xlsm",
+            "formula": "=INDEX(SimpleMixed(),1,2)",
+            "repaired": false,
+            "saved": "C:\\Work\\DnaCalc\\codex-runs\\opus-addins\\onecalc-m5\\saved-simple-xlsm\\61\\DnaExamples.xlsm",
+            "verdict": "matched"
+          },
+          {
+            "detail": "logical TRUE",
+            "excel": "logical TRUE",
+            "excel_formula": "=INDEX(SimpleMixed(),1,3)",
+            "excel_name": "DnaExamples.xlsm",
+            "formula": "=INDEX(SimpleMixed(),1,3)",
+            "repaired": false,
+            "saved": "C:\\Work\\DnaCalc\\codex-runs\\opus-addins\\onecalc-m5\\saved-simple-xlsm\\62\\DnaExamples.xlsm",
+            "verdict": "matched"
+          },
+          {
+            "detail": "error #DIV/0!",
+            "excel": "error #DIV/0!",
+            "excel_formula": "=INDEX(SimpleMixed(),1,4)",
+            "excel_name": "DnaExamples.xlsm",
+            "formula": "=INDEX(SimpleMixed(),1,4)",
+            "repaired": false,
+            "saved": "C:\\Work\\DnaCalc\\codex-runs\\opus-addins\\onecalc-m5\\saved-simple-xlsm\\63\\DnaExamples.xlsm",
+            "verdict": "matched"
+          },
+          {
+            "detail": "number 23",
+            "excel": "number 23",
+            "excel_formula": "=INDEX(SimpleGrid(),2,3)",
+            "excel_name": "DnaExamples.xlsm",
+            "formula": "=INDEX(SimpleGrid(),2,3)",
+            "repaired": false,
+            "saved": "C:\\Work\\DnaCalc\\codex-runs\\opus-addins\\onecalc-m5\\saved-simple-xlsm\\64\\DnaExamples.xlsm",
+            "verdict": "matched"
+          },
+          {
+            "detail": "number 102",
+            "excel": "number 102",
+            "excel_formula": "=SUM(SimpleGrid())",
+            "excel_name": "DnaExamples.xlsm",
+            "formula": "=SUM(SimpleGrid())",
+            "repaired": false,
+            "saved": "C:\\Work\\DnaCalc\\codex-runs\\opus-addins\\onecalc-m5\\saved-simple-xlsm\\65\\DnaExamples.xlsm",
+            "verdict": "matched"
+          },
+          {
+            "detail": "number 3",
+            "excel": "number 3",
+            "excel_formula": "=COLUMNS(SimpleGrid())",
+            "excel_name": "DnaExamples.xlsm",
+            "formula": "=COLUMNS(SimpleGrid())",
+            "repaired": false,
+            "saved": "C:\\Work\\DnaCalc\\codex-runs\\opus-addins\\onecalc-m5\\saved-simple-xlsm\\66\\DnaExamples.xlsm",
+            "verdict": "matched"
+          },
+          {
+            "detail": "text \"b\"",
+            "excel": "text \"b\"",
+            "excel_formula": "=INDEX(SimpleSplit(\"a,b,c\"),1,2)",
+            "excel_name": "DnaExamples.xlsm",
+            "formula": "=INDEX(SimpleSplit(\"a,b,c\"),1,2)",
+            "repaired": false,
+            "saved": "C:\\Work\\DnaCalc\\codex-runs\\opus-addins\\onecalc-m5\\saved-simple-xlsm\\67\\DnaExamples.xlsm",
+            "verdict": "matched"
+          },
+          {
+            "detail": "number 3",
+            "excel": "number 3",
+            "excel_formula": "=COLUMNS(SimpleSplit(\"a,b,c\"))",
+            "excel_name": "DnaExamples.xlsm",
+            "formula": "=COLUMNS(SimpleSplit(\"a,b,c\"))",
+            "repaired": false,
+            "saved": "C:\\Work\\DnaCalc\\codex-runs\\opus-addins\\onecalc-m5\\saved-simple-xlsm\\68\\DnaExamples.xlsm",
+            "verdict": "matched"
+          },
+          {
+            "detail": "number 10",
+            "excel": "number 10",
+            "excel_formula": "=SimpleArrSum({1,2;3,4})",
+            "excel_name": "DnaExamples.xlsm",
+            "formula": "=SimpleArrSum({1,2;3,4})",
+            "repaired": false,
+            "saved": "C:\\Work\\DnaCalc\\codex-runs\\opus-addins\\onecalc-m5\\saved-simple-xlsm\\69\\DnaExamples.xlsm",
+            "verdict": "matched"
+          },
+          {
+            "detail": "number 5",
+            "excel": "number 5",
+            "excel_formula": "=SimpleArrSum({1,\"x\",TRUE,4})",
+            "excel_name": "DnaExamples.xlsm",
+            "formula": "=SimpleArrSum({1,\"x\",TRUE,4})",
+            "repaired": false,
+            "saved": "C:\\Work\\DnaCalc\\codex-runs\\opus-addins\\onecalc-m5\\saved-simple-xlsm\\70\\DnaExamples.xlsm",
+            "verdict": "matched"
+          },
+          {
+            "detail": "number 5",
+            "excel": "number 5",
+            "excel_formula": "=SimpleArrSum(5)",
+            "excel_name": "DnaExamples.xlsm",
+            "formula": "=SimpleArrSum(5)",
+            "repaired": false,
+            "saved": "C:\\Work\\DnaCalc\\codex-runs\\opus-addins\\onecalc-m5\\saved-simple-xlsm\\71\\DnaExamples.xlsm",
+            "verdict": "matched"
+          },
+          {
+            "detail": "text \"Variant():1-2x1-2\"",
+            "excel": "text \"Variant():1-2x1-2\"",
+            "excel_formula": "=SimpleDims({1,2;3,4})",
+            "excel_name": "DnaExamples.xlsm",
+            "formula": "=SimpleDims({1,2;3,4})",
+            "repaired": false,
+            "saved": "C:\\Work\\DnaCalc\\codex-runs\\opus-addins\\onecalc-m5\\saved-simple-xlsm\\72\\DnaExamples.xlsm",
+            "verdict": "matched"
+          },
+          {
+            "detail": "text \"Variant():1-3:1d\"",
+            "excel": "text \"Variant():1-3:1d\"",
+            "excel_formula": "=SimpleDims({1,2,3})",
+            "excel_name": "DnaExamples.xlsm",
+            "formula": "=SimpleDims({1,2,3})",
+            "repaired": false,
+            "saved": "C:\\Work\\DnaCalc\\codex-runs\\opus-addins\\onecalc-m5\\saved-simple-xlsm\\73\\DnaExamples.xlsm",
+            "verdict": "matched"
+          },
+          {
+            "detail": "text \"Variant():1-3x1-1\"",
+            "excel": "text \"Variant():1-3x1-1\"",
+            "excel_formula": "=SimpleDims({1;2;3})",
+            "excel_name": "DnaExamples.xlsm",
+            "formula": "=SimpleDims({1;2;3})",
+            "repaired": false,
+            "saved": "C:\\Work\\DnaCalc\\codex-runs\\opus-addins\\onecalc-m5\\saved-simple-xlsm\\74\\DnaExamples.xlsm",
+            "verdict": "matched"
+          },
+          {
+            "detail": "text \"Double\"",
+            "excel": "text \"Double\"",
+            "excel_formula": "=SimpleDims(7)",
+            "excel_name": "DnaExamples.xlsm",
+            "formula": "=SimpleDims(7)",
+            "repaired": false,
+            "saved": "C:\\Work\\DnaCalc\\codex-runs\\opus-addins\\onecalc-m5\\saved-simple-xlsm\\75\\DnaExamples.xlsm",
+            "verdict": "matched"
+          },
+          {
+            "detail": "number 4",
+            "excel": "number 4",
+            "excel_formula": "=SimpleCorner({1,2;3,4})",
+            "excel_name": "DnaExamples.xlsm",
+            "formula": "=SimpleCorner({1,2;3,4})",
+            "repaired": false,
+            "saved": "C:\\Work\\DnaCalc\\codex-runs\\opus-addins\\onecalc-m5\\saved-simple-xlsm\\76\\DnaExamples.xlsm",
+            "verdict": "matched"
+          },
+          {
+            "detail": "text \"Variant():1-3:1d\"",
+            "excel": "text \"Variant():1-3:1d\"",
+            "excel_formula": "=SimpleDims(SEQUENCE(1,3))",
+            "excel_name": "DnaExamples.xlsm",
+            "formula": "=SimpleDims(SEQUENCE(1,3))",
+            "repaired": false,
+            "saved": "C:\\Work\\DnaCalc\\codex-runs\\opus-addins\\onecalc-m5\\saved-simple-xlsm\\77\\DnaExamples.xlsm",
+            "verdict": "matched"
+          },
+          {
+            "detail": "text \"Variant():1-3:1d\"",
+            "excel": "text \"Variant():1-3:1d\"",
+            "excel_formula": "=SimpleDims(TRANSPOSE({1;2;3}))",
+            "excel_name": "DnaExamples.xlsm",
+            "formula": "=SimpleDims(TRANSPOSE({1;2;3}))",
+            "repaired": false,
+            "saved": "C:\\Work\\DnaCalc\\codex-runs\\opus-addins\\onecalc-m5\\saved-simple-xlsm\\78\\DnaExamples.xlsm",
+            "verdict": "matched"
+          },
+          {
+            "detail": "error #NUM!",
+            "excel": "error #NUM!",
+            "excel_formula": "=SimpleHalf(2147483648)",
+            "excel_name": "DnaExamples.xlsm",
+            "formula": "=SimpleHalf(2147483648)",
+            "repaired": false,
+            "saved": "C:\\Work\\DnaCalc\\codex-runs\\opus-addins\\onecalc-m5\\saved-simple-xlsm\\79\\DnaExamples.xlsm",
+            "verdict": "matched"
+          },
+          {
+            "detail": "error #VALUE!",
+            "excel": "error #VALUE!",
+            "excel_formula": "=SimpleAsLong(\"x\")",
+            "excel_name": "DnaExamples.xlsm",
+            "formula": "=SimpleAsLong(\"x\")",
+            "repaired": false,
+            "saved": "C:\\Work\\DnaCalc\\codex-runs\\opus-addins\\onecalc-m5\\saved-simple-xlsm\\80\\DnaExamples.xlsm",
+            "verdict": "matched"
+          },
+          {
+            "detail": "number 1",
+            "excel": "number 1",
+            "excel_formula": "=SimpleCount({1,2,3})",
+            "excel_name": "DnaExamples.xlsm",
+            "formula": "=SimpleCount({1,2,3})",
+            "repaired": false,
+            "saved": "C:\\Work\\DnaCalc\\codex-runs\\opus-addins\\onecalc-m5\\saved-simple-xlsm\\81\\DnaExamples.xlsm",
+            "verdict": "matched"
+          },
+          {
+            "detail": "number 0.25",
+            "excel": "number 0.25",
+            "excel_formula": "=SimpleDiv(1,4)",
+            "excel_name": "DnaExamples.xlsm",
+            "formula": "=SimpleDiv(1,4)",
+            "repaired": false,
+            "saved": "C:\\Work\\DnaCalc\\codex-runs\\opus-addins\\onecalc-m5\\saved-simple-xlsm\\82\\DnaExamples.xlsm",
+            "verdict": "matched"
+          },
+          {
+            "detail": "error #DIV/0!",
+            "excel": "error #DIV/0!",
+            "excel_formula": "=SimpleDiv(1,0)",
+            "excel_name": "DnaExamples.xlsm",
+            "formula": "=SimpleDiv(1,0)",
+            "repaired": false,
+            "saved": "C:\\Work\\DnaCalc\\codex-runs\\opus-addins\\onecalc-m5\\saved-simple-xlsm\\83\\DnaExamples.xlsm",
+            "verdict": "matched"
+          },
+          {
+            "detail": "error #NUM!",
+            "excel": "error #NUM!",
+            "excel_formula": "=SimpleNum()",
+            "excel_name": "DnaExamples.xlsm",
+            "formula": "=SimpleNum()",
+            "repaired": false,
+            "saved": "C:\\Work\\DnaCalc\\codex-runs\\opus-addins\\onecalc-m5\\saved-simple-xlsm\\84\\DnaExamples.xlsm",
+            "verdict": "matched"
+          },
+          {
+            "detail": "text \"Error 2007\"",
+            "excel": "text \"Error 2007\"",
+            "excel_formula": "=SimpleErrName(1/0)",
+            "excel_name": "DnaExamples.xlsm",
+            "formula": "=SimpleErrName(1/0)",
+            "repaired": false,
+            "saved": "C:\\Work\\DnaCalc\\codex-runs\\opus-addins\\onecalc-m5\\saved-simple-xlsm\\85\\DnaExamples.xlsm",
+            "verdict": "matched"
+          },
+          {
+            "detail": "text \"Error 2042\"",
+            "excel": "text \"Error 2042\"",
+            "excel_formula": "=SimpleErrName(NA())",
+            "excel_name": "DnaExamples.xlsm",
+            "formula": "=SimpleErrName(NA())",
+            "repaired": false,
+            "saved": "C:\\Work\\DnaCalc\\codex-runs\\opus-addins\\onecalc-m5\\saved-simple-xlsm\\86\\DnaExamples.xlsm",
+            "verdict": "matched"
+          },
+          {
+            "detail": "text \"ok\"",
+            "excel": "text \"ok\"",
+            "excel_formula": "=SimpleErrName(5)",
+            "excel_name": "DnaExamples.xlsm",
+            "formula": "=SimpleErrName(5)",
+            "repaired": false,
+            "saved": "C:\\Work\\DnaCalc\\codex-runs\\opus-addins\\onecalc-m5\\saved-simple-xlsm\\87\\DnaExamples.xlsm",
+            "verdict": "matched"
+          },
+          {
+            "detail": "error #VALUE!",
+            "excel": "error #VALUE!",
+            "excel_formula": "=SimpleNeg(1/0)",
+            "excel_name": "DnaExamples.xlsm",
+            "formula": "=SimpleNeg(1/0)",
+            "repaired": false,
+            "saved": "C:\\Work\\DnaCalc\\codex-runs\\opus-addins\\onecalc-m5\\saved-simple-xlsm\\88\\DnaExamples.xlsm",
+            "verdict": "matched"
+          },
+          {
+            "detail": "error #VALUE!",
+            "excel": "error #VALUE!",
+            "excel_formula": "=SimpleOverflow(100000)",
+            "excel_name": "DnaExamples.xlsm",
+            "formula": "=SimpleOverflow(100000)",
+            "repaired": false,
+            "saved": "C:\\Work\\DnaCalc\\codex-runs\\opus-addins\\onecalc-m5\\saved-simple-xlsm\\89\\DnaExamples.xlsm",
+            "verdict": "matched"
+          },
+          {
+            "detail": "number 1004",
+            "excel": "number 1004",
+            "excel_formula": "=SimpleRaise(1004)",
+            "excel_name": "DnaExamples.xlsm",
+            "formula": "=SimpleRaise(1004)",
+            "repaired": false,
+            "saved": "C:\\Work\\DnaCalc\\codex-runs\\opus-addins\\onecalc-m5\\saved-simple-xlsm\\90\\DnaExamples.xlsm",
+            "verdict": "matched"
+          },
+          {
+            "detail": "number 9",
+            "excel": "number 9",
+            "excel_formula": "=SimpleRaise(9)",
+            "excel_name": "DnaExamples.xlsm",
+            "formula": "=SimpleRaise(9)",
+            "repaired": false,
+            "saved": "C:\\Work\\DnaCalc\\codex-runs\\opus-addins\\onecalc-m5\\saved-simple-xlsm\\91\\DnaExamples.xlsm",
+            "verdict": "matched"
+          },
+          {
+            "detail": "number 0",
+            "excel": "number 0",
+            "excel_formula": "=SimpleEmpty()",
+            "excel_name": "DnaExamples.xlsm",
+            "formula": "=SimpleEmpty()",
+            "repaired": false,
+            "saved": "C:\\Work\\DnaCalc\\codex-runs\\opus-addins\\onecalc-m5\\saved-simple-xlsm\\92\\DnaExamples.xlsm",
+            "verdict": "matched"
+          },
+          {
+            "detail": "text \"\"",
+            "excel": "text \"\"",
+            "excel_formula": "=SimpleBlankText()",
+            "excel_name": "DnaExamples.xlsm",
+            "formula": "=SimpleBlankText()",
+            "repaired": false,
+            "saved": "C:\\Work\\DnaCalc\\codex-runs\\opus-addins\\onecalc-m5\\saved-simple-xlsm\\93\\DnaExamples.xlsm",
+            "verdict": "matched"
+          },
+          {
+            "detail": "number 46337",
+            "excel": "number 46337",
+            "excel_formula": "=SimpleDate()",
+            "excel_name": "DnaExamples.xlsm",
+            "formula": "=SimpleDate()",
+            "repaired": false,
+            "saved": "C:\\Work\\DnaCalc\\codex-runs\\opus-addins\\onecalc-m5\\saved-simple-xlsm\\94\\DnaExamples.xlsm",
+            "verdict": "matched"
+          },
+          {
+            "detail": "number 1.2346",
+            "excel": "number 1.2346",
+            "excel_formula": "=SimpleMoney()",
+            "excel_name": "DnaExamples.xlsm",
+            "formula": "=SimpleMoney()",
+            "repaired": false,
+            "saved": "C:\\Work\\DnaCalc\\codex-runs\\opus-addins\\onecalc-m5\\saved-simple-xlsm\\95\\DnaExamples.xlsm",
+            "verdict": "matched"
+          },
+          {
+            "detail": "number 2.2",
+            "excel": "number 2.2",
+            "excel_formula": "=SimpleRound(2.25)",
+            "excel_name": "DnaExamples.xlsm",
+            "formula": "=SimpleRound(2.25)",
+            "repaired": false,
+            "saved": "C:\\Work\\DnaCalc\\codex-runs\\opus-addins\\onecalc-m5\\saved-simple-xlsm\\96\\DnaExamples.xlsm",
+            "verdict": "matched"
+          },
+          {
+            "detail": "number 2.4",
+            "excel": "number 2.4",
+            "excel_formula": "=SimpleRound(2.35)",
+            "excel_name": "DnaExamples.xlsm",
+            "formula": "=SimpleRound(2.35)",
+            "repaired": false,
+            "saved": "C:\\Work\\DnaCalc\\codex-runs\\opus-addins\\onecalc-m5\\saved-simple-xlsm\\97\\DnaExamples.xlsm",
+            "verdict": "matched"
+          },
+          {
+            "detail": "text \"3.14\"",
+            "excel": "text \"3.14\"",
+            "excel_formula": "=SimpleFormat(3.14159)",
+            "excel_name": "DnaExamples.xlsm",
+            "formula": "=SimpleFormat(3.14159)",
+            "repaired": false,
+            "saved": "C:\\Work\\DnaCalc\\codex-runs\\opus-addins\\onecalc-m5\\saved-simple-xlsm\\98\\DnaExamples.xlsm",
+            "verdict": "matched"
+          },
+          {
+            "detail": "text \"A\"",
+            "excel": "text \"A\"",
+            "excel_formula": "=SimpleGrade(95)",
+            "excel_name": "DnaExamples.xlsm",
+            "formula": "=SimpleGrade(95)",
+            "repaired": false,
+            "saved": "C:\\Work\\DnaCalc\\codex-runs\\opus-addins\\onecalc-m5\\saved-simple-xlsm\\99\\DnaExamples.xlsm",
+            "verdict": "matched"
+          },
+          {
+            "detail": "text \"B\"",
+            "excel": "text \"B\"",
+            "excel_formula": "=SimpleGrade(75)",
+            "excel_name": "DnaExamples.xlsm",
+            "formula": "=SimpleGrade(75)",
+            "repaired": false,
+            "saved": "C:\\Work\\DnaCalc\\codex-runs\\opus-addins\\onecalc-m5\\saved-simple-xlsm\\100\\DnaExamples.xlsm",
+            "verdict": "matched"
+          },
+          {
+            "detail": "text \"C\"",
+            "excel": "text \"C\"",
+            "excel_formula": "=SimpleGrade(10)",
+            "excel_name": "DnaExamples.xlsm",
+            "formula": "=SimpleGrade(10)",
+            "repaired": false,
+            "saved": "C:\\Work\\DnaCalc\\codex-runs\\opus-addins\\onecalc-m5\\saved-simple-xlsm\\101\\DnaExamples.xlsm",
+            "verdict": "matched"
+          },
+          {
+            "detail": "number 3628800",
+            "excel": "number 3628800",
+            "excel_formula": "=SimpleFact(10)",
+            "excel_name": "DnaExamples.xlsm",
+            "formula": "=SimpleFact(10)",
+            "repaired": false,
+            "saved": "C:\\Work\\DnaCalc\\codex-runs\\opus-addins\\onecalc-m5\\saved-simple-xlsm\\102\\DnaExamples.xlsm",
+            "verdict": "matched"
+          },
+          {
+            "detail": "number 2432902008176640000",
+            "excel": "number 2432902008176640000",
+            "excel_formula": "=SimpleFact(20)",
+            "excel_name": "DnaExamples.xlsm",
+            "formula": "=SimpleFact(20)",
+            "repaired": false,
+            "saved": "C:\\Work\\DnaCalc\\codex-runs\\opus-addins\\onecalc-m5\\saved-simple-xlsm\\103\\DnaExamples.xlsm",
+            "verdict": "matched"
+          },
+          {
+            "detail": "number 9",
+            "excel": "number 9",
+            "excel_formula": "=SimpleWsMax(3,9,4)",
+            "excel_name": "DnaExamples.xlsm",
+            "formula": "=SimpleWsMax(3,9,4)",
+            "repaired": false,
+            "saved": "C:\\Work\\DnaCalc\\codex-runs\\opus-addins\\onecalc-m5\\saved-simple-xlsm\\104\\DnaExamples.xlsm",
+            "verdict": "matched"
+          },
+          {
+            "detail": "number 2",
+            "excel": "number 2",
+            "excel_formula": "=SimpleWsMatch(\"b\")",
+            "excel_name": "DnaExamples.xlsm",
+            "formula": "=SimpleWsMatch(\"b\")",
+            "repaired": false,
+            "saved": "C:\\Work\\DnaCalc\\codex-runs\\opus-addins\\onecalc-m5\\saved-simple-xlsm\\105\\DnaExamples.xlsm",
+            "verdict": "matched"
+          },
+          {
+            "detail": "text \"Err 1004\"",
+            "excel": "text \"Err 1004\"",
+            "excel_formula": "=SimpleWsMatch(\"z\")",
+            "excel_name": "DnaExamples.xlsm",
+            "formula": "=SimpleWsMatch(\"z\")",
+            "repaired": false,
+            "saved": "C:\\Work\\DnaCalc\\codex-runs\\opus-addins\\onecalc-m5\\saved-simple-xlsm\\106\\DnaExamples.xlsm",
+            "verdict": "matched"
+          },
+          {
+            "detail": "error #VALUE!",
+            "excel": "error #VALUE!",
+            "excel_formula": "=SimpleWsMatchRaw(\"z\")",
+            "excel_name": "DnaExamples.xlsm",
+            "formula": "=SimpleWsMatchRaw(\"z\")",
+            "repaired": false,
+            "saved": "C:\\Work\\DnaCalc\\codex-runs\\opus-addins\\onecalc-m5\\saved-simple-xlsm\\107\\DnaExamples.xlsm",
+            "verdict": "matched"
+          },
+          {
+            "detail": "number 1",
+            "excel": "number 1",
+            "excel_formula": "=SimpleHidden(1)",
+            "excel_name": "DnaExamples.xlsm",
+            "formula": "=SimpleHidden(1)",
+            "repaired": false,
+            "saved": "C:\\Work\\DnaCalc\\codex-runs\\opus-addins\\onecalc-m5\\saved-simple-xlsm\\108\\DnaExamples.xlsm",
+            "verdict": "matched"
+          },
+          {
+            "detail": "number -4",
+            "excel": "number -4",
+            "excel_formula": "=DnaSimple.SimpleNeg(4)",
+            "excel_name": "DnaExamples.xlsm",
+            "formula": "=DnaSimple.SimpleNeg(4)",
+            "repaired": false,
+            "saved": "C:\\Work\\DnaCalc\\codex-runs\\opus-addins\\onecalc-m5\\saved-simple-xlsm\\109\\DnaExamples.xlsm",
+            "verdict": "matched"
+          }
+        ],
+        "saved": 109,
+        "unload": {
+          "unloaded": null
+        }
+      },
+      "session": "C:/Work/DnaCalc/DnaCalc-win/crates/calc-xll-reference/fixture/vba/DnaExamples.xlsm",
+      "session_sha256": "17abb501c6497bd30ad49a426f4c32e39cbb16f626e4bf673ddc0ef351d8807d"
+    }
+  ]
+}

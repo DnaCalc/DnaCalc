@@ -1,0 +1,821 @@
+{
+ "exe": "C:\\Work\\DnaCalc\\codex-runs\\opus-addins\\dnacalc\\dna-calc-desktop.exe",
+ "addin": "C:\\Work\\DnaCalc\\DnaCalc-win\\crates\\calc-xll-reference\\fixture\\vba\\DnaExamples.xlam",
+ "workbook": null,
+ "excel": null,
+ "cases_file": "crates\\calc-xll-reference\\fixture\\vba\\simple-udf-cases.json",
+ "count": 109,
+ "matched": 109,
+ "mismatched": 0,
+ "refused": 0,
+ "missing": 0,
+ "rows": [
+  {
+   "formula": "=SimpleNeg(2.5)",
+   "excel": -2.5,
+   "exit": 0,
+   "dnacalc": -2.5,
+   "outcome": "matched"
+  },
+  {
+   "formula": "=SimpleNeg(\"3\")",
+   "excel": -3.0,
+   "exit": 0,
+   "dnacalc": -3.0,
+   "outcome": "matched"
+  },
+  {
+   "formula": "=SimpleNeg(TRUE)",
+   "excel": 1.0,
+   "exit": 0,
+   "dnacalc": 1.0,
+   "outcome": "matched"
+  },
+  {
+   "formula": "=SimpleNeg(\"x\")",
+   "excel": {
+    "error": "#VALUE!"
+   },
+   "exit": 0,
+   "dnacalc": {
+    "error": "#VALUE!"
+   },
+   "outcome": "matched"
+  },
+  {
+   "formula": "=SimpleNeg()",
+   "excel": {
+    "error": "#VALUE!"
+   },
+   "exit": 0,
+   "dnacalc": {
+    "error": "#VALUE!"
+   },
+   "outcome": "matched"
+  },
+  {
+   "formula": "=SimpleHalf(7)",
+   "excel": 3.5,
+   "exit": 0,
+   "dnacalc": 3.5,
+   "outcome": "matched"
+  },
+  {
+   "formula": "=SimpleHalf(2.5)",
+   "excel": 1.0,
+   "exit": 0,
+   "dnacalc": 1.0,
+   "outcome": "matched"
+  },
+  {
+   "formula": "=SimpleHalf(3.5)",
+   "excel": 2.0,
+   "exit": 0,
+   "dnacalc": 2.0,
+   "outcome": "matched"
+  },
+  {
+   "formula": "=SimpleIsBig(150)",
+   "excel": true,
+   "exit": 0,
+   "dnacalc": true,
+   "outcome": "matched"
+  },
+  {
+   "formula": "=SimpleIsBig(5)",
+   "excel": false,
+   "exit": 0,
+   "dnacalc": false,
+   "outcome": "matched"
+  },
+  {
+   "formula": "=SimpleNot(TRUE)",
+   "excel": false,
+   "exit": 0,
+   "dnacalc": false,
+   "outcome": "matched"
+  },
+  {
+   "formula": "=SimpleNot(0)",
+   "excel": true,
+   "exit": 0,
+   "dnacalc": true,
+   "outcome": "matched"
+  },
+  {
+   "formula": "=SimpleNot(\"FALSE\")",
+   "excel": true,
+   "exit": 0,
+   "dnacalc": true,
+   "outcome": "matched"
+  },
+  {
+   "formula": "=SimpleUpper(\"dna calc\")",
+   "excel": "DNA CALC",
+   "exit": 0,
+   "dnacalc": "DNA CALC",
+   "outcome": "matched"
+  },
+  {
+   "formula": "=SimpleUpper(12.5)",
+   "excel": "12.5",
+   "exit": 0,
+   "dnacalc": "12.5",
+   "outcome": "matched"
+  },
+  {
+   "formula": "=SimpleLen(\"héllo\")",
+   "excel": 5.0,
+   "exit": 0,
+   "dnacalc": 5.0,
+   "outcome": "matched"
+  },
+  {
+   "formula": "=SimpleLen(\"\")",
+   "excel": 0.0,
+   "exit": 0,
+   "dnacalc": 0.0,
+   "outcome": "matched"
+  },
+  {
+   "formula": "=SimpleMid(\"abcdef\",2)",
+   "excel": "bc",
+   "exit": 0,
+   "dnacalc": "bc",
+   "outcome": "matched"
+  },
+  {
+   "formula": "=SimpleMid(\"abcdef\",2,3)",
+   "excel": "bcd",
+   "exit": 0,
+   "dnacalc": "bcd",
+   "outcome": "matched"
+  },
+  {
+   "formula": "=SimpleKind(1)",
+   "excel": "Double",
+   "exit": 0,
+   "dnacalc": "Double",
+   "outcome": "matched"
+  },
+  {
+   "formula": "=SimpleKind(\"a\")",
+   "excel": "String",
+   "exit": 0,
+   "dnacalc": "String",
+   "outcome": "matched"
+  },
+  {
+   "formula": "=SimpleKind(TRUE)",
+   "excel": "Boolean",
+   "exit": 0,
+   "dnacalc": "Boolean",
+   "outcome": "matched"
+  },
+  {
+   "formula": "=SimpleKind(1/0)",
+   "excel": "Error",
+   "exit": 0,
+   "dnacalc": "Error",
+   "outcome": "matched"
+  },
+  {
+   "formula": "=SimpleKind({1,2})",
+   "excel": "Variant()",
+   "exit": 0,
+   "dnacalc": "Variant()",
+   "outcome": "matched"
+  },
+  {
+   "formula": "=SimpleKind(A1)",
+   "excel": "Range",
+   "exit": 0,
+   "dnacalc": "Range",
+   "outcome": "matched"
+  },
+  {
+   "formula": "=SimpleVarType(1)",
+   "excel": 5.0,
+   "exit": 0,
+   "dnacalc": 5.0,
+   "outcome": "matched"
+  },
+  {
+   "formula": "=SimpleVarType(\"a\")",
+   "excel": 8.0,
+   "exit": 0,
+   "dnacalc": 8.0,
+   "outcome": "matched"
+  },
+  {
+   "formula": "=SimpleVarType(TRUE)",
+   "excel": 11.0,
+   "exit": 0,
+   "dnacalc": 11.0,
+   "outcome": "matched"
+  },
+  {
+   "formula": "=SimpleVarType(NA())",
+   "excel": 10.0,
+   "exit": 0,
+   "dnacalc": 10.0,
+   "outcome": "matched"
+  },
+  {
+   "formula": "=SimpleTwice(21)",
+   "excel": 42.0,
+   "exit": 0,
+   "dnacalc": 42.0,
+   "outcome": "matched"
+  },
+  {
+   "formula": "=SimpleTwice(\"ab\")",
+   "excel": "abab",
+   "exit": 0,
+   "dnacalc": "abab",
+   "outcome": "matched"
+  },
+  {
+   "formula": "=SimpleTwice(TRUE)",
+   "excel": -2.0,
+   "exit": 0,
+   "dnacalc": -2.0,
+   "outcome": "matched"
+  },
+  {
+   "formula": "=SimpleAsDouble(\"12.5\")",
+   "excel": 12.5,
+   "exit": 0,
+   "dnacalc": 12.5,
+   "outcome": "matched"
+  },
+  {
+   "formula": "=SimpleAsDouble(TRUE)",
+   "excel": -1.0,
+   "exit": 0,
+   "dnacalc": -1.0,
+   "outcome": "matched"
+  },
+  {
+   "formula": "=SimpleAsLong(2.5)",
+   "excel": 2.0,
+   "exit": 0,
+   "dnacalc": 2.0,
+   "outcome": "matched"
+  },
+  {
+   "formula": "=SimpleAsLong(3.5)",
+   "excel": 4.0,
+   "exit": 0,
+   "dnacalc": 4.0,
+   "outcome": "matched"
+  },
+  {
+   "formula": "=SimpleAsLong(3000000000)",
+   "excel": {
+    "error": "#NUM!"
+   },
+   "exit": 0,
+   "dnacalc": {
+    "error": "#NUM!"
+   },
+   "outcome": "matched"
+  },
+  {
+   "formula": "=SimpleAsString(1.5)",
+   "excel": "1.5",
+   "exit": 0,
+   "dnacalc": "1.5",
+   "outcome": "matched"
+  },
+  {
+   "formula": "=SimpleAsString(TRUE)",
+   "excel": "True",
+   "exit": 0,
+   "dnacalc": "True",
+   "outcome": "matched"
+  },
+  {
+   "formula": "=SimpleAsBool(0)",
+   "excel": "False",
+   "exit": 0,
+   "dnacalc": "False",
+   "outcome": "matched"
+  },
+  {
+   "formula": "=SimpleAsBool(2)",
+   "excel": "True",
+   "exit": 0,
+   "dnacalc": "True",
+   "outcome": "matched"
+  },
+  {
+   "formula": "=SimpleAsBool(\"true\")",
+   "excel": "True",
+   "exit": 0,
+   "dnacalc": "True",
+   "outcome": "matched"
+  },
+  {
+   "formula": "=SimplePower(3)",
+   "excel": 9.0,
+   "exit": 0,
+   "dnacalc": 9.0,
+   "outcome": "matched"
+  },
+  {
+   "formula": "=SimplePower(2,10)",
+   "excel": 1024.0,
+   "exit": 0,
+   "dnacalc": 1024.0,
+   "outcome": "matched"
+  },
+  {
+   "formula": "=SimplePower(2,)",
+   "excel": 4.0,
+   "exit": 0,
+   "dnacalc": 4.0,
+   "outcome": "matched"
+  },
+  {
+   "formula": "=SimpleMissing()",
+   "excel": true,
+   "exit": 0,
+   "dnacalc": true,
+   "outcome": "matched"
+  },
+  {
+   "formula": "=SimpleMissing(1)",
+   "excel": false,
+   "exit": 0,
+   "dnacalc": false,
+   "outcome": "matched"
+  },
+  {
+   "formula": "=SimpleCount()",
+   "excel": 0.0,
+   "exit": 0,
+   "dnacalc": 0.0,
+   "outcome": "matched"
+  },
+  {
+   "formula": "=SimpleCount(1,\"a\",TRUE)",
+   "excel": 3.0,
+   "exit": 0,
+   "dnacalc": 3.0,
+   "outcome": "matched"
+  },
+  {
+   "formula": "=SimpleCount(1,,3)",
+   "excel": 3.0,
+   "exit": 0,
+   "dnacalc": 3.0,
+   "outcome": "matched"
+  },
+  {
+   "formula": "=SimpleConcat(\"-\",\"a\",1,TRUE)",
+   "excel": "a-1-True",
+   "exit": 0,
+   "dnacalc": "a-1-True",
+   "outcome": "matched"
+  },
+  {
+   "formula": "=SimpleConcat(\",\")",
+   "excel": "",
+   "exit": 0,
+   "dnacalc": "",
+   "outcome": "matched"
+  },
+  {
+   "formula": "=INDEX(SimpleSeq(3),2,1)",
+   "excel": 20.0,
+   "exit": 0,
+   "dnacalc": 20.0,
+   "outcome": "matched"
+  },
+  {
+   "formula": "=ROWS(SimpleSeq(4))",
+   "excel": 4.0,
+   "exit": 0,
+   "dnacalc": 4.0,
+   "outcome": "matched"
+  },
+  {
+   "formula": "=COLUMNS(SimpleSeq(4))",
+   "excel": 1.0,
+   "exit": 0,
+   "dnacalc": 1.0,
+   "outcome": "matched"
+  },
+  {
+   "formula": "=SUM(SimpleSeq(3))",
+   "excel": 60.0,
+   "exit": 0,
+   "dnacalc": 60.0,
+   "outcome": "matched"
+  },
+  {
+   "formula": "=SimpleSeq(3)",
+   "excel": 10.0,
+   "exit": 0,
+   "dnacalc": 10.0,
+   "outcome": "matched"
+  },
+  {
+   "formula": "=INDEX(SimpleRow(3),1,3)",
+   "excel": 3.0,
+   "exit": 0,
+   "dnacalc": 3.0,
+   "outcome": "matched"
+  },
+  {
+   "formula": "=COLUMNS(SimpleRow(5))",
+   "excel": 5.0,
+   "exit": 0,
+   "dnacalc": 5.0,
+   "outcome": "matched"
+  },
+  {
+   "formula": "=ROWS(SimpleRow(5))",
+   "excel": 1.0,
+   "exit": 0,
+   "dnacalc": 1.0,
+   "outcome": "matched"
+  },
+  {
+   "formula": "=INDEX(SimpleMixed(),1,2)",
+   "excel": "two",
+   "exit": 0,
+   "dnacalc": "two",
+   "outcome": "matched"
+  },
+  {
+   "formula": "=INDEX(SimpleMixed(),1,3)",
+   "excel": true,
+   "exit": 0,
+   "dnacalc": true,
+   "outcome": "matched"
+  },
+  {
+   "formula": "=INDEX(SimpleMixed(),1,4)",
+   "excel": {
+    "error": "#DIV/0!"
+   },
+   "exit": 0,
+   "dnacalc": {
+    "error": "#DIV/0!"
+   },
+   "outcome": "matched"
+  },
+  {
+   "formula": "=INDEX(SimpleGrid(),2,3)",
+   "excel": 23.0,
+   "exit": 0,
+   "dnacalc": 23.0,
+   "outcome": "matched"
+  },
+  {
+   "formula": "=SUM(SimpleGrid())",
+   "excel": 102.0,
+   "exit": 0,
+   "dnacalc": 102.0,
+   "outcome": "matched"
+  },
+  {
+   "formula": "=COLUMNS(SimpleGrid())",
+   "excel": 3.0,
+   "exit": 0,
+   "dnacalc": 3.0,
+   "outcome": "matched"
+  },
+  {
+   "formula": "=INDEX(SimpleSplit(\"a,b,c\"),1,2)",
+   "excel": "b",
+   "exit": 0,
+   "dnacalc": "b",
+   "outcome": "matched"
+  },
+  {
+   "formula": "=COLUMNS(SimpleSplit(\"a,b,c\"))",
+   "excel": 3.0,
+   "exit": 0,
+   "dnacalc": 3.0,
+   "outcome": "matched"
+  },
+  {
+   "formula": "=SimpleArrSum({1,2;3,4})",
+   "excel": 10.0,
+   "exit": 0,
+   "dnacalc": 10.0,
+   "outcome": "matched"
+  },
+  {
+   "formula": "=SimpleArrSum({1,\"x\",TRUE,4})",
+   "excel": 5.0,
+   "exit": 0,
+   "dnacalc": 5.0,
+   "outcome": "matched"
+  },
+  {
+   "formula": "=SimpleArrSum(5)",
+   "excel": 5.0,
+   "exit": 0,
+   "dnacalc": 5.0,
+   "outcome": "matched"
+  },
+  {
+   "formula": "=SimpleDims({1,2;3,4})",
+   "excel": "Variant():1-2x1-2",
+   "exit": 0,
+   "dnacalc": "Variant():1-2x1-2",
+   "outcome": "matched"
+  },
+  {
+   "formula": "=SimpleDims({1,2,3})",
+   "excel": "Variant():1-3:1d",
+   "exit": 0,
+   "dnacalc": "Variant():1-3:1d",
+   "outcome": "matched"
+  },
+  {
+   "formula": "=SimpleDims({1;2;3})",
+   "excel": "Variant():1-3x1-1",
+   "exit": 0,
+   "dnacalc": "Variant():1-3x1-1",
+   "outcome": "matched"
+  },
+  {
+   "formula": "=SimpleDims(7)",
+   "excel": "Double",
+   "exit": 0,
+   "dnacalc": "Double",
+   "outcome": "matched"
+  },
+  {
+   "formula": "=SimpleCorner({1,2;3,4})",
+   "excel": 4.0,
+   "exit": 0,
+   "dnacalc": 4.0,
+   "outcome": "matched"
+  },
+  {
+   "formula": "=SimpleDims(SEQUENCE(1,3))",
+   "excel": "Variant():1-3:1d",
+   "exit": 0,
+   "dnacalc": "Variant():1-3:1d",
+   "outcome": "matched"
+  },
+  {
+   "formula": "=SimpleDims(TRANSPOSE({1;2;3}))",
+   "excel": "Variant():1-3:1d",
+   "exit": 0,
+   "dnacalc": "Variant():1-3:1d",
+   "outcome": "matched"
+  },
+  {
+   "formula": "=SimpleHalf(2147483648)",
+   "excel": {
+    "error": "#NUM!"
+   },
+   "exit": 0,
+   "dnacalc": {
+    "error": "#NUM!"
+   },
+   "outcome": "matched"
+  },
+  {
+   "formula": "=SimpleAsLong(\"x\")",
+   "excel": {
+    "error": "#VALUE!"
+   },
+   "exit": 0,
+   "dnacalc": {
+    "error": "#VALUE!"
+   },
+   "outcome": "matched"
+  },
+  {
+   "formula": "=SimpleCount({1,2,3})",
+   "excel": 1.0,
+   "exit": 0,
+   "dnacalc": 1.0,
+   "outcome": "matched"
+  },
+  {
+   "formula": "=SimpleDiv(1,4)",
+   "excel": 0.25,
+   "exit": 0,
+   "dnacalc": 0.25,
+   "outcome": "matched"
+  },
+  {
+   "formula": "=SimpleDiv(1,0)",
+   "excel": {
+    "error": "#DIV/0!"
+   },
+   "exit": 0,
+   "dnacalc": {
+    "error": "#DIV/0!"
+   },
+   "outcome": "matched"
+  },
+  {
+   "formula": "=SimpleNum()",
+   "excel": {
+    "error": "#NUM!"
+   },
+   "exit": 0,
+   "dnacalc": {
+    "error": "#NUM!"
+   },
+   "outcome": "matched"
+  },
+  {
+   "formula": "=SimpleErrName(1/0)",
+   "excel": "Error 2007",
+   "exit": 0,
+   "dnacalc": "Error 2007",
+   "outcome": "matched"
+  },
+  {
+   "formula": "=SimpleErrName(NA())",
+   "excel": "Error 2042",
+   "exit": 0,
+   "dnacalc": "Error 2042",
+   "outcome": "matched"
+  },
+  {
+   "formula": "=SimpleErrName(5)",
+   "excel": "ok",
+   "exit": 0,
+   "dnacalc": "ok",
+   "outcome": "matched"
+  },
+  {
+   "formula": "=SimpleNeg(1/0)",
+   "excel": {
+    "error": "#VALUE!"
+   },
+   "exit": 0,
+   "dnacalc": {
+    "error": "#VALUE!"
+   },
+   "outcome": "matched"
+  },
+  {
+   "formula": "=SimpleOverflow(100000)",
+   "excel": {
+    "error": "#VALUE!"
+   },
+   "exit": 0,
+   "dnacalc": {
+    "error": "#VALUE!"
+   },
+   "outcome": "matched"
+  },
+  {
+   "formula": "=SimpleRaise(1004)",
+   "excel": 1004.0,
+   "exit": 0,
+   "dnacalc": 1004.0,
+   "outcome": "matched"
+  },
+  {
+   "formula": "=SimpleRaise(9)",
+   "excel": 9.0,
+   "exit": 0,
+   "dnacalc": 9.0,
+   "outcome": "matched"
+  },
+  {
+   "formula": "=SimpleEmpty()",
+   "excel": 0.0,
+   "exit": 0,
+   "dnacalc": 0.0,
+   "outcome": "matched"
+  },
+  {
+   "formula": "=SimpleBlankText()",
+   "excel": "",
+   "exit": 0,
+   "dnacalc": "",
+   "outcome": "matched"
+  },
+  {
+   "formula": "=SimpleDate()",
+   "excel": 46337.0,
+   "exit": 0,
+   "dnacalc": 46337.0,
+   "outcome": "matched"
+  },
+  {
+   "formula": "=SimpleMoney()",
+   "excel": 1.2346,
+   "exit": 0,
+   "dnacalc": 1.2346,
+   "outcome": "matched"
+  },
+  {
+   "formula": "=SimpleRound(2.25)",
+   "excel": 2.2,
+   "exit": 0,
+   "dnacalc": 2.2,
+   "outcome": "matched"
+  },
+  {
+   "formula": "=SimpleRound(2.35)",
+   "excel": 2.4,
+   "exit": 0,
+   "dnacalc": 2.4,
+   "outcome": "matched"
+  },
+  {
+   "formula": "=SimpleFormat(3.14159)",
+   "excel": "3.14",
+   "exit": 0,
+   "dnacalc": "3.14",
+   "outcome": "matched"
+  },
+  {
+   "formula": "=SimpleGrade(95)",
+   "excel": "A",
+   "exit": 0,
+   "dnacalc": "A",
+   "outcome": "matched"
+  },
+  {
+   "formula": "=SimpleGrade(75)",
+   "excel": "B",
+   "exit": 0,
+   "dnacalc": "B",
+   "outcome": "matched"
+  },
+  {
+   "formula": "=SimpleGrade(10)",
+   "excel": "C",
+   "exit": 0,
+   "dnacalc": "C",
+   "outcome": "matched"
+  },
+  {
+   "formula": "=SimpleFact(10)",
+   "excel": 3628800.0,
+   "exit": 0,
+   "dnacalc": 3628800.0,
+   "outcome": "matched"
+  },
+  {
+   "formula": "=SimpleFact(20)",
+   "excel": 2.43290200817664e+18,
+   "exit": 0,
+   "dnacalc": 2.43290200817664e+18,
+   "outcome": "matched"
+  },
+  {
+   "formula": "=SimpleWsMax(3,9,4)",
+   "excel": 9.0,
+   "exit": 0,
+   "dnacalc": 9.0,
+   "outcome": "matched"
+  },
+  {
+   "formula": "=SimpleWsMatch(\"b\")",
+   "excel": 2.0,
+   "exit": 0,
+   "dnacalc": 2.0,
+   "outcome": "matched"
+  },
+  {
+   "formula": "=SimpleWsMatch(\"z\")",
+   "excel": "Err 1004",
+   "exit": 0,
+   "dnacalc": "Err 1004",
+   "outcome": "matched"
+  },
+  {
+   "formula": "=SimpleWsMatchRaw(\"z\")",
+   "excel": {
+    "error": "#VALUE!"
+   },
+   "exit": 0,
+   "dnacalc": {
+    "error": "#VALUE!"
+   },
+   "outcome": "matched"
+  },
+  {
+   "formula": "=SimpleHidden(1)",
+   "excel": 1.0,
+   "exit": 0,
+   "dnacalc": 1.0,
+   "outcome": "matched"
+  },
+  {
+   "formula": "=DnaSimple.SimpleNeg(4)",
+   "excel": -4.0,
+   "exit": 0,
+   "dnacalc": -4.0,
+   "outcome": "matched"
+  }
+ ]
+}

@@ -196,6 +196,18 @@ libraries, so DnaExamples' project does not compile there (the part is kept and 
 unchanged); the native dialogs (the runs type the add-in's path, open through the page's file
 input and save through `--save-dir`).
 
+### Simple UDFs (2026-11-11, dc-0f1k.4 and dc-0f1k.10)
+
+A set of 109 plain worksheet functions (`fixture/vba/DnaSimple.bas`: numbers, text, logicals,
+Optional, ParamArray, arrays in and out, CVErr, Variant coercion, WorksheetFunction) in
+DnaExamples.xlam and .xlsm, against Excel: OneCalc 109 of 109 through the page for both the .xlam
+and the .xlsm session (and DnaExamples' own 26 + 1 edit, all matched); DNA Calc desktop 109 of 109
+for the .xlam (`--xll` now takes an .xlam), 23 of 26 DnaExamples cases (ActiveSheet, Selection),
+and 0 of 109 for an .xlsm, whose project DNA Calc's file-project route refuses whole (dc-hsa5.12).
+Table, routes and the defects fixed:
+`crates/calc-xll-reference/traces/2026-11-11-simple-udfs/README.md`. The "Macros are disabled"
+bar now shows outside the collapsed session-file panel.
+
 ## Milestone 6: RTD (dc-snz.23)
 
 A session with an RTD connector (the desktop application's, over the loaded add-ins' RTD servers)
