@@ -1,0 +1,175 @@
+{
+ "project": "vba-json",
+ "excel_build": "20527",
+ "workbook_sha256": "51746216d6df587f09a300ee39afd64cc7b5b748d215aeef0a686cac75fb3930",
+ "rows": [
+  {
+   "address": "A1",
+   "formula": "=JsonRoundTrip(\"{\"\"a\"\":1,\"\"b\"\":[true,false,null]}\")",
+   "vba_return_type": "String",
+   "excel_cell_type": "String",
+   "text": "{\"a\":1,\"b\":[true,false,null]}",
+   "number_format": "General"
+  },
+  {
+   "address": "I1",
+   "formula": "=JsonRoundTrip(\"[1,2.5,-3e2]\")",
+   "vba_return_type": "String",
+   "excel_cell_type": "String",
+   "text": "[1,2.5,-300]",
+   "number_format": "General"
+  },
+  {
+   "address": "Q1",
+   "formula": "=JsonRoundTrip(\"\"\"x\ny\"\"\")",
+   "vba_return_type": "String",
+   "excel_cell_type": "error",
+   "text": "#VALUE!",
+   "number_format": "General"
+  },
+  {
+   "address": "Y1",
+   "formula": "=JsonRoundTrip(\"{\"\"k\"\":{\"\"n\"\":{}}}\")",
+   "vba_return_type": "String",
+   "excel_cell_type": "String",
+   "text": "{\"k\":{\"n\":{}}}",
+   "number_format": "General"
+  },
+  {
+   "address": "AG1",
+   "formula": "=JsonRoundTrip(\"[]\")",
+   "vba_return_type": "String",
+   "excel_cell_type": "String",
+   "text": "[]",
+   "number_format": "General"
+  },
+  {
+   "address": "AO1",
+   "formula": "=JsonRoundTrip(\"{}\")",
+   "vba_return_type": "String",
+   "excel_cell_type": "String",
+   "text": "{}",
+   "number_format": "General"
+  },
+  {
+   "address": "AW1",
+   "formula": "=JsonRoundTrip(\" [ 1 , 2 ] \")",
+   "vba_return_type": "String",
+   "excel_cell_type": "String",
+   "text": "[1,2]",
+   "number_format": "General"
+  },
+  {
+   "address": "BE1",
+   "formula": "=JsonRoundTrip(\"{\"\"a\"\":\"\"\u00e9\"\"}\")",
+   "vba_return_type": "String",
+   "excel_cell_type": "String",
+   "text": "{\"a\":\"\\u00E9\"}",
+   "number_format": "General"
+  },
+  {
+   "address": "BM1",
+   "formula": "=JsonRoundTrip(\"{\"\"n\"\":123456789012345678}\")",
+   "vba_return_type": "String",
+   "excel_cell_type": "String",
+   "text": "{\"n\":123456789012345678}",
+   "number_format": "General"
+  },
+  {
+   "address": "BU1",
+   "formula": "=JsonKey(\"{\"\"a\"\":1,\"\"b\"\":\"\"two\"\"}\",\"a\")",
+   "vba_return_type": "Variant",
+   "excel_cell_type": "Double",
+   "text": "1",
+   "number_format": "General"
+  },
+  {
+   "address": "CC1",
+   "formula": "=JsonKey(\"{\"\"a\"\":1,\"\"b\"\":\"\"two\"\"}\",\"b\")",
+   "vba_return_type": "Variant",
+   "excel_cell_type": "String",
+   "text": "two",
+   "number_format": "General"
+  },
+  {
+   "address": "CK1",
+   "formula": "=JsonKey(\"{\"\"a\"\":{\"\"x\"\":5}}\",\"a\")",
+   "vba_return_type": "Variant",
+   "excel_cell_type": "error",
+   "text": "#VALUE!",
+   "number_format": "General"
+  },
+  {
+   "address": "CS1",
+   "formula": "=JsonKey(\"{\"\"a\"\":1}\",\"z\")",
+   "vba_return_type": "Variant",
+   "excel_cell_type": "Double",
+   "text": "0",
+   "number_format": "General"
+  },
+  {
+   "address": "DA1",
+   "formula": "=JsonCount(\"[1,2,3]\")",
+   "vba_return_type": "Long",
+   "excel_cell_type": "Double",
+   "text": "3",
+   "number_format": "General"
+  },
+  {
+   "address": "DI1",
+   "formula": "=JsonCount(\"{\"\"a\"\":1,\"\"b\"\":2}\")",
+   "vba_return_type": "Long",
+   "excel_cell_type": "Double",
+   "text": "2",
+   "number_format": "General"
+  },
+  {
+   "address": "DQ1",
+   "formula": "=JsonItem(\"[10,20,30]\",2)",
+   "vba_return_type": "Variant",
+   "excel_cell_type": "Double",
+   "text": "20",
+   "number_format": "General"
+  },
+  {
+   "address": "DY1",
+   "formula": "=JsonItem(\"[10,20,30]\",9)",
+   "vba_return_type": "Variant",
+   "excel_cell_type": "error",
+   "text": "#VALUE!",
+   "number_format": "General"
+  },
+  {
+   "address": "EG1",
+   "formula": "=JsonRoundTrip(\"{bad\")",
+   "vba_return_type": "String",
+   "excel_cell_type": "error",
+   "text": "#VALUE!",
+   "number_format": "General"
+  },
+  {
+   "address": "EO1",
+   "formula": "=JsonRoundTrip(\"\")",
+   "vba_return_type": "String",
+   "excel_cell_type": "error",
+   "text": "#VALUE!",
+   "number_format": "General"
+  },
+  {
+   "address": "EW1",
+   "formula": "=JsonRoundTrip(\"[1,]\")",
+   "vba_return_type": "String",
+   "excel_cell_type": "error",
+   "text": "#VALUE!",
+   "number_format": "General"
+  },
+  {
+   "address": "FE1",
+   "formula": "=JsonRoundTrip(\"tru\")",
+   "vba_return_type": "String",
+   "excel_cell_type": "error",
+   "text": "#VALUE!",
+   "number_format": "General"
+  }
+ ]
+}

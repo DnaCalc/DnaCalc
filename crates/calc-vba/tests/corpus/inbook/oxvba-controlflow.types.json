@@ -1,0 +1,191 @@
+{
+ "project": "oxvba-controlflow",
+ "excel_build": "20527",
+ "workbook_sha256": "ed56d5c6b840c51406489abad8d3704810f83a676a54d9900fe9c6cd1a1213c9",
+ "rows": [
+  {
+   "address": "A1",
+   "formula": "=PROBE_cf_goto_forward()",
+   "vba_return_type": "String",
+   "excel_cell_type": "String",
+   "text": "a;b;",
+   "number_format": "General"
+  },
+  {
+   "address": "I1",
+   "formula": "=PROBE_cf_goto_backward()",
+   "vba_return_type": "String",
+   "excel_cell_type": "String",
+   "text": "1;2;3;",
+   "number_format": "General"
+  },
+  {
+   "address": "Q1",
+   "formula": "=PROBE_cf_goto_out_of_for()",
+   "vba_return_type": "String",
+   "excel_cell_type": "String",
+   "text": "s=1;2;3;i=3",
+   "number_format": "General"
+  },
+  {
+   "address": "Y1",
+   "formula": "=PROBE_cf_for_counter_after()",
+   "vba_return_type": "String",
+   "excel_cell_type": "String",
+   "text": "loop=1;2;3;final_i=4",
+   "number_format": "General"
+  },
+  {
+   "address": "AG1",
+   "formula": "=PROBE_cf_for_step()",
+   "vba_return_type": "String",
+   "excel_cell_type": "String",
+   "text": "loop=1;4;7;10;final_i=13",
+   "number_format": "General"
+  },
+  {
+   "address": "AO1",
+   "formula": "=PROBE_cf_for_step_neg()",
+   "vba_return_type": "String",
+   "excel_cell_type": "String",
+   "text": "loop=5;3;1;final_i=-1",
+   "number_format": "General"
+  },
+  {
+   "address": "AW1",
+   "formula": "=PROBE_cf_for_never_runs()",
+   "vba_return_type": "String",
+   "excel_cell_type": "String",
+   "text": "s=x;final_i=5",
+   "number_format": "General"
+  },
+  {
+   "address": "BE1",
+   "formula": "=PROBE_cf_for_bound_evaluated_once()",
+   "vba_return_type": "String",
+   "excel_cell_type": "String",
+   "text": "loop=1;2;3;final_i=4",
+   "number_format": "General"
+  },
+  {
+   "address": "BM1",
+   "formula": "=PROBE_cf_for_modify_counter()",
+   "vba_return_type": "String",
+   "excel_cell_type": "String",
+   "text": "loop=2;4;6;final_i=7",
+   "number_format": "General"
+  },
+  {
+   "address": "BU1",
+   "formula": "=PROBE_cf_exit_for()",
+   "vba_return_type": "String",
+   "excel_cell_type": "String",
+   "text": "s=1;2;final_i=3",
+   "number_format": "General"
+  },
+  {
+   "address": "CC1",
+   "formula": "=PROBE_cf_nested_for_exit()",
+   "vba_return_type": "String",
+   "excel_cell_type": "String",
+   "text": "s=1.1;2.1;i=3;j=2",
+   "number_format": "General"
+  },
+  {
+   "address": "CK1",
+   "formula": "=PROBE_cf_gosub_return()",
+   "vba_return_type": "String",
+   "excel_cell_type": "String",
+   "text": "a;b;c;",
+   "number_format": "General"
+  },
+  {
+   "address": "CS1",
+   "formula": "=PROBE_cf_gosub_twice()",
+   "vba_return_type": "String",
+   "excel_cell_type": "String",
+   "text": "x;x;",
+   "number_format": "General"
+  },
+  {
+   "address": "DA1",
+   "formula": "=PROBE_cf_on_n_goto()",
+   "vba_return_type": "String",
+   "excel_cell_type": "String",
+   "text": "L2;",
+   "number_format": "General"
+  },
+  {
+   "address": "DI1",
+   "formula": "=PROBE_cf_on_n_goto_zero()",
+   "vba_return_type": "String",
+   "excel_cell_type": "String",
+   "text": "fell;",
+   "number_format": "General"
+  },
+  {
+   "address": "DQ1",
+   "formula": "=PROBE_cf_on_n_gosub()",
+   "vba_return_type": "String",
+   "excel_cell_type": "String",
+   "text": "S2;end",
+   "number_format": "General"
+  },
+  {
+   "address": "DY1",
+   "formula": "=PROBE_cf_select_case()",
+   "vba_return_type": "String",
+   "excel_cell_type": "String",
+   "text": "r=mid",
+   "number_format": "General"
+  },
+  {
+   "address": "EG1",
+   "formula": "=PROBE_cf_select_first_match_wins()",
+   "vba_return_type": "String",
+   "excel_cell_type": "String",
+   "text": "r=A",
+   "number_format": "General"
+  },
+  {
+   "address": "EO1",
+   "formula": "=PROBE_cf_do_while()",
+   "vba_return_type": "String",
+   "excel_cell_type": "String",
+   "text": "s=1;2;3;i=3",
+   "number_format": "General"
+  },
+  {
+   "address": "EW1",
+   "formula": "=PROBE_cf_do_loop_until()",
+   "vba_return_type": "String",
+   "excel_cell_type": "String",
+   "text": "s=1;2;3;i=3",
+   "number_format": "General"
+  },
+  {
+   "address": "FE1",
+   "formula": "=PROBE_cf_exit_do()",
+   "vba_return_type": "String",
+   "excel_cell_type": "String",
+   "text": "s=1;2;i=3",
+   "number_format": "General"
+  },
+  {
+   "address": "FM1",
+   "formula": "=PROBE_cf_while_wend()",
+   "vba_return_type": "String",
+   "excel_cell_type": "String",
+   "text": "s=1;2;3;i=3",
+   "number_format": "General"
+  },
+  {
+   "address": "FU1",
+   "formula": "=PROBE_cf_for_each_array()",
+   "vba_return_type": "String",
+   "excel_cell_type": "String",
+   "text": "s=10;20;30;",
+   "number_format": "General"
+  }
+ ]
+}

@@ -1,0 +1,48 @@
+{
+ "format": "dnacalc-trusted-evidence-code",
+ "version": 1,
+ "workbooks": {
+  "dd126007100712b9350830fa22a859bab82e4f40f814147434d25b4f844c7fc3": {
+   "vba": true,
+   "events": false,
+   "xlls": [],
+   "evidence": "own in-book workbook built by vba-job.ps1 -Action inbook from corpus project dna-simple (own, MIT (this repository)); modules are the project sources, no outside workbook opened"
+  },
+  "49db45ed0add6a10ec9ebed8c93cf73ed6e33878919ec4c28e5aa77700637da5": {
+   "vba": true,
+   "events": false,
+   "xlls": [],
+   "evidence": "own in-book workbook built by vba-job.ps1 -Action inbook from corpus project dna-examples (own, MIT (this repository)); modules are the project sources, no outside workbook opened"
+  },
+  "ed56d5c6b840c51406489abad8d3704810f83a676a54d9900fe9c6cd1a1213c9": {
+   "vba": true,
+   "events": false,
+   "xlls": [],
+   "evidence": "own in-book workbook built by vba-job.ps1 -Action inbook from corpus project oxvba-controlflow (own, MIT (this repository)); modules are the project sources, no outside workbook opened"
+  },
+  "5639eb5612be10941c507dd0ea4695ddae32d6e47e4c2b04ffb6d0977fdb193d": {
+   "vba": true,
+   "events": false,
+   "xlls": [],
+   "evidence": "own in-book workbook built by vba-job.ps1 -Action inbook from corpus project oxvba-error-handling (own, MIT (this repository)); modules are the project sources, no outside workbook opened"
+  },
+  "083a45664a3bcfab8e99d568001c750ffe0d9532425e6d3e9816dee0bed3c4cb": {
+   "vba": true,
+   "events": false,
+   "xlls": [],
+   "evidence": "own in-book workbook built by vba-job.ps1 -Action inbook from corpus project vba-web (third-party, MIT); modules are the project sources, no outside workbook opened"
+  },
+  "51746216d6df587f09a300ee39afd64cc7b5b748d215aeef0a686cac75fb3930": {
+   "vba": true,
+   "events": false,
+   "xlls": [],
+   "evidence": "own in-book workbook built by vba-job.ps1 -Action inbook from corpus project vba-json (third-party, MIT); modules are the project sources, no outside workbook opened"
+  },
+  "3acdcc8443cff6a55a72aaa90d3f2aa22b7de2a1c27160d7210ad277cba777ef": {
+   "vba": true,
+   "events": false,
+   "xlls": [],
+   "evidence": "own in-book workbook built by vba-job.ps1 -Action inbook from corpus project vba-dictionary (third-party, MIT); modules are the project sources, no outside workbook opened"
+  }
+ }
+}

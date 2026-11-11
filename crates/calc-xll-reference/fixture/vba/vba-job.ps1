@@ -1,4 +1,4 @@
-param([ValidateSet('build','cases','reopen','activeobjects','project')][string]$Action, [string]$OutDirectory, [string]$AddIn,
+param([ValidateSet('build','cases','reopen','activeobjects','project','inbook')][string]$Action, [string]$OutDirectory, [string]$AddIn,
     [string]$Cases, [string]$Project, [string[]]$Files, [string]$FormulaCell = 'H1', [bool]$InBook = $false, $OwnedExcel = $null)
 # The Excel side of OneCalc milestone 5 (dc-0f1k.4), in an owned hidden Excel session
 # (tools/excel-session). Run without -OwnedExcel, this script submits itself as one job; run it
@@ -21,6 +21,12 @@ param([ValidateSet('build','cases','reopen','activeobjects','project')][string]$
 #           Nothing is opened from outside: the workbook is ours and fresh; third-party source is only
 #           imported, and only the functions its cases name are called. OutDirectory gets cases.json (the
 #           cases file with Excel's answers, no prediction) and project.json rows with types and text.
+#   inbook: like project, but the formulas stay in the workbook: formula i of the cases file goes into row 1,
+#           column 1+8*(i-1) of Sheet1 (a spill of up to 7 columns stays clear of the next case), the workbook is
+#           calculated and saved as <OutDirectory>/<project id>.xlsm, and inbook-rows.json records per cell the
+#           Value2 (with its type), Text and NumberFormat (Excel keeps no Date or Currency type in a cell; the VBA
+#           return type is read from the declaration by the corpus tooling).
+#           The capture worker then records Excel's typed answers of that file (dnacalc-capture-record).
 #   reopen: opens each saved .xlsm of -Files, reads its formula and calculated value, and records
 #           whether Excel repaired it (the workbook name and the error*.xml repair logs in TEMP).
 # No Excel setting, Trust Center or macro-security value is read for change or written; the
@@ -254,6 +260,47 @@ End Function
             }
             ConvertTo-Json -InputObject @($answers) -Depth 6 | Set-Content -LiteralPath (Join-Path $OutDirectory 'cases.json') -Encoding utf8NoBOM
         } finally { Step 'close' { $book.Close($false) } }
+    }
+    'inbook' {
+        $manifest = Get-Content -LiteralPath $Project -Raw -Encoding utf8 | ConvertFrom-Json
+        $base = Split-Path -Parent (Resolve-Path -LiteralPath $Project)
+        $list = Get-Content -LiteralPath (Join-Path $base $manifest.cases) -Raw -Encoding utf8 | ConvertFrom-Json
+        $book = $excel.Workbooks.Add()
+        try {
+            $temp = Join-Path $OutDirectory 'import'
+            New-Item -ItemType Directory -Force -Path $temp | Out-Null
+            foreach ($module in $manifest.modules) {
+                $copy = Join-Path $temp (Split-Path -Leaf $module.path)
+                [IO.File]::WriteAllText($copy, (Crlf (Join-Path $base $module.path)), [Text.Encoding]::GetEncoding(1252))
+                Step "import $($module.path)" { [void]$book.VBProject.VBComponents.Import($copy) }
+            }
+            foreach ($reference in @($manifest.references)) {
+                if ($reference) { Step "reference $($reference.name)" { [void]$book.VBProject.References.AddFromGuid($reference.guid, $reference.major, $reference.minor) } }
+            }
+            $sheet = $book.Worksheets.Item(1)
+            $result.sheet = $sheet.Name
+            $i = 0
+            foreach ($case in $list) {
+                $cell = $sheet.Cells.Item(1, 1 + 8 * $i)
+                $row = [ordered]@{ index = $i; address = [string]$cell.Address($false, $false); formula = $case.formula }
+                try { $cell.Formula2 = $case.formula } catch { $row.error = $_.Exception.Message }
+                $result.rows += $row
+                $i++
+            }
+            $excel.CalculateFull()
+            foreach ($row in $result.rows) {
+                if ($row.Contains('error')) { continue }
+                $cell = $sheet.Range($row.address)
+                try {
+                    $row.excel = Describe $cell.Value2
+                    $row.text = [string]$cell.Text
+                    $row.number_format = [string]$cell.NumberFormat
+                } catch { $row.error = $_.Exception.Message }
+            }
+            Step 'save xlsm' { $book.SaveAs((Join-Path $OutDirectory ($manifest.id + '.xlsm')), 52) }
+        } finally { Step 'close' { $book.Close($false) } }
+        $path = Join-Path $OutDirectory ($manifest.id + '.xlsm')
+        if (Test-Path -LiteralPath $path) { $result.file = [ordered]@{ file = ($manifest.id + '.xlsm'); sha256 = (Get-FileHash -LiteralPath $path -Algorithm SHA256).Hash.ToLowerInvariant(); bytes = (Get-Item -LiteralPath $path).Length } }
     }
     'reopen' {
         $logs = Join-Path $env:TEMP 'error*.xml'

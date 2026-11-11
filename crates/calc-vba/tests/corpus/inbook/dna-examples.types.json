@@ -1,0 +1,215 @@
+{
+ "project": "dna-examples",
+ "excel_build": "20527",
+ "workbook_sha256": "49db45ed0add6a10ec9ebed8c93cf73ed6e33878919ec4c28e5aa77700637da5",
+ "rows": [
+  {
+   "address": "A1",
+   "formula": "=DnaAdd(40,2)",
+   "vba_return_type": "Double",
+   "excel_cell_type": "Double",
+   "text": "42",
+   "number_format": "General"
+  },
+  {
+   "address": "I1",
+   "formula": "=DnaGreet(\"OneCalc\")",
+   "vba_return_type": "String",
+   "excel_cell_type": "String",
+   "text": "Hello, OneCalc",
+   "number_format": "General"
+  },
+  {
+   "address": "Q1",
+   "formula": "=DnaJoin(\"a\")",
+   "vba_return_type": "String",
+   "excel_cell_type": "String",
+   "text": "a-(none)",
+   "number_format": "General"
+  },
+  {
+   "address": "Y1",
+   "formula": "=DnaJoin(\"a\",\"+\")",
+   "vba_return_type": "String",
+   "excel_cell_type": "String",
+   "text": "a+(none)",
+   "number_format": "General"
+  },
+  {
+   "address": "AG1",
+   "formula": "=DnaJoin(\"a\",\"+\",7)",
+   "vba_return_type": "String",
+   "excel_cell_type": "String",
+   "text": "a+7",
+   "number_format": "General"
+  },
+  {
+   "address": "AO1",
+   "formula": "=DnaJoin(\"a\",,7)",
+   "vba_return_type": "String",
+   "excel_cell_type": "String",
+   "text": "a-7",
+   "number_format": "General"
+  },
+  {
+   "address": "AW1",
+   "formula": "=DnaSum(1,2,3.5)",
+   "vba_return_type": "Variant",
+   "excel_cell_type": "Double",
+   "text": "6.5",
+   "number_format": "General"
+  },
+  {
+   "address": "BE1",
+   "formula": "=DnaSum()",
+   "vba_return_type": "Variant",
+   "excel_cell_type": "Double",
+   "text": "0",
+   "number_format": "General"
+  },
+  {
+   "address": "BM1",
+   "formula": "=DnaArgs(1,,\"x\")",
+   "vba_return_type": "Variant",
+   "excel_cell_type": "String",
+   "text": "3:Double:missing:String",
+   "number_format": "General"
+  },
+  {
+   "address": "BU1",
+   "formula": "=DnaCounted(40,2)",
+   "vba_return_type": "Long",
+   "excel_cell_type": "Double",
+   "text": "42",
+   "number_format": "General"
+  },
+  {
+   "address": "CC1",
+   "formula": "=DnaCounterName()",
+   "vba_return_type": "String",
+   "excel_cell_type": "String",
+   "text": "DnaCounter",
+   "number_format": "General"
+  },
+  {
+   "address": "CK1",
+   "formula": "=DnaDistinct(\"a\",\"b\",\"A\",\"c\")",
+   "vba_return_type": "Variant",
+   "excel_cell_type": "Double",
+   "text": "3",
+   "number_format": "General"
+  },
+  {
+   "address": "CS1",
+   "formula": "=DnaKeys(\"x\",\"y\",\"x\")",
+   "vba_return_type": "Variant",
+   "excel_cell_type": "String",
+   "text": "x,y|2",
+   "number_format": "General"
+  },
+  {
+   "address": "DA1",
+   "formula": "=DnaDictType()",
+   "vba_return_type": "String",
+   "excel_cell_type": "String",
+   "text": "Dictionary",
+   "number_format": "General"
+  },
+  {
+   "address": "DI1",
+   "formula": "=DnaCells(A1:B3)",
+   "vba_return_type": "Long",
+   "excel_cell_type": "Double",
+   "text": "6",
+   "number_format": "General"
+  },
+  {
+   "address": "DQ1",
+   "formula": "=DnaWhere(A1:B3)",
+   "vba_return_type": "String",
+   "excel_cell_type": "String",
+   "text": "$A$1:$B$3",
+   "number_format": "General"
+  },
+  {
+   "address": "DY1",
+   "formula": "=DnaWsSum(1,2)",
+   "vba_return_type": "Double",
+   "excel_cell_type": "Double",
+   "text": "3",
+   "number_format": "General"
+  },
+  {
+   "address": "EG1",
+   "formula": "=DnaNA()",
+   "vba_return_type": "Variant",
+   "excel_cell_type": "error",
+   "text": "#N/A",
+   "number_format": "General"
+  },
+  {
+   "address": "EO1",
+   "formula": "=DnaFail()",
+   "vba_return_type": "Variant",
+   "excel_cell_type": "error",
+   "text": "#VALUE!",
+   "number_format": "General"
+  },
+  {
+   "address": "EW1",
+   "formula": "=DnaOpenCount()",
+   "vba_return_type": "Long",
+   "excel_cell_type": "Double",
+   "text": "0",
+   "number_format": "General"
+  },
+  {
+   "address": "FE1",
+   "formula": "=DnaTryWrite()",
+   "vba_return_type": "Long",
+   "excel_cell_type": "Double",
+   "text": "1004",
+   "number_format": "General"
+  },
+  {
+   "address": "FM1",
+   "formula": "=DnaWrite()",
+   "vba_return_type": "Long",
+   "excel_cell_type": "error",
+   "text": "#VALUE!",
+   "number_format": "General"
+  },
+  {
+   "address": "FU1",
+   "formula": "=DnaTryWriteArg(Z99)",
+   "vba_return_type": "Long",
+   "excel_cell_type": "Double",
+   "text": "1004",
+   "number_format": "General"
+  },
+  {
+   "address": "GC1",
+   "formula": "=DnaWriteArg(Z99)",
+   "vba_return_type": "Long",
+   "excel_cell_type": "error",
+   "text": "#VALUE!",
+   "number_format": "General"
+  },
+  {
+   "address": "GK1",
+   "formula": "=DnaSelection()",
+   "vba_return_type": "String",
+   "excel_cell_type": "String",
+   "text": "Range",
+   "number_format": "General"
+  },
+  {
+   "address": "GS1",
+   "formula": "=DnaBook()",
+   "vba_return_type": "String",
+   "excel_cell_type": "String",
+   "text": "Book30",
+   "number_format": "General"
+  }
+ ]
+}

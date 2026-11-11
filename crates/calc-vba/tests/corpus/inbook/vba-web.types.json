@@ -1,0 +1,367 @@
+{
+ "project": "vba-web",
+ "excel_build": "20527",
+ "workbook_sha256": "083a45664a3bcfab8e99d568001c750ffe0d9532425e6d3e9816dee0bed3c4cb",
+ "rows": [
+  {
+   "address": "A1",
+   "formula": "=Obfuscate(\"\")",
+   "vba_return_type": "String",
+   "excel_cell_type": "String",
+   "text": "",
+   "number_format": "General"
+  },
+  {
+   "address": "I1",
+   "formula": "=Obfuscate(\"secret\")",
+   "vba_return_type": "String",
+   "excel_cell_type": "String",
+   "text": "******",
+   "number_format": "General"
+  },
+  {
+   "address": "Q1",
+   "formula": "=Obfuscate(\"h\u00e9llo\")",
+   "vba_return_type": "String",
+   "excel_cell_type": "String",
+   "text": "*****",
+   "number_format": "General"
+  },
+  {
+   "address": "Y1",
+   "formula": "=Obfuscate(\"secret\",\"#\")",
+   "vba_return_type": "String",
+   "excel_cell_type": "String",
+   "text": "######",
+   "number_format": "General"
+  },
+  {
+   "address": "AG1",
+   "formula": "=Obfuscate(\"abc\",\"xy\")",
+   "vba_return_type": "String",
+   "excel_cell_type": "String",
+   "text": "xxx",
+   "number_format": "General"
+  },
+  {
+   "address": "AO1",
+   "formula": "=UrlEncode(\"a b+c\")",
+   "vba_return_type": "?",
+   "excel_cell_type": "String",
+   "text": "a%20b%2Bc",
+   "number_format": "General"
+  },
+  {
+   "address": "AW1",
+   "formula": "=UrlEncode(\"\")",
+   "vba_return_type": "?",
+   "excel_cell_type": "String",
+   "text": "",
+   "number_format": "General"
+  },
+  {
+   "address": "BE1",
+   "formula": "=UrlEncode(123)",
+   "vba_return_type": "?",
+   "excel_cell_type": "String",
+   "text": "123",
+   "number_format": "General"
+  },
+  {
+   "address": "BM1",
+   "formula": "=UrlEncode(\"\u00e9\")",
+   "vba_return_type": "?",
+   "excel_cell_type": "String",
+   "text": "%E9",
+   "number_format": "General"
+  },
+  {
+   "address": "BU1",
+   "formula": "=UrlEncode(\"a/b?c=d&e,f;g~h*i\")",
+   "vba_return_type": "?",
+   "excel_cell_type": "String",
+   "text": "a%2Fb%3Fc%3Dd%26e%2Cf%3Bg~h%2Ai",
+   "number_format": "General"
+  },
+  {
+   "address": "CC1",
+   "formula": "=UrlEncode(\"~\")",
+   "vba_return_type": "?",
+   "excel_cell_type": "String",
+   "text": "~",
+   "number_format": "General"
+  },
+  {
+   "address": "CK1",
+   "formula": "=UrlEncode(TRUE)",
+   "vba_return_type": "?",
+   "excel_cell_type": "String",
+   "text": "True",
+   "number_format": "General"
+  },
+  {
+   "address": "CS1",
+   "formula": "=UrlEncode(1.5)",
+   "vba_return_type": "?",
+   "excel_cell_type": "String",
+   "text": "1.5",
+   "number_format": "General"
+  },
+  {
+   "address": "DA1",
+   "formula": "=UrlEncode(\"a b/c?d=e&f,g;h~i*j!k\",FALSE,TRUE,0)",
+   "vba_return_type": "?",
+   "excel_cell_type": "String",
+   "text": "a%20b%2Fc%3Fd%3De%26f%2Cg%3Bh~i%2Aj%21k",
+   "number_format": "General"
+  },
+  {
+   "address": "DI1",
+   "formula": "=UrlEncode(\"a b/c?d=e&f,g;h~i*j!k\",FALSE,TRUE,1)",
+   "vba_return_type": "?",
+   "excel_cell_type": "String",
+   "text": "a+b%2Fc%3Fd%3De%26f%2Cg%3Bh%7Ei*j%21k",
+   "number_format": "General"
+  },
+  {
+   "address": "DQ1",
+   "formula": "=UrlEncode(\"a b/c?d=e&f,g;h~i*j!k\",FALSE,TRUE,2)",
+   "vba_return_type": "?",
+   "excel_cell_type": "String",
+   "text": "a%20b%2Fc%3Fd%3De%26f%2Cg%3Bh%7Ei%2Aj%21k",
+   "number_format": "General"
+  },
+  {
+   "address": "DY1",
+   "formula": "=UrlEncode(\"a b/c?d=e&f,g;h~i*j!k\",FALSE,TRUE,3)",
+   "vba_return_type": "?",
+   "excel_cell_type": "String",
+   "text": "a%20b/c?d=e&f%2Cg%3Bh~i*j!k",
+   "number_format": "General"
+  },
+  {
+   "address": "EG1",
+   "formula": "=UrlEncode(\"a b/c?d=e&f,g;h~i*j!k\",FALSE,TRUE,4)",
+   "vba_return_type": "?",
+   "excel_cell_type": "String",
+   "text": "a%20b%2Fc%3Fd=e&f,g;h~i*j!k",
+   "number_format": "General"
+  },
+  {
+   "address": "EO1",
+   "formula": "=UrlEncode(\"a b\",TRUE)",
+   "vba_return_type": "?",
+   "excel_cell_type": "String",
+   "text": "a+b",
+   "number_format": "General"
+  },
+  {
+   "address": "EW1",
+   "formula": "=UrlEncode(\"a b\",FALSE,FALSE)",
+   "vba_return_type": "?",
+   "excel_cell_type": "String",
+   "text": "a%20b",
+   "number_format": "General"
+  },
+  {
+   "address": "FE1",
+   "formula": "=UrlDecode(\"a%20b%2Bc\")",
+   "vba_return_type": "?",
+   "excel_cell_type": "String",
+   "text": "a b+c",
+   "number_format": "General"
+  },
+  {
+   "address": "FM1",
+   "formula": "=UrlDecode(\"a+b\")",
+   "vba_return_type": "?",
+   "excel_cell_type": "String",
+   "text": "a b",
+   "number_format": "General"
+  },
+  {
+   "address": "FU1",
+   "formula": "=UrlDecode(\"\")",
+   "vba_return_type": "?",
+   "excel_cell_type": "String",
+   "text": "",
+   "number_format": "General"
+  },
+  {
+   "address": "GC1",
+   "formula": "=UrlDecode(\"100%\")",
+   "vba_return_type": "?",
+   "excel_cell_type": "String",
+   "text": "100%",
+   "number_format": "General"
+  },
+  {
+   "address": "GK1",
+   "formula": "=UrlDecode(\"%zz\")",
+   "vba_return_type": "?",
+   "excel_cell_type": "error",
+   "text": "#VALUE!",
+   "number_format": "General"
+  },
+  {
+   "address": "GS1",
+   "formula": "=UrlDecode(\"%41%42\")",
+   "vba_return_type": "?",
+   "excel_cell_type": "String",
+   "text": "AB",
+   "number_format": "General"
+  },
+  {
+   "address": "HA1",
+   "formula": "=UrlDecode(\"a%2\")",
+   "vba_return_type": "?",
+   "excel_cell_type": "String",
+   "text": "a%2",
+   "number_format": "General"
+  },
+  {
+   "address": "HI1",
+   "formula": "=UrlDecode(\"%e9\")",
+   "vba_return_type": "?",
+   "excel_cell_type": "String",
+   "text": "\u00e9",
+   "number_format": "General"
+  },
+  {
+   "address": "HQ1",
+   "formula": "=UrlDecode(\"a+b\",FALSE)",
+   "vba_return_type": "?",
+   "excel_cell_type": "String",
+   "text": "a+b",
+   "number_format": "General"
+  },
+  {
+   "address": "HY1",
+   "formula": "=UrlDecode(\"a+b\",FALSE,1)",
+   "vba_return_type": "?",
+   "excel_cell_type": "String",
+   "text": "a b",
+   "number_format": "General"
+  },
+  {
+   "address": "IG1",
+   "formula": "=UrlDecode(\"a+b\",FALSE,2)",
+   "vba_return_type": "?",
+   "excel_cell_type": "String",
+   "text": "a b",
+   "number_format": "General"
+  },
+  {
+   "address": "IO1",
+   "formula": "=JoinUrl(\"http://a.com/\",\"/b\")",
+   "vba_return_type": "String",
+   "excel_cell_type": "String",
+   "text": "http://a.com/b",
+   "number_format": "General"
+  },
+  {
+   "address": "IW1",
+   "formula": "=JoinUrl(\"a\",\"\")",
+   "vba_return_type": "String",
+   "excel_cell_type": "String",
+   "text": "a",
+   "number_format": "General"
+  },
+  {
+   "address": "JE1",
+   "formula": "=JoinUrl(\"\",\"b\")",
+   "vba_return_type": "String",
+   "excel_cell_type": "String",
+   "text": "b",
+   "number_format": "General"
+  },
+  {
+   "address": "JM1",
+   "formula": "=JoinUrl(\"a\",\"b\")",
+   "vba_return_type": "String",
+   "excel_cell_type": "String",
+   "text": "a/b",
+   "number_format": "General"
+  },
+  {
+   "address": "JU1",
+   "formula": "=JoinUrl(\"a//\",\"//b\")",
+   "vba_return_type": "String",
+   "excel_cell_type": "String",
+   "text": "a///b",
+   "number_format": "General"
+  },
+  {
+   "address": "KC1",
+   "formula": "=JoinUrl(\"\",\"\")",
+   "vba_return_type": "String",
+   "excel_cell_type": "String",
+   "text": "",
+   "number_format": "General"
+  },
+  {
+   "address": "KK1",
+   "formula": "=MethodToName(0)",
+   "vba_return_type": "String",
+   "excel_cell_type": "String",
+   "text": "GET",
+   "number_format": "General"
+  },
+  {
+   "address": "KS1",
+   "formula": "=MethodToName(1)",
+   "vba_return_type": "String",
+   "excel_cell_type": "String",
+   "text": "POST",
+   "number_format": "General"
+  },
+  {
+   "address": "LA1",
+   "formula": "=MethodToName(2)",
+   "vba_return_type": "String",
+   "excel_cell_type": "String",
+   "text": "PUT",
+   "number_format": "General"
+  },
+  {
+   "address": "LI1",
+   "formula": "=MethodToName(3)",
+   "vba_return_type": "String",
+   "excel_cell_type": "String",
+   "text": "DELETE",
+   "number_format": "General"
+  },
+  {
+   "address": "LQ1",
+   "formula": "=MethodToName(4)",
+   "vba_return_type": "String",
+   "excel_cell_type": "String",
+   "text": "PATCH",
+   "number_format": "General"
+  },
+  {
+   "address": "LY1",
+   "formula": "=MethodToName(5)",
+   "vba_return_type": "String",
+   "excel_cell_type": "String",
+   "text": "HEAD",
+   "number_format": "General"
+  },
+  {
+   "address": "MG1",
+   "formula": "=MethodToName(9)",
+   "vba_return_type": "String",
+   "excel_cell_type": "String",
+   "text": "",
+   "number_format": "General"
+  },
+  {
+   "address": "MO1",
+   "formula": "=MethodToName(-1)",
+   "vba_return_type": "String",
+   "excel_cell_type": "String",
+   "text": "",
+   "number_format": "General"
+  }
+ ]
+}

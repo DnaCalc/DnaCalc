@@ -1,0 +1,271 @@
+{
+ "project": "oxvba-error-handling",
+ "excel_build": "20527",
+ "workbook_sha256": "5639eb5612be10941c507dd0ea4695ddae32d6e47e4c2b04ffb6d0977fdb193d",
+ "rows": [
+  {
+   "address": "A1",
+   "formula": "=PROBE_oe_resume_next()",
+   "vba_return_type": "String",
+   "excel_cell_type": "String",
+   "text": "errnum=11;desc=Division by zero",
+   "number_format": "General"
+  },
+  {
+   "address": "I1",
+   "formula": "=PROBE_oe_goto_label()",
+   "vba_return_type": "String",
+   "excel_cell_type": "String",
+   "text": "handler;errnum=13",
+   "number_format": "General"
+  },
+  {
+   "address": "Q1",
+   "formula": "=PROBE_oe_goto0_disables()",
+   "vba_return_type": "String",
+   "excel_cell_type": "String",
+   "text": "caught=7",
+   "number_format": "General"
+  },
+  {
+   "address": "Y1",
+   "formula": "=PROBE_oe_resume_next_resets_err()",
+   "vba_return_type": "String",
+   "excel_cell_type": "String",
+   "text": "after_raise=9;after_rearm=0",
+   "number_format": "General"
+  },
+  {
+   "address": "AG1",
+   "formula": "=PROBE_err_reset_on_onerror0()",
+   "vba_return_type": "String",
+   "excel_cell_type": "String",
+   "text": "after_raise=5;after_onerror0=0",
+   "number_format": "General"
+  },
+  {
+   "address": "AO1",
+   "formula": "=PROBE_oe_goto_minus1()",
+   "vba_return_type": "String",
+   "excel_cell_type": "String",
+   "text": "GUARD",
+   "number_format": "General"
+  },
+  {
+   "address": "AW1",
+   "formula": "=PROBE_resume_without_error()",
+   "vba_return_type": "String",
+   "excel_cell_type": "String",
+   "text": "errnum=20",
+   "number_format": "General"
+  },
+  {
+   "address": "BE1",
+   "formula": "=PROBE_resume_reruns_faulting_stmt()",
+   "vba_return_type": "String",
+   "excel_cell_type": "String",
+   "text": "x=50;n=1",
+   "number_format": "General"
+  },
+  {
+   "address": "BM1",
+   "formula": "=PROBE_resume_next_continues()",
+   "vba_return_type": "String",
+   "excel_cell_type": "String",
+   "text": "before;handler;after;errnum=0",
+   "number_format": "General"
+  },
+  {
+   "address": "BU1",
+   "formula": "=PROBE_resume_label()",
+   "vba_return_type": "String",
+   "excel_cell_type": "String",
+   "text": "before;handler;errnum=0",
+   "number_format": "General"
+  },
+  {
+   "address": "CC1",
+   "formula": "=PROBE_resume_clears_err()",
+   "vba_return_type": "String",
+   "excel_cell_type": "String",
+   "text": "in_handler=5;after_resume_next=0",
+   "number_format": "General"
+  },
+  {
+   "address": "CK1",
+   "formula": "=PROBE_err_raise_full()",
+   "vba_return_type": "String",
+   "excel_cell_type": "String",
+   "text": "n=5;src=MySrc;desc=MyDesc",
+   "number_format": "General"
+  },
+  {
+   "address": "CS1",
+   "formula": "=PROBE_err_description_derivation()",
+   "vba_return_type": "String",
+   "excel_cell_type": "String",
+   "text": "desc=Division by zero",
+   "number_format": "General"
+  },
+  {
+   "address": "DA1",
+   "formula": "=PROBE_err_source_default()",
+   "vba_return_type": "String",
+   "excel_cell_type": "String",
+   "text": "src=[VBAProject]",
+   "number_format": "General"
+  },
+  {
+   "address": "DI1",
+   "formula": "=PROBE_err_raise_omitted_inherit()",
+   "vba_return_type": "String",
+   "excel_cell_type": "String",
+   "text": "n=6;src=VBAProject;desc=Overflow",
+   "number_format": "General"
+  },
+  {
+   "address": "DQ1",
+   "formula": "=PROBE_err_clear()",
+   "vba_return_type": "String",
+   "excel_cell_type": "String",
+   "text": "before=5;after_clear=0",
+   "number_format": "General"
+  },
+  {
+   "address": "DY1",
+   "formula": "=PROBE_err_persists_after_clean_stmt()",
+   "vba_return_type": "String",
+   "excel_cell_type": "String",
+   "text": "errnum=5",
+   "number_format": "General"
+  },
+  {
+   "address": "EG1",
+   "formula": "=PROBE_prop_callee_to_caller()",
+   "vba_return_type": "String",
+   "excel_cell_type": "String",
+   "text": "caller-caught;errnum=6",
+   "number_format": "General"
+  },
+  {
+   "address": "EO1",
+   "formula": "=PROBE_reraise_in_handler_propagates()",
+   "vba_return_type": "String",
+   "excel_cell_type": "String",
+   "text": "caller-caught;errnum=5",
+   "number_format": "General"
+  },
+  {
+   "address": "EW1",
+   "formula": "=PROBE_resume_next_after_prop()",
+   "vba_return_type": "String",
+   "excel_cell_type": "String",
+   "text": "before;handler;after;errnum=0",
+   "number_format": "General"
+  },
+  {
+   "address": "FE1",
+   "formula": "=PROBE_nested_onerror_restore()",
+   "vba_return_type": "String",
+   "excel_cell_type": "String",
+   "text": "caller-caught;errnum=42",
+   "number_format": "General"
+  },
+  {
+   "address": "FM1",
+   "formula": "=PROBE_exit_sub_clears_err()",
+   "vba_return_type": "String",
+   "excel_cell_type": "String",
+   "text": "after_call_errnum=5",
+   "number_format": "General"
+  },
+  {
+   "address": "FU1",
+   "formula": "=PROBE_end_sub_err_persists()",
+   "vba_return_type": "String",
+   "excel_cell_type": "String",
+   "text": "after_call_errnum=5",
+   "number_format": "General"
+  },
+  {
+   "address": "GC1",
+   "formula": "=PROBE_err_raise_inherit_noreset()",
+   "vba_return_type": "String",
+   "excel_cell_type": "String",
+   "text": "n=6;src=Src1;desc=Desc1",
+   "number_format": "General"
+  },
+  {
+   "address": "GK1",
+   "formula": "=PROBE_err_raise_inherit_partial_src()",
+   "vba_return_type": "String",
+   "excel_cell_type": "String",
+   "text": "n=6;src=Src2;desc=Desc1",
+   "number_format": "General"
+  },
+  {
+   "address": "GS1",
+   "formula": "=PROBE_err_raise_inherit_same_num()",
+   "vba_return_type": "String",
+   "excel_cell_type": "String",
+   "text": "n=5;src=Src1;desc=Desc1",
+   "number_format": "General"
+  },
+  {
+   "address": "HA1",
+   "formula": "=PROBE_err_raise_inherit_after_clear()",
+   "vba_return_type": "String",
+   "excel_cell_type": "String",
+   "text": "n=6;src=VBAProject;desc=Overflow",
+   "number_format": "General"
+  },
+  {
+   "address": "HI1",
+   "formula": "=PROBE_err_source_system()",
+   "vba_return_type": "String",
+   "excel_cell_type": "String",
+   "text": "n=11;src=[VBAProject]",
+   "number_format": "General"
+  },
+  {
+   "address": "HQ1",
+   "formula": "=PROBE_err_system_after_raise()",
+   "vba_return_type": "String",
+   "excel_cell_type": "String",
+   "text": "n=11;src=VBAProject;desc=Division by zero",
+   "number_format": "General"
+  },
+  {
+   "address": "HY1",
+   "formula": "=PROBE_err_raise_inherit_after_system()",
+   "vba_return_type": "String",
+   "excel_cell_type": "String",
+   "text": "n=6;src=VBAProject;desc=Division by zero",
+   "number_format": "General"
+  },
+  {
+   "address": "IG1",
+   "formula": "=PROBE_error_statement()",
+   "vba_return_type": "String",
+   "excel_cell_type": "String",
+   "text": "handler;errnum=5;desc=Invalid procedure call or argument",
+   "number_format": "General"
+  },
+  {
+   "address": "IO1",
+   "formula": "=PROBE_error_statement_inherit()",
+   "vba_return_type": "String",
+   "excel_cell_type": "String",
+   "text": "n=6;src=VBAProject;desc=Overflow",
+   "number_format": "General"
+  },
+  {
+   "address": "IW1",
+   "formula": "=PROBE_error_statement_clean()",
+   "vba_return_type": "String",
+   "excel_cell_type": "String",
+   "text": "n=11;src=[VBAProject];desc=Division by zero",
+   "number_format": "General"
+  }
+ ]
+}

@@ -1,0 +1,127 @@
+{
+ "project": "vba-dictionary",
+ "excel_build": "20527",
+ "workbook_sha256": "3acdcc8443cff6a55a72aaa90d3f2aa22b7de2a1c27160d7210ad277cba777ef",
+ "rows": [
+  {
+   "address": "A1",
+   "formula": "=DictCount(\"a=1,b=2,c=3\")",
+   "vba_return_type": "Long",
+   "excel_cell_type": "Double",
+   "text": "3",
+   "number_format": "General"
+  },
+  {
+   "address": "I1",
+   "formula": "=DictCount(\"a=1,a=2\")",
+   "vba_return_type": "Long",
+   "excel_cell_type": "Double",
+   "text": "1",
+   "number_format": "General"
+  },
+  {
+   "address": "Q1",
+   "formula": "=DictCount(\"\")",
+   "vba_return_type": "Long",
+   "excel_cell_type": "Double",
+   "text": "0",
+   "number_format": "General"
+  },
+  {
+   "address": "Y1",
+   "formula": "=DictLookup(\"a=1,b=2\",\"b\")",
+   "vba_return_type": "Variant",
+   "excel_cell_type": "String",
+   "text": "2",
+   "number_format": "General"
+  },
+  {
+   "address": "AG1",
+   "formula": "=DictLookup(\"a=1,b=2\",\"z\")",
+   "vba_return_type": "Variant",
+   "excel_cell_type": "Double",
+   "text": "0",
+   "number_format": "General"
+  },
+  {
+   "address": "AO1",
+   "formula": "=DictLookup(\"a=1,b=2\",\"B\")",
+   "vba_return_type": "Variant",
+   "excel_cell_type": "Double",
+   "text": "0",
+   "number_format": "General"
+  },
+  {
+   "address": "AW1",
+   "formula": "=DictLookupText(\"a=1,b=2\",\"B\")",
+   "vba_return_type": "Variant",
+   "excel_cell_type": "error",
+   "text": "#VALUE!",
+   "number_format": "General"
+  },
+  {
+   "address": "BE1",
+   "formula": "=DictExists(\"a=1\",\"a\")",
+   "vba_return_type": "Boolean",
+   "excel_cell_type": "Boolean",
+   "text": "TRUE",
+   "number_format": "General"
+  },
+  {
+   "address": "BM1",
+   "formula": "=DictExists(\"a=1\",\"b\")",
+   "vba_return_type": "Boolean",
+   "excel_cell_type": "Boolean",
+   "text": "FALSE",
+   "number_format": "General"
+  },
+  {
+   "address": "BU1",
+   "formula": "=DictExists(\"a=1\",\"A\")",
+   "vba_return_type": "Boolean",
+   "excel_cell_type": "Boolean",
+   "text": "FALSE",
+   "number_format": "General"
+  },
+  {
+   "address": "CC1",
+   "formula": "=DictKeysJoined(\"x=1,y=2,z=3\")",
+   "vba_return_type": "String",
+   "excel_cell_type": "String",
+   "text": "x|y|z",
+   "number_format": "General"
+  },
+  {
+   "address": "CK1",
+   "formula": "=DictItemsJoined(\"x=1,y=2,z=3\")",
+   "vba_return_type": "String",
+   "excel_cell_type": "String",
+   "text": "1|2|3",
+   "number_format": "General"
+  },
+  {
+   "address": "CS1",
+   "formula": "=DictKeysJoined(\"\")",
+   "vba_return_type": "String",
+   "excel_cell_type": "String",
+   "text": "",
+   "number_format": "General"
+  },
+  {
+   "address": "DA1",
+   "formula": "=DictAfterRemove(\"x=1,y=2\",\"x\")",
+   "vba_return_type": "String",
+   "excel_cell_type": "String",
+   "text": "y",
+   "number_format": "General"
+  },
+  {
+   "address": "DI1",
+   "formula": "=DictAfterRemove(\"x=1\",\"q\")",
+   "vba_return_type": "String",
+   "excel_cell_type": "error",
+   "text": "#VALUE!",
+   "number_format": "General"
+  }
+ ]
+}
