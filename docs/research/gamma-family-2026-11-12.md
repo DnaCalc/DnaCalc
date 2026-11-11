@@ -169,3 +169,26 @@ the window means of (Excel - truth) in output ulps change only through the compu
    k = 6: none). A level change at y = 0.5 alone favours g = 7; level changes elsewhere name other
    intermediates and are listed, not fitted.
 3. Data check: our stand-in matches about a third of the inputs (the bank: 1,039 of 2,441 on [1, 10)).
+
+### E5 results (asked 02:20)
+
+Data check held: our stand-in matches 33.4% of the 262,144 inputs. The window means of (Excel - truth)
+are +0.55 to +1.0 output ulps, rising with y, and never change level by more than about 0.15: there is no
+level change at y = 0.5 (prediction 2 gives g = 7 no support), and the four places where the window sd
+steps (y = 0.371, 0.543, 0.816, 0.953) match none of the listed intermediates. A line search over the
+per-window spectra (each stored stage leaves a line at |V'| 2^-52 / ulp(V)) finds about ten smooth
+tracks (for example 0.121 - 0.263 y on [0, 0.42], a constant line at 0.3055 on [0, 0.18], a line from
+0.341 rising 0.33 per unit from y = 0.545), and none of 140 candidate intermediates (Lanczos g = 5,
+6.0247, 607/128, 7 and 9: t, ln t, powers, exp(-t), the series and their products with sqrt(2 pi);
+Stirling at y + K, K = 2..11: x, ln x, 1/x, exp(-x), x^x, Gamma, the product) puts a line where the
+spectra have one in more than 39% of the windows, which is the chance level. R32/R33 reached the same
+point with the same method.
+
+## E6. Is the seed GAMMA(10+y) divided down? (answer A.3, family 1)
+
+Inputs: the 2,048 y of E2 (exact translations); GAMMA(10+y) and GAMMA(11+y). Prediction, frozen before
+asking: if the seed is the identified x >= 10 Stirling value divided by (1+y)(2+y)...(9+y), then Excel's
+GAMMA(1+y) (E2) equals that quotient, under one of: quotients resident and one store; quotients each
+stored; the product stored step by step from (1+y) up, then one division. Same with GAMMA(11+y) and
+ten factors. Equality in every y for one arrangement identifies it; otherwise family 1 with the shared
+x >= 10 value is refuted.
