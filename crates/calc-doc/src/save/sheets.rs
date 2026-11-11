@@ -220,6 +220,12 @@ pub(super) fn finish(
         }
     }
     for sheet in &removed {
+        if let Some(kind) = sheet.preserved_kind() {
+            return Err(SaveRefusal::PreservedSheetChanged {
+                part: sheet.part().name().to_owned(),
+                kind,
+            });
+        }
         out.rewritten.remove(sheet.part().name());
         out.removed.push(sheet.part().name().to_owned());
     }

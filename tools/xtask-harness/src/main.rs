@@ -120,7 +120,11 @@ mod ci_audit;
 #[cfg(not(target_arch = "wasm32"))]
 mod compare;
 #[cfg(not(target_arch = "wasm32"))]
+mod capture_select;
+#[cfg(not(target_arch = "wasm32"))]
 mod classify;
+#[cfg(not(target_arch = "wasm32"))]
+mod formula_shapes;
 #[cfg(not(target_arch = "wasm32"))]
 mod compare_inventory;
 #[cfg(not(target_arch = "wasm32"))]
@@ -205,6 +209,8 @@ fn main() -> ExitCode {
         #[cfg(not(target_arch = "wasm32"))]
         Some((command, rest)) if command == "classify" => classify::run(rest),
         #[cfg(not(target_arch = "wasm32"))]
+        Some((command, rest)) if command == "capture-select" => capture_select::run(rest),
+        #[cfg(not(target_arch = "wasm32"))]
         Some((command, rest)) if command == "bench" => bench::run(rest),
         #[cfg(not(target_arch = "wasm32"))]
         Some((command, rest)) if command == "fidelity" => fidelity::run(rest),
@@ -234,6 +240,8 @@ fn main() -> ExitCode {
             usages.push(corpus::USAGE);
             #[cfg(not(target_arch = "wasm32"))]
             usages.push(classify::USAGE);
+            #[cfg(not(target_arch = "wasm32"))]
+            usages.push(capture_select::USAGE);
             #[cfg(not(target_arch = "wasm32"))]
             usages.push(bench::USAGE);
             #[cfg(not(target_arch = "wasm32"))]

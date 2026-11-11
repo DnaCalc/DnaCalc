@@ -385,6 +385,13 @@ pub enum SaveRefusal {
     MacroSheetChanged {
         part: String,
     },
+    /// The revision changes a chart sheet or a dialog sheet (`part`; `kind` says which), removes
+    /// it, or inserts or deletes rows or columns of a workbook with one: such a sheet opens as an
+    /// empty sheet and is saved only as it was read.
+    PreservedSheetChanged {
+        part: String,
+        kind: &'static str,
+    },
     /// A formula the revision sets in a cell (of the worksheet part `part`) is longer than
     /// [`crate::FORMULA_MAX_UTF16_CODE_UNITS`], so [`crate::load`] would refuse the saved package.
     /// [`crate::prepare_edit`] refuses such a formula; this refuses one in a revision made
@@ -516,6 +523,10 @@ impl fmt::Display for SaveRefusal {
             Self::MacroSheetChanged { part } => write!(
                 f,
                 "the revision changes the Excel 4.0 macro sheet {part:?}, which is saved only as it was read"
+            ),
+            Self::PreservedSheetChanged { part, kind } => write!(
+                f,
+                "the revision changes the {kind} {part:?}, which is saved only as it was read"
             ),
             Self::FormulaTooLong {
                 part,

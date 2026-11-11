@@ -1003,6 +1003,45 @@ impl Sheet<'_> {
 /// The namespace of an Excel 4.0 macro sheet's document element (`xm:macrosheet`).
 const MACRO_SHEET_NAMESPACE: &str = "http://schemas.microsoft.com/office/excel/2006/main";
 
+/// The records of a chart sheet or dialog sheet: its part, as it was read, and nothing of its
+/// cells.
+pub(super) fn preserved_sheet(package: &Package, part: &str) -> Result<SheetLoad, LoadError> {
+    let found = package.part(part).ok_or_else(|| LoadError::MissingPart {
+        part: part.to_owned(),
+    })?;
+    let source = Arc::new(SourcePart::new(
+        found.name().to_owned(),
+        found.crc32(),
+        found.size(),
+    ));
+    Ok(SheetLoad {
+        pivots: Default::default(),
+        page_setup: Default::default(),
+        conditional_sources: Vec::new(),
+        review: Default::default(),
+        protected: false,
+        merged_areas: Vec::new(),
+        part: source,
+        inputs: Vec::new(),
+        styles: BTreeMap::new(),
+        row_styles: BTreeMap::new(),
+        column_styles: Vec::new(),
+        formulas: BTreeMap::new(),
+        arrays: Vec::new(),
+        data_tables: Vec::new(),
+        unloaded: Vec::new(),
+        value_caches: BTreeMap::new(),
+        hidden_rows: Vec::new(),
+        auto_filter: None,
+        filter: None,
+        filter_manual: None,
+        geometry: super::geometry::SheetGeometry::default(),
+        view: super::geometry::SheetView::default(),
+        conditional_formats: Vec::new(),
+        validations: Vec::new(),
+    })
+}
+
 pub(super) fn load_sheet(
     package: &Package,
     context: &Context<'_>,
