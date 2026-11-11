@@ -34,7 +34,32 @@ use dna_calc_model::{
     Command, CommandContext, CommandId, Effect as CommandEffect, FindMode, GridState, Model,
     RevealTarget, SkinId, ViewState,
 };
-pub use dna_calc_model::{PointPick, SurfaceId as EditOrigin};
+pub use dna_calc_model::{MacroPolicy, MacroSecurity, PointPick, SurfaceId as EditOrigin};
+
+/// The button the macro bar offers (dc-15dk).
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum MacroButton {
+    /// "Enable macros": a held project, an origin that does not block it.
+    Enable,
+    /// "Unblock and enable": a Mark of the Web or network file, behind the bar's warning.
+    Unblock,
+}
+
+/// The macro bar's words and button.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct MacroBar {
+    pub text: String,
+    pub button: Option<MacroButton>,
+}
+
+impl MacroBar {
+    fn note(text: impl Into<String>) -> Self {
+        Self {
+            text: text.into(),
+            button: None,
+        }
+    }
+}
 pub use dna_calc_model::{Status, Timings, ViewMirror};
 pub type MirrorHandle = ModelField<Snapshot<ViewMirror>>;
 use calc_value::{CellKey, GridArea, SheetId};
@@ -3896,24 +3921,70 @@ impl Controller {
 
     /// The warning of a circular reference the last recalculation found (dc-y2o.1): `None` when
     /// there is none.
-    /// The macro bar's words, and whether it offers Enable macros: shown for a workbook whose VBA
-    /// project is held (disabled, or blocked by its Mark of the Web or network origin).
-    pub fn macro_bar(&self) -> Option<(String, bool)> {
-        self.summary.with(|summary| match &summary.macros {
-            wire::MacroStatus::Disabled => Some((
-                "Macros are disabled for this workbook: its VBA project is held and saved with it, but nothing in it runs until you enable macros".to_owned(),
-                true,
-            )),
-            wire::MacroStatus::Blocked { reason } => Some((reason.clone(), false)),
-            wire::MacroStatus::None | wire::MacroStatus::Enabled => None,
+    /// The macro bar: its words and the button it offers, if any (dc-0f1k.22, dc-15dk). Shown for a
+    /// workbook whose VBA project is held (disabled, or blocked by its Mark of the Web or network
+    /// origin) and for one whose macros ran in spite of such an origin (an information notice).
+    pub fn macro_bar(&self) -> Option<MacroBar> {
+        self.summary.with(|summary| {
+            // Safe is not available yet: it behaves as Off and says so.
+            let safe = summary
+                .macro_policy
+                .safe_notice()
+                .map(|notice| format!("{notice}. "))
+                .unwrap_or_default();
+            match &summary.macros {
+                wire::MacroStatus::Disabled => Some(MacroBar {
+                    text: format!("{safe}Macros are disabled for this workbook: its VBA project is held and saved with it, but nothing in it runs until you enable macros"),
+                    button: Some(MacroButton::Enable),
+                }),
+                wire::MacroStatus::Blocked { reason } => Some(MacroBar {
+                    text: format!(
+                        "{safe}{reason}. Warning: unblocking lets its macros run with your access to files and the network; unblock only a file you trust"
+                    ),
+                    button: Some(MacroButton::Unblock),
+                }),
+                wire::MacroStatus::Enabled if !summary.macro_note.is_empty() => {
+                    Some(MacroBar::note(summary.macro_note.clone()))
+                }
+                wire::MacroStatus::None | wire::MacroStatus::Enabled => None,
+            }
         })
     }
 
-    /// The person enabled macros for the open workbook (the macro bar's button, dc-0f1k.22).
-    pub fn enable_macros(&self) {
+    /// The level and what pins it, as the page always shows them (dc-15dk).
+    pub fn macro_policy(&self) -> MacroPolicy {
+        self.summary.with(|summary| summary.macro_policy)
+    }
+
+    /// The person chose a macro security level in the page; the native host stores it per user.
+    pub fn set_macro_security(&self, level: MacroSecurity) {
         let controller = *self;
         self.pending_actions.update(|n| *n += 1);
-        self.send_command(Request::EnableMacros, None, move |reply, _| {
+        self.send_command(Request::SetMacroSecurity { level }, None, move |reply, _| {
+            controller
+                .pending_actions
+                .update(|n| *n = n.saturating_sub(1));
+            match reply {
+                Ok(Reply::Done { outcome, .. }) => {
+                    controller.applied(&outcome, false);
+                    controller.say(format!("Macro security is {}", level.label()), false);
+                }
+                Err(error) => controller.say(format!("Macro security not changed: {error}"), true),
+                _ => controller.say("Macro security did not answer", true),
+            }
+        });
+    }
+
+    /// The person enabled macros for the open workbook (the macro bar's button, dc-0f1k.22), or
+    /// unblocked a marked or network file and enabled them (dc-15dk).
+    pub fn enable_macros(&self, button: MacroButton) {
+        let controller = *self;
+        let request = match button {
+            MacroButton::Enable => Request::EnableMacros,
+            MacroButton::Unblock => Request::UnblockMacros,
+        };
+        self.pending_actions.update(|n| *n += 1);
+        self.send_command(request, None, move |reply, _| {
             controller
                 .pending_actions
                 .update(|n| *n = n.saturating_sub(1));

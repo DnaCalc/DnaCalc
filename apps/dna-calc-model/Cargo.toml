@@ -10,6 +10,7 @@ description = "DOM-free application state, commands and keyboard grammar for DNA
 portability = "portable"
 
 [dependencies]
+calc-macro-security = { path = "../../crates/calc-macro-security" }
 calc-value = { path = "../../crates/calc-value" }
 serde = { version = "=1.0.229", features = ["derive"] }
 

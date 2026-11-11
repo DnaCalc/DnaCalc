@@ -25,6 +25,7 @@ pub use runtime::{
 };
 mod view;
 pub mod viewport;
+pub use calc_macro_security::{MacroPolicy, MacroSecurity, Pin, VbaPolicy};
 pub use calc_value::{CellKey, GridArea, Selection, SheetId};
 pub use command::{
     Command, CommandContext, CommandId, CommandRequest, Effect, RevealTarget, SHELL_KEYMAP, Target,

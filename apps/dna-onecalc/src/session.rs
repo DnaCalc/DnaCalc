@@ -219,6 +219,9 @@ pub struct Session {
     vba_loaded: bool,
     /// The VBA project the session's file carries (an .xlsm session), compiled.
     project: Option<SessionProject>,
+    /// The macro security level in force (dc-15dk): the host sets what the person stored, or Enable
+    /// all pinned by `--trust-macros` or `DNACALC_TRUST_ALL_MACROS=1`; a replacement session keeps it.
+    macro_policy: calc_macro_security::MacroPolicy,
     /// The table of functions the session's owner published (add-ins, typed modules); the
     /// session's callable table is this one with the project's functions added.
     published: calc_fml::CallableTable,
@@ -270,6 +273,7 @@ impl Session {
             addins: Vec::new(),
             vba_loaded: false,
             project: None,
+            macro_policy: calc_macro_security::MacroPolicy::default(),
             published: calc_fml::CallableTable::new(),
             returns: None,
             rtd: Default::default(),
@@ -621,34 +625,77 @@ impl Session {
             file_name: file_name.to_owned(),
             load: None,
             macros,
+            notice: None,
         });
         self.republish();
+        // Under the level Unguarded (or its pin) the project runs as the file opens, a marked one
+        // too, with an information notice; a project that does not compile stays held.
+        if self.macro_policy.runs_on_open().is_some() {
+            let by = self.macro_policy.trust_source();
+            return self.enable_macros_as(MacroEnable::Trusted { by });
+        }
         Ok(ProjectReport {
             functions: Vec::new(),
-            notes: vec![match macros {
-                MacroState::Blocked(zone) => format!(
-                    "This file carries the Mark of the Web (zone {zone}: it came from the internet or another computer), so its VBA project is not run. Save a copy you trust and open that"
-                ),
-                _ => "Macros are disabled for this file: its VBA project is held and saved with it, but nothing in it runs until you enable macros".to_owned(),
-            }],
+            notes: vec![format!(
+                "{}{}",
+                // Safe is not available yet: it behaves as Off and says so.
+                self.macro_policy
+                    .safe_notice()
+                    .map(|notice| format!("{notice}. "))
+                    .unwrap_or_default(),
+                match macros {
+                    MacroState::Blocked(zone) => format!(
+                        "This file carries the Mark of the Web (zone {zone}: it came from the internet or another computer), so its VBA project is held and not run until you unblock it"
+                    ),
+                    _ => "Macros are disabled for this file: its VBA project is held and saved with it, but nothing in it runs until you enable macros".to_owned(),
+                }
+            )],
         })
     }
 
+    /// The macro security level in force (dc-15dk).
+    pub fn macro_policy(&self) -> calc_macro_security::MacroPolicy {
+        self.macro_policy
+    }
+
+    /// The host sets the level at start-up, from what the person stored or what is pinned.
+    pub fn set_macro_policy(&mut self, policy: calc_macro_security::MacroPolicy) {
+        self.macro_policy = policy;
+    }
+
+    /// The person chose a level in the page; refused while pinned.
+    pub fn choose_macro_security(
+        &mut self,
+        level: calc_macro_security::MacroSecurity,
+    ) -> Result<(), String> {
+        self.macro_policy.choose(level)
+    }
+
     /// Lets the held project run (the person enabled macros for this file): it is compiled and
-    /// `Workbook_Open` is raised. A file with the Mark of the Web cannot be enabled.
+    /// `Workbook_Open` is raised. A file with the Mark of the Web cannot be enabled this way; it is
+    /// unblocked ([`MacroEnable::Unblock`]) or trusted.
     pub fn enable_macros(&mut self) -> Result<ProjectReport, String> {
+        self.enable_macros_as(MacroEnable::Person)
+    }
+
+    /// [`Session::enable_macros`] for the person's Unblock and enable button, or for the level
+    /// Unguarded (dc-15dk).
+    pub fn enable_macros_as(&mut self, mode: MacroEnable) -> Result<ProjectReport, String> {
         let Some(held) = self.project.as_mut() else {
             return Err("the session has no VBA project".to_owned());
         };
-        match held.macros {
+        let blocked = match held.macros {
             MacroState::Blocked(zone) => {
-                return Err(format!(
-                    "the file carries the Mark of the Web (zone {zone}); its VBA project is not run"
-                ));
+                if mode == MacroEnable::Person {
+                    return Err(format!(
+                        "the file carries the Mark of the Web (zone {zone}); its VBA project is held and not run until you unblock it"
+                    ));
+                }
+                Some(zone)
             }
             MacroState::Enabled => return Ok(ProjectReport::default()),
-            MacroState::Disabled => {}
-        }
+            MacroState::Disabled => None,
+        };
         let Some(project) = held.parsed.clone() else {
             let blob = &held.vba.project;
             return Err(calc_vba::read_office_project(blob)
@@ -656,7 +703,17 @@ impl Session {
                 .unwrap_or_else(|| "the project did not read".to_owned()));
         };
         let report = self.compile_project(&project)?;
-        self.project.as_mut().expect("a held project part").macros = MacroState::Enabled;
+        let held = self.project.as_mut().expect("a held project part");
+        held.macros = MacroState::Enabled;
+        held.notice = blocked.map(|zone| {
+            let source = format!(
+                "This file carries the Mark of the Web (zone {zone}: it came from the internet or another computer)"
+            );
+            match mode {
+                MacroEnable::Trusted { by } => format!("{source}; its macros run because of {by}"),
+                _ => format!("{source}; its macros run because you unblocked it"),
+            }
+        });
         let notes = self.raise_open();
         Ok(ProjectReport {
             notes: [report.notes, notes].concat(),
@@ -836,18 +893,34 @@ pub struct SessionProject {
     load: Option<std::rc::Rc<calc_vba::events::OfficeLoad>>,
     /// Whether the person (or the way the file was loaded) has let the project run.
     pub macros: MacroState,
+    /// An information notice for a marked file whose project runs because it was unblocked or the
+    /// macro security level trusts every file (dc-15dk).
+    pub notice: Option<String>,
+}
+
+/// Who enables a held project (dc-15dk).
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum MacroEnable {
+    /// The person's Enable macros: refused for a file with the Mark of the Web.
+    Person,
+    /// The person's Unblock and enable, behind the page's warning.
+    Unblock,
+    /// The level Unguarded, or `--trust-macros` or `DNACALC_TRUST_ALL_MACROS=1` (`by` says which).
+    Trusted { by: &'static str },
 }
 
 /// Whether a session file's VBA project may run, as in Excel's default: a file from the internet
-/// or another computer (Mark of the Web, zone 3 or 4) never runs its project here; any other file
-/// opens with macros disabled until the person enables them for that file.
+/// or another computer (Mark of the Web, zone 3 or 4) is blocked until the person unblocks it or the
+/// macro security level trusts every file; any other file opens with macros disabled until the
+/// person enables them for that file.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum MacroState {
     /// The project compiled (or tried to) and its events run.
     Enabled,
     /// Held, not compiled, not run; [`Session::enable_macros`] lets it run.
     Disabled,
-    /// Held, not run, and not to be enabled: the file carries the Mark of the Web (the zone).
+    /// Held, not run, and not to be enabled by the plain Enable: the file carries the Mark of the
+    /// Web (the zone). The person's Unblock and enable, or the level Unguarded, runs it.
     Blocked(u32),
 }
 

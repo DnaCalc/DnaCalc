@@ -41,8 +41,9 @@ pub mod surface;
 pub mod trace;
 pub mod web;
 
+pub use calc_macro_security::{MacroPolicy, MacroSecurity, Pin};
 pub use fixture::{Read, ReadRun, RunCells};
 pub use session::{
-    AddinRef, Calculation, Diagnostic, ExternalReturns, InputError, InputValue, MacroState,
-    ProjectReport, Session, SessionOptions, SessionProject, SheetError,
+    AddinRef, Calculation, Diagnostic, ExternalReturns, InputError, InputValue, MacroEnable,
+    MacroState, ProjectReport, Session, SessionOptions, SessionProject, SheetError,
 };

@@ -47,6 +47,10 @@ struct Options {
     no_print_ui: bool,
     /// A workbook file to open as the page starts (`--open FILE`, or a path as the first argument).
     open: Option<PathBuf>,
+    /// `--trust-macros`: pins the macro security level to Unguarded (dc-15dk).
+    trust_macros: bool,
+    /// `--macros off|safe|unguarded`: pins the macro security level for this run.
+    macros: Option<calc_macro_security::MacroSecurity>,
 }
 
 fn options(args: &[String]) -> Result<Options, String> {
@@ -62,6 +66,8 @@ fn options(args: &[String]) -> Result<Options, String> {
         save_dir: None,
         no_print_ui: false,
         open: None,
+        trust_macros: false,
+        macros: None,
     };
     let mut args = args.iter().enumerate();
     while let Some((position, arg)) = args.next() {
@@ -84,6 +90,14 @@ fn options(args: &[String]) -> Result<Options, String> {
             "--no-print-ui" => o.no_print_ui = true,
             "--save-dir" => o.save_dir = Some(PathBuf::from(value()?)),
             "--open" => o.open = Some(PathBuf::from(value()?)),
+            "--trust-macros" => o.trust_macros = true,
+            "--macros" => {
+                let text = value()?;
+                o.macros = Some(
+                    calc_macro_security::MacroSecurity::parse(&text)
+                        .ok_or(format!("--macros is off, safe or unguarded, not {text}"))?,
+                )
+            }
             "--size" => {
                 let text = value()?;
                 let (w, h) = text.split_once('x').ok_or("--size needs WIDTHxHEIGHT")?;
@@ -141,6 +155,10 @@ struct App {
     /// VBA project may be enabled (dc-0f1k.22). A file the page's own file input opens has no
     /// path here, and opens with its project disabled.
     opening_origin: Cell<Option<calc_host_vba::FileOrigin>>,
+    /// The macro security level in force (dc-15dk), given to every worker the page starts, and the
+    /// per-user folder the person's choice is stored in (never a level the flag or the variable pins).
+    macro_policy: Cell<calc_macro_security::MacroPolicy>,
+    settings: PathBuf,
 }
 
 /// The bridge prefixes every message of a worker other than the page's first with `@N` and U+0002
@@ -153,6 +171,19 @@ fn channel_of(message: &str) -> (u32, &str) {
         .and_then(|rest| rest.split_once(CHANNEL_MARK))
         .and_then(|(channel, rest)| Some((channel.parse().ok()?, rest)))
         .unwrap_or((0, message))
+}
+
+/// Stores a changed macro security level in the per-user `settings` folder; a level the flag or the
+/// variable pins is shown and never stored. Whether it wrote.
+fn persist_macro_policy(
+    settings: &std::path::Path,
+    previous: calc_macro_security::MacroPolicy,
+    now: calc_macro_security::MacroPolicy,
+) -> std::io::Result<bool> {
+    if now == previous || now.pinned().is_some() {
+        return Ok(false);
+    }
+    calc_platform_desktop::macro_security::save(settings, now.level()).map(|()| true)
 }
 
 /// The page starts by asking for an empty workbook (`New`, or `OpenTemplate` with a stored
@@ -226,6 +257,7 @@ impl App {
     fn extra_request(&self, channel: u32, message: &str) {
         if message == "hello" {
             let mut server = Server::new();
+            server.set_macro_policy(self.macro_policy.get());
             server.set_calculation_budget(calc_host::WorkBudget::evaluations(64));
             self.extras.borrow_mut().insert(channel, server);
             self.post_to(channel, &wire::encode(&FromServer::Started), None);
@@ -286,6 +318,7 @@ impl App {
             // previous page started are gone with it.
             self.extras.borrow_mut().clear();
             let mut server = Server::new();
+            server.set_macro_policy(self.macro_policy.get());
             server.set_calculation_budget(calc_host::WorkBudget::evaluations(64));
             server.set_fetch_route(self.fetch.clone());
             server.set_import_route(Rc::new(LocalFiles));
@@ -326,6 +359,7 @@ impl App {
         let (reply, out, events) = {
             let mut server = self.server.borrow_mut();
             let (reply, out) = server::answer_text(&mut server, text, bytes);
+            self.store_macro_policy(server.macro_policy());
             (reply, out, server.take_events())
         };
         for event in events {
@@ -333,6 +367,14 @@ impl App {
         }
         self.post(&reply, out.as_deref());
         self.rebind_after_open();
+    }
+
+    /// Stores the macro security level the person chose in the page, per user (dc-15dk).
+    fn store_macro_policy(&self, now: calc_macro_security::MacroPolicy) {
+        let previous = self.macro_policy.replace(now);
+        if let Err(why) = persist_macro_policy(&self.settings, previous, now) {
+            eprintln!("dna-calc-desktop: the macro security level is not stored: {why}");
+        }
     }
 
     /// A newly opened workbook has new sheet identities: the native host names them.
@@ -472,7 +514,10 @@ Open the download page now?"
     // The native worker: the portable server, with the desktop's fetch route and add-ins. It reads
     // the day from the machine's clock, as the browser worker reads it from the browser's.
     dna_calc_worker::workbook::set_native_clock(calc_platform_desktop::local_serial_clock);
+    let settings = calc_platform_desktop::macro_security::default_folder();
+    let macro_policy = calc_platform_desktop::macro_security::policy(&settings, o.trust_macros, o.macros);
     let mut server = Server::new();
+    server.set_macro_policy(macro_policy);
     server.set_calculation_budget(calc_host::WorkBudget::evaluations(64));
     let fetch = Rc::new(ThreadedFetch::new());
     server.set_fetch_route(fetch.clone());
@@ -531,6 +576,8 @@ Open the download page now?"
         extras: RefCell::new(Default::default()),
         opening: RefCell::new(opening),
         opening_origin: Cell::new(opening_origin),
+        macro_policy: Cell::new(macro_policy),
+        settings,
     });
     {
         // The page's messages must not keep the app alive: a weak handle lets it drop at exit.
@@ -642,6 +689,27 @@ mod tests {
         assert!(read_open_file(&folder.join("missing.xlsx")).is_err());
         std::fs::remove_dir_all(&folder).unwrap();
 
+        // The person's macro security choice is stored per user; a pinned level is not (dc-15dk).
+        {
+            use calc_macro_security::{MacroPolicy, MacroSecurity};
+            let settings =
+                std::env::temp_dir().join(format!("dna-calc-macro-level-{}", std::process::id()));
+            let ask = MacroPolicy::stored(MacroSecurity::Off);
+            let none = MacroPolicy::stored(MacroSecurity::Safe);
+            assert!(!persist_macro_policy(&settings, ask, ask).unwrap());
+            assert!(persist_macro_policy(&settings, ask, none).unwrap());
+            assert_eq!(
+                calc_platform_desktop::macro_security::load(&settings),
+                MacroSecurity::Safe
+            );
+            let pinned = MacroPolicy::resolve(MacroSecurity::Off, true, None, None);
+            assert!(!persist_macro_policy(&settings, none, pinned).unwrap());
+            assert_eq!(
+                calc_platform_desktop::macro_security::load(&settings),
+                MacroSecurity::Safe
+            );
+            std::fs::remove_dir_all(&settings).unwrap();
+        }
         let mut server = Server::new();
         let blank = server.workbook_id();
         let page = |server: &Server, request: Request| {

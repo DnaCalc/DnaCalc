@@ -198,11 +198,16 @@ pub fn run(
     early_execution: &[u64],
     workbook: Option<&std::path::Path>,
     enable_macros: bool,
+    trust_macros: bool,
+    macros_level: Option<calc_macro_security::MacroSecurity>,
 ) -> Result<serde_json::Value, String> {
     // A named workbook (`--workbook`) opens as the page's worker opens one: its VBA project is
     // held, not run, unless the person enables macros (`--enable-macros`); then it is prepared
     // with calc-host-vba's open-time route and its functions join the add-ins' table. A file with
-    // the Mark of the Web (zone 3 or 4) or on the network is refused even so (dc-0f1k.22).
+    // the Mark of the Web (zone 3 or 4) or on the network is refused even so (dc-0f1k.22), unless
+    // the macro security level is Unguarded: `--trust-macros`, `DNACALC_TRUST_ALL_MACROS=1`,
+    // `--macros unguarded` or the stored level (dc-15dk). Safe is not available yet (dc-10un): it
+    // holds the project, as Off does.
     let package = match workbook {
         Some(path) => std::fs::read(path).map_err(|e| format!("{}: {e}", path.display()))?,
         None => calc_host::blank_package(),
@@ -213,15 +218,25 @@ pub fn run(
         HostOptions::default(),
     )
     .map_err(|e| format!("{e:?}"))?;
-    let grant = match workbook {
+    let policy = calc_platform_desktop::macro_security::policy(
+        &calc_platform_desktop::macro_security::default_folder(),
+        trust_macros,
+        macros_level,
+    );
+    let grant: Result<Option<calc_host_vba::ProjectGrant>, String> = match workbook {
+        Some(_) if policy.runs_on_open().is_some() => Ok(Some(calc_host_vba::ProjectGrant::trust_all(
+            policy.trust_source(),
+            policy.runs_on_open().expect("checked"),
+        ))),
         Some(path) if enable_macros => {
             calc_host_vba::ProjectGrant::person_enabled(crate::origin::file_origin(path))
                 .map(Some)
+                .map_err(|block| block.to_string())
         }
         _ => Ok(None),
     };
     // A blocked file is reported in the output (`macros_refused`), not as a failed run.
-    let macros_refused = grant.as_ref().err().map(ToString::to_string);
+    let macros_refused = grant.as_ref().err().cloned();
     let project = match (workbook, grant.ok().flatten()) {
         (Some(path), Some(grant)) => {
             let name = path

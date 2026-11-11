@@ -183,6 +183,21 @@ pub enum Macros {
     Enabled,
 }
 
+/// Who enables the project of a held workbook (dc-15dk).
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum EnableMode {
+    /// The person clicked Enable macros: refused for a marked or network file.
+    Person,
+    /// The person clicked Unblock and enable behind the warning: any file.
+    Unblock,
+    /// The macro security level Unguarded, or `--trust-macros` or `DNACALC_TRUST_ALL_MACROS=1`
+    /// (`by` says which): any file, with an information notice for a marked or network one.
+    Trusted {
+        by: &'static str,
+        policy: dna_calc_model::VbaPolicy,
+    },
+}
+
 /// Why [`Workbook::enable_macros`] did not run the project.
 #[derive(Debug)]
 pub enum EnableRefused {
@@ -223,6 +238,8 @@ pub struct Workbook {
     project_functions: Option<calc_host::CallableTable>,
     /// Whether that project runs ([`Macros`]).
     macros: Macros,
+    /// An information notice about macros that ran for a marked or network file (dc-15dk).
+    macro_note: Option<String>,
     /// The host's add-in functions, kept so that enabling macros publishes the project's functions
     /// beside them.
     addin_functions: Option<calc_host::CallableTable>,
@@ -346,6 +363,7 @@ impl Workbook {
             calculated_on_open: None,
             project_functions: None,
             macros,
+            macro_note: None,
             addin_functions: None,
             palette: None,
             conditional: RefCell::default(),
@@ -447,19 +465,62 @@ impl Workbook {
         &self.macros
     }
 
-    /// The person enabled macros for this workbook: its project is compiled, its functions are
-    /// published beside the host's add-ins', `Workbook_Open` is raised and the workbook is
-    /// recalculated. A blocked file, a workbook without a project and a project that does not
-    /// compile are refused, and the project stays held. Enabling twice does nothing more.
+    /// An information notice about the project's macros: set when a marked or network file's
+    /// project ran because it was unblocked or the macro security level trusts every file.
+    pub fn macro_note(&self) -> Option<&str> {
+        self.macro_note.as_deref()
+    }
+
+    /// Records a notice about the project's macros (a project that did not run on open).
+    pub fn set_macro_note(&mut self, note: String) {
+        self.macro_note = Some(note);
+    }
+
+    /// The person enabled macros for this workbook ([`EnableMode::Person`]).
     pub fn enable_macros(&mut self) -> Result<(), EnableRefused> {
-        let origin = match &self.macros {
+        self.enable_macros_as(EnableMode::Person)
+    }
+
+    /// Enables the workbook's macros: its project is compiled, its functions are published beside
+    /// the host's add-ins', `Workbook_Open` is raised and the workbook is recalculated. A blocked
+    /// file is refused unless unblocked or trusted; a workbook without a project and a project
+    /// that does not compile are refused, and the project stays held. Enabling twice does nothing
+    /// more.
+    pub fn enable_macros_as(&mut self, mode: EnableMode) -> Result<(), EnableRefused> {
+        let (origin, block) = match &self.macros {
             Macros::None => return Err(EnableRefused::NoProject),
-            Macros::Blocked(block) => return Err(EnableRefused::Blocked(*block)),
             Macros::Enabled => return Ok(()),
-            Macros::Disabled(origin) => *origin,
+            Macros::Blocked(block) => (
+                match block {
+                    calc_host_vba::MacroBlock::Zone(zone) => FileOrigin::Zone(*zone),
+                    calc_host_vba::MacroBlock::Network => FileOrigin::Network,
+                },
+                Some(*block),
+            ),
+            Macros::Disabled(origin) => (*origin, None),
         };
-        let grant =
-            calc_host_vba::ProjectGrant::person_enabled(origin).map_err(EnableRefused::Blocked)?;
+        let grant = match mode {
+            EnableMode::Person => calc_host_vba::ProjectGrant::person_enabled(origin)
+                .map_err(EnableRefused::Blocked)?,
+            EnableMode::Unblock => calc_host_vba::ProjectGrant::person_unblocked(origin),
+            EnableMode::Trusted { by, policy } => calc_host_vba::ProjectGrant::trust_all(by, policy),
+        };
+        let note = block.map(|block| {
+            let source = match block {
+                calc_host_vba::MacroBlock::Zone(zone) => format!(
+                    "This file carries the Mark of the Web (zone {zone}: it came from the internet or another computer)"
+                ),
+                calc_host_vba::MacroBlock::Network => {
+                    "This file was opened from the network".to_owned()
+                }
+            };
+            match mode {
+                EnableMode::Trusted { by, .. } => {
+                    format!("{source}; its macros run because of {by}")
+                }
+                _ => format!("{source}; its macros run because you unblocked it"),
+            }
+        });
         let Some(project) = calc_host_vba::prepare_file_project_with_events(
             &grant,
             self.session.host(),
@@ -482,6 +543,7 @@ impl Workbook {
         }
         self.project_functions = Some(own);
         self.macros = Macros::Enabled;
+        self.macro_note = note;
         project.install_with_registry(&mut self.session, functions);
         self.session.notify_workbook_open();
         if self.session.calc_mode() != CalcMode::Manual {

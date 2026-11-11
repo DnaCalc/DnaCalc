@@ -237,6 +237,10 @@ fn surface(link: Rc<dyn Link>) -> impl IntoView {
     });
     // Whether the file's VBA project may run: Excel's default is not until the person enables it.
     let macros_view = RwSignal::new(MacrosView::Enabled);
+    // The macro security level in force and the information notice of a marked file's macros that
+    // ran (dc-15dk): the level is always shown.
+    let macro_policy = RwSignal::new(crate::MacroPolicy::default());
+    let macro_notice = RwSignal::new(String::new());
     let load_vba = move |_| {
         let source = vba_source.get_untracked();
         call(
@@ -341,6 +345,14 @@ fn surface(link: Rc<dyn Link>) -> impl IntoView {
         }
     };
     refresh_recent();
+    call(
+        Request::MacroPolicy,
+        Box::new(move |reply| {
+            if let Reply::MacroPolicy(policy) = reply {
+                macro_policy.set(policy);
+            }
+        }),
+    );
     // The window says the session's name and whether it has unsaved changes; the host is told too,
     // so that closing the window can ask first.
     Effect::new(move |_| {
@@ -393,6 +405,7 @@ fn surface(link: Rc<dyn Link>) -> impl IntoView {
             addins: listed,
             loaded: running,
             project,
+            macro_policy: policy,
         } = opened;
         batch(move || {
             baseline.set(Some(state.clone()));
@@ -415,6 +428,13 @@ fn surface(link: Rc<dyn Link>) -> impl IntoView {
                 project
                     .as_ref()
                     .map_or(MacrosView::Enabled, |view| view.macros),
+            );
+            macro_policy.set(policy);
+            macro_notice.set(
+                project
+                    .as_ref()
+                    .map(|view| view.notice.clone())
+                    .unwrap_or_default(),
             );
             vba_status.set(match &project {
                 None => "No VBA module loaded.".to_owned(),
@@ -535,6 +555,7 @@ fn surface(link: Rc<dyn Link>) -> impl IntoView {
             ))
         }
         Reply::Cancelled => {}
+        Reply::MacroPolicy(policy) => macro_policy.set(policy),
         Reply::Refused { message } => file_status.set(message),
         other => file_status.set(format!("Unexpected answer: {other:?}")),
     });
@@ -1315,13 +1336,25 @@ fn surface(link: Rc<dyn Link>) -> impl IntoView {
             </details>
             // Outside the collapsed file panel: a person who opens a macro file sees at once that its
             // VBA does not run until enabled.
-            <Show when=move || macros_view.get() != MacrosView::Enabled>
+            <Show when=move || {
+                macros_view.get() != MacrosView::Enabled || !macro_notice.get().is_empty()
+            }>
                 <p role="alert" data-onecalc="macros-bar">
                     {move || {
-                        if macros_view.get() == MacrosView::Blocked {
-                            "Macros are blocked: this file came from the internet or another computer, so its VBA project is not run."
-                        } else {
-                            "Macros are disabled for this file: its VBA project is kept and saved, but nothing in it runs."
+                        // Safe is not available yet: it behaves as Off and says so.
+                        let safe = macro_policy
+                            .get()
+                            .safe_notice()
+                            .map(|notice| format!("{notice}. "))
+                            .unwrap_or_default();
+                        match macros_view.get() {
+                            MacrosView::Enabled => macro_notice.get(),
+                            MacrosView::Blocked => format!(
+                                "{safe}Macros are blocked: this file came from the internet or another computer, so its VBA project is held and not run. Warning: unblocking lets its macros run with your access to files and the network; unblock only a file you trust."
+                            ),
+                            MacrosView::Disabled => format!(
+                                "{safe}Macros are disabled for this file: its VBA project is kept and saved, but nothing in it runs."
+                            ),
                         }
                     }}
                     " "
@@ -1337,8 +1370,52 @@ fn surface(link: Rc<dyn Link>) -> impl IntoView {
                             "Enable macros"
                         </button>
                     </Show>
+                    <Show when=move || macros_view.get() == MacrosView::Blocked>
+                        <button
+                            data-onecalc="macros-unblock"
+                            type="button"
+                            on:click=move |_| call(
+                                Request::UnblockMacros,
+                                Box::new(move |reply| on_reply.run(reply)),
+                            )
+                        >
+                            "Unblock and enable"
+                        </button>
+                    </Show>
                 </p>
             </Show>
+            // The macro security level, always visible and changeable here (dc-15dk); a level pinned
+            // by --trust-macros or DNACALC_TRUST_ALL_MACROS says so and cannot change.
+            <p data-onecalc="macro-security-line">
+                {move || {
+                    let policy = macro_policy.get();
+                    if policy.pinned().is_some() {
+                        policy.summary()
+                    } else {
+                        "Macro security: ".to_owned()
+                    }
+                }}
+                <select
+                    data-onecalc="macro-security"
+                    aria-label="Macro security level"
+                    hidden=move || macro_policy.get().pinned().is_some()
+                    prop:value=move || macro_policy.get().level().key()
+                    on:change=move |ev| {
+                        if let Some(level) =
+                            crate::MacroSecurity::parse(&event_target_value(&ev))
+                        {
+                            call(
+                                Request::SetMacroSecurity { level },
+                                Box::new(move |reply| on_reply.run(reply)),
+                            );
+                        }
+                    }
+                >
+                    <option value="off">"Off"</option>
+                    <option value="safe">"Safe"</option>
+                    <option value="unguarded">"Unguarded"</option>
+                </select>
+            </p>
             <dialog
                 class="oc-session-dialog"
                 node_ref=file_dialog

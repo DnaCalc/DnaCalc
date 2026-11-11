@@ -146,6 +146,16 @@ pub enum Request {
     /// Lets the open file's VBA project run (the person enabled macros for this file); answers
     /// with the file as opened, now with its project compiled and `Workbook_Open` raised.
     EnableMacros,
+    /// The person's Unblock and enable, behind the page's warning, for a file with the Mark of the
+    /// Web (dc-15dk); answers as [`Request::EnableMacros`] does.
+    UnblockMacros,
+    /// The macro security level in force; answers [`Reply::MacroPolicy`] (the page asks at start).
+    MacroPolicy,
+    /// The person chose a macro security level (dc-15dk); answers [`Reply::MacroPolicy`], or
+    /// refuses while the command line or the environment pins the level. The desktop host stores it.
+    SetMacroSecurity {
+        level: calc_macro_security::MacroSecurity,
+    },
     /// Opens a workbook through the native host's file dialog (a host with no dialog refuses).
     OpenNative,
     /// The session saved as a workbook, the bytes in the reply.
@@ -229,6 +239,9 @@ pub struct Opened {
     /// or why it did not compile.
     #[serde(default)]
     pub project: Option<ProjectView>,
+    /// The macro security level in force, and what pins it (dc-15dk): always shown.
+    #[serde(default)]
+    pub macro_policy: calc_macro_security::MacroPolicy,
 }
 
 /// A session's VBA project as the surface lists it.
@@ -241,6 +254,10 @@ pub struct ProjectView {
     /// Whether the project may run.
     #[serde(default)]
     pub macros: MacrosView,
+    /// An information notice: a marked file's macros ran because it was unblocked or the level
+    /// trusts every file; empty for none (dc-15dk).
+    #[serde(default)]
+    pub notice: String,
 }
 
 /// Whether the file's VBA project may run (Excel's default: not until the person enables it).
@@ -251,7 +268,8 @@ pub enum MacrosView {
     Enabled,
     /// Held but not run; the person can enable macros for this file.
     Disabled,
-    /// Held but not run, and not to be enabled: the file carries the Mark of the Web.
+    /// Held but not run, and offered Unblock and enable instead of Enable: the file carries the
+    /// Mark of the Web.
     Blocked,
 }
 
@@ -326,6 +344,8 @@ pub enum Reply {
     Addins(Vec<LoadedAddin>),
     /// The recent files, newest first ([`Request::Recent`]).
     Recent(Vec<String>),
+    /// The macro security level in force ([`Request::SetMacroSecurity`]).
+    MacroPolicy(calc_macro_security::MacroPolicy),
 }
 
 /// A session behind a message boundary. `&mut self` and no async: an answer is the thread's own
@@ -407,6 +427,8 @@ fn carry_functions(old: &mut Session, new: &mut Session) {
     if !old.has_vba_module() {
         new.set_user_functions(old.published_functions().clone());
     }
+    // The macro security level is the person's, not the file's.
+    new.set_macro_policy(old.macro_policy());
     // The owner of asynchronous returns belongs to the add-ins, not to the session it served.
     new.set_external_returns(old.take_external_returns());
     // So does the capability to join RTD topics. (The old formula's connections are the owner's to
@@ -429,6 +451,10 @@ pub fn project_view(session: &Session, report: ProjectReport) -> ProjectView {
         macros: session
             .project()
             .map_or(MacrosView::Enabled, |p| p.macros.into()),
+        notice: session
+            .project()
+            .and_then(|p| p.notice.clone())
+            .unwrap_or_default(),
     }
 }
 
@@ -448,6 +474,7 @@ pub fn opened_with(
         addins: session.addins().to_vec(),
         loaded,
         project,
+        macro_policy: session.macro_policy(),
     }))
 }
 
@@ -646,7 +673,17 @@ impl SessionPort for LocalPort {
                     Err(message) => refused(message),
                 },
             },
-            Request::EnableMacros => match session.enable_macros() {
+            Request::MacroPolicy => Reply::MacroPolicy(session.macro_policy()),
+            Request::SetMacroSecurity { level } => match session.choose_macro_security(level) {
+                Ok(()) => Reply::MacroPolicy(session.macro_policy()),
+                Err(message) => refused(message),
+            },
+            request @ (Request::EnableMacros | Request::UnblockMacros) => match session
+                .enable_macros_as(if matches!(request, Request::UnblockMacros) {
+                    crate::MacroEnable::Unblock
+                } else {
+                    crate::MacroEnable::Person
+                }) {
                 Ok(report) => {
                     let name = session
                         .project()

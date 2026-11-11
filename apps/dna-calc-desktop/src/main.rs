@@ -88,6 +88,8 @@ fn run() -> Result<(), String> {
     let mut release = None;
     let mut workbook = None;
     let mut enable_macros = false;
+    let mut trust_macros = false;
+    let mut macros_level = None;
     let mut args = std::env::args().skip(1);
     while let Some(arg) = args.next() {
         match arg.as_str() {
@@ -111,6 +113,16 @@ fn run() -> Result<(), String> {
             // The person enables the --workbook file's own VBA project (dc-0f1k.22); without it the
             // project is held, not run, as the page holds it until its bar's Enable macros.
             "--enable-macros" => enable_macros = true,
+            // The macro security level pinned to Unguarded, for scripts and agents (dc-15dk); the
+            // environment variable DNACALC_TRUST_ALL_MACROS=1 does the same.
+            "--trust-macros" => trust_macros = true,
+            "--macros" => {
+                let text = args.next().ok_or("--macros needs off, safe or unguarded")?;
+                macros_level = Some(
+                    calc_macro_security::MacroSecurity::parse(&text)
+                        .ok_or(format!("--macros is off, safe or unguarded, not {text}"))?,
+                )
+            }
             "--ribbon-ui" => ribbon_ui = true,
             "--ready" => ready = Some(PathBuf::from(args.next().ok_or("--ready needs a path")?)),
             "--wait" => wait = Some(PathBuf::from(args.next().ok_or("--wait needs a path")?)),
@@ -127,7 +139,7 @@ fn run() -> Result<(), String> {
             }
             "--help" => {
                 println!(
-                    "dna-calc-desktop [FILE | --open FILE] --app (--assets DIR | --url URL | a `page` folder beside the executable) [--xll PATH ...] | --engine --xll PATH [--xll PATH ...] (PATH an .xll or a VBA .xlam) [--workbook FILE [--enable-macros]] [--formula TEXT | --cases PATH] [--sheet NAME] [--workbook-name NAME] [--early-execution NAME]"
+                    "dna-calc-desktop [FILE | --open FILE] --app (--assets DIR | --url URL | a `page` folder beside the executable) [--xll PATH ...] [--trust-macros | --macros off|safe|unguarded] | --engine --xll PATH [--xll PATH ...] (PATH an .xll or a VBA .xlam) [--workbook FILE [--enable-macros | --trust-macros]] [--formula TEXT | --cases PATH] [--sheet NAME] [--workbook-name NAME] [--early-execution NAME]"
                 );
                 return Ok(());
             }
@@ -205,6 +217,8 @@ fn run() -> Result<(), String> {
         &early_execution,
         workbook.as_deref(),
         enable_macros,
+        trust_macros,
+        macros_level,
     )?;
     output["ribbons"] = serde_json::json!(ribbons);
     addins.close_addins()?;

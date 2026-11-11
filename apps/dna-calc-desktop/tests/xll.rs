@@ -579,3 +579,68 @@ fn a_macro_workbook_runs_nothing_until_enabled_and_a_marked_one_never() {
     );
     assert_ne!(blocked["results"][0]["value"], 102.0, "{blocked}");
 }
+
+/// Native-only: the macro security level in the harness (dc-15dk), through the real executable and
+/// its per-user settings folder. A marked file is refused by `--enable-macros` and runs under
+/// `--trust-macros`, `--macros unguarded`, `DNACALC_TRUST_ALL_MACROS=1` and the stored level
+/// Unguarded; the stored level Safe (not available yet) holds it like Off, and the flag and the
+/// variable pin Unguarded over it while `--macros off` pins Off over them all.
+/// `local.xlsm`'s Module1.MyFunc is x+100.
+#[test]
+fn the_macro_security_level_decides_whether_a_marked_workbook_runs_in_the_harness() {
+    let fixture = new_fixture();
+    let settings = fixture.directory.join("settings");
+    let xlsm = fixture.directory.join("marked.xlsm");
+    std::fs::copy(
+        std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+            .join("../../crates/calc-doc/tests/fixtures/vba_udf_names/local.xlsm"),
+        &xlsm,
+    )
+    .unwrap();
+    let mut stream = xlsm.as_os_str().to_owned();
+    stream.push(":Zone.Identifier");
+    std::fs::write(std::path::PathBuf::from(stream), "[ZoneTransfer]\r\nZoneId=3\r\n").unwrap();
+    let run =|args: &[&str], variable: Option<&str>| {
+        let mut command = fixture.command();
+        command
+            .env("DNACALC_SETTINGS_DIR", &settings)
+            .env_remove("DNACALC_TRUST_ALL_MACROS");
+        if let Some(value) = variable {
+            command.env("DNACALC_TRUST_ALL_MACROS", value);
+        }
+        checked(
+            command
+                .arg("--engine")
+                .arg("--workbook")
+                .arg(&xlsm)
+                .args(args)
+                .args(["--formula", "=MyFunc(2)"])
+                .output()
+                .unwrap(),
+        )
+    };
+    let runs = |result: &serde_json::Value| {
+        result["workbook_project"] == true && result["results"][0]["value"] == 102.0
+    };
+    // Off (nothing stored): the plain enable is refused for the marked file.
+    let off = run(&["--enable-macros"], None);
+    assert!(!runs(&off) && off["macros_refused"].is_string(), "{off}");
+    // The flags and the variable run it (and need no `--enable-macros`).
+    assert!(runs(&run(&["--trust-macros"], None)));
+    assert!(runs(&run(&["--macros", "unguarded"], None)));
+    assert!(runs(&run(&[], Some("1"))));
+    assert!(!runs(&run(&[], Some("0"))));
+    assert!(!runs(&run(&["--macros", "off"], Some("1"))));
+    // The stored levels.
+    let store = |level: &str| {
+        std::fs::create_dir_all(&settings).unwrap();
+        std::fs::write(settings.join("macro-security.txt"), level).unwrap();
+    };
+    store("unguarded");
+    assert!(runs(&run(&[], None)));
+    store("safe");
+    assert!(!runs(&run(&[], None)), "Safe is not available yet: it holds the project");
+    // The flag and the variable pin Unguarded over the stored Safe.
+    assert!(runs(&run(&["--trust-macros"], None)));
+    assert!(runs(&run(&[], Some("1"))));
+}

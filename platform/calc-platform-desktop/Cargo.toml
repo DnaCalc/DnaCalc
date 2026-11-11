@@ -9,6 +9,10 @@ description = "The native-only package for the desktop platform adapter: native 
 [package.metadata.dnacalc]
 portability = "native-only"
 
+# The macro security level the two desktop applications store (macro_security.rs, dc-15dk).
+[dependencies]
+calc-macro-security = { path = "../../crates/calc-macro-security" }
+
 # The physical core count (GetLogicalProcessorInformation) for the default number of recalculation
 # threads. windows-sys is already in the workspace lock.
 #

@@ -580,7 +580,7 @@ pub(crate) fn capture_clock(capture: &CaptureRecord) -> Option<f64> {
 }
 
 /// A capture setting of `capture`'s environment.
-fn capture_setting<'c>(capture: &'c CaptureRecord, name: &str) -> Option<&'c str> {
+pub(crate) fn capture_setting<'c>(capture: &'c CaptureRecord, name: &str) -> Option<&'c str> {
     capture
         .environment
         .as_ref()?
@@ -1280,18 +1280,35 @@ fn numeric_name(numeric: &NumericMode) -> String {
     }
 }
 
+/// The trusted-code route of a run: the manifest `--trusted-code` names, else the trust-all route
+/// when `DNACALC_TRUST_ALL_MACROS=1` (`env` is its value), else none (dc-15dk).
+fn trusted_manifest(
+    request: &Request,
+    env: Option<&str>,
+) -> Result<Option<crate::trusted_code::Manifest>, Failure> {
+    match &request.trusted_code {
+        Some(path) => {
+            crate::trusted_code::Manifest::read(path, request.trusted_code_sha256.as_deref())
+                .map(Some)
+                .map_err(refused)
+        }
+        None if calc_macro_security::env_pins(env) => Ok(Some(
+            crate::trusted_code::Manifest::trust_all(calc_macro_security::TRUST_ENV),
+        )),
+        None => Ok(None),
+    }
+}
+
 /// Reads the request's files, runs the workbook, judges and triages it, writes the three files and
 /// prints the summary.
 fn compare(request: &Request) -> Result<(), Failure> {
     let fixture = read(&request.fixture, "fixture")?;
-    let trusted = request
-        .trusted_code
-        .as_ref()
-        .map(|path| {
-            crate::trusted_code::Manifest::read(path, request.trusted_code_sha256.as_deref())
-                .map_err(refused)
-        })
-        .transpose()?;
+    let trusted = trusted_manifest(
+        request,
+        std::env::var(calc_macro_security::TRUST_ENV)
+            .ok()
+            .as_deref(),
+    )?;
     let mut capture_digest = None;
     let capture = if let Some(path) = &request.capture {
         let capture_bytes = read(path, "capture record")?;
@@ -2115,6 +2132,68 @@ mod tests {
         );
         assert!(blocked.record.evaluations.is_empty());
         assert!(crate::trusted_code::Manifest::read(&manifest, Some(&"0".repeat(64))).is_err());
+    }
+
+    /// `DNACALC_TRUST_ALL_MACROS=1` runs a workbook file's project with no manifest entry, for a
+    /// DNA-only run and for a capture whose Excel ran with macros enabled; a capture taken with
+    /// macros disabled still compares with the project held (dc-15dk).
+    #[test]
+    fn the_trust_all_variable_runs_a_file_project_without_a_manifest_entry() {
+        let bytes =
+            include_bytes!("../../../crates/calc-doc/tests/fixtures/vba_udf_names/local.xlsm");
+        let mut capture = crate::compare_inventory::source_record(bytes, "local.xlsm").unwrap();
+        let request = Request {
+            fixture: PathBuf::new(),
+            capture: None,
+            saved_excel: None,
+            trusted_code: None,
+            trusted_code_sha256: None,
+            minimize: false,
+            inventory_only: false,
+            out: PathBuf::new(),
+            target: None,
+        };
+        assert!(trusted_manifest(&request, None).unwrap().is_none());
+        assert!(trusted_manifest(&request, Some("0")).unwrap().is_none());
+        let trust = trusted_manifest(&request, Some("1")).unwrap().unwrap();
+        assert_eq!(trust.policy(&sha256_hex(bytes))["route"], "trust-all-macros");
+        let b1 = |run: &Run| {
+            run.results
+                .results
+                .iter()
+                .find(|r| r.cell.sheet() == "Cases" && r.cell.a1() == "B1")
+                .unwrap()
+                .clone()
+        };
+        let run = |capture: &CaptureRecord, trust: Option<&crate::trusted_code::Manifest>| {
+            run_workbook_with_code(
+                bytes,
+                Some("local.xlsm"),
+                None,
+                capture,
+                NumericMode::Fast,
+                false,
+                None,
+                trust,
+                None,
+            )
+            .unwrap()
+        };
+        // No capture observations: the project runs.
+        assert_eq!(b1(&run(&capture, Some(&trust))).value.unwrap().as_number(), Some(102.));
+        // A capture whose Excel ran with macros disabled: the project stays held, as it does
+        // without the variable.
+        capture.environment = Some(calc_verdict::ExcelEnvironment {
+            target: NumericTargetId::new("test", "test", "test", "test").unwrap(),
+            settings: vec![("automation_security".into(), "3".into())],
+        });
+        capture.observations.push(calc_verdict::CellObservation {
+            cell: capture.formulas[0].cell.clone(),
+            observation: Observation::ExcelRaw(CalcValue::number(102.)),
+        });
+        let held = run(&capture, Some(&trust));
+        assert!(held.workbook.is_none());
+        assert!(matches!(b1(&held).provenance, Provenance::NotModeled { .. }));
     }
 
     #[test]

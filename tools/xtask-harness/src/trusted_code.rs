@@ -29,6 +29,9 @@ struct Entry {
 pub(crate) struct Manifest {
     pub(crate) digest: String,
     entries: BTreeMap<String, Entry>,
+    /// `DNACALC_TRUST_ALL_MACROS=1` (dc-15dk): every workbook file's project and events run unless
+    /// the capture's Excel ran with macros disabled, in addition to the entries above.
+    trust_all: Option<&'static str>,
 }
 
 fn digest(text: &str) -> bool {
@@ -116,10 +119,27 @@ impl Manifest {
         Ok(Self {
             digest: actual,
             entries,
+            trust_all: None,
         })
     }
 
+    /// The route for scripts, agents and the corpus harness: the environment variable
+    /// `DNACALC_TRUST_ALL_MACROS=1` (named by `by`) trusts every workbook file's project, with no
+    /// manifest entry; a capture whose Excel ran macros disabled still compares with the project
+    /// held, since running it here would not be the same experiment.
+    pub(crate) fn trust_all(by: &'static str) -> Self {
+        Self {
+            digest: format!("trust-all:{by}"),
+            entries: BTreeMap::new(),
+            trust_all: Some(by),
+        }
+    }
+
     pub(crate) fn policy(&self, package: &str) -> Value {
+        if let (None, Some(by)) = (self.entries.get(package), self.trust_all) {
+            return json!({"route":"trust-all-macros","trusted_by":by,"manifest_sha256":null,
+                "authorized_package":true,"vba":true,"events":true,"live_capture_sha256":null,"xlls":[]});
+        }
         let entry = self.entries.get(package);
         json!({"route":"trusted-evidence-code","manifest_sha256":self.digest,
             "authorized_package":entry.is_some(),"vba":entry.is_some_and(|e|e.vba),
@@ -137,7 +157,26 @@ impl Manifest {
         capture_digest: Option<&str>,
         linked: bool,
     ) -> Result<PreparedCode, WorkbookFailure> {
-        let entry = self.entries.get(package);
+        let listed = self.entries.get(package);
+        // The trust-all route: no entry, so the capture decides (a DNA-only run has no capture
+        // and runs the project with its events).
+        let trusted_by_all = match (listed, self.trust_all) {
+            (None, Some(by)) => {
+                let setting = |key: &str| crate::compare::capture_setting(capture, key);
+                let observed = !capture.observations.is_empty();
+                Some((
+                    by,
+                    Entry {
+                        vba: !observed || setting("automation_security") == Some("1"),
+                        events: !observed || setting("enable_events") != Some("false"),
+                        xlls: Vec::new(),
+                        live_capture: None,
+                    },
+                ))
+            }
+            _ => None,
+        };
+        let entry = listed.or(trusted_by_all.as_ref().map(|(_, entry)| entry));
         if let Some(entry) = entry.filter(|e| !e.xlls.is_empty()) {
             if linked {
                 return Err(failure(
@@ -182,10 +221,14 @@ impl Manifest {
                 ));
             }
         }
-        // The one grant the harness makes (dc-0f1k.22): the manifest lists this package's exact
-        // bytes (`package` is their SHA-256) with its VBA project enabled.
+        // The grants the harness makes (dc-0f1k.22): the manifest lists this package's exact
+        // bytes (`package` is their SHA-256) with its VBA project enabled, or the environment
+        // variable trusts every workbook (dc-15dk).
         let project = if vba {
-            let grant = calc_host_vba::ProjectGrant::evidence_manifest(&self.digest, package);
+            let grant = match &trusted_by_all {
+                Some((by, _)) => calc_host_vba::ProjectGrant::trust_all(by, calc_macro_security::VbaPolicy::Full),
+                None => calc_host_vba::ProjectGrant::evidence_manifest(&self.digest, package),
+            };
             calc_host_vba::prepare_file_project_with_events(&grant, host, name, 100_000, None, events)
                 .map_err(|e| WorkbookFailure {
                     class: Class::Doc,
@@ -453,6 +496,7 @@ mod tests {
         let mut manifest = Manifest {
             digest: "test".into(),
             entries: BTreeMap::new(),
+            trust_all: None,
         };
         // Unlisted linked packages do not acquire the root package's authorization.
         let disabled = manifest
@@ -533,6 +577,7 @@ mod tests {
                     }],
                 },
             )]),
+            trust_all: None,
         };
         let linked = manifest
             .prepare(&host, "blank.xlsx", &capture, &hash, None, true)

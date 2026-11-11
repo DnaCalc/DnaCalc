@@ -112,6 +112,8 @@ pub struct Server {
     /// Where the file of the next open came from, when a native host read its path (its Mark of
     /// the Web, the network); taken by that open. A browser cannot tell: unknown (dc-0f1k.22).
     open_origin: Option<crate::workbook::FileOrigin>,
+    /// The macro security level in force (dc-15dk): Off unless the native host sets another.
+    macro_policy: dna_calc_model::MacroPolicy,
 }
 
 impl Default for Server {
@@ -314,6 +316,7 @@ impl Server {
             next_save: 1,
             template_counters: BTreeMap::new(),
             open_origin: None,
+            macro_policy: dna_calc_model::MacroPolicy::default(),
         }
     }
 
@@ -874,6 +877,7 @@ impl Server {
                             let elapsed = crate::services::now_ms() - started;
                             let calculated = book.calculated_on_open();
                             self.install(book);
+                            self.run_macros_on_open();
                             Ok(Reply::Done {
                                 outcome: self.outcome(true, None, elapsed),
                                 opened: Some((elapsed, calculated)),
@@ -908,11 +912,20 @@ impl Server {
                     self.book.set_vba_events_enabled(enabled);
                     Ok(self.done(true, None, 0.0))
                 }
-                Request::EnableMacros => {
+                request @ (Request::EnableMacros | Request::UnblockMacros) => {
+                    let mode = if matches!(request, Request::UnblockMacros) {
+                        crate::workbook::EnableMode::Unblock
+                    } else {
+                        crate::workbook::EnableMode::Person
+                    };
                     self.book
-                        .enable_macros()
+                        .enable_macros_as(mode)
                         .map_err(|refused| refused.to_string())?;
                     self.collect();
+                    Ok(self.done(true, None, 0.0))
+                }
+                Request::SetMacroSecurity { level } => {
+                    self.macro_policy.choose(level)?;
                     Ok(self.done(true, None, 0.0))
                 }
                 request @ (Request::Save
@@ -1542,6 +1555,35 @@ impl Server {
         self.collect();
     }
 
+    /// The macro security level in force (dc-15dk). A native host sets what the person stored, or
+    /// Unguarded pinned by `--trust-macros` or `DNACALC_TRUST_ALL_MACROS=1`, before the first open.
+    pub fn set_macro_policy(&mut self, policy: dna_calc_model::MacroPolicy) {
+        self.macro_policy = policy;
+    }
+
+    pub fn macro_policy(&self) -> dna_calc_model::MacroPolicy {
+        self.macro_policy
+    }
+
+    /// Under the level Unguarded (or its pin) a macro workbook's project runs as it opens, with
+    /// an information notice when its origin would have blocked it. A project that does not
+    /// compile stays held and the notice says so.
+    fn run_macros_on_open(&mut self) {
+        let Some(policy) = self.macro_policy.runs_on_open() else {
+            return;
+        };
+        let by = self.macro_policy.trust_source();
+        match self
+            .book
+            .enable_macros_as(crate::workbook::EnableMode::Trusted { by, policy })
+        {
+            Ok(()) | Err(crate::workbook::EnableRefused::NoProject) => self.collect(),
+            Err(refused) => self
+                .book
+                .set_macro_note(format!("Macros did not run: {refused}")),
+        }
+    }
+
     /// Where the file the next open request names came from (the desktop host read its path):
     /// its Mark of the Web or a network path blocks its VBA project (dc-0f1k.22). Without one the
     /// origin is unknown, as in a browser, and the project opens disabled.
@@ -1700,6 +1742,8 @@ impl Server {
             changed: self.book.changed(),
             unsaved: self.book.unsaved(),
             macro_enabled: self.book.output_format().macro_enabled(),
+            macro_policy: self.macro_policy,
+            macro_note: self.book.macro_note().unwrap_or_default().to_owned(),
             macros: match self.book.macros() {
                 crate::workbook::Macros::None => wire::MacroStatus::None,
                 crate::workbook::Macros::Disabled(_) => wire::MacroStatus::Disabled,

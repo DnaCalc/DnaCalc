@@ -938,6 +938,15 @@ fn run_corpus(args: &Args) -> u8 {
         .map(|path| crate::trusted_code::Manifest::read(path, None).map(|m| m.digest))
         .transpose()
     {
+        // `DNACALC_TRUST_ALL_MACROS=1` without a manifest is its own policy, so a cached record
+        // of a run without it is never reused (dc-15dk); the compare step reads the variable.
+        Ok(None)
+            if calc_macro_security::env_pins(
+                std::env::var(calc_macro_security::TRUST_ENV).ok().as_deref(),
+            ) =>
+        {
+            Some(crate::trusted_code::Manifest::trust_all(calc_macro_security::TRUST_ENV).digest)
+        }
         Ok(digest) => digest,
         Err(error) => {
             eprintln!("xtask corpus: {error}");

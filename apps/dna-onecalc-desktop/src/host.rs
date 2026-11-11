@@ -77,6 +77,10 @@ pub trait Files {
         Ok(false)
     }
 
+    /// Stores the macro security level the person chose, per user (dc-15dk); a host that stores
+    /// nothing ignores it.
+    fn store_macro_level(&mut self, _level: dna_onecalc::MacroSecurity) {}
+
     /// What the person wants for the unsaved changes of `name` when they close the window.
     fn confirm_close(&mut self, _name: &str) -> CloseChoice {
         CloseChoice::Discard
@@ -627,7 +631,7 @@ impl<F: Files, L: Libraries> Host<F, L> {
             },
             // The person enabled macros for this file: the project compiles and `Workbook_Open`
             // runs; the add-ins the host loaded stay loaded (this is not a new file).
-            Request::EnableMacros => match self.port.send(Request::EnableMacros) {
+            request @ (Request::EnableMacros | Request::UnblockMacros) => match self.port.send(request) {
                 Reply::Opened(mut opened) => {
                     let _ = self.publish();
                     opened.shown.functions_version = self.port.session().functions_version();
@@ -640,6 +644,17 @@ impl<F: Files, L: Libraries> Host<F, L> {
                 }
                 other => other,
             },
+            // The person's macro security level is stored per user; a level the flag or the variable
+            // pins is shown and never stored (dc-15dk).
+            request @ Request::SetMacroSecurity { .. } => {
+                let reply = self.port.send(request);
+                if let Reply::MacroPolicy(policy) = &reply
+                    && policy.pinned().is_none()
+                {
+                    self.files.store_macro_level(policy.level());
+                }
+                reply
+            }
             Request::SaveNative => self.save_native(false),
             Request::SaveAsNative => self.save_native(true),
             Request::Save => {
@@ -792,6 +807,8 @@ mod tests {
         /// A message when DNA Calc is absent; the files it was asked to open (path, name, bytes).
         dna_calc: Option<String>,
         launched: Vec<(Option<PathBuf>, String, usize)>,
+        /// The macro security levels `store_macro_level` was told to keep, in order.
+        stored: Vec<dna_onecalc::MacroSecurity>,
     }
 
     impl Files for Scripted {
@@ -801,6 +818,10 @@ mod tests {
 
         fn opened_zone(&self) -> Option<u32> {
             self.zone
+        }
+
+        fn store_macro_level(&mut self, level: dna_onecalc::MacroSecurity) {
+            self.stored.push(level);
         }
 
         fn choose_save(&mut self, suggested: &str, bytes: &[u8]) -> Result<Option<String>, String> {
@@ -1619,6 +1640,74 @@ mod tests {
                 assert!(matches!(reply, Reply::Opened(_)), "{zone:?}: {reply:?}");
             }
         }
+    }
+
+    /// Native-only: the macro security level through the host (dc-15dk). A marked file is blocked
+    /// for Enable macros and runs through Unblock and enable, with a notice; the person's level is
+    /// handed to the host's store, a level the flag or the variable pins is not; Unguarded runs a
+    /// marked file as it opens; Safe, not available yet, holds it and says so.
+    #[test]
+    fn the_macro_security_level_is_stored_and_unblocking_runs_a_marked_file() {
+        use dna_onecalc::port::MacrosView;
+        use dna_onecalc::{MacroPolicy, MacroSecurity};
+        let xlsm =
+            include_bytes!("../../../crates/calc-xll-reference/fixture/vba/DnaExamples.xlsm");
+        let mut host = host();
+        let open = |host: &mut Host<Scripted, Fake>| {
+            host.files.open = Some(("DnaExamples.xlsm".into(), xlsm.to_vec()));
+            host.files.zone = Some(3);
+            let Reply::Opened(opened) = host.handle(Request::OpenNative) else {
+                panic!("opened")
+            };
+            opened
+        };
+        let marked = open(&mut host);
+        assert_eq!(marked.macro_policy.level(), MacroSecurity::Off);
+        assert_eq!(marked.project.unwrap().macros, MacrosView::Blocked);
+        assert!(matches!(
+            host.handle(Request::EnableMacros),
+            Reply::Refused { .. }
+        ));
+        let Reply::Opened(unblocked) = host.handle(Request::UnblockMacros) else {
+            panic!("unblocked")
+        };
+        let view = unblocked.project.unwrap();
+        assert_eq!(view.macros, MacrosView::Enabled);
+        assert!(view.notice.contains("you unblocked it"), "{view:?}");
+
+        assert!(host.files.stored.is_empty());
+        host.handle(Request::SetMacroSecurity {
+            level: MacroSecurity::Unguarded,
+        });
+        let running = open(&mut host).project.unwrap();
+        assert_eq!(running.macros, MacrosView::Enabled);
+        assert!(running.notice.contains("macro security"), "{running:?}");
+        host.handle(Request::SetMacroSecurity {
+            level: MacroSecurity::Safe,
+        });
+        assert_eq!(
+            host.files.stored,
+            [MacroSecurity::Unguarded, MacroSecurity::Safe]
+        );
+        let held = open(&mut host).project.unwrap();
+        assert_eq!(held.macros, MacrosView::Blocked);
+        assert!(held.notes.join(" ").contains("not available yet"), "{held:?}");
+
+        host.session_mut().set_macro_policy(MacroPolicy::resolve(
+            MacroSecurity::Off,
+            true,
+            None,
+            None,
+        ));
+        assert!(matches!(
+            host.handle(Request::SetMacroSecurity {
+                level: MacroSecurity::Off
+            }),
+            Reply::Refused { .. }
+        ));
+        assert_eq!(host.files.stored.len(), 2, "a pinned level is never stored");
+        let pinned = open(&mut host).project.unwrap();
+        assert_eq!(pinned.macros, MacrosView::Enabled);
     }
 
     /// The code of the saved file's Module1, read the way the session reads it.

@@ -863,3 +863,100 @@ fn active_sheet_and_selection_are_the_users_as_excel_measured() {
     }
     assert!(differences.is_empty(), "{differences:#?}");
 }
+
+/// dc-15dk: the macro security level. Off offers Unblock and enable for a marked file (the plain
+/// Enable still refuses it); Unguarded runs every file on open, a marked one with a notice;
+/// Safe (not available yet) holds a project like Off and says so; a pinned level cannot be changed; the
+/// level survives a new session and another file. (A project that cannot compile on this platform
+/// stays held and says why; the level's decisions are checked either way.)
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn the_macro_security_level_decides_what_runs_and_what_the_buttons_do() {
+    use dna_onecalc::port::{LocalPort, MacrosView, Reply, Request, SessionPort};
+    use dna_onecalc::{MacroPolicy, MacroSecurity};
+    for (bytes, can_compile) in example_contract_inputs() {
+        let open = |port: &mut LocalPort, zone| {
+            let Reply::Opened(opened) = port.send(Request::Open {
+                name: "DnaExamples.xlsm".into(),
+                bytes: bytes.clone(),
+                zone,
+            }) else {
+                panic!("opened")
+            };
+            opened
+        };
+        // Off: the default, shown with the file; a marked file offers Unblock and enable.
+        let mut port = LocalPort::new(Session::new("Sheet1").unwrap());
+        assert!(matches!(
+            port.send(Request::MacroPolicy),
+            Reply::MacroPolicy(policy) if policy.level() == MacroSecurity::Off && policy.pinned().is_none()
+        ));
+        let marked = open(&mut port, Some(3));
+        assert_eq!(marked.macro_policy.level(), MacroSecurity::Off);
+        assert_eq!(marked.project.as_ref().unwrap().macros, MacrosView::Blocked);
+        assert!(matches!(port.send(Request::EnableMacros), Reply::Refused { .. }));
+        let unblocked = port.send(Request::UnblockMacros);
+        if can_compile {
+            let Reply::Opened(unblocked) = unblocked else {
+                panic!("{unblocked:?}")
+            };
+            let view = unblocked.project.unwrap();
+            assert_eq!(view.macros, MacrosView::Enabled);
+            assert!(view.notice.contains("you unblocked it"), "{view:?}");
+        } else {
+            assert!(matches!(unblocked, Reply::Refused { .. }), "{unblocked:?}");
+        }
+
+        // Unguarded, chosen through the wire: every file runs on open, a marked one with a notice.
+        assert!(matches!(
+            port.send(Request::SetMacroSecurity { level: MacroSecurity::Unguarded }),
+            Reply::MacroPolicy(policy) if policy.level() == MacroSecurity::Unguarded
+        ));
+        let local = open(&mut port, None);
+        assert_eq!(local.macro_policy.level(), MacroSecurity::Unguarded);
+        let local = local.project.unwrap();
+        let marked = open(&mut port, Some(4)).project.unwrap();
+        if can_compile {
+            assert_eq!(local.macros, MacrosView::Enabled);
+            assert!(local.notice.is_empty(), "{local:?}");
+            assert_eq!(marked.macros, MacrosView::Enabled);
+            assert!(
+                marked.notice.contains("Mark of the Web") && marked.notice.contains("macro security level"),
+                "{marked:?}"
+            );
+        } else {
+            assert_eq!(marked.macros, MacrosView::Blocked, "{marked:?}");
+        }
+
+        // The level belongs to the person, not the file: a new session keeps it.
+        let Reply::Opened(fresh) = port.send(Request::New) else {
+            panic!("new")
+        };
+        assert_eq!(fresh.macro_policy.level(), MacroSecurity::Unguarded);
+
+        // Safe is not available yet (dc-10un): the project is held as under Off, and the notes
+        // say so; the person can still enable the file.
+        port.send(Request::SetMacroSecurity { level: MacroSecurity::Safe });
+        let held = open(&mut port, None).project.unwrap();
+        assert_eq!(held.macros, MacrosView::Disabled);
+        assert!(held.notes.join(" ").contains("not available yet"), "{held:?}");
+        assert_eq!(port.session().project().map(|p| p.is_running()), Some(false));
+        assert_eq!(open(&mut port, Some(3)).project.unwrap().macros, MacrosView::Blocked);
+
+        // Pinned by the flag or the variable: Unguarded, and the page cannot choose another.
+        let mut pinned = LocalPort::new(Session::new("Sheet1").unwrap());
+        pinned
+            .session_mut()
+            .set_macro_policy(MacroPolicy::resolve(MacroSecurity::Safe, false, Some("1"), None));
+        let marked = open(&mut pinned, Some(3));
+        assert_eq!(marked.macro_policy.level(), MacroSecurity::Unguarded);
+        assert!(marked.macro_policy.pinned().is_some());
+        if can_compile {
+            assert_eq!(marked.project.unwrap().macros, MacrosView::Enabled);
+        }
+        assert!(matches!(
+            pinned.send(Request::SetMacroSecurity { level: MacroSecurity::Off }),
+            Reply::Refused { message } if message.contains("pinned")
+        ));
+    }
+}

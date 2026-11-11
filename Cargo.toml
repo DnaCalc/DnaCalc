@@ -20,6 +20,7 @@ members = [
     "crates/calc-engine",
     "crates/calc-host",
     "crates/calc-host-vba",
+    "crates/calc-macro-security",
     "apps/dna-formula-ui",
     "apps/dna-onecalc",
     "apps/dna-calc",

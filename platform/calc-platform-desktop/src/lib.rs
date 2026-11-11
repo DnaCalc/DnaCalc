@@ -12,6 +12,7 @@
 //!   announced to the thread that asked (`winhttp.rs`, `background.rs`);
 //! - [`dialogs`]: the native file open and save dialogs (`dialogs.rs`);
 //! - [`origin`]: a file's Mark of the Web and whether its path is on the network (`origin.rs`).
+//! - [`macro_security`]: the per-user macro security level both applications store (`macro_security.rs`).
 
 #[cfg(target_arch = "wasm32")]
 compile_error!(
@@ -19,6 +20,7 @@ compile_error!(
 );
 
 pub mod assets;
+pub mod macro_security;
 pub mod origin;
 #[cfg(windows)]
 mod background;

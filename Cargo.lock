@@ -319,10 +319,19 @@ dependencies = [
  "calc-doc",
  "calc-func",
  "calc-host",
+ "calc-macro-security",
  "calc-value",
  "calc-vba",
  "cfb",
  "miniz_oxide",
+ "wasm-bindgen-test",
+]
+
+[[package]]
+name = "calc-macro-security"
+version = "0.1.0"
+dependencies = [
+ "serde",
  "wasm-bindgen-test",
 ]
 
@@ -340,6 +349,7 @@ dependencies = [
 name = "calc-platform-desktop"
 version = "0.1.0"
 dependencies = [
+ "calc-macro-security",
  "webview2-com",
  "windows",
  "windows-sys 0.61.2",
@@ -1093,6 +1103,7 @@ dependencies = [
  "calc-func",
  "calc-host",
  "calc-host-vba",
+ "calc-macro-security",
  "calc-platform-desktop",
  "calc-value",
  "calc-vba",
@@ -1109,6 +1120,7 @@ dependencies = [
 name = "dna-calc-model"
 version = "0.1.0"
 dependencies = [
+ "calc-macro-security",
  "calc-value",
  "serde",
  "wasm-bindgen",
@@ -1173,6 +1185,7 @@ dependencies = [
  "calc-doc",
  "calc-fml",
  "calc-func",
+ "calc-macro-security",
  "calc-vba",
  "calc-verdict",
  "dna-formula-ui",
@@ -3391,6 +3404,7 @@ dependencies = [
  "calc-func",
  "calc-host",
  "calc-host-vba",
+ "calc-macro-security",
  "calc-oracle-excel",
  "calc-platform-desktop",
  "calc-verdict",

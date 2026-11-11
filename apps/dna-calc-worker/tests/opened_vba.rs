@@ -403,3 +403,136 @@ End Function
         book.project(vec![refused])[0].value()
     );
 }
+
+/// The macro security level (dc-15dk), end to end through the server's wire: a marked file offers
+/// Unblock and enable under Ask; Unguarded runs every file on open (a marked one with a notice);
+/// Safe (not available yet) holds a project like Off and says so; a pinned level cannot be changed.
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn the_macro_security_level_decides_what_runs_and_what_the_buttons_do() {
+    use dna_calc_model::{MacroPolicy, MacroSecurity, Pin};
+    use dna_calc_worker::server::Server;
+    use dna_calc_worker::wire::{MacroStatus, Reply, Request};
+    let summary = |reply: &Result<Reply, String>| match reply {
+        Ok(Reply::Done { outcome, .. }) => outcome.summary.clone(),
+        other => panic!("not done: {other:?}"), // ubs:ignore[rust.ownership.panic-macro] The request must answer.
+    };
+    let open = |server: &mut Server, origin: FileOrigin| {
+        server.set_open_origin(origin);
+        summary(
+            &server
+                .execute_current(
+                    Request::Open {
+                        name: "book.xlsm".into(),
+                    },
+                    Some(LOCAL.to_vec()),
+                )
+                .reply,
+        )
+    };
+
+    // Ask (the default): a marked file is blocked for the plain Enable and unblocked by the button.
+    let mut server = Server::new();
+    assert_eq!(server.macro_policy().level(), MacroSecurity::Off);
+    let marked = open(&mut server, FileOrigin::Zone(3));
+    assert!(matches!(marked.macros, MacroStatus::Blocked { .. }));
+    assert!(marked.macro_note.is_empty());
+    assert!(server.execute_current(Request::EnableMacros, None).reply.is_err());
+    let unblocked = summary(&server.execute_current(Request::UnblockMacros, None).reply);
+    assert_eq!(unblocked.macros, MacroStatus::Enabled);
+    assert!(unblocked.macro_note.contains("you unblocked it"), "{}", unblocked.macro_note);
+    // A network file unblocks the same way, and an unmarked file's Unblock is no more than Enable.
+    open(&mut server, FileOrigin::Network);
+    let network = summary(&server.execute_current(Request::UnblockMacros, None).reply);
+    assert_eq!(network.macros, MacroStatus::Enabled);
+    assert!(network.macro_note.contains("network"));
+    open(&mut server, FileOrigin::Local);
+    let local = summary(&server.execute_current(Request::UnblockMacros, None).reply);
+    assert_eq!((local.macros, local.macro_note.as_str()), (MacroStatus::Enabled, ""));
+
+    // Enable all: the project runs on open, a marked file too, with a notice; choosing the level
+    // through the wire changes later opens only.
+    let chosen = summary(
+        &server
+            .execute_current(
+                Request::SetMacroSecurity {
+                    level: MacroSecurity::Unguarded,
+                },
+                None,
+            )
+            .reply,
+    );
+    assert_eq!(chosen.macro_policy.level(), MacroSecurity::Unguarded);
+    let plain = open(&mut server, FileOrigin::Local);
+    assert_eq!((plain.macros, plain.macro_note.as_str()), (MacroStatus::Enabled, ""));
+    let marked = open(&mut server, FileOrigin::Zone(4));
+    assert_eq!(marked.macros, MacroStatus::Enabled);
+    assert!(
+        marked.macro_note.contains("Mark of the Web")
+            && marked.macro_note.contains("macro security level"),
+        "{}",
+        marked.macro_note
+    );
+    assert_eq!(open(&mut server, FileOrigin::Network).macros, MacroStatus::Enabled);
+
+    // Safe is not available yet (dc-10un): it behaves as Off and the policy says so; the person
+    // can still enable the file.
+    server
+        .execute_current(
+            Request::SetMacroSecurity {
+                level: MacroSecurity::Safe,
+            },
+            None,
+        )
+        .reply
+        .unwrap();
+    let held = open(&mut server, FileOrigin::Local);
+    assert_eq!(held.macros, MacroStatus::Disabled);
+    assert_eq!(held.macro_policy.level(), MacroSecurity::Safe);
+    assert!(held.macro_policy.safe_notice().is_some());
+    assert_eq!(
+        summary(&server.execute_current(Request::EnableMacros, None).reply).macros,
+        MacroStatus::Enabled
+    );
+    assert!(matches!(
+        open(&mut server, FileOrigin::Zone(3)).macros,
+        MacroStatus::Blocked { .. }
+    ));
+
+    // The flag, the variable or --macros pins a level: the page cannot choose another.
+    let mut pinned = Server::new();
+    pinned.set_macro_policy(MacroPolicy::resolve(MacroSecurity::Safe, true, None, None));
+    let marked = open(&mut pinned, FileOrigin::Zone(3));
+    assert_eq!(marked.macros, MacroStatus::Enabled);
+    assert_eq!(marked.macro_policy.pinned(), Some(Pin::Flag));
+    assert!(marked.macro_note.contains("--trust-macros"), "{}", marked.macro_note);
+    let refused = pinned
+        .execute_current(
+            Request::SetMacroSecurity {
+                level: MacroSecurity::Off,
+            },
+            None,
+        )
+        .reply;
+    assert!(refused.is_err_and(|why| why.contains("pinned")));
+    let mut by_variable = Server::new();
+    by_variable.set_macro_policy(MacroPolicy::resolve(MacroSecurity::Off, false, Some("1"), None));
+    assert_eq!(open(&mut by_variable, FileOrigin::Network).macros, MacroStatus::Enabled);
+    // --macros pins a level over the stored one, either way.
+    let mut off = Server::new();
+    off.set_macro_policy(MacroPolicy::resolve(
+        MacroSecurity::Unguarded,
+        false,
+        None,
+        Some(MacroSecurity::Off),
+    ));
+    assert_eq!(open(&mut off, FileOrigin::Local).macros, MacroStatus::Disabled);
+    let mut on = Server::new();
+    on.set_macro_policy(MacroPolicy::resolve(
+        MacroSecurity::Off,
+        false,
+        None,
+        Some(MacroSecurity::Unguarded),
+    ));
+    assert_eq!(open(&mut on, FileOrigin::Local).macros, MacroStatus::Enabled);
+}

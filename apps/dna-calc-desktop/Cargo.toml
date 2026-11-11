@@ -13,6 +13,8 @@ portability = "native-only"
 calc-func = { path = "../../crates/calc-func" }
 # Where an opened file came from (its Mark of the Web, the network), on every platform (origin.rs).
 calc-host-vba = { path = "../../crates/calc-host-vba" }
+# The macro security level (dc-15dk): the page shows it, the native host stores it per user.
+calc-macro-security = { path = "../../crates/calc-macro-security" }
 calc-platform-desktop = { path = "../../platform/calc-platform-desktop" }
 
 [target.'cfg(windows)'.dependencies]

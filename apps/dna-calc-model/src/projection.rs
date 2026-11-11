@@ -1,5 +1,6 @@
 //! Skin-neutral workbook commands and projections. Only values, identities and presentation
 //! data cross this boundary; no host, evaluator, document or reactive implementation is exposed.
+use calc_macro_security::{MacroPolicy, MacroSecurity};
 use calc_value::{CellKey, GridArea, SheetId};
 use serde::{Deserialize, Serialize};
 
@@ -911,6 +912,12 @@ pub enum Request {
     /// own VBA project is compiled, its functions published and `Workbook_Open` raised. Refused
     /// for a file whose Mark of the Web or network origin blocks its project (dc-0f1k.22).
     EnableMacros,
+    /// The page's "Unblock and enable" button, behind its warning: enables the macros of a file
+    /// whose Mark of the Web or network origin blocks them (dc-15dk).
+    UnblockMacros,
+    /// The person chose a macro security level (dc-15dk); refused while the command line or the
+    /// environment pins it. The native host stores the level per user.
+    SetMacroSecurity { level: MacroSecurity },
     /// Saves the workbook: its bytes travel back beside the reply.
     Save,
     /// Ordinary live save with Excel's CalculateBeforeSave setting.
@@ -1054,6 +1061,8 @@ impl Request {
                 | Self::LoadVbaProject { .. }
                 | Self::SetVbaEventsEnabled { .. }
                 | Self::EnableMacros
+                | Self::UnblockMacros
+                | Self::SetMacroSecurity { .. }
         )
     }
 }
@@ -1090,6 +1099,13 @@ pub struct Summary {
     /// Whether the workbook's own VBA project runs (dc-0f1k.22).
     #[serde(default)]
     pub macros: MacroStatus,
+    /// The macro security level in force, and what pins it, always shown on the page (dc-15dk).
+    #[serde(default)]
+    pub macro_policy: MacroPolicy,
+    /// An information notice about the project's macros (a marked or network file that ran
+    /// because the level is Unguarded, or was unblocked); empty for none.
+    #[serde(default)]
+    pub macro_note: String,
     #[serde(default)]
     pub template: bool,
     pub undo: usize,

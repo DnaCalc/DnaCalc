@@ -971,15 +971,29 @@ pub fn app_with_transport(
                 hidden=move || controller.macro_bar().is_none()
             >
                 <span data-dnacalc="macro-status">
-                    {move || controller.macro_bar().map(|(text, _)| text).unwrap_or_default()}
+                    {move || controller.macro_bar().map(|bar| bar.text).unwrap_or_default()}
                 </span>
                 <button
                     type="button"
                     data-dnacalc="enable-macros"
-                    hidden=move || !controller.macro_bar().is_some_and(|(_, enable)| enable)
-                    on:click=move |_| controller.enable_macros()
+                    hidden=move || {
+                        controller.macro_bar().and_then(|bar| bar.button)
+                            != Some(crate::controller::MacroButton::Enable)
+                    }
+                    on:click=move |_| controller.enable_macros(crate::controller::MacroButton::Enable)
                 >
                     "Enable macros"
+                </button>
+                <button
+                    type="button"
+                    data-dnacalc="unblock-macros"
+                    hidden=move || {
+                        controller.macro_bar().and_then(|bar| bar.button)
+                            != Some(crate::controller::MacroButton::Unblock)
+                    }
+                    on:click=move |_| controller.enable_macros(crate::controller::MacroButton::Unblock)
+                >
+                    "Unblock and enable"
                 </button>
             </div>
             <div class="dc-bar">
@@ -1300,6 +1314,35 @@ pub fn app_with_transport(
                 {sheet_controls}
             </div>
             <footer class="dc-status">
+                // The macro security level, always visible and changeable here (dc-15dk); a level
+                // pinned by --trust-macros or DNACALC_TRUST_ALL_MACROS says so and cannot change.
+                <label class="dc-macro-level" data-dnacalc="macro-security-label">
+                    {move || {
+                        let policy = controller.macro_policy();
+                        if policy.pinned().is_some() {
+                            policy.summary()
+                        } else {
+                            "Macro security: ".to_owned()
+                        }
+                    }}
+                    <select
+                        data-dnacalc="macro-security"
+                        aria-label="Macro security level"
+                        hidden=move || controller.macro_policy().pinned().is_some()
+                        prop:value=move || controller.macro_policy().level().key()
+                        on:change=move |ev| {
+                            if let Some(level) =
+                                crate::controller::MacroSecurity::parse(&event_target_value(&ev))
+                            {
+                                controller.set_macro_security(level);
+                            }
+                        }
+                    >
+                        <option value="off">"Off"</option>
+                        <option value="safe">"Safe"</option>
+                        <option value="unguarded">"Unguarded"</option>
+                    </select>
+                </label>
                 <span
                     data-dnacalc="worker-status"
                     role="status"

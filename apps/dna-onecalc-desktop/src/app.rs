@@ -54,6 +54,10 @@ struct Options {
     /// instead of asking in the save dialog: an acceptance run drives the page's Save without a
     /// person (the dialog's own code is not exercised then).
     save_dir: Option<PathBuf>,
+    /// `--trust-macros`: pins the macro security level to Unguarded (dc-15dk).
+    trust_macros: bool,
+    /// `--macros off|safe|unguarded`: pins the macro security level for this run.
+    macros: Option<dna_onecalc::MacroSecurity>,
 }
 
 fn options(args: &[String]) -> Result<Options, String> {
@@ -68,6 +72,8 @@ fn options(args: &[String]) -> Result<Options, String> {
         close_answer: None,
         message_file: None,
         save_dir: None,
+        trust_macros: false,
+        macros: None,
     };
     let mut args = args.iter();
     while let Some(arg) = args.next() {
@@ -80,6 +86,14 @@ fn options(args: &[String]) -> Result<Options, String> {
             "--sheet" => o.sheet = value()?,
             "--save-dir" => o.save_dir = Some(PathBuf::from(value()?)),
             "--data-dir" => o.data_dir = Some(PathBuf::from(value()?)),
+            "--trust-macros" => o.trust_macros = true,
+            "--macros" => {
+                let text = value()?;
+                o.macros = Some(
+                    dna_onecalc::MacroSecurity::parse(&text)
+                        .ok_or(format!("--macros is off, safe or unguarded, not {text}"))?,
+                )
+            }
             "--message-file" => o.message_file = Some(PathBuf::from(value()?)),
             "--close-answer" => {
                 o.close_answer = Some(match value()?.as_str() {
@@ -154,6 +168,9 @@ struct Dialogs {
     dna_calc: Option<PathBuf>,
     /// A test flag is present: nothing here waits for a click.
     scripted: bool,
+    /// The per-user folder the macro security level is stored in (dc-15dk): `--data-dir`, else the
+    /// folder both desktop applications share.
+    macro_folder: PathBuf,
 }
 
 /// What the app says to the person: in a box, or in the file `--message-file` names.
@@ -210,6 +227,12 @@ impl Files for Dialogs {
 
     fn opened_path(&self) -> Option<PathBuf> {
         self.path.clone()
+    }
+
+    fn store_macro_level(&mut self, level: dna_onecalc::MacroSecurity) {
+        if let Err(why) = calc_platform_desktop::macro_security::save(&self.macro_folder, level) {
+            eprintln!("dna-onecalc-desktop: the macro security level is not stored: {why}");
+        }
     }
 
     fn recent(&self) -> Vec<String> {
@@ -697,6 +720,10 @@ pub fn run(args: &[String]) -> Result<(), String> {
         .clone()
         .unwrap_or_else(crate::settings::default_folder);
     let settings = Rc::new(RefCell::new(Settings::load(&data_dir)));
+    let macro_folder = o
+        .data_dir
+        .clone()
+        .unwrap_or_else(calc_platform_desktop::macro_security::default_folder);
     let shell = Shell::new("DNA OneCalc")?;
     let frame = shell.workbook_hwnd();
     let size = o.size.unwrap_or((1280, 900));
@@ -764,8 +791,17 @@ pub fn run(args: &[String]) -> Result<(), String> {
         message_file: o.message_file.clone(),
         dna_calc: dna_calc_beside_us(),
         scripted: o.scripted(),
+        macro_folder: macro_folder.clone(),
     };
     let mut host = Host::new(session, dialogs, Addins::new(set.clone()));
+    // The macro security level in force: what the person stored, or the level pinned by
+    // `--trust-macros` or `DNACALC_TRUST_ALL_MACROS=1`.
+    host.session_mut()
+        .set_macro_policy(calc_platform_desktop::macro_security::policy(
+            &macro_folder,
+            o.trust_macros,
+            o.macros,
+        ));
     for xll in &o.xlls {
         match host.handle(Request::LoadAddin {
             path: xll.display().to_string(),

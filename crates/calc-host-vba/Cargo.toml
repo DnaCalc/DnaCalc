@@ -12,6 +12,7 @@ portability = "portable"
 [dependencies]
 calc-host = { path = "../calc-host" }
 calc-vba = { path = "../calc-vba" }
+calc-macro-security = { path = "../calc-macro-security" }
 calc-value = { path = "../calc-value" }
 
 [dev-dependencies]

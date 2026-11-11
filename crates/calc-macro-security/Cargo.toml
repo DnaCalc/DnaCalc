@@ -1,0 +1,16 @@
+[package]
+name = "calc-macro-security"
+version.workspace = true
+edition.workspace = true
+publish.workspace = true
+license.workspace = true
+description = "The per-user macro security level both applications share (Ask, Enable all, Disable all) and what pins it from the command line or the environment (dc-15dk)."
+
+[package.metadata.dnacalc]
+portability = "portable"
+
+[dependencies]
+serde = { version = "=1.0.229", features = ["derive"] }
+
+[target.'cfg(target_arch = "wasm32")'.dev-dependencies]
+wasm-bindgen-test = "=0.3.67"
