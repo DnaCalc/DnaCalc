@@ -53,3 +53,57 @@ matches; the result is then tested on inputs it never saw (E1b).
 E1b (held out; its predictions are frozen with the fitted table, after E1 and before E1b is asked):
 random inputs on [2, 3], the equal-spacing grid x = 2 + j 2^-51 (j = -512..511, j != 0) across 2, and
 windows at 3 and 1.625.
+
+### E1 interim (asked 2026-11-12 00:05, before E2 and E3 were frozen)
+
+Prediction 1 held: H0 under G0 matches 37.5% of the E1 inputs, 97.1% within 0.002 of 2.5 and 36.8%
+elsewhere; Excel gives ...e8 at 2.5 and ...04 at 2.75. Predictions 2 to 4 are still open. A finding on the
+way, written here before E2 and E3 are asked: the window means of (Excel - H0) jump by up to 1.6 ulps
+where a stored Horner sum crosses a power of two (P's sums at 2.277, 2.349, 2.463, 2.606, 2.658, 2.779;
+Q's at 2.394). A stored stage hides the coefficient bits below its own ulp, so each crossing exposes a
+different rounding of the same coefficient. A linear model with one effective constant per (stage,
+binade) fits the 258 window means to their noise. With the constants tied to one coefficient each
+(rounding offsets bounded by the stage grid), G0 cannot fit them (chi-square 2171 on 258 means); the
+jumps at 2.277 and 2.606, where P's last sum crosses a binade, need that sum stored. With P's last sum
+stored the same tied model fits (chi-square 216; Q's last sum stored or not: 216 either way). So the
+landed graph keeps one sum resident that Excel stores.
+
+## E2. GAMMA seed at exact translations (answer B.4, windows at the halves -0.5 to -3.5 added)
+
+Inputs: y in Y1 = {1/4 + j 2^-49, j = 0..1023} and Y2 = {1/2 + j 2^-49, j = -512..511}; GAMMA(n + y) for
+n = -9..9 (every translation exact): 38,912 calls. Y2 holds y = 1/2 itself, so GAMMA(-0.5), (-1.5),
+(-2.5), (-3.5) are among them. Script `e2_seed.py`; predictions file `e2-predictions.tsv` (our current
+outputs), SHA-256 `e44cc2968ccd9cdafe09830d84ba80aff576f0868d4914481b08df47426b2bfe`; hypothesis graphs in
+`e2_chain.py`.
+
+Predictions, frozen before asking. With s = Excel's own GAMMA(1+y):
+
+1. Above one (common stored seed, landed product graph): GAMMA(n+y) = `above(n+y, s)` for n = 2..9 in
+   every row of Y1 and Y2 except y = 1/2 (positive halves take the public sqrt(pi) route).
+2. Below one, one of two graphs holds in every row for n = -9..0: R (quotients resident, one store) or S
+   (each quotient stored). If neither holds in all rows, the seed below one is not Excel's GAMMA(1+y).
+3. At y = 1/2: GAMMA(-0.5) and GAMMA(-1.5) differ from R applied to Excel's GAMMA(1.5) (6b), and
+   GAMMA(-2.5) agrees (the bank: harvest claim 12). If the windows around the halves follow R with Excel's
+   own GAMMA(1+y) at every y != 1/2, the halves have a branch of their own.
+
+## E3. Lower-series mass from the density (answer B.1)
+
+Inputs (script `e3_mass.py`, 29,108 calls; predictions file `e3-predictions.tsv`, SHA-256
+`fc3d0cb8af5c3b7720f78745eaecfbaeec0f6b821fb289e66d9c6001ff28ad58`):
+
+- a: shapes in W(0.75), W(1.75), W(2.75), W(5.5); x = ldexp(a, e), e = -80, -96, -112; b = 1;
+  GAMMA.DIST TRUE and FALSE (24,576 calls).
+- m: x in W(1.1), a = 2.75 and 5.5, TRUE and FALSE (4,096 calls).
+- s: the 109 failing unit-scale density rows of the bank, at b = 1/2, 1, 2, 4 with x = b y (436 calls).
+
+Predictions, frozen before asking:
+
+1. Shared stored mass: C = ldexp(D, e) bit for bit in every a-row at every shape, 0.75 included. Our code
+   satisfies it at 1.75, 2.75 and 5.5 (all 9,216 pairs) but at 0.75 on only 1,336 of 3,072 pairs (it uses
+   a separate a < 1 normaliser). If Excel holds it at 0.75 too, the a < 1 normaliser is the shared mass.
+   If Excel breaks it at 0.75 by a pattern that is the same at all three exponents, the normaliser is a
+   separate shape-dependent value; a pattern that changes with e points to a resident intermediate.
+2. Mean seam: in the m-rows, (ours - Excel) is mostly negative below 1.1 and near zero above, at both
+   shapes, for density and CDF alike (our GAMMALN(a+1) leaf is high, harvest R2).
+3. Scale: Excel's density at b is its unit-scale density divided by b, bit for bit, in all 109 x 3 rows
+   (ours does this in all of them).
