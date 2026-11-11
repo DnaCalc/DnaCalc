@@ -32,3 +32,14 @@ en-ZA, its separators), copied from a catalogue live capture by `jnt_import.py e
 `cargo xtask capture --split`), with a calculation clock of 2026-11-09, the day of the live read-back. The
 corpus harness builds the locale profile that number text needs from the environment: without it, a number
 argument given "50%", "(2)" or "1/2" is refused as not modelled (189 rows). The answers are untouched.
+
+**Hand rows (dc-vdma).** A row written by hand from a unit test (`tools/excel-service/jnt_hand.py`) is asked to the
+question service only when the service can ask the formula the row holds. The service builds every number as a cell,
+an array as `CHOOSE` over cells and an empty argument as a blank cell, and puts the formula in its own sheet
+position, so a row with a number literal, an array constant, an omitted or blank argument, or a position or
+reference function (ROW, COLUMN, ADDRESS, CELL, INDIRECT, OFFSET, ISREF, AREAS) takes its answer from the live
+read-back of the sheet instead (`tools/excel-session/jnt-readback-job.ps1`, read by `jnt_import.py capture --live
+<result.json>`): the formula is entered as written in its own cell. Excel cannot open `oracle.xlsx` itself (it
+refuses the entry of 18 of its formulas, and a file holding one fails to open), so the job opens a copy without the
+formulas it enters. A formula Excel refuses to enter is recorded as an `entry_rejected` observation (a claim about
+Excel, which a DNA Calc rejection at entry agrees with).

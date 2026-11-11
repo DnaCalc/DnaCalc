@@ -1,17 +1,22 @@
 [
 {
+"row": 4,
+"formula": "_xlfn.XMATCH(0.3,{0.30000000000000004},0.0)",
+"legacy": "e:#N/A",
+"live": "n:3ff0000000000000",
+"source": "xmatch.rs eval_xmatch_adapter_prepared_exact_mode_keeps_near_equal_numbers_distinct",
+"legacy_build": "none (unit-test hypothesis)",
+"live_build": "20527",
+"reason": "the legacy unit-test expectation differs from Excel's answer"
+},
+{
+"row": 21,
 "formula": "MATCH(4.0,{5,3,1},-1.0)",
-"inputs": [],
+"legacy": "n:4000000000000000",
+"live": "n:3ff0000000000000",
 "source": "match_fn.rs eval_match_type_negative_one_descending",
-"legacy": [
-"number",
-2.0
-],
-"excel": [
-"number",
-"3ff0000000000000"
-],
-"excel_build": "20527",
+"legacy_build": "none (unit-test hypothesis)",
+"live_build": "20527",
 "reason": "the legacy unit-test expectation differs from Excel's answer"
 }
 ]

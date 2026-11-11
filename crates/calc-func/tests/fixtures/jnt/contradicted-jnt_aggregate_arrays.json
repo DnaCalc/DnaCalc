@@ -1,152 +1,222 @@
 [
 {
+"row": 8,
+"formula": "SUM()",
+"legacy": "n:0000000000000000",
+"live": "x:legacy",
+"source": "sum.rs eval_sum_treats_missing_as_zero",
+"legacy_build": "none (unit-test hypothesis)",
+"live_build": "20527",
+"reason": "the legacy unit-test expectation differs from Excel's answer"
+},
+{
+"row": 35,
 "formula": "AVERAGEA(10.0,\"text\",20.0)",
-"inputs": [],
+"legacy": "n:4024000000000000",
+"live": "e:#VALUE!",
 "source": "averagea_fn.rs eval_averagea_counts_direct_text_as_zero",
-"legacy": [
-"number",
-10.0
-],
-"excel": [
-"error",
-"value"
-],
-"excel_build": "20527",
+"legacy_build": "none (unit-test hypothesis)",
+"live_build": "20527",
 "reason": "the legacy unit-test expectation differs from Excel's answer"
 },
 {
+"row": 38,
 "formula": "COUNT(1.0,\"2\",TRUE,\"abc\")",
-"inputs": [],
+"legacy": "n:4000000000000000",
+"live": "n:4008000000000000",
 "source": "count.rs eval_count_counts_direct_numeric_text",
-"legacy": [
-"number",
-2.0
-],
-"excel": [
-"number",
-"4008000000000000"
-],
-"excel_build": "20527",
+"legacy_build": "none (unit-test hypothesis)",
+"live_build": "20527",
 "reason": "the legacy unit-test expectation differs from Excel's answer"
 },
 {
+"row": 53,
 "formula": "MINA(10.0,\"text\",20.0)",
-"inputs": [],
+"legacy": "n:0000000000000000",
+"live": "e:#VALUE!",
 "source": "mina_fn.rs eval_mina_counts_text_as_zero",
-"legacy": [
-"number",
-0.0
-],
-"excel": [
-"error",
-"value"
-],
-"excel_build": "20527",
+"legacy_build": "none (unit-test hypothesis)",
+"live_build": "20527",
 "reason": "the legacy unit-test expectation differs from Excel's answer"
 },
 {
+"row": 60,
 "formula": "MAXA(-5.0,\"text\",-10.0)",
-"inputs": [],
+"legacy": "n:0000000000000000",
+"live": "e:#VALUE!",
 "source": "maxa_fn.rs eval_maxa_counts_text_as_zero",
-"legacy": [
-"number",
-0.0
-],
-"excel": [
-"error",
-"value"
-],
-"excel_build": "20527",
+"legacy_build": "none (unit-test hypothesis)",
+"live_build": "20527",
 "reason": "the legacy unit-test expectation differs from Excel's answer"
 },
 {
+"row": 61,
+"formula": "SUBTOTAL(9.0,1.0,2.0,3.0,4.0)",
+"legacy": "n:4024000000000000",
+"live": "x:legacy",
+"source": "subtotal_aggregate_family.rs subtotal_sum_scalars",
+"legacy_build": "none (unit-test hypothesis)",
+"live_build": "20527",
+"reason": "the legacy unit-test expectation differs from Excel's answer"
+},
+{
+"row": 62,
+"formula": "SUBTOTAL(1.0,10.0,20.0,30.0)",
+"legacy": "n:4034000000000000",
+"live": "x:legacy",
+"source": "subtotal_aggregate_family.rs subtotal_average_scalars",
+"legacy_build": "none (unit-test hypothesis)",
+"live_build": "20527",
+"reason": "the legacy unit-test expectation differs from Excel's answer"
+},
+{
+"row": 63,
+"formula": "SUBTOTAL(2.0,1.0,2.0,3.0)",
+"legacy": "n:4008000000000000",
+"live": "x:legacy",
+"source": "subtotal_aggregate_family.rs subtotal_count_scalars",
+"legacy_build": "none (unit-test hypothesis)",
+"live_build": "20527",
+"reason": "the legacy unit-test expectation differs from Excel's answer"
+},
+{
+"row": 64,
+"formula": "SUBTOTAL(4.0,10.0,50.0,20.0)",
+"legacy": "n:4049000000000000",
+"live": "x:legacy",
+"source": "subtotal_aggregate_family.rs subtotal_max_scalars",
+"legacy_build": "none (unit-test hypothesis)",
+"live_build": "20527",
+"reason": "the legacy unit-test expectation differs from Excel's answer"
+},
+{
+"row": 65,
+"formula": "SUBTOTAL(5.0,10.0,50.0,20.0)",
+"legacy": "n:4024000000000000",
+"live": "x:legacy",
+"source": "subtotal_aggregate_family.rs subtotal_min_scalars",
+"legacy_build": "none (unit-test hypothesis)",
+"live_build": "20527",
+"reason": "the legacy unit-test expectation differs from Excel's answer"
+},
+{
+"row": 66,
+"formula": "SUBTOTAL(6.0,2.0,3.0,4.0)",
+"legacy": "n:4038000000000000",
+"live": "x:legacy",
+"source": "subtotal_aggregate_family.rs subtotal_product_scalars",
+"legacy_build": "none (unit-test hypothesis)",
+"live_build": "20527",
+"reason": "the legacy unit-test expectation differs from Excel's answer"
+},
+{
+"row": 67,
+"formula": "_xlfn.AGGREGATE(9.0,4.0,1.0,2.0,3.0,4.0)",
+"legacy": "n:4024000000000000",
+"live": "x:legacy",
+"source": "subtotal_aggregate_family.rs aggregate_sum_scalars",
+"legacy_build": "none (unit-test hypothesis)",
+"live_build": "20527",
+"reason": "the legacy unit-test expectation differs from Excel's answer"
+},
+{
+"row": 68,
+"formula": "_xlfn.AGGREGATE(1.0,4.0,10.0,20.0,30.0)",
+"legacy": "n:4034000000000000",
+"live": "x:legacy",
+"source": "subtotal_aggregate_family.rs aggregate_average_scalars",
+"legacy_build": "none (unit-test hypothesis)",
+"live_build": "20527",
+"reason": "the legacy unit-test expectation differs from Excel's answer"
+},
+{
+"row": 69,
+"formula": "_xlfn.AGGREGATE(4.0,4.0,10.0,50.0,20.0)",
+"legacy": "n:4049000000000000",
+"live": "x:legacy",
+"source": "subtotal_aggregate_family.rs aggregate_max_scalars",
+"legacy_build": "none (unit-test hypothesis)",
+"live_build": "20527",
+"reason": "the legacy unit-test expectation differs from Excel's answer"
+},
+{
+"row": 70,
+"formula": "_xlfn.AGGREGATE(5.0,4.0,10.0,50.0,20.0)",
+"legacy": "n:4024000000000000",
+"live": "x:legacy",
+"source": "subtotal_aggregate_family.rs aggregate_min_scalars",
+"legacy_build": "none (unit-test hypothesis)",
+"live_build": "20527",
+"reason": "the legacy unit-test expectation differs from Excel's answer"
+},
+{
+"row": 71,
+"formula": "_xlfn.AGGREGATE(6.0,4.0,2.0,3.0,4.0)",
+"legacy": "n:4038000000000000",
+"live": "x:legacy",
+"source": "subtotal_aggregate_family.rs aggregate_product_scalars",
+"legacy_build": "none (unit-test hypothesis)",
+"live_build": "20527",
+"reason": "the legacy unit-test expectation differs from Excel's answer"
+},
+{
+"row": 111,
 "formula": "DSUM({1,2;3,4},1.0,{1})",
-"inputs": [],
+"legacy": "e:#VALUE!",
+"live": "x:legacy",
 "source": "database_family.rs dsum_array_ref_check",
-"legacy": [
-"error",
-"value"
-],
-"excel": [
-"error",
-"spill"
-],
-"excel_build": "20527",
+"legacy_build": "none (unit-test hypothesis)",
+"live_build": "20527",
 "reason": "the legacy unit-test expectation differs from Excel's answer"
 },
 {
+"row": 112,
 "formula": "DCOUNT({1,2;3,4},1.0,{1})",
-"inputs": [],
+"legacy": "e:#VALUE!",
+"live": "x:legacy",
 "source": "database_family.rs dcount_array_ref_check",
-"legacy": [
-"error",
-"value"
-],
-"excel": [
-"error",
-"spill"
-],
-"excel_build": "20527",
+"legacy_build": "none (unit-test hypothesis)",
+"live_build": "20527",
 "reason": "the legacy unit-test expectation differs from Excel's answer"
 },
 {
+"row": 113,
 "formula": "DAVERAGE({1,2;3,4},1.0,{1})",
-"inputs": [],
+"legacy": "e:#VALUE!",
+"live": "x:legacy",
 "source": "database_family.rs daverage_array_ref_check",
-"legacy": [
-"error",
-"value"
-],
-"excel": [
-"error",
-"spill"
-],
-"excel_build": "20527",
+"legacy_build": "none (unit-test hypothesis)",
+"live_build": "20527",
 "reason": "the legacy unit-test expectation differs from Excel's answer"
 },
 {
+"row": 114,
 "formula": "DMIN({1,2;3,4},1.0,{1})",
-"inputs": [],
+"legacy": "e:#VALUE!",
+"live": "x:legacy",
 "source": "database_family.rs dmin_array_ref_check",
-"legacy": [
-"error",
-"value"
-],
-"excel": [
-"error",
-"spill"
-],
-"excel_build": "20527",
+"legacy_build": "none (unit-test hypothesis)",
+"live_build": "20527",
 "reason": "the legacy unit-test expectation differs from Excel's answer"
 },
 {
+"row": 115,
 "formula": "DMAX({1,2;3,4},1.0,{1})",
-"inputs": [],
+"legacy": "e:#VALUE!",
+"live": "x:legacy",
 "source": "database_family.rs dmax_array_ref_check",
-"legacy": [
-"error",
-"value"
-],
-"excel": [
-"error",
-"spill"
-],
-"excel_build": "20527",
+"legacy_build": "none (unit-test hypothesis)",
+"live_build": "20527",
 "reason": "the legacy unit-test expectation differs from Excel's answer"
 },
 {
+"row": 116,
 "formula": "DPRODUCT({1,2;3,4},1.0,{1})",
-"inputs": [],
+"legacy": "e:#VALUE!",
+"live": "x:legacy",
 "source": "database_family.rs dproduct_array_ref_check",
-"legacy": [
-"error",
-"value"
-],
-"excel": [
-"error",
-"spill"
-],
-"excel_build": "20527",
+"legacy_build": "none (unit-test hypothesis)",
+"live_build": "20527",
 "reason": "the legacy unit-test expectation differs from Excel's answer"
 }
 ]

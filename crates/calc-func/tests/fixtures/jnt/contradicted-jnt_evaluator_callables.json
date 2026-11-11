@@ -1,36 +1,22 @@
 [
 {
-"formula": "ROW({A})",
-"inputs": [
-"n:401c000000000000"
-],
+"row": 57,
+"formula": "ROW({A})\tn:401c000000000000",
+"legacy": "e:#VALUE!",
+"live": "n:404c800000000000",
 "source": "ftc_builtin_callable_collision_boundary_tests.rs eval_row_rejects_scalar",
-"legacy": [
-"error",
-"value"
-],
-"excel": [
-"number",
-"3ff0000000000000"
-],
-"excel_build": "20527",
+"legacy_build": "none (unit-test hypothesis)",
+"live_build": "20527",
 "reason": "the legacy unit-test expectation differs from Excel's answer"
 },
 {
-"formula": "COLUMN({A})",
-"inputs": [
-"n:401c000000000000"
-],
+"row": 58,
+"formula": "COLUMN({A})\tn:401c000000000000",
+"legacy": "e:#VALUE!",
+"live": "n:3ff0000000000000",
 "source": "ftc_builtin_callable_collision_boundary_tests.rs eval_column_rejects_scalar",
-"legacy": [
-"error",
-"value"
-],
-"excel": [
-"number",
-"4000000000000000"
-],
-"excel_build": "20527",
+"legacy_build": "none (unit-test hypothesis)",
+"live_build": "20527",
 "reason": "the legacy unit-test expectation differs from Excel's answer"
 }
 ]

@@ -5,7 +5,7 @@
   "source": "section:sha256:ebd2a7166edf7fc2c5bc1dfee59d0435f0b5750338f93e2d0bfd97a69b983ced",
   "acquisition": {
     "kind": "function_questions",
-    "entry": "OxFunc@05196c39:crates/oxfunc_core/src/functions unit tests (hypotheses); answers: question service touchstone/1, Excel 16.0.20527, env f3269992527c;sha256:b7c75f37ee2aed9419efbbfafeb79c4518a5a55a26813e3375dbb333d0327508; 1 rows carry live Excel's answer where the legacy reading differs (contradicted-jnt_lookup.json)"
+    "entry": "OxFunc@05196c39:crates/oxfunc_core/src/functions unit tests (hypotheses); answers: question service touchstone/1, Excel 16.0.20527, env f3269992527c;sha256:b7c75f37ee2aed9419efbbfafeb79c4518a5a55a26813e3375dbb333d0327508; rows answered by the live Excel read-back of the sheet (operators, and hand rows whose asked formula differs from the row: dc-vdma), build 20527; 2 rows carry live Excel's answer where the legacy reading differs (contradicted-jnt_lookup.json)"
   },
   "environment": {
     "excel_build": "16.0.20527.20088",
@@ -141,7 +141,7 @@
     {"sheet":"jnt_lookup","row":1,"column":4,"excel_raw":{"number":"4000000000000000"}},
     {"sheet":"jnt_lookup","row":2,"column":4,"excel_raw":{"number":"4008000000000000"}},
     {"sheet":"jnt_lookup","row":3,"column":4,"excel_raw":{"error":"na"}},
-    {"sheet":"jnt_lookup","row":4,"column":4,"excel_raw":{"error":"na"}},
+    {"sheet":"jnt_lookup","row":4,"column":4,"excel_raw":{"number":"3ff0000000000000"}},
     {"sheet":"jnt_lookup","row":5,"column":4,"excel_raw":{"error":"value"}},
     {"sheet":"jnt_lookup","row":6,"column":4,"excel_raw":{"number":"4008000000000000"}},
     {"sheet":"jnt_lookup","row":7,"column":4,"excel_raw":{"number":"4000000000000000"}},

@@ -14,7 +14,8 @@ Nothing here computes an expected value: every answer is a legacy reading, copie
 
   jnt_import.py rows    <batch> --repo <DnaCalc clone> --legacy <OxFunc clone> [--work <dir>]
   jnt_import.py capture <batch> --repo <DnaCalc clone> --legacy <OxFunc clone> [--work <dir>]
-  jnt_import.py environment <DnaCalc clone> <donor capture.json>   (after each `cargo xtask capture --split`)
+  jnt_import.py environment <DnaCalc clone> <donor capture.json>   (after each `cargo xtask capture --split`)
+
 
 Rows are chosen per family (one function and formula shape): at most QUOTA rows by a seeded stride
 over the family's source classes (a class is one evidence file and one id tag), plus every boundary
@@ -897,23 +898,115 @@ def build_rows(batch, legacy, repo):
     return lines, cases_out, report, hashes
 
 
-def hand_rows(batch, repo, work):
-    """Cases written by hand from OxFunc unit tests (jnt_hand.py): ask Excel through the question service."""
+# Functions whose result depends on where the formula sits or on the reference it is given, not only on values.
+POSITION_SENSITIVE = {"ROW", "COLUMN", "ADDRESS", "CELL", "INDIRECT", "OFFSET", "ISREF", "AREAS"}
+
+
+def asked_differs(function, args):
+    """True when the question service would be asked another formula than the one the sheet row holds, so
+    that its answer is not evidence of the row (dc-vdma): the service builds every number as a cell (a
+    number literal of the row), an array as CHOOSE over cells, an empty argument as a blank cell, and puts
+    the formula in its own sheet position (ROW, COLUMN and the other position or reference functions).
+    Such a row takes its answer from the live read-back of the sheet."""
+    name = function.upper().replace("_XLFN.", "")
+    if name in POSITION_SENSITIVE:
+        return True
+    return any(arg[0] in ("lit", "arr_num", "omitted", "-") for arg in args)
+
+
+def legacy_hypothesis(legacy):
+    """A legacy expectation as the tuple a capture compares (an approx reading stays approx)."""
+    if legacy is None:
+        return None
+    if legacy[0] == "number":
+        return ("number", "%016x" % struct.unpack(">Q", struct.pack(">d", legacy[1]))[0])
+    return tuple(legacy)
+
+
+def committed_answers(repo, sheet):
+    """The answers of the committed section capture of `sheet` by stored formula: what the question
+    service answered for the rows that were asked as written. `rows` carries these over for such a row
+    instead of asking again, so that a re-run needs no service and cannot move an answer."""
+    path = os.path.join(repo, "crates/calc-func/tests/captures/jnt/sections", sheet + ".capture.json")
+    if not os.path.exists(path):
+        return {}, None
+    record = json.load(open(path, encoding="utf-8"))
+    formulas = {(f["row"], f["column"]): f["formula"] for f in record["formulas"]}
+    answers = {}
+    for o in record["observations"]:
+        raw = o.get("excel_raw")
+        if raw is None or o["column"] != 4:
+            continue
+        if "number" in raw:
+            answer = ("number", raw["number"])
+        elif "error" in raw:
+            answer = ("error", raw["error"])
+        elif "logical" in raw:
+            answer = ("logical", raw["logical"])
+        elif "text" in raw:
+            units = [int(raw["text"][i:i + 4], 16) for i in range(0, len(raw["text"]), 4)]
+            answer = ("text", struct.pack("<%dH" % len(units), *units).decode("utf-16-le", "surrogatepass"))
+        else:
+            continue
+        answers[(o["row"], formulas.get((o["row"], 4)))] = answer
+    match = re.search(r"answers: question service touchstone/1, Excel 16\.0\.([0-9]+), env ([0-9a-f/]+)", record["acquisition"]["entry"])
+    return answers, (match.group(1), match.group(2)) if match else None
+
+
+def check_legacy(legacy, expected, line, source, builds, contradicted):
+    """Records in `contradicted` a legacy unit-test expectation that Excel's answer `expected` differs from."""
+    if legacy is None:
+        return
+    hypothesis = legacy_hypothesis(legacy)
+    if legacy[0] == "approx":
+        got = struct.unpack(">d", bytes.fromhex(expected[1]))[0] if expected[0] == "number" else None
+        agrees = got is not None and abs(got - legacy[1]) < 1e-12
+    else:
+        agrees = hypothesis == tuple(expected)
+    if not agrees:
+        contradicted.append(dict(formula=line.split("\t")[0], inputs=line.split("\t")[1:], source=source,
+                                 legacy=list(legacy), excel=list(expected), excel_build=sorted(builds)[0],
+                                 reason="the legacy unit-test expectation differs from Excel's answer"))
+
+
+def live_rows_of_job(path, sheet):
+    """The live read-back of `sheet` from the result of tools/excel-session/jnt-readback-job.ps1: rows of
+    [r, A, B, C, D, E, F, G] tokens. Column D of a row whose formula the job entered as written (a row
+    answered live) is the entry's result: `x:legacy` when Excel refused the entry in the legacy form (the form
+    of a formula stored in the file), else the value Excel calculated for the entered formula."""
+    result = json.load(open(path, encoding="utf-8"))
+    if result.get("fatal"):
+        sys.exit("the read-back job failed: %s" % result["fatal"])
+    rows = [[str(r["r"])] + list(r["tokens"]) for r in result["sheets"][sheet]]
+    for entry in result["entries"]:
+        if entry["sheet"] != sheet or entry["form"] != "legacy":
+            continue
+        rows[entry["row"] - 1][4] = "x:legacy" if entry["refused"] else entry["token"]
+    return rows
+
+
+def hand_rows(batch, repo, work, first_row=1, reuse=False):
+    """Cases written by hand from OxFunc unit tests (jnt_hand.py): ask Excel through the question service.
+
+    A row whose asked formula differs from the row (`asked_differs`) is not asked: its answer is live
+    Excel's read-back of the sheet (capture mode, --live), like an operator row. With `reuse`, a row that
+    is asked as written takes the answer of the committed section capture when it has one."""
     sys.path.insert(0, os.path.join(repo, "tools/excel-service"))
     import jnt_hand
     from client import Client, number, text, boolean, blank, error, number_array
-    client = Client()
+    client = None
+    carried, carried_build = committed_answers(repo, batch["sheet"]) if reuse else ({}, None)
+    live_rows = 0
     wire_of_literal = {v: k for k, v in ERROR_LITERAL_WIRE.items()}
     wire_of_literal.update({"#CODE2050": "calc", "#CODE2046": "calc", "#CODE2045": "spill"})
     lines, cases, contradicted, builds, envs = [], [], [], set(), set()
     for function, args, legacy, source in jnt_hand.CASES[batch["id"]]:
+        row = first_row + len(lines)
         if function.startswith("="):
             # An operator formula: the question service takes function calls only, so the answer is
             # live Excel's read-back of the sheet (capture mode, --live).
             line = function[1:]
-            hypothesis = None
-            if legacy is not None:
-                hypothesis = ("number", "%016x" % struct.unpack(">Q", struct.pack(">d", legacy[1]))[0]) if legacy[0] == "number" else legacy
+            hypothesis = legacy_hypothesis(legacy)
             lines.append(line)
             cases.append(dict(family="operators", id=source, source=source, expected=None, legacy=hypothesis, line=line, extras={}))
             continue
@@ -959,6 +1052,26 @@ def hand_rows(batch, repo, work):
                 asked.append(blank())
         formula = add_prefixes(repo, "%s(%s)" % (function, ",".join(parts)))
         line = "\t".join([formula] + tokens)
+        if asked_differs(function, args):
+            # The service would answer another formula than this row (see asked_differs): the answer is
+            # live Excel's read-back of the sheet, with the legacy reading as the hypothesis.
+            lines.append(line)
+            cases.append(dict(family=function, id=source, source=source, expected=None,
+                              legacy=legacy_hypothesis(legacy), line=line, extras={}, live_reason="asked formula differs"))
+            continue
+        stored = stored_formula(formula, row)
+        if (row, stored) in carried:
+            expected = carried[(row, stored)]
+            builds.add(carried_build[0] if carried_build else "unknown")
+            envs.add(carried_build[1] if carried_build else "unknown")
+            lines.append(line)
+            cases.append(dict(family=function, id=source, source=source, expected=expected, line=line, extras={}))
+            check_legacy(legacy, expected, line, source, builds, contradicted)
+            continue
+        if reuse:
+            sys.exit("--reuse-committed: row %d (%s) has no committed answer to carry over; ask the service without the flag" % (row, stored))
+        if client is None:
+            client = Client()
         reply = client.ask(function, [asked], priority="interactive")
         answer = reply["rows"][0]
         builds.add(str(reply.get("excel_build")))
@@ -975,26 +1088,7 @@ def hand_rows(batch, repo, work):
             sys.exit("the service did not answer %s: %r" % (line, answer))
         lines.append(line)
         cases.append(dict(family=function, id=source, source=source, expected=expected, line=line, extras={}))
-        if legacy is not None:
-            hypothesis = None
-            if legacy[0] == "number":
-                hypothesis = ("number", "%016x" % struct.unpack(">Q", struct.pack(">d", legacy[1]))[0])
-            elif legacy[0] == "error":
-                hypothesis = ("error", legacy[1])
-            elif legacy[0] == "text":
-                hypothesis = ("text", legacy[1])
-            elif legacy[0] == "logical":
-                hypothesis = ("logical", legacy[1])
-            agrees = True
-            if legacy[0] == "approx":
-                got = struct.unpack(">d", bytes.fromhex(expected[1]))[0] if expected[0] == "number" else None
-                agrees = got is not None and abs(got - legacy[1]) < 1e-12
-            else:
-                agrees = hypothesis == expected
-            if not agrees:
-                contradicted.append(dict(formula=line.split("\t")[0], inputs=line.split("\t")[1:], source=source,
-                                         legacy=list(legacy), excel=list(expected), excel_build=sorted(builds)[0],
-                                         reason="the legacy unit-test expectation differs from Excel's answer"))
+        check_legacy(legacy, expected, line, source, builds, contradicted)
     if builds:
         entry = "OxFunc@05196c39:crates/oxfunc_core/src/functions unit tests (hypotheses); answers: question service touchstone/1, Excel 16.0.%s, env %s;sha256:%s" % (
             "/".join(sorted(builds)), "/".join(sorted(envs)), hashlib.sha256("\n".join(lines).encode()).hexdigest())
@@ -1050,8 +1144,11 @@ def utf16_hex(text):
 
 
 def expected_of_token(token):
-    """A live read-back token (n:, e:, s:, b:) as an expectation."""
+    """A live read-back token (n:, e:, s:, b:, x:) as an expectation. `x:<form>` says Excel refused to
+    enter the formula in that form (legacy or dynamic): the cell holds nothing (an entry rejection)."""
     kind, body = token[0], token[2:]
+    if kind == "x":
+        return ("entry_rejected", body)
     if kind == "n":
         return ("number", body)
     if kind == "e":
@@ -1069,6 +1166,8 @@ ERROR_LITERAL_WIRE = {"null": "#NULL!", "div0": "#DIV/0!", "value": "#VALUE!", "
 
 def token_of(expected):
     kind, value = expected
+    if kind == "entry_rejected":
+        return "x:" + value
     if kind == "number":
         return "n:" + value
     if kind == "error":
@@ -1080,6 +1179,8 @@ def token_of(expected):
 
 def observation(sheet, row, expected):
     kind, value = expected
+    if kind == "entry_rejected":
+        return {"sheet": sheet, "row": row, "column": 4, "entry_rejected": {"form": value}}
     if kind == "text_hex":
         raw = {"text": value}
     elif kind == "number":
@@ -1136,13 +1237,15 @@ def main():
         stamp_environment(sys.argv[2], sys.argv[3])
         return
     parser = argparse.ArgumentParser()
-    parser.add_argument("mode", choices=["rows", "capture"])
+    parser.add_argument("mode", choices=["rows", "capture", "targets"])
     parser.add_argument("batch")
     parser.add_argument("--repo", required=True)
     parser.add_argument("--legacy", required=True)
     parser.add_argument("--work", default=None)
     parser.add_argument("--live", default=None, help="the live Excel read-back (columns r, A, B, C, D, E, F, G) of the sheet")
     parser.add_argument("--build", default=None, help="the Excel build of that read-back")
+    parser.add_argument("--reuse-committed", action="store_true",
+                        help="rows: a hand row asked as written keeps the answer of the committed section capture instead of asking the question service")
     arguments = parser.parse_args()
     batch = dict(BATCHES[arguments.batch])
     batch["id"] = arguments.batch
@@ -1152,7 +1255,7 @@ def main():
     os.makedirs(work, exist_ok=True)
     fixtures = os.path.join(arguments.repo, "crates/calc-func/tests/fixtures/jnt")
     section = os.path.join(fixtures, "sheet-%s.txt" % batch["sheet"])
-    has_families = bool(batch.get("families"))
+    has_families = bool(batch.get("families")) and arguments.mode != "targets"  # targets reads the section file
     has_hand = bool(batch.get("hand"))
     if has_families:
         lines, cases, report, hashes = build_rows(batch, arguments.legacy, arguments.repo)
@@ -1162,12 +1265,29 @@ def main():
     hand_contradicted = []
     hand_entry = None
     if has_hand and arguments.mode == "rows":
-        h_lines, h_cases, hand_contradicted, hand_entry = hand_rows(batch, arguments.repo, work)
+        h_lines, h_cases, hand_contradicted, hand_entry = hand_rows(batch, arguments.repo, work, first_row=sum(1 for line in lines if not line.startswith("#")) + 1, reuse=arguments.reuse_committed)
         lines.extend(h_lines)
         cases.extend(h_cases)
         with open(os.path.join(work, batch["sheet"] + ".meta.json"), "w") as handle:
             json.dump({"entry": hand_entry, "contradicted": hand_contradicted}, handle)
 
+    if arguments.mode == "targets":
+        # The request of tools/excel-session/jnt-readback-job.ps1: the sheet's rows to read back and the
+        # formulas of the hand rows whose answer is live Excel's (`asked_differs`) and of the operator rows,
+        # entered as written in their own cells. The hand rows are the last rows of the section file.
+        sys.path.insert(0, os.path.join(arguments.repo, "tools/excel-service"))
+        import jnt_hand
+        sheet_lines = [line for line in open(section, encoding="utf-8").read().split("\n") if line and not line.startswith("#")]
+        hand = jnt_hand.CASES[batch["id"]]
+        first = len(sheet_lines) - len(hand) + 1
+        entries = []
+        for k, (function, args, legacy, source) in enumerate(hand):
+            if function.startswith("=") or asked_differs(function, args):
+                row = first + k
+                entries.append({"sheet": batch["sheet"], "row": row, "formula": stored_formula(sheet_lines[row - 1].split("\t")[0], row)})
+        json.dump({"sheets": {batch["sheet"]: len(sheet_lines)}, "entries": entries}, sys.stdout, indent=0)
+        print()
+        return
     if arguments.mode == "rows":
         hdr = hand_header(batch) if (has_hand and not has_families) else header(batch)
         with open(section, "w", encoding="utf-8", newline="\n") as handle:
@@ -1219,8 +1339,11 @@ def main():
     live = None
     if arguments.live:
         if any(c["expected"] is None for c in saved):
-            entry += "; operator rows answered by live Excel build " + (arguments.build or "unknown")
-        live = [line.rstrip("\n").split("\t") for line in open(arguments.live, encoding="utf-8")]
+            entry += "; rows answered by the live Excel read-back of the sheet (operators, and hand rows whose asked formula differs from the row: dc-vdma), build " + (arguments.build or "unknown")
+        if arguments.live.endswith(".json"):
+            live = live_rows_of_job(arguments.live, batch["sheet"])
+        else:
+            live = [line.rstrip("\n").split("\t") for line in open(arguments.live, encoding="utf-8")]
         if any(c.get("extras") for c in saved):
             entry += "; input formulas read back by live Excel build " + (arguments.build or "unknown")
     for index, case in enumerate(saved, start=1):
@@ -1233,15 +1356,24 @@ def main():
             seen = live[index - 1][1 + 3]
             expected = expected_of_token(seen)
             hypothesis = case.get("legacy")
-            if hypothesis is not None and token_of(tuple(hypothesis)) != seen:
-                contradicted.append({"row": index, "formula": case["line"], "legacy": token_of(tuple(hypothesis)), "live": seen,
+            if hypothesis is not None and hypothesis[0] == "approx":
+                got = struct.unpack(">d", bytes.fromhex(expected[1]))[0] if expected[0] == "number" else None
+                differs = got is None or abs(got - hypothesis[1]) >= 1e-12
+                legacy_token = "approx:%r" % (hypothesis[1],)
+            else:
+                differs = hypothesis is not None and token_of(tuple(hypothesis)) != seen
+                legacy_token = token_of(tuple(hypothesis)) if hypothesis is not None else None
+            if differs:
+                contradicted.append({"row": index, "formula": case["line"], "legacy": legacy_token, "live": seen,
                                      "source": case["source"], "legacy_build": "none (unit-test hypothesis)",
                                      "live_build": arguments.build or "unknown",
                                      "reason": "the legacy unit-test expectation differs from Excel's answer"})
             observations.append(observation(sheet, index, expected))
             continue
         expected = tuple(case["expected"])
-        if live is not None:
+        if live is not None and not has_hand:
+            # (A batch with hand rows is not compared row by row: its rows are answered by the question
+            # service as written, or by the live read-back where `expected` is None; dc-vdma.)
             # Excel is the oracle: where live Excel reads another answer than the legacy reading, the row
             # carries live Excel's answer and the disagreement is recorded (contradicted-<sheet>.json).
             seen = live[index - 1][1 + 3]
@@ -1279,7 +1411,7 @@ def main():
             json.dump(contradicted, handle, indent=0)
             handle.write("\n")
         print("wrote", path_contra, len(contradicted))
-    elif os.path.exists(path_contra) and not has_hand:
+    elif os.path.exists(path_contra):
         os.remove(path_contra)
     record = {"format": "dnacalc-capture-record", "version": 3, "case": "jnt__" + sheet,
               "source": "sha256:" + digest,

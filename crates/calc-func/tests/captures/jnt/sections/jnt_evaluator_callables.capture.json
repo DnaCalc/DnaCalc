@@ -5,7 +5,7 @@
   "source": "section:sha256:9c73f370f3c6f157a6043511747f8354d071014e15512c4f945298df3026d196",
   "acquisition": {
     "kind": "function_questions",
-    "entry": "OxFunc@05196c39:crates/oxfunc_core/src/functions unit tests (hypotheses); answers: question service touchstone/1, Excel 16.0.20527, env f3269992527c;sha256:764ab92a719697dcece5b03b95bfc906056dcae957a8d696f0637ed5767cecce; 2 rows carry live Excel's answer where the legacy reading differs (contradicted-jnt_evaluator_callables.json)"
+    "entry": "OxFunc@05196c39:crates/oxfunc_core/src/functions unit tests (hypotheses); answers: question service touchstone/1, Excel 16.0.20527, env f3269992527c;sha256:764ab92a719697dcece5b03b95bfc906056dcae957a8d696f0637ed5767cecce; rows answered by the live Excel read-back of the sheet (operators, and hand rows whose asked formula differs from the row: dc-vdma), build 20527; 2 rows carry live Excel's answer where the legacy reading differs (contradicted-jnt_evaluator_callables.json)"
   },
   "environment": {
     "excel_build": "16.0.20527.20088",
@@ -175,7 +175,7 @@
     {"sheet":"jnt_evaluator_callables","row":54,"column":4,"excel_raw":{"error":"calc"}},
     {"sheet":"jnt_evaluator_callables","row":55,"column":4,"excel_raw":{"error":"calc"}},
     {"sheet":"jnt_evaluator_callables","row":56,"column":4,"excel_raw":{"error":"calc"}},
-    {"sheet":"jnt_evaluator_callables","row":57,"column":4,"excel_raw":{"number":"3ff0000000000000"}},
-    {"sheet":"jnt_evaluator_callables","row":58,"column":4,"excel_raw":{"number":"4000000000000000"}}
+    {"sheet":"jnt_evaluator_callables","row":57,"column":4,"excel_raw":{"number":"404c800000000000"}},
+    {"sheet":"jnt_evaluator_callables","row":58,"column":4,"excel_raw":{"number":"3ff0000000000000"}}
   ]
 }

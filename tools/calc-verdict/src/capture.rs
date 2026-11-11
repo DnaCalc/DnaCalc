@@ -1213,8 +1213,8 @@ impl CaptureRecord {
             &fields.at("observations"),
             &OBSERVATION_ORIGINS,
         )?;
-        if version == 3 && observations.iter().any(|o| !matches!(&o.observation, Observation::ExcelRaw(v) if representable(v) && v.as_array().is_none())) {
-            return Err(DecodeError::new(&fields.at("observations"), "function questions require raw scalar observations"));
+        if version == 3 && observations.iter().any(|o| !matches!(&o.observation, Observation::EntryRejected { .. }) && !matches!(&o.observation, Observation::ExcelRaw(v) if representable(v) && v.as_array().is_none())) {
+            return Err(DecodeError::new(&fields.at("observations"), "function questions require raw scalar observations or a refused entry"));
         }
 
         if version == 3
@@ -1303,8 +1303,8 @@ impl CaptureRecord {
                         .into(),
                 });
             }
-            if self.observations.iter().any(|o| !matches!(&o.observation, Observation::ExcelRaw(v) if representable(v) && v.as_array().is_none())) {
-                return Err(EncodeError { message: "function questions require raw scalar observations".into() });
+            if self.observations.iter().any(|o| !matches!(&o.observation, Observation::EntryRejected { .. }) && !matches!(&o.observation, Observation::ExcelRaw(v) if representable(v) && v.as_array().is_none())) {
+                return Err(EncodeError { message: "function questions require raw scalar observations or a refused entry".into() });
             }
             return Ok(Out::Object(vec![
                 ("format", Out::text(CAPTURE_FORMAT)),
@@ -1476,6 +1476,30 @@ mod tests {
         assert!(
             CaptureRecord::decode(original.replace(",\"formula\":\"=1+1\"", "").as_bytes())
                 .is_err()
+        );
+    }
+
+    /// A function-question record may say that Excel refused to enter a row's formula as written
+    /// (dc-vdma): the refusal is an observation of that cell, and it survives encoding.
+    #[cfg_attr(not(target_arch = "wasm32"), test)]
+    #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+    fn function_questions_may_record_a_refused_entry() {
+        let text = br#"{"format":"dnacalc-capture-record","version":3,"case":"questions",
+            "source":"section:sha256:example","acquisition":{"kind":"function_questions","entry":"sha256:audited-mapping"},
+            "environment":null,"sheets":[{"name":"Q","visibility":"visible"}],
+            "formulas":[{"sheet":"Q","row":1,"column":4,"kind":"ordinary","formula":"=SUM()"}],
+            "observations":[{"sheet":"Q","row":1,"column":4,"entry_rejected":{"form":"legacy"}}]}"#;
+        let record = CaptureRecord::decode(text).unwrap();
+        assert_eq!(record.observations.len(), 1);
+        assert_eq!(
+            record.observations[0].observation,
+            Observation::EntryRejected {
+                form: EntryForm::Legacy
+            }
+        );
+        assert_eq!(
+            CaptureRecord::decode(record.encode().unwrap().as_bytes()).unwrap(),
+            record
         );
     }
 

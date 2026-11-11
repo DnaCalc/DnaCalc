@@ -5,7 +5,7 @@
   "source": "section:sha256:837b0cbb47060ae685d0cec0a455ead73370eae49d56959467d9d0648f518297",
   "acquisition": {
     "kind": "function_questions",
-    "entry": "OxFunc@05196c39:docs/function-lane/evidence/w111-broad-20260929 (Excel 16.0.20430 64-bit, Value2 bulk input (OxFunc w111-broad-20260929));sha256:0b08a2519ca729d351e42596b3a63fbb5e69429104119ece00f3009d2ff5c323; OxFunc@05196c39:crates/oxfunc_core/src/functions unit tests (hypotheses); answers: question service touchstone/1, Excel 16.0.20527, env f3269992527c;sha256:ebfa36e70ab83d9eafa05e1f66684eb6729822924dee71816b22edaf76e4f57b"
+    "entry": "OxFunc@05196c39:docs/function-lane/evidence/w111-broad-20260929 (Excel 16.0.20430 64-bit, Value2 bulk input (OxFunc w111-broad-20260929));sha256:0b08a2519ca729d351e42596b3a63fbb5e69429104119ece00f3009d2ff5c323; OxFunc@05196c39:crates/oxfunc_core/src/functions unit tests (hypotheses); answers: question service touchstone/1, Excel 16.0.20527, env f3269992527c;sha256:ebfa36e70ab83d9eafa05e1f66684eb6729822924dee71816b22edaf76e4f57b; rows answered by the live Excel read-back of the sheet (operators, and hand rows whose asked formula differs from the row: dc-vdma), build 20527"
   },
   "environment": {
     "excel_build": "16.0.20527.20088",

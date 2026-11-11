@@ -5,7 +5,7 @@
   "source": "section:sha256:56e6fb1c7fb335b9528e737bc70e40d386d5b8357ca52d1c1f3312e4bfa3b81a",
   "acquisition": {
     "kind": "function_questions",
-    "entry": "OxFunc@05196c39:crates/oxfunc_core/src/functions unit tests (hypotheses); answers: question service touchstone/1, Excel 16.0.20527, env f3269992527c;sha256:b4e3fcd5654a8e008da05f6b20afdce27c8d97bbba850229ba0718e7a966abb8"
+    "entry": "OxFunc@05196c39:crates/oxfunc_core/src/functions unit tests (hypotheses); answers: question service touchstone/1, Excel 16.0.20527, env f3269992527c;sha256:b4e3fcd5654a8e008da05f6b20afdce27c8d97bbba850229ba0718e7a966abb8; rows answered by the live Excel read-back of the sheet (operators, and hand rows whose asked formula differs from the row: dc-vdma), build 20527"
   },
   "environment": {
     "excel_build": "16.0.20527.20088",
