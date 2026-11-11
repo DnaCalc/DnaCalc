@@ -1,0 +1,1986 @@
+{
+  "protocol": "New frozen tests following retrospective exact replay of all three S0 cases. Restricted n8 last-observation impulse family: seasons from unaffected alternating prefix; level y0-S0; initial slope forward raw-moment OLS over ALL deseasonalized observations, not prefix slope. Recurrence gains predicted .126/.001/.001. Not a general seasonal initializer or optimizer.",
+  "python_source": "from experiments import *\n\ndef main():\n    rows=[]\n    configs=[(0.,8.,0.,d) for d in [-1.,.125,.5,2.,32.]]\n    configs += [(16.,8.,256.,1.),(0.,16.,0.,1.),(0.,32.,0.,1.),(0.,4.,0.,1.),(0.,.125,0.,1.)]\n    for i,(offset,amplitude,trend,delta) in enumerate(configs):\n        y=[offset+float(j)*trend+(amplitude if j%2 else 0.)+(delta if j==7 else 0.) for j in range(8)]\n        level=offset+amplitude/2.; seasons=[-amplitude/2.,amplitude/2.]\n        adjusted=[v-seasons[j%2] for j,v in enumerate(y)]\n        b0=slope(adjusted)\n        initial=(level,b0,seasons)\n        # Predicted gains are deliberately frozen too. They are inferred from the\n        # homogeneous S0 family; neither an optimizer nor a general initializer is asserted.\n        m=run(y,.126,.001,.001,initial)\n        f=dict(a=.126,b=.001,g=.001,model=m,sse=sse(m))\n        st=stats(y,m)\n        name=f'hybrid_{i}'\n        for stat,value in [(1,.126),(2,.001),(3,.001),(6,st[2]),(7,st[3])]:\n            rows.append(question(name+f'_S{stat}',y,2,'stat',stat,{'prefix_seasons_global_deseasonalized_OLS':val(value)}))\n        for h in [1,2,3]:\n            rows.append(question(name+f'_F{h}',y,2,'forecast',h,{'prefix_seasons_global_deseasonalized_OLS':val(forecast(y,f,h))}))\n        rows.append(question(name+'_Cendpoint',y,2,'endpoint',1,{'prefix_seasons_global_deseasonalized_OLS':val(ci(y,f,1))}))\n    save('seasonal-hybrid-predictions.json',dict(\n      protocol='New frozen tests following retrospective exact replay of all three S0 cases. Restricted n8 last-observation impulse family: seasons from unaffected alternating prefix; level y0-S0; initial slope forward raw-moment OLS over ALL deseasonalized observations, not prefix slope. Recurrence gains predicted .126/.001/.001. Not a general seasonal initializer or optimizer.',\n      python_source=Path(__file__).read_text(),rows=rows))\n    print('Frozen',len(rows),'hybrid-initializer readings')\n\nif __name__=='__main__':main()\n",
+  "rows": [
+    {
+      "id": "hybrid_0_S1",
+      "y": [
+        0.0,
+        8.0,
+        0.0,
+        8.0,
+        0.0,
+        8.0,
+        0.0,
+        7.0
+      ],
+      "p": 2,
+      "output": "stat",
+      "index": 1,
+      "predictions": {
+        "prefix_seasons_global_deseasonalized_OLS": {
+          "value": 0.126,
+          "bits": "3fc020c49ba5e354"
+        }
+      }
+    },
+    {
+      "id": "hybrid_0_S2",
+      "y": [
+        0.0,
+        8.0,
+        0.0,
+        8.0,
+        0.0,
+        8.0,
+        0.0,
+        7.0
+      ],
+      "p": 2,
+      "output": "stat",
+      "index": 2,
+      "predictions": {
+        "prefix_seasons_global_deseasonalized_OLS": {
+          "value": 0.001,
+          "bits": "3f50624dd2f1a9fc"
+        }
+      }
+    },
+    {
+      "id": "hybrid_0_S3",
+      "y": [
+        0.0,
+        8.0,
+        0.0,
+        8.0,
+        0.0,
+        8.0,
+        0.0,
+        7.0
+      ],
+      "p": 2,
+      "output": "stat",
+      "index": 3,
+      "predictions": {
+        "prefix_seasons_global_deseasonalized_OLS": {
+          "value": 0.001,
+          "bits": "3f50624dd2f1a9fc"
+        }
+      }
+    },
+    {
+      "id": "hybrid_0_S6",
+      "y": [
+        0.0,
+        8.0,
+        0.0,
+        8.0,
+        0.0,
+        8.0,
+        0.0,
+        7.0
+      ],
+      "p": 2,
+      "output": "stat",
+      "index": 6,
+      "predictions": {
+        "prefix_seasons_global_deseasonalized_OLS": {
+          "value": 0.25250032806666595,
+          "bits": "3fd028f722d1a373"
+        }
+      }
+    },
+    {
+      "id": "hybrid_0_S7",
+      "y": [
+        0.0,
+        8.0,
+        0.0,
+        8.0,
+        0.0,
+        8.0,
+        0.0,
+        7.0
+      ],
+      "p": 2,
+      "output": "stat",
+      "index": 7,
+      "predictions": {
+        "prefix_seasons_global_deseasonalized_OLS": {
+          "value": 0.306491947192528,
+          "bits": "3fd39d90666b791b"
+        }
+      }
+    },
+    {
+      "id": "hybrid_0_F1",
+      "y": [
+        0.0,
+        8.0,
+        0.0,
+        8.0,
+        0.0,
+        8.0,
+        0.0,
+        7.0
+      ],
+      "p": 2,
+      "output": "forecast",
+      "index": 1,
+      "predictions": {
+        "prefix_seasons_global_deseasonalized_OLS": {
+          "value": -0.5577867740090254,
+          "bits": "bfe1d963a61052cc"
+        }
+      }
+    },
+    {
+      "id": "hybrid_0_F2",
+      "y": [
+        0.0,
+        8.0,
+        0.0,
+        8.0,
+        0.0,
+        8.0,
+        0.0,
+        7.0
+      ],
+      "p": 2,
+      "output": "forecast",
+      "index": 2,
+      "predictions": {
+        "prefix_seasons_global_deseasonalized_OLS": {
+          "value": 7.358929928342879,
+          "bits": "401d6f8b53bf2735"
+        }
+      }
+    },
+    {
+      "id": "hybrid_0_F3",
+      "y": [
+        0.0,
+        8.0,
+        0.0,
+        8.0,
+        0.0,
+        8.0,
+        0.0,
+        7.0
+      ],
+      "p": 2,
+      "output": "forecast",
+      "index": 3,
+      "predictions": {
+        "prefix_seasons_global_deseasonalized_OLS": {
+          "value": -0.7228141562080315,
+          "bits": "bfe7214b273ffa84"
+        }
+      }
+    },
+    {
+      "id": "hybrid_0_Cendpoint",
+      "y": [
+        0.0,
+        8.0,
+        0.0,
+        8.0,
+        0.0,
+        8.0,
+        0.0,
+        7.0
+      ],
+      "p": 2,
+      "output": "endpoint",
+      "index": 1,
+      "predictions": {
+        "prefix_seasons_global_deseasonalized_OLS": {
+          "value": 0.306491947192528,
+          "bits": "3fd39d90666b791b"
+        }
+      }
+    },
+    {
+      "id": "hybrid_1_S1",
+      "y": [
+        0.0,
+        8.0,
+        0.0,
+        8.0,
+        0.0,
+        8.0,
+        0.0,
+        8.125
+      ],
+      "p": 2,
+      "output": "stat",
+      "index": 1,
+      "predictions": {
+        "prefix_seasons_global_deseasonalized_OLS": {
+          "value": 0.126,
+          "bits": "3fc020c49ba5e354"
+        }
+      }
+    },
+    {
+      "id": "hybrid_1_S2",
+      "y": [
+        0.0,
+        8.0,
+        0.0,
+        8.0,
+        0.0,
+        8.0,
+        0.0,
+        8.125
+      ],
+      "p": 2,
+      "output": "stat",
+      "index": 2,
+      "predictions": {
+        "prefix_seasons_global_deseasonalized_OLS": {
+          "value": 0.001,
+          "bits": "3f50624dd2f1a9fc"
+        }
+      }
+    },
+    {
+      "id": "hybrid_1_S3",
+      "y": [
+        0.0,
+        8.0,
+        0.0,
+        8.0,
+        0.0,
+        8.0,
+        0.0,
+        8.125
+      ],
+      "p": 2,
+      "output": "stat",
+      "index": 3,
+      "predictions": {
+        "prefix_seasons_global_deseasonalized_OLS": {
+          "value": 0.001,
+          "bits": "3f50624dd2f1a9fc"
+        }
+      }
+    },
+    {
+      "id": "hybrid_1_S6",
+      "y": [
+        0.0,
+        8.0,
+        0.0,
+        8.0,
+        0.0,
+        8.0,
+        0.0,
+        8.125
+      ],
+      "p": 2,
+      "output": "stat",
+      "index": 6,
+      "predictions": {
+        "prefix_seasons_global_deseasonalized_OLS": {
+          "value": 0.03156254100833378,
+          "bits": "3fa028f722d1a3c0"
+        }
+      }
+    },
+    {
+      "id": "hybrid_1_S7",
+      "y": [
+        0.0,
+        8.0,
+        0.0,
+        8.0,
+        0.0,
+        8.0,
+        0.0,
+        8.125
+      ],
+      "p": 2,
+      "output": "stat",
+      "index": 7,
+      "predictions": {
+        "prefix_seasons_global_deseasonalized_OLS": {
+          "value": 0.038311493399066344,
+          "bits": "3fa39d90666b794d"
+        }
+      }
+    },
+    {
+      "id": "hybrid_1_F1",
+      "y": [
+        0.0,
+        8.0,
+        0.0,
+        8.0,
+        0.0,
+        8.0,
+        0.0,
+        8.125
+      ],
+      "p": 2,
+      "output": "forecast",
+      "index": 1,
+      "predictions": {
+        "prefix_seasons_global_deseasonalized_OLS": {
+          "value": 0.06972334675112712,
+          "bits": "3fb1d963a6105280"
+        }
+      }
+    },
+    {
+      "id": "hybrid_1_F2",
+      "y": [
+        0.0,
+        8.0,
+        0.0,
+        8.0,
+        0.0,
+        8.0,
+        0.0,
+        8.125
+      ],
+      "p": 2,
+      "output": "forecast",
+      "index": 2,
+      "predictions": {
+        "prefix_seasons_global_deseasonalized_OLS": {
+          "value": 8.080133758957139,
+          "bits": "402029074ac40d8c"
+        }
+      }
+    },
+    {
+      "id": "hybrid_1_F3",
+      "y": [
+        0.0,
+        8.0,
+        0.0,
+        8.0,
+        0.0,
+        8.0,
+        0.0,
+        8.125
+      ],
+      "p": 2,
+      "output": "forecast",
+      "index": 3,
+      "predictions": {
+        "prefix_seasons_global_deseasonalized_OLS": {
+          "value": 0.09035176952600299,
+          "bits": "3fb7214b273ffa40"
+        }
+      }
+    },
+    {
+      "id": "hybrid_1_Cendpoint",
+      "y": [
+        0.0,
+        8.0,
+        0.0,
+        8.0,
+        0.0,
+        8.0,
+        0.0,
+        8.125
+      ],
+      "p": 2,
+      "output": "endpoint",
+      "index": 1,
+      "predictions": {
+        "prefix_seasons_global_deseasonalized_OLS": {
+          "value": 0.038311493399066344,
+          "bits": "3fa39d90666b794d"
+        }
+      }
+    },
+    {
+      "id": "hybrid_2_S1",
+      "y": [
+        0.0,
+        8.0,
+        0.0,
+        8.0,
+        0.0,
+        8.0,
+        0.0,
+        8.5
+      ],
+      "p": 2,
+      "output": "stat",
+      "index": 1,
+      "predictions": {
+        "prefix_seasons_global_deseasonalized_OLS": {
+          "value": 0.126,
+          "bits": "3fc020c49ba5e354"
+        }
+      }
+    },
+    {
+      "id": "hybrid_2_S2",
+      "y": [
+        0.0,
+        8.0,
+        0.0,
+        8.0,
+        0.0,
+        8.0,
+        0.0,
+        8.5
+      ],
+      "p": 2,
+      "output": "stat",
+      "index": 2,
+      "predictions": {
+        "prefix_seasons_global_deseasonalized_OLS": {
+          "value": 0.001,
+          "bits": "3f50624dd2f1a9fc"
+        }
+      }
+    },
+    {
+      "id": "hybrid_2_S3",
+      "y": [
+        0.0,
+        8.0,
+        0.0,
+        8.0,
+        0.0,
+        8.0,
+        0.0,
+        8.5
+      ],
+      "p": 2,
+      "output": "stat",
+      "index": 3,
+      "predictions": {
+        "prefix_seasons_global_deseasonalized_OLS": {
+          "value": 0.001,
+          "bits": "3f50624dd2f1a9fc"
+        }
+      }
+    },
+    {
+      "id": "hybrid_2_S6",
+      "y": [
+        0.0,
+        8.0,
+        0.0,
+        8.0,
+        0.0,
+        8.0,
+        0.0,
+        8.5
+      ],
+      "p": 2,
+      "output": "stat",
+      "index": 6,
+      "predictions": {
+        "prefix_seasons_global_deseasonalized_OLS": {
+          "value": 0.1262501640333331,
+          "bits": "3fc028f722d1a378"
+        }
+      }
+    },
+    {
+      "id": "hybrid_2_S7",
+      "y": [
+        0.0,
+        8.0,
+        0.0,
+        8.0,
+        0.0,
+        8.0,
+        0.0,
+        8.5
+      ],
+      "p": 2,
+      "output": "stat",
+      "index": 7,
+      "predictions": {
+        "prefix_seasons_global_deseasonalized_OLS": {
+          "value": 0.15324597359626418,
+          "bits": "3fc39d90666b7922"
+        }
+      }
+    },
+    {
+      "id": "hybrid_2_F1",
+      "y": [
+        0.0,
+        8.0,
+        0.0,
+        8.0,
+        0.0,
+        8.0,
+        0.0,
+        8.5
+      ],
+      "p": 2,
+      "output": "forecast",
+      "index": 1,
+      "predictions": {
+        "prefix_seasons_global_deseasonalized_OLS": {
+          "value": 0.27889338700451294,
+          "bits": "3fd1d963a61052d0"
+        }
+      }
+    },
+    {
+      "id": "hybrid_2_F2",
+      "y": [
+        0.0,
+        8.0,
+        0.0,
+        8.0,
+        0.0,
+        8.0,
+        0.0,
+        8.5
+      ],
+      "p": 2,
+      "output": "forecast",
+      "index": 2,
+      "predictions": {
+        "prefix_seasons_global_deseasonalized_OLS": {
+          "value": 8.320535035828561,
+          "bits": "4020a41d2b103633"
+        }
+      }
+    },
+    {
+      "id": "hybrid_2_F3",
+      "y": [
+        0.0,
+        8.0,
+        0.0,
+        8.0,
+        0.0,
+        8.0,
+        0.0,
+        8.5
+      ],
+      "p": 2,
+      "output": "forecast",
+      "index": 3,
+      "predictions": {
+        "prefix_seasons_global_deseasonalized_OLS": {
+          "value": 0.3614070781040155,
+          "bits": "3fd7214b273ffa80"
+        }
+      }
+    },
+    {
+      "id": "hybrid_2_Cendpoint",
+      "y": [
+        0.0,
+        8.0,
+        0.0,
+        8.0,
+        0.0,
+        8.0,
+        0.0,
+        8.5
+      ],
+      "p": 2,
+      "output": "endpoint",
+      "index": 1,
+      "predictions": {
+        "prefix_seasons_global_deseasonalized_OLS": {
+          "value": 0.15324597359626418,
+          "bits": "3fc39d90666b7922"
+        }
+      }
+    },
+    {
+      "id": "hybrid_3_S1",
+      "y": [
+        0.0,
+        8.0,
+        0.0,
+        8.0,
+        0.0,
+        8.0,
+        0.0,
+        10.0
+      ],
+      "p": 2,
+      "output": "stat",
+      "index": 1,
+      "predictions": {
+        "prefix_seasons_global_deseasonalized_OLS": {
+          "value": 0.126,
+          "bits": "3fc020c49ba5e354"
+        }
+      }
+    },
+    {
+      "id": "hybrid_3_S2",
+      "y": [
+        0.0,
+        8.0,
+        0.0,
+        8.0,
+        0.0,
+        8.0,
+        0.0,
+        10.0
+      ],
+      "p": 2,
+      "output": "stat",
+      "index": 2,
+      "predictions": {
+        "prefix_seasons_global_deseasonalized_OLS": {
+          "value": 0.001,
+          "bits": "3f50624dd2f1a9fc"
+        }
+      }
+    },
+    {
+      "id": "hybrid_3_S3",
+      "y": [
+        0.0,
+        8.0,
+        0.0,
+        8.0,
+        0.0,
+        8.0,
+        0.0,
+        10.0
+      ],
+      "p": 2,
+      "output": "stat",
+      "index": 3,
+      "predictions": {
+        "prefix_seasons_global_deseasonalized_OLS": {
+          "value": 0.001,
+          "bits": "3f50624dd2f1a9fc"
+        }
+      }
+    },
+    {
+      "id": "hybrid_3_S6",
+      "y": [
+        0.0,
+        8.0,
+        0.0,
+        8.0,
+        0.0,
+        8.0,
+        0.0,
+        10.0
+      ],
+      "p": 2,
+      "output": "stat",
+      "index": 6,
+      "predictions": {
+        "prefix_seasons_global_deseasonalized_OLS": {
+          "value": 0.5050006561333319,
+          "bits": "3fe028f722d1a373"
+        }
+      }
+    },
+    {
+      "id": "hybrid_3_S7",
+      "y": [
+        0.0,
+        8.0,
+        0.0,
+        8.0,
+        0.0,
+        8.0,
+        0.0,
+        10.0
+      ],
+      "p": 2,
+      "output": "stat",
+      "index": 7,
+      "predictions": {
+        "prefix_seasons_global_deseasonalized_OLS": {
+          "value": 0.612983894385056,
+          "bits": "3fe39d90666b791b"
+        }
+      }
+    },
+    {
+      "id": "hybrid_3_F1",
+      "y": [
+        0.0,
+        8.0,
+        0.0,
+        8.0,
+        0.0,
+        8.0,
+        0.0,
+        10.0
+      ],
+      "p": 2,
+      "output": "forecast",
+      "index": 1,
+      "predictions": {
+        "prefix_seasons_global_deseasonalized_OLS": {
+          "value": 1.1155735480180509,
+          "bits": "3ff1d963a61052cc"
+        }
+      }
+    },
+    {
+      "id": "hybrid_3_F2",
+      "y": [
+        0.0,
+        8.0,
+        0.0,
+        8.0,
+        0.0,
+        8.0,
+        0.0,
+        10.0
+      ],
+      "p": 2,
+      "output": "forecast",
+      "index": 2,
+      "predictions": {
+        "prefix_seasons_global_deseasonalized_OLS": {
+          "value": 9.282140143314242,
+          "bits": "40229074ac40d8cb"
+        }
+      }
+    },
+    {
+      "id": "hybrid_3_F3",
+      "y": [
+        0.0,
+        8.0,
+        0.0,
+        8.0,
+        0.0,
+        8.0,
+        0.0,
+        10.0
+      ],
+      "p": 2,
+      "output": "forecast",
+      "index": 3,
+      "predictions": {
+        "prefix_seasons_global_deseasonalized_OLS": {
+          "value": 1.445628312416063,
+          "bits": "3ff7214b273ffa84"
+        }
+      }
+    },
+    {
+      "id": "hybrid_3_Cendpoint",
+      "y": [
+        0.0,
+        8.0,
+        0.0,
+        8.0,
+        0.0,
+        8.0,
+        0.0,
+        10.0
+      ],
+      "p": 2,
+      "output": "endpoint",
+      "index": 1,
+      "predictions": {
+        "prefix_seasons_global_deseasonalized_OLS": {
+          "value": 0.612983894385056,
+          "bits": "3fe39d90666b791b"
+        }
+      }
+    },
+    {
+      "id": "hybrid_4_S1",
+      "y": [
+        0.0,
+        8.0,
+        0.0,
+        8.0,
+        0.0,
+        8.0,
+        0.0,
+        40.0
+      ],
+      "p": 2,
+      "output": "stat",
+      "index": 1,
+      "predictions": {
+        "prefix_seasons_global_deseasonalized_OLS": {
+          "value": 0.126,
+          "bits": "3fc020c49ba5e354"
+        }
+      }
+    },
+    {
+      "id": "hybrid_4_S2",
+      "y": [
+        0.0,
+        8.0,
+        0.0,
+        8.0,
+        0.0,
+        8.0,
+        0.0,
+        40.0
+      ],
+      "p": 2,
+      "output": "stat",
+      "index": 2,
+      "predictions": {
+        "prefix_seasons_global_deseasonalized_OLS": {
+          "value": 0.001,
+          "bits": "3f50624dd2f1a9fc"
+        }
+      }
+    },
+    {
+      "id": "hybrid_4_S3",
+      "y": [
+        0.0,
+        8.0,
+        0.0,
+        8.0,
+        0.0,
+        8.0,
+        0.0,
+        40.0
+      ],
+      "p": 2,
+      "output": "stat",
+      "index": 3,
+      "predictions": {
+        "prefix_seasons_global_deseasonalized_OLS": {
+          "value": 0.001,
+          "bits": "3f50624dd2f1a9fc"
+        }
+      }
+    },
+    {
+      "id": "hybrid_4_S6",
+      "y": [
+        0.0,
+        8.0,
+        0.0,
+        8.0,
+        0.0,
+        8.0,
+        0.0,
+        40.0
+      ],
+      "p": 2,
+      "output": "stat",
+      "index": 6,
+      "predictions": {
+        "prefix_seasons_global_deseasonalized_OLS": {
+          "value": 8.080010498133312,
+          "bits": "402028f722d1a374"
+        }
+      }
+    },
+    {
+      "id": "hybrid_4_S7",
+      "y": [
+        0.0,
+        8.0,
+        0.0,
+        8.0,
+        0.0,
+        8.0,
+        0.0,
+        40.0
+      ],
+      "p": 2,
+      "output": "stat",
+      "index": 7,
+      "predictions": {
+        "prefix_seasons_global_deseasonalized_OLS": {
+          "value": 9.807742310160899,
+          "bits": "40239d90666b791d"
+        }
+      }
+    },
+    {
+      "id": "hybrid_4_F1",
+      "y": [
+        0.0,
+        8.0,
+        0.0,
+        8.0,
+        0.0,
+        8.0,
+        0.0,
+        40.0
+      ],
+      "p": 2,
+      "output": "forecast",
+      "index": 1,
+      "predictions": {
+        "prefix_seasons_global_deseasonalized_OLS": {
+          "value": 17.84917676828881,
+          "bits": "4031d963a61052cb"
+        }
+      }
+    },
+    {
+      "id": "hybrid_4_F2",
+      "y": [
+        0.0,
+        8.0,
+        0.0,
+        8.0,
+        0.0,
+        8.0,
+        0.0,
+        40.0
+      ],
+      "p": 2,
+      "output": "forecast",
+      "index": 2,
+      "predictions": {
+        "prefix_seasons_global_deseasonalized_OLS": {
+          "value": 28.51424229302789,
+          "bits": "403c83a56206c65c"
+        }
+      }
+    },
+    {
+      "id": "hybrid_4_F3",
+      "y": [
+        0.0,
+        8.0,
+        0.0,
+        8.0,
+        0.0,
+        8.0,
+        0.0,
+        40.0
+      ],
+      "p": 2,
+      "output": "forecast",
+      "index": 3,
+      "predictions": {
+        "prefix_seasons_global_deseasonalized_OLS": {
+          "value": 23.130052998657007,
+          "bits": "4037214b273ffa84"
+        }
+      }
+    },
+    {
+      "id": "hybrid_4_Cendpoint",
+      "y": [
+        0.0,
+        8.0,
+        0.0,
+        8.0,
+        0.0,
+        8.0,
+        0.0,
+        40.0
+      ],
+      "p": 2,
+      "output": "endpoint",
+      "index": 1,
+      "predictions": {
+        "prefix_seasons_global_deseasonalized_OLS": {
+          "value": 9.807742310160899,
+          "bits": "40239d90666b791d"
+        }
+      }
+    },
+    {
+      "id": "hybrid_5_S1",
+      "y": [
+        16.0,
+        280.0,
+        528.0,
+        792.0,
+        1040.0,
+        1304.0,
+        1552.0,
+        1817.0
+      ],
+      "p": 2,
+      "output": "stat",
+      "index": 1,
+      "predictions": {
+        "prefix_seasons_global_deseasonalized_OLS": {
+          "value": 0.126,
+          "bits": "3fc020c49ba5e354"
+        }
+      }
+    },
+    {
+      "id": "hybrid_5_S2",
+      "y": [
+        16.0,
+        280.0,
+        528.0,
+        792.0,
+        1040.0,
+        1304.0,
+        1552.0,
+        1817.0
+      ],
+      "p": 2,
+      "output": "stat",
+      "index": 2,
+      "predictions": {
+        "prefix_seasons_global_deseasonalized_OLS": {
+          "value": 0.001,
+          "bits": "3f50624dd2f1a9fc"
+        }
+      }
+    },
+    {
+      "id": "hybrid_5_S3",
+      "y": [
+        16.0,
+        280.0,
+        528.0,
+        792.0,
+        1040.0,
+        1304.0,
+        1552.0,
+        1817.0
+      ],
+      "p": 2,
+      "output": "stat",
+      "index": 3,
+      "predictions": {
+        "prefix_seasons_global_deseasonalized_OLS": {
+          "value": 0.001,
+          "bits": "3f50624dd2f1a9fc"
+        }
+      }
+    },
+    {
+      "id": "hybrid_5_S6",
+      "y": [
+        16.0,
+        280.0,
+        528.0,
+        792.0,
+        1040.0,
+        1304.0,
+        1552.0,
+        1817.0
+      ],
+      "p": 2,
+      "output": "stat",
+      "index": 6,
+      "predictions": {
+        "prefix_seasons_global_deseasonalized_OLS": {
+          "value": 0.2525003280666809,
+          "bits": "3fd028f722d1a480"
+        }
+      }
+    },
+    {
+      "id": "hybrid_5_S7",
+      "y": [
+        16.0,
+        280.0,
+        528.0,
+        792.0,
+        1040.0,
+        1304.0,
+        1552.0,
+        1817.0
+      ],
+      "p": 2,
+      "output": "stat",
+      "index": 7,
+      "predictions": {
+        "prefix_seasons_global_deseasonalized_OLS": {
+          "value": 0.30649194719256534,
+          "bits": "3fd39d90666b7bbc"
+        }
+      }
+    },
+    {
+      "id": "hybrid_5_F1",
+      "y": [
+        16.0,
+        280.0,
+        528.0,
+        792.0,
+        1040.0,
+        1304.0,
+        1552.0,
+        1817.0
+      ],
+      "p": 2,
+      "output": "forecast",
+      "index": 1,
+      "predictions": {
+        "prefix_seasons_global_deseasonalized_OLS": {
+          "value": 2064.557786774009,
+          "bits": "40a0211d963a6105"
+        }
+      }
+    },
+    {
+      "id": "hybrid_5_F2",
+      "y": [
+        16.0,
+        280.0,
+        528.0,
+        792.0,
+        1040.0,
+        1304.0,
+        1552.0,
+        1817.0
+      ],
+      "p": 2,
+      "output": "forecast",
+      "index": 2,
+      "predictions": {
+        "prefix_seasons_global_deseasonalized_OLS": {
+          "value": 2328.641070071657,
+          "bits": "40a231483a56206c"
+        }
+      }
+    },
+    {
+      "id": "hybrid_5_F3",
+      "y": [
+        16.0,
+        280.0,
+        528.0,
+        792.0,
+        1040.0,
+        1304.0,
+        1552.0,
+        1817.0
+      ],
+      "p": 2,
+      "output": "forecast",
+      "index": 3,
+      "predictions": {
+        "prefix_seasons_global_deseasonalized_OLS": {
+          "value": 2576.722814156208,
+          "bits": "40a4217214b27400"
+        }
+      }
+    },
+    {
+      "id": "hybrid_5_Cendpoint",
+      "y": [
+        16.0,
+        280.0,
+        528.0,
+        792.0,
+        1040.0,
+        1304.0,
+        1552.0,
+        1817.0
+      ],
+      "p": 2,
+      "output": "endpoint",
+      "index": 1,
+      "predictions": {
+        "prefix_seasons_global_deseasonalized_OLS": {
+          "value": 0.30649194719256534,
+          "bits": "3fd39d90666b7bbc"
+        }
+      }
+    },
+    {
+      "id": "hybrid_6_S1",
+      "y": [
+        0.0,
+        16.0,
+        0.0,
+        16.0,
+        0.0,
+        16.0,
+        0.0,
+        17.0
+      ],
+      "p": 2,
+      "output": "stat",
+      "index": 1,
+      "predictions": {
+        "prefix_seasons_global_deseasonalized_OLS": {
+          "value": 0.126,
+          "bits": "3fc020c49ba5e354"
+        }
+      }
+    },
+    {
+      "id": "hybrid_6_S2",
+      "y": [
+        0.0,
+        16.0,
+        0.0,
+        16.0,
+        0.0,
+        16.0,
+        0.0,
+        17.0
+      ],
+      "p": 2,
+      "output": "stat",
+      "index": 2,
+      "predictions": {
+        "prefix_seasons_global_deseasonalized_OLS": {
+          "value": 0.001,
+          "bits": "3f50624dd2f1a9fc"
+        }
+      }
+    },
+    {
+      "id": "hybrid_6_S3",
+      "y": [
+        0.0,
+        16.0,
+        0.0,
+        16.0,
+        0.0,
+        16.0,
+        0.0,
+        17.0
+      ],
+      "p": 2,
+      "output": "stat",
+      "index": 3,
+      "predictions": {
+        "prefix_seasons_global_deseasonalized_OLS": {
+          "value": 0.001,
+          "bits": "3f50624dd2f1a9fc"
+        }
+      }
+    },
+    {
+      "id": "hybrid_6_S6",
+      "y": [
+        0.0,
+        16.0,
+        0.0,
+        16.0,
+        0.0,
+        16.0,
+        0.0,
+        17.0
+      ],
+      "p": 2,
+      "output": "stat",
+      "index": 6,
+      "predictions": {
+        "prefix_seasons_global_deseasonalized_OLS": {
+          "value": 0.2525003280666662,
+          "bits": "3fd028f722d1a378"
+        }
+      }
+    },
+    {
+      "id": "hybrid_6_S7",
+      "y": [
+        0.0,
+        16.0,
+        0.0,
+        16.0,
+        0.0,
+        16.0,
+        0.0,
+        17.0
+      ],
+      "p": 2,
+      "output": "stat",
+      "index": 7,
+      "predictions": {
+        "prefix_seasons_global_deseasonalized_OLS": {
+          "value": 0.30649194719252837,
+          "bits": "3fd39d90666b7922"
+        }
+      }
+    },
+    {
+      "id": "hybrid_6_F1",
+      "y": [
+        0.0,
+        16.0,
+        0.0,
+        16.0,
+        0.0,
+        16.0,
+        0.0,
+        17.0
+      ],
+      "p": 2,
+      "output": "forecast",
+      "index": 1,
+      "predictions": {
+        "prefix_seasons_global_deseasonalized_OLS": {
+          "value": 0.5577867740090259,
+          "bits": "3fe1d963a61052d0"
+        }
+      }
+    },
+    {
+      "id": "hybrid_6_F2",
+      "y": [
+        0.0,
+        16.0,
+        0.0,
+        16.0,
+        0.0,
+        16.0,
+        0.0,
+        17.0
+      ],
+      "p": 2,
+      "output": "forecast",
+      "index": 2,
+      "predictions": {
+        "prefix_seasons_global_deseasonalized_OLS": {
+          "value": 16.641070071657122,
+          "bits": "4030a41d2b103633"
+        }
+      }
+    },
+    {
+      "id": "hybrid_6_F3",
+      "y": [
+        0.0,
+        16.0,
+        0.0,
+        16.0,
+        0.0,
+        16.0,
+        0.0,
+        17.0
+      ],
+      "p": 2,
+      "output": "forecast",
+      "index": 3,
+      "predictions": {
+        "prefix_seasons_global_deseasonalized_OLS": {
+          "value": 0.722814156208031,
+          "bits": "3fe7214b273ffa80"
+        }
+      }
+    },
+    {
+      "id": "hybrid_6_Cendpoint",
+      "y": [
+        0.0,
+        16.0,
+        0.0,
+        16.0,
+        0.0,
+        16.0,
+        0.0,
+        17.0
+      ],
+      "p": 2,
+      "output": "endpoint",
+      "index": 1,
+      "predictions": {
+        "prefix_seasons_global_deseasonalized_OLS": {
+          "value": 0.30649194719252837,
+          "bits": "3fd39d90666b7922"
+        }
+      }
+    },
+    {
+      "id": "hybrid_7_S1",
+      "y": [
+        0.0,
+        32.0,
+        0.0,
+        32.0,
+        0.0,
+        32.0,
+        0.0,
+        33.0
+      ],
+      "p": 2,
+      "output": "stat",
+      "index": 1,
+      "predictions": {
+        "prefix_seasons_global_deseasonalized_OLS": {
+          "value": 0.126,
+          "bits": "3fc020c49ba5e354"
+        }
+      }
+    },
+    {
+      "id": "hybrid_7_S2",
+      "y": [
+        0.0,
+        32.0,
+        0.0,
+        32.0,
+        0.0,
+        32.0,
+        0.0,
+        33.0
+      ],
+      "p": 2,
+      "output": "stat",
+      "index": 2,
+      "predictions": {
+        "prefix_seasons_global_deseasonalized_OLS": {
+          "value": 0.001,
+          "bits": "3f50624dd2f1a9fc"
+        }
+      }
+    },
+    {
+      "id": "hybrid_7_S3",
+      "y": [
+        0.0,
+        32.0,
+        0.0,
+        32.0,
+        0.0,
+        32.0,
+        0.0,
+        33.0
+      ],
+      "p": 2,
+      "output": "stat",
+      "index": 3,
+      "predictions": {
+        "prefix_seasons_global_deseasonalized_OLS": {
+          "value": 0.001,
+          "bits": "3f50624dd2f1a9fc"
+        }
+      }
+    },
+    {
+      "id": "hybrid_7_S6",
+      "y": [
+        0.0,
+        32.0,
+        0.0,
+        32.0,
+        0.0,
+        32.0,
+        0.0,
+        33.0
+      ],
+      "p": 2,
+      "output": "stat",
+      "index": 6,
+      "predictions": {
+        "prefix_seasons_global_deseasonalized_OLS": {
+          "value": 0.25250032806666667,
+          "bits": "3fd028f722d1a380"
+        }
+      }
+    },
+    {
+      "id": "hybrid_7_S7",
+      "y": [
+        0.0,
+        32.0,
+        0.0,
+        32.0,
+        0.0,
+        32.0,
+        0.0,
+        33.0
+      ],
+      "p": 2,
+      "output": "stat",
+      "index": 7,
+      "predictions": {
+        "prefix_seasons_global_deseasonalized_OLS": {
+          "value": 0.30649194719252887,
+          "bits": "3fd39d90666b792b"
+        }
+      }
+    },
+    {
+      "id": "hybrid_7_F1",
+      "y": [
+        0.0,
+        32.0,
+        0.0,
+        32.0,
+        0.0,
+        32.0,
+        0.0,
+        33.0
+      ],
+      "p": 2,
+      "output": "forecast",
+      "index": 1,
+      "predictions": {
+        "prefix_seasons_global_deseasonalized_OLS": {
+          "value": 0.5577867740090241,
+          "bits": "3fe1d963a61052c0"
+        }
+      }
+    },
+    {
+      "id": "hybrid_7_F2",
+      "y": [
+        0.0,
+        32.0,
+        0.0,
+        32.0,
+        0.0,
+        32.0,
+        0.0,
+        33.0
+      ],
+      "p": 2,
+      "output": "forecast",
+      "index": 2,
+      "predictions": {
+        "prefix_seasons_global_deseasonalized_OLS": {
+          "value": 32.641070071657126,
+          "bits": "4040520e95881b1a"
+        }
+      }
+    },
+    {
+      "id": "hybrid_7_F3",
+      "y": [
+        0.0,
+        32.0,
+        0.0,
+        32.0,
+        0.0,
+        32.0,
+        0.0,
+        33.0
+      ],
+      "p": 2,
+      "output": "forecast",
+      "index": 3,
+      "predictions": {
+        "prefix_seasons_global_deseasonalized_OLS": {
+          "value": 0.722814156208031,
+          "bits": "3fe7214b273ffa80"
+        }
+      }
+    },
+    {
+      "id": "hybrid_7_Cendpoint",
+      "y": [
+        0.0,
+        32.0,
+        0.0,
+        32.0,
+        0.0,
+        32.0,
+        0.0,
+        33.0
+      ],
+      "p": 2,
+      "output": "endpoint",
+      "index": 1,
+      "predictions": {
+        "prefix_seasons_global_deseasonalized_OLS": {
+          "value": 0.30649194719252887,
+          "bits": "3fd39d90666b792b"
+        }
+      }
+    },
+    {
+      "id": "hybrid_8_S1",
+      "y": [
+        0.0,
+        4.0,
+        0.0,
+        4.0,
+        0.0,
+        4.0,
+        0.0,
+        5.0
+      ],
+      "p": 2,
+      "output": "stat",
+      "index": 1,
+      "predictions": {
+        "prefix_seasons_global_deseasonalized_OLS": {
+          "value": 0.126,
+          "bits": "3fc020c49ba5e354"
+        }
+      }
+    },
+    {
+      "id": "hybrid_8_S2",
+      "y": [
+        0.0,
+        4.0,
+        0.0,
+        4.0,
+        0.0,
+        4.0,
+        0.0,
+        5.0
+      ],
+      "p": 2,
+      "output": "stat",
+      "index": 2,
+      "predictions": {
+        "prefix_seasons_global_deseasonalized_OLS": {
+          "value": 0.001,
+          "bits": "3f50624dd2f1a9fc"
+        }
+      }
+    },
+    {
+      "id": "hybrid_8_S3",
+      "y": [
+        0.0,
+        4.0,
+        0.0,
+        4.0,
+        0.0,
+        4.0,
+        0.0,
+        5.0
+      ],
+      "p": 2,
+      "output": "stat",
+      "index": 3,
+      "predictions": {
+        "prefix_seasons_global_deseasonalized_OLS": {
+          "value": 0.001,
+          "bits": "3f50624dd2f1a9fc"
+        }
+      }
+    },
+    {
+      "id": "hybrid_8_S6",
+      "y": [
+        0.0,
+        4.0,
+        0.0,
+        4.0,
+        0.0,
+        4.0,
+        0.0,
+        5.0
+      ],
+      "p": 2,
+      "output": "stat",
+      "index": 6,
+      "predictions": {
+        "prefix_seasons_global_deseasonalized_OLS": {
+          "value": 0.25250032806666595,
+          "bits": "3fd028f722d1a373"
+        }
+      }
+    },
+    {
+      "id": "hybrid_8_S7",
+      "y": [
+        0.0,
+        4.0,
+        0.0,
+        4.0,
+        0.0,
+        4.0,
+        0.0,
+        5.0
+      ],
+      "p": 2,
+      "output": "stat",
+      "index": 7,
+      "predictions": {
+        "prefix_seasons_global_deseasonalized_OLS": {
+          "value": 0.306491947192528,
+          "bits": "3fd39d90666b791b"
+        }
+      }
+    },
+    {
+      "id": "hybrid_8_F1",
+      "y": [
+        0.0,
+        4.0,
+        0.0,
+        4.0,
+        0.0,
+        4.0,
+        0.0,
+        5.0
+      ],
+      "p": 2,
+      "output": "forecast",
+      "index": 1,
+      "predictions": {
+        "prefix_seasons_global_deseasonalized_OLS": {
+          "value": 0.5577867740090254,
+          "bits": "3fe1d963a61052cc"
+        }
+      }
+    },
+    {
+      "id": "hybrid_8_F2",
+      "y": [
+        0.0,
+        4.0,
+        0.0,
+        4.0,
+        0.0,
+        4.0,
+        0.0,
+        5.0
+      ],
+      "p": 2,
+      "output": "forecast",
+      "index": 2,
+      "predictions": {
+        "prefix_seasons_global_deseasonalized_OLS": {
+          "value": 4.641070071657121,
+          "bits": "40129074ac40d8cb"
+        }
+      }
+    },
+    {
+      "id": "hybrid_8_F3",
+      "y": [
+        0.0,
+        4.0,
+        0.0,
+        4.0,
+        0.0,
+        4.0,
+        0.0,
+        5.0
+      ],
+      "p": 2,
+      "output": "forecast",
+      "index": 3,
+      "predictions": {
+        "prefix_seasons_global_deseasonalized_OLS": {
+          "value": 0.7228141562080315,
+          "bits": "3fe7214b273ffa84"
+        }
+      }
+    },
+    {
+      "id": "hybrid_8_Cendpoint",
+      "y": [
+        0.0,
+        4.0,
+        0.0,
+        4.0,
+        0.0,
+        4.0,
+        0.0,
+        5.0
+      ],
+      "p": 2,
+      "output": "endpoint",
+      "index": 1,
+      "predictions": {
+        "prefix_seasons_global_deseasonalized_OLS": {
+          "value": 0.306491947192528,
+          "bits": "3fd39d90666b791b"
+        }
+      }
+    },
+    {
+      "id": "hybrid_9_S1",
+      "y": [
+        0.0,
+        0.125,
+        0.0,
+        0.125,
+        0.0,
+        0.125,
+        0.0,
+        1.125
+      ],
+      "p": 2,
+      "output": "stat",
+      "index": 1,
+      "predictions": {
+        "prefix_seasons_global_deseasonalized_OLS": {
+          "value": 0.126,
+          "bits": "3fc020c49ba5e354"
+        }
+      }
+    },
+    {
+      "id": "hybrid_9_S2",
+      "y": [
+        0.0,
+        0.125,
+        0.0,
+        0.125,
+        0.0,
+        0.125,
+        0.0,
+        1.125
+      ],
+      "p": 2,
+      "output": "stat",
+      "index": 2,
+      "predictions": {
+        "prefix_seasons_global_deseasonalized_OLS": {
+          "value": 0.001,
+          "bits": "3f50624dd2f1a9fc"
+        }
+      }
+    },
+    {
+      "id": "hybrid_9_S3",
+      "y": [
+        0.0,
+        0.125,
+        0.0,
+        0.125,
+        0.0,
+        0.125,
+        0.0,
+        1.125
+      ],
+      "p": 2,
+      "output": "stat",
+      "index": 3,
+      "predictions": {
+        "prefix_seasons_global_deseasonalized_OLS": {
+          "value": 0.001,
+          "bits": "3f50624dd2f1a9fc"
+        }
+      }
+    },
+    {
+      "id": "hybrid_9_S6",
+      "y": [
+        0.0,
+        0.125,
+        0.0,
+        0.125,
+        0.0,
+        0.125,
+        0.0,
+        1.125
+      ],
+      "p": 2,
+      "output": "stat",
+      "index": 6,
+      "predictions": {
+        "prefix_seasons_global_deseasonalized_OLS": {
+          "value": 0.252500328066666,
+          "bits": "3fd028f722d1a374"
+        }
+      }
+    },
+    {
+      "id": "hybrid_9_S7",
+      "y": [
+        0.0,
+        0.125,
+        0.0,
+        0.125,
+        0.0,
+        0.125,
+        0.0,
+        1.125
+      ],
+      "p": 2,
+      "output": "stat",
+      "index": 7,
+      "predictions": {
+        "prefix_seasons_global_deseasonalized_OLS": {
+          "value": 0.3064919471925281,
+          "bits": "3fd39d90666b791d"
+        }
+      }
+    },
+    {
+      "id": "hybrid_9_F1",
+      "y": [
+        0.0,
+        0.125,
+        0.0,
+        0.125,
+        0.0,
+        0.125,
+        0.0,
+        1.125
+      ],
+      "p": 2,
+      "output": "forecast",
+      "index": 1,
+      "predictions": {
+        "prefix_seasons_global_deseasonalized_OLS": {
+          "value": 0.5577867740090253,
+          "bits": "3fe1d963a61052cb"
+        }
+      }
+    },
+    {
+      "id": "hybrid_9_F2",
+      "y": [
+        0.0,
+        0.125,
+        0.0,
+        0.125,
+        0.0,
+        0.125,
+        0.0,
+        1.125
+      ],
+      "p": 2,
+      "output": "forecast",
+      "index": 2,
+      "predictions": {
+        "prefix_seasons_global_deseasonalized_OLS": {
+          "value": 0.7660700716571216,
+          "bits": "3fe883a56206c65c"
+        }
+      }
+    },
+    {
+      "id": "hybrid_9_F3",
+      "y": [
+        0.0,
+        0.125,
+        0.0,
+        0.125,
+        0.0,
+        0.125,
+        0.0,
+        1.125
+      ],
+      "p": 2,
+      "output": "forecast",
+      "index": 3,
+      "predictions": {
+        "prefix_seasons_global_deseasonalized_OLS": {
+          "value": 0.7228141562080315,
+          "bits": "3fe7214b273ffa84"
+        }
+      }
+    },
+    {
+      "id": "hybrid_9_Cendpoint",
+      "y": [
+        0.0,
+        0.125,
+        0.0,
+        0.125,
+        0.0,
+        0.125,
+        0.0,
+        1.125
+      ],
+      "p": 2,
+      "output": "endpoint",
+      "index": 1,
+      "predictions": {
+        "prefix_seasons_global_deseasonalized_OLS": {
+          "value": 0.3064919471925281,
+          "bits": "3fd39d90666b791d"
+        }
+      }
+    }
+  ]
+}

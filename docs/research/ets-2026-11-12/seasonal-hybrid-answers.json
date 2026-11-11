@@ -1,0 +1,989 @@
+{
+  "predictions_sha256": "9fe5863c6539cadaab5fac96f8cc3765842a8a28e22212ae64d75053afdbdb8a",
+  "prediction_commit": "54a422f52ff82ede1fdcae113c5ff408ca437f50",
+  "environments": [
+    {
+      "version": 1,
+      "id": "d51f76fe545c4297a1b9e2426cbcb21b",
+      "ok": true,
+      "excel_version": "16.0",
+      "excel_build": "20527",
+      "excel_file_version": "16.0.20527.20150",
+      "excel_pid": null,
+      "calculation_settings": {
+        "calculation": -4135,
+        "compatibility_version": null,
+        "unavailable": [],
+        "PrecisionAsDisplayed": false,
+        "Date1904": false,
+        "CompatibilityVersion": 2,
+        "UseSystemSeparators": true,
+        "DecimalSeparator": ".",
+        "ThousandsSeparator": "\u00a0"
+      },
+      "automation_security_before": 1,
+      "automation_security_after": 1,
+      "env_id": "29bedb2b6722",
+      "machine": "GOVERT-OMEN",
+      "timestamp": "2026-11-11T23:22:29.571502+00:00",
+      "service_seconds": 0.5805188838858157,
+      "request_sha256": null
+    },
+    {
+      "version": 1,
+      "id": "eabb7bb6b03949faa60bba3ed2b466a4",
+      "ok": true,
+      "excel_version": "16.0",
+      "excel_build": "20527",
+      "excel_file_version": "16.0.20527.20150",
+      "excel_pid": null,
+      "calculation_settings": {
+        "calculation": -4135,
+        "compatibility_version": null,
+        "unavailable": [],
+        "PrecisionAsDisplayed": false,
+        "Date1904": false,
+        "CompatibilityVersion": 2,
+        "UseSystemSeparators": true,
+        "DecimalSeparator": ".",
+        "ThousandsSeparator": "\u00a0"
+      },
+      "automation_security_before": 1,
+      "automation_security_after": 1,
+      "env_id": "29bedb2b6722",
+      "machine": "GOVERT-OMEN",
+      "timestamp": "2026-11-11T23:22:29.715852+00:00",
+      "service_seconds": 0.7248510320205241,
+      "request_sha256": null
+    },
+    {
+      "version": 1,
+      "id": "e311d513f29a4299bc22b78574a7a870",
+      "ok": true,
+      "excel_version": "16.0",
+      "excel_build": "20527",
+      "excel_file_version": "16.0.20527.20150",
+      "excel_pid": null,
+      "calculation_settings": {
+        "calculation": -4135,
+        "compatibility_version": null,
+        "unavailable": [],
+        "PrecisionAsDisplayed": false,
+        "Date1904": false,
+        "CompatibilityVersion": 2,
+        "UseSystemSeparators": true,
+        "DecimalSeparator": ".",
+        "ThousandsSeparator": "\u00a0"
+      },
+      "automation_security_before": 1,
+      "automation_security_after": 1,
+      "env_id": "02cb49a79d1f",
+      "machine": "GOVERT-OMEN",
+      "timestamp": "2026-11-11T23:22:29.720710+00:00",
+      "service_seconds": 0.7252607839182019,
+      "request_sha256": null
+    }
+  ],
+  "rows": [
+    {
+      "id": "hybrid_0_S1",
+      "answer": {
+        "type": "number",
+        "bits": "3fc020c49ba5e354"
+      },
+      "matches": {
+        "prefix_seasons_global_deseasonalized_OLS": true
+      }
+    },
+    {
+      "id": "hybrid_0_S2",
+      "answer": {
+        "type": "number",
+        "bits": "3f50624dd2f1a9fc"
+      },
+      "matches": {
+        "prefix_seasons_global_deseasonalized_OLS": true
+      }
+    },
+    {
+      "id": "hybrid_0_S3",
+      "answer": {
+        "type": "number",
+        "bits": "3f50624dd2f1a9fc"
+      },
+      "matches": {
+        "prefix_seasons_global_deseasonalized_OLS": true
+      }
+    },
+    {
+      "id": "hybrid_0_S6",
+      "answer": {
+        "type": "number",
+        "bits": "3fd028f722d1a37b"
+      },
+      "matches": {
+        "prefix_seasons_global_deseasonalized_OLS": false
+      }
+    },
+    {
+      "id": "hybrid_0_S7",
+      "answer": {
+        "type": "number",
+        "bits": "3fd39d90666b7922"
+      },
+      "matches": {
+        "prefix_seasons_global_deseasonalized_OLS": false
+      }
+    },
+    {
+      "id": "hybrid_1_S1",
+      "answer": {
+        "type": "number",
+        "bits": "3fc020c49ba5e354"
+      },
+      "matches": {
+        "prefix_seasons_global_deseasonalized_OLS": true
+      }
+    },
+    {
+      "id": "hybrid_1_S2",
+      "answer": {
+        "type": "number",
+        "bits": "3f50624dd2f1a9fc"
+      },
+      "matches": {
+        "prefix_seasons_global_deseasonalized_OLS": true
+      }
+    },
+    {
+      "id": "hybrid_1_S3",
+      "answer": {
+        "type": "number",
+        "bits": "3f50624dd2f1a9fc"
+      },
+      "matches": {
+        "prefix_seasons_global_deseasonalized_OLS": true
+      }
+    },
+    {
+      "id": "hybrid_1_S6",
+      "answer": {
+        "type": "number",
+        "bits": "3fa028f722d1a3c0"
+      },
+      "matches": {
+        "prefix_seasons_global_deseasonalized_OLS": true
+      }
+    },
+    {
+      "id": "hybrid_1_S7",
+      "answer": {
+        "type": "number",
+        "bits": "3fa39d90666b794d"
+      },
+      "matches": {
+        "prefix_seasons_global_deseasonalized_OLS": true
+      }
+    },
+    {
+      "id": "hybrid_2_S1",
+      "answer": {
+        "type": "number",
+        "bits": "3fc020c49ba5e354"
+      },
+      "matches": {
+        "prefix_seasons_global_deseasonalized_OLS": true
+      }
+    },
+    {
+      "id": "hybrid_2_S2",
+      "answer": {
+        "type": "number",
+        "bits": "3f50624dd2f1a9fc"
+      },
+      "matches": {
+        "prefix_seasons_global_deseasonalized_OLS": true
+      }
+    },
+    {
+      "id": "hybrid_2_S3",
+      "answer": {
+        "type": "number",
+        "bits": "3f50624dd2f1a9fc"
+      },
+      "matches": {
+        "prefix_seasons_global_deseasonalized_OLS": true
+      }
+    },
+    {
+      "id": "hybrid_2_S6",
+      "answer": {
+        "type": "number",
+        "bits": "3fc028f722d1a378"
+      },
+      "matches": {
+        "prefix_seasons_global_deseasonalized_OLS": true
+      }
+    },
+    {
+      "id": "hybrid_2_S7",
+      "answer": {
+        "type": "number",
+        "bits": "3fc39d90666b7922"
+      },
+      "matches": {
+        "prefix_seasons_global_deseasonalized_OLS": true
+      }
+    },
+    {
+      "id": "hybrid_3_S1",
+      "answer": {
+        "type": "number",
+        "bits": "3fc020c49ba5e354"
+      },
+      "matches": {
+        "prefix_seasons_global_deseasonalized_OLS": true
+      }
+    },
+    {
+      "id": "hybrid_3_S2",
+      "answer": {
+        "type": "number",
+        "bits": "3f50624dd2f1a9fc"
+      },
+      "matches": {
+        "prefix_seasons_global_deseasonalized_OLS": true
+      }
+    },
+    {
+      "id": "hybrid_3_S3",
+      "answer": {
+        "type": "number",
+        "bits": "3f50624dd2f1a9fc"
+      },
+      "matches": {
+        "prefix_seasons_global_deseasonalized_OLS": true
+      }
+    },
+    {
+      "id": "hybrid_3_S6",
+      "answer": {
+        "type": "number",
+        "bits": "3fe028f722d1a373"
+      },
+      "matches": {
+        "prefix_seasons_global_deseasonalized_OLS": true
+      }
+    },
+    {
+      "id": "hybrid_3_S7",
+      "answer": {
+        "type": "number",
+        "bits": "3fe39d90666b791b"
+      },
+      "matches": {
+        "prefix_seasons_global_deseasonalized_OLS": true
+      }
+    },
+    {
+      "id": "hybrid_4_S1",
+      "answer": {
+        "type": "number",
+        "bits": "3fc020c49ba5e354"
+      },
+      "matches": {
+        "prefix_seasons_global_deseasonalized_OLS": true
+      }
+    },
+    {
+      "id": "hybrid_4_S2",
+      "answer": {
+        "type": "number",
+        "bits": "3f50624dd2f1a9fc"
+      },
+      "matches": {
+        "prefix_seasons_global_deseasonalized_OLS": true
+      }
+    },
+    {
+      "id": "hybrid_4_S3",
+      "answer": {
+        "type": "number",
+        "bits": "3f50624dd2f1a9fc"
+      },
+      "matches": {
+        "prefix_seasons_global_deseasonalized_OLS": true
+      }
+    },
+    {
+      "id": "hybrid_4_S6",
+      "answer": {
+        "type": "number",
+        "bits": "402028f722d1a374"
+      },
+      "matches": {
+        "prefix_seasons_global_deseasonalized_OLS": true
+      }
+    },
+    {
+      "id": "hybrid_4_S7",
+      "answer": {
+        "type": "number",
+        "bits": "40239d90666b791d"
+      },
+      "matches": {
+        "prefix_seasons_global_deseasonalized_OLS": true
+      }
+    },
+    {
+      "id": "hybrid_5_S1",
+      "answer": {
+        "type": "number",
+        "bits": "3fc020c49ba5e354"
+      },
+      "matches": {
+        "prefix_seasons_global_deseasonalized_OLS": true
+      }
+    },
+    {
+      "id": "hybrid_5_S2",
+      "answer": {
+        "type": "number",
+        "bits": "3f50624dd2f1a9fc"
+      },
+      "matches": {
+        "prefix_seasons_global_deseasonalized_OLS": true
+      }
+    },
+    {
+      "id": "hybrid_5_S3",
+      "answer": {
+        "type": "number",
+        "bits": "3f50624dd2f1a9fc"
+      },
+      "matches": {
+        "prefix_seasons_global_deseasonalized_OLS": true
+      }
+    },
+    {
+      "id": "hybrid_5_S6",
+      "answer": {
+        "type": "number",
+        "bits": "3fd028f722d1a480"
+      },
+      "matches": {
+        "prefix_seasons_global_deseasonalized_OLS": true
+      }
+    },
+    {
+      "id": "hybrid_5_S7",
+      "answer": {
+        "type": "number",
+        "bits": "3fd39d90666b7bbc"
+      },
+      "matches": {
+        "prefix_seasons_global_deseasonalized_OLS": true
+      }
+    },
+    {
+      "id": "hybrid_6_S1",
+      "answer": {
+        "type": "number",
+        "bits": "3fc020c49ba5e354"
+      },
+      "matches": {
+        "prefix_seasons_global_deseasonalized_OLS": true
+      }
+    },
+    {
+      "id": "hybrid_6_S2",
+      "answer": {
+        "type": "number",
+        "bits": "3f50624dd2f1a9fc"
+      },
+      "matches": {
+        "prefix_seasons_global_deseasonalized_OLS": true
+      }
+    },
+    {
+      "id": "hybrid_6_S3",
+      "answer": {
+        "type": "number",
+        "bits": "3f50624dd2f1a9fc"
+      },
+      "matches": {
+        "prefix_seasons_global_deseasonalized_OLS": true
+      }
+    },
+    {
+      "id": "hybrid_6_S6",
+      "answer": {
+        "type": "number",
+        "bits": "3fd028f722d1a378"
+      },
+      "matches": {
+        "prefix_seasons_global_deseasonalized_OLS": true
+      }
+    },
+    {
+      "id": "hybrid_6_S7",
+      "answer": {
+        "type": "number",
+        "bits": "3fd39d90666b7922"
+      },
+      "matches": {
+        "prefix_seasons_global_deseasonalized_OLS": true
+      }
+    },
+    {
+      "id": "hybrid_7_S1",
+      "answer": {
+        "type": "number",
+        "bits": "3fc020c49ba5e354"
+      },
+      "matches": {
+        "prefix_seasons_global_deseasonalized_OLS": true
+      }
+    },
+    {
+      "id": "hybrid_7_S2",
+      "answer": {
+        "type": "number",
+        "bits": "3f50624dd2f1a9fc"
+      },
+      "matches": {
+        "prefix_seasons_global_deseasonalized_OLS": true
+      }
+    },
+    {
+      "id": "hybrid_7_S3",
+      "answer": {
+        "type": "number",
+        "bits": "3f50624dd2f1a9fc"
+      },
+      "matches": {
+        "prefix_seasons_global_deseasonalized_OLS": true
+      }
+    },
+    {
+      "id": "hybrid_7_S6",
+      "answer": {
+        "type": "number",
+        "bits": "3fd028f722d1a380"
+      },
+      "matches": {
+        "prefix_seasons_global_deseasonalized_OLS": true
+      }
+    },
+    {
+      "id": "hybrid_7_S7",
+      "answer": {
+        "type": "number",
+        "bits": "3fd39d90666b792b"
+      },
+      "matches": {
+        "prefix_seasons_global_deseasonalized_OLS": true
+      }
+    },
+    {
+      "id": "hybrid_8_S1",
+      "answer": {
+        "type": "number",
+        "bits": "3fc020c49ba5e354"
+      },
+      "matches": {
+        "prefix_seasons_global_deseasonalized_OLS": true
+      }
+    },
+    {
+      "id": "hybrid_8_S2",
+      "answer": {
+        "type": "number",
+        "bits": "3f50624dd2f1a9fc"
+      },
+      "matches": {
+        "prefix_seasons_global_deseasonalized_OLS": true
+      }
+    },
+    {
+      "id": "hybrid_8_S3",
+      "answer": {
+        "type": "number",
+        "bits": "3f50624dd2f1a9fc"
+      },
+      "matches": {
+        "prefix_seasons_global_deseasonalized_OLS": true
+      }
+    },
+    {
+      "id": "hybrid_8_S6",
+      "answer": {
+        "type": "number",
+        "bits": "3fd028f722d1a373"
+      },
+      "matches": {
+        "prefix_seasons_global_deseasonalized_OLS": true
+      }
+    },
+    {
+      "id": "hybrid_8_S7",
+      "answer": {
+        "type": "number",
+        "bits": "3fd39d90666b791b"
+      },
+      "matches": {
+        "prefix_seasons_global_deseasonalized_OLS": true
+      }
+    },
+    {
+      "id": "hybrid_9_S1",
+      "answer": {
+        "type": "number",
+        "bits": "3fc020c49ba5e354"
+      },
+      "matches": {
+        "prefix_seasons_global_deseasonalized_OLS": true
+      }
+    },
+    {
+      "id": "hybrid_9_S2",
+      "answer": {
+        "type": "number",
+        "bits": "3f50624dd2f1a9fc"
+      },
+      "matches": {
+        "prefix_seasons_global_deseasonalized_OLS": true
+      }
+    },
+    {
+      "id": "hybrid_9_S3",
+      "answer": {
+        "type": "number",
+        "bits": "3f50624dd2f1a9fc"
+      },
+      "matches": {
+        "prefix_seasons_global_deseasonalized_OLS": true
+      }
+    },
+    {
+      "id": "hybrid_9_S6",
+      "answer": {
+        "type": "number",
+        "bits": "3fd028f722d1a374"
+      },
+      "matches": {
+        "prefix_seasons_global_deseasonalized_OLS": true
+      }
+    },
+    {
+      "id": "hybrid_9_S7",
+      "answer": {
+        "type": "number",
+        "bits": "3fd39d90666b791d"
+      },
+      "matches": {
+        "prefix_seasons_global_deseasonalized_OLS": true
+      }
+    },
+    {
+      "id": "hybrid_0_F1",
+      "answer": {
+        "type": "number",
+        "bits": "bfe1d963a61052d0"
+      },
+      "matches": {
+        "prefix_seasons_global_deseasonalized_OLS": false
+      }
+    },
+    {
+      "id": "hybrid_0_F2",
+      "answer": {
+        "type": "number",
+        "bits": "401d6f8b53bf2734"
+      },
+      "matches": {
+        "prefix_seasons_global_deseasonalized_OLS": false
+      }
+    },
+    {
+      "id": "hybrid_0_F3",
+      "answer": {
+        "type": "number",
+        "bits": "bfe7214b273ffa88"
+      },
+      "matches": {
+        "prefix_seasons_global_deseasonalized_OLS": false
+      }
+    },
+    {
+      "id": "hybrid_1_F1",
+      "answer": {
+        "type": "number",
+        "bits": "3fb1d963a6105240"
+      },
+      "matches": {
+        "prefix_seasons_global_deseasonalized_OLS": false
+      }
+    },
+    {
+      "id": "hybrid_1_F2",
+      "answer": {
+        "type": "number",
+        "bits": "402029074ac40d8c"
+      },
+      "matches": {
+        "prefix_seasons_global_deseasonalized_OLS": true
+      }
+    },
+    {
+      "id": "hybrid_1_F3",
+      "answer": {
+        "type": "number",
+        "bits": "3fb7214b273ffa00"
+      },
+      "matches": {
+        "prefix_seasons_global_deseasonalized_OLS": false
+      }
+    },
+    {
+      "id": "hybrid_2_F1",
+      "answer": {
+        "type": "number",
+        "bits": "3fd1d963a61052c0"
+      },
+      "matches": {
+        "prefix_seasons_global_deseasonalized_OLS": false
+      }
+    },
+    {
+      "id": "hybrid_2_F2",
+      "answer": {
+        "type": "number",
+        "bits": "4020a41d2b103633"
+      },
+      "matches": {
+        "prefix_seasons_global_deseasonalized_OLS": true
+      }
+    },
+    {
+      "id": "hybrid_2_F3",
+      "answer": {
+        "type": "number",
+        "bits": "3fd7214b273ffa70"
+      },
+      "matches": {
+        "prefix_seasons_global_deseasonalized_OLS": false
+      }
+    },
+    {
+      "id": "hybrid_3_F1",
+      "answer": {
+        "type": "number",
+        "bits": "3ff1d963a61052cc"
+      },
+      "matches": {
+        "prefix_seasons_global_deseasonalized_OLS": true
+      }
+    },
+    {
+      "id": "hybrid_3_F2",
+      "answer": {
+        "type": "number",
+        "bits": "40229074ac40d8cb"
+      },
+      "matches": {
+        "prefix_seasons_global_deseasonalized_OLS": true
+      }
+    },
+    {
+      "id": "hybrid_3_F3",
+      "answer": {
+        "type": "number",
+        "bits": "3ff7214b273ffa84"
+      },
+      "matches": {
+        "prefix_seasons_global_deseasonalized_OLS": true
+      }
+    },
+    {
+      "id": "hybrid_4_F1",
+      "answer": {
+        "type": "number",
+        "bits": "4031d963a61052cb"
+      },
+      "matches": {
+        "prefix_seasons_global_deseasonalized_OLS": true
+      }
+    },
+    {
+      "id": "hybrid_4_F2",
+      "answer": {
+        "type": "number",
+        "bits": "403c83a56206c65c"
+      },
+      "matches": {
+        "prefix_seasons_global_deseasonalized_OLS": true
+      }
+    },
+    {
+      "id": "hybrid_4_F3",
+      "answer": {
+        "type": "number",
+        "bits": "4037214b273ffa84"
+      },
+      "matches": {
+        "prefix_seasons_global_deseasonalized_OLS": true
+      }
+    },
+    {
+      "id": "hybrid_5_F1",
+      "answer": {
+        "type": "number",
+        "bits": "40a0211d963a6106"
+      },
+      "matches": {
+        "prefix_seasons_global_deseasonalized_OLS": false
+      }
+    },
+    {
+      "id": "hybrid_5_F2",
+      "answer": {
+        "type": "number",
+        "bits": "40a231483a56206d"
+      },
+      "matches": {
+        "prefix_seasons_global_deseasonalized_OLS": false
+      }
+    },
+    {
+      "id": "hybrid_5_F3",
+      "answer": {
+        "type": "number",
+        "bits": "40a4217214b27400"
+      },
+      "matches": {
+        "prefix_seasons_global_deseasonalized_OLS": true
+      }
+    },
+    {
+      "id": "hybrid_6_F1",
+      "answer": {
+        "type": "number",
+        "bits": "3fe1d963a61052c0"
+      },
+      "matches": {
+        "prefix_seasons_global_deseasonalized_OLS": false
+      }
+    },
+    {
+      "id": "hybrid_6_F2",
+      "answer": {
+        "type": "number",
+        "bits": "4030a41d2b103633"
+      },
+      "matches": {
+        "prefix_seasons_global_deseasonalized_OLS": true
+      }
+    },
+    {
+      "id": "hybrid_6_F3",
+      "answer": {
+        "type": "number",
+        "bits": "3fe7214b273ffa70"
+      },
+      "matches": {
+        "prefix_seasons_global_deseasonalized_OLS": false
+      }
+    },
+    {
+      "id": "hybrid_7_F1",
+      "answer": {
+        "type": "number",
+        "bits": "3fe1d963a61052c0"
+      },
+      "matches": {
+        "prefix_seasons_global_deseasonalized_OLS": true
+      }
+    },
+    {
+      "id": "hybrid_7_F2",
+      "answer": {
+        "type": "number",
+        "bits": "4040520e95881b1a"
+      },
+      "matches": {
+        "prefix_seasons_global_deseasonalized_OLS": true
+      }
+    },
+    {
+      "id": "hybrid_7_F3",
+      "answer": {
+        "type": "number",
+        "bits": "3fe7214b273ffa80"
+      },
+      "matches": {
+        "prefix_seasons_global_deseasonalized_OLS": true
+      }
+    },
+    {
+      "id": "hybrid_8_F1",
+      "answer": {
+        "type": "number",
+        "bits": "3fe1d963a61052cc"
+      },
+      "matches": {
+        "prefix_seasons_global_deseasonalized_OLS": true
+      }
+    },
+    {
+      "id": "hybrid_8_F2",
+      "answer": {
+        "type": "number",
+        "bits": "40129074ac40d8cb"
+      },
+      "matches": {
+        "prefix_seasons_global_deseasonalized_OLS": true
+      }
+    },
+    {
+      "id": "hybrid_8_F3",
+      "answer": {
+        "type": "number",
+        "bits": "3fe7214b273ffa84"
+      },
+      "matches": {
+        "prefix_seasons_global_deseasonalized_OLS": true
+      }
+    },
+    {
+      "id": "hybrid_9_F1",
+      "answer": {
+        "type": "number",
+        "bits": "3fe1d963a61052cb"
+      },
+      "matches": {
+        "prefix_seasons_global_deseasonalized_OLS": true
+      }
+    },
+    {
+      "id": "hybrid_9_F2",
+      "answer": {
+        "type": "number",
+        "bits": "3fe883a56206c65c"
+      },
+      "matches": {
+        "prefix_seasons_global_deseasonalized_OLS": true
+      }
+    },
+    {
+      "id": "hybrid_9_F3",
+      "answer": {
+        "type": "number",
+        "bits": "3fe7214b273ffa84"
+      },
+      "matches": {
+        "prefix_seasons_global_deseasonalized_OLS": true
+      }
+    },
+    {
+      "id": "hybrid_0_Cendpoint",
+      "answer": {
+        "type": "number",
+        "bits": "3fd39d90666b7922"
+      },
+      "matches": {
+        "prefix_seasons_global_deseasonalized_OLS": false
+      }
+    },
+    {
+      "id": "hybrid_1_Cendpoint",
+      "answer": {
+        "type": "number",
+        "bits": "3fa39d90666b794d"
+      },
+      "matches": {
+        "prefix_seasons_global_deseasonalized_OLS": true
+      }
+    },
+    {
+      "id": "hybrid_2_Cendpoint",
+      "answer": {
+        "type": "number",
+        "bits": "3fc39d90666b7922"
+      },
+      "matches": {
+        "prefix_seasons_global_deseasonalized_OLS": true
+      }
+    },
+    {
+      "id": "hybrid_3_Cendpoint",
+      "answer": {
+        "type": "number",
+        "bits": "3fe39d90666b791b"
+      },
+      "matches": {
+        "prefix_seasons_global_deseasonalized_OLS": true
+      }
+    },
+    {
+      "id": "hybrid_4_Cendpoint",
+      "answer": {
+        "type": "number",
+        "bits": "40239d90666b791d"
+      },
+      "matches": {
+        "prefix_seasons_global_deseasonalized_OLS": true
+      }
+    },
+    {
+      "id": "hybrid_5_Cendpoint",
+      "answer": {
+        "type": "number",
+        "bits": "3fd39d90666b7bbc"
+      },
+      "matches": {
+        "prefix_seasons_global_deseasonalized_OLS": true
+      }
+    },
+    {
+      "id": "hybrid_6_Cendpoint",
+      "answer": {
+        "type": "number",
+        "bits": "3fd39d90666b7922"
+      },
+      "matches": {
+        "prefix_seasons_global_deseasonalized_OLS": true
+      }
+    },
+    {
+      "id": "hybrid_7_Cendpoint",
+      "answer": {
+        "type": "number",
+        "bits": "3fd39d90666b792b"
+      },
+      "matches": {
+        "prefix_seasons_global_deseasonalized_OLS": true
+      }
+    },
+    {
+      "id": "hybrid_8_Cendpoint",
+      "answer": {
+        "type": "number",
+        "bits": "3fd39d90666b791b"
+      },
+      "matches": {
+        "prefix_seasons_global_deseasonalized_OLS": true
+      }
+    },
+    {
+      "id": "hybrid_9_Cendpoint",
+      "answer": {
+        "type": "number",
+        "bits": "3fd39d90666b791d"
+      },
+      "matches": {
+        "prefix_seasons_global_deseasonalized_OLS": true
+      }
+    }
+  ]
+}

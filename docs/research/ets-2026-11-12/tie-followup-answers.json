@@ -1,0 +1,881 @@
+{
+  "predictions_sha256": "d36332eac57fd79650103e2bb55b179c59be205f0569c28db41b2201336a4c03",
+  "prediction_commit": "dc8f772014b60fe530d8501f40056a6e1c8f8479",
+  "environments": [
+    {
+      "version": 1,
+      "id": "42e05d7c050942789d9cec129a609130",
+      "ok": true,
+      "excel_version": "16.0",
+      "excel_build": "20527",
+      "excel_file_version": "16.0.20527.20150",
+      "excel_pid": null,
+      "calculation_settings": {
+        "calculation": -4135,
+        "compatibility_version": null,
+        "unavailable": [],
+        "PrecisionAsDisplayed": false,
+        "Date1904": false,
+        "CompatibilityVersion": 2,
+        "UseSystemSeparators": true,
+        "DecimalSeparator": ".",
+        "ThousandsSeparator": "\u00a0"
+      },
+      "automation_security_before": 1,
+      "automation_security_after": 1,
+      "env_id": "29bedb2b6722",
+      "machine": "GOVERT-OMEN",
+      "timestamp": "2026-11-11T23:19:50.312926+00:00",
+      "service_seconds": 0.6880392159800977,
+      "request_sha256": null
+    }
+  ],
+  "rows": [
+    {
+      "id": "K24x3_d-0.0009765625",
+      "answer": {
+        "type": "number",
+        "bits": "3fe8000000000000"
+      },
+      "matches": {
+        "double_sse": true,
+        "double_mse": true,
+        "double_rmse": false,
+        "pc64_sse_store": true,
+        "pc64_mse_store": false,
+        "pc64_rmse_store": false,
+        "exact_sse_store": true,
+        "double_products_fsum": true,
+        "pc64_sse_unstored": true
+      }
+    },
+    {
+      "id": "K24x5_d-0.0009765625",
+      "answer": {
+        "type": "number",
+        "bits": "3feccccccccccccd"
+      },
+      "matches": {
+        "double_sse": true,
+        "double_mse": true,
+        "double_rmse": true,
+        "pc64_sse_store": true,
+        "pc64_mse_store": true,
+        "pc64_rmse_store": true,
+        "exact_sse_store": true,
+        "double_products_fsum": true,
+        "pc64_sse_unstored": false
+      }
+    },
+    {
+      "id": "K25x1_d-0.0009765625",
+      "answer": {
+        "type": "number",
+        "bits": "3fe8000000000000"
+      },
+      "matches": {
+        "double_sse": true,
+        "double_mse": true,
+        "double_rmse": true,
+        "pc64_sse_store": true,
+        "pc64_mse_store": true,
+        "pc64_rmse_store": false,
+        "exact_sse_store": true,
+        "double_products_fsum": true,
+        "pc64_sse_unstored": true
+      }
+    },
+    {
+      "id": "K25x3_d0.0009765625",
+      "answer": {
+        "type": "number",
+        "bits": "3fe8000000000000"
+      },
+      "matches": {
+        "double_sse": true,
+        "double_mse": false,
+        "double_rmse": false,
+        "pc64_sse_store": false,
+        "pc64_mse_store": false,
+        "pc64_rmse_store": false,
+        "exact_sse_store": false,
+        "double_products_fsum": false,
+        "pc64_sse_unstored": false
+      }
+    },
+    {
+      "id": "K25x3_d-0.0009765625",
+      "answer": {
+        "type": "number",
+        "bits": "3feccccccccccccd"
+      },
+      "matches": {
+        "double_sse": true,
+        "double_mse": true,
+        "double_rmse": true,
+        "pc64_sse_store": true,
+        "pc64_mse_store": false,
+        "pc64_rmse_store": false,
+        "exact_sse_store": true,
+        "double_products_fsum": true,
+        "pc64_sse_unstored": false
+      }
+    },
+    {
+      "id": "K26x1_d-0.0009765625",
+      "answer": {
+        "type": "number",
+        "bits": "3fe8000000000000"
+      },
+      "matches": {
+        "double_sse": true,
+        "double_mse": false,
+        "double_rmse": false,
+        "pc64_sse_store": true,
+        "pc64_mse_store": false,
+        "pc64_rmse_store": false,
+        "exact_sse_store": true,
+        "double_products_fsum": true,
+        "pc64_sse_unstored": true
+      }
+    },
+    {
+      "id": "K26x5_d0.0",
+      "answer": {
+        "type": "number",
+        "bits": "3fe8000000000000"
+      },
+      "matches": {
+        "double_sse": true,
+        "double_mse": true,
+        "double_rmse": true,
+        "pc64_sse_store": false,
+        "pc64_mse_store": false,
+        "pc64_rmse_store": false,
+        "exact_sse_store": false,
+        "double_products_fsum": true,
+        "pc64_sse_unstored": false
+      }
+    },
+    {
+      "id": "K26x5_d-0.0009765625",
+      "answer": {
+        "type": "number",
+        "bits": "3fe8000000000000"
+      },
+      "matches": {
+        "double_sse": true,
+        "double_mse": true,
+        "double_rmse": true,
+        "pc64_sse_store": false,
+        "pc64_mse_store": false,
+        "pc64_rmse_store": false,
+        "exact_sse_store": false,
+        "double_products_fsum": true,
+        "pc64_sse_unstored": true
+      }
+    },
+    {
+      "id": "K26x5_d-0.0625",
+      "answer": {
+        "type": "number",
+        "bits": "3fe8000000000000"
+      },
+      "matches": {
+        "double_sse": true,
+        "double_mse": true,
+        "double_rmse": true,
+        "pc64_sse_store": true,
+        "pc64_mse_store": false,
+        "pc64_rmse_store": false,
+        "exact_sse_store": true,
+        "double_products_fsum": true,
+        "pc64_sse_unstored": true
+      }
+    },
+    {
+      "id": "K27x1_d-0.0009765625",
+      "answer": {
+        "type": "number",
+        "bits": "3fe8000000000000"
+      },
+      "matches": {
+        "double_sse": true,
+        "double_mse": false,
+        "double_rmse": false,
+        "pc64_sse_store": false,
+        "pc64_mse_store": false,
+        "pc64_rmse_store": false,
+        "exact_sse_store": false,
+        "double_products_fsum": false,
+        "pc64_sse_unstored": true
+      }
+    },
+    {
+      "id": "K27x3_d0.0",
+      "answer": {
+        "type": "number",
+        "bits": "3fe8000000000000"
+      },
+      "matches": {
+        "double_sse": true,
+        "double_mse": false,
+        "double_rmse": false,
+        "pc64_sse_store": false,
+        "pc64_mse_store": false,
+        "pc64_rmse_store": false,
+        "exact_sse_store": false,
+        "double_products_fsum": true,
+        "pc64_sse_unstored": false
+      }
+    },
+    {
+      "id": "K27x3_d-0.0009765625",
+      "answer": {
+        "type": "number",
+        "bits": "3fe8000000000000"
+      },
+      "matches": {
+        "double_sse": true,
+        "double_mse": false,
+        "double_rmse": false,
+        "pc64_sse_store": false,
+        "pc64_mse_store": false,
+        "pc64_rmse_store": false,
+        "exact_sse_store": false,
+        "double_products_fsum": true,
+        "pc64_sse_unstored": true
+      }
+    },
+    {
+      "id": "K27x3_d-0.0625",
+      "answer": {
+        "type": "number",
+        "bits": "3feccccccccccccd"
+      },
+      "matches": {
+        "double_sse": false,
+        "double_mse": true,
+        "double_rmse": true,
+        "pc64_sse_store": false,
+        "pc64_mse_store": true,
+        "pc64_rmse_store": true,
+        "exact_sse_store": false,
+        "double_products_fsum": false,
+        "pc64_sse_unstored": false
+      }
+    },
+    {
+      "id": "K27x5_d-0.0009765625",
+      "answer": {
+        "type": "number",
+        "bits": "3fe8000000000000"
+      },
+      "matches": {
+        "double_sse": true,
+        "double_mse": true,
+        "double_rmse": true,
+        "pc64_sse_store": false,
+        "pc64_mse_store": false,
+        "pc64_rmse_store": false,
+        "exact_sse_store": false,
+        "double_products_fsum": false,
+        "pc64_sse_unstored": true
+      }
+    },
+    {
+      "id": "K27x5_d-0.0625",
+      "answer": {
+        "type": "number",
+        "bits": "3fe8000000000000"
+      },
+      "matches": {
+        "double_sse": true,
+        "double_mse": true,
+        "double_rmse": false,
+        "pc64_sse_store": false,
+        "pc64_mse_store": true,
+        "pc64_rmse_store": false,
+        "exact_sse_store": false,
+        "double_products_fsum": true,
+        "pc64_sse_unstored": true
+      }
+    },
+    {
+      "id": "K28x1_d0.0",
+      "answer": {
+        "type": "number",
+        "bits": "3feccccccccccccd"
+      },
+      "matches": {
+        "double_sse": false,
+        "double_mse": false,
+        "double_rmse": false,
+        "pc64_sse_store": true,
+        "pc64_mse_store": true,
+        "pc64_rmse_store": true,
+        "exact_sse_store": true,
+        "double_products_fsum": false,
+        "pc64_sse_unstored": true
+      }
+    },
+    {
+      "id": "K28x1_d0.0009765625",
+      "answer": {
+        "type": "number",
+        "bits": "3feccccccccccccd"
+      },
+      "matches": {
+        "double_sse": true,
+        "double_mse": true,
+        "double_rmse": true,
+        "pc64_sse_store": true,
+        "pc64_mse_store": true,
+        "pc64_rmse_store": true,
+        "exact_sse_store": true,
+        "double_products_fsum": false,
+        "pc64_sse_unstored": true
+      }
+    },
+    {
+      "id": "K28x1_d-0.0625",
+      "answer": {
+        "type": "number",
+        "bits": "3fe8000000000000"
+      },
+      "matches": {
+        "double_sse": true,
+        "double_mse": true,
+        "double_rmse": true,
+        "pc64_sse_store": true,
+        "pc64_mse_store": false,
+        "pc64_rmse_store": false,
+        "exact_sse_store": true,
+        "double_products_fsum": true,
+        "pc64_sse_unstored": true
+      }
+    },
+    {
+      "id": "K28x3_d-0.0009765625",
+      "answer": {
+        "type": "number",
+        "bits": "3feccccccccccccd"
+      },
+      "matches": {
+        "double_sse": true,
+        "double_mse": true,
+        "double_rmse": true,
+        "pc64_sse_store": true,
+        "pc64_mse_store": true,
+        "pc64_rmse_store": true,
+        "exact_sse_store": true,
+        "double_products_fsum": true,
+        "pc64_sse_unstored": false
+      }
+    },
+    {
+      "id": "K28x3_d-1.0",
+      "answer": {
+        "type": "number",
+        "bits": "3fe8000000000000"
+      },
+      "matches": {
+        "double_sse": true,
+        "double_mse": true,
+        "double_rmse": false,
+        "pc64_sse_store": true,
+        "pc64_mse_store": true,
+        "pc64_rmse_store": true,
+        "exact_sse_store": true,
+        "double_products_fsum": true,
+        "pc64_sse_unstored": true
+      }
+    },
+    {
+      "id": "K28x5_d0.0009765625",
+      "answer": {
+        "type": "number",
+        "bits": "3fe8000000000000"
+      },
+      "matches": {
+        "double_sse": true,
+        "double_mse": true,
+        "double_rmse": false,
+        "pc64_sse_store": false,
+        "pc64_mse_store": false,
+        "pc64_rmse_store": false,
+        "exact_sse_store": false,
+        "double_products_fsum": false,
+        "pc64_sse_unstored": false
+      }
+    },
+    {
+      "id": "K28x5_d-1.0",
+      "answer": {
+        "type": "number",
+        "bits": "3feccccccccccccd"
+      },
+      "matches": {
+        "double_sse": true,
+        "double_mse": true,
+        "double_rmse": true,
+        "pc64_sse_store": false,
+        "pc64_mse_store": true,
+        "pc64_rmse_store": true,
+        "exact_sse_store": false,
+        "double_products_fsum": false,
+        "pc64_sse_unstored": false
+      }
+    },
+    {
+      "id": "K29x1_d0.0009765625",
+      "answer": {
+        "type": "number",
+        "bits": "3fe8000000000000"
+      },
+      "matches": {
+        "double_sse": true,
+        "double_mse": false,
+        "double_rmse": false,
+        "pc64_sse_store": false,
+        "pc64_mse_store": false,
+        "pc64_rmse_store": false,
+        "exact_sse_store": false,
+        "double_products_fsum": false,
+        "pc64_sse_unstored": false
+      }
+    },
+    {
+      "id": "K29x1_d-0.0625",
+      "answer": {
+        "type": "number",
+        "bits": "3feccccccccccccd"
+      },
+      "matches": {
+        "double_sse": true,
+        "double_mse": true,
+        "double_rmse": true,
+        "pc64_sse_store": true,
+        "pc64_mse_store": false,
+        "pc64_rmse_store": true,
+        "exact_sse_store": true,
+        "double_products_fsum": false,
+        "pc64_sse_unstored": false
+      }
+    },
+    {
+      "id": "K29x3_d-1.0",
+      "answer": {
+        "type": "number",
+        "bits": "3feccccccccccccd"
+      },
+      "matches": {
+        "double_sse": true,
+        "double_mse": true,
+        "double_rmse": true,
+        "pc64_sse_store": false,
+        "pc64_mse_store": false,
+        "pc64_rmse_store": false,
+        "exact_sse_store": false,
+        "double_products_fsum": true,
+        "pc64_sse_unstored": false
+      }
+    },
+    {
+      "id": "K29x5_d-1.0",
+      "answer": {
+        "type": "number",
+        "bits": "3fe8000000000000"
+      },
+      "matches": {
+        "double_sse": true,
+        "double_mse": true,
+        "double_rmse": true,
+        "pc64_sse_store": false,
+        "pc64_mse_store": false,
+        "pc64_rmse_store": false,
+        "exact_sse_store": false,
+        "double_products_fsum": true,
+        "pc64_sse_unstored": true
+      }
+    },
+    {
+      "id": "K30x1_d-0.0009765625",
+      "answer": {
+        "type": "number",
+        "bits": "3feccccccccccccd"
+      },
+      "matches": {
+        "double_sse": true,
+        "double_mse": true,
+        "double_rmse": true,
+        "pc64_sse_store": true,
+        "pc64_mse_store": true,
+        "pc64_rmse_store": true,
+        "exact_sse_store": true,
+        "double_products_fsum": true,
+        "pc64_sse_unstored": false
+      }
+    },
+    {
+      "id": "K30x1_d-1.0",
+      "answer": {
+        "type": "number",
+        "bits": "3fe8000000000000"
+      },
+      "matches": {
+        "double_sse": true,
+        "double_mse": true,
+        "double_rmse": false,
+        "pc64_sse_store": true,
+        "pc64_mse_store": false,
+        "pc64_rmse_store": false,
+        "exact_sse_store": true,
+        "double_products_fsum": true,
+        "pc64_sse_unstored": true
+      }
+    },
+    {
+      "id": "K30x5_d0.0",
+      "answer": {
+        "type": "number",
+        "bits": "3fe8000000000000"
+      },
+      "matches": {
+        "double_sse": true,
+        "double_mse": true,
+        "double_rmse": true,
+        "pc64_sse_store": false,
+        "pc64_mse_store": false,
+        "pc64_rmse_store": false,
+        "exact_sse_store": false,
+        "double_products_fsum": true,
+        "pc64_sse_unstored": false
+      }
+    },
+    {
+      "id": "K30x5_d-0.0009765625",
+      "answer": {
+        "type": "number",
+        "bits": "3fe8000000000000"
+      },
+      "matches": {
+        "double_sse": true,
+        "double_mse": true,
+        "double_rmse": true,
+        "pc64_sse_store": false,
+        "pc64_mse_store": false,
+        "pc64_rmse_store": false,
+        "exact_sse_store": false,
+        "double_products_fsum": true,
+        "pc64_sse_unstored": true
+      }
+    },
+    {
+      "id": "K30x5_d0.0625",
+      "answer": {
+        "type": "number",
+        "bits": "3fe8000000000000"
+      },
+      "matches": {
+        "double_sse": true,
+        "double_mse": true,
+        "double_rmse": false,
+        "pc64_sse_store": false,
+        "pc64_mse_store": false,
+        "pc64_rmse_store": false,
+        "exact_sse_store": false,
+        "double_products_fsum": true,
+        "pc64_sse_unstored": false
+      }
+    },
+    {
+      "id": "K30x5_d-0.0625",
+      "answer": {
+        "type": "number",
+        "bits": "3fe8000000000000"
+      },
+      "matches": {
+        "double_sse": true,
+        "double_mse": true,
+        "double_rmse": false,
+        "pc64_sse_store": false,
+        "pc64_mse_store": false,
+        "pc64_rmse_store": false,
+        "exact_sse_store": false,
+        "double_products_fsum": true,
+        "pc64_sse_unstored": true
+      }
+    },
+    {
+      "id": "K31x1_d0.0625",
+      "answer": {
+        "type": "number",
+        "bits": "3fe8000000000000"
+      },
+      "matches": {
+        "double_sse": true,
+        "double_mse": false,
+        "double_rmse": false,
+        "pc64_sse_store": false,
+        "pc64_mse_store": false,
+        "pc64_rmse_store": false,
+        "exact_sse_store": false,
+        "double_products_fsum": false,
+        "pc64_sse_unstored": false
+      }
+    },
+    {
+      "id": "K31x1_d-0.0625",
+      "answer": {
+        "type": "number",
+        "bits": "3fe8000000000000"
+      },
+      "matches": {
+        "double_sse": true,
+        "double_mse": true,
+        "double_rmse": false,
+        "pc64_sse_store": false,
+        "pc64_mse_store": false,
+        "pc64_rmse_store": false,
+        "exact_sse_store": false,
+        "double_products_fsum": false,
+        "pc64_sse_unstored": true
+      }
+    },
+    {
+      "id": "K31x1_d-1.0",
+      "answer": {
+        "type": "number",
+        "bits": "3feccccccccccccd"
+      },
+      "matches": {
+        "double_sse": true,
+        "double_mse": true,
+        "double_rmse": true,
+        "pc64_sse_store": false,
+        "pc64_mse_store": true,
+        "pc64_rmse_store": true,
+        "exact_sse_store": false,
+        "double_products_fsum": true,
+        "pc64_sse_unstored": false
+      }
+    },
+    {
+      "id": "K31x5_d0.0",
+      "answer": {
+        "type": "number",
+        "bits": "3fe8000000000000"
+      },
+      "matches": {
+        "double_sse": true,
+        "double_mse": true,
+        "double_rmse": true,
+        "pc64_sse_store": false,
+        "pc64_mse_store": false,
+        "pc64_rmse_store": false,
+        "exact_sse_store": false,
+        "double_products_fsum": false,
+        "pc64_sse_unstored": false
+      }
+    },
+    {
+      "id": "K31x5_d0.0625",
+      "answer": {
+        "type": "number",
+        "bits": "3fe8000000000000"
+      },
+      "matches": {
+        "double_sse": true,
+        "double_mse": true,
+        "double_rmse": false,
+        "pc64_sse_store": false,
+        "pc64_mse_store": false,
+        "pc64_rmse_store": false,
+        "exact_sse_store": false,
+        "double_products_fsum": false,
+        "pc64_sse_unstored": false
+      }
+    },
+    {
+      "id": "K31x5_d-0.0625",
+      "answer": {
+        "type": "number",
+        "bits": "3fe8000000000000"
+      },
+      "matches": {
+        "double_sse": true,
+        "double_mse": true,
+        "double_rmse": true,
+        "pc64_sse_store": false,
+        "pc64_mse_store": false,
+        "pc64_rmse_store": false,
+        "exact_sse_store": false,
+        "double_products_fsum": false,
+        "pc64_sse_unstored": true
+      }
+    },
+    {
+      "id": "K32x1_d-0.0009765625",
+      "answer": {
+        "type": "number",
+        "bits": "3feccccccccccccd"
+      },
+      "matches": {
+        "double_sse": false,
+        "double_mse": true,
+        "double_rmse": true,
+        "pc64_sse_store": true,
+        "pc64_mse_store": true,
+        "pc64_rmse_store": true,
+        "exact_sse_store": true,
+        "double_products_fsum": false,
+        "pc64_sse_unstored": true
+      }
+    },
+    {
+      "id": "K32x1_d-0.0625",
+      "answer": {
+        "type": "number",
+        "bits": "3feccccccccccccd"
+      },
+      "matches": {
+        "double_sse": true,
+        "double_mse": true,
+        "double_rmse": true,
+        "pc64_sse_store": true,
+        "pc64_mse_store": true,
+        "pc64_rmse_store": true,
+        "exact_sse_store": true,
+        "double_products_fsum": false,
+        "pc64_sse_unstored": false
+      }
+    },
+    {
+      "id": "K32x1_d-1.0",
+      "answer": {
+        "type": "number",
+        "bits": "3fe8000000000000"
+      },
+      "matches": {
+        "double_sse": true,
+        "double_mse": false,
+        "double_rmse": false,
+        "pc64_sse_store": false,
+        "pc64_mse_store": false,
+        "pc64_rmse_store": false,
+        "exact_sse_store": false,
+        "double_products_fsum": true,
+        "pc64_sse_unstored": true
+      }
+    },
+    {
+      "id": "K32x3_d0.0",
+      "answer": {
+        "type": "number",
+        "bits": "3fe8000000000000"
+      },
+      "matches": {
+        "double_sse": true,
+        "double_mse": false,
+        "double_rmse": false,
+        "pc64_sse_store": false,
+        "pc64_mse_store": false,
+        "pc64_rmse_store": false,
+        "exact_sse_store": false,
+        "double_products_fsum": false,
+        "pc64_sse_unstored": true
+      }
+    },
+    {
+      "id": "underflow_-500",
+      "answer": {
+        "type": "number",
+        "bits": "3fe8000000000000"
+      },
+      "matches": {
+        "double_sse": true,
+        "double_mse": true,
+        "double_rmse": true,
+        "pc64_sse_store": true,
+        "pc64_mse_store": true,
+        "pc64_rmse_store": true,
+        "exact_sse_store": true,
+        "double_products_fsum": true,
+        "pc64_sse_unstored": true
+      }
+    },
+    {
+      "id": "underflow_-530",
+      "answer": {
+        "type": "number",
+        "bits": "3feccccccccccccd"
+      },
+      "matches": {
+        "double_sse": false,
+        "double_mse": false,
+        "double_rmse": false,
+        "pc64_sse_store": false,
+        "pc64_mse_store": false,
+        "pc64_rmse_store": false,
+        "exact_sse_store": false,
+        "double_products_fsum": false,
+        "pc64_sse_unstored": false
+      }
+    },
+    {
+      "id": "underflow_-540",
+      "answer": {
+        "type": "number",
+        "bits": "3feccccccccccccd"
+      },
+      "matches": {
+        "double_sse": false,
+        "double_mse": false,
+        "double_rmse": false,
+        "pc64_sse_store": false,
+        "pc64_mse_store": false,
+        "pc64_rmse_store": false,
+        "exact_sse_store": false,
+        "double_products_fsum": false,
+        "pc64_sse_unstored": false
+      }
+    },
+    {
+      "id": "underflow_-550",
+      "answer": {
+        "type": "number",
+        "bits": "3feccccccccccccd"
+      },
+      "matches": {
+        "double_sse": false,
+        "double_mse": true,
+        "double_rmse": true,
+        "pc64_sse_store": true,
+        "pc64_mse_store": true,
+        "pc64_rmse_store": true,
+        "exact_sse_store": true,
+        "double_products_fsum": false,
+        "pc64_sse_unstored": false
+      }
+    },
+    {
+      "id": "underflow_-600",
+      "answer": {
+        "type": "number",
+        "bits": "3feccccccccccccd"
+      },
+      "matches": {
+        "double_sse": true,
+        "double_mse": true,
+        "double_rmse": true,
+        "pc64_sse_store": true,
+        "pc64_mse_store": true,
+        "pc64_rmse_store": true,
+        "exact_sse_store": true,
+        "double_products_fsum": true,
+        "pc64_sse_unstored": false
+      }
+    }
+  ]
+}

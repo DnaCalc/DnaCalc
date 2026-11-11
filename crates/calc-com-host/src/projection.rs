@@ -20,18 +20,17 @@ type Run = unsafe extern "system" fn(
 type Qualifier =
     unsafe extern "system" fn(*const u16, usize, *const u16, usize, *mut *mut u16) -> i32;
 type OwnsModule = unsafe extern "system" fn(*const c_void, *const u16, usize) -> bool;
-type CallerOf = unsafe extern "system" fn(*const c_void, *mut u32, *mut u32) -> i32;
 #[link(name = "oleaut32")]
 unsafe extern "system" {
     fn SysAllocStringLen(text: *const u16, length: u32) -> *mut u16;
 }
 unsafe extern "C" {
     #[cfg(test)]
-    fn dna_com_test_ranges() -> i32;
-    #[cfg(test)]
     fn dna_com_test_events() -> i32;
     #[cfg(test)]
     fn dna_com_test_office() -> i32;
+    #[cfg(test)]
+    fn dna_com_test_refusals() -> i32;
     #[cfg(test)]
     fn dna_com_test_ribbon_reentry() -> i32;
     fn dna_com_create(
@@ -41,7 +40,6 @@ unsafe extern "C" {
         qualifier: Qualifier,
         owns_module: OwnsModule,
     ) -> *mut c_void;
-    fn dna_com_set_caller(projection: *mut c_void, caller: CallerOf);
     fn dna_com_getobject(projection: *mut c_void, wparam: usize, object_id: isize) -> isize;
     fn dna_com_destroy(projection: *mut c_void);
     fn dna_com_close_office(projection: *mut c_void) -> i32;
@@ -64,13 +62,6 @@ unsafe extern "C" {
     ) -> i32;
 }
 
-/// Native-only: exercises Application.Range, Union and Caller and their Range metadata through the
-/// real COM dispatch and the early-bound slots.
-#[test]
-fn application_range_union_and_caller_answer_range_metadata() {
-    let status = unsafe { dna_com_test_ranges() };
-    assert_eq!(status, 0, "Application.Range, Union and Caller: {status:#x}");
-}
 /// Native-only: exercises Excel COM interfaces, retained Range objects and reentrant event sinks.
 #[test]
 fn event_source_owns_cookies_and_disconnects_retained_ranges() {
@@ -82,6 +73,12 @@ fn event_source_owns_cookies_and_disconnects_retained_ranges() {
 fn office_controls_track_edits_and_disconnect_retained_objects() {
     let status = unsafe { dna_com_test_office() };
     assert_eq!(status, 0, "Office control lifecycle: {status:#x}");
+}
+/// Native-only: the values-only profile refuses Application.Caller and ThisCell (dc-svqh).
+#[test]
+fn caller_and_this_cell_need_a_workbook() {
+    let status = unsafe { dna_com_test_refusals() };
+    assert_eq!(status, 0, "Caller and ThisCell refusals: {status:#x}");
 }
 /// Native-only: actual COM providers mutate the collection and disconnect during UI callbacks.
 #[test]
@@ -109,7 +106,6 @@ impl Projection {
         if pointer.is_null() {
             return Err("cannot create local COM projection".into());
         }
-        unsafe { dna_com_set_caller(pointer, caller_of) };
         Ok(Self {
             pointer,
             _host: host,
@@ -233,21 +229,6 @@ impl Drop for Projection {
         unsafe {
             dna_com_destroy(self.pointer);
         }
-    }
-}
-
-/// `Application.Caller`: the cell of the native worksheet call running on this thread. S_OK with
-/// its zero-based row and column; S_FALSE (1) when no cell is calling.
-unsafe extern "system" fn caller_of(_context: *const c_void, row: *mut u32, column: *mut u32) -> i32 {
-    match calc_xll_host::running_caller() {
-        Some((r, c)) => {
-            unsafe {
-                *row = r;
-                *column = c;
-            }
-            0
-        }
-        None => 1,
     }
 }
 

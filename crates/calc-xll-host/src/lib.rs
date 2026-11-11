@@ -24,7 +24,7 @@ pub use calc_func::UserCallableIdentity as RtdProvider;
 #[cfg(windows)]
 pub use calc_func::{RtdConnection, RtdConnector, RtdLease, TopicKey};
 #[cfg(windows)]
-pub use callbacks::{dispatch, running_caller};
+pub use callbacks::dispatch;
 #[cfg(windows)]
 pub use native::{AsyncReturn, RegistrationDocs, RegistrationInfo, XllHost};
 /// Owning-STA RTD service; worksheet results require admitted input reads. A topic is Excel's

@@ -1,0 +1,1547 @@
+{
+  "predictions_sha256": "49d4eb786fcd1240648cbe934cd0a7470dba6bae592eaaabdefa2dfeda478287",
+  "prediction_commit": "852a16cfd0df3b50a5cdceed55ad56965f34136f",
+  "environments": [
+    {
+      "version": 1,
+      "id": "ee8bfb74165642b58bf45b5c42a189ad",
+      "ok": true,
+      "excel_version": "16.0",
+      "excel_build": "20527",
+      "excel_file_version": "16.0.20527.20150",
+      "excel_pid": null,
+      "calculation_settings": {
+        "calculation": -4135,
+        "compatibility_version": null,
+        "unavailable": [],
+        "PrecisionAsDisplayed": false,
+        "Date1904": false,
+        "CompatibilityVersion": 2,
+        "UseSystemSeparators": true,
+        "DecimalSeparator": ".",
+        "ThousandsSeparator": "\u00a0"
+      },
+      "automation_security_before": 1,
+      "automation_security_after": 1,
+      "env_id": "29bedb2b6722",
+      "machine": "GOVERT-OMEN",
+      "timestamp": "2026-11-11T23:17:21.373169+00:00",
+      "service_seconds": 0.7996061460580677,
+      "request_sha256": null
+    },
+    {
+      "version": 1,
+      "id": "b92afcdf00af4ff981725e94a3285782",
+      "ok": true,
+      "excel_version": "16.0",
+      "excel_build": "20527",
+      "excel_file_version": "16.0.20527.20150",
+      "excel_pid": null,
+      "calculation_settings": {
+        "calculation": -4135,
+        "compatibility_version": null,
+        "unavailable": [],
+        "PrecisionAsDisplayed": false,
+        "Date1904": false,
+        "CompatibilityVersion": 2,
+        "UseSystemSeparators": true,
+        "DecimalSeparator": ".",
+        "ThousandsSeparator": "\u00a0"
+      },
+      "automation_security_before": 1,
+      "automation_security_after": 1,
+      "env_id": "29bedb2b6722",
+      "machine": "GOVERT-OMEN",
+      "timestamp": "2026-11-11T23:17:21.366654+00:00",
+      "service_seconds": 0.7912020280491561,
+      "request_sha256": null
+    },
+    {
+      "version": 1,
+      "id": "3777302952644a98a733c686c328feb2",
+      "ok": true,
+      "excel_version": "16.0",
+      "excel_build": "20527",
+      "excel_file_version": "16.0.20527.20150",
+      "excel_pid": null,
+      "calculation_settings": {
+        "calculation": -4135,
+        "compatibility_version": null,
+        "unavailable": [],
+        "PrecisionAsDisplayed": false,
+        "Date1904": false,
+        "CompatibilityVersion": 2,
+        "UseSystemSeparators": true,
+        "DecimalSeparator": ".",
+        "ThousandsSeparator": "\u00a0"
+      },
+      "automation_security_before": 1,
+      "automation_security_after": 1,
+      "env_id": "02cb49a79d1f",
+      "machine": "GOVERT-OMEN",
+      "timestamp": "2026-11-11T23:17:21.232926+00:00",
+      "service_seconds": 0.6457511021289974,
+      "request_sha256": null
+    }
+  ],
+  "rows": [
+    {
+      "id": "C1_F2",
+      "answer": {
+        "type": "number",
+        "bits": "401056ab066c9072"
+      },
+      "matches": {
+        "prefix": false,
+        "phase_mean": false,
+        "phase_regression": false
+      }
+    },
+    {
+      "id": "C1_F3",
+      "answer": {
+        "type": "number",
+        "bits": "bff347fbf7d12f5a"
+      },
+      "matches": {
+        "prefix": false,
+        "phase_mean": false,
+        "phase_regression": false
+      }
+    },
+    {
+      "id": "C2_F2",
+      "answer": {
+        "type": "number",
+        "bits": "40261faddce2f13e"
+      },
+      "matches": {
+        "prefix": false,
+        "phase_mean": false,
+        "phase_regression": false
+      }
+    },
+    {
+      "id": "C2_F3",
+      "answer": {
+        "type": "number",
+        "bits": "4026e9458a95155c"
+      },
+      "matches": {
+        "prefix": false,
+        "phase_mean": false,
+        "phase_regression": false
+      }
+    },
+    {
+      "id": "C3_F2",
+      "answer": {
+        "type": "number",
+        "bits": "402598111ebba2cc"
+      },
+      "matches": {
+        "prefix": false,
+        "phase_mean": false,
+        "phase_regression": false
+      }
+    },
+    {
+      "id": "C3_F3",
+      "answer": {
+        "type": "number",
+        "bits": "402752674c14c7de"
+      },
+      "matches": {
+        "prefix": false,
+        "phase_mean": false,
+        "phase_regression": false
+      }
+    },
+    {
+      "id": "C3_F4",
+      "answer": {
+        "type": "number",
+        "bits": "402a485c310ecdbc"
+      },
+      "matches": {
+        "prefix": false,
+        "phase_mean": false,
+        "phase_regression": false
+      }
+    },
+    {
+      "id": "C3_F5",
+      "answer": {
+        "type": "number",
+        "bits": "4029c915f3102a81"
+      },
+      "matches": {
+        "prefix": false,
+        "phase_mean": false,
+        "phase_regression": false
+      }
+    },
+    {
+      "id": "C4_F2",
+      "answer": {
+        "type": "number",
+        "bits": "4012b901a53403de"
+      },
+      "matches": {
+        "prefix": false,
+        "phase_mean": false,
+        "phase_regression": false
+      }
+    },
+    {
+      "id": "C4_F3",
+      "answer": {
+        "type": "number",
+        "bits": "bfdce3e7a92ea970"
+      },
+      "matches": {
+        "prefix": false,
+        "phase_mean": false,
+        "phase_regression": false
+      }
+    },
+    {
+      "id": "C5_F2",
+      "answer": {
+        "type": "number",
+        "bits": "402e7ef325ff482e"
+      },
+      "matches": {
+        "prefix": false,
+        "phase_mean": false,
+        "phase_regression": false
+      }
+    },
+    {
+      "id": "C5_F3",
+      "answer": {
+        "type": "number",
+        "bits": "40301ce2ad785e21"
+      },
+      "matches": {
+        "prefix": false,
+        "phase_mean": false,
+        "phase_regression": false
+      }
+    },
+    {
+      "id": "C6_F2",
+      "answer": {
+        "type": "number",
+        "bits": "402da9cf7b25cf17"
+      },
+      "matches": {
+        "prefix": false,
+        "phase_mean": false,
+        "phase_regression": false
+      }
+    },
+    {
+      "id": "C6_F3",
+      "answer": {
+        "type": "number",
+        "bits": "40301664390e71b0"
+      },
+      "matches": {
+        "prefix": false,
+        "phase_mean": false,
+        "phase_regression": false
+      }
+    },
+    {
+      "id": "C6_F4",
+      "answer": {
+        "type": "number",
+        "bits": "40315cd20950ddd1"
+      },
+      "matches": {
+        "prefix": false,
+        "phase_mean": false,
+        "phase_regression": false
+      }
+    },
+    {
+      "id": "C6_F5",
+      "answer": {
+        "type": "number",
+        "bits": "403222333c83e43e"
+      },
+      "matches": {
+        "prefix": false,
+        "phase_mean": false,
+        "phase_regression": false
+      }
+    },
+    {
+      "id": "C7_F2",
+      "answer": {
+        "type": "number",
+        "bits": "401422a4200bd774"
+      },
+      "matches": {
+        "prefix": false,
+        "phase_mean": false,
+        "phase_regression": false
+      }
+    },
+    {
+      "id": "C7_F3",
+      "answer": {
+        "type": "number",
+        "bits": "bf7b14c9960c5400"
+      },
+      "matches": {
+        "prefix": false,
+        "phase_mean": false,
+        "phase_regression": false
+      }
+    },
+    {
+      "id": "C8_F2",
+      "answer": {
+        "type": "number",
+        "bits": "403b411862bc2b8b"
+      },
+      "matches": {
+        "prefix": false,
+        "phase_mean": false,
+        "phase_regression": false
+      }
+    },
+    {
+      "id": "C8_F3",
+      "answer": {
+        "type": "number",
+        "bits": "403c0b77d47132d1"
+      },
+      "matches": {
+        "prefix": false,
+        "phase_mean": false,
+        "phase_regression": false
+      }
+    },
+    {
+      "id": "C9_F2",
+      "answer": {
+        "type": "number",
+        "bits": "403b1f0751c5e15c"
+      },
+      "matches": {
+        "prefix": false,
+        "phase_mean": false,
+        "phase_regression": false
+      }
+    },
+    {
+      "id": "C9_F3",
+      "answer": {
+        "type": "number",
+        "bits": "403c123ddd9ded11"
+      },
+      "matches": {
+        "prefix": false,
+        "phase_mean": false,
+        "phase_regression": false
+      }
+    },
+    {
+      "id": "C9_F4",
+      "answer": {
+        "type": "number",
+        "bits": "403d4563eac46ad1"
+      },
+      "matches": {
+        "prefix": false,
+        "phase_mean": false,
+        "phase_regression": false
+      }
+    },
+    {
+      "id": "C9_F5",
+      "answer": {
+        "type": "number",
+        "bits": "403e11c8a563705e"
+      },
+      "matches": {
+        "prefix": false,
+        "phase_mean": false,
+        "phase_regression": false
+      }
+    },
+    {
+      "id": "B5_F1",
+      "answer": {
+        "type": "number",
+        "bits": "40a82e778f58247f"
+      },
+      "matches": {
+        "prefix": false,
+        "phase_mean": false,
+        "phase_regression": false
+      }
+    },
+    {
+      "id": "B5_F2",
+      "answer": {
+        "type": "number",
+        "bits": "40aa19f3a7a376f6"
+      },
+      "matches": {
+        "prefix": false,
+        "phase_mean": false,
+        "phase_regression": false
+      }
+    },
+    {
+      "id": "B5_F3",
+      "answer": {
+        "type": "number",
+        "bits": "40ac177d5b9f9e7d"
+      },
+      "matches": {
+        "prefix": false,
+        "phase_mean": false,
+        "phase_regression": false
+      }
+    },
+    {
+      "id": "B5_F4",
+      "answer": {
+        "type": "number",
+        "bits": "40ae1975a40955c7"
+      },
+      "matches": {
+        "prefix": false,
+        "phase_mean": false,
+        "phase_regression": false
+      }
+    },
+    {
+      "id": "B5_F5",
+      "answer": {
+        "type": "number",
+        "bits": "40b01c0e14b84307"
+      },
+      "matches": {
+        "prefix": false,
+        "phase_mean": false,
+        "phase_regression": false
+      }
+    },
+    {
+      "id": "S0_d0.0625_F1",
+      "answer": {
+        "type": "number",
+        "bits": "3fa1d963a6105380"
+      },
+      "matches": {
+        "prefix": false,
+        "phase_mean": false,
+        "phase_regression": false
+      }
+    },
+    {
+      "id": "S0_d0.0625_F2",
+      "answer": {
+        "type": "number",
+        "bits": "40201483a56206c6"
+      },
+      "matches": {
+        "prefix": false,
+        "phase_mean": false,
+        "phase_regression": false
+      }
+    },
+    {
+      "id": "S0_d0.0625_F3",
+      "answer": {
+        "type": "number",
+        "bits": "3fa7214b273ffb00"
+      },
+      "matches": {
+        "prefix": false,
+        "phase_mean": false,
+        "phase_regression": false
+      }
+    },
+    {
+      "id": "S0_d1.0_F1",
+      "answer": {
+        "type": "number",
+        "bits": "3fe1d963a61052c8"
+      },
+      "matches": {
+        "prefix": false,
+        "phase_mean": false,
+        "phase_regression": false
+      }
+    },
+    {
+      "id": "S0_d1.0_F2",
+      "answer": {
+        "type": "number",
+        "bits": "4021483a56206c66"
+      },
+      "matches": {
+        "prefix": false,
+        "phase_mean": false,
+        "phase_regression": false
+      }
+    },
+    {
+      "id": "S0_d1.0_F3",
+      "answer": {
+        "type": "number",
+        "bits": "3fe7214b273ffa80"
+      },
+      "matches": {
+        "prefix": false,
+        "phase_mean": false,
+        "phase_regression": false
+      }
+    },
+    {
+      "id": "S0_d16.0_F1",
+      "answer": {
+        "type": "number",
+        "bits": "4021d963a61052cb"
+      },
+      "matches": {
+        "prefix": false,
+        "phase_mean": false,
+        "phase_regression": false
+      }
+    },
+    {
+      "id": "S0_d16.0_F2",
+      "answer": {
+        "type": "number",
+        "bits": "403241d2b103632e"
+      },
+      "matches": {
+        "prefix": false,
+        "phase_mean": false,
+        "phase_regression": false
+      }
+    },
+    {
+      "id": "S0_d16.0_F3",
+      "answer": {
+        "type": "number",
+        "bits": "4027214b273ffa84"
+      },
+      "matches": {
+        "prefix": false,
+        "phase_mean": false,
+        "phase_regression": false
+      }
+    },
+    {
+      "id": "cycle_p3_n6_F1",
+      "answer": {
+        "type": "number",
+        "bits": "0000000000000000"
+      },
+      "matches": {
+        "admitted_exact_seasonal": true
+      }
+    },
+    {
+      "id": "cycle_p3_n6_F2",
+      "answer": {
+        "type": "number",
+        "bits": "4008000000000000"
+      },
+      "matches": {
+        "admitted_exact_seasonal": true
+      }
+    },
+    {
+      "id": "cycle_p3_n6_F3",
+      "answer": {
+        "type": "number",
+        "bits": "4022000000000000"
+      },
+      "matches": {
+        "admitted_exact_seasonal": true
+      }
+    },
+    {
+      "id": "cycle_p3_n6_F4",
+      "answer": {
+        "type": "number",
+        "bits": "0000000000000000"
+      },
+      "matches": {
+        "admitted_exact_seasonal": true
+      }
+    },
+    {
+      "id": "cycle_p3_n7_F1",
+      "answer": {
+        "type": "number",
+        "bits": "4008000000000000"
+      },
+      "matches": {
+        "admitted_exact_seasonal": true
+      }
+    },
+    {
+      "id": "cycle_p3_n7_F2",
+      "answer": {
+        "type": "number",
+        "bits": "4022000000000000"
+      },
+      "matches": {
+        "admitted_exact_seasonal": true
+      }
+    },
+    {
+      "id": "cycle_p3_n7_F3",
+      "answer": {
+        "type": "number",
+        "bits": "0000000000000000"
+      },
+      "matches": {
+        "admitted_exact_seasonal": true
+      }
+    },
+    {
+      "id": "cycle_p3_n7_F4",
+      "answer": {
+        "type": "number",
+        "bits": "4008000000000000"
+      },
+      "matches": {
+        "admitted_exact_seasonal": true
+      }
+    },
+    {
+      "id": "cycle_p3_n9_F1",
+      "answer": {
+        "type": "number",
+        "bits": "0000000000000000"
+      },
+      "matches": {
+        "admitted_exact_seasonal": true
+      }
+    },
+    {
+      "id": "cycle_p3_n9_F2",
+      "answer": {
+        "type": "number",
+        "bits": "4008000000000000"
+      },
+      "matches": {
+        "admitted_exact_seasonal": true
+      }
+    },
+    {
+      "id": "cycle_p3_n9_F3",
+      "answer": {
+        "type": "number",
+        "bits": "4022000000000000"
+      },
+      "matches": {
+        "admitted_exact_seasonal": true
+      }
+    },
+    {
+      "id": "cycle_p3_n9_F4",
+      "answer": {
+        "type": "number",
+        "bits": "0000000000000000"
+      },
+      "matches": {
+        "admitted_exact_seasonal": true
+      }
+    },
+    {
+      "id": "cycle_p4_n9_F1",
+      "answer": {
+        "type": "number",
+        "bits": "4010000000000000"
+      },
+      "matches": {
+        "admitted_exact_seasonal": true
+      }
+    },
+    {
+      "id": "cycle_p4_n9_F2",
+      "answer": {
+        "type": "number",
+        "bits": "4028000000000000"
+      },
+      "matches": {
+        "admitted_exact_seasonal": true
+      }
+    },
+    {
+      "id": "cycle_p4_n9_F3",
+      "answer": {
+        "type": "number",
+        "bits": "4038000000000000"
+      },
+      "matches": {
+        "admitted_exact_seasonal": true
+      }
+    },
+    {
+      "id": "cycle_p4_n9_F4",
+      "answer": {
+        "type": "number",
+        "bits": "0000000000000000"
+      },
+      "matches": {
+        "admitted_exact_seasonal": true
+      }
+    },
+    {
+      "id": "cycle_p4_n9_F5",
+      "answer": {
+        "type": "number",
+        "bits": "4010000000000000"
+      },
+      "matches": {
+        "admitted_exact_seasonal": true
+      }
+    },
+    {
+      "id": "cycle_p5_n10_F1",
+      "answer": {
+        "type": "number",
+        "bits": "0000000000000000"
+      },
+      "matches": {
+        "admitted_exact_seasonal": true
+      }
+    },
+    {
+      "id": "cycle_p5_n10_F2",
+      "answer": {
+        "type": "number",
+        "bits": "4014000000000000"
+      },
+      "matches": {
+        "admitted_exact_seasonal": true
+      }
+    },
+    {
+      "id": "cycle_p5_n10_F3",
+      "answer": {
+        "type": "number",
+        "bits": "4024000000000000"
+      },
+      "matches": {
+        "admitted_exact_seasonal": true
+      }
+    },
+    {
+      "id": "cycle_p5_n10_F4",
+      "answer": {
+        "type": "number",
+        "bits": "4034000000000000"
+      },
+      "matches": {
+        "admitted_exact_seasonal": true
+      }
+    },
+    {
+      "id": "cycle_p5_n10_F5",
+      "answer": {
+        "type": "number",
+        "bits": "4041800000000000"
+      },
+      "matches": {
+        "admitted_exact_seasonal": true
+      }
+    },
+    {
+      "id": "cycle_p5_n10_F6",
+      "answer": {
+        "type": "number",
+        "bits": "0000000000000000"
+      },
+      "matches": {
+        "admitted_exact_seasonal": true
+      }
+    },
+    {
+      "id": "C1_C2",
+      "answer": {
+        "type": "number",
+        "bits": "400753b5a499d6ab"
+      },
+      "matches": {
+        "prefix": false,
+        "phase_mean": false,
+        "phase_regression": false
+      }
+    },
+    {
+      "id": "C1_C3",
+      "answer": {
+        "type": "number",
+        "bits": "40078468edff5751"
+      },
+      "matches": {
+        "prefix": false,
+        "phase_mean": false,
+        "phase_regression": false
+      }
+    },
+    {
+      "id": "C1_Cendpoint",
+      "answer": {
+        "type": "number",
+        "bits": "3ff79d231b7240b5"
+      },
+      "matches": {
+        "prefix": false,
+        "phase_mean": false,
+        "phase_regression": false
+      }
+    },
+    {
+      "id": "C1_C1",
+      "answer": {
+        "type": "number",
+        "bits": "400724202319dcbf"
+      },
+      "matches": {
+        "prefix": false,
+        "phase_mean": false,
+        "phase_regression": false
+      }
+    },
+    {
+      "id": "C2_C2",
+      "answer": {
+        "type": "number",
+        "bits": "3fea6408760cab6a"
+      },
+      "matches": {
+        "prefix": false,
+        "phase_mean": false,
+        "phase_regression": false
+      }
+    },
+    {
+      "id": "C2_C3",
+      "answer": {
+        "type": "number",
+        "bits": "3fea9c03a1af57ff"
+      },
+      "matches": {
+        "prefix": false,
+        "phase_mean": false,
+        "phase_regression": false
+      }
+    },
+    {
+      "id": "C2_Cendpoint",
+      "answer": {
+        "type": "number",
+        "bits": "3fdaee01c663b2b5"
+      },
+      "matches": {
+        "prefix": false,
+        "phase_mean": false,
+        "phase_regression": false
+      }
+    },
+    {
+      "id": "C2_C1",
+      "answer": {
+        "type": "number",
+        "bits": "3fea6400ada0b245"
+      },
+      "matches": {
+        "prefix": false,
+        "phase_mean": false,
+        "phase_regression": false
+      }
+    },
+    {
+      "id": "C3_C4",
+      "answer": {
+        "type": "number",
+        "bits": "3feb22860be15aa6"
+      },
+      "matches": {
+        "prefix": false,
+        "phase_mean": false,
+        "phase_regression": false
+      }
+    },
+    {
+      "id": "C3_C5",
+      "answer": {
+        "type": "number",
+        "bits": "3feb5b1af3eed542"
+      },
+      "matches": {
+        "prefix": false,
+        "phase_mean": false,
+        "phase_regression": false
+      }
+    },
+    {
+      "id": "C3_Cendpoint",
+      "answer": {
+        "type": "number",
+        "bits": "3fdb0860b4074d50"
+      },
+      "matches": {
+        "prefix": false,
+        "phase_mean": false,
+        "phase_regression": false
+      }
+    },
+    {
+      "id": "C3_C1",
+      "answer": {
+        "type": "number",
+        "bits": "3fea7dd877647300"
+      },
+      "matches": {
+        "prefix": false,
+        "phase_mean": false,
+        "phase_regression": false
+      }
+    },
+    {
+      "id": "C4_C2",
+      "answer": {
+        "type": "number",
+        "bits": "400939f98cb351b3"
+      },
+      "matches": {
+        "prefix": false,
+        "phase_mean": false,
+        "phase_regression": false
+      }
+    },
+    {
+      "id": "C4_C3",
+      "answer": {
+        "type": "number",
+        "bits": "40096ea4063f9954"
+      },
+      "matches": {
+        "prefix": false,
+        "phase_mean": false,
+        "phase_regression": false
+      }
+    },
+    {
+      "id": "C4_Cendpoint",
+      "answer": {
+        "type": "number",
+        "bits": "3ff98961a8162bf6"
+      },
+      "matches": {
+        "prefix": false,
+        "phase_mean": false,
+        "phase_regression": false
+      }
+    },
+    {
+      "id": "C4_C1",
+      "answer": {
+        "type": "number",
+        "bits": "400906842052f94d"
+      },
+      "matches": {
+        "prefix": false,
+        "phase_mean": false,
+        "phase_regression": false
+      }
+    },
+    {
+      "id": "C5_C2",
+      "answer": {
+        "type": "number",
+        "bits": "3ff07fdd9a260bd0"
+      },
+      "matches": {
+        "prefix": false,
+        "phase_mean": false,
+        "phase_regression": false
+      }
+    },
+    {
+      "id": "C5_C3",
+      "answer": {
+        "type": "number",
+        "bits": "3ff4a9fa5b831887"
+      },
+      "matches": {
+        "prefix": false,
+        "phase_mean": false,
+        "phase_regression": false
+      }
+    },
+    {
+      "id": "C5_Cendpoint",
+      "answer": {
+        "type": "number",
+        "bits": "3fe0d62074794761"
+      },
+      "matches": {
+        "prefix": false,
+        "phase_mean": false,
+        "phase_regression": false
+      }
+    },
+    {
+      "id": "C5_C1",
+      "answer": {
+        "type": "number",
+        "bits": "3ff07fd8bc7d0571"
+      },
+      "matches": {
+        "prefix": false,
+        "phase_mean": false,
+        "phase_regression": false
+      }
+    },
+    {
+      "id": "C6_C4",
+      "answer": {
+        "type": "number",
+        "bits": "3ff423f4ce4a1000"
+      },
+      "matches": {
+        "prefix": false,
+        "phase_mean": false,
+        "phase_regression": false
+      }
+    },
+    {
+      "id": "C6_C5",
+      "answer": {
+        "type": "number",
+        "bits": "3ff69267f25a93f5"
+      },
+      "matches": {
+        "prefix": false,
+        "phase_mean": false,
+        "phase_regression": false
+      }
+    },
+    {
+      "id": "C6_Cendpoint",
+      "answer": {
+        "type": "number",
+        "bits": "3fe48d25200d8614"
+      },
+      "matches": {
+        "prefix": false,
+        "phase_mean": false,
+        "phase_regression": false
+      }
+    },
+    {
+      "id": "C6_C1",
+      "answer": {
+        "type": "number",
+        "bits": "3ff423d3cf165a7c"
+      },
+      "matches": {
+        "prefix": false,
+        "phase_mean": false,
+        "phase_regression": false
+      }
+    },
+    {
+      "id": "C7_C2",
+      "answer": {
+        "type": "number",
+        "bits": "4009fe535cdc862f"
+      },
+      "matches": {
+        "prefix": false,
+        "phase_mean": false,
+        "phase_regression": false
+      }
+    },
+    {
+      "id": "C7_C3",
+      "answer": {
+        "type": "number",
+        "bits": "400a3497c3995b71"
+      },
+      "matches": {
+        "prefix": false,
+        "phase_mean": false,
+        "phase_regression": false
+      }
+    },
+    {
+      "id": "C7_Cendpoint",
+      "answer": {
+        "type": "number",
+        "bits": "3ffa502588976e86"
+      },
+      "matches": {
+        "prefix": false,
+        "phase_mean": false,
+        "phase_regression": false
+      }
+    },
+    {
+      "id": "C7_C1",
+      "answer": {
+        "type": "number",
+        "bits": "4009c94d68ce2ae8"
+      },
+      "matches": {
+        "prefix": false,
+        "phase_mean": false,
+        "phase_regression": false
+      }
+    },
+    {
+      "id": "C8_C2",
+      "answer": {
+        "type": "number",
+        "bits": "3fef4a87b4cf9e42"
+      },
+      "matches": {
+        "prefix": false,
+        "phase_mean": false,
+        "phase_regression": false
+      }
+    },
+    {
+      "id": "C8_C3",
+      "answer": {
+        "type": "number",
+        "bits": "3fef8ce7f7739f98"
+      },
+      "matches": {
+        "prefix": false,
+        "phase_mean": false,
+        "phase_regression": false
+      }
+    },
+    {
+      "id": "C8_Cendpoint",
+      "answer": {
+        "type": "number",
+        "bits": "3fdfee1fac9b77bb"
+      },
+      "matches": {
+        "prefix": false,
+        "phase_mean": false,
+        "phase_regression": false
+      }
+    },
+    {
+      "id": "C8_C1",
+      "answer": {
+        "type": "number",
+        "bits": "3fef4a7e7a6ceda3"
+      },
+      "matches": {
+        "prefix": false,
+        "phase_mean": false,
+        "phase_regression": false
+      }
+    },
+    {
+      "id": "C9_C4",
+      "answer": {
+        "type": "number",
+        "bits": "3fee8f5e5b5bbd3b"
+      },
+      "matches": {
+        "prefix": false,
+        "phase_mean": false,
+        "phase_regression": false
+      }
+    },
+    {
+      "id": "C9_C5",
+      "answer": {
+        "type": "number",
+        "bits": "3feed235470815a6"
+      },
+      "matches": {
+        "prefix": false,
+        "phase_mean": false,
+        "phase_regression": false
+      }
+    },
+    {
+      "id": "C9_Cendpoint",
+      "answer": {
+        "type": "number",
+        "bits": "3fdf2ef9eddaea79"
+      },
+      "matches": {
+        "prefix": false,
+        "phase_mean": false,
+        "phase_regression": false
+      }
+    },
+    {
+      "id": "C9_C1",
+      "answer": {
+        "type": "number",
+        "bits": "3fee8f2c4a082be8"
+      },
+      "matches": {
+        "prefix": false,
+        "phase_mean": false,
+        "phase_regression": false
+      }
+    },
+    {
+      "id": "B5_Cendpoint",
+      "answer": {
+        "type": "number",
+        "bits": "402a6c59acdef4cd"
+      },
+      "matches": {
+        "prefix": false,
+        "phase_mean": false,
+        "phase_regression": false
+      }
+    },
+    {
+      "id": "B5_C1",
+      "answer": {
+        "type": "number",
+        "bits": "4039e4f104aca882"
+      },
+      "matches": {
+        "prefix": false,
+        "phase_mean": false,
+        "phase_regression": false
+      }
+    },
+    {
+      "id": "S0_d0.0625_Cendpoint",
+      "answer": {
+        "type": "number",
+        "bits": "3f939d90666b7902"
+      },
+      "matches": {
+        "prefix": false,
+        "phase_mean": false,
+        "phase_regression": false
+      }
+    },
+    {
+      "id": "S0_d1.0_Cendpoint",
+      "answer": {
+        "type": "number",
+        "bits": "3fd39d90666b7917"
+      },
+      "matches": {
+        "prefix": false,
+        "phase_mean": false,
+        "phase_regression": false
+      }
+    },
+    {
+      "id": "S0_d16.0_Cendpoint",
+      "answer": {
+        "type": "number",
+        "bits": "40139d90666b791c"
+      },
+      "matches": {
+        "prefix": false,
+        "phase_mean": false,
+        "phase_regression": false
+      }
+    },
+    {
+      "id": "cycle_p3_n6_Cendpoint",
+      "answer": {
+        "type": "number",
+        "bits": "0000000000000000"
+      },
+      "matches": {
+        "admitted_exact_seasonal": true
+      }
+    },
+    {
+      "id": "cycle_p3_n7_Cendpoint",
+      "answer": {
+        "type": "number",
+        "bits": "0000000000000000"
+      },
+      "matches": {
+        "admitted_exact_seasonal": true
+      }
+    },
+    {
+      "id": "cycle_p3_n9_Cendpoint",
+      "answer": {
+        "type": "number",
+        "bits": "0000000000000000"
+      },
+      "matches": {
+        "admitted_exact_seasonal": true
+      }
+    },
+    {
+      "id": "cycle_p4_n9_Cendpoint",
+      "answer": {
+        "type": "number",
+        "bits": "0000000000000000"
+      },
+      "matches": {
+        "admitted_exact_seasonal": true
+      }
+    },
+    {
+      "id": "cycle_p5_n10_Cendpoint",
+      "answer": {
+        "type": "number",
+        "bits": "0000000000000000"
+      },
+      "matches": {
+        "admitted_exact_seasonal": true
+      }
+    },
+    {
+      "id": "S0_d0.0625_S2",
+      "answer": {
+        "type": "number",
+        "bits": "3f50624dd2f1a9fc"
+      },
+      "matches": {
+        "no_reset_or_floor": true
+      }
+    },
+    {
+      "id": "S0_d1.0_S2",
+      "answer": {
+        "type": "number",
+        "bits": "3f50624dd2f1a9fc"
+      },
+      "matches": {
+        "no_reset_or_floor": true
+      }
+    },
+    {
+      "id": "S0_d16.0_S2",
+      "answer": {
+        "type": "number",
+        "bits": "3f50624dd2f1a9fc"
+      },
+      "matches": {
+        "no_reset_or_floor": true
+      }
+    },
+    {
+      "id": "cycle_p3_n6_S4",
+      "answer": {
+        "type": "number",
+        "bits": "0000000000000000"
+      },
+      "matches": {
+        "admitted_exact_seasonal": true
+      }
+    },
+    {
+      "id": "cycle_p3_n6_S5",
+      "answer": {
+        "type": "number",
+        "bits": "0000000000000000"
+      },
+      "matches": {
+        "admitted_exact_seasonal": true
+      }
+    },
+    {
+      "id": "cycle_p3_n6_S6",
+      "answer": {
+        "type": "number",
+        "bits": "0000000000000000"
+      },
+      "matches": {
+        "admitted_exact_seasonal": true
+      }
+    },
+    {
+      "id": "cycle_p3_n6_S7",
+      "answer": {
+        "type": "number",
+        "bits": "0000000000000000"
+      },
+      "matches": {
+        "admitted_exact_seasonal": true
+      }
+    },
+    {
+      "id": "cycle_p3_n7_S4",
+      "answer": {
+        "type": "number",
+        "bits": "0000000000000000"
+      },
+      "matches": {
+        "admitted_exact_seasonal": true
+      }
+    },
+    {
+      "id": "cycle_p3_n7_S5",
+      "answer": {
+        "type": "number",
+        "bits": "0000000000000000"
+      },
+      "matches": {
+        "admitted_exact_seasonal": true
+      }
+    },
+    {
+      "id": "cycle_p3_n7_S6",
+      "answer": {
+        "type": "number",
+        "bits": "0000000000000000"
+      },
+      "matches": {
+        "admitted_exact_seasonal": true
+      }
+    },
+    {
+      "id": "cycle_p3_n7_S7",
+      "answer": {
+        "type": "number",
+        "bits": "0000000000000000"
+      },
+      "matches": {
+        "admitted_exact_seasonal": true
+      }
+    },
+    {
+      "id": "cycle_p3_n9_S4",
+      "answer": {
+        "type": "number",
+        "bits": "0000000000000000"
+      },
+      "matches": {
+        "admitted_exact_seasonal": true
+      }
+    },
+    {
+      "id": "cycle_p3_n9_S5",
+      "answer": {
+        "type": "number",
+        "bits": "0000000000000000"
+      },
+      "matches": {
+        "admitted_exact_seasonal": true
+      }
+    },
+    {
+      "id": "cycle_p3_n9_S6",
+      "answer": {
+        "type": "number",
+        "bits": "0000000000000000"
+      },
+      "matches": {
+        "admitted_exact_seasonal": true
+      }
+    },
+    {
+      "id": "cycle_p3_n9_S7",
+      "answer": {
+        "type": "number",
+        "bits": "0000000000000000"
+      },
+      "matches": {
+        "admitted_exact_seasonal": true
+      }
+    },
+    {
+      "id": "cycle_p4_n9_S4",
+      "answer": {
+        "type": "number",
+        "bits": "0000000000000000"
+      },
+      "matches": {
+        "admitted_exact_seasonal": true
+      }
+    },
+    {
+      "id": "cycle_p4_n9_S5",
+      "answer": {
+        "type": "number",
+        "bits": "0000000000000000"
+      },
+      "matches": {
+        "admitted_exact_seasonal": true
+      }
+    },
+    {
+      "id": "cycle_p4_n9_S6",
+      "answer": {
+        "type": "number",
+        "bits": "0000000000000000"
+      },
+      "matches": {
+        "admitted_exact_seasonal": true
+      }
+    },
+    {
+      "id": "cycle_p4_n9_S7",
+      "answer": {
+        "type": "number",
+        "bits": "0000000000000000"
+      },
+      "matches": {
+        "admitted_exact_seasonal": true
+      }
+    },
+    {
+      "id": "cycle_p5_n10_S4",
+      "answer": {
+        "type": "number",
+        "bits": "0000000000000000"
+      },
+      "matches": {
+        "admitted_exact_seasonal": true
+      }
+    },
+    {
+      "id": "cycle_p5_n10_S5",
+      "answer": {
+        "type": "number",
+        "bits": "0000000000000000"
+      },
+      "matches": {
+        "admitted_exact_seasonal": true
+      }
+    },
+    {
+      "id": "cycle_p5_n10_S6",
+      "answer": {
+        "type": "number",
+        "bits": "0000000000000000"
+      },
+      "matches": {
+        "admitted_exact_seasonal": true
+      }
+    },
+    {
+      "id": "cycle_p5_n10_S7",
+      "answer": {
+        "type": "number",
+        "bits": "0000000000000000"
+      },
+      "matches": {
+        "admitted_exact_seasonal": true
+      }
+    }
+  ]
+}

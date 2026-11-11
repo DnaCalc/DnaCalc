@@ -1,0 +1,1115 @@
+{
+  "predictions_sha256": "50c247344b9faf3001cb01380bfc8827162389e2be19c3fd6639c88d7f12670e",
+  "prediction_commit": "b648ed9603562e896796d706b38e653e26cc5962",
+  "environments": [
+    {
+      "version": 1,
+      "id": "2a39d683913247e591ef0e0dee401448",
+      "ok": true,
+      "excel_version": "16.0",
+      "excel_build": "20527",
+      "excel_file_version": "16.0.20527.20150",
+      "excel_pid": null,
+      "calculation_settings": {
+        "calculation": -4135,
+        "compatibility_version": null,
+        "unavailable": [],
+        "PrecisionAsDisplayed": false,
+        "Date1904": false,
+        "CompatibilityVersion": 2,
+        "UseSystemSeparators": true,
+        "DecimalSeparator": ".",
+        "ThousandsSeparator": "\u00a0"
+      },
+      "automation_security_before": 1,
+      "automation_security_after": 1,
+      "env_id": "29bedb2b6722",
+      "machine": "GOVERT-OMEN",
+      "timestamp": "2026-11-11T23:15:58.991294+00:00",
+      "service_seconds": 0.6176211868878454,
+      "request_sha256": null
+    }
+  ],
+  "rows": [
+    {
+      "id": "cycle_p3_n6_S3",
+      "answer": {
+        "type": "number",
+        "bits": "3f50624dd2f1a9fc"
+      },
+      "matches": {
+        "C1_partial": true,
+        "C2_complete": true,
+        "C3_three_cycles": false
+      }
+    },
+    {
+      "id": "cycle_p3_n6_S1",
+      "answer": {
+        "type": "number",
+        "bits": "3fe8083126e978d5"
+      },
+      "matches": {
+        "C1_partial": true,
+        "C2_complete": true,
+        "C3_three_cycles": false
+      }
+    },
+    {
+      "id": "cycle_p3_n7_S3",
+      "answer": {
+        "type": "number",
+        "bits": "3f50624dd2f1a9fc"
+      },
+      "matches": {
+        "C1_partial": true,
+        "C2_complete": false,
+        "C3_three_cycles": false
+      }
+    },
+    {
+      "id": "cycle_p3_n7_S1",
+      "answer": {
+        "type": "number",
+        "bits": "3fe8083126e978d5"
+      },
+      "matches": {
+        "C1_partial": true,
+        "C2_complete": false,
+        "C3_three_cycles": false
+      }
+    },
+    {
+      "id": "cycle_p3_n9_S3",
+      "answer": {
+        "type": "number",
+        "bits": "3f50624dd2f1a9fc"
+      },
+      "matches": {
+        "C1_partial": true,
+        "C2_complete": true,
+        "C3_three_cycles": true
+      }
+    },
+    {
+      "id": "cycle_p3_n9_S1",
+      "answer": {
+        "type": "number",
+        "bits": "3fe8083126e978d5"
+      },
+      "matches": {
+        "C1_partial": true,
+        "C2_complete": true,
+        "C3_three_cycles": true
+      }
+    },
+    {
+      "id": "cycle_p4_n9_S3",
+      "answer": {
+        "type": "number",
+        "bits": "3f50624dd2f1a9fc"
+      },
+      "matches": {
+        "C1_partial": true,
+        "C2_complete": false,
+        "C3_three_cycles": true
+      }
+    },
+    {
+      "id": "cycle_p4_n9_S1",
+      "answer": {
+        "type": "number",
+        "bits": "3fe8083126e978d5"
+      },
+      "matches": {
+        "C1_partial": true,
+        "C2_complete": false,
+        "C3_three_cycles": true
+      }
+    },
+    {
+      "id": "cycle_p5_n10_S3",
+      "answer": {
+        "type": "number",
+        "bits": "3f50624dd2f1a9fc"
+      },
+      "matches": {
+        "C1_partial": true,
+        "C2_complete": true,
+        "C3_three_cycles": false
+      }
+    },
+    {
+      "id": "cycle_p5_n10_S1",
+      "answer": {
+        "type": "number",
+        "bits": "3fe8083126e978d5"
+      },
+      "matches": {
+        "C1_partial": true,
+        "C2_complete": true,
+        "C3_three_cycles": false
+      }
+    },
+    {
+      "id": "S0_d0.0625_S1",
+      "answer": {
+        "type": "number",
+        "bits": "3fc020c49ba5e354"
+      },
+      "matches": {
+        "prefix_SSE_default": false
+      }
+    },
+    {
+      "id": "S0_d0.0625_S3",
+      "answer": {
+        "type": "number",
+        "bits": "3f50624dd2f1a9fc"
+      },
+      "matches": {
+        "prefix_SSE_default": true
+      }
+    },
+    {
+      "id": "S0_d0.0625_S6",
+      "answer": {
+        "type": "number",
+        "bits": "3f9028f722d1a340"
+      },
+      "matches": {
+        "prefix_SSE_default": false
+      }
+    },
+    {
+      "id": "S0_d0.0625_S7",
+      "answer": {
+        "type": "number",
+        "bits": "3f939d90666b7902"
+      },
+      "matches": {
+        "prefix_SSE_default": false
+      }
+    },
+    {
+      "id": "S0_d1.0_S1",
+      "answer": {
+        "type": "number",
+        "bits": "3fc020c49ba5e354"
+      },
+      "matches": {
+        "prefix_SSE_default": false
+      }
+    },
+    {
+      "id": "S0_d1.0_S3",
+      "answer": {
+        "type": "number",
+        "bits": "3f50624dd2f1a9fc"
+      },
+      "matches": {
+        "prefix_SSE_default": true
+      }
+    },
+    {
+      "id": "S0_d1.0_S6",
+      "answer": {
+        "type": "number",
+        "bits": "3fd028f722d1a36c"
+      },
+      "matches": {
+        "prefix_SSE_default": false
+      }
+    },
+    {
+      "id": "S0_d1.0_S7",
+      "answer": {
+        "type": "number",
+        "bits": "3fd39d90666b7917"
+      },
+      "matches": {
+        "prefix_SSE_default": false
+      }
+    },
+    {
+      "id": "S0_d16.0_S1",
+      "answer": {
+        "type": "number",
+        "bits": "3fc020c49ba5e354"
+      },
+      "matches": {
+        "prefix_SSE_default": false
+      }
+    },
+    {
+      "id": "S0_d16.0_S3",
+      "answer": {
+        "type": "number",
+        "bits": "3f50624dd2f1a9fc"
+      },
+      "matches": {
+        "prefix_SSE_default": true
+      }
+    },
+    {
+      "id": "S0_d16.0_S6",
+      "answer": {
+        "type": "number",
+        "bits": "401028f722d1a374"
+      },
+      "matches": {
+        "prefix_SSE_default": false
+      }
+    },
+    {
+      "id": "S0_d16.0_S7",
+      "answer": {
+        "type": "number",
+        "bits": "40139d90666b791c"
+      },
+      "matches": {
+        "prefix_SSE_default": false
+      }
+    },
+    {
+      "id": "C1_S1",
+      "answer": {
+        "type": "number",
+        "bits": "3fc020c49ba5e354"
+      },
+      "matches": {
+        "default_prefix": false,
+        "default_phase_mean": false,
+        "default_phase_regression": false
+      }
+    },
+    {
+      "id": "C1_S2",
+      "answer": {
+        "type": "number",
+        "bits": "3f50624dd2f1a9fc"
+      },
+      "matches": {
+        "default_prefix": true,
+        "default_phase_mean": true,
+        "default_phase_regression": true
+      }
+    },
+    {
+      "id": "C1_S3",
+      "answer": {
+        "type": "number",
+        "bits": "3f50624dd2f1a9fc"
+      },
+      "matches": {
+        "default_prefix": true,
+        "default_phase_mean": true,
+        "default_phase_regression": true
+      }
+    },
+    {
+      "id": "C1_S4",
+      "answer": {
+        "type": "number",
+        "bits": "3fcd621324b3d24b"
+      },
+      "matches": {
+        "default_prefix": false,
+        "default_phase_mean": false,
+        "default_phase_regression": false
+      }
+    },
+    {
+      "id": "C1_S5",
+      "answer": {
+        "type": "number",
+        "bits": "3fe93021eeefe077"
+      },
+      "matches": {
+        "default_prefix": false,
+        "default_phase_mean": false,
+        "default_phase_regression": false
+      }
+    },
+    {
+      "id": "C1_S6",
+      "answer": {
+        "type": "number",
+        "bits": "3ff3f043d8e7bc6a"
+      },
+      "matches": {
+        "default_prefix": false,
+        "default_phase_mean": false,
+        "default_phase_regression": false
+      }
+    },
+    {
+      "id": "C1_S7",
+      "answer": {
+        "type": "number",
+        "bits": "3ff79d231b7240b5"
+      },
+      "matches": {
+        "default_prefix": false,
+        "default_phase_mean": false,
+        "default_phase_regression": false
+      }
+    },
+    {
+      "id": "C2_S1",
+      "answer": {
+        "type": "number",
+        "bits": "3f60624dd2f1a9fc"
+      },
+      "matches": {
+        "default_prefix": false,
+        "default_phase_mean": false,
+        "default_phase_regression": false
+      }
+    },
+    {
+      "id": "C2_S2",
+      "answer": {
+        "type": "number",
+        "bits": "3f50624dd2f1a9fc"
+      },
+      "matches": {
+        "default_prefix": true,
+        "default_phase_mean": true,
+        "default_phase_regression": true
+      }
+    },
+    {
+      "id": "C2_S3",
+      "answer": {
+        "type": "number",
+        "bits": "3fc0000000000000"
+      },
+      "matches": {
+        "default_prefix": false,
+        "default_phase_mean": false,
+        "default_phase_regression": false
+      }
+    },
+    {
+      "id": "C2_S4",
+      "answer": {
+        "type": "number",
+        "bits": "3fd409bee1d75704"
+      },
+      "matches": {
+        "default_prefix": false,
+        "default_phase_mean": false,
+        "default_phase_regression": false
+      }
+    },
+    {
+      "id": "C2_S5",
+      "answer": {
+        "type": "number",
+        "bits": "3fa8ec2918237386"
+      },
+      "matches": {
+        "default_prefix": false,
+        "default_phase_mean": false,
+        "default_phase_regression": false
+      }
+    },
+    {
+      "id": "C2_S6",
+      "answer": {
+        "type": "number",
+        "bits": "3fd4c0f369e82c69"
+      },
+      "matches": {
+        "default_prefix": false,
+        "default_phase_mean": false,
+        "default_phase_regression": false
+      }
+    },
+    {
+      "id": "C2_S7",
+      "answer": {
+        "type": "number",
+        "bits": "3fdaee01c663b2b5"
+      },
+      "matches": {
+        "default_prefix": false,
+        "default_phase_mean": false,
+        "default_phase_regression": false
+      }
+    },
+    {
+      "id": "C3_S1",
+      "answer": {
+        "type": "number",
+        "bits": "3fc020c49ba5e354"
+      },
+      "matches": {
+        "default_prefix": false,
+        "default_phase_mean": false,
+        "default_phase_regression": false
+      }
+    },
+    {
+      "id": "C3_S2",
+      "answer": {
+        "type": "number",
+        "bits": "3f50624dd2f1a9fc"
+      },
+      "matches": {
+        "default_prefix": true,
+        "default_phase_mean": true,
+        "default_phase_regression": true
+      }
+    },
+    {
+      "id": "C3_S3",
+      "answer": {
+        "type": "number",
+        "bits": "3f50624dd2f1a9fc"
+      },
+      "matches": {
+        "default_prefix": true,
+        "default_phase_mean": true,
+        "default_phase_regression": true
+      }
+    },
+    {
+      "id": "C3_S4",
+      "answer": {
+        "type": "number",
+        "bits": "3fd2c5ba31a90764"
+      },
+      "matches": {
+        "default_prefix": false,
+        "default_phase_mean": false,
+        "default_phase_regression": false
+      }
+    },
+    {
+      "id": "C3_S5",
+      "answer": {
+        "type": "number",
+        "bits": "3fa98a60dd1ad17c"
+      },
+      "matches": {
+        "default_prefix": false,
+        "default_phase_mean": false,
+        "default_phase_regression": false
+      }
+    },
+    {
+      "id": "C3_S6",
+      "answer": {
+        "type": "number",
+        "bits": "3fd3715c45b8355f"
+      },
+      "matches": {
+        "default_prefix": false,
+        "default_phase_mean": false,
+        "default_phase_regression": false
+      }
+    },
+    {
+      "id": "C3_S7",
+      "answer": {
+        "type": "number",
+        "bits": "3fdb0860b4074d50"
+      },
+      "matches": {
+        "default_prefix": false,
+        "default_phase_mean": false,
+        "default_phase_regression": false
+      }
+    },
+    {
+      "id": "C4_S1",
+      "answer": {
+        "type": "number",
+        "bits": "3fc020c49ba5e354"
+      },
+      "matches": {
+        "default_prefix": false,
+        "default_phase_mean": false,
+        "default_phase_regression": false
+      }
+    },
+    {
+      "id": "C4_S2",
+      "answer": {
+        "type": "number",
+        "bits": "3f50624dd2f1a9fc"
+      },
+      "matches": {
+        "default_prefix": true,
+        "default_phase_mean": true,
+        "default_phase_regression": true
+      }
+    },
+    {
+      "id": "C4_S3",
+      "answer": {
+        "type": "number",
+        "bits": "3f50624dd2f1a9fc"
+      },
+      "matches": {
+        "default_prefix": true,
+        "default_phase_mean": true,
+        "default_phase_regression": true
+      }
+    },
+    {
+      "id": "C4_S4",
+      "answer": {
+        "type": "number",
+        "bits": "3fd197b401aba587"
+      },
+      "matches": {
+        "default_prefix": false,
+        "default_phase_mean": false,
+        "default_phase_regression": false
+      }
+    },
+    {
+      "id": "C4_S5",
+      "answer": {
+        "type": "number",
+        "bits": "3ff09eb2199d50a9"
+      },
+      "matches": {
+        "default_prefix": false,
+        "default_phase_mean": false,
+        "default_phase_regression": false
+      }
+    },
+    {
+      "id": "C4_S6",
+      "answer": {
+        "type": "number",
+        "bits": "3ff7e02b26d6a9ca"
+      },
+      "matches": {
+        "default_prefix": false,
+        "default_phase_mean": false,
+        "default_phase_regression": false
+      }
+    },
+    {
+      "id": "C4_S7",
+      "answer": {
+        "type": "number",
+        "bits": "3ff84e170ae7ca17"
+      },
+      "matches": {
+        "default_prefix": false,
+        "default_phase_mean": false,
+        "default_phase_regression": false
+      }
+    },
+    {
+      "id": "C5_S1",
+      "answer": {
+        "type": "number",
+        "bits": "3f60624dd2f1a9fc"
+      },
+      "matches": {
+        "default_prefix": false,
+        "default_phase_mean": false,
+        "default_phase_regression": false
+      }
+    },
+    {
+      "id": "C5_S2",
+      "answer": {
+        "type": "number",
+        "bits": "3f50624dd2f1a9fc"
+      },
+      "matches": {
+        "default_prefix": true,
+        "default_phase_mean": true,
+        "default_phase_regression": true
+      }
+    },
+    {
+      "id": "C5_S3",
+      "answer": {
+        "type": "number",
+        "bits": "3fe8000000000000"
+      },
+      "matches": {
+        "default_prefix": false,
+        "default_phase_mean": false,
+        "default_phase_regression": false
+      }
+    },
+    {
+      "id": "C5_S4",
+      "answer": {
+        "type": "number",
+        "bits": "3fe26267025c2e31"
+      },
+      "matches": {
+        "default_prefix": false,
+        "default_phase_mean": false,
+        "default_phase_regression": false
+      }
+    },
+    {
+      "id": "C5_S5",
+      "answer": {
+        "type": "number",
+        "bits": "3fa9a68b2e9baab2"
+      },
+      "matches": {
+        "default_prefix": false,
+        "default_phase_mean": false,
+        "default_phase_regression": false
+      }
+    },
+    {
+      "id": "C5_S6",
+      "answer": {
+        "type": "number",
+        "bits": "3fe30a7cf94d2fd8"
+      },
+      "matches": {
+        "default_prefix": false,
+        "default_phase_mean": false,
+        "default_phase_regression": false
+      }
+    },
+    {
+      "id": "C5_S7",
+      "answer": {
+        "type": "number",
+        "bits": "3fe452a691c5ebe1"
+      },
+      "matches": {
+        "default_prefix": false,
+        "default_phase_mean": false,
+        "default_phase_regression": false
+      }
+    },
+    {
+      "id": "C6_S1",
+      "answer": {
+        "type": "number",
+        "bits": "3f60624dd2f1a9fc"
+      },
+      "matches": {
+        "default_prefix": false,
+        "default_phase_mean": false,
+        "default_phase_regression": false
+      }
+    },
+    {
+      "id": "C6_S2",
+      "answer": {
+        "type": "number",
+        "bits": "3f50624dd2f1a9fc"
+      },
+      "matches": {
+        "default_prefix": true,
+        "default_phase_mean": true,
+        "default_phase_regression": true
+      }
+    },
+    {
+      "id": "C6_S3",
+      "answer": {
+        "type": "number",
+        "bits": "3fe0000000000000"
+      },
+      "matches": {
+        "default_prefix": false,
+        "default_phase_mean": false,
+        "default_phase_regression": false
+      }
+    },
+    {
+      "id": "C6_S4",
+      "answer": {
+        "type": "number",
+        "bits": "3fe182980849c7dd"
+      },
+      "matches": {
+        "default_prefix": false,
+        "default_phase_mean": false,
+        "default_phase_regression": false
+      }
+    },
+    {
+      "id": "C6_S5",
+      "answer": {
+        "type": "number",
+        "bits": "3faabe8d088d1243"
+      },
+      "matches": {
+        "default_prefix": false,
+        "default_phase_mean": false,
+        "default_phase_regression": false
+      }
+    },
+    {
+      "id": "C6_S6",
+      "answer": {
+        "type": "number",
+        "bits": "3fe222afbf70fcb8"
+      },
+      "matches": {
+        "default_prefix": false,
+        "default_phase_mean": false,
+        "default_phase_regression": false
+      }
+    },
+    {
+      "id": "C6_S7",
+      "answer": {
+        "type": "number",
+        "bits": "3fe5788066700aff"
+      },
+      "matches": {
+        "default_prefix": false,
+        "default_phase_mean": false,
+        "default_phase_regression": false
+      }
+    },
+    {
+      "id": "C7_S1",
+      "answer": {
+        "type": "number",
+        "bits": "3fc020c49ba5e354"
+      },
+      "matches": {
+        "default_prefix": false,
+        "default_phase_mean": false,
+        "default_phase_regression": false
+      }
+    },
+    {
+      "id": "C7_S2",
+      "answer": {
+        "type": "number",
+        "bits": "3f50624dd2f1a9fc"
+      },
+      "matches": {
+        "default_prefix": true,
+        "default_phase_mean": true,
+        "default_phase_regression": true
+      }
+    },
+    {
+      "id": "C7_S3",
+      "answer": {
+        "type": "number",
+        "bits": "3f50624dd2f1a9fc"
+      },
+      "matches": {
+        "default_prefix": true,
+        "default_phase_mean": true,
+        "default_phase_regression": true
+      }
+    },
+    {
+      "id": "C7_S4",
+      "answer": {
+        "type": "number",
+        "bits": "3fd3296a1fad0066"
+      },
+      "matches": {
+        "default_prefix": false,
+        "default_phase_mean": false,
+        "default_phase_regression": false
+      }
+    },
+    {
+      "id": "C7_S5",
+      "answer": {
+        "type": "number",
+        "bits": "3fef1e0632c62dac"
+      },
+      "matches": {
+        "default_prefix": false,
+        "default_phase_mean": false,
+        "default_phase_regression": false
+      }
+    },
+    {
+      "id": "C7_S6",
+      "answer": {
+        "type": "number",
+        "bits": "3ff8fa8ee94aa9aa"
+      },
+      "matches": {
+        "default_prefix": false,
+        "default_phase_mean": false,
+        "default_phase_regression": false
+      }
+    },
+    {
+      "id": "C7_S7",
+      "answer": {
+        "type": "number",
+        "bits": "3ff926aeababbaca"
+      },
+      "matches": {
+        "default_prefix": false,
+        "default_phase_mean": false,
+        "default_phase_regression": false
+      }
+    },
+    {
+      "id": "C8_S1",
+      "answer": {
+        "type": "number",
+        "bits": "3f60624dd2f1a9fc"
+      },
+      "matches": {
+        "default_prefix": false,
+        "default_phase_mean": false,
+        "default_phase_regression": false
+      }
+    },
+    {
+      "id": "C8_S2",
+      "answer": {
+        "type": "number",
+        "bits": "3f50624dd2f1a9fc"
+      },
+      "matches": {
+        "default_prefix": true,
+        "default_phase_mean": true,
+        "default_phase_regression": true
+      }
+    },
+    {
+      "id": "C8_S3",
+      "answer": {
+        "type": "number",
+        "bits": "3fc0000000000000"
+      },
+      "matches": {
+        "default_prefix": false,
+        "default_phase_mean": false,
+        "default_phase_regression": false
+      }
+    },
+    {
+      "id": "C8_S4",
+      "answer": {
+        "type": "number",
+        "bits": "3fdca1af4eabec86"
+      },
+      "matches": {
+        "default_prefix": false,
+        "default_phase_mean": false,
+        "default_phase_regression": false
+      }
+    },
+    {
+      "id": "C8_S5",
+      "answer": {
+        "type": "number",
+        "bits": "3f97bbb0c5971834"
+      },
+      "matches": {
+        "default_prefix": false,
+        "default_phase_mean": false,
+        "default_phase_regression": false
+      }
+    },
+    {
+      "id": "C8_S6",
+      "answer": {
+        "type": "number",
+        "bits": "3fdead3bd44a7d6b"
+      },
+      "matches": {
+        "default_prefix": false,
+        "default_phase_mean": false,
+        "default_phase_regression": false
+      }
+    },
+    {
+      "id": "C8_S7",
+      "answer": {
+        "type": "number",
+        "bits": "3fe089905774f96d"
+      },
+      "matches": {
+        "default_prefix": false,
+        "default_phase_mean": false,
+        "default_phase_regression": false
+      }
+    },
+    {
+      "id": "C9_S1",
+      "answer": {
+        "type": "number",
+        "bits": "3f60624dd2f1a9fc"
+      },
+      "matches": {
+        "default_prefix": false,
+        "default_phase_mean": false,
+        "default_phase_regression": false
+      }
+    },
+    {
+      "id": "C9_S2",
+      "answer": {
+        "type": "number",
+        "bits": "3f50624dd2f1a9fc"
+      },
+      "matches": {
+        "default_prefix": true,
+        "default_phase_mean": true,
+        "default_phase_regression": true
+      }
+    },
+    {
+      "id": "C9_S3",
+      "answer": {
+        "type": "number",
+        "bits": "3fc0000000000000"
+      },
+      "matches": {
+        "default_prefix": false,
+        "default_phase_mean": false,
+        "default_phase_regression": false
+      }
+    },
+    {
+      "id": "C9_S4",
+      "answer": {
+        "type": "number",
+        "bits": "3fdb798315fa93d6"
+      },
+      "matches": {
+        "default_prefix": false,
+        "default_phase_mean": false,
+        "default_phase_regression": false
+      }
+    },
+    {
+      "id": "C9_S5",
+      "answer": {
+        "type": "number",
+        "bits": "3f96921f7d048964"
+      },
+      "matches": {
+        "default_prefix": false,
+        "default_phase_mean": false,
+        "default_phase_regression": false
+      }
+    },
+    {
+      "id": "C9_S6",
+      "answer": {
+        "type": "number",
+        "bits": "3fdd6fe7e0b10c1c"
+      },
+      "matches": {
+        "default_prefix": false,
+        "default_phase_mean": false,
+        "default_phase_regression": false
+      }
+    },
+    {
+      "id": "C9_S7",
+      "answer": {
+        "type": "number",
+        "bits": "3fe0200118205e8f"
+      },
+      "matches": {
+        "default_prefix": false,
+        "default_phase_mean": false,
+        "default_phase_regression": false
+      }
+    },
+    {
+      "id": "B5_S1",
+      "answer": {
+        "type": "number",
+        "bits": "3f60624dd2f1a9fc"
+      },
+      "matches": {
+        "default_prefix": false,
+        "default_phase_mean": false,
+        "default_phase_regression": false
+      }
+    },
+    {
+      "id": "B5_S2",
+      "answer": {
+        "type": "number",
+        "bits": "3f50624dd2f1a9fc"
+      },
+      "matches": {
+        "default_prefix": true,
+        "default_phase_mean": true,
+        "default_phase_regression": true
+      }
+    },
+    {
+      "id": "B5_S3",
+      "answer": {
+        "type": "number",
+        "bits": "3fd0000000000000"
+      },
+      "matches": {
+        "default_prefix": false,
+        "default_phase_mean": false,
+        "default_phase_regression": false
+      }
+    },
+    {
+      "id": "B5_S4",
+      "answer": {
+        "type": "number",
+        "bits": "3fb193fa9ee320c0"
+      },
+      "matches": {
+        "default_prefix": false,
+        "default_phase_mean": false,
+        "default_phase_regression": false
+      }
+    },
+    {
+      "id": "B5_S5",
+      "answer": {
+        "type": "number",
+        "bits": "3f7fe307b994aba3"
+      },
+      "matches": {
+        "default_prefix": false,
+        "default_phase_mean": false,
+        "default_phase_regression": false
+      }
+    },
+    {
+      "id": "B5_S6",
+      "answer": {
+        "type": "number",
+        "bits": "403193fa9ee320c0"
+      },
+      "matches": {
+        "default_prefix": false,
+        "default_phase_mean": false,
+        "default_phase_regression": false
+      }
+    },
+    {
+      "id": "B5_S7",
+      "answer": {
+        "type": "number",
+        "bits": "4035b0206cf5b256"
+      },
+      "matches": {
+        "default_prefix": false,
+        "default_phase_mean": false,
+        "default_phase_regression": false
+      }
+    }
+  ]
+}

@@ -30,6 +30,7 @@ pub struct AddinHost {
     /// VBA add-ins (.xlam): each file's project, compiled with its references (dc-0f1k.4).
     vba_addins: Vec<(PathBuf, calc_vba::events::OfficeLoad)>,
     workbook: String,
+    profile: calc_vba::Profile,
 }
 
 /// What loading a VBA add-in did: its worksheet functions, and what its workbook events did or
@@ -73,6 +74,17 @@ fn attach(
 impl AddinHost {
     /// An empty add-in set against `document`, with its object model attached to `shell`.
     pub fn new(shell: &Shell, document: &Document<'_>) -> Result<Self, String> {
+        Self::with_profile(shell, document, calc_vba::Profile::Full)
+    }
+
+    /// [`Self::new`] for an application with a profile. OneCalc hosts functions only
+    /// ([`calc_vba::Profile::ValuesOnly`]): VBA functions with `As Range` parameters register as
+    /// refusals ("needs a workbook: open in DNA Calc"). DNA Calc takes the full profile.
+    pub fn with_profile(
+        shell: &Shell,
+        document: &Document<'_>,
+        profile: calc_vba::Profile,
+    ) -> Result<Self, String> {
         let native = Rc::new(XllHost::new(shell.hwnd()));
         let projection = attach(shell, &native, document)?;
         Ok(Self {
@@ -83,6 +95,7 @@ impl AddinHost {
             vba: Vec::new(),
             vba_addins: Vec::new(),
             workbook: document.workbook.to_owned(),
+            profile,
         })
     }
 
@@ -162,7 +175,8 @@ impl AddinHost {
         source: &str,
         max_steps: u64,
     ) -> Result<(), String> {
-        let functions = calc_vba::load_module(name, source, max_steps)?;
+        let functions =
+            calc_vba::load_module_with_profile(name, source, max_steps, self.profile)?;
         match self.vba.iter_mut().find(|(held, _)| held == name) {
             Some(held) => held.1 = functions,
             None => self.vba.push((name.to_owned(), functions)),
@@ -207,6 +221,7 @@ impl AddinHost {
             &name,
             calc_vba::DEFAULT_STEP_BUDGET,
             None,
+            self.profile,
         )?;
         let functions = load
             .project

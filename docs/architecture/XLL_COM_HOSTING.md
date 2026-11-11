@@ -1330,7 +1330,14 @@ foreground hits.
   dependent of a shared topic is calculated. Heartbeat, the 22 s idle case and the controlled
   numeric server keep matching (x5, x5typed, x5call verified).
 
-## 32. OneCalc COM0/COM2: Application.Range, Union, Caller (dc-6332.12)
+## 32. OneCalc COM0/COM2: Application.Range, Union, Caller (dc-6332.12), removed by dc-svqh
+
+Superseded (owner policy 2026-11-11): OneCalc hosts functions, DNA Calc hosts workbooks. The pseudo
+object model described here (commits ecd1d610 and b28341ab; the text below is kept as the record of
+what was measured) is removed from calc-com-host. `Application.Caller` and `Application.ThisCell`
+now answer error 1004 "needs a workbook: open in DNA Calc"; there is no `Application.Range` or
+`Union`. The measurements stand as input for DNA Calc's object model.
+
 
 Evidence: `crates/calc-xll-reference/traces/2026-11-11-x19-com`. The projection's `Application` has
 `Range(Cell1, [Cell2])` (DISPID 0xc5, early-bound slot 40), `Union` (0x30b, slot 50) and `Caller`

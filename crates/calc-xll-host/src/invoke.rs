@@ -18,6 +18,19 @@ pub(crate) enum NativeReturn {
     Pending(callbacks::Pending),
 }
 
+/// Zeroes the stack below the caller before native code is entered (dc-q2nd).
+///
+/// Add-ins read uninitialised locals: xlOil's `xloSort` never sets `directions[0]` when the order
+/// argument is omitted, so the sort direction is whatever bit the stack held there. The stack's
+/// leftovers differ between builds (a cross-built exe sorted descending where the native one sorted
+/// ascending, as Excel's recorded answer did). A zeroed stack makes such reads deterministic and
+/// equal to a fresh Excel thread's. The sixteen kilobytes are small beside a native call.
+#[inline(never)]
+fn scrub_stack() {
+    let mut zeros = [0u8; 16 * 1024];
+    std::hint::black_box(&mut zeros);
+}
+
 pub(crate) fn call_interface(signature: &XllSignature) -> Option<Cif> {
     fn native_type(kind: XllType) -> Option<Type> {
         use XllType::*;
@@ -279,6 +292,7 @@ impl XllFunction {
             XllType::Void | XllType::InPlace(_) => Ret::void(),
             _ => Ret::new(&mut returned.word),
         };
+        scrub_stack();
         unsafe {
             if let Some(pending) = &mut pending {
                 pending.entered = true;
