@@ -155,24 +155,52 @@ pub(crate) fn template_basename(name: &str) -> &str {
 #[derive(Debug)]
 pub enum OpenRefused {
     Package(calc_host::OpenFailure),
-    Vba(calc_host_vba::FileProjectError),
 }
 impl std::fmt::Display for OpenRefused {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
             Self::Package(error) => error.fmt(f),
-            Self::Vba(error) => error.fmt(f),
         }
     }
 }
 impl std::error::Error for OpenRefused {}
 
-/// A caller can preserve a file's project without compiling or executing it.
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub enum VbaOpenPolicy {
-    Run,
-    Preserve,
+/// Where the opened file came from, which decides whether its VBA project may be enabled.
+pub use calc_host_vba::FileOrigin;
+
+/// Whether the workbook's own VBA project runs (dc-0f1k.22). Opening never runs it: a macro
+/// workbook opens [`Macros::Disabled`] or [`Macros::Blocked`], and only
+/// [`Workbook::enable_macros`] (the person's action) compiles it and raises `Workbook_Open`.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub enum Macros {
+    /// The workbook has no VBA project.
+    None,
+    /// Held and saved back, not compiled, not run; the origin is kept for the grant.
+    Disabled(FileOrigin),
+    /// Held, not run, and not to be enabled.
+    Blocked(calc_host_vba::MacroBlock),
+    /// The person enabled macros; the project compiled and its events run.
+    Enabled,
 }
+
+/// Why [`Workbook::enable_macros`] did not run the project.
+#[derive(Debug)]
+pub enum EnableRefused {
+    NoProject,
+    Blocked(calc_host_vba::MacroBlock),
+    /// The project did not read or compile; it stays held and saved back.
+    Project(calc_host_vba::FileProjectError),
+}
+impl std::fmt::Display for EnableRefused {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            Self::NoProject => f.write_str("This workbook has no VBA project"),
+            Self::Blocked(block) => block.fmt(f),
+            Self::Project(error) => error.fmt(f),
+        }
+    }
+}
+impl std::error::Error for EnableRefused {}
 
 pub use dna_calc_model::projection::SheetTab;
 
@@ -193,6 +221,11 @@ pub struct Workbook {
     /// The functions of the workbook's own VBA project, when it runs: a host's add-in functions
     /// are published beside them, never instead of them.
     project_functions: Option<calc_host::CallableTable>,
+    /// Whether that project runs ([`Macros`]).
+    macros: Macros,
+    /// The host's add-in functions, kept so that enabling macros publishes the project's functions
+    /// beside them.
+    addin_functions: Option<calc_host::CallableTable>,
     /// Each sheet's conditional formats, prepared for the values as they stand; emptied when an
     /// intent commits an edit or recalculates (dc-6yw).
     display_metrics:
@@ -229,33 +262,33 @@ impl Workbook {
         bytes: Vec<u8>,
         budget: calc_host::WorkBudget,
     ) -> Result<Workbook, OpenRefused> {
-        Self::open_with_project_policy(name, bytes, budget, VbaOpenPolicy::Run)
+        Self::open_with_project_policy(name, bytes, budget, FileOrigin::Unknown)
     }
 
     pub fn open_with_project_policy(
         name: &str,
         bytes: Vec<u8>,
         budget: calc_host::WorkBudget,
-        vba: VbaOpenPolicy,
+        origin: FileOrigin,
     ) -> Result<Workbook, OpenRefused> {
-        Self::open_with_template_mode(name, bytes, budget, vba, false)
+        Self::open_with_template_mode(name, bytes, budget, origin, false)
     }
 
     pub fn open_with_template_mode(
         name: &str,
         bytes: Vec<u8>,
         budget: calc_host::WorkBudget,
-        vba: VbaOpenPolicy,
+        origin: FileOrigin,
         edit_template: bool,
     ) -> Result<Workbook, OpenRefused> {
-        Self::open_with_template_counter(name, bytes, budget, vba, edit_template, 1)
+        Self::open_with_template_counter(name, bytes, budget, origin, edit_template, 1)
     }
 
     pub(crate) fn open_with_template_counter(
         name: &str,
         bytes: Vec<u8>,
         budget: calc_host::WorkBudget,
-        vba: VbaOpenPolicy,
+        origin: FileOrigin,
         edit_template: bool,
         template_counter: u64,
     ) -> Result<Workbook, OpenRefused> {
@@ -293,17 +326,16 @@ impl Workbook {
         }
         sample_browser_clock(&mut session);
         session.set_calculation_budget(budget);
-        let mut project_functions = None;
-        if vba == VbaOpenPolicy::Run {
-            project_functions = calc_host_vba::open_file_project(
-                &mut session,
-                &name,
-                calc_vba::DEFAULT_STEP_BUDGET,
-                None,
-            )
-            .map_err(OpenRefused::Vba)?
-            .map(|project| project.functions());
-        }
+        // Opening never compiles or runs the file's project (dc-0f1k.22): it is held and saved
+        // back until the person enables macros, and a blocked file cannot be enabled.
+        let macros = if session.host().loaded().has_vba_project() {
+            match origin.block() {
+                Some(block) => Macros::Blocked(block),
+                None => Macros::Disabled(origin),
+            }
+        } else {
+            Macros::None
+        };
         let mut workbook = Workbook {
             session,
             name,
@@ -312,7 +344,9 @@ impl Workbook {
             output_format,
             inbox: Rc::default(),
             calculated_on_open: None,
-            project_functions,
+            project_functions: None,
+            macros,
+            addin_functions: None,
             palette: None,
             conditional: RefCell::default(),
             display_metrics: RefCell::default(),
@@ -408,8 +442,57 @@ impl Workbook {
         work.advance(&mut self.session, quantum)
     }
 
+    /// Whether the workbook's own VBA project runs.
+    pub fn macros(&self) -> &Macros {
+        &self.macros
+    }
+
+    /// The person enabled macros for this workbook: its project is compiled, its functions are
+    /// published beside the host's add-ins', `Workbook_Open` is raised and the workbook is
+    /// recalculated. A blocked file, a workbook without a project and a project that does not
+    /// compile are refused, and the project stays held. Enabling twice does nothing more.
+    pub fn enable_macros(&mut self) -> Result<(), EnableRefused> {
+        let origin = match &self.macros {
+            Macros::None => return Err(EnableRefused::NoProject),
+            Macros::Blocked(block) => return Err(EnableRefused::Blocked(*block)),
+            Macros::Enabled => return Ok(()),
+            Macros::Disabled(origin) => *origin,
+        };
+        let grant =
+            calc_host_vba::ProjectGrant::person_enabled(origin).map_err(EnableRefused::Blocked)?;
+        let Some(project) = calc_host_vba::prepare_file_project_with_events(
+            &grant,
+            self.session.host(),
+            &self.name,
+            calc_vba::DEFAULT_STEP_BUDGET,
+            None,
+            self.session.workbook_events_enabled(),
+        )
+        .map_err(EnableRefused::Project)?
+        else {
+            return Err(EnableRefused::NoProject);
+        };
+        let own = project.functions();
+        let mut functions = own.clone();
+        if let Some(addins) = &self.addin_functions {
+            functions = addins.clone();
+            if let Err(why) = functions.add_from(&own) {
+                eprintln!("dna-calc: the workbook's VBA functions are not published: {why}");
+            }
+        }
+        self.project_functions = Some(own);
+        self.macros = Macros::Enabled;
+        project.install_with_registry(&mut self.session, functions);
+        self.session.notify_workbook_open();
+        if self.session.calc_mode() != CalcMode::Manual {
+            self.session.dispatch(SkinIntent::Recalculate);
+        }
+        Ok(())
+    }
+
     /// Native composition installs XLL/VBA/WIT adapters through one callable table.
     pub fn set_user_functions(&mut self, mut functions: calc_host::CallableTable) {
+        self.addin_functions = Some(functions.clone());
         if let Some(project) = &self.project_functions
             && let Err(why) = functions.add_from(project)
         {
@@ -1008,7 +1091,7 @@ mod template_tests {
             "personal.xltx",
             template,
             calc_host::WorkBudget::UNLIMITED,
-            VbaOpenPolicy::Preserve,
+            FileOrigin::Local,
             true,
         )
         .unwrap();

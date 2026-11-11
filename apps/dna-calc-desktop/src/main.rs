@@ -18,6 +18,7 @@ mod engine;
 #[cfg(windows)]
 mod fetch;
 mod file_import;
+mod origin;
 
 #[cfg(windows)]
 #[unsafe(no_mangle)]
@@ -86,6 +87,7 @@ fn run() -> Result<(), String> {
     let mut finished = None;
     let mut release = None;
     let mut workbook = None;
+    let mut enable_macros = false;
     let mut args = std::env::args().skip(1);
     while let Some(arg) = args.next() {
         match arg.as_str() {
@@ -106,6 +108,9 @@ fn run() -> Result<(), String> {
             "--workbook" => {
                 workbook = Some(PathBuf::from(args.next().ok_or("--workbook needs a path")?))
             }
+            // The person enables the --workbook file's own VBA project (dc-0f1k.22); without it the
+            // project is held, not run, as the page holds it until its bar's Enable macros.
+            "--enable-macros" => enable_macros = true,
             "--ribbon-ui" => ribbon_ui = true,
             "--ready" => ready = Some(PathBuf::from(args.next().ok_or("--ready needs a path")?)),
             "--wait" => wait = Some(PathBuf::from(args.next().ok_or("--wait needs a path")?)),
@@ -122,7 +127,7 @@ fn run() -> Result<(), String> {
             }
             "--help" => {
                 println!(
-                    "dna-calc-desktop [FILE | --open FILE] --app (--assets DIR | --url URL | a `page` folder beside the executable) [--xll PATH ...] | --engine --xll PATH [--xll PATH ...] (PATH an .xll or a VBA .xlam) [--workbook FILE] [--formula TEXT | --cases PATH] [--sheet NAME] [--workbook-name NAME] [--early-execution NAME]"
+                    "dna-calc-desktop [FILE | --open FILE] --app (--assets DIR | --url URL | a `page` folder beside the executable) [--xll PATH ...] | --engine --xll PATH [--xll PATH ...] (PATH an .xll or a VBA .xlam) [--workbook FILE [--enable-macros]] [--formula TEXT | --cases PATH] [--sheet NAME] [--workbook-name NAME] [--early-execution NAME]"
                 );
                 return Ok(());
             }
@@ -199,6 +204,7 @@ fn run() -> Result<(), String> {
         formula,
         &early_execution,
         workbook.as_deref(),
+        enable_macros,
     )?;
     output["ribbons"] = serde_json::json!(ribbons);
     addins.close_addins()?;

@@ -182,8 +182,11 @@ impl Manifest {
                 ));
             }
         }
+        // The one grant the harness makes (dc-0f1k.22): the manifest lists this package's exact
+        // bytes (`package` is their SHA-256) with its VBA project enabled.
         let project = if vba {
-            calc_host_vba::prepare_file_project_with_events(host, name, 100_000, None, events)
+            let grant = calc_host_vba::ProjectGrant::evidence_manifest(&self.digest, package);
+            calc_host_vba::prepare_file_project_with_events(&grant, host, name, 100_000, None, events)
                 .map_err(|e| WorkbookFailure {
                     class: Class::Doc,
                     key: "VbaProject:dc-snz.15".into(),

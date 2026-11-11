@@ -197,9 +197,12 @@ pub fn run(
     formula: String,
     early_execution: &[u64],
     workbook: Option<&std::path::Path>,
+    enable_macros: bool,
 ) -> Result<serde_json::Value, String> {
     // A named workbook (`--workbook`) opens as the page's worker opens one: its VBA project is
-    // prepared with calc-host-vba's open-time route and its functions join the add-ins' table.
+    // held, not run, unless the person enables macros (`--enable-macros`); then it is prepared
+    // with calc-host-vba's open-time route and its functions join the add-ins' table. A file with
+    // the Mark of the Web (zone 3 or 4) or on the network is refused even so (dc-0f1k.22).
     let package = match workbook {
         Some(path) => std::fs::read(path).map_err(|e| format!("{}: {e}", path.display()))?,
         None => calc_host::blank_package(),
@@ -210,13 +213,23 @@ pub fn run(
         HostOptions::default(),
     )
     .map_err(|e| format!("{e:?}"))?;
-    let project = match workbook {
-        Some(path) => {
+    let grant = match workbook {
+        Some(path) if enable_macros => {
+            calc_host_vba::ProjectGrant::person_enabled(crate::origin::file_origin(path))
+                .map(Some)
+        }
+        _ => Ok(None),
+    };
+    // A blocked file is reported in the output (`macros_refused`), not as a failed run.
+    let macros_refused = grant.as_ref().err().map(ToString::to_string);
+    let project = match (workbook, grant.ok().flatten()) {
+        (Some(path), Some(grant)) => {
             let name = path
                 .file_name()
                 .map(|n| n.to_string_lossy().into_owned())
                 .unwrap_or_default();
             calc_host_vba::prepare_file_project_with_events(
+                &grant,
                 book.host(),
                 &name,
                 calc_vba::DEFAULT_STEP_BUDGET,
@@ -225,7 +238,7 @@ pub fn run(
             )
             .map_err(|e| format!("{}: {e}", path.display()))?
         }
-        None => None,
+        _ => None,
     };
     book.set_file_identity(workbook_name, false);
     book.dispatch(SkinIntent::SetCalcMode(CalcMode::Manual));
@@ -660,7 +673,7 @@ pub fn run(
         return Err("removed native entry still executes".into());
     }
     Ok(
-        serde_json::json!({"host":"DNA Calc / CalcHost P07","workbook_project":project.is_some(),"registrations":addins.registrations().len(),"early_execution_registrations":early_execution,"results":results,"formula_entries":formula_entries,"async_returns":returns,"revoked_tokens":revoked,"rtd_updates":rtd_updates,"rtd_retired":rtd_retired,"rtd_subscriptions_after_close":rtd.subscriptions(),"status_message":native.status_message(),
+        serde_json::json!({"host":"DNA Calc / CalcHost P07","workbook_project":project.is_some(),"macros_refused":macros_refused,"registrations":addins.registrations().len(),"early_execution_registrations":early_execution,"results":results,"formula_entries":formula_entries,"async_returns":returns,"revoked_tokens":revoked,"rtd_updates":rtd_updates,"rtd_retired":rtd_retired,"rtd_subscriptions_after_close":rtd.subscriptions(),"status_message":native.status_message(),
         "reload_results":[],"commands":commands,"live_callback_allocations":native.live_callback_allocations(),"closed_registration":"#NAME?","closed_name":stale_name}),
     )
 }

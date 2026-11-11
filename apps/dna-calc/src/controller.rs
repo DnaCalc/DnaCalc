@@ -3896,6 +3896,38 @@ impl Controller {
 
     /// The warning of a circular reference the last recalculation found (dc-y2o.1): `None` when
     /// there is none.
+    /// The macro bar's words, and whether it offers Enable macros: shown for a workbook whose VBA
+    /// project is held (disabled, or blocked by its Mark of the Web or network origin).
+    pub fn macro_bar(&self) -> Option<(String, bool)> {
+        self.summary.with(|summary| match &summary.macros {
+            wire::MacroStatus::Disabled => Some((
+                "Macros are disabled for this workbook: its VBA project is held and saved with it, but nothing in it runs until you enable macros".to_owned(),
+                true,
+            )),
+            wire::MacroStatus::Blocked { reason } => Some((reason.clone(), false)),
+            wire::MacroStatus::None | wire::MacroStatus::Enabled => None,
+        })
+    }
+
+    /// The person enabled macros for the open workbook (the macro bar's button, dc-0f1k.22).
+    pub fn enable_macros(&self) {
+        let controller = *self;
+        self.pending_actions.update(|n| *n += 1);
+        self.send_command(Request::EnableMacros, None, move |reply, _| {
+            controller
+                .pending_actions
+                .update(|n| *n = n.saturating_sub(1));
+            match reply {
+                Ok(Reply::Done { outcome, .. }) => {
+                    controller.applied(&outcome, false);
+                    controller.say("Macros are enabled for this workbook", false);
+                }
+                Err(error) => controller.say(format!("Macros were not enabled: {error}"), true),
+                _ => controller.say("Enable macros did not answer", true),
+            }
+        });
+    }
+
     pub fn circular_warning(&self) -> Option<String> {
         let (first, count) = self
             .summary

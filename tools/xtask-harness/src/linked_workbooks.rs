@@ -173,26 +173,11 @@ pub(crate) fn load(
                             continue;
                         }
                     }
-                } else {
-                    match crate::compare::prepare_captured_vba(
-                        session.host(),
-                        source_path
-                            .file_name()
-                            .and_then(|name| name.to_str())
-                            .unwrap_or("linked.xlsx"),
-                        capture,
-                    ) {
-                        Ok(Some((project, events))) => {
-                            session.set_workbook_events_enabled(events);
-                            project.install(&mut session);
-                            session.notify_workbook_open();
-                        }
-                        Ok(None) => {}
-                        Err(error) => {
-                            records.push(json!({"referrer":path,"link":number,"source":source_path,"status":"external-cache: VBA project refused","reason":error.message}));
-                            continue;
-                        }
-                    }
+                } else if let Err(error) =
+                    crate::compare::refuse_untrusted_vba(session.host(), capture)
+                {
+                    records.push(json!({"referrer":path,"link":number,"source":source_path,"status":"external-cache: VBA project refused","key":error.key,"reason":error.message}));
+                    continue;
                 }
                 let source = domain
                     .insert_session(session)

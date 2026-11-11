@@ -11,6 +11,8 @@ html,body{height:100%}
 .dc-mast .dc-doc{font-weight:600}
 .dc-mast .dc-skins{margin-left:auto;display:flex;gap:4px}
 .dc-mast .dc-skins button[aria-pressed=true]{background:var(--dna-chrome-ink);color:var(--dna-chrome)}
+.dc-macro-bar{display:flex;gap:10px;align-items:center;padding:6px 10px;border-bottom:1px solid var(--dna-line);background:var(--dna-paper-2)}
+.dc-macro-bar[hidden]{display:none}
 .dc-bar{display:flex;gap:8px;align-items:flex-start;padding:6px 10px;border-bottom:1px solid var(--dna-line);background:var(--dna-paper-2)}
 .dc-namebox{width:calc(11ch + 14px);flex:0 0 auto;font:13px ui-monospace,Consolas,monospace;border:1px solid var(--dna-ink-3);border-radius:4px;padding:6px}
 .dc-fx{flex:1 1 auto;min-width:0}
@@ -40,7 +42,7 @@ html,body{height:100%}
 .dc-mast button,.dc-mast select,.dc-mast label.dc-open,.dc-tabs button,.dc-gridbar button{min-height:36px;min-width:36px}
 }
 /* Shared workbook feedback and compact commands (dc-971p.3). */
-.dc-mast,.dc-bar,.dc-tabs,.dc-status{flex-shrink:0}
+.dc-mast,.dc-macro-bar,.dc-bar,.dc-tabs,.dc-status{flex-shrink:0}
 .dc-mast{position:relative;gap:6px}
 .dc-doc{flex:1 1 90px;min-width:0;max-width:24ch;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .dc-mast button,.dc-mast select,.dc-settings>summary{min-height:30px;box-sizing:border-box}

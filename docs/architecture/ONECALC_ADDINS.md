@@ -46,6 +46,24 @@ the person's rights, as in Excel. What the application does about that is small 
    call passes something that is not a literal; a class used both ways in one project is refused
    for both) and calls through `IDispatch` on a COM object. A project with COM references can do
    what the person can, as in Excel.
+1b. DNA Calc does the same for an opened workbook (dc-0f1k.22). Opening never compiles or runs the
+   file's project (`apps/dna-calc-worker/src/workbook.rs`, `Macros`): it is held and saved back,
+   the page shows a "Macros are disabled" bar above the formula bar, and its Enable macros button
+   (`Request::EnableMacros`) compiles the project, publishes its functions beside the add-ins'
+   and raises `Workbook_Open`. A file whose Mark of the Web says zone 3 or 4, or one opened from a
+   UNC path, is blocked: the bar says why and offers no button, and the request is refused. The
+   desktop reads the origin of a file named on its command line (`--open`;
+   `calc_platform_desktop::origin`); a file the page's own file input opens has no path, so, as in
+   a browser, its origin is unknown and it opens disabled. The desktop harness
+   (`dna-calc-desktop --engine --workbook FILE`) holds the project unless `--enable-macros` is
+   given, and reports a blocked file as `macros_refused`. Every calc-host-vba route that compiles
+   a file's project takes a `ProjectGrant`, made only by the person's enabling
+   (`ProjectGrant::person_enabled`, refused for a blocked origin) or by an evidence run's
+   trusted-code manifest that lists the file's exact bytes (`ProjectGrant::evidence_manifest`, in
+   `tools/xtask-harness/src/trusted_code.rs` only). `cargo xtask corpus` and `compare` without
+   `--trusted-code` never run a file's project: a capture whose Excel could run it
+   (AutomationSecurity 1) is refused as `TrustedCodePolicy:dc-0f1k.22`. There are no trusted
+   locations and no per-file trust record.
 2. A session lists add-ins with the hash of each file when it was saved; reopening only offers.
 3. A listed add-in whose file no longer has the listed hash is not loaded by the offer.
 4. Commands, ribbons, menus and other add-in features are not offered. Their registration or load

@@ -109,6 +109,9 @@ pub struct Server {
     next_save: u64,
     /// Successful creations, per template stem, across workbook replacements in this session.
     template_counters: BTreeMap<String, u64>,
+    /// Where the file of the next open came from, when a native host read its path (its Mark of
+    /// the Web, the network); taken by that open. A browser cannot tell: unknown (dc-0f1k.22).
+    open_origin: Option<crate::workbook::FileOrigin>,
 }
 
 impl Default for Server {
@@ -310,6 +313,7 @@ impl Server {
             save_as_target: None,
             next_save: 1,
             template_counters: BTreeMap::new(),
+            open_origin: None,
         }
     }
 
@@ -857,7 +861,9 @@ impl Server {
                         &name,
                         bytes,
                         self.calculation_budget,
-                        crate::workbook::VbaOpenPolicy::Run,
+                        self.open_origin
+                            .take()
+                            .unwrap_or(crate::workbook::FileOrigin::Unknown),
                         edit_template,
                         counter,
                     ) {
@@ -900,6 +906,13 @@ impl Server {
                 }
                 Request::SetVbaEventsEnabled { enabled } => {
                     self.book.set_vba_events_enabled(enabled);
+                    Ok(self.done(true, None, 0.0))
+                }
+                Request::EnableMacros => {
+                    self.book
+                        .enable_macros()
+                        .map_err(|refused| refused.to_string())?;
+                    self.collect();
                     Ok(self.done(true, None, 0.0))
                 }
                 request @ (Request::Save
@@ -1529,6 +1542,13 @@ impl Server {
         self.collect();
     }
 
+    /// Where the file the next open request names came from (the desktop host read its path):
+    /// its Mark of the Web or a network path blocks its VBA project (dc-0f1k.22). Without one the
+    /// origin is unknown, as in a browser, and the project opens disabled.
+    pub fn set_open_origin(&mut self, origin: crate::workbook::FileOrigin) {
+        self.open_origin = Some(origin);
+    }
+
     /// Bind a native host's RTD connector to this and every later workbook.
     pub fn set_rtd_connector(&mut self, connector: std::rc::Rc<dyn calc_host::RtdConnector>) {
         self.book.set_rtd_connector(connector.clone());
@@ -1680,6 +1700,14 @@ impl Server {
             changed: self.book.changed(),
             unsaved: self.book.unsaved(),
             macro_enabled: self.book.output_format().macro_enabled(),
+            macros: match self.book.macros() {
+                crate::workbook::Macros::None => wire::MacroStatus::None,
+                crate::workbook::Macros::Disabled(_) => wire::MacroStatus::Disabled,
+                crate::workbook::Macros::Blocked(block) => wire::MacroStatus::Blocked {
+                    reason: block.to_string(),
+                },
+                crate::workbook::Macros::Enabled => wire::MacroStatus::Enabled,
+            },
             template: self.book.output_format().is_template(),
             undo: self.book.session().history_depth().0,
             redo: self.book.session().history_depth().1,
