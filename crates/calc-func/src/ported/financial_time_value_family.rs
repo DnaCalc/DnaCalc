@@ -833,6 +833,56 @@ pub fn ppmt(
     }
 }
 
+/// CUMPRINC over the whole periods `start..=end` as Excel 16.0.20527 sums them (dc-j9k.49): a backward
+/// recurrence from the last period. With `L` the PMT logarithm and `q = st(pv / em_n)` PMT's stored
+/// quotient, the last period's discount `u = EXP(-(nper - end + 1) L)` times the period coefficient
+/// (the rate for end payments, the due coefficient for beginning ones) starts the term; each period
+/// adds the term to the sum and divides it by `1 + rate`, all at precision 64, and the stored sum is
+/// multiplied by `q` (stored). For beginning payments the first period is the whole due payment
+/// (no interest), added after the recurrence over periods 2 to end.
+///
+/// Identified where `1 + rate` is a power of two (600 of 600 ranges, 115 of 115 singletons); at
+/// other rates it is within 4 units of Excel on the bank where the sum of public PPMT values was up
+/// to 12 away, and a second pv-dependent rounding Excel makes there is not identified. `None` where
+/// PMT's quotient is not formed this way; the caller keeps its fallback there.
+pub(crate) fn cumulative_principal(
+    periodic_rate: f64,
+    periods: f64,
+    present_value: f64,
+    start_period: i32,
+    end_period: i32,
+    timing: PaymentTiming,
+) -> Option<f64> {
+    if !(periodic_rate > 0.0) || start_period > end_period || start_period < 1 {
+        return None;
+    }
+    let (log_growth, quotient) = end_payment_quotient(periodic_rate, periods, present_value, 0.0)?;
+    let beginning = matches!(timing, PaymentTiming::BeginningOfPeriod);
+    let coefficient = if beginning {
+        due_coefficient(periodic_rate)
+    } else {
+        periodic_rate
+    };
+    let first = if beginning { start_period.max(2) } else { start_period };
+    let mut total = 0.0;
+    if end_period >= first {
+        let last = periods - f64::from(end_period) + 1.0;
+        let discount = crate::ported::excel_numeric::excel_exp(-(last * log_growth));
+        let count = (end_period - first + 1) as u32;
+        let sum = crate::ported::excel_numeric::excel_backward_period_sum(
+            discount,
+            coefficient,
+            periodic_rate,
+            count,
+        );
+        total = excel_x87_mul(quotient, sum);
+    }
+    if beginning && start_period == 1 {
+        total = excel_x87_add(total, excel_x87_mul(quotient, coefficient));
+    }
+    total.is_finite().then_some(total)
+}
+
 /// The discounted-payment principal expression. The cumulative beginning-payment
 /// fallback still uses it: its singletons differ from public PPMT, whose measured
 /// positive-rate finish uses the shared period component above. The cumulative
