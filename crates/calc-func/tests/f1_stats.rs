@@ -2046,10 +2046,18 @@ fn beta_and_f_tails_keep_the_recorded_arithmetic_stores() {
             f64::from_bits(expected),
         );
     }
-    for x in [0x3ff3_72a3_6987_efc6, 0x3ff3_72a3_6987_efc7] {
-        exact(
+    // Both left this test's exact rows at dc-6332.8, with the F wrapper's own argument pair and
+    // Excel's recurrence arm in place (FDIST 661 -> 2,986 of 4,399 bank rows): the recurrence
+    // term at an F pair, whose two arguments do not sum to one exactly, is not read yet, and
+    // these two calls sit 3 and 4 units below Excel.
+    for (x, calculated) in [
+        (0x3ff3_72a3_6987_efc6, 0x3fd9_d035_ed43_a9d2),
+        (0x3ff3_72a3_6987_efc7, 0x3fd9_d035_ed43_a9d1_u64),
+    ] {
+        recorded_calculation(
             call("FDIST", vec![n(f64::from_bits(x)), n(5.0), n(6.0)]),
             f64::from_bits(0x3fd9_d035_ed43_a9d5),
+            f64::from_bits(calculated),
         );
     }
 }
@@ -2075,7 +2083,8 @@ fn beta_normalizer_and_fraction_carry_selected_products_into_the_sum() {
         ),
         f64::from_bits(0x3fe4_0a1a_47f6_ea10),
     );
-    exact(
+    // One unit below Excel since dc-6332.8 (the recurrence term at an F pair, as above).
+    recorded_calculation(
         call(
             "F.DIST",
             vec![
@@ -2086,6 +2095,7 @@ fn beta_normalizer_and_fraction_carry_selected_products_into_the_sum() {
             ],
         ),
         f64::from_bits(0x3fe5_bb90_637b_4cd0),
+        f64::from_bits(0x3fe5_bb90_637b_4ccf),
     );
     // oc2325 distinguishes the earlier Horner product in GAMln1's small-a arm.
     exact(

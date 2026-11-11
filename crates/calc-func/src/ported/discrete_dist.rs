@@ -113,6 +113,60 @@ fn binom_mass(x: f64, n: f64, p: f64, q: f64) -> f64 {
     excel_exp_running(binom_exponent(x, n, p, q), &binom_normalizer(x, n))
 }
 
+/// The beta density at `0 < x < 1`, as BETA.DIST(x, a, b, FALSE) gives it on the unit interval and
+/// as the cumulative's recurrence arm uses it (dc-6332.8, Excel 16.0.20527; 100 random `x` per
+/// shape pair unless said otherwise, `docs/research/beta-family-2026-11-12.md`):
+///
+/// - Both shapes above 1: the binomial mass of `a - 1` successes in `a + b - 2` trials, its stored
+///   exponent and running normalizer, with one more running term, `-LN(a + b - 1)`: all rows at
+///   15 pairs from (1.1, 1.1) to (300, 2); with a shape of 1.5, 63 to 95 of 100.
+/// - A shape of 1: the mass's end forms, `(b - 1) ln(1 - x)` by the internal logarithm or the
+///   stored `(a - 1) LN(x)`, with the running term `-LN(b)` or `-LN(a)`: all rows at 18 shapes.
+/// - A shape below 1: `exp((a - 1) LN(x) + (b - 1) ln(1 - x) - ln B)`, the first product stored,
+///   the second by the internal logarithm, `ln B` from GAMMALN, as running terms: all rows at 12
+///   pairs with the larger shape at most 8. Above 8 the form of `ln B` is not read: `None`.
+pub(crate) fn beta_density(x: f64, a: f64, b: f64) -> Option<f64> {
+    beta_density_at(x, excel_x87_sub(1.0, x), a, b)
+}
+
+/// [`beta_density`] at the pair `(x, y)` the incomplete beta holds. Only the form for both shapes
+/// above 1 takes `y`; the others form `ln(1 - x)` from `x` (in the recurrence arm BETA.DIST's
+/// answers on adjacent `x` with one stored `1 - x` change with the series term alone).
+pub(crate) fn beta_density_at(x: f64, y: f64, a: f64, b: f64) -> Option<f64> {
+    if a == 1.0 {
+        return Some(excel_exp_running(
+            excel_log1p_times(b - 1.0, -x),
+            &[-excel_log(b)],
+        ));
+    }
+    if b == 1.0 {
+        return Some(excel_exp_running(
+            excel_x87_mul(a - 1.0, excel_log(x)),
+            &[-excel_log(a)],
+        ));
+    }
+    if a < 1.0 || b < 1.0 {
+        let ln_beta = crate::ported::special_math_common::excel_ln_beta_small(a, b)?;
+        return Some(excel_exp_running(
+            excel_x87_mul(a - 1.0, excel_log(x)),
+            &[-excel_log1p_times(b - 1.0, -x), ln_beta],
+        ));
+    }
+    let (k, n) = (a - 1.0, a + b - 2.0);
+    let exponent = binom_exponent(k, n, x, y);
+    let normalizer = binom_normalizer(k, n);
+    Some(excel_exp_running(
+        exponent,
+        &[
+            normalizer[0],
+            normalizer[1],
+            normalizer[2],
+            normalizer[3],
+            -excel_log(a + b - 1.0),
+        ],
+    ))
+}
+
 /// The stored exponent of the binomial mass, `0 < x < n`. The stored order is read from the
 /// exponent's grid: 100% of 13,000 rows of six pairs `(n, x)`.
 fn binom_exponent(x: f64, n: f64, p: f64, q: f64) -> f64 {
@@ -225,9 +279,9 @@ pub fn binom_dist_kernel(number_s: f64, trials: f64, p: f64, cumulative: bool) -
     finite(binom_cumulative(k, n, p, q))
 }
 
-/// The binomial's lower tail: the mass at 0, one at `n`, and between them the regularized beta at
-/// `q`, the same bits as `BETA.DIST(q, n - k, k + 1, TRUE)` on every row of 128 live ones at `n` =
-/// 30 and 100. Not a sum of the masses: that sum misses nine rows in ten by up to 188 units.
+/// The binomial's lower tail: the mass at 0, one at `n`, and between them the incomplete beta
+/// (mostly the same bits as `BETA.DIST(q, n - k, k + 1, TRUE)`: every row of 128 live ones at `n`
+/// = 30 and 100). Not a sum of the masses: that sum misses nine rows in ten by up to 188 units.
 fn binom_cumulative(k: f64, n: f64, p: f64, q: f64) -> f64 {
     if k == n {
         1.0
@@ -242,7 +296,12 @@ fn binom_cumulative(k: f64, n: f64, p: f64, q: f64) -> f64 {
         use crate::ported::excel_numeric::{excel_expm1_internal, excel_log1p};
         -excel_expm1_internal(n * excel_log1p(-q))
     } else {
-        crate::ported::special_math_common::regularized_beta(q, n - k, k + 1.0)
+        // The complement output of the incomplete beta at the pair (p, q) itself, `1 - I_p(k + 1,
+        // n - k)`, not `I_q(n - k, k + 1)` with `1 - q` formed again (dc-6332.8: of 1,500 Excel
+        // 16.0.20527 calls at n <= 9 the two differ on 175, and Excel's answer is this one on 150
+        // and the other on 16; BINOM.DIST(3, 7, 0.5, TRUE) is 0.5 - 2^-53 where
+        // BETA.DIST(0.5, 4, 4, TRUE) is 0.5 + 2^-53).
+        crate::ported::special_math_common::bratio(k + 1.0, n - k, p, q).1
     }
 }
 
@@ -537,6 +596,45 @@ pub fn negbinom_dist_kernel(number_f: f64, number_s: f64, p: f64, cumulative: bo
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    /// The beta density's three forms against Excel 16.0.20527's BETA.DIST(x, a, b, FALSE) (the
+    /// Excel answer service, 2026-11-12; dc-6332.8).
+    #[cfg_attr(not(target_arch = "wasm32"), test)]
+    #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+    fn beta_density_matches_excel() {
+        let rows = [
+            (0.25, 3.0, 5.0, 0x40009c8000000001_u64),
+            (0.375, 2.5, 3.5, 0x3ffed1fa1511a903),
+            (0.625, 300.0, 2.0, 0x3433c06c1adf8155),
+            (0.55, 40.5, 30.25, 0x4018dedd5a1e2a24),
+            (0.3, 1.0, 6.0, 0x3ff0227d028a1dfb),
+            (0.7, 5.5, 1.0, 0x3ff1ad78a8d85149),
+            (0.4, 0.5, 2.5, 0x3fe3f5d22a359e32),
+        ];
+        for (x, a, b, excel) in rows {
+            let density = beta_density(x, a, b).unwrap();
+            assert_eq!(density.to_bits(), excel, "BETA.DIST({x}, {a}, {b}, FALSE)");
+        }
+        assert!(beta_density(0.5, 0.5, 9.0).is_none());
+    }
+
+    /// The binomial's lower tail is the beta's complement output at (p, q): Excel 16.0.20527
+    /// gives BINOM.DIST(3, 7, 0.5, TRUE) = 0.5 - 2^-53 where BETA.DIST(0.5, 4, 4, TRUE) is
+    /// 0.5 + 2^-53 (dc-6332.8).
+    #[cfg_attr(not(target_arch = "wasm32"), test)]
+    #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+    fn binomial_lower_tail_is_the_beta_complement_at_p() {
+        let rows = [
+            (3.0, 7.0, 0.5, 0x3fdffffffffffffe_u64),
+            (2.0, 5.0, 0.3, 0x3feac80c73abc947),
+            (4.0, 9.0, 0.25, 0x3fee6f3000000000),
+            (1.0, 6.0, 0.1, 0x3fec57f0ed3d859c),
+        ];
+        for (k, n, p, excel) in rows {
+            let tail = binom_dist_kernel(k, n, p, true).unwrap();
+            assert_eq!(tail.to_bits(), excel, "BINOM.DIST({k}, {n}, {p}, TRUE)");
+        }
+    }
 
     /// dc-j9k's D180: the Temme arm keeps Excel's truncated fraction.
     #[cfg_attr(not(target_arch = "wasm32"), test)]

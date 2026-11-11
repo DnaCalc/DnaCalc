@@ -1,0 +1,254 @@
+function	id	source	arguments	excel	calculated	units_off
+BETA.DIST	oc1700	cache/oracle/build-20131/BETA.DIST.jsonl	0.22757525561172737 3 6 1	0x3fd10ffe93083ecb	0x3fd10ffe93083eca	-1
+BETA.DIST	oc1777	cache/oracle/build-20131/BETA.DIST.jsonl	0.41175645832602248 4 5 1	0x3fdbbbb8767aebad	0x3fdbbbb8767aebaf	2
+BETA.DIST	oc1816	cache/oracle/build-20131/BETA.DIST.jsonl	0.42371359869578012 4 8 1	0x3fe838c3e056f216	0x3fe838c3e056f215	-1
+BETA.DIST	oc1912	cache/oracle/build-20131/BETA.DIST.jsonl	0.25800849771894729 5 8 1	0x3fc659cbdc0a8844	0x3fc659cbdc0a8846	2
+BETA.DIST	oc1940	cache/oracle/build-20131/BETA.DIST.jsonl	0.76265395897285393 6 2 1	0x3fde870b16b1360e	0x3fde870b16b1360a	-4
+BETA.DIST	oc2012	cache/oracle/build-20131/BETA.DIST.jsonl	0.52809262816471125 6 8 1	0x3fe8d3ceb7daee92	0x3fe8d3ceb7daee91	-1
+BETA.DIST	oc2015	cache/oracle/build-20131/BETA.DIST.jsonl	0.92852907896589865 7 1 1	0x3fe30ad1b369a527	0x3fe30ad1b369a528	1
+BETA.DIST	oc2017	cache/oracle/build-20131/BETA.DIST.jsonl	0.95277433218519014 7 1 1	0x3fe6cec164322b0d	0x3fe6cec164322b0e	1
+BETA.DIST	oc2026	cache/oracle/build-20131/BETA.DIST.jsonl	0.72886602533876499 7 2 1	0x3fd44483748ce804	0x3fd44483748ce805	1
+BETA.DIST	oc2030	cache/oracle/build-20131/BETA.DIST.jsonl	0.82866571532311528 7 2 1	0x3fe2e25918301d7d	0x3fe2e25918301d7e	1
+BETA.DIST	oc2086	cache/oracle/build-20131/BETA.DIST.jsonl	0.48777205489410147 7 7 1	0x3fddb52c81acdccd	0x3fddb52c81acdccc	-1
+BETA.DIST	oc2127	cache/oracle/build-20131/BETA.DIST.jsonl	0.81209511481225727 8 2 1	0x3fde4e7e94307008	0x3fde4e7e9430700a	2
+BETA.DIST	oc2163	cache/oracle/build-20131/BETA.DIST.jsonl	0.31647311470853884 8 5 1	0x3f8b8a60e6e6aaf1	0x3f8b8a60e6e6aaf0	-1
+BETA.DIST	oc2221	cache/oracle/build-20131/BETA.DIST.jsonl	-0.56254484362727897 3.3981121049848437 4.1291950621318758 1 -1.1507385240829371 1.7323133665435937	0x3fb2bf4a446949ff	0x3fb2bf4a44694a00	1
+BETA.DIST	oc2249	cache/oracle/build-20131/BETA.DIST.jsonl	-0.83407606689517588 2.2199394728666264 2.3650008669551248 1 -2.5139324820470348 0.90472513345118122	0x3fe08061c9db3679	0x3fe08061c9db367a	1
+BETA.DIST	oc2259	cache/oracle/build-20131/BETA.DIST.jsonl	-0.62476441858266751 2.2903690810869533 1.9933235776914768 1 -1.5370005079630067 -0.46934102492900287	0x3fedbc83e3c78a88	0x3fedbc83e3c78a87	-1
+BETA.DIST	oc2275	cache/oracle/build-20131/BETA.DIST.jsonl	-1.0606764514681262 6.5080506140895693 1.0568648778881782 1 -2.2564318563194914 -0.78658799268107948	0x3fd1e7edfbf9c3eb	0x3fd1e7edfbf9c3ea	-1
+BETA.DIST	oc2324	cache/oracle/build-20131/BETA.DIST.jsonl	-0.27832921988618869 6.1071810807542226 0.66993782174656946 1 -0.65332984440138286 0.66034196624448604	0x3f2b4a622f45fe2d	0x3f2b4a622f45fe33	6
+BETA.DIST	oc2330	cache/oracle/build-20131/BETA.DIST.jsonl	-0.55568991724871075 0.7049760301947543 0.64406754080590378 1 -1.3842016410055691 -0.44131751460201751	0x3fe996d62f11e704	0x3fe996d62f11e705	1
+BETA.DIST	oc2502	cache/oracle/build-20131/BETA.DIST.jsonl	-2.2615879654737356 1.1096523122194326 1.1155784979426895 1 -2.7897345214993776 -1.2655807714552401	0x3fd5ab2d024799ec	0x3fd5ab2d024799ed	1
+BETA.DIST	oc2556	cache/oracle/build-20131/BETA.DIST.jsonl	2.1500352277314669 2.8691052709903628 2.2504059619974495 1 1.6848397527156891 5.5253372312383044	0x3f853a9ab4a1d1b7	0x3f853a9ab4a1d1b5	-2
+BETA.DIST	oc2627	cache/oracle/build-20131/BETA.DIST.jsonl	0.10668444847724312 3.2430771375017984 1.7850193702984869 1 -0.4078533901843584 0.55203575942728911	0x3fd26010f8b0815d	0x3fd26010f8b0815e	1
+BETA.DIST	oc2655	cache/oracle/build-20131/BETA.DIST.jsonl	1.8152025939104173 1.6631966769425663 2.3407707386119583 1 -0.17075721539659661 2.6297835531355203	0x3fec5ada72b92f8f	0x3fec5ada72b92f90	1
+BETA.DIST	oc2736	cache/oracle/build-20131/BETA.DIST.jsonl	0.94304451461441707 2.2944050326106256 3.7834109417970581 1 -0.1345468400913048 2.119730603289316	0x3fe6aa2e0e565db2	0x3fe6aa2e0e565db3	1
+BETA.DIST	oc2755	cache/oracle/build-20131/BETA.DIST.jsonl	1.5793818930037609 3.8442315323357366 1.3743994503688757 1 0.62822977070951502 2.0423634926253391	0x3fd49f2fbf69e189	0x3fd49f2fbf69e18a	1
+BETA.DIST	oc2780	cache/oracle/build-20131/BETA.DIST.jsonl	0.025473470379787422 1.6732677218802621 1.2247736422826632 1 -1.2645335392695818 0.8686606862319135	0x3fe04eb994f1e2be	0x3fe04eb994f1e2c0	2
+BETA.DIST	oc344	cache/oracle/build-20131/BETA.DIST.jsonl	0.029999999999999999 0.34999999999999998 2.2999999999999998 1	0x3fda862109642a5a	0x3fda862109642a59	-1
+BETA.DIST	oc35	cache/oracle/build-20131/BETA.DIST.jsonl	0.875 0.5 0.5 1	0x3fe8a366ef2e64b9	0x3fe8a366ef2e64b8	-1
+BETA.DIST	oc431	cache/oracle/build-20131/BETA.DIST.jsonl	0.98799999999999999 2.2999999999999998 0.34999999999999998 1	0x3fe6515d0e10960a	0x3fe6515d0e10960b	1
+BETA.DIST	oc443	cache/oracle/build-20131/BETA.DIST.jsonl	0.52000000000000002 2.2999999999999998 2.2999999999999998 1	0x3fe10977ae6d96b4	0x3fe10977ae6d96b3	-1
+BETA.DIST	oc448	cache/oracle/build-20131/BETA.DIST.jsonl	0.029999999999999999 2.2999999999999998 4.5999999999999996 1	0x3f73dbb343e6c496	0x3f73dbb343e6c49b	5
+BETA.DIST	oc449	cache/oracle/build-20131/BETA.DIST.jsonl	0.11 2.2999999999999998 4.5999999999999996 1	0x3fb40341f28c4403	0x3fb40341f28c4407	4
+BETA.DIST	oc590	cache/oracle/build-20131/BETA.DIST.jsonl	0.93999999999999995 27 2.2999999999999998 1	0x3fe28f09832f3498	0x3fe28f09832f3496	-2
+BETA.DIST	oc86	cache/oracle/build-20131/BETA.DIST.jsonl	0.125 0.29999999999999999 0.69999999999999996 1	0x3fddb51a6622a5c1	0x3fddb51a6622a5c0	-1
+BETA.DIST	oc87	cache/oracle/build-20131/BETA.DIST.jsonl	0.25 0.29999999999999999 0.69999999999999996 1	0x3fe27835e74623d5	0x3fe27835e74623d4	-1
+BETA.DIST	oc91	cache/oracle/build-20131/BETA.DIST.jsonl	0.75 0.29999999999999999 0.69999999999999996 1	0x3feb2a817150c161	0x3feb2a817150c162	1
+BETADIST	oc110	cache/oracle/build-20131/BETADIST.jsonl	0.98799999999999999 2.2999999999999998 0.34999999999999998	0x3fe6515d0e10960a	0x3fe6515d0e10960b	1
+BETADIST	oc122	cache/oracle/build-20131/BETADIST.jsonl	0.52000000000000002 2.2999999999999998 2.2999999999999998	0x3fe10977ae6d96b4	0x3fe10977ae6d96b3	-1
+BETADIST	oc127	cache/oracle/build-20131/BETADIST.jsonl	0.029999999999999999 2.2999999999999998 4.5999999999999996	0x3f73dbb343e6c496	0x3f73dbb343e6c49b	5
+BETADIST	oc128	cache/oracle/build-20131/BETADIST.jsonl	0.11 2.2999999999999998 4.5999999999999996	0x3fb40341f28c4403	0x3fb40341f28c4407	4
+BETADIST	oc23	cache/oracle/build-20131/BETADIST.jsonl	0.029999999999999999 0.34999999999999998 2.2999999999999998	0x3fda862109642a5a	0x3fda862109642a59	-1
+BETADIST	oc269	cache/oracle/build-20131/BETADIST.jsonl	0.93999999999999995 27 2.2999999999999998	0x3fe28f09832f3498	0x3fe28f09832f3496	-2
+BETAINV	oc20	cache/oracle/build-20131/BETAINV.jsonl	0.75 0.5 0.5	0x3feb504f333f9de6	0x3feb504f333f9de5	-1
+BETAINV	oc6	cache/oracle/build-20131/BETAINV.jsonl	0.01 5 1.5	0x3fd5948223a6b46e	0x3fd5948223a6b46f	1
+BETAINV	oc60	cache/oracle/build-20131/BETAINV.jsonl	0.59999999999999998 6 2	0x3fe9de8ef9b2c4e6	0x3fe9de8ef9b2c4e5	-1
+F.DIST	fcdf-discovery-002	work/w109/G3-06-ftest-variance/answers-fdist-cdf-companion-discovery-v1.json	1.3994066328871337 7 2 true	0x3fe0b37b0d3f360d	0x3fe0b37b0d3f360b	-2
+F.DIST	fcdf-discovery-009	work/w109/G3-06-ftest-variance/answers-fdist-cdf-companion-discovery-v1.json	1.2032147480107644 11 4 true	0x3fe10bf8e8ab7f07	0x3fe10bf8e8ab7f08	1
+F.DIST	fcdf-discovery-023	work/w109/G3-06-ftest-variance/answers-fdist-cdf-companion-discovery-v1.json	1.7872236117825546 7 7 true	0x3fe89daa3b3f605a	0x3fe89daa3b3f6058	-2
+F.DIST	fcdf-discovery-025	work/w109/G3-06-ftest-variance/answers-fdist-cdf-companion-discovery-v1.json	2.9126424190014264 7 7 true	0x3fed1787b808f5b1	0x3fed1787b808f5b2	1
+F.DIST	fcdf-discovery-027	work/w109/G3-06-ftest-variance/answers-fdist-cdf-companion-discovery-v1.json	1.2116153498763136 11 9 true	0x3fe36dc8d3241b19	0x3fe36dc8d3241b18	-1
+F.DIST	fcdf-discovery-034	work/w109/G3-06-ftest-variance/answers-fdist-cdf-companion-discovery-v1.json	1.8202046765472875 3 10 true	0x3fe95f2a3ea0eae4	0x3fe95f2a3ea0eae3	-1
+F.DIST	fcdf-discovery-060	work/w109/G3-06-ftest-variance/answers-fdist-cdf-companion-discovery-v1.json	1.2155007765174952 5 6 true	0x3fe317eeb083cce4	0x3fe317eeb083cce5	1
+F.DIST	fcdf-discovery-081	work/w109/G3-06-ftest-variance/answers-fdist-cdf-companion-discovery-v1.json	1.0566960158199772 5 11 true	0x3fe21f917bd247f0	0x3fe21f917bd247f2	2
+F.DIST	fcdf-discovery-085	work/w109/G3-06-ftest-variance/answers-fdist-cdf-companion-discovery-v1.json	1.0630453634578332 5 6 true	0x3fe1354372cf97a3	0x3fe1354372cf97a2	-1
+F.DIST	fcdf-discovery-091	work/w109/G3-06-ftest-variance/answers-fdist-cdf-companion-discovery-v1.json	2.4968694286547821 11 5 true	0x3fead605b689f216	0x3fead605b689f214	-2
+F.DIST	fcdf-discovery-162	work/w109/G3-06-ftest-variance/answers-fdist-cdf-companion-discovery-v1.json	1.3242499970925434 4 11 true	0x3fe5bb90637b4cd0	0x3fe5bb90637b4ccf	-1
+F.DIST	fcdf-discovery-163	work/w109/G3-06-ftest-variance/answers-fdist-cdf-companion-discovery-v1.json	1.3242627318165341 4 11 true	0x3fe5bb9927bfe1b3	0x3fe5bb9927bfe1b2	-1
+F.DIST	fcdf-discovery-195	work/w109/G3-06-ftest-variance/answers-fdist-cdf-companion-discovery-v1.json	1.1824607242680669 3 9 true	0x3fe42a6c396c77de	0x3fe42a6c396c77dc	-2
+F.DIST	fcdf-discovery-198	work/w109/G3-06-ftest-variance/answers-fdist-cdf-companion-discovery-v1.json	1.3485964288226355 9 3 true	0x3fe1b768c1f03808	0x3fe1b768c1f03806	-2
+F.DIST	fcdf-discovery-202	work/w109/G3-06-ftest-variance/answers-fdist-cdf-companion-discovery-v1.json	1.3486629350574006 9 3 true	0x3fe1b79011e22140	0x3fe1b79011e2213e	-2
+F.DIST	fcdf-discovery-208	work/w109/G3-06-ftest-variance/answers-fdist-cdf-companion-discovery-v1.json	1.1016113924787778 11 4 true	0x3fdf8647b6f25b5a	0x3fdf8647b6f25b58	-2
+F.DIST	fcdf-discovery-212	work/w109/G3-06-ftest-variance/answers-fdist-cdf-companion-discovery-v1.json	2.4884005876509012 4 11 true	0x3feca9059ea2ba6a	0x3feca9059ea2ba69	-1
+F.DIST	fcdf-discovery-220	work/w109/G3-06-ftest-variance/answers-fdist-cdf-companion-discovery-v1.json	1.671711117156099 5 6 true	0x3fe73cd9b0ad49ee	0x3fe73cd9b0ad49ef	1
+F.DIST	fcdf-discovery-223	work/w109/G3-06-ftest-variance/answers-fdist-cdf-companion-discovery-v1.json	1.5087996692839125 8 9 true	0x3fe72c41edd892ba	0x3fe72c41edd892bb	1
+F.DIST	fcdf-discovery-233	work/w109/G3-06-ftest-variance/answers-fdist-cdf-companion-discovery-v1.json	1.1249874054635882 3 10 true	0x3fe3af21d81a25cc	0x3fe3af21d81a25ca	-2
+F.DIST	fcdf-discovery-237	work/w109/G3-06-ftest-variance/answers-fdist-cdf-companion-discovery-v1.json	1.1250262873981975 3 10 true	0x3fe3af3ee59810b4	0x3fe3af3ee59810b2	-2
+F.DIST	fcdf-discovery-247	work/w109/G3-06-ftest-variance/answers-fdist-cdf-companion-discovery-v1.json	3.2999999999999998 5 11 true	0x3fee872bc3190716	0x3fee872bc3190717	1
+F.DIST	fcdf-discovery-262	work/w109/G3-06-ftest-variance/answers-fdist-cdf-companion-discovery-v1.json	4.2382807281710226 8 9 true	0x3fef46ab7483226d	0x3fef46ab7483226e	1
+F.DIST	fcdf-discovery-264	work/w109/G3-06-ftest-variance/answers-fdist-cdf-companion-discovery-v1.json	1.026911069924952 9 11 true	0x3fe0cb3b892937a8	0x3fe0cb3b892937a9	1
+F.DIST	fcdf-discovery-266	work/w109/G3-06-ftest-variance/answers-fdist-cdf-companion-discovery-v1.json	1.0269111458751736 9 11 true	0x3fe0cb3ba17032e3	0x3fe0cb3ba17032e4	1
+F.DIST	fcdf-discovery-283	work/w109/G3-06-ftest-variance/answers-fdist-cdf-companion-discovery-v1.json	1.8771635213611066 11 5 true	0x3fe7ed7ffcdb2aee	0x3fe7ed7ffcdb2aed	-1
+F.DIST	fcdf-discovery-284	work/w109/G3-06-ftest-variance/answers-fdist-cdf-companion-discovery-v1.json	1.8771635213611069 11 5 true	0x3fe7ed7ffcdb2aee	0x3fe7ed7ffcdb2aed	-1
+F.DIST	fcdf-discovery-305	work/w109/G3-06-ftest-variance/answers-fdist-cdf-companion-discovery-v1.json	1.5786969895749448 3 10 true	0x3fe7d40eba0a46ca	0x3fe7d40eba0a46cb	1
+F.DIST	fcdf-discovery-313	work/w109/G3-06-ftest-variance/answers-fdist-cdf-companion-discovery-v1.json	2.5416497864225964 11 5 true	0x3feafcb6e9d76515	0x3feafcb6e9d76516	1
+F.DIST	fcdf-discovery-314	work/w109/G3-06-ftest-variance/answers-fdist-cdf-companion-discovery-v1.json	2.5416497864226075 11 5 true	0x3feafcb6e9d76520	0x3feafcb6e9d7651f	-1
+F.DIST	fcdf-retired_wrapper-019	work/w109/G3-06-ftest-variance/answers-fdist-cdf-companion-discovery-v1.json	1 10 8 true	0x3fdf5b4bf25afed8	0x3fdf5b4bf25afed9	1
+F.TEST	ft-var-v2-038-translate_2p52	work/w109/G3-06-ftest-variance/answers-ftest-variance-discovery-v2.json	["0x432ffffffffffcc2", "0x4330000000000705", "0x433000000000058f", "0x43300000000002b4", "0x432ffffffffff1d3", "0x43300000000002b4", "0x432ffffffffff9ea", "0x4330000000000713", "0x43300000000005b2", "...	0x3fee6987d0be1724	0x3fee6987d0be1725	1
+F.TEST	ft-wrapper-ho-018-equal-forward	work/w109/G3-06-ftest-variance/answers-ftest-wrapper-heldout-v1.json	["0xbff0000000000000", "0xbff0000000000000", "0xbff0000000000000", "0xbff0000000000000", "0x0000000000000000", "0x3ff0000000000000", "0x3ff0000000000000", "0x3ff0000000000000", "0x3ff0000000000000"] [...	0x3fef5b4bf25afed8	0x3fef5b4bf25afed9	1
+FDIST	fd-var-ref-v3-008-0037	work/w109/G3-06-ftest-variance/answers-fdist-variance-refinement-discovery-v3.json	2.029975490603189 5 11	0x3fc37d7ffe3c85f8	0x3fc37d7ffe3c85f6	-2
+FDIST	fd-var-ref-v3-008-0050	work/w109/G3-06-ftest-variance/answers-fdist-variance-refinement-discovery-v3.json	2.0299754906031948 5 11	0x3fc37d7ffe3c85dc	0x3fc37d7ffe3c85de	2
+FDIST	fd-var-ref-v3-008-0075	work/w109/G3-06-ftest-variance/answers-fdist-variance-refinement-discovery-v3.json	2.0299754906032059 5 11	0x3fc37d7ffe3c8595	0x3fc37d7ffe3c8596	1
+FDIST	fd-var-ref-v3-008-0144	work/w109/G3-06-ftest-variance/answers-fdist-variance-refinement-discovery-v3.json	2.0299754906032366 5 11	0x3fc37d7ffe3c84f1	0x3fc37d7ffe3c84f3	2
+FDIST	fd-var-ref-v3-008-0181	work/w109/G3-06-ftest-variance/answers-fdist-variance-refinement-discovery-v3.json	2.029975490603253 5 11	0x3fc37d7ffe3c8491	0x3fc37d7ffe3c8494	3
+FDIST	fd-var-ref-v3-008-0228	work/w109/G3-06-ftest-variance/answers-fdist-variance-refinement-discovery-v3.json	2.0299754906032739 5 11	0x3fc37d7ffe3c8419	0x3fc37d7ffe3c8417	-2
+FDIST	fd-var-ref-v3-008-0236	work/w109/G3-06-ftest-variance/answers-fdist-variance-refinement-discovery-v3.json	2.0299754906032774 5 11	0x3fc37d7ffe3c8404	0x3fc37d7ffe3c8405	1
+FDIST	fd-var-ref-v3-008-0243	work/w109/G3-06-ftest-variance/answers-fdist-variance-refinement-discovery-v3.json	2.0299754906032805 5 11	0x3fc37d7ffe3c83f8	0x3fc37d7ffe3c83f5	-3
+FDIST	fd-var-ref-v3-008-0260	work/w109/G3-06-ftest-variance/answers-fdist-variance-refinement-discovery-v3.json	2.0299754906032881 5 11	0x3fc37d7ffe3c83cd	0x3fc37d7ffe3c83ce	1
+FDIST	fd-var-ref-v3-010-0005	work/w109/G3-06-ftest-variance/answers-fdist-variance-refinement-discovery-v3.json	1.6284009816122316 9 3	0x3fd822de789821b1	0x3fd822de789821b2	1
+FDIST	fd-var-ref-v3-010-0010	work/w109/G3-06-ftest-variance/answers-fdist-variance-refinement-discovery-v3.json	1.6284009816122327 9 3	0x3fd822de789821ac	0x3fd822de789821ab	-1
+FDIST	fd-var-ref-v3-010-0014	work/w109/G3-06-ftest-variance/answers-fdist-variance-refinement-discovery-v3.json	1.6284009816122336 9 3	0x3fd822de789821a8	0x3fd822de789821a9	1
+FDIST	fd-var-ref-v3-010-0026	work/w109/G3-06-ftest-variance/answers-fdist-variance-refinement-discovery-v3.json	1.6284009816122362 9 3	0x3fd822de7898219c	0x3fd822de789821a0	4
+FDIST	fd-var-ref-v3-010-0027	work/w109/G3-06-ftest-variance/answers-fdist-variance-refinement-discovery-v3.json	1.6284009816122365 9 3	0x3fd822de7898219c	0x3fd822de789821a0	4
+FDIST	fd-var-ref-v3-010-0050	work/w109/G3-06-ftest-variance/answers-fdist-variance-refinement-discovery-v3.json	1.6284009816122416 9 3	0x3fd822de78982188	0x3fd822de7898218a	2
+FDIST	fd-var-ref-v3-010-0098	work/w109/G3-06-ftest-variance/answers-fdist-variance-refinement-discovery-v3.json	1.6284009816122522 9 3	0x3fd822de78982160	0x3fd822de7898215e	-2
+FDIST	fd-var-ref-v3-010-0124	work/w109/G3-06-ftest-variance/answers-fdist-variance-refinement-discovery-v3.json	1.628400981612258 9 3	0x3fd822de78982149	0x3fd822de7898214b	2
+FDIST	fd-var-ref-v3-010-0140	work/w109/G3-06-ftest-variance/answers-fdist-variance-refinement-discovery-v3.json	1.6284009816122615 9 3	0x3fd822de7898213a	0x3fd822de78982139	-1
+FDIST	fd-var-ref-v3-010-0156	work/w109/G3-06-ftest-variance/answers-fdist-variance-refinement-discovery-v3.json	1.6284009816122651 9 3	0x3fd822de7898212d	0x3fd822de7898212e	1
+FDIST	fd-var-ref-v3-010-0222	work/w109/G3-06-ftest-variance/answers-fdist-variance-refinement-discovery-v3.json	1.6284009816122798 9 3	0x3fd822de789820f4	0x3fd822de789820f5	1
+FDIST	fd-var-ref-v3-010-0254	work/w109/G3-06-ftest-variance/answers-fdist-variance-refinement-discovery-v3.json	1.6284009816122869 9 3	0x3fd822de789820d9	0x3fd822de789820d8	-1
+FDIST	fd-var-ref-v3-010-0258	work/w109/G3-06-ftest-variance/answers-fdist-variance-refinement-discovery-v3.json	1.6284009816122877 9 3	0x3fd822de789820d6	0x3fd822de789820d4	-2
+FDIST	fd-var-ref-v3-012-0029	work/w109/G3-06-ftest-variance/answers-fdist-variance-refinement-discovery-v3.json	1.2154878732971726 5 6	0x3fd9d035ed43aa5a	0x3fd9d035ed43aa5c	2
+FDIST	fd-var-ref-v3-012-0124	work/w109/G3-06-ftest-variance/answers-fdist-variance-refinement-discovery-v3.json	1.2154878732971937 5 6	0x3fd9d035ed43a9d5	0x3fd9d035ed43a9d2	-3
+FDIST	fd-var-ref-v3-012-0125	work/w109/G3-06-ftest-variance/answers-fdist-variance-refinement-discovery-v3.json	1.2154878732971939 5 6	0x3fd9d035ed43a9d5	0x3fd9d035ed43a9d1	-4
+FDIST	fd-var-ref-v3-012-0140	work/w109/G3-06-ftest-variance/answers-fdist-variance-refinement-discovery-v3.json	1.2154878732971972 5 6	0x3fd9d035ed43a9be	0x3fd9d035ed43a9bd	-1
+FDIST	fd-var-ref-v3-012-0150	work/w109/G3-06-ftest-variance/answers-fdist-variance-refinement-discovery-v3.json	1.2154878732971994 5 6	0x3fd9d035ed43a9af	0x3fd9d035ed43a9ae	-1
+FDIST	fd-var-ref-v3-012-0182	work/w109/G3-06-ftest-variance/answers-fdist-variance-refinement-discovery-v3.json	1.2154878732972065 5 6	0x3fd9d035ed43a981	0x3fd9d035ed43a97e	-3
+FDIST	fd-var-ref-v3-012-0183	work/w109/G3-06-ftest-variance/answers-fdist-variance-refinement-discovery-v3.json	1.2154878732972068 5 6	0x3fd9d035ed43a981	0x3fd9d035ed43a97e	-3
+FDIST	fd-var-ref-v3-012-0202	work/w109/G3-06-ftest-variance/answers-fdist-variance-refinement-discovery-v3.json	1.215487873297211 5 6	0x3fd9d035ed43a965	0x3fd9d035ed43a962	-3
+FDIST	fd-var-ref-v3-015-0023	work/w109/G3-06-ftest-variance/answers-fdist-variance-refinement-discovery-v3.json	1.0566896018386021 5 11	0x3fdbc0e9d1c100d5	0x3fdbc0e9d1c100d4	-1
+FDIST	fd-var-ref-v3-015-0028	work/w109/G3-06-ftest-variance/answers-fdist-variance-refinement-discovery-v3.json	1.0566896018386032 5 11	0x3fdbc0e9d1c100c8	0x3fdbc0e9d1c100c9	1
+FDIST	fd-var-ref-v3-015-0039	work/w109/G3-06-ftest-variance/answers-fdist-variance-refinement-discovery-v3.json	1.0566896018386056 5 11	0x3fdbc0e9d1c100b5	0x3fdbc0e9d1c100b2	-3
+FDIST	fd-var-ref-v3-015-0087	work/w109/G3-06-ftest-variance/answers-fdist-variance-refinement-discovery-v3.json	1.0566896018386163 5 11	0x3fdbc0e9d1c10059	0x3fdbc0e9d1c1005a	1
+FDIST	fd-var-ref-v3-015-0110	work/w109/G3-06-ftest-variance/answers-fdist-variance-refinement-discovery-v3.json	1.0566896018386214 5 11	0x3fdbc0e9d1c1002f	0x3fdbc0e9d1c1002d	-2
+FDIST	fd-var-ref-v3-015-0125	work/w109/G3-06-ftest-variance/answers-fdist-variance-refinement-discovery-v3.json	1.0566896018386247 5 11	0x3fdbc0e9d1c10011	0x3fdbc0e9d1c10013	2
+FDIST	fd-var-ref-v3-015-0146	work/w109/G3-06-ftest-variance/answers-fdist-variance-refinement-discovery-v3.json	1.0566896018386294 5 11	0x3fdbc0e9d1c0ffe8	0x3fdbc0e9d1c0ffe7	-1
+FDIST	fd-var-ref-v3-015-0178	work/w109/G3-06-ftest-variance/answers-fdist-variance-refinement-discovery-v3.json	1.0566896018386365 5 11	0x3fdbc0e9d1c0ffac	0x3fdbc0e9d1c0ffad	1
+FDIST	fd-var-ref-v3-016-0008	work/w109/G3-06-ftest-variance/answers-fdist-variance-refinement-discovery-v3.json	1.7319043255937121 6 5	0x3fd20615ab6e780e	0x3fd20615ab6e780c	-2
+FDIST	fd-var-ref-v3-016-0025	work/w109/G3-06-ftest-variance/answers-fdist-variance-refinement-discovery-v3.json	1.7319043255937159 6 5	0x3fd20615ab6e77ff	0x3fd20615ab6e77fe	-1
+FDIST	fd-var-ref-v3-016-0063	work/w109/G3-06-ftest-variance/answers-fdist-variance-refinement-discovery-v3.json	1.7319043255937243 6 5	0x3fd20615ab6e77df	0x3fd20615ab6e77e2	3
+FDIST	fd-var-ref-v3-016-0098	work/w109/G3-06-ftest-variance/answers-fdist-variance-refinement-discovery-v3.json	1.7319043255937321 6 5	0x3fd20615ab6e77c1	0x3fd20615ab6e77c2	1
+FDIST	fd-var-ref-v3-016-0099	work/w109/G3-06-ftest-variance/answers-fdist-variance-refinement-discovery-v3.json	1.7319043255937323 6 5	0x3fd20615ab6e77c1	0x3fd20615ab6e77c2	1
+FDIST	fd-var-ref-v3-016-0101	work/w109/G3-06-ftest-variance/answers-fdist-variance-refinement-discovery-v3.json	1.7319043255937328 6 5	0x3fd20615ab6e77be	0x3fd20615ab6e77c0	2
+FDIST	fd-var-ref-v3-016-0102	work/w109/G3-06-ftest-variance/answers-fdist-variance-refinement-discovery-v3.json	1.731904325593733 6 5	0x3fd20615ab6e77be	0x3fd20615ab6e77c0	2
+FDIST	fd-var-ref-v3-016-0116	work/w109/G3-06-ftest-variance/answers-fdist-variance-refinement-discovery-v3.json	1.7319043255937361 6 5	0x3fd20615ab6e77b2	0x3fd20615ab6e77b1	-1
+FDIST	fd-var-ref-v3-016-0128	work/w109/G3-06-ftest-variance/answers-fdist-variance-refinement-discovery-v3.json	1.7319043255937387 6 5	0x3fd20615ab6e77a8	0x3fd20615ab6e77a9	1
+FDIST	fd-var-ref-v3-016-0144	work/w109/G3-06-ftest-variance/answers-fdist-variance-refinement-discovery-v3.json	1.7319043255937423 6 5	0x3fd20615ab6e779b	0x3fd20615ab6e779a	-1
+FDIST	fd-var-ref-v3-016-0184	work/w109/G3-06-ftest-variance/answers-fdist-variance-refinement-discovery-v3.json	1.7319043255937512 6 5	0x3fd20615ab6e7779	0x3fd20615ab6e777b	2
+FDIST	fd-var-ref-v3-022-0037	work/w109/G3-06-ftest-variance/answers-fdist-variance-refinement-discovery-v3.json	1.5049938707226167 5 11	0x3fd0faac0f78d871	0x3fd0faac0f78d86f	-2
+FDIST	fd-var-ref-v3-022-0041	work/w109/G3-06-ftest-variance/answers-fdist-variance-refinement-discovery-v3.json	1.5049938707226176 5 11	0x3fd0faac0f78d86a	0x3fd0faac0f78d868	-2
+FDIST	fd-var-ref-v3-022-0057	work/w109/G3-06-ftest-variance/answers-fdist-variance-refinement-discovery-v3.json	1.5049938707226211 5 11	0x3fd0faac0f78d858	0x3fd0faac0f78d85a	2
+FDIST	fd-var-ref-v3-022-0072	work/w109/G3-06-ftest-variance/answers-fdist-variance-refinement-discovery-v3.json	1.5049938707226245 5 11	0x3fd0faac0f78d846	0x3fd0faac0f78d845	-1
+FDIST	fd-var-ref-v3-022-0077	work/w109/G3-06-ftest-variance/answers-fdist-variance-refinement-discovery-v3.json	1.5049938707226256 5 11	0x3fd0faac0f78d843	0x3fd0faac0f78d845	2
+FDIST	fd-var-ref-v3-022-0110	work/w109/G3-06-ftest-variance/answers-fdist-variance-refinement-discovery-v3.json	1.5049938707226329 5 11	0x3fd0faac0f78d81a	0x3fd0faac0f78d81b	1
+FDIST	fd-var-ref-v3-022-0116	work/w109/G3-06-ftest-variance/answers-fdist-variance-refinement-discovery-v3.json	1.5049938707226342 5 11	0x3fd0faac0f78d814	0x3fd0faac0f78d813	-1
+FDIST	fd-var-ref-v3-022-0134	work/w109/G3-06-ftest-variance/answers-fdist-variance-refinement-discovery-v3.json	1.5049938707226382 5 11	0x3fd0faac0f78d801	0x3fd0faac0f78d7ff	-2
+FDIST	fd-var-ref-v3-022-0165	work/w109/G3-06-ftest-variance/answers-fdist-variance-refinement-discovery-v3.json	1.5049938707226451 5 11	0x3fd0faac0f78d7da	0x3fd0faac0f78d7d9	-1
+FDIST	fd-var-ref-v3-022-0253	work/w109/G3-06-ftest-variance/answers-fdist-variance-refinement-discovery-v3.json	1.5049938707226647 5 11	0x3fd0faac0f78d777	0x3fd0faac0f78d776	-1
+FDIST	fd-var-ref-v3-034-0015	work/w109/G3-06-ftest-variance/answers-fdist-variance-refinement-discovery-v3.json	1.1250262873981611 3 10	0x3fd8a18234cfdf82	0x3fd8a18234cfdf85	3
+FDIST	fd-var-ref-v3-034-0022	work/w109/G3-06-ftest-variance/answers-fdist-variance-refinement-discovery-v3.json	1.1250262873981627 3 10	0x3fd8a18234cfdf78	0x3fd8a18234cfdf75	-3
+FDIST	fd-var-ref-v3-034-0026	work/w109/G3-06-ftest-variance/answers-fdist-variance-refinement-discovery-v3.json	1.1250262873981636 3 10	0x3fd8a18234cfdf71	0x3fd8a18234cfdf74	3
+FDIST	fd-var-ref-v3-034-0039	work/w109/G3-06-ftest-variance/answers-fdist-variance-refinement-discovery-v3.json	1.1250262873981665 3 10	0x3fd8a18234cfdf5f	0x3fd8a18234cfdf62	3
+FDIST	fd-var-ref-v3-034-0041	work/w109/G3-06-ftest-variance/answers-fdist-variance-refinement-discovery-v3.json	1.1250262873981669 3 10	0x3fd8a18234cfdf5d	0x3fd8a18234cfdf5f	2
+FDIST	fd-var-ref-v3-034-0068	work/w109/G3-06-ftest-variance/answers-fdist-variance-refinement-discovery-v3.json	1.1250262873981729 3 10	0x3fd8a18234cfdf35	0x3fd8a18234cfdf39	4
+FDIST	fd-var-ref-v3-034-0072	work/w109/G3-06-ftest-variance/answers-fdist-variance-refinement-discovery-v3.json	1.1250262873981738 3 10	0x3fd8a18234cfdf2f	0x3fd8a18234cfdf33	4
+FDIST	fd-var-ref-v3-034-0082	work/w109/G3-06-ftest-variance/answers-fdist-variance-refinement-discovery-v3.json	1.125026287398176 3 10	0x3fd8a18234cfdf23	0x3fd8a18234cfdf1f	-4
+FDIST	fd-var-ref-v3-034-0083	work/w109/G3-06-ftest-variance/answers-fdist-variance-refinement-discovery-v3.json	1.1250262873981762 3 10	0x3fd8a18234cfdf23	0x3fd8a18234cfdf20	-3
+FDIST	fd-var-ref-v3-034-0099	work/w109/G3-06-ftest-variance/answers-fdist-variance-refinement-discovery-v3.json	1.1250262873981798 3 10	0x3fd8a18234cfdf0a	0x3fd8a18234cfdf0d	3
+FDIST	fd-var-ref-v3-034-0126	work/w109/G3-06-ftest-variance/answers-fdist-variance-refinement-discovery-v3.json	1.1250262873981858 3 10	0x3fd8a18234cfdee5	0x3fd8a18234cfdee7	2
+FDIST	fd-var-ref-v3-034-0143	work/w109/G3-06-ftest-variance/answers-fdist-variance-refinement-discovery-v3.json	1.1250262873981896 3 10	0x3fd8a18234cfdecb	0x3fd8a18234cfdecc	1
+FDIST	fd-var-ref-v3-034-0152	work/w109/G3-06-ftest-variance/answers-fdist-variance-refinement-discovery-v3.json	1.1250262873981915 3 10	0x3fd8a18234cfdebf	0x3fd8a18234cfdec2	3
+FDIST	fd-var-ref-v3-034-0157	work/w109/G3-06-ftest-variance/answers-fdist-variance-refinement-discovery-v3.json	1.1250262873981927 3 10	0x3fd8a18234cfdeb7	0x3fd8a18234cfdebb	4
+FDIST	fd-var-ref-v3-034-0158	work/w109/G3-06-ftest-variance/answers-fdist-variance-refinement-discovery-v3.json	1.1250262873981929 3 10	0x3fd8a18234cfdeb7	0x3fd8a18234cfdebb	4
+FDIST	fd-var-ref-v3-034-0167	work/w109/G3-06-ftest-variance/answers-fdist-variance-refinement-discovery-v3.json	1.1250262873981949 3 10	0x3fd8a18234cfdeab	0x3fd8a18234cfdeac	1
+FDIST	fd-var-ref-v3-034-0206	work/w109/G3-06-ftest-variance/answers-fdist-variance-refinement-discovery-v3.json	1.1250262873982035 3 10	0x3fd8a18234cfde70	0x3fd8a18234cfde73	3
+FDIST	fd-var-ref-v3-034-0226	work/w109/G3-06-ftest-variance/answers-fdist-variance-refinement-discovery-v3.json	1.125026287398208 3 10	0x3fd8a18234cfde54	0x3fd8a18234cfde58	4
+FDIST	fd-var-ref-v3-034-0247	work/w109/G3-06-ftest-variance/answers-fdist-variance-refinement-discovery-v3.json	1.1250262873982126 3 10	0x3fd8a18234cfde38	0x3fd8a18234cfde35	-3
+FDIST	fd-var-ref-v3-034-0254	work/w109/G3-06-ftest-variance/answers-fdist-variance-refinement-discovery-v3.json	1.1250262873982142 3 10	0x3fd8a18234cfde2e	0x3fd8a18234cfde2d	-1
+FDIST	fd-var-ref-v3-034-0255	work/w109/G3-06-ftest-variance/answers-fdist-variance-refinement-discovery-v3.json	1.1250262873982144 3 10	0x3fd8a18234cfde2e	0x3fd8a18234cfde2d	-1
+FDIST	fd-var-ref-v3-037-0017	work/w109/G3-06-ftest-variance/answers-fdist-variance-refinement-discovery-v3.json	1.3838331462991575 8 9	0x3fd45ac33ffc7688	0x3fd45ac33ffc768d	5
+FDIST	fd-var-ref-v3-037-0019	work/w109/G3-06-ftest-variance/answers-fdist-variance-refinement-discovery-v3.json	1.383833146299158 8 9	0x3fd45ac33ffc7688	0x3fd45ac33ffc7685	-3
+FDIST	fd-var-ref-v3-037-0022	work/w109/G3-06-ftest-variance/answers-fdist-variance-refinement-discovery-v3.json	1.3838331462991587 8 9	0x3fd45ac33ffc7685	0x3fd45ac33ffc7684	-1
+FDIST	fd-var-ref-v3-037-0040	work/w109/G3-06-ftest-variance/answers-fdist-variance-refinement-discovery-v3.json	1.3838331462991627 8 9	0x3fd45ac33ffc7669	0x3fd45ac33ffc7668	-1
+FDIST	fd-var-ref-v3-037-0078	work/w109/G3-06-ftest-variance/answers-fdist-variance-refinement-discovery-v3.json	1.3838331462991711 8 9	0x3fd45ac33ffc7631	0x3fd45ac33ffc7630	-1
+FDIST	fd-var-ref-v3-037-0186	work/w109/G3-06-ftest-variance/answers-fdist-variance-refinement-discovery-v3.json	1.3838331462991951 8 9	0x3fd45ac33ffc7593	0x3fd45ac33ffc7592	-1
+FDIST	fd-var-ref-v3-037-0187	work/w109/G3-06-ftest-variance/answers-fdist-variance-refinement-discovery-v3.json	1.3838331462991953 8 9	0x3fd45ac33ffc7593	0x3fd45ac33ffc7592	-1
+FDIST	fd-var-ref-v3-037-0190	work/w109/G3-06-ftest-variance/answers-fdist-variance-refinement-discovery-v3.json	1.383833146299196 8 9	0x3fd45ac33ffc758e	0x3fd45ac33ffc758d	-1
+FDIST	fd-var-ref-v3-037-0198	work/w109/G3-06-ftest-variance/answers-fdist-variance-refinement-discovery-v3.json	1.3838331462991977 8 9	0x3fd45ac33ffc7582	0x3fd45ac33ffc7584	2
+FDIST	fd-var-ref-v3-037-0204	work/w109/G3-06-ftest-variance/answers-fdist-variance-refinement-discovery-v3.json	1.3838331462991991 8 9	0x3fd45ac33ffc757b	0x3fd45ac33ffc757a	-1
+FDIST	fd-var-ref-v3-037-0226	work/w109/G3-06-ftest-variance/answers-fdist-variance-refinement-discovery-v3.json	1.383833146299204 8 9	0x3fd45ac33ffc755c	0x3fd45ac33ffc755a	-2
+FDIST	fd-var-ref-v3-037-0250	work/w109/G3-06-ftest-variance/answers-fdist-variance-refinement-discovery-v3.json	1.3838331462992093 8 9	0x3fd45ac33ffc7538	0x3fd45ac33ffc7534	-4
+FDIST	fd-var-ref-v3-038-0007	work/w109/G3-06-ftest-variance/answers-fdist-variance-refinement-discovery-v3.json	1.0269115156281197 9 11	0x3fde6987d0be186a	0x3fde6987d0be1869	-1
+FDIST	fd-var-ref-v3-038-0035	work/w109/G3-06-ftest-variance/answers-fdist-variance-refinement-discovery-v3.json	1.0269115156281259 9 11	0x3fde6987d0be182b	0x3fde6987d0be1829	-2
+FDIST	fd-var-ref-v3-038-0040	work/w109/G3-06-ftest-variance/answers-fdist-variance-refinement-discovery-v3.json	1.026911515628127 9 11	0x3fde6987d0be181a	0x3fde6987d0be1818	-2
+FDIST	fd-var-ref-v3-038-0062	work/w109/G3-06-ftest-variance/answers-fdist-variance-refinement-discovery-v3.json	1.0269115156281319 9 11	0x3fde6987d0be17e0	0x3fde6987d0be17df	-1
+FDIST	fd-var-ref-v3-038-0072	work/w109/G3-06-ftest-variance/answers-fdist-variance-refinement-discovery-v3.json	1.0269115156281341 9 11	0x3fde6987d0be17ca	0x3fde6987d0be17cb	1
+FDIST	fd-var-ref-v3-038-0079	work/w109/G3-06-ftest-variance/answers-fdist-variance-refinement-discovery-v3.json	1.0269115156281357 9 11	0x3fde6987d0be17c0	0x3fde6987d0be17bd	-3
+FDIST	fd-var-ref-v3-038-0112	work/w109/G3-06-ftest-variance/answers-fdist-variance-refinement-discovery-v3.json	1.026911515628143 9 11	0x3fde6987d0be176b	0x3fde6987d0be176c	1
+FDIST	fd-var-ref-v3-038-0162	work/w109/G3-06-ftest-variance/answers-fdist-variance-refinement-discovery-v3.json	1.0269115156281541 9 11	0x3fde6987d0be16f7	0x3fde6987d0be16f6	-1
+FDIST	fd-var-ref-v3-038-0197	work/w109/G3-06-ftest-variance/answers-fdist-variance-refinement-discovery-v3.json	1.0269115156281619 9 11	0x3fde6987d0be16a3	0x3fde6987d0be16a1	-2
+FDIST	fd-var-ref-v3-038-0212	work/w109/G3-06-ftest-variance/answers-fdist-variance-refinement-discovery-v3.json	1.0269115156281652 9 11	0x3fde6987d0be167e	0x3fde6987d0be167d	-1
+FDIST	fd-var-ref-v3-038-0227	work/w109/G3-06-ftest-variance/answers-fdist-variance-refinement-discovery-v3.json	1.0269115156281685 9 11	0x3fde6987d0be165e	0x3fde6987d0be165d	-1
+FDIST	fd-var-ref-v3-038-0246	work/w109/G3-06-ftest-variance/answers-fdist-variance-refinement-discovery-v3.json	1.0269115156281727 9 11	0x3fde6987d0be162b	0x3fde6987d0be162d	2
+FDIST	fd-var-ref-v3-038-0249	work/w109/G3-06-ftest-variance/answers-fdist-variance-refinement-discovery-v3.json	1.0269115156281734 9 11	0x3fde6987d0be162a	0x3fde6987d0be162b	1
+FDIST	fd-var-ref-v3-038-0261	work/w109/G3-06-ftest-variance/answers-fdist-variance-refinement-discovery-v3.json	1.0269115156282043 9 11	0x3fde6987d0be14e3	0x3fde6987d0be14e1	-2
+FDIST	fd-var-ref-v3-041-0010	work/w109/G3-06-ftest-variance/answers-fdist-variance-refinement-discovery-v3.json	1.2988489119945428 7 7	0x3fd7a4d0433efa1e	0x3fd7a4d0433efa20	2
+FDIST	fd-var-ref-v3-041-0020	work/w109/G3-06-ftest-variance/answers-fdist-variance-refinement-discovery-v3.json	1.298848911994545 7 7	0x3fd7a4d0433efa12	0x3fd7a4d0433efa11	-1
+FDIST	fd-var-ref-v3-041-0043	work/w109/G3-06-ftest-variance/answers-fdist-variance-refinement-discovery-v3.json	1.2988489119945501 7 7	0x3fd7a4d0433ef9ee	0x3fd7a4d0433ef9ef	1
+FDIST	fd-var-ref-v3-041-0148	work/w109/G3-06-ftest-variance/answers-fdist-variance-refinement-discovery-v3.json	1.2988489119945734 7 7	0x3fd7a4d0433ef955	0x3fd7a4d0433ef951	-4
+FDIST	fd-var-ref-v3-041-0155	work/w109/G3-06-ftest-variance/answers-fdist-variance-refinement-discovery-v3.json	1.298848911994575 7 7	0x3fd7a4d0433ef94a	0x3fd7a4d0433ef94b	1
+FDIST	fd-var-ref-v3-041-0175	work/w109/G3-06-ftest-variance/answers-fdist-variance-refinement-discovery-v3.json	1.2988489119945794 7 7	0x3fd7a4d0433ef92f	0x3fd7a4d0433ef92c	-3
+FDIST	fd-var-ref-v3-041-0200	work/w109/G3-06-ftest-variance/answers-fdist-variance-refinement-discovery-v3.json	1.298848911994585 7 7	0x3fd7a4d0433ef908	0x3fd7a4d0433ef906	-2
+FDIST	fd-var-ref-v3-041-0201	work/w109/G3-06-ftest-variance/answers-fdist-variance-refinement-discovery-v3.json	1.2988489119945852 7 7	0x3fd7a4d0433ef908	0x3fd7a4d0433ef906	-2
+FDIST	fd-var-ref-v3-041-0230	work/w109/G3-06-ftest-variance/answers-fdist-variance-refinement-discovery-v3.json	1.2988489119945916 7 7	0x3fd7a4d0433ef8da	0x3fd7a4d0433ef8db	1
+FDIST	fd-var-ref-v3-043-0009	work/w109/G3-06-ftest-variance/answers-fdist-variance-refinement-discovery-v3.json	2.5416496816882796 11 5	0x3fc40d246fe18d46	0x3fc40d246fe18d45	-1
+FDIST	fd-var-ref-v3-043-0010	work/w109/G3-06-ftest-variance/answers-fdist-variance-refinement-discovery-v3.json	2.5416496816882801 11 5	0x3fc40d246fe18d46	0x3fc40d246fe18d45	-1
+FDIST	fd-var-ref-v3-043-0070	work/w109/G3-06-ftest-variance/answers-fdist-variance-refinement-discovery-v3.json	2.5416496816883067 11 5	0x3fc40d246fe18ce5	0x3fc40d246fe18ce1	-4
+FDIST	fd-var-ref-v3-043-0073	work/w109/G3-06-ftest-variance/answers-fdist-variance-refinement-discovery-v3.json	2.5416496816883081 11 5	0x3fc40d246fe18ce0	0x3fc40d246fe18cdf	-1
+FDIST	fd-var-ref-v3-043-0096	work/w109/G3-06-ftest-variance/answers-fdist-variance-refinement-discovery-v3.json	2.5416496816883183 11 5	0x3fc40d246fe18cb7	0x3fc40d246fe18cba	3
+FDIST	fd-var-ref-v3-043-0097	work/w109/G3-06-ftest-variance/answers-fdist-variance-refinement-discovery-v3.json	2.5416496816883187 11 5	0x3fc40d246fe18cb7	0x3fc40d246fe18cb8	1
+FDIST	fd-var-ref-v3-043-0102	work/w109/G3-06-ftest-variance/answers-fdist-variance-refinement-discovery-v3.json	2.5416496816883209 11 5	0x3fc40d246fe18cb0	0x3fc40d246fe18cb3	3
+FDIST	fd-var-ref-v3-043-0123	work/w109/G3-06-ftest-variance/answers-fdist-variance-refinement-discovery-v3.json	2.5416496816883303 11 5	0x3fc40d246fe18c8e	0x3fc40d246fe18c8d	-1
+FDIST	fd-var-ref-v3-043-0147	work/w109/G3-06-ftest-variance/answers-fdist-variance-refinement-discovery-v3.json	2.5416496816883409 11 5	0x3fc40d246fe18c66	0x3fc40d246fe18c69	3
+FDIST	fd-var-ref-v3-043-0177	work/w109/G3-06-ftest-variance/answers-fdist-variance-refinement-discovery-v3.json	2.5416496816883543 11 5	0x3fc40d246fe18c33	0x3fc40d246fe18c32	-1
+FDIST	fd-var-ref-v3-043-0201	work/w109/G3-06-ftest-variance/answers-fdist-variance-refinement-discovery-v3.json	2.5416496816883649 11 5	0x3fc40d246fe18c0c	0x3fc40d246fe18c0b	-1
+FDIST	fd-var-ref-v3-043-0202	work/w109/G3-06-ftest-variance/answers-fdist-variance-refinement-discovery-v3.json	2.5416496816883654 11 5	0x3fc40d246fe18c0c	0x3fc40d246fe18c0b	-1
+FDIST	fd-var-ref-v3-043-0211	work/w109/G3-06-ftest-variance/answers-fdist-variance-refinement-discovery-v3.json	2.5416496816883694 11 5	0x3fc40d246fe18bfa	0x3fc40d246fe18bf9	-1
+FDIST	fd-var-ref-v3-043-0215	work/w109/G3-06-ftest-variance/answers-fdist-variance-refinement-discovery-v3.json	2.5416496816883711 11 5	0x3fc40d246fe18bf3	0x3fc40d246fe18bf6	3
+FDIST	fd-var-ref-v3-043-0217	work/w109/G3-06-ftest-variance/answers-fdist-variance-refinement-discovery-v3.json	2.541649681688372 11 5	0x3fc40d246fe18bf3	0x3fc40d246fe18bf6	3
+FDIST	fd-var-ref-v3-043-0240	work/w109/G3-06-ftest-variance/answers-fdist-variance-refinement-discovery-v3.json	2.5416496816883822 11 5	0x3fc40d246fe18bca	0x3fc40d246fe18bcb	1
+FDIST	fd-var-ref-v3-046-0031	work/w109/G3-06-ftest-variance/answers-fdist-variance-refinement-discovery-v3.json	1.9489707175808983 5 6	0x3fcc2af477b4b663	0x3fcc2af477b4b666	3
+FDIST	fd-var-ref-v3-046-0032	work/w109/G3-06-ftest-variance/answers-fdist-variance-refinement-discovery-v3.json	1.9489707175808986 5 6	0x3fcc2af477b4b663	0x3fcc2af477b4b666	3
+FDIST	fd-var-ref-v3-046-0034	work/w109/G3-06-ftest-variance/answers-fdist-variance-refinement-discovery-v3.json	1.948970717580899 5 6	0x3fcc2af477b4b661	0x3fcc2af477b4b662	1
+FDIST	fd-var-ref-v3-046-0035	work/w109/G3-06-ftest-variance/answers-fdist-variance-refinement-discovery-v3.json	1.9489707175808992 5 6	0x3fcc2af477b4b661	0x3fcc2af477b4b662	1
+FDIST	fd-var-ref-v3-046-0068	work/w109/G3-06-ftest-variance/answers-fdist-variance-refinement-discovery-v3.json	1.9489707175809066 5 6	0x3fcc2af477b4b634	0x3fcc2af477b4b630	-4
+FDIST	fd-var-ref-v3-046-0069	work/w109/G3-06-ftest-variance/answers-fdist-variance-refinement-discovery-v3.json	1.9489707175809068 5 6	0x3fcc2af477b4b634	0x3fcc2af477b4b630	-4
+FDIST	fd-var-ref-v3-046-0081	work/w109/G3-06-ftest-variance/answers-fdist-variance-refinement-discovery-v3.json	1.9489707175809095 5 6	0x3fcc2af477b4b621	0x3fcc2af477b4b61e	-3
+FDIST	fd-var-ref-v3-046-0106	work/w109/G3-06-ftest-variance/answers-fdist-variance-refinement-discovery-v3.json	1.948970717580915 5 6	0x3fcc2af477b4b600	0x3fcc2af477b4b5fd	-3
+FDIST	fd-var-ref-v3-046-0107	work/w109/G3-06-ftest-variance/answers-fdist-variance-refinement-discovery-v3.json	1.9489707175809152 5 6	0x3fcc2af477b4b600	0x3fcc2af477b4b5fd	-3
+FDIST	fd-var-ref-v3-046-0116	work/w109/G3-06-ftest-variance/answers-fdist-variance-refinement-discovery-v3.json	1.9489707175809172 5 6	0x3fcc2af477b4b5f2	0x3fcc2af477b4b5f4	2
+FDIST	fd-var-ref-v3-046-0117	work/w109/G3-06-ftest-variance/answers-fdist-variance-refinement-discovery-v3.json	1.9489707175809174 5 6	0x3fcc2af477b4b5f2	0x3fcc2af477b4b5f4	2
+FDIST	fd-var-ref-v3-046-0209	work/w109/G3-06-ftest-variance/answers-fdist-variance-refinement-discovery-v3.json	1.9489707175809379 5 6	0x3fcc2af477b4b574	0x3fcc2af477b4b575	1
+FDIST	fd-var-ref-v3-046-0215	work/w109/G3-06-ftest-variance/answers-fdist-variance-refinement-discovery-v3.json	1.9489707175809392 5 6	0x3fcc2af477b4b56e	0x3fcc2af477b4b569	-5
+FDIST	fd-var-ref-v3-046-0216	work/w109/G3-06-ftest-variance/answers-fdist-variance-refinement-discovery-v3.json	1.9489707175809394 5 6	0x3fcc2af477b4b56e	0x3fcc2af477b4b569	-5
+FDIST	fd-var-ref-v3-046-0223	work/w109/G3-06-ftest-variance/answers-fdist-variance-refinement-discovery-v3.json	1.948970717580941 5 6	0x3fcc2af477b4b561	0x3fcc2af477b4b565	4
+FDIST	fd-var-ref-v3-046-0224	work/w109/G3-06-ftest-variance/answers-fdist-variance-refinement-discovery-v3.json	1.9489707175809412 5 6	0x3fcc2af477b4b561	0x3fcc2af477b4b565	4
+FDIST	fd-var-ref-v3-046-0244	work/w109/G3-06-ftest-variance/answers-fdist-variance-refinement-discovery-v3.json	1.9489707175809456 5 6	0x3fcc2af477b4b546	0x3fcc2af477b4b543	-3
+FDIST	fd-var-ref-v3-046-0245	work/w109/G3-06-ftest-variance/answers-fdist-variance-refinement-discovery-v3.json	1.9489707175809459 5 6	0x3fcc2af477b4b546	0x3fcc2af477b4b543	-3
+FDIST	fd-var-v2-002-000	work/w109/G3-06-ftest-variance/answers-fdist-variance-discovery-v2.json	1.2032147480107644 11 4	0x3fdde80e2ea901f2	0x3fdde80e2ea901f1	-1
+FDIST	fd-var-v2-005-000	work/w109/G3-06-ftest-variance/answers-fdist-variance-discovery-v2.json	1.7872236117825546 7 7	0x3fcd895713027e97	0x3fcd895713027e9f	8
+FDIST	fd-var-v2-005-002	work/w109/G3-06-ftest-variance/answers-fdist-variance-discovery-v2.json	2.9126424190014264 7 7	0x3fb743c23fb85278	0x3fb743c23fb85273	-5
+FDIST	fd-var-v2-006-000	work/w109/G3-06-ftest-variance/answers-fdist-variance-discovery-v2.json	1.2116153498763136 11 9	0x3fd9246e59b7c9ce	0x3fd9246e59b7c9cf	1
+FDIST	fd-var-v2-007-003	work/w109/G3-06-ftest-variance/answers-fdist-variance-discovery-v2.json	1.8202046765472877 3 10	0x3fca8357057c5472	0x3fca8357057c546f	-3
+FDIST	fd-var-v2-009-000	work/w109/G3-06-ftest-variance/answers-fdist-variance-discovery-v2.json	1.0654344457254448 2 7	0x3fd93f8b3f6cd51c	0x3fd93f8b3f6cd519	-3
+FDIST	fd-var-v2-009-001	work/w109/G3-06-ftest-variance/answers-fdist-variance-discovery-v2.json	1.0958030740264244 2 7	0x3fd8ab49b4e4b21e	0x3fd8ab49b4e4b21b	-3
+FDIST	fd-var-v2-016-000	work/w109/G3-06-ftest-variance/answers-fdist-variance-discovery-v2.json	1.0630453634578332 5 6	0x3fdd95791a60d0ba	0x3fdd95791a60d0bc	2
+FDIST	fd-var-v2-017-000	work/w109/G3-06-ftest-variance/answers-fdist-variance-discovery-v2.json	2.4968694286547821 11 5	0x3fc4a7e925d837a7	0x3fc4a7e925d837ae	7
+FDIST	fd-var-v2-026-005	work/w109/G3-06-ftest-variance/answers-fdist-variance-discovery-v2.json	1.3242627318165341 4 11	0x3fd488cdb0803c9a	0x3fd488cdb0803c9c	2
+FDIST	fd-var-v2-026-007	work/w109/G3-06-ftest-variance/answers-fdist-variance-discovery-v2.json	1.8764776091322308 11 4	0x3fd245695f139d9c	0x3fd245695f139d9b	-1
+FDIST	fd-var-v2-031-004	work/w109/G3-06-ftest-variance/answers-fdist-variance-discovery-v2.json	1.1016113924787778 11 4	0x3fe03cdc2486d253	0x3fe03cdc2486d254	1
+FDIST	fd-var-v2-033-000	work/w109/G3-06-ftest-variance/answers-fdist-variance-discovery-v2.json	1.5087996692839125 8 9	0x3fd1a77c244eda8b	0x3fd1a77c244eda8a	-1
+FDIST	fd-var-v2-035-007	work/w109/G3-06-ftest-variance/answers-fdist-variance-discovery-v2.json	3.2999999999999998 5 11	0x3fa78d43ce6f8e9a	0x3fa78d43ce6f8e90	-10
+FDIST	fd-var-v2-038-001	work/w109/G3-06-ftest-variance/answers-fdist-variance-discovery-v2.json	1.026911069924952 9 11	0x3fde6988edad90af	0x3fde6988edad90ae	-1
+FDIST	fd-var-v2-038-003	work/w109/G3-06-ftest-variance/answers-fdist-variance-discovery-v2.json	1.0269111458751736 9 11	0x3fde6988bd1f9a3a	0x3fde6988bd1f9a37	-3
+FDIST	fd-var-v2-040-004	work/w109/G3-06-ftest-variance/answers-fdist-variance-discovery-v2.json	1.8771635213611066 11 5	0x3fd025000649aa24	0x3fd025000649aa26	2
+FDIST	fd-var-v2-040-005	work/w109/G3-06-ftest-variance/answers-fdist-variance-discovery-v2.json	1.8771635213611069 11 5	0x3fd025000649aa24	0x3fd025000649aa26	2
+FDIST	fd-var-v2-040-008	work/w109/G3-06-ftest-variance/answers-fdist-variance-discovery-v2.json	1.877583456981351 11 5	0x3fd023a6170a62d1	0x3fd023a6170a62d0	-1
+FDIST	fd-var-v2-043-002	work/w109/G3-06-ftest-variance/answers-fdist-variance-discovery-v2.json	2.5416495445168068 11 5	0x3fc40d248e53cd83	0x3fc40d248e53cd85	2
+FDIST	fd-wrapper-ho-018-equal-forward	work/w109/G3-06-ftest-variance/answers-fdist-wrapper-heldout-v1.json	1 8 10	0x3fdf5b4bf25afed8	0x3fdf5b4bf25afed9	1
+FDIST	oc39	cache/oracle/build-20131/FDIST.jsonl	0.5 2 10	0x3fe3de9664fdb32e	0x3fe3de9664fdb32f	1
+FDIST	oc70	cache/oracle/build-20131/FDIST.jsonl	0.60999999999999999 13 6	0x3fe92954dca03978	0x3fe92954dca03979	1
+FINV	oc2	cache/oracle/build-20131/FINV.jsonl	0.02 2 5	0x4022e8a7ef8726c2	0x4022e8a7ef8726c3	1
+FINV	oc5	cache/oracle/build-20131/FINV.jsonl	0.29999999999999999 2 5	0x3ff8beeba7b1552b	0x3ff8beeba7b15529	-2
+TINV	oc9	cache/oracle/build-20131/TINV.jsonl	0.0030000000000000001 4	0x4019bd48e32048d9	0x4019bd48e32048da	1

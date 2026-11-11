@@ -1688,11 +1688,44 @@ fn bratio_apser(a: f64, b: f64, x: f64, eps: f64) -> f64 {
     -a * (c + s)
 }
 
+/// `ln B(a, b)` as Excel forms it when neither shape is above 8: three public GAMMALN values, the
+/// larger shape's less the sum's first, each step stored (dc-6332.8: every row of 24 tiny-x
+/// BETA.DIST calls at each of 300 shape pairs from 0.25 to 8, Excel 16.0.20527). With a shape of
+/// 1, which only the recurrence arm asks for, it is `-LN` of the other shape (879 of 880 calls at
+/// b = 2). Above 8 Excel's form is not read (it is within about a unit of the true value, which a
+/// difference of GAMMALN values is not): `None`.
+pub(crate) fn excel_ln_beta_small(a: f64, b: f64) -> Option<f64> {
+    use crate::ported::excel_numeric::{excel_log, excel_x87_add, excel_x87_sub, gammaln_excel};
+    let (small, large) = if a <= b { (a, b) } else { (b, a) };
+    if large > 8.0 {
+        return None;
+    }
+    if small == 1.0 {
+        return Some(-excel_log(large));
+    }
+    Some(excel_x87_add(
+        excel_x87_sub(gammaln_excel(large), gammaln_excel(a + b)),
+        gammaln_excel(small),
+    ))
+}
+
+/// `x^a y^b / B(a, b)` as Excel's recurrence arm forms it: the stored `x y` times the beta density
+/// (dc-6332.8: with Excel's own density, all 80 calls at each of BETA.DIST(x, a, 2) for eleven
+/// `a`, less one row).
+fn excel_brcomp(a: f64, b: f64, x: f64, y: f64) -> Option<f64> {
+    use crate::ported::excel_numeric::excel_x87_mul;
+    let density = crate::ported::discrete_dist::beta_density_at(x, y, a, b)?;
+    Some(excel_x87_mul(excel_x87_mul(x, y), density))
+}
+
 /// bpser: power series expansion for Ix(a, b) when b <= 1 or b*x <= 0.7.
 fn bratio_bpser(a: f64, b: f64, x: f64, eps: f64) -> f64 {
     let mut bp = 0.0;
     if x == 0.0 {
         return bp;
+    }
+    if let Some(ln_beta) = excel_ln_beta_small(a, b) {
+        return crate::ported::excel_numeric::excel_beta_power_series(a, b, x, ln_beta);
     }
     let a0 = a.min(b);
     if a0 >= 1.0 {
@@ -1765,7 +1798,7 @@ fn bratio_bpser(a: f64, b: f64, x: f64, eps: f64) -> f64 {
 }
 
 /// bup: Ix(a, b) - Ix(a+n, b) evaluated for n a positive integer.
-fn bratio_bup(a: f64, b: f64, x: f64, y: f64, n: i32, eps: f64) -> f64 {
+fn bratio_bup(a: f64, b: f64, x: f64, y: f64, n: i32, eps: f64, excel_form: bool) -> f64 {
     use crate::ported::excel_numeric::excel_x87_mul;
     let apb = a + b;
     let ap1 = a + 1.0;
@@ -1782,7 +1815,14 @@ fn bratio_bup(a: f64, b: f64, x: f64, y: f64, n: i32, eps: f64) -> f64 {
             d = crate::ported::excel_numeric::excel_exp(-t);
         }
     }
-    let bp = bratio_brcmp1(mu, a, b, x, y) / a;
+    let bp = match if excel_form { excel_brcomp(a, b, x, y) } else { None } {
+        // Excel's own form has no scaling by exp(mu).
+        Some(h) => {
+            d = 1.0;
+            crate::ported::excel_numeric::excel_x87_div(h, a)
+        }
+        None => bratio_brcmp1(mu, a, b, x, y) / a,
+    };
     if n == 1 || bp == 0.0 {
         return bp;
     }
@@ -2435,7 +2475,7 @@ pub fn bratio(a: f64, b: f64, x: f64, y: f64) -> (f64, f64) {
             }
             "bup_140" => {
                 let n = 20;
-                w1 = bratio_bup(b0, a0, y0, x0, n, eps);
+                w1 = bratio_bup(b0, a0, y0, x0, n, eps, false);
                 b0 += n as f64;
                 let (nw1, _ie) = bratio_bgrat(b0, a0, y0, x0, w1, eps);
                 w1 = nw1;
@@ -2509,14 +2549,14 @@ pub fn bratio(a: f64, b: f64, x: f64, y: f64) -> (f64, f64) {
                 n -= 1;
                 b0 = 1.0;
             }
-            w = bratio_bup(b0, a0, y0, x0, n, eps);
+            w = bratio_bup(b0, a0, y0, x0, n, eps, true);
             if x0 <= 0.7 {
                 w += bratio_bpser(a0, b0, x0, eps);
                 w1 = 0.5 + (0.5 - w);
             } else {
                 if a0 <= 15.0 {
                     let nn = 20;
-                    w += bratio_bup(a0, b0, x0, y0, nn, eps);
+                    w += bratio_bup(a0, b0, x0, y0, nn, eps, true);
                     a0 += nn as f64;
                 }
                 let (nw, _ie) = bratio_bgrat(a0, b0, x0, y0, w, eps);
@@ -2530,6 +2570,18 @@ pub fn bratio(a: f64, b: f64, x: f64, y: f64) -> (f64, f64) {
         std::mem::swap(&mut w, &mut w1);
     }
     (w, w1)
+}
+
+/// [`bratio`] for the F and t wrappers. With the first shape 1 (the arm `0.5 + (0.5 - exp(b
+/// LN(y)))`) Excel takes the stored `1 - x` there, not the wrapper's own second argument:
+/// FDIST(f, 7, 2) is that arm on 199 of 200 Excel 16.0.20527 calls with `1 - x` and on 166 with
+/// `1 / (1 + d2 / (d1 f))` (dc-6332.8). F.TEST does not come through here: its bank rows hold the
+/// pair it passes.
+pub fn bratio_from_wrapper(a: f64, b: f64, x: f64, y: f64) -> (f64, f64) {
+    if a == 1.0 {
+        return bratio(a, b, x, crate::ported::excel_numeric::excel_x87_sub(1.0, x));
+    }
+    bratio(a, b, x, y)
 }
 
 pub fn regularized_beta(x: f64, a: f64, b: f64) -> f64 {
@@ -2602,6 +2654,30 @@ mod tests {
             // low at 15 * eps.
             let off = (v.to_bits() as i64 - excel as i64).abs();
             assert!(off <= 5, "BETA.DIST({x}, {a}, {b}, TRUE) is {off} units off");
+        }
+    }
+
+    /// The power-series arm and the recurrence arm as read from Excel 16.0.20527 (dc-6332.8,
+    /// `docs/research/beta-family-2026-11-12.md`): BETA.DIST(x, a, b, TRUE) answers of the Excel
+    /// answer service on 2026-11-12. The first three rows run the series alone; the others add
+    /// one or two recurrence terms built on the beta density.
+    #[cfg_attr(not(target_arch = "wasm32"), test)]
+    #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+    fn series_and_recurrence_arms_match_excel() {
+        let rows = [
+            (0.125, 3.0, 2.0, 0x3f7d000000000008_u64),
+            (0.0625, 2.5, 3.5, 0x3f83647429738e30),
+            (0.03125, 5.5, 2.5, 0x3e71e41a7f4fbc68),
+            (0.5, 6.0, 2.0, 0x3fb0000000000000),
+            (0.4375, 4.5, 3.0, 0x3fc71928b890bf88),
+            (0.5, 4.0, 1.5, 0x3fbe6ed4f23ba3e3),
+            (0.375, 5.5, 2.5, 0x3fa14e512187e2c5),
+            (0.5, 4.0, 4.0, 0x3fe0000000000001),
+            (0.625, 6.0, 3.0, 0x3fd7a9bd3fffffff),
+        ];
+        for (x, a, b, excel) in rows {
+            let v = regularized_beta(x, a, b);
+            assert_eq!(v.to_bits(), excel, "BETA.DIST({x}, {a}, {b}, TRUE)");
         }
     }
 
