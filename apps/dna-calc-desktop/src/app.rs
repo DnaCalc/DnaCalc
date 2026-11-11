@@ -397,6 +397,15 @@ impl App {
     }
 }
 
+/// The browser profile when `DNACALC_WEBVIEW2_DATA` names none: `%LOCALAPPDATA%\DNA Calc\webview2`,
+/// else a folder under the temporary directory.
+fn default_data_dir() -> PathBuf {
+    std::env::var_os("LOCALAPPDATA")
+        .filter(|v| !v.is_empty())
+        .map(|base| PathBuf::from(base).join("DNA Calc").join("webview2"))
+        .unwrap_or_else(|| std::env::temp_dir().join("dnacalc-webview2"))
+}
+
 pub fn run(args: &[String]) -> Result<(), String> {
     let o = options(args)?;
     let opening = o.open.as_deref().map(read_open_file).transpose()?;
@@ -428,7 +437,7 @@ Open the download page now?"
     shell.show(o.size.0, o.size.1);
     let user_data = std::env::var_os("DNACALC_WEBVIEW2_DATA")
         .map(PathBuf::from)
-        .unwrap_or_else(|| std::env::temp_dir().join("dnacalc-webview2"));
+        .unwrap_or_else(default_data_dir);
     let mut browser_args = o.webview_args.clone();
     if let Some(port) = o.debug_port {
         browser_args.push_str(&format!(

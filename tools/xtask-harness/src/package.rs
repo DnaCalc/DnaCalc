@@ -34,8 +34,12 @@ pub const FOLDER: &str = "DNA-OneCalc";
 pub const EXE: &str = "dna-onecalc-desktop.exe";
 /// The optional companion: DNA Calc, which OneCalc starts for a file it cannot open as a session.
 pub const CALC_EXE: &str = "dna-calc-desktop.exe";
+/// DNA Calc's own folder (`--without-calc` leaves it out): the same executable on its own, with its README.
+pub const CALC_FOLDER: &str = "DNA-Calc";
 
-const README: &str = "DNA OneCalc\r\n\r\nOne Excel formula at a time, with the inputs it needs, on your desktop. Run dna-onecalc-desktop.exe.\r\n\r\nThis folder is the whole program:\r\n  dna-onecalc-desktop.exe  the application; its page is inside it\r\n  dna-calc-desktop.exe     DNA Calc, the workbook application; its page is inside it\r\n  XLCALL32.DLL             lets Excel add-ins (.xll) find the application, as they find Excel\r\n  LICENSE                  MIT licence\r\n\r\nIt needs the Microsoft Edge WebView2 Runtime (the Evergreen runtime, already part of Windows 11 and\r\nof current Microsoft Edge installations). If it is missing the application says so and gives the\r\ndownload page: https://developer.microsoft.com/microsoft-edge/webview2/\r\n\r\nExcel add-ins (.xll, .xlam) load from the Add-ins panel. A file OneCalc cannot open as a session can\r\nbe opened in DNA Calc when dna-calc-desktop.exe is in this folder.\r\n\r\nThe application keeps its settings (window place, recent files) and its browser profile under\r\n%LOCALAPPDATA%\\DNA OneCalc. Delete that folder to forget them.\r\n";
+const CALC_README: &str = "DNA Calc\r\n\r\nThe Excel workbook application on your desktop. Run dna-calc-desktop.exe.\r\n\r\nWhat you can do:\r\n  - open an Excel workbook: start dna-calc-desktop.exe FILE (or --open FILE) and its sheets,\r\n    cells, formulas, formats and charts show in the window;\r\n  - edit cells and formulas, which recalculate through the same function library as DNA OneCalc;\r\n  - export and print from the page (downloads go through WebView2's own save prompt);\r\n  - load Excel add-ins from the command line: dna-calc-desktop.exe --xll PATH.\r\n\r\nThis folder is the whole program:\r\n  dna-calc-desktop.exe  the application; its page is inside it\r\n  XLCALL32.DLL          lets Excel add-ins (.xll) find the application, as they find Excel\r\n  LICENSE               MIT licence\r\n\r\nIt needs the Microsoft Edge WebView2 Runtime (the Evergreen runtime, already part of Windows 11 and\r\nof current Microsoft Edge installations). If it is missing the application says so and gives the\r\ndownload page: https://developer.microsoft.com/microsoft-edge/webview2/\r\n\r\ndna-calc-desktop.exe --version prints the version. The browser profile is kept under\r\n%LOCALAPPDATA%\\DNA Calc\\webview2. Delete that folder to forget it.\r\n";
+
+const README: &str = "DNA OneCalc\r\n\r\nOne Excel formula at a time, with the inputs it needs, on your desktop. Run dna-onecalc-desktop.exe.\r\n\r\nWhat you can do:\r\n  - type an Excel formula, see its result, its parts and a step-by-step trace; format the result;\r\n  - open and save a session file (Ctrl+O, Ctrl+S, Ctrl+Shift+S; recent files are remembered);\r\n  - load Excel add-ins (.xll, .xlam) and use their functions; open an .xlsm session with its macros;\r\n  - the window title shows the session name, with * for unsaved changes, and asks before closing it;\r\n  - dna-onecalc-desktop.exe --version prints the version.\r\n\r\nThis folder is the whole program:\r\n  dna-onecalc-desktop.exe  the application; its page is inside it\r\n  dna-calc-desktop.exe     DNA Calc, the workbook application; its page is inside it\r\n  XLCALL32.DLL             lets Excel add-ins (.xll) find the application, as they find Excel\r\n  LICENSE                  MIT licence\r\n\r\nIt needs the Microsoft Edge WebView2 Runtime (the Evergreen runtime, already part of Windows 11 and\r\nof current Microsoft Edge installations). If it is missing the application says so and gives the\r\ndownload page: https://developer.microsoft.com/microsoft-edge/webview2/\r\n\r\nExcel add-ins (.xll, .xlam) load from the Add-ins panel. A file OneCalc cannot open as a session can\r\nbe opened in DNA Calc when dna-calc-desktop.exe is in this folder.\r\n\r\nThe application keeps its settings (window place, recent files) and its browser profile under\r\n%LOCALAPPDATA%\\DNA OneCalc. Delete that folder to forget them.\r\n";
 
 pub fn run(raw: &[String]) -> ExitCode {
     match raw.split_first() {
@@ -204,6 +208,39 @@ fn package(ws: &Workspace, out: &Path, zip: bool, calc: bool) -> Result<Value, S
         ("README.txt".to_owned(), readme(calc).into_bytes()),
         ("LICENSE".to_owned(), licence),
     ]);
+    // DNA Calc on its own: the same executable and shim, its own README.
+    if calc {
+        let own = out.join(CALC_FOLDER);
+        let _ = fs::remove_dir_all(&own);
+        fs::create_dir_all(&own).map_err(|e| io("cannot create", &own, e))?;
+        let mut entries = Vec::new();
+        for name in [CALC_EXE, "XLCALL32.DLL", "LICENSE"] {
+            let bytes = files
+                .iter()
+                .find(|(n, _)| n == name)
+                .map(|(_, b)| b.clone())
+                .ok_or(format!("{name} missing"))?;
+            entries.push((name.to_owned(), bytes));
+        }
+        entries.push(("README.txt".to_owned(), CALC_README.as_bytes().to_vec()));
+        let mut bytes_total = 0;
+        for (name, bytes) in &entries {
+            fs::write(own.join(name), bytes).map_err(|e| io("cannot write", &own.join(name), e))?;
+            bytes_total += bytes.len();
+        }
+        println!("ONECALC PACKAGE calc folder {} bytes", bytes_total);
+        if zip {
+            let name = format!("{CALC_FOLDER}-{}-win-x64.zip", workspace_version(&ws.root)?);
+            let zipped: Vec<(String, Vec<u8>)> = entries
+                .iter()
+                .map(|(n, b)| (format!("{CALC_FOLDER}/{n}"), b.clone()))
+                .collect();
+            let bytes = zip_bytes(&zipped);
+            let path = out.join(&name);
+            fs::write(&path, &bytes).map_err(|e| io("cannot write", &path, e))?;
+            println!("ONECALC PACKAGE calc zip {name}: {} bytes", bytes.len());
+        }
+    }
     let mut listed = Vec::new();
     for (name, bytes) in &files {
         fs::write(folder.join(name), bytes)
@@ -574,5 +611,18 @@ mod tests {
     fn the_workspace_version_is_read() {
         let root = Path::new(env!("CARGO_MANIFEST_DIR")).join("../..");
         assert!(workspace_version(&root).unwrap().split('.').count() >= 2);
+    }
+
+    /// Native-only: both folders' READMEs name the runtime download and the file each starts, and
+    /// DNA Calc's names no OneCalc file.
+    #[test]
+    fn the_readmes_name_their_program_and_the_runtime() {
+        const CRLF: &str = "\r\n";
+        for (text, exe) in [(readme(true), EXE), (CALC_README.to_owned(), CALC_EXE)] {
+            assert!(text.contains(exe));
+            assert!(text.contains("https://developer.microsoft.com/microsoft-edge/webview2/"));
+            assert!(text.contains(CRLF));
+        }
+        assert!(!CALC_README.contains(EXE));
     }
 }

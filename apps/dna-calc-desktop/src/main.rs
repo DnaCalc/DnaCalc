@@ -36,6 +36,10 @@ fn run() -> Result<(), String> {
     use calc_platform_desktop::Shell;
     use std::path::PathBuf;
     let all: Vec<String> = std::env::args().skip(1).collect();
+    if all.first().map(String::as_str) == Some("--version") {
+        println!("DNA Calc {}", env!("CARGO_PKG_VERSION"));
+        return Ok(());
+    }
     // `--open FILE` and a file path as the first argument are app mode: the page with that workbook.
     let first_is_file = all.first().is_some_and(|arg| !arg.starts_with("--"));
     if first_is_file || all.iter().any(|arg| arg == "--app" || arg == "--open") {
@@ -183,6 +187,31 @@ fn main() -> std::process::ExitCode {
             Ok(()) => std::process::ExitCode::SUCCESS,
             Err(why) => {
                 eprintln!("dna-calc-desktop: {why}");
+                // The packaged executable has no console to print to: say it in a box (a missing
+                // WebView2 has said its own message already). A run with a test flag only
+                // reports on stderr and by its exit code.
+                let scripted = std::env::args().any(|a| {
+                    [
+                        "--debug-port",
+                        "--save-dir",
+                        "--probe",
+                        "--hidden",
+                        "--message-file",
+                    ]
+                    .contains(&a.as_str())
+                });
+                if embedded::has_page()
+                    && !scripted
+                    && !why.starts_with("DNA Calc shows its window")
+                {
+                    calc_platform_desktop::dialogs::message(
+                        std::ptr::null_mut(),
+                        "DNA Calc",
+                        &why,
+                        calc_platform_desktop::dialogs::Buttons::Ok,
+                        true,
+                    );
+                }
                 std::process::ExitCode::FAILURE
             }
         }
