@@ -145,24 +145,35 @@ mismatched + refused + missing; the rate is over all cases of the set.
 | xlw 23.10.12-rc sample, and its types sample | 5 + 5 | 10 | 0 |
 | xlOil 0.22.1 Utils and SQL | 12 | 12 | 0 |
 | xlOil 0.22.1 Python 3.12 | 5 | 5 | 0 |
-| calcvba-udf generated add-in (15 exports) | 20 | 20 | 0 (17 until dc-6332.12) |
-| all | 353 | 353 | 0 (100%; 350 until dc-6332.12) |
+| calcvba-udf generated add-in (15 exports) | 17 (+ 3 DNA Calc-only) | 17 | 0 |
+| all | 350 (+ 3 DNA Calc-only) | 350 | 0 (100%) |
 
 Re-run on 2026-11-11 after the dc-6332.10 callback-boundary changes (OneCalc a967db01): the same
 350 of 353, set by set (`crates/calc-xll-reference/traces/2026-11-10-x13-boundary/m4-acceptance`).
 
-The three failures were all in the generated add-in: `Native_ReferenceKind(A1)`,
-`Native_OptionalReference(A1)` and `Native_CallerRow()` returned `#VALUE!` where Excel gives
-`"Range:1"`, `"Range"` and `3`. The generated code gets a `Range` object from
-`Application.Range(address)` and `Application.Caller` through the add-in's COM view of Excel
-(`xlGetHwnd`, then the EXCEL7 window), late bound, and reads `TypeName`, `Rows.Count` and `Row`.
-dc-6332.12 answers them inside the owner's ruling (no full object model): the desktop hosts'
-object model (calc-com-host) now has `Application.Range`, `Union` and `Caller`, and a Range that
-names cells (`Address`, `Row`, `Column`, `Count`, `Rows`, `Columns`, `Parent`, `Worksheet`) with
-private type information named `Range` (what VBA's `TypeName` reads). `Caller` is the cell of the
-native call running on that thread. A Range holds no values: `Value`, `Value2`, `Cells`, `Item`
-and `Areas` stay absent, and `Range.Value` reads stay typed refusals. The page acceptance after
-the change: 353 of 353, set by set, `crates/calc-xll-reference/traces/2026-11-11-x19-com`.
+Three cases of the generated add-in need a workbook: `Native_ReferenceKind(A1)`,
+`Native_OptionalReference(A1)` and `Native_CallerRow()` (Excel gives `"Range:1"`, `"Range"` and `3`; the
+generated code reads `Application.Range(address)` and `Application.Caller` through the add-in's COM view
+of Excel, late bound). dc-6332.12 had answered them with a pseudo object model (Range, Union, Caller,
+name-only Range with type information; commits ecd1d610 and b28341ab, 353 of 353). dc-svqh removed it:
+OneCalc hosts functions, DNA Calc hosts workbooks, so these three are DNA Calc-only cases
+(`dnacalc_only` in m4-acceptance.json), run and reported separately, neither matches nor failures.
+The git history keeps the pseudo object model for DNA Calc's own.
+
+**Values-only profile (dc-svqh, owner policy 2026-11-11).** One implementation of the Excel contract
+in the shared host crates (`calc_vba::Profile`, `AddinHost::with_profile`), two profiles. OneCalc's
+values-only profile refuses what needs a workbook, with the text "needs a workbook: open in DNA Calc":
+a VBA function with an `As Range` (object) parameter is registered as a typed refusal (the module's
+other functions load); `Application.Caller` is refused when it runs (VBA) and as a COM property
+(`Application.Caller` and `Application.ThisCell` answer error 1004 with that text). Not refused:
+`Application.Volatile`, `xlfVolatile` (OneCalc's volatile flag, F9), `Application.WorksheetFunction`,
+and XLL reference parameter types (`R`, `U`) and `#` registrations: OneCalc never passes a reference.
+A fixed fake value for Caller may replace the refusal later. DNA Calc takes the full profile.
+The VBA acceptance (m5) has four more DNA Calc-only cases in each of `dnaexamples-xlam` and
+`dnaexamples-xlsm` (`DnaCells`, `DnaWhere`, `DnaTryWriteArg`, `DnaWriteArg`, all `As Range`); the 109
+simple-UDF cases are unchanged in both routes. The cross-built exe's run (2026-11-11/12): m4 350 of 350
+plus 3 DNA Calc-only; m5 simple-xlam 109/109, simple-xlsm 109/109, dnaexamples 22/22 and 23/23 plus 4
+DNA Calc-only each.
 
 The page also showed, for the first functions of each add-in, the signature help, the function help
 (description, argument help, category, origin) and the completion list; it unloaded each add-in

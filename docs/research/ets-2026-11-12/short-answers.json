@@ -1,0 +1,2224 @@
+{
+  "predictions_sha256": "eefce52506d62ef508b9cd665bf665ab4fba3b12e8608a6431a0a1f0135633a2",
+  "prediction_commit": "b648ed9603562e896796d706b38e653e26cc5962",
+  "environments": [
+    {
+      "version": 1,
+      "id": "7fd6fe58c607414dab8ac6b219540f2b",
+      "ok": true,
+      "excel_version": "16.0",
+      "excel_build": "20527",
+      "excel_file_version": "16.0.20527.20150",
+      "excel_pid": null,
+      "calculation_settings": {
+        "calculation": -4135,
+        "compatibility_version": null,
+        "unavailable": [],
+        "PrecisionAsDisplayed": false,
+        "Date1904": false,
+        "CompatibilityVersion": 2,
+        "UseSystemSeparators": true,
+        "DecimalSeparator": ".",
+        "ThousandsSeparator": "\u00a0"
+      },
+      "automation_security_before": 1,
+      "automation_security_after": 1,
+      "env_id": "29bedb2b6722",
+      "machine": "GOVERT-OMEN",
+      "timestamp": "2026-11-11T23:15:59.619921+00:00",
+      "service_seconds": 1.238997353008017,
+      "request_sha256": null
+    },
+    {
+      "version": 1,
+      "id": "e3497fe657374ae6ae089517b76d8d8f",
+      "ok": true,
+      "excel_version": "16.0",
+      "excel_build": "20527",
+      "excel_file_version": "16.0.20527.20150",
+      "excel_pid": null,
+      "calculation_settings": {
+        "calculation": -4135,
+        "compatibility_version": null,
+        "unavailable": [],
+        "PrecisionAsDisplayed": false,
+        "Date1904": false,
+        "CompatibilityVersion": 2,
+        "UseSystemSeparators": true,
+        "DecimalSeparator": ".",
+        "ThousandsSeparator": "\u00a0"
+      },
+      "automation_security_before": 1,
+      "automation_security_after": 1,
+      "env_id": "02cb49a79d1f",
+      "machine": "GOVERT-OMEN",
+      "timestamp": "2026-11-11T23:15:59.403229+00:00",
+      "service_seconds": 1.0211930889636278,
+      "request_sha256": null
+    },
+    {
+      "version": 1,
+      "id": "6a35abf786e249a79ee1ae3aa5eb0817",
+      "ok": true,
+      "excel_version": "16.0",
+      "excel_build": "20527",
+      "excel_file_version": "16.0.20527.20150",
+      "excel_pid": null,
+      "calculation_settings": {
+        "calculation": -4135,
+        "compatibility_version": null,
+        "unavailable": [],
+        "PrecisionAsDisplayed": false,
+        "Date1904": false,
+        "CompatibilityVersion": 2,
+        "UseSystemSeparators": true,
+        "DecimalSeparator": ".",
+        "ThousandsSeparator": "\u00a0"
+      },
+      "automation_security_before": 1,
+      "automation_security_after": 1,
+      "env_id": "29bedb2b6722",
+      "machine": "GOVERT-OMEN",
+      "timestamp": "2026-11-11T23:15:59.539878+00:00",
+      "service_seconds": 1.152242996962741,
+      "request_sha256": null
+    }
+  ],
+  "rows": [
+    {
+      "id": "H87_F2",
+      "answer": {
+        "type": "number",
+        "bits": "c02a6b9649539ae8"
+      },
+      "matches": {
+        "landed_program": true
+      }
+    },
+    {
+      "id": "H87_F3",
+      "answer": {
+        "type": "number",
+        "bits": "c03139327027bb52"
+      },
+      "matches": {
+        "landed_program": true
+      }
+    },
+    {
+      "id": "H88_F2",
+      "answer": {
+        "type": "number",
+        "bits": "40269bb2c9a9fd9e"
+      },
+      "matches": {
+        "landed_program": true
+      }
+    },
+    {
+      "id": "H88_F3",
+      "answer": {
+        "type": "number",
+        "bits": "402a604a85c27f20"
+      },
+      "matches": {
+        "landed_program": true
+      }
+    },
+    {
+      "id": "H89_F2",
+      "answer": {
+        "type": "number",
+        "bits": "c026c0f205d2cd37"
+      },
+      "matches": {
+        "landed_program": true
+      }
+    },
+    {
+      "id": "H89_F3",
+      "answer": {
+        "type": "number",
+        "bits": "c02bd9d0c1b1107b"
+      },
+      "matches": {
+        "landed_program": true
+      }
+    },
+    {
+      "id": "H90_F2",
+      "answer": {
+        "type": "number",
+        "bits": "402980010432c2f4"
+      },
+      "matches": {
+        "landed_program": true
+      }
+    },
+    {
+      "id": "H90_F3",
+      "answer": {
+        "type": "number",
+        "bits": "402cbb4568573e06"
+      },
+      "matches": {
+        "landed_program": true
+      }
+    },
+    {
+      "id": "H91_F2",
+      "answer": {
+        "type": "number",
+        "bits": "c02ca16ec9e236c1"
+      },
+      "matches": {
+        "landed_program": true
+      }
+    },
+    {
+      "id": "H91_F3",
+      "answer": {
+        "type": "number",
+        "bits": "c0324f87368ad688"
+      },
+      "matches": {
+        "landed_program": true
+      }
+    },
+    {
+      "id": "H92_F2",
+      "answer": {
+        "type": "number",
+        "bits": "40083a7f1e9f4000"
+      },
+      "matches": {
+        "landed_program": true
+      }
+    },
+    {
+      "id": "H92_F3",
+      "answer": {
+        "type": "number",
+        "bits": "400d295e2a99b7b6"
+      },
+      "matches": {
+        "landed_program": true
+      }
+    },
+    {
+      "id": "H93_F2",
+      "answer": {
+        "type": "number",
+        "bits": "401787d5690728fc"
+      },
+      "matches": {
+        "landed_program": true
+      }
+    },
+    {
+      "id": "H93_F3",
+      "answer": {
+        "type": "number",
+        "bits": "4014100ee600b0ac"
+      },
+      "matches": {
+        "landed_program": true
+      }
+    },
+    {
+      "id": "H94_F2",
+      "answer": {
+        "type": "number",
+        "bits": "40271fb957d992c3"
+      },
+      "matches": {
+        "landed_program": true
+      }
+    },
+    {
+      "id": "H94_F3",
+      "answer": {
+        "type": "number",
+        "bits": "402a8dcd7bb46178"
+      },
+      "matches": {
+        "landed_program": true
+      }
+    },
+    {
+      "id": "H95_F2",
+      "answer": {
+        "type": "number",
+        "bits": "c00d75ba1998b4b2"
+      },
+      "matches": {
+        "landed_program": false
+      }
+    },
+    {
+      "id": "H95_F3",
+      "answer": {
+        "type": "number",
+        "bits": "c0151a55a3fd916b"
+      },
+      "matches": {
+        "landed_program": false
+      }
+    },
+    {
+      "id": "H96_F2",
+      "answer": {
+        "type": "number",
+        "bits": "400a3d7c6759ab6e"
+      },
+      "matches": {
+        "landed_program": true
+      }
+    },
+    {
+      "id": "H96_F3",
+      "answer": {
+        "type": "number",
+        "bits": "401067e7a52ac754"
+      },
+      "matches": {
+        "landed_program": true
+      }
+    },
+    {
+      "id": "H97_F2",
+      "answer": {
+        "type": "number",
+        "bits": "402a4da7f00dd34a"
+      },
+      "matches": {
+        "landed_program": true
+      }
+    },
+    {
+      "id": "H97_F3",
+      "answer": {
+        "type": "number",
+        "bits": "402e282d556a86e7"
+      },
+      "matches": {
+        "landed_program": true
+      }
+    },
+    {
+      "id": "H98_F2",
+      "answer": {
+        "type": "number",
+        "bits": "c01cb4c4faa389b4"
+      },
+      "matches": {
+        "landed_program": true
+      }
+    },
+    {
+      "id": "H98_F3",
+      "answer": {
+        "type": "number",
+        "bits": "c020ada41632b706"
+      },
+      "matches": {
+        "landed_program": true
+      }
+    },
+    {
+      "id": "H99_F2",
+      "answer": {
+        "type": "number",
+        "bits": "c017371e4d528c03"
+      },
+      "matches": {
+        "landed_program": true
+      }
+    },
+    {
+      "id": "H99_F3",
+      "answer": {
+        "type": "number",
+        "bits": "c01752ad73fbd1ff"
+      },
+      "matches": {
+        "landed_program": true
+      }
+    },
+    {
+      "id": "H100_F2",
+      "answer": {
+        "type": "number",
+        "bits": "bffdf289a617ec6e"
+      },
+      "matches": {
+        "landed_program": true
+      }
+    },
+    {
+      "id": "H100_F3",
+      "answer": {
+        "type": "number",
+        "bits": "c00110e17e264f77"
+      },
+      "matches": {
+        "landed_program": true
+      }
+    },
+    {
+      "id": "fresh_n4_0_F2",
+      "answer": {
+        "type": "number",
+        "bits": "c01ff4a6c743da95"
+      },
+      "matches": {
+        "landed_program": true
+      }
+    },
+    {
+      "id": "fresh_n4_0_F3",
+      "answer": {
+        "type": "number",
+        "bits": "c0249563fd6ea3d0"
+      },
+      "matches": {
+        "landed_program": true
+      }
+    },
+    {
+      "id": "fresh_n4_1_F2",
+      "answer": {
+        "type": "number",
+        "bits": "4009fb0b1a4cd117"
+      },
+      "matches": {
+        "landed_program": true
+      }
+    },
+    {
+      "id": "fresh_n4_1_F3",
+      "answer": {
+        "type": "number",
+        "bits": "4015218f3495705b"
+      },
+      "matches": {
+        "landed_program": true
+      }
+    },
+    {
+      "id": "fresh_n4_2_F2",
+      "answer": {
+        "type": "number",
+        "bits": "403915c347caed5c"
+      },
+      "matches": {
+        "landed_program": true
+      }
+    },
+    {
+      "id": "fresh_n4_2_F3",
+      "answer": {
+        "type": "number",
+        "bits": "40405033e40f6adc"
+      },
+      "matches": {
+        "landed_program": true
+      }
+    },
+    {
+      "id": "fresh_n4_3_F2",
+      "answer": {
+        "type": "number",
+        "bits": "c0251e1c6a87fce1"
+      },
+      "matches": {
+        "landed_program": true
+      }
+    },
+    {
+      "id": "fresh_n4_3_F3",
+      "answer": {
+        "type": "number",
+        "bits": "c02cca9b4f608a42"
+      },
+      "matches": {
+        "landed_program": true
+      }
+    },
+    {
+      "id": "fresh_n4_4_F2",
+      "answer": {
+        "type": "number",
+        "bits": "401043f4abc68084"
+      },
+      "matches": {
+        "landed_program": true
+      }
+    },
+    {
+      "id": "fresh_n4_4_F3",
+      "answer": {
+        "type": "number",
+        "bits": "4010d46130f17a98"
+      },
+      "matches": {
+        "landed_program": true
+      }
+    },
+    {
+      "id": "fresh_n5_0_F2",
+      "answer": {
+        "type": "number",
+        "bits": "c0110c4047c223d8"
+      },
+      "matches": {
+        "landed_program": true
+      }
+    },
+    {
+      "id": "fresh_n5_0_F3",
+      "answer": {
+        "type": "number",
+        "bits": "c0191659877723a6"
+      },
+      "matches": {
+        "landed_program": true
+      }
+    },
+    {
+      "id": "fresh_n5_1_F2",
+      "answer": {
+        "type": "number",
+        "bits": "c03670a07f034afe"
+      },
+      "matches": {
+        "landed_program": true
+      }
+    },
+    {
+      "id": "fresh_n5_1_F3",
+      "answer": {
+        "type": "number",
+        "bits": "c03c7d7e6c504668"
+      },
+      "matches": {
+        "landed_program": true
+      }
+    },
+    {
+      "id": "fresh_n5_2_F2",
+      "answer": {
+        "type": "number",
+        "bits": "c02e6babdb0e8447"
+      },
+      "matches": {
+        "landed_program": true
+      }
+    },
+    {
+      "id": "fresh_n5_2_F3",
+      "answer": {
+        "type": "number",
+        "bits": "c0341f29b0aa05b2"
+      },
+      "matches": {
+        "landed_program": true
+      }
+    },
+    {
+      "id": "fresh_n5_3_F2",
+      "answer": {
+        "type": "number",
+        "bits": "c019a932cf64a1b6"
+      },
+      "matches": {
+        "landed_program": true
+      }
+    },
+    {
+      "id": "fresh_n5_3_F3",
+      "answer": {
+        "type": "number",
+        "bits": "c021fc106a58e6d0"
+      },
+      "matches": {
+        "landed_program": true
+      }
+    },
+    {
+      "id": "fresh_n5_4_F2",
+      "answer": {
+        "type": "number",
+        "bits": "c01940437c6a9747"
+      },
+      "matches": {
+        "landed_program": true
+      }
+    },
+    {
+      "id": "fresh_n5_4_F3",
+      "answer": {
+        "type": "number",
+        "bits": "c01bd896789161cf"
+      },
+      "matches": {
+        "landed_program": true
+      }
+    },
+    {
+      "id": "fresh_n6_0_F2",
+      "answer": {
+        "type": "number",
+        "bits": "c02e43977fb91fae"
+      },
+      "matches": {
+        "landed_program": true
+      }
+    },
+    {
+      "id": "fresh_n6_0_F3",
+      "answer": {
+        "type": "number",
+        "bits": "c03106b82c7cbcfc"
+      },
+      "matches": {
+        "landed_program": true
+      }
+    },
+    {
+      "id": "fresh_n6_1_F2",
+      "answer": {
+        "type": "number",
+        "bits": "c018c55a6cebc291"
+      },
+      "matches": {
+        "landed_program": true
+      }
+    },
+    {
+      "id": "fresh_n6_1_F3",
+      "answer": {
+        "type": "number",
+        "bits": "c017c666ac61c6c0"
+      },
+      "matches": {
+        "landed_program": true
+      }
+    },
+    {
+      "id": "fresh_n6_2_F2",
+      "answer": {
+        "type": "number",
+        "bits": "4038d924d85bbe5b"
+      },
+      "matches": {
+        "landed_program": true
+      }
+    },
+    {
+      "id": "fresh_n6_2_F3",
+      "answer": {
+        "type": "number",
+        "bits": "403d2d36d5cd8a34"
+      },
+      "matches": {
+        "landed_program": true
+      }
+    },
+    {
+      "id": "fresh_n6_3_F2",
+      "answer": {
+        "type": "number",
+        "bits": "402c5872d242d5d6"
+      },
+      "matches": {
+        "landed_program": true
+      }
+    },
+    {
+      "id": "fresh_n6_3_F3",
+      "answer": {
+        "type": "number",
+        "bits": "4031b35de2eacbcf"
+      },
+      "matches": {
+        "landed_program": true
+      }
+    },
+    {
+      "id": "fresh_n6_4_F2",
+      "answer": {
+        "type": "number",
+        "bits": "400503ed9de790c9"
+      },
+      "matches": {
+        "landed_program": true
+      }
+    },
+    {
+      "id": "fresh_n6_4_F3",
+      "answer": {
+        "type": "number",
+        "bits": "40109a17550b8ede"
+      },
+      "matches": {
+        "landed_program": true
+      }
+    },
+    {
+      "id": "fresh_n7_0_F2",
+      "answer": {
+        "type": "number",
+        "bits": "4038f1ec1b9a4346"
+      },
+      "matches": {
+        "landed_program": true
+      }
+    },
+    {
+      "id": "fresh_n7_0_F3",
+      "answer": {
+        "type": "number",
+        "bits": "403e388d846dbf5a"
+      },
+      "matches": {
+        "landed_program": true
+      }
+    },
+    {
+      "id": "fresh_n7_1_F2",
+      "answer": {
+        "type": "number",
+        "bits": "400bdad1194ada11"
+      },
+      "matches": {
+        "landed_program": true
+      }
+    },
+    {
+      "id": "fresh_n7_1_F3",
+      "answer": {
+        "type": "number",
+        "bits": "401138d9e78567bd"
+      },
+      "matches": {
+        "landed_program": true
+      }
+    },
+    {
+      "id": "fresh_n7_2_F2",
+      "answer": {
+        "type": "number",
+        "bits": "40152dd974154c57"
+      },
+      "matches": {
+        "landed_program": true
+      }
+    },
+    {
+      "id": "fresh_n7_2_F3",
+      "answer": {
+        "type": "number",
+        "bits": "4017bae2f64de18e"
+      },
+      "matches": {
+        "landed_program": true
+      }
+    },
+    {
+      "id": "fresh_n7_3_F2",
+      "answer": {
+        "type": "number",
+        "bits": "c013ca8cfdafd940"
+      },
+      "matches": {
+        "landed_program": true
+      }
+    },
+    {
+      "id": "fresh_n7_3_F3",
+      "answer": {
+        "type": "number",
+        "bits": "c01295e28a537baf"
+      },
+      "matches": {
+        "landed_program": true
+      }
+    },
+    {
+      "id": "fresh_n7_4_F2",
+      "answer": {
+        "type": "number",
+        "bits": "4014c3289f909c82"
+      },
+      "matches": {
+        "landed_program": true
+      }
+    },
+    {
+      "id": "fresh_n7_4_F3",
+      "answer": {
+        "type": "number",
+        "bits": "401741091de3ccd1"
+      },
+      "matches": {
+        "landed_program": true
+      }
+    },
+    {
+      "id": "H22_F2",
+      "answer": {
+        "type": "number",
+        "bits": "bfe27f91c951e34b"
+      },
+      "matches": {
+        "landed_program": true
+      }
+    },
+    {
+      "id": "H22_F3",
+      "answer": {
+        "type": "number",
+        "bits": "3fa3c2f38e88df35"
+      },
+      "matches": {
+        "landed_program": true
+      }
+    },
+    {
+      "id": "H87_Cendpoint",
+      "answer": {
+        "type": "number",
+        "bits": "402785bb915d50e5"
+      },
+      "matches": {
+        "landed_program": true,
+        "equals_stat7": true
+      }
+    },
+    {
+      "id": "H88_Cendpoint",
+      "answer": {
+        "type": "number",
+        "bits": "3fd60c43fd7b9071"
+      },
+      "matches": {
+        "landed_program": true,
+        "equals_stat7": true
+      }
+    },
+    {
+      "id": "H89_Cendpoint",
+      "answer": {
+        "type": "number",
+        "bits": "401a4b4f04ba1a79"
+      },
+      "matches": {
+        "landed_program": true,
+        "equals_stat7": true
+      }
+    },
+    {
+      "id": "H90_Cendpoint",
+      "answer": {
+        "type": "number",
+        "bits": "3fda12b3ba70c2fb"
+      },
+      "matches": {
+        "landed_program": true,
+        "equals_stat7": true
+      }
+    },
+    {
+      "id": "H91_Cendpoint",
+      "answer": {
+        "type": "number",
+        "bits": "4017fd04561e1141"
+      },
+      "matches": {
+        "landed_program": true,
+        "equals_stat7": true
+      }
+    },
+    {
+      "id": "H92_Cendpoint",
+      "answer": {
+        "type": "number",
+        "bits": "3fd56898f7afa7a6"
+      },
+      "matches": {
+        "landed_program": true,
+        "equals_stat7": true
+      }
+    },
+    {
+      "id": "H93_Cendpoint",
+      "answer": {
+        "type": "number",
+        "bits": "4022af6db679c33c"
+      },
+      "matches": {
+        "landed_program": true,
+        "equals_stat7": true
+      }
+    },
+    {
+      "id": "H94_Cendpoint",
+      "answer": {
+        "type": "number",
+        "bits": "3fe05f833db9fff4"
+      },
+      "matches": {
+        "landed_program": true,
+        "equals_stat7": true
+      }
+    },
+    {
+      "id": "H95_Cendpoint",
+      "answer": {
+        "type": "number",
+        "bits": "40261cc32f0fb346"
+      },
+      "matches": {
+        "landed_program": false,
+        "equals_stat7": false
+      }
+    },
+    {
+      "id": "H96_Cendpoint",
+      "answer": {
+        "type": "number",
+        "bits": "3fc53131607f13f4"
+      },
+      "matches": {
+        "landed_program": true,
+        "equals_stat7": true
+      }
+    },
+    {
+      "id": "H97_Cendpoint",
+      "answer": {
+        "type": "number",
+        "bits": "4017045becaaa5ba"
+      },
+      "matches": {
+        "landed_program": true,
+        "equals_stat7": true
+      }
+    },
+    {
+      "id": "H98_Cendpoint",
+      "answer": {
+        "type": "number",
+        "bits": "3fcbfa409befce19"
+      },
+      "matches": {
+        "landed_program": true,
+        "equals_stat7": true
+      }
+    },
+    {
+      "id": "H99_Cendpoint",
+      "answer": {
+        "type": "number",
+        "bits": "40211e658c595ce3"
+      },
+      "matches": {
+        "landed_program": true,
+        "equals_stat7": true
+      }
+    },
+    {
+      "id": "H100_Cendpoint",
+      "answer": {
+        "type": "number",
+        "bits": "3fe26a18cb2df391"
+      },
+      "matches": {
+        "landed_program": true,
+        "equals_stat7": true
+      }
+    },
+    {
+      "id": "fresh_n4_0_Cendpoint",
+      "answer": {
+        "type": "number",
+        "bits": "402b877ec938971a"
+      },
+      "matches": {
+        "landed_program": true,
+        "equals_stat7": true
+      }
+    },
+    {
+      "id": "fresh_n4_1_Cendpoint",
+      "answer": {
+        "type": "number",
+        "bits": "4025ad9f4e7b33ef"
+      },
+      "matches": {
+        "landed_program": true,
+        "equals_stat7": true
+      }
+    },
+    {
+      "id": "fresh_n4_2_Cendpoint",
+      "answer": {
+        "type": "number",
+        "bits": "400269394aa4a33d"
+      },
+      "matches": {
+        "landed_program": true,
+        "equals_stat7": true
+      }
+    },
+    {
+      "id": "fresh_n4_3_Cendpoint",
+      "answer": {
+        "type": "number",
+        "bits": "4016dcf0059d703d"
+      },
+      "matches": {
+        "landed_program": true,
+        "equals_stat7": true
+      }
+    },
+    {
+      "id": "fresh_n4_4_Cendpoint",
+      "answer": {
+        "type": "number",
+        "bits": "40260919a1a0dff6"
+      },
+      "matches": {
+        "landed_program": true,
+        "equals_stat7": true
+      }
+    },
+    {
+      "id": "fresh_n5_0_Cendpoint",
+      "answer": {
+        "type": "number",
+        "bits": "402cce90f21a780c"
+      },
+      "matches": {
+        "landed_program": true,
+        "equals_stat7": true
+      }
+    },
+    {
+      "id": "fresh_n5_1_Cendpoint",
+      "answer": {
+        "type": "number",
+        "bits": "40152986dfdc0d32"
+      },
+      "matches": {
+        "landed_program": true,
+        "equals_stat7": true
+      }
+    },
+    {
+      "id": "fresh_n5_2_Cendpoint",
+      "answer": {
+        "type": "number",
+        "bits": "4024e0d9864feef8"
+      },
+      "matches": {
+        "landed_program": true,
+        "equals_stat7": true
+      }
+    },
+    {
+      "id": "fresh_n5_3_Cendpoint",
+      "answer": {
+        "type": "number",
+        "bits": "401b35a12014d35c"
+      },
+      "matches": {
+        "landed_program": true,
+        "equals_stat7": true
+      }
+    },
+    {
+      "id": "fresh_n5_4_Cendpoint",
+      "answer": {
+        "type": "number",
+        "bits": "4030df2e2b8b2ae7"
+      },
+      "matches": {
+        "landed_program": true,
+        "equals_stat7": true
+      }
+    },
+    {
+      "id": "fresh_n6_0_Cendpoint",
+      "answer": {
+        "type": "number",
+        "bits": "401ebc078da38040"
+      },
+      "matches": {
+        "landed_program": true,
+        "equals_stat7": true
+      }
+    },
+    {
+      "id": "fresh_n6_1_Cendpoint",
+      "answer": {
+        "type": "number",
+        "bits": "40231349f05834ec"
+      },
+      "matches": {
+        "landed_program": true,
+        "equals_stat7": true
+      }
+    },
+    {
+      "id": "fresh_n6_2_Cendpoint",
+      "answer": {
+        "type": "number",
+        "bits": "4024b601dad10edd"
+      },
+      "matches": {
+        "landed_program": true,
+        "equals_stat7": true
+      }
+    },
+    {
+      "id": "fresh_n6_3_Cendpoint",
+      "answer": {
+        "type": "number",
+        "bits": "40242a0c63c16325"
+      },
+      "matches": {
+        "landed_program": true,
+        "equals_stat7": true
+      }
+    },
+    {
+      "id": "fresh_n6_4_Cendpoint",
+      "answer": {
+        "type": "number",
+        "bits": "402a6100331c75d3"
+      },
+      "matches": {
+        "landed_program": true,
+        "equals_stat7": true
+      }
+    },
+    {
+      "id": "fresh_n7_0_Cendpoint",
+      "answer": {
+        "type": "number",
+        "bits": "401a4b42ec0c8ba4"
+      },
+      "matches": {
+        "landed_program": true,
+        "equals_stat7": true
+      }
+    },
+    {
+      "id": "fresh_n7_1_Cendpoint",
+      "answer": {
+        "type": "number",
+        "bits": "4022a039355340e1"
+      },
+      "matches": {
+        "landed_program": true,
+        "equals_stat7": true
+      }
+    },
+    {
+      "id": "fresh_n7_2_Cendpoint",
+      "answer": {
+        "type": "number",
+        "bits": "402e3ed8f3623e5f"
+      },
+      "matches": {
+        "landed_program": true,
+        "equals_stat7": true
+      }
+    },
+    {
+      "id": "fresh_n7_3_Cendpoint",
+      "answer": {
+        "type": "number",
+        "bits": "4022f4a8751e6533"
+      },
+      "matches": {
+        "landed_program": true,
+        "equals_stat7": true
+      }
+    },
+    {
+      "id": "fresh_n7_4_Cendpoint",
+      "answer": {
+        "type": "number",
+        "bits": "402bbddc281d1b0e"
+      },
+      "matches": {
+        "landed_program": true,
+        "equals_stat7": true
+      }
+    },
+    {
+      "id": "H22_Cendpoint",
+      "answer": {
+        "type": "number",
+        "bits": "3fe827604d7ce52c"
+      },
+      "matches": {
+        "landed_program": true,
+        "equals_stat7": false
+      }
+    },
+    {
+      "id": "H87_S1",
+      "answer": {
+        "type": "number",
+        "bits": "3fd0000000000000"
+      },
+      "matches": {
+        "landed_program": true
+      }
+    },
+    {
+      "id": "H87_S2",
+      "answer": {
+        "type": "number",
+        "bits": "3f50624dd2f1a9fc"
+      },
+      "matches": {
+        "landed_program": true
+      }
+    },
+    {
+      "id": "H87_S7",
+      "answer": {
+        "type": "number",
+        "bits": "402785bb915d50e5"
+      },
+      "matches": {
+        "landed_program": true
+      }
+    },
+    {
+      "id": "H88_S1",
+      "answer": {
+        "type": "number",
+        "bits": "3f60624dd2f1a9fc"
+      },
+      "matches": {
+        "landed_program": true
+      }
+    },
+    {
+      "id": "H88_S2",
+      "answer": {
+        "type": "number",
+        "bits": "3f50624dd2f1a9fc"
+      },
+      "matches": {
+        "landed_program": true
+      }
+    },
+    {
+      "id": "H88_S7",
+      "answer": {
+        "type": "number",
+        "bits": "3fd60c43fd7b9071"
+      },
+      "matches": {
+        "landed_program": true
+      }
+    },
+    {
+      "id": "H89_S1",
+      "answer": {
+        "type": "number",
+        "bits": "3fe0000000000000"
+      },
+      "matches": {
+        "landed_program": true
+      }
+    },
+    {
+      "id": "H89_S2",
+      "answer": {
+        "type": "number",
+        "bits": "3f50624dd2f1a9fc"
+      },
+      "matches": {
+        "landed_program": true
+      }
+    },
+    {
+      "id": "H89_S7",
+      "answer": {
+        "type": "number",
+        "bits": "401a4b4f04ba1a79"
+      },
+      "matches": {
+        "landed_program": true
+      }
+    },
+    {
+      "id": "H90_S1",
+      "answer": {
+        "type": "number",
+        "bits": "3fe8000000000000"
+      },
+      "matches": {
+        "landed_program": true
+      }
+    },
+    {
+      "id": "H90_S2",
+      "answer": {
+        "type": "number",
+        "bits": "3f50624dd2f1a9fc"
+      },
+      "matches": {
+        "landed_program": true
+      }
+    },
+    {
+      "id": "H90_S7",
+      "answer": {
+        "type": "number",
+        "bits": "3fda12b3ba70c2fb"
+      },
+      "matches": {
+        "landed_program": true
+      }
+    },
+    {
+      "id": "H91_S1",
+      "answer": {
+        "type": "number",
+        "bits": "3fb999999999999a"
+      },
+      "matches": {
+        "landed_program": true
+      }
+    },
+    {
+      "id": "H91_S2",
+      "answer": {
+        "type": "number",
+        "bits": "3fb95810624dd2f2"
+      },
+      "matches": {
+        "landed_program": true
+      }
+    },
+    {
+      "id": "H91_S7",
+      "answer": {
+        "type": "number",
+        "bits": "4017fd04561e1141"
+      },
+      "matches": {
+        "landed_program": true
+      }
+    },
+    {
+      "id": "H92_S1",
+      "answer": {
+        "type": "number",
+        "bits": "3fc020c49ba5e354"
+      },
+      "matches": {
+        "landed_program": true
+      }
+    },
+    {
+      "id": "H92_S2",
+      "answer": {
+        "type": "number",
+        "bits": "3f50624dd2f1a9fc"
+      },
+      "matches": {
+        "landed_program": true
+      }
+    },
+    {
+      "id": "H92_S7",
+      "answer": {
+        "type": "number",
+        "bits": "3fd56898f7afa7a6"
+      },
+      "matches": {
+        "landed_program": true
+      }
+    },
+    {
+      "id": "H93_S1",
+      "answer": {
+        "type": "number",
+        "bits": "3fc020c49ba5e354"
+      },
+      "matches": {
+        "landed_program": true
+      }
+    },
+    {
+      "id": "H93_S2",
+      "answer": {
+        "type": "number",
+        "bits": "3f50624dd2f1a9fc"
+      },
+      "matches": {
+        "landed_program": true
+      }
+    },
+    {
+      "id": "H93_S7",
+      "answer": {
+        "type": "number",
+        "bits": "4022af6db679c33c"
+      },
+      "matches": {
+        "landed_program": true
+      }
+    },
+    {
+      "id": "H94_S1",
+      "answer": {
+        "type": "number",
+        "bits": "3fe0000000000000"
+      },
+      "matches": {
+        "landed_program": true
+      }
+    },
+    {
+      "id": "H94_S2",
+      "answer": {
+        "type": "number",
+        "bits": "3f50624dd2f1a9fc"
+      },
+      "matches": {
+        "landed_program": true
+      }
+    },
+    {
+      "id": "H94_S7",
+      "answer": {
+        "type": "number",
+        "bits": "3fe05f833db9fff4"
+      },
+      "matches": {
+        "landed_program": true
+      }
+    },
+    {
+      "id": "H95_S1",
+      "answer": {
+        "type": "number",
+        "bits": "3fd0000000000000"
+      },
+      "matches": {
+        "landed_program": true
+      }
+    },
+    {
+      "id": "H95_S2",
+      "answer": {
+        "type": "number",
+        "bits": "3f50624dd2f1a9fc"
+      },
+      "matches": {
+        "landed_program": true
+      }
+    },
+    {
+      "id": "H95_S7",
+      "answer": {
+        "type": "number",
+        "bits": "40261cc32f0fb346"
+      },
+      "matches": {
+        "landed_program": false
+      }
+    },
+    {
+      "id": "H96_S1",
+      "answer": {
+        "type": "number",
+        "bits": "3fb999999999999a"
+      },
+      "matches": {
+        "landed_program": true
+      }
+    },
+    {
+      "id": "H96_S2",
+      "answer": {
+        "type": "number",
+        "bits": "3fb95810624dd2f2"
+      },
+      "matches": {
+        "landed_program": true
+      }
+    },
+    {
+      "id": "H96_S7",
+      "answer": {
+        "type": "number",
+        "bits": "3fc53131607f13f4"
+      },
+      "matches": {
+        "landed_program": true
+      }
+    },
+    {
+      "id": "H97_S1",
+      "answer": {
+        "type": "number",
+        "bits": "3fd0000000000000"
+      },
+      "matches": {
+        "landed_program": true
+      }
+    },
+    {
+      "id": "H97_S2",
+      "answer": {
+        "type": "number",
+        "bits": "3f50624dd2f1a9fc"
+      },
+      "matches": {
+        "landed_program": true
+      }
+    },
+    {
+      "id": "H97_S7",
+      "answer": {
+        "type": "number",
+        "bits": "4017045becaaa5ba"
+      },
+      "matches": {
+        "landed_program": true
+      }
+    },
+    {
+      "id": "H98_S1",
+      "answer": {
+        "type": "number",
+        "bits": "3fd0000000000000"
+      },
+      "matches": {
+        "landed_program": true
+      }
+    },
+    {
+      "id": "H98_S2",
+      "answer": {
+        "type": "number",
+        "bits": "3f50624dd2f1a9fc"
+      },
+      "matches": {
+        "landed_program": true
+      }
+    },
+    {
+      "id": "H98_S7",
+      "answer": {
+        "type": "number",
+        "bits": "3fcbfa409befce19"
+      },
+      "matches": {
+        "landed_program": true
+      }
+    },
+    {
+      "id": "H99_S1",
+      "answer": {
+        "type": "number",
+        "bits": "3fc020c49ba5e354"
+      },
+      "matches": {
+        "landed_program": true
+      }
+    },
+    {
+      "id": "H99_S2",
+      "answer": {
+        "type": "number",
+        "bits": "3f50624dd2f1a9fc"
+      },
+      "matches": {
+        "landed_program": true
+      }
+    },
+    {
+      "id": "H99_S7",
+      "answer": {
+        "type": "number",
+        "bits": "40211e658c595ce3"
+      },
+      "matches": {
+        "landed_program": true
+      }
+    },
+    {
+      "id": "H100_S1",
+      "answer": {
+        "type": "number",
+        "bits": "3fe8000000000000"
+      },
+      "matches": {
+        "landed_program": true
+      }
+    },
+    {
+      "id": "H100_S2",
+      "answer": {
+        "type": "number",
+        "bits": "3f50624dd2f1a9fc"
+      },
+      "matches": {
+        "landed_program": true
+      }
+    },
+    {
+      "id": "H100_S7",
+      "answer": {
+        "type": "number",
+        "bits": "3fe26a18cb2df391"
+      },
+      "matches": {
+        "landed_program": true
+      }
+    },
+    {
+      "id": "fresh_n4_0_S1",
+      "answer": {
+        "type": "number",
+        "bits": "3fd0000000000000"
+      },
+      "matches": {
+        "landed_program": true
+      }
+    },
+    {
+      "id": "fresh_n4_0_S2",
+      "answer": {
+        "type": "number",
+        "bits": "3f50624dd2f1a9fc"
+      },
+      "matches": {
+        "landed_program": true
+      }
+    },
+    {
+      "id": "fresh_n4_0_S7",
+      "answer": {
+        "type": "number",
+        "bits": "402b877ec938971a"
+      },
+      "matches": {
+        "landed_program": true
+      }
+    },
+    {
+      "id": "fresh_n4_1_S1",
+      "answer": {
+        "type": "number",
+        "bits": "3fb999999999999a"
+      },
+      "matches": {
+        "landed_program": true
+      }
+    },
+    {
+      "id": "fresh_n4_1_S2",
+      "answer": {
+        "type": "number",
+        "bits": "3fb95810624dd2f2"
+      },
+      "matches": {
+        "landed_program": true
+      }
+    },
+    {
+      "id": "fresh_n4_1_S7",
+      "answer": {
+        "type": "number",
+        "bits": "4025ad9f4e7b33ef"
+      },
+      "matches": {
+        "landed_program": true
+      }
+    },
+    {
+      "id": "fresh_n4_2_S1",
+      "answer": {
+        "type": "number",
+        "bits": "3f60624dd2f1a9fc"
+      },
+      "matches": {
+        "landed_program": true
+      }
+    },
+    {
+      "id": "fresh_n4_2_S2",
+      "answer": {
+        "type": "number",
+        "bits": "3f50624dd2f1a9fc"
+      },
+      "matches": {
+        "landed_program": true
+      }
+    },
+    {
+      "id": "fresh_n4_2_S7",
+      "answer": {
+        "type": "number",
+        "bits": "400269394aa4a33d"
+      },
+      "matches": {
+        "landed_program": true
+      }
+    },
+    {
+      "id": "fresh_n4_3_S1",
+      "answer": {
+        "type": "number",
+        "bits": "3fb999999999999a"
+      },
+      "matches": {
+        "landed_program": true
+      }
+    },
+    {
+      "id": "fresh_n4_3_S2",
+      "answer": {
+        "type": "number",
+        "bits": "3fb95810624dd2f2"
+      },
+      "matches": {
+        "landed_program": true
+      }
+    },
+    {
+      "id": "fresh_n4_3_S7",
+      "answer": {
+        "type": "number",
+        "bits": "4016dcf0059d703d"
+      },
+      "matches": {
+        "landed_program": true
+      }
+    },
+    {
+      "id": "fresh_n4_4_S1",
+      "answer": {
+        "type": "number",
+        "bits": "3fc020c49ba5e354"
+      },
+      "matches": {
+        "landed_program": true
+      }
+    },
+    {
+      "id": "fresh_n4_4_S2",
+      "answer": {
+        "type": "number",
+        "bits": "3f50624dd2f1a9fc"
+      },
+      "matches": {
+        "landed_program": true
+      }
+    },
+    {
+      "id": "fresh_n4_4_S7",
+      "answer": {
+        "type": "number",
+        "bits": "40260919a1a0dff6"
+      },
+      "matches": {
+        "landed_program": true
+      }
+    },
+    {
+      "id": "fresh_n5_0_S1",
+      "answer": {
+        "type": "number",
+        "bits": "3fb999999999999a"
+      },
+      "matches": {
+        "landed_program": true
+      }
+    },
+    {
+      "id": "fresh_n5_0_S2",
+      "answer": {
+        "type": "number",
+        "bits": "3fb95810624dd2f2"
+      },
+      "matches": {
+        "landed_program": true
+      }
+    },
+    {
+      "id": "fresh_n5_0_S7",
+      "answer": {
+        "type": "number",
+        "bits": "402cce90f21a780c"
+      },
+      "matches": {
+        "landed_program": true
+      }
+    },
+    {
+      "id": "fresh_n5_1_S1",
+      "answer": {
+        "type": "number",
+        "bits": "3fd0000000000000"
+      },
+      "matches": {
+        "landed_program": true
+      }
+    },
+    {
+      "id": "fresh_n5_1_S2",
+      "answer": {
+        "type": "number",
+        "bits": "3f50624dd2f1a9fc"
+      },
+      "matches": {
+        "landed_program": true
+      }
+    },
+    {
+      "id": "fresh_n5_1_S7",
+      "answer": {
+        "type": "number",
+        "bits": "40152986dfdc0d32"
+      },
+      "matches": {
+        "landed_program": true
+      }
+    },
+    {
+      "id": "fresh_n5_2_S1",
+      "answer": {
+        "type": "number",
+        "bits": "3fc020c49ba5e354"
+      },
+      "matches": {
+        "landed_program": true
+      }
+    },
+    {
+      "id": "fresh_n5_2_S2",
+      "answer": {
+        "type": "number",
+        "bits": "3f50624dd2f1a9fc"
+      },
+      "matches": {
+        "landed_program": true
+      }
+    },
+    {
+      "id": "fresh_n5_2_S7",
+      "answer": {
+        "type": "number",
+        "bits": "4024e0d9864feef8"
+      },
+      "matches": {
+        "landed_program": true
+      }
+    },
+    {
+      "id": "fresh_n5_3_S1",
+      "answer": {
+        "type": "number",
+        "bits": "3fe0000000000000"
+      },
+      "matches": {
+        "landed_program": true
+      }
+    },
+    {
+      "id": "fresh_n5_3_S2",
+      "answer": {
+        "type": "number",
+        "bits": "3f50624dd2f1a9fc"
+      },
+      "matches": {
+        "landed_program": true
+      }
+    },
+    {
+      "id": "fresh_n5_3_S7",
+      "answer": {
+        "type": "number",
+        "bits": "401b35a12014d35c"
+      },
+      "matches": {
+        "landed_program": true
+      }
+    },
+    {
+      "id": "fresh_n5_4_S1",
+      "answer": {
+        "type": "number",
+        "bits": "3fe0000000000000"
+      },
+      "matches": {
+        "landed_program": true
+      }
+    },
+    {
+      "id": "fresh_n5_4_S2",
+      "answer": {
+        "type": "number",
+        "bits": "3f50624dd2f1a9fc"
+      },
+      "matches": {
+        "landed_program": true
+      }
+    },
+    {
+      "id": "fresh_n5_4_S7",
+      "answer": {
+        "type": "number",
+        "bits": "4030df2e2b8b2ae7"
+      },
+      "matches": {
+        "landed_program": true
+      }
+    },
+    {
+      "id": "fresh_n6_0_S1",
+      "answer": {
+        "type": "number",
+        "bits": "3f60624dd2f1a9fc"
+      },
+      "matches": {
+        "landed_program": true
+      }
+    },
+    {
+      "id": "fresh_n6_0_S2",
+      "answer": {
+        "type": "number",
+        "bits": "3f50624dd2f1a9fc"
+      },
+      "matches": {
+        "landed_program": true
+      }
+    },
+    {
+      "id": "fresh_n6_0_S7",
+      "answer": {
+        "type": "number",
+        "bits": "401ebc078da38040"
+      },
+      "matches": {
+        "landed_program": true
+      }
+    },
+    {
+      "id": "fresh_n6_1_S1",
+      "answer": {
+        "type": "number",
+        "bits": "3f60624dd2f1a9fc"
+      },
+      "matches": {
+        "landed_program": true
+      }
+    },
+    {
+      "id": "fresh_n6_1_S2",
+      "answer": {
+        "type": "number",
+        "bits": "3f50624dd2f1a9fc"
+      },
+      "matches": {
+        "landed_program": true
+      }
+    },
+    {
+      "id": "fresh_n6_1_S7",
+      "answer": {
+        "type": "number",
+        "bits": "40231349f05834ec"
+      },
+      "matches": {
+        "landed_program": true
+      }
+    },
+    {
+      "id": "fresh_n6_2_S1",
+      "answer": {
+        "type": "number",
+        "bits": "3fb999999999999a"
+      },
+      "matches": {
+        "landed_program": true
+      }
+    },
+    {
+      "id": "fresh_n6_2_S2",
+      "answer": {
+        "type": "number",
+        "bits": "3f50624dd2f1a9fc"
+      },
+      "matches": {
+        "landed_program": true
+      }
+    },
+    {
+      "id": "fresh_n6_2_S7",
+      "answer": {
+        "type": "number",
+        "bits": "4024b601dad10edd"
+      },
+      "matches": {
+        "landed_program": true
+      }
+    },
+    {
+      "id": "fresh_n6_3_S1",
+      "answer": {
+        "type": "number",
+        "bits": "3fd0000000000000"
+      },
+      "matches": {
+        "landed_program": true
+      }
+    },
+    {
+      "id": "fresh_n6_3_S2",
+      "answer": {
+        "type": "number",
+        "bits": "3f50624dd2f1a9fc"
+      },
+      "matches": {
+        "landed_program": true
+      }
+    },
+    {
+      "id": "fresh_n6_3_S7",
+      "answer": {
+        "type": "number",
+        "bits": "40242a0c63c16325"
+      },
+      "matches": {
+        "landed_program": true
+      }
+    },
+    {
+      "id": "fresh_n6_4_S1",
+      "answer": {
+        "type": "number",
+        "bits": "3fc020c49ba5e354"
+      },
+      "matches": {
+        "landed_program": true
+      }
+    },
+    {
+      "id": "fresh_n6_4_S2",
+      "answer": {
+        "type": "number",
+        "bits": "3f50624dd2f1a9fc"
+      },
+      "matches": {
+        "landed_program": true
+      }
+    },
+    {
+      "id": "fresh_n6_4_S7",
+      "answer": {
+        "type": "number",
+        "bits": "402a6100331c75d3"
+      },
+      "matches": {
+        "landed_program": true
+      }
+    },
+    {
+      "id": "fresh_n7_0_S1",
+      "answer": {
+        "type": "number",
+        "bits": "3f60624dd2f1a9fc"
+      },
+      "matches": {
+        "landed_program": true
+      }
+    },
+    {
+      "id": "fresh_n7_0_S2",
+      "answer": {
+        "type": "number",
+        "bits": "3f50624dd2f1a9fc"
+      },
+      "matches": {
+        "landed_program": true
+      }
+    },
+    {
+      "id": "fresh_n7_0_S7",
+      "answer": {
+        "type": "number",
+        "bits": "401a4b42ec0c8ba4"
+      },
+      "matches": {
+        "landed_program": true
+      }
+    },
+    {
+      "id": "fresh_n7_1_S1",
+      "answer": {
+        "type": "number",
+        "bits": "3f60624dd2f1a9fc"
+      },
+      "matches": {
+        "landed_program": true
+      }
+    },
+    {
+      "id": "fresh_n7_1_S2",
+      "answer": {
+        "type": "number",
+        "bits": "3f50624dd2f1a9fc"
+      },
+      "matches": {
+        "landed_program": true
+      }
+    },
+    {
+      "id": "fresh_n7_1_S7",
+      "answer": {
+        "type": "number",
+        "bits": "4022a039355340e1"
+      },
+      "matches": {
+        "landed_program": true
+      }
+    },
+    {
+      "id": "fresh_n7_2_S1",
+      "answer": {
+        "type": "number",
+        "bits": "3fe0000000000000"
+      },
+      "matches": {
+        "landed_program": true
+      }
+    },
+    {
+      "id": "fresh_n7_2_S2",
+      "answer": {
+        "type": "number",
+        "bits": "3f50624dd2f1a9fc"
+      },
+      "matches": {
+        "landed_program": true
+      }
+    },
+    {
+      "id": "fresh_n7_2_S7",
+      "answer": {
+        "type": "number",
+        "bits": "402e3ed8f3623e5f"
+      },
+      "matches": {
+        "landed_program": true
+      }
+    },
+    {
+      "id": "fresh_n7_3_S1",
+      "answer": {
+        "type": "number",
+        "bits": "3fd0000000000000"
+      },
+      "matches": {
+        "landed_program": true
+      }
+    },
+    {
+      "id": "fresh_n7_3_S2",
+      "answer": {
+        "type": "number",
+        "bits": "3f50624dd2f1a9fc"
+      },
+      "matches": {
+        "landed_program": true
+      }
+    },
+    {
+      "id": "fresh_n7_3_S7",
+      "answer": {
+        "type": "number",
+        "bits": "4022f4a8751e6533"
+      },
+      "matches": {
+        "landed_program": true
+      }
+    },
+    {
+      "id": "fresh_n7_4_S1",
+      "answer": {
+        "type": "number",
+        "bits": "3fd0000000000000"
+      },
+      "matches": {
+        "landed_program": true
+      }
+    },
+    {
+      "id": "fresh_n7_4_S2",
+      "answer": {
+        "type": "number",
+        "bits": "3f50624dd2f1a9fc"
+      },
+      "matches": {
+        "landed_program": true
+      }
+    },
+    {
+      "id": "fresh_n7_4_S7",
+      "answer": {
+        "type": "number",
+        "bits": "402bbddc281d1b0e"
+      },
+      "matches": {
+        "landed_program": true
+      }
+    },
+    {
+      "id": "H22_S1",
+      "answer": {
+        "type": "number",
+        "bits": "3fefef9db22d0e56"
+      },
+      "matches": {
+        "landed_program": true
+      }
+    },
+    {
+      "id": "H22_S2",
+      "answer": {
+        "type": "number",
+        "bits": "3fecc49ba5e353f8"
+      },
+      "matches": {
+        "landed_program": true
+      }
+    },
+    {
+      "id": "H22_S7",
+      "answer": {
+        "type": "number",
+        "bits": "3fd974c0f1adedcc"
+      },
+      "matches": {
+        "landed_program": true
+      }
+    }
+  ]
+}

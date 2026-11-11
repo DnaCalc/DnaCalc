@@ -7,6 +7,7 @@
       "sheet": "Sheet1",
       "cell": "H1",
       "cases": "vba/x9-vba-cases.json",
+      "dnacalc_only": ["=DnaCells(A1:B3)", "=DnaWhere(A1:B3)", "=DnaTryWriteArg(Z99)", "=DnaWriteArg(Z99)"],
       "excel": "{excel}/controller.jsonl"
     },
     {
@@ -15,6 +16,7 @@
       "sheet": "Sheet1",
       "cell": "H1",
       "cases": "vba/x9-vba-cases.json",
+      "dnacalc_only": ["=DnaCells(A1:B3)", "=DnaWhere(A1:B3)", "=DnaTryWriteArg(Z99)", "=DnaWriteArg(Z99)"],
       "excel_job": "{fixture}/vba/vba-job.ps1",
       "edit": {
         "source": "Public Function DnaTwice(ByVal x As Double) As Double\r\n    DnaTwice = 2 * x\r\nEnd Function\r\n",

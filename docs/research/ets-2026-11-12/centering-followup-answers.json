@@ -1,0 +1,740 @@
+{
+  "predictions_sha256": "cf009f2b9f58ba7fe767d21058ea18e555f96339074c916821c1d917a07cb01b",
+  "prediction_commit": "130ba89c863b1f6a126953c53ed0a50c9510af22",
+  "environments": [
+    {
+      "version": 1,
+      "id": "afeb23d787e64cb385ee2333aef95a1d",
+      "ok": true,
+      "excel_version": "16.0",
+      "excel_build": "20527",
+      "excel_file_version": "16.0.20527.20150",
+      "excel_pid": null,
+      "calculation_settings": {
+        "calculation": -4135,
+        "compatibility_version": null,
+        "unavailable": [],
+        "PrecisionAsDisplayed": false,
+        "Date1904": false,
+        "CompatibilityVersion": 2,
+        "UseSystemSeparators": true,
+        "DecimalSeparator": ".",
+        "ThousandsSeparator": "\u00a0"
+      },
+      "automation_security_before": 1,
+      "automation_security_after": 1,
+      "env_id": "29bedb2b6722",
+      "machine": "GOVERT-OMEN",
+      "timestamp": "2026-11-11T23:23:50.851305+00:00",
+      "service_seconds": 0.7860200651921332,
+      "request_sha256": null
+    },
+    {
+      "version": 1,
+      "id": "407374004e91492f8351113a795e3a12",
+      "ok": true,
+      "excel_version": "16.0",
+      "excel_build": "20527",
+      "excel_file_version": "16.0.20527.20150",
+      "excel_pid": null,
+      "calculation_settings": {
+        "calculation": -4135,
+        "compatibility_version": null,
+        "unavailable": [],
+        "PrecisionAsDisplayed": false,
+        "Date1904": false,
+        "CompatibilityVersion": 2,
+        "UseSystemSeparators": true,
+        "DecimalSeparator": ".",
+        "ThousandsSeparator": "\u00a0"
+      },
+      "automation_security_before": 1,
+      "automation_security_after": 1,
+      "env_id": "02cb49a79d1f",
+      "machine": "GOVERT-OMEN",
+      "timestamp": "2026-11-11T23:23:50.698168+00:00",
+      "service_seconds": 0.6316578278783709,
+      "request_sha256": null
+    },
+    {
+      "version": 1,
+      "id": "0d709be1ddaf4824848c504e826be57c",
+      "ok": true,
+      "excel_version": "16.0",
+      "excel_build": "20527",
+      "excel_file_version": "16.0.20527.20150",
+      "excel_pid": null,
+      "calculation_settings": {
+        "calculation": -4135,
+        "compatibility_version": null,
+        "unavailable": [],
+        "PrecisionAsDisplayed": false,
+        "Date1904": false,
+        "CompatibilityVersion": 2,
+        "UseSystemSeparators": true,
+        "DecimalSeparator": ".",
+        "ThousandsSeparator": "\u00a0"
+      },
+      "automation_security_before": 1,
+      "automation_security_after": 1,
+      "env_id": "29bedb2b6722",
+      "machine": "GOVERT-OMEN",
+      "timestamp": "2026-11-11T23:23:50.981589+00:00",
+      "service_seconds": 0.9157449491322041,
+      "request_sha256": null
+    }
+  ],
+  "rows": [
+    {
+      "id": "center_0_S1",
+      "answer": {
+        "type": "number",
+        "bits": "3fc020c49ba5e354"
+      },
+      "matches": {
+        "hybrid_initializer": true
+      }
+    },
+    {
+      "id": "center_0_S2",
+      "answer": {
+        "type": "number",
+        "bits": "3f50624dd2f1a9fc"
+      },
+      "matches": {
+        "hybrid_initializer": true
+      }
+    },
+    {
+      "id": "center_0_S3",
+      "answer": {
+        "type": "number",
+        "bits": "3f50624dd2f1a9fc"
+      },
+      "matches": {
+        "hybrid_initializer": true
+      }
+    },
+    {
+      "id": "center_0_S6",
+      "answer": {
+        "type": "number",
+        "bits": "3fb028f722d1a380"
+      },
+      "matches": {
+        "hybrid_initializer": true
+      }
+    },
+    {
+      "id": "center_0_S7",
+      "answer": {
+        "type": "number",
+        "bits": "3fb39d90666b792b"
+      },
+      "matches": {
+        "hybrid_initializer": true
+      }
+    },
+    {
+      "id": "center_1_S1",
+      "answer": {
+        "type": "number",
+        "bits": "3fc020c49ba5e354"
+      },
+      "matches": {
+        "hybrid_initializer": true
+      }
+    },
+    {
+      "id": "center_1_S2",
+      "answer": {
+        "type": "number",
+        "bits": "3f50624dd2f1a9fc"
+      },
+      "matches": {
+        "hybrid_initializer": true
+      }
+    },
+    {
+      "id": "center_1_S3",
+      "answer": {
+        "type": "number",
+        "bits": "3f50624dd2f1a9fc"
+      },
+      "matches": {
+        "hybrid_initializer": true
+      }
+    },
+    {
+      "id": "center_1_S6",
+      "answer": {
+        "type": "number",
+        "bits": "3fc83d72b43a7524"
+      },
+      "matches": {
+        "hybrid_initializer": true
+      }
+    },
+    {
+      "id": "center_1_S7",
+      "answer": {
+        "type": "number",
+        "bits": "3fcd6c5899a135a4"
+      },
+      "matches": {
+        "hybrid_initializer": true
+      }
+    },
+    {
+      "id": "center_2_S1",
+      "answer": {
+        "type": "number",
+        "bits": "3fc020c49ba5e354"
+      },
+      "matches": {
+        "hybrid_initializer": true
+      }
+    },
+    {
+      "id": "center_2_S2",
+      "answer": {
+        "type": "number",
+        "bits": "3f50624dd2f1a9fc"
+      },
+      "matches": {
+        "hybrid_initializer": true
+      }
+    },
+    {
+      "id": "center_2_S3",
+      "answer": {
+        "type": "number",
+        "bits": "3f50624dd2f1a9fc"
+      },
+      "matches": {
+        "hybrid_initializer": true
+      }
+    },
+    {
+      "id": "center_2_S6",
+      "answer": {
+        "type": "number",
+        "bits": "3fd83d72b43a752e"
+      },
+      "matches": {
+        "hybrid_initializer": true
+      }
+    },
+    {
+      "id": "center_2_S7",
+      "answer": {
+        "type": "number",
+        "bits": "3fdd6c5899a135a9"
+      },
+      "matches": {
+        "hybrid_initializer": true
+      }
+    },
+    {
+      "id": "center_3_S1",
+      "answer": {
+        "type": "number",
+        "bits": "3fc020c49ba5e354"
+      },
+      "matches": {
+        "hybrid_initializer": true
+      }
+    },
+    {
+      "id": "center_3_S2",
+      "answer": {
+        "type": "number",
+        "bits": "3f50624dd2f1a9fc"
+      },
+      "matches": {
+        "hybrid_initializer": true
+      }
+    },
+    {
+      "id": "center_3_S3",
+      "answer": {
+        "type": "number",
+        "bits": "3f50624dd2f1a9fc"
+      },
+      "matches": {
+        "hybrid_initializer": true
+      }
+    },
+    {
+      "id": "center_3_S6",
+      "answer": {
+        "type": "number",
+        "bits": "3fe83d72b43a752f"
+      },
+      "matches": {
+        "hybrid_initializer": true
+      }
+    },
+    {
+      "id": "center_3_S7",
+      "answer": {
+        "type": "number",
+        "bits": "3fed6c5899a135af"
+      },
+      "matches": {
+        "hybrid_initializer": true
+      }
+    },
+    {
+      "id": "center_4_S1",
+      "answer": {
+        "type": "number",
+        "bits": "3fc020c49ba5e354"
+      },
+      "matches": {
+        "hybrid_initializer": true
+      }
+    },
+    {
+      "id": "center_4_S2",
+      "answer": {
+        "type": "number",
+        "bits": "3f50624dd2f1a9fc"
+      },
+      "matches": {
+        "hybrid_initializer": true
+      }
+    },
+    {
+      "id": "center_4_S3",
+      "answer": {
+        "type": "number",
+        "bits": "3f50624dd2f1a9fc"
+      },
+      "matches": {
+        "hybrid_initializer": true
+      }
+    },
+    {
+      "id": "center_4_S6",
+      "answer": {
+        "type": "number",
+        "bits": "3ff83d72b43a752f"
+      },
+      "matches": {
+        "hybrid_initializer": true
+      }
+    },
+    {
+      "id": "center_4_S7",
+      "answer": {
+        "type": "number",
+        "bits": "3ffd6c5899a135ac"
+      },
+      "matches": {
+        "hybrid_initializer": true
+      }
+    },
+    {
+      "id": "center_5_S1",
+      "answer": {
+        "type": "number",
+        "bits": "3fc020c49ba5e354"
+      },
+      "matches": {
+        "hybrid_initializer": true
+      }
+    },
+    {
+      "id": "center_5_S2",
+      "answer": {
+        "type": "number",
+        "bits": "3f50624dd2f1a9fc"
+      },
+      "matches": {
+        "hybrid_initializer": true
+      }
+    },
+    {
+      "id": "center_5_S3",
+      "answer": {
+        "type": "number",
+        "bits": "3f50624dd2f1a9fc"
+      },
+      "matches": {
+        "hybrid_initializer": true
+      }
+    },
+    {
+      "id": "center_5_S6",
+      "answer": {
+        "type": "number",
+        "bits": "40083d72b43a752e"
+      },
+      "matches": {
+        "hybrid_initializer": true
+      }
+    },
+    {
+      "id": "center_5_S7",
+      "answer": {
+        "type": "number",
+        "bits": "400d6c5899a135ab"
+      },
+      "matches": {
+        "hybrid_initializer": true
+      }
+    },
+    {
+      "id": "center_6_S1",
+      "answer": {
+        "type": "number",
+        "bits": "3fc020c49ba5e354"
+      },
+      "matches": {
+        "hybrid_initializer": true
+      }
+    },
+    {
+      "id": "center_6_S2",
+      "answer": {
+        "type": "number",
+        "bits": "3f50624dd2f1a9fc"
+      },
+      "matches": {
+        "hybrid_initializer": true
+      }
+    },
+    {
+      "id": "center_6_S3",
+      "answer": {
+        "type": "number",
+        "bits": "3f50624dd2f1a9fc"
+      },
+      "matches": {
+        "hybrid_initializer": true
+      }
+    },
+    {
+      "id": "center_6_S6",
+      "answer": {
+        "type": "number",
+        "bits": "3fe83d72b43a7280"
+      },
+      "matches": {
+        "hybrid_initializer": true
+      }
+    },
+    {
+      "id": "center_6_S7",
+      "answer": {
+        "type": "number",
+        "bits": "3fed6c5899a13288"
+      },
+      "matches": {
+        "hybrid_initializer": true
+      }
+    },
+    {
+      "id": "center_0_F1",
+      "answer": {
+        "type": "number",
+        "bits": "3fc1d963a61052c0"
+      },
+      "matches": {
+        "uncentered": true,
+        "centered": true
+      }
+    },
+    {
+      "id": "center_0_F2",
+      "answer": {
+        "type": "number",
+        "bits": "4020520e95881b1a"
+      },
+      "matches": {
+        "uncentered": true,
+        "centered": true
+      }
+    },
+    {
+      "id": "center_0_F3",
+      "answer": {
+        "type": "number",
+        "bits": "3fc7214b273ffa80"
+      },
+      "matches": {
+        "uncentered": true,
+        "centered": true
+      }
+    },
+    {
+      "id": "center_1_F1",
+      "answer": {
+        "type": "number",
+        "bits": "3fdac61579187c30"
+      },
+      "matches": {
+        "uncentered": true,
+        "centered": true
+      }
+    },
+    {
+      "id": "center_1_F2",
+      "answer": {
+        "type": "number",
+        "bits": "4020f62bc098514c"
+      },
+      "matches": {
+        "uncentered": true,
+        "centered": true
+      }
+    },
+    {
+      "id": "center_1_F3",
+      "answer": {
+        "type": "number",
+        "bits": "3fe158f85d6ffbe0"
+      },
+      "matches": {
+        "uncentered": true,
+        "centered": true
+      }
+    },
+    {
+      "id": "center_2_F1",
+      "answer": {
+        "type": "number",
+        "bits": "3feac61579187c30"
+      },
+      "matches": {
+        "uncentered": true,
+        "centered": true
+      }
+    },
+    {
+      "id": "center_2_F2",
+      "answer": {
+        "type": "number",
+        "bits": "4021ec578130a299"
+      },
+      "matches": {
+        "uncentered": true,
+        "centered": true
+      }
+    },
+    {
+      "id": "center_2_F3",
+      "answer": {
+        "type": "number",
+        "bits": "3ff158f85d6ffbe4"
+      },
+      "matches": {
+        "uncentered": true,
+        "centered": true
+      }
+    },
+    {
+      "id": "center_3_F1",
+      "answer": {
+        "type": "number",
+        "bits": "3ffac61579187c34"
+      },
+      "matches": {
+        "uncentered": true,
+        "centered": true
+      }
+    },
+    {
+      "id": "center_3_F2",
+      "answer": {
+        "type": "number",
+        "bits": "4023d8af02614532"
+      },
+      "matches": {
+        "uncentered": false,
+        "centered": true
+      }
+    },
+    {
+      "id": "center_3_F3",
+      "answer": {
+        "type": "number",
+        "bits": "400158f85d6ffbe4"
+      },
+      "matches": {
+        "uncentered": true,
+        "centered": true
+      }
+    },
+    {
+      "id": "center_4_F1",
+      "answer": {
+        "type": "number",
+        "bits": "400ac61579187c2e"
+      },
+      "matches": {
+        "uncentered": false,
+        "centered": true
+      }
+    },
+    {
+      "id": "center_4_F2",
+      "answer": {
+        "type": "number",
+        "bits": "4027b15e04c28a62"
+      },
+      "matches": {
+        "uncentered": true,
+        "centered": true
+      }
+    },
+    {
+      "id": "center_4_F3",
+      "answer": {
+        "type": "number",
+        "bits": "401158f85d6ffbe2"
+      },
+      "matches": {
+        "uncentered": false,
+        "centered": true
+      }
+    },
+    {
+      "id": "center_5_F1",
+      "answer": {
+        "type": "number",
+        "bits": "401ac61579187c31"
+      },
+      "matches": {
+        "uncentered": false,
+        "centered": true
+      }
+    },
+    {
+      "id": "center_5_F2",
+      "answer": {
+        "type": "number",
+        "bits": "402f62bc098514c6"
+      },
+      "matches": {
+        "uncentered": false,
+        "centered": true
+      }
+    },
+    {
+      "id": "center_5_F3",
+      "answer": {
+        "type": "number",
+        "bits": "402158f85d6ffbe4"
+      },
+      "matches": {
+        "uncentered": false,
+        "centered": true
+      }
+    },
+    {
+      "id": "center_6_F1",
+      "answer": {
+        "type": "number",
+        "bits": "40a02358c2af2310"
+      },
+      "matches": {
+        "uncentered": true,
+        "centered": true
+      }
+    },
+    {
+      "id": "center_6_F2",
+      "answer": {
+        "type": "number",
+        "bits": "40a233d8af026145"
+      },
+      "matches": {
+        "uncentered": true,
+        "centered": true
+      }
+    },
+    {
+      "id": "center_6_F3",
+      "answer": {
+        "type": "number",
+        "bits": "40a424563e175bff"
+      },
+      "matches": {
+        "uncentered": true,
+        "centered": true
+      }
+    },
+    {
+      "id": "center_0_Cendpoint",
+      "answer": {
+        "type": "number",
+        "bits": "3fb39d90666b792b"
+      },
+      "matches": {
+        "hybrid_initializer": true
+      }
+    },
+    {
+      "id": "center_1_Cendpoint",
+      "answer": {
+        "type": "number",
+        "bits": "3fcd6c5899a135a4"
+      },
+      "matches": {
+        "hybrid_initializer": true
+      }
+    },
+    {
+      "id": "center_2_Cendpoint",
+      "answer": {
+        "type": "number",
+        "bits": "3fdd6c5899a135a9"
+      },
+      "matches": {
+        "hybrid_initializer": true
+      }
+    },
+    {
+      "id": "center_3_Cendpoint",
+      "answer": {
+        "type": "number",
+        "bits": "3fed6c5899a135af"
+      },
+      "matches": {
+        "hybrid_initializer": true
+      }
+    },
+    {
+      "id": "center_4_Cendpoint",
+      "answer": {
+        "type": "number",
+        "bits": "3ffd6c5899a135ac"
+      },
+      "matches": {
+        "hybrid_initializer": true
+      }
+    },
+    {
+      "id": "center_5_Cendpoint",
+      "answer": {
+        "type": "number",
+        "bits": "400d6c5899a135ab"
+      },
+      "matches": {
+        "hybrid_initializer": true
+      }
+    },
+    {
+      "id": "center_6_Cendpoint",
+      "answer": {
+        "type": "number",
+        "bits": "3fed6c5899a13288"
+      },
+      "matches": {
+        "hybrid_initializer": true
+      }
+    }
+  ]
+}

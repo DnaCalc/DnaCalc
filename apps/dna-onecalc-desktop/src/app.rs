@@ -762,13 +762,14 @@ pub fn run(args: &[String]) -> Result<(), String> {
         .map(|(id, name)| (*id, name.as_str()))
         .collect();
     // The add-in set always exists: the page loads add-ins into it whenever the person asks.
-    let set = Rc::new(RefCell::new(AddinHost::new(
+    let set = Rc::new(RefCell::new(AddinHost::with_profile(
         &shell,
         &Document {
             workbook: WORKBOOK,
             active_sheet: Some(&o.sheet),
             sheets: &sheet_refs,
         },
+        calc_vba::Profile::ValuesOnly,
     )?));
     // Registered functions that answer later (native async, thread-safe on the pool) suspend the
     // evaluation instead of blocking the call; the session waits for their returns.

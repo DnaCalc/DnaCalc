@@ -132,18 +132,30 @@ matched after the copy. Run on Windows from the cross-built files:
   352 of 353 matched; the known figure from the native build is 353 of 353. The framework host route
   (333/333) was not run (it needs Excel sessions and a different harness route).
 
-**Open difference (not fixed).** Set `xloil-utils-sql`, case `=INDEX(xloSort({3;1;2}),1,1)`: the
-cross-built `dna-onecalc-desktop.exe` returns 3 (sorted descending); the native build returns 1 (the
-omitted direction argument is read as "D" instead of the default "A"). It is deterministic (3 of 3 runs),
-and an explicit `"a"` or `"d"` argument gives the right answer in both builds. A native exe with the
-cross-built `xlcall32.dll` is correct, a cross-built exe with the native `xlcall32.dll` is wrong, so
-the cause is in the exe. The 289 own-fixture cases and every other set match. Prime suspect: the
-libffi call path (item 5), the one native-code component built differently; not confirmed.
-Until it is resolved, do not take a cross-built acceptance as equal to a native one.
+**Open difference: explained and fixed (dc-q2nd).** It was not libffi. xlOil's `xloSort`
+(`xlOil_Utils/xloSort.cpp`) declares `MyArray directions, columns;` uninitialised; with no order argument it
+sets `nOrders = 1`, breaks out of the loop at once and writes only `directions[1] = StopSearch`, so
+`LessThan` reads `directions[0]` (bit 0 = descending, bit 1 = case sensitive) from whatever the stack held.
+The leftovers differ between a native and a cross-built exe, so the omitted-argument call sorted descending
+in one and ascending (Excel's recorded answer, equally by luck) in the other; an explicit "a" or "d" sets
+`directions[0]` and was always right, which is why only the omitted call differed. The host now zeroes
+16 KB of stack below its frame before it enters native code (`scrub_stack` in
+`crates/calc-xll-host/src/invoke.rs`), so an add-in's uninitialised locals read zero, as on a fresh thread.
+Cross-built `=INDEX(xloSort({3;1;2}),1,1)` and `{1;3;2}` now both give 1; page acceptance below.
+
+## Results of the second run (2026-11-11/12, dc-svqh and dc-q2nd, Excel only for the .xlsm routes)
+
+Cross-built at the tree of those commits, hashes verified after the copy
+(`C:\Work\DnaCalc\xwin-builds\20261111T215401Z`). OneCalc page acceptance, m4 (recorded Excel answers):
+350 of 350 matched, 0 mismatched, 0 refused, plus 3 DNA Calc-only (the generated add-in's reference and
+Caller cases, see ONECALC_ADDINS.md); `xloil-utils-sql` 12/12. m5 (VBA add-ins): simple-xlam 109/109,
+simple-xlsm 109/109, dnaexamples-xlam 22/22 and dnaexamples-xlsm 23/23, each plus 4 DNA Calc-only. Guard on
+the private desktop: 0 windows, 0 foreground hits. Unit tests run from the cross-built files: calc-com-host
+13, calc-xll-host 12, calc-addin-host 2, dna-onecalc-desktop 18, all pass.
 
 ## What still needs a Windows-side build
 
-The open difference above: a native Windows build is the reference until it is explained.
-Everything else in the add-in tests and the page acceptance ran from cross-built files. `cargo xtask check`,
-`sweep` and anything that starts cargo on Windows still need the Windows toolchain, and the xtask
-launcher (`xtask.exe`) builds the harness with cargo, so the harness is run directly as above.
+`cargo xtask check`, `sweep` and anything that starts cargo on Windows still need the Windows toolchain, and
+the xtask launcher (`xtask.exe`) builds the harness with cargo, so the harness is run directly as above.
+The cross-built add-in acceptance now equals the native one; the native build is no longer needed as the
+reference for it.

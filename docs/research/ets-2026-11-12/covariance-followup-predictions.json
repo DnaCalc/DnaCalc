@@ -1,0 +1,2612 @@
+{
+  "protocol": "Conditional covariance test; residual variance is a finite rounding preimage, not a fitted scalar. All predictions frozen before new horizons. Same operation grouping as nonseasonal ets.rs with phase p.",
+  "python_source": "from experiments import *\n\ndef nearby(x,r=8):\n    out=[x]; up=down=x\n    for _ in range(r):\n        up=math.nextafter(up,math.inf); down=math.nextafter(down,-math.inf)\n        out.extend([down,up])\n    return sorted(out)\n\ndef main():\n    gains=decoded('seasonal-stage1'); obs=decoded('seasonal-stage2')\n    rows=[]; cases=[]\n    for c in seasonal_cases()+[dict(id='B5',y=[float(256*j+(48 if j==8 else 0)) for j in range(12)],p=4)]:\n        name=c['id']; a,b,g=[gains[name+'_S'+str(k)] for k in range(1,4)]\n        sigma=obs[name+'_Cendpoint']; c1=obs[name+'_C1']; z=1.9599639845400536\n        vs=[v for v in nearby(sigma*sigma) if bits(math.sqrt(v))==bits(sigma)]\n        vs=[v for v in vs if bits(xop(z,math.sqrt(v),'mul'))==bits(c1)]\n        assert vs,(name,sigma,c1)\n        cases.append(dict(id=name,sigma=val(sigma),variance_candidates=[val(v) for v in vs],\n            protocol='All nearby binary64 variances whose rounded sqrt equals observed endpoint and whose stored-PC64 z product equals observed C1. Entire rounding preimage is enclosed by +/-8 ulps.'))\n        for h in sorted(set([c['p']+2,2*c['p']+1,3*c['p']+1])):\n            for output,zvalue in [('endpoint',1.),('confidence',z)]:\n                preds={}\n                for convention,geff in [('innovation',g),('traditional',(1.-a)*g)]:\n                    vh=variance(a,b,geff,c['p'],h)\n                    for v in vs:\n                        preds[convention+'_'+bits(v)]=val(xop(zvalue,math.sqrt(v*vh),'mul'))\n                rows.append(question(f'{name}_{output}_h{h}',c['y'],c['p'],output,h,preds))\n    save('covariance-followup-predictions.json',dict(\n      protocol='Conditional covariance test; residual variance is a finite rounding preimage, not a fitted scalar. All predictions frozen before new horizons. Same operation grouping as nonseasonal ets.rs with phase p.',\n      python_source=Path(__file__).read_text(),cases=cases,rows=rows))\n    print('Frozen',len(rows),'covariance readings')\n\nif __name__=='__main__':main()\n",
+  "cases": [
+    {
+      "id": "C1",
+      "sigma": {
+        "value": 1.4758635589715088,
+        "bits": "3ff79d231b7240b5"
+      },
+      "variance_candidates": [
+        {
+          "value": 2.178173244700048,
+          "bits": "40016ce618181240"
+        },
+        {
+          "value": 2.1781732447000484,
+          "bits": "40016ce618181241"
+        }
+      ],
+      "protocol": "All nearby binary64 variances whose rounded sqrt equals observed endpoint and whose stored-PC64 z product equals observed C1. Entire rounding preimage is enclosed by +/-8 ulps."
+    },
+    {
+      "id": "C2",
+      "sigma": {
+        "value": 0.42077679037064836,
+        "bits": "3fdaee01c663b2b5"
+      },
+      "variance_candidates": [
+        {
+          "value": 0.17705310731462454,
+          "bits": "3fc6a9ad1cc9269c"
+        },
+        {
+          "value": 0.17705310731462456,
+          "bits": "3fc6a9ad1cc9269d"
+        }
+      ],
+      "protocol": "All nearby binary64 variances whose rounded sqrt equals observed endpoint and whose stored-PC64 z product equals observed C1. Entire rounding preimage is enclosed by +/-8 ulps."
+    },
+    {
+      "id": "C3",
+      "sigma": {
+        "value": 0.4223863370982217,
+        "bits": "3fdb0860b4074d50"
+      },
+      "variance_candidates": [
+        {
+          "value": 0.17841021776725258,
+          "bits": "3fc6d625614a923e"
+        },
+        {
+          "value": 0.1784102177672526,
+          "bits": "3fc6d625614a923f"
+        }
+      ],
+      "protocol": "All nearby binary64 variances whose rounded sqrt equals observed endpoint and whose stored-PC64 z product equals observed C1. Entire rounding preimage is enclosed by +/-8 ulps."
+    },
+    {
+      "id": "C4",
+      "sigma": {
+        "value": 1.5960403982051026,
+        "bits": "3ff98961a8162bf6"
+      },
+      "variance_candidates": [
+        {
+          "value": 2.5473449527027023,
+          "bits": "400460f663fbe902"
+        }
+      ],
+      "protocol": "All nearby binary64 variances whose rounded sqrt equals observed endpoint and whose stored-PC64 z product equals observed C1. Entire rounding preimage is enclosed by +/-8 ulps."
+    },
+    {
+      "id": "C5",
+      "sigma": {
+        "value": 0.5261385226133194,
+        "bits": "3fe0d62074794761"
+      },
+      "variance_candidates": [
+        {
+          "value": 0.2768217449777264,
+          "bits": "3fd1b7728d60102c"
+        },
+        {
+          "value": 0.27682174497772644,
+          "bits": "3fd1b7728d60102d"
+        }
+      ],
+      "protocol": "All nearby binary64 variances whose rounded sqrt equals observed endpoint and whose stored-PC64 z product equals observed C1. Entire rounding preimage is enclosed by +/-8 ulps."
+    },
+    {
+      "id": "C6",
+      "sigma": {
+        "value": 0.6422296167403965,
+        "bits": "3fe48d25200d8614"
+      },
+      "variance_candidates": [
+        {
+          "value": 0.4124588806185165,
+          "bits": "3fda65b9eecce20b"
+        },
+        {
+          "value": 0.41245888061851654,
+          "bits": "3fda65b9eecce20c"
+        },
+        {
+          "value": 0.4124588806185166,
+          "bits": "3fda65b9eecce20d"
+        }
+      ],
+      "protocol": "All nearby binary64 variances whose rounded sqrt equals observed endpoint and whose stored-PC64 z product equals observed C1. Entire rounding preimage is enclosed by +/-8 ulps."
+    },
+    {
+      "id": "C7",
+      "sigma": {
+        "value": 1.6445670447928094,
+        "bits": "3ffa502588976e86"
+      },
+      "variance_candidates": [
+        {
+          "value": 2.704600764818554,
+          "bits": "4005a305b9cd0ee7"
+        },
+        {
+          "value": 2.7046007648185544,
+          "bits": "4005a305b9cd0ee8"
+        }
+      ],
+      "protocol": "All nearby binary64 variances whose rounded sqrt equals observed endpoint and whose stored-PC64 z product equals observed C1. Entire rounding preimage is enclosed by +/-8 ulps."
+    },
+    {
+      "id": "C8",
+      "sigma": {
+        "value": 0.49890891891652317,
+        "bits": "3fdfee1fac9b77bb"
+      },
+      "variance_candidates": [
+        {
+          "value": 0.24891010937445388,
+          "bits": "3fcfdc4955b41a9f"
+        },
+        {
+          "value": 0.2489101093744539,
+          "bits": "3fcfdc4955b41aa0"
+        }
+      ],
+      "protocol": "All nearby binary64 variances whose rounded sqrt equals observed endpoint and whose stored-PC64 z product equals observed C1. Entire rounding preimage is enclosed by +/-8 ulps."
+    },
+    {
+      "id": "C9",
+      "sigma": {
+        "value": 0.4872422049335579,
+        "bits": "3fdf2ef9eddaea79"
+      },
+      "variance_candidates": [
+        {
+          "value": 0.23740496626851523,
+          "bits": "3fce634933040033"
+        },
+        {
+          "value": 0.23740496626851526,
+          "bits": "3fce634933040034"
+        }
+      ],
+      "protocol": "All nearby binary64 variances whose rounded sqrt equals observed endpoint and whose stored-PC64 z product equals observed C1. Entire rounding preimage is enclosed by +/-8 ulps."
+    },
+    {
+      "id": "B5",
+      "sigma": {
+        "value": 13.211621668068256,
+        "bits": "402a6c59acdef4cd"
+      },
+      "variance_candidates": [
+        {
+          "value": 174.54694710017063,
+          "bits": "4065d18097347bff"
+        },
+        {
+          "value": 174.54694710017066,
+          "bits": "4065d18097347c00"
+        }
+      ],
+      "protocol": "All nearby binary64 variances whose rounded sqrt equals observed endpoint and whose stored-PC64 z product equals observed C1. Entire rounding preimage is enclosed by +/-8 ulps."
+    }
+  ],
+  "rows": [
+    {
+      "id": "C1_endpoint_h4",
+      "y": [
+        2.0,
+        7.0,
+        -1.0,
+        4.0,
+        2.0,
+        7.0,
+        -1.0,
+        4.0
+      ],
+      "p": 2,
+      "output": "endpoint",
+      "index": 4,
+      "predictions": {
+        "innovation_40016ce618181240": {
+          "value": 1.5118858961224295,
+          "bits": "3ff830af43f21262"
+        },
+        "innovation_40016ce618181241": {
+          "value": 1.5118858961224297,
+          "bits": "3ff830af43f21263"
+        },
+        "traditional_40016ce618181240": {
+          "value": 1.5118624902479594,
+          "bits": "3ff83096b8faa02c"
+        },
+        "traditional_40016ce618181241": {
+          "value": 1.5118624902479596,
+          "bits": "3ff83096b8faa02d"
+        }
+      }
+    },
+    {
+      "id": "C1_confidence_h4",
+      "y": [
+        2.0,
+        7.0,
+        -1.0,
+        4.0,
+        2.0,
+        7.0,
+        -1.0,
+        4.0
+      ],
+      "p": 2,
+      "output": "confidence",
+      "index": 4,
+      "predictions": {
+        "innovation_40016ce618181240": {
+          "value": 2.9632419051340264,
+          "bits": "4007b4b82c057fc0"
+        },
+        "innovation_40016ce618181241": {
+          "value": 2.963241905134027,
+          "bits": "4007b4b82c057fc1"
+        },
+        "traditional_40016ce618181240": {
+          "value": 2.9631960304630383,
+          "bits": "4007b4a01ed3ce60"
+        },
+        "traditional_40016ce618181241": {
+          "value": 2.9631960304630387,
+          "bits": "4007b4a01ed3ce61"
+        }
+      }
+    },
+    {
+      "id": "C1_endpoint_h5",
+      "y": [
+        2.0,
+        7.0,
+        -1.0,
+        4.0,
+        2.0,
+        7.0,
+        -1.0,
+        4.0
+      ],
+      "p": 2,
+      "output": "endpoint",
+      "index": 5,
+      "predictions": {
+        "innovation_40016ce618181240": {
+          "value": 1.5241976886041455,
+          "bits": "3ff8631d1d9318f9"
+        },
+        "innovation_40016ce618181241": {
+          "value": 1.5241976886041457,
+          "bits": "3ff8631d1d9318fa"
+        },
+        "traditional_40016ce618181240": {
+          "value": 1.5241508944971898,
+          "bits": "3ff862ec0c608da0"
+        },
+        "traditional_40016ce618181241": {
+          "value": 1.52415089449719,
+          "bits": "3ff862ec0c608da1"
+        }
+      }
+    },
+    {
+      "id": "C1_confidence_h5",
+      "y": [
+        2.0,
+        7.0,
+        -1.0,
+        4.0,
+        2.0,
+        7.0,
+        -1.0,
+        4.0
+      ],
+      "p": 2,
+      "output": "confidence",
+      "index": 5,
+      "predictions": {
+        "innovation_40016ce618181240": {
+          "value": 2.987372574983321,
+          "bits": "4007e62397b42a56"
+        },
+        "innovation_40016ce618181241": {
+          "value": 2.9873725749833215,
+          "bits": "4007e62397b42a57"
+        },
+        "traditional_40016ce618181240": {
+          "value": 2.987280860218999,
+          "bits": "4007e5f381f4dbd9"
+        },
+        "traditional_40016ce618181241": {
+          "value": 2.9872808602189993,
+          "bits": "4007e5f381f4dbda"
+        }
+      }
+    },
+    {
+      "id": "C1_endpoint_h7",
+      "y": [
+        2.0,
+        7.0,
+        -1.0,
+        4.0,
+        2.0,
+        7.0,
+        -1.0,
+        4.0
+      ],
+      "p": 2,
+      "output": "endpoint",
+      "index": 7,
+      "predictions": {
+        "innovation_40016ce618181240": {
+          "value": 1.5488989416756718,
+          "bits": "3ff8c84a41b4e577"
+        },
+        "innovation_40016ce618181241": {
+          "value": 1.5488989416756718,
+          "bits": "3ff8c84a41b4e577"
+        },
+        "traditional_40016ce618181240": {
+          "value": 1.5488293378227922,
+          "bits": "3ff8c80145908c33"
+        },
+        "traditional_40016ce618181241": {
+          "value": 1.5488293378227924,
+          "bits": "3ff8c80145908c34"
+        }
+      }
+    },
+    {
+      "id": "C1_confidence_h7",
+      "y": [
+        2.0,
+        7.0,
+        -1.0,
+        4.0,
+        2.0,
+        7.0,
+        -1.0,
+        4.0
+      ],
+      "p": 2,
+      "output": "confidence",
+      "index": 7,
+      "predictions": {
+        "innovation_40016ce618181240": {
+          "value": 3.035786141376522,
+          "bits": "4008494a3e96e5c6"
+        },
+        "innovation_40016ce618181241": {
+          "value": 3.035786141376522,
+          "bits": "4008494a3e96e5c6"
+        },
+        "traditional_40016ce618181240": {
+          "value": 3.0356497203316923,
+          "bits": "40084902b8777d44"
+        },
+        "traditional_40016ce618181241": {
+          "value": 3.035649720331693,
+          "bits": "40084902b8777d45"
+        }
+      }
+    },
+    {
+      "id": "C2_endpoint_h4",
+      "y": [
+        2.0,
+        3.5,
+        3.75,
+        5.75,
+        5.5,
+        7.0,
+        8.5,
+        8.75
+      ],
+      "p": 2,
+      "output": "endpoint",
+      "index": 4,
+      "predictions": {
+        "innovation_3fc6a9ad1cc9269c": {
+          "value": 0.42427051262030446,
+          "bits": "3fdb273f82172092"
+        },
+        "innovation_3fc6a9ad1cc9269d": {
+          "value": 0.4242705126203045,
+          "bits": "3fdb273f82172093"
+        },
+        "traditional_3fc6a9ad1cc9269c": {
+          "value": 0.4242570671414836,
+          "bits": "3fdb27071d1e0d14"
+        },
+        "traditional_3fc6a9ad1cc9269d": {
+          "value": 0.42425706714148365,
+          "bits": "3fdb27071d1e0d15"
+        }
+      }
+    },
+    {
+      "id": "C2_confidence_h4",
+      "y": [
+        2.0,
+        3.5,
+        3.75,
+        5.75,
+        5.5,
+        7.0,
+        8.5,
+        8.75
+      ],
+      "p": 2,
+      "output": "confidence",
+      "index": 4,
+      "predictions": {
+        "innovation_3fc6a9ad1cc9269c": {
+          "value": 0.831554924438143,
+          "bits": "3fea9c1912a94434"
+        },
+        "innovation_3fc6a9ad1cc9269d": {
+          "value": 0.8315549244381432,
+          "bits": "3fea9c1912a94435"
+        },
+        "traditional_3fc6a9ad1cc9269c": {
+          "value": 0.8315285717838993,
+          "bits": "3fea9be1ceb00bc3"
+        },
+        "traditional_3fc6a9ad1cc9269d": {
+          "value": 0.8315285717838994,
+          "bits": "3fea9be1ceb00bc4"
+        }
+      }
+    },
+    {
+      "id": "C2_endpoint_h5",
+      "y": [
+        2.0,
+        3.5,
+        3.75,
+        5.75,
+        5.5,
+        7.0,
+        8.5,
+        8.75
+      ],
+      "p": 2,
+      "output": "endpoint",
+      "index": 5,
+      "predictions": {
+        "innovation_3fc6a9ad1cc9269c": {
+          "value": 0.42783627271857416,
+          "bits": "3fdb61ab63d79aa2"
+        },
+        "innovation_3fc6a9ad1cc9269d": {
+          "value": 0.4278362727185742,
+          "bits": "3fdb61ab63d79aa3"
+        },
+        "traditional_3fc6a9ad1cc9269c": {
+          "value": 0.4278093985426334,
+          "bits": "3fdb613aabea5edf"
+        },
+        "traditional_3fc6a9ad1cc9269d": {
+          "value": 0.4278093985426334,
+          "bits": "3fdb613aabea5edf"
+        }
+      }
+    },
+    {
+      "id": "C2_confidence_h5",
+      "y": [
+        2.0,
+        3.5,
+        3.75,
+        5.75,
+        5.5,
+        7.0,
+        8.5,
+        8.75
+      ],
+      "p": 2,
+      "output": "confidence",
+      "index": 5,
+      "predictions": {
+        "innovation_3fc6a9ad1cc9269c": {
+          "value": 0.8385436858082617,
+          "bits": "3fead559915a0a83"
+        },
+        "innovation_3fc6a9ad1cc9269d": {
+          "value": 0.8385436858082618,
+          "bits": "3fead559915a0a84"
+        },
+        "traditional_3fc6a9ad1cc9269c": {
+          "value": 0.8384910133913035,
+          "bits": "3fead4eb1b102d70"
+        },
+        "traditional_3fc6a9ad1cc9269d": {
+          "value": 0.8384910133913035,
+          "bits": "3fead4eb1b102d70"
+        }
+      }
+    },
+    {
+      "id": "C2_endpoint_h7",
+      "y": [
+        2.0,
+        3.5,
+        3.75,
+        5.75,
+        5.5,
+        7.0,
+        8.5,
+        8.75
+      ],
+      "p": 2,
+      "output": "endpoint",
+      "index": 7,
+      "predictions": {
+        "innovation_3fc6a9ad1cc9269c": {
+          "value": 0.43149095502834006,
+          "bits": "3fdb9d8c3d17752f"
+        },
+        "innovation_3fc6a9ad1cc9269d": {
+          "value": 0.4314909550283401,
+          "bits": "3fdb9d8c3d177530"
+        },
+        "traditional_3fc6a9ad1cc9269c": {
+          "value": 0.43145067682545046,
+          "bits": "3fdb9ce34cb35a1c"
+        },
+        "traditional_3fc6a9ad1cc9269d": {
+          "value": 0.43145067682545046,
+          "bits": "3fdb9ce34cb35a1c"
+        }
+      }
+    },
+    {
+      "id": "C2_confidence_h7",
+      "y": [
+        2.0,
+        3.5,
+        3.75,
+        5.75,
+        5.5,
+        7.0,
+        8.5,
+        8.75
+      ],
+      "p": 2,
+      "output": "confidence",
+      "index": 7,
+      "predictions": {
+        "innovation_3fc6a9ad1cc9269c": {
+          "value": 0.8457067315103385,
+          "bits": "3feb1007903b01b1"
+        },
+        "innovation_3fc6a9ad1cc9269d": {
+          "value": 0.8457067315103386,
+          "bits": "3feb1007903b01b2"
+        },
+        "traditional_3fc6a9ad1cc9269c": {
+          "value": 0.8456277876833128,
+          "bits": "3feb0f6201960981"
+        },
+        "traditional_3fc6a9ad1cc9269d": {
+          "value": 0.8456277876833128,
+          "bits": "3feb0f6201960981"
+        }
+      }
+    },
+    {
+      "id": "C3_endpoint_h6",
+      "y": [
+        2.0,
+        3.5,
+        3.75,
+        5.75,
+        5.5,
+        7.0,
+        8.5,
+        8.75
+      ],
+      "p": 4,
+      "output": "endpoint",
+      "index": 6,
+      "predictions": {
+        "innovation_3fc6d625614a923e": {
+          "value": 0.4396625855193864,
+          "bits": "3fdc236e8a852806"
+        },
+        "innovation_3fc6d625614a923f": {
+          "value": 0.4396625855193864,
+          "bits": "3fdc236e8a852806"
+        },
+        "traditional_3fc6d625614a923e": {
+          "value": 0.43965589073720307,
+          "bits": "3fdc2352760d713d"
+        },
+        "traditional_3fc6d625614a923f": {
+          "value": 0.4396558907372031,
+          "bits": "3fdc2352760d713e"
+        }
+      }
+    },
+    {
+      "id": "C3_confidence_h6",
+      "y": [
+        2.0,
+        3.5,
+        3.75,
+        5.75,
+        5.5,
+        7.0,
+        8.5,
+        8.75
+      ],
+      "p": 4,
+      "output": "confidence",
+      "index": 6,
+      "predictions": {
+        "innovation_3fc6d625614a923e": {
+          "value": 0.8617228329677586,
+          "bits": "3feb933bc33a040c"
+        },
+        "innovation_3fc6d625614a923f": {
+          "value": 0.8617228329677586,
+          "bits": "3feb933bc33a040c"
+        },
+        "traditional_3fc6d625614a923e": {
+          "value": 0.861709711435795,
+          "bits": "3feb93203ea86510"
+        },
+        "traditional_3fc6d625614a923f": {
+          "value": 0.8617097114357951,
+          "bits": "3feb93203ea86511"
+        }
+      }
+    },
+    {
+      "id": "C3_endpoint_h9",
+      "y": [
+        2.0,
+        3.5,
+        3.75,
+        5.75,
+        5.5,
+        7.0,
+        8.5,
+        8.75
+      ],
+      "p": 4,
+      "output": "endpoint",
+      "index": 9,
+      "predictions": {
+        "innovation_3fc6d625614a923e": {
+          "value": 0.45035456398360335,
+          "bits": "3fdcd29bf2fa7d99"
+        },
+        "innovation_3fc6d625614a923f": {
+          "value": 0.45035456398360335,
+          "bits": "3fdcd29bf2fa7d99"
+        },
+        "traditional_3fc6d625614a923e": {
+          "value": 0.45034129254602595,
+          "bits": "3fdcd26448e181d8"
+        },
+        "traditional_3fc6d625614a923f": {
+          "value": 0.450341292546026,
+          "bits": "3fdcd26448e181d9"
+        }
+      }
+    },
+    {
+      "id": "C3_confidence_h9",
+      "y": [
+        2.0,
+        3.5,
+        3.75,
+        5.75,
+        5.5,
+        7.0,
+        8.5,
+        8.75
+      ],
+      "p": 4,
+      "output": "confidence",
+      "index": 9,
+      "predictions": {
+        "innovation_3fc6d625614a923e": {
+          "value": 0.8826787256811017,
+          "bits": "3fec3ee774759bf4"
+        },
+        "innovation_3fc6d625614a923f": {
+          "value": 0.8826787256811017,
+          "bits": "3fec3ee774759bf4"
+        },
+        "traditional_3fc6d625614a923e": {
+          "value": 0.882652714141427,
+          "bits": "3fec3eb0e79ed16f"
+        },
+        "traditional_3fc6d625614a923f": {
+          "value": 0.8826527141414271,
+          "bits": "3fec3eb0e79ed170"
+        }
+      }
+    },
+    {
+      "id": "C3_endpoint_h13",
+      "y": [
+        2.0,
+        3.5,
+        3.75,
+        5.75,
+        5.5,
+        7.0,
+        8.5,
+        8.75
+      ],
+      "p": 4,
+      "output": "endpoint",
+      "index": 13,
+      "predictions": {
+        "innovation_3fc6d625614a923e": {
+          "value": 0.4649368560377284,
+          "bits": "3fddc18683d8c64e"
+        },
+        "innovation_3fc6d625614a923f": {
+          "value": 0.46493685603772844,
+          "bits": "3fddc18683d8c64f"
+        },
+        "traditional_3fc6d625614a923e": {
+          "value": 0.4649172830221995,
+          "bits": "3fddc1346b7b3bc4"
+        },
+        "traditional_3fc6d625614a923f": {
+          "value": 0.46491728302219953,
+          "bits": "3fddc1346b7b3bc5"
+        }
+      }
+    },
+    {
+      "id": "C3_confidence_h13",
+      "y": [
+        2.0,
+        3.5,
+        3.75,
+        5.75,
+        5.5,
+        7.0,
+        8.5,
+        8.75
+      ],
+      "p": 4,
+      "output": "confidence",
+      "index": 13,
+      "predictions": {
+        "innovation_3fc6d625614a923e": {
+          "value": 0.9112594929192314,
+          "bits": "3fed2909ab083e9b"
+        },
+        "innovation_3fc6d625614a923f": {
+          "value": 0.9112594929192315,
+          "bits": "3fed2909ab083e9c"
+        },
+        "traditional_3fc6d625614a923e": {
+          "value": 0.9112211305137259,
+          "bits": "3fed28b9375f6114"
+        },
+        "traditional_3fc6d625614a923f": {
+          "value": 0.911221130513726,
+          "bits": "3fed28b9375f6115"
+        }
+      }
+    },
+    {
+      "id": "C4_endpoint_h4",
+      "y": [
+        2.0,
+        7.0,
+        -1.0,
+        4.0,
+        2.0,
+        7.0,
+        -1.0,
+        4.0,
+        2.0,
+        7.0,
+        -1.0,
+        4.0
+      ],
+      "p": 2,
+      "output": "endpoint",
+      "index": 4,
+      "predictions": {
+        "innovation_400460f663fbe902": {
+          "value": 1.6349959676282677,
+          "bits": "3ffa28f18820e272"
+        },
+        "traditional_400460f663fbe902": {
+          "value": 1.6349706558567407,
+          "bits": "3ffa28d6fd8d30a1"
+        }
+      }
+    },
+    {
+      "id": "C4_confidence_h4",
+      "y": [
+        2.0,
+        7.0,
+        -1.0,
+        4.0,
+        2.0,
+        7.0,
+        -1.0,
+        4.0,
+        2.0,
+        7.0,
+        -1.0,
+        4.0
+      ],
+      "p": 2,
+      "output": "confidence",
+      "index": 4,
+      "predictions": {
+        "innovation_400460f663fbe902": {
+          "value": 3.20453321141962,
+          "bits": "4009a2e24eeff1ea"
+        },
+        "traditional_400460f663fbe902": {
+          "value": 3.2044836012590423,
+          "bits": "4009a2c84c5fcea0"
+        }
+      }
+    },
+    {
+      "id": "C4_endpoint_h5",
+      "y": [
+        2.0,
+        7.0,
+        -1.0,
+        4.0,
+        2.0,
+        7.0,
+        -1.0,
+        4.0,
+        2.0,
+        7.0,
+        -1.0,
+        4.0
+      ],
+      "p": 2,
+      "output": "endpoint",
+      "index": 5,
+      "predictions": {
+        "innovation_400460f663fbe902": {
+          "value": 1.6483102865947379,
+          "bits": "3ffa5f7a9b695b49"
+        },
+        "traditional_400460f663fbe902": {
+          "value": 1.6482596821302227,
+          "bits": "3ffa5f458b6108db"
+        }
+      }
+    },
+    {
+      "id": "C4_confidence_h5",
+      "y": [
+        2.0,
+        7.0,
+        -1.0,
+        4.0,
+        2.0,
+        7.0,
+        -1.0,
+        4.0,
+        2.0,
+        7.0,
+        -1.0,
+        4.0
+      ],
+      "p": 2,
+      "output": "confidence",
+      "index": 5,
+      "predictions": {
+        "innovation_400460f663fbe902": {
+          "value": 3.23062879707258,
+          "bits": "4009d853e9278a59"
+        },
+        "traditional_400460f663fbe902": {
+          "value": 3.2305296141446735,
+          "bits": "4009d81fe90c1644"
+        }
+      }
+    },
+    {
+      "id": "C4_endpoint_h7",
+      "y": [
+        2.0,
+        7.0,
+        -1.0,
+        4.0,
+        2.0,
+        7.0,
+        -1.0,
+        4.0,
+        2.0,
+        7.0,
+        -1.0,
+        4.0
+      ],
+      "p": 2,
+      "output": "endpoint",
+      "index": 7,
+      "predictions": {
+        "innovation_400460f663fbe902": {
+          "value": 1.6750229170061273,
+          "bits": "3ffacce4d489782c"
+        },
+        "traditional_400460f663fbe902": {
+          "value": 1.674947645440276,
+          "bits": "3ffacc95e6fad9dd"
+        }
+      }
+    },
+    {
+      "id": "C4_confidence_h7",
+      "y": [
+        2.0,
+        7.0,
+        -1.0,
+        4.0,
+        2.0,
+        7.0,
+        -1.0,
+        4.0,
+        2.0,
+        7.0,
+        -1.0,
+        4.0
+      ],
+      "p": 2,
+      "output": "confidence",
+      "index": 7,
+      "predictions": {
+        "innovation_400460f663fbe902": {
+          "value": 3.2829845906112327,
+          "bits": "400a438d6ccf93da"
+        },
+        "traditional_400460f663fbe902": {
+          "value": 3.2828370610531046,
+          "bits": "400a434013ba8f08"
+        }
+      }
+    },
+    {
+      "id": "C5_endpoint_h4",
+      "y": [
+        2.0,
+        3.5,
+        3.75,
+        5.75,
+        5.5,
+        7.0,
+        8.5,
+        8.75,
+        10.75,
+        10.5,
+        12.0,
+        13.5
+      ],
+      "p": 2,
+      "output": "endpoint",
+      "index": 4,
+      "predictions": {
+        "innovation_3fd1b7728d60102c": {
+          "value": 0.6589451783606984,
+          "bits": "3fe5161432dd5095"
+        },
+        "innovation_3fd1b7728d60102d": {
+          "value": 0.6589451783606985,
+          "bits": "3fe5161432dd5096"
+        },
+        "traditional_3fd1b7728d60102c": {
+          "value": 0.6584703487224002,
+          "bits": "3fe5123068a4bfe4"
+        },
+        "traditional_3fd1b7728d60102d": {
+          "value": 0.6584703487224003,
+          "bits": "3fe5123068a4bfe5"
+        }
+      }
+    },
+    {
+      "id": "C5_confidence_h4",
+      "y": [
+        2.0,
+        3.5,
+        3.75,
+        5.75,
+        5.5,
+        7.0,
+        8.5,
+        8.75,
+        10.75,
+        10.5,
+        12.0,
+        13.5
+      ],
+      "p": 2,
+      "output": "confidence",
+      "index": 4,
+      "predictions": {
+        "innovation_3fd1b7728d60102c": {
+          "value": 1.2915088173732907,
+          "bits": "3ff4aa052651d29e"
+        },
+        "innovation_3fd1b7728d60102d": {
+          "value": 1.291508817373291,
+          "bits": "3ff4aa052651d29f"
+        },
+        "traditional_3fd1b7728d60102c": {
+          "value": 1.290578168383434,
+          "bits": "3ff4a6354b223703"
+        },
+        "traditional_3fd1b7728d60102d": {
+          "value": 1.2905781683834343,
+          "bits": "3ff4a6354b223704"
+        }
+      }
+    },
+    {
+      "id": "C5_endpoint_h5",
+      "y": [
+        2.0,
+        3.5,
+        3.75,
+        5.75,
+        5.5,
+        7.0,
+        8.5,
+        8.75,
+        10.75,
+        10.5,
+        12.0,
+        13.5
+      ],
+      "p": 2,
+      "output": "endpoint",
+      "index": 5,
+      "predictions": {
+        "innovation_3fd1b7728d60102c": {
+          "value": 0.7696897692722715,
+          "bits": "3fe8a14c7062e2da"
+        },
+        "innovation_3fd1b7728d60102d": {
+          "value": 0.7696897692722716,
+          "bits": "3fe8a14c7062e2db"
+        },
+        "traditional_3fd1b7728d60102c": {
+          "value": 0.7688755322648171,
+          "bits": "3fe89aa0dc38b414"
+        },
+        "traditional_3fd1b7728d60102d": {
+          "value": 0.7688755322648172,
+          "bits": "3fe89aa0dc38b415"
+        }
+      }
+    },
+    {
+      "id": "C5_confidence_h5",
+      "y": [
+        2.0,
+        3.5,
+        3.75,
+        5.75,
+        5.5,
+        7.0,
+        8.5,
+        8.75,
+        10.75,
+        10.5,
+        12.0,
+        13.5
+      ],
+      "p": 2,
+      "output": "confidence",
+      "index": 5,
+      "predictions": {
+        "innovation_3fd1b7728d60102c": {
+          "value": 1.5085642270425959,
+          "bits": "3ff823143e3103f7"
+        },
+        "innovation_3fd1b7728d60102d": {
+          "value": 1.508564227042596,
+          "bits": "3ff823143e3103f8"
+        },
+        "traditional_3fd1b7728d60102c": {
+          "value": 1.5069683518331054,
+          "bits": "3ff81c8ad8b3aef0"
+        },
+        "traditional_3fd1b7728d60102d": {
+          "value": 1.5069683518331056,
+          "bits": "3ff81c8ad8b3aef1"
+        }
+      }
+    },
+    {
+      "id": "C5_endpoint_h7",
+      "y": [
+        2.0,
+        3.5,
+        3.75,
+        5.75,
+        5.5,
+        7.0,
+        8.5,
+        8.75,
+        10.75,
+        10.5,
+        12.0,
+        13.5
+      ],
+      "p": 2,
+      "output": "endpoint",
+      "index": 7,
+      "predictions": {
+        "innovation_3fd1b7728d60102c": {
+          "value": 0.8668839104916465,
+          "bits": "3febbd83539fafd3"
+        },
+        "innovation_3fd1b7728d60102d": {
+          "value": 0.8668839104916466,
+          "bits": "3febbd83539fafd4"
+        },
+        "traditional_3fd1b7728d60102c": {
+          "value": 0.8657979485210385,
+          "bits": "3febb49de63aefa2"
+        },
+        "traditional_3fd1b7728d60102d": {
+          "value": 0.8657979485210386,
+          "bits": "3febb49de63aefa3"
+        }
+      }
+    },
+    {
+      "id": "C5_confidence_h7",
+      "y": [
+        2.0,
+        3.5,
+        3.75,
+        5.75,
+        5.5,
+        7.0,
+        8.5,
+        8.75,
+        10.75,
+        10.5,
+        12.0,
+        13.5
+      ],
+      "p": 2,
+      "output": "confidence",
+      "index": 7,
+      "predictions": {
+        "innovation_3fd1b7728d60102c": {
+          "value": 1.6990612433408707,
+          "bits": "3ffb2f5ad7a0cd5d"
+        },
+        "innovation_3fd1b7728d60102d": {
+          "value": 1.699061243340871,
+          "bits": "3ffb2f5ad7a0cd5e"
+        },
+        "traditional_3fd1b7728d60102c": {
+          "value": 1.6969327969898989,
+          "bits": "3ffb26a301294d82"
+        },
+        "traditional_3fd1b7728d60102d": {
+          "value": 1.696932796989899,
+          "bits": "3ffb26a301294d83"
+        }
+      }
+    },
+    {
+      "id": "C6_endpoint_h6",
+      "y": [
+        2.0,
+        3.5,
+        3.75,
+        5.75,
+        5.5,
+        7.0,
+        8.5,
+        8.75,
+        10.75,
+        10.5,
+        12.0,
+        13.5
+      ],
+      "p": 4,
+      "output": "endpoint",
+      "index": 6,
+      "predictions": {
+        "innovation_3fda65b9eecce20b": {
+          "value": 0.7197944401047706,
+          "bits": "3fe7088e5982f6bf"
+        },
+        "innovation_3fda65b9eecce20c": {
+          "value": 0.7197944401047707,
+          "bits": "3fe7088e5982f6c0"
+        },
+        "innovation_3fda65b9eecce20d": {
+          "value": 0.7197944401047708,
+          "bits": "3fe7088e5982f6c1"
+        },
+        "traditional_3fda65b9eecce20b": {
+          "value": 0.7195047185928907,
+          "bits": "3fe7062ec27592a0"
+        },
+        "traditional_3fda65b9eecce20c": {
+          "value": 0.7195047185928908,
+          "bits": "3fe7062ec27592a1"
+        },
+        "traditional_3fda65b9eecce20d": {
+          "value": 0.7195047185928908,
+          "bits": "3fe7062ec27592a1"
+        }
+      }
+    },
+    {
+      "id": "C6_confidence_h6",
+      "y": [
+        2.0,
+        3.5,
+        3.75,
+        5.75,
+        5.5,
+        7.0,
+        8.5,
+        8.75,
+        10.75,
+        10.5,
+        12.0,
+        13.5
+      ],
+      "p": 4,
+      "output": "confidence",
+      "index": 6,
+      "predictions": {
+        "innovation_3fda65b9eecce20b": {
+          "value": 1.410771178877523,
+          "bits": "3ff69284ccb6b178"
+        },
+        "innovation_3fda65b9eecce20c": {
+          "value": 1.4107711788775232,
+          "bits": "3ff69284ccb6b179"
+        },
+        "innovation_3fda65b9eecce20d": {
+          "value": 1.4107711788775235,
+          "bits": "3ff69284ccb6b17a"
+        },
+        "traditional_3fda65b9eecce20b": {
+          "value": 1.410203335148692,
+          "bits": "3ff690315f52c7b8"
+        },
+        "traditional_3fda65b9eecce20c": {
+          "value": 1.4102033351486922,
+          "bits": "3ff690315f52c7b9"
+        },
+        "traditional_3fda65b9eecce20d": {
+          "value": 1.4102033351486922,
+          "bits": "3ff690315f52c7b9"
+        }
+      }
+    },
+    {
+      "id": "C6_endpoint_h9",
+      "y": [
+        2.0,
+        3.5,
+        3.75,
+        5.75,
+        5.5,
+        7.0,
+        8.5,
+        8.75,
+        10.75,
+        10.5,
+        12.0,
+        13.5
+      ],
+      "p": 4,
+      "output": "endpoint",
+      "index": 9,
+      "predictions": {
+        "innovation_3fda65b9eecce20b": {
+          "value": 0.7908504266878195,
+          "bits": "3fe94ea58dd4dbcb"
+        },
+        "innovation_3fda65b9eecce20c": {
+          "value": 0.7908504266878195,
+          "bits": "3fe94ea58dd4dbcb"
+        },
+        "innovation_3fda65b9eecce20d": {
+          "value": 0.7908504266878195,
+          "bits": "3fe94ea58dd4dbcb"
+        },
+        "traditional_3fda65b9eecce20b": {
+          "value": 0.790320887908608,
+          "bits": "3fe94a4f07dd388d"
+        },
+        "traditional_3fda65b9eecce20c": {
+          "value": 0.790320887908608,
+          "bits": "3fe94a4f07dd388d"
+        },
+        "traditional_3fda65b9eecce20d": {
+          "value": 0.7903208879086081,
+          "bits": "3fe94a4f07dd388e"
+        }
+      }
+    },
+    {
+      "id": "C6_confidence_h9",
+      "y": [
+        2.0,
+        3.5,
+        3.75,
+        5.75,
+        5.5,
+        7.0,
+        8.5,
+        8.75,
+        10.75,
+        10.5,
+        12.0,
+        13.5
+      ],
+      "p": 4,
+      "output": "confidence",
+      "index": 9,
+      "predictions": {
+        "innovation_3fda65b9eecce20b": {
+          "value": 1.5500383534662603,
+          "bits": "3ff8ccf5043aeeb3"
+        },
+        "innovation_3fda65b9eecce20c": {
+          "value": 1.5500383534662603,
+          "bits": "3ff8ccf5043aeeb3"
+        },
+        "innovation_3fda65b9eecce20d": {
+          "value": 1.5500383534662603,
+          "bits": "3ff8ccf5043aeeb3"
+        },
+        "traditional_3fda65b9eecce20b": {
+          "value": 1.5490004765305885,
+          "bits": "3ff8c8b4b942ff27"
+        },
+        "traditional_3fda65b9eecce20c": {
+          "value": 1.5490004765305885,
+          "bits": "3ff8c8b4b942ff27"
+        },
+        "traditional_3fda65b9eecce20d": {
+          "value": 1.5490004765305887,
+          "bits": "3ff8c8b4b942ff28"
+        }
+      }
+    },
+    {
+      "id": "C6_endpoint_h13",
+      "y": [
+        2.0,
+        3.5,
+        3.75,
+        5.75,
+        5.5,
+        7.0,
+        8.5,
+        8.75,
+        10.75,
+        10.5,
+        12.0,
+        13.5
+      ],
+      "p": 4,
+      "output": "endpoint",
+      "index": 13,
+      "predictions": {
+        "innovation_3fda65b9eecce20b": {
+          "value": 0.8570842379663647,
+          "bits": "3feb6d3bec7f719b"
+        },
+        "innovation_3fda65b9eecce20c": {
+          "value": 0.8570842379663647,
+          "bits": "3feb6d3bec7f719b"
+        },
+        "innovation_3fda65b9eecce20d": {
+          "value": 0.8570842379663648,
+          "bits": "3feb6d3bec7f719c"
+        },
+        "traditional_3fda65b9eecce20b": {
+          "value": 0.856348354451816,
+          "bits": "3feb6734aa0b53b0"
+        },
+        "traditional_3fda65b9eecce20c": {
+          "value": 0.8563483544518161,
+          "bits": "3feb6734aa0b53b1"
+        },
+        "traditional_3fda65b9eecce20d": {
+          "value": 0.8563483544518162,
+          "bits": "3feb6734aa0b53b2"
+        }
+      }
+    },
+    {
+      "id": "C6_confidence_h13",
+      "y": [
+        2.0,
+        3.5,
+        3.75,
+        5.75,
+        5.5,
+        7.0,
+        8.5,
+        8.75,
+        10.75,
+        10.5,
+        12.0,
+        13.5
+      ],
+      "p": 4,
+      "output": "confidence",
+      "index": 13,
+      "predictions": {
+        "innovation_3fda65b9eecce20b": {
+          "value": 1.6798542381310315,
+          "bits": "3ffae0aed66d1dce"
+        },
+        "innovation_3fda65b9eecce20c": {
+          "value": 1.6798542381310315,
+          "bits": "3ffae0aed66d1dce"
+        },
+        "innovation_3fda65b9eecce20d": {
+          "value": 1.6798542381310317,
+          "bits": "3ffae0aed66d1dcf"
+        },
+        "traditional_3fda65b9eecce20b": {
+          "value": 1.6784119329456995,
+          "bits": "3ffadac678937c9e"
+        },
+        "traditional_3fda65b9eecce20c": {
+          "value": 1.6784119329456997,
+          "bits": "3ffadac678937c9f"
+        },
+        "traditional_3fda65b9eecce20d": {
+          "value": 1.6784119329457,
+          "bits": "3ffadac678937ca0"
+        }
+      }
+    },
+    {
+      "id": "C7_endpoint_h4",
+      "y": [
+        2.0,
+        7.0,
+        -1.0,
+        4.0,
+        2.0,
+        7.0,
+        -1.0,
+        4.0,
+        2.0,
+        7.0,
+        -1.0,
+        4.0,
+        2.0,
+        7.0,
+        -1.0,
+        4.0,
+        2.0,
+        7.0,
+        -1.0,
+        4.0,
+        2.0,
+        7.0,
+        -1.0,
+        4.0
+      ],
+      "p": 2,
+      "output": "endpoint",
+      "index": 4,
+      "predictions": {
+        "innovation_4005a305b9cd0ee7": {
+          "value": 1.6847070348309832,
+          "bits": "3ffaf48f5d1f0b15"
+        },
+        "innovation_4005a305b9cd0ee8": {
+          "value": 1.6847070348309832,
+          "bits": "3ffaf48f5d1f0b15"
+        },
+        "traditional_4005a305b9cd0ee7": {
+          "value": 1.684680953470295,
+          "bits": "3ffaf47403f59590"
+        },
+        "traditional_4005a305b9cd0ee8": {
+          "value": 1.6846809534702951,
+          "bits": "3ffaf47403f59591"
+        }
+      }
+    },
+    {
+      "id": "C7_confidence_h4",
+      "y": [
+        2.0,
+        7.0,
+        -1.0,
+        4.0,
+        2.0,
+        7.0,
+        -1.0,
+        4.0,
+        2.0,
+        7.0,
+        -1.0,
+        4.0,
+        2.0,
+        7.0,
+        -1.0,
+        4.0,
+        2.0,
+        7.0,
+        -1.0,
+        4.0,
+        2.0,
+        7.0,
+        -1.0,
+        4.0
+      ],
+      "p": 2,
+      "output": "confidence",
+      "index": 4,
+      "predictions": {
+        "innovation_4005a305b9cd0ee7": {
+          "value": 3.3019651127699925,
+          "bits": "400a6a6caf5f0a62"
+        },
+        "innovation_4005a305b9cd0ee8": {
+          "value": 3.3019651127699925,
+          "bits": "400a6a6caf5f0a62"
+        },
+        "traditional_4005a305b9cd0ee7": {
+          "value": 3.301913994242376,
+          "bits": "400a6a51e25bce4f"
+        },
+        "traditional_4005a305b9cd0ee8": {
+          "value": 3.3019139942423763,
+          "bits": "400a6a51e25bce50"
+        }
+      }
+    },
+    {
+      "id": "C7_endpoint_h5",
+      "y": [
+        2.0,
+        7.0,
+        -1.0,
+        4.0,
+        2.0,
+        7.0,
+        -1.0,
+        4.0,
+        2.0,
+        7.0,
+        -1.0,
+        4.0,
+        2.0,
+        7.0,
+        -1.0,
+        4.0,
+        2.0,
+        7.0,
+        -1.0,
+        4.0,
+        2.0,
+        7.0,
+        -1.0,
+        4.0
+      ],
+      "p": 2,
+      "output": "endpoint",
+      "index": 5,
+      "predictions": {
+        "innovation_4005a305b9cd0ee7": {
+          "value": 1.6984261676428725,
+          "bits": "3ffb2cc0eacb25e4"
+        },
+        "innovation_4005a305b9cd0ee8": {
+          "value": 1.6984261676428727,
+          "bits": "3ffb2cc0eacb25e5"
+        },
+        "traditional_4005a305b9cd0ee7": {
+          "value": 1.6983740245801062,
+          "bits": "3ffb2c8a3dbf28c8"
+        },
+        "traditional_4005a305b9cd0ee8": {
+          "value": 1.6983740245801064,
+          "bits": "3ffb2c8a3dbf28c9"
+        }
+      }
+    },
+    {
+      "id": "C7_confidence_h5",
+      "y": [
+        2.0,
+        7.0,
+        -1.0,
+        4.0,
+        2.0,
+        7.0,
+        -1.0,
+        4.0,
+        2.0,
+        7.0,
+        -1.0,
+        4.0,
+        2.0,
+        7.0,
+        -1.0,
+        4.0,
+        2.0,
+        7.0,
+        -1.0,
+        4.0,
+        2.0,
+        7.0,
+        -1.0,
+        4.0
+      ],
+      "p": 2,
+      "output": "confidence",
+      "index": 5,
+      "predictions": {
+        "innovation_4005a305b9cd0ee7": {
+          "value": 3.3288541189804173,
+          "bits": "400aa17e44b16802"
+        },
+        "innovation_4005a305b9cd0ee8": {
+          "value": 3.3288541189804177,
+          "bits": "400aa17e44b16803"
+        },
+        "traditional_4005a305b9cd0ee7": {
+          "value": 3.328751920455352,
+          "bits": "400aa148afd6d2cd"
+        },
+        "traditional_4005a305b9cd0ee8": {
+          "value": 3.3287519204553524,
+          "bits": "400aa148afd6d2ce"
+        }
+      }
+    },
+    {
+      "id": "C7_endpoint_h7",
+      "y": [
+        2.0,
+        7.0,
+        -1.0,
+        4.0,
+        2.0,
+        7.0,
+        -1.0,
+        4.0,
+        2.0,
+        7.0,
+        -1.0,
+        4.0,
+        2.0,
+        7.0,
+        -1.0,
+        4.0,
+        2.0,
+        7.0,
+        -1.0,
+        4.0,
+        2.0,
+        7.0,
+        -1.0,
+        4.0
+      ],
+      "p": 2,
+      "output": "endpoint",
+      "index": 7,
+      "predictions": {
+        "innovation_4005a305b9cd0ee7": {
+          "value": 1.7259509794857968,
+          "bits": "3ffb9d7ec6364029"
+        },
+        "innovation_4005a305b9cd0ee8": {
+          "value": 1.7259509794857968,
+          "bits": "3ffb9d7ec6364029"
+        },
+        "traditional_4005a305b9cd0ee7": {
+          "value": 1.725873419333342,
+          "bits": "3ffb9d2d7251288b"
+        },
+        "traditional_4005a305b9cd0ee8": {
+          "value": 1.7258734193333423,
+          "bits": "3ffb9d2d7251288c"
+        }
+      }
+    },
+    {
+      "id": "C7_confidence_h7",
+      "y": [
+        2.0,
+        7.0,
+        -1.0,
+        4.0,
+        2.0,
+        7.0,
+        -1.0,
+        4.0,
+        2.0,
+        7.0,
+        -1.0,
+        4.0,
+        2.0,
+        7.0,
+        -1.0,
+        4.0,
+        2.0,
+        7.0,
+        -1.0,
+        4.0,
+        2.0,
+        7.0,
+        -1.0,
+        4.0
+      ],
+      "p": 2,
+      "output": "confidence",
+      "index": 7,
+      "predictions": {
+        "innovation_4005a305b9cd0ee7": {
+          "value": 3.3828017588737906,
+          "bits": "400b0ffa5e59b6b3"
+        },
+        "innovation_4005a305b9cd0ee8": {
+          "value": 3.3828017588737906,
+          "bits": "400b0ffa5e59b6b3"
+        },
+        "traditional_4005a305b9cd0ee7": {
+          "value": 3.382649743768344,
+          "bits": "400b0faaab3a7669"
+        },
+        "traditional_4005a305b9cd0ee8": {
+          "value": 3.3826497437683445,
+          "bits": "400b0faaab3a766a"
+        }
+      }
+    },
+    {
+      "id": "C8_endpoint_h4",
+      "y": [
+        2.0,
+        3.5,
+        3.75,
+        5.75,
+        5.5,
+        7.0,
+        8.5,
+        8.75,
+        10.75,
+        10.5,
+        12.0,
+        13.5,
+        13.75,
+        15.75,
+        15.5,
+        17.0,
+        18.5,
+        18.75,
+        20.75,
+        20.5,
+        22.0,
+        23.5,
+        23.75,
+        25.75
+      ],
+      "p": 2,
+      "output": "endpoint",
+      "index": 4,
+      "predictions": {
+        "innovation_3fcfdc4955b41a9f": {
+          "value": 0.503051374561558,
+          "bits": "3fe018ff323e6441"
+        },
+        "innovation_3fcfdc4955b41aa0": {
+          "value": 0.503051374561558,
+          "bits": "3fe018ff323e6441"
+        },
+        "traditional_3fcfdc4955b41a9f": {
+          "value": 0.5030354324529239,
+          "bits": "3fe018ddc363aa31"
+        },
+        "traditional_3fcfdc4955b41aa0": {
+          "value": 0.5030354324529239,
+          "bits": "3fe018ddc363aa31"
+        }
+      }
+    },
+    {
+      "id": "C8_confidence_h4",
+      "y": [
+        2.0,
+        3.5,
+        3.75,
+        5.75,
+        5.5,
+        7.0,
+        8.5,
+        8.75,
+        10.75,
+        10.5,
+        12.0,
+        13.5,
+        13.75,
+        15.75,
+        15.5,
+        17.0,
+        18.5,
+        18.75,
+        20.75,
+        20.5,
+        22.0,
+        23.5,
+        23.75,
+        25.75
+      ],
+      "p": 2,
+      "output": "confidence",
+      "index": 4,
+      "predictions": {
+        "innovation_3fcfdc4955b41a9f": {
+          "value": 0.9859625765140222,
+          "bits": "3fef8d0163a6a4d9"
+        },
+        "innovation_3fcfdc4955b41aa0": {
+          "value": 0.9859625765140222,
+          "bits": "3fef8d0163a6a4d9"
+        },
+        "traditional_3fcfdc4955b41a9f": {
+          "value": 0.9859313305552617,
+          "bits": "3fef8cbfdc9ac58c"
+        },
+        "traditional_3fcfdc4955b41aa0": {
+          "value": 0.9859313305552617,
+          "bits": "3fef8cbfdc9ac58c"
+        }
+      }
+    },
+    {
+      "id": "C8_endpoint_h5",
+      "y": [
+        2.0,
+        3.5,
+        3.75,
+        5.75,
+        5.5,
+        7.0,
+        8.5,
+        8.75,
+        10.75,
+        10.5,
+        12.0,
+        13.5,
+        13.75,
+        15.75,
+        15.5,
+        17.0,
+        18.5,
+        18.75,
+        20.75,
+        20.5,
+        22.0,
+        23.5,
+        23.75,
+        25.75
+      ],
+      "p": 2,
+      "output": "endpoint",
+      "index": 5,
+      "predictions": {
+        "innovation_3fcfdc4955b41a9f": {
+          "value": 0.5072792444356933,
+          "bits": "3fe03ba1ae994efe"
+        },
+        "innovation_3fcfdc4955b41aa0": {
+          "value": 0.5072792444356933,
+          "bits": "3fe03ba1ae994efe"
+        },
+        "traditional_3fcfdc4955b41a9f": {
+          "value": 0.5072473801162436,
+          "bits": "3fe03b5edb92971e"
+        },
+        "traditional_3fcfdc4955b41aa0": {
+          "value": 0.5072473801162436,
+          "bits": "3fe03b5edb92971e"
+        }
+      }
+    },
+    {
+      "id": "C8_confidence_h5",
+      "y": [
+        2.0,
+        3.5,
+        3.75,
+        5.75,
+        5.5,
+        7.0,
+        8.5,
+        8.75,
+        10.75,
+        10.5,
+        12.0,
+        13.5,
+        13.75,
+        15.75,
+        15.5,
+        17.0,
+        18.5,
+        18.75,
+        20.75,
+        20.5,
+        22.0,
+        23.5,
+        23.75,
+        25.75
+      ],
+      "p": 2,
+      "output": "confidence",
+      "index": 5,
+      "predictions": {
+        "innovation_3fcfdc4955b41a9f": {
+          "value": 0.9942490491986492,
+          "bits": "3fefd0e361cc64b5"
+        },
+        "innovation_3fcfdc4955b41aa0": {
+          "value": 0.9942490491986492,
+          "bits": "3fefd0e361cc64b5"
+        },
+        "traditional_3fcfdc4955b41a9f": {
+          "value": 0.994186596280136,
+          "bits": "3fefd06068a4a1b4"
+        },
+        "traditional_3fcfdc4955b41aa0": {
+          "value": 0.994186596280136,
+          "bits": "3fefd06068a4a1b4"
+        }
+      }
+    },
+    {
+      "id": "C8_endpoint_h7",
+      "y": [
+        2.0,
+        3.5,
+        3.75,
+        5.75,
+        5.5,
+        7.0,
+        8.5,
+        8.75,
+        10.75,
+        10.5,
+        12.0,
+        13.5,
+        13.75,
+        15.75,
+        15.5,
+        17.0,
+        18.5,
+        18.75,
+        20.75,
+        20.5,
+        22.0,
+        23.5,
+        23.75,
+        25.75
+      ],
+      "p": 2,
+      "output": "endpoint",
+      "index": 7,
+      "predictions": {
+        "innovation_3fcfdc4955b41a9f": {
+          "value": 0.5116125480823667,
+          "bits": "3fe05f2147479571"
+        },
+        "innovation_3fcfdc4955b41aa0": {
+          "value": 0.5116125480823667,
+          "bits": "3fe05f2147479571"
+        },
+        "traditional_3fcfdc4955b41a9f": {
+          "value": 0.5115647908031644,
+          "bits": "3fe05ebd1fc91c0a"
+        },
+        "traditional_3fcfdc4955b41aa0": {
+          "value": 0.5115647908031645,
+          "bits": "3fe05ebd1fc91c0b"
+        }
+      }
+    },
+    {
+      "id": "C8_confidence_h7",
+      "y": [
+        2.0,
+        3.5,
+        3.75,
+        5.75,
+        5.5,
+        7.0,
+        8.5,
+        8.75,
+        10.75,
+        10.5,
+        12.0,
+        13.5,
+        13.75,
+        15.75,
+        15.5,
+        17.0,
+        18.5,
+        18.75,
+        20.75,
+        20.5,
+        22.0,
+        23.5,
+        23.75,
+        25.75
+      ],
+      "p": 2,
+      "output": "confidence",
+      "index": 7,
+      "predictions": {
+        "innovation_3fcfdc4955b41a9f": {
+          "value": 1.0027421682802051,
+          "bits": "3ff00b3b5f315677"
+        },
+        "innovation_3fcfdc4955b41aa0": {
+          "value": 1.0027421682802051,
+          "bits": "3ff00b3b5f315677"
+        },
+        "traditional_3fcfdc4955b41a9f": {
+          "value": 1.0026485657329691,
+          "bits": "3ff00ad938f34542"
+        },
+        "traditional_3fcfdc4955b41aa0": {
+          "value": 1.0026485657329693,
+          "bits": "3ff00ad938f34543"
+        }
+      }
+    },
+    {
+      "id": "C9_endpoint_h6",
+      "y": [
+        2.0,
+        3.5,
+        3.75,
+        5.75,
+        5.5,
+        7.0,
+        8.5,
+        8.75,
+        10.75,
+        10.5,
+        12.0,
+        13.5,
+        13.75,
+        15.75,
+        15.5,
+        17.0,
+        18.5,
+        18.75,
+        20.75,
+        20.5,
+        22.0,
+        23.5,
+        23.75,
+        25.75
+      ],
+      "p": 4,
+      "output": "endpoint",
+      "index": 6,
+      "predictions": {
+        "innovation_3fce634933040033": {
+          "value": 0.49142911593261324,
+          "bits": "3fdf73931b4ee5a5"
+        },
+        "innovation_3fce634933040034": {
+          "value": 0.49142911593261324,
+          "bits": "3fdf73931b4ee5a5"
+        },
+        "traditional_3fce634933040033": {
+          "value": 0.49141330954587464,
+          "bits": "3fdf7350cf5464dd"
+        },
+        "traditional_3fce634933040034": {
+          "value": 0.4914133095458747,
+          "bits": "3fdf7350cf5464de"
+        }
+      }
+    },
+    {
+      "id": "C9_confidence_h6",
+      "y": [
+        2.0,
+        3.5,
+        3.75,
+        5.75,
+        5.5,
+        7.0,
+        8.5,
+        8.75,
+        10.75,
+        10.5,
+        12.0,
+        13.5,
+        13.75,
+        15.75,
+        15.5,
+        17.0,
+        18.5,
+        18.75,
+        20.75,
+        20.5,
+        22.0,
+        23.5,
+        23.75,
+        25.75
+      ],
+      "p": 4,
+      "output": "confidence",
+      "index": 6,
+      "predictions": {
+        "innovation_3fce634933040033": {
+          "value": 0.9631833681822806,
+          "bits": "3feed265ed4c9bd4"
+        },
+        "innovation_3fce634933040034": {
+          "value": 0.9631833681822806,
+          "bits": "3feed265ed4c9bd4"
+        },
+        "traditional_3fce634933040033": {
+          "value": 0.9631523882335472,
+          "bits": "3feed224f510e04d"
+        },
+        "traditional_3fce634933040034": {
+          "value": 0.9631523882335473,
+          "bits": "3feed224f510e04e"
+        }
+      }
+    },
+    {
+      "id": "C9_endpoint_h9",
+      "y": [
+        2.0,
+        3.5,
+        3.75,
+        5.75,
+        5.5,
+        7.0,
+        8.5,
+        8.75,
+        10.75,
+        10.5,
+        12.0,
+        13.5,
+        13.75,
+        15.75,
+        15.5,
+        17.0,
+        18.5,
+        18.75,
+        20.75,
+        20.5,
+        22.0,
+        23.5,
+        23.75,
+        25.75
+      ],
+      "p": 4,
+      "output": "endpoint",
+      "index": 9,
+      "predictions": {
+        "innovation_3fce634933040033": {
+          "value": 0.49584645326619253,
+          "bits": "3fdfbbf2c3276abb"
+        },
+        "innovation_3fce634933040034": {
+          "value": 0.49584645326619253,
+          "bits": "3fdfbbf2c3276abb"
+        },
+        "traditional_3fce634933040033": {
+          "value": 0.49581464281702037,
+          "bits": "3fdfbb6d56f1bac2"
+        },
+        "traditional_3fce634933040034": {
+          "value": 0.4958146428170204,
+          "bits": "3fdfbb6d56f1bac3"
+        }
+      }
+    },
+    {
+      "id": "C9_confidence_h9",
+      "y": [
+        2.0,
+        3.5,
+        3.75,
+        5.75,
+        5.5,
+        7.0,
+        8.5,
+        8.75,
+        10.75,
+        10.5,
+        12.0,
+        13.5,
+        13.75,
+        15.75,
+        15.5,
+        17.0,
+        18.5,
+        18.75,
+        20.75,
+        20.5,
+        22.0,
+        23.5,
+        23.75,
+        25.75
+      ],
+      "p": 4,
+      "output": "confidence",
+      "index": 9,
+      "predictions": {
+        "innovation_3fce634933040033": {
+          "value": 0.9718411902636602,
+          "bits": "3fef1952b222d1ff"
+        },
+        "innovation_3fce634933040034": {
+          "value": 0.9718411902636602,
+          "bits": "3fef1952b222d1ff"
+        },
+        "traditional_3fce634933040033": {
+          "value": 0.9717788429289507,
+          "bits": "3fef18cff1aa62d4"
+        },
+        "traditional_3fce634933040034": {
+          "value": 0.9717788429289508,
+          "bits": "3fef18cff1aa62d5"
+        }
+      }
+    },
+    {
+      "id": "C9_endpoint_h13",
+      "y": [
+        2.0,
+        3.5,
+        3.75,
+        5.75,
+        5.5,
+        7.0,
+        8.5,
+        8.75,
+        10.75,
+        10.5,
+        12.0,
+        13.5,
+        13.75,
+        15.75,
+        15.5,
+        17.0,
+        18.5,
+        18.75,
+        20.75,
+        20.5,
+        22.0,
+        23.5,
+        23.75,
+        25.75
+      ],
+      "p": 4,
+      "output": "endpoint",
+      "index": 13,
+      "predictions": {
+        "innovation_3fce634933040033": {
+          "value": 0.5005533341466192,
+          "bits": "3fe004886d02081b"
+        },
+        "innovation_3fce634933040034": {
+          "value": 0.5005533341466192,
+          "bits": "3fe004886d02081b"
+        },
+        "traditional_3fce634933040033": {
+          "value": 0.5005053549494338,
+          "bits": "3fe00423ce5f61d0"
+        },
+        "traditional_3fce634933040034": {
+          "value": 0.5005053549494338,
+          "bits": "3fe00423ce5f61d0"
+        }
+      }
+    },
+    {
+      "id": "C9_confidence_h13",
+      "y": [
+        2.0,
+        3.5,
+        3.75,
+        5.75,
+        5.5,
+        7.0,
+        8.5,
+        8.75,
+        10.75,
+        10.5,
+        12.0,
+        13.5,
+        13.75,
+        15.75,
+        15.5,
+        17.0,
+        18.5,
+        18.75,
+        20.75,
+        20.5,
+        22.0,
+        23.5,
+        23.75,
+        25.75
+      ],
+      "p": 4,
+      "output": "confidence",
+      "index": 13,
+      "predictions": {
+        "innovation_3fce634933040033": {
+          "value": 0.9810665072688166,
+          "bits": "3fef64e5967d74d9"
+        },
+        "innovation_3fce634933040034": {
+          "value": 0.9810665072688166,
+          "bits": "3fef64e5967d74d9"
+        },
+        "traditional_3fce634933040033": {
+          "value": 0.9809724697703261,
+          "bits": "3fef6420607e13a8"
+        },
+        "traditional_3fce634933040034": {
+          "value": 0.9809724697703261,
+          "bits": "3fef6420607e13a8"
+        }
+      }
+    },
+    {
+      "id": "B5_endpoint_h6",
+      "y": [
+        0.0,
+        256.0,
+        512.0,
+        768.0,
+        1024.0,
+        1280.0,
+        1536.0,
+        1792.0,
+        2096.0,
+        2304.0,
+        2560.0,
+        2816.0
+      ],
+      "p": 4,
+      "output": "endpoint",
+      "index": 6,
+      "predictions": {
+        "innovation_4065d18097347bff": {
+          "value": 13.638303999144847,
+          "bits": "402b46cfc822775d"
+        },
+        "innovation_4065d18097347c00": {
+          "value": 13.638303999144847,
+          "bits": "402b46cfc822775d"
+        },
+        "traditional_4065d18097347bff": {
+          "value": 13.636667319817164,
+          "bits": "402b45f9424a17e8"
+        },
+        "traditional_4065d18097347c00": {
+          "value": 13.636667319817166,
+          "bits": "402b45f9424a17e9"
+        }
+      }
+    },
+    {
+      "id": "B5_confidence_h6",
+      "y": [
+        0.0,
+        256.0,
+        512.0,
+        768.0,
+        1024.0,
+        1280.0,
+        1536.0,
+        1792.0,
+        2096.0,
+        2304.0,
+        2560.0,
+        2816.0
+      ],
+      "p": 4,
+      "output": "confidence",
+      "index": 6,
+      "predictions": {
+        "innovation_4065d18097347bff": {
+          "value": 26.73058464853248,
+          "bits": "403abb079874681b"
+        },
+        "innovation_4065d18097347c00": {
+          "value": 26.73058464853248,
+          "bits": "403abb079874681b"
+        },
+        "traditional_4065d18097347bff": {
+          "value": 26.72737681599598,
+          "bits": "403aba355df49244"
+        },
+        "traditional_4065d18097347c00": {
+          "value": 26.727376815995985,
+          "bits": "403aba355df49245"
+        }
+      }
+    },
+    {
+      "id": "B5_endpoint_h9",
+      "y": [
+        0.0,
+        256.0,
+        512.0,
+        768.0,
+        1024.0,
+        1280.0,
+        1536.0,
+        1792.0,
+        2096.0,
+        2304.0,
+        2560.0,
+        2816.0
+      ],
+      "p": 4,
+      "output": "endpoint",
+      "index": 9,
+      "predictions": {
+        "innovation_4065d18097347bff": {
+          "value": 14.065134869754765,
+          "bits": "402c21595b8eda14"
+        },
+        "innovation_4065d18097347c00": {
+          "value": 14.065134869754766,
+          "bits": "402c21595b8eda15"
+        },
+        "traditional_4065d18097347bff": {
+          "value": 14.061935853685341,
+          "bits": "402c1fb60e640e88"
+        },
+        "traditional_4065d18097347c00": {
+          "value": 14.061935853685343,
+          "bits": "402c1fb60e640e89"
+        }
+      }
+    },
+    {
+      "id": "B5_confidence_h9",
+      "y": [
+        0.0,
+        256.0,
+        512.0,
+        768.0,
+        1024.0,
+        1280.0,
+        1536.0,
+        1792.0,
+        2096.0,
+        2304.0,
+        2560.0,
+        2816.0
+      ],
+      "p": 4,
+      "output": "confidence",
+      "index": 9,
+      "predictions": {
+        "innovation_4065d18097347bff": {
+          "value": 27.567157782417798,
+          "bits": "403b9131409f2805"
+        },
+        "innovation_4065d18097347c00": {
+          "value": 27.5671577824178,
+          "bits": "403b9131409f2806"
+        },
+        "traditional_4065d18097347bff": {
+          "value": 27.56088782613576,
+          "bits": "403b8f965835fa46"
+        },
+        "traditional_4065d18097347c00": {
+          "value": 27.560887826135765,
+          "bits": "403b8f965835fa47"
+        }
+      }
+    },
+    {
+      "id": "B5_endpoint_h13",
+      "y": [
+        0.0,
+        256.0,
+        512.0,
+        768.0,
+        1024.0,
+        1280.0,
+        1536.0,
+        1792.0,
+        2096.0,
+        2304.0,
+        2560.0,
+        2816.0
+      ],
+      "p": 4,
+      "output": "endpoint",
+      "index": 13,
+      "predictions": {
+        "innovation_4065d18097347bff": {
+          "value": 14.493757149356627,
+          "bits": "402cfccdbcb14e49"
+        },
+        "innovation_4065d18097347c00": {
+          "value": 14.493757149356629,
+          "bits": "402cfccdbcb14e4a"
+        },
+        "traditional_4065d18097347bff": {
+          "value": 14.489064172540562,
+          "bits": "402cfa669e8569fe"
+        },
+        "traditional_4065d18097347c00": {
+          "value": 14.489064172540564,
+          "bits": "402cfa669e8569ff"
+        }
+      }
+    },
+    {
+      "id": "B5_confidence_h13",
+      "y": [
+        0.0,
+        256.0,
+        512.0,
+        768.0,
+        1024.0,
+        1280.0,
+        1536.0,
+        1792.0,
+        2096.0,
+        2304.0,
+        2560.0,
+        2816.0
+      ],
+      "p": 4,
+      "output": "confidence",
+      "index": 13,
+      "predictions": {
+        "innovation_4065d18097347bff": {
+          "value": 28.407242013408904,
+          "bits": "403c684103392600"
+        },
+        "innovation_4065d18097347c00": {
+          "value": 28.407242013408908,
+          "bits": "403c684103392601"
+        },
+        "traditional_4065d18097347bff": {
+          "value": 28.398043947869134,
+          "bits": "403c65e6354a77fa"
+        },
+        "traditional_4065d18097347c00": {
+          "value": 28.398043947869137,
+          "bits": "403c65e6354a77fb"
+        }
+      }
+    }
+  ]
+}
