@@ -90,6 +90,12 @@ const WORKSHEET: &str =
     "http://schemas.openxmlformats.org/officeDocument/2006/relationships/worksheet";
 /// An Excel 4.0 macro sheet, and an international one (dc-xuw).
 const MACRO_SHEET: &str = "http://schemas.microsoft.com/office/2006/relationships/xlMacrosheet";
+/// A chart sheet and a dialog sheet: Excel opens them, this loader keeps their parts as they are
+/// and reads no cell of them.
+const CHART_SHEET: &str =
+    "http://schemas.openxmlformats.org/officeDocument/2006/relationships/chartsheet";
+const DIALOG_SHEET: &str =
+    "http://schemas.openxmlformats.org/officeDocument/2006/relationships/dialogsheet";
 const INTERNATIONAL_MACRO_SHEET: &str =
     "http://schemas.microsoft.com/office/2006/relationships/xlIntlMacrosheet";
 pub(crate) const SHARED_STRINGS: &str =
@@ -122,6 +128,8 @@ pub struct LoadedSheet {
     view: SheetView,
     conditional_formats: Arc<[ConditionalFormat]>,
     macro_sheet: bool,
+    /// A chart sheet or a dialog sheet, carried as its part (see [`LoadedSheet::preserved_kind`]).
+    preserved: Option<&'static str>,
     protected: bool,
     merged_areas: Vec<GridArea>,
     validations: Arc<[Validation]>,
@@ -147,6 +155,7 @@ impl LoadedSheet {
             view: SheetView::default(),
             conditional_formats: Arc::from([]),
             macro_sheet: false,
+            preserved: None,
             protected: false,
             merged_areas: Vec::new(),
             validations: Arc::from([]),
@@ -171,6 +180,13 @@ impl LoadedSheet {
     /// refused ([`crate::SaveRefusal::MacroSheetChanged`]).
     pub fn is_macro_sheet(&self) -> bool {
         self.macro_sheet
+    }
+
+    /// `Some("chart sheet")` or `Some("dialog sheet")` when the sheet is one: it opens as an empty
+    /// sheet of the model (so sheet positions and names hold), its part is kept as it was read,
+    /// and a save that would change it is refused ([`crate::SaveRefusal::PreservedSheetChanged`]).
+    pub fn preserved_kind(&self) -> Option<&'static str> {
+        self.preserved
     }
 
     /// The sheet's data validations as the file states them, in document order (dc-6yw).
@@ -1275,6 +1291,8 @@ struct DeclaredSheet {
     part: String,
     /// An Excel 4.0 macro sheet rather than a worksheet.
     macro_sheet: bool,
+    /// A chart sheet or a dialog sheet.
+    preserved: Option<&'static str>,
 }
 
 /// The type of the workbook part's relationship `id` and the part it targets.
@@ -1578,7 +1596,12 @@ fn read_workbook(package: &Package, workbook: &str) -> Result<WorkbookPart, Load
                 .to_owned();
             let (kind, part) = target(package, workbook, &relationship)?;
             let macro_sheet = kind == MACRO_SHEET || kind == INTERNATIONAL_MACRO_SHEET;
-            if kind != WORKSHEET && !macro_sheet {
+            let preserved = match kind.as_str() {
+                CHART_SHEET => Some("chart sheet"),
+                DIALOG_SHEET => Some("dialog sheet"),
+                _ => None,
+            };
+            if kind != WORKSHEET && !macro_sheet && preserved.is_none() {
                 return Err(LoadError::UnsupportedSheet {
                     name: String::from_utf16_lossy(&units),
                     kind,
@@ -1591,6 +1614,7 @@ fn read_workbook(package: &Package, workbook: &str) -> Result<WorkbookPart, Load
                 relationship,
                 part,
                 macro_sheet,
+                preserved,
             });
         }
     }
@@ -1778,8 +1802,12 @@ pub fn load_preserving_sheet_ids(
     let mut data_tables = Vec::new();
     let mut hidden_rows: Vec<(SheetId, u32, Option<(u32, u32, u32, u32)>)> = Vec::new();
     for (declared, &id) in declared.iter().zip(&issued) {
-        let loaded = sheet::load_sheet(package, &context, id, &declared.part, declared.macro_sheet)
-            .and_then(|loaded| Ok((loaded, tables::read_tables(package, &declared.part, id)?)));
+        let loaded = if declared.preserved.is_some() {
+            sheet::preserved_sheet(package, &declared.part).map(|loaded| (loaded, Vec::new()))
+        } else {
+            sheet::load_sheet(package, &context, id, &declared.part, declared.macro_sheet)
+                .and_then(|loaded| Ok((loaded, tables::read_tables(package, &declared.part, id)?)))
+        };
         match loaded {
             Ok((loaded, sheet_tables)) => {
                 if !loaded.conditional_sources.is_empty() {
@@ -1820,10 +1848,15 @@ pub fn load_preserving_sheet_ids(
                     view: loaded.view,
                     conditional_formats: loaded.conditional_formats.into(),
                     macro_sheet: declared.macro_sheet,
+                    preserved: declared.preserved,
                     protected: loaded.protected,
                     merged_areas: loaded.merged_areas,
                     validations: loaded.validations.into(),
-                    charts: Arc::new(chart::read_charts(package, &declared.part)),
+                    charts: Arc::new(if declared.preserved.is_some() {
+                        SheetCharts::default()
+                    } else {
+                        chart::read_charts(package, &declared.part)
+                    }),
                     pivots: Arc::new(loaded.pivots),
                     page_setup: loaded.page_setup,
                     review: Arc::new(loaded.review),

@@ -393,6 +393,14 @@ pub(super) fn plan(
             part: sheet.part().name().to_owned(),
         });
     }
+    if structural.is_some()
+        && let Some(sheet) = sheets.iter().find(|sheet| sheet.preserved_kind().is_some())
+    {
+        return Err(SaveRefusal::PreservedSheetChanged {
+            part: sheet.part().name().to_owned(),
+            kind: sheet.preserved_kind().unwrap_or_default(),
+        });
+    }
     let mut moved = match structural {
         Some(structural) => Some(structural::moved(
             package,
@@ -791,6 +799,14 @@ pub(super) fn plan(
             if rewritten[index] && sheet.is_macro_sheet() {
                 return Err(SaveRefusal::MacroSheetChanged {
                     part: name.to_owned(),
+                });
+            }
+            if rewritten[index]
+                && let Some(kind) = sheet.preserved_kind()
+            {
+                return Err(SaveRefusal::PreservedSheetChanged {
+                    part: name.to_owned(),
+                    kind,
                 });
             }
         }
@@ -1269,6 +1285,12 @@ pub(super) fn plan(
                     part: sheet.part().name().to_owned(),
                 });
             }
+            if let Some(kind) = sheet.preserved_kind() {
+                return Err(SaveRefusal::PreservedSheetChanged {
+                    part: sheet.part().name().to_owned(),
+                    kind,
+                });
+            }
             let original = super::sheets::read_sheet(package, sheet.part().name())?;
             let current = out
                 .rewritten
@@ -1330,7 +1352,10 @@ pub(super) fn plan(
             if !changed && override_view.is_none() && selected.is_none() {
                 continue;
             }
-            if sheet.is_macro_sheet() && !changed && override_view.is_none() {
+            if (sheet.is_macro_sheet() || sheet.preserved_kind().is_some())
+                && !changed
+                && override_view.is_none()
+            {
                 continue;
             }
             if sheets.iter().any(|other| {
@@ -1347,6 +1372,12 @@ pub(super) fn plan(
             if sheet.is_macro_sheet() {
                 return Err(SaveRefusal::MacroSheetChanged {
                     part: sheet.part().name().to_owned(),
+                });
+            }
+            if let Some(kind) = sheet.preserved_kind() {
+                return Err(SaveRefusal::PreservedSheetChanged {
+                    part: sheet.part().name().to_owned(),
+                    kind,
                 });
             }
 
@@ -1471,6 +1502,12 @@ pub(super) fn plan(
             if sheet.is_macro_sheet() {
                 return Err(SaveRefusal::MacroSheetChanged {
                     part: sheet.part().name().into(),
+                });
+            }
+            if let Some(kind) = sheet.preserved_kind() {
+                return Err(SaveRefusal::PreservedSheetChanged {
+                    part: sheet.part().name().into(),
+                    kind,
                 });
             }
             if sheets.iter().any(|s| {

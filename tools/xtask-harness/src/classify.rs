@@ -49,6 +49,8 @@ const VOLATILE: &[&str] = &[
 #[derive(Default, Clone, Debug, PartialEq)]
 pub(crate) struct FormulaStats {
     pub(crate) functions: Counts,
+    /// Per call, `NAME(arg tokens)`: see `formula_shapes`.
+    pub(crate) shapes: Counts,
     pub(crate) flags: Counts,
     pub(crate) length: usize,
     pub(crate) depth: usize,
@@ -58,6 +60,9 @@ impl FormulaStats {
     fn add_scaled(&self, into: &mut FormulaStats, times: u64) {
         for (k, v) in &self.functions {
             bump(&mut into.functions, k.clone(), v * times);
+        }
+        for (k, v) in &self.shapes {
+            bump(&mut into.shapes, k.clone(), v * times);
         }
         for (k, v) in &self.flags {
             bump(&mut into.flags, k.clone(), v * times);
@@ -199,6 +204,9 @@ pub(crate) fn analyze_formula(text: &str) -> FormulaStats {
                         }
                         if VOLATILE.contains(&name.as_str()) {
                             note(&mut out, "volatile");
+                        }
+                        if let Some(shape) = crate::formula_shapes::call_shape(&name, &chars, i) {
+                            bump(&mut out.shapes, shape, 1);
                         }
                         bump(&mut out.functions, name, 1);
                     }
@@ -740,6 +748,7 @@ pub(crate) fn classify_bytes(
     );
     object.insert("formula_features".into(), json!(sheet_total.stats.flags));
     object.insert("functions".into(), json!(sheet_total.stats.functions));
+    object.insert("function_shapes".into(), json!(capped_shapes(&sheet_total.stats.shapes)));
     object.insert("sheet_elements".into(), json!(sheet_total.elements));
     object.insert("conditional_rule_types".into(), json!(sheet_total.cf_rule_types));
     object.insert("sheet_extensions".into(), json!(sheet_total.ext_elements));
@@ -1016,6 +1025,25 @@ fn classify_file(path: &Path, name: &str, keep_names: bool, host: bool) -> Value
     }
 }
 
+/// Distinct shape keys kept per file; the rest are summed under `(other)`.
+const SHAPES_PER_FILE: usize = 400;
+
+/// The shapes of one file, most frequent first and cut at [`SHAPES_PER_FILE`].
+fn capped_shapes(shapes: &Counts) -> Counts {
+    if shapes.len() <= SHAPES_PER_FILE {
+        return shapes.clone();
+    }
+    let mut ranked: Vec<(&String, &u64)> = shapes.iter().collect();
+    ranked.sort_by(|a, b| b.1.cmp(a.1).then(a.0.cmp(b.0)));
+    let mut kept = Counts::new();
+    for (k, v) in ranked.iter().take(SHAPES_PER_FILE) {
+        kept.insert((*k).clone(), **v);
+    }
+    let rest: u64 = ranked.iter().skip(SHAPES_PER_FILE).map(|(_, v)| **v).sum();
+    kept.insert("(other)".into(), rest);
+    kept
+}
+
 fn get_u64(v: &Value, path: &[&str]) -> u64 {
     let mut cur = v;
     for p in path {
@@ -1186,7 +1214,9 @@ pub(crate) fn summarize(profiles: &[Value], seconds: f64, jobs: usize) -> String
         bump(&mut producer_files, key, 1);
     }
     let mut reader_gaps = Counts::new();
+    let (mut shapes, mut shape_files) = (Counts::new(), Counts::new());
     for p in profiles {
+        merge_map(p.get("function_shapes"), &mut shapes, &mut shape_files);
         merge_map(p.get("formula_features"), &mut flags, &mut flag_files);
         merge_map(p.get("functions"), &mut funcs, &mut func_files);
         merge_map(p["cells"].get("formula_kinds"), &mut kinds, &mut kind_files);
@@ -1223,6 +1253,14 @@ pub(crate) fn summarize(profiles: &[Value], seconds: f64, jobs: usize) -> String
     table(&mut out, "Cell types (files; cells)", ["type", "files", "cells"], ranked(&cells_types, &cell_type_files), 10);
     table(&mut out, "Functions, top 60 by files (files; calls, shared members expanded)", ["function", "files", "calls"], ranked(&funcs, &func_files), 60);
     let _ = writeln!(out, "\nDistinct functions seen: {}.", funcs.len());
+    let sensitive = shapes.keys().filter(|k| k.ends_with('!')).count();
+    let _ = writeln!(
+        out,
+        "Distinct (function, argument shape) pairs seen: {} ({} position- or reference-sensitive).",
+        shapes.len(),
+        sensitive
+    );
+    table(&mut out, "Argument shapes, top 40 by files (files; calls)", ["shape", "files", "calls"], ranked(&shapes, &shape_files), 40);
     table(&mut out, "Functions in defined names (files; calls)", ["function", "files", "calls"], ranked(&name_funcs, &name_func_files), 15);
     table(&mut out, "Built-in defined names (files; names)", ["name", "files", "names"], ranked(&builtin, &builtin_files), 15);
     table(&mut out, "Conditional-format rule types (files; rules)", ["type", "files", "rules"], ranked(&cf, &cf_files), 15);
@@ -1267,6 +1305,18 @@ mod tests {
         let s = analyze_formula("_xlfn._xlws.SORT('Jan 1:Dec 31'!A1:A9)");
         assert_eq!(s.functions.get("SORT"), Some(&1));
         assert_eq!(s.flags.get("three_d_reference"), Some(&1));
+    }
+
+    #[test]
+    fn calls_record_their_argument_shapes_and_shared_members_count_them() {
+        let s = analyze_formula(r#"IF(A1>0,ROUND(B2,2),"no")+SUM(C1:C9)+ROW()"#);
+        assert_eq!(s.shapes.get("IF(x,f,S)"), Some(&1));
+        assert_eq!(s.shapes.get("ROUND(r,n)"), Some(&1));
+        assert_eq!(s.shapes.get("SUM(R)"), Some(&1));
+        assert_eq!(s.shapes.get("ROW()!"), Some(&1));
+        let xml = br#"<worksheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main"><sheetData><row r="1"><c r="A1"><f t="shared" ref="A1:A3" si="0">SUM(B1,2)</f><v>1</v></c></row><row r="2"><c r="A2"><f t="shared" si="0"/><v>1</v></c></row><row r="3"><c r="A3"><f t="shared" si="0"/><v>1</v></c></row></sheetData></worksheet>"#;
+        let scan = scan_sheet(&XmlPart::from_bytes("sheet1.xml", xml.to_vec())).unwrap();
+        assert_eq!(scan.stats.shapes.get("SUM(r,n)"), Some(&3));
     }
 
     #[test]

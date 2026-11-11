@@ -43,8 +43,8 @@ workbook in two layers, and writes `files.jsonl` (one object per file) and `summ
 |---|---:|---:|---:|---:|---:|---:|---:|
 | This repository's own fixtures (crates, platform, apps, tools) | 5,133 | 5,119 | 201.1 MB | 5,133 | 5,131 | 4,413 | 554,350 |
 | EUSES (public) | 4,652 | 4,509 | 568.8 MB | 0 | 0 | not readable | not readable |
-| Seven library test sets (public) | 3,331 | 3,200 | 165.1 MB | 2,458 | 2,371 | 392 | 49,910 |
-| Enron spreadsheets (public) | 15,929 | 15,927 | 1,875 MB | 15,871 | 14,858 | 9,220 | 20,746,884 |
+| Seven library test sets (public) | 3,331 | 3,200 | 165.1 MB | 2,458 | 2,405 | 392 | 49,910 |
+| Enron spreadsheets (public) | 15,929 | 15,927 | 1,875 MB | 15,871 | 15,356 | 9,220 | 20,746,884 |
 
 The Windows corpus folders (Ofgem, the 290 `local-ifc` workbooks, engine13 inputs) are on the
 Windows machine, where no Rust is built; they are not in this table.
@@ -66,15 +66,19 @@ warnings.
   reader opens none: every one is `NotAZipArchive`. Nothing below the container is profiled until a
   `.xls` reader exists or Excel converts them.
 * **Library test sets:** 2,421 `.xlsx`, 39 `.xlsm`, 36 `.xlsb`, 795 OLE2 `.xls`, 3 zip named `.xls`.
-  Refused by calc-doc: 11 malformed zips (central directory, local header or data descriptor
+  (Counts for the host route in this paragraph and below are from the first run; the chart-sheet
+  change of 2026-11-11 below moved 34 library files from refused to opened.) Refused by calc-doc: 11 malformed zips (central directory, local header or data descriptor
   mismatches), 4 with backslash entry names, 1 ZIP64, 9 `.xlsb` (two with chart sheets, three with
   pivot tables, four truncated records), plus the 795 `.xls`. Refused by the host route after
   opening: 34 chart or dialog sheets (`UnsupportedSheet`), 14 malformed cells, 9 workbook, 7 invalid
   parts and 23 others (bad indices, addresses, types).
 * **Enron:** 15,871 `.xlsx` (the archive holds converted files; all say Microsoft Excel 15) and 58
-  OLE2. Opened by the host route: 14,858 (93.6%) of 15,871. Refused: 505 chart or dialog sheets
-  (502 files have chart sheets, 75 have dialog sheets), 393 invalid parts, 108 duplicate sheet keys, 7
-  malformed cells. 9,220 files have formulas, 20,746,884 formula cells in all, 13,584,088 of them
+  OLE2. Opened by the host route: 14,858 (93.6%) of 15,871 in the first run; 15,356 (96.8%) after the
+  chart-sheet change (bead dc-hc85, rerun the same day with the same files). First run, refused: 505
+  chart or dialog sheets (502 files have chart sheets, 75 have dialog sheets), 393 invalid parts, 108
+  duplicate sheet keys, 7 malformed cells. After: 400 invalid parts (every one "a sheet's r:id names no
+  relationship of the workbook part"; seven files were behind a chart sheet), 108 duplicate sheet keys,
+  7 malformed cells (a formula inside an array formula's area), and the 58 OLE2 files. 9,220 files have formulas, 20,746,884 formula cells in all, 13,584,088 of them
   shared-formula members; every one of those has a cached value.
 
 ## Common structures
@@ -116,8 +120,13 @@ in the library sets. Libraries: SUM 98, IF 41, SUBTOTAL 41, VLOOKUP 21, TEXT 18,
 1. **`.xls` (BIFF).** 4,608 EUSES, 795 library, 58 Enron files; no reader. This is the largest
    blocker for the public corpora, and the Excel conversion step (open, SaveAs `.xlsx`) is needed
    for them.
-2. **Chart sheets and dialog sheets refuse the whole workbook** (`UnsupportedSheet`): 505 Enron files
-   (3.2%), 34 library files. Macro sheets load with their cells held as not loaded.
+2. **Chart sheets and dialog sheets** (done, bead dc-hc85). A workbook with one opens: the sheet is an
+   empty sheet of the model (positions, names, `SHEETS()` and sheet-scoped names count it), its part and
+   the drawings and charts below it are kept as they were read, an untouched save and a save that edits
+   other sheets leave them byte for byte, and a save that would edit, remove or move rows under one is
+   refused (`SaveRefusal::PreservedSheetChanged`), as a macro sheet's change is. 505 Enron files and 34
+   library files that this refused now open. Their charts are not read. Macro sheets load with their
+   cells held as not loaded.
 3. **Package faults that Excel tolerates:** 108 Enron files with a duplicate `sheetId`, 393 with an
    invalid part, 15 library zips with archive inconsistencies or backslash entry names, 1 ZIP64. The
    reader refuses all of them; Excel opens most.
@@ -137,11 +146,28 @@ in the library sets. Libraries: SUM 98, IF 41, SUBTOTAL 41, VLOOKUP 21, TEXT 18,
 * It describes files and the reader's outcome on them. No cell here has an Excel capture, so the
   "formula cells with a cached value" counts (Enron 20.7 M) are saved-cache facts; they are never
   passes. Captured and uncaptured cells have to be reported as separate populations.
-* Function use is keyed by function name only. Touchstone's argument-shape tokens (`n s S b B e z
-  aRxC`, literal versus cell reference) are not yet extracted; that is the next step for selecting
-  capture batches (follow-up in dc-ztvv).
+* Function use is also keyed by argument shape (below); the type a referenced cell holds is not.
 * The classifier is its own pass over the package for the file facts, because layer P must work on
   files the reader refuses; the reader outcome comes from the host route's one open. Folding the
   file facts into the capture census (`compare_inventory.rs`) is possible once the census can run on
   a file the reader refuses.
 * The formula-feature scan is lexical (strings and quoted names skipped), not a parse.
+
+## Argument shapes (bead dc-hc85)
+
+`files.jsonl` has `function_shapes` per file: `NAME(tokens)` keys with call counts (shared-formula members
+expanded), at most 400 distinct keys per file and the rest under `(other)`. The summary lists the distinct
+(function, shape) pairs and the top 40. One token per argument, read from the formula text
+(`tools/xtask-harness/src/formula_shapes.rs`): Touchstone's `n` number, `S` text literal, `B` boolean
+literal, `e` error literal, `z` omitted, `aRxC` array constant; and for what a literal cannot be,
+`r` one cell reference, `R` range, whole row or column or 3-D reference, `N` a name, `T` a structured
+reference, `f` a function call's result, `x` any other expression. Touchstone's `s` and `b` (text and
+boolean read through a cell) are `r`/`R` here, because the text does not say what the cell holds. A
+trailing `!` marks functions whose answer depends on the formula's position or on the reference itself
+(ROW, COLUMN, ROWS, COLUMNS, CELL, OFFSET, INDIRECT, ADDRESS, AREAS, FORMULATEXT, ISFORMULA, ISREF,
+SHEET, SHEETS, SUBTOTAL, AGGREGATE, INFO, GETPIVOTDATA, HYPERLINK, INDEX, RTD); a capture of one runs on
+the file route, never the call route. The census (`compare_inventory.rs`) is not where this fits: it
+needs a file the reader opens and records no function; the classifier already scans every formula text,
+including in files the reader refuses, so the shapes come from that one pass.
+
+Enron: 1,199 distinct pairs (78 sensitive). The repository's own fixtures: 3,112 pairs. The first capture selection from these is `docs/plan/capture-batch-1.md`.
