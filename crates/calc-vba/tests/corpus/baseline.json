@@ -15,6 +15,22 @@
     "refused": 26,
     "route": "module/jit"
   },
+  "dna-examples/project/interpreter": {
+    "loaded": false,
+    "matched": 0,
+    "mismatched": 0,
+    "missing": 0,
+    "refused": 26,
+    "route": "project/interpreter"
+  },
+  "dna-examples/project/jit": {
+    "loaded": false,
+    "matched": 0,
+    "mismatched": 0,
+    "missing": 0,
+    "refused": 26,
+    "route": "project/jit"
+  },
   "dna-examples/xlsm": {
     "loaded": false,
     "matched": 0,
@@ -24,19 +40,19 @@
     "route": "xlsm"
   },
   "dna-simple/module/interpreter": {
-    "loaded": false,
-    "matched": 0,
-    "mismatched": 0,
+    "loaded": true,
+    "matched": 108,
+    "mismatched": 1,
     "missing": 0,
-    "refused": 109,
+    "refused": 0,
     "route": "module/interpreter"
   },
   "dna-simple/module/jit": {
-    "loaded": false,
-    "matched": 0,
-    "mismatched": 0,
+    "loaded": true,
+    "matched": 108,
+    "mismatched": 1,
     "missing": 0,
-    "refused": 109,
+    "refused": 0,
     "route": "module/jit"
   },
   "dna-simple/xlsm": {
@@ -65,16 +81,16 @@
   },
   "oxvba-error-handling/module/interpreter": {
     "loaded": true,
-    "matched": 24,
-    "mismatched": 9,
+    "matched": 32,
+    "mismatched": 1,
     "missing": 0,
     "refused": 0,
     "route": "module/interpreter"
   },
   "oxvba-error-handling/module/jit": {
     "loaded": true,
-    "matched": 24,
-    "mismatched": 9,
+    "matched": 32,
+    "mismatched": 1,
     "missing": 0,
     "refused": 0,
     "route": "module/jit"
@@ -111,6 +127,22 @@
     "refused": 15,
     "route": "module/jit"
   },
+  "vba-dictionary/project/interpreter": {
+    "loaded": false,
+    "matched": 0,
+    "mismatched": 0,
+    "missing": 0,
+    "refused": 15,
+    "route": "project/interpreter"
+  },
+  "vba-dictionary/project/jit": {
+    "loaded": false,
+    "matched": 0,
+    "mismatched": 0,
+    "missing": 0,
+    "refused": 15,
+    "route": "project/jit"
+  },
   "vba-json/module/interpreter": {
     "loaded": false,
     "matched": 0,
@@ -127,10 +159,26 @@
     "refused": 21,
     "route": "module/jit"
   },
+  "vba-json/project/interpreter": {
+    "loaded": false,
+    "matched": 0,
+    "mismatched": 0,
+    "missing": 0,
+    "refused": 21,
+    "route": "project/interpreter"
+  },
+  "vba-json/project/jit": {
+    "loaded": false,
+    "matched": 0,
+    "mismatched": 0,
+    "missing": 0,
+    "refused": 21,
+    "route": "project/jit"
+  },
   "vba-web-excerpt/module/interpreter": {
     "loaded": true,
-    "matched": 27,
-    "mismatched": 18,
+    "matched": 45,
+    "mismatched": 0,
     "missing": 0,
     "refused": 0,
     "route": "module/interpreter"
@@ -158,6 +206,22 @@
     "missing": 0,
     "refused": 45,
     "route": "module/jit"
+  },
+  "vba-web/project/interpreter": {
+    "loaded": false,
+    "matched": 0,
+    "mismatched": 0,
+    "missing": 0,
+    "refused": 45,
+    "route": "project/interpreter"
+  },
+  "vba-web/project/jit": {
+    "loaded": false,
+    "matched": 0,
+    "mismatched": 0,
+    "missing": 0,
+    "refused": 45,
+    "route": "project/jit"
   },
   "wasabi/module/interpreter": {
     "loaded": false,

@@ -1284,6 +1284,28 @@ impl ComHal for SpreadsheetHost {
     }
 }
 
+/// XlCVError, the values `CVErr` takes in a worksheet function (Excel's type library).
+pub(crate) const XL_CV_ERROR: [(&str, i64); 7] = [
+    ("xlErrNull", 2000),
+    ("xlErrDiv0", 2007),
+    ("xlErrValue", 2015),
+    ("xlErrRef", 2023),
+    ("xlErrName", 2029),
+    ("xlErrNum", 2036),
+    ("xlErrNA", 2042),
+];
+
+fn xl_cv_error_constants() -> Vec<oxvba_com::TypeLibConstantMetadata> {
+    XL_CV_ERROR
+        .into_iter()
+        .map(|(name, value)| oxvba_com::TypeLibConstantMetadata {
+            owner: "Excel".into(),
+            name: name.into(),
+            value: oxvba_com::ComDefaultValue::Int(value),
+        })
+        .collect()
+}
+
 pub(crate) struct SpreadsheetTypes;
 impl oxvba_symbol::TypeLibResolver for SpreadsheetTypes {
     fn interface_iid(
@@ -1537,7 +1559,13 @@ impl oxvba_symbol::TypeLibResolver for SpreadsheetTypes {
             .collect();
         }
         Some(TypeLibMetadataBlob {
-            constants: Vec::new(),
+            // The module route has no document, but a worksheet function still returns
+            // `CVErr(xlErrDiv0)`: the Excel library supplies XlCVError, as in a file project.
+            constants: if application {
+                Vec::new()
+            } else {
+                xl_cv_error_constants()
+            },
             identity: TypeLibResolvedIdentity {
                 reference_name: request.reference_name.clone(),
                 requested_coclass: Some(class.into()),

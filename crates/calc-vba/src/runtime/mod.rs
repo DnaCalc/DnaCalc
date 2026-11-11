@@ -179,7 +179,7 @@ impl Module {
             .map(|m| m.module_name.to_ascii_lowercase())
             .collect();
         let mut manifest = sym::SymbolProjectManifest {
-            project_name: "UdfProject".into(),
+            project_name: "VBAProject".into(),
             project_kind: sym::ProjectKind::Library,
             modules,
             references: if spreadsheet_objects {
@@ -728,7 +728,7 @@ fn argument_error(error: oxvba_eval::arith::ArithError) -> Error {
     Error::Runtime {
         number: error.code,
         description: error.message,
-        vba_source: "UdfProject".into(),
+        vba_source: "VBAProject".into(),
     }
 }
 

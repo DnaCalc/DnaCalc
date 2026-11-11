@@ -148,3 +148,44 @@ Refusals and mismatches by reason (each reproduced with a minimal snippet):
 | Awesome VBA (index) | https://github.com/sancarn/awesome-vba | index | source of more candidates |
 | local, unseeded | OxVba `.external\chibipdf` (56 KB, MIT), `.external\sqliteforexcel` (3 MB, owner's fork) | MIT | Declare-heavy; compile-only |
 | own, unconverted | OxVba conformance (192 manifest rows, 534 files) and `excel-measurements` (library tranche 177 KB .vba, numeric-mode matrix 920 KB) | MIT | tier L with Excel answers needing conversion or capture |
+
+## 7. Round 2 (2026-11-11): one answer format, DNA Calc's file route, defects fixed
+
+**One format.** `crates/calc-vba/tests/corpus/inbook/` holds one `.xlsm` per project (modules imported by
+`vba-job.ps1 -Action inbook`; formula i in row 1, column 1+8*(i-1)), Excel 16.0.20527.20150's typed answers for
+it as `dnacalc-capture-record` v2 (`<id>.capture.json`, taken by the ordinary capture worker in the owned session
+on the private desktop, guards clean), `<id>.types.json` (declared VBA return type beside the cell type: SimpleDate
+is Date, SimpleMoney Currency; Excel stores both as a plain number, so the cell shows no type), and
+`trusted-code.json`, the `dnacalc-trusted-evidence-code` manifest (7 workbooks, 272 formula cells). No outside
+workbook was opened. Run it:
+`cargo xtask corpus crates/calc-vba/tests/corpus/inbook --import <each capture> --no-capture --trusted-code
+crates/calc-vba/tests/corpus/inbook/trusted-code.json --cache <tmp> --out <dir>`. The default route (no manifest)
+gives the same counts, because the captures record macros enabled. Not converted: the `excel-recalculation` sequence
+fixture (tier S) and the 192 language rows.
+
+**Results** (matched / all cases; fail = mismatched + refused + missing):
+
+| Route | Backend | Before (pin 18d06139) | After (pin c1b30e3c, DNA Calc fixes) |
+|---|---|---|---|
+| OneCalc module route (one module) | interpreter | 74 / 317 | 208 / 317 |
+| OneCalc module route | JIT | 47 / 317 | 163 / 317 |
+| OneCalc source-project route (`events::load_project`, 3 multi-module projects, 107 cases) | both | not run | 0 / 107 (each: see refusals) |
+| OneCalc file route (.xlsm) | engine's choice | 109 / 135 | 109 / 135 |
+| DNA Calc file route, `--trusted-code` (272 cells) | engine's choice | 157 / 272 | 175 / 272 |
+
+DNA Calc file route per workbook after: dna-simple 109/109, controlflow 23/23, error-handling 33/33 (was 25),
+vba-json 10/21, dna-examples 0/26, vba-web 0/45, vba-dictionary 0/15.
+
+Refusals, by reason: (1) `New Scripting.Dictionary` and the Scripting reference cannot be resolved off Windows
+(dna-examples, 26); (2) `WithEvents` on `WinHttpRequest`, an unresolved COM type (vba-web, 45); (3) `VBA.Join` and
+`VBA.CDate` called through the library name: "unlinked typed source project VBA" (project route of vba-dictionary,
+vba-json); the file route compiles them and refuses 15 / 11 cells at run time; (4) the JIT declines `UrlEncode`
+(`CallExtern` InStr/Join family) and native `Declare` (riff); (5) Wasabi.bas does not parse (`Array( _` hex-byte
+lists and `#If Win64` blocks); (6) module route: a Private function called from a cell is `#NAME?` (SimpleHidden;
+the file route has the private-name lookup).
+
+Fixed: CalcVBA `b2c7543a` single-line `For ...: ...: Next i` (and Do/Loop/While/Wend); `Optional m As Enum = default`
+no longer error 91; `41f71db2` `Attribute` statements inside a procedure body (VBE exports); `c1b30e3c` enum members
+initialised with `VBA.vbXxx`; tests in `calcvba-differential/tests/validation_round2.rs`, both executors. DnaCalc:
+the module route has the `xlErr*` constants; `Err.Source` is `VBAProject`; the corpus runner has the source-project
+route; the pin is `c1b30e3c` (this includes ac4a5d43, dc-kapl.1).

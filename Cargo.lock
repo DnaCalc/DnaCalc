@@ -427,7 +427,7 @@ dependencies = [
 [[package]]
 name = "calcvba-bind"
 version = "0.1.2"
-source = "git+https://github.com/DnaCalc/CalcVBA.git?rev=18d061393d2376eb3e5c1b89c7012d8188318203#18d061393d2376eb3e5c1b89c7012d8188318203"
+source = "git+https://github.com/DnaCalc/CalcVBA.git?rev=c1b30e3c03ed197ba2ca4da7e59f67cd0b1d14ef#c1b30e3c03ed197ba2ca4da7e59f67cd0b1d14ef"
 dependencies = [
  "calcvba-bundle",
  "calcvba-com",
@@ -441,7 +441,7 @@ dependencies = [
 [[package]]
 name = "calcvba-bundle"
 version = "0.1.2"
-source = "git+https://github.com/DnaCalc/CalcVBA.git?rev=18d061393d2376eb3e5c1b89c7012d8188318203#18d061393d2376eb3e5c1b89c7012d8188318203"
+source = "git+https://github.com/DnaCalc/CalcVBA.git?rev=c1b30e3c03ed197ba2ca4da7e59f67cd0b1d14ef#c1b30e3c03ed197ba2ca4da7e59f67cd0b1d14ef"
 dependencies = [
  "calcvba-com",
  "calcvba-runtime",
@@ -451,7 +451,7 @@ dependencies = [
 [[package]]
 name = "calcvba-com"
 version = "0.1.2"
-source = "git+https://github.com/DnaCalc/CalcVBA.git?rev=18d061393d2376eb3e5c1b89c7012d8188318203#18d061393d2376eb3e5c1b89c7012d8188318203"
+source = "git+https://github.com/DnaCalc/CalcVBA.git?rev=c1b30e3c03ed197ba2ca4da7e59f67cd0b1d14ef#c1b30e3c03ed197ba2ca4da7e59f67cd0b1d14ef"
 dependencies = [
  "calcvba-diagnostics",
  "calcvba-host-api",
@@ -466,7 +466,7 @@ dependencies = [
 [[package]]
 name = "calcvba-diagnostics"
 version = "0.1.2"
-source = "git+https://github.com/DnaCalc/CalcVBA.git?rev=18d061393d2376eb3e5c1b89c7012d8188318203#18d061393d2376eb3e5c1b89c7012d8188318203"
+source = "git+https://github.com/DnaCalc/CalcVBA.git?rev=c1b30e3c03ed197ba2ca4da7e59f67cd0b1d14ef#c1b30e3c03ed197ba2ca4da7e59f67cd0b1d14ef"
 dependencies = [
  "serde",
  "serde_json",
@@ -475,7 +475,7 @@ dependencies = [
 [[package]]
 name = "calcvba-eval"
 version = "0.1.2"
-source = "git+https://github.com/DnaCalc/CalcVBA.git?rev=18d061393d2376eb3e5c1b89c7012d8188318203#18d061393d2376eb3e5c1b89c7012d8188318203"
+source = "git+https://github.com/DnaCalc/CalcVBA.git?rev=c1b30e3c03ed197ba2ca4da7e59f67cd0b1d14ef#c1b30e3c03ed197ba2ca4da7e59f67cd0b1d14ef"
 dependencies = [
  "calcvba-bundle",
  "calcvba-runtime",
@@ -484,7 +484,7 @@ dependencies = [
 [[package]]
 name = "calcvba-hal"
 version = "0.1.2"
-source = "git+https://github.com/DnaCalc/CalcVBA.git?rev=18d061393d2376eb3e5c1b89c7012d8188318203#18d061393d2376eb3e5c1b89c7012d8188318203"
+source = "git+https://github.com/DnaCalc/CalcVBA.git?rev=c1b30e3c03ed197ba2ca4da7e59f67cd0b1d14ef#c1b30e3c03ed197ba2ca4da7e59f67cd0b1d14ef"
 dependencies = [
  "calcvba-com",
  "calcvba-diagnostics",
@@ -498,7 +498,7 @@ dependencies = [
 [[package]]
 name = "calcvba-host"
 version = "0.1.2"
-source = "git+https://github.com/DnaCalc/CalcVBA.git?rev=18d061393d2376eb3e5c1b89c7012d8188318203#18d061393d2376eb3e5c1b89c7012d8188318203"
+source = "git+https://github.com/DnaCalc/CalcVBA.git?rev=c1b30e3c03ed197ba2ca4da7e59f67cd0b1d14ef#c1b30e3c03ed197ba2ca4da7e59f67cd0b1d14ef"
 dependencies = [
  "calcvba-bind",
  "calcvba-bundle",
@@ -521,7 +521,7 @@ dependencies = [
 [[package]]
 name = "calcvba-host-api"
 version = "0.1.2"
-source = "git+https://github.com/DnaCalc/CalcVBA.git?rev=18d061393d2376eb3e5c1b89c7012d8188318203#18d061393d2376eb3e5c1b89c7012d8188318203"
+source = "git+https://github.com/DnaCalc/CalcVBA.git?rev=c1b30e3c03ed197ba2ca4da7e59f67cd0b1d14ef#c1b30e3c03ed197ba2ca4da7e59f67cd0b1d14ef"
 dependencies = [
  "calcvba-runtime",
  "thiserror 2.0.21",
@@ -530,7 +530,7 @@ dependencies = [
 [[package]]
 name = "calcvba-jit"
 version = "0.1.2"
-source = "git+https://github.com/DnaCalc/CalcVBA.git?rev=18d061393d2376eb3e5c1b89c7012d8188318203#18d061393d2376eb3e5c1b89c7012d8188318203"
+source = "git+https://github.com/DnaCalc/CalcVBA.git?rev=c1b30e3c03ed197ba2ca4da7e59f67cd0b1d14ef#c1b30e3c03ed197ba2ca4da7e59f67cd0b1d14ef"
 dependencies = [
  "calcvba-bundle",
  "calcvba-com",
@@ -552,7 +552,7 @@ dependencies = [
 [[package]]
 name = "calcvba-lib"
 version = "0.1.2"
-source = "git+https://github.com/DnaCalc/CalcVBA.git?rev=18d061393d2376eb3e5c1b89c7012d8188318203#18d061393d2376eb3e5c1b89c7012d8188318203"
+source = "git+https://github.com/DnaCalc/CalcVBA.git?rev=c1b30e3c03ed197ba2ca4da7e59f67cd0b1d14ef#c1b30e3c03ed197ba2ca4da7e59f67cd0b1d14ef"
 dependencies = [
  "calcvba-bundle",
  "calcvba-com",
@@ -563,7 +563,7 @@ dependencies = [
 [[package]]
 name = "calcvba-office"
 version = "0.1.2"
-source = "git+https://github.com/DnaCalc/CalcVBA.git?rev=18d061393d2376eb3e5c1b89c7012d8188318203#18d061393d2376eb3e5c1b89c7012d8188318203"
+source = "git+https://github.com/DnaCalc/CalcVBA.git?rev=c1b30e3c03ed197ba2ca4da7e59f67cd0b1d14ef#c1b30e3c03ed197ba2ca4da7e59f67cd0b1d14ef"
 dependencies = [
  "calcvba-symbol",
  "cfb",
@@ -575,7 +575,7 @@ dependencies = [
 [[package]]
 name = "calcvba-oxir"
 version = "0.1.2"
-source = "git+https://github.com/DnaCalc/CalcVBA.git?rev=18d061393d2376eb3e5c1b89c7012d8188318203#18d061393d2376eb3e5c1b89c7012d8188318203"
+source = "git+https://github.com/DnaCalc/CalcVBA.git?rev=c1b30e3c03ed197ba2ca4da7e59f67cd0b1d14ef#c1b30e3c03ed197ba2ca4da7e59f67cd0b1d14ef"
 dependencies = [
  "calcvba-bundle",
  "calcvba-com",
@@ -586,7 +586,7 @@ dependencies = [
 [[package]]
 name = "calcvba-rt-abi"
 version = "0.1.2"
-source = "git+https://github.com/DnaCalc/CalcVBA.git?rev=18d061393d2376eb3e5c1b89c7012d8188318203#18d061393d2376eb3e5c1b89c7012d8188318203"
+source = "git+https://github.com/DnaCalc/CalcVBA.git?rev=c1b30e3c03ed197ba2ca4da7e59f67cd0b1d14ef#c1b30e3c03ed197ba2ca4da7e59f67cd0b1d14ef"
 dependencies = [
  "calcvba-bundle",
  "calcvba-com",
@@ -602,7 +602,7 @@ dependencies = [
 [[package]]
 name = "calcvba-runtime"
 version = "0.1.2"
-source = "git+https://github.com/DnaCalc/CalcVBA.git?rev=18d061393d2376eb3e5c1b89c7012d8188318203#18d061393d2376eb3e5c1b89c7012d8188318203"
+source = "git+https://github.com/DnaCalc/CalcVBA.git?rev=c1b30e3c03ed197ba2ca4da7e59f67cd0b1d14ef#c1b30e3c03ed197ba2ca4da7e59f67cd0b1d14ef"
 dependencies = [
  "rkyv",
  "serde",
@@ -613,7 +613,7 @@ dependencies = [
 [[package]]
 name = "calcvba-symbol"
 version = "0.1.2"
-source = "git+https://github.com/DnaCalc/CalcVBA.git?rev=18d061393d2376eb3e5c1b89c7012d8188318203#18d061393d2376eb3e5c1b89c7012d8188318203"
+source = "git+https://github.com/DnaCalc/CalcVBA.git?rev=c1b30e3c03ed197ba2ca4da7e59f67cd0b1d14ef#c1b30e3c03ed197ba2ca4da7e59f67cd0b1d14ef"
 dependencies = [
  "calcvba-bundle",
  "calcvba-com",
@@ -626,7 +626,7 @@ dependencies = [
 [[package]]
 name = "calcvba-syntax"
 version = "0.1.2"
-source = "git+https://github.com/DnaCalc/CalcVBA.git?rev=18d061393d2376eb3e5c1b89c7012d8188318203#18d061393d2376eb3e5c1b89c7012d8188318203"
+source = "git+https://github.com/DnaCalc/CalcVBA.git?rev=c1b30e3c03ed197ba2ca4da7e59f67cd0b1d14ef#c1b30e3c03ed197ba2ca4da7e59f67cd0b1d14ef"
 dependencies = [
  "calcvba-diagnostics",
  "thiserror 2.0.21",
@@ -635,7 +635,7 @@ dependencies = [
 [[package]]
 name = "calcvba-vm3"
 version = "0.1.2"
-source = "git+https://github.com/DnaCalc/CalcVBA.git?rev=18d061393d2376eb3e5c1b89c7012d8188318203#18d061393d2376eb3e5c1b89c7012d8188318203"
+source = "git+https://github.com/DnaCalc/CalcVBA.git?rev=c1b30e3c03ed197ba2ca4da7e59f67cd0b1d14ef#c1b30e3c03ed197ba2ca4da7e59f67cd0b1d14ef"
 dependencies = [
  "calcvba-bundle",
  "calcvba-com",

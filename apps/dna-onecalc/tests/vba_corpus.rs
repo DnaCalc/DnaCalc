@@ -67,11 +67,14 @@ fn first_line(text: &str) -> String {
 }
 
 /// How a project reaches the engine: OneCalc's "VBA functions" route (one standard module,
-/// `Session::load_vba_module`) on an explicit backend, or OneCalc's file route (an .xlsm of the
-/// corpus opened as a session, macros enabled; the engine picks the backend).
+/// `Session::load_vba_module`) on an explicit backend, the source-project route (every module of
+/// the project, classes included, `calc_vba::events::load_project`, for a project of several
+/// modules) or OneCalc's file route (an .xlsm of the corpus opened as a session, macros enabled;
+/// the engine picks the backend).
 #[derive(Clone, Copy, PartialEq)]
 enum Route {
     Module(Option<calc_vba::Backend>),
+    Project(calc_vba::Backend),
     Xlsm,
 }
 
@@ -80,6 +83,8 @@ fn route_name(route: Route) -> &'static str {
         Route::Module(Some(calc_vba::Backend::Interpreter)) => "module/interpreter",
         Route::Module(Some(calc_vba::Backend::Jit)) => "module/jit",
         Route::Module(None) => "module",
+        Route::Project(calc_vba::Backend::Interpreter) => "project/interpreter",
+        Route::Project(calc_vba::Backend::Jit) => "project/jit",
         Route::Xlsm => "xlsm",
     }
 }
@@ -112,6 +117,24 @@ fn run_project(dir: &Path, route: Route) -> Option<Outcome> {
                 .map(|functions| session.set_user_functions(functions)),
             }
             .map_err(|e| first_line(&e))
+        }
+        Route::Project(backend) => {
+            let modules: Vec<calc_vba::events::ProjectModule> = manifest["modules"]
+                .as_array()
+                .unwrap()
+                .iter()
+                .map(|m| calc_vba::events::ProjectModule {
+                    name: m["name"].as_str().unwrap().to_owned(),
+                    source: read_source(&dir.join(m["path"].as_str().unwrap())),
+                    kind: match m["kind"].as_str() {
+                        Some("class") => calc_vba::events::ModuleKind::Class,
+                        _ => calc_vba::events::ModuleKind::Standard,
+                    },
+                })
+                .collect();
+            calc_vba::events::load_project(&modules, calc_vba::DEFAULT_STEP_BUDGET, Some(backend))
+                .map(|project| session.set_user_functions(project.functions()))
+                .map_err(|e| first_line(&e))
         }
         Route::Xlsm => {
             let path = manifest["workbook"].as_str()?;
@@ -203,6 +226,10 @@ fn run_all() -> BTreeMap<String, Outcome> {
         let manifest: Value =
             serde_json::from_str(&std::fs::read_to_string(dir.join("project.json")).unwrap()).unwrap();
         let mut routes = vec![Route::Module(Some(calc_vba::Backend::Interpreter)), Route::Module(Some(calc_vba::Backend::Jit))];
+        if manifest["modules"].as_array().is_some_and(|m| m.len() > 1) {
+            routes.push(Route::Project(calc_vba::Backend::Interpreter));
+            routes.push(Route::Project(calc_vba::Backend::Jit));
+        }
         if manifest["workbook"].is_string() {
             routes.push(Route::Xlsm);
         }
