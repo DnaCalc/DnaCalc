@@ -641,8 +641,434 @@
   ],
   "server_bindings": [],
   "native_invocations_excel_and_host": [
-    [],
-    []
+    [
+      {
+        "arguments": [
+          {
+            "code": "Q",
+            "value": {
+              "type": 2,
+              "value": "DnaCalc.X5.46060"
+            }
+          },
+          {
+            "code": "Q",
+            "value": {
+              "type": 128,
+              "value": null
+            }
+          },
+          {
+            "code": "Q",
+            "value": {
+              "type": 1,
+              "value": 1
+            }
+          }
+        ],
+        "result": {
+          "type": 1,
+          "value": 1
+        },
+        "callbacks": [
+          [
+            379,
+            [
+              {
+                "type": 2,
+                "value": "DnaCalc.X5.46060"
+              },
+              {
+                "type": 128,
+                "value": null
+              },
+              {
+                "type": 1,
+                "value": 1
+              }
+            ],
+            0,
+            {
+              "type": 1,
+              "value": 1
+            }
+          ]
+        ]
+      },
+      {
+        "arguments": [
+          {
+            "code": "Q",
+            "value": {
+              "type": 2,
+              "value": "DnaCalc.X5.46060"
+            }
+          },
+          {
+            "code": "Q",
+            "value": {
+              "type": 128,
+              "value": null
+            }
+          },
+          {
+            "code": "Q",
+            "value": {
+              "type": 2,
+              "value": "1"
+            }
+          }
+        ],
+        "result": {
+          "type": 1,
+          "value": 1
+        },
+        "callbacks": [
+          [
+            379,
+            [
+              {
+                "type": 2,
+                "value": "DnaCalc.X5.46060"
+              },
+              {
+                "type": 128,
+                "value": null
+              },
+              {
+                "type": 2,
+                "value": "1"
+              }
+            ],
+            0,
+            {
+              "type": 1,
+              "value": 1
+            }
+          ]
+        ]
+      },
+      {
+        "arguments": [
+          {
+            "code": "Q",
+            "value": {
+              "type": 2,
+              "value": "DnaCalc.X5.46060"
+            }
+          },
+          {
+            "code": "Q",
+            "value": {
+              "type": 128,
+              "value": null
+            }
+          },
+          {
+            "code": "Q",
+            "value": {
+              "type": 1,
+              "value": 1
+            }
+          }
+        ],
+        "result": {
+          "type": 1,
+          "value": 42
+        },
+        "callbacks": [
+          [
+            379,
+            [
+              {
+                "type": 2,
+                "value": "DnaCalc.X5.46060"
+              },
+              {
+                "type": 128,
+                "value": null
+              },
+              {
+                "type": 1,
+                "value": 1
+              }
+            ],
+            0,
+            {
+              "type": 1,
+              "value": 42
+            }
+          ]
+        ]
+      },
+      {
+        "arguments": [
+          {
+            "code": "Q",
+            "value": {
+              "type": 2,
+              "value": "DnaCalc.X5.46060"
+            }
+          },
+          {
+            "code": "Q",
+            "value": {
+              "type": 128,
+              "value": null
+            }
+          },
+          {
+            "code": "Q",
+            "value": {
+              "type": 2,
+              "value": "1"
+            }
+          }
+        ],
+        "result": {
+          "type": 1,
+          "value": 42
+        },
+        "callbacks": [
+          [
+            379,
+            [
+              {
+                "type": 2,
+                "value": "DnaCalc.X5.46060"
+              },
+              {
+                "type": 128,
+                "value": null
+              },
+              {
+                "type": 2,
+                "value": "1"
+              }
+            ],
+            0,
+            {
+              "type": 1,
+              "value": 42
+            }
+          ]
+        ]
+      }
+    ],
+    [
+      {
+        "arguments": [
+          {
+            "code": "Q",
+            "value": {
+              "type": 2,
+              "value": "DnaCalc.X5.15120"
+            }
+          },
+          {
+            "code": "Q",
+            "value": {
+              "type": 128,
+              "value": null
+            }
+          },
+          {
+            "code": "Q",
+            "value": {
+              "type": 1,
+              "value": 1
+            }
+          }
+        ],
+        "result": {
+          "type": 1,
+          "value": 1
+        },
+        "callbacks": [
+          [
+            379,
+            [
+              {
+                "type": 2,
+                "value": "DnaCalc.X5.15120"
+              },
+              {
+                "type": 128,
+                "value": null
+              },
+              {
+                "type": 1,
+                "value": 1
+              }
+            ],
+            0,
+            {
+              "type": 1,
+              "value": 1
+            }
+          ]
+        ]
+      },
+      {
+        "arguments": [
+          {
+            "code": "Q",
+            "value": {
+              "type": 2,
+              "value": "DnaCalc.X5.15120"
+            }
+          },
+          {
+            "code": "Q",
+            "value": {
+              "type": 128,
+              "value": null
+            }
+          },
+          {
+            "code": "Q",
+            "value": {
+              "type": 2,
+              "value": "1"
+            }
+          }
+        ],
+        "result": {
+          "type": 1,
+          "value": 1
+        },
+        "callbacks": [
+          [
+            379,
+            [
+              {
+                "type": 2,
+                "value": "DnaCalc.X5.15120"
+              },
+              {
+                "type": 128,
+                "value": null
+              },
+              {
+                "type": 2,
+                "value": "1"
+              }
+            ],
+            0,
+            {
+              "type": 1,
+              "value": 1
+            }
+          ]
+        ]
+      },
+      {
+        "arguments": [
+          {
+            "code": "Q",
+            "value": {
+              "type": 2,
+              "value": "DnaCalc.X5.15120"
+            }
+          },
+          {
+            "code": "Q",
+            "value": {
+              "type": 128,
+              "value": null
+            }
+          },
+          {
+            "code": "Q",
+            "value": {
+              "type": 1,
+              "value": 1
+            }
+          }
+        ],
+        "result": {
+          "type": 1,
+          "value": 42
+        },
+        "callbacks": [
+          [
+            379,
+            [
+              {
+                "type": 2,
+                "value": "DnaCalc.X5.15120"
+              },
+              {
+                "type": 128,
+                "value": null
+              },
+              {
+                "type": 1,
+                "value": 1
+              }
+            ],
+            0,
+            {
+              "type": 1,
+              "value": 42
+            }
+          ]
+        ]
+      },
+      {
+        "arguments": [
+          {
+            "code": "Q",
+            "value": {
+              "type": 2,
+              "value": "DnaCalc.X5.15120"
+            }
+          },
+          {
+            "code": "Q",
+            "value": {
+              "type": 128,
+              "value": null
+            }
+          },
+          {
+            "code": "Q",
+            "value": {
+              "type": 2,
+              "value": "1"
+            }
+          }
+        ],
+        "result": {
+          "type": 1,
+          "value": 42
+        },
+        "callbacks": [
+          [
+            379,
+            [
+              {
+                "type": 2,
+                "value": "DnaCalc.X5.15120"
+              },
+              {
+                "type": 128,
+                "value": null
+              },
+              {
+                "type": 2,
+                "value": "1"
+              }
+            ],
+            0,
+            {
+              "type": 1,
+              "value": 42
+            }
+          ]
+        ]
+      }
+    ]
   ],
   "native_ownership_excel_and_host": [],
   "internal_server_body_observations": [
@@ -650,34 +1076,34 @@
       {
         "entry": {
           "seq": 163,
-          "qpc": 21539715813617,
+          "qpc": 21596949878027,
           "event": "enter",
-          "call": 72,
-          "thread": 50860,
+          "call": 113,
+          "thread": 35092,
           "entry": "COM!early.rtdserver.RefreshData",
           "from": {
             "module": "X5Native64.xll",
             "rva": 13800
           },
-          "object": "0x2f1770be140",
+          "object": "0x1d474118de0",
           "object_label": "RTD server",
           "result_abi": "rtdrefresh",
-          "stack": "0xffa910e8e8",
-          "return": "0x7ff9fc1f35e8",
-          "entry_address": "0x7ff9fc1f3880",
+          "stack": "0x13bb70e708",
+          "return": "0x7ff9fcb735e8",
+          "entry_address": "0x7ff9fcb73880",
           "non_this_arguments": [
-            "0xffa910eb50",
-            "0xffa910eba8"
+            "0x13bb70e970",
+            "0x13bb70e9c8"
           ]
         },
         "returned": {
           "seq": 164,
-          "qpc": 21539715828553,
+          "qpc": 21596949897605,
           "event": "leave",
-          "call": 72,
-          "thread": 50860,
+          "call": 113,
+          "thread": 35092,
           "entry": "COM!early.rtdserver.RefreshData",
-          "elapsed_qpc": 15039,
+          "elapsed_qpc": 19550,
           "rax": "0x0",
           "hresult": 0,
           "count": 1,
@@ -710,125 +1136,125 @@
       },
       {
         "entry": {
-          "seq": 190,
-          "qpc": 21539726866444,
+          "seq": 194,
+          "qpc": 21596969956161,
           "event": "enter",
-          "call": 86,
-          "thread": 50860,
+          "call": 138,
+          "thread": 35092,
           "entry": "COM!early.rtdserver.DisconnectData",
           "from": {
             "module": "X5Native64.xll",
             "rva": 13842
           },
-          "object": "0x2f1770be140",
+          "object": "0x1d474118de0",
           "object_label": "RTD server",
           "result_abi": "rtddisconnect",
-          "stack": "0xffa910e338",
-          "return": "0x7ff9fc1f3612",
-          "entry_address": "0x7ff9fc1f2b70",
+          "stack": "0x13bb70e2b8",
+          "return": "0x7ff9fcb73612",
+          "entry_address": "0x7ff9fcb72b70",
           "non_this_arguments": [
             "0x1"
           ],
           "topic": 1
         },
         "returned": {
-          "seq": 191,
-          "qpc": 21539726881838,
+          "seq": 195,
+          "qpc": 21596969977265,
           "event": "leave",
-          "call": 86,
-          "thread": 50860,
+          "call": 138,
+          "thread": 35092,
           "entry": "COM!early.rtdserver.DisconnectData",
-          "elapsed_qpc": 15919,
+          "elapsed_qpc": 21726,
           "rax": "0x0",
           "hresult": 0
         }
       },
       {
         "entry": {
-          "seq": 196,
-          "qpc": 21539726947581,
+          "seq": 200,
+          "qpc": 21596970059959,
           "event": "enter",
-          "call": 89,
-          "thread": 50860,
+          "call": 141,
+          "thread": 35092,
           "entry": "COM!early.rtdserver.ServerTerminate",
           "from": {
             "module": "X5Native64.xll",
             "rva": 14093
           },
-          "object": "0x2f1770be140",
+          "object": "0x1d474118de0",
           "object_label": "RTD server",
           "result_abi": "rtdterminate",
-          "stack": "0xffa910df08",
-          "return": "0x7ff9fc1f370d",
-          "entry_address": "0x7ff9fc1f3cd0",
+          "stack": "0x13bb70de88",
+          "return": "0x7ff9fcb7370d",
+          "entry_address": "0x7ff9fcb73cd0",
           "non_this_arguments": []
         },
         "returned": {
-          "seq": 199,
-          "qpc": 21539726986160,
+          "seq": 203,
+          "qpc": 21596970128027,
           "event": "leave",
-          "call": 89,
-          "thread": 50860,
+          "call": 141,
+          "thread": 35092,
           "entry": "COM!early.rtdserver.ServerTerminate",
-          "elapsed_qpc": 39028,
+          "elapsed_qpc": 68678,
           "rax": "0x0",
           "hresult": 0
         }
       },
       {
         "entry": {
-          "seq": 202,
-          "qpc": 21539727020175,
+          "seq": 206,
+          "qpc": 21596970172903,
           "event": "enter",
-          "call": 92,
-          "thread": 50860,
+          "call": 145,
+          "thread": 35092,
           "entry": "COM!early.rtdserver.ServerTerminate",
           "from": {
             "module": "X5Native64.xll",
             "rva": 15099
           },
-          "object": "0x2f1770be140",
+          "object": "0x1d474118de0",
           "object_label": "RTD server",
           "result_abi": "rtdterminate",
-          "stack": "0xffa910e198",
-          "return": "0x7ff9fc1f3afb",
-          "entry_address": "0x7ff9fc1f3cd0",
+          "stack": "0x13bb70e118",
+          "return": "0x7ff9fcb73afb",
+          "entry_address": "0x7ff9fcb73cd0",
           "non_this_arguments": []
         },
         "returned": {
-          "seq": 203,
-          "qpc": 21539727030725,
+          "seq": 207,
+          "qpc": 21596970186254,
           "event": "leave",
-          "call": 92,
-          "thread": 50860,
+          "call": 145,
+          "thread": 35092,
           "entry": "COM!early.rtdserver.ServerTerminate",
-          "elapsed_qpc": 10992,
+          "elapsed_qpc": 13883,
           "rax": "0x0",
           "hresult": 0
         },
         "reason": "final Release destructor",
         "release": {
-          "seq": 201,
-          "qpc": 21539727009087,
+          "seq": 205,
+          "qpc": 21596970156650,
           "event": "enter",
-          "call": 91,
-          "thread": 50860,
+          "call": 144,
+          "thread": 35092,
           "entry": "COM!Release",
           "from": {
             "module": "EXCEL.EXE",
             "rva": 36651345
           },
-          "object": "0x2f1770be140",
+          "object": "0x1d474118de0",
           "object_label": "RTD server"
         },
         "release_returned": {
-          "seq": 204,
-          "qpc": 21539727039187,
+          "seq": 208,
+          "qpc": 21596970199525,
           "event": "leave",
-          "call": 91,
-          "thread": 50860,
+          "call": 144,
+          "thread": 35092,
           "entry": "COM!Release",
-          "elapsed_qpc": 30456,
+          "elapsed_qpc": 43505,
           "rax": "0x0",
           "references": 0
         }
@@ -838,57 +1264,57 @@
       {
         "entry": {
           "seq": 106,
-          "qpc": 21560618373738,
+          "qpc": 21597329161851,
           "event": "enter",
           "call": 45,
-          "thread": 65212,
+          "thread": 7616,
           "entry": "COM!early.rtdserver.ServerTerminate",
           "from": {
             "module": "X5Native64.xll",
             "rva": 15099
           },
-          "object": "0x1be51835d00",
+          "object": "0x1d01c75d870",
           "object_label": "RTD server",
           "result_abi": "rtdterminate",
-          "stack": "0xa8e24dedb8",
-          "return": "0x7ffa31133afb",
-          "entry_address": "0x7ffa31133cd0",
+          "stack": "0x72c5cdf2a8",
+          "return": "0x7ffa07f13afb",
+          "entry_address": "0x7ffa07f13cd0",
           "non_this_arguments": []
         },
         "returned": {
           "seq": 107,
-          "qpc": 21560618378630,
+          "qpc": 21597329166701,
           "event": "leave",
           "call": 45,
-          "thread": 65212,
+          "thread": 7616,
           "entry": "COM!early.rtdserver.ServerTerminate",
-          "elapsed_qpc": 5247,
+          "elapsed_qpc": 5255,
           "rax": "0x0",
           "hresult": 0
         },
         "reason": "final Release destructor",
         "release": {
           "seq": 105,
-          "qpc": 21560618367625,
+          "qpc": 21597329155170,
           "event": "enter",
           "call": 44,
-          "thread": 65212,
+          "thread": 7616,
           "entry": "COM!Release",
           "from": {
             "module": "dna-calc-desktop.exe",
             "rva": 40754757
           },
-          "object": "0x1be51835d00",
+          "object": "0x1d01c75d870",
           "object_label": "RTD server"
         },
         "release_returned": {
           "seq": 108,
-          "qpc": 21560618385112,
+          "qpc": 21597329170302,
           "event": "leave",
           "call": 44,
-          "thread": 65212,
+          "thread": 7616,
           "entry": "COM!Release",
-          "elapsed_qpc": 17766,
+          "elapsed_qpc": 15963,
           "rax": "0x0",
           "references": 0
         }
@@ -898,7 +1324,7 @@
   "notification_threads": [
     [
       {
-        "thread": 50860,
+        "thread": 35092,
         "from": {
           "module": "rpcrt4.dll",
           "rva": 863555
@@ -908,7 +1334,7 @@
     ],
     [
       {
-        "thread": 60852,
+        "thread": 44268,
         "from": {
           "module": "X5Native64.xll",
           "rva": 6516
@@ -953,10 +1379,10 @@
               {
                 "lease": 1,
                 "sequence": 2,
-                "topic": "TopicKey { progid: \"dnacalc.x5.3280\", server: \"\", strings: [\"1\"] }"
+                "topic": "TopicKey { progid: \"dnacalc.x5.15120\", server: \"\", strings: [\"1\"] }"
               }
             ],
-            "stamp": "ResultStamp { destination: Live, target: EvaluationTarget { workbook: WorkbookInstanceId { document: 1, incarnation: 1 }, origin_revision: AuthoredRevision(4), formula_generation: 3, node: NodeId { slot: 1, generation: 0 }, locus: CellKey { sheet: SheetId { slot: 0, generation: 0 }, row: 3, column: 2 } }, observed: ObservationFrontier { model: AuthoredRevision(4), results: ReadViewId(2), inputs: 2 }, computed_by: Evaluated { root: InvocationId { pass: CalcPassId { command: CalcCommandId { domain_incarnation: 1, sequence: 2 }, ordinal: 0, reason: Initial }, workbook: WorkbookInstanceId { document: 1, incarnation: 1 }, locus: CellKey { sheet: SheetId { slot: 0, generation: 0 }, row: 3, column: 2 }, evaluation: 0, call_site: 0, occurrence: [], reason: NewCommandDemand } }, reads: ReadCertificate { external_cache: false, legacy_boundary: false, uses_boundary_cache: false, uses_imported_cache: false, dependencies: [], semantic_environment: 2, bindings: 6, volatile_inputs: None, details: OptionalReadDetails(Some(ReadDetails { linked_inputs: None, observations: [], external_inputs: [RtdRead { topic: TopicKey { progid: \"dnacalc.x5.3280\", server: \"\", strings: [\"1\"] }, lease: RtdLease(1), sequence: 2 }], callables: [CallableBindingProof { provider: None, name: \"x5.rtdcall\", bound: Some(UserCallableIdentity { table: 1, slot: 5, generation: 1 }) }], invocations: [CallInvocation { identity: InvocationId { pass: CalcPassId { command: CalcCommandId { domain_incarnation: 1, sequence: 2 }, ordinal: 0, reason: Initial }, workbook: WorkbookInstanceId { document: 1, incarnation: 1 }, locus: CellKey { sheet: SheetId { slot: 0, generation: 0 }, row: 3, column: 2 }, evaluation: 0, call_site: 3, occurrence: [0], reason: NewCommandDemand }, runtime: 5, parent: Some(4), callable: UserCallableIdentity { table: 1, slot: 5, generation: 1 }, completed: true, non_preemptible: true }, CallInvocation { identity: InvocationId { pass: CalcPassId { command: CalcCommandId { domain_incarnation: 1, sequence: 2 }, ordinal: 0, reason: Initial }, workbook: WorkbookInstanceId { document: 1, incarnation: 1 }, locus: CellKey { sheet: SheetId { slot: 0, generation: 0 }, row: 3, column: 2 }, evaluation: 0, call_site: 7, occurrence: [1], reason: NewCommandDemand }, runtime: 6, parent: Some(4), callable: UserCallableIdentity { table: 1, slot: 5, generation: 1 }, completed: true, non_preemptible: true }], name_invocations: [], omitted_name_invocations: 0, udf_volatility: Some(NoRequest), boundary_caches: [], facts: [], absences: [], names: [NameBindingProof { resolved: None, probes: [NameProbe { key: NameKey { scope: Sheet(SheetId { slot: 0, generation: 0 }), folded: \"x5.rtdcall\" }, found: None }, NameProbe { key: NameKey { scope: Workbook, folded: \"x5.rtdcall\" }, found: None }], parent: None }] })) }, certification: FreshnessClaim { command: CalcCommandId { domain_incarnation: 1, sequence: 2 }, pass: CalcPassId { command: CalcCommandId { domain_incarnation: 1, sequence: 2 }, ordinal: 0, reason: Initial }, frontier: AdmissionFrontier { model: AuthoredRevision(4), external_through: 2 }, required: 16 }, completion: Value }"
+            "stamp": "ResultStamp { destination: Live, target: EvaluationTarget { workbook: WorkbookInstanceId { document: 1, incarnation: 1 }, origin_revision: AuthoredRevision(4), formula_generation: 3, node: NodeId { slot: 1, generation: 0 }, locus: CellKey { sheet: SheetId { slot: 0, generation: 0 }, row: 3, column: 2 } }, observed: ObservationFrontier { model: AuthoredRevision(4), results: ReadViewId(2), inputs: 2 }, computed_by: Evaluated { root: InvocationId { pass: CalcPassId { command: CalcCommandId { domain_incarnation: 1, sequence: 2 }, ordinal: 0, reason: Initial }, workbook: WorkbookInstanceId { document: 1, incarnation: 1 }, locus: CellKey { sheet: SheetId { slot: 0, generation: 0 }, row: 3, column: 2 }, evaluation: 0, call_site: 0, occurrence: [], reason: NewCommandDemand } }, reads: ReadCertificate { external_cache: false, legacy_boundary: false, uses_boundary_cache: false, uses_imported_cache: false, dependencies: [], semantic_environment: 2, bindings: 6, volatile_inputs: None, details: OptionalReadDetails(Some(ReadDetails { linked_inputs: None, observations: [], external_inputs: [RtdRead { topic: TopicKey { progid: \"dnacalc.x5.15120\", server: \"\", strings: [\"1\"] }, lease: RtdLease(1), sequence: 2 }], callables: [CallableBindingProof { provider: None, name: \"x5.rtdcall\", bound: Some(UserCallableIdentity { table: 1, slot: 5, generation: 1 }) }], invocations: [CallInvocation { identity: InvocationId { pass: CalcPassId { command: CalcCommandId { domain_incarnation: 1, sequence: 2 }, ordinal: 0, reason: Initial }, workbook: WorkbookInstanceId { document: 1, incarnation: 1 }, locus: CellKey { sheet: SheetId { slot: 0, generation: 0 }, row: 3, column: 2 }, evaluation: 0, call_site: 3, occurrence: [0], reason: NewCommandDemand }, runtime: 5, parent: Some(4), callable: UserCallableIdentity { table: 1, slot: 5, generation: 1 }, completed: true, non_preemptible: true }, CallInvocation { identity: InvocationId { pass: CalcPassId { command: CalcCommandId { domain_incarnation: 1, sequence: 2 }, ordinal: 0, reason: Initial }, workbook: WorkbookInstanceId { document: 1, incarnation: 1 }, locus: CellKey { sheet: SheetId { slot: 0, generation: 0 }, row: 3, column: 2 }, evaluation: 0, call_site: 7, occurrence: [1], reason: NewCommandDemand }, runtime: 6, parent: Some(4), callable: UserCallableIdentity { table: 1, slot: 5, generation: 1 }, completed: true, non_preemptible: true }], name_invocations: [], omitted_name_invocations: 0, udf_volatility: Some(NoRequest), boundary_caches: [], facts: [], absences: [], names: [NameBindingProof { resolved: None, probes: [NameProbe { key: NameKey { scope: Sheet(SheetId { slot: 0, generation: 0 }), folded: \"x5.rtdcall\" }, found: None }, NameProbe { key: NameKey { scope: Workbook, folded: \"x5.rtdcall\" }, found: None }], parent: None }] })) }, certification: FreshnessClaim { command: CalcCommandId { domain_incarnation: 1, sequence: 2 }, pass: CalcPassId { command: CalcCommandId { domain_incarnation: 1, sequence: 2 }, ordinal: 0, reason: Initial }, frontier: AdmissionFrontier { model: AuthoredRevision(4), external_through: 2 }, required: 16 }, completion: Value }"
           },
           "rtd_updates_through": 2,
           "spill_cells": {},
@@ -995,7 +1421,7 @@
         {
           "disposition": "Accepted",
           "lease": 1,
-          "topic": "TopicKey { progid: \"dnacalc.x5.3280\", server: \"\", strings: [\"1\"] }"
+          "topic": "TopicKey { progid: \"dnacalc.x5.15120\", server: \"\", strings: [\"1\"] }"
         }
       ],
       "rtd_subscriptions_after_close": 0,
@@ -1004,14 +1430,14 @@
           "disposition": "Accepted",
           "lease": 1,
           "sequence": 1,
-          "topic": "TopicKey { progid: \"dnacalc.x5.3280\", server: \"\", strings: [\"1\"] }",
+          "topic": "TopicKey { progid: \"dnacalc.x5.15120\", server: \"\", strings: [\"1\"] }",
           "value": 1.0
         },
         {
           "disposition": "Accepted",
           "lease": 1,
           "sequence": 2,
-          "topic": "TopicKey { progid: \"dnacalc.x5.3280\", server: \"\", strings: [\"1\"] }",
+          "topic": "TopicKey { progid: \"dnacalc.x5.15120\", server: \"\", strings: [\"1\"] }",
           "value": 42.0
         }
       ],
@@ -1052,10 +1478,10 @@
               {
                 "lease": 1,
                 "sequence": 2,
-                "topic": "TopicKey { progid: \"dnacalc.x5.7576\", server: \"\", strings: [\"1\"] }"
+                "topic": "TopicKey { progid: \"dnacalc.x5.24804\", server: \"\", strings: [\"1\"] }"
               }
             ],
-            "stamp": "ResultStamp { destination: Live, target: EvaluationTarget { workbook: WorkbookInstanceId { document: 1, incarnation: 1 }, origin_revision: AuthoredRevision(4), formula_generation: 3, node: NodeId { slot: 1, generation: 0 }, locus: CellKey { sheet: SheetId { slot: 0, generation: 0 }, row: 3, column: 2 } }, observed: ObservationFrontier { model: AuthoredRevision(4), results: ReadViewId(2), inputs: 2 }, computed_by: Evaluated { root: InvocationId { pass: CalcPassId { command: CalcCommandId { domain_incarnation: 1, sequence: 2 }, ordinal: 0, reason: Initial }, workbook: WorkbookInstanceId { document: 1, incarnation: 1 }, locus: CellKey { sheet: SheetId { slot: 0, generation: 0 }, row: 3, column: 2 }, evaluation: 0, call_site: 0, occurrence: [], reason: NewCommandDemand } }, reads: ReadCertificate { external_cache: false, legacy_boundary: false, uses_boundary_cache: false, uses_imported_cache: false, dependencies: [], semantic_environment: 2, bindings: 6, volatile_inputs: None, details: OptionalReadDetails(Some(ReadDetails { linked_inputs: None, observations: [], external_inputs: [RtdRead { topic: TopicKey { progid: \"dnacalc.x5.7576\", server: \"\", strings: [\"1\"] }, lease: RtdLease(1), sequence: 2 }], callables: [CallableBindingProof { provider: None, name: \"x5.rtdcall\", bound: Some(UserCallableIdentity { table: 1, slot: 5, generation: 1 }) }], invocations: [CallInvocation { identity: InvocationId { pass: CalcPassId { command: CalcCommandId { domain_incarnation: 1, sequence: 2 }, ordinal: 0, reason: Initial }, workbook: WorkbookInstanceId { document: 1, incarnation: 1 }, locus: CellKey { sheet: SheetId { slot: 0, generation: 0 }, row: 3, column: 2 }, evaluation: 0, call_site: 3, occurrence: [0], reason: NewCommandDemand }, runtime: 5, parent: Some(4), callable: UserCallableIdentity { table: 1, slot: 5, generation: 1 }, completed: true, non_preemptible: true }, CallInvocation { identity: InvocationId { pass: CalcPassId { command: CalcCommandId { domain_incarnation: 1, sequence: 2 }, ordinal: 0, reason: Initial }, workbook: WorkbookInstanceId { document: 1, incarnation: 1 }, locus: CellKey { sheet: SheetId { slot: 0, generation: 0 }, row: 3, column: 2 }, evaluation: 0, call_site: 7, occurrence: [1], reason: NewCommandDemand }, runtime: 6, parent: Some(4), callable: UserCallableIdentity { table: 1, slot: 5, generation: 1 }, completed: true, non_preemptible: true }], name_invocations: [], omitted_name_invocations: 0, udf_volatility: Some(NoRequest), boundary_caches: [], facts: [], absences: [], names: [NameBindingProof { resolved: None, probes: [NameProbe { key: NameKey { scope: Sheet(SheetId { slot: 0, generation: 0 }), folded: \"x5.rtdcall\" }, found: None }, NameProbe { key: NameKey { scope: Workbook, folded: \"x5.rtdcall\" }, found: None }], parent: None }] })) }, certification: FreshnessClaim { command: CalcCommandId { domain_incarnation: 1, sequence: 2 }, pass: CalcPassId { command: CalcCommandId { domain_incarnation: 1, sequence: 2 }, ordinal: 0, reason: Initial }, frontier: AdmissionFrontier { model: AuthoredRevision(4), external_through: 2 }, required: 16 }, completion: Value }"
+            "stamp": "ResultStamp { destination: Live, target: EvaluationTarget { workbook: WorkbookInstanceId { document: 1, incarnation: 1 }, origin_revision: AuthoredRevision(4), formula_generation: 3, node: NodeId { slot: 1, generation: 0 }, locus: CellKey { sheet: SheetId { slot: 0, generation: 0 }, row: 3, column: 2 } }, observed: ObservationFrontier { model: AuthoredRevision(4), results: ReadViewId(2), inputs: 2 }, computed_by: Evaluated { root: InvocationId { pass: CalcPassId { command: CalcCommandId { domain_incarnation: 1, sequence: 2 }, ordinal: 0, reason: Initial }, workbook: WorkbookInstanceId { document: 1, incarnation: 1 }, locus: CellKey { sheet: SheetId { slot: 0, generation: 0 }, row: 3, column: 2 }, evaluation: 0, call_site: 0, occurrence: [], reason: NewCommandDemand } }, reads: ReadCertificate { external_cache: false, legacy_boundary: false, uses_boundary_cache: false, uses_imported_cache: false, dependencies: [], semantic_environment: 2, bindings: 6, volatile_inputs: None, details: OptionalReadDetails(Some(ReadDetails { linked_inputs: None, observations: [], external_inputs: [RtdRead { topic: TopicKey { progid: \"dnacalc.x5.24804\", server: \"\", strings: [\"1\"] }, lease: RtdLease(1), sequence: 2 }], callables: [CallableBindingProof { provider: None, name: \"x5.rtdcall\", bound: Some(UserCallableIdentity { table: 1, slot: 5, generation: 1 }) }], invocations: [CallInvocation { identity: InvocationId { pass: CalcPassId { command: CalcCommandId { domain_incarnation: 1, sequence: 2 }, ordinal: 0, reason: Initial }, workbook: WorkbookInstanceId { document: 1, incarnation: 1 }, locus: CellKey { sheet: SheetId { slot: 0, generation: 0 }, row: 3, column: 2 }, evaluation: 0, call_site: 3, occurrence: [0], reason: NewCommandDemand }, runtime: 5, parent: Some(4), callable: UserCallableIdentity { table: 1, slot: 5, generation: 1 }, completed: true, non_preemptible: true }, CallInvocation { identity: InvocationId { pass: CalcPassId { command: CalcCommandId { domain_incarnation: 1, sequence: 2 }, ordinal: 0, reason: Initial }, workbook: WorkbookInstanceId { document: 1, incarnation: 1 }, locus: CellKey { sheet: SheetId { slot: 0, generation: 0 }, row: 3, column: 2 }, evaluation: 0, call_site: 7, occurrence: [1], reason: NewCommandDemand }, runtime: 6, parent: Some(4), callable: UserCallableIdentity { table: 1, slot: 5, generation: 1 }, completed: true, non_preemptible: true }], name_invocations: [], omitted_name_invocations: 0, udf_volatility: Some(NoRequest), boundary_caches: [], facts: [], absences: [], names: [NameBindingProof { resolved: None, probes: [NameProbe { key: NameKey { scope: Sheet(SheetId { slot: 0, generation: 0 }), folded: \"x5.rtdcall\" }, found: None }, NameProbe { key: NameKey { scope: Workbook, folded: \"x5.rtdcall\" }, found: None }], parent: None }] })) }, certification: FreshnessClaim { command: CalcCommandId { domain_incarnation: 1, sequence: 2 }, pass: CalcPassId { command: CalcCommandId { domain_incarnation: 1, sequence: 2 }, ordinal: 0, reason: Initial }, frontier: AdmissionFrontier { model: AuthoredRevision(4), external_through: 2 }, required: 16 }, completion: Value }"
           },
           "rtd_updates_through": 2,
           "spill_cells": {},
@@ -1094,7 +1520,7 @@
         {
           "disposition": "Accepted",
           "lease": 1,
-          "topic": "TopicKey { progid: \"dnacalc.x5.7576\", server: \"\", strings: [\"1\"] }"
+          "topic": "TopicKey { progid: \"dnacalc.x5.24804\", server: \"\", strings: [\"1\"] }"
         }
       ],
       "rtd_subscriptions_after_close": 0,
@@ -1103,14 +1529,14 @@
           "disposition": "Accepted",
           "lease": 1,
           "sequence": 1,
-          "topic": "TopicKey { progid: \"dnacalc.x5.7576\", server: \"\", strings: [\"1\"] }",
+          "topic": "TopicKey { progid: \"dnacalc.x5.24804\", server: \"\", strings: [\"1\"] }",
           "value": 1.0
         },
         {
           "disposition": "Accepted",
           "lease": 1,
           "sequence": 2,
-          "topic": "TopicKey { progid: \"dnacalc.x5.7576\", server: \"\", strings: [\"1\"] }",
+          "topic": "TopicKey { progid: \"dnacalc.x5.24804\", server: \"\", strings: [\"1\"] }",
           "value": 42.0
         }
       ],
@@ -1118,24 +1544,24 @@
     }
   ],
   "source_publication_revisions": [],
-  "source_bindings_checked": 2468,
+  "source_bindings_checked": 2484,
   "transport": "Excel IDispatch vs host early-bound. Compare the external client method payloads; retain internal fixture body hits separately. SAFEARRAY bounds retain descriptor order.",
   "initial_difference": "Host returns #N/A before the initial input is admitted, then1 and42; Excel returns1 then42. All raw invocations remain visible.",
   "scope": "Controlled finite scalar RTD, exact P07 input certificate and retirement. General providers/teardown, arrays and remote RTD remain open.",
   "excel_session_ownership": {
-    "C:\\Work\\DnaCalc\\codex-runs\\rtd2\\e1\\x5call\\excel-traced": {
-      "pid": 53500,
-      "start_ticks": 639299547080454534,
+    "C:\\Work\\DnaCalc\\codex-runs\\rtd2\\e4\\x5call\\excel-traced": {
+      "pid": 46060,
+      "start_ticks": 639299604248399281,
       "launch": 1,
-      "job": "20261111T0045078171064-59ab2507295d41bca3f41a26003737b7",
+      "job": "20261111T0220246001381-a166bff7e7a7424a8a8e4ac618995c99",
       "host_script_sha256": "CA04E1F2ED8CA422721AA3407D28E4A8B49681802F825FECA938248B163C0673",
       "scope": "Exact successful fresh-job receipt, launch tuple, pre-activation inventory, retained host/runner sources, security baseline and capture interval checked; raw environment remains unchanged."
     },
-    "C:\\Work\\DnaCalc\\codex-runs\\rtd2\\e1\\x5call\\excel-control": {
-      "pid": 3276,
-      "start_ticks": 639299547269357637,
+    "C:\\Work\\DnaCalc\\codex-runs\\rtd2\\e4\\x5call\\excel-control": {
+      "pid": 29872,
+      "start_ticks": 639299604515754058,
       "launch": 2,
-      "job": "20261111T0045214684346-2b258fa2e4494bc6937338844476844b",
+      "job": "20261111T0220460454860-03fea17ce6c7472f82d6a30d3361fe15",
       "host_script_sha256": "CA04E1F2ED8CA422721AA3407D28E4A8B49681802F825FECA938248B163C0673",
       "scope": "Exact successful fresh-job receipt, launch tuple, pre-activation inventory, retained host/runner sources, security baseline and capture interval checked; raw environment remains unchanged."
     }

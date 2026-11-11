@@ -57,7 +57,7 @@ timing below (a); every value, dependent and exact P07 certificate matches in al
 | Condition | Client calls matched / failed | Native entries matched / failed |
 |---|---|---|
 | original eight managed cases, before (e0, host at d32641cf) | 12 / 14 | 0 / 26 |
-| original, after (two host runs: h3, h5) | 11 / 15 both | 6 / 11 and 5 / 12 |
+| original, after (host runs h3, h5, h11) | 11 / 15, 11 / 15, 12 / 14 | 6 / 11, 5 / 12, 6 / 11 |
 | delayed six cases, before | 14 / 9 | 0 / 23 |
 | delayed, after (h3, h5) | 14 / 9 both | 11 / 4 both |
 | x5 numeric native, x5 typed, x5call (new) | 6 / 0 each, all verified | not applicable |
@@ -76,15 +76,17 @@ two cases, the host keeps it while the next formula connects first.
 ## 3. The other controlled-server conditions at this commit
 
 Fresh Excel captures (`rtd2/e2`, same tracer) against the host at the commit that carries this
-file, `verify.py` with source retention:
+file, `verify.py` with source retention (x5call re-captured in Excel at the committed tree, `rtd2/e4`):
 
 - `x8-rtd-array-cases.json` (a 2x2 SAFEARRAY from RefreshData, shown as #N/A without a spill):
   verified, 6 client calls matched 0 failed, 2 native entries matched 0 failed.
-- `x8-rtd-reuse-cases.json` (completed-topic reuse across edits of A1): fails the verifier's
-  assertion "Completed-topic reuse did not preserve ID and advance the input sequence" (it expects
-  the admissions 1,42,1,42; the host admits 1,42 only). The same failure occurs with the host's
-  adoption of ConnectData admissions switched off, so it is not caused by this lane's change; it
-  is recorded here and not fixed.
+- `x8-rtd-reuse-cases.json` (completed-topic reuse across edits of A1): the verifier asserted
+  four admissions (1, 42, 1, 42: a reconnect with sequences 3 and 4) and failed against the host
+  with and without this lane's change. Excel 16.0.20527 does not reconnect: one ConnectData, one
+  UpdateNotify, one RefreshData, three entries, a DisconnectData at the end (`rtd2/e2`), exactly
+  the host's client traffic. The expectation was wrong against Excel and is now the two
+  admissions (1, 42); verified: 6 client calls matched 0 failed, 3 native entries matched 0
+  failed.
 - The signaling condition (`x5-rtd-cases.json`, xlOil Python): not re-run; the Excel capture of
   the lane's xlOil Python runtime stopped at "xlOil built-in Python startup did not complete".
   xlOil Python through the page (5 of 5) and the framework host route (5 of 5) pass.

@@ -1128,7 +1128,11 @@ def verify_rtd_extended(excel, excel_control, host, host_control, cases_path, pu
         require(all(r["disposition"] == "Accepted" for r in output["rtd_retired"]), "RTD retirement failed")
         require(not output["async_returns"] and not output["revoked_tokens"], "RTD used native async completion")
         if any(c.get("keep_formula") for c in cases):
-            require([(ident(u)[1], u["sequence"], u["value"]) for u in output["rtd_updates"]] == [(1, 1, 1), (1, 2, 42), (1, 3, 1), (1, 4, 42)], "Completed-topic reuse did not preserve ID and advance the input sequence")
+            # Excel 16.0.20527 keeps the topic connected while the formula does not call xlfRtd (one
+            # ConnectData, one disconnect at the end: rtd2/e2 against the host, dc-6332.12), so the
+            # topic keeps its identity and its two admitted values; the earlier expectation of a
+            # reconnect with sequences 3 and 4 (1, 42) was not what Excel does.
+            require([(ident(u)[1], u["sequence"], u["value"]) for u in output["rtd_updates"]] == [(1, 1, 1), (1, 2, 42)], "Completed-topic reuse did not preserve ID and its admitted input")
             require([len(r["provenance"]["rtd_inputs"]) for r in output["results"]] == [1, 0, 1, 0], "RTD branch/reuse certificates differ")
         if any(c.get("rtd_variant_array") for c in cases):
             require(len(cases) == 1, "Unqualified mixed array RTD profile")
