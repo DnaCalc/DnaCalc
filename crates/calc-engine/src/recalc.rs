@@ -655,6 +655,24 @@ macro_rules! shared_of {
 }
 
 impl RecalcWork {
+    /// The owner admitted, after a step, only the values connections returned to reads of this
+    /// work. Those reads already saw them (the connection's value is what the add-in's RTD
+    /// call returned), so the work continues under the new cut instead of being superseded:
+    /// a suspended activation is not thrown away and its user functions are not entered again,
+    /// as Excel does not enter a function again because ConnectData's value was returned to it.
+    /// The caller checks the work was current before the admission.
+    pub fn adopt_connected_inputs(
+        &mut self,
+        state: &EngineState,
+        inputs: std::rc::Rc<dyn calc_fml::RtdCut>,
+    ) {
+        self.external_input_version = state.contract.external_inputs;
+        self.volatile_input_version = state.volatile_input_version;
+        if inputs.version() != self.external_input_version {
+            self.failure = Some(RecalcFailure::ExternalInputMismatch);
+        }
+        self.external_inputs = Some(inputs);
+    }
     pub fn with_external_inputs(mut self, inputs: std::rc::Rc<dyn calc_fml::RtdCut>) -> Self {
         if inputs.version() != self.external_input_version {
             self.failure = Some(RecalcFailure::ExternalInputMismatch);
@@ -2644,6 +2662,7 @@ pub fn publish_ready(
                 work.facts_version,
                 Some(&work.requirements),
                 work.volatile_input_version,
+                &|_| false,
             )
         });
         let permitted = if prefix {
@@ -2813,6 +2832,7 @@ pub fn finish(
                 work.facts_version,
                 Some(&work.requirements),
                 work.volatile_input_version,
+                &|_| false,
             ) {
                 return Err(RecalcFailure::InvalidCertificate {
                     at: stamp.target.locus,
@@ -5235,6 +5255,11 @@ fn queue_certificate_repairs(
                 work.facts_version,
                 Some(&work.requirements),
                 work.volatile_input_version,
+                &|read| {
+                    work.rtd_connector.as_deref().is_some_and(|connector| {
+                        connector.provisional_pending(&read.topic, read.lease, read.sequence)
+                    })
+                },
             ))
             .then_some(node)
         })

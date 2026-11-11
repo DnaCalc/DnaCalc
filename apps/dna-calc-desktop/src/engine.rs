@@ -407,6 +407,9 @@ pub fn run(
                 });
             record_admissions(&mut book, &mut rtd_updates);
             let inputs = addins.poll_rtd(evaluating)?;
+            // One RefreshData batch is one admission: every value of it is admitted before the
+            // next calculation starts, as Excel evaluates a dirtied cell once for a batch.
+            let mut admitted_any = false;
             for input in inputs {
                 let disposition = book.update_rtd(
                     input.topic.clone(),
@@ -422,6 +425,9 @@ pub fn run(
                     other => return Err(format!("RTD input was not admitted: {other:?}")),
                 }
                 record_admissions(&mut book, &mut rtd_updates);
+                admitted_any = true;
+            }
+            if admitted_any {
                 // This controller explicitly requests a new manual command.
                 // The notification itself never completes an activation.
                 book.dispatch(SkinIntent::Recalculate);
@@ -501,11 +507,14 @@ pub fn run(
                 }
             } else if Instant::now() > deadline {
                 return Err(format!(
-                    "engine native completion deadline expired (calculation pending {}, async {}, native calls {}, rtd inputs {})",
+                    "engine native completion deadline expired (calculation pending {}, async {}, native calls {}, rtd inputs {}, the formula shows {})",
                     book.has_pending_calculation(),
                     book.host().pending_async().len(),
                     addins.native().outstanding_native_calls(),
-                    rtd.has_pending_inputs()
+                    rtd.has_pending_inputs(),
+                    value(&book, b)
+                        .map(|(shown, _)| value_json(&shown).to_string())
+                        .unwrap_or_else(|why| why)
                 ));
             }
             shell.pump_for(Duration::from_millis(2));

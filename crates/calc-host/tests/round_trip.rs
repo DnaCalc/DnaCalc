@@ -9421,6 +9421,81 @@ mod async_contract {
                 .unwrap_or_else(|| CalcValue::error(calc_host::value::WorksheetErrorCode::NA)))
         }
     }
+    /// A function that reads the topic its argument names through the connector and counts its
+    /// entries per name.
+    #[derive(Debug)]
+    struct RtdCountVia(Rc<RefCell<std::collections::BTreeMap<String, usize>>>);
+    impl UserFunction for RtdCountVia {
+        fn call(&self, _: &[CalcValue]) -> Result<CalcValue, String> {
+            panic!("an admitted external input view is required")
+        }
+        fn call_with_context(
+            &self,
+            arguments: &[CalcValue],
+            context: &mut dyn UserFunctionContext,
+        ) -> Result<CalcValue, String> {
+            let name = arguments[0]
+                .as_text()
+                .expect("a topic name")
+                .to_string_lossy();
+            *self.0.borrow_mut().entry(name.clone()).or_default() += 1;
+            let topic = calc_host::TopicKey::new("Probe.Progid", "", &[name]);
+            let read = context.read_topic(&topic, false)?;
+            Ok(read
+                .value
+                .map(|(_, value)| value)
+                .unwrap_or_else(|| CalcValue::error(calc_host::value::WorksheetErrorCode::NA)))
+        }
+    }
+    #[cfg_attr(not(target_arch = "wasm32"), test)]
+    #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+    fn contract_p03_admitting_a_connections_value_does_not_enter_its_functions_again() {
+        // Excel returns ConnectData's value to the xlfRtd call that connected and enters
+        // nothing again for it (dc-6332.12: Excel-DNA's MyAsyncHello("a")&MyAsyncHello("b")
+        // is entered once per call, measured). The work adopts the admission in place; it
+        // used to supersede, throw its suspended activation away and enter both again.
+        let mut book = session(&calc_host::blank_package());
+        let s = book.host().sheets()[0].id();
+        let connects = Rc::new(RefCell::new(0));
+        book.set_rtd_connector(Rc::new(TestConnector(connects)));
+        let entries = Rc::new(RefCell::new(std::collections::BTreeMap::new()));
+        let mut functions = calc_fml::CallableTable::new();
+        functions
+            .register("RtdCount", Rc::new(RtdCountVia(entries.clone())))
+            .unwrap();
+        book.set_user_functions(functions);
+        enter(&mut book, at(s, "B1"), "=RtdCount(\"a\")+RtdCount(\"b\")");
+        enter(&mut book, at(s, "B2"), "=RtdCount(\"c\")");
+        book.dispatch(SkinIntent::Recalculate);
+        drain(&mut book);
+        assert_eq!(
+            calculated(book.host(), at(s, "B1")),
+            Some(CalcValue::number(2.0)),
+            "each connection's value shows at once"
+        );
+        assert_eq!(
+            calculated(book.host(), at(s, "B2")),
+            Some(CalcValue::number(1.0))
+        );
+        assert_eq!(
+            *entries.borrow(),
+            [("a", 1), ("b", 1), ("c", 1)]
+                .into_iter()
+                .map(|(name, count)| (name.to_owned(), count))
+                .collect::<std::collections::BTreeMap<_, _>>(),
+            "one entry per call; ConnectData's value is not an update"
+        );
+        let ProjectedValue::Calculated { calculation, .. } = value(book.host(), at(s, "B1"))
+        else {
+            panic!("calculated")
+        };
+        assert_eq!(
+            calculation.stamp().unwrap().reads.external_inputs.len(),
+            2,
+            "the result is certified by both admitted connection values"
+        );
+        assert_eq!(book.take_rtd_admissions().len(), 3);
+    }
     #[cfg_attr(not(target_arch = "wasm32"), test)]
     #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
     fn contract_p03_a_connection_shows_its_initial_value_at_once_and_it_is_admitted_as_sequence_one()

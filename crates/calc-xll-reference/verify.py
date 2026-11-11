@@ -1392,7 +1392,8 @@ def verify_rtd(excel, excel_control, host, host_control, cases_path, publication
             require(protocol[3]["count"] == 1 and protocol[3]["data"]["values"] == [{"vt": 3, "value": 1}, {"vt": 5, "value": 42}] and not protocol[3]["data"]["truncated"], "RTD array data differs")
         raw_protocols.append(protocol)
         protocols.append(protocol); internals.append(inner); notifications.append(notices)
-        records = all_invocations(trace, "X5.Rtd" if signaling else "X5.RtdValue", signaling)
+        call_cases = any("X5.RtdCall" in c["formula"] for c in cases)
+        records = all_invocations(trace, "X5.RtdCall" if call_cases else "X5.Rtd" if signaling else "X5.RtdValue", signaling)
         if signaling:
             ownership.append(framework_ownership(trace))
             require(records and all(not r["arguments"] for r in records), "Missing or changed signaling UDF entry")
@@ -1431,24 +1432,37 @@ def verify_rtd(excel, excel_control, host, host_control, cases_path, publication
             native.append(records)
             continue
         for record in records:
+            if call_cases:
+                # X5.RtdCall(progid, server, topic) forwards its three operands to xlfRtd.
+                require(len(record["arguments"]) == 3 and len(record["callbacks"]) == 1, "Unexpected RTD call boundary")
+                callback = record["callbacks"][0]
+                require(callback[0] == 379 and callback[2] == 0 and len(callback[1]) == 3, "RTD callback failed")
+                require(callback[1][0]["value"] == f"DnaCalc.X5.{environments[0 if index == 0 else 2]['pid']}", "RTD callback provider differs")
+                require(record["result"] == callback[3], "Native RTD UDF changed the callback value")
+                continue
             require(record["arguments"] == [] and len(record["callbacks"]) == 1, "Unexpected RTD UDF boundary")
             callback = record["callbacks"][0]
             require(callback[0] == 379 and callback[2] == 0, "RTD callback failed")
             require([a["value"] for a in callback[1]] == [f"DnaCalc.X5.{environments[0 if index == 0 else 2]['pid']}", "", "numeric"], "RTD callback topics/provider differ")
             require(record["result"] == callback[3], "Native RTD UDF changed the callback value")
-        if any("X5.RtdValue" in c["formula"] for c in cases):
+        if call_cases:
+            pass
+        elif any("X5.RtdValue" in c["formula"] for c in cases):
             expected = [{"type": 1, "value": 1}, {"type": 1, "value": 42}]
-            # The host evaluates the function once more after it admits ConnectData's value as
-            # sequence 1 (the in-step certificate repair refuses a result that read a sequence not
-            # yet admitted), so its first answer is repeated. Excel's two answers are 1 then 42;
-            # since dc-snz.23.3 the host's first answer is that 1, no longer a temporary #N/A.
-            # OneCalc admits the connection's value after its evaluation instead (no certificate
-            # repair, one formula), so it calls the function twice, as Excel does: 1 then 42.
-            if index and not outputs[0].get("single_formula"): expected.insert(0, {"type": 1, "value": 1})
+            # Excel's two answers are 1 (ConnectData's value, returned to the xlfRtd call) and
+            # then 42. The host used to enter the function a second time after it admitted
+            # ConnectData's value (1, 1, 42): it superseded the work and threw the staged result
+            # away. Since dc-6332.12 the work adopts that admission in place, so the host's
+            # answers are Excel's two (measured: codex-runs/rtd2/e0 against h3).
             require([r["result"] for r in records] == expected, "RTD native result sequence differs")
         else:
             require(not records, "A typed RTD formula makes no UDF call")
         native.append(records)
+    if any("X5.RtdCall" in c["formula"] for c in cases):
+        # The same entries, the same topic operand each callback was given and the same values
+        # it got, in Excel and in the host (dc-6332.12: numeric topics through the C API).
+        shape = lambda rows: [(r["callbacks"][0][1][2], r["callbacks"][0][3], r["result"]) for r in rows]
+        require(shape(native[0]) == shape(native[1]), "RTD call entries differ between Excel and the host")
     if not signaling:
         require([sum(row.get("reason") == "final Release destructor" for row in rows) for rows in internals] == [1, 1], "Numeric RTD destructor observation missing or repeated")
     protocol_pairs = [{"position": i, "excel": a, "host": b, "matched": a == b} for i, (a, b) in enumerate(zip_longest(*protocols))]

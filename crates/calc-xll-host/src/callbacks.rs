@@ -961,15 +961,6 @@ fn run(
             if values.len() < 3 {
                 return Err((INVALID_COUNT, "RTD needs a ProgID, server and topic".into()));
             }
-            let progid = text(&values[0])?;
-            if !values[1].is_missing() && !values[1].is_empty() && !text(&values[1])?.is_empty() {
-                return Err(err("dc-snz.23: remote RTD servers are not modelled"));
-            }
-            let topics = values[2..]
-                .iter()
-                .map(text)
-                .collect::<Result<Vec<_>, _>>()
-                .map_err(|_| err("dc-snz.23: nontext RTD topics are not modelled"))?;
             let _provider = frame
                 .provider
                 .ok_or_else(|| err("dc-snz.23: RTD requires an admitted callable identity"))?;
@@ -977,26 +968,23 @@ fn run(
                 .context
                 .as_mut()
                 .ok_or_else(|| err("dc-snz.23: RTD requires an admitted input view"))?;
-            // The one rule for both RTD routes: join or start the topic through the owner's
-            // connector and read the admitted value, or ConnectData's own while it awaits
-            // admission. The value shows at once, as in Excel; the read stays uncertified
-            // until the owner admits that sequence.
-            let topic = calc_func::TopicKey::new(&progid, "", &topics);
-            let read = context.read_topic(&topic, false).map_err(err)?;
-            frame.rtd_subscriptions.insert(read.lease);
-            let value = read.value;
-            value
-                // Excel exposes an empty COM RTD signal as numeric zero. The
-                // admitted input remains empty and its sequence stays in the
-                // invocation's certificate, including a cache-only UDF return.
-                .map(|(_, value)| {
-                    if value.is_empty() {
-                        CalcValue::number(0.)
-                    } else {
-                        value
-                    }
-                })
-                .unwrap_or_else(|| CalcValue::error(WorksheetErrorCode::NA))
+            let mut resolved = Vec::with_capacity(values.len());
+            for value in &values {
+                resolved.push(match value.as_reference() {
+                    Some(reference) => context.argument_values_of(reference).map_err(err)?,
+                    None => value.clone(),
+                });
+            }
+            // The one rule for both RTD routes (calc_func::read_rtd_call): topics coerce to text
+            // as the typed RTD() does (the number 1 and the text "1" are one topic, measured),
+            // the owner's connector joins or starts the topic, and the value shows at once, as
+            // ConnectData's own while it awaits admission; the read stays uncertified until the
+            // owner admits that sequence.
+            let read = calc_func::read_rtd_call(&mut **context, &resolved, false).map_err(err)?;
+            if let Some(lease) = read.lease {
+                frame.rtd_subscriptions.insert(lease);
+            }
+            read.value
         }
         // Ftab numbers come from the existing file-formula table. Dispatch is through the
         // evaluator's ordinary worksheet route, with its current numeric and read policy.

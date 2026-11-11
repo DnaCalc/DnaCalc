@@ -1,0 +1,4 @@
+[
+  {"formula":"=X5.RtdCall(\"DnaCalc.X5.{pid}\",,1)+X5.RtdCall(\"DnaCalc.X5.{pid}\",,\"1\")","value":84,"rtd_wait_value":84,"dependent":"=B3*2","dependent_value":168},
+  {"formula":"=99","value":99,"dependent":"=B3*2","dependent_value":198}
+]

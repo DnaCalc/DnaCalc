@@ -997,6 +997,7 @@ pub(crate) fn certificate_valid(
         facts,
         None,
         state.volatile_input_version,
+        &|_| false,
     )
 }
 
@@ -1027,6 +1028,8 @@ pub(crate) fn certificate_valid_at(
     facts: u64,
     cut: Option<&RequirementCut>,
     volatile_inputs: u64,
+    // A read of a connection's provisional value the owner admits at the end of this step.
+    provisional: &dyn Fn(&calc_fml::RtdRead) -> bool,
 ) -> bool {
     if inputs.revision() != state.revision() {
         return false;
@@ -1066,6 +1069,7 @@ pub(crate) fn certificate_valid_at(
                 .filter(|(lease, _)| *lease == read.lease)
                 .map_or(0, |(_, sequence)| *sequence)
                 != read.sequence
+                && !provisional(read)
         })
         || !name_bindings_valid(inputs, &stamp.reads.names)
         || stamp

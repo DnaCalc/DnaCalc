@@ -191,6 +191,13 @@ struct Factory final:IClassFactory{
 };
 STDAPI DllGetClassObject(REFCLSID clsid,REFIID iid,void** out){if(clsid!=rtdClass)return CLASS_E_CLASSNOTAVAILABLE;auto factory=new Factory();auto hr=factory->QueryInterface(iid,out);factory->Release();return hr;}
 STDAPI DllCanUnloadNow(){return liveServers.load()||liveFactories.load()||serverLocks.load()?S_FALSE:S_OK;}
+// dc-6332.12: xlfRtd with the arguments the formula passes, so a number, a logical or an error topic
+// reaches Excel unchanged through the C API (the typed =RTD() coerces the same arguments).
+extern "C" __declspec(dllexport) Oper* __stdcall RtdCall(Oper* progid,Oper* server,Oper* topic){
+    thread_local Oper returned;
+    Oper* args[]={progid,server,topic};
+    auto rc=excel(379,3,args,&returned);rtdLog(L"xlfRtdCall",rc);if(rc){returned.type=16;returned.value.integer=15;}return &returned;
+}
 extern "C" __declspec(dllexport) Oper* __stdcall RtdValue(){
     thread_local Oper returned;
     auto progid=counted(rtdProgid),server=counted(L""),topic=counted(L"numeric");Oper operands[]={textOper(progid),textOper(server),textOper(topic)};Oper* args[]={&operands[0],&operands[1],&operands[2]};
@@ -237,8 +244,8 @@ static bool rtdOpen(const std::wstring& file){
     if(!privateKey(progidKey,L"DNA Calc X5 controlled RTD fixture")||!privateKey(classKey,L"DNA Calc X5 controlled RTD fixture")||!privateKey(progidKey+L"\\CLSID",guid)||!privateKey(classKey+L"\\InprocServer32",std::wstring(modulePath,n))){removePrivateKeys();return false;}
     auto proc=counted(L"RtdValue"),signature=counted(L"Q#"),name=counted(L"X5.RtdValue");auto moduleFile=file;
     Oper values[]={textOper(moduleFile),textOper(proc),textOper(signature),textOper(name)};Oper* args[]={&values[0],&values[1],&values[2],&values[3]};auto rc=excel(149,4,args,&rtdRegistration);auto retained=rtdRegistration;freeResult(rtdRegistration);rtdRegistration=retained;rtdRegistration.type&=0xfff;rtdLog(L"PrivateClassRegistered",0);if(rc||rtdRegistration.type!=1){rtdRegistration={};rtdClose();return false;}
-    const wchar_t* procedures[]={L"PermissionMain",L"PermissionMacro",L"PermissionPool"};const wchar_t* signatures[]={L"JB",L"JB#",L"JB$"};const wchar_t* names[]={L"X5.Permission",L"X5.MacroPermission",L"X5.PoolPermission"};
-    for(int i=0;i<3;++i){auto p=counted(procedures[i]),s=counted(signatures[i]),nameText=counted(names[i]);Oper row[]={textOper(moduleFile),textOper(p),textOper(s),textOper(nameText)};Oper* pointers[]={&row[0],&row[1],&row[2],&row[3]};Oper id;auto code=excel(149,4,pointers,&id);auto keep=id;freeResult(id);keep.type&=0xfff;if(code||keep.type!=1){rtdClose();return false;}permissionRegistrations.push_back({names[i],keep});}return true;
+    const wchar_t* procedures[]={L"PermissionMain",L"PermissionMacro",L"PermissionPool",L"RtdCall"};const wchar_t* signatures[]={L"JB",L"JB#",L"JB$",L"QQQQ"};const wchar_t* names[]={L"X5.Permission",L"X5.MacroPermission",L"X5.PoolPermission",L"X5.RtdCall"};
+    for(int i=0;i<4;++i){auto p=counted(procedures[i]),s=counted(signatures[i]),nameText=counted(names[i]);Oper row[]={textOper(moduleFile),textOper(p),textOper(s),textOper(nameText)};Oper* pointers[]={&row[0],&row[1],&row[2],&row[3]};Oper id;auto code=excel(149,4,pointers,&id);auto keep=id;freeResult(id);keep.type&=0xfff;if(code||keep.type!=1){rtdClose();return false;}permissionRegistrations.push_back({names[i],keep});}return true;
 }
 static void rtdClose(){Oper result;for(auto& entry:permissionRegistrations){Oper* id[]={&entry.second};excel(201,1,id,&result);freeResult(result);auto name=counted(entry.first);Oper text=textOper(name);Oper* args[]={&text};excel(88,1,args,&result);freeResult(result);}permissionRegistrations.clear();if(rtdRegistration.type==1){Oper* id[]={&rtdRegistration};excel(201,1,id,&result);freeResult(result);auto name=counted(L"X5.RtdValue");Oper text=textOper(name);Oper* args[]={&text};excel(88,1,args,&result);freeResult(result);rtdRegistration={};}removePrivateKeys();rtdLog(L"AutoCloseLiveServers",liveServers.load());}
 #endif

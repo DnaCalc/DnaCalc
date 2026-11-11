@@ -36,6 +36,82 @@ impl TopicKey {
         }
     }
 }
+/// The most topic strings a call can carry: a worksheet function takes 255 arguments, two of
+/// them the ProgID and the server.
+pub const MAX_TOPIC_STRINGS: usize = 253;
+
+/// What the one RTD rule ([`read_rtd_call`]) answered: the value the call shows and the lease of
+/// the connection it read (`None` when it read none: an error argument).
+#[derive(Clone, Debug, PartialEq)]
+pub struct RtdCallRead {
+    pub value: CalcValue,
+    pub lease: Option<RtdLease>,
+}
+
+/// The one rule for `RTD(progid, server, topic1, ...)`, shared by the typed worksheet function
+/// and an add-in's `xlfRtd` callback: an argument is a value (the caller resolves references
+/// first), the arguments are coerced to text as Excel does (CONCAT's conversion: the number 1
+/// and the text "1" are one topic, as measured, and as the typed route has always treated them),
+/// and the topic is read through [`UserFunctionContext::read_topic`], so one admission service
+/// decides what is one topic and what a read shows. An empty RTD value shows as zero; no server
+/// for the ProgID shows `#N/A`; an error argument is returned as that error; a named (remote)
+/// server and an array argument are typed refusals.
+pub fn read_rtd_call(
+    context: &mut dyn UserFunctionContext,
+    values: &[CalcValue],
+    declared: bool,
+) -> Result<RtdCallRead, String> {
+    use crate::value::WorksheetErrorCode;
+    let shown = |value| RtdCallRead { value, lease: None };
+    if values.len() < 3 {
+        return Err(context.refuse_by("RTD without a ProgID, a server and a topic", "dc-snz.23"));
+    }
+    if values.len() - 2 > MAX_TOPIC_STRINGS {
+        return Ok(shown(CalcValue::error(WorksheetErrorCode::Value)));
+    }
+    for value in values {
+        if let Some(error) = value.as_error() {
+            return Ok(shown(CalcValue::error(error)));
+        }
+        if value.as_array().is_some() {
+            return Err(context.refuse_by("RTD over an array argument", "dc-snz.23"));
+        }
+    }
+    // Text as Excel coerces an argument to text: the one catalogue's CONCAT.
+    let mut texts = Vec::with_capacity(values.len());
+    for value in values {
+        if value.is_missing() || value.is_empty() {
+            texts.push(String::new());
+            continue;
+        }
+        let joined = context.worksheet_function("CONCAT", std::slice::from_ref(value))?;
+        match joined.as_text() {
+            Some(text) => texts.push(text.to_string_lossy()),
+            None => return Ok(shown(CalcValue::error(WorksheetErrorCode::Value))),
+        }
+    }
+    if !texts[1].is_empty() {
+        return Err(context.refuse_by("RTD from a named (remote) server", "dc-snz.23"));
+    }
+    let topic = TopicKey::new(&texts[0], "", &texts[2..]);
+    match context.read_topic(&topic, declared) {
+        Ok(seen) => Ok(RtdCallRead {
+            value: match seen.value {
+                // Excel shows an empty RTD value as zero.
+                Some((_, value)) if value.is_empty() => CalcValue::number(0.0),
+                Some((_, value)) => value,
+                None => CalcValue::error(WorksheetErrorCode::NA),
+            },
+            lease: Some(seen.lease),
+        }),
+        // No server could be started for the ProgID (or it failed): Excel's #N/A.
+        Err(why) if why.starts_with(RTD_CONNECT_FAILED) => {
+            Ok(shown(CalcValue::error(WorksheetErrorCode::NA)))
+        }
+        Err(why) => Err(why),
+    }
+}
+
 /// One connection incarnation of a topic: a new lease each time the topic is connected anew. A
 /// lease is never reused, so a value of an old incarnation cannot reach a new one.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
@@ -82,6 +158,12 @@ pub trait RtdConnector: fmt::Debug {
         caller: CellKey,
         declared: bool,
     ) -> Result<RtdConnection, String>;
+    /// Whether the connection at `lease` returned `value` at `sequence` as its provisional value
+    /// and the owner has not yet admitted it as that sequence. The owner admits it at the end of
+    /// the step that made the connection, so a result that read it is certifiable now.
+    fn provisional_pending(&self, _topic: &TopicKey, _lease: RtdLease, _sequence: u64) -> bool {
+        false
+    }
 }
 /// What the one read-or-connect rule gives a reader: the lease it read at and the value with the
 /// sequence it was admitted (or provisionally observed) at, if there is one.
@@ -405,5 +487,131 @@ pub trait UserFunctionContext {
         owner: &'static str,
     ) -> Result<CalcValue, String> {
         Err(self.refuse_by("constant expression evaluation without an owner", owner))
+    }
+}
+
+#[cfg(test)]
+mod rtd_call_tests {
+    use super::*;
+    use crate::value::{ExcelText, WorksheetErrorCode};
+
+    /// A context whose CONCAT is Excel's text conversion of one scalar, and whose topic read
+    /// records the topics it was asked for.
+    #[derive(Default)]
+    struct Recording {
+        topics: Vec<(TopicKey, bool)>,
+        fail_connect: bool,
+        empty_value: bool,
+    }
+    impl UserFunctionContext for Recording {
+        fn caller(&self) -> Option<CellKey> {
+            None
+        }
+        fn refuse(&mut self, reason: &'static str) -> String {
+            reason.to_owned()
+        }
+        fn values_of(&mut self, _: &ReferenceLike) -> Result<CalcValue, String> {
+            Err("no references in this test".into())
+        }
+        fn worksheet_function(
+            &mut self,
+            name: &str,
+            arguments: &[CalcValue],
+        ) -> Result<CalcValue, String> {
+            assert_eq!(name, "CONCAT");
+            let value = &arguments[0];
+            let text = if let Some(text) = value.as_text() {
+                text.to_string_lossy()
+            } else if let Some(number) = value.as_number() {
+                format!("{number}")
+            } else if let Some(flag) = value.as_logical() {
+                if flag { "TRUE" } else { "FALSE" }.to_owned()
+            } else {
+                return Err("unexpected argument".into());
+            };
+            Ok(CalcValue::text(ExcelText::from_interop_assignment(&text)))
+        }
+        fn read_topic(&mut self, topic: &TopicKey, declared: bool) -> Result<RtdTopicRead, String> {
+            self.topics.push((topic.clone(), declared));
+            if self.fail_connect {
+                return Err(format!("{RTD_CONNECT_FAILED}no server"));
+            }
+            Ok(RtdTopicRead {
+                lease: RtdLease(7),
+                value: Some((
+                    1,
+                    if self.empty_value {
+                        CalcValue::empty()
+                    } else {
+                        CalcValue::number(5.0)
+                    },
+                )),
+            })
+        }
+    }
+    fn text(value: &str) -> CalcValue {
+        CalcValue::text(ExcelText::from_interop_assignment(value))
+    }
+
+    #[cfg_attr(not(target_arch = "wasm32"), test)]
+    #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+    fn numeric_and_text_topics_are_one_topic() {
+        // Measured in Excel 16.0 (dc-snz.23.4): the number 1 and the text "1" are one topic, as
+        // are TRUE and "TRUE". The add-in's xlfRtd and the typed RTD() both reach this rule.
+        let ask = |topic: CalcValue| {
+            let mut context = Recording::default();
+            let read = read_rtd_call(
+                &mut context,
+                &[text("Prog.Id"), CalcValue::missing(), topic],
+                false,
+            )
+            .unwrap();
+            assert_eq!(read.value, CalcValue::number(5.0));
+            assert_eq!(read.lease, Some(RtdLease(7)));
+            context.topics.remove(0)
+        };
+        assert_eq!(ask(CalcValue::number(1.0)), ask(text("1")));
+        assert_eq!(ask(CalcValue::logical(true)), ask(text("TRUE")));
+        assert_ne!(ask(CalcValue::number(1.0)), ask(text("2")));
+        // The ProgID folds case, an omitted server is an empty one, topics compare exactly.
+        let (topic, declared) = ask(CalcValue::number(1.0));
+        assert_eq!(topic, TopicKey::new("prog.id", "", &["1".to_owned()]));
+        assert!(!declared);
+    }
+
+    #[cfg_attr(not(target_arch = "wasm32"), test)]
+    #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+    fn empty_value_shows_zero_and_connect_failure_na() {
+        let arguments = [text("P"), CalcValue::empty(), text("t")];
+        let mut context = Recording {
+            empty_value: true,
+            ..Recording::default()
+        };
+        let read = read_rtd_call(&mut context, &arguments, true).unwrap();
+        assert_eq!(read.value, CalcValue::number(0.0));
+        assert!(context.topics[0].1, "the typed route declares its dependency");
+        let mut context = Recording {
+            fail_connect: true,
+            ..Recording::default()
+        };
+        let read = read_rtd_call(&mut context, &arguments, true).unwrap();
+        assert_eq!(read.value, CalcValue::error(WorksheetErrorCode::NA));
+        assert_eq!(read.lease, None);
+    }
+
+    #[cfg_attr(not(target_arch = "wasm32"), test)]
+    #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+    fn error_remote_and_short_calls() {
+        let mut context = Recording::default();
+        let read = read_rtd_call(
+            &mut context,
+            &[text("P"), CalcValue::missing(), CalcValue::error(WorksheetErrorCode::Div0)],
+            false,
+        )
+        .unwrap();
+        assert_eq!(read.value, CalcValue::error(WorksheetErrorCode::Div0));
+        assert!(context.topics.is_empty(), "an error argument connects nothing");
+        assert!(read_rtd_call(&mut context, &[text("P"), text("remotehost"), text("t")], false).is_err());
+        assert!(read_rtd_call(&mut context, &[text("P"), text("")], false).is_err());
     }
 }

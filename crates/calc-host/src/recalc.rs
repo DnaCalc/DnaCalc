@@ -220,9 +220,16 @@ pub fn step(
     let progress = calc_engine::step(&host.engine, &host.model, &mut work, budget, observer);
     // An RTD connection made during this step returned a value ConnectData supplied. Admit it
     // as its sequence before anything is published, so the result that showed it is certified.
+    let was_current = work.live_inputs_current(&host.engine);
     let admitted = host.admit_connected_rtd();
+    // The work saw exactly what was admitted (the value ConnectData returned to the read), so
+    // it continues under the new cut and publishes in this step when it is complete.
+    let adopted = admitted && was_current;
+    if adopted {
+        work.adopt_connected_inputs(&host.engine, host.rtd_inputs.clone());
+    }
     match progress {
-        RecalcProgress::Complete if admitted => {
+        RecalcProgress::Complete if admitted && !adopted => {
             // The admission moved the inputs under this work: the next step supersedes it,
             // keeping every staged result whose certificate still holds.
             host.work = Some(work);
@@ -369,6 +376,17 @@ impl calc_fml::RtdConnector for RecordingConnector {
             ));
         }
         Ok(connection)
+    }
+    fn provisional_pending(
+        &self,
+        topic: &calc_fml::TopicKey,
+        lease: calc_fml::RtdLease,
+        sequence: u64,
+    ) -> bool {
+        self.queue
+            .borrow()
+            .iter()
+            .any(|(t, l, s, _)| t == topic && *l == lease && *s == sequence)
     }
 }
 impl HostState {

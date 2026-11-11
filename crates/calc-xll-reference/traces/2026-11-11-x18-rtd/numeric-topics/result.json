@@ -1,0 +1,490 @@
+{
+  "fatal": null,
+  "excel_pid": 4408,
+  "progid": "DnaCalc.X5.4408",
+  "registered": true,
+  "cases": [
+    {
+      "case": "callback-number-vs-text",
+      "formulas": [
+        "=X5.RtdCall(\"DnaCalc.X5.4408\",,1)",
+        "=X5.RtdCall(\"DnaCalc.X5.4408\",,\"1\")"
+      ],
+      "connect_calls": 1,
+      "rtd_rc": [
+        "0",
+        "0"
+      ],
+      "connect_ids": [
+        "1"
+      ],
+      "new_log": [
+        "Invoke\t26012\t10",
+        "ServerStart\t26012\t0",
+        "Invoke\t26012\t11",
+        "ConnectData\t26012\t1",
+        "xlfRtdCall\t26012\t0",
+        "xlfRtdCall\t26012\t0",
+        "UpdateNotify\t28072\t42",
+        "Invoke\t26012\t12",
+        "RefreshData\t26012\t42"
+      ],
+      "values": [
+        "1",
+        "1"
+      ]
+    },
+    {
+      "case": "callback-number-vs-typed-text",
+      "formulas": [
+        "=X5.RtdCall(\"DnaCalc.X5.4408\",,1)",
+        "=RTD(\"DnaCalc.X5.4408\",,\"1\")"
+      ],
+      "connect_calls": 1,
+      "rtd_rc": [
+        "0"
+      ],
+      "connect_ids": [
+        "1"
+      ],
+      "new_log": [
+        "Invoke\t26012\t10",
+        "ServerStart\t26012\t0",
+        "Invoke\t26012\t11",
+        "ConnectData\t26012\t1",
+        "xlfRtdCall\t26012\t0",
+        "UpdateNotify\t38908\t42",
+        "Invoke\t26012\t12",
+        "RefreshData\t26012\t42"
+      ],
+      "values": [
+        "1",
+        "1"
+      ]
+    },
+    {
+      "case": "callback-text-vs-typed-number",
+      "formulas": [
+        "=X5.RtdCall(\"DnaCalc.X5.4408\",,\"1\")",
+        "=RTD(\"DnaCalc.X5.4408\",,1)"
+      ],
+      "connect_calls": 1,
+      "rtd_rc": [
+        "0"
+      ],
+      "connect_ids": [
+        "1"
+      ],
+      "new_log": [
+        "Invoke\t26012\t10",
+        "ServerStart\t26012\t0",
+        "Invoke\t26012\t11",
+        "ConnectData\t26012\t1",
+        "xlfRtdCall\t26012\t0",
+        "UpdateNotify\t40756\t42",
+        "Invoke\t26012\t12",
+        "RefreshData\t26012\t42"
+      ],
+      "values": [
+        "1",
+        "1"
+      ]
+    },
+    {
+      "case": "callback-bool-vs-text",
+      "formulas": [
+        "=X5.RtdCall(\"DnaCalc.X5.4408\",,TRUE)",
+        "=RTD(\"DnaCalc.X5.4408\",,\"TRUE\")"
+      ],
+      "connect_calls": 1,
+      "rtd_rc": [
+        "0"
+      ],
+      "connect_ids": [
+        "2"
+      ],
+      "new_log": [
+        "Invoke\t26012\t10",
+        "ServerStart\t26012\t0",
+        "Invoke\t26012\t11",
+        "ConnectData\t26012\t2",
+        "xlfRtdCall\t26012\t0",
+        "UpdateNotify\t69324\t42",
+        "Invoke\t26012\t12",
+        "RefreshData\t26012\t42"
+      ],
+      "values": [
+        "1",
+        "1"
+      ]
+    },
+    {
+      "case": "callback-float-vs-text",
+      "formulas": [
+        "=X5.RtdCall(\"DnaCalc.X5.4408\",,0.1+0.2)",
+        "=X5.RtdCall(\"DnaCalc.X5.4408\",,\"0.3\")"
+      ],
+      "connect_calls": 1,
+      "rtd_rc": [
+        "0",
+        "0"
+      ],
+      "connect_ids": [
+        "3"
+      ],
+      "new_log": [
+        "Invoke\t26012\t10",
+        "ServerStart\t26012\t0",
+        "Invoke\t26012\t11",
+        "ConnectData\t26012\t3",
+        "xlfRtdCall\t26012\t0",
+        "xlfRtdCall\t26012\t0",
+        "UpdateNotify\t41736\t42",
+        "Invoke\t26012\t12",
+        "RefreshData\t26012\t42"
+      ],
+      "values": [
+        "1",
+        "1"
+      ]
+    },
+    {
+      "case": "callback-large-vs-text",
+      "formulas": [
+        "=X5.RtdCall(\"DnaCalc.X5.4408\",,1E+20)",
+        "=X5.RtdCall(\"DnaCalc.X5.4408\",,\"1E+20\")"
+      ],
+      "connect_calls": 1,
+      "rtd_rc": [
+        "0",
+        "0"
+      ],
+      "connect_ids": [
+        "4"
+      ],
+      "new_log": [
+        "Invoke\t26012\t10",
+        "ServerStart\t26012\t0",
+        "Invoke\t26012\t11",
+        "ConnectData\t26012\t4",
+        "xlfRtdCall\t26012\t0",
+        "xlfRtdCall\t26012\t0",
+        "UpdateNotify\t52676\t42",
+        "Invoke\t26012\t12",
+        "RefreshData\t26012\t42"
+      ],
+      "values": [
+        "1",
+        "1"
+      ]
+    },
+    {
+      "case": "callback-text-twice",
+      "formulas": [
+        "=X5.RtdCall(\"DnaCalc.X5.4408\",,\"t\")",
+        "=X5.RtdCall(\"DnaCalc.X5.4408\",,\"t\")"
+      ],
+      "connect_calls": 1,
+      "rtd_rc": [
+        "0",
+        "0"
+      ],
+      "connect_ids": [
+        "5"
+      ],
+      "new_log": [
+        "Invoke\t26012\t10",
+        "ServerStart\t26012\t0",
+        "Invoke\t26012\t11",
+        "ConnectData\t26012\t5",
+        "xlfRtdCall\t26012\t0",
+        "xlfRtdCall\t26012\t0",
+        "UpdateNotify\t4652\t42",
+        "Invoke\t26012\t12",
+        "RefreshData\t26012\t42"
+      ],
+      "values": [
+        "1",
+        "1"
+      ]
+    },
+    {
+      "case": "callback-topic-error",
+      "formulas": [
+        "=X5.RtdCall(\"DnaCalc.X5.4408\",,NA())"
+      ],
+      "connect_calls": 0,
+      "rtd_rc": [
+        "0"
+      ],
+      "connect_ids": [],
+      "new_log": [
+        "xlfRtdCall\t26012\t0"
+      ],
+      "values": [
+        "#N/A"
+      ]
+    },
+    {
+      "case": "callback-topic-omitted",
+      "formulas": [
+        "=X5.RtdCall(\"DnaCalc.X5.4408\",,)"
+      ],
+      "connect_calls": 1,
+      "rtd_rc": [
+        "0"
+      ],
+      "connect_ids": [
+        "6"
+      ],
+      "new_log": [
+        "Invoke\t26012\t10",
+        "ServerStart\t26012\t0",
+        "Invoke\t26012\t11",
+        "ConnectData\t26012\t6",
+        "xlfRtdCall\t26012\t0",
+        "UpdateNotify\t32308\t42",
+        "Invoke\t26012\t12",
+        "RefreshData\t26012\t42"
+      ],
+      "values": [
+        "1"
+      ]
+    },
+    {
+      "case": "callback-progid-number",
+      "formulas": [
+        "=X5.RtdCall(1,,\"e1\")"
+      ],
+      "connect_calls": 0,
+      "rtd_rc": [
+        "0"
+      ],
+      "connect_ids": [],
+      "new_log": [
+        "xlfRtdCall\t26012\t0"
+      ],
+      "values": [
+        "#N/A"
+      ]
+    },
+    {
+      "case": "callback-progid-unknown",
+      "formulas": [
+        "=X5.RtdCall(\"No.Such.Prog.Id\",,\"e3\")"
+      ],
+      "connect_calls": 0,
+      "rtd_rc": [
+        "0"
+      ],
+      "connect_ids": [],
+      "new_log": [
+        "xlfRtdCall\t26012\t0"
+      ],
+      "values": [
+        "#N/A"
+      ]
+    },
+    {
+      "case": "callback-topic-from-cell",
+      "formulas": [
+        "=1",
+        "=X5.RtdCall(\"DnaCalc.X5.4408\",,A1)",
+        "=X5.RtdCall(\"DnaCalc.X5.4408\",,\"1\")"
+      ],
+      "connect_calls": 1,
+      "rtd_rc": [
+        "0",
+        "0"
+      ],
+      "connect_ids": [
+        "1"
+      ],
+      "new_log": [
+        "Invoke\t26012\t10",
+        "ServerStart\t26012\t0",
+        "Invoke\t26012\t11",
+        "ConnectData\t26012\t1",
+        "xlfRtdCall\t26012\t0",
+        "xlfRtdCall\t26012\t0",
+        "UpdateNotify\t64448\t42",
+        "Invoke\t26012\t12",
+        "RefreshData\t26012\t42"
+      ],
+      "values": [
+        "1",
+        "1",
+        "1"
+      ]
+    },
+    {
+      "case": "callback-two-topics-vs-one",
+      "formulas": [
+        "=X5.RtdCall(\"DnaCalc.X5.4408\",,\"a\")",
+        "=RTD(\"DnaCalc.X5.4408\",,\"a\",\"b\")"
+      ],
+      "connect_calls": 2,
+      "rtd_rc": [
+        "0"
+      ],
+      "connect_ids": [
+        "9",
+        "10"
+      ],
+      "new_log": [
+        "Invoke\t26012\t10",
+        "ServerStart\t26012\t0",
+        "Invoke\t26012\t11",
+        "ConnectData\t26012\t9",
+        "xlfRtdCall\t26012\t0",
+        "Invoke\t26012\t11",
+        "ConnectData\t26012\t10",
+        "UpdateNotify\t30312\t42",
+        "Invoke\t26012\t12",
+        "RefreshData\t26012\t42"
+      ],
+      "values": [
+        "1",
+        "1"
+      ]
+    }
+  ],
+  "final_log": [
+    "NativeRegisterCode\t26012\t0",
+    "NativeRegisterType\t26012\t1",
+    "PrivateClassRegistered\t26012\t0",
+    "Invoke\t26012\t10",
+    "ServerStart\t26012\t0",
+    "Invoke\t26012\t11",
+    "ConnectData\t26012\t1",
+    "xlfRtdCall\t26012\t0",
+    "xlfRtdCall\t26012\t0",
+    "UpdateNotify\t28072\t42",
+    "Invoke\t26012\t12",
+    "RefreshData\t26012\t42",
+    "Invoke\t26012\t13",
+    "DisconnectData\t26012\t1",
+    "Invoke\t26012\t15",
+    "ServerTerminate\t26012\t0",
+    "Invoke\t26012\t10",
+    "ServerStart\t26012\t0",
+    "Invoke\t26012\t11",
+    "ConnectData\t26012\t1",
+    "xlfRtdCall\t26012\t0",
+    "UpdateNotify\t38908\t42",
+    "Invoke\t26012\t12",
+    "RefreshData\t26012\t42",
+    "Invoke\t26012\t13",
+    "DisconnectData\t26012\t1",
+    "Invoke\t26012\t15",
+    "ServerTerminate\t26012\t0",
+    "Invoke\t26012\t10",
+    "ServerStart\t26012\t0",
+    "Invoke\t26012\t11",
+    "ConnectData\t26012\t1",
+    "xlfRtdCall\t26012\t0",
+    "UpdateNotify\t40756\t42",
+    "Invoke\t26012\t12",
+    "RefreshData\t26012\t42",
+    "Invoke\t26012\t13",
+    "DisconnectData\t26012\t1",
+    "Invoke\t26012\t15",
+    "ServerTerminate\t26012\t0",
+    "Invoke\t26012\t10",
+    "ServerStart\t26012\t0",
+    "Invoke\t26012\t11",
+    "ConnectData\t26012\t2",
+    "xlfRtdCall\t26012\t0",
+    "UpdateNotify\t69324\t42",
+    "Invoke\t26012\t12",
+    "RefreshData\t26012\t42",
+    "Invoke\t26012\t13",
+    "DisconnectData\t26012\t2",
+    "Invoke\t26012\t15",
+    "ServerTerminate\t26012\t0",
+    "Invoke\t26012\t10",
+    "ServerStart\t26012\t0",
+    "Invoke\t26012\t11",
+    "ConnectData\t26012\t3",
+    "xlfRtdCall\t26012\t0",
+    "xlfRtdCall\t26012\t0",
+    "UpdateNotify\t41736\t42",
+    "Invoke\t26012\t12",
+    "RefreshData\t26012\t42",
+    "Invoke\t26012\t13",
+    "DisconnectData\t26012\t3",
+    "Invoke\t26012\t15",
+    "ServerTerminate\t26012\t0",
+    "Invoke\t26012\t10",
+    "ServerStart\t26012\t0",
+    "Invoke\t26012\t11",
+    "ConnectData\t26012\t4",
+    "xlfRtdCall\t26012\t0",
+    "xlfRtdCall\t26012\t0",
+    "UpdateNotify\t52676\t42",
+    "Invoke\t26012\t12",
+    "RefreshData\t26012\t42",
+    "Invoke\t26012\t13",
+    "DisconnectData\t26012\t4",
+    "Invoke\t26012\t15",
+    "ServerTerminate\t26012\t0",
+    "Invoke\t26012\t10",
+    "ServerStart\t26012\t0",
+    "Invoke\t26012\t11",
+    "ConnectData\t26012\t5",
+    "xlfRtdCall\t26012\t0",
+    "xlfRtdCall\t26012\t0",
+    "UpdateNotify\t4652\t42",
+    "Invoke\t26012\t12",
+    "RefreshData\t26012\t42",
+    "Invoke\t26012\t13",
+    "DisconnectData\t26012\t5",
+    "Invoke\t26012\t15",
+    "ServerTerminate\t26012\t0",
+    "xlfRtdCall\t26012\t0",
+    "Invoke\t26012\t10",
+    "ServerStart\t26012\t0",
+    "Invoke\t26012\t11",
+    "ConnectData\t26012\t6",
+    "xlfRtdCall\t26012\t0",
+    "UpdateNotify\t32308\t42",
+    "Invoke\t26012\t12",
+    "RefreshData\t26012\t42",
+    "Invoke\t26012\t13",
+    "DisconnectData\t26012\t6",
+    "Invoke\t26012\t15",
+    "ServerTerminate\t26012\t0",
+    "xlfRtdCall\t26012\t0",
+    "xlfRtdCall\t26012\t0",
+    "Invoke\t26012\t10",
+    "ServerStart\t26012\t0",
+    "Invoke\t26012\t11",
+    "ConnectData\t26012\t1",
+    "xlfRtdCall\t26012\t0",
+    "xlfRtdCall\t26012\t0",
+    "UpdateNotify\t64448\t42",
+    "Invoke\t26012\t12",
+    "RefreshData\t26012\t42",
+    "Invoke\t26012\t13",
+    "DisconnectData\t26012\t1",
+    "Invoke\t26012\t15",
+    "ServerTerminate\t26012\t0",
+    "Invoke\t26012\t10",
+    "ServerStart\t26012\t0",
+    "Invoke\t26012\t11",
+    "ConnectData\t26012\t9",
+    "xlfRtdCall\t26012\t0",
+    "Invoke\t26012\t11",
+    "ConnectData\t26012\t10",
+    "UpdateNotify\t30312\t42",
+    "Invoke\t26012\t12",
+    "RefreshData\t26012\t42",
+    "Invoke\t26012\t13",
+    "DisconnectData\t26012\t10",
+    "Invoke\t26012\t13",
+    "DisconnectData\t26012\t9",
+    "Invoke\t26012\t15",
+    "ServerTerminate\t26012\t0",
+    "AutoCloseLiveServers\t26012\t0"
+  ]
+}

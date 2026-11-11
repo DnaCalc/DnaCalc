@@ -1295,3 +1295,37 @@ DNA Calc's engine matches all 28 rows.
   throwing `XlCall.Excel` raises XlCallException with xlReturn 64, and a function that catches
   it and returns -999 still gets a fresh entry; -999 is never the cell's value. The engine
   matches all 12 rows.
+
+## 31. Exact RTD protocol: numeric topics and no second entry (dc-6332.12)
+
+Evidence: `crates/calc-xll-reference/traces/2026-11-11-x18-rtd` (README, predictions, the Excel
+measurement, the x5call verification). Excel 16.0.20527.20150; every guard 0 windows, 0
+foreground hits.
+
+- **One topic rule, numbers included.** `calc_func::read_rtd_call` is the one rule behind the typed
+  `=RTD()` and an add-in's `xlfRtd` callback: arguments coerce to text as CONCAT does, the topic
+  key is `(ProgID folded, "", strings)`, and the read goes through the connector. The callback
+  used to refuse a non-text topic. Measured through a native UDF that forwards its operands to
+  `xlfRtd` (`X5.RtdCall`): the number 1, the text "1", TRUE and "TRUE", 0.1+0.2 and "0.3", a
+  reference to a cell holding 1 are each one topic with the typed route's (one ConnectData);
+  an error topic, a numeric or unknown ProgID connect nothing and show #N/A with status 0; an
+  omitted topic connects one. The x5call comparison (`verify.py`) matches Excel: client protocol
+  6 of 6.
+- **ConnectData's value is not an update.** Excel returns it to the xlfRtd call that connected
+  and enters nothing again for it. The host admitted it after the step and superseded the work,
+  so every connecting function was entered twice (1, 1, 42 for the X5 UDF; a, a, b, a, b for a
+  formula with two connecting calls). The work now adopts that admission in place
+  (`RecalcWork::adopt_connected_inputs`; a read of a provisional value the connector reports as
+  pending, `RtdConnector::provisional_pending`, passes the certificate repair), and the
+  controller admits one RefreshData batch before one recalculation. Entry sequences now equal
+  Excel's wherever the observation timing is equal: delayed condition native entries 11 matched
+  4 failed (0 / 23 before), original 5 to 6 matched (0 / 26 before; its remaining rows are the
+  500 ms observation sleep and the calc-chain order of a shared topic's dependent). The old
+  `verify.py` expectation of the doubled answer (1, 1, 42) was wrong against Excel and is now 1,
+  42.
+- **Still different, all timing or scheduling** (README of the trace): the order of a replaced
+  topic's DisconnectData against the next topic's UpdateNotify (Excel: after, when the new
+  function is short; before, when the old formula had completed), the server terminate and
+  restart between two cases when the last topic disconnects first, and the order in which the
+  dependent of a shared topic is calculated. Heartbeat, the 22 s idle case and the controlled
+  numeric server keep matching (x5, x5typed, x5call verified).

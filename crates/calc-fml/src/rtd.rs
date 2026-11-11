@@ -151,10 +151,6 @@ pub fn admit(ledger: &RtdLedger, event: RtdEvent) -> (RtdLedger, RtdDisposition)
     }
 }
 
-/// The most topic strings a call can carry: a worksheet function takes 255 arguments, two of
-/// them the ProgID and the server.
-pub const MAX_TOPIC_STRINGS: usize = 253;
-
 /// The built-in `RTD(progid, server, topic1, ...)`, registered by a host that has an RTD
 /// connector ([`crate::CallableTable::register_rtd`]). It coerces its arguments to text as Excel
 /// does and reads the topic through [`read_topic`], the rule the `xlfRtd` callback uses too, so
@@ -175,7 +171,6 @@ impl calc_func::UserFunction for RtdFunction {
         arguments: &[CalcValue],
         context: &mut dyn calc_func::UserFunctionContext,
     ) -> Result<CalcValue, String> {
-        use calc_func::value::WorksheetErrorCode;
         let mut values = Vec::with_capacity(arguments.len());
         for argument in arguments {
             values.push(match argument.as_reference() {
@@ -183,54 +178,7 @@ impl calc_func::UserFunction for RtdFunction {
                 None => argument.clone(),
             });
         }
-        if values.len() < 3 {
-            return Err(
-                context.refuse_by("RTD without a ProgID, a server and a topic", "dc-snz.23")
-            );
-        }
-        if values.len() - 2 > MAX_TOPIC_STRINGS {
-            return Ok(CalcValue::error(WorksheetErrorCode::Value));
-        }
-        for value in &values {
-            if let Some(error) = value.as_error() {
-                return Ok(CalcValue::error(error));
-            }
-            if value.as_array().is_some() {
-                return Err(context.refuse_by("RTD over an array argument", "dc-snz.23"));
-            }
-        }
-        // Text as Excel coerces an argument to text: the one catalogue's CONCAT.
-        let mut text = |value: &CalcValue| -> Result<Option<String>, String> {
-            if value.is_missing() || value.is_empty() {
-                return Ok(Some(String::new()));
-            }
-            let joined = context.worksheet_function("CONCAT", std::slice::from_ref(value))?;
-            Ok(joined.as_text().map(|text| text.to_string_lossy()))
-        };
-        let mut texts = Vec::with_capacity(values.len());
-        for value in &values {
-            match text(value)? {
-                Some(text) => texts.push(text),
-                None => return Ok(CalcValue::error(WorksheetErrorCode::Value)),
-            }
-        }
-        if !texts[1].is_empty() {
-            return Err(context.refuse_by("RTD from a named (remote) server", "dc-snz.23"));
-        }
-        let topic = TopicKey::new(&texts[0], "", &texts[2..]);
-        match context.read_topic(&topic, true) {
-            Ok(seen) => Ok(match seen.value {
-                // Excel shows an empty RTD value as zero.
-                Some((_, value)) if value.is_empty() => CalcValue::number(0.0),
-                Some((_, value)) => value,
-                None => CalcValue::error(WorksheetErrorCode::NA),
-            }),
-            // No server could be started for the ProgID (or it failed): Excel's #N/A.
-            Err(why) if why.starts_with(calc_func::RTD_CONNECT_FAILED) => {
-                Ok(CalcValue::error(WorksheetErrorCode::NA))
-            }
-            Err(why) => Err(why),
-        }
+        calc_func::read_rtd_call(context, &values, true).map(|read| read.value)
     }
 }
 

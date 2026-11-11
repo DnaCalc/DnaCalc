@@ -18,9 +18,10 @@ pub use calc_value as value;
 mod call;
 mod udf;
 pub use udf::{
-    RTD_CONNECT_FAILED, RTD_PROVIDER, ReferenceHandleError, ReferenceHandles, ReferenceRead,
+    MAX_TOPIC_STRINGS, RTD_CONNECT_FAILED, RTD_PROVIDER, ReferenceHandleError, ReferenceHandles, ReferenceRead,
     RtdConnection,
-    RtdConnector, RtdCut, RtdEntry, RtdLease, RtdRead, RtdTopicRead, StoredReference, TopicKey,
+    RtdCallRead, RtdConnector, RtdCut, RtdEntry, RtdLease, RtdRead, RtdTopicRead,
+    StoredReference, TopicKey, read_rtd_call,
     UserCallableIdentity, UserFunction, UserFunctionContext, UserFunctionInvocation,
     UserFunctionStep, UserInvocationFrame, UserReevaluationReason, UserView,
 };

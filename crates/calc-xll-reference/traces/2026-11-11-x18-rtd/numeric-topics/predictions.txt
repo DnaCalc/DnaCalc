@@ -1,0 +1,14 @@
+Predictions written before the Excel run (dc-6332.12, numeric xlfRtd topics, X5.RtdCall -> xlfRtd 379 through the C API):
+ callback-number-vs-text            1 ConnectData (number 1 and text "1" one topic, as F.4 measured for typed RTD)
+ callback-number-vs-typed-text      1
+ callback-text-vs-typed-number      1
+ callback-bool-vs-text              1
+ callback-float-vs-text             1 (0.1+0.2 shows as 0.3 at 15 digits)
+ callback-large-vs-text             1
+ callback-text-twice                1
+ callback-topic-error               0 ConnectData, rc 0 with #N/A
+ callback-topic-omitted             1 ConnectData (omitted = empty text topic), if typed RTD(P,,) connects
+ callback-progid-number             0 ConnectData, #N/A
+ callback-progid-unknown            0 ConnectData, #N/A (rc 0)
+ callback-topic-from-cell           1 total for A2 and A3 (a reference topic is read as its value 1)
+ callback-two-topics-vs-one         2
