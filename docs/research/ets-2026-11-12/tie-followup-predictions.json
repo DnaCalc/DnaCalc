@@ -1,0 +1,2732 @@
+{
+  "protocol": "Strict first retention with fixed 23-point pool; only score product, reduction, transform and final store differ. This is an offline-selected discrimination set, not a fitted match-rate search.",
+  "python_source": "from experiments import *\n\ndef scores_for(y):\n    start=len(y)-window(len(y))\n    scores=[]\n    for a,b in PARAMETERS:\n        errors=run(y,a,b,validation=start or None)['errors']\n        ds=0.; ps=Q(0); es=Q(0)\n        for e in errors:\n            ds+=e*e\n            ps=rnq(ps+rnq(Q(e)*Q(e)))\n            es+=Q(e)*Q(e)\n        vals={\n          'double_sse':ds,'double_mse':ds/len(y),'double_rmse':math.sqrt(ds/len(y)),\n          'pc64_sse_store':float(ps),'pc64_mse_store':float(rnq(ps/len(y))),\n          'pc64_rmse_store':math.sqrt(float(rnq(ps/len(y)))),\n          'exact_sse_store':float(es),'double_products_fsum':math.fsum(e*e for e in errors),\n          'pc64_sse_unstored':ps}\n        scores.append((a,b,vals))\n    return {name:min(scores,key=lambda item:item[2][name])[0] for name in scores[0][2]}\n\ndef main():\n    base=list(map(float,range(1000000,2200000,100000)))\n    base[7]+=2000; base[8]+=26170; base[9]-=19550\n    rows=[]; signatures=set()\n    # Offline-designed families; select diverse distinctions, without Excel answers.\n    for exponent in [24,25,26,27,28,29,30,31,32]:\n        for mult in [1,3,5]:\n            for amplitude in [0.,1/1024.,-1/1024.,1/16.,-1/16.,1.,-1.]:\n                y=base.copy(); k=float((2**exponent)*mult)\n                y[8]+=k;y[9]-=2*k;y[10]+=k\n                y[10]+=11*amplitude;y[11]-=9*amplitude\n                preds=scores_for(y)\n                signature=tuple(preds.values())\n                if len(set(signature))<2:continue\n                # Retain a few independent witnesses per split, each with exact input bits.\n                key=(signature,exponent//3)\n                if key in signatures:continue\n                signatures.add(key)\n                rows.append(question(f'K{exponent}x{mult}_d{amplitude}',y,0,'stat',1,{k:val(v) for k,v in preds.items()}))\n    # Underflow distinguishes comparison in extended range from a stored binary64 score.\n    for scale in [-500,-530,-540,-550,-600]:\n        y=base.copy();y[10]-=11;y[11]+=9\n        y=[math.ldexp(v,scale) for v in y]\n        preds=scores_for(y)\n        rows.append(question(f'underflow_{scale}',y,0,'stat',1,{k:val(v) for k,v in preds.items()}))\n    save('tie-followup-predictions.json',dict(\n      protocol='Strict first retention with fixed 23-point pool; only score product, reduction, transform and final store differ. This is an offline-selected discrimination set, not a fitted match-rate search.',\n      python_source=Path(__file__).read_text(),rows=rows))\n    print('Frozen',len(rows),'tie followups',len(signatures),'distinct splits')\n\nif __name__=='__main__':main()\n",
+  "rows": [
+    {
+      "id": "K24x3_d-0.0009765625",
+      "y": [
+        1000000.0,
+        1100000.0,
+        1200000.0,
+        1300000.0,
+        1400000.0,
+        1500000.0,
+        1600000.0,
+        1702000.0,
+        52157818.0,
+        -98782846.0,
+        52331647.98925781,
+        2100000.0087890625
+      ],
+      "p": 0,
+      "output": "stat",
+      "index": 1,
+      "predictions": {
+        "double_sse": {
+          "value": 0.75,
+          "bits": "3fe8000000000000"
+        },
+        "double_mse": {
+          "value": 0.75,
+          "bits": "3fe8000000000000"
+        },
+        "double_rmse": {
+          "value": 0.9,
+          "bits": "3feccccccccccccd"
+        },
+        "pc64_sse_store": {
+          "value": 0.75,
+          "bits": "3fe8000000000000"
+        },
+        "pc64_mse_store": {
+          "value": 0.9,
+          "bits": "3feccccccccccccd"
+        },
+        "pc64_rmse_store": {
+          "value": 0.9,
+          "bits": "3feccccccccccccd"
+        },
+        "exact_sse_store": {
+          "value": 0.75,
+          "bits": "3fe8000000000000"
+        },
+        "double_products_fsum": {
+          "value": 0.75,
+          "bits": "3fe8000000000000"
+        },
+        "pc64_sse_unstored": {
+          "value": 0.75,
+          "bits": "3fe8000000000000"
+        }
+      }
+    },
+    {
+      "id": "K24x5_d-0.0009765625",
+      "y": [
+        1000000.0,
+        1100000.0,
+        1200000.0,
+        1300000.0,
+        1400000.0,
+        1500000.0,
+        1600000.0,
+        1702000.0,
+        85712250.0,
+        -165891710.0,
+        85886079.98925781,
+        2100000.0087890625
+      ],
+      "p": 0,
+      "output": "stat",
+      "index": 1,
+      "predictions": {
+        "double_sse": {
+          "value": 0.9,
+          "bits": "3feccccccccccccd"
+        },
+        "double_mse": {
+          "value": 0.9,
+          "bits": "3feccccccccccccd"
+        },
+        "double_rmse": {
+          "value": 0.9,
+          "bits": "3feccccccccccccd"
+        },
+        "pc64_sse_store": {
+          "value": 0.9,
+          "bits": "3feccccccccccccd"
+        },
+        "pc64_mse_store": {
+          "value": 0.9,
+          "bits": "3feccccccccccccd"
+        },
+        "pc64_rmse_store": {
+          "value": 0.9,
+          "bits": "3feccccccccccccd"
+        },
+        "exact_sse_store": {
+          "value": 0.9,
+          "bits": "3feccccccccccccd"
+        },
+        "double_products_fsum": {
+          "value": 0.9,
+          "bits": "3feccccccccccccd"
+        },
+        "pc64_sse_unstored": {
+          "value": 0.75,
+          "bits": "3fe8000000000000"
+        }
+      }
+    },
+    {
+      "id": "K25x1_d-0.0009765625",
+      "y": [
+        1000000.0,
+        1100000.0,
+        1200000.0,
+        1300000.0,
+        1400000.0,
+        1500000.0,
+        1600000.0,
+        1702000.0,
+        35380602.0,
+        -65228414.0,
+        35554431.98925781,
+        2100000.0087890625
+      ],
+      "p": 0,
+      "output": "stat",
+      "index": 1,
+      "predictions": {
+        "double_sse": {
+          "value": 0.75,
+          "bits": "3fe8000000000000"
+        },
+        "double_mse": {
+          "value": 0.75,
+          "bits": "3fe8000000000000"
+        },
+        "double_rmse": {
+          "value": 0.75,
+          "bits": "3fe8000000000000"
+        },
+        "pc64_sse_store": {
+          "value": 0.75,
+          "bits": "3fe8000000000000"
+        },
+        "pc64_mse_store": {
+          "value": 0.75,
+          "bits": "3fe8000000000000"
+        },
+        "pc64_rmse_store": {
+          "value": 0.9,
+          "bits": "3feccccccccccccd"
+        },
+        "exact_sse_store": {
+          "value": 0.75,
+          "bits": "3fe8000000000000"
+        },
+        "double_products_fsum": {
+          "value": 0.75,
+          "bits": "3fe8000000000000"
+        },
+        "pc64_sse_unstored": {
+          "value": 0.75,
+          "bits": "3fe8000000000000"
+        }
+      }
+    },
+    {
+      "id": "K25x3_d0.0009765625",
+      "y": [
+        1000000.0,
+        1100000.0,
+        1200000.0,
+        1300000.0,
+        1400000.0,
+        1500000.0,
+        1600000.0,
+        1702000.0,
+        102489466.0,
+        -199446142.0,
+        102663296.01074219,
+        2099999.9912109375
+      ],
+      "p": 0,
+      "output": "stat",
+      "index": 1,
+      "predictions": {
+        "double_sse": {
+          "value": 0.75,
+          "bits": "3fe8000000000000"
+        },
+        "double_mse": {
+          "value": 0.9,
+          "bits": "3feccccccccccccd"
+        },
+        "double_rmse": {
+          "value": 0.9,
+          "bits": "3feccccccccccccd"
+        },
+        "pc64_sse_store": {
+          "value": 0.9,
+          "bits": "3feccccccccccccd"
+        },
+        "pc64_mse_store": {
+          "value": 0.9,
+          "bits": "3feccccccccccccd"
+        },
+        "pc64_rmse_store": {
+          "value": 0.9,
+          "bits": "3feccccccccccccd"
+        },
+        "exact_sse_store": {
+          "value": 0.9,
+          "bits": "3feccccccccccccd"
+        },
+        "double_products_fsum": {
+          "value": 0.9,
+          "bits": "3feccccccccccccd"
+        },
+        "pc64_sse_unstored": {
+          "value": 0.9,
+          "bits": "3feccccccccccccd"
+        }
+      }
+    },
+    {
+      "id": "K25x3_d-0.0009765625",
+      "y": [
+        1000000.0,
+        1100000.0,
+        1200000.0,
+        1300000.0,
+        1400000.0,
+        1500000.0,
+        1600000.0,
+        1702000.0,
+        102489466.0,
+        -199446142.0,
+        102663295.98925781,
+        2100000.0087890625
+      ],
+      "p": 0,
+      "output": "stat",
+      "index": 1,
+      "predictions": {
+        "double_sse": {
+          "value": 0.9,
+          "bits": "3feccccccccccccd"
+        },
+        "double_mse": {
+          "value": 0.9,
+          "bits": "3feccccccccccccd"
+        },
+        "double_rmse": {
+          "value": 0.9,
+          "bits": "3feccccccccccccd"
+        },
+        "pc64_sse_store": {
+          "value": 0.9,
+          "bits": "3feccccccccccccd"
+        },
+        "pc64_mse_store": {
+          "value": 0.75,
+          "bits": "3fe8000000000000"
+        },
+        "pc64_rmse_store": {
+          "value": 0.75,
+          "bits": "3fe8000000000000"
+        },
+        "exact_sse_store": {
+          "value": 0.9,
+          "bits": "3feccccccccccccd"
+        },
+        "double_products_fsum": {
+          "value": 0.9,
+          "bits": "3feccccccccccccd"
+        },
+        "pc64_sse_unstored": {
+          "value": 0.75,
+          "bits": "3fe8000000000000"
+        }
+      }
+    },
+    {
+      "id": "K26x1_d-0.0009765625",
+      "y": [
+        1000000.0,
+        1100000.0,
+        1200000.0,
+        1300000.0,
+        1400000.0,
+        1500000.0,
+        1600000.0,
+        1702000.0,
+        68935034.0,
+        -132337278.0,
+        69108863.98925781,
+        2100000.0087890625
+      ],
+      "p": 0,
+      "output": "stat",
+      "index": 1,
+      "predictions": {
+        "double_sse": {
+          "value": 0.75,
+          "bits": "3fe8000000000000"
+        },
+        "double_mse": {
+          "value": 0.9,
+          "bits": "3feccccccccccccd"
+        },
+        "double_rmse": {
+          "value": 0.9,
+          "bits": "3feccccccccccccd"
+        },
+        "pc64_sse_store": {
+          "value": 0.75,
+          "bits": "3fe8000000000000"
+        },
+        "pc64_mse_store": {
+          "value": 0.9,
+          "bits": "3feccccccccccccd"
+        },
+        "pc64_rmse_store": {
+          "value": 0.9,
+          "bits": "3feccccccccccccd"
+        },
+        "exact_sse_store": {
+          "value": 0.75,
+          "bits": "3fe8000000000000"
+        },
+        "double_products_fsum": {
+          "value": 0.75,
+          "bits": "3fe8000000000000"
+        },
+        "pc64_sse_unstored": {
+          "value": 0.75,
+          "bits": "3fe8000000000000"
+        }
+      }
+    },
+    {
+      "id": "K26x5_d0.0",
+      "y": [
+        1000000.0,
+        1100000.0,
+        1200000.0,
+        1300000.0,
+        1400000.0,
+        1500000.0,
+        1600000.0,
+        1702000.0,
+        337370490.0,
+        -669208190.0,
+        337544320.0,
+        2100000.0
+      ],
+      "p": 0,
+      "output": "stat",
+      "index": 1,
+      "predictions": {
+        "double_sse": {
+          "value": 0.75,
+          "bits": "3fe8000000000000"
+        },
+        "double_mse": {
+          "value": 0.75,
+          "bits": "3fe8000000000000"
+        },
+        "double_rmse": {
+          "value": 0.75,
+          "bits": "3fe8000000000000"
+        },
+        "pc64_sse_store": {
+          "value": 0.9,
+          "bits": "3feccccccccccccd"
+        },
+        "pc64_mse_store": {
+          "value": 0.9,
+          "bits": "3feccccccccccccd"
+        },
+        "pc64_rmse_store": {
+          "value": 0.9,
+          "bits": "3feccccccccccccd"
+        },
+        "exact_sse_store": {
+          "value": 0.9,
+          "bits": "3feccccccccccccd"
+        },
+        "double_products_fsum": {
+          "value": 0.75,
+          "bits": "3fe8000000000000"
+        },
+        "pc64_sse_unstored": {
+          "value": 0.9,
+          "bits": "3feccccccccccccd"
+        }
+      }
+    },
+    {
+      "id": "K26x5_d-0.0009765625",
+      "y": [
+        1000000.0,
+        1100000.0,
+        1200000.0,
+        1300000.0,
+        1400000.0,
+        1500000.0,
+        1600000.0,
+        1702000.0,
+        337370490.0,
+        -669208190.0,
+        337544319.9892578,
+        2100000.0087890625
+      ],
+      "p": 0,
+      "output": "stat",
+      "index": 1,
+      "predictions": {
+        "double_sse": {
+          "value": 0.75,
+          "bits": "3fe8000000000000"
+        },
+        "double_mse": {
+          "value": 0.75,
+          "bits": "3fe8000000000000"
+        },
+        "double_rmse": {
+          "value": 0.75,
+          "bits": "3fe8000000000000"
+        },
+        "pc64_sse_store": {
+          "value": 0.9,
+          "bits": "3feccccccccccccd"
+        },
+        "pc64_mse_store": {
+          "value": 0.9,
+          "bits": "3feccccccccccccd"
+        },
+        "pc64_rmse_store": {
+          "value": 0.9,
+          "bits": "3feccccccccccccd"
+        },
+        "exact_sse_store": {
+          "value": 0.9,
+          "bits": "3feccccccccccccd"
+        },
+        "double_products_fsum": {
+          "value": 0.75,
+          "bits": "3fe8000000000000"
+        },
+        "pc64_sse_unstored": {
+          "value": 0.75,
+          "bits": "3fe8000000000000"
+        }
+      }
+    },
+    {
+      "id": "K26x5_d-0.0625",
+      "y": [
+        1000000.0,
+        1100000.0,
+        1200000.0,
+        1300000.0,
+        1400000.0,
+        1500000.0,
+        1600000.0,
+        1702000.0,
+        337370490.0,
+        -669208190.0,
+        337544319.3125,
+        2100000.5625
+      ],
+      "p": 0,
+      "output": "stat",
+      "index": 1,
+      "predictions": {
+        "double_sse": {
+          "value": 0.75,
+          "bits": "3fe8000000000000"
+        },
+        "double_mse": {
+          "value": 0.75,
+          "bits": "3fe8000000000000"
+        },
+        "double_rmse": {
+          "value": 0.75,
+          "bits": "3fe8000000000000"
+        },
+        "pc64_sse_store": {
+          "value": 0.75,
+          "bits": "3fe8000000000000"
+        },
+        "pc64_mse_store": {
+          "value": 0.9,
+          "bits": "3feccccccccccccd"
+        },
+        "pc64_rmse_store": {
+          "value": 0.9,
+          "bits": "3feccccccccccccd"
+        },
+        "exact_sse_store": {
+          "value": 0.75,
+          "bits": "3fe8000000000000"
+        },
+        "double_products_fsum": {
+          "value": 0.75,
+          "bits": "3fe8000000000000"
+        },
+        "pc64_sse_unstored": {
+          "value": 0.75,
+          "bits": "3fe8000000000000"
+        }
+      }
+    },
+    {
+      "id": "K27x1_d-0.0009765625",
+      "y": [
+        1000000.0,
+        1100000.0,
+        1200000.0,
+        1300000.0,
+        1400000.0,
+        1500000.0,
+        1600000.0,
+        1702000.0,
+        136043898.0,
+        -266555006.0,
+        136217727.9892578,
+        2100000.0087890625
+      ],
+      "p": 0,
+      "output": "stat",
+      "index": 1,
+      "predictions": {
+        "double_sse": {
+          "value": 0.75,
+          "bits": "3fe8000000000000"
+        },
+        "double_mse": {
+          "value": 0.9,
+          "bits": "3feccccccccccccd"
+        },
+        "double_rmse": {
+          "value": 0.9,
+          "bits": "3feccccccccccccd"
+        },
+        "pc64_sse_store": {
+          "value": 0.9,
+          "bits": "3feccccccccccccd"
+        },
+        "pc64_mse_store": {
+          "value": 0.9,
+          "bits": "3feccccccccccccd"
+        },
+        "pc64_rmse_store": {
+          "value": 0.9,
+          "bits": "3feccccccccccccd"
+        },
+        "exact_sse_store": {
+          "value": 0.9,
+          "bits": "3feccccccccccccd"
+        },
+        "double_products_fsum": {
+          "value": 0.9,
+          "bits": "3feccccccccccccd"
+        },
+        "pc64_sse_unstored": {
+          "value": 0.75,
+          "bits": "3fe8000000000000"
+        }
+      }
+    },
+    {
+      "id": "K27x3_d0.0",
+      "y": [
+        1000000.0,
+        1100000.0,
+        1200000.0,
+        1300000.0,
+        1400000.0,
+        1500000.0,
+        1600000.0,
+        1702000.0,
+        404479354.0,
+        -803425918.0,
+        404653184.0,
+        2100000.0
+      ],
+      "p": 0,
+      "output": "stat",
+      "index": 1,
+      "predictions": {
+        "double_sse": {
+          "value": 0.75,
+          "bits": "3fe8000000000000"
+        },
+        "double_mse": {
+          "value": 0.9,
+          "bits": "3feccccccccccccd"
+        },
+        "double_rmse": {
+          "value": 0.9,
+          "bits": "3feccccccccccccd"
+        },
+        "pc64_sse_store": {
+          "value": 0.9,
+          "bits": "3feccccccccccccd"
+        },
+        "pc64_mse_store": {
+          "value": 0.9,
+          "bits": "3feccccccccccccd"
+        },
+        "pc64_rmse_store": {
+          "value": 0.9,
+          "bits": "3feccccccccccccd"
+        },
+        "exact_sse_store": {
+          "value": 0.9,
+          "bits": "3feccccccccccccd"
+        },
+        "double_products_fsum": {
+          "value": 0.75,
+          "bits": "3fe8000000000000"
+        },
+        "pc64_sse_unstored": {
+          "value": 0.9,
+          "bits": "3feccccccccccccd"
+        }
+      }
+    },
+    {
+      "id": "K27x3_d-0.0009765625",
+      "y": [
+        1000000.0,
+        1100000.0,
+        1200000.0,
+        1300000.0,
+        1400000.0,
+        1500000.0,
+        1600000.0,
+        1702000.0,
+        404479354.0,
+        -803425918.0,
+        404653183.9892578,
+        2100000.0087890625
+      ],
+      "p": 0,
+      "output": "stat",
+      "index": 1,
+      "predictions": {
+        "double_sse": {
+          "value": 0.75,
+          "bits": "3fe8000000000000"
+        },
+        "double_mse": {
+          "value": 0.9,
+          "bits": "3feccccccccccccd"
+        },
+        "double_rmse": {
+          "value": 0.9,
+          "bits": "3feccccccccccccd"
+        },
+        "pc64_sse_store": {
+          "value": 0.9,
+          "bits": "3feccccccccccccd"
+        },
+        "pc64_mse_store": {
+          "value": 0.9,
+          "bits": "3feccccccccccccd"
+        },
+        "pc64_rmse_store": {
+          "value": 0.9,
+          "bits": "3feccccccccccccd"
+        },
+        "exact_sse_store": {
+          "value": 0.9,
+          "bits": "3feccccccccccccd"
+        },
+        "double_products_fsum": {
+          "value": 0.75,
+          "bits": "3fe8000000000000"
+        },
+        "pc64_sse_unstored": {
+          "value": 0.75,
+          "bits": "3fe8000000000000"
+        }
+      }
+    },
+    {
+      "id": "K27x3_d-0.0625",
+      "y": [
+        1000000.0,
+        1100000.0,
+        1200000.0,
+        1300000.0,
+        1400000.0,
+        1500000.0,
+        1600000.0,
+        1702000.0,
+        404479354.0,
+        -803425918.0,
+        404653183.3125,
+        2100000.5625
+      ],
+      "p": 0,
+      "output": "stat",
+      "index": 1,
+      "predictions": {
+        "double_sse": {
+          "value": 0.75,
+          "bits": "3fe8000000000000"
+        },
+        "double_mse": {
+          "value": 0.9,
+          "bits": "3feccccccccccccd"
+        },
+        "double_rmse": {
+          "value": 0.9,
+          "bits": "3feccccccccccccd"
+        },
+        "pc64_sse_store": {
+          "value": 0.75,
+          "bits": "3fe8000000000000"
+        },
+        "pc64_mse_store": {
+          "value": 0.9,
+          "bits": "3feccccccccccccd"
+        },
+        "pc64_rmse_store": {
+          "value": 0.9,
+          "bits": "3feccccccccccccd"
+        },
+        "exact_sse_store": {
+          "value": 0.75,
+          "bits": "3fe8000000000000"
+        },
+        "double_products_fsum": {
+          "value": 0.75,
+          "bits": "3fe8000000000000"
+        },
+        "pc64_sse_unstored": {
+          "value": 0.75,
+          "bits": "3fe8000000000000"
+        }
+      }
+    },
+    {
+      "id": "K27x5_d-0.0009765625",
+      "y": [
+        1000000.0,
+        1100000.0,
+        1200000.0,
+        1300000.0,
+        1400000.0,
+        1500000.0,
+        1600000.0,
+        1702000.0,
+        672914810.0,
+        -1340296830.0,
+        673088639.9892578,
+        2100000.0087890625
+      ],
+      "p": 0,
+      "output": "stat",
+      "index": 1,
+      "predictions": {
+        "double_sse": {
+          "value": 0.75,
+          "bits": "3fe8000000000000"
+        },
+        "double_mse": {
+          "value": 0.75,
+          "bits": "3fe8000000000000"
+        },
+        "double_rmse": {
+          "value": 0.75,
+          "bits": "3fe8000000000000"
+        },
+        "pc64_sse_store": {
+          "value": 0.9,
+          "bits": "3feccccccccccccd"
+        },
+        "pc64_mse_store": {
+          "value": 0.9,
+          "bits": "3feccccccccccccd"
+        },
+        "pc64_rmse_store": {
+          "value": 0.9,
+          "bits": "3feccccccccccccd"
+        },
+        "exact_sse_store": {
+          "value": 0.9,
+          "bits": "3feccccccccccccd"
+        },
+        "double_products_fsum": {
+          "value": 0.9,
+          "bits": "3feccccccccccccd"
+        },
+        "pc64_sse_unstored": {
+          "value": 0.75,
+          "bits": "3fe8000000000000"
+        }
+      }
+    },
+    {
+      "id": "K27x5_d-0.0625",
+      "y": [
+        1000000.0,
+        1100000.0,
+        1200000.0,
+        1300000.0,
+        1400000.0,
+        1500000.0,
+        1600000.0,
+        1702000.0,
+        672914810.0,
+        -1340296830.0,
+        673088639.3125,
+        2100000.5625
+      ],
+      "p": 0,
+      "output": "stat",
+      "index": 1,
+      "predictions": {
+        "double_sse": {
+          "value": 0.75,
+          "bits": "3fe8000000000000"
+        },
+        "double_mse": {
+          "value": 0.75,
+          "bits": "3fe8000000000000"
+        },
+        "double_rmse": {
+          "value": 0.9,
+          "bits": "3feccccccccccccd"
+        },
+        "pc64_sse_store": {
+          "value": 0.9,
+          "bits": "3feccccccccccccd"
+        },
+        "pc64_mse_store": {
+          "value": 0.75,
+          "bits": "3fe8000000000000"
+        },
+        "pc64_rmse_store": {
+          "value": 0.9,
+          "bits": "3feccccccccccccd"
+        },
+        "exact_sse_store": {
+          "value": 0.9,
+          "bits": "3feccccccccccccd"
+        },
+        "double_products_fsum": {
+          "value": 0.75,
+          "bits": "3fe8000000000000"
+        },
+        "pc64_sse_unstored": {
+          "value": 0.75,
+          "bits": "3fe8000000000000"
+        }
+      }
+    },
+    {
+      "id": "K28x1_d0.0",
+      "y": [
+        1000000.0,
+        1100000.0,
+        1200000.0,
+        1300000.0,
+        1400000.0,
+        1500000.0,
+        1600000.0,
+        1702000.0,
+        270261626.0,
+        -534990462.0,
+        270435456.0,
+        2100000.0
+      ],
+      "p": 0,
+      "output": "stat",
+      "index": 1,
+      "predictions": {
+        "double_sse": {
+          "value": 0.75,
+          "bits": "3fe8000000000000"
+        },
+        "double_mse": {
+          "value": 0.75,
+          "bits": "3fe8000000000000"
+        },
+        "double_rmse": {
+          "value": 0.75,
+          "bits": "3fe8000000000000"
+        },
+        "pc64_sse_store": {
+          "value": 0.9,
+          "bits": "3feccccccccccccd"
+        },
+        "pc64_mse_store": {
+          "value": 0.9,
+          "bits": "3feccccccccccccd"
+        },
+        "pc64_rmse_store": {
+          "value": 0.9,
+          "bits": "3feccccccccccccd"
+        },
+        "exact_sse_store": {
+          "value": 0.9,
+          "bits": "3feccccccccccccd"
+        },
+        "double_products_fsum": {
+          "value": 0.75,
+          "bits": "3fe8000000000000"
+        },
+        "pc64_sse_unstored": {
+          "value": 0.9,
+          "bits": "3feccccccccccccd"
+        }
+      }
+    },
+    {
+      "id": "K28x1_d0.0009765625",
+      "y": [
+        1000000.0,
+        1100000.0,
+        1200000.0,
+        1300000.0,
+        1400000.0,
+        1500000.0,
+        1600000.0,
+        1702000.0,
+        270261626.0,
+        -534990462.0,
+        270435456.0107422,
+        2099999.9912109375
+      ],
+      "p": 0,
+      "output": "stat",
+      "index": 1,
+      "predictions": {
+        "double_sse": {
+          "value": 0.9,
+          "bits": "3feccccccccccccd"
+        },
+        "double_mse": {
+          "value": 0.9,
+          "bits": "3feccccccccccccd"
+        },
+        "double_rmse": {
+          "value": 0.9,
+          "bits": "3feccccccccccccd"
+        },
+        "pc64_sse_store": {
+          "value": 0.9,
+          "bits": "3feccccccccccccd"
+        },
+        "pc64_mse_store": {
+          "value": 0.9,
+          "bits": "3feccccccccccccd"
+        },
+        "pc64_rmse_store": {
+          "value": 0.9,
+          "bits": "3feccccccccccccd"
+        },
+        "exact_sse_store": {
+          "value": 0.9,
+          "bits": "3feccccccccccccd"
+        },
+        "double_products_fsum": {
+          "value": 0.75,
+          "bits": "3fe8000000000000"
+        },
+        "pc64_sse_unstored": {
+          "value": 0.9,
+          "bits": "3feccccccccccccd"
+        }
+      }
+    },
+    {
+      "id": "K28x1_d-0.0625",
+      "y": [
+        1000000.0,
+        1100000.0,
+        1200000.0,
+        1300000.0,
+        1400000.0,
+        1500000.0,
+        1600000.0,
+        1702000.0,
+        270261626.0,
+        -534990462.0,
+        270435455.3125,
+        2100000.5625
+      ],
+      "p": 0,
+      "output": "stat",
+      "index": 1,
+      "predictions": {
+        "double_sse": {
+          "value": 0.75,
+          "bits": "3fe8000000000000"
+        },
+        "double_mse": {
+          "value": 0.75,
+          "bits": "3fe8000000000000"
+        },
+        "double_rmse": {
+          "value": 0.75,
+          "bits": "3fe8000000000000"
+        },
+        "pc64_sse_store": {
+          "value": 0.75,
+          "bits": "3fe8000000000000"
+        },
+        "pc64_mse_store": {
+          "value": 0.9,
+          "bits": "3feccccccccccccd"
+        },
+        "pc64_rmse_store": {
+          "value": 0.9,
+          "bits": "3feccccccccccccd"
+        },
+        "exact_sse_store": {
+          "value": 0.75,
+          "bits": "3fe8000000000000"
+        },
+        "double_products_fsum": {
+          "value": 0.75,
+          "bits": "3fe8000000000000"
+        },
+        "pc64_sse_unstored": {
+          "value": 0.75,
+          "bits": "3fe8000000000000"
+        }
+      }
+    },
+    {
+      "id": "K28x3_d-0.0009765625",
+      "y": [
+        1000000.0,
+        1100000.0,
+        1200000.0,
+        1300000.0,
+        1400000.0,
+        1500000.0,
+        1600000.0,
+        1702000.0,
+        807132538.0,
+        -1608732286.0,
+        807306367.9892578,
+        2100000.0087890625
+      ],
+      "p": 0,
+      "output": "stat",
+      "index": 1,
+      "predictions": {
+        "double_sse": {
+          "value": 0.9,
+          "bits": "3feccccccccccccd"
+        },
+        "double_mse": {
+          "value": 0.9,
+          "bits": "3feccccccccccccd"
+        },
+        "double_rmse": {
+          "value": 0.9,
+          "bits": "3feccccccccccccd"
+        },
+        "pc64_sse_store": {
+          "value": 0.9,
+          "bits": "3feccccccccccccd"
+        },
+        "pc64_mse_store": {
+          "value": 0.9,
+          "bits": "3feccccccccccccd"
+        },
+        "pc64_rmse_store": {
+          "value": 0.9,
+          "bits": "3feccccccccccccd"
+        },
+        "exact_sse_store": {
+          "value": 0.9,
+          "bits": "3feccccccccccccd"
+        },
+        "double_products_fsum": {
+          "value": 0.9,
+          "bits": "3feccccccccccccd"
+        },
+        "pc64_sse_unstored": {
+          "value": 0.75,
+          "bits": "3fe8000000000000"
+        }
+      }
+    },
+    {
+      "id": "K28x3_d-1.0",
+      "y": [
+        1000000.0,
+        1100000.0,
+        1200000.0,
+        1300000.0,
+        1400000.0,
+        1500000.0,
+        1600000.0,
+        1702000.0,
+        807132538.0,
+        -1608732286.0,
+        807306357.0,
+        2100009.0
+      ],
+      "p": 0,
+      "output": "stat",
+      "index": 1,
+      "predictions": {
+        "double_sse": {
+          "value": 0.75,
+          "bits": "3fe8000000000000"
+        },
+        "double_mse": {
+          "value": 0.75,
+          "bits": "3fe8000000000000"
+        },
+        "double_rmse": {
+          "value": 0.9,
+          "bits": "3feccccccccccccd"
+        },
+        "pc64_sse_store": {
+          "value": 0.75,
+          "bits": "3fe8000000000000"
+        },
+        "pc64_mse_store": {
+          "value": 0.75,
+          "bits": "3fe8000000000000"
+        },
+        "pc64_rmse_store": {
+          "value": 0.75,
+          "bits": "3fe8000000000000"
+        },
+        "exact_sse_store": {
+          "value": 0.75,
+          "bits": "3fe8000000000000"
+        },
+        "double_products_fsum": {
+          "value": 0.75,
+          "bits": "3fe8000000000000"
+        },
+        "pc64_sse_unstored": {
+          "value": 0.75,
+          "bits": "3fe8000000000000"
+        }
+      }
+    },
+    {
+      "id": "K28x5_d0.0009765625",
+      "y": [
+        1000000.0,
+        1100000.0,
+        1200000.0,
+        1300000.0,
+        1400000.0,
+        1500000.0,
+        1600000.0,
+        1702000.0,
+        1344003450.0,
+        -2682474110.0,
+        1344177280.0107422,
+        2099999.9912109375
+      ],
+      "p": 0,
+      "output": "stat",
+      "index": 1,
+      "predictions": {
+        "double_sse": {
+          "value": 0.75,
+          "bits": "3fe8000000000000"
+        },
+        "double_mse": {
+          "value": 0.75,
+          "bits": "3fe8000000000000"
+        },
+        "double_rmse": {
+          "value": 0.9,
+          "bits": "3feccccccccccccd"
+        },
+        "pc64_sse_store": {
+          "value": 0.9,
+          "bits": "3feccccccccccccd"
+        },
+        "pc64_mse_store": {
+          "value": 0.9,
+          "bits": "3feccccccccccccd"
+        },
+        "pc64_rmse_store": {
+          "value": 0.9,
+          "bits": "3feccccccccccccd"
+        },
+        "exact_sse_store": {
+          "value": 0.9,
+          "bits": "3feccccccccccccd"
+        },
+        "double_products_fsum": {
+          "value": 0.9,
+          "bits": "3feccccccccccccd"
+        },
+        "pc64_sse_unstored": {
+          "value": 0.9,
+          "bits": "3feccccccccccccd"
+        }
+      }
+    },
+    {
+      "id": "K28x5_d-1.0",
+      "y": [
+        1000000.0,
+        1100000.0,
+        1200000.0,
+        1300000.0,
+        1400000.0,
+        1500000.0,
+        1600000.0,
+        1702000.0,
+        1344003450.0,
+        -2682474110.0,
+        1344177269.0,
+        2100009.0
+      ],
+      "p": 0,
+      "output": "stat",
+      "index": 1,
+      "predictions": {
+        "double_sse": {
+          "value": 0.9,
+          "bits": "3feccccccccccccd"
+        },
+        "double_mse": {
+          "value": 0.9,
+          "bits": "3feccccccccccccd"
+        },
+        "double_rmse": {
+          "value": 0.9,
+          "bits": "3feccccccccccccd"
+        },
+        "pc64_sse_store": {
+          "value": 0.75,
+          "bits": "3fe8000000000000"
+        },
+        "pc64_mse_store": {
+          "value": 0.9,
+          "bits": "3feccccccccccccd"
+        },
+        "pc64_rmse_store": {
+          "value": 0.9,
+          "bits": "3feccccccccccccd"
+        },
+        "exact_sse_store": {
+          "value": 0.75,
+          "bits": "3fe8000000000000"
+        },
+        "double_products_fsum": {
+          "value": 0.75,
+          "bits": "3fe8000000000000"
+        },
+        "pc64_sse_unstored": {
+          "value": 0.75,
+          "bits": "3fe8000000000000"
+        }
+      }
+    },
+    {
+      "id": "K29x1_d0.0009765625",
+      "y": [
+        1000000.0,
+        1100000.0,
+        1200000.0,
+        1300000.0,
+        1400000.0,
+        1500000.0,
+        1600000.0,
+        1702000.0,
+        538697082.0,
+        -1071861374.0,
+        538870912.0107422,
+        2099999.9912109375
+      ],
+      "p": 0,
+      "output": "stat",
+      "index": 1,
+      "predictions": {
+        "double_sse": {
+          "value": 0.75,
+          "bits": "3fe8000000000000"
+        },
+        "double_mse": {
+          "value": 0.9,
+          "bits": "3feccccccccccccd"
+        },
+        "double_rmse": {
+          "value": 0.9,
+          "bits": "3feccccccccccccd"
+        },
+        "pc64_sse_store": {
+          "value": 0.9,
+          "bits": "3feccccccccccccd"
+        },
+        "pc64_mse_store": {
+          "value": 0.9,
+          "bits": "3feccccccccccccd"
+        },
+        "pc64_rmse_store": {
+          "value": 0.9,
+          "bits": "3feccccccccccccd"
+        },
+        "exact_sse_store": {
+          "value": 0.9,
+          "bits": "3feccccccccccccd"
+        },
+        "double_products_fsum": {
+          "value": 0.9,
+          "bits": "3feccccccccccccd"
+        },
+        "pc64_sse_unstored": {
+          "value": 0.9,
+          "bits": "3feccccccccccccd"
+        }
+      }
+    },
+    {
+      "id": "K29x1_d-0.0625",
+      "y": [
+        1000000.0,
+        1100000.0,
+        1200000.0,
+        1300000.0,
+        1400000.0,
+        1500000.0,
+        1600000.0,
+        1702000.0,
+        538697082.0,
+        -1071861374.0,
+        538870911.3125,
+        2100000.5625
+      ],
+      "p": 0,
+      "output": "stat",
+      "index": 1,
+      "predictions": {
+        "double_sse": {
+          "value": 0.9,
+          "bits": "3feccccccccccccd"
+        },
+        "double_mse": {
+          "value": 0.9,
+          "bits": "3feccccccccccccd"
+        },
+        "double_rmse": {
+          "value": 0.9,
+          "bits": "3feccccccccccccd"
+        },
+        "pc64_sse_store": {
+          "value": 0.9,
+          "bits": "3feccccccccccccd"
+        },
+        "pc64_mse_store": {
+          "value": 0.75,
+          "bits": "3fe8000000000000"
+        },
+        "pc64_rmse_store": {
+          "value": 0.9,
+          "bits": "3feccccccccccccd"
+        },
+        "exact_sse_store": {
+          "value": 0.9,
+          "bits": "3feccccccccccccd"
+        },
+        "double_products_fsum": {
+          "value": 0.75,
+          "bits": "3fe8000000000000"
+        },
+        "pc64_sse_unstored": {
+          "value": 0.75,
+          "bits": "3fe8000000000000"
+        }
+      }
+    },
+    {
+      "id": "K29x3_d-1.0",
+      "y": [
+        1000000.0,
+        1100000.0,
+        1200000.0,
+        1300000.0,
+        1400000.0,
+        1500000.0,
+        1600000.0,
+        1702000.0,
+        1612438906.0,
+        -3219345022.0,
+        1612612725.0,
+        2100009.0
+      ],
+      "p": 0,
+      "output": "stat",
+      "index": 1,
+      "predictions": {
+        "double_sse": {
+          "value": 0.9,
+          "bits": "3feccccccccccccd"
+        },
+        "double_mse": {
+          "value": 0.9,
+          "bits": "3feccccccccccccd"
+        },
+        "double_rmse": {
+          "value": 0.9,
+          "bits": "3feccccccccccccd"
+        },
+        "pc64_sse_store": {
+          "value": 0.75,
+          "bits": "3fe8000000000000"
+        },
+        "pc64_mse_store": {
+          "value": 0.75,
+          "bits": "3fe8000000000000"
+        },
+        "pc64_rmse_store": {
+          "value": 0.75,
+          "bits": "3fe8000000000000"
+        },
+        "exact_sse_store": {
+          "value": 0.75,
+          "bits": "3fe8000000000000"
+        },
+        "double_products_fsum": {
+          "value": 0.9,
+          "bits": "3feccccccccccccd"
+        },
+        "pc64_sse_unstored": {
+          "value": 0.75,
+          "bits": "3fe8000000000000"
+        }
+      }
+    },
+    {
+      "id": "K29x5_d-1.0",
+      "y": [
+        1000000.0,
+        1100000.0,
+        1200000.0,
+        1300000.0,
+        1400000.0,
+        1500000.0,
+        1600000.0,
+        1702000.0,
+        2686180730.0,
+        -5366828670.0,
+        2686354549.0,
+        2100009.0
+      ],
+      "p": 0,
+      "output": "stat",
+      "index": 1,
+      "predictions": {
+        "double_sse": {
+          "value": 0.75,
+          "bits": "3fe8000000000000"
+        },
+        "double_mse": {
+          "value": 0.75,
+          "bits": "3fe8000000000000"
+        },
+        "double_rmse": {
+          "value": 0.75,
+          "bits": "3fe8000000000000"
+        },
+        "pc64_sse_store": {
+          "value": 0.9,
+          "bits": "3feccccccccccccd"
+        },
+        "pc64_mse_store": {
+          "value": 0.9,
+          "bits": "3feccccccccccccd"
+        },
+        "pc64_rmse_store": {
+          "value": 0.9,
+          "bits": "3feccccccccccccd"
+        },
+        "exact_sse_store": {
+          "value": 0.9,
+          "bits": "3feccccccccccccd"
+        },
+        "double_products_fsum": {
+          "value": 0.75,
+          "bits": "3fe8000000000000"
+        },
+        "pc64_sse_unstored": {
+          "value": 0.75,
+          "bits": "3fe8000000000000"
+        }
+      }
+    },
+    {
+      "id": "K30x1_d-0.0009765625",
+      "y": [
+        1000000.0,
+        1100000.0,
+        1200000.0,
+        1300000.0,
+        1400000.0,
+        1500000.0,
+        1600000.0,
+        1702000.0,
+        1075567994.0,
+        -2145603198.0,
+        1075741823.9892578,
+        2100000.0087890625
+      ],
+      "p": 0,
+      "output": "stat",
+      "index": 1,
+      "predictions": {
+        "double_sse": {
+          "value": 0.9,
+          "bits": "3feccccccccccccd"
+        },
+        "double_mse": {
+          "value": 0.9,
+          "bits": "3feccccccccccccd"
+        },
+        "double_rmse": {
+          "value": 0.9,
+          "bits": "3feccccccccccccd"
+        },
+        "pc64_sse_store": {
+          "value": 0.9,
+          "bits": "3feccccccccccccd"
+        },
+        "pc64_mse_store": {
+          "value": 0.9,
+          "bits": "3feccccccccccccd"
+        },
+        "pc64_rmse_store": {
+          "value": 0.9,
+          "bits": "3feccccccccccccd"
+        },
+        "exact_sse_store": {
+          "value": 0.9,
+          "bits": "3feccccccccccccd"
+        },
+        "double_products_fsum": {
+          "value": 0.9,
+          "bits": "3feccccccccccccd"
+        },
+        "pc64_sse_unstored": {
+          "value": 0.75,
+          "bits": "3fe8000000000000"
+        }
+      }
+    },
+    {
+      "id": "K30x1_d-1.0",
+      "y": [
+        1000000.0,
+        1100000.0,
+        1200000.0,
+        1300000.0,
+        1400000.0,
+        1500000.0,
+        1600000.0,
+        1702000.0,
+        1075567994.0,
+        -2145603198.0,
+        1075741813.0,
+        2100009.0
+      ],
+      "p": 0,
+      "output": "stat",
+      "index": 1,
+      "predictions": {
+        "double_sse": {
+          "value": 0.75,
+          "bits": "3fe8000000000000"
+        },
+        "double_mse": {
+          "value": 0.75,
+          "bits": "3fe8000000000000"
+        },
+        "double_rmse": {
+          "value": 0.9,
+          "bits": "3feccccccccccccd"
+        },
+        "pc64_sse_store": {
+          "value": 0.75,
+          "bits": "3fe8000000000000"
+        },
+        "pc64_mse_store": {
+          "value": 0.9,
+          "bits": "3feccccccccccccd"
+        },
+        "pc64_rmse_store": {
+          "value": 0.9,
+          "bits": "3feccccccccccccd"
+        },
+        "exact_sse_store": {
+          "value": 0.75,
+          "bits": "3fe8000000000000"
+        },
+        "double_products_fsum": {
+          "value": 0.75,
+          "bits": "3fe8000000000000"
+        },
+        "pc64_sse_unstored": {
+          "value": 0.75,
+          "bits": "3fe8000000000000"
+        }
+      }
+    },
+    {
+      "id": "K30x5_d0.0",
+      "y": [
+        1000000.0,
+        1100000.0,
+        1200000.0,
+        1300000.0,
+        1400000.0,
+        1500000.0,
+        1600000.0,
+        1702000.0,
+        5370535290.0,
+        -10735537790.0,
+        5370709120.0,
+        2100000.0
+      ],
+      "p": 0,
+      "output": "stat",
+      "index": 1,
+      "predictions": {
+        "double_sse": {
+          "value": 0.75,
+          "bits": "3fe8000000000000"
+        },
+        "double_mse": {
+          "value": 0.75,
+          "bits": "3fe8000000000000"
+        },
+        "double_rmse": {
+          "value": 0.75,
+          "bits": "3fe8000000000000"
+        },
+        "pc64_sse_store": {
+          "value": 0.9,
+          "bits": "3feccccccccccccd"
+        },
+        "pc64_mse_store": {
+          "value": 0.9,
+          "bits": "3feccccccccccccd"
+        },
+        "pc64_rmse_store": {
+          "value": 0.9,
+          "bits": "3feccccccccccccd"
+        },
+        "exact_sse_store": {
+          "value": 0.9,
+          "bits": "3feccccccccccccd"
+        },
+        "double_products_fsum": {
+          "value": 0.75,
+          "bits": "3fe8000000000000"
+        },
+        "pc64_sse_unstored": {
+          "value": 0.9,
+          "bits": "3feccccccccccccd"
+        }
+      }
+    },
+    {
+      "id": "K30x5_d-0.0009765625",
+      "y": [
+        1000000.0,
+        1100000.0,
+        1200000.0,
+        1300000.0,
+        1400000.0,
+        1500000.0,
+        1600000.0,
+        1702000.0,
+        5370535290.0,
+        -10735537790.0,
+        5370709119.989258,
+        2100000.0087890625
+      ],
+      "p": 0,
+      "output": "stat",
+      "index": 1,
+      "predictions": {
+        "double_sse": {
+          "value": 0.75,
+          "bits": "3fe8000000000000"
+        },
+        "double_mse": {
+          "value": 0.75,
+          "bits": "3fe8000000000000"
+        },
+        "double_rmse": {
+          "value": 0.75,
+          "bits": "3fe8000000000000"
+        },
+        "pc64_sse_store": {
+          "value": 0.9,
+          "bits": "3feccccccccccccd"
+        },
+        "pc64_mse_store": {
+          "value": 0.9,
+          "bits": "3feccccccccccccd"
+        },
+        "pc64_rmse_store": {
+          "value": 0.9,
+          "bits": "3feccccccccccccd"
+        },
+        "exact_sse_store": {
+          "value": 0.9,
+          "bits": "3feccccccccccccd"
+        },
+        "double_products_fsum": {
+          "value": 0.75,
+          "bits": "3fe8000000000000"
+        },
+        "pc64_sse_unstored": {
+          "value": 0.75,
+          "bits": "3fe8000000000000"
+        }
+      }
+    },
+    {
+      "id": "K30x5_d0.0625",
+      "y": [
+        1000000.0,
+        1100000.0,
+        1200000.0,
+        1300000.0,
+        1400000.0,
+        1500000.0,
+        1600000.0,
+        1702000.0,
+        5370535290.0,
+        -10735537790.0,
+        5370709120.6875,
+        2099999.4375
+      ],
+      "p": 0,
+      "output": "stat",
+      "index": 1,
+      "predictions": {
+        "double_sse": {
+          "value": 0.75,
+          "bits": "3fe8000000000000"
+        },
+        "double_mse": {
+          "value": 0.75,
+          "bits": "3fe8000000000000"
+        },
+        "double_rmse": {
+          "value": 0.9,
+          "bits": "3feccccccccccccd"
+        },
+        "pc64_sse_store": {
+          "value": 0.9,
+          "bits": "3feccccccccccccd"
+        },
+        "pc64_mse_store": {
+          "value": 0.9,
+          "bits": "3feccccccccccccd"
+        },
+        "pc64_rmse_store": {
+          "value": 0.9,
+          "bits": "3feccccccccccccd"
+        },
+        "exact_sse_store": {
+          "value": 0.9,
+          "bits": "3feccccccccccccd"
+        },
+        "double_products_fsum": {
+          "value": 0.75,
+          "bits": "3fe8000000000000"
+        },
+        "pc64_sse_unstored": {
+          "value": 0.9,
+          "bits": "3feccccccccccccd"
+        }
+      }
+    },
+    {
+      "id": "K30x5_d-0.0625",
+      "y": [
+        1000000.0,
+        1100000.0,
+        1200000.0,
+        1300000.0,
+        1400000.0,
+        1500000.0,
+        1600000.0,
+        1702000.0,
+        5370535290.0,
+        -10735537790.0,
+        5370709119.3125,
+        2100000.5625
+      ],
+      "p": 0,
+      "output": "stat",
+      "index": 1,
+      "predictions": {
+        "double_sse": {
+          "value": 0.75,
+          "bits": "3fe8000000000000"
+        },
+        "double_mse": {
+          "value": 0.75,
+          "bits": "3fe8000000000000"
+        },
+        "double_rmse": {
+          "value": 0.9,
+          "bits": "3feccccccccccccd"
+        },
+        "pc64_sse_store": {
+          "value": 0.9,
+          "bits": "3feccccccccccccd"
+        },
+        "pc64_mse_store": {
+          "value": 0.9,
+          "bits": "3feccccccccccccd"
+        },
+        "pc64_rmse_store": {
+          "value": 0.9,
+          "bits": "3feccccccccccccd"
+        },
+        "exact_sse_store": {
+          "value": 0.9,
+          "bits": "3feccccccccccccd"
+        },
+        "double_products_fsum": {
+          "value": 0.75,
+          "bits": "3fe8000000000000"
+        },
+        "pc64_sse_unstored": {
+          "value": 0.75,
+          "bits": "3fe8000000000000"
+        }
+      }
+    },
+    {
+      "id": "K31x1_d0.0625",
+      "y": [
+        1000000.0,
+        1100000.0,
+        1200000.0,
+        1300000.0,
+        1400000.0,
+        1500000.0,
+        1600000.0,
+        1702000.0,
+        2149309818.0,
+        -4293086846.0,
+        2149483648.6875,
+        2099999.4375
+      ],
+      "p": 0,
+      "output": "stat",
+      "index": 1,
+      "predictions": {
+        "double_sse": {
+          "value": 0.75,
+          "bits": "3fe8000000000000"
+        },
+        "double_mse": {
+          "value": 0.9,
+          "bits": "3feccccccccccccd"
+        },
+        "double_rmse": {
+          "value": 0.9,
+          "bits": "3feccccccccccccd"
+        },
+        "pc64_sse_store": {
+          "value": 0.9,
+          "bits": "3feccccccccccccd"
+        },
+        "pc64_mse_store": {
+          "value": 0.9,
+          "bits": "3feccccccccccccd"
+        },
+        "pc64_rmse_store": {
+          "value": 0.9,
+          "bits": "3feccccccccccccd"
+        },
+        "exact_sse_store": {
+          "value": 0.9,
+          "bits": "3feccccccccccccd"
+        },
+        "double_products_fsum": {
+          "value": 0.9,
+          "bits": "3feccccccccccccd"
+        },
+        "pc64_sse_unstored": {
+          "value": 0.9,
+          "bits": "3feccccccccccccd"
+        }
+      }
+    },
+    {
+      "id": "K31x1_d-0.0625",
+      "y": [
+        1000000.0,
+        1100000.0,
+        1200000.0,
+        1300000.0,
+        1400000.0,
+        1500000.0,
+        1600000.0,
+        1702000.0,
+        2149309818.0,
+        -4293086846.0,
+        2149483647.3125,
+        2100000.5625
+      ],
+      "p": 0,
+      "output": "stat",
+      "index": 1,
+      "predictions": {
+        "double_sse": {
+          "value": 0.75,
+          "bits": "3fe8000000000000"
+        },
+        "double_mse": {
+          "value": 0.75,
+          "bits": "3fe8000000000000"
+        },
+        "double_rmse": {
+          "value": 0.9,
+          "bits": "3feccccccccccccd"
+        },
+        "pc64_sse_store": {
+          "value": 0.9,
+          "bits": "3feccccccccccccd"
+        },
+        "pc64_mse_store": {
+          "value": 0.9,
+          "bits": "3feccccccccccccd"
+        },
+        "pc64_rmse_store": {
+          "value": 0.9,
+          "bits": "3feccccccccccccd"
+        },
+        "exact_sse_store": {
+          "value": 0.9,
+          "bits": "3feccccccccccccd"
+        },
+        "double_products_fsum": {
+          "value": 0.9,
+          "bits": "3feccccccccccccd"
+        },
+        "pc64_sse_unstored": {
+          "value": 0.75,
+          "bits": "3fe8000000000000"
+        }
+      }
+    },
+    {
+      "id": "K31x1_d-1.0",
+      "y": [
+        1000000.0,
+        1100000.0,
+        1200000.0,
+        1300000.0,
+        1400000.0,
+        1500000.0,
+        1600000.0,
+        1702000.0,
+        2149309818.0,
+        -4293086846.0,
+        2149483637.0,
+        2100009.0
+      ],
+      "p": 0,
+      "output": "stat",
+      "index": 1,
+      "predictions": {
+        "double_sse": {
+          "value": 0.9,
+          "bits": "3feccccccccccccd"
+        },
+        "double_mse": {
+          "value": 0.9,
+          "bits": "3feccccccccccccd"
+        },
+        "double_rmse": {
+          "value": 0.9,
+          "bits": "3feccccccccccccd"
+        },
+        "pc64_sse_store": {
+          "value": 0.75,
+          "bits": "3fe8000000000000"
+        },
+        "pc64_mse_store": {
+          "value": 0.9,
+          "bits": "3feccccccccccccd"
+        },
+        "pc64_rmse_store": {
+          "value": 0.9,
+          "bits": "3feccccccccccccd"
+        },
+        "exact_sse_store": {
+          "value": 0.75,
+          "bits": "3fe8000000000000"
+        },
+        "double_products_fsum": {
+          "value": 0.9,
+          "bits": "3feccccccccccccd"
+        },
+        "pc64_sse_unstored": {
+          "value": 0.75,
+          "bits": "3fe8000000000000"
+        }
+      }
+    },
+    {
+      "id": "K31x5_d0.0",
+      "y": [
+        1000000.0,
+        1100000.0,
+        1200000.0,
+        1300000.0,
+        1400000.0,
+        1500000.0,
+        1600000.0,
+        1702000.0,
+        10739244410.0,
+        -21472956030.0,
+        10739418240.0,
+        2100000.0
+      ],
+      "p": 0,
+      "output": "stat",
+      "index": 1,
+      "predictions": {
+        "double_sse": {
+          "value": 0.75,
+          "bits": "3fe8000000000000"
+        },
+        "double_mse": {
+          "value": 0.75,
+          "bits": "3fe8000000000000"
+        },
+        "double_rmse": {
+          "value": 0.75,
+          "bits": "3fe8000000000000"
+        },
+        "pc64_sse_store": {
+          "value": 0.9,
+          "bits": "3feccccccccccccd"
+        },
+        "pc64_mse_store": {
+          "value": 0.9,
+          "bits": "3feccccccccccccd"
+        },
+        "pc64_rmse_store": {
+          "value": 0.9,
+          "bits": "3feccccccccccccd"
+        },
+        "exact_sse_store": {
+          "value": 0.9,
+          "bits": "3feccccccccccccd"
+        },
+        "double_products_fsum": {
+          "value": 0.9,
+          "bits": "3feccccccccccccd"
+        },
+        "pc64_sse_unstored": {
+          "value": 0.9,
+          "bits": "3feccccccccccccd"
+        }
+      }
+    },
+    {
+      "id": "K31x5_d0.0625",
+      "y": [
+        1000000.0,
+        1100000.0,
+        1200000.0,
+        1300000.0,
+        1400000.0,
+        1500000.0,
+        1600000.0,
+        1702000.0,
+        10739244410.0,
+        -21472956030.0,
+        10739418240.6875,
+        2099999.4375
+      ],
+      "p": 0,
+      "output": "stat",
+      "index": 1,
+      "predictions": {
+        "double_sse": {
+          "value": 0.75,
+          "bits": "3fe8000000000000"
+        },
+        "double_mse": {
+          "value": 0.75,
+          "bits": "3fe8000000000000"
+        },
+        "double_rmse": {
+          "value": 0.9,
+          "bits": "3feccccccccccccd"
+        },
+        "pc64_sse_store": {
+          "value": 0.9,
+          "bits": "3feccccccccccccd"
+        },
+        "pc64_mse_store": {
+          "value": 0.9,
+          "bits": "3feccccccccccccd"
+        },
+        "pc64_rmse_store": {
+          "value": 0.9,
+          "bits": "3feccccccccccccd"
+        },
+        "exact_sse_store": {
+          "value": 0.9,
+          "bits": "3feccccccccccccd"
+        },
+        "double_products_fsum": {
+          "value": 0.9,
+          "bits": "3feccccccccccccd"
+        },
+        "pc64_sse_unstored": {
+          "value": 0.9,
+          "bits": "3feccccccccccccd"
+        }
+      }
+    },
+    {
+      "id": "K31x5_d-0.0625",
+      "y": [
+        1000000.0,
+        1100000.0,
+        1200000.0,
+        1300000.0,
+        1400000.0,
+        1500000.0,
+        1600000.0,
+        1702000.0,
+        10739244410.0,
+        -21472956030.0,
+        10739418239.3125,
+        2100000.5625
+      ],
+      "p": 0,
+      "output": "stat",
+      "index": 1,
+      "predictions": {
+        "double_sse": {
+          "value": 0.75,
+          "bits": "3fe8000000000000"
+        },
+        "double_mse": {
+          "value": 0.75,
+          "bits": "3fe8000000000000"
+        },
+        "double_rmse": {
+          "value": 0.75,
+          "bits": "3fe8000000000000"
+        },
+        "pc64_sse_store": {
+          "value": 0.9,
+          "bits": "3feccccccccccccd"
+        },
+        "pc64_mse_store": {
+          "value": 0.9,
+          "bits": "3feccccccccccccd"
+        },
+        "pc64_rmse_store": {
+          "value": 0.9,
+          "bits": "3feccccccccccccd"
+        },
+        "exact_sse_store": {
+          "value": 0.9,
+          "bits": "3feccccccccccccd"
+        },
+        "double_products_fsum": {
+          "value": 0.9,
+          "bits": "3feccccccccccccd"
+        },
+        "pc64_sse_unstored": {
+          "value": 0.75,
+          "bits": "3fe8000000000000"
+        }
+      }
+    },
+    {
+      "id": "K32x1_d-0.0009765625",
+      "y": [
+        1000000.0,
+        1100000.0,
+        1200000.0,
+        1300000.0,
+        1400000.0,
+        1500000.0,
+        1600000.0,
+        1702000.0,
+        4296793466.0,
+        -8588054142.0,
+        4296967295.989258,
+        2100000.0087890625
+      ],
+      "p": 0,
+      "output": "stat",
+      "index": 1,
+      "predictions": {
+        "double_sse": {
+          "value": 0.75,
+          "bits": "3fe8000000000000"
+        },
+        "double_mse": {
+          "value": 0.9,
+          "bits": "3feccccccccccccd"
+        },
+        "double_rmse": {
+          "value": 0.9,
+          "bits": "3feccccccccccccd"
+        },
+        "pc64_sse_store": {
+          "value": 0.9,
+          "bits": "3feccccccccccccd"
+        },
+        "pc64_mse_store": {
+          "value": 0.9,
+          "bits": "3feccccccccccccd"
+        },
+        "pc64_rmse_store": {
+          "value": 0.9,
+          "bits": "3feccccccccccccd"
+        },
+        "exact_sse_store": {
+          "value": 0.9,
+          "bits": "3feccccccccccccd"
+        },
+        "double_products_fsum": {
+          "value": 0.75,
+          "bits": "3fe8000000000000"
+        },
+        "pc64_sse_unstored": {
+          "value": 0.9,
+          "bits": "3feccccccccccccd"
+        }
+      }
+    },
+    {
+      "id": "K32x1_d-0.0625",
+      "y": [
+        1000000.0,
+        1100000.0,
+        1200000.0,
+        1300000.0,
+        1400000.0,
+        1500000.0,
+        1600000.0,
+        1702000.0,
+        4296793466.0,
+        -8588054142.0,
+        4296967295.3125,
+        2100000.5625
+      ],
+      "p": 0,
+      "output": "stat",
+      "index": 1,
+      "predictions": {
+        "double_sse": {
+          "value": 0.9,
+          "bits": "3feccccccccccccd"
+        },
+        "double_mse": {
+          "value": 0.9,
+          "bits": "3feccccccccccccd"
+        },
+        "double_rmse": {
+          "value": 0.9,
+          "bits": "3feccccccccccccd"
+        },
+        "pc64_sse_store": {
+          "value": 0.9,
+          "bits": "3feccccccccccccd"
+        },
+        "pc64_mse_store": {
+          "value": 0.9,
+          "bits": "3feccccccccccccd"
+        },
+        "pc64_rmse_store": {
+          "value": 0.9,
+          "bits": "3feccccccccccccd"
+        },
+        "exact_sse_store": {
+          "value": 0.9,
+          "bits": "3feccccccccccccd"
+        },
+        "double_products_fsum": {
+          "value": 0.75,
+          "bits": "3fe8000000000000"
+        },
+        "pc64_sse_unstored": {
+          "value": 0.75,
+          "bits": "3fe8000000000000"
+        }
+      }
+    },
+    {
+      "id": "K32x1_d-1.0",
+      "y": [
+        1000000.0,
+        1100000.0,
+        1200000.0,
+        1300000.0,
+        1400000.0,
+        1500000.0,
+        1600000.0,
+        1702000.0,
+        4296793466.0,
+        -8588054142.0,
+        4296967285.0,
+        2100009.0
+      ],
+      "p": 0,
+      "output": "stat",
+      "index": 1,
+      "predictions": {
+        "double_sse": {
+          "value": 0.75,
+          "bits": "3fe8000000000000"
+        },
+        "double_mse": {
+          "value": 0.9,
+          "bits": "3feccccccccccccd"
+        },
+        "double_rmse": {
+          "value": 0.9,
+          "bits": "3feccccccccccccd"
+        },
+        "pc64_sse_store": {
+          "value": 0.9,
+          "bits": "3feccccccccccccd"
+        },
+        "pc64_mse_store": {
+          "value": 0.9,
+          "bits": "3feccccccccccccd"
+        },
+        "pc64_rmse_store": {
+          "value": 0.9,
+          "bits": "3feccccccccccccd"
+        },
+        "exact_sse_store": {
+          "value": 0.9,
+          "bits": "3feccccccccccccd"
+        },
+        "double_products_fsum": {
+          "value": 0.75,
+          "bits": "3fe8000000000000"
+        },
+        "pc64_sse_unstored": {
+          "value": 0.75,
+          "bits": "3fe8000000000000"
+        }
+      }
+    },
+    {
+      "id": "K32x3_d0.0",
+      "y": [
+        1000000.0,
+        1100000.0,
+        1200000.0,
+        1300000.0,
+        1400000.0,
+        1500000.0,
+        1600000.0,
+        1702000.0,
+        12886728058.0,
+        -25767923326.0,
+        12886901888.0,
+        2100000.0
+      ],
+      "p": 0,
+      "output": "stat",
+      "index": 1,
+      "predictions": {
+        "double_sse": {
+          "value": 0.75,
+          "bits": "3fe8000000000000"
+        },
+        "double_mse": {
+          "value": 0.9,
+          "bits": "3feccccccccccccd"
+        },
+        "double_rmse": {
+          "value": 0.9,
+          "bits": "3feccccccccccccd"
+        },
+        "pc64_sse_store": {
+          "value": 0.9,
+          "bits": "3feccccccccccccd"
+        },
+        "pc64_mse_store": {
+          "value": 0.9,
+          "bits": "3feccccccccccccd"
+        },
+        "pc64_rmse_store": {
+          "value": 0.9,
+          "bits": "3feccccccccccccd"
+        },
+        "exact_sse_store": {
+          "value": 0.9,
+          "bits": "3feccccccccccccd"
+        },
+        "double_products_fsum": {
+          "value": 0.9,
+          "bits": "3feccccccccccccd"
+        },
+        "pc64_sse_unstored": {
+          "value": 0.75,
+          "bits": "3fe8000000000000"
+        }
+      }
+    },
+    {
+      "id": "underflow_-500",
+      "y": [
+        3.0549363634996047e-145,
+        3.360429999849565e-145,
+        3.6659236361995256e-145,
+        3.971417272549486e-145,
+        4.2769109088994466e-145,
+        4.582404545249407e-145,
+        4.8878981815993675e-145,
+        5.199501690676327e-145,
+        5.578833138932073e-145,
+        5.7446550847428316e-145,
+        6.109839122699211e-145,
+        6.415393857776441e-145
+      ],
+      "p": 0,
+      "output": "stat",
+      "index": 1,
+      "predictions": {
+        "double_sse": {
+          "value": 0.75,
+          "bits": "3fe8000000000000"
+        },
+        "double_mse": {
+          "value": 0.75,
+          "bits": "3fe8000000000000"
+        },
+        "double_rmse": {
+          "value": 0.75,
+          "bits": "3fe8000000000000"
+        },
+        "pc64_sse_store": {
+          "value": 0.75,
+          "bits": "3fe8000000000000"
+        },
+        "pc64_mse_store": {
+          "value": 0.75,
+          "bits": "3fe8000000000000"
+        },
+        "pc64_rmse_store": {
+          "value": 0.75,
+          "bits": "3fe8000000000000"
+        },
+        "exact_sse_store": {
+          "value": 0.75,
+          "bits": "3fe8000000000000"
+        },
+        "double_products_fsum": {
+          "value": 0.75,
+          "bits": "3fe8000000000000"
+        },
+        "pc64_sse_unstored": {
+          "value": 0.75,
+          "bits": "3fe8000000000000"
+        }
+      }
+    },
+    {
+      "id": "underflow_-530",
+      "y": [
+        2.8451311993408992e-154,
+        3.129644319274989e-154,
+        3.414157439209079e-154,
+        3.698670559143169e-154,
+        3.983183679077259e-154,
+        4.267696799011349e-154,
+        4.552209918945439e-154,
+        4.8424133012782104e-154,
+        5.19569324230037e-154,
+        5.350126963800594e-154,
+        5.6902311022386056e-154,
+        5.974801124796682e-154
+      ],
+      "p": 0,
+      "output": "stat",
+      "index": 1,
+      "predictions": {
+        "double_sse": {
+          "value": 0.75,
+          "bits": "3fe8000000000000"
+        },
+        "double_mse": {
+          "value": 0.75,
+          "bits": "3fe8000000000000"
+        },
+        "double_rmse": {
+          "value": 0.75,
+          "bits": "3fe8000000000000"
+        },
+        "pc64_sse_store": {
+          "value": 0.75,
+          "bits": "3fe8000000000000"
+        },
+        "pc64_mse_store": {
+          "value": 0.75,
+          "bits": "3fe8000000000000"
+        },
+        "pc64_rmse_store": {
+          "value": 0.75,
+          "bits": "3fe8000000000000"
+        },
+        "exact_sse_store": {
+          "value": 0.75,
+          "bits": "3fe8000000000000"
+        },
+        "double_products_fsum": {
+          "value": 0.75,
+          "bits": "3fe8000000000000"
+        },
+        "pc64_sse_unstored": {
+          "value": 0.75,
+          "bits": "3fe8000000000000"
+        }
+      }
+    },
+    {
+      "id": "underflow_-540",
+      "y": [
+        2.778448436856347e-157,
+        3.0562932805419815e-157,
+        3.334138124227616e-157,
+        3.611982967913251e-157,
+        3.8898278115988856e-157,
+        4.16767265528452e-157,
+        4.445517498970155e-157,
+        4.7289192395295023e-157,
+        5.073919181933955e-157,
+        5.2247333630865174e-157,
+        5.556866310779888e-157,
+        5.83476672343426e-157
+      ],
+      "p": 0,
+      "output": "stat",
+      "index": 1,
+      "predictions": {
+        "double_sse": {
+          "value": 0.75,
+          "bits": "3fe8000000000000"
+        },
+        "double_mse": {
+          "value": 0.75,
+          "bits": "3fe8000000000000"
+        },
+        "double_rmse": {
+          "value": 0.75,
+          "bits": "3fe8000000000000"
+        },
+        "pc64_sse_store": {
+          "value": 0.75,
+          "bits": "3fe8000000000000"
+        },
+        "pc64_mse_store": {
+          "value": 0.75,
+          "bits": "3fe8000000000000"
+        },
+        "pc64_rmse_store": {
+          "value": 0.75,
+          "bits": "3fe8000000000000"
+        },
+        "exact_sse_store": {
+          "value": 0.75,
+          "bits": "3fe8000000000000"
+        },
+        "double_products_fsum": {
+          "value": 0.75,
+          "bits": "3fe8000000000000"
+        },
+        "pc64_sse_unstored": {
+          "value": 0.75,
+          "bits": "3fe8000000000000"
+        }
+      }
+    },
+    {
+      "id": "underflow_-550",
+      "y": [
+        2.7133285516175262e-160,
+        2.984661406779279e-160,
+        3.2559942619410315e-160,
+        3.527327117102784e-160,
+        3.798659972264537e-160,
+        4.0699928274262893e-160,
+        4.341325682588042e-160,
+        4.6180851948530296e-160,
+        4.954999201107378e-160,
+        5.102278674889177e-160,
+        5.4266272566209847e-160,
+        5.69801437835377e-160
+      ],
+      "p": 0,
+      "output": "stat",
+      "index": 1,
+      "predictions": {
+        "double_sse": {
+          "value": 0.5,
+          "bits": "3fe0000000000000"
+        },
+        "double_mse": {
+          "value": 0.9,
+          "bits": "3feccccccccccccd"
+        },
+        "double_rmse": {
+          "value": 0.9,
+          "bits": "3feccccccccccccd"
+        },
+        "pc64_sse_store": {
+          "value": 0.9,
+          "bits": "3feccccccccccccd"
+        },
+        "pc64_mse_store": {
+          "value": 0.9,
+          "bits": "3feccccccccccccd"
+        },
+        "pc64_rmse_store": {
+          "value": 0.9,
+          "bits": "3feccccccccccccd"
+        },
+        "exact_sse_store": {
+          "value": 0.9,
+          "bits": "3feccccccccccccd"
+        },
+        "double_products_fsum": {
+          "value": 0.5,
+          "bits": "3fe0000000000000"
+        },
+        "pc64_sse_unstored": {
+          "value": 0.75,
+          "bits": "3fe8000000000000"
+        }
+      }
+    },
+    {
+      "id": "underflow_-600",
+      "y": [
+        2.409919865102884e-175,
+        2.6509118516131725e-175,
+        2.891903838123461e-175,
+        3.1328958246337494e-175,
+        3.373887811144038e-175,
+        3.614879797654326e-175,
+        3.8558717841646146e-175,
+        4.101683610405109e-175,
+        4.400923360054934e-175,
+        4.5317338103327184e-175,
+        4.819813221087252e-175,
+        5.060853405994843e-175
+      ],
+      "p": 0,
+      "output": "stat",
+      "index": 1,
+      "predictions": {
+        "double_sse": {
+          "value": 0.9,
+          "bits": "3feccccccccccccd"
+        },
+        "double_mse": {
+          "value": 0.9,
+          "bits": "3feccccccccccccd"
+        },
+        "double_rmse": {
+          "value": 0.9,
+          "bits": "3feccccccccccccd"
+        },
+        "pc64_sse_store": {
+          "value": 0.9,
+          "bits": "3feccccccccccccd"
+        },
+        "pc64_mse_store": {
+          "value": 0.9,
+          "bits": "3feccccccccccccd"
+        },
+        "pc64_rmse_store": {
+          "value": 0.9,
+          "bits": "3feccccccccccccd"
+        },
+        "exact_sse_store": {
+          "value": 0.9,
+          "bits": "3feccccccccccccd"
+        },
+        "double_products_fsum": {
+          "value": 0.9,
+          "bits": "3feccccccccccccd"
+        },
+        "pc64_sse_unstored": {
+          "value": 0.75,
+          "bits": "3fe8000000000000"
+        }
+      }
+    }
+  ]
+}
