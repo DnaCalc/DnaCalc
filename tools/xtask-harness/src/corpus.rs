@@ -75,7 +75,7 @@ use std::path::{Path, PathBuf};
 use std::process::{Command, ExitCode};
 use std::time::{Duration, Instant};
 
-pub const USAGE: &str = "usage: cargo xtask corpus [<dir>] [--recursive] [--oracle] [--release | --profile dev|release|perf] [--out <dir>] [--cache <dir>] [--import <capture.json>]... [--no-capture] [--dna-only] [--saved-excel <provenance.json>] [--trusted-code <manifest.json>] [--timeout <s>] [--shard <index/count>] [--resume] [--minimize] | cargo xtask corpus --merge <summary.json>... --out <dir>";
+pub const USAGE: &str = "usage: cargo xtask corpus [<dir>] [--recursive] [--oracle] [--release | --profile dev|release|perf] [--out <dir>] [--cache <dir>] [--import <capture.json>]... [--no-capture] [--dna-only] [--saved-excel <provenance.json>] [--trusted-code <manifest.json>] [--timeout <s>] [--shard <index/count>] [--resume] [--minimize] [--capture-only] | cargo xtask corpus --merge <summary.json>... --out <dir>";
 
 const EXIT_FAILED: u8 = 1;
 const EXIT_USAGE: u8 = 2;
@@ -100,6 +100,8 @@ pub(crate) struct Args {
     pub(crate) shard: Option<(u64, u64)>,
     pub(crate) resume: bool,
     pub(crate) minimize: bool,
+    /// Stop after each workbook's capture is taken or found: the comparison runs elsewhere (dc-vq5b batch 1).
+    pub(crate) capture_only: bool,
     pub(crate) dna_only: bool,
     pub(crate) saved_excel: Option<PathBuf>,
     pub(crate) trusted_code: Option<PathBuf>,
@@ -120,6 +122,7 @@ pub(crate) fn parse_args(args: &[String]) -> Result<Args, String> {
         shard: None,
         resume: false,
         minimize: false,
+        capture_only: false,
         dna_only: false,
         saved_excel: None,
         trusted_code: None,
@@ -156,6 +159,7 @@ pub(crate) fn parse_args(args: &[String]) -> Result<Args, String> {
             "--recursive" => parsed.recursive = true,
             "--resume" => parsed.resume = true,
             "--minimize" => parsed.minimize = true,
+            "--capture-only" => parsed.capture_only = true,
             "--trusted-code" => {
                 if parsed.trusted_code.is_some() {
                     return Err("--trusted-code is given twice".into());
@@ -701,6 +705,9 @@ impl Run<'_> {
             )),
             timeout,
             policy: policy.clone(),
+            // dc-vq5b: a corpus workbook is opened with macros force-disabled. Triage-clean corpus VBA may
+            // run through the trusted-code manifest on DNA Calc's side; no capture batch lists one yet.
+            macros: calc_oracle_excel::MacroPolicy::ForceDisabled,
             revision: 0,
             operations: Vec::new(),
             repository: repository_revision(),
@@ -1387,6 +1394,13 @@ fn one_workbook(run: &mut Run<'_>, program: &Path, entry: &Entry, out: &Path) ->
     if let Some(captured) = &captured {
         workbook.capture = Some(captured.source.clone());
         workbook.times.capture = captured.seconds;
+    }
+    if run.args.capture_only {
+        workbook.outcome = Err(NotCompared {
+            stage: "compare".to_owned(),
+            reason: "--capture-only: the capture is taken; the comparison runs elsewhere".to_owned(),
+        });
+        return workbook;
     }
     let mut bounded_args = run.args.clone();
     bounded_args.timeout = run.args.timeout.saturating_sub(file_started.elapsed());

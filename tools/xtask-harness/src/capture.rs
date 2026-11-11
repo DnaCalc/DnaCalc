@@ -278,6 +278,7 @@ fn run_code(raw: &[String]) -> u8 {
         work_dir: work_dir.clone(),
         timeout: args.timeout,
         policy,
+        macros: calc_oracle_excel::MacroPolicy::Preserve,
         revision: args.revision,
         operations: args.operations.clone(),
         repository: repository_revision(),
