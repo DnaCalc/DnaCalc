@@ -847,7 +847,8 @@ unsafe fn dynamic_registrations(module: &XlOper12) -> bool {
     if !unsafe { register(module, "DynamicSlot", "BB", "MyDynamicA") } {
         return false;
     }
-    let original = unsafe { *slot };
+    // lld-link (the cross build) can place the export address table off a 4-byte boundary.
+    let original = unsafe { slot.read_unaligned() };
     let replacement = DynamicOther as *const () as usize - base;
     let Ok(replacement) = u32::try_from(replacement) else {
         return false;
@@ -857,11 +858,11 @@ unsafe fn dynamic_registrations(module: &XlOper12) -> bool {
         return false;
     }
     unsafe {
-        *slot = replacement;
+        slot.write_unaligned(replacement);
     }
     let registered = unsafe { register(module, "DynamicSlot", "BB", "MyDynamicB") };
     unsafe {
-        *slot = original;
+        slot.write_unaligned(original);
     }
     let mut unused = 0;
     let restored = unsafe { VirtualProtect(slot.cast(), 4, old, &mut unused) } != 0;

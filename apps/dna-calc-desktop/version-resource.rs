@@ -7,20 +7,27 @@ fn link_executable_identity(bin: &str) {
         return;
     }
     println!("cargo:rustc-link-arg-bin={bin}=/EXPORT:MdCallBack12");
-    let kits =
-        std::path::PathBuf::from(std::env::var_os("ProgramFiles(x86)").expect("ProgramFiles(x86)"))
-            .join("Windows Kits/10/bin");
-    let mut versions = std::fs::read_dir(&kits)
-        .expect("Windows SDK bin directory")
-        .filter_map(Result::ok)
-        .map(|e| e.path())
-        .filter(|p| p.join("x64/rc.exe").is_file())
-        .collect::<Vec<_>>();
-    versions.sort();
-    let rc = versions
-        .last()
-        .expect("Windows SDK resource compiler")
-        .join("x64/rc.exe");
+    // A Windows build host uses the SDK resource compiler; a cross build (cargo xwin on Linux,
+    // docs/plan/WINDOWS_CROSS_BUILD.md) uses llvm-rc, which reads this self-contained .rc as is.
+    let rc = if cfg!(windows) {
+        let kits = std::path::PathBuf::from(
+            std::env::var_os("ProgramFiles(x86)").expect("ProgramFiles(x86)"),
+        )
+        .join("Windows Kits/10/bin");
+        let mut versions = std::fs::read_dir(&kits)
+            .expect("Windows SDK bin directory")
+            .filter_map(Result::ok)
+            .map(|e| e.path())
+            .filter(|p| p.join("x64/rc.exe").is_file())
+            .collect::<Vec<_>>();
+        versions.sort();
+        versions
+            .last()
+            .expect("Windows SDK resource compiler")
+            .join("x64/rc.exe")
+    } else {
+        std::path::PathBuf::from(std::env::var_os("LLVM_RC").unwrap_or_else(|| "llvm-rc".into()))
+    };
     let output = std::path::PathBuf::from(std::env::var_os("OUT_DIR").unwrap()).join("version.res");
     let status = std::process::Command::new(rc)
         .arg("/nologo")
