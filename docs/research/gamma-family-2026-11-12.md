@@ -107,3 +107,35 @@ Predictions, frozen before asking:
    shapes, for density and CDF alike (our GAMMALN(a+1) leaf is high, harvest R2).
 3. Scale: Excel's density at b is its unit-scale density divided by b, bit for bit, in all 109 x 3 rows
    (ours does this in all of them).
+
+### E2 results (asked 01:05)
+
+1. Held: above one, `above(n+y, s)` with Excel's own s = GAMMA(1+y) gives Excel's GAMMA(n+y) in all
+   18,432 rows (n = 2..9, both sets, the positive halves included). Every miss of ours on [2, 10) comes
+   from our seed stand-in, none from the product.
+2. Neither graph holds below zero. n = 0 (one quotient s/y): 2,048 of 2,048. n = -1 .. -9: R gives 41% to
+   76% (q set) and 37% to 100% (h set), S less. Excel minus R is a symmetric +-1 unit. Ascending order,
+   a stored product of the factors, reciprocals, and seeds taken from GAMMA(k+y), k = 2..9, do no better.
+   No 64-bit seed within 4 public ulps of s reproduces the n = -1 .. -9 rows of one y under the resident
+   chain (32 of 2,048 y). Reflection with Excel's own GAMMA(-x) or GAMMA(1-x) does worse (6% to 25%).
+   Below zero the computation is not a chain of quotients from a seed; it stays open.
+3. Halves: R applied to Excel's GAMMA(1.5) gives ...6b at -0.5 (Excel ...6a) and ...f2 at -1.5 (Excel
+   ...f1), and Excel's bits at -2.5; at -3.5 it gives ...94 against Excel's ...93. Around -0.5 R holds at
+   1,023 of 1,024 inputs: only -0.5 itself fails, so -0.5 is a point of its own. Around -1.5, -2.5 and
+   -3.5 the whole window misses at the general below-zero rate, so those are not half-specific.
+
+### E3 results (asked 01:05)
+
+1. Excel holds C = ldexp(D, e) at 1.75, 2.75 and 5.5 (9,216 of 9,216) and at 0.75 on 760 of 1,024
+   shapes, with C - ldexp(D, e) in {0, -1, -2, -3, -4} units, the same at all three exponents for every
+   shape (1,024 of 1,024). So the a < 1 CDF uses a separate shape-dependent normaliser, as ours does,
+   but not ours: our C matches Excel at 0.75 on 1,076 of 3,072 rows, our density on 2,811.
+2. Held: ours - Excel below 1.1 is -1.96 (density) and -1.10 (CDF) units on average at a = 2.75, -5.00
+   and -4.79 at 5.5, every row negative or zero; above 1.1 it is zero in 2,042 of 2,048 rows.
+3. Held: Excel's density at b = 1/2, 2, 4 is its unit-scale density divided by b in 109 of 109 shapes.
+
+## E4. Is the GAMMA seed EXP(GAMMALN)? (answer B.5a)
+
+Inputs: t = 1 + y for the 2,048 y of E2; GAMMALN(t), then EXP of Excel's answer (two calls per t).
+Prediction, frozen before asking: if the seed is the public composition, EXP(GAMMALN(t)) equals
+GAMMA(t) (asked in E2) bit for bit at every t. Our stand-in seed matches GAMMA(t) at 749 of 2,048.
