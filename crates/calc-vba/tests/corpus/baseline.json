@@ -184,11 +184,11 @@
     "route": "module/interpreter"
   },
   "vba-web-excerpt/module/jit": {
-    "loaded": false,
-    "matched": 0,
+    "loaded": true,
+    "matched": 45,
     "mismatched": 0,
     "missing": 0,
-    "refused": 45,
+    "refused": 0,
     "route": "module/jit"
   },
   "vba-web/module/interpreter": {

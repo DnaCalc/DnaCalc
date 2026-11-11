@@ -168,7 +168,7 @@ fixture (tier S) and the 192 language rows.
 | Route | Backend | Before (pin 18d06139) | After (pin c1b30e3c, DNA Calc fixes) |
 |---|---|---|---|
 | OneCalc module route (one module) | interpreter | 74 / 317 | 208 / 317 |
-| OneCalc module route | JIT | 47 / 317 | 163 / 317 |
+| OneCalc module route | JIT | 47 / 317 | 163 / 317 (208 / 317 at pin 4640a317, round 3) |
 | OneCalc source-project route (`events::load_project`, 3 multi-module projects, 107 cases) | both | not run | 0 / 107 (each: see refusals) |
 | OneCalc file route (.xlsm) | engine's choice | 109 / 135 | 109 / 135 |
 | DNA Calc file route, `--trusted-code` (272 cells) | engine's choice | 157 / 272 | 175 / 272 |
@@ -189,3 +189,13 @@ no longer error 91; `41f71db2` `Attribute` statements inside a procedure body (V
 initialised with `VBA.vbXxx`; tests in `calcvba-differential/tests/validation_round2.rs`, both executors. DnaCalc:
 the module route has the `xlErr*` constants; `Err.Source` is `VBAProject`; the corpus runner has the source-project
 route; the pin is `c1b30e3c` (this includes ac4a5d43, dc-kapl.1).
+
+**Round 3 (2026-11-11): backend disagreements, no Excel.** The module route on the JIT matched 163 / 317 against the
+interpreter's 208 / 317; the whole gap was two projects the JIT declined to load (vba-web-excerpt 45 cases, riff).
+CalcVBA `61237cec` and `4640a317` (pin `4640a317`): the JIT lowers `Declare` on every platform (the call raises at
+run time as in VM3), `Join` of an array into a String, host-sensitive Interaction built-ins (`Shell`, `Environ`), and
+Variant temporaries as arguments of the `Sin` family, `Chr`, `Left` and `Right`; VM3 fault descriptions now equal the
+JIT's stock ones (21 conformance fixtures). Sweep of 580 conformance `.bas` fixtures through both backends
+(`calcvba-differential/tests/jit_conformance_sweep.rs`, an ignored survey; `VBA_SWEEP_DIR` points it at another tree):
+21 description differences fixed, 1 decline left (dc-pye0, `TypeOf` on a constant). Remaining: riff does not load on the
+JIT (dc-9z6t, ByRef pass of a UDT scalar field). Module route now: interpreter 208 / 317, JIT 208 / 317.
