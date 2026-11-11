@@ -192,3 +192,47 @@ GAMMA(1+y) (E2) equals that quotient, under one of: quotients resident and one s
 stored; the product stored step by step from (1+y) up, then one division. Same with GAMMA(11+y) and
 ten factors. Equality in every y for one arrangement identifies it; otherwise family 1 with the shared
 x >= 10 value is refuted.
+
+### E6 result (asked 02:40)
+
+Refuted: GAMMA(10+y) or GAMMA(11+y) divided down by the factors gives Excel's GAMMA(1+y) at 11% to 15%
+of the 2,048 y under every arrangement. Not asked of Excel, a check of family 2 against E5: Lanczos with
+g = 7, n = 9 (the widely reproduced coefficient set) in six natural orders matches 7% to 8% (mean +2.7
+ulps, sd 3.7 to 5.7 against Excel's 1.0); Lanczos 1964 gamma = 5, N = 6 is hundreds of ulps off. Neither
+is the seed.
+
+### E1 final (fitting inside the shape)
+
+Predictions 2 to 4 did not hold: no table was found. What was learnt:
+
+- The graph. The tied stage model (one coefficient per stage, rounding offsets bounded by the stage
+  grid) fits the 258 window means only with P's last Horner sum stored (chi-square 216 against 2,171 for
+  the landed graph). The jumps at P's last-sum crossings (2.277, 2.606) need P's last product stored as
+  well; a resident last product (one fused multiply-add) leaves no jump there. Q's last sum stored or not
+  is not separated by the means. The uniform reading, every product and every sum stored, is the
+  candidate graph G1.
+- The table. Local searches under G0 and G1 (whole-ulp and stage-grid moves, single and paired, a
+  linear solve of the window means in grid steps, a pattern fit on window-centred residuals, scans of
+  the two constant terms and of a common scale) stall: on E1 at 0.43 to 0.46 overall, and in the 2.5
+  region at 0.897 under G1 (0.879 under G0). Q0 = 1 exactly with P0 refitted gives at most 0.71 there.
+  Inside the 2.5 region the window means of Excel minus the best G1 table are within 0.06 ulps of zero,
+  and the misses grow with |x - 2.5| as +-1 units on both sides: the smooth function is right there and
+  the stage phases drift. A one-unit move of one stored stage explains 98% of the misses (mostly R, the
+  last sums and the last products), so the misses sit in the late stages.
+- A Horner scheme in a centred variable (t = x - a, a = 2, 2.25, 2.5, 2.75, 3, the landed table
+  converted exactly) does worse everywhere, and a common rescale of the landed table by 6e-17 already
+  loses the 2.5 window: the landed table's phases at 2.5 are sharp, its coefficients elsewhere are not.
+
+Nothing lands from E1. The graph finding goes to dc-6332.7 for the next reading of the B3 table: read the
+stage lines again under G1, where the last sums are stored.
+
+## Summary for the beads
+
+- dc-6332.7: B.3 graph found (every Horner stage stored, the last sums included), table not recovered;
+  B.1: the a < 1 CDF has its own shape-dependent normaliser (C - M in {0, -1..-4} units at a = 0.75, the
+  same at three exponents), not identified; the 1.1 seam and the scale identity hold. B.4: above one
+  Excel's GAMMA is the stored product of its own GAMMA(1+y), and on (0, 1) it is st(GAMMA(1+y)/y), so
+  every GAMMA miss on (0, 10) away from the poles is a seed miss (3,989 bank rows); below zero no chain
+  of quotients from any 64-bit seed fits; -0.5 alone is a point of its own, -1.5, -2.5 and -3.5 are not.
+  B.5: the seed is not EXP(GAMMALN), not GAMMA(10+y) divided down, not Lanczos g = 7 or gamma = 5.
+- dc-6332.3: nothing replayable came out of these experiments; no change landed.
