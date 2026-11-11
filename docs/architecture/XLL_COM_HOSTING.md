@@ -1329,3 +1329,24 @@ foreground hits.
   restart between two cases when the last topic disconnects first, and the order in which the
   dependent of a shared topic is calculated. Heartbeat, the 22 s idle case and the controlled
   numeric server keep matching (x5, x5typed, x5call verified).
+
+## 32. OneCalc COM0/COM2: Application.Range, Union, Caller (dc-6332.12)
+
+Evidence: `crates/calc-xll-reference/traces/2026-11-11-x19-com`. The projection's `Application` has
+`Range(Cell1, [Cell2])` (DISPID 0xc5, early-bound slot 40), `Union` (0x30b, slot 50) and `Caller`
+(0x13d, slot 74); a Range carries its areas and answers `Address`, `Row`, `Column`, `Count`,
+`Rows`, `Columns` (a Rows or Columns view counts the first area's dimension, as Excel does), and
+`GetTypeInfo(0)` names it `Range`: a private dispinterface made in memory with CreateTypeLib2,
+which is what VBA's `TypeName` of a late-bound object reads (the first host run without it
+answered "IDispatch::<invoke-result>:1"). An address behind another sheet, a whole row or column
+or malformed is error 1004 with its EXCEPINFO. `Caller` is the cell of the native call running on
+the thread (`calc_xll_host::running_caller`), the #REF! error outside a call; CSE, spill and name
+callers and the Index argument are refused. No `Value`, `Value2`, `Cells`, `Item`, `Areas`,
+`Intersect` or `ActiveCell`: OneCalc carries no full object model and `Range.Value` reads stay
+typed refusals (ONECALC_ADDINS.md lines 51, 122, 156; the answer's command and `Range.Value2`
+suggestions are not implemented). The three calcvba-udf page failures pass: page acceptance 353 of
+353 (350 before), the 20 calcvba-udf cases 20 of 20, x13 65/68, x13-open 1/1, x14 128/145, x15
+19/21, x17 28/28 and the framework host route 333/333 unchanged. QueueAsMacro's transport
+(`Application.Run` of `SyncMacro_<guid>`, returning R8 0) is the existing one and was not changed:
+OneCalc offers no commands (line 51), so an edit-aware command entry and `PermissionWrites`
+belong to DNA Calc (dc-6332.13).

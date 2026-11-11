@@ -15,7 +15,7 @@ Version 281 (including LCID) and Hwnd 351. Window's IID is
 seven vtable slots. Its property descriptors must not be mistaken for a dual
 interface's callable slots. Unimplemented members fail with HRESULTs.
 
-The objects expose no type information yet. Managed callers tested here use
+Only the Range objects expose type information (below). Managed callers tested here use
 IDispatch name lookup; early-bound tests call the measured slots directly.
 The AppEvents connection point retains subscriptions and supports Unadvise, and
 delivers two application events to its sinks: SheetChange (DISPID 0x61c, worksheet
@@ -33,3 +33,18 @@ Workbook dual vtable has 289 slots and Workbooks has 26. These objects describe
 one local Book1 shell; they do not enumerate or project arbitrary application
 documents. xlOil's original native and Python plugins use this route in the
 [X3 captures](../calc-xll-reference/traces/2026-11-01-x3/).
+
+dc-6332.12 (answer 13 COM0/COM2 for OneCalc, D.15): `Application.Range(Cell1, [Cell2])`
+(DISPID 0xc5, early-bound slot 40), `Application.Union` (0x30b, slot 50) and `Application.Caller`
+(0x13d, slot 74). A Range carries its areas (A1 text, `$A$1:$B$2`, `A1,C3`, behind the session's
+own sheet qualifier; any other sheet, a whole row or column, or a malformed address is Excel's
+error 1004 with its EXCEPINFO); `Address`, `Row`, `Column`, `Count`, `Rows` and `Columns` answer
+from those areas (`Rows.Count` and `Columns.Count` the first area's dimensions). `Caller` is
+the cell of the native worksheet call running on the thread (`calc_xll_host::running_caller`),
+the #REF! error outside a call; CSE, spill and name callers and the Index argument are refused.
+There is no `Value`, `Value2`, `Cells`, `Item` or `Areas`: a Range here names cells, it holds no
+values (docs/architecture/ONECALC_ADDINS.md: OneCalc carries no full object model and `Range.Value`
+reads are typed refusals). A Range answers type information (`GetTypeInfoCount` 1): a private
+dispinterface named `Range`, built in memory with CreateTypeLib2 (nothing saved or registered,
+Excel's type library not read), which is what VBA's `TypeName` of a late-bound object asks. The
+other objects still answer 0.

@@ -111,19 +111,24 @@ mismatched + refused + missing; the rate is over all cases of the set.
 | xlw 23.10.12-rc sample, and its types sample | 5 + 5 | 10 | 0 |
 | xlOil 0.22.1 Utils and SQL | 12 | 12 | 0 |
 | xlOil 0.22.1 Python 3.12 | 5 | 5 | 0 |
-| calcvba-udf generated add-in (15 exports) | 20 | 17 | 3 |
-| all | 353 | 350 | 3 (99.2%) |
+| calcvba-udf generated add-in (15 exports) | 20 | 20 | 0 (17 until dc-6332.12) |
+| all | 353 | 353 | 0 (100%; 350 until dc-6332.12) |
 
 Re-run on 2026-11-11 after the dc-6332.10 callback-boundary changes (OneCalc a967db01): the same
 350 of 353, set by set (`crates/calc-xll-reference/traces/2026-11-10-x13-boundary/m4-acceptance`).
 
-The three failures are all in the generated add-in: `Native_ReferenceKind(A1)`,
-`Native_OptionalReference(A1)` and `Native_CallerRow()` return `#VALUE!` where Excel gives `"Range:1"`,
-`"Range"` and `3`. The generated code gets a `Range` object from `Application.Range(address)` and
-`Application.Caller` through the add-in's COM view of Excel (`xlGetHwnd`, then the EXCEL7 window), and
-the object model the desktop hosts publish (calc-com-host) has no `Application.Range`, `Union` or
-`Caller`. The owner's ruling is that OneCalc carries no full Excel object model; what these calls
-should do instead of a silent `#VALUE!` is dc-snz.5's open question.
+The three failures were all in the generated add-in: `Native_ReferenceKind(A1)`,
+`Native_OptionalReference(A1)` and `Native_CallerRow()` returned `#VALUE!` where Excel gives
+`"Range:1"`, `"Range"` and `3`. The generated code gets a `Range` object from
+`Application.Range(address)` and `Application.Caller` through the add-in's COM view of Excel
+(`xlGetHwnd`, then the EXCEL7 window), late bound, and reads `TypeName`, `Rows.Count` and `Row`.
+dc-6332.12 answers them inside the owner's ruling (no full object model): the desktop hosts'
+object model (calc-com-host) now has `Application.Range`, `Union` and `Caller`, and a Range that
+names cells (`Address`, `Row`, `Column`, `Count`, `Rows`, `Columns`, `Parent`, `Worksheet`) with
+private type information named `Range` (what VBA's `TypeName` reads). `Caller` is the cell of the
+native call running on that thread. A Range holds no values: `Value`, `Value2`, `Cells`, `Item`
+and `Areas` stay absent, and `Range.Value` reads stay typed refusals. The page acceptance after
+the change: 353 of 353, set by set, `crates/calc-xll-reference/traces/2026-11-11-x19-com`.
 
 The page also showed, for the first functions of each add-in, the signature help, the function help
 (description, argument help, category, origin) and the completion list; it unloaded each add-in

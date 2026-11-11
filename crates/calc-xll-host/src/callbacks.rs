@@ -160,6 +160,19 @@ impl CallbackReply {
     }
 }
 thread_local! { static FRAME:Cell<*mut Frame<'static>>=const{Cell::new(std::ptr::null_mut())}; }
+/// The cell (zero-based row and column) the native worksheet call running on this thread was
+/// entered for; `None` outside a call or when the call has no cell caller. This is what
+/// `Application.Caller` of the COM projection answers while an add-in's code runs.
+pub fn running_caller() -> Option<(u32, u32)> {
+    let pointer = FRAME.with(|f| f.get());
+    if pointer.is_null() {
+        return None;
+    }
+    // SAFETY: a frame outlives its guard and never leaves its thread (see `enter`).
+    let frame = unsafe { &*pointer };
+    let cell = frame.context.as_ref().and_then(|context| context.caller())?;
+    Some((cell.row().checked_sub(1)?, cell.column().checked_sub(1)?))
+}
 pub(crate) struct FrameGuard(*mut Frame<'static>);
 impl Drop for FrameGuard {
     fn drop(&mut self) {
