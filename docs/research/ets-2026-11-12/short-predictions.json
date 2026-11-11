@@ -1,0 +1,4322 @@
+{
+  "seed": 633209,
+  "confidence_bits": "3fefffffffffffff",
+  "rows": [
+    {
+      "id": "H87_F2",
+      "y": [
+        13.5,
+        -11.5,
+        -9.5,
+        -2.125
+      ],
+      "p": 0,
+      "output": "forecast",
+      "index": 2,
+      "predictions": {
+        "landed_program": {
+          "value": -13.210130969482137,
+          "bits": "c02a6b9649539ae8"
+        }
+      }
+    },
+    {
+      "id": "H87_F3",
+      "y": [
+        13.5,
+        -11.5,
+        -9.5,
+        -2.125
+      ],
+      "p": 0,
+      "output": "forecast",
+      "index": 3,
+      "predictions": {
+        "landed_program": {
+          "value": -17.223425874424102,
+          "bits": "c03139327027bb52"
+        }
+      }
+    },
+    {
+      "id": "H87_Cendpoint",
+      "y": [
+        13.5,
+        -11.5,
+        -9.5,
+        -2.125
+      ],
+      "p": 0,
+      "output": "endpoint",
+      "index": 1,
+      "predictions": {
+        "landed_program": {
+          "value": 11.761196653977501,
+          "bits": "402785bb915d50e5"
+        },
+        "equals_stat7": {
+          "value": 11.761196653977501,
+          "bits": "402785bb915d50e5"
+        }
+      }
+    },
+    {
+      "id": "H87_S1",
+      "y": [
+        13.5,
+        -11.5,
+        -9.5,
+        -2.125
+      ],
+      "p": 0,
+      "output": "stat",
+      "index": 1,
+      "predictions": {
+        "landed_program": {
+          "value": 0.25,
+          "bits": "3fd0000000000000"
+        }
+      }
+    },
+    {
+      "id": "H87_S2",
+      "y": [
+        13.5,
+        -11.5,
+        -9.5,
+        -2.125
+      ],
+      "p": 0,
+      "output": "stat",
+      "index": 2,
+      "predictions": {
+        "landed_program": {
+          "value": 0.001,
+          "bits": "3f50624dd2f1a9fc"
+        }
+      }
+    },
+    {
+      "id": "H87_S7",
+      "y": [
+        13.5,
+        -11.5,
+        -9.5,
+        -2.125
+      ],
+      "p": 0,
+      "output": "stat",
+      "index": 7,
+      "predictions": {
+        "landed_program": {
+          "value": 11.761196653977501,
+          "bits": "402785bb915d50e5"
+        }
+      }
+    },
+    {
+      "id": "H88_F2",
+      "y": [
+        0.0,
+        2.1875,
+        3.0625,
+        5.625,
+        7.5625
+      ],
+      "p": 0,
+      "output": "forecast",
+      "index": 2,
+      "predictions": {
+        "landed_program": {
+          "value": 11.304098417282884,
+          "bits": "40269bb2c9a9fd9e"
+        }
+      }
+    },
+    {
+      "id": "H88_F3",
+      "y": [
+        0.0,
+        2.1875,
+        3.0625,
+        5.625,
+        7.5625
+      ],
+      "p": 0,
+      "output": "forecast",
+      "index": 3,
+      "predictions": {
+        "landed_program": {
+          "value": 13.188068561546572,
+          "bits": "402a604a85c27f20"
+        }
+      }
+    },
+    {
+      "id": "H88_Cendpoint",
+      "y": [
+        0.0,
+        2.1875,
+        3.0625,
+        5.625,
+        7.5625
+      ],
+      "p": 0,
+      "output": "endpoint",
+      "index": 1,
+      "predictions": {
+        "landed_program": {
+          "value": 0.3444986319939352,
+          "bits": "3fd60c43fd7b9071"
+        },
+        "equals_stat7": {
+          "value": 0.3444986319939352,
+          "bits": "3fd60c43fd7b9071"
+        }
+      }
+    },
+    {
+      "id": "H88_S1",
+      "y": [
+        0.0,
+        2.1875,
+        3.0625,
+        5.625,
+        7.5625
+      ],
+      "p": 0,
+      "output": "stat",
+      "index": 1,
+      "predictions": {
+        "landed_program": {
+          "value": 0.002,
+          "bits": "3f60624dd2f1a9fc"
+        }
+      }
+    },
+    {
+      "id": "H88_S2",
+      "y": [
+        0.0,
+        2.1875,
+        3.0625,
+        5.625,
+        7.5625
+      ],
+      "p": 0,
+      "output": "stat",
+      "index": 2,
+      "predictions": {
+        "landed_program": {
+          "value": 0.001,
+          "bits": "3f50624dd2f1a9fc"
+        }
+      }
+    },
+    {
+      "id": "H88_S7",
+      "y": [
+        0.0,
+        2.1875,
+        3.0625,
+        5.625,
+        7.5625
+      ],
+      "p": 0,
+      "output": "stat",
+      "index": 7,
+      "predictions": {
+        "landed_program": {
+          "value": 0.3444986319939352,
+          "bits": "3fd60c43fd7b9071"
+        }
+      }
+    },
+    {
+      "id": "H89_F2",
+      "y": [
+        12.25,
+        2.875,
+        -1.25,
+        -11.125,
+        0.75,
+        -6.0
+      ],
+      "p": 0,
+      "output": "forecast",
+      "index": 2,
+      "predictions": {
+        "landed_program": {
+          "value": -11.376846487028713,
+          "bits": "c026c0f205d2cd37"
+        }
+      }
+    },
+    {
+      "id": "H89_F3",
+      "y": [
+        12.25,
+        2.875,
+        -1.25,
+        -11.125,
+        0.75,
+        -6.0
+      ],
+      "p": 0,
+      "output": "forecast",
+      "index": 3,
+      "predictions": {
+        "landed_program": {
+          "value": -13.925420811523727,
+          "bits": "c02bd9d0c1b1107b"
+        }
+      }
+    },
+    {
+      "id": "H89_Cendpoint",
+      "y": [
+        12.25,
+        2.875,
+        -1.25,
+        -11.125,
+        0.75,
+        -6.0
+      ],
+      "p": 0,
+      "output": "endpoint",
+      "index": 1,
+      "predictions": {
+        "landed_program": {
+          "value": 6.573543619021273,
+          "bits": "401a4b4f04ba1a79"
+        },
+        "equals_stat7": {
+          "value": 6.573543619021273,
+          "bits": "401a4b4f04ba1a79"
+        }
+      }
+    },
+    {
+      "id": "H89_S1",
+      "y": [
+        12.25,
+        2.875,
+        -1.25,
+        -11.125,
+        0.75,
+        -6.0
+      ],
+      "p": 0,
+      "output": "stat",
+      "index": 1,
+      "predictions": {
+        "landed_program": {
+          "value": 0.5,
+          "bits": "3fe0000000000000"
+        }
+      }
+    },
+    {
+      "id": "H89_S2",
+      "y": [
+        12.25,
+        2.875,
+        -1.25,
+        -11.125,
+        0.75,
+        -6.0
+      ],
+      "p": 0,
+      "output": "stat",
+      "index": 2,
+      "predictions": {
+        "landed_program": {
+          "value": 0.001,
+          "bits": "3f50624dd2f1a9fc"
+        }
+      }
+    },
+    {
+      "id": "H89_S7",
+      "y": [
+        12.25,
+        2.875,
+        -1.25,
+        -11.125,
+        0.75,
+        -6.0
+      ],
+      "p": 0,
+      "output": "stat",
+      "index": 7,
+      "predictions": {
+        "landed_program": {
+          "value": 6.573543619021273,
+          "bits": "401a4b4f04ba1a79"
+        }
+      }
+    },
+    {
+      "id": "H90_F2",
+      "y": [
+        0.0625,
+        1.125,
+        2.4375,
+        4.375,
+        5.5625,
+        7.9375,
+        9.5625
+      ],
+      "p": 0,
+      "output": "forecast",
+      "index": 2,
+      "predictions": {
+        "landed_program": {
+          "value": 12.750007754513241,
+          "bits": "402980010432c2f4"
+        }
+      }
+    },
+    {
+      "id": "H90_F3",
+      "y": [
+        0.0625,
+        1.125,
+        2.4375,
+        4.375,
+        5.5625,
+        7.9375,
+        9.5625
+      ],
+      "p": 0,
+      "output": "forecast",
+      "index": 3,
+      "predictions": {
+        "landed_program": {
+          "value": 14.365763912820523,
+          "bits": "402cbb4568573e06"
+        }
+      }
+    },
+    {
+      "id": "H90_Cendpoint",
+      "y": [
+        0.0625,
+        1.125,
+        2.4375,
+        4.375,
+        5.5625,
+        7.9375,
+        9.5625
+      ],
+      "p": 0,
+      "output": "endpoint",
+      "index": 1,
+      "predictions": {
+        "landed_program": {
+          "value": 0.4073914833743825,
+          "bits": "3fda12b3ba70c2fb"
+        },
+        "equals_stat7": {
+          "value": 0.4073914833743825,
+          "bits": "3fda12b3ba70c2fb"
+        }
+      }
+    },
+    {
+      "id": "H90_S1",
+      "y": [
+        0.0625,
+        1.125,
+        2.4375,
+        4.375,
+        5.5625,
+        7.9375,
+        9.5625
+      ],
+      "p": 0,
+      "output": "stat",
+      "index": 1,
+      "predictions": {
+        "landed_program": {
+          "value": 0.75,
+          "bits": "3fe8000000000000"
+        }
+      }
+    },
+    {
+      "id": "H90_S2",
+      "y": [
+        0.0625,
+        1.125,
+        2.4375,
+        4.375,
+        5.5625,
+        7.9375,
+        9.5625
+      ],
+      "p": 0,
+      "output": "stat",
+      "index": 2,
+      "predictions": {
+        "landed_program": {
+          "value": 0.001,
+          "bits": "3f50624dd2f1a9fc"
+        }
+      }
+    },
+    {
+      "id": "H90_S7",
+      "y": [
+        0.0625,
+        1.125,
+        2.4375,
+        4.375,
+        5.5625,
+        7.9375,
+        9.5625
+      ],
+      "p": 0,
+      "output": "stat",
+      "index": 7,
+      "predictions": {
+        "landed_program": {
+          "value": 0.4073914833743825,
+          "bits": "3fda12b3ba70c2fb"
+        }
+      }
+    },
+    {
+      "id": "H91_F2",
+      "y": [
+        1.875,
+        -11.5,
+        -4.5
+      ],
+      "p": 0,
+      "output": "forecast",
+      "index": 2,
+      "predictions": {
+        "landed_program": {
+          "value": -14.315298375,
+          "bits": "c02ca16ec9e236c1"
+        }
+      }
+    },
+    {
+      "id": "H91_F3",
+      "y": [
+        1.875,
+        -11.5,
+        -4.5
+      ],
+      "p": 0,
+      "output": "forecast",
+      "index": 3,
+      "predictions": {
+        "landed_program": {
+          "value": -18.3106569375,
+          "bits": "c0324f87368ad688"
+        }
+      }
+    },
+    {
+      "id": "H91_Cendpoint",
+      "y": [
+        1.875,
+        -11.5,
+        -4.5
+      ],
+      "p": 0,
+      "output": "endpoint",
+      "index": 1,
+      "predictions": {
+        "landed_program": {
+          "value": 5.997086854539078,
+          "bits": "4017fd04561e1141"
+        },
+        "equals_stat7": {
+          "value": 5.997086854539078,
+          "bits": "4017fd04561e1141"
+        }
+      }
+    },
+    {
+      "id": "H91_S1",
+      "y": [
+        1.875,
+        -11.5,
+        -4.5
+      ],
+      "p": 0,
+      "output": "stat",
+      "index": 1,
+      "predictions": {
+        "landed_program": {
+          "value": 0.1,
+          "bits": "3fb999999999999a"
+        }
+      }
+    },
+    {
+      "id": "H91_S2",
+      "y": [
+        1.875,
+        -11.5,
+        -4.5
+      ],
+      "p": 0,
+      "output": "stat",
+      "index": 2,
+      "predictions": {
+        "landed_program": {
+          "value": 0.099,
+          "bits": "3fb95810624dd2f2"
+        }
+      }
+    },
+    {
+      "id": "H91_S7",
+      "y": [
+        1.875,
+        -11.5,
+        -4.5
+      ],
+      "p": 0,
+      "output": "stat",
+      "index": 7,
+      "predictions": {
+        "landed_program": {
+          "value": 5.997086854539078,
+          "bits": "4017fd04561e1141"
+        }
+      }
+    },
+    {
+      "id": "H92_F2",
+      "y": [
+        -0.125,
+        0.625,
+        1.75,
+        1.625
+      ],
+      "p": 0,
+      "output": "forecast",
+      "index": 2,
+      "predictions": {
+        "landed_program": {
+          "value": 3.02856277392857,
+          "bits": "40083a7f1e9f4000"
+        }
+      }
+    },
+    {
+      "id": "H92_F3",
+      "y": [
+        -0.125,
+        0.625,
+        1.75,
+        1.625
+      ],
+      "p": 0,
+      "output": "forecast",
+      "index": 3,
+      "predictions": {
+        "landed_program": {
+          "value": 3.645199139419641,
+          "bits": "400d295e2a99b7b6"
+        }
+      }
+    },
+    {
+      "id": "H92_Cendpoint",
+      "y": [
+        -0.125,
+        0.625,
+        1.75,
+        1.625
+      ],
+      "p": 0,
+      "output": "endpoint",
+      "index": 1,
+      "predictions": {
+        "landed_program": {
+          "value": 0.3345091265497281,
+          "bits": "3fd56898f7afa7a6"
+        },
+        "equals_stat7": {
+          "value": 0.3345091265497281,
+          "bits": "3fd56898f7afa7a6"
+        }
+      }
+    },
+    {
+      "id": "H92_S1",
+      "y": [
+        -0.125,
+        0.625,
+        1.75,
+        1.625
+      ],
+      "p": 0,
+      "output": "stat",
+      "index": 1,
+      "predictions": {
+        "landed_program": {
+          "value": 0.126,
+          "bits": "3fc020c49ba5e354"
+        }
+      }
+    },
+    {
+      "id": "H92_S2",
+      "y": [
+        -0.125,
+        0.625,
+        1.75,
+        1.625
+      ],
+      "p": 0,
+      "output": "stat",
+      "index": 2,
+      "predictions": {
+        "landed_program": {
+          "value": 0.001,
+          "bits": "3f50624dd2f1a9fc"
+        }
+      }
+    },
+    {
+      "id": "H92_S7",
+      "y": [
+        -0.125,
+        0.625,
+        1.75,
+        1.625
+      ],
+      "p": 0,
+      "output": "stat",
+      "index": 7,
+      "predictions": {
+        "landed_program": {
+          "value": 0.3345091265497281,
+          "bits": "3fd56898f7afa7a6"
+        }
+      }
+    },
+    {
+      "id": "H93_F2",
+      "y": [
+        13.75,
+        -0.75,
+        12.875,
+        -5.125,
+        11.625
+      ],
+      "p": 0,
+      "output": "forecast",
+      "index": 2,
+      "predictions": {
+        "landed_program": {
+          "value": 5.882650033056276,
+          "bits": "401787d5690728fc"
+        }
+      }
+    },
+    {
+      "id": "H93_F3",
+      "y": [
+        13.75,
+        -0.75,
+        12.875,
+        -5.125,
+        11.625
+      ],
+      "p": 0,
+      "output": "forecast",
+      "index": 3,
+      "predictions": {
+        "landed_program": {
+          "value": 5.015681833068964,
+          "bits": "4014100ee600b0ac"
+        }
+      }
+    },
+    {
+      "id": "H93_Cendpoint",
+      "y": [
+        13.75,
+        -0.75,
+        12.875,
+        -5.125,
+        11.625
+      ],
+      "p": 0,
+      "output": "endpoint",
+      "index": 1,
+      "predictions": {
+        "landed_program": {
+          "value": 9.342633917201617,
+          "bits": "4022af6db679c33c"
+        },
+        "equals_stat7": {
+          "value": 9.342633917201617,
+          "bits": "4022af6db679c33c"
+        }
+      }
+    },
+    {
+      "id": "H93_S1",
+      "y": [
+        13.75,
+        -0.75,
+        12.875,
+        -5.125,
+        11.625
+      ],
+      "p": 0,
+      "output": "stat",
+      "index": 1,
+      "predictions": {
+        "landed_program": {
+          "value": 0.126,
+          "bits": "3fc020c49ba5e354"
+        }
+      }
+    },
+    {
+      "id": "H93_S2",
+      "y": [
+        13.75,
+        -0.75,
+        12.875,
+        -5.125,
+        11.625
+      ],
+      "p": 0,
+      "output": "stat",
+      "index": 2,
+      "predictions": {
+        "landed_program": {
+          "value": 0.001,
+          "bits": "3f50624dd2f1a9fc"
+        }
+      }
+    },
+    {
+      "id": "H93_S7",
+      "y": [
+        13.75,
+        -0.75,
+        12.875,
+        -5.125,
+        11.625
+      ],
+      "p": 0,
+      "output": "stat",
+      "index": 7,
+      "predictions": {
+        "landed_program": {
+          "value": 9.342633917201617,
+          "bits": "4022af6db679c33c"
+        }
+      }
+    },
+    {
+      "id": "H94_F2",
+      "y": [
+        0.125,
+        0.8125,
+        3.1875,
+        4.1875,
+        6.375,
+        8.25
+      ],
+      "p": 0,
+      "output": "forecast",
+      "index": 2,
+      "predictions": {
+        "landed_program": {
+          "value": 11.561960931119193,
+          "bits": "40271fb957d992c3"
+        }
+      }
+    },
+    {
+      "id": "H94_F3",
+      "y": [
+        0.125,
+        0.8125,
+        3.1875,
+        4.1875,
+        6.375,
+        8.25
+      ],
+      "p": 0,
+      "output": "forecast",
+      "index": 3,
+      "predictions": {
+        "landed_program": {
+          "value": 13.276958337563642,
+          "bits": "402a8dcd7bb46178"
+        }
+      }
+    },
+    {
+      "id": "H94_Cendpoint",
+      "y": [
+        0.125,
+        0.8125,
+        3.1875,
+        4.1875,
+        6.375,
+        8.25
+      ],
+      "p": 0,
+      "output": "endpoint",
+      "index": 1,
+      "predictions": {
+        "landed_program": {
+          "value": 0.5116592603299055,
+          "bits": "3fe05f833db9fff4"
+        },
+        "equals_stat7": {
+          "value": 0.5116592603299055,
+          "bits": "3fe05f833db9fff4"
+        }
+      }
+    },
+    {
+      "id": "H94_S1",
+      "y": [
+        0.125,
+        0.8125,
+        3.1875,
+        4.1875,
+        6.375,
+        8.25
+      ],
+      "p": 0,
+      "output": "stat",
+      "index": 1,
+      "predictions": {
+        "landed_program": {
+          "value": 0.5,
+          "bits": "3fe0000000000000"
+        }
+      }
+    },
+    {
+      "id": "H94_S2",
+      "y": [
+        0.125,
+        0.8125,
+        3.1875,
+        4.1875,
+        6.375,
+        8.25
+      ],
+      "p": 0,
+      "output": "stat",
+      "index": 2,
+      "predictions": {
+        "landed_program": {
+          "value": 0.001,
+          "bits": "3f50624dd2f1a9fc"
+        }
+      }
+    },
+    {
+      "id": "H94_S7",
+      "y": [
+        0.125,
+        0.8125,
+        3.1875,
+        4.1875,
+        6.375,
+        8.25
+      ],
+      "p": 0,
+      "output": "stat",
+      "index": 7,
+      "predictions": {
+        "landed_program": {
+          "value": 0.5116592603299055,
+          "bits": "3fe05f833db9fff4"
+        }
+      }
+    },
+    {
+      "id": "H95_F2",
+      "y": [
+        14.5,
+        10.75,
+        -1.75,
+        -4.75,
+        -16.25,
+        9.125,
+        5.75
+      ],
+      "p": 0,
+      "output": "forecast",
+      "index": 2,
+      "predictions": {
+        "landed_program": {
+          "value": -3.682483863804544,
+          "bits": "c00d75ba1998b4b4"
+        }
+      }
+    },
+    {
+      "id": "H95_F3",
+      "y": [
+        14.5,
+        10.75,
+        -1.75,
+        -4.75,
+        -16.25,
+        9.125,
+        5.75
+      ],
+      "p": 0,
+      "output": "forecast",
+      "index": 3,
+      "predictions": {
+        "landed_program": {
+          "value": -5.275717317916456,
+          "bits": "c0151a55a3fd916c"
+        }
+      }
+    },
+    {
+      "id": "H95_Cendpoint",
+      "y": [
+        14.5,
+        10.75,
+        -1.75,
+        -4.75,
+        -16.25,
+        9.125,
+        5.75
+      ],
+      "p": 0,
+      "output": "endpoint",
+      "index": 1,
+      "predictions": {
+        "landed_program": {
+          "value": 11.056176634470498,
+          "bits": "40261cc32f0fb345"
+        },
+        "equals_stat7": {
+          "value": 11.056176634470498,
+          "bits": "40261cc32f0fb345"
+        }
+      }
+    },
+    {
+      "id": "H95_S1",
+      "y": [
+        14.5,
+        10.75,
+        -1.75,
+        -4.75,
+        -16.25,
+        9.125,
+        5.75
+      ],
+      "p": 0,
+      "output": "stat",
+      "index": 1,
+      "predictions": {
+        "landed_program": {
+          "value": 0.25,
+          "bits": "3fd0000000000000"
+        }
+      }
+    },
+    {
+      "id": "H95_S2",
+      "y": [
+        14.5,
+        10.75,
+        -1.75,
+        -4.75,
+        -16.25,
+        9.125,
+        5.75
+      ],
+      "p": 0,
+      "output": "stat",
+      "index": 2,
+      "predictions": {
+        "landed_program": {
+          "value": 0.001,
+          "bits": "3f50624dd2f1a9fc"
+        }
+      }
+    },
+    {
+      "id": "H95_S7",
+      "y": [
+        14.5,
+        10.75,
+        -1.75,
+        -4.75,
+        -16.25,
+        9.125,
+        5.75
+      ],
+      "p": 0,
+      "output": "stat",
+      "index": 7,
+      "predictions": {
+        "landed_program": {
+          "value": 11.056176634470498,
+          "bits": "40261cc32f0fb345"
+        }
+      }
+    },
+    {
+      "id": "H96_F2",
+      "y": [
+        0.0,
+        0.5625,
+        1.6875
+      ],
+      "p": 0,
+      "output": "forecast",
+      "index": 2,
+      "predictions": {
+        "landed_program": {
+          "value": 3.2800224375000004,
+          "bits": "400a3d7c6759ab6e"
+        }
+      }
+    },
+    {
+      "id": "H96_F3",
+      "y": [
+        0.0,
+        0.5625,
+        1.6875
+      ],
+      "p": 0,
+      "output": "forecast",
+      "index": 3,
+      "predictions": {
+        "landed_program": {
+          "value": 4.10146959375,
+          "bits": "401067e7a52ac754"
+        }
+      }
+    },
+    {
+      "id": "H96_Cendpoint",
+      "y": [
+        0.0,
+        0.5625,
+        1.6875
+      ],
+      "p": 0,
+      "output": "endpoint",
+      "index": 1,
+      "predictions": {
+        "landed_program": {
+          "value": 0.16556374751795,
+          "bits": "3fc53131607f13f4"
+        },
+        "equals_stat7": {
+          "value": 0.16556374751795,
+          "bits": "3fc53131607f13f4"
+        }
+      }
+    },
+    {
+      "id": "H96_S1",
+      "y": [
+        0.0,
+        0.5625,
+        1.6875
+      ],
+      "p": 0,
+      "output": "stat",
+      "index": 1,
+      "predictions": {
+        "landed_program": {
+          "value": 0.1,
+          "bits": "3fb999999999999a"
+        }
+      }
+    },
+    {
+      "id": "H96_S2",
+      "y": [
+        0.0,
+        0.5625,
+        1.6875
+      ],
+      "p": 0,
+      "output": "stat",
+      "index": 2,
+      "predictions": {
+        "landed_program": {
+          "value": 0.099,
+          "bits": "3fb95810624dd2f2"
+        }
+      }
+    },
+    {
+      "id": "H96_S7",
+      "y": [
+        0.0,
+        0.5625,
+        1.6875
+      ],
+      "p": 0,
+      "output": "stat",
+      "index": 7,
+      "predictions": {
+        "landed_program": {
+          "value": 0.16556374751795,
+          "bits": "3fc53131607f13f4"
+        }
+      }
+    },
+    {
+      "id": "H97_F2",
+      "y": [
+        0.625,
+        9.625,
+        14.5,
+        6.5
+      ],
+      "p": 0,
+      "output": "forecast",
+      "index": 2,
+      "predictions": {
+        "landed_program": {
+          "value": 13.151671888053574,
+          "bits": "402a4da7f00dd34a"
+        }
+      }
+    },
+    {
+      "id": "H97_F3",
+      "y": [
+        0.625,
+        9.625,
+        14.5,
+        6.5
+      ],
+      "p": 0,
+      "output": "forecast",
+      "index": 3,
+      "predictions": {
+        "landed_program": {
+          "value": 15.07847086835268,
+          "bits": "402e282d556a86e7"
+        }
+      }
+    },
+    {
+      "id": "H97_Cendpoint",
+      "y": [
+        0.625,
+        9.625,
+        14.5,
+        6.5
+      ],
+      "p": 0,
+      "output": "endpoint",
+      "index": 1,
+      "predictions": {
+        "landed_program": {
+          "value": 5.754256914058198,
+          "bits": "4017045becaaa5ba"
+        },
+        "equals_stat7": {
+          "value": 5.754256914058198,
+          "bits": "4017045becaaa5ba"
+        }
+      }
+    },
+    {
+      "id": "H97_S1",
+      "y": [
+        0.625,
+        9.625,
+        14.5,
+        6.5
+      ],
+      "p": 0,
+      "output": "stat",
+      "index": 1,
+      "predictions": {
+        "landed_program": {
+          "value": 0.25,
+          "bits": "3fd0000000000000"
+        }
+      }
+    },
+    {
+      "id": "H97_S2",
+      "y": [
+        0.625,
+        9.625,
+        14.5,
+        6.5
+      ],
+      "p": 0,
+      "output": "stat",
+      "index": 2,
+      "predictions": {
+        "landed_program": {
+          "value": 0.001,
+          "bits": "3f50624dd2f1a9fc"
+        }
+      }
+    },
+    {
+      "id": "H97_S7",
+      "y": [
+        0.625,
+        9.625,
+        14.5,
+        6.5
+      ],
+      "p": 0,
+      "output": "stat",
+      "index": 7,
+      "predictions": {
+        "landed_program": {
+          "value": 5.754256914058198,
+          "bits": "4017045becaaa5ba"
+        }
+      }
+    },
+    {
+      "id": "H98_F2",
+      "y": [
+        -0.0625,
+        -1.6875,
+        -2.5,
+        -3.8125,
+        -4.8125
+      ],
+      "p": 0,
+      "output": "forecast",
+      "index": 2,
+      "predictions": {
+        "landed_program": {
+          "value": -7.17653266547352,
+          "bits": "c01cb4c4faa389b4"
+        }
+      }
+    },
+    {
+      "id": "H98_F3",
+      "y": [
+        -0.0625,
+        -1.6875,
+        -2.5,
+        -3.8125,
+        -4.8125
+      ],
+      "p": 0,
+      "output": "forecast",
+      "index": 3,
+      "predictions": {
+        "landed_program": {
+          "value": -8.339142507258213,
+          "bits": "c020ada41632b706"
+        }
+      }
+    },
+    {
+      "id": "H98_Cendpoint",
+      "y": [
+        -0.0625,
+        -1.6875,
+        -2.5,
+        -3.8125,
+        -4.8125
+      ],
+      "p": 0,
+      "output": "endpoint",
+      "index": 1,
+      "predictions": {
+        "landed_program": {
+          "value": 0.21857459653948366,
+          "bits": "3fcbfa409befce19"
+        },
+        "equals_stat7": {
+          "value": 0.21857459653948366,
+          "bits": "3fcbfa409befce19"
+        }
+      }
+    },
+    {
+      "id": "H98_S1",
+      "y": [
+        -0.0625,
+        -1.6875,
+        -2.5,
+        -3.8125,
+        -4.8125
+      ],
+      "p": 0,
+      "output": "stat",
+      "index": 1,
+      "predictions": {
+        "landed_program": {
+          "value": 0.25,
+          "bits": "3fd0000000000000"
+        }
+      }
+    },
+    {
+      "id": "H98_S2",
+      "y": [
+        -0.0625,
+        -1.6875,
+        -2.5,
+        -3.8125,
+        -4.8125
+      ],
+      "p": 0,
+      "output": "stat",
+      "index": 2,
+      "predictions": {
+        "landed_program": {
+          "value": 0.001,
+          "bits": "3f50624dd2f1a9fc"
+        }
+      }
+    },
+    {
+      "id": "H98_S7",
+      "y": [
+        -0.0625,
+        -1.6875,
+        -2.5,
+        -3.8125,
+        -4.8125
+      ],
+      "p": 0,
+      "output": "stat",
+      "index": 7,
+      "predictions": {
+        "landed_program": {
+          "value": 0.21857459653948366,
+          "bits": "3fcbfa409befce19"
+        }
+      }
+    },
+    {
+      "id": "H99_F2",
+      "y": [
+        -3.75,
+        -7.375,
+        14.125,
+        4.375,
+        3.5,
+        -5.75
+      ],
+      "p": 0,
+      "output": "forecast",
+      "index": 2,
+      "predictions": {
+        "landed_program": {
+          "value": -5.803826530612244,
+          "bits": "c017371e4d528c03"
+        }
+      }
+    },
+    {
+      "id": "H99_F3",
+      "y": [
+        -3.75,
+        -7.375,
+        14.125,
+        4.375,
+        3.5,
+        -5.75
+      ],
+      "p": 0,
+      "output": "forecast",
+      "index": 3,
+      "predictions": {
+        "landed_program": {
+          "value": -5.830739795918361,
+          "bits": "c01752ad73fbd1ff"
+        }
+      }
+    },
+    {
+      "id": "H99_Cendpoint",
+      "y": [
+        -3.75,
+        -7.375,
+        14.125,
+        4.375,
+        3.5,
+        -5.75
+      ],
+      "p": 0,
+      "output": "endpoint",
+      "index": 1,
+      "predictions": {
+        "landed_program": {
+          "value": 8.559368501575994,
+          "bits": "40211e658c595ce3"
+        },
+        "equals_stat7": {
+          "value": 8.559368501575994,
+          "bits": "40211e658c595ce3"
+        }
+      }
+    },
+    {
+      "id": "H99_S1",
+      "y": [
+        -3.75,
+        -7.375,
+        14.125,
+        4.375,
+        3.5,
+        -5.75
+      ],
+      "p": 0,
+      "output": "stat",
+      "index": 1,
+      "predictions": {
+        "landed_program": {
+          "value": 0.126,
+          "bits": "3fc020c49ba5e354"
+        }
+      }
+    },
+    {
+      "id": "H99_S2",
+      "y": [
+        -3.75,
+        -7.375,
+        14.125,
+        4.375,
+        3.5,
+        -5.75
+      ],
+      "p": 0,
+      "output": "stat",
+      "index": 2,
+      "predictions": {
+        "landed_program": {
+          "value": 0.001,
+          "bits": "3f50624dd2f1a9fc"
+        }
+      }
+    },
+    {
+      "id": "H99_S7",
+      "y": [
+        -3.75,
+        -7.375,
+        14.125,
+        4.375,
+        3.5,
+        -5.75
+      ],
+      "p": 0,
+      "output": "stat",
+      "index": 7,
+      "predictions": {
+        "landed_program": {
+          "value": 8.559368501575994,
+          "bits": "40211e658c595ce3"
+        }
+      }
+    },
+    {
+      "id": "H100_F2",
+      "y": [
+        0.5,
+        -0.25,
+        -1.5,
+        -1.25,
+        -1.0,
+        -1.625,
+        -1.1875
+      ],
+      "p": 0,
+      "output": "forecast",
+      "index": 2,
+      "predictions": {
+        "landed_program": {
+          "value": -1.8717133033776707,
+          "bits": "bffdf289a617ec6e"
+        }
+      }
+    },
+    {
+      "id": "H100_F3",
+      "y": [
+        0.5,
+        -0.25,
+        -1.5,
+        -1.25,
+        -1.0,
+        -1.625,
+        -1.1875
+      ],
+      "p": 0,
+      "output": "forecast",
+      "index": 3,
+      "predictions": {
+        "landed_program": {
+          "value": -2.1332425933305177,
+          "bits": "c00110e17e264f77"
+        }
+      }
+    },
+    {
+      "id": "H100_Cendpoint",
+      "y": [
+        0.5,
+        -0.25,
+        -1.5,
+        -1.25,
+        -1.0,
+        -1.625,
+        -1.1875
+      ],
+      "p": 0,
+      "output": "endpoint",
+      "index": 1,
+      "predictions": {
+        "landed_program": {
+          "value": 0.5754512756681028,
+          "bits": "3fe26a18cb2df391"
+        },
+        "equals_stat7": {
+          "value": 0.5754512756681028,
+          "bits": "3fe26a18cb2df391"
+        }
+      }
+    },
+    {
+      "id": "H100_S1",
+      "y": [
+        0.5,
+        -0.25,
+        -1.5,
+        -1.25,
+        -1.0,
+        -1.625,
+        -1.1875
+      ],
+      "p": 0,
+      "output": "stat",
+      "index": 1,
+      "predictions": {
+        "landed_program": {
+          "value": 0.75,
+          "bits": "3fe8000000000000"
+        }
+      }
+    },
+    {
+      "id": "H100_S2",
+      "y": [
+        0.5,
+        -0.25,
+        -1.5,
+        -1.25,
+        -1.0,
+        -1.625,
+        -1.1875
+      ],
+      "p": 0,
+      "output": "stat",
+      "index": 2,
+      "predictions": {
+        "landed_program": {
+          "value": 0.001,
+          "bits": "3f50624dd2f1a9fc"
+        }
+      }
+    },
+    {
+      "id": "H100_S7",
+      "y": [
+        0.5,
+        -0.25,
+        -1.5,
+        -1.25,
+        -1.0,
+        -1.625,
+        -1.1875
+      ],
+      "p": 0,
+      "output": "stat",
+      "index": 7,
+      "predictions": {
+        "landed_program": {
+          "value": 0.5754512756681028,
+          "bits": "3fe26a18cb2df391"
+        }
+      }
+    },
+    {
+      "id": "fresh_n4_0_F2",
+      "y": [
+        -3.875,
+        14.0,
+        13.625,
+        -9.0625
+      ],
+      "p": 0,
+      "output": "forecast",
+      "index": 2,
+      "predictions": {
+        "landed_program": {
+          "value": -7.988917459026784,
+          "bits": "c01ff4a6c743da95"
+        }
+      }
+    },
+    {
+      "id": "fresh_n4_0_F3",
+      "y": [
+        -3.875,
+        14.0,
+        13.625,
+        -9.0625
+      ],
+      "p": 0,
+      "output": "forecast",
+      "index": 3,
+      "predictions": {
+        "landed_program": {
+          "value": -10.291778487926337,
+          "bits": "c0249563fd6ea3d0"
+        }
+      }
+    },
+    {
+      "id": "fresh_n4_0_Cendpoint",
+      "y": [
+        -3.875,
+        14.0,
+        13.625,
+        -9.0625
+      ],
+      "p": 0,
+      "output": "endpoint",
+      "index": 1,
+      "predictions": {
+        "landed_program": {
+          "value": 13.764639175565708,
+          "bits": "402b877ec938971a"
+        },
+        "equals_stat7": {
+          "value": 13.764639175565708,
+          "bits": "402b877ec938971a"
+        }
+      }
+    },
+    {
+      "id": "fresh_n4_0_S1",
+      "y": [
+        -3.875,
+        14.0,
+        13.625,
+        -9.0625
+      ],
+      "p": 0,
+      "output": "stat",
+      "index": 1,
+      "predictions": {
+        "landed_program": {
+          "value": 0.25,
+          "bits": "3fd0000000000000"
+        }
+      }
+    },
+    {
+      "id": "fresh_n4_0_S2",
+      "y": [
+        -3.875,
+        14.0,
+        13.625,
+        -9.0625
+      ],
+      "p": 0,
+      "output": "stat",
+      "index": 2,
+      "predictions": {
+        "landed_program": {
+          "value": 0.001,
+          "bits": "3f50624dd2f1a9fc"
+        }
+      }
+    },
+    {
+      "id": "fresh_n4_0_S7",
+      "y": [
+        -3.875,
+        14.0,
+        13.625,
+        -9.0625
+      ],
+      "p": 0,
+      "output": "stat",
+      "index": 7,
+      "predictions": {
+        "landed_program": {
+          "value": 13.764639175565708,
+          "bits": "402b877ec938971a"
+        }
+      }
+    },
+    {
+      "id": "fresh_n4_1_F2",
+      "y": [
+        -7.0625,
+        14.1875,
+        -7.4375,
+        0.9375
+      ],
+      "p": 0,
+      "output": "forecast",
+      "index": 2,
+      "predictions": {
+        "landed_program": {
+          "value": 3.2475797705357183,
+          "bits": "4009fb0b1a4cd117"
+        }
+      }
+    },
+    {
+      "id": "fresh_n4_1_F3",
+      "y": [
+        -7.0625,
+        14.1875,
+        -7.4375,
+        0.9375
+      ],
+      "p": 0,
+      "output": "forecast",
+      "index": 3,
+      "predictions": {
+        "landed_program": {
+          "value": 5.282772847767855,
+          "bits": "4015218f3495705b"
+        }
+      }
+    },
+    {
+      "id": "fresh_n4_1_Cendpoint",
+      "y": [
+        -7.0625,
+        14.1875,
+        -7.4375,
+        0.9375
+      ],
+      "p": 0,
+      "output": "endpoint",
+      "index": 1,
+      "predictions": {
+        "landed_program": {
+          "value": 10.839106037654316,
+          "bits": "4025ad9f4e7b33ef"
+        },
+        "equals_stat7": {
+          "value": 10.839106037654316,
+          "bits": "4025ad9f4e7b33ef"
+        }
+      }
+    },
+    {
+      "id": "fresh_n4_1_S1",
+      "y": [
+        -7.0625,
+        14.1875,
+        -7.4375,
+        0.9375
+      ],
+      "p": 0,
+      "output": "stat",
+      "index": 1,
+      "predictions": {
+        "landed_program": {
+          "value": 0.1,
+          "bits": "3fb999999999999a"
+        }
+      }
+    },
+    {
+      "id": "fresh_n4_1_S2",
+      "y": [
+        -7.0625,
+        14.1875,
+        -7.4375,
+        0.9375
+      ],
+      "p": 0,
+      "output": "stat",
+      "index": 2,
+      "predictions": {
+        "landed_program": {
+          "value": 0.099,
+          "bits": "3fb95810624dd2f2"
+        }
+      }
+    },
+    {
+      "id": "fresh_n4_1_S7",
+      "y": [
+        -7.0625,
+        14.1875,
+        -7.4375,
+        0.9375
+      ],
+      "p": 0,
+      "output": "stat",
+      "index": 7,
+      "predictions": {
+        "landed_program": {
+          "value": 10.839106037654316,
+          "bits": "4025ad9f4e7b33ef"
+        }
+      }
+    },
+    {
+      "id": "fresh_n4_2_F2",
+      "y": [
+        -12.625,
+        -1.25,
+        0.5625,
+        11.6875
+      ],
+      "p": 0,
+      "output": "forecast",
+      "index": 2,
+      "predictions": {
+        "landed_program": {
+          "value": 25.085010993044634,
+          "bits": "403915c347caed5c"
+        }
+      }
+    },
+    {
+      "id": "fresh_n4_2_F3",
+      "y": [
+        -12.625,
+        -1.25,
+        0.5625,
+        11.6875
+      ],
+      "p": 0,
+      "output": "forecast",
+      "index": 3,
+      "predictions": {
+        "landed_program": {
+          "value": 32.62658358338169,
+          "bits": "40405033e40f6adc"
+        }
+      }
+    },
+    {
+      "id": "fresh_n4_2_Cendpoint",
+      "y": [
+        -12.625,
+        -1.25,
+        0.5625,
+        11.6875
+      ],
+      "p": 0,
+      "output": "endpoint",
+      "index": 1,
+      "predictions": {
+        "landed_program": {
+          "value": 2.3013788062566207,
+          "bits": "400269394aa4a33d"
+        },
+        "equals_stat7": {
+          "value": 2.3013788062566207,
+          "bits": "400269394aa4a33d"
+        }
+      }
+    },
+    {
+      "id": "fresh_n4_2_S1",
+      "y": [
+        -12.625,
+        -1.25,
+        0.5625,
+        11.6875
+      ],
+      "p": 0,
+      "output": "stat",
+      "index": 1,
+      "predictions": {
+        "landed_program": {
+          "value": 0.002,
+          "bits": "3f60624dd2f1a9fc"
+        }
+      }
+    },
+    {
+      "id": "fresh_n4_2_S2",
+      "y": [
+        -12.625,
+        -1.25,
+        0.5625,
+        11.6875
+      ],
+      "p": 0,
+      "output": "stat",
+      "index": 2,
+      "predictions": {
+        "landed_program": {
+          "value": 0.001,
+          "bits": "3f50624dd2f1a9fc"
+        }
+      }
+    },
+    {
+      "id": "fresh_n4_2_S7",
+      "y": [
+        -12.625,
+        -1.25,
+        0.5625,
+        11.6875
+      ],
+      "p": 0,
+      "output": "stat",
+      "index": 7,
+      "predictions": {
+        "landed_program": {
+          "value": 2.3013788062566207,
+          "bits": "400269394aa4a33d"
+        }
+      }
+    },
+    {
+      "id": "fresh_n4_3_F2",
+      "y": [
+        8.625,
+        -5.1875,
+        -0.9375,
+        -2.0
+      ],
+      "p": 0,
+      "output": "forecast",
+      "index": 2,
+      "predictions": {
+        "landed_program": {
+          "value": -10.558810547924113,
+          "bits": "c0251e1c6a87fce1"
+        }
+      }
+    },
+    {
+      "id": "fresh_n4_3_F3",
+      "y": [
+        8.625,
+        -5.1875,
+        -0.9375,
+        -2.0
+      ],
+      "p": 0,
+      "output": "forecast",
+      "index": 3,
+      "predictions": {
+        "landed_program": {
+          "value": -14.395716171774556,
+          "bits": "c02cca9b4f608a42"
+        }
+      }
+    },
+    {
+      "id": "fresh_n4_3_Cendpoint",
+      "y": [
+        8.625,
+        -5.1875,
+        -0.9375,
+        -2.0
+      ],
+      "p": 0,
+      "output": "endpoint",
+      "index": 1,
+      "predictions": {
+        "landed_program": {
+          "value": 5.715759361013679,
+          "bits": "4016dcf0059d703d"
+        },
+        "equals_stat7": {
+          "value": 5.715759361013679,
+          "bits": "4016dcf0059d703d"
+        }
+      }
+    },
+    {
+      "id": "fresh_n4_3_S1",
+      "y": [
+        8.625,
+        -5.1875,
+        -0.9375,
+        -2.0
+      ],
+      "p": 0,
+      "output": "stat",
+      "index": 1,
+      "predictions": {
+        "landed_program": {
+          "value": 0.1,
+          "bits": "3fb999999999999a"
+        }
+      }
+    },
+    {
+      "id": "fresh_n4_3_S2",
+      "y": [
+        8.625,
+        -5.1875,
+        -0.9375,
+        -2.0
+      ],
+      "p": 0,
+      "output": "stat",
+      "index": 2,
+      "predictions": {
+        "landed_program": {
+          "value": 0.099,
+          "bits": "3fb95810624dd2f2"
+        }
+      }
+    },
+    {
+      "id": "fresh_n4_3_S7",
+      "y": [
+        8.625,
+        -5.1875,
+        -0.9375,
+        -2.0
+      ],
+      "p": 0,
+      "output": "stat",
+      "index": 7,
+      "predictions": {
+        "landed_program": {
+          "value": 5.715759361013679,
+          "bits": "4016dcf0059d703d"
+        }
+      }
+    },
+    {
+      "id": "fresh_n4_4_F2",
+      "y": [
+        5.8125,
+        0.5625,
+        -15.0,
+        9.1875
+      ],
+      "p": 0,
+      "output": "forecast",
+      "index": 2,
+      "predictions": {
+        "landed_program": {
+          "value": 4.066363033285715,
+          "bits": "401043f4abc68084"
+        }
+      }
+    },
+    {
+      "id": "fresh_n4_4_F3",
+      "y": [
+        5.8125,
+        0.5625,
+        -15.0,
+        9.1875
+      ],
+      "p": 0,
+      "output": "forecast",
+      "index": 3,
+      "predictions": {
+        "landed_program": {
+          "value": 4.207402004946424,
+          "bits": "4010d46130f17a98"
+        }
+      }
+    },
+    {
+      "id": "fresh_n4_4_Cendpoint",
+      "y": [
+        5.8125,
+        0.5625,
+        -15.0,
+        9.1875
+      ],
+      "p": 0,
+      "output": "endpoint",
+      "index": 1,
+      "predictions": {
+        "landed_program": {
+          "value": 11.017773676765483,
+          "bits": "40260919a1a0dff6"
+        },
+        "equals_stat7": {
+          "value": 11.017773676765483,
+          "bits": "40260919a1a0dff6"
+        }
+      }
+    },
+    {
+      "id": "fresh_n4_4_S1",
+      "y": [
+        5.8125,
+        0.5625,
+        -15.0,
+        9.1875
+      ],
+      "p": 0,
+      "output": "stat",
+      "index": 1,
+      "predictions": {
+        "landed_program": {
+          "value": 0.126,
+          "bits": "3fc020c49ba5e354"
+        }
+      }
+    },
+    {
+      "id": "fresh_n4_4_S2",
+      "y": [
+        5.8125,
+        0.5625,
+        -15.0,
+        9.1875
+      ],
+      "p": 0,
+      "output": "stat",
+      "index": 2,
+      "predictions": {
+        "landed_program": {
+          "value": 0.001,
+          "bits": "3f50624dd2f1a9fc"
+        }
+      }
+    },
+    {
+      "id": "fresh_n4_4_S7",
+      "y": [
+        5.8125,
+        0.5625,
+        -15.0,
+        9.1875
+      ],
+      "p": 0,
+      "output": "stat",
+      "index": 7,
+      "predictions": {
+        "landed_program": {
+          "value": 11.017773676765483,
+          "bits": "40260919a1a0dff6"
+        }
+      }
+    },
+    {
+      "id": "fresh_n5_0_F2",
+      "y": [
+        8.375,
+        -18.125,
+        9.5625,
+        -10.625,
+        8.0625
+      ],
+      "p": 0,
+      "output": "forecast",
+      "index": 2,
+      "predictions": {
+        "landed_program": {
+          "value": -4.261963959907881,
+          "bits": "c0110c4047c223d8"
+        }
+      }
+    },
+    {
+      "id": "fresh_n5_0_F3",
+      "y": [
+        8.375,
+        -18.125,
+        9.5625,
+        -10.625,
+        8.0625
+      ],
+      "p": 0,
+      "output": "forecast",
+      "index": 3,
+      "predictions": {
+        "landed_program": {
+          "value": -6.271825901648219,
+          "bits": "c0191659877723a6"
+        }
+      }
+    },
+    {
+      "id": "fresh_n5_0_Cendpoint",
+      "y": [
+        8.375,
+        -18.125,
+        9.5625,
+        -10.625,
+        8.0625
+      ],
+      "p": 0,
+      "output": "endpoint",
+      "index": 1,
+      "predictions": {
+        "landed_program": {
+          "value": 14.403449598055907,
+          "bits": "402cce90f21a780c"
+        },
+        "equals_stat7": {
+          "value": 14.403449598055907,
+          "bits": "402cce90f21a780c"
+        }
+      }
+    },
+    {
+      "id": "fresh_n5_0_S1",
+      "y": [
+        8.375,
+        -18.125,
+        9.5625,
+        -10.625,
+        8.0625
+      ],
+      "p": 0,
+      "output": "stat",
+      "index": 1,
+      "predictions": {
+        "landed_program": {
+          "value": 0.1,
+          "bits": "3fb999999999999a"
+        }
+      }
+    },
+    {
+      "id": "fresh_n5_0_S2",
+      "y": [
+        8.375,
+        -18.125,
+        9.5625,
+        -10.625,
+        8.0625
+      ],
+      "p": 0,
+      "output": "stat",
+      "index": 2,
+      "predictions": {
+        "landed_program": {
+          "value": 0.099,
+          "bits": "3fb95810624dd2f2"
+        }
+      }
+    },
+    {
+      "id": "fresh_n5_0_S7",
+      "y": [
+        8.375,
+        -18.125,
+        9.5625,
+        -10.625,
+        8.0625
+      ],
+      "p": 0,
+      "output": "stat",
+      "index": 7,
+      "predictions": {
+        "landed_program": {
+          "value": 14.403449598055907,
+          "bits": "402cce90f21a780c"
+        }
+      }
+    },
+    {
+      "id": "fresh_n5_1_F2",
+      "y": [
+        16.8125,
+        1.0,
+        -1.0,
+        0.0625,
+        -12.9375
+      ],
+      "p": 0,
+      "output": "forecast",
+      "index": 2,
+      "predictions": {
+        "landed_program": {
+          "value": -22.439948976806583,
+          "bits": "c03670a07f034afe"
+        }
+      }
+    },
+    {
+      "id": "fresh_n5_1_F3",
+      "y": [
+        16.8125,
+        1.0,
+        -1.0,
+        0.0625,
+        -12.9375
+      ],
+      "p": 0,
+      "output": "forecast",
+      "index": 3,
+      "predictions": {
+        "landed_program": {
+          "value": -28.490210313413996,
+          "bits": "c03c7d7e6c504668"
+        }
+      }
+    },
+    {
+      "id": "fresh_n5_1_Cendpoint",
+      "y": [
+        16.8125,
+        1.0,
+        -1.0,
+        0.0625,
+        -12.9375
+      ],
+      "p": 0,
+      "output": "endpoint",
+      "index": 1,
+      "predictions": {
+        "landed_program": {
+          "value": 5.290553567701226,
+          "bits": "40152986dfdc0d32"
+        },
+        "equals_stat7": {
+          "value": 5.290553567701226,
+          "bits": "40152986dfdc0d32"
+        }
+      }
+    },
+    {
+      "id": "fresh_n5_1_S1",
+      "y": [
+        16.8125,
+        1.0,
+        -1.0,
+        0.0625,
+        -12.9375
+      ],
+      "p": 0,
+      "output": "stat",
+      "index": 1,
+      "predictions": {
+        "landed_program": {
+          "value": 0.25,
+          "bits": "3fd0000000000000"
+        }
+      }
+    },
+    {
+      "id": "fresh_n5_1_S2",
+      "y": [
+        16.8125,
+        1.0,
+        -1.0,
+        0.0625,
+        -12.9375
+      ],
+      "p": 0,
+      "output": "stat",
+      "index": 2,
+      "predictions": {
+        "landed_program": {
+          "value": 0.001,
+          "bits": "3f50624dd2f1a9fc"
+        }
+      }
+    },
+    {
+      "id": "fresh_n5_1_S7",
+      "y": [
+        16.8125,
+        1.0,
+        -1.0,
+        0.0625,
+        -12.9375
+      ],
+      "p": 0,
+      "output": "stat",
+      "index": 7,
+      "predictions": {
+        "landed_program": {
+          "value": 5.290553567701226,
+          "bits": "40152986dfdc0d32"
+        }
+      }
+    },
+    {
+      "id": "fresh_n5_2_F2",
+      "y": [
+        17.0625,
+        7.375,
+        -14.0,
+        7.3125,
+        -10.0
+      ],
+      "p": 0,
+      "output": "forecast",
+      "index": 2,
+      "predictions": {
+        "landed_program": {
+          "value": -15.210295529863414,
+          "bits": "c02e6babdb0e8447"
+        }
+      }
+    },
+    {
+      "id": "fresh_n5_2_F3",
+      "y": [
+        17.0625,
+        7.375,
+        -14.0,
+        7.3125,
+        -10.0
+      ],
+      "p": 0,
+      "output": "forecast",
+      "index": 3,
+      "predictions": {
+        "landed_program": {
+          "value": -20.121729890355432,
+          "bits": "c0341f29b0aa05b2"
+        }
+      }
+    },
+    {
+      "id": "fresh_n5_2_Cendpoint",
+      "y": [
+        17.0625,
+        7.375,
+        -14.0,
+        7.3125,
+        -10.0
+      ],
+      "p": 0,
+      "output": "endpoint",
+      "index": 1,
+      "predictions": {
+        "landed_program": {
+          "value": 10.439159581429962,
+          "bits": "4024e0d9864feef8"
+        },
+        "equals_stat7": {
+          "value": 10.439159581429962,
+          "bits": "4024e0d9864feef8"
+        }
+      }
+    },
+    {
+      "id": "fresh_n5_2_S1",
+      "y": [
+        17.0625,
+        7.375,
+        -14.0,
+        7.3125,
+        -10.0
+      ],
+      "p": 0,
+      "output": "stat",
+      "index": 1,
+      "predictions": {
+        "landed_program": {
+          "value": 0.126,
+          "bits": "3fc020c49ba5e354"
+        }
+      }
+    },
+    {
+      "id": "fresh_n5_2_S2",
+      "y": [
+        17.0625,
+        7.375,
+        -14.0,
+        7.3125,
+        -10.0
+      ],
+      "p": 0,
+      "output": "stat",
+      "index": 2,
+      "predictions": {
+        "landed_program": {
+          "value": 0.001,
+          "bits": "3f50624dd2f1a9fc"
+        }
+      }
+    },
+    {
+      "id": "fresh_n5_2_S7",
+      "y": [
+        17.0625,
+        7.375,
+        -14.0,
+        7.3125,
+        -10.0
+      ],
+      "p": 0,
+      "output": "stat",
+      "index": 7,
+      "predictions": {
+        "landed_program": {
+          "value": 10.439159581429962,
+          "bits": "4024e0d9864feef8"
+        }
+      }
+    },
+    {
+      "id": "fresh_n5_3_F2",
+      "y": [
+        4.0625,
+        7.625,
+        14.375,
+        0.125,
+        -2.8125
+      ],
+      "p": 0,
+      "output": "forecast",
+      "index": 2,
+      "predictions": {
+        "landed_program": {
+          "value": -6.415232887761183,
+          "bits": "c019a932cf64a1b6"
+        }
+      }
+    },
+    {
+      "id": "fresh_n5_3_F3",
+      "y": [
+        4.0625,
+        7.625,
+        14.375,
+        0.125,
+        -2.8125
+      ],
+      "p": 0,
+      "output": "forecast",
+      "index": 3,
+      "predictions": {
+        "landed_program": {
+          "value": -8.992312739708183,
+          "bits": "c021fc106a58e6d0"
+        }
+      }
+    },
+    {
+      "id": "fresh_n5_3_Cendpoint",
+      "y": [
+        4.0625,
+        7.625,
+        14.375,
+        0.125,
+        -2.8125
+      ],
+      "p": 0,
+      "output": "endpoint",
+      "index": 1,
+      "predictions": {
+        "landed_program": {
+          "value": 6.802372456809135,
+          "bits": "401b35a12014d35c"
+        },
+        "equals_stat7": {
+          "value": 6.802372456809135,
+          "bits": "401b35a12014d35c"
+        }
+      }
+    },
+    {
+      "id": "fresh_n5_3_S1",
+      "y": [
+        4.0625,
+        7.625,
+        14.375,
+        0.125,
+        -2.8125
+      ],
+      "p": 0,
+      "output": "stat",
+      "index": 1,
+      "predictions": {
+        "landed_program": {
+          "value": 0.5,
+          "bits": "3fe0000000000000"
+        }
+      }
+    },
+    {
+      "id": "fresh_n5_3_S2",
+      "y": [
+        4.0625,
+        7.625,
+        14.375,
+        0.125,
+        -2.8125
+      ],
+      "p": 0,
+      "output": "stat",
+      "index": 2,
+      "predictions": {
+        "landed_program": {
+          "value": 0.001,
+          "bits": "3f50624dd2f1a9fc"
+        }
+      }
+    },
+    {
+      "id": "fresh_n5_3_S7",
+      "y": [
+        4.0625,
+        7.625,
+        14.375,
+        0.125,
+        -2.8125
+      ],
+      "p": 0,
+      "output": "stat",
+      "index": 7,
+      "predictions": {
+        "landed_program": {
+          "value": 6.802372456809135,
+          "bits": "401b35a12014d35c"
+        }
+      }
+    },
+    {
+      "id": "fresh_n5_4_F2",
+      "y": [
+        -16.4375,
+        3.875,
+        18.5625,
+        3.9375,
+        -13.875
+      ],
+      "p": 0,
+      "output": "forecast",
+      "index": 2,
+      "predictions": {
+        "landed_program": {
+          "value": -6.3127574386651935,
+          "bits": "c01940437c6a9747"
+        }
+      }
+    },
+    {
+      "id": "fresh_n5_4_F3",
+      "y": [
+        -16.4375,
+        3.875,
+        18.5625,
+        3.9375,
+        -13.875
+      ],
+      "p": 0,
+      "output": "forecast",
+      "index": 3,
+      "predictions": {
+        "landed_program": {
+          "value": -6.961511501191537,
+          "bits": "c01bd896789161cf"
+        }
+      }
+    },
+    {
+      "id": "fresh_n5_4_Cendpoint",
+      "y": [
+        -16.4375,
+        3.875,
+        18.5625,
+        3.9375,
+        -13.875
+      ],
+      "p": 0,
+      "output": "endpoint",
+      "index": 1,
+      "predictions": {
+        "landed_program": {
+          "value": 16.87179824969908,
+          "bits": "4030df2e2b8b2ae7"
+        },
+        "equals_stat7": {
+          "value": 16.87179824969908,
+          "bits": "4030df2e2b8b2ae7"
+        }
+      }
+    },
+    {
+      "id": "fresh_n5_4_S1",
+      "y": [
+        -16.4375,
+        3.875,
+        18.5625,
+        3.9375,
+        -13.875
+      ],
+      "p": 0,
+      "output": "stat",
+      "index": 1,
+      "predictions": {
+        "landed_program": {
+          "value": 0.5,
+          "bits": "3fe0000000000000"
+        }
+      }
+    },
+    {
+      "id": "fresh_n5_4_S2",
+      "y": [
+        -16.4375,
+        3.875,
+        18.5625,
+        3.9375,
+        -13.875
+      ],
+      "p": 0,
+      "output": "stat",
+      "index": 2,
+      "predictions": {
+        "landed_program": {
+          "value": 0.001,
+          "bits": "3f50624dd2f1a9fc"
+        }
+      }
+    },
+    {
+      "id": "fresh_n5_4_S7",
+      "y": [
+        -16.4375,
+        3.875,
+        18.5625,
+        3.9375,
+        -13.875
+      ],
+      "p": 0,
+      "output": "stat",
+      "index": 7,
+      "predictions": {
+        "landed_program": {
+          "value": 16.87179824969908,
+          "bits": "4030df2e2b8b2ae7"
+        }
+      }
+    },
+    {
+      "id": "fresh_n6_0_F2",
+      "y": [
+        -1.875,
+        -10.9375,
+        8.5,
+        -16.375,
+        -13.625,
+        -8.875
+      ],
+      "p": 0,
+      "output": "forecast",
+      "index": 2,
+      "predictions": {
+        "landed_program": {
+          "value": -15.132015220020403,
+          "bits": "c02e43977fb91fae"
+        }
+      }
+    },
+    {
+      "id": "fresh_n6_0_F3",
+      "y": [
+        -1.875,
+        -10.9375,
+        8.5,
+        -16.375,
+        -13.625,
+        -8.875
+      ],
+      "p": 0,
+      "output": "forecast",
+      "index": 3,
+      "predictions": {
+        "landed_program": {
+          "value": -17.02624776883475,
+          "bits": "c03106b82c7cbcfc"
+        }
+      }
+    },
+    {
+      "id": "fresh_n6_0_Cendpoint",
+      "y": [
+        -1.875,
+        -10.9375,
+        8.5,
+        -16.375,
+        -13.625,
+        -8.875
+      ],
+      "p": 0,
+      "output": "endpoint",
+      "index": 1,
+      "predictions": {
+        "landed_program": {
+          "value": 7.683622563461597,
+          "bits": "401ebc078da38040"
+        },
+        "equals_stat7": {
+          "value": 7.683622563461597,
+          "bits": "401ebc078da38040"
+        }
+      }
+    },
+    {
+      "id": "fresh_n6_0_S1",
+      "y": [
+        -1.875,
+        -10.9375,
+        8.5,
+        -16.375,
+        -13.625,
+        -8.875
+      ],
+      "p": 0,
+      "output": "stat",
+      "index": 1,
+      "predictions": {
+        "landed_program": {
+          "value": 0.002,
+          "bits": "3f60624dd2f1a9fc"
+        }
+      }
+    },
+    {
+      "id": "fresh_n6_0_S2",
+      "y": [
+        -1.875,
+        -10.9375,
+        8.5,
+        -16.375,
+        -13.625,
+        -8.875
+      ],
+      "p": 0,
+      "output": "stat",
+      "index": 2,
+      "predictions": {
+        "landed_program": {
+          "value": 0.001,
+          "bits": "3f50624dd2f1a9fc"
+        }
+      }
+    },
+    {
+      "id": "fresh_n6_0_S7",
+      "y": [
+        -1.875,
+        -10.9375,
+        8.5,
+        -16.375,
+        -13.625,
+        -8.875
+      ],
+      "p": 0,
+      "output": "stat",
+      "index": 7,
+      "predictions": {
+        "landed_program": {
+          "value": 7.683622563461597,
+          "bits": "401ebc078da38040"
+        }
+      }
+    },
+    {
+      "id": "fresh_n6_1_F2",
+      "y": [
+        -7.9375,
+        -8.0,
+        -17.3125,
+        10.8125,
+        -18.0,
+        -6.0625
+      ],
+      "p": 0,
+      "output": "forecast",
+      "index": 2,
+      "predictions": {
+        "landed_program": {
+          "value": -6.192727758302355,
+          "bits": "c018c55a6cebc291"
+        }
+      }
+    },
+    {
+      "id": "fresh_n6_1_F3",
+      "y": [
+        -7.9375,
+        -8.0,
+        -17.3125,
+        10.8125,
+        -18.0,
+        -6.0625
+      ],
+      "p": 0,
+      "output": "forecast",
+      "index": 3,
+      "predictions": {
+        "landed_program": {
+          "value": -5.943751042812153,
+          "bits": "c017c666ac61c6c0"
+        }
+      }
+    },
+    {
+      "id": "fresh_n6_1_Cendpoint",
+      "y": [
+        -7.9375,
+        -8.0,
+        -17.3125,
+        10.8125,
+        -18.0,
+        -6.0625
+      ],
+      "p": 0,
+      "output": "endpoint",
+      "index": 1,
+      "predictions": {
+        "landed_program": {
+          "value": 9.537673483626769,
+          "bits": "40231349f05834ec"
+        },
+        "equals_stat7": {
+          "value": 9.537673483626769,
+          "bits": "40231349f05834ec"
+        }
+      }
+    },
+    {
+      "id": "fresh_n6_1_S1",
+      "y": [
+        -7.9375,
+        -8.0,
+        -17.3125,
+        10.8125,
+        -18.0,
+        -6.0625
+      ],
+      "p": 0,
+      "output": "stat",
+      "index": 1,
+      "predictions": {
+        "landed_program": {
+          "value": 0.002,
+          "bits": "3f60624dd2f1a9fc"
+        }
+      }
+    },
+    {
+      "id": "fresh_n6_1_S2",
+      "y": [
+        -7.9375,
+        -8.0,
+        -17.3125,
+        10.8125,
+        -18.0,
+        -6.0625
+      ],
+      "p": 0,
+      "output": "stat",
+      "index": 2,
+      "predictions": {
+        "landed_program": {
+          "value": 0.001,
+          "bits": "3f50624dd2f1a9fc"
+        }
+      }
+    },
+    {
+      "id": "fresh_n6_1_S7",
+      "y": [
+        -7.9375,
+        -8.0,
+        -17.3125,
+        10.8125,
+        -18.0,
+        -6.0625
+      ],
+      "p": 0,
+      "output": "stat",
+      "index": 7,
+      "predictions": {
+        "landed_program": {
+          "value": 9.537673483626769,
+          "bits": "40231349f05834ec"
+        }
+      }
+    },
+    {
+      "id": "fresh_n6_2_F2",
+      "y": [
+        -3.1875,
+        -10.75,
+        13.875,
+        -10.625,
+        11.8125,
+        15.75
+      ],
+      "p": 0,
+      "output": "forecast",
+      "index": 2,
+      "predictions": {
+        "landed_program": {
+          "value": 24.848218462370237,
+          "bits": "4038d924d85bbe5b"
+        }
+      }
+    },
+    {
+      "id": "fresh_n6_2_F3",
+      "y": [
+        -3.1875,
+        -10.75,
+        13.875,
+        -10.625,
+        11.8125,
+        15.75
+      ],
+      "p": 0,
+      "output": "forecast",
+      "index": 3,
+      "predictions": {
+        "landed_program": {
+          "value": 29.17661796825469,
+          "bits": "403d2d36d5cd8a34"
+        }
+      }
+    },
+    {
+      "id": "fresh_n6_2_Cendpoint",
+      "y": [
+        -3.1875,
+        -10.75,
+        13.875,
+        -10.625,
+        11.8125,
+        15.75
+      ],
+      "p": 0,
+      "output": "endpoint",
+      "index": 1,
+      "predictions": {
+        "landed_program": {
+          "value": 10.355482900638373,
+          "bits": "4024b601dad10edd"
+        },
+        "equals_stat7": {
+          "value": 10.355482900638373,
+          "bits": "4024b601dad10edd"
+        }
+      }
+    },
+    {
+      "id": "fresh_n6_2_S1",
+      "y": [
+        -3.1875,
+        -10.75,
+        13.875,
+        -10.625,
+        11.8125,
+        15.75
+      ],
+      "p": 0,
+      "output": "stat",
+      "index": 1,
+      "predictions": {
+        "landed_program": {
+          "value": 0.1,
+          "bits": "3fb999999999999a"
+        }
+      }
+    },
+    {
+      "id": "fresh_n6_2_S2",
+      "y": [
+        -3.1875,
+        -10.75,
+        13.875,
+        -10.625,
+        11.8125,
+        15.75
+      ],
+      "p": 0,
+      "output": "stat",
+      "index": 2,
+      "predictions": {
+        "landed_program": {
+          "value": 0.001,
+          "bits": "3f50624dd2f1a9fc"
+        }
+      }
+    },
+    {
+      "id": "fresh_n6_2_S7",
+      "y": [
+        -3.1875,
+        -10.75,
+        13.875,
+        -10.625,
+        11.8125,
+        15.75
+      ],
+      "p": 0,
+      "output": "stat",
+      "index": 7,
+      "predictions": {
+        "landed_program": {
+          "value": 10.355482900638373,
+          "bits": "4024b601dad10edd"
+        }
+      }
+    },
+    {
+      "id": "fresh_n6_3_F2",
+      "y": [
+        -16.375,
+        -8.0,
+        7.25,
+        -1.4375,
+        17.625,
+        -1.1875
+      ],
+      "p": 0,
+      "output": "forecast",
+      "index": 2,
+      "predictions": {
+        "landed_program": {
+          "value": 14.172751017244916,
+          "bits": "402c5872d242d5d6"
+        }
+      }
+    },
+    {
+      "id": "fresh_n6_3_F3",
+      "y": [
+        -16.375,
+        -8.0,
+        7.25,
+        -1.4375,
+        17.625,
+        -1.1875
+      ],
+      "p": 0,
+      "output": "forecast",
+      "index": 3,
+      "predictions": {
+        "landed_program": {
+          "value": 17.700651342700265,
+          "bits": "4031b35de2eacbcf"
+        }
+      }
+    },
+    {
+      "id": "fresh_n6_3_Cendpoint",
+      "y": [
+        -16.375,
+        -8.0,
+        7.25,
+        -1.4375,
+        17.625,
+        -1.1875
+      ],
+      "p": 0,
+      "output": "endpoint",
+      "index": 1,
+      "predictions": {
+        "landed_program": {
+          "value": 10.082125775677534,
+          "bits": "40242a0c63c16325"
+        },
+        "equals_stat7": {
+          "value": 10.082125775677534,
+          "bits": "40242a0c63c16325"
+        }
+      }
+    },
+    {
+      "id": "fresh_n6_3_S1",
+      "y": [
+        -16.375,
+        -8.0,
+        7.25,
+        -1.4375,
+        17.625,
+        -1.1875
+      ],
+      "p": 0,
+      "output": "stat",
+      "index": 1,
+      "predictions": {
+        "landed_program": {
+          "value": 0.25,
+          "bits": "3fd0000000000000"
+        }
+      }
+    },
+    {
+      "id": "fresh_n6_3_S2",
+      "y": [
+        -16.375,
+        -8.0,
+        7.25,
+        -1.4375,
+        17.625,
+        -1.1875
+      ],
+      "p": 0,
+      "output": "stat",
+      "index": 2,
+      "predictions": {
+        "landed_program": {
+          "value": 0.001,
+          "bits": "3f50624dd2f1a9fc"
+        }
+      }
+    },
+    {
+      "id": "fresh_n6_3_S7",
+      "y": [
+        -16.375,
+        -8.0,
+        7.25,
+        -1.4375,
+        17.625,
+        -1.1875
+      ],
+      "p": 0,
+      "output": "stat",
+      "index": 7,
+      "predictions": {
+        "landed_program": {
+          "value": 10.082125775677534,
+          "bits": "40242a0c63c16325"
+        }
+      }
+    },
+    {
+      "id": "fresh_n6_4_F2",
+      "y": [
+        -12.625,
+        6.6875,
+        5.0625,
+        -6.6875,
+        -14.625,
+        17.75
+      ],
+      "p": 0,
+      "output": "forecast",
+      "index": 2,
+      "predictions": {
+        "landed_program": {
+          "value": 2.6269180618565753,
+          "bits": "400503ed9de790c9"
+        }
+      }
+    },
+    {
+      "id": "fresh_n6_4_F3",
+      "y": [
+        -12.625,
+        6.6875,
+        5.0625,
+        -6.6875,
+        -14.625,
+        17.75
+      ],
+      "p": 0,
+      "output": "forecast",
+      "index": 3,
+      "predictions": {
+        "landed_program": {
+          "value": 4.150479630308579,
+          "bits": "40109a17550b8ede"
+        }
+      }
+    },
+    {
+      "id": "fresh_n6_4_Cendpoint",
+      "y": [
+        -12.625,
+        6.6875,
+        5.0625,
+        -6.6875,
+        -14.625,
+        17.75
+      ],
+      "p": 0,
+      "output": "endpoint",
+      "index": 1,
+      "predictions": {
+        "landed_program": {
+          "value": 13.189454648231651,
+          "bits": "402a6100331c75d3"
+        },
+        "equals_stat7": {
+          "value": 13.189454648231651,
+          "bits": "402a6100331c75d3"
+        }
+      }
+    },
+    {
+      "id": "fresh_n6_4_S1",
+      "y": [
+        -12.625,
+        6.6875,
+        5.0625,
+        -6.6875,
+        -14.625,
+        17.75
+      ],
+      "p": 0,
+      "output": "stat",
+      "index": 1,
+      "predictions": {
+        "landed_program": {
+          "value": 0.126,
+          "bits": "3fc020c49ba5e354"
+        }
+      }
+    },
+    {
+      "id": "fresh_n6_4_S2",
+      "y": [
+        -12.625,
+        6.6875,
+        5.0625,
+        -6.6875,
+        -14.625,
+        17.75
+      ],
+      "p": 0,
+      "output": "stat",
+      "index": 2,
+      "predictions": {
+        "landed_program": {
+          "value": 0.001,
+          "bits": "3f50624dd2f1a9fc"
+        }
+      }
+    },
+    {
+      "id": "fresh_n6_4_S7",
+      "y": [
+        -12.625,
+        6.6875,
+        5.0625,
+        -6.6875,
+        -14.625,
+        17.75
+      ],
+      "p": 0,
+      "output": "stat",
+      "index": 7,
+      "predictions": {
+        "landed_program": {
+          "value": 13.189454648231651,
+          "bits": "402a6100331c75d3"
+        }
+      }
+    },
+    {
+      "id": "fresh_n7_0_F2",
+      "y": [
+        -17.25,
+        -10.125,
+        -3.0,
+        -7.625,
+        16.625,
+        15.6875,
+        8.125
+      ],
+      "p": 0,
+      "output": "forecast",
+      "index": 2,
+      "predictions": {
+        "landed_program": {
+          "value": 24.945008969461263,
+          "bits": "4038f1ec1b9a4346"
+        }
+      }
+    },
+    {
+      "id": "fresh_n7_0_F3",
+      "y": [
+        -17.25,
+        -10.125,
+        -3.0,
+        -7.625,
+        16.625,
+        15.6875,
+        8.125
+      ],
+      "p": 0,
+      "output": "forecast",
+      "index": 3,
+      "predictions": {
+        "landed_program": {
+          "value": 30.220909382623496,
+          "bits": "403e388d846dbf5a"
+        }
+      }
+    },
+    {
+      "id": "fresh_n7_0_Cendpoint",
+      "y": [
+        -17.25,
+        -10.125,
+        -3.0,
+        -7.625,
+        16.625,
+        15.6875,
+        8.125
+      ],
+      "p": 0,
+      "output": "endpoint",
+      "index": 1,
+      "predictions": {
+        "landed_program": {
+          "value": 6.5734974749238155,
+          "bits": "401a4b42ec0c8ba4"
+        },
+        "equals_stat7": {
+          "value": 6.5734974749238155,
+          "bits": "401a4b42ec0c8ba4"
+        }
+      }
+    },
+    {
+      "id": "fresh_n7_0_S1",
+      "y": [
+        -17.25,
+        -10.125,
+        -3.0,
+        -7.625,
+        16.625,
+        15.6875,
+        8.125
+      ],
+      "p": 0,
+      "output": "stat",
+      "index": 1,
+      "predictions": {
+        "landed_program": {
+          "value": 0.002,
+          "bits": "3f60624dd2f1a9fc"
+        }
+      }
+    },
+    {
+      "id": "fresh_n7_0_S2",
+      "y": [
+        -17.25,
+        -10.125,
+        -3.0,
+        -7.625,
+        16.625,
+        15.6875,
+        8.125
+      ],
+      "p": 0,
+      "output": "stat",
+      "index": 2,
+      "predictions": {
+        "landed_program": {
+          "value": 0.001,
+          "bits": "3f50624dd2f1a9fc"
+        }
+      }
+    },
+    {
+      "id": "fresh_n7_0_S7",
+      "y": [
+        -17.25,
+        -10.125,
+        -3.0,
+        -7.625,
+        16.625,
+        15.6875,
+        8.125
+      ],
+      "p": 0,
+      "output": "stat",
+      "index": 7,
+      "predictions": {
+        "landed_program": {
+          "value": 6.5734974749238155,
+          "bits": "401a4b42ec0c8ba4"
+        }
+      }
+    },
+    {
+      "id": "fresh_n7_1_F2",
+      "y": [
+        -3.125,
+        -4.9375,
+        -17.4375,
+        0.4375,
+        15.0,
+        -8.625,
+        -3.625
+      ],
+      "p": 0,
+      "output": "forecast",
+      "index": 2,
+      "predictions": {
+        "landed_program": {
+          "value": 3.4818441368072475,
+          "bits": "400bdad1194ada11"
+        }
+      }
+    },
+    {
+      "id": "fresh_n7_1_F3",
+      "y": [
+        -3.125,
+        -4.9375,
+        -17.4375,
+        0.4375,
+        15.0,
+        -8.625,
+        -3.625
+      ],
+      "p": 0,
+      "output": "forecast",
+      "index": 3,
+      "predictions": {
+        "landed_program": {
+          "value": 4.305518739240083,
+          "bits": "401138d9e78567bd"
+        }
+      }
+    },
+    {
+      "id": "fresh_n7_1_Cendpoint",
+      "y": [
+        -3.125,
+        -4.9375,
+        -17.4375,
+        0.4375,
+        15.0,
+        -8.625,
+        -3.625
+      ],
+      "p": 0,
+      "output": "endpoint",
+      "index": 1,
+      "predictions": {
+        "landed_program": {
+          "value": 9.312936464703343,
+          "bits": "4022a039355340e1"
+        },
+        "equals_stat7": {
+          "value": 9.312936464703343,
+          "bits": "4022a039355340e1"
+        }
+      }
+    },
+    {
+      "id": "fresh_n7_1_S1",
+      "y": [
+        -3.125,
+        -4.9375,
+        -17.4375,
+        0.4375,
+        15.0,
+        -8.625,
+        -3.625
+      ],
+      "p": 0,
+      "output": "stat",
+      "index": 1,
+      "predictions": {
+        "landed_program": {
+          "value": 0.002,
+          "bits": "3f60624dd2f1a9fc"
+        }
+      }
+    },
+    {
+      "id": "fresh_n7_1_S2",
+      "y": [
+        -3.125,
+        -4.9375,
+        -17.4375,
+        0.4375,
+        15.0,
+        -8.625,
+        -3.625
+      ],
+      "p": 0,
+      "output": "stat",
+      "index": 2,
+      "predictions": {
+        "landed_program": {
+          "value": 0.001,
+          "bits": "3f50624dd2f1a9fc"
+        }
+      }
+    },
+    {
+      "id": "fresh_n7_1_S7",
+      "y": [
+        -3.125,
+        -4.9375,
+        -17.4375,
+        0.4375,
+        15.0,
+        -8.625,
+        -3.625
+      ],
+      "p": 0,
+      "output": "stat",
+      "index": 7,
+      "predictions": {
+        "landed_program": {
+          "value": 9.312936464703343,
+          "bits": "4022a039355340e1"
+        }
+      }
+    },
+    {
+      "id": "fresh_n7_2_F2",
+      "y": [
+        10.625,
+        -9.5,
+        -16.75,
+        0.1875,
+        -14.375,
+        -10.5625,
+        16.6875
+      ],
+      "p": 0,
+      "output": "forecast",
+      "index": 2,
+      "predictions": {
+        "landed_program": {
+          "value": 5.294774831581058,
+          "bits": "40152dd974154c57"
+        }
+      }
+    },
+    {
+      "id": "fresh_n7_2_F3",
+      "y": [
+        10.625,
+        -9.5,
+        -16.75,
+        0.1875,
+        -14.375,
+        -10.5625,
+        16.6875
+      ],
+      "p": 0,
+      "output": "forecast",
+      "index": 3,
+      "predictions": {
+        "landed_program": {
+          "value": 5.93250641680096,
+          "bits": "4017bae2f64de18e"
+        }
+      }
+    },
+    {
+      "id": "fresh_n7_2_Cendpoint",
+      "y": [
+        10.625,
+        -9.5,
+        -16.75,
+        0.1875,
+        -14.375,
+        -10.5625,
+        16.6875
+      ],
+      "p": 0,
+      "output": "endpoint",
+      "index": 1,
+      "predictions": {
+        "landed_program": {
+          "value": 15.122748952620155,
+          "bits": "402e3ed8f3623e5f"
+        },
+        "equals_stat7": {
+          "value": 15.122748952620155,
+          "bits": "402e3ed8f3623e5f"
+        }
+      }
+    },
+    {
+      "id": "fresh_n7_2_S1",
+      "y": [
+        10.625,
+        -9.5,
+        -16.75,
+        0.1875,
+        -14.375,
+        -10.5625,
+        16.6875
+      ],
+      "p": 0,
+      "output": "stat",
+      "index": 1,
+      "predictions": {
+        "landed_program": {
+          "value": 0.5,
+          "bits": "3fe0000000000000"
+        }
+      }
+    },
+    {
+      "id": "fresh_n7_2_S2",
+      "y": [
+        10.625,
+        -9.5,
+        -16.75,
+        0.1875,
+        -14.375,
+        -10.5625,
+        16.6875
+      ],
+      "p": 0,
+      "output": "stat",
+      "index": 2,
+      "predictions": {
+        "landed_program": {
+          "value": 0.001,
+          "bits": "3f50624dd2f1a9fc"
+        }
+      }
+    },
+    {
+      "id": "fresh_n7_2_S7",
+      "y": [
+        10.625,
+        -9.5,
+        -16.75,
+        0.1875,
+        -14.375,
+        -10.5625,
+        16.6875
+      ],
+      "p": 0,
+      "output": "stat",
+      "index": 7,
+      "predictions": {
+        "landed_program": {
+          "value": 15.122748952620155,
+          "bits": "402e3ed8f3623e5f"
+        }
+      }
+    },
+    {
+      "id": "fresh_n7_3_F2",
+      "y": [
+        -12.9375,
+        0.5,
+        -14.1875,
+        8.5625,
+        -0.1875,
+        -5.3125,
+        -11.125
+      ],
+      "p": 0,
+      "output": "forecast",
+      "index": 2,
+      "predictions": {
+        "landed_program": {
+          "value": -4.947803462846707,
+          "bits": "c013ca8cfdafd940"
+        }
+      }
+    },
+    {
+      "id": "fresh_n7_3_F3",
+      "y": [
+        -12.9375,
+        0.5,
+        -14.1875,
+        8.5625,
+        -0.1875,
+        -5.3125,
+        -11.125
+      ],
+      "p": 0,
+      "output": "forecast",
+      "index": 3,
+      "predictions": {
+        "landed_program": {
+          "value": -4.646371995301634,
+          "bits": "c01295e28a537baf"
+        }
+      }
+    },
+    {
+      "id": "fresh_n7_3_Cendpoint",
+      "y": [
+        -12.9375,
+        0.5,
+        -14.1875,
+        8.5625,
+        -0.1875,
+        -5.3125,
+        -11.125
+      ],
+      "p": 0,
+      "output": "endpoint",
+      "index": 1,
+      "predictions": {
+        "landed_program": {
+          "value": 9.477847728691449,
+          "bits": "4022f4a8751e6533"
+        },
+        "equals_stat7": {
+          "value": 9.477847728691449,
+          "bits": "4022f4a8751e6533"
+        }
+      }
+    },
+    {
+      "id": "fresh_n7_3_S1",
+      "y": [
+        -12.9375,
+        0.5,
+        -14.1875,
+        8.5625,
+        -0.1875,
+        -5.3125,
+        -11.125
+      ],
+      "p": 0,
+      "output": "stat",
+      "index": 1,
+      "predictions": {
+        "landed_program": {
+          "value": 0.25,
+          "bits": "3fd0000000000000"
+        }
+      }
+    },
+    {
+      "id": "fresh_n7_3_S2",
+      "y": [
+        -12.9375,
+        0.5,
+        -14.1875,
+        8.5625,
+        -0.1875,
+        -5.3125,
+        -11.125
+      ],
+      "p": 0,
+      "output": "stat",
+      "index": 2,
+      "predictions": {
+        "landed_program": {
+          "value": 0.001,
+          "bits": "3f50624dd2f1a9fc"
+        }
+      }
+    },
+    {
+      "id": "fresh_n7_3_S7",
+      "y": [
+        -12.9375,
+        0.5,
+        -14.1875,
+        8.5625,
+        -0.1875,
+        -5.3125,
+        -11.125
+      ],
+      "p": 0,
+      "output": "stat",
+      "index": 7,
+      "predictions": {
+        "landed_program": {
+          "value": 9.477847728691449,
+          "bits": "4022f4a8751e6533"
+        }
+      }
+    },
+    {
+      "id": "fresh_n7_4_F2",
+      "y": [
+        11.25,
+        -17.4375,
+        -1.1875,
+        -5.8125,
+        15.6875,
+        -6.5,
+        4.5625
+      ],
+      "p": 0,
+      "output": "forecast",
+      "index": 2,
+      "predictions": {
+        "landed_program": {
+          "value": 5.190584653092744,
+          "bits": "4014c3289f909c82"
+        }
+      }
+    },
+    {
+      "id": "fresh_n7_4_F3",
+      "y": [
+        11.25,
+        -17.4375,
+        -1.1875,
+        -5.8125,
+        15.6875,
+        -6.5,
+        4.5625
+      ],
+      "p": 0,
+      "output": "forecast",
+      "index": 3,
+      "predictions": {
+        "landed_program": {
+          "value": 5.813511340168774,
+          "bits": "401741091de3ccd1"
+        }
+      }
+    },
+    {
+      "id": "fresh_n7_4_Cendpoint",
+      "y": [
+        11.25,
+        -17.4375,
+        -1.1875,
+        -5.8125,
+        15.6875,
+        -6.5,
+        4.5625
+      ],
+      "p": 0,
+      "output": "endpoint",
+      "index": 1,
+      "predictions": {
+        "landed_program": {
+          "value": 13.870820287278118,
+          "bits": "402bbddc281d1b0e"
+        },
+        "equals_stat7": {
+          "value": 13.870820287278118,
+          "bits": "402bbddc281d1b0e"
+        }
+      }
+    },
+    {
+      "id": "fresh_n7_4_S1",
+      "y": [
+        11.25,
+        -17.4375,
+        -1.1875,
+        -5.8125,
+        15.6875,
+        -6.5,
+        4.5625
+      ],
+      "p": 0,
+      "output": "stat",
+      "index": 1,
+      "predictions": {
+        "landed_program": {
+          "value": 0.25,
+          "bits": "3fd0000000000000"
+        }
+      }
+    },
+    {
+      "id": "fresh_n7_4_S2",
+      "y": [
+        11.25,
+        -17.4375,
+        -1.1875,
+        -5.8125,
+        15.6875,
+        -6.5,
+        4.5625
+      ],
+      "p": 0,
+      "output": "stat",
+      "index": 2,
+      "predictions": {
+        "landed_program": {
+          "value": 0.001,
+          "bits": "3f50624dd2f1a9fc"
+        }
+      }
+    },
+    {
+      "id": "fresh_n7_4_S7",
+      "y": [
+        11.25,
+        -17.4375,
+        -1.1875,
+        -5.8125,
+        15.6875,
+        -6.5,
+        4.5625
+      ],
+      "p": 0,
+      "output": "stat",
+      "index": 7,
+      "predictions": {
+        "landed_program": {
+          "value": 13.870820287278118,
+          "bits": "402bbddc281d1b0e"
+        }
+      }
+    },
+    {
+      "id": "H22_F2",
+      "y": [
+        -0.3125,
+        -1.3125,
+        -2.5,
+        -3.625,
+        -4.875,
+        -5.4375,
+        -6.5,
+        -7.5,
+        -7.6875,
+        -8.9375,
+        -8.5625,
+        -9.4375,
+        -8.625,
+        -9.375,
+        -8.9375,
+        -8.5,
+        -8.125,
+        -7.625,
+        -6.625,
+        -5.75,
+        -5.0,
+        -3.4375,
+        -2.375,
+        -1.8125
+      ],
+      "p": 0,
+      "output": "forecast",
+      "index": 2,
+      "predictions": {
+        "landed_program": {
+          "value": -0.5780724460629271,
+          "bits": "bfe27f91c951e34b"
+        }
+      }
+    },
+    {
+      "id": "H22_F3",
+      "y": [
+        -0.3125,
+        -1.3125,
+        -2.5,
+        -3.625,
+        -4.875,
+        -5.4375,
+        -6.5,
+        -7.5,
+        -7.6875,
+        -8.9375,
+        -8.5625,
+        -9.4375,
+        -8.625,
+        -9.375,
+        -8.9375,
+        -8.5,
+        -8.125,
+        -7.625,
+        -6.625,
+        -5.75,
+        -5.0,
+        -3.4375,
+        -2.375,
+        -1.8125
+      ],
+      "p": 0,
+      "output": "forecast",
+      "index": 3,
+      "predictions": {
+        "landed_program": {
+          "value": 0.038596736096620544,
+          "bits": "3fa3c2f38e88df35"
+        }
+      }
+    },
+    {
+      "id": "H22_Cendpoint",
+      "y": [
+        -0.3125,
+        -1.3125,
+        -2.5,
+        -3.625,
+        -4.875,
+        -5.4375,
+        -6.5,
+        -7.5,
+        -7.6875,
+        -8.9375,
+        -8.5625,
+        -9.4375,
+        -8.625,
+        -9.375,
+        -8.9375,
+        -8.5,
+        -8.125,
+        -7.625,
+        -6.625,
+        -5.75,
+        -5.0,
+        -3.4375,
+        -2.375,
+        -1.8125
+      ],
+      "p": 0,
+      "output": "endpoint",
+      "index": 1,
+      "predictions": {
+        "landed_program": {
+          "value": 0.7548066628870962,
+          "bits": "3fe827604d7ce52c"
+        },
+        "equals_stat7": {
+          "value": 0.3977510795736776,
+          "bits": "3fd974c0f1adedcc"
+        }
+      }
+    },
+    {
+      "id": "H22_S1",
+      "y": [
+        -0.3125,
+        -1.3125,
+        -2.5,
+        -3.625,
+        -4.875,
+        -5.4375,
+        -6.5,
+        -7.5,
+        -7.6875,
+        -8.9375,
+        -8.5625,
+        -9.4375,
+        -8.625,
+        -9.375,
+        -8.9375,
+        -8.5,
+        -8.125,
+        -7.625,
+        -6.625,
+        -5.75,
+        -5.0,
+        -3.4375,
+        -2.375,
+        -1.8125
+      ],
+      "p": 0,
+      "output": "stat",
+      "index": 1,
+      "predictions": {
+        "landed_program": {
+          "value": 0.998,
+          "bits": "3fefef9db22d0e56"
+        }
+      }
+    },
+    {
+      "id": "H22_S2",
+      "y": [
+        -0.3125,
+        -1.3125,
+        -2.5,
+        -3.625,
+        -4.875,
+        -5.4375,
+        -6.5,
+        -7.5,
+        -7.6875,
+        -8.9375,
+        -8.5625,
+        -9.4375,
+        -8.625,
+        -9.375,
+        -8.9375,
+        -8.5,
+        -8.125,
+        -7.625,
+        -6.625,
+        -5.75,
+        -5.0,
+        -3.4375,
+        -2.375,
+        -1.8125
+      ],
+      "p": 0,
+      "output": "stat",
+      "index": 2,
+      "predictions": {
+        "landed_program": {
+          "value": 0.899,
+          "bits": "3fecc49ba5e353f8"
+        }
+      }
+    },
+    {
+      "id": "H22_S7",
+      "y": [
+        -0.3125,
+        -1.3125,
+        -2.5,
+        -3.625,
+        -4.875,
+        -5.4375,
+        -6.5,
+        -7.5,
+        -7.6875,
+        -8.9375,
+        -8.5625,
+        -9.4375,
+        -8.625,
+        -9.375,
+        -8.9375,
+        -8.5,
+        -8.125,
+        -7.625,
+        -6.625,
+        -5.75,
+        -5.0,
+        -3.4375,
+        -2.375,
+        -1.8125
+      ],
+      "p": 0,
+      "output": "stat",
+      "index": 7,
+      "predictions": {
+        "landed_program": {
+          "value": 0.3977510795736776,
+          "bits": "3fd974c0f1adedcc"
+        }
+      }
+    }
+  ]
+}
