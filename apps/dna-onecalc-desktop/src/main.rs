@@ -43,6 +43,10 @@ fn run() -> Result<(), String> {
     use std::path::PathBuf;
     // `--app`: the OneCalc page in WebView2 over the native session (src/app.rs).
     let raw: Vec<String> = std::env::args().skip(1).collect();
+    if raw.first().map(String::as_str) == Some("--version") {
+        println!("DNA OneCalc {}", env!("CARGO_PKG_VERSION"));
+        return Ok(());
+    }
     // Started with no arguments (a person opening it) it is the app, as it is with `--app`.
     // The command-line harness needs an add-in (`--xll`) or asks for help; any other arguments are
     // the app's own (a data folder, a debug port, a scripted answer).

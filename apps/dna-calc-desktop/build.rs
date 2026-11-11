@@ -2,6 +2,7 @@ include!("version-resource.rs");
 
 fn main() {
     link_executable_identity("dna-calc-desktop");
+    println!("cargo:rerun-if-changed=icon/calc.ico");
     // `cargo xtask package onecalc` packs DNA Calc's built page and names the block here: the
     // executable then carries its page. Without it (everyday builds) the page comes from `--assets`,
     // `--url` or a `page` folder beside the executable.

@@ -13,7 +13,7 @@ RUNG = (0xED, 0xF1, 0xF2, 255)
 BASE = 1024
 
 
-def tile():
+def tile(first=None, second=None):
     image = Image.new("RGBA", (BASE, BASE), (0, 0, 0, 0))
     draw = ImageDraw.Draw(image)
     draw.rounded_rectangle((40, 40, BASE - 40, BASE - 40), radius=210, fill=PETROL)
@@ -34,17 +34,24 @@ def tile():
         (xa, ya), (xb, _) = path_a[i], path_b[i]
         if abs(xa - xb) > 220:
             draw.line((xa, ya, xb, ya), fill=RUNG, width=26)
-    draw.line(path_b, fill=AMBER, width=64, joint="curve")
-    draw.line(path_a, fill=TEAL, width=64, joint="curve")
+    draw.line(path_b, fill=second or AMBER, width=64, joint="curve")
+    draw.line(path_a, fill=first or TEAL, width=64, joint="curve")
     return image
 
 
 def main():
-    base = tile()
+    # OneCalc: teal over amber. DNA Calc (../../dna-calc-desktop/icon/calc.ico): the colours swapped.
+    write(tile(), os.path.join(HERE, "onecalc.ico"))
+    calc = os.path.join(HERE, "..", "..", "dna-calc-desktop", "icon")
+    os.makedirs(calc, exist_ok=True)
+    write(tile(AMBER, TEAL), os.path.join(calc, "calc.ico"))
+
+
+def write(base, path):
     sizes = [16, 24, 32, 48, 64, 128, 256]
     images = [base.resize((s, s), Image.LANCZOS) for s in sizes]
     images[-1].save(
-        os.path.join(HERE, "onecalc.ico"),
+        path,
         format="ICO",
         sizes=[(s, s) for s in sizes],
         append_images=images[:-1],
