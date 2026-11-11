@@ -1,0 +1,1476 @@
+{
+  "protocol": "Fresh positive last-impulse cases after retrospective centering audit. Restricted n8/p2 initializer: seasons +/-4, level offset+4, slope OLS(y-season). Application .126/.001/.001, then center=(S0+S1)/2, level+=center, seasons-=center. No reset predicted. Negative-delta hybrid_0 remains a counterexample to the complete program.",
+  "python_source": "from experiments import *\nimport copy\n\ndef main():\n    rows=[]\n    for i,(delta,offset,trend) in enumerate([(d,0.,0.) for d in [.25,.75,1.5,3.,6.,12.]]+[(3.,16.,256.)]):\n        y=[offset+j*trend+(8. if j%2 else 0.)+(delta if j==7 else 0.) for j in range(8)]\n        s=[-4.,4.]; l=offset+4.; b0=slope([v-s[j%2] for j,v in enumerate(y)])\n        raw=run(y,.126,.001,.001,(l,b0,s)); centered=copy.deepcopy(raw)\n        center=(centered['seasons'][0]+centered['seasons'][1])/2.\n        centered['level']+=center\n        centered['seasons']=[v-center for v in centered['seasons']]\n        st=stats(y,raw)\n        for stat,value in [(1,.126),(2,.001),(3,.001),(6,st[2]),(7,st[3])]:\n            rows.append(question(f'center_{i}_S{stat}',y,2,'stat',stat,{'hybrid_initializer':val(value)}))\n        for h in [1,2,3]:\n            rows.append(question(f'center_{i}_F{h}',y,2,'forecast',h,{\n              'uncentered':val(forecast(y,dict(model=raw),h)),\n              'centered':val(forecast(y,dict(model=centered),h))}))\n        f=dict(model=raw,a=.126,b=.001,g=.001,sse=sse(raw))\n        rows.append(question(f'center_{i}_Cendpoint',y,2,'endpoint',1,{'hybrid_initializer':val(ci(y,f,1))}))\n    save('centering-followup-predictions.json',dict(\n      protocol='Fresh positive last-impulse cases after retrospective centering audit. Restricted n8/p2 initializer: seasons +/-4, level offset+4, slope OLS(y-season). Application .126/.001/.001, then center=(S0+S1)/2, level+=center, seasons-=center. No reset predicted. Negative-delta hybrid_0 remains a counterexample to the complete program.',\n      python_source=Path(__file__).read_text(),rows=rows))\n    print('Frozen',len(rows),'centering readings')\n\nif __name__=='__main__':main()\n",
+  "rows": [
+    {
+      "id": "center_0_S1",
+      "y": [
+        0.0,
+        8.0,
+        0.0,
+        8.0,
+        0.0,
+        8.0,
+        0.0,
+        8.25
+      ],
+      "p": 2,
+      "output": "stat",
+      "index": 1,
+      "predictions": {
+        "hybrid_initializer": {
+          "value": 0.126,
+          "bits": "3fc020c49ba5e354"
+        }
+      }
+    },
+    {
+      "id": "center_0_S2",
+      "y": [
+        0.0,
+        8.0,
+        0.0,
+        8.0,
+        0.0,
+        8.0,
+        0.0,
+        8.25
+      ],
+      "p": 2,
+      "output": "stat",
+      "index": 2,
+      "predictions": {
+        "hybrid_initializer": {
+          "value": 0.001,
+          "bits": "3f50624dd2f1a9fc"
+        }
+      }
+    },
+    {
+      "id": "center_0_S3",
+      "y": [
+        0.0,
+        8.0,
+        0.0,
+        8.0,
+        0.0,
+        8.0,
+        0.0,
+        8.25
+      ],
+      "p": 2,
+      "output": "stat",
+      "index": 3,
+      "predictions": {
+        "hybrid_initializer": {
+          "value": 0.001,
+          "bits": "3f50624dd2f1a9fc"
+        }
+      }
+    },
+    {
+      "id": "center_0_S6",
+      "y": [
+        0.0,
+        8.0,
+        0.0,
+        8.0,
+        0.0,
+        8.0,
+        0.0,
+        8.25
+      ],
+      "p": 2,
+      "output": "stat",
+      "index": 6,
+      "predictions": {
+        "hybrid_initializer": {
+          "value": 0.06312508201666667,
+          "bits": "3fb028f722d1a380"
+        }
+      }
+    },
+    {
+      "id": "center_0_S7",
+      "y": [
+        0.0,
+        8.0,
+        0.0,
+        8.0,
+        0.0,
+        8.0,
+        0.0,
+        8.25
+      ],
+      "p": 2,
+      "output": "stat",
+      "index": 7,
+      "predictions": {
+        "hybrid_initializer": {
+          "value": 0.07662298679813222,
+          "bits": "3fb39d90666b792b"
+        }
+      }
+    },
+    {
+      "id": "center_0_F1",
+      "y": [
+        0.0,
+        8.0,
+        0.0,
+        8.0,
+        0.0,
+        8.0,
+        0.0,
+        8.25
+      ],
+      "p": 2,
+      "output": "forecast",
+      "index": 1,
+      "predictions": {
+        "uncentered": {
+          "value": 0.13944669350225602,
+          "bits": "3fc1d963a61052c0"
+        },
+        "centered": {
+          "value": 0.13944669350225602,
+          "bits": "3fc1d963a61052c0"
+        }
+      }
+    },
+    {
+      "id": "center_0_F2",
+      "y": [
+        0.0,
+        8.0,
+        0.0,
+        8.0,
+        0.0,
+        8.0,
+        0.0,
+        8.25
+      ],
+      "p": 2,
+      "output": "forecast",
+      "index": 2,
+      "predictions": {
+        "uncentered": {
+          "value": 8.160267517914281,
+          "bits": "4020520e95881b1a"
+        },
+        "centered": {
+          "value": 8.160267517914281,
+          "bits": "4020520e95881b1a"
+        }
+      }
+    },
+    {
+      "id": "center_0_F3",
+      "y": [
+        0.0,
+        8.0,
+        0.0,
+        8.0,
+        0.0,
+        8.0,
+        0.0,
+        8.25
+      ],
+      "p": 2,
+      "output": "forecast",
+      "index": 3,
+      "predictions": {
+        "uncentered": {
+          "value": 0.18070353905200776,
+          "bits": "3fc7214b273ffa80"
+        },
+        "centered": {
+          "value": 0.18070353905200776,
+          "bits": "3fc7214b273ffa80"
+        }
+      }
+    },
+    {
+      "id": "center_0_Cendpoint",
+      "y": [
+        0.0,
+        8.0,
+        0.0,
+        8.0,
+        0.0,
+        8.0,
+        0.0,
+        8.25
+      ],
+      "p": 2,
+      "output": "endpoint",
+      "index": 1,
+      "predictions": {
+        "hybrid_initializer": {
+          "value": 0.07662298679813222,
+          "bits": "3fb39d90666b792b"
+        }
+      }
+    },
+    {
+      "id": "center_1_S1",
+      "y": [
+        0.0,
+        8.0,
+        0.0,
+        8.0,
+        0.0,
+        8.0,
+        0.0,
+        8.75
+      ],
+      "p": 2,
+      "output": "stat",
+      "index": 1,
+      "predictions": {
+        "hybrid_initializer": {
+          "value": 0.126,
+          "bits": "3fc020c49ba5e354"
+        }
+      }
+    },
+    {
+      "id": "center_1_S2",
+      "y": [
+        0.0,
+        8.0,
+        0.0,
+        8.0,
+        0.0,
+        8.0,
+        0.0,
+        8.75
+      ],
+      "p": 2,
+      "output": "stat",
+      "index": 2,
+      "predictions": {
+        "hybrid_initializer": {
+          "value": 0.001,
+          "bits": "3f50624dd2f1a9fc"
+        }
+      }
+    },
+    {
+      "id": "center_1_S3",
+      "y": [
+        0.0,
+        8.0,
+        0.0,
+        8.0,
+        0.0,
+        8.0,
+        0.0,
+        8.75
+      ],
+      "p": 2,
+      "output": "stat",
+      "index": 3,
+      "predictions": {
+        "hybrid_initializer": {
+          "value": 0.001,
+          "bits": "3f50624dd2f1a9fc"
+        }
+      }
+    },
+    {
+      "id": "center_1_S6",
+      "y": [
+        0.0,
+        8.0,
+        0.0,
+        8.0,
+        0.0,
+        8.0,
+        0.0,
+        8.75
+      ],
+      "p": 2,
+      "output": "stat",
+      "index": 6,
+      "predictions": {
+        "hybrid_initializer": {
+          "value": 0.18937524604999922,
+          "bits": "3fc83d72b43a7524"
+        }
+      }
+    },
+    {
+      "id": "center_1_S7",
+      "y": [
+        0.0,
+        8.0,
+        0.0,
+        8.0,
+        0.0,
+        8.0,
+        0.0,
+        8.75
+      ],
+      "p": 2,
+      "output": "stat",
+      "index": 7,
+      "predictions": {
+        "hybrid_initializer": {
+          "value": 0.22986896039439586,
+          "bits": "3fcd6c5899a135a4"
+        }
+      }
+    },
+    {
+      "id": "center_1_F1",
+      "y": [
+        0.0,
+        8.0,
+        0.0,
+        8.0,
+        0.0,
+        8.0,
+        0.0,
+        8.75
+      ],
+      "p": 2,
+      "output": "forecast",
+      "index": 1,
+      "predictions": {
+        "uncentered": {
+          "value": 0.41834008050676896,
+          "bits": "3fdac61579187c30"
+        },
+        "centered": {
+          "value": 0.41834008050676896,
+          "bits": "3fdac61579187c30"
+        }
+      }
+    },
+    {
+      "id": "center_1_F2",
+      "y": [
+        0.0,
+        8.0,
+        0.0,
+        8.0,
+        0.0,
+        8.0,
+        0.0,
+        8.75
+      ],
+      "p": 2,
+      "output": "forecast",
+      "index": 2,
+      "predictions": {
+        "uncentered": {
+          "value": 8.48080255374284,
+          "bits": "4020f62bc098514c"
+        },
+        "centered": {
+          "value": 8.48080255374284,
+          "bits": "4020f62bc098514c"
+        }
+      }
+    },
+    {
+      "id": "center_1_F3",
+      "y": [
+        0.0,
+        8.0,
+        0.0,
+        8.0,
+        0.0,
+        8.0,
+        0.0,
+        8.75
+      ],
+      "p": 2,
+      "output": "forecast",
+      "index": 3,
+      "predictions": {
+        "uncentered": {
+          "value": 0.5421106171560233,
+          "bits": "3fe158f85d6ffbe0"
+        },
+        "centered": {
+          "value": 0.5421106171560233,
+          "bits": "3fe158f85d6ffbe0"
+        }
+      }
+    },
+    {
+      "id": "center_1_Cendpoint",
+      "y": [
+        0.0,
+        8.0,
+        0.0,
+        8.0,
+        0.0,
+        8.0,
+        0.0,
+        8.75
+      ],
+      "p": 2,
+      "output": "endpoint",
+      "index": 1,
+      "predictions": {
+        "hybrid_initializer": {
+          "value": 0.22986896039439586,
+          "bits": "3fcd6c5899a135a4"
+        }
+      }
+    },
+    {
+      "id": "center_2_S1",
+      "y": [
+        0.0,
+        8.0,
+        0.0,
+        8.0,
+        0.0,
+        8.0,
+        0.0,
+        9.5
+      ],
+      "p": 2,
+      "output": "stat",
+      "index": 1,
+      "predictions": {
+        "hybrid_initializer": {
+          "value": 0.126,
+          "bits": "3fc020c49ba5e354"
+        }
+      }
+    },
+    {
+      "id": "center_2_S2",
+      "y": [
+        0.0,
+        8.0,
+        0.0,
+        8.0,
+        0.0,
+        8.0,
+        0.0,
+        9.5
+      ],
+      "p": 2,
+      "output": "stat",
+      "index": 2,
+      "predictions": {
+        "hybrid_initializer": {
+          "value": 0.001,
+          "bits": "3f50624dd2f1a9fc"
+        }
+      }
+    },
+    {
+      "id": "center_2_S3",
+      "y": [
+        0.0,
+        8.0,
+        0.0,
+        8.0,
+        0.0,
+        8.0,
+        0.0,
+        9.5
+      ],
+      "p": 2,
+      "output": "stat",
+      "index": 3,
+      "predictions": {
+        "hybrid_initializer": {
+          "value": 0.001,
+          "bits": "3f50624dd2f1a9fc"
+        }
+      }
+    },
+    {
+      "id": "center_2_S6",
+      "y": [
+        0.0,
+        8.0,
+        0.0,
+        8.0,
+        0.0,
+        8.0,
+        0.0,
+        9.5
+      ],
+      "p": 2,
+      "output": "stat",
+      "index": 6,
+      "predictions": {
+        "hybrid_initializer": {
+          "value": 0.378750492099999,
+          "bits": "3fd83d72b43a752e"
+        }
+      }
+    },
+    {
+      "id": "center_2_S7",
+      "y": [
+        0.0,
+        8.0,
+        0.0,
+        8.0,
+        0.0,
+        8.0,
+        0.0,
+        9.5
+      ],
+      "p": 2,
+      "output": "stat",
+      "index": 7,
+      "predictions": {
+        "hybrid_initializer": {
+          "value": 0.459737920788792,
+          "bits": "3fdd6c5899a135a9"
+        }
+      }
+    },
+    {
+      "id": "center_2_F1",
+      "y": [
+        0.0,
+        8.0,
+        0.0,
+        8.0,
+        0.0,
+        8.0,
+        0.0,
+        9.5
+      ],
+      "p": 2,
+      "output": "forecast",
+      "index": 1,
+      "predictions": {
+        "uncentered": {
+          "value": 0.8366801610135379,
+          "bits": "3feac61579187c30"
+        },
+        "centered": {
+          "value": 0.8366801610135379,
+          "bits": "3feac61579187c30"
+        }
+      }
+    },
+    {
+      "id": "center_2_F2",
+      "y": [
+        0.0,
+        8.0,
+        0.0,
+        8.0,
+        0.0,
+        8.0,
+        0.0,
+        9.5
+      ],
+      "p": 2,
+      "output": "forecast",
+      "index": 2,
+      "predictions": {
+        "uncentered": {
+          "value": 8.961605107485683,
+          "bits": "4021ec578130a299"
+        },
+        "centered": {
+          "value": 8.961605107485683,
+          "bits": "4021ec578130a299"
+        }
+      }
+    },
+    {
+      "id": "center_2_F3",
+      "y": [
+        0.0,
+        8.0,
+        0.0,
+        8.0,
+        0.0,
+        8.0,
+        0.0,
+        9.5
+      ],
+      "p": 2,
+      "output": "forecast",
+      "index": 3,
+      "predictions": {
+        "uncentered": {
+          "value": 1.0842212343120474,
+          "bits": "3ff158f85d6ffbe4"
+        },
+        "centered": {
+          "value": 1.0842212343120474,
+          "bits": "3ff158f85d6ffbe4"
+        }
+      }
+    },
+    {
+      "id": "center_2_Cendpoint",
+      "y": [
+        0.0,
+        8.0,
+        0.0,
+        8.0,
+        0.0,
+        8.0,
+        0.0,
+        9.5
+      ],
+      "p": 2,
+      "output": "endpoint",
+      "index": 1,
+      "predictions": {
+        "hybrid_initializer": {
+          "value": 0.459737920788792,
+          "bits": "3fdd6c5899a135a9"
+        }
+      }
+    },
+    {
+      "id": "center_3_S1",
+      "y": [
+        0.0,
+        8.0,
+        0.0,
+        8.0,
+        0.0,
+        8.0,
+        0.0,
+        11.0
+      ],
+      "p": 2,
+      "output": "stat",
+      "index": 1,
+      "predictions": {
+        "hybrid_initializer": {
+          "value": 0.126,
+          "bits": "3fc020c49ba5e354"
+        }
+      }
+    },
+    {
+      "id": "center_3_S2",
+      "y": [
+        0.0,
+        8.0,
+        0.0,
+        8.0,
+        0.0,
+        8.0,
+        0.0,
+        11.0
+      ],
+      "p": 2,
+      "output": "stat",
+      "index": 2,
+      "predictions": {
+        "hybrid_initializer": {
+          "value": 0.001,
+          "bits": "3f50624dd2f1a9fc"
+        }
+      }
+    },
+    {
+      "id": "center_3_S3",
+      "y": [
+        0.0,
+        8.0,
+        0.0,
+        8.0,
+        0.0,
+        8.0,
+        0.0,
+        11.0
+      ],
+      "p": 2,
+      "output": "stat",
+      "index": 3,
+      "predictions": {
+        "hybrid_initializer": {
+          "value": 0.001,
+          "bits": "3f50624dd2f1a9fc"
+        }
+      }
+    },
+    {
+      "id": "center_3_S6",
+      "y": [
+        0.0,
+        8.0,
+        0.0,
+        8.0,
+        0.0,
+        8.0,
+        0.0,
+        11.0
+      ],
+      "p": 2,
+      "output": "stat",
+      "index": 6,
+      "predictions": {
+        "hybrid_initializer": {
+          "value": 0.7575009841999981,
+          "bits": "3fe83d72b43a752f"
+        }
+      }
+    },
+    {
+      "id": "center_3_S7",
+      "y": [
+        0.0,
+        8.0,
+        0.0,
+        8.0,
+        0.0,
+        8.0,
+        0.0,
+        11.0
+      ],
+      "p": 2,
+      "output": "stat",
+      "index": 7,
+      "predictions": {
+        "hybrid_initializer": {
+          "value": 0.9194758415775847,
+          "bits": "3fed6c5899a135af"
+        }
+      }
+    },
+    {
+      "id": "center_3_F1",
+      "y": [
+        0.0,
+        8.0,
+        0.0,
+        8.0,
+        0.0,
+        8.0,
+        0.0,
+        11.0
+      ],
+      "p": 2,
+      "output": "forecast",
+      "index": 1,
+      "predictions": {
+        "uncentered": {
+          "value": 1.6733603220270767,
+          "bits": "3ffac61579187c34"
+        },
+        "centered": {
+          "value": 1.6733603220270767,
+          "bits": "3ffac61579187c34"
+        }
+      }
+    },
+    {
+      "id": "center_3_F2",
+      "y": [
+        0.0,
+        8.0,
+        0.0,
+        8.0,
+        0.0,
+        8.0,
+        0.0,
+        11.0
+      ],
+      "p": 2,
+      "output": "forecast",
+      "index": 2,
+      "predictions": {
+        "uncentered": {
+          "value": 9.923210214971364,
+          "bits": "4023d8af02614531"
+        },
+        "centered": {
+          "value": 9.923210214971366,
+          "bits": "4023d8af02614532"
+        }
+      }
+    },
+    {
+      "id": "center_3_F3",
+      "y": [
+        0.0,
+        8.0,
+        0.0,
+        8.0,
+        0.0,
+        8.0,
+        0.0,
+        11.0
+      ],
+      "p": 2,
+      "output": "forecast",
+      "index": 3,
+      "predictions": {
+        "uncentered": {
+          "value": 2.168442468624095,
+          "bits": "400158f85d6ffbe4"
+        },
+        "centered": {
+          "value": 2.168442468624095,
+          "bits": "400158f85d6ffbe4"
+        }
+      }
+    },
+    {
+      "id": "center_3_Cendpoint",
+      "y": [
+        0.0,
+        8.0,
+        0.0,
+        8.0,
+        0.0,
+        8.0,
+        0.0,
+        11.0
+      ],
+      "p": 2,
+      "output": "endpoint",
+      "index": 1,
+      "predictions": {
+        "hybrid_initializer": {
+          "value": 0.9194758415775847,
+          "bits": "3fed6c5899a135af"
+        }
+      }
+    },
+    {
+      "id": "center_4_S1",
+      "y": [
+        0.0,
+        8.0,
+        0.0,
+        8.0,
+        0.0,
+        8.0,
+        0.0,
+        14.0
+      ],
+      "p": 2,
+      "output": "stat",
+      "index": 1,
+      "predictions": {
+        "hybrid_initializer": {
+          "value": 0.126,
+          "bits": "3fc020c49ba5e354"
+        }
+      }
+    },
+    {
+      "id": "center_4_S2",
+      "y": [
+        0.0,
+        8.0,
+        0.0,
+        8.0,
+        0.0,
+        8.0,
+        0.0,
+        14.0
+      ],
+      "p": 2,
+      "output": "stat",
+      "index": 2,
+      "predictions": {
+        "hybrid_initializer": {
+          "value": 0.001,
+          "bits": "3f50624dd2f1a9fc"
+        }
+      }
+    },
+    {
+      "id": "center_4_S3",
+      "y": [
+        0.0,
+        8.0,
+        0.0,
+        8.0,
+        0.0,
+        8.0,
+        0.0,
+        14.0
+      ],
+      "p": 2,
+      "output": "stat",
+      "index": 3,
+      "predictions": {
+        "hybrid_initializer": {
+          "value": 0.001,
+          "bits": "3f50624dd2f1a9fc"
+        }
+      }
+    },
+    {
+      "id": "center_4_S6",
+      "y": [
+        0.0,
+        8.0,
+        0.0,
+        8.0,
+        0.0,
+        8.0,
+        0.0,
+        14.0
+      ],
+      "p": 2,
+      "output": "stat",
+      "index": 6,
+      "predictions": {
+        "hybrid_initializer": {
+          "value": 1.5150019683999962,
+          "bits": "3ff83d72b43a752f"
+        }
+      }
+    },
+    {
+      "id": "center_4_S7",
+      "y": [
+        0.0,
+        8.0,
+        0.0,
+        8.0,
+        0.0,
+        8.0,
+        0.0,
+        14.0
+      ],
+      "p": 2,
+      "output": "stat",
+      "index": 7,
+      "predictions": {
+        "hybrid_initializer": {
+          "value": 1.8389516831551687,
+          "bits": "3ffd6c5899a135ac"
+        }
+      }
+    },
+    {
+      "id": "center_4_F1",
+      "y": [
+        0.0,
+        8.0,
+        0.0,
+        8.0,
+        0.0,
+        8.0,
+        0.0,
+        14.0
+      ],
+      "p": 2,
+      "output": "forecast",
+      "index": 1,
+      "predictions": {
+        "uncentered": {
+          "value": 3.3467206440541517,
+          "bits": "400ac61579187c30"
+        },
+        "centered": {
+          "value": 3.346720644054151,
+          "bits": "400ac61579187c2e"
+        }
+      }
+    },
+    {
+      "id": "center_4_F2",
+      "y": [
+        0.0,
+        8.0,
+        0.0,
+        8.0,
+        0.0,
+        8.0,
+        0.0,
+        14.0
+      ],
+      "p": 2,
+      "output": "forecast",
+      "index": 2,
+      "predictions": {
+        "uncentered": {
+          "value": 11.846420429942729,
+          "bits": "4027b15e04c28a62"
+        },
+        "centered": {
+          "value": 11.846420429942729,
+          "bits": "4027b15e04c28a62"
+        }
+      }
+    },
+    {
+      "id": "center_4_F3",
+      "y": [
+        0.0,
+        8.0,
+        0.0,
+        8.0,
+        0.0,
+        8.0,
+        0.0,
+        14.0
+      ],
+      "p": 2,
+      "output": "forecast",
+      "index": 3,
+      "predictions": {
+        "uncentered": {
+          "value": 4.336884937248189,
+          "bits": "401158f85d6ffbe3"
+        },
+        "centered": {
+          "value": 4.336884937248188,
+          "bits": "401158f85d6ffbe2"
+        }
+      }
+    },
+    {
+      "id": "center_4_Cendpoint",
+      "y": [
+        0.0,
+        8.0,
+        0.0,
+        8.0,
+        0.0,
+        8.0,
+        0.0,
+        14.0
+      ],
+      "p": 2,
+      "output": "endpoint",
+      "index": 1,
+      "predictions": {
+        "hybrid_initializer": {
+          "value": 1.8389516831551687,
+          "bits": "3ffd6c5899a135ac"
+        }
+      }
+    },
+    {
+      "id": "center_5_S1",
+      "y": [
+        0.0,
+        8.0,
+        0.0,
+        8.0,
+        0.0,
+        8.0,
+        0.0,
+        20.0
+      ],
+      "p": 2,
+      "output": "stat",
+      "index": 1,
+      "predictions": {
+        "hybrid_initializer": {
+          "value": 0.126,
+          "bits": "3fc020c49ba5e354"
+        }
+      }
+    },
+    {
+      "id": "center_5_S2",
+      "y": [
+        0.0,
+        8.0,
+        0.0,
+        8.0,
+        0.0,
+        8.0,
+        0.0,
+        20.0
+      ],
+      "p": 2,
+      "output": "stat",
+      "index": 2,
+      "predictions": {
+        "hybrid_initializer": {
+          "value": 0.001,
+          "bits": "3f50624dd2f1a9fc"
+        }
+      }
+    },
+    {
+      "id": "center_5_S3",
+      "y": [
+        0.0,
+        8.0,
+        0.0,
+        8.0,
+        0.0,
+        8.0,
+        0.0,
+        20.0
+      ],
+      "p": 2,
+      "output": "stat",
+      "index": 3,
+      "predictions": {
+        "hybrid_initializer": {
+          "value": 0.001,
+          "bits": "3f50624dd2f1a9fc"
+        }
+      }
+    },
+    {
+      "id": "center_5_S6",
+      "y": [
+        0.0,
+        8.0,
+        0.0,
+        8.0,
+        0.0,
+        8.0,
+        0.0,
+        20.0
+      ],
+      "p": 2,
+      "output": "stat",
+      "index": 6,
+      "predictions": {
+        "hybrid_initializer": {
+          "value": 3.030003936799992,
+          "bits": "40083d72b43a752e"
+        }
+      }
+    },
+    {
+      "id": "center_5_S7",
+      "y": [
+        0.0,
+        8.0,
+        0.0,
+        8.0,
+        0.0,
+        8.0,
+        0.0,
+        20.0
+      ],
+      "p": 2,
+      "output": "stat",
+      "index": 7,
+      "predictions": {
+        "hybrid_initializer": {
+          "value": 3.677903366310337,
+          "bits": "400d6c5899a135ab"
+        }
+      }
+    },
+    {
+      "id": "center_5_F1",
+      "y": [
+        0.0,
+        8.0,
+        0.0,
+        8.0,
+        0.0,
+        8.0,
+        0.0,
+        20.0
+      ],
+      "p": 2,
+      "output": "forecast",
+      "index": 1,
+      "predictions": {
+        "uncentered": {
+          "value": 6.693441288108303,
+          "bits": "401ac61579187c30"
+        },
+        "centered": {
+          "value": 6.693441288108304,
+          "bits": "401ac61579187c31"
+        }
+      }
+    },
+    {
+      "id": "center_5_F2",
+      "y": [
+        0.0,
+        8.0,
+        0.0,
+        8.0,
+        0.0,
+        8.0,
+        0.0,
+        20.0
+      ],
+      "p": 2,
+      "output": "forecast",
+      "index": 2,
+      "predictions": {
+        "uncentered": {
+          "value": 15.69284085988546,
+          "bits": "402f62bc098514c5"
+        },
+        "centered": {
+          "value": 15.692840859885461,
+          "bits": "402f62bc098514c6"
+        }
+      }
+    },
+    {
+      "id": "center_5_F3",
+      "y": [
+        0.0,
+        8.0,
+        0.0,
+        8.0,
+        0.0,
+        8.0,
+        0.0,
+        20.0
+      ],
+      "p": 2,
+      "output": "forecast",
+      "index": 3,
+      "predictions": {
+        "uncentered": {
+          "value": 8.673769874496378,
+          "bits": "402158f85d6ffbe3"
+        },
+        "centered": {
+          "value": 8.67376987449638,
+          "bits": "402158f85d6ffbe4"
+        }
+      }
+    },
+    {
+      "id": "center_5_Cendpoint",
+      "y": [
+        0.0,
+        8.0,
+        0.0,
+        8.0,
+        0.0,
+        8.0,
+        0.0,
+        20.0
+      ],
+      "p": 2,
+      "output": "endpoint",
+      "index": 1,
+      "predictions": {
+        "hybrid_initializer": {
+          "value": 3.677903366310337,
+          "bits": "400d6c5899a135ab"
+        }
+      }
+    },
+    {
+      "id": "center_6_S1",
+      "y": [
+        16.0,
+        280.0,
+        528.0,
+        792.0,
+        1040.0,
+        1304.0,
+        1552.0,
+        1819.0
+      ],
+      "p": 2,
+      "output": "stat",
+      "index": 1,
+      "predictions": {
+        "hybrid_initializer": {
+          "value": 0.126,
+          "bits": "3fc020c49ba5e354"
+        }
+      }
+    },
+    {
+      "id": "center_6_S2",
+      "y": [
+        16.0,
+        280.0,
+        528.0,
+        792.0,
+        1040.0,
+        1304.0,
+        1552.0,
+        1819.0
+      ],
+      "p": 2,
+      "output": "stat",
+      "index": 2,
+      "predictions": {
+        "hybrid_initializer": {
+          "value": 0.001,
+          "bits": "3f50624dd2f1a9fc"
+        }
+      }
+    },
+    {
+      "id": "center_6_S3",
+      "y": [
+        16.0,
+        280.0,
+        528.0,
+        792.0,
+        1040.0,
+        1304.0,
+        1552.0,
+        1819.0
+      ],
+      "p": 2,
+      "output": "stat",
+      "index": 3,
+      "predictions": {
+        "hybrid_initializer": {
+          "value": 0.001,
+          "bits": "3f50624dd2f1a9fc"
+        }
+      }
+    },
+    {
+      "id": "center_6_S6",
+      "y": [
+        16.0,
+        280.0,
+        528.0,
+        792.0,
+        1040.0,
+        1304.0,
+        1552.0,
+        1819.0
+      ],
+      "p": 2,
+      "output": "stat",
+      "index": 6,
+      "predictions": {
+        "hybrid_initializer": {
+          "value": 0.7575009841999218,
+          "bits": "3fe83d72b43a7280"
+        }
+      }
+    },
+    {
+      "id": "center_6_S7",
+      "y": [
+        16.0,
+        280.0,
+        528.0,
+        792.0,
+        1040.0,
+        1304.0,
+        1552.0,
+        1819.0
+      ],
+      "p": 2,
+      "output": "stat",
+      "index": 7,
+      "predictions": {
+        "hybrid_initializer": {
+          "value": 0.9194758415774951,
+          "bits": "3fed6c5899a13288"
+        }
+      }
+    },
+    {
+      "id": "center_6_F1",
+      "y": [
+        16.0,
+        280.0,
+        528.0,
+        792.0,
+        1040.0,
+        1304.0,
+        1552.0,
+        1819.0
+      ],
+      "p": 2,
+      "output": "forecast",
+      "index": 1,
+      "predictions": {
+        "uncentered": {
+          "value": 2065.6733603220273,
+          "bits": "40a02358c2af2310"
+        },
+        "centered": {
+          "value": 2065.6733603220273,
+          "bits": "40a02358c2af2310"
+        }
+      }
+    },
+    {
+      "id": "center_6_F2",
+      "y": [
+        16.0,
+        280.0,
+        528.0,
+        792.0,
+        1040.0,
+        1304.0,
+        1552.0,
+        1819.0
+      ],
+      "p": 2,
+      "output": "forecast",
+      "index": 2,
+      "predictions": {
+        "uncentered": {
+          "value": 2329.9232102149713,
+          "bits": "40a233d8af026145"
+        },
+        "centered": {
+          "value": 2329.9232102149713,
+          "bits": "40a233d8af026145"
+        }
+      }
+    },
+    {
+      "id": "center_6_F3",
+      "y": [
+        16.0,
+        280.0,
+        528.0,
+        792.0,
+        1040.0,
+        1304.0,
+        1552.0,
+        1819.0
+      ],
+      "p": 2,
+      "output": "forecast",
+      "index": 3,
+      "predictions": {
+        "uncentered": {
+          "value": 2578.168442468624,
+          "bits": "40a424563e175bff"
+        },
+        "centered": {
+          "value": 2578.168442468624,
+          "bits": "40a424563e175bff"
+        }
+      }
+    },
+    {
+      "id": "center_6_Cendpoint",
+      "y": [
+        16.0,
+        280.0,
+        528.0,
+        792.0,
+        1040.0,
+        1304.0,
+        1552.0,
+        1819.0
+      ],
+      "p": 2,
+      "output": "endpoint",
+      "index": 1,
+      "predictions": {
+        "hybrid_initializer": {
+          "value": 0.9194758415774951,
+          "bits": "3fed6c5899a13288"
+        }
+      }
+    }
+  ]
+}
