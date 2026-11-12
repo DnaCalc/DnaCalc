@@ -8465,7 +8465,7 @@ fn cdoc_m1_3__save_refusal() {
                 "xl/worksheets/sheet1.xml",
                 Some(WORKSHEET_TYPE),
                 m1_3_worksheet(
-                    r#"<dimension ref="A1:B4"/><sheetData><row r="1"><c r="A1" t="inlineStr"><is><t>Name</t></is></c><c r="B1" t="inlineStr"><is><t>Value</t></is></c></row><row r="2"><c r="A2" t="inlineStr"><is><t>x</t></is></c><c r="B2"><v>1</v></c></row><row r="3"><c r="A3" t="inlineStr"><is><t>y</t></is></c><c r="B3"><v>2</v></c></row><row r="4"><c r="A4" t="inlineStr"><is><t>Total</t></is></c><c r="B4"><f>SUBTOTAL(109,B2:B3)</f><v>3</v></c></row></sheetData><tableParts count="1"><tablePart r:id="rId1"/></tableParts>"#,
+                    r#"<dimension ref="A1:B4"/><sheetData><row r="1"><c r="A1" t="inlineStr"><is><t>Name</t></is></c><c r="B1" t="inlineStr"><is><t>Value</t></is></c></row><row r="2"><c r="A2" t="inlineStr"><is><t>x</t></is></c><c r="B2"><v>1</v></c></row><row r="3" hidden="1"><c r="A3" t="inlineStr"><is><t>y</t></is></c><c r="B3"><v>2</v></c></row><row r="4"><c r="A4" t="inlineStr"><is><t>Total</t></is></c><c r="B4"><f>SUBTOTAL(109,B2:B3)</f><v>3</v></c></row></sheetData><tableParts count="1"><tablePart r:id="rId1"/></tableParts>"#,
                 ),
             ),
             (
@@ -8488,6 +8488,11 @@ fn cdoc_m1_3__save_refusal() {
     let mut ids: IdAllocator<SheetId> = IdAllocator::new();
     let loaded_table = m1_2_load(&table, &mut ids).expect("the table package loads");
     let data = loaded_table.model().sheets()[0].id();
+    // A table with filter buttons but no criteria leaves manual hiding manual.
+    assert_eq!(
+        loaded_table.model().definitions().hidden_rows(data, 1, 4).collect::<Vec<_>>(),
+        [(3, calc_doc::model::RowHidden::Manual)]
+    );
     let in_header = m1_3_edit(
         loaded_table.model(),
         vec![set(data, 1, 2, text(units("Amount")))],

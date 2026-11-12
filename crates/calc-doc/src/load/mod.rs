@@ -2028,15 +2028,14 @@ pub fn load_preserving_sheet_ids(
             .filter(|(id, _, _)| *id == sheet.id)
             .flat_map(|(_, f, _)| f.filtered_rows.iter().copied())
             .collect::<std::collections::BTreeSet<_>>();
-        for (table, (id, f, manual)) in auto_filters
+        for (id, f, manual) in auto_filters
             .iter_mut()
-            .map(|v| (false, v))
-            .chain(table_visibility.iter_mut().map(|v| (true, v)))
-            .filter(|(_, (id, _, _))| *id == sheet.id)
+            .chain(table_visibility.iter_mut())
+            .filter(|(id, _, _)| *id == sheet.id)
         {
             let _ = id;
             *manual =
-                filter::visibility(f, manual.take(), &physical, &sheet.geometry, &peers, table);
+                filter::visibility(f, manual.take(), &physical, &sheet.geometry, &peers);
         }
     }
     for table in &mut tables {

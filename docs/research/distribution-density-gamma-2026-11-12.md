@@ -184,3 +184,156 @@ stay open; no accuracy assertion or recorded expected value was weakened.
 Raw evidence: dnacalc-evidence/research/round56/20261112-fn2-tdensity-0657/,
 114 files, 178,812,671 bytes. Checksum copy and one-way check: zero differences.
 No rejected F/normal/IRR/hypergeometric model is included in production.
+
+## F density via the gamma ratio, before retained-case calibration
+
+The binomial saddle point rounded both probability coordinates. Another
+identity works directly in x: for a=m/2,b=n/2,N=a+b,h=a/b,
+f(x)=sqrt(a)/sqrt(2*pi)*exp(s(N)-s(a)-s(b)
+ +(N-1/2)*log1p(h)+(a-1)*LN(x)-N*log1p(h*x)).
+Derive it by subtracting the defining Stirling expansions; no constants
+are fitted. Test stored/public-compensated/internal log1p products,
+exponent groupings and factor placement on the retained 192 F densities,
+with current invoke as control. This separates ratio normalization from
+the earlier rounded-p saddle point; a weak fit rejects it without new
+queries or production changes.
+
+The direct gamma-ratio calibration is rejected (best 11/192, baseline 1/192;
+no model fixes the captured F density). Before new F questions, freeze 512
+fixed-degree (6,8) density inputs and the current invoke/exact-mathematical
+predictions. Distinguish a single stored exponential from ratios of rounded
+powers by the phase of LN(answer/K) on the exponent's binary64 lattice.
+Declared K families: one; the fixed beta/gamma ratio with/without h^a;
+the x-polynomial numerator divided by beta; sqrt(a)/sqrt(2*pi); and the
+simplified binomial factor sqrt(a*b/N)/(sqrt(2*pi)*x). Compare mathematically
+equivalent stored factor placements without changing any coefficient.
+Use the large-|exponent| rows so output rounding is small relative to the
+exponent lattice. A phase concentration identifies a graph family only,
+not a product pass; a diffuse phase rejects that one-exponential family.
+
+The new exponent-grid result supports the saddle scale family on this fixed-degree slice: with
+K=sqrt(a*b/N)/(sqrt(2*pi)*x), 362/388 eligible rows lie within 0.1 of
+an exponent ulp and the median phase is 0.034 ulp. The other declared
+factors have diffuse phases (about 20% within 0.1, median about 0.25).
+The actual baseline matches 5/512 and the exact mathematical result only
+29/512; neither is claimed as an identified Excel program.
+
+Before retained calibration, exploit the exact linear cancellation in the
+two deviances: E=s(N)-s(a)-s(b)+a*LN(x)-N*LN((a*x+b)/N). Compare direct
+ratio and reciprocal logs, and log1p(a*(x-1)/N), with stored versus internal
+log products and exponent associations. Use existing fixed Stirling errors,
+LN/EXP and the saddle scale; no coefficient or threshold is tuned. Retain
+the rounded-mean deviance form as a comparator. A strong graph requires
+fresh degrees and frozen invoke validation, not just the fixed (6,8) slice.
+
+The direct exponent forms remain weak: best 105/512 on the fixed-degree
+slice and 10/192 on mixed degrees. The reciprocal-log form reproduces the
+captured answer but is rejected by the broader fit. The phase evidence for
+the saddle scale is retained independently of that rejection.
+
+Before more retained calibration, distinguish the mean-coordinate construction
+and the interleaved Stirling/deviance order used by the existing binomial
+exponent. Compare N*(a*x/den), (N*a*x)/den, a*(N*x/den), a*x/(den/N),
+paired reciprocal ratios and a shared displacement, with both interleaving
+orders and grouped negative controls. Keep the existing deviance body and
+Stirling errors untouched; no coefficient fit or fresh target is claimed.
+
+The ten mean constructions/interleavings are also weak (best 11/192),
+so none is selected. Next isolate the scale rather than attributing all
+misses to the exponent. For the 388 large-exponent fixed-degree rows,
+round LN(answer/K) to its nearest binary64 exponent using the approximate
+saddle K, freeze those exponents and native EXP predictions, then ask EXP.
+On retained F answers, compare fixed reciprocal-multiply versus sqrt/divide
+normalizers, placement of x and 2*pi inside/outside sqrt, and final product
+versus quotient stores. These are factor-shape calibration predictions only;
+the original F targets were already observed. No constant is tuned.
+
+All 388 frozen EXP primitives match the native kernel. With those exponents,
+the best declared scale is EXP(E)*sqrt(a*b/(N*2*pi))/x (246/388), stronger
+than forming sqrt(a*b/N)*INV_SQRT_2PI, but still incomplete. Before further
+calibration, isolate its x87 stores: the denominator product, ratio, sqrt
+and product/division publication, retaining versus storing each intermediate.
+Contrast the double 2*pi with the documented x87 ROM pi only after fixing
+these graph families; no fitted pi or empirical scale is introduced.
+
+Retaining the candidate scale's x87 intermediates raises the best to
+260/388, still too weak. Before treating its mathematical coefficient as
+identified, inspect the implied constant C=answer*x/EXP(E) across those
+rows and test its adjacent lattice loads under the declared C/x product
+and quotient graphs. This is an explicit constant-read diagnostic after
+the scale-family phase test, not an empirical constant allowed into
+production. A diffuse C or weak best load rejects the factor graph at
+this precision; no degree-specific table will be introduced.
+
+The implied C loads cluster at the mathematical saddle constant and its
+neighbours, but no adjusted binary64 load improves 260/388. No fitted
+constant is selected. Before more calibration, test the missing store: EXP
+itself may return a running PC64 value to the quotient rather than first
+publishing binary64. Compare a high-precision mathematical exponential
+with stored/running scale and final product sites as a model; a promising
+result must then be reproduced by the existing native exponential chain
+with its final store deferred, not by a second production exponential.
+
+Running mathematical EXP improves only to 274/388 and remains an incomplete
+scale model. Another existing graph accounts for an x-dependent last-bit
+scale: beta/Poisson densities put the logarithmic normalizer inside the
+compensated exponential. Before retained calibration, combine the unchanged
+binomial-style E with normalizer terms -LN(a)/2,-LN(b)/2,LN(N)/2,
+LN_SQRT_2PI,LN(x), using the existing excel_exp_running/compensated helpers.
+Compare the natural term orders and earlier mean-coordinate constructions;
+no coefficient or new exponential is introduced. Only a strong broad fit
+would justify fresh frozen-degree targets and application qualification.
+
+The logarithmic-normalizer calibration is rejected too (best 15/192; no
+captured match). Before attributing the remaining factor errors to arithmetic,
+compare the repository's existing CRT EXP countermodel with the measured public
+EXP at the inferred exponents. Internal distribution code need not call the
+worksheet exponential. This reads no runtime source and changes no primitive;
+only a substantially stronger factor fit would support that call-graph choice.
+
+CRT EXP agrees with the public EXP on 381/388 and does not improve the
+factor fit; it is rejected as the explanation. One remaining exponent-store
+ambiguity has not been qualified: its four Stirling/deviance subtractions
+may run at PC64 until the argument store rather than publish after each
+subtraction as BINOM does. Before calibration, vary only those store sites
+under the existing interleaved/swapped/grouped term orders and earlier mean
+constructions, with all input pieces and coefficients unchanged. Reject a
+weak broad fit; no normalizer constant is fitted.
+
+The exponent-store sweep is rejected (best 12/192, no captured match).
+Before new structural questions, freeze 60 tiny-x controls at degrees (6,8):
+five adjacent floats around each of 2^-k, k=20..400. The exact limiting
+coefficient is f(x)/x^2 ->25.3125. Direct powers should give a nearly fixed
+coefficient once 1+0.75*x rounds to one; an exponential of a stored logarithm
+should retain a growing log-sized rounding pattern. Freeze current invoke
+and exact-rational mathematical predictions before asking F.DIST. This
+measures the family, not new fitting coefficients or a production shortcut.
+
+The tiny-x probe matches neither baseline (0/60) nor exact mathematics
+(1/60). At k>=60 the normalized coefficient spreads from roughly -593
+to +198 ulp around 25.3125 rather than staying constant. At k=400 Excel
+returns zero for all five inputs even though the final mathematical
+density is normal: this supports a pre-scale exponential with the a*LN(x)
+term, whose underflow the later 1/x cannot recover. No small-x shortcut
+or strengthened pass claim follows.
+
+Before one final retained shape test, use the inferred exponent words only
+where the scale-phase distance is <0.1 ulp. For each earlier variable-term
+construction V, intersect the rounding intervals of E0+V across inputs;
+a single shape-only E0 must satisfy them if that graph is right. Compare
+that constrained constant with the existing Stirling sum and constants
+derived from public GAMMALN/LN; never introduce a fitted degree table.
+A weak common interval rejects the variable graph without new targets.
+
+The interval test rejects those variable graphs: at most 172/361 high-phase-
+confidence rows share any E0 interval; the existing Stirling/public-GAMMALN
+constants cover only about 110. No fitted degree constant is selected. The
+phase evidence and tiny-x underflow are structural clues, not complete
+identification or landed parity. All F-density experiments remain outside
+production; the existing captured F PDF mismatch stays open.
+
+Later structural F-density evidence: dnacalc-evidence/research/round59/
+20261112-fn2-fshape-0907/, 93 files, 16,602,670 bytes; checksum copy and
+one-way check zero differences. Large JSON/log records are losslessly
+gzipped; sources and all frozen inputs/observations are retained. No F
+implementation or expected value was changed by these experiments.

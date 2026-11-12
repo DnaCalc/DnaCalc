@@ -106,3 +106,73 @@ The restored existing BGRAT accuracy guard passes again (1/1). Raw rejected
 candidate/holdout/guard evidence: R2 dnacalc-evidence/research/round55/
 20261112-fn2-ttest-0619/ (101 files, 197,186,509 bytes for the batch; checksum
 copy and one-way check, zero differences). These are not landed T-tail gains.
+
+## Half-shape gamma leaf, before retained-case calibration
+
+The BGRAT remainder calls GRAT1 at b=1/2, where this retained TOMS body
+still uses NSWC ERF/ERFC approximations. The main gamma family instead
+uses the already-measured shared public ERF/ERFC kernels. Hypothesis: the
+asymptotic remainder shares those leaves too. First qualify isolated reuse
+(with ordinary versus staged sqrt) on retained T answers and the unchanged
+BGRAT accuracy controls. Separately test its prefactor r=b*PoissonMass(b,z),
+which avoids two rounded operations in z*GammaPDF(z,b). Keep coefficients,
+convergence limits and dispatch unchanged; no production change unless a
+strong calibration survives fresh frozen invoke queries and the full gates.
+
+Isolated shared ERF/ERFC reuse improves the 1,120 retained T tails from
+651 to 686: 36 gained, one lost. Staged sqrt has no effect on these inputs.
+The prefactor-only change has no net gain; the LN(z) variants still violate
+the existing beta accuracy guard. Keep only the shared half-shape leaf,
+without either rejected change. The captured T tail remains unchanged.
+
+Before new queries, freeze 512 independent mixed-function controls: 256 T
+tails (192 large-degree BGRAT and 64 mixed controls), 128 half-shape beta
+CDFs and 128 non-half-shape controls. Freeze both ordinary and shared-leaf
+native models, requiring the baseline to reproduce invoke on every input.
+The isolated candidate must reproduce its model through invoke before any
+application claim. No coefficients, branch limits or assertions change.
+
+All 512 candidate invoke results reproduce their frozen native models. Five
+focused paired/alias controls and the unchanged BGRAT accuracy guard pass.
+The final full bank rejects the change: 3,895,336 ->3,895,335 /3,910,795
+matched, two gained and three lost, ten actuals changed. BETA.DIST loses
+oc307 and oc316 (build-20131); FDIST loses fd-var-ref-v3-034-0002
+(work/w109/G3-06-ftest-variance/answers-fdist-variance-refinement-discovery-v3.json).
+TDIST gains two and loses none. All 3,910,791 decoded reading/input/answer/
+source/environment identities are unchanged.
+
+The source, focused candidate test and rejected status are reverted exactly
+to the landed commit. No pin or Excel reading was refreshed; no full corpus
+run is claimed for a candidate rejected by the bank. The restored existing
+BGRAT guard passes again. Fresh holdout loss 52 and all three bank losses
+remain in the raw transition records. This is rejected research, not landed
+parity or a new assertion allowance.
+
+## Remainder quotient store, before retained-case calibration
+
+Public ERFC for root>=1/2 is store(E*F), with both E and F independently
+measured existing leaves. BGRAT then forms j=Q/r. Test whether the remainder
+instead stores E*F/r once, or stores E/r before multiplying F (and its
+symmetric alternative); also distinguish PC64 division of the rounded Q.
+Keep E's stored square/exponential, F's coefficient table and every BGRAT
+coefficient/iteration unchanged. The three newly lost bank rows and all
+retained 1,120 T tails are calibration, not fresh evidence. Require a fresh
+frozen holdout and the full gates if a quotient shape is promising.
+
+The quotient-store calibration is rejected: the best remains 686/1,120,
+and every proposed graph keeps both BETA bank losses; only one weaker
+association recovers the FDIST loss. No quotient change or fresh shape
+holdout follows. Before new diagnostic rechecks, freeze the two gained and
+three lost bank rows' complete inputs/old/new/retained answers, then ask the
+current Excel service. This distinguishes real losses from possible build
+differences without changing any retained bank answer.
+
+Further rejected-model evidence: dnacalc-evidence/research/round58/20261112-fn2-rejected-0830/,
+64 files, 120,226,186 bytes; checksum copy and one-way check zero differences.
+These records do not add a landed pass or change any Excel answer.
+
+The quotient and fresh bank-recheck records are in
+dnacalc-evidence/research/round59/20261112-fn2-fshape-0907/
+(93 files, 16,602,670 bytes for the research batch; checksum copy and
+one-way check zero differences). Excel 20527 confirms all three real bank
+losses and both gains; the rejected shared-leaf change remains reverted.

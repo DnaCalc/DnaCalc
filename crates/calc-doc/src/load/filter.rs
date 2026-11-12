@@ -353,7 +353,6 @@ pub(super) fn visibility(
     hidden: &[u32],
     geometry: &super::SheetGeometry,
     peer_rows: &BTreeSet<u32>,
-    table: bool,
 ) -> Option<BTreeSet<u32>> {
     let physically_hidden = hidden
         .iter()
@@ -385,7 +384,7 @@ pub(super) fn visibility(
                 .all(|r| *r > filter.area.first().row() && *r <= filter.area.last().row())
     });
     if manual.is_none() {
-        filter.filtered_rows = if filter.columns.is_empty() && !filter.unsupported && !table {
+        filter.filtered_rows = if filter.columns.is_empty() && !filter.unsupported {
             Default::default()
         } else {
             physically_hidden

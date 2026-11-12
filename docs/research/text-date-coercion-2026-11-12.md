@@ -65,3 +65,14 @@ parameter; no registry or regional setting was changed. The US bead stays open.
 Later evidence: R2 dnacalc-evidence/research/round56/20261112-fn2-tdensity-0657/
 (114 files, 178,812,671 bytes for the batch; checksum copy and one-way check,
 zero differences). No additional implementation change is claimed here.
+
+Final service recheck before stopping: freeze the prior YMD predictions
+and ask the two distinguishing DATEVALUE inputs again. The local socket
+is still absent; the working file queue still returns 38018 for 04/02/01
+and #VALUE! for 4/2/2001. The Excel environment is unchanged. A US-MDY
+session remains unavailable; no US parser rule or 18,008-cell gain is claimed.
+
+The final recheck's text/type echo is verified after omitting only v1's
+unreturned cell-mode metadata. Its observations and frozen predictions are
+in the verified round60 table-batch evidence prefix (32 files, 145,160,194
+bytes for that batch). No date-input value or parser expectation was changed.

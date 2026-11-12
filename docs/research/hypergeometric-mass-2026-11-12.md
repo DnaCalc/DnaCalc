@@ -61,3 +61,26 @@ hypergeometric arithmetic or coefficients land from this calibration.
 Later evidence: R2 dnacalc-evidence/research/round56/20261112-fn2-tdensity-0657/
 (114 files, 178,812,671 bytes for the batch; checksum copy and one-way check,
 zero differences). No additional implementation change is claimed here.
+
+## Cumulative composition, before new primitive queries
+
+Freeze 128 fresh short-support controls (sample/success support at most 20),
+plus the captured (2,6,8,44), with every admitted PDF term required for both
+tails. Compare forward/reverse binary64, stored-PC64, running-PC64 and Kahan
+sums of the public masses, plus one minus the upper tail and normalization
+by the full sum. Qualify the cumulative's arithmetic separately from its
+already-failing mass primitive. Freeze each composed prediction before
+asking cumulative Excel targets; a strong public composition still requires
+correct product leaves before any implementation claim.
+
+The baseline matches 37/128 fresh cumulative targets. Even with Excel's own
+PDF terms, the best sum is only 70/128 (stored reverse); ordinary forward
+sum is 67/128, upper complement 49/128 and normalization 51/128 at best.
+The captured CDF is reproduced by upper-tail/normalized public compositions,
+but their broader fit is weak. With actual product masses, reverse sum
+38/128, upper complement 42/128 and normalization 42/128; none identifies
+Excel's route. No cumulative or mass implementation change follows.
+
+Further rejected-model evidence: dnacalc-evidence/research/round58/20261112-fn2-rejected-0830/,
+64 files, 120,226,186 bytes; checksum copy and one-way check zero differences.
+These records do not add a landed pass or change any Excel answer.

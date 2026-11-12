@@ -154,3 +154,22 @@ No inverse changes or coefficient adjustments land.
 Later evidence: R2 dnacalc-evidence/research/round56/20261112-fn2-tdensity-0657/
 (114 files, 178,812,671 bytes for the batch; checksum copy and one-way check,
 zero differences). No additional implementation change is claimed here.
+
+## Algebraically transformed published central table, before calibration
+
+One remaining arithmetic shape is the polynomial basis: evaluate the same
+published AS241 rational after exactly expanding A(0.180625-q*q) and B at
+that argument into powers of q*q. Contrast unnormalized and constant-term
+normalized denominators, q versus 2*q, and binary64 versus stored-PC64
+coefficients/arithmetic. Coefficients are derived solely by binomial expansion
+of the published decimals, without fitting any digit to Excel. Use retained
+calibration first; a weak fit rejects this basis too.
+
+The exact polynomial-basis expansion is rejected on retained calibration too:
+best 37/128 across the declared basis/scaling/precision graphs. No coefficients
+were fitted to Excel and no fresh normal-inverse query or implementation
+change follows from this weak fit.
+
+Further rejected-model evidence: dnacalc-evidence/research/round58/20261112-fn2-rejected-0830/,
+64 files, 120,226,186 bytes; checksum copy and one-way check zero differences.
+These records do not add a landed pass or change any Excel answer.

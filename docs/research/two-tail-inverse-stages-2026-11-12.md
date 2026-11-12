@@ -125,3 +125,22 @@ focused endpoint and gained-control tests also pass.
 Evidence: dnacalc-evidence/research/round57/20261112-fn2-inverse-0810/,
 103 files, 154,664,921 bytes; checksum copy and one-way check zero differences.
 No F inverse, gamma inverse or longer beta recurrence alternative lands.
+
+## Shape-two beta inverse, before retained-case calibration
+
+The exact defining integral for BETA(a,2) is x^a*(1+a*(1-x)), with
+derivative a*(a+1)*x^(a-1)*(1-x). Test whether its mathematical inverse
+explains the remaining shape-two bank rows, including the real oc56 loss,
+before considering any solver change. Use Decimal 80/100-digit roots as
+independent calibration, not product behavior or an Excel pass. A special
+requires a strong fresh frozen shape-specific holdout and a stable general
+computation; do not select a row-specific adjustment or fit constants.
+
+The exact shape-two mathematical inverse is rejected on the retained bank:
+3/8 match versus current 4/8. It recovers oc56 but loses other existing
+matches. Both Decimal precisions agree. No special case or fresh target
+query follows from this weak result.
+
+Further rejected-model evidence: dnacalc-evidence/research/round58/20261112-fn2-rejected-0830/,
+64 files, 120,226,186 bytes; checksum copy and one-way check zero differences.
+These records do not add a landed pass or change any Excel answer.

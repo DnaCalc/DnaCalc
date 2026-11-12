@@ -25,3 +25,24 @@ versus current 43/128, including the captured point, but are far from a full
 Excel program. No solver change follows from mathematical accuracy alone.
 The first forward request mistakenly sent unwrapped float values; the service
 refused it. The corrected request reuses the original frozen predictions.
+
+## Unrounded series residual, before retained-case calibration
+
+The gamma series publishes store(PoissonMass(a,x)*series). An inverse could
+subtract p before that final store and therefore resolve a public-CDF plateau
+without changing any public CDF. Isolate that hypothesis: reuse the existing
+stored series factors, but form PC64(mass*sum-p) with the existing running
+multiply/add primitive. Outside the Taylor arm retain the current CDF residual.
+Compare the crossing and nearest-residual lattice points on retained cases,
+with the ordinary residual required to reproduce invoke. This changes no
+coefficient, convergence limit or public gamma calculation. A weak result
+rejects the hypothesis; a strong one needs fresh frozen application queries.
+
+The unrounded-series residual is rejected on calibration: crossing 81/256,
+nearest residual 97/256 versus baseline 85 and ordinary nearest-forward 99.
+It also leaves the captured inverse at ...28fc rather than Excel ...28fd.
+The control reproduces invoke on every input. No gamma inverse change lands.
+
+Further rejected-model evidence: dnacalc-evidence/research/round58/20261112-fn2-rejected-0830/,
+64 files, 120,226,186 bytes; checksum copy and one-way check zero differences.
+These records do not add a landed pass or change any Excel answer.
