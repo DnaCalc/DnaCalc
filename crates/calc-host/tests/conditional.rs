@@ -119,3 +119,28 @@ fn dc_6yw__icons_and_data_bars_as_excel_draws_them() {
     assert!(bar(1).gradient);
     assert_eq!(bar(1).color, Some(LookColor::Rgb("#638ec6".to_owned())));
 }
+
+/// dc-qgth: a differential format's solid fill is its bgColor. circular-reference.xlsx's three
+/// rules on B7:Q18 carry only a `fgColor`, and Excel 16.0.20527 shows no fill on those cells.
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn dc_qgth__a_solid_dxf_fill_with_only_a_fg_color_paints_nothing() {
+    let source: Arc<dyn PackageRead> = Arc::new(MemorySource::new(
+        include_bytes!("fixtures/circular-reference.xlsx").to_vec(),
+    ));
+    let mut session = HostSession::open(source, &OpenPolicy::default(), HostOptions::default())
+        .expect("it opens");
+    assert!(session.dispatch(SkinIntent::Recalculate).accepted());
+    let host = session.host();
+    let sheet = host.sheets()[0].id();
+    let formats = host.conditional_formats(sheet);
+    assert!(formats.rule_count() >= 3);
+    for row in 7..=18u32 {
+        for column in 2..=17u32 {
+            let look = formats
+                .look(host, CellKey::new(sheet, row, column).unwrap())
+                .unwrap_or_default();
+            assert_eq!(rgb(&look.fill), None, "row {row} column {column}");
+        }
+    }
+}

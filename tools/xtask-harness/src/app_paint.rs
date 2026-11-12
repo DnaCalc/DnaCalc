@@ -400,9 +400,19 @@ fn execute(ws: &Workspace, app: &App, raw: &[String]) -> Result<(), String> {
                 }
                 capture_viewport(&session, browser, 1200, dpr)?;
                 upload(app, &session, "open-file", book)?;
+                // The opened workbook's identity and a settled paint, not the transient
+                // "Opened ..." status (an iterative workbook settles with another status).
+                let stem = book
+                    .file_stem()
+                    .and_then(|s| s.to_str())
+                    .ok_or("Workbook has no file name")?
+                    .replace('\\', "\\\\")
+                    .replace('\'', "\\'");
                 settled(
                     &session,
-                    "return document.querySelector('[data-dnacalc=status]').textContent.startsWith('Opened ')",
+                    &format!(
+                        "const d=document.querySelector('[data-dnacalc=document]'),p=Object.values(window.__dnacalcRenderPlans||{{}}).map(f=>JSON.parse(f())).find(p=>p.active);return !!d&&d.textContent.includes('{stem}')&&!!p&&p.pending===0&&!!p.plan&&!!p.plan.publication&&!p.plan.interrupted;"
+                    ),
                 )?;
                 if let Some(target) = sheet_height {
                     for _ in 0..3 {
