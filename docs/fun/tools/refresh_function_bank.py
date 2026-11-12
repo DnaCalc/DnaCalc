@@ -36,6 +36,8 @@ def first_sentence(md):
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument('--handbook', required=True, help='folder with FUNC.<NAME>.json files from the handbook build')
+    ap.add_argument('--land', help='landscape.json from function_bank_landscape.py (optional; keeps the embedded one otherwise)')
+    ap.add_argument('--land-note', default='', help='where the landscape rows came from, shown in the footer')
     a = ap.parse_args()
     head = git('rev-parse', '--short', 'HEAD').strip()
     cur = status_at('HEAD')
