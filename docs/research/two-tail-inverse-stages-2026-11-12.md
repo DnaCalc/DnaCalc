@@ -214,3 +214,14 @@ all-target and wasm checks passed. The full generated status survives pin refres
 unchanged. Evidence controls are in 50f76220 and 211faa3b; the latter also
 retains rejected inverse and follow-up continued-fraction discriminators.
 R2: dnacalc-corpus/runs/dna-koderbot/20261112-fix2-batch3/ (8 files, 303418250 bytes; checksum copy and one-way check passed).
+
+
+The final merge incorporates 17,950 new rectangular-range readings and the
+bank lane's caller support. A full rerun at source 19a56164 / Evidence
+211faa3b gives 4553133 matched, 128209 failed / 4681342, including four
+unread and 2064 excluded. Canonical comparison of all 4663388 retained
+decoded readings finds zero changed actuals, with identities and recorded
+answers unchanged. All new readings remain in the full denominator. The
+T-family counts and worst ULPs are unchanged. Corpus remains 77039/78264;
+the merged light check passes 959 tests, zero failures, plus workspace
+all-target and wasm checks. Final snapshot: dnacalc-corpus/runs/dna-koderbot/20261112-fix2-batch3-merged/ (9 files, 152552324 bytes; checksum copy and one-way check passed).
