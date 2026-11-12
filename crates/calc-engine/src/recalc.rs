@@ -3124,7 +3124,9 @@ fn bind(
     let mut prerequisites = match &binding {
         Binding::Placed(instance, _) => {
             let plan = instance.plan();
-            if plan.volatile() {
+            // Until the formula is evaluated its volatility is unknown: a name's body may carry
+            // the token, and the evaluation decides (formula_volatile).
+            if plan.reads_volatile_inputs() {
                 state.volatile.insert(node);
             }
             if plan.calls().any(|target| target.traits().is_subtotal) {

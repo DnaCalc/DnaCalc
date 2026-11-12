@@ -27999,3 +27999,90 @@ fn dc_0f1k_11_3__reopened_large_rectangle_format_is_one_region() {
     assert_eq!(reopened.host().cell_style(at(r, "C10")), 0);
     assert_eq!(reopened.host().cell_style(at(r, "D20011")), 0);
 }
+
+/// dc-1nbp.20 (17.a): a conditional-format rule resets only the subscriptions whose interest meets
+/// its areas; every other subscription takes the ordinary diff, one changed cell for one edit. A
+/// removed rule still repaints the cells it covered.
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn dc_1nbp_20__a_rule_resets_only_the_subscriptions_that_meet_its_areas() {
+    let bytes = package_with_part("xl/worksheets/sheet1.xml", |xml| {
+        xml.replace("</worksheet>", r#"<conditionalFormatting sqref="Z1000"><cfRule type="expression" priority="1"><formula>1=1</formula></cfRule></conditionalFormatting></worksheet>"#)
+    });
+    let mut book = session(&bytes);
+    let s = book.host().sheets()[0].id();
+    let near = GridArea::new(at(s, "A1"), at(s, "C3")).unwrap();
+    let covered = GridArea::new(at(s, "Z999"), at(s, "Z1001")).unwrap();
+    assert!(
+        book.host()
+            .model()
+            .definitions()
+            .all_conditional_rules()
+            .any(|(_, rules)| !rules.is_empty()),
+        "the rule loads"
+    );
+    let (_, near_log) = subscribe(&mut book, Interest::Area(near));
+    let (_, covered_log) = subscribe(&mut book, Interest::Area(covered));
+    let (near_before, covered_before) = (near_log.borrow().len(), covered_log.borrow().len());
+    enter(&mut book, at(s, "A1"), "5");
+    {
+        let log = near_log.borrow();
+        assert_eq!(log.len(), near_before + 1);
+        let delta = log.last().unwrap();
+        assert!(!delta.reset, "a subscription outside the rule's areas is not reset");
+        assert_eq!(delta.cells.len(), 1);
+    }
+    assert!(
+        covered_log.borrow().len() > covered_before && covered_log.borrow().last().unwrap().reset,
+        "a subscription meeting the rule's areas is reset"
+    );
+    // Removing the last rule repaints the covered cells, and leaves the other interest alone.
+    let (near_before, covered_before) = (near_log.borrow().len(), covered_log.borrow().len());
+    assert!(
+        book.dispatch(SkinIntent::Edit {
+            edits: vec![CellEdit::ConditionalRules {
+                sheet: s,
+                rules: vec![]
+            }]
+        })
+        .accepted()
+    );
+    assert!(covered_log.borrow().len() > covered_before);
+    assert!(covered_log.borrow().last().unwrap().reset);
+    assert_eq!(near_log.borrow().len(), near_before);
+}
+
+/// dc-1nbp.20 (17.a, P2): with one conditional rule outside the interest, a one-cell edit in a
+/// dense interest publishes that one cell, not the whole interest.
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn dc_1nbp_20__a_one_cell_edit_with_a_rule_outside_the_interest_publishes_one_cell() {
+    let bytes = package_with_part("xl/worksheets/sheet1.xml", |xml| {
+        xml.replace("</worksheet>", r#"<conditionalFormatting sqref="Z1000"><cfRule type="expression" priority="1"><formula>1=1</formula></cfRule></conditionalFormatting></worksheet>"#)
+    });
+    let mut book = session(&bytes);
+    let s = book.host().sheets()[0].id();
+    for row in 1..=32u32 {
+        for column in 1..=48u32 {
+            let at = CellKey::new(s, row, column).unwrap();
+            book.dispatch(SkinIntent::EnterCell {
+                at,
+                text: (row * 100 + column).to_string(),
+            });
+        }
+    }
+    let view = GridArea::new(at(s, "A1"), CellKey::new(s, 32, 48).unwrap()).unwrap();
+    let (_, log) = subscribe(&mut book, Interest::Area(view));
+    let before = log.borrow().len();
+    assert_eq!(log.borrow()[0].cells.len(), 32 * 48);
+    enter(&mut book, at(s, "A1"), "7");
+    let log = log.borrow();
+    let published: usize = log[before..].iter().map(|d| d.cells.len()).sum();
+    let bytes: usize = log[before..]
+        .iter()
+        .map(|d| d.cells.iter().map(|c| format!("{c:?}").len()).sum::<usize>())
+        .sum();
+    eprintln!("DBG20 deltas {} cells {published} debug-bytes {bytes}", log.len() - before);
+    assert!(log[before..].iter().all(|d| !d.reset));
+    assert_eq!(published, 1);
+}
