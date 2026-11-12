@@ -230,6 +230,13 @@ fn factorials_and_combinatorics() {
         1_259.999_999_999_999,
     );
     error(call("MULTINOMIAL", vec![n(-1.0)]), Num);
+    for args in [
+        vec![n(0.0), n(1e100)],
+        vec![n(171.0)],
+        vec![n(170.0), n(1.0)],
+    ] {
+        error(call("MULTINOMIAL", args), Num);
+    }
 }
 
 #[cfg_attr(not(target_arch = "wasm32"), test)]
@@ -272,6 +279,30 @@ fn series_and_paired_sums() {
     exact(
         call(
             "SERIESSUM",
+            vec![
+                n(f64::from_bits(0x4084_daa4_0643_1804)),
+                n(-0.5),
+                n(10.0),
+                n(f64::from_bits(0x3929_867d_9c7b_0918)),
+            ],
+        ),
+        f64::from_bits(0x38df_9e86_63cc_7c72),
+    );
+    // Excel 20527: powers are staged before coefficient multiplication.
+    exact(
+        call("SERIESSUM", vec![n(-2.0), n(0.5), n(1.0), n(1.0)]),
+        0.0,
+    );
+    exact(
+        call("SERIESSUM", vec![n(1e-10), n(32.0), n(1.0), n(1e300)]),
+        0.0,
+    );
+    exact(call("SERIESSUM", vec![n(2.0), n(1.0), n(1.0), t("1")]), 2.0);
+    error(call("SERIESSUM", vec![n(0.0), n(0.0), n(1.0), n(0.0)]), Num);
+
+    exact(
+        call(
+            "SERIESSUM",
             vec![n(2.0), n(0.0), n(1.0), arr(vec![vec![1.0, 2.0, 3.0]])],
         ),
         17.0,
@@ -287,6 +318,17 @@ fn series_and_paired_sums() {
 #[cfg_attr(not(target_arch = "wasm32"), test)]
 #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
 fn matrix_functions() {
+    for value in [1e-100, -1e-13, 0.0] {
+        exact(call("MDETERM", vec![n(value)]), value);
+    }
+    exact(
+        call(
+            "MDETERM",
+            vec![arr(vec![vec![1e-100, 0.0], vec![0.0, 2.0]])],
+        ),
+        2e-100,
+    );
+
     close(
         call("MDETERM", vec![arr(vec![vec![1.0, 2.0], vec![3.0, 4.0]])]),
         -2.0,

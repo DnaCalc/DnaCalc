@@ -29,6 +29,7 @@ pub(crate) struct Site<'m> {
     id: FunctionId,
     mode: &'m NumericMode,
     environment: Option<CalcEnvironment>,
+    number_separators: Option<(&'m str, &'m str)>,
 }
 
 impl<'m> Site<'m> {
@@ -37,6 +38,7 @@ impl<'m> Site<'m> {
             id,
             mode: services.numeric_mode(),
             environment: services.environment(),
+            number_separators: services.number_separators(),
         }
     }
 
@@ -47,6 +49,13 @@ impl<'m> Site<'m> {
     /// The call's environment, when the caller supplied one.
     pub(crate) fn environment(&self) -> Option<&CalcEnvironment> {
         self.environment.as_ref()
+    }
+
+    pub(crate) fn number_separators(&self) -> Option<(&str, &str)> {
+        self.environment()
+            .and_then(|e| e.profile.as_ref())
+            .map(|p| (p.decimal_separator, p.thousands_separator))
+            .or(self.number_separators)
     }
 
     /// The call's result from a kernel's last step: a worksheet error that stopped it is the

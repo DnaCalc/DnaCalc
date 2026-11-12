@@ -585,7 +585,10 @@ pub(crate) fn numbervalue(
         return Ok(0.0);
     }
     let mut percent_count = 0u32;
-    while raw.ends_with('%') {
+    while raw.ends_with('%')
+        && decimal_separator != Some('%')
+        && group_separator != Some('%')
+    {
         raw.pop();
         percent_count += 1;
     }
@@ -596,6 +599,8 @@ pub(crate) fn numbervalue(
     let mut sign = 1.0;
     if let Some(ch) = chars.peek().copied()
         && (ch == '+' || ch == '-')
+        && decimal_separator != Some(ch)
+        && group_separator != Some(ch)
     {
         sign = if ch == '-' { -1.0 } else { 1.0 };
         chars.next();
@@ -603,22 +608,34 @@ pub(crate) fn numbervalue(
     let mut normalized = String::new();
     let mut seen_digit = false;
     let mut seen_decimal = false;
+    let mut seen_explicit_decimal = false;
     let mut seen_exponent = false;
     for ch in chars {
-        if ch.is_ascii_digit() {
-            normalized.push(ch);
-            seen_digit = true;
-            continue;
-        }
         if decimal_separator == Some(ch) {
             if seen_decimal || seen_exponent {
                 return Err(NumberValueError::Syntax);
             }
             normalized.push('.');
             seen_decimal = true;
+            seen_explicit_decimal = true;
             continue;
         }
-        if group_separator == Some(ch) && !seen_decimal {
+        if group_separator == Some(ch) && !seen_explicit_decimal {
+            continue;
+        }
+        // The explicit decimal character is translated to the parser's dot;
+        // a dot already present remains valid unless selected as the group.
+        if ch == '.' {
+            if seen_decimal || seen_exponent || group_separator == Some(ch) {
+                return Err(NumberValueError::Syntax);
+            }
+            normalized.push('.');
+            seen_decimal = true;
+            continue;
+        }
+        if ch.is_ascii_digit() {
+            normalized.push(ch);
+            seen_digit = true;
             continue;
         }
         if matches!(ch, 'e' | 'E') && seen_digit && !seen_exponent {

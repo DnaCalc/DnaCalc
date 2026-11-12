@@ -401,8 +401,8 @@ fn numbervalue(site: &Site<'_>, a: &[CalcValue]) -> Step<CalcValue> {
     let (decimal_default, group_default) = if given(a, 1) && given(a, 2) {
         (".", ",")
     } else {
-        let (_, profile) = profile(site)?;
-        (profile.decimal_separator, profile.thousands_separator)
+        site.number_separators()
+            .ok_or_else(|| site.not_modelled(None))?
     };
     let decimal = separator(1, decimal_default)?;
     let group = separator(2, group_default)?;
