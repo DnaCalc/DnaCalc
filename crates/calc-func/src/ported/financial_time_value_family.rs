@@ -556,39 +556,50 @@ fn rate_secant(
     }
 }
 
-pub fn npv(periodic_rate: f64, cashflows: &[f64]) -> Result<f64, FinancialError> {
-    validate_finite(&[periodic_rate])?;
-    validate_finite(cashflows)?;
-    if cashflows.is_empty() {
-        return Err(FinancialError::Value);
+/// Stored discount terms shared by NPV and MIRR. The discount divisor and
+/// each quotient follow Excel's DAZ/FTZ stores; the running sum retains tiny
+/// cancellation residues. None advances time without discounting a flow.
+fn discounted_cashflows(
+    base: f64,
+    cashflows: impl Iterator<Item = Option<f64>>,
+) -> Result<(f64, f64), FinancialError> {
+    let mut power = 1.0;
+    let mut total = 0.0;
+    for cashflow in cashflows {
+        if let Some(cashflow) = cashflow {
+            let divisor = financial_daz(power);
+            if !divisor.is_finite() || divisor == 0.0 {
+                return Err(FinancialError::Div0);
+            }
+            let term = financial_daz(excel_x87_div(cashflow, divisor));
+            if !term.is_finite() {
+                return Err(FinancialError::Div0);
+            }
+            total = excel_x87_add(total, term);
+        }
+        power = excel_x87_mul(power, base);
     }
-    // Excel's loop (design/fable52-last-bit.md section 1, Claude Fable 5.2): every operation is
-    // an x87 store; the flows are discounted as if the first were at time 0 and the sum is
-    // divided by 1 + rate once at the end.
-    let base = excel_x87_add(1.0, periodic_rate);
+    Ok((total, power))
+}
+
+fn discounted_npv(base: f64, cashflows: impl Iterator<Item = f64>) -> Result<f64, FinancialError> {
     if base == 0.0 {
         return Err(FinancialError::Div0);
     }
-    let mut power: f64 = 1.0;
-    let mut total = 0.0;
-    for cashflow in cashflows {
-        // An infinite or zero power when it is used, or a non-finite term, is #DIV/0!.
-        if !power.is_finite() || power == 0.0 {
-            return Err(FinancialError::Div0);
-        }
-        let term = excel_x87_div(*cashflow, power);
-        if !term.is_finite() {
-            return Err(FinancialError::Div0);
-        }
-        total = excel_x87_add(total, term);
-        power = excel_x87_mul(power, base);
-    }
-    let result = excel_x87_div(total, base);
+    let (total, _) = discounted_cashflows(base, cashflows.map(Some))?;
+    let result = financial_daz(excel_x87_div(total, base));
     if result.is_finite() {
         Ok(result)
     } else {
         Err(FinancialError::Num)
     }
+}
+
+pub fn npv(periodic_rate: f64, cashflows: &[f64]) -> Result<f64, FinancialError> {
+    validate_finite(&[periodic_rate])?;
+    validate_finite(cashflows)?;
+    // Time-zero stored discounts, followed by one division by the stored base.
+    discounted_npv(excel_x87_add(1.0, periodic_rate), cashflows.iter().copied())
 }
 
 /// Remaining balance after `periods` payments, on the exp/log1p/expm1 core (W108
@@ -944,32 +955,59 @@ pub fn mirr(
 ) -> Result<f64, FinancialError> {
     validate_finite(&[finance_rate, reinvest_rate])?;
     validate_finite(cashflows)?;
-    if cashflows.len() < 2 {
+    if cashflows.len() < 2
+        || !cashflows.iter().any(|value| *value > 0.0)
+        || !cashflows.iter().any(|value| *value < 0.0)
+    {
         return Err(FinancialError::Div0);
     }
-    let has_positive = cashflows.iter().any(|value| *value > 0.0);
-    let has_negative = cashflows.iter().any(|value| *value < 0.0);
-    if !has_positive || !has_negative {
+    // Native Excel 20527: positive NPV is evaluated before finance discounts.
+    // It is compounded for the full cashflow count before division, not for
+    // nper after forming the ratio. The shared loop preserves NPV's stores.
+    let reinvest_base = excel_x87_add(1.0, reinvest_rate);
+    let positive_npv = discounted_npv(
+        reinvest_base,
+        cashflows
+            .iter()
+            .map(|value| if *value > 0.0 { *value } else { 0.0 }),
+    )?;
+    let finance_base = excel_x87_add(1.0, finance_rate);
+    let (finance_pv, terminal_power) = discounted_cashflows(
+        finance_base,
+        cashflows
+            .iter()
+            .map(|value| if *value < 0.0 { Some(*value) } else { None }),
+    )?;
+    // The finance stream also reports overflow of its unused terminal power.
+    // A zero base remains valid when every negative flow is at time zero.
+    if !finance_pv.is_finite() || !terminal_power.is_finite() {
+        return Err(FinancialError::Num);
+    }
+    let finance_pv = financial_daz(finance_pv);
+    if finance_pv == 0.0 {
         return Err(FinancialError::Div0);
     }
-    if (1.0 + finance_rate).abs() < EPSILON || (1.0 + reinvest_rate).abs() < EPSILON {
-        return Err(FinancialError::Div0);
+    let growth = crt_pow(reinvest_base, cashflows.len() as f64);
+    let ratio = financial_daz(excel_x87_div(
+        excel_x87_mul(-positive_npv, growth),
+        finance_pv,
+    ));
+    let periods = cashflows.len() - 1;
+    let negative = ratio < 0.0;
+    if negative && periods % 2 == 0 {
+        return Err(FinancialError::Num);
     }
-    let periods = (cashflows.len() - 1) as f64;
-    let mut finance_pv = 0.0;
-    let mut reinvest_fv = 0.0;
-    for (idx, cashflow) in cashflows.iter().enumerate() {
-        let idxf = idx as f64;
-        if *cashflow < 0.0 {
-            finance_pv += *cashflow / crt_pow(1.0 + finance_rate, idxf);
-        } else if *cashflow > 0.0 {
-            reinvest_fv += *cashflow * crt_pow(1.0 + reinvest_rate, periods - idxf);
-        }
-    }
-    if finance_pv >= 0.0 || reinvest_fv <= 0.0 {
-        return Err(FinancialError::Div0);
-    }
-    let result = crt_pow(-reinvest_fv / finance_pv, 1.0 / periods) - 1.0;
+    let magnitude = ratio.abs();
+    // Degree-one identity and CRT half-power are measured private-root routes;
+    // higher degrees use the existing stored LN/reciprocal/EXP chain.
+    let root = if magnitude == 0.0 || periods == 1 {
+        magnitude
+    } else if periods == 2 {
+        crt_pow(magnitude, 0.5)
+    } else {
+        crate::ported::excel_numeric::excel_pow_chain(magnitude, excel_x87_div(1.0, periods as f64))
+    };
+    let result = excel_x87_sub(if negative { -root } else { root }, 1.0);
     if result.is_finite() {
         Ok(result)
     } else {
