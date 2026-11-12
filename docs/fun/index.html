@@ -1,0 +1,52 @@
+<!doctype html>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>DNA Calc Playground</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,800&family=IBM+Plex+Mono:wght@400;600&family=IBM+Plex+Sans:wght@400;600&display=swap">
+<style>
+:root { --paper: #fbfaf6; --card: #ffffff; --ink: #1d2733; --muted: #616b77; --rule: #e4e0d6; --green: #1e7b4b; --amber: #c98a1a; --blue: #2b63c9; --violet: #6b4fb3;
+  --display: "Bricolage Grotesque", "Segoe UI", system-ui, sans-serif; --body: "IBM Plex Sans", "Segoe UI", system-ui, sans-serif; --mono: "IBM Plex Mono", ui-monospace, Consolas, monospace }
+@media (prefers-color-scheme: dark) { :root { --paper: #14171c; --card: #1b1f25; --ink: #e8ebef; --muted: #a2aab4; --rule: #2a2f37; --green: #4cc887; --amber: #f0b44a; --blue: #7fb0ff; --violet: #b49cff; color-scheme: dark } }
+* { box-sizing: border-box }
+body { margin: 0; background: var(--paper); color: var(--ink); font: 400 15.5px/1.55 var(--body) }
+main { max-width: 1080px; margin: 0 auto; padding: 32px max(16px, env(safe-area-inset-right, 0px)) 56px max(16px, env(safe-area-inset-left, 0px)) }
+.eyebrow { font: 600 12px var(--mono); letter-spacing: .14em; text-transform: uppercase; color: var(--green) }
+h1 { margin: 8px 0 0; font: 800 clamp(40px, 7vw, 76px)/.95 var(--display); letter-spacing: -.02em }
+p.lede { color: var(--muted); max-width: 66ch }
+h2 { font: 600 12px var(--body); letter-spacing: .12em; text-transform: uppercase; color: var(--muted); margin: 30px 0 10px }
+.grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); gap: 12px }
+a.card { display: block; background: var(--card); border: 1px solid var(--rule); border-left: 5px solid var(--c, var(--green)); border-radius: 6px; padding: 14px 16px; color: inherit; text-decoration: none }
+a.card:hover, a.card:focus-visible { border-color: var(--c, var(--green)); outline: none }
+a.card b { display: block; font: 800 21px/1.15 var(--display) }
+a.card span { display: block; color: var(--muted); font-size: 14px; margin-top: 4px }
+footer { margin-top: 36px; font: 400 12px var(--mono); color: var(--muted) }
+</style>
+<main>
+  <div class="eyebrow">DNA Calc · docs/fun</div>
+  <h1>Playground</h1>
+  <p class="lede">Games, progress pages and skin previews made while building DNA Calc, an Excel-compatible spreadsheet engine in Rust. Each page stands on its own; the progress pages are refreshed from the project's own data.</p>
+
+  <h2>Progress</h2>
+  <div class="grid">
+    <a class="card" style="--c:var(--green)" href="function-bank.html"><b>The Function Bank</b><span>Every function against Excel's recorded answers: family map, two weeks of history, answer landscapes, ulp ladder.</span></a>
+    <a class="card" style="--c:var(--green)" href="corpus-atlas.html"><b>The Corpus Atlas</b><span>What 20,672 real workbooks are made of, and where exactness matters most.</span></a>
+    <a class="card" style="--c:var(--green)" href="dna-calc-brochure.html"><b>Brochure</b><span>DNA Calc on one page, with a binary64 bit explorer.</span></a>
+  </div>
+
+  <h2>Skin previews</h2>
+  <div class="grid">
+    <a class="card" style="--c:var(--violet)" href="names-in-motion.html"><b>Names in Motion</b><span>An Excel model as a Ptolemy-style actor diagram: names as boxes, references as wires.</span></a>
+    <a class="card" style="--c:var(--violet)" href="watershed.html"><b>Watershed</b><span>One workbook run by nested directors: RTD events, ticks, modes, iteration and a data-table sweep.</span></a>
+  </div>
+
+  <h2>Games</h2>
+  <div class="grid">
+    <a class="card" style="--c:var(--amber)" href="spill-range.html"><b>Spill Range</b><span>Stack falling dynamic-array spills; full rows are summed; overflow is #SPILL!.</span></a>
+    <a class="card" style="--c:var(--amber)" href="circular-reference.html"><b>Circular Reference</b><span>Grow a SUM across the sheet; error cells and your own tail end it.</span></a>
+    <a class="card" style="--c:var(--amber)" href="trace-error.html"><b>Trace Error</b><span>Follow precedent arrows through a broken model to the broken cell.</span></a>
+    <a class="card" style="--c:var(--amber)" href="error-check.html"><b>Error Check</b><span>Find the hidden error cells from the counts around them.</span></a>
+    <a class="card" style="--c:var(--blue)" href="what-does-excel-say.html"><b>What Does Excel Say?</b><span>Ten formulas with surprising answers, checked against Excel.</span></a>
+  </div>
+  <footer>Made 2026-11-12. Source: github.com/DnaCalc/DnaCalc, docs/fun. Refresh the progress pages with docs/fun/tools/.</footer>
+</main>
