@@ -333,6 +333,31 @@ static class Program
         }
     }
 
+    // Asynchronous functions (IMPORTCSV, IMPORTTEXT, IMAGE) answer #GETTING_DATA (CVErr 2043) while their
+    // query runs, and CalculationState stays xlPending (2). Spinning on the state never lets the query
+    // finish and ran into the deadline (dc-4rsw). Wait as the host-function import job does: ask Excel to
+    // finish async queries, up to 30 s, then read whatever the cell holds.
+    const int GettingData = -2146826237;
+    static void WaitForAsyncResult(dynamic cell)
+    {
+        // Stop 3 s before the batch deadline so the answer (#GETTING_DATA if still pending) is returned
+        // instead of the watchdog ending Excel.
+        long deadline = Interlocked.Read(ref DeadlineTicks);
+        var until = DateTime.UtcNow.AddSeconds(30);
+        if (deadline > 0) { var d = new DateTime(deadline, DateTimeKind.Utc).AddSeconds(-3); if (d < until) until = d; }
+        while (true)
+        {
+            int state = (int)X.App.CalculationState;
+            object v = cell.Value2;
+            bool getting = v is int code && code == GettingData;
+            if (state == 0 && !getting) return;
+            if (DateTime.UtcNow > until) return;
+            if (state == 1) { Thread.Sleep(0); continue; }
+            try { X.App.CalculateUntilAsyncQueriesDone(); } catch { }
+            Thread.Sleep(20);
+        }
+    }
+
     // The range/file path is deliberately call-at-a-time: each reference owns a real
     // block on Q, and a file exists only for the duration of the calculation.
     static List<object> EvaluateSpecial(List<object> groupList, bool echo, Dictionary<string, object> timing)
@@ -419,8 +444,12 @@ static class Program
                         var x = (List<object>)selector; formula = "INDEX(" + formula + "," + x[0] + "," + x[1] + ")";
                     }
                     dynamic resultCell = spill ? grid.Range["A1"] : sheet.Range["A1"];
-                    resultCell.Formula2 = "=" + formula; X.App.Calculate();
-                    while ((int)X.App.CalculationState != 0) Thread.Sleep(0);
+                    Stage = "special formula " + formula;
+                    resultCell.Formula2 = "=" + formula;
+                    Stage = "special calculate " + (string)raw["f"];
+                    X.App.Calculate();
+                    Stage = "special async wait " + (string)raw["f"];
+                    WaitForAsyncResult(resultCell);
                     bool changed = false;
                     foreach (var check in checks)
                     {
