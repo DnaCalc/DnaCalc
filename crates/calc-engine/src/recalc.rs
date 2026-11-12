@@ -410,6 +410,9 @@ pub struct RecalcWork {
     external_input_version: u64,
     external_inputs: Option<std::rc::Rc<dyn calc_fml::RtdCut>>,
     rtd_connector: Option<std::rc::Rc<dyn calc_fml::RtdConnector>>,
+    /// The sheet and cell the person has active, which a VBA function's `ActiveSheet` and
+    /// `Selection` answer (dc-hsa5.12); `None` for a host that models neither.
+    user_view: Option<calc_fml::UserView>,
     async_waits: BTreeMap<NodeId, AsyncToken>,
     async_resumed: BTreeSet<NodeId>,
     evaluations: BTreeMap<NodeId, (u64, ReevaluationReason)>,
@@ -580,6 +583,7 @@ pub(crate) struct EvalShared<'a> {
     pub(crate) environment: Option<calc_fml::CalcEnvironment>,
     pub(crate) random_seed: u64,
     external_inputs: Option<&'a dyn calc_fml::RtdCut>,
+    user_view: Option<calc_fml::UserView>,
     pub(crate) workbook_facts: Option<&'a Arc<dyn calc_fml::WorkbookFacts>>,
     pub(crate) progress: &'a Progress,
     pub(crate) spills: &'a SpillIndex,
@@ -643,6 +647,7 @@ macro_rules! shared_of {
             environment: $work.environment,
             random_seed: $work.random_seed,
             external_inputs: $work.external_inputs.as_deref(),
+            user_view: $work.user_view,
             workbook_facts: $work.workbook_facts.as_ref(),
             progress: &$work.progress,
             spills: &$work.spills,
@@ -712,6 +717,12 @@ impl RecalcWork {
         connector: std::rc::Rc<dyn calc_fml::RtdConnector>,
     ) -> Self {
         self.rtd_connector = Some(connector);
+        self
+    }
+    /// The sheet and cell the person has active while this work evaluates (VBA's `ActiveSheet`
+    /// and `Selection`).
+    pub fn with_user_view(mut self, view: Option<calc_fml::UserView>) -> Self {
+        self.user_view = view;
         self
     }
     pub fn with_functions(mut self, functions: &calc_fml::CallableTable) -> Self {
@@ -1548,6 +1559,7 @@ fn begin_with_scope(
         functions: None,
         references: None,
         rtd_connector: None,
+        user_view: None,
         callable_bindings: state.callables.clone(),
         root_reason: if selection == EvalSelection::FormulaEntry {
             ReevaluationReason::FormulaEntry
@@ -5941,6 +5953,9 @@ fn evaluate_unstamped(
             }
             if let Some(connector) = rtd_connector.as_deref() {
                 services = services.with_rtd_connector(connector);
+            }
+            if let Some(view) = shared.user_view {
+                services = services.with_user_view(view);
             }
             if let Some(invocation) = invocation {
                 services = services.with_invocation(invocation);

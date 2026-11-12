@@ -46,6 +46,7 @@ mod tests {
             why: "calculated".to_owned(),
             owner: None,
             error_meaning: None,
+            exact: None,
         };
         let stamp = TileStamp {
             calculation_through: None,

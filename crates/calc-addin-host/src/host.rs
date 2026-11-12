@@ -26,6 +26,9 @@ pub struct AddinHost {
     projection: Rc<Projection>,
     rtd: Option<Rc<RtdClient>>,
     xlls: Vec<PathBuf>,
+    /// For each loaded XLL, the highest registration id there was before it loaded: a
+    /// registration belongs to the last XLL whose floor is below its id.
+    floors: Vec<u64>,
     vba: Vec<(String, CallableTable)>,
     /// VBA add-ins (.xlam): each file's project, compiled with its references (dc-0f1k.4).
     vba_addins: Vec<(PathBuf, calc_vba::events::OfficeLoad)>,
@@ -92,6 +95,7 @@ impl AddinHost {
             projection,
             rtd: None,
             xlls: Vec::new(),
+            floors: Vec::new(),
             vba: Vec::new(),
             vba_addins: Vec::new(),
             workbook: document.workbook.to_owned(),
@@ -110,6 +114,7 @@ impl AddinHost {
         self.projection = projection;
         self.rtd = None;
         self.xlls.clear();
+        self.floors.clear();
         self.workbook = document.workbook.to_owned();
         Ok(())
     }
@@ -128,6 +133,13 @@ impl AddinHost {
     /// Loads an XLL, running its open routine. A failure rolls the whole load back; the error
     /// says what is left registered afterwards, so a caller can see the rollback was complete.
     pub fn load(&mut self, path: &Path) -> Result<(), String> {
+        let floor = self
+            .native
+            .registrations()
+            .iter()
+            .map(|r| r.id)
+            .max()
+            .unwrap_or(0);
         if let Err(why) = self.native.load(path) {
             let active = self
                 .native
@@ -142,14 +154,69 @@ impl AddinHost {
             ));
         }
         self.xlls.push(path.to_owned());
+        self.floors.push(floor);
         Ok(())
     }
 
     /// Runs the XLL's close routine and removes its registrations.
     pub fn unload(&mut self, path: &Path) -> Result<(), String> {
         self.native.unload(path)?;
-        self.xlls.retain(|loaded| loaded != path);
+        if let Some(index) = self.xlls.iter().position(|loaded| loaded == path) {
+            self.xlls.remove(index);
+            self.floors.remove(index);
+        }
         Ok(())
+    }
+
+    /// The XLLs loaded, in load order, each with the worksheet functions it registered (active,
+    /// named, macro type 1), in registration order.
+    pub fn xll_functions(&self) -> Vec<(PathBuf, Vec<String>)> {
+        let registrations = self.registrations();
+        self.xlls
+            .iter()
+            .zip(&self.floors)
+            .enumerate()
+            .map(|(index, (path, floor))| {
+                let ceiling = self.floors.get(index + 1).copied().unwrap_or(u64::MAX);
+                let mut own: Vec<_> = registrations
+                    .iter()
+                    .filter(|r| {
+                        r.id > *floor
+                            && r.id <= ceiling
+                            && r.macro_type == 1
+                            && r.use_count > 0
+                            && !r.name.is_empty()
+                    })
+                    .collect();
+                own.sort_by_key(|r| r.id);
+                (path.clone(), own.iter().map(|r| r.name.clone()).collect())
+            })
+            .collect()
+    }
+
+    /// Runs the add-ins' events and the message loop until their registrations have been quiet
+    /// for `quiet` (at most `limit`): a slow add-in finishes registering after its open routine
+    /// returns (a Python runtime does).
+    pub fn settle(&self, quiet: std::time::Duration, limit: std::time::Duration) {
+        let signature = || {
+            self.registrations().iter().fold(0u64, |sum, r| {
+                sum.wrapping_mul(1_000_003)
+                    .wrapping_add(r.id)
+                    .wrapping_add(u64::from(r.use_count) << 40)
+            })
+        };
+        let start = std::time::Instant::now();
+        let (mut quiet_since, mut last) = (start, signature());
+        while start.elapsed() < limit && quiet_since.elapsed() < quiet {
+            calc_platform_desktop::pump_pending();
+            let _ = self.after_calculate();
+            std::thread::sleep(std::time::Duration::from_millis(10));
+            let now = signature();
+            if now != last {
+                last = now;
+                quiet_since = std::time::Instant::now();
+            }
+        }
     }
 
     /// The XLLs loaded, in load order.

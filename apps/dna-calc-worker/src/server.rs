@@ -662,6 +662,12 @@ impl Server {
                 Request::UserFunctions => {
                     Ok(Reply::UserFunctions(self.book.host().user_function_names()))
                 }
+                // Add-ins are native code: the desktop app answers these itself (dc-0f1k.23); a
+                // worker on its own, as in a browser, has none and loads none.
+                Request::Addins => Ok(Reply::Addins(wire::AddinList::default())),
+                Request::LoadAddinNative | Request::LoadAddin { .. } | Request::UnloadAddin { .. } => {
+                    Err(ADDINS_DESKTOP_ONLY.to_owned())
+                }
                 Request::CalculateName {
                     id,
                     version,
@@ -1565,6 +1571,18 @@ impl Server {
     pub fn set_user_functions(&mut self, functions: calc_host::CallableTable) {
         self.book.set_user_functions(functions.clone());
         self.user_functions = Some(functions);
+        self.collect();
+    }
+
+    /// The add-ins changed (the person loaded or unloaded one in the desktop app, dc-0f1k.23): the
+    /// new table is bound to this and every later workbook, and an automatic workbook
+    /// recalculates, so a cell that named a function before it was loaded (or after it was
+    /// unloaded) answers as it does now.
+    pub fn replace_user_functions(&mut self, functions: calc_host::CallableTable) {
+        self.set_user_functions(functions);
+        if self.book.session().calc_mode() != calc_host::CalcMode::Manual {
+            self.book.dispatch(calc_host::SkinIntent::Recalculate);
+        }
         self.collect();
     }
 
@@ -4497,6 +4515,10 @@ fn area(area: Area) -> Result<GridArea, String> {
 
 /// How far from a subscribed area an authored cell is looked for as an overflow anchor, and the
 /// largest subscription that is searched. Larger ones, such as a whole sheet, hold every anchor.
+/// What a worker without a native host answers to an add-in load or unload (dc-0f1k.23).
+pub const ADDINS_DESKTOP_ONLY: &str =
+    "Add-ins (.xll, .xlam) load in the DNA Calc desktop app; a browser page cannot load them";
+
 const OVERHANG_COLUMNS: u32 = 2048;
 const OVERHANG_CELLS: u64 = 32_768;
 

@@ -1015,6 +1015,21 @@ impl ComHal for SpreadsheetHost {
         {
             return result.map(oxvba_runtime::RuntimeCallResult::value);
         }
+        // A document project's worksheet function (it runs outside any event) reaches the
+        // automatic-event Application for what a worksheet function asks of it: its
+        // WorksheetFunction object and its Caller, as the add-in and module routes answer them.
+        if crate::events::object_type(&object) == Some("Application")
+            && member.invoke_kind == TypeLibMemberInvokeKind::PropertyGet
+            && args.is_empty()
+            && !crate::events::callback_active()
+        {
+            let name = member.name.to_ascii_uppercase();
+            if matches!(name.as_str(), "WORKSHEETFUNCTION" | "CALLER") {
+                return self
+                    .invoke_projected_member(Object::Application, &name, &[])
+                    .map(oxvba_runtime::RuntimeCallResult::value);
+            }
+        }
         if crate::events::object_type(&object).is_some() {
             return self.unsupported("a document member without its admitted typed slot");
         }
@@ -1033,6 +1048,41 @@ impl ComHal for SpreadsheetHost {
             return Err(fault(438, "unknown numeric Range member"));
         }
         let object = self.lookup(&object)?;
+        // A document project types a worksheet function's Range with the automatic-event Range,
+        // whose members are numbered on their own: map them onto the projection by name. A cell
+        // write from a worksheet function raises Excel's trappable error 1004.
+        if let Object::Range(..) = object {
+            let name = member.name.to_ascii_uppercase();
+            let event_range = member
+                .interface_iid
+                .as_ref()
+                .and_then(crate::events::types::event_interface)
+                == Some("Range");
+            match member.invoke_kind {
+                TypeLibMemberInvokeKind::PropertyGet
+                    if event_range
+                        && matches!(
+                            name.as_str(),
+                            "VALUE2" | "COUNT" | "ROW" | "COLUMN" | "ADDRESS"
+                        ) =>
+                {
+                    let args = self.projected_arguments(object, &name, args)?;
+                    return self
+                        .invoke_projected_member(object, &name, &args)
+                        .map(oxvba_runtime::RuntimeCallResult::value);
+                }
+                TypeLibMemberInvokeKind::PropertyPut | TypeLibMemberInvokeKind::PropertyPutRef
+                    if (event_range || member.token >= 100)
+                        && matches!(
+                            name.as_str(),
+                            "VALUE" | "VALUE2" | "FORMULA" | "FORMULA2" | "FORMULAR1C1" | "FORMULA2R1C1"
+                        ) =>
+                {
+                    return Err(excel_forbids_cell_write(self));
+                }
+                _ => {}
+            }
+        }
         let name = match (object, member.token, member.invoke_kind) {
             (Object::Application, 1, TypeLibMemberInvokeKind::PropertyGet) => "CALLER",
             (Object::Application, 2, TypeLibMemberInvokeKind::PropertyGet) => "WORKSHEETFUNCTION",

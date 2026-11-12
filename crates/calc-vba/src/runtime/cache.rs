@@ -8,6 +8,12 @@ pub struct OwnedSession {
     catalogue: Vec<calcvba_host_api::Procedure>,
     typed: Vec<Option<typed::TypedEntry>>,
     event_project: bool,
+    /// Per function of a document project: why it runs on the dynamic runtime, as a worksheet
+    /// function of an add-in or a module does, instead of its owning typed entry: a signature the
+    /// owning value carriers do not hold (ParamArray, Date, Currency, Range, arrays), or a body the
+    /// typed route cannot link (a VBA library function it has no owning builtin for, a class
+    /// created with `New`). `None`: the owning typed entry runs it (dc-hsa5.12).
+    dynamic: Vec<Option<String>>,
 }
 impl OwnedSession {
     fn wrap(
@@ -25,22 +31,42 @@ impl OwnedSession {
             .collect();
         let catalogue = neutral::catalogue(&inner);
         let typed = typed::entries(&inner, &functions, &bound);
+        let mut dynamic = vec![None; functions.len()];
         if event_project {
-            for ((_, procedure), bound) in functions.iter().zip(&bound) {
-                inner
-                    .bind_values(
-                        neutral::handle(bound).map_err(neutral::adapter_error)?,
-                        &procedure
-                            .parameters
-                            .iter()
-                            .map(|p| owning_type(&p.ty))
-                            .collect::<Vec<_>>(),
-                        owning_type(procedure.return_type.as_ref().expect("function result")),
+            for (index, ((_, procedure), bound)) in functions.iter().zip(&bound).enumerate() {
+                let carried = |ty: &OxTy| {
+                    matches!(
+                        ty,
+                        OxTy::Long | OxTy::Double | OxTy::Bool | OxTy::Str | OxTy::Variant
                     )
-                    .map_err(engine_error)?;
+                };
+                if !(procedure.parameters.iter().all(|p| carried(&p.ty))
+                    && procedure.return_type.as_ref().is_some_and(carried))
+                {
+                    dynamic[index] =
+                        Some("a signature outside the owning value carriers".to_owned());
+                    continue;
+                }
+                let linked = inner.bind_values(
+                    neutral::handle(bound).map_err(neutral::adapter_error)?,
+                    &procedure
+                        .parameters
+                        .iter()
+                        .map(|p| owning_type(&p.ty))
+                        .collect::<Vec<_>>(),
+                    owning_type(procedure.return_type.as_ref().expect("function result")),
+                );
+                match linked {
+                    Ok(()) => {}
+                    Err(oxvba_embed::Error::UnsupportedSignature(why)) => {
+                        dynamic[index] = Some(why)
+                    }
+                    Err(error) => return Err(engine_error(error)),
+                }
             }
         }
         Ok(Self {
+            dynamic,
             typed,
             catalogue,
             inner,
@@ -52,6 +78,10 @@ impl OwnedSession {
     }
     pub fn backend(&self) -> Backend {
         self.inner.backend()
+    }
+    /// Why function `index` of a document project runs on the dynamic runtime, if it does.
+    pub fn dynamic(&self, index: usize) -> Option<&str> {
+        self.dynamic.get(index).and_then(Option::as_deref)
     }
     pub fn call(&self, index: usize, args: &[Value], max_steps: u64) -> Result<Value, Error> {
         let call = || self.call_inner(index, args, max_steps);
@@ -77,7 +107,7 @@ impl OwnedSession {
             index,
             args,
             |index, values| {
-                if self.event_project {
+                if self.event_project && self.dynamic(index).is_none() {
                     return self.call_owning(index, values, max_steps);
                 }
                 calcvba_host_api::Session::call_bound(self, &self.bound[index], values, max_steps)

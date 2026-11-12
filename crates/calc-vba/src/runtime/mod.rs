@@ -252,7 +252,7 @@ impl Module {
         }
         let mut engine =
             oxvba_embed::Module::load_project(&manifest, resolver).map_err(engine_error)?;
-        let mut entries = if private_worksheet_lookup {
+        let entries = if private_worksheet_lookup {
             let entries = worksheet::private_entries(&mut manifest, &engine)?;
             if !entries.bridges.is_empty() {
                 engine =
@@ -284,7 +284,7 @@ impl Module {
                 route.name
             )));
         }
-        let mut functions: Vec<_> = engine
+        let functions: Vec<_> = engine
             .procedures()
             .filter(|p| {
                 p.visibility == oxvba_embed::Visibility::Public
@@ -327,40 +327,9 @@ impl Module {
                 )
             })
             .collect();
-        if events && automatic_events {
-            // A worksheet function whose signature this route cannot carry is a typed refusal of
-            // its own; the project's other functions still load (dc-0f1k.4), as Excel runs every
-            // function it can.
-            let carried = |ty: &OxTy| {
-                matches!(
-                    ty,
-                    OxTy::Long | OxTy::Double | OxTy::Bool | OxTy::Str | OxTy::Variant
-                )
-            };
-            let (kept, refused): (Vec<_>, Vec<_>) =
-                functions.into_iter().partition(|(_, procedure)| {
-                    procedure.parameters.iter().all(|p| carried(&p.ty))
-                        && procedure.return_type.as_ref().is_some_and(carried)
-                });
-            for (function, procedure) in refused {
-                let object = procedure
-                    .parameters
-                    .iter()
-                    .map(|p| &p.ty)
-                    .chain(procedure.return_type.as_ref())
-                    .any(|ty| matches!(ty, OxTy::Object(_)));
-                entries.refusals.push(worksheet::Refusal {
-                    name: function.name,
-                    qualified_name: function.qualified_name,
-                    reason: if object {
-                        "object-valued worksheet UDF signatures in document projects require the shared Range projection (dc-hsa5.12)"
-                    } else {
-                        "worksheet UDF signature outside the document project's owning value carriers (dc-hsa5.12)"
-                    },
-                });
-            }
-            functions = kept;
-        }
+        // Every public function of a document project is published. One whose signature or body
+        // the owning typed route cannot carry runs on the dynamic runtime, as an add-in's or a
+        // module's worksheet function does (OwnedSession::dynamic, dc-hsa5.12).
         let late =
             late_binding::LateBinding::of(manifest.modules.iter().map(|m| m.source.as_str()));
         let spreadsheet = spreadsheet_objects.then(|| {

@@ -234,6 +234,7 @@ mod tests {
             why: "calculated".into(),
             owner: None,
             error_meaning: None,
+            exact: None,
         };
         let mut second = c.clone();
         second.at.2 = 2;

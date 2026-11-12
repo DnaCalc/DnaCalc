@@ -14,6 +14,18 @@ pub(super) const SHEET_EVENTS: [u8; 16] = *b"DnaSheetEvents01";
 pub(super) const BOOK_EVENTS: [u8; 16] = *b"DnaBookEvents001";
 pub(super) const APP: [u8; 16] = *b"DnaCalcApp000001";
 pub(super) const APP_EVENTS: [u8; 16] = *b"DnaAppEvents0001";
+/// Which of the automatic-event types (`Range`, `Application`) an interface is, if any. A
+/// document project's worksheet function binds its members with these types' own numbering.
+pub(crate) fn event_interface(interface: &ComInterfaceIid) -> Option<&'static str> {
+    if *interface == iid(RANGE) {
+        Some("Range")
+    } else if *interface == iid(APP) {
+        Some("Application")
+    } else {
+        None
+    }
+}
+
 pub(super) fn iid(v: [u8; 16]) -> ComInterfaceIid {
     ComInterfaceIid {
         data1: u32::from_le_bytes(v[..4].try_into().unwrap()),
@@ -363,12 +375,20 @@ impl TypeLibResolver for EventTypes {
                     ("Formula2", K::PropertyPut, &["value"][..], 1),
                     // Value2 has a typed put when events are active.
                     ("Value2", K::PropertyPut, &["value"][..], 1),
+                    // Value (a date or currency cell reads differently from Value2) is declared,
+                    // so a project that names it compiles; reaching it refuses (dc-hsa5.12).
+                    ("Value", K::PropertyGet, &["RangeValueDataType"][..], 0),
+                    ("Value", K::PropertyPut, &["value"][..], 1),
                     ("ClearContents", K::Method, &[][..], 0),
                     ("Clear", K::Method, &[][..], 0),
                     ("Calculate", K::Method, &[][..], 0),
                     ("Select", K::Method, &[][..], 0),
                     ("CalculateRowMajorOrder", K::Method, &[][..], 0),
                 ] {
+                    // The worksheet-function Range already has Value.
+                    if name == "Value" && !self.automatic_events {
+                        continue;
+                    }
                     if name == "Address" {
                         if self.automatic_events {
                             continue;
