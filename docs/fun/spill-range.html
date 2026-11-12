@@ -1,0 +1,277 @@
+<title>Spill Range</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,800&family=IBM+Plex+Mono:wght@400;600&family=IBM+Plex+Sans:wght@400;600&display=swap">
+<style>
+/* Layout: a worksheet window, the well is columns A:J, the side panel is a little "Name Manager" of next piece and totals. */
+:root {
+  --paper: #fbfcfd; --ink: #1d2733; --muted: #66727f; --grid: #e2e6eb; --head: #f2f4f7; --cell: #ffffff; --select: #1e7b4b;
+  --p0: #8fd3a8; --p1: #ffe58a; --p2: #f7a7a8; --p3: #9cc3ec; --p4: #c9b2ec; --p5: #ffc98a; --p6: #a8e0e0;
+  --spill: #1f6fd1; --err: #b4232a; --errtint: #fde4e4; --shade: rgba(20, 30, 40, .35);
+  --display: "Bricolage Grotesque", "Segoe UI", system-ui, sans-serif;
+  --body: "IBM Plex Sans", "Segoe UI", system-ui, sans-serif;
+  --mono: "IBM Plex Mono", ui-monospace, Consolas, monospace;
+}
+@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) {
+  --paper: #13191f; --ink: #e6ebf0; --muted: #98a4b0; --grid: #29323b; --head: #1b232b; --cell: #171e25; --select: #4cc887;
+  --p0: #2f6a46; --p1: #6d5f1e; --p2: #6e3436; --p3: #2f4f73; --p4: #4f3f6f; --p5: #6f4d22; --p6: #2b5e5e;
+  --spill: #6aa7f0; --err: #ff8e93; --errtint: #3a2224; --shade: rgba(0,0,0,.55); color-scheme: dark } }
+:root[data-theme="dark"] {
+  --paper: #13191f; --ink: #e6ebf0; --muted: #98a4b0; --grid: #29323b; --head: #1b232b; --cell: #171e25; --select: #4cc887;
+  --p0: #2f6a46; --p1: #6d5f1e; --p2: #6e3436; --p3: #2f4f73; --p4: #4f3f6f; --p5: #6f4d22; --p6: #2b5e5e;
+  --spill: #6aa7f0; --err: #ff8e93; --errtint: #3a2224; --shade: rgba(0,0,0,.55); color-scheme: dark }
+* { box-sizing: border-box }
+body { margin: 0; background: var(--paper); color: var(--ink); font: 400 14px/1.45 var(--body) }
+.win { max-width: 860px; margin: 0 auto; padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px)); padding-block: 16px 28px; display: grid; gap: 10px }
+h1 { margin: 0; font: 800 clamp(30px, 6vw, 48px)/1 var(--display); letter-spacing: -.02em }
+h1 span { color: var(--spill) }
+.fx { display: grid; grid-template-columns: 64px 34px minmax(0, 1fr); border: 1px solid var(--grid); background: var(--cell); font: 400 14px/32px var(--mono) }
+.fx > div { padding: 0 10px; min-width: 0; overflow: hidden; white-space: nowrap; text-overflow: ellipsis }
+.fx .name { background: var(--head); border-right: 1px solid var(--grid); color: var(--muted) }
+.fx .f { border-right: 1px solid var(--grid); color: var(--select); font-style: italic; font-weight: 600; text-align: center; padding: 0 }
+.main { display: grid; grid-template-columns: minmax(0, 1fr) 220px; gap: 14px; align-items: start }
+@media (max-width: 640px) { .main { grid-template-columns: 1fr } }
+.well { position: relative; border: 1px solid var(--grid); background: var(--cell); touch-action: none; user-select: none; max-width: 440px; width: 100%; justify-self: center }
+canvas { display: block; width: 100%; height: auto }
+.panel { display: grid; gap: 10px; min-width: 0 }
+.box { border: 1px solid var(--grid); background: var(--cell); padding: 10px 12px; min-width: 0 }
+.box .k { font: 600 11px/1.3 var(--body); letter-spacing: .07em; text-transform: uppercase; color: var(--muted) }
+.box .v { font: 600 20px/1.3 var(--mono); font-variant-numeric: tabular-nums; overflow-wrap: anywhere }
+.box .s { font: 400 12px/1.4 var(--mono); color: var(--muted); overflow-wrap: anywhere }
+#nextcv { width: 100%; max-width: 160px; height: auto; display: block; margin-top: 6px }
+.help { font-size: 13px; color: var(--muted); margin: 0 }
+.help kbd { font: 600 12px var(--mono); padding: 1px 5px; border: 1px solid var(--grid); border-bottom-width: 2px; border-radius: 3px; background: var(--head); color: var(--ink) }
+.pad { display: none; grid-template-columns: repeat(5, 1fr); gap: 6px; max-width: 440px; width: 100%; justify-self: center }
+.pad button { font: 600 18px var(--mono); padding: 12px 0; background: var(--head); color: var(--ink); border: 1px solid var(--grid); border-radius: 6px }
+@media (pointer: coarse) { .pad { display: grid } }
+.overlay { position: absolute; inset: 0; display: grid; place-items: center; background: var(--shade); padding: 14px }
+.dialog { background: var(--cell); width: min(360px, 100%); border: 1px solid var(--grid); border-radius: 6px; box-shadow: 0 12px 40px rgba(0,0,0,.25); overflow: hidden }
+.dialog .bar { padding: 7px 12px; font: 600 12px var(--body); background: var(--head); border-bottom: 1px solid var(--grid) }
+.dialog .body { padding: 14px 16px 16px; display: grid; gap: 10px }
+.dialog h2 { margin: 0; font: 800 28px/1 var(--display) }
+.dialog h2.err { color: var(--err) }
+.dialog p { margin: 0; font-size: 14px }
+.dialog .bits { font: 400 12px/1.5 var(--mono); color: var(--muted); overflow-wrap: anywhere }
+.dialog button { justify-self: end; font: 600 14px var(--body); padding: 8px 16px; border-radius: 4px; border: 0; background: var(--select); color: var(--cell); cursor: pointer }
+button:focus-visible { outline: 2px solid var(--select); outline-offset: 2px }
+</style>
+
+<div class="win">
+  <h1>Spill <span>Range</span></h1>
+  <div class="fx"><div class="name" id="nameBox">E1</div><div class="f">fx</div><div id="formula">=SEQUENCE(1,4)</div></div>
+  <div class="main">
+    <div class="well" id="well">
+      <canvas id="cv" width="440" height="800" aria-label="Spreadsheet well, columns A to J"></canvas>
+      <div class="overlay" id="overlay">
+        <div class="dialog" role="dialog" aria-modal="true" aria-labelledby="dlgTitle">
+          <div class="bar" id="dlgBar">Spill Range</div>
+          <div class="body">
+            <h2 id="dlgTitle">Drop the arrays</h2>
+            <p id="dlgText">Each piece is a dynamic-array formula spilling numbers down the sheet. Fill a row across A:J and it is summed, scored and cleared. When a new spill has nowhere to go, you get #SPILL!.</p>
+            <p class="bits" id="dlgBits">Rows score their SUM times the level. Clear several at once for a bonus.</p>
+            <button id="startBtn" type="button">Calculate now</button>
+          </div>
+        </div>
+      </div>
+    </div>
+    <div class="panel">
+      <div class="box"><div class="k">Next formula</div><div class="s" id="nextF">=SEQUENCE(2,2)</div><canvas id="nextcv" width="160" height="96" aria-hidden="true"></canvas></div>
+      <div class="box"><div class="k">Score</div><div class="v" id="score">0</div><div class="s" id="scoreBits">bits 0000000000000000</div></div>
+      <div class="box"><div class="k">Rows summed · Level</div><div class="v"><span id="rows">0</span> · <span id="level">1</span></div><div class="s" id="lastSum">last row: none yet</div></div>
+      <p class="help"><kbd>←</kbd><kbd>→</kbd> move, <kbd>↑</kbd> or <kbd>X</kbd> TRANSPOSE (rotate), <kbd>↓</kbd> soft drop, <kbd>Space</kbd> hard drop, <kbd>P</kbd> manual calculation (pause), <kbd>F9</kbd> new sheet.</p>
+    </div>
+  </div>
+  <div class="pad" aria-label="Controls">
+    <button type="button" data-a="left" aria-label="Move left">←</button>
+    <button type="button" data-a="rot" aria-label="Rotate">⟳</button>
+    <button type="button" data-a="right" aria-label="Move right">→</button>
+    <button type="button" data-a="soft" aria-label="Soft drop">↓</button>
+    <button type="button" data-a="hard" aria-label="Hard drop">⤓</button>
+  </div>
+</div>
+
+<script>
+(function () {
+  var W = 10, H = 20, HEADW = 30, HEADH = 22;
+  var PIECES = [
+    { f: '=SEQUENCE(1,4)', c: '--p3', m: [[1,1,1,1]] },
+    { f: '=SEQUENCE(2,2)', c: '--p1', m: [[1,1],[1,1]] },
+    { f: '=VSTACK({1,2,3},{"",4,""})', c: '--p4', m: [[1,1,1],[0,1,0]] },
+    { f: '=HSTACK(SEQUENCE(3),{"";"";4})', c: '--p5', m: [[1,0],[1,0],[1,1]] },
+    { f: '=HSTACK({"";"";1},SEQUENCE(3,1,2))', c: '--p3', m: [[0,1],[0,1],[1,1]] },
+    { f: '=VSTACK({"",1,2},{3,4,""})', c: '--p0', m: [[0,1,1],[1,1,0]] },
+    { f: '=VSTACK({1,2,""},{"",3,4})', c: '--p2', m: [[1,1,0],[0,1,1]] }
+  ];
+  var cv = document.getElementById('cv'), ctx = cv.getContext('2d');
+  var ncv = document.getElementById('nextcv'), nctx = ncv.getContext('2d');
+  var colors = {};
+  function readColors() { var cs = getComputedStyle(document.documentElement); ['--paper','--ink','--muted','--grid','--head','--cell','--select','--p0','--p1','--p2','--p3','--p4','--p5','--p6','--spill','--err','--errtint'].forEach(function (k) { colors[k] = cs.getPropertyValue(k).trim(); }); }
+  readColors();
+  try { matchMedia('(prefers-color-scheme: dark)').addEventListener('change', function () { readColors(); draw(); }); } catch (e) {}
+  new MutationObserver(function () { readColors(); draw(); }).observe(document.documentElement, { attributes: true, attributeFilter: ['data-theme'] });
+  var buf = new DataView(new ArrayBuffer(8));
+  function hex(d) { buf.setFloat64(0, d); var s = ''; for (var i = 0; i < 8; i++) s += buf.getUint8(i).toString(16).padStart(2, '0'); return s; }
+  function col(c) { return String.fromCharCode(65 + c); }
+
+  var board, cur, nxt, score, rows, level, timer, running, over, flashRows = [], seq = 1, bag = [];
+  function newBoard() { board = []; for (var y = 0; y < H; y++) { var r = []; for (var x = 0; x < W; x++) r.push(null); board.push(r); } }
+  function draw7() { if (!bag.length) { bag = [0,1,2,3,4,5,6]; for (var i = bag.length - 1; i > 0; i--) { var j = Math.floor(Math.random() * (i + 1)); var t = bag[i]; bag[i] = bag[j]; bag[j] = t; } } return bag.pop(); }
+  function make(k) {
+    var p = PIECES[k], m = p.m.map(function (r) { return r.slice(); });
+    var vals = m.map(function (r) { return r.map(function (v) { return v ? seq++ : 0; }); });
+    return { k: k, f: p.f, c: p.c, m: m, vals: vals, x: Math.floor((W - m[0].length) / 2), y: 0, t: false };
+  }
+  function fits(p, dx, dy, m) {
+    m = m || p.m;
+    for (var y = 0; y < m.length; y++) for (var x = 0; x < m[y].length; x++) {
+      if (!m[y][x]) continue;
+      var bx = p.x + x + dx, by = p.y + y + dy;
+      if (bx < 0 || bx >= W || by >= H) return false;
+      if (by >= 0 && board[by][bx]) return false;
+    }
+    return true;
+  }
+  function transpose(m) { var r = []; for (var x = 0; x < m[0].length; x++) { var row = []; for (var y = m.length - 1; y >= 0; y--) row.push(m[y][x]); r.push(row); } return r; }
+  function rotate() {
+    var m = transpose(cur.m), v = transpose(cur.vals);
+    var kicks = [0, -1, 1, -2, 2];
+    for (var i = 0; i < kicks.length; i++) if (fits(cur, kicks[i], 0, m)) { cur.m = m; cur.vals = v; cur.x += kicks[i]; cur.t = !cur.t; bars(); draw(); return; }
+  }
+  function lock() {
+    for (var y = 0; y < cur.m.length; y++) for (var x = 0; x < cur.m[y].length; x++) if (cur.m[y][x]) {
+      var by = cur.y + y; if (by < 0) return gameOver();
+      board[by][cur.x + x] = { v: cur.vals[y][x], c: cur.c };
+    }
+    var full = [];
+    for (y = 0; y < H; y++) if (board[y].every(Boolean)) full.push(y);
+    if (full.length) {
+      var total = 0;
+      full.forEach(function (r) { board[r].forEach(function (c) { total += c.v; }); });
+      var bonus = [0, 1, 3, 5, 8][full.length];
+      score += total * level * bonus;
+      rows += full.length;
+      document.getElementById('lastSum').textContent = 'last: =SUM(A' + (full[0] + 1) + ':J' + (full[full.length - 1] + 1) + ') = ' + total + (full.length > 1 ? ' ×' + bonus : '');
+      flashRows = full.slice(); draw();
+      setTimeout(function () {
+        full.forEach(function (r) { board.splice(r, 1); var e = []; for (var x = 0; x < W; x++) e.push(null); board.unshift(e); });
+        flashRows = []; level = 1 + Math.floor(rows / 8); restart(); spawn();
+      }, 180);
+      bars();
+      return;
+    }
+    spawn();
+  }
+  function spawn() {
+    cur = nxt || make(draw7()); nxt = make(draw7());
+    if (!fits(cur, 0, 0)) return gameOver();
+    bars(); drawNext(); draw();
+  }
+  function fall() { if (!running) return; if (fits(cur, 0, 1)) { cur.y++; draw(); } else lock(); }
+  function hard() { if (!running) return; var d = 0; while (fits(cur, 0, 1)) { cur.y++; d++; } score += d; lock(); bars(); }
+  function restart() { clearInterval(timer); if (running) timer = setInterval(fall, Math.max(90, 700 - (level - 1) * 60)); }
+  function bars() {
+    var x = cur ? cur.x : 4, y = cur ? cur.y : 0;
+    document.getElementById('nameBox').textContent = col(Math.max(0, Math.min(W - 1, x))) + (Math.max(0, y) + 1);
+    document.getElementById('formula').textContent = cur ? (cur.t ? '=TRANSPOSE(' + cur.f.slice(1) + ')' : cur.f) : '';
+    document.getElementById('nextF').textContent = nxt ? nxt.f : '';
+    document.getElementById('score').textContent = score.toLocaleString('en-US');
+    document.getElementById('scoreBits').textContent = 'bits ' + hex(score);
+    document.getElementById('rows').textContent = rows;
+    document.getElementById('level').textContent = level;
+  }
+  function gameOver() {
+    running = false; over = true; clearInterval(timer); draw();
+    document.getElementById('dlgBar').textContent = 'Microsoft Excel would show';
+    var t = document.getElementById('dlgTitle'); t.textContent = '#SPILL!'; t.className = 'err';
+    document.getElementById('dlgText').textContent = 'Spill range isn\'t blank. ' + (cur ? cur.f : 'The next formula') + ' at ' + document.getElementById('nameBox').textContent + ' wanted cells that were already full.';
+    document.getElementById('dlgBits').textContent = 'Score ' + score.toLocaleString('en-US') + ' (bits ' + hex(score) + ') · ' + rows + ' rows summed · level ' + level;
+    document.getElementById('startBtn').textContent = 'New sheet';
+    document.getElementById('overlay').hidden = false;
+    document.getElementById('startBtn').focus();
+  }
+  function start() {
+    newBoard(); score = 0; rows = 0; level = 1; seq = 1; bag = []; nxt = null; over = false; running = true;
+    document.getElementById('lastSum').textContent = 'last row: none yet';
+    document.getElementById('overlay').hidden = true; spawn(); restart();
+  }
+
+  function act(a) {
+    if (!running || !cur) return;
+    if (a === 'left' && fits(cur, -1, 0)) cur.x--;
+    else if (a === 'right' && fits(cur, 1, 0)) cur.x++;
+    else if (a === 'soft') { if (fits(cur, 0, 1)) { cur.y++; score++; } else return lock(); }
+    else if (a === 'rot') return rotate();
+    else if (a === 'hard') return hard();
+    bars(); draw();
+  }
+  addEventListener('keydown', function (e) {
+    var map = { ArrowLeft: 'left', ArrowRight: 'right', ArrowDown: 'soft', ArrowUp: 'rot', x: 'rot', X: 'rot', ' ': 'hard' };
+    if (e.key === 'F9' || (e.key === 'Enter' && !running)) { e.preventDefault(); if (!running) start(); return; }
+    if (e.key === 'p' || e.key === 'P') { if (over || !cur) return; running = !running; restart(); draw(); return; }
+    if (map[e.key]) { e.preventDefault(); if (!running && !document.getElementById('overlay').hidden && e.key === ' ') return start(); act(map[e.key]); }
+  });
+  document.getElementById('startBtn').addEventListener('click', start);
+  document.querySelectorAll('.pad button').forEach(function (b) { b.addEventListener('click', function () { act(b.dataset.a); }); });
+  var t0 = null, well = document.getElementById('well');
+  well.addEventListener('pointerdown', function (e) { t0 = { x: e.clientX, y: e.clientY, t: Date.now ? 0 : 0 }; });
+  well.addEventListener('pointerup', function (e) {
+    if (!t0) return; var dx = e.clientX - t0.x, dy = e.clientY - t0.y; t0 = null;
+    if (Math.abs(dx) < 16 && Math.abs(dy) < 16) return act('rot');
+    if (Math.abs(dx) > Math.abs(dy)) act(dx > 0 ? 'right' : 'left'); else act(dy > 0 ? 'hard' : 'rot');
+  });
+
+  var cw, chh;
+  function layout() {
+    var w = well.clientWidth || 440, dpr = Math.min(devicePixelRatio || 1, 2);
+    cw = (w - HEADW) / W; chh = cw * 0.78;
+    var h = HEADH + chh * H;
+    cv.width = Math.round(w * dpr); cv.height = Math.round(h * dpr); cv.style.height = h + 'px';
+    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+  }
+  function cellBox(x, y) { return [HEADW + x * cw, HEADH + y * chh, cw, chh]; }
+  function fillCell(x, y, color, val, strong) {
+    var r = cellBox(x, y);
+    ctx.fillStyle = color; ctx.fillRect(r[0] + 1, r[1] + 1, r[2] - 1, r[3] - 1);
+    if (val !== undefined) {
+      ctx.fillStyle = colors['--ink']; ctx.font = (strong ? '600 ' : '400 ') + Math.min(13, chh * .5) + 'px "IBM Plex Mono", Consolas, monospace';
+      ctx.textAlign = 'right'; ctx.textBaseline = 'middle'; ctx.fillText(String(val), r[0] + r[2] - 4, r[1] + r[3] / 2 + 1);
+    }
+  }
+  function draw() {
+    if (!board) return;
+    var Wpx = HEADW + W * cw, Hpx = HEADH + H * chh;
+    ctx.fillStyle = colors['--cell']; ctx.fillRect(0, 0, Wpx, Hpx);
+    ctx.fillStyle = colors['--head']; ctx.fillRect(0, 0, Wpx, HEADH); ctx.fillRect(0, 0, HEADW, Hpx);
+    for (var y = 0; y < H; y++) for (var x = 0; x < W; x++) { var c = board[y][x]; if (c) fillCell(x, y, flashRows.indexOf(y) >= 0 ? colors['--select'] : colors[c.c], c.v); }
+    if (cur && running !== null) {
+      var gy = 0; while (fits(cur, 0, gy + 1)) gy++;
+      for (y = 0; y < cur.m.length; y++) for (x = 0; x < cur.m[y].length; x++) if (cur.m[y][x] && cur.y + y + gy >= 0) {
+        var g = cellBox(cur.x + x, cur.y + y + gy); ctx.setLineDash([3, 3]); ctx.strokeStyle = colors['--muted']; ctx.lineWidth = 1; ctx.strokeRect(g[0] + 2.5, g[1] + 2.5, g[2] - 5, g[3] - 5); ctx.setLineDash([]);
+      }
+      for (y = 0; y < cur.m.length; y++) for (x = 0; x < cur.m[y].length; x++) if (cur.m[y][x] && cur.y + y >= 0) fillCell(cur.x + x, cur.y + y, colors[cur.c], cur.vals[y][x], true);
+      var minx = 99, miny = 99, maxx = -1, maxy = -1;
+      for (y = 0; y < cur.m.length; y++) for (x = 0; x < cur.m[y].length; x++) if (cur.m[y][x]) { minx = Math.min(minx, x); maxx = Math.max(maxx, x); miny = Math.min(miny, y); maxy = Math.max(maxy, y); }
+      var a = cellBox(cur.x + minx, Math.max(0, cur.y + miny)), b = cellBox(cur.x + maxx, cur.y + maxy);
+      ctx.strokeStyle = colors['--spill']; ctx.lineWidth = 1.5; ctx.setLineDash([5, 3]); ctx.strokeRect(a[0] + 1, a[1] + 1, b[0] + b[2] - a[0] - 2, b[1] + b[3] - a[1] - 2); ctx.setLineDash([]);
+    }
+    ctx.strokeStyle = colors['--grid']; ctx.lineWidth = 1; ctx.beginPath();
+    for (x = 0; x <= W; x++) { var px = Math.round(HEADW + x * cw) + .5; ctx.moveTo(px, 0); ctx.lineTo(px, Hpx); }
+    for (y = 0; y <= H; y++) { var py = Math.round(HEADH + y * chh) + .5; ctx.moveTo(0, py); ctx.lineTo(Wpx, py); }
+    ctx.moveTo(.5, 0); ctx.lineTo(.5, Hpx); ctx.stroke();
+    ctx.font = '600 11px "IBM Plex Mono", Consolas, monospace'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+    for (x = 0; x < W; x++) { ctx.fillStyle = cur && x >= cur.x && x < cur.x + cur.m[0].length ? colors['--select'] : colors['--muted']; ctx.fillText(col(x), HEADW + x * cw + cw / 2, HEADH / 2 + 1); }
+    for (y = 0; y < H; y++) { ctx.fillStyle = colors['--muted']; ctx.fillText(String(y + 1), HEADW / 2, HEADH + y * chh + chh / 2 + 1); }
+    if (!running && !over && cur) { ctx.fillStyle = colors['--ink']; ctx.font = '600 15px "IBM Plex Sans", system-ui'; ctx.fillText('Calculation: Manual (P to resume)', Wpx / 2 + HEADW / 2, HEADH + chh * 3); }
+  }
+  function drawNext() {
+    var p = nxt; nctx.clearRect(0, 0, ncv.width, ncv.height); if (!p) return;
+    var s = 26, ox = (ncv.width - p.m[0].length * s) / 2, oy = (ncv.height - p.m.length * s) / 2;
+    for (var y = 0; y < p.m.length; y++) for (var x = 0; x < p.m[y].length; x++) {
+      nctx.strokeStyle = colors['--grid']; nctx.strokeRect(ox + x * s + .5, oy + y * s + .5, s, s);
+      if (p.m[y][x]) { nctx.fillStyle = colors[p.c]; nctx.fillRect(ox + x * s + 1, oy + y * s + 1, s - 1, s - 1); }
+    }
+  }
+  addEventListener('resize', function () { layout(); draw(); });
+  layout(); newBoard(); running = false; draw();
+})();
+</script>
