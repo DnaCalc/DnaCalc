@@ -1,0 +1,442 @@
+<meta charset="utf-8">
+<title>Names in Motion</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,400;12..96,800&family=IBM+Plex+Mono:wght@400;600&family=IBM+Plex+Sans:wght@400;500;600&display=swap">
+<style>
+/* Layout: an engineering drawing sheet. Title block, then the live schematic (actors = defined names, wires = references,
+   a director box), a parameter rail and a plotter, then the spec that maps it onto DNA Calc. Paper and ink in light;
+   blueprint in dark. */
+:root {
+  --paper: #f6f4ee; --sheet: #fffdf8; --ink: #1c2430; --muted: #5d6573; --faint: #8b93a1; --grid: #e7e2d6; --wire: #3b4658;
+  --frame: #c9c0ad; --director: #2f8f4e; --directorTint: #e2f3e6;
+  --input: #f3e3c4; --inputInk: #7a5310; --state: #cfeae6; --stateInk: #11615a; --calc: #e6e9f2; --calcInk: #2c3a5a;
+  --mode: #e7dcf7; --modeInk: #5a3b91; --plot: #dbe8fb; --plotInk: #1f5bb5;
+  --hot: #e8590c; --hotTint: rgba(232, 89, 12, .16); --good: #2f8f4e; --bad: #c0392b;
+  --display: "Bricolage Grotesque", "Segoe UI", system-ui, sans-serif;
+  --body: "IBM Plex Sans", "Segoe UI", system-ui, sans-serif;
+  --mono: "IBM Plex Mono", ui-monospace, Consolas, monospace;
+}
+@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) {
+  --paper: #0d1b2a; --sheet: #102338; --ink: #e3ecf6; --muted: #9db0c6; --faint: #6f87a2; --grid: #183251; --wire: #a9c1dc;
+  --frame: #2c4a6e; --director: #5fd08a; --directorTint: #12392a;
+  --input: #3a2f18; --inputInk: #f4cf8a; --state: #123d3a; --stateInk: #7fe0d4; --calc: #1a2b45; --calcInk: #c6d6f2;
+  --mode: #2d2148; --modeInk: #cdb8ff; --plot: #16304f; --plotInk: #8fc0ff; --hot: #ff8a3d; --hotTint: rgba(255,138,61,.18); color-scheme: dark } }
+:root[data-theme="dark"] {
+  --paper: #0d1b2a; --sheet: #102338; --ink: #e3ecf6; --muted: #9db0c6; --faint: #6f87a2; --grid: #183251; --wire: #a9c1dc;
+  --frame: #2c4a6e; --director: #5fd08a; --directorTint: #12392a;
+  --input: #3a2f18; --inputInk: #f4cf8a; --state: #123d3a; --stateInk: #7fe0d4; --calc: #1a2b45; --calcInk: #c6d6f2;
+  --mode: #2d2148; --modeInk: #cdb8ff; --plot: #16304f; --plotInk: #8fc0ff; --hot: #ff8a3d; --hotTint: rgba(255,138,61,.18); color-scheme: dark }
+* { box-sizing: border-box }
+body { margin: 0; background: var(--paper); color: var(--ink); font: 400 15px/1.55 var(--body) }
+a { color: var(--plotInk) }
+button:focus-visible, input:focus-visible, a:focus-visible { outline: 2px solid var(--hot); outline-offset: 2px }
+.page { max-width: 1320px; margin: 0 auto; padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px)); padding-block: 22px 56px; display: grid; gap: 18px }
+.titleblock { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 16px 28px; align-items: end; border: 1.5px solid var(--frame); background: var(--sheet); padding: 18px 20px; border-radius: 4px }
+@media (max-width: 860px) { .titleblock { grid-template-columns: 1fr } }
+.eyebrow { font: 600 12px/1 var(--mono); letter-spacing: .14em; text-transform: uppercase; color: var(--director) }
+h1 { margin: 8px 0 0; font: 800 clamp(40px, 7vw, 84px)/.92 var(--display); letter-spacing: -.03em }
+.lede { margin: 10px 0 0; max-width: 70ch; color: var(--muted) }
+.stamp { display: grid; grid-template-columns: auto auto; gap: 2px 14px; font: 400 12px var(--mono); color: var(--muted); border-left: 1.5px solid var(--frame); padding-left: 16px }
+.stamp b { color: var(--ink); font-weight: 600 }
+.bench { display: grid; grid-template-columns: minmax(0, 1fr) 280px; gap: 14px; align-items: start }
+@media (max-width: 1060px) { .bench { grid-template-columns: 1fr } }
+.drawing { position: relative; background: var(--sheet); border: 1.5px solid var(--frame); border-radius: 4px; overflow: auto; min-width: 0 }
+.drawing svg { display: block; width: 100%; min-width: 980px; height: auto }
+.bar { display: flex; flex-wrap: wrap; gap: 8px 12px; align-items: center; padding: 10px 12px; border-bottom: 1.5px solid var(--frame); background: var(--paper) }
+.bar button { font: 600 13px var(--body); padding: 7px 13px; border-radius: 4px; border: 1px solid var(--frame); background: var(--sheet); color: var(--ink); cursor: pointer }
+.bar button.go { background: var(--director); border-color: var(--director); color: var(--sheet) }
+.bar .seg { display: inline-flex; border: 1px solid var(--frame); border-radius: 4px; overflow: hidden }
+.bar .seg button { border: 0; border-radius: 0 }
+.bar .seg button + button { border-left: 1px solid var(--frame) }
+.bar .seg button[aria-pressed="true"] { background: var(--ink); color: var(--sheet) }
+.bar label { font: 600 12px var(--body); color: var(--muted); display: inline-flex; gap: 6px; align-items: center }
+.bar .clock { font: 600 14px var(--mono); margin-left: auto }
+.rail { display: grid; gap: 12px; min-width: 0 }
+.card { background: var(--sheet); border: 1.5px solid var(--frame); border-radius: 4px; padding: 14px 16px; min-width: 0 }
+.card h2 { margin: 0 0 8px; font: 600 11px/1.3 var(--body); letter-spacing: .1em; text-transform: uppercase; color: var(--muted) }
+.param { display: grid; grid-template-columns: 1fr auto; gap: 2px 8px; align-items: center; margin-top: 8px }
+.param span { font: 600 13px var(--mono) }
+.param output { font: 600 13px var(--mono); color: var(--inputInk) }
+.param input { grid-column: 1 / -1; width: 100%; accent-color: var(--inputInk) }
+.inspect .f { font: 400 13px/1.5 var(--mono); background: var(--paper); border: 1px solid var(--grid); padding: 8px 10px; border-radius: 3px; overflow-x: auto; white-space: pre-wrap; word-break: break-word }
+.inspect .n { font: 800 24px/1.1 var(--display) }
+.inspect .k { font: 400 12px var(--mono); color: var(--muted); margin: 4px 0 8px }
+.inspect p { margin: 8px 0 0; font-size: 13.5px; color: var(--muted) }
+.plotter { background: var(--sheet); border: 1.5px solid var(--frame); border-radius: 4px; padding: 12px 14px 6px; min-width: 0 }
+.plotter svg { display: block; width: 100%; height: auto }
+.plotter .head { display: flex; flex-wrap: wrap; justify-content: space-between; gap: 6px 14px; align-items: baseline }
+.plotter .head b { font: 800 20px var(--display) }
+.plotter .key { display: flex; flex-wrap: wrap; gap: 12px; font: 400 12px var(--mono); color: var(--muted) }
+.plotter .key i { display: inline-block; width: 18px; height: 3px; vertical-align: middle; margin-right: 6px; border-radius: 2px }
+.spec { background: var(--sheet); border: 1.5px solid var(--frame); border-radius: 4px; padding: 20px; display: grid; gap: 18px }
+.spec h2 { margin: 0; font: 800 clamp(26px, 3.6vw, 38px)/1.05 var(--display) }
+.spec h3 { margin: 0; font: 600 12px/1.3 var(--body); letter-spacing: .1em; text-transform: uppercase; color: var(--director) }
+.spec p { margin: 6px 0 0; max-width: 78ch }
+.tablewrap { overflow-x: auto }
+table { width: 100%; border-collapse: collapse; min-width: 760px; font-size: 14px }
+th { text-align: left; font: 600 11px var(--body); letter-spacing: .08em; text-transform: uppercase; color: var(--muted); border-bottom: 1.5px solid var(--frame); padding: 8px 10px }
+td { border-bottom: 1px solid var(--grid); padding: 9px 10px; vertical-align: top }
+td code { font: 400 12.5px var(--mono); background: var(--paper); padding: 1px 4px; border-radius: 3px }
+.pill { display: inline-block; font: 600 11px var(--mono); padding: 2px 8px; border-radius: 999px; white-space: nowrap }
+.pill.have { background: var(--state); color: var(--stateInk) } .pill.api { background: var(--input); color: var(--inputInk) } .pill.skin { background: var(--mode); color: var(--modeInk) } .pill.later { background: var(--calc); color: var(--calcInk) }
+.directors { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 12px }
+.dir { border: 1.5px solid var(--director); background: var(--directorTint); border-radius: 4px; padding: 12px 14px }
+.dir b { font: 800 18px var(--display); display: block }
+.dir span { font: 400 12px var(--mono); color: var(--muted); display: block; margin: 2px 0 6px }
+.dir p { margin: 0; font-size: 13.5px }
+.steps { margin: 0; padding: 0; list-style: none; display: grid; gap: 10px; counter-reset: s }
+.steps li { display: grid; grid-template-columns: 36px 1fr; gap: 12px; counter-increment: s; align-items: start }
+.steps li::before { content: counter(s); font: 800 18px/36px var(--display); text-align: center; border: 1.5px solid var(--frame); border-radius: 50%; color: var(--director) }
+.steps b { display: block }
+footer { font: 400 12px var(--mono); color: var(--faint) }
+/* SVG parts */
+.actor rect.body { stroke: var(--ink); stroke-width: 1.4 }
+.actor.input rect.body { fill: var(--input) } .actor.state rect.body { fill: var(--state) } .actor.calc rect.body { fill: var(--calc) } .actor.mode rect.body { fill: var(--mode) } .actor.plot rect.body { fill: var(--plot) }
+.actor text.name { font: 600 13px var(--mono); fill: var(--ink) }
+.actor text.val { font: 600 17px var(--mono); fill: var(--ink) }
+.actor text.sub { font: 400 11px var(--mono); fill: var(--muted) }
+.actor.input text.val { fill: var(--inputInk) } .actor.state text.val { fill: var(--stateInk) } .actor.mode text.val { fill: var(--modeInk) }
+.actor { cursor: pointer }
+.actor.fired rect.body { stroke: var(--hot); stroke-width: 3 }
+.actor.fired rect.glow { fill: var(--hotTint) }
+.actor.sel rect.body { stroke-dasharray: 5 3; stroke-width: 2.2 }
+.wire { fill: none; stroke: var(--wire); stroke-width: 1.5; opacity: .75 }
+.wire.hot { stroke: var(--hot); stroke-width: 2.6; opacity: 1; stroke-dasharray: 7 6; animation: flow .5s linear infinite }
+.wire.loop { stroke-dasharray: 2 3 }
+@keyframes flow { to { stroke-dashoffset: -13 } }
+.port { fill: var(--ink) }
+.frame rect { fill: none; stroke: var(--frame); stroke-width: 1.5; stroke-dasharray: 8 5 }
+.frame text { font: 600 12px var(--body); letter-spacing: .1em; text-transform: uppercase; fill: var(--muted) }
+.director rect { fill: var(--directorTint); stroke: var(--director); stroke-width: 2 }
+.director text { fill: var(--ink) }
+.delay rect { fill: var(--sheet); stroke: var(--ink); stroke-width: 1.2 }
+.delay text { font: 600 11px var(--mono); fill: var(--ink) }
+.fsm circle { stroke: var(--modeInk); stroke-width: 1.3; fill: var(--sheet) }
+.fsm circle.on { fill: var(--modeInk) }
+.fsm text { font: 400 9.5px var(--mono); fill: var(--modeInk) }
+.fsm path { fill: none; stroke: var(--modeInk); stroke-width: 1 }
+@media (prefers-reduced-motion: reduce) { .wire.hot { animation: none } }
+</style>
+
+<div class="page">
+  <header class="titleblock">
+    <div>
+      <div class="eyebrow">DNA Calc · skin spec preview · linked boxes (dc-lvlj)</div>
+      <h1>Names in Motion</h1>
+      <p class="lede">An Excel model shown the way Ptolemy II shows a system: every defined name is an actor, every reference is a wire, and the way the workbook calculates is a director. This model is a small shop's stock and reorder policy, built from ordinary Excel formulas. It runs one recalculation per tick. Change a parameter while it runs and watch the change move through the wires.</p>
+    </div>
+    <div class="stamp"><span>Drawing</span><b>NM-001</b><span>Model</span><b>Shop.Stock</b><span>Director</span><b>Ticks</b><span>Status</span><b>Preview, not built</b><span>Inspired by</span><b>Ptolemy II</b></div>
+  </header>
+
+  <div class="bench">
+    <div class="drawing">
+      <div class="bar">
+        <button type="button" class="go" id="run">▶ Run</button>
+        <button type="button" id="step">Step one tick</button>
+        <button type="button" id="reset">Reset</button>
+        <div class="seg" id="view"><button type="button" data-v="present" aria-pressed="true">Presented</button><button type="button" data-v="excel" aria-pressed="false">Excel formulas</button></div>
+        <label>Speed <input type="range" id="speed" min="1" max="5" value="3"></label>
+        <span class="clock" id="clock">Tick 0</span>
+      </div>
+      <svg id="sch" viewBox="0 0 1240 760" role="img" aria-label="Schematic of the stock model: defined names as boxes, references as wires"></svg>
+    </div>
+    <div class="rail">
+      <div class="card" id="params"><h2>Parameters (input names)</h2></div>
+      <div class="card inspect" id="inspect"></div>
+    </div>
+  </div>
+
+  <div class="plotter">
+    <div class="head"><b>Plotter</b><div class="key" id="pkey"></div></div>
+    <svg id="plot" viewBox="0 0 1240 260" role="img" aria-label="Stock, demand, sales and cash over the ticks"></svg>
+  </div>
+
+  <section class="spec">
+    <div><h3>The idea</h3><h2>An actor view of an Excel model</h2>
+      <p>Ptolemy II, from UC Berkeley, models systems as actors: boxes with ports, joined by wires, run by a director. The director is a component inside the model that decides what "running" means. The workbook already holds all of this; a skin can show it. Defined names give the boxes their identity (dotted names such as <code>Shop.Stock</code> already read like Ptolemy's dotted full names), references are the wires, and the way the engine recalculates is the director. Nothing here needs a new language: every box above holds an ordinary Excel formula, and the presented view is the formula-name presenter from the linked-boxes idea.</p></div>
+    <div><h3>Concepts mapped</h3>
+      <div class="tablewrap"><table>
+        <thead><tr><th>Ptolemy II</th><th>In the workbook</th><th>In DNA Calc</th><th>Status</th></tr></thead>
+        <tbody>
+          <tr><td>Actor</td><td>A defined name (or a cell block) and its formula</td><td>Name table in calc-doc; formula trees from calc-fml</td><td><span class="pill have">exists</span></td></tr>
+          <tr><td>Port, wire</td><td>Each reference a formula makes to another name</td><td>Precedents from the calc-engine dependency graph</td><td><span class="pill api">engine API</span></td></tr>
+          <tr><td>Firing order</td><td>The order Excel recalculates in</td><td>The calc chain and dirty set of one recalculation, streamed to the skin</td><td><span class="pill api">engine API</span></td></tr>
+          <tr><td>Director parameters</td><td>File › Options › Formulas: iterative calculation, maximum iterations, maximum change</td><td>Workbook calculation properties, already read and saved</td><td><span class="pill have">exists</span></td></tr>
+          <tr><td>Delay (z⁻¹)</td><td>A cell that refers to itself under iterative calculation: its own previous value</td><td>Iterative calculation with one iteration per tick</td><td><span class="pill api">engine API</span></td></tr>
+          <tr><td>Composite actor</td><td>A sheet, or a name prefix such as <code>Shop.</code></td><td>Grouping in the skin part; layout stored with the workbook</td><td><span class="pill skin">skin</span></td></tr>
+          <tr><td>Modal model (FSM)</td><td>A mode cell driven by IFS or SWITCH, with its guards</td><td>Read from the formula tree; states and guards shown inside the box</td><td><span class="pill skin">skin</span></td></tr>
+          <tr><td>Actor class</td><td>A LAMBDA bound to a name, used many times</td><td>LAMBDA support in calc-fml</td><td><span class="pill have">exists</span></td></tr>
+          <tr><td>Plotter</td><td>A chart over a name's history</td><td>Charts in the DNA Calc skin</td><td><span class="pill later">later</span></td></tr>
+          <tr><td>Editing a wire</td><td>Rewriting the name's definition</td><td>The linked-boxes interpreter: wiring sets the formula; the formula stays the source of truth</td><td><span class="pill skin">skin</span></td></tr>
+        </tbody>
+      </table></div></div>
+    <div><h3>Directors a workbook already has</h3>
+      <div class="directors">
+        <div class="dir"><b>Recalc</b><span>synchronous-reactive · one fixed point</span><p>An edit settles every dependent name in one consistent step. This is plain Excel, and the default.</p></div>
+        <div class="dir"><b>Iteration</b><span>fixed point · maximum iterations, maximum change</span><p>Circular references allowed: the director repeats until values stop moving, using Excel's own two settings as its parameters.</p></div>
+        <div class="dir"><b>Ticks</b><span>discrete time · one recalculation per tick</span><p>Self-referencing state cells carry values from one tick to the next. This preview runs on it, as does the Circular Reference game.</p></div>
+        <div class="dir"><b>Sweep</b><span>parameter sweep · what-if data tables</span><p>A data table reruns the model once per input value; shown as a composite that fans one model out across a range.</p></div>
+        <div class="dir"><b>Events</b><span>discrete events · RTD, NOW, async</span><p>Live data and volatile functions wake the model. RTD topics become event sources with timestamps.</p></div>
+      </div></div>
+    <div><h3>A realistic path, in milestones</h3>
+      <ol class="steps">
+        <li><div><b>Read-only actor view.</b>Boxes for defined names, wires from the dependency graph, values live. Layout kept in a skin part of the workbook, as the linked-boxes note proposes.</div></li>
+        <li><div><b>Watch it calculate.</b>The engine streams each recalculation's firing order and dirty set; the skin animates them. Shows exactly what Excel would recalculate, and why.</div></li>
+        <li><div><b>Presenter.</b>Dotted names shortened inside their group, a self-reference shown as the previous value (<code>Stock⁻</code>), IFS mode cells drawn as small state machines.</div></li>
+        <li><div><b>Directors.</b>Ticks and Sweep on top of iterative calculation and data tables, with a plotter fed from name histories.</div></li>
+        <li><div><b>Edit by wiring.</b>Dragging a wire rewrites the name's formula through the interpreter; the workbook stays an ordinary .xlsx that Excel opens and calculates the same.</div></li>
+      </ol></div>
+  </section>
+  <footer>Concepts inspired by Ptolemy II (ptolemy.berkeley.edu): actor-oriented modeling, directors, delays and modal models. No Ptolemy code or artwork is used. The model on this page is evaluated in the page from the formulas shown; it is a preview of a DNA Calc skin, not the engine.</footer>
+</div>
+
+<script>
+(function () {
+  // ---------------- the model: Excel formulas, and their meaning per tick ----------------
+  var P = { Base: 100, Season: .35, LeadTime: 3, ReorderPoint: 260, OrderQty: 420, Price: 12, UnitCost: 7, HoldCost: .05, StockInitial: 400, CashInitial: 2000 };
+  var PARAMS = [
+    ['Base', 'Demand.Base', 40, 200, 1], ['Season', 'Demand.Season', 0, .8, .05], ['LeadTime', 'Supply.LeadTime', 1, 8, 1],
+    ['ReorderPoint', 'Supply.ReorderPoint', 0, 600, 10], ['OrderQty', 'Supply.OrderQty', 50, 900, 10], ['Price', 'Finance.Price', 8, 20, .5], ['UnitCost', 'Finance.UnitCost', 3, 12, .5]
+  ];
+  var A = [
+    // id, label, kind, x, y, w, h, Excel formula, presented formula, inputs (ids), group
+    ['Tick', 'Tick', 'state', 214, 92, 150, 64, '=IF(Shop.Reset, 0, Shop.Tick + 1)', 'Tick⁻ + 1', ['Tick'], null],
+    ['Base', 'Demand.Base', 'input', 60, 220, 150, 58, '100', 'parameter', [], 'Demand'],
+    ['Season', 'Demand.Season', 'input', 60, 300, 150, 58, '0.35', 'parameter', [], 'Demand'],
+    ['Demand', 'Demand', 'calc', 290, 246, 170, 70, '=ROUND(Demand.Base * (1 + Demand.Season * SIN(2 * PI() * Shop.Tick / 12)) * Demand.Noise, 0)', 'Base × (1 + Season × sin(2π·Tick/12)) × Noise', ['Base', 'Season', 'Tick'], 'Demand'],
+    ['LeadTime', 'Supply.LeadTime', 'input', 60, 470, 150, 58, '3', 'parameter', [], 'Supply'],
+    ['Pipeline', 'Supply.Pipeline', 'state', 290, 470, 170, 70, '=IF(Shop.Reset, SEQUENCE(1, Supply.LeadTime, 0, 0), HSTACK(DROP(Supply.Pipeline, , 1), Supply.Order))', 'shift(Pipeline⁻) ⟵ Order⁻', ['LeadTime', 'Pipeline', 'Order'], 'Supply'],
+    ['Arrivals', 'Supply.Arrivals', 'calc', 520, 470, 150, 64, '=INDEX(Supply.Pipeline, 1)', 'first(Pipeline⁻): the order placed LeadTime ticks ago', ['Pipeline'], 'Supply'],
+    ['Sales', 'Store.Sales', 'calc', 560, 246, 150, 64, '=MIN(Demand, Store.Stock + Supply.Arrivals)', 'min(Demand, Stock⁻ + Arrivals)', ['Demand', 'Stock', 'Arrivals'], 'Store'],
+    ['Stock', 'Store.Stock', 'state', 770, 246, 160, 70, '=IF(Shop.Reset, Store.Initial, Store.Stock + Supply.Arrivals - Store.Sales)', 'Stock⁻ + Arrivals − Sales', ['Stock', 'Arrivals', 'Sales'], 'Store'],
+    ['Lost', 'Store.Lost', 'calc', 770, 120, 150, 58, '=Demand - Store.Sales', 'Demand − Sales', ['Demand', 'Sales'], 'Store'],
+    ['Position', 'Supply.Position', 'calc', 770, 470, 160, 64, '=Store.Stock + SUM(Supply.Pipeline)', 'Stock + Σ Pipeline', ['Stock', 'Pipeline'], 'Supply'],
+    ['RP', 'Supply.ReorderPoint', 'input', 520, 600, 150, 58, '260', 'parameter', [], 'Supply'],
+    ['OQ', 'Supply.OrderQty', 'input', 770, 600, 160, 58, '420', 'parameter', [], 'Supply'],
+    ['Order', 'Supply.Order', 'calc', 1000, 520, 150, 64, '=IF(Supply.Position < Supply.ReorderPoint, Supply.OrderQty, 0)', 'Position < ReorderPoint ? OrderQty : 0', ['Position', 'RP', 'OQ'], 'Supply'],
+    ['Mode', 'Store.Mode', 'mode', 1000, 92, 190, 120, '=IFS(Store.Lost > 0, "Stockout", Supply.Order > 0, "Ordering", TRUE, "Normal")', 'state machine over Lost and Order', ['Lost', 'Order'], 'Store'],
+    ['Price', 'Finance.Price', 'input', 1000, 280, 150, 58, '12', 'parameter', [], 'Finance'],
+    ['Cash', 'Finance.Cash', 'state', 1000, 370, 190, 70, '=IF(Shop.Reset, Finance.Initial, Finance.Cash + Store.Sales * Finance.Price - Supply.Order * Finance.UnitCost - Store.Stock * Finance.HoldCost)', 'Cash⁻ + Sales × Price − Order × UnitCost − Stock × Hold', ['Cash', 'Sales', 'Price', 'Order', 'Stock'], 'Finance']
+  ];
+  var ORDER = ['Tick', 'Demand', 'Arrivals', 'Pipeline', 'Sales', 'Stock', 'Lost', 'Position', 'Order', 'Mode', 'Cash'];
+  var GROUPS = [['Demand', 40, 200, 440, 190], ['Supply', 40, 445, 1130, 240], ['Store', 540, 100, 420, 240], ['Finance', 980, 262, 230, 200]];
+  var byId = {}; A.forEach(function (a) { byId[a[0]] = { id: a[0], label: a[1], kind: a[2], x: a[3], y: a[4], w: a[5], h: a[6], xf: a[7], pf: a[8], ins: a[9], group: a[10] }; });
+
+  var S, hist;
+  function noise(t) { var x = Math.sin(t * 12.9898 + 78.233) * 43758.5453; return 0.88 + 0.24 * (x - Math.floor(x)); }
+  function reset() {
+    S = { Tick: 0, Pipeline: new Array(P.LeadTime).fill(0), Stock: P.StockInitial, Cash: P.CashInitial, Demand: 0, Arrivals: 0, Sales: 0, Lost: 0, Position: 0, Order: 0, Mode: 'Normal' };
+    hist = [];
+  }
+  // One recalculation = one tick, firing in calc-chain order. Each step returns the actor that fired.
+  function tickSteps() {
+    var prev = { Stock: S.Stock, Cash: S.Cash, Pipeline: S.Pipeline.slice(), Order: S.Order, Tick: S.Tick };
+    return [
+      function () { S.Tick = prev.Tick + 1; return 'Tick'; },
+      function () { S.Demand = Math.round(P.Base * (1 + P.Season * Math.sin(2 * Math.PI * S.Tick / 12)) * noise(S.Tick)); return 'Demand'; },
+      function () { S.Arrivals = prev.Pipeline[0] || 0; return 'Arrivals'; },
+      function () { var pl = prev.Pipeline.slice(1); pl.push(prev.Order); while (pl.length < P.LeadTime) pl.unshift(0); while (pl.length > P.LeadTime) { pl[1] += pl[0]; pl.shift(); } S.Pipeline = pl; return 'Pipeline'; },
+      function () { S.Sales = Math.min(S.Demand, prev.Stock + S.Arrivals); return 'Sales'; },
+      function () { S.Stock = prev.Stock + S.Arrivals - S.Sales; return 'Stock'; },
+      function () { S.Lost = S.Demand - S.Sales; return 'Lost'; },
+      function () { S.Position = S.Stock + S.Pipeline.reduce(function (s, v) { return s + v; }, 0); return 'Position'; },
+      function () { S.Order = S.Position < P.ReorderPoint ? P.OrderQty : 0; return 'Order'; },
+      function () { S.Mode = S.Lost > 0 ? 'Stockout' : S.Order > 0 ? 'Ordering' : 'Normal'; return 'Mode'; },
+      function () { S.Cash = prev.Cash + S.Sales * P.Price - S.Order * P.UnitCost - S.Stock * P.HoldCost; hist.push({ t: S.Tick, Stock: S.Stock, Demand: S.Demand, Sales: S.Sales, Cash: S.Cash, Mode: S.Mode, Order: S.Order }); if (hist.length > 120) hist.shift(); return 'Cash'; }
+    ];
+  }
+
+  // ---------------- drawing ----------------
+  var NS = 'http://www.w3.org/2000/svg', svg = document.getElementById('sch');
+  function el(tag, attrs, parent) { var e = document.createElementNS(NS, tag); for (var k in attrs) e.setAttribute(k, attrs[k]); (parent || svg).appendChild(e); return e; }
+  var view = 'present';
+  var gFrames = el('g', {}), gWires = el('g', {}), gActors = el('g', {}), gTop = el('g', {});
+  GROUPS.forEach(function (g) { var f = el('g', { class: 'frame' }, gFrames); el('rect', { x: g[1], y: g[2], width: g[3], height: g[4], rx: 6 }, f); el('text', { x: g[1] + 10, y: g[2] + 16 }, f).textContent = 'Shop.' + g[0]; });
+  // Director, Ptolemy style: a green box naming the model of computation and its parameters.
+  var dir = el('g', { class: 'director' }, gTop);
+  el('rect', { x: 20, y: 18, width: 176, height: 58, rx: 4 }, dir);
+  var dt = el('text', { x: 32, y: 40 }, dir); dt.setAttribute('style', 'font:800 15px "Bricolage Grotesque",system-ui'); dt.textContent = 'Ticks director';
+  var dp = el('text', { x: 32, y: 58 }, dir); dp.setAttribute('style', 'font:400 10.5px "IBM Plex Mono",monospace'); dp.textContent = 'iterations: 1 per tick';
+  var dp2 = el('text', { x: 32, y: 71 }, dir); dp2.setAttribute('style', 'font:400 10.5px "IBM Plex Mono",monospace'); dp2.textContent = 'max change: 0.001';
+  // Ports: outputs on the right edge; inputs spread along the left edge.
+  function outPort(a) { return [a.x + a.w, a.y + a.h / 2]; }
+  function inPort(a, i, n) { return [a.x, a.y + a.h * (i + 1) / (n + 1)]; }
+  var wires = [];
+  A.forEach(function (row) {
+    var a = byId[row[0]], n = a.ins.length;
+    a.ins.forEach(function (src, i) {
+      var s = byId[src], p0 = outPort(s), p1 = inPort(a, i, n), d;
+      if (src === a.id) {
+        // Self reference: a feedback loop over the top with a z⁻¹ delay, the previous tick's value.
+        var lx = a.x + a.w + 16, ty = a.y - 22;
+        d = 'M' + p0[0] + ',' + p0[1] + ' C' + (lx + 24) + ',' + p0[1] + ' ' + (lx + 24) + ',' + ty + ' ' + (a.x + a.w / 2 + 30) + ',' + ty + ' L' + (a.x - 26) + ',' + ty + ' C' + (a.x - 40) + ',' + ty + ' ' + (a.x - 40) + ',' + p1[1] + ' ' + p1[0] + ',' + p1[1];
+        var w = el('path', { d: d, class: 'wire loop' }, gWires);
+        var dl = el('g', { class: 'delay' }, gWires);
+        el('rect', { x: a.x + a.w / 2 - 16, y: ty - 10, width: 32, height: 20, rx: 3 }, dl);
+        el('text', { x: a.x + a.w / 2, y: ty + 4, 'text-anchor': 'middle' }, dl).textContent = 'z⁻¹';
+        wires.push({ from: src, to: a.id, el: w });
+      } else {
+        var mx = (p0[0] + p1[0]) / 2, back = p1[0] < p0[0] + 20;
+        d = back ? 'M' + p0[0] + ',' + p0[1] + ' C' + (p0[0] + 70) + ',' + p0[1] + ' ' + (p1[0] - 70) + ',' + p1[1] + ' ' + p1[0] + ',' + p1[1]
+                 : 'M' + p0[0] + ',' + p0[1] + ' C' + mx + ',' + p0[1] + ' ' + mx + ',' + p1[1] + ' ' + p1[0] + ',' + p1[1];
+        wires.push({ from: src, to: a.id, el: el('path', { d: d, class: 'wire' }, gWires) });
+      }
+      el('polygon', { points: (p1[0] - 7) + ',' + (p1[1] - 4) + ' ' + p1[0] + ',' + p1[1] + ' ' + (p1[0] - 7) + ',' + (p1[1] + 4), class: 'port' }, gActors);
+    });
+  });
+  // Relations: a diamond where one output fans out to several inputs (Ptolemy's relation icon).
+  var fan = {}; wires.forEach(function (w) { if (w.from !== w.to) fan[w.from] = (fan[w.from] || 0) + 1; });
+  Object.keys(fan).forEach(function (id) { if (fan[id] < 2) return; var p = outPort(byId[id]); el('polygon', { points: (p[0] + 12) + ',' + p[1] + ' ' + (p[0] + 18) + ',' + (p[1] - 6) + ' ' + (p[0] + 24) + ',' + p[1] + ' ' + (p[0] + 18) + ',' + (p[1] + 6), fill: 'var(--ink)' }, gTop); });
+  var nodes = {};
+  A.forEach(function (row) {
+    var a = byId[row[0]], g = el('g', { class: 'actor ' + a.kind, tabindex: 0, role: 'button', 'aria-label': a.label }, gActors);
+    el('rect', { class: 'glow', x: a.x - 6, y: a.y - 6, width: a.w + 12, height: a.h + 12, rx: 10, fill: 'transparent' }, g);
+    el('rect', { class: 'body', x: a.x, y: a.y, width: a.w, height: a.h, rx: 5 }, g);
+    el('polygon', { points: (a.x + a.w) + ',' + (a.y + a.h / 2 - 5) + ' ' + (a.x + a.w + 8) + ',' + (a.y + a.h / 2) + ' ' + (a.x + a.w) + ',' + (a.y + a.h / 2 + 5), class: 'port' }, g);
+    el('text', { class: 'name', x: a.x + 10, y: a.y + 18 }, g).textContent = a.label.replace(/^(Demand|Supply|Store|Finance)\./, '');
+    var v = el('text', { class: 'val', x: a.x + 10, y: a.y + 41 }, g);
+    var sub = el('text', { class: 'sub', x: a.x + 10, y: a.y + a.h - 9 }, g);
+    nodes[a.id] = { g: g, v: v, sub: sub, a: a };
+    if (a.kind === 'mode') {
+      var f = el('g', { class: 'fsm' }, g), cx = a.x + 30, cy = a.y + 86;
+      [['Normal', 0], ['Ordering', 1], ['Stockout', 2]].forEach(function (s) { var x = cx + s[1] * 64; el('circle', { cx: x, cy: cy, r: 8, 'data-s': s[0] }, f); el('text', { x: x, y: cy + 21, 'text-anchor': 'middle' }, f).textContent = s[0]; });
+      el('path', { d: 'M' + (cx + 9) + ',' + (cy - 3) + ' Q' + (cx + 32) + ',' + (cy - 16) + ' ' + (cx + 55) + ',' + (cy - 3) }, f);
+      el('path', { d: 'M' + (cx + 73) + ',' + (cy - 3) + ' Q' + (cx + 96) + ',' + (cy - 16) + ' ' + (cx + 119) + ',' + (cy - 3) }, f);
+      el('path', { d: 'M' + (cx + 120) + ',' + (cy + 6) + ' Q' + (cx + 64) + ',' + (cy + 36) + ' ' + (cx + 8) + ',' + (cy + 6) }, f);
+      nodes[a.id].fsm = f; v.setAttribute('y', a.y + 40);
+    }
+    g.addEventListener('click', function () { inspect(a.id); });
+    g.addEventListener('keydown', function (e) { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); inspect(a.id); } });
+  });
+  // The plotter actor, wired from Stock, Demand and Cash.
+  var pl = { x: 1040, y: 640, w: 150, h: 58 };
+  var pg = el('g', { class: 'actor plot' }, gActors);
+  el('rect', { class: 'body', x: pl.x, y: pl.y, width: pl.w, height: pl.h, rx: 5 }, pg);
+  el('text', { class: 'name', x: pl.x + 10, y: pl.y + 20 }, pg).textContent = 'Plotter';
+  el('text', { class: 'sub', x: pl.x + 10, y: pl.y + 40 }, pg).textContent = 'Stock · Demand · Cash';
+  ['Stock', 'Demand', 'Cash'].forEach(function (id, i) { var s = byId[id], p0 = outPort(s), p1 = [pl.x, pl.y + pl.h * (i + 1) / 4]; el('path', { d: 'M' + p0[0] + ',' + p0[1] + ' C' + (p0[0] + 60) + ',' + p0[1] + ' ' + (p1[0] - 90) + ',' + p1[1] + ' ' + p1[0] + ',' + p1[1], class: 'wire', opacity: .35 }, gWires); });
+
+  function fmtv(id) {
+    var v = S[id];
+    if (id === 'Pipeline') return '{' + v.join(', ') + '}';
+    if (id === 'Mode') return v;
+    if (id === 'Cash') return '$' + Math.round(v).toLocaleString('en-US');
+    return Math.round(v).toLocaleString('en-US');
+  }
+  function paramVal(a) {
+    var map = { Base: P.Base, Season: P.Season, LeadTime: P.LeadTime, RP: P.ReorderPoint, OQ: P.OrderQty, Price: P.Price };
+    var v = map[a.id]; return a.id === 'Price' ? '$' + v : String(v);
+  }
+  function paint() {
+    Object.keys(nodes).forEach(function (id) {
+      var n = nodes[id], a = n.a;
+      n.v.textContent = a.kind === 'input' ? paramVal(a) : fmtv(id);
+      var t = view === 'excel' ? a.xf : (a.kind === 'input' ? 'parameter' : a.pf);
+      n.sub.textContent = t.length > Math.floor(a.w / 6.6) ? t.slice(0, Math.floor(a.w / 6.6) - 1) + '…' : t;
+      if (n.fsm) n.fsm.querySelectorAll('circle').forEach(function (c) { c.setAttribute('class', c.getAttribute('data-s') === S.Mode ? 'on' : ''); });
+    });
+    document.getElementById('clock').textContent = 'Tick ' + S.Tick + (S.Tick ? '  ·  ' + S.Mode : '');
+    plot();
+    if (selected) inspect(selected, true);
+  }
+  function fire(id) {
+    Object.keys(nodes).forEach(function (k) { nodes[k].g.classList.toggle('fired', k === id); });
+    wires.forEach(function (w) { w.el.classList.toggle('hot', w.from === id && w.to !== id); });
+  }
+  function clearFire() { Object.keys(nodes).forEach(function (k) { nodes[k].g.classList.remove('fired'); }); wires.forEach(function (w) { w.el.classList.remove('hot'); }); }
+
+  // ---------------- running ----------------
+  var running = false, timer = null, steps = [], speed = 3;
+  function stepDelay() { return [0, 220, 120, 60, 25, 0][speed]; }
+  function runTick(done) {
+    steps = tickSteps();
+    var d = stepDelay();
+    if (!d) { var last; steps.forEach(function (s) { last = s(); }); clearFire(); paint(); return done && done(); }
+    (function next(i) {
+      if (i >= steps.length) { setTimeout(function () { clearFire(); done && done(); }, d); return; }
+      var id = steps[i](); fire(id); paint();
+      setTimeout(function () { next(i + 1); }, d);
+    })(0);
+  }
+  function loop() { if (!running) return; runTick(function () { if (running) timer = setTimeout(loop, speed >= 5 ? 30 : 140); }); }
+  var runBtn = document.getElementById('run');
+  runBtn.addEventListener('click', function () { running = !running; runBtn.textContent = running ? '❚❚ Pause' : '▶ Run'; if (running) loop(); else clearTimeout(timer); });
+  document.getElementById('step').addEventListener('click', function () { if (running) return; runTick(); });
+  document.getElementById('reset').addEventListener('click', function () { reset(); clearFire(); paint(); });
+  document.getElementById('speed').addEventListener('input', function () { speed = Number(this.value); });
+  document.querySelectorAll('#view button').forEach(function (b) { b.addEventListener('click', function () { view = b.dataset.v; document.querySelectorAll('#view button').forEach(function (x) { x.setAttribute('aria-pressed', String(x === b)); }); paint(); }); });
+
+  // ---------------- parameters ----------------
+  var pc = document.getElementById('params');
+  PARAMS.forEach(function (p) {
+    var row = document.createElement('div'); row.className = 'param';
+    row.innerHTML = '<span>' + p[1] + '</span><output id="o-' + p[0] + '">' + P[p[0]] + '</output><input type="range" id="p-' + p[0] + '" min="' + p[2] + '" max="' + p[3] + '" step="' + p[4] + '" value="' + P[p[0]] + '" aria-label="' + p[1] + '">';
+    pc.appendChild(row);
+    row.querySelector('input').addEventListener('input', function () {
+      P[p[0]] = Number(this.value); document.getElementById('o-' + p[0]).textContent = this.value;
+      var id = { ReorderPoint: 'RP', OrderQty: 'OQ' }[p[0]] || p[0];
+      if (nodes[id]) { nodes[id].g.classList.add('fired'); wires.forEach(function (w) { w.el.classList.toggle('hot', w.from === id); }); setTimeout(clearFire, 500); }
+      paint();
+    });
+  });
+
+  // ---------------- inspector ----------------
+  var selected = null;
+  var WHY = {
+    Tick: 'The clock. It refers to itself, so under iterative calculation each recalculation adds one: a z⁻¹ delay feeding back into itself.',
+    Demand: 'A seasonal demand curve with fixed noise, recalculated from the tick on every recalculation.',
+    Pipeline: 'A delay line built from dynamic arrays: last tick\'s order enters at the end and the array shifts one place per tick. LeadTime sets its length.',
+    Arrivals: 'Whatever reaches the front of the pipeline this tick.',
+    Sales: 'You cannot sell what you do not have: the smaller of demand and the stock on hand plus arrivals.',
+    Stock: 'State. Its previous value (Stock⁻) plus arrivals minus sales. In Excel this is a cell that refers to itself.',
+    Lost: 'Demand that went unserved this tick. Anything above zero puts the store into Stockout.',
+    Position: 'Stock on hand plus everything still on its way: what the reorder policy looks at.',
+    Order: 'The reorder policy: order a fixed quantity whenever the position falls below the reorder point.',
+    Mode: 'A modal model. The IFS guards become transitions between three states; the lit state is the current one.',
+    Cash: 'State. Revenue in, purchases and holding cost out, carried from tick to tick.',
+    Base: 'Parameter: average demand per tick.', Season: 'Parameter: how strongly demand swings over a 12-tick year.', LeadTime: 'Parameter: ticks between ordering and arrival.',
+    RP: 'Parameter: reorder when the position falls below this.', OQ: 'Parameter: how much to order.', Price: 'Parameter: selling price.'
+  };
+  function inspect(id, quiet) {
+    selected = id; var a = byId[id], n = nodes[id];
+    Object.keys(nodes).forEach(function (k) { nodes[k].g.classList.toggle('sel', k === id); });
+    var deps = a.ins.filter(function (x) { return x !== id; }).map(function (x) { return byId[x].label; });
+    var users = A.filter(function (r) { return r[9].indexOf(id) >= 0 && r[0] !== id; }).map(function (r) { return r[1]; });
+    document.getElementById('inspect').innerHTML = '<h2>Actor</h2><div class="n">' + a.label + '</div><div class="k">' + ({ input: 'parameter', state: 'state, with a z⁻¹ self loop', calc: 'calculation', mode: 'modal model' })[a.kind] + ' · now ' + (a.kind === 'input' ? paramVal(a) : fmtv(id)) + '</div>' +
+      '<div class="f">' + (a.kind === 'input' ? 'Defined name ' + a.label + ' = ' + paramVal(a).replace('$', '') : a.xf) + '</div>' +
+      (a.kind !== 'input' ? '<div class="f" style="margin-top:6px">' + a.pf + '</div>' : '') +
+      '<p>' + WHY[id] + '</p>' +
+      (deps.length ? '<p><b>Reads</b> ' + deps.join(', ') + (a.ins.indexOf(id) >= 0 ? ', and itself one tick back' : '') + '</p>' : '') +
+      (users.length ? '<p><b>Read by</b> ' + users.join(', ') + '</p>' : '');
+  }
+
+  // ---------------- plotter ----------------
+  var PS = document.getElementById('plot'), PW = 1240, PH = 260, pm = { l: 54, r: 70, t: 14, b: 28 };
+  var SERIES = [['Stock', 'var(--stateInk)'], ['Demand', 'var(--inputInk)'], ['Sales', 'var(--plotInk)'], ['Cash', 'var(--modeInk)']];
+  document.getElementById('pkey').innerHTML = SERIES.map(function (s) { return '<span><i style="background:' + s[1] + '"></i>' + s[0] + (s[0] === 'Cash' ? ' (right axis)' : '') + '</span>'; }).join('') + '<span><i style="background:var(--hotTint);height:10px"></i>stockout ticks</span>';
+  function plot() {
+    while (PS.firstChild) PS.removeChild(PS.firstChild);
+    var n = Math.max(60, hist.length), x0 = hist.length ? hist[0].t : 0;
+    var maxL = Math.max(500, Math.max.apply(null, hist.map(function (h) { return Math.max(h.Stock, h.Demand); }).concat([0])) * 1.1);
+    var cashs = hist.map(function (h) { return h.Cash; }); var cmin = Math.min.apply(null, cashs.concat([0])), cmax = Math.max.apply(null, cashs.concat([P.CashInitial * 2]));
+    function X(t) { return pm.l + (t - x0) / (n - 1) * (PW - pm.l - pm.r); }
+    function Y(v) { return PH - pm.b - v / maxL * (PH - pm.t - pm.b); }
+    function YC(v) { return PH - pm.b - (v - cmin) / (cmax - cmin || 1) * (PH - pm.t - pm.b); }
+    hist.forEach(function (h) { if (h.Mode === 'Stockout') el('rect', { x: X(h.t) - (PW - pm.l - pm.r) / (n - 1) / 2, y: pm.t, width: (PW - pm.l - pm.r) / (n - 1), height: PH - pm.t - pm.b, fill: 'var(--hotTint)' }, PS); });
+    [0, .25, .5, .75, 1].forEach(function (f) { var v = maxL * f; el('line', { x1: pm.l, x2: PW - pm.r, y1: Y(v), y2: Y(v), stroke: 'var(--grid)' }, PS); var t = el('text', { x: pm.l - 8, y: Y(v) + 4, 'text-anchor': 'end', fill: 'var(--faint)' }, PS); t.setAttribute('style', 'font:400 11px "IBM Plex Mono",monospace'); t.textContent = Math.round(v); var c = el('text', { x: PW - pm.r + 8, y: YC(cmin + (cmax - cmin) * f) + 4, fill: 'var(--modeInk)' }, PS); c.setAttribute('style', 'font:400 11px "IBM Plex Mono",monospace'); c.textContent = '$' + Math.round((cmin + (cmax - cmin) * f) / 100) / 10 + 'k'; });
+    if (hist.length > 1) SERIES.forEach(function (s) {
+      var d = hist.map(function (h, i) { return (i ? 'L' : 'M') + X(h.t).toFixed(1) + ',' + (s[0] === 'Cash' ? YC(h.Cash) : Y(h[s[0]])).toFixed(1); }).join(' ');
+      el('path', { d: d, fill: 'none', stroke: s[1], 'stroke-width': s[0] === 'Stock' ? 2.6 : 1.8, 'stroke-dasharray': s[0] === 'Sales' ? '4 3' : null }, PS);
+    });
+    hist.forEach(function (h) { if (h.Order) el('circle', { cx: X(h.t), cy: PH - pm.b + 9, r: 3, fill: 'var(--calcInk)' }, PS); });
+    var lab = el('text', { x: pm.l, y: PH - 4, fill: 'var(--faint)' }, PS); lab.setAttribute('style', 'font:400 11px "IBM Plex Mono",monospace'); lab.textContent = 'ticks ' + x0 + '–' + (x0 + n - 1) + '   ● order placed';
+    if (!hist.length) { var e = el('text', { x: PW / 2, y: PH / 2, 'text-anchor': 'middle', fill: 'var(--muted)' }, PS); e.setAttribute('style', 'font:400 14px "IBM Plex Sans",sans-serif'); e.textContent = 'Press Run or Step one tick: each tick is one recalculation.'; }
+  }
+
+  reset();
+  // Open with a few ticks already run, so the drawing shows a working model at rest.
+  for (var i = 0; i < 18; i++) tickSteps().forEach(function (s) { s(); });
+  paint(); inspect('Stock');
+})();
+</script>

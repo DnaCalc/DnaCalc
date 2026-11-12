@@ -15464,6 +15464,46 @@ pub(crate) const CALC_CASES: &[Case] = &[
             ),
         ],
     },
+
+    Case {
+        name: "Circular Reference opens as a formula game",
+        actions: &[
+            Action::Upload("open-file", "crates/calc-host/tests/fixtures/circular-reference.xlsx"),
+            Action::DiscardReplacement,
+            Action::Wait(Check::Text("document", "circular-reference.xlsx")),
+        ],
+        checks: &[Check::Text("[data-dnacalc=\"sheet-tab\"][data-sheet=\"Circular Reference\"]", "Circular Reference")],
+    },
+    Case {
+        name: "Circular Reference eats 0.1",
+        actions: &[
+            Action::Into("name-box", "B2\u{E007}"), Action::Keys("grid", "R"), Action::Keys("cell-editor", ENTER),
+        ],
+        checks: &[Check::PlanCell("J12", "text", "o"), Check::PlanCell("K12", "text", "0.2"), Check::PlanCell("B5", "text", "0.1"), Check::PlanCell("B6", "text", "4")],
+    },
+    Case {
+        name: "Circular Reference eats 0.2",
+        actions: &[
+            Action::Into("name-box", "B2\u{E007}"), Action::Keys("grid", "R"), Action::Keys("cell-editor", ENTER),
+        ],
+        checks: &[Check::PlanCell("K12", "text", "o"), Check::PlanCell("B5", "text", "0.3"), Check::PlanCell("B6", "text", "5")],
+    },
+    Case {
+        name: "Circular Reference eats PI",
+        actions: &[
+            Action::Into("name-box", "B2\u{E007}"), Action::Keys("grid", "R"), Action::Keys("cell-editor", ENTER),
+        ],
+        checks: &[Check::PlanCell("L12", "text", "o"), Check::PlanCell("B6", "text", "6"), Check::PlanCell("B4", "text", "Playing")],
+    },
+    Case {
+        name: "Circular Reference accepts the same direction in the formula bar",
+        actions: &[
+            Action::Into("name-box", "B2\u{E007}"),
+            Action::Into(BAR, "R\u{E007}"),
+        ],
+        checks: &[Check::PlanCell("M12", "text", "o"), Check::PlanCell("B6", "text", "6")],
+    },
+
 ];
 
 /// The script that reads what one check looks at.
@@ -16929,6 +16969,13 @@ pub(crate) const CALC_GROUPS: &[CaseGroup] = &[
         start: 848,
         end: 849,
         core: 1,
+        setup: &[],
+    },
+    CaseGroup {
+        name: "circular-reference",
+        start: 849,
+        end: 854,
+        core: 5,
         setup: &[],
     },
 ];

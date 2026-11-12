@@ -3143,14 +3143,22 @@ fn run_workbook(app: &App, session: &Session, browser: &str, run: &WorkbookRun) 
     if run.renderer_report.is_none() {
         freeze_reset(session);
     }
+    let paint_workbook = match session.script("return document.querySelector('[data-dnacalc=grid][data-grid-active=true]')?.dataset.paintWorkbook || null;") {
+        Ok(value) => value,
+        Err(e) => return vec![format!("the current workbook paint could not be read: {e}")],
+    };
     if let Err(e) = upload(app, session, "open-file", &run.path) {
         return vec![format!("the workbook was not chosen: {e}")];
     }
-    let opened = format!("Opened {name}: ");
     let started = Instant::now();
     loop {
         let status = text_of(app, session, "status");
-        if status.starts_with(&opened) {
+        // A calculation can replace the transient open status before it is observed.
+        // The document and changed paint identity still prove the replacement appeared.
+        let painted_new = text_of(app, session, "document") == name
+            && session.script("return document.querySelector('[data-dnacalc=grid][data-grid-active=true]')?.dataset.paintWorkbook || null;")
+                .is_ok_and(|current| !current.is_null() && current != paint_workbook);
+        if painted_new {
             println!("{label} WORKBOOK {browser} open: {status}");
             if run.renderer_report.is_none() {
                 println!(
@@ -3203,8 +3211,18 @@ fn run_workbook(app: &App, session: &Session, browser: &str, run: &WorkbookRun) 
                 "document.querySelector('{}').click(); return null;",
                 tab.replace('\'', "\\'")
             ))?;
-            session.clear(&select(app, "name-box"))?;
-            session.keys(&select(app, "name-box"), &format!("{cell}{ENTER}"))?;
+            // Use the same focus and input events as the smoke cases; WebDriver Clear
+            // does not necessarily update the name box's reactive edit state.
+            act_click(app, session, "name-box")?;
+            session.keys(&select(app, "name-box"), "\u{E009}a\u{E000}")?;
+            session.keys(&select(app, "name-box"), &format!("\u{E003}{cell}{ENTER}"))?;
+            if let Some(reason) = wait_for(app, session, &Check::Focused("grid"), Duration::from_secs(30)) {
+                return Err(reason);
+            }
+            let selected = session.script("return document.querySelector('[data-dnacalc=name-box]').value;")?;
+            if !selected.as_str().is_some_and(|at| at.eq_ignore_ascii_case(cell)) {
+                return Err(format!("navigation selected {selected} instead of {cell}"));
+            }
             session.keys(&select(app, "grid"), first)
         })();
         if let Err(e) = started_edit {
@@ -3212,6 +3230,10 @@ fn run_workbook(app: &App, session: &Session, browser: &str, run: &WorkbookRun) 
             return failures;
         }
         let before = text_of(app, session, "status");
+        let before_paint = match session.script("return document.querySelector('[data-dnacalc=grid][data-grid-active=true]')?.dataset.paintRevision || null;") {
+            Ok(value) => value,
+            Err(e) => return vec![format!("the current edit paint could not be read: {e}")],
+        };
         if run.renderer_report.is_none() {
             freeze_reset(session);
         }
@@ -3220,26 +3242,43 @@ fn run_workbook(app: &App, session: &Session, browser: &str, run: &WorkbookRun) 
             return failures;
         }
         let started = Instant::now();
-        loop {
-            let status = text_of(app, session, "status");
-            if status != before {
-                println!(
-                    "{label} WORKBOOK {browser} edit {sheet}!{cell}: {status} (seen after {:.1} s)",
-                    started.elapsed().as_secs_f64()
-                );
-                if run.renderer_report.is_none() {
+        if run.renderer_report.is_some() {
+            match session.script("return window.__rendererMeasurement.editPromise ? window.__rendererMeasurement.editPromise.then(()=>true) : false;") {
+                Ok(Value::Bool(true)) => println!(
+                    "{label} WORKBOOK {browser} edit {sheet}!{cell}: {} (painted after {:.1} s)",
+                    text_of(app, session, "status"), started.elapsed().as_secs_f64()
+                ),
+                other => {
+                    failures.push(format!("the edit's paint publication was not observed: {other:?}"));
+                    return failures;
+                }
+            }
+        } else {
+            loop {
+                let status = text_of(app, session, "status");
+                let painted = session.script("return document.querySelector('[data-dnacalc=grid][data-grid-active=true]')?.dataset.paintRevision || null;")
+                    .is_ok_and(|current| !current.is_null() && current != before_paint);
+                if painted {
+                    println!(
+                        "{label} WORKBOOK {browser} edit {sheet}!{cell}: {status} (seen after {:.1} s)",
+                        started.elapsed().as_secs_f64()
+                    );
                     println!(
                         "{label} WORKBOOK {browser} edit froze the page for at most {}",
                         freeze_read(session)
                     );
+                    break;
                 }
-                break;
+                if status != before && (status.contains("refused") || status.contains("failed")) {
+                    failures.push(format!("the edit did not complete: {status}"));
+                    return failures;
+                }
+                if started.elapsed() > WORKBOOK_SETTLE {
+                    failures.push("the edit's status never came".to_owned());
+                    return failures;
+                }
+                thread::sleep(Duration::from_millis(200));
             }
-            if started.elapsed() > WORKBOOK_SETTLE {
-                failures.push("the edit's status never came".to_owned());
-                return failures;
-            }
-            thread::sleep(Duration::from_millis(200));
         }
     }
     let started = Instant::now();
@@ -4047,16 +4086,16 @@ mod tests {
             .map(|group| group.core)
             .sum();
         assert_eq!(
-            inherited_total, 389,
-            "the two applications retain 389 core cases including eighteen chart creation/log/combination/legend cases, the eight wasm-stack and formula-bar part cases (dc-0f1k.9, dc-0f1k.7) and all 363 inherited core cases"
+            inherited_total, 395,
+            "the two applications retain 395 core cases, including the image case and five Circular Reference cases"
         );
         assert_eq!(
-            total, 401,
-            "the twelve page-layout cases extend all 389 inherited core cases"
+            total, 407,
+            "the twelve page-layout cases extend all 395 inherited core cases"
         );
         assert_eq!(
-            current_total, 439,
-            "eight chart and eleven pivot cases extend all 420 inherited core cases, including the nineteen chart and saved-pivot cases"
+            current_total, 445,
+            "the other chart and pivot cases extend all 407 inherited core cases"
         );
     }
 
