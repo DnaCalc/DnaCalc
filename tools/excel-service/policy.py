@@ -36,7 +36,8 @@ def catalogue_names(root):
 
 # Owner 2026-11-12: this is a test service on our own Excel, so every function is admitted, with any
 # argument types, arrays and spills. Only the remote service functions (deferred in CalcFunc) are skipped.
-REMOTE_SERVICE = {"WEBSERVICE", "STOCKHISTORY", "IMAGE", "TRANSLATE", "DETECTLANGUAGE", "PY", "COPILOT"}
+# IMAGE and WEBSERVICE are host-supported (owner 2026-11-07 and 2026-11-12, dc-fetch-f0tp), so they are admitted.
+REMOTE_SERVICE = {"STOCKHISTORY", "TRANSLATE", "DETECTLANGUAGE", "PY", "COPILOT"}
 FUNCTION_NAME = re.compile(r"(?:_[A-Z]+\.)?[A-Z][A-Z0-9_]*(?:\.[A-Z0-9_]+)*")
 
 

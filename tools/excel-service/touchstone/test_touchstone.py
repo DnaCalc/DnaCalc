@@ -314,14 +314,14 @@ class AdmissionTests(unittest.TestCase):
         # Owner 2026-11-12: a test service on our own Excel admits every function, text and array argument;
         # only the remote service functions (deferred in CalcFunc) are skipped.
         self.admission.check(self.group())
-        for good in (self.group(f="CALL"), self.group(f="INDIRECT"), self.group(f="NOW"),
+        for good in (self.group(f="CALL"), self.group(f="IMAGE"), self.group(f="WEBSERVICE"), self.group(f="INDIRECT"), self.group(f="NOW"),
                      self.group(f="LEN", k="s", n=1, v=["C:/secret.xlsx"]), self.group(f="LEN", k="s", n=1, v=["[book]A1"]),
                      self.group(f="LEN", k="s", n=1, v=["https://x.example"]), self.group(f="LEN", k="s", n=1, v=["a\u0001b"]),
                      self.group(f="SUMIF", k="a1x2,S", n=1, v=[ONE, TWO, ">1"]),
                      self.group(f="FILTER", k="a2x1,a2x1", n=1, v=[ONE, TWO, ONE, ONE], spill=True)):
             with self.subTest(good=good):
                 self.admission.check(good)
-        for bad in (self.group(f="WEBSERVICE"), self.group(f="STOCKHISTORY"), self.group(f="PY"), self.group(f="SUM(1)"),
+        for bad in (self.group(f="TRANSLATE"), self.group(f="STOCKHISTORY"), self.group(f="PY"), self.group(f="SUM(1)"),
                     self.group(v=["7ff8000000000000", ONE]), self.group(v=[ONE]), self.group(k="x"),
                     self.group(k="n,n", v=[ONE] * 4, f="LEN", x=[1, 1]), self.group(n=0, v=[]),
                     self.group(f="LEN", k="s", n=1, v=["a\u0000b"]), self.group(k="a40x40", f="LINEST", n=1, v=[ONE] * 1600)):
