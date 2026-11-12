@@ -1091,6 +1091,57 @@ impl LoadedWorkbook {
         &self.repairs
     }
 
+    /// The refusals a save makes of a sheet's part, judged at edit time (dc-1nbp.12): a row or
+    /// column insert or delete of a workbook with a macro sheet (its references cannot be moved)
+    /// or with a chart sheet, dialog sheet or sheet without a part (their parts can refer to any
+    /// sheet), and a cell, array or page-setup edit of a macro sheet or of a preserved sheet.
+    /// The same refusals, with the same parts, as `author::plan` returns; an edit that leaves the
+    /// refused sheets alone is `Ok`.
+    fn check_sheet_save(&self, operations: &[WorkbookOp]) -> Result<(), SaveRefusal> {
+        let own_sheet = |sheet: SheetId| -> Result<(), SaveRefusal> {
+            let Some(sheet) = self.sheet(sheet) else {
+                return Ok(());
+            };
+            if sheet.is_macro_sheet() {
+                return Err(SaveRefusal::MacroSheetChanged {
+                    part: sheet.part().name().to_owned(),
+                });
+            }
+            if let Some(kind) = sheet.preserved_kind() {
+                return Err(SaveRefusal::PreservedSheetChanged {
+                    part: sheet.part().name().to_owned(),
+                    kind,
+                });
+            }
+            Ok(())
+        };
+        for operation in operations {
+            match operation {
+                WorkbookOp::EditAxis(_) => {
+                    if let Some(sheet) = self.sheets.iter().find(|sheet| sheet.is_macro_sheet()) {
+                        return Err(SaveRefusal::MacroSheetChanged {
+                            part: sheet.part().name().to_owned(),
+                        });
+                    }
+                    if let Some(sheet) =
+                        self.sheets.iter().find(|sheet| sheet.preserved_kind().is_some())
+                    {
+                        return Err(SaveRefusal::PreservedSheetChanged {
+                            part: sheet.part().name().to_owned(),
+                            kind: sheet.preserved_kind().unwrap_or_default(),
+                        });
+                    }
+                }
+                WorkbookOp::SetCell { at, .. } => own_sheet(at.sheet())?,
+                WorkbookOp::Clear { area } => own_sheet(area.sheet())?,
+                WorkbookOp::SetArray { array, .. } => own_sheet(array.area().sheet())?,
+                WorkbookOp::SetPageSetup { sheet, .. } => own_sheet(*sheet)?,
+                _ => {}
+            }
+        }
+        Ok(())
+    }
+
     /// Whether a save of this workbook can write the skin layout edits among `operations`,
     /// judged before they are applied, so a caller can refuse a layout edit before it joins cell
     /// edits in one revision: the refusal [`crate::prepare_save`] gives a revision that holds them.
@@ -1105,6 +1156,7 @@ impl LoadedWorkbook {
     /// writes no layout. [`crate::prepare_save`] judges the revision and stays the last check; it
     /// also refuses for reasons this does not judge, such as a workbook part it cannot rewrite.
     pub fn check_layout_save(&self, operations: &[WorkbookOp]) -> Result<(), SaveRefusal> {
+        self.check_sheet_save(operations)?;
         let mut edits = operations
             .iter()
             .filter_map(|operation| match operation {

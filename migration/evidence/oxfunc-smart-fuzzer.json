@@ -1,4 +1,22 @@
 {
+  "witness_readings_2026_11_12_fix1_cashflow": {
+    "evidence_repository_commit": "58fc9ad2ae20c0fb897d73d594f76c0c9facd034",
+    "paths": [
+      "readings/excel-20527/fix1-batch6-mirr-29bedb2b6722.json",
+      "readings/excel-20527/fix1-batch6-npv-29bedb2b6722.json"
+    ],
+    "files": 2,
+    "accepted_observations": 599,
+    "function_observations": {
+      "MIRR": 564,
+      "NPV": 35
+    },
+    "input_seed": 202611121959,
+    "witness_converter": "tools/xtask-harness/scripts/bank-coverage.py",
+    "raw_evidence": "r2:dnacalc-evidence/excel/20261112-firehorse-fix1-batch6-native-controls/",
+    "additional_regression_evidence": "r2:dnacalc-evidence/excel/20261112-firehorse-fix1-batch6-extra-controls/",
+    "note": "Discount computation-shape controls, prior discovery questions, and frozen independent holdouts. All Value2 words verified; exact per-row worker mappings and full environment are retained. Expected answers are service observations only; remaining mismatches remain failures."
+  },
   "format": "dnacalc-evidence-record/1",
   "bead": "infra-m0.6",
   "subject": "OxFunc/smart-fuzzer/cache and OxFunc/smart-fuzzer/runs: Excel oracle captures and campaign runs that OxFunc does not track (smart-fuzzer/.gitignore excludes the contents of both directories; only their two README.md files are tracked)",

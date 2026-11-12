@@ -2645,3 +2645,107 @@ fn xirr_checks_singleton_shape_after_guess_and_scalar_coercion() {
     error(call("XIRR", vec![n(-100.0), n(-1.0), n(-1.0)]), Num);
     error(call("XIRR", vec![n(-100.0), col(&[45000.0, 45365.0])]), Num);
 }
+/// Native Excel20527: quotient FTZ and divisor DAZ differ from accumulator
+/// stores. All source cells are normal; Value2 readback retains every word.
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn npv_discount_stores_preserve_the_running_sum() {
+    let minimum = f64::MIN_POSITIVE;
+    exact(
+        call(
+            "NPV",
+            vec![
+                n(1.0),
+                col(&[0.0, minimum, 2.0 * minimum, 4.0 * minimum, 8.0 * minimum]),
+            ],
+        ),
+        0.0,
+    );
+    let next = f64::from_bits(minimum.to_bits() + 1);
+    exact(
+        call("NPV", vec![n(0.0), col(&[next, -minimum, minimum])]),
+        next,
+    );
+    error(
+        call(
+            "NPV",
+            vec![n(f64::from_bits(0xbfeffffffff00000)), col(&[0.0; 32])],
+        ),
+        Div0,
+    );
+}
+
+/// Native service packets batch6-public-regression-controls.json: finance
+/// poles, signed root domains, intermediate stores and error precedence.
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn mirr_discount_and_root_stages_follow_native_controls() {
+    let mirr =
+        |flows: &[f64], finance, reinvest| call("MIRR", vec![col(flows), n(finance), n(reinvest)]);
+    exact(mirr(&[-1.0, 0.0, 4.0], -1.0, 0.0), 1.0);
+    exact(
+        mirr(&[-1.0, 0.0, f64::from_bits(0x3fefffffffffffff)], 0.0, 0.0),
+        0.0,
+    );
+    exact(
+        mirr(
+            &[-1.0, 0.0, 0.0, f64::from_bits(0x4dbfaa911f213a68)],
+            0.0,
+            0.0,
+        ),
+        f64::from_bits(0x44894f501aa20f92),
+    );
+    exact(mirr(&[1.0, 0.0, 0.0, -1.0], -2.0, 0.0), -2.0);
+    error(mirr(&[1.0, -1.0, 0.0], -2.0, 0.0), Num);
+
+    let minimum = f64::MIN_POSITIVE;
+    let mut ratio = vec![0.0; 64];
+    ratio[0] = -2.0;
+    ratio[63] = minimum;
+    exact(mirr(&ratio, 0.0, 0.0), -1.0);
+
+    let mut terms = vec![0.0; 101];
+    terms[1] = -minimum;
+    terms[2] = -2.0 * minimum;
+    terms[100] = 1.0;
+    error(mirr(&terms, 1.0, 0.0), Div0);
+
+    let next = f64::from_bits(minimum.to_bits() + 1);
+    exact(
+        mirr(&[-next, -minimum, -minimum, minimum], -2.0, 0.0),
+        f64::from_bits(0xbca0000000000000),
+    );
+    error(mirr(&[-1.0, 0.0, 0.0, 2.0], 1e80, 0.0), Num);
+    error(mirr(&[-1.0, 0.0, 0.0, 0.0, 2.0], 1e100, 1e100), Div0);
+}
+/// Native Excel20527 distinguishes held nonnumeric cells from literal values.
+/// An empty collected stream still validates the discount base and cell errors.
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn npv_empty_collections_keep_base_validation_and_literal_coercion() {
+    let mut sheet = Sheet::new();
+    sheet.column(
+        1,
+        1,
+        vec![t("123"), b(true), calc_func::value::CalcValue::empty()],
+    );
+    let all = sheet.area(1, 1, 3, 1);
+    for rate in [0.0, 0.1, -2.0, 1e300] {
+        exact(call_on(&mut sheet, "NPV", vec![n(rate), all.clone()]), 0.0);
+        for row in 1..=3 {
+            let cell = sheet.area(row, 1, row, 1);
+            exact(call_on(&mut sheet, "NPV", vec![n(rate), cell]), 0.0);
+        }
+    }
+    error(call_on(&mut sheet, "NPV", vec![n(-1.0), all.clone()]), Div0);
+    sheet.column(2, 1, vec![e(NA)]);
+    error(call_on(&mut sheet, "NPV", vec![n(-1.0), all]), NA);
+    exact(
+        call("NPV", vec![n(0.1), t("123")]),
+        f64::from_bits(0x405bf45d1745d174),
+    );
+    exact(
+        call("NPV", vec![n(0.1), b(true)]),
+        f64::from_bits(0x3fed1745d1745d17),
+    );
+}
