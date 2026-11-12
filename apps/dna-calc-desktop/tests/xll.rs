@@ -583,8 +583,8 @@ fn a_macro_workbook_runs_nothing_until_enabled_and_a_marked_one_never() {
 /// Native-only: the macro security level in the harness (dc-15dk), through the real executable and
 /// its per-user settings folder. A marked file is refused by `--enable-macros` and runs under
 /// `--trust-macros`, `--macros unguarded`, `DNACALC_TRUST_ALL_MACROS=1` and the stored level
-/// Unguarded; the stored level Safe (not available yet) holds it like Off, and the flag and the
-/// variable pin Unguarded over it while `--macros off` pins Off over them all.
+/// Unguarded and Safe (the project runs under CalcVBA's Safe policy); the flag and the
+/// variable pin Unguarded over a stored level while `--macros off` pins Off over them all.
 /// `local.xlsm`'s Module1.MyFunc is x+100.
 #[test]
 fn the_macro_security_level_decides_whether_a_marked_workbook_runs_in_the_harness() {
@@ -639,7 +639,7 @@ fn the_macro_security_level_decides_whether_a_marked_workbook_runs_in_the_harnes
     store("unguarded");
     assert!(runs(&run(&[], None)));
     store("safe");
-    assert!(!runs(&run(&[], None)), "Safe is not available yet: it holds the project");
+    assert!(runs(&run(&[], None)), "Safe runs the project under the Safe policy");
     // The flag and the variable pin Unguarded over the stored Safe.
     assert!(runs(&run(&["--trust-macros"], None)));
     assert!(runs(&run(&[], Some("1"))));

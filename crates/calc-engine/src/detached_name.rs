@@ -90,6 +90,14 @@ impl ReferenceCatalog for SelectedName<'_> {
     fn external_function_target(&self, book: &ExternalBookRef) -> Option<String> {
         self.base.external_function_target(book)
     }
+    fn external_name(
+        &self,
+        book: &ExternalBookRef,
+        sheet: Option<&str>,
+        name: &str,
+    ) -> Option<String> {
+        self.base.external_name(book, sheet, name)
+    }
 }
 impl DetachedFormula {
     /// Definition/caller-qualified source evidence from the ordinary name compiler.

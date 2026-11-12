@@ -125,6 +125,7 @@ mod provider_tests {
             absolute_target: Some(format!("file:///C:/{folder}/probe.xlam")),
             file_name: Some("probe.xlam".into()),
             sheets: Vec::new(),
+            defined_names: Vec::new(),
         };
         let definitions = calc_doc_model::Definitions::default()
             .with_external_books(vec![Some(book("original")), Some(book("other"))]);
@@ -542,6 +543,38 @@ impl ReferenceCatalog for SnapshotCatalog<'_> {
     /// macro-enabled, whose VBA project may define the function.
     fn unknown_calls_are_names(&self) -> bool {
         !self.root.definitions().macro_enabled()
+    }
+
+    /// The name the link lists for the book (dc-9cyc): the sheet's own name of that spelling when
+    /// the qualifier names a sheet, else the workbook-level one; names match without regard to case.
+    fn external_name(
+        &self,
+        book: &ExternalBookRef,
+        sheet: Option<&str>,
+        name: &str,
+    ) -> Option<String> {
+        let definitions = self.root.definitions();
+        let number = match book {
+            ExternalBookRef::Number(number) => *number,
+            ExternalBookRef::File(file) => definitions.external_book_named(file)?,
+        };
+        let book = definitions.external_book(number)?;
+        let upper = |text: &str| text.chars().flat_map(char::to_uppercase).collect::<String>();
+        let wanted = upper(name);
+        let index = sheet.and_then(|sheet| {
+            let sheet = upper(sheet);
+            book.sheets.iter().position(|held| upper(&held.name) == sheet)
+        });
+        let find = |local: Option<usize>| {
+            book.defined_names
+                .iter()
+                .find(|held| held.sheet == local && upper(&held.name) == wanted)
+        };
+        index
+            .and_then(|index| find(Some(index)))
+            .or_else(|| find(None))?
+            .refers_to
+            .clone()
     }
 
     /// The sheet of another workbook the snapshot's link to it caches (dc-ylr): the ID the load

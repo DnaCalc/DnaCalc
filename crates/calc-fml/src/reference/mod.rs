@@ -38,7 +38,7 @@ pub use bind::{
     NameEvaluationContext, NameProbe, NameScope, NameUse, ReferenceCatalog, ReferenceSite,
     bind_references, is_cell_callee, qualified_name,
 };
-pub(crate) use bind::{external_operand, qualified_call, qualified_sheet_call};
+pub(crate) use bind::{external_name_parts, external_operand, qualified_call, qualified_sheet_call};
 pub use calc_func::TextReference;
 pub use read::{
     CellRead, CellRun, ReadContractError, ReferenceReader, SpillExtent, read_cell_by_area,

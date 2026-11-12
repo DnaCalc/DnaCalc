@@ -2,7 +2,7 @@ use crate::ported::excel_numeric::crt_exp;
 use crate::ported::excel_numeric::crt_pow;
 use crate::ported::special_dist_family::erfc_of_sqrt_half_x;
 use crate::ported::special_math_common::{
-    bisect_inverse, bratio, gamma, regularized_beta, regularized_gamma_q,
+    bisect_inverse, bratio_from_wrapper, gamma, regularized_beta, regularized_gamma_q,
 };
 use crate::value::WorksheetErrorCode;
 
@@ -165,6 +165,23 @@ pub fn f_pdf_kernel(x: f64, deg1: f64, deg2: f64) -> Result<f64, WorksheetErrorC
     Ok(num / den)
 }
 
+/// The incomplete beta's argument pair for an F value: with `n = d1 f`, each stage stored,
+/// `x = 1 / (1 + n / d2)` and `y = 1 / (1 + d2 / n)`, so that the right tail is
+/// `I_x(d2 / 2, d1 / 2)` with `y` as its complement argument.
+///
+/// Read from Excel 16.0.20527 (dc-6332.8): FDIST(f, d1, d2) equals Excel's own
+/// BETA.DIST(x, d2 / 2, d1 / 2, TRUE) on all 411 calls of three degree pairs where the power
+/// series runs on `x`, and the complement of BETA.DIST(y, d1 / 2, d2 / 2, TRUE) on all 1,200 calls
+/// of six pairs where it runs on `y`. `d2 / (d2 + n)` and `n / (d2 + n)`, the earlier pair,
+/// hold 304 of the 411 and 1,124 of the 1,200.
+pub(crate) fn f_beta_arguments(f: f64, d1: f64, d2: f64) -> (f64, f64) {
+    use crate::ported::excel_numeric::{excel_x87_add, excel_x87_div, excel_x87_mul};
+    let n = excel_x87_mul(d1, f);
+    let x = excel_x87_div(1.0, excel_x87_add(1.0, excel_x87_div(n, d2)));
+    let y = excel_x87_div(1.0, excel_x87_add(1.0, excel_x87_div(d2, n)));
+    (x, y)
+}
+
 pub fn f_dist_kernel(
     x: f64,
     deg1: f64,
@@ -175,11 +192,8 @@ pub fn f_dist_kernel(
     let d1 = truncate_positive_integer(deg1)?;
     let d2 = truncate_positive_integer(deg2)?;
     if cumulative {
-        // W109: Excel's beta wrappers pass the ACCURATE complement pair, not
-        // 1-z (identified stagings; b22 check).
-        let num = d1 * x;
-        let den = num + d2;
-        Ok(bratio(d1 / 2.0, d2 / 2.0, num / den, d2 / den).0)
+        let (right, left) = f_beta_arguments(x, d1, d2);
+        Ok(bratio_from_wrapper(d1 / 2.0, d2 / 2.0, left, right).0)
     } else {
         f_pdf_kernel(x, d1, d2)
     }
@@ -189,10 +203,8 @@ pub fn f_dist_rt_kernel(x: f64, deg1: f64, deg2: f64) -> Result<f64, WorksheetEr
     let x = validate_nonnegative_x(x)?;
     let d1 = truncate_positive_integer(deg1)?;
     let d2 = truncate_positive_integer(deg2)?;
-    // W109 identified staging: x = d2/den, y = d1*F/den (accurate complement).
-    let num = d1 * x;
-    let den = d2 + num;
-    Ok(bratio(d2 / 2.0, d1 / 2.0, d2 / den, num / den).0)
+    let (right, left) = f_beta_arguments(x, d1, d2);
+    Ok(bratio_from_wrapper(d2 / 2.0, d1 / 2.0, right, left).0)
 }
 
 pub fn f_inv_kernel(probability: f64, deg1: f64, deg2: f64) -> Result<f64, WorksheetErrorCode> {
@@ -200,9 +212,8 @@ pub fn f_inv_kernel(probability: f64, deg1: f64, deg2: f64) -> Result<f64, Works
     let d1 = truncate_positive_integer(deg1)?;
     let d2 = truncate_positive_integer(deg2)?;
     let fwd = move |x: f64| {
-        let num = d1 * x;
-        let den = num + d2;
-        bratio(d1 / 2.0, d2 / 2.0, num / den, d2 / den).0
+        let (right, left) = f_beta_arguments(x, d1, d2);
+        bratio_from_wrapper(d1 / 2.0, d2 / 2.0, left, right).0
     };
     let hi = search_upper_bound(p, 1.0, fwd);
     Ok(bisect_inverse(p, 0.0, hi, fwd))
@@ -217,9 +228,8 @@ pub fn f_inv_rt_kernel(probability: f64, deg1: f64, deg2: f64) -> Result<f64, Wo
     // (W109 b14+b19: the complement staging carries a systematic small-p bias).
     // The surface is decreasing in x, so invert the negated forward at -p.
     let f = move |x: f64| {
-        let num = d1 * x;
-        let den = d2 + num;
-        -bratio(d2 / 2.0, d1 / 2.0, d2 / den, num / den).0
+        let (right, left) = f_beta_arguments(x, d1, d2);
+        -bratio_from_wrapper(d2 / 2.0, d1 / 2.0, right, left).0
     };
     let hi = search_upper_bound(-p, 1.0, f);
     Ok(bisect_inverse(-p, 0.0, hi, f))
@@ -253,7 +263,7 @@ fn t_cdf(x: f64, deg_freedom: f64) -> Result<f64, WorksheetErrorCode> {
     // W109 identified staging: x = df/den, y = t^2/den (accurate complement).
     let t2 = x * x;
     let den = v + t2;
-    let ib = bratio(v / 2.0, 0.5, v / den, t2 / den).0;
+    let ib = bratio_from_wrapper(v / 2.0, 0.5, v / den, t2 / den).0;
     Ok(if x >= 0.0 { 1.0 - 0.5 * ib } else { 0.5 * ib })
 }
 
@@ -274,7 +284,7 @@ pub fn t_dist_rt_kernel(x: f64, deg_freedom: f64) -> Result<f64, WorksheetErrorC
     let v = truncate_positive_integer(deg_freedom)?;
     let t2 = x * x;
     let den = v + t2;
-    Ok(0.5 * bratio(v / 2.0, 0.5, v / den, t2 / den).0)
+    Ok(0.5 * bratio_from_wrapper(v / 2.0, 0.5, v / den, t2 / den).0)
 }
 
 pub fn t_dist_2t_kernel(x: f64, deg_freedom: f64) -> Result<f64, WorksheetErrorCode> {
@@ -282,7 +292,7 @@ pub fn t_dist_2t_kernel(x: f64, deg_freedom: f64) -> Result<f64, WorksheetErrorC
     let v = truncate_positive_integer(deg_freedom)?;
     let t2 = x * x;
     let den = v + t2;
-    Ok(bratio(v / 2.0, 0.5, v / den, t2 / den).0)
+    Ok(bratio_from_wrapper(v / 2.0, 0.5, v / den, t2 / den).0)
 }
 
 pub fn t_inv_kernel(probability: f64, deg_freedom: f64) -> Result<f64, WorksheetErrorCode> {
@@ -338,7 +348,7 @@ pub fn t_inv_2t_kernel(probability: f64, deg_freedom: f64) -> Result<f64, Worksh
     let f = move |x: f64| {
         let t2 = x * x;
         let den = v + t2;
-        -bratio(v / 2.0, 0.5, v / den, t2 / den).0
+        -bratio_from_wrapper(v / 2.0, 0.5, v / den, t2 / den).0
     };
     let hi = search_upper_bound(-p, 1.0, f);
     Ok(bisect_inverse(-p, 0.0, hi, f))

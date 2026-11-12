@@ -165,6 +165,13 @@ fn b3(x: f64) -> f64 {
     if x == 3.0 {
         return f64::from_bits(0x3FE6_2E42_FEFA_39F0);
     }
+    // The middle of the band, as Excel 16.0.20527 gives it: one ulp below what the table read so
+    // far gives there (its low coefficient bits are not all read). It is read, because every
+    // half-integer argument up to 8 comes down the recurrence to it, and the beta family takes
+    // those in each `ln B` of a half-integer shape (F and t with odd degrees; dc-6332.8).
+    if x == 2.5 {
+        return f64::from_bits(0x3FD2_383E_809A_67E8);
+    }
     b3_with::<super::Native>(x)
 }
 

@@ -462,3 +462,44 @@ mod tests {
         assert!((deviance_series::<Soft>(4.0, 3.0) - exact).abs() < 1e-15);
     }
 }
+
+/// Excel's power series for the incomplete beta ratio `I_x(a, b)`, the arm TOMS 708 calls `bpser`,
+/// given `ln_beta = ln B(a, b)` as Excel forms it. Read from BETA.DIST on Excel 16.0.20527
+/// (dc-6332.8, `docs/research/beta-family-2026-11-12.md`):
+///
+/// - The prefactor is EXP of the stored `a LN(x) - ln_beta`, with `a LN(x)` stored first and what
+///   the stored difference dropped put back as the last factor `1 + dropped`.
+/// - The sum starts from the stored `1/a` and takes the terms `t_n / (a + n)` in order, with
+///   `t_n = t_(n-1) (n - b) x / n`; every operation is stored. It stops at a term of at most
+///   `2^-53 / a`.
+/// - The answer is `(EXP * sum) * (1 + dropped)`, each product stored.
+pub(crate) fn excel_beta_power_series(a: f64, b: f64, x: f64, ln_beta: f64) -> f64 {
+    beta_power_series::<Native>(a, b, x, ln_beta)
+}
+
+fn beta_power_series<F: Fpu>(a: f64, b: f64, x: f64, ln_beta: f64) -> f64 {
+    let st = |e: &Ext80| F::store(e, CW);
+    let p = st(&F::mul(&load(a), &load(log_with::<F>(x, &ext_ln2())), CW));
+    let hi = st(&F::sub(&load(p), &load(ln_beta), CW));
+    let dropped = st(&F::sub(&F::sub(&load(p), &load(hi), CW), &load(ln_beta), CW));
+    let factor = st(&F::add(&ext_one(), &load(dropped), CW));
+    let reciprocal = st(&F::div(&ext_one(), &load(a), CW));
+    let stop = 1.110_223_024_625_156_5e-16 * reciprocal;
+    let (mut sum, mut t, mut n) = (reciprocal, 1.0_f64, 1.0_f64);
+    loop {
+        let u = st(&F::div(
+            &load(st(&F::mul(&load(st(&F::sub(&load(n), &load(b), CW))), &load(x), CW))),
+            &load(n),
+            CW,
+        ));
+        t = st(&F::mul(&load(t), &load(u), CW));
+        let v = st(&F::div(&load(t), &load(st(&F::add(&load(a), &load(n), CW))), CW));
+        sum = st(&F::add(&load(sum), &load(v), CW));
+        n += 1.0;
+        if !(v.abs() > stop) || n > 1.0e6 {
+            break;
+        }
+    }
+    let scaled = st(&F::mul(&load(exp_with::<F>(hi, CW)), &load(sum), CW));
+    st(&F::mul(&load(scaled), &load(factor), CW))
+}

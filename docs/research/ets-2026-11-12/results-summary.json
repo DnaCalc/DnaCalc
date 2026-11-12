@@ -1,0 +1,708 @@
+{
+  "total_readings": 707,
+  "batches": [
+    {
+      "batch": "ties",
+      "readings": 15,
+      "prediction_commit": "b648ed9603562e896796d706b38e653e26cc5962",
+      "prediction_sha256": "d5b8ae650f09d3fff7edbf05f7c8514e4f6bd60add853ce47ee9c8100c95d1ba"
+    },
+    {
+      "batch": "short",
+      "readings": 210,
+      "prediction_commit": "b648ed9603562e896796d706b38e653e26cc5962",
+      "prediction_sha256": "eefce52506d62ef508b9cd665bf665ab4fba3b12e8608a6431a0a1f0135633a2"
+    },
+    {
+      "batch": "seasonal-stage1",
+      "readings": 92,
+      "prediction_commit": "b648ed9603562e896796d706b38e653e26cc5962",
+      "prediction_sha256": "50c247344b9faf3001cb01380bfc8827162389e2be19c3fd6639c88d7f12670e"
+    },
+    {
+      "batch": "seasonal-stage2",
+      "readings": 130,
+      "prediction_commit": "852a16cfd0df3b50a5cdceed55ad56965f34136f",
+      "prediction_sha256": "49d4eb786fcd1240648cbe934cd0a7470dba6bae592eaaabdefa2dfeda478287"
+    },
+    {
+      "batch": "tie-followup",
+      "readings": 47,
+      "prediction_commit": "dc8f772014b60fe530d8501f40056a6e1c8f8479",
+      "prediction_sha256": "d36332eac57fd79650103e2bb55b179c59be205f0569c28db41b2201336a4c03"
+    },
+    {
+      "batch": "covariance-followup",
+      "readings": 60,
+      "prediction_commit": "dc8f772014b60fe530d8501f40056a6e1c8f8479",
+      "prediction_sha256": "056f7b59c3c875e673b7492616a0fe988c867f707941759986b2c408420ed5c0"
+    },
+    {
+      "batch": "seasonal-hybrid",
+      "readings": 90,
+      "prediction_commit": "54a422f52ff82ede1fdcae113c5ff408ca437f50",
+      "prediction_sha256": "9fe5863c6539cadaab5fac96f8cc3765842a8a28e22212ae64d75053afdbdb8a"
+    },
+    {
+      "batch": "centering-followup",
+      "readings": 63,
+      "prediction_commit": "130ba89c863b1f6a126953c53ed0a50c9510af22",
+      "prediction_sha256": "cf009f2b9f58ba7fe767d21058ea18e555f96339074c916821c1d917a07cb01b"
+    }
+  ],
+  "short_mismatches": [
+    {
+      "id": "H95_F2",
+      "prediction": {
+        "value": -3.682483863804544,
+        "bits": "c00d75ba1998b4b4"
+      },
+      "answer": {
+        "type": "number",
+        "bits": "c00d75ba1998b4b2"
+      }
+    },
+    {
+      "id": "H95_F3",
+      "prediction": {
+        "value": -5.275717317916456,
+        "bits": "c0151a55a3fd916c"
+      },
+      "answer": {
+        "type": "number",
+        "bits": "c0151a55a3fd916b"
+      }
+    },
+    {
+      "id": "H95_Cendpoint",
+      "prediction": {
+        "value": 11.056176634470498,
+        "bits": "40261cc32f0fb345"
+      },
+      "answer": {
+        "type": "number",
+        "bits": "40261cc32f0fb346"
+      }
+    },
+    {
+      "id": "H95_S7",
+      "prediction": {
+        "value": 11.056176634470498,
+        "bits": "40261cc32f0fb345"
+      },
+      "answer": {
+        "type": "number",
+        "bits": "40261cc32f0fb346"
+      }
+    }
+  ],
+  "seasonal_gains": {
+    "C1": [
+      {
+        "value": 0.126,
+        "bits": "3fc020c49ba5e354"
+      },
+      {
+        "value": 0.001,
+        "bits": "3f50624dd2f1a9fc"
+      },
+      {
+        "value": 0.001,
+        "bits": "3f50624dd2f1a9fc"
+      }
+    ],
+    "C2": [
+      {
+        "value": 0.002,
+        "bits": "3f60624dd2f1a9fc"
+      },
+      {
+        "value": 0.001,
+        "bits": "3f50624dd2f1a9fc"
+      },
+      {
+        "value": 0.125,
+        "bits": "3fc0000000000000"
+      }
+    ],
+    "C3": [
+      {
+        "value": 0.126,
+        "bits": "3fc020c49ba5e354"
+      },
+      {
+        "value": 0.001,
+        "bits": "3f50624dd2f1a9fc"
+      },
+      {
+        "value": 0.001,
+        "bits": "3f50624dd2f1a9fc"
+      }
+    ],
+    "C4": [
+      {
+        "value": 0.126,
+        "bits": "3fc020c49ba5e354"
+      },
+      {
+        "value": 0.001,
+        "bits": "3f50624dd2f1a9fc"
+      },
+      {
+        "value": 0.001,
+        "bits": "3f50624dd2f1a9fc"
+      }
+    ],
+    "C5": [
+      {
+        "value": 0.002,
+        "bits": "3f60624dd2f1a9fc"
+      },
+      {
+        "value": 0.001,
+        "bits": "3f50624dd2f1a9fc"
+      },
+      {
+        "value": 0.75,
+        "bits": "3fe8000000000000"
+      }
+    ],
+    "C6": [
+      {
+        "value": 0.002,
+        "bits": "3f60624dd2f1a9fc"
+      },
+      {
+        "value": 0.001,
+        "bits": "3f50624dd2f1a9fc"
+      },
+      {
+        "value": 0.5,
+        "bits": "3fe0000000000000"
+      }
+    ],
+    "C7": [
+      {
+        "value": 0.126,
+        "bits": "3fc020c49ba5e354"
+      },
+      {
+        "value": 0.001,
+        "bits": "3f50624dd2f1a9fc"
+      },
+      {
+        "value": 0.001,
+        "bits": "3f50624dd2f1a9fc"
+      }
+    ],
+    "C8": [
+      {
+        "value": 0.002,
+        "bits": "3f60624dd2f1a9fc"
+      },
+      {
+        "value": 0.001,
+        "bits": "3f50624dd2f1a9fc"
+      },
+      {
+        "value": 0.125,
+        "bits": "3fc0000000000000"
+      }
+    ],
+    "C9": [
+      {
+        "value": 0.002,
+        "bits": "3f60624dd2f1a9fc"
+      },
+      {
+        "value": 0.001,
+        "bits": "3f50624dd2f1a9fc"
+      },
+      {
+        "value": 0.125,
+        "bits": "3fc0000000000000"
+      }
+    ],
+    "B5": [
+      {
+        "value": 0.002,
+        "bits": "3f60624dd2f1a9fc"
+      },
+      {
+        "value": 0.001,
+        "bits": "3f50624dd2f1a9fc"
+      },
+      {
+        "value": 0.25,
+        "bits": "3fd0000000000000"
+      }
+    ]
+  },
+  "covariance_common_variance_bits": {
+    "C1": [
+      "40016ce618181240"
+    ],
+    "C2": [
+      "3fc6a9ad1cc9269d"
+    ],
+    "C3": [
+      "3fc6d625614a923f"
+    ],
+    "C4": [
+      "400460f663fbe902"
+    ],
+    "C5": [
+      "3fd1b7728d60102d"
+    ],
+    "C6": [
+      "3fda65b9eecce20b"
+    ],
+    "C7": [
+      "4005a305b9cd0ee7"
+    ],
+    "C8": [
+      "3fcfdc4955b41a9f",
+      "3fcfdc4955b41aa0"
+    ],
+    "C9": [
+      "3fce634933040033",
+      "3fce634933040034"
+    ],
+    "B5": [
+      "4065d18097347c00"
+    ]
+  },
+  "inverse_constraints": [
+    {
+      "id": "C1",
+      "reported_gains": [
+        0.126,
+        0.001,
+        0.001
+      ],
+      "terminal": {
+        "level": 2.160561593876685,
+        "trend": -0.288312136722775,
+        "seasons": [
+          -2.500699463527524,
+          2.5006994635275244
+        ]
+      },
+      "inferred_initial": {
+        "level": 4.499999999999997,
+        "trend": -0.2857142857142856,
+        "seasons": [
+          -2.5,
+          2.5
+        ]
+      },
+      "inferred_errors": [
+        0.0,
+        0.2857142857142879,
+        -2.4648571428571406,
+        -1.866677428571427,
+        1.6610346048571445,
+        1.7389594220402869,
+        -1.1945664937685438,
+        -0.75745825590402
+      ],
+      "warning": "Approximate inverse constraints only. Assumes gains equal reported gains, direct innovations, standard additive forecast, no reset. Binary64 forecast publication makes inversion inexact; do not treat inferred decimals as certified initializer constants."
+    },
+    {
+      "id": "C2",
+      "reported_gains": [
+        0.002,
+        0.001,
+        0.125
+      ],
+      "terminal": {
+        "level": 8.912006955357178,
+        "trend": 0.9386936231537568,
+        "seasons": [
+          -0.27247914151970676,
+          0.27247914151970676
+        ]
+      },
+      "inferred_initial": {
+        "level": 2.3593749999999947,
+        "trend": 0.9389880952380955,
+        "seasons": [
+          -0.3593749999999989,
+          0.3593749999999989
+        ]
+      },
+      "inferred_errors": [
+        0.0,
+        -0.15773809523808907,
+        -0.12750297619047252,
+        0.23501643750000492,
+        -0.23942085586011624,
+        -0.42198812870324925,
+        0.9148546577236142,
+        -0.49769312357031487
+      ],
+      "warning": "Approximate inverse constraints only. Assumes gains equal reported gains, direct innovations, standard additive forecast, no reset. Binary64 forecast publication makes inversion inexact; do not treat inferred decimals as certified initializer constants."
+    },
+    {
+      "id": "C3",
+      "reported_gains": [
+        0.126,
+        0.001,
+        0.001
+      ],
+      "terminal": {
+        "level": 8.894332069492394,
+        "trend": 0.9224782596534822,
+        "seasons": [
+          -0.6139777816283352,
+          0.05771702682104074,
+          -0.0008225034204252246,
+          0.5570832582277205
+        ]
+      },
+      "inferred_initial": {
+        "level": 2.6142578125000058,
+        "trend": 0.9239268543956043,
+        "seasons": [
+          -0.6142578125,
+          0.05761718749999991,
+          -0.0009765624999996665,
+          0.5576171874999998
+        ]
+      },
+      "inferred_errors": [
+        0.0,
+        -0.09580185439560958,
+        -0.6989681232829718,
+        -0.09262397416724238,
+        -0.08211781386592881,
+        -0.1665075100943184,
+        0.4908785173266543,
+        -0.8034539836427433
+      ],
+      "warning": "Approximate inverse constraints only. Assumes gains equal reported gains, direct innovations, standard additive forecast, no reset. Binary64 forecast publication makes inversion inexact; do not treat inferred decimals as certified initializer constants."
+    },
+    {
+      "id": "C4",
+      "reported_gains": [
+        0.126,
+        0.001,
+        0.001
+      ],
+      "terminal": {
+        "level": 2.441925541427641,
+        "trend": -0.13091819133250682,
+        "seasons": [
+          -2.5005811801539126,
+          2.500581180153913
+        ]
+      },
+      "inferred_initial": {
+        "level": 4.499999999999998,
+        "trend": -0.12587412587412583,
+        "seasons": [
+          -2.5,
+          2.5
+        ]
+      },
+      "inferred_errors": [
+        0.0,
+        0.12587412587412788,
+        -2.7642377622377605,
+        -2.287557188811187,
+        1.1343651755664343,
+        1.1204982902694975,
+        -1.8926711215472605,
+        -1.524345393691297,
+        1.80216568459806,
+        1.7042958288609504,
+        -1.3828348594830238,
+        -1.0796182377795578
+      ],
+      "warning": "Approximate inverse constraints only. Assumes gains equal reported gains, direct innovations, standard additive forecast, no reset. Binary64 forecast publication makes inversion inexact; do not treat inferred decimals as certified initializer constants."
+    },
+    {
+      "id": "C5",
+      "reported_gains": [
+        0.002,
+        0.001,
+        0.75
+      ],
+      "terminal": {
+        "level": 13.204151435320231,
+        "trend": 0.9904959561184503,
+        "seasons": [
+          -0.06280547771862377,
+          0.0628054777186211
+        ]
+      },
+      "inferred_initial": {
+        "level": 2.27083333332593,
+        "trend": 0.9903846153845963,
+        "seasons": [
+          -0.2708333333269058,
+          0.2708333333269058
+        ]
+      },
+      "inferred_errors": [
+        0.0,
+        -0.032051282037432176,
+        -0.23067307692210468,
+        0.2620381730803653,
+        -0.28823681964719683,
+        -0.6649176810145627,
+        0.9503206370123983,
+        -0.3966120961987607,
+        0.5061071635975343,
+        -0.3298470878258237,
+        -0.6044770629692671,
+        0.9396898667788224
+      ],
+      "warning": "Approximate inverse constraints only. Assumes gains equal reported gains, direct innovations, standard additive forecast, no reset. Binary64 forecast publication makes inversion inexact; do not treat inferred decimals as certified initializer constants."
+    },
+    {
+      "id": "C6",
+      "reported_gains": [
+        0.002,
+        0.001,
+        0.5
+      ],
+      "terminal": {
+        "level": 13.14158114144429,
+        "trend": 0.9892126785653161,
+        "seasons": [
+          0.045949770958403136,
+          -0.28834541881975895,
+          -0.0217523974062086,
+          0.2641480452675662
+        ]
+      },
+      "inferred_initial": {
+        "level": 2.6538085937500107,
+        "trend": 0.9924150068681319,
+        "seasons": [
+          -0.653808593750004,
+          0.11181640625000205,
+          -0.08544921874999994,
+          0.627441406250002
+        ]
+      },
+      "inferred_errors": [
+        0.0,
+        -0.25804000686814493,
+        -0.8024152687156703,
+        -0.5050556147707893,
+        -0.46364499951901866,
+        -0.5897085570641724,
+        0.3911279735525263,
+        -1.2114120047617671,
+        1.0625796532318916,
+        -0.7531571619111461,
+        -0.26190113785321467,
+        0.18929882186374344
+      ],
+      "warning": "Approximate inverse constraints only. Assumes gains equal reported gains, direct innovations, standard additive forecast, no reset. Binary64 forecast publication makes inversion inexact; do not treat inferred decimals as certified initializer constants."
+    },
+    {
+      "id": "C7",
+      "reported_gains": [
+        0.126,
+        0.001,
+        0.001
+      ],
+      "terminal": {
+        "level": 2.6121689378477386,
+        "trend": -0.03942405682912997,
+        "seasons": [
+          -2.500508388688515,
+          2.5005083886885147
+        ]
+      },
+      "inferred_initial": {
+        "level": 4.4999999999999964,
+        "trend": -0.031304347826087105,
+        "seasons": [
+          -2.5,
+          2.5
+        ]
+      },
+      "inferred_errors": [
+        0.0,
+        0.03130434782609099,
+        -2.941366956521735,
+        -2.53657161391304,
+        0.8227600627930464,
+        0.7545844171765904,
+        -2.305706242191292,
+        -1.9780758359090906,
+        1.3132927693492908,
+        1.185266452837657,
+        -1.9277359981134967,
+        -1.6465221940630317,
+        1.6039679851384283,
+        1.4399484277040253,
+        -1.704751098029208,
+        -1.4514432287567294,
+        1.7744734880766118,
+        1.5888227213711648,
+        -1.57492328443789,
+        -1.3383783064767376,
+        1.872780064819767,
+        1.6741434740381511,
+        -1.5010339809203748,
+        -1.274544474841069
+      ],
+      "warning": "Approximate inverse constraints only. Assumes gains equal reported gains, direct innovations, standard additive forecast, no reset. Binary64 forecast publication makes inversion inexact; do not treat inferred decimals as certified initializer constants."
+    },
+    {
+      "id": "C8",
+      "reported_gains": [
+        0.002,
+        0.001,
+        0.125
+      ],
+      "terminal": {
+        "level": 25.15235777263558,
+        "trend": 0.998872001834501,
+        "seasons": [
+          -0.10417656969987199,
+          0.10417656969987021
+        ]
+      },
+      "inferred_initial": {
+        "level": 2.2708333333333877,
+        "trend": 1.0004347826086952,
+        "seasons": [
+          -0.27083333333333065,
+          0.27083333333333065
+        ]
+      },
+      "inferred_errors": [
+        0.0,
+        -0.04210144927541343,
+        -0.250743260869621,
+        0.2132123022463332,
+        -0.46982237944301874,
+        -0.5631664934022146,
+        0.5917639065837448,
+        -0.7420639631157865,
+        0.7690082318678878,
+        -0.8984725870385224,
+        -0.0758421348247918,
+        0.2177761640873482,
+        -0.31479662175715095,
+        0.44269431922250563,
+        -0.5238846023991685,
+        -0.3605806627975099,
+        0.5461537960127634,
+        -0.5632809067658229,
+        0.7305342722918551,
+        -0.7407571069574924,
+        -0.10830365004697556,
+        0.35684312971152854,
+        -0.3422038354447706,
+        0.5652527579204477
+      ],
+      "warning": "Approximate inverse constraints only. Assumes gains equal reported gains, direct innovations, standard additive forecast, no reset. Binary64 forecast publication makes inversion inexact; do not treat inferred decimals as certified initializer constants."
+    },
+    {
+      "id": "C9",
+      "reported_gains": [
+        0.002,
+        0.001,
+        0.125
+      ],
+      "terminal": {
+        "level": 25.13077647209407,
+        "trend": 1.0007056979851896,
+        "seasons": [
+          -0.0648370962886986,
+          -0.010982432492184557,
+          -0.06163707052030887,
+          0.13745659930119203
+        ]
+      },
+      "inferred_initial": {
+        "level": 2.111979166666691,
+        "trend": 1.0005163043478267,
+        "seasons": [
+          -0.1119791666666706,
+          -0.08072916666666342,
+          -0.02864583333333591,
+          0.22135416666666993
+        ]
+      },
+      "inferred_errors": [
+        0.0,
+        0.46823369565214595,
+        -0.33577064311596444,
+        0.4142521307698992,
+        -0.5043060596894325,
+        -0.09363537299802294,
+        0.45450402866221395,
+        -0.6410774082579573,
+        0.8080793489804653,
+        -0.5857364415782775,
+        -0.10516603251621673,
+        0.18784345083436366,
+        -0.29610724862591997,
+        0.7373114741022789,
+        -0.5953593954435725,
+        -0.3380293990668268,
+        0.49005766917425925,
+        -0.35756725862293254,
+        0.7293363863738571,
+        -0.7986730557579865,
+        -0.07323873747481849,
+        0.4367161861814166,
+        -0.36412583211532357,
+        0.551852151895462
+      ],
+      "warning": "Approximate inverse constraints only. Assumes gains equal reported gains, direct innovations, standard additive forecast, no reset. Binary64 forecast publication makes inversion inexact; do not treat inferred decimals as certified initializer constants."
+    },
+    {
+      "id": "B5",
+      "reported_gains": [
+        0.002,
+        0.001,
+        0.25
+      ],
+      "terminal": {
+        "level": 2828.1575725645475,
+        "trend": 257.2053720383427,
+        "seasons": [
+          9.870570902380791,
+          -1.5924282857188246,
+          -4.028849022653617,
+          -4.249293594008577
+        ]
+      },
+      "inferred_initial": {
+        "level": 0.46874999999855493,
+        "trend": 257.23214285714283,
+        "seasons": [
+          -0.4687499999991953,
+          2.5312499999990754,
+          -1.5937500000001648,
+          -0.46874999999971534
+        ]
+      },
+      "inferred_errors": [
+        0.0,
+        -4.232142857140447,
+        -1.3265892857126147,
+        -3.675520232141667,
+        -4.891077796445774,
+        -8.041277453537353,
+        -5.836559541005769,
+        -7.566793375293878,
+        39.55565670593065,
+        -10.91399753222887,
+        -9.269951963930493,
+        -10.572565468634972
+      ],
+      "warning": "Approximate inverse constraints only. Assumes gains equal reported gains, direct innovations, standard additive forecast, no reset. Binary64 forecast publication makes inversion inexact; do not treat inferred decimals as certified initializer constants."
+    }
+  ],
+  "python_source": "from experiments import *\nimport collections\n\ndef inverse_constraints(c,first,second):\n    name=c['id'];y,p=c['y'],c['p']\n    a,b,g=[first[name+'_S'+str(k)] for k in range(1,4)]\n    fs=[c['known_f1'] if h==1 and name!='B5' else second[name+f'_F{h}'] for h in range(1,p+2)]\n    t=(fs[p]-fs[0])/float(p)\n    l=sum(fs[h-1]-float(h)*t for h in range(1,p+1))/float(p)\n    seasons=[0.]*p\n    for h in range(1,p+1):seasons[(len(y)-1+h)%p]=fs[h-1]-l-float(h)*t\n    terminal=dict(level=l,trend=t,seasons=list(seasons))\n    errors=[0.]*len(y)\n    for j in range(len(y)-1,0,-1):\n        q=j%p;e=(y[j]-l-seasons[q])/(1.-a-g);errors[j]=e\n        t-=b*e;seasons[q]-=g*e;l-=t+a*e\n    center=sum(seasons)/float(p);l+=center;seasons=[s-center for s in seasons]\n    return dict(id=name,reported_gains=[a,b,g],terminal=terminal,\n      inferred_initial=dict(level=l,trend=t,seasons=seasons),inferred_errors=errors,\n      warning='Approximate inverse constraints only. Assumes gains equal reported gains, direct innovations, standard additive forecast, no reset. Binary64 forecast publication makes inversion inexact; do not treat inferred decimals as certified initializer constants.')\n\ndef main():\n    batches=['ties','short','seasonal-stage1','seasonal-stage2','tie-followup','covariance-followup','seasonal-hybrid','centering-followup']\n    records=[]\n    for name in batches:\n        pred=OUT/(name+'-predictions.json');ans=json.loads((OUT/(name+'-answers.json')).read_text())\n        assert hashlib.sha256(pred.read_bytes()).hexdigest()==ans['predictions_sha256']\n        committed=subprocess.check_output(['git','show',ans['prediction_commit']+':'+str(pred.relative_to(ROOT))])\n        assert committed==pred.read_bytes(),name\n        assert len(json.loads(pred.read_text())['rows'])==len(ans['rows'])\n        assert all(r['answer']['type']=='number' and len(r['answer']['bits'])==16 for r in ans['rows'])\n        records.append(dict(batch=name,readings=len(ans['rows']),prediction_commit=ans['prediction_commit'],prediction_sha256=ans['predictions_sha256']))\n    first=decoded('seasonal-stage1');second=decoded('seasonal-stage2')\n    cov=json.loads((OUT/'covariance-followup-answers.json').read_text())\n    common={}\n    for row in cov['rows']:\n        name=row['id'].split('_')[0]\n        possible={k.split('_',1)[1] for k,match in row['matches'].items() if match and k.startswith('innovation_')}\n        common[name]=common.get(name,possible)&possible\n        assert not any(match for key,match in row['matches'].items() if key.startswith('traditional_'))\n    assert all(common.values())\n    cases=seasonal_cases()+[dict(id='B5',y=[float(256*j+(48 if j==8 else 0)) for j in range(12)],p=4)]\n    shortp=json.loads((OUT/'short-predictions.json').read_text());shorta=json.loads((OUT/'short-answers.json').read_text())\n    amap={r['id']:r for r in shorta['rows']}\n    mismatches=[dict(id=r['id'],prediction=r['predictions']['landed_program'],answer=amap[r['id']]['answer']) for r in shortp['rows'] if not amap[r['id']]['matches']['landed_program']]\n    byid=decoded('short')\n    for name in [f'H{h}' for h in range(87,101)]+[f'fresh_n{n}_{k}' for n in range(4,8) for k in range(5)]:\n        assert bits(byid[name+'_Cendpoint'])==bits(byid[name+'_S7'])\n    save('results-summary.json',dict(total_readings=sum(r['readings'] for r in records),\n      batches=records,short_mismatches=mismatches,\n      seasonal_gains={c['id']:[val(first[c['id']+'_S'+str(k)]) for k in range(1,4)] for c in cases},\n      covariance_common_variance_bits={k:sorted(v) for k,v in common.items()},\n      inverse_constraints=[inverse_constraints(c,first,second) for c in cases],\n      python_source=Path(__file__).read_text()))\n    save('runner.json',dict(\n      python3='Standard library only; reconstruct model.json python_source as work/ets_sim.py, runner source as work/experiments.py and followup sources from their prediction JSONs.',\n      source=Path(ROOT/'work/experiments.py').read_text(),\n      checks='Prediction SHA256 equals recorded answer SHA256, and git show at recorded pre-query commit equals each prediction file byte for byte. Every reading numeric. Short endpoint equals fresh STAT7 at n<=10. Each covariance history has at least one common V across all six outputs.',\n      predicted_then_asked=True))\n    print('Validated',sum(r['readings'] for r in records),'readings in',len(records),'precommitted batches')\n\nif __name__=='__main__':main()\n"
+}

@@ -1,0 +1,3343 @@
+{
+  "protocol": "Default-gain predictions are explicitly joint initializer+gain hypotheses, not claimed search winners. After reported gains, freeze conditional forecast predictions before further Excel calls.",
+  "cases": [
+    {
+      "id": "C1",
+      "y": [
+        2.0,
+        7.0,
+        -1.0,
+        4.0,
+        2.0,
+        7.0,
+        -1.0,
+        4.0
+      ],
+      "p": 2,
+      "known_f1": -0.6284500063736136,
+      "known_c1": 2.8926394216792626
+    },
+    {
+      "id": "C2",
+      "y": [
+        2.0,
+        3.5,
+        3.75,
+        5.75,
+        5.5,
+        7.0,
+        8.5,
+        8.75
+      ],
+      "p": 2,
+      "known_f1": 9.578221436991228,
+      "known_c1": 0.8247073546568308
+    },
+    {
+      "id": "C3",
+      "y": [
+        2.0,
+        3.5,
+        3.75,
+        5.75,
+        5.5,
+        7.0,
+        8.5,
+        8.75
+      ],
+      "p": 4,
+      "known_f1": 9.202832547517541,
+      "known_c1": 0.8278620082743089
+    },
+    {
+      "id": "C4",
+      "y": [
+        2.0,
+        7.0,
+        -1.0,
+        4.0,
+        2.0,
+        7.0,
+        -1.0,
+        4.0,
+        2.0,
+        7.0,
+        -1.0,
+        4.0
+      ],
+      "p": 2,
+      "known_f1": -0.18957383005877881,
+      "known_c1": 3.1281816983529667
+    },
+    {
+      "id": "C5",
+      "y": [
+        2.0,
+        3.5,
+        3.75,
+        5.75,
+        5.5,
+        7.0,
+        8.5,
+        8.75,
+        10.75,
+        10.5,
+        12.0,
+        13.5
+      ],
+      "p": 2,
+      "known_f1": 14.131841913720057,
+      "known_c1": 1.0312125552012186
+    },
+    {
+      "id": "C6",
+      "y": [
+        2.0,
+        3.5,
+        3.75,
+        5.75,
+        5.5,
+        7.0,
+        8.5,
+        8.75,
+        10.75,
+        10.5,
+        12.0,
+        13.5
+      ],
+      "p": 4,
+      "known_f1": 14.176743590968009,
+      "known_c1": 1.258746918616139
+    },
+    {
+      "id": "C7",
+      "y": [
+        2.0,
+        7.0,
+        -1.0,
+        4.0,
+        2.0,
+        7.0,
+        -1.0,
+        4.0,
+        2.0,
+        7.0,
+        -1.0,
+        4.0,
+        2.0,
+        7.0,
+        -1.0,
+        4.0,
+        2.0,
+        7.0,
+        -1.0,
+        4.0,
+        2.0,
+        7.0,
+        -1.0,
+        4.0
+      ],
+      "p": 2,
+      "known_f1": 0.07223649233009377,
+      "known_c1": 3.2232921779553756
+    },
+    {
+      "id": "C8",
+      "y": [
+        2.0,
+        3.5,
+        3.75,
+        5.75,
+        5.5,
+        7.0,
+        8.5,
+        8.75,
+        10.75,
+        10.5,
+        12.0,
+        13.5,
+        13.75,
+        15.75,
+        15.5,
+        17.0,
+        18.5,
+        18.75,
+        20.75,
+        20.5,
+        22.0,
+        23.5,
+        23.75,
+        25.75
+      ],
+      "p": 2,
+      "known_f1": 26.047053204770208,
+      "known_c1": 0.9778435126421993
+    },
+    {
+      "id": "C9",
+      "y": [
+        2.0,
+        3.5,
+        3.75,
+        5.75,
+        5.5,
+        7.0,
+        8.5,
+        8.75,
+        10.75,
+        10.5,
+        12.0,
+        13.5,
+        13.75,
+        15.75,
+        15.5,
+        17.0,
+        18.5,
+        18.75,
+        20.75,
+        20.5,
+        22.0,
+        23.5,
+        23.75,
+        25.75
+      ],
+      "p": 4,
+      "known_f1": 26.06664507379056,
+      "known_c1": 0.9549771734176575
+    },
+    {
+      "id": "B5",
+      "y": [
+        0.0,
+        256.0,
+        512.0,
+        768.0,
+        1024.0,
+        1280.0,
+        1536.0,
+        1792.0,
+        2096.0,
+        2304.0,
+        2560.0,
+        2816.0
+      ],
+      "p": 4
+    }
+  ],
+  "rows": [
+    {
+      "id": "cycle_p3_n6_S3",
+      "y": [
+        0.0,
+        3.0,
+        9.0,
+        0.0,
+        3.0,
+        9.0
+      ],
+      "p": 3,
+      "output": "stat",
+      "index": 3,
+      "predictions": {
+        "C1_partial": {
+          "value": 0.001,
+          "bits": "3f50624dd2f1a9fc"
+        },
+        "C2_complete": {
+          "value": 0.001,
+          "bits": "3f50624dd2f1a9fc"
+        },
+        "C3_three_cycles": {
+          "value": 2.220446049250313e-16,
+          "bits": "3cb0000000000000"
+        }
+      }
+    },
+    {
+      "id": "cycle_p3_n6_S1",
+      "y": [
+        0.0,
+        3.0,
+        9.0,
+        0.0,
+        3.0,
+        9.0
+      ],
+      "p": 3,
+      "output": "stat",
+      "index": 1,
+      "predictions": {
+        "C1_partial": {
+          "value": 0.751,
+          "bits": "3fe8083126e978d5"
+        },
+        "C2_complete": {
+          "value": 0.751,
+          "bits": "3fe8083126e978d5"
+        },
+        "C3_three_cycles": {
+          "value": 0.1,
+          "bits": "3fb999999999999a"
+        }
+      }
+    },
+    {
+      "id": "cycle_p3_n7_S3",
+      "y": [
+        0.0,
+        3.0,
+        9.0,
+        0.0,
+        3.0,
+        9.0,
+        0.0
+      ],
+      "p": 3,
+      "output": "stat",
+      "index": 3,
+      "predictions": {
+        "C1_partial": {
+          "value": 0.001,
+          "bits": "3f50624dd2f1a9fc"
+        },
+        "C2_complete": {
+          "value": 2.220446049250313e-16,
+          "bits": "3cb0000000000000"
+        },
+        "C3_three_cycles": {
+          "value": 2.220446049250313e-16,
+          "bits": "3cb0000000000000"
+        }
+      }
+    },
+    {
+      "id": "cycle_p3_n7_S1",
+      "y": [
+        0.0,
+        3.0,
+        9.0,
+        0.0,
+        3.0,
+        9.0,
+        0.0
+      ],
+      "p": 3,
+      "output": "stat",
+      "index": 1,
+      "predictions": {
+        "C1_partial": {
+          "value": 0.751,
+          "bits": "3fe8083126e978d5"
+        },
+        "C2_complete": {
+          "value": 0.126,
+          "bits": "3fc020c49ba5e354"
+        },
+        "C3_three_cycles": {
+          "value": 0.126,
+          "bits": "3fc020c49ba5e354"
+        }
+      }
+    },
+    {
+      "id": "cycle_p3_n9_S3",
+      "y": [
+        0.0,
+        3.0,
+        9.0,
+        0.0,
+        3.0,
+        9.0,
+        0.0,
+        3.0,
+        9.0
+      ],
+      "p": 3,
+      "output": "stat",
+      "index": 3,
+      "predictions": {
+        "C1_partial": {
+          "value": 0.001,
+          "bits": "3f50624dd2f1a9fc"
+        },
+        "C2_complete": {
+          "value": 0.001,
+          "bits": "3f50624dd2f1a9fc"
+        },
+        "C3_three_cycles": {
+          "value": 0.001,
+          "bits": "3f50624dd2f1a9fc"
+        }
+      }
+    },
+    {
+      "id": "cycle_p3_n9_S1",
+      "y": [
+        0.0,
+        3.0,
+        9.0,
+        0.0,
+        3.0,
+        9.0,
+        0.0,
+        3.0,
+        9.0
+      ],
+      "p": 3,
+      "output": "stat",
+      "index": 1,
+      "predictions": {
+        "C1_partial": {
+          "value": 0.751,
+          "bits": "3fe8083126e978d5"
+        },
+        "C2_complete": {
+          "value": 0.751,
+          "bits": "3fe8083126e978d5"
+        },
+        "C3_three_cycles": {
+          "value": 0.751,
+          "bits": "3fe8083126e978d5"
+        }
+      }
+    },
+    {
+      "id": "cycle_p4_n9_S3",
+      "y": [
+        0.0,
+        4.0,
+        12.0,
+        24.0,
+        0.0,
+        4.0,
+        12.0,
+        24.0,
+        0.0
+      ],
+      "p": 4,
+      "output": "stat",
+      "index": 3,
+      "predictions": {
+        "C1_partial": {
+          "value": 0.001,
+          "bits": "3f50624dd2f1a9fc"
+        },
+        "C2_complete": {
+          "value": 2.220446049250313e-16,
+          "bits": "3cb0000000000000"
+        },
+        "C3_three_cycles": {
+          "value": 0.001,
+          "bits": "3f50624dd2f1a9fc"
+        }
+      }
+    },
+    {
+      "id": "cycle_p4_n9_S1",
+      "y": [
+        0.0,
+        4.0,
+        12.0,
+        24.0,
+        0.0,
+        4.0,
+        12.0,
+        24.0,
+        0.0
+      ],
+      "p": 4,
+      "output": "stat",
+      "index": 1,
+      "predictions": {
+        "C1_partial": {
+          "value": 0.751,
+          "bits": "3fe8083126e978d5"
+        },
+        "C2_complete": {
+          "value": 0.126,
+          "bits": "3fc020c49ba5e354"
+        },
+        "C3_three_cycles": {
+          "value": 0.751,
+          "bits": "3fe8083126e978d5"
+        }
+      }
+    },
+    {
+      "id": "cycle_p5_n10_S3",
+      "y": [
+        0.0,
+        5.0,
+        10.0,
+        20.0,
+        35.0,
+        0.0,
+        5.0,
+        10.0,
+        20.0,
+        35.0
+      ],
+      "p": 5,
+      "output": "stat",
+      "index": 3,
+      "predictions": {
+        "C1_partial": {
+          "value": 0.001,
+          "bits": "3f50624dd2f1a9fc"
+        },
+        "C2_complete": {
+          "value": 0.001,
+          "bits": "3f50624dd2f1a9fc"
+        },
+        "C3_three_cycles": {
+          "value": 2.220446049250313e-16,
+          "bits": "3cb0000000000000"
+        }
+      }
+    },
+    {
+      "id": "cycle_p5_n10_S1",
+      "y": [
+        0.0,
+        5.0,
+        10.0,
+        20.0,
+        35.0,
+        0.0,
+        5.0,
+        10.0,
+        20.0,
+        35.0
+      ],
+      "p": 5,
+      "output": "stat",
+      "index": 1,
+      "predictions": {
+        "C1_partial": {
+          "value": 0.751,
+          "bits": "3fe8083126e978d5"
+        },
+        "C2_complete": {
+          "value": 0.751,
+          "bits": "3fe8083126e978d5"
+        },
+        "C3_three_cycles": {
+          "value": 0.002,
+          "bits": "3f60624dd2f1a9fc"
+        }
+      }
+    },
+    {
+      "id": "S0_d0.0625_S1",
+      "y": [
+        0.0,
+        8.0,
+        0.0,
+        8.0,
+        0.0,
+        8.0,
+        0.0,
+        8.0625
+      ],
+      "p": 2,
+      "output": "stat",
+      "index": 1,
+      "predictions": {
+        "prefix_SSE_default": {
+          "value": 0.751,
+          "bits": "3fe8083126e978d5"
+        }
+      }
+    },
+    {
+      "id": "S0_d0.0625_S3",
+      "y": [
+        0.0,
+        8.0,
+        0.0,
+        8.0,
+        0.0,
+        8.0,
+        0.0,
+        8.0625
+      ],
+      "p": 2,
+      "output": "stat",
+      "index": 3,
+      "predictions": {
+        "prefix_SSE_default": {
+          "value": 0.001,
+          "bits": "3f50624dd2f1a9fc"
+        }
+      }
+    },
+    {
+      "id": "S0_d0.0625_S6",
+      "y": [
+        0.0,
+        8.0,
+        0.0,
+        8.0,
+        0.0,
+        8.0,
+        0.0,
+        8.0625
+      ],
+      "p": 2,
+      "output": "stat",
+      "index": 6,
+      "predictions": {
+        "prefix_SSE_default": {
+          "value": 0.0078125,
+          "bits": "3f80000000000000"
+        }
+      }
+    },
+    {
+      "id": "S0_d0.0625_S7",
+      "y": [
+        0.0,
+        8.0,
+        0.0,
+        8.0,
+        0.0,
+        8.0,
+        0.0,
+        8.0625
+      ],
+      "p": 2,
+      "output": "stat",
+      "index": 7,
+      "predictions": {
+        "prefix_SSE_default": {
+          "value": 0.02209708691207961,
+          "bits": "3f96a09e667f3bcd"
+        }
+      }
+    },
+    {
+      "id": "S0_d1.0_S1",
+      "y": [
+        0.0,
+        8.0,
+        0.0,
+        8.0,
+        0.0,
+        8.0,
+        0.0,
+        9.0
+      ],
+      "p": 2,
+      "output": "stat",
+      "index": 1,
+      "predictions": {
+        "prefix_SSE_default": {
+          "value": 0.751,
+          "bits": "3fe8083126e978d5"
+        }
+      }
+    },
+    {
+      "id": "S0_d1.0_S3",
+      "y": [
+        0.0,
+        8.0,
+        0.0,
+        8.0,
+        0.0,
+        8.0,
+        0.0,
+        9.0
+      ],
+      "p": 2,
+      "output": "stat",
+      "index": 3,
+      "predictions": {
+        "prefix_SSE_default": {
+          "value": 0.001,
+          "bits": "3f50624dd2f1a9fc"
+        }
+      }
+    },
+    {
+      "id": "S0_d1.0_S6",
+      "y": [
+        0.0,
+        8.0,
+        0.0,
+        8.0,
+        0.0,
+        8.0,
+        0.0,
+        9.0
+      ],
+      "p": 2,
+      "output": "stat",
+      "index": 6,
+      "predictions": {
+        "prefix_SSE_default": {
+          "value": 0.125,
+          "bits": "3fc0000000000000"
+        }
+      }
+    },
+    {
+      "id": "S0_d1.0_S7",
+      "y": [
+        0.0,
+        8.0,
+        0.0,
+        8.0,
+        0.0,
+        8.0,
+        0.0,
+        9.0
+      ],
+      "p": 2,
+      "output": "stat",
+      "index": 7,
+      "predictions": {
+        "prefix_SSE_default": {
+          "value": 0.3535533905932738,
+          "bits": "3fd6a09e667f3bcd"
+        }
+      }
+    },
+    {
+      "id": "S0_d16.0_S1",
+      "y": [
+        0.0,
+        8.0,
+        0.0,
+        8.0,
+        0.0,
+        8.0,
+        0.0,
+        24.0
+      ],
+      "p": 2,
+      "output": "stat",
+      "index": 1,
+      "predictions": {
+        "prefix_SSE_default": {
+          "value": 0.751,
+          "bits": "3fe8083126e978d5"
+        }
+      }
+    },
+    {
+      "id": "S0_d16.0_S3",
+      "y": [
+        0.0,
+        8.0,
+        0.0,
+        8.0,
+        0.0,
+        8.0,
+        0.0,
+        24.0
+      ],
+      "p": 2,
+      "output": "stat",
+      "index": 3,
+      "predictions": {
+        "prefix_SSE_default": {
+          "value": 0.001,
+          "bits": "3f50624dd2f1a9fc"
+        }
+      }
+    },
+    {
+      "id": "S0_d16.0_S6",
+      "y": [
+        0.0,
+        8.0,
+        0.0,
+        8.0,
+        0.0,
+        8.0,
+        0.0,
+        24.0
+      ],
+      "p": 2,
+      "output": "stat",
+      "index": 6,
+      "predictions": {
+        "prefix_SSE_default": {
+          "value": 2.0,
+          "bits": "4000000000000000"
+        }
+      }
+    },
+    {
+      "id": "S0_d16.0_S7",
+      "y": [
+        0.0,
+        8.0,
+        0.0,
+        8.0,
+        0.0,
+        8.0,
+        0.0,
+        24.0
+      ],
+      "p": 2,
+      "output": "stat",
+      "index": 7,
+      "predictions": {
+        "prefix_SSE_default": {
+          "value": 5.656854249492381,
+          "bits": "4016a09e667f3bcd"
+        }
+      }
+    },
+    {
+      "id": "C1_S1",
+      "y": [
+        2.0,
+        7.0,
+        -1.0,
+        4.0,
+        2.0,
+        7.0,
+        -1.0,
+        4.0
+      ],
+      "p": 2,
+      "output": "stat",
+      "index": 1,
+      "predictions": {
+        "default_prefix": {
+          "value": 0.751,
+          "bits": "3fe8083126e978d5"
+        },
+        "default_phase_mean": {
+          "value": 0.751,
+          "bits": "3fe8083126e978d5"
+        },
+        "default_phase_regression": {
+          "value": 0.751,
+          "bits": "3fe8083126e978d5"
+        }
+      }
+    },
+    {
+      "id": "C1_S2",
+      "y": [
+        2.0,
+        7.0,
+        -1.0,
+        4.0,
+        2.0,
+        7.0,
+        -1.0,
+        4.0
+      ],
+      "p": 2,
+      "output": "stat",
+      "index": 2,
+      "predictions": {
+        "default_prefix": {
+          "value": 0.001,
+          "bits": "3f50624dd2f1a9fc"
+        },
+        "default_phase_mean": {
+          "value": 0.001,
+          "bits": "3f50624dd2f1a9fc"
+        },
+        "default_phase_regression": {
+          "value": 0.001,
+          "bits": "3f50624dd2f1a9fc"
+        }
+      }
+    },
+    {
+      "id": "C1_S3",
+      "y": [
+        2.0,
+        7.0,
+        -1.0,
+        4.0,
+        2.0,
+        7.0,
+        -1.0,
+        4.0
+      ],
+      "p": 2,
+      "output": "stat",
+      "index": 3,
+      "predictions": {
+        "default_prefix": {
+          "value": 0.001,
+          "bits": "3f50624dd2f1a9fc"
+        },
+        "default_phase_mean": {
+          "value": 0.001,
+          "bits": "3f50624dd2f1a9fc"
+        },
+        "default_phase_regression": {
+          "value": 0.001,
+          "bits": "3f50624dd2f1a9fc"
+        }
+      }
+    },
+    {
+      "id": "C1_S4",
+      "y": [
+        2.0,
+        7.0,
+        -1.0,
+        4.0,
+        2.0,
+        7.0,
+        -1.0,
+        4.0
+      ],
+      "p": 2,
+      "output": "stat",
+      "index": 4,
+      "predictions": {
+        "default_prefix": {
+          "value": 0.18261226863157895,
+          "bits": "3fc75fd6bccf7cdf"
+        },
+        "default_phase_mean": {
+          "value": 0.27201168276527643,
+          "bits": "3fd168a3b066d5a2"
+        },
+        "default_phase_regression": {
+          "value": 0.24108333800375878,
+          "bits": "3fcedbd19e2b179b"
+        }
+      }
+    },
+    {
+      "id": "C1_S5",
+      "y": [
+        2.0,
+        7.0,
+        -1.0,
+        4.0,
+        2.0,
+        7.0,
+        -1.0,
+        4.0
+      ],
+      "p": 2,
+      "output": "stat",
+      "index": 5,
+      "predictions": {
+        "default_prefix": {
+          "value": 0.32030239402603206,
+          "bits": "3fd47fd59ccb072f"
+        },
+        "default_phase_mean": {
+          "value": 0.5181251015242762,
+          "bits": "3fe0947b17c911fd"
+        },
+        "default_phase_regression": {
+          "value": 0.80982402969663,
+          "bits": "3fe9ea141561fb91"
+        }
+      }
+    },
+    {
+      "id": "C1_S6",
+      "y": [
+        2.0,
+        7.0,
+        -1.0,
+        4.0,
+        2.0,
+        7.0,
+        -1.0,
+        4.0
+      ],
+      "p": 2,
+      "output": "stat",
+      "index": 6,
+      "predictions": {
+        "default_prefix": {
+          "value": 0.991323744,
+          "bits": "3fefb8ec92874e0a"
+        },
+        "default_phase_mean": {
+          "value": 1.476634849297215,
+          "bits": "3ff7a04bdd1dd8ca"
+        },
+        "default_phase_regression": {
+          "value": 1.3087381205918334,
+          "bits": "3ff4f097622f86e0"
+        }
+      }
+    },
+    {
+      "id": "C1_S7",
+      "y": [
+        2.0,
+        7.0,
+        -1.0,
+        4.0,
+        2.0,
+        7.0,
+        -1.0,
+        4.0
+      ],
+      "p": 2,
+      "output": "stat",
+      "index": 7,
+      "predictions": {
+        "default_prefix": {
+          "value": 2.1894329079900365,
+          "bits": "400183f56684d3bb"
+        },
+        "default_phase_mean": {
+          "value": 2.434431499851758,
+          "bits": "400379b738e1b968"
+        },
+        "default_phase_regression": {
+          "value": 1.716853826878486,
+          "bits": "3ffb783bb7e749e8"
+        }
+      }
+    },
+    {
+      "id": "C2_S1",
+      "y": [
+        2.0,
+        3.5,
+        3.75,
+        5.75,
+        5.5,
+        7.0,
+        8.5,
+        8.75
+      ],
+      "p": 2,
+      "output": "stat",
+      "index": 1,
+      "predictions": {
+        "default_prefix": {
+          "value": 0.751,
+          "bits": "3fe8083126e978d5"
+        },
+        "default_phase_mean": {
+          "value": 0.751,
+          "bits": "3fe8083126e978d5"
+        },
+        "default_phase_regression": {
+          "value": 0.751,
+          "bits": "3fe8083126e978d5"
+        }
+      }
+    },
+    {
+      "id": "C2_S2",
+      "y": [
+        2.0,
+        3.5,
+        3.75,
+        5.75,
+        5.5,
+        7.0,
+        8.5,
+        8.75
+      ],
+      "p": 2,
+      "output": "stat",
+      "index": 2,
+      "predictions": {
+        "default_prefix": {
+          "value": 0.001,
+          "bits": "3f50624dd2f1a9fc"
+        },
+        "default_phase_mean": {
+          "value": 0.001,
+          "bits": "3f50624dd2f1a9fc"
+        },
+        "default_phase_regression": {
+          "value": 0.001,
+          "bits": "3f50624dd2f1a9fc"
+        }
+      }
+    },
+    {
+      "id": "C2_S3",
+      "y": [
+        2.0,
+        3.5,
+        3.75,
+        5.75,
+        5.5,
+        7.0,
+        8.5,
+        8.75
+      ],
+      "p": 2,
+      "output": "stat",
+      "index": 3,
+      "predictions": {
+        "default_prefix": {
+          "value": 0.001,
+          "bits": "3f50624dd2f1a9fc"
+        },
+        "default_phase_mean": {
+          "value": 0.001,
+          "bits": "3f50624dd2f1a9fc"
+        },
+        "default_phase_regression": {
+          "value": 0.001,
+          "bits": "3f50624dd2f1a9fc"
+        }
+      }
+    },
+    {
+      "id": "C2_S4",
+      "y": [
+        2.0,
+        3.5,
+        3.75,
+        5.75,
+        5.5,
+        7.0,
+        8.5,
+        8.75
+      ],
+      "p": 2,
+      "output": "stat",
+      "index": 4,
+      "predictions": {
+        "default_prefix": {
+          "value": 0.41792184090625756,
+          "bits": "3fdabf3b3fbe7ed5"
+        },
+        "default_phase_mean": {
+          "value": 0.4458129803660123,
+          "bits": "3fdc88332ab379dd"
+        },
+        "default_phase_regression": {
+          "value": 0.4227977079160552,
+          "bits": "3fdb0f1e1e14af98"
+        }
+      }
+    },
+    {
+      "id": "C2_S5",
+      "y": [
+        2.0,
+        3.5,
+        3.75,
+        5.75,
+        5.5,
+        7.0,
+        8.5,
+        8.75
+      ],
+      "p": 2,
+      "output": "stat",
+      "index": 5,
+      "predictions": {
+        "default_prefix": {
+          "value": 0.06321252375324882,
+          "bits": "3fb02eb22a37c380"
+        },
+        "default_phase_mean": {
+          "value": 0.0760027127823333,
+          "bits": "3fb374e9edceb1f1"
+        },
+        "default_phase_regression": {
+          "value": 0.06917345716565997,
+          "bits": "3fb1b55a08471bb3"
+        }
+      }
+    },
+    {
+      "id": "C2_S6",
+      "y": [
+        2.0,
+        3.5,
+        3.75,
+        5.75,
+        5.5,
+        7.0,
+        8.5,
+        8.75
+      ],
+      "p": 2,
+      "output": "stat",
+      "index": 6,
+      "predictions": {
+        "default_prefix": {
+          "value": 0.43284762093862394,
+          "bits": "3fdbb3c682054c82"
+        },
+        "default_phase_mean": {
+          "value": 0.46173487252194134,
+          "bits": "3fdd8d106c39e2ca"
+        },
+        "default_phase_regression": {
+          "value": 0.43789762605591437,
+          "bits": "3fdc0683c3b9ff03"
+        }
+      }
+    },
+    {
+      "id": "C2_S7",
+      "y": [
+        2.0,
+        3.5,
+        3.75,
+        5.75,
+        5.5,
+        7.0,
+        8.5,
+        8.75
+      ],
+      "p": 2,
+      "output": "stat",
+      "index": 7,
+      "predictions": {
+        "default_prefix": {
+          "value": 0.5744959943667555,
+          "bits": "3fe262456c6f9f75"
+        },
+        "default_phase_mean": {
+          "value": 0.568300906203461,
+          "bits": "3fe22f8561cdcafc"
+        },
+        "default_phase_regression": {
+          "value": 0.5588634341956514,
+          "bits": "3fe1e23591999e47"
+        }
+      }
+    },
+    {
+      "id": "C3_S1",
+      "y": [
+        2.0,
+        3.5,
+        3.75,
+        5.75,
+        5.5,
+        7.0,
+        8.5,
+        8.75
+      ],
+      "p": 4,
+      "output": "stat",
+      "index": 1,
+      "predictions": {
+        "default_prefix": {
+          "value": 0.751,
+          "bits": "3fe8083126e978d5"
+        },
+        "default_phase_mean": {
+          "value": 0.751,
+          "bits": "3fe8083126e978d5"
+        },
+        "default_phase_regression": {
+          "value": 0.751,
+          "bits": "3fe8083126e978d5"
+        }
+      }
+    },
+    {
+      "id": "C3_S2",
+      "y": [
+        2.0,
+        3.5,
+        3.75,
+        5.75,
+        5.5,
+        7.0,
+        8.5,
+        8.75
+      ],
+      "p": 4,
+      "output": "stat",
+      "index": 2,
+      "predictions": {
+        "default_prefix": {
+          "value": 0.001,
+          "bits": "3f50624dd2f1a9fc"
+        },
+        "default_phase_mean": {
+          "value": 0.001,
+          "bits": "3f50624dd2f1a9fc"
+        },
+        "default_phase_regression": {
+          "value": 0.001,
+          "bits": "3f50624dd2f1a9fc"
+        }
+      }
+    },
+    {
+      "id": "C3_S3",
+      "y": [
+        2.0,
+        3.5,
+        3.75,
+        5.75,
+        5.5,
+        7.0,
+        8.5,
+        8.75
+      ],
+      "p": 4,
+      "output": "stat",
+      "index": 3,
+      "predictions": {
+        "default_prefix": {
+          "value": 0.001,
+          "bits": "3f50624dd2f1a9fc"
+        },
+        "default_phase_mean": {
+          "value": 0.001,
+          "bits": "3f50624dd2f1a9fc"
+        },
+        "default_phase_regression": {
+          "value": 0.001,
+          "bits": "3f50624dd2f1a9fc"
+        }
+      }
+    },
+    {
+      "id": "C3_S4",
+      "y": [
+        2.0,
+        3.5,
+        3.75,
+        5.75,
+        5.5,
+        7.0,
+        8.5,
+        8.75
+      ],
+      "p": 4,
+      "output": "stat",
+      "index": 4,
+      "predictions": {
+        "default_prefix": {
+          "value": 0.35183869917241367,
+          "bits": "3fd68486769a69a9"
+        },
+        "default_phase_mean": {
+          "value": 0.3713719765982364,
+          "bits": "3fd7c48ef788fab8"
+        },
+        "default_phase_regression": {
+          "value": 0.3713719765982364,
+          "bits": "3fd7c48ef788fab8"
+        }
+      }
+    },
+    {
+      "id": "C3_S5",
+      "y": [
+        2.0,
+        3.5,
+        3.75,
+        5.75,
+        5.5,
+        7.0,
+        8.5,
+        8.75
+      ],
+      "p": 4,
+      "output": "stat",
+      "index": 5,
+      "predictions": {
+        "default_prefix": {
+          "value": 0.043703445691824924,
+          "bits": "3fa6604c4bf013ae"
+        },
+        "default_phase_mean": {
+          "value": 0.0648938507865498,
+          "bits": "3fb09ce226d6f8e4"
+        },
+        "default_phase_regression": {
+          "value": 0.0648938507865498,
+          "bits": "3fb09ce226d6f8e4"
+        }
+      }
+    },
+    {
+      "id": "C3_S6",
+      "y": [
+        2.0,
+        3.5,
+        3.75,
+        5.75,
+        5.5,
+        7.0,
+        8.5,
+        8.75
+      ],
+      "p": 4,
+      "output": "stat",
+      "index": 6,
+      "predictions": {
+        "default_prefix": {
+          "value": 0.3644043669999999,
+          "bits": "3fd75266b1b23694"
+        },
+        "default_phase_mean": {
+          "value": 0.38463526147674487,
+          "bits": "3fd89ddd373b95f6"
+        },
+        "default_phase_regression": {
+          "value": 0.38463526147674487,
+          "bits": "3fd89ddd373b95f6"
+        }
+      }
+    },
+    {
+      "id": "C3_S7",
+      "y": [
+        2.0,
+        3.5,
+        3.75,
+        5.75,
+        5.5,
+        7.0,
+        8.5,
+        8.75
+      ],
+      "p": 4,
+      "output": "stat",
+      "index": 7,
+      "predictions": {
+        "default_prefix": {
+          "value": 0.6757053145464306,
+          "bits": "3fe59f60c076bae1"
+        },
+        "default_phase_mean": {
+          "value": 0.48285240989650924,
+          "bits": "3fdee70dcb533804"
+        },
+        "default_phase_regression": {
+          "value": 0.48285240989650924,
+          "bits": "3fdee70dcb533804"
+        }
+      }
+    },
+    {
+      "id": "C4_S1",
+      "y": [
+        2.0,
+        7.0,
+        -1.0,
+        4.0,
+        2.0,
+        7.0,
+        -1.0,
+        4.0,
+        2.0,
+        7.0,
+        -1.0,
+        4.0
+      ],
+      "p": 2,
+      "output": "stat",
+      "index": 1,
+      "predictions": {
+        "default_prefix": {
+          "value": 0.751,
+          "bits": "3fe8083126e978d5"
+        },
+        "default_phase_mean": {
+          "value": 0.751,
+          "bits": "3fe8083126e978d5"
+        },
+        "default_phase_regression": {
+          "value": 0.751,
+          "bits": "3fe8083126e978d5"
+        }
+      }
+    },
+    {
+      "id": "C4_S2",
+      "y": [
+        2.0,
+        7.0,
+        -1.0,
+        4.0,
+        2.0,
+        7.0,
+        -1.0,
+        4.0,
+        2.0,
+        7.0,
+        -1.0,
+        4.0
+      ],
+      "p": 2,
+      "output": "stat",
+      "index": 2,
+      "predictions": {
+        "default_prefix": {
+          "value": 0.001,
+          "bits": "3f50624dd2f1a9fc"
+        },
+        "default_phase_mean": {
+          "value": 0.001,
+          "bits": "3f50624dd2f1a9fc"
+        },
+        "default_phase_regression": {
+          "value": 0.001,
+          "bits": "3f50624dd2f1a9fc"
+        }
+      }
+    },
+    {
+      "id": "C4_S3",
+      "y": [
+        2.0,
+        7.0,
+        -1.0,
+        4.0,
+        2.0,
+        7.0,
+        -1.0,
+        4.0,
+        2.0,
+        7.0,
+        -1.0,
+        4.0
+      ],
+      "p": 2,
+      "output": "stat",
+      "index": 3,
+      "predictions": {
+        "default_prefix": {
+          "value": 0.001,
+          "bits": "3f50624dd2f1a9fc"
+        },
+        "default_phase_mean": {
+          "value": 0.001,
+          "bits": "3f50624dd2f1a9fc"
+        },
+        "default_phase_regression": {
+          "value": 0.001,
+          "bits": "3f50624dd2f1a9fc"
+        }
+      }
+    },
+    {
+      "id": "C4_S4",
+      "y": [
+        2.0,
+        7.0,
+        -1.0,
+        4.0,
+        2.0,
+        7.0,
+        -1.0,
+        4.0,
+        2.0,
+        7.0,
+        -1.0,
+        4.0
+      ],
+      "p": 2,
+      "output": "stat",
+      "index": 4,
+      "predictions": {
+        "default_prefix": {
+          "value": 0.36467716438315895,
+          "bits": "3fd756dee3a7ea6f"
+        },
+        "default_phase_mean": {
+          "value": 0.3665955626956545,
+          "bits": "3fd7764d3c28bd4c"
+        },
+        "default_phase_regression": {
+          "value": 0.3252560677019713,
+          "bits": "3fd4d0fed366c0fb"
+        }
+      }
+    },
+    {
+      "id": "C4_S5",
+      "y": [
+        2.0,
+        7.0,
+        -1.0,
+        4.0,
+        2.0,
+        7.0,
+        -1.0,
+        4.0,
+        2.0,
+        7.0,
+        -1.0,
+        4.0
+      ],
+      "p": 2,
+      "output": "stat",
+      "index": 5,
+      "predictions": {
+        "default_prefix": {
+          "value": 0.6378013293805743,
+          "bits": "3fe468de55611dd3"
+        },
+        "default_phase_mean": {
+          "value": 0.6405673963967132,
+          "bits": "3fe47f87324d0c4d"
+        },
+        "default_phase_regression": {
+          "value": 1.0658685469339868,
+          "bits": "3ff10dcc2d6eaa0b"
+        }
+      }
+    },
+    {
+      "id": "C4_S6",
+      "y": [
+        2.0,
+        7.0,
+        -1.0,
+        4.0,
+        2.0,
+        7.0,
+        -1.0,
+        4.0,
+        2.0,
+        7.0,
+        -1.0,
+        4.0
+      ],
+      "p": 2,
+      "output": "stat",
+      "index": 6,
+      "predictions": {
+        "default_prefix": {
+          "value": 1.979676035222863,
+          "bits": "3fffacc0c73f5073"
+        },
+        "default_phase_mean": {
+          "value": 1.990090197490696,
+          "bits": "3fffd768d1a500e7"
+        },
+        "default_phase_regression": {
+          "value": 1.7656757960964156,
+          "bits": "3ffc403543792a79"
+        }
+      }
+    },
+    {
+      "id": "C4_S7",
+      "y": [
+        2.0,
+        7.0,
+        -1.0,
+        4.0,
+        2.0,
+        7.0,
+        -1.0,
+        4.0,
+        2.0,
+        7.0,
+        -1.0,
+        4.0
+      ],
+      "p": 2,
+      "output": "stat",
+      "index": 7,
+      "predictions": {
+        "default_prefix": {
+          "value": 3.0999128392801207,
+          "bits": "4008cc9f1a4944dc"
+        },
+        "default_phase_mean": {
+          "value": 3.105003117278224,
+          "bits": "4008d70bdfd58113"
+        },
+        "default_phase_regression": {
+          "value": 2.0707896805631574,
+          "bits": "400090fa2e174dec"
+        }
+      }
+    },
+    {
+      "id": "C5_S1",
+      "y": [
+        2.0,
+        3.5,
+        3.75,
+        5.75,
+        5.5,
+        7.0,
+        8.5,
+        8.75,
+        10.75,
+        10.5,
+        12.0,
+        13.5
+      ],
+      "p": 2,
+      "output": "stat",
+      "index": 1,
+      "predictions": {
+        "default_prefix": {
+          "value": 0.751,
+          "bits": "3fe8083126e978d5"
+        },
+        "default_phase_mean": {
+          "value": 0.751,
+          "bits": "3fe8083126e978d5"
+        },
+        "default_phase_regression": {
+          "value": 0.751,
+          "bits": "3fe8083126e978d5"
+        }
+      }
+    },
+    {
+      "id": "C5_S2",
+      "y": [
+        2.0,
+        3.5,
+        3.75,
+        5.75,
+        5.5,
+        7.0,
+        8.5,
+        8.75,
+        10.75,
+        10.5,
+        12.0,
+        13.5
+      ],
+      "p": 2,
+      "output": "stat",
+      "index": 2,
+      "predictions": {
+        "default_prefix": {
+          "value": 0.001,
+          "bits": "3f50624dd2f1a9fc"
+        },
+        "default_phase_mean": {
+          "value": 0.001,
+          "bits": "3f50624dd2f1a9fc"
+        },
+        "default_phase_regression": {
+          "value": 0.001,
+          "bits": "3f50624dd2f1a9fc"
+        }
+      }
+    },
+    {
+      "id": "C5_S3",
+      "y": [
+        2.0,
+        3.5,
+        3.75,
+        5.75,
+        5.5,
+        7.0,
+        8.5,
+        8.75,
+        10.75,
+        10.5,
+        12.0,
+        13.5
+      ],
+      "p": 2,
+      "output": "stat",
+      "index": 3,
+      "predictions": {
+        "default_prefix": {
+          "value": 0.001,
+          "bits": "3f50624dd2f1a9fc"
+        },
+        "default_phase_mean": {
+          "value": 0.001,
+          "bits": "3f50624dd2f1a9fc"
+        },
+        "default_phase_regression": {
+          "value": 0.001,
+          "bits": "3f50624dd2f1a9fc"
+        }
+      }
+    },
+    {
+      "id": "C5_S4",
+      "y": [
+        2.0,
+        3.5,
+        3.75,
+        5.75,
+        5.5,
+        7.0,
+        8.5,
+        8.75,
+        10.75,
+        10.5,
+        12.0,
+        13.5
+      ],
+      "p": 2,
+      "output": "stat",
+      "index": 4,
+      "predictions": {
+        "default_prefix": {
+          "value": 0.8427602921337682,
+          "bits": "3feaf7e46ea29f42"
+        },
+        "default_phase_mean": {
+          "value": 0.682340446911978,
+          "bits": "3fe5d5bba20732f4"
+        },
+        "default_phase_regression": {
+          "value": 0.682340446911978,
+          "bits": "3fe5d5bba20732f4"
+        }
+      }
+    },
+    {
+      "id": "C5_S5",
+      "y": [
+        2.0,
+        3.5,
+        3.75,
+        5.75,
+        5.5,
+        7.0,
+        8.5,
+        8.75,
+        10.75,
+        10.5,
+        12.0,
+        13.5
+      ],
+      "p": 2,
+      "output": "stat",
+      "index": 5,
+      "predictions": {
+        "default_prefix": {
+          "value": 0.07964688722312849,
+          "bits": "3fb463bd07d9fe56"
+        },
+        "default_phase_mean": {
+          "value": 0.06314749490329777,
+          "bits": "3fb02a6f296f1a02"
+        },
+        "default_phase_regression": {
+          "value": 0.06314749490329777,
+          "bits": "3fb02a6f296f1a02"
+        }
+      }
+    },
+    {
+      "id": "C5_S6",
+      "y": [
+        2.0,
+        3.5,
+        3.75,
+        5.75,
+        5.5,
+        7.0,
+        8.5,
+        8.75,
+        10.75,
+        10.5,
+        12.0,
+        13.5
+      ],
+      "p": 2,
+      "output": "stat",
+      "index": 6,
+      "predictions": {
+        "default_prefix": {
+          "value": 0.8728588739956886,
+          "bits": "3febee75bbbab73c"
+        },
+        "default_phase_mean": {
+          "value": 0.7067097485874059,
+          "bits": "3fe69d5dc33e5034"
+        },
+        "default_phase_regression": {
+          "value": 0.7067097485874059,
+          "bits": "3fe69d5dc33e5034"
+        }
+      }
+    },
+    {
+      "id": "C5_S7",
+      "y": [
+        2.0,
+        3.5,
+        3.75,
+        5.75,
+        5.5,
+        7.0,
+        8.5,
+        8.75,
+        10.75,
+        10.5,
+        12.0,
+        13.5
+      ],
+      "p": 2,
+      "output": "stat",
+      "index": 7,
+      "predictions": {
+        "default_prefix": {
+          "value": 1.0083183072301949,
+          "bits": "3ff0221260983033"
+        },
+        "default_phase_mean": {
+          "value": 0.7755160619612524,
+          "bits": "3fe8d1070f74ae66"
+        },
+        "default_phase_regression": {
+          "value": 0.7755160619612524,
+          "bits": "3fe8d1070f74ae66"
+        }
+      }
+    },
+    {
+      "id": "C6_S1",
+      "y": [
+        2.0,
+        3.5,
+        3.75,
+        5.75,
+        5.5,
+        7.0,
+        8.5,
+        8.75,
+        10.75,
+        10.5,
+        12.0,
+        13.5
+      ],
+      "p": 4,
+      "output": "stat",
+      "index": 1,
+      "predictions": {
+        "default_prefix": {
+          "value": 0.751,
+          "bits": "3fe8083126e978d5"
+        },
+        "default_phase_mean": {
+          "value": 0.751,
+          "bits": "3fe8083126e978d5"
+        },
+        "default_phase_regression": {
+          "value": 0.751,
+          "bits": "3fe8083126e978d5"
+        }
+      }
+    },
+    {
+      "id": "C6_S2",
+      "y": [
+        2.0,
+        3.5,
+        3.75,
+        5.75,
+        5.5,
+        7.0,
+        8.5,
+        8.75,
+        10.75,
+        10.5,
+        12.0,
+        13.5
+      ],
+      "p": 4,
+      "output": "stat",
+      "index": 2,
+      "predictions": {
+        "default_prefix": {
+          "value": 0.001,
+          "bits": "3f50624dd2f1a9fc"
+        },
+        "default_phase_mean": {
+          "value": 0.001,
+          "bits": "3f50624dd2f1a9fc"
+        },
+        "default_phase_regression": {
+          "value": 0.001,
+          "bits": "3f50624dd2f1a9fc"
+        }
+      }
+    },
+    {
+      "id": "C6_S3",
+      "y": [
+        2.0,
+        3.5,
+        3.75,
+        5.75,
+        5.5,
+        7.0,
+        8.5,
+        8.75,
+        10.75,
+        10.5,
+        12.0,
+        13.5
+      ],
+      "p": 4,
+      "output": "stat",
+      "index": 3,
+      "predictions": {
+        "default_prefix": {
+          "value": 0.001,
+          "bits": "3f50624dd2f1a9fc"
+        },
+        "default_phase_mean": {
+          "value": 0.001,
+          "bits": "3f50624dd2f1a9fc"
+        },
+        "default_phase_regression": {
+          "value": 0.001,
+          "bits": "3f50624dd2f1a9fc"
+        }
+      }
+    },
+    {
+      "id": "C6_S4",
+      "y": [
+        2.0,
+        3.5,
+        3.75,
+        5.75,
+        5.5,
+        7.0,
+        8.5,
+        8.75,
+        10.75,
+        10.5,
+        12.0,
+        13.5
+      ],
+      "p": 4,
+      "output": "stat",
+      "index": 4,
+      "predictions": {
+        "default_prefix": {
+          "value": 1.0183522721292004,
+          "bits": "3ff04b2bc089a2a5"
+        },
+        "default_phase_mean": {
+          "value": 0.6499990602314285,
+          "bits": "3fe4cccad443fdb4"
+        },
+        "default_phase_regression": {
+          "value": 0.5938948675531893,
+          "bits": "3fe3012fcf2ce703"
+        }
+      }
+    },
+    {
+      "id": "C6_S5",
+      "y": [
+        2.0,
+        3.5,
+        3.75,
+        5.75,
+        5.5,
+        7.0,
+        8.5,
+        8.75,
+        10.75,
+        10.5,
+        12.0,
+        13.5
+      ],
+      "p": 4,
+      "output": "stat",
+      "index": 5,
+      "predictions": {
+        "default_prefix": {
+          "value": 0.0975915334001928,
+          "bits": "3fb8fbc23c52007a"
+        },
+        "default_phase_mean": {
+          "value": 0.062585856970472,
+          "bits": "3fb005a070e15c0e"
+        },
+        "default_phase_regression": {
+          "value": 0.05633736987342452,
+          "bits": "3facd840724c4b8f"
+        }
+      }
+    },
+    {
+      "id": "C6_S6",
+      "y": [
+        2.0,
+        3.5,
+        3.75,
+        5.75,
+        5.5,
+        7.0,
+        8.5,
+        8.75,
+        10.75,
+        10.5,
+        12.0,
+        13.5
+      ],
+      "p": 4,
+      "output": "stat",
+      "index": 6,
+      "predictions": {
+        "default_prefix": {
+          "value": 1.0547219961338148,
+          "bits": "3ff0e0242bfc43e2"
+        },
+        "default_phase_mean": {
+          "value": 0.673213312382551,
+          "bits": "3fe58af6a4fd46c4"
+        },
+        "default_phase_regression": {
+          "value": 0.6151053985372319,
+          "bits": "3fe3aef18449ef44"
+        }
+      }
+    },
+    {
+      "id": "C6_S7",
+      "y": [
+        2.0,
+        3.5,
+        3.75,
+        5.75,
+        5.5,
+        7.0,
+        8.5,
+        8.75,
+        10.75,
+        10.5,
+        12.0,
+        13.5
+      ],
+      "p": 4,
+      "output": "stat",
+      "index": 7,
+      "predictions": {
+        "default_prefix": {
+          "value": 1.1811624592006433,
+          "bits": "3ff2e60a9b5879a4"
+        },
+        "default_phase_mean": {
+          "value": 0.8132161969428995,
+          "bits": "3fea05ddf94e4fdc"
+        },
+        "default_phase_regression": {
+          "value": 0.7207603449170913,
+          "bits": "3fe71077ffb585d5"
+        }
+      }
+    },
+    {
+      "id": "C7_S1",
+      "y": [
+        2.0,
+        7.0,
+        -1.0,
+        4.0,
+        2.0,
+        7.0,
+        -1.0,
+        4.0,
+        2.0,
+        7.0,
+        -1.0,
+        4.0,
+        2.0,
+        7.0,
+        -1.0,
+        4.0,
+        2.0,
+        7.0,
+        -1.0,
+        4.0,
+        2.0,
+        7.0,
+        -1.0,
+        4.0
+      ],
+      "p": 2,
+      "output": "stat",
+      "index": 1,
+      "predictions": {
+        "default_prefix": {
+          "value": 0.751,
+          "bits": "3fe8083126e978d5"
+        },
+        "default_phase_mean": {
+          "value": 0.751,
+          "bits": "3fe8083126e978d5"
+        },
+        "default_phase_regression": {
+          "value": 0.751,
+          "bits": "3fe8083126e978d5"
+        }
+      }
+    },
+    {
+      "id": "C7_S2",
+      "y": [
+        2.0,
+        7.0,
+        -1.0,
+        4.0,
+        2.0,
+        7.0,
+        -1.0,
+        4.0,
+        2.0,
+        7.0,
+        -1.0,
+        4.0,
+        2.0,
+        7.0,
+        -1.0,
+        4.0,
+        2.0,
+        7.0,
+        -1.0,
+        4.0,
+        2.0,
+        7.0,
+        -1.0,
+        4.0
+      ],
+      "p": 2,
+      "output": "stat",
+      "index": 2,
+      "predictions": {
+        "default_prefix": {
+          "value": 0.001,
+          "bits": "3f50624dd2f1a9fc"
+        },
+        "default_phase_mean": {
+          "value": 0.001,
+          "bits": "3f50624dd2f1a9fc"
+        },
+        "default_phase_regression": {
+          "value": 0.001,
+          "bits": "3f50624dd2f1a9fc"
+        }
+      }
+    },
+    {
+      "id": "C7_S3",
+      "y": [
+        2.0,
+        7.0,
+        -1.0,
+        4.0,
+        2.0,
+        7.0,
+        -1.0,
+        4.0,
+        2.0,
+        7.0,
+        -1.0,
+        4.0,
+        2.0,
+        7.0,
+        -1.0,
+        4.0,
+        2.0,
+        7.0,
+        -1.0,
+        4.0,
+        2.0,
+        7.0,
+        -1.0,
+        4.0
+      ],
+      "p": 2,
+      "output": "stat",
+      "index": 3,
+      "predictions": {
+        "default_prefix": {
+          "value": 0.001,
+          "bits": "3f50624dd2f1a9fc"
+        },
+        "default_phase_mean": {
+          "value": 0.001,
+          "bits": "3f50624dd2f1a9fc"
+        },
+        "default_phase_regression": {
+          "value": 0.001,
+          "bits": "3f50624dd2f1a9fc"
+        }
+      }
+    },
+    {
+      "id": "C7_S4",
+      "y": [
+        2.0,
+        7.0,
+        -1.0,
+        4.0,
+        2.0,
+        7.0,
+        -1.0,
+        4.0,
+        2.0,
+        7.0,
+        -1.0,
+        4.0,
+        2.0,
+        7.0,
+        -1.0,
+        4.0,
+        2.0,
+        7.0,
+        -1.0,
+        4.0,
+        2.0,
+        7.0,
+        -1.0,
+        4.0
+      ],
+      "p": 2,
+      "output": "stat",
+      "index": 4,
+      "predictions": {
+        "default_prefix": {
+          "value": 0.33456509695452813,
+          "bits": "3fd56983b973608b"
+        },
+        "default_phase_mean": {
+          "value": 0.33975392460485304,
+          "bits": "3fd5be873eb7643f"
+        },
+        "default_phase_regression": {
+          "value": 0.31560941398973374,
+          "bits": "3fd432f1d3d95206"
+        }
+      }
+    },
+    {
+      "id": "C7_S5",
+      "y": [
+        2.0,
+        7.0,
+        -1.0,
+        4.0,
+        2.0,
+        7.0,
+        -1.0,
+        4.0,
+        2.0,
+        7.0,
+        -1.0,
+        4.0,
+        2.0,
+        7.0,
+        -1.0,
+        4.0,
+        2.0,
+        7.0,
+        -1.0,
+        4.0,
+        2.0,
+        7.0,
+        -1.0,
+        4.0
+      ],
+      "p": 2,
+      "output": "stat",
+      "index": 5,
+      "predictions": {
+        "default_prefix": {
+          "value": 0.5615002098943175,
+          "bits": "3fe1f7cf49c62eef"
+        },
+        "default_phase_mean": {
+          "value": 0.5686609125838679,
+          "bits": "3fe232785ec1f593"
+        },
+        "default_phase_regression": {
+          "value": 0.9656247047190286,
+          "bits": "3feee665c7df4ad5"
+        }
+      }
+    },
+    {
+      "id": "C7_S6",
+      "y": [
+        2.0,
+        7.0,
+        -1.0,
+        4.0,
+        2.0,
+        7.0,
+        -1.0,
+        4.0,
+        2.0,
+        7.0,
+        -1.0,
+        4.0,
+        2.0,
+        7.0,
+        -1.0,
+        4.0,
+        2.0,
+        7.0,
+        -1.0,
+        4.0,
+        2.0,
+        7.0,
+        -1.0,
+        4.0
+      ],
+      "p": 2,
+      "output": "stat",
+      "index": 6,
+      "predictions": {
+        "default_prefix": {
+          "value": 1.744518005548611,
+          "bits": "3ffbe98bb651d4b5"
+        },
+        "default_phase_mean": {
+          "value": 1.771574035439591,
+          "bits": "3ffc585e040a7e1c"
+        },
+        "default_phase_regression": {
+          "value": 1.6456776586607544,
+          "bits": "3ffa54b218bb4aec"
+        }
+      }
+    },
+    {
+      "id": "C7_S7",
+      "y": [
+        2.0,
+        7.0,
+        -1.0,
+        4.0,
+        2.0,
+        7.0,
+        -1.0,
+        4.0,
+        2.0,
+        7.0,
+        -1.0,
+        4.0,
+        2.0,
+        7.0,
+        -1.0,
+        4.0,
+        2.0,
+        7.0,
+        -1.0,
+        4.0,
+        2.0,
+        7.0,
+        -1.0,
+        4.0
+      ],
+      "p": 2,
+      "output": "stat",
+      "index": 7,
+      "predictions": {
+        "default_prefix": {
+          "value": 2.903560126203387,
+          "bits": "40073a7dbb401afe"
+        },
+        "default_phase_mean": {
+          "value": 2.9158814293297035,
+          "bits": "400753b9a48fe0e5"
+        },
+        "default_phase_regression": {
+          "value": 1.9570833615520518,
+          "bits": "3fff5036a49696c2"
+        }
+      }
+    },
+    {
+      "id": "C8_S1",
+      "y": [
+        2.0,
+        3.5,
+        3.75,
+        5.75,
+        5.5,
+        7.0,
+        8.5,
+        8.75,
+        10.75,
+        10.5,
+        12.0,
+        13.5,
+        13.75,
+        15.75,
+        15.5,
+        17.0,
+        18.5,
+        18.75,
+        20.75,
+        20.5,
+        22.0,
+        23.5,
+        23.75,
+        25.75
+      ],
+      "p": 2,
+      "output": "stat",
+      "index": 1,
+      "predictions": {
+        "default_prefix": {
+          "value": 0.751,
+          "bits": "3fe8083126e978d5"
+        },
+        "default_phase_mean": {
+          "value": 0.751,
+          "bits": "3fe8083126e978d5"
+        },
+        "default_phase_regression": {
+          "value": 0.751,
+          "bits": "3fe8083126e978d5"
+        }
+      }
+    },
+    {
+      "id": "C8_S2",
+      "y": [
+        2.0,
+        3.5,
+        3.75,
+        5.75,
+        5.5,
+        7.0,
+        8.5,
+        8.75,
+        10.75,
+        10.5,
+        12.0,
+        13.5,
+        13.75,
+        15.75,
+        15.5,
+        17.0,
+        18.5,
+        18.75,
+        20.75,
+        20.5,
+        22.0,
+        23.5,
+        23.75,
+        25.75
+      ],
+      "p": 2,
+      "output": "stat",
+      "index": 2,
+      "predictions": {
+        "default_prefix": {
+          "value": 0.001,
+          "bits": "3f50624dd2f1a9fc"
+        },
+        "default_phase_mean": {
+          "value": 0.001,
+          "bits": "3f50624dd2f1a9fc"
+        },
+        "default_phase_regression": {
+          "value": 0.001,
+          "bits": "3f50624dd2f1a9fc"
+        }
+      }
+    },
+    {
+      "id": "C8_S3",
+      "y": [
+        2.0,
+        3.5,
+        3.75,
+        5.75,
+        5.5,
+        7.0,
+        8.5,
+        8.75,
+        10.75,
+        10.5,
+        12.0,
+        13.5,
+        13.75,
+        15.75,
+        15.5,
+        17.0,
+        18.5,
+        18.75,
+        20.75,
+        20.5,
+        22.0,
+        23.5,
+        23.75,
+        25.75
+      ],
+      "p": 2,
+      "output": "stat",
+      "index": 3,
+      "predictions": {
+        "default_prefix": {
+          "value": 0.001,
+          "bits": "3f50624dd2f1a9fc"
+        },
+        "default_phase_mean": {
+          "value": 0.001,
+          "bits": "3f50624dd2f1a9fc"
+        },
+        "default_phase_regression": {
+          "value": 0.001,
+          "bits": "3f50624dd2f1a9fc"
+        }
+      }
+    },
+    {
+      "id": "C8_S4",
+      "y": [
+        2.0,
+        3.5,
+        3.75,
+        5.75,
+        5.5,
+        7.0,
+        8.5,
+        8.75,
+        10.75,
+        10.5,
+        12.0,
+        13.5,
+        13.75,
+        15.75,
+        15.5,
+        17.0,
+        18.5,
+        18.75,
+        20.75,
+        20.5,
+        22.0,
+        23.5,
+        23.75,
+        25.75
+      ],
+      "p": 2,
+      "output": "stat",
+      "index": 4,
+      "predictions": {
+        "default_prefix": {
+          "value": 0.6512349628156436,
+          "bits": "3fe4d6eab469c247"
+        },
+        "default_phase_mean": {
+          "value": 0.5878435074146219,
+          "bits": "3fe2cf9d2ff06021"
+        },
+        "default_phase_regression": {
+          "value": 0.5865507347228633,
+          "bits": "3fe2c5060be28b04"
+        }
+      }
+    },
+    {
+      "id": "C8_S5",
+      "y": [
+        2.0,
+        3.5,
+        3.75,
+        5.75,
+        5.5,
+        7.0,
+        8.5,
+        8.75,
+        10.75,
+        10.5,
+        12.0,
+        13.5,
+        13.75,
+        15.75,
+        15.5,
+        17.0,
+        18.5,
+        18.75,
+        20.75,
+        20.5,
+        22.0,
+        23.5,
+        23.75,
+        25.75
+      ],
+      "p": 2,
+      "output": "stat",
+      "index": 5,
+      "predictions": {
+        "default_prefix": {
+          "value": 0.034186553495789036,
+          "bits": "3fa180e6627469a1"
+        },
+        "default_phase_mean": {
+          "value": 0.029920022084989537,
+          "bits": "3f9ea35ab1670af9"
+        },
+        "default_phase_regression": {
+          "value": 0.0298444757619987,
+          "bits": "3f9e8f8cdd74c949"
+        }
+      }
+    },
+    {
+      "id": "C8_S6",
+      "y": [
+        2.0,
+        3.5,
+        3.75,
+        5.75,
+        5.5,
+        7.0,
+        8.5,
+        8.75,
+        10.75,
+        10.5,
+        12.0,
+        13.5,
+        13.75,
+        15.75,
+        15.5,
+        17.0,
+        18.5,
+        18.75,
+        20.75,
+        20.5,
+        22.0,
+        23.5,
+        23.75,
+        25.75
+      ],
+      "p": 2,
+      "output": "stat",
+      "index": 6,
+      "predictions": {
+        "default_prefix": {
+          "value": 0.6977517458739039,
+          "bits": "3fe653fb78282b95"
+        },
+        "default_phase_mean": {
+          "value": 0.6298323293728091,
+          "bits": "3fe427962113d4b5"
+        },
+        "default_phase_regression": {
+          "value": 0.6284472157744965,
+          "bits": "3fe41c3d55e07060"
+        }
+      }
+    },
+    {
+      "id": "C8_S7",
+      "y": [
+        2.0,
+        3.5,
+        3.75,
+        5.75,
+        5.5,
+        7.0,
+        8.5,
+        8.75,
+        10.75,
+        10.5,
+        12.0,
+        13.5,
+        13.75,
+        15.75,
+        15.5,
+        17.0,
+        18.5,
+        18.75,
+        20.75,
+        20.5,
+        22.0,
+        23.5,
+        23.75,
+        25.75
+      ],
+      "p": 2,
+      "output": "stat",
+      "index": 7,
+      "predictions": {
+        "default_prefix": {
+          "value": 0.8341115722411084,
+          "bits": "3feab10ac07fb3d5"
+        },
+        "default_phase_mean": {
+          "value": 0.6926889133966211,
+          "bits": "3fe62a81f0aae371"
+        },
+        "default_phase_regression": {
+          "value": 0.6915356423102094,
+          "bits": "3fe6210f5af7b3d7"
+        }
+      }
+    },
+    {
+      "id": "C9_S1",
+      "y": [
+        2.0,
+        3.5,
+        3.75,
+        5.75,
+        5.5,
+        7.0,
+        8.5,
+        8.75,
+        10.75,
+        10.5,
+        12.0,
+        13.5,
+        13.75,
+        15.75,
+        15.5,
+        17.0,
+        18.5,
+        18.75,
+        20.75,
+        20.5,
+        22.0,
+        23.5,
+        23.75,
+        25.75
+      ],
+      "p": 4,
+      "output": "stat",
+      "index": 1,
+      "predictions": {
+        "default_prefix": {
+          "value": 0.751,
+          "bits": "3fe8083126e978d5"
+        },
+        "default_phase_mean": {
+          "value": 0.751,
+          "bits": "3fe8083126e978d5"
+        },
+        "default_phase_regression": {
+          "value": 0.751,
+          "bits": "3fe8083126e978d5"
+        }
+      }
+    },
+    {
+      "id": "C9_S2",
+      "y": [
+        2.0,
+        3.5,
+        3.75,
+        5.75,
+        5.5,
+        7.0,
+        8.5,
+        8.75,
+        10.75,
+        10.5,
+        12.0,
+        13.5,
+        13.75,
+        15.75,
+        15.5,
+        17.0,
+        18.5,
+        18.75,
+        20.75,
+        20.5,
+        22.0,
+        23.5,
+        23.75,
+        25.75
+      ],
+      "p": 4,
+      "output": "stat",
+      "index": 2,
+      "predictions": {
+        "default_prefix": {
+          "value": 0.001,
+          "bits": "3f50624dd2f1a9fc"
+        },
+        "default_phase_mean": {
+          "value": 0.001,
+          "bits": "3f50624dd2f1a9fc"
+        },
+        "default_phase_regression": {
+          "value": 0.001,
+          "bits": "3f50624dd2f1a9fc"
+        }
+      }
+    },
+    {
+      "id": "C9_S3",
+      "y": [
+        2.0,
+        3.5,
+        3.75,
+        5.75,
+        5.5,
+        7.0,
+        8.5,
+        8.75,
+        10.75,
+        10.5,
+        12.0,
+        13.5,
+        13.75,
+        15.75,
+        15.5,
+        17.0,
+        18.5,
+        18.75,
+        20.75,
+        20.5,
+        22.0,
+        23.5,
+        23.75,
+        25.75
+      ],
+      "p": 4,
+      "output": "stat",
+      "index": 3,
+      "predictions": {
+        "default_prefix": {
+          "value": 0.001,
+          "bits": "3f50624dd2f1a9fc"
+        },
+        "default_phase_mean": {
+          "value": 0.001,
+          "bits": "3f50624dd2f1a9fc"
+        },
+        "default_phase_regression": {
+          "value": 0.001,
+          "bits": "3f50624dd2f1a9fc"
+        }
+      }
+    },
+    {
+      "id": "C9_S4",
+      "y": [
+        2.0,
+        3.5,
+        3.75,
+        5.75,
+        5.5,
+        7.0,
+        8.5,
+        8.75,
+        10.75,
+        10.5,
+        12.0,
+        13.5,
+        13.75,
+        15.75,
+        15.5,
+        17.0,
+        18.5,
+        18.75,
+        20.75,
+        20.5,
+        22.0,
+        23.5,
+        23.75,
+        25.75
+      ],
+      "p": 4,
+      "output": "stat",
+      "index": 4,
+      "predictions": {
+        "default_prefix": {
+          "value": 0.8024563628411175,
+          "bits": "3fe9adb8f75bd4a9"
+        },
+        "default_phase_mean": {
+          "value": 0.6467004705283761,
+          "bits": "3fe4b1c52f67451e"
+        },
+        "default_phase_regression": {
+          "value": 0.5793468821086635,
+          "bits": "3fe28a0278f647e7"
+        }
+      }
+    },
+    {
+      "id": "C9_S5",
+      "y": [
+        2.0,
+        3.5,
+        3.75,
+        5.75,
+        5.5,
+        7.0,
+        8.5,
+        8.75,
+        10.75,
+        10.5,
+        12.0,
+        13.5,
+        13.75,
+        15.75,
+        15.5,
+        17.0,
+        18.5,
+        18.75,
+        20.75,
+        20.5,
+        22.0,
+        23.5,
+        23.75,
+        25.75
+      ],
+      "p": 4,
+      "output": "stat",
+      "index": 5,
+      "predictions": {
+        "default_prefix": {
+          "value": 0.04328061264720316,
+          "bits": "3fa628e05fbdbcde"
+        },
+        "default_phase_mean": {
+          "value": 0.03308855188575287,
+          "bits": "3fa0f0fb90714f3e"
+        },
+        "default_phase_regression": {
+          "value": 0.0294246720640084,
+          "bits": "3f9e218050d77dd2"
+        }
+      }
+    },
+    {
+      "id": "C9_S6",
+      "y": [
+        2.0,
+        3.5,
+        3.75,
+        5.75,
+        5.5,
+        7.0,
+        8.5,
+        8.75,
+        10.75,
+        10.5,
+        12.0,
+        13.5,
+        13.75,
+        15.75,
+        15.5,
+        17.0,
+        18.5,
+        18.75,
+        20.75,
+        20.5,
+        22.0,
+        23.5,
+        23.75,
+        25.75
+      ],
+      "p": 4,
+      "output": "stat",
+      "index": 6,
+      "predictions": {
+        "default_prefix": {
+          "value": 0.8597746744726259,
+          "bits": "3feb83462d993f47"
+        },
+        "default_phase_mean": {
+          "value": 0.6928933612804029,
+          "bits": "3fe62c2eb2ca1332"
+        },
+        "default_phase_regression": {
+          "value": 0.6207288022592823,
+          "bits": "3fe3dd02a62c719c"
+        }
+      }
+    },
+    {
+      "id": "C9_S7",
+      "y": [
+        2.0,
+        3.5,
+        3.75,
+        5.75,
+        5.5,
+        7.0,
+        8.5,
+        8.75,
+        10.75,
+        10.5,
+        12.0,
+        13.5,
+        13.75,
+        15.75,
+        15.5,
+        17.0,
+        18.5,
+        18.75,
+        20.75,
+        20.5,
+        22.0,
+        23.5,
+        23.75,
+        25.75
+      ],
+      "p": 4,
+      "output": "stat",
+      "index": 7,
+      "predictions": {
+        "default_prefix": {
+          "value": 1.0660895755192104,
+          "bits": "3ff10eb3f157626e"
+        },
+        "default_phase_mean": {
+          "value": 0.7543693462893819,
+          "bits": "3fe823cb2eed5e92"
+        },
+        "default_phase_regression": {
+          "value": 0.6906432444768819,
+          "bits": "3fe619bfdc8768c7"
+        }
+      }
+    },
+    {
+      "id": "B5_S1",
+      "y": [
+        0.0,
+        256.0,
+        512.0,
+        768.0,
+        1024.0,
+        1280.0,
+        1536.0,
+        1792.0,
+        2096.0,
+        2304.0,
+        2560.0,
+        2816.0
+      ],
+      "p": 4,
+      "output": "stat",
+      "index": 1,
+      "predictions": {
+        "default_prefix": {
+          "value": 0.751,
+          "bits": "3fe8083126e978d5"
+        },
+        "default_phase_mean": {
+          "value": 0.751,
+          "bits": "3fe8083126e978d5"
+        },
+        "default_phase_regression": {
+          "value": 0.751,
+          "bits": "3fe8083126e978d5"
+        }
+      }
+    },
+    {
+      "id": "B5_S2",
+      "y": [
+        0.0,
+        256.0,
+        512.0,
+        768.0,
+        1024.0,
+        1280.0,
+        1536.0,
+        1792.0,
+        2096.0,
+        2304.0,
+        2560.0,
+        2816.0
+      ],
+      "p": 4,
+      "output": "stat",
+      "index": 2,
+      "predictions": {
+        "default_prefix": {
+          "value": 0.001,
+          "bits": "3f50624dd2f1a9fc"
+        },
+        "default_phase_mean": {
+          "value": 0.001,
+          "bits": "3f50624dd2f1a9fc"
+        },
+        "default_phase_regression": {
+          "value": 0.001,
+          "bits": "3f50624dd2f1a9fc"
+        }
+      }
+    },
+    {
+      "id": "B5_S3",
+      "y": [
+        0.0,
+        256.0,
+        512.0,
+        768.0,
+        1024.0,
+        1280.0,
+        1536.0,
+        1792.0,
+        2096.0,
+        2304.0,
+        2560.0,
+        2816.0
+      ],
+      "p": 4,
+      "output": "stat",
+      "index": 3,
+      "predictions": {
+        "default_prefix": {
+          "value": 0.001,
+          "bits": "3f50624dd2f1a9fc"
+        },
+        "default_phase_mean": {
+          "value": 0.001,
+          "bits": "3f50624dd2f1a9fc"
+        },
+        "default_phase_regression": {
+          "value": 0.001,
+          "bits": "3f50624dd2f1a9fc"
+        }
+      }
+    },
+    {
+      "id": "B5_S4",
+      "y": [
+        0.0,
+        256.0,
+        512.0,
+        768.0,
+        1024.0,
+        1280.0,
+        1536.0,
+        1792.0,
+        2096.0,
+        2304.0,
+        2560.0,
+        2816.0
+      ],
+      "p": 4,
+      "output": "stat",
+      "index": 4,
+      "predictions": {
+        "default_prefix": {
+          "value": 0.09310514099999967,
+          "bits": "3fb7d5bd0faf3940"
+        },
+        "default_phase_mean": {
+          "value": 0.06222594197377207,
+          "bits": "3fafdc14237af440"
+        },
+        "default_phase_regression": {
+          "value": 0.05825253334986824,
+          "bits": "3fadd346ab4b2dc0"
+        }
+      }
+    },
+    {
+      "id": "B5_S5",
+      "y": [
+        0.0,
+        256.0,
+        512.0,
+        768.0,
+        1024.0,
+        1280.0,
+        1536.0,
+        1792.0,
+        2096.0,
+        2304.0,
+        2560.0,
+        2816.0
+      ],
+      "p": 4,
+      "output": "stat",
+      "index": 5,
+      "predictions": {
+        "default_prefix": {
+          "value": 0.010754202355544229,
+          "bits": "3f86064c9b4b03f3"
+        },
+        "default_phase_mean": {
+          "value": 0.007181881600776901,
+          "bits": "3f7d6abfa995d5df"
+        },
+        "default_phase_regression": {
+          "value": 0.006658128909635471,
+          "bits": "3f7b458ddeb60309"
+        }
+      }
+    },
+    {
+      "id": "B5_S6",
+      "y": [
+        0.0,
+        256.0,
+        512.0,
+        768.0,
+        1024.0,
+        1280.0,
+        1536.0,
+        1792.0,
+        2096.0,
+        2304.0,
+        2560.0,
+        2816.0
+      ],
+      "p": 4,
+      "output": "stat",
+      "index": 6,
+      "predictions": {
+        "default_prefix": {
+          "value": 23.834916095999915,
+          "bits": "4037d5bd0faf3940"
+        },
+        "default_phase_mean": {
+          "value": 15.92984114528565,
+          "bits": "402fdc14237af440"
+        },
+        "default_phase_regression": {
+          "value": 14.91264853756627,
+          "bits": "402dd346ab4b2dc0"
+        }
+      }
+    },
+    {
+      "id": "B5_S7",
+      "y": [
+        0.0,
+        256.0,
+        512.0,
+        768.0,
+        1024.0,
+        1280.0,
+        1536.0,
+        1792.0,
+        2096.0,
+        2304.0,
+        2560.0,
+        2816.0
+      ],
+      "p": 4,
+      "output": "stat",
+      "index": 7,
+      "predictions": {
+        "default_prefix": {
+          "value": 30.38483442240903,
+          "bits": "403e6284823a9f30"
+        },
+        "default_phase_mean": {
+          "value": 20.328801548141634,
+          "bits": "4034542c5698247a"
+        },
+        "default_phase_regression": {
+          "value": 18.580883790326183,
+          "bits": "403294b4ccd23a3c"
+        }
+      }
+    }
+  ]
+}

@@ -53,3 +53,186 @@ matches; the result is then tested on inputs it never saw (E1b).
 E1b (held out; its predictions are frozen with the fitted table, after E1 and before E1b is asked):
 random inputs on [2, 3], the equal-spacing grid x = 2 + j 2^-51 (j = -512..511, j != 0) across 2, and
 windows at 3 and 1.625.
+
+### E1 interim (asked 2026-11-12 00:05, before E2 and E3 were frozen)
+
+Prediction 1 held: H0 under G0 matches 37.5% of the E1 inputs, 97.1% within 0.002 of 2.5 and 36.8%
+elsewhere; Excel gives ...e8 at 2.5 and ...04 at 2.75. Predictions 2 to 4 are still open. A finding on the
+way, written here before E2 and E3 are asked: the window means of (Excel - H0) jump by up to 1.6 ulps
+where a stored Horner sum crosses a power of two (P's sums at 2.277, 2.349, 2.463, 2.606, 2.658, 2.779;
+Q's at 2.394). A stored stage hides the coefficient bits below its own ulp, so each crossing exposes a
+different rounding of the same coefficient. A linear model with one effective constant per (stage,
+binade) fits the 258 window means to their noise. With the constants tied to one coefficient each
+(rounding offsets bounded by the stage grid), G0 cannot fit them (chi-square 2171 on 258 means); the
+jumps at 2.277 and 2.606, where P's last sum crosses a binade, need that sum stored. With P's last sum
+stored the same tied model fits (chi-square 216; Q's last sum stored or not: 216 either way). So the
+landed graph keeps one sum resident that Excel stores.
+
+## E2. GAMMA seed at exact translations (answer B.4, windows at the halves -0.5 to -3.5 added)
+
+Inputs: y in Y1 = {1/4 + j 2^-49, j = 0..1023} and Y2 = {1/2 + j 2^-49, j = -512..511}; GAMMA(n + y) for
+n = -9..9 (every translation exact): 38,912 calls. Y2 holds y = 1/2 itself, so GAMMA(-0.5), (-1.5),
+(-2.5), (-3.5) are among them. Script `e2_seed.py`; predictions file `e2-predictions.tsv` (our current
+outputs), SHA-256 `e44cc2968ccd9cdafe09830d84ba80aff576f0868d4914481b08df47426b2bfe`; hypothesis graphs in
+`e2_chain.py`.
+
+Predictions, frozen before asking. With s = Excel's own GAMMA(1+y):
+
+1. Above one (common stored seed, landed product graph): GAMMA(n+y) = `above(n+y, s)` for n = 2..9 in
+   every row of Y1 and Y2 except y = 1/2 (positive halves take the public sqrt(pi) route).
+2. Below one, one of two graphs holds in every row for n = -9..0: R (quotients resident, one store) or S
+   (each quotient stored). If neither holds in all rows, the seed below one is not Excel's GAMMA(1+y).
+3. At y = 1/2: GAMMA(-0.5) and GAMMA(-1.5) differ from R applied to Excel's GAMMA(1.5) (6b), and
+   GAMMA(-2.5) agrees (the bank: harvest claim 12). If the windows around the halves follow R with Excel's
+   own GAMMA(1+y) at every y != 1/2, the halves have a branch of their own.
+
+## E3. Lower-series mass from the density (answer B.1)
+
+Inputs (script `e3_mass.py`, 29,108 calls; predictions file `e3-predictions.tsv`, SHA-256
+`fc3d0cb8af5c3b7720f78745eaecfbaeec0f6b821fb289e66d9c6001ff28ad58`):
+
+- a: shapes in W(0.75), W(1.75), W(2.75), W(5.5); x = ldexp(a, e), e = -80, -96, -112; b = 1;
+  GAMMA.DIST TRUE and FALSE (24,576 calls).
+- m: x in W(1.1), a = 2.75 and 5.5, TRUE and FALSE (4,096 calls).
+- s: the 109 failing unit-scale density rows of the bank, at b = 1/2, 1, 2, 4 with x = b y (436 calls).
+
+Predictions, frozen before asking:
+
+1. Shared stored mass: C = ldexp(D, e) bit for bit in every a-row at every shape, 0.75 included. Our code
+   satisfies it at 1.75, 2.75 and 5.5 (all 9,216 pairs) but at 0.75 on only 1,336 of 3,072 pairs (it uses
+   a separate a < 1 normaliser). If Excel holds it at 0.75 too, the a < 1 normaliser is the shared mass.
+   If Excel breaks it at 0.75 by a pattern that is the same at all three exponents, the normaliser is a
+   separate shape-dependent value; a pattern that changes with e points to a resident intermediate.
+2. Mean seam: in the m-rows, (ours - Excel) is mostly negative below 1.1 and near zero above, at both
+   shapes, for density and CDF alike (our GAMMALN(a+1) leaf is high, harvest R2).
+3. Scale: Excel's density at b is its unit-scale density divided by b, bit for bit, in all 109 x 3 rows
+   (ours does this in all of them).
+
+### E2 results (asked 01:05)
+
+1. Held: above one, `above(n+y, s)` with Excel's own s = GAMMA(1+y) gives Excel's GAMMA(n+y) in all
+   18,432 rows (n = 2..9, both sets, the positive halves included). Every miss of ours on [2, 10) comes
+   from our seed stand-in, none from the product.
+2. Neither graph holds below zero. n = 0 (one quotient s/y): 2,048 of 2,048. n = -1 .. -9: R gives 41% to
+   76% (q set) and 37% to 100% (h set), S less. Excel minus R is a symmetric +-1 unit. Ascending order,
+   a stored product of the factors, reciprocals, and seeds taken from GAMMA(k+y), k = 2..9, do no better.
+   No 64-bit seed within 4 public ulps of s reproduces the n = -1 .. -9 rows of one y under the resident
+   chain (32 of 2,048 y). Reflection with Excel's own GAMMA(-x) or GAMMA(1-x) does worse (6% to 25%).
+   Below zero the computation is not a chain of quotients from a seed; it stays open.
+3. Halves: R applied to Excel's GAMMA(1.5) gives ...6b at -0.5 (Excel ...6a) and ...f2 at -1.5 (Excel
+   ...f1), and Excel's bits at -2.5; at -3.5 it gives ...94 against Excel's ...93. Around -0.5 R holds at
+   1,023 of 1,024 inputs: only -0.5 itself fails, so -0.5 is a point of its own. Around -1.5, -2.5 and
+   -3.5 the whole window misses at the general below-zero rate, so those are not half-specific.
+
+### E3 results (asked 01:05)
+
+1. Excel holds C = ldexp(D, e) at 1.75, 2.75 and 5.5 (9,216 of 9,216) and at 0.75 on 760 of 1,024
+   shapes, with C - ldexp(D, e) in {0, -1, -2, -3, -4} units, the same at all three exponents for every
+   shape (1,024 of 1,024). So the a < 1 CDF uses a separate shape-dependent normaliser, as ours does,
+   but not ours: our C matches Excel at 0.75 on 1,076 of 3,072 rows, our density on 2,811.
+2. Held: ours - Excel below 1.1 is -1.96 (density) and -1.10 (CDF) units on average at a = 2.75, -5.00
+   and -4.79 at 5.5, every row negative or zero; above 1.1 it is zero in 2,042 of 2,048 rows.
+3. Held: Excel's density at b = 1/2, 2, 4 is its unit-scale density divided by b in 109 of 109 shapes.
+
+## E4. Is the GAMMA seed EXP(GAMMALN)? (answer B.5a)
+
+Inputs: t = 1 + y for the 2,048 y of E2; GAMMALN(t), then EXP of Excel's answer (two calls per t).
+Prediction, frozen before asking: if the seed is the public composition, EXP(GAMMALN(t)) equals
+GAMMA(t) (asked in E2) bit for bit at every t. Our stand-in seed matches GAMMA(t) at 749 of 2,048.
+
+### E4 result (asked 01:35)
+
+Refuted: EXP(GAMMALN(t)) equals GAMMA(t) at 736 of 2,048 t, with differences from -3 to +2 units. The
+seed is not the public composition.
+
+## E5. The GAMMA seed on [1, 2) (answer A.3 and B.5)
+
+Why: E2 shows that every miss of ours on (0, 10) away from the poles comes from the seed GAMMA(1+y):
+above one the stored product of Excel's own seed is exact, and on (0, 1) so is the one quotient s/y.
+That is 3,989 failing GAMMA rows of the bank ((0,1): 2,587; [1,10): 1,402), so the seed is worth more
+rows than any other gamma-family item.
+
+Inputs: 256 windows of 1,024 consecutive doubles centred at 1 + (i + 0.5)/256: 262,144 calls of
+GAMMA. Script `e5_seed.py`; predictions file `e5-predictions.tsv` (our stand-in seed, the Cody-Stoltz
+rational in plain double), SHA-256 `60981ff835029d547e1a9c7d59f35f039fca1da0d51ca1f0c9412b9f042560d1`.
+Truth for the analysis: `hpgamma.py` (Stirling at x+30 in 50-digit decimal arithmetic, recurrence down).
+
+Predictions, frozen before asking. The output keeps one binade on [1, 2) (0.8856 <= Gamma < 1), so
+the window means of (Excel - truth) in output ulps change only through the computation:
+
+1. Families (answer A.3): a chain that starts from binary64 sqrt(2 pi) has a mean relative bias near
+   +0.66 of 2^-53 that varies smoothly with y. A direct rational with no normalising constant has none.
+2. A stored intermediate that crosses a power of two inside [0, 1) moves the window mean at that y.
+   Lanczos with g = 7 has t = y + 7.5 crossing 8 at y = 0.5; g = 607/128 (t in [5.24, 6.24)) and
+   g = 6.0247 (t in [6.52, 7.52)) cross nothing; a Stirling value at y + k with recurrence down
+   crosses where y + k is a power of two (k = 7: y = 1 - nothing inside; k = 3, 7, 15: none inside;
+   k = 6: none). A level change at y = 0.5 alone favours g = 7; level changes elsewhere name other
+   intermediates and are listed, not fitted.
+3. Data check: our stand-in matches about a third of the inputs (the bank: 1,039 of 2,441 on [1, 10)).
+
+### E5 results (asked 02:20)
+
+Data check held: our stand-in matches 33.4% of the 262,144 inputs. The window means of (Excel - truth)
+are +0.55 to +1.0 output ulps, rising with y, and never change level by more than about 0.15: there is no
+level change at y = 0.5 (prediction 2 gives g = 7 no support), and the four places where the window sd
+steps (y = 0.371, 0.543, 0.816, 0.953) match none of the listed intermediates. A line search over the
+per-window spectra (each stored stage leaves a line at |V'| 2^-52 / ulp(V)) finds about ten smooth
+tracks (for example 0.121 - 0.263 y on [0, 0.42], a constant line at 0.3055 on [0, 0.18], a line from
+0.341 rising 0.33 per unit from y = 0.545), and none of 140 candidate intermediates (Lanczos g = 5,
+6.0247, 607/128, 7 and 9: t, ln t, powers, exp(-t), the series and their products with sqrt(2 pi);
+Stirling at y + K, K = 2..11: x, ln x, 1/x, exp(-x), x^x, Gamma, the product) puts a line where the
+spectra have one in more than 39% of the windows, which is the chance level. R32/R33 reached the same
+point with the same method.
+
+## E6. Is the seed GAMMA(10+y) divided down? (answer A.3, family 1)
+
+Inputs: the 2,048 y of E2 (exact translations); GAMMA(10+y) and GAMMA(11+y). Prediction, frozen before
+asking: if the seed is the identified x >= 10 Stirling value divided by (1+y)(2+y)...(9+y), then Excel's
+GAMMA(1+y) (E2) equals that quotient, under one of: quotients resident and one store; quotients each
+stored; the product stored step by step from (1+y) up, then one division. Same with GAMMA(11+y) and
+ten factors. Equality in every y for one arrangement identifies it; otherwise family 1 with the shared
+x >= 10 value is refuted.
+
+### E6 result (asked 02:40)
+
+Refuted: GAMMA(10+y) or GAMMA(11+y) divided down by the factors gives Excel's GAMMA(1+y) at 11% to 15%
+of the 2,048 y under every arrangement. Not asked of Excel, a check of family 2 against E5: Lanczos with
+g = 7, n = 9 (the widely reproduced coefficient set) in six natural orders matches 7% to 8% (mean +2.7
+ulps, sd 3.7 to 5.7 against Excel's 1.0); Lanczos 1964 gamma = 5, N = 6 is hundreds of ulps off. Neither
+is the seed.
+
+### E1 final (fitting inside the shape)
+
+Predictions 2 to 4 did not hold: no table was found. What was learnt:
+
+- The graph. The tied stage model (one coefficient per stage, rounding offsets bounded by the stage
+  grid) fits the 258 window means only with P's last Horner sum stored (chi-square 216 against 2,171 for
+  the landed graph). The jumps at P's last-sum crossings (2.277, 2.606) need P's last product stored as
+  well; a resident last product (one fused multiply-add) leaves no jump there. Q's last sum stored or not
+  is not separated by the means. The uniform reading, every product and every sum stored, is the
+  candidate graph G1.
+- The table. Local searches under G0 and G1 (whole-ulp and stage-grid moves, single and paired, a
+  linear solve of the window means in grid steps, a pattern fit on window-centred residuals, scans of
+  the two constant terms and of a common scale) stall: on E1 at 0.43 to 0.46 overall, and in the 2.5
+  region at 0.897 under G1 (0.879 under G0). Q0 = 1 exactly with P0 refitted gives at most 0.71 there.
+  Inside the 2.5 region the window means of Excel minus the best G1 table are within 0.06 ulps of zero,
+  and the misses grow with |x - 2.5| as +-1 units on both sides: the smooth function is right there and
+  the stage phases drift. A one-unit move of one stored stage explains 98% of the misses (mostly R, the
+  last sums and the last products), so the misses sit in the late stages.
+- A Horner scheme in a centred variable (t = x - a, a = 2, 2.25, 2.5, 2.75, 3, the landed table
+  converted exactly) does worse everywhere, and a common rescale of the landed table by 6e-17 already
+  loses the 2.5 window: the landed table's phases at 2.5 are sharp, its coefficients elsewhere are not.
+
+Nothing lands from E1. The graph finding goes to dc-6332.7 for the next reading of the B3 table: read the
+stage lines again under G1, where the last sums are stored.
+
+## Summary for the beads
+
+- dc-6332.7: B.3 graph found (every Horner stage stored, the last sums included), table not recovered;
+  B.1: the a < 1 CDF has its own shape-dependent normaliser (C - M in {0, -1..-4} units at a = 0.75, the
+  same at three exponents), not identified; the 1.1 seam and the scale identity hold. B.4: above one
+  Excel's GAMMA is the stored product of its own GAMMA(1+y), and on (0, 1) it is st(GAMMA(1+y)/y), so
+  every GAMMA miss on (0, 10) away from the poles is a seed miss (3,989 bank rows); below zero no chain
+  of quotients from any 64-bit seed fits; -0.5 alone is a point of its own, -1.5, -2.5 and -3.5 are not.
+  B.5: the seed is not EXP(GAMMALN), not GAMMA(10+y) divided down, not Lanczos g = 7 or gamma = 5.
+- dc-6332.3: nothing replayable came out of these experiments; no change landed.
