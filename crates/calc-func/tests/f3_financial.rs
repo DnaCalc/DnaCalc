@@ -201,6 +201,57 @@ fn cumulative_payment_type_requires_exact_zero_or_one() {
     }
 }
 
+/// R15 tiny-rate ranges and fresh Excel20527 principal-product controls.
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn cumulative_spans_keep_their_pv_and_timing_stores() {
+    for (timing, principal) in [(0.0, 0xbff6a0ea0ea0ea0d), (1.0, 0xbfe9dc79354a300f)] {
+        exact(
+            call("CUMPRINC", vec![n(0.75), n(1000.0), n(3.3), n(1000.0), n(1000.0), n(timing)]),
+            f64::from_bits(principal),
+        );
+    }
+    let rate = f64::from_bits(0x3e40b25c74007082);
+    let present = f64::from_bits(0x3fefcf6de32210e3);
+    for (start, end, timing, principal, interest) in [
+        (1.0, 180.0, 0.0, 0xbfdfcf6c6daf27cf, 0xbeb189afcb440000),
+        (1.0, 180.0, 1.0, 0xbfdfcf6c71d5692d, 0xbeb1687dbfa00000),
+        (181.0, 360.0, 0.0, 0xbfdfcf6f5894f9f2, 0xbe9778620ae00000),
+        (181.0, 360.0, 1.0, 0xbfdfcf6f546eb898, 0xbe97786207d00000),
+    ] {
+        let args = vec![n(rate), n(360.0), n(present), n(start), n(end), n(timing)];
+        exact(call("CUMPRINC", args.clone()), f64::from_bits(principal));
+        exact(call("CUMIPMT", args), f64::from_bits(interest));
+    }
+}
+
+/// Fresh Excel20527 fractional bounds and an underflowed principal publication.
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn cumulative_spans_keep_whole_period_bounds_and_zero_publication() {
+    for (bits, principal, interest) in [
+        (
+            [0x40011166c0ed24c4, 0x4054400000000000, 0x409251066ba533cc,
+             0x3ff4000000000000, 0x4033000000000000, 0x0000000000000000],
+            0xba305f1ae28d6593, 0xc0e5fb42dbe96fa2,
+        ),
+        (
+            [0x40011166c0ed24c4, 0x4054400000000000, 0x409251066ba533cc,
+             0x3ff4000000000000, 0x4033000000000000, 0x3ff0000000000000],
+            0xba14e61159989828, 0xc0cc0f5cec09e46b,
+        ),
+        (
+            [0x3fff845d0872b13d, 0x408bf00000000000, 0x40dc5c1febdbadc9,
+             0x4062a00000000000, 0x4066400000000000, 0x0000000000000000],
+            0x0000000000000000, 0xc13a2fa48d2cfa6a,
+        ),
+    ] {
+        let args: Vec<_> = bits.into_iter().map(|b| n(f64::from_bits(b))).collect();
+        exact(call("CUMPRINC", args.clone()), f64::from_bits(principal));
+        exact(call("CUMIPMT", args), f64::from_bits(interest));
+    }
+}
+
 /// Excel20527 paired end/beginning calls, including a fractional period.
 #[cfg_attr(not(target_arch = "wasm32"), test)]
 #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
@@ -335,7 +386,7 @@ fn time_value_of_money() {
     );
     close(call("NOMINAL", vec![n(0.053543), n(4.0)]), 0.05250032, 1e-7);
     close(call("EFFECT", vec![n(0.0525), n(4.0)]), 0.053542667, 1e-8);
-    // The payment type is any number truncated to non-zero; an omitted fv is 0.
+    // The payment type is any nonzero number; an omitted fv is 0.
     close(
         call("PMT", vec![n(0.01), n(12.0), n(1000.0), missing(), n(1.0)]),
         -87.96909770,
@@ -1986,4 +2037,104 @@ fn duration_discounts_coupons_before_weighting_and_stores_its_sums() {
             f64::from_bits(expected),
         );
     }
+}
+
+/// Excel 20527: type is a zero test, including fractional and tiny signed values.
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn time_value_type_uses_every_nonzero_number() {
+    for (function, args, end_bits, beginning_bits) in [
+        ("FV", &[0.05, 24.0, -100.0, 1000.0][..], 0x4093_2466_57a5_1720, 0x4096_9e70_939b_ffd8),
+        ("PV", &[0.05, 24.0, -100.0, 1000.0][..], 0x4090_b72f_612e_3b75, 0x4091_cb28_6cf4_0a3e),
+        ("PMT", &[0.05, 24.0, 1000.0, 0.0][..], 0xc052_1e23_3ce9_1cf5, 0xc051_4146_21a1_0f63),
+        ("NPER", &[0.05, -100.0, 1000.0, 0.0][..], 0x402c_69d4_7652_4165, 0x402a_81a7_1649_e022),
+        ("RATE", &[24.0, -100.0, 1000.0, 0.0][..], 0x3fb6_1651_6d36_b1b3, 0x3fb9_25fa_879b_299b),
+        ("IPMT", &[0.05, 3.0, 24.0, 1000.0, 0.0][..], 0xc047_d92e_8945_f8c9, 0xc046_b675_768b_c85d),
+        ("PPMT", &[0.05, 3.0, 24.0, 1000.0, 0.0][..], 0xc038_c62f_e118_8243, 0xc037_982d_996c_acd1),
+    ] {
+        let base: Vec<_> = args.iter().copied().map(n).collect();
+        exact(call(function, base.clone()), f64::from_bits(end_bits));
+        for timing in [0.0, -0.0, 1e-100, -1e-100, 0.5, -0.5, 0.999, -0.999, 1.0, 2.0, -1.0] {
+            let mut values = base.clone();
+            values.push(n(timing));
+            exact(
+                call(function, values),
+                f64::from_bits(if timing == 0.0 { end_bits } else { beginning_bits }),
+            );
+        }
+    }
+}
+
+/// Fresh Excel controls distinguish ISPMT's stored products and period-count domain.
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn ispmt_keeps_the_scaled_period_difference() {
+    for (args, bits) in [
+        ([0.1, 1.0, -10.0, 100.0], 0xc026_0000_0000_0000),
+        ([0.1, 11.0, 10.0, 100.0], 0x3ff0_0000_0000_0000),
+        ([0.1, -1.0, 10.0, 100.0], 0xc026_0000_0000_0000),
+        ([0.1, 1.0, 1.0, 100.0], 0x0000_0000_0000_0000),
+        ([0.1, 1.0, 1.0_f64.next_down(), -20.0], 0xbcb0_0000_0000_0000),
+        ([0.1, 0.0, 1e-100, 100.0], 0xc024_0000_0000_0001),
+        ([1e100, 1.0, 1e-100, 1e100], 0x7e37_e43c_8800_759b),
+    ] {
+        exact(call("ISPMT", args.into_iter().map(n).collect()), f64::from_bits(bits));
+    }
+    for args in [[0.1, 1.0, 0.0, 100.0], [0.0, 1.0, 0.0, 100.0], [0.1, 0.0, 0.0, 0.0]] {
+        error(call("ISPMT", args.into_iter().map(n).collect()), Div0);
+    }
+}
+
+
+/// Fresh exact-root neighbors distinguish RATE's final boundary from its initial domain.
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn rate_validates_the_result_after_the_search() {
+    let accepted = f64::from_bits(0xbfefffffca501aca);
+    let rejected = f64::from_bits(0xbfefffffca501acb);
+    exact(
+        call("RATE", vec![n(1.0), n(0.0), n(1.0), n(-(1.0 + accepted)), n(0.0), n(accepted)]),
+        accepted,
+    );
+    error(
+        call("RATE", vec![n(1.0), n(0.0), n(1.0), n(-(1.0 + rejected)), n(0.0), n(rejected)]),
+        Num,
+    );
+    // A starting guess below that result boundary can still find an ordinary root.
+    exact(
+        call("RATE", vec![n(1.0), n(0.0), n(1.0), n(-2.0), n(0.0), n(-1.0 + 2.0_f64.powi(-40))]),
+        1.0,
+    );
+    for guess in [-1.0, -2.0] {
+        error(
+            call("RATE", vec![n(1.0), n(0.0), n(0.0), n(0.0), n(0.0), n(guess)]),
+            Value,
+        );
+    }
+}
+
+/// A zero initial balance is insufficient without a nonzero secant denominator.
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn rate_takes_a_secant_step_from_zero_balance() {
+    for periods in [0.0, 1.0, 10.0, -1.0, 1e-100] {
+        error(call("RATE", vec![n(periods), n(0.0), n(0.0)]), Num);
+    }
+    for periods in [1.0, 2.0, 10.0] {
+        for guess in [0.0, 1e-100, -1e-100] {
+            exact(
+                call("RATE", vec![n(periods), n(0.0), n(1.0), n(-1.0), n(0.0), n(guess)]),
+                0.0,
+            );
+        }
+    }
+    // Excel's retained bank2-more-RATE-0021: preserve the growth stage's DIV0.
+    error(
+        call("RATE", vec![
+            n(f64::from_bits(0xc0b6bb0000000000)),
+            n(f64::from_bits(0x3fbaf724b9fd5728)),
+            n(-0.5), n(10.0),
+        ]),
+        Div0,
+    );
 }

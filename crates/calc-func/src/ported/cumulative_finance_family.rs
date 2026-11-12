@@ -1,5 +1,5 @@
-// CUMIPMT and CUMPRINC share the time-value primitives. Their summation remains
-// a fallback: Excel's cumulative singletons differ from public PPMT's bits.
+// CUMIPMT and CUMPRINC share the time-value primitives and the stored discounted
+// principal span. Its publications differ from sums of the public PPMT values.
 pub use crate::ported::financial_time_value_family::PaymentTiming;
 use crate::ported::financial_time_value_family::{self as time_value, FinancialError};
 use crate::value::CalcValue;
@@ -68,7 +68,7 @@ fn kernel_error(error: FinancialError) -> CumulativeFinanceEvalError {
     })
 }
 
-/// The existing principal-sum fallback, independent of public PPMT's timing finish.
+/// The shared principal span, with the existing fallback outside its quotient domain.
 fn principal_sum(
     rate: f64,
     periods: f64,
@@ -477,11 +477,8 @@ mod tests {
     fn cumipmt_and_cumprinc_exactness_witness_rows_match_excel_targets() {
         // Excel (2026-10-25): CUMPRINC(0.05/12,360,200000,1,12,0) is 0xc0a70d761d260042 and
         // CUMIPMT(...) 0xc0c3667e7f577146, 12 * PMT less that sum (the sum of its twelve IPMT
-        // readings is 0xc0c3667e7f577147). The backward recurrence (dc-6332.2, dc-j9k.49) reaches
-        // the CUMIPMT target and misses the CUMPRINC one by a unit, one of the rows it loses
-        // against the earlier sum of public PPMT values (full bank: +107 / -71 rows); the unit
-        // is the open pv-dependent rounding Excel makes at rates where 1 + rate is not a power
-        // of two.
+        // readings is 0xc0c3667e7f577147). The discounted EXPM1 span and the separate
+        // ending-payment store reproduce both publications (dc-j9k.49).
         let cumipmt_actual =
             cumipmt_kernel(0.05 / 12.0, 360.0, 200000.0, 1.0, 12.0, 0.0).expect("cumipmt witness");
         assert_bits(cumipmt_actual, f64::from_bits(0xc0c3667e7f577146));
@@ -489,8 +486,7 @@ mod tests {
         let cumprinc_actual = cumprinc_kernel(0.05 / 12.0, 360.0, 200000.0, 1.0, 12.0, 0.0)
             .expect("cumprinc witness");
         let cumprinc_excel = f64::from_bits(0xc0a70d761d260042);
-        assert_bits(cumprinc_actual, f64::from_bits(0xc0a70d761d260043));
-        assert_eq!(cumprinc_actual.to_bits() - cumprinc_excel.to_bits(), 1);
+        assert_bits(cumprinc_actual, cumprinc_excel);
 
         // The shared PMT witness stays Excel-exact.
         let payment = time_value::pmt(

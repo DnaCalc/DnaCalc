@@ -59,10 +59,10 @@ fn tv_out(site: &Site<'_>, result: Result<f64, FinancialError>) -> Step<CalcValu
     }
 }
 
-/// The payment timing argument `index`: 0 (the default) is the end of each period, any other
-/// number truncated to non-zero its beginning.
+/// The payment timing argument `index`: 0 (the default) selects the end of each period.
+/// Every nonzero number selects its beginning, including fractional and tiny signed values.
 fn timing(site: &Site<'_>, a: &[CalcValue], index: usize) -> Step<PaymentTiming> {
-    Ok(if opt(site, a, index, 0.0)?.trunc() == 0.0 {
+    Ok(if opt(site, a, index, 0.0)? == 0.0 {
         PaymentTiming::EndOfPeriod
     } else {
         PaymentTiming::BeginningOfPeriod

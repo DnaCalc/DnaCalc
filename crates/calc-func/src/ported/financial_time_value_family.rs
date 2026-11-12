@@ -433,15 +433,28 @@ pub fn rate(
     timing: PaymentTiming,
     guess: Option<f64>,
 ) -> Result<f64, FinancialError> {
-    rate_secant(
+    let guess = guess.unwrap_or(0.1);
+    // The initial guess has its own domain error. Preserve the numeric API's
+    // existing NUM result for nonfinite values, which cannot be worksheet inputs.
+    if guess.is_finite() && guess <= -1.0 {
+        return Err(FinancialError::Value);
+    }
+    let result = rate_secant(
         periods,
         payment_value,
         present_value,
         future_value,
         timing,
-        guess.unwrap_or(0.1),
-    )
-    .ok_or(FinancialError::Num)
+        guess,
+    )?;
+    // This is a result rule, not an evaluation-domain bound: Excel accepts
+    // near-minus-one starting guesses that lead to an ordinary root. Adjacent
+    // exact-root probes locate the final boundary at the solver's tolerance.
+    if excel_x87_add(1.0, result) < RATE_TOLERANCE {
+        Err(FinancialError::Num)
+    } else {
+        Ok(result)
+    }
 }
 
 /// RATE's search as IRR's (`irr_discount_secant`), in the rate itself: the secant from the guess and
@@ -464,24 +477,24 @@ fn rate_secant(
     future_value: f64,
     timing: PaymentTiming,
     guess: f64,
-) -> Option<f64> {
-    let balance = |rate: f64| -> Option<f64> {
+) -> Result<f64, FinancialError> {
+    let balance = |rate: f64| -> Result<f64, FinancialError> {
         if rate == 0.0 {
-            return Some(excel_x87_add(
+            return Ok(excel_x87_add(
                 excel_x87_add(future_value, present_value),
                 excel_x87_mul(payment_value, periods),
             ));
         }
         let base = excel_x87_add(1.0, rate);
         if base <= 0.0 {
-            return None;
+            return Err(FinancialError::Num);
         }
-        let factor = growth_from_base(base, periods).ok()?;
+        let factor = growth_from_base(base, periods)?;
         let term = excel_x87_mul(
             excel_x87_div(excel_x87_sub(factor, 1.0), rate),
             timing.factor(rate),
         );
-        Some(excel_x87_add(
+        Ok(excel_x87_add(
             excel_x87_add(
                 excel_x87_mul(present_value, factor),
                 excel_x87_mul(payment_value, term),
@@ -491,10 +504,10 @@ fn rate_secant(
     };
     let mut before = guess;
     let mut value_before = balance(before)?;
-    if value_before == 0.0 {
-        return Some(guess);
-    }
-    let mut current = excel_x87_add(before, 0.001f64.copysign(-value_before));
+    // A zero balance still needs a nonzero secant slope; a flat zero
+    // objective is NUM. The comparison sends either sign of zero upward.
+    let offset = if value_before > 0.0 { -0.001 } else { 0.001 };
+    let mut current = excel_x87_add(before, offset);
     let mut value = balance(current)?;
     for _ in 0..200 {
         let change = excel_x87_sub(value, value_before);
@@ -502,7 +515,7 @@ fn rate_secant(
             // A balance that does not move between two rates has no secant step: #NUM!, as in
             // IRR's search (Excel 16.0.20527, dcztvv_r23: RATE(0,-100,1000,0,0,0.5),
             // RATE(2^-1022,-100,1000,0,0,0.5) and RATE(FALSE,-200,8000) are #NUM!).
-            return None;
+            return Err(FinancialError::Num);
         }
         let next = excel_x87_sub(
             current,
@@ -512,11 +525,11 @@ fn rate_secant(
         (before, value_before) = (current, value);
         current = next;
         value = balance(current)?;
-        if step < 1e-7 && value.abs() < 1e-7 {
-            return Some(current);
+        if step < RATE_TOLERANCE && value.abs() < RATE_TOLERANCE {
+            return Ok(current);
         }
     }
-    None
+    Err(FinancialError::Num)
 }
 
 pub fn npv(periodic_rate: f64, cashflows: &[f64]) -> Result<f64, FinancialError> {
@@ -836,18 +849,14 @@ pub fn ppmt(
     }
 }
 
-/// CUMPRINC over the whole periods `start..=end` as Excel 16.0.20527 sums them (dc-j9k.49): a backward
-/// recurrence from the last period. With `L` the PMT logarithm and `q = st(pv / em_n)` PMT's stored
-/// quotient, the last period's discount `u = EXP(-(nper - end + 1) L)` times the period coefficient
-/// (the rate for end payments, the due coefficient for beginning ones) starts the term; each period
-/// adds the term to the sum and divides it by `1 + rate`, all at precision 64, and the stored sum is
-/// multiplied by `q` (stored). For beginning payments the first period is the whole due payment
-/// (no interest), added after the recurrence over periods 2 to end.
-///
-/// Identified where `1 + rate` is a power of two (600 of 600 ranges, 115 of 115 singletons); at
-/// other rates it is within 4 units of Excel on the bank where the sum of public PPMT values was up
-/// to 12 away, and a second pv-dependent rounding Excel makes there is not identified. `None` where
-/// PMT's quotient is not formed this way; the caller keeps its fallback there.
+/// The principal change across a whole-period span (dc-j9k.49). With PMT's stored
+/// quotient q = PV/EXPM1(-nL), the common beginning-payment core is
+/// q * (EXP(-(n-end+1)L) * -EXPM1(-count*L)), with both products stored from PC64.
+/// The EXPM1 span preserves small principal amounts without subtracting balances.
+/// Ending payments then multiply the stored core by stored 1+rate: all 160
+/// recorded timing pairs agree, including the addition double-rounding cases.
+/// Beginning payments add their whole first payment after the span from period 2.
+/// None preserves the caller's existing fallback outside PMT's quotient domain.
 pub(crate) fn cumulative_principal(
     periodic_rate: f64,
     periods: f64,
@@ -861,35 +870,28 @@ pub(crate) fn cumulative_principal(
     }
     let (log_growth, quotient) = end_payment_quotient(periodic_rate, periods, present_value, 0.0)?;
     let beginning = matches!(timing, PaymentTiming::BeginningOfPeriod);
-    let coefficient = if beginning {
-        due_coefficient(periodic_rate)
-    } else {
-        periodic_rate
-    };
     let first = if beginning { start_period.max(2) } else { start_period };
     let mut total = 0.0;
     if end_period >= first {
         let last = periods - f64::from(end_period) + 1.0;
         let discount = crate::ported::excel_numeric::excel_exp(-(last * log_growth));
-        let count = (end_period - first + 1) as u32;
-        let sum = crate::ported::excel_numeric::excel_backward_period_sum(
-            discount,
-            coefficient,
-            periodic_rate,
-            count,
-        );
-        total = excel_x87_mul(quotient, sum);
+        let count = f64::from(end_period - first + 1);
+        let span = -crate::ported::excel_numeric::excel_expm1_spilled(-(count * log_growth));
+        total = excel_x87_mul(quotient, excel_x87_mul(discount, span));
+        if !beginning {
+            total = excel_x87_mul(total, excel_x87_add(1.0, periodic_rate));
+        }
     }
     if beginning && start_period == 1 {
-        total = excel_x87_add(total, excel_x87_mul(quotient, coefficient));
+        total = excel_x87_add(total, excel_x87_mul(quotient, due_coefficient(periodic_rate)));
     }
     total.is_finite().then_some(total)
 }
 
 /// The discounted-payment principal expression. The cumulative beginning-payment
 /// fallback still uses it: its singletons differ from public PPMT, whose measured
-/// positive-rate finish uses the shared period component above. The cumulative
-/// summation is not yet identified; changing PPMT must not change that fallback.
+/// positive-rate finish uses the shared period component above. Keep this earlier
+/// expression outside the shared quotient domain.
 pub(crate) fn discounted_payment_principal(
     periodic_rate: f64,
     period_index: f64,
@@ -915,10 +917,17 @@ pub fn ispmt(
     present_value: f64,
 ) -> Result<f64, FinancialError> {
     validate_finite(&[periodic_rate, period_index, periods, present_value])?;
-    if periods <= 0.0 {
-        return Err(FinancialError::Num);
+    if periods == 0.0 {
+        return Err(FinancialError::Div0);
     }
-    let result = present_value * periodic_rate * (period_index / periods - 1.0);
+    // Excel stores the scaled period difference before applying the rate,
+    // then stores that product before the division. Dividing the period index
+    // first loses cancellation bits; combining rate and value first also
+    // changes the result. Negative period counts remain in the same formula.
+    let difference = excel_x87_sub(period_index, periods);
+    let scaled = excel_x87_mul(present_value, difference);
+    let interest = excel_x87_mul(scaled, periodic_rate);
+    let result = excel_x87_div(interest, periods);
     if result.is_finite() {
         Ok(result)
     } else {
