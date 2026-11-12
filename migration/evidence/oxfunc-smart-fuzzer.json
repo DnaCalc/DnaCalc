@@ -49,13 +49,13 @@
     }
   },
   "witness_readings_2026_11_12_admit3": {
-    "evidence_repository_commit": "d56680cb3bab771c6184ec4a016a077b906d636d",
+    "evidence_repository_commit": "629c8cb22a037da09b345380de8000cfe97f3e16",
     "path_prefix": "readings/excel-20527/admit3-answers-",
-    "files": 31,
-    "accepted_observations": 40390,
+    "files": 49,
+    "accepted_observations": 66380,
     "generator": "tools/xtask-harness/scripts/bank-coverage.py",
     "seed": "admit3-20261112",
-    "note": "Partial checkpoint: typed rectangular ranges and mixed arrays, Excel 20527. Failed and unasked batches are in capture summaries; spill readings select [1,1]. Worker-down and disk pressure interrupted capture."
+    "note": "Typed rectangular ranges and mixed arrays, Excel 20527: 47 functions with at least 1,000 distinct inputs each. Failed and unasked batches are in capture summaries; spill readings select [1,1]. Supplemental files retain separate worker environments."
   },
   "manifest": {
     "path": "manifest.tsv",
