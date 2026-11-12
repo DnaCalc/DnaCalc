@@ -16,6 +16,28 @@ fn data() -> CalcValue {
 
 use calc_func::value::CalcValue;
 
+/// Excel 20527, dc-bc1o: a scaled density uses its lower-endpoint coordinate
+/// and a stored-PC64 division by the width, after the unit density.
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn beta_density_scales_the_unit_interval() {
+    for (x, alpha, beta, lower, upper, expected) in [
+        (2.0, 2.0 / 15.0, 2.0 / 15.0, 1.0, 6.0, 0x3fb1_1fa0_8dae_a546),
+        (25.635113942405695, 2.0, 1.0, 0.0, 51.27022788481139, 0x3f93_f8fc_a0f5_b0ae),
+        (20.109578089941277, 2.0, 1.0, 0.0, 95.71736304926452, 0x3f71_fb1c_5506_a16c),
+        (43.70425394550647, 1.0, 3.25, 0.0, 55.84508485255309, 0x3f5e_c5ba_d90f_7afd),
+        (0.003733975812792778, 1.0, 1.0, -4.337338085534052e-19,
+            0.007467951625585556, 0x4060_bcfa_144f_a0a2),
+        (0.024923965334892273, 2.0, 1.0, -1.7349352342136207e-18,
+            0.09969586133956909, 0x4014_0f9e_9143_b62a),
+    ] {
+        exact(
+            call("BETA.DIST", vec![n(x), n(alpha), n(beta), b(false), n(lower), n(upper)]),
+            f64::from_bits(expected),
+        );
+    }
+}
+
 /// Frozen fresh Excel 20527 controls distinguish centred arithmetic, staged
 /// roots and final scaling; see correlation-arithmetic-2026-11-12.md.
 #[cfg_attr(not(target_arch = "wasm32"), test)]
