@@ -1216,6 +1216,16 @@ impl Controller {
                             ),
                             None => format!("Opened {name}: {size} bytes in {elapsed:.0} ms; calculation continues in the worker"),
                         } };
+                        let message = match outcome.summary.open_repairs.as_slice() {
+                            [] => message,
+                            repairs => format!(
+                                "{message}. Excel would repair {} problem{} in this file ({}); \
+                                 a save writes the repaired workbook",
+                                repairs.len(),
+                                if repairs.len() == 1 { "" } else { "s" },
+                                repairs.join("; ")
+                            ),
+                        };
                         controller.installed(outcome.summary, message);
                         opened(true);
                     }

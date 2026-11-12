@@ -59,6 +59,42 @@ pub(super) fn expanded<'a>(
     sheets
 }
 
+/// `sheets` with each sheet of `dangling` (its `r:id` named no relationship) given a part and a
+/// relationship of its own, as Excel's save writes the repaired sheet.
+pub(super) fn with_parts<'a>(
+    package: &Package,
+    workbook: &str,
+    sheets: &[Cow<'a, LoadedSheet>],
+    dangling: &[calc_doc_model::value::SheetId],
+) -> Vec<Cow<'a, LoadedSheet>> {
+    let mut out: Vec<Cow<'a, LoadedSheet>> = sheets.to_vec();
+    let parent = workbook
+        .rsplit_once('/')
+        .map_or(String::new(), |(parent, _)| format!("{parent}/"));
+    for id in dangling {
+        let Some(at) = out.iter().position(|s| s.id() == *id) else {
+            continue;
+        };
+        let part = (1u32..)
+            .map(|n| format!("{parent}worksheets/dnaSheet{n}.xml"))
+            .find(|name| {
+                package.part(name).is_none() && out.iter().all(|s| s.part().name() != name)
+            })
+            .expect("a free part");
+        let relationship = (1u32..)
+            .map(|n| format!("dnaWorksheet{n}"))
+            .find(|id| {
+                package
+                    .relationships_of(Some(workbook))
+                    .is_none_or(|rels| rels.items().iter().all(|r| &r.id != id))
+                    && out.iter().all(|s| s.relationship() != id)
+            })
+            .expect("a free relationship");
+        out[at] = Cow::Owned(LoadedSheet::empty(*id, relationship, part));
+    }
+    out
+}
+
 pub(crate) fn read_sheet(package: &Package, name: &str) -> Result<XmlPart, SaveRefusal> {
     if package.part(name).is_some() {
         read_part(package, name)
@@ -98,7 +134,12 @@ pub(super) fn workbook(
                                 .find(|a| a.name.local == "id")
                                 .map(|a| a.value.clone())
                             {
-                                originals.insert(id, child_span);
+                                let declared = child
+                                    .attributes
+                                    .iter()
+                                    .find(|a| a.name.local == "sheetId")
+                                    .map(|a| a.value.clone());
+                                originals.insert(id, (child_span, declared));
                             }
                         }
                         reader.element_end()?;
@@ -117,9 +158,15 @@ pub(super) fn workbook(
                     SheetVisibility::Hidden => "hidden",
                     SheetVisibility::VeryHidden => "veryHidden",
                 };
-                if let Some(&(start, end)) = originals.get(loaded.relationship()) {
+                if let Some(&((start, end), ref declared)) = originals.get(loaded.relationship()) {
                     let tag = RawTag::parse(&xml.bytes()[start..end]);
-                    let changed = tag.rebuilt(&[("state", Some(state))], true);
+                    // A repeated `sheetId` is written as the new id the load gave the sheet.
+                    let key = entry.key().get().to_string();
+                    let changed = if declared.as_deref() == Some(key.as_str()) {
+                        tag.rebuilt(&[("state", Some(state))], true)
+                    } else {
+                        tag.rebuilt(&[("state", Some(state)), ("sheetId", Some(&key))], true)
+                    };
                     bytes.extend_from_slice(&RawTag::parse(&changed).rebuilt_xstring(
                         "name",
                         entry.name().text().utf16_code_units(),
@@ -188,11 +235,12 @@ pub(super) fn finish(
     base: &ModelRoot,
     model: &ModelRoot,
     sheets: &[Cow<'_, LoadedSheet>],
+    dangling: &[calc_doc_model::value::SheetId],
     out: &mut Changes,
 ) -> Result<(), SaveRefusal> {
     let added: Vec<_> = sheets
         .iter()
-        .filter(|s| base.sheet_by_id(s.id()).is_none())
+        .filter(|s| base.sheet_by_id(s.id()).is_none() || dangling.contains(&s.id()))
         .collect();
     let removed: Vec<_> = sheets
         .iter()

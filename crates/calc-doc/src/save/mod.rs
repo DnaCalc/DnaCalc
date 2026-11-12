@@ -103,6 +103,8 @@ pub(crate) struct Edited {
     pivot_outputs: Arc<BTreeMap<CellKey, calc_doc_model::value::CalcValue>>,
     /// Custom XML items the save writes (added, or replacing the item of the same namespace).
     custom_xml: Vec<crate::CustomXmlItem>,
+    /// What the load repaired as Excel does ([`crate::LoadRepair`]); an edited save writes it.
+    repairs: Vec<crate::LoadRepair>,
 }
 
 impl DocumentSnapshot {
@@ -132,6 +134,7 @@ impl DocumentSnapshot {
         model: Arc<ModelRoot>,
         values: Option<Arc<BTreeMap<CellKey, CachedValue>>>,
         spills: Arc<BTreeMap<CellKey, GridArea>>,
+        repairs: Vec<crate::LoadRepair>,
     ) -> Self {
         DocumentSnapshot {
             package,
@@ -147,6 +150,7 @@ impl DocumentSnapshot {
                 cache_state: None,
                 pivot_outputs: Default::default(),
                 custom_xml: Vec::new(),
+                repairs,
             }),
         }
     }
