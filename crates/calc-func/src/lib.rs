@@ -80,6 +80,26 @@ pub fn number_literal_scale_is_readable(text: &str) -> bool {
     coerce::literal_scale_is_readable(text)
 }
 
+/// Excel's adjustment of a final addition or subtraction: a nonzero result becomes
+/// positive zero when its biased binary64 exponent is at least 50 below the left
+/// operand's. The left operand decides, rather than the larger operand or any
+/// earlier partial sum. Apply this only at a measured final arithmetic site.
+///
+/// Infix probes (dc-b1l, Excel 16.0.20430) and SUM probes (dc-ss3b, Excel
+/// 16.0.20527, `docs/research/sum-cancellation-2026-11-12.md`) agree: around 1,
+/// `(1+k*2^-52)-1` becomes zero for k <= 7, and stands for k >= 8. Around
+/// the binade boundary at 2, swapping operands changes that boundary. SUM applies
+/// the adjustment once, after its last numeric addition; a trailing numeric zero
+/// therefore preserves an earlier cancellation residual.
+pub fn adjust_final_sum(left: f64, result: f64) -> f64 {
+    let exponent = |x: f64| ((x.to_bits() >> 52) & 0x7ff) as i64;
+    if result != 0.0 && exponent(left) - exponent(result) >= 50 {
+        0.0
+    } else {
+        result
+    }
+}
+
 /// What `text` (UTF-16 code units) reads as under `environment`'s locale profile, date system and
 /// clock, by the grammar VALUE reads text with: the number, date or time it is; `Ok(None)` when the
 /// grammar does not read it (VALUE's #VALUE!); `Err(())` when the reading is not modelled (no

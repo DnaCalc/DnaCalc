@@ -16,6 +16,148 @@ fn data() -> CalcValue {
 
 use calc_func::value::CalcValue;
 
+/// Frozen fresh Excel 20527 controls distinguish centred arithmetic, staged
+/// roots and final scaling; see correlation-arithmetic-2026-11-12.md.
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn correlation_uses_stored_pc64_arithmetic() {
+    let rows: &[(&[u64], &[u64], u64, u64)] = &[
+        (
+            &[0xc0a5_0e00_0000_0000, 0x40bc_6c00_0000_0000, 0x40c1_4e00_0000_0000,
+              0x40c0_4e80_0000_0000, 0xc0b2_1300_0000_0000],
+            &[0x40c2_ae80_0000_0000, 0x40a8_c400_0000_0000, 0xc0c3_1480_0000_0000,
+              0xc0a6_ec00_0000_0000, 0xc0bc_2300_0000_0000],
+            0xbfd1_6190_8f20_2263, 0x3fb2_e1a6_1e05_c3f8,
+        ),
+        (
+            &[0xbe84_951d_036a_a800, 0xc13b_009d_dbea_e6cb, 0x414e_14dc_6216_0778],
+            &[0xc000_1304_0835_5538, 0xc152_542d_3333_1dd2, 0xbf96_0797_3432_b300],
+            0x3fe7_a298_1b19_6261, 0x3fe1_74f4_cdd9_dff8,
+        ),
+        (
+            &[0xbf8c_a36c_3c51_ca3f, 0x4050_33ca_e351_c2b2,
+              0xc146_05ba_cecc_aa2a, 0xc077_bd8e_3173_ec62],
+            &[0x40be_ad58_6433_3a88, 0xc1a1_9bbf_f139_4e6a,
+              0x3e92_5453_d51c_ee94, 0xbe51_fa87_86cb_8e73],
+            0xbfd5_563b_3b03_8dec, 0x3fbc_742c_387e_fed5,
+        ),
+    ];
+    for &(x, y, correlation, rsq) in rows {
+        let values = |bits: &[u64]| {
+            arr(vec![bits.iter().map(|&b| f64::from_bits(b)).collect()])
+        };
+        let args = vec![values(x), values(y)];
+        for function in ["CORREL", "PEARSON"] {
+            exact(call(function, args.clone()), f64::from_bits(correlation));
+        }
+        exact(call("RSQ", args), f64::from_bits(rsq));
+    }
+    // A first-pass double-rounding control: an ordinary mean makes the
+    // correlation exactly zero; Excel retains this nonzero correlation.
+    exact(
+        call("CORREL", vec![
+            arr(vec![vec![1.5, f64::from_bits(0x3ca0_0080_0000_0000), -1.5]]),
+            arr(vec![vec![1.0, 2.0, 1.0]]),
+        ]),
+        f64::from_bits(0x3c82_79a7_4590_331c),
+    );
+}
+
+/// Excel 20527, dc-wli1: CORREL/PEARSON use population normalisation, while
+/// RSQ squares the sample-normalised correlation. These mathematically equal
+/// three-point correlations distinguish the stored intermediate values.
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn correlation_population_normalisation_and_rsq_sample_normalisation() {
+    for (x, y, rsq_bits) in [
+        (vec![1.0, 2.0, 3.0], vec![2.0, 5.0, 4.0], 0x3fdb_6db6_db6d_b6da),
+        (vec![1.0, 2.0, 4.0], vec![3.0, 1.0, 5.0], 0x3fdb_6db6_db6d_b6dd),
+    ] {
+        let args = vec![arr(vec![x.clone()]), arr(vec![y.clone()])];
+        for function in ["CORREL", "PEARSON"] {
+            exact(call(function, args.clone()), f64::from_bits(0x3fe4_f2ec_413c_b52b));
+        }
+        exact(call("RSQ", args), f64::from_bits(rsq_bits));
+        let mut sheet = Sheet::new();
+        sheet.column(1, 1, x.into_iter().map(n).collect());
+        sheet.column(1, 2, y.into_iter().map(n).collect());
+        let args = vec![sheet.area(1, 1, 3, 1), sheet.area(1, 2, 3, 2)];
+        exact(
+            call_on(&mut sheet, "CORREL", args.clone()),
+            f64::from_bits(0x3fe4_f2ec_413c_b52b),
+        );
+        exact(call_on(&mut sheet, "RSQ", args), f64::from_bits(rsq_bits));
+    }
+}
+
+/// Excel 20527, dc-ss3b: SUM adjusts only its final numeric addition. The
+/// service probes and frozen alternatives are in sum-cancellation-2026-11-12.md.
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn sum_adjusts_the_last_numeric_addition() {
+    exact(call("SUM", vec![n(0.1), n(0.2), n(-0.3)]), 0.0);
+    exact(
+        call("SUM", vec![n(0.1), n(0.2), n(-0.3), n(0.0)]),
+        f64::from_bits(0x3c90_0000_0000_0000),
+    );
+    exact(
+        call("SUM", vec![n(0.1), n(0.2), n(-0.3), n(1e-20)]),
+        f64::from_bits(0x3c90_00bc_e508_6492),
+    );
+    let values = arr(vec![vec![0.1, 0.2, -0.3]]);
+    exact(call("SUM", vec![values.clone()]), 0.0);
+    exact(call("SUM", vec![n(0.0), values.clone()]), 0.0);
+    exact(
+        call("SUM", vec![values, n(0.0)]),
+        f64::from_bits(0x3c90_0000_0000_0000),
+    );
+    exact(call("SUM", vec![arr(vec![vec![0.1, 0.2]]), n(-0.3)]), 0.0);
+    // The same fold reads referenced cells; trailing nonnumbers do not add.
+    let mut sheet = Sheet::new();
+    sheet.column(1, 1, vec![n(0.1), n(0.2), n(-0.3), t("ignored"), b(true)]);
+    let reference = sheet.area(1, 1, 6, 1);
+    exact(call_on(&mut sheet, "SUM", vec![reference.clone()]), 0.0);
+    sheet.column(6, 1, vec![n(0.0)]);
+    exact(
+        call_on(&mut sheet, "SUM", vec![reference]),
+        f64::from_bits(0x3c90_0000_0000_0000),
+    );
+    // Relative binary exponents, both signs; no absolute epsilon.
+    for scale in [2f64.powi(-900), 1.0, 2f64.powi(900)] {
+        for sign in [-1.0, 1.0] {
+            let left = sign * scale;
+            exact(call("SUM", vec![n(left * (1.0 + 7.0 * f64::EPSILON)), n(-left)]), 0.0);
+            exact(
+                call("SUM", vec![n(left * (1.0 + 8.0 * f64::EPSILON)), n(-left)]),
+                left * 8.0 * f64::EPSILON,
+            );
+        }
+    }
+    // The last left operand decides, not the larger operand.
+    let a = 2.0 + 4.0 * 2f64.powi(-51);
+    let b = -(2.0 - f64::EPSILON);
+    exact(call("SUM", vec![n(a), n(b)]), 0.0);
+    exact(call("SUM", vec![n(b), n(a)]), 9.0 * f64::EPSILON);
+    // Both means adjust their numerator, before division. SUMPRODUCT retains
+    // the unadjusted arithmetic result.
+    for function in ["AVERAGE", "AVERAGEA"] {
+        exact(call(function, vec![arr(vec![vec![0.1, 0.2, -0.3]])]), 0.0);
+        exact(
+            call(function, vec![arr(vec![vec![0.1, 0.2, -0.3, 0.0]])]),
+            f64::from_bits(0x3c70_0000_0000_0000),
+        );
+        exact(
+            call(function, vec![n(1.0 + 8.0 * f64::EPSILON), n(-1.0)]),
+            4.0 * f64::EPSILON,
+        );
+    }
+    exact(
+        call("SUMPRODUCT", vec![arr(vec![vec![0.1, 0.2, -0.3]])]),
+        f64::from_bits(0x3c90_0000_0000_0000),
+    );
+}
+
+
 /// Original Excel20527 R38 questions: exact affine data, vector references,
 /// duplicate aggregation, missing timestamps and the zero-confidence limit.
 #[cfg_attr(not(target_arch = "wasm32"), test)]

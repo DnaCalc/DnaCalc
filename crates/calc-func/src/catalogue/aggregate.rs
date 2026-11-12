@@ -6,7 +6,8 @@
 //! the cells that hold a value and may also visit blank cells as Empty, so a kernel's work and
 //! memory follow the cells the reader visits and not the area's size; an array's elements in
 //! row-major order. The arithmetic is a sequential left fold in that order from the operation's
-//! identity, each operation an arithmetic site that rounds under the call's numeric mode, so
+//! identity, with SUM, AVERAGE and AVERAGEA adjusting the final addition by
+//! [`crate::adjust_final_sum`]. Each operation is an arithmetic site that rounds under the call's numeric mode, so
 //! under Exact, which has no implementation, a call that reaches one is refused with
 //! ExactUnavailable. The first error met in that order is the result, except that SUM returns an
 //! error of its direct arguments first (see [`sum`]); the counts return none.
@@ -62,7 +63,8 @@ attach_eager_family! {
     MAXA => maxa;
 }
 
-/// SUM: the numbers added from 0, in the reading order. The error is the first among the direct
+/// SUM: the numbers added from 0, in the reading order, then the last addition
+/// adjusted by [`crate::adjust_final_sum`]. The error is the first among the direct
 /// arguments, in argument order, a coercion's #VALUE! included, before any error that a reference
 /// or an array holds; among those, the first in the reading order. A total that overflows is
 /// #NUM!, even when a later number would bring it back, and an error read after the overflow is
@@ -77,6 +79,7 @@ fn sum(
 ) -> Result<CalcValue, FunctionFault> {
     let site = Site::new(SUM, services);
     let mut total = 0.0;
+    let mut last_left = 0.0;
     let read_through = read_through_held_arrays(arguments);
     let arguments: &[CalcValue] = read_through.as_deref().unwrap_or(arguments);
     let held = match read_held_references(&site, services, arguments, HeldReference::FirstCell) {
@@ -86,11 +89,12 @@ fn sum(
     let arguments: &[CalcValue] = held.as_deref().unwrap_or(arguments);
     let read = direct_first(&site, arguments).and_then(|()| {
         each_number(&site, arguments, services, Held::Numbers, &mut |n| {
+            last_left = total;
             total = site.add(total, n)?;
             Ok(())
         })
     });
-    Site::finish(read.and_then(|()| site.number(total)))
+    Site::finish(read.and_then(|()| site.number(crate::adjust_final_sum(last_left, total))))
 }
 
 /// Reads the direct arguments through worksheet number coercion, in order, and stops at the first
@@ -149,8 +153,8 @@ fn sumsq(
     Site::finish(read.and_then(|()| site.number(total)))
 }
 
-/// AVERAGE: the numbers added from 0 and divided by how many there are; #DIV/0! when there is
-/// none.
+/// AVERAGE: the numbers added from 0, the final addition adjusted as in SUM,
+/// and divided by how many there are; #DIV/0! when there is none.
 fn average(
     arguments: &[CalcValue],
     services: &mut EvalServices<'_>,
@@ -186,13 +190,17 @@ fn mean(
     };
     let arguments: &[CalcValue] = held_references.as_deref().unwrap_or(arguments);
     let (mut total, mut counted) = (0.0, 0u64);
+    let mut last_left = 0.0;
     let read = each_number(&site, arguments, services, held, &mut |n| {
+        last_left = total;
         total = site.add(total, n)?;
         counted += 1;
         Ok(())
     });
     // A count is below 2^53, so it converts to binary64 exactly.
-    Site::finish(read.and_then(|()| site.number(site.divide(total, counted as f64)?)))
+    Site::finish(read.and_then(|()| {
+        site.number(site.divide(crate::adjust_final_sum(last_left, total), counted as f64)?)
+    }))
 }
 
 /// MIN: the smallest number, or 0 when there is none. Choosing one number needs no rounding.

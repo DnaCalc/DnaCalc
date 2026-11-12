@@ -6,14 +6,22 @@ pub enum CovarianceDivisor {
 }
 
 fn means(pairs: &[(f64, f64)]) -> Result<(f64, f64), WorksheetErrorCode> {
+    means_using(pairs, |a, b| a + b, |a, b| a / b)
+}
+
+fn means_using(
+    pairs: &[(f64, f64)],
+    add: fn(f64, f64) -> f64,
+    divide: fn(f64, f64) -> f64,
+) -> Result<(f64, f64), WorksheetErrorCode> {
     if pairs.is_empty() {
         return Err(WorksheetErrorCode::Div0);
     }
     let (sum_x, sum_y) = pairs
         .iter()
-        .fold((0.0, 0.0), |(ax, ay), (x, y)| (ax + x, ay + y));
+        .fold((0.0, 0.0), |(ax, ay), (x, y)| (add(ax, *x), add(ay, *y)));
     let n = pairs.len() as f64;
-    Ok((sum_x / n, sum_y / n))
+    Ok((divide(sum_x, n), divide(sum_y, n)))
 }
 
 pub fn covariance_from_pairs(
@@ -40,28 +48,46 @@ pub fn covariance_from_pairs(
 }
 
 pub fn correlation_from_pairs(pairs: &[(f64, f64)]) -> Result<f64, WorksheetErrorCode> {
+    correlation_with_divisor(pairs, CovarianceDivisor::Population)
+}
+
+fn correlation_with_divisor(
+    pairs: &[(f64, f64)],
+    divisor: CovarianceDivisor,
+) -> Result<f64, WorksheetErrorCode> {
+    use crate::ported::excel_numeric::{
+        excel_sqrt_staged as sqrt, excel_x87_add as add, excel_x87_div as div,
+        excel_x87_mul as mul, excel_x87_sub as sub,
+    };
     if pairs.len() < 2 {
         return Err(WorksheetErrorCode::Div0);
     }
-    let (mean_x, mean_y) = means(pairs)?;
+    let (mean_x, mean_y) = means_using(pairs, add, div)?;
     let mut sum_xy = 0.0;
     let mut sum_x2 = 0.0;
     let mut sum_y2 = 0.0;
     for (x, y) in pairs {
-        let dx = *x - mean_x;
-        let dy = *y - mean_y;
-        sum_xy += dx * dy;
-        sum_x2 += dx * dx;
-        sum_y2 += dy * dy;
+        let dx = sub(*x, mean_x);
+        let dy = sub(*y, mean_y);
+        sum_xy = add(sum_xy, mul(dx, dy));
+        sum_x2 = add(sum_x2, mul(dx, dx));
+        sum_y2 = add(sum_y2, mul(dy, dy));
     }
     if sum_x2 == 0.0 || sum_y2 == 0.0 {
         return Err(WorksheetErrorCode::Div0);
     }
-    let denom = (pairs.len() - 1) as f64;
-    let covariance = sum_xy / denom;
-    let variance_x = sum_x2 / denom;
-    let variance_y = sum_y2 / denom;
-    Ok(covariance / (variance_x.sqrt() * variance_y.sqrt()))
+    // Excel normalises each centred sum by n before taking the two roots.
+    // Using n-1 or cancelling the divisions algebraically changes the last bits
+    // (dc-wli1, correlation-arithmetic-2026-11-12.md).
+    // RSQ retains sample normalisation, unlike CORREL and PEARSON.
+    let denom = match divisor {
+        CovarianceDivisor::Population => pairs.len() as f64,
+        CovarianceDivisor::Sample => (pairs.len() - 1) as f64,
+    };
+    let covariance = div(sum_xy, denom);
+    let variance_x = div(sum_x2, denom);
+    let variance_y = div(sum_y2, denom);
+    Ok(div(covariance, mul(sqrt(variance_x), sqrt(variance_y))))
 }
 
 pub fn slope_from_pairs(pairs: &[(f64, f64)]) -> Result<f64, WorksheetErrorCode> {
@@ -89,7 +115,7 @@ pub fn intercept_from_pairs(pairs: &[(f64, f64)]) -> Result<f64, WorksheetErrorC
 }
 
 pub fn rsq_from_pairs(pairs: &[(f64, f64)]) -> Result<f64, WorksheetErrorCode> {
-    correlation_from_pairs(pairs).map(|corr| corr * corr)
+    correlation_with_divisor(pairs, CovarianceDivisor::Sample).map(|corr| corr * corr)
 }
 
 #[cfg(test)]

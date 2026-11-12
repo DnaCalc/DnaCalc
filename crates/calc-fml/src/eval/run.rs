@@ -106,7 +106,7 @@ pub enum EvalFault {
     /// 1e-13 times the magnitude of its larger operand; `result` is the binary64 result.
     ///
     /// The result of the formula's final addition or subtraction, which Excel may adjust to 0
-    /// ([`NEAR_ZERO_EXPONENTS`]), when its left operand does not read as a number, so the rule
+    /// ([`calc_func::adjust_final_sum`]), when its left operand does not read as a number, so the rule
     /// cannot be applied; refused rather than published.
     NearZeroFinalSum { result: f64 },
     /// The evaluation reached a construct whose result is not modelled: `construct` says what it
@@ -115,23 +115,6 @@ pub enum EvalFault {
         construct: &'static str,
         owner: &'static str,
     },
-}
-
-/// Excel's adjustment of a formula's final `+` or `-` (Microsoft KB 78113), measured in Excel
-/// 16.0.20430 through COM on 2026-10-25 (dc-b1l, `Range.Formula2`): a non-zero result is 0 when
-/// the biased binary64 exponent of the operation's left operand exceeds the result's by this
-/// many or more. `(1+k*2^-52)-1` is 0 for k up to 7 and k*2^-52 from 8, the same for 1.5, 1.99 and
-/// 1024 in place of 1; `(2+k*2^-51)-(2-2^-52)` is 0 for k up to 7 and `(2-2^-52)-(2+k*2^-51)` for
-/// k up to 3, so the left operand decides, not the larger; `(-1-k*2^-52)+1` is as the first;
-/// `=1E15+1-1E15` is 1 (exponents 49 apart); a result below the normal range, whose biased
-/// exponent is 0, is kept when the left operand is below 2^-973
-/// (`=POWER(2,-1000)*(1+k*2^-52)-POWER(2,-1000)` is k*2^-1052). Only the formula's root
-/// operation is adjusted (see compile's `carries_final_sum`).
-const NEAR_ZERO_EXPONENTS: i64 = 50;
-
-/// The biased exponent field of `x`.
-fn biased_exponent(x: f64) -> i64 {
-    ((x.to_bits() >> 52) & 0x7ff) as i64
 }
 
 /// The argument a lazy kernel receives after one of its arguments faulted. The call's result is
@@ -2377,7 +2360,7 @@ impl Run<'_, '_> {
 
     /// The check of a final `+` or `-`: pops the negations of its right and left operands, its
     /// result and its operands, and pushes the result, or 0 where Excel adjusts it
-    /// ([`NEAR_ZERO_EXPONENTS`]). A left negation that is not a number leaves the left operand's
+    /// ([`calc_func::adjust_final_sum`]). A left negation that is not a number leaves the left operand's
     /// exponent unknown, and a non-zero number result is then refused.
     fn near_zero_check(&mut self) -> Result<(), EvalFault> {
         let base = self.stack.len() - 5;
@@ -2388,9 +2371,7 @@ impl Run<'_, '_> {
             let Some(left) = left else {
                 return Err(EvalFault::NearZeroFinalSum { result });
             };
-            if biased_exponent(left) - biased_exponent(result) >= NEAR_ZERO_EXPONENTS {
-                value = CalcValue::number(0.0);
-            }
+            value = CalcValue::number(calc_func::adjust_final_sum(left, result));
         }
         self.stack.push(value);
         Ok(())
@@ -3372,7 +3353,7 @@ mod tests {
     }
 
     /// The near-zero rows of cfunc-m1.2's oracle workbook and the measured rule (see
-    /// [`NEAR_ZERO_EXPONENTS`]): Excel's values as its capture and the dc-b1l probes give them.
+    /// [`calc_func::adjust_final_sum`]): Excel's values as its capture and the dc-b1l probes give them.
     #[cfg_attr(not(target_arch = "wasm32"), test)]
     #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
     fn a_final_sum_near_zero_is_adjusted_as_excel_adjusts_it() {
