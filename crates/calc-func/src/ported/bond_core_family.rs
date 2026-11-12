@@ -539,24 +539,29 @@ pub fn yielddisc_kernel(
     red: f64,
     basis_: Option<f64>,
 ) -> Result<f64, BondCoreEvalError> {
-    let settlement = dser(settlement)?;
-    let maturity = dser(maturity)?;
+    let settlement = crate::ported::date_kernels::serial_from_number(settlement).map_err(derr)?;
+    let maturity = crate::ported::date_kernels::serial_from_number(maturity).map_err(derr)?;
     let price = pos(price)?;
     let red = pos(red)?;
     let basis_ = basis(basis_.unwrap_or(0.0))?;
     if settlement >= maturity {
         return Err(derr(WorksheetErrorCode::Num));
     }
-    // Faithful port of ExcelFinancialFunctions `yieldDisc` (bonds.fs):
-    // `(redemption - pr) / pr * b / dim`, with `dim` the numerator day-count and
-    // `b` DaysInYear. The prior `(red/price - 1) / yearfrac` form was algebraically
-    // equal but ~5 ULP off (different operation order) and used the YEARFRAC
-    // act/act algorithm rather than DaysBetween/DaysInYear.
+    // Excel20527: 517 paired YIELDDISC/INTRATE controls identify the same
+    // day count and year basis, including serial zero and spans of 1900.
+    // The actual/actual year total uses real calendar years; the serial span
+    // still includes the fictitious 1900-02-29. Keep the year ratio separate.
     let dim = dd(settlement, maturity, basis_)?;
-    let b = days_in_year_for_mat(settlement, maturity, basis_)?;
+    let b = if basis_ == DayCountBasis::ActualActual {
+        crate::ported::day_count_common::excel_actual_actual_year(settlement, maturity)
+            .map_err(derr)?.1
+    } else {
+        days_in_year_for_mat(settlement, maturity, basis_)?
+    };
     // Excel groups the year ratio: ((red - price)/price)*(b/dim) (dc-j9k: 25 of 25 readings in
     // the catalogue oracle's sheet dcj9k_closed_form; the left-to-right form matched 17).
-    Ok(((red - price) / price) * (b / dim))
+    use crate::ported::excel_numeric::{excel_x87_div, excel_x87_mul, excel_x87_sub};
+    Ok(excel_x87_mul(excel_x87_div(excel_x87_sub(red, price), price), excel_x87_div(b, dim)))
 }
 pub fn price_kernel(
     settlement: f64,

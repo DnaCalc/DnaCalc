@@ -340,10 +340,17 @@ ported_shared_family! {
         out_with_subnormal(s, dep::vdb_kernel(cost, salvage, life, start, end, factor, no_switch))
     }
     26 amorlinc_fn |s, a, sv| {
-        let purchased = date_1900(s, a, 1, sv)?;
-        let first = date_1900(s, a, 2, sv)?;
-        let basis = if given(a, 6) { num(s, a, 6)? } else { 0.0 };
-        amor_out(s, amor::amorlinc_kernel(num(s, a, 0)?, purchased, first, num(s, a, 3)?, num(s, a, 4)?, num(s, a, 5)?, Some(basis)))
+        let cost = required_num(s, a, 0)?;
+        required_number(&a[1])?;
+        let purchased = super::kit::checked_date_serial(date_1900(s, a, 1, sv)?)?;
+        required_number(&a[2])?;
+        let first = super::kit::checked_date_serial(date_1900(s, a, 2, sv)?)?;
+        let (salvage, period, rate) = (required_num(s, a, 3)?, required_num(s, a, 4)?, required_num(s, a, 5)?);
+        if cost <= 0.0 || salvage < 0.0 || salvage > cost || period < 0.0 || rate <= 0.0 || purchased.trunc() > first.trunc() {
+            return fail(W::Num);
+        }
+        let basis = if given(a, 6) { super::kit::num_without_logical(s, a, 6)? } else { 0.0 };
+        amor_out(s, amor::amorlinc_kernel(cost, purchased, first, salvage, period, rate, Some(basis)))
     }
     27 amordegrc_fn |s, a, sv| {
         let purchased = date_1900(s, a, 1, sv)?;

@@ -1,4 +1,3 @@
-use crate::ported::excel_numeric::crt_exp;
 use crate::ported::excel_numeric::crt_pow;
 use crate::ported::special_dist_family::erfc_of_sqrt_half_x;
 use crate::ported::special_math_common::{
@@ -49,8 +48,9 @@ pub fn chisq_pdf_kernel(x: f64, deg_freedom: f64) -> Result<f64, WorksheetErrorC
             Ok(0.0)
         };
     }
-    let half_k = k / 2.0;
-    Ok(crt_pow(x, half_k - 1.0) * crt_exp(-x / 2.0) / (crt_pow(2.0_f64, half_k) * gamma(half_k)))
+    // Excel 20527: 513 paired controls, including overflowing direct gamma
+    // normalizers, identify the same stored Poisson-mass density as GAMMA.DIST.
+    crate::ported::beta_gamma_stats_family::gamma_dist_kernel(x, k / 2.0, 2.0, false)
 }
 
 pub fn chisq_dist_kernel(
@@ -69,12 +69,9 @@ pub fn chisq_dist_kernel(
         // CHISQ.DIST(x,df,TRUE) == GAMMA.DIST(x, df/2, 2, TRUE) on 88/88
         // across df in {1,2,3,4,5,6,8,10}. 1-CHIDIST is not the CDF (49/88).
         // Routes df=1/2 through the landed ERF/EXPON gamma specials.
-        crate::ported::beta_gamma_stats_family::gamma_dist_kernel(x, k / 2.0, 2.0, true).map_err(
-            |e| match e {
-                code => code,
-                _ => WorksheetErrorCode::Value,
-            },
-        )
+        let cdf = crate::ported::beta_gamma_stats_family::gamma_dist_kernel(x, k / 2.0, 2.0, true)?;
+        // Excel's CDF stores flush a subnormal probability before publication.
+        Ok(if cdf.is_subnormal() { 0.0 } else { cdf })
     } else {
         chisq_pdf_kernel(x, k)
     }

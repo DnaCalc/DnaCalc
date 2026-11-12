@@ -164,8 +164,14 @@ ported_shared_family! {
         bond_out(s, bond::yieldmat_kernel(settlement, maturity, issue, num(s, a, 3)?, num(s, a, 4)?, Some(or(s, a, 5, 0.0)?)))
     }
     7 yielddisc_fn |s, a, sv| {
-        let (settlement, maturity) = (date_1900(s, a, 0, sv)?, date_1900(s, a, 1, sv)?);
-        bond_out(s, bond::yielddisc_kernel(settlement, maturity, num(s, a, 2)?, num(s, a, 3)?, Some(or(s, a, 4, 0.0)?)))
+        // Excel reads and validates the optional basis before its required slots.
+        let basis = if given(a, 4) { num_without_logical(s, a, 4)? } else { 0.0 };
+        if basis < 0.0 || !(0.0..=4.0).contains(&basis.trunc()) {
+            return fail(WorksheetErrorCode::Num);
+        }
+        let (settlement, maturity) = (yield_date(s, a, 0, sv)?, yield_date(s, a, 1, sv)?);
+        let (price, redemption) = (required_num(s, a, 2)?, required_num(s, a, 3)?);
+        bond_out(s, bond::yielddisc_kernel(settlement, maturity, price, redemption, Some(basis)))
     }
     8 accrint_fn |s, a, sv| {
         let (issue, first, settlement) = (date_1900(s, a, 0, sv)?, date_1900(s, a, 1, sv)?, date_1900(s, a, 2, sv)?);
