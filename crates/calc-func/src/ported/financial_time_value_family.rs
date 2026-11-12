@@ -14,6 +14,7 @@ use std::fmt;
 
 const EPSILON: f64 = 1e-12;
 const RATE_TOLERANCE: f64 = 1e-7;
+const RATE_FINAL_TOLERANCE: f64 = 1e-4;
 const RATE_MAX_ITERATIONS: usize = 20;
 const RATE_BRACKET_MAX_ITERATIONS: usize = 64;
 const MIN_VALID_RATE: f64 = -0.999_999_999;
@@ -476,8 +477,9 @@ pub fn rate(
 /// a guess 2.4e-7 off stops, a guess 4.8e-7 off takes one step more.
 ///
 /// 200 steps, from a live window: RATE(360,-599.55,100000,0,0,g) answers up to g = 0.455, the
-/// 200th step, and is #NUM! from g = 0.46, the 201st. A step to `1 + rate <= 0` is #NUM! at once:
-/// guesses of -0.1 to -0.5 on that loan head to -1.3 and stop there.
+/// 200th step, and is #NUM! from g = 0.46, the 201st. After the budget, a separate
+/// 1e-4 step/balance/result check can accept the last iterate. Intermediate powers
+/// retain their own domain, including negative bases with integer exponents.
 fn rate_secant(
     periods: f64,
     payment_value: f64,
@@ -513,6 +515,7 @@ fn rate_secant(
     let offset = if value_before > 0.0 { -0.001 } else { 0.001 };
     let mut current = excel_x87_add(before, offset);
     let mut value = balance(current)?;
+    let mut step = f64::INFINITY;
     for _ in 0..200 {
         let change = excel_x87_sub(value, value_before);
         if change == 0.0 {
@@ -529,7 +532,7 @@ fn rate_secant(
         }
         let numerator = excel_underflow_to_zero(excel_x87_mul(value, excel_x87_sub(current, before)));
         let next = excel_x87_sub(current, excel_x87_div(numerator, divisor));
-        let step = excel_x87_sub(next, current).abs();
+        step = excel_x87_sub(next, current).abs();
         (before, value_before) = (current, value);
         current = next;
         value = balance(current)?;
@@ -537,7 +540,18 @@ fn rate_secant(
             return Ok(current);
         }
     }
-    Err(FinancialError::Num)
+    // Excel has a separate final check after the iteration budget. Adjacent-word
+    // public calls locate its step, balance and near-minus-one boundaries.
+    // Keep this outside the strict convergence loop: using 1e-4 there changes
+    // ordinary loan answers and accepting every final iterate admits failures.
+    if step <= RATE_FINAL_TOLERANCE
+        && value.abs() <= RATE_FINAL_TOLERANCE
+        && excel_x87_add(1.0, current) >= RATE_FINAL_TOLERANCE
+    {
+        Ok(current)
+    } else {
+        Err(FinancialError::Num)
+    }
 }
 
 pub fn npv(periodic_rate: f64, cashflows: &[f64]) -> Result<f64, FinancialError> {
@@ -602,20 +616,17 @@ fn fv_exp(rate: f64, m: f64, payment: f64, present_value: f64, tf: f64) -> f64 {
     -(present_value * factor + payment * tf * (expm1_growth / rate))
 }
 
-/// The existing period logarithm and stored balance operand. Positive rates
-/// retain h=RN((pv+fv)/em_n) before PMT's final addition of fv; negative rates
-/// retain the earlier quotient producer. None marks the existing fallback
-/// domain: negative rates below the prior bound, opposite balances or zero em.
+/// The stored balance quotient before PMT adds the future value. Retaining
+/// h=(pv+fv)/em avoids cancelling that future value again in each period's
+/// interest and principal. Negative-rate end/beginning calls use the same
+/// stored quotient; its subnormal store flushes before the large discount.
 fn end_payment_quotient(
     periodic_rate: f64,
     periods: f64,
     present_value: f64,
     future_value: f64,
 ) -> Option<(f64, f64)> {
-    if !periodic_rate.is_finite() || periodic_rate == 0.0 || periodic_rate < -1.0 / 3.0 {
-        return None;
-    }
-    if present_value != 0.0 && future_value == -present_value {
+    if !periodic_rate.is_finite() || periodic_rate == 0.0 {
         return None;
     }
     let log_growth = alnrel(periodic_rate);
@@ -623,21 +634,12 @@ fn end_payment_quotient(
     if em == 0.0 || !em.is_finite() {
         return None;
     }
-    let quotient = if periodic_rate > 0.0 {
-        // Independent zero-future PMT calls isolate em across36 groups covering288 loans.
-        // The period parts retain this quotient before PMT adds fv.
-        discounted_balance(present_value, future_value, em)
-    } else {
-        excel_x87_div(present_value + future_value * (1.0 + em), em)
-    };
+    let quotient = excel_underflow_to_zero(discounted_balance(present_value, future_value, em));
     quotient.is_finite().then_some((log_growth, quotient))
 }
 
 /// Stored interest and principal components before their final timing factor.
-/// Positive-rate parts use the total-balance quotient before adding fv;
-/// the existing negative-rate component expressions remain separate.
 fn period_components(
-    periodic_rate: f64,
     period_index: f64,
     periods: f64,
     future_value: f64,
@@ -647,19 +649,12 @@ fn period_components(
     let t = -((periods - period_index + 1.0) * log_growth);
     let em = crate::ported::excel_numeric::excel_expm1_spilled(t);
     let u = crate::ported::excel_numeric::excel_exp(t);
-    if periodic_rate > 0.0 {
-        // Keep h=(pv+fv)/em_n before PMT adds fv. The interest component is
-        // h*em_m-fv and principal h*u_m, with a store after every operation.
-        (
-            -excel_x87_sub(excel_x87_mul(quotient, em), future_value),
-            excel_x87_mul(quotient, u),
-        )
-    } else {
-        (
-            -excel_x87_sub(excel_x87_mul(quotient, em), excel_x87_mul(future_value, u)),
-            excel_x87_mul(excel_x87_sub(quotient, future_value), u),
-        )
-    }
+    // Retain h before adding fv. Forming (h+fv)*em-fv*u instead loses
+    // the entire interest when the two stored products cancel.
+    (
+        -excel_x87_sub(excel_x87_mul(quotient, em), future_value),
+        excel_x87_mul(quotient, u),
+    )
 }
 
 fn end_payment_parts(
@@ -672,7 +667,6 @@ fn end_payment_parts(
     timing: PaymentTiming,
 ) -> (f64, f64) {
     let (interest, principal) = period_components(
-        periodic_rate,
         period_index,
         periods,
         future_value,
@@ -732,9 +726,8 @@ pub fn ipmt(
     let periodic_payment = pmt(periodic_rate, periods, present_value, future_value, timing)?;
     // dc-j9k.12: payments at the end of a period take Excel's own pieces. On the catalogue
     // oracle and bank rows with fv 0 (95 of 95) the interest is -RN(RN(q * em_m) * rate).
-    if (matches!(timing, PaymentTiming::EndOfPeriod) || periodic_rate > 0.0)
-        && let Some((log_growth, quotient)) =
-            end_payment_quotient(periodic_rate, periods, present_value, future_value)
+    if let Some((log_growth, quotient)) =
+        end_payment_quotient(periodic_rate, periods, present_value, future_value)
     {
         let (interest, _) = end_payment_parts(
             periodic_rate,
@@ -817,9 +810,8 @@ pub fn ppmt(
     // For positive beginning payments the same stored component takes the
     // reciprocal coefficient already shared by PMT/IPMT. R35's576 independent
     // end/beginning pairs distinguish that finish; all1152 fresh public calls match.
-    if (matches!(timing, PaymentTiming::EndOfPeriod) || periodic_rate > 0.0)
-        && let Some((log_growth, quotient)) =
-            end_payment_quotient(periodic_rate, periods, present_value, future_value)
+    if let Some((log_growth, quotient)) =
+        end_payment_quotient(periodic_rate, periods, present_value, future_value)
     {
         let (_, principal) = end_payment_parts(
             periodic_rate,
