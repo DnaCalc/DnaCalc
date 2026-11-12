@@ -40,7 +40,12 @@ mod support;
 #[path = "../../../crates/calc-doc/tests/cdoc_m1_1_support/vba_project.rs"]
 mod vba_project;
 
+/// The corpus folder. `DNACALC_VBA_CORPUS_DIR` replaces the build machine's path, for a test
+/// binary cross-built elsewhere and run beside a copy of `crates/calc-vba/tests/corpus`.
 fn corpus_dir() -> PathBuf {
+    if let Some(dir) = std::env::var_os("DNACALC_VBA_CORPUS_DIR") {
+        return PathBuf::from(dir);
+    }
     Path::new(env!("CARGO_MANIFEST_DIR")).join("../../crates/calc-vba/tests/corpus")
 }
 
