@@ -94,3 +94,40 @@ The 80- and 100-digit calculations agree on every published binary64 result.
 Thus mathematical accuracy alone does not identify this Excel computation; an
 accurate inverse substitution would change many Excel results. No change lands.
 Raw: normal-accuracy-{predictions,answers}.json and normal-accuracy-probe.py.
+
+## Fixed-coefficient precision hypothesis
+
+The earlier AS241 test used ordinary binary64 Horner arithmetic. Before new
+queries, distinguish that from stored-PC64 operations, running-PC64 Horner,
+once-per-Horner-step stores and a fused-operation countermodel. Keep every
+published coefficient at the same binary64 value; do not tune coefficients.
+Vary the q/r stage precision and the three final multiply/divide orders as
+explicit graph candidates. First replay 64 retained central answers, with a
+control that the ordinary model exactly reproduces the earlier frozen AS241
+predictions. A poor fit rejects these precision graphs too; only a strong
+calibration result would justify a fresh frozen holdout query.
+
+The 180 fixed-coefficient precision graphs are rejected on calibration: best
+17/64 versus ordinary Horner 11/64, with the ordinary control reproducing all
+previous frozen AS241 bits. No coefficient was changed and no new inverse query
+is claimed. The required arithmetic shape is still unidentified.
+
+## Published decimal constant precision, before calibration
+
+The preceding sweep kept coefficients and 0.180625 at their binary64 values.
+One remaining shape ambiguity is source-literal precision, not fitted digits:
+compare those same published decimal strings rounded to 64 significand bits,
+and exact decimal constants as a negative control, including the rational
+0.180625 at binary64, PC64 and exact decimal precision. Reuse all prior
+arithmetic graphs and retained 64-case calibration. No decimal digit is changed
+or selected from Excel outputs. Require an independent frozen holdout if a
+published-constant precision shape fits strongly; otherwise reject it.
+
+The published-decimal precision sweep is rejected too: best 20/64 over 1,620
+graphs, versus ordinary 11/64; the baseline control again reproduces every
+previous frozen AS241 value. All published decimal digits remain unchanged.
+No fresh holdout or inverse implementation change is claimed from this sweep.
+
+Later precision-calibration evidence: R2 dnacalc-evidence/research/round55/
+20261112-fn2-ttest-0619/ (101 files, 197,186,509 bytes for the batch; checksum
+copy and one-way check, zero differences). No normal inverse change landed.

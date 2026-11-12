@@ -16,6 +16,85 @@ fn data() -> CalcValue {
 
 use calc_func::value::CalcValue;
 
+/// Excel 20527, dc-bc1o: T.TEST passes the rounded beta complement.
+/// Captured Sheet1!B70 and fresh paired/equal/unequal-variance controls.
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn t_test_uses_the_rounded_beta_complement() {
+    let rows: &[(&[f64], &[f64], f64, f64, u64)] = &[
+        (
+            &[
+                2.0,
+                1.5,
+                2.0,
+                0.13333333333333333,
+                1.3333333333333333,
+                2.0,
+                2.0,
+                4.0,
+                2.0,
+            ],
+            &[44.0, 1.3333333333333333, 5.0, 1.0, 2.0, 6.0, 6.6, 8.0, 1.0],
+            1.0,
+            1.0,
+            0x3fb84c56c84b091d,
+        ),
+        (
+            &[-13460.047476674108, 4063.7100155633734, 5926.867209324849],
+            &[-6326.411088245899, -10894.522745224796, 14042.27879856386],
+            1.0,
+            1.0,
+            0x3fdfb575c0d23bc7,
+        ),
+        (
+            &[
+                -2e-05,
+                1.0625e-05,
+                -1.5625e-05,
+                -3.7500000000000005e-06,
+                6.875e-06,
+            ],
+            &[8.750000000000001e-06, -9.375000000000001e-06],
+            2.0,
+            2.0,
+            0x3fe75ef045e61dea,
+        ),
+        (
+            &[
+                1.059006167472183e-05,
+                2.8472725291889227e-06,
+                -1.265201997463216e-05,
+            ],
+            &[
+                -3.9120116780406425e-06,
+                -1.5952082508659517e-05,
+                -1.027704090396139e-05,
+                1.4018636517361448e-05,
+                1.3106908972259917e-06,
+                2.143459693991247e-06,
+                1.6879043741574953e-05,
+                8.89884347027774e-06,
+                2.088946610560191e-05,
+                -1.8774251275521393e-05,
+            ],
+            1.0,
+            3.0,
+            0x3fdc4bbde916f980,
+        ),
+    ];
+    for &(x, y, tails, kind, expected) in rows {
+        let args = vec![
+            arr(vec![x.to_vec()]),
+            arr(vec![y.to_vec()]),
+            n(tails),
+            n(kind),
+        ];
+        for name in ["T.TEST", "TTEST"] {
+            exact(call(name, args.clone()), f64::from_bits(expected));
+        }
+    }
+}
+
 /// Excel 20527, dc-bc1o: a scaled density uses its lower-endpoint coordinate
 /// and a stored-PC64 division by the width, after the unit density.
 #[cfg_attr(not(target_arch = "wasm32"), test)]

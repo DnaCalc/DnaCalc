@@ -37,10 +37,13 @@ fn t_probability(abs_t: f64, df: f64, tails: i32) -> Result<f64, WorksheetErrorC
         return Err(WorksheetErrorCode::Num);
     }
     let v = validate_positive_df(df)?;
-    // W109 identified staging: x = df/den, y = t^2/den (accurate complement).
+    // Excel 20527 T.TEST uses the rounded complement of z=df/(df+t^2),
+    // unlike the independently formed pair in T.DIST. The isolated change
+    // gains 167 and loses 11 of 384 fresh invoke controls (dc-bc1o).
     let t2 = abs_t * abs_t;
     let den = v + t2;
-    let two_tail = bratio(df / 2.0, 0.5, v / den, t2 / den).0;
+    let z = v / den;
+    let two_tail = bratio(df / 2.0, 0.5, z, 1.0 - z).0;
     match tails {
         1 => Ok(two_tail / 2.0),
         2 => Ok(two_tail),

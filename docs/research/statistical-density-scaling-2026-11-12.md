@@ -137,3 +137,26 @@ Raw evidence: dnacalc-evidence/research/round54/20261112-fn2-beta-0445/,
 The preceding SUM/CORREL batch is 384fb91d. No F, hypergeometric or Student t
 change is included; their rejected/ongoing experiments are retained in this batch's
 research logs. dc-bc1o remains in progress for the other statistical roots.
+
+## Additional F density identities, before queries
+
+The earlier binomial shape used k=a-1,N=a+b-1 and scale a*q. Before another
+query compare three independent recurrence-equivalent representations:
+(k=a,N=a+b-1; scale a*q/x), (k=a,N=a+b; scale a*b/((a+b)*x)), and
+(k=a-1,N=a+b-2; scale (a+b-1)*m*n/(n+m*x)^2). For each, compare the mirrored
+mass (N-k,N,q), stored/plain scaling, and ordered multiply/divide forms. These
+are identities, not adjustable coefficients. Restrict initial even-degree
+inputs to p+q rounding controls as before. Freeze inputs before primitive
+BINOM.DIST calls and all composed predictions before the new F.DIST answers.
+A weak calibration score rejects the public composition; a single captured
+match does not justify a product change.
+
+The independent recurrence-composition batch is also rejected: best 18/192,
+with none fixing the captured F row. The ordinary and stored-PC64 versions
+are indistinguishable here. Mirroring the mass does not identify a stronger
+shape. No F density implementation changes from these public compositions.
+Raw: f-recurrence-{inputs,primitives,predictions,answers}.json.
+
+Additional rejected F recurrence evidence: R2 dnacalc-evidence/research/round55/
+20261112-fn2-ttest-0619/ (101 files, 197,186,509 bytes for the batch; checksum
+copy and one-way check, zero differences). No F density change landed here.
