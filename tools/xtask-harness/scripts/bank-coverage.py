@@ -4,7 +4,7 @@
 Outputs uncompressed answer files and a capture log to an empty run directory. Each row
 retains the input read back by Excel; changed inputs and unread answers are excluded.
 """
-import argparse, concurrent.futures, csv, hashlib, importlib.util, json, math, pathlib, random, sys
+import argparse, concurrent.futures, csv, hashlib, importlib.util, json, math, pathlib, random, sys, threading
 ROOT = pathlib.Path(__file__).resolve().parents[3]
 sys.path.insert(0, str(ROOT / 'tools/excel-service'))
 from client import Client, number, text, boolean, blank, error, number_array, cell_range, cell_array
@@ -248,8 +248,11 @@ def main():
         if s and int(s['rows'])>=1000 and not (s['worst_ulp'].isdigit() and int(s['worst_ulp'])>10000): continue
         selected.append(e)
     c=Client(transport='socket',timeout=900)
+    service_down = threading.Event()
     def capture(e):
-        name=e[0]; path=o.out / ('answers-' + name.lower() + '-' + o.stage + '.json')
+        name=e[0]
+        if service_down.is_set(): return name, 'service unavailable; not asked'
+        path=o.out / ('answers-' + name.lower() + '-' + o.stage + '.json')
         if name in OBSERVATIONS_ONLY: return name, 'needs volatile observation/property format'
         if name in CALLABLES: return name, 'needs callable argument protocol'
         previous = json.loads(path.read_text()) if o.stage == 'range-mixed' and path.exists() else None
@@ -283,8 +286,9 @@ def main():
                         why='batch failure: '+type(exc).__name__+': '+str(exc)
                         rejected[why]=rejected.get(why,0)+len(pending[start:start+batch])
                         consecutive_failures += 1
-                        if consecutive_failures >= 3:
-                            rejected['not asked after consecutive batch failures']=len(pending)-start-batch
+                        if 'worker-down' in str(exc): service_down.set()
+                        if service_down.is_set() or consecutive_failures >= 3:
+                            rejected['not asked after service or batch failure']=len(pending)-start-batch
                             break
                 if reply is None: raise ValueError('no batches answered: '+str(rejected))
             else:
