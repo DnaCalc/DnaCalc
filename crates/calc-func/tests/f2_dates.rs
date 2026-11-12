@@ -57,6 +57,34 @@ fn text_errors_do_not_require_a_locale() {
     refused(call("TEXT", vec![n(1.0), t("0.00")]));
 }
 
+/// Excel 16.0.20527, typed range cells: wildcard characters in range text are
+/// literal, not numeric matches. Recorded separators suffice without a locale.
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn countif_numeric_criterion_rejects_wildcard_labels() {
+    use calc_func::value::NumericMode;
+    use calc_func::{EvalServices, FunctionCallScratch, Notation, catalogue, invoke};
+
+    let mut sheet = Sheet::new();
+    sheet.column(1, 1, vec![t("a*0"), t("1?0"), t("1~0"), t("0")]);
+    let area = sheet.area(1, 1, 4, 1);
+    let target = catalogue()
+        .resolve_surface(Notation::Call, "COUNTIF")
+        .unwrap();
+    let mode = NumericMode::Fast;
+    let mut services =
+        EvalServices::with_cells(&mode, &mut sheet).with_number_separators(".", "\u{a0}");
+    exact(
+        invoke(
+            target,
+            &mut Given(vec![area, t("=0")]),
+            &mut services,
+            &mut FunctionCallScratch::new(),
+        ),
+        1.0,
+    );
+}
+
 /// Q3, Excel 16.0.20527: these return-type classes always give #NUM!, and the
 /// captured serial and return-type bits locate the observed conversion boundaries.
 #[cfg_attr(not(target_arch = "wasm32"), test)]
