@@ -1,0 +1,12 @@
+function	id	source	arguments	excel	calculated	units_off
+FDIST	fd-var-ref-v3-010-0068	work/w109/G3-06-ftest-variance/answers-fdist-variance-refinement-discovery-v3.json	1.6284009816122456 9 3	0x3fd822de78982179	0x3fd822de78982178	-1
+FDIST	fd-var-ref-v3-010-0188	work/w109/G3-06-ftest-variance/answers-fdist-variance-refinement-discovery-v3.json	1.6284009816122722 9 3	0x3fd822de78982112	0x3fd822de78982111	-1
+FDIST	fd-var-ref-v3-015-0081	work/w109/G3-06-ftest-variance/answers-fdist-variance-refinement-discovery-v3.json	1.0566896018386149 5 11	0x3fdbc0e9d1c10066	0x3fdbc0e9d1c10064	-2
+FDIST	fd-var-ref-v3-015-0202	work/w109/G3-06-ftest-variance/answers-fdist-variance-refinement-discovery-v3.json	1.0566896018386418 5 11	0x3fdbc0e9d1c0ff7e	0x3fdbc0e9d1c0ff7d	-1
+FDIST	fd-var-ref-v3-015-0223	work/w109/G3-06-ftest-variance/answers-fdist-variance-refinement-discovery-v3.json	1.0566896018386465 5 11	0x3fdbc0e9d1c0ff57	0x3fdbc0e9d1c0ff59	2
+FDIST	fd-var-ref-v3-037-0079	work/w109/G3-06-ftest-variance/answers-fdist-variance-refinement-discovery-v3.json	1.3838331462991713 8 9	0x3fd45ac33ffc7631	0x3fd45ac33ffc7630	-1
+FDIST	fd-var-ref-v3-037-0219	work/w109/G3-06-ftest-variance/answers-fdist-variance-refinement-discovery-v3.json	1.3838331462992024 8 9	0x3fd45ac33ffc7566	0x3fd45ac33ffc7564	-2
+FDIST	fd-var-ref-v3-038-0017	work/w109/G3-06-ftest-variance/answers-fdist-variance-refinement-discovery-v3.json	1.0269115156281219 9 11	0x3fde6987d0be184e	0x3fde6987d0be1850	2
+FDIST	fd-var-ref-v3-038-0039	work/w109/G3-06-ftest-variance/answers-fdist-variance-refinement-discovery-v3.json	1.0269115156281268 9 11	0x3fde6987d0be181b	0x3fde6987d0be181a	-1
+FDIST	fd-var-ref-v3-038-0237	work/w109/G3-06-ftest-variance/answers-fdist-variance-refinement-discovery-v3.json	1.0269115156281707 9 11	0x3fde6987d0be1641	0x3fde6987d0be1642	1
+FDIST	fd-var-ref-v3-041-0080	work/w109/G3-06-ftest-variance/answers-fdist-variance-refinement-discovery-v3.json	1.2988489119945583 7 7	0x3fd7a4d0433ef9b9	0x3fd7a4d0433ef9b8	-1
