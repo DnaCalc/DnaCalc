@@ -3072,8 +3072,7 @@
         ","
       ],
       "expected_bits": "0x4345ee2a2eb5a5a2",
-      "reading": "fn12-numbervalue-08",
-      "calc_func": "error:Value"
+      "reading": "fn12-numbervalue-08"
     },
     {
       "id": "fn12-NUMBERVALUE-281",
@@ -3083,8 +3082,7 @@
         ","
       ],
       "expected_bits": "0x3fbf9add3746f62e",
-      "reading": "fn12-numbervalue-08",
-      "calc_func": "error:Value"
+      "reading": "fn12-numbervalue-08"
     },
     {
       "id": "fn12-NUMBERVALUE-282",

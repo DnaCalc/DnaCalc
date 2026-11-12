@@ -194,6 +194,23 @@ fn value_datevalue_timevalue() {
     exact(c(&e, "SUM", vec![t("1 jan 2020"), n(1.0)]), 43832.0);
     exact(c(&e, "NUMBERVALUE", vec![t("1 234.5")]), 1234.5);
     exact(c(&e, "NUMBERVALUE", vec![t("")]), 0.0);
+    for (text, decimal, group, expected) in [
+        ("12", "-", "1", 2.0),
+        ("-12", "-", "x", 0.12),
+        ("-12", ".", "-", 12.0),
+        ("123", "2", ",", 1.3),
+        ("0.5", "-", ",", 0.5),
+        ("1%", "%", ",", 1.0),
+        ("12%", ".", "%", 12.0),
+        ("0.123", "-", "1", 0.23),
+        ("0.123", ".", "1", 0.123),
+    ] {
+        exact(
+            c(&e, "NUMBERVALUE", vec![t(text), t(decimal), t(group)]),
+            expected,
+        );
+    }
+
     exact(c(&e, "NUMBERVALUE", vec![t("1,5"), t(","), t(".")]), 1.5);
 }
 

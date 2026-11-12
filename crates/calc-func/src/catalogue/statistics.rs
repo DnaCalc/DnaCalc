@@ -13,7 +13,7 @@
 
 use super::aggregate::Held;
 use super::kit::{
-    PairScalars, fail, given, grid, num, numbers, opt, out, out_matrix, out_with_subnormal, pairs,
+    PairScalars, fail, given, grid, num, numbers, opt, out, out_matrix, out_with_subnormal, pairs, values,
 };
 use crate::call::EvalServices;
 use crate::kernel::{Exit, Site, Step};
@@ -467,8 +467,28 @@ ported_shared_family! {
         out(s, k::lookup_prob_frequency_family::prob_kernel(&xs, &ps, lower, upper))
     }
     54 frequency |s, a, sv| {
-        let data = list(s, a, 0, sv)?;
-        let bins = list(s, a, 1, sv)?;
+        let mut data = Vec::new();
+        values(s, a, 0, 1, sv, &mut |_, value| {
+            match value.core_ref() {
+                CoreRef::Number(n) => data.push(n),
+                CoreRef::Error(code) => return fail(code),
+                _ => {},
+            }
+            Ok(())
+        })?;
+        // FREQUENCY ignores nonnumeric data even when supplied directly. Its
+        // bins reader ignores nonnumbers (including errors); an empty numeric
+        // list supplies the zero bin rather than removing the first bucket.
+        let mut bins = Vec::new();
+        values(s, a, 1, 2, sv, &mut |_, value| {
+            if let Some(n) = value.as_number() {
+                bins.push(n);
+            }
+            Ok(())
+        })?;
+        if bins.is_empty() {
+            bins.push(0.0);
+        }
         out_matrix(s, &frequency_counts(&data, &bins))
     }
     55 trend |s, a, sv| {

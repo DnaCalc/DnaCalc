@@ -293,6 +293,7 @@ pub struct EvalServices<'s> {
     random: Option<&'s mut dyn RandomSource>,
     reference_text: Option<&'s mut dyn ReferenceText>,
     environment: Option<&'s CalcEnvironment>,
+    number_separators: Option<(&'s str, &'s str)>,
     host: Option<&'s mut dyn HostFacts>,
     callables: Option<&'s mut dyn CallableInvoker>,
 }
@@ -307,6 +308,7 @@ impl<'s> EvalServices<'s> {
             random: None,
             reference_text: None,
             environment: None,
+            number_separators: None,
             host: None,
             callables: None,
         }
@@ -320,6 +322,7 @@ impl<'s> EvalServices<'s> {
             random: None,
             reference_text: None,
             environment: None,
+            number_separators: None,
             host: None,
             callables: None,
         }
@@ -346,6 +349,18 @@ impl<'s> EvalServices<'s> {
     pub fn with_environment(mut self, environment: &'s CalcEnvironment) -> Self {
         self.environment = Some(environment);
         self
+    }
+
+    /// Known decimal and grouping separators when a complete locale is unavailable.
+    /// These supply NUMBERVALUE's defaults; they do not establish currency or date grammar.
+    /// A complete environment profile, when supplied, takes precedence.
+    pub fn with_number_separators(mut self, decimal: &'s str, group: &'s str) -> Self {
+        self.number_separators = Some((decimal, group));
+        self
+    }
+
+    pub(crate) fn number_separators(&self) -> Option<(&'s str, &'s str)> {
+        self.number_separators
     }
 
     /// These services with `callables` as the caller of LAMBDA values ([`CallableInvoker`]).

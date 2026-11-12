@@ -11,7 +11,6 @@ use super::kit::{
     out_with_subnormal, reject_logical, text, values,
 };
 use crate::kernel::{Exit, Site, Step};
-use crate::ported::excel_numeric::crt_pow;
 use crate::ported::real_policy::ExcelRealPolicy;
 use crate::ported::{self as k};
 use crate::value::{CalcValue, CoreRef, ExcelText, WorksheetErrorCode};
@@ -214,12 +213,20 @@ ported_shared_family! {
         let coefficients = grid(s, a, 3, sv)?;
         let mut sum = 0.0;
         for (i, cell) in coefficients.cells.iter().enumerate() {
-            let c = match cell.core_ref() {
-                CoreRef::Number(c) => c,
-                CoreRef::Error(code) => return fail(code),
-                _ => return fail(WorksheetErrorCode::Value),
+            reject_logical(cell)?;
+            let c = s.number_argument(3, cell)?;
+            let exponent = n + (i as f64) * m;
+            // SERIESSUM shares the integer power graph but discards a
+            // fractional power of a negative base. It does not accept POWER's
+            // odd-root extension. The power is stored (and tiny values flushed)
+            // before the coefficient is multiplied, even for a zero coefficient.
+            let power = if x < 0.0 && exponent.fract() != 0.0 {
+                0.0
+            } else {
+                k::power_fn::power_kernel(x, exponent).map_err(|_| Exit::Error(WorksheetErrorCode::Num))?
             };
-            sum += c * crt_pow(x, n + (i as f64) * m);
+            let power = if power.abs() < f64::MIN_POSITIVE { 0.0 } else { power };
+            sum += k::excel_numeric::excel_x87_mul(c, power);
         }
         s.number(sum)
     }

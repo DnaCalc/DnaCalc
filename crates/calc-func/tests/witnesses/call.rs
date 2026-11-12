@@ -206,21 +206,28 @@ pub fn calculate(
     let visible_constants =
         context.is_some_and(|c| c.input_sheet_state.as_deref() == Some("visible-constant-inputs"));
     let mut cells = InputCells(values, visible_constants);
-    let result = if has_reference {
-        invoke(
-            target,
-            &mut Given(prepared),
-            &mut EvalServices::with_cells(&mode, &mut cells).with_environment(&environment),
-            &mut FunctionCallScratch::new(),
-        )
+    // A capture can know its separators without knowing its complete locale.
+    // Preserve only those facts; VALUE and date parsing still require a profile.
+    let separators = context.and_then(|c| {
+        c.decimal_separator
+            .as_deref()
+            .zip(c.thousands_separator.as_deref())
+    });
+    let mut services = if has_reference {
+        EvalServices::with_cells(&mode, &mut cells).with_environment(&environment)
     } else {
-        invoke(
-            target,
-            &mut Given(prepared),
-            &mut EvalServices::new(&mode).with_environment(&environment),
-            &mut FunctionCallScratch::new(),
-        )
+        EvalServices::new(&mode).with_environment(&environment)
     };
+    if let Some((decimal, group)) = separators {
+        services = services.with_number_separators(decimal, group);
+    }
+    let result = invoke(
+        target,
+        &mut Given(prepared),
+        &mut services,
+        &mut FunctionCallScratch::new(),
+    );
+    drop(services);
     match result {
         Err(fault) => {
             let text = format!("{fault:?}");
@@ -367,6 +374,26 @@ mod tests {
             ..Default::default()
         };
         assert!(environment(Some(&context)).unwrap().profile.is_none());
+        assert_eq!(
+            calculate(
+                "NUMBERVALUE",
+                &[Value::String("1.234,5".into())],
+                None,
+                Some(&context),
+                true
+            ),
+            "0x40934a0000000000"
+        );
+        assert_eq!(
+            calculate(
+                "VALUE",
+                &[Value::String("1.234,5".into())],
+                None,
+                Some(&context),
+                true
+            ),
+            "fault:NotImplemented"
+        );
         let known = WitnessInvocation {
             locale: Some("en-ZA".into()),
             ..context
