@@ -438,20 +438,33 @@ static class Program
                     {
                         types.Append('u'); results.Add(new Dictionary<string, object> { ["reason"] = "input-changed", ["read_back"] = new List<object>() });
                     }
-                    else if (spill && (bool)resultCell.HasSpill)
+                    else if (spill && !((object)resultCell.Value2 is int) && (bool)resultCell.HasSpill)
                     {
-                        object body = resultCell.SpillingToRange.Value2; var a = (object[,])body;
-                        int nr = a.GetLength(0), nc = a.GetLength(1); var ty = new StringBuilder(); var vv = new List<object>();
+                        object body = resultCell.SpillingToRange.Value2;
+                        var a = body as object[,]; int nr = a?.GetLength(0) ?? 1, nc = a?.GetLength(1) ?? 1;
+                        var ty = new StringBuilder(); var vv = new List<object>();
                         if (nr > 64 || nc > 64) { types.Append('u'); results.Add(new Dictionary<string, object> { ["reason"] = "spill-larger-than-the-bound", ["read_back"] = new List<object>() }); }
-                        else { foreach (object cell in a) { var (l, v) = Convert1(cell); ty.Append(l); vv.Add(v); } types.Append('m'); results.Add(new Dictionary<string, object> { ["r"] = nr, ["c"] = nc, ["ty"] = ty.ToString(), ["v"] = vv }); }
+                        else { if (a == null) { var (l, v) = Convert1(body); ty.Append(l); vv.Add(v); } else foreach (object cell in a) { var (l, v) = Convert1(cell); ty.Append(l); vv.Add(v); } types.Append('m'); results.Add(new Dictionary<string, object> { ["r"] = nr, ["c"] = nc, ["ty"] = ty.ToString(), ["v"] = vv }); }
                     }
-                    else { object actual = resultCell.Value2; var (l, v) = Convert1(actual); types.Append(l); results.Add(v); }
+                    else
+                    {
+                        object actual = resultCell.Value2; var (l, v) = Convert1(actual);
+                        if (spill && actual is not int)
+                        {
+                            types.Append('m'); results.Add(new Dictionary<string, object> { ["r"] = 1, ["c"] = 1, ["ty"] = l.ToString(), ["v"] = new List<object> { v } });
+                        }
+                        else { types.Append(l); results.Add(v); }
+                    }
                     inputTypes.Append(callTypes); inputs.AddRange(callInputs);
                 }
                 finally
                 {
-                    sheet.UsedRange.Clear(); ranges.UsedRange.Clear(); if (spill) grid.UsedRange.Clear();
-                    foreach (string file in files) File.Delete(file);
+                    try { sheet.UsedRange.Clear(); }
+                    finally
+                    {
+                        try { ranges.UsedRange.Clear(); if (spill) grid.UsedRange.Clear(); }
+                        finally { foreach (string file in files) File.Delete(file); }
+                    }
                 }
             }
             var result = new Dictionary<string, object> { ["ty"] = types.ToString(), ["v"] = results };

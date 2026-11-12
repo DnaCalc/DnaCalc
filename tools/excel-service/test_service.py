@@ -41,7 +41,8 @@ class ProtocolTests(unittest.TestCase):
         for arg in (text("C:\\secret.xlsx"), text("https://example.com"), text("[book]A1")):
             with self.subTest(arg=arg):
                 validate(self.request(rows=[[arg]]), self.names, "a" * 32)
-        for name in ("WEBSERVICE", "STOCKHISTORY", "IMAGE", "PY", "SUM(1)", "X!SUM", "_xlfn.SUM"):
+        for name in ("WEBSERVICE", "STOCKHISTORY", "IMAGE", "TRANSLATE", "DETECTLANGUAGE", "PY", "COPILOT",
+                     "SUM(1)", "X!SUM", "_xlfn.SUM"):
             with self.subTest(name=name), self.assertRaises(ValueError):
                 validate(self.request(function=name), self.names, "a" * 32)
         for arg in ({"type": "cell", "address": "A1"}, {"type": "formula", "value": "=1"},

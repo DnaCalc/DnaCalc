@@ -76,6 +76,12 @@ class ProtocolTests(unittest.TestCase):
             answered = response["groups"][0]
             self.assertEqual(answered["ity"], "ntbzen t".replace(" ", ""))
             self.assertEqual(answered["iv"][-1], row[1]["content"])
+            reply = v1.Reply("id", "SUMIF", [row], None, None, {}, "fake")
+            reply.add({"g": [dict(answered, o=0)], "env": "fake00000001"})
+            reconstructed = reply.build()["inputs"][0]
+            self.assertEqual(reconstructed[0]["values"][2][0], {"type": "error", "code": "#N/A"})
+            self.assertEqual(reconstructed[0]["values"][1][0], {"type": "boolean", "value": True})
+            self.assertEqual(reconstructed[1], row[1])
         finally:
             worker.stdin.close()
             worker.stdout.close()
