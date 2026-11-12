@@ -199,3 +199,13 @@ JIT's stock ones (21 conformance fixtures). Sweep of 580 conformance `.bas` fixt
 (`calcvba-differential/tests/jit_conformance_sweep.rs`, an ignored survey; `VBA_SWEEP_DIR` points it at another tree):
 21 description differences fixed, 1 decline left (dc-pye0, `TypeOf` on a constant). Remaining: riff does not load on the
 JIT (dc-9z6t, ByRef pass of a UDT scalar field). Module route now: interpreter 208 / 317, JIT 208 / 317.
+
+## 8. Round 4 (2026-11-12): engine batch, language tier, sequence tier
+
+**CalcVBA fixes** (pin `9cf7dcfc`): `Scripting.Dictionary` is served by the engine (an engine-supplied VBA class; `CreateObject("Scripting.Dictionary")`, `As [New] Scripting.Dictionary` and a bare `Dictionary` with the Scripting reference; no COM activation, no `com.activate` request; both executors; the JIT gained `For Each` over a project class and `Collection._NewEnum`), dc-8f3x (library-qualified calls link), dc-8rsv (`ReDim m(i).f(..)` and `ReDim .f(..)` in `With` parse and bind), dc-9z6t (ByRef UDT field to a typed parameter), dc-pye0, dc-snz.26 (fixed array into a dynamic array result). DnaCalc: the module route admits Private functions as Excel does (dc-wti6). WinHttpRequest stays refused in Safe mode (`com.activate`).
+
+**Corpus after** (matched / cases; no loss against the previous baseline): module route interpreter 209 / 317, JIT 209 / 317 (was 208); source-project route 2 / 107 (vba-dictionary loads, 13 cases fail at run: project class `New` in a typed entry); file route (.xlsm) 129 / 135 (dna-examples 0 -> 20 of 26).
+
+**Language tier.** `conformance/excel-measurements/language-rows.excel.txt` in CalcVBA holds Excel 16.0 build 20527's typed answers for the 192 basic-language rows (149 values, 23 raised errors, 20 compile errors; `vba-job.ps1 -Action language`, compile-error dialogs read and dismissed by a UI Automation guard). The engine matches **175 / 192** on both executors; the 17 differences are listed with reasons in `language-rows.known-differences.txt`.
+
+**Sequence tier.** `crates/calc-host-vba/tests/excel_recalculation.rs` replays the 17 stages through a `HostSession` (manual mode, module-route user functions): **25 / 391** stage cells match. Excel evaluates a formula once when it is entered in manual mode (every Excel count is one higher), a same-value write counts as a change, and B12 is refused (`ActiveSheet` is not modelled, dc-snz.5). The probe as Excel ran it is refused by both routes (`ThisWorkbook` undefined in the module route; `Application.Volatile` typed signature in the document route); the replay reads Z1 through `ActiveSheet`.

@@ -655,23 +655,25 @@ mod tests {
 
     #[cfg_attr(not(target_arch = "wasm32"), test)]
     #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
-    fn only_public_functions_are_registered_and_no_main_runs() {
+    fn private_functions_are_worksheet_callable_as_in_excel_and_no_main_runs() {
         let source = format!(
             "{}\nPrivate Function Hidden()\n Hidden = 1\nEnd Function\nPublic Sub Main()\n Do\n Loop\nEnd Sub\n",
             EXAMPLE_MODULE
         );
         let functions = load_module("Math", &source, 1000).unwrap();
-        assert_eq!(functions.names().collect::<Vec<_>>(), ["ADD2", "MATH.ADD2"]);
+        // Excel calls a Private function of the workbook from a cell (dc-wti6); Sub procedures
+        // are no worksheet functions and `Main` never runs.
+        assert_eq!(
+            functions.names().collect::<Vec<_>>(),
+            ["ADD2", "HIDDEN", "MATH.ADD2", "MATH.HIDDEN"]
+        );
         assert_eq!(
             functions
                 .call("aDd2", &[CalcValue::number(40.0), CalcValue::number(2.0)])
                 .unwrap(),
             CalcValue::number(42.0)
         );
-        assert_eq!(
-            functions.call("Hidden", &[]).unwrap(),
-            CalcValue::error(WorksheetErrorCode::Name)
-        );
+        assert_eq!(functions.call("Hidden", &[]).unwrap(), CalcValue::number(1.0));
     }
     #[cfg_attr(not(target_arch = "wasm32"), test)]
     #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
