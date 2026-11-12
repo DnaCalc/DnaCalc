@@ -38,6 +38,9 @@ canvas { display: block; width: 100%; height: auto }
 .box .k { font: 600 11px/1.3 var(--body); letter-spacing: .07em; text-transform: uppercase; color: var(--muted) }
 .box .v { font: 600 20px/1.3 var(--mono); font-variant-numeric: tabular-nums; overflow-wrap: anywhere }
 .box .s { font: 400 12px/1.4 var(--mono); color: var(--muted); overflow-wrap: anywhere }
+.opt { display: flex; gap: 8px; align-items: center; font-size: 13px; cursor: pointer }
+.opt input { accent-color: var(--select); width: 16px; height: 16px }
+.opt kbd { font: 600 12px var(--mono); padding: 1px 5px; border: 1px solid var(--grid); border-bottom-width: 2px; border-radius: 3px; background: var(--head); color: var(--ink); margin-left: auto }
 #nextcv { width: 100%; max-width: 160px; height: auto; display: block; margin-top: 6px }
 .help { font-size: 13px; color: var(--muted); margin: 0 }
 .help kbd { font: 600 12px var(--mono); padding: 1px 5px; border: 1px solid var(--grid); border-bottom-width: 2px; border-radius: 3px; background: var(--head); color: var(--ink) }
@@ -78,6 +81,7 @@ button:focus-visible { outline: 2px solid var(--select); outline-offset: 2px }
       <div class="box"><div class="k">Next formula</div><div class="s" id="nextF">=SEQUENCE(2,2)</div><canvas id="nextcv" width="160" height="96" aria-hidden="true"></canvas></div>
       <div class="box"><div class="k">Score</div><div class="v" id="score">0</div><div class="s" id="scoreBits">bits 0000000000000000</div></div>
       <div class="box"><div class="k">Rows summed · Level</div><div class="v"><span id="rows">0</span> · <span id="level">1</span></div><div class="s" id="lastSum">last row: none yet</div></div>
+      <label class="box opt"><input type="checkbox" id="outlines" checked> Outlines: landing ghost and spill border <kbd>O</kbd></label>
       <p class="help"><kbd>←</kbd><kbd>→</kbd> move, <kbd>↑</kbd> or <kbd>X</kbd> TRANSPOSE (rotate), <kbd>↓</kbd> soft drop, <kbd>Space</kbd> hard drop, <kbd>P</kbd> manual calculation (pause), <kbd>F9</kbd> new sheet.</p>
     </div>
   </div>
@@ -113,7 +117,13 @@ button:focus-visible { outline: 2px solid var(--select); outline-offset: 2px }
   function hex(d) { buf.setFloat64(0, d); var s = ''; for (var i = 0; i < 8; i++) s += buf.getUint8(i).toString(16).padStart(2, '0'); return s; }
   function col(c) { return String.fromCharCode(65 + c); }
 
-  var board, cur, nxt, score, rows, level, timer, running, over, flashRows = [], seq = 1, bag = [];
+  var board, cur, nxt, score, rows, level, timer, running, over, clearing = false, flashRows = [], seq = 1, bag = [];
+  var outlines = true;
+  try { outlines = localStorage.getItem('spill-outlines') !== 'off'; } catch (e) {}
+  var box = document.getElementById('outlines');
+  box.checked = outlines;
+  function setOutlines(on) { outlines = on; box.checked = on; try { localStorage.setItem('spill-outlines', on ? 'on' : 'off'); } catch (e) {} draw(); }
+  box.addEventListener('change', function () { setOutlines(box.checked); box.blur(); });
   function newBoard() { board = []; for (var y = 0; y < H; y++) { var r = []; for (var x = 0; x < W; x++) r.push(null); board.push(r); } }
   function draw7() { if (!bag.length) { bag = [0,1,2,3,4,5,6]; for (var i = bag.length - 1; i > 0; i--) { var j = Math.floor(Math.random() * (i + 1)); var t = bag[i]; bag[i] = bag[j]; bag[j] = t; } } return bag.pop(); }
   function make(k) {
@@ -151,10 +161,12 @@ button:focus-visible { outline: 2px solid var(--select); outline-offset: 2px }
       score += total * level * bonus;
       rows += full.length;
       document.getElementById('lastSum').textContent = 'last: =SUM(A' + (full[0] + 1) + ':J' + (full[full.length - 1] + 1) + ') = ' + total + (full.length > 1 ? ' ×' + bonus : '');
+      // The locked piece is now part of the board: nothing may move or lock it again while the rows flash.
+      cur = null; clearing = true;
       flashRows = full.slice(); draw();
       setTimeout(function () {
         full.forEach(function (r) { board.splice(r, 1); var e = []; for (var x = 0; x < W; x++) e.push(null); board.unshift(e); });
-        flashRows = []; level = 1 + Math.floor(rows / 8); restart(); spawn();
+        flashRows = []; clearing = false; level = 1 + Math.floor(rows / 8); restart(); spawn();
       }, 180);
       bars();
       return;
@@ -166,8 +178,8 @@ button:focus-visible { outline: 2px solid var(--select); outline-offset: 2px }
     if (!fits(cur, 0, 0)) return gameOver();
     bars(); drawNext(); draw();
   }
-  function fall() { if (!running) return; if (fits(cur, 0, 1)) { cur.y++; draw(); } else lock(); }
-  function hard() { if (!running) return; var d = 0; while (fits(cur, 0, 1)) { cur.y++; d++; } score += d; lock(); bars(); }
+  function fall() { if (!running || clearing || !cur) return; if (fits(cur, 0, 1)) { cur.y++; draw(); } else lock(); }
+  function hard() { if (!running || clearing || !cur) return; var d = 0; while (fits(cur, 0, 1)) { cur.y++; d++; } score += d; lock(); bars(); }
   function restart() { clearInterval(timer); if (running) timer = setInterval(fall, Math.max(90, 700 - (level - 1) * 60)); }
   function bars() {
     var x = cur ? cur.x : 4, y = cur ? cur.y : 0;
@@ -190,13 +202,13 @@ button:focus-visible { outline: 2px solid var(--select); outline-offset: 2px }
     document.getElementById('startBtn').focus();
   }
   function start() {
-    newBoard(); score = 0; rows = 0; level = 1; seq = 1; bag = []; nxt = null; over = false; running = true;
+    newBoard(); score = 0; rows = 0; level = 1; seq = 1; bag = []; nxt = null; over = false; clearing = false; flashRows = []; running = true;
     document.getElementById('lastSum').textContent = 'last row: none yet';
     document.getElementById('overlay').hidden = true; spawn(); restart();
   }
 
   function act(a) {
-    if (!running || !cur) return;
+    if (!running || !cur || clearing) return;
     if (a === 'left' && fits(cur, -1, 0)) cur.x--;
     else if (a === 'right' && fits(cur, 1, 0)) cur.x++;
     else if (a === 'soft') { if (fits(cur, 0, 1)) { cur.y++; score++; } else return lock(); }
@@ -207,6 +219,7 @@ button:focus-visible { outline: 2px solid var(--select); outline-offset: 2px }
   addEventListener('keydown', function (e) {
     var map = { ArrowLeft: 'left', ArrowRight: 'right', ArrowDown: 'soft', ArrowUp: 'rot', x: 'rot', X: 'rot', ' ': 'hard' };
     if (e.key === 'F9' || (e.key === 'Enter' && !running)) { e.preventDefault(); if (!running) start(); return; }
+    if (e.key === 'o' || e.key === 'O') { setOutlines(!outlines); return; }
     if (e.key === 'p' || e.key === 'P') { if (over || !cur) return; running = !running; restart(); draw(); return; }
     if (map[e.key]) { e.preventDefault(); if (!running && !document.getElementById('overlay').hidden && e.key === ' ') return start(); act(map[e.key]); }
   });
@@ -226,33 +239,38 @@ button:focus-visible { outline: 2px solid var(--select); outline-offset: 2px }
     cw = (w - HEADW) / W; chh = cw * 0.78;
     var h = HEADH + chh * H;
     cv.width = Math.round(w * dpr); cv.height = Math.round(h * dpr); cv.style.height = h + 'px';
-    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    ctx.setTransform(dpr, 0, 0, dpr, 0, 0); lastFont = '';
   }
   function cellBox(x, y) { return [HEADW + x * cw, HEADH + y * chh, cw, chh]; }
+  var lastFont = '';
   function fillCell(x, y, color, val, strong) {
     var r = cellBox(x, y);
     ctx.fillStyle = color; ctx.fillRect(r[0] + 1, r[1] + 1, r[2] - 1, r[3] - 1);
     if (val !== undefined) {
-      ctx.fillStyle = colors['--ink']; ctx.font = (strong ? '600 ' : '400 ') + Math.min(13, chh * .5) + 'px "IBM Plex Mono", Consolas, monospace';
+      var font = (strong ? '600 ' : '400 ') + Math.min(13, chh * .5) + 'px "IBM Plex Mono", Consolas, monospace';
+      ctx.fillStyle = colors['--ink']; if (font !== lastFont) { ctx.font = font; lastFont = font; }
       ctx.textAlign = 'right'; ctx.textBaseline = 'middle'; ctx.fillText(String(val), r[0] + r[2] - 4, r[1] + r[3] / 2 + 1);
     }
   }
-  function draw() {
+  // Redraws are batched: many moves in one frame cost one paint.
+  var pending = false;
+  function draw() { if (pending) return; pending = true; requestAnimationFrame(function () { pending = false; paint(); }); }
+  function paint() {
     if (!board) return;
     var Wpx = HEADW + W * cw, Hpx = HEADH + H * chh;
     ctx.fillStyle = colors['--cell']; ctx.fillRect(0, 0, Wpx, Hpx);
     ctx.fillStyle = colors['--head']; ctx.fillRect(0, 0, Wpx, HEADH); ctx.fillRect(0, 0, HEADW, Hpx);
     for (var y = 0; y < H; y++) for (var x = 0; x < W; x++) { var c = board[y][x]; if (c) fillCell(x, y, flashRows.indexOf(y) >= 0 ? colors['--select'] : colors[c.c], c.v); }
-    if (cur && running !== null) {
-      var gy = 0; while (fits(cur, 0, gy + 1)) gy++;
-      for (y = 0; y < cur.m.length; y++) for (x = 0; x < cur.m[y].length; x++) if (cur.m[y][x] && cur.y + y + gy >= 0) {
+    if (cur) {
+      var gy = 0; while (outlines && fits(cur, 0, gy + 1)) gy++;
+      if (outlines) for (y = 0; y < cur.m.length; y++) for (x = 0; x < cur.m[y].length; x++) if (cur.m[y][x] && cur.y + y + gy >= 0) {
         var g = cellBox(cur.x + x, cur.y + y + gy); ctx.setLineDash([3, 3]); ctx.strokeStyle = colors['--muted']; ctx.lineWidth = 1; ctx.strokeRect(g[0] + 2.5, g[1] + 2.5, g[2] - 5, g[3] - 5); ctx.setLineDash([]);
       }
       for (y = 0; y < cur.m.length; y++) for (x = 0; x < cur.m[y].length; x++) if (cur.m[y][x] && cur.y + y >= 0) fillCell(cur.x + x, cur.y + y, colors[cur.c], cur.vals[y][x], true);
       var minx = 99, miny = 99, maxx = -1, maxy = -1;
       for (y = 0; y < cur.m.length; y++) for (x = 0; x < cur.m[y].length; x++) if (cur.m[y][x]) { minx = Math.min(minx, x); maxx = Math.max(maxx, x); miny = Math.min(miny, y); maxy = Math.max(maxy, y); }
       var a = cellBox(cur.x + minx, Math.max(0, cur.y + miny)), b = cellBox(cur.x + maxx, cur.y + maxy);
-      ctx.strokeStyle = colors['--spill']; ctx.lineWidth = 1.5; ctx.setLineDash([5, 3]); ctx.strokeRect(a[0] + 1, a[1] + 1, b[0] + b[2] - a[0] - 2, b[1] + b[3] - a[1] - 2); ctx.setLineDash([]);
+      if (outlines) ctx.strokeStyle = colors['--spill']; else ctx.strokeStyle = 'transparent'; ctx.lineWidth = 1.5; ctx.setLineDash([5, 3]); ctx.strokeRect(a[0] + 1, a[1] + 1, b[0] + b[2] - a[0] - 2, b[1] + b[3] - a[1] - 2); ctx.setLineDash([]);
     }
     ctx.strokeStyle = colors['--grid']; ctx.lineWidth = 1; ctx.beginPath();
     for (x = 0; x <= W; x++) { var px = Math.round(HEADW + x * cw) + .5; ctx.moveTo(px, 0); ctx.lineTo(px, Hpx); }
