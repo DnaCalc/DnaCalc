@@ -271,6 +271,15 @@ pub fn calculate(
         }
         Ok(value) => dereference(value, &cells)
             .and_then(|v| select_result(&v, index))
+            // A blank remains blank while functions consume it; a final worksheet
+            // result displays it as zero, as calc-fml's result path does.
+            .map(|v| {
+                if v.is_empty() {
+                    CalcValue::number(0.0)
+                } else {
+                    v
+                }
+            })
             .and_then(|v| encode_result(&v))
             .unwrap_or_else(|| "fault:ResultShape".to_owned()),
     }
@@ -286,6 +295,26 @@ mod tests {
             input_transport: Some("cell_value2_bulk".into()),
             ..Default::default()
         }
+    }
+
+    /// Excel 16.0.20527: the selected blank is displayed as a zero by the formula cell.
+    #[cfg_attr(not(target_arch = "wasm32"), test)]
+    #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+    fn final_blank_is_zero_after_the_function_call() {
+        let context = cells();
+        for (function, args) in [
+            ("IF", vec![json!(true), json!(null)]),
+            ("IFERROR", vec![json!(null), json!("fallback")]),
+        ] {
+            assert_eq!(
+                calculate(function, &args, None, Some(&context), true),
+                "0x0000000000000000"
+            );
+        }
+        assert_eq!(
+            calculate("ISBLANK", &[json!(null)], None, Some(&context), true),
+            "logical:True"
+        );
     }
 
     #[cfg_attr(not(target_arch = "wasm32"), test)]
