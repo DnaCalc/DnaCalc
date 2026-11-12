@@ -18,6 +18,11 @@
 //! so a corpus of other people's files stays outside the repository; sheet names are left out of
 //! them unless `--keep-names` is given. The summary holds counts and hashes only.
 //!
+//! Admission uses a shared 1 GiB working-data allowance (at most two readers), 64 MiB per
+//! source, 128 MiB of expanded parts and 32 MiB per part. Oversized files are recorded with
+//! `admission_refusal`, before reading or hashing them. JSONL is written in bounded batches;
+//! only aggregate counts, distinct keys/hashes and the size histogram survive each batch.
+//!
 //! Exit codes: 0 when the output was written, 1 when it cannot be, 2 on a usage error.
 
 use crate::corpus::folder_tree;
@@ -26,10 +31,10 @@ use calc_verdict::sha256_hex;
 use serde_json::{Value, json};
 use std::collections::{BTreeMap, BTreeSet};
 use std::fmt::Write as _;
+use std::io::{BufRead, Read, Write as IoWrite};
 use std::path::{Path, PathBuf};
 use std::process::ExitCode;
-use std::sync::Arc;
-use std::sync::atomic::{AtomicUsize, Ordering};
+use std::sync::{Arc, Condvar, Mutex};
 use std::time::Instant;
 
 pub const USAGE: &str = "usage: cargo xtask classify <dir>... [--recursive] [--out <dir>] [--jobs <n>] [--no-host] [--keep-names]";
@@ -76,9 +81,59 @@ fn is_ident(c: char) -> bool {
     c.is_alphanumeric() || matches!(c, '_' | '.' | '\\')
 }
 
-/// Reads a formula's text (without the leading `=`) for the functions it calls and the features
-/// it uses. A lexical scan, not a parse: strings and quoted sheet names are skipped.
-pub(crate) fn analyze_formula(text: &str) -> FormulaStats {
+/// Bound checked before allocating a formula's character buffer.
+const MAX_FORMULA_BYTES: usize = 1 << 20;
+
+/// A scan that cannot certify the whole formula never supplies capture eligibility.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(crate) enum ScanRefusal {
+    WorkBudget,
+    MalformedFormula,
+}
+
+impl std::fmt::Display for ScanRefusal {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.write_str(match self {
+            Self::WorkBudget => "formula_work_budget",
+            Self::MalformedFormula => "malformed_formula",
+        })
+    }
+}
+
+#[derive(Debug)]
+enum ScanError {
+    Xml(String),
+    Formula(ScanRefusal),
+    MissingSharedMaster,
+}
+impl ScanError {
+    fn kind(&self) -> &'static str {
+        match self {
+            Self::Xml(_) => "xml_scan_error",
+            Self::Formula(ScanRefusal::WorkBudget) => "formula_work_budget",
+            Self::Formula(ScanRefusal::MalformedFormula) => "malformed_formula",
+            Self::MissingSharedMaster => "missing_shared_formula_master",
+        }
+    }
+    fn record(&self) -> Value {
+        json!({"kind": self.kind(), "message": self.to_string()})
+    }
+}
+impl std::fmt::Display for ScanError {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            Self::Xml(message) => f.write_str(message),
+            _ => f.write_str(self.kind()),
+        }
+    }
+}
+
+/// A lexical scan, not an evaluator: strings and quoted sheet names are skipped. Shape work
+/// has a linear allowance; an incomplete scan returns a typed refusal instead of partial data.
+pub(crate) fn analyze_formula(text: &str) -> Result<FormulaStats, ScanRefusal> {
+    if text.len() > MAX_FORMULA_BYTES {
+        return Err(ScanRefusal::WorkBudget);
+    }
     let chars: Vec<char> = text.chars().collect();
     let mut out = FormulaStats {
         length: chars.len(),
@@ -91,6 +146,7 @@ pub(crate) fn analyze_formula(text: &str) -> FormulaStats {
             flag(out, name);
         }
     };
+    let mut calls = Vec::new();
     let (mut i, mut depth) = (0usize, 0usize);
     while i < chars.len() {
         let c = chars[i];
@@ -152,11 +208,17 @@ pub(crate) fn analyze_formula(text: &str) -> FormulaStats {
             }
             '[' => {
                 // `[1]Sheet!A1` (an external workbook index) or a structured reference.
-                let close = chars[i..].iter().position(|&c| c == ']').map(|p| i + p);
-                let inner: String = close
-                    .map(|e| chars[i + 1..e].iter().collect())
-                    .unwrap_or_default();
-                if !inner.is_empty() && inner.chars().all(|c| c.is_ascii_digit()) && chars.get(close.unwrap_or(0) + 1).is_some_and(|c| is_ident(*c) || *c == '\'') {
+                let digits = chars[i + 1..]
+                    .iter()
+                    .take_while(|c| c.is_ascii_digit())
+                    .count();
+                let close = i + 1 + digits;
+                if digits > 0
+                    && chars.get(close) == Some(&']')
+                    && chars
+                        .get(close + 1)
+                        .is_some_and(|c| is_ident(*c) || *c == '\'')
+                {
                     note(&mut out, "external_reference");
                 } else {
                     note(&mut out, "structured_reference");
@@ -181,12 +243,19 @@ pub(crate) fn analyze_formula(text: &str) -> FormulaStats {
                 let word: String = chars[start..i].iter().collect();
                 match chars.get(i) {
                     Some('(') => {
-                        let mut name = word.to_ascii_uppercase();
-                        for prefix in ["_XLFN.", "_XLWS."] {
-                            while let Some(rest) = name.strip_prefix(prefix) {
-                                name = rest.to_owned();
+                        let upper = word.to_ascii_uppercase();
+                        let mut name = upper.as_str();
+                        loop {
+                            if let Some(rest) = name
+                                .strip_prefix("_XLFN.")
+                                .or_else(|| name.strip_prefix("_XLWS."))
+                            {
+                                name = rest;
+                            } else {
+                                break;
                             }
                         }
+                        let name = name.to_owned();
                         if matches!(name.as_str(), "LET") {
                             note(&mut out, "let");
                         }
@@ -205,9 +274,7 @@ pub(crate) fn analyze_formula(text: &str) -> FormulaStats {
                         if VOLATILE.contains(&name.as_str()) {
                             note(&mut out, "volatile");
                         }
-                        if let Some(shape) = crate::formula_shapes::call_shape(&name, &chars, i) {
-                            bump(&mut out.shapes, shape, 1);
-                        }
+                        calls.push((i, name.clone()));
                         bump(&mut out.functions, name, 1);
                     }
                     Some('!') => {
@@ -232,11 +299,12 @@ pub(crate) fn analyze_formula(text: &str) -> FormulaStats {
             _ => i += 1,
         }
     }
-    out
+    out.shapes = crate::formula_shapes::call_shapes(&chars, &calls)?;
+    Ok(out)
 }
 
 /// Everything one worksheet part says.
-#[derive(Default)]
+#[derive(Default, Debug)]
 struct SheetScan {
     dimension: Option<String>,
     rows: u64,
@@ -268,7 +336,7 @@ const SHEET_ELEMENTS: &[&str] = &[
     "sheetView", "selection", "userShape", "customProperty",
 ];
 
-fn scan_sheet(xml: &XmlPart) -> Result<SheetScan, String> {
+fn scan_sheet(xml: &XmlPart) -> Result<SheetScan, ScanError> {
     let mut scan = SheetScan::default();
     let mut reader = xml.reader();
     let mut depth = 0u32;
@@ -283,7 +351,7 @@ fn scan_sheet(xml: &XmlPart) -> Result<SheetScan, String> {
     let mut shared_masters: BTreeMap<u32, FormulaStats> = BTreeMap::new();
     let mut shared_members: BTreeMap<u32, u64> = BTreeMap::new();
     let mut pending_member: Option<u32> = None;
-    while let Some(event) = reader.next_event().map_err(|e| e.to_string())? {
+    while let Some(event) = reader.next_event().map_err(|e| ScanError::Xml(e.to_string()))? {
         match event {
             XmlEvent::Start(e) => {
                 depth += 1;
@@ -364,7 +432,7 @@ fn scan_sheet(xml: &XmlPart) -> Result<SheetScan, String> {
                         if f_kind == "shared" {
                             match (f_si, trimmed.is_empty()) {
                                 (Some(si), false) => {
-                                    let stats = analyze_formula(trimmed);
+                                    let stats = analyze_formula(trimmed).map_err(ScanError::Formula)?;
                                     stats.add_scaled(&mut scan.stats, 1);
                                     shared_masters.insert(si, stats);
                                 }
@@ -375,7 +443,7 @@ fn scan_sheet(xml: &XmlPart) -> Result<SheetScan, String> {
                         } else if f_kind == "dataTable" {
                             // No text: a what-if table's cells hold no formula text.
                         } else if !trimmed.is_empty() {
-                            analyze_formula(trimmed).add_scaled(&mut scan.stats, 1);
+                            analyze_formula(trimmed).map_err(ScanError::Formula)?.add_scaled(&mut scan.stats, 1);
                         }
                         if f_kind == "array" {
                             bump(&mut scan.stats.flags, "array_formula", 1);
@@ -406,6 +474,8 @@ fn scan_sheet(xml: &XmlPart) -> Result<SheetScan, String> {
     for (si, members) in shared_members {
         if let Some(master) = shared_masters.get(&si) {
             master.add_scaled(&mut scan.stats, members);
+        } else {
+            return Err(ScanError::MissingSharedMaster);
         }
     }
     Ok(scan)
@@ -462,12 +532,12 @@ struct WorkbookScan {
     web_publishing: bool,
 }
 
-fn scan_workbook(xml: &XmlPart) -> Result<WorkbookScan, String> {
+fn scan_workbook(xml: &XmlPart) -> Result<WorkbookScan, ScanError> {
     let mut w = WorkbookScan::default();
     let mut reader = xml.reader();
     let mut in_name: Option<(bool, bool)> = None;
     let mut text = String::new();
-    while let Some(event) = reader.next_event().map_err(|e| e.to_string())? {
+    while let Some(event) = reader.next_event().map_err(|e| ScanError::Xml(e.to_string()))? {
         match event {
             XmlEvent::Start(e) => match local(&e) {
                 "workbookPr" => {
@@ -524,7 +594,7 @@ fn scan_workbook(xml: &XmlPart) -> Result<WorkbookScan, String> {
                 if text.contains("#REF!") {
                     w.names.refs_error += 1;
                 }
-                let stats = analyze_formula(text.trim_start_matches('='));
+                let stats = analyze_formula(text.trim_start_matches('=')).map_err(ScanError::Formula)?;
                 if !stats.functions.is_empty() {
                     w.names.functions_in_names += 1;
                 }
@@ -605,34 +675,39 @@ fn magic_format(bytes: &[u8], extension: &str) -> &'static str {
 }
 
 /// The profile of one workbook's bytes.
-pub(crate) fn classify_bytes(
-    bytes: &[u8],
-    name: &str,
-    keep_names: bool,
-    host: bool,
-) -> Value {
+pub(crate) fn classify_bytes(bytes: &[u8], name: &str, keep_names: bool, host: bool) -> Value {
+    classify_shared(Arc::from(bytes), name, keep_names, host)
+}
+
+fn classify_shared(bytes: Arc<[u8]>, name: &str, keep_names: bool, host: bool) -> Value {
     let started = Instant::now();
+    let source = Arc::new(MemorySource::new(bytes.clone()).named(name));
+    let policy = classify_policy();
     let extension = Path::new(name)
         .extension()
         .map(|e| e.to_string_lossy().to_ascii_lowercase())
         .unwrap_or_default();
     let mut profile = json!({
         "file": name,
-        "sha256": sha256_hex(bytes),
+        "sha256": sha256_hex(&bytes),
         "bytes": bytes.len(),
         "extension": extension,
-        "format": magic_format(bytes, &extension),
+        "format": magic_format(&bytes, &extension),
+        "scan_complete": false,
     });
     let object = profile.as_object_mut().expect("object");
-    let opened = calc_doc::open(
-        Arc::new(MemorySource::new(bytes.to_vec()).named(name)),
-        &OpenPolicy::default(),
-    );
+    let opened = calc_doc::open(source.clone(), &policy);
     let document = match opened {
         Ok(d) => d,
         Err(e) => {
-            object.insert("package".into(), json!({"opened": false, "error": format!("{e}")}));
-            object.insert("scan_ms".into(), json!(started.elapsed().as_millis() as u64));
+            object.insert(
+                "package".into(),
+                json!({"opened": false, "error": format!("{e}")}),
+            );
+            object.insert(
+                "scan_ms".into(),
+                json!(started.elapsed().as_millis() as u64),
+            );
             return profile;
         }
     };
@@ -647,9 +722,17 @@ pub(crate) fn classify_bytes(
     }
     let main_type = package
         .relationships_of(None)
-        .and_then(|r| r.items().iter().find(|i| i.kind.ends_with("/officeDocument")))
+        .and_then(|r| {
+            r.items()
+                .iter()
+                .find(|i| i.kind.ends_with("/officeDocument"))
+        })
         .and_then(|i| i.resolved.clone())
-        .and_then(|p| package.part(&p).and_then(|p| p.content_type().map(str::to_owned)));
+        .and_then(|p| {
+            package
+                .part(&p)
+                .and_then(|p| p.content_type().map(str::to_owned))
+        });
     object.insert(
         "package".into(),
         json!({
@@ -665,13 +748,22 @@ pub(crate) fn classify_bytes(
     let workbook_part = "xl/workbook.xml";
     let workbook_part = package
         .relationships_of(None)
-        .and_then(|r| r.items().iter().find(|i| i.kind.ends_with("/officeDocument")).and_then(|i| i.resolved.clone()))
+        .and_then(|r| {
+            r.items()
+                .iter()
+                .find(|i| i.kind.ends_with("/officeDocument"))
+                .and_then(|i| i.resolved.clone())
+        })
         .unwrap_or_else(|| workbook_part.to_owned());
     let mut wb = WorkbookScan::default();
-    match package.read_xml(&workbook_part).map_err(|e| e.to_string()).and_then(|x| scan_workbook(&x)) {
+    match package
+        .read_xml(&workbook_part)
+        .map_err(|e| ScanError::Xml(e.to_string()))
+        .and_then(|x| scan_workbook(&x))
+    {
         Ok(w) => wb = w,
         Err(e) => {
-            object.insert("workbook_error".into(), json!(e));
+            object.insert("workbook_error".into(), e.record());
         }
     }
     let mut sheet_total = SheetScan::default();
@@ -683,7 +775,12 @@ pub(crate) fn classify_bytes(
         let target = relationship_target(package, &workbook_part, rid);
         let kind = package
             .relationships_of(Some(&workbook_part))
-            .and_then(|r| r.items().iter().find(|i| i.id == *rid).map(|i| i.kind.rsplit('/').next().unwrap_or("").to_owned()))
+            .and_then(|r| {
+                r.items()
+                    .iter()
+                    .find(|i| i.id == *rid)
+                    .map(|i| i.kind.rsplit('/').next().unwrap_or("").to_owned())
+            })
             .unwrap_or_default();
         bump(&mut sheet_kinds, kind.clone(), 1);
         bump(&mut sheet_kinds, format!("state:{state}"), 1);
@@ -705,7 +802,8 @@ pub(crate) fn classify_bytes(
                             sheet_total.formula_cells += scan.formula_cells;
                             sheet_total.dynamic_array_cells += scan.dynamic_array_cells;
                             sheet_total.formula_cached_errors += scan.formula_cached_errors;
-                            sheet_total.max_formula_len = sheet_total.max_formula_len.max(scan.max_formula_len);
+                            sheet_total.max_formula_len =
+                                sheet_total.max_formula_len.max(scan.max_formula_len);
                             for (k, v) in &scan.cell_types {
                                 bump(&mut sheet_total.cell_types, k.clone(), *v);
                             }
@@ -723,15 +821,23 @@ pub(crate) fn classify_bytes(
                             }
                             scan.stats.add_scaled(&mut sheet_total.stats, 1);
                         }
-                        Err(e) => scan_errors.push(format!("sheet {index}: {e}")),
+                        Err(e) => scan_errors.push(json!({"sheet": index, "refusal": e.record()})),
                     },
-                    Err(e) => scan_errors.push(format!("sheet {index}: {e}")),
+                    Err(e) => scan_errors.push(
+                        json!({"sheet": index, "refusal": ScanError::Xml(e.to_string()).record()}),
+                    ),
                 }
             }
+        } else {
+            scan_errors
+                .push(json!({"sheet": index, "refusal": {"kind": "missing_relationship_target"}}));
         }
         sheets_json.push(entry);
     }
-    object.insert("sheets".into(), json!({"count": wb.sheets.len(), "kinds": sheet_kinds, "list": sheets_json}));
+    object.insert(
+        "sheets".into(),
+        json!({"count": wb.sheets.len(), "kinds": sheet_kinds, "list": sheets_json}),
+    );
     object.insert(
         "cells".into(),
         json!({
@@ -748,9 +854,15 @@ pub(crate) fn classify_bytes(
     );
     object.insert("formula_features".into(), json!(sheet_total.stats.flags));
     object.insert("functions".into(), json!(sheet_total.stats.functions));
-    object.insert("function_shapes".into(), json!(capped_shapes(&sheet_total.stats.shapes)));
+    object.insert(
+        "function_shapes".into(),
+        json!(capped_shapes(&sheet_total.stats.shapes)),
+    );
     object.insert("sheet_elements".into(), json!(sheet_total.elements));
-    object.insert("conditional_rule_types".into(), json!(sheet_total.cf_rule_types));
+    object.insert(
+        "conditional_rule_types".into(),
+        json!(sheet_total.cf_rule_types),
+    );
     object.insert("sheet_extensions".into(), json!(sheet_total.ext_elements));
     object.insert(
         "names".into(),
@@ -795,30 +907,47 @@ pub(crate) fn classify_bytes(
                 _ => {}
             }
         }
-        object.insert("producer".into(), json!({"application": application, "app_version": version}));
+        object.insert(
+            "producer".into(),
+            json!({"application": application, "app_version": version}),
+        );
     }
     // VBA.
-    if let Some(vba) = package.parts().iter().find(|p| p.name().ends_with("vbaProject.bin"))
+    if let Some(vba) = package
+        .parts()
+        .iter()
+        .find(|p| p.name().ends_with("vbaProject.bin"))
         && let Ok(bin) = package.read_part(vba.name())
     {
-        object.insert("vba".into(), json!({"bytes": bin.len(), "project_lines": vba_modules(&bin)}));
+        object.insert(
+            "vba".into(),
+            json!({"bytes": bin.len(), "project_lines": vba_modules(&bin)}),
+        );
     }
+    object.insert(
+        "scan_complete".into(),
+        json!(scan_errors.is_empty() && !object.contains_key("workbook_error")),
+    );
     if !scan_errors.is_empty() {
         object.insert("scan_errors".into(), json!(scan_errors));
     }
     // The reader's own outcome.
+    drop(document);
     if host {
-        object.insert("reader".into(), reader_outcome(bytes, name));
+        object.insert("reader".into(), reader_outcome(source, &policy));
     }
-    object.insert("scan_ms".into(), json!(started.elapsed().as_millis() as u64));
+    object.insert(
+        "scan_ms".into(),
+        json!(started.elapsed().as_millis() as u64),
+    );
     profile
 }
 
-fn reader_outcome(bytes: &[u8], name: &str) -> Value {
+fn reader_outcome(source: Arc<MemorySource>, policy: &OpenPolicy) -> Value {
     use calc_host::{HostOptions, HostState};
     let opened = HostState::open(
-        Arc::new(calc_host::MemorySource::new(bytes.to_vec()).named(name)),
-        &calc_host::OpenPolicy::default(),
+        source,
+        policy,
         HostOptions {
             formula_cell_budget: None,
             ..HostOptions::default()
@@ -835,8 +964,10 @@ fn reader_outcome(bytes: &[u8], name: &str) -> Value {
         }
     };
     let loaded = host.loaded();
+    let open_report = host.open_report();
     let mut formulas = 0u64;
-    let (mut validations, mut cond, mut merged, mut notes, mut links) = (0u64, 0u64, 0u64, 0u64, 0u64);
+    let (mut validations, mut cond, mut merged, mut notes, mut links) =
+        (0u64, 0u64, 0u64, 0u64, 0u64);
     let (mut protected, mut macro_sheets) = (0u64, 0u64);
     let mut unsupported = Counts::new();
     let mut conditional_extensions = 0u64;
@@ -857,11 +988,17 @@ fn reader_outcome(bytes: &[u8], name: &str) -> Value {
     let mut unloaded = Counts::new();
     for (_, why) in host.model().definitions().unloaded_cells() {
         let text = format!("{why:?}");
-        let key = text.split(|c: char| !c.is_alphanumeric()).next().unwrap_or("").to_owned();
+        let key = text
+            .split(|c: char| !c.is_alphanumeric())
+            .next()
+            .unwrap_or("")
+            .to_owned();
         bump(&mut unloaded, key, 1);
     }
     json!({
         "opened": true,
+        "repair_count": open_report.repairs.len(),
+        "repairs": open_report.repair_counts,
         "date_system": format!("{:?}", loaded.date_system()),
         "calc_mode": format!("{:?}", loaded.calc_mode()),
         "sheets": loaded.sheets().len(),
@@ -946,57 +1083,68 @@ pub fn run(args: &[String]) -> ExitCode {
     }
     files.sort();
     files.dedup();
-    let started = Instant::now();
-    let next = AtomicUsize::new(0);
-    let results: std::sync::Mutex<Vec<(usize, Value)>> = std::sync::Mutex::new(Vec::new());
-    std::thread::scope(|scope| {
-        for _ in 0..args.jobs {
-            scope.spawn(|| {
-                loop {
-                    let i = next.fetch_add(1, Ordering::SeqCst);
-                    let Some((path, name)) = files.get(i) else { break };
-                    let value = classify_file(path, name, args.keep_names, args.host);
-                    results.lock().expect("lock").push((i, value));
-                }
-            });
-        }
-    });
-    let mut results = results.into_inner().expect("lock");
-    results.sort_by_key(|(i, _)| *i);
-    let profiles: Vec<Value> = results.into_iter().map(|(_, v)| v).collect();
     if let Err(e) = std::fs::create_dir_all(&args.out) {
         eprintln!("xtask classify: cannot make {}: {e}", args.out.display());
         return ExitCode::from(1);
     }
-    let mut lines = String::new();
-    for p in &profiles {
-        lines.push_str(&p.to_string());
-        lines.push('\n');
-    }
-    let build = reader_build();
-    let profiles: Vec<Value> = profiles
-        .into_iter()
-        .map(|mut p| {
-            if let Some(r) = p.get_mut("reader").and_then(Value::as_object_mut) {
-                r.insert("reader_build".into(), json!(build));
+    let output = match std::fs::File::create(args.out.join("files.jsonl")) {
+        Ok(file) => file,
+        Err(e) => {
+            eprintln!("xtask classify: cannot write files.jsonl: {e}");
+            return ExitCode::from(1);
+        }
+    };
+    let started = Instant::now();
+    let jobs = args
+        .jobs
+        .min(files.len())
+        .min((MEMORY_BUDGET_BYTES / WORKER_MEMORY_BYTES) as usize)
+        .max(1);
+    let budget = MemoryBudget::new(MEMORY_BUDGET_BYTES, jobs);
+    let mut writer = std::io::BufWriter::new(output);
+    let mut summary = ProfileSummary::default();
+    let written = std::thread::scope(|scope| -> std::io::Result<()> {
+        // A bounded batch preserves the walk order and keeps at most `jobs` results alive.
+        // A slow first file cannot make the other workers accumulate the rest of the corpus.
+        for batch in files.chunks(jobs) {
+            let tasks: Vec<_> = batch
+                .iter()
+                .map(|(path, name)| {
+                    let budget = &budget;
+                    let args = &args;
+                    scope.spawn(move || {
+                        let permit = budget.reserve(WORKER_MEMORY_BYTES);
+                        (
+                            permit,
+                            classify_file(path, name, args.keep_names, args.host),
+                        )
+                    })
+                })
+                .collect();
+            for task in tasks {
+                let (_permit, value) = task.join().expect("classification worker");
+                serde_json::to_writer(&mut writer, &value).map_err(std::io::Error::other)?;
+                writer.write_all(b"\n")?;
+                summary.add(&value);
             }
-            p
-        })
-        .collect();
+            // Persist each batch even if a later workbook or write fails.
+            writer.flush()?;
+        }
+        Ok(())
+    });
     let elapsed = started.elapsed();
-    let summary = summarize(&profiles, elapsed.as_secs_f64(), args.jobs);
-    if let Err(e) = std::fs::write(args.out.join("files.jsonl"), lines)
-        .and_then(|()| std::fs::write(args.out.join("summary.md"), &summary))
-    {
+    let text = summary.finish(elapsed.as_secs_f64(), jobs);
+    let written = written.and_then(|()| std::fs::write(args.out.join("summary.md"), &text));
+    if let Err(e) = written {
         eprintln!("xtask classify: cannot write the output: {e}");
         return ExitCode::from(1);
     }
-    println!("{summary}");
+    println!("{text}");
     println!(
-        "classified {} files in {:.1}s with {} jobs; wrote {}",
-        profiles.len(),
+        "classified {} files in {:.1}s with {jobs} jobs ({} MiB shared admission budget); wrote {}",
+        summary.n,
         elapsed.as_secs_f64(),
-        args.jobs,
+        MEMORY_BUDGET_BYTES >> 20,
         args.out.display()
     );
     ExitCode::SUCCESS
@@ -1013,15 +1161,152 @@ fn reader_build() -> String {
         .unwrap_or_else(|| "unknown".into())
 }
 
+/// Shared admission accounting for source bytes, bounded expansion and reader working data.
+/// The reader's allocations are input-dependent; this is conservative admission accounting,
+/// not an OS-enforced RSS limit. Never multiply the package limits by unbounded CPU count.
+pub(crate) const MEMORY_BUDGET_BYTES: u64 = 1 << 30;
+const WORKER_MEMORY_BYTES: u64 = 512 << 20;
+const MAX_FILE_BYTES: u64 = 64 << 20;
+pub(crate) const MAX_PROFILE_BYTES: u64 = 1 << 20;
+
+fn classify_policy() -> OpenPolicy {
+    let mut policy = OpenPolicy::default();
+    policy.package.max_package_bytes = MAX_FILE_BYTES;
+    policy.package.max_expanded_bytes = 128 << 20;
+    policy.package.max_part_bytes = 32 << 20;
+    policy
+}
+
+pub(crate) struct MemoryBudget {
+    bytes: u64,
+    jobs: usize,
+    used: Mutex<(u64, usize)>,
+    available: Condvar,
+}
+
+pub(crate) struct MemoryPermit<'a> {
+    budget: &'a MemoryBudget,
+    bytes: u64,
+}
+impl MemoryBudget {
+    pub(crate) fn new(bytes: u64, jobs: usize) -> Self {
+        Self {
+            bytes,
+            jobs,
+            used: Mutex::new((0, 0)),
+            available: Condvar::new(),
+        }
+    }
+    pub(crate) fn try_reserve(&self, bytes: u64) -> Option<MemoryPermit<'_>> {
+        let mut used = self.used.lock().expect("budget lock");
+        if bytes > self.bytes - used.0 || used.1 >= self.jobs {
+            return None;
+        }
+        used.0 += bytes;
+        used.1 += 1;
+        Some(MemoryPermit {
+            budget: self,
+            bytes,
+        })
+    }
+    fn reserve(&self, bytes: u64) -> MemoryPermit<'_> {
+        assert!(
+            bytes <= self.bytes && self.jobs > 0,
+            "reservation must fit the budget"
+        );
+        let mut used = self.used.lock().expect("budget lock");
+        while bytes > self.bytes - used.0 || used.1 >= self.jobs {
+            used = self.available.wait(used).expect("budget lock");
+        }
+        used.0 += bytes;
+        used.1 += 1;
+        MemoryPermit {
+            budget: self,
+            bytes,
+        }
+    }
+}
+impl Drop for MemoryPermit<'_> {
+    fn drop(&mut self) {
+        let mut used = self.budget.used.lock().expect("budget lock");
+        used.0 -= self.bytes;
+        used.1 -= 1;
+        self.budget.available.notify_all();
+    }
+}
+
+/// Streaming JSONL for both candidate sets and covered sets. A growing/unbroken record is
+/// bounded during the read, before JSON parsing allocates its object graph.
+pub(crate) fn read_profiles(
+    mut reader: impl BufRead,
+    limit: u64,
+    mut visit: impl FnMut(Value) -> Result<(), String>,
+) -> Result<(), String> {
+    let mut line = Vec::new();
+    let mut index = 0;
+    loop {
+        line.clear();
+        let n = reader
+            .by_ref()
+            .take(limit + 1)
+            .read_until(b'\n', &mut line)
+            .map_err(|e| e.to_string())?;
+        if n == 0 {
+            return Ok(());
+        }
+        index += 1;
+        if n as u64 > limit {
+            return Err(format!("line {index}: record_size_limit ({limit} bytes)"));
+        }
+        if line.iter().all(u8::is_ascii_whitespace) {
+            continue;
+        }
+        let profile = serde_json::from_slice(&line).map_err(|e| format!("line {index}: {e}"))?;
+        visit(profile)?;
+    }
+}
+
 fn classify_file(path: &Path, name: &str, keep_names: bool, host: bool) -> Value {
-    let bytes = match std::fs::read(path) {
-        Ok(b) => b,
-        Err(e) => return json!({"file": name, "read_error": e.to_string()}),
+    let mut profile = classify_file_inner(path, name, keep_names, host);
+    // Stamp before serialisation, including refused/no-host/read-error records.
+    static BUILD: std::sync::OnceLock<String> = std::sync::OnceLock::new();
+    profile["reader_build"] = json!(BUILD.get_or_init(reader_build));
+    profile
+}
+
+fn classify_file_inner(path: &Path, name: &str, keep_names: bool, host: bool) -> Value {
+    let read = || -> Result<Arc<[u8]>, Value> {
+        let file = std::fs::File::open(path)
+            .map_err(|e| json!({"file": name, "read_error": e.to_string()}))?;
+        let size = file
+            .metadata()
+            .map_err(|e| json!({"file": name, "read_error": e.to_string()}))?
+            .len();
+        let refused = || {
+            json!({"file": name, "bytes": size, "scan_complete": false,
+            "admission_refusal": {"kind": "file_size_limit", "limit": MAX_FILE_BYTES}})
+        };
+        if size > MAX_FILE_BYTES {
+            return Err(refused());
+        }
+        let mut bytes = Vec::new();
+        file.take(MAX_FILE_BYTES + 1)
+            .read_to_end(&mut bytes)
+            .map_err(|e| json!({"file": name, "read_error": e.to_string()}))?;
+        if bytes.len() as u64 > MAX_FILE_BYTES {
+            return Err(refused());
+        }
+        Ok(bytes.into())
     };
-    let (name_owned, bytes_ref) = (name.to_owned(), bytes);
-    match std::panic::catch_unwind(|| classify_bytes(&bytes_ref, &name_owned, keep_names, host)) {
+    let bytes = match read() {
+        Ok(bytes) => bytes,
+        Err(error) => return error,
+    };
+    match std::panic::catch_unwind(|| classify_shared(bytes.clone(), name, keep_names, host)) {
         Ok(v) => v,
-        Err(_) => json!({"file": name_owned, "sha256": sha256_hex(&bytes_ref), "bytes": bytes_ref.len(), "panic": true}),
+        Err(_) => {
+            json!({"file": name, "sha256": sha256_hex(&bytes), "bytes": bytes.len(), "panic": true, "scan_complete": false})
+        }
     }
 }
 
@@ -1088,189 +1373,456 @@ fn ranked(occurrences: &Counts, files: &Counts) -> Vec<(String, u64, u64)> {
     rows
 }
 
-/// The summary of a set of profiles: counts only, no file or sheet names.
-pub(crate) fn summarize(profiles: &[Value], seconds: f64, jobs: usize) -> String {
-    let mut out = String::new();
-    let n = profiles.len() as u64;
-    let total_bytes: u64 = profiles.iter().map(|p| get_u64(p, &["bytes"])).sum();
-    let unique: BTreeSet<&str> = profiles.iter().filter_map(|p| p["sha256"].as_str()).collect();
-    let _ = writeln!(
-        out,
-        "{n} files, {} unique by SHA-256, {total_bytes} bytes; classified in {seconds:.1} s with {jobs} jobs ({:.0} files/s).",
-        unique.len(),
-        n as f64 / seconds.max(0.001)
-    );
-    let mut formats = Counts::new();
-    let mut opened_package = 0u64;
-    let mut reader_ok = 0u64;
-    let mut reader_failed = Counts::new();
-    let mut package_failed = Counts::new();
-    let mut with_formulas = 0u64;
-    let mut formula_cells = 0u64;
-    let mut sheets = 0u64;
-    let mut sizes = Vec::new();
-    for p in profiles {
-        bump(&mut formats, p["format"].as_str().unwrap_or("unreadable"), 1);
-        sizes.push(get_u64(p, &["bytes"]));
+/// Only aggregate counts, distinct keys/hashes and a size histogram survive each record.
+#[derive(Default)]
+struct ProfileSummary {
+    n: u64,
+    bytes: u64,
+    hashes: BTreeSet<String>,
+    sizes: BTreeMap<u64, u64>,
+    package_open: u64,
+    host_open: u64,
+    with_formulas: u64,
+    formulas: u64,
+    sheets: u64,
+    vba_modules: u64,
+    maps: BTreeMap<&'static str, (Counts, Counts)>,
+    features: BTreeMap<String, (u64, u64)>,
+    gaps: Counts,
+}
+
+// (profile path, table title, column names, row limit).
+type MapSpec = (
+    &'static [&'static str],
+    &'static str,
+    [&'static str; 3],
+    usize,
+);
+const SUMMARY_MAPS: &[MapSpec] = &[
+    (
+        &["functions"],
+        "Functions, top 60 by files (files; calls, shared members expanded)",
+        ["function", "files", "calls"],
+        60,
+    ),
+    (
+        &["function_shapes"],
+        "Argument shapes, top 40 by files (files; calls)",
+        ["shape", "files", "calls"],
+        40,
+    ),
+    (
+        &["formula_features"],
+        "Formula features (files; formula cells)",
+        ["feature", "files", "cells"],
+        30,
+    ),
+    (
+        &["cells", "formula_kinds"],
+        "Formula kinds in the file (files; formula cells)",
+        ["kind", "files", "cells"],
+        10,
+    ),
+    (
+        &["cells", "types"],
+        "Cell types (files; cells)",
+        ["type", "files", "cells"],
+        10,
+    ),
+    (
+        &["names", "functions"],
+        "Functions in defined names (files; calls)",
+        ["function", "files", "calls"],
+        15,
+    ),
+    (
+        &["names", "builtin"],
+        "Built-in defined names (files; names)",
+        ["name", "files", "names"],
+        15,
+    ),
+    (
+        &["conditional_rule_types"],
+        "Conditional-format rule types (files; rules)",
+        ["type", "files", "rules"],
+        15,
+    ),
+    (
+        &["sheet_extensions"],
+        "Worksheet extension (ext uri) blocks (files; blocks)",
+        ["element", "files", "count"],
+        20,
+    ),
+    (
+        &["package", "part_categories"],
+        "Package part categories (files; parts)",
+        ["category", "files", "parts"],
+        40,
+    ),
+    (
+        &["reader", "unloaded_cells"],
+        "Reader: cells held as not loaded (files; cells)",
+        ["kind", "files", "cells"],
+        15,
+    ),
+    (
+        &["reader", "unsupported"],
+        "Reader: unsupported notes per sheet (files; notes)",
+        ["note", "files", "count"],
+        20,
+    ),
+    (
+        &["reader", "repairs"],
+        "Reader repairs",
+        ["kind", "files", "repairs"],
+        20,
+    ),
+];
+
+impl ProfileSummary {
+    fn count(&mut self, table: &'static str, key: impl Into<String>) {
+        let (total, files) = self.maps.entry(table).or_default();
+        let key = key.into();
+        bump(total, key.clone(), 1);
+        bump(files, key, 1);
+    }
+
+    fn add(&mut self, p: &Value) {
+        self.n += 1;
+        let bytes = get_u64(p, &["bytes"]);
+        self.bytes += bytes;
+        *self.sizes.entry(bytes).or_default() += 1;
+        if let Some(sha) = p["sha256"].as_str() {
+            self.hashes.insert(sha.to_owned());
+        }
+        self.count(
+            "Format by file magic and extension",
+            p["format"].as_str().unwrap_or("unreadable"),
+        );
         if p["package"]["opened"].as_bool() == Some(true) {
-            opened_package += 1;
+            self.package_open += 1;
         } else if let Some(e) = p["package"]["error"].as_str() {
-            bump(&mut package_failed, e.chars().take(80).collect::<String>(), 1);
+            self.count(
+                "Packages calc-doc refuses",
+                e.chars().take(80).collect::<String>(),
+            );
+        }
+        if let Some(kind) = p["admission_refusal"]["kind"].as_str() {
+            self.count("Admission refusals", kind);
         }
         match p["reader"]["opened"].as_bool() {
-            Some(true) => reader_ok += 1,
-            Some(false) => bump(&mut reader_failed, p["reader"]["key"].as_str().unwrap_or("?"), 1),
+            Some(true) => self.host_open += 1,
+            Some(false) => self.count(
+                "Host route refusals (open key)",
+                p["reader"]["key"].as_str().unwrap_or("?"),
+            ),
             None => {}
         }
-        let f = get_u64(p, &["cells", "formula_cells"]);
-        formula_cells += f;
-        with_formulas += u64::from(f > 0);
-        sheets += get_u64(p, &["sheets", "count"]);
-    }
-    sizes.sort_unstable();
-    let pct = |q: usize| sizes.get(sizes.len().saturating_sub(1) * q / 100).copied().unwrap_or(0);
-    let _ = writeln!(
-        out,
-        "\nSize (bytes): median {}, p90 {}, p99 {}, max {}.\nPackages opened by calc-doc: {opened_package}; opened by the host route: {reader_ok}. Files with formulas: {with_formulas}; formula cells in all files: {formula_cells}; sheets: {sheets}.",
-        pct(50), pct(90), pct(99), sizes.last().copied().unwrap_or(0)
-    );
-    table(&mut out, "Format by file magic and extension", ["format", "files", "-"], formats.iter().map(|(k, v)| (k.clone(), *v, 0)).collect(), 20);
-    table(&mut out, "Packages calc-doc refuses", ["error", "files", "-"], package_failed.iter().map(|(k, v)| (k.clone(), *v, 0)).collect(), 20);
-    table(&mut out, "Host route refusals (open key)", ["key", "files", "-"], reader_failed.iter().map(|(k, v)| (k.clone(), *v, 0)).collect(), 20);
-
-    // Per-file feature sets.
-    let mut counted = |name: &str, getter: &dyn Fn(&Value) -> u64| (name.to_owned(), profiles.iter().filter(|p| getter(p) > 0).count() as u64, profiles.iter().map(getter).sum::<u64>());
-    let features: Vec<(String, u64, u64)> = vec![
-        counted("tables", &|p| get_u64(p, &["package", "part_categories", "xl/tables"])),
-        counted("pivot tables", &|p| get_u64(p, &["package", "part_categories", "xl/pivotTables"])),
-        counted("pivot caches", &|p| get_u64(p, &["package", "part_categories", "xl/pivotCache"])),
-        counted("charts (parts)", &|p| get_u64(p, &["package", "part_categories", "xl/charts"])),
-        counted("drawings (parts)", &|p| get_u64(p, &["package", "part_categories", "xl/drawings"])),
-        counted("images (media)", &|p| get_u64(p, &["package", "part_categories", "xl/media"])),
-        counted("embedded objects", &|p| get_u64(p, &["package", "part_categories", "xl/embeddings"])),
-        counted("comments parts", &|p| get_u64(p, &["package", "part_categories", "xl/comments"])),
-        counted("threaded comments", &|p| get_u64(p, &["package", "part_categories", "xl/threadedComments"])),
-        counted("VBA project", &|p| u64::from(p.get("vba").is_some())),
-        counted("connections", &|p| get_u64(p, &["package", "part_categories", "xl/connections"])),
-        counted("query tables", &|p| get_u64(p, &["package", "part_categories", "xl/queryTables"])),
-        counted("custom XML items", &|p| get_u64(p, &["package", "part_categories", "customXml"])),
-        counted("external links", &|p| get_u64(p, &["package", "part_categories", "xl/externalLinks"])),
-        counted("calcChain part", &|p| get_u64(p, &["package", "part_categories", "xl/calcChain"])),
-        counted("metadata part (dynamic arrays, rich values)", &|p| get_u64(p, &["package", "part_categories", "xl/metadata"])),
-        counted("rich data parts", &|p| get_u64(p, &["package", "part_categories", "xl/richData"])),
-        counted("slicers", &|p| get_u64(p, &["package", "part_categories", "xl/slicers"])),
-        counted("timelines", &|p| get_u64(p, &["package", "part_categories", "xl/timelines"])),
-        counted("data model", &|p| get_u64(p, &["package", "part_categories", "xl/model"])),
-        counted("macro sheets", &|p| get_u64(p, &["sheets", "kinds", "macrosheet"])),
-        counted("dialog sheets", &|p| get_u64(p, &["sheets", "kinds", "dialogsheet"])),
-        counted("chart sheets", &|p| get_u64(p, &["sheets", "kinds", "chartsheet"])),
-        counted("hidden sheets", &|p| get_u64(p, &["sheets", "kinds", "state:hidden"])),
-        counted("very hidden sheets", &|p| get_u64(p, &["sheets", "kinds", "state:veryHidden"])),
-        counted("date system 1904", &|p| u64::from(p["workbook"]["date1904"].as_bool() == Some(true))),
-        counted("iterative calculation", &|p| u64::from(p["workbook"]["iterate"].as_bool() == Some(true))),
-        counted("manual calculation", &|p| u64::from(p["workbook"]["calc_mode"].as_str() == Some("manual"))),
-        counted("workbook protection", &|p| u64::from(p["workbook"]["workbook_protection"].as_bool() == Some(true))),
-        counted("sheet protection", &|p| get_u64(p, &["sheet_elements", "sheetProtection"])),
-        counted("data validation", &|p| get_u64(p, &["sheet_elements", "dataValidation"])),
-        counted("conditional formatting blocks", &|p| get_u64(p, &["sheet_elements", "conditionalFormatting"])),
-        counted("hyperlinks", &|p| get_u64(p, &["sheet_elements", "hyperlink"])),
-        counted("merged cells", &|p| get_u64(p, &["sheet_elements", "mergeCell"])),
-        counted("autofilter", &|p| get_u64(p, &["sheet_elements", "autoFilter"])),
-        counted("legacy drawing (comments/forms)", &|p| get_u64(p, &["sheet_elements", "legacyDrawing"])),
-        counted("OLE objects in sheets", &|p| get_u64(p, &["sheet_elements", "oleObject"])),
-        counted("form controls in sheets", &|p| get_u64(p, &["sheet_elements", "control"])),
-        counted("defined names", &|p| get_u64(p, &["names", "total"])),
-        counted("hidden defined names", &|p| get_u64(p, &["names", "hidden"])),
-        counted("sheet-scoped names", &|p| get_u64(p, &["names", "sheet_scope"])),
-        counted("names that call functions", &|p| get_u64(p, &["names", "with_functions"])),
-        counted("names with #REF!", &|p| get_u64(p, &["names", "ref_errors"])),
-        counted("formula cells", &|p| get_u64(p, &["cells", "formula_cells"])),
-        counted("formula cells with a cached value", &|p| get_u64(p, &["cells", "formula_cached_values"])),
-        counted("dynamic-array cells (cm attribute)", &|p| get_u64(p, &["cells", "dynamic_array_cells"])),
-    ];
-    let _ = writeln!(out, "\n### Structures (files that have it; total count)\n\n| structure | files | total |\n|---|---:|---:|");
-    for (k, a, b) in features.into_iter().filter(|(_, a, _)| *a > 0) {
-        let _ = writeln!(out, "| {k} | {a} | {b} |");
-    }
-
-    let (mut flags, mut flag_files) = (Counts::new(), Counts::new());
-    let (mut funcs, mut func_files) = (Counts::new(), Counts::new());
-    let (mut kinds, mut kind_files) = (Counts::new(), Counts::new());
-    let (mut cats, mut cat_files) = (Counts::new(), Counts::new());
-    let (mut cells_types, mut cell_type_files) = (Counts::new(), Counts::new());
-    let (mut cf, mut cf_files) = (Counts::new(), Counts::new());
-    let (mut ext, mut ext_files) = (Counts::new(), Counts::new());
-    let (mut builtin, mut builtin_files) = (Counts::new(), Counts::new());
-    let (mut unsupported, mut unsupported_files) = (Counts::new(), Counts::new());
-    let (mut unloaded, mut unloaded_files) = (Counts::new(), Counts::new());
-    let (mut name_funcs, mut name_func_files) = (Counts::new(), Counts::new());
-    let mut vba_modules_total = 0u64;
-    let (mut producers, mut producer_files) = (Counts::new(), Counts::new());
-    for p in profiles {
-        let app = p["producer"]["application"].as_str().unwrap_or("(no app.xml)");
+        if p["scan_complete"].as_bool() != Some(true) {
+            bump(&mut self.gaps, "incomplete formula/name scan", 1);
+        }
+        let formulas = get_u64(p, &["cells", "formula_cells"]);
+        self.formulas += formulas;
+        self.with_formulas += u64::from(formulas > 0);
+        self.sheets += get_u64(p, &["sheets", "count"]);
+        self.vba_modules += get_u64(p, &["vba", "project_lines", "module"]);
+        for (path, title, _, _) in SUMMARY_MAPS {
+            let value = path.iter().try_fold(p, |v, key| v.get(*key));
+            let (counts, files) = self.maps.entry(title).or_default();
+            merge_map(value, counts, files);
+        }
+        let app = p["producer"]["application"]
+            .as_str()
+            .unwrap_or("(no app.xml)");
         let ver = p["producer"]["app_version"].as_str().unwrap_or("");
-        let key = if ver.is_empty() { app.to_owned() } else { format!("{app} {ver}") };
-        bump(&mut producers, key.clone(), 1);
-        bump(&mut producer_files, key, 1);
-    }
-    let mut reader_gaps = Counts::new();
-    let (mut shapes, mut shape_files) = (Counts::new(), Counts::new());
-    for p in profiles {
-        merge_map(p.get("function_shapes"), &mut shapes, &mut shape_files);
-        merge_map(p.get("formula_features"), &mut flags, &mut flag_files);
-        merge_map(p.get("functions"), &mut funcs, &mut func_files);
-        merge_map(p["cells"].get("formula_kinds"), &mut kinds, &mut kind_files);
-        merge_map(p["package"].get("part_categories"), &mut cats, &mut cat_files);
-        merge_map(p["cells"].get("types"), &mut cells_types, &mut cell_type_files);
-        merge_map(p.get("conditional_rule_types"), &mut cf, &mut cf_files);
-        merge_map(p.get("sheet_extensions"), &mut ext, &mut ext_files);
-        merge_map(p["names"].get("builtin"), &mut builtin, &mut builtin_files);
-        merge_map(p["names"].get("functions"), &mut name_funcs, &mut name_func_files);
-        merge_map(p["reader"].get("unsupported"), &mut unsupported, &mut unsupported_files);
-        merge_map(p["reader"].get("unloaded_cells"), &mut unloaded, &mut unloaded_files);
-        vba_modules_total += get_u64(p, &["vba", "project_lines", "module"]);
+        self.count(
+            "Producer (app.xml Application and AppVersion)",
+            if ver.is_empty() {
+                app.to_owned()
+            } else {
+                format!("{app} {ver}")
+            },
+        );
+        let counted = |name: &str, getter: &dyn Fn(&Value) -> u64| (name.to_owned(), getter(p));
+        let features: Vec<(String, u64)> = vec![
+            counted("tables", &|p| {
+                get_u64(p, &["package", "part_categories", "xl/tables"])
+            }),
+            counted("pivot tables", &|p| {
+                get_u64(p, &["package", "part_categories", "xl/pivotTables"])
+            }),
+            counted("pivot caches", &|p| {
+                get_u64(p, &["package", "part_categories", "xl/pivotCache"])
+            }),
+            counted("charts (parts)", &|p| {
+                get_u64(p, &["package", "part_categories", "xl/charts"])
+            }),
+            counted("drawings (parts)", &|p| {
+                get_u64(p, &["package", "part_categories", "xl/drawings"])
+            }),
+            counted("images (media)", &|p| {
+                get_u64(p, &["package", "part_categories", "xl/media"])
+            }),
+            counted("embedded objects", &|p| {
+                get_u64(p, &["package", "part_categories", "xl/embeddings"])
+            }),
+            counted("comments parts", &|p| {
+                get_u64(p, &["package", "part_categories", "xl/comments"])
+            }),
+            counted("threaded comments", &|p| {
+                get_u64(p, &["package", "part_categories", "xl/threadedComments"])
+            }),
+            counted("VBA project", &|p| u64::from(p.get("vba").is_some())),
+            counted("connections", &|p| {
+                get_u64(p, &["package", "part_categories", "xl/connections"])
+            }),
+            counted("query tables", &|p| {
+                get_u64(p, &["package", "part_categories", "xl/queryTables"])
+            }),
+            counted("custom XML items", &|p| {
+                get_u64(p, &["package", "part_categories", "customXml"])
+            }),
+            counted("external links", &|p| {
+                get_u64(p, &["package", "part_categories", "xl/externalLinks"])
+            }),
+            counted("calcChain part", &|p| {
+                get_u64(p, &["package", "part_categories", "xl/calcChain"])
+            }),
+            counted("metadata part (dynamic arrays, rich values)", &|p| {
+                get_u64(p, &["package", "part_categories", "xl/metadata"])
+            }),
+            counted("rich data parts", &|p| {
+                get_u64(p, &["package", "part_categories", "xl/richData"])
+            }),
+            counted("slicers", &|p| {
+                get_u64(p, &["package", "part_categories", "xl/slicers"])
+            }),
+            counted("timelines", &|p| {
+                get_u64(p, &["package", "part_categories", "xl/timelines"])
+            }),
+            counted("data model", &|p| {
+                get_u64(p, &["package", "part_categories", "xl/model"])
+            }),
+            counted("macro sheets", &|p| {
+                get_u64(p, &["sheets", "kinds", "macrosheet"])
+            }),
+            counted("dialog sheets", &|p| {
+                get_u64(p, &["sheets", "kinds", "dialogsheet"])
+            }),
+            counted("chart sheets", &|p| {
+                get_u64(p, &["sheets", "kinds", "chartsheet"])
+            }),
+            counted("hidden sheets", &|p| {
+                get_u64(p, &["sheets", "kinds", "state:hidden"])
+            }),
+            counted("very hidden sheets", &|p| {
+                get_u64(p, &["sheets", "kinds", "state:veryHidden"])
+            }),
+            counted("date system 1904", &|p| {
+                u64::from(p["workbook"]["date1904"].as_bool() == Some(true))
+            }),
+            counted("iterative calculation", &|p| {
+                u64::from(p["workbook"]["iterate"].as_bool() == Some(true))
+            }),
+            counted("manual calculation", &|p| {
+                u64::from(p["workbook"]["calc_mode"].as_str() == Some("manual"))
+            }),
+            counted("workbook protection", &|p| {
+                u64::from(p["workbook"]["workbook_protection"].as_bool() == Some(true))
+            }),
+            counted("sheet protection", &|p| {
+                get_u64(p, &["sheet_elements", "sheetProtection"])
+            }),
+            counted("data validation", &|p| {
+                get_u64(p, &["sheet_elements", "dataValidation"])
+            }),
+            counted("conditional formatting blocks", &|p| {
+                get_u64(p, &["sheet_elements", "conditionalFormatting"])
+            }),
+            counted("hyperlinks", &|p| {
+                get_u64(p, &["sheet_elements", "hyperlink"])
+            }),
+            counted("merged cells", &|p| {
+                get_u64(p, &["sheet_elements", "mergeCell"])
+            }),
+            counted("autofilter", &|p| {
+                get_u64(p, &["sheet_elements", "autoFilter"])
+            }),
+            counted("legacy drawing (comments/forms)", &|p| {
+                get_u64(p, &["sheet_elements", "legacyDrawing"])
+            }),
+            counted("OLE objects in sheets", &|p| {
+                get_u64(p, &["sheet_elements", "oleObject"])
+            }),
+            counted("form controls in sheets", &|p| {
+                get_u64(p, &["sheet_elements", "control"])
+            }),
+            counted("defined names", &|p| get_u64(p, &["names", "total"])),
+            counted("hidden defined names", &|p| {
+                get_u64(p, &["names", "hidden"])
+            }),
+            counted("sheet-scoped names", &|p| {
+                get_u64(p, &["names", "sheet_scope"])
+            }),
+            counted("names that call functions", &|p| {
+                get_u64(p, &["names", "with_functions"])
+            }),
+            counted("names with #REF!", &|p| {
+                get_u64(p, &["names", "ref_errors"])
+            }),
+            counted("formula cells", &|p| {
+                get_u64(p, &["cells", "formula_cells"])
+            }),
+            counted("formula cells with a cached value", &|p| {
+                get_u64(p, &["cells", "formula_cached_values"])
+            }),
+            counted("dynamic-array cells (cm attribute)", &|p| {
+                get_u64(p, &["cells", "dynamic_array_cells"])
+            }),
+        ];
+        for (name, count) in features {
+            if count > 0 {
+                let (files, total) = self.features.entry(name).or_default();
+                *files += 1;
+                *total += count;
+            }
+        }
         if p["reader"]["opened"].as_bool() == Some(true) {
-            let scan = |path: &[&str]| get_u64(p, path);
-            let pairs = [
-                ("data validations: scan more than reader", scan(&["sheet_elements", "dataValidation"]), scan(&["reader", "validations"])),
-                ("conditional-format blocks: scan more than reader", scan(&["sheet_elements", "conditionalFormatting"]), scan(&["reader", "conditional_formats"])),
-                ("merged cells: scan more than reader", scan(&["sheet_elements", "mergeCell"]), scan(&["reader", "merged_areas"])),
-                ("formula cells in the file beyond the loaded formula records (array members, data tables, unloaded)", scan(&["cells", "formula_cells"]), scan(&["reader", "formula_cells_loaded"])),
-            ];
-            for (label, scanned, read) in pairs {
-                if scanned > read {
-                    bump(&mut reader_gaps, label, 1);
+            for (label, scan, read) in [
+                (
+                    "data validations: scan more than reader",
+                    &["sheet_elements", "dataValidation"][..],
+                    &["reader", "validations"][..],
+                ),
+                (
+                    "conditional-format blocks: scan more than reader",
+                    &["sheet_elements", "conditionalFormatting"][..],
+                    &["reader", "conditional_formats"][..],
+                ),
+                (
+                    "merged cells: scan more than reader",
+                    &["sheet_elements", "mergeCell"][..],
+                    &["reader", "merged_areas"][..],
+                ),
+                (
+                    "formula cells in the file beyond the loaded formula records (array members, data tables, unloaded)",
+                    &["cells", "formula_cells"][..],
+                    &["reader", "formula_cells_loaded"][..],
+                ),
+            ] {
+                if get_u64(p, scan) > get_u64(p, read) {
+                    bump(&mut self.gaps, label, 1);
                 }
             }
             if get_u64(p, &["reader", "layout_warnings"]) > 0 {
-                bump(&mut reader_gaps, "layout warnings", 1);
+                bump(&mut self.gaps, "layout warnings", 1);
             }
         }
     }
-    table(&mut out, "Producer (app.xml Application and AppVersion)", ["producer", "files", "-"], ranked(&producers, &producer_files).into_iter().map(|(k, f, _)| (k, f, 0)).collect(), 15);
-    table(&mut out, "Formula features (files; formula cells)", ["feature", "files", "cells"], ranked(&flags, &flag_files), 30);
-    table(&mut out, "Formula kinds in the file (files; formula cells)", ["kind", "files", "cells"], ranked(&kinds, &kind_files), 10);
-    table(&mut out, "Cell types (files; cells)", ["type", "files", "cells"], ranked(&cells_types, &cell_type_files), 10);
-    table(&mut out, "Functions, top 60 by files (files; calls, shared members expanded)", ["function", "files", "calls"], ranked(&funcs, &func_files), 60);
-    let _ = writeln!(out, "\nDistinct functions seen: {}.", funcs.len());
-    let sensitive = shapes.keys().filter(|k| k.ends_with('!')).count();
-    let _ = writeln!(
-        out,
-        "Distinct (function, argument shape) pairs seen: {} ({} position- or reference-sensitive).",
-        shapes.len(),
-        sensitive
-    );
-    table(&mut out, "Argument shapes, top 40 by files (files; calls)", ["shape", "files", "calls"], ranked(&shapes, &shape_files), 40);
-    table(&mut out, "Functions in defined names (files; calls)", ["function", "files", "calls"], ranked(&name_funcs, &name_func_files), 15);
-    table(&mut out, "Built-in defined names (files; names)", ["name", "files", "names"], ranked(&builtin, &builtin_files), 15);
-    table(&mut out, "Conditional-format rule types (files; rules)", ["type", "files", "rules"], ranked(&cf, &cf_files), 15);
-    table(&mut out, "Worksheet extension (ext uri) blocks (files; blocks)", ["element", "files", "count"], ranked(&ext, &ext_files), 20);
-    table(&mut out, "Package part categories (files; parts)", ["category", "files", "parts"], ranked(&cats, &cat_files), 40);
-    let _ = writeln!(out, "\nVBA modules by project-stream heuristic: {vba_modules_total}.");
-    table(&mut out, "Reader: cells held as not loaded (files; cells)", ["kind", "files", "cells"], ranked(&unloaded, &unloaded_files), 15);
-    table(&mut out, "Reader: unsupported notes per sheet (files; notes)", ["note", "files", "count"], ranked(&unsupported, &unsupported_files), 20);
-    table(&mut out, "Reader gaps seen by comparing the scan with the reader (files)", ["gap", "files", "-"], reader_gaps.iter().map(|(k, v)| (k.clone(), *v, 0)).collect(), 20);
-    out
+
+    fn finish(&self, seconds: f64, jobs: usize) -> String {
+        let mut out = String::new();
+        let _ = writeln!(
+            out,
+            "{} files, {} unique by SHA-256, {} bytes; classified in {seconds:.1} s with {jobs} jobs ({:.0} files/s).",
+            self.n,
+            self.hashes.len(),
+            self.bytes,
+            self.n as f64 / seconds.max(0.001)
+        );
+        let pct = |q: u64| {
+            let position = self.n.saturating_sub(1) * q / 100;
+            let mut seen = 0;
+            self.sizes
+                .iter()
+                .find_map(|(size, count)| {
+                    seen += count;
+                    (seen > position).then_some(*size)
+                })
+                .unwrap_or(0)
+        };
+        let _ = writeln!(
+            out,
+            "\nSize (bytes): median {}, p90 {}, p99 {}, max {}.\nPackages opened by calc-doc: {}; opened by the host route: {}. Files with formulas: {}; formula cells in all files: {}; sheets: {}.",
+            pct(50),
+            pct(90),
+            pct(99),
+            self.sizes.last_key_value().map_or(0, |(size, _)| *size),
+            self.package_open,
+            self.host_open,
+            self.with_formulas,
+            self.formulas,
+            self.sheets
+        );
+        for (title, head, limit) in [
+            (
+                "Format by file magic and extension",
+                ["format", "files", "-"],
+                20,
+            ),
+            ("Packages calc-doc refuses", ["error", "files", "-"], 20),
+            ("Host route refusals (open key)", ["key", "files", "-"], 20),
+            ("Admission refusals", ["kind", "files", "-"], 20),
+            (
+                "Producer (app.xml Application and AppVersion)",
+                ["producer", "files", "-"],
+                15,
+            ),
+        ] {
+            if let Some((counts, files)) = self.maps.get(title) {
+                table(&mut out, title, head, ranked(counts, files), limit);
+            }
+        }
+        table(
+            &mut out,
+            "Structures (files that have it; total count)",
+            ["structure", "files", "total"],
+            self.features
+                .iter()
+                .map(|(key, (files, total))| (key.clone(), *files, *total))
+                .collect(),
+            usize::MAX,
+        );
+        for (_, title, head, limit) in SUMMARY_MAPS {
+            if let Some((counts, files)) = self.maps.get(title) {
+                table(&mut out, title, *head, ranked(counts, files), *limit);
+            }
+        }
+        let funcs = self
+            .maps
+            .get(SUMMARY_MAPS[0].1)
+            .map_or(0, |(counts, _)| counts.len());
+        let shapes = self.maps.get(SUMMARY_MAPS[1].1);
+        let sensitive = shapes.map_or(0, |(counts, _)| {
+            counts.keys().filter(|key| key.ends_with('!')).count()
+        });
+        let _ = writeln!(
+            out,
+            "\nDistinct functions seen: {funcs}.\nDistinct (function, argument shape) pairs seen: {} ({sensitive} position- or reference-sensitive).\nVBA modules by project-stream heuristic: {}.",
+            shapes.map_or(0, |(counts, _)| counts.len()),
+            self.vba_modules
+        );
+        table(
+            &mut out,
+            "Reader gaps seen by comparing the scan with the reader (files)",
+            ["gap", "files", "-"],
+            self.gaps
+                .iter()
+                .map(|(key, count)| (key.clone(), *count, 0))
+                .collect(),
+            20,
+        );
+        out
+    }
+}
+
+#[cfg(test)]
+fn summarize(profiles: &[Value], seconds: f64, jobs: usize) -> String {
+    let mut summary = ProfileSummary::default();
+    for p in profiles {
+        summary.add(p);
+    }
+    summary.finish(seconds, jobs)
 }
 
 #[cfg(test)]
@@ -1278,15 +1830,150 @@ mod tests {
     use super::*;
 
     #[test]
+    fn workers_share_one_memory_and_concurrency_budget() {
+        let budget = MemoryBudget::new(100, 2);
+        let a = budget.try_reserve(60).unwrap();
+        assert!(budget.try_reserve(41).is_none());
+        let b = budget.try_reserve(40).unwrap();
+        assert!(
+            budget.try_reserve(0).is_none(),
+            "worker count is bounded too"
+        );
+        drop(a);
+        let c = budget.try_reserve(60).unwrap();
+        drop((b, c));
+        assert!(budget.try_reserve(100).is_some());
+    }
+
+    #[test]
+    fn jsonl_is_consumed_one_bounded_record_at_a_time() {
+        let mut visited = 0;
+        let data = std::io::Cursor::new(b"{\"a\":1}\ninvalid\n");
+        let error = read_profiles(data, 32, |_| {
+            visited += 1;
+            Ok(())
+        })
+        .unwrap_err();
+        assert_eq!(
+            visited, 1,
+            "a later error must not delay earlier processing"
+        );
+        assert!(error.contains("line 2"));
+        let data = std::io::Cursor::new(vec![b' '; 100]);
+        assert!(
+            read_profiles(data, 8, |_| panic!("oversized record delivered"))
+                .unwrap_err()
+                .contains("record_size_limit")
+        );
+    }
+
+    #[test]
+    fn incremental_summary_counts_files_and_occurrences_separately() {
+        let mut summary = ProfileSummary::default();
+        for _ in 0..3 {
+            summary.add(&json!({"sha256": "same", "bytes": 10, "functions": {"SUM": 2}}));
+        }
+        let text = summary.finish(1.0, 2);
+        assert!(
+            text.contains("3 files, 1 unique by SHA-256, 30 bytes"),
+            "{text}"
+        );
+        assert!(text.contains("| SUM | 3 | 6 |"), "{text}");
+        assert!(text.contains("median 10, p90 10, p99 10, max 10"), "{text}");
+    }
+
+    #[test]
+    fn oversized_source_is_refused_before_reading_its_payload() {
+        let path = std::env::temp_dir().join(format!("dc-mndh-large-{}.xlsx", std::process::id()));
+        let file = std::fs::OpenOptions::new().write(true).create_new(true).open(&path).unwrap();
+        file.set_len(OpenPolicy::default().package.max_package_bytes + 1)
+            .unwrap();
+        drop(file);
+        let p = classify_file(&path, "large.xlsx", false, false);
+        std::fs::remove_file(path).unwrap();
+        assert_eq!(p["admission_refusal"]["kind"], "file_size_limit");
+        assert!(
+            p.get("sha256").is_none(),
+            "must not read/hash a refused payload"
+        );
+    }
+
+    #[test]
+    fn malformed_formula_scans_have_a_typed_refusal_and_bounded_work() {
+        for text in ["SUM(".repeat(30_000), "[".repeat(100_000)] {
+            assert_eq!(
+                analyze_formula(&text).unwrap_err(),
+                ScanRefusal::MalformedFormula
+            );
+        }
+        assert_eq!(
+            analyze_formula(&"x".repeat(MAX_FORMULA_BYTES + 1)).unwrap_err(),
+            ScanRefusal::WorkBudget
+        );
+        let nested = format!("{}1{}", "SUM(".repeat(10_000), ")".repeat(10_000));
+        assert_eq!(
+            analyze_formula(&nested).unwrap_err(),
+            ScanRefusal::WorkBudget
+        );
+        let xml = format!(
+            "<worksheet><sheetData><row><c><f>{}</f></c></row></sheetData></worksheet>",
+            "SUM(".repeat(30_000)
+        );
+        assert!(
+            scan_sheet(&XmlPart::from_bytes("sheet.xml", xml.into_bytes()))
+                .unwrap_err()
+                .to_string()
+                .contains("malformed_formula")
+        );
+    }
+
+    #[test]
+    fn every_serialized_record_identifies_the_reader_build() {
+        let path = std::env::temp_dir().join(format!("dc-mndh-build-{}.xlsx", std::process::id()));
+        let mut file = std::fs::OpenOptions::new().write(true).create_new(true).open(&path).unwrap();
+        file.write_all(&calc_doc::blank_package()).unwrap();
+        drop(file);
+        for host in [false, true] {
+            let p = classify_file(&path, "blank.xlsx", false, host);
+            assert!(p["reader_build"].as_str().is_some_and(|b| !b.is_empty()));
+        }
+        std::fs::remove_file(path).unwrap();
+    }
+
+    #[test]
+    fn classification_reports_the_reader_repair_kinds_and_counts() {
+        for (bytes, kind, count) in [
+            (include_bytes!("../../../crates/calc-doc/tests/fixtures/reader_tolerance/dangling-rid.xlsx").as_slice(), "sheet_relationship_missing", 1),
+            (include_bytes!("../../../crates/calc-doc/tests/fixtures/reader_tolerance/array-inner-formula.xlsx").as_slice(), "formula_inside_array", 1),
+            (include_bytes!("../../../crates/calc-doc/tests/fixtures/reader_tolerance/duplicate-sheetid-triple.xlsx").as_slice(), "duplicate_sheet_id", 2),
+        ] {
+            let p = classify_bytes(bytes, "repaired.xlsx", false, true);
+            assert_eq!(p["reader"]["repair_count"], count);
+            assert_eq!(p["reader"]["repairs"][kind], count);
+        }
+        let p = classify_bytes(&calc_doc::blank_package(), "blank.xlsx", false, true);
+        assert_eq!(p["reader"]["repair_count"], 0);
+    }
+
+    #[test]
     fn functions_and_features() {
         let s = analyze_formula(
             r#"LET(x,_xlfn.XLOOKUP("a(",Table1[Col],B1#),@A1+SUM(Sheet1:Sheet3!A1)+'[1]Ext'!A1+INDIRECT("A"&1)+{1,2})"#,
-        );
+        ).unwrap();
         assert_eq!(s.functions.get("LET"), Some(&1));
         assert_eq!(s.functions.get("XLOOKUP"), Some(&1));
         assert_eq!(s.functions.get("SUM"), Some(&1));
         assert_eq!(s.functions.get("INDIRECT"), Some(&1));
-        for f in ["let", "structured_reference", "spill_reference", "three_d_reference", "external_reference", "volatile", "array_constant", "implicit_intersection_operator"] {
+        for f in [
+            "let",
+            "structured_reference",
+            "spill_reference",
+            "three_d_reference",
+            "external_reference",
+            "volatile",
+            "array_constant",
+            "implicit_intersection_operator",
+        ] {
             assert_eq!(s.flags.get(f), Some(&1), "{f}");
         }
         assert!(!s.flags.contains_key("lambda"));
@@ -1295,21 +1982,21 @@ mod tests {
 
     #[test]
     fn strings_and_error_literals_are_not_features() {
-        let s = analyze_formula(r#"IF(A1="SUM(B1)",#N/A,"it's")"#);
+        let s = analyze_formula(r#"IF(A1="SUM(B1)",#N/A,"it's")"#).unwrap();
         assert_eq!(s.functions.len(), 1);
         assert!(s.flags.is_empty(), "{:?}", s.flags);
     }
 
     #[test]
     fn quoted_three_d_and_prefixes() {
-        let s = analyze_formula("_xlfn._xlws.SORT('Jan 1:Dec 31'!A1:A9)");
+        let s = analyze_formula("_xlfn._xlws.SORT('Jan 1:Dec 31'!A1:A9)").unwrap();
         assert_eq!(s.functions.get("SORT"), Some(&1));
         assert_eq!(s.flags.get("three_d_reference"), Some(&1));
     }
 
     #[test]
     fn calls_record_their_argument_shapes_and_shared_members_count_them() {
-        let s = analyze_formula(r#"IF(A1>0,ROUND(B2,2),"no")+SUM(C1:C9)+ROW()"#);
+        let s = analyze_formula(r#"IF(A1>0,ROUND(B2,2),"no")+SUM(C1:C9)+ROW()"#).unwrap();
         assert_eq!(s.shapes.get("IF(x,f,S)"), Some(&1));
         assert_eq!(s.shapes.get("ROUND(r,n)"), Some(&1));
         assert_eq!(s.shapes.get("SUM(R)"), Some(&1));
@@ -1328,7 +2015,10 @@ mod tests {
         assert_eq!(scan.stats.flags.get("volatile"), Some(&3));
         assert_eq!(scan.formula_cached_errors, 1);
         assert_eq!(scan.dimension.as_deref(), Some("A1:A3"));
-        assert_eq!(count_cached_formula_values(&XmlPart::from_bytes("s", xml.to_vec())), 3);
+        assert_eq!(
+            count_cached_formula_values(&XmlPart::from_bytes("s", xml.to_vec())),
+            3
+        );
     }
 
     #[test]
@@ -1354,7 +2044,13 @@ mod tests {
 
     #[test]
     fn args() {
-        let a = parse_args(&["a".into(), "--recursive".into(), "--jobs".into(), "3".into()]).unwrap();
+        let a = parse_args(&[
+            "a".into(),
+            "--recursive".into(),
+            "--jobs".into(),
+            "3".into(),
+        ])
+        .unwrap();
         assert!(a.recursive && a.jobs == 3 && a.dirs.len() == 1);
         assert!(parse_args(&[]).is_err());
         assert!(parse_args(&["a".into(), "--nope".into()]).is_err());

@@ -165,21 +165,40 @@ pub fn f_pdf_kernel(x: f64, deg1: f64, deg2: f64) -> Result<f64, WorksheetErrorC
     Ok(num / den)
 }
 
-/// The incomplete beta's argument pair for an F value: with `n = d1 f`, each stage stored,
-/// `x = 1 / (1 + n / d2)` and `y = 1 / (1 + d2 / n)`, so that the right tail is
-/// `I_x(d2 / 2, d1 / 2)` with `y` as its complement argument.
+/// Both tails of the F distribution, `(right, left)`, from one incomplete beta call.
 ///
-/// Read from Excel 16.0.20527 (dc-6332.8): FDIST(f, d1, d2) equals Excel's own
-/// BETA.DIST(x, d2 / 2, d1 / 2, TRUE) on all 411 calls of three degree pairs where the power
-/// series runs on `x`, and the complement of BETA.DIST(y, d1 / 2, d2 / 2, TRUE) on all 1,200 calls
-/// of six pairs where it runs on `y`. `d2 / (d2 + n)` and `n / (d2 + n)`, the earlier pair,
-/// hold 304 of the 411 and 1,124 of the 1,200.
-pub(crate) fn f_beta_arguments(f: f64, d1: f64, d2: f64) -> (f64, f64) {
+/// With `n = d1 f` and `r` the ratio of `n` and `d2` that is at least 1, the smaller beta argument
+/// is `1 / (1 + r)` and the larger `r / (1 + r)`, each stage stored, and the kernel is called with
+/// the smaller one first: `I_small(d2 / 2, d1 / 2)` when `n >= d2`, and otherwise
+/// `I_small(d1 / 2, d2 / 2)`, whose complement output is the right tail.
+///
+/// Read from Excel 16.0.20527 (dc-6332.8). Where the power series runs on the smaller argument,
+/// FDIST equals Excel's own BETA.DIST there on 411 of 411 and (as a complement) 1,200 of 1,200
+/// calls. Where the recurrence takes both arguments FDIST is not BETA.DIST at either one (about
+/// half of 1,043 calls, even when the two sum to one exactly); with the larger argument as
+/// `r / (1 + r)` and the switch at `n = d2` this kernel matches all 512 fresh calls of the arms
+/// it has exactly, and with `1 / (1 + 1 / r)` or `1 - small` it does not. The orientation shows
+/// in the unit-shape arms: at `d1 = 2` and `n < d2` Excel's answer is that of the arm for a
+/// first shape of 1 on 154 of 200 calls, 144 for the other.
+pub(crate) fn f_tails(f: f64, d1: f64, d2: f64) -> (f64, f64) {
     use crate::ported::excel_numeric::{excel_x87_add, excel_x87_div, excel_x87_mul};
     let n = excel_x87_mul(d1, f);
-    let x = excel_x87_div(1.0, excel_x87_add(1.0, excel_x87_div(n, d2)));
-    let y = excel_x87_div(1.0, excel_x87_add(1.0, excel_x87_div(d2, n)));
-    (x, y)
+    if n == 0.0 {
+        return (1.0, 0.0);
+    }
+    if n == f64::INFINITY {
+        return (0.0, 1.0);
+    }
+    let (numerator, denominator) = if n >= d2 { (n, d2) } else { (d2, n) };
+    let r = excel_x87_div(numerator, denominator);
+    let one_plus = excel_x87_add(1.0, r);
+    let (small, large) = (excel_x87_div(1.0, one_plus), excel_x87_div(r, one_plus));
+    if n >= d2 {
+        bratio_from_wrapper(d2 / 2.0, d1 / 2.0, small, large)
+    } else {
+        let (left, right) = bratio_from_wrapper(d1 / 2.0, d2 / 2.0, small, large);
+        (right, left)
+    }
 }
 
 pub fn f_dist_kernel(
@@ -192,8 +211,7 @@ pub fn f_dist_kernel(
     let d1 = truncate_positive_integer(deg1)?;
     let d2 = truncate_positive_integer(deg2)?;
     if cumulative {
-        let (right, left) = f_beta_arguments(x, d1, d2);
-        Ok(bratio_from_wrapper(d1 / 2.0, d2 / 2.0, left, right).0)
+        Ok(f_tails(x, d1, d2).1)
     } else {
         f_pdf_kernel(x, d1, d2)
     }
@@ -203,18 +221,14 @@ pub fn f_dist_rt_kernel(x: f64, deg1: f64, deg2: f64) -> Result<f64, WorksheetEr
     let x = validate_nonnegative_x(x)?;
     let d1 = truncate_positive_integer(deg1)?;
     let d2 = truncate_positive_integer(deg2)?;
-    let (right, left) = f_beta_arguments(x, d1, d2);
-    Ok(bratio_from_wrapper(d2 / 2.0, d1 / 2.0, right, left).0)
+    Ok(f_tails(x, d1, d2).0)
 }
 
 pub fn f_inv_kernel(probability: f64, deg1: f64, deg2: f64) -> Result<f64, WorksheetErrorCode> {
     let p = validate_probability_open_unit(probability)?;
     let d1 = truncate_positive_integer(deg1)?;
     let d2 = truncate_positive_integer(deg2)?;
-    let fwd = move |x: f64| {
-        let (right, left) = f_beta_arguments(x, d1, d2);
-        bratio_from_wrapper(d1 / 2.0, d2 / 2.0, left, right).0
-    };
+    let fwd = move |x: f64| f_tails(x, d1, d2).1;
     let hi = search_upper_bound(p, 1.0, fwd);
     Ok(bisect_inverse(p, 0.0, hi, fwd))
 }
@@ -227,10 +241,7 @@ pub fn f_inv_rt_kernel(probability: f64, deg1: f64, deg2: f64) -> Result<f64, Wo
     // form) directly at p, not the CDF at 1-p — same principle as CHIINV
     // (W109 b14+b19: the complement staging carries a systematic small-p bias).
     // The surface is decreasing in x, so invert the negated forward at -p.
-    let f = move |x: f64| {
-        let (right, left) = f_beta_arguments(x, d1, d2);
-        -bratio_from_wrapper(d2 / 2.0, d1 / 2.0, right, left).0
-    };
+    let f = move |x: f64| -f_tails(x, d1, d2).0;
     let hi = search_upper_bound(-p, 1.0, f);
     Ok(bisect_inverse(-p, 0.0, hi, f))
 }
@@ -357,6 +368,29 @@ pub fn t_inv_2t_kernel(probability: f64, deg_freedom: f64) -> Result<f64, Worksh
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    /// FDIST and F.DIST on either side of `d1 f = d2`, in the series and recurrence arms and with
+    /// a unit shape: Excel 16.0.20527's answers (the Excel answer service, 2026-11-12; dc-6332.8).
+    #[cfg_attr(not(target_arch = "wasm32"), test)]
+    #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+    fn f_tails_match_excel() {
+        let rows = [
+            (1.3, 5.0, 6.0, 0x3fd7f771c9bb0b34_u64, 0x3fe404471b227a66_u64),
+            (0.7, 5.0, 6.0, 0x3fe49996497df1d1, 0x3fd6ccd36d041c5e),
+            (2.5, 4.0, 9.0, 0x3fbde107cdec13bc, 0x3fec43df06427d88),
+            (0.9, 3.0, 5.0, 0x3fe01749ebfa7d62, 0x3fdfd16c280b053b),
+            (1.0, 6.0, 8.0, 0x3fdf0e2c0bbdd318, 0x3fe078e9fa211674),
+            (0.5, 7.0, 2.0, 0x3fe96bef85edc1ae, 0x3fca5041e848f949),
+            (3.0, 2.0, 7.0, 0x3fbd53f30c889855, 0x3fec55819e6eecf6),
+            (1.1, 4.0, 4.0, 0x3fddb74ca74b539e, 0x3fe12459ac5a5631),
+        ];
+        for (f, d1, d2, right, left) in rows {
+            let rt = f_dist_rt_kernel(f, d1, d2).unwrap();
+            assert_eq!(rt.to_bits(), right, "FDIST({f}, {d1}, {d2})");
+            let cdf = f_dist_kernel(f, d1, d2, true).unwrap();
+            assert_eq!(cdf.to_bits(), left, "F.DIST({f}, {d1}, {d2}, TRUE)");
+        }
+    }
     use crate::value::WorksheetErrorCode;
 
     #[cfg_attr(not(target_arch = "wasm32"), test)]

@@ -2117,6 +2117,11 @@ fn bratio_bgrat(a: f64, b: f64, x: f64, y: f64, w: f64, eps: f64) -> (f64, i32) 
     let mut d = [0.0f64; 31];
     let bm1 = (b - 0.5) - 0.5;
     let nu = a + 0.5 * bm1;
+    // Excel's `z` is the stored `nu * LN(x)` at every x (dc-6332.8: at a = 200 its answers sit
+    // within 4 units, one sigma, of the true value carried through that stored product, at ten
+    // values of b; with the rational below, the 90th percentile at (200, 0.3) is 59 units away,
+    // with LN 5). It is not taken yet: the arm's other pieces are not read, the bank moves by one
+    // row, and the three rows pinned below move from 3, 5, 3 to 9, 5, 3 units.
     let lnx = if y > 0.375 {
         crt_log(x)
     } else {

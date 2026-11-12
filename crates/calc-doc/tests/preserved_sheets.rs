@@ -17,8 +17,8 @@ use calc_doc::model::{
     StructuralChange, WorkbookOp,
 };
 use calc_doc::{SavePolicy, SaveRefusal, prepare_save, prepare_sheet_edit};
-use std::sync::Arc;
 use cdoc_m1_1_support::d1::{at, edited, load, number, part, save_model, save_untouched, sheet};
+use std::sync::Arc;
 
 const XLSX: &[u8] = include_bytes!("fixtures/preserved_sheets/chart-and-dialog-sheets.xlsx");
 const CHART_PART: &str = "xl/chartsheets/sheet1.xml";
@@ -157,14 +157,43 @@ fn preserved_sheets__a_save_refuses_to_change_or_remove_them() {
         sheet_edited(&loaded, SheetEdit::Remove { sheet: chart }),
         (CHART_PART, "chart sheet"),
     );
-    // Renaming a sheet leaves their parts alone and is saved.
+    // Even another sheet's rename can invalidate references in preserved parts.
     let after = sheet(&loaded, "After");
     let name = SheetName::new(ExcelText::from_utf16_code_units(
         "Later".encode_utf16().collect(),
     ))
     .expect("a name");
     let model = sheet_edited(&loaded, SheetEdit::Rename { sheet: after, name });
-    let (saved, _) = save_model(&loaded, &model);
-    assert_eq!(part(&saved, CHART_PART), part(XLSX, CHART_PART));
-    assert_eq!(load(&saved).model().sheets().len(), 4);
+    refused(model, (CHART_PART, "chart sheet"));
+}
+
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn preserved_sheets__renaming_or_removing_a_chart_precedent_refuses_save() {
+    let loaded = load(XLSX);
+    assert!(
+        String::from_utf8(part(XLSX, "xl/charts/chart1.xml").expect("the chart part"))
+            .unwrap()
+            .contains("Data!")
+    );
+    let data = sheet(&loaded, "Data");
+    for edit in [
+        SheetEdit::Rename {
+            sheet: data,
+            name: SheetName::new(ExcelText::from_utf16_code_units(
+                "Renamed".encode_utf16().collect(),
+            ))
+            .unwrap(),
+        },
+        SheetEdit::Remove { sheet: data },
+    ] {
+        let model = sheet_edited(&loaded, edit);
+        assert!(matches!(
+            prepare_save(&loaded.snapshot(&model), &SavePolicy::default()),
+            Err(SaveRefusal::PreservedSheetChanged {
+                kind: "chart sheet",
+                ..
+            })
+        ));
+    }
 }

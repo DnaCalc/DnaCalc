@@ -52,9 +52,12 @@ They are simple programs built from pieces Excel shares with GAMMALN, BINOM.DIST
    (the stores of the second and later terms are not read).
 5. **BINOM.DIST cumulative** is the kernel's complement output at the pair `(p, q)`:
    `1 - I_p(k + 1, n - k)`, not `I_q(n - k, k + 1)` with `1 - q` formed again.
-6. **FDIST / F.DIST argument pair**: with `n = store(d1 f)`, `x = 1 / (1 + n / d2)` and
-   `y = 1 / (1 + d2 / n)`, each stage stored. The unit-shape arm `a = 1` takes the stored `1 - x`,
-   not the wrapper's `y`.
+6. **FDIST / F.DIST / FINV**: with `n = store(d1 f)` and `r` the ratio of `n` and `d2` that is at
+   least 1, the smaller beta argument is `1 / (1 + r)` and the larger `r / (1 + r)`, each stage
+   stored; the kernel is called with the smaller argument first (`I(d2/2, d1/2)` when `n >= d2`,
+   else `I(d1/2, d2/2)` and its complement output). With a first shape of 1 the F and t
+   wrappers' kernel takes the stored `1 - x`. (Commit 1 had the pair `1 / (1 + n / d2)`,
+   `1 / (1 + d2 / n)`, right only where the series runs; commit 2 has this form.)
 7. **GAMMALN(2.5)** is one unit below what our table for `[2, 3]` gave; with Excel's value the
    recurrence gives GAMMALN(6.5) exactly as well. It is read at that one point (as 3.0 already was).
 
@@ -163,6 +166,52 @@ first on 16. Excel: BINOM.DIST(3, 7, 0.5, TRUE) = 0x3fdffffffffffffe, BETA.DIST(
 - TDIST: two tails equal Excel's BETA.DIST at `v / (v + t^2)` on 854 of 855 rows where the
   series runs on x; unchanged.
 
+### E8b The F pair where both arguments are used (f12..f25: about 30,000 calls, after commit 1)
+- With the commit-1 pair the recurrence rows matched about 68%. Rejected one at a time, each
+  with Excel's own BETA.DIST density and LN/EXP (so no error of ours enters): 5 spellings of the
+  density's argument times 5 products (best 68%), 11 products, 6 spellings of the series
+  argument, a double complement, and the series arm on its own (5 to 93 of 256..414 rows).
+- The decisive control: on 1,043 calls where the two arguments sum to one exactly and x >= 0.5
+  (nothing left to choose in the pair), FDIST equals Excel's own BETA.DIST(x, a, b) on 453 and
+  its complement form on 540, with differences up to 8 units. So the wrapper's pair was wrong
+  there, not the kernel's use of it.
+- 36 pairs of spellings scored on rows where neither orientation's series applies: `1/(1+t)`
+  with `t/(1+t)`, `t = n/d2`, matches 1,679 of 1,936; the commit-1 pair 1,470. Split by `t`
+  (f24.py, 10 degree pairs, about 2,900 mid rows): below `t = 1` only the pair
+  `(t'/(1+t'), 1/(1+t'))`, `t' = d2/n`, matches, above it only `(1/(1+t), t/(1+t))`; no row
+  matches neither at the pairs whose arms are exact.
+- Frozen prediction, then fresh calls (f7.py, 17 degree pairs, 150 f each): series 951 of 951;
+  recurrence with one term 190 of 190 and 15 of 15 before the asymptotic arm; two terms 301 of
+  303; three to five terms 381 of 491; a shape of 1 or 1/2: 551 of 600.
+- Orientation in the unit arms (f25.py): at `d1 = 2` and `n < d2` Excel's answer is that of the
+  kernel called as `I_small(1, d2/2)` (154 of 200), not `I_large(d2/2, 1)` (144).
+- F.TEST (bank only): this form holds 48 of 78 rows, its earlier pair 62, eight forms on the
+  variances or sums of squares 39 to 45. Unchanged.
+
+### E5b Three or more recurrence terms (u14..u21: about 6,000 calls)
+- On dyadic x (k/16) all 31 calls at b = 4 match every plain form: the structure is right and
+  the misses are rounding order.
+- The implied sum `w` (from Excel's answer, our series and Excel's density) sits a little off
+  the exact sum by a shape-only amount; fitted as a relative error of the second term it agrees
+  in sign and roughly in size with the binary64 rounding of the quotient `(a+b+l)/(a+1+l)` (zero
+  at (7, 4) and (6.25, 4), where the quotients are exact): the quotient is stored.
+- Rejected: stores rounded toward zero (as GAMMA.DIST's series has); 128 register/store
+  combinations in a precision-64 emulation, best 514 of 600 (quotient stored, the term kept in
+  the register for the next step, its stored value added to a stored sum, product stored).
+  Not landed: no form reaches all rows.
+
+### E10 The asymptotic arm for a large and b <= 1 (g1b..g6b: about 6,000 calls; nothing landed)
+- 829 of the 1,186 BETA.DIST bank rows still failing are here (x > 0.5, a > 15, b <= 1).
+- Excel's error against the true value grows with a (one sigma 5.5 units at a = 20, 34 at 200).
+  Carried through `z = store(nu * LN(x))`, `nu = a + (b - 1)/2` in binary64, it falls to 4 units
+  at a = 200 for b in {0.125, 0.2, 0.25, 0.3, 1/3, 0.4, 0.6, 0.7, 0.9}; one unit either side of
+  that `nu` leaves 26. So this arm is TOMS 708's `bgrat` in shape, with `z` from the public LN at
+  every x (TOMS switches to a rational for `ln(1 - y)` below y = 0.375; with LN the 90th
+  percentile of our distance at (200, 0.3) falls from 59 units to 5).
+- b = 0.5 exactly does not fit (24 of 34 units left): another path there.
+- Not landed: the bank moves by one row and exact matches stay near 8%; the pieces after `z`
+  (the gamma prefactor, the gamma tail, the ratio and the correction sum) are not read.
+
 ### E9 GAMMALN (g1.py, g2: about 1,300 calls)
 Our GAMMALN against Excel's: 200 of 200 on 8..20, 183 on 3..8, 73 on 2..3, 50 on 1.5..2, 66 on
 0.7..1.5. Every `ln B` of shapes off the half-integers inherits this. At 2.5 ours was one unit
@@ -199,11 +248,21 @@ BETADIST); the inverses following a changed forward (BETAINV 3, FINV 2, TINV 1);
 tests that pinned three of them (`f1_stats.rs`: FDIST at 5 and 6 degrees on two adjacent values,
 F.DIST(1.324..., 4, 11)) now record the calculation beside Excel's answer.
 
+## Bank counts, commit 2 (the F tails)
+
+All functions: 3,892,751 -> 3,893,685 (+934). FDIST 2,988 -> 3,861 of 4,399 (884 gained, 11
+lost); F.DIST 282 -> 343 of 369 (61 gained, none lost). No other function moved. The 11 rows
+lost are in `beta-family-2026-11-12-lost-rows-2.tsv`: all are recurrence rows with three or more
+terms (degree pairs (9, 3), (5, 11), (8, 9), (9, 11), (7, 7)) that matched by one unit of luck
+under the earlier pair. The three `f1_stats.rs` rows recorded as lost at commit 1 match again
+and are exact assertions again.
+
 ## Open, in the order I would take them
 
-1. The recurrence term at an F pair, and the stores of its second and later terms (most of the
-   1,411 FDIST rows left).
-2. `ln B` and the arms above 8 (`bgrat`, `bfrac`, `basym`), and the `min <= 1` recurrence arm
+1. The stores of the recurrence's second and later terms (most of the 538 FDIST rows left, and
+   about 150 BETA.DIST rows).
+2. The asymptotic arm for a large and b <= 1 (829 BETA.DIST rows): `z` is read (E10), its other
+   pieces are not; then `ln B` above 8, `bfrac`, `basym`, and the `min <= 1` recurrence arm
    (`bup_140`), where Excel's density form lost 3 TDIST rows and was left out.
 3. GAMMALN below 3 (2,139 of 4,538): every shape off the half-integers depends on it.
 4. The Stirling error at 0.5 (one unit), for densities with a shape of 1.5.

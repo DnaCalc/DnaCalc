@@ -91,6 +91,14 @@ impl fmt::Display for OpenFailure {
 
 impl std::error::Error for OpenFailure {}
 
+/// Repairs made while opening the source. Applications can show the full typed details and
+/// counts without treating a repaired workbook as a clean open.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct OpenReport<'a> {
+    pub repairs: &'a [calc_doc::LoadRepair],
+    pub repair_counts: std::collections::BTreeMap<&'static str, u64>,
+}
+
 /// One open workbook: the workbook calc-doc loaded from a package (which keeps the package for a
 /// later save), the current authored revision of its model, and the engine state at that
 /// revision. The host is the one owner that changes either: [`crate::dispatch`] commits an edit
@@ -405,6 +413,26 @@ impl HostState {
 
     pub fn loaded(&self) -> &LoadedWorkbook {
         &self.loaded
+    }
+
+    /// The successful open's repair diagnostics, retained for the life of this host.
+    pub fn open_report(&self) -> OpenReport<'_> {
+        let repairs = self.loaded.repairs();
+        let mut repair_counts = std::collections::BTreeMap::new();
+        for repair in repairs {
+            let kind = match repair {
+                calc_doc::LoadRepair::SheetRelationshipMissing { .. } => {
+                    "sheet_relationship_missing"
+                }
+                calc_doc::LoadRepair::FormulaInsideArray { .. } => "formula_inside_array",
+                calc_doc::LoadRepair::DuplicateSheetId { .. } => "duplicate_sheet_id",
+            };
+            *repair_counts.entry(kind).or_default() += 1;
+        }
+        OpenReport {
+            repairs,
+            repair_counts,
+        }
     }
 
     /// The current revision's sheets, in workbook order: each one's ID, which the cell keys of

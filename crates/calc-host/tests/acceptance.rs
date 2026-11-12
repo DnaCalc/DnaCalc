@@ -44,6 +44,53 @@ use chost_m1_1_support::{CALC_PART, CALC_SHEET, INPUTS_SHEET, crc32, package, pa
 use std::ops::ControlFlow;
 use std::sync::Arc;
 
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn dc_mndh__open_reports_repairs_to_the_caller() {
+    for (bytes, kind, count) in [
+        (
+            include_bytes!("../../calc-doc/tests/fixtures/reader_tolerance/dangling-rid.xlsx")
+                .as_slice(),
+            "sheet_relationship_missing",
+            1,
+        ),
+        (
+            include_bytes!(
+                "../../calc-doc/tests/fixtures/reader_tolerance/array-inner-formula.xlsx"
+            )
+            .as_slice(),
+            "formula_inside_array",
+            1,
+        ),
+        (
+            include_bytes!(
+                "../../calc-doc/tests/fixtures/reader_tolerance/duplicate-sheetid-triple.xlsx"
+            )
+            .as_slice(),
+            "duplicate_sheet_id",
+            2,
+        ),
+    ] {
+        let host = HostState::open(
+            Arc::new(MemorySource::new(bytes)),
+            &OpenPolicy::default(),
+            HostOptions::default(),
+        )
+        .unwrap();
+        let report = host.open_report();
+        assert_eq!(report.repairs.len(), count);
+        assert_eq!(report.repair_counts.get(kind), Some(&(count as u64)));
+    }
+    let host = HostState::open(
+        Arc::new(MemorySource::new(calc_doc::blank_package())),
+        &OpenPolicy::default(),
+        HostOptions::default(),
+    )
+    .unwrap();
+    assert!(host.open_report().repairs.is_empty());
+    assert!(host.open_report().repair_counts.is_empty());
+}
+
 #[cfg(target_arch = "wasm32")]
 use wasm_bindgen_test::wasm_bindgen_test;
 
