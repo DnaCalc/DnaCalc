@@ -52,6 +52,7 @@ class Outgoing:
 class Relay:
     def __init__(self, args):
         self.socket_path = os.path.expanduser(args.get("socket", "~/.excel-service/excel.sock"))
+        self.socket_ino = None
         self.v1_queue = os.path.expanduser(args["v1_queue"]) if args.get("v1_queue") else None
         self.server = None
         self.envs = {}
@@ -78,9 +79,9 @@ class Relay:
             os.unlink(self.socket_path)
         except FileNotFoundError:
             pass
-        self.listener = await asyncio.start_unix_server(self.on_client, path=self.socket_path)
-        os.chmod(self.socket_path, 0o600)
+        await self.bind_socket()
         tasks = [asyncio.create_task(self.v1_scan())] if self.v1_queue else []
+        tasks.append(asyncio.create_task(self.keep_socket_path()))
         frames = protocol.FrameReader()
         try:
             while True:
@@ -99,12 +100,38 @@ class Relay:
                     client.writer.close()
                 except Exception:
                     pass
-            try:
-                os.unlink(self.socket_path)
-            except OSError:
-                pass
+            if self.owns_socket_path():
+                try:
+                    os.unlink(self.socket_path)
+                except OSError:
+                    pass
             self.broker.closed = True
             writer_task.cancel()
+
+    async def bind_socket(self):
+        self.listener = await asyncio.start_unix_server(self.on_client, path=self.socket_path)
+        os.chmod(self.socket_path, 0o600)
+        self.socket_ino = os.stat(self.socket_path).st_ino
+
+    def owns_socket_path(self):
+        """True while the socket path still names this relay's own socket (another relay may have replaced it)."""
+        try:
+            return os.stat(self.socket_path).st_ino == self.socket_ino
+        except OSError:
+            return False
+
+    async def keep_socket_path(self):
+        # A relay that starts while this one runs replaces the path and removes it when it exits, which
+        # left this relay listening on a socket no client could find (2026-11-12, both lane hosts).
+        # Re-create a missing path; leave a path another live relay owns alone.
+        while True:
+            await asyncio.sleep(5)
+            if not os.path.exists(self.socket_path):
+                try:
+                    self.listener.close()
+                    await self.bind_socket()
+                except OSError:
+                    pass
 
     def from_broker(self, kind, body):
         if kind == protocol.HELLO:
