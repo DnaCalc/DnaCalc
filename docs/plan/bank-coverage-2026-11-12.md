@@ -1115,3 +1115,63 @@ Functions without a full-bank status row: MAP, REDUCE, SCAN, BYROW, BYCOL, MAKEA
 | Z.TEST | 2857 | 1386 | 2857 | 1386 | 1471 | - |
 | ZTEST | 2864 | 1387 | 2864 | 1387 | 1477 | - |
 | _EUROTOOL.EUROCONVERT | — | — | 4067 | 0 | 4067 | - |
+
+## Real ranges and mixed arrays, 2026-11-12
+
+Excel build 20527 supplied 66,380 accepted observations across 49 files for 47 functions, with at least 1,000 distinct input tuples per function before bank deduplication. Primary and supplemental files retain their worker environments separately. Failed and unasked batches are recorded in capture summaries; unread or changed inputs were excluded from captures. Spill captures select [1,1]. IMPORTCSV and IMPORTTEXT were omitted because of dc-4rsw.
+
+The single full-bank judgment on DnaCalc d085fe4bc4 and CalcFunc-Evidence 629c8cb2 matched 4,594,146 of 4,728,621 rows (97.16%); 134,475 failed, including 4 unread and 2,064 excluded. The before status below was saved at lane start, not from a fresh judgment; other lanes changed master between snapshots. Counts include prior banks and are deduplicated by the witness route.
+
+The judge was run with a read-only report. The committed full-bank status was reconstructed from that report: its measured rows, matches, worst ULP, class and exclusions are unchanged; existing build sets were retained and the five new functions were assigned build 20527 from their capture provenance. All evidence added since the prior full-bank snapshot is build 20527. Pinned status rows were retained.
+
+Newly above 10,000 ULP relative to the saved starting status: LOOKUP (9,299,132,314,835,784,265), MATCH (9,007,199,254,740,992), TOCOL (4,676,458,385,858,625,536), and TOROW (4,676,459,485,370,253,312). Structural failures and refusals remain counted.
+
+| Function | Rows before | Matched before | Rows after | Matched after | Failed after | Worst ULP after |
+|---|---:|---:|---:|---:|---:|---:|
+| AGGREGATE | 4347 | 4159 | 5747 | 5559 | 188 | - |
+| ARRAYTOTEXT | 1960 | 1960 | 3300 | 2612 | 688 | - |
+| AVERAGEIF | 2862 | 2847 | 4212 | 4197 | 15 | - |
+| AVERAGEIFS | – | – | 1380 | 1345 | 35 | - |
+| CHOOSECOLS | 1600 | 1600 | 3000 | 2873 | 127 | - |
+| CHOOSEROWS | 1600 | 1600 | 3000 | 2914 | 86 | - |
+| COLUMNS | 1960 | 1960 | 3350 | 3350 | 0 | - |
+| COUNTIF | 2853 | 2836 | 4253 | 4165 | 88 | - |
+| COUNTIFS | – | – | 1399 | 1340 | 59 | - |
+| DAVERAGE | 4274 | 3720 | 5674 | 4420 | 1254 | - |
+| DCOUNT | 4276 | 3698 | 5676 | 4398 | 1278 | - |
+| DCOUNTA | 4276 | 3695 | 5676 | 4395 | 1281 | - |
+| DGET | 4268 | 4222 | 5668 | 4922 | 746 | - |
+| DMAX | 4271 | 3731 | 5671 | 4431 | 1240 | - |
+| DMIN | 4272 | 3725 | 5672 | 4425 | 1247 | - |
+| DPRODUCT | 4280 | 3749 | 5680 | 4449 | 1231 | - |
+| DROP | 1000 | 1000 | 2400 | 2223 | 177 | - |
+| DSTDEV | 4277 | 3725 | 5677 | 4425 | 1252 | - |
+| DSTDEVP | 4273 | 3741 | 5673 | 4441 | 1232 | - |
+| DSUM | 4277 | 3719 | 5677 | 4419 | 1258 | - |
+| DVAR | 4269 | 3728 | 5669 | 4428 | 1241 | - |
+| DVARP | 4280 | 3732 | 5670 | 4428 | 1242 | - |
+| EXPAND | 1600 | 1600 | 3000 | 2888 | 112 | - |
+| FILTER | 1600 | 1600 | 3000 | 2880 | 120 | - |
+| HLOOKUP | 1960 | 1960 | 3360 | 3186 | 174 | - |
+| HSTACK | 1600 | 1600 | 3000 | 2894 | 106 | - |
+| INDEX | 1400 | 1400 | 2760 | 2640 | 120 | - |
+| LOOKUP | 1960 | 1960 | 3360 | 3063 | 297 | 9299132314835784265 |
+| MATCH | 1973 | 1973 | 3373 | 3264 | 109 | 9007199254740992 |
+| MAXIFS | – | – | 1400 | 1361 | 39 | - |
+| MINIFS | – | – | 1330 | 1292 | 38 | - |
+| PERCENTOF | 4178 | 4178 | 5578 | 5578 | 0 | - |
+| ROWS | 1960 | 1960 | 3360 | 3360 | 0 | - |
+| SORTBY | 1600 | 1600 | 3000 | 2872 | 128 | - |
+| SUBTOTAL | 4318 | 3844 | 5448 | 4974 | 474 | - |
+| SUMIF | 4191 | 4167 | 5561 | 5537 | 24 | - |
+| SUMIFS | – | – | 1390 | 1348 | 42 | - |
+| TAKE | 1600 | 1600 | 3000 | 2945 | 55 | - |
+| TOCOL | 1600 | 1600 | 3000 | 2881 | 119 | 4676458385858625536 |
+| TOROW | 1600 | 1600 | 3000 | 2874 | 126 | 4676459485370253312 |
+| TRIMRANGE | 1600 | 1600 | 3000 | 2934 | 66 | - |
+| VLOOKUP | 1960 | 1960 | 3360 | 3195 | 165 | - |
+| VSTACK | 1600 | 1600 | 3000 | 2874 | 126 | - |
+| WRAPCOLS | 1600 | 1600 | 3000 | 2880 | 120 | - |
+| WRAPROWS | 1600 | 1600 | 3000 | 2888 | 112 | - |
+| XLOOKUP | 1960 | 1960 | 3360 | 3139 | 221 | - |
+| XMATCH | 1973 | 1973 | 3373 | 3256 | 117 | - |
