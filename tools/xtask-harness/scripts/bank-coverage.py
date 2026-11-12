@@ -4,10 +4,10 @@
 Outputs uncompressed answer files and a capture log to an empty run directory. Each row
 retains the input read back by Excel; changed inputs and unread answers are excluded.
 """
-import argparse, concurrent.futures, csv, hashlib, importlib.util, json, math, pathlib, random, sys
+import argparse, concurrent.futures, csv, hashlib, importlib.util, json, math, pathlib, random, sys, threading
 ROOT = pathlib.Path(__file__).resolve().parents[3]
 sys.path.insert(0, str(ROOT / 'tools/excel-service'))
-from client import Client, number, text, boolean, blank, error, number_array
+from client import Client, number, text, boolean, blank, error, number_array, cell_range, cell_array
 import policy
 spec = importlib.util.spec_from_file_location('drift', pathlib.Path(__file__).with_name('witness-drift.py'))
 drift = importlib.util.module_from_spec(spec); spec.loader.exec_module(drift)
@@ -139,6 +139,58 @@ def generate_spill(name, count=1200):
         rows.append(row)
     return rows
 
+RANGE_FUNCTIONS = {'SUMIF','SUMIFS','COUNTIF','COUNTIFS','AVERAGEIF','AVERAGEIFS','MAXIFS','MINIFS',
+    'DAVERAGE','DCOUNT','DCOUNTA','DGET','DMAX','DMIN','DPRODUCT','DSTDEV','DSTDEVP','DSUM','DVAR','DVARP',
+    'PERCENTOF','AGGREGATE','SUBTOTAL','TRIMRANGE'}
+MIXED_FUNCTIONS = {'VLOOKUP','HLOOKUP','LOOKUP','MATCH','XLOOKUP','XMATCH','INDEX','FILTER','SORTBY',
+    'TAKE','DROP','CHOOSECOLS','CHOOSEROWS','HSTACK','VSTACK','TOCOL','TOROW','WRAPCOLS','WRAPROWS',
+    'EXPAND','ARRAYTOTEXT','ROWS','COLUMNS'}
+
+def generate_range_mixed(name, count=1400):
+    rng = random.Random(int.from_bytes(hashlib.sha256((name+'admit3-20261112').encode()).digest()[:8], 'big'))
+    rows=[]
+    for i in range(count):
+        height=2+i%5; width=1+(i//5)%3
+        pool=[number((i%211-105)/7),number(45000+i%366),text('apple'+str(i%23)),text('a*'+str(i%7)),
+              boolean(i%2==0),blank(),error('#N/A'),number(i%13)]
+        def matrix(h=height,w=width):
+            return [[rng.choice(pool) for _ in range(w)] for _ in range(h)]
+        data=matrix(); data[0][0]=number(i/13)
+        if i%4==0: data[-1]=list(data[0])
+        if i%4==1: data.sort(key=lambda r: str(r[0]))
+        a=cell_array(data); ref=cell_range(data)
+        criteria=text(['>0','<0','<>0','=0','*','a?','~*','<='+str(i%97),'apple*'][i%9])
+        if name.startswith('D') and name in RANGE_FUNCTIONS:
+            db=[[text('Key'),text('Value')]]+[[text('a'+str((i+j)%7)),number((i+j)%101-50)] for j in range(height)]
+            db[1][1]=number(i/17)
+            row=[cell_range(db), (number(2) if i%2 else text('Value')), cell_range([[text('Key')],[text(['a*','a?','a1','<>a2'][i%4])]])]
+        elif name in {'SUMIF','COUNTIF','AVERAGEIF'}:
+            row=[ref,criteria] + ([] if name=='COUNTIF' or i%3==0 else [cell_range(matrix())])
+        elif name in {'SUMIFS','COUNTIFS','AVERAGEIFS','MAXIFS','MINIFS'}:
+            row=([ref] if name!='COUNTIFS' else [])+[cell_range(matrix()),criteria]
+            if i%2: row += [cell_range(matrix()),text('>'+str(i%17))]
+        elif name=='SUBTOTAL': row=[number([1,2,3,4,5,6,7,8,9,10,11,101,109][i%13]),ref]
+        elif name=='AGGREGATE': row=[number(1+i%13),number(i%8),ref]
+        elif name=='PERCENTOF': row=[ref,number(i/11+1)]
+        elif name=='TRIMRANGE': row=[ref,number(i%4),number((i//4)%4)]
+        elif name in {'ROWS','COLUMNS','ARRAYTOTEXT'}: row=[a]
+        elif name=='INDEX': row=[a,number(1+i%height),number(1+i%width)]
+        elif name in {'MATCH','XMATCH'}: row=[data[0][0],cell_array([[r[0]] for r in data]),number(0)]
+        elif name=='VLOOKUP': row=[data[0][0],a,number(1+i%width),boolean(False)]
+        elif name=='HLOOKUP': row=[data[0][0],a,number(1+i%height),boolean(False)]
+        elif name=='LOOKUP': row=[data[0][0],cell_array([[r[0]] for r in data]),cell_array([[r[-1]] for r in data])]
+        elif name=='XLOOKUP': row=[data[0][0],cell_array([[r[0]] for r in data]),cell_array([[r[-1]] for r in data]),text('missing')]
+        elif name=='FILTER': row=[a,cell_array([[boolean((i+j)%3!=0)] for j in range(height)]),text('none')]
+        elif name=='SORTBY': row=[a,cell_array([[number((i+j*7)%13)] for j in range(height)]),number(1 if i%2 else -1)]
+        elif name in {'TAKE','DROP','CHOOSEROWS','CHOOSECOLS'}: row=[a,number((-1 if i%2 else 1)*(1+i%(width if name=='CHOOSECOLS' else height-1)))]
+        elif name in {'HSTACK','VSTACK'}: row=[a,cell_array(matrix())]
+        elif name in {'TOCOL','TOROW'}: row=[a,number(i%4),boolean(i%2==0)]
+        elif name in {'WRAPCOLS','WRAPROWS'}: row=[cell_array([data[0]+[r[0] for r in data[1:]]]),number(1+i%5),text('pad'+str(i))]
+        elif name=='EXPAND': row=[a,number(height+i%3),number(width+i%3),text('pad'+str(i))]
+        else: raise ValueError(name)
+        rows.append(row)
+    return rows
+
 def generate_variants(entry):
     name = entry[0]
     rows = generate_spill(name, 320) if name in policy.SPILL_FUNCTIONS else generate(entry, 'scalar')[:320]
@@ -158,7 +210,9 @@ def witness_arg(arg):
     if kind == 'boolean': return arg['value']
     if kind == 'blank': return None
     if kind == 'error': return {'error': drift.ERRORS[arg['code']]}
-    if kind in ('array', 'mixed_array'): return [[witness_arg(x) for x in row] for row in arg['values']]
+    if kind in ('array', 'mixed_array', 'range'):
+        cells = [[witness_arg(x) for x in row] for row in arg['values']]
+        return {'range': cells} if kind == 'range' else cells
     raise ValueError(kind)
 
 def ask_checked(client, name, rows, *, result_index=None, shape='scalar', **_):
@@ -170,10 +224,12 @@ def ask_checked(client, name, rows, *, result_index=None, shape='scalar', **_):
     reply = pending.result(timeout=client.timeout)
     if len(pending.env_ids) != 1:
         raise ValueError('request did not have one recorded worker environment')
+    if len(reply.get('rows', [])) != len(rows) or len(reply.get('inputs', [])) != len(rows):
+        raise ValueError('incomplete response or input readback')
     return reply
 
 def main():
-    p=argparse.ArgumentParser(); p.add_argument('--catalogue',type=pathlib.Path,required=True); p.add_argument('--baseline',type=pathlib.Path,required=True); p.add_argument('--out',type=pathlib.Path,required=True); p.add_argument('--stage',choices=['scalar','more','enrich','special','spill','spillmore','variants'],required=True); p.add_argument('--only'); o=p.parse_args()
+    p=argparse.ArgumentParser(); p.add_argument('--catalogue',type=pathlib.Path,required=True); p.add_argument('--baseline',type=pathlib.Path,required=True); p.add_argument('--out',type=pathlib.Path,required=True); p.add_argument('--stage',choices=['scalar','more','enrich','special','spill','spillmore','variants','range-mixed'],required=True); p.add_argument('--only'); o=p.parse_args()
     o.out.mkdir(parents=True,exist_ok=True)
     entries=list(csv.reader(o.catalogue.open(),delimiter='\t'))
     status={r['function']:r for r in csv.DictReader(o.baseline.open(),delimiter='\t') if r['bank']=='full'}
@@ -184,51 +240,80 @@ def main():
         if n in policy.REMOTE_SERVICE or e[1].startswith(('Operator','Binding')): continue
         variants = {'FREQUENCY','LINEST','LOGEST','MMULT','MODE.MULT','MUNIT','SEQUENCE','SORT','TEXTSPLIT','TRANSPOSE','TREND','UNIQUE'}
         is_spill = n in policy.SPILL_FUNCTIONS
+        if o.stage == 'range-mixed':
+            if n not in RANGE_FUNCTIONS | MIXED_FUNCTIONS: continue
+            selected.append(e); continue
         if o.stage == 'variants' and n not in variants: continue
         if o.stage.startswith('spill') != is_spill and o.stage != 'variants': continue
         if s and int(s['rows'])>=1000 and not (s['worst_ulp'].isdigit() and int(s['worst_ulp'])>10000): continue
         selected.append(e)
     c=Client(transport='socket',timeout=900)
+    service_down = threading.Event()
     def capture(e):
-        name=e[0]; path=o.out / ('answers-' + name.lower() + '-' + o.stage + '.json')
+        name=e[0]
+        if service_down.is_set(): return name, 'service unavailable; not asked'
+        path=o.out / ('answers-' + name.lower() + '-' + o.stage + '.json')
         if name in OBSERVATIONS_ONLY: return name, 'needs volatile observation/property format'
         if name in CALLABLES: return name, 'needs callable argument protocol'
-        if path.exists(): return name, 'already captured'
-        rows=generate_variants(e) if o.stage == 'variants' else generate_spill(name,1600)[1200:] if o.stage == 'spillmore' else generate_spill(name) if o.stage == 'spill' else generate(e,o.stage)
+        previous = json.loads(path.read_text()) if o.stage == 'range-mixed' and path.exists() else None
+        if path.exists() and (previous is None or len(previous['witnesses']) >= 1000): return name, 'already captured'
+        rows=generate_range_mixed(name) if o.stage == 'range-mixed' else generate_variants(e) if o.stage == 'variants' else generate_spill(name,1600)[1200:] if o.stage == 'spillmore' else generate_spill(name) if o.stage == 'spill' else generate(e,o.stage)
         try:
             kw={'echo_inputs':True,'priority':'bulk'}
-            spill = o.stage.startswith('spill') or (o.stage == 'variants' and name in policy.SPILL_FUNCTIONS)
+            spill = (o.stage == 'range-mixed' and name in policy.SPILL_FUNCTIONS) or o.stage.startswith('spill') or (o.stage == 'variants' and name in policy.SPILL_FUNCTIONS)
             if name in {'LINEST','LOGEST'} and not spill: kw['result_index']=(1,1)
-            if spill:
-                kw['shape']='array'
-                # Large spill batches hit the worker deadline even though scalar batches
-                # are fast. Thirty calls keep each spill calculation bounded in practice.
-                replies=[ask_checked(c, name, rows[i:i+30], **kw) for i in range(0,len(rows),30)]
-                if len({part.get('env_id') for part in replies}) != 1:
-                    raise ValueError('spill batches used different worker environments')
-                reply=replies[0].copy()
-                reply['rows']=[row for part in replies for row in part['rows']]
-                reply['inputs']=[row for part in replies for row in part['inputs']]
+            rejected={}; captured=[]
+            existing = previous['witnesses'] if previous else []
+            done = {int(w['id'].rsplit('-',1)[1]) for w in existing}
+            pending = [(i, row) for i, row in enumerate(rows) if i not in done]
+            if spill or o.stage == 'range-mixed':
+                if spill: kw['shape']='array'
+                batch = 10 if o.stage == 'range-mixed' else 30
+                reply = None
+                prior_env = previous['capture_provenance']['env_id'] if previous else None
+                consecutive_failures = 0
+                for start in range(0, len(pending), batch):
+                    try:
+                        part=ask_checked(c, name, [row for _,row in pending[start:start+batch]], **kw)
+                        if (prior_env is not None and part.get('env_id') != prior_env) or (reply is not None and part.get('env_id') != reply.get('env_id')):
+                            raise ValueError('different worker environment')
+                        if reply is None: reply=part
+                        captured.extend((i, requested, observed, readback)
+                            for (i,requested),observed,readback in zip(
+                                pending[start:start+batch],part['rows'],part['inputs']))
+                        consecutive_failures=0
+                    except Exception as exc:
+                        why='batch failure: '+type(exc).__name__+': '+str(exc)
+                        rejected[why]=rejected.get(why,0)+len(pending[start:start+batch])
+                        consecutive_failures += 1
+                        if 'worker-down' in str(exc): service_down.set()
+                        if service_down.is_set() or consecutive_failures >= 3:
+                            rejected['not asked after service or batch failure']=len(pending)-start-batch
+                            break
+                if reply is None: raise ValueError('no batches answered: '+str(rejected))
             else:
                 reply=ask_checked(c,name,rows,**kw)
-            accepted=[]; rejected={}
-            for i,(requested, observed, readback) in enumerate(zip(rows,reply['rows'],reply['inputs'])):
+                captured=[(i,requested,observed,readback) for i,(requested,observed,readback) in
+                          enumerate(zip(rows,reply['rows'],reply['inputs']))]
+            accepted=list(existing)
+            for i, requested, observed, readback in captured:
                 selected = drift.select_spill(observed, [1,1]) if spill else observed
                 result=drift.answer(selected) if selected else None
                 if requested == [] and readback is None: readback = []
                 if drift.without_mode(requested)!=drift.without_mode(readback): why='changed input'
                 elif result is None: why='unread or unsupported answer: '+str(observed.get('type'))
                 else:
-                    w={'id':f'admit2-{o.stage}-{name}-{i:04}', 'args':[witness_arg(a) for a in readback], 'expected_bits':result}
+                    w={'id':f'admit3-{o.stage}-{name}-{i:04}' if o.stage == 'range-mixed' else f'admit2-{o.stage}-{name}-{i:04}', 'args':[witness_arg(a) for a in readback], 'expected_bits':result}
                     if name in {'LINEST','LOGEST'} or spill: w['result_index']=[1,1]
                     accepted.append(w); continue
                 rejected[why]=rejected.get(why,0)+1
             env={'excel_build':reply.get('excel_build'),'platform':'Windows','excel_input_plumbing':'cell_value2_bulk'}
-            doc={'function':name,'witnesses':accepted,'capture_provenance':{'environment':env,'calculation_settings':reply.get('calculation_settings'),'env_id':reply.get('env_id'),'timestamp':reply.get('timestamp'),'service':'touchstone/1'},'capture_summary':{'requested':len(rows),'accepted':len(accepted),'rejected':rejected,'seed':'bank-coverage-20261112'}}
+            doc={'function':name,'witnesses':accepted,'capture_provenance':{'environment':env,'calculation_settings':reply.get('calculation_settings'),'env_id':reply.get('env_id'),'timestamp':reply.get('timestamp'),'service':'touchstone/1'},'capture_summary':{'requested':len(rows),'accepted':len(accepted),'rejected':rejected,'seed':'admit3-20261112' if o.stage == 'range-mixed' else 'bank-coverage-20261112'}}
+            if previous: doc['capture_summary']['previous_attempt'] = previous['capture_summary']
             path.write_text(json.dumps(doc,ensure_ascii=True,separators=(',',':'))+'\n')
             return name, f"accepted {len(accepted)}/{len(rows)} rejected {rejected}"
         except Exception as exc: return name, f'FAILED {type(exc).__name__}: {exc}'
     print('selected',len(selected),flush=True)
-    with concurrent.futures.ThreadPoolExecutor(max_workers=2 if o.stage.startswith('spill') or o.stage == 'variants' else 4) as pool:
+    with concurrent.futures.ThreadPoolExecutor(max_workers=1 if o.stage == 'range-mixed' else 2 if o.stage.startswith('spill') or o.stage == 'variants' else 4) as pool:
         for name,result in pool.map(capture,selected): print(name,result,flush=True)
 if __name__=='__main__': main()

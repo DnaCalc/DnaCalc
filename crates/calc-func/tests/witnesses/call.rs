@@ -10,6 +10,7 @@ use calc_func::{
 };
 use calc_verdict::{WitnessInvocation, decode_argument, encode_result, select_result};
 use serde_json::Value;
+use std::collections::BTreeMap;
 use std::ops::ControlFlow;
 
 struct Given(Vec<CalcValue>);
@@ -24,29 +25,27 @@ impl PreparedArguments for Given {
 
 // A relocated row preserves the scalar cells' values and reference identity. The capture
 // did not record their absolute addresses. Calls needing those addresses are declined.
-struct InputCells(Vec<CalcValue>, bool);
+struct InputCells(BTreeMap<(u32, u32), CalcValue>, bool);
 impl CellReader for InputCells {
     fn read_area(
         &mut self,
         area: GridArea,
         visit: &mut dyn FnMut(CellKey, &CalcValue) -> ControlFlow<()>,
     ) -> Result<(), Unreadable> {
-        if area.sheet() != SheetId::from_parts(1, 0)
-            || area.first().row() != 1
-            || area.last().row() != 1
-            || area.first().column() < 1
-            || area.last().column() as usize > self.0.len()
-        {
+        if area.sheet() != SheetId::from_parts(1, 0) {
             return Err(Unreadable);
         }
-        for column in area.first().column()..=area.last().column() {
-            if visit(
-                CellKey::new(area.sheet(), 1, column).expect("bounded input cell"),
-                &self.0[column as usize - 1],
-            )
-            .is_break()
-            {
-                break;
+        for row in area.first().row()..=area.last().row() {
+            for column in area.first().column()..=area.last().column() {
+                let value = self.0.get(&(row, column)).ok_or(Unreadable)?;
+                if visit(
+                    CellKey::new(area.sheet(), row, column).expect("bounded input cell"),
+                    value,
+                )
+                .is_break()
+                {
+                    return Ok(());
+                }
             }
         }
         Ok(())
@@ -54,9 +53,9 @@ impl CellReader for InputCells {
     fn subtotal_exclusions(&mut self, area: GridArea) -> Option<SubtotalExclusions> {
         (self.1
             && area.sheet() == SheetId::from_parts(1, 0)
-            && area.first().row() == 1
-            && area.last().row() == 1
-            && area.last().column() as usize <= self.0.len())
+            && (area.first().row()..=area.last().row()).all(|r| {
+                (area.first().column()..=area.last().column()).all(|c| self.0.contains_key(&(r, c)))
+            }))
         .then(SubtotalExclusions::default)
     }
 }
@@ -114,20 +113,21 @@ fn dereference(value: CalcValue, inputs: &InputCells) -> Option<CalcValue> {
     let [area] = reference.areas() else {
         return None;
     };
-    if area.sheet() != SheetId::from_parts(1, 0)
-        || area.first().row() != 1
-        || area.last().row() != 1
-        || area.first().column() < 1
-        || area.last().column() as usize > inputs.0.len()
-    {
+    if area.sheet() != SheetId::from_parts(1, 0) {
         return None;
     }
-    let values =
-        inputs.0[area.first().column() as usize - 1..area.last().column() as usize].to_vec();
-    if values.len() == 1 {
-        return values.into_iter().next();
+    let mut rows = Vec::new();
+    for r in area.first().row()..=area.last().row() {
+        let mut row = Vec::new();
+        for c in area.first().column()..=area.last().column() {
+            row.push(inputs.0.get(&(r, c))?.clone());
+        }
+        rows.push(row);
     }
-    CalcArray::from_rows(vec![values]).map(CalcValue::array)
+    if rows.len() == 1 && rows[0].len() == 1 {
+        return rows.pop()?.pop();
+    }
+    CalcArray::from_rows(rows).map(CalcValue::array)
 }
 
 pub fn calculate(
@@ -147,7 +147,7 @@ pub fn calculate(
     let Ok(mut values) = args
         .iter()
         .enumerate()
-        .map(|(i, a)| decode_argument(a, &format!("args[{i}]")))
+        .map(|(i, a)| decode_argument(a.get("range").unwrap_or(a), &format!("args[{i}]")))
         .collect::<Result<Vec<_>, _>>()
     else {
         return "fault:Unreadable".to_owned();
@@ -184,8 +184,42 @@ pub fn calculate(
         }
     }
     let mut prepared = values.clone();
+    let mut grid = BTreeMap::new();
+    let mut next_column = 1u32;
     let mut has_reference = false;
+    for (position, arg) in args.iter().enumerate() {
+        if arg.get("range").is_none() {
+            continue;
+        }
+        let Some(array) = values[position].as_array() else {
+            return "fault:Unreadable".to_owned();
+        };
+        let shape = array.shape();
+        for r in 0..shape.rows {
+            for c in 0..shape.cols {
+                grid.insert(
+                    (r as u32 + 1, next_column + c as u32),
+                    array.get(r, c).unwrap().clone(),
+                );
+            }
+        }
+        let sheet = SheetId::from_parts(1, 0);
+        let first = CellKey::new(sheet, 1, next_column).unwrap();
+        let last = CellKey::new(
+            sheet,
+            shape.rows as u32,
+            next_column + shape.cols as u32 - 1,
+        )
+        .unwrap();
+        prepared[position] =
+            CalcValue::reference(ReferenceLike::area(GridArea::new(first, last).unwrap()));
+        next_column += shape.cols as u32 + 1;
+        has_reference = true;
+    }
     if cell_transport {
+        for (position, value) in values.iter().enumerate() {
+            grid.insert((1, position as u32 + 1), value.clone());
+        }
         for (position, argument) in prepared.iter_mut().enumerate() {
             if matches!(
                 target.parameter_class(position),
@@ -203,9 +237,10 @@ pub fn calculate(
         return "fault:WitnessReferencePosition".to_owned();
     }
     let mode = NumericMode::Fast;
-    let visible_constants =
-        context.is_some_and(|c| c.input_sheet_state.as_deref() == Some("visible-constant-inputs"));
-    let mut cells = InputCells(values, visible_constants);
+    let visible_constants = context
+        .is_some_and(|c| c.input_sheet_state.as_deref() == Some("visible-constant-inputs"))
+        || args.iter().any(|arg| arg.get("range").is_some());
+    let mut cells = InputCells(grid, visible_constants);
     // A capture can know its separators without knowing its complete locale.
     // Preserve only those facts; VALUE and date parsing still require a profile.
     let separators = context.and_then(|c| {
@@ -251,6 +286,46 @@ mod tests {
             input_transport: Some("cell_value2_bulk".into()),
             ..Default::default()
         }
+    }
+
+    #[cfg_attr(not(target_arch = "wasm32"), test)]
+    #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+    fn rectangular_ranges_keep_reference_identity_and_cells() {
+        let args = [
+            json!({"range": [["0x3ff0000000000000"], ["0x4000000000000000"], ["0x4008000000000000"]]}),
+            json!(">1"),
+        ];
+        assert_eq!(
+            calculate("SUMIF", &args, None, None, true),
+            "0x4014000000000000"
+        );
+        assert_eq!(
+            calculate("ROWS", &args[..1], None, None, true),
+            "0x4008000000000000"
+        );
+        assert_eq!(
+            calculate("ISREF", &args[..1], None, None, true),
+            "logical:True"
+        );
+        let database = [
+            json!({"range": [["Name", "Value"], ["a", "0x4000000000000000"], ["b", "0x4008000000000000"]]}),
+            json!("Value"),
+            json!({"range": [["Name"], ["a"]]}),
+        ];
+        assert_eq!(
+            calculate("DSUM", &database, None, None, true),
+            "0x4000000000000000"
+        );
+        assert_eq!(
+            calculate(
+                "ISREF",
+                &[json!([["0x3ff0000000000000"]])],
+                None,
+                None,
+                true
+            ),
+            "logical:False"
+        );
     }
 
     #[cfg_attr(not(target_arch = "wasm32"), test)]
