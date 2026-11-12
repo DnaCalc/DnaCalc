@@ -330,10 +330,11 @@ End Function
 #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
 fn late_bound_com_is_a_typed_refusal() {
     let mut s = session();
+    // Scripting.Dictionary is served by the engine (dc-6eey); any other ProgID is the refusal.
     let source = r#"Public Function MakeDictionary()
  On Error Resume Next
  Dim d As Object
- Set d = CreateObject("Scripting.Dictionary")
+ Set d = CreateObject("Scripting.FileSystemObject")
  MakeDictionary = 7
 End Function
 "#;
@@ -455,7 +456,8 @@ fn examples_for_portable_contract() -> Vec<u8> {
 // Preserve the full external-reference refusal contract and also exercise
 // portable activation/editing; Windows executes its complete original input.
 fn example_contract_inputs() -> Vec<(Vec<u8>, bool)> {
-    let mut inputs = vec![(EXAMPLES_XLSM.to_vec(), cfg!(windows))];
+    // Scripting.Dictionary is served by the engine (dc-6eey), so the original input compiles everywhere.
+    let mut inputs = vec![(EXAMPLES_XLSM.to_vec(), true)];
     if !cfg!(windows) {
         inputs.push((examples_for_portable_contract(), true));
     }

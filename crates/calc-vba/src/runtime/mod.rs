@@ -114,7 +114,8 @@ impl Module {
             &crate::events::ProjectReferences::none(),
             spreadsheet_objects,
             false,
-            false,
+            // Excel calls a Private function of the workbook from a cell (dc-wti6).
+            true,
             true,
             false,
         )
