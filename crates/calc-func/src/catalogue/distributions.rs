@@ -183,14 +183,7 @@ ported_shared_family! {
     }
     43 tdist |s, a, sv| {
         let [x, df, tails] = nums::<3>(s, a)?;
-        out(
-            s,
-            match tails.trunc() as i32 {
-                1 => cft::t_dist_rt_kernel(x, df),
-                2 => cft::t_dist_2t_kernel(x, df),
-                _ => Err(WorksheetErrorCode::Num),
-            },
-        )
+        out(s, cft::tdist_kernel(x, df, tails))
     }
     44 t_inv |s, a, sv| {
         let [p, df] = nums::<2>(s, a)?;

@@ -40,9 +40,10 @@
 //!   writes no Excel option of the user's profile (not AskToUpdateLinks, not
 //!   IgnoreRemoteRequests) and no add-in's state, so a capture killed on its timeout leaves
 //!   nothing of the owner's Excel to put back; a unit test checks the script assigns none of them.
-//! - Macros: AutomationSecurity is read and preserved, with its existing value recorded. The
-//!   worker never changes macro policy. EnableEvents is turned off and read back before opening
-//!   the workbook. This does not establish that VBA UDFs are disabled under the existing policy.
+//! - Macros: AutomationSecurity is preserved by default. A corpus capture requests
+//!   [`MacroPolicy::ForceDisabled`], setting 3 on the capture's Application before opening any
+//!   workbook and restoring its prior value afterwards. Both values and the requested policy
+//!   are recorded. EnableEvents is turned off and read back before opening the workbook.
 //! - Add-ins: before opening the workbook, the worker reads every add-in's state (AddIns2: IsOpen and
 //!   Installed; COMAddIns: Connect; AddIns: Installed) and whether XLL functions are registered,
 //!   and switches none off or on. One that is open in the capture's instance, one of AddIns2 whose
@@ -141,6 +142,8 @@ mod isolation;
 mod session;
 mod timing;
 mod witness;
+#[cfg(test)]
+mod worker_script_tests;
 #[cfg(all(test, windows))]
 mod worker_tests;
 

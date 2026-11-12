@@ -2392,6 +2392,20 @@ pub fn bratio(a: f64, b: f64, x: f64, y: f64) -> (f64, f64) {
         return (0.0, 1.0);
     }
     let eps = eps0.max(1.0e-15);
+    // Excel 20527's half/half integral is the arcsine graph, with the
+    // complementary coordinate at and above 0.9. Public controls also show that
+    // this arm forms its own 1-x rather than retaining a wrapper's y.
+    if a == 0.5 && b == 0.5 {
+        use crate::ported::excel_numeric::{excel_sqrt_staged, excel_x87_div, excel_x87_mul, excel_x87_sub};
+        let coordinate = if x < 0.9 { x } else { excel_x87_sub(1.0, x) };
+        let angle = crate::ported::asin::asin_kernel(excel_sqrt_staged(coordinate)).unwrap_or(f64::NAN);
+        let small = excel_x87_div(excel_x87_mul(2.0, angle), std::f64::consts::PI);
+        return if x < 0.9 {
+            (small, 0.5 + (0.5 - small))
+        } else {
+            (0.5 + (0.5 - small), small)
+        };
+    }
     // bgrat runs at `eps`, not TOMS 708's `15 * eps`: at 1.5e-14 its truncated positive series
     // sat about 5 units low on average over the BETA.DIST bank (mean |ulp| 8.1, signed -5.3);
     // at `eps` 3.9 and +0.3, with 31 rows gained and 8 lost (dc-ymjf.6).
