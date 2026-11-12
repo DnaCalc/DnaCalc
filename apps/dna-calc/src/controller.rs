@@ -590,7 +590,7 @@ impl Controller {
         self.replaying.set_value(prior);
     }
 
-    fn call(
+    pub(crate) fn call(
         &self,
         request: Request,
         bytes: Option<Vec<u8>>,

@@ -15440,6 +15440,30 @@ pub(crate) const CALC_CASES: &[Case] = &[
         ],
         checks: &[Check::Contains("[data-onecalc=\"completions\"]", "MYFUNC")],
     },
+    Case {
+        name: "Excel cached IMAGE pictures decode in the grid",
+        actions: &[
+            Action::ClearDownloads,
+            Action::WriteDownload(
+                "Book1.xlsx",
+                include_bytes!(
+                    "../../../../crates/calc-host/tests/fixtures/fetch/excel-image.xlsx"
+                ),
+            ),
+            Action::ManualDownloadFixture,
+            Action::UploadDownload("manual-cache.xlsx"),
+            Action::DiscardReplacement,
+            Action::Click("skin-grid"),
+        ],
+        checks: &[
+            Check::Text("document", "manual-cache.xlsx"),
+            Check::PlanCell("A1", "kind", "image"),
+            Check::Js(
+                "both Excel cached images decoded at their natural dimensions",
+                "['A1','A2'].every(a => { const i = document.querySelector(`[data-dnacalc=cell-image][data-cell=${a}] img`); return i && i.complete && i.naturalWidth === 1 && i.naturalHeight === 1; })",
+            ),
+        ],
+    },
 ];
 
 /// The script that reads what one check looks at.
@@ -16898,6 +16922,13 @@ pub(crate) const CALC_GROUPS: &[CaseGroup] = &[
         start: 841,
         end: 848,
         core: 6,
+        setup: &[],
+    },
+    CaseGroup {
+        name: "cell-image",
+        start: 848,
+        end: 849,
+        core: 1,
         setup: &[],
     },
 ];

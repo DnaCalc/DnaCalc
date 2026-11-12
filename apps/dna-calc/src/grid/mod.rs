@@ -29,6 +29,7 @@ mod decoration;
 mod gdi_advances;
 pub mod geometry;
 pub mod icons;
+mod image;
 mod inspect;
 mod painter;
 pub mod panes;
@@ -1837,6 +1838,7 @@ fn grid_pane(controller: Controller, ctx: PaneContext) -> impl IntoView {
         plan.with(|plan| {
             plan.cells
                 .iter()
+                .filter(|cell| cell.shown.kind != "image")
                 .map(|cell| {
                     let address = cells::address(cell.row, cell.col);
                     let mut style = rect_style(&cell.rect);
@@ -3164,6 +3166,7 @@ fn grid_pane(controller: Controller, ctx: PaneContext) -> impl IntoView {
                         }}
                         {move || decorations_view(false)}
                         {cells_view}
+                        {move || image::cells(controller, &plan.get(), panes.get(), &metrics.get(), &viewport.get())}
                         {move || decorations_view(true)}
                         {canvas_icons}
                         {charts_view}
