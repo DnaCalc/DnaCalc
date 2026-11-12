@@ -48,6 +48,15 @@
       "note": "Valid-arity calls using single-cell references, captured after the full-bank judgment; not included in its status."
     }
   },
+  "witness_readings_2026_11_12_admit3": {
+    "evidence_repository_commit": "1e096c41130ed5ab39a4da13d9649186fb701f83",
+    "path_prefix": "readings/excel-20527/admit3-answers-",
+    "files": 14,
+    "accepted_observations": 17950,
+    "generator": "tools/xtask-harness/scripts/bank-coverage.py",
+    "seed": "admit3-20261112",
+    "note": "Partial checkpoint: typed rectangular ranges and mixed arrays, Excel 20527. Failed and unasked batches are in capture summaries; spill readings select [1,1]. Worker-down interrupted capture."
+  },
   "manifest": {
     "path": "manifest.tsv",
     "columns": [
