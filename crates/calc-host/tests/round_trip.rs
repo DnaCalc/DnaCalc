@@ -15498,6 +15498,15 @@ fn dc_971p_39__imported_table_filter_facts_survive_outline_visibility_refresh() 
         "xl/worksheets/sheet1.xml",
         |xml| xml.replace("<row r=\"3\" ", "<row r=\"3\" hidden=\"1\" "),
     );
+    // Row 3 has Units=20. Give the table a criterion that actually excludes it:
+    // an empty AutoFilter only supplies buttons and leaves hidden rows manual
+    // (dc-bc1o's Regional sales3 live-Excel capture).
+    let bytes = package_with_part_from(&bytes, "xl/tables/table1.xml", |xml| {
+        xml.replace(
+            "/><tableColumns",
+            "><filterColumn colId=\"1\"><customFilters><customFilter operator=\"notEqual\" val=\"20\"/></customFilters></filterColumn></autoFilter><tableColumns",
+        )
+    });
     let mut book = session(&bytes);
     let s = book.host().model().definitions().tables()[0].sheet;
     assert_eq!(
@@ -15538,6 +15547,88 @@ fn dc_971p_39__imported_table_filter_facts_survive_outline_visibility_refresh() 
     }));
     assert!(!refused.accepted());
     assert_eq!(book.host().revision(), revision);
+}
+
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn dc_xruv__empty_table_filter_keeps_manual_hiding_through_outline_refresh() {
+    use calc_host::{OutlineChange as O, RowHidden, WorkbookCommand as W};
+    let bytes = package_with_part_from(
+        include_bytes!("../../calc-doc/tests/fixtures/cdoc_m1_2/d1.saved.xlsx"),
+        "xl/worksheets/sheet1.xml",
+        |xml| xml.replace("<row r=\"3\" ", "<row r=\"3\" hidden=\"1\" "),
+    );
+    let mut book = session(&bytes);
+    let s = book.host().model().definitions().tables()[0].sheet;
+    assert_eq!(
+        book.host()
+            .model()
+            .definitions()
+            .hidden_rows(s, 3, 3)
+            .collect::<Vec<_>>(),
+        vec![(3, RowHidden::Manual)]
+    );
+    for (cell, formula) in [
+        ("H1", "=SUBTOTAL(9,Sales[Units])"),
+        ("H2", "=SUBTOTAL(109,Sales[Units])"),
+    ] {
+        assert!(enter(&mut book, at(s, cell), formula).accepted());
+    }
+    let totals = |book: &HostSession| {
+        for (cell, expected) in [("H1", 150.), ("H2", 130.)] {
+            assert_eq!(
+                session_calculated(book, at(s, cell)).unwrap().as_number(),
+                Some(expected)
+            );
+        }
+    };
+    totals(&book);
+    let revision = book.host().revision().get();
+    assert!(
+        book.dispatch(SkinIntent::Command(W::Outline {
+            sheet: s,
+            rows: true,
+            revision,
+            change: O::Group { first: 9, last: 10 },
+        }))
+        .accepted()
+    );
+    totals(&book);
+    assert_eq!(
+        book.host()
+            .model()
+            .definitions()
+            .hidden_rows(s, 3, 3)
+            .collect::<Vec<_>>(),
+        vec![(3, RowHidden::Manual)]
+    );
+    assert!(
+        book.dispatch(SkinIntent::Command(W::AxisFormat {
+            sheet: s,
+            rows: true,
+            first: 3,
+            count: 1,
+            size_bits: None,
+            hidden: Some(false),
+        }))
+        .accepted()
+    );
+    assert!(
+        book.host()
+            .model()
+            .definitions()
+            .hidden_rows(s, 3, 3)
+            .next()
+            .is_none()
+    );
+    assert_eq!(
+        session_calculated(&book, at(s, "H1")).unwrap().as_number(),
+        Some(150.)
+    );
+    assert_eq!(
+        session_calculated(&book, at(s, "H2")).unwrap().as_number(),
+        Some(150.)
+    );
 }
 
 #[cfg_attr(not(target_arch = "wasm32"), test)]
