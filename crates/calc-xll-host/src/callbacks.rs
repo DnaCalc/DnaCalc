@@ -178,7 +178,20 @@ pub(crate) struct Completion {
     pub ready: Condvar,
     pub forwarded: AtomicBool,
     pub active: AtomicBool,
+    /// Pool calls: the native entry returned and the worker dropped its module leases
+    /// (`worker.rs`). Native async calls never set it.
     pub physical_returned: AtomicBool,
+    /// Native async calls: `xlAsyncReturn` was accepted or refused for this handle. This is
+    /// completion observed, not module quiescence: the add-in thread may still run module code,
+    /// so the module stays resident (dc-1nbp.25).
+    pub async_return_observed: AtomicBool,
+}
+impl Completion {
+    /// The call has handed its result back (or tried to): its registry entry may go.
+    pub fn is_settled(&self) -> bool {
+        self.physical_returned.load(Ordering::Acquire)
+            || self.async_return_observed.load(Ordering::Acquire)
+    }
 }
 pub(crate) struct PendingOwner {
     pub completion: Arc<Completion>,
@@ -200,7 +213,7 @@ impl Drop for Pending {
         if let Some(state) = self.state.upgrade() {
             let lock = self.completion.result.lock().unwrap();
             let outstanding =
-                self.entered && !self.completion.physical_returned.load(Ordering::Acquire);
+                self.entered && !self.completion.is_settled();
             self.completion.active.store(false, Ordering::Release);
             drop(lock);
             if outstanding {
@@ -221,6 +234,7 @@ pub(crate) fn pending() -> Result<Pending, String> {
         forwarded: AtomicBool::new(false),
         active: AtomicBool::new(true),
         physical_returned: AtomicBool::new(false),
+        async_return_observed: AtomicBool::new(false),
     });
     // Never reuse an address/token: a late completion must not become a later call's result.
     let key = NEXT_ASYNC
@@ -242,6 +256,10 @@ pub(crate) fn owned_pending(
     registration: &Rc<Registration>,
 ) -> Result<Pending, String> {
     let mut pending = pending()?;
+    // From here an add-in thread may call xlAsyncReturn and keep running module code:
+    // neither module is freed before process exit.
+    registration.module.async_issued.set(true);
+    registration.origin.async_issued.set(true);
     pending.state = Rc::downgrade(state);
     state.borrow_mut().pending_async.insert(
         pending.key,
@@ -536,7 +554,9 @@ unsafe fn async_return(args: &[*mut XlOper12], result: *mut XlOper12) -> i32 {
         return INVALID_ASYNC;
     };
     let mut lock = completion.result.lock().unwrap();
-    completion.physical_returned.store(true, Ordering::Release);
+    completion
+        .async_return_observed
+        .store(true, Ordering::Release);
     if lock.is_some() || !completion.active.load(Ordering::Acquire) {
         return INVALID_ASYNC;
     }

@@ -85,6 +85,10 @@ pub(crate) struct Module {
     qualified_native_profile: bool,
     image_size: usize,
     delay_cleanup: Cell<bool>,
+    /// A native async handle was issued for a function of this module (dc-1nbp.25). Its add-in
+    /// thread may run module code after `xlAsyncReturn`, so the image stays loaded until process
+    /// exit: `Drop` never calls `FreeLibrary`.
+    pub(crate) async_issued: Cell<bool>,
 }
 
 // Compatibility handling for the exact original PyPI xlOil 0.22.1 loader measured
@@ -455,6 +459,7 @@ impl Module {
             qualified_native_profile,
             image_size,
             delay_cleanup: Cell::new(false),
+            async_issued: Cell::new(false),
         }))
     }
     pub(crate) fn loaded(name: &str) -> Result<Rc<Self>, String> {
@@ -506,6 +511,7 @@ impl Module {
             qualified_native_profile: false,
             image_size: 0,
             delay_cleanup: Cell::new(false),
+            async_issued: Cell::new(false),
         }))
     }
     pub(crate) fn address(&self, name: &str) -> Result<usize, String> {
@@ -532,6 +538,10 @@ impl Module {
 }
 impl Drop for Module {
     fn drop(&mut self) {
+        if self.async_issued.get() {
+            // Completion observed (xlAsyncReturn) is not module quiescence: keep the image.
+            return;
+        }
         let delayed_core = self.delayed_core();
         unsafe {
             let unloaded = FreeLibrary(self.handle) != 0
@@ -1152,7 +1162,7 @@ impl XllHost {
             .iter()
             .filter_map(|(&key, held)| {
                 (!held.completion.active.load(Ordering::Acquire)
-                    && held.completion.physical_returned.load(Ordering::Acquire))
+                    && held.completion.is_settled())
                 .then_some(key)
             })
             .collect::<Vec<_>>();
