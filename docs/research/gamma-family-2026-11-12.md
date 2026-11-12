@@ -236,3 +236,22 @@ stage lines again under G1, where the last sums are stored.
   of quotients from any 64-bit seed fits; -0.5 alone is a point of its own, -1.5, -2.5 and -3.5 are not.
   B.5: the seed is not EXP(GAMMALN), not GAMMA(10+y) divided down, not Lanczos g = 7 or gamma = 5.
 - dc-6332.3: nothing replayable came out of these experiments; no change landed.
+
+## E7. The B1 band of GAMMALN, [0.7, 1.5)
+
+Why: B1 holds 2,204 failing bank rows and 67 of GAMMALN's 84 rows beyond 4 ulp. On the bank, Excel's
+relative error against the truth is a smooth curve from -0.5 to +1.4 units of 2^-53 (near 0.84), -2.3
+(near 1.14) and a flat -1.1 on [1.25, 1.5); our stand-in (the Cody-Hillstrom n = 7 table in plain double)
+has a different curve. So Excel's B1 is a less accurate rational than the stand-in, not the same one.
+
+Inputs: 256 windows of 1,024 consecutive doubles centred at 0.7 + 0.8 (i + 0.5)/256: 262,144 calls.
+Script `e7_b1.py`; predictions file `e7-predictions.tsv` (our current outputs), SHA-256
+`b13bae21f80fcf58b210196408aca1c000ce19a3587132e60af158259c9d81b4`.
+
+Predictions, frozen before asking:
+
+1. Data check: ours matches about 29% (the bank: 904 of 3,108).
+2. Shape: if B1 is (x - 1) N(x)/D(x) with stored Horner stages, the tied stage model (one constant per
+   coefficient, rounding offsets bounded by the stage grids) fits the window means of (Excel - ours) to
+   their noise with the stand-in's degrees (7/7, monic D) or not at all; if it does not at 7/7, the
+   degrees or the basis differ and the stand-in's coefficients are not a starting point.
