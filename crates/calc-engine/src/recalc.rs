@@ -2733,10 +2733,9 @@ pub fn publish_ready(
         if let Some(volatile) = result
             .stamp()
             .and_then(|stamp| stamp.reads.udf_volatility)
-            .map(calc_fml::UdfVolatility::requests_volatile)
+            .map(|request| formula_volatile(state, node, request))
         {
-            let built_in = matches!(state.bindings.get(&node),Some(Binding::Placed(instance,_)) if instance.plan().volatile());
-            if volatile || built_in {
+            if volatile {
                 state.volatile.insert(node);
             } else {
                 state.volatile.remove(&node);
@@ -2921,10 +2920,9 @@ pub fn finish(
         if let Some(volatile) = result
             .stamp()
             .and_then(|stamp| stamp.reads.udf_volatility)
-            .map(calc_fml::UdfVolatility::requests_volatile)
+            .map(|request| formula_volatile(state, node, request))
         {
-            let built_in = matches!(state.bindings.get(&node),Some(Binding::Placed(instance,_)) if instance.plan().volatile());
-            if volatile || built_in {
+            if volatile {
                 state.volatile.insert(node);
             } else {
                 state.volatile.remove(&node);
@@ -3126,7 +3124,9 @@ fn bind(
     let mut prerequisites = match &binding {
         Binding::Placed(instance, _) => {
             let plan = instance.plan();
-            if plan.volatile() {
+            // Until the formula is evaluated its volatility is unknown: a name's body may carry
+            // the token, and the evaluation decides (formula_volatile).
+            if plan.reads_volatile_inputs() {
                 state.volatile.insert(node);
             }
             if plan.calls().any(|target| target.traits().is_subtotal) {
@@ -4883,8 +4883,8 @@ fn stage(
         .result
         .stamp()
         .and_then(|stamp| stamp.reads.udf_volatility)
-        .map(calc_fml::UdfVolatility::requests_volatile);
-    let volatile=user_volatile.map_or_else(||state.volatile.contains(&node),|value|value||matches!(state.bindings.get(&node),Some(Binding::Placed(instance,_)) if instance.plan().volatile()));
+        .map(|request| formula_volatile(state, node, request));
+    let volatile = user_volatile.unwrap_or_else(|| state.volatile.contains(&node));
     if volatile
         && matches!(
             state.bindings.get(&node),
@@ -5313,6 +5313,16 @@ fn queue_certificate_repairs(
     true
 }
 
+/// Whether the formula at `node` is volatile after an evaluation that ended with `request`:
+/// the last request when one ran, else the formula's own token (VOLATILITY.md F2).
+fn formula_volatile(state: &EngineState, node: NodeId, request: calc_fml::UdfVolatility) -> bool {
+    let token = matches!(
+        state.bindings.get(&node),
+        Some(Binding::Placed(instance, _)) if instance.plan().volatile()
+    );
+    request.decide(token)
+}
+
 fn root_invocation(state: &EngineState, shared: &EvalShared<'_>, node: NodeId) -> InvocationId {
     InvocationId {
         pass: shared.pass,
@@ -5516,7 +5526,7 @@ fn evaluate_with(
     if local.effects.omitted_name_invocations() != 0 {
         reads.omitted_name_invocations = local.effects.omitted_name_invocations();
     }
-    if matches!(state.bindings.get(&node),Some(Binding::Placed(instance,_)) if instance.plan().has_user_calls())
+    if matches!(state.bindings.get(&node),Some(Binding::Placed(instance,_)) if instance.plan().has_user_calls() || instance.plan().has_names())
     {
         reads.udf_volatility = Some(local.effects.volatility());
     }
@@ -5707,7 +5717,7 @@ fn evaluate_with(
     if reads
         .udf_volatility
         .is_some_and(calc_fml::UdfVolatility::requests_volatile)
-        || matches!(state.bindings.get(&node),Some(Binding::Placed(instance,_)) if instance.plan().volatile())
+        || matches!(state.bindings.get(&node),Some(Binding::Placed(instance,_)) if instance.plan().reads_volatile_inputs())
     {
         reads.volatile_inputs = Some(shared.volatile_inputs);
     }

@@ -384,6 +384,7 @@ fn compile_analyzed_as(
         externals: Vec::new(),
         notation,
         in_name: false,
+        name_ranges: Vec::new(),
         scope: Vec::new(),
         floor: 0,
         names: HashMap::new(),
@@ -409,6 +410,7 @@ fn compile_analyzed_as(
         externals: lowering.externals.into_boxed_slice(),
         name_bindings: lowering.name_bindings.into_boxed_slice(),
         callable_bindings: lowering.callable_bindings.into_boxed_slice(),
+        name_ranges: lowering.name_ranges.into_boxed_slice(),
         form,
     };
     Ok(NameAnalysis {
@@ -470,6 +472,8 @@ struct Lowering<'c> {
     notation: ReferenceNotation,
     /// Whether the references being bound now belong to a defined name's formula.
     in_name: bool,
+    /// The blocks `[first, end)` each defined name's body was lowered into, nested ones inside.
+    name_ranges: Vec<(usize, usize)>,
     /// The LET names and LAMBDA parameters in scope, innermost last, each with its local slot.
     scope: Vec<(String, u32)>,
     /// The first entry of `scope` the tree being lowered sees: a defined name's formula sees none
@@ -1915,6 +1919,7 @@ impl<'c> Lowering<'c> {
         self.nesting += 1;
         let lowered = self.lower_root(expression, sites, block, false, Place::Unknown);
         self.nesting -= 1;
+        self.name_ranges.push((block, self.blocks.len()));
         self.in_name = in_name;
         self.floor = floor;
         self.name_context = name_context;

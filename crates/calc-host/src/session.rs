@@ -386,6 +386,9 @@ pub struct HostSession {
     history: History,
     selection: Selection,
     subscriptions: BTreeMap<SubscriptionId, Subscription>,
+    /// The areas the conditional-format rules covered when changes were last delivered: a rule
+    /// that is removed or moved still repaints the cells it covered.
+    rule_areas: Vec<GridArea>,
     next_subscription: u64,
     log: Vec<IntentRecord>,
     /// The sequence number of the next intent.
@@ -465,12 +468,13 @@ impl HostSession {
             DeltaCause::CallablesChanged {
                 revision: self.host.revision(),
             },
-            true,
+            false,
         );
     }
 
     /// A session over an open host, in the host's calculation mode, with nothing selected.
     pub fn new(host: HostState) -> HostSession {
+        let rule_areas = conditional_rule_areas(&host);
         HostSession {
             workbook_events: crate::events::WorkbookEventState::default(),
             recalc_budget: WorkBudget::UNLIMITED,
@@ -479,6 +483,7 @@ impl HostSession {
             history: History::new(UNDO_LIMIT),
             selection: Selection::default(),
             subscriptions: BTreeMap::new(),
+            rule_areas,
             next_subscription: 1,
             log: Vec::new(),
             next_seq: 1,
@@ -1379,13 +1384,10 @@ impl HostSession {
         let scope = coordinates.and_then(|edit| {
             crate::command::active_scope(&self.host).map(|scope| scope.transformed(edit))
         });
-        let refresh_rules = edits.iter().any(|edit| {
+        let refresh_all = edits.iter().any(|edit| {
             matches!(
                 edit,
-                CellEdit::ConditionalRules { .. }
-                    | CellEdit::Tables(_)
-                    | CellEdit::Styles(_)
-                    | CellEdit::SetFormat { .. }
+                CellEdit::Tables(_) | CellEdit::Styles(_) | CellEdit::SetFormat { .. }
             )
         });
         let base = self.host.revision();
@@ -1399,7 +1401,7 @@ impl HostSession {
         }
         let revision = committed.revision();
         receipt.committed = Some(committed);
-        receipt.deltas += self.deliver_changes(DeltaCause::Committed { revision }, refresh_rules);
+        receipt.deltas += self.deliver_changes(DeltaCause::Committed { revision }, refresh_all);
         Ok(())
     }
 
@@ -1831,28 +1833,43 @@ impl HostSession {
     }
 
     /// Delivers each subscription's changed cells; the number of deltas delivered.
-    fn deliver_changes(&mut self, cause: DeltaCause, refresh_rules: bool) -> usize {
-        // Rule appearance may depend on unchanged cells and statistics over an entire range.
-        // Reuse each bounded subscription's reset when those looks can change, including when
-        // removing the last rule. These remain projections of current values, never calculations.
-        if refresh_rules
-            || self
-                .host
-                .model
-                .definitions()
-                .all_conditional_rules()
-                .any(|(_, r)| !r.is_empty())
-        {
+    fn deliver_changes(&mut self, cause: DeltaCause, refresh_all: bool) -> usize {
+        // Rule appearance may depend on unchanged cells and statistics over an entire range, and
+        // only inside the rule's areas. Reuse each bounded subscription's reset when its interest
+        // meets an area a rule covers now or covered at the last delivery (so removing the last
+        // rule still repaints its cells). A table, style or format edit, or a restored package, resets
+        // every subscription as before. These remain projections of current values, never
+        // calculations. Every other subscription takes the ordinary diff path below.
+        let now = conditional_rule_areas(&self.host);
+        let mut rule_areas = std::mem::replace(&mut self.rule_areas, now.clone());
+        rule_areas.extend(now);
+        let mut reset = Vec::new();
+        if refresh_all {
+            reset.extend(self.subscriptions.keys().copied());
+        } else if !rule_areas.is_empty() {
             let ids = self.subscriptions.keys().copied().collect::<Vec<_>>();
-            let count = ids.len();
             for id in ids {
-                self.deliver_reset(id, cause.clone());
+                let interest = self.subscriptions[&id].interest.clone();
+                if self
+                    .interest_areas(&interest)
+                    .iter()
+                    .any(|a| rule_areas.iter().any(|r| intersection(*a, *r).is_some()))
+                {
+                    reset.push(id);
+                }
             }
-            return count;
+        }
+        let mut delivered = reset.len();
+        for id in &reset {
+            self.deliver_reset(*id, cause.clone());
         }
         let authored = self.host.revision();
-        let ids: Vec<SubscriptionId> = self.subscriptions.keys().copied().collect();
-        let mut delivered = 0;
+        let ids: Vec<SubscriptionId> = self
+            .subscriptions
+            .keys()
+            .copied()
+            .filter(|id| !reset.contains(id))
+            .collect();
         for id in ids {
             let interest = self.subscriptions[&id].interest.clone();
             let after = self.snapshot(&interest);
@@ -1888,6 +1905,16 @@ impl HostSession {
         }
         delivered
     }
+}
+
+/// The areas the workbook's conditional-format rules cover.
+fn conditional_rule_areas(host: &HostState) -> Vec<GridArea> {
+    host.model
+        .definitions()
+        .all_conditional_rules()
+        .flat_map(|(_, rules)| rules)
+        .flat_map(|rule| rule.areas.iter().copied())
+        .collect()
 }
 
 /// The cells two areas share, as an area; `None` when they share none.
