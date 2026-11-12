@@ -99,6 +99,19 @@ fn text(site: &Site<'_>, a: &[CalcValue]) -> Step<CalcValue> {
     if matches!(a[1].core_ref(), CoreRef::Logical(_)) {
         return fail(WorksheetErrorCode::Value);
     }
+    // Excel 16.0.20527: a numeric format argument has no text section, so a
+    // logical value is returned as text without consulting the host locale.
+    if let (CoreRef::Logical(value), CoreRef::Number(code)) =
+        (a[0].core_ref(), a[1].core_ref())
+    {
+        if code.is_finite() {
+            return Ok(crate::catalogue::kit::text_value(if value {
+                "TRUE"
+            } else {
+                "FALSE"
+            }));
+        }
+    }
     if a[0].is_excel_overflow() {
         let code = text_arg(site, a, 1)?.to_string_lossy();
         if code.eq_ignore_ascii_case("general") || code == "@" {

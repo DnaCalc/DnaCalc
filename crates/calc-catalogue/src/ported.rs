@@ -331,9 +331,9 @@ pub mod host_facts {
         code: CODE;
     1 "CELL" (1, 2) [V "info_type", F "reference" @Reference] traits lift_dynamic_references; volatile true; ;
     2 "INFO" (1, 1) [V "type_text"] volatile true; ;
-    3 "SHEET" (0, 1) [R "value" ~ AggregateAtRoot] three_d (Some(&[0]), None, None); ;
-    4 "SHEETS" (0, 1) [R "reference" ~ ArrayAtRoot] three_d (Some(&[0]), None, None); ;
-    5 "FORMULATEXT" (1, 1) [F "reference" @Reference] three_d (None, Some(&[]), None); ;
+    3 "SHEET" (0, 1) [R "value" ~ AggregateAtRoot] volatile true; three_d (Some(&[0]), None, None); ;
+    4 "SHEETS" (0, 1) [R "reference" ~ ArrayAtRoot] volatile true; three_d (Some(&[0]), None, None); ;
+    5 "FORMULATEXT" (1, 1) [F "reference" @Reference] volatile true; three_d (None, Some(&[]), None); ;
     6 "ADDRESS" (2, 5) [V "row_num", V "column_num", V "abs_num", V "a1", V "sheet_text"] three_d (None, None, Some(&[])); ;
     7 "GETPIVOTDATA" (2, 254) [R "data_field", R "pivot_table", V "field1", V "item1"] ;
     8 "TRANSPOSE" (1, 1) [R "array" ~ AggregateAlwaysIntersectReference] three_d (None, None, Some(&[])); ;

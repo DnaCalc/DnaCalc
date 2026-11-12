@@ -25,8 +25,8 @@ Two facts about the instrument itself:
 
 Per evaluation of a formula cell: the flag starts at S (the formula text contains a token-writing function) and
 each event overwrites it in execution order; the value after the last event is the cell's `ca` bit, and the
-cell stays volatile exactly while that value is true. DNA's current rule (sticky OR of S and the last request,
-F1, `recalc.rs:2613-2619`) is wrong; F3 (flag set when a built-in runs) is wrong too.
+cell stays volatile exactly while that value is true. DNA applied F2 for requests and name uses at the four publication sites in `recalc.rs` (dc-1nbp.8; before it, a sticky OR
+of S and the last request, F1); F3 (flag set when a built-in runs) is wrong.
 
 | Evidence (P2, `p2`, `p2h`, `p6`) | F1 | F2 | F3 | Excel |
 |---|---|---|---|---|
@@ -51,7 +51,7 @@ X1). Only a completed evaluation's events count (X4, section 6).
 Token present, syntactic, regardless of branch or use: RAND, RANDBETWEEN, RANDARRAY, NOW, TODAY, OFFSET,
 INDIRECT, **CELL** (all 12 info types, literal or from a cell, with or without the reference, unknown type
 text, range or reference-returning arguments: `p1ca`..`p1cf`), **INFO** (all 10 types, literal or from a cell),
-**FORMULATEXT, SHEET, SHEETS** (`p1a`; the catalogue does not list these three). Not volatile: ROW, COLUMN,
+**FORMULATEXT, SHEET, SHEETS** (`p1a`; the catalogue lists these three since dc-1nbp.8). Not volatile: ROW, COLUMN,
 ROWS, COLUMNS, AREAS, INDEX in every form tried (`INDEX(r,0)`, `r:INDEX(..)`, `INDEX(..):r`), ISREF, ISFORMULA,
 SUBTOTAL, AGGREGATE, N, T, ADDRESS, CHOOSE, MATCH, VLOOKUP, XLOOKUP, HYPERLINK, TEXT, date functions,
 SUMPRODUCT, LOOKUP, STDEV, TRANSPOSE. WEBSERVICE was not measured (it needs the network).
@@ -154,7 +154,7 @@ removed from it.
 Record per completed evaluation, in order, `VolatilityEvent { Request(bool), RegistrationDefault(true: `!`, `#`
 with a reference actually passed), NameUse(body flag), RunTime(true: SUMIF shape, spill block) }`; decide with one
 function: `flag = S; for e in events { flag = e.value }`. Replace `state.volatile`/the OR at its four
-sites in `recalc.rs` (2694-2702, 2880-2890, 4842-4846, 5657-5661 at 90ea26fd); the bit belongs to the last completed evaluation, replaced at publication,
+sites in `recalc.rs` (2730, 2918, 4878, 5696 on master after dc-1nbp.8, which applies the rule there); the bit belongs to the last completed evaluation, replaced at publication,
 carried when a result is reused, never taken from an abandoned or waiting attempt. A cell loaded from a file starts
 from its `ca` bit (X6). The registration default needs the arguments' reference-ness at call time. A request
 inside a lifted multi-cell call is dropped (X2). The user-function host must answer `xlfVolatile` with status 2

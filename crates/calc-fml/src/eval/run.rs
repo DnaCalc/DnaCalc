@@ -1188,6 +1188,13 @@ impl Run<'_, '_> {
                     Instruction::Name(target) => {
                         if cursor.child.is_none() {
                             self.check_depth()?;
+                            if self.instance.plan().name_body_volatile(target.block) {
+                                // Running a name whose body has the token is an event that
+                                // sets true (VOLATILITY.md section 5).
+                                if let Some(effects) = self.user_function_effects.as_deref_mut() {
+                                    effects.volatility = super::UdfVolatility::Set(true);
+                                }
+                            }
                             let name = self.start_name(target);
                             cursor.child = Some(Box::new(PendingBlock {
                                 block: target.block,
