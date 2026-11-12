@@ -13,6 +13,43 @@ spec = importlib.util.spec_from_file_location("witness_drift", Path(__file__).wi
 drift = importlib.util.module_from_spec(spec)
 spec.loader.exec_module(drift)
 
+spec = importlib.util.spec_from_file_location("bank_coverage", Path(__file__).with_name("bank-coverage.py"))
+coverage = importlib.util.module_from_spec(spec)
+spec.loader.exec_module(coverage)
+
+
+class CaptureArgumentTests(unittest.TestCase):
+    def test_choose_materialization_preserves_the_range_distinction(self):
+        # Excel20527: TOCOL(CHOOSE({1;2},blank,6),1) starts with zero;
+        # TOCOL(the same two source cells as a range,1) starts with six.
+        cells = [[coverage.blank(), coverage.number(6.0)]]
+        self.assertEqual(coverage.witness_arg(coverage.cell_array(cells)),
+                         [["0x0000000000000000", "0x4018000000000000"]])
+        self.assertEqual(coverage.witness_arg(coverage.cell_range(cells)),
+                         {"range": [[None, "0x4018000000000000"]]})
+        self.assertIsNone(coverage.witness_arg(coverage.blank()))
+        self.assertEqual(coverage.witness_arg(coverage.cell_array([
+            [coverage.text(""), coverage.boolean(False), coverage.error("#N/A")]
+        ])), [["", False, {"error": "NA"}]])
+
+    def test_mixed_worker_revalidation_keeps_each_rows_environment(self):
+        pending = mock.Mock()
+        pending.env_ids = {"worker-a", "worker-b"}
+        pending.env_by_position = ["worker-b", "worker-a"]
+        pending.envs = {"worker-a": {"build": "20527"}, "worker-b": {"build": "20527"}}
+        rows = [[coverage.number(1.0)], [coverage.number(2.0)]]
+        pending.result.return_value = {"rows": [rows[0][0], rows[1][0]], "inputs": rows}
+        client = mock.Mock(timeout=30)
+        client._socket.return_value.submit_rows.return_value = pending
+        with self.assertRaisesRegex(ValueError, "one recorded worker"):
+            coverage.ask_checked(client, "ABS", rows)
+        reply = coverage.ask_checked(client, "ABS", rows, row_provenance=True)
+        self.assertEqual(reply["environment_ids_by_row"], ["worker-b", "worker-a"])
+        self.assertEqual(reply["worker_environments"], pending.envs)
+        pending.env_by_position[0] = None
+        with self.assertRaisesRegex(ValueError, "missing per-row"):
+            coverage.ask_checked(client, "ABS", rows, row_provenance=True)
+
 
 class SpillSelectionTests(unittest.TestCase):
     def test_zero_axis_selects_the_requested_cell(self):
