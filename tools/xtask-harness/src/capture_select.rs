@@ -21,6 +21,11 @@
 //! formula cells at `SECONDS_PER_CELL` (open, full rebuild, read back). The first measured batch
 //! replaces it. Nothing here starts Excel or opens a corpus file.
 //!
+//! Inputs stream one record at a time, with a 1 MiB record limit and shared 1 GiB admission
+//! accounting for JSON, retained candidates and selection indexes. Exceeding the allowance
+//! refuses selection explicitly. Records without a complete formula/name scan must be
+//! reclassified; restrictions apply to functions and references in defined names too.
+//!
 //! Exit codes: 0 when the output was written, 1 when it cannot be, 2 on a usage error.
 
 use serde_json::Value;
@@ -102,7 +107,9 @@ struct Candidate {
 }
 
 fn map_keys(v: Option<&Value>) -> impl Iterator<Item = &String> {
-    v.and_then(Value::as_object).into_iter().flat_map(|o| o.keys())
+    v.and_then(Value::as_object)
+        .into_iter()
+        .flat_map(|o| o.keys())
 }
 
 fn function_of(shape: &str) -> &str {
@@ -111,6 +118,13 @@ fn function_of(shape: &str) -> &str {
 
 /// Why a file is not a candidate, or the candidate.
 fn judge(set: &str, p: &Value, max_bytes: u64, max_formulas: u64) -> Result<Candidate, String> {
+    if p["scan_complete"].as_bool() != Some(true)
+        || p.get("workbook_error").is_some()
+        || p.get("scan_errors")
+            .is_some_and(|e| e.as_array().is_none_or(|a| !a.is_empty()))
+    {
+        return Err("incomplete formula/name scan (reclassify with a current reader)".into());
+    }
     let reader = &p["reader"];
     if reader["opened"].as_bool() != Some(true) {
         return Err("reader refuses the file (blocker)".into());
@@ -118,14 +132,19 @@ fn judge(set: &str, p: &Value, max_bytes: u64, max_formulas: u64) -> Result<Cand
     let extension = p["extension"].as_str().unwrap_or("").to_ascii_lowercase();
     if reader["has_vba_project"].as_bool() == Some(true)
         || reader["macro_sheets"].as_u64().unwrap_or(0) > 0
-        || p["package"]["part_categories"].as_object().is_some_and(|c| c.keys().any(|k| k.contains("vbaProject")))
+        || p["package"]["part_categories"]
+            .as_object()
+            .is_some_and(|c| c.keys().any(|k| k.contains("vbaProject")))
         || extension == "xlsm"
         || extension == "xlsb"
     {
         return Err("macros (VBA project, macro sheet, .xlsm or .xlsb)".into());
     }
     let categories: Vec<&String> = map_keys(p["package"].get("part_categories")).collect();
-    let flags: BTreeSet<String> = map_keys(p.get("formula_features")).cloned().collect();
+    let flags: BTreeSet<String> = map_keys(p.get("formula_features"))
+        .chain(map_keys(p["names"].get("features")))
+        .cloned()
+        .collect();
     if reader["links"].as_u64().unwrap_or(0) > 0
         || flags.contains("external_reference")
         || categories.iter().any(|k| k.contains("externalLinks"))
@@ -135,11 +154,20 @@ fn judge(set: &str, p: &Value, max_bytes: u64, max_formulas: u64) -> Result<Cand
     if flags.contains("add_in_call") || flags.contains("future_or_user_defined_function") {
         return Err("add-in or user-defined function calls".into());
     }
-    let functions: Vec<&String> = map_keys(p.get("functions")).collect();
-    if functions.iter().any(|f| LIVE.contains(&f.as_str()) || f.starts_with("CUBE")) {
-        return Err("live-data functions (WEBSERVICE, RTD, CUBE*, STOCKHISTORY)".into());
+    let functions: Vec<&String> = map_keys(p.get("functions"))
+        .chain(map_keys(p["names"].get("functions")))
+        .collect();
+    if functions
+        .iter()
+        .any(|f| LIVE.contains(&f.as_str()) || f.starts_with("CUBE")
+            || calc_catalogue::named(f).is_some_and(|entry| matches!(entry.kind(), calc_catalogue::EntryKind::HostRoute { .. })))
+    {
+        return Err("live-data or host functions (fetch, import, RTD, CUBE*, STOCKHISTORY)".into());
     }
-    if categories.iter().any(|k| k.contains("activeX") || k.contains("connections") || k.contains("queryTables")) {
+    if categories
+        .iter()
+        .any(|k| k.contains("activeX") || k.contains("connections") || k.contains("queryTables"))
+    {
         return Err("ActiveX controls, data connections or query tables".into());
     }
     let formula_cells = p["cells"]["formula_cells"].as_u64().unwrap_or(0);
@@ -155,18 +183,29 @@ fn judge(set: &str, p: &Value, max_bytes: u64, max_formulas: u64) -> Result<Cand
         .cloned()
         .collect();
     if shapes.is_empty() && p.get("function_shapes").is_none() {
-        return Err("no function_shapes in the record (classify with a build that writes them)".into());
+        return Err(
+            "no function_shapes in the record (classify with a build that writes them)".into(),
+        );
     }
     let mut features: BTreeSet<String> = flags;
     features.remove("volatile");
-    features.extend(map_keys(p["cells"].get("formula_kinds")).filter(|k| k.as_str() != "normal").map(|k| format!("kind:{k}")));
-    if reader["date_system"].as_str().is_some_and(|d| d != "Date1900") {
+    features.extend(
+        map_keys(p["cells"].get("formula_kinds"))
+            .filter(|k| k.as_str() != "normal")
+            .map(|k| format!("kind:{k}")),
+    );
+    if reader["date_system"]
+        .as_str()
+        .is_some_and(|d| d != "Date1900")
+    {
         features.insert("date1904".into());
     }
     if let Some(mode) = reader["calc_mode"].as_str().filter(|m| *m != "Automatic") {
         features.insert(format!("calc_mode:{mode}"));
     }
-    let seconds = OPEN_SECONDS + bytes as f64 / 1_048_576.0 * SECONDS_PER_MB + formula_cells as f64 * SECONDS_PER_CELL;
+    let seconds = OPEN_SECONDS
+        + bytes as f64 / 1_048_576.0 * SECONDS_PER_MB
+        + formula_cells as f64 * SECONDS_PER_CELL;
     Ok(Candidate {
         set: set.to_owned(),
         sha: p["sha256"].as_str().unwrap_or("").to_owned(),
@@ -178,12 +217,30 @@ fn judge(set: &str, p: &Value, max_bytes: u64, max_formulas: u64) -> Result<Cand
     })
 }
 
-fn read_lines(path: &str) -> Result<Vec<Value>, String> {
-    let text = std::fs::read_to_string(path).map_err(|e| format!("{path}: {e}"))?;
-    text.lines()
-        .filter(|l| !l.trim().is_empty())
-        .map(|l| serde_json::from_str(l).map_err(|e| format!("{path}: {e}")))
-        .collect()
+fn for_each_profile(
+    path: &str,
+    visit: impl FnMut(Value) -> Result<(), String>,
+) -> Result<(), String> {
+    let file = std::fs::File::open(path).map_err(|e| format!("{path}: {e}"))?;
+    crate::classify::read_profiles(
+        std::io::BufReader::new(file),
+        crate::classify::MAX_PROFILE_BYTES,
+        visit,
+    )
+    .map_err(|e| format!("{path}: {e}"))
+}
+
+fn retain<'a>(
+    budget: &'a crate::classify::MemoryBudget,
+    permits: &mut Vec<crate::classify::MemoryPermit<'a>>,
+    bytes: u64,
+) -> Result<(), String> {
+    permits.push(
+        budget
+            .try_reserve(bytes)
+            .ok_or("selection_memory_budget: split the input sets")?,
+    );
+    Ok(())
 }
 
 /// One chosen file with what it adds.
@@ -290,30 +347,62 @@ pub fn run(args: &[String]) -> ExitCode {
 }
 
 fn select(args: &Args) -> Result<String, String> {
+    let budget =
+        crate::classify::MemoryBudget::new(crate::classify::MEMORY_BUDGET_BYTES, usize::MAX);
+    // One record's JSON and parsed tree. Retained candidates and selection indexes have their
+    // own charged capacity; oversized sets fail explicitly instead of growing without bound.
+    let _record = budget
+        .try_reserve(64 * crate::classify::MAX_PROFILE_BYTES)
+        .expect("record fits");
+    let mut permits = Vec::new();
     let mut covered = BTreeSet::new();
     for path in &args.covered {
-        for p in read_lines(path)? {
-            covered.extend(map_keys(p.get("function_shapes")).cloned());
-        }
+        for_each_profile(path, |p| {
+            for key in map_keys(p.get("function_shapes")) {
+                if !covered.contains(key) {
+                    retain(&budget, &mut permits, 4 * (key.len() as u64 + 128))?;
+                    covered.insert(key.clone());
+                }
+            }
+            Ok(())
+        })?;
     }
     let mut excluded: BTreeMap<String, u64> = BTreeMap::new();
     let mut seen: BTreeSet<String> = BTreeSet::new();
     let mut candidates = Vec::new();
     let mut files_by_set: BTreeMap<String, u64> = BTreeMap::new();
     for (set, path) in &args.sets {
-        for p in read_lines(path)? {
+        for_each_profile(path, |p| {
             *files_by_set.entry(set.clone()).or_default() += 1;
             match judge(set, &p, args.max_bytes, args.max_formulas) {
                 Ok(c) => {
-                    if !c.sha.is_empty() && !seen.insert(c.sha.clone()) {
-                        *excluded.entry("same SHA-256 as an earlier candidate".into()).or_default() += 1;
+                    if !c.sha.is_empty() && seen.contains(&c.sha) {
+                        *excluded
+                            .entry("same SHA-256 as an earlier candidate".into())
+                            .or_default() += 1;
                     } else {
+                        // Include owned strings, tree nodes and the greedy chooser's indexes.
+                        let strings = c
+                            .shapes
+                            .iter()
+                            .chain(c.features.iter())
+                            .map(|s| s.len() as u64 + 128)
+                            .sum::<u64>();
+                        retain(
+                            &budget,
+                            &mut permits,
+                            4 * (512 + c.set.len() as u64 + c.sha.len() as u64 + strings),
+                        )?;
+                        if !c.sha.is_empty() {
+                            seen.insert(c.sha.clone());
+                        }
                         candidates.push(c);
                     }
                 }
                 Err(why) => *excluded.entry(why).or_default() += 1,
             }
-        }
+            Ok(())
+        })?;
     }
     let candidate_count = candidates.len();
     let (universe_len, new_universe) = {
@@ -388,6 +477,7 @@ mod tests {
     fn record(sha: &str, shapes: &[&str], extra: Value) -> Value {
         let mut v = json!({
             "sha256": sha, "extension": "xlsx", "bytes": 1000,
+            "scan_complete": true,
             "reader": {"opened": true, "links": 0, "macro_sheets": 0, "has_vba_project": false, "date_system": "Date1900", "calc_mode": "Automatic"},
             "package": {"part_categories": {"xl/worksheets": 1}},
             "cells": {"formula_cells": 10, "formula_kinds": {"normal": 10}},
@@ -413,9 +503,17 @@ mod tests {
         let mut vba = record("c", &["SUM(R)"], json!({}));
         vba["reader"]["has_vba_project"] = json!(true);
         assert!(ok(&vba).unwrap_err().contains("macros"));
-        let linked = record("d", &["SUM(R)"], json!({"formula_features": {"external_reference": 1}}));
+        let linked = record(
+            "d",
+            &["SUM(R)"],
+            json!({"formula_features": {"external_reference": 1}}),
+        );
         assert!(ok(&linked).unwrap_err().contains("external"));
-        let live = record("e", &["WEBSERVICE(S)"], json!({"functions": {"WEBSERVICE": 1}}));
+        let live = record(
+            "e",
+            &["WEBSERVICE(S)"],
+            json!({"functions": {"WEBSERVICE": 1}}),
+        );
         assert!(ok(&live).unwrap_err().contains("live-data"));
         let big = record("f", &["SUM(R)"], json!({"bytes": 5_000_000}));
         assert!(ok(&big).unwrap_err().contains("size"));
@@ -424,9 +522,53 @@ mod tests {
     }
 
     #[test]
+    fn names_and_incomplete_scans_cannot_enter_a_capture_batch() {
+        for (extra, reason) in [
+            (
+                json!({"names": {"functions": {"WEBSERVICE": 1}}}),
+                "live-data",
+            ),
+            (json!({"names": {"functions": {"RTD": 1}}}), "live-data"),
+            (json!({"names": {"functions": {"IMAGE": 1}}}), "live-data"),
+            (json!({"names": {"functions": {"IMPORTCSV": 1}}}), "live-data"),
+            (json!({"names": {"functions": {"IMPORTTEXT": 1}}}), "live-data"),
+            (
+                json!({"names": {"functions": {"CUBEVALUE": 1}}}),
+                "live-data",
+            ),
+            (
+                json!({"names": {"features": {"external_reference": 1}}}),
+                "external",
+            ),
+            (json!({"names": {"features": {"add_in_call": 1}}}), "add-in"),
+            (
+                json!({"names": {"features": {"future_or_user_defined_function": 1}}}),
+                "add-in",
+            ),
+            (json!({"scan_complete": false}), "incomplete"),
+            (json!({"scan_complete": null}), "incomplete"),
+            (json!({"scan_errors": ["worksheet failed"]}), "incomplete"),
+            (json!({"workbook_error": "names unreadable"}), "incomplete"),
+        ] {
+            let p = record("a", &["SUM(R)"], extra);
+            assert!(
+                judge("s", &p, u64::MAX, u64::MAX)
+                    .unwrap_err()
+                    .contains(reason)
+            );
+        }
+    }
+
+    #[test]
     fn greedy_takes_new_pairs_per_second_and_skips_covered_ones() {
         let cand = |sha: &str, shapes: &[&str], bytes: u64| {
-            let mut c = judge("s", &record(sha, shapes, json!({"bytes": bytes})), u64::MAX, u64::MAX).unwrap();
+            let mut c = judge(
+                "s",
+                &record(sha, shapes, json!({"bytes": bytes})),
+                u64::MAX,
+                u64::MAX,
+            )
+            .unwrap();
             c.features.clear();
             c
         };

@@ -47,6 +47,8 @@ calc-verdict = { path = "../../tools/calc-verdict" }
 
 # The dependency case reads cargo metadata's JSON. Test-only, native-only.
 [target.'cfg(not(target_arch = "wasm32"))'.dev-dependencies]
+cfb = "=0.10.0"
+miniz_oxide = "=0.8.9"
 serde_json = "=1.0.154"
 
 # The acceptance cases run in Chrome and Firefox under wasm-bindgen-test-runner 0.2.117, which

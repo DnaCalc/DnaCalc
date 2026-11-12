@@ -386,8 +386,9 @@ pub enum SaveRefusal {
         part: String,
     },
     /// The revision changes a chart sheet or a dialog sheet (`part`; `kind` says which), removes
-    /// it, or inserts or deletes rows or columns of a workbook with one: such a sheet opens as an
-    /// empty sheet and is saved only as it was read.
+    /// it, renames/removes any sheet, or inserts/deletes rows or columns of a workbook with one.
+    /// Such a sheet opens as an empty sheet. Its opaque parts can refer to other sheets by name,
+    /// so a save refuses edits whose references it cannot transform safely.
     PreservedSheetChanged {
         part: String,
         kind: &'static str,

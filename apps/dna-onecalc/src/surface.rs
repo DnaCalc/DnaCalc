@@ -565,7 +565,7 @@ fn surface(link: Rc<dyn Link>) -> impl IntoView {
             Request::Open {
                 name,
                 bytes,
-                zone: None,
+                origin: crate::FileOrigin::Unknown,
             },
             Box::new(move |reply| on_reply.run(reply)),
         ),

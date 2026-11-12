@@ -1130,6 +1130,9 @@ impl Controller {
 
     /// Opens a package's bytes under `name`; the current workbook stays when it is refused.
     /// `opened` hears whether it opened.
+    pub fn open_native(&self) {
+        self.open_kind("", Vec::new(), false, false, |_| {});
+    }
     pub fn open(&self, name: &str, bytes: Vec<u8>, opened: impl FnOnce(bool) + 'static) {
         self.open_mode(name, bytes, false, opened);
     }
@@ -1172,7 +1175,10 @@ impl Controller {
         let controller = *self;
         let size = bytes.len();
         let name = name.to_owned();
-        let request = if template_only {
+        let native = name.is_empty() && bytes.is_empty();
+        let request = if native {
+            Request::OpenNative
+        } else if template_only {
             Request::OpenTemplate { name: name.clone() }
         } else if edit_template {
             Request::OpenForEditing { name: name.clone() }
@@ -1196,7 +1202,10 @@ impl Controller {
                         controller
                             .timings
                             .update(|timings| timings.open_ms = Some(elapsed));
-                        let message = match calculated {
+                        let name = &outcome.summary.name;
+                        let message = if native {
+                            format!("Opened {name} in {elapsed:.0} ms")
+                        } else { match calculated {
                             Some(calculated) => format!(
                                 "Opened {name}: {size} bytes in {elapsed:.0} ms: read in {:.0} ms, calculated in {calculated:.0} ms",
                                 elapsed - calculated
@@ -1206,10 +1215,11 @@ impl Controller {
                                 so its formulas show the values it stored until Calculate"
                             ),
                             None => format!("Opened {name}: {size} bytes in {elapsed:.0} ms; calculation continues in the worker"),
-                        };
+                        } };
                         controller.installed(outcome.summary, message);
                         opened(true);
                     }
+                    Ok(Reply::OpenCancelled) => { opened(false); }
                     Ok(Reply::Done { outcome, .. }) => {
                         controller.say(
                             format!("{name} did not open: {}", outcome.error.unwrap_or_default()),
@@ -3954,19 +3964,25 @@ impl Controller {
     pub fn set_macro_security(&self, level: MacroSecurity) {
         let controller = *self;
         self.pending_actions.update(|n| *n += 1);
-        self.send_command(Request::SetMacroSecurity { level }, None, move |reply, _| {
-            controller
-                .pending_actions
-                .update(|n| *n = n.saturating_sub(1));
-            match reply {
-                Ok(Reply::Done { outcome, .. }) => {
-                    controller.applied(&outcome, false);
-                    controller.say(format!("Macro security is {}", level.label()), false);
+        self.send_command(
+            Request::SetMacroSecurity { level },
+            None,
+            move |reply, _| {
+                controller
+                    .pending_actions
+                    .update(|n| *n = n.saturating_sub(1));
+                match reply {
+                    Ok(Reply::Done { outcome, .. }) => {
+                        controller.applied(&outcome, false);
+                        controller.say(format!("Macro security is {}", level.label()), false);
+                    }
+                    Err(error) => {
+                        controller.say(format!("Macro security not changed: {error}"), true)
+                    }
+                    _ => controller.say("Macro security did not answer", true),
                 }
-                Err(error) => controller.say(format!("Macro security not changed: {error}"), true),
-                _ => controller.say("Macro security did not answer", true),
-            }
-        });
+            },
+        );
     }
 
     /// The person enabled macros for the open workbook (the macro bar's button, dc-0f1k.22), or

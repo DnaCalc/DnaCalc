@@ -78,8 +78,8 @@ pub(crate) fn f_test_kernel(array1: &[f64], array2: &[f64]) -> Result<f64, Works
     // the old clamp returned 1 (13 gross F.TEST bank rows). Both tails come from the one
     // bratio call of F.DIST.RT's staging; taking its own complement output, not 1 - p, holds
     // two more bank rows (dc-ymjf.6). The argument pair is this one, `d2 / (d2 + n)` and
-    // `n / (d2 + n)`, not FDIST's `1 / (1 + n / d2)` and `1 / (1 + d2 / n)` (dc-6332.8: 62 of the
-    // 78 bank rows against 39; forms on the two variances or sums of squares hold 33 to 44).
+    // `n / (d2 + n)`, not FDIST's (`f_tails`; dc-6332.8: 62 of the 78 bank rows against 48, and
+    // FDIST's form on the two variances or on the sums of squares holds 39 to 45).
     let num = df1 * ratio;
     let den = df2 + num;
     let (p, q) = bratio(df2 / 2.0, df1 / 2.0, df2 / den, num / den);

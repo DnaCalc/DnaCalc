@@ -614,11 +614,25 @@ impl Session {
         file_name: &str,
         zone: Option<u32>,
     ) -> Result<ProjectReport, String> {
+        self.open_project_with_origin(
+            vba,
+            file_name,
+            zone.map(crate::FileOrigin::Zone)
+                .unwrap_or(crate::FileOrigin::Local),
+        )
+    }
+
+    /// Open with the origin supplied by the native host; unknown origins require Unblock.
+    pub fn open_project_with_origin(
+        &mut self,
+        vba: calc_doc::SessionVba,
+        file_name: &str,
+        origin: crate::FileOrigin,
+    ) -> Result<ProjectReport, String> {
         let parsed = calc_vba::read_office_project(&vba.project);
-        let macros = match zone {
-            Some(zone @ (3 | 4)) => MacroState::Blocked(zone),
-            _ => MacroState::Disabled,
-        };
+        let macros = origin
+            .block()
+            .map_or(MacroState::Disabled, MacroState::Blocked);
         self.project = Some(SessionProject {
             vba,
             parsed: parsed.as_ref().ok().cloned(),
@@ -640,9 +654,7 @@ impl Session {
             notes: vec![format!(
                 "{}",
                 match macros {
-                    MacroState::Blocked(zone) => format!(
-                        "This file carries the Mark of the Web (zone {zone}: it came from the internet or another computer), so its VBA project is held and not run until you unblock it"
-                    ),
+                    MacroState::Blocked(block) => block.to_string(),
                     _ => "Macros are disabled for this file: its VBA project is held and saved with it, but nothing in it runs until you enable macros".to_owned(),
                 }
             )],
@@ -681,13 +693,11 @@ impl Session {
             return Err("the session has no VBA project".to_owned());
         };
         let blocked = match held.macros {
-            MacroState::Blocked(zone) => {
+            MacroState::Blocked(block) => {
                 if mode == MacroEnable::Person {
-                    return Err(format!(
-                        "the file carries the Mark of the Web (zone {zone}); its VBA project is held and not run until you unblock it"
-                    ));
+                    return Err(block.to_string());
                 }
-                Some(zone)
+                Some(block)
             }
             MacroState::Enabled => return Ok(ProjectReport::default()),
             MacroState::Disabled => None,
@@ -710,12 +720,12 @@ impl Session {
         let report = self.compile_project(&project)?;
         let held = self.project.as_mut().expect("a held project part");
         held.macros = MacroState::Enabled;
-        held.notice = blocked.map(|zone| {
-            let source = format!(
-                "This file carries the Mark of the Web (zone {zone}: it came from the internet or another computer)"
-            );
+        held.notice = blocked.map(|block| {
+            let source = block.origin_description();
             match mode {
-                MacroEnable::Trusted { by, .. } => format!("{source}; its macros run because of {by}"),
+                MacroEnable::Trusted { by, .. } => {
+                    format!("{source}; its macros run because of {by}")
+                }
                 _ => format!("{source}; its macros run because you unblocked it"),
             }
         });
@@ -734,10 +744,7 @@ impl Session {
         let held = self.project.as_mut().expect("a held project part");
         // The policy wraps every host built for this load (CalcVBA's PolicyHost); the thread's
         // earlier policy is put back after it.
-        let earlier = calc_vba::policy::thread_policy();
-        if let Some(mode) = held.vba_mode {
-            calc_vba::policy::set_thread_policy(Some(mode));
-        }
+        let _policy = held.vba_mode.map(calc_vba::policy::PolicyScope::enter);
         let load = calc_vba::events::load_office_project(
             project,
             &held.file_name,
@@ -745,9 +752,6 @@ impl Session {
             None,
             calc_vba::Profile::ValuesOnly,
         );
-        if held.vba_mode.is_some() {
-            calc_vba::policy::set_thread_policy(earlier);
-        }
         let load = load?;
         let functions = load
             .project
@@ -946,9 +950,8 @@ pub enum MacroState {
     Enabled,
     /// Held, not compiled, not run; [`Session::enable_macros`] lets it run.
     Disabled,
-    /// Held, not run, and not to be enabled by the plain Enable: the file carries the Mark of the
-    /// Web (the zone). The person's Unblock and enable, or the level Unguarded, runs it.
-    Blocked(u32),
+    /// Held until Unblock: marked, network or unverified origin.
+    Blocked(crate::MacroBlock),
 }
 
 impl std::fmt::Debug for SessionProject {

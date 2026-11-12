@@ -98,6 +98,7 @@ pub(crate) fn open_chosen(
 #[derive(Clone)]
 pub(crate) enum Replacement {
     New,
+    OpenNative,
     Open(String, Vec<u8>),
     OpenEditing(String, Vec<u8>),
     Template(String, Vec<u8>),
@@ -112,6 +113,17 @@ pub(crate) fn focus(selector: &str) {
         .and_then(|element| element.dyn_into::<web_sys::HtmlElement>().ok())
     {
         let _ = element.focus();
+    }
+}
+
+fn native_file_picker() -> bool {
+    #[cfg(target_arch = "wasm32")]
+    {
+        js_sys::Reflect::has(&js_sys::global(), &"__dnacalcDesktop".into()).unwrap_or(false)
+    }
+    #[cfg(not(target_arch = "wasm32"))]
+    {
+        false
     }
 }
 
@@ -153,6 +165,7 @@ pub fn app_with_transport(
         }
         Replacement::Template(name, bytes) => controller.open_template(&name, bytes, |_| {}),
         Replacement::PersonalEditing(name, bytes) => controller.edit_personal_template(name, bytes),
+        Replacement::OpenNative => controller.open_native(),
         Replacement::Open(name, bytes) => controller.open(&name, bytes, |_| {}),
         Replacement::OpenEditing(name, bytes) => controller.open_mode(&name, bytes, true, |_| {}),
     };
@@ -705,7 +718,9 @@ pub fn app_with_transport(
                     data-dnacalc="open"
                     disabled=move || assist.readonly.get()
                     on:click=move |_| {
-                        if let Some(input) = file_input.get() {
+                        if native_file_picker() {
+                            request_replace.run(Replacement::OpenNative);
+                        } else if let Some(input) = file_input.get() {
                             input.click();
                         }
                     }

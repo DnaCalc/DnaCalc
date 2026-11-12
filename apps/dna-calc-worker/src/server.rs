@@ -21,6 +21,16 @@ use calc_host::{
 };
 use std::collections::BTreeMap;
 
+struct OpenOriginScope {
+    slot: std::rc::Rc<std::cell::Cell<Option<crate::workbook::FileOrigin>>>,
+    earlier: Option<crate::workbook::FileOrigin>,
+}
+impl Drop for OpenOriginScope {
+    fn drop(&mut self) {
+        self.slot.set(self.earlier);
+    }
+}
+
 /// What the server answers to one request: the reply (or why there is none) and the bytes that
 /// travel beside it.
 pub struct Answer {
@@ -111,7 +121,7 @@ pub struct Server {
     template_counters: BTreeMap<String, u64>,
     /// Where the file of the next open came from, when a native host read its path (its Mark of
     /// the Web, the network); taken by that open. A browser cannot tell: unknown (dc-0f1k.22).
-    open_origin: Option<crate::workbook::FileOrigin>,
+    open_origin: std::rc::Rc<std::cell::Cell<Option<crate::workbook::FileOrigin>>>,
     /// The macro security level in force (dc-15dk): Off unless the native host sets another.
     macro_policy: dna_calc_model::MacroPolicy,
 }
@@ -315,7 +325,7 @@ impl Server {
             save_as_target: None,
             next_save: 1,
             template_counters: BTreeMap::new(),
-            open_origin: None,
+            open_origin: Default::default(),
             macro_policy: dna_calc_model::MacroPolicy::default(),
         }
     }
@@ -822,6 +832,9 @@ impl Server {
                     }),
                     false,
                 ),
+                Request::OpenNative => {
+                    Err("Native file selection is unavailable in this worker".into())
+                }
                 Request::New => {
                     self.install(Workbook::new_blank());
                     Ok(self.done(true, None, 0.0))
@@ -1586,9 +1599,21 @@ impl Server {
 
     /// Where the file the next open request names came from (the desktop host read its path):
     /// its Mark of the Web or a network path blocks its VBA project (dc-0f1k.22). Without one the
-    /// origin is unknown, as in a browser, and the project opens disabled.
+    /// origin is unknown, as in a browser, and Full execution requires Unblock.
     pub fn set_open_origin(&mut self, origin: crate::workbook::FileOrigin) {
-        self.open_origin = Some(origin);
+        self.open_origin.set(Some(origin));
+    }
+
+    /// Bind origin to one native request, including a request rejected before opening.
+    pub fn with_open_origin<R>(
+        &mut self,
+        origin: crate::workbook::FileOrigin,
+        call: impl FnOnce(&mut Self) -> R,
+    ) -> R {
+        let slot = self.open_origin.clone();
+        let earlier = slot.replace(Some(origin));
+        let _scope = OpenOriginScope { slot, earlier };
+        call(self)
     }
 
     /// Bind a native host's RTD connector to this and every later workbook.
