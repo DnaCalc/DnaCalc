@@ -334,3 +334,38 @@ forward CDF does not imply any of those inverse word programs.
 
 Raw questions and frozen predictions are in the existing fix2 probe section
 of CalcFunc-Evidence. No Excel answer, input or expected pin value is changed.
+
+
+## Fix2 zero-density initial proposal
+
+Role: implementer. Sources read: this repository, Excel20527 service outputs,
+and the NBS public-domain mathematical formulas in Abramowitz and Stegun,
+[26.4.17](https://personal.math.ubc.ca/~cbm/aands/page_941.htm) and
+[26.5.20](https://personal.math.ubc.ca/~cbm/aands/page_945.htm).
+No Numerical Recipes, R nmath, glibc or unkept ACM TOMS implementation was
+read. Published normal approximations26.2.22/23 were calibration candidates,
+not sources of new product coefficients or code.
+
+For the first shape above1 and second at most1, take the accurate normal
+quantile, the chi-square cube-root proposal, and the first rational inverse
+of26.5.20. The cube's word program is EXP(stored3*LN(base)); multiplication,
+CRT POW and the direct x87 power fail the controls. Every stated elementary
+operation is stored from PC64. Of128 calibration controls, that stored
+program matches128 exactly. A fresh256-row frozen holdout, using the native
+normal application route before asking Excel, matches256/256. All384 public
+PDF controls at those proposals are zero. Excel publishes the proposal in
+this state, including its1-1e-6 replacement when the proposal rounds to1.
+The new application helper reuses the existing normal, elementary and beta
+PDF routes and leaves the ordinary inverse search intact.
+
+An upper-gamma initial-proposal alternative matches only56/100 endpoint
+phase controls. A constant-mean shortcut also fails. The normal/chi proposal
+is a sufficient zero-density rule, not a complete inverse iteration model:
+16 of128 distinguishing endpoint controls reach the fallback later even
+though their initial proposal remains below1. They remain unmodelled here.
+The negative-chi and lower-power initial branches are not inferred or added.
+
+Targeted bank checks gain11 exact matches with zero losses: BETA.INV4,
+BETAINV5,TINV1,CONFIDENCE.T1. The two Student-t/confidence gross tiny-tail
+errors now match their recorded Excel words. Remaining large central-degree
+and small-first/large-second inverse errors stay counted and open.

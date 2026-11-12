@@ -4070,3 +4070,60 @@ fn beta_inverse_upper_probability_search_preserves_excel_floor() {
         );
     }
 }
+
+
+/// Excel20527: the zero-density inverse arm publishes its initial proposal,
+/// including the endpoint fallback, before the ordinary inverse search.
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn beta_inverse_zero_density_keeps_the_measured_initial_proposal() {
+    for name in ["BETA.INV", "BETAINV"] {
+        exact(
+            call(
+                name,
+                vec![
+                    n(f64::from_bits(0x28b3_d596_a03f_8745)),
+                    n(f64::from_bits(0x4073_0960_aa5d_3427)),
+                    n(f64::from_bits(0x3fed_f483_11ed_453e)),
+                ],
+            ),
+            f64::from_bits(0x3f71_d2a4_ab12_c880),
+        );
+        exact(
+            call(name, vec![n(0.1), n(1e100), n(1.0)]),
+            f64::from_bits(0x3fef_fffd_e721_0be9),
+        );
+        exact(
+            call(name, vec![n(0.9), n(1.0), n(1e100)]),
+            f64::from_bits(0x3eb0_c6f7_a0b8_0000),
+        );
+    }
+}
+
+/// Captured Excel20527 tiny-tail answers pass through the same beta initial
+/// proposal into Student-t and then the application's confidence calculation.
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn student_t_and_confidence_keep_the_zero_density_beta_proposal() {
+    exact(
+        call(
+            "TINV",
+            vec![
+                n(f64::from_bits(0x34a7_b5b3_0b92_82c0)),
+                n(f64::from_bits(0x4070_eff7_3350_b850)),
+            ],
+        ),
+        f64::from_bits(0x4073_70ba_f9a5_4a38),
+    );
+    exact(
+        call(
+            "CONFIDENCE.T",
+            vec![
+                n(1e-100),
+                n(100.0),
+                n(f64::from_bits(0x4088_f661_69ab_758e)),
+            ],
+        ),
+        f64::from_bits(0x4071_3e70_48ac_bac8),
+    );
+}

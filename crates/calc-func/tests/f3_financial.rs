@@ -2329,3 +2329,179 @@ fn rate_stores_underflow_before_the_secant_division() {
         Num,
     );
 }
+/// Excel20527 adjacent words isolate RATE's three post-budget checks (fix1 batch4 service packets).
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn rate_checks_the_last_step_balance_and_rate_after_its_budget() {
+    for (function, args, expected) in [
+        (
+            "RATE",
+            [
+                0x4039000000000000,
+                0x0000000000000000,
+                0x3ff0000000000000,
+                0x0000000000000000,
+                0x0000000000000000,
+                0x3f83b91149d231bf,
+            ],
+            Some(0xbfefe374d571412f),
+        ),
+        (
+            "RATE",
+            [
+                0x4039000000000000,
+                0x0000000000000000,
+                0x3ff0000000000000,
+                0x0000000000000000,
+                0x0000000000000000,
+                0x3f83b91149d231c0,
+            ],
+            None,
+        ),
+        (
+            "RATE",
+            [
+                0x402e000000000000,
+                0x0000000000000000,
+                0x3ff0000000000000,
+                0x0000000000000000,
+                0x0000000000000000,
+                0x3fdcb0a4cba50c3a,
+            ],
+            None,
+        ),
+        (
+            "RATE",
+            [
+                0x402e000000000000,
+                0x0000000000000000,
+                0x3ff0000000000000,
+                0x0000000000000000,
+                0x0000000000000000,
+                0x3fdcb0a4cba50c3b,
+            ],
+            Some(0xbfefff2e48e8a71d),
+        ),
+        (
+            "RATE",
+            [
+                0x4034000000000000,
+                0x0000000000000000,
+                0x4bc679555558061b,
+                0x0000000000000000,
+                0x0000000000000000,
+                0x3fb999999999999a,
+            ],
+            Some(0xbfeff8bbf9f0e361),
+        ),
+        (
+            "RATE",
+            [
+                0x4034000000000000,
+                0x0000000000000000,
+                0x4bc679555558061c,
+                0x0000000000000000,
+                0x0000000000000000,
+                0x3fb999999999999a,
+            ],
+            None,
+        ),
+    ] {
+        let value = call(
+            function,
+            args.into_iter().map(|v| n(f64::from_bits(v))).collect(),
+        );
+        match expected {
+            Some(bits) => exact(value, f64::from_bits(bits)),
+            None => error(value, Num),
+        }
+    }
+}
+
+/// Negative-rate period parts retain the quotient before adding FV and flush its underflow store.
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn negative_rate_period_parts_keep_the_stored_balance_quotient() {
+    for (function, args, expected) in [
+        (
+            "IPMT",
+            [
+                0xbfeb1d5e5e8b2839,
+                0x40202b35ea975343,
+                0x4073d3bd7da241a5,
+                0x4057cf6a39beb909,
+                0xbf3cc1b4eec831f0,
+                0x0000000000000000,
+            ],
+            0x3f408b66ca318e97,
+        ),
+        (
+            "IPMT",
+            [
+                0xbfe1284a329fce52,
+                0x4019d7d8cb2d671c,
+                0x4089e1407b0d06c1,
+                0x3f804a2515a1bfd1,
+                0x0000000000000000,
+                0x3ff0000000000000,
+            ],
+            0x3f2228c2d534f7b9,
+        ),
+        (
+            "IPMT",
+            [
+                0xbfdb9a5c2e235584,
+                0x401187128878f6b6,
+                0x408c9df68c3713c1,
+                0x3eb8b4b0da6447b9,
+                0xbf9650eebcafbf4a,
+                0x0000000000000000,
+            ],
+            0x3f8065543c21f940,
+        ),
+        (
+            "IPMT",
+            [
+                0xbfebdc88a9a0c9eb,
+                0x401086d4a6bcb273,
+                0x407594ca94033f84,
+                0x3f827de6d9af7684,
+                0x0000000000000000,
+                0x3ff0000000000000,
+            ],
+            0x0000000000000000,
+        ),
+        (
+            "IPMT",
+            [
+                0xbfe4e2f458601a84,
+                0x3ff0000000000001,
+                0x3fe350c5b71f5068,
+                0x407a1c9b362060d8,
+                0x0000000000000000,
+                0x0000000000000000,
+            ],
+            0x40710b126c3f142f,
+        ),
+        (
+            "PPMT",
+            [
+                0xbf577b7a6fed34bc,
+                0x3ff0000000000001,
+                0x40427fffffffffff,
+                0x3ff0000000000000,
+                0xc000000000000000,
+                0x3fefffffffffffff,
+            ],
+            0x3f9c6fd93735876d,
+        ),
+    ] {
+        exact(
+            call(
+                function,
+                args.into_iter().map(|v| n(f64::from_bits(v))).collect(),
+            ),
+            f64::from_bits(expected),
+        );
+    }
+}
