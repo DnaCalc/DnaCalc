@@ -953,7 +953,7 @@ static class Program
         ["#NULL!"] = 2000, ["#DIV/0!"] = 2007, ["#VALUE!"] = 2015, ["#REF!"] = 2023, ["#NAME?"] = 2029, ["#NUM!"] = 2036, ["#N/A"] = 2042,
     };
     static readonly Dictionary<int, string> Names = Codes.ToDictionary(kv => kv.Value, kv => kv.Key)
-        .Concat(new Dictionary<int, string> { [2045] = "#SPILL!", [2046] = "#CALC!", [2047] = "#FIELD!", [2044] = "#UNKNOWN!" })
+        .Concat(new Dictionary<int, string> { [2043] = "#GETTING_DATA", [2044] = "#UNKNOWN!", [2045] = "#SPILL!", [2046] = "#CONNECT!", [2047] = "#BLOCKED!", [2049] = "#FIELD!", [2050] = "#CALC!", [2051] = "#BUSY!" })
         .ToDictionary(kv => kv.Key, kv => kv.Value);
 
     static (char, object) Convert1(object v)
