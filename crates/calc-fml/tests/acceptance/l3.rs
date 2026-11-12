@@ -183,6 +183,42 @@ fn check(book: &mut Book, rows: &[(&str, &str, CalcValue)]) {
     }
 }
 
+/// Excel 20527 controls: FREQUENCY must keep its readers through compiled formulas.
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test)]
+fn frequency_ignores_text_data_and_defaults_nonnumeric_bins_to_zero() {
+    let mut book = Book::new();
+    for (address, value) in [
+        ("A1", t("-1.25")),
+        ("A2", n(-1.0)),
+        ("A3", n(0.0)),
+        ("A4", n(1.0)),
+        ("A5", n(2.0)),
+        ("B1", n(3.0)),
+        ("B2", n(6.0)),
+        ("B3", n(5.0)),
+        ("B4", n(4.0)),
+        ("C1", e(W::NA)),
+    ] {
+        let at = book.at(address);
+        book.reader.values.insert(at, value);
+    }
+    for (formula, expected) in [
+        ("=INDEX(FREQUENCY(A1,B1:B4),1)", 0.0),
+        ("=INDEX(FREQUENCY(\"-1.25\",B1:B4),1)", 0.0),
+        ("=INDEX(FREQUENCY(A2:A5,C1),1)", 2.0),
+        ("=INDEX(FREQUENCY(A2:A5,C1),2)", 2.0),
+        ("=INDEX(FREQUENCY(Ja:Ma!A1,1),1)", 1.0),
+        ("=INDEX(FREQUENCY(1,Ja:Ma!A1),1)", 1.0),
+    ] {
+        assert_eq!(
+            book.legacy(formula, "D1").as_number(),
+            Some(expected),
+            "{formula}"
+        );
+    }
+}
+
 /// Structured references, each measured (module documentation), in the rows of sheet F where
 /// Excel held them (row 48 on), and in the table's own rows on Tab.
 #[cfg_attr(not(target_arch = "wasm32"), test)]

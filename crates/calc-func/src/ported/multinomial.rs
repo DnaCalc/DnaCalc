@@ -168,6 +168,16 @@ fn multinomial_publication_candidate(positive_items: &[i64], exact_candidate: f6
 }
 
 pub fn multinomial_kernel(items: &[i64]) -> Result<f64, WorksheetErrorCode> {
+    // Excel rejects a factorial numerator above 170!, even when cancellation
+    // would leave a finite multinomial (including a single positive argument).
+    // Bound the total before either factorial loops or integer summation.
+    let mut total = 0i64;
+    for &item in items {
+        if item < 0 || item > 170 - total {
+            return Err(WorksheetErrorCode::Num);
+        }
+        total += item;
+    }
     let positive_items = multinomial_positive_items(items);
     let exact_candidate = multinomial_exact_candidate(&positive_items);
     if !exact_candidate.is_finite() {

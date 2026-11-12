@@ -1091,6 +1091,23 @@ fn moments_and_transforms() {
 #[cfg_attr(not(target_arch = "wasm32"), test)]
 #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
 fn prob_and_frequency() {
+    // Excel 20527: direct text/logicals are ignored, and a nonnumeric bins
+    // argument supplies the zero bin, including a referenced error.
+    for datum in [t("-1.25"), CalcValue::logical(true), CalcValue::empty()] {
+        let (_, _, counts) = array(call(
+            "FREQUENCY",
+            vec![datum, arr(vec![vec![3.0, 6.0], vec![5.0, 4.0]])],
+        ));
+        assert_eq!(counts, vec![0.0; 5]);
+    }
+    for bins in [t("2"), t("hello"), CalcValue::error(NA), CalcValue::empty()] {
+        let (_, _, counts) = array(call(
+            "FREQUENCY",
+            vec![arr(vec![vec![-1.0, 0.0, 1.0, 2.0]]), bins],
+        ));
+        assert_eq!(counts, vec![2.0, 2.0]);
+    }
+
     let xs = arr(vec![vec![0.0, 1.0, 2.0, 3.0]]);
     let ps = arr(vec![vec![0.2, 0.3, 0.1, 0.4]]);
     close(

@@ -9,7 +9,6 @@ pub(crate) fn determinant_kernel(matrix: &[Vec<f64>]) -> Result<f64, WorksheetEr
     let mut work = matrix.to_vec();
     let mut swaps = 0usize;
     let mut det = 1.0;
-    const EPS: f64 = 1e-12;
 
     for pivot_idx in 0..n {
         let mut pivot_row = pivot_idx;
@@ -22,7 +21,7 @@ pub(crate) fn determinant_kernel(matrix: &[Vec<f64>]) -> Result<f64, WorksheetEr
             }
         }
 
-        if pivot_abs < EPS {
+        if pivot_abs == 0.0 {
             return Ok(0.0);
         }
 
