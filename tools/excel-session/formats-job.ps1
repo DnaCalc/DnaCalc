@@ -10,7 +10,7 @@
 # (Application.UseSystemSeparators = False and the two separator properties, restored at the end
 # and by the host's baseline check) and, for date names, a [$-LCID] prefix on the format code.
 # Format code letters stay English. No other setting is changed.
-param($OwnedExcel, [string]$Cases, [string]$Output, [string]$Result)
+param($OwnedExcel, [string]$Cases, [string]$Output, [string]$Result, [string]$RegionalCulture = '')
 $ErrorActionPreference = 'Stop'
 function Literal([string]$text) {
     return [regex]::Replace($text, 'U\+([0-9A-Fa-f]{4})', { param($m) [string][char][Convert]::ToInt32($m.Groups[1].Value, 16) })
@@ -26,16 +26,38 @@ function Show([string]$text) {
 $app = $OwnedExcel
 $before = [ordered]@{ system = $app.UseSystemSeparators; decimal = $app.DecimalSeparator; thousands = $app.ThousandsSeparator }
 $rows = Get-Content -LiteralPath $Cases -Encoding utf8 | Where-Object { $_ -and -not $_.StartsWith('#') }
+$book = $null
+try {
+if ($RegionalCulture) {
+    # Revisit the rows whose previous comparison was ambiguous. Do not emulate the locale:
+    # Excel must inherit the real Windows regional settings in a newly launched process.
+    if ((Get-Culture).Name -ne $RegionalCulture) { throw "Windows culture is $((Get-Culture).Name), expected $RegionalCulture" }
+    $rows = @($rows | Where-Object {
+        $f = $_ -split "`t", 9
+        $f[1] -eq $RegionalCulture -and ($f[8] -match 'U\+00A0|U\+202F' -or ($RegionalCulture -eq 'de-DE' -and $f[8].Contains('/')))
+    })
+    if (-not $rows.Count) { throw "No affected cases for $RegionalCulture" }
+    $app.UseSystemSeparators = $true
+    $first = $rows[0] -split "`t", 9
+    if ($app.International(3) -ne (Literal $first[2]) -or $app.International(4) -ne (Literal $first[3])) {
+        throw 'Excel regional decimal or thousands separator differs from the selected questions.'
+    }
+}
+$regional = if ($RegionalCulture) { [ordered]@{
+    culture = (Get-Culture).Name; excel_version = $app.Version; excel_build = $app.Build
+    country_setting = $app.International(2); decimal = $app.International(3)
+    thousands = $app.International(4); date_separator = $app.International(17)
+} } else { $null }
 $out = New-Object System.Collections.Generic.List[string]
 $out.Add("# id`tculture`tdecimal`tthousands`tlcid`tdate_system`tkind`tvalue`tcode`ttext`tinvariant_code`terror")
 $groups = $rows | ForEach-Object { $f = $_ -split "`t"; [pscustomobject]@{ row = $_; key = ($f[2] + '|' + $f[3] + '|' + $f[5]) } } | Group-Object key
-$book = $null
-try {
     foreach ($group in $groups) {
         $first = $group.Group[0].row -split "`t"
-        $app.UseSystemSeparators = $false
-        $app.DecimalSeparator = Literal $first[2]
-        $app.ThousandsSeparator = Literal $first[3]
+        if (-not $RegionalCulture) {
+            $app.UseSystemSeparators = $false
+            $app.DecimalSeparator = Literal $first[2]
+            $app.ThousandsSeparator = Literal $first[3]
+        }
         $book = $app.Workbooks.Add()
         $book.Date1904 = ($first[5] -eq '1904')
         $sheet = $book.Worksheets.Item(1)
@@ -77,4 +99,4 @@ try {
 }
 $sorted = @($out[0]) + @($out | Select-Object -Skip 1 | Sort-Object { [int](($_ -split "`t")[0] -replace '^\D+', '') })
 [IO.File]::WriteAllLines($Output, $sorted, (New-Object System.Text.UTF8Encoding($false)))
-@{fatal = $null; rows = @(@{cases = $rows.Count; answered = $out.Count - 1})} | ConvertTo-Json -Depth 4 | Set-Content -LiteralPath $Result -Encoding utf8NoBOM
+@{fatal = $null; regional = $regional; rows = @(@{cases = $rows.Count; answered = $out.Count - 1})} | ConvertTo-Json -Depth 4 | Set-Content -LiteralPath $Result -Encoding utf8NoBOM
