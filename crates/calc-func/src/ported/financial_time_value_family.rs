@@ -121,7 +121,9 @@ pub fn pv(
     timing: PaymentTiming,
 ) -> Result<f64, FinancialError> {
     validate_finite(&[periodic_rate, periods, payment_value, future_value])?;
-    if periodic_rate.abs() < EPSILON {
+    // Only exact zero takes the linear route. For a nonzero rate whose
+    // stored growth base rounds to one, the annuity term is zero, not nper.
+    if periodic_rate == 0.0 {
         return Ok(-(future_value + payment_value * periods));
     }
     // As FV: the growth of the stored 1 + rate, then the stored quotient of the balances, every step

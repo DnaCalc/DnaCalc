@@ -120,7 +120,7 @@ pub(crate) fn collect_irr_values_from_eval(
     }
 }
 
-fn serial_from_number(value: f64) -> Result<i64, CashflowRateEvalError> {
+pub(crate) fn serial_from_number(value: f64) -> Result<i64, CashflowRateEvalError> {
     if !value.is_finite() {
         return Err(CashflowRateEvalError::Domain(WorksheetErrorCode::Num));
     }
@@ -515,8 +515,17 @@ fn irr_discount_secant(cashflows: &[f64], guess: f64) -> Option<f64> {
 }
 
 pub(crate) fn irr_kernel(cashflows: &[f64], guess: Option<f64>) -> Result<f64, WorksheetErrorCode> {
+    let guess = guess.unwrap_or(0.1);
+    // The initial growth factor must be positive and retain its unit
+    // increment. At 2^53 adjacent guesses alternate between VALUE and NUM;
+    // a magnitude cutoff would erase that stored-addition boundary.
+    if guess.is_finite()
+        && (guess <= -1.0 || crate::ported::excel_numeric::excel_x87_add(1.0, guess) == guess)
+    {
+        return Err(WorksheetErrorCode::Value);
+    }
     validate_cashflows(cashflows)?;
-    irr_discount_secant(cashflows, guess.unwrap_or(0.1)).ok_or(WorksheetErrorCode::Num)
+    irr_discount_secant(cashflows, guess).ok_or(WorksheetErrorCode::Num)
 }
 
 /// Worksheet `XNPV` — bit-exact to 64-bit Excel on `x86_64` (W109 pilot,

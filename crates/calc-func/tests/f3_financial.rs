@@ -2505,3 +2505,143 @@ fn negative_rate_period_parts_keep_the_stored_balance_quotient() {
         );
     }
 }
+/// Excel20527: PV retains its existing growth stages at every nonzero rate.
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn pv_uses_the_growth_base_for_tiny_nonzero_rates() {
+    for (rate, timing, expected) in [
+        (2.0_f64.powi(-53), 0.0, 0xc0c3880000000000),
+        (-2.0_f64.powi(-54), 1.0, 0xc0c3880000000000),
+        (2.0_f64.powi(-52), 0.0, 0x41155cbffffffe1f),
+        (1e-15, 0.0, 0x4117c8c127cc3353),
+        (1e-13, 0.0, 0x411558410a348500),
+        (-1e-13, 0.0, 0x41155e7fc2d8c43c),
+        (1e-13, 1.0, 0x411558410a348769),
+    ] {
+        exact(
+            call(
+                "PV",
+                vec![n(rate), n(360.0), n(-1000.0), n(10000.0), n(timing)],
+            ),
+            f64::from_bits(expected),
+        );
+    }
+    exact(
+        call("PV", vec![n(0.0), n(360.0), n(-1000.0), n(10000.0)]),
+        350000.0,
+    );
+}
+
+/// Cell and direct logical controls agree. Out-of-calendar numeric dates
+/// precede later errors; zero dates defer to later scalar readers.
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn odd_bonds_validate_dates_and_required_scalar_kinds_in_order() {
+    let reference_error = calc_func::value::WorksheetErrorCode::Ref;
+    for (function, args, date_count) in [
+        (
+            "ODDFPRICE",
+            vec![
+                n(39763.0),
+                n(44256.0),
+                n(39736.0),
+                n(39873.0),
+                n(0.0785),
+                n(0.0625),
+                n(100.0),
+                n(2.0),
+                n(1.0),
+            ],
+            4,
+        ),
+        (
+            "ODDLPRICE",
+            vec![
+                n(39485.0),
+                n(39614.0),
+                n(39370.0),
+                n(0.0375),
+                n(0.0405),
+                n(100.0),
+                n(2.0),
+                n(0.0),
+            ],
+            3,
+        ),
+        (
+            "ODDLYIELD",
+            vec![
+                n(39485.0),
+                n(39614.0),
+                n(39370.0),
+                n(0.0375),
+                n(99.87828601472134),
+                n(100.0),
+                n(2.0),
+                n(0.0),
+            ],
+            3,
+        ),
+    ] {
+        for index in 0..args.len() {
+            let mut logical = args.clone();
+            logical[index] = b(true);
+            error(dated(function, logical), Value);
+        }
+        let frequency_index = args.len() - 2;
+        for index in 0..date_count {
+            let mut outside = args.clone();
+            outside[index] = n(-1.0);
+            outside[frequency_index] = e(reference_error);
+            error(dated(function, outside), Num);
+            let mut deferred = args.clone();
+            deferred[index] = n(0.0);
+            deferred[frequency_index] = e(reference_error);
+            error(dated(function, deferred), reference_error);
+            let mut zero = args.clone();
+            zero[index] = n(0.0);
+            error(dated(function, zero), Num);
+        }
+    }
+}
+
+/// Adjacent guesses distinguish the stored unit increment from a magnitude cap.
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn irr_checks_the_initial_growth_increment_before_cashflow_signs() {
+    for (bits, expected) in [
+        (0x433fffffffffffff, Num),
+        (0x4340000000000000, Value),
+        (0x4340000000000001, Num),
+        (0x4340000000000002, Value),
+        ((-1.0_f64).to_bits(), Value),
+        ((-1.0_f64).to_bits() - 1, Num),
+    ] {
+        error(call("IRR", vec![n(1.0), n(f64::from_bits(bits))]), expected);
+    }
+    error(call("IRR", vec![n(1.0), t("0")]), Num);
+    error(call("IRR", vec![n(1.0), b(false)]), Num);
+}
+
+/// XIRR reads the guess, then scalar coercions and paired-vector cardinality,
+/// before date domains or cashflow signs.
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn xirr_checks_singleton_shape_after_guess_and_scalar_coercion() {
+    for args in [
+        vec![n(-100.0), n(45000.0)],
+        vec![n(0.0), n(-1.0)],
+        vec![col(&[-100.0]), col(&[45000.0])],
+        vec![t("-100"), t("45000"), t(".1")],
+        vec![
+            calc_func::value::CalcValue::empty(),
+            calc_func::value::CalcValue::empty(),
+        ],
+    ] {
+        error(call("XIRR", args), NA);
+    }
+    error(call("XIRR", vec![n(-100.0), n(-1.0), t("abc")]), Value);
+    error(call("XIRR", vec![n(-100.0), n(-1.0), b(false)]), Value);
+    error(call("XIRR", vec![n(-100.0), n(-1.0), n(-1.0)]), Num);
+    error(call("XIRR", vec![n(-100.0), col(&[45000.0, 45365.0])]), Num);
+}

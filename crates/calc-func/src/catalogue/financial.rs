@@ -96,21 +96,27 @@ fn cash_err<T>(error: cash::CashflowRateEvalError) -> Step<T> {
     fail(cash::map_cashflow_rate_error_to_ws(&error))
 }
 
-/// The optional guess of IRR and XIRR: `None` when omitted, else the number OxFunc's rule reads.
+/// Optional IRR/XIRR guess through worksheet scalar coercion. Each call
+/// selects its measured logical rule; array guesses retain the existing reader.
 fn guess(
     site: &Site<'_>,
     a: &[CalcValue],
     index: usize,
     sv: &mut EvalServices<'_>,
+    reject_logicals: bool,
 ) -> Step<Option<f64>> {
     if !given(a, index) {
         return Ok(None);
     }
     let value = resolved(site, a, index, sv)?;
-    match cash::scalar_number_from_eval(&value) {
-        Ok(n) => Ok(Some(n)),
-        Err(error) => cash_err(error),
+    if matches!(value.core_ref(), CoreRef::Array(_)) {
+        return match cash::scalar_number_from_eval(&value) {
+            Ok(n) => Ok(Some(n)),
+            Err(error) => cash_err(error),
+        };
     }
+    if reject_logicals { reject_logical(&value)?; }
+    site.number_argument(index, &value).map(Some)
 }
 
 /// A date argument of AMORLINC or AMORDEGRC as a serial of the 1900 system, counted in the date
@@ -264,7 +270,7 @@ ported_shared_family! {
                 || matches!(values.core_ref(), CoreRef::Text(_) | CoreRef::Logical(_) | CoreRef::Empty));
         let mut g = None;
         if scalar {
-            g = guess(s, a, 1, sv)?;
+            g = guess(s, a, 1, sv, false)?;
             values = CalcValue::array(CalcArray::from_scalar(values));
         }
         let cashflows = match cash::collect_irr_values_from_eval(&values) {
@@ -272,7 +278,7 @@ ported_shared_family! {
             Err(error) => return cash_err(error),
         };
         if !scalar {
-            g = guess(s, a, 1, sv)?;
+            g = guess(s, a, 1, sv, false)?;
         }
         out(s, cash::irr_kernel(&cashflows, g))
     }
@@ -294,17 +300,32 @@ ported_shared_family! {
         out(s, cash::xnpv_kernel(rate, &values, &dates))
     }
     20 xirr_fn |s, a, sv| {
+        // XIRR reads its optional scalar guess before the two paired vectors.
+        // Logical guesses are VALUE; IRR's separate call admits them.
+        let g = guess(s, a, 2, sv, true)?;
         let values = resolved(s, a, 0, sv)?;
         let dates = resolved(s, a, 1, sv)?;
-        let values = match cash::collect_numeric_vector_from_eval(&values) {
-            Ok(v) => v,
+        let collect = |index, value: &CalcValue| -> Step<Vec<f64>> {
+            if matches!(value.core_ref(), CoreRef::Array(_)) {
+                match cash::collect_numeric_vector_from_eval(value) {
+                    Ok(v) => Ok(v),
+                    Err(error) => cash_err(error),
+                }
+            } else {
+                required_number(value)?;
+                s.number_argument(index, value).map(|n| vec![n])
+            }
+        };
+        let values = collect(0, &values)?;
+        // Read numeric dates before their serial domains. A singleton pair is
+        // NA even at a negative date; scalar guess errors precede that check.
+        let dates = collect(1, &dates)?;
+        if g.is_some_and(|value| value <= -1.0) { return fail(W::Num); }
+        if values.len() == 1 && dates.len() == 1 { return fail(W::NA); }
+        let dates = match dates.into_iter().map(cash::serial_from_number).collect::<Result<Vec<_>, _>>() {
+            Ok(dates) => dates,
             Err(error) => return cash_err(error),
         };
-        let dates = match cash::collect_serial_vector_from_eval(&dates) {
-            Ok(d) => d,
-            Err(error) => return cash_err(error),
-        };
-        let g = guess(s, a, 2, sv)?;
         out(s, cash::xirr_kernel(&values, &dates, g))
     }
     21 sln_fn |s, a, sv| {

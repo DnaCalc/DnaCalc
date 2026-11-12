@@ -68,7 +68,7 @@ fn parse_date_serial(value: f64) -> Result<i64, OddBondEvalError> {
     }
     let serial = value.trunc() as i64;
     if serial < 1 || serial > max_excel_serial() {
-        return Err(OddBondEvalError::Domain(WorksheetErrorCode::Value));
+        return Err(OddBondEvalError::Domain(WorksheetErrorCode::Num));
     }
     ymd_from_excel_serial(WorkbookDateSystem::System1900, serial as f64)
         .ok_or(OddBondEvalError::Domain(WorksheetErrorCode::Value))?;
@@ -702,7 +702,7 @@ pub fn oddlyield_kernel(
         redemption,
         frequency,
     ])?;
-    if rate < 0.0 || pr < 0.0 || redemption <= 0.0 {
+    if rate < 0.0 || pr <= 0.0 || redemption <= 0.0 {
         return Err(OddBondEvalError::Domain(WorksheetErrorCode::Num));
     }
     let settlement = parse_date_serial(settlement)?;
