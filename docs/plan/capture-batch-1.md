@@ -52,7 +52,7 @@ Count 500, repeat 5, size limits 8388608 bytes and 300000 formula cells, sets: e
 | ActiveX controls, data connections or query tables | 195 |
 | add-in or user-defined function calls | 37 |
 | external links | 2867 |
-| live-data functions (WEBSERVICE, RTD, CUBE*, STOCKHISTORY) | 2 |
+| special handling in this batch (RTD, CUBE*, plus deferred external-service functions such as WEBSERVICE and STOCKHISTORY) | 2 |
 | macros (VBA project, macro sheet, .xlsm or .xlsb) | 65 |
 | no formula cells | 7943 |
 | over the size limits | 1 |

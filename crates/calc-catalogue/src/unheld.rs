@@ -1,7 +1,7 @@
 //! Names whose execution belongs to another package or is deferred by owner policy.
 //! The service deferrals are dc-fetch-f0tp; the compatibility-version-3 list functions are
 //! dc-nk93. CALL and REGISTER.ID run only on a macro sheet in Excel and are refused at entry in a
-//! worksheet formula (dc-gh22); RTD uses the dc-snz.23.4 host route.
+//! worksheet formula (dc-gh22); RTD is ordinary to-do work through the dc-snz.23.4 host route.
 use crate::{
     ArgumentDemand, Availability, BindingForm, Deferral, EntryTraits, FunctionId, Implementation,
     Notation, Parameter, ResultForm,
