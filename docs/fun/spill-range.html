@@ -71,7 +71,7 @@ button:focus-visible { outline: 2px solid var(--select); outline-offset: 2px }
           <div class="body">
             <h2 id="dlgTitle">Drop the arrays</h2>
             <p id="dlgText">Each piece is a dynamic-array formula spilling numbers down the sheet. Fill a row across A:J and it is summed, scored and cleared. When a new spill has nowhere to go, you get #SPILL!.</p>
-            <p class="bits" id="dlgBits">Rows score their SUM times the level. Clear several at once for a bonus.</p>
+            <p class="bits" id="dlgBits">The sheet counts up: each new spill takes the next numbers, and its formula says which (=SEQUENCE(2,2,9) holds 9 to 12). A cleared row scores its SUM times the level; clear several at once for a bonus.</p>
             <button id="startBtn" type="button">Calculate now</button>
           </div>
         </div>
@@ -129,7 +129,11 @@ button:focus-visible { outline: 2px solid var(--select); outline-offset: 2px }
   function make(k) {
     var p = PIECES[k], m = p.m.map(function (r) { return r.slice(); });
     var vals = m.map(function (r) { return r.map(function (v) { return v ? seq++ : 0; }); });
-    return { k: k, f: p.f, c: p.c, m: m, vals: vals, x: Math.floor((W - m[0].length) / 2), y: 0, t: false };
+    // The formula names the numbers its cells really hold: SEQUENCE's third argument is the start.
+    var solid = m.every(function (r) { return r.every(Boolean); });
+    var f = solid ? '=SEQUENCE(' + m.length + ',' + m[0].length + ',' + vals[0][0] + ')'
+      : '=VSTACK(' + vals.map(function (r, y) { return '{' + r.map(function (v, x) { return m[y][x] ? v : '""'; }).join(',') + '}'; }).join(',') + ')';
+    return { k: k, f: f, c: p.c, m: m, vals: vals, x: Math.floor((W - m[0].length) / 2), y: 0, t: false };
   }
   function fits(p, dx, dy, m) {
     m = m || p.m;
