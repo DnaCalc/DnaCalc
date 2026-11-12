@@ -2270,3 +2270,62 @@ fn rate_takes_a_secant_step_from_zero_balance() {
         Div0,
     );
 }
+
+/// Excel20527: component underflow is stored before the sum, including ties
+/// that round back up to the minimum normal word.
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn fv_flushes_each_stored_cashflow_component() {
+    for (present, payment, expected) in [
+        (3e-308, -3e-308, 0x0000_0000_0000_0000),
+        (4.4e-308, -4.4e-308, 0x0000_0000_0000_0000),
+        (
+            f64::from_bits(0x001f_ffff_ffff_fffe),
+            -f64::from_bits(0x001f_ffff_ffff_ffff),
+            0x8010_0000_0000_0000,
+        ),
+        (
+            f64::from_bits(0x001f_ffff_ffff_ffff),
+            -f64::from_bits(0x001f_ffff_ffff_ffff),
+            0x8020_0000_0000_0000,
+        ),
+        (
+            f64::from_bits(0x0020_0000_0000_0002),
+            -f64::from_bits(0x0020_0000_0000_0002),
+            0x8020_0000_0000_0002,
+        ),
+    ] {
+        exact(
+            call("FV", vec![n(1.0), n(-1.0), n(payment), n(present)]),
+            f64::from_bits(expected),
+        );
+    }
+    for present in [-1e-100, 1e-100] {
+        exact(call("FV", vec![n(1.0), n(-700.0), n(0.0), n(present)]), 0.0);
+    }
+}
+
+/// Fresh cash-scaled controls distinguish RATE's product stores and divisor
+/// normalization from its exact-zero slope check.
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn rate_stores_underflow_before_the_secant_division() {
+    for (periods, payment, present, expected) in [
+        (-4881.0, 0.0, 1e-100, 0x3fb9_dba6_4653_255d),
+        (2.0, -1e-302, 1e-300, 0xbfec_a2bf_abbb_e69b),
+        (10.0, -1e-307, 1e-305, 0xbfcc_8818_5ca9_b800),
+    ] {
+        exact(
+            call("RATE", vec![n(periods), n(payment), n(present)]),
+            f64::from_bits(expected),
+        );
+    }
+    error(call("RATE", vec![n(2.0), n(-1e-307), n(1e-305)]), Div0);
+    // Integer powers can cross a negative base during this search. Rejecting
+    // every intermediate base below zero would return NUM prematurely.
+    error(call("RATE", vec![n(2.0), n(1e-305), n(1e-305)]), Div0);
+    error(
+        call("RATE", vec![n(1.0), n(-1e-304), n(1e-304), n(0.0), n(1.0), n(0.0)]),
+        Num,
+    );
+}

@@ -7,6 +7,7 @@ use crate::ported::excel_numeric::{
     excel_x87_sub, exp_portable,
 };
 use crate::ported::power_fn::power_kernel;
+use crate::ported::real_policy::excel_underflow_to_zero;
 use crate::value::WorksheetErrorCode;
 use crate::value::{CalcValue, CoreValue};
 use std::fmt;
@@ -166,14 +167,21 @@ pub fn fv(
     };
     // R31 public unit calls isolate both products from their growth and annuity
     // helpers. Separate nonzero pairs and addition ties identify the final store.
-    let present_component = excel_x87_mul(present_value, factor);
-    let payment_component = excel_x87_mul(payment_value, term);
-    let result = -excel_x87_add(present_component, payment_component);
+    let result = -payment_balance(present_value, payment_value, factor, term);
     if result.is_finite() {
         Ok(result)
     } else {
         Err(FinancialError::Num)
     }
+}
+
+/// The stored cashflow terms flush separately, before their stored sum.
+/// Two subnormal terms whose sum would be normal distinguish these stores
+/// from flushing only the published FV. RATE uses the same balance stage.
+fn payment_balance(present_value: f64, payment_value: f64, factor: f64, term: f64) -> f64 {
+    let present_component = excel_underflow_to_zero(excel_x87_mul(present_value, factor));
+    let payment_component = excel_underflow_to_zero(excel_x87_mul(payment_value, term));
+    excel_underflow_to_zero(excel_x87_add(present_component, payment_component))
 }
 
 /// The discount arm stores the total balance and its quotient from PC64.
@@ -482,23 +490,19 @@ fn rate_secant(
         if rate == 0.0 {
             return Ok(excel_x87_add(
                 excel_x87_add(future_value, present_value),
-                excel_x87_mul(payment_value, periods),
+                excel_underflow_to_zero(excel_x87_mul(payment_value, periods)),
             ));
         }
         let base = excel_x87_add(1.0, rate);
-        if base <= 0.0 {
-            return Err(FinancialError::Num);
-        }
+        // The initial guess and final root have separate domain rules. An
+        // intermediate integer-period power can cross a negative base.
         let factor = growth_from_base(base, periods)?;
         let term = excel_x87_mul(
             excel_x87_div(excel_x87_sub(factor, 1.0), rate),
             timing.factor(rate),
         );
         Ok(excel_x87_add(
-            excel_x87_add(
-                excel_x87_mul(present_value, factor),
-                excel_x87_mul(payment_value, term),
-            ),
+            payment_balance(present_value, payment_value, factor, term),
             future_value,
         ))
     };
@@ -517,10 +521,14 @@ fn rate_secant(
             // RATE(2^-1022,-100,1000,0,0,0.5) and RATE(FALSE,-200,8000) are #NUM!).
             return Err(FinancialError::Num);
         }
-        let next = excel_x87_sub(
-            current,
-            excel_x87_div(excel_x87_mul(value, excel_x87_sub(current, before)), change),
-        );
+        // The slope comparison precedes the division's DAZ input stage:
+        // an exactly flat objective is NUM, a subnormal divisor is DIV/0.
+        let divisor = financial_daz(change);
+        if divisor == 0.0 {
+            return Err(FinancialError::Div0);
+        }
+        let numerator = excel_underflow_to_zero(excel_x87_mul(value, excel_x87_sub(current, before)));
+        let next = excel_x87_sub(current, excel_x87_div(numerator, divisor));
         let step = excel_x87_sub(next, current).abs();
         (before, value_before) = (current, value);
         current = next;
