@@ -4031,3 +4031,42 @@ fn f_inverse_probability_endpoints_validate_degrees() {
         error(call(name, vec![n(0.0), n(5.0), n(8.0)]), Num);
     }
 }
+
+
+/// Excel20527 unit-shape inverses use the shared distribution logarithm,
+/// then publish a stored scale with final subnormal flush.
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn gamma_unit_inverse_and_final_product_match_excel() {
+    for name in ["GAMMA.INV", "GAMMAINV"] {
+        exact(
+            call(name, vec![n(0.1), n(1.0), n(1.0)]),
+            f64::from_bits(0x3fba_f8e8_210a_415e),
+        );
+        for shape in [0.5, 1.0, 2.0] {
+            exact(
+                call(name, vec![n(0.1), n(shape), n(f64::MIN_POSITIVE)]),
+                0.0,
+            );
+        }
+    }
+    for name in ["CHIINV", "CHISQ.INV.RT"] {
+        exact(
+            call(name, vec![n(0.001), n(2.0)]),
+            f64::from_bits(0x402b_a18a_998f_ffa0),
+        );
+    }
+}
+
+/// The reflected search publishes its finite lattice floor, rather than
+/// the much smaller mathematical root obtained by a direct-coordinate search.
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn beta_inverse_upper_probability_search_preserves_excel_floor() {
+    for name in ["BETA.INV", "BETAINV"] {
+        exact(
+            call(name, vec![n(0.75), n(0.0008), n(1.0)]),
+            f64::from_bits(0x3ca0_0000_0000_0000),
+        );
+    }
+}

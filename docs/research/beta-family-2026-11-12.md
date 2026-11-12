@@ -311,3 +311,26 @@ The internal reduced power series matches only 91 public unit CDFs, but
 substituting that public CDF was already tested and is weaker (best 98/192
 versus baseline 102/192). Public unit special cases therefore do not establish
 the internal recurrence base. No recurrence change is justified by this batch.
+
+
+## Fix2 upper-probability inverse search
+
+Fresh paired Excel20527 questions: 528 upper probabilities, including skewed
+shapes and independent tiny-shape controls. Of 424 numeric pairs, 403 satisfy
+`BETA.INV(p,a,b) = 1-BETA.INV(1-p,b,a)` exactly; the other 21 differ by one
+ULP. All 104 error pairs agree. Applying the reflected search through the
+existing application helper improves native predictions from 134 to 337
+of 528, losing six original matches by one ULP each (indices97,101,403,488,
+515,519). The much smaller mathematical root for (.75,.0008,1) is not Excel's
+published 2^-53 floor; the reflected lattice search produces that floor.
+The private low-word publication is still incomplete.
+
+An additional original-coordinate nearest-residual refinement reduces that
+holdout to 281/528. It loses no original match but does not identify Excel's
+program as well, so it is rejected. Direct SIN-square, reflected COS-square
+and complement-SIN-square half-shape inverse models match only92,82,100 of
+268 fresh rows respectively and are also rejected. The measured arcsine
+forward CDF does not imply any of those inverse word programs.
+
+Raw questions and frozen predictions are in the existing fix2 probe section
+of CalcFunc-Evidence. No Excel answer, input or expected pin value is changed.

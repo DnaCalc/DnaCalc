@@ -94,6 +94,13 @@ pub(crate) fn beta_inv_kernel(
     if probability <= 0.0 || probability >= 1.0 {
         return Err(WorksheetErrorCode::Num);
     }
+    // Upper probabilities search the reflected beta coordinate. Fresh paired
+    // controls identify this staging, including the tiny-shape root floor.
+    let (probability, alpha, beta, reflected) = if probability > 0.5 {
+        (1.0 - probability, beta, alpha, true)
+    } else {
+        (probability, alpha, beta, false)
+    };
     // Publish the adjacent lattice point with the smaller forward residual,
     // retaining the upper point on a tie. T.INV.2T shares this publication.
     let forward = |v: f64| regularized_beta(v, alpha, beta);
@@ -108,6 +115,7 @@ pub(crate) fn beta_inv_kernel(
     } else {
         hi
     };
+    let z = if reflected { 1.0 - z } else { z };
     Ok(lower + z * (upper - lower))
 }
 
@@ -201,6 +209,19 @@ pub fn gamma_inv_kernel(
     if probability == 0.0 {
         return Ok(0.0);
     }
+    if alpha == 1.0 {
+        use crate::ported::excel_numeric::{excel_log, excel_log1p_times, excel_x87_mul};
+        // Exponential inverse: the distribution logarithm keeps the small
+        // probability before the final stored scale. Fresh Excel20527: 698/698
+        // after final subnormal publication is flushed, plus 48 scaling controls.
+        let unit = if probability < 0.375 {
+            excel_log1p_times(-1.0, -probability)
+        } else {
+            -excel_log(1.0 - probability)
+        };
+        let x = excel_x87_mul(beta, unit);
+        return Ok(if x.is_subnormal() { 0.0 } else { x });
+    }
     if alpha < 1.0 {
         use crate::ported::excel_numeric::{
             excel_exp, excel_log, excel_x87_add, excel_x87_div, gammaln_excel,
@@ -233,7 +254,7 @@ pub fn gamma_inv_kernel(
     }
     let unit = bisect_inverse(probability, 0.0, hi, |v| regularized_gamma_p(alpha, v));
     let x = crate::ported::excel_numeric::excel_x87_mul(beta, unit);
-    Ok(x)
+    Ok(if x.is_subnormal() { 0.0 } else { x })
 }
 
 #[cfg(test)]

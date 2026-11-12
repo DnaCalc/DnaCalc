@@ -466,3 +466,30 @@ The ordinary finite-product computation retains its original stores.
 Right-tail reflection for general GAMMA.INV was tested and rejected: the
 fresh shape controls and bank losses do not identify it as Excel's program.
 Only the measured underflow phases and finite-surface corrections are kept.
+
+
+## Fix2 unit-shape inverse and final scale
+
+Reuse `excel_log1p_times`, the distribution logarithm already measured on
+GAMMA.DIST and Poisson/binomial prefactors. At alpha=1, the inverse uses
+`-log1p(-p)` below p=3/8 and public LN of stored `1-p` from there, then a
+stored scale. The df=2 chi right inverse uses `-2*LN(p)` through p=5/8 and
+the same internal log1p of `p-1` above it. The fresh frozen 698-row holdout
+matches 698/698 for chi and 696/698 for gamma before final underflow is
+accounted for; the two gamma differences are subnormal final products
+published by Excel as zero. Forty-eight further paired Excel controls,
+including shapes .5,1,2,10, identify stored unit-root times scale followed
+by the same final flush. The earlier 1089-row handoff still has three
+one-ULP counterexamples to this helper; do not claim a complete word model.
+
+The retained unit/flush changes gain 210 bank rows with no losses across
+GAMMA.INV,GAMMAINV,CHIINV,CHISQ.INV.RT and CHISQ.INV before other changes.
+The separately measured alpha<1 seed-subnormal #DIV/0! remains before scale.
+
+A wider right-inverse degree limit was tested but deferred. Fifteen live
+probability/degree pairs are numeric for each right alias above 1e10, while
+all fifteen left-inverse controls remain #NUM!. However four of sixty-four
+fresh larger degree/probability pairs return #NUM! for both integral and
+fractional degrees. A validation-only change loses bank2-more-CHIINV-0829
+without adding an exact bank row. Neither a uniform ceiling nor an
+integrality shortcut identifies those solver refusals. Keep this gap open.

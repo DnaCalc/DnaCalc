@@ -142,6 +142,16 @@ pub fn chisq_inv_rt_kernel(probability: f64, deg_freedom: f64) -> Result<f64, Wo
         };
     }
     let k = truncate_positive_integer(deg_freedom)?;
+    if k == 2.0 {
+        use crate::ported::excel_numeric::{excel_log, excel_log1p_times};
+        // Exponential right inverse, preserving p rather than first taking
+        // 1-p. The near-one arm shares the measured distribution logarithm.
+        return Ok(if p > 0.625 {
+            excel_log1p_times(-2.0, p - 1.0)
+        } else {
+            -2.0 * excel_log(p)
+        });
+    }
     // Excel 20527: the df=1 arm first forms P = .5 + (.5-p).
     // All 320 independently chosen probabilities retain the same CHIINV word
     // after this fold; the df=2 control retains only 37/320. Preserve both
