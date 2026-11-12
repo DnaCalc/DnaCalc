@@ -612,6 +612,61 @@ fn fv_uses_stored_beginning_term_product() {
     );
 }
 
+/// Excel20527 live unit and cancellation controls around the R15 rate's
+/// addition tie. Both the growth base and the beginning-payment factor store
+/// 1+rate from PC64; the latter is independently exposed by the unit payments.
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn beginning_payment_factor_stores_one_plus_rate_from_pc64() {
+    for (rate, periods, payment, present, expected) in [
+        (0x3e40b25c74007080, 1.0, -1.0, 0.0, 0x3feffffffc81350f),
+        (0x3e40b25c74007080, 17.0, -1.0, 0.0, 0x403100000df461b8),
+        (0x3e40b25c74007080, 360.0, -1.0, 0.0, 0x407680020a043c91),
+        (0x3e40b25c74007082, 1.0, -1.0, 0.0, 0x3feffffffc81350b),
+        (0x3e40b25c74007082, 17.0, -1.0, 0.0, 0x403100000df461b6),
+        (0x3e40b25c74007082, 360.0, -1.0, 0.0, 0x407680020a043c8e),
+        (
+            0x3e40b25c74007082,
+            360.0,
+            f64::from_bits(0xbf669ee41f420675),
+            f64::from_bits(0x3fefcf6de32210e3),
+            0xbe55e7267e000000,
+        ),
+        (0x3e40b25c74007084, 360.0, -1.0, 0.0, 0x407680020a043c8b),
+    ] {
+        exact(
+            call(
+                "FV",
+                vec![n(f64::from_bits(rate)), n(periods), n(payment), n(present), n(1.0)],
+            ),
+            f64::from_bits(expected),
+        );
+    }
+}
+
+/// The same measured timing factor feeds RATE's secant objective. End-payment
+/// controls and a distant guess retain their independently recorded answers.
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn rate_uses_the_stored_beginning_payment_factor() {
+    let rate = f64::from_bits(0x3e40b25c74007082);
+    let present = f64::from_bits(0x3fefcf6de32210e3);
+    for (payment, timing, guess, expected) in [
+        (0xbf669ee422356844, 0.0, rate, 0x3e40aaaa1045654e),
+        (0xbf669ee422356844, 0.0, 0.1, 0x3e408a8c09f4795f),
+        (0xbf669ee41f420675, 1.0, rate, 0x3e40e5b6c222d6b9),
+        (0xbf669ee41f420675, 1.0, 0.1, 0x3e40bb0c97e1246d),
+    ] {
+        exact(
+            call(
+                "RATE",
+                vec![n(360.0), n(f64::from_bits(payment)), n(present), n(0.0), n(timing), n(guess)],
+            ),
+            f64::from_bits(expected),
+        );
+    }
+}
+
 /// R31 original small-rate controls retain Excel's measured cancellation.
 #[cfg_attr(not(target_arch = "wasm32"), test)]
 #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]

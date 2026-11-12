@@ -27,7 +27,10 @@ impl PaymentTiming {
     fn factor(self, rate: f64) -> f64 {
         match self {
             Self::EndOfPeriod => 1.0,
-            Self::BeginningOfPeriod => 1.0 + rate,
+            // Like the growth base, the beginning-payment factor is stored
+            // from PC64. A strict binary64 addition changes FV's payment
+            // term and RATE's objective at addition double-rounding ties.
+            Self::BeginningOfPeriod => excel_x87_add(1.0, rate),
         }
     }
 }
