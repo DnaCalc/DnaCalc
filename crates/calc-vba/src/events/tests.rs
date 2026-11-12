@@ -24,57 +24,83 @@ fn module(name: &str, kind: ModuleKind, source: &str) -> ProjectModule {
     }
 }
 
-// A Windows file includes this reference even when its procedures use no COM.
-// Safe must audit and deny its native metadata load before any registry access.
+fn type_library(name: &str, guid: &str, import: &str) -> oxvba_symbol::manifest::ProjectReference {
+    oxvba_symbol::manifest::ProjectReference::TypeLibrary {
+        name: name.into(),
+        guid: Some(guid.into()),
+        version_major: Some(2),
+        version_minor: Some(0),
+        lcid: Some(0),
+        import_lib: Some(import.into()),
+    }
+}
+
+/// Compile a one-function file project against `compiler` under Safe and return what the policy
+/// audited, with whether the project loaded.
+fn safe_compile_audit(
+    compiler: Vec<oxvba_symbol::manifest::ProjectReference>,
+    backend: Backend,
+) -> (bool, crate::policy::AuditSnapshot) {
+    let _scope = crate::policy::PolicyScope::enter(crate::policy::PolicyMode::Safe);
+    let _ = crate::policy::drain_audit();
+    let libraries = vec!["stdole".into()];
+    let references = ProjectReferences {
+        compiler,
+        libraries,
+        com: true,
+        unavailable: vec![],
+    };
+    let loaded = load_file_project_with(
+        &[module(
+            "Api",
+            ModuleKind::Standard,
+            "Public Function F() As Long\n F = 42\nEnd Function\n",
+        )],
+        &references,
+        1000,
+        Some(backend),
+        DocumentEvents::Workbook,
+    );
+    (loaded.is_ok(), crate::policy::drain_audit())
+}
+
+// A Windows file lists OLE Automation, Office and Scripting even when its procedures use no COM.
+// Their compile-time metadata is a lookup of a standard library, so Safe neither denies nor audits
+// it: before this every case of such a workbook was refused (dc-tey4.1).
 #[cfg_attr(not(target_arch = "wasm32"), test)]
 #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
-fn safe_file_compilation_counts_ole_automation_metadata_as_a_denied_capability() {
+fn safe_file_compilation_allows_the_standard_libraries_a_file_lists() {
     for backend in backends() {
-        let _scope = crate::policy::PolicyScope::enter(crate::policy::PolicyMode::Safe);
-        let _ = crate::policy::drain_audit();
-        let references = ProjectReferences {
-            compiler: vec![oxvba_symbol::manifest::ProjectReference::TypeLibrary {
-                name: "stdole".into(),
-                guid: Some(crate::office::STDOLE_LIBRARY.into()),
-                version_major: Some(2),
-                version_minor: Some(0),
-                lcid: Some(0),
-                import_lib: Some("stdole2.tlb".into()),
-            }],
-            libraries: vec!["stdole".into()],
-            com: true,
-            unavailable: vec![],
-        };
-        let loaded = load_file_project_with(
-            &[module(
-                "Api",
-                ModuleKind::Standard,
-                "Public Function F() As Long\n F = 42\nEnd Function\n",
-            )],
-            &references,
-            1000,
-            Some(backend),
-            DocumentEvents::Workbook,
-        );
+        let compiler = vec![
+            type_library("stdole", crate::office::STDOLE_LIBRARY, "stdole2.tlb"),
+            type_library("Office", "{2DF8D04C-5BFA-101B-BDE5-00AA0044DE52}", "MSO.DLL"),
+        ];
+        let (loaded, audit) = safe_compile_audit(compiler, backend);
+        assert!(loaded, "{backend:?}");
+        assert!(audit.denied_set().is_empty(), "{backend:?}: {:?}", audit.records);
+        assert!(!audit.records.iter().any(|r| r.op.starts_with("typelib.")));
+    }
+}
+
+// Any other library is still a native metadata load: Safe audits and denies it, and a project that
+// lists one beside the standard libraries gets no exemption.
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn safe_file_compilation_still_denies_a_library_that_is_not_standard() {
+    for backend in backends() {
+        let compiler = vec![
+            type_library("stdole", crate::office::STDOLE_LIBRARY, "stdole2.tlb"),
+            type_library(
+                "IWshRuntimeLibrary",
+                "{F935DC20-1CF0-11D0-ADB9-00C04FD58A0B}",
+                "wshom.ocx",
+            ),
+        ];
+        let (_, audit) = safe_compile_audit(compiler, backend);
         assert!(
-            loaded.is_ok(),
-            "{backend:?}: {}",
-            loaded.err().unwrap_or_default()
-        );
-        let audit = crate::policy::drain_audit();
-        assert!(
-            audit
-                .denied_set()
-                .contains(crate::policy::Capability::ComActivate)
-        );
-        assert!(
-            audit
-                .records
-                .iter()
-                .any(|record| record.op == "typelib.load")
-        );
-        println!(
-            "{backend:?}: stdole metadata load denied; project loaded; all post-load cases must score refused"
+            audit.denied_set().contains(crate::policy::Capability::ComActivate),
+            "{backend:?}: {:?}",
+            audit.records
         );
     }
 }

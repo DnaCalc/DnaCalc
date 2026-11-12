@@ -236,11 +236,17 @@ Each source-project backend matches 0/107 (0%), 107 refused; each module backend
 are typed refusals (dc-hsa5.23). Their former nine apparent matches per backend were fallback
 `#VALUE!` errors matching Excel's expected errors; those entries had not calculated the answer.
 
-The baseline's `common` counts apply off Windows; `windows` overrides the two file projects.
-Those files reference stdole and Office (DnaExamples also Scripting). Windows resolves their
-native metadata under the capability policy: Safe denies that access, so every post-load case
-is refused, never matched. Source prediction now includes those file references. The metadata
-denial is asserted on both backends without native access; the Windows run remains to be verified
-with the cross-built tests. Baseline updates preserve the other platform's counts. The separate
+The baseline's `common` counts apply on every platform; `windows` holds overrides and is empty.
+Cause of the Windows 0/109 and 0/26 (dc-tey4.1, from the code; no Windows run seen yet): the files
+reference stdole, Office (DnaExamples also Scripting). Compilation asks the native type-library
+loader for their metadata (CalcVBA `typelib_catalog.rs` `build_typelib_metadata`, `typelib.load`),
+the policy scope `calc-vba/src/policy.rs` `compilation_scope` denied and audited it under Safe,
+and the runner (`vba_corpus.rs`, "policy denied during project initialization") scores every case
+of a project with an initialization denial as refused. Now `compilation_scope` takes the project's
+references and enters no restriction when each is a standard library (VBA, Excel, stdole, Office,
+Scripting, by identity); any other reference is still denied and audited. Both are asserted on
+Linux (`events::tests::safe_file_compilation_*`). The Windows expectation is the common counts,
+to be confirmed by the staged Windows test binary (lane lr2, RUN-ON-WINDOWS.txt).
+The separate
 OneCalc file test enables macros through the person's Full-policy route and asserts its four
 workbook-only refusals on every platform.
