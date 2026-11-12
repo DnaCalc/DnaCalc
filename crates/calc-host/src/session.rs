@@ -1631,6 +1631,10 @@ impl HostSession {
             return;
         }
         self.selection = selection;
+        self.host.user_view = self.selection.active.map(|at| calc_func::UserView {
+            active_sheet: at.sheet(),
+            selection: at,
+        });
         let following: Vec<SubscriptionId> = self
             .subscriptions
             .iter()

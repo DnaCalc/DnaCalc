@@ -250,6 +250,7 @@ mod tests {
             why: "calculated".into(),
             owner: None,
             error_meaning: None,
+            exact: None,
         }
     }
     fn batch(next: u64, reset: bool, cells: Vec<Cell>, removed: Vec<Key>) -> TileBatch {

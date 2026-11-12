@@ -4,6 +4,7 @@
 //! This package's normal dependencies contain no CalcHost, CalcEngine or document codec.
 //! The headless tests explicitly inject the worker's transport; the page uses a browser worker.
 
+mod addins;
 pub mod app;
 pub mod atlas;
 pub mod canvas;

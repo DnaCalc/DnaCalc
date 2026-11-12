@@ -370,9 +370,6 @@ const SETTLE_LIMIT: Duration = Duration::from_secs(60);
 /// The .xll add-ins this process loaded, over `calc-addin-host`'s add-in set.
 struct Addins {
     set: Rc<RefCell<AddinHost>>,
-    /// Each loaded .xll with the highest registration id there was before it loaded: a
-    /// registration belongs to the last add-in whose floor is below its id.
-    xlls: Vec<(PathBuf, u64)>,
     /// What the registrations looked like when the table was last published.
     published: Cell<u64>,
 }
@@ -381,7 +378,6 @@ impl Addins {
     fn new(set: Rc<RefCell<AddinHost>>) -> Self {
         Addins {
             set,
-            xlls: Vec::new(),
             published: Cell::new(0),
         }
     }
@@ -396,69 +392,21 @@ impl Addins {
         })
     }
 
-    /// Runs the add-ins' events and the message loop until the registrations have been quiet for
-    /// [`SETTLE_QUIET`].
-    fn settle(&self) {
-        let (start, mut quiet_since, mut last) = (Instant::now(), Instant::now(), self.signature());
-        while start.elapsed() < SETTLE_LIMIT && quiet_since.elapsed() < SETTLE_QUIET {
-            pump_pending();
-            let _ = self.set.borrow().after_calculate();
-            std::thread::sleep(Duration::from_millis(10));
-            let now = self.signature();
-            if now != last {
-                last = now;
-                quiet_since = Instant::now();
-            }
-        }
-    }
 }
 
 impl Libraries for Addins {
     fn load_xll(&mut self, path: &Path) -> Result<(), String> {
-        let floor = self
-            .set
-            .borrow()
-            .registrations()
-            .iter()
-            .map(|r| r.id)
-            .max()
-            .unwrap_or(0);
         self.set.borrow_mut().load(path)?;
-        self.xlls.push((path.to_owned(), floor));
-        self.settle();
+        self.set.borrow().settle(SETTLE_QUIET, SETTLE_LIMIT);
         Ok(())
     }
 
     fn unload_xll(&mut self, path: &Path) -> Result<(), String> {
-        self.set.borrow_mut().unload(path)?;
-        self.xlls.retain(|(held, _)| held != path);
-        Ok(())
+        self.set.borrow_mut().unload(path)
     }
 
     fn loaded(&self) -> Vec<(PathBuf, Vec<String>)> {
-        let registrations = self.set.borrow().registrations();
-        self.xlls
-            .iter()
-            .enumerate()
-            .map(|(index, (path, floor))| {
-                let ceiling = self
-                    .xlls
-                    .get(index + 1)
-                    .map_or(u64::MAX, |(_, next_floor)| *next_floor);
-                let mut own: Vec<_> = registrations
-                    .iter()
-                    .filter(|r| {
-                        r.id > *floor
-                            && r.id <= ceiling
-                            && r.macro_type == 1
-                            && r.use_count > 0
-                            && !r.name.is_empty()
-                    })
-                    .collect();
-                own.sort_by_key(|r| r.id);
-                (path.clone(), own.iter().map(|r| r.name.clone()).collect())
-            })
-            .collect()
+        self.set.borrow().xll_functions()
     }
 
     fn load_xlam(

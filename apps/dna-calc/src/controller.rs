@@ -3366,7 +3366,7 @@ impl Controller {
 
     /// Asks the workbook for its defined names (no sheet rows) and its registered functions, and
     /// offers them to the formula field's completion beside the catalogue's functions.
-    fn offer_defined_names(&self) {
+    pub(crate) fn offer_defined_names(&self) {
         let controller = *self;
         let generation = self.generation.get_untracked();
         let shown = self

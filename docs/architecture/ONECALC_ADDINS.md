@@ -210,7 +210,9 @@ grid cell and of each calculation); the x5 permission and RTD case files.
   reads are typed refusals. In Excel a worksheet function sees the user's sheet and selection, not its
   caller's (measured, `fixture/vba/active-objects-measured.json`, four scenarios); OneCalc's user has
   one sheet and has selected the formula cell, which is Excel's measured case where the selection is
-  the caller. DNA Calc does not give the view yet, so the same code is a typed refusal there.
+  the caller. DNA Calc gives its session's selection as the view (2026-11-12, dc-hsa5.12): `ActiveSheet` is
+  the active cell's sheet and `Selection` the active cell, the workbook's active sheet at A1 before the
+  page selects.
 
 The acceptance add-in is DNA Calc's own: `crates/calc-xll-reference/fixture/vba` holds its sources
 (`DnaExamples.bas`, the class `DnaCounter.cls`, `ThisWorkbook.txt`), the `.xlam` and `.xlsm` Excel

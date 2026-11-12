@@ -139,7 +139,7 @@ impl Shown {
     }
 }
 
-fn expand(text: &str, vars: &BTreeMap<String, String>) -> String {
+pub(super) fn expand(text: &str, vars: &BTreeMap<String, String>) -> String {
     let mut out = text.to_owned();
     for (name, value) in vars {
         out = out.replace(&format!("{{{name}}}"), value);
@@ -737,7 +737,7 @@ fn run_session_set(
 }
 
 /// A value `vba-job.ps1` recorded (`{value, type}`, `{error_code}` or `{blank}`) as the page shows it.
-fn excel_value(value: &Value) -> Option<Shown> {
+pub(super) fn excel_value(value: &Value) -> Option<Shown> {
     if value["blank"].as_bool() == Some(true) {
         return Some(Shown::Blank);
     }

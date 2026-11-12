@@ -68,5 +68,63 @@ pub fn cell_of(
         why,
         owner: crate::cells::refusal_owner(projected),
         error_meaning: crate::cells::error_meaning(projected),
+        exact: exact_number(&shown.text, projected),
+    }
+}
+
+/// The exact value of a number the shown text rounds (see [`Cell::exact`]).
+fn exact_number(text: &str, projected: &calc_host::ProjectedCell) -> Option<String> {
+    use calc_host::ProjectedValue;
+    let value = match projected.value() {
+        ProjectedValue::Literal(value) | ProjectedValue::Calculated { value, .. } => value.clone(),
+        ProjectedValue::FileCached(cache) => cache.value().to_value(),
+        _ => return None,
+    };
+    let mut value = value;
+    while let calc_value::CoreRef::Array(array) = value.core_ref() {
+        value = array.get(0, 0)?.clone();
+    }
+    let number = value.as_number().filter(|n| n.is_finite())?;
+    if text.trim().parse::<f64>().ok() == Some(number) {
+        return None;
+    }
+    Some(excel_e_notation(number))
+}
+
+/// `2.43290200817664E+18`, `-1E-05`, `0.5`: the shortest digits that read back as `number`,
+/// with an exponent only where Excel's General would use one.
+pub fn excel_e_notation(number: f64) -> String {
+    let plain = format!("{number}");
+    let magnitude = number.abs();
+    if number == 0.0 || (1e-5..1e15).contains(&magnitude) {
+        return plain;
+    }
+    let scientific = format!("{number:e}");
+    match scientific.split_once('e') {
+        Some((mantissa, exponent)) => match exponent.strip_prefix('-') {
+            Some(negative) => format!("{mantissa}E-{negative:0>2}"),
+            None => format!("{mantissa}E+{exponent:0>2}"),
+        },
+        None => scientific,
+    }
+}
+
+#[cfg(test)]
+mod exact_tests {
+    /// The exact value's spelling reads back as the same double, with Excel's E notation.
+    #[cfg_attr(not(target_arch = "wasm32"), test)]
+    #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+    fn exact_values_read_back_as_the_same_double() {
+        for (number, text) in [
+            (2.43290200817664e18, "2.43290200817664E+18"),
+            (-1e-7, "-1E-07"),
+            (0.1 + 0.2, "0.30000000000000004"),
+            (3.141592653589793, "3.141592653589793"),
+            (0.0, "0"),
+        ] {
+            let spelled = super::excel_e_notation(number);
+            assert_eq!(spelled, text);
+            assert_eq!(spelled.parse::<f64>().unwrap(), number);
+        }
     }
 }

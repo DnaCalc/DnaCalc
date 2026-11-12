@@ -61,6 +61,8 @@ mod paint;
 mod renderer;
 #[path = "app_xll.rs"]
 mod xll;
+#[path = "app_xll_calc.rs"]
+mod xll_calc;
 use serde_json::{Value, json};
 use std::fs;
 use std::io::{Read, Write};
@@ -72,6 +74,7 @@ use std::thread;
 use std::time::{Duration, Instant};
 
 pub const USAGE: &str = "usage: cargo xtask app bundle onecalc|calc [--out <dir>]\n       cargo xtask app smoke onecalc|calc [--bundle <dir> | --url <page>] [--browser chromium|firefox] [--suite core|full] [--renderer dom|canvas] [--renderer-report <dir>] [--group <name>] [--case <substring>] [--list] [--workbook <file> [--edit <sheet>!<cell>=<text>] [--skins] [--profile <cpuprofile.json>]]\n       cargo xtask app paint-compare calc --out <dir> [--bundle <dir>] [--reference <dir>] [--workbook <file>] [--zooms 75,100,150]\n       cargo xtask app xll-accept onecalc --exe <dna-onecalc-desktop.exe> --bundle <dir> --plan <plan.json> --out <dir> [--var NAME=VALUE]... [--set <name>]...
+       cargo xtask app xll-accept calc --exe <dna-calc-desktop.exe> --bundle <dir> --plan <plan.json> --out <dir> [--var NAME=VALUE]... [--set <name>]...
        cargo xtask onecalc bundle|smoke ... (the same, for onecalc)";
 
 /// Independent page scenario. `core` is a prefix, so it has no omitted prerequisites.
@@ -320,6 +323,7 @@ pub fn run(raw: &[String]) -> ExitCode {
     match command {
         "paint-compare" if app.key == "calc" => paint::run(&ws, app, rest),
         "xll-accept" if app.key == "onecalc" => xll::run(&ws, rest),
+        "xll-accept" if app.key == "calc" => xll_calc::run(&ws, rest),
         "bundle" => {
             let out = match rest {
                 [] => ws.root.join(app.default_out),

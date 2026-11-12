@@ -537,10 +537,13 @@ fn document_project_owning_values_preserve_coercion_missing_and_variant_results(
             ModuleKind::Standard,
             "Public Function TooMany(a As Long,b As Long,c As Long,d As Long,e As Long) As Long\n TooMany = a+b+c+d+e\nEnd Function\n",
         )];
-        let refusal = load_project(&too_many, 10000, Some(backend)).err().unwrap();
-        assert!(
-            refusal.contains("argument/slot bounds") && refusal.contains("dc-hsa5.12"),
-            "{refusal}"
+        // More arguments than the owning typed slots hold: the function runs on the dynamic
+        // runtime, as from an add-in, instead of refusing the project (dc-hsa5.12).
+        let project = load_project(&too_many, 10000, Some(backend)).unwrap();
+        let five: Vec<_> = (1..=5).map(|n| CalcValue::number(f64::from(n))).collect();
+        assert_eq!(
+            project.functions().call("TooMany", &five).unwrap().as_number(),
+            Some(15.0)
         );
     }
 }

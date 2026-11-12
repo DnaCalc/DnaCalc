@@ -236,3 +236,61 @@ stage lines again under G1, where the last sums are stored.
   of quotients from any 64-bit seed fits; -0.5 alone is a point of its own, -1.5, -2.5 and -3.5 are not.
   B.5: the seed is not EXP(GAMMALN), not GAMMA(10+y) divided down, not Lanczos g = 7 or gamma = 5.
 - dc-6332.3: nothing replayable came out of these experiments; no change landed.
+
+## E7. The B1 band of GAMMALN, [0.7, 1.5)
+
+Why: B1 holds 2,204 failing bank rows and 67 of GAMMALN's 84 rows beyond 4 ulp. On the bank, Excel's
+relative error against the truth is a smooth curve from -0.5 to +1.4 units of 2^-53 (near 0.84), -2.3
+(near 1.14) and a flat -1.1 on [1.25, 1.5); our stand-in (the Cody-Hillstrom n = 7 table in plain double)
+has a different curve. So Excel's B1 is a less accurate rational than the stand-in, not the same one.
+
+Inputs: 256 windows of 1,024 consecutive doubles centred at 0.7 + 0.8 (i + 0.5)/256: 262,144 calls.
+Script `e7_b1.py`; predictions file `e7-predictions.tsv` (our current outputs), SHA-256
+`b13bae21f80fcf58b210196408aca1c000ce19a3587132e60af158259c9d81b4`.
+
+Predictions, frozen before asking:
+
+1. Data check: ours matches about 29% (the bank: 904 of 3,108).
+2. Shape: if B1 is (x - 1) N(x)/D(x) with stored Horner stages, the tied stage model (one constant per
+   coefficient, rounding offsets bounded by the stage grids) fits the window means of (Excel - ours) to
+   their noise with the stand-in's degrees (7/7, monic D) or not at all; if it does not at 7/7, the
+   degrees or the basis differ and the stand-in's coefficients are not a starting point.
+
+### E7 data check (asked 02:55)
+
+Held: ours matches 28.6% of the 262,144 B1 inputs. A coefficient fit of the stand-in's 7/7 plain-double
+graph stalls at 31%: the stand-in's graph or degrees are not Excel's. B1 stays open.
+
+### E1, the B3 table found (03:00 to 04:20)
+
+Compensated moves (a pair or triple of coefficients moved so that the output at one or two chosen x
+stays unchanged to first order), scored on exact matches over a 64-point subsample of every E1 window,
+found what the earlier local searches could not. A table fitted on [2, 2.27] alone, then extended
+globally, gives under graph **G4: every Horner product and sum stored, P's last sum stored, Q's last
+sum kept in the register**, 94.1% of all 264,192 E1 inputs (every window 88% or more; 96% at 2.5 and
+2.75). Under G1 (both last sums stored) the same search stops at 87%, under G0 at 54%. The table:
+
+    P: c0022260ed978401 c03de852aee8c149 c050ae34eb3cbad5 c0008305b4799884 404f0a8c053986d7
+       40409fd1ad1d8e4c 401572bf86842f87 3fd0ee2f11884d48 3f65e5b738427958
+    Q: 3ff0000000000001 4039b252b2fab379 405eddf2040d2bc2 4067b39fc9194438 405c515177eb1641
+       403bb43b464d392a 4005303658ef46ba 3fb52fc9914bc0fa 3f403cadf2ce38f8
+
+(file `b3_g4_table.json`; the E1b files are stored gzipped, the SHA-256 values are of the uncompressed files). Prediction 4 holds: it gives Excel's GAMMALN(2.5) = ...e8 and GAMMALN(2.75) =
+...04, and without any pin GAMMALN(3) = 3fe62e42fefa39f0 (Excel's; the landed code reads that value in
+as a special case; x = 3 is outside every E1 window). Q0 is 1 + 2^-52, not the 1 + 1.58e-11 the landed
+table took from the identity. Prediction 2 holds at 94% rather than 99.5%: the last bits are not all
+fitted. Prediction 3 holds in its form: one graph (G4) reaches clearly further than the others.
+
+An earlier G1 table (74.7% on E1) measured on the full bank at 7a3e51cd + CUMPRINC: GAMMALN 2,137 ->
+2,471, GAMMALN.PRECISE 10,645 -> 11,296, GAMMA.DIST 77,814 -> 77,899 (+1,311 / -241 rows). The G4
+table is being judged as this is written.
+
+## E1b (frozen, not yet asked)
+
+Held-out inputs for the G4 table (`e1b.py`): 20,000 random x on [2, 3], the grid x = 2 + j 2^-51
+(j = -512..511, j != 0) across 2, W(3), W(1.625) and 5,000 random x on (3, 8). Predictions frozen as
+calc-func outputs: the landed code `e1b-landed.tsv` (SHA-256
+a65ce33f368461880048cd280a0202e393e8d714cf30179bb653804260041162) and the G4 candidate
+`e1b-candidate.tsv` (SHA-256 f762c6f0cca176f1f2eb6c8a1c91ef15566cbe7b832ffee30ce8fc67943f6f31).
+Prediction: the candidate matches Excel at about 94% on the random [2, 3] set and above the landed code
+on (3, 8); below 2 both use the landed B2 band and agree.

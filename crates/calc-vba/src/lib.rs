@@ -353,6 +353,14 @@ impl UserFunction for VbaFunction {
         arguments: &[CalcValue],
         context: &mut dyn UserFunctionContext,
     ) -> Result<CalcValue, String> {
+        // A function a document project runs on the dynamic runtime cannot enter the session
+        // while a document event holds it (the owning typed route shares the event's context).
+        if self.session.dynamic(self.index).is_some() && events::callback_active() {
+            return Err(context.refuse_by(
+                "a worksheet function outside the owning typed route, called inside a document event",
+                "dc-hsa5.12",
+            ));
+        }
         let mut bridge = ContextBridge {
             context: RefCell::new(context),
             sheets: self.sheets.clone(),

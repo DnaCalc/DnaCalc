@@ -758,6 +758,7 @@ pub fn app_with_transport(
                     "Save"
                 </button>
                 {crate::files::controls(controller, request_replace, save_as_open)}
+                {crate::addins::controls(controller)}
                 <button
                     type="button"
                     data-dnacalc="undo"
@@ -1099,8 +1100,28 @@ pub fn app_with_transport(
                                 .unwrap_or_default()
                         }}
                     </span>
-                    <span class="dc-result-value" data-dnacalc="selected-value">
+                    <span
+                        class="dc-result-value"
+                        data-dnacalc="selected-value"
+                        data-kind=move || {
+                            controller.active_cell().map(|cell| cell.kind).unwrap_or_default()
+                        }
+                    >
                         {move || controller.active_cell().map(|cell| cell.text).unwrap_or_default()}
+                    </span>
+                    // A number its shown text rounds: its exact value beside it (dc-0f1k.23).
+                    <span
+                        class="dc-result-exact dc-mono"
+                        data-dnacalc="exact-value"
+                        hidden=move || controller.active_cell().and_then(|cell| cell.exact).is_none()
+                    >
+                        {move || {
+                            controller
+                                .active_cell()
+                                .and_then(|cell| cell.exact)
+                                .map(|exact| format!("exactly {exact}"))
+                                .unwrap_or_default()
+                        }}
                     </span>
                 </summary>
                 <div class="dc-result-body">
