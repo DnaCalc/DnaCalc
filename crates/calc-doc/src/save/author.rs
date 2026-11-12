@@ -370,6 +370,7 @@ pub(super) fn plan(
         spills,
         structural,
         cache_state,
+        repairs,
         ..
     } = edit;
     if !model.same_lineage(base) {
@@ -1034,14 +1035,29 @@ pub(super) fn plan(
             out.rewritten.insert(part, content);
         }
     }
+    // An edited save writes what Excel's repair of the load made (dc-1nbp.13): a repeated
+    // `sheetId` gets the new id, and a sheet whose `r:id` named nothing gets a part and a
+    // relationship. A save that changes nothing still copies the package as it was.
+    let dangling: Vec<_> = repairs
+        .iter()
+        .filter_map(|repair| match repair {
+            crate::LoadRepair::SheetRelationshipMissing { sheet, .. } => Some(*sheet),
+            _ => None,
+        })
+        .collect();
+    let ids_repaired = !dangling.is_empty()
+        || repairs.iter().any(|repair| matches!(repair, crate::LoadRepair::DuplicateSheetId { .. }));
+    let sheets_written = sheets_changed || ids_repaired;
+    let repaired_sheets = super::sheets::with_parts(package, workbook_part, sheets, &dangling);
+    let sheets = &repaired_sheets;
     if full_calc
         || cache_state.is_some()
         || iteration.is_some()
         || !names.is_empty()
-        || sheets_changed
+        || sheets_written
     {
         let original = read_part(package, workbook_part)?;
-        let workbook = if sheets_changed {
+        let workbook = if sheets_written {
             original.with_bytes(super::sheets::workbook(&original, base, model, sheets)?)
         } else {
             original
@@ -1564,8 +1580,8 @@ pub(super) fn plan(
             &mut out,
         )?;
     }
-    if sheets_changed {
-        super::sheets::finish(package, workbook_part, base, model, sheets, &mut out)?;
+    if sheets_written {
+        super::sheets::finish(package, workbook_part, base, model, sheets, &dangling, &mut out)?;
     }
     Ok(out)
 }

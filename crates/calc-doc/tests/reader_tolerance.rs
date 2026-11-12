@@ -21,7 +21,7 @@ mod cdoc_m1_1_support;
 use calc_doc::model::value::{IdAllocator, SheetId};
 use calc_doc::model::{SheetVisibility, WorkbookOp};
 use calc_doc::{LoadError, LoadRepair, LoadedWorkbook, SavePolicy, SaveRefusal, prepare_save};
-use cdoc_m1_1_support::d1::{at, edited, formula_text, load, number, open, save_model, save_untouched, sheet};
+use cdoc_m1_1_support::d1::{at, edited, formula_text, load, number, open, part, save_model, save_untouched, sheet};
 
 const DANGLING_CONTROL: &[u8] = include_bytes!("fixtures/reader_tolerance/dangling-rid-control.xlsx");
 const DANGLING: &[u8] = include_bytes!("fixtures/reader_tolerance/dangling-rid.xlsx");
@@ -31,6 +31,7 @@ const EMPTY_VISIBLE: &[u8] = include_bytes!("fixtures/reader_tolerance/empty-rid
 const ARRAY_CONTROL: &[u8] = include_bytes!("fixtures/reader_tolerance/array-inner-formula-control.xlsx");
 const ARRAY_EMPTY_F: &[u8] = include_bytes!("fixtures/reader_tolerance/array-inner-empty-f.xlsx");
 const ARRAY_FORMULA: &[u8] = include_bytes!("fixtures/reader_tolerance/array-inner-formula.xlsx");
+const ARRAY_STALE: &[u8] = include_bytes!("fixtures/reader_tolerance/array-inner-formula-stale.xlsx");
 const DUPLICATE: &[u8] = include_bytes!("fixtures/reader_tolerance/duplicate-sheetid.xlsx");
 const DUPLICATE_CONTROL: &[u8] = include_bytes!("fixtures/reader_tolerance/duplicate-sheetid-control.xlsx");
 const DUPLICATE_GAP: &[u8] = include_bytes!("fixtures/reader_tolerance/duplicate-sheetid-gap.xlsx");
@@ -237,6 +238,9 @@ fn reader_tolerance__repeated_sheet_ids_get_the_ids_excel_gives_them() {
 #[cfg_attr(not(target_arch = "wasm32"), test)]
 #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
 fn reader_tolerance__a_repaired_workbook_saves_untouched_and_takes_an_edit() {
+    // The untouched save copies the package as it was, repairs unwritten. What Excel's ordinary
+    // Save writes for such a workbook is experiment E7(a) of pro-10 answer 16, not yet run; this
+    // assertion changes once it is (dc-1nbp.13).
     for bytes in [DUPLICATE, DANGLING, ARRAY_FORMULA] {
         assert_eq!(save_untouched(bytes), bytes);
     }
@@ -252,4 +256,81 @@ fn reader_tolerance__a_repaired_workbook_saves_untouched_and_takes_an_edit() {
     let again = load(&saved);
     assert_eq!(again.model().cell(at(sheet(&again, "Two"), "A1")), Some(&number(7.0)));
     assert_eq!(names(&again), ["One", "Two"]);
+}
+
+/// The `<sheet>` tags of the workbook part of `package`, as Excel's saved copy of each fixture
+/// records them (`excel-answers/sheets-of-the-workbooks-excel-saved-after-opening.json`).
+fn sheet_tags(package: &[u8]) -> Vec<String> {
+    let workbook = String::from_utf8(part(package, "xl/workbook.xml").expect("workbook part")).unwrap();
+    workbook
+        .split("<sheet ")
+        .skip(1)
+        .map(|tag| tag.split_once("/>").expect("a sheet tag").0)
+        .map(|tag| {
+            let attribute = |name: &str| {
+                let at = tag.find(&format!("{name}=\"")).unwrap_or_else(|| panic!("{name} in {tag}"));
+                let rest = &tag[at + name.len() + 2..];
+                rest[..rest.find('"').unwrap()].to_owned()
+            };
+            format!("{}:{}", attribute("name"), attribute("sheetId"))
+        })
+        .collect()
+}
+
+/// dc-1nbp.13: an edited save writes Excel's repairs. The saved package loads with no repair
+/// and the same model, and its sheets carry the ids Excel's own save gave them.
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn reader_tolerance__an_edited_save_writes_excels_repairs() {
+    let answers: serde_json::Value = serde_json::from_slice(include_bytes!(
+        "fixtures/reader_tolerance/excel-answers/sheets-of-the-workbooks-excel-saved-after-opening.json"
+    ))
+    .unwrap();
+    let cases: [(&str, &[u8], &str); 8] = [
+        ("duplicate-sheetid.xlsx", DUPLICATE, "A1"),
+        ("duplicate-sheetid-gap.xlsx", DUPLICATE_GAP, "A1"),
+        ("duplicate-sheetid-lower.xlsx", DUPLICATE_LOWER, "A1"),
+        ("duplicate-sheetid-triple.xlsx", DUPLICATE_TRIPLE, "A1"),
+        ("duplicate-sheetid-two-pairs.xlsx", DUPLICATE_TWO_PAIRS, "A1"),
+        ("dangling-rid.xlsx", DANGLING, "A1"),
+        ("array-inner-formula.xlsx", ARRAY_FORMULA, "B1"),
+        ("array-inner-formula-stale.xlsx", ARRAY_STALE, "B1"),
+    ];
+    for (file, bytes, cell) in cases {
+        let loaded = load(bytes);
+        assert!(!loaded.repairs().is_empty(), "{file}");
+        let first = loaded.model().sheets()[0].id();
+        let model = edited(
+            &loaded,
+            vec![WorkbookOp::SetCell {
+                at: at(first, cell),
+                input: number(41.0),
+            }],
+        );
+        let (saved, _) = save_model(&loaded, &model);
+        let again = load(&saved);
+        assert!(again.repairs().is_empty(), "{file}: {:?}", again.repairs());
+        assert_eq!(names(&again), names(&loaded), "{file}");
+        for entry in loaded.model().sheets() {
+            let name = String::from_utf16_lossy(entry.name().text().utf16_code_units());
+            assert_eq!(cells(&again, &name), cells(&loaded, &name), "{file} {name}");
+        }
+        let expected: Vec<String> = answers[file]
+            .as_array()
+            .unwrap()
+            .iter()
+            .map(|tag| {
+                let tag = tag.as_str().unwrap();
+                let name = tag.split("name=\"").nth(1).unwrap().split('"').next().unwrap();
+                let id = tag.split("sheetId=\"").nth(1).unwrap().split('"').next().unwrap();
+                format!("{name}:{id}")
+            })
+            .collect();
+        assert_eq!(sheet_tags(&saved), expected, "{file}");
+        // A sheet whose `r:id` named nothing is written with a part of its own.
+        if file == "dangling-rid.xlsx" {
+            assert_eq!(again.sheets()[1].preserved_kind(), None);
+            assert!(part(&saved, again.sheets()[1].part().name()).is_some());
+        }
+    }
 }

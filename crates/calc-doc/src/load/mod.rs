@@ -1203,6 +1203,7 @@ impl LoadedWorkbook {
             Arc::clone(model),
             None,
             Arc::default(),
+            self.repairs.clone(),
         )
     }
 
@@ -1251,6 +1252,7 @@ impl LoadedWorkbook {
             Arc::clone(model),
             Some(Arc::new(values)),
             Arc::new(spills),
+            self.repairs.clone(),
         )
     }
 }

@@ -1838,6 +1838,32 @@ impl Server {
             max_change: iteration.max_change(),
             circular: circular.first().copied().map(Key::of),
             circular_count: circular.len(),
+            open_repairs: self
+                .book
+                .host()
+                .open_report()
+                .repairs
+                .iter()
+                .map(|repair| match repair {
+                    calc_host::LoadRepair::SheetRelationshipMissing { sheet, id } => {
+                        let name = self
+                            .book
+                            .host()
+                            .sheets()
+                            .iter()
+                            .find(|entry| entry.id() == *sheet)
+                            .map(|entry| entry.name().text().to_string_lossy())
+                            .unwrap_or_default();
+                        format!("sheet {name} named a missing part ({id}); kept empty")
+                    }
+                    calc_host::LoadRepair::FormulaInsideArray { row, column, .. } => {
+                        format!("formula inside an array dropped at row {row}, column {column}")
+                    }
+                    calc_host::LoadRepair::DuplicateSheetId { id, now, .. } => {
+                        format!("sheet id {id} repeated; the later sheet is now {now}")
+                    }
+                })
+                .collect(),
         }
     }
 
@@ -4737,6 +4763,28 @@ mod outline_tests {
             [("first".to_owned(), "One.".to_owned())]
         );
         assert!(function.thread_safe && !function.volatile && !function.asynchronous);
+    }
+
+    #[cfg_attr(not(target_arch = "wasm32"), test)]
+    #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+    fn dc_1nbp_13_the_open_reply_carries_what_excel_would_repair() {
+        let mut server = Server::new();
+        for (name, data, repairs) in [
+            (
+                "dangling-rid.xlsx",
+                include_bytes!("../../../crates/calc-doc/tests/fixtures/reader_tolerance/dangling-rid.xlsx").as_slice(),
+                1,
+            ),
+            (
+                "dangling-rid-control.xlsx",
+                include_bytes!("../../../crates/calc-doc/tests/fixtures/reader_tolerance/dangling-rid-control.xlsx").as_slice(),
+                0,
+            ),
+        ] {
+            let reply = server.execute_current(Request::Open { name: name.into() }, Some(data.to_vec()));
+            assert!(reply.reply.is_ok(), "{name}");
+            assert_eq!(server.summary().open_repairs.len(), repairs, "{name}");
+        }
     }
 
     #[cfg_attr(not(target_arch = "wasm32"), test)]

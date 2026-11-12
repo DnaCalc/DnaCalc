@@ -1167,6 +1167,11 @@ pub struct Summary {
     /// first of them and how many, which the status line warns of.
     pub circular: Option<Key>,
     pub circular_count: usize,
+    /// What Excel would have repaired when the file was opened (the open report of the host),
+    /// one line each; empty for a file that opens without a prompt. The open's status line says
+    /// so, as Excel's prompt does (dc-1nbp.13).
+    #[serde(default)]
+    pub open_repairs: Vec<String>,
 }
 
 impl Summary {
