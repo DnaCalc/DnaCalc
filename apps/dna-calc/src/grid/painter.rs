@@ -299,6 +299,9 @@ pub(super) fn paint(
     );
 }
 fn text(ctx: &Context, cell: &PlannedCell, scale: f64) {
+    if cell.shown.kind == "image" {
+        return;
+    }
     let mut display_style = cell.shown.style.clone();
     display_style.pixels = cell.paint_pixels;
     let s = &display_style;

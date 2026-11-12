@@ -621,3 +621,40 @@ fn dc_fetch_f0tp__a_picture_saves_and_reopens() {
         other => panic!("not cached: {other:?}"),
     }
 }
+
+/// Excel 16.0.20527 saved these generated one-pixel GIF and PNG IMAGE formulas and an SVG
+/// refusal on 2026-11-07 (external-measurements p42). Open and save with no fetch route.
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn dc_fetch_f0tp__excel_image_cache_survives_offline_save() {
+    let original = include_bytes!("fixtures/fetch/excel-image.xlsx");
+    let host = open(original.to_vec());
+    let sheet = host.sheets()[0].id();
+    let cells: Vec<_> = (1..=3)
+        .map(|row| CellKey::new(sheet, row, 1).unwrap())
+        .collect();
+    let read = |book: &HostState| {
+        project(
+            book,
+            &ProjectionRequest {
+                cells: cells.clone(),
+            },
+        )
+        .unwrap()
+        .cells()
+        .iter()
+        .map(|cell| match cell.value() {
+            ProjectedValue::FileCached(file) => file.value().to_value(),
+            other => panic!("expected Excel's saved value: {other:?}"),
+        })
+        .collect::<Vec<_>>()
+    };
+    let before = read(&host);
+    assert_eq!(before[0].image_value().unwrap().format, ImageFormat::Gif);
+    assert_eq!(before[1].image_value().unwrap().format, ImageFormat::Png);
+    assert_eq!(before[2], CalcValue::error(WorksheetErrorCode::Value));
+    let mut saved = Vec::new();
+    calc_host::save(&host, &calc_host::SavePolicy::default(), &mut saved).unwrap();
+    let reopened = open(saved);
+    assert_eq!(read(&reopened), before);
+}

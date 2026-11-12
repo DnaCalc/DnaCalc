@@ -1753,6 +1753,7 @@ impl Cell {
                 "logical" => "logical",
                 "error" => "error",
                 "array" => "array",
+                "image" => "image",
                 _ => "",
             },
             provenance: self.provenance,

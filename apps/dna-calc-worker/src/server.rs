@@ -665,9 +665,9 @@ impl Server {
                 // Add-ins are native code: the desktop app answers these itself (dc-0f1k.23); a
                 // worker on its own, as in a browser, has none and loads none.
                 Request::Addins => Ok(Reply::Addins(wire::AddinList::default())),
-                Request::LoadAddinNative | Request::LoadAddin { .. } | Request::UnloadAddin { .. } => {
-                    Err(ADDINS_DESKTOP_ONLY.to_owned())
-                }
+                Request::LoadAddinNative
+                | Request::LoadAddin { .. }
+                | Request::UnloadAddin { .. } => Err(ADDINS_DESKTOP_ONLY.to_owned()),
                 Request::CalculateName {
                     id,
                     version,
@@ -1532,6 +1532,10 @@ impl Server {
         let value = match projected.as_ref().map(|page| page.cells()[0].value()) {
             Ok(calc_host::ProjectedValue::Calculated { value, .. }) => Some(value.clone()),
             Ok(calc_host::ProjectedValue::FileCached(cache)) => Some(cache.value().to_value()),
+            Ok(calc_host::ProjectedValue::Stale(stale)) => stale
+                .last_value()
+                .cloned()
+                .or_else(|| stale.file_cache().map(|cache| cache.value().to_value())),
             _ => None,
         };
         let Some(image) = value.as_ref().and_then(|value| value.image_value()) else {
@@ -6354,6 +6358,13 @@ mod async_contract_tests {
             calc_func::FetchReply::Body(bytes.clone()).into_value(calc_func::FetchKind::Picture);
         assert!(server.complete_fetch(1, reply));
         drain(&mut server);
+        let projected = calc_host::project(
+            server.book().host(),
+            &calc_host::ProjectionRequest { cells: vec![b] },
+        )
+        .unwrap();
+        let shown = server.book().shown(&projected.cells()[0]);
+        assert_eq!(shown.kind, "image");
         let answer = server.handle(Request::CellImage { at: Key::of(b) }, None);
         match answer.reply.unwrap() {
             Reply::CellImage(Some(image)) => {
@@ -6363,7 +6374,25 @@ mod async_contract_tests {
             }
             other => panic!("{other:?}"),
         }
-        assert_eq!(answer.bytes, Some(bytes));
+        assert_eq!(answer.bytes, Some(bytes.clone()));
+
+        server
+            .execute_current(Request::Intent(Intent::SetCalcMode { manual: true }), None)
+            .reply
+            .unwrap();
+        server
+            .execute_current(
+                Request::Intent(Intent::EnterCell {
+                    at: Key::of(b),
+                    text: "=IMAGE(\"https://mock/other.png\")".into(),
+                }),
+                None,
+            )
+            .reply
+            .unwrap();
+        let stale = server.handle(Request::CellImage { at: Key::of(b) }, None);
+        assert!(matches!(stale.reply.unwrap(), Reply::CellImage(Some(_))));
+        assert_eq!(stale.bytes, Some(bytes));
     }
 
     /// `=FILTERXML(WEBSERVICE(url),xpath)` over the body Excel fetched from a public URL
