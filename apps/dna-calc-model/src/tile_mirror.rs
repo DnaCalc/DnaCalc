@@ -29,8 +29,15 @@ struct Staging {
     stamp: TileStamp,
     fragment: u32,
     closed: bool,
-    cells: BTreeMap<CellKey, Cell>,
+    /// A reset replaces the committed root; any other publication is a delta over it, applied
+    /// at completion: a cell is its new value, or `None` when the publication removed it.
+    reset: bool,
+    cells: BTreeMap<CellKey, Option<Cell>>,
     geometry: BTreeMap<SheetId, Geometry>,
+    /// What the root would retain once the delta is applied, kept running (cells and geometry).
+    retained: usize,
+    /// How many cells the root would hold once the delta is applied.
+    cell_count: usize,
     bytes: usize,
     records: usize,
 }
@@ -43,6 +50,8 @@ pub struct ViewMirror {
     staging: Option<Staging>,
     cells: BTreeMap<CellKey, Cell>,
     geometry: BTreeMap<SheetId, Geometry>,
+    /// What the committed cells and geometry retain, kept running.
+    retained: usize,
     failed: bool,
 }
 impl ViewMirror {
@@ -122,16 +131,11 @@ impl ViewMirror {
             stamp,
             fragment: 0,
             closed: false,
-            cells: if stamp.reset {
-                BTreeMap::new()
-            } else {
-                self.cells.clone()
-            },
-            geometry: if stamp.reset {
-                BTreeMap::new()
-            } else {
-                self.geometry.clone()
-            },
+            reset: stamp.reset,
+            cells: BTreeMap::new(),
+            geometry: BTreeMap::new(),
+            retained: if stamp.reset { 0 } else { self.retained },
+            cell_count: if stamp.reset { 0 } else { self.cells.len() },
             bytes: 0,
             records: 0,
         });
@@ -172,29 +176,61 @@ impl ViewMirror {
             return Err(TileMirrorError::Limit);
         }
         for (sheet, geometry) in &batch.geometry {
+            let old = pending
+                .geometry
+                .get(&sheet.id())
+                .map(geometry_bytes)
+                .or_else(|| {
+                    (!pending.reset)
+                        .then(|| self.geometry.get(&sheet.id()).map(geometry_bytes))
+                        .flatten()
+                });
+            pending.retained = pending
+                .retained
+                .saturating_sub(old.unwrap_or(0))
+                .saturating_add(geometry_bytes(geometry));
             pending.geometry.insert(sheet.id(), geometry.clone());
         }
-        for at in &batch.removed {
-            pending
+        // The cell now in the root at `at`: the staged value, else the committed one.
+        let held =
+            |pending: &Staging, committed: &BTreeMap<CellKey, Cell>, at: &CellKey| match pending
                 .cells
-                .remove(&at.cell().ok_or(TileMirrorError::Address)?);
+                .get(at)
+            {
+                Some(staged) => staged.as_ref().map(Cell::retained_bytes),
+                None if pending.reset => None,
+                None => committed.get(at).map(Cell::retained_bytes),
+            };
+        for at in &batch.removed {
+            let at = at.cell().ok_or(TileMirrorError::Address)?;
+            if let Some(old) = held(pending, &self.cells, &at) {
+                pending.retained = pending.retained.saturating_sub(old);
+                pending.cell_count -= 1;
+            }
+            if pending.reset {
+                pending.cells.remove(&at);
+            } else {
+                pending.cells.insert(at, None);
+            }
         }
         for cell in &batch.cells {
             let at = cell.at.cell().ok_or(TileMirrorError::Address)?;
-            if !pending.geometry.contains_key(&at.sheet()) {
+            let known = pending.geometry.contains_key(&at.sheet())
+                || (!pending.reset && self.geometry.contains_key(&at.sheet()));
+            if !known {
                 return Err(TileMirrorError::Version);
             }
-            pending.cells.insert(at, cell.clone());
+            match held(pending, &self.cells, &at) {
+                Some(old) => pending.retained = pending.retained.saturating_sub(old),
+                None => pending.cell_count += 1,
+            }
+            pending.retained = pending.retained.saturating_add(cell.retained_bytes());
+            pending.cells.insert(at, Some(cell.clone()));
         }
-        let retained = pending
-            .cells
-            .values()
-            .fold(0usize, |n, c| n.saturating_add(c.retained_bytes()))
-            .saturating_add(pending.geometry.values().map(geometry_bytes).sum::<usize>());
-        if retained > MAX_PUBLICATION_BYTES {
+        if pending.retained > MAX_PUBLICATION_BYTES {
             return Err(TileMirrorError::Limit);
         }
-        if pending.cells.len() > MAX_TILE_CELLS {
+        if pending.cell_count > MAX_TILE_CELLS {
             return Err(TileMirrorError::Limit);
         }
         pending.fragment = pending
@@ -219,8 +255,22 @@ impl ViewMirror {
             return Err(TileMirrorError::Barrier);
         }
         let staged = self.staging.take().expect("checked above");
-        self.cells = staged.cells;
-        self.geometry = staged.geometry;
+        if staged.reset {
+            self.cells.clear();
+            self.geometry.clear();
+        }
+        for (at, cell) in staged.cells {
+            match cell {
+                Some(cell) => {
+                    self.cells.insert(at, cell);
+                }
+                None => {
+                    self.cells.remove(&at);
+                }
+            }
+        }
+        self.geometry.extend(staged.geometry);
+        self.retained = staged.retained;
         self.stamp = Some(staged.stamp);
         self.failed = false;
         Ok(TileApply::Applied(barrier))
@@ -285,6 +335,50 @@ mod tests {
     }
     fn texts(m: &ViewMirror) -> Vec<&str> {
         m.cells().map(|(_, c)| c.text.as_str()).collect()
+    }
+
+    /// dc-1nbp.20 (17.a, P3): staging a one-cell delta holds the delta, not a copy of the root,
+    /// and the running retained count agrees with a recount of the committed root.
+    #[cfg_attr(not(target_arch = "wasm32"), test)]
+    #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+    fn a_one_cell_delta_does_not_copy_the_root_and_the_retained_count_stays_exact() {
+        let recount = |m: &ViewMirror| {
+            m.cells().fold(0usize, |n, (_, c)| n + c.retained_bytes())
+                + m.geometry.values().map(geometry_bytes).sum::<usize>()
+        };
+        let mut mirror = ViewMirror::default();
+        let rows: Vec<Cell> = (1..=200).map(|row| cell(row, "1")).collect();
+        apply(&mut mirror, &batch(1, true, rows, vec![]));
+        assert_eq!(mirror.retained, recount(&mirror));
+        let delta = batch(
+            2,
+            false,
+            vec![cell(5, "a longer text")],
+            vec![Key(0, 0, 6, 1)],
+        );
+        mirror.admit(delta.stamp).unwrap();
+        assert_eq!(mirror.staging.as_ref().unwrap().cells.len(), 0);
+        mirror.stage(&delta).unwrap();
+        assert_eq!(mirror.staging.as_ref().unwrap().cells.len(), 2);
+        assert_eq!(
+            mirror.cells().count(),
+            200,
+            "nothing is observable before completion"
+        );
+        mirror.complete(delta.stamp.barrier()).unwrap();
+        assert_eq!(mirror.cells().count(), 199);
+        assert_eq!(
+            mirror
+                .cell(CellKey::new(Sheet(0, 0).id(), 5, 1).unwrap())
+                .unwrap()
+                .text,
+            "a longer text"
+        );
+        assert_eq!(mirror.retained, recount(&mirror));
+        let reinsert = batch(3, false, vec![cell(6, "back")], vec![]);
+        apply(&mut mirror, &reinsert);
+        assert_eq!(mirror.cells().count(), 200);
+        assert_eq!(mirror.retained, recount(&mirror));
     }
 
     #[cfg_attr(not(target_arch = "wasm32"), test)]

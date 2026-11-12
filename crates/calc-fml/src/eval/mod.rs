@@ -480,6 +480,8 @@ impl UdfVolatility {
 pub struct UserFunctionEffects {
     pub(crate) calls: usize,
     pub(crate) volatility: UdfVolatility,
+    /// Whether `volatility` was last set by running a defined name (an event, no callback).
+    pub(crate) volatility_from_name: bool,
     pub(crate) invocations: Vec<UserCallRecord>,
     pub(crate) reevaluation: Option<calc_func::UserReevaluationReason>,
     /// The cell whose pending producer made a native call get status 64 in this evaluation.
@@ -540,7 +542,7 @@ impl UserFunctionEffects {
     /// Conservative callback/request evidence, excluding passive definition-body telemetry.
     pub fn has_observable_effects(&self) -> bool {
         self.calls != 0
-            || self.volatility != UdfVolatility::NoRequest
+            || (self.volatility != UdfVolatility::NoRequest && !self.volatility_from_name)
             || !self.invocations.is_empty()
             || self.reevaluation.is_some()
             || !self.callable_reads.is_empty()

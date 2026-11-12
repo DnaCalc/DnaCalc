@@ -11,16 +11,15 @@ pub fn outline_keys(
 ) -> (BTreeSet<CellKey>, u64) {
     let mut keys: BTreeSet<_> = host.input_cells(sheet).into_iter().collect();
     let mut omitted = 0;
-    let mut seen = Vec::new();
+    let mut seen = std::collections::HashSet::new();
     for area in host
         .occupied_areas(sheet)
         .into_iter()
         .filter(|a| a.first() != a.last())
     {
-        if seen.contains(&area) {
+        if !seen.insert(area) {
             continue;
         }
-        seen.push(area);
         let bottom = area.last().row().min(
             area.first()
                 .row()

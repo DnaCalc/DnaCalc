@@ -28,6 +28,7 @@ members = [
     "apps/dna-calc-protocol",
     "apps/dna-calc-worker",
     "apps/dna-calc-desktop",
+    "apps/dnacalc",
     "apps/dna-onecalc-desktop",
     "apps/dna-strand",
     "platform/calc-platform-desktop",

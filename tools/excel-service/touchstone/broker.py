@@ -55,7 +55,9 @@ RESTART_CAP = 3
 RESTART_WINDOW = 3600.0
 HEALTH_SECONDS = 30.0
 RESERVE_WORKERS = 1               # workers bulk may never fill while bulk is queued: interactive work always has one
-PROBE_DEADLINE_MS = 20000         # a batch with a function never measured may be slow: wait this long before a kill
+ASYNC_FUNCTIONS = {"IMPORTCSV", "IMPORTTEXT", "IMAGE"}   # answered through an Excel async query
+ASYNC_DEADLINE_MS_PER_CALL = 35000
+PROBE_DEADLINE_MS = 20000        # a batch with a function never measured may be slow: wait this long before a kill
 COSTS_SAVE_SECONDS = 60.0
 
 
@@ -573,6 +575,10 @@ class Broker:
         deadline_ms = BASE_DEADLINE_MS + max(DEADLINE_MS_PER_CALL * calls, 4 * batch.est_ms)
         if any(g["f"] not in self.batcher.costs for g in batch.groups):
             deadline_ms = max(deadline_ms, PROBE_DEADLINE_MS)        # never measured: allow a slow first batch
+        if any(g["f"] in ASYNC_FUNCTIONS for g in batch.groups):
+            # Their answer arrives through an async query (#GETTING_DATA until done); the worker waits for it
+            # one call at a time (dc-4rsw), so allow each call its own wait.
+            deadline_ms = max(deadline_ms, ASYNC_DEADLINE_MS_PER_CALL * max(1, calls))
         message = {"id": number, "groups": [*batch.primer, *batch.groups], "deadline_ms": deadline_ms, "echo": batch.echo,
                    "serial": batch.serial}
         t_dispatch = time.monotonic()

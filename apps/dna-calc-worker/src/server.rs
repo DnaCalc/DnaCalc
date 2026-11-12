@@ -3923,9 +3923,21 @@ impl Server {
         });
         let (keys, omitted) =
             crate::tree::outline_keys(host, sheet.id(), wire::NOTEBOOK_PAGE, reveal);
+        // Containment against the placed anchors: a one-cell anchor is a set lookup, the few
+        // larger ones a scan.
+        let single: std::collections::HashSet<CellKey> = placed
+            .iter()
+            .filter(|a| a.first() == a.last())
+            .map(|a| a.first())
+            .collect();
+        let wide: Vec<GridArea> = placed
+            .iter()
+            .filter(|a| a.first() != a.last())
+            .copied()
+            .collect();
         linked.extend(
             keys.into_iter()
-                .filter(|at| !placed.iter().any(|a| a.contains(*at)))
+                .filter(|at| !single.contains(at) && !wide.iter().any(|a| a.contains(*at)))
                 .map(|at| (None, Some(GridArea::cell(at)), false)),
         );
         let total = linked.len();
