@@ -55,7 +55,27 @@
     "accepted_observations": 66380,
     "generator": "tools/xtask-harness/scripts/bank-coverage.py",
     "seed": "admit3-20261112",
-    "note": "Typed rectangular ranges and mixed arrays, Excel 20527: 47 functions with at least 1,000 distinct inputs each. Failed and unasked batches are in capture summaries; spill readings select [1,1]. Supplemental files retain separate worker environments."
+    "note": "Typed rectangular ranges and mixed arrays, Excel 20527: 47 functions with at least 1,000 distinct inputs each. Failed and unasked batches are in capture summaries; spill readings select [1,1]. Supplemental files retain separate worker environments.",
+    "effective_array_arguments": {
+      "evidence_repository_commit": "487ce92a54559ac230e0430a96f2ad9b6a38f87c",
+      "files": 24,
+      "revalidated_tuples": 16050,
+      "argument_records_corrected": 16049,
+      "scratch_layout_failures_retained_unread": 1,
+      "expected_answers_rewritten": 0,
+      "raw_evidence": "r2:dnacalc-evidence/excel/20261112-firehorse-fix1-effective-array-inputs/",
+      "note": "CHOOSE materializes blank source cells as numeric zero in mixed value arrays. Real range and scalar blanks retain their representations. Original expected answers and source hashes are preserved; one original scratch SPILL observation remains a counted unread failure. Revalidation retains per-row worker provenance."
+    }
+  },
+  "witness_readings_2026_11_12_fix1_pv": {
+    "evidence_repository_commit": "5f91f3013cf98429119c6d3c128ab194eb599e44",
+    "path": "readings/excel-20527/fix1-pv-tiny-20261112.json",
+    "files": 1,
+    "accepted_observations": 256,
+    "input_seed": 181713,
+    "witness_converter": "tools/xtask-harness/scripts/bank-coverage.py",
+    "raw_evidence": "r2:dnacalc-evidence/excel/20261112-firehorse-fix1-pv-tiny-rate-controls/",
+    "note": "Fresh tiny signed-rate PV questions, with predictions frozen before answers and all Value2 input words verified. Original raw replies, predictions and capture SHA256 are retained."
   },
   "manifest": {
     "path": "manifest.tsv",

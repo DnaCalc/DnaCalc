@@ -238,8 +238,8 @@ ported_shared_family! {
         bill_out(s, bill::tbillyield_kernel(settlement, maturity, rate))
     }
     23 oddfprice_fn |s, a, sv| {
-        let dates = [date_1900(s, a, 0, sv)?, date_1900(s, a, 1, sv)?, date_1900(s, a, 2, sv)?, date_1900(s, a, 3, sv)?];
-        odd_out(s, odd::oddfprice_kernel(dates[0], dates[1], dates[2], dates[3], num(s, a, 4)?, num(s, a, 5)?, num(s, a, 6)?, num(s, a, 7)?, basis(s, a, 8)?))
+        let dates = [yield_date(s, a, 0, sv)?, yield_date(s, a, 1, sv)?, yield_date(s, a, 2, sv)?, yield_date(s, a, 3, sv)?];
+        odd_out(s, odd::oddfprice_kernel(dates[0], dates[1], dates[2], dates[3], required_num(s, a, 4)?, required_num(s, a, 5)?, required_num(s, a, 6)?, required_num(s, a, 7)?, if a.len() > 8 { Some(num_without_logical(s, a, 8)?) } else { None }))
     }
     24 oddfyield_fn |s, a, sv| {
         let dates = [yield_date(s, a, 0, sv)?, yield_date(s, a, 1, sv)?, yield_date(s, a, 2, sv)?, yield_date(s, a, 3, sv)?];
@@ -249,11 +249,11 @@ ported_shared_family! {
         odd_out(s, odd::oddfyield_kernel(dates[0], dates[1], dates[2], dates[3], rate, price, redemption, frequency, basis))
     }
     25 oddlprice_fn |s, a, sv| {
-        let dates = [date_1900(s, a, 0, sv)?, date_1900(s, a, 1, sv)?, date_1900(s, a, 2, sv)?];
-        odd_out(s, odd::oddlprice_kernel(dates[0], dates[1], dates[2], num(s, a, 3)?, num(s, a, 4)?, num(s, a, 5)?, num(s, a, 6)?, basis(s, a, 7)?))
+        let dates = [yield_date(s, a, 0, sv)?, yield_date(s, a, 1, sv)?, yield_date(s, a, 2, sv)?];
+        odd_out(s, odd::oddlprice_kernel(dates[0], dates[1], dates[2], required_num(s, a, 3)?, required_num(s, a, 4)?, required_num(s, a, 5)?, required_num(s, a, 6)?, if a.len() > 7 { Some(num_without_logical(s, a, 7)?) } else { None }))
     }
     26 oddlyield_fn |s, a, sv| {
-        let dates = [date_1900(s, a, 0, sv)?, date_1900(s, a, 1, sv)?, date_1900(s, a, 2, sv)?];
-        odd_out(s, odd::oddlyield_kernel(dates[0], dates[1], dates[2], num(s, a, 3)?, num(s, a, 4)?, num(s, a, 5)?, num(s, a, 6)?, basis(s, a, 7)?))
+        let dates = [yield_date(s, a, 0, sv)?, yield_date(s, a, 1, sv)?, yield_date(s, a, 2, sv)?];
+        odd_out(s, odd::oddlyield_kernel(dates[0], dates[1], dates[2], required_num(s, a, 3)?, required_num(s, a, 4)?, required_num(s, a, 5)?, required_num(s, a, 6)?, if a.len() > 7 { Some(num_without_logical(s, a, 7)?) } else { None }))
     }
 }

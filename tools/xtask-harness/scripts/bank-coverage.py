@@ -211,18 +211,30 @@ def witness_arg(arg):
     if kind == 'blank': return None
     if kind == 'error': return {'error': drift.ERRORS[arg['code']]}
     if kind in ('array', 'mixed_array', 'range'):
-        cells = [[witness_arg(x) for x in row] for row in arg['values']]
+        # The worker materializes mixed_array with CHOOSE. Its blank source
+        # cells become numeric zero in the resulting value array. Readback
+        # describes the source cells; record the arguments the function sees.
+        # A real range keeps its blanks and reference identity.
+        cells = [['0x0000000000000000' if kind == 'mixed_array' and x['type'] == 'blank'
+                  else witness_arg(x) for x in row] for row in arg['values']]
         return {'range': cells} if kind == 'range' else cells
     raise ValueError(kind)
 
-def ask_checked(client, name, rows, *, result_index=None, shape='scalar', **_):
+def ask_checked(client, name, rows, *, result_index=None, shape='scalar', row_provenance=False, **_):
     # The convenience reply names one representative environment even when a
     # request used several. Future captures refuse that ambiguity; the original
     # bank2 captures predate this check and document the limitation.
     pending = client._socket().submit_rows(name, rows, result_index=result_index,
                                            priority='bulk', echo=True, spill=shape == 'array')
     reply = pending.result(timeout=client.timeout)
-    if len(pending.env_ids) != 1:
+    if row_provenance:
+        # Revalidation can retain the broker's exact environment for every row,
+        # rather than attributing a mixed-worker reply to its representative.
+        if any(env not in pending.envs for env in pending.env_by_position):
+            raise ValueError('missing per-row worker environment')
+        reply['environment_ids_by_row'] = list(pending.env_by_position)
+        reply['worker_environments'] = {env: pending.envs[env] for env in pending.env_ids}
+    elif len(pending.env_ids) != 1:
         raise ValueError('request did not have one recorded worker environment')
     if len(reply.get('rows', [])) != len(rows) or len(reply.get('inputs', [])) != len(rows):
         raise ValueError('incomplete response or input readback')
@@ -263,13 +275,15 @@ def main():
         try:
             kw={'echo_inputs':True,'priority':'bulk'}
             spill = (o.stage == 'range-mixed' and name in policy.SPILL_FUNCTIONS) or o.stage.startswith('spill') or (o.stage == 'variants' and name in policy.SPILL_FUNCTIONS)
+            select_in_excel = o.stage == 'range-mixed' and spill
+            if select_in_excel: kw['result_index'] = (1, 1)
             if name in {'LINEST','LOGEST'} and not spill: kw['result_index']=(1,1)
             rejected={}; captured=[]
             existing = previous['witnesses'] if previous else []
             done = {int(w['id'].rsplit('-',1)[1]) for w in existing}
             pending = [(i, row) for i, row in enumerate(rows) if i not in done]
             if spill or o.stage == 'range-mixed':
-                if spill: kw['shape']='array'
+                if spill and not select_in_excel: kw['shape']='array'
                 batch = 10 if o.stage == 'range-mixed' else 30
                 reply = None
                 prior_env = previous['capture_provenance']['env_id'] if previous else None
@@ -303,7 +317,7 @@ def main():
                           enumerate(zip(rows,reply['rows'],reply['inputs']))]
             accepted=list(existing)
             for i, requested, observed, readback in captured:
-                selected = drift.select_spill(observed, [1,1]) if spill else observed
+                selected = drift.select_spill(observed, [1,1]) if spill and not select_in_excel else observed
                 result=drift.answer(selected) if selected else None
                 if requested == [] and readback is None: readback = []
                 if drift.without_mode(requested)!=drift.without_mode(readback): why='changed input'

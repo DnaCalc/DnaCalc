@@ -1,0 +1,247 @@
+<title>Error Check</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,800&family=IBM+Plex+Mono:wght@400;600&family=IBM+Plex+Sans:wght@400;600&display=swap">
+<style>
+/* Layout: a worksheet with hidden cells; the formula bar explains the selected cell; Excel's green error triangle marks flags. */
+:root {
+  --paper: #fbfcfd; --ink: #1d2733; --muted: #66727f; --grid: #dfe4e9; --head: #f2f4f7; --cell: #ffffff; --hidden: #e9edf1; --hiddenhi: #f4f6f8;
+  --select: #1e7b4b; --flag: #1e7b4b; --err: #b4232a; --errtint: #fde4e4; --boom: #f8696b; --shade: rgba(20,30,40,.35);
+  --n1: #2a6fdb; --n2: #2f8a3e; --n3: #c0392b; --n4: #6c3fb5; --n5: #9a4b12; --n6: #12808a; --n7: #333; --n8: #777;
+  --display: "Bricolage Grotesque", "Segoe UI", system-ui, sans-serif;
+  --body: "IBM Plex Sans", "Segoe UI", system-ui, sans-serif;
+  --mono: "IBM Plex Mono", ui-monospace, Consolas, monospace;
+}
+@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) {
+  --paper: #13191f; --ink: #e6ebf0; --muted: #98a4b0; --grid: #29323b; --head: #1b232b; --cell: #171e25; --hidden: #26303a; --hiddenhi: #2e3944;
+  --select: #4cc887; --flag: #4cc887; --err: #ff8e93; --errtint: #3a2224; --shade: rgba(0,0,0,.55);
+  --n1: #7fb0ff; --n2: #7fd68c; --n3: #ff8f84; --n4: #c4a5ff; --n5: #f0b27a; --n6: #6fd6de; --n7: #ddd; --n8: #aaa; color-scheme: dark } }
+:root[data-theme="dark"] {
+  --paper: #13191f; --ink: #e6ebf0; --muted: #98a4b0; --grid: #29323b; --head: #1b232b; --cell: #171e25; --hidden: #26303a; --hiddenhi: #2e3944;
+  --select: #4cc887; --flag: #4cc887; --err: #ff8e93; --errtint: #3a2224; --shade: rgba(0,0,0,.55);
+  --n1: #7fb0ff; --n2: #7fd68c; --n3: #ff8f84; --n4: #c4a5ff; --n5: #f0b27a; --n6: #6fd6de; --n7: #ddd; --n8: #aaa; color-scheme: dark }
+* { box-sizing: border-box }
+body { margin: 0; background: var(--paper); color: var(--ink); font: 400 14px/1.45 var(--body) }
+.win { max-width: 900px; margin: 0 auto; padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px)); padding-block: 16px 28px; display: grid; gap: 10px }
+.top { display: flex; flex-wrap: wrap; align-items: end; justify-content: space-between; gap: 8px 16px }
+h1 { margin: 0; font: 800 clamp(30px, 6vw, 48px)/1 var(--display); letter-spacing: -.02em }
+h1 span { color: var(--err) }
+.tools { display: flex; flex-wrap: wrap; gap: 8px; align-items: center }
+.tools button, .tools select { font: 600 13px var(--body); padding: 7px 12px; border-radius: 4px; border: 1px solid var(--grid); background: var(--head); color: var(--ink); cursor: pointer }
+.tools button[aria-pressed="true"] { background: var(--select); border-color: var(--select); color: var(--cell) }
+button:focus-visible, select:focus-visible { outline: 2px solid var(--select); outline-offset: 2px }
+.fx { display: grid; grid-template-columns: 64px 34px minmax(0, 1fr); border: 1px solid var(--grid); background: var(--cell); font: 400 14px/32px var(--mono) }
+.fx > div { padding: 0 10px; min-width: 0; overflow: hidden; white-space: nowrap; text-overflow: ellipsis }
+.fx .name { background: var(--head); border-right: 1px solid var(--grid); color: var(--muted) }
+.fx .f { border-right: 1px solid var(--grid); color: var(--select); font-style: italic; font-weight: 600; text-align: center; padding: 0 }
+.sheet { position: relative; border: 1px solid var(--grid); background: var(--cell); user-select: none; -webkit-user-select: none; touch-action: manipulation; overflow: hidden }
+canvas { display: block; width: 100%; height: auto; cursor: cell }
+.status { display: flex; flex-wrap: wrap; justify-content: space-between; gap: 6px 16px; font: 400 13px var(--mono); color: var(--muted) }
+.status b { color: var(--ink) }
+.help { margin: 0; font-size: 13px; color: var(--muted) }
+.overlay { position: absolute; inset: 0; display: grid; place-items: center; background: var(--shade); padding: 14px }
+.dialog { background: var(--cell); width: min(400px, 100%); border: 1px solid var(--grid); border-radius: 6px; box-shadow: 0 12px 40px rgba(0,0,0,.25); overflow: hidden }
+.dialog .bar { padding: 7px 12px; font: 600 12px var(--body); background: var(--head); border-bottom: 1px solid var(--grid) }
+.dialog .body { padding: 14px 16px 16px; display: grid; gap: 10px }
+.dialog h2 { margin: 0; font: 800 28px/1.05 var(--display) }
+.dialog h2.bad { color: var(--err) }
+.dialog p { margin: 0 }
+.dialog .meta { font: 400 12px/1.5 var(--mono); color: var(--muted) }
+.dialog button { justify-self: end; font: 600 14px var(--body); padding: 8px 16px; border-radius: 4px; border: 0; background: var(--select); color: var(--cell); cursor: pointer }
+</style>
+
+<div class="win">
+  <div class="top">
+    <h1>Error <span>Check</span></h1>
+    <div class="tools">
+      <select id="size" aria-label="Sheet size">
+        <option value="small">Small sheet, 10 errors</option>
+        <option value="medium" selected>Medium sheet, 30 errors</option>
+        <option value="large">Large sheet, 60 errors</option>
+      </select>
+      <button id="flagMode" type="button" aria-pressed="false">Flag mode</button>
+      <button id="newBtn" type="button">New sheet</button>
+    </div>
+  </div>
+  <div class="fx"><div class="name" id="nameBox">A1</div><div class="f">fx</div><div id="formula">Click any cell to start. The first cell is always safe.</div></div>
+  <div class="sheet" id="sheet">
+    <canvas id="cv" width="900" height="500" aria-label="Worksheet with hidden error cells"></canvas>
+    <div class="overlay" id="overlay" hidden>
+      <div class="dialog" role="dialog" aria-modal="true" aria-labelledby="dlgTitle">
+        <div class="bar" id="dlgBar">Microsoft Excel would say</div>
+        <div class="body"><h2 id="dlgTitle">Done</h2><p id="dlgText"></p><p class="meta" id="dlgMeta"></p><button id="againBtn" type="button">New sheet</button></div>
+      </div>
+    </div>
+  </div>
+  <div class="status"><span>Errors <b id="left">30</b> left to flag</span><span>Time <b id="time">0</b> s</span><span>Best <b id="best">-</b></span></div>
+  <p class="help">Click to open a cell; it shows how many of its eight neighbours hold an error. Right-click, long-press or use Flag mode to mark a suspected error with Excel's green triangle. Click an open number whose neighbours are all flagged to open the rest.</p>
+</div>
+
+<script>
+(function () {
+  var SIZES = { small: [10, 8, 10], medium: [18, 12, 30], large: [24, 16, 60] };
+  var ERRS = ['#DIV/0!', '#N/A', '#VALUE!', '#REF!', '#NAME?', '#NUM!', '#NULL!'];
+  var HEADW = 34, HEADH = 22;
+  var cv = document.getElementById('cv'), ctx = cv.getContext('2d'), sheet = document.getElementById('sheet');
+  var colors = {};
+  function readColors() { var cs = getComputedStyle(document.documentElement); ['--ink','--muted','--grid','--head','--cell','--hidden','--hiddenhi','--select','--flag','--err','--errtint','--boom','--n1','--n2','--n3','--n4','--n5','--n6','--n7','--n8'].forEach(function (k) { colors[k] = cs.getPropertyValue(k).trim(); }); }
+  readColors();
+  try { matchMedia('(prefers-color-scheme: dark)').addEventListener('change', function () { readColors(); paint(); }); } catch (e) {}
+  new MutationObserver(function () { readColors(); paint(); }).observe(document.documentElement, { attributes: true, attributeFilter: ['data-theme'] });
+
+  var C, R, N, cells, started, done, flags, opened, t0, tick, flagMode = false, sel = null, boom = null;
+  function colName(c) { var s = ''; c += 1; while (c > 0) { var r = (c - 1) % 26; s = String.fromCharCode(65 + r) + s; c = Math.floor((c - 1) / 26); } return s; }
+  function addr(x, y) { return colName(x) + (y + 1); }
+  function at(x, y) { return x >= 0 && y >= 0 && x < C && y < R ? cells[y * C + x] : null; }
+  function around(x, y) { var out = []; for (var dy = -1; dy <= 1; dy++) for (var dx = -1; dx <= 1; dx++) if (dx || dy) { var c = at(x + dx, y + dy); if (c) out.push(c); } return out; }
+  function bestKey() { return 'errcheck-best-' + document.getElementById('size').value; }
+
+  function reset() {
+    var s = SIZES[document.getElementById('size').value]; C = s[0]; R = s[1]; N = s[2];
+    cells = []; for (var y = 0; y < R; y++) for (var x = 0; x < C; x++) cells.push({ x: x, y: y, err: null, n: 0, open: false, flag: false });
+    started = false; done = false; flags = 0; opened = 0; boom = null; sel = null;
+    clearInterval(tick); document.getElementById('time').textContent = '0';
+    document.getElementById('left').textContent = N;
+    var b = null; try { b = localStorage.getItem(bestKey()); } catch (e) {}
+    document.getElementById('best').textContent = b ? b + ' s' : '-';
+    document.getElementById('nameBox').textContent = 'A1';
+    document.getElementById('formula').textContent = 'Click any cell to start. The first cell is always safe.';
+    document.getElementById('overlay').hidden = true;
+    layout(); paint();
+  }
+  function plant(sx, sy) {
+    var pool = cells.filter(function (c) { return Math.abs(c.x - sx) > 1 || Math.abs(c.y - sy) > 1; });
+    for (var i = 0; i < N; i++) { var j = i + Math.floor(Math.random() * (pool.length - i)); var t = pool[i]; pool[i] = pool[j]; pool[j] = t; pool[i].err = ERRS[Math.floor(Math.random() * ERRS.length)]; }
+    cells.forEach(function (c) { c.n = around(c.x, c.y).filter(function (o) { return o.err; }).length; });
+    started = true; t0 = performance.now();
+    tick = setInterval(function () { document.getElementById('time').textContent = Math.floor((performance.now() - t0) / 1000); }, 250);
+  }
+  function open(c) {
+    if (!c || c.open || c.flag || done) return;
+    if (!started) plant(c.x, c.y);
+    if (c.err) { boom = c; return lose(c); }
+    var stack = [c];
+    while (stack.length) {
+      var k = stack.pop(); if (k.open || k.flag) continue;
+      k.open = true; opened++;
+      if (k.n === 0) around(k.x, k.y).forEach(function (o) { if (!o.open && !o.err) stack.push(o); });
+    }
+    if (opened === C * R - N) win();
+  }
+  function chord(c) {
+    var ns = around(c.x, c.y), fl = ns.filter(function (o) { return o.flag; }).length;
+    if (fl !== c.n) return;
+    ns.forEach(function (o) { if (!done) open(o); });
+  }
+  function toggleFlag(c) {
+    if (!c || c.open || done) return;
+    c.flag = !c.flag; flags += c.flag ? 1 : -1;
+    document.getElementById('left').textContent = N - flags;
+  }
+  function range(x, y) { var x0 = Math.max(0, x - 1), y0 = Math.max(0, y - 1), x1 = Math.min(C - 1, x + 1), y1 = Math.min(R - 1, y + 1); return addr(x0, y0) + ':' + addr(x1, y1); }
+  function describe(c) {
+    document.getElementById('nameBox').textContent = addr(c.x, c.y);
+    var f = document.getElementById('formula');
+    if (c.open) f.textContent = '=SUMPRODUCT(--ISERROR(' + range(c.x, c.y) + '))  → ' + c.n;
+    else if (c.flag) f.textContent = 'Marked as a suspected error. Right-click or long-press again to clear the mark.';
+    else if (done && c.err) f.textContent = '=' + ({ '#DIV/0!': '1/0', '#N/A': 'NA()', '#VALUE!': '"a"+1', '#REF!': '#REF!+1', '#NAME?': 'SUMM(1)', '#NUM!': 'SQRT(-1)', '#NULL!': 'SUM(A1 B1)' })[c.err] + '  → ' + c.err;
+    else f.textContent = 'Hidden. Open it, or mark it as an error.';
+  }
+  function finish() { done = true; clearInterval(tick); }
+  function lose(c) {
+    finish();
+    cells.forEach(function (o) { if (o.err) o.open = true; });
+    paint();
+    var t = document.getElementById('dlgTitle'); t.textContent = c.err; t.className = 'bad';
+    document.getElementById('dlgBar').textContent = 'Microsoft Excel would say';
+    document.getElementById('dlgText').textContent = 'You opened ' + addr(c.x, c.y) + ', which holds ' + c.err + '. Errors propagate: every formula that refers to it is now ' + c.err + ' as well.';
+    document.getElementById('dlgMeta').textContent = opened + ' of ' + (C * R - N) + ' clean cells opened · ' + Math.floor((performance.now() - t0) / 1000) + ' s';
+    document.getElementById('overlay').hidden = false; document.getElementById('againBtn').focus();
+  }
+  function win() {
+    finish();
+    var secs = Math.max(1, Math.round((performance.now() - t0) / 1000));
+    cells.forEach(function (o) { if (o.err && !o.flag) { o.flag = true; } });
+    document.getElementById('left').textContent = 0;
+    var prev = null; try { prev = Number(localStorage.getItem(bestKey())) || null; if (!prev || secs < prev) localStorage.setItem(bestKey(), String(secs)); } catch (e) {}
+    document.getElementById('best').textContent = (prev && prev < secs ? prev : secs) + ' s';
+    paint();
+    var t = document.getElementById('dlgTitle'); t.textContent = 'Error check complete'; t.className = '';
+    document.getElementById('dlgBar').textContent = 'Microsoft Excel would say';
+    document.getElementById('dlgText').textContent = 'The error check of the entire sheet is complete. Every one of the ' + N + ' errors is marked, and every clean cell is open.';
+    document.getElementById('dlgMeta').textContent = secs + ' s' + (!prev || secs < prev ? ' · new best for this size' : ' · best ' + prev + ' s');
+    document.getElementById('overlay').hidden = false; document.getElementById('againBtn').focus();
+  }
+
+  var cw, ch;
+  function layout() {
+    var w = sheet.clientWidth || 900, dpr = Math.min(devicePixelRatio || 1, 2);
+    cw = (w - HEADW) / C; ch = Math.min(34, Math.max(22, cw * .72));
+    var h = HEADH + ch * R;
+    cv.width = Math.round(w * dpr); cv.height = Math.round(h * dpr); cv.style.height = h + 'px';
+    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+  }
+  var queued = false;
+  function paint() { if (queued) return; queued = true; requestAnimationFrame(function () { queued = false; render(); }); }
+  function render() {
+    if (!cells) return;
+    var Wp = HEADW + C * cw, Hp = HEADH + R * ch;
+    ctx.fillStyle = colors['--cell']; ctx.fillRect(0, 0, Wp, Hp);
+    ctx.fillStyle = colors['--head']; ctx.fillRect(0, 0, Wp, HEADH); ctx.fillRect(0, 0, HEADW, Hp);
+    var fs = Math.min(14, ch * .5);
+    cells.forEach(function (c) {
+      var x = HEADW + c.x * cw, y = HEADH + c.y * ch;
+      if (!c.open) {
+        ctx.fillStyle = colors['--hidden']; ctx.fillRect(x + 1, y + 1, cw - 1, ch - 1);
+        ctx.fillStyle = colors['--hiddenhi']; ctx.fillRect(x + 1, y + 1, cw - 1, 2);
+        if (c.flag) { ctx.fillStyle = colors['--flag']; ctx.beginPath(); ctx.moveTo(x + 1, y + 1); ctx.lineTo(x + 1 + Math.min(12, cw * .4), y + 1); ctx.lineTo(x + 1, y + 1 + Math.min(12, cw * .4)); ctx.closePath(); ctx.fill(); }
+        if (done && c.flag && !c.err) { ctx.strokeStyle = colors['--err']; ctx.lineWidth = 2; ctx.beginPath(); ctx.moveTo(x + 5, y + 5); ctx.lineTo(x + cw - 5, y + ch - 5); ctx.moveTo(x + cw - 5, y + 5); ctx.lineTo(x + 5, y + ch - 5); ctx.stroke(); }
+      } else if (c.err) {
+        ctx.fillStyle = c === boom ? colors['--boom'] : colors['--errtint']; ctx.fillRect(x + 1, y + 1, cw - 1, ch - 1);
+        ctx.fillStyle = c === boom ? colors['--cell'] : colors['--err']; ctx.font = '600 ' + Math.min(12, cw * .17) + 'px "IBM Plex Mono", Consolas, monospace';
+        ctx.textAlign = 'center'; ctx.textBaseline = 'middle'; ctx.fillText(c.err, x + cw / 2, y + ch / 2 + 1);
+      } else if (c.n) {
+        ctx.fillStyle = colors['--n' + c.n]; ctx.font = '600 ' + fs + 'px "IBM Plex Mono", Consolas, monospace';
+        ctx.textAlign = 'right'; ctx.textBaseline = 'middle'; ctx.fillText(String(c.n), x + cw - 6, y + ch / 2 + 1);
+      }
+    });
+    ctx.strokeStyle = colors['--grid']; ctx.lineWidth = 1; ctx.beginPath();
+    for (var i = 0; i <= C; i++) { var gx = Math.round(HEADW + i * cw) + .5; ctx.moveTo(gx, 0); ctx.lineTo(gx, Hp); }
+    for (i = 0; i <= R; i++) { var gy = Math.round(HEADH + i * ch) + .5; ctx.moveTo(0, gy); ctx.lineTo(Wp, gy); }
+    ctx.moveTo(.5, 0); ctx.lineTo(.5, Hp); ctx.stroke();
+    ctx.font = '600 11px "IBM Plex Mono", Consolas, monospace'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+    for (i = 0; i < C; i++) { ctx.fillStyle = sel && sel.x === i ? colors['--select'] : colors['--muted']; ctx.fillText(colName(i), HEADW + i * cw + cw / 2, HEADH / 2 + 1); }
+    for (i = 0; i < R; i++) { ctx.fillStyle = sel && sel.y === i ? colors['--select'] : colors['--muted']; ctx.fillText(String(i + 1), HEADW / 2, HEADH + i * ch + ch / 2 + 1); }
+    if (sel) { ctx.strokeStyle = colors['--select']; ctx.lineWidth = 2.5; ctx.strokeRect(HEADW + sel.x * cw + 1, HEADH + sel.y * ch + 1, cw - 2, ch - 2); }
+  }
+
+  function cellAt(e) {
+    var r = cv.getBoundingClientRect(), x = (e.clientX - r.left) * ((HEADW + C * cw) / r.width), y = (e.clientY - r.top) * ((HEADH + R * ch) / r.height);
+    var cx = Math.floor((x - HEADW) / cw), cy = Math.floor((y - HEADH) / ch);
+    return at(cx, cy);
+  }
+  var press = null, longFired = false;
+  cv.addEventListener('contextmenu', function (e) { e.preventDefault(); });
+  cv.addEventListener('pointerdown', function (e) {
+    var c = cellAt(e); if (!c) return; sel = c; describe(c); paint();
+    longFired = false;
+    if (e.pointerType !== 'mouse') press = setTimeout(function () { longFired = true; toggleFlag(c); describe(c); paint(); if (navigator.vibrate) try { navigator.vibrate(15); } catch (x) {} }, 420);
+  });
+  cv.addEventListener('pointerup', function (e) {
+    clearTimeout(press); var c = cellAt(e); if (!c || longFired) return;
+    if (e.button === 2) toggleFlag(c);
+    else if (flagMode && !c.open) toggleFlag(c);
+    else if (c.open) chord(c);
+    else open(c);
+    describe(c); paint();
+  });
+  cv.addEventListener('pointerleave', function () { clearTimeout(press); });
+  document.getElementById('flagMode').addEventListener('click', function () { flagMode = !flagMode; this.setAttribute('aria-pressed', String(flagMode)); });
+  document.getElementById('newBtn').addEventListener('click', reset);
+  document.getElementById('againBtn').addEventListener('click', reset);
+  document.getElementById('size').addEventListener('change', reset);
+  addEventListener('keydown', function (e) { if (e.key === 'F9') { e.preventDefault(); reset(); } });
+  addEventListener('resize', function () { layout(); paint(); });
+  reset();
+})();
+</script>
