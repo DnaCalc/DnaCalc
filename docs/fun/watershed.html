@@ -194,7 +194,8 @@ footer { font: 400 12px var(--mono); color: var(--faint) }
       </ul></div>
     <div><h3>What DNA Calc needs for this to be real</h3>
       <ul>
-        <li><b>From the engine:</b> precedents per name; per recalculation, the event that caused it, its firing order and dirty set; iteration count and maximum change per circular block.</li>
+        <li><b>Wires, mostly there:</b> calc-host already gives each cell's precedents and dependents, including the areas INDIRECT, OFFSET and spills computed (dc-gf0). What a skin of names still lacks is the name level: those precedents drop the name a formula read and keep only its cells, so a small host addition has to keep name edges, and give a name's own definition its precedents.</li>
+        <li><b>From the engine, new:</b> per recalculation, the event that caused it, its firing order and dirty set; iteration count and maximum change per circular block.</li>
         <li><b>From the host:</b> RTD servers (COM in Excel, the RTD host route in DNA Calc) and data tables.</li>
         <li><b>In the skin:</b> composites from sheets or name prefixes, director badges from calculation settings, modal models read from IFS and SWITCH over a self-referencing mode cell, and a layout part stored with the workbook, as in the linked-boxes note (dc-lvlj).</li>
       </ul></div>

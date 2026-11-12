@@ -160,7 +160,7 @@ footer { font: 400 12px var(--mono); color: var(--faint) }
         <thead><tr><th>Ptolemy II</th><th>In the workbook</th><th>In DNA Calc</th><th>Status</th></tr></thead>
         <tbody>
           <tr><td>Actor</td><td>A defined name (or a cell block) and its formula</td><td>Name table in calc-doc; formula trees from calc-fml</td><td><span class="pill have">exists</span></td></tr>
-          <tr><td>Port, wire</td><td>Each reference a formula makes to another name</td><td>Precedents from the calc-engine dependency graph</td><td><span class="pill api">engine API</span></td></tr>
+          <tr><td>Port, wire</td><td>Each reference a formula makes to another name</td><td>calc-host's precedents and dependents per cell, dynamic references included (dc-gf0); name-level edges still to add, since those precedents drop the name and keep its cells</td><td><span class="pill api">small host API</span></td></tr>
           <tr><td>Firing order</td><td>The order Excel recalculates in</td><td>The calc chain and dirty set of one recalculation, streamed to the skin</td><td><span class="pill api">engine API</span></td></tr>
           <tr><td>Director parameters</td><td>File › Options › Formulas: iterative calculation, maximum iterations, maximum change</td><td>Workbook calculation properties, already read and saved</td><td><span class="pill have">exists</span></td></tr>
           <tr><td>Delay (z⁻¹)</td><td>A cell that refers to itself under iterative calculation: its own previous value</td><td>Iterative calculation with one iteration per tick</td><td><span class="pill api">engine API</span></td></tr>
@@ -181,7 +181,7 @@ footer { font: 400 12px var(--mono); color: var(--faint) }
       </div></div>
     <div><h3>A realistic path, in milestones</h3>
       <ol class="steps">
-        <li><div><b>Read-only actor view.</b>Boxes for defined names, wires from the dependency graph, values live. Layout kept in a skin part of the workbook, as the linked-boxes note proposes.</div></li>
+        <li><div><b>Read-only actor view.</b>Boxes for defined names, wires from the host's existing precedents (with name edges added), values live. Layout kept in a skin part of the workbook, as the linked-boxes note proposes.</div></li>
         <li><div><b>Watch it calculate.</b>The engine streams each recalculation's firing order and dirty set; the skin animates them. Shows exactly what Excel would recalculate, and why.</div></li>
         <li><div><b>Presenter.</b>Dotted names shortened inside their group, a self-reference shown as the previous value (<code>Stock⁻</code>), IFS mode cells drawn as small state machines.</div></li>
         <li><div><b>Directors.</b>Ticks and Sweep on top of iterative calculation and data tables, with a plotter fed from name histories.</div></li>
