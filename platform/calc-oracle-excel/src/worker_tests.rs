@@ -21,10 +21,11 @@
 //!   `worker/legacy-array.xlsx` and `worker/legacy-array-conflict.xlsx`, and the main flow against
 //!   the stand-in Excel on `worker/legacy-array.xlsx`, converted and judged like the spill
 //!   scenarios.
-//! - Text checks of the script: the empty catches, and the settings it assigns.
+//! - Text checks live in worker_script_tests and run on Linux as well as Windows.
 //! - The fixtures are the output of their committed generator, `tests/fixtures/make-fixtures.ps1`.
 
 use crate::convert::{self, Frame};
+use crate::worker_script_tests::member_assignments;
 use crate::{STAGE_SPILL, WORKER_SCRIPT, windows_powershell};
 use calc_verdict::value::CalcValue;
 use calc_verdict::{
@@ -501,6 +502,15 @@ const HARNESS: &str = include_str!("../tests/fixtures/standin-harness.ps1");
 /// What the worker's main flow did with a copy of `package`, run from [`HARNESS`] after `setup`:
 /// its exit code, its standard output lines and its result file.
 fn run_main_flow(name: &str, package: &Path, setup: &str) -> (Option<i32>, Vec<String>, Value) {
+    run_main_flow_with_request(name, package, setup, json!({}))
+}
+
+fn run_main_flow_with_request(
+    name: &str,
+    package: &Path,
+    setup: &str,
+    extra: Value,
+) -> (Option<i32>, Vec<String>, Value) {
     let dir = scratch(&format!("main-{name}"));
     let input = dir.join("in").join(package.file_name().unwrap());
     std::fs::create_dir_all(input.parent().unwrap()).unwrap();
@@ -515,16 +525,16 @@ fn run_main_flow(name: &str, package: &Path, setup: &str) -> (Option<i32>, Vec<S
     std::fs::write(&setup_file, setup).unwrap();
     let request = dir.join("request.json");
     let result = dir.join("result.json");
-    std::fs::write(
-        &request,
-        json!({
-            "format": "dnacalc-capture-request", "version": 1,
-            "input": input.to_string_lossy(), "output": output.to_string_lossy(),
-            "calculation": {"mode": "automatic", "iteration": false, "max_iterations": 100, "max_change": "3f50624dd2f1a9fc"}
-        })
-        .to_string(),
-    )
-    .unwrap();
+    let mut request_value = json!({
+        "format": "dnacalc-capture-request", "version": 1,
+        "input": input.to_string_lossy(), "output": output.to_string_lossy(),
+        "calculation": {"mode": "automatic", "iteration": false, "max_iterations": 100, "max_change": "3f50624dd2f1a9fc"}
+    });
+    request_value
+        .as_object_mut()
+        .unwrap()
+        .extend(extra.as_object().unwrap().clone());
+    std::fs::write(&request, request_value.to_string()).unwrap();
     let out = powershell(&[
         "-File",
         &harness.to_string_lossy(),
@@ -823,6 +833,99 @@ fn capture_preserves_each_existing_automation_security_value_without_writing_it(
             member_assignments(script)
                 .iter()
                 .all(|name| !name.ends_with(".AutomationSecurity"))
+        );
+    }
+}
+
+/// Trace macro policy at each Open and at Quit, using the existing main-flow stand-in.
+fn macro_policy_setup(before: i32, fail_open: bool) -> String {
+    format!(
+        r#"{FULL_STANDIN}
+$app | Add-Member -MemberType NoteProperty -Name StandinSecurity -Value {before}
+$app | Add-Member -Force -MemberType ScriptProperty -Name AutomationSecurity -Value {{ $this.StandinSecurity }} -SecondValue {{ param($value) Write-Standin "AutomationSecurity $value"; $this.StandinSecurity = $value }}
+$global:StandinOpenMethod = $app.Workbooks.PSObject.Methods['Open'].Script
+$global:StandinFailOpen = ${fail_open}
+$app.Workbooks | Add-Member -Force -MemberType ScriptMethod -Name Open -Value {{
+    Write-Standin ("Open AutomationSecurity " + $global:StandinApplication.AutomationSecurity)
+    if ($global:StandinFailOpen) {{ throw 'the requested stand-in open failure' }}
+    & $global:StandinOpenMethod @args
+}}
+$app | Add-Member -Force -MemberType ScriptMethod -Name Quit -Value {{ Write-Standin ("Quit AutomationSecurity " + $this.AutomationSecurity) }}
+"#
+    )
+}
+
+/// Native-only: runs the capture PowerShell worker against stand-in COM objects.
+#[test]
+fn capture_force_disables_macros_for_both_opens_and_restores_each_prior_value() {
+    for before in [1, 2, 3] {
+        let (code, lines, result) = run_main_flow_with_request(
+            &format!("force-disable-security-{before}"),
+            &fixture("infra_m1_2/untrusted-link.xlsx"),
+            &macro_policy_setup(before, false),
+            json!({"automation_security": 3}),
+        );
+        assert_eq!(code, Some(0), "{lines:?}\n{result}");
+        assert_eq!(result["fatal"], Value::Null, "{result}");
+        assert_eq!(result["automation_security_before"], before);
+        assert_eq!(result["automation_security_after"], before);
+        let opens: Vec<_> = lines
+            .iter()
+            .filter(|line| line.starts_with("STANDIN: Open AutomationSecurity "))
+            .map(String::as_str)
+            .collect();
+        assert_eq!(
+            opens, ["STANDIN: Open AutomationSecurity 3"; 2],
+            "{lines:?}"
+        );
+        assert!(
+            lines.contains(&format!("STANDIN: Quit AutomationSecurity {before}")),
+            "{lines:?}"
+        );
+        let settings = result["environment"]["settings"].as_array().unwrap();
+        assert!(
+            settings.contains(&json!(["automation_security", "3"])),
+            "{result}"
+        );
+        let policy = if before == 3 {
+            "preserved (3)".to_owned()
+        } else {
+            format!("set to 3 (was {before})")
+        };
+        assert!(
+            settings.contains(&json!(["macro_policy_requested", policy])),
+            "{result}"
+        );
+    }
+}
+
+/// Native-only: runs the capture PowerShell worker against stand-in COM objects.
+#[test]
+fn capture_restores_macro_policy_when_open_fails() {
+    for before in [1, 2, 3] {
+        let (code, lines, result) = run_main_flow_with_request(
+            &format!("force-disable-open-fails-{before}"),
+            &fixture("infra_m1_2/untrusted-link.xlsx"),
+            &macro_policy_setup(before, true),
+            json!({"automation_security": 3}),
+        );
+        assert_eq!(code, Some(1), "{lines:?}\n{result}");
+        assert!(
+            result["fatal"]
+                .as_str()
+                .unwrap()
+                .contains("the requested stand-in open failure"),
+            "{result}"
+        );
+        let opens: Vec<_> = lines
+            .iter()
+            .filter(|line| line.starts_with("STANDIN: Open AutomationSecurity "))
+            .map(String::as_str)
+            .collect();
+        assert_eq!(opens, ["STANDIN: Open AutomationSecurity 3"], "{lines:?}");
+        assert!(
+            lines.contains(&format!("STANDIN: Quit AutomationSecurity {before}")),
+            "{lines:?}"
         );
     }
 }
@@ -1924,216 +2027,6 @@ fn each_cell_of_a_legacy_array_is_read_recorded_and_judged() {
     println!(
         "NOTE: legacy array B1:B3 (=A1:A3*10) and C1: the worker read B2 and B3 as inventory cells (Value2 20 and 30 after the rebuild and after reopening), no inventory failure; recorded as anchors B1 (3 by 1) and C1 (1 by 1) and members B2, B3 of B1; judged each by its own value (B3 calculated as 10 is mismatched); a listed B4 outside the range is an inventory failure and calc-verdict refuses: {refused}"
     );
-}
-
-// --- text checks of the script ------------------------------------------------------------------
-
-/// The trimmed line on which each catch with an empty body starts: `catch {}`, `catch { }`, a
-/// body of white space or comments over several lines, with or without exception types.
-fn empty_catches(script: &str) -> Vec<String> {
-    let bytes = script.as_bytes();
-    let mut found = Vec::new();
-    let mut from = 0;
-    while let Some(at) = script[from..].find("catch").map(|i| i + from) {
-        from = at + 5;
-        let word_start =
-            at == 0 || !(bytes[at - 1].is_ascii_alphanumeric() || bytes[at - 1] == b'_');
-        let word_end = bytes
-            .get(at + 5)
-            .is_none_or(|b| !(b.is_ascii_alphanumeric() || *b == b'_'));
-        if !word_start || !word_end {
-            continue;
-        }
-        let mut i = at + 5;
-        // Exception types: [Type], [Type], ...
-        loop {
-            while i < bytes.len() && (bytes[i].is_ascii_whitespace() || bytes[i] == b',') {
-                i += 1;
-            }
-            match (bytes.get(i), script[i..].find(']')) {
-                (Some(b'['), Some(end)) => i += end + 1,
-                _ => break,
-            }
-        }
-        if bytes.get(i) != Some(&b'{') {
-            continue;
-        }
-        i += 1;
-        // White space and comments only, up to the closing brace.
-        loop {
-            while i < bytes.len() && bytes[i].is_ascii_whitespace() {
-                i += 1;
-            }
-            if script[i..].starts_with("<#") {
-                i = script[i..]
-                    .find("#>")
-                    .map_or(bytes.len(), |end| i + end + 2);
-            } else if bytes.get(i) == Some(&b'#') {
-                i = script[i..].find('\n').map_or(bytes.len(), |end| i + end);
-            } else {
-                break;
-            }
-        }
-        if bytes.get(i) == Some(&b'}') {
-            let start = script[..at].rfind('\n').map_or(0, |n| n + 1);
-            let end = script[at..].find('\n').map_or(script.len(), |n| at + n);
-            found.push(script[start..end].trim().to_owned());
-        }
-    }
-    found
-}
-
-/// The lint finds every form of an empty catch, and no catch that does something.
-#[test]
-fn the_empty_catch_lint_finds_every_form() {
-    let sample = "try { a } catch {}\n\
-                  try { b } catch { }\n\
-                  try { c } catch {\n    \n}\n\
-                  try { d } catch [System.IO.IOException], [System.Exception] { }\n\
-                  try { e } catch { # nothing to do\n}\n\
-                  try { f } catch {<# nothing #>}\n\
-                  try { g } catch { Add-Failure 'x' $null 'y' }\n\
-                  # every catch below records a failure\n\
-                  $catches = 1; try { h } catch{throw}\n";
-    assert_eq!(
-        empty_catches(sample),
-        [
-            "try { a } catch {}",
-            "try { b } catch { }",
-            "try { c } catch {",
-            "try { d } catch [System.IO.IOException], [System.Exception] { }",
-            "try { e } catch { # nothing to do",
-            "try { f } catch {<# nothing #>}",
-        ]
-    );
-}
-
-/// Every catch of the worker records a failure or refuses the capture, except the cleanup of its
-/// finally block: an empty catch appears only on the three cleanup lines.
-#[test]
-fn the_worker_swallows_no_error_outside_its_cleanup() {
-    assert_eq!(
-        empty_catches(WORKER_SCRIPT),
-        [
-            "if ($null -ne $workbook) { try { $workbook.Close($false) } catch { } }",
-            "try { $excel.Quit() } catch { }",
-            "try { [void][System.Runtime.InteropServices.Marshal]::FinalReleaseComObject($excel) } catch { }",
-        ]
-    );
-}
-
-/// The members `var.member = ...` assigns in `script`, as "var.member" (`var` without its `$`),
-/// for a plain or a dynamic member name; `==` is not an assignment.
-fn member_assignments(script: &str) -> Vec<String> {
-    let bytes = script.as_bytes();
-    let name = |at: usize| {
-        let end = script[at..]
-            .find(|c: char| !(c.is_ascii_alphanumeric() || c == '_' || c == '$'))
-            .map_or(script.len(), |n| at + n);
-        (end, &script[at..end])
-    };
-    let mut found = Vec::new();
-    for (at, _) in script.match_indices('$') {
-        let (dot, var) = name(at + 1);
-        if var.is_empty() || bytes.get(dot) != Some(&b'.') {
-            continue;
-        }
-        let (end, member) = name(dot + 1);
-        let mut i = end;
-        while i < bytes.len() && (bytes[i] == b' ' || bytes[i] == b'\t') {
-            i += 1;
-        }
-        if !member.is_empty() && bytes.get(i) == Some(&b'=') && bytes.get(i + 1) != Some(&b'=') {
-            found.push(format!("{var}.{member}"));
-        }
-    }
-    found
-}
-
-/// The worker changes no setting that persists beyond its Excel instance: the only members of
-/// Excel's Application it assigns are the session settings and the calculation settings, it
-/// assigns no AskToUpdateLinks, IgnoreRemoteRequests, Connect, Installed or FeatureInstall on any
-/// object and no member by a computed name, and it writes no registry value.
-#[test]
-fn the_worker_assigns_only_session_settings() {
-    let assigned = member_assignments(WORKER_SCRIPT);
-    let mut excel: Vec<&str> = assigned
-        .iter()
-        .filter_map(|a| a.strip_prefix("excel."))
-        .collect();
-    excel.sort_unstable();
-    // Calculation is assigned in two places: before a manual capture opens the workbook, and
-    // after any other opens it (dc-10y).
-    excel.dedup();
-    assert_eq!(
-        excel,
-        [
-            "Calculation",
-            "DisplayAlerts",
-            "EnableEvents",
-            "Interactive",
-            "Iteration",
-            "MaxChange",
-            "MaxIterations",
-            "ScreenUpdating",
-            "Visible",
-        ]
-    );
-    for forbidden in [
-        "AutomationSecurity",
-        "AskToUpdateLinks",
-        "IgnoreRemoteRequests",
-        "Connect",
-        "Installed",
-        "FeatureInstall",
-    ] {
-        let hits: Vec<&String> = assigned
-            .iter()
-            .filter(|a| a.ends_with(&format!(".{forbidden}")))
-            .collect();
-        assert!(hits.is_empty(), "{forbidden} is assigned: {hits:?}");
-    }
-    let computed: Vec<&String> = assigned.iter().filter(|a| a.contains(".$")).collect();
-    assert!(
-        computed.is_empty(),
-        "members assigned by a computed name: {computed:?}"
-    );
-    for writer in [
-        "Set-ItemProperty",
-        "New-ItemProperty",
-        "Remove-ItemProperty",
-        "reg add",
-        "reg.exe",
-    ] {
-        assert!(!WORKER_SCRIPT.contains(writer), "the worker uses {writer}");
-    }
-    // The check reads assignments as they are written.
-    assert_eq!(
-        member_assignments(
-            "$excel.AskToUpdateLinks = $false\n$a.Installed= $true\n$excel.$name = 1\nif ($x.Connect == 1) {}"
-        ),
-        ["excel.AskToUpdateLinks", "a.Installed", "excel.$name"]
-    );
-}
-
-/// The worker creates its Excel through `New-Object -ComObject` and through nothing else, so the
-/// main-flow tests' guard on New-Object stands between them and Excel.
-#[test]
-fn the_worker_creates_com_objects_only_through_new_object() {
-    assert_eq!(WORKER_SCRIPT.matches("-ComObject").count(), 1);
-    assert!(WORKER_SCRIPT.contains("$excel = New-Object -ComObject Excel.Application"));
-    for other in [
-        "GetTypeFromProgID",
-        "GetTypeFromCLSID",
-        "CreateInstance",
-        "GetActiveObject",
-        "BindToMoniker",
-        "CreateObject",
-        "Start-Process",
-        "Invoke-Item",
-    ] {
-        assert!(!WORKER_SCRIPT.contains(other), "the worker uses {other}");
-    }
 }
 
 // --- fixture provenance -------------------------------------------------------------------------

@@ -5,7 +5,8 @@
 # adapter's unit tests run Read-Package, Get-PackageRefusals and Get-AddInStates without Excel.
 #
 # It changes no setting that persists beyond its own Excel instance. It sets only the
-# Application's Visible, DisplayAlerts, ScreenUpdating, EnableEvents and Interactive,
+# Application's Visible, DisplayAlerts, ScreenUpdating, EnableEvents, Interactive and the requested
+# AutomationSecurity (restored afterwards),
 # which belong to the running instance, and the calculation settings
 # (Calculation, Iteration, MaxIterations, MaxChange), which Excel takes from the workbook it opens
 # and saves with the workbook it saves (the output package in the work directory). It writes no
@@ -28,7 +29,8 @@
 #   3. starts a new Excel instance through COM and prints its PID, from Application.Hwnd, on
 #      standard output before anything else touches it;
 #   4. sets the session settings above (DisplayAlerts, ScreenUpdating, EnableEvents and Interactive
-#      off), each read back, preserves and checks AutomationSecurity, and reads the state of
+#      off), each read back, applies the requested AutomationSecurity (preserving it by default),
+#      and reads the state of
 #      every add-in (AddIns2: IsOpen and Installed; COMAddIns: Connect; AddIns: Installed) and
 #      whether XLL functions are registered. A setting that does not read back as set, an add-in
 #      that is open in this instance, an add-in of AddIns2 whose state cannot be read and
