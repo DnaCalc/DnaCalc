@@ -91,3 +91,36 @@ but none fixes D39. No IRR change lands from these calibrations.
 Raw diagnostics and rejected candidates: R2 dnacalc-evidence/research/round55/
 20261112-fn2-ttest-0619/ (101 files, 197,186,509 bytes for the full batch;
 checksum copy and one-way check, zero differences). No IRR change landed.
+
+## Final publication graph, before retained-case calibration
+
+The initialisation sweep left every solver constant and final publication at
+st(st(1/v)-1). One untested ambiguity is only that final arithmetic: compare
+an unspilled PC64 reciprocal/subtraction, (1-v)/v with stored/unspilled numerator,
+plain-binary64 reciprocal staging, and multiplication by the stored reciprocal.
+Keep the identified current solver/NPV route fixed. Replay the retained 131
+inputs as calibration, with the existing publication as exact control. A weak
+fit rejects these identities; no extra iteration or biased rounding is inferred.
+
+The publication replay rejects the alternatives: current/native 86/131, stored
+reciprocal multiplication 15/131, unspilled/rational/ratio forms 9/131; none fixes
+either capture. Keep the existing publication.
+
+## Discounted-term graph, before retained-case calibration
+
+The power sweeps varied the power value but mostly retained flow/power. Isolate
+its arithmetic now: flow*(stored 1/power), a running reciprocal/product, and
+negative integer powers formed by inverting the reconstructed base before its
+existing binary products. That last form differs from powers of v itself because
+base=st(1/v), hence st(1/base) need not equal v. Compare it with staged binary
+powers of v as another control, preserving all solver/stop/publication constants.
+Replay retained cases first and require an independent frozen holdout before any
+product change. No extra iteration or empirically biased rounding is introduced.
+
+The discounted-term sweep is rejected: best 87/131 versus baseline 86/131,
+with neither capture fixed. Stored reciprocal multiplication scores 83, running
+reciprocal 86 and binary discount powers 85. No IRR change lands.
+
+Later evidence: R2 dnacalc-evidence/research/round56/20261112-fn2-tdensity-0657/
+(114 files, 178,812,671 bytes for the batch; checksum copy and one-way check,
+zero differences). No additional implementation change is claimed here.

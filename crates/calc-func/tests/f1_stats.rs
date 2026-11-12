@@ -16,6 +16,22 @@ fn data() -> CalcValue {
 
 use calc_func::value::CalcValue;
 
+/// Excel 20527, dc-bc1o: Stirling/deviance normalization and compensated LN
+/// preserve the captured PDF, zero density, large degrees and a leaf discriminator.
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn student_density_uses_stirling_normalization() {
+    for (x, df, expected) in [
+        (2.0, 6.0, 0x3fb0_64ab_dc68_a194),
+        (-2.0, 6.6, 0x3fb0_64ab_dc68_a194),
+        (0.0, 4.0, 0x3fd7_ffff_ffff_ffff),
+        (1.0, 1e10, 0x3fce_f8e5_8e2c_7081),
+        (-0.08891541647874097, 79.0, 0x3fd9_5997_2a5f_b850),
+    ] {
+        exact(call("T.DIST", vec![n(x), n(df), b(false)]), f64::from_bits(expected));
+    }
+}
+
 /// Excel 20527, dc-bc1o: T.TEST passes the rounded beta complement.
 /// Captured Sheet1!B70 and fresh paired/equal/unequal-variance controls.
 #[cfg_attr(not(target_arch = "wasm32"), test)]

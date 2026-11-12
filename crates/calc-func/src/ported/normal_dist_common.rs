@@ -4,7 +4,7 @@ pub const SQRT_2PI: f64 = 2.506_628_274_631_000_7;
 /// `RN(1/sqrt(2π))` — PHI multiplies by this reciprocal constant (the
 /// divide-by-`SQRT_2PI` staging is ruled out; live PHI(0) publishes exactly
 /// these bits).
-const INV_SQRT_2PI: f64 = f64::from_bits(0x3fd9884533d43651);
+pub(crate) const INV_SQRT_2PI: f64 = f64::from_bits(0x3fd9884533d43651);
 
 /// Worksheet `PHI` numerical graph observed on the reference Excel host.
 /// W111 retains a fresh 9,130-row exact numerical replay; surface overflow

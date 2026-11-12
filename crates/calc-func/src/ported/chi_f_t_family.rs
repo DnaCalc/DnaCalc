@@ -262,11 +262,33 @@ fn t_pdf(x: f64, deg_freedom: f64) -> Result<f64, WorksheetErrorCode> {
             -1.5,
         ));
     }
-    let numerator = gamma((v + 1.0) / 2.0);
-    let denominator = (v * std::f64::consts::PI).sqrt()
-        * gamma(v / 2.0)
-        * crt_pow(1.0 + x * x / v, (v + 1.0) / 2.0);
-    Ok(numerator / denominator)
+    use crate::ported::discrete_dist::{deviance, stirling_error};
+    use crate::ported::excel_numeric::{
+        excel_exp, excel_log, excel_sqrt_staged, excel_x87_add, excel_x87_div, excel_x87_mul,
+        excel_x87_sub,
+    };
+    // Subtract the defining Stirling expansions before exponentiating:
+    // log(C_v * sqrt(2*pi)) = s(a+1/2) - s(a) - D(a,a+1/2), a=v/2.
+    // The spatial factor is exp(-a*log1p(r))/sqrt(1+r), r=x*x/v.
+    // Excel 20527 controls select the fixed-factor quotient before the final
+    // multiply; the compensated public-LN graph improves the measured holdout
+    // by 401/521 with no losses (dc-bc1o). Remaining last bits are counted.
+    let a = v / 2.0;
+    let b = (v + 1.0) / 2.0;
+    let normalizer = excel_x87_sub(
+        excel_x87_sub(stirling_error(b), stirling_error(a)),
+        deviance(a, b),
+    );
+    let ratio = excel_x87_div(excel_x87_mul(x, x), v);
+    let base = excel_x87_add(1.0, ratio);
+    let dropped = excel_x87_sub(ratio, excel_x87_sub(base, 1.0));
+    let log_base = excel_x87_add(excel_log(base), excel_x87_div(dropped, base));
+    let exponent = excel_x87_sub(normalizer, excel_x87_mul(a, log_base));
+    let factor = excel_x87_div(
+        crate::ported::normal_dist_common::INV_SQRT_2PI,
+        excel_sqrt_staged(base),
+    );
+    Ok(excel_x87_mul(excel_exp(exponent), factor))
 }
 
 fn t_cdf(x: f64, deg_freedom: f64) -> Result<f64, WorksheetErrorCode> {

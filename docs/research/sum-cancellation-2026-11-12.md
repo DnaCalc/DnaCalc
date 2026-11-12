@@ -120,3 +120,26 @@ differences (the final 96-file local stage plus the earlier verified intermediat
 bank trace retained only in R2). Baseline, intermediate and final corpus archives,
 compressed bank traces, predictions, echoed answers, comparisons and ordered
 check output are retained there. No raw corpus output is committed.
+
+## Addition precision, predictions before new queries
+
+The cancellation controls identify placement and threshold but mostly do not
+separate ordinary binary64 addition from a PC64 operation stored to binary64.
+CORREL required the latter; SUM and AVERAGE must be measured independently.
+Construct 64 positive two-number sums just above/below a binary64 midpoint
+where RN53 differs from RN53(RN64). Positive sums avoid the cancellation rule,
+and AVERAGE's division by two is exact. Freeze both numerical predictions for
+scalar arguments, horizontal/vertical reference arrays and a numeric-zero tail
+before asking SUM, AVERAGE and AVERAGEA. Echoed operands must stay bit-exact.
+This is precision qualification, not an inferred change from CORREL.
+
+All 64 discriminants select PC64 addition for each scalar/row/column/zero-tail
+SUM call (ordinary 0/64), and for AVERAGE/AVERAGEA's exact-division-by-two cases
+(ordinary 0/64). The zero-tail means also select PC64 64/64. This confirms the
+existing Site::add/Site::divide route and the catalogue's dc6qki_arith evidence;
+no arithmetic change or duplicate fixture is needed. The cancellation change
+continues to use those existing sites.
+
+Later evidence: R2 dnacalc-evidence/research/round56/20261112-fn2-tdensity-0657/
+(114 files, 178,812,671 bytes for the batch; checksum copy and one-way check,
+zero differences). No additional implementation change is claimed here.

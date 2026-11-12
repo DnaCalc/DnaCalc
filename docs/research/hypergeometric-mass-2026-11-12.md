@@ -39,3 +39,25 @@ matches only 24/192. Its captured cumulative is still one ulp wrong as well.
 No hypergeometric arithmetic change lands. The failed shapes and all predictions
 are retained rather than rescued with constants. The wide near-mode gap stays
 within dc-bc1o's existing statistical root-cause batch.
+
+## Combine binomial log masses, before retained-case calibration
+
+The earlier public compositions rounded each of three binomial masses before
+taking their ratio. One remaining shape combines their existing raw exponents
+and normalizer terms before exponentiating: Ea+Eb-Ec and Na+Nb-Nc. Compare
+stored/running sums, individual versus symbolically grouped log normalizers,
+and the equivalent single square-root normalizer derived from their ratio.
+Keep the same sample/population/half probability orientations and compare
+independent q with 1-p. Reuse the existing measured primitives with unchanged
+coefficients; interior cases only for this calibration, with the current full
+mass as control. A weak fit rejects the log-mass shape; no new target answers
+or coefficient tuning are claimed from retained inputs.
+
+The native control reproduces all 192 earlier product predictions. On the 172
+interior cases, the combined-log alternatives are worse: best 8/172. One grouped
+form fixes the captured mass but only matches 7/172, so it is rejected. No new
+hypergeometric arithmetic or coefficients land from this calibration.
+
+Later evidence: R2 dnacalc-evidence/research/round56/20261112-fn2-tdensity-0657/
+(114 files, 178,812,671 bytes for the batch; checksum copy and one-way check,
+zero differences). No additional implementation change is claimed here.

@@ -82,7 +82,7 @@ pub(crate) fn stirling_error(n: f64) -> f64 {
 /// Loader's deviance `x ln(x/np) + np - x`. Measured on POISSON.DIST: the series range is
 /// `|x - np| < 0.2 (x + np)`, that is `x/np` inside `(2/3, 3/2)`, where Loader has 0.1. Outside it
 /// the quotient, its logarithm, the product and `np - x` are each stored and then summed.
-fn deviance(x: f64, np: f64) -> f64 {
+pub(crate) fn deviance(x: f64, np: f64) -> f64 {
     if excel_deviance_in_series(x, np) {
         return excel_deviance_series(x, np);
     }

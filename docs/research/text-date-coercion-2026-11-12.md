@@ -52,3 +52,16 @@ DATEVALUE and VALUE agree bit for bit between cell and literal transports on
 all eight discriminating strings, 32 calls. Raw: ~/codex-runs/fn2/date-literal-control.json.
 Thus literal transport does not supply the missing US measurement. No date
 parser change lands from these year-first answers; dc-3k5n remains open.
+
+## Existing evidence audit
+
+The sibling CalcFunc-Evidence run w111-locale-profile-20260929 (Excel 20430)
+also records year-first numeric dates: 2026/9/2 is 46267, 26/9/29 is 46294,
+and 1/2/2026 is #VALUE!. Its 32 DATEVALUE controls therefore do not supply the
+missing MDY observations. Source hashes and selected inputs/outcomes are in
+date-evidence-locale-audit.json. The service client has no locale-selection
+parameter; no registry or regional setting was changed. The US bead stays open.
+
+Later evidence: R2 dnacalc-evidence/research/round56/20261112-fn2-tdensity-0657/
+(114 files, 178,812,671 bytes for the batch; checksum copy and one-way check,
+zero differences). No additional implementation change is claimed here.

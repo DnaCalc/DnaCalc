@@ -131,3 +131,26 @@ No fresh holdout or inverse implementation change is claimed from this sweep.
 Later precision-calibration evidence: R2 dnacalc-evidence/research/round55/
 20261112-fn2-ttest-0619/ (101 files, 197,186,509 bytes for the batch; checksum
 copy and one-way check, zero differences). No normal inverse change landed.
+
+## AS241-seeded refinement, before queries
+
+The failed Newton batch started with Acklam, not an already last-bit AS241
+point. Test that remaining shape ambiguity with the same published AS241
+coefficients: ordinary and fully stored-PC64 central initial values, then one
+Newton/Halley step from public CDF/ERF/ERFC and PHI. Compare divide-by-sqrt(2)
+and multiply-by-inverse-sqrt(2) arguments and stored versus ordinary correction
+arithmetic. Include the captured probability as calibration plus 256 new central
+and 64 new upper-seam probabilities. Freeze initials before primitive calls and
+all correction predictions before targets. Count zero-residual cases explicitly:
+if CDF(x0)=p but Excel's inverse differs, a rounded-CDF Newton cannot fix them.
+No coefficient or threshold change is inferred from a weak fit.
+
+AS241-seeded refinement is rejected: best 57/256 new central and 30/64 new
+upper-seam answers, and no candidate fixes the captured probability. On 139/256
+central cases the public CDF residual is exactly zero while the initial inverse
+still differs from Excel, ruling out that rounded-CDF correction for those rows.
+No inverse changes or coefficient adjustments land.
+
+Later evidence: R2 dnacalc-evidence/research/round56/20261112-fn2-tdensity-0657/
+(114 files, 178,812,671 bytes for the batch; checksum copy and one-way check,
+zero differences). No additional implementation change is claimed here.
