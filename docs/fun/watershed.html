@@ -188,7 +188,7 @@ footer { font: 400 12px var(--mono); color: var(--faint) }
     <div><h3>The RTD clock, as a spec</h3>
       <ul>
         <li><b>Topic</b> <code>=RTD("DnaCalc.Clock",, model, "tick")</code> returns the tick number; every update is an event that recalculates the tick's dependents.</li>
-        <li><b>Control</b> by cells the server reads: <code>Clock.Run</code> (TRUE/FALSE), <code>Clock.Rate</code> (ticks per second), <code>Clock.Step</code> (one tick when changed), <code>Clock.ResetWhen</code> (a tick number or a condition cell such as <code>Finance.Debt&lt;=0</code>).</li>
+        <li><b>Control</b> through the formula only: <code>=RTD("DnaCalc.Clock",, "Dam", "tick", Clock.Rate, Clock.Run)</code>. Changing <code>Clock.Rate</code> or <code>Clock.Run</code> changes the topic, so the server never reads the workbook. <b>Reset</b> is a formula too, <code>Clock.Reset = OR(Clock.Tick = Clock.ResetAt, Finance.Debt &lt;= 0)</code>, and every state cell starts with <code>IF(Clock.Reset, initial, …)</code>. The model is evaluated entirely by the calculation engine; calculation events only drive the picture.</li>
         <li><b>Second topic</b> <code>=RTD("DnaCalc.Market",, "power.price", seed)</code>: a seeded random walk at its own rate, so the run is repeatable and differential tests against Excel compare tick by tick.</li>
         <li><b>Engine test</b> (bead dc-hul4): the same event sequence must give the same cells in Excel and in DNA Calc, including resets, throttling and recalculation order under RTD.</li>
       </ul></div>
@@ -197,7 +197,7 @@ footer { font: 400 12px var(--mono); color: var(--faint) }
       <ul>
         <li><b>Boxes and wires:</b> the workbook's defined names and their formulas; precedents as Excel gives them (<code>Range.DirectPrecedents</code>, <code>Range.Precedents</code>), and in DNA Calc the matching host calls that already exist (dc-gf0).</li>
         <li><b>The firing order shown:</b> worked out by the skin from the dependency graph (a topological order), not reported by the engine.</li>
-        <li><b>What recalculated, and why:</b> values compared before and after each calculation event (<code>Application.AfterCalculate</code>, <code>Worksheet_Calculate</code>), and the RTD topic or edit that the view itself saw arrive. No cause tracking inside the engine; where several things land in one recalculation, the view says so.</li>
+        <li><b>What recalculated, and why (for the picture only):</b> values compared before and after each calculation event (<code>Application.AfterCalculate</code>, <code>Worksheet_Calculate</code>), and the RTD topic or edit that the view itself saw arrive. No cause tracking inside the engine; where several things land in one recalculation, the view says so.</li>
         <li><b>Iteration:</b> the director shows Excel's settings (maximum iterations, maximum change) and the values before and after, not the engine's internal iteration count.</li>
         <li><b>Layout:</b> a part stored with the workbook that Excel keeps and ignores, as in the linked-boxes note (dc-lvlj).</li>
       </ul></div>
