@@ -495,8 +495,9 @@ entry returns a named refusal when it has no owner able to retain a wait.
 ## 4. Reads and freshness
 
 `RequirementState { value_version, required, satisfied }`: locally clean iff `satisfied == required`; every
-invalidation advances `required` even if already dirty; a result satisfies only the version it validated. Today a node
-is pending or not (`calc-engine/src/state.rs:656-680`), so a second invalidation during a run cannot be told apart.
+invalidation advances `required` even if already dirty; a result satisfies only the version it validated. A second
+invalidation during a run is told apart by the versions (`calc-engine/src/contract.rs:187-191`, `:586-636`: `satisfy`
+refuses a stamp certified for another `required`).
 
 | Read | Value selected | Validation, invalidation |
 |---|---|---|

@@ -7744,3 +7744,118 @@ fn contract_p07_intervening_same_revision_publication_revokes_the_engine_return(
     assert!(matches!(state.result(b), None));
     assert_eq!(l1_value(&state, d), CalcValue::number(2.0));
 }
+
+/// dc-1nbp.8 (VOLATILITY.md F2, measured rows P1/P5): a formula's volatility after an evaluation
+/// is the last user-function request when one ran, else its own token; a defined name's body
+/// gives the formula no token, and running a name whose body has one is an event that sets true.
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn volatility_follows_the_last_request_else_the_token_and_names_are_events() {
+    #[derive(Debug)]
+    struct Request(bool);
+    impl calc_fml::UserFunction for Request {
+        fn call(&self, _: &[CalcValue]) -> Result<CalcValue, String> {
+            Ok(CalcValue::number(1.0))
+        }
+        fn call_with_context(
+            &self,
+            _: &[CalcValue],
+            context: &mut dyn calc_fml::UserFunctionContext,
+        ) -> Result<CalcValue, String> {
+            context.set_volatile(self.0);
+            self.call(&[])
+        }
+    }
+    let mut ids: IdAllocator<SheetId> = IdAllocator::new();
+    let s = ids.issue().unwrap();
+    // (formula, volatile after a calculation)
+    let rows = [
+        ("RAND()+VFalse()", false),
+        ("VFalse()+RAND()", false),
+        ("IF(TRUE,RAND(),VFalse())", true),
+        ("NmRand", true),
+        ("NmRand*0", true),
+        ("IF(TRUE,1,NmRand)", false),
+        ("IF(FALSE,NmRand,1)", false),
+        ("NmRand+VFalse()", false),
+        ("VFalse()+NmRand", true),
+        ("LET(f,NmLam,1)", true),
+        ("VTrue()+VFalse()", false),
+        ("VFalse()+VTrue()", true),
+        ("_xlfn.SHEET()", true),
+        ("_xlfn.SHEETS()", true),
+        ("_xlfn.FORMULATEXT(B1)", true),
+        ("RAND()", true),
+        ("1+1", false),
+    ];
+    let cells = rows
+        .iter()
+        .zip(1u32..)
+        .map(|((text, _), row)| (key(s, row, 1), formula(text)))
+        .collect();
+    let names = vec![
+        DefinedName {
+            name: "NmRand".into(),
+            scope: NameScope::Workbook,
+            formula: "=RAND()".into(),
+            hidden: false,
+            comment: None,
+            function: false,
+            vb_procedure: false,
+            xlm: false,
+        },
+        DefinedName {
+            name: "NmLam".into(),
+            scope: NameScope::Workbook,
+            formula: "=LAMBDA(x,RAND())".into(),
+            hidden: false,
+            comment: None,
+            function: false,
+            vb_procedure: false,
+            xlm: false,
+        },
+    ];
+    let root = l3_root(
+        &[(s, "Vol")],
+        cells,
+        Definitions::default()
+            .with_names(names)
+            .with_macro_enabled(true),
+    );
+    let mut state = EngineState::new(&root);
+    let mut functions = calc_fml::CallableTable::new();
+    functions
+        .register("VFalse", std::rc::Rc::new(Request(false)))
+        .unwrap();
+    functions
+        .register("VTrue", std::rc::Rc::new(Request(true)))
+        .unwrap();
+    state.set_callable_bindings(&root, functions.bindings());
+    let mut work = begin_recalc(&mut state, &root, NumericMode::Fast)
+        .unwrap()
+        .with_functions(&functions);
+    assert_eq!(
+        step(
+            &state,
+            &root,
+            &mut work,
+            WorkBudget::UNLIMITED,
+            &mut Unobserved
+        ),
+        RecalcProgress::Complete
+    );
+    finish(&mut state, &root, work).unwrap();
+    for ((text, volatile), row) in rows.iter().zip(1u32..) {
+        let at = key(s, row, 1);
+        assert!(
+            matches!(state.result(at), Some(FormulaResult::Calculated { .. })),
+            "{text}: {:?}",
+            state.result(at)
+        );
+        assert_eq!(
+            state.is_volatile(state.node_at(at).unwrap()),
+            *volatile,
+            "{text}"
+        );
+    }
+}

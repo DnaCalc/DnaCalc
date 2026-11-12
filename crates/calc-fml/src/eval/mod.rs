@@ -90,6 +90,8 @@ pub struct CompiledPlan {
     form: FormulaForm,
     name_bindings: Box<[crate::reference::NameBindingProof]>,
     callable_bindings: Box<[crate::CallableBindingProof]>,
+    /// The blocks `[first, end)` of each defined name's body, a nested name's inside its user's.
+    name_ranges: Box<[(usize, usize)]>,
 }
 
 pub use calc_syntax::FormulaForm;
@@ -357,12 +359,54 @@ impl CompiledPlan {
             })
     }
 
-    /// Whether the plan calls a function Excel recalculates on every recalculation: RAND,
-    /// RANDBETWEEN, RANDARRAY, NOW, TODAY, OFFSET, INDIRECT, CELL and INFO (Microsoft's
-    /// "Excel Recalculation" page lists these as volatile). A call a lazy function may never ask
-    /// for counts too, as it does in Excel.
+    /// The innermost defined-name body that owns `block`, as its first block; `None` for the
+    /// formula's own blocks.
+    fn name_owner(&self, block: usize) -> Option<usize> {
+        self.name_ranges
+            .iter()
+            .filter(|(first, end)| (*first..*end).contains(&block))
+            .map(|(first, _)| *first)
+            .max()
+    }
+
+    fn volatile_calls_where(&self, keep: impl Fn(Option<usize>) -> bool) -> bool {
+        self.blocks.iter().enumerate().any(|(index, block)| {
+            keep(self.name_owner(index))
+                && block.iter().any(|instruction| match instruction {
+                    Instruction::Call { target, .. } | Instruction::LazyCall { target, .. } => {
+                        target.0.traits().volatile
+                    }
+                    _ => false,
+                })
+        })
+    }
+
+    /// Whether the formula itself carries Excel's volatile token: it calls RAND, RANDBETWEEN,
+    /// RANDARRAY, NOW, TODAY, OFFSET, INDIRECT, CELL, INFO, SHEET, SHEETS or FORMULATEXT
+    /// (VOLATILITY.md P1). A call a lazy function may never ask for counts too, as it does in
+    /// Excel. A defined name's body gives the formula no token: running the name is an event
+    /// ([`CompiledPlan::name_body_volatile`]).
     pub fn volatile(&self) -> bool {
-        self.calls().any(|target| target.traits().volatile)
+        self.volatile_calls_where(|owner| owner.is_none())
+    }
+
+    /// Whether the plan may read the clock or the random stream anywhere, a defined name's
+    /// body included.
+    pub fn reads_volatile_inputs(&self) -> bool {
+        self.volatile_calls_where(|_| true)
+    }
+
+    /// Whether the plan uses a defined name.
+    pub fn has_names(&self) -> bool {
+        self.name_ranges
+            .iter()
+            .any(|_| true)
+    }
+
+    /// Whether the body of the name that starts at block `body` has the volatile token in its
+    /// own blocks (a name it uses is another event).
+    pub fn name_body_volatile(&self, body: usize) -> bool {
+        self.volatile_calls_where(|owner| owner == Some(body))
     }
 
     /// User-function names the plan may call, including untaken lazy branches. A user call
@@ -418,6 +462,15 @@ impl UdfVolatility {
     /// Whether the evaluation leaves the formula volatile: only a last request of `true` does.
     pub const fn requests_volatile(self) -> bool {
         matches!(self, UdfVolatility::Set(true))
+    }
+
+    /// The formula's volatility after the evaluation (VOLATILITY.md F2): the last request when
+    /// one ran, otherwise the formula's own token `token`.
+    pub const fn decide(self, token: bool) -> bool {
+        match self {
+            UdfVolatility::Set(request) => request,
+            UdfVolatility::NoRequest => token,
+        }
     }
 }
 
