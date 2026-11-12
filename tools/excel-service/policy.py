@@ -46,7 +46,26 @@ def catalogue_names(root):
                                                     "VALUETOTEXT", "ASC", "DBCS"}
     if "ERF.PRECISE" not in names or "SUM" not in names:
         raise ValueError("Catalogue declaration export changed; regenerate admission-families.tsv")
-    return (names | ETS) - DENY
+    return AnyFunction(names | ETS)
+
+
+# Owner 2026-11-12: this is a test service on our own Excel, so every function is admitted, with any
+# argument types, arrays and spills. Only the remote service functions (deferred in CalcFunc) are skipped.
+REMOTE_SERVICE = {"WEBSERVICE", "STOCKHISTORY", "IMAGE", "TRANSLATE", "DETECTLANGUAGE", "PY", "COPILOT"}
+FUNCTION_NAME = re.compile(r"(?:_[A-Z]+\.)?[A-Z][A-Z0-9_]*(?:\.[A-Z0-9_]+)*")
+
+
+class AnyFunction:
+    """Every well-formed function name except the remote service functions; iterates the catalogue families."""
+
+    def __init__(self, listed):
+        self.listed = set(listed)
+
+    def __contains__(self, name):
+        return isinstance(name, str) and name not in REMOTE_SERVICE and FUNCTION_NAME.fullmatch(name) is not None
+
+    def __iter__(self):
+        return iter(self.listed)
 
 
 def decode(raw):
@@ -76,7 +95,7 @@ def validate(request, names, request_id):
         raise ValueError("request expired or invalid lifetime (maximum 900 seconds)")
     name = request["function"]
     if not isinstance(name, str) or name not in names:
-        raise ValueError("function is outside the service's safe catalogue subset")
+        raise ValueError("function is not admitted (remote service functions are skipped)")
     if name in REGRESSION:
         index = request.get("result_index")
         if (not isinstance(index, list) or len(index) != 2
@@ -96,7 +115,7 @@ def validate(request, names, request_id):
         for arg in row:
             if isinstance(arg, dict) and arg.get("type") == "array":
                 values = arg.get("values")
-                if (name not in NUMERIC_ARRAYS or set(arg) != {"type", "values"}
+                if (set(arg) != {"type", "values"}
                         or not isinstance(values, list) or not 1 <= len(values) <= 32
                         or any(not isinstance(r, list) for r in values)
                         or not 1 <= len(values[0]) <= 32
@@ -122,8 +141,8 @@ def validate(request, names, request_id):
             elif kind == "text":
                 fields.add("value")
                 value = arg.get("value")
-                if not isinstance(value, str) or len(value) > 1024 or re.search(r'[\\/:\[\]!|\x00-\x1f]', value):
-                    raise ValueError("text contains a path, reference, URL or control character")
+                if not isinstance(value, str) or len(value) > 1024 or "\x00" in value:
+                    raise ValueError("text must be at most 1024 characters without NUL")
             elif kind == "boolean":
                 fields.add("value")
                 if type(arg.get("value")) is not bool:
@@ -151,7 +170,7 @@ MAX_SPILL_CALLS = 1000
 SPILL_FUNCTIONS = {"TEXTSPLIT", "MINVERSE", "MMULT", "MUNIT", "MODE.MULT", "FREQUENCY", "TREND", "GROWTH",
                    "TRANSPOSE", "SEQUENCE", "SORT", "UNIQUE"}
 TOKENS = re.compile(r"n|s|S|b|B|e|z|a[0-9]+x[0-9]+")
-BAD_TEXT = re.compile(r'[\\/:\[\]!|\x00-\x1f]')
+BAD_TEXT = re.compile(r'\x00')
 
 
 class Admission:
@@ -168,10 +187,10 @@ class Admission:
         name = group["f"]
         spill = bool(group.get("spill"))
         if spill:
-            if name not in SPILL_FUNCTIONS:
+            if name not in self.names:
                 raise ValueError("function is not admitted as an array-returning question")
         elif not isinstance(name, str) or name not in self.names:
-            raise ValueError("function is outside the service's safe catalogue subset")
+            raise ValueError("function is not admitted (remote service functions are skipped)")
         n = group["n"]
         limit = MAX_SPILL_CALLS if spill else MAX_GROUP_CALLS
         if type(n) is not int or not 1 <= n <= limit:
@@ -192,7 +211,7 @@ class Admission:
                 raise ValueError("unsupported argument type")
             if token[0] == "a":
                 r, c = (int(x) for x in token[1:].split("x"))
-                if (name not in NUMERIC_ARRAYS and not spill) or not (1 <= r <= 32 and 1 <= c <= 32 and r * c <= 128):
+                if not (1 <= r <= 32 and 1 <= c <= 32 and r * c <= 128):
                     raise ValueError("expected a bounded rectangular numeric array")
                 widths.append(r * c)
             else:
@@ -212,7 +231,7 @@ class Admission:
                 elif token in ("s", "S"):
                     for v in column:
                         if not isinstance(v, str) or len(v) > 1024 or BAD_TEXT.search(v):
-                            raise ValueError("text contains a path, reference, URL or control character")
+                            raise ValueError("text must be at most 1024 characters without NUL")
                 elif token in ("b", "B"):
                     if any(type(v) is not bool for v in column):
                         raise ValueError("boolean must be true or false")

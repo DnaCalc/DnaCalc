@@ -31,13 +31,20 @@ class ProtocolTests(unittest.TestCase):
         value.update(changes)
         return value
 
-    def test_admission_rejects_executable_and_external_inputs(self):
-        for name in ("CALL", "REGISTER", "RTD", "DDE", "WEBSERVICE", "INFO", "CELL",
-                     "INDIRECT", "OFFSET", "NOW", "TODAY", "RAND", "SUM(1)", "X!SUM", "_xlfn.SUM"):
+    def test_admission_admits_every_function_but_remote_services(self):
+        # Owner 2026-11-12: every function is admitted for tests on our own Excel, with any text;
+        # only the remote service functions (deferred in CalcFunc) are skipped.
+        for name in ("CALL", "REGISTER", "RTD", "DDE", "INFO", "CELL", "INDIRECT", "OFFSET", "NOW", "TODAY", "RAND",
+                     "SUMIF", "XLOOKUP", "FILTER", "REGEXTEST", "IMPORTCSV"):
+            with self.subTest(name=name):
+                validate(self.request(function=name), self.names, "a" * 32)
+        for arg in (text("C:\\secret.xlsx"), text("https://example.com"), text("[book]A1")):
+            with self.subTest(arg=arg):
+                validate(self.request(rows=[[arg]]), self.names, "a" * 32)
+        for name in ("WEBSERVICE", "STOCKHISTORY", "IMAGE", "PY", "SUM(1)", "X!SUM", "_xlfn.SUM"):
             with self.subTest(name=name), self.assertRaises(ValueError):
                 validate(self.request(function=name), self.names, "a" * 32)
-        for arg in (text("C:\\secret.xlsx"), text("https://example.com"), text("[book]A1"),
-                    {"type": "cell", "address": "A1"}, {"type": "formula", "value": "=1"},
+        for arg in ({"type": "cell", "address": "A1"}, {"type": "formula", "value": "=1"},
                     number("7ff0000000000000"), number("7ff8000000000000"),
                     {**number(1.0), "mode": "literal"}, {**number(1.0), "formula": "=CALL()"}):
             with self.subTest(arg=arg), self.assertRaises(ValueError):
@@ -56,23 +63,20 @@ class ProtocolTests(unittest.TestCase):
                 request = self.request(function=name, rows=[[number(1234.5)]])
                 self.assertIs(validate(request, self.names, "a" * 32), request)
         for name in ("TEXTSPLIT", "REGEXEXTRACT", "HYPERLINK", "ENCODEURL"):
-            with self.subTest(name=name), self.assertRaises(ValueError):
+            with self.subTest(name=name):
                 validate(self.request(function=name), self.names, "a" * 32)
         request = self.request(function="FIXED", rows=[[text("C:\\secret.xlsx")]])
-        with self.assertRaises(ValueError):
-            validate(request, self.names, "a" * 32)
+        self.assertIs(validate(request, self.names, "a" * 32), request)
 
     def test_base_rounding_catalogue_entries_are_admitted(self):
         expected = {"ABS", "SIGN", "INT", "TRUNC", "ROUND", "ROUNDUP", "ROUNDDOWN",
                     "MROUND", "CEILING", "FLOOR", "MOD", "QUOTIENT", "EVEN", "ODD",
                     "ECMA.CEILING"}
-        self.assertTrue(expected <= self.names)
+        self.assertTrue(all(name in self.names for name in expected))
         request = self.request(function="ROUNDUP",
                                rows=[[number("0010000000000000"), number(-309.0)]])
         self.assertIs(validate(request, self.names, "a" * 32), request)
-        with self.assertRaises(ValueError):
-            validate(self.request(function="ROUNDUP", rows=[[text("[book]A1"), number(2.0)]]),
-                     self.names, "a" * 32)
+        validate(self.request(function="ROUNDUP", rows=[[text("[book]A1"), number(2.0)]]), self.names, "a" * 32)
 
     def test_regression_selects_one_cell_and_audits_numeric_array_operands(self):
         a = number_array([[1., 2.], [3., 4.]])
@@ -94,8 +98,7 @@ class ProtocolTests(unittest.TestCase):
                         {"rows": [[number_array([[1.]*32]*5)]]}):
             with self.subTest(changes=changes), self.assertRaises(ValueError):
                 validate({**request, **changes}, self.names, "a" * 32)
-        with self.assertRaises(ValueError):
-            validate(self.request(rows=[[a]]), self.names, "a" * 32)
+        validate(self.request(rows=[[a]]), self.names, "a" * 32)  # numeric arrays are admitted for every function
 
     def test_ets_questions_accept_numeric_arrays_without_result_selection(self):
         a = number_array([[1.], [2.], [3.], [4.]])
@@ -111,8 +114,7 @@ class ProtocolTests(unittest.TestCase):
             with self.assertRaises(ValueError):
                 validate({**request, "rows": [[{"type": "array", "values": [[text("=CALL()")]]}]]},
                          self.names, "a" * 32)
-        with self.assertRaises(ValueError):
-            validate(self.request(function="SUM", rows=[[a]]), self.names, "a" * 32)
+        validate(self.request(function="SUM", rows=[[a]]), self.names, "a" * 32)  # numeric arrays for every function
 
     def test_queue_and_adaptive_helpers_retain_exact_inputs(self):
         with tempfile.TemporaryDirectory() as directory:
