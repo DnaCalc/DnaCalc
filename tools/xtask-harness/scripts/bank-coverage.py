@@ -4,7 +4,7 @@
 Outputs uncompressed answer files and a capture log to an empty run directory. Each row
 retains the input read back by Excel; changed inputs and unread answers are excluded.
 """
-import argparse, concurrent.futures, csv, hashlib, importlib.util, json, math, pathlib, random, sys, threading
+import argparse, concurrent.futures, csv, hashlib, importlib.util, json, math, pathlib, random, shutil, sys, threading
 ROOT = pathlib.Path(__file__).resolve().parents[3]
 sys.path.insert(0, str(ROOT / 'tools/excel-service'))
 from client import Client, number, text, boolean, blank, error, number_array, cell_range, cell_array
@@ -249,9 +249,11 @@ def main():
         selected.append(e)
     c=Client(transport='socket',timeout=900)
     service_down = threading.Event()
+    disk_low = threading.Event()
     def capture(e):
         name=e[0]
         if service_down.is_set(): return name, 'service unavailable; not asked'
+        if disk_low.is_set(): return name, 'disk reserve reached; not asked'
         path=o.out / ('answers-' + name.lower() + '-' + o.stage + '.json')
         if name in OBSERVATIONS_ONLY: return name, 'needs volatile observation/property format'
         if name in CALLABLES: return name, 'needs callable argument protocol'
@@ -273,6 +275,10 @@ def main():
                 prior_env = previous['capture_provenance']['env_id'] if previous else None
                 consecutive_failures = 0
                 for start in range(0, len(pending), batch):
+                    if shutil.disk_usage(o.out).free < 11 * 1024**3:
+                        disk_low.set()
+                        rejected['not asked: disk reserve'] = len(pending) - start
+                        break
                     try:
                         part=ask_checked(c, name, [row for _,row in pending[start:start+batch]], **kw)
                         if (prior_env is not None and part.get('env_id') != prior_env) or (reply is not None and part.get('env_id') != reply.get('env_id')):
