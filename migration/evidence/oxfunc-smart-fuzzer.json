@@ -17,6 +17,15 @@
     ],
     "backup": "this repository on GitHub is the one backup copy: the owner ruled on 2026-10-18 that a copy on GitHub is enough and that the captures can be recreated from Excel"
   },
+  "witness_readings_2026_11_12": {
+    "evidence_repository_commit": "d53a1faaeba93286d70454231a74555f992bf38d",
+    "path_prefix": "readings/excel-20527/bank2-answers-",
+    "files": 511,
+    "accepted_observations": 504563,
+    "generator": "tools/xtask-harness/scripts/bank-coverage.py",
+    "seed": "bank-coverage-20261112",
+    "note": "Additional Excel service readings; the historical archive manifest and its pin above remain unchanged. Rows are deduplicated by the full-bank judge."
+  },
   "manifest": {
     "path": "manifest.tsv",
     "columns": [

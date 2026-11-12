@@ -81,7 +81,7 @@ use calc_verdict::{
 use serde_json::Value;
 use std::collections::{BTreeMap, BTreeSet};
 use std::fs;
-use std::io::{BufRead, BufReader, BufWriter, Write};
+use std::io::{BufRead, BufReader, BufWriter, Read, Write};
 use std::panic::{AssertUnwindSafe, catch_unwind};
 use std::path::{Path, PathBuf};
 use std::process::{Command, ExitCode};
@@ -1422,6 +1422,95 @@ const ROW_SECONDS: u64 = 20;
 const SLOW_MILLIS: u64 = 50;
 const SLOW: &str = "slow:";
 
+// These functions have bank inputs that can run indefinitely. A child runs the same
+// witness invocation and can be stopped on timeout without leaving a CPU-bound thread.
+fn isolated_calculation(
+    function: &str,
+    args: &[Value],
+    index: Option<(usize, usize)>,
+    context: Option<&calc_verdict::WitnessInvocation>,
+    apply: bool,
+) -> String {
+    use std::process::Stdio;
+    let result = (|| -> Result<String, String> {
+        let payload = serde_json::json!({
+            "function": function, "args": args, "index": index,
+            "context": context.map(|c| c.to_json()), "apply": apply,
+        });
+        let mut child = Command::new(std::env::current_exe().map_err(|e| e.to_string())?)
+            .args(["witness", "__row_worker"])
+            .stdin(Stdio::piped())
+            .stdout(Stdio::piped())
+            .stderr(Stdio::null())
+            .spawn()
+            .map_err(|e| e.to_string())?;
+        let input = child.stdin.take().ok_or("missing worker stdin")?;
+        if let Err(error) = serde_json::to_writer(input, &payload) {
+            let _ = child.kill();
+            let _ = child.wait();
+            return Err(error.to_string());
+        }
+        let started = std::time::Instant::now();
+        loop {
+            let state = match child.try_wait() {
+                Ok(state) => state,
+                Err(error) => {
+                    let _ = child.kill();
+                    let _ = child.wait();
+                    return Err(error.to_string());
+                }
+            };
+            match state {
+                Some(status) if status.success() => {
+                    let mut output = String::new();
+                    child
+                        .stdout
+                        .take()
+                        .ok_or("missing worker stdout")?
+                        .read_to_string(&mut output)
+                        .map_err(|e| e.to_string())?;
+                    return Ok(output);
+                }
+                Some(_) => return Err("worker exited unsuccessfully".into()),
+                None if started.elapsed() >= std::time::Duration::from_secs(ROW_SECONDS) => {
+                    let _ = child.kill();
+                    let _ = child.wait();
+                    return Ok("fault:Timeout".into());
+                }
+                None => std::thread::sleep(std::time::Duration::from_millis(2)),
+            }
+        }
+    })();
+    result.unwrap_or_else(|_| "fault:WitnessWorker".into())
+}
+
+fn row_worker() -> Result<(), String> {
+    let payload: Value = serde_json::from_reader(std::io::stdin()).map_err(|e| e.to_string())?;
+    let function = payload["function"].as_str().ok_or("missing function")?;
+    let args = payload["args"].as_array().ok_or("missing args")?;
+    let index = payload["index"]
+        .as_array()
+        .and_then(|v| match v.as_slice() {
+            [r, c] => Some((r.as_u64()? as usize, c.as_u64()? as usize)),
+            _ => None,
+        });
+    let context = payload
+        .get("context")
+        .filter(|v| !v.is_null())
+        .map(|v| calc_verdict::WitnessInvocation::decode(v, "context"))
+        .transpose()?;
+    let actual = calculate_with_context(
+        function,
+        args,
+        index,
+        context.as_ref(),
+        payload["apply"] == true,
+    );
+    std::io::stdout()
+        .write_all(actual.as_bytes())
+        .map_err(|e| e.to_string())
+}
+
 /// [`calculate`] for every job, on a worker thread: a row that gives no result within
 /// [`ROW_SECONDS`] is `fault:Timeout`, its thread is left behind, and the rows after it go on in a
 /// new thread (calc-func's IRR calculates without end on some inputs).
@@ -1434,6 +1523,21 @@ fn calculate_all(
     )],
     apply_context: bool,
 ) -> Vec<String> {
+    if matches!(function, "MULTINOMIAL" | "IRR") {
+        return jobs
+            .iter()
+            .map(|(args, index, context)| {
+                let started = std::time::Instant::now();
+                let result =
+                    isolated_calculation(function, args, *index, context.as_deref(), apply_context);
+                if started.elapsed() > std::time::Duration::from_millis(SLOW_MILLIS) {
+                    format!("{SLOW}{result}")
+                } else {
+                    result
+                }
+            })
+            .collect();
+    }
     use std::sync::mpsc::{RecvTimeoutError, channel};
     let mut out = Vec::with_capacity(jobs.len());
     while out.len() < jobs.len() {
@@ -2537,6 +2641,15 @@ fn compare_with_ledger(checkout: &Path, root: &Path, statuses: &[Status]) -> Res
 // ---------------------------------------------------------------------------------------------
 
 pub fn run(raw: &[String]) -> ExitCode {
+    if raw == ["__row_worker"] {
+        return match row_worker() {
+            Ok(()) => ExitCode::SUCCESS,
+            Err(e) => {
+                eprintln!("witness row worker: {e}");
+                ExitCode::FAILURE
+            }
+        };
+    }
     let request = match parse_args(raw) {
         Ok(r) => r,
         Err(e) => {

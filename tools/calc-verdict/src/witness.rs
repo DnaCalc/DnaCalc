@@ -4,7 +4,8 @@
 //! A witness row is OxFunc's WitnessSet row, the shape `migration/witnesses/` already uses:
 //! `{"id", "args", "expected_bits"}`. An argument is `"0x<16 hex digits>"` (binary64 bits), a JSON
 //! boolean (a logical), any other JSON string (text), or a list of such scalars, or a list of
-//! lists (an array, row by row; a flat list is one row). A result is `"0x<16 hex digits>"`,
+//! lists (an array, row by row; a flat list is one row). JSON `null` denotes a blank cell and
+//! `{"error":"Num"}` denotes an error value, using the same variant names as results. A result is `"0x<16 hex digits>"`,
 //! `"error:<Variant>"` (`error:Num`, `error:Div0`, ...), `"logical:True"`/`"logical:False"` or
 //! `"text:<text>"`. A row of a function that returns an array names the cell it was read from with
 //! `"result_index": [row, column]`, 1-based.
@@ -98,8 +99,15 @@ fn scalar(node: &Value, path: &str) -> Result<CalcValue, String> {
             None => CalcValue::text(ExcelText::from_interop_assignment(text)),
         }),
         Value::Bool(b) => Ok(CalcValue::logical(*b)),
+        Value::Null => Ok(CalcValue::empty()),
+        Value::Object(fields) if fields.len() == 1 => fields
+            .get("error")
+            .and_then(Value::as_str)
+            .and_then(error_from_variant)
+            .map(CalcValue::error)
+            .ok_or_else(|| format!("{path}: unknown argument object {node}")),
         other => Err(format!(
-            "{path}: an argument is a hex string, a boolean or text, not {other}"
+            "{path}: an argument is a hex string, a boolean, text, blank or error, not {other}"
         )),
     }
 }
@@ -516,6 +524,25 @@ mod tests {
             );
         }
         assert!(decode_result("fault:NotModelled").is_err());
+        assert_eq!(
+            decode_argument(&json!(null), "a").unwrap(),
+            CalcValue::empty()
+        );
+        assert_eq!(
+            decode_argument(&json!({"error": "Div0"}), "a").unwrap(),
+            CalcValue::error(WorksheetErrorCode::Div0)
+        );
+        assert!(decode_argument(&json!({"error": "unknown"}), "a").is_err());
+        assert!(decode_argument(&json!({"error": "Num", "extra": true}), "a").is_err());
+        let mixed = decode_argument(&json!([[null, {"error": "NA"}]]), "a").unwrap();
+        assert_eq!(
+            mixed.as_array().unwrap().get(0, 0),
+            Some(&CalcValue::empty())
+        );
+        assert_eq!(
+            mixed.as_array().unwrap().get(0, 1),
+            Some(&CalcValue::error(WorksheetErrorCode::NA))
+        );
         let array = decode_argument(
             &json!([["0x3ff0000000000000", true], ["0x0000000000000000", "x"]]),
             "a",
