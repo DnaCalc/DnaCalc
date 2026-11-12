@@ -90,10 +90,24 @@ pub(crate) fn beta_inv_kernel(
     if !probability.is_finite() {
         return Err(WorksheetErrorCode::Value);
     }
-    if !(0.0..=1.0).contains(&probability) {
+    // Both beta inverse names reject the support endpoints (Excel 20527).
+    if probability <= 0.0 || probability >= 1.0 {
         return Err(WorksheetErrorCode::Num);
     }
-    let z = bisect_inverse(probability, 0.0, 1.0, |v| regularized_beta(v, alpha, beta));
+    // Publish the adjacent lattice point with the smaller forward residual,
+    // retaining the upper point on a tie. T.INV.2T shares this publication.
+    let forward = |v: f64| regularized_beta(v, alpha, beta);
+    let hi = bisect_inverse(probability, 0.0, 1.0, forward);
+    let z = if hi > 0.0 {
+        let lo = f64::from_bits(hi.to_bits() - 1);
+        if (probability - forward(lo)).abs() < (forward(hi) - probability).abs() {
+            lo
+        } else {
+            hi
+        }
+    } else {
+        hi
+    };
     Ok(lower + z * (upper - lower))
 }
 

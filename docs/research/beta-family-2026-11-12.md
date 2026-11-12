@@ -284,3 +284,30 @@ and are exact assertions again.
 4. The Stirling error at 0.5 (one unit), for densities with a shape of 1.5.
 5. The inverses (BETAINV, FINV, TINV follow the forward; their own search is not read) and
    F.TEST's argument pair and tie rule.
+
+## Codex fn2 follow-up: longer recurrence arithmetic, before new queries
+
+The earlier identification leaves the second/later terms' stores unresolved.
+Freeze 192 new both-shapes-above-one cases with a in (1.1,8), integer b=3..12,
+x<=0.65, b*x>0.7 and nonnegative lambda, so dispatch is the recurrence plus
+its reduced unit-shape power series. Reuse the existing beta density/prefactor
+and require the ordinary recurrence model to reproduce invoke on every input.
+Compare ratio/product association in each term, ordinary/stored-PC64 sites,
+stored/running/first-store sums, and the power-series versus direct unit-CDF
+base. Freeze all numerical predictions before asking BETA.DIST. No coefficient,
+threshold or convergence limit is tuned to the answers; a weak calibration
+rejects those shapes rather than rescuing them with constants.
+
+The control initially caught a diagnostic parenthesization error (apb+i-1 rather
+than apb+(i-1)); it was corrected before any target query. The corrected model
+reproduces invoke on every input. Baseline matches 102/192; no term/sum/base
+variant exceeds it, so none is selected. Before new primitive queries, freeze
+current unit-density values at (1-x,1,a) and the unit-shape CDF at (x,a,1).
+Qualify those components independently before attributing the remaining errors
+to the recurrence. Existing target answers are retained calibration only.
+
+The unit density and public unit-shape CDF each match all 192 Excel calls.
+The internal reduced power series matches only 91 public unit CDFs, but
+substituting that public CDF was already tested and is weaker (best 98/192
+versus baseline 102/192). Public unit special cases therefore do not establish
+the internal recurrence base. No recurrence change is justified by this batch.

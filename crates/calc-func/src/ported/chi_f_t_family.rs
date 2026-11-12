@@ -346,8 +346,11 @@ pub fn t_inv_kernel(probability: f64, deg_freedom: f64) -> Result<f64, Worksheet
 }
 
 pub fn t_inv_2t_kernel(probability: f64, deg_freedom: f64) -> Result<f64, WorksheetErrorCode> {
-    let p = validate_probability_open_unit(probability)?;
     let v = truncate_positive_integer(deg_freedom)?;
+    if probability == 1.0 {
+        return Ok(0.0);
+    }
+    let p = validate_probability_open_unit(probability)?;
     if v == 1.0 {
         // Live Excel 16.0 b20326: T.INV.2T(p,1)=1/TAN(PI()*p/2) 9/9.
         // Cauchy closed form; the BETA.INV sqrt graph misses 3/9 here.
@@ -360,22 +363,15 @@ pub fn t_inv_2t_kernel(probability: f64, deg_freedom: f64) -> Result<f64, Worksh
         return Ok(1.0 / crate::ported::tan::tan_kernel(arg));
     }
     // df>=2: Excel is SQRT(df*(1/BETA.INV(p,df/2,0.5)-1)) 135/135 vs the
-    // worksheet BETA.INV, but production BETA.INV is still a few ULP off
-    // Excel, so the composition is not landable yet. Keep the published
-    // two-tail bratio inverter (W109 b19).
+    // worksheet BETA.INV. Its remaining kernel errors are counted; retain
+    // the existing beta-coordinate route through p=0.85 and direct-tail
+    // inversion above that boundary (W109 b19).
     if p <= 0.85 {
         // Excel reaches t through the beta coordinate z: on the bank's rows with p <= 0.85 its value
         // lies in the image of SQRT(v * (1/z - 1)) over binary64 z, within about one ulp of z of the
         // true root (TINV(0.85,25) is 176 ulps from the root's t only through that map). z is
         // the lattice point of the beta inverse nearer to p of the two that bracket it.
-        let fz = |u: f64| regularized_beta(u, v / 2.0, 0.5);
-        let hi = bisect_inverse(p, 0.0, 1.0, fz);
-        let lo = f64::from_bits(hi.to_bits() - 1);
-        let z = if (p - fz(lo)).abs() < (fz(hi) - p).abs() {
-            lo
-        } else {
-            hi
-        };
+        let z = crate::ported::beta_gamma_stats_family::beta_inv_kernel(p, v / 2.0, 0.5, 0.0, 1.0)?;
         return Ok((v * (1.0 / z - 1.0)).sqrt());
     }
     let f = move |x: f64| {

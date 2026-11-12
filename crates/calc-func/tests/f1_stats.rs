@@ -16,6 +16,51 @@ fn data() -> CalcValue {
 
 use calc_func::value::CalcValue;
 
+/// Excel 20527 endpoint controls, independently verified through both aliases.
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn inverse_probability_endpoints_follow_excel() {
+    for name in ["BETA.INV", "BETAINV"] {
+        for p in [0.0, 1.0] {
+            error(call(name, vec![n(p), n(3.0), n(0.5)]), Num);
+            error(
+                call(name, vec![n(p), n(3.0), n(0.5), n(-1e308), n(1e308)]),
+                Num,
+            );
+        }
+    }
+    for name in ["T.INV.2T", "TINV"] {
+        for df in [1.0, 2.0, 3.0, 6.6, 100.0, 1e10] {
+            exact(call(name, vec![n(1.0), n(df)]), 0.0);
+        }
+        for df in [0.0, 0.9, -1.0, 1e10 + 1.0] {
+            error(call(name, vec![n(1.0), n(df)]), Num);
+        }
+        for p in [0.0, -0.1, 1.1] {
+            error(call(name, vec![n(p), n(6.0)]), Num);
+        }
+    }
+}
+
+/// Excel 20527 rechecks of the four gained BETAINV bank rows (dc-bc1o).
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn inverse_beta_selects_the_nearer_forward_lattice_point() {
+    for (p, a, beta, expected) in [
+        (0.01, 5.0, 1.5, 0x3fd5_9482_23a6_b46e),
+        (0.02, 1.5, 2.5, 0x3fa1_0a18_97b8_fb54),
+        (0.07, 6.0, 2.0, 0x3fe0_59a0_fadc_3d9d),
+        (0.97, 3.0, 0.8, 0x3fef_dfa5_002e_8e6f),
+    ] {
+        for name in ["BETA.INV", "BETAINV"] {
+            exact(
+                call(name, vec![n(p), n(a), n(beta)]),
+                f64::from_bits(expected),
+            );
+        }
+    }
+}
+
 /// Excel 20527, dc-bc1o: Stirling/deviance normalization and compensated LN
 /// preserve the captured PDF, zero density, large degrees and a leaf discriminator.
 #[cfg_attr(not(target_arch = "wasm32"), test)]
