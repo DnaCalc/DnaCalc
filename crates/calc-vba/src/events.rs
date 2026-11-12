@@ -119,6 +119,21 @@ pub fn load_project(
     max_steps: u64,
     backend: Option<Backend>,
 ) -> Result<LoadedProject, String> {
+    // Every Excel workbook has a `ThisWorkbook` document; a project that names it (DnaExamples'
+    // DnaBook) compiles. With no file behind the project nothing is attached, so reaching the
+    // document refuses at run time instead of failing the whole load (dc-tey4.2).
+    let mut with_book;
+    let modules = if modules.iter().any(|m| m.kind == ModuleKind::Workbook) {
+        modules
+    } else {
+        with_book = modules.to_vec();
+        with_book.push(ProjectModule {
+            name: "ThisWorkbook".into(),
+            source: String::new(),
+            kind: ModuleKind::Workbook,
+        });
+        &with_book[..]
+    };
     load_project_impl(
         modules,
         &ProjectReferences::none(),

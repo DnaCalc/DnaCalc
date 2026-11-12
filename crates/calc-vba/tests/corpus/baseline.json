@@ -17,19 +17,19 @@
       "route": "module/jit"
     },
     "dna-examples/project/interpreter": {
-      "loaded": false,
-      "matched": 0,
-      "mismatched": 0,
+      "loaded": true,
+      "matched": 24,
+      "mismatched": 2,
       "missing": 0,
-      "refused": 26,
+      "refused": 0,
       "route": "project/interpreter"
     },
     "dna-examples/project/jit": {
-      "loaded": false,
-      "matched": 0,
-      "mismatched": 0,
+      "loaded": true,
+      "matched": 24,
+      "mismatched": 2,
       "missing": 0,
-      "refused": 26,
+      "refused": 0,
       "route": "project/jit"
     },
     "dna-examples/xlsm": {
