@@ -45,6 +45,20 @@ fn amorlinc_fractional_periods_and_admission_order() {
             ),
             10000.0,
         );
+        exact(
+            dated(
+                "AMORLINC",
+                vec![
+                    n(100.0),
+                    n(45000.0),
+                    n(45180.0),
+                    n(100.0),
+                    n(period),
+                    n(100.0),
+                ],
+            ),
+            0.0,
+        );
     }
     exact(
         dated(

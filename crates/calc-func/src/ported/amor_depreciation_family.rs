@@ -216,6 +216,10 @@ pub fn amorlinc_kernel(
     let first_depreciation = cost * (rate * initial_fraction);
     let depreciable_basis = cost - salvage;
 
+    if depreciable_basis == 0.0 {
+        return Ok(0.0);
+    }
+
     if normalized_period == 0 {
         return Ok(first_depreciation.min(depreciable_basis).max(0.0));
     }

@@ -95,6 +95,11 @@ def _token(arg):
         rows = arg["values"]
         flat = [v["bits"] for r in rows for v in r]
         return f"a{len(rows)}x{len(rows[0])}", flat
+    if kind in ("range", "mixed_array"):
+        rows = arg["values"]
+        return f"{'r' if kind == 'range' else 'm'}{len(rows)}x{len(rows[0])}", [v for row in rows for v in row]
+    if kind == "file":
+        return "f", arg["content"]
     raise ValueError("unsupported argument type " + str(kind))
 
 
@@ -138,7 +143,7 @@ def positions(group):
 
 
 def token_width(token):
-    if token[0] == "a":
+    if token[0] in "arm":
         r, c = token[1:].split("x")
         return int(r) * int(c)
     return 1
@@ -157,7 +162,7 @@ def group_calls(group):
     for _ in range(group["n"]):
         call = []
         for token, width in zip(tokens, widths):
-            call.append((token, v[offset] if token[0] != "a" else v[offset:offset + width]))
+            call.append((token, v[offset:offset + width] if token[0] in "arm" else v[offset]))
             offset += width
         yield call
 
@@ -178,6 +183,11 @@ def group_to_rows(group):
                 row.append({"type": "error", "code": value})
             elif token == "z":
                 row.append({"type": "blank"})
+            elif token == "f":
+                row.append({"type": "file", "content": value})
+            elif token[0] in "rm":
+                r, c = (int(x) for x in token[1:].split("x"))
+                row.append({"type": "range" if token[0] == "r" else "mixed_array", "values": [value[a * c:(a + 1) * c] for a in range(r)]})
             else:
                 r, c = (int(x) for x in token[1:].split("x"))
                 row.append({"type": "array", "values": [
@@ -264,9 +274,20 @@ def submit_frames(rid, groups, opts=None, client=None):
     for group in groups:
         per_call = max(8, group_width(group) * 20)
         step = max(1, FRAME_BUDGET // per_call)
-        for part in split_group(group, step):
+        pending = split_group(group, step)
+        while pending:
+            part = pending.pop(0)
+            encoded = len(dumps(part))
+            if encoded > FRAME_BUDGET:
+                if part["n"] == 1:
+                    raise ValueError("one call exceeds the frame budget")
+                pending[0:0] = split_group(part, max(1, part["n"] // 2))
+                continue
+            if current and size + encoded > FRAME_BUDGET:
+                frames.append(current)
+                current, size = [], 0
             current.append(part)
-            size += part["n"] * per_call
+            size += encoded
             if size >= FRAME_BUDGET:
                 frames.append(current)
                 current, size = [], 0

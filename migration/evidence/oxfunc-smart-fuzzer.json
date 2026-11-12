@@ -32,6 +32,22 @@
       "note": "Additional number, text, boolean, blank and error inputs for array and regression routes; captured after the full-bank snapshot and judged in read-only per-function rechecks."
     }
   },
+  "witness_readings_2026_11_12_admit2": {
+    "evidence_repository_commit": "4b8fc5dd21ee39db588094fac51dd07483ec50a3",
+    "path_prefix": "readings/excel-20527/admit2-answers-",
+    "files": 415,
+    "accepted_observations": 419722,
+    "generator": "tools/xtask-harness/scripts/bank-coverage.py",
+    "seed": "bank-coverage-20261112",
+    "note": "Socket captures; spill readings select [1,1]. Unread or changed inputs are excluded. Volatile and positional observations and non-spill trials are in probes/2026-11-12-admit2. Real range and file tokens await a Windows worker build and live checks.",
+    "post_judgment_probes": {
+      "evidence_repository_commit": "de4e050e4f235f90f73012ac8b5fc06ab5c02091",
+      "path_prefix": "probes/2026-11-12-admit2/single-cell-answers-",
+      "files": 6,
+      "accepted_observations": 8400,
+      "note": "Valid-arity calls using single-cell references, captured after the full-bank judgment; not included in its status."
+    }
+  },
   "manifest": {
     "path": "manifest.tsv",
     "columns": [

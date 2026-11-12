@@ -11,18 +11,10 @@ MAX_BYTES = 16 * 1024 * 1024
 MAX_CALLS = 20000
 ERRORS = {"#NULL!": 2000, "#DIV/0!": 2007, "#VALUE!": 2015, "#REF!": 2023,
           "#NAME?": 2029, "#NUM!": 2036, "#N/A": 2042}
-# Positive selection of scalar computation families. Dynamic references, callable
-# helpers, pivots, host facts, external data and random functions are not exposed.
-FAMILIES = "math statistics distributions engineering rounding_more financial bonds dates text_functions logical_more".split()
-DENY = {"CALL", "REGISTER", "REGISTER.ID", "RTD", "DDE", "WEBSERVICE", "INFO", "CELL",
-        "INDIRECT", "OFFSET", "NOW", "TODAY", "RAND", "RANDBETWEEN", "RANDARRAY",
-        "TREND", "GROWTH", "FREQUENCY", "MINVERSE", "MMULT", "MUNIT", "MODE.MULT"}
-
 REGRESSION = {"LINEST", "LOGEST"}
 # Pure numeric questions are needed before their worksheet kernels exist.
 ETS = {"FORECAST.ETS", "FORECAST.ETS.CONFINT", "FORECAST.ETS.SEASONALITY",
        "FORECAST.ETS.STAT"}
-NUMERIC_ARRAYS = REGRESSION | ETS
 
 
 def catalogue_names(root):
@@ -32,18 +24,11 @@ def catalogue_names(root):
     declarations and checked by the calc-catalogue test admission_export_is_current.
     """
     export = Path(root) / "crates/calc-catalogue/tests/fixtures/admission-families.tsv"
-    by_family = {}
+    names = set()
     for line in export.read_text(encoding="utf-8").splitlines():
         family, _, name = line.partition("	")
         if family and name:
-            by_family.setdefault(family, set()).add(name)
-    names = set()
-    for family in FAMILIES + ["rounding", "aggregate"]:
-        names |= by_family.get(family, set())
-    # Numeric text/formatting kernels are scalar for scalar arguments. Select only
-    # these entries from their family, which also contains array and hyperlink calls.
-    names |= by_family.get("text_format", set()) & {"FIXED", "DOLLAR", "TEXT", "VALUE", "NUMBERVALUE",
-                                                    "VALUETOTEXT", "ASC", "DBCS"}
+            names.add(name)
     if "ERF.PRECISE" not in names or "SUM" not in names:
         raise ValueError("Catalogue declaration export changed; regenerate admission-families.tsv")
     return AnyFunction(names | ETS)
@@ -167,9 +152,12 @@ def validate(request, names, request_id):
 MAX_GROUP_CALLS = 250000
 MAX_SPILL_CALLS = 1000
 # Array-returning functions, admitted only as spill groups (arguments in cells, the whole spill read back).
-SPILL_FUNCTIONS = {"TEXTSPLIT", "MINVERSE", "MMULT", "MUNIT", "MODE.MULT", "FREQUENCY", "TREND", "GROWTH",
-                   "TRANSPOSE", "SEQUENCE", "SORT", "UNIQUE"}
-TOKENS = re.compile(r"n|s|S|b|B|e|z|a[0-9]+x[0-9]+")
+SPILL_FUNCTIONS = {"TEXTSPLIT", "MINVERSE", "MMULT", "MUNIT", "MODE.MULT", "FREQUENCY", "TREND", "GROWTH", "LINEST", "LOGEST",
+                   "TRANSPOSE", "SEQUENCE", "SORT", "UNIQUE", "FILTER", "SORTBY", "TAKE", "DROP",
+                   "CHOOSECOLS", "CHOOSEROWS", "HSTACK", "VSTACK", "TOCOL", "TOROW",
+                   "WRAPCOLS", "WRAPROWS", "EXPAND", "REGEXEXTRACT", "TRIMRANGE", "FLATTEN",
+                   "RANDARRAY", "GROUPBY", "PIVOTBY", "BYROW", "BYCOL", "MAP", "MAKEARRAY", "SCAN"}
+TOKENS = re.compile(r"n|s|S|b|B|e|z|f|[arm][0-9]+x[0-9]+")
 BAD_TEXT = re.compile(r'\x00')
 
 
@@ -199,7 +187,7 @@ class Admission:
         if len(tokens) > 32:
             raise ValueError("expected at most 32 arguments")
         index = group.get("x")
-        if name in REGRESSION:
+        if name in REGRESSION and not (spill and index is None):
             if (not isinstance(index, list) or len(index) != 2 or any(type(v) is not int for v in index)
                     or not 1 <= index[0] <= 5 or not 1 <= index[1] <= 33):
                 raise ValueError("regression requires a bounded scalar result_index")
@@ -209,7 +197,7 @@ class Admission:
         for token in tokens:
             if not TOKENS.fullmatch(token):
                 raise ValueError("unsupported argument type")
-            if token[0] == "a":
+            if token[0] in "arm":
                 r, c = (int(x) for x in token[1:].split("x"))
                 if not (1 <= r <= 32 and 1 <= c <= 32 and r * c <= 128):
                     raise ValueError("expected a bounded rectangular numeric array")
@@ -224,6 +212,10 @@ class Admission:
         for token, w in zip(tokens, widths):
             if token[0] == "a":
                 self._numbers([v for i in range(n) for v in values[i * width + at:i * width + at + w]])
+            elif token[0] in "rm":
+                for i in range(n):
+                    for cell in values[i * width + at:i * width + at + w]:
+                        self._range_cell(cell)
             else:
                 column = values[at::width]
                 if token == "n":
@@ -241,7 +233,31 @@ class Admission:
                 elif token == "z":
                     if any(v is not None for v in column):
                         raise ValueError("blank carries no value")
+                elif token == "f":
+                    if any(not isinstance(v, str) or len(v.encode('utf-8')) > 65536 for v in column):
+                        raise ValueError("file content must be UTF-8 text of at most 65536 bytes")
             at += w
+
+    @classmethod
+    def _range_cell(cls, cell):
+        if not isinstance(cell, dict):
+            raise ValueError("range cells must be typed")
+        kind = cell.get("type")
+        if kind == "number" and set(cell) == {"type", "bits"}:
+            cls._numbers([cell["bits"]])
+        elif kind == "text" and set(cell) <= {"type", "value", "mode"} and cell.get("mode", "cell") == "cell":
+            v = cell.get("value")
+            if not isinstance(v, str) or len(v) > 1024 or BAD_TEXT.search(v):
+                raise ValueError("invalid range text")
+        elif kind == "boolean" and set(cell) <= {"type", "value", "mode"} and cell.get("mode", "cell") == "cell":
+            if type(cell.get("value")) is not bool:
+                raise ValueError("invalid range boolean")
+        elif kind == "error" and set(cell) == {"type", "code"} and cell.get("code") in ERRORS:
+            pass
+        elif kind == "blank" and set(cell) == {"type"}:
+            pass
+        else:
+            raise ValueError("invalid range cell")
 
     @staticmethod
     def _numbers(cells):

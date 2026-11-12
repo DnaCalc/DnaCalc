@@ -75,14 +75,29 @@ while True:
         time.sleep(0.02 * heavy)
     out = []
     for g in groups:
-        width = max(1, sum(int(t[1:].split("x")[0]) * int(t[1:].split("x")[1]) if t[0] == "a" else 1 for t in g["k"].split(",")))
+        tokens = g["k"].split(",") if g["k"] else []
+        width = sum(int(t[1:].split("x")[0]) * int(t[1:].split("x")[1]) if t[0] in "arm" else 1 for t in tokens)
         if g["f"] == "ID":
             vals = [g["v"][i * width] for i in range(g["n"])]
             out.append({"ty": "n" * g["n"], "v": vals})
         else:
             out.append({"ty": "n" * g["n"], "v": ["3ff0000000000000"] * g["n"]})
         if payload.get("echo"):
-            out[-1]["ity"] = "n" * (g["n"] * width)
-            out[-1]["iv"] = [v for v in g["v"]]
+            letters, echoed = [], []
+            for i in range(g["n"]):
+                at = i * width
+                for token in tokens:
+                    n = int(token[1:].split("x")[0]) * int(token[1:].split("x")[1]) if token[0] in "arm" else 1
+                    for value in g["v"][at:at + n]:
+                        if token[0] in "rm":
+                            kind = value["type"]
+                            letters.append({"number":"n", "text":"t", "boolean":"b", "blank":"z", "error":"e"}[kind])
+                            echoed.append(value.get("bits", value.get("value", value.get("code"))))
+                        else:
+                            letters.append({"n":"n", "a":"n", "s":"t", "S":"t", "b":"b", "B":"b", "z":"z", "e":"e", "f":"t"}[token[0]])
+                            echoed.append(value)
+                    at += n
+            out[-1]["ity"] = "".join(letters)
+            out[-1]["iv"] = echoed
     send("R", {"id": payload["id"], "env_id": "fake00000001", "worker": NAME, "batch": payload["id"], "groups": out,
                "timing": {"write_ms": 1.0, "calc_ms": 1.0 + 20.0 * heavy, "read_ms": 1.0, "convert_ms": 1.0, "total_ms": 4.0 + 20.0 * heavy}})

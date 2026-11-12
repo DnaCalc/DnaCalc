@@ -14,10 +14,15 @@ drift = importlib.util.module_from_spec(spec); spec.loader.exec_module(drift)
 
 EDGES = [0, 1, -1, 2, -2, .5, -.5, 1e-100, -1e-100, 1e100, -1e100,
          math.nextafter(1, 0), math.nextafter(1, 2), 10, 100, 365, 25569, 45000]
-WORDS = ['0', '1', '-1', '0.5', 'hello', '', 'TRUE', '1e2', '1,234', 'abc def', 'i', '12.34']
+WORDS = ['0', '1', '-1', '0.5', 'hello', '', 'TRUE', '1e2', '1,234', 'abc def', 'i', '12.34',
+         '*', 'a?', '~*', '>1', '<=0', '<>', '=A*', 'A,B', ' abc ']
 ERRORS = ['#N/A', '#VALUE!', '#DIV/0!', '#NUM!', '#REF!', '#NAME?', '#NULL!']
 ARRAY_FUNCS = {'LINEST', 'LOGEST', 'FORECAST.ETS', 'FORECAST.ETS.CONFINT',
                'FORECAST.ETS.SEASONALITY', 'FORECAST.ETS.STAT'}
+# These cannot be represented as stable expected values or callable arguments in
+# the current witness format. Keep them visible in the capture log.
+OBSERVATIONS_ONLY = {'NOW', 'TODAY', 'RAND', 'RANDBETWEEN', 'RANDARRAY'}
+CALLABLES = {'BYCOL', 'BYROW', 'MAP', 'MAKEARRAY', 'REDUCE', 'SCAN', 'ISOMITTED', 'GROUPBY', 'PIVOTBY'}
 
 def numeric(rng, name, i):
     # Mix domain-relevant values with unbounded and close-to-integer controls.
@@ -40,12 +45,39 @@ def numeric(rng, name, i):
 def generate(entry, stage):
     name, _, _, lo, hi, _, params = entry
     lo, hi = int(lo), min(int(hi), 8)
-    if lo == 0: return []
+    if name in {"TRUE", "FALSE", "NA", "PI"}: return [[]]
+    if hi == 0: return [[]]
+    lo = max(1, lo)
     names = [p.split(':')[0] for p in params.split(',') if p]
     rng = random.Random(int.from_bytes(hashlib.sha256((name + stage + 'bank-coverage-20261112').encode()).digest()[:8], 'big'))
     rows = []
     count = 160 if stage == 'special' else 1400
     for i in range(count):
+        if name == 'GETPIVOTDATA':
+            rows.append([text(f'measure{i}'), number(i)])
+            continue
+        if name in {'COUNTIFS', 'SUMIFS', 'AVERAGEIFS', 'MAXIFS', 'MINIFS'}:
+            criteria = ['>0', '<0', '<>0', '=0', '*', 'a?', '~*', '<=' + str(i % 97)][i % 8]
+            criterion_range = number((i - 700) / 11)
+            if name == 'COUNTIFS': row = [criterion_range, text(criteria)]
+            else: row = [number((i - 700) / 7), criterion_range, text(criteria)]
+            rows.append(row); continue
+        if name in {"ROWS", "COLUMNS", "ARRAYTOTEXT", "INDEX", "MATCH", "XMATCH",
+                    "VLOOKUP", "HLOOKUP", "LOOKUP", "XLOOKUP"}:
+            values = [float((i + j) % 13) + i / 10000 for j in range(1 + i % 5)]
+            if i % 3 == 0 and len(values) > 1: values[-1] = values[0]
+            if i % 4 == 0: values.reverse()
+            if i % 2: values.sort()
+            col = number_array([[v] for v in values])
+            mat = number_array([[v, v * 2 + i] for v in values])
+            if name in {"ROWS", "COLUMNS", "ARRAYTOTEXT"}: row = [mat]
+            elif name == "INDEX": row = [mat, number(1 + i % len(values)), number(1 + i % 2)]
+            elif name in {"MATCH", "XMATCH"}: row = [number(values[0]), col, number(0)]
+            elif name == "VLOOKUP": row = [number(values[0]), mat, number(2), boolean(False)]
+            elif name == "HLOOKUP": row = [number(values[0]), number_array([values, [v * 2 + i for v in values]]), number(2), boolean(False)]
+            elif name == "LOOKUP": row = [number(values[0]), col, col]
+            else: row = [number(values[0]), col, col, text('missing')]
+            rows.append(row); continue
         arity = lo + (i % (max(lo, hi)-lo+1))
         row = []
         for j in range(arity):
@@ -73,7 +105,24 @@ def generate_spill(name, count=1200):
     for i in range(count):
         def matrix():
             return number_array([[rng.randrange(-10, 11) + rng.random() for _ in range(2)] for _ in range(2)])
-        if name == 'TEXTSPLIT':
+        if name == 'FILTER':
+            row = [matrix(), number_array([[float(i % 2)], [1.]])]
+        elif name == 'SORTBY':
+            row = [matrix(), number_array([[float(i)], [float(-i)]]), number((-1.) ** i)]
+        elif name in {'TAKE', 'DROP', 'CHOOSEROWS', 'CHOOSECOLS'}:
+            extent = 1 if name == 'DROP' else 1 + i % 2
+            row = [matrix(), number(float(extent) * (-1 if i % 3 == 0 else 1))]
+        elif name in {'HSTACK', 'VSTACK'}:
+            row = [matrix(), matrix()]
+        elif name in {'TOCOL', 'TOROW'}:
+            row = [matrix(), number(i % 4), boolean(i % 2 == 0)]
+        elif name in {'WRAPCOLS', 'WRAPROWS'}:
+            row = [number_array([[rng.random() for _ in range(1 + i % 6)]]), number(1 + i % 4), number(i)]
+        elif name == 'EXPAND':
+            row = [matrix(), number(2 + i % 4), number(2 + i % 3), number(i)]
+        elif name == 'REGEXEXTRACT':
+            row = [text(f'item{i}x{rng.randrange(1000)}'), text(r'[0-9]+'), number(i % 3)]
+        elif name == 'TEXTSPLIT':
             row = [text(f'{i}a,b{rng.randrange(10000)},c'), text(',')]
         elif name == 'SEQUENCE':
             row = [number(rng.uniform(-2, 6)), number(rng.uniform(-2, 6)), number(i / 13), number(rng.uniform(-5, 5))]
@@ -109,7 +158,7 @@ def witness_arg(arg):
     if kind == 'boolean': return arg['value']
     if kind == 'blank': return None
     if kind == 'error': return {'error': drift.ERRORS[arg['code']]}
-    if kind == 'array': return [[witness_arg(x) for x in row] for row in arg['values']]
+    if kind in ('array', 'mixed_array'): return [[witness_arg(x) for x in row] for row in arg['values']]
     raise ValueError(kind)
 
 def ask_checked(client, name, rows, *, result_index=None, shape='scalar', **_):
@@ -124,31 +173,32 @@ def ask_checked(client, name, rows, *, result_index=None, shape='scalar', **_):
     return reply
 
 def main():
-    p=argparse.ArgumentParser(); p.add_argument('--catalogue',type=pathlib.Path,required=True); p.add_argument('--baseline',type=pathlib.Path,required=True); p.add_argument('--out',type=pathlib.Path,required=True); p.add_argument('--stage',choices=['scalar','more','special','spill','spillmore','variants'],required=True); p.add_argument('--only'); o=p.parse_args()
+    p=argparse.ArgumentParser(); p.add_argument('--catalogue',type=pathlib.Path,required=True); p.add_argument('--baseline',type=pathlib.Path,required=True); p.add_argument('--out',type=pathlib.Path,required=True); p.add_argument('--stage',choices=['scalar','more','enrich','special','spill','spillmore','variants'],required=True); p.add_argument('--only'); o=p.parse_args()
     o.out.mkdir(parents=True,exist_ok=True)
     entries=list(csv.reader(o.catalogue.open(),delimiter='\t'))
     status={r['function']:r for r in csv.DictReader(o.baseline.open(),delimiter='\t') if r['bank']=='full'}
-    allowed=policy.catalogue_names(ROOT)
     selected=[]
     for e in entries:
         n=e[0]; s=status.get(n)
         if o.only and n != o.only: continue
-        if e[2].startswith('Deferred') or e[1].startswith(('Operator','Binding')) or 'route: Fetch(' in e[1]: continue
+        if n in policy.REMOTE_SERVICE or e[1].startswith(('Operator','Binding')): continue
         variants = {'FREQUENCY','LINEST','LOGEST','MMULT','MODE.MULT','MUNIT','SEQUENCE','SORT','TEXTSPLIT','TRANSPOSE','TREND','UNIQUE'}
-        admitted = variants if o.stage == 'variants' else policy.SPILL_FUNCTIONS if o.stage.startswith('spill') else allowed
-        if n not in admitted or n in {'RTD','GETPIVOTDATA'} or n.startswith('CUBE'): continue
+        is_spill = n in policy.SPILL_FUNCTIONS
+        if o.stage == 'variants' and n not in variants: continue
+        if o.stage.startswith('spill') != is_spill and o.stage != 'variants': continue
         if s and int(s['rows'])>=1000 and not (s['worst_ulp'].isdigit() and int(s['worst_ulp'])>10000): continue
-        if int(e[3])==0: continue
         selected.append(e)
     c=Client(transport='socket',timeout=900)
     def capture(e):
         name=e[0]; path=o.out / ('answers-' + name.lower() + '-' + o.stage + '.json')
+        if name in OBSERVATIONS_ONLY: return name, 'needs volatile observation/property format'
+        if name in CALLABLES: return name, 'needs callable argument protocol'
         if path.exists(): return name, 'already captured'
         rows=generate_variants(e) if o.stage == 'variants' else generate_spill(name,1600)[1200:] if o.stage == 'spillmore' else generate_spill(name) if o.stage == 'spill' else generate(e,o.stage)
         try:
             kw={'echo_inputs':True,'priority':'bulk'}
-            if name in {'LINEST','LOGEST'}: kw['result_index']=(1,1)
             spill = o.stage.startswith('spill') or (o.stage == 'variants' and name in policy.SPILL_FUNCTIONS)
+            if name in {'LINEST','LOGEST'} and not spill: kw['result_index']=(1,1)
             if spill:
                 kw['shape']='array'
                 # Large spill batches hit the worker deadline even though scalar batches
@@ -165,10 +215,11 @@ def main():
             for i,(requested, observed, readback) in enumerate(zip(rows,reply['rows'],reply['inputs'])):
                 selected = drift.select_spill(observed, [1,1]) if spill else observed
                 result=drift.answer(selected) if selected else None
+                if requested == [] and readback is None: readback = []
                 if drift.without_mode(requested)!=drift.without_mode(readback): why='changed input'
                 elif result is None: why='unread or unsupported answer: '+str(observed.get('type'))
                 else:
-                    w={'id':f'bank2-{o.stage}-{name}-{i:04}', 'args':[witness_arg(a) for a in readback], 'expected_bits':result}
+                    w={'id':f'admit2-{o.stage}-{name}-{i:04}', 'args':[witness_arg(a) for a in readback], 'expected_bits':result}
                     if name in {'LINEST','LOGEST'} or spill: w['result_index']=[1,1]
                     accepted.append(w); continue
                 rejected[why]=rejected.get(why,0)+1

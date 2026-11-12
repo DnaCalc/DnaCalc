@@ -5,6 +5,8 @@ Hermetic: no Excel.  The broker tests drive a stand-in worker (fake_worker.py) o
 import asyncio
 import json
 import os
+import struct
+import subprocess
 from pathlib import Path
 import sys
 import tempfile
@@ -34,6 +36,57 @@ TWO = "4000000000000000"
 
 
 class ProtocolTests(unittest.TestCase):
+    def test_range_and_file_round_trip_through_stand_in_worker(self):
+        cells = [[number(ONE), {"type": "text", "value": "a", "mode": "cell"}],
+                 [{"type": "boolean", "value": True, "mode": "cell"}, {"type": "blank"}],
+                 [{"type": "error", "code": "#N/A"}, number(TWO)]]
+        row = [{"type": "range", "values": cells}, {"type": "file", "content": "a,b\n1,2\n"}]
+        group = protocol.rows_to_groups("SUMIF", [row])[0]
+        self.assertEqual(group["k"], "r3x2,f")
+        self.assertEqual(protocol.group_to_rows(group), [row])
+        import policy
+        policy.Admission(ROOT).check(group)
+        mixed = [{"type": "mixed_array", "values": cells}]
+        mixed_group = protocol.rows_to_groups("ROWS", [mixed])[0]
+        self.assertEqual(mixed_group["k"], "m3x2")
+        self.assertEqual(protocol.group_to_rows(mixed_group), [mixed])
+        policy.Admission(ROOT).check(mixed_group)
+        for bad in ({"type": "number", "bits": "7ff0000000000000"},
+                    {"type": "text", "value": "x", "mode": "literal"},
+                    {"type": "formula", "value": "=1"}):
+            malformed = dict(group, v=[bad] + group["v"][1:])
+            with self.subTest(bad=bad), self.assertRaises(ValueError):
+                policy.Admission(ROOT).check(malformed)
+        big = protocol.rows_to_groups("IMPORTTEXT", [[{"type": "file", "content": "x" * 4000}]] * 30)
+        frames = protocol.submit_frames("a" * 32, big)
+        self.assertGreater(len(frames), 1)
+        self.assertTrue(all(len(protocol.dumps(frame)) < protocol.MAX_FRAME for frame in frames))
+        worker = subprocess.Popen([sys.executable, str(HERE / "fake_worker.py"), "--name", "range-test"],
+                                  stdin=subprocess.PIPE, stdout=subprocess.PIPE)
+        def read_frame():
+            header = worker.stdout.read(4)
+            size = struct.unpack(">I", header)[0]
+            return protocol.unpack_body(worker.stdout.read(size))
+        try:
+            self.assertEqual(read_frame()[0], b"H")
+            worker.stdin.write(protocol.pack(b"B", {"id": 1, "groups": [group], "echo": True}))
+            worker.stdin.flush()
+            kind, response = read_frame()
+            self.assertEqual(kind, b"R")
+            answered = response["groups"][0]
+            self.assertEqual(answered["ity"], "ntbzen t".replace(" ", ""))
+            self.assertEqual(answered["iv"][-1], row[1]["content"])
+            reply = v1.Reply("id", "SUMIF", [row], None, None, {}, "fake")
+            reply.add({"g": [dict(answered, o=0)], "env": "fake00000001"})
+            reconstructed = reply.build()["inputs"][0]
+            self.assertEqual(reconstructed[0]["values"][2][0], {"type": "error", "code": "#N/A"})
+            self.assertEqual(reconstructed[0]["values"][1][0], {"type": "boolean", "value": True})
+            self.assertEqual(reconstructed[1], row[1])
+        finally:
+            worker.stdin.close()
+            worker.stdout.close()
+            worker.wait(timeout=5)
+
     def test_rows_group_by_shape_and_keep_positions(self):
         rows = [[number(ONE)], [{"type": "text", "value": "a", "mode": "cell"}], [number(TWO)],
                 [{"type": "boolean", "value": True, "mode": "literal"}]]
@@ -274,6 +327,21 @@ class AdmissionTests(unittest.TestCase):
                     self.group(f="LEN", k="s", n=1, v=["a\u0000b"]), self.group(k="a40x40", f="LINEST", n=1, v=[ONE] * 1600)):
             with self.subTest(bad=bad), self.assertRaises(ValueError):
                 self.admission.check(bad)
+
+    def test_new_value_only_families_and_nullary_calls(self):
+        for name in ("IF", "IFERROR", "IFNA", "CHOOSE", "TRUE", "FALSE", "NA", "PI",
+                     "TEXTAFTER", "TEXTBEFORE", "REGEXTEST", "REGEXEXTRACT", "REGEXREPLACE",
+                     "ENCODEURL", "JIS", "PHONETIC"):
+            with self.subTest(name=name):
+                self.admission.check(self.group(f=name, k="", n=1, v=[]))
+        for name in ("VLOOKUP", "HLOOKUP", "LOOKUP", "MATCH", "XLOOKUP", "XMATCH",
+                     "INDEX", "ROWS", "COLUMNS", "ARRAYTOTEXT"):
+            with self.subTest(name=name):
+                self.admission.check(self.group(f=name, k="a1x2", n=1, v=[ONE, TWO]))
+        for name in ("FILTER", "ROW", "COLUMN", "CELL", "IMPORTCSV", "RAND", "RTD", "BYROW"):
+            with self.subTest(name=name):
+                self.admission.check(self.group(f=name, k="", n=1, v=[]))
+                self.admission.check(self.group(f=name, k="", n=1, v=[], spill=True))
 
     def test_regression_needs_a_bounded_result_index_and_arrays(self):
         g = {"f": "LINEST", "k": "a3x1,a3x1,b,b", "n": 1, "x": [4, 2],
