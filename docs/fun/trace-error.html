@@ -69,7 +69,7 @@ button:focus-visible { outline: 2px solid var(--select); outline-offset: 2px }
   <div class="top">
     <div>
       <h1>Trace <span>Error</span></h1>
-      <p class="lede">Someone broke the model. Errors have spread to every cell that depends on the broken one. Click a cell to trace its precedents, follow the arrows back, and name the cell where the error starts.</p>
+      <p class="lede">Someone broke the model. Errors have spread to every cell that depends on the broken one. Click a cell to trace its precedents, follow the arrows back, and name the broken cell: a bad formula, or an input that holds text where a number belongs.</p>
     </div>
   </div>
   <div class="fx"><div class="name" id="nameBox">A1</div><div class="f">fx</div><div id="formula">Click a cell with an error to trace where its inputs come from.</div></div>
@@ -80,7 +80,7 @@ button:focus-visible { outline: 2px solid var(--select); outline-offset: 2px }
       <div class="box"><div class="k">Traces used · par</div><div class="v"><span id="traces">0</span> · <span id="par">0</span></div><p>Score per case: 10, minus each trace over par, minus 3 per wrong accusation.</p></div>
       <div class="box"><div class="k">Score</div><div class="v" id="score">0</div></div>
       <div class="actions">
-        <button class="go" id="accuse" type="button" disabled>This cell is where it starts</button>
+        <button class="go" id="accuse" type="button" disabled>This is the broken cell</button>
         <button id="next" type="button" hidden>Next case</button>
       </div>
       <div class="msg" id="msg" aria-live="polite"></div>
@@ -244,6 +244,10 @@ button:focus-visible { outline: 2px solid var(--select); outline-offset: 2px }
     var spec = CASES[level], m, g;
     for (var i = 0; i < 30 && !g; i++) { m = build(spec); g = inject(m); }
     game = { m: m, val: g.val, origin: g.origin, kind: g.kind, par: par(m, g.val, g.origin) };
+    // A text value where a number belongs is the cause; the formula that turns it into #VALUE! is only where it shows.
+    game.cause = null;
+    if (g.kind === 'text') (g.origin.args || []).forEach(function (x) { var v = g.val[x[0]][x[1]]; if (typeof v === 'string' && !isErr(v)) game.cause = m.cells[x[0]][x[1]]; });
+    if (game.cause) game.par += 1;
     traces = 0; seen = {}; sel = null; solved = false; wrong = 0;
     document.getElementById('level').textContent = (level + 1) + ' of ' + CASES.length;
     document.getElementById('caseText').textContent = spec.name;
@@ -276,7 +280,7 @@ button:focus-visible { outline: 2px solid var(--select); outline-offset: 2px }
         if (isErr(v)) cls.push('err'); else if (typeof v === 'string') cls.push('txt');
         if (seen[r + ',' + c]) cls.push('seen');
         if (sel && sel.r === r && sel.c === c) cls.push('sel');
-        if (solved && game.origin.r === r && game.origin.c === c) cls.push('found');
+        var ans = game.cause || game.origin; if (solved && ans.r === r && ans.c === c) cls.push('found');
         h += '<td tabindex="0" data-r="' + r + '" data-c="' + c + '" class="' + cls.join(' ') + '">' + fmt(v) + '</td>';
       }
       h += '</tr>';
@@ -323,7 +327,7 @@ button:focus-visible { outline: 2px solid var(--select); outline-offset: 2px }
     svg.setAttribute('width', sheet.clientWidth); svg.setAttribute('height', sheet.clientHeight);
   }
   var EXPLAIN = {
-    text: function (o, v) { return 'The trouble started in an arithmetic formula: one of its inputs is the text "' + v + '" (a letter where a digit belongs). =A+B gives #VALUE! for text it cannot read as a number, while SUM quietly skips text, so some totals look fine.'; },
+    text: function (o, v) { return 'The cause is the text "' + v + '": a letter where a digit belongs. Arithmetic such as =A*B gives #VALUE! for text it cannot read as a number, while SUM quietly skips text, so some totals look fine.'; },
     zero: function () { return 'A percentage divides by a revenue of zero, so it is #DIV/0!. Zero units is a legal input; the division is where the error is born.'; },
     na: function () { return 'Someone left =NA() as a placeholder for data that never arrived. #N/A then flows into everything downstream.'; },
     ref: function () { return 'This formula refers to a cell that was deleted, so Excel rewrote the reference as #REF!. Every dependent is #REF! too.'; }
@@ -331,12 +335,13 @@ button:focus-visible { outline: 2px solid var(--select); outline-offset: 2px }
   document.getElementById('accuse').addEventListener('click', function () {
     if (!sel || solved) return;
     var msg = document.getElementById('msg');
-    if (sel === game.origin) {
+    if (sel === game.origin || sel === game.cause) {
       solved = true;
       var pts = Math.max(1, 10 - Math.max(0, traces - game.par) - 3 * wrong); score += pts;
       document.getElementById('score').textContent = score;
       var textCell = null; if (game.kind === 'text') (game.origin.args || []).forEach(function (x) { var v = game.val[x[0]][x[1]]; if (typeof v === 'string' && !isErr(v)) textCell = v; });
-      msg.className = 'msg good'; msg.textContent = 'Found it: ' + ref(sel.r, sel.c) + '. +' + pts + '. ' + EXPLAIN[game.kind](sel, textCell);
+      var lead = game.cause && sel === game.origin ? 'Close: ' + ref(sel.r, sel.c) + ' is where the error first shows; the cause is the text in ' + ref(game.cause.r, game.cause.c) + '. +' + pts + '. ' : 'Found it: ' + ref(sel.r, sel.c) + '. +' + pts + '. ';
+      msg.className = 'msg good'; msg.textContent = lead + EXPLAIN[game.kind](sel, textCell);
       document.getElementById('accuse').hidden = true;
       var nx = document.getElementById('next'); nx.hidden = false; nx.textContent = level + 1 < CASES.length ? 'Next case' : 'See the verdict'; nx.focus();
       render();
