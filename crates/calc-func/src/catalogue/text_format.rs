@@ -89,6 +89,16 @@ fn rendered(site: &Site<'_>, result: Result<String, Failure>) -> Step<CalcValue>
 /// TEXT: a number (or text that reads as one) rendered with the code, other text through the
 /// code's text section.
 fn text(site: &Site<'_>, a: &[CalcValue]) -> Step<CalcValue> {
+    // Excel propagates argument errors before trying to interpret a format. A logical
+    // format is invalid even when the workbook's locale is unavailable.
+    for value in a {
+        if let CoreRef::Error(code) = value.core_ref() {
+            return fail(code);
+        }
+    }
+    if matches!(a[1].core_ref(), CoreRef::Logical(_)) {
+        return fail(WorksheetErrorCode::Value);
+    }
     if a[0].is_excel_overflow() {
         let code = text_arg(site, a, 1)?.to_string_lossy();
         if code.eq_ignore_ascii_case("general") || code == "@" {
