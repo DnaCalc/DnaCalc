@@ -204,7 +204,10 @@ pub(crate) struct SpreadsheetHost {
 
 #[derive(Default)]
 struct ObjectTable {
-    by_id: std::collections::BTreeMap<i32, Object>,
+    /// Each entry keeps one anchor reference to its compatibility object. The entry is live while
+    /// any other reference exists (a VBA variable, a module global, a collection); when only the
+    /// anchor is left the entry is reclaimed (dc-1nbp.2).
+    by_id: std::collections::BTreeMap<i32, (Object, ObjectRef)>,
     by_object: std::collections::BTreeMap<Object, i32>,
     selections: std::collections::BTreeMap<Range, calcvba_host_api::HostObject>,
 }
@@ -362,29 +365,41 @@ impl SpreadsheetHost {
             .objects
             .lock()
             .map_err(|_| fault(5, "object table is unavailable"))?;
-        let id = match objects.by_object.get(&object) {
-            Some(id) => *id,
-            None => {
-                if objects.by_id.len() == MAX_OBJECTS {
-                    return self.unsupported("spreadsheet object limit exceeded");
-                }
-                static NEXT: std::sync::atomic::AtomicI32 =
-                    std::sync::atomic::AtomicI32::new(FIRST_OBJECT);
-                let id = NEXT
-                    .fetch_update(
-                        std::sync::atomic::Ordering::Relaxed,
-                        std::sync::atomic::Ordering::Relaxed,
-                        |id| id.checked_add(1),
-                    )
-                    .map_err(|_| fault(5, "spreadsheet object identities exhausted (dc-hsa5.4)"))?;
-                objects.by_id.insert(id, object);
-                objects.by_object.insert(object, id);
-                id
+        if let Some(id) = objects.by_object.get(&object).copied() {
+            if let Some((_, anchor)) = objects.by_id.get(&id) {
+                return Ok(Variant::from_object_ref(anchor.clone()));
             }
-        };
-        Ok(Variant::from_object_ref(ObjectRef::from_compat_identity(
-            id,
-        )))
+        }
+        if objects.by_id.len() >= MAX_OBJECTS {
+            // Only live objects count against the limit: reclaim entries whose last VBA
+            // reference is gone (the anchor is the only holder left).
+            let dead: Vec<i32> = objects
+                .by_id
+                .iter()
+                .filter(|(_, (_, anchor))| anchor.strong_count() <= 1)
+                .map(|(id, _)| *id)
+                .collect();
+            for id in dead {
+                if let Some((object, _)) = objects.by_id.remove(&id) {
+                    objects.by_object.remove(&object);
+                }
+            }
+            if objects.by_id.len() >= MAX_OBJECTS {
+                return self.unsupported("spreadsheet object limit exceeded");
+            }
+        }
+        static NEXT: std::sync::atomic::AtomicI32 = std::sync::atomic::AtomicI32::new(FIRST_OBJECT);
+        let id = NEXT
+            .fetch_update(
+                std::sync::atomic::Ordering::Relaxed,
+                std::sync::atomic::Ordering::Relaxed,
+                |id| id.checked_add(1),
+            )
+            .map_err(|_| fault(5, "spreadsheet object identities exhausted (dc-hsa5.4)"))?;
+        let anchor = ObjectRef::from_compat_identity(id);
+        objects.by_id.insert(id, (object, anchor.clone()));
+        objects.by_object.insert(object, id);
+        Ok(Variant::from_object_ref(anchor))
     }
     fn lookup(&self, object: &ObjectRef) -> HalResult<Object> {
         if let Some(range) = self.selection_range(object) {
@@ -400,7 +415,7 @@ impl SpreadsheetHost {
             .map_err(|_| fault(5, "object table is unavailable"))?
             .by_id
             .get(&object.raw())
-            .copied()
+            .map(|(object, _)| *object)
             .ok_or_else(|| fault(438, "foreign or expired spreadsheet object"))
     }
 
@@ -1713,6 +1728,38 @@ impl oxvba_symbol::TypeLibResolver for SpreadsheetTypes {
 mod tests {
     use super::*;
     use oxvba_symbol::TypeLibResolver;
+
+    /// dc-1nbp.2: the object limit counts live objects. Released Range objects are reclaimed, a
+    /// Range still held (a module global) stays valid, and live objects still hit the limit.
+    /// Whether two Range objects for the same cells are `Is`-equal waits on dc-1nbp.6 (E1); the
+    /// table still returns one identity per range value.
+    #[cfg_attr(not(target_arch = "wasm32"), test)]
+    #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+    fn range_objects_are_released_and_only_live_ones_count() {
+        let host = SpreadsheetHost::new(false, false, Default::default());
+        let held = host.range_variant(Range { id: 7 }).unwrap();
+        let held_ref = held.as_object_ref().unwrap();
+        for id in 100..10_100u64 {
+            let v = host.range_variant(Range { id }).unwrap();
+            drop(v);
+        }
+        assert!(host.lookup(&held_ref).is_ok(), "a held Range stays valid");
+        assert_eq!(
+            host.range_variant(Range { id: 7 })
+                .unwrap()
+                .as_object_ref()
+                .unwrap()
+                .raw(),
+            held_ref.raw()
+        );
+        assert!(host.objects.lock().unwrap().by_id.len() <= MAX_OBJECTS);
+        let live: Vec<Variant> = (0..MAX_OBJECTS as u64 - 1)
+            .map(|i| host.range_variant(Range { id: 20_000 + i }).unwrap())
+            .collect();
+        assert!(host.range_variant(Range { id: 99_999 }).is_err());
+        drop(live);
+        assert!(host.range_variant(Range { id: 99_999 }).is_ok());
+    }
 
     #[cfg_attr(not(target_arch = "wasm32"), test)]
     #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]

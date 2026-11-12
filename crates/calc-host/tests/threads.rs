@@ -385,3 +385,85 @@ fn dc_dxm__competing_spills_recalculate_alike_on_one_thread_and_four() {
         }
     }
 }
+
+/// dc-1nbp.24: level workers hold no callable table, so a formula with a user call is left to the
+/// owner. The cells and values at four threads equal the one-thread run, with no refusal.
+///
+/// Native-only: runs the engine's native worker threads.
+#[test]
+fn dc_1nbp_24__user_calls_on_a_parallel_level_match_one_thread() {
+    use calc_host::value::CalcValue;
+    use calc_host::{CellEdit, HostCommand, dispatch, interpret_entry};
+    #[derive(Debug)]
+    struct Triple;
+    impl calc_fml::UserFunction for Triple {
+        fn max_parallel_calls(&self) -> usize {
+            8
+        }
+        fn call(&self, arguments: &[CalcValue]) -> Result<CalcValue, String> {
+            Ok(CalcValue::number(arguments[0].as_number().unwrap_or(0.0) * 3.0))
+        }
+    }
+    let bytes = calc_host::blank_package();
+    let mut one = open(&bytes, 1).expect("a new workbook");
+    let mut four = open(&bytes, 4).expect("a new workbook");
+    let sheet = one.sheets()[0].id();
+    let at = |row| CellKey::new(sheet, row, 1).unwrap();
+    // One wide level: plain formulas and user calls side by side.
+    let edits: Vec<_> = (1..=200)
+        .map(|row| CellEdit::Set {
+            at: at(row),
+            input: interpret_entry(&if row % 2 == 0 {
+                format!("=Triple({row})")
+            } else {
+                format!("=ROW()+1")
+            })
+            .unwrap()
+            .unwrap(),
+        })
+        .collect();
+    for host in [&mut one, &mut four] {
+        let mut functions = calc_fml::CallableTable::new();
+        functions
+            .register("Triple", std::rc::Rc::new(Triple))
+            .unwrap();
+        host.set_user_functions(functions);
+        let base = host.revision();
+        dispatch(
+            host,
+            HostCommand {
+                base,
+                edits: edits.clone(),
+            },
+        )
+        .unwrap();
+    }
+    let cells: Vec<_> = (1..=200).map(at).collect();
+    let published = recalculate(&mut one);
+    assert_eq!(published.len(), 200);
+    assert_eq!(recalculate(&mut four), published);
+    // Provenance ids (invocation numbers, callable table identity) differ between two hosts by
+    // construction; the values and their kind are what the two runs must share.
+    let numbers = |host: &HostState| -> Vec<Option<f64>> {
+        project(host, &ProjectionRequest { cells: cells.clone() })
+            .unwrap()
+            .cells()
+            .iter()
+            .map(|cell| match cell.value() {
+                calc_host::ProjectedValue::Calculated { value, .. } => value.as_number(),
+                other => panic!("not calculated: {other:?}"),
+            })
+            .collect()
+    };
+    let serial = numbers(&one);
+    assert_eq!(serial, numbers(&four));
+    assert_eq!(serial[1], Some(6.0));
+    let values = project(&four, &ProjectionRequest { cells: vec![at(2), at(3)] }).unwrap();
+    for (cell, number) in values.cells().iter().zip([6., 4.]) {
+        assert!(
+            matches!(cell.value(), calc_host::ProjectedValue::Calculated { value, .. } if value.as_number() == Some(number)),
+            "{:?}",
+            cell.value()
+        );
+    }
+}

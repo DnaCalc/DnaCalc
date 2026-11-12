@@ -2097,6 +2097,7 @@ fn apply(
 ) {
     match attempt {
         Ok(Attempt::Suspended) => work.ready.push_front(node),
+        Ok(Attempt::NeedsOwner) => unreachable!("only a level worker returns NeedsOwner"),
         Ok(Attempt::AwaitExternal) => {
             let local = std::mem::take(&mut work.local);
             let (runtime, request) = local
@@ -2562,17 +2563,25 @@ mod parallel {
                 }
                 for index in from..(from + CHUNK).min(positions.len()) {
                     let node = order[positions[index]];
-                    let attempt = evaluate_with(
-                        state,
-                        inputs,
-                        &shared,
-                        local,
-                        node,
-                        None,
-                        None,
-                        None,
-                        &mut silent,
-                    );
+                    // A worker has no callable table: user calls run on the owner.
+                    let attempt = if matches!(
+                        state.bindings.get(&node),
+                        Some(Binding::Placed(instance, _)) if instance.plan().has_user_calls()
+                    ) {
+                        Ok(Attempt::NeedsOwner)
+                    } else {
+                        evaluate_with(
+                            state,
+                            inputs,
+                            &shared,
+                            local,
+                            node,
+                            None,
+                            None,
+                            None,
+                            &mut silent,
+                        )
+                    };
                     // Unfinished speculative work is replayed by process on the owner.
                     // Its continuation belongs to this node, never the worker's next one.
                     if !matches!(&attempt, Ok(Attempt::Done(_))) {
@@ -5216,6 +5225,9 @@ enum Attempt {
     RangeRefused,
     /// The same semantic activation retains its stack, instruction pointer and kernel buffer.
     Suspended,
+    /// A level worker did not evaluate the node: its formula calls user code, whose callable
+    /// table only the owner holds. `evaluate_levels` evaluates it again on the owner, in order.
+    NeedsOwner,
     AwaitExternal,
     Reevaluate {
         on: NodeId,
