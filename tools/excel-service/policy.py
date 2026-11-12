@@ -152,12 +152,12 @@ def validate(request, names, request_id):
 MAX_GROUP_CALLS = 250000
 MAX_SPILL_CALLS = 1000
 # Array-returning functions, admitted only as spill groups (arguments in cells, the whole spill read back).
-SPILL_FUNCTIONS = {"TEXTSPLIT", "MINVERSE", "MMULT", "MUNIT", "MODE.MULT", "FREQUENCY", "TREND", "GROWTH",
+SPILL_FUNCTIONS = {"TEXTSPLIT", "MINVERSE", "MMULT", "MUNIT", "MODE.MULT", "FREQUENCY", "TREND", "GROWTH", "LINEST", "LOGEST",
                    "TRANSPOSE", "SEQUENCE", "SORT", "UNIQUE", "FILTER", "SORTBY", "TAKE", "DROP",
                    "CHOOSECOLS", "CHOOSEROWS", "HSTACK", "VSTACK", "TOCOL", "TOROW",
                    "WRAPCOLS", "WRAPROWS", "EXPAND", "REGEXEXTRACT", "TRIMRANGE", "FLATTEN",
                    "RANDARRAY", "GROUPBY", "PIVOTBY", "BYROW", "BYCOL", "MAP", "MAKEARRAY", "SCAN"}
-TOKENS = re.compile(r"n|s|S|b|B|e|z|f|[ar][0-9]+x[0-9]+")
+TOKENS = re.compile(r"n|s|S|b|B|e|z|f|[arm][0-9]+x[0-9]+")
 BAD_TEXT = re.compile(r'\x00')
 
 
@@ -187,7 +187,7 @@ class Admission:
         if len(tokens) > 32:
             raise ValueError("expected at most 32 arguments")
         index = group.get("x")
-        if name in REGRESSION:
+        if name in REGRESSION and not (spill and index is None):
             if (not isinstance(index, list) or len(index) != 2 or any(type(v) is not int for v in index)
                     or not 1 <= index[0] <= 5 or not 1 <= index[1] <= 33):
                 raise ValueError("regression requires a bounded scalar result_index")
@@ -197,7 +197,7 @@ class Admission:
         for token in tokens:
             if not TOKENS.fullmatch(token):
                 raise ValueError("unsupported argument type")
-            if token[0] in "ar":
+            if token[0] in "arm":
                 r, c = (int(x) for x in token[1:].split("x"))
                 if not (1 <= r <= 32 and 1 <= c <= 32 and r * c <= 128):
                     raise ValueError("expected a bounded rectangular numeric array")
@@ -212,7 +212,7 @@ class Admission:
         for token, w in zip(tokens, widths):
             if token[0] == "a":
                 self._numbers([v for i in range(n) for v in values[i * width + at:i * width + at + w]])
-            elif token[0] == "r":
+            elif token[0] in "rm":
                 for i in range(n):
                     for cell in values[i * width + at:i * width + at + w]:
                         self._range_cell(cell)

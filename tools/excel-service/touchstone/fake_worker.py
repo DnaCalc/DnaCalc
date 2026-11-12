@@ -76,7 +76,7 @@ while True:
     out = []
     for g in groups:
         tokens = g["k"].split(",") if g["k"] else []
-        width = sum(int(t[1:].split("x")[0]) * int(t[1:].split("x")[1]) if t[0] in "ar" else 1 for t in tokens)
+        width = sum(int(t[1:].split("x")[0]) * int(t[1:].split("x")[1]) if t[0] in "arm" else 1 for t in tokens)
         if g["f"] == "ID":
             vals = [g["v"][i * width] for i in range(g["n"])]
             out.append({"ty": "n" * g["n"], "v": vals})
@@ -87,9 +87,9 @@ while True:
             for i in range(g["n"]):
                 at = i * width
                 for token in tokens:
-                    n = int(token[1:].split("x")[0]) * int(token[1:].split("x")[1]) if token[0] in "ar" else 1
+                    n = int(token[1:].split("x")[0]) * int(token[1:].split("x")[1]) if token[0] in "arm" else 1
                     for value in g["v"][at:at + n]:
-                        if token[0] == "r":
+                        if token[0] in "rm":
                             kind = value["type"]
                             letters.append({"number":"n", "text":"t", "boolean":"b", "blank":"z", "error":"e"}[kind])
                             echoed.append(value.get("bits", value.get("value", value.get("code"))))

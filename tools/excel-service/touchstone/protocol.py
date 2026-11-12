@@ -95,9 +95,9 @@ def _token(arg):
         rows = arg["values"]
         flat = [v["bits"] for r in rows for v in r]
         return f"a{len(rows)}x{len(rows[0])}", flat
-    if kind == "range":
+    if kind in ("range", "mixed_array"):
         rows = arg["values"]
-        return f"r{len(rows)}x{len(rows[0])}", [v for row in rows for v in row]
+        return f"{'r' if kind == 'range' else 'm'}{len(rows)}x{len(rows[0])}", [v for row in rows for v in row]
     if kind == "file":
         return "f", arg["content"]
     raise ValueError("unsupported argument type " + str(kind))
@@ -143,7 +143,7 @@ def positions(group):
 
 
 def token_width(token):
-    if token[0] in "ar":
+    if token[0] in "arm":
         r, c = token[1:].split("x")
         return int(r) * int(c)
     return 1
@@ -162,7 +162,7 @@ def group_calls(group):
     for _ in range(group["n"]):
         call = []
         for token, width in zip(tokens, widths):
-            call.append((token, v[offset:offset + width] if token[0] in "ar" else v[offset]))
+            call.append((token, v[offset:offset + width] if token[0] in "arm" else v[offset]))
             offset += width
         yield call
 
@@ -185,9 +185,9 @@ def group_to_rows(group):
                 row.append({"type": "blank"})
             elif token == "f":
                 row.append({"type": "file", "content": value})
-            elif token[0] == "r":
+            elif token[0] in "rm":
                 r, c = (int(x) for x in token[1:].split("x"))
-                row.append({"type": "range", "values": [value[a * c:(a + 1) * c] for a in range(r)]})
+                row.append({"type": "range" if token[0] == "r" else "mixed_array", "values": [value[a * c:(a + 1) * c] for a in range(r)]})
             else:
                 r, c = (int(x) for x in token[1:].split("x"))
                 row.append({"type": "array", "values": [

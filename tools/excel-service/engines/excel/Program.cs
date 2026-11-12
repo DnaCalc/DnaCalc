@@ -198,7 +198,7 @@ static class Program
 
     static int TokenWidth(string t)
     {
-        if (t[0] != 'a' && t[0] != 'r') return 1;
+        if (t[0] != 'a' && t[0] != 'r' && t[0] != 'm') return 1;
         var p = t.Substring(1).Split('x');
         return int.Parse(p[0]) * int.Parse(p[1]);
     }
@@ -287,7 +287,7 @@ static class Program
             WatchdogFired = false;
             Interlocked.Exchange(ref DeadlineTicks, DateTime.UtcNow.AddMilliseconds(deadlineMs).Ticks);
             var groupList = (List<object>)req["groups"];
-            var special = groupList.Cast<Dictionary<string, object>>().Any(g => ((string)g["k"]).Split(',').Any(t => t == "f" || t.StartsWith("r")));
+            var special = groupList.Cast<Dictionary<string, object>>().Any(g => ((string)g["k"]).Split(',').Any(t => t == "f" || t.StartsWith("r") || t.StartsWith("m")));
             if (special && serial) throw new InvalidOperationException("range/file arguments are not supported in serial mode");
             var groups = special ? EvaluateSpecial(groupList, echo, timing)
                 : serial ? EvaluateSerial(groupList, echo, timing)
@@ -357,18 +357,24 @@ static class Program
                     foreach (string token in tokens)
                     {
                         int w = TokenWidth(token); int start = i * width + offset;
-                        if (token[0] == 'r')
+                        if (token[0] == 'r' || token[0] == 'm')
                         {
                             var dims = token.Substring(1).Split('x'); int nr = int.Parse(dims[0]), nc = int.Parse(dims[1]);
-                            refs.Add("Q!$" + ColName(rangeCol) + "$1:$" + ColName(rangeCol + nc - 1) + "$" + nr);
+                            if (token[0] == 'r') refs.Add("Q!$" + ColName(rangeCol) + "$1:$" + ColName(rangeCol + nc - 1) + "$" + nr);
+                            else
+                            {
+                                string indices = "{" + string.Join(";", Enumerable.Range(0, nr).Select(r => string.Join(",", Enumerable.Range(0, nc).Select(c => r * nc + c + 1)))) + "}";
+                                refs.Add("CHOOSE(" + indices + "," + string.Join(",", Enumerable.Range(0, w).Select(k => "S!$" + ColName(2 + offset + k) + "$1")) + ")");
+                            }
                             for (int k = 0; k < w; k++)
                             {
                                 var cell = (Dictionary<string, object>)values[start + k];
-                                dynamic target = Rng(ranges, 1 + k / nc, rangeCol + k % nc, 1 + k / nc, rangeCol + k % nc);
+                                dynamic target = token[0] == 'r' ? Rng(ranges, 1 + k / nc, rangeCol + k % nc, 1 + k / nc, rangeCol + k % nc)
+                                                                   : Rng(sheet, 1, 2 + offset + k, 1, 2 + offset + k);
                                 object expected = WriteTyped(target, cell);
                                 checks.Add((expected, (object)target, null));
                             }
-                            rangeCol += nc;
+                            if (token[0] == 'r') rangeCol += nc;
                         }
                         else if (token == "f")
                         {

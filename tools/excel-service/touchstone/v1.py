@@ -115,7 +115,7 @@ class Reply:
                 continue
             out, at = [], 0
             for arg in row:
-                if arg["type"] in ("array", "range"):
+                if arg["type"] in ("array", "range", "mixed_array"):
                     r, c = len(arg["values"]), len(arg["values"][0])
                     out.append({"type": arg["type"], "values": [cells[at + a * c:at + (a + 1) * c] for a in range(r)]})
                     at += r * c

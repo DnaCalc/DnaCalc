@@ -41,6 +41,11 @@ def cell_range(rows):
     return {"type": "range", "values": rows}
 
 
+def cell_array(rows):
+    """A rectangular array of typed values, passed as an array expression."""
+    return {"type": "mixed_array", "values": rows}
+
+
 def file_argument(content):
     """UTF-8 file content; the worker supplies its temporary pathname to Excel."""
     return {"type": "file", "content": content}

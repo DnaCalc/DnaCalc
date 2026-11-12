@@ -14,7 +14,8 @@ drift = importlib.util.module_from_spec(spec); spec.loader.exec_module(drift)
 
 EDGES = [0, 1, -1, 2, -2, .5, -.5, 1e-100, -1e-100, 1e100, -1e100,
          math.nextafter(1, 0), math.nextafter(1, 2), 10, 100, 365, 25569, 45000]
-WORDS = ['0', '1', '-1', '0.5', 'hello', '', 'TRUE', '1e2', '1,234', 'abc def', 'i', '12.34']
+WORDS = ['0', '1', '-1', '0.5', 'hello', '', 'TRUE', '1e2', '1,234', 'abc def', 'i', '12.34',
+         '*', 'a?', '~*', '>1', '<=0', '<>', '=A*', 'A,B', ' abc ']
 ERRORS = ['#N/A', '#VALUE!', '#DIV/0!', '#NUM!', '#REF!', '#NAME?', '#NULL!']
 ARRAY_FUNCS = {'LINEST', 'LOGEST', 'FORECAST.ETS', 'FORECAST.ETS.CONFINT',
                'FORECAST.ETS.SEASONALITY', 'FORECAST.ETS.STAT'}
@@ -55,6 +56,8 @@ def generate(entry, stage):
         if name in {"ROWS", "COLUMNS", "ARRAYTOTEXT", "INDEX", "MATCH", "XMATCH",
                     "VLOOKUP", "HLOOKUP", "LOOKUP", "XLOOKUP"}:
             values = [float((i + j) % 13) + i / 10000 for j in range(1 + i % 5)]
+            if i % 3 == 0 and len(values) > 1: values[-1] = values[0]
+            if i % 4 == 0: values.reverse()
             if i % 2: values.sort()
             col = number_array([[v] for v in values])
             mat = number_array([[v, v * 2 + i] for v in values])
@@ -98,7 +101,8 @@ def generate_spill(name, count=1200):
         elif name == 'SORTBY':
             row = [matrix(), number_array([[float(i)], [float(-i)]]), number((-1.) ** i)]
         elif name in {'TAKE', 'DROP', 'CHOOSEROWS', 'CHOOSECOLS'}:
-            row = [matrix(), number(float(1 + i % 2) * (-1 if i % 3 == 0 else 1))]
+            extent = 1 if name == 'DROP' else 1 + i % 2
+            row = [matrix(), number(float(extent) * (-1 if i % 3 == 0 else 1))]
         elif name in {'HSTACK', 'VSTACK'}:
             row = [matrix(), matrix()]
         elif name in {'TOCOL', 'TOROW'}:
@@ -145,7 +149,7 @@ def witness_arg(arg):
     if kind == 'boolean': return arg['value']
     if kind == 'blank': return None
     if kind == 'error': return {'error': drift.ERRORS[arg['code']]}
-    if kind == 'array': return [[witness_arg(x) for x in row] for row in arg['values']]
+    if kind in ('array', 'mixed_array'): return [[witness_arg(x) for x in row] for row in arg['values']]
     raise ValueError(kind)
 
 def ask_checked(client, name, rows, *, result_index=None, shape='scalar', **_):
@@ -160,7 +164,7 @@ def ask_checked(client, name, rows, *, result_index=None, shape='scalar', **_):
     return reply
 
 def main():
-    p=argparse.ArgumentParser(); p.add_argument('--catalogue',type=pathlib.Path,required=True); p.add_argument('--baseline',type=pathlib.Path,required=True); p.add_argument('--out',type=pathlib.Path,required=True); p.add_argument('--stage',choices=['scalar','more','special','spill','spillmore','variants'],required=True); p.add_argument('--only'); o=p.parse_args()
+    p=argparse.ArgumentParser(); p.add_argument('--catalogue',type=pathlib.Path,required=True); p.add_argument('--baseline',type=pathlib.Path,required=True); p.add_argument('--out',type=pathlib.Path,required=True); p.add_argument('--stage',choices=['scalar','more','enrich','special','spill','spillmore','variants'],required=True); p.add_argument('--only'); o=p.parse_args()
     o.out.mkdir(parents=True,exist_ok=True)
     entries=list(csv.reader(o.catalogue.open(),delimiter='\t'))
     status={r['function']:r for r in csv.DictReader(o.baseline.open(),delimiter='\t') if r['bank']=='full'}
@@ -184,8 +188,8 @@ def main():
         rows=generate_variants(e) if o.stage == 'variants' else generate_spill(name,1600)[1200:] if o.stage == 'spillmore' else generate_spill(name) if o.stage == 'spill' else generate(e,o.stage)
         try:
             kw={'echo_inputs':True,'priority':'bulk'}
-            if name in {'LINEST','LOGEST'}: kw['result_index']=(1,1)
             spill = o.stage.startswith('spill') or (o.stage == 'variants' and name in policy.SPILL_FUNCTIONS)
+            if name in {'LINEST','LOGEST'} and not spill: kw['result_index']=(1,1)
             if spill:
                 kw['shape']='array'
                 # Large spill batches hit the worker deadline even though scalar batches

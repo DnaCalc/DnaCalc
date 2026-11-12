@@ -46,6 +46,11 @@ class ProtocolTests(unittest.TestCase):
         self.assertEqual(protocol.group_to_rows(group), [row])
         import policy
         policy.Admission(ROOT).check(group)
+        mixed = [{"type": "mixed_array", "values": cells}]
+        mixed_group = protocol.rows_to_groups("ROWS", [mixed])[0]
+        self.assertEqual(mixed_group["k"], "m3x2")
+        self.assertEqual(protocol.group_to_rows(mixed_group), [mixed])
+        policy.Admission(ROOT).check(mixed_group)
         for bad in ({"type": "number", "bits": "7ff0000000000000"},
                     {"type": "text", "value": "x", "mode": "literal"},
                     {"type": "formula", "value": "=1"}):
