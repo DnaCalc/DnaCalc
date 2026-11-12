@@ -150,11 +150,7 @@ struct App {
     /// module instance. They carry no add-ins, fetch route or RTD. Keyed by the bridge's channel.
     extras: RefCell<std::collections::BTreeMap<u32, Server>>,
     /// The file named on the command line, given to the first worker the page starts.
-    opening: RefCell<Option<(String, Vec<u8>)>>,
-    /// Where that file came from (its Mark of the Web, the network), which decides whether its
-    /// VBA project may be enabled (dc-0f1k.22). A file the page's own file input opens has no
-    /// path here, and opens with its project disabled.
-    opening_origin: Cell<Option<calc_host_vba::FileOrigin>>,
+    opening: RefCell<Option<calc_platform_desktop::origin::OpenedFile>>,
     /// The macro security level in force (dc-15dk), given to every worker the page starts, and the
     /// per-user folder the person's choice is stored in (never a level the flag or the variable pins).
     macro_policy: Cell<calc_macro_security::MacroPolicy>,
@@ -190,32 +186,15 @@ fn persist_macro_policy(
 /// default). When a file was named on the command line, that first request becomes the Open of the
 /// file, in the page's own command envelope, so the page installs it as it installs any opened
 /// workbook. Returns the request to answer instead, or `None` when `text` is anything else.
-fn startup_open(text: &str, opening: &(String, Vec<u8>)) -> Option<String> {
-    use dna_calc_worker::wire::{Request, ToServer};
-    let mut message = wire::decode::<ToServer>(text).ok()?;
-    let Request::Command(envelope) = &mut message.request else {
-        return None;
-    };
-    if !matches!(
-        *envelope.request,
-        Request::New | Request::OpenTemplate { .. }
-    ) {
-        return None;
-    }
-    *envelope.request = Request::Open {
-        name: opening.0.clone(),
-    };
-    Some(wire::encode(&message))
+fn startup_open(text: &str, opening: &calc_platform_desktop::origin::OpenedFile) -> Option<String> {
+    crate::origin::open_request(text, opening, true)
 }
 
 /// The file `--open` names: its file name and bytes, read before any window shows.
-fn read_open_file(path: &std::path::Path) -> Result<(String, Vec<u8>), String> {
-    let bytes = std::fs::read(path).map_err(|e| format!("{}: {e}", path.display()))?;
-    let name = path
-        .file_name()
-        .map(|n| n.to_string_lossy().into_owned())
-        .ok_or_else(|| format!("{}: not a file", path.display()))?;
-    Ok((name, bytes))
+fn read_open_file(
+    path: &std::path::Path,
+) -> Result<calc_platform_desktop::origin::OpenedFile, String> {
+    calc_platform_desktop::origin::open_file(path).map_err(|e| format!("{}: {e}", path.display()))
 }
 
 impl App {
@@ -343,22 +322,67 @@ impl App {
         let (text, bytes) = split_message(message);
         let mut text = text.to_owned();
         let mut bytes = bytes;
-        let substitute =
-            self.opening.borrow().as_ref().and_then(|opening| {
-                startup_open(&text, opening).map(|open| (open, opening.1.clone()))
-            });
-        if let Some((open, package)) = substitute {
+        let mut open_origin = None;
+        let substitute = self.opening.borrow().as_ref().and_then(|opening| {
+            startup_open(&text, opening).map(|open| (open, opening.bytes.clone(), opening.origin))
+        });
+        if let Some((open, package, origin)) = substitute {
             self.opening.borrow_mut().take();
-            if let Some(origin) = self.opening_origin.take() {
-                self.server.borrow_mut().set_open_origin(origin);
-            }
+            open_origin = Some(origin);
             text = open;
             bytes = Some(package);
+        }
+        if let Ok(message) = wire::decode::<wire::ToServer>(&text) {
+            if matches!(&message.request, wire::Request::Command(envelope)
+                if matches!(*envelope.request, wire::Request::OpenNative))
+            {
+                let selected = calc_platform_desktop::dialogs::open_file(
+                    self.frame,
+                    "Open a workbook",
+                    &[calc_platform_desktop::dialogs::FileFilter {
+                        name: "Excel workbooks",
+                        patterns: "*.xlsx;*.xlsm;*.xlsb;*.xltx;*.xltm",
+                    }],
+                )
+                .and_then(|path| path.map(|path| read_open_file(&path)).transpose());
+                match selected {
+                    Ok(Some(opened)) => {
+                        text = crate::origin::open_request(&text, &opened, false)
+                            .expect("checked native open");
+                        open_origin = Some(opened.origin);
+                        bytes = Some(opened.bytes);
+                    }
+                    Ok(None) => {
+                        self.post(
+                            &wire::encode(&FromServer::Reply {
+                                id: message.id,
+                                reply: wire::Reply::OpenCancelled,
+                            }),
+                            None,
+                        );
+                        return;
+                    }
+                    Err(message_text) => {
+                        self.post(
+                            &wire::encode(&FromServer::Failed {
+                                id: Some(message.id),
+                                message: message_text,
+                            }),
+                            None,
+                        );
+                        return;
+                    }
+                }
+            }
         }
         let text = text.as_str();
         let (reply, out, events) = {
             let mut server = self.server.borrow_mut();
-            let (reply, out) = server::answer_text(&mut server, text, bytes);
+            let (reply, out) = match open_origin {
+                Some(origin) => server
+                    .with_open_origin(origin, |server| server::answer_text(server, text, bytes)),
+                None => server::answer_text(&mut server, text, bytes),
+            };
             self.store_macro_policy(server.macro_policy());
             (reply, out, server.take_events())
         };
@@ -458,7 +482,6 @@ fn default_data_dir() -> PathBuf {
 pub fn run(args: &[String]) -> Result<(), String> {
     let o = options(args)?;
     let opening = o.open.as_deref().map(read_open_file).transpose()?;
-    let opening_origin = o.open.as_deref().map(crate::origin::file_origin);
     // WebView2 is the app's window: say clearly what is missing and where to get it.
     if o.probe.is_none() && calc_platform_desktop::runtime_version().is_none() {
         let text = crate::embedded::missing_runtime_message();
@@ -515,7 +538,8 @@ Open the download page now?"
     // the day from the machine's clock, as the browser worker reads it from the browser's.
     dna_calc_worker::workbook::set_native_clock(calc_platform_desktop::local_serial_clock);
     let settings = calc_platform_desktop::macro_security::default_folder();
-    let macro_policy = calc_platform_desktop::macro_security::policy(&settings, o.trust_macros, o.macros);
+    let macro_policy =
+        calc_platform_desktop::macro_security::policy(&settings, o.trust_macros, o.macros);
     let mut server = Server::new();
     server.set_macro_policy(macro_policy);
     server.set_calculation_budget(calc_host::WorkBudget::evaluations(64));
@@ -575,7 +599,6 @@ Open the download page now?"
         functions: RefCell::new(functions),
         extras: RefCell::new(Default::default()),
         opening: RefCell::new(opening),
-        opening_origin: Cell::new(opening_origin),
         macro_policy: Cell::new(macro_policy),
         settings,
     });
@@ -683,7 +706,7 @@ mod tests {
         std::fs::write(&file, bytes).unwrap();
         let opening = read_open_file(&file).unwrap();
         assert_eq!(
-            (opening.0.as_str(), opening.1.len()),
+            (opening.name.as_str(), opening.bytes.len()),
             ("named.xlsx", bytes.len())
         );
         assert!(read_open_file(&folder.join("missing.xlsx")).is_err());
@@ -764,7 +787,7 @@ mod tests {
             }
         }
         let text = startup_open(&page(&server, Request::New), &opening).unwrap();
-        let (reply, _) = server::answer_text(&mut server, &text, Some(opening.1.clone()));
+        let (reply, _) = server::answer_text(&mut server, &text, Some(opening.bytes.clone()));
         let reply: FromServer = wire::decode(&reply).unwrap();
         match reply {
             FromServer::Reply {

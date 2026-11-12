@@ -138,10 +138,9 @@ pub enum Request {
         name: String,
         #[serde(with = "bytes_as_base64")]
         bytes: Vec<u8>,
-        /// The URL security zone of the file's Mark of the Web (its `Zone.Identifier` stream)
-        /// when the host could read one: 3 (internet) and 4 (restricted) never run a VBA project.
+        /// The native host's file origin; browser bytes have Unknown origin and require Unblock.
         #[serde(default)]
-        zone: Option<u32>,
+        origin: crate::FileOrigin,
     },
     /// Lets the open file's VBA project run (the person enabled macros for this file); answers
     /// with the file as opened, now with its project compiled and `Workbook_Open` raised.
@@ -621,22 +620,29 @@ impl SessionPort for LocalPort {
                 *session = fresh;
                 opened(session, String::new(), Vec::new())
             }
-            Request::Open { name, bytes, zone } => match crate::file::open(&bytes) {
+            Request::Open {
+                name,
+                bytes,
+                origin,
+            } => match crate::file::open(&bytes) {
                 Ok((mut next, vba)) => {
                     carry_functions(session, &mut next);
                     *session = next;
                     // Excel's default for a macro file: it opens with macros disabled (nothing
                     // compiles, nothing runs); with the Mark of the Web it can not be enabled.
-                    let project = vba.map(|vba| match session.open_project(vba, &name, zone) {
-                        Ok(report) => project_view(session, report),
-                        Err(why) => project_view(
-                            session,
-                            ProjectReport {
-                                functions: Vec::new(),
-                                notes: vec![why],
+                    let project =
+                        vba.map(
+                            |vba| match session.open_project_with_origin(vba, &name, origin) {
+                                Ok(report) => project_view(session, report),
+                                Err(why) => project_view(
+                                    session,
+                                    ProjectReport {
+                                        functions: Vec::new(),
+                                        notes: vec![why],
+                                    },
+                                ),
                             },
-                        ),
-                    });
+                        );
                     opened_with(session, name, Vec::new(), project)
                 }
                 Err(refusal) => Reply::NotASession {

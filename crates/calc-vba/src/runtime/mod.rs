@@ -174,6 +174,7 @@ impl Module {
         automatic_events: bool,
         workbook_events: bool,
     ) -> Result<Self, Error> {
+        let _policy = crate::policy::compilation_scope();
         let procedural: std::collections::HashSet<_> = modules
             .iter()
             .filter(|m| m.module_kind == sym::ModuleKind::Procedural)

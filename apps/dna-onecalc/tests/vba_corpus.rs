@@ -33,14 +33,19 @@ use calc_vba::policy::{self, Capability, CapabilitySet, PolicyMode, Prediction};
 use dna_onecalc::{Session, display};
 use serde_json::{Value, json};
 
+#[path = "../../../crates/calc-doc/tests/cdoc_m1_1_support/mod.rs"]
+#[allow(dead_code)]
+mod support;
+#[path = "../../../crates/calc-doc/tests/cdoc_m1_1_support/vba_project.rs"]
+mod vba_project;
+
 fn corpus_dir() -> PathBuf {
     Path::new(env!("CARGO_MANIFEST_DIR")).join("../../crates/calc-vba/tests/corpus")
 }
 
 /// Windows-1252 text as the VBE exports it (the bytes the Excel job imports).
-fn read_source(path: &Path) -> String {
-    let bytes = std::fs::read(path).unwrap_or_else(|e| panic!("{}: {e}", path.display()));
-    match String::from_utf8(bytes.clone()) {
+fn decode_source(bytes: &[u8]) -> String {
+    match String::from_utf8(bytes.to_vec()) {
         Ok(text) => text,
         Err(_) => bytes.iter().map(|b| char::from(*b)).collect(),
     }
@@ -81,29 +86,135 @@ struct Outcome {
 }
 
 /// The policy approvals: a project runs `Full` only when its id and module hashes are listed.
-fn approved_full(id: &str, manifest: &Value) -> bool {
+struct ExecutionInputs {
+    project: Vec<u8>,
+    modules: Vec<Vec<u8>>,
+    workbook: Option<Vec<u8>>,
+}
+
+fn approval_matches(
+    a: &Value,
+    id: &str,
+    _manifest: &Value,
+    route: Route,
+    inputs: &ExecutionInputs,
+) -> bool {
+    use calc_verdict::sha256_hex as hash;
+    a["policy"] == "full"
+        && a["project"] == id
+        && a["route"] == route_name(route)
+        && a["project_sha256"] == hash(&inputs.project)
+        && a["module_sha256"].as_array().is_some_and(|hashes| {
+            hashes.iter().eq(inputs
+                .modules
+                .iter()
+                .map(|bytes| Value::String(hash(bytes)))
+                .collect::<Vec<_>>()
+                .iter())
+        })
+        && match route {
+            Route::Xlsm => inputs
+                .workbook
+                .as_ref()
+                .is_some_and(|bytes| a["workbook_sha256"] == hash(bytes)),
+            _ => true,
+        }
+}
+
+fn approved_full(id: &str, manifest: &Value, route: Route, inputs: &ExecutionInputs) -> bool {
     let path = corpus_dir().join("policy-approvals.json");
     let Ok(text) = std::fs::read_to_string(&path) else {
         return false;
     };
     let approvals: Value = serde_json::from_str(&text).unwrap();
-    let hashes: Vec<&str> = manifest["modules"]
-        .as_array()
-        .unwrap()
-        .iter()
-        .map(|m| m["sha256"].as_str().unwrap_or(""))
-        .collect();
     approvals["approvals"].as_array().is_some_and(|list| {
-        list.iter().any(|a| {
-            a["policy"] == "full"
-                && a["project"] == id
-                && a["module_sha256"].as_array().is_some_and(|h| {
-                    h.iter()
-                        .map(|v| v.as_str().unwrap_or(""))
-                        .eq(hashes.iter().copied())
-                })
-        })
+        list.iter()
+            .any(|a| approval_matches(a, id, manifest, route, inputs))
     })
+}
+
+/// Native-only: validates the filesystem corpus runner input snapshots.
+#[test]
+fn full_approval_is_bound_to_route_project_and_executed_bytes() {
+    use calc_verdict::sha256_hex as hash;
+    let module = b"Public Function F(): F = 1: End Function".to_vec();
+    let manifest = json!({"modules": [{"name":"Api", "path":"Api.bas", "sha256":hash(&module)}]});
+    let mut inputs = ExecutionInputs {
+        project: serde_json::to_vec(&manifest).unwrap(),
+        modules: vec![module],
+        workbook: Some(b"workbook".to_vec()),
+    };
+    let route = Route::Xlsm;
+    let approval = json!({"project":"fixture", "policy":"full", "route":"xlsm", "project_sha256":hash(&inputs.project), "module_sha256":[hash(&inputs.modules[0])], "workbook_sha256":hash(inputs.workbook.as_ref().unwrap())});
+    assert!(approval_matches(
+        &approval, "fixture", &manifest, route, &inputs
+    ));
+    inputs.modules[0].push(b'\n');
+    assert!(
+        !approval_matches(&approval, "fixture", &manifest, route, &inputs),
+        "changed module bytes"
+    );
+    inputs.modules[0].pop();
+    inputs.workbook.as_mut().unwrap().push(1);
+    assert!(
+        !approval_matches(&approval, "fixture", &manifest, route, &inputs),
+        "changed workbook bytes"
+    );
+    inputs.workbook.as_mut().unwrap().pop();
+    assert!(
+        !approval_matches(
+            &approval,
+            "fixture",
+            &manifest,
+            Route::Module(None),
+            &inputs
+        ),
+        "another route"
+    );
+    inputs.project.push(b' ');
+    assert!(
+        !approval_matches(&approval, "fixture", &manifest, route, &inputs),
+        "changed project metadata"
+    );
+}
+
+/// Native-only: writes a temporary project and executes it on an owning native thread.
+#[test]
+fn a_swallowed_denial_is_one_refusal_even_when_the_value_matches_excel() {
+    std::thread::Builder::new().stack_size(256 * 1024 * 1024).spawn(|| {
+        let dir = std::env::temp_dir().join(format!("vba-policy-scoring-{}", std::process::id()));
+        std::fs::create_dir_all(&dir).unwrap();
+        std::fs::write(dir.join("Api.bas"), "Public Function Probe() As Long\n On Error Resume Next\n Dim x As String\n x = Environ(\"UNUSED_POLICY_TEST\")\n Probe = 42\nEnd Function\n").unwrap();
+        std::fs::write(dir.join("project.json"), serde_json::to_vec(&json!({"primary":"Api", "modules":[{"name":"Api", "path":"Api.bas"}], "cases":"cases.json"})).unwrap()).unwrap();
+        std::fs::write(dir.join("cases.json"), r#"[{"formula":"=Probe()","value":42}]"#).unwrap();
+        let out = run_project(&dir, Route::Module(Some(calc_vba::Backend::Interpreter))).unwrap();
+        std::fs::remove_dir_all(&dir).unwrap();
+        assert!(out.loaded.is_ok(), "{:?}", out.loaded);
+        assert_eq!((out.matched, out.mismatched, out.refused, out.policy_denied), (0, 0, 1, 1));
+        assert_eq!(out.details.len(), 1);
+        assert_eq!(out.details[0]["class"], "refused");
+    }).unwrap().join().unwrap();
+}
+
+/// Native-only: modifies an existing test package and runs its Workbook_Open on an owning thread.
+#[test]
+fn a_swallowed_initialization_denial_cannot_produce_matched_cases() {
+    std::thread::Builder::new().stack_size(256 * 1024 * 1024).spawn(|| {
+        let dir = std::env::temp_dir().join(format!("vba-policy-init-scoring-{}", std::process::id()));
+        std::fs::create_dir_all(&dir).unwrap();
+        let api = "Public Function Probe() As Long\n Probe = 42\nEnd Function\n";
+        let book = "Private Sub Workbook_Open()\n On Error Resume Next\n Dim o As Object\n Set o = CreateObject(\"WinHttp.WinHttpRequest.5.1\")\nEnd Sub\n";
+        let bytes = vba_project::replace_sources(include_bytes!("../../../crates/calc-doc/tests/fixtures/vba_udf_names/local.xlsm"), &[("Module1", api), ("PrivateModule", "Option Private Module\n"), ("Sheet1", ""), ("ThisWorkbook", book)]);
+        std::fs::write(dir.join("fixture.xlsm"), vba_project::minimal_control(&bytes)).unwrap();
+        std::fs::write(dir.join("Api.bas"), api).unwrap();
+        std::fs::write(dir.join("Book.cls"), book).unwrap();
+        std::fs::write(dir.join("project.json"), serde_json::to_vec(&json!({"modules":[{"name":"Module1", "path":"Api.bas"},{"name":"ThisWorkbook", "path":"Book.cls"}], "workbook":"fixture.xlsm", "cases":"cases.json"})).unwrap()).unwrap();
+        std::fs::write(dir.join("cases.json"), r#"[{"formula":"=Probe()","value":42}]"#).unwrap();
+        let out = run_project(&dir, Route::Xlsm).unwrap();
+        std::fs::remove_dir_all(&dir).unwrap();
+        assert!(out.loaded.is_ok(), "{:?}", out.loaded);
+        assert_eq!((out.matched, out.mismatched, out.refused, out.policy_denied), (0, 0, 1, 1));
+    }).unwrap().join().unwrap();
 }
 
 fn capability_set(prediction: &Prediction) -> CapabilitySet {
@@ -143,20 +254,36 @@ fn route_name(route: Route) -> &'static str {
 }
 
 fn run_project(dir: &Path, route: Route) -> Option<Outcome> {
-    let manifest: Value =
-        serde_json::from_str(&std::fs::read_to_string(dir.join("project.json")).unwrap()).unwrap();
+    // Read once, approve those bytes, then compile/open those same snapshots.
+    let project = std::fs::read(dir.join("project.json")).unwrap();
+    let manifest: Value = serde_json::from_slice(&project).unwrap();
+    let modules = manifest["modules"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .map(|m| std::fs::read(dir.join(m["path"].as_str().unwrap())).unwrap())
+        .collect();
+    let workbook = if route == Route::Xlsm {
+        Some(std::fs::read(dir.join(manifest["workbook"].as_str()?)).unwrap())
+    } else {
+        None
+    };
+    let inputs = ExecutionInputs {
+        project,
+        modules,
+        workbook,
+    };
     let id = dir.file_name().unwrap().to_string_lossy().into_owned();
-    let mode = if approved_full(&id, &manifest) {
+    let mode = if approved_full(&id, &manifest, route, &inputs) {
         PolicyMode::Full
     } else {
         PolicyMode::Safe
     };
     policy::set_thread_policy(Some(mode));
-    let sources: Vec<String> = manifest["modules"]
-        .as_array()
-        .unwrap()
+    let sources: Vec<String> = inputs
+        .modules
         .iter()
-        .map(|m| read_source(&dir.join(m["path"].as_str().unwrap())))
+        .map(|bytes| decode_source(bytes))
         .collect();
     let (prediction, predicted_source) = match route {
         Route::Module(_) => {
@@ -166,9 +293,15 @@ fn run_project(dir: &Path, route: Route) -> Option<Outcome> {
                 .iter()
                 .position(|m| primary.is_none_or(|p| m["name"] == p))
                 .unwrap();
-            match calc_vba::predict_module(modules[index]["name"].as_str().unwrap(), &sources[index]) {
+            match calc_vba::predict_module(
+                modules[index]["name"].as_str().unwrap(),
+                &sources[index],
+            ) {
                 Ok(p) => (p, "bound"),
-                Err(_) => (policy::predict_lexical(&[sources[index].as_str()]), "lexical"),
+                Err(_) => (
+                    policy::predict_lexical(&[sources[index].as_str()]),
+                    "lexical",
+                ),
             }
         }
         _ => (
@@ -187,7 +320,8 @@ fn run_project(dir: &Path, route: Route) -> Option<Outcome> {
                 .find(|m| primary.is_none_or(|p| m["name"] == p))
                 .expect("a primary module");
             let name = module["name"].as_str().unwrap();
-            let source = read_source(&dir.join(module["path"].as_str().unwrap()));
+            let index = modules.iter().position(|m| m == module).unwrap();
+            let source = sources[index].clone();
             match backend {
                 None => session
                     .load_vba_module(name, &source, calc_vba::DEFAULT_STEP_BUDGET)
@@ -207,9 +341,10 @@ fn run_project(dir: &Path, route: Route) -> Option<Outcome> {
                 .as_array()
                 .unwrap()
                 .iter()
-                .map(|m| calc_vba::events::ProjectModule {
+                .enumerate()
+                .map(|(index, m)| calc_vba::events::ProjectModule {
                     name: m["name"].as_str().unwrap().to_owned(),
-                    source: read_source(&dir.join(m["path"].as_str().unwrap())),
+                    source: sources[index].clone(),
                     kind: match m["kind"].as_str() {
                         Some("class") => calc_vba::events::ModuleKind::Class,
                         _ => calc_vba::events::ModuleKind::Standard,
@@ -222,8 +357,12 @@ fn run_project(dir: &Path, route: Route) -> Option<Outcome> {
         }
         Route::Xlsm => {
             let path = manifest["workbook"].as_str()?;
-            let bytes = std::fs::read(dir.join(path)).unwrap();
-            let name = Path::new(path).file_name().unwrap().to_string_lossy().into_owned();
+            let bytes = inputs.workbook.as_ref().expect("approved input snapshot");
+            let name = Path::new(path)
+                .file_name()
+                .unwrap()
+                .to_string_lossy()
+                .into_owned();
             match dna_onecalc::file::open(&bytes) {
                 Err(e) => Err(first_line(&format!("open: {e:?}"))),
                 Ok((opened, vba)) => {
@@ -259,6 +398,7 @@ fn run_project(dir: &Path, route: Route) -> Option<Outcome> {
     // Whatever the load itself asked the host for (module-level initialisers).
     let load_audit = policy::drain_audit();
     out.observed = out.observed.union(load_audit.requested());
+    let initialization_denied = load_audit.denied_set();
     let Some(cases) = manifest["cases"].as_str() else {
         return Some(out);
     };
@@ -268,9 +408,16 @@ fn run_project(dir: &Path, route: Route) -> Option<Outcome> {
         let formula = case["formula"].as_str().unwrap();
         let Some(excel) = excel_text(case) else {
             out.missing += 1;
-            out.details.push(json!({"formula": formula, "class": "missing"}));
+            out.details
+                .push(json!({"formula": formula, "class": "missing"}));
             continue;
         };
+        if !initialization_denied.is_empty() {
+            out.refused += 1;
+            out.policy_denied += 1;
+            out.details.push(json!({"formula":formula, "class":"refused", "why":"policy denied during project initialization", "denied":names(initialization_denied)}));
+            continue;
+        }
         if let Err(reason) = &out.loaded {
             out.refused += 1;
             out.details.push(json!({"formula": formula, "class": "refused", "why": format!("project did not load: {reason}")}));
@@ -284,20 +431,10 @@ fn run_project(dir: &Path, route: Route) -> Option<Outcome> {
             out.after_first_denial += 1;
         }
         if audit.denied_any() {
-            // Counted by the value the case produced, as the reviewed baseline counts them; the
-            // denial is recorded beside it, because `On Error Resume Next` can swallow a denial
-            // and return an answer that merely equals Excel's.
             out.policy_denied += 1;
-            let note = 
-                audit
-                    .counts
-                    .iter()
-                    .filter(|c| c.denied > 0)
-                    .map(|c| format!("{}: {}", c.capability.name(), c.detail))
-                    .collect::<Vec<_>>()
-                    .join("; ");
-            out.details
-                .push(json!({"formula": formula, "class": "policy_denied", "denied": note}));
+            out.refused += 1;
+            out.details.push(json!({"formula":formula, "class":"refused", "why":"policy denied", "denied":names(audit.denied_set())}));
+            continue;
         }
         let why: Vec<String> = calculation
             .diagnostics
@@ -306,7 +443,8 @@ fn run_project(dir: &Path, route: Route) -> Option<Outcome> {
             .collect();
         let Some(result) = calculation.result else {
             out.refused += 1;
-            out.details.push(json!({"formula": formula, "class": "refused", "why": why.join(" | ")}));
+            out.details
+                .push(json!({"formula": formula, "class": "refused", "why": why.join(" | ")}));
             continue;
         };
         // A dynamic-array result: Excel's answer is the value of the formula cell, the first element.
@@ -338,8 +476,12 @@ fn run_all() -> BTreeMap<String, Outcome> {
     for dir in dirs {
         let id = dir.file_name().unwrap().to_string_lossy().into_owned();
         let manifest: Value =
-            serde_json::from_str(&std::fs::read_to_string(dir.join("project.json")).unwrap()).unwrap();
-        let mut routes = vec![Route::Module(Some(calc_vba::Backend::Interpreter)), Route::Module(Some(calc_vba::Backend::Jit))];
+            serde_json::from_str(&std::fs::read_to_string(dir.join("project.json")).unwrap())
+                .unwrap();
+        let mut routes = vec![
+            Route::Module(Some(calc_vba::Backend::Interpreter)),
+            Route::Module(Some(calc_vba::Backend::Jit)),
+        ];
         if manifest["modules"].as_array().is_some_and(|m| m.len() > 1) {
             routes.push(Route::Project(calc_vba::Backend::Interpreter));
             routes.push(Route::Project(calc_vba::Backend::Jit));
@@ -405,6 +547,7 @@ fn the_vba_corpus_runs_headless_and_its_counts_are_the_reviewed_ones() {
         report.insert(
             id.clone(),
             json!({
+                "counts": {"loaded": o.loaded.is_ok(), "matched":o.matched, "mismatched":o.mismatched, "refused":o.refused, "missing":o.missing, "route":o.route},
                 "load_error": o.loaded.clone().err(),
                 "policy": o.mode.name(),
                 "predicted": names(o.predicted), "predicted_from": o.predicted_source,
@@ -418,7 +561,10 @@ fn the_vba_corpus_runs_headless_and_its_counts_are_the_reviewed_ones() {
         );
     }
     for (route, (pass, fail)) in &by_route {
-        println!("{route:20} pass {pass}, fail {fail} (mismatched + refused + missing), cases {}", pass + fail);
+        println!(
+            "{route:20} pass {pass}, fail {fail} (mismatched + refused + missing), cases {}",
+            pass + fail
+        );
     }
     if let Ok(path) = std::env::var("DNACALC_VBA_CORPUS_REPORT") {
         std::fs::write(path, serde_json::to_string_pretty(&report).unwrap()).unwrap();
@@ -430,10 +576,15 @@ fn the_vba_corpus_runs_headless_and_its_counts_are_the_reviewed_ones() {
     let baseline_path = corpus_dir().join("baseline.json");
     let current = Value::Object(counts);
     if std::env::var("DNACALC_VBA_CORPUS_UPDATE").is_ok() {
-        std::fs::write(&baseline_path, serde_json::to_string_pretty(&current).unwrap() + "\n").unwrap();
+        std::fs::write(
+            &baseline_path,
+            serde_json::to_string_pretty(&current).unwrap() + "\n",
+        )
+        .unwrap();
         return;
     }
-    let baseline: Value = serde_json::from_str(&std::fs::read_to_string(&baseline_path).unwrap()).unwrap();
+    let baseline: Value =
+        serde_json::from_str(&std::fs::read_to_string(&baseline_path).unwrap()).unwrap();
     assert_eq!(
         current, baseline,
         "the corpus counts moved; review the per-case report (DNACALC_VBA_CORPUS_REPORT) and \

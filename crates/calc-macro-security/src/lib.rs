@@ -262,3 +262,69 @@ mod tests {
         assert_eq!(free.summary(), "Macro security: Off");
     }
 }
+
+/// Where an opened workbook file came from, as far as its host can tell.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
+pub enum FileOrigin {
+    /// The host cannot verify the origin or read a valid Mark of the Web; requires Unblock.
+    #[default]
+    Unknown,
+    /// A local file without a Mark of the Web.
+    Local,
+    /// A file whose Mark of the Web names this URL security zone (0 to 4).
+    Zone(u32),
+    /// A file opened from a network path (`\\server\share\...`).
+    Network,
+}
+
+/// Why a file's project cannot be enabled.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
+pub enum MacroBlock {
+    /// The origin or Mark of the Web could not be verified.
+    Unknown,
+    /// The Mark of the Web names the internet (3) or restricted (4) zone.
+    Zone(u32),
+    /// The file was opened from the network.
+    Network,
+}
+
+impl FileOrigin {
+    /// What stops the person enabling the file's project, if anything: zones 3 and 4, and the
+    /// network or an unverified origin. Zones 0 to 2 (this computer, the intranet, trusted sites) and unmarked files open
+    /// disabled and can be enabled.
+    pub fn block(self) -> Option<MacroBlock> {
+        match self {
+            Self::Zone(zone @ 3..) => Some(MacroBlock::Zone(zone)),
+            Self::Network => Some(MacroBlock::Network),
+            Self::Unknown => Some(MacroBlock::Unknown),
+            Self::Zone(_) | Self::Local => None,
+        }
+    }
+}
+
+impl MacroBlock {
+    pub fn origin_description(self) -> String {
+        match self {
+            Self::Unknown => "The file origin could not be verified".to_owned(),
+            Self::Network => "This file was opened from the network".to_owned(),
+            Self::Zone(zone) => format!(
+                "This file carries the Mark of the Web (zone {zone}: it came from the internet or another computer)"
+            ),
+        }
+    }
+}
+
+impl std::fmt::Display for MacroBlock {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            Self::Unknown => f.write_str("The file origin could not be verified; unblock it before enabling its VBA project"),
+            Self::Zone(zone) => write!(
+                f,
+                "This file carries the Mark of the Web (zone {zone}: it came from the internet or another computer), so its VBA project is held and not run until you unblock it"
+            ),
+            Self::Network => f.write_str(
+                "This file was opened from the network, so its VBA project is held and not run until you unblock it",
+            ),
+        }
+    }
+}

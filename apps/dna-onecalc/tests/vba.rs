@@ -259,7 +259,12 @@ End Function
     .unwrap();
     s.set_formula("=Plain(1)");
     let plain = s.calculate();
-    assert_eq!(plain.result, Some(CalcValue::number(2.0)), "{:?}", plain.diagnostics);
+    assert_eq!(
+        plain.result,
+        Some(CalcValue::number(2.0)),
+        "{:?}",
+        plain.diagnostics
+    );
     for formula in ["=RangeCount(A1:A2)", "=CallerAddress()"] {
         s.set_formula(formula);
         let outcome = s.calculate();
@@ -323,28 +328,44 @@ End Function
 }
 
 /// dc-0f1k.4: owner rule, early-bound COM through imported type libraries first, never late
-/// binding as a start. `CreateObject` with a ProgID is a typed refusal that no `On Error` hides and
+/// binding as a start. Native COM activation is a typed refusal that no `On Error` hides and
 /// no project reference turns on (late-bound calls on COM objects take the same refusal in the
 /// runtime; only a project that references a type library can hold such an object).
 #[cfg_attr(not(target_arch = "wasm32"), test)]
 #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
 fn late_bound_com_is_a_typed_refusal() {
-    let mut s = session();
-    // Scripting.Dictionary is served by the engine (dc-6eey); any other ProgID is the refusal.
-    let source = r#"Public Function MakeDictionary()
+    // Both the upstream filesystem control and WinHttp remain native COM refusals.
+    for prog_id in ["Scripting.FileSystemObject", "WinHttp.WinHttpRequest.5.1"] {
+        let mut s = session();
+        let source = r#"Public Function MakeNativeObject()
  On Error Resume Next
  Dim d As Object
- Set d = CreateObject("Scripting.FileSystemObject")
- MakeDictionary = 7
+ Set d = CreateObject("WinHttp.WinHttpRequest.5.1")
+ MakeNativeObject = 7
 End Function
 "#;
-    s.load_vba_module("Late", source, 1000).unwrap();
-    s.set_formula("=IFERROR(MakeDictionary(),9)");
-    let outcome = s.calculate();
-    let diagnostics = format!("{:?}", outcome.diagnostics);
-    assert!(outcome.result.is_none(), "{outcome:?}");
-    assert!(diagnostics.contains("NotModelled"), "{diagnostics}");
-    assert!(diagnostics.contains("CreateObject"), "{diagnostics}");
+        let source = source.replace("WinHttp.WinHttpRequest.5.1", prog_id);
+        s.load_vba_module("Late", &source, 1000).unwrap();
+        s.set_formula("=IFERROR(MakeNativeObject(),9)");
+        let outcome = s.calculate();
+        let diagnostics = format!("{:?}", outcome.diagnostics);
+        assert!(outcome.result.is_none(), "{outcome:?}");
+        assert!(diagnostics.contains("NotModelled"), "{diagnostics}");
+        assert!(diagnostics.contains("CreateObject"), "{diagnostics}");
+    }
+}
+
+/// Native Dictionary executes through the application in Safe without a COM activation.
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn native_dictionary_is_available_in_safe_without_a_policy_request() {
+    let _policy = calc_vba::policy::PolicyScope::enter(calc_vba::policy::PolicyMode::Safe);
+    let _ = calc_vba::policy::drain_audit();
+    let mut s = session();
+    s.load_vba_module("NativeDictionary", "Public Function DictionaryValue() As Long\n Dim d As Object\n Set d = CreateObject(\"Scripting.Dictionary\")\n d.Add \"x\", 7\n DictionaryValue = d(\"x\")\nEnd Function\n", 100_000).unwrap();
+    s.set_formula("=DictionaryValue()");
+    assert_eq!(s.calculate().result, Some(CalcValue::number(7.)));
+    assert_eq!(calc_vba::policy::drain_audit().total, 0);
 }
 
 /// dc-0f1k.4: Excel's default for macro files. An .xlsm with the Mark of the Web (zone 3 or 4)
@@ -355,23 +376,25 @@ End Function
 fn a_macro_file_opens_disabled_and_the_mark_of_the_web_blocks_it() {
     use dna_onecalc::port::{LocalPort, MacrosView, Reply, Request, SessionPort};
     for (input_bytes, can_compile) in example_contract_inputs() {
-        for (zone, expected) in [
-            (Some(3), MacrosView::Blocked),
-            (Some(4), MacrosView::Blocked),
-            (Some(2), MacrosView::Disabled),
-            (Some(0), MacrosView::Disabled),
-            (None, MacrosView::Disabled),
+        for (origin, expected) in [
+            (dna_onecalc::FileOrigin::Zone(3), MacrosView::Blocked),
+            (dna_onecalc::FileOrigin::Zone(4), MacrosView::Blocked),
+            (dna_onecalc::FileOrigin::Zone(2), MacrosView::Disabled),
+            (dna_onecalc::FileOrigin::Zone(0), MacrosView::Disabled),
+            (dna_onecalc::FileOrigin::Local, MacrosView::Disabled),
+            (dna_onecalc::FileOrigin::Network, MacrosView::Blocked),
+            (dna_onecalc::FileOrigin::Unknown, MacrosView::Blocked),
         ] {
             let mut port = LocalPort::new(Session::new("Sheet1").unwrap());
             let Reply::Opened(opened) = port.send(Request::Open {
                 name: "DnaExamples.xlsm".into(),
                 bytes: input_bytes.clone(),
-                zone,
+                origin,
             }) else {
                 panic!("opened")
             };
             let view = opened.project.expect("the file's project");
-            assert_eq!(view.macros, expected, "{zone:?}");
+            assert_eq!(view.macros, expected, "{origin:?}");
             assert!(
                 view.functions.is_empty() && !view.notes.is_empty(),
                 "{view:?}"
@@ -383,19 +406,19 @@ fn a_macro_file_opens_disabled_and_the_mark_of_the_web_blocks_it() {
             let reply = port.send(Request::EnableMacros);
             if expected == MacrosView::Blocked {
                 assert!(
-                    matches!(&reply, Reply::Refused { message } if message.contains("Mark of the Web")),
+                    matches!(&reply, Reply::Refused { message } if message == &origin.block().unwrap().to_string()),
                     "{reply:?}"
                 );
                 assert_eq!(
                     port.session().project().map(|p| p.macros),
-                    Some(dna_onecalc::MacroState::Blocked(zone.unwrap()))
+                    Some(dna_onecalc::MacroState::Blocked(origin.block().unwrap()))
                 );
             } else if can_compile {
-                assert!(matches!(reply, Reply::Opened(_)), "{zone:?}: {reply:?}");
+                assert!(matches!(reply, Reply::Opened(_)), "{origin:?}: {reply:?}");
             } else {
                 assert!(
                     matches!(&reply, Reply::Refused { message } if message.contains("Scripting") && message.contains("cannot be resolved on this platform") && message.contains("dc-0f1k.4")),
-                    "{zone:?}: {reply:?}"
+                    "{origin:?}: {reply:?}"
                 );
                 assert_eq!(
                     port.session().project().map(|p| p.macros),
@@ -427,10 +450,8 @@ const EXAMPLES_XLSM: &[u8] =
 const EXAMPLE_CASES: &str =
     include_str!("../../../crates/calc-xll-reference/fixture/vba/x9-vba-cases.json");
 
-// Storage and macro-security contracts run in the browsers as well as natively.
-// The complete example module now needs the Windows Scripting type library.
-// Keep that original input for Windows/COM cases; elsewhere use the existing
-// project writer to give these contracts a module with portable VBA only.
+// Run the complete original project and the existing minimal source-editing control.
+// Scripting.Dictionary is native, so both compile on every platform.
 fn examples_for_portable_contract() -> Vec<u8> {
     if cfg!(windows) {
         return EXAMPLES_XLSM.to_vec();
@@ -453,10 +474,7 @@ fn examples_for_portable_contract() -> Vec<u8> {
     calc_doc::write_session(&file).unwrap()
 }
 
-// Preserve the full external-reference refusal contract and also exercise
-// portable activation/editing; Windows executes its complete original input.
 fn example_contract_inputs() -> Vec<(Vec<u8>, bool)> {
-    // Scripting.Dictionary is served by the engine (dc-6eey), so the original input compiles everywhere.
     let mut inputs = vec![(EXAMPLES_XLSM.to_vec(), true)];
     if !cfg!(windows) {
         inputs.push((examples_for_portable_contract(), true));
@@ -476,7 +494,7 @@ fn opened_example_bytes(
     let reply = port.send(Request::Open {
         name: "DnaExamples.xlsm".into(),
         bytes,
-        zone: None,
+        origin: dna_onecalc::FileOrigin::Local,
     });
     let Reply::Opened(opened) = reply else {
         panic!("{reply:?}")
@@ -835,11 +853,13 @@ fn the_macro_security_level_decides_what_runs_and_what_the_buttons_do() {
     use dna_onecalc::port::{LocalPort, MacrosView, Reply, Request, SessionPort};
     use dna_onecalc::{MacroPolicy, MacroSecurity};
     for (bytes, can_compile) in example_contract_inputs() {
-        let open = |port: &mut LocalPort, zone| {
+        let open = |port: &mut LocalPort, zone: Option<u32>| {
             let Reply::Opened(opened) = port.send(Request::Open {
                 name: "DnaExamples.xlsm".into(),
                 bytes: bytes.clone(),
-                zone,
+                origin: zone
+                    .map(dna_onecalc::FileOrigin::Zone)
+                    .unwrap_or(dna_onecalc::FileOrigin::Local),
             }) else {
                 panic!("opened")
             };
@@ -854,7 +874,10 @@ fn the_macro_security_level_decides_what_runs_and_what_the_buttons_do() {
         let marked = open(&mut port, Some(3));
         assert_eq!(marked.macro_policy.level(), MacroSecurity::Off);
         assert_eq!(marked.project.as_ref().unwrap().macros, MacrosView::Blocked);
-        assert!(matches!(port.send(Request::EnableMacros), Reply::Refused { .. }));
+        assert!(matches!(
+            port.send(Request::EnableMacros),
+            Reply::Refused { .. }
+        ));
         let unblocked = port.send(Request::UnblockMacros);
         if can_compile {
             let Reply::Opened(unblocked) = unblocked else {
@@ -881,7 +904,8 @@ fn the_macro_security_level_decides_what_runs_and_what_the_buttons_do() {
             assert!(local.notice.is_empty(), "{local:?}");
             assert_eq!(marked.macros, MacrosView::Enabled);
             assert!(
-                marked.notice.contains("Mark of the Web") && marked.notice.contains("macro security level"),
+                marked.notice.contains("Mark of the Web")
+                    && marked.notice.contains("macro security level"),
                 "{marked:?}"
             );
         } else {
@@ -895,7 +919,9 @@ fn the_macro_security_level_decides_what_runs_and_what_the_buttons_do() {
         assert_eq!(fresh.macro_policy.level(), MacroSecurity::Unguarded);
 
         // Safe (dc-10un): the project runs on open under the Safe policy, a marked file too.
-        port.send(Request::SetMacroSecurity { level: MacroSecurity::Safe });
+        port.send(Request::SetMacroSecurity {
+            level: MacroSecurity::Safe,
+        });
         let safe = open(&mut port, None).project.unwrap();
         let safe_marked = open(&mut port, Some(3)).project.unwrap();
         if can_compile {
@@ -908,9 +934,12 @@ fn the_macro_security_level_decides_what_runs_and_what_the_buttons_do() {
 
         // Pinned by the flag or the variable: Unguarded, and the page cannot choose another.
         let mut pinned = LocalPort::new(Session::new("Sheet1").unwrap());
-        pinned
-            .session_mut()
-            .set_macro_policy(MacroPolicy::resolve(MacroSecurity::Safe, false, Some("1"), None));
+        pinned.session_mut().set_macro_policy(MacroPolicy::resolve(
+            MacroSecurity::Safe,
+            false,
+            Some("1"),
+            None,
+        ));
         let marked = open(&mut pinned, Some(3));
         assert_eq!(marked.macro_policy.level(), MacroSecurity::Unguarded);
         assert!(marked.macro_policy.pinned().is_some());

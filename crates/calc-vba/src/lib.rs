@@ -56,6 +56,8 @@ pub const NEEDS_A_WORKBOOK: &str = "needs a workbook: open in DNA Calc";
 /// The capabilities a standard module can request, predicted from its bound OxIR (the module is
 /// compiled, never run). Compare with the audit log of a run under `policy`.
 pub fn predict_module(name: &str, source: &str) -> Result<policy::Prediction, String> {
+    let _scope =
+        oxvba_com::ComPolicyScope::enter(|_, _| Err("native COM disabled for triage".into()));
     let module = Module::load_spreadsheet(name, source).map_err(|e| e.to_string())?;
     Ok(module.predicted_capabilities())
 }
@@ -206,7 +208,12 @@ impl UserFunction for RefusedVbaFunction {
         Some(Rc::as_ptr(&self.session) as usize as u64)
     }
     fn call(&self, _: &[CalcValue]) -> Result<CalcValue, String> {
-        Err(format!("{}: {} ({})", self.name, self.reason, self.package()))
+        Err(format!(
+            "{}: {} ({})",
+            self.name,
+            self.reason,
+            self.package()
+        ))
     }
     fn call_with_context(
         &self,
@@ -630,7 +637,8 @@ mod tests {
                 .unwrap(),
             )
         };
-        let text = |s: &str| CalcValue::text(ExcelText::from_utf16_code_units(s.encode_utf16().collect()));
+        let text =
+            |s: &str| CalcValue::text(ExcelText::from_utf16_code_units(s.encode_utf16().collect()));
         for (argument, expected) in [
             (numbers(&[&[1.0, 2.0, 3.0]]), "1-3:1d"),
             (numbers(&[&[1.0], &[2.0], &[3.0]]), "1-3x1"),
@@ -639,15 +647,25 @@ mod tests {
             assert_eq!(functions.call("Dims", &[argument]).unwrap(), text(expected));
         }
         let num = CalcValue::error(WorksheetErrorCode::Num);
-        assert_eq!(functions.call("AsLong", &[CalcValue::number(3e9)]).unwrap(), num);
-        assert_eq!(functions.call("AsLong", &[CalcValue::number(-3e9)]).unwrap(), num);
+        assert_eq!(
+            functions.call("AsLong", &[CalcValue::number(3e9)]).unwrap(),
+            num
+        );
+        assert_eq!(
+            functions
+                .call("AsLong", &[CalcValue::number(-3e9)])
+                .unwrap(),
+            num
+        );
         assert_eq!(
             functions.call("AsLong", &[CalcValue::number(2.5)]).unwrap(),
             CalcValue::number(2.0)
         );
         // The body's own overflow and a text that is no number stay VBA errors, which the
         // formula shows as #VALUE!.
-        let grow = functions.call("Grow", &[CalcValue::number(1e5)]).unwrap_err();
+        let grow = functions
+            .call("Grow", &[CalcValue::number(1e5)])
+            .unwrap_err();
         assert!(grow.contains("VBA error 6"), "{grow}");
         let neg = functions.call("Neg", &[text("x")]).unwrap_err();
         assert!(neg.contains("VBA error 13"), "{neg}");
@@ -673,7 +691,10 @@ mod tests {
                 .unwrap(),
             CalcValue::number(42.0)
         );
-        assert_eq!(functions.call("Hidden", &[]).unwrap(), CalcValue::number(1.0));
+        assert_eq!(
+            functions.call("Hidden", &[]).unwrap(),
+            CalcValue::number(1.0)
+        );
     }
     #[cfg_attr(not(target_arch = "wasm32"), test)]
     #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]

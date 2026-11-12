@@ -494,6 +494,7 @@ impl Workbook {
                 match block {
                     calc_host_vba::MacroBlock::Zone(zone) => FileOrigin::Zone(*zone),
                     calc_host_vba::MacroBlock::Network => FileOrigin::Network,
+                    calc_host_vba::MacroBlock::Unknown => FileOrigin::Unknown,
                 },
                 Some(*block),
             ),
@@ -503,17 +504,12 @@ impl Workbook {
             EnableMode::Person => calc_host_vba::ProjectGrant::person_enabled(origin)
                 .map_err(EnableRefused::Blocked)?,
             EnableMode::Unblock => calc_host_vba::ProjectGrant::person_unblocked(origin),
-            EnableMode::Trusted { by, policy } => calc_host_vba::ProjectGrant::trust_all(by, policy),
+            EnableMode::Trusted { by, policy } => {
+                calc_host_vba::ProjectGrant::trust_all(by, policy)
+            }
         };
         let note = block.map(|block| {
-            let source = match block {
-                calc_host_vba::MacroBlock::Zone(zone) => format!(
-                    "This file carries the Mark of the Web (zone {zone}: it came from the internet or another computer)"
-                ),
-                calc_host_vba::MacroBlock::Network => {
-                    "This file was opened from the network".to_owned()
-                }
-            };
+            let source = block.origin_description();
             match mode {
                 EnableMode::Trusted { by, .. } => {
                     format!("{source}; its macros run because of {by}")

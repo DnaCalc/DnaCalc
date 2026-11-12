@@ -886,6 +886,8 @@ pub enum Request {
     Ping,
     /// A new, empty workbook.
     New,
+    /// Ask the native host to choose and read one file with its origin.
+    OpenNative,
     /// Opens the bytes that travel beside the message, under `name`.
     Open {
         name: String,
@@ -917,7 +919,9 @@ pub enum Request {
     UnblockMacros,
     /// The person chose a macro security level (dc-15dk); refused while the command line or the
     /// environment pins it. The native host stores the level per user.
-    SetMacroSecurity { level: MacroSecurity },
+    SetMacroSecurity {
+        level: MacroSecurity,
+    },
     /// Saves the workbook: its bytes travel back beside the reply.
     Save,
     /// Ordinary live save with Excel's CalculateBeforeSave setting.
@@ -1461,6 +1465,8 @@ pub struct PastePreview {
 
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 pub enum Reply {
+    /// The native Open dialog was cancelled; the workbook is unchanged.
+    OpenCancelled,
     CellImage(Option<CellImage>),
     PageSetup(Result<crate::printing::PageSetupState, String>),
     PrintPreview(Result<crate::printing::PrintDocument, String>),

@@ -40,10 +40,9 @@ pub trait Files {
     /// The workbook the person chooses to open, with its file name; `None` when they cancel.
     fn choose_open(&mut self) -> Result<Option<(String, Vec<u8>)>, String>;
 
-    /// The URL security zone in the Mark of the Web (`Zone.Identifier` stream) of the file
-    /// `choose_open` returned last; `None` when the file has none or the host cannot tell.
-    fn opened_zone(&self) -> Option<u32> {
-        None
+    /// The complete origin of the file returned by the last native open.
+    fn opened_origin(&self) -> dna_onecalc::FileOrigin {
+        dna_onecalc::FileOrigin::Unknown
     }
 
     /// Asks where to save `bytes` (suggesting `suggested`), writes them there and returns the
@@ -403,13 +402,13 @@ impl<F: Files, L: Libraries> Host<F, L> {
     /// A file chosen to open (by dialog or from the recent list): opened, and remembered when it
     /// is a session; refused with the offer when it is not.
     fn open_chosen(&mut self, name: String, bytes: Vec<u8>) -> Reply {
-        let zone = self.files.opened_zone();
+        let origin = self.files.opened_origin();
         let path = self.files.opened_path();
         let kept = bytes.clone();
         let reply = self.port.send(Request::Open {
             name: name.clone(),
             bytes,
-            zone,
+            origin,
         });
         let opened = matches!(reply, Reply::Opened(_));
         self.note_refusal(&reply, path.clone(), Some(name), Some(kept));
@@ -631,19 +630,21 @@ impl<F: Files, L: Libraries> Host<F, L> {
             },
             // The person enabled macros for this file: the project compiles and `Workbook_Open`
             // runs; the add-ins the host loaded stay loaded (this is not a new file).
-            request @ (Request::EnableMacros | Request::UnblockMacros) => match self.port.send(request) {
-                Reply::Opened(mut opened) => {
-                    let _ = self.publish();
-                    opened.shown.functions_version = self.port.session().functions_version();
-                    opened.loaded = self
-                        .loaded_paths()
-                        .iter()
-                        .map(|p| p.display().to_string())
-                        .collect();
-                    Reply::Opened(opened)
+            request @ (Request::EnableMacros | Request::UnblockMacros) => {
+                match self.port.send(request) {
+                    Reply::Opened(mut opened) => {
+                        let _ = self.publish();
+                        opened.shown.functions_version = self.port.session().functions_version();
+                        opened.loaded = self
+                            .loaded_paths()
+                            .iter()
+                            .map(|p| p.display().to_string())
+                            .collect();
+                        Reply::Opened(opened)
+                    }
+                    other => other,
                 }
-                other => other,
-            },
+            }
             // The person's macro security level is stored per user; a level the flag or the variable
             // pins is shown and never stored (dc-15dk).
             request @ Request::SetMacroSecurity { .. } => {
@@ -661,11 +662,15 @@ impl<F: Files, L: Libraries> Host<F, L> {
                 self.list_loaded();
                 self.port.send(Request::Save)
             }
-            request @ (Request::Open { .. } | Request::New) => {
+            mut request @ (Request::Open { .. } | Request::New) => {
                 let (name, bytes) = match &request {
                     Request::Open { name, bytes, .. } => (Some(name.clone()), Some(bytes.clone())),
                     _ => (None, None),
                 };
+                if let Request::Open { origin, .. } = &mut request {
+                    // Page-supplied bytes carry no native file identity or origin evidence.
+                    *origin = dna_onecalc::FileOrigin::Unknown;
+                }
                 let reply = self.port.send(request);
                 if matches!(reply, Reply::Opened(_)) {
                     self.path = None;
@@ -793,7 +798,7 @@ mod tests {
         save_to: Option<String>,
         addin: Option<PathBuf>,
         written: Vec<(String, Vec<u8>)>,
-        zone: Option<u32>,
+        origin: dna_onecalc::FileOrigin,
         /// The path `choose_open` and `read_recent` report as the file they read.
         path: Option<PathBuf>,
         /// What the recent list holds, and what `remember` was told.
@@ -816,8 +821,8 @@ mod tests {
             Ok(self.open.take())
         }
 
-        fn opened_zone(&self) -> Option<u32> {
-            self.zone
+        fn opened_origin(&self) -> dna_onecalc::FileOrigin {
+            self.origin
         }
 
         fn store_macro_level(&mut self, level: dna_onecalc::MacroSecurity) {
@@ -1267,7 +1272,7 @@ mod tests {
         host.handle(Request::Open {
             name: "drop.xlsx".into(),
             bytes: b"zip?".to_vec(),
-            zone: None,
+            origin: dna_onecalc::FileOrigin::Local,
         });
         assert_eq!(host.handle(Request::OpenInDnaCalc), Reply::Accepted);
         assert_eq!(host.files.launched[1], (None, "drop.xlsx".to_owned(), 4));
@@ -1560,6 +1565,7 @@ mod tests {
             include_bytes!("../../../crates/calc-xll-reference/fixture/vba/DnaExamples.xlsm");
         let mut host = host();
         host.files.open = Some(("DnaExamples.xlsm".into(), xlsm.to_vec()));
+        host.files.origin = dna_onecalc::FileOrigin::Local;
         let Reply::Opened(opened) = host.handle(Request::OpenNative) else {
             panic!("opened")
         };
@@ -1602,6 +1608,48 @@ mod tests {
         assert!(file.contains("DnaTwice = 2 * x"));
     }
 
+    /// Native-only: native opens and page byte opens use their actual origin evidence.
+    #[test]
+    fn network_unverified_and_page_supplied_files_require_unblock() {
+        let bytes =
+            include_bytes!("../../../crates/calc-xll-reference/fixture/vba/DnaExamples.xlsm");
+        for origin in [
+            dna_onecalc::FileOrigin::Network,
+            dna_onecalc::FileOrigin::Unknown,
+        ] {
+            let mut host = host();
+            host.files.open = Some(("test.xlsm".into(), bytes.to_vec()));
+            host.files.origin = origin;
+            let Reply::Opened(opened) = host.handle(Request::OpenNative) else {
+                panic!("opened")
+            };
+            assert_eq!(
+                opened.project.unwrap().macros,
+                dna_onecalc::port::MacrosView::Blocked
+            );
+            assert!(matches!(
+                host.handle(Request::EnableMacros),
+                Reply::Refused { .. }
+            ));
+        }
+        let mut host = host();
+        let Reply::Opened(opened) = host.handle(Request::Open {
+            name: "page.xlsm".into(),
+            bytes: bytes.to_vec(),
+            origin: dna_onecalc::FileOrigin::Local,
+        }) else {
+            panic!("opened")
+        };
+        assert_eq!(
+            opened.project.unwrap().macros,
+            dna_onecalc::port::MacrosView::Blocked
+        );
+        assert!(matches!(
+            host.handle(Request::EnableMacros),
+            Reply::Refused { .. }
+        ));
+    }
+
     /// Native-only: a file with the Mark of the Web (zone 3 or 4) never runs its VBA project and
     /// the person cannot enable it; zone 2 or no mark opens disabled and can be enabled.
     #[test]
@@ -1616,7 +1664,9 @@ mod tests {
         ] {
             let mut host = host();
             host.files.open = Some(("DnaExamples.xlsm".into(), xlsm.to_vec()));
-            host.files.zone = zone;
+            host.files.origin = zone
+                .map(dna_onecalc::FileOrigin::Zone)
+                .unwrap_or(dna_onecalc::FileOrigin::Local);
             let Reply::Opened(opened) = host.handle(Request::OpenNative) else {
                 panic!("opened")
             };
@@ -1655,7 +1705,7 @@ mod tests {
         let mut host = host();
         let open = |host: &mut Host<Scripted, Fake>| {
             host.files.open = Some(("DnaExamples.xlsm".into(), xlsm.to_vec()));
-            host.files.zone = Some(3);
+            host.files.origin = dna_onecalc::FileOrigin::Zone(3);
             let Reply::Opened(opened) = host.handle(Request::OpenNative) else {
                 panic!("opened")
             };
