@@ -63,9 +63,7 @@ They are simple programs built from pieces Excel shares with GAMMALN, BINOM.DIST
 
 ## Experiments, in order
 
-Counts are Excel calls answered (cache misses); 138,950 in all: BETA.DIST 91,495, LN 21,926,
-FDIST 14,948, F.DIST 2,550, TDIST and T.DIST.2T 3,600, BINOM.DIST 2,205, GAMMALN 1,739, EXP and
-GAMMA 487.
+Counts are Excel calls answered (cache misses); 264,002 in all: BETA.DIST 158,703, LN 43,877, FDIST 32,360, EXP 18,048, F.DIST 3,433, TDIST 2,400, BINOM.DIST 2,205, GAMMALN 1,739, T.DIST.2T 1,200, GAMMA 37.
 
 ### E0 Error scale (x0.py, 2,250 calls)
 BETA.DIST(x, a, b), b in {2, 3, 2.5}, a from 3 to 300, 150 random x each. Excel's error against the
@@ -199,6 +197,24 @@ first on 16. Excel: BINOM.DIST(3, 7, 0.5, TRUE) = 0x3fdffffffffffffe, BETA.DIST(
   combinations in a precision-64 emulation, best 514 of 600 (quotient stored, the term kept in
   the register for the next step, its stored value added to a stored sum, product stored).
   Not landed: no form reaches all rows.
+
+### E5c Three or more terms on few-bit arguments (u22..u37: about 9,000 calls; nothing landed)
+A sharper control than E5b. With `1 - x = k / 2048` and integer shapes whose quotients are exact
+((7, 4): 8/2 and 9/3), every term and the sum `w = 1 + 4y + 12y^2` are exact in binary64, so no
+register or store order can matter. Frozen prediction: all rows match. Verdict: BETA.DIST(x, 7, 3)
+matches 880 of 880 and (6, 3) 880 of 880, but (7, 4) misses 35 of 937, all of them with x in
+[0.39, 0.49) (y from 0.5 until w reaches 8), one unit either way; outside that band none. (6, 4)
+has the same band and others, (5, 5) a band for x in [0.18, 0.25) (until w reaches 16).
+- In the band the series part and the first factor are right (the b - 1 call matches on all 201
+  rows there), and Excel's answer needs `w` one unit off its exact value.
+- Rejected on the band: 14 assemblies of the final sum, 11 orders of the term with and without a
+  stored reciprocal (the reciprocal forms do raise (5, 5) from 665 to 707 of 716), a shorter
+  reduction (at most 12 of 201), sums rounded toward zero.
+- Reading: Excel's terms carry a rounding error of about a unit of each term even when the term
+  is exactly representable, which shows only where a term's unit reaches half the sum's (the
+  band's edges fit that: the first term passes 2 at its start and the sum passes 8 at its end).
+  So the terms are not formed by the products tried here; what does form them is the open
+  question for this arm (427 FDIST and about 130 BETA.DIST bank rows).
 
 ### E10 The asymptotic arm for a large and b <= 1 (g1b..g6b: about 6,000 calls; nothing landed)
 - 829 of the 1,186 BETA.DIST bank rows still failing are here (x > 0.5, a > 15, b <= 1).
