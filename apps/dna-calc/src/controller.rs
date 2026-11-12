@@ -3611,6 +3611,7 @@ impl Controller {
     }
 
     pub fn edit_changed(&self) {
+        self.model.update(|model| model.edit.replacement = true);
         self.pointed.set(None);
         self.remember_editor_selection();
     }
@@ -3733,7 +3734,10 @@ impl Controller {
             self.switch_sheet(at.sheet());
             self.select_areas(at, self.edit_areas.get_value());
         }
-        if !fill_selection && text == self.edit_original.get_value() {
+        if !fill_selection
+            && !self.model.with_untracked(|model| model.edit.replacement)
+            && text == self.edit_original.get_value()
+        {
             self.model.update(|model| model.edit.finish());
             self.assist.reset();
             then(true);

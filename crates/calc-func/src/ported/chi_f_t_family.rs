@@ -1,7 +1,8 @@
 use crate::ported::excel_numeric::crt_pow;
 use crate::ported::special_dist_family::erfc_of_sqrt_half_x;
 use crate::ported::special_math_common::{
-    bisect_inverse, bratio_from_wrapper, gamma, regularized_beta, regularized_gamma_q,
+    bisect_inverse, bisect_inverse_closest, bratio_from_wrapper, gamma, regularized_beta,
+    regularized_gamma_p, regularized_gamma_q,
 };
 use crate::value::WorksheetErrorCode;
 
@@ -142,6 +143,25 @@ pub fn chisq_inv_rt_kernel(probability: f64, deg_freedom: f64) -> Result<f64, Wo
         };
     }
     let k = truncate_positive_integer(deg_freedom)?;
+    if k == 2.0 {
+        use crate::ported::excel_numeric::{excel_log, excel_log1p_times};
+        // Exponential right inverse, preserving p rather than first taking
+        // 1-p. The near-one arm shares the measured distribution logarithm.
+        return Ok(if p > 0.625 {
+            excel_log1p_times(-2.0, p - 1.0)
+        } else {
+            -2.0 * excel_log(p)
+        });
+    }
+    if k > 2.0 && p > 0.5 {
+        // Q near one loses the small lower tail. Keep that lower tail and
+        // publish its closest forward lattice point. Fresh164 controls gain
+        //55 words, lose nine one-ULP words; worst error falls to121 ULP.
+        let target = 1.0 - p;
+        let forward = |x| regularized_gamma_p(k / 2.0, x / 2.0);
+        let hi = search_upper_bound(target, k, forward);
+        return Ok(bisect_inverse_closest(target, 0.0, hi, forward));
+    }
     // Excel 20527: the df=1 arm first forms P = .5 + (.5-p).
     // All 320 independently chosen probabilities retain the same CHIINV word
     // after this fold; the df=2 control retains only 37/320. Preserve both
@@ -156,10 +176,8 @@ pub fn chisq_inv_rt_kernel(probability: f64, deg_freedom: f64) -> Result<f64, Wo
     } else {
         p
     };
-    // Excel inverts its published right-tail surface (CHIDIST = Q) directly,
-    // not P at 1-p: the complement staging carries a systematic -5..-33-ULP
-    // bias on the b14 CHIINV corpus (W109). Q is decreasing in x, so invert
-    // the negated forward at -p to keep the increasing-forward convention.
+    // Keep the measured df=1 fold and invert the smaller right tail directly.
+    // Q decreases in x, so negate it for the increasing-forward convention.
     let hi = search_upper_bound(-p, k, |x| -regularized_gamma_q(k / 2.0, x / 2.0));
     Ok(bisect_inverse(-p, 0.0, hi, |x| {
         -regularized_gamma_q(k / 2.0, x / 2.0)

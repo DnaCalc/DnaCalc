@@ -3,6 +3,8 @@
 #   powershell -NoProfile -ExecutionPolicy Bypass -File make-catalogue-fixtures.ps1 -OutDir <directory>
 #
 # writes <directory>/catalogue/oracle.xlsx and separate numeric research question workbooks.
+# `-CircularReferenceGame` instead writes the separate formula-only game example through
+# the same package writer, without modifying the catalogue or existing oracle workbooks.
 # Run with this directory as -OutDir it rewrites the
 # committed fixture; the acceptance case dc_xrxb__prefix_metadata_matches_excel runs it into a
 # fresh directory on Windows and compares its output with the committed workbook byte for byte.
@@ -42,7 +44,8 @@ param(
     [string]$Fn2IndexShapes,
     [string]$QuestionSectionFile = '',
     [string]$QuestionCase = '',
-    [string]$QuestionSetupFile = ''
+    [string]$QuestionSetupFile = '',
+    [switch]$CircularReferenceGame
 )
 
 Set-StrictMode -Version 2.0
@@ -244,7 +247,7 @@ $Metadata = $Decl + '<metadata xmlns="' + $Main + '" xmlns:xda="http://schemas.m
 # -DynamicArrays also the metadata part, which the source formulas of New-OracleSheet name.
 # Question families may request the 1904 date system or workbook-scoped formula names.
 # Omitting both keeps the original package bytes unchanged.
-function Write-Workbook([string]$Path, $Sheets, [switch]$DynamicArrays, [switch]$Date1904, $Names = @()) {
+function Write-Workbook([string]$Path, $Sheets, [switch]$DynamicArrays, [switch]$Date1904, $Names = @(), [switch]$IterateOnce, [string]$Styles = '') {
     $types = $Decl + '<Types xmlns="' + $ContentTypes + '">' +
         '<Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/>' +
         '<Default Extension="xml" ContentType="application/xml"/>' +
@@ -279,17 +282,27 @@ function Write-Workbook([string]$Path, $Sheets, [switch]$DynamicArrays, [switch]
         }
         $definedNames += '</definedNames>'
     }
+    $calcPr = '<calcPr fullCalcOnLoad="1"/>'
+    if ($IterateOnce) { $calcPr = '<calcPr calcMode="auto" iterate="1" iterateCount="1" fullCalcOnLoad="1"/>' }
     $workbook = $Decl + '<workbook xmlns="' + $Main + '" xmlns:r="' + $Rel + '">' + $properties + '<bookViews><workbookView/></bookViews>' +
-        '<sheets>' + $entries + '</sheets>' + $definedNames + '<calcPr fullCalcOnLoad="1"/></workbook>'
+        '<sheets>' + $entries + '</sheets>' + $definedNames + $calcPr + '</workbook>'
     $all = New-Object System.Collections.ArrayList
     [void]$all.Add(@('[Content_Types].xml', $types))
     [void]$all.Add(@('_rels/.rels', (New-Relationships @(, @('rId1', "$Rel/officeDocument", 'xl/workbook.xml')))))
     [void]$all.Add(@('xl/workbook.xml', $workbook))
     [void]$all.Add(@('xl/_rels/workbook.xml.rels', (New-Relationships $rels)))
-    [void]$all.Add(@('xl/styles.xml', (Get-Styles)))
+    if ($Styles -eq '') { $Styles = Get-Styles }
+    [void]$all.Add(@('xl/styles.xml', $Styles))
     if ($DynamicArrays) { [void]$all.Add(@('xl/metadata.xml', $Metadata)) }
     foreach ($part in $parts) { [void]$all.Add($part) }
     Write-Package $Path $all
+}
+
+# The game is a separate workbook. Its section uses the same workbook/package writer above.
+if ($CircularReferenceGame) {
+    . (Join-Path $PSScriptRoot 'circular-reference-game.ps1')
+    Write-CircularReferenceGame (Join-Path $OutDir 'circular-reference.xlsx')
+    return
 }
 
 # Corpus-seeded questions use the same package writer in a separate new workbook.

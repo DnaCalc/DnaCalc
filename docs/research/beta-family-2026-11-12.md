@@ -311,3 +311,81 @@ The internal reduced power series matches only 91 public unit CDFs, but
 substituting that public CDF was already tested and is weaker (best 98/192
 versus baseline 102/192). Public unit special cases therefore do not establish
 the internal recurrence base. No recurrence change is justified by this batch.
+
+
+## Fix2 upper-probability inverse search
+
+Fresh paired Excel20527 questions: 528 upper probabilities, including skewed
+shapes and independent tiny-shape controls. Of 424 numeric pairs, 403 satisfy
+`BETA.INV(p,a,b) = 1-BETA.INV(1-p,b,a)` exactly; the other 21 differ by one
+ULP. All 104 error pairs agree. Applying the reflected search through the
+existing application helper improves native predictions from 134 to 337
+of 528, losing six original matches by one ULP each (indices97,101,403,488,
+515,519). The much smaller mathematical root for (.75,.0008,1) is not Excel's
+published 2^-53 floor; the reflected lattice search produces that floor.
+The private low-word publication is still incomplete.
+
+An additional original-coordinate nearest-residual refinement reduces that
+holdout to 281/528. It loses no original match but does not identify Excel's
+program as well, so it is rejected. Direct SIN-square, reflected COS-square
+and complement-SIN-square half-shape inverse models match only92,82,100 of
+268 fresh rows respectively and are also rejected. The measured arcsine
+forward CDF does not imply any of those inverse word programs.
+
+Raw questions and frozen predictions are in the existing fix2 probe section
+of CalcFunc-Evidence. No Excel answer, input or expected pin value is changed.
+
+
+## Fix2 zero-density initial proposal
+
+Role: implementer. Sources read: this repository, Excel20527 service outputs,
+and the NBS public-domain mathematical formulas in Abramowitz and Stegun,
+[26.4.17](https://personal.math.ubc.ca/~cbm/aands/page_941.htm) and
+[26.5.20](https://personal.math.ubc.ca/~cbm/aands/page_945.htm).
+No Numerical Recipes, R nmath, glibc or unkept ACM TOMS implementation was
+read. Published normal approximations26.2.22/23 were calibration candidates,
+not sources of new product coefficients or code.
+
+For the first shape above1 and second at most1, take the accurate normal
+quantile, the chi-square cube-root proposal, and the first rational inverse
+of26.5.20. The cube's word program is EXP(stored3*LN(base)); multiplication,
+CRT POW and the direct x87 power fail the controls. Every stated elementary
+operation is stored from PC64. Of128 calibration controls, that stored
+program matches128 exactly. A fresh256-row frozen holdout, using the native
+normal application route before asking Excel, matches256/256. All384 public
+PDF controls at those proposals are zero. Excel publishes the proposal in
+this state, including its1-1e-6 replacement when the proposal rounds to1.
+The new application helper reuses the existing normal, elementary and beta
+PDF routes and leaves the ordinary inverse search intact.
+
+An upper-gamma initial-proposal alternative matches only56/100 endpoint
+phase controls. A constant-mean shortcut also fails. The normal/chi proposal
+is a sufficient zero-density rule, not a complete inverse iteration model:
+16 of128 distinguishing endpoint controls reach the fallback later even
+though their initial proposal remains below1. They remain unmodelled here.
+The negative-chi and lower-power initial branches are not inferred or added.
+
+Targeted bank checks gain11 exact matches with zero losses: BETA.INV4,
+BETAINV5,TINV1,CONFIDENCE.T1. The two Student-t/confidence gross tiny-tail
+errors now match their recorded Excel words. Remaining large central-degree
+and small-first/large-second inverse errors stay counted and open.
+
+
+## Fix2 unlanded lower-power and large-degree controls
+
+Own Tier1 mathematical experiments, raw Excel20527 replies retained in the
+existing fix2 probe section. A large remaining small-first/huge-second beta
+inverse witness exactly equals the lower-tail power estimate
+`exp((ln(p*a)+lnGamma(a)-a*ln(b))/a)`. The128 fresh controls show that Excel
+sometimes publishes this estimate despite a nonzero CDF residual and a
+finite nonzero public density, and sometimes continues to a closer root.
+Exponent sweeps show a sharp transition; neither a global initial-estimate
+shortcut nor a zero-density explanation qualifies. No new branch is added.
+
+A&S26.7.5 large-degree t expansions with one through four terms are also
+rejected: the best candidate matches at most one of64 controls at each of
+45000,1e6,1e8,1e10 degrees. On256 paired public-beta controls, the existing
+direct inverse-beta transformation matches233; the complementary graph
+explains16 more high-probability controls, leaving seven at1e10 degrees.
+These point back to the inverse beta publication rather than licensing a
+normal-quantile substitution or a changed final t arithmetic graph.

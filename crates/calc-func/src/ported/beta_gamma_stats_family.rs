@@ -1,7 +1,8 @@
 use crate::ported::excel_numeric::crt_exp;
 use crate::ported::excel_numeric::crt_log;
 use crate::ported::special_math_common::{
-    bisect_inverse, ln_gamma, regularized_beta, regularized_gamma_p,
+    bisect_inverse, bisect_inverse_closest, ln_gamma, regularized_beta, regularized_gamma_p,
+    regularized_gamma_q,
 };
 use crate::value::WorksheetErrorCode;
 
@@ -79,6 +80,45 @@ pub(crate) fn beta_dist_kernel(
     }
 }
 
+/// The measured zero-density arm of the large-first/small-second beta inverse.
+/// Own Tier1 derivation: A&S26.4.17, with the rational inverse of26.5.20.
+/// Excel20527 publishes this initial proposal when its density underflows;
+/// 128 calibration and256 frozen holdout controls qualify this stored program.
+fn beta_inverse_zero_density_seed(p: f64, a: f64, b: f64) -> Option<f64> {
+    use crate::ported::excel_numeric::{
+        excel_exp, excel_log, excel_sqrt_staged, excel_x87_add,
+        excel_x87_div, excel_x87_mul, excel_x87_sub,
+    };
+    if a <= 1.0 || b > 1.0 {
+        return None;
+    }
+    let z = -crate::ported::normal_log_family::norm_s_inv_kernel(p).ok()?;
+    let correction = excel_x87_div(1.0, excel_x87_mul(9.0, b));
+    let base = excel_x87_add(
+        excel_x87_sub(1.0, correction),
+        excel_x87_mul(z, excel_sqrt_staged(correction)),
+    );
+    if base <= 0.0 || !base.is_finite() {
+        return None;
+    }
+    // This cube is the stored EXP of stored 3*LN, not a multiplication cube
+    // or either existing POW primitive (separated by the fresh holdout).
+    let cube = excel_exp(3.0 * excel_log(base));
+    let twice_b = 2.0 * b;
+    let chi = excel_x87_mul(twice_b, cube);
+    let numerator = excel_x87_sub(excel_x87_add(4.0 * a, twice_b), 2.0);
+    let ratio = excel_x87_div(numerator, chi);
+    if ratio <= 1.0 || !ratio.is_finite() {
+        return None;
+    }
+    let proposal = excel_x87_sub(1.0, excel_x87_div(2.0, excel_x87_add(ratio, 1.0)));
+    let proposal = if proposal == 1.0 { 1.0 - 1e-6 } else { proposal };
+    if proposal <= 0.0 || !proposal.is_finite() {
+        return None;
+    }
+    (beta_dist_kernel(proposal, a, b, false, 0.0, 1.0).ok()? == 0.0).then_some(proposal)
+}
+
 pub(crate) fn beta_inv_kernel(
     probability: f64,
     alpha: f64,
@@ -94,20 +134,19 @@ pub(crate) fn beta_inv_kernel(
     if probability <= 0.0 || probability >= 1.0 {
         return Err(WorksheetErrorCode::Num);
     }
-    // Publish the adjacent lattice point with the smaller forward residual,
-    // retaining the upper point on a tie. T.INV.2T shares this publication.
-    let forward = |v: f64| regularized_beta(v, alpha, beta);
-    let hi = bisect_inverse(probability, 0.0, 1.0, forward);
-    let z = if hi > 0.0 {
-        let lo = f64::from_bits(hi.to_bits() - 1);
-        if (probability - forward(lo)).abs() < (forward(hi) - probability).abs() {
-            lo
-        } else {
-            hi
-        }
+    // Upper probabilities search the reflected beta coordinate. Fresh paired
+    // controls identify this staging, including the tiny-shape root floor.
+    let (probability, alpha, beta, reflected) = if probability > 0.5 {
+        (1.0 - probability, beta, alpha, true)
     } else {
-        hi
+        (probability, alpha, beta, false)
     };
+    let z = if let Some(seed) = beta_inverse_zero_density_seed(probability, alpha, beta) {
+        seed
+    } else {
+        bisect_inverse_closest(probability, 0.0, 1.0, |v| regularized_beta(v, alpha, beta))
+    };
+    let z = if reflected { 1.0 - z } else { z };
     Ok(lower + z * (upper - lower))
 }
 
@@ -201,6 +240,19 @@ pub fn gamma_inv_kernel(
     if probability == 0.0 {
         return Ok(0.0);
     }
+    if alpha == 1.0 {
+        use crate::ported::excel_numeric::{excel_log, excel_log1p_times, excel_x87_mul};
+        // Exponential inverse: the distribution logarithm keeps the small
+        // probability before the final stored scale. Fresh Excel20527: 698/698
+        // after final subnormal publication is flushed, plus 48 scaling controls.
+        let unit = if probability < 0.375 {
+            excel_log1p_times(-1.0, -probability)
+        } else {
+            -excel_log(1.0 - probability)
+        };
+        let x = excel_x87_mul(beta, unit);
+        return Ok(if x.is_subnormal() { 0.0 } else { x });
+    }
     if alpha < 1.0 {
         use crate::ported::excel_numeric::{
             excel_exp, excel_log, excel_x87_add, excel_x87_div, gammaln_excel,
@@ -223,17 +275,36 @@ pub fn gamma_inv_kernel(
     // design/fable52-last-bit.md section 5 (Claude Fable 5.2), measured 300/300 on Excel:
     // GAMMA.INV(p,a,b) = st(b * GAMMA.INV(p,a,1)), CHISQ.INV(p,2a) = GAMMA.INV(p,a,2): a
     // unit-scale search followed by one stored multiply.
+    // Preserve the smaller upper tail: the stored P=1-Q has wide plateaus
+    // near one. Fresh Excel20527 controls gain139 exact words, lose four
+    // one-ULP words, and reduce worst error from 8.7e13 to76 ULP.
+    let upper = probability > 0.5;
+    let target = if upper {
+        -(1.0 - probability)
+    } else {
+        probability
+    };
+    let forward = |x| {
+        if upper {
+            -regularized_gamma_q(alpha, x)
+        } else {
+            regularized_gamma_p(alpha, x)
+        }
+    };
     let mut hi = (alpha + 10.0 * alpha.sqrt() + 10.0).max(1.0);
-    // bisect_inverse requires f(hi) >= target on entry.
     for _ in 0..200 {
-        if regularized_gamma_p(alpha, hi) >= probability {
+        if forward(hi) >= target || hi == f64::INFINITY {
             break;
         }
         hi *= 2.0;
     }
-    let unit = bisect_inverse(probability, 0.0, hi, |v| regularized_gamma_p(alpha, v));
+    let unit = if upper {
+        bisect_inverse_closest(target, 0.0, hi, forward)
+    } else {
+        bisect_inverse(target, 0.0, hi, forward)
+    };
     let x = crate::ported::excel_numeric::excel_x87_mul(beta, unit);
-    Ok(x)
+    Ok(if x.is_subnormal() { 0.0 } else { x })
 }
 
 #[cfg(test)]

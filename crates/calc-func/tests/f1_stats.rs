@@ -4031,3 +4031,141 @@ fn f_inverse_probability_endpoints_validate_degrees() {
         error(call(name, vec![n(0.0), n(5.0), n(8.0)]), Num);
     }
 }
+
+
+/// Excel20527 unit-shape inverses use the shared distribution logarithm,
+/// then publish a stored scale with final subnormal flush.
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn gamma_unit_inverse_and_final_product_match_excel() {
+    for name in ["GAMMA.INV", "GAMMAINV"] {
+        exact(
+            call(name, vec![n(0.1), n(1.0), n(1.0)]),
+            f64::from_bits(0x3fba_f8e8_210a_415e),
+        );
+        for shape in [0.5, 1.0, 2.0] {
+            exact(
+                call(name, vec![n(0.1), n(shape), n(f64::MIN_POSITIVE)]),
+                0.0,
+            );
+        }
+    }
+    for name in ["CHIINV", "CHISQ.INV.RT"] {
+        exact(
+            call(name, vec![n(0.001), n(2.0)]),
+            f64::from_bits(0x402b_a18a_998f_ffa0),
+        );
+    }
+}
+
+/// The reflected search publishes its finite lattice floor, rather than
+/// the much smaller mathematical root obtained by a direct-coordinate search.
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn beta_inverse_upper_probability_search_preserves_excel_floor() {
+    for name in ["BETA.INV", "BETAINV"] {
+        exact(
+            call(name, vec![n(0.75), n(0.0008), n(1.0)]),
+            f64::from_bits(0x3ca0_0000_0000_0000),
+        );
+    }
+}
+
+
+/// Excel20527: the zero-density inverse arm publishes its initial proposal,
+/// including the endpoint fallback, before the ordinary inverse search.
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn beta_inverse_zero_density_keeps_the_measured_initial_proposal() {
+    for name in ["BETA.INV", "BETAINV"] {
+        exact(
+            call(
+                name,
+                vec![
+                    n(f64::from_bits(0x28b3_d596_a03f_8745)),
+                    n(f64::from_bits(0x4073_0960_aa5d_3427)),
+                    n(f64::from_bits(0x3fed_f483_11ed_453e)),
+                ],
+            ),
+            f64::from_bits(0x3f71_d2a4_ab12_c880),
+        );
+        exact(
+            call(name, vec![n(0.1), n(1e100), n(1.0)]),
+            f64::from_bits(0x3fef_fffd_e721_0be9),
+        );
+        exact(
+            call(name, vec![n(0.9), n(1.0), n(1e100)]),
+            f64::from_bits(0x3eb0_c6f7_a0b8_0000),
+        );
+    }
+}
+
+/// Captured Excel20527 tiny-tail answers pass through the same beta initial
+/// proposal into Student-t and then the application's confidence calculation.
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn student_t_and_confidence_keep_the_zero_density_beta_proposal() {
+    exact(
+        call(
+            "TINV",
+            vec![
+                n(f64::from_bits(0x34a7_b5b3_0b92_82c0)),
+                n(f64::from_bits(0x4070_eff7_3350_b850)),
+            ],
+        ),
+        f64::from_bits(0x4073_70ba_f9a5_4a38),
+    );
+    exact(
+        call(
+            "CONFIDENCE.T",
+            vec![
+                n(1e-100),
+                n(100.0),
+                n(f64::from_bits(0x4088_f661_69ab_758e)),
+            ],
+        ),
+        f64::from_bits(0x4071_3e70_48ac_bac8),
+    );
+}
+
+/// Excel20527: preserving the small gamma upper tail avoids a rounded-CDF
+/// plateau, before the existing stored scale and final publication.
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn gamma_inverse_preserves_the_small_upper_tail() {
+    for name in ["GAMMA.INV", "GAMMAINV"] {
+        exact(
+            call(
+                name,
+                vec![
+                    n(f64::from_bits(0x3fef_ffff_ffff_ffff)),
+                    n(f64::from_bits(0x3fd3_e67d_a1e7_b6c8)),
+                    n(f64::from_bits(0x402c_0000_0000_0001)),
+                ],
+            ),
+            f64::from_bits(0x407d16b892f8f3f2),
+        );
+    }
+}
+
+/// Captured right-tail inverse answers at one-minus-epsilon retain the small
+/// lower gamma tail, including truncation of the supplied degree argument.
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn chi_inverse_preserves_the_small_lower_tail() {
+    for name in ["CHIINV", "CHISQ.INV.RT"] {
+        for (degree, bits) in [
+            (30.0, 0x3ff2_66f6_c3f3_89e2),
+            (355.71571246910116, 0x4066_47bd_0aae_91c6),
+            (861.8900555521836, 0x4081_9975_788e_ddeb),
+        ] {
+            exact(
+                call(
+                    name,
+                    vec![n(f64::from_bits(0x3fef_ffff_ffff_ffff)), n(degree)],
+                ),
+                f64::from_bits(bits),
+            );
+        }
+    }
+}

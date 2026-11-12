@@ -124,6 +124,43 @@ try {
         Write-Json $Result @{fatal=$null;prepared=$prepared;generator_sha256=(Get-FileHash $generator).Hash}
         return
     }
+    if($req.action -eq 'circular-reference-game'){
+        if((Get-FileHash -LiteralPath $req.input).Hash.ToLowerInvariant() -cne $req.input_sha256){throw 'Game input hash differs.'}
+        $script:package=Read-Package $req.input
+        $excel.Iteration=$true;$excel.MaxIterations=1
+        $input=Join-Path $outputDirectory 'circular-reference.xlsx';Copy-Item -LiteralPath $req.input -Destination $input
+        $book=$excel.Workbooks.Open($input,0,$true);$bootstrap.Close($false);$bootstrap=$null
+        $sheet=$book.Worksheets.Item('Circular Reference')
+        $excel.Calculation=-4105
+        $settings=Settings
+        if(-not $settings.Iteration -or $settings.MaxIterations -ne 1 -or $settings.Calculation -ne -4105){throw 'Game calculation settings differ.'}
+        $lines=[Collections.Generic.List[string]]::new()
+        $games=@([IO.File]::ReadAllLines($req.moves) | Where-Object {$_.Length -gt 0})
+        for($g=0;$g -lt $games.Count;$g++){
+            if($g -gt 0){$sheet.Range('B2').ClearContents();$sheet.Range('B3').Value2=1.0;$sheet.Range('B3').Value2=0.0}
+            $moves=$games[$g].ToCharArray()
+            for($i=0;$i -lt $moves.Length;$i++){
+                $sheet.Range('B2').Value2=[string]$moves[$i]
+                $grid=$sheet.Range('B7:Q18').Value2
+                $board=[Collections.Generic.List[string]]::new()
+                for($r=1;$r -le 12;$r++){for($c=1;$c -le 16;$c++){
+                    $v=$grid[$r,$c]
+                    if($null -eq $v -or ($v -is [string] -and $v -eq '')){$board.Add('.')}
+                    elseif($v -is [string]){$board.Add($v)}
+                    elseif($v -is [double]){$board.Add('n'+[BitConverter]::DoubleToInt64Bits($v).ToString('x16'))}
+                    elseif($v -is [int] -and $v -eq -2146826281){$board.Add('e2007')}
+                    elseif($v -is [Runtime.InteropServices.ErrorWrapper] -and $v.ErrorCode -eq -2146826281){$board.Add('e2007')}
+                    else{throw ("Unrecognized Excel board value at row $r column ${c}: type=$($v.GetType().FullName) value=$v")}
+                }}
+                $score=[double]$sheet.Range('B5').Value2
+                $observations.Add(@{game=($g+1);move=($i+1);sum_display=[string]$sheet.Range('B5').Text})
+                $lines.Add(('GAME|{0}|{1}|{2}|{3}|{4}|{5}|{6}' -f ($g+1),($i+1),[string]$sheet.Range('B4').Value2,[BitConverter]::DoubleToInt64Bits($score).ToString('x16'),[int]$sheet.Range('B6').Value2,[string]$sheet.Range('F6').Value2,($board -join ',')))
+            }
+        }
+        [IO.File]::WriteAllLines((Join-Path $outputDirectory 'game.txt'),$lines,[Text.UTF8Encoding]::new($false))
+        Write-Json $Result @{fatal=$null;input_sha256=$req.input_sha256;moves_sha256=(Get-FileHash -LiteralPath $req.moves).Hash.ToLowerInvariant();settings=$settings;steps=$lines.Count;excel_version=[string]$excel.Version;excel_build=[string]$excel.Build;locale=(Get-Culture).Name;observations=$observations}
+        return
+    }
     if($req.action -eq 'names'){
         $condition=$req.condition;$excel.Iteration=$false
         $book=$excel.Workbooks.Add(-4167);$first=$book.Worksheets.Item(1);$first.Name='Sheet1'
@@ -313,7 +350,7 @@ finally{
 }
 if($req.action -eq 'prepare'){
     Write-Json $Result @{fatal=$fatal;prepared=$prepared;generator_sha256=(Get-FileHash $generator).Hash}
- }elseif($req.action -in @('names','peek')){
+ }elseif($req.action -in @('names','peek','circular-reference-game')){
     Write-Json $Result @{fatal=$fatal;condition=$req.condition;trial=$req.trial;observations=$observations;excel_version=[string]$excel.Version;excel_build=[string]$excel.Build}
 }else{
     $zip=[IO.Compression.ZipFile]::OpenRead($req.input)

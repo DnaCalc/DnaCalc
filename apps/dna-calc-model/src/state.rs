@@ -57,6 +57,8 @@ pub struct EditSession {
     pub surface: Option<SurfaceId>,
     pub target: Option<CellKey>,
     pub original: String,
+    /// The user entered or changed text, even if the final input equals the original.
+    pub replacement: bool,
     pub draft: String,
     pub caret: Option<TextSelection>,
     pub areas: Vec<GridArea>,
@@ -105,6 +107,7 @@ impl EditSession {
             .id
             .checked_add(1)
             .expect("edit session identity exhausted");
+        self.replacement = seed.is_some();
         self.point_mode = seed.is_some();
         self.draft = seed.unwrap_or_else(|| original.clone());
         self.original = original;
