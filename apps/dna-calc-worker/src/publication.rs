@@ -9,6 +9,8 @@ pub(crate) struct TileStream {
     pub revision: u64,
     calculation_through: Option<crate::wire::Publication>,
     cells: BTreeMap<Key, Cell>,
+    /// What `cells` retains, kept running on insert and remove.
+    retained: usize,
     geometry: Vec<(Sheet, Geometry)>,
     pending: Option<Changes>,
     in_flight: Option<TileBarrier>,
@@ -102,17 +104,16 @@ impl TileStream {
         if reset {
             self.failed = false;
             self.cells.clear();
+            self.retained = 0;
         }
         self.revision = revision;
-        let mut retained = self
-            .cells
-            .values()
-            .fold(0usize, |n, cell| n.saturating_add(cell.retained_bytes()));
+        let mut retained = self.retained;
         for at in &removed {
             if let Some(old) = self.cells.remove(at) {
                 retained = retained.saturating_sub(old.retained_bytes());
             }
         }
+        self.retained = retained;
         let geometry_size = geometry
             .iter()
             .fold(0usize, |n, (_, g)| n.saturating_add(geometry_bytes(g)));
@@ -131,6 +132,7 @@ impl TileStream {
                 );
             }
             retained = next;
+            self.retained = retained;
             self.cells.insert(cell.at, cell.clone());
         }
         if retained.saturating_add(geometry_size) > MAX_PUBLICATION_BYTES - MAX_TILE_BYTES {
@@ -160,6 +162,7 @@ impl TileStream {
     }
     pub fn reject(&mut self) {
         self.cells.clear();
+        self.retained = 0;
         self.geometry.clear();
         self.pending = None;
         self.failed = true;

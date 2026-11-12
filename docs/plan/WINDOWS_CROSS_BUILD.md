@@ -48,7 +48,7 @@ The page bundle for the OneCalc acceptance is built with the native xtask, it is
 binary: `cargo xtask app bundle onecalc --out ~/xwin-bundle`.
 
 Executables produced: `dna-onecalc-desktop.exe`, `dna-calc-desktop.exe`, `xtask.exe`,
-`xtask-harness.exe`, `calc_xll_fixture.dll` (the X1 XLL, used as `fixture.xll`) and `xlcall32.dll`.
+`xtask-harness.exe`, `dnacalc.exe` (the headless runner, `-p dnacalc`; the same command as on Linux, dc-icq4.1), `calc_xll_fixture.dll` (the X1 XLL, used as `fixture.xll`) and `xlcall32.dll`.
 Test executables are in `deps/` (`calc_xll_host-*.exe`, `calc_xll_abi-*.exe`, `calc_com_host-*.exe`,
 `calc_addin_host-*.exe`, `calc_xll_fixture-*.exe`, `xlcall32-*.exe`, `dna_onecalc_desktop-*.exe`,
 `dna_calc_desktop-*.exe`, and two `xll-*.exe`: the integration tests of `dna-calc-desktop` (14
