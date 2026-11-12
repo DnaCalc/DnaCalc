@@ -1,0 +1,255 @@
+<title>DNA Calc Brochure</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,500;12..96,800&family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@400;600&display=swap">
+<style>
+/* Layout: a spreadsheet sheet. Column letters across the top, row numbers down the side, sections as filled cell blocks
+   coloured from Excel's own red-yellow-green colour scale. */
+:root {
+  --paper: #ffffff;
+  --ink: #1b2430;
+  --muted: #5d6877;
+  --grid: #dfe3e8;
+  --head: #f1f3f6;
+  --select: #1f7a4d;        /* Excel's selection green */
+  --red: #f8696b;           /* colour scale: low */
+  --yellow: #ffeb84;        /* colour scale: mid */
+  --green: #63be7b;         /* colour scale: high */
+  --blue: #5b9bd5;
+  --tint-red: #fde4e4;
+  --tint-yellow: #fff8d6;
+  --tint-green: #e3f4e8;
+  --tint-blue: #e4eef8;
+  --display: "Bricolage Grotesque", "Segoe UI", system-ui, sans-serif;
+  --body: "IBM Plex Sans", "Segoe UI", system-ui, sans-serif;
+  --mono: "IBM Plex Mono", ui-monospace, "Cascadia Mono", Consolas, monospace;
+}
+@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) {
+  --paper: #141a21; --ink: #e8edf2; --muted: #9aa6b4; --grid: #2a333d; --head: #1b232c; --select: #4fc58a;
+  --tint-red: #3a2224; --tint-yellow: #383219; --tint-green: #1d3326; --tint-blue: #1c2a3a; color-scheme: dark } }
+:root[data-theme="dark"] {
+  --paper: #141a21; --ink: #e8edf2; --muted: #9aa6b4; --grid: #2a333d; --head: #1b232c; --select: #4fc58a;
+  --tint-red: #3a2224; --tint-yellow: #383219; --tint-green: #1d3326; --tint-blue: #1c2a3a; color-scheme: dark }
+
+* { box-sizing: border-box }
+body { background: var(--paper); color: var(--ink); font: 400 16px/1.6 var(--body); margin: 0 }
+.sheet {
+  max-width: 1080px; margin: 0 auto;
+  padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px));
+  padding-block: 20px 56px;
+  background-image: linear-gradient(var(--grid) 1px, transparent 1px), linear-gradient(90deg, var(--grid) 1px, transparent 1px);
+  background-size: 100% 28px, 96px 100%;
+}
+.colhead { display: grid; grid-template-columns: 36px repeat(10, 1fr); border: 1px solid var(--grid); background: var(--head);
+  font: 500 12px/26px var(--mono); color: var(--muted); text-align: center; overflow: hidden }
+.colhead span { border-left: 1px solid var(--grid) }
+.colhead span.on { background: var(--tint-green); color: var(--select); font-weight: 600 }
+.block { display: grid; grid-template-columns: 36px 1fr; margin-top: 18px }
+.rownum { font: 500 12px/1 var(--mono); color: var(--muted); padding-top: 14px; text-align: center; border-right: 2px solid var(--grid) }
+.cell { padding: 22px clamp(16px, 3vw, 32px); min-width: 0; background: var(--paper); border: 1px solid var(--grid) }
+.addr { font: 600 12px/1 var(--mono); letter-spacing: .06em; color: var(--muted); text-transform: uppercase }
+h1, h2 { font-family: var(--display); text-wrap: balance; margin: 0 }
+h1 { font-weight: 800; font-size: clamp(52px, 11vw, 132px); line-height: .9; letter-spacing: -.02em; margin-top: 10px }
+h1 .calc { background: linear-gradient(90deg, var(--red), var(--yellow) 50%, var(--green)); -webkit-background-clip: text; background-clip: text; color: transparent }
+h2 { font-weight: 800; font-size: clamp(26px, 4vw, 40px); line-height: 1.05; margin-top: 8px }
+p { margin: 10px 0 0; max-width: 64ch }
+.lede { font-size: clamp(18px, 2.2vw, 22px); color: var(--ink) }
+
+.fx { margin-top: 26px; display: grid; grid-template-columns: auto auto 1fr; border: 2px solid var(--select); font-family: var(--mono); font-size: 15px; max-width: 640px }
+.fx > * { padding: 8px 12px; min-width: 0 }
+.fx .name { background: var(--head); border-right: 1px solid var(--grid); color: var(--muted) }
+.fx .f { border-right: 1px solid var(--grid); color: var(--select); font-style: italic; font-weight: 600 }
+.fx .val { overflow-wrap: anywhere }
+.fxnote { font: 400 13px/1.5 var(--mono); color: var(--muted); margin-top: 8px }
+.fxnote b { color: var(--select) }
+
+.cards { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 12px; margin-top: 18px }
+.card { padding: 16px; border-left: 6px solid; min-width: 0 }
+.card h3 { margin: 0; font: 600 17px/1.3 var(--body) }
+.card p { font-size: 15px; color: var(--muted); margin-top: 6px }
+.c1 { background: var(--tint-green); border-color: var(--green) }
+.c2 { background: var(--tint-yellow); border-color: var(--yellow) }
+.c3 { background: var(--tint-red); border-color: var(--red) }
+.c4 { background: var(--tint-blue); border-color: var(--blue) }
+
+.scale { margin-top: 18px; display: grid; gap: 14px }
+.metric { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 4px 16px; align-items: baseline }
+.metric .label { font-weight: 600 }
+.metric .num { font: 600 15px var(--mono); font-variant-numeric: tabular-nums }
+.metric .sub { grid-column: 1 / -1; font-size: 14px; color: var(--muted) }
+.bar { grid-column: 1 / -1; height: 14px; background: linear-gradient(90deg, var(--red), var(--yellow) 50%, var(--green)); position: relative; border-radius: 2px }
+.bar i { position: absolute; top: -4px; bottom: -4px; width: 3px; background: var(--ink); border-radius: 2px }
+.bar b { position: absolute; top: 0; bottom: 0; right: 0; background: var(--paper); opacity: .78 }
+
+.bits { margin-top: 18px; display: grid; gap: 14px }
+.bits label { font-weight: 600; font-size: 15px }
+.bits input { font: 500 20px var(--mono); padding: 10px 12px; width: 100%; max-width: 420px; border: 2px solid var(--grid); background: var(--paper); color: var(--ink) }
+.bits input:focus { outline: none; border-color: var(--select) }
+.chips { display: flex; flex-wrap: wrap; gap: 6px; font: 600 15px var(--mono) }
+.chips span { padding: 6px 9px; border-radius: 3px; color: #1b2430 }
+.s { background: var(--red) } .e { background: var(--yellow) } .m { background: var(--green) }
+.binary { font: 400 13px/1.8 var(--mono); overflow-x: auto; white-space: nowrap; padding: 10px; background: var(--head); border: 1px solid var(--grid) }
+.binary .s, .binary .e, .binary .m { background: none; padding: 0; color: inherit; border-bottom: 3px solid }
+.binary .s { border-color: var(--red) } .binary .e { border-color: var(--yellow) } .binary .m { border-color: var(--green) }
+.readout { display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 10px; font: 400 14px/1.5 var(--mono) }
+.readout div { padding: 10px 12px; border: 1px solid var(--grid); min-width: 0; overflow-wrap: anywhere }
+.readout span { display: block; font: 600 11px/1.4 var(--body); letter-spacing: .06em; text-transform: uppercase; color: var(--muted) }
+
+.steps { margin: 18px 0 0; padding: 0; list-style: none; display: grid; gap: 10px; counter-reset: s }
+.steps li { display: grid; grid-template-columns: 44px 1fr; gap: 12px; align-items: start; counter-increment: s }
+.steps li::before { content: counter(s); font: 800 22px/44px var(--display); text-align: center; background: var(--tint-blue); color: var(--blue); border-radius: 50% }
+.steps li p { margin: 0 }
+.steps strong { display: block }
+
+.foot { display: flex; flex-wrap: wrap; gap: 8px 24px; font: 400 14px var(--mono); color: var(--muted); margin-top: 6px }
+a { color: var(--select) }
+a:focus-visible { outline: 2px solid var(--select); outline-offset: 2px }
+@media (max-width: 560px) { .colhead { grid-template-columns: 28px repeat(6, 1fr) } .colhead span:nth-child(n+8) { display: none } .block { grid-template-columns: 22px 1fr } .rownum { font-size: 10px } }
+@media (prefers-reduced-motion: no-preference) { .bar i { transition: left .6s ease } }
+</style>
+
+<main class="sheet">
+  <div class="colhead" aria-hidden="true"><span style="border:0"></span><span class="on">A</span><span>B</span><span>C</span><span>D</span><span>E</span><span>F</span><span>G</span><span>H</span><span>I</span><span>J</span></div>
+
+  <section class="block">
+    <div class="rownum">1</div>
+    <div class="cell">
+      <div class="addr">Sheet1!A1</div>
+      <h1>DNA <span class="calc">Calc</span></h1>
+      <p class="lede">A spreadsheet engine that gives Excel's answers, down to the last bit. Written in Rust, it runs as a Windows desktop app and in the browser, and reads the workbooks people already have.</p>
+      <div class="fx" role="img" aria-label="Formula bar showing =PI() with its value and binary64 bits">
+        <div class="name">A1</div><div class="f">fx</div><div class="val">=PI() → 3.14159265358979</div>
+      </div>
+      <div class="fxnote">stored as <b>400921fb54442d18</b> · Excel's answer: 400921fb54442d18 · 0 ulp apart</div>
+    </div>
+  </section>
+
+  <section class="block">
+    <div class="rownum">2</div>
+    <div class="cell">
+      <div class="addr">A2 · What it is</div>
+      <h2>Excel's behaviour, rebuilt in the open</h2>
+      <p>Every function, every recalculation rule and every odd corner of the file format is measured against Excel itself, then written as plain code under the MIT licence.</p>
+      <div class="cards">
+        <div class="card c1"><h3>Functions</h3><p>The full catalogue, from SUM to GAMMALN to XIRR, matched bit for bit, quirks included.</p></div>
+        <div class="card c2"><h3>Workbooks</h3><p>Opens .xlsx, .xlsm and .xlsb, recalculates with Excel's dependency rules, and saves files Excel opens again.</p></div>
+        <div class="card c3"><h3>Macros and add-ins</h3><p>CalcVBA runs workbook VBA, with an interpreter and a JIT. XLL and COM add-ins load too.</p></div>
+        <div class="card c4"><h3>DNA OneCalc</h3><p>A function workbench: try any formula, with completion and signature help, and see Excel's answer next to ours.</p></div>
+      </div>
+    </div>
+  </section>
+
+  <section class="block">
+    <div class="rownum">3</div>
+    <div class="cell">
+      <div class="addr">A3 · Where it stands · 12 Nov 2026</div>
+      <h2>Measured, not claimed</h2>
+      <p>A refused formula counts as a failure, so these rates are over every formula cell and every recorded answer.</p>
+      <div class="scale">
+        <div class="metric">
+          <span class="label">Function bank</span><span class="num">97.26%</span>
+          <div class="bar" style="--p:97.26"><b style="left:97.26%"></b><i style="left:calc(97.26% - 1px)"></i></div>
+          <span class="sub">4,553,133 of 4,681,342 recorded Excel answers matched exactly. About 420,000 new answers were added today, so this went down before it goes up again.</span>
+        </div>
+        <div class="metric">
+          <span class="label">Oracle workbooks</span><span class="num">98.43%</span>
+          <div class="bar"><b style="left:98.43%"></b><i style="left:calc(98.43% - 1px)"></i></div>
+          <span class="sub">77,039 of 78,264 formula cells in 62 Excel-saved workbooks.</span>
+        </div>
+        <div class="metric">
+          <span class="label">Public corpus catalogued</span><span class="num">44,801 files</span>
+          <div class="bar"><b style="left:100%"></b><i style="left:calc(100% - 3px)"></i></div>
+          <span class="sub">Enron, EUSES, library test suites, GitHub and Zenodo spreadsheets, each with its size, structure, functions and features, so every workbook with pivot tables (599) or VBA (about 5,000) can be listed at once.</span>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <section class="block">
+    <div class="rownum">4</div>
+    <div class="cell">
+      <div class="addr">A4 · Try it</div>
+      <h2>What "the last bit" means</h2>
+      <p>Excel stores a number as 64 bits: one sign bit, 11 exponent bits and 52 fraction bits. Every Excel answer we record keeps those 64 bits, and a mismatch is counted in ulps, the steps between neighbouring numbers.</p>
+      <div class="bits">
+        <label for="num">Type a number</label>
+        <input id="num" value="0.1" inputmode="decimal" autocomplete="off" spellcheck="false">
+        <div class="chips" id="chips" aria-live="polite"></div>
+        <div class="binary" id="binary"></div>
+        <div class="readout">
+          <div><span>Next number up (1 ulp)</span><code id="up"></code></div>
+          <div><span>One ulp here is</span><code id="ulp"></code></div>
+          <div><span>As Excel shows it (15 digits)</span><code id="shown"></code></div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <section class="block">
+    <div class="rownum">5</div>
+    <div class="cell">
+      <div class="addr">A5 · How it is checked</div>
+      <h2>Excel is the referee</h2>
+      <ol class="steps">
+        <li><p><strong>Ask Excel</strong>Three Excel processes on a private desktop answer up to 250,000 function calls at a time, with real ranges, arrays and spills.</p></li>
+        <li><p><strong>Keep every bit</strong>Answers go into a bank of recorded observations, stored as hex bits with the Excel build that gave them.</p></li>
+        <li><p><strong>Find the shape</strong>For a wrong function, work out how the original code most likely computed it, then fit the constants. Never special-case an input.</p></li>
+        <li><p><strong>Judge it all</strong>Every change is judged against the whole bank and the oracle workbooks. It lands when the net gain is clear.</p></li>
+      </ol>
+    </div>
+  </section>
+
+  <section class="block">
+    <div class="rownum">6</div>
+    <div class="cell">
+      <div class="addr">A6</div>
+      <div class="foot"><span>dnacalc.com</span><a href="https://github.com/DnaCalc/DnaCalc">github.com/DnaCalc/DnaCalc</a><span>MIT licence</span><span>Built in Rust · runs on Windows and in the browser</span></div>
+    </div>
+  </section>
+</main>
+
+<script>
+(function () {
+  var input = document.getElementById('num');
+  var buf = new DataView(new ArrayBuffer(8));
+  function hex(d) { buf.setFloat64(0, d); var s = ''; for (var i = 0; i < 8; i++) s += buf.getUint8(i).toString(16).padStart(2, '0'); return s; }
+  function bin(d) { buf.setFloat64(0, d); var s = ''; for (var i = 0; i < 8; i++) s += buf.getUint8(i).toString(2).padStart(8, '0'); return s; }
+  function nextUp(d) {
+    if (Number.isNaN(d) || d === Infinity) return d;
+    if (d === 0) return Number.MIN_VALUE;
+    buf.setFloat64(0, d); var hi = buf.getUint32(0), lo = buf.getUint32(4);
+    if (d > 0) { lo = (lo + 1) >>> 0; if (lo === 0) hi = (hi + 1) >>> 0; }
+    else { if (lo === 0) hi = (hi - 1) >>> 0; lo = (lo - 1) >>> 0; }
+    buf.setUint32(0, hi); buf.setUint32(4, lo); return buf.getFloat64(0);
+  }
+  function excel15(d) {
+    if (!Number.isFinite(d)) return '#NUM!';
+    if (d === 0) return '0';
+    var s = Number(d.toPrecision(15));
+    var a = Math.abs(s);
+    if (a >= 1e15 || a < 1e-9) return s.toExponential(14).replace(/\.?0+e/, 'E').replace('e', 'E');
+    return String(s);
+  }
+  function render() {
+    var raw = input.value.trim().replace(',', '.');
+    var d = Number(raw);
+    var chips = document.getElementById('chips'), b = document.getElementById('binary');
+    if (raw === '' || Number.isNaN(d)) {
+      chips.innerHTML = '<span class="s">#VALUE!</span>';
+      b.textContent = 'Enter a number such as 0.1, -2.5 or 1e308.';
+      ['up', 'ulp', 'shown'].forEach(function (id) { document.getElementById(id).textContent = '-'; });
+      return;
+    }
+    var h = hex(d), bits = bin(d);
+    var sign = bits[0], exp = bits.slice(1, 12), man = bits.slice(12);
+    chips.innerHTML = '<span class="e" title="sign and exponent, 12 bits">' + h.slice(0, 3) + '</span><span class="m" title="fraction, 52 bits">' + h.slice(3) + '</span>';
+    b.innerHTML = '<span class="s">' + sign + '</span> <span class="e">' + exp + '</span> <span class="m">' + man + '</span>';
+    var up = nextUp(d);
+    document.getElementById('up').textContent = up + '  (' + hex(up) + ')';
+    document.getElementById('ulp').textContent = Number.isFinite(up - d) ? String(up - d) : 'n/a';
+    document.getElementById('shown').textContent = excel15(d);
+  }
+  input.addEventListener('input', render);
+  render();
+})();
+</script>
