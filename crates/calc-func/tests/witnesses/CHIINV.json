@@ -6,7 +6,7 @@
     {"bitness":null,"cpu":"AMD Ryzen 7 4800H with Radeon Graphics","excel_build":"20131","id":"r0","platform":"Windows","source":"CalcFunc-Evidence cache/oracle/build-20131/CHIINV.jsonl"}
   ],
   "witnesses": [
-    {"args":["0x3f50624dd2f1a9fc","0x3ff0000000000000"],"expected_bits":"0x4025a7b6c0cc8b77","id":"oc1","reading":"r0"},
+    {"args":["0x3f50624dd2f1a9fc","0x3ff0000000000000"],"calc_func":"0x4025a7b6c0cc8b76","expected_bits":"0x4025a7b6c0cc8b77","id":"oc1","reading":"r0"},
     {"args":["0x3f50624dd2f1a9fc","0x4000000000000000"],"calc_func":"0x402ba18a998fffa1","expected_bits":"0x402ba18a998fffa0","id":"oc2","reading":"r0"},
     {"args":["0x3f50624dd2f1a9fc","0x4008000000000000"],"calc_func":"0x403044280e2bdaae","expected_bits":"0x403044280e2bdaad","id":"oc3","reading":"r0"},
     {"args":["0x3f50624dd2f1a9fc","0x4014000000000000"],"expected_bits":"0x403483d769127451","id":"oc4","reading":"r0"},
@@ -17,7 +17,7 @@
     {"args":["0x3f689374bc6a7efa","0x4028000000000000"],"expected_bits":"0x403dcaf880d79de4","id":"oc77","reading":"r0"},
     {"args":["0x3f689374bc6a7efa","0x4034000000000000"],"expected_bits":"0x4044dd398e07aad1","id":"oc85","reading":"r0"},
     {"args":["0x3f689374bc6a7efa","0x4049000000000000"],"expected_bits":"0x405475f3fc099033","id":"oc93","reading":"r0"},
-    {"args":["0x3f847ae147ae147b","0x3ff0000000000000"],"calc_func":"0x401a8a2255a6e926","expected_bits":"0x401a8a2255a6e921","id":"oc7","reading":"r0"},
+    {"args":["0x3f847ae147ae147b","0x3ff0000000000000"],"calc_func":"0x401a8a2255a6e923","expected_bits":"0x401a8a2255a6e921","id":"oc7","reading":"r0"},
     {"args":["0x3f847ae147ae147b","0x4000000000000000"],"calc_func":"0x40226bb1bbb55516","expected_bits":"0x40226bb1bbb55515","id":"oc8","reading":"r0"},
     {"args":["0x3f847ae147ae147b","0x4008000000000000"],"calc_func":"0x4026b0925f3ee5a7","expected_bits":"0x4026b0925f3ee5a6","id":"oc9","reading":"r0"},
     {"args":["0x3f847ae147ae147b","0x4014000000000000"],"expected_bits":"0x402e2c2be7b5244a","id":"oc10","reading":"r0"},
@@ -28,7 +28,7 @@
     {"args":["0x3f947ae147ae147b","0x4028000000000000"],"expected_bits":"0x40380dd01b0bb4d1","id":"oc78","reading":"r0"},
     {"args":["0x3f947ae147ae147b","0x4034000000000000"],"expected_bits":"0x4041828316f78528","id":"oc86","reading":"r0"},
     {"args":["0x3f947ae147ae147b","0x4049000000000000"],"expected_bits":"0x4052273f86e9f0c5","id":"oc94","reading":"r0"},
-    {"args":["0x3fa999999999999a","0x3ff0000000000000"],"calc_func":"0x400ebb4ec31e7efa","expected_bits":"0x400ebb4ec31e7ef4","id":"oc13","reading":"r0"},
+    {"args":["0x3fa999999999999a","0x3ff0000000000000"],"calc_func":"0x400ebb4ec31e7ef7","expected_bits":"0x400ebb4ec31e7ef4","id":"oc13","reading":"r0"},
     {"args":["0x3fa999999999999a","0x4000000000000000"],"calc_func":"0x4017f7427b73e392","expected_bits":"0x4017f7427b73e391","id":"oc14","reading":"r0"},
     {"args":["0x3fa999999999999a","0x4008000000000000"],"calc_func":"0x401f4248080e68ee","expected_bits":"0x401f4248080e68ed","id":"oc15","reading":"r0"},
     {"args":["0x3fa999999999999a","0x4014000000000000"],"calc_func":"0x402624184610313e","expected_bits":"0x402624184610313d","id":"oc16","reading":"r0"},

@@ -479,7 +479,7 @@ pub fn gratio(a: f64, x: f64) -> (f64, f64) {
     if a < 0.0 || x < 0.0 || (a == 0.0 && x == 0.0) {
         return (2.0, 2.0);
     }
-    if a * x == 0.0 {
+    if a == 0.0 || x == 0.0 {
         return if x <= a { (0.0, 1.0) } else { (1.0, 0.0) };
     }
     use crate::ported::discrete_dist::poisson_mass;
@@ -767,7 +767,15 @@ fn gratio_temme_270(a: f64, l: f64, y: f64, z: f64, e: f64, s: f64, iop: usize) 
     }
     let c = crate::ported::excel_numeric::excel_exp(-y);
     // DEVIATION 3: w = 0.5*erfc1(1, sqrt(y)) = 0.5*exp(y)*Q(0.5, y).
-    let w = 0.5 * (crate::ported::excel_numeric::excel_exp(y) * gratio_half_for_temme(y));
+    let scale = crate::ported::excel_numeric::excel_exp(y);
+    let w = if scale.is_finite() {
+        0.5 * (scale * gratio_half_for_temme(y))
+    } else {
+        // Keep the scaled upper tail finite when exp(y) would overflow
+        // and the unscaled half tail would underflow. The product 0*inf
+        // otherwise breaks monotonicity for inverse searches across this arm.
+        0.5 * bratio_erfc1(1, y.sqrt())
+    };
     let u = 1.0 / a;
     let mut zz = (z + z).sqrt();
     if l < 1.0 {
@@ -2396,7 +2404,9 @@ pub fn bratio(a: f64, b: f64, x: f64, y: f64) -> (f64, f64) {
     // complementary coordinate at and above 0.9. Public controls also show that
     // this arm forms its own 1-x rather than retaining a wrapper's y.
     if a == 0.5 && b == 0.5 {
-        use crate::ported::excel_numeric::{excel_sqrt_staged, excel_x87_div, excel_x87_mul, excel_x87_sub};
+        use crate::ported::excel_numeric::{
+            excel_sqrt_staged, excel_x87_div, excel_x87_mul, excel_x87_sub,
+        };
         let coordinate = if x < 0.9 { x } else { excel_x87_sub(1.0, x) };
         let angle = crate::ported::asin::asin_kernel(excel_sqrt_staged(coordinate)).unwrap_or(f64::NAN);
         let small = excel_x87_div(excel_x87_mul(2.0, angle), std::f64::consts::PI);

@@ -46,3 +46,26 @@ The control reproduces invoke on every input. No gamma inverse change lands.
 Further rejected-model evidence: dnacalc-evidence/research/round58/20261112-fn2-rejected-0830/,
 64 files, 120,226,186 bytes; checksum copy and one-way check zero differences.
 These records do not add a landed pass or change any Excel answer.
+
+## Fix2 bank controls: one-degree complement staging
+
+Excel 20527, fresh serial service queries in `chi-half-fold-live.json`:
+320 probabilities, including logarithmic tails and odd multiples of 2^-54.
+CHIINV(p,1) preserves its exact answer after replacing p by
+`1 - (0.5 + (0.5 - p))` on 320/320, versus 254/320 after `1 - (1-p)`.
+The independent degree-two control preserves only 37/320 under the double
+fold. This identifies probability staging specific to the half-shape arm;
+it does not identify a public normal-inverse composition. The latter was
+weak on `half-gamma-inverse-live.json` and is not used.
+
+The retained change folds the df=1 probability through those two binary64
+stores before the existing upper-gamma search. A surviving zero returns
+#NUM!, as Excel does for tiny positive right probabilities. General degrees
+retain their original right-tail surface. Replacing the whole right inverse
+with GAMMA.INV(1-p,df/2,2) remains rejected: fresh paired controls are only
+20/28 exact and broad bank checks lose existing exact words.
+
+The search bracket now covers binary64's exponent range instead of stopping
+after 200 doublings. This removes an artificial 2^200 ceiling in F inverses;
+it does not make the remaining F inverse words exact. Probability endpoints
+are admitted only after degree validation, including CHIINV(1,large_df)=0.

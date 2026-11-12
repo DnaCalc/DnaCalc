@@ -443,3 +443,26 @@ Raw traces, full corpus output archives, comparison summaries, classified pins a
 `r2:dnacalc-corpus/runs/dna-koderbot/20261112-040926-gammaln-b3-codex/`
 (27 files, 204,937,069 bytes). Copied with `rclone --checksum`;
 `rclone check --one-way --download` found zero differences and 27 matching files.
+
+
+## Fix2 bank controls: underflow and finite search surfaces
+
+Fresh Excel 20527 service observations in `inverse4-controls-live.json` and
+`gamma-inverse-underflow-live.json` distinguish three inverse seed phases.
+For alpha<1 the lower-tail estimate is
+`exp((ln(p)+gammaln(1+alpha))/alpha)`. Across 56 independent controls around
+log-root -760 through -700, a zero estimate gives zero, a nonzero subnormal
+gives #DIV/0!, and a normal estimate continues, before applying either scale
+1 or 1e100. All 56 phase predictions agree. The ordinary finite-root search
+is unchanged; this evidence does not identify its remaining low words.
+
+The forward gamma endpoint test now checks the arguments themselves rather
+than their product: positive alpha and x can have an underflowed product
+without being an endpoint. A separate inverse-search defect came from the
+Temme arm forming exp(y)*Q(1/2,y) as infinity times zero. When that exp would
+overflow, the existing scaled-erfc kernel supplies the finite equivalent.
+The ordinary finite-product computation retains its original stores.
+
+Right-tail reflection for general GAMMA.INV was tested and rejected: the
+fresh shape controls and bank losses do not identify it as Excel's program.
+Only the measured underflow phases and finite-surface corrections are kept.
