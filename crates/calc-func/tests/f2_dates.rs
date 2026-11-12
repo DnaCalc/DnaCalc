@@ -57,6 +57,17 @@ fn text_errors_do_not_require_a_locale() {
     refused(call("TEXT", vec![n(1.0), t("0.00")]));
 }
 
+/// Excel 16.0.20527, typed Value2 calls with numeric format arguments.
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn text_logical_with_numeric_format_needs_no_locale() {
+    for code in [0.0, 1.0, -1.0, 0.5, 1e100] {
+        text(call("TEXT", vec![b(true), n(code)]), "TRUE");
+        text(call("TEXT", vec![b(false), n(code)]), "FALSE");
+    }
+    refused(call("TEXT", vec![b(true), t("@!")]));
+}
+
 /// Excel 16.0.20527, typed range cells: wildcard characters in range text are
 /// literal, not numeric matches. Recorded separators suffice without a locale.
 #[cfg_attr(not(target_arch = "wasm32"), test)]
