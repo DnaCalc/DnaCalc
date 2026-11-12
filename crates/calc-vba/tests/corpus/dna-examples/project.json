@@ -41,6 +41,7 @@
     "captured": "2026-11-11",
     "route": "formulas entered in a new workbook with DnaExamples.xlam open",
     "rows": "../../../../calc-xll-reference/traces/2026-11-11-simple-udfs/excel/x9-xlam.controller.jsonl",
+    "also": ["../../../../calc-xll-reference/traces/2026-11-11-simple-udfs/onecalc/excel-reopen-dnaexamples-xlsm.json"],
     "environment": {
       "automation_security": 1,
       "events": "not set by the job (Excel's value in the owned session)",

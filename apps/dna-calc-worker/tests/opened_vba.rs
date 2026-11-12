@@ -734,7 +734,8 @@ fn same_as_excel(value: &ProjectedValue, excel: &serde_json::Value) -> Option<bo
 fn the_simple_udf_sets_answer_as_excel_does_in_the_macro_workbooks() {
     const SIMPLE: &str =
         include_str!("../../../crates/calc-xll-reference/fixture/vba/simple-udf-cases.json");
-    const X9: &str = include_str!("../../../crates/calc-xll-reference/fixture/vba/x9-vba-cases.json");
+    const X9: &str =
+        include_str!("../../../crates/calc-xll-reference/fixture/vba/x9-vba-cases.json");
     let sets: [(&str, &[u8], &str, &str); 3] = [
         (
             "DnaSimple.xlsm",
@@ -762,7 +763,6 @@ fn the_simple_udf_sets_answer_as_excel_does_in_the_macro_workbooks() {
         ),
     ];
     let mut failures = Vec::new();
-    let mut differing: Vec<(String, String)> = Vec::new();
     for (name, bytes, cases, record) in sets {
         let answers = excel_answers(record);
         let cases: Vec<serde_json::Value> = serde_json::from_str(cases).unwrap();
@@ -798,12 +798,12 @@ fn the_simple_udf_sets_answer_as_excel_does_in_the_macro_workbooks() {
                 Some(true) => matched += 1,
                 Some(false) => {
                     mismatched += 1;
-                    differing.push((name.to_owned(), formula.to_owned()));
-                    failures.push(format!("{name} {formula}: Excel {excel}, DNA Calc {value:?}"));
+                    failures.push(format!(
+                        "{name} {formula}: Excel {excel}, DNA Calc {value:?}"
+                    ));
                 }
                 None => {
                     refused += 1;
-                    differing.push((name.to_owned(), formula.to_owned()));
                     failures.push(format!("{name} {formula}: refused {value:?}"));
                 }
             }
@@ -813,33 +813,9 @@ fn the_simple_udf_sets_answer_as_excel_does_in_the_macro_workbooks() {
             cases.len()
         );
     }
-    // The cases this route answers differently from Excel, each with its bead. dc-hsa5.22: TypeName
-    // of a Range, a project class and Selection, and the engine Dictionary's TypeName, regressed with
-    // the CalcVBA pins 9cf7dcfc and 7d554eb7 (they answered as Excel at e42bf5bb). A case that starts
-    // to answer as Excel fails this test too: take it off the list.
-    const KNOWN: [(&str, &str); 5] = [
-        ("DnaSimple.xlsm", "=SimpleKind(A1)"),
-        ("DnaExamples.xlsm", "=SimpleKind(A1)"),
-        ("DnaExamples.xlsm", "=DnaCounterName()"),
-        ("DnaExamples.xlsm", "=DnaDictType()"),
-        ("DnaExamples.xlsm", "=DnaSelection()"),
-    ];
-    let unexplained: Vec<_> = failures
-        .iter()
-        .filter(|failure| {
-            !KNOWN
-                .iter()
-                .any(|(book, formula)| failure.starts_with(&format!("{book} {formula}:")))
-        })
-        .collect();
-    assert!(unexplained.is_empty(), "{unexplained:#?}");
-    differing.sort_unstable();
-    let mut known: Vec<(String, String)> = KNOWN
-        .iter()
-        .map(|(book, formula)| (book.to_string(), formula.to_string()))
-        .collect();
-    known.sort_unstable();
-    assert_eq!(differing, known, "{}", failures.join("\n"));
+    // dc-hsa5.22: TypeName keeps Range, class and Selection objects intact and
+    // the engine Dictionary reports its public type name. Every case must match.
+    assert!(failures.is_empty(), "{}", failures.join("\n"));
 }
 
 /// A worker on its own (a browser page) lists no add-ins, says it loads none and refuses a load or

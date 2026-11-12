@@ -446,7 +446,6 @@ fn a_macro_file_opens_disabled_and_the_mark_of_the_web_blocks_it() {
 // (crates/calc-xll-reference/fixture/vba, measured in an owned Excel session).
 const EXAMPLES_XLSM: &[u8] =
     include_bytes!("../../../crates/calc-xll-reference/fixture/vba/DnaExamples.xlsm");
-#[cfg(windows)]
 const EXAMPLE_CASES: &str =
     include_str!("../../../crates/calc-xll-reference/fixture/vba/x9-vba-cases.json");
 
@@ -521,7 +520,6 @@ fn shown(port: &mut dna_onecalc::port::LocalPort, formula: &str) -> String {
 
 /// Excel's answer for a case in the typed form the session's view gives (`number 42`,
 /// `text "a"`, `logical TRUE`, `error #N/A`).
-#[cfg(windows)]
 fn excel_text(value: &serde_json::Value) -> String {
     match value {
         serde_json::Value::Number(n) => format!("number {}", n.as_f64().unwrap()),
@@ -532,10 +530,10 @@ fn excel_text(value: &serde_json::Value) -> String {
     }
 }
 
-/// Native-only: the project references the Microsoft Scripting Runtime, which only a Windows
-/// build reads from the registry and runs through COM.
-#[cfg(windows)]
-#[test]
+// The engine supplies Scripting.Dictionary on every platform. OneCalc's values-only
+// profile refuses the four `As Range` functions; DNA Calc's worker test covers them.
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
 fn an_xlsm_session_compiles_its_project_and_answers_its_cases_as_excel_did() {
     use dna_onecalc::port::{MacrosView, Reply, Request, SessionPort};
     let (mut port, opened) = opened_examples();
@@ -559,22 +557,43 @@ fn an_xlsm_session_compiles_its_project_and_answers_its_cases_as_excel_did() {
     assert!(project.notes.is_empty(), "{project:?}");
     let cases: Vec<serde_json::Value> = serde_json::from_str(EXAMPLE_CASES).unwrap();
     let mut differences = Vec::new();
+    let mut workbook_refusals = Vec::new();
+    let mut matched = 0;
     for case in &cases {
         let formula = case["formula"].as_str().unwrap();
-        // Excel answered with the add-in open; here the project is the .xlsm session's own, and
-        // ThisWorkbook.Name is the name of the file opened.
-        let excel = if formula == "=DnaBook()" {
-            "text \"DnaExamples.xlsm\"".to_owned()
-        } else {
-            excel_text(&case["value"])
-        };
         let ours = shown(&mut port, formula);
+        if [
+            "=DnaCells(A1:B3)",
+            "=DnaWhere(A1:B3)",
+            "=DnaTryWriteArg(Z99)",
+            "=DnaWriteArg(Z99)",
+        ]
+        .contains(&formula)
+        {
+            assert!(
+                ours.starts_with("not calculated:")
+                    && ours.contains("needs a workbook: open in DNA Calc"),
+                "{formula}: {ours}"
+            );
+            workbook_refusals.push(formula);
+            continue;
+        }
+        let excel = excel_text(case.get("xlsm_value").unwrap_or(&case["value"]));
         if ours != excel {
             differences.push(format!("{formula}: OneCalc {ours:?}, Excel {excel:?}"));
+        } else {
+            matched += 1;
         }
     }
-    // ActiveSheet and Selection are the user's sheet and selection (dc-0f1k.12): every case of
-    // the example project, the former typed refusals included, answers as Excel did.
+    println!(
+        "OneCalc file route: matched {matched}, mismatched {}, refused {}, cases {}",
+        differences.len(),
+        workbook_refusals.len(),
+        cases.len()
+    );
+    assert_eq!(workbook_refusals.len(), 4);
+    // Refusals remain failures against Excel; these four are the reviewed OneCalc
+    // profile boundary (dc-svqh). Every supported function must match Excel.
     assert!(differences.is_empty(), "{differences:#?}");
 }
 

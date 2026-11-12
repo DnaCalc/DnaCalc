@@ -24,6 +24,61 @@ fn module(name: &str, kind: ModuleKind, source: &str) -> ProjectModule {
     }
 }
 
+// A Windows file includes this reference even when its procedures use no COM.
+// Safe must audit and deny its native metadata load before any registry access.
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn safe_file_compilation_counts_ole_automation_metadata_as_a_denied_capability() {
+    for backend in backends() {
+        let _scope = crate::policy::PolicyScope::enter(crate::policy::PolicyMode::Safe);
+        let _ = crate::policy::drain_audit();
+        let references = ProjectReferences {
+            compiler: vec![oxvba_symbol::manifest::ProjectReference::TypeLibrary {
+                name: "stdole".into(),
+                guid: Some(crate::office::STDOLE_LIBRARY.into()),
+                version_major: Some(2),
+                version_minor: Some(0),
+                lcid: Some(0),
+                import_lib: Some("stdole2.tlb".into()),
+            }],
+            libraries: vec!["stdole".into()],
+            com: true,
+            unavailable: vec![],
+        };
+        let loaded = load_file_project_with(
+            &[module(
+                "Api",
+                ModuleKind::Standard,
+                "Public Function F() As Long\n F = 42\nEnd Function\n",
+            )],
+            &references,
+            1000,
+            Some(backend),
+            DocumentEvents::Workbook,
+        );
+        assert!(
+            loaded.is_ok(),
+            "{backend:?}: {}",
+            loaded.err().unwrap_or_default()
+        );
+        let audit = crate::policy::drain_audit();
+        assert!(
+            audit
+                .denied_set()
+                .contains(crate::policy::Capability::ComActivate)
+        );
+        assert!(
+            audit
+                .records
+                .iter()
+                .any(|record| record.op == "typelib.load")
+        );
+        println!(
+            "{backend:?}: stdole metadata load denied; project loaded; all post-load cases must score refused"
+        );
+    }
+}
+
 #[cfg_attr(not(target_arch = "wasm32"), test)]
 #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
 fn file_private_worksheet_entries_keep_defaults_byref_state_and_vba_visibility() {
@@ -542,7 +597,11 @@ fn document_project_owning_values_preserve_coercion_missing_and_variant_results(
         let project = load_project(&too_many, 10000, Some(backend)).unwrap();
         let five: Vec<_> = (1..=5).map(|n| CalcValue::number(f64::from(n))).collect();
         assert_eq!(
-            project.functions().call("TooMany", &five).unwrap().as_number(),
+            project
+                .functions()
+                .call("TooMany", &five)
+                .unwrap()
+                .as_number(),
             Some(15.0)
         );
     }

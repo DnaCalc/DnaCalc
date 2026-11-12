@@ -12,6 +12,7 @@
 //! project's counts move in either direction, so an improvement is recorded and a regression is
 //! caught. `DNACALC_VBA_CORPUS_REPORT=<file>` writes the per-case report (JSON);
 //! `DNACALC_VBA_CORPUS_UPDATE=1` rewrites the baseline from this run.
+//! Shared counts live in `common`; `windows` overrides only the routes that differ there.
 //!
 //! Capability policy (dc-10un): every project loads and runs under CalcVBA's capability policy,
 //! `Safe` unless `corpus/policy-approvals.json` approves that exact project (its id and module
@@ -51,11 +52,19 @@ fn decode_source(bytes: &[u8]) -> String {
     }
 }
 
-fn excel_text(case: &Value) -> Option<String> {
+fn excel_text(case: &Value, route: Route) -> Option<String> {
     if case.get("excel_error").is_some() {
         return None;
     }
-    Some(match &case["value"] {
+    // A file project can differ from the same add-in (ThisWorkbook.Name). Keep
+    // both recorded answers in the existing cases, selected by execution route.
+    let value = if route == Route::Xlsm {
+        case.get("xlsm_value")
+    } else {
+        None
+    }
+    .unwrap_or(&case["value"]);
+    Some(match value {
         Value::Number(n) => format!("number {}", n.as_f64().unwrap()),
         Value::String(s) => format!("text \"{}\"", s.replace('"', "\"\"")),
         Value::Bool(true) => "logical TRUE".to_owned(),
@@ -253,6 +262,109 @@ fn route_name(route: Route) -> &'static str {
     }
 }
 
+/// Source triage cannot see a file's references. Windows resolves their type libraries
+/// during compilation, including stdole's metadata (its identity alone is portable).
+fn predict_file_references(prediction: &mut Prediction, project: &calc_vba::OfficeProject) {
+    let mut references = project.com_references();
+    references.extend(project.references().iter().filter(|reference| {
+        reference.guid().as_deref() == Some("00020430-0000-0000-C000-000000000046")
+    }));
+    for reference in references {
+        prediction.capabilities.insert(Capability::ComActivate);
+        prediction
+            .details
+            .entry(Capability::ComActivate)
+            .or_default()
+            .insert(format!("typelib {}", reference.name()));
+    }
+}
+
+#[test]
+fn file_reference_prediction_sees_ole_metadata_without_running_the_project() {
+    for (name, bytes) in [
+        (
+            "DnaSimple.xlsm",
+            include_bytes!("../../../crates/calc-xll-reference/fixture/vba/DnaSimple.xlsm")
+                .as_slice(),
+        ),
+        (
+            "DnaExamples.xlsm",
+            include_bytes!("../../../crates/calc-xll-reference/fixture/vba/DnaExamples.xlsm")
+                .as_slice(),
+        ),
+    ] {
+        let (_, vba) = dna_onecalc::file::open(bytes).unwrap();
+        let project = calc_vba::read_office_project(&vba.unwrap().project).unwrap();
+        let mut prediction = policy::predict_lexical(&[]);
+        assert!(prediction.capabilities.is_empty());
+        predict_file_references(&mut prediction, &project);
+        assert!(
+            prediction.capabilities.contains(&Capability::ComActivate),
+            "{name}"
+        );
+        assert!(
+            prediction.details[&Capability::ComActivate].contains("typelib stdole"),
+            "{name}"
+        );
+        assert_eq!(
+            policy::drain_audit().total,
+            0,
+            "prediction must not resolve the references"
+        );
+        println!(
+            "{name}: references {:?}; predicts native metadata access",
+            project
+                .references()
+                .iter()
+                .map(|r| r.name())
+                .collect::<Vec<_>>()
+        );
+    }
+}
+
+fn platform_baseline(baseline: &Value, windows: bool) -> Value {
+    let mut counts = baseline["common"]
+        .as_object()
+        .expect("shared corpus counts")
+        .clone();
+    if windows {
+        counts.extend(
+            baseline["windows"]
+                .as_object()
+                .expect("Windows overrides")
+                .clone(),
+        );
+    }
+    Value::Object(counts)
+}
+
+fn record_platform_baseline(baseline: &mut Value, current: Value, windows: bool) {
+    if windows {
+        baseline["windows"] = Value::Object(
+            current
+                .as_object()
+                .unwrap()
+                .iter()
+                .filter(|(key, value)| baseline["common"].get(*key) != Some(*value))
+                .map(|(key, value)| (key.clone(), value.clone()))
+                .collect(),
+        );
+    } else {
+        baseline["common"] = current;
+    }
+}
+
+#[test]
+fn recording_windows_counts_preserves_the_other_platform_baseline() {
+    let mut baseline = json!({"common":{"a":1,"b":2},"windows":{"a":3}});
+    assert_eq!(platform_baseline(&baseline, false), json!({"a":1,"b":2}));
+    assert_eq!(platform_baseline(&baseline, true), json!({"a":3,"b":2}));
+    record_platform_baseline(&mut baseline, json!({"a":4,"b":2}), true);
+    assert_eq!(platform_baseline(&baseline, false), json!({"a":1,"b":2}));
+    assert_eq!(platform_baseline(&baseline, true), json!({"a":4,"b":2}));
+    assert_eq!(baseline["windows"], json!({"a":4}));
+}
+
 fn run_project(dir: &Path, route: Route) -> Option<Outcome> {
     // Read once, approve those bytes, then compile/open those same snapshots.
     let project = std::fs::read(dir.join("project.json")).unwrap();
@@ -285,7 +397,7 @@ fn run_project(dir: &Path, route: Route) -> Option<Outcome> {
         .iter()
         .map(|bytes| decode_source(bytes))
         .collect();
-    let (prediction, predicted_source) = match route {
+    let (mut prediction, mut predicted_source) = match route {
         Route::Module(_) => {
             let modules = manifest["modules"].as_array().unwrap();
             let primary = manifest["primary"].as_str();
@@ -370,11 +482,19 @@ fn run_project(dir: &Path, route: Route) -> Option<Outcome> {
                     session.set_formula_cell("H1").unwrap();
                     match vba {
                         None => Err("the workbook holds no VBA project".to_owned()),
-                        Some(vba) => session
-                            .open_project(vba, &name, None)
-                            .and_then(|_| session.enable_macros())
-                            .map(|_| ())
-                            .map_err(|e| first_line(&e)),
+                        Some(vba) => {
+                            if cfg!(windows)
+                                && let Ok(project) = calc_vba::read_office_project(&vba.project)
+                            {
+                                predict_file_references(&mut prediction, &project);
+                                predicted_source = "lexical+references";
+                            }
+                            session
+                                .open_project(vba, &name, None)
+                                .and_then(|_| session.enable_macros())
+                                .map(|_| ())
+                                .map_err(|e| first_line(&e))
+                        }
                     }
                 }
             }
@@ -406,7 +526,7 @@ fn run_project(dir: &Path, route: Route) -> Option<Outcome> {
         serde_json::from_str(&std::fs::read_to_string(dir.join(cases)).unwrap()).unwrap();
     for case in &cases {
         let formula = case["formula"].as_str().unwrap();
-        let Some(excel) = excel_text(case) else {
+        let Some(excel) = excel_text(case, route) else {
             out.missing += 1;
             out.details
                 .push(json!({"formula": formula, "class": "missing"}));
@@ -507,6 +627,32 @@ fn run_all() -> BTreeMap<String, Outcome> {
 }
 
 #[test]
+fn an_unmodelled_entry_cannot_match_excels_value_error() {
+    std::thread::Builder::new()
+        .stack_size(256 * 1024 * 1024)
+        .spawn(|| {
+            let dir = corpus_dir().join("vba-json");
+            for backend in [calc_vba::Backend::Interpreter, calc_vba::Backend::Jit] {
+                let out = run_project(&dir, Route::Project(backend)).unwrap();
+                let invalid = out
+                    .details
+                    .iter()
+                    .find(|case| case["formula"] == "=JsonRoundTrip(\"{bad\")")
+                    .expect("an unsupported entry is recorded even when Excel expects #VALUE!");
+                assert_eq!(invalid["class"], "refused", "{backend:?}: {invalid}");
+                assert!(
+                    invalid["why"].as_str().unwrap().contains("dc-hsa5.23"),
+                    "{invalid}"
+                );
+                assert_eq!(out.matched, 0, "an unlinked entry calculated no values");
+            }
+        })
+        .unwrap()
+        .join()
+        .unwrap();
+}
+
+#[test]
 fn the_vba_corpus_runs_headless_and_its_counts_are_the_reviewed_ones() {
     let all = run_all();
     let mut counts = serde_json::Map::new();
@@ -575,18 +721,20 @@ fn the_vba_corpus_runs_headless_and_its_counts_are_the_reviewed_ones() {
     );
     let baseline_path = corpus_dir().join("baseline.json");
     let current = Value::Object(counts);
+    let mut baseline: Value =
+        serde_json::from_str(&std::fs::read_to_string(&baseline_path).unwrap()).unwrap();
     if std::env::var("DNACALC_VBA_CORPUS_UPDATE").is_ok() {
+        record_platform_baseline(&mut baseline, current, cfg!(windows));
         std::fs::write(
             &baseline_path,
-            serde_json::to_string_pretty(&current).unwrap() + "\n",
+            serde_json::to_string_pretty(&baseline).unwrap() + "\n",
         )
         .unwrap();
         return;
     }
-    let baseline: Value =
-        serde_json::from_str(&std::fs::read_to_string(&baseline_path).unwrap()).unwrap();
     assert_eq!(
-        current, baseline,
+        current,
+        platform_baseline(&baseline, cfg!(windows)),
         "the corpus counts moved; review the per-case report (DNACALC_VBA_CORPUS_REPORT) and \
          record the new counts with DNACALC_VBA_CORPUS_UPDATE=1"
     );

@@ -222,3 +222,25 @@ Calc's page (`cargo xtask app xll-accept calc`): DnaSimple.xlsm 109/109, DnaExam
 Excel's records (`crates/calc-xll-reference/traces/2026-11-11-simple-udfs/README.md`, last section). The in-book
 corpus on the trusted-code route was not re-run for this round. Measured before the merge of the pins of section 8;
 after it 5 TypeName cases regressed on this route (dc-hsa5.22).
+
+## 10. TypeName repair and platform baselines (2026-11-12, Linux)
+
+CalcVBA pin `8115aa78` keeps objects intact for `TypeName` and `IsObject`, and retains
+`Dictionary` as the engine-supplied class's public type name. DNA Calc prepares Selection's
+owning carrier over its existing projection. The worker's real-file test now matches 244/244
+(100%, zero mismatched or refused). OneCalc's file test matches 22/26 (84.62%); its four
+`As Range` functions remain explicit workbook-profile refusals. The file corpus uses the
+recorded `.xlsm` answer for `ThisWorkbook.Name`: Linux matches 131/135 (97.04%), four refused.
+Each source-project backend matches 0/107 (0%), 107 refused; each module backend matches
+209/317 (65.93%), 108 failed. VBA-JSON and VBA-Dictionary load, but their unsupported entries
+are typed refusals (dc-hsa5.23). Their former nine apparent matches per backend were fallback
+`#VALUE!` errors matching Excel's expected errors; those entries had not calculated the answer.
+
+The baseline's `common` counts apply off Windows; `windows` overrides the two file projects.
+Those files reference stdole and Office (DnaExamples also Scripting). Windows resolves their
+native metadata under the capability policy: Safe denies that access, so every post-load case
+is refused, never matched. Source prediction now includes those file references. The metadata
+denial is asserted on both backends without native access; the Windows run remains to be verified
+with the cross-built tests. Baseline updates preserve the other platform's counts. The separate
+OneCalc file test enables macros through the person's Full-policy route and asserts its four
+workbook-only refusals on every platform.

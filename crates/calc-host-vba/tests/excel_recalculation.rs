@@ -38,7 +38,13 @@ fn observations() -> Vec<(String, Vec<String>)> {
         } else if trimmed.starts_with("\"cells\": [") {
             in_cells = true;
         } else if line.starts_with("    \"") && trimmed.ends_with("\": {") {
-            out.push((trimmed.trim_end_matches("\": {").trim_matches('"').to_string(), Vec::new()));
+            out.push((
+                trimmed
+                    .trim_end_matches("\": {")
+                    .trim_matches('"')
+                    .to_string(),
+                Vec::new(),
+            ));
         }
     }
     out
@@ -132,7 +138,11 @@ fn range(session: &HostSession, cell: &str) -> calc_value::GridArea {
 }
 
 fn probe_source() -> String {
-    PROBE.split("Private Function Snapshot").next().unwrap().to_string()
+    PROBE
+        .split("Private Function Snapshot")
+        .next()
+        .unwrap()
+        .to_string()
 }
 
 fn modules(source: &str) -> [calc_host_vba::ModuleSource; 2] {
@@ -150,21 +160,23 @@ fn modules(source: &str) -> [calc_host_vba::ModuleSource; 2] {
     ]
 }
 
-/// The fixture exactly as Excel ran it does not load in DNA Calc's route: refused, not run.
+/// The unmodified fixture now loads in the document route. The module route still
+/// has no ThisWorkbook; the sequence comparison below measures its calculation gaps.
 #[test]
-fn the_unmodified_probe_is_refused() {
+fn the_unmodified_probe_loads_as_a_document_and_needs_thisworkbook_as_a_module() {
     let mut s = session();
-    let refusal = calc_host_vba::prepare(
+    let project = calc_host_vba::prepare(
         s.host(),
         "probe.xlsm",
         &modules(&probe_source()),
         100_000,
         Some(calc_vba::Backend::Interpreter),
     )
-    .err()
-    .expect("the unmodified probe is refused until the typed host route takes optional parameters");
-    assert!(refusal.contains("invalid typed host member signature"), "{refusal}");
-    let _ = &mut s;
+    .expect("the document route admits the probe's optional host members");
+    project.install(&mut s);
+    enter(&mut s, "B1", "=PlainProbe(1,42)");
+    drain(&mut s);
+    assert_eq!(cell_text(&s, 1), "1");
     // The module route has no ThisWorkbook.
     let refusal = calc_vba::load_module_with_backend(
         "Probe",
@@ -174,7 +186,10 @@ fn the_unmodified_probe_is_refused() {
     )
     .err()
     .expect("the module route has no ThisWorkbook");
-    assert!(refusal.contains("Variable not defined: ThisWorkbook"), "{refusal}");
+    assert!(
+        refusal.contains("Variable not defined: ThisWorkbook"),
+        "{refusal}"
+    );
 }
 
 fn replay(backend: calc_vba::Backend) -> Vec<(String, Vec<String>)> {
@@ -213,7 +228,12 @@ fn replay(backend: calc_vba::Backend) -> Vec<(String, Vec<String>)> {
     enter(&mut s, "A3", "=A1*0");
     enter(&mut s, "A4", "=RAND()*0");
     enter(&mut s, "A6", "=RAND()");
-    for (cell, value) in [("D1", "TRUE"), ("D2", "FALSE"), ("D3", "TRUE"), ("D4", "FALSE")] {
+    for (cell, value) in [
+        ("D1", "TRUE"),
+        ("D2", "FALSE"),
+        ("D3", "TRUE"),
+        ("D4", "FALSE"),
+    ] {
         enter(&mut s, cell, value);
     }
     enter(&mut s, "Z1", "30");
@@ -283,7 +303,12 @@ fn replay(backend: calc_vba::Backend) -> Vec<(String, Vec<String>)> {
     stage("full", &s);
     request(&mut s, SkinIntent::Rebuild);
     stage("rebuild", &s);
-    for (cell, value) in [("D1", "FALSE"), ("D2", "TRUE"), ("D3", "FALSE"), ("D4", "TRUE")] {
+    for (cell, value) in [
+        ("D1", "FALSE"),
+        ("D2", "TRUE"),
+        ("D3", "FALSE"),
+        ("D4", "TRUE"),
+    ] {
         enter(&mut s, cell, value);
     }
     request(&mut s, SkinIntent::Recalculate);
@@ -356,7 +381,10 @@ fn check(backend: calc_vba::Backend) {
     let listed = known();
     let new: Vec<_> = different.difference(&listed).collect();
     let fixed: Vec<_> = listed.difference(&different).collect();
-    assert!(new.is_empty(), "{backend:?}: new differences from Excel: {new:?}");
+    assert!(
+        new.is_empty(),
+        "{backend:?}: new differences from Excel: {new:?}"
+    );
     assert!(
         fixed.is_empty(),
         "{backend:?}: listed differences now match Excel, remove them: {fixed:?}"

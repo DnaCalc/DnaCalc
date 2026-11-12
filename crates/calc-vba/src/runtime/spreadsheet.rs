@@ -16,6 +16,7 @@ use oxvba_hal::{
 use oxvba_runtime::{ObjectRef, Variant};
 use std::{
     cell::RefCell,
+    rc::Rc,
     sync::{Arc, Mutex},
 };
 
@@ -205,6 +206,14 @@ pub(crate) struct SpreadsheetHost {
 struct ObjectTable {
     by_id: std::collections::BTreeMap<i32, Object>,
     by_object: std::collections::BTreeMap<Object, i32>,
+    selections: std::collections::BTreeMap<Range, calcvba_host_api::HostObject>,
+}
+
+const SELECTION_IID: calcvba_host_api::InterfaceId = *b"DnaCalcSelect001";
+struct SelectionProjection {
+    range: Range,
+    // Retains the original projection's canonical identity for the native view.
+    _object: ObjectRef,
 }
 const FIRST_OBJECT: i32 = 0x1000_0000;
 const MAX_OBJECTS: usize = 4096;
@@ -302,6 +311,7 @@ impl SpreadsheetHost {
     /// Whether `object` is one of DNA's own spreadsheet or document objects.
     fn owns(&self, object: &ObjectRef) -> bool {
         self.native_range(object).is_some()
+            || self.selection_range(object).is_some()
             || crate::events::object_type(object).is_some()
             || calcvba_host_api::HostObject::from_object_ref(object).is_some_and(|object| {
                 crate::events::types::is_document_interface(&object.header().iid)
@@ -377,6 +387,9 @@ impl SpreadsheetHost {
         )))
     }
     fn lookup(&self, object: &ObjectRef) -> HalResult<Object> {
+        if let Some(range) = self.selection_range(object) {
+            return Ok(Object::Selection(range));
+        }
         // raw() is only defined for compatibility carriers, never a native IUnknown.
         if !object.is_compat_object() {
             return self
@@ -394,6 +407,46 @@ impl SpreadsheetHost {
     fn native_range(&self, object: &ObjectRef) -> Option<calcvba_host_api::HostObject> {
         let object = calcvba_host_api::HostObject::from_object_ref(object)?;
         (object.header().iid == TYPED_RANGE_IID).then_some(object)
+    }
+    fn selection_range(&self, object: &ObjectRef) -> Option<Range> {
+        let object = calcvba_host_api::HostObject::from_object_ref(object)?;
+        if object.header().iid != SELECTION_IID {
+            return None;
+        }
+        let projection = object.payload()?.downcast_ref::<SelectionProjection>()?;
+        matches!(self.lookup(&projection._object), Ok(Object::Selection(range)) if range == projection.range)
+            .then_some(projection.range)
+    }
+    fn prepare_selection(
+        &self,
+        object: ObjectRef,
+        range: Range,
+    ) -> HalResult<calcvba_host_api::HostObject> {
+        let mut objects = self
+            .objects
+            .lock()
+            .map_err(|_| fault(5, "object table is unavailable"))?;
+        Ok(objects
+            .selections
+            .entry(range)
+            .or_insert_with(|| {
+                let identity = object.raw_iunknown().cast();
+                let projection = Rc::new(SelectionProjection {
+                    range,
+                    _object: object,
+                });
+                // SAFETY: the payload retains this exact projection's canonical IUnknown;
+                // the cached view and all its clones keep that identity alive.
+                unsafe {
+                    calcvba_host_api::HostObject::new_with_payload_and_identity(
+                        SELECTION_IID,
+                        vec![],
+                        projection,
+                        identity,
+                    )
+                }
+            })
+            .clone())
     }
     fn native_value(&self, object: &calcvba_host_api::HostObject) -> HalResult<Variant> {
         // Result/default materialization admits no further VM work. This callback reads
@@ -989,9 +1042,15 @@ impl ComHal for SpreadsheetHost {
         if let Some(com) = self.foreign(&object) {
             return com.prepare_dynamic_object(object);
         }
+        if object.is_compat_object()
+            && let Ok(Object::Selection(range)) = self.lookup(&object)
+        {
+            return self.prepare_selection(object, range);
+        }
         calcvba_host_api::HostObject::from_object_ref(&object)
             .filter(|object| {
                 object.header().iid == TYPED_RANGE_IID
+                    || object.header().iid == SELECTION_IID
                     || crate::events::object_type(&object.object_ref()).is_some()
             })
             .ok_or_else(|| {
@@ -1075,7 +1134,12 @@ impl ComHal for SpreadsheetHost {
                     if (event_range || member.token >= 100)
                         && matches!(
                             name.as_str(),
-                            "VALUE" | "VALUE2" | "FORMULA" | "FORMULA2" | "FORMULAR1C1" | "FORMULA2R1C1"
+                            "VALUE"
+                                | "VALUE2"
+                                | "FORMULA"
+                                | "FORMULA2"
+                                | "FORMULAR1C1"
+                                | "FORMULA2R1C1"
                         ) =>
                 {
                     return Err(excel_forbids_cell_write(self));
@@ -1659,6 +1723,9 @@ mod tests {
             fn caller(&self) -> Option<Range> {
                 None
             }
+            fn selection(&self) -> Result<Range, ContextError> {
+                Ok(Range { id: 1 })
+            }
             fn metadata(&self, _: Range) -> Result<RangeInfo, ContextError> {
                 Ok(RangeInfo {
                     row: 1,
@@ -1715,6 +1782,48 @@ mod tests {
                 .host_error_code,
             Some(438),
             "a recognizable name cannot recover an unbound typed member"
+        );
+        // dc-hsa5.22: a Selection created through the typed entry keeps the same
+        // projection and identity. TypeName and Address still use the existing host route.
+        let refused = with_context(&Fixture, || {
+            let selection = host
+                .create_object_variant(Variant::from_string("DnaCalc.Selection"))
+                .unwrap()
+                .as_object_ref()
+                .unwrap();
+            let native = host.prepare_dynamic_object(selection.clone()).unwrap();
+            let again = host.prepare_dynamic_object(selection).unwrap();
+            assert!(native.same_identity(&again));
+            assert_eq!(
+                host.object_type_name(native.object_ref())
+                    .unwrap()
+                    .as_deref(),
+                Some("Range")
+            );
+            let member = SpreadsheetTypes
+                .resolve(&TypeLibResolveRequest {
+                    reference_name: "DnaCalc".into(),
+                    requested_coclass: Some("Selection".into()),
+                    importlib_hint: None,
+                    libid_hint: None,
+                    major_version_hint: None,
+                    minor_version_hint: None,
+                    lcid_hint: None,
+                })
+                .unwrap()
+                .members
+                .remove(0);
+            let result = host
+                .invoke_early_bound(native.object_ref(), &member, &[])
+                .unwrap();
+            assert_eq!(result.value, Some(Variant::from_string("$A$1:$C$2")));
+            let foreign = SpreadsheetHost::new(false, false, Default::default());
+            assert!(foreign.object_type_name(native.object_ref()).is_err());
+            Ok(())
+        })
+        .unwrap_err();
+        assert!(
+            matches!(refused, Error::HostRefused(why) if why == "a native spreadsheet object outside the supported projection")
         );
     }
 

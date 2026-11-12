@@ -36,8 +36,11 @@ fn error(value: oxvba_embed::Error) -> api::Error {
         other => api::Error::Backend(other.to_string()),
     }
 }
-pub(super) fn adapter_error(value: api::Error) -> Error {
+pub(crate) fn adapter_error(value: api::Error) -> Error {
     match value {
+        api::Error::UnsupportedSignature(reason) => Error::UnsupportedSignature(reason),
+        api::Error::UnsupportedBackend(reason) => Error::UnsupportedBackend(reason),
+        api::Error::BackendUnavailable => Error::BackendUnavailable,
         api::Error::BudgetExceeded => Error::BudgetExceeded,
         api::Error::Runtime {
             number,

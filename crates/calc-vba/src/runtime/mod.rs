@@ -9,6 +9,7 @@ use oxvba_runtime::{
 use oxvba_symbol::manifest as sym;
 use std::sync::Arc;
 mod cache;
+pub(crate) use cache::neutral::adapter_error;
 mod late_binding;
 pub(crate) mod spreadsheet;
 mod worksheet;

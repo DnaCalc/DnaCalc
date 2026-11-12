@@ -261,6 +261,6 @@ impl OwnedSession {
     }
 }
 
-mod neutral;
+pub(super) mod neutral;
 
 mod typed;

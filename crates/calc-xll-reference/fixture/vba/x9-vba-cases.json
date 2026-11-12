@@ -24,5 +24,5 @@
 {"formula": "=DnaTryWriteArg(Z99)", "value": 1004.0},
 {"formula": "=DnaWriteArg(Z99)", "value": {"error": "#VALUE!"}},
 {"formula": "=DnaSelection()", "value": "Range"},
-{"formula": "=DnaBook()", "value": "DnaExamples.xlam"}
+{"formula": "=DnaBook()", "value": "DnaExamples.xlam", "xlsm_value": "DnaExamples.xlsm"}
 ]

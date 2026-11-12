@@ -270,9 +270,9 @@ impl calc_func::UserFunctionInvocation for VbaActivation {
             .in_context(&bridge, || {
                 self.activation
                     .resume(quantum)
-                    .map_err(|e| runtime::Error::Backend(e.to_string()))
+                    .map_err(runtime::adapter_error)
             })
-            .map_err(|e| e.to_string())
+            .map_err(|e| bridge.execution_error(e))
             .and_then(|progress| match progress {
                 calcvba_host_api::InvocationProgress::Suspended => {
                     Ok(calc_func::UserFunctionStep::Suspended)
@@ -325,7 +325,7 @@ impl UserFunction for VbaFunction {
                 self.session
                     .begin_typed(self.index, &arguments, frame, self.max_steps)
             })
-            .map_err(|e| e.to_string())
+            .map_err(|e| bridge.execution_error(e))
             .map(|activation| {
                 activation.map(|activation| {
                     Box::new(VbaActivation {
@@ -372,7 +372,7 @@ impl UserFunction for VbaFunction {
         from_vba(
             self.session
                 .call_with_context(self.index, &arguments, self.max_steps, &mut bridge)
-                .map_err(|e| e.to_string())?,
+                .map_err(|e| bridge.execution_error(e))?,
         )
     }
 }
@@ -986,6 +986,22 @@ struct ContextBridge<'a> {
     sheets: Rc<RefCell<Sheets>>,
 }
 impl ContextBridge<'_> {
+    fn execution_error(&self, error: runtime::Error) -> String {
+        if matches!(
+            error,
+            runtime::Error::UnsupportedSignature(_)
+                | runtime::Error::UnsupportedBackend(_)
+                | runtime::Error::BackendUnavailable
+        ) {
+            let refusal = self.context.borrow_mut().refuse_by(
+                "a VBA entry whose signature or backend is not modelled",
+                "dc-hsa5.23",
+            );
+            format!("{refusal}: {error}")
+        } else {
+            error.to_string()
+        }
+    }
     fn refuse(&self, reason: &'static str) -> String {
         self.context
             .try_borrow_mut()
