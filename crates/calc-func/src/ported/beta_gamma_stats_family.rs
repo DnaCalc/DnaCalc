@@ -52,6 +52,17 @@ pub(crate) fn beta_dist_kernel(
         // shapes through the identified BRATIO.
         return Ok(regularized_beta(z, alpha, beta));
     }
+    if lower == 0.0 && upper == 1.0 && z > 0.0 && z < 1.0 {
+        // The unit interval's density, read from Excel (dc-6332.8). How Excel scales it on other
+        // intervals is not read: those keep the logarithmic form below.
+        if let Some(pdf) = crate::ported::discrete_dist::beta_density(z, alpha, beta) {
+            return if pdf.is_finite() {
+                Ok(pdf)
+            } else {
+                Err(WorksheetErrorCode::Num)
+            };
+        }
+    }
     let log_pdf = (alpha - 1.0) * crt_log(z) + (beta - 1.0) * crt_log(1.0 - z)
         - beta_log_norm(alpha, beta)
         - crt_log(upper - lower);

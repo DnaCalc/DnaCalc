@@ -515,8 +515,24 @@ fn step_key(failure: &RecalcFailed) -> String {
 /// group separators it recorded, which the host's TEXT, VALUE and number text read with.
 /// `None` when the capture records no culture or separators the profile table cannot hold.
 pub(crate) fn capture_locale(capture: &CaptureRecord) -> Option<calc_host::FormatProfile> {
-    let [culture, decimal, thousands] = capture_locale_settings(capture)?;
+    let Some([culture, decimal, thousands]) = capture_locale_settings(capture) else {
+        return dna_only_locale(capture);
+    };
     locale_profile(culture, decimal, thousands)
+}
+
+/// The profile of a DNA-only run (a source inventory, `comparison_policy` recorded, no Excel
+/// session): en-US, the profile DNA Calc itself defaults to, so TEXT, VALUE, DATEVALUE and number
+/// text coercion calculate instead of being refused for want of a locale (dc-f35o, dc-3k5n). It is
+/// a stated policy of the comparison, not an Excel observation. `None` for any other record.
+fn dna_only_locale(capture: &CaptureRecord) -> Option<calc_host::FormatProfile> {
+    let environment = capture.environment.as_ref()?;
+    environment
+        .settings
+        .iter()
+        .any(|(key, _)| key == "comparison_policy")
+        .then(|| calc_host::FormatProfile::for_culture("en-US"))
+        .flatten()
 }
 
 /// The user culture and the decimal and group separators `capture` recorded.

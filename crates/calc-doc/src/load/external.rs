@@ -16,7 +16,7 @@ use super::{Events, MAIN_NAMESPACE, address, read_xml, strings};
 use crate::opc::{Package, TargetMode};
 use crate::xml::XmlEvent;
 use calc_doc_model::value::ExcelText;
-use calc_doc_model::{CachedValue, CellText, ExternalBook, ExternalSheet, FiniteNumber};
+use calc_doc_model::{CachedValue, CellText, ExternalBook, ExternalName, ExternalSheet, FiniteNumber};
 use std::collections::BTreeMap;
 
 /// The relationship type of a workbook part's link to an externalLink part.
@@ -77,6 +77,11 @@ fn read_book(package: &Package, part: &str) -> Option<ExternalBook> {
                 read.file_name = read.target.as_deref().and_then(file_name_of);
                 book = Some(read);
             }
+            // A DDE or OLE link (`ddeLink`, dc-x8v4): its items' cached values, as a book of one
+            // synthetic sheet whose names are the items.
+            Some(XmlEvent::Start(element)) if element.name.is(MAIN_NAMESPACE, "ddeLink") => {
+                book = Some(read_dde_items(&mut events)?);
+            }
             Some(XmlEvent::Start(_)) => events.skip().ok()?,
             Some(XmlEvent::Text(_)) => {}
             Some(XmlEvent::End(_)) => break,
@@ -86,9 +91,111 @@ fn read_book(package: &Package, part: &str) -> Option<ExternalBook> {
     book
 }
 
+/// The sheet a DDE link's items are cached on: no worksheet of a workbook can be named so.
+const DDE_SHEET: &str = "(dde)";
+
+/// The `ddeLink` whose start tag was just read, as an [`ExternalBook`]: one sheet holding each
+/// item's first cached value in column A, and a defined name per item (`[1]!'ENE,LAST,1'`) that
+/// refers to it. An item cached with no value is #REF! (Excel, saved caches of a closed
+/// TWINDDE link); an item cached as several values has no name, so stays refused.
+fn read_dde_items(events: &mut Events<'_>) -> Option<ExternalBook> {
+    let mut cells = BTreeMap::new();
+    let mut names = Vec::new();
+    loop {
+        match events.next().ok()? {
+            Some(XmlEvent::Start(items)) if items.name.is(MAIN_NAMESPACE, "ddeItems") => loop {
+                match events.next().ok()? {
+                    Some(XmlEvent::Start(item)) if item.name.is(MAIN_NAMESPACE, "ddeItem") => {
+                        let name =
+                            String::from_utf16_lossy(&strings::decode(item.attribute("name")?));
+                        let mut values = Vec::new();
+                        loop {
+                            match events.next().ok()? {
+                                Some(XmlEvent::Start(held)) if held.name.is(MAIN_NAMESPACE, "values") => {
+                                    loop {
+                                        match events.next().ok()? {
+                                            Some(XmlEvent::Start(value))
+                                                if value.name.is(MAIN_NAMESPACE, "value") =>
+                                            {
+                                                let kind =
+                                                    value.attribute("t").map(|t| collapsed(t).to_owned());
+                                                let mut text = None;
+                                                loop {
+                                                    match events.next().ok()? {
+                                                        Some(XmlEvent::Start(val))
+                                                            if val.name.is(MAIN_NAMESPACE, "val") =>
+                                                        {
+                                                            text = Some(events.text().ok()?);
+                                                        }
+                                                        Some(XmlEvent::Start(_)) => events.skip().ok()?,
+                                                        Some(XmlEvent::Text(_)) => {}
+                                                        Some(XmlEvent::End(_)) => break,
+                                                        None => return None,
+                                                    }
+                                                }
+                                                values.push(
+                                                    text.and_then(|text| cached(kind.as_deref(), &text)),
+                                                );
+                                            }
+                                            Some(XmlEvent::Start(_)) => events.skip().ok()?,
+                                            Some(XmlEvent::Text(_)) => {}
+                                            Some(XmlEvent::End(_)) => break,
+                                            None => return None,
+                                        }
+                                    }
+                                }
+                                Some(XmlEvent::Start(_)) => events.skip().ok()?,
+                                Some(XmlEvent::Text(_)) => {}
+                                Some(XmlEvent::End(_)) => break,
+                                None => return None,
+                            }
+                        }
+                        let row = names.len() as u32 + 1;
+                        let refers_to = match values.as_slice() {
+                            [] => Some("=#REF!".to_owned()),
+                            [Some(value)] => {
+                                cells.insert((row, 1), value.clone());
+                                Some(format!("='{DDE_SHEET}'!$A${row}"))
+                            }
+                            _ => None,
+                        };
+                        names.push(ExternalName {
+                            name,
+                            sheet: None,
+                            refers_to,
+                        });
+                    }
+                    Some(XmlEvent::Start(_)) => events.skip().ok()?,
+                    Some(XmlEvent::Text(_)) => {}
+                    Some(XmlEvent::End(_)) => break,
+                    None => return None,
+                }
+            },
+            Some(XmlEvent::Start(_)) => events.skip().ok()?,
+            Some(XmlEvent::Text(_)) => {}
+            Some(XmlEvent::End(_)) => break,
+            None => return None,
+        }
+    }
+    Some(ExternalBook {
+        target: None,
+        absolute_target: None,
+        file_name: None,
+        sheets: vec![ExternalSheet {
+            name: DDE_SHEET.to_owned(),
+            id: None,
+            cached: true,
+            refresh_error: false,
+            cells,
+        }],
+        defined_names: names,
+    })
+}
+
 /// The `externalBook` whose start tag was just read: its sheet names and cached sheets.
 fn read_external_book(events: &mut Events<'_>) -> Option<(ExternalBook, Option<String>)> {
     let mut names = Vec::new();
+    let mut defined = Vec::new();
     let mut absolute_id = None;
     let mut data: BTreeMap<usize, (bool, BTreeMap<(u32, u32), CachedValue>)> = BTreeMap::new();
     loop {
@@ -120,6 +227,34 @@ fn read_external_book(events: &mut Events<'_>) -> Option<(ExternalBook, Option<S
                             names.push(String::from_utf16_lossy(&strings::decode(
                                 name.attribute("val").unwrap_or_default(),
                             )));
+                            events.skip().ok()?;
+                        }
+                        Some(XmlEvent::Start(_)) => events.skip().ok()?,
+                        Some(XmlEvent::Text(_)) => {}
+                        Some(XmlEvent::End(_)) => break,
+                        None => return None,
+                    }
+                }
+            }
+            Some(XmlEvent::Start(element)) if element.name.is(MAIN_NAMESPACE, "definedNames") => {
+                loop {
+                    match events.next().ok()? {
+                        Some(XmlEvent::Start(name))
+                            if name.name.is(MAIN_NAMESPACE, "definedName") =>
+                        {
+                            let text = |attribute: &str| {
+                                name.attribute(attribute)
+                                    .map(|value| String::from_utf16_lossy(&strings::decode(value)))
+                            };
+                            if let Some(held) = text("name") {
+                                defined.push(ExternalName {
+                                    name: held,
+                                    sheet: name
+                                        .attribute("sheetId")
+                                        .and_then(|value| collapsed(value).parse().ok()),
+                                    refers_to: text("refersTo"),
+                                });
+                            }
                             events.skip().ok()?;
                         }
                         Some(XmlEvent::Start(_)) => events.skip().ok()?,
@@ -179,6 +314,7 @@ fn read_external_book(events: &mut Events<'_>) -> Option<(ExternalBook, Option<S
             absolute_target: None,
             file_name: None,
             sheets,
+            defined_names: defined,
         },
         absolute_id,
     ))

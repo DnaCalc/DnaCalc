@@ -626,23 +626,19 @@ impl Session {
             load: None,
             macros,
             notice: None,
+            vba_mode: None,
         });
         self.republish();
         // Under the level Unguarded (or its pin) the project runs as the file opens, a marked one
         // too, with an information notice; a project that does not compile stays held.
-        if self.macro_policy.runs_on_open().is_some() {
+        if let Some(policy) = self.macro_policy.runs_on_open() {
             let by = self.macro_policy.trust_source();
-            return self.enable_macros_as(MacroEnable::Trusted { by });
+            return self.enable_macros_as(MacroEnable::Trusted { by, policy });
         }
         Ok(ProjectReport {
             functions: Vec::new(),
             notes: vec![format!(
-                "{}{}",
-                // Safe is not available yet: it behaves as Off and says so.
-                self.macro_policy
-                    .safe_notice()
-                    .map(|notice| format!("{notice}. "))
-                    .unwrap_or_default(),
+                "{}",
                 match macros {
                     MacroState::Blocked(zone) => format!(
                         "This file carries the Mark of the Web (zone {zone}: it came from the internet or another computer), so its VBA project is held and not run until you unblock it"
@@ -702,6 +698,15 @@ impl Session {
                 .err()
                 .unwrap_or_else(|| "the project did not read".to_owned()));
         };
+        // The project runs under the policy of what let it: the level Safe gives Safe, every other
+        // route (the level Unguarded or its pins, the person's click) Full.
+        held.vba_mode = Some(match mode {
+            MacroEnable::Trusted {
+                policy: calc_macro_security::VbaPolicy::Safe,
+                ..
+            } => calc_vba::policy::PolicyMode::Safe,
+            _ => calc_vba::policy::PolicyMode::Full,
+        });
         let report = self.compile_project(&project)?;
         let held = self.project.as_mut().expect("a held project part");
         held.macros = MacroState::Enabled;
@@ -710,7 +715,7 @@ impl Session {
                 "This file carries the Mark of the Web (zone {zone}: it came from the internet or another computer)"
             );
             match mode {
-                MacroEnable::Trusted { by } => format!("{source}; its macros run because of {by}"),
+                MacroEnable::Trusted { by, .. } => format!("{source}; its macros run because of {by}"),
                 _ => format!("{source}; its macros run because you unblocked it"),
             }
         });
@@ -727,13 +732,23 @@ impl Session {
         project: &calc_vba::OfficeProject,
     ) -> Result<ProjectReport, String> {
         let held = self.project.as_mut().expect("a held project part");
+        // The policy wraps every host built for this load (CalcVBA's PolicyHost); the thread's
+        // earlier policy is put back after it.
+        let earlier = calc_vba::policy::thread_policy();
+        if let Some(mode) = held.vba_mode {
+            calc_vba::policy::set_thread_policy(Some(mode));
+        }
         let load = calc_vba::events::load_office_project(
             project,
             &held.file_name,
             calc_vba::DEFAULT_STEP_BUDGET,
             None,
             calc_vba::Profile::ValuesOnly,
-        )?;
+        );
+        if held.vba_mode.is_some() {
+            calc_vba::policy::set_thread_policy(earlier);
+        }
+        let load = load?;
         let functions = load
             .project
             .functions()
@@ -902,6 +917,9 @@ pub struct SessionProject {
     /// An information notice for a marked file whose project runs because it was unblocked or the
     /// macro security level trusts every file (dc-15dk).
     pub notice: Option<String>,
+    /// The CalcVBA policy the project is compiled under once it runs (dc-10un); `None` until it
+    /// does.
+    vba_mode: Option<calc_vba::policy::PolicyMode>,
 }
 
 /// Who enables a held project (dc-15dk).
@@ -912,7 +930,10 @@ pub enum MacroEnable {
     /// The person's Unblock and enable, behind the page's warning.
     Unblock,
     /// The level Unguarded, or `--trust-macros` or `DNACALC_TRUST_ALL_MACROS=1` (`by` says which).
-    Trusted { by: &'static str },
+    Trusted {
+        by: &'static str,
+        policy: calc_macro_security::VbaPolicy,
+    },
 }
 
 /// Whether a session file's VBA project may run, as in Excel's default: a file from the internet

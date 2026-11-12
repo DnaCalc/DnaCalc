@@ -206,8 +206,8 @@ pub fn run(
     // with calc-host-vba's open-time route and its functions join the add-ins' table. A file with
     // the Mark of the Web (zone 3 or 4) or on the network is refused even so (dc-0f1k.22), unless
     // the macro security level is Unguarded: `--trust-macros`, `DNACALC_TRUST_ALL_MACROS=1`,
-    // `--macros unguarded` or the stored level (dc-15dk). Safe is not available yet (dc-10un): it
-    // holds the project, as Off does.
+    // `--macros unguarded` or the stored level (dc-15dk). The level Safe runs it too, under CalcVBA's
+    // Safe policy (dc-10un).
     let package = match workbook {
         Some(path) => std::fs::read(path).map_err(|e| format!("{}: {e}", path.display()))?,
         None => calc_host::blank_package(),

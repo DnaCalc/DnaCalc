@@ -4,9 +4,8 @@
 //! - [`MacroSecurity::Off`] (the default, Excel's): a macro workbook opens with its project held,
 //!   a bar offers Enable macros for this file, and a file with the Mark of the Web or from the
 //!   network offers Unblock and enable behind a short warning.
-//! - [`MacroSecurity::Safe`]: VBA runs with dangerous operating-system services refused. The
-//!   policy is built in CalcVBA (dc-10un); until it lands ([`SAFE_AVAILABLE`]) Safe behaves as Off
-//!   and says so ([`MacroPolicy::safe_notice`]).
+//! - [`MacroSecurity::Safe`]: the project runs on open with dangerous operating-system services
+//!   refused (CalcVBA's `PolicyMode::Safe`, dc-10un).
 //! - [`MacroSecurity::Unguarded`]: the project runs on open with full access, Excel's enable
 //!   macros, no prompt; a file that would have been blocked runs too, with an information notice.
 //!
@@ -24,12 +23,8 @@ pub const MACROS_FLAG: &str = "--macros";
 /// The environment variable that pins the level to Unguarded when it is `1`.
 pub const TRUST_ENV: &str = "DNACALC_TRUST_ALL_MACROS";
 
-/// Whether the Safe policy exists in the VBA host yet (dc-10un). While it does not, Safe behaves
-/// as Off.
-pub const SAFE_AVAILABLE: bool = false;
-
 /// What the VBA host is asked to enforce for a project that runs: the single policy choice passed
-/// to it (a placeholder for dc-10un's `PolicyHost` Safe/Full).
+/// to it, CalcVBA's `PolicyMode` (dc-10un).
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub enum VbaPolicy {
     /// Dangerous operating-system services refused.
@@ -44,7 +39,7 @@ pub enum MacroSecurity {
     /// Held on open; the person enables it (a marked or network file: unblocks it) per file.
     #[default]
     Off,
-    /// Runs with dangerous operating-system services refused (not available yet: acts as Off).
+    /// Runs on open with dangerous operating-system services refused.
     Safe,
     /// Runs on open with full access, whatever the file's origin.
     Unguarded,
@@ -80,11 +75,11 @@ impl MacroSecurity {
     }
 
     /// The policy the VBA host is asked to enforce when a project runs at this level; `None` when
-    /// nothing runs on open (Off, and Safe until it is available).
+    /// nothing runs on open (Off).
     pub fn vba_policy(self) -> Option<VbaPolicy> {
         match self {
             Self::Off => None,
-            Self::Safe => SAFE_AVAILABLE.then_some(VbaPolicy::Safe),
+            Self::Safe => Some(VbaPolicy::Safe),
             Self::Unguarded => Some(VbaPolicy::Full),
         }
     }
@@ -186,13 +181,6 @@ impl MacroPolicy {
         self.level.vba_policy()
     }
 
-    /// Why Safe does not run anything yet, when it is the level; `None` otherwise.
-    pub fn safe_notice(&self) -> Option<&'static str> {
-        (self.level == MacroSecurity::Safe && !SAFE_AVAILABLE).then_some(
-            "Safe mode is not available yet, so macros stay off (you can still enable them for this file)",
-        )
-    }
-
     /// Who trusts a project that runs without the person's click, for the grant's record.
     pub fn trust_source(&self) -> &'static str {
         match self.pinned {
@@ -232,16 +220,12 @@ mod tests {
     #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
     fn each_level_decides_what_runs_on_open() {
         let off = MacroPolicy::stored(MacroSecurity::Off);
-        assert_eq!((off.runs_on_open(), off.safe_notice()), (None, None));
+        assert_eq!(off.runs_on_open(), None);
         let all = MacroPolicy::stored(MacroSecurity::Unguarded);
         assert_eq!(all.runs_on_open(), Some(VbaPolicy::Full));
-        // Safe is the placeholder until dc-10un: nothing runs and the page says why.
+        // Safe runs the project on open with the Safe policy; Unguarded with Full.
         let safe = MacroPolicy::stored(MacroSecurity::Safe);
-        assert_eq!(
-            safe.runs_on_open(),
-            SAFE_AVAILABLE.then_some(VbaPolicy::Safe)
-        );
-        assert_eq!(safe.safe_notice().is_some(), !SAFE_AVAILABLE);
+        assert_eq!(safe.runs_on_open(), Some(VbaPolicy::Safe));
     }
 
     #[cfg_attr(not(target_arch = "wasm32"), test)]

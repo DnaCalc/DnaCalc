@@ -86,6 +86,19 @@ pub struct ExternalBook {
     pub file_name: Option<String>,
     /// Its sheets, in the order the part lists their names.
     pub sheets: Vec<ExternalSheet>,
+    /// The defined names the link lists (`[1]!Rate`, `'[1]Sheet'!Rate`), with what each refers to.
+    pub defined_names: Vec<ExternalName>,
+}
+
+/// One defined name of an [`ExternalBook`], as its link part lists it.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct ExternalName {
+    pub name: String,
+    /// The index (in the book's sheet list) of the sheet the name is local to; `None` for a
+    /// workbook-level name.
+    pub sheet: Option<usize>,
+    /// What the name refers to as the link writes it (`='COH'!$A$3:$IV$3`).
+    pub refers_to: Option<String>,
 }
 
 /// One sheet of an [`ExternalBook`]: its name and the values its link caches.

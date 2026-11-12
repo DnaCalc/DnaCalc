@@ -97,7 +97,7 @@ pub use calc_value as value;
 pub use cells::{CellPage, OccupiedCells, PAGE_COLUMNS, PAGE_ROWS};
 pub use definitions::{
     ArrayFormula, ArrayKind, DataModel, DataTable, DataTableInputs, DefinedName, Definitions,
-    ExternalBook, ExternalSheet, IterationSettings, ModelMeasure, ModelSnapshot,
+    ExternalBook, ExternalName, ExternalSheet, IterationSettings, ModelMeasure, ModelSnapshot,
     ModelSnapshotProvenance, ModelSnapshotTable, NameScope, RowHidden, Table, TableStyle,
     UnloadedCell,
 };

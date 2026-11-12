@@ -42,6 +42,10 @@ fn package() -> Vec<u8> {
 }
 
 fn package_with_sheet(sheet: &str) -> Vec<u8> {
+    package_with_links(sheet, LINK1, LINK2)
+}
+
+fn package_with_links(sheet: &str, link1: &str, link2: &str) -> Vec<u8> {
     let types = r#"<?xml version="1.0" encoding="UTF-8"?><Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types"><Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/><Default Extension="xml" ContentType="application/xml"/><Override PartName="/xl/workbook.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet.main+xml"/><Override PartName="/xl/worksheets/sheet1.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.worksheet+xml"/><Override PartName="/xl/externalLinks/externalLink1.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.externalLink+xml"/><Override PartName="/xl/externalLinks/externalLink2.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.externalLink+xml"/></Types>"#;
     let root = format!(
         r#"<?xml version="1.0" encoding="UTF-8"?><Relationships xmlns="{RELATIONSHIPS}"><Relationship Id="rId1" Type="{R}/officeDocument" Target="xl/workbook.xml"/></Relationships>"#
@@ -64,12 +68,12 @@ fn package_with_sheet(sheet: &str) -> Vec<u8> {
         ("xl/workbook.xml", workbook.as_bytes()),
         ("xl/_rels/workbook.xml.rels", workbook_rels.as_bytes()),
         ("xl/worksheets/sheet1.xml", sheet.as_bytes()),
-        ("xl/externalLinks/externalLink1.xml", LINK1.as_bytes()),
+        ("xl/externalLinks/externalLink1.xml", link1.as_bytes()),
         (
             "xl/externalLinks/_rels/externalLink1.xml.rels",
             link1_rels.as_bytes(),
         ),
-        ("xl/externalLinks/externalLink2.xml", LINK2.as_bytes()),
+        ("xl/externalLinks/externalLink2.xml", link2.as_bytes()),
         (
             "xl/externalLinks/_rels/externalLink2.xml.rels",
             link2_rels.as_bytes(),
@@ -1049,5 +1053,34 @@ fn dc_hsa5_6__conditional_colour_filter_refuses_external_cache_decisions_atomica
     assert_eq!(
         book.host().model().definitions().auto_filter(sheet),
         filter.as_ref()
+    );
+}
+
+/// dc-9cyc and dc-x8v4: a defined name of another workbook (`[1]!Rate`, `'[1]Other'!Local`, a quoted
+/// `[2]!'ENE,LAST,1'`) reads what the link caches for the reference the name lists, and a DDE link's
+/// item is a name whose value is the item's cached one (an item cached with no value is #REF!).
+/// Names the link does not list stay refused.
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn dc_9cyc__external_defined_names_and_dde_items_read_their_cached_values() {
+    let sheet = r#"<?xml version="1.0" encoding="UTF-8"?><worksheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main"><sheetData><row r="1"><c r="A1"><f>[1]!Rate</f></c><c r="B1"><f>[1]!rate*2</f></c><c r="C1"><f>'[1]Other'!Local</f></c><c r="D1"><f>SUM([1]!Strip)</f></c><c r="E1"><f>[2]!'ENE,LAST,1'</f></c><c r="F1"><f>[2]!'NGc1 LAST'</f></c><c r="G1"><f>[1]!Missing</f></c></row></sheetData></worksheet>"#;
+    let link1 = r#"<?xml version="1.0" encoding="UTF-8"?><externalLink xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships"><externalBook r:id="rId1"><sheetNames><sheetName val="Sheet1"/><sheetName val="Other"/></sheetNames><definedNames><definedName name="Rate" refersTo="=Sheet1!$A$1"/><definedName name="Local" sheetId="1" refersTo="='Other'!$A$1"/><definedName name="Local" refersTo="=Sheet1!$A$2"/><definedName name="Strip" refersTo="=Sheet1!$A$1:$B$1"/></definedNames><sheetDataSet><sheetData sheetId="0"><row r="1"><cell r="A1"><v>111</v></cell><cell r="B1"><v>9</v></cell></row><row r="2"><cell r="A2"><v>5</v></cell></row></sheetData><sheetData sheetId="1"><row r="1"><cell r="A1" t="str"><v>x</v></cell></row></sheetData></sheetDataSet></externalBook></externalLink>"#;
+    let link2 = r#"<?xml version="1.0" encoding="UTF-8"?><externalLink xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships"><ddeLink ddeService="REUTER" ddeTopic="IDN"><ddeItems><ddeItem name="ENE,LAST,1" advise="1"><values><value><val>8.63</val></value></values></ddeItem><ddeItem name="NGc1 LAST" advise="1"/></ddeItems></ddeLink></externalLink>"#;
+    let host = recalculated(&package_with_links(sheet, link1, link2));
+    let sheet = host.sheets()[0].id();
+    let shown: Vec<String> = (1..=7)
+        .map(|column| shown_value(&host, CellKey::new(sheet, 1, column).expect("row 1")))
+        .collect();
+    assert_eq!(
+        shown,
+        [
+            "111 (external link)".to_owned(),
+            "222 (external link)".to_owned(),
+            "\"x\" (external link)".to_owned(),
+            "120 (external link)".to_owned(),
+            "8.63 (external link)".to_owned(),
+            format!("{:?}", WorksheetErrorCode::Ref),
+            "not modelled".to_owned(),
+        ]
     );
 }

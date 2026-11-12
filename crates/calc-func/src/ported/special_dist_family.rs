@@ -1016,7 +1016,7 @@ mod tests {
             "GAMMALN(2.5)",
             gammaln_kernel(2.5).unwrap(),
             0x3fd2383e809a67e8,
-            0x3fd2383e809a67e9,
+            0x3fd2383e809a67e8,
         );
         assert_recorded_bits(
             "GAMMALN(3.5)",

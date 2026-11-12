@@ -332,7 +332,7 @@ pub(super) fn values(
 }
 
 /// The most cells [`grid`] reads into memory; a larger area is refused as not modelled.
-const GRID_LIMIT: u64 = 1 << 22;
+pub(super) const GRID_LIMIT: u64 = 1 << 22;
 
 /// One argument as a dense rectangle in row-major order: a reference of one area (a blank cell
 /// is Empty), an array, or a single value as 1 by 1.
