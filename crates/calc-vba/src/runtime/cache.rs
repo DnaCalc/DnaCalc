@@ -108,7 +108,15 @@ impl OwnedSession {
             args,
             |index, values| {
                 if self.event_project && self.dynamic(index).is_none() {
-                    return self.call_owning(index, values, max_steps);
+                    // The owning typed route checks the whole reachable call graph before any
+                    // body effect. A callee it cannot link (a class created with `New`, a
+                    // typed Raise, a logical Or) refuses with UnsupportedSignature before
+                    // anything ran, so the function runs on the dynamic runtime instead, as
+                    // a function the signature check already sent there does (dc-tey4.3).
+                    match self.call_owning(index, values, max_steps) {
+                        Err(Error::UnsupportedSignature(_)) => {}
+                        other => return other,
+                    }
                 }
                 calcvba_host_api::Session::call_bound(self, &self.bound[index], values, max_steps)
                     .map_err(neutral::adapter_error)

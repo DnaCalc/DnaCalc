@@ -130,18 +130,18 @@
     },
     "vba-dictionary/project/interpreter": {
       "loaded": true,
-      "matched": 0,
+      "matched": 15,
       "mismatched": 0,
       "missing": 0,
-      "refused": 15,
+      "refused": 0,
       "route": "project/interpreter"
     },
     "vba-dictionary/project/jit": {
       "loaded": true,
-      "matched": 0,
+      "matched": 15,
       "mismatched": 0,
       "missing": 0,
-      "refused": 15,
+      "refused": 0,
       "route": "project/jit"
     },
     "vba-json/module/interpreter": {
@@ -162,18 +162,18 @@
     },
     "vba-json/project/interpreter": {
       "loaded": true,
-      "matched": 0,
+      "matched": 21,
       "mismatched": 0,
       "missing": 0,
-      "refused": 21,
+      "refused": 0,
       "route": "project/interpreter"
     },
     "vba-json/project/jit": {
       "loaded": true,
-      "matched": 0,
+      "matched": 21,
       "mismatched": 0,
       "missing": 0,
-      "refused": 21,
+      "refused": 0,
       "route": "project/jit"
     },
     "vba-web-excerpt/module/interpreter": {

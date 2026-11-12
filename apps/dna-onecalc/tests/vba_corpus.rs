@@ -627,24 +627,23 @@ fn run_all() -> BTreeMap<String, Outcome> {
 }
 
 #[test]
-fn an_unmodelled_entry_cannot_match_excels_value_error() {
+fn a_raised_vba_error_matches_excels_value_error_only_when_the_entry_ran() {
+    // Before dc-tey4.3 every VBA-JSON entry was a typed refusal (dc-hsa5.23), including the case
+    // whose Excel answer is #VALUE!; a refusal never matched it. Now the entries run on both
+    // backends: the case `{bad` raises error 10001 in the project's own code and the cell shows
+    // #VALUE!, as in Excel. The case counts as matched only because the entry calculated.
     std::thread::Builder::new()
         .stack_size(256 * 1024 * 1024)
         .spawn(|| {
             let dir = corpus_dir().join("vba-json");
             for backend in [calc_vba::Backend::Interpreter, calc_vba::Backend::Jit] {
                 let out = run_project(&dir, Route::Project(backend)).unwrap();
-                let invalid = out
-                    .details
-                    .iter()
-                    .find(|case| case["formula"] == "=JsonRoundTrip(\"{bad\")")
-                    .expect("an unsupported entry is recorded even when Excel expects #VALUE!");
-                assert_eq!(invalid["class"], "refused", "{backend:?}: {invalid}");
                 assert!(
-                    invalid["why"].as_str().unwrap().contains("dc-hsa5.23"),
-                    "{invalid}"
+                    out.details.iter().all(|case| case["formula"] != "=JsonRoundTrip(\"{bad\")"),
+                    "{backend:?}: the {{bad case is matched, not refused or mismatched"
                 );
-                assert_eq!(out.matched, 0, "an unlinked entry calculated no values");
+                assert_eq!((out.refused, out.mismatched, out.missing), (0, 0, 0), "{backend:?}");
+                assert_eq!(out.matched, 21, "{backend:?}");
             }
         })
         .unwrap()

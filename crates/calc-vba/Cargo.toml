@@ -12,24 +12,24 @@ portability = "portable"
 [dependencies]
 scoped-tls-hkt = "0.1.5"
 thiserror = "2"
-oxvba-oxir = { package = "calcvba-oxir", git = "https://github.com/DnaCalc/CalcVBA.git", rev = "8115aa78135114c1dea79f26cbc12c8a3b00a4cf" }
-oxvba-eval = { package = "calcvba-eval", git = "https://github.com/DnaCalc/CalcVBA.git", rev = "8115aa78135114c1dea79f26cbc12c8a3b00a4cf" }
-oxvba-bundle = { package = "calcvba-bundle", git = "https://github.com/DnaCalc/CalcVBA.git", rev = "8115aa78135114c1dea79f26cbc12c8a3b00a4cf" }
-oxvba-symbol = { package = "calcvba-symbol", git = "https://github.com/DnaCalc/CalcVBA.git", rev = "8115aa78135114c1dea79f26cbc12c8a3b00a4cf" }
-oxvba-syntax = { package = "calcvba-syntax", git = "https://github.com/DnaCalc/CalcVBA.git", rev = "8115aa78135114c1dea79f26cbc12c8a3b00a4cf" }
-oxvba-hal = { package = "calcvba-hal", git = "https://github.com/DnaCalc/CalcVBA.git", rev = "8115aa78135114c1dea79f26cbc12c8a3b00a4cf" }
-oxvba-com = { package = "calcvba-com", git = "https://github.com/DnaCalc/CalcVBA.git", rev = "8115aa78135114c1dea79f26cbc12c8a3b00a4cf" }
-oxvba-runtime = { package = "calcvba-runtime", git = "https://github.com/DnaCalc/CalcVBA.git", rev = "8115aa78135114c1dea79f26cbc12c8a3b00a4cf" }
-oxvba-office = { package = "calcvba-office", git = "https://github.com/DnaCalc/CalcVBA.git", rev = "8115aa78135114c1dea79f26cbc12c8a3b00a4cf", default-features = false }
-calcvba-host-api = { git = "https://github.com/DnaCalc/CalcVBA.git", rev = "8115aa78135114c1dea79f26cbc12c8a3b00a4cf" }
-calcvba-lib = { git = "https://github.com/DnaCalc/CalcVBA.git", rev = "8115aa78135114c1dea79f26cbc12c8a3b00a4cf" }
+oxvba-oxir = { package = "calcvba-oxir", git = "https://github.com/DnaCalc/CalcVBA.git", rev = "54b33b52d63477edebfd044ced58a1ab27ff8ccf" }
+oxvba-eval = { package = "calcvba-eval", git = "https://github.com/DnaCalc/CalcVBA.git", rev = "54b33b52d63477edebfd044ced58a1ab27ff8ccf" }
+oxvba-bundle = { package = "calcvba-bundle", git = "https://github.com/DnaCalc/CalcVBA.git", rev = "54b33b52d63477edebfd044ced58a1ab27ff8ccf" }
+oxvba-symbol = { package = "calcvba-symbol", git = "https://github.com/DnaCalc/CalcVBA.git", rev = "54b33b52d63477edebfd044ced58a1ab27ff8ccf" }
+oxvba-syntax = { package = "calcvba-syntax", git = "https://github.com/DnaCalc/CalcVBA.git", rev = "54b33b52d63477edebfd044ced58a1ab27ff8ccf" }
+oxvba-hal = { package = "calcvba-hal", git = "https://github.com/DnaCalc/CalcVBA.git", rev = "54b33b52d63477edebfd044ced58a1ab27ff8ccf" }
+oxvba-com = { package = "calcvba-com", git = "https://github.com/DnaCalc/CalcVBA.git", rev = "54b33b52d63477edebfd044ced58a1ab27ff8ccf" }
+oxvba-runtime = { package = "calcvba-runtime", git = "https://github.com/DnaCalc/CalcVBA.git", rev = "54b33b52d63477edebfd044ced58a1ab27ff8ccf" }
+oxvba-office = { package = "calcvba-office", git = "https://github.com/DnaCalc/CalcVBA.git", rev = "54b33b52d63477edebfd044ced58a1ab27ff8ccf", default-features = false }
+calcvba-host-api = { git = "https://github.com/DnaCalc/CalcVBA.git", rev = "54b33b52d63477edebfd044ced58a1ab27ff8ccf" }
+calcvba-lib = { git = "https://github.com/DnaCalc/CalcVBA.git", rev = "54b33b52d63477edebfd044ced58a1ab27ff8ccf" }
 calc-fml = { path = "../calc-fml" }
 calc-func = { path = "../calc-func" }
 # Reviewed embedding contract UDF_EMBEDDING_V1. Native selects JIT at admission.
-oxvba-embed = { package = "calcvba-host", git = "https://github.com/DnaCalc/CalcVBA.git", rev = "8115aa78135114c1dea79f26cbc12c8a3b00a4cf", default-features = false }
+oxvba-embed = { package = "calcvba-host", git = "https://github.com/DnaCalc/CalcVBA.git", rev = "54b33b52d63477edebfd044ced58a1ab27ff8ccf", default-features = false }
 
 [target.'cfg(not(target_arch = "wasm32"))'.dependencies]
-oxvba-embed = { package = "calcvba-host", git = "https://github.com/DnaCalc/CalcVBA.git", rev = "8115aa78135114c1dea79f26cbc12c8a3b00a4cf", default-features = false, features = ["jit"] }
+oxvba-embed = { package = "calcvba-host", git = "https://github.com/DnaCalc/CalcVBA.git", rev = "54b33b52d63477edebfd044ced58a1ab27ff8ccf", default-features = false, features = ["jit"] }
 
 [target.'cfg(target_arch = "wasm32")'.dev-dependencies]
 wasm-bindgen-test = "=0.3.67"
