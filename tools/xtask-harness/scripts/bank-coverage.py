@@ -53,6 +53,15 @@ def generate(entry, stage):
     rows = []
     count = 160 if stage == 'special' else 1400
     for i in range(count):
+        if name == 'GETPIVOTDATA':
+            rows.append([text(f'measure{i}'), number(i)])
+            continue
+        if name in {'COUNTIFS', 'SUMIFS', 'AVERAGEIFS', 'MAXIFS', 'MINIFS'}:
+            criteria = ['>0', '<0', '<>0', '=0', '*', 'a?', '~*', '<=' + str(i % 97)][i % 8]
+            criterion_range = number((i - 700) / 11)
+            if name == 'COUNTIFS': row = [criterion_range, text(criteria)]
+            else: row = [number((i - 700) / 7), criterion_range, text(criteria)]
+            rows.append(row); continue
         if name in {"ROWS", "COLUMNS", "ARRAYTOTEXT", "INDEX", "MATCH", "XMATCH",
                     "VLOOKUP", "HLOOKUP", "LOOKUP", "XLOOKUP"}:
             values = [float((i + j) % 13) + i / 10000 for j in range(1 + i % 5)]
