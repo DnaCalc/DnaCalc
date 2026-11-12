@@ -3977,3 +3977,57 @@ fn ets_adjacent_histories_separate_raw_moment_reset_arithmetic() {
         }
     }
 }
+
+/// Excel 20527: lower-tail seed underflow is decided before scale, while
+/// positive tiny arguments must not be mistaken for the gamma endpoint.
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn gamma_positive_underflow_and_inverse_seed_match_excel() {
+    exact(
+        call("GAMMA.DIST", vec![n(1e-300), n(1e-100), n(1.0), b(true)]),
+        1.0,
+    );
+    for name in ["GAMMA.INV", "GAMMAINV"] {
+        for scale in [1.0, 1e100] {
+            exact(call(name, vec![n(1e-100), n(1e-100), n(scale)]), 0.0);
+            error(call(name, vec![n(1e-100), n(0.32), n(scale)]), Div0);
+        }
+    }
+}
+
+/// Excel 20527: the scaled Temme tail stays finite across the search bracket;
+/// the one-degree right inverse preserves Excel's two stored complements.
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn chi_inverse_scaled_tail_and_probability_fold_match_excel() {
+    exact(call("CHISQ.DIST.RT", vec![n(62995.5), n(45000.0)]), 0.0);
+    for name in ["CHIINV", "CHISQ.INV.RT"] {
+        exact(call(name, vec![n(1.0), n(1e100)]), 0.0);
+        error(call(name, vec![n(1.0), n(0.5)]), Num);
+        error(call(name, vec![n(1e-100), n(1.0)]), Num);
+        exact(
+            call(name, vec![n(f64::from_bits(0x3f7d_b69d_98cd_5de8)), n(1.0)]),
+            f64::from_bits(0x401c_d5ed_c89c_33c2),
+        );
+        exact(
+            call(
+                name,
+                vec![n(f64::from_bits(0x3f98_5dc7_98f6_0e40)), n(45000.0)],
+            ),
+            f64::from_bits(0x40e6_4387_fb78_1d75),
+        );
+    }
+}
+
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn f_inverse_probability_endpoints_validate_degrees() {
+    exact(call("F.INV", vec![n(0.0), n(5.0), n(8.0)]), 0.0);
+    error(call("F.INV", vec![n(0.0), n(0.5), n(8.0)]), Num);
+    error(call("F.INV", vec![n(1.0), n(5.0), n(8.0)]), Num);
+    for name in ["F.INV.RT", "FINV"] {
+        exact(call(name, vec![n(1.0), n(5.0), n(8.0)]), 0.0);
+        error(call(name, vec![n(1.0), n(5.0), n(0.5)]), Num);
+        error(call(name, vec![n(0.0), n(5.0), n(8.0)]), Num);
+    }
+}

@@ -101,8 +101,8 @@ where
     F: Fn(f64) -> f64,
 {
     let mut hi = initial_hi.max(1.0);
-    for _ in 0..200 {
-        if f(hi) >= target {
+    for _ in 0..1024 {
+        if f(hi) >= target || hi == f64::INFINITY {
             return hi;
         }
         hi *= 2.0;
@@ -128,8 +128,34 @@ pub fn chisq_inv_kernel(probability: f64, deg_freedom: f64) -> Result<f64, Works
 }
 
 pub fn chisq_inv_rt_kernel(probability: f64, deg_freedom: f64) -> Result<f64, WorksheetErrorCode> {
-    let p = validate_probability_open_unit(probability)?;
+    let p = if probability == 1.0 {
+        1.0
+    } else {
+        validate_probability_open_unit(probability)?
+    };
+    if p == 1.0 {
+        let k = deg_freedom.trunc();
+        return if k.is_finite() && k >= 1.0 {
+            Ok(0.0)
+        } else {
+            Err(WorksheetErrorCode::Num)
+        };
+    }
     let k = truncate_positive_integer(deg_freedom)?;
+    // Excel 20527: the df=1 arm first forms P = .5 + (.5-p).
+    // All 320 independently chosen probabilities retain the same CHIINV word
+    // after this fold; the df=2 control retains only 37/320. Preserve both
+    // binary64 stores, including the tiny-tail #NUM! when P rounds to one.
+    let p = if k == 1.0 {
+        let complement = 0.5 + (0.5 - p);
+        let folded = 1.0 - complement;
+        if folded == 0.0 {
+            return Err(WorksheetErrorCode::Num);
+        }
+        folded
+    } else {
+        p
+    };
     // Excel inverts its published right-tail surface (CHIDIST = Q) directly,
     // not P at 1-p: the complement staging carries a systematic -5..-33-ULP
     // bias on the b14 CHIINV corpus (W109). Q is decreasing in x, so invert
@@ -222,18 +248,32 @@ pub fn f_dist_rt_kernel(x: f64, deg1: f64, deg2: f64) -> Result<f64, WorksheetEr
 }
 
 pub fn f_inv_kernel(probability: f64, deg1: f64, deg2: f64) -> Result<f64, WorksheetErrorCode> {
-    let p = validate_probability_open_unit(probability)?;
+    let p = if probability == 0.0 {
+        0.0
+    } else {
+        validate_probability_open_unit(probability)?
+    };
     let d1 = truncate_positive_integer(deg1)?;
     let d2 = truncate_positive_integer(deg2)?;
+    if p == 0.0 {
+        return Ok(0.0);
+    }
     let fwd = move |x: f64| f_tails(x, d1, d2).1;
     let hi = search_upper_bound(p, 1.0, fwd);
     Ok(bisect_inverse(p, 0.0, hi, fwd))
 }
 
 pub fn f_inv_rt_kernel(probability: f64, deg1: f64, deg2: f64) -> Result<f64, WorksheetErrorCode> {
-    let p = validate_probability_open_unit(probability)?;
+    let p = if probability == 1.0 {
+        1.0
+    } else {
+        validate_probability_open_unit(probability)?
+    };
     let d1 = truncate_positive_integer(deg1)?;
     let d2 = truncate_positive_integer(deg2)?;
+    if p == 1.0 {
+        return Ok(0.0);
+    }
     // Invert the published right-tail surface (f_dist_rt's accurate complement
     // form) directly at p, not the CDF at 1-p — same principle as CHIINV
     // (W109 b14+b19: the complement staging carries a systematic small-p bias).

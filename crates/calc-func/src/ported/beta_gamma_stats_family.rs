@@ -201,6 +201,25 @@ pub fn gamma_inv_kernel(
     if probability == 0.0 {
         return Ok(0.0);
     }
+    if alpha < 1.0 {
+        use crate::ported::excel_numeric::{
+            excel_exp, excel_log, excel_x87_add, excel_x87_div, gammaln_excel,
+        };
+        // The lower-tail power estimate is exact at the underflow scale.
+        // Excel 20527: 56 controls separate an estimate rounded to zero
+        // from a nonzero subnormal, which fails before scale is applied.
+        let log_seed = excel_x87_div(
+            excel_x87_add(excel_log(probability), gammaln_excel(1.0 + alpha)),
+            alpha,
+        );
+        let seed = excel_exp(log_seed);
+        if seed == 0.0 {
+            return Ok(0.0);
+        }
+        if seed.is_subnormal() {
+            return Err(WorksheetErrorCode::Div0);
+        }
+    }
     // design/fable52-last-bit.md section 5 (Claude Fable 5.2), measured 300/300 on Excel:
     // GAMMA.INV(p,a,b) = st(b * GAMMA.INV(p,a,1)), CHISQ.INV(p,2a) = GAMMA.INV(p,a,2): a
     // unit-scale search followed by one stored multiply.
