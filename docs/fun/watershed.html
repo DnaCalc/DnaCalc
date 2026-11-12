@@ -181,7 +181,7 @@ footer { font: 400 12px var(--mono); color: var(--faint) }
       <div class="tile"><b>Events</b><span>top level · RTD</span><p>Two RTD topics raise events: the clock at its rate, the market at random times. An event recalculates only its dependents: a price update touches Turbine and Finance and leaves the reservoir alone, which is exactly Excel's dirty-set recalculation.</p></div>
       <div class="tile"><b>Ticks</b><span>Weather, Reservoir · iterative calculation, one pass</span><p>State cells refer to themselves (z⁻¹): <code>=MIN(Capacity, MAX(0, Level + Inflow − Release))</code> advances once per clock event.</p></div>
       <div class="tile"><b>Modal</b><span>Operator · IFS over its own previous state</span><p>A mode cell remembers its state, so the guards have hysteresis. Each state has its own release rule, its refinement: a CHOOSE over three formulas.</p></div>
-      <div class="tile"><b>Iteration</b><span>Finance · maximum 100, maximum change 0.001</span><p>Interest on average debt is the classic financial circularity: interest needs this period's debt, debt needs the repayment, the repayment needs interest. Excel's iteration settings are the director's parameters; open Finance to watch it converge.</p></div>
+      <div class="tile"><b>Iteration</b><span>Finance · maximum 100, maximum change 0.001</span><p>Interest on average debt is the classic financial circularity: interest needs this period's debt, debt needs the repayment, the repayment needs interest. Excel's two iteration settings are the director's parameters; the view shows the settled values each tick, as Excel does.</p></div>
       <div class="tile"><b>Sweep</b><span>Outlook · a what-if data table</span><p><code>=TABLE(, Weather.RainMult)</code> reruns the forward model for 25 rainfall multipliers and returns 25 level paths: the fan.</p></div>
       <div class="tile"><b>Two skins</b><span>Actors · Sheet</span><p>The same names, values and formulas, as a diagram or as rows. Recalculated rows flash, coloured by the event that caused them.</p></div>
     </div>
@@ -192,13 +192,14 @@ footer { font: 400 12px var(--mono); color: var(--faint) }
         <li><b>Second topic</b> <code>=RTD("DnaCalc.Market",, "power.price", seed)</code>: a seeded random walk at its own rate, so the run is repeatable and differential tests against Excel compare tick by tick.</li>
         <li><b>Engine test</b> (bead dc-hul4): the same event sequence must give the same cells in Excel and in DNA Calc, including resets, throttling and recalculation order under RTD.</li>
       </ul></div>
-    <div><h3>What DNA Calc needs for this to be real</h3>
+    <div><h3>Only what Excel does</h3>
+      <p>The rule: the engine does what Excel does and nothing more, and the same workbook runs in Excel. Every mechanism in this model is plain Excel: RTD, iterative calculation with its two settings, IFS and CHOOSE over a self-referencing cell, and data tables. The view is built only from what Excel also exposes, so it can run as a skin in DNA Calc and as an add-in in Excel.</p>
       <ul>
-        <li><b>Wires, mostly there:</b> calc-host already gives each cell's precedents and dependents, including the areas INDIRECT, OFFSET and spills computed (dc-gf0). What a skin of names still lacks is the name level: those precedents drop the name a formula read and keep only its cells, so a small host addition has to keep name edges, and give a name's own definition its precedents.</li>
-        <li><b>From the engine, new:</b> per recalculation, its firing order and dirty set, and iteration count and maximum change per circular block.</li>
-        <li><b>Causes, the hard part:</b> one pass can serve several causes at once (an edit, RTD topics batched by throttling, an async return, a forced recalculation), the engine's invalidation keeps no reason today, and volatile cells dirty themselves every pass. The workable design: each entry point that seeds the graph (edit, RTD topic, async return, full calculation) logs its cause with the nodes it dirtied; a pass reports all the causes it served; volatile cells show as a standing source, not a cause; and a single cell's causes are worked out on request, by meeting its precedents with the pass's seeds. Excel exposes none of this, so it is DNA Calc's own feature.</li>
-        <li><b>From the host:</b> RTD servers (COM in Excel, the RTD host route in DNA Calc) and data tables.</li>
-        <li><b>In the skin:</b> composites from sheets or name prefixes, director badges from calculation settings, modal models read from IFS and SWITCH over a self-referencing mode cell, and a layout part stored with the workbook, as in the linked-boxes note (dc-lvlj).</li>
+        <li><b>Boxes and wires:</b> the workbook's defined names and their formulas; precedents as Excel gives them (<code>Range.DirectPrecedents</code>, <code>Range.Precedents</code>), and in DNA Calc the matching host calls that already exist (dc-gf0).</li>
+        <li><b>The firing order shown:</b> worked out by the skin from the dependency graph (a topological order), not reported by the engine.</li>
+        <li><b>What recalculated, and why:</b> values compared before and after each calculation event (<code>Application.AfterCalculate</code>, <code>Worksheet_Calculate</code>), and the RTD topic or edit that the view itself saw arrive. No cause tracking inside the engine; where several things land in one recalculation, the view says so.</li>
+        <li><b>Iteration:</b> the director shows Excel's settings (maximum iterations, maximum change) and the values before and after, not the engine's internal iteration count.</li>
+        <li><b>Layout:</b> a part stored with the workbook that Excel keeps and ignores, as in the linked-boxes note (dc-lvlj).</li>
       </ul></div>
   </section>
   <footer>Inspired by Ptolemy II (ptolemy.berkeley.edu): directors, hierarchy, modal models with refinements, discrete events and parameter sweeps. No Ptolemy code or artwork is used. The dam model runs in this page from the formulas shown, as a preview of a DNA Calc skin; it is not the engine.</footer>
@@ -475,9 +476,9 @@ footer { font: 400 12px var(--mono); color: var(--faint) }
         var bl = el('g', { transform: 'rotate(' + rot + ' ' + cx + ' ' + cy + ')' }, z);
         for (var k = 0; k < 3; k++) el('path', { d: 'M' + cx + ',' + cy + ' q 10,-6 22,-2 q -10,6 -22,2', fill: K.water, transform: 'rotate(' + (k * 120) + ' ' + cx + ' ' + cy + ')' }, bl);
         el('circle', { cx: cx, cy: cy, r: 4, fill: K.ink }, z); break;
-      case 'Finance': setV(b, '$' + fmt(S.Debt) + ' debt', 'settled in ' + S.Iter + (S.Iter === 1 ? ' iteration' : ' iterations') + ' · cash $' + fmt(S.Cash));
-        S.IterDeltas.slice(0, 12).forEach(function (d, i) { var hh = Math.max(2, Math.min(40, (Math.log10(d + 1e-9) + 4) * 6)); el('rect', { x: a.x + 14 + i * 16, y: a.y + 110 - hh, width: 10, height: hh, fill: K.cycle, opacity: .8 }, z); });
-        txt(z, a.x + 14, a.y + 128, 's', 'change per iteration (log)'); break;
+      case 'Finance': setV(b, '$' + fmt(S.Debt) + ' debt', 'circular block, settled · cash $' + fmt(S.Cash));
+        H.slice(-14).forEach(function (h, i, arr) { var prevD = i ? arr[i - 1].Debt : h.Debt, rep = Math.max(0, prevD - h.Debt), hh = Math.max(2, Math.min(40, rep / 25)); el('rect', { x: a.x + 14 + i * 16, y: a.y + 110 - hh, width: 10, height: hh, fill: K.cycle, opacity: .8 }, z); });
+        txt(z, a.x + 14, a.y + 128, 's', 'debt repaid per tick'); break;
       case 'Outlook':
         if (fan) { var w = a.w - 28, h = a.h - 74, x0 = a.x + 14, y0 = a.y + 40;
           function X(i) { return x0 + i / (fan.length - 1) * w; } function Y(vv) { return y0 + h - vv / P.Capacity * h; }
@@ -489,7 +490,7 @@ footer { font: 400 12px var(--mono); color: var(--faint) }
       default:
         var val = { Tick: S.Tick, RainMult: P.RainMult.toFixed(2), Rain: fmt(S.Rain, 1), Inflow: fmt(S.Inflow, 1), Release: fmt(S.Release, 1), Level: fmt(S.Level, 1), Spill: fmt(S.Spill, 1), Head: Math.round(S.Head * 100) + '%', Power: fmt(S.Power, 1), Price: '$' + fmt(S.Price, 2), Revenue: '$' + fmt(S.Revenue), Interest: '$' + fmt(S.Interest, 2), Repay: '$' + fmt(S.Repay, 2), Debt: '$' + fmt(S.Debt, 2), Cash: '$' + fmt(S.Cash) }[id];
         setV(b, val === undefined ? '' : String(val), a.xf.length > a.w / 6.7 ? a.xf.slice(0, Math.floor(a.w / 6.7) - 1) + '…' : a.xf);
-        if (level === 'Finance' && id === 'Debt') { txt(z, a.x + a.w - 12, a.y + 44, 's', 'iter ' + S.Iter, 'end'); }
+        
     }
   }
   function paintTable() {

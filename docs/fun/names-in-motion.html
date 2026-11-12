@@ -154,16 +154,16 @@ footer { font: 400 12px var(--mono); color: var(--faint) }
 
   <section class="spec">
     <div><h3>The idea</h3><h2>An actor view of an Excel model</h2>
-      <p>Ptolemy II, from UC Berkeley, models systems as actors: boxes with ports, joined by wires, run by a director. The director is a component inside the model that decides what "running" means. The workbook already holds all of this; a skin can show it. Defined names give the boxes their identity (dotted names such as <code>Shop.Stock</code> already read like Ptolemy's dotted full names), references are the wires, and the way the engine recalculates is the director. Nothing here needs a new language: every box above holds an ordinary Excel formula, and the presented view is the formula-name presenter from the linked-boxes idea.</p></div>
+      <p>The rule throughout: the engine does what Excel does and nothing more, and the same workbook runs in Excel. Ptolemy II, from UC Berkeley, models systems as actors: boxes with ports, joined by wires, run by a director. The director is a component inside the model that decides what "running" means. The workbook already holds all of this; a skin can show it. Defined names give the boxes their identity (dotted names such as <code>Shop.Stock</code> already read like Ptolemy's dotted full names), references are the wires, and the way the engine recalculates is the director. Nothing here needs a new language: every box above holds an ordinary Excel formula, and the presented view is the formula-name presenter from the linked-boxes idea.</p></div>
     <div><h3>Concepts mapped</h3>
       <div class="tablewrap"><table>
         <thead><tr><th>Ptolemy II</th><th>In the workbook</th><th>In DNA Calc</th><th>Status</th></tr></thead>
         <tbody>
           <tr><td>Actor</td><td>A defined name (or a cell block) and its formula</td><td>Name table in calc-doc; formula trees from calc-fml</td><td><span class="pill have">exists</span></td></tr>
           <tr><td>Port, wire</td><td>Each reference a formula makes to another name</td><td>calc-host's precedents and dependents per cell, dynamic references included (dc-gf0); name-level edges still to add, since those precedents drop the name and keep its cells</td><td><span class="pill api">small host API</span></td></tr>
-          <tr><td>Firing order</td><td>The order Excel recalculates in</td><td>The calc chain and dirty set of one recalculation, streamed to the skin</td><td><span class="pill api">engine API</span></td></tr>
+          <tr><td>Firing order</td><td>The order the names depend on each other</td><td>Worked out by the skin from the dependency graph (a topological order); the engine reports nothing extra</td><td><span class="pill skin">skin</span></td></tr>
           <tr><td>Director parameters</td><td>File › Options › Formulas: iterative calculation, maximum iterations, maximum change</td><td>Workbook calculation properties, already read and saved</td><td><span class="pill have">exists</span></td></tr>
-          <tr><td>Delay (z⁻¹)</td><td>A cell that refers to itself under iterative calculation: its own previous value</td><td>Iterative calculation with one iteration per tick</td><td><span class="pill api">engine API</span></td></tr>
+          <tr><td>Delay (z⁻¹)</td><td>A cell that refers to itself under iterative calculation: its own previous value</td><td>Iterative calculation with one iteration per tick</td><td><span class="pill have">Excel feature</span></td></tr>
           <tr><td>Composite actor</td><td>A sheet, or a name prefix such as <code>Shop.</code></td><td>Grouping in the skin part; layout stored with the workbook</td><td><span class="pill skin">skin</span></td></tr>
           <tr><td>Modal model (FSM)</td><td>A mode cell driven by IFS or SWITCH, with its guards</td><td>Read from the formula tree; states and guards shown inside the box</td><td><span class="pill skin">skin</span></td></tr>
           <tr><td>Actor class</td><td>A LAMBDA bound to a name, used many times</td><td>LAMBDA support in calc-fml</td><td><span class="pill have">exists</span></td></tr>
@@ -182,7 +182,7 @@ footer { font: 400 12px var(--mono); color: var(--faint) }
     <div><h3>A realistic path, in milestones</h3>
       <ol class="steps">
         <li><div><b>Read-only actor view.</b>Boxes for defined names, wires from the host's existing precedents (with name edges added), values live. Layout kept in a skin part of the workbook, as the linked-boxes note proposes.</div></li>
-        <li><div><b>Watch it calculate.</b>The engine streams each recalculation's firing order and dirty set; the skin animates them. Shows exactly what Excel would recalculate, and why.</div></li>
+        <li><div><b>Watch it calculate.</b>The skin compares values before and after each calculation event and animates the names that changed, in dependency order. It uses only what Excel also exposes, so the same view can run as an add-in in Excel.</div></li>
         <li><div><b>Presenter.</b>Dotted names shortened inside their group, a self-reference shown as the previous value (<code>Stock⁻</code>), IFS mode cells drawn as small state machines.</div></li>
         <li><div><b>Directors.</b>Ticks and Sweep on top of iterative calculation and data tables, with a plotter fed from name histories.</div></li>
         <li><div><b>Edit by wiring.</b>Dragging a wire rewrites the name's formula through the interpreter; the workbook stays an ordinary .xlsx that Excel opens and calculates the same.</div></li>
