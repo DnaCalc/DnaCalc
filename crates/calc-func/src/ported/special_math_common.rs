@@ -2660,6 +2660,22 @@ where
     unkey(hik as i64)
 }
 
+/// Invert a forward surface on the float lattice, publishing the adjacent
+/// point with the smaller residual and keeping the upper point on a tie.
+/// The bracketing and calculation remain the existing inverse route.
+pub fn bisect_inverse_closest<F>(target: f64, lo: f64, hi: f64, f: F) -> f64
+where
+    F: Fn(f64) -> f64,
+{
+    let upper = bisect_inverse(target, lo, hi, &f);
+    let lower = upper.next_down();
+    if lower >= lo && (target - f(lower)).abs() < (f(upper) - target).abs() {
+        lower
+    } else {
+        upper
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

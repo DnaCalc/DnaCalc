@@ -4127,3 +4127,45 @@ fn student_t_and_confidence_keep_the_zero_density_beta_proposal() {
         f64::from_bits(0x4071_3e70_48ac_bac8),
     );
 }
+
+/// Excel20527: preserving the small gamma upper tail avoids a rounded-CDF
+/// plateau, before the existing stored scale and final publication.
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn gamma_inverse_preserves_the_small_upper_tail() {
+    for name in ["GAMMA.INV", "GAMMAINV"] {
+        exact(
+            call(
+                name,
+                vec![
+                    n(f64::from_bits(0x3fef_ffff_ffff_ffff)),
+                    n(f64::from_bits(0x3fd3_e67d_a1e7_b6c8)),
+                    n(f64::from_bits(0x402c_0000_0000_0001)),
+                ],
+            ),
+            f64::from_bits(0x407d16b892f8f3f2),
+        );
+    }
+}
+
+/// Captured right-tail inverse answers at one-minus-epsilon retain the small
+/// lower gamma tail, including truncation of the supplied degree argument.
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn chi_inverse_preserves_the_small_lower_tail() {
+    for name in ["CHIINV", "CHISQ.INV.RT"] {
+        for (degree, bits) in [
+            (30.0, 0x3ff2_66f6_c3f3_89e2),
+            (355.71571246910116, 0x4066_47bd_0aae_91c6),
+            (861.8900555521836, 0x4081_9975_788e_ddeb),
+        ] {
+            exact(
+                call(
+                    name,
+                    vec![n(f64::from_bits(0x3fef_ffff_ffff_ffff)), n(degree)],
+                ),
+                f64::from_bits(bits),
+            );
+        }
+    }
+}

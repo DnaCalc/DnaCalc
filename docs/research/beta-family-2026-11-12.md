@@ -369,3 +369,23 @@ Targeted bank checks gain11 exact matches with zero losses: BETA.INV4,
 BETAINV5,TINV1,CONFIDENCE.T1. The two Student-t/confidence gross tiny-tail
 errors now match their recorded Excel words. Remaining large central-degree
 and small-first/large-second inverse errors stay counted and open.
+
+
+## Fix2 unlanded lower-power and large-degree controls
+
+Own Tier1 mathematical experiments, raw Excel20527 replies retained in the
+existing fix2 probe section. A large remaining small-first/huge-second beta
+inverse witness exactly equals the lower-tail power estimate
+`exp((ln(p*a)+lnGamma(a)-a*ln(b))/a)`. The128 fresh controls show that Excel
+sometimes publishes this estimate despite a nonzero CDF residual and a
+finite nonzero public density, and sometimes continues to a closer root.
+Exponent sweeps show a sharp transition; neither a global initial-estimate
+shortcut nor a zero-density explanation qualifies. No new branch is added.
+
+A&S26.7.5 large-degree t expansions with one through four terms are also
+rejected: the best candidate matches at most one of64 controls at each of
+45000,1e6,1e8,1e10 degrees. On256 paired public-beta controls, the existing
+direct inverse-beta transformation matches233; the complementary graph
+explains16 more high-probability controls, leaving seven at1e10 degrees.
+These point back to the inverse beta publication rather than licensing a
+normal-quantile substitution or a changed final t arithmetic graph.

@@ -493,3 +493,66 @@ fresh larger degree/probability pairs return #NUM! for both integral and
 fractional degrees. A validation-only change loses bank2-more-CHIINV-0829
 without adding an exact bank row. Neither a uniform ceiling nor an
 integrality shortcut identifies those solver refusals. Keep this gap open.
+
+
+## Fix2 smaller-tail inverse experiment
+
+Role: implementer, own numerical analysis of the existing forward surfaces;
+raw Excel20527 answers and frozen predictions are retained in the existing
+CalcFunc-Evidence `probes/2026-11-12-fix2` section. No external inverse code,
+coefficient table or source-derived iteration limit is used.
+
+The earlier upper-Q experiment retained the upper lattice point and was
+rejected. A new 300-row frozen comparison distinguishes that publication
+from the closest forward residual. On shapes .01 through1000 and upper
+probabilities `1-2^-k`, k=2,4,8,16,24,32,40,48,52,53, the current P search
+matches16/300, Q upper-point search116/300, and Q closest-residual151/300.
+The latter gains139 exact words and loses four former exact words, each by
+one ULP. Its worst discrepancy is76 ULP, against87260269619331 ULP for P;
+the median falls from9443784 ULP to zero. This qualifies a stable numerical
+correction, not a claim to know Excel's complete inverse iteration.
+
+For CHIINV/CHISQ.INV.RT, exclude the separately identified df=1 fold and df=2
+logarithm. At p>1/2 retain the smaller lower tail P(1-p). On164 frozen integer
+degree/tail and random-degree controls, closest-P publication matches87,
+against41 for the existing Q search:55 gains, nine one-ULP losses. Worst
+error falls from1845322852326878 to121 ULP. Both experiments choose the
+smaller tail at the natural probability midpoint; no fitted cutoff is added.
+The existing beta inverse already uses closest-residual publication, so the
+candidate shares that lattice helper without changing beta arithmetic.
+
+Separate large-shape controls reject a forward-surface explanation of the
+remaining GAMMA.INV offset. At alpha=1e64 and1e100, public GAMMA.DIST steps
+at its mean as expected, whereas all five inverse probabilities .01,.1,.5,
+.9,.99 publish the same relative offset0.00026582355057547247 above alpha.
+At alpha=1e12 and1e20 the offset contains a probability-dependent component.
+Its computation is unexplained; no fitted offset is implemented.
+
+
+The fixed candidate's independent256-row held-out application-route run
+includes fractional chi degrees and gamma scales1,2,13.7,1e-100,1e100.
+Gamma matches74/128 (baseline2;73 gains, one loss), worst209 ULP versus
+86995632108267. Chi matches102/128 (baseline18;87 gains, three losses),
+worst4 ULP versus4307935426742. Both medians are zero. These controls were
+predicted before asking Excel. Native and software-x87 statistics each pass
+91 tests, including exact captured inverse witnesses. Full-bank acceptance
+and all lost row IDs are recorded with the landing commit, separately from
+these controls; remaining low words and large-shape inverses stay open.
+
+
+The paired full bank is frozen at CalcFunc-Evidence5e211861:4729471 decoded
+rows have identical inputs, expected words, context and identity. The batch
+gains393 exact matches and loses138, net255;848 calculated words change.
+All lost words remain numeric:114 one ULP,13 two, nine three, one four and
+one seven. Only GAMMA.INV,GAMMAINV,CHIINV,CHISQ.INV.RT,CHISQ.INV move;
+the shared closest-point helper leaves every beta/t/F output unchanged.
+Full matched4604247/4729476, failed125229 including five unread and2064
+excluded. CHIINV3499/4293, worst530 ULP; CHISQ.INV.RT3414/4191, worst116.
+Their original reported examples remain one ULP high, counted as failures;
+the reported >10000-ULP class is eliminated, not all remaining word errors.
+GAMMA.INV3631/4484 and GAMMAINV3538/4289 retain large-shape gross gaps.
+Oracle77036/78264,1228 failures; all78156 recorded cell verdicts unchanged.
+Refresh49 calculated pin predictions through the existing witness command,
+classifying every newly lost match. An invariant check preserves every
+original input, reading, context and Excel answer; full-run status bytes
+are restored after the narrow refresh.
