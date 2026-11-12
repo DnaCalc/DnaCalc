@@ -23,6 +23,7 @@
     const timer=setTimeout(()=>{cleanup();reject(Error('Renderer publication did not paint within 30 seconds'));},30000);
     observer.observe(grid(),{attributes:true,attributeFilter:['data-paint-workbook','data-paint-revision']});
     observer.observe(document.querySelector('[data-dnacalc=status]'),{childList:true,subtree:true,characterData:true});
+    observer.observe(document.querySelector('[data-dnacalc=document]'),{childList:true,subtree:true,characterData:true});
     check();
   });
   const observation = () => {
@@ -42,11 +43,11 @@
   const m = window.__rendererMeasurement = {version:1, browser:navigator.userAgent,
     trial:window.__rendererTrial, viewport:[innerWidth,innerHeight], edits:[], first_paint_ms:null};
   m.wait = ready;
-  document.querySelector('[data-dnacalc=open-file]').addEventListener('change', () => {
-    const t=performance.now(), before=grid()?.dataset.paintWorkbook;
+  document.querySelector('[data-dnacalc=open-file]').addEventListener('change', e => {
+    const t=performance.now(), before=grid()?.dataset.paintWorkbook, name=e.target.files?.[0]?.name;
     m.openPromise=(async()=>{
       await waitPaint(()=>grid()?.dataset.paintWorkbook && grid().dataset.paintWorkbook!==before
-        && document.querySelector('[data-dnacalc=status]').textContent.startsWith('Opened '));
+        && document.querySelector('[data-dnacalc=document]').textContent===name);
       m.first_paint_ms=performance.now()-t;
       m.open=sample();
     })();
