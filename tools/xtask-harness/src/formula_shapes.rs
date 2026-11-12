@@ -93,6 +93,8 @@ fn token(arg: &[char]) -> String {
     let mut first_group_closes_at_end = false;
     let mut seen_group = false;
     let mut brackets = 0i32;
+    let mut only_leading_signs = true;
+    let mut space_run = false;
     while i < chars.len() {
         let c = chars[i];
         match c {
@@ -144,7 +146,7 @@ fn token(arg: &[char]) -> String {
             '+' | '-' | '*' | '/' | '^' | '&' | '=' | '<' | '>' | '%'
                 if depth == 0 && brackets == 0 =>
             {
-                let leading_sign = matches!(c, '+' | '-') && text[..].chars().take(i).all(|p| p == ' ' || p == '+' || p == '-');
+                let leading_sign = matches!(c, '+' | '-') && only_leading_signs;
                 let exponent_sign = matches!(c, '+' | '-')
                     && i >= 2
                     && matches!(chars[i - 1], 'e' | 'E')
@@ -156,15 +158,18 @@ fn token(arg: &[char]) -> String {
             }
             ' ' if depth == 0 && brackets == 0 => {
                 // The intersection operator: `A1:B2 B1:C3`; trailing spaces were trimmed.
-                let rest: String = chars[i..].iter().collect();
-                let next = rest.trim_start();
-                if !next.is_empty() && !next.starts_with(['+', '-', '*', '/', '^', '&', '=', '<', '>', '%']) {
-                    top_operator = true;
-                }
+                space_run = true;
             }
             ',' | ';' if depth == 0 && brackets == 0 => top_operator = true,
             _ => {}
         }
+        if c != ' ' && space_run {
+            if !matches!(c, '+' | '-' | '*' | '/' | '^' | '&' | '=' | '<' | '>' | '%') {
+                top_operator = true;
+            }
+            space_run = false;
+        }
+        only_leading_signs &= matches!(c, ' ' | '+' | '-');
         i += 1;
     }
     if top_operator {
@@ -176,7 +181,10 @@ fn token(arg: &[char]) -> String {
     if chars[0] == '{' && first_group_closes_at_end {
         let inner = &text[1..text.len() - 1];
         let rows = inner.split(';').count();
-        let cols = inner.split(';').next().map_or(1, |row| row.split(',').count());
+        let cols = inner
+            .split(';')
+            .next()
+            .map_or(1, |row| row.split(',').count());
         return format!("a{rows}x{cols}");
     }
     if chars[0] == '(' && first_group_closes_at_end {
@@ -190,7 +198,13 @@ fn token(arg: &[char]) -> String {
         return "e".into();
     }
     let unsigned = text.trim_start_matches(['+', '-']).trim();
-    if !unsigned.is_empty() && unsigned.parse::<f64>().is_ok() && unsigned.chars().next().is_some_and(|c| c.is_ascii_digit() || c == '.') {
+    if !unsigned.is_empty()
+        && unsigned.parse::<f64>().is_ok()
+        && unsigned
+            .chars()
+            .next()
+            .is_some_and(|c| c.is_ascii_digit() || c == '.')
+    {
         return "n".into();
     }
     if let Some(open) = text.find('(') {
@@ -201,7 +215,9 @@ fn token(arg: &[char]) -> String {
         }
         if last_close_at_end
             && !head.is_empty()
-            && head.chars().all(|c| c.is_alphanumeric() || matches!(c, '_' | '.' | '\\'))
+            && head
+                .chars()
+                .all(|c| c.is_alphanumeric() || matches!(c, '_' | '.' | '\\'))
         {
             return "f".into();
         }
@@ -219,7 +235,9 @@ fn token(arg: &[char]) -> String {
         None => (None, text),
     };
     if let Some(token) = address_token(address) {
-        if sheet.is_some_and(|s| s.contains(':') && !s.starts_with('\'')) || sheet.is_some_and(|s| s.trim_matches('\'').contains(':')) {
+        if sheet.is_some_and(|s| s.contains(':') && !s.starts_with('\''))
+            || sheet.is_some_and(|s| s.trim_matches('\'').contains(':'))
+        {
             return "R".into();
         }
         return token.into();
@@ -227,7 +245,10 @@ fn token(arg: &[char]) -> String {
     if top_colon {
         return "R".into();
     }
-    if text.chars().all(|c| c.is_alphanumeric() || matches!(c, '_' | '.' | '\\' | '!' | '\'' | ' ' | '$')) {
+    if text
+        .chars()
+        .all(|c| c.is_alphanumeric() || matches!(c, '_' | '.' | '\\' | '!' | '\'' | ' ' | '$'))
+    {
         return "N".into();
     }
     "x".into()
@@ -238,23 +259,46 @@ fn brackets_balanced_structured(text: &str) -> bool {
     text.contains('[') && text.ends_with(']') && !text.starts_with('[') || text.starts_with("[@")
 }
 
-/// The shape key of the call whose name is `name` and whose opening parenthesis is at `open` in
-/// `chars`; `None` when the call is never closed. `name` is the upper-case function name with its
-/// `_xlfn.` prefixes removed.
-pub(crate) fn call_shape(name: &str, chars: &[char], open: usize) -> Option<String> {
-    let mut depth = 0i32;
-    let mut brackets = 0i32;
-    let mut start = open + 1;
-    let mut args: Vec<&[char]> = Vec::new();
-    let mut i = open;
-    let mut closed = false;
+/// One delimiter pass for all calls. Argument tokenisation is charged against a linear
+/// work allowance before reading each slice, so deeply nested expressions cannot cause
+/// quadratic rescans. The retained argument list is capped even for a million commas.
+pub(crate) fn call_shapes(
+    chars: &[char],
+    calls: &[(usize, String)],
+) -> Result<std::collections::BTreeMap<String, u64>, crate::classify::ScanRefusal> {
+    use crate::classify::ScanRefusal;
+    struct Frame<'a> {
+        delimiter: char,
+        name: Option<&'a str>,
+        start: usize,
+        args: Vec<(usize, usize)>,
+        count: usize,
+    }
+    impl Frame<'_> {
+        fn argument(&mut self, end: usize) {
+            self.count += 1;
+            if self.args.len() < MAX_TOKENS {
+                self.args.push((self.start, end));
+            }
+            self.start = end + 1;
+        }
+    }
+    let mut out = std::collections::BTreeMap::new();
+    let mut stack: Vec<Frame<'_>> = Vec::new();
+    let mut calls = calls.iter().peekable();
+    let mut work = chars.len().saturating_mul(16).saturating_add(1024);
+    let mut i = 0;
     while i < chars.len() {
         match chars[i] {
-            '"' => {
+            '\'' | '"' => {
+                let quote = chars[i];
                 i += 1;
-                while i < chars.len() {
-                    if chars[i] == '"' {
-                        if chars.get(i + 1) == Some(&'"') {
+                loop {
+                    if i >= chars.len() {
+                        return Err(ScanRefusal::MalformedFormula);
+                    }
+                    if chars[i] == quote {
+                        if chars.get(i + 1) == Some(&quote) {
                             i += 2;
                             continue;
                         }
@@ -263,61 +307,81 @@ pub(crate) fn call_shape(name: &str, chars: &[char], open: usize) -> Option<Stri
                     i += 1;
                 }
             }
-            '\'' => {
-                i += 1;
-                while i < chars.len() {
-                    if chars[i] == '\'' {
-                        if chars.get(i + 1) == Some(&'\'') {
-                            i += 2;
-                            continue;
-                        }
-                        break;
+            '(' | '{' | '[' => {
+                let name = if calls.peek().is_some_and(|(at, _)| *at == i) {
+                    calls.next().map(|(_, name)| name.as_str())
+                } else {
+                    None
+                };
+                stack.push(Frame {
+                    delimiter: chars[i],
+                    name,
+                    start: i + 1,
+                    args: Vec::new(),
+                    count: 0,
+                });
+            }
+            ')' | '}' | ']' => {
+                let mut frame = stack.pop().ok_or(ScanRefusal::MalformedFormula)?;
+                let expected = match chars[i] {
+                    ')' => '(',
+                    '}' => '{',
+                    _ => '[',
+                };
+                if frame.delimiter != expected {
+                    return Err(ScanRefusal::MalformedFormula);
+                }
+                if let Some(name) = frame.name {
+                    frame.argument(i);
+                    // An empty call has no arguments; a comma still supplies omitted arguments.
+                    if frame.count == 1
+                        && chars[frame.args[0].0..i].iter().all(|c| c.is_whitespace())
+                    {
+                        frame.args.clear();
+                        frame.count = 0;
                     }
-                    i += 1;
+                    let mut tokens = Vec::new();
+                    for (start, end) in frame.args {
+                        work = work
+                            .checked_sub(end - start + 1)
+                            .ok_or(ScanRefusal::WorkBudget)?;
+                        tokens.push(token(&chars[start..end]));
+                    }
+                    if frame.count > MAX_TOKENS {
+                        tokens.push("+".into());
+                    }
+                    let mark = if POSITION_SENSITIVE.contains(&name) {
+                        "!"
+                    } else {
+                        ""
+                    };
+                    *out.entry(format!("{name}({}){mark}", tokens.join(",")))
+                        .or_default() += 1;
                 }
             }
-            '(' | '{' => depth += 1,
-            ')' | '}' => {
-                depth -= 1;
-                if depth == 0 {
-                    args.push(&chars[start..i]);
-                    closed = true;
-                    break;
-                }
-            }
-            '[' => brackets += 1,
-            ']' => brackets -= 1,
-            ',' if depth == 1 && brackets == 0 => {
-                args.push(&chars[start..i]);
-                start = i + 1;
+            ',' if stack.last().is_some_and(|f| f.name.is_some()) => {
+                stack.last_mut().expect("a call").argument(i);
             }
             _ => {}
         }
         i += 1;
     }
-    if !closed {
-        return None;
+    if !stack.is_empty() {
+        return Err(ScanRefusal::MalformedFormula);
     }
-    // `F()` has no argument; `F(,)` has two omitted ones.
-    if args.len() == 1 && args[0].iter().all(|c| c.is_whitespace()) {
-        args.clear();
-    }
-    let mut tokens: Vec<String> = args.iter().take(MAX_TOKENS).map(|a| token(a)).collect();
-    if args.len() > MAX_TOKENS {
-        tokens.push("+".into());
-    }
-    let mark = if POSITION_SENSITIVE.contains(&name) { "!" } else { "" };
-    Some(format!("{name}({}){mark}", tokens.join(",")))
+    Ok(out)
 }
 
 #[cfg(test)]
 mod tests {
-    use super::*;
-
     fn shape(formula: &str, name: &str) -> String {
-        let chars: Vec<char> = formula.chars().collect();
-        let at = formula.find(&format!("{name}(")).unwrap() + name.len();
-        call_shape(name, &chars, at).unwrap()
+        crate::classify::analyze_formula(formula)
+            .unwrap()
+            .shapes
+            .keys()
+            .find(|key| key.starts_with(&format!("{name}(")))
+            .unwrap()
+            .clone()
     }
 
     #[test]
@@ -326,11 +390,20 @@ mod tests {
         assert_eq!(shape("SUM(A1,2,-3.5,1E-3)", "SUM"), "SUM(r,n,n,n)");
         assert_eq!(shape(r#"IF(A1>0,"yes",B$2)"#, "IF"), "IF(x,S,r)");
         assert_eq!(shape("IF(TRUE,#N/A,)", "IF"), "IF(B,e,z)");
-        assert_eq!(shape("MAX(Sheet1!A:A,'My Sheet'!$B$2,Total)", "MAX"), "MAX(R,r,N)");
-        assert_eq!(shape("SUM('Jan:Dec'!A1,Rate*2,ROUND(A1,2))", "SUM"), "SUM(R,x,f)");
+        assert_eq!(
+            shape("MAX(Sheet1!A:A,'My Sheet'!$B$2,Total)", "MAX"),
+            "MAX(R,r,N)"
+        );
+        assert_eq!(
+            shape("SUM('Jan:Dec'!A1,Rate*2,ROUND(A1,2))", "SUM"),
+            "SUM(R,x,f)"
+        );
         assert_eq!(shape("SUM(Table1[Qty],[@Qty])", "SUM"), "SUM(T,T)");
         assert_eq!(shape("SUM({1,2,3;4,5,6})", "SUM"), "SUM(a2x3)");
-        assert_eq!(shape(r#"VLOOKUP("a"&B1,A1:C9,2,FALSE)"#, "VLOOKUP"), "VLOOKUP(x,R,n,B)");
+        assert_eq!(
+            shape(r#"VLOOKUP("a"&B1,A1:C9,2,FALSE)"#, "VLOOKUP"),
+            "VLOOKUP(x,R,n,B)"
+        );
         assert_eq!(shape("SUM([1]Data!A1:A9)", "SUM"), "SUM(R)");
         assert_eq!(shape("SUM(INDEX(A:A,1):INDEX(A:A,5))", "SUM"), "SUM(R)");
     }

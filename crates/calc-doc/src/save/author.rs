@@ -393,8 +393,14 @@ pub(super) fn plan(
             part: sheet.part().name().to_owned(),
         });
     }
-    if structural.is_some()
-        && let Some(sheet) = sheets.iter().find(|sheet| sheet.preserved_kind().is_some())
+    // These parts can refer to any sheet by name (for example chart series). We cannot
+    // transform their opaque references, so preserving their bytes after a rename/removal
+    // would silently corrupt the saved workbook. Reordering/visibility changes remain safe.
+    let sheet_names_changed = base.sheets().iter().any(|before| {
+        model.sheet_by_id(before.id()).is_none_or(|after| after.name() != before.name())
+    });
+    if (structural.is_some() || sheet_names_changed)
+        && let Some(sheet) = original_sheets.iter().find(|sheet| sheet.preserved_kind().is_some())
     {
         return Err(SaveRefusal::PreservedSheetChanged {
             part: sheet.part().name().to_owned(),
