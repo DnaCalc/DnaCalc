@@ -155,7 +155,7 @@ struct Dialogs {
     /// `--save-dir`: where saves go without the dialog, and how many there have been.
     save_dir: Option<(PathBuf, usize)>,
     /// The Mark of the Web zone of the file last chosen to open.
-    zone: Option<u32>,
+    origin: dna_onecalc::FileOrigin,
     /// The path of the file last chosen to open.
     path: Option<PathBuf>,
     /// The remembered window place and recent files.
@@ -215,14 +215,11 @@ impl Files for Dialogs {
     }
 
     fn read_recent(&mut self, path: &Path) -> Result<(String, Vec<u8>), String> {
-        let bytes = std::fs::read(path).map_err(|e| format!("{}: {e}", path.display()))?;
-        self.zone = calc_platform_desktop::origin::mark_of_the_web(path);
-        self.path = Some(path.to_owned());
-        let name = path
-            .file_name()
-            .map(|n| n.to_string_lossy().into_owned())
-            .unwrap_or_default();
-        Ok((name, bytes))
+        let opened = calc_platform_desktop::origin::open_file(path)
+            .map_err(|e| format!("{}: {e}", path.display()))?;
+        self.origin = opened.origin;
+        self.path = Some(opened.path);
+        Ok((opened.name, opened.bytes))
     }
 
     fn opened_path(&self) -> Option<PathBuf> {
@@ -313,8 +310,8 @@ impl Files for Dialogs {
             .map_err(|e| format!("DNA Calc did not start ({}): {e}", exe.display()))
     }
 
-    fn opened_zone(&self) -> Option<u32> {
-        self.zone
+    fn opened_origin(&self) -> dna_onecalc::FileOrigin {
+        self.origin
     }
 
     fn choose_save(&mut self, suggested: &str, bytes: &[u8]) -> Result<Option<String>, String> {
@@ -785,7 +782,7 @@ pub fn run(args: &[String]) -> Result<(), String> {
     let dialogs = Dialogs {
         owner: frame.cast(),
         save_dir: o.save_dir.clone().map(|d| (d, 0)),
-        zone: None,
+        origin: dna_onecalc::FileOrigin::Unknown,
         path: None,
         settings: settings.clone(),
         close_answer: o.close_answer,

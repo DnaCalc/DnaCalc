@@ -292,17 +292,12 @@ fn prepare_project(
     // The grant's policy wraps every host built for this load (CalcVBA's PolicyHost); a stricter
     // policy the thread already holds (Safe) stays, and the thread's earlier policy is put back
     // after the load.
-    let earlier = calc_vba::policy::thread_policy();
-    if let Some(grant) = &grant {
-        let mode = match grant.policy() {
+    let _policy = grant.as_ref().map(|grant| {
+        calc_vba::policy::PolicyScope::enter(match grant.policy() {
             calc_macro_security::VbaPolicy::Safe => calc_vba::policy::PolicyMode::Safe,
-            calc_macro_security::VbaPolicy::Full => match earlier {
-                Some(calc_vba::policy::PolicyMode::Safe) => calc_vba::policy::PolicyMode::Safe,
-                _ => calc_vba::policy::PolicyMode::Full,
-            },
-        };
-        calc_vba::policy::set_thread_policy(Some(mode));
-    }
+            calc_macro_security::VbaPolicy::Full => calc_vba::policy::PolicyMode::Full,
+        })
+    });
     let loaded = if file_project {
         calc_vba::events::load_file_project_with(
             &modules,
@@ -318,9 +313,6 @@ fn prepare_project(
     } else {
         calc_vba::events::load_project(&modules, max_steps, backend)
     };
-    if grant.is_some() {
-        calc_vba::policy::set_thread_policy(earlier);
-    }
     let project = loaded?;
     let mut owner = WorkbookEvents {
         project,

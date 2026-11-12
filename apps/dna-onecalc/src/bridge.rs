@@ -180,7 +180,7 @@ mod tests {
                 request: Request::Open {
                     name: "a.xlsx".into(),
                     bytes: (0u8..=255).collect(),
-                    zone: Some(3),
+                    origin: crate::FileOrigin::Zone(3),
                 },
             },
             Call {
@@ -214,7 +214,7 @@ mod tests {
             Request::Open {
                 name: "x".into(),
                 bytes: b"not a workbook".to_vec(),
-                zone: None,
+                origin: crate::FileOrigin::Local,
             },
         ] {
             let answer = Answer {

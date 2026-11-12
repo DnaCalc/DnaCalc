@@ -1,4 +1,4 @@
-param([ValidateSet('build','cases','reopen','activeobjects','project','inbook')][string]$Action, [string]$OutDirectory, [string]$AddIn,
+param([ValidateSet('build','cases','reopen','activeobjects','project','inbook','language')][string]$Action, [string]$OutDirectory, [string]$AddIn,
     [string]$Cases, [string]$Project, [string[]]$Files, [string]$FormulaCell = 'H1', [bool]$InBook = $false, $OwnedExcel = $null)
 # The Excel side of OneCalc milestone 5 (dc-0f1k.4), in an owned hidden Excel session
 # (tools/excel-session). Run without -OwnedExcel, this script submits itself as one job; run it
@@ -27,6 +27,12 @@ param([ValidateSet('build','cases','reopen','activeobjects','project','inbook')]
 #           Value2 (with its type), Text and NumberFormat (Excel keeps no Date or Currency type in a cell; the VBA
 #           return type is read from the declaration by the corpus tooling).
 #           The capture worker then records Excel's typed answers of that file (dnacalc-capture-record).
+#   language: CalcVBA's basic-language conformance rows (conformance/excel-measurements/gen_language_rows.py
+#           prepares them). -Project is the manifest of one batch: each item's module is imported next to
+#           the recording helper into a new workbook, the helper's DnaRunAll runs Main, and the records it
+#           returns (or the VBA error it caught) are stored per item in language.json. A dialog the
+#           owned Excel raises (compile error, run-time error) is captured by a UI Automation guard
+#           that reads its text and presses End or OK, never a mouse or key.
 #   reopen: opens each saved .xlsm of -Files, reads its formula and calculated value, and records
 #           whether Excel repaired it (the workbook name and the error*.xml repair logs in TEMP).
 # No Excel setting, Trust Center or macro-security value is read for change or written; the
@@ -49,6 +55,93 @@ function Describe($value) {
     if ($null -eq $value) { return @{ blank = $true } }
     if ($value -is [int] -and $value -le -2146826200 -and $value -ge -2146826300) { return @{ error_code = $value } }
     return @{ value = $value; type = $value.GetType().Name }
+}
+function Start-DialogGuard([uint32]$TargetPid) {
+    $state = [hashtable]::Synchronized(@{ stop = $false; polls = 0; dialogs = [System.Collections.ArrayList]::Synchronized((New-Object System.Collections.ArrayList)); errors = [System.Collections.ArrayList]::Synchronized((New-Object System.Collections.ArrayList)) })
+    $shell = [powershell]::Create()
+    [void]$shell.AddScript({
+        param($state, $targetPid)
+        Add-Type -AssemblyName UIAutomationClient, UIAutomationTypes
+        # A VBE dialog is not among the UI Automation root's children (it is owned by the VBE window and
+        # has no Invoke pattern), so it is found by its window class and pressed through the button's
+        # accessible object (the legacy bridge of UI Automation): no mouse, no key, no focus.
+        Add-Type @"
+using System;using System.Collections.Generic;using System.Runtime.InteropServices;using System.Text;
+public static class DlgFinder {
+ public delegate bool P(IntPtr h,IntPtr s);
+ [DllImport("user32.dll")] static extern bool EnumWindows(P cb,IntPtr s);
+ [DllImport("user32.dll")] static extern bool EnumChildWindows(IntPtr d,P cb,IntPtr s);
+ [DllImport("user32.dll")] static extern bool IsWindowVisible(IntPtr h);
+ [DllImport("user32.dll")] static extern uint GetWindowThreadProcessId(IntPtr h,out uint p);
+ [DllImport("user32.dll",CharSet=CharSet.Unicode)] static extern int GetClassName(IntPtr h,StringBuilder s,int n);
+ [DllImport("user32.dll",CharSet=CharSet.Unicode)] static extern int GetWindowText(IntPtr h,StringBuilder s,int n);
+ [DllImport("oleacc.dll")] static extern int AccessibleObjectFromWindow(IntPtr hwnd, uint objectId, ref Guid riid, [MarshalAs(UnmanagedType.Interface)] out object accessible);
+ public static object Accessible(long hwnd){Guid iid=new Guid("618736E0-3C3D-11CF-810C-00AA00389B71");object acc;int hr=AccessibleObjectFromWindow(new IntPtr(hwnd),0xFFFFFFFC,ref iid,out acc);if(hr!=0)throw new Exception("AccessibleObjectFromWindow "+hr);return acc;}
+ // The Excel Window object of the Excel process with this id, through its EXCEL7 window (never a moniker or CoCreate).
+ public static object ExcelWindow(uint pid){object found=null;
+  EnumWindows((h,s)=>{uint p;GetWindowThreadProcessId(h,out p);if(p!=pid)return true;var c=new StringBuilder(64);GetClassName(h,c,64);if(c.ToString()!="XLMAIN")return true;
+   EnumChildWindows(h,(k,x)=>{var a=new StringBuilder(64);GetClassName(k,a,64);if(a.ToString()=="EXCEL7"&&found==null){Guid iid=new Guid("00020400-0000-0000-C000-000000000046");object o;if(AccessibleObjectFromWindow(k,0xFFFFFFF0,ref iid,out o)==0)found=o;}return true;},IntPtr.Zero);
+   return found==null;},IntPtr.Zero);return found;}
+ public class Dialog { public long Hwnd; public string Title; public List<string> Texts=new List<string>(); public List<KeyValuePair<string,long>> Buttons=new List<KeyValuePair<string,long>>(); }
+ public static List<Dialog> Find(uint pid){var o=new List<Dialog>();
+  EnumWindows((h,s)=>{uint p;GetWindowThreadProcessId(h,out p);if(p!=pid||!IsWindowVisible(h))return true;var c=new StringBuilder(128);GetClassName(h,c,128);if(c.ToString()!="#32770")return true;
+   var d=new Dialog();d.Hwnd=h.ToInt64();var t=new StringBuilder(300);GetWindowText(h,t,300);d.Title=t.ToString();
+   EnumChildWindows(h,(k,x)=>{var a=new StringBuilder(64);var b=new StringBuilder(2000);GetClassName(k,a,64);GetWindowText(k,b,2000);var cls=a.ToString();
+    if(cls=="Button")d.Buttons.Add(new KeyValuePair<string,long>(b.ToString(),k.ToInt64())); else if(b.Length>0)d.Texts.Add(b.ToString());return true;},IntPtr.Zero);
+   o.Add(d);return true;},IntPtr.Zero);return o;}
+}
+"@
+        $auto = [System.Windows.Automation.AutomationElement]
+        while (-not $state.stop) {
+            try {
+                $state.polls++
+                foreach ($dialog in [DlgFinder]::Find([uint32]$targetPid)) {
+                    $names = @($dialog.Buttons | ForEach-Object { $_.Key })
+                    $pick = $null
+                    foreach ($want in 'End', 'OK', 'Close', 'No', 'Cancel') {
+                        $pick = $dialog.Buttons | Where-Object { $_.Key -eq $want } | Select-Object -First 1
+                        if ($pick) { break }
+                    }
+                    $record = [ordered]@{ title = $dialog.Title; texts = @($dialog.Texts); buttons = $names; pressed = $null }
+                    if ($pick) {
+                        try {
+                            try { $auto::FromHandle([IntPtr]$pick.Value).GetCurrentPattern([System.Windows.Automation.InvokePattern]::Pattern).Invoke() }
+                            catch { $acc = [DlgFinder]::Accessible($pick.Value); [void]$acc.GetType().InvokeMember('accDoDefaultAction', 'InvokeMethod', $null, $acc, @(0)) }
+                            $record.pressed = $pick.Key
+                        } catch { $record.press_error = $_.Exception.Message }
+                        # A compile error leaves the VBE in break mode and the caller's Run waiting:
+                        # Run > Reset (command 228) of this process's own VBE ends it.
+                        if (($dialog.Texts -join ' ') -match 'Compile error') {
+                            try {
+                                Start-Sleep -Milliseconds 300
+                                $app = [DlgFinder]::ExcelWindow([uint32]$targetPid).Application
+                                $check = [uint32]0
+                                Add-Type -Namespace Dna -Name Win3 -ErrorAction SilentlyContinue -MemberDefinition '[System.Runtime.InteropServices.DllImport("user32.dll")] public static extern uint GetWindowThreadProcessId(System.IntPtr h, out uint p);'
+                                [void][Dna.Win3]::GetWindowThreadProcessId([System.IntPtr][int]$app.Hwnd, [ref]$check)
+                                if ($check -eq $targetPid) { $app.VBE.CommandBars.FindControl(1, 228).Execute(); $record.reset = $true } else { $record.reset = 'pid mismatch' }
+                            } catch { $record.reset_error = $_.Exception.Message }
+                        }
+                    }
+                    [void]$state.dialogs.Add($record)
+                }
+            } catch { if ($state.errors.Count -lt 20) { [void]$state.errors.Add($_.Exception.Message) } }
+            Start-Sleep -Milliseconds 120
+        }
+    }).AddArgument($state).AddArgument($TargetPid)
+    [pscustomobject]@{ State = $state; Shell = $shell; Handle = $shell.BeginInvoke() }
+}
+function Stop-DialogGuard($guard) {
+    $guard.State.stop = $true
+    [void]$guard.Handle.AsyncWaitHandle.WaitOne(5000)
+    $report = [ordered]@{ polls = $guard.State.polls; errors = @($guard.State.errors) + @($guard.Shell.Streams.Error | ForEach-Object { [string]$_ }) }
+    $guard.Shell.Dispose()
+    $report
+}
+function Excel-ProcessId($app) {
+    Add-Type -Namespace Dna -Name Win -ErrorAction SilentlyContinue -MemberDefinition '[System.Runtime.InteropServices.DllImport("user32.dll")] public static extern uint GetWindowThreadProcessId(System.IntPtr h, out uint p);'
+    $id = [uint32]0
+    [void][Dna.Win]::GetWindowThreadProcessId([System.IntPtr][int]$app.Hwnd, [ref]$id)
+    $id
 }
 function Crlf([string]$path) { ([IO.File]::ReadAllText($path) -replace "`r?`n", "`r`n") }
 switch ($Action) {
@@ -301,6 +394,34 @@ End Function
         } finally { Step 'close' { $book.Close($false) } }
         $path = Join-Path $OutDirectory ($manifest.id + '.xlsm')
         if (Test-Path -LiteralPath $path) { $result.file = [ordered]@{ file = ($manifest.id + '.xlsm'); sha256 = (Get-FileHash -LiteralPath $path -Algorithm SHA256).Hash.ToLowerInvariant(); bytes = (Get-Item -LiteralPath $path).Length } }
+    }
+    'language' {
+        $manifest = Get-Content -LiteralPath $Project -Raw -Encoding utf8 | ConvertFrom-Json
+        $base = Split-Path -Parent (Resolve-Path -LiteralPath $Project)
+        $temp = Join-Path $OutDirectory 'import'
+        New-Item -ItemType Directory -Force -Path $temp | Out-Null
+        $guard = Start-DialogGuard (Excel-ProcessId $excel)
+        try {
+            foreach ($item in $manifest.items) {
+                $record = [ordered]@{ id = $item.id }
+                Add-Content -LiteralPath (Join-Path $OutDirectory 'language-progress.jsonl') -Value ('{"starting":"' + $item.id + '"}') -Encoding utf8NoBOM
+                $book = $excel.Workbooks.Add()
+                try {
+                    foreach ($path in $manifest.helper, $item.module) {
+                        $copy = Join-Path $temp (Split-Path -Leaf $path)
+                        [IO.File]::WriteAllText($copy, (Crlf (Join-Path $base $path)), [Text.Encoding]::GetEncoding(1252))
+                        try { [void]$book.VBProject.VBComponents.Import($copy) } catch { $record.import_error = $_.Exception.Message }
+                    }
+                    $seen = $guard.State.dialogs.Count
+                    try { $record.answer = [string]$excel.Run("'" + $book.Name + "'!DnaRunAll") } catch { $record.run_error = $_.Exception.Message }
+                    Start-Sleep -Milliseconds 300
+                    $record.dialogs = @($guard.State.dialogs | Select-Object -Skip $seen)
+                } finally { Step "close $($item.id)" { $book.Close($false) } }
+                $result.rows += $record
+                # One line per finished item, so a stuck item shows where the batch stopped.
+                ($record | ConvertTo-Json -Compress -Depth 5) | Add-Content -LiteralPath (Join-Path $OutDirectory 'language-progress.jsonl') -Encoding utf8NoBOM
+            }
+        } finally { $result.guard = Stop-DialogGuard $guard }
     }
     'reopen' {
         $logs = Join-Path $env:TEMP 'error*.xml'

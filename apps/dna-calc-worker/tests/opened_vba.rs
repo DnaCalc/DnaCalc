@@ -57,8 +57,14 @@ fn an_opened_macro_workbook_runs_nothing_until_macros_are_enabled() {
             budget,
         )
         .unwrap();
-        assert_eq!(binary.macros(), &Macros::Disabled(FileOrigin::Unknown));
-        binary.enable_macros().unwrap();
+        assert_eq!(
+            binary.macros(),
+            &Macros::Blocked(calc_host_vba::MacroBlock::Unknown)
+        );
+        assert!(binary.enable_macros().is_err());
+        binary
+            .enable_macros_as(dna_calc_worker::workbook::EnableMode::Unblock)
+            .unwrap();
         assert_eq!(binary.macros(), &Macros::Enabled);
         binary.dispatch(SkinIntent::Recalculate);
         drain(&mut binary);
@@ -72,7 +78,7 @@ fn an_opened_macro_workbook_runs_nothing_until_macros_are_enabled() {
                 cell.value()
             );
         }
-        for origin in [FileOrigin::Unknown, FileOrigin::Local, FileOrigin::Zone(2)] {
+        for origin in [FileOrigin::Local, FileOrigin::Zone(2)] {
             let mut book =
                 Workbook::open_with_project_policy("local.xlsm", LOCAL.to_vec(), budget, origin)
                     .unwrap();
@@ -113,7 +119,12 @@ fn a_marked_or_network_macro_workbook_is_never_enabled() {
             "Private Sub Workbook_Open()\n Err.Raise 5\nEnd Sub\n",
         )],
     );
-    for origin in [FileOrigin::Zone(3), FileOrigin::Zone(4), FileOrigin::Network] {
+    for origin in [
+        FileOrigin::Unknown,
+        FileOrigin::Zone(3),
+        FileOrigin::Zone(4),
+        FileOrigin::Network,
+    ] {
         let mut book = Workbook::open_with_project_policy(
             "marked.xlsm",
             bytes.clone(),
@@ -126,6 +137,7 @@ fn a_marked_or_network_macro_workbook_is_never_enabled() {
         assert!(matches!(refused, EnableRefused::Blocked(_)), "{refused}");
         assert!(
             refused.to_string().contains(match origin {
+                FileOrigin::Unknown => "origin could not be verified",
                 FileOrigin::Network => "network",
                 _ => "Mark of the Web",
             }),
@@ -147,8 +159,7 @@ fn a_marked_or_network_macro_workbook_is_never_enabled() {
     }
 }
 
-/// The page's route: an Open names no origin (a browser cannot read one) and the workbook opens
-/// with macros disabled; EnableMacros runs the project. A native host's origin for the next open
+/// A native host supplies Local origin: the workbook opens disabled and EnableMacros runs it. A native host's origin for the next open
 /// (`set_open_origin`) blocks a marked file, and EnableMacros is refused (dc-0f1k.22).
 #[cfg_attr(not(target_arch = "wasm32"), test)]
 #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
@@ -160,6 +171,7 @@ fn the_worker_opens_macros_disabled_and_enables_them_on_request() {
         other => panic!("not done: {other:?}"), // ubs:ignore[rust.ownership.panic-macro] The open must answer.
     };
     let mut server = Server::new();
+    server.set_open_origin(FileOrigin::Local);
     let opened = server.execute_current(
         Request::Open {
             name: "local.xlsm".into(),
@@ -189,17 +201,24 @@ fn the_worker_opens_macros_disabled_and_enables_them_on_request() {
         "{:?}",
         refused.reply
     );
-    // The origin was for that open only: the next one is unknown again, so disabled.
+    // The origin was for that open only: the next unverified file requires Unblock.
     let next = server.execute_current(
         Request::Open {
             name: "local.xlsm".into(),
         },
         Some(LOCAL.to_vec()),
     );
-    assert_eq!(status(&next.reply), MacroStatus::Disabled);
+    assert!(
+        matches!(status(&next.reply), MacroStatus::Blocked { reason } if reason.contains("origin could not be verified"))
+    );
     let plain = server.execute_current(Request::New, None);
     assert_eq!(status(&plain.reply), MacroStatus::None);
-    assert!(server.execute_current(Request::EnableMacros, None).reply.is_err());
+    assert!(
+        server
+            .execute_current(Request::EnableMacros, None)
+            .reply
+            .is_err()
+    );
 }
 
 #[cfg_attr(not(target_arch = "wasm32"), test)]
@@ -224,7 +243,13 @@ fn worker_file_events_and_udfs_share_one_state_through_open_edit_and_save() {
         ],
     );
     for budget in [WorkBudget::UNLIMITED, WorkBudget::evaluations(1)] {
-        let mut book = Workbook::open_with_budget("state.xlsm", bytes.clone(), budget).unwrap();
+        let mut book = Workbook::open_with_project_policy(
+            "state.xlsm",
+            bytes.clone(),
+            budget,
+            FileOrigin::Local,
+        )
+        .unwrap();
         book.enable_macros().unwrap();
         let cell = at(&book, 4);
         assert!(
@@ -266,7 +291,13 @@ fn worker_file_open_fault_is_reported_once_and_unsupported_projects_stay_typed()
             ),
         ],
     );
-    let mut book = Workbook::open("fault.xlsm", bytes).unwrap();
+    let mut book = Workbook::open_with_project_policy(
+        "fault.xlsm",
+        bytes,
+        WorkBudget::UNLIMITED,
+        FileOrigin::Local,
+    )
+    .unwrap();
     assert!(book.take_workbook_event_failures().failures.is_empty());
     book.enable_macros().unwrap();
     let failures = book.take_workbook_event_failures();
@@ -290,15 +321,19 @@ fn worker_file_open_fault_is_reported_once_and_unsupported_projects_stay_typed()
         "../../../crates/calc-engine/tests/fixtures/excel-calc-probes/P22/eng9-20261103/cases/automatic-basic/artifact.xlsm"
     );
     // The file opens with its project held; enabling it is what refuses the project.
-    let mut p22 = Workbook::open("p22.xlsm", unsupported.to_vec()).unwrap();
+    let mut p22 = Workbook::open_with_project_policy(
+        "p22.xlsm",
+        unsupported.to_vec(),
+        WorkBudget::UNLIMITED,
+        FileOrigin::Local,
+    )
+    .unwrap();
     let refusal = match p22.enable_macros() {
-        Err(EnableRefused::Project(calc_host_vba::FileProjectError::Preparation(detail))) => {
-            detail
-        }
+        Err(EnableRefused::Project(calc_host_vba::FileProjectError::Preparation(detail))) => detail,
         Err(other) => panic!("expected the remaining automatic-event refusal: {other:?}"), // ubs:ignore[rust.ownership.panic-macro] A different refusal must fail this regression.
         Ok(()) => panic!("unsupported automatic events cannot run on file open"), // ubs:ignore[rust.ownership.panic-macro] Unexpected admission must fail this regression.
     };
-    assert_eq!(p22.macros(), &Macros::Disabled(FileOrigin::Unknown));
+    assert_eq!(p22.macros(), &Macros::Disabled(FileOrigin::Local));
     assert!(
         refusal.contains("unsupported automatic-event prefix"),
         "{refusal}"
@@ -310,7 +345,7 @@ fn worker_file_open_fault_is_reported_once_and_unsupported_projects_stay_typed()
         "BaseClass=P22Events",
     );
     assert!(matches!(
-        Workbook::open("designer.xlsm", designer).unwrap().enable_macros(),
+        Workbook::open_with_project_policy("designer.xlsm", designer, WorkBudget::UNLIMITED, FileOrigin::Local).unwrap().enable_macros(),
         Err(EnableRefused::Project(
             calc_host_vba::FileProjectError::UnsupportedModule(name)
         )) if name == "P22Events"
@@ -325,7 +360,13 @@ fn add_in_functions_join_the_file_projects_functions() {
     // The host publishes its add-ins before or after the person enables macros (the desktop app
     // installs them at open, before the bar's button).
     for addins_first in [false, true] {
-        let mut book = Workbook::open("local.xlsm", LOCAL.to_vec()).unwrap();
+        let mut book = Workbook::open_with_project_policy(
+            "local.xlsm",
+            LOCAL.to_vec(),
+            WorkBudget::UNLIMITED,
+            FileOrigin::Local,
+        )
+        .unwrap();
         let addin = calc_vba::load_module(
             "Extra",
             "Public Function AddinSeven() As Double\n AddinSeven = 7\nEnd Function\n",
@@ -375,11 +416,20 @@ Public Function WhenDue() As Date
 End Function
 ",
             ),
-            ("PrivateModule", "Option Private Module
-"),
+            (
+                "PrivateModule",
+                "Option Private Module
+",
+            ),
         ],
     );
-    let mut book = Workbook::open("mixed.xlsm", bytes).unwrap();
+    let mut book = Workbook::open_with_project_policy(
+        "mixed.xlsm",
+        bytes,
+        WorkBudget::UNLIMITED,
+        FileOrigin::Local,
+    )
+    .unwrap();
     book.enable_macros().unwrap();
     let (good, refused) = (at(&book, 4), at(&book, 5));
     for (cell, text) in [(good, "=MyFunc(1)"), (refused, "=WhenDue()")] {
@@ -437,10 +487,19 @@ fn the_macro_security_level_decides_what_runs_and_what_the_buttons_do() {
     let marked = open(&mut server, FileOrigin::Zone(3));
     assert!(matches!(marked.macros, MacroStatus::Blocked { .. }));
     assert!(marked.macro_note.is_empty());
-    assert!(server.execute_current(Request::EnableMacros, None).reply.is_err());
+    assert!(
+        server
+            .execute_current(Request::EnableMacros, None)
+            .reply
+            .is_err()
+    );
     let unblocked = summary(&server.execute_current(Request::UnblockMacros, None).reply);
     assert_eq!(unblocked.macros, MacroStatus::Enabled);
-    assert!(unblocked.macro_note.contains("you unblocked it"), "{}", unblocked.macro_note);
+    assert!(
+        unblocked.macro_note.contains("you unblocked it"),
+        "{}",
+        unblocked.macro_note
+    );
     // A network file unblocks the same way, and an unmarked file's Unblock is no more than Enable.
     open(&mut server, FileOrigin::Network);
     let network = summary(&server.execute_current(Request::UnblockMacros, None).reply);
@@ -448,7 +507,10 @@ fn the_macro_security_level_decides_what_runs_and_what_the_buttons_do() {
     assert!(network.macro_note.contains("network"));
     open(&mut server, FileOrigin::Local);
     let local = summary(&server.execute_current(Request::UnblockMacros, None).reply);
-    assert_eq!((local.macros, local.macro_note.as_str()), (MacroStatus::Enabled, ""));
+    assert_eq!(
+        (local.macros, local.macro_note.as_str()),
+        (MacroStatus::Enabled, "")
+    );
 
     // Enable all: the project runs on open, a marked file too, with a notice; choosing the level
     // through the wire changes later opens only.
@@ -464,7 +526,10 @@ fn the_macro_security_level_decides_what_runs_and_what_the_buttons_do() {
     );
     assert_eq!(chosen.macro_policy.level(), MacroSecurity::Unguarded);
     let plain = open(&mut server, FileOrigin::Local);
-    assert_eq!((plain.macros, plain.macro_note.as_str()), (MacroStatus::Enabled, ""));
+    assert_eq!(
+        (plain.macros, plain.macro_note.as_str()),
+        (MacroStatus::Enabled, "")
+    );
     let marked = open(&mut server, FileOrigin::Zone(4));
     assert_eq!(marked.macros, MacroStatus::Enabled);
     assert!(
@@ -473,7 +538,10 @@ fn the_macro_security_level_decides_what_runs_and_what_the_buttons_do() {
         "{}",
         marked.macro_note
     );
-    assert_eq!(open(&mut server, FileOrigin::Network).macros, MacroStatus::Enabled);
+    assert_eq!(
+        open(&mut server, FileOrigin::Network).macros,
+        MacroStatus::Enabled
+    );
 
     // Safe (dc-10un) runs the project on open, a marked one too, under the Safe policy.
     server
@@ -488,7 +556,10 @@ fn the_macro_security_level_decides_what_runs_and_what_the_buttons_do() {
     let safe = open(&mut server, FileOrigin::Local);
     assert_eq!(safe.macros, MacroStatus::Enabled);
     assert_eq!(safe.macro_policy.level(), MacroSecurity::Safe);
-    assert_eq!(open(&mut server, FileOrigin::Zone(3)).macros, MacroStatus::Enabled);
+    assert_eq!(
+        open(&mut server, FileOrigin::Zone(3)).macros,
+        MacroStatus::Enabled
+    );
 
     // The flag, the variable or --macros pins a level: the page cannot choose another.
     let mut pinned = Server::new();
@@ -496,7 +567,11 @@ fn the_macro_security_level_decides_what_runs_and_what_the_buttons_do() {
     let marked = open(&mut pinned, FileOrigin::Zone(3));
     assert_eq!(marked.macros, MacroStatus::Enabled);
     assert_eq!(marked.macro_policy.pinned(), Some(Pin::Flag));
-    assert!(marked.macro_note.contains("--trust-macros"), "{}", marked.macro_note);
+    assert!(
+        marked.macro_note.contains("--trust-macros"),
+        "{}",
+        marked.macro_note
+    );
     let refused = pinned
         .execute_current(
             Request::SetMacroSecurity {
@@ -507,8 +582,16 @@ fn the_macro_security_level_decides_what_runs_and_what_the_buttons_do() {
         .reply;
     assert!(refused.is_err_and(|why| why.contains("pinned")));
     let mut by_variable = Server::new();
-    by_variable.set_macro_policy(MacroPolicy::resolve(MacroSecurity::Off, false, Some("1"), None));
-    assert_eq!(open(&mut by_variable, FileOrigin::Network).macros, MacroStatus::Enabled);
+    by_variable.set_macro_policy(MacroPolicy::resolve(
+        MacroSecurity::Off,
+        false,
+        Some("1"),
+        None,
+    ));
+    assert_eq!(
+        open(&mut by_variable, FileOrigin::Network).macros,
+        MacroStatus::Enabled
+    );
     // --macros pins a level over the stored one, either way.
     let mut off = Server::new();
     off.set_macro_policy(MacroPolicy::resolve(
@@ -517,7 +600,10 @@ fn the_macro_security_level_decides_what_runs_and_what_the_buttons_do() {
         None,
         Some(MacroSecurity::Off),
     ));
-    assert_eq!(open(&mut off, FileOrigin::Local).macros, MacroStatus::Disabled);
+    assert_eq!(
+        open(&mut off, FileOrigin::Local).macros,
+        MacroStatus::Disabled
+    );
     let mut on = Server::new();
     on.set_macro_policy(MacroPolicy::resolve(
         MacroSecurity::Off,
@@ -525,5 +611,60 @@ fn the_macro_security_level_decides_what_runs_and_what_the_buttons_do() {
         None,
         Some(MacroSecurity::Unguarded),
     ));
-    assert_eq!(open(&mut on, FileOrigin::Local).macros, MacroStatus::Enabled);
+    assert_eq!(
+        open(&mut on, FileOrigin::Local).macros,
+        MacroStatus::Enabled
+    );
+}
+
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn a_native_origin_is_not_inherited_by_the_next_page_open() {
+    use dna_calc_worker::{server::Server, wire::Request};
+    let mut server = Server::new();
+    server.with_open_origin(FileOrigin::Local, |server| {
+        server.execute_current(Request::Ping, None);
+    });
+    assert!(
+        server
+            .execute_current(
+                Request::Open {
+                    name: "page.xlsm".into()
+                },
+                Some(LOCAL.to_vec())
+            )
+            .reply
+            .is_ok()
+    );
+    assert_eq!(
+        server.book().macros(),
+        &Macros::Blocked(calc_host_vba::MacroBlock::Unknown)
+    );
+}
+
+/// Native-only: exercises native panic unwinding through the request boundary.
+#[cfg(not(target_arch = "wasm32"))]
+#[test]
+fn a_native_origin_is_cleared_even_when_the_request_panics() {
+    use dna_calc_worker::{server::Server, wire::Request};
+    let mut server = Server::new();
+    let result = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+        server.with_open_origin::<()>(FileOrigin::Local, |_| panic!("fixture request"));
+    }));
+    assert!(result.is_err());
+    assert!(
+        server
+            .execute_current(
+                Request::Open {
+                    name: "page.xlsm".into()
+                },
+                Some(LOCAL.to_vec())
+            )
+            .reply
+            .is_ok()
+    );
+    assert_eq!(
+        server.book().macros(),
+        &Macros::Blocked(calc_host_vba::MacroBlock::Unknown)
+    );
 }

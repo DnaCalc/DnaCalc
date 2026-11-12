@@ -15,62 +15,14 @@
 //! the file's exact bytes in its trusted-code manifest ([`ProjectGrant::evidence_manifest`]).
 //! Opening a file never produces one.
 
-/// Where an opened workbook file came from, as far as its host can tell.
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub enum FileOrigin {
-    /// The host cannot tell (a browser's file input reads no path and no Mark of the Web).
-    Unknown,
-    /// A local file without a Mark of the Web.
-    Local,
-    /// A file whose Mark of the Web names this URL security zone (0 to 4).
-    Zone(u32),
-    /// A file opened from a network path (`\\server\share\...`).
-    Network,
-}
-
-/// Why a file's project cannot be enabled.
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub enum MacroBlock {
-    /// The Mark of the Web names the internet (3) or restricted (4) zone.
-    Zone(u32),
-    /// The file was opened from the network.
-    Network,
-}
-
-impl FileOrigin {
-    /// What stops the person enabling the file's project, if anything: zones 3 and 4, and the
-    /// network. Zones 0 to 2 (this computer, the intranet, trusted sites) and unmarked files open
-    /// disabled and can be enabled.
-    pub fn block(self) -> Option<MacroBlock> {
-        match self {
-            Self::Zone(zone @ (3 | 4)) => Some(MacroBlock::Zone(zone)),
-            Self::Network => Some(MacroBlock::Network),
-            Self::Zone(_) | Self::Local | Self::Unknown => None,
-        }
-    }
-}
-
-impl std::fmt::Display for MacroBlock {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        match self {
-            Self::Zone(zone) => write!(
-                f,
-                "This file carries the Mark of the Web (zone {zone}: it came from the internet or another computer), so its VBA project is held and not run until you unblock it"
-            ),
-            Self::Network => f.write_str(
-                "This file was opened from the network, so its VBA project is held and not run until you unblock it",
-            ),
-        }
-    }
-}
+pub use calc_macro_security::{FileOrigin, MacroBlock};
 
 /// Permission to compile a workbook file's own VBA project and raise its events. Only the
 /// constructors below make one; nothing derives it from opening a file.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct ProjectGrant {
     reason: GrantReason,
-    /// The single policy choice for the VBA host (dc-15dk): Full everywhere until Safe exists
-    /// (dc-10un).
+    /// The policy bound to every runtime host prepared under this grant.
     policy: calc_macro_security::VbaPolicy,
 }
 
@@ -163,13 +115,15 @@ mod tests {
             (FileOrigin::Zone(1), None),
             (FileOrigin::Zone(2), None),
             (FileOrigin::Local, None),
-            (FileOrigin::Unknown, None),
+            (FileOrigin::Unknown, Some(MacroBlock::Unknown)),
         ] {
             assert_eq!(origin.block(), block, "{origin:?}");
             assert_eq!(ProjectGrant::person_enabled(origin).err(), block);
         }
         assert_eq!(
-            ProjectGrant::person_enabled(FileOrigin::Local).unwrap().reason(),
+            ProjectGrant::person_enabled(FileOrigin::Local)
+                .unwrap()
+                .reason(),
             &GrantReason::PersonEnabled
         );
     }
@@ -188,7 +142,8 @@ mod tests {
             &GrantReason::PersonUnblocked(Some(MacroBlock::Network))
         );
         assert_eq!(
-            ProjectGrant::trust_all("--trust-macros", calc_macro_security::VbaPolicy::Full).reason(),
+            ProjectGrant::trust_all("--trust-macros", calc_macro_security::VbaPolicy::Full)
+                .reason(),
             &GrantReason::TrustAll {
                 by: "--trust-macros".into()
             }

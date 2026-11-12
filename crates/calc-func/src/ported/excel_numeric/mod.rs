@@ -584,6 +584,24 @@ pub(crate) fn excel_x87_div(a: f64, b: f64) -> f64 {
     }
 }
 
+/// CUMPRINC's backward range sum (dc-j9k.49): `f = last * factor` in the registers, then for each
+/// of `count` periods `sum += f; f /= (1 + rate)`, with the sum, the term and `1 + rate` kept at
+/// precision 64; the sum is stored once at the end.
+pub(crate) fn excel_backward_period_sum(last: f64, factor: f64, rate: f64, count: u32) -> f64 {
+    excel_backward_period_sum_with::<Native>(last, factor, rate, count)
+}
+
+fn excel_backward_period_sum_with<F: Fpu>(last: f64, factor: f64, rate: f64, count: u32) -> f64 {
+    let growth = F::add(&ext_one(), &load(rate), CW);
+    let mut term = F::mul(&load(last), &load(factor), CW);
+    let mut sum = load(0.0);
+    for _ in 0..count {
+        sum = F::add(&sum, &term, CW);
+        term = F::div(&term, &growth, CW);
+    }
+    F::store(&sum, CW)
+}
+
 /// `RN53(RN64(1.0 / x))` — the x87 double-rounded reciprocal Excel uses to stage
 /// `POWER(x, y)` for `y < 0` (positive power, stored to `binary64`, then one
 /// reciprocal). Bit-exact to 64-bit Excel on `x86_64`.

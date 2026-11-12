@@ -767,6 +767,15 @@ impl SpreadsheetHost {
 }
 
 impl HostServices for SpreadsheetHost {
+    fn is_host_class(&self, target: &str) -> bool {
+        [
+            "DnaCalc.Application",
+            "DnaCalc.ActiveSheet",
+            "DnaCalc.Selection",
+        ]
+        .iter()
+        .any(|class| target.eq_ignore_ascii_case(class))
+    }
     fn profile(&self) -> HalProfileId {
         HalProfileId::Null
     }

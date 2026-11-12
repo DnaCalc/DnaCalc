@@ -12,10 +12,10 @@ use std::cell::RefCell;
 use std::sync::Arc;
 
 pub use calcvba_lib::{Prediction, PredictionSource};
+use oxvba_hal::{AuditHandle, HostServices, PolicyHost};
 pub use oxvba_hal::{
     AuditSnapshot, Capability, CapabilitySet, Decision, POLICY_DENIED_CODE, PolicyMode,
 };
-use oxvba_hal::{AuditHandle, HostServices, PolicyHost};
 
 struct Active {
     mode: PolicyMode,
@@ -35,6 +35,41 @@ pub fn set_thread_policy(mode: Option<PolicyMode>) {
             audit: AuditHandle::default(),
         });
     });
+}
+
+/// Temporarily select a project's policy, preserving the audit and any stricter outer Safe.
+/// The previous policy is restored even when compilation unwinds.
+pub struct PolicyScope(Option<Active>);
+impl PolicyScope {
+    pub fn enter(mode: PolicyMode) -> Self {
+        ACTIVE.with(|active| {
+            let previous = active.borrow_mut().take();
+            let mode = if previous
+                .as_ref()
+                .is_some_and(|p| p.mode == PolicyMode::Safe)
+            {
+                PolicyMode::Safe
+            } else {
+                mode
+            };
+            let audit = previous
+                .as_ref()
+                .map(|p| p.audit.clone())
+                .unwrap_or_default();
+            *active.borrow_mut() = Some(Active { mode, audit });
+            Self(previous)
+        })
+    }
+}
+impl Drop for PolicyScope {
+    fn drop(&mut self) {
+        ACTIVE.with(|active| *active.borrow_mut() = self.0.take());
+    }
+}
+
+/// Apply the same policy while compiler resolution could load a native type library.
+pub(crate) fn compilation_scope() -> oxvba_com::ComPolicyScope {
+    wrap(oxvba_hal::adapters::builder::HostBuilder::new().build()).enter_com_policy()
 }
 
 /// The policy in force on this thread.
@@ -68,7 +103,6 @@ pub fn denials_ever() -> u64 {
 pub(crate) fn wrap(host: Arc<dyn HostServices>) -> Arc<dyn HostServices> {
     ACTIVE.with(|active| match active.borrow().as_ref() {
         Some(active) => PolicyHost::with_mode(host, active.mode)
-            .with_host_progid_prefix("DnaCalc.")
             .with_audit(active.audit.clone())
             .into_host(),
         None => host,

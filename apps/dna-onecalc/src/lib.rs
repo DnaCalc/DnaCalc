@@ -41,7 +41,7 @@ pub mod surface;
 pub mod trace;
 pub mod web;
 
-pub use calc_macro_security::{MacroPolicy, MacroSecurity, Pin};
+pub use calc_macro_security::{FileOrigin, MacroBlock, MacroPolicy, MacroSecurity, Pin};
 pub use fixture::{Read, ReadRun, RunCells};
 pub use session::{
     AddinRef, Calculation, Diagnostic, ExternalReturns, InputError, InputValue, MacroEnable,
