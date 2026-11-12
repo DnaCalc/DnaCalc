@@ -44,6 +44,19 @@ fn dates_without_an_environment_are_refused() {
     refused(call("TEXT", vec![n(1.0), t("0.00")]));
 }
 
+/// Excel 16.0.20527, typed Value2 calls: argument errors win in order and a logical
+/// format gives #VALUE! even for a text, logical or blank value.
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn text_errors_do_not_require_a_locale() {
+    error(call("TEXT", vec![e(NA), e(Div0)]), NA);
+    error(call("TEXT", vec![n(1.0), e(Ref)]), Ref);
+    for value in [n(123.0), t("abc"), b(true), missing()] {
+        error(call("TEXT", vec![value, b(true)]), Value);
+    }
+    refused(call("TEXT", vec![n(1.0), t("0.00")]));
+}
+
 /// Q3, Excel 16.0.20527: these return-type classes always give #NUM!, and the
 /// captured serial and return-type bits locate the observed conversion boundaries.
 #[cfg_attr(not(target_arch = "wasm32"), test)]
