@@ -1,0 +1,252 @@
+<meta charset="utf-8">
+<title>The Function Bank</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,400;12..96,800&family=IBM+Plex+Mono:wght@400;600&family=IBM+Plex+Sans:wght@400;600&display=swap">
+<style>
+/* Layout: one deep-ink observatory page. A zoomable packed map of every function (area = Excel answers, colour = how exactly
+   DNA Calc matches), an ulp ladder underneath, a reading panel beside. Committed single dark look, chosen for the glow. */
+:root {
+  --night: #0f1424; --deep: #161d33; --panel: #1b2340; --line: #2c3658; --ink: #eef1fb; --muted: #a3acc8; --faint: #6f7a9c;
+  --exact: #63be7b; --near: #c9e58a; --mid: #ffeb84; --far: #ffa25c; --bad: #f8696b; --accent: #8fb4ff; --ring: #ffffff;
+  --display: "Bricolage Grotesque", "Segoe UI", system-ui, sans-serif;
+  --body: "IBM Plex Sans", "Segoe UI", system-ui, sans-serif;
+  --mono: "IBM Plex Mono", ui-monospace, Consolas, monospace;
+  color-scheme: dark;
+}
+* { box-sizing: border-box }
+body { margin: 0; background: var(--night); color: var(--ink); font: 400 15px/1.5 var(--body);
+  background-image: radial-gradient(1200px 700px at 70% -10%, #23305a 0%, transparent 60%), radial-gradient(900px 600px at -10% 110%, #1d2a4d 0%, transparent 55%) }
+.page { max-width: 1240px; margin: 0 auto; padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px)); padding-block: 26px 48px; display: grid; gap: 18px }
+header { display: grid; gap: 8px }
+.eyebrow { font: 600 12px/1 var(--mono); letter-spacing: .14em; text-transform: uppercase; color: var(--accent) }
+h1 { margin: 0; font: 800 clamp(40px, 8vw, 92px)/.92 var(--display); letter-spacing: -.025em; text-wrap: balance }
+h1 em { font-style: normal; background: linear-gradient(90deg, var(--bad), var(--mid) 45%, var(--exact)); -webkit-background-clip: text; background-clip: text; color: transparent }
+.lede { margin: 0; max-width: 70ch; color: var(--muted); font-size: 17px }
+.totals { display: flex; flex-wrap: wrap; gap: 10px 28px; margin-top: 6px }
+.totals div { display: grid }
+.totals b { font: 600 clamp(22px, 3.2vw, 32px)/1.1 var(--mono); font-variant-numeric: tabular-nums }
+.totals span { font: 600 11px/1.4 var(--body); letter-spacing: .08em; text-transform: uppercase; color: var(--faint) }
+.stage { display: grid; grid-template-columns: minmax(0, 1fr) 300px; gap: 16px; align-items: start }
+@media (max-width: 900px) { .stage { grid-template-columns: 1fr } }
+.map { position: relative; background: rgba(22, 29, 51, .7); border: 1px solid var(--line); border-radius: 10px; overflow: hidden; min-width: 0 }
+.map svg { display: block; width: 100%; height: auto; cursor: zoom-in }
+.crumb { position: absolute; left: 12px; top: 10px; font: 600 12px var(--mono); color: var(--muted); background: rgba(15,20,36,.7); padding: 4px 8px; border-radius: 4px; pointer-events: none }
+.side { display: grid; gap: 12px; min-width: 0 }
+.card { background: var(--panel); border: 1px solid var(--line); border-radius: 10px; padding: 14px 16px; min-width: 0 }
+.card h2 { margin: 0 0 8px; font: 600 12px/1.3 var(--body); letter-spacing: .08em; text-transform: uppercase; color: var(--faint) }
+.fn { font: 800 30px/1 var(--display); overflow-wrap: anywhere }
+.fam { font: 400 13px var(--mono); color: var(--accent); margin-top: 4px }
+.kv { display: grid; grid-template-columns: auto 1fr; gap: 4px 14px; margin-top: 12px; font: 400 14px var(--mono); font-variant-numeric: tabular-nums }
+.kv span { color: var(--faint) } .kv b { font-weight: 600; text-align: right }
+.verdict { margin-top: 10px; font-size: 14px; color: var(--muted) }
+.search { width: 100%; font: 400 15px var(--mono); padding: 10px 12px; border-radius: 6px; border: 1px solid var(--line); background: var(--deep); color: var(--ink) }
+.search:focus { outline: 2px solid var(--accent); outline-offset: 1px }
+.legend { display: grid; gap: 8px; font-size: 13px; color: var(--muted) }
+.scale { height: 12px; border-radius: 6px; background: linear-gradient(90deg, var(--bad), var(--far) 25%, var(--mid) 50%, var(--near) 75%, var(--exact)) }
+.scale-l { display: flex; justify-content: space-between; font: 400 11px var(--mono); color: var(--faint) }
+.rings { display: grid; gap: 6px }
+.rings div { display: flex; align-items: center; gap: 8px }
+.rings i { width: 16px; height: 16px; border-radius: 50%; background: var(--exact); flex: none }
+.rings i.x { box-shadow: 0 0 0 2px var(--ring) } .rings i.l { background: var(--near); outline: 1.5px dashed var(--ring); outline-offset: 1px } .rings i.s { background: var(--mid); box-shadow: inset 0 0 0 3px var(--night) }
+.ladder { background: rgba(22, 29, 51, .7); border: 1px solid var(--line); border-radius: 10px; padding: 14px 16px 8px; overflow-x: auto }
+.ladder h2 { margin: 0; font: 800 24px/1.1 var(--display) }
+.ladder p { margin: 4px 0 8px; color: var(--muted); font-size: 14px; max-width: 80ch }
+.ladder svg { display: block; min-width: 720px; width: 100% }
+.tip { position: fixed; pointer-events: none; background: var(--panel); border: 1px solid var(--line); border-radius: 6px; padding: 8px 10px; font: 400 13px var(--mono); color: var(--ink); box-shadow: 0 10px 30px rgba(0,0,0,.4); z-index: 20 }
+.tip b { font-family: var(--display); font-size: 16px }
+footer { font: 400 12px var(--mono); color: var(--faint) }
+@media (prefers-reduced-motion: reduce) { * { transition: none !important } }
+</style>
+<div class="page">
+  <header>
+    <div class="eyebrow">DNA Calc · CalcFunc · full bank</div>
+    <h1>The Function <em>Bank</em></h1>
+    <p class="lede">Every worksheet function DNA Calc implements, drawn as a circle. Its size grows with the number of recorded Excel answers it is judged against; its colour says how many of those answers DNA Calc reproduces bit for bit. Click a family to fly into it.</p>
+    <div class="totals" id="totals"></div>
+  </header>
+  <div class="stage">
+    <div class="map" id="map"><div class="crumb" id="crumb">All families</div></div>
+    <div class="side">
+      <input class="search" id="search" type="search" placeholder="Find a function, e.g. GAMMALN" aria-label="Find a function" autocomplete="off">
+      <div class="card" id="detail"></div>
+      <div class="card legend">
+        <h2>Reading the map</h2>
+        <div class="scale" aria-hidden="true"></div>
+        <div class="scale-l"><span>under 90%</span><span>99%</span><span>99.9%</span><span>all exact</span></div>
+        <div class="rings">
+          <div><i class="x"></i>every answer bit-exact</div>
+          <div><i class="l"></i>misses only in the last bit (1 ulp)</div>
+          <div><i class="s"></i>some answers differ in kind: an error, a type, a shape</div>
+        </div>
+        <div>Circle area follows the square root of the answer count, so small functions stay visible next to the giants.</div>
+      </div>
+    </div>
+  </div>
+  <section class="ladder">
+    <h2>The ulp ladder</h2>
+    <p>The worst miss of each function, in units in the last place. One step to the right is ten times further from Excel's bits. Left of the line: functions with no numeric miss at all, or whose misses are of another kind.</p>
+    <svg id="ladder" viewBox="0 0 1200 250" role="img" aria-label="Worst ulp distance per function on a log scale"></svg>
+  </section>
+  <footer id="foot"></footer>
+</div>
+<div class="tip" id="tip" hidden></div>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/d3/7.8.5/d3.min.js"></script>
+<script>
+const BANK=[["ABS",1227,1227,null,"exact","Math & trig"],["ACCRINT",146688,146688,null,"exact","Financial"],["ACCRINTM",3612,3612,null,"exact","Financial"],["ACOS",13962,13961,1.0,"last_bit","Math & trig"],["ACOSH",5730,5730,null,"exact","Math & trig"],["ACOT",16924,16924,null,"exact","Math & trig"],["ACOTH",269996,269994,1.0,"last_bit","Math & trig"],["ADDRESS",1284,1284,null,"exact","Lookup & reference"],["AGGREGATE",4347,4159,null,"structural","Math & trig"],["AMORDEGRC",2957,2308,null,"structural","Financial"],["AMORLINC",4354,4326,null,"structural","Financial"],["AND",1210,1210,null,"exact","Logical"],["ARABIC",2115,2115,null,"exact","Math & trig"],["AREAS",3075,3075,null,"exact","Lookup & reference"],["ARRAYTOTEXT",1960,1960,null,"exact","Text"],["ASC",2090,0,null,"structural","Text"],["ASIN",21610,21609,1.0,"last_bit","Math & trig"],["ASINH",4534,4534,null,"exact","Math & trig"],["ATAN",181409,181408,1.0,"last_bit","Math & trig"],["ATAN2",2746,2724,2.0,"structural","Math & trig"],["ATANH",22008,22008,null,"exact","Math & trig"],["AVEDEV",1212,1212,null,"exact","Statistical"],["AVERAGE",1222,1222,null,"exact","Statistical"],["AVERAGEA",1212,1212,null,"exact","Statistical"],["AVERAGEIF",2862,2847,null,"structural","Statistical"],["BAHTTEXT",2592,2592,null,"exact","Text"],["BASE",3560,3560,null,"exact","Math & trig"],["BESSELI",1365,1365,null,"exact","Engineering"],["BESSELJ",3803,3777,111.0,"structural","Engineering"],["BESSELK",1236,1236,null,"exact","Engineering"],["BESSELY",2901,2550,64.0,"structural","Engineering"],["BETA.DIST",2822,1695,76.0,"numeric","Statistical"],["BETA.INV",4346,3845,1.3846713299534753e+18,"structural","Statistical"],["BETADIST",4639,4466,4.6838255477954534e+17,"structural","Statistical"],["BETAINV",4411,3902,5.480880746509894e+18,"structural","Statistical"],["BIN2DEC",1347,1347,null,"exact","Engineering"],["BIN2HEX",2748,2738,null,"structural","Engineering"],["BIN2OCT",2757,2750,null,"structural","Engineering"],["BINOM.DIST",70349,70326,651.0,"numeric","Statistical"],["BINOM.DIST.RANGE",1224,1224,null,"exact","Statistical"],["BINOM.INV",2308,2308,null,"exact","Statistical"],["BINOMDIST",2931,2834,2038.0,"structural","Statistical"],["BITAND",5989,5989,null,"exact","Engineering"],["BITLSHIFT",8131,8131,null,"exact","Engineering"],["BITOR",5989,5989,null,"exact","Engineering"],["BITRSHIFT",8128,8128,null,"exact","Engineering"],["BITXOR",5989,5989,null,"exact","Engineering"],["CEILING",1335,1335,null,"exact","Math & trig"],["CEILING.MATH",1362,1362,null,"exact","Math & trig"],["CEILING.PRECISE",1335,1335,null,"exact","Math & trig"],["CELL",2862,771,null,"structural","Information"],["CHAR",1056,1035,null,"structural","Text"],["CHIDIST",3241,3176,167.0,"structural","Statistical"],["CHIINV",4293,3362,20126759347725.0,"structural","Statistical"],["CHISQ.DIST",4276,4197,86.0,"structural","Statistical"],["CHISQ.DIST.RT",2859,2801,347.0,"structural","Statistical"],["CHISQ.INV",2903,2363,560.0,"structural","Statistical"],["CHISQ.INV.RT",4191,3300,433035116428664.0,"structural","Statistical"],["CHISQ.TEST",2860,2719,null,"structural","Statistical"],["CHITEST",2853,2712,null,"structural","Statistical"],["CHOOSE",4316,4307,null,"structural","Lookup & reference"],["CHOOSECOLS",3000,2873,null,"structural","Lookup & reference"],["CHOOSEROWS",3000,2914,null,"structural","Lookup & reference"],["CLEAN",2082,2082,null,"exact","Text"],["CODE",2109,2109,null,"exact","Text"],["COLUMN",3080,0,null,"structural","Lookup & reference"],["COLUMNS",3350,3350,null,"exact","Lookup & reference"],["COMBIN",25199,25199,null,"exact","Math & trig"],["COMBINA",40991,40991,null,"exact","Math & trig"],["COMPLEX",10694,10654,null,"structural","Engineering"],["CONCAT",2905,2900,null,"structural","Text"],["CONCATENATE",2897,2890,null,"structural","Text"],["CONFIDENCE",2910,2587,33.0,"structural","Statistical"],["CONFIDENCE.NORM",2916,2573,46.0,"structural","Statistical"],["CONFIDENCE.T",4282,4177,7697584227984561.0,"structural","Statistical"],["CONVERT",33972,33972,null,"exact","Engineering"],["CORREL",2853,2780,null,"structural","Statistical"],["COS",3684,3651,1.0,"last_bit","Math & trig"],["COSH",33550,33550,null,"exact","Math & trig"],["COT",2130,2130,null,"exact","Math & trig"],["COTH",40241,40238,2.0,"last_bit","Math & trig"],["COUNT",1212,1212,null,"exact","Statistical"],["COUNTA",1212,1212,null,"exact","Statistical"],["COUNTBLANK",2092,2092,null,"exact","Statistical"],["COUNTIF",2853,2836,null,"structural","Statistical"],["COUPDAYBS",5584,5584,null,"exact","Financial"],["COUPDAYS",5584,5584,null,"exact","Financial"],["COUPDAYSNC",5584,5584,null,"exact","Financial"],["COUPNCD",5584,5584,null,"exact","Financial"],["COUPNUM",5584,5584,null,"exact","Financial"],["COUPPCD",5584,5584,null,"exact","Financial"],["COVAR",2855,2782,null,"structural","Statistical"],["COVARIANCE.P",2849,2776,null,"structural","Statistical"],["COVARIANCE.S",2850,2777,null,"structural","Statistical"],["CRITBINOM",1420,1420,null,"exact","Statistical"],["CSC",2136,2136,null,"exact","Math & trig"],["CSCH",33306,33305,1.0,"last_bit","Math & trig"],["CUBEKPIMEMBER",4294,4170,null,"structural","Cube"],["CUBEMEMBER",4188,4143,null,"structural","Cube"],["CUBEMEMBERPROPERTY",4279,4211,null,"structural","Cube"],["CUBERANKEDMEMBER",4287,4167,null,"structural","Cube"],["CUBESET",4319,4269,null,"structural","Cube"],["CUBESETCOUNT",3078,3072,null,"structural","Cube"],["CUBEVALUE",4246,4223,null,"structural","Cube"],["CUMIPMT",4393,4348,null,"structural","Financial"],["CUMPRINC",3541,3519,null,"structural","Financial"],["DATE",22250,22250,null,"exact","Date & time"],["DATEDIF",2914,2907,null,"structural","Date & time"],["DATEVALUE",2188,2061,null,"structural","Date & time"],["DAVERAGE",5674,4420,null,"structural","Database"],["DAY",10153,10153,null,"exact","Date & time"],["DAYS",9565,9565,null,"exact","Date & time"],["DAYS360",4564,4564,null,"exact","Date & time"],["DB",2034,2034,null,"exact","Financial"],["DBCS",2101,0,null,"structural","Text"],["DCOUNT",5676,4398,null,"structural","Database"],["DCOUNTA",5676,4395,null,"structural","Database"],["DDB",1761,1761,null,"exact","Financial"],["DEC2BIN",4807,4807,null,"exact","Engineering"],["DEC2HEX",4807,4807,null,"exact","Engineering"],["DEC2OCT",4807,4807,null,"exact","Engineering"],["DECIMAL",1230,1230,null,"exact","Math & trig"],["DEGREES",1227,1227,null,"exact","Math & trig"],["DELTA",1092,1092,null,"exact","Engineering"],["DEVSQ",23106,23106,null,"exact","Statistical"],["DGET",5668,4922,null,"structural","Database"],["DISC",2400,2400,null,"exact","Financial"],["DMAX",5671,4431,null,"structural","Database"],["DMIN",5672,4425,null,"structural","Database"],["DOLLAR",2022,0,null,"structural","Text"],["DOLLARDE",4847,4847,null,"exact","Financial"],["DOLLARFR",3641,3641,null,"exact","Financial"],["DPRODUCT",5680,4449,null,"structural","Database"],["DROP",2400,2223,null,"structural","Lookup & reference"],["DSTDEV",5117,4145,null,"structural","Database"],["DSTDEVP",5673,4441,null,"structural","Database"],["DSUM",5677,4419,null,"structural","Database"],["DURATION",7884,7859,2.0,"last_bit","Financial"],["DVAR",5669,4428,null,"structural","Database"],["DVARP",5670,4428,null,"structural","Database"],["ECMA.CEILING",2773,2754,null,"structural","Math & trig"],["EDATE",9838,9838,null,"exact","Date & time"],["EFFECT",2584,2584,null,"exact","Financial"],["ENCODEURL",3064,3061,null,"structural","Text"],["EOMONTH",9838,9838,null,"exact","Date & time"],["ERF",2479,2460,null,"structural","Engineering"],["ERF.PRECISE",618437,618437,null,"exact","Engineering"],["ERFC",2636,2624,1.0,"structural","Engineering"],["ERFC.PRECISE",1863,1863,null,"exact","Engineering"],["ERROR.TYPE",1227,1227,null,"exact","Information"],["EUROCONVERT",13,13,null,"exact","Financial"],["EVEN",1227,1227,null,"exact","Math & trig"],["EXACT",2856,2856,null,"exact","Text"],["EXP",2456,2455,1.0,"last_bit","Math & trig"],["EXPAND",1650,1641,null,"structural","Lookup & reference"],["EXPON.DIST",49346,49345,1.0,"last_bit","Statistical"],["EXPONDIST",9740,9740,null,"exact","Statistical"],["F.DIST",3314,3210,5036.0,"structural","Statistical"],["F.DIST.RT",2914,2825,745.0,"structural","Statistical"],["F.INV",4287,3979,22148.0,"structural","Statistical"],["F.INV.RT",4284,3981,11518483.0,"structural","Statistical"],["F.TEST",2927,2838,6.0,"structural","Statistical"],["FACT",2709,2709,null,"exact","Math & trig"],["FACTDOUBLE",2710,2710,null,"exact","Math & trig"],["FALSE",2,2,null,"exact","Logical"],["FDIST",4399,3861,3.0,"last_bit","Statistical"],["FIELDVALUE",40,40,null,"exact","Math & trig"],["FILTER",3000,2880,null,"structural","Lookup & reference"],["FILTERXML",4184,4184,null,"exact","Text"],["FIND",2863,2844,null,"structural","Text"],["FINDB",2861,2848,null,"structural","Text"],["FINV",4311,3929,1011046.0,"structural","Statistical"],["FISHER",34166,34166,null,"exact","Statistical"],["FISHERINV",2087,2086,null,"structural","Statistical"],["FIXED",3415,2384,null,"structural","Text"],["FLATTEN",1600,0,null,"structural","Math & trig"],["FLOOR",1335,1335,null,"exact","Math & trig"],["FLOOR.MATH",1362,1362,null,"exact","Math & trig"],["FLOOR.PRECISE",1335,1335,null,"exact","Math & trig"],["FORECAST",2984,2922,null,"structural","Statistical"],["FORECAST.ETS",2959,2217,null,"structural","Statistical"],["FORECAST.ETS.CONFINT",4355,3550,5494198.0,"structural","Statistical"],["FORECAST.ETS.SEASONALITY",2958,847,null,"structural","Statistical"],["FORECAST.ETS.STAT",2955,0,null,"structural","Statistical"],["FORECAST.LINEAR",2910,2847,null,"structural","Statistical"],["FORMULATEXT",3100,0,null,"structural","Lookup & reference"],["FREQUENCY",1520,1464,null,"structural","Statistical"],["FTEST",2849,2776,null,"structural","Statistical"],["FV",6912,6878,1.0,"structural","Financial"],["FVSCHEDULE",2857,2636,null,"structural","Financial"],["GAMMA",12603,8193,5.0,"numeric","Statistical"],["GAMMA.DIST",77975,77897,8.0,"numeric","Statistical"],["GAMMA.INV",4484,3558,53869267979797.0,"structural","Statistical"],["GAMMADIST",2954,2818,94.0,"structural","Statistical"],["GAMMAINV",4289,3468,2135445403972.0,"structural","Statistical"],["GAMMALN",4538,2646,7.0,"numeric","Statistical"],["GAMMALN.PRECISE",14278,11643,7.0,"numeric","Statistical"],["GAUSS",9728,9728,null,"exact","Statistical"],["GCD",7966,7966,null,"exact","Math & trig"],["GEOMEAN",1225,1225,null,"exact","Statistical"],["GESTEP",1096,1096,null,"exact","Engineering"],["GROWTH",1260,1254,1.0,"last_bit","Statistical"],["HARMEAN",19214,19214,null,"exact","Statistical"],["HAS",2839,0,null,"structural","Math & trig"],["HASALL",4182,0,null,"structural","Math & trig"],["HASANY",2856,0,null,"structural","Math & trig"],["HEX2BIN",1214,1214,null,"exact","Engineering"],["HEX2DEC",1025,1025,null,"exact","Engineering"],["HEX2OCT",1218,1218,null,"exact","Engineering"],["HLOOKUP",3360,3186,null,"structural","Lookup & reference"],["HOUR",14631,14631,null,"exact","Date & time"],["HSTACK",3000,2894,null,"structural","Lookup & reference"],["HYPERLINK",3612,3612,null,"exact","Lookup & reference"],["HYPGEOM.DIST",3661,3572,22.0,"numeric","Statistical"],["HYPGEOMDIST",2954,2917,28.0,"structural","Statistical"],["IF",4189,4149,null,"structural","Logical"],["IFERROR",4182,4149,null,"structural","Logical"],["IFNA",4166,4133,null,"structural","Logical"],["IFS",1212,1212,null,"exact","Logical"],["IMABS",1209,1209,null,"exact","Engineering"],["IMAGINARY",1209,1209,null,"exact","Engineering"],["IMARGUMENT",1209,1209,null,"exact","Engineering"],["IMCONJUGATE",3245,3245,null,"exact","Engineering"],["IMCOS",1209,1209,null,"exact","Engineering"],["IMCOSH",1209,1202,null,"structural","Engineering"],["IMCOT",1209,1209,null,"exact","Engineering"],["IMCSC",1209,1209,null,"exact","Engineering"],["IMCSCH",1209,1201,null,"structural","Engineering"],["IMDIV",2067,2067,null,"exact","Engineering"],["IMEXP",1049,1047,null,"structural","Engineering"],["IMLN",1209,1209,null,"exact","Engineering"],["IMLOG10",1209,1209,null,"exact","Engineering"],["IMLOG2",1209,1209,null,"exact","Engineering"],["IMPORTCSV",3021,2961,null,"structural","Engineering"],["IMPORTTEXT",3149,3091,null,"structural","Engineering"],["IMPOWER",2735,2348,null,"structural","Engineering"],["IMPRODUCT",3260,3260,null,"exact","Engineering"],["IMREAL",1209,1209,null,"exact","Engineering"],["IMSEC",1060,1059,null,"structural","Engineering"],["IMSECH",1209,1205,null,"structural","Engineering"],["IMSIN",1209,1209,null,"exact","Engineering"],["IMSINH",1209,1200,null,"structural","Engineering"],["IMSQRT",2029,2029,null,"exact","Engineering"],["IMSUB",1216,1216,null,"exact","Engineering"],["IMSUM",3260,3260,null,"exact","Engineering"],["IMTAN",1209,1209,null,"exact","Engineering"],["INDEX",1400,1400,null,"exact","Lookup & reference"],["INDIRECT",3644,328,null,"structural","Lookup & reference"],["INFO",1482,1482,null,"exact","Information"],["INT",124403,124401,4.0,"last_bit","Math & trig"],["INTERCEPT",2856,2783,null,"structural","Statistical"],["INTRATE",2400,2400,null,"exact","Financial"],["IPMT",4408,4361,2369.0,"structural","Financial"],["IRR",3211,2603,1024.0,"structural","Financial"],["ISBLANK",1227,1227,null,"exact","Information"],["ISERR",1227,1227,null,"exact","Information"],["ISERROR",1227,1227,null,"exact","Information"],["ISEVEN",57066,57066,null,"exact","Information"],["ISFORMULA",3089,0,null,"structural","Information"],["ISLOGICAL",1227,1227,null,"exact","Information"],["ISNA",1227,1227,null,"exact","Information"],["ISNONTEXT",1227,1227,null,"exact","Information"],["ISNUMBER",1227,1227,null,"exact","Information"],["ISO.CEILING",1335,1335,null,"exact","Math & trig"],["ISODD",57016,57016,null,"exact","Information"],["ISOWEEKNUM",10153,10153,null,"exact","Date & time"],["ISPMT",4341,4314,null,"structural","Financial"],["ISREF",1227,1227,null,"exact","Information"],["ISTEXT",1227,1227,null,"exact","Information"],["JIS",3080,3080,null,"exact","Text"],["KURT",4508,4508,null,"exact","Statistical"],["LARGE",2848,2738,null,"structural","Statistical"],["LCM",7967,7967,null,"exact","Math & trig"],["LEFT",2475,2464,null,"structural","Text"],["LEFTB",2478,2467,null,"structural","Text"],["LEN",2087,2087,null,"exact","Text"],["LENB",2083,2083,null,"exact","Text"],["LINEST",3225,3141,1.0,"structural","Statistical"],["LN",1685,1672,1.0,"last_bit","Math & trig"],["LOG",25233,25233,null,"exact","Math & trig"],["LOG10",2823,2823,null,"exact","Math & trig"],["LOGEST",3585,3500,1.0,"structural","Statistical"],["LOGINV",2916,2617,6562.0,"structural","Statistical"],["LOGNORM.DIST",7809,7809,null,"exact","Statistical"],["LOGNORM.INV",2911,2614,6978.0,"structural","Statistical"],["LOGNORMDIST",3299,3299,null,"exact","Statistical"],["LOOKUP",3360,3063,9.299132314835784e+18,"structural","Lookup & reference"],["LOWER",2112,2112,null,"exact","Text"],["MATCH",1973,1973,null,"exact","Lookup & reference"],["MAX",1211,1211,null,"exact","Statistical"],["MAXA",1212,1212,null,"exact","Statistical"],["MDETERM",2071,2071,null,"exact","Math & trig"],["MDURATION",1260,1238,2.0,"last_bit","Financial"],["MEDIAN",43412,43412,null,"exact","Statistical"],["MID",2910,2898,null,"structural","Text"],["MIDB",2913,2904,null,"structural","Text"],["MIN",1212,1212,null,"exact","Statistical"],["MINA",1212,1212,null,"exact","Statistical"],["MINUTE",14631,14631,null,"exact","Date & time"],["MINVERSE",2243,2131,null,"excluded","Math & trig"],["MIRR",2911,2907,null,"structural","Financial"],["MMULT",1520,1520,null,"exact","Math & trig"],["MOD",152432,152432,null,"exact","Math & trig"],["MODE",2799,2799,null,"exact","Statistical"],["MODE.MULT",1277,1277,null,"exact","Statistical"],["MODE.SNGL",2792,2792,null,"exact","Statistical"],["MONTH",10153,10153,null,"exact","Date & time"],["MROUND",50782,50782,null,"exact","Math & trig"],["MULTINOMIAL",2804,2548,4672.0,"structural","Math & trig"],["MUNIT",1277,1277,null,"exact","Math & trig"],["N",1227,1227,null,"exact","Information"],["NA",2,2,null,"exact","Information"],["NEGBINOM.DIST",3448,3277,1955.0,"structural","Statistical"],["NEGBINOMDIST",1804,1801,2.0,"last_bit","Statistical"],["NETWORKDAYS",3600,3600,null,"exact","Date & time"],["NETWORKDAYS.INTL",3600,3600,null,"exact","Date & time"],["NOMINAL",2085,2085,null,"exact","Financial"],["NORM.DIST",24246,24246,null,"exact","Statistical"],["NORM.INV",2915,2475,1033.0,"structural","Statistical"],["NORM.S.DIST",27497,27491,2.0,"last_bit","Statistical"],["NORM.S.INV",2206,1072,75.0,"structural","Statistical"],["NORMDIST",4510,4510,null,"exact","Statistical"],["NORMINV",2914,2429,960.0,"structural","Statistical"],["NORMSDIST",2121,2120,null,"structural","Statistical"],["NORMSINV",2210,1110,581.0,"structural","Statistical"],["NOT",1227,1227,null,"exact","Logical"],["NPER",2509,2509,null,"exact","Financial"],["NPV",3224,3165,null,"structural","Financial"],["NUMBERVALUE",2715,2714,1.0,"last_bit","Text"],["OCT2BIN",1201,1201,null,"exact","Engineering"],["OCT2DEC",2060,2060,null,"exact","Engineering"],["OCT2HEX",1198,1198,null,"exact","Engineering"],["ODD",1227,1227,null,"exact","Math & trig"],["ODDFPRICE",2956,2027,null,"structural","Financial"],["ODDFYIELD",2952,2941,null,"structural","Financial"],["ODDLPRICE",2952,2057,null,"structural","Financial"],["ODDLYIELD",2957,2078,null,"structural","Financial"],["OFFSET",4345,0,null,"structural","Lookup & reference"],["OR",1212,1212,null,"exact","Logical"],["PDURATION",1205,1205,null,"exact","Financial"],["PEARSON",2854,2781,null,"structural","Statistical"],["PERCENTILE",2851,2841,null,"structural","Statistical"],["PERCENTILE.EXC",2849,2841,null,"structural","Statistical"],["PERCENTILE.INC",2855,2848,null,"structural","Statistical"],["PERCENTOF",5578,5578,null,"exact","Math & trig"],["PERCENTRANK",2860,2075,null,"structural","Statistical"],["PERCENTRANK.EXC",2864,2079,null,"structural","Statistical"],["PERCENTRANK.INC",2865,2080,null,"structural","Statistical"],["PERMUT",3432,3432,null,"exact","Statistical"],["PERMUTATIONA",71915,71915,null,"exact","Statistical"],["PHI",14406,14406,null,"exact","Statistical"],["PHONETIC",3056,0,null,"structural","Text"],["PI",2,2,null,"exact","Math & trig"],["PMT",291978,291977,1.0,"last_bit","Financial"],["POISSON",1560,1004,42.0,"structural","Statistical"],["POISSON.DIST",49714,49162,7.0,"structural","Statistical"],["POWER",62635,62635,null,"exact","Math & trig"],["PPMT",4384,4337,22.0,"structural","Financial"],["PRICE",9153,9103,1.0,"last_bit","Financial"],["PRICEDISC",2400,2400,null,"exact","Financial"],["PRICEMAT",3608,3608,null,"exact","Financial"],["PROB",2919,2431,null,"structural","Statistical"],["PRODUCT",1211,1211,null,"exact","Math & trig"],["PROPER",2092,2091,null,"structural","Text"],["PV",1308,1308,null,"exact","Financial"],["QUARTILE",2856,2625,null,"structural","Statistical"],["QUARTILE.EXC",2854,2842,null,"structural","Statistical"],["QUARTILE.INC",2851,2631,null,"structural","Statistical"],["QUOTIENT",1362,1362,null,"exact","Math & trig"],["RADIANS",32925,32925,null,"exact","Math & trig"],["RANK",2810,2671,null,"structural","Statistical"],["RANK.AVG",2812,2670,null,"structural","Statistical"],["RANK.EQ",2811,2675,null,"structural","Statistical"],["RATE",4724,4663,2.0,"structural","Financial"],["RECEIVED",2400,2400,null,"exact","Financial"],["REGEXEXTRACT",1600,1600,null,"exact","Text"],["REGEXREPLACE",4346,4315,null,"structural","Text"],["REGEXTEST",4210,4153,null,"structural","Text"],["REPLACE",2951,2563,null,"structural","Text"],["REPLACEB",2951,2574,null,"structural","Text"],["REPT",2859,2650,null,"structural","Text"],["RIGHT",2486,2475,null,"structural","Text"],["RIGHTB",2481,2463,null,"structural","Text"],["ROMAN",2041,2023,null,"structural","Math & trig"],["ROUND",36945,36921,14.0,"numeric","Math & trig"],["ROUNDDOWN",59995,59893,10.0,"numeric","Math & trig"],["ROUNDUP",52841,52739,10.0,"numeric","Math & trig"],["ROW",3058,0,null,"structural","Lookup & reference"],["ROWS",3360,3360,null,"exact","Lookup & reference"],["RRI",5528,5528,null,"exact","Financial"],["RSQ",2852,2779,null,"structural","Statistical"],["RTD",1546,0,null,"structural","Lookup & reference"],["SEARCH",2857,2848,null,"structural","Text"],["SEARCHB",2861,2850,null,"structural","Text"],["SEC",2138,2138,null,"exact","Math & trig"],["SECH",30424,30423,1.0,"last_bit","Math & trig"],["SECOND",14631,14631,null,"exact","Date & time"],["SEQUENCE",1567,918,null,"structural","Math & trig"],["SERIESSUM",2952,2941,null,"structural","Math & trig"],["SHEET",3093,0,null,"structural","Information"],["SHEETS",3107,3107,null,"exact","Information"],["SIGN",1226,1226,null,"exact","Math & trig"],["SIN",2129,2129,null,"exact","Math & trig"],["SINH",33550,33547,1.0,"last_bit","Math & trig"],["SKEW",4508,4508,null,"exact","Statistical"],["SKEW.P",2800,2467,null,"structural","Statistical"],["SLN",1205,1205,null,"exact","Financial"],["SLOPE",2860,2787,null,"structural","Statistical"],["SMALL",2857,2744,null,"structural","Statistical"],["SORT",1464,1413,null,"structural","Lookup & reference"],["SORTBY",3000,2872,null,"structural","Lookup & reference"],["SQRT",42803,42803,null,"exact","Math & trig"],["SQRTPI",1224,1224,null,"exact","Math & trig"],["STANDARDIZE",10310,10310,null,"exact","Statistical"],["STDEV",1212,1212,null,"exact","Statistical"],["STDEV.P",1221,1221,null,"exact","Statistical"],["STDEV.S",1222,1222,null,"exact","Statistical"],["STDEVA",1210,1210,null,"exact","Statistical"],["STDEVP",1212,1212,null,"exact","Statistical"],["STDEVPA",1212,1212,null,"exact","Statistical"],["STEYX",2858,2785,null,"structural","Statistical"],["SUBSTITUTE",2921,2817,null,"structural","Text"],["SUBTOTAL",4318,3844,null,"structural","Math & trig"],["SUM",1211,1211,null,"exact","Math & trig"],["SUMIF",4191,4167,null,"structural","Math & trig"],["SUMPRODUCT",2887,2826,null,"structural","Math & trig"],["SUMSQ",1211,1211,null,"exact","Math & trig"],["SUMX2MY2",2850,2759,64.0,"structural","Math & trig"],["SUMX2PY2",2853,2769,1.0,"structural","Math & trig"],["SUMXMY2",2856,2773,1.0,"structural","Math & trig"],["SWITCH",1227,1227,null,"exact","Logical"],["SYD",1207,1207,null,"exact","Financial"],["T",1227,1227,null,"exact","Text"],["T.DIST",4281,4009,9091.0,"structural","Statistical"],["T.DIST.2T",4178,3886,5954.0,"structural","Statistical"],["T.DIST.RT",4184,3819,6583.0,"structural","Statistical"],["T.INV",4187,3993,563902.0,"structural","Statistical"],["T.INV.2T",4184,3994,1020905.0,"structural","Statistical"],["T.TEST",2950,2529,null,"structural","Statistical"],["TAKE",3000,2945,null,"structural","Lookup & reference"],["TAN",2114,2114,null,"exact","Math & trig"],["TANH",39028,39025,1.0,"last_bit","Math & trig"],["TBILLEQ",3600,3600,null,"exact","Financial"],["TBILLPRICE",3600,3600,null,"exact","Financial"],["TBILLYIELD",2400,2400,null,"exact","Financial"],["TDIST",4363,4260,1687.0,"structural","Statistical"],["TEXT",2861,7,null,"structural","Text"],["TEXTAFTER",4319,4081,null,"structural","Text"],["TEXTBEFORE",4319,4099,null,"structural","Text"],["TEXTJOIN",2949,2856,null,"structural","Text"],["TEXTSPLIT",1415,1381,null,"structural","Text"],["TIME",1296,1296,null,"exact","Date & time"],["TIMEVALUE",2114,1991,null,"structural","Date & time"],["TINV",4220,4015,1.787079218179462e+16,"structural","Statistical"],["TOCOL",3000,2881,4.676458385858626e+18,"structural","Lookup & reference"],["TOROW",3000,2874,4.676459485370253e+18,"structural","Lookup & reference"],["TRANSPOSE",1277,253,null,"structural","Lookup & reference"],["TREND",1532,208,null,"structural","Statistical"],["TRIM",2092,2092,null,"exact","Text"],["TRIMMEAN",2855,2843,null,"structural","Statistical"],["TRIMRANGE",1600,1600,null,"exact","Lookup & reference"],["TRUE",2,2,null,"exact","Logical"],["TRUNC",51317,51217,10.0,"numeric","Math & trig"],["TTEST",2951,2548,null,"structural","Statistical"],["TYPE",1227,1227,null,"exact","Information"],["UNICHAR",1068,1067,null,"structural","Text"],["UNICODE",2087,2087,null,"exact","Text"],["UNIQUE",1277,252,null,"structural","Lookup & reference"],["UPPER",2114,2113,null,"structural","Text"],["VALUE",2101,2095,null,"structural","Text"],["VALUETOTEXT",2475,2378,null,"structural","Text"],["VAR",1212,1212,null,"exact","Statistical"],["VAR.P",1222,1222,null,"exact","Statistical"],["VAR.S",1323,1323,null,"exact","Statistical"],["VARA",1211,1211,null,"exact","Statistical"],["VARP",1210,1210,null,"exact","Statistical"],["VARPA",1212,1212,null,"exact","Statistical"],["VDB",2201,2201,null,"exact","Financial"],["VLOOKUP",2280,2248,null,"structural","Lookup & reference"],["VSTACK",3000,2874,null,"structural","Lookup & reference"],["WEEKDAY",19523,19523,null,"exact","Date & time"],["WEEKNUM",13332,11382,null,"excluded","Date & time"],["WEIBULL",2952,2869,1.0,"structural","Statistical"],["WEIBULL.DIST",31483,31480,3.0,"last_bit","Statistical"],["WORKDAY",3600,3600,null,"exact","Date & time"],["WORKDAY.INTL",6000,6000,null,"exact","Date & time"],["WRAPCOLS",3000,2880,null,"structural","Lookup & reference"],["WRAPROWS",3000,2888,null,"structural","Lookup & reference"],["XIRR",2861,698,null,"structural","Financial"],["XLOOKUP",1960,1960,null,"exact","Lookup & reference"],["XMATCH",1973,1973,null,"exact","Lookup & reference"],["XNPV",3406,3406,null,"exact","Financial"],["XOR",1212,1212,null,"exact","Logical"],["YEAR",10153,10153,null,"exact","Date & time"],["YEARFRAC",4506,4506,null,"exact","Date & time"],["YIELD",3489,2961,2844.0,"structural","Financial"],["YIELDDISC",4340,4327,null,"structural","Financial"],["YIELDMAT",1085,1085,null,"exact","Financial"],["Z.TEST",2857,1386,null,"structural","Statistical"],["ZTEST",2864,1387,null,"structural","Statistical"],["_EUROTOOL.EUROCONVERT",4067,0,null,"structural","Math & trig"]];
+const BANK_AT="682424a5, 12 Nov 2026";
+(function () {
+  var css = getComputedStyle(document.documentElement);
+  function v(n) { return css.getPropertyValue(n).trim(); }
+  var STOPS = [v('--bad'), v('--far'), v('--mid'), v('--near'), v('--exact')];
+  var colorRamp = d3.scaleLinear().domain([0, .25, .5, .75, 1]).range(STOPS).interpolate(d3.interpolateRgb);
+  function closeness(d) { var miss = 1 - d.matched / Math.max(1, d.rows); if (miss <= 0) return 1; return 1 - Math.max(0, Math.min(1, (Math.log10(miss) + 5) / 5)); }
+  function pct(d) { var r = d.matched / Math.max(1, d.rows) * 100; return r === 100 ? '100%' : (r >= 99.99 ? r.toFixed(3) : r.toFixed(2)) + '%'; }
+  var fmt = d3.format(',');
+  var CLASS = {
+    exact: 'Every recorded answer matches Excel bit for bit.',
+    last_bit: 'Every miss is in the last bit: one ulp from Excel.',
+    numeric: 'Some answers are numerically off; the worst is shown in ulps.',
+    structural: 'Some answers differ in kind from Excel: an error where Excel has a number, another type, a refusal or a different array shape.',
+    excluded: 'Not judged in this bank.'
+  };
+  var data = BANK.map(function (r) { return { name: r[0], rows: r[1], matched: r[2], ulp: r[3], cls: r[4], fam: r[5] }; });
+  var total = d3.sum(data, function (d) { return d.rows; }), matched = d3.sum(data, function (d) { return d.matched; });
+  var exactN = data.filter(function (d) { return d.cls === 'exact'; }).length;
+  document.getElementById('totals').innerHTML = [
+    [fmt(data.length), 'functions'], [fmt(total), 'Excel answers'], [(matched / total * 100).toFixed(2) + '%', 'matched exactly'], [fmt(exactN), 'functions with no miss at all']
+  ].map(function (t) { return '<div><b>' + t[0] + '</b><span>' + t[1] + '</span></div>'; }).join('');
+  document.getElementById('foot').textContent = 'Data: crates/calc-func/witness-status.tsv at ' + BANK_AT + ', the full bank judged against Excel 16.0 answers. Families follow Excel\'s function categories.';
+
+  var W = 900, H = 900;
+  var fams = d3.group(data, function (d) { return d.fam; });
+  var root = d3.hierarchy({ name: 'bank', children: Array.from(fams, function (e) { return { name: e[0], children: e[1] }; }) })
+    .sum(function (d) { return d.rows ? Math.sqrt(d.rows) : 0; })
+    .sort(function (a, b) { return b.value - a.value; });
+  d3.pack().size([W, H]).padding(function (n) { return n.depth === 0 ? 18 : 3; })(root);
+  var svg = d3.select('#map').append('svg').attr('viewBox', [0, 0, W, H].join(' ')).attr('role', 'img').attr('aria-label', 'Packed circles, one per function, grouped by family');
+  var defs = svg.append('defs');
+  var glow = defs.append('filter').attr('id', 'glow').attr('x', '-50%').attr('y', '-50%').attr('width', '200%').attr('height', '200%');
+  glow.append('feGaussianBlur').attr('stdDeviation', 3).attr('result', 'b');
+  var mg = glow.append('feMerge'); mg.append('feMergeNode').attr('in', 'b'); mg.append('feMergeNode').attr('in', 'SourceGraphic');
+  var g = svg.append('g');
+  var focus = root, view;
+  var famNodes = root.children;
+  var leaves = root.leaves();
+  function baseStroke(x) { return x.data.cls === 'exact' || x.data.cls === 'last_bit' ? v('--ring') : v('--night'); }
+  function baseWidth(x) { return x.data.cls === 'structural' ? 2.2 : x.data.cls === 'exact' ? 1.2 : 1; }
+
+  var famCircle = g.selectAll('circle.fam').data(famNodes).join('circle').attr('class', 'fam')
+    .attr('fill', 'rgba(143,180,255,0.05)').attr('stroke', v('--line')).attr('stroke-width', 1.2)
+    .style('cursor', 'zoom-in').on('click', function (e, d) { e.stopPropagation(); zoomTo(focus === d ? root : d); });
+  var dot = g.selectAll('circle.fn').data(leaves).join('circle').attr('class', 'fn')
+    .attr('fill', function (d) { return colorRamp(closeness(d.data)); })
+    .attr('fill-opacity', .92)
+    .attr('stroke', baseStroke).attr('stroke-width', baseWidth)
+    .attr('stroke-dasharray', function (d) { return d.data.cls === 'last_bit' ? '2 2' : null; })
+    .attr('stroke-opacity', .85)
+    .attr('filter', function (d) { return d.data.cls === 'exact' && d.r > 10 ? 'url(#glow)' : null; })
+    .style('cursor', 'pointer')
+    .on('mouseenter', function (e, d) { tip(e, d.data); hover(d.data.name); })
+    .on('mousemove', function (e) { moveTip(e); })
+    .on('mouseleave', function () { tipEl.hidden = true; hover(null); })
+    .on('click', function (e, d) { e.stopPropagation(); select(d.data); if (focus === root) zoomTo(d.parent); });
+  var fnLabel = g.selectAll('text.fnl').data(leaves).join('text').attr('class', 'fnl')
+    .attr('text-anchor', 'middle').attr('dy', '0.35em').attr('pointer-events', 'none')
+    .style('font-family', '"IBM Plex Mono", Consolas, monospace').style('font-weight', 600).attr('fill', '#0f1424')
+    .text(function (d) { return d.data.name; });
+  var famLabel = g.selectAll('text.faml').data(famNodes).join('text').attr('class', 'faml')
+    .attr('text-anchor', 'middle').attr('pointer-events', 'none')
+    .style('font-family', '"Bricolage Grotesque", system-ui, sans-serif').style('font-weight', 800).attr('fill', v('--ink'))
+    .attr('paint-order', 'stroke').attr('stroke', 'rgba(15,20,36,.85)').attr('stroke-width', 5).attr('stroke-linejoin', 'round')
+    .text(function (d) { return d.data.name; });
+  var famCount = g.selectAll('text.famc').data(famNodes).join('text').attr('class', 'famc')
+    .attr('text-anchor', 'middle').attr('pointer-events', 'none')
+    .style('font', '400 12px "IBM Plex Mono", Consolas, monospace').attr('fill', v('--muted'))
+    .attr('paint-order', 'stroke').attr('stroke', 'rgba(15,20,36,.85)').attr('stroke-width', 4)
+    .text(function (d) { var s = d.leaves(), rr = d3.sum(s, function (x) { return x.data.rows; }), mm = d3.sum(s, function (x) { return x.data.matched; }); return s.length + ' functions · ' + (mm / rr * 100).toFixed(2) + '%'; });
+  svg.on('click', function () { zoomTo(root); });
+
+  function apply(vw) {
+    view = vw; var k = W / vw[2];
+    function px(d) { return (d.x - vw[0]) * k + W / 2; }
+    function py(d) { return (d.y - vw[1]) * k + H / 2; }
+    famCircle.attr('cx', px).attr('cy', py).attr('r', function (d) { return d.r * k; });
+    dot.attr('cx', px).attr('cy', py).attr('r', function (d) { return Math.max(.8, d.r * k); });
+    fnLabel.attr('x', px).attr('y', py)
+      .style('font-size', function (d) { return Math.max(7, Math.min(15, 2 * d.r * k / Math.max(3, d.data.name.length * .62))) + 'px'; })
+      .attr('opacity', function (d) { return d.r * k > 8 + d.data.name.length * 2.2 ? 1 : 0; });
+    var top = focus === root;
+    famLabel.attr('x', px).attr('y', function (d) { return top ? (d.r > 60 ? py(d) : py(d) + d.r * k + 15) : py(d) - d.r * k + 34; })
+      .style('font-size', function (d) { return top ? (d.r > 60 ? 21 : 13) + 'px' : '30px'; })
+      .attr('opacity', function (d) { return top ? 1 : (d === focus ? 1 : 0); });
+    famCount.attr('x', px).attr('y', function (d) { return top ? py(d) + 20 : py(d) - d.r * k + 56; })
+      .attr('opacity', function (d) { return top ? (d.r > 80 ? 1 : 0) : (d === focus ? 1 : 0); });
+  }
+  function zoomTo(d) {
+    focus = d;
+    document.getElementById('crumb').textContent = d === root ? 'All families' : 'All families › ' + d.data.name + '  (click outside it to go back)';
+    svg.style('cursor', d === root ? 'zoom-in' : 'zoom-out');
+    var target = [d.x, d.y, d.r * 2 + (d === root ? 0 : 30)];
+    if (matchMedia('(prefers-reduced-motion: reduce)').matches) return apply(target);
+    var i = d3.interpolateZoom(view, target);
+    svg.transition().duration(750).ease(d3.easeCubicInOut).tween('zoom', function () { return function (t) { apply(i(t)); }; });
+  }
+  apply([root.x, root.y, root.r * 2]);
+
+  var L = d3.select('#ladder'), LW = 1200, LH = 250, x0 = 170, x1 = LW - 20, maxExp = 19;
+  var x = d3.scaleLinear().domain([0, maxExp]).range([x0, x1]);
+  var axis = L.append('g');
+  for (var e = 0; e <= maxExp; e++) {
+    axis.append('line').attr('x1', x(e)).attr('x2', x(e)).attr('y1', 22).attr('y2', LH - 34).attr('stroke', v('--line')).attr('stroke-width', e % 3 === 0 ? 1 : .5);
+    if (e % 3 === 0) axis.append('text').attr('x', x(e)).attr('y', LH - 14).attr('text-anchor', 'middle').attr('fill', v('--faint')).style('font', '400 12px "IBM Plex Mono", monospace').text(e === 0 ? '1 ulp' : '10^' + e);
+  }
+  axis.append('line').attr('x1', x0 - 22).attr('x2', x0 - 22).attr('y1', 14).attr('y2', LH - 30).attr('stroke', v('--muted')).attr('stroke-dasharray', '3 3');
+  axis.append('text').attr('x', 14).attr('y', LH - 14).attr('fill', v('--muted')).style('font', '600 12px "IBM Plex Sans", sans-serif').text('no numeric miss');
+  axis.append('line').attr('x1', x(4)).attr('x2', x(4)).attr('y1', 22).attr('y2', LH - 34).attr('stroke', v('--bad')).attr('stroke-width', 1.2).attr('stroke-dasharray', '4 3');
+  axis.append('text').attr('x', x(4) + 6).attr('y', 16).attr('fill', v('--bad')).style('font', '400 11px "IBM Plex Mono", monospace').text('10,000 ulp: the "completely wrong" line');
+  var seed = 7; function rand() { seed = (seed * 16807) % 2147483647; return seed / 2147483647; }
+  var pts = data.map(function (d) {
+    var ex = d.ulp ? Math.min(maxExp, Math.log10(Math.max(1, d.ulp))) : null;
+    return { d: d, x: ex === null ? 24 + rand() * 116 : x(ex), y: 0 };
+  });
+  var lanes = {}, mid = (22 + LH - 34) / 2;
+  pts.sort(function (a, b) { return a.x - b.x; }).forEach(function (p) {
+    var key = Math.round(p.x / 8), n = lanes[key] = (lanes[key] || 0) + 1;
+    var side = n % 2 ? 1 : -1, step = Math.floor(n / 2);
+    p.y = mid + side * step * 7.5;
+    if (p.y < 28 || p.y > LH - 40) p.y = 28 + rand() * (LH - 72);
+  });
+  var lad = L.append('g').selectAll('circle').data(pts).join('circle')
+    .attr('cx', function (p) { return p.x; }).attr('cy', function (p) { return p.y; })
+    .attr('r', function (p) { return Math.max(2, Math.min(6.5, 1 + Math.log10(Math.max(10, p.d.rows)))); })
+    .attr('fill', function (p) { return colorRamp(closeness(p.d)); }).attr('stroke', v('--night')).attr('stroke-width', .8).style('cursor', 'pointer')
+    .on('mouseenter', function (e, p) { tip(e, p.d); hover(p.d.name); }).on('mousemove', function (e) { moveTip(e); })
+    .on('mouseleave', function () { tipEl.hidden = true; hover(null); })
+    .on('click', function (e, p) { select(p.d); var leaf = leaves.find(function (l) { return l.data === p.d; }); if (leaf && focus !== leaf.parent) zoomTo(leaf.parent); });
+
+  var tipEl = document.getElementById('tip');
+  function ulpText(u) { if (!u) return '-'; if (u < 1e6) return fmt(Math.round(u)) + ' ulp'; var ex = Math.floor(Math.log10(u)); return (u / Math.pow(10, ex)).toFixed(1) + '×10^' + ex + ' ulp'; }
+  function tip(e, d) { tipEl.innerHTML = '<b>' + d.name + '</b><br>' + fmt(d.matched) + ' / ' + fmt(d.rows) + ' · ' + pct(d) + (d.ulp ? '<br>worst ' + ulpText(d.ulp) : ''); tipEl.hidden = false; moveTip(e); }
+  function moveTip(e) { tipEl.style.left = Math.min(innerWidth - 230, e.clientX + 14) + 'px'; tipEl.style.top = Math.min(innerHeight - 90, e.clientY + 14) + 'px'; }
+  var selected = null;
+  function hover(name) {
+    dot.attr('fill-opacity', function (d) { return !name || d.data.name === name ? .92 : .3; });
+    lad.attr('opacity', function (p) { return !name || p.d.name === name ? 1 : .3; });
+  }
+  function select(d) {
+    selected = d;
+    document.getElementById('detail').innerHTML = '<h2>Function</h2><div class="fn">' + d.name + '</div><div class="fam">' + d.fam + '</div>' +
+      '<div class="kv"><span>Excel answers</span><b>' + fmt(d.rows) + '</b><span>matched</span><b>' + fmt(d.matched) + '</b><span>missed</span><b>' + fmt(d.rows - d.matched) + '</b><span>rate</span><b>' + pct(d) + '</b><span>worst miss</span><b>' + ulpText(d.ulp) + '</b></div>' +
+      '<div class="verdict">' + CLASS[d.cls] + '</div>';
+    dot.attr('stroke-width', function (x) { return x.data === d ? 4 : baseWidth(x); }).attr('stroke', function (x) { return x.data === d ? v('--accent') : baseStroke(x); });
+    lad.attr('stroke', function (p) { return p.d === d ? v('--accent') : v('--night'); }).attr('stroke-width', function (p) { return p.d === d ? 3 : .8; });
+  }
+  select(data.find(function (d) { return d.name === 'GAMMALN'; }) || data[0]);
+  document.getElementById('search').addEventListener('input', function () {
+    var q = this.value.trim().toUpperCase(); if (!q) { hover(null); return; }
+    var hit = data.find(function (d) { return d.name === q; }) || data.find(function (d) { return d.name.indexOf(q) === 0; });
+    if (hit) { select(hit); hover(hit.name); var leaf = leaves.find(function (l) { return l.data === hit; }); if (leaf && focus !== leaf.parent) zoomTo(leaf.parent); }
+  });
+})();
+</script>
