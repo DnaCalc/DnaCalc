@@ -27,7 +27,7 @@ fn max_excel_serial() -> i64 {
 }
 
 fn parse_basis(value: f64) -> Result<AmorBasis, AmorDepreciationEvalError> {
-    if !value.is_finite() {
+    if !value.is_finite() || value < 0.0 {
         return Err(AmorDepreciationEvalError::Domain(WorksheetErrorCode::Num));
     }
     match value.trunc() as i64 {
@@ -39,12 +39,12 @@ fn parse_basis(value: f64) -> Result<AmorBasis, AmorDepreciationEvalError> {
     }
 }
 
-fn parse_date_serial(value: f64) -> Result<i64, AmorDepreciationEvalError> {
+fn parse_date_serial(value: f64, minimum: i64) -> Result<i64, AmorDepreciationEvalError> {
     if !value.is_finite() {
         return Err(AmorDepreciationEvalError::Domain(WorksheetErrorCode::Value));
     }
     let serial = value.trunc() as i64;
-    if serial < 1 || serial > max_excel_serial() {
+    if serial < minimum || serial > max_excel_serial() {
         return Err(AmorDepreciationEvalError::Domain(WorksheetErrorCode::Value));
     }
     ymd_from_excel_serial(WorkbookDateSystem::System1900, serial as f64)
@@ -151,7 +151,7 @@ fn normalize_amorlinc_period(value: f64) -> Result<i64, AmorDepreciationEvalErro
     if !value.is_finite() || value < 0.0 {
         return Err(AmorDepreciationEvalError::Domain(WorksheetErrorCode::Num));
     }
-    if value.abs() <= EPSILON {
+    if value == 0.0 {
         Ok(0)
     } else if value < 1.0 {
         Ok(1)
@@ -204,8 +204,8 @@ pub fn amorlinc_kernel(
         return Err(AmorDepreciationEvalError::Domain(WorksheetErrorCode::Num));
     }
 
-    let purchase = parse_date_serial(date_purchased)?;
-    let first = parse_date_serial(first_period)?;
+    let purchase = parse_date_serial(date_purchased, 0)?;
+    let first = parse_date_serial(first_period, 0)?;
     let basis = parse_basis(basis.unwrap_or(0.0))?;
     let normalized_period = normalize_amorlinc_period(period)?;
     let annual_depreciation = cost * rate;
@@ -216,8 +216,18 @@ pub fn amorlinc_kernel(
     let first_depreciation = cost * (rate * initial_fraction);
     let depreciable_basis = cost - salvage;
 
+    if depreciable_basis == 0.0 {
+        return Ok(0.0);
+    }
+
     if normalized_period == 0 {
         return Ok(first_depreciation.min(depreciable_basis).max(0.0));
+    }
+
+    // Excel distinguishes an exactly zero period from a positive fraction:
+    // any 0 < period < 1 returns the full annual charge, before exhaustion.
+    if period < 1.0 {
+        return Ok(annual_depreciation);
     }
 
     let mut remaining = (depreciable_basis - first_depreciation).max(0.0);
@@ -250,8 +260,8 @@ pub fn amordegrc_kernel(
         return Err(AmorDepreciationEvalError::Domain(WorksheetErrorCode::Num));
     }
 
-    let purchase = parse_date_serial(date_purchased)?;
-    let first = parse_date_serial(first_period)?;
+    let purchase = parse_date_serial(date_purchased, 1)?;
+    let first = parse_date_serial(first_period, 1)?;
     let basis = parse_basis(basis.unwrap_or(0.0))?;
     let normalized_period = normalize_amordegrc_period(period)?;
     if period > 0.0 && period < 1.0 {

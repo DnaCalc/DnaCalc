@@ -26,6 +26,138 @@ fn dated(
     )
 }
 
+/// Excel20527: AMORLINC distinguishes zero from every positive fractional period.
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn amorlinc_fractional_periods_and_admission_order() {
+    for period in [1e-100, 1e-13, 0.1, 0.999] {
+        exact(
+            dated(
+                "AMORLINC",
+                vec![
+                    n(100.0),
+                    n(45000.0),
+                    n(45180.0),
+                    n(0.0),
+                    n(period),
+                    n(100.0),
+                ],
+            ),
+            10000.0,
+        );
+        exact(
+            dated(
+                "AMORLINC",
+                vec![
+                    n(100.0),
+                    n(45000.0),
+                    n(45180.0),
+                    n(100.0),
+                    n(period),
+                    n(100.0),
+                ],
+            ),
+            0.0,
+        );
+    }
+    exact(
+        dated(
+            "AMORLINC",
+            vec![n(100.0), n(45000.0), n(45180.0), n(0.0), n(0.0), n(100.0)],
+        ),
+        100.0,
+    );
+    exact(
+        dated(
+            "AMORLINC",
+            vec![n(100.0), n(0.75), n(0.5), n(0.0), n(100.0), n(0.1)],
+        ),
+        0.0,
+    );
+    error(
+        dated(
+            "AMORLINC",
+            vec![
+                n(100.0),
+                n(-1.0),
+                n(45180.0),
+                n(0.0),
+                n(0.0),
+                n(0.1),
+                calc_func::value::CalcValue::error(Div0),
+            ],
+        ),
+        Num,
+    );
+    error(
+        dated(
+            "AMORLINC",
+            vec![
+                n(100.0),
+                n(45000.0),
+                n(45180.0),
+                n(0.0),
+                n(0.0),
+                n(0.1),
+                n(-0.5),
+            ],
+        ),
+        Num,
+    );
+}
+
+/// Excel20527: basis precedes date admission; serial zero is a valid settlement.
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn yielddisc_uses_security_day_counts_and_stored_operations() {
+    exact(
+        dated(
+            "YIELDDISC",
+            vec![n(0.0), n(365.0), n(95.0), n(100.0), n(0.0)],
+        ),
+        f64::from_bits(0x3faa_f286_bca1_af28),
+    );
+    exact(
+        dated(
+            "YIELDDISC",
+            vec![
+                n(10.0),
+                n(7364.0),
+                n(f64::from_bits(0x4014_0000_0000_0001)),
+                n(0.5),
+                n(1.0),
+            ],
+        ),
+        f64::from_bits(0xbfa6_e2bf_b2fa_6b98),
+    );
+    error(
+        dated(
+            "YIELDDISC",
+            vec![
+                n(-1.0),
+                n(365.0),
+                n(95.0),
+                n(100.0),
+                calc_func::value::CalcValue::logical(true),
+            ],
+        ),
+        Value,
+    );
+    error(
+        dated(
+            "YIELDDISC",
+            vec![
+                calc_func::value::CalcValue::error(Div0),
+                n(365.0),
+                n(95.0),
+                n(100.0),
+                n(-0.5),
+            ],
+        ),
+        Num,
+    );
+}
+
 /// Original corpus and independent adjacent-period/exponent controls.
 #[cfg_attr(not(target_arch = "wasm32"), test)]
 #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]

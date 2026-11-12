@@ -10,6 +10,26 @@ use calc_func::SubtotalExclusions;
 use calc_func::value::WorksheetErrorCode::{Div0, NA, Num, Value};
 use f1_support::*;
 
+/// Excel20527: density reuses GAMMA.DIST's stored Poisson mass, avoiding overflow.
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn chisq_density_and_cdf_underflow_use_measured_gamma_route() {
+    exact(
+        call(
+            "CHISQ.DIST",
+            vec![n(f64::from_bits(0x4036_ffff_ffff_ffff)), n(303.0), n(0.0)],
+        ),
+        f64::from_bits(0x2932_bbd6_5525_05e0),
+    );
+    exact(
+        call(
+            "CHISQ.DIST",
+            vec![n(f64::from_bits(0x333f_0bd0_d7ee_4008)), n(10.0), n(1.0)],
+        ),
+        0.0,
+    );
+}
+
 fn data() -> CalcValue {
     arr(vec![vec![2.0, 4.0, 4.0, 4.0, 5.0, 5.0, 7.0, 9.0]])
 }
