@@ -369,7 +369,8 @@ static class Program
         // 1. arguments. A batch of modest size is written as ONE Value2 rectangle (null cells stay blank);
         //    text columns get NumberFormat "@" first and error arguments are entered as literals afterwards.
         int argCols = maxCols - 1;
-        if ((long)totalRows * argCols <= 2_000_000)
+        if (argCols == 0) { /* Nullary calls have no argument rectangle. */ }
+        else if ((long)totalRows * argCols <= 2_000_000)
         {
             var all = new object[totalRows, argCols];
             var textRegions = new List<(int r, int c, int n, int m)>();

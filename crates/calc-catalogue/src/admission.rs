@@ -19,6 +19,11 @@ pub const FAMILIES: &[(&str, &[WorksheetDeclaration])] = &[
     ("text_functions", crate::ported::text_functions::ENTRIES),
     ("text_format", crate::ported::text_format::ENTRIES),
     ("logical_more", crate::logical_more::ENTRIES),
+    ("logical", crate::logical::ENTRIES),
+    ("error_fallback", crate::error_fallback::ENTRIES),
+    ("lookup", crate::lookup::ENTRIES),
+    ("information", crate::information::ENTRIES),
+    ("arrays", crate::ported::arrays::ENTRIES),
     ("rounding", crate::rounding::ENTRIES),
     ("aggregate", crate::aggregate::ENTRIES),
 ];

@@ -22,7 +22,8 @@ REGRESSION = {"LINEST", "LOGEST"}
 # Pure numeric questions are needed before their worksheet kernels exist.
 ETS = {"FORECAST.ETS", "FORECAST.ETS.CONFINT", "FORECAST.ETS.SEASONALITY",
        "FORECAST.ETS.STAT"}
-NUMERIC_ARRAYS = REGRESSION | ETS
+NUMERIC_ARRAYS = REGRESSION | ETS | {"VLOOKUP", "HLOOKUP", "LOOKUP", "MATCH", "XLOOKUP",
+                                      "XMATCH", "INDEX", "ROWS", "COLUMNS", "ARRAYTOTEXT"}
 
 
 def catalogue_names(root):
@@ -40,10 +41,17 @@ def catalogue_names(root):
     names = set()
     for family in FAMILIES + ["rounding", "aggregate"]:
         names |= by_family.get(family, set())
+    for family, selected in {"logical": {"IF", "TRUE", "FALSE"},
+                             "error_fallback": {"IFERROR", "IFNA"},
+                             "lookup": {"CHOOSE", "VLOOKUP", "HLOOKUP", "LOOKUP", "MATCH", "XLOOKUP",
+                                        "XMATCH", "INDEX", "ROWS", "COLUMNS"}, "information": {"NA"}}.items():
+        names |= by_family.get(family, set()) & selected
     # Numeric text/formatting kernels are scalar for scalar arguments. Select only
     # these entries from their family, which also contains array and hyperlink calls.
     names |= by_family.get("text_format", set()) & {"FIXED", "DOLLAR", "TEXT", "VALUE", "NUMBERVALUE",
-                                                    "VALUETOTEXT", "ASC", "DBCS"}
+                                                    "VALUETOTEXT", "ASC", "DBCS", "ARRAYTOTEXT", "JIS", "PHONETIC", "TEXTBEFORE",
+                                                    "TEXTAFTER", "REGEXTEST", "REGEXEXTRACT",
+                                                    "REGEXREPLACE", "ENCODEURL"}
     if "ERF.PRECISE" not in names or "SUM" not in names:
         raise ValueError("Catalogue declaration export changed; regenerate admission-families.tsv")
     return (names | ETS) - DENY
@@ -149,7 +157,9 @@ MAX_GROUP_CALLS = 250000
 MAX_SPILL_CALLS = 1000
 # Array-returning functions, admitted only as spill groups (arguments in cells, the whole spill read back).
 SPILL_FUNCTIONS = {"TEXTSPLIT", "MINVERSE", "MMULT", "MUNIT", "MODE.MULT", "FREQUENCY", "TREND", "GROWTH",
-                   "TRANSPOSE", "SEQUENCE", "SORT", "UNIQUE"}
+                   "TRANSPOSE", "SEQUENCE", "SORT", "UNIQUE", "FILTER", "SORTBY", "TAKE", "DROP",
+                   "CHOOSECOLS", "CHOOSEROWS", "HSTACK", "VSTACK", "TOCOL", "TOROW",
+                   "WRAPCOLS", "WRAPROWS", "EXPAND", "REGEXEXTRACT"}
 TOKENS = re.compile(r"n|s|S|b|B|e|z|a[0-9]+x[0-9]+")
 BAD_TEXT = re.compile(r'[\\/:\[\]!|\x00-\x1f]')
 

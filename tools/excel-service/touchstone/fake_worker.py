@@ -75,7 +75,7 @@ while True:
         time.sleep(0.02 * heavy)
     out = []
     for g in groups:
-        width = max(1, sum(int(t[1:].split("x")[0]) * int(t[1:].split("x")[1]) if t[0] == "a" else 1 for t in g["k"].split(",")))
+        width = sum(int(t[1:].split("x")[0]) * int(t[1:].split("x")[1]) if t[0] == "a" else 1 for t in g["k"].split(",")) if g["k"] else 0
         if g["f"] == "ID":
             vals = [g["v"][i * width] for i in range(g["n"])]
             out.append({"ty": "n" * g["n"], "v": vals})

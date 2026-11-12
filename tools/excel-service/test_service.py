@@ -55,7 +55,7 @@ class ProtocolTests(unittest.TestCase):
             with self.subTest(name=name):
                 request = self.request(function=name, rows=[[number(1234.5)]])
                 self.assertIs(validate(request, self.names, "a" * 32), request)
-        for name in ("TEXTSPLIT", "REGEXEXTRACT", "HYPERLINK", "ENCODEURL"):
+        for name in ("TEXTSPLIT", "HYPERLINK", "FILTERXML"):
             with self.subTest(name=name), self.assertRaises(ValueError):
                 validate(self.request(function=name), self.names, "a" * 32)
         request = self.request(function="FIXED", rows=[[text("C:\\secret.xlsx")]])

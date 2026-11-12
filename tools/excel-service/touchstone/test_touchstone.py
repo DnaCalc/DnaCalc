@@ -268,6 +268,30 @@ class AdmissionTests(unittest.TestCase):
             with self.subTest(bad=bad), self.assertRaises(ValueError):
                 self.admission.check(bad)
 
+    def test_new_value_only_families_and_nullary_calls(self):
+        for name in ("IF", "IFERROR", "IFNA", "CHOOSE", "TRUE", "FALSE", "NA", "PI",
+                     "TEXTAFTER", "TEXTBEFORE", "REGEXTEST", "REGEXEXTRACT", "REGEXREPLACE",
+                     "ENCODEURL", "JIS", "PHONETIC"):
+            with self.subTest(name=name):
+                self.admission.check(self.group(f=name, k="", n=1, v=[]))
+        for name in ("VLOOKUP", "HLOOKUP", "LOOKUP", "MATCH", "XLOOKUP", "XMATCH",
+                     "INDEX", "ROWS", "COLUMNS", "ARRAYTOTEXT"):
+            with self.subTest(name=name):
+                self.admission.check(self.group(f=name, k="a1x2", n=1, v=[ONE, TWO]))
+        for name in ("FILTER", "SORTBY", "TAKE", "DROP", "CHOOSECOLS", "CHOOSEROWS",
+                     "HSTACK", "VSTACK", "TOCOL", "TOROW", "WRAPCOLS", "WRAPROWS", "EXPAND"):
+            with self.subTest(name=name):
+                self.admission.check(self.group(f=name, k="a1x2", n=1, v=[ONE, TWO], spill=True))
+                with self.assertRaises(ValueError):
+                    self.admission.check(self.group(f=name, k="a1x2", n=1, v=[ONE, TWO]))
+        for name in ("ROW", "COLUMN", "AREAS", "CELL", "INDIRECT", "OFFSET", "SHEET", "SHEETS",
+                     "FORMULATEXT", "ISFORMULA", "HYPERLINK", "INFO", "FIELDVALUE", "FILTERXML",
+                     "IMPORTCSV", "IMPORTTEXT", "CALL", "REGISTER.ID", "NOW", "TODAY", "RAND",
+                     "RANDBETWEEN", "RANDARRAY", "RTD", "CUBEVALUE", "GETPIVOTDATA",
+                     "_EUROTOOL.EUROCONVERT", "BYCOL", "BYROW", "MAP", "MAKEARRAY", "REDUCE", "SCAN", "ISOMITTED"):
+            with self.subTest(name=name), self.assertRaises(ValueError):
+                self.admission.check(self.group(f=name, k="", n=1, v=[]))
+
     def test_regression_needs_a_bounded_result_index_and_arrays(self):
         g = {"f": "LINEST", "k": "a3x1,a3x1,b,b", "n": 1, "x": [4, 2],
              "v": [ONE, TWO, ONE, ONE, TWO, ONE, False, True]}

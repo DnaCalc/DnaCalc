@@ -40,12 +40,27 @@ def numeric(rng, name, i):
 def generate(entry, stage):
     name, _, _, lo, hi, _, params = entry
     lo, hi = int(lo), min(int(hi), 8)
+    if name in {"TRUE", "FALSE", "NA", "PI"}: return [[]]
     if lo == 0: return []
     names = [p.split(':')[0] for p in params.split(',') if p]
     rng = random.Random(int.from_bytes(hashlib.sha256((name + stage + 'bank-coverage-20261112').encode()).digest()[:8], 'big'))
     rows = []
     count = 160 if stage == 'special' else 1400
     for i in range(count):
+        if name in {"ROWS", "COLUMNS", "ARRAYTOTEXT", "INDEX", "MATCH", "XMATCH",
+                    "VLOOKUP", "HLOOKUP", "LOOKUP", "XLOOKUP"}:
+            values = [float((i + j) % 13) + i / 10000 for j in range(1 + i % 5)]
+            if i % 2: values.sort()
+            col = number_array([[v] for v in values])
+            mat = number_array([[v, v * 2 + i] for v in values])
+            if name in {"ROWS", "COLUMNS", "ARRAYTOTEXT"}: row = [mat]
+            elif name == "INDEX": row = [mat, number(1 + i % len(values)), number(1 + i % 2)]
+            elif name in {"MATCH", "XMATCH"}: row = [number(values[0]), col, number(0)]
+            elif name == "VLOOKUP": row = [number(values[0]), mat, number(2), boolean(False)]
+            elif name == "HLOOKUP": row = [number(values[0]), number_array([values, [v * 2 + i for v in values]]), number(2), boolean(False)]
+            elif name == "LOOKUP": row = [number(values[0]), col, col]
+            else: row = [number(values[0]), col, col, text('missing')]
+            rows.append(row); continue
         arity = lo + (i % (max(lo, hi)-lo+1))
         row = []
         for j in range(arity):
@@ -73,7 +88,23 @@ def generate_spill(name, count=1200):
     for i in range(count):
         def matrix():
             return number_array([[rng.randrange(-10, 11) + rng.random() for _ in range(2)] for _ in range(2)])
-        if name == 'TEXTSPLIT':
+        if name == 'FILTER':
+            row = [matrix(), number_array([[float(i % 2)], [1.]])]
+        elif name == 'SORTBY':
+            row = [matrix(), number_array([[float(i)], [float(-i)]]), number((-1.) ** i)]
+        elif name in {'TAKE', 'DROP', 'CHOOSEROWS', 'CHOOSECOLS'}:
+            row = [matrix(), number(float(1 + i % 2) * (-1 if i % 3 == 0 else 1))]
+        elif name in {'HSTACK', 'VSTACK'}:
+            row = [matrix(), matrix()]
+        elif name in {'TOCOL', 'TOROW'}:
+            row = [matrix(), number(i % 4), boolean(i % 2 == 0)]
+        elif name in {'WRAPCOLS', 'WRAPROWS'}:
+            row = [number_array([[rng.random() for _ in range(1 + i % 6)]]), number(1 + i % 4), number(i)]
+        elif name == 'EXPAND':
+            row = [matrix(), number(2 + i % 4), number(2 + i % 3), number(i)]
+        elif name == 'REGEXEXTRACT':
+            row = [text(f'item{i}x{rng.randrange(1000)}'), text(r'[0-9]+'), number(i % 3)]
+        elif name == 'TEXTSPLIT':
             row = [text(f'{i}a,b{rng.randrange(10000)},c'), text(',')]
         elif name == 'SEQUENCE':
             row = [number(rng.uniform(-2, 6)), number(rng.uniform(-2, 6)), number(i / 13), number(rng.uniform(-5, 5))]
@@ -138,7 +169,7 @@ def main():
         admitted = variants if o.stage == 'variants' else policy.SPILL_FUNCTIONS if o.stage.startswith('spill') else allowed
         if n not in admitted or n in {'RTD','GETPIVOTDATA'} or n.startswith('CUBE'): continue
         if s and int(s['rows'])>=1000 and not (s['worst_ulp'].isdigit() and int(s['worst_ulp'])>10000): continue
-        if int(e[3])==0: continue
+        if int(e[3])==0 and n not in {'TRUE', 'FALSE', 'NA', 'PI'}: continue
         selected.append(e)
     c=Client(transport='socket',timeout=900)
     def capture(e):
