@@ -4,7 +4,7 @@ Full bank totals: before 3,895,336 matched / 15,459 failed out of 3,910,795 (99.
 
 Before: the previously committed full-bank status at the start of this lane; it is not a fresh baseline judgment. After: the completed `cargo xtask witness judge --bank full` at DnaCalc `92130e40` and CalcFunc-Evidence `d53a1faa`. Master advanced during the run to `2fd43a49`, including changes to FV, PV and RATE; the table remains the measured earlier snapshot. Rows are distinct selected bank identities, including unread failures; matched counts only Excel matches. A dash means there was no status row. Worst ULP covers finite numeric mismatches only; structural mismatches and refusals remain failures.
 
-The seeded generator uses catalogue arities and parameter names, boundary and domain-biased values, text, booleans, blanks and errors; array spills are sampled at [1,1]. All five scalar kinds occur in captures for 165 functions. FREQUENCY, LINEST, LOGEST, MMULT, MODE.MULT, MUNIT, SEQUENCE, SORT, TEXTSPLIT, TRANSPOSE, TREND and UNIQUE have narrower type coverage. Numeric array input is available only for the service-supported functions. Input readbacks that differed, unread results and unmapped error codes were excluded from the bank. Full matrix-reference contexts are not reconstructed by the current witness route. The service client returned one representative environment per request; it did not retain per-row worker environment IDs in these captures.
+The seeded generator uses catalogue arities and parameter names, boundary and domain-biased values, text, booleans, blanks and errors; array spills are sampled at [1,1]. After the supplemental capture below, all five scalar kinds occur in captures for 177 functions, though not at every argument position. Numeric array input is available only for the service-supported functions. Input readbacks that differed, unread results and unmapped error codes were excluded from the bank. Full matrix-reference contexts are not reconstructed by the current witness route. For the original snapshot captures, the service client returned one representative environment per request and did not retain per-row worker environment IDs. The supplemental capture requires one consistent recorded environment for each request and across its spill batches.
 
 The service refuses many reference, host-dependent, volatile and other functions. They remain below target rather than being credited with invented readings. Nullary functions have only one distinct argument identity in this bank format, so repeated calls cannot reach 1,000 distinct rows. RTD, GETPIVOTDATA, CUBEMEMBER, CUBEVALUE, CUBESET, CUBESETCOUNT, CUBERANKEDMEMBER, CUBEMEMBERPROPERTY and CUBEKPIMEMBER require workbook capture, outside this lane. Remote service functions, PY and HAS are deferred.
 
@@ -531,6 +531,27 @@ Functions below 1,000 after judgment (105): AGGREGATE, AREAS, ARRAYTOTEXT, AVERA
 | ZTEST | — | — | — | 2864 | 1387 | 1477 | 48.43% | - |
 | _EUROTOOL.EUROCONVERT | — | — | — | — | — | — | — | — |
 
+## Supplemental array-route type variants
+
+After the full-bank snapshot, CalcFunc-Evidence `82d8f3cf` added 3,780 accepted observations in 12 files, including numbers, text, booleans, blanks and errors. A read-only full-bank recheck of each affected function at DnaCalc `c3046e50` gives the following counts. These are separate from the snapshot totals and the committed full-bank status. The capture rejected 60 SEQUENCE answers with unmapped service error codes.
+
+| Function | Snapshot rows | Snapshot matched | Recheck rows | Recheck matched | Recheck failed | Recheck pass rate | Recheck worst ULP |
+|---|---:|---:|---:|---:|---:|---:|---:|
+| FREQUENCY | 1200 | 1144 | 1520 | 1378 | 142 | 90.66% | 4611686018427387904 |
+| LINEST | 2960 | 2929 | 3225 | 3141 | 84 | 97.40% | 1 |
+| LOGEST | 3320 | 3288 | 3585 | 3500 | 85 | 97.63% | 1 |
+| MMULT | 1200 | 1200 | 1520 | 1520 | 0 | 100.00% | - |
+| MODE.MULT | 1200 | 1200 | 1277 | 1277 | 0 | 100.00% | - |
+| MUNIT | 1200 | 1200 | 1277 | 1277 | 0 | 100.00% | - |
+| SEQUENCE | 1307 | 731 | 1567 | 918 | 649 | 58.58% | - |
+| SORT | 1200 | 1200 | 1464 | 1413 | 51 | 96.52% | - |
+| TEXTSPLIT | 1211 | 1209 | 1415 | 1381 | 34 | 97.60% | - |
+| TRANSPOSE | 1200 | 176 | 1277 | 253 | 1024 | 19.81% | - |
+| TREND | 1212 | 12 | 1532 | 208 | 1324 | 13.58% | - |
+| UNIQUE | 1200 | 176 | 1277 | 252 | 1025 | 19.73% | - |
+
+The FREQUENCY recheck newly found a numeric mismatch above 10,000 ULP. The previous full-bank snapshot found 31 functions above that threshold; the follow-up adds FREQUENCY.
+
 ## Financial recheck after master advanced
 
 A read-only full-bank recheck of each affected function at `2fd43a49` found FV 5,386 matched / 129 failed of 5,515 (97.66%; worst 14,931,799,827,530,013,823 ULP), PV 1,308 matched / 0 failed of 1,308 (100%; no numeric mismatch), and RATE 3,040 matched / 287 failed of 3,327 (91.37%; worst 65,348,950,468,097,106 ULP). The FV and RATE examples below remain unchanged on that code. These rechecks do not rewrite the full-bank status or its snapshot totals.
@@ -572,3 +593,5 @@ Each example is from the completed full-bank trace, with binary64 values encoded
 - TDIST: worst 19164 ULP; example `["0x3ed68a156a94720c",true,"0x3ff0000000000000"]`, Excel `0x3fdffff8d353938a`, calc-func `0x3fdffff8d35348ae` (19164 ULP; `readings/excel-20527/bank2-answers-tdist-more.json`, `bank2-more-TDIST-0826`).
 - TINV: worst 1672442127014299 ULP; example `["0.5","0x41a8a3919a84e546"]`, Excel `0x3fe5956b7ecabc2c`, calc-func `0x3fe5956b910e8af2` (306433734 ULP; `readings/excel-20527/bank2-answers-tinv-more.json`, `bank2-more-TINV-0193`).
 - YIELDDISC: worst 839864727122 ULP; example `["0x4024000000000000","0x40bcc40000000000","0x4014000000000001","0x3fe0000000000000","0x3ff0000000000001"]`, Excel `0xbfa6e2bfb2fa6b98`, calc-func `0xbfa6e3833ed121ea` (839864727122 ULP; `readings/excel-20527/bank2-answers-yielddisc-scalar.json`, `bank2-scalar-YIELDDISC-0013`).
+
+- FREQUENCY (supplemental recheck): worst 4611686018427387904 ULP; example `["-1.25", [["0x400bae129a9932a2", "0x401b4e795267fc03"], ["0x40190577d46f1e82", "0x400bf8eb99f90fcd"]]]`, Excel `0x0000000000000000`, calc-func `0x3ff0000000000000` (4607182418800017408 ULP; `readings/excel-20527/bank2-answers-frequency-variants.json`, `bank2-variants-FREQUENCY-0181`, result cell `[1,1]`).

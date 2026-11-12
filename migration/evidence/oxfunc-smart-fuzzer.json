@@ -24,7 +24,13 @@
     "accepted_observations": 504563,
     "generator": "tools/xtask-harness/scripts/bank-coverage.py",
     "seed": "bank-coverage-20261112",
-    "note": "Additional Excel service readings; the historical archive manifest and its pin above remain unchanged. Rows are deduplicated by the full-bank judge."
+    "note": "Additional Excel service readings; the historical archive manifest and its pin above remain unchanged. Rows are deduplicated by the full-bank judge.",
+    "type_variants_follow_up": {
+      "evidence_repository_commit": "82d8f3cfab9580f1ba4083d461d11e883d8f3636",
+      "files": 12,
+      "accepted_observations": 3780,
+      "note": "Additional number, text, boolean, blank and error inputs for array and regression routes; captured after the full-bank snapshot and judged in read-only per-function rechecks."
+    }
   },
   "manifest": {
     "path": "manifest.tsv",
