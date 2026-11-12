@@ -36,6 +36,16 @@ def number_array(rows):
     return {"type": "array", "values": [[number(v) for v in row] for row in rows]}
 
 
+def cell_range(rows):
+    """A rectangular worksheet range of typed cell arguments."""
+    return {"type": "range", "values": rows}
+
+
+def file_argument(content):
+    """UTF-8 file content; the worker supplies its temporary pathname to Excel."""
+    return {"type": "file", "content": content}
+
+
 def text(value, *, literal=False):
     return {"type": "text", "value": value, "mode": "literal" if literal else "cell"}
 

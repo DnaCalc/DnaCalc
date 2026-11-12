@@ -33,6 +33,12 @@ A **group** holds calls of one function and one argument shape, columnar:
 regression function. `spill` asks for the whole array an array-returning function spills. `o` is the request position of
 the first call (calls contiguous), `i` the list of positions.
 
+`rRxC` supplies a real rectangular worksheet range, with R*C typed cell objects inline in row-major order. Cells are
+finite numbers, text, booleans, blanks or worksheet errors; R and C are at most 32 and their product at most 128.
+`f` supplies UTF-8 text content, which the worker writes to a temporary file under its session directory and passes as
+a path. With echo, the range cells and file content are read back; a changed input is unread. These tokens use the
+socket service and are currently unavailable in serial mode and the legacy file queue. Each call is evaluated separately.
+
 ## Answers
 An answer frame holds groups `{"ty": "nnte...", "o" | "i", "v": [...]}`: one type letter and value per call: `n` bits,
 `t` text, `b` boolean, `e` error name (`"#N/A"`, `"#SPILL!"`), `z` blank, `u` unread (`{"reason", "read_back"}`: Excel

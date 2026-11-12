@@ -198,7 +198,7 @@ static class Program
 
     static int TokenWidth(string t)
     {
-        if (t[0] != 'a') return 1;
+        if (t[0] != 'a' && t[0] != 'r') return 1;
         var p = t.Substring(1).Split('x');
         return int.Parse(p[0]) * int.Parse(p[1]);
     }
@@ -287,7 +287,10 @@ static class Program
             WatchdogFired = false;
             Interlocked.Exchange(ref DeadlineTicks, DateTime.UtcNow.AddMilliseconds(deadlineMs).Ticks);
             var groupList = (List<object>)req["groups"];
-            var groups = serial ? EvaluateSerial(groupList, echo, timing)
+            var special = groupList.Cast<Dictionary<string, object>>().Any(g => ((string)g["k"]).Split(',').Any(t => t == "f" || t.StartsWith("r")));
+            if (special && serial) throw new InvalidOperationException("range/file arguments are not supported in serial mode");
+            var groups = special ? EvaluateSpecial(groupList, echo, timing)
+                : serial ? EvaluateSerial(groupList, echo, timing)
                 : groupList.Count > 0 && ((Dictionary<string, object>)groupList[0]).ContainsKey("spill") ? EvaluateSpill(groupList, echo, timing)
                 : EvaluateBatch(groupList, echo, false, timing);
             if (serial) result["order"] = "serial";
@@ -327,6 +330,141 @@ static class Program
                 try { Rng(X.SheetS, 1, 1, 2000, 200).Clear(); }
                 catch { Recycle("clear failed"); }
             }
+        }
+    }
+
+    // The range/file path is deliberately call-at-a-time: each reference owns a real
+    // block on Q, and a file exists only for the duration of the calculation.
+    static List<object> EvaluateSpecial(List<object> groupList, bool echo, Dictionary<string, object> timing)
+    {
+        var output = new List<object>();
+        dynamic sheet = X.SheetS, ranges = X.SheetQ, grid = X.SheetA;
+        foreach (Dictionary<string, object> raw in groupList)
+        {
+            string[] tokens = ((string)raw["k"]).Length == 0 ? Array.Empty<string>() : ((string)raw["k"]).Split(',');
+            int width = tokens.Sum(TokenWidth), count = (int)(long)raw["n"];
+            var values = (List<object>)raw["v"];
+            var types = new StringBuilder(); var results = new List<object>();
+            var inputTypes = new StringBuilder(); var inputs = new List<object>();
+            bool spill = raw.TryGetValue("spill", out var sv) && sv is true;
+            for (int i = 0; i < count; i++)
+            {
+                var refs = new List<string>(); var checks = new List<(object expected, object target, string fileContent)>();
+                var files = new List<string>(); int offset = 0, rangeCol = 1;
+                var callTypes = new StringBuilder(); var callInputs = new List<object>();
+                try
+                {
+                    foreach (string token in tokens)
+                    {
+                        int w = TokenWidth(token); int start = i * width + offset;
+                        if (token[0] == 'r')
+                        {
+                            var dims = token.Substring(1).Split('x'); int nr = int.Parse(dims[0]), nc = int.Parse(dims[1]);
+                            refs.Add("Q!$" + ColName(rangeCol) + "$1:$" + ColName(rangeCol + nc - 1) + "$" + nr);
+                            for (int k = 0; k < w; k++)
+                            {
+                                var cell = (Dictionary<string, object>)values[start + k];
+                                dynamic target = Rng(ranges, 1 + k / nc, rangeCol + k % nc, 1 + k / nc, rangeCol + k % nc);
+                                object expected = WriteTyped(target, cell);
+                                checks.Add((expected, (object)target, null));
+                            }
+                            rangeCol += nc;
+                        }
+                        else if (token == "f")
+                        {
+                            string dir = Path.Combine(Root, "launches", Name + "-" + Launch + "-files");
+                            Directory.CreateDirectory(dir);
+                            string path = Path.Combine(dir, Guid.NewGuid().ToString("N") + ".txt");
+                            string content = (string)values[start]; File.WriteAllText(path, content, new UTF8Encoding(false)); files.Add(path);
+                            dynamic target = Rng(sheet, 1, 2 + offset, 1, 2 + offset); target.NumberFormat = "@"; target.Value2 = path;
+                            checks.Add((path, (object)target, content)); refs.Add("S!$" + ColName(2 + offset) + "$1");
+                        }
+                        else
+                        {
+                            for (int k = 0; k < w; k++)
+                            {
+                                object v = values[start + k];
+                                var cell = new Dictionary<string, object>();
+                                char kind = token[0] == 'a' ? 'n' : token[0];
+                                if (kind == 'n') { cell["type"] = "number"; cell["bits"] = v; }
+                                else if (kind == 's' || kind == 'S') { cell["type"] = "text"; cell["value"] = v; }
+                                else if (kind == 'b' || kind == 'B') { cell["type"] = "boolean"; cell["value"] = v; }
+                                else if (kind == 'e') { cell["type"] = "error"; cell["code"] = v; }
+                                else cell["type"] = "blank";
+                                dynamic target = Rng(sheet, 1, 2 + offset + k, 1, 2 + offset + k);
+                                object expected = WriteTyped(target, cell); checks.Add((expected, (object)target, null));
+                            }
+                            string Cell(int k) => "S!$" + ColName(2 + offset + k) + "$1";
+                            if (token[0] == 'a')
+                            {
+                                var dims = token.Substring(1).Split('x'); int nr = int.Parse(dims[0]), nc = int.Parse(dims[1]);
+                                string indices = "{" + string.Join(";", Enumerable.Range(0, nr).Select(r => string.Join(",", Enumerable.Range(0, nc).Select(c => r * nc + c + 1)))) + "}";
+                                refs.Add("CHOOSE(" + indices + "," + string.Join(",", Enumerable.Range(0, w).Select(Cell)) + ")");
+                            }
+                            else if (token == "S") refs.Add("\"" + ((string)values[start]).Replace("\"", "\"\"") + "\"");
+                            else if (token == "B") refs.Add((bool)values[start] ? "TRUE" : "FALSE");
+                            else refs.Add(Cell(0));
+                        }
+                        offset += w;
+                    }
+                    string formula = (string)raw["f"] + "(" + string.Join(",", refs) + ")";
+                    if (raw.TryGetValue("x", out var selector) && selector != null)
+                    {
+                        var x = (List<object>)selector; formula = "INDEX(" + formula + "," + x[0] + "," + x[1] + ")";
+                    }
+                    dynamic resultCell = spill ? grid.Range["A1"] : sheet.Range["A1"];
+                    resultCell.Formula2 = "=" + formula; X.App.Calculate();
+                    while ((int)X.App.CalculationState != 0) Thread.Sleep(0);
+                    bool changed = false;
+                    foreach (var check in checks)
+                    {
+                        dynamic target = check.target; object actual = target.Value2;
+                        if (!Same(check.expected, actual)) changed = true;
+                        if (check.fileContent != null)
+                        {
+                            string content = File.ReadAllText((string)check.expected, Encoding.UTF8);
+                            if (content != check.fileContent) changed = true;
+                            callTypes.Append('t'); callInputs.Add(content);
+                        }
+                        else { var (l, v) = Convert1(actual); callTypes.Append(l); callInputs.Add(v); }
+                    }
+                    if (changed)
+                    {
+                        types.Append('u'); results.Add(new Dictionary<string, object> { ["reason"] = "input-changed", ["read_back"] = new List<object>() });
+                    }
+                    else if (spill && (bool)resultCell.HasSpill)
+                    {
+                        object body = resultCell.SpillingToRange.Value2; var a = (object[,])body;
+                        int nr = a.GetLength(0), nc = a.GetLength(1); var ty = new StringBuilder(); var vv = new List<object>();
+                        if (nr > 64 || nc > 64) { types.Append('u'); results.Add(new Dictionary<string, object> { ["reason"] = "spill-larger-than-the-bound", ["read_back"] = new List<object>() }); }
+                        else { foreach (object cell in a) { var (l, v) = Convert1(cell); ty.Append(l); vv.Add(v); } types.Append('m'); results.Add(new Dictionary<string, object> { ["r"] = nr, ["c"] = nc, ["ty"] = ty.ToString(), ["v"] = vv }); }
+                    }
+                    else { object actual = resultCell.Value2; var (l, v) = Convert1(actual); types.Append(l); results.Add(v); }
+                    inputTypes.Append(callTypes); inputs.AddRange(callInputs);
+                }
+                finally
+                {
+                    sheet.UsedRange.Clear(); ranges.UsedRange.Clear(); if (spill) grid.UsedRange.Clear();
+                    foreach (string file in files) File.Delete(file);
+                }
+            }
+            var result = new Dictionary<string, object> { ["ty"] = types.ToString(), ["v"] = results };
+            if (echo) { result["ity"] = inputTypes.ToString(); result["iv"] = inputs; }
+            output.Add(result);
+        }
+        return output;
+    }
+
+    static object WriteTyped(dynamic target, Dictionary<string, object> cell)
+    {
+        switch ((string)cell["type"])
+        {
+            case "number": double n = Bits(cell["bits"]); target.Value2 = n; return n;
+            case "text": string s = (string)cell["value"]; target.NumberFormat = "@"; target.Value2 = s; return s;
+            case "boolean": bool b = (bool)cell["value"]; target.Value2 = b; return b;
+            case "error": string e = (string)cell["code"]; target.Formula2 = "=" + e; return new ErrorWrapper(Codes[e]);
+            case "blank": return null;
+            default: throw new InvalidOperationException("unsupported range cell");
         }
     }
 

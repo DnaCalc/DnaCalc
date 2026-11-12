@@ -53,8 +53,9 @@ Rust: `tools/touchstone-client` (native-only, serde_json and std sockets): `Clie
   for the registry. They never change an answer.
 
 ## What is admitted
-Scalar catalogue functions selected by `policy.py`; references, external or volatile functions, host facts, paths,
-URLs and request formula text are refused before Excel runs, typed `refused`, and logged as `refused-kind`.
+All function names are admitted for tests except WEBSERVICE, STOCKHISTORY, IMAGE, TRANSLATE, DETECTLANGUAGE, PY and
+COPILOT, which are deferred remote services. Arbitrary request formula text is not a protocol argument. Real worksheet
+ranges and temporary file contents are available through `cell_range` and `file_argument` on the socket service.
 Limits: 250,000 calls and 32 arguments per group; the v1 queue keeps 20,000 calls and 16 MiB per request. File
 captures, VBA, add-ins and XLL, RTD, events, iteration and pivots still go through `tools/excel-session` (the job
 route); they are not part of this service.

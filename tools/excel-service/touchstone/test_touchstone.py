@@ -5,6 +5,8 @@ Hermetic: no Excel.  The broker tests drive a stand-in worker (fake_worker.py) o
 import asyncio
 import json
 import os
+import struct
+import subprocess
 from pathlib import Path
 import sys
 import tempfile
@@ -34,6 +36,46 @@ TWO = "4000000000000000"
 
 
 class ProtocolTests(unittest.TestCase):
+    def test_range_and_file_round_trip_through_stand_in_worker(self):
+        cells = [[number(ONE), {"type": "text", "value": "a", "mode": "cell"}],
+                 [{"type": "boolean", "value": True, "mode": "cell"}, {"type": "blank"}],
+                 [{"type": "error", "code": "#N/A"}, number(TWO)]]
+        row = [{"type": "range", "values": cells}, {"type": "file", "content": "a,b\n1,2\n"}]
+        group = protocol.rows_to_groups("SUMIF", [row])[0]
+        self.assertEqual(group["k"], "r3x2,f")
+        self.assertEqual(protocol.group_to_rows(group), [row])
+        import policy
+        policy.Admission(ROOT).check(group)
+        for bad in ({"type": "number", "bits": "7ff0000000000000"},
+                    {"type": "text", "value": "x", "mode": "literal"},
+                    {"type": "formula", "value": "=1"}):
+            malformed = dict(group, v=[bad] + group["v"][1:])
+            with self.subTest(bad=bad), self.assertRaises(ValueError):
+                policy.Admission(ROOT).check(malformed)
+        big = protocol.rows_to_groups("IMPORTTEXT", [[{"type": "file", "content": "x" * 4000}]] * 30)
+        frames = protocol.submit_frames("a" * 32, big)
+        self.assertGreater(len(frames), 1)
+        self.assertTrue(all(len(protocol.dumps(frame)) < protocol.MAX_FRAME for frame in frames))
+        worker = subprocess.Popen([sys.executable, str(HERE / "fake_worker.py"), "--name", "range-test"],
+                                  stdin=subprocess.PIPE, stdout=subprocess.PIPE)
+        def read_frame():
+            header = worker.stdout.read(4)
+            size = struct.unpack(">I", header)[0]
+            return protocol.unpack_body(worker.stdout.read(size))
+        try:
+            self.assertEqual(read_frame()[0], b"H")
+            worker.stdin.write(protocol.pack(b"B", {"id": 1, "groups": [group], "echo": True}))
+            worker.stdin.flush()
+            kind, response = read_frame()
+            self.assertEqual(kind, b"R")
+            answered = response["groups"][0]
+            self.assertEqual(answered["ity"], "ntbzen t".replace(" ", ""))
+            self.assertEqual(answered["iv"][-1], row[1]["content"])
+        finally:
+            worker.stdin.close()
+            worker.stdout.close()
+            worker.wait(timeout=5)
+
     def test_rows_group_by_shape_and_keep_positions(self):
         rows = [[number(ONE)], [{"type": "text", "value": "a", "mode": "cell"}], [number(TWO)],
                 [{"type": "boolean", "value": True, "mode": "literal"}]]
@@ -257,14 +299,21 @@ class AdmissionTests(unittest.TestCase):
         g.update(changes)
         return g
 
-    def test_accepts_the_catalogue_and_refuses_everything_else(self):
+    def test_admits_every_function_but_remote_services_and_refuses_malformed_groups(self):
+        # Owner 2026-11-12: a test service on our own Excel admits every function, text and array argument;
+        # only the remote service functions (deferred in CalcFunc) are skipped.
         self.admission.check(self.group())
-        for bad in (self.group(f="CALL"), self.group(f="INDIRECT"), self.group(f="NOW"), self.group(f="SUM(1)"),
+        for good in (self.group(f="CALL"), self.group(f="INDIRECT"), self.group(f="NOW"),
+                     self.group(f="LEN", k="s", n=1, v=["C:/secret.xlsx"]), self.group(f="LEN", k="s", n=1, v=["[book]A1"]),
+                     self.group(f="LEN", k="s", n=1, v=["https://x.example"]), self.group(f="LEN", k="s", n=1, v=["a\u0001b"]),
+                     self.group(f="SUMIF", k="a1x2,S", n=1, v=[ONE, TWO, ">1"]),
+                     self.group(f="FILTER", k="a2x1,a2x1", n=1, v=[ONE, TWO, ONE, ONE], spill=True)):
+            with self.subTest(good=good):
+                self.admission.check(good)
+        for bad in (self.group(f="WEBSERVICE"), self.group(f="STOCKHISTORY"), self.group(f="PY"), self.group(f="SUM(1)"),
                     self.group(v=["7ff8000000000000", ONE]), self.group(v=[ONE]), self.group(k="x"),
                     self.group(k="n,n", v=[ONE] * 4, f="LEN", x=[1, 1]), self.group(n=0, v=[]),
-                    self.group(f="LEN", k="s", n=1, v=["C:/secret.xlsx"]), self.group(f="LEN", k="s", n=1, v=["[book]A1"]),
-                    self.group(f="LEN", k="s", n=1, v=["https://x.example"]), self.group(f="LEN", k="s", n=1, v=["a\u0001b"]),
-                    self.group(f="LEN", k="a1x2", n=1, v=[ONE, TWO]), self.group(k="a40x40", f="LINEST", n=1, v=[ONE] * 1600)):
+                    self.group(f="LEN", k="s", n=1, v=["a\u0000b"]), self.group(k="a40x40", f="LINEST", n=1, v=[ONE] * 1600)):
             with self.subTest(bad=bad), self.assertRaises(ValueError):
                 self.admission.check(bad)
 
@@ -278,19 +327,10 @@ class AdmissionTests(unittest.TestCase):
                      "INDEX", "ROWS", "COLUMNS", "ARRAYTOTEXT"):
             with self.subTest(name=name):
                 self.admission.check(self.group(f=name, k="a1x2", n=1, v=[ONE, TWO]))
-        for name in ("FILTER", "SORTBY", "TAKE", "DROP", "CHOOSECOLS", "CHOOSEROWS",
-                     "HSTACK", "VSTACK", "TOCOL", "TOROW", "WRAPCOLS", "WRAPROWS", "EXPAND"):
+        for name in ("FILTER", "ROW", "COLUMN", "CELL", "IMPORTCSV", "RAND", "RTD", "BYROW"):
             with self.subTest(name=name):
-                self.admission.check(self.group(f=name, k="a1x2", n=1, v=[ONE, TWO], spill=True))
-                with self.assertRaises(ValueError):
-                    self.admission.check(self.group(f=name, k="a1x2", n=1, v=[ONE, TWO]))
-        for name in ("ROW", "COLUMN", "AREAS", "CELL", "INDIRECT", "OFFSET", "SHEET", "SHEETS",
-                     "FORMULATEXT", "ISFORMULA", "HYPERLINK", "INFO", "FIELDVALUE", "FILTERXML",
-                     "IMPORTCSV", "IMPORTTEXT", "CALL", "REGISTER.ID", "NOW", "TODAY", "RAND",
-                     "RANDBETWEEN", "RANDARRAY", "RTD", "CUBEVALUE", "GETPIVOTDATA",
-                     "_EUROTOOL.EUROCONVERT", "BYCOL", "BYROW", "MAP", "MAKEARRAY", "REDUCE", "SCAN", "ISOMITTED"):
-            with self.subTest(name=name), self.assertRaises(ValueError):
                 self.admission.check(self.group(f=name, k="", n=1, v=[]))
+                self.admission.check(self.group(f=name, k="", n=1, v=[], spill=True))
 
     def test_regression_needs_a_bounded_result_index_and_arrays(self):
         g = {"f": "LINEST", "k": "a3x1,a3x1,b,b", "n": 1, "x": [4, 2],
