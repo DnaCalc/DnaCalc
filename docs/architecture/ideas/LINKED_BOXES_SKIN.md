@@ -46,3 +46,17 @@ referring to `Costs` and `Price` is the same idea without the canvas.
 5. Excel round trip: workbooks saved from the canvas must open unchanged in Excel. Do we also need a reverse
    import, which builds boxes from an existing workbook's dotted names?
 6. Where it sits: a DNA Calc skin only, or also in OneCalc as a playground for a few named formulas?
+
+## Owner direction, 2026-11-12 (evening)
+
+- **An alternate display and formula editor over the sheet.** Boxes and edges are a second view of the backing
+  sheet, drawn from precedents and dependents. Dragging an edge rewrites the formulas on the sheet; the sheet stays
+  the source of truth, so the same workbook opens and calculates unchanged in Excel (question 5 answered for the
+  forward direction; building boxes from an existing workbook's names and precedents is the normal way the view is drawn).
+- **Only what Excel does.** The engine is not extended beyond Excel. The model is evaluated by the calculation engine
+  through formulas only; calculation events may drive the picture but never change values. Views use only what Excel
+  also exposes (names and formulas, precedents and dependents, values before and after a calculation, RTD, data tables,
+  iterative-calculation settings), so the same view can run as an Excel add-in.
+- **Cycles** (question 3): allowed where Excel allows them, under iterative calculation, drawn as feedback through a delay.
+- Previews: `docs/fun/names-in-motion.html` and `docs/fun/watershed.html` (Ptolemy II-inspired directors over plain
+  Excel mechanisms: RTD events, iterative calculation as ticks, IFS mode cells, data-table sweeps). RTD clock engine test: dc-hul4.
