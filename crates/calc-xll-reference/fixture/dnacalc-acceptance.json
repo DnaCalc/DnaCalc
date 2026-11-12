@@ -1,0 +1,61 @@
+{
+  "comment": "DNA Calc's page acceptance for workbook VBA and add-ins (dc-hsa5.12, dc-0f1k.23), run by `cargo xtask app xll-accept calc`: the desktop exe's page in WebView2, each case formula typed into the formula bar at `cell` and read back from the page (value state, value, kind, exact value), compared with Excel's answers. Workbook sets open the .xlsm as a double-click does (--open); `macros: enable` pins the level to Off and presses the page's Enable macros button, `macros: unguarded` pins Unguarded so the project runs on open. Add-in sets load the file through the page's Add-ins panel (typed path, Load path) and unload it at the end. Variables: {fixture} this folder, {root} the repository, {x1} the own X1 add-in (calc_xll_fixture.dll as an .xll), {excel} the folder of the Excel controller records of the OneCalc milestone 4 run (codex-runs/x13-boundary/m4-excel-all); the other add-in sets are OneCalc's m4 sets (m4-acceptance.json) with the same variables: {build} ../build, {x3} the xlw and xlOil runtime folders, {cvba} the generated add-in, {m4} the staged artifacts.",
+  "sets": [
+    {
+      "name": "dnasimple-xlsm",
+      "workbook": "{fixture}/vba/DnaSimple.xlsm",
+      "macros": "enable",
+      "cell": "H1",
+      "cases": "vba/simple-udf-cases.json",
+      "excel": "{root}/crates/calc-xll-reference/traces/2026-11-11-simple-udfs/excel/simple-inbook-dnasimple-xlsm.controller.jsonl"
+    },
+    {
+      "name": "dnaexamples-xlsm-simple",
+      "workbook": "{fixture}/vba/DnaExamples.xlsm",
+      "macros": "unguarded",
+      "cell": "H1",
+      "cases": "vba/simple-udf-cases.json",
+      "excel": "{root}/crates/calc-xll-reference/traces/2026-11-11-simple-udfs/onecalc/excel-reopen-simple-xlsm.json"
+    },
+    {
+      "name": "dnaexamples-xlsm",
+      "workbook": "{fixture}/vba/DnaExamples.xlsm",
+      "macros": "enable",
+      "cell": "H1",
+      "cases": "vba/x9-vba-cases.json",
+      "excel": "{root}/crates/calc-xll-reference/traces/2026-11-11-simple-udfs/onecalc/excel-reopen-dnaexamples-xlsm.json"
+    },
+    {
+      "name": "simple-xlam",
+      "xll": "{fixture}/vba/DnaExamples.xlam",
+      "cell": "H1",
+      "cases": "vba/simple-udf-cases.json",
+      "excel": "{root}/crates/calc-xll-reference/traces/2026-11-11-simple-udfs/excel/simple-xlam.controller.jsonl"
+    },
+    {
+      "name": "dnaexamples-xlam",
+      "xll": "{fixture}/vba/DnaExamples.xlam",
+      "cell": "H1",
+      "cases": "vba/x9-vba-cases.json",
+      "excel": "{root}/crates/calc-xll-reference/traces/2026-11-11-simple-udfs/excel/x9-xlam.controller.jsonl"
+    },
+    {
+      "name": "x1-fixture",
+      "xll": "{x1}",
+      "sheet": "X1",
+      "inputs": [["A1", "7"]],
+      "cell": "B3",
+      "cases": "x1-cases.json",
+      "excel": "{excel}/x1-fixture/controller.jsonl"
+    },
+    {"name": "exceldna-net48", "xll": "{fixture}/bin/Release/net48/X0-AddIn64.xll", "also": ["{build}/NativeOwner64.xll"], "sheet": "X0", "inputs": [["A1", "7"]], "cell": "B3", "cases": "x2-cases.json", "excel": "{excel}/exceldna-net48/controller.jsonl"},
+    {"name": "exceldna-net8", "xll": "{fixture}/bin/Release/net8.0-windows/X0-AddIn64.xll", "also": ["{build}/NativeOwner64.xll"], "sheet": "X0", "inputs": [["A1", "7"]], "cell": "B3", "cases": "x2-cases.json", "excel": "{excel}/exceldna-net8/controller.jsonl"},
+    {"name": "exceldna-aot", "xll": "{fixture}/bin/Release/net10.0-windows/win-x64/publish/X2Aot-AddIn64.xll", "sheet": "X0", "inputs": [["A1", "7"]], "cell": "B3", "cases": "x2-hello-cases.json", "excel": "{excel}/exceldna-aot/controller.jsonl"},
+    {"name": "exceldna-pool", "xll": "{fixture}/bin/Release/net48/X2Pool-AddIn64.xll", "sheet": "X0", "inputs": [["A1", "7"]], "cell": "B3", "cases": "x2-pool-cases.json", "excel": "{excel}/exceldna-pool/controller.jsonl"},
+    {"name": "xlw", "xll": "{x3}/xlw-runtime/xlwSample.xll", "sheet": "X0", "inputs": [["A1", "7"]], "cell": "B3", "cases": "x3-xlw-cases.json", "excel": "{excel}/xlw/controller.jsonl"},
+    {"name": "xlw-types", "xll": "{x3}/xlw-types-runtime/xlwTypes.xll", "sheet": "X0", "inputs": [["A1", "7"]], "cell": "B3", "cases": "x3-xlw-types-cases.json", "excel": "{excel}/xlw-types/controller.jsonl"},
+    {"name": "xloil-utils-sql", "xll": "{x3}/xloil-runtime/xlOil.xll", "sheet": "X0", "inputs": [["A1", "7"]], "cell": "B3", "cases": "x3-xloil-cases.json", "excel": "{excel}/xloil-utils-sql/controller.jsonl"},
+    {"name": "xloil-python", "xll": "{x3}/xloil-python-runtime/xlOil.xll", "sheet": "X0", "inputs": [["A1", "7"]], "cell": "B3", "cases": "x3-xloil-python-cases.json", "excel": "{excel}/xloil-python/controller.jsonl"},
+    {"name": "calcvba-udf", "xll": "{cvba}/FunctionsUdf.xll", "sheet": "X0", "inputs": [["A1", "7"]], "cell": "B3", "cases": "{m4}/calcvba-udf-cases.json", "excel": "{excel}/calcvba-udf/controller.jsonl"}
+  ]
+}

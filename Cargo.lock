@@ -1158,6 +1158,7 @@ dependencies = [
  "dna-formula-ui",
  "js-sys",
  "miniz_oxide",
+ "serde_json",
  "wasm-bindgen",
  "wasm-bindgen-futures",
  "wasm-bindgen-test",

@@ -398,11 +398,12 @@ fn add_in_functions_join_the_file_projects_functions() {
     }
 }
 
-/// A worksheet function whose signature the file-project route cannot carry (a Date result) is a
-/// typed refusal of its own; the project's other functions still answer (dc-0f1k.4).
+/// A worksheet function whose signature the document project's owning typed route does not carry
+/// (a Date result) runs on the dynamic runtime, as it does from an add-in: it answers Excel's
+/// serial beside the project's other functions (dc-hsa5.12; it was a refusal of its own).
 #[cfg_attr(not(target_arch = "wasm32"), test)]
 #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
-fn one_unsupported_signature_refuses_only_its_own_function() {
+fn a_function_the_typed_route_does_not_carry_answers_beside_the_others() {
     let bytes = vba_project::replace_sources(
         LOCAL,
         &[
@@ -431,8 +432,8 @@ End Function
     )
     .unwrap();
     book.enable_macros().unwrap();
-    let (good, refused) = (at(&book, 4), at(&book, 5));
-    for (cell, text) in [(good, "=MyFunc(1)"), (refused, "=WhenDue()")] {
+    let (good, date) = (at(&book, 4), at(&book, 5));
+    for (cell, text) in [(good, "=MyFunc(1)"), (date, "=WhenDue()")] {
         assert!(
             book.dispatch(SkinIntent::EnterCell {
                 at: cell,
@@ -444,14 +445,7 @@ End Function
     book.dispatch(SkinIntent::Recalculate);
     drain(&mut book);
     assert_eq!(number(&book, 4), 101.);
-    assert!(
-        !matches!(
-            book.project(vec![refused])[0].value(),
-            ProjectedValue::Calculated { value, .. } if value.as_number().is_some()
-        ),
-        "{:?}",
-        book.project(vec![refused])[0].value()
-    );
+    assert_eq!(number(&book, 5), 46337.);
 }
 
 /// The macro security level (dc-15dk), end to end through the server's wire: a marked file offers
@@ -667,4 +661,253 @@ fn a_native_origin_is_cleared_even_when_the_request_panics() {
         server.book().macros(),
         &Macros::Blocked(calc_host_vba::MacroBlock::Unknown)
     );
+}
+
+/// Excel's answer for each formula of a recorded run: a controller record (`operation`, `value`
+/// per line) or a reopen record (`rows` with `formula` and `excel`'s value or error code).
+fn excel_answers(record: &str) -> std::collections::BTreeMap<String, serde_json::Value> {
+    let record = record.trim_start_matches('\u{feff}');
+    let mut answers = std::collections::BTreeMap::new();
+    if let Ok(reopen) = serde_json::from_str::<serde_json::Value>(record)
+        && let Some(rows) = reopen["rows"].as_array()
+    {
+        for row in rows {
+            let excel = &row["excel"];
+            let value = match excel["error_code"].as_i64() {
+                Some(code) => serde_json::json!({ "error": match code {
+                    -2146826288 => "#NULL!",
+                    -2146826281 => "#DIV/0!",
+                    -2146826273 => "#VALUE!",
+                    -2146826265 => "#REF!",
+                    -2146826259 => "#NAME?",
+                    -2146826252 => "#NUM!",
+                    -2146826246 => "#N/A",
+                    _ => "#unknown",
+                }}),
+                None => excel["value"].clone(),
+            };
+            answers.insert(row["formula"].as_str().unwrap().to_owned(), value);
+        }
+        return answers;
+    }
+    for line in record.lines().filter(|line| !line.trim().is_empty()) {
+        let line: serde_json::Value = serde_json::from_str(line).unwrap();
+        answers.insert(
+            line["operation"].as_str().unwrap().to_owned(),
+            line["value"].clone(),
+        );
+    }
+    answers
+}
+
+/// Whether the cell's value is Excel's answer: a number equal to it, the same text, logical or
+/// error, a blank or 0 for Excel's empty; an array result by its top-left value, as the cell
+/// shows it. `None` when the cell holds no calculated value (a refusal).
+fn same_as_excel(value: &ProjectedValue, excel: &serde_json::Value) -> Option<bool> {
+    use calc_value::CoreRef;
+    let ProjectedValue::Calculated { value, .. } = value else {
+        return None;
+    };
+    let mut value = value.clone();
+    while let CoreRef::Array(array) = value.core_ref() {
+        value = array.get(0, 0)?.clone();
+    }
+    Some(match (value.core_ref(), excel) {
+        (CoreRef::Number(n), serde_json::Value::Number(e)) => Some(n) == e.as_f64(),
+        (CoreRef::Text(t), serde_json::Value::String(e)) => t.to_string_lossy() == *e,
+        (CoreRef::Logical(b), serde_json::Value::Bool(e)) => b == *e,
+        (CoreRef::Error(code), serde_json::Value::Object(e)) => {
+            e.get("error").and_then(|e| e.as_str()) == Some(code.excel_spelling())
+        }
+        (CoreRef::Empty, serde_json::Value::Null) => true,
+        (CoreRef::Number(n), serde_json::Value::Null) => n == 0.0,
+        _ => false,
+    })
+}
+
+/// The simple-UDF sets (crates/calc-xll-reference/traces/2026-11-11-simple-udfs) on DNA Calc's
+/// file route, the one the page's worker takes: the .xlsm opened, its macros enabled, each case
+/// formula entered in Sheet1!H1 in turn and recalculated, compared with Excel's answer for the
+/// same formula in the same file. Pass = matched Excel; refused and mismatched are failures.
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn the_simple_udf_sets_answer_as_excel_does_in_the_macro_workbooks() {
+    const SIMPLE: &str =
+        include_str!("../../../crates/calc-xll-reference/fixture/vba/simple-udf-cases.json");
+    const X9: &str = include_str!("../../../crates/calc-xll-reference/fixture/vba/x9-vba-cases.json");
+    let sets: [(&str, &[u8], &str, &str); 3] = [
+        (
+            "DnaSimple.xlsm",
+            include_bytes!("../../../crates/calc-xll-reference/fixture/vba/DnaSimple.xlsm"),
+            SIMPLE,
+            include_str!(
+                "../../../crates/calc-xll-reference/traces/2026-11-11-simple-udfs/excel/simple-inbook-dnasimple-xlsm.controller.jsonl"
+            ),
+        ),
+        (
+            "DnaExamples.xlsm",
+            include_bytes!("../../../crates/calc-xll-reference/fixture/vba/DnaExamples.xlsm"),
+            SIMPLE,
+            include_str!(
+                "../../../crates/calc-xll-reference/traces/2026-11-11-simple-udfs/onecalc/excel-reopen-simple-xlsm.json"
+            ),
+        ),
+        (
+            "DnaExamples.xlsm",
+            include_bytes!("../../../crates/calc-xll-reference/fixture/vba/DnaExamples.xlsm"),
+            X9,
+            include_str!(
+                "../../../crates/calc-xll-reference/traces/2026-11-11-simple-udfs/onecalc/excel-reopen-dnaexamples-xlsm.json"
+            ),
+        ),
+    ];
+    let mut failures = Vec::new();
+    let mut differing: Vec<(String, String)> = Vec::new();
+    for (name, bytes, cases, record) in sets {
+        let answers = excel_answers(record);
+        let cases: Vec<serde_json::Value> = serde_json::from_str(cases).unwrap();
+        // A file opened from a local path, as the desktop app opens one it is given.
+        let mut book = Workbook::open_with_project_policy(
+            name,
+            bytes.to_vec(),
+            WorkBudget::UNLIMITED,
+            FileOrigin::Local,
+        )
+        .unwrap();
+        if let Err(refused) = book.enable_macros() {
+            failures.push(format!("{name}: macros not enabled: {refused}"));
+            continue;
+        }
+        drain(&mut book);
+        let cell = calc_value::CellKey::new(book.host().sheets()[0].id(), 1, 8).unwrap();
+        let (mut matched, mut mismatched, mut refused, mut missing) = (0, 0, 0, 0);
+        for case in &cases {
+            let formula = case["formula"].as_str().unwrap();
+            let Some(excel) = answers.get(formula) else {
+                missing += 1;
+                failures.push(format!("{name} {formula}: no Excel answer"));
+                continue;
+            };
+            book.dispatch(SkinIntent::EnterCell {
+                at: cell,
+                text: formula.to_owned(),
+            });
+            drain(&mut book);
+            let value = book.project(vec![cell])[0].value().clone();
+            match same_as_excel(&value, excel) {
+                Some(true) => matched += 1,
+                Some(false) => {
+                    mismatched += 1;
+                    differing.push((name.to_owned(), formula.to_owned()));
+                    failures.push(format!("{name} {formula}: Excel {excel}, DNA Calc {value:?}"));
+                }
+                None => {
+                    refused += 1;
+                    differing.push((name.to_owned(), formula.to_owned()));
+                    failures.push(format!("{name} {formula}: refused {value:?}"));
+                }
+            }
+        }
+        println!(
+            "{name} ({} cases): matched {matched}, mismatched {mismatched}, refused {refused}, missing {missing}",
+            cases.len()
+        );
+    }
+    // The cases this route answers differently from Excel, each with its bead. dc-hsa5.22: TypeName
+    // of a Range, a project class and Selection, and the engine Dictionary's TypeName, regressed with
+    // the CalcVBA pins 9cf7dcfc and 7d554eb7 (they answered as Excel at e42bf5bb). A case that starts
+    // to answer as Excel fails this test too: take it off the list.
+    const KNOWN: [(&str, &str); 5] = [
+        ("DnaSimple.xlsm", "=SimpleKind(A1)"),
+        ("DnaExamples.xlsm", "=SimpleKind(A1)"),
+        ("DnaExamples.xlsm", "=DnaCounterName()"),
+        ("DnaExamples.xlsm", "=DnaDictType()"),
+        ("DnaExamples.xlsm", "=DnaSelection()"),
+    ];
+    let unexplained: Vec<_> = failures
+        .iter()
+        .filter(|failure| {
+            !KNOWN
+                .iter()
+                .any(|(book, formula)| failure.starts_with(&format!("{book} {formula}:")))
+        })
+        .collect();
+    assert!(unexplained.is_empty(), "{unexplained:#?}");
+    differing.sort_unstable();
+    let mut known: Vec<(String, String)> = KNOWN
+        .iter()
+        .map(|(book, formula)| (book.to_string(), formula.to_string()))
+        .collect();
+    known.sort_unstable();
+    assert_eq!(differing, known, "{}", failures.join("\n"));
+}
+
+/// A worker on its own (a browser page) lists no add-ins, says it loads none and refuses a load or
+/// an unload with the reason; the desktop app answers these requests itself (dc-0f1k.23). When the
+/// desktop publishes a changed add-in set, a cell that named a function before it was loaded
+/// answers without a manual recalculation.
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn add_ins_are_the_desktop_apps_and_a_changed_set_recalculates() {
+    use dna_calc_worker::server::{ADDINS_DESKTOP_ONLY, Server};
+    use dna_calc_worker::wire::{Intent, Key, Reply, Request};
+    let mut server = Server::new();
+    match server.handle(Request::Addins, None).reply {
+        Ok(Reply::Addins(list)) => assert!(!list.native && list.loaded.is_empty()),
+        other => panic!("not an add-in list: {other:?}"), // ubs:ignore[rust.ownership.panic-macro] The request must answer.
+    }
+    for request in [
+        Request::LoadAddinNative,
+        Request::LoadAddin {
+            path: "C:/addins/x.xll".into(),
+        },
+        Request::UnloadAddin {
+            path: "C:/addins/x.xll".into(),
+        },
+    ] {
+        assert_eq!(
+            server.handle(request, None).reply,
+            Err(ADDINS_DESKTOP_ONLY.to_owned())
+        );
+    }
+    let at = calc_value::CellKey::new(server.book().host().sheets()[0].id(), 1, 1).unwrap();
+    let settle = |server: &mut Server| {
+        for _ in 0..1000 {
+            if !server.has_pending_calculation() {
+                return;
+            }
+            server.advance_calculation();
+        }
+        panic!("the worker did not settle"); // ubs:ignore[rust.ownership.panic-macro] A bounded drain must finish.
+    };
+    assert!(
+        server
+            .execute_current(
+                Request::Intent(Intent::EnterCell {
+                    at: Key::of(at),
+                    text: "=AddinSeven()".into(),
+                }),
+                None,
+            )
+            .reply
+            .is_ok()
+    );
+    settle(&mut server);
+    let seven = |server: &Server| {
+        matches!(
+            server.book().project(vec![at])[0].value(),
+            ProjectedValue::Calculated { value, .. } if value.as_number() == Some(7.)
+        )
+    };
+    assert!(!seven(&server), "no add-in is loaded yet");
+    server.replace_user_functions(
+        calc_vba::load_module(
+            "Extra",
+            "Public Function AddinSeven() As Double\n AddinSeven = 7\nEnd Function\n",
+            1000,
+        )
+        .unwrap(),
+    );
+    settle(&mut server);
+    assert!(seven(&server), "{:?}", server.book().project(vec![at])[0].value());
 }

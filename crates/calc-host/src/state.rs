@@ -131,6 +131,10 @@ pub struct HostState {
     /// The owner's capability to join or start RTD topics while this host evaluates, and the
     /// provisional values it returned that this host must admit before publishing.
     pub(crate) rtd_connector: Option<std::rc::Rc<dyn calc_fml::RtdConnector>>,
+    /// The sheet and cell the person has active (the session's selection), which a VBA
+    /// function's `ActiveSheet` and `Selection` answer (dc-hsa5.12). `None` until a session
+    /// selects; the workbook's active sheet and its A1 stand in until then.
+    pub(crate) user_view: Option<calc_func::UserView>,
     pub(crate) rtd_connected: crate::recalc::ConnectedQueue,
     /// Every RTD value admitted since the owner last asked, in admission order.
     pub(crate) rtd_admissions: Vec<crate::RtdAdmission>,
@@ -330,6 +334,7 @@ impl HostState {
             import_route: None,
             rtd_inputs: Default::default(),
             rtd_connector: None,
+            user_view: None,
             rtd_connected: Default::default(),
             rtd_admissions: Vec::new(),
             references: calc_fml::reference::ReferenceTracker::new(),

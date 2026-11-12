@@ -136,7 +136,16 @@ const WORKBOOK: &str = "Book1";
 struct App {
     server: RefCell<Server>,
     web: WebView,
-    addins: Option<AddinHost>,
+    /// The add-in set: what `--xll` loaded at start and what the person loads and unloads in the
+    /// page's add-in panel (dc-0f1k.23). It always exists, as OneCalc's does.
+    addins: RefCell<AddinHost>,
+    /// What each VBA add-in's load reported (its workbook events), shown beside it in the panel.
+    addin_notes: RefCell<Vec<(PathBuf, Vec<String>)>>,
+    /// The sheets the add-ins were last told about, by identity and name.
+    sheets_bound: RefCell<Vec<(calc_value::SheetId, String)>>,
+    /// An add-in load or unload is running: the add-in's open routine or the settling loop may
+    /// pump messages, and a request that arrives meanwhile must not reach the set again.
+    loading: Cell<bool>,
     fetch: Rc<ThreadedFetch>,
     frame: *mut std::ffi::c_void,
     bounds: Cell<(i32, i32)>,
@@ -156,6 +165,18 @@ struct App {
     macro_policy: Cell<calc_macro_security::MacroPolicy>,
     settings: PathBuf,
 }
+
+/// The native dialog's choices for Load add-in.
+const ADDIN_FILES: [calc_platform_desktop::dialogs::FileFilter<'static>; 2] = [
+    calc_platform_desktop::dialogs::FileFilter {
+        name: "Excel add-ins (*.xll; *.xlam)",
+        patterns: "*.xll;*.xlam",
+    },
+    calc_platform_desktop::dialogs::FileFilter {
+        name: "All files",
+        patterns: "*.*",
+    },
+];
 
 /// The bridge prefixes every message of a worker other than the page's first with `@N` and U+0002
 /// (channel N); the first worker's messages carry no prefix.
@@ -320,6 +341,13 @@ impl App {
             return;
         }
         let (text, bytes) = split_message(message);
+        if bytes.is_none()
+            && let Some(reply) = self.addin_request(text)
+        {
+            self.post(&reply, None);
+            self.flush_events();
+            return;
+        }
         let mut text = text.to_owned();
         let mut bytes = bytes;
         let mut open_origin = None;
@@ -393,6 +421,159 @@ impl App {
         self.rebind_after_open();
     }
 
+    /// The page's add-in requests (dc-0f1k.23), answered here over the add-in set: list, load
+    /// (the native dialog or a typed path) and unload. `None` for any other request, which the
+    /// server answers.
+    fn addin_request(&self, text: &str) -> Option<String> {
+        use dna_calc_worker::wire::{Reply, Request, ToServer};
+        let message = wire::decode::<ToServer>(text).ok()?;
+        let answer = match message.request {
+            Request::Addins => Ok(self.addin_list(false)),
+            Request::LoadAddinNative | Request::LoadAddin { .. } | Request::UnloadAddin { .. }
+                if self.loading.get() =>
+            {
+                Err("An add-in is loading; try again when it has".to_owned())
+            }
+            Request::LoadAddinNative => {
+                match calc_platform_desktop::dialogs::open_file(
+                    self.frame.cast(),
+                    "Load an add-in",
+                    &ADDIN_FILES,
+                ) {
+                    Ok(Some(path)) => self.load_addin(&path),
+                    Ok(None) => Ok(self.addin_list(true)),
+                    Err(why) => Err(why),
+                }
+            }
+            Request::LoadAddin { path } => self.load_addin(std::path::Path::new(&path)),
+            Request::UnloadAddin { path } => self.unload_addin(std::path::Path::new(&path)),
+            _ => return None,
+        };
+        let id = message.id;
+        Some(wire::encode(&match answer {
+            Ok(list) => FromServer::Reply {
+                id,
+                reply: Reply::Addins(list),
+            },
+            Err(message) => FromServer::Failed {
+                id: Some(id),
+                message,
+            },
+        }))
+    }
+
+    /// What the add-in set holds, as the panel lists it.
+    fn addin_list(&self, cancelled: bool) -> wire::AddinList {
+        let set = self.addins.borrow();
+        let notes = self.addin_notes.borrow();
+        let xlls = set
+            .xll_functions()
+            .into_iter()
+            .map(|(path, functions)| (path, "xll", functions));
+        let xlams = set
+            .vba_addins()
+            .into_iter()
+            .map(|(path, functions)| (path, "xlam", functions));
+        wire::AddinList {
+            native: true,
+            cancelled,
+            loaded: xlls
+                .chain(xlams)
+                .map(|(path, kind, functions)| wire::LoadedAddin {
+                    kind: kind.to_owned(),
+                    notes: notes
+                        .iter()
+                        .find(|(held, _)| *held == path)
+                        .map(|(_, notes)| notes.clone())
+                        .unwrap_or_default(),
+                    path: path.display().to_string(),
+                    functions,
+                })
+                .collect(),
+        }
+    }
+
+    fn loaded_paths(&self) -> Vec<PathBuf> {
+        let set = self.addins.borrow();
+        set.xlls()
+            .iter()
+            .cloned()
+            .chain(set.vba_addins().into_iter().map(|(path, _)| path))
+            .collect()
+    }
+
+    /// Loads an .xll or a VBA .xlam (installed, as Excel's Add-ins dialog installs one), lets a
+    /// slow add-in finish registering, and publishes every loaded function to the workbook.
+    fn load_addin(&self, path: &std::path::Path) -> Result<wire::AddinList, String> {
+        let extension = path
+            .extension()
+            .map(|extension| extension.to_string_lossy().to_ascii_lowercase());
+        if !matches!(extension.as_deref(), Some("xll" | "xlam")) {
+            return Err(format!(
+                "{} is not an .xll or .xlam add-in; only those load here",
+                path.display()
+            ));
+        }
+        let path = std::path::absolute(path).unwrap_or_else(|_| path.to_owned());
+        if !path.is_file() {
+            return Err(format!("{}: no such file", path.display()));
+        }
+        if self.loaded_paths().contains(&path) {
+            return Err(format!("{} is already loaded", path.display()));
+        }
+        self.loading.set(true);
+        let loaded = (|| {
+            let notes = crate::load_addin(&mut self.addins.borrow_mut(), &path)?;
+            if extension.as_deref() == Some("xll") {
+                self.addins
+                    .borrow()
+                    .settle(Duration::from_millis(800), Duration::from_secs(60));
+            } else {
+                self.addin_notes.borrow_mut().push((path.clone(), notes));
+            }
+            Ok::<(), String>(())
+        })();
+        self.loading.set(false);
+        loaded?;
+        self.publish_addins()?;
+        Ok(self.addin_list(false))
+    }
+
+    fn unload_addin(&self, path: &std::path::Path) -> Result<wire::AddinList, String> {
+        let path = path.to_owned();
+        let is_xlam = self
+            .addins
+            .borrow()
+            .vba_addins()
+            .iter()
+            .any(|(held, _)| *held == path);
+        if is_xlam {
+            self.addins.borrow_mut().unload_vba_addin(&path);
+            self.addin_notes
+                .borrow_mut()
+                .retain(|(held, _)| *held != path);
+        } else if self.addins.borrow().xlls().contains(&path) {
+            self.loading.set(true);
+            let unloaded = self.addins.borrow_mut().unload(&path);
+            self.loading.set(false);
+            unloaded?;
+        } else {
+            return Err(format!("{} is not loaded", path.display()));
+        }
+        self.publish_addins()?;
+        Ok(self.addin_list(false))
+    }
+
+    /// The add-in set's functions, as one new table, to this and every later worker; the open
+    /// workbook recalculates.
+    fn publish_addins(&self) -> Result<(), String> {
+        let table = self.addins.borrow().callables()?;
+        *self.functions.borrow_mut() = Some(table.clone());
+        self.server.borrow_mut().replace_user_functions(table);
+        self.bind_sheets();
+        Ok(())
+    }
+
     /// Stores the macro security level the person chose in the page, per user (dc-15dk).
     fn store_macro_policy(&self, now: calc_macro_security::MacroPolicy) {
         let previous = self.macro_policy.replace(now);
@@ -401,16 +582,30 @@ impl App {
         }
     }
 
-    /// A newly opened workbook has new sheet identities: the native host names them.
+    /// A newly opened workbook has new sheet identities, and a renamed or added sheet a new name:
+    /// the native host names them.
     fn rebind_after_open(&self) {
         let id = self.server.borrow().workbook_id();
-        if self.book.replace(id) != id {
+        let names: Vec<(calc_value::SheetId, String)> = self
+            .server
+            .borrow()
+            .book()
+            .host()
+            .sheets()
+            .iter()
+            .map(|sheet| (sheet.id(), sheet.name().text().to_string_lossy().to_string()))
+            .collect();
+        let renamed = *self.sheets_bound.borrow() != names;
+        if self.book.replace(id) != id || renamed {
+            *self.sheets_bound.borrow_mut() = names;
             self.bind_sheets();
         }
     }
 
     fn bind_sheets(&self) {
-        let Some(addins) = &self.addins else { return };
+        let Ok(addins) = self.addins.try_borrow() else {
+            return;
+        };
         let server = self.server.borrow();
         for sheet in server.book().host().sheets() {
             addins.bind_sheet(sheet.id(), &sheet.name().text().to_string_lossy());
@@ -435,7 +630,7 @@ impl App {
                 self.web.set_bounds(width, height);
             }
         }
-        if let Some(addins) = &self.addins {
+        if let Ok(addins) = self.addins.try_borrow() {
             for returned in addins.take_async_returns() {
                 let mut server = self.server.borrow_mut();
                 let token = server
@@ -546,8 +741,9 @@ Open the download page now?"
     let fetch = Rc::new(ThreadedFetch::new());
     server.set_fetch_route(fetch.clone());
     server.set_import_route(Rc::new(LocalFiles));
-    let (mut addins, mut functions) = (None, None);
-    if !o.xlls.is_empty() {
+    // The add-in set always exists: the page loads add-ins into it whenever the person asks.
+    let mut functions = None;
+    let addins = {
         let sheets: Vec<(calc_value::SheetId, String)> = server
             .book()
             .host()
@@ -579,18 +775,23 @@ Open the download page now?"
         }
         set.enable_async_continuations()?;
         let rtd = set.enable_rtd()?;
-        let table = set.callables()?;
-        server.set_user_functions(table.clone());
         server.set_rtd_connector(rtd);
-        functions = Some(table);
-        addins = Some(set);
-    }
+        if !o.xlls.is_empty() {
+            let table = set.callables()?;
+            server.set_user_functions(table.clone());
+            functions = Some(table);
+        }
+        set
+    };
     // Declared after the shell so that it drops first: the add-ins close while their windows exist.
     let app = Rc::new(App {
         book: Cell::new(server.workbook_id()),
         server: RefCell::new(server),
         web,
-        addins,
+        addins: RefCell::new(addins),
+        addin_notes: RefCell::new(Vec::new()),
+        loading: Cell::new(false),
+        sheets_bound: RefCell::new(Vec::new()),
         fetch,
         frame,
         bounds: Cell::new(o.size),

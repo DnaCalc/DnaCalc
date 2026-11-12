@@ -397,6 +397,21 @@ impl HostState {
     }
     /// The owner's capability to join or start RTD topics while this host evaluates.
     /// It also registers the built-in `RTD`, which reads through the same connector.
+    /// The sheet and cell the person has active: the session's selection, else the workbook's
+    /// active sheet (its first sheet) at A1, as Excel always has an active sheet.
+    pub fn user_view(&self) -> Option<calc_func::UserView> {
+        self.user_view.or_else(|| {
+            let sheet = self
+                .loaded()
+                .active_sheet()
+                .filter(|sheet| self.model().sheet_by_id(*sheet).is_some())
+                .or_else(|| self.sheets().first().map(|sheet| sheet.id()))?;
+            Some(calc_func::UserView {
+                active_sheet: sheet,
+                selection: calc_value::CellKey::new(sheet, 1, 1).ok()?,
+            })
+        })
+    }
     pub fn set_rtd_connector(&mut self, connector: std::rc::Rc<dyn calc_fml::RtdConnector>) {
         self.rtd_connector = Some(connector);
         let functions = self.functions.clone();
@@ -406,6 +421,7 @@ impl HostState {
         &self,
         work: calc_engine::RecalcWork,
     ) -> calc_engine::RecalcWork {
+        let work = work.with_user_view(self.user_view());
         match &self.rtd_connector {
             Some(inner) => work.with_rtd_connector(std::rc::Rc::new(RecordingConnector {
                 inner: inner.clone(),

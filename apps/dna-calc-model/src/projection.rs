@@ -846,6 +846,18 @@ pub enum Request {
     /// The registered functions the workbook can call (add-in registrations and VBA), for the
     /// formula field's completion.
     UserFunctions,
+    /// The add-ins the host has loaded (dc-0f1k.23). A browser worker loads none and says so.
+    Addins,
+    /// The native host shows its file dialog and loads the .xll or .xlam add-in the person chooses.
+    LoadAddinNative,
+    /// The native host loads the .xll or .xlam add-in at `path`.
+    LoadAddin {
+        path: String,
+    },
+    /// The native host unloads the add-in it loaded from `path`.
+    UnloadAddin {
+        path: String,
+    },
     CalculateName {
         id: (u32, u32),
         version: u64,
@@ -1085,6 +1097,31 @@ pub enum MacroStatus {
     Blocked { reason: String },
     /// The person enabled macros: the project compiled and its events run.
     Enabled,
+}
+
+/// The add-ins the host has loaded, as the page's add-in panel lists them (dc-0f1k.23).
+#[derive(Clone, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
+pub struct AddinList {
+    /// Whether this host loads add-ins at all (the desktop app); a browser page cannot.
+    pub native: bool,
+    /// The person closed the file dialog without choosing: nothing changed.
+    #[serde(default)]
+    pub cancelled: bool,
+    pub loaded: Vec<LoadedAddin>,
+}
+
+/// One loaded add-in.
+#[derive(Clone, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
+pub struct LoadedAddin {
+    /// `xll` or `xlam`.
+    pub kind: String,
+    /// The path it was loaded from.
+    pub path: String,
+    /// The worksheet functions it registered, in registration order.
+    pub functions: Vec<String>,
+    /// What its load reported: workbook events that failed or are not delivered.
+    #[serde(default)]
+    pub notes: Vec<String>,
 }
 
 /// The workbook as the page's shell shows it.
@@ -1481,6 +1518,7 @@ pub enum Reply {
     Part(Result<crate::parts::PartValue, String>),
     Trace(crate::parts::Trace),
     UserFunctions(Vec<String>),
+    Addins(AddinList),
     NameCalculation(crate::names::NameCalculationReply),
     FormatSelection(Result<crate::format::FormatSelection, String>),
     FormatPreview(Result<Cell, String>),
@@ -1695,6 +1733,11 @@ pub struct Cell {
     pub why: String,
     pub owner: Option<String>,
     pub error_meaning: Option<String>,
+    /// A number whose shown text is not its exact value (General shows at most 11 characters,
+    /// and a number format rounds): the shortest text that reads back as the same double, in
+    /// Excel's E notation. `None` when the shown text is the value (dc-0f1k.23).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub exact: Option<String>,
 }
 
 impl Cell {

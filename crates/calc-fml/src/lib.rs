@@ -72,7 +72,7 @@ mod callable;
 pub mod rtd;
 pub use calc_func::{
     ReferenceRead, UserFunction, UserFunctionContext, UserFunctionInvocation, UserFunctionStep,
-    UserInvocationFrame, UserReevaluationReason,
+    UserInvocationFrame, UserReevaluationReason, UserView,
 };
 pub use callable::{
     CallableBindingProof, CallableBindings, CallableDescriptor, CallableHandle, CallableParameter,

@@ -209,3 +209,16 @@ JIT (dc-9z6t, ByRef pass of a UDT scalar field). Module route now: interpreter 2
 **Language tier.** `conformance/excel-measurements/language-rows.excel.txt` in CalcVBA holds Excel 16.0 build 20527's typed answers for the 192 basic-language rows (149 values, 23 raised errors, 20 compile errors; `vba-job.ps1 -Action language`, compile-error dialogs read and dismissed by a UI Automation guard). The engine matches **175 / 192** on both executors; the 17 differences are listed with reasons in `language-rows.known-differences.txt`.
 
 **Sequence tier.** `crates/calc-host-vba/tests/excel_recalculation.rs` replays the 17 stages through a `HostSession` (manual mode, module-route user functions): **25 / 391** stage cells match. Excel evaluates a formula once when it is entered in manual mode (every Excel count is one higher), a same-value write counts as a change, and B12 is refused (`ActiveSheet` is not modelled, dc-snz.5). The probe as Excel ran it is refused by both routes (`ThisWorkbook` undefined in the module route; `Application.Volatile` typed signature in the document route); the replay reads Z1 through `ActiveSheet`.
+
+## 9. Round 5 (2026-11-12, Windows): DNA Calc's file route in the app
+
+Opening DnaSimple.xlsm or DnaExamples.xlsm
+in DNA Calc's desktop app refused the whole project (`TypeName`: "unlinked typed source project VBA"; DnaExamples:
+`Range.Value` assignment undeclared, then a `New` class in the typed route), so 0 of 244 simple-set and DnaExamples
+cases answered. A document project's function the owning typed route cannot carry now runs on the dynamic runtime
+(as from an add-in); `Range.Value` is declared; event-typed Range members map onto the worksheet-function
+projection by name; the session's selection is the user view for `ActiveSheet` and `Selection`. Through DNA
+Calc's page (`cargo xtask app xll-accept calc`): DnaSimple.xlsm 109/109, DnaExamples.xlsm 109/109 and 26/26, against
+Excel's records (`crates/calc-xll-reference/traces/2026-11-11-simple-udfs/README.md`, last section). The in-book
+corpus on the trusted-code route was not re-run for this round. Measured before the merge of the pins of section 8;
+after it 5 TypeName cases regressed on this route (dc-hsa5.22).
