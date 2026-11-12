@@ -75,6 +75,25 @@ def main():
     new, k = re.subn(r'const BANK=.*?\nconst HIST=.*?\nconst BANK_AT=.*?;\n', lambda m: lines, page, count=1, flags=re.S)
     if k != 1:
         sys.exit('data block not found in ' + PAGE)
+    if a.land:
+        sig = {}
+        for fn in os.listdir(a.handbook):
+            if not fn.endswith('.json'):
+                continue
+            d = json.load(open(os.path.join(a.handbook, fn), encoding='utf-8'))
+            n = d.get('name') or ''
+            t = (d.get('sections') or {}).get('what-it-does', '') + ' ' + (d.get('sections') or {}).get('try-it', '')
+            m = re.search(r'`?' + re.escape(n) + r'\(([^)`]{0,160})\)', t)
+            if m:
+                sig[n] = [x.strip().strip('[]').strip() for x in m.group(1).split(',')]
+        land = json.load(open(a.land))
+        block = ('const LAND=' + json.dumps(land, separators=(',', ':')) + ';\n'
+                 + 'const SIG=' + json.dumps(sig, ensure_ascii=False, separators=(',', ':')) + ';\n'
+                 + 'const LAND_AT=' + json.dumps(a.land_note or ('full bank rows at ' + head)) + ';\n')
+        new, k = re.subn(r'const LAND=.*?\nconst SIG=.*?\nconst LAND_AT=.*?;\n', lambda m: block, new, count=1, flags=re.S)
+        if k != 1:
+            sys.exit('landscape block not found in ' + PAGE)
+        print(f'landscapes for {len(land)} functions, {len(sig)} signatures')
     open(PAGE, 'w', encoding='utf-8', newline='\n').write(new)
     print(f'{len(out)} functions, {len(dates)} days ({dates[0]} to {dates[-1]}), at {head}')
 
