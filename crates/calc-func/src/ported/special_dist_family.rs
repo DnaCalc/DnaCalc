@@ -1019,6 +1019,18 @@ mod tests {
             0x3fd2383e809a67e8,
         );
         assert_recorded_bits(
+            "GAMMALN(2.75)",
+            gammaln_kernel(2.75).unwrap(),
+            0x3fde69eac73eab04,
+            0x3fde69eac73eab04,
+        );
+        assert_recorded_bits(
+            "GAMMALN(3.0)",
+            gammaln_kernel(3.0).unwrap(),
+            0x3fe62e42fefa39f0,
+            0x3fe62e42fefa39f0,
+        );
+        assert_recorded_bits(
             "GAMMALN(3.5)",
             gammaln_kernel(3.5).unwrap(),
             0x3ff3373018970a36,
@@ -1066,11 +1078,12 @@ mod tests {
             0x4026d4bac34612ef,
             0x4026d4bac34612ef,
         );
+        // B3 G4 replaces the old calculation pin ...fd4e with the retained Excel answer.
         assert_recorded_bits(
             "GAMMALN(2.3125)",
             gammaln_kernel(2.3125).unwrap(),
             0x3fc4b3a46906fd4c,
-            0x3fc4b3a46906fd4e,
+            0x3fc4b3a46906fd4c,
         );
         assert_recorded_bits(
             "GAMMALN(13.5)",
@@ -1174,11 +1187,12 @@ mod tests {
             0x40730afd5d851956,
             0x40730afd5d851956,
         );
+        // Known B3 G4 loss in the recurrence: keep Excel's answer and pin the one-ulp gap.
         assert_recorded_bits(
             "GAMMALN(4.25)",
             gammaln_kernel(4.25).unwrap(),
             0x4000ea6864c19995,
-            0x4000ea6864c19995,
+            0x4000ea6864c19994,
         );
         assert_recorded_bits(
             "GAMMALN(5.25)",
@@ -1268,7 +1282,7 @@ mod tests {
             "GAMMALN(3.0 + 5.0 / 9.0)",
             gammaln_kernel(3.0 + 5.0 / 9.0).unwrap(),
             0x3ff4344afd96d888,
-            0x3ff4344afd96d887,
+            0x3ff4344afd96d888,
         );
         assert_recorded_bits(
             "GAMMA(1.0 / 11.0)",

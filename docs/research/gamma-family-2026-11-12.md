@@ -294,3 +294,152 @@ a65ce33f368461880048cd280a0202e393e8d714cf30179bb653804260041162) and the G4 can
 `e1b-candidate.tsv` (SHA-256 f762c6f0cca176f1f2eb6c8a1c91ef15566cbe7b832ffee30ce8fc67943f6f31).
 Prediction: the candidate matches Excel at about 94% on the random [2, 3] set and above the landed code
 on (3, 8); below 2 both use the landed B2 band and agree.
+
+## B3 landing measurement (Codex, dna-koderbot, 2026-11-12)
+
+Applied `b3_g4_table.json` with `patch_b3m4.py`, storing the numerator's last sum and keeping
+only the denominator's last sum resident. Both point overrides, at 2.5 and 3, are removed;
+the table itself gives the retained Excel answers at 2.5, 2.75 and 3. Coefficients remain fitted,
+not a claim that every last bit has been recovered. No new Excel calls or external sources:
+tier 1 retained Excel observations and tier 2 repository code only.
+
+Measured before and after this patch on the same master calculation code (baseline bce9c5aa;
+the later pulls to 0192ddd0 and 9bfdd1bf changed tracker and documentation only). Full bank: pass
+3,893,688 -> 3,895,333 of 3,910,795 rows; fail 17,107 -> 15,462, pass rate
+99.5626% -> 99.6046%. Gains 1,723, losses 78, net +1,645. The four unread and 2,064 excluded
+rows remain failures. The 3,910,791 decoded trace rows have identical input, selection,
+answer, source and environment fields before and after; only calculated results may differ.
+
+| Function | Rows | Pass before | Pass after | Fail after | Pass rate after | Gains | Losses |
+|---|---:|---:|---:|---:|---:|---:|---:|
+| BETA.DIST | 2,822 | 1,636 | 1,688 | 1,134 | 59.82% | 61 | 9 |
+| BETADIST | 294 | 195 | 208 | 86 | 70.75% | 13 | 0 |
+| GAMMA.DIST | 77,975 | 77,820 | 77,897 | 78 | 99.90% | 87 | 10 |
+| GAMMALN | 4,538 | 2,139 | 2,646 | 1,892 | 58.31% | 519 | 12 |
+| GAMMALN.PRECISE | 14,278 | 10,647 | 11,643 | 2,635 | 81.55% | 1,043 | 47 |
+
+This differs from the handoff's net +1,590 because current master already has the 2.5 point
+fix, and its later beta implementation also consumes the improved B3 values. The full-bank
+status refresh includes the previously stale CUMPRINC (268/586 pass, 318 fail) and CUMIPMT
+(11/38 pass, 27 fail) rows; their before/after calculated traces do not change with this patch.
+
+The handoff also called GAMMALN(2.3125) a new loss. The actual targeted test showed a gain
+against its historical retained Excel observation: the old calculation pin was
+`0x3fc4b3a46906fd4e`, the new calculation is `0x3fc4b3a46906fd4c`, and the unchanged Excel
+value is `0x3fc4b3a46906fd4c`. The case remains and its strict calculation pin now equals Excel.
+
+The light check exposed the next recorded case, GAMMALN(4.25): the retained Excel answer
+`0x4000ea6864c19995` becomes a known one-ULP loss, with calculation pin
+`0x4000ea6864c19994`. The case and Excel value stay. GAMMALN(3 + 5/9) is another gain:
+calculation pin `0x3ff4344afd96d887` -> `0x3ff4344afd96d888`, equal to its retained Excel answer.
+Only these three existing calculation pins change; the two added exact cases are 2.75 and 3.
+
+`witness refresh` preserved every input, Excel answer, source and original sample. It changed
+33 calculation predictions: BETA.DIST 4, BETADIST 6, GAMMALN 13, GAMMALN.PRECISE 10.
+GAMMA.DIST was also refreshed and needed no prediction changes. The two lost pinned matches,
+BETA.DIST `oc2608` and GAMMALN `oc3531`, are classified as unresolved low B3 coefficient bits
+in the fitted G4 rational (dc-6332.7). All 78 full-bank losses below remain failures; the same
+B3 fit and its downstream compositions are the next exactness target.
+
+Oracle corpus, both runs: 62/62 workbooks compared; pass 76,903, fail 1,361 over 78,264 formula
+cells (98.26%). Fail is mismatched 497 + refused 668 + failed/missing 1 + external links 73 +
+circular held 14 + awaiting capture 108. All 152 retained report files have identical cell
+verdicts before and after: zero gains and zero losses. Counts are over the corpus summary's
+formula-cell population, not the report-file row count.
+
+Full-bank lost rows (the retained Excel value is kept; all are numeric differences):
+
+```tsv
+function	id	excel	calculated
+BETA.DIST	oc2320	0x3fcface5600a9ac5	0x3fcface5600a9ac4
+BETA.DIST	oc2616	0x3fe6ee16ea4ba426	0x3fe6ee16ea4ba425
+BETA.DIST	oc2522	0x3fd249f7c8423c38	0x3fd249f7c8423c39
+BETA.DIST	oc2702	0x3fbd30d7f6778c65	0x3fbd30d7f6778c64
+BETA.DIST	oc2461	0x3faa4ca5cd973a30	0x3faa4ca5cd973a2e
+BETA.DIST	oc2608	0x3f24c34186758a6c	0x3f24c34186758a6b
+BETA.DIST	oc2763	0x3fad0ec340e95a80	0x3fad0ec340e95a7f
+BETA.DIST	oc2368	0x3fcba07851a61230	0x3fcba07851a61231
+BETA.DIST	oc2663	0x3fc2dd286ab6e282	0x3fc2dd286ab6e283
+GAMMA.DIST	oc772	0x3aa9fb96f06af799	0x3aa9fb96f06af79c
+GAMMA.DIST	oc773	0x3c7ee6068b93709e	0x3c7ee6068b9370a2
+GAMMA.DIST	oc77229	0x3db2ce8312223812	0x3db2ce8312223815
+GAMMA.DIST	oc77010	0x3fa3c6f558b00372	0x3fa3c6f558b00373
+GAMMA.DIST	oc774	0x3e1ece86d03fb8c2	0x3e1ece86d03fb8c6
+GAMMA.DIST	oc775	0x3eb95ea121dba9ec	0x3eb95ea121dba9ef
+GAMMA.DIST	oc77651	0x3fdd62f465a83bf0	0x3fdd62f465a83bf3
+GAMMA.DIST	oc776	0x3f47f8b7ad3b12ac	0x3f47f8b7ad3b12af
+GAMMA.DIST	oc77099	0x3fe0fb7054fa5868	0x3fe0fb7054fa5867
+GAMMA.DIST	oc777	0x3f972ee15f4ab862	0x3f972ee15f4ab865
+GAMMALN	oc2869	0x3fd2b54ab114095f	0x3fd2b54ab114095e
+GAMMALN	oc725	0x3fd4823ba04938f4	0x3fd4823ba04938f3
+GAMMALN	oc751	0x3fdbd4199664f249	0x3fdbd4199664f247
+GAMMALN	oc266	0x3fdcdaa6a7e4bb3e	0x3fdcdaa6a7e4bb40
+GAMMALN	oc759	0x3fde26ec230d364f	0x3fde26ec230d364e
+GAMMALN	oc3502	0x3fe575a33793ad42	0x3fe575a33793ad41
+GAMMALN	oc3531	0x3fe5973f1bb2c593	0x3fe5973f1bb2c592
+GAMMALN	oc2915	0x3ff88ac5442a5557	0x3ff88ac5442a5558
+GAMMALN	oc3652	0x3ffbc7d21bc616d5	0x3ffbc7d21bc616d6
+GAMMALN	oc282	0x3ffc77a785f77128	0x3ffc77a785f77127
+GAMMALN	oc1026	0x401819052e90ddd5	0x401819052e90ddd4
+GAMMALN	oc1071	0x401fb4c741de4478	0x401fb4c741de4477
+GAMMALN.PRECISE	oc2622	0x3f81298b205aaea6	0x3f81298b205aaea8
+GAMMALN.PRECISE	oc6360	0x3f92544c57a78627	0x3f92544c57a78628
+GAMMALN.PRECISE	oc6400	0x3fa649c09cf2b4be	0x3fa649c09cf2b4bf
+GAMMALN.PRECISE	oc6444	0x3fb2e7cfbe13e3d2	0x3fb2e7cfbe13e3d4
+GAMMALN.PRECISE	oc6456	0x3fb51e5bc2525a62	0x3fb51e5bc2525a63
+GAMMALN.PRECISE	oc3399	0x3fb6677e79bcc221	0x3fb6677e79bcc222
+GAMMALN.PRECISE	oc14124	0x3fb9361cf95814ea	0x3fb9361cf95814e9
+GAMMALN.PRECISE	oc6495	0x3fbc96d1b2db630e	0x3fbc96d1b2db630f
+GAMMALN.PRECISE	oc13834	0x3fc226b9a5c44f79	0x3fc226b9a5c44f7a
+GAMMALN.PRECISE	oc6556	0x3fc48d26a2b70a41	0x3fc48d26a2b70a40
+GAMMALN.PRECISE	oc6579	0x3fc709adc02c85b3	0x3fc709adc02c85b1
+GAMMALN.PRECISE	oc6678	0x3fd14049f6230fea	0x3fd14049f6230fe9
+GAMMALN.PRECISE	oc6682	0x3fd17ecfa46cb99c	0x3fd17ecfa46cb99b
+GAMMALN.PRECISE	oc6706	0x3fd2fb10b4f72764	0x3fd2fb10b4f72765
+GAMMALN.PRECISE	oc10718	0x3fd5e6a21241c19f	0x3fd5e6a21241c19e
+GAMMALN.PRECISE	oc6763	0x3fd6a4b4c9d1519a	0x3fd6a4b4c9d15199
+GAMMALN.PRECISE	oc6826	0x3fdafb1d37215a99	0x3fdafb1d37215a97
+GAMMALN.PRECISE	oc6828	0x3fdb1f5a0c4e0d86	0x3fdb1f5a0c4e0d85
+GAMMALN.PRECISE	oc12	0x3fdbd4199664f249	0x3fdbd4199664f247
+GAMMALN.PRECISE	oc6885	0x3fdf4026498ca28f	0x3fdf4026498ca28c
+GAMMALN.PRECISE	oc6944	0x3fe1dae33ee0817a	0x3fe1dae33ee0817b
+GAMMALN.PRECISE	oc6963	0x3fe297bdf3c14882	0x3fe297bdf3c14884
+GAMMALN.PRECISE	oc10498	0x3fe4540120ee25be	0x3fe4540120ee25bd
+GAMMALN.PRECISE	oc7101	0x3fe83a0d54dbfb77	0x3fe83a0d54dbfb78
+GAMMALN.PRECISE	oc7181	0x3febb4a001d5611b	0x3febb4a001d5611c
+GAMMALN.PRECISE	oc7221	0x3fed803aab79c792	0x3fed803aab79c791
+GAMMALN.PRECISE	oc7346	0x3ff1abc509054229	0x3ff1abc509054228
+GAMMALN.PRECISE	oc7400	0x3ff2fc1c85661df2	0x3ff2fc1c85661df3
+GAMMALN.PRECISE	oc7420	0x3ff37aa9f7361fee	0x3ff37aa9f7361fed
+GAMMALN.PRECISE	oc7509	0x3ff5ba7e30553ec3	0x3ff5ba7e30553ec2
+GAMMALN.PRECISE	oc7521	0x3ff609affa3ead69	0x3ff609affa3ead6a
+GAMMALN.PRECISE	oc7524	0x3ff61d8af9db0a2c	0x3ff61d8af9db0a2d
+GAMMALN.PRECISE	oc7548	0x3ff6bd3351cdeefe	0x3ff6bd3351cdeefd
+GAMMALN.PRECISE	oc11367	0x3ff73ebdc9f6827e	0x3ff73ebdc9f6827d
+GAMMALN.PRECISE	oc7573	0x3ff765099e5f9886	0x3ff765099e5f9885
+GAMMALN.PRECISE	oc7619	0x3ff89ddfe05aff90	0x3ff89ddfe05aff8f
+GAMMALN.PRECISE	oc11312	0x3ff8f080c13bbb0e	0x3ff8f080c13bbb0d
+GAMMALN.PRECISE	oc7633	0x3ff8fe1b43f30aac	0x3ff8fe1b43f30aad
+GAMMALN.PRECISE	oc7653	0x3ff98865dd2c7cce	0x3ff98865dd2c7ccd
+GAMMALN.PRECISE	oc7691	0x3ffa91c61d52a884	0x3ffa91c61d52a883
+GAMMALN.PRECISE	oc2905	0x3ffb57f6533c381e	0x3ffb57f6533c381f
+GAMMALN.PRECISE	oc2202	0x3ffc0ad54272579e	0x3ffc0ad54272579f
+GAMMALN.PRECISE	oc3232	0x3ffca23c0df7da4c	0x3ffca23c0df7da4b
+GAMMALN.PRECISE	oc2915	0x3ffcaab68fd41104	0x3ffcaab68fd41103
+GAMMALN.PRECISE	oc2198	0x4000ea6864c19995	0x4000ea6864c19994
+GAMMALN.PRECISE	oc10597	0x40090fd6f4b2bd1e	0x40090fd6f4b2bd1f
+GAMMALN.PRECISE	oc14178	0x401955eca4050406	0x401955eca4050405
+```
+
+Still open: the remaining B3 low bits, the held-out E1b check, B1, the GAMMA seed and
+below-zero computation, and the a<1 gamma CDF normaliser. This landing does not close dc-6332.7.
+
+Validation: final `cargo xtask check` passed, 724 tests passed, zero failed, three ignored and
+one not run across 13 harnesses; workspace and portable wasm checks passed. The native hardware/
+software x87 band comparison is included. `rustfmt --check`, `git diff --check` and the required
+read-only review passed. Browser execution and Excel were not run by this landing lane.
+
+Raw traces, full corpus output archives, comparison summaries, classified pins and check logs:
+`r2:dnacalc-corpus/runs/dna-koderbot/20261112-040926-gammaln-b3-codex/`
+(27 files, 204,937,069 bytes). Copied with `rclone --checksum`;
+`rclone check --one-way --download` found zero differences and 27 matching files.

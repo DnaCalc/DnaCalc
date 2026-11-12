@@ -68,28 +68,28 @@ const Q2: [f64; 8] = [
     9.533095591844353613395747e6,
 ];
 
-// ---- B3 [2,3]: read from Excel's answers, lowest power first. See `b3_with`. ------------------
+// ---- B3 [2,3]: fitted to Excel's answers, lowest power first. See `b3_with`. ------------------
 const B3_P: [u64; 9] = [
-    0xC002_2260_ED97_8E7B,
-    0xC03D_E852_AEE8_BF62,
-    0xC050_AE34_EB3C_BACE,
-    0xC000_8305_B479_986D,
+    0xC002_2260_ED97_8401,
+    0xC03D_E852_AEE8_C149,
+    0xC050_AE34_EB3C_BAD5,
+    0xC000_8305_B479_9884,
     0x404F_0A8C_0539_86D7,
-    0x4040_9FD1_AD1D_8E5C,
-    0x4015_72BF_8684_2F3A,
-    0x3FD0_EE2F_1188_4D4E,
-    0x3F65_E5B7_3842_993C,
+    0x4040_9FD1_AD1D_8E4C,
+    0x4015_72BF_8684_2F87,
+    0x3FD0_EE2F_1188_4D48,
+    0x3F65_E5B7_3842_7958,
 ];
 const B3_Q: [u64; 9] = [
-    0x3FF0_0000_0001_15C7,
-    0x4039_B252_B2FA_AF0E,
+    0x3FF0_0000_0000_0001,
+    0x4039_B252_B2FA_B379,
     0x405E_DDF2_040D_2BC2,
-    0x4067_B39F_C919_441A,
-    0x405C_5151_77EB_165E,
-    0x403B_B43B_464D_3956,
-    0x4005_3036_58EF_45CA,
-    0x3FB5_2FC9_914B_BFB2,
-    0x3F40_3CAD_F2CF_35CF,
+    0x4067_B39F_C919_4438,
+    0x405C_5151_77EB_1641,
+    0x403B_B43B_464D_392A,
+    0x4005_3036_58EF_46BA,
+    0x3FB5_2FC9_914B_C0FA,
+    0x3F40_3CAD_F2CE_38F8,
 ];
 
 // ---- B4 [4.0,8.0): SPECFUN dlgama published P4/Q4 (ascending Horner order) --
@@ -160,36 +160,23 @@ fn b2(x: f64) -> f64 {
 
 /// B3 band `[2, 3]`.
 fn b3(x: f64) -> f64 {
-    // The top of the band, as Excel gives it: one ulp above stored ln 2. It is read, because the
-    // table below is two ulps above it there, and GAMMA.DIST's shape 2 takes it in every prefactor.
-    if x == 3.0 {
-        return f64::from_bits(0x3FE6_2E42_FEFA_39F0);
-    }
-    // The middle of the band, as Excel 16.0.20527 gives it: one ulp below what the table read so
-    // far gives there (its low coefficient bits are not all read). It is read, because every
-    // half-integer argument up to 8 comes down the recurrence to it, and the beta family takes
-    // those in each `ln B` of a half-integer shape (F and t with odd degrees; dc-6332.8).
-    if x == 2.5 {
-        return f64::from_bits(0x3FD2_383E_809A_67E8);
-    }
     b3_with::<super::Native>(x)
 }
 
-/// `y = (x-2) * R`, `R = P(x)/Q(x)`, both polynomials of degree 8 in `x` itself, as Excel 16.0.20527
-/// evaluates them on the x87 at precision 64. Every Horner product and sum is stored to binary64,
-/// except each polynomial's last sum, which stays in the register for the division; `R` is stored,
-/// and so is the answer.
+/// `y = (x-2) * R`, `R = P(x)/Q(x)`, both polynomials of degree 8 in `x` itself: the inferred
+/// G4 shape for Excel 16.0.20527 on the x87 at precision 64. Every Horner product and sum is
+/// stored to binary64 except the denominator's last sum, which stays in the register for the
+/// division; `R` is stored, and so is the answer (2026-11-12 research log).
 ///
-/// Read from Excel's answers on windows of consecutive doubles. Each stored stage leaves a line in
-/// the error, and the phases of 15 stage lines over 2,000 windows give the stage values; the stages
-/// link as `S(k-1) = x S(k) + c(k-1)`. Independent checks: with only the two last coefficients left
-/// to the identity, `P/Q` meets `lnGamma(x)/(x-2)` to 8e-17 on `[2,3]`, and a simulation of this form
-/// leaves the same noise as Excel at every `x` on `[2,3]`.
+/// Each stored stage leaves a line in the error of Excel's answers on windows of consecutive
+/// doubles. Their phases give stage values linked by `S(k-1) = x S(k) + c(k-1)`. The jumps where
+/// the numerator's last sum crosses a power of two distinguish its store from a resident sum.
 ///
-/// How far the bits go: 98% of rows within 0.002 of 2.5 agree bit for bit, 70% on `[2.4666, 2.6031]`,
-/// 32% elsewhere on `[2,3]`. Past that stretch the low bits of the coefficients are not read yet:
-/// each stage that crosses a power of two exposes bits the last binade hid. `Q(0)` comes from the
-/// identity and `P(0)` from the sharp minimum of disagreeing rows at 2.5, not from a line.
+/// The coefficient bits are fitted inside this shape using compensated coefficient moves,
+/// scored on a subsample of 258 windows. The table matches 94.1% of all 264,192 E1 inputs,
+/// at least 88% in each window, and gives Excel's answers at 2.5, 2.75 and 3 without point
+/// overrides. The remaining low coefficient bits are unresolved; E1b predictions are frozen
+/// for a held-out check. See `docs/research/gamma-family-2026-11-12.md`.
 fn b3_with<F: super::Fpu>(x: f64) -> f64 {
     use super::soft87::{CW_PC64_RN as CW, ext_from_f64 as ext};
 
@@ -202,7 +189,8 @@ fn b3_with<F: super::Fpu>(x: f64) -> f64 {
         let product = F::store(&F::mul(&ext(value), &ext(x), CW), CW);
         F::add(&ext(product), &ext(f64::from_bits(c[0])), CW)
     };
-    let (num, den) = (chain(&B3_P), chain(&B3_Q));
+    // The numerator's last sum is stored, the denominator's stays in the register (E1, 2026-11-12).
+    let (num, den) = (ext(F::store(&chain(&B3_P), CW)), chain(&B3_Q));
     let r = F::store(&F::div(&num, &den, CW), CW);
     F::store(&F::mul(&ext(r), &ext(x - 2.0), CW), CW)
 }
