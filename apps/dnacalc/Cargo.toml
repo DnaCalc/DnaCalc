@@ -1,0 +1,24 @@
+[package]
+name = "dnacalc"
+version.workspace = true
+edition.workspace = true
+publish.workspace = true
+license.workspace = true
+description = "The dnacalc command: open a workbook, recalculate it, compare it with its cached values, read and write cells and run its VBA macros, headless on Linux and Windows (dc-icq4.1)."
+
+[package.metadata.dnacalc]
+portability = "native-only"
+
+# calc-host is the session (open, edit, recalculate, project, save); calc-host-vba and
+# calc-macro-security run the file's VBA project under the macro levels; calc-verdict supplies the
+# one value comparison (`compare`) the corpus oracle judges with.
+[dependencies]
+calc-host = { path = "../../crates/calc-host" }
+calc-host-vba = { path = "../../crates/calc-host-vba" }
+calc-macro-security = { path = "../../crates/calc-macro-security" }
+calc-verdict = { path = "../../tools/calc-verdict" }
+serde_json = "=1.0.154"
+
+[[bin]]
+name = "dnacalc"
+path = "src/main.rs"
