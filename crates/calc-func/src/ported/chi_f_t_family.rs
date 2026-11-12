@@ -244,7 +244,15 @@ pub fn f_inv_rt_kernel(probability: f64, deg1: f64, deg2: f64) -> Result<f64, Wo
 }
 
 fn t_pdf(x: f64, deg_freedom: f64) -> Result<f64, WorksheetErrorCode> {
-    let v = truncate_positive_integer(deg_freedom)?;
+    // Density admits finite degrees above the CDF's 1e10 ceiling. A zero
+    // truncated degree reaches the density's division before its domain error.
+    let v = deg_freedom.trunc();
+    if v == 0.0 {
+        return Err(WorksheetErrorCode::Div0);
+    }
+    if !v.is_finite() || v < 0.0 || !x.is_finite() || !(x * x).is_finite() {
+        return Err(WorksheetErrorCode::Num);
+    }
     if v == 1.0 {
         // Live Excel 16.0 b20326: T.DIST(x,1,FALSE)=1/(PI()*(1+x*x)) 20/20.
         // 1/PI()/(1+x*x) is 12/20; 1/(PI()+PI()*x*x) is 18/20.
@@ -288,13 +296,31 @@ fn t_pdf(x: f64, deg_freedom: f64) -> Result<f64, WorksheetErrorCode> {
     Ok(excel_x87_mul(excel_exp(exponent), factor))
 }
 
+/// Excel's stored beta arguments retain the two quotients, but an argument
+/// rounded to one publishes the endpoint even when the other quotient is nonzero.
+fn t_two_tail(x: f64, v: f64) -> Result<f64, WorksheetErrorCode> {
+    use crate::ported::excel_numeric::{excel_x87_add, excel_x87_div, excel_x87_mul};
+    let t2 = excel_x87_mul(x, x);
+    if !t2.is_finite() {
+        return Err(WorksheetErrorCode::Num);
+    }
+    let den = excel_x87_add(v, t2);
+    let z = excel_x87_div(v, den);
+    if z == 1.0 {
+        return Ok(1.0);
+    }
+    let tail = bratio_from_wrapper(v / 2.0, 0.5, z, excel_x87_div(t2, den)).0;
+    if tail.is_finite() {
+        Ok(tail)
+    } else {
+        Err(WorksheetErrorCode::Num)
+    }
+}
+
 fn t_cdf(x: f64, deg_freedom: f64) -> Result<f64, WorksheetErrorCode> {
     let v = truncate_positive_integer(deg_freedom)?;
-    // W109 identified staging: x = df/den, y = t^2/den (accurate complement).
-    let t2 = x * x;
-    let den = v + t2;
-    let ib = bratio_from_wrapper(v / 2.0, 0.5, v / den, t2 / den).0;
-    Ok(if x >= 0.0 { 1.0 - 0.5 * ib } else { 0.5 * ib })
+    let half = 0.5 * t_two_tail(x, v)?;
+    Ok(if x >= 0.0 { 1.0 - half } else { half })
 }
 
 pub fn t_dist_kernel(
@@ -310,74 +336,91 @@ pub fn t_dist_kernel(
 }
 
 pub fn t_dist_rt_kernel(x: f64, deg_freedom: f64) -> Result<f64, WorksheetErrorCode> {
-    let x = validate_nonnegative_x(x)?;
     let v = truncate_positive_integer(deg_freedom)?;
-    let t2 = x * x;
-    let den = v + t2;
-    Ok(0.5 * bratio_from_wrapper(v / 2.0, 0.5, v / den, t2 / den).0)
+    let half = 0.5 * t_two_tail(x, v)?;
+    Ok(if x >= 0.0 { half } else { 1.0 - half })
 }
 
 pub fn t_dist_2t_kernel(x: f64, deg_freedom: f64) -> Result<f64, WorksheetErrorCode> {
     let x = validate_nonnegative_x(x)?;
     let v = truncate_positive_integer(deg_freedom)?;
-    let t2 = x * x;
-    let den = v + t2;
-    Ok(bratio_from_wrapper(v / 2.0, 0.5, v / den, t2 / den).0)
+    t_two_tail(x, v)
+}
+
+pub fn tdist_kernel(x: f64, deg_freedom: f64, tails: f64) -> Result<f64, WorksheetErrorCode> {
+    // The legacy name rejects negative x even with one tail. Its tails slot
+    // uses the same tolerant integer boundary as Excel's date/count slots:
+    // all three fresh edges at 1, 2 and 3 are exactly 2^-22 + 2^-33 below.
+    let x = validate_nonnegative_x(x)?;
+    let tails = crate::ported::text_kernels::date_integer_floor(tails);
+    match tails as i32 {
+        1 => t_dist_rt_kernel(x, deg_freedom),
+        2 => t_dist_2t_kernel(x, deg_freedom),
+        _ => Err(WorksheetErrorCode::Num),
+    }
 }
 
 pub fn t_inv_kernel(probability: f64, deg_freedom: f64) -> Result<f64, WorksheetErrorCode> {
-    let p = validate_probability_open_unit(probability)?;
+    if !probability.is_finite() || probability < 0.0 || probability >= 1.0 {
+        return Err(WorksheetErrorCode::Num);
+    }
     let v = truncate_positive_integer(deg_freedom)?;
-    if p == 0.5 {
+    if probability == 0.5 {
         return Ok(0.0);
     }
-    if p < 0.5 {
-        return Ok(-t_inv_kernel(1.0 - p, v)?);
+    // Excel 20527: 524/524 signed one/two-tail pairs. Form the lower
+    // probability directly, so tiny p is never lost in 1 - (1 - p).
+    if probability < 0.5 {
+        Ok(-t_inv_2t_kernel(2.0 * probability, v)?)
+    } else {
+        t_inv_2t_kernel(2.0 * (1.0 - probability), v)
     }
-    if v == 1.0 {
-        // Live Excel 16.0 b20326: T.INV(p,1)=T.INV.2T(2*(1-p),1) 56/56.
-        return t_inv_2t_kernel(2.0 * (1.0 - p), v);
-    }
-    let hi = search_upper_bound(p, 1.0, |x| t_cdf(x, v).unwrap_or(1.0));
-    Ok(bisect_inverse(p, 0.0, hi, |x| t_cdf(x, v).unwrap_or(1.0)))
 }
 
 pub fn t_inv_2t_kernel(probability: f64, deg_freedom: f64) -> Result<f64, WorksheetErrorCode> {
     let v = truncate_positive_integer(deg_freedom)?;
+    if !probability.is_finite() || probability < 0.0 || probability >= 2.0 {
+        return Err(WorksheetErrorCode::Num);
+    }
     if probability == 1.0 {
         return Ok(0.0);
     }
-    let p = validate_probability_open_unit(probability)?;
+    let (p, sign) = if probability > 1.0 {
+        (2.0 - probability, -1.0)
+    } else {
+        (probability, 1.0)
+    };
     if v == 1.0 {
-        // Live Excel 16.0 b20326: T.INV.2T(p,1)=1/TAN(PI()*p/2) 9/9.
-        // Cauchy closed form; the BETA.INV sqrt graph misses 3/9 here.
-        // p=0.5 is the exact quartile 1; worksheet TAN(PI()/4) is 1, but
-        // excel_tan(π/4) is 1 ULP high so 1/tan would publish 1+1 ULP.
+        // Reflect before forming the Cauchy cotangent; the stored angular
+        // argument at p>1 is not equivalent. Its zero pole is #DIV/0!.
+        if p == 0.0 {
+            return Err(WorksheetErrorCode::Div0);
+        }
         if p == 0.5 {
-            return Ok(1.0);
+            return Ok(sign);
         }
         let arg = std::f64::consts::PI * p / 2.0;
-        return Ok(1.0 / crate::ported::tan::tan_kernel(arg));
+        return Ok(sign / crate::ported::tan::tan_kernel(arg));
     }
-    // df>=2: Excel is SQRT(df*(1/BETA.INV(p,df/2,0.5)-1)) 135/135 vs the
-    // worksheet BETA.INV. Its remaining kernel errors are counted; retain
-    // the existing beta-coordinate route through p=0.85 and direct-tail
-    // inversion above that boundary (W109 b19).
-    if p <= 0.85 {
-        // Excel reaches t through the beta coordinate z: on the bank's rows with p <= 0.85 its value
-        // lies in the image of SQRT(v * (1/z - 1)) over binary64 z, within about one ulp of z of the
-        // true root (TINV(0.85,25) is 176 ulps from the root's t only through that map). z is
-        // the lattice point of the beta inverse nearer to p of the two that bracket it.
+    if p == 0.0 {
+        return Err(WorksheetErrorCode::Num);
+    }
+    // Excel 20527: the direct coordinate is used through p=0.9, the
+    // complementary coordinate above it. The latter preserves tiny roots.
+    let t = if p <= 0.9 {
         let z = crate::ported::beta_gamma_stats_family::beta_inv_kernel(p, v / 2.0, 0.5, 0.0, 1.0)?;
-        return Ok((v * (1.0 / z - 1.0)).sqrt());
-    }
-    let f = move |x: f64| {
-        let t2 = x * x;
-        let den = v + t2;
-        -bratio_from_wrapper(v / 2.0, 0.5, v / den, t2 / den).0
+        (v * (1.0 / z - 1.0)).sqrt()
+    } else {
+        let y = crate::ported::beta_gamma_stats_family::beta_inv_kernel(
+            1.0 - p,
+            0.5,
+            v / 2.0,
+            0.0,
+            1.0,
+        )?;
+        (v * y / (1.0 - y)).sqrt()
     };
-    let hi = search_upper_bound(-p, 1.0, f);
-    Ok(bisect_inverse(-p, 0.0, hi, f))
+    Ok(sign * t)
 }
 
 #[cfg(test)]
@@ -390,7 +433,13 @@ mod tests {
     #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
     fn f_tails_match_excel() {
         let rows = [
-            (1.3, 5.0, 6.0, 0x3fd7f771c9bb0b34_u64, 0x3fe404471b227a66_u64),
+            (
+                1.3,
+                5.0,
+                6.0,
+                0x3fd7f771c9bb0b34_u64,
+                0x3fe404471b227a66_u64,
+            ),
             (0.7, 5.0, 6.0, 0x3fe49996497df1d1, 0x3fd6ccd36d041c5e),
             (2.5, 4.0, 9.0, 0x3fbde107cdec13bc, 0x3fec43df06427d88),
             (0.9, 3.0, 5.0, 0x3fe01749ebfa7d62, 0x3fdfd16c280b053b),
@@ -670,7 +719,10 @@ mod tests {
             Err(WorksheetErrorCode::Num)
         );
         assert_eq!(t_dist_2t_kernel(-1.0, 10.0), Err(WorksheetErrorCode::Num));
-        assert_eq!(t_dist_rt_kernel(-1.0, 10.0), Err(WorksheetErrorCode::Num));
+        assert_eq!(
+            t_dist_rt_kernel(-1.0, 10.0).unwrap().to_bits(),
+            0x3fea8bb3a4954e72
+        );
     }
 
     // BUG-FUNC-039 item 1: x=0 divergence published as #NUM!, not +inf.

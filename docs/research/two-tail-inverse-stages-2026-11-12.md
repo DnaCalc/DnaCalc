@@ -144,3 +144,73 @@ query follows from this weak result.
 Further rejected-model evidence: dnacalc-evidence/research/round58/20261112-fn2-rejected-0830/,
 64 files, 120,226,186 bytes; checksum copy and one-way check zero differences.
 These records do not add a landed pass or change any Excel answer.
+
+## Expanded-bank T-family computation controls (fix2)
+
+Fresh Excel 20527 controls, retained under CalcFunc-Evidence
+`probes/2026-11-12-fix2/`, separate wrapper admission from the inverse kernel:
+
+- T.INV is the signed T.INV.2T call at `2*p` below the median and
+  `2*(1-p)` above it: 524/524 paired controls, including probabilities down
+  to 1e-100. Reflecting the input probability first loses the small lower tail.
+- T.INV.2T and TINV admit `1 < p < 2` and return a negative quantile.
+  Reflect to `2-p` before forming the Cauchy angle as well; 127/127 fresh
+  p>1 Cauchy controls match the reflected call. Direct cotangent staging
+  on p>1 matched 9/127. On p<1 the public cotangent matched 131/131.
+  The df=1 pole at p=0 is #DIV/0!; other degrees reject it with #NUM!.
+- For df>=2, the public inverse uses `sqrt(v*(1/z-1))`, with
+  `z=BETA.INV(p,v/2,0.5)`, through p=0.9. Above 0.9 it uses
+  `sqrt(v*y/(1-y))`, with `y=BETA.INV(1-p,0.5,v/2)`.
+  This public composition explains 278/280 fresh controls. The two unexplained
+  controls both have df=1e10; they remain counted. A single unit of the beta
+  coordinate can be many units of the Student-t result.
+- CONFIDENCE.T first stores `s/sqrt(n)`, then multiplies the quantile:
+  512/512 fresh scale controls versus 330/512 for multiply-then-divide.
+  A truncated sample size of one returns #DIV/0! after the other domains.
+- T.DIST.RT accepts negative x; TDIST and T.DIST.2T reject it. T.DIST's
+  density admits degrees above the CDF ceiling; zero truncated degrees
+  return #DIV/0! in density and #NUM! in the CDF. Squaring overflow is #NUM!.
+- TDIST's tails conversion shares the existing date/count integer floor.
+  The three adjacent-input transitions at 1, 2 and 3 are exactly
+  `2^-22 + 2^-33` below the integer, inclusive.
+
+The half/half beta integral follows the public arcsine graph. The first
+257-row set matches 243/257 with direct `2*ASIN(SQRT(x))/PI()`; every miss
+is above 0.9. A fresh 518-row set matches 517/518 after a stored-PC64
+quotient and the complementary coordinate above 0.9; the remaining row
+at exactly 0.9 selects the complementary arm. The immediate neighbours
+of 0.9 and a near-one discriminator are retained. On 512 fresh Student-t
+df=1 inputs, its two-tail answer equals the public beta call at stored
+`1/(1+t*t)` on every row. This arm forms its own `1-x`; retaining the
+wrapper's accurate second argument does not reproduce Excel near zero.
+
+The beta inverse remains a separate gap. Excel's extreme inverse sometimes
+fails to invert its own CDF: BETA.INV(1e-100,500,0.5) gives
+0.22605101582053366, where BETA.DIST is zero, while the calculated root
+0.6349801585984094 has worksheet CDF 1.0000000000000076e-100.
+These are repeatable observations, not permission to fit an input-specific
+answer. A proposed unit-shape analytic inverse was rejected: on 512 fresh
+controls, EXP(LN(p)/a) explains 403 results and POWER explains 269;
+the complementary formula explains only 138/512. No such shortcut lands.
+The frozen full-bank population (Evidence 50f76220, same readings as de4e050e)
+is 4,663,392 rows. A fresh full before/after comparison gives 2,546 gained
+matches, 19 lost, net +2,527; 2,967 actuals changed, with every recorded input,
+selection, answer, source and environment unchanged across 4,663,388 decoded
+rows. The result is 4,541,006 matched and 122,386 failed, including four unread;
+2,064 excluded. All four forward functions gain with no losses: T.DIST
+3659->4009/4281, T.DIST.RT 2989->3819/4184, T.DIST.2T
+3665->3886/4178, TDIST 4233->4260/4363. Their worst remaining numeric gaps
+are respectively 9091, 6583, 5954 and 1687 ULP. The inverse/confidence beads
+stay open. All 19 losses (one to seven ULP) are listed in the source commit;
+BETAINV oc11 is the explicitly classified one-ULP pinned loss against dc-b0p4.
+Thirteen calculated predictions change, with inputs and Excel answers preserved.
+
+The corpus is unchanged at the same source baseline: 77039 pass, 1225 fail
+of 78264 cells; all 78156 recorded cell verdicts unchanged, with the same
+108 awaiting capture. The intervening financial work accounts for the increase
+since the previous fix2 batch. Native and software-x87 f1_stats each pass 82
+cases. The final light check passes 746 tests, zero failures, with workspace
+all-target and wasm checks passed. The full generated status survives pin refresh
+unchanged. Evidence controls are in 50f76220 and 211faa3b; the latter also
+retains rejected inverse and follow-up continued-fraction discriminators.
+R2: dnacalc-corpus/runs/dna-koderbot/20261112-fix2-batch3/ (8 files, 303418250 bytes; checksum copy and one-way check passed).

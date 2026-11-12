@@ -11,10 +11,17 @@ pub fn confidence_t_kernel(
         return Err(WorksheetErrorCode::Value);
     }
     let n = size.trunc();
-    if !(0.0 < alpha && alpha < 1.0) || standard_dev <= 0.0 || n < 2.0 {
+    if !(0.0 < alpha && alpha < 1.0) || standard_dev <= 0.0 || n < 1.0 {
         return Err(WorksheetErrorCode::Num);
     }
-    Ok(t_inv_2t_kernel(alpha, n - 1.0)? * standard_dev / n.sqrt())
+    if n == 1.0 {
+        return Err(WorksheetErrorCode::Div0);
+    }
+    // Excel 20527: scale first, then multiply the quantile (512/512
+    // controls; multiplying the quantile first matched 330/512).
+    use crate::ported::excel_numeric::{excel_sqrt_staged, excel_x87_div, excel_x87_mul};
+    let scale = excel_x87_div(standard_dev, excel_sqrt_staged(n));
+    Ok(excel_x87_mul(scale, t_inv_2t_kernel(alpha, n - 1.0)?))
 }
 
 pub fn z_test_kernel(
@@ -66,7 +73,7 @@ mod tests {
         );
         assert_eq!(
             confidence_t_kernel(0.05, 2.0, 1.0),
-            Err(WorksheetErrorCode::Num)
+            Err(WorksheetErrorCode::Div0)
         );
     }
 

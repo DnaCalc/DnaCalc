@@ -30,6 +30,69 @@ fn chisq_density_and_cdf_underflow_use_measured_gamma_route() {
     );
 }
 
+/// Excel20527 fresh controls: stored tail endpoint, signed modern tail,
+/// legacy tails conversion, density domains and the signed inverse graph.
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn student_t_stored_tails_and_admission_match_excel() {
+    exact(call("T.DIST", vec![n(-1e-9), n(5.0), b(true)]), 0.5);
+    exact(call("T.DIST.2T", vec![n(1e-9), n(5.0)]), 1.0);
+    exact(call("T.DIST.RT", vec![n(-1.0), n(1.0)]), 0.75);
+    error(call("TDIST", vec![n(-1.0), n(1.0), n(1.0)]), Num);
+    error(call("T.DIST", vec![n(1e200), n(5.0), b(true)]), Num);
+    error(call("T.DIST", vec![n(0.0), n(0.5), b(false)]), Div0);
+    error(call("T.DIST", vec![n(0.0), n(0.5), b(true)]), Num);
+    exact(
+        call("T.DIST", vec![n(0.0), n(1e100), b(false)]),
+        f64::from_bits(0x3fd9_8845_33d4_3651),
+    );
+    let edge = f64::from_bits(0x3fef_ffff_7ff0_0000);
+    error(
+        call(
+            "TDIST",
+            vec![n(0.1), n(5.0), n(f64::from_bits(edge.to_bits() - 1))],
+        ),
+        Num,
+    );
+    exact(
+        call("TDIST", vec![n(0.1), n(5.0), n(edge)]),
+        f64::from_bits(0x3fdd_934b_16c7_934b),
+    );
+}
+
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn student_t_inverse_preserves_small_probability_and_signed_two_tail_domain() {
+    exact(
+        call("T.INV", vec![n(1e-100), n(1.0)]),
+        f64::from_bits(0xd497_48e5_3d8d_16b1),
+    );
+    for name in ["T.INV.2T", "TINV"] {
+        error(call(name, vec![n(0.0), n(1.0)]), Div0);
+        exact(
+            call(name, vec![n(1.1), n(1.0)]),
+            f64::from_bits(0xbfc4_45f0_fbb1_cf9c),
+        );
+        exact(
+            call(name, vec![n(1.5), n(2.0)]),
+            f64::from_bits(0xbfea_20bd_700c_2c3d),
+        );
+    }
+}
+
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn confidence_t_scales_before_multiplying_the_quantile() {
+    error(call("CONFIDENCE.T", vec![n(0.05), n(2.0), n(1.9)]), Div0);
+    exact(
+        call(
+            "CONFIDENCE.T",
+            vec![n(0.7126096435331697), n(0.00016927413901532965), n(3783.0)],
+        ),
+        f64::from_bits(0x3eb1_026a_0c77_797d),
+    );
+}
+
 fn data() -> CalcValue {
     arr(vec![vec![2.0, 4.0, 4.0, 4.0, 5.0, 5.0, 7.0, 9.0]])
 }
@@ -56,7 +119,7 @@ fn inverse_probability_endpoints_follow_excel() {
         for df in [0.0, 0.9, -1.0, 1e10 + 1.0] {
             error(call(name, vec![n(1.0), n(df)]), Num);
         }
-        for p in [0.0, -0.1, 1.1] {
+        for p in [0.0, -0.1, 2.0] {
             error(call(name, vec![n(p), n(6.0)]), Num);
         }
     }

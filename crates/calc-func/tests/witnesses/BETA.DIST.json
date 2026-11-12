@@ -6,7 +6,7 @@
     {"bitness":null,"cpu":"AMD Ryzen 7 4800H with Radeon Graphics","excel_build":"20131","id":"r0","platform":"Windows","source":"CalcFunc-Evidence cache/oracle/build-20131/BETA.DIST.jsonl"}
   ],
   "witnesses": [
-    {"args":["0x3e10000000000000","0x3fe0000000000000","0x3fe0000000000000","0x3ff0000000000000"],"calc_func":"0x3ef45f306dd75d51","expected_bits":"0x3ef45f306dd75d4e","id":"oc67","reading":"r0"},
+    {"args":["0x3e10000000000000","0x3fe0000000000000","0x3fe0000000000000","0x3ff0000000000000"],"expected_bits":"0x3ef45f306dd75d4e","id":"oc67","reading":"r0"},
     {"args":["0x3e10000000000000","0x3ff0000000000000","0x3ff0000000000000","0x3ff0000000000000"],"expected_bits":"0x3e10000000000004","id":"oc61","reading":"r0"},
     {"args":["0x3e10000000000000","0x4000000000000000","0x4000000000000000","0x3ff0000000000000"],"expected_bits":"0x3c47ffffffc0000c","id":"oc64","reading":"r0"},
     {"args":["0x3e10000000000000","0x4000000000000000","0x4008000000000000","0x3ff0000000000000"],"expected_bits":"0x3c57ffffff80000d","id":"oc70","reading":"r0"},
