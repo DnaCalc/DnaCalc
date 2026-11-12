@@ -67,8 +67,41 @@ impl Drop for PolicyScope {
     }
 }
 
-/// Apply the same policy while compiler resolution could load a native type library.
-pub(crate) fn compilation_scope() -> oxvba_com::ComPolicyScope {
+/// The registered libraries every Excel workbook with a VBA project lists: VBA, Excel, OLE
+/// Automation (stdole), Microsoft Office and Microsoft Scripting Runtime. Reading their metadata
+/// at compile time is a reference lookup of a fixed, well-known library, not a request by the
+/// project's code.
+const STANDARD_LIBRARIES: [&str; 5] = [
+    "000204ef-0000-0000-c000-000000000046",
+    "00020813-0000-0000-c000-000000000046",
+    "00020430-0000-0000-c000-000000000046",
+    "2df8d04c-5bfa-101b-bde5-00aa0044de52",
+    "420b2830-e718-11cf-893d-00a0c9054228",
+];
+
+/// Whether a library identity (with or without braces, any case) is a standard library.
+pub fn is_standard_library_guid(guid: &str) -> bool {
+    let guid = guid
+        .trim_matches(|c| c == '{' || c == '}')
+        .to_ascii_lowercase();
+    STANDARD_LIBRARIES.contains(&guid.as_str())
+}
+
+fn is_standard_library(reference: &oxvba_symbol::manifest::ProjectReference) -> bool {
+    use oxvba_symbol::manifest::ProjectReference as R;
+    matches!(reference, R::TypeLibrary { guid: Some(guid), .. } if is_standard_library_guid(guid))
+}
+
+/// Apply the same policy while compiler resolution could load a native type library, except when
+/// every reference is a standard library ([`STANDARD_LIBRARIES`]): a Windows file lists them all
+/// the time, and denying their metadata made `Safe` refuse every case of every such workbook.
+/// A reference to any other library, by name or by identity, is still denied and audited.
+pub(crate) fn compilation_scope(
+    references: &[oxvba_symbol::manifest::ProjectReference],
+) -> oxvba_com::ComPolicyScope {
+    if references.iter().all(is_standard_library) {
+        return oxvba_com::ComPolicyScope::unrestricted();
+    }
     wrap(oxvba_hal::adapters::builder::HostBuilder::new().build()).enter_com_policy()
 }
 

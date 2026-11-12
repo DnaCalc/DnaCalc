@@ -241,22 +241,5 @@
       "route": "module/jit"
     }
   },
-  "windows": {
-    "dna-examples/xlsm": {
-      "loaded": true,
-      "matched": 0,
-      "mismatched": 0,
-      "missing": 0,
-      "refused": 26,
-      "route": "xlsm"
-    },
-    "dna-simple/xlsm": {
-      "loaded": true,
-      "matched": 0,
-      "mismatched": 0,
-      "missing": 0,
-      "refused": 109,
-      "route": "xlsm"
-    }
-  }
+  "windows": {}
 }

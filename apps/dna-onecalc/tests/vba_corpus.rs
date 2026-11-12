@@ -262,14 +262,18 @@ fn route_name(route: Route) -> &'static str {
     }
 }
 
-/// Source triage cannot see a file's references. Windows resolves their type libraries
-/// during compilation, including stdole's metadata (its identity alone is portable).
+/// Source triage cannot see a file's references. Windows resolves their type libraries during
+/// compilation; the standard ones (VBA, Excel, stdole, Office, Scripting) are not a request by the
+/// project and need no capability (dc-tey4.1), any other reference is predicted as native access.
 fn predict_file_references(prediction: &mut Prediction, project: &calc_vba::OfficeProject) {
-    let mut references = project.com_references();
-    references.extend(project.references().iter().filter(|reference| {
-        reference.guid().as_deref() == Some("00020430-0000-0000-C000-000000000046")
-    }));
-    for reference in references {
+    for reference in project.references() {
+        if reference
+            .guid()
+            .as_deref()
+            .is_some_and(policy::is_standard_library_guid)
+        {
+            continue;
+        }
         prediction.capabilities.insert(Capability::ComActivate);
         prediction
             .details
@@ -299,12 +303,9 @@ fn file_reference_prediction_sees_ole_metadata_without_running_the_project() {
         assert!(prediction.capabilities.is_empty());
         predict_file_references(&mut prediction, &project);
         assert!(
-            prediction.capabilities.contains(&Capability::ComActivate),
-            "{name}"
-        );
-        assert!(
-            prediction.details[&Capability::ComActivate].contains("typelib stdole"),
-            "{name}"
+            prediction.capabilities.is_empty(),
+            "{name}: its references are standard libraries, {:?}",
+            prediction.details
         );
         assert_eq!(
             policy::drain_audit().total,
@@ -312,7 +313,7 @@ fn file_reference_prediction_sees_ole_metadata_without_running_the_project() {
             "prediction must not resolve the references"
         );
         println!(
-            "{name}: references {:?}; predicts native metadata access",
+            "{name}: references {:?}; predicts no native metadata access",
             project
                 .references()
                 .iter()
@@ -327,13 +328,8 @@ fn platform_baseline(baseline: &Value, windows: bool) -> Value {
         .as_object()
         .expect("shared corpus counts")
         .clone();
-    if windows {
-        counts.extend(
-            baseline["windows"]
-                .as_object()
-                .expect("Windows overrides")
-                .clone(),
-        );
+    if windows && let Some(overrides) = baseline["windows"].as_object() {
+        counts.extend(overrides.clone());
     }
     Value::Object(counts)
 }
@@ -483,9 +479,7 @@ fn run_project(dir: &Path, route: Route) -> Option<Outcome> {
                     match vba {
                         None => Err("the workbook holds no VBA project".to_owned()),
                         Some(vba) => {
-                            if cfg!(windows)
-                                && let Ok(project) = calc_vba::read_office_project(&vba.project)
-                            {
+                            if let Ok(project) = calc_vba::read_office_project(&vba.project) {
                                 predict_file_references(&mut prediction, &project);
                                 predicted_source = "lexical+references";
                             }
