@@ -2178,7 +2178,13 @@ fn act(ws: &Workspace, app: &App, session: &Session, action: &Action) -> Result<
                 if let Action::ValidationFixture(kind) = action {
                     if matches!(
                         *kind,
-                        "sort" | "sort-pointwise" | "sort-links" | "sort-periods" | "sort-rich"
+                        "sort"
+                            | "sort-pointwise"
+                            | "sort-links"
+                            | "sort-periods"
+                            | "sort-rich"
+                            | "filter-default-buttons"
+                            | "filter-invalid-boolean"
                     ) {
                         return fs::write(
                             session.downloads.join(format!("validation-{kind}.xlsx")),
@@ -4159,16 +4165,16 @@ mod tests {
             .map(|group| group.core)
             .sum();
         assert_eq!(
-            inherited_total, 400,
-            "the two applications retain 400 core cases, including image, Circular Reference and five rich/measured sorting cases"
+            inherited_total, 405,
+            "the two applications retain 405 core cases, including image, Circular Reference, sorting and imported filter cases"
         );
         assert_eq!(
-            total, 412,
-            "the twelve page-layout cases extend all 400 inherited core cases"
+            total, 417,
+            "the twelve page-layout cases extend all 405 inherited core cases"
         );
         assert_eq!(
-            current_total, 450,
-            "the other chart and pivot cases extend all 412 inherited core cases"
+            current_total, 455,
+            "the other chart and pivot cases extend all 417 inherited core cases"
         );
     }
 

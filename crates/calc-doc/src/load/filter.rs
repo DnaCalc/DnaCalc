@@ -10,6 +10,17 @@ fn known(e: &XmlElement, names: &[&str]) -> bool {
         .iter()
         .all(|a| a.name.namespace.is_none() && names.contains(&a.name.local.as_ref()))
 }
+fn boolean(e: &XmlElement, name: &str, default: bool, unsupported: &mut bool) -> bool {
+    match e.attribute(name) {
+        None => default,
+        Some("1" | "true") => true,
+        Some("0" | "false") => false,
+        _ => {
+            *unsupported = true;
+            default
+        }
+    }
+}
 fn rows(s: Option<&str>) -> Option<BTreeSet<u32>> {
     s?.split_whitespace().map(|s| s.parse().ok()).collect()
 }
@@ -69,6 +80,7 @@ pub(super) fn read(
             )
     });
     let mut manual = None;
+    let mut seen_columns = BTreeSet::new();
     loop {
         match events.next()? {
             Some(XmlEvent::Start(e)) if e.name.is(MAIN_NAMESPACE, "filterColumn") => {
@@ -77,13 +89,21 @@ pub(super) fn read(
                     .and_then(|s| s.parse::<u32>().ok())
                     .and_then(|n| c.checked_add(n))
                     .filter(|n| *n <= d);
-                filter.unsupported |= !known(&e, &["colId"]);
+                // CT_FilterColumn has optional criteria. Explicit normal button settings
+                // have the same semantics as omitted settings; other button states stay
+                // unread until the authored model and projection can retain them.
+                filter.unsupported |= !known(&e, &["colId", "hiddenButton", "showButton"])
+                    || !matches!(e.attribute("hiddenButton"), None | Some("0" | "false"))
+                    || !matches!(e.attribute("showButton"), None | Some("1" | "true"));
+                if let Some(col) = col {
+                    filter.unsupported |= !seen_columns.insert(col);
+                }
                 let mut criteria = None;
                 loop {
                     match events.next()? {
                         Some(XmlEvent::Start(e)) if e.name.is(MAIN_NAMESPACE, "filters") => {
                             filter.unsupported |= !known(&e, &["blank"]);
-                            let blank = matches!(e.attribute("blank"), Some("1" | "true"));
+                            let blank = boolean(&e, "blank", false, &mut filter.unsupported);
                             let mut values = Vec::new();
                             let mut groups = Vec::new();
                             loop {
@@ -221,7 +241,7 @@ pub(super) fn read(
                         }
                         Some(XmlEvent::Start(e)) if e.name.is(MAIN_NAMESPACE, "customFilters") => {
                             filter.unsupported |= !known(&e, &["and"]);
-                            let and = matches!(e.attribute("and"), Some("1" | "true"));
+                            let and = boolean(&e, "and", false, &mut filter.unsupported);
                             let mut predicates = Vec::new();
                             loop {
                                 match events.next()? {
@@ -282,8 +302,6 @@ pub(super) fn read(
                         if filter.columns.insert(col, criteria).is_some() {
                             filter.unsupported = true;
                         }
-                    } else {
-                        filter.unsupported = true;
                     }
                 } else {
                     filter.unsupported = true;
