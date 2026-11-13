@@ -1,4 +1,10 @@
+#[path = "../calc-object-model/src/descriptor.rs"]
+#[allow(dead_code)]
+mod descriptor;
+mod generate;
+
 fn main() {
+    generate::write();
     println!("cargo:rerun-if-changed=src/projection.cpp");
     println!("cargo:rerun-if-changed=src/projection-office.h");
     println!("cargo:rerun-if-changed=src/rtd.cpp");
