@@ -28,6 +28,10 @@ DnaTreeCalc, DnaOneCalc and the others) are read-only inputs: port from them, ne
   `std::fs`, `std::process`, `std::os` or `std::net`. Native-only packages refuse to compile for
   wasm32.
 - **Layering:** the layering rules in `tools/xtask/architecture.json` are checked mechanically.
+- **Language (owner, 2026-11-13):** product code is Rust. C or C++ appears only in test fixtures that stand
+  in for third-party add-ins, and in calc-xll-shim's variadic `Excel12` export (stable Rust cannot define a
+  C-variadic function). The C++ in `crates/calc-com-host` (`projection.cpp`, `projection-office.h`,
+  `rtd.cpp`) is to be replaced by the Rust object model; add nothing to it.
 
 ## Doing a work package
 
