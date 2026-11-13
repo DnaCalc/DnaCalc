@@ -48,6 +48,13 @@ fn count(report: &Value, key: &str) -> u64 {
 }
 
 #[test]
+fn version_is_the_workspace_version() {
+    let (_, code, text) = dnacalc(&["--version"]);
+    assert_eq!(code, 0);
+    assert_eq!(text.trim(), concat!("dnacalc ", env!("CARGO_PKG_VERSION")));
+}
+
+#[test]
 fn help_names_every_command_and_option() {
     let (_, code, text) = dnacalc(&["--help"]);
     assert_eq!(code, 0);
