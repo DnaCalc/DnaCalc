@@ -129,6 +129,42 @@ fn text_without_locale_uses_only_known_format_facts() {
     );
 }
 
+/// Excel 16.0.20527: literal mantissas, exponent literals, carry boundaries,
+/// signs and a numeric format converted to scientific text.
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn text_scientific_literal_mantissa() {
+    use calc_func::locale::{CalcEnvironment, DateSystem};
+    let env = CalcEnvironment::dates(DateSystem::System1900);
+    for (value, code, expected) in [
+        (0.0, "1E+00", "1E+00"),
+        (4.9, "1E+00", "1E+01"),
+        (4.99999999999999, "1E+00", "1E+01"),
+        (4.999999999999999, "1E+00", "1E+02"),
+        (5.0, "1E+00", "1E+02"),
+        (49.0, "1E+00", "1E+01"),
+        (99.0, "1E+00", "1E+03"),
+        (0.005, "1E+00", "1E-01"),
+        (0.005, "1E-201", "1E-211"),
+        (-5.0, "-1E+100", "--1E+102"),
+        (5.0, "12E+3400", "12E+3402"),
+        (5e50, "1E+00", "1E+52"),
+    ] {
+        text(
+            call_in(&env, None, None, "TEXT", vec![n(value), t(code)]),
+            expected,
+        );
+    }
+    text(
+        call_in(&env, None, None, "TEXT", vec![n(0.5), n(1e-100)]),
+        "1E101",
+    );
+    text(
+        call_in(&env, None, None, "TEXT", vec![n(12.34), n(1e100)]),
+        "1E+101",
+    );
+}
+
 /// Excel 16.0.20430, recorded typed Value2 observations, not legacy expected values:
 /// OxFunc-Evidence/runs/w111-broad-typed-20260929-002/outcomes/excel.jsonl.gz, cases
 /// w111typed-00266-textafter-arg1-empty-text, -00274-textbefore-arg1-empty-text and

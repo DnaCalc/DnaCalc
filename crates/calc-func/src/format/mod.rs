@@ -95,6 +95,76 @@ pub(crate) fn plain_decimal_code(code: &str) -> bool {
         && fraction.bytes().all(|c| c.is_ascii_digit())
 }
 
+/// A scientific code with literal digits instead of mantissa placeholders.
+fn literal_scientific_parts(code: &str) -> Option<(&str, bool, &str)> {
+    let (mantissa, exponent) = code.split_once('E')?;
+    let digits = mantissa.strip_prefix('-').unwrap_or(mantissa);
+    if digits.is_empty() || !digits.bytes().all(|c| (b'1'..=b'9').contains(&c)) {
+        return None;
+    }
+    let (plus, exponent) = match exponent.as_bytes().first()? {
+        b'+' => (true, &exponent[1..]),
+        b'-' => (false, &exponent[1..]),
+        _ => return None,
+    };
+    if !exponent.contains('0') || !exponent.bytes().all(|c| c.is_ascii_digit()) {
+        return None;
+    }
+    Some((mantissa, plus, exponent))
+}
+
+pub(crate) fn literal_scientific_code(code: &str) -> bool {
+    literal_scientific_parts(code).is_some()
+}
+
+/// Excel 16.0.20527 controls for literal mantissas: rounding the 15-digit
+/// number to zero significant places carries when its leading digit is at
+/// least five. Without a carry the exponent is one; with a carry it is one
+/// beyond the decimal point. Zero has exponent zero. Literal digits in the
+/// exponent stay in place while its zero placeholders hold the exponent.
+fn literal_scientific(profile: &FormatProfile, value: f64, code: &str) -> Rendered {
+    let (mantissa, plus, pattern) = literal_scientific_parts(code).ok_or(Failure::NotModelled)?;
+    let exponent = if value == 0.0 {
+        0
+    } else {
+        let decimal = fifteen(value.abs());
+        let digits = decimal.coefficient.digits();
+        if digits.as_bytes()[0] >= b'5' {
+            digits.len() as i64 + decimal.exponent as i64 + 1
+        } else {
+            1
+        }
+    };
+    let items: Vec<Item> = pattern
+        .chars()
+        .map(|c| {
+            if c == '0' {
+                Item::Digit(c)
+            } else {
+                Item::Literal(c.to_string())
+            }
+        })
+        .collect();
+    let refs: Vec<&Item> = items.iter().collect();
+    let whole = if exponent == 0 {
+        String::new()
+    } else {
+        exponent.abs().to_string()
+    };
+    let shown = integer_part(profile, &whole, &refs, false)?;
+    let sign = if exponent < 0 {
+        "-"
+    } else if plus {
+        "+"
+    } else {
+        ""
+    };
+    Ok(format!(
+        "{}{mantissa}E{sign}{shown}",
+        if value < 0.0 { "-" } else { "" }
+    ))
+}
+
 /// The magnitude of `x` rounded to 15 significant digits and then to `places` decimal places
 /// (negative places round to tens, hundreds and so on), a half away from zero, as its integer
 /// digits (no leading zero; empty for zero) and exactly `max(places, 0)` decimal digits.
@@ -1712,6 +1782,9 @@ pub(crate) fn text(
     // produce empty text. This is specific to TEXT's empty code.
     if code.is_empty() && value.is_finite() {
         return Ok(if value < 0.0 { "-" } else { "" }.to_owned());
+    }
+    if value.is_finite() && literal_scientific_code(code) {
+        return literal_scientific(profile, value, code);
     }
     render_text(&localized_code_profile(profile), system, value, code)
 }

@@ -151,7 +151,11 @@ fn text(site: &Site<'_>, a: &[CalcValue]) -> Step<CalcValue> {
         let known_decimal = site.number_separators().is_some_and(|(decimal, group)| {
             decimal == "." && group != "." && format::plain_decimal_code(&code)
         });
-        if code.is_empty() || format::integer_code(&code) || known_decimal {
+        if code.is_empty()
+            || format::integer_code(&code)
+            || known_decimal
+            || format::literal_scientific_code(&code)
+        {
             let number = site.number_argument(0, &a[0])?;
             let system = site
                 .environment()
